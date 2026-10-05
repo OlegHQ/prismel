@@ -324,5 +324,67 @@ let run_autosave2 () =
   E2.close !e;
   remove_tree dir
 
-let run () = run_files (); run_find (); run_editor (); run_autosave (); run_autosave2 ();
+(* The start keywords (flow.md 11.11) through the two routes that replace the document from a
+   file: a changed keyword is followed, an unchanged one leaves what the user chose in the UI. *)
+let run_start_keywords () =
+  let dir = directory () in
+  let file = Filename.concat dir "sketch.rays" and presets = Filename.concat dir "presets" in
+  let text ?(radius = "0.5") view tab = Printf.sprintf {|(workspace w
+  (graph g :context sop []
+    (sop/uv_sphere :radius %s :segments 8 :rings 4))
+  (graph scene :context scene (scene/merge (scene/geometry (ref g))))
+  (graph editor :context editor
+    (let* [net (ui/graph "g" :view "%s" :focus true)
+           code (ui/lisp :tab "%s")]
+      (ui/workspace (ui/split "horizontal" net code)))))
+|} radius view tab in
+  let first = text "list" "graph" in
+  write file first;
+  let e = ref (editor ~presets ~source:(Source.at ~file ~digest:(sha first)) first) and count = ref 0 in
+  let step ?keys events =
+    incr count; e := E3.update !e (Test_editor_input.frame ?keys (100., 300.) events !count) in
+  let run_for seconds = for _ = 1 to int_of_float (seconds *. 60.) do step [] done in
+  let line = Test_workspace_shell.dump_line in
+  let show_graph () =
+    step [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l') ];
+    step [ Event.KeyPressed (Input.KeyChar 'g') ]; step [] in
+  step []; step [];
+  check (line !e "projection" = "list" && has (line !e "panels") "lisp code: graph tab")
+    ("the sketch opens as its keywords say: " ^ line !e "projection" ^ " / " ^ line !e "panels");
+  (* a reload that leaves the keywords alone leaves the view the user chose *)
+  show_graph ();
+  check (line !e "projection" = "graph") "Space l g did not show the graph";
+  write file (text ~radius:"0.7" "list" "graph");
+  run_for 1.; step [];
+  check (E3.undo_label !e = Some "Reload sketch.rays" && has (source_text !e) "0.7") "the file did not reload";
+  check (line !e "projection" = "graph") "a reload that left :view alone reset the view the user chose";
+  (* a reload that changes them is followed *)
+  write file (text ~radius:"0.7" "text" "document");
+  run_for 1.; step [];
+  check (line !e "projection" = "text" && has (line !e "panels") "lisp code: document tab")
+    ("a reload did not follow the changed keywords: " ^ line !e "projection" ^ " / " ^ line !e "panels");
+  (* a preset: saved with :view "text", loaded over a document that says "list" *)
+  step [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 's') ];
+  step [ Event.KeyPressed Input.Enter ]; step [];
+  let name = match Editor_document.Preset.list ~directory:presets with
+    | [ (name, _) ] -> name | _ -> fail "Space s did not save one preset" in
+  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+    node = [ "editor"; "net" ]; key = Kw "view"; sub = []; value = Flow.Syntax.make (Str "list") }));
+  step []; step [];
+  check (line !e "projection" = "list") "an edit of :view was not followed";
+  let load () =
+    step [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b') ];
+    step [ Event.TextInput name; Event.KeyPressed Input.Enter ]; step []; step [] in
+  load ();
+  check (E3.undo_label !e = Some "Load preset" && line !e "projection" = "text")
+    ("a preset load did not follow its :view: " ^ line !e "projection");
+  (* the same preset again changes no keyword: the user's view stays *)
+  show_graph ();
+  load ();
+  check (E3.undo_label !e = Some "Load preset" && line !e "projection" = "graph")
+    "a preset load that left :view alone reset the view the user chose";
+  E3.close !e;
+  remove_tree dir
+
+let run () = run_files (); run_find (); run_editor (); run_autosave (); run_autosave2 (); run_start_keywords ();
   print_endline "workspace source tests passed"

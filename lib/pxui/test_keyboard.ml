@@ -13,7 +13,7 @@ type model = { clicks : int; enabled : bool; choice : int; amount : float;
   count : int; range : float * float; point : float * float; text : string }
 
 let run () =
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   Fun.protect ~finally:(fun () -> Ui.destroy ui) (fun () ->
     let model = ref { clicks = 0; enabled = false; choice = 0; amount = 0.5;
       count = 2; range = 0.2, 0.8; point = 0.5, 0.5; text = "old" } in

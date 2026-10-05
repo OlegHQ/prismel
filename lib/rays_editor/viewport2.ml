@@ -50,6 +50,7 @@ let on_view core ~previous:_ ~key:_ camera () ~time:_ = core, camera, ()
 let view_camera camera () ~key:_ ~pending:_ = camera
 let film () ~key:_ viewport = viewport
 let render () ~pixel_scale:_ ~focus:_ _ = ()
+let header_tools () = None
 let caption () ~key:_ = None
 let render_status () = None
 let paint () ~key:_ viewport camera rendered = Easy_camera2.scene ~viewport camera rendered

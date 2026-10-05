@@ -5233,3 +5233,45 @@ dune exec tools/bench_material_assign.exe -- 100000 4
 The benchmark assigns one surface over repeated valid triangle primitives;
 it measures only the assignment, including its packed output allocation and
 metadata validation. It does not measure Boolean cooking or rendering.
+
+### Editor frame by panel instances (2026-10-05)
+
+`dune exec tools/bench_rays_editor.exe -- --panels 200 800 2000` (window-free, `SDL_VIDEODRIVER=dummy`,
+one domain, 300 idle frames with the pointer moving over the viewport; median seconds and bytes
+allocated per `Editor3.update`). Layouts differ only in the number of graph panels (a tile over one
+graph) and inspectors.
+
+| Layout | 200 nodes | 800 nodes | 2000 nodes |
+|---|---|---|---|
+| 1 graph, 1 inspector | 1.33 ms, 5.3 MB | 4.88 ms, 17.1 MB | 6.95 ms, 25.6 MB |
+| 3 graphs, 1 inspector | 2.58 ms, 9.8 MB | 7.01 ms, 27.0 MB | 11.7 ms, 48.2 MB |
+| 1 graph, 2 inspectors | 1.50 ms, 5.7 MB | 5.28 ms, 17.5 MB | 7.05 ms, 26.1 MB |
+| 3 graphs, 2 inspectors | 2.78 ms, 10.2 MB | 7.29 ms, 27.4 MB | 12.1 ms, 48.7 MB |
+
+A second inspector costs 0.1 to 0.4 ms. Each further graph panel costs its own canvas, linear in
+panels.
+
+The one-graph idle frame was 3.09 ms / 16.0 ms / 23.6 ms (200 / 800 / 2000 nodes) before two fixes
+found by sampling it (`sample <pid>` on the running bench):
+
+- `Pxui.Ui.hit_within` walked the hovered box's ancestors with one linear scan of the hit list per
+  step, and every card, port and wire of a canvas asks it (`Ui.hovered_within`): quadratic in cards,
+  41% of the frame at 800 nodes. The chain of the last key asked about is kept until the hit list is
+  rebuilt: 16.0 to 9.8 ms.
+- `Pxui.Theme.ports` parsed eight `#rrggbb` texts per call and the canvas calls it per port: the two
+  palettes are parsed once. 9.8 to 5.1 ms.
+
+`rays_editor_drag_frame` (`dune exec tools/bench_rays_editor.exe -- 200 1000 2000`) is 1.58 / 6.49 /
+10.1 ms after them; at 200 nodes it was 4.0 ms.
+
+The bench graph is layers of `sop/switch`, not `sop/merge`: a merge of two nodes of the layer
+before doubles the geometry every layer, 2^30 points at 2000 nodes (1.45 GB of heap after the first
+awaited frame at 1200 nodes, and the process killed at 2000). The drag bench also takes a card from
+any layer, since a graph this wide opens with its last layer outside the pane.
+
+What a frame still pays per card, whether it changed or not (25 MB allocated per idle frame at 2000
+nodes), in the order the sampler shows it: the major GC marking that garbage, polymorphic compare,
+the batch's quads for every card and wire, the wire segments, `Printf` for box keys and labels, the
+key hashing. Removing those means culling cards outside the pane before they are built and keeping
+a card's boxes and wire geometry between frames, which is a change to `Pxui_graph.Scope`'s frame
+model and was not started here.

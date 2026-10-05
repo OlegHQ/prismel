@@ -11,15 +11,22 @@
 
     Structure comes from the authored syntax (the keys and the notes live
     there); types, liveness and loop invariance come from the checker.
+    A call of a node kind written in an input ({!Flow_edit.node_call}: the steps of a
+    [->], a call inside a call) is a node like a bound one, placed before the node that
+    holds it and wired to its row; its path ends in {!Flow_edit.nested_leaf} and it has
+    no binding until it is renamed.
     ponytail: only bound loops, [let*] scopes and [fn]s are zones; an inline
-    one is a chip until it is unfolded ({!Flow_edit.Unfold}). *)
+    one is a chip until it is unfolded ({!Flow_edit.Unfold}), as are expressions, [ref]s
+    and calls of functions and macros. *)
 
 type path = Flow.Workspace.path
 
 type chip =
   | No_value  (** nothing written: the row shows its default *)
   | Const  (** a number, text, flag or vector: the row's [expr] is scrubbable *)
-  | Name of string  (** a wire from a binding, loop variable or input ([a], [a.field]) *)
+  | Name of string
+      (** a wire from a binding, loop variable or input ([a], [a.field]), or from the nested
+          node written in the row (its leaf; the row's [expr] is still the call) *)
   | Inline of { glyph : string; text : string }
       (** a nested call [ƒ], loop [for] / [Σ] / [⟲], function [λ], record
           [{}] or macro call [◆], with its flat Lisp text *)
@@ -66,7 +73,8 @@ type lens = { steps : string array; error : string option; template : string }
 
 type node = {
   path : path;
-  name : string;  (** the binding's text; [@result] for a synthetic result node *)
+  name : string;
+      (** the binding's text; [@result] for a synthetic result node; the leaf of a nested node *)
   binds : string list;  (** the names it declares: [name], or a pattern's names *)
   head : string;  (** [record], [number], [link], [vector], a call head, a zone keyword *)
   rows : row list;  (** empty for a zone *)
@@ -107,6 +115,16 @@ and result =
 val of_graph : Flow.Check.catalog -> Flow.Workspace.t -> string -> scope
 (** The root scope of a graph or, for ["def:name"] or a [defn] name, of a
     definition.  Raises [Invalid_argument] when there is none. *)
+
+val anonymous : node -> bool
+(** A nested node: a call written in an input, with no binding. *)
+
+val title : node -> string
+(** What the card is called: the binding, [result], or the kind of a nested node. *)
+
+val sources : row -> string list
+(** The names a row is wired from: the nested node written in it, else every name its
+    expression reads. *)
 
 val bypassable : node -> bool
 (** A call whose first input fits its result, or one already bypassed: it can carry the

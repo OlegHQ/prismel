@@ -20,7 +20,10 @@ type show = { cameras : bool; axes : bool; handles : bool }
    active camera node's view and the free viewport's view with its lens
    (both refreshed each update, the latter physically stable while
    unchanged so hidden-scene caching holds), and the guides. *)
-type extra = { look_through : bool; fly : float option; relative_grab : bool;
+type extra = { looking : string list;  (* the viewports that look through their render camera, by key *)
+               key : string;  (* the focused viewport: the one the toggle and the navigation mean *)
+               started : string list;  (* the [:look_through true] viewports last followed *)
+               fly : float option; relative_grab : bool;
                document_camera : Camera.t;  (* the ACTIVE camera's view: a viewport with no root of its own *)
                view_roots : (string * Document.view_root) list;  (* the viewports with a root of their own *)
                free_view : Camera.t; viewing : Easy_camera.t;  (* the orbit camera [free_view] shows *)
@@ -144,10 +147,22 @@ let renderer_setting core = List.find_map (fun (field : Parameter.field_view) ->
   | "renderer", Parameter.Choice_value label -> Renderer.of_label label
   | _ -> None) (Settings.fields (Core.settings core))
 
+let looks extra key = List.mem key extra.looking
+let look_through extra = looks extra extra.key
+let set_look extra on =
+  { extra with looking = (if on then [ extra.key ] else []) @ List.filter (( <> ) extra.key) extra.looking }
+
 let init core camera =
   let core = sync_cameras ~mode:`Reset core camera in
   let render_camera = render_camera_of core camera in
-  core, { look_through = false; fly = None; relative_grab = false; document_camera = render_camera;
+  (* the viewports whose [:look_through true] says so; the focus starts in the first viewport *)
+  let looking = Option.fold ~none:[] ~some:(fun (s : Document.shell) -> s.start.looking) core.Core.doc.shell in
+  let key = match core.Core.focus, Option.map (fun (s : Document.shell) -> Editor_core.Panels.leaves s.tree) core.doc.shell with
+    | View key, _ -> key
+    | _, Some leaves -> Option.value ~default:"main"
+        (List.find_map (function _, Editor_core.Panels.View key -> Some key | _ -> None) leaves)
+    | _, None -> "main" in
+  core, { looking; key; started = looking; fly = None; relative_grab = false; document_camera = render_camera;
           view_roots = core.doc.view_roots;
           free_view = free_view_of ~render_camera ~previous:None camera; viewing = camera;
           free_camera = render_camera; root = core.doc.root; root_request = None;
@@ -173,7 +188,7 @@ let panel ui ~control ~camera ~extra ~inspector =
   let extra = Option.value ~default:extra
       (Pxui.Ui.inspector_section ui ~key:"Viewport" ~expanded:true "Viewport" (fun () ->
         let toggle label value = Pxui.Ui.inspector_toggle ui ~key:label ~label value in
-        let look_through = toggle "Look through render camera" extra.look_through in
+        let through = toggle "Look through render camera" (look_through extra) in
         (* The ACTIVE camera's own parameter, here so a look-through can be
            set up by orbiting: on, the viewport drives the camera. *)
         let follow_request = match extra.following with
@@ -184,7 +199,7 @@ let panel ui ~control ~camera ~extra ~inspector =
         let cameras = toggle "Cameras and lights" extra.show.cameras in
         let axes = toggle "Axis gizmo" extra.show.axes in
         let handles = toggle "Selected node handles" extra.show.handles in
-        { extra with look_through; follow_request; show = { cameras; axes; handles } })) in
+        { (set_look extra through) with follow_request; show = { cameras; axes; handles } })) in
   let control, camera, requests = CC.widgets control ui ~camera in
   (* the scene's root: renderer, size and samples *)
   let root = Option.value ~default:extra.root
@@ -195,7 +210,7 @@ let panel ui ~control ~camera ~extra ~inspector =
   control, camera, requests, extra, inspector ui
 
 let section camera extra =
-  let form = Editor_core.Store.Viewport.encode3 camera ~look_through:extra.look_through in
+  let form = Editor_core.Store.Viewport.encode3 camera ~look_through:(look_through extra) in
   match form.Flow.Syntax.node with
   | Map fields -> {form with node = Map (fields @
       [{form with node = Kw "renderer"}; {form with node = Str (Renderer.label
@@ -207,15 +222,18 @@ let restore camera extra json =
     | {Flow.Syntax.node = Kw "renderer"; _} :: {node = Str label; _} :: _ -> Renderer.of_label label
     | _ :: _ :: rest -> find rest | _ -> None in
   let mode = match json.Flow.Syntax.node with Map fields -> find fields | _ -> None in
-  camera, { extra with look_through; renderer_request = mode }
+  camera, { (set_look extra look_through) with renderer_request = mode }
 
 let apply_action camera extra = function
   | Leader.Tool 0 -> { extra with tool = No_tool }, Some "Orbit (handles hidden)"
-  | Tool 1 -> { extra with tool = Move }, Some "Translate (W)"
+  | Leader.Tool 1 -> { extra with tool = Move }, Some "Translate (W)"
   | Tool 2 -> { extra with tool = Turn }, Some "Rotate (E)"
   | Tool 3 -> { extra with tool = Grow }, Some "Scale (R)"
-  | Leader.Look_through -> { extra with look_through = not extra.look_through }, None
-  | Leader.Look_through_camera -> { extra with look_through = true }, None
+  | Leader.Look_through -> set_look extra (not (look_through extra)), None
+  | Leader.Look_through_camera -> set_look extra true, None
+  (* the header's tabs: the same request as the Scene root section's renderer row *)
+  | Leader.Render_mode index ->
+      { extra with root_request = Some { extra.root with renderer = List.nth [ Objects.Root.Raster; Wireframe; Path_traced ] (max 0 (min 2 index)) } }, None
   | Fly when extra.fly = None ->
       set_relative true;
       { extra with fly = Some (Float.max 0.5 (Easy_camera.distance camera *. 0.5)) },
@@ -231,7 +249,7 @@ let navigate ~area control camera extra core ~(raw_frame : Frame.t) ~(input : Fr
   let active = active_node core in
   let following = Option.fold ~none:false ~some:follows active in
   (* A fixed render camera owns the view while look-through is enabled. *)
-  if extra.look_through && active <> None && not following then camera, extra
+  if look_through extra && active <> None && not following then camera, extra
   else match extra.fly with
     | Some speed ->
         let camera, speed = Easy_camera.fly ~speed camera
@@ -316,7 +334,13 @@ let on_view core ~previous ~key camera extra ~time =
     view_roots = core.Core.doc.view_roots } in
   (* the focused viewport's free view carries the lens of its own camera *)
   let free_camera = (look extra key).through in
-  core, camera, { extra with free_camera;
+  (* a viewport whose [:look_through] changed in the text follows it; the others stay as they are *)
+  let said = Option.fold ~none:[] ~some:(fun (s : Document.shell) -> s.start.looking) core.Core.doc.shell in
+  let extra = if said = extra.started then extra else
+    { extra with started = said;
+      looking = List.filter (fun k -> List.mem k said || List.mem k extra.started = List.mem k said) extra.looking
+                @ List.filter (fun k -> not (List.mem k extra.started) && not (List.mem k extra.looking)) said } in
+  core, camera, { extra with key; free_camera;
     free_view = free_view_of ~render_camera:free_camera ~previous:(Some extra.free_view) camera;
     viewing = camera; following = Option.map follows (active_node core);
     follow_request = None; written = !written }
@@ -327,7 +351,7 @@ let on_view core ~previous ~key camera extra ~time =
    unless the node follows the viewport. *)
 let view_camera camera extra ~key ~pending =
   let { through; _ } = look extra key in
-  if extra.look_through || pending then through
+  if looks extra key || pending then through
   else if camera == extra.viewing && through == extra.free_camera then extra.free_view
   else free_view_of ~render_camera:through ~previous:None camera  (* another viewport's own orbit *)
 
@@ -341,7 +365,7 @@ let pick_ray ~viewport view at =
    while its tracer renders: the film covers the gate and nothing outside it.  A sketch's own
    renderer ([custom]) keeps the whole pane. *)
 let gated extra key =
-  extra.look_through
+  looks extra key
   || (not extra.renderer.custom && of_root (look extra key).settings.renderer = Renderer.Path_traced)
 
 let film extra ~key (x, y, width, height) =
@@ -371,6 +395,8 @@ let render extra ~pixel_scale:(scale_x, scale_y) ~focus views =
     ~mode:extra.renderer.mode ~custom:extra.renderer.custom ~focus views}
 
 (* A traced viewport's header: the root's resolution, the film's step of it and the samples *)
+let header_tools extra =
+  Some (look_through extra, match extra.renderer.mode with Renderer.Raster -> 0 | Wireframe -> 1 | Path_traced -> 2)
 let caption extra ~key =
   let { settings; _ } = look extra key in
   Option.map (Renderer.caption ~resolution:(settings.width, settings.height))
@@ -401,9 +427,11 @@ let compose ~scene ~world pieces =
 
 let axes = [| Vec3.create 1. 0. 0.; Vec3.create 0. 1. 0.; Vec3.create 0. 0. 1. |]
 let axis_names = [| "x"; "y"; "z" |]
-let axis_colors = Array.map Color.hex_exn [| "#e5484d"; "#46a758"; "#3e63dd" |]
-let guide_color = Color.hex_exn "#a1a1aa"
-let active_color = Color.hex_exn "#f5d90a"
+(* kit rev 3: the axes wear port colours (x bool, y int, z float), guides are ink-3 and the
+   active camera and the lights the accent *)
+let axis_colors = Array.map Color.hex_exn [| "#b0435f"; "#3b7d4e"; "#285f77" |]
+let guide_color = Color.hex_exn "#8f9492"
+let active_color = Color.hex_exn "#f0481f"
 
 let project bounds camera point = Option.map (fun (screen : Vec3.t) ->
   screen.x, screen.y) (Camera.world_to_screen ~viewport:bounds camera point)
@@ -550,7 +578,7 @@ let gizmo (x, y, _, height) view =
     let tip = cx +. d.x *. 28., cy -. d.y *. 28. in
     [line ~width:2 axis_colors.(axis) (cx, cy) tip;
      Scene.text ~at:(Float.to_int (fst tip) + 2, Float.to_int (snd tip) - 6)
-       ~color:axis_colors.(axis) ~size:11 axis_names.(axis)]))
+       ~color:axis_colors.(axis) axis_names.(axis)]))
 
 (* A light object: a marker at its position, a line to its target. *)
 let light_guide bounds view color (light : Light.t) =

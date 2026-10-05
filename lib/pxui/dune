@@ -19,8 +19,10 @@
 
 (rule
  (aliases runtest test_ui)
+ ; pointer positions in the text tests assume the golden face's advance
  (action (setenv SDL_VIDEODRIVER dummy
-  (run %{exe:test_main.exe} test_ui))))
+  (setenv RAYS_UI_FONT %{dep:../../assets/fonts/DepartureMono-Regular.otf}
+   (run %{exe:test_main.exe} test_ui)))))
 
 (rule
  (aliases runtest test_input)

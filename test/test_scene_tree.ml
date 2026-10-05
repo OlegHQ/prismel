@@ -177,7 +177,9 @@ let run () =
   check (not (contains (source env) ":visible false")) "undo left the hidden flag in the text";
   (* Nor does dragging an object transform slider in the inspector (undo
      itself re-cooks, so let that settle first): rows are 24 points and
-     Translate X follows the node header, input source and folder. *)
+     Translate X follows the node header (85 at the test's 11 points), the Inputs section and
+     its row, and the folder's section; its label takes a row of its own in this narrow panel,
+     the control the next. *)
   let env = List.fold_left (fun env _ -> step env []) env (List.init 40 Fun.id) in
   let cooked = Atomic.get cooks in
   let rec select_up name env tries =
@@ -189,11 +191,13 @@ let run () =
   (match Sys.getenv_opt "RAYS_UI_PREVIEW" with
    | None -> ()
    | Some directory ->
-       Sketch.export ~directory ~prefix:"scene-inspector" ~frames:1
-         ~config:{Sketch.default_config with width=900; height=640}
-         (fun _ -> E.scene env (frame 0)));
+       (* window-free: the editor's scene into an offscreen canvas *)
+       let canvas = Canvas.create_exn ~width:900 ~height:640 in
+       Canvas.render canvas (E.scene env (frame 0));
+       ignore (Canvas.save_png canvas (Filename.concat directory "scene-inspector.png"));
+       Canvas.destroy canvas);
   let ix, iy, iw, _ = (E.panes env (frame 0)).inspector in
-  let slider x = ix + (iw * 70 / 100) + x, iy + 171 in
+  let slider x = ix + (iw * 70 / 100) + x, iy + 225 in
   let at (x, y) = float x, float y in
   let translate_x env = Option.bind (E.selected_node env) (fun node ->
       List.find_map (fun (field : Parameter.field_view) ->

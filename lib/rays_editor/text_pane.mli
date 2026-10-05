@@ -112,4 +112,4 @@ type intent =
   | Carry_over of int * bool
       (** a payload is held over the text at this byte of the shown text; [true] on the frame it is released *)
 
-val view : Pxui.Ui.t -> bounds:int * int * int * int -> vocab:Lisp_text.vocab -> names:Lisp_text.names -> state -> shown -> intent list
+val view : Pxui.Ui.t -> bounds:int * int * int * int -> ?tabs_inset:float -> vocab:Lisp_text.vocab -> names:Lisp_text.names -> state -> shown -> intent list

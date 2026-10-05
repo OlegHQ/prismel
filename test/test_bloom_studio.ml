@@ -21,7 +21,7 @@ let factories = Sop_catalog.Editor.factories
 let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.get_ok
 
 (* tall enough to show the whole Navigator without scrolling *)
-let width = 1400 and height = 1400
+let width = 1600 and height = 1400
 let frame ?(buttons = []) ?(keys = []) mouse events count =
   { (Test_editor_input.frame ~buttons ~keys mouse events count) with
     width; height; size = width, height; drawable_width = width; drawable_height = height;
@@ -135,10 +135,12 @@ let run () =
     "a search shows the matching bindings";
   (* the toolbar: Defn makes a reusable function from the selection, as the D key does *)
   let header = (graph_leaf ()).header in
-  (* the header names the route taken, scene > flower after the clicks above *)
-  let from = Bars.tools_from ("Graph network  " ^ dump_line !e "route") in
+  (* the header names the route taken as a breadcrumb, scene / flower after the clicks above,
+     and ends with the graph's context *)
+  let from = Bars.tools_from ("Graph "
+    ^ String.concat " / " (List.map String.trim (String.split_on_char '>' (dump_line !e "route"))) ^ " / sop") in
   let tool t = match Bars.tool_rect ~header ~from t with
-    | Some (x, y, w, h) -> x +. (w /. 2.), y +. (h /. 2.) | None -> fail "the toolbar is cut off" in
+    | Some (x, y, w, h) -> x +. (w /. 2.), y +. (h /. 2.) | None -> let hx, _, hw, _ = header in fail (Printf.sprintf "the toolbar is cut off (header %d+%d, tools from %.0f)" hx hw from) in
   let before = source !e in
   click (row_centre "heart");
   check (dump_line !e "scope selected" = "flower/heart") "the heart is selected";

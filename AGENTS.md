@@ -19,7 +19,11 @@ typed canvas with value ports, drives, compounds, graph/list/text views and a
 checked Lisp text form. `specification/flow.md` is the normative design and
 `specification/flow-migration.md` the completed M1–M7 implementation log.
 Work on `pxui_graph`, the graph pane, parameter drives, value nodes, compounds
-or sketch Lisp follows those files. `specification/flow/prototype/` is an HTML behavioral reference to open
+or sketch Lisp follows those files. Everything the Lisp can say is drawn in the graph and edited
+there directly: a call of a node kind is a card whether it is bound in a `let*`, written inside
+another call or a step of a `->` (a nested node, path leaf `holder#input`), and its inputs are rows
+the pane edits in place. New syntax or sugar ships with its graph projection, its `Flow_edit`
+gestures and a test, never as text-only. `specification/flow/prototype/` is an HTML behavioral reference to open
 in a browser, never product code and never a web fallback.
 
 ## Libraries
@@ -178,8 +182,13 @@ contract: `lib/rdk/AGENTS.md`.
 keep their values in the immutable model, destroy the handle in `on_stop`.
 Every host shares its capture, focus, hit list, and renderer; never add a
 second hit-test, capture, text-entry, or painting path. New widgets are
-functions over `Ui.box`/`Ui.signal`/`Ui.draw`. UI code returns intents and does
+functions over `Ui.box`/`Ui.signal`/`Ui.draw`, drawn with the kit's tokens and marks (rev 3,
+`specification/pxui.md`: `Pxui.Theme` inks, lines and fills, `Ui.Paint.cap`/`brackets`/`chevron`,
+`Pxui_shell.Kit.button`/`segments`): a field is a value on a hairline, a button is its text, no
+radius, shadow or ink fill. `tools/ui_shot.exe FILE.rays OUT.png` renders an editor without a
+window; `sketches/ws_layout` is the layout the design reference is compared with. UI code returns intents and does
 not mutate the model during `Ui.frame`. A drag that carries a value between panes is `Ui.carry` / `Ui.drop_target` (one payload on the handle,
 no second hit-test or capture); `specification/flow.md` §7.12. Preserve the design kit (`Pxui.Theme`,
-DepartureMono, 24-point rows) pixel for pixel; `lib/pxui/test_ui_parity`
-guards it. Host and editor rules: `lib/rays_editor/AGENTS.md`.
+Pragmasevka, 24-point rows and bars, 20-point controls); `lib/pxui/test_ui_parity` guards it pixel for pixel
+against goldens this kit drew with DepartureMono (the test sets `RAYS_UI_FONT`; refresh them only for a
+design change, with `RAYS_UPDATE_FIXTURES=<dir>`). Host and editor rules: `lib/rays_editor/AGENTS.md`.

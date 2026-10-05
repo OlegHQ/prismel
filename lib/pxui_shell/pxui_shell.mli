@@ -9,7 +9,7 @@ module Layout : sig
   type axis = Editor_core.Panels.axis
   type t = Editor_core.Panels.t =
     | Leaf of panel
-    | Split of { axis : axis; ratio : float; a : t; b : t }
+    | Split of { axis : axis; size : Editor_core.Panels.size; a : t; b : t }
     | Tile of t list
     | Float of t
   type path = int list
@@ -17,26 +17,39 @@ module Layout : sig
 
   val default : t
 
+  val header_height : int
+  (** One unit, 24 points: a panel header, the status strip, a docked timeline. *)
+
   type leaf = { path : path; panel : panel; header : bounds; body : bounds; floating : bool }
-  (** One panel: its 22-point header and the body below it.  The body of the
-      first viewport stops above the status strip. [floating] covers both authored
+  (** One panel: its 24-point header and the body below it.  A docked timeline has no
+      header: it is its strip. [floating] covers both authored
       [Float] trees and panels undocked through saved window state. *)
 
-  type splitter = { node : path option; axis : axis; bounds : bounds; start : int; span : int }
-  (** A gutter.  [node] is the split it resizes (none for a tile's fixed gutters);
-      [start] and [span] are the extent, along [axis], of the columns that split
-      divides, so a pointer position maps to a ratio. *)
+  type splitter = { node : path option; axis : axis; size : Editor_core.Panels.size; bounds : bounds;
+                    start : int; span : int }
+  (** A gutter.  [node] is the split it resizes (none for a tile's fixed gutters) and [size]
+      what that split is sized by; [start] and [span] are the extent, along [axis], of the
+      columns that split divides, so a pointer position maps to a ratio or to the points of
+      the fixed side. *)
+
+  val sides : splitter -> int * int
+  (** The points its split gives each side now, along the axis. *)
+
+  val resized : splitter -> [ `Ratio | `First | `Second ] -> Editor_core.Panels.size
+  (** The split sized another way, keeping what it shows: by ratio, or with one side fixed. *)
 
   type geometry = { leaves : leaf list; splitters : splitter list; status_at : bounds;
                     timeline_at : bounds }
   (** Leaves in tree order, floats last (drawn over the rest). *)
 
   val geometry : ?state:(path -> Editor_core.Panels.state) -> ?hidden:panel list -> t -> Rays.Frame.t -> geometry
-  (** [top] (default 0) points are left above the tree for a host bar.
-      [hidden] (default the timeline) panels vanish; a hidden viewport keeps a
-      28-point strip with its expand button.  The timeline strip sits under the
-      tree unless the tree has a [Timeline] leaf.  Every point of the frame above
-      the timeline strip is covered exactly once, floats aside. *)
+  (** [hidden] (default the timeline) panels vanish; a hidden viewport and a collapsed
+      panel keep a strip with the expand button (the 24-point header in a stack, a 24-point
+      column in a row).  A split with a fixed side gives that side its points and the other
+      the rest; when both do not fit, the other side keeps its minimum first and the fixed
+      side shrinks, never below one point.  A [Timeline] leaf in a stack is 24 points; a tree
+      without one has the same strip under it.  The 24-point status strip spans the frame
+      below both.  Every point of the frame is covered exactly once, floats aside. *)
 
   val toggle : panel -> panel list -> panel list
   val expand : panel -> panel list -> panel list
@@ -51,9 +64,31 @@ module Layout : sig
   val first_view : geometry -> leaf option
 end
 
+(** Kit rev 3 pieces every bar shares. *)
+module Kit : sig
+  val text_y : Pxui.Ui.t -> float -> float -> float
+  (** [text_y ui y h]: where kit text sits in a bar at [y] of height [h]. *)
+
+  val cap_y : Pxui.Ui.t -> float -> float -> float
+  val cap_size : Pxui.Ui.t -> int
+
+  val button_width : Pxui.Ui.t -> ?hint:string -> ?icon:bool -> string -> float
+
+  val button : Pxui.Ui.t -> key:string -> at:float * float -> w:float -> ?h:float -> ?enabled:bool ->
+    ?active:bool -> ?primary:bool -> ?hint:string -> ?icon:[ `Play | `Stop ] -> string -> bool
+  (** A text button and, in ink-3, its key: hover and pressed fills, the control fill while
+      [active]; [primary] is the one outlined button of a panel.  True on a click. *)
+
+  val segments : Pxui.Ui.t -> key:string -> right:float -> y:float -> ?h:float -> string list -> int ->
+    int option * float
+  (** Text tabs laid out leftwards from [right], the one in use underlined: the tab clicked
+      and where the row starts. *)
+end
+
 module Chrome : sig
   type intent =
-    | Resize of { node : Layout.path; ratio : float }  (** a splitter is being dragged ({!splitters}) *)
+    | Resize of { node : Layout.path; size : Editor_core.Panels.size }
+        (** a splitter is being dragged ({!splitters}): a ratio, or the whole points of the fixed side *)
     | Settled  (** the drag ended *)
     | Toggle of Layout.path  (** a header's collapse button *)
     | Window of Layout.path * Layout.bounds option  (** undock, move/resize, or dock a panel *)
@@ -65,14 +100,20 @@ module Chrome : sig
     | Close_panel of Layout.path
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
-  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> Layout.t ->
-    Pxui.Ui.t -> Rays.Frame.t -> intent list
-  (** Panel backgrounds, the drawn gutters, headers with their collapse button and
-      right-click menu.  Pure: the host applies the intents. *)
+  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) ->
+    ?focus:Layout.path -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t -> intent list
+  (** A [title] is ["Kind<TAB>a / b"]: the kind is the header's label, the rest its breadcrumb
+      (the last part in ink).  The header of the [focus] leaf wears the accent square.  A docked
+      header ends in its collapse chevron, a window's in dock and close.
+      Panel backgrounds, the drawn gutters, headers with their collapse button and
+      right-click menu (split, close, dock, retype, and the size of the split that holds the
+      panel: a [Resize] then [Settled], as the gutter's menu).  Pure: the host applies the intents. *)
 
   val splitters : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t ->
     intent list
-  (** The gutters' drag targets, wider than they are drawn ([Resize], [Settled]).  Call it
+  (** The gutters' drag targets, wider than they are drawn ([Resize], [Settled]), and their
+      right-click menu: By ratio, Fix first side, Fix second side (a [Resize] of the size the
+      split shows, then [Settled]).  Call it
       after the panes' boxes so a gutter is not shadowed by its neighbours' hit areas. *)
 
   (* A pane's PXUI hit ancestor; children keep screen-space coordinates. *)
@@ -85,8 +126,7 @@ module Chrome : sig
 
   val key : Layout.path -> string  (* a panel's path as text, to key its boxes *)
   val note : Pxui.Ui.t -> bounds:Layout.bounds -> string -> unit
-  (* a muted line at the top of a panel body that has nothing to show *)
-  val focus : Pxui.Ui.t -> bounds:Layout.bounds -> unit
+  (* a panel body that has nothing to show: a crossed box and the reason as a label *)
 end
 
 module Which_key : sig
@@ -119,7 +159,8 @@ module Timeline_bar : sig
 
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> playing:bool ->
     frame:int64 -> time:float -> max_frame:int -> intent list
-  (** Draw timeline controls and return playback requests. *)
+  (** Draw timeline controls and return playback requests.  The frame is a field: a click
+      opens it, Enter commits (clamped to 0 and [max_frame]), Escape cancels. *)
 end
 
 module Prompt : sig
@@ -190,6 +231,10 @@ module Tree : sig
   (** Scroll the focused row into view on the next update. *)
 
   val focused : t -> int option
+
+  val summary : t -> string
+  (** One line for crash reports and tests: the focus row, the folds, the filter. *)
+
   val editing : t -> bool
   (** The filter or rename prompt holds the keyboard. *)
 end

@@ -45,7 +45,7 @@ let with_scale scale =
   let settle ui build = ignore (step ui [] build) in
   let label = Printf.sprintf "%gx: %s" scale in
 
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let roots events = Ui.frame ui (frame ~scale ~time:0.5 events) (fun ui ->
     let root = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 100.)
       ~h:(Ui.Px 100.) "root" in
@@ -68,7 +68,7 @@ let with_scale scale =
   Ui.destroy ui;
 
   (* Toggle commits on release inside, never on press alone. *)
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let value = ref false in
   let build ui = value := Ui.toggle ui "Enabled" !value in
   settle ui build;
@@ -84,7 +84,7 @@ let with_scale scale =
   (* Slider capture: continuous, beyond bounds, clamped to the drag range. *)
   let amount = ref 5. in
   let build ui = amount := Ui.slider ui "Amount" ~range:(0., 10.) !amount in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (150, row 0)] build;
   let pressed = !amount in
@@ -104,7 +104,7 @@ let with_scale scale =
       ~slide:(fun fraction -> Printf.sprintf "%.17g" fraction)
       ~valid:(fun text -> float_of_string_opt text <> None) "compact" !compact in
     compact := value in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   ignore (Ui.frame ui (frame ~scale ~time:0. [] ) build);
   ignore (Ui.frame ui (frame ~scale ~time:0.5
     [press (70, 30); release (70, 30)]) build);
@@ -115,7 +115,7 @@ let with_scale scale =
     with keys = [Input.Alt] } build);
   if not (Ui.text_input_focused ui) then
     fail (label "Option-click did not open compact numeric entry");
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let build ui = amount := Ui.slider ui "Amount" ~range:(0., 10.) !amount in
   settle ui build;
   step ui [press (150, row 0)] build;
@@ -130,7 +130,7 @@ let with_scale scale =
   (* Buttons fire on release inside only. *)
   let clicks = ref 0 in
   let build ui = if Ui.button ui "Apply" then incr clicks in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (20, row 0); move (300, row 0); release (300, row 0)] build;
   if !clicks <> 0 then fail (label "button fired after release outside");
@@ -143,7 +143,7 @@ let with_scale scale =
     ignore (Ui.accordion ui "Advanced" (fun () ->
       nested := Ui.toggle ui "Nested" !nested));
     visible := Ui.toggle ui "Visible" !visible in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (210, row 1); release (210, row 1)] build;
   if not !visible || !nested then
@@ -156,7 +156,7 @@ let with_scale scale =
   (* Integer sliders snap and clamp; typed values may exceed the soft range. *)
   let count = ref 2 in
   let build ui = count := Ui.int_slider ui "Count" ~range:(1, 5) !count in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (130, row 0); move (400, row 0); release (400, row 0)] build;
   if !count <> 5 then fail (label "integer slider did not snap and clamp");
@@ -195,7 +195,7 @@ let with_scale scale =
 
   let amount = ref 0.25 in
   let build ui = amount := Ui.slider ui "Amount" ~range:(0., 1.) !amount in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (20, row 0); release (20, row 0)] build;
   fast_step ui [press (20, row 0); release (20, row 0)] build;
@@ -210,7 +210,7 @@ let with_scale scale =
       Array.iteri (fun index value ->
         toggles.(index) <- Ui.toggle ui (Printf.sprintf "Row %d" index) value)
         toggles) in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let scroll_step events =
     time := !time +. 0.5;
     Ui.frame ui (frame ~scale ~time:!time events) scrolled in
@@ -222,7 +222,7 @@ let with_scale scale =
     fail (label "scrolled panel did not route the hit to the scrolled row");
 
   let fixed = Array.make 4 false in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let fixed_panel events =
     time := !time +. 0.5;
     Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
@@ -236,7 +236,7 @@ let with_scale scale =
   if not fixed.(2) || fixed.(0) || fixed.(1) then
     fail (label "fixed-height inspector panel did not scroll its rows");
 
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let child_y = ref 0. in
   let rubber events =
     time := !time +. 0.5;
@@ -253,7 +253,7 @@ let with_scale scale =
   if Float.abs !child_y > 0.25 then
     fail (label "rubber scroll did not spring back to the edge");
 
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let scroll_dir events =
     time := !time +. 0.5;
     Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
@@ -274,7 +274,7 @@ let with_scale scale =
 
   (* A pinch goes where the wheel goes: to the scrollable box under the pointer,
      its factors multiplied within a frame, and nowhere else. *)
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let pinched events =
     time := !time +. 0.5;
     let seen = ref 1. in
@@ -295,7 +295,7 @@ let with_scale scale =
   (* Text fields: UTF-8 entry, Backspace/Delete, focus kept on cancel. *)
   let title = ref "" in
   let build ui = title := Ui.text_field ui "Title" !title in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (150, row 0); release (150, row 0);
     Event.TextEditing { text = "e"; start = 0; length = 1 };
@@ -361,7 +361,7 @@ let with_scale scale =
   let build ui =
     short := Ui.text_field ui "Short" !short;
     long := Ui.text_field ui "Long" !long in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (150, row 1); release (150, row 1)] build;
   step ui [] build;
@@ -375,7 +375,7 @@ let with_scale scale =
     let value, _ = Ui.value_field ui ~at:(20., 20.) ~w:100. ~h:21.
       ~valid:(fun _ -> true) "long-field" !field in
     field := value in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let field_time = ref 0. in
   let field_step ?(keys = []) events =
     field_time := !field_time +. 0.5;
@@ -393,7 +393,7 @@ let with_scale scale =
   if cursor () < 80 || cursor () > 100 then
     fail (label "Command-Right did not reveal the end");
   field_step ~keys:[Input.Meta] [Event.KeyPressed Input.ArrowLeft];
-  field_step [press (30, 30)];
+  field_step [press (21, 30)];
   field_step [move (220, 30)];
   for _ = 1 to 30 do field_step [] done;
   field_step [release (220, 30)];
@@ -413,7 +413,7 @@ let with_scale scale =
     mode := Ui.choice ui "Mode" ["dots"; "lines"] !mode;
     band := Ui.range_slider ui "Band" ~range:(0., 1.) !band;
     point := Ui.xy ui "Point" ~x_range:(-1., 1.) ~y_range:(-1., 1.) !point in
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   settle ui build;
   step ui [press (20, row 0); release (20, row 0)] build;
   if !mode <> 0 then fail (label "choice label area activated its control");
@@ -429,7 +429,7 @@ let with_scale scale =
 let run () =
   (match Sdl3.Init.init [Sdl3.Init.Video] with
    | Ok () -> () | Error error -> fail (Format.asprintf "%a" Sdl3.pp_error error));
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   Fun.protect ~finally:(fun () -> Ui.destroy ui) (fun () ->
     let build ?(key = "a") ?(skip = false) ui =
       let parent = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 100.) ~h:(Ui.Px 100.) "hover-parent" in
@@ -473,7 +473,7 @@ let run () =
   with_scale 1.;
   with_scale 2.;
   (* Hover: the topmost control under the pointer, from last frame's rects. *)
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let hovered = ref false in
   let build ui = Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () ->
     let row = Ui.box ui ~flags:Ui.clickable ~w:Ui.Grow ~h:(Ui.Px 24.) "probe" in
@@ -494,7 +494,7 @@ let run () =
   Ui.frame ui (frame ~scale:1. ~time:0.5 [move (300, 200)]) divider;
   if Ui.cursor ui <> None then fail "splitter cursor outlived hover";
   (* text fields show the I-beam under the pointer, and only there *)
-  let field_ui = Ui.create () in
+  let field_ui = Ui.create ~font_size:11 () in
   let title = ref "" in
   let field ui = title := Ui.text_field ui "Title" !title in
   Ui.frame field_ui (frame ~scale:1. ~time:0.6 []) field;
@@ -502,7 +502,7 @@ let run () =
   if Ui.cursor field_ui <> Some `Text then fail "a text field did not request the I-beam";
   Ui.frame field_ui (frame ~scale:1. ~time:0.8 [move (300, 200)]) field;
   if Ui.cursor field_ui <> None then fail "the I-beam outlived hover";
-  let area_ui = Ui.create () in
+  let area_ui = Ui.create ~font_size:11 () in
   let area ui = ignore (Ui.text_area ui ~at:(0., 0.) ~w:200. ~h:100. "area" "hello") in
   Ui.frame area_ui (frame ~scale:1. ~time:0.9 []) area;
   Ui.frame area_ui (frame ~scale:1. ~time:1.0 [move (50, 30)]) area;
@@ -511,7 +511,7 @@ let run () =
   Ui.destroy ui;
   (* A canvas maps child coordinates by scale and offset, for layout,
      painting, and hit testing alike. *)
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let clicked = ref false and child_rect = ref (0., 0., 0., 0.) in
   let build ui =
     let canvas = Ui.box ui ~w:(Ui.Px 200.) ~h:(Ui.Px 200.) ~at:(10., 20.)
@@ -535,7 +535,7 @@ let run () =
   if not !clicked then fail "canvas child did not receive a transformed hit";
   Ui.destroy ui;
   (* A cached subtree replays last frame's boxes while its stamp holds. *)
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let built = ref 0 in
   let build stamp ui =
     Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () ->
@@ -557,7 +557,7 @@ let run () =
   if !built <> 2 then fail "a new stamp did not rebuild the cached subtree";
   Ui.destroy ui;
   (* One panel paints in a handful of batches, not one draw per label. *)
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   Ui.frame ui (frame ~scale:2. ~time:0. []) (fun ui ->
     Ui.panel ui "panel" (fun () ->
       Ui.label ui "PXUI";
@@ -584,7 +584,7 @@ let run () =
   let items = [| "alpha", "1"; "beta", "2"; "gamma", "3"; "delta", "4" |] in
   let rows query = Array.of_list (List.filter
       (fun (label, _) -> Ui.fuzzy_match ~query label) (Array.to_list items)) in
-  let ui = Ui.create () and query = ref "" and last = ref `None in
+  let ui = Ui.create ~font_size:11 () and query = ref "" and last = ref `None in
   let pick ?(command=false) ?(shift=false) events =
     Ui.frame ui
       { (frame ~scale:1. ~time:0. events) with
@@ -648,7 +648,7 @@ let run () =
   Ui.destroy ui;
   (* Context menu: rows commit on release inside, disabled rows are inert,
      a press outside dismisses; the host keeps it open on `Open. *)
-  let ui = Ui.create () and result = ref `Open in
+  let ui = Ui.create ~font_size:11 () and result = ref `Open in
   let menu events =
     Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
       result := Ui.context_menu ui ~at:(20., 20.) "ctx"
@@ -669,7 +669,7 @@ let run () =
   (* Text areas: the text_field edit and IME path over lines. *)
   let area = ref "" and readonly = ref false and errors = ref [] and wrapped = ref false
   and submitted = ref false and language = ref None and context = ref None and scrubs = ref [] in
-  let ui = Ui.create () and time = ref 0. in
+  let ui = Ui.create ~font_size:11 () and time = ref 0. in
   let area_step ?(keys = []) events =
     time := !time +. 0.5;
     ignore (Ui.frame ui { (frame ~scale:1. ~time:!time events) with keys } (fun ui ->
@@ -751,7 +751,7 @@ let run () =
   let x_at = String.index !area 'X' in
   if x_at < 60 || x_at > 99 then fail (Printf.sprintf "a click on the third row landed at column %d" x_at);
   let y_third, _ = region () in
-  if y_third < 40 then fail (Printf.sprintf "a wrapped caret is on the first row (y %d)" y_third);
+  if y_third < 2 * Ui.text_line_height ui then fail (Printf.sprintf "a wrapped caret is on the first row (y %d)" y_third);
   area_step [Event.KeyPressed Input.ArrowUp; Event.TextInput "Y"];
   let y_at = String.index !area 'Y' in
   if y_at >= x_at || x_at - y_at > 60 then
@@ -921,7 +921,7 @@ let run () =
   if Ui.ellipsis ~width:cp ~limit:28. "ƒ petal" <> "ƒ p…" then fail "the cut split a multi-byte character";
   Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)
-  let ui = Ui.create () and shown = ref None in
+  let ui = Ui.create ~font_size:11 () and shown = ref None in
   let modal events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
     shown := Ui.modal ui ~width:200. "modal" (fun () -> Ui.label ui "Hello")) in
   modal [];
@@ -935,7 +935,7 @@ let run () =
   modal [press (5, 5)];
   if !shown <> None then fail "a press outside did not dismiss the modal";
   Ui.destroy ui;
-  let ui = Ui.create () and shown = ref None in
+  let ui = Ui.create ~font_size:11 () and shown = ref None in
   let popup events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
     shown := Ui.popup ui ~at:(20., 20.) ~width:200. ~height:10. "popup"
       (fun () -> Ui.label ui "One"; Ui.label ui "Two")) in
@@ -946,7 +946,7 @@ let run () =
   popup [press (300, 200)];
   if !shown <> None then fail "popup kept a press outside its laid-out rect";
   Ui.destroy ui;
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let menu events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
     Ui.context_menu ui ~at:(20., 20.) ~width:240. ~selected:1 "choices"
       ["First", true; "Second", true]) in
@@ -955,7 +955,7 @@ let run () =
   if menu [press (240, 58); release (240, 58)] <> `Pick 1 then
     fail "dropdown rows did not extend to the requested control width";
   Ui.destroy ui;
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let front_key = ref 0 in
   let raised events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
     let front = Ui.box ui ~flags:Ui.clickable ~at:(0., 0.) ~w:(Ui.Px 100.) ~h:(Ui.Px 60.) "front" in
@@ -977,7 +977,7 @@ let run () =
   (* A carry: held once the pointer has left the 4-point dead zone of the press, seen as hover
      by a box that does not own the press, put once on release, and gone after a pointer
      cancellation or a focus loss.  A key starts one with no capture: a press is the put. *)
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   let clicked = ref false in
   let carried events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
     let source = Ui.box ui ~flags:Ui.clickable ~at:(0., 0.) ~w:(Ui.Px 100.) ~h:(Ui.Px 40.) "source" in

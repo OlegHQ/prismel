@@ -11,9 +11,13 @@ type panel = View of string | Graph | List | Lisp | Inspector | Outline | Timeli
 
 type axis = [ `H | `V ]  (** [`H] puts [a] left of [b], [`V] puts [a] above [b] *)
 
+type size = [ `Ratio of float | `First of int | `Second of int ]
+(** How a split divides its extent: [a]'s share of it, or one side fixed in logical points with
+    the other side taking the rest. *)
+
 type t =
   | Leaf of panel
-  | Split of { axis : axis; ratio : float; a : t; b : t }
+  | Split of { axis : axis; size : size; a : t; b : t }
   | Tile of t list  (** a grid of equal cells *)
   | Float of t  (** an overlay on its parent's rectangle, never a window *)
 
@@ -38,11 +42,14 @@ val name : panel -> string
 val leaves : t -> (path * panel) list
 (** Every leaf in tree order, floats last. *)
 
-val set_ratio : path -> float -> t -> t
-(** The split at [path] gets this ratio, clamped to 0.1-0.9; anything else is unchanged. *)
+val clamp_size : size -> size
+(** A ratio within 0.1-0.9, a fixed side of at least one point. *)
+
+val set_size : path -> size -> t -> t
+(** The split at [path] gets this size ({!clamp_size}); anything else is unchanged. *)
 
 val valid : t -> (unit, string) result
-(** Ratios in 0.1-0.9, tiles of 1-16 cells, no empty tree. *)
+(** Ratios in 0.1-0.9, fixed sides of one point or more, tiles of 1-16 cells, no empty tree. *)
 
 val to_string : t -> string
 (** A one-line shape such as [(h view (h graph inspector))], for messages and tests. *)

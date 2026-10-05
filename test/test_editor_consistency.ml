@@ -493,19 +493,19 @@ let lisp_apply () =
     let geometry = Pxui_shell.Layout.geometry ~hidden:[Timeline]
       (Option.get (build ws).shell).tree (frame 1) in
     let leaf = Pxui_shell.Layout.find geometry Lisp |> Option.get in
-    let x, y, _, h = leaf.body and count = ref 1 in
+    let x, y, w, h = leaf.body and count = ref 1 in
     let run ?(mouse = (450., 300.)) ?(keys = []) events =
       incr count; e := E.update !e (Test_editor_input.frame ~keys mouse events !count) in
     let click p = run ~mouse:p [Event.MouseMoved p];
       run ~mouse:p [Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p)] in
-    click (float (x + 160), float (y + 12)); (* Document tab *)
+    click (Test_text_pane.tab_at ~right:(x + w - 32) ~top:y 2); (* Document tab *)
     click (float (x + 180), float (y + 80));
     (* Applying the text already shown keeps metadata; a subsequent source reload sees it too. *)
     run ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];
     run [Event.TextInput (Test_text_pane.replace (D.Workspace_doc.to_text ws)
       ~from:"(sop/box)" ~by:"(sop/box :size [2 2 2])")];
     let before = E.prepared !e and picture = layers !e in
-    click (float (x + 60), float (y + h - 36));
+    click (float (x + 32), float (y + h - 40));
     check (E.undo_label !e = Some "Edit text") "Lisp apply made no document edit";
     check (E.prepared !e <> before && layers !e <> picture)
       "Lisp applied after the frame's cook or composition";

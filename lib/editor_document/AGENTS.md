@@ -25,7 +25,8 @@ schema and it is a keyword. Do not hand-write per-kind Lisp glue there.
 `Workspace_doc.editor_graph` resolves the selected named shell layout from
 `Layout_by_path.editor` (`(layout (editor "name"))`), defaulting to the first
 editor graph. `Contexts.editor` evaluates that graph into `Document.shell` (the `Editor_core.Panels`
-tree, the origin of each named or looped panel, the graph a `ui/graph` names, and the scene
+tree, the origin of each named or looped panel, the graph each `ui/graph` leaf names, the start state
+the panels' keywords ask for (`shell.start`: focus, look-through, graph view, lisp tab), and the scene
 objects of each viewport over a non-default scene instance): a `ui/*` call is a `Struct`, so a
 new panel kind is a `Flow.Workspace` op, a case in `panel_tree` and a `Panels.panel`.  Origins
 come from walking the checked terms beside the values, never from string search.  An evaluation

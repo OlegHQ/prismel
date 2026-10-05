@@ -490,7 +490,8 @@ Status: `todo` · `wip` · `done` (gate met) · `partial` (what is missing is na
   `ui/graph` takes an optional graph name, `ui/timeline` is a panel; `Space o` and `Cycle_graph` are gone
   (an `Outline` row picks a graph, `(ui/graph "name")` pins one).  `List` and `Lisp` panels are the graph
   pane's projections drawn on their own (`Space l` cycles them inside `Graph` when there are none); a
-  second panel of a kind says it is shown elsewhere.  `Flow_edit` has `Set_layout_ratio`, `Split_panel`,
+  second panel of a kind said it was shown elsewhere (since 2026-10-05 every leaf is an instance,
+  `flow.md` §11.11).  `Flow_edit` has `Set_layout_ratio` (now `Set_layout_size`), `Split_panel`,
   `Close_panel`, `Set_panel_kind` (labels "Resize panel", "Split panel", "Close panel", "Retype panel");
   the header right-click menu emits them.  Recovery: `Space z` is "Restore layout" (`Core.shell.restored`, status
   text "Default layout"), and any edit that changes the tree ends it; a refused edit (checker or evaluator error,

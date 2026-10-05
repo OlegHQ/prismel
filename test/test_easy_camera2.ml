@@ -114,7 +114,7 @@ let run () =
   if not (Vec2.nearly_equal (Easy_camera2.center cancelled) Vec2.zero ~eps:1e-9)
   then fail "2D camera pointer cancellation did not release capture";
   let module Control = Pxui.Camera2_control in
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let run control camera (frame : Frame.t) =
     let control, camera, requests = Pxui.Ui.frame ui frame (fun ui ->
       if Control.ui_visible control then
@@ -130,10 +130,11 @@ let run () =
       mouse_release (Input.LeftButton, point)] () in
   let control = Control.create () in
   let control, _, _ = run control camera (frame ()) in
-  (* Open Render (row 1), then press its save button (row 3). *)
-  let control, _, _ = run control camera (click (30, 39)) in
+  (* Two closed sections of 24 points under 4 of space; opening Render adds Output and the
+     save button, a row each. *)
+  let control, _, _ = run control camera (click (30, 40)) in
   let control, _, _ = run control camera (frame ()) in
-  let control, _, requests = run control camera (click (30, 110)) in
+  let control, _, requests = run control camera (click (30, 88)) in
   if List.length requests <> 1 then
     fail "2D camera render section did not request a PNG";
   let control, controlled, _ = run (Control.open_camera control) camera (frame ()) in

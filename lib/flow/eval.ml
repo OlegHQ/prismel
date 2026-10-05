@@ -396,8 +396,22 @@ let check_struct name args =
         | Text ("horizontal" | "vertical") -> ()
         | _ -> range_error "Split axis is horizontal or vertical.") v
     | None -> () in
+  let one_of key what choices = match get key with
+    | Some v -> conc (function
+        | Text t when List.mem t choices -> ()
+        | _ -> range_error (Printf.sprintf "%s is %s." what (String.concat ", " choices))) v
+    | None -> () in
   match name with
-  | "ui/split" -> axis ()
+  | "ui/split" ->
+      axis ();
+      let points key = match get key with
+        | Some v -> conc (fun v -> if num v < 1. then range_error "A fixed split size is 1 point or more.") v
+        | None -> () in
+      points "first_size"; points "second_size";
+      if get "first_size" <> None && get "second_size" <> None then
+        range_error "A split fixes one side: :first_size or :second_size."
+  | "ui/graph" -> one_of "view" "A graph panel's view" (Workspace.op_choices name "view")
+  | "ui/lisp" -> one_of "tab" "A lisp panel's tab" (Workspace.op_choices name "tab")
   | "ui/split-at" ->
       axis ();
       (match get "ratio" with

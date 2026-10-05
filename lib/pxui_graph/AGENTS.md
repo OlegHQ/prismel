@@ -13,6 +13,13 @@ text-entry path.
 
 ## Current contract
 
+Painting follows kit rev 3 (`specification/pxui.md`): a card is a sheet with one hairline, a type
+square, the name and the kind in ink-2; ports are rings (filled once wired), wires 1.5 points in
+the port colour (ink when selected); the selection is accent corner brackets, a bypassed card is
+hatched, the displayed node wears an accent flag, a drop target is dashed; the canvas is the ground
+with a dot every 24 points and a register cross every 480 by 192.
+
+
 Deterministic left-to-right layout by longest input path with short branches
 tightened toward consumers and shared fan-outs anchored. Upstream branches
 are separated in port order; layout reserves authored detail heights at every
@@ -85,7 +92,10 @@ step, in `Scope` view state, not the document) is part of the card's height and 
 through `Projection.layout ~lens`, so opening it re-lays the graph out for the next frame
 (the frame that opened it is painted with the old geometry). Its buttons are `Ui.box`es
 in the tile: step buttons choose the printed step, "Replace call with expansion" is
-`Syntax_edit (Inline_macro ...)`. A call whose first input fits its result
+`Syntax_edit (Inline_macro ...)`. A node call written in an input (a `->` step) is a card of its
+own (`Projection.anonymous`, titled by its kind, wired through `Projection.sources`): never draw it
+as a chip, and take a wire off its row with `Scope_pane.unwire` (Unfold, then Disconnect) so the
+node stays. A call whose first input fits its result
 (`Projection.bypassable`) has a `B` flag on its title, `Syntax_edit (Toggle_bypass ...)`
 like the `b` key. On a node that cannot be bypassed but has a boolean `:visible` argument (a scene
 object) `b` is `Set_arg :visible` instead (`Scope_pane.hide_row`: false, then true): one key means

@@ -11,19 +11,31 @@ type t = {
 
 val default : t
 
-(** Default text size in logical points. *)
+(** Type sizes in logical points: body (the default kit text), the upper-case label, a window
+    title or viewport readout, and the selected thing's name (once per panel). *)
 val font_size : int
+val label_size : int
+val title_size : int
+val display_size : int
 
-(** Derived kit colors. *)
+(** Derived kit colours.  Text: the foreground, [ink_2] for labels and secondary text (4.8:1 on
+    the panel) and [ink_3] for disabled text, placeholders and keys.  [muted] is [ink_2]. *)
+val ink_2 : t -> Rays.Color.t
+val ink_3 : t -> Rays.Color.t
 val muted : t -> Rays.Color.t
+
+(** Lines, the foreground at 30, 15 and 8 percent: [border] (line-3) for the one outlined
+    button and switches, [edge] (line-2) between panes and under fields, [faint_border]
+    (line-1) inside a list. *)
 val border : t -> Rays.Color.t
 val edge : t -> Rays.Color.t
-(* hairline for structure: separators, pane headers, window frames *)
-val sheen : t -> Rays.Color.t
-(* near-white line inside the top edge of a sheet *)
 val faint_border : t -> Rays.Color.t
+
+(** Fills: hover, pressed, and the accent wash of a text selection or a dock target.  The
+    current row and an active button are [control]. *)
 val hover_fill : t -> Rays.Color.t
 val pressed_fill : t -> Rays.Color.t
+val tint : t -> Rays.Color.t
 val invalid : Rays.Color.t
 
 type ports = {

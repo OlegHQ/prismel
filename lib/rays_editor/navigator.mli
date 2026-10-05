@@ -26,6 +26,7 @@ val editing : state -> bool
 (** The search field holds the keyboard. *)
 
 val with_query : string -> state -> state
+val query : state -> string
 (** The search field holding this text. *)
 
 type params = {

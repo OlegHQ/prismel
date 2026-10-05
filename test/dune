@@ -32,7 +32,9 @@
 
 (rule
  (aliases runtest test_text_pane)
- (action (run %{exe:test_main.exe} test_text_pane)))
+ ; pointer positions assume the golden face's advance
+ (action (setenv RAYS_UI_FONT %{dep:../assets/fonts/DepartureMono-Regular.otf}
+  (run %{exe:test_main.exe} test_text_pane))))
 
 (rule
  (aliases runtest test_editor_consistency)
@@ -135,7 +137,7 @@
 
 (rule
  (aliases runtest test_workspace_shell)
- (deps (glob_files ../specification/workspace/cases/*.lisp))
+ (deps (glob_files ../specification/workspace/cases/*.lisp) (glob_files_rec ../sketches/*.rays))
  (action (run %{exe:test_main.exe} test_workspace_shell)))
 
 (rule

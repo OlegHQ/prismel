@@ -101,6 +101,44 @@ let part3 () = (* unfold and fold round trip *)
     (E.Fold_into { node = node [ "a" ] });
   refused "unfold an atom" base (E.Unfold { node = node [ "c" ]; key = Kw "iterations"; sub = [] })
 
+(* a call written in an input (a step of a ->) is a node: its leaf is the holder's, #, the input *)
+let nested_nodes () =
+  let chain = g "(-> (sop/uv_sphere :radius 0.5) (sop/transform :translate [1 2 3]) (sop/subdivide :iterations 1) (sop/normals))" in
+  let sub = node [ "@result#0" ] and tr = node [ "@result#0#0" ] and ball = node [ "@result#0#0#0" ] in
+  same "set an input of a step" chain
+    (E.Set_arg { node = sub; key = Kw "iterations"; sub = []; value = num "2" })
+    (g "(-> (sop/uv_sphere :radius 0.5) (sop/transform :translate [1 2 3]) (sop/subdivide :iterations 2) (sop/normals))");
+  same "set a vector part of a deep step" chain
+    (E.Set_arg { node = tr; key = Kw "translate"; sub = [ 1 ]; value = num "7" })
+    (g "(-> (sop/uv_sphere :radius 0.5) (sop/transform :translate [1 7 3]) (sop/subdivide :iterations 1) (sop/normals))");
+  check (has (apply chain (E.Toggle_bypass { node = sub })) "^:bypass (sop/subdivide") "a step takes the bypass flag";
+  same "naming a step binds it" chain (E.Rename { node = sub; to_ = "smooth" })
+    (g "(let* [smooth (sop/subdivide (sop/transform (sop/uv_sphere :radius 0.5) :translate [1 2 3]) :iterations 1)] (sop/normals smooth))");
+  same "a deleted step hands its place to its input" chain (E.Delete_nodes { nodes = [ sub ] })
+    (g "(sop/normals (sop/transform (sop/uv_sphere :radius 0.5) :translate [1 2 3]))");
+  same "two deleted steps, the inner first" chain (E.Delete_nodes { nodes = [ sub; tr ] })
+    (g "(sop/normals (sop/uv_sphere :radius 0.5))");
+  same "a deleted source leaves nil" chain (E.Delete_nodes { nodes = [ ball ] })
+    (g "(-> nil (sop/transform :translate [1 2 3]) (sop/subdivide :iterations 1) (sop/normals))");
+  (* wires never delete nodes: the output of a step read twice is named, a step a wire replaces stays *)
+  let two = g "(let* [m (sop/merge (sop/transform (sop/uv_sphere)))] m)" in
+  same "the output of a step feeds a second input" two
+    (E.Connect { node = node [ "m" ]; key = Pos 1; src = "m#0#0"; iter = false })
+    (g "(let* [uv_sphere (sop/uv_sphere) m (sop/merge (sop/transform uv_sphere) uv_sphere)] m)");
+  same "a wire onto a step's place keeps the step" (g "(let* [a (sop/box) m (sop/normals (sop/transform (sop/uv_sphere)))] m)")
+    (E.Connect { node = node [ "m" ]; key = Pos 0; src = "a"; iter = false })
+    (g "(let* [a (sop/box) transform (sop/transform (sop/uv_sphere)) m (sop/normals a)] m)");
+  same "viewing a step makes it the result" chain
+    (E.Connect { node = node [ "@result" ]; key = Whole; src = "@result#0"; iter = false })
+    (g "(let* [subdivide (sop/subdivide (sop/transform (sop/uv_sphere :radius 0.5) :translate [1 2 3]) :iterations 1) normals (sop/normals subdivide)] subdivide)");
+  refused "a step cannot be folded" chain (E.Fold_into { node = sub });
+  refused "a step is not duplicated" chain (E.Duplicate { nodes = [ sub ] });
+  check (E.remap (E.Rename { node = sub; to_ = "smooth" }) tr = Some (node [ "smooth#0" ])
+         && E.remap (E.Delete_nodes { nodes = [ sub ] }) tr = Some sub
+         && E.remap (E.Delete_nodes { nodes = [ sub ] }) sub = None
+         && E.remap (E.Rename { node = node [ "b" ]; to_ = "z" }) (node [ "b#0" ]) = Some (node [ "z#0" ]))
+    "layout keys follow a renamed or deleted step"
+
 let part4 () = (* repeat, iterate *)
   let two = g "(let* [a (sop/uv_sphere :radius 0.5) b (sop/transform a :scale 0.8)] b)" in
   same "repeat geometry" two (E.Wrap { nodes = [ node [ "a" ] ]; loop = For })
@@ -320,4 +358,4 @@ let part12 () = (* the 12 fixtures: notes survive, edits round trip *)
        | Error d -> fail (Flow.Diagnostic.to_string d))
 
 let run () =
-  List.iter (fun f -> f ()) [ part1; part2; part3; part4; part5; part6; part7; dialog; part8; part9; part10; part10b; part11; part12 ]
+  List.iter (fun f -> f ()) [ part1; part2; part3; nested_nodes; part4; part5; part6; part7; dialog; part8; part9; part10; part10b; part11; part12 ]

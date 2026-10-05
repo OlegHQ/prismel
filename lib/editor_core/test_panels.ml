@@ -1,8 +1,17 @@
 open Editor_core.Panels
 
 let v = Leaf (View "main") and g = Leaf Graph
-let h ?(ratio = 0.5) a b = Split { axis = `H; ratio; a; b }
-let s ?(ratio = 0.5) a b = Split { axis = `V; ratio; a; b }
+let h ?(ratio = 0.5) a b = Split { axis = `H; size = `Ratio ratio; a; b }
+let s ?(ratio = 0.5) a b = Split { axis = `V; size = `Ratio ratio; a; b }
+
+(* a split is sized by a ratio or by one fixed side; both are clamped and validated *)
+let () =
+  let fixed size = Split { axis = `H; size; a = v; b = g } in
+  assert (set_size [] (`Ratio 2.) (h v g) = h ~ratio:0.9 v g);
+  assert (set_size [] (`First 0) (h v g) = fixed (`First 1));
+  assert (set_size [ 1 ] (`Second 320) (h v (h v g)) = h v (fixed (`Second 320)));
+  assert (valid (fixed (`First 216)) = Ok () && Result.is_error (valid (fixed (`Second 0))));
+  assert (label (fixed (`First 216)) = "View | Graph")
 
 let () =
   let check tree expected =

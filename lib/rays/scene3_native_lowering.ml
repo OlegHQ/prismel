@@ -275,6 +275,7 @@ type packed_mesh={
   indices:bytes;
   vertex_count:int;
   index_count:int;
+  opaque:bool; (* no vertex color is translucent *)
 }
 let packed_mesh_capacity=16
 let retained_payload_byte_capacity=256*1024*1024
@@ -364,7 +365,8 @@ let packed_of_mesh mode mesh=
           let packed={mesh;mode;primitive;key=Printf.sprintf"scene3:%d"!next_packed_id;
             vertices;indices=pack_indices native_indices;
             vertex_count=Array.length view.vertices;
-            index_count=Array.length native_indices}in
+            index_count=Array.length native_indices;
+            opaque=Option.fold~none:true~some:(Array.for_all(fun(c:Color.t)->c.a=255))view.colors}in
           packed_meshes:=packed::!packed_meshes;
           packed_meshes:=trim_retained~capacity:packed_mesh_capacity packed_bytes
             !packed_meshes;
@@ -418,7 +420,14 @@ let prepare ~resources ~camera ~viewport:(x,y,width,height as viewport) scene =
             |None->family,texture,auxiliary in
           let add transform_uniforms=
             let state:Scene_execution.state={viewport=(x,y,width,height);scissor=(x,y,width,height);cull=cull drawing.cull;depth_compare=comparison drawing.depth.comparison;depth_write=drawing.depth.write;depth_load=Ogpu.Render_pass.Clear;depth_clear=Scene3.Private.depth_clear scene;transform_uniforms=Some transform_uniforms;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=Scene3.Private.stencil_clear scene} in
-            entries:={Scene_execution.family;blend=blend drawing.blend;texture;auxiliary;samples=Scene3.Private.samples scene;draw={mesh;state}}::!entries in
+            (* The default blend is Alpha.  A draw whose every fragment has alpha 1 (opaque
+               material and vertex colors, no texture) writes the same pixels with Replace, and
+               only an unblended pipeline lets a tile-based GPU drop hidden fragments before
+               shading them: a dense mesh otherwise shades every layer the depth test lets by. *)
+            let blend=match drawing.blend with
+              |Alpha when drawing.texture=None&&drawing.material.diffuse.a=255&&packed.opaque->Ogpu.Pipeline.Replace
+              |other->blend other in
+            entries:={Scene_execution.family;blend;texture;auxiliary;samples=Scene3.Private.samples scene;draw={mesh;state}}::!entries in
           match transforms with
           |None->add(uniforms ?world ~camera ~viewport scene drawing)
           |Some transforms->

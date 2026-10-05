@@ -18,7 +18,7 @@
 
     Every call creates one {e box}: a node with an integer key, flags, and a
     size rule per axis. Keys hash the label (text after [##] is part of the
-    key but not displayed; [###id] replaces the key) together with the
+    key but not displayed; [###id] replaces the label in the key) together with the
     enclosing box, so state follows the label rather than list positions.
     Per-key state (rectangles, scroll offsets, open accordions, text editing)
     lives in the retained cache owned by [t] and is dropped once a key is not
@@ -50,8 +50,8 @@ val set_theme : t -> Theme.t -> unit
 val font_size : t -> int
 
 val set_font_size : t -> int -> unit
-(** The kit text size from the next frame on, and the row height with it ([size + 13]: 24 rows at
-    the default 11 points).  Call it between frames, never inside {!frame}. *)
+(** The kit text size from the next frame on, and the row height with it ([max 24 (size + 11)]:
+    24-point rows up to the default 13 points).  Call it between frames, never inside {!frame}. *)
 
 (** {1 Frames} *)
 
@@ -313,13 +313,44 @@ module Paint : sig
   (** Dots every [spacing] points from [origin], drawn by one quad. *)
 
   val text :
-    t -> at:float * float -> ?size:int -> ?color:Rays.Color.t -> string ->
+    t -> at:float * float -> ?size:int -> ?tracking:float -> ?color:Rays.Color.t -> string ->
     unit
   (** Kit text with its top-left corner at [at]. Without [size] it uses the
       UI's own font; with [size] the kit face at that size. Inside a canvas
-      the size is in screen points and glyphs stay on physical pixels. *)
+      the size is in screen points and glyphs stay on physical pixels.
+      [tracking] adds points between glyphs. *)
 
   val text_width : t -> ?size:int -> string -> float
+
+  (** {2 Kit marks}  The label style and the five shapes of the kit
+      ([specification/pxui.md], Design kit). *)
+
+  val label_size : t -> int
+  (** The label size: two points under the kit text. *)
+
+  val cap : t -> at:float * float -> ?color:Rays.Color.t -> string -> unit
+  (** A label: upper case at {!label_size} with a point of tracking, ink-2 by default.
+      Sections, headers, units. *)
+
+  val cap_width : t -> string -> float
+
+  val chevron : t -> at:float * float -> [ `Down | `Up | `Left | `Right ] -> Rays.Color.t -> unit
+  (** A 7-point chevron centred at [at]. *)
+
+  val brackets :
+    t -> x:float -> y:float -> w:float -> h:float -> ?offset:float -> ?length:float ->
+    ?width:float -> Rays.Color.t -> unit
+  (** Corner brackets [offset] (default 4) outside the rectangle: the selected object. *)
+
+  val dashed : t -> from_:float * float -> to_:float * float -> ?width:float -> Rays.Color.t -> unit
+  val dashed_rect : t -> x:float -> y:float -> w:float -> h:float -> Rays.Color.t -> unit
+  (** 4 on, 3 off: a zone, a drop target. *)
+
+  val cross : t -> x:float -> y:float -> w:float -> h:float -> Rays.Color.t -> unit
+  (** A hairline box crossed corner to corner: nothing displayed, a missing input. *)
+
+  val hatch : t -> x:float -> y:float -> w:float -> h:float -> Rays.Color.t -> unit
+  (** Diagonal hairlines clipped to the rectangle: bypassed, stale, cooking. *)
 
   val input_region :
     t -> ?cursor:float -> x:float -> y:float -> w:float -> h:float -> focused:bool -> unit -> unit
@@ -361,9 +392,10 @@ val splitter : t -> ?axis:axis -> ?thickness:float -> string -> float
 
 (** {1 Kit widgets}
 
-    A panel stacks rows of the PXUI design kit: 24-point rows, 3-point
-    padding, a label column of 120–140 points, square controls, and the kit
-    face. Widgets must be built inside a {!val-panel}. *)
+    A panel stacks rows of the PXUI design kit (rev 3): 24-point rows with 12 points
+    at each side, a label column of 112 points, 20-point controls and the kit face.
+    A field is a value on a hairline, a button is its text; nothing has a radius
+    or an ink fill. Widgets must be built inside a {!val-panel}. *)
 
 val panel :
   t -> ?x:float -> ?y:float -> ?width:float -> ?height:float -> ?max_height:float ->
@@ -376,6 +408,9 @@ val inspector_row :
   t -> ?width:float -> key:string -> label:string -> unit ->
   box * float * float * float
 (** A responsive inspector row and the local x, y, width of its value control. *)
+
+val inspector_width : t -> float
+(** The width of the panel being built: what an inspector row lays its columns out in. *)
 
 val inspector_section :
   t -> key:string -> ?expanded:bool -> ?set_expanded:bool ->
@@ -581,4 +616,15 @@ val expanded : t -> string -> bool option
 (** {1 Measurements} *)
 
 val row_height : t -> int
+
+val text_width : t -> ?size:int -> string -> float
+(** The width of kit text in points, for layout during the build ({!Paint.text_width} while painting). *)
+
+val view_size : t -> float * float
+(** The frame being built, in points. *)
+
+val text_line_height : t -> int
+(** The pitch of a line in {!text_area}: one and a half times the text size (17 points at 11,
+    20 at 13), as code editors set it; a control's row is {!row_height}. *)
+
 val panel_padding : t -> int

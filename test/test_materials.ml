@@ -2,6 +2,8 @@ open Rays
 open Procedural
 
 let get = Result.get_ok
+(* pointer positions are the 11-point kit's *)
+let () = Unix.putenv "RAYS_UI_FONT_SIZE" "11"
 let source = {|(workspace materials
   (graph blue :context material
     (material/standard :name "blue" :color "#2670f5" :roughness 0.3))
@@ -229,9 +231,9 @@ let carry_source = {|(workspace carrying
 
 let carry_tests () =
   let module L = Pxui_shell.Layout in
-  let layout = L.Split { axis = `H; ratio = 0.22; a = L.Leaf L.Outline;
-    b = L.Split { axis = `H; ratio = 0.45; a = L.Leaf (L.View "main");
-      b = L.Split { axis = `H; ratio = 0.62; a = L.Leaf L.Graph; b = L.Leaf L.Inspector } } } in
+  let layout = L.Split { axis = `H; size = `Ratio 0.22; a = L.Leaf L.Outline;
+    b = L.Split { axis = `H; size = `Ratio 0.45; a = L.Leaf (L.View "main");
+      b = L.Split { axis = `H; size = `Ratio 0.62; a = L.Leaf L.Graph; b = L.Leaf L.Inspector } } } in
   let make ?(source = carry_source) ?carry_budget () =
     E3.create ~await:true ?carry_budget ~layout ~workspace:(workspace source)
       ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry

@@ -127,7 +127,7 @@ let compute (scope : P.scope) (layout : P.layout) ~shift =
                List.iteri (fun i (r : P.row) ->
                  let target_pos = (ax, rows_top n ay +. (float i +. 0.5) *. P.row_height) in
                  let target = Some (n.path, r.key, fallback r) in
-                 List.iter (fun name -> wire ?target (resolve chain name) target_pos) (names_of r.expr)) n.rows
+                 List.iter (fun name -> wire ?target (resolve chain name) target_pos) (P.sources r)) n.rows
            | Some z ->
                let collapsed = p.collapsed in
                List.iteri (fun i (r : P.rail_row) ->
@@ -342,7 +342,8 @@ let parents_removed paths =
   List.filter (fun q -> not (List.exists (fun p -> prefix p q) paths)) paths
 
 let first_inline (n : P.node) =
-  List.find_opt (fun (r : P.row) -> match r.chip with P.Inline _ -> true | _ -> false) n.rows
+  List.find_opt (fun (r : P.row) -> match r.chip with
+    | P.Inline _ -> true | P.Name leaf -> E.nested leaf | _ -> false) n.rows
 
 let inline_rail (n : P.node) = match n.zone with
   | None -> None
@@ -351,8 +352,14 @@ let inline_rail (n : P.node) = match n.zone with
 
 let fallback (r : P.row) = Option.bind r.ty (fun ty -> E.default_for ty r.label)
 
-let wired (r : P.row) = match r.expr with
-  | Some e -> E.free_names e <> [] | None -> false
+let wired (r : P.row) = P.sources r <> []
+
+(* taking a wire off a row: the nested node written there stays, as a binding of its own *)
+let unwire (n : P.node) (r : P.row) =
+  (match r.chip with
+   | P.Name leaf when E.nested leaf -> [ E.Unfold { node = n.path; key = r.key; sub = [] } ]
+   | _ -> [])
+  @ [ E.Disconnect { node = n.path; key = r.key; fallback = fallback r } ]
 
 (* ---------------------------------------------------------------- frames *)
 
@@ -410,9 +417,13 @@ let action_changes t command =
            | Some n -> List.exists (fun (r : P.row) -> r.key = key && wired r) n.rows | None -> false) ->
            let n = Option.get (node_of t path) in
            let r = List.find (fun (r : P.row) -> r.key = key) n.rows in
-           edit (E.Disconnect { node = path; key; fallback = fallback r })
+           List.map (fun op -> Syntax_edit op) (unwire n r)
        | _ -> (match t.selected_wire with
-           | Some (path, key, fb) -> edit (E.Disconnect { node = path; key; fallback = fb })
+           | Some (path, key, fb) ->
+               (match Option.bind (node_of t path) (fun n ->
+                  Option.map (fun r -> n, r) (List.find_opt (fun (r : P.row) -> r.key = key) n.rows)) with
+                | Some (n, r) -> List.map (fun op -> Syntax_edit op) (unwire n r)
+                | None -> edit (E.Disconnect { node = path; key; fallback = fb }))
            | None -> if paths = [] then [] else edit (E.Delete_nodes { nodes = paths })))
   | Fold_into -> one (fun n -> edit (E.Fold_into { node = n.path }))
   | Unfold -> one (fun n ->
@@ -582,16 +593,7 @@ let fitted paint size width text =
     then String.sub text 0 previous ^ "…" else prefix next next in
   prefix 0 0
 
-let dashed_line paint ~width color (x0, y0) (x1, y1) =
-  let length = Float.hypot (x1 -. x0) (y1 -. y0) in
-  if length > 0. then
-    for k = 0 to int_of_float (Float.ceil (length /. 7.)) - 1 do
-      let lo = float k *. 7. in
-      let hi = Float.min length (lo +. 4.) in
-      if lo < hi then
-        let point d = x0 +. (x1 -. x0) *. d /. length, y0 +. (y1 -. y0) *. d /. length in
-        Ui.Paint.line paint ~from_:(point lo) ~to_:(point hi) ~width color
-    done
+let dashed_line paint ~width color a b = Ui.Paint.dashed paint ~from_:a ~to_:b ~width color
 
 let zone_style theme = function
   | P.For -> Pxui.Theme.zone_for theme | Fold | Scan -> Pxui.Theme.zone_fold theme
@@ -605,8 +607,7 @@ let paint_zone paint theme kind ~selected (x, y, w, h) =
       [ (x, y), (x +. w, y); (x +. w, y), (x +. w, y +. h);
         (x +. w, y +. h), (x, y +. h); (x, y +. h), (x, y) ]
   end else Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) s.edge;
-  if selected then
-    Ui.Paint.stroke paint ~x:(x -. 1.) ~y:(y -. 1.) ~w:(w +. 2.) ~h:(h +. 2.) ~width:1.5 theme.Pxui.accent
+  if selected then Ui.Paint.brackets paint ~x ~y ~w ~h theme.Pxui.accent
 
 let sx t gx = float t.x +. t.pan_x +. gx *. t.zoom
 let sy t gy = float t.y +. t.pan_y +. gy *. t.zoom
@@ -623,13 +624,13 @@ let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
           | Any | Scene | World | Settings | Panel | Editor | Material -> p.output in
         go ty
     | None -> p.output in
-  let r = 5. *. z in
-  let fill = if connected then color else theme.Pxui.input in
+  let r = 4. *. z in
+  let ring (cx, cy) =
+    Ui.Paint.circle paint ~at:(cx, cy) ~radius:r ~fill:(if connected then color else theme.Pxui.input) ~stroke:color () in
   match ty with
   | Some (Ty.List _) ->
-      Ui.Paint.rect paint ~x:(cx -. r +. 2. *. z) ~y:(cy -. r +. 2. *. z) ~w:(2. *. r) ~h:(2. *. r)
-        ~fill:theme.input ~stroke:color ();
-      Ui.Paint.rect paint ~x:(cx -. r) ~y:(cy -. r) ~w:(2. *. r) ~h:(2. *. r) ~fill ~stroke:color ()
+      Ui.Paint.circle paint ~at:(cx +. 2. *. z, cy +. 2. *. z) ~radius:r ~fill:theme.input ~stroke:color ();
+      ring (cx, cy)
   | Some Ty.Fn ->
       let n = 7 in
       for k = 0 to n - 1 do
@@ -640,9 +641,9 @@ let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
           (if connected then color else Color.blend color theme.input ~pct:0.5)
       done
   | Some (Ty.Record _) ->
-      Ui.Paint.rect paint ~x:(cx -. r -. 2. *. z) ~y:(cy -. r) ~w:(2. *. r +. 4. *. z) ~h:(2. *. r)
- ~fill ~stroke:color ()
-  | _ -> Ui.Paint.rect paint ~x:(cx -. r) ~y:(cy -. r) ~w:(2. *. r) ~h:(2. *. r) ~fill ~stroke:color ()
+      Ui.Paint.rect paint ~x:(cx -. 6. *. z) ~y:(cy -. 3. *. z) ~w:(12. *. z) ~h:(6. *. z)
+        ~fill:(if connected then color else theme.input) ~stroke:color ()
+  | _ -> ring (cx, cy)
 
 let glyph_of = function
   | P.For -> "for" | Fold -> "↵" | Scan -> "scan" | Sum -> "Σ" | Let -> "let" | Fn -> "λ"
@@ -653,8 +654,8 @@ let note_colors theme =
 
 (* the marks a node or zone carries: live time, loop-invariant, bypass, macro *)
 let marks ?(viewed = false) (n : P.node) =
-  (if viewed then [ "VIEW" ] else [])
-  @ (if n.live then [ "t" ] else []) @ (if n.invariant then [ "↑" ] else [])
+  ignore viewed;
+  (if n.live then [ "t" ] else []) @ (if n.invariant then [ "↑" ] else [])
   @ (if n.macro <> None then [ "◊" ] else [])
   @ (match n.zone with Some { order = Some o; _ } -> [ o ] | _ -> [])
 
@@ -672,25 +673,37 @@ let shown_glyph = function "⟲" -> "↵" | "◆" -> "◊" | g -> g
 
 let paint_chip paint t ~size ~z ~x ~y ~w (r : P.row) =
   let theme = t.theme in
-  let text_y = y +. 6. *. z in
+  let text_y = y +. 4. *. z in
   match r.chip with
   | P.No_value ->
       Ui.Paint.text paint ~at:(x, text_y) ~size ~color:(Pxui.Theme.muted theme)
         (fitted paint size w (Option.value ~default:"" r.default))
   | Const -> (match r.expr with
       | Some { S.node = S.Num _ | S.Vec _; _ } -> ()
+      (* a boolean is a switch at the row's end: 28 by 14, the knob accent when on *)
+      | Some { S.node = S.Sym (("true" | "false") as b); _ } ->
+          let on = b = "true" and sx = x +. w -. 28. *. z and sy = y +. 5. *. z in
+          Ui.Paint.rect paint ~x:sx ~y:sy ~w:(28. *. z) ~h:(14. *. z)
+            ~fill:(if on then theme.input else theme.track) ~stroke:(Pxui.Theme.border theme) ();
+          Ui.Paint.fill paint ~x:(sx +. (if on then 17. else 3.) *. z) ~y:(sy +. 3. *. z) ~w:(8. *. z) ~h:(8. *. z)
+            (if on then theme.accent else Pxui.Theme.ink_3 theme)
       | Some e -> Ui.Paint.text paint ~at:(x, text_y) ~size ~color:theme.foreground
                     (fitted paint size w (Flow.Lisp.flat e))
       | None -> ())
-  | Name s -> Ui.Paint.text paint ~at:(x, text_y) ~size ~color:(ty_color t r.ty) (fitted paint size w s)
+  | Name s ->
+      (* a nested node is its own card: the row names its kind *)
+      let s = match r.expr with
+        | Some { S.node = S.List ({ S.node = S.Sym head; _ } :: _); _ } when E.nested s -> head
+        | _ -> s in
+      Ui.Paint.text paint ~at:(x, text_y) ~size ~color:theme.accent "\xe2\x86\x90";
+      let aw = Ui.Paint.text_width paint ~size "\xe2\x86\x90 " in
+      Ui.Paint.text paint ~at:(x +. aw, text_y) ~size ~color:(Pxui.Theme.muted theme) (fitted paint size (w -. aw) s)
   | Inline { glyph; text } ->
       let glyph = shown_glyph glyph in
-      let gw = Ui.Paint.text_width paint ~size glyph +. 8. *. z in
-      Ui.Paint.rect paint ~x ~y:(y +. 4. *. z) ~w:gw ~h:(16. *. z) ~fill:theme.control
-        ~stroke:(Pxui.Theme.faint_border theme) ();
-      Ui.Paint.text paint ~at:(x +. 4. *. z, text_y) ~size ~color:theme.accent glyph;
-      Ui.Paint.text paint ~at:(x +. gw +. 4. *. z, text_y) ~size ~color:(Pxui.Theme.muted theme)
-        (fitted paint size (w -. gw -. 4. *. z) text)
+      let gw = Ui.Paint.text_width paint ~size glyph +. 6. *. z in
+      Ui.Paint.text paint ~at:(x, text_y) ~size ~color:theme.accent glyph;
+      Ui.Paint.text paint ~at:(x +. gw, text_y) ~size ~color:(Pxui.Theme.muted theme)
+        (fitted paint size (w -. gw) text)
 
 let paint_rows paint t ~z ~fs ~x ~y ~w rows ~selected_row =
   let theme = t.theme in
@@ -698,12 +711,12 @@ let paint_rows paint t ~z ~fs ~x ~y ~w rows ~selected_row =
     let ry = y +. float i *. P.row_height *. z in
     if selected_row = Some i then
       Ui.Paint.fill paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) ~h:(P.row_height *. z)
-        (Color.with_alpha theme.accent 30);
+        (Pxui.Theme.hover_fill theme);
     let shown = r.kind <> P.Add in
     let label_color = match r.kind with
       | P.Add -> theme.accent | Binder | Hole -> t.theme.accent | _ -> Pxui.Theme.muted theme in
-    Ui.Paint.text paint ~at:(x +. 14. *. z, ry +. 6. *. z) ~size:fs ~color:label_color
-      (fitted paint fs (60. *. z) r.label);
+    Ui.Paint.text paint ~at:(x +. 12. *. z, ry +. 4. *. z) ~size:fs ~color:label_color
+      (fitted paint fs (68. *. z) r.label);
     if r.socket then
       paint_socket paint theme r.ty ~connected:(wired r) ~z (x, ry +. 12. *. z);
     if shown then paint_chip paint t ~size:fs ~z ~x:(x +. cell_x *. z) ~y:ry
@@ -715,10 +728,10 @@ let paint_outputs paint t ~z ~fs ~x ~y ~w (n : P.node) =
     let ry = y +. float (List.length n.rows + j) *. P.row_height *. z in
     Ui.Paint.line paint ~from_:(x +. 8. *. z, ry) ~to_:(x +. w -. 8. *. z, ry) ~width:1.
       (Pxui.Theme.faint_border theme);
-    Ui.Paint.text paint ~at:(x +. 14. *. z, ry +. 6. *. z) ~size:fs ~color:(colors t).record ("→ " ^ name);
+    Ui.Paint.text paint ~at:(x +. 14. *. z, ry +. 4. *. z) ~size:fs ~color:(colors t).record ("→ " ^ name);
     let label = Ty.to_string ty in
     let lw = Ui.Paint.text_width paint ~size:fs label in
-    Ui.Paint.text paint ~at:(x +. w -. 14. *. z -. lw, ry +. 6. *. z) ~size:fs
+    Ui.Paint.text paint ~at:(x +. w -. 14. *. z -. lw, ry +. 4. *. z) ~size:fs
       ~color:(Pxui.Theme.muted theme) label;
     paint_socket paint theme (Some ty) ~connected:true ~z (x +. w, ry +. 12. *. z)) n.outputs
 
@@ -729,14 +742,14 @@ let paint_rail paint t ~z ~fs ~x ~y ~expanded (rail : P.rail_row list) =
     let ry = y +. float i *. P.row_height *. z in
     let color = match r.role with
       | P.Var -> theme.accent | Acc -> palette.vec3 | Param -> palette.fn | Capture -> Pxui.Theme.muted theme in
-    Ui.Paint.text paint ~at:(x +. 14. *. z, ry +. 6. *. z) ~size:fs ~color (fitted paint fs (56. *. z) r.name);
+    Ui.Paint.text paint ~at:(x +. 14. *. z, ry +. 4. *. z) ~size:fs ~color (fitted paint fs (56. *. z) r.name);
     let role = match r.role with P.Var -> "in" | Acc -> "acc" | Param -> "param" | Capture -> "from" in
-    Ui.Paint.text paint ~at:(x +. 14. *. z +. 58. *. z, ry +. 7. *. z) ~size:(max 4 (fs - 1))
+    Ui.Paint.text paint ~at:(x +. 14. *. z +. 58. *. z, ry +. 7. *. z) ~size:(max 4 (fs - 2))
       ~color:(Pxui.Theme.muted theme) role;
     (match r.expr with
      | Some e ->
          let shown = match e.node with S.Sym s -> s | _ -> Flow.Lisp.flat e in
-         Ui.Paint.text paint ~at:(x +. 92. *. z, ry +. 6. *. z) ~size:fs
+         Ui.Paint.text paint ~at:(x +. 92. *. z, ry +. 4. *. z) ~size:fs
            ~color:(if (match e.node with S.Sym _ -> true | _ -> false) then ty_color t r.ty else Pxui.Theme.muted theme)
            (fitted paint fs (60. *. z) shown)
      | None -> ());
@@ -748,45 +761,48 @@ let paint_rail paint t ~z ~fs ~x ~y ~expanded (rail : P.rail_row list) =
 let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open () =
   let viewed = t.display = Some n.path in
   let theme = t.theme in
-  let size = max 4 (fs - 1) in
+  let size = max 4 (fs - 2) in
   let head = P.head_height *. z in
-  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(head -. 1.)
-    ~fill:theme.control ();
+  ignore head;
+  let chevron cx open_ = Ui.Paint.chevron paint ~at:(cx, y +. 12. *. z) (if open_ then `Down else `Right)
+      (Pxui.Theme.muted theme) in
   let name_x = match n.zone with
     | Some z_ ->
+        (* the zone's kind: a label in its own colour *)
         let g = glyph_of z_.kind in
         let gx = x +. (if toggle <> None then 22. else 8.) *. z in
-        Ui.Paint.rect paint ~x:gx ~y:(y +. 4. *. z) ~w:(Ui.Paint.text_width paint ~size g +. 8. *. z) ~h:(16. *. z)
- ~fill:(zone_style theme z_.kind).edge ();
-        Ui.Paint.text paint ~at:(gx +. 4. *. z, y +. 6. *. z) ~size ~color:theme.input g;
-        gx +. Ui.Paint.text_width paint ~size g +. 14. *. z
+        let edge = (zone_style theme z_.kind).edge in
+        Ui.Paint.text paint ~at:(gx, y +. 6. *. z) ~size ~color:{ edge with a = 255 } g;
+        gx +. Ui.Paint.text_width paint ~size g +. 8. *. z
     | None ->
-        Ui.Paint.fill paint ~x:(x +. 7. *. z) ~y:(y +. 7. *. z) ~w:(10. *. z) ~h:(10. *. z) (ty_color t (Some n.ty));
+        Ui.Paint.fill paint ~x:(x +. 8. *. z) ~y:(y +. 8. *. z) ~w:(8. *. z) ~h:(8. *. z) (ty_color t (Some n.ty));
         (match flag with
          | Some on ->
-             (* the bypass flag: filled while the node is bypassed *)
+             (* the bypass flag: a key letter, accent while the node is bypassed *)
              let fx = x +. 22. *. z in
-             Ui.Paint.rect paint ~x:fx ~y:(y +. 4. *. z) ~w:(16. *. z) ~h:(16. *. z)
-               ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
              Ui.Paint.text paint ~at:(fx +. 4. *. z, y +. 6. *. z) ~size
-               ~color:(if on then theme.input else Pxui.Theme.muted theme) "B";
+               ~color:(if on then theme.accent else Pxui.Theme.ink_3 theme) "B";
              x +. 44. *. z
-         | None -> x +. 24. *. z) in
+         | None -> x +. 22. *. z) in
   (match toggle with
-   | Some open_ -> Ui.Paint.text paint ~at:(x +. 6. *. z, y +. 6. *. z) ~size:fs
-       ~color:(Pxui.Theme.muted theme) (if open_ then "▼" else "►")
+   | Some open_ -> chevron (x +. 11. *. z) open_
    | None -> ());
   let m = marks ~viewed n in
   let marks_w = List.fold_left (fun a s -> a +. Ui.Paint.text_width paint ~size s +. 5.) 0. m in
   let right = match lens_open with
-    | Some open_ ->
-        Ui.Paint.text paint ~at:(x +. w -. 18. *. z, y +. 6. *. z) ~size:fs
-          ~color:(Pxui.Theme.muted theme) (if open_ then "▼" else "►");
-        x +. w -. 22. *. z
+    | Some open_ -> chevron (x +. w -. 14. *. z) open_; x +. w -. 24. *. z
     | None -> x +. w -. 10. *. z in
+  (* the displayed node: an accent flag at the end of its title *)
+  let right = if viewed then begin
+      let fx = right -. 12. *. z and fy = y +. 6. *. z in
+      Ui.Paint.rect paint ~x:fx ~y:fy ~w:(12. *. z) ~h:(12. *. z) ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
+      Ui.Paint.fill paint ~x:(fx +. 3. *. z) ~y:(fy +. 3. *. z) ~w:(6. *. z) ~h:(6. *. z) theme.accent;
+      fx -. 6. *. z
+    end else right in
   paint_marks paint theme ~size ~x:right ~y:(y +. 6. *. z) m;
-  let title = if n.synthetic then "result" else n.name in
-  Ui.Paint.text paint ~at:(name_x, y +. 6. *. z) ~size:fs ~color:(if n.synthetic then Pxui.Theme.muted theme else theme.foreground)
+  let title = P.title n in
+  Ui.Paint.text paint ~at:(name_x, y +. 4. *. z) ~size:fs
+    ~color:(if n.synthetic || P.anonymous n then Pxui.Theme.muted theme else theme.foreground)
     (fitted paint fs (x +. w -. name_x -. marks_w -. 12. *. z -. 40. *. z) title);
   let head_label = n.head in
   if n.zone = None && n.head <> n.name then begin
@@ -802,7 +818,7 @@ let paint_header paint t ~z ~fs ~x ~y ~w (n : P.node) ~toggle ?flag ?lens_open (
 let hoist_x = 116.
 let paint_footer paint t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) (x, y, w, h) =
   let theme = t.theme in
-  let size = max 4 (fs - 1) in
+  let size = max 4 (fs - 2) in
   let fy = y +. h -. P.foot_height *. z in
   let text_y = fy +. 5. *. z in
   Ui.Paint.line paint ~from_:(x +. 8. *. z, fy) ~to_:(x +. w -. 8. *. z, fy) ~width:1. (Pxui.Theme.faint_border theme);
@@ -858,18 +874,16 @@ let bypassable (n : P.node) = P.bypassable n
 
 let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   let theme = t.theme in
-  Ui.Paint.fill paint ~x:(x +. 1.) ~y ~w:(w -. 2.) ~h:(lh *. z -. 1.) (Color.with_alpha theme.control 140);
   Ui.Paint.line paint ~from_:(x +. 8. *. z, y) ~to_:(x +. w -. 8. *. z, y) ~width:1. (Pxui.Theme.faint_border theme);
   let len = Array.length l.steps in
   for i = 0 to len do
     let (bx, by), (bw, bh) = lens_button_box ~len i in
     let on = i = step in
-    Ui.Paint.rect paint ~x:(x +. bx *. z) ~y:(y +. by *. z) ~w:(bw *. z) ~h:(bh *. z)
-      ~fill:(if on then theme.accent else theme.input) ~stroke:(Pxui.Theme.faint_border theme) ();
+    if on then Ui.Paint.fill paint ~x:(x +. (bx +. 2.) *. z) ~y:(y +. (by +. bh) *. z -. 1.) ~w:((bw -. 4.) *. z) ~h:1. theme.foreground;
     let label = if i = 0 then "call" else if i = len then "Template" else string_of_int i in
-    let tw = Ui.Paint.text_width paint ~size:(max 4 (fs - 1)) label in
-    Ui.Paint.text paint ~at:(x +. (bx +. bw /. 2.) *. z -. tw /. 2., y +. (by +. 3.) *. z) ~size:(max 4 (fs - 1))
-      ~color:(if on then theme.input else theme.foreground) label
+    let tw = Ui.Paint.text_width paint ~size:(max 4 (fs - 2)) label in
+    Ui.Paint.text paint ~at:(x +. (bx +. bw /. 2.) *. z -. tw /. 2., y +. (by +. 3.) *. z) ~size:(max 4 (fs - 2))
+      ~color:(if on then theme.foreground else Pxui.Theme.ink_3 theme) label
   done;
   let text = if step >= len then (if l.template = "" then "(no definition)" else l.template)
     else match l.error with
@@ -878,18 +892,18 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   let lines = String.split_on_char '\n' text in
   List.iteri (fun k line ->
     if k < 16 then
-      Ui.Paint.text paint ~at:(x +. 10. *. z, y +. (P.row_height +. 6. +. float k *. 15.) *. z) ~size:fs
+      Ui.Paint.text paint ~at:(x +. 10. *. z, y +. (P.row_height +. 4. +. float k *. 15.) *. z) ~size:fs
         ~color:theme.foreground (fitted paint fs (w -. 20. *. z) (if k = 15 && List.length lines > 16 then line ^ " …" else line))) lines;
   let (rx, ry), (rw, rh) = lens_replace_box lh in
   Ui.Paint.rect paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z)
-    ~fill:theme.input ~stroke:theme.accent ();
-  Ui.Paint.text paint ~at:(x +. (rx +. 8.) *. z, y +. (ry +. 4.) *. z) ~size:(max 4 (fs - 1)) ~color:theme.accent
+    ~stroke:(Pxui.Theme.border theme) ();
+  Ui.Paint.text paint ~at:(x +. (rx +. 8.) *. z, y +. (ry +. 4.) *. z) ~size:(max 4 (fs - 2)) ~color:theme.foreground
     "Replace call with expansion";
   let reading = match l.error with
     | _ when step >= len -> "the macro's template"
     | Some message when step >= len - 1 && step > 0 -> message
     | _ -> if step = 0 then "as written" else Printf.sprintf "after %d expansion step%s" step (if step > 1 then "s" else "") in
-  let size = max 4 (fs - 1) in
+  let size = max 4 (fs - 2) in
   let tw = Ui.Paint.text_width paint ~size reading in
   Ui.Paint.text paint ~at:(x +. w -. 8. *. z -. tw, y +. (ry +. 4.) *. z) ~size ~color:(Pxui.Theme.muted theme)
     (fitted paint size (w -. (rx +. rw +. 24.) *. z) reading)
@@ -901,8 +915,10 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
   if stacked then
     List.iter (fun d ->
       Ui.Paint.rect paint ~x:(x +. d *. z) ~y:(y +. d *. z) ~w ~h ~fill:theme.input
-        ~stroke:(Pxui.Theme.border theme) ()) [ 6.; 3. ];
-  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
+        ~stroke:(Pxui.Theme.edge theme) ()) [ 6.; 3. ];
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
+    ~stroke:(if selected then Pxui.Theme.border theme else Pxui.Theme.edge theme) ();
+  if n.bypass then Ui.Paint.hatch paint ~x ~y ~w ~h (Pxui.Theme.edge theme);
   (match z_ with
    | Some zn when not p.collapsed ->
        (* an expanded zone: the tint is painted under the tiles; the tile draws the frame *)
@@ -921,7 +937,7 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
        let bg, ink = note_colors theme in
        Ui.Paint.fill paint ~x:(x +. 1.) ~y:body_y ~w:(w -. 2.) ~h:(P.row_height *. z) bg;
        let first = match String.index_opt note '\n' with Some i -> String.sub note 0 i | None -> note in
-       Ui.Paint.text paint ~at:(x +. 8. *. z, body_y +. 6. *. z) ~size:fs ~color:ink (fitted paint fs (w -. 16. *. z) first)
+       Ui.Paint.text paint ~at:(x +. 8. *. z, body_y +. 4. *. z) ~size:fs ~color:ink (fitted paint fs (w -. 16. *. z) first)
    | None -> ());
   let rows_y = body_y +. (if n.note <> None then P.row_height *. z else 0.) in
   (match z_ with
@@ -930,7 +946,7 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
        if n.head = "list" || n.head = "str" then
          List.iteri (fun i (r : P.row) -> match r.kind, r.key with
            | P.Rest, E.Pos k when k >= 1 ->
-               Ui.Paint.text paint ~at:(x +. w -. 20. *. z, rows_y +. (float i *. P.row_height +. 6.) *. z) ~size:fs
+               Ui.Paint.text paint ~at:(x +. w -. 20. *. z, rows_y +. (float i *. P.row_height +. 4.) *. z) ~size:fs
                  ~color:theme.accent "↑"
            | _ -> ()) n.rows;
        paint_outputs paint t ~z ~fs ~x ~y:rows_y ~w n
@@ -938,8 +954,7 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
    | Some _ -> ());
   Option.iter (fun f -> paint_footer paint t ~z ~fs f n.ty (x, y, w, h -. lh *. z)) footer;
   Option.iter (fun (l, step) -> paint_lens paint t ~z ~fs l ~step (x, y +. h -. lh *. z, w) ~lh) lens;
-  if selected then
-    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. theme.accent
+  if selected then Ui.Paint.brackets paint ~x ~y ~w ~h theme.accent
 
 (* the expanded zone's frame, rail, yield and selector, over its tint *)
 let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected (x, y, w, h) ~probe ~count =
@@ -957,7 +972,7 @@ let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected
   paint_rail paint t ~z ~fs ~x ~y:top ~expanded:true zn.rail;
   let yx = x +. w -. P.yield_width *. z in
   Ui.Paint.line paint ~from_:(yx, top) ~to_:(yx, y +. h -. 6. *. z) ~width:1. (Color.with_alpha edge 120);
-  Ui.Paint.text paint ~at:(yx +. 14. *. z, top +. 6. *. z) ~size:fs ~color:(Pxui.Theme.muted theme) zn.yield_label;
+  Ui.Paint.text paint ~at:(yx +. 14. *. z, top +. 4. *. z) ~size:fs ~color:(Pxui.Theme.muted theme) zn.yield_label;
   paint_socket paint theme (Some n.ty) ~connected:true ~z (yx, top +. 12. *. z);
   if zn.kind = P.Fold || zn.kind = P.Scan then begin
     (* the feedback line: yield back to the accumulator *)
@@ -975,55 +990,52 @@ let paint_zone_frame paint t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected
   end;
   if zn.kind <> P.Let then begin
     let sy = y +. P.head_height *. z in
-    let size = max 4 (fs - 1) in
+    let size = max 4 (fs - 2) in
     let read = if count > 0 then Printf.sprintf "%d/%d" (probe + 1) count else "no runs" in
     let rw = Ui.Paint.text_width paint ~size read in
     Ui.Paint.line paint ~from_:(x, sy +. P.strip_height *. z) ~to_:(x +. w, sy +. P.strip_height *. z) ~width:1.
       (Color.with_alpha edge 60);
     let tx = x +. 30. *. z and tw = w -. 60. *. z -. rw -. 14. *. z in
-    Ui.Paint.rect paint ~x:tx ~y:(sy +. 12. *. z) ~w:tw ~h:(10. *. z)
-      ~fill:theme.track ~stroke:(Pxui.Theme.faint_border theme) ();
+    Ui.Paint.fill paint ~x:tx ~y:(sy +. 21. *. z) ~w:tw ~h:1. (Pxui.Theme.edge theme);
     if count > 0 then begin
       let cell = tw /. float count in
       if cell >= 4. *. z then
-        for k = 0 to count - 1 do
-          Ui.Paint.line paint ~from_:(tx +. cell *. float k, sy +. 12. *. z) ~to_:(tx +. cell *. float k, sy +. 22. *. z)
-            ~width:1. (Color.with_alpha edge 60)
+        for k = 0 to count do
+          Ui.Paint.fill paint ~x:(tx +. cell *. float k) ~y:(sy +. 17. *. z) ~w:1. ~h:(5. *. z) (Pxui.Theme.border theme)
         done;
-      Ui.Paint.fill paint ~x:(tx +. cell *. float probe) ~y:(sy +. 11. *. z) ~w:(Float.max (2. *. z) cell) ~h:(12. *. z)
-        (Color.with_alpha theme.accent 210)
+      Ui.Paint.fill paint ~x:(tx +. cell *. float probe) ~y:(sy +. 11. *. z) ~w:(Float.max (2. *. z) cell) ~h:(10. *. z)
+        (Pxui.Theme.tint theme);
+      Ui.Paint.fill paint ~x:(tx +. cell *. float probe) ~y:(sy +. 20. *. z) ~w:(Float.max (2. *. z) cell) ~h:2. theme.accent
     end;
-    Ui.Paint.text paint ~at:(x +. 8. *. z, sy +. 10. *. z) ~size:fs ~color:theme.foreground "◄";
-    Ui.Paint.text paint ~at:(tx +. tw +. 6. *. z, sy +. 10. *. z) ~size:fs ~color:theme.foreground "►";
+    Ui.Paint.chevron paint ~at:(x +. 14. *. z, sy +. 17. *. z) `Left theme.foreground;
+    Ui.Paint.chevron paint ~at:(tx +. tw +. 12. *. z, sy +. 17. *. z) `Right theme.foreground;
     Ui.Paint.text paint ~at:(x +. w -. 8. *. z -. rw, sy +. 11. *. z) ~size ~color:(Pxui.Theme.muted theme) read
   end;
-  if selected then
-    Ui.Paint.stroke paint ~x:(x -. 1.) ~y:(y -. 1.) ~w:(w +. 2.) ~h:(h +. 2.) ~width:1.5 theme.accent
+  if selected then Ui.Paint.brackets paint ~x ~y ~w ~h theme.accent
 
 let paint_input paint t ~z ~fs (i : P.input) ~selected (x, y, w, h) =
   let theme = t.theme in
-  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
-  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(P.head_height *. z -. 1.) ~fill:theme.control ();
-  Ui.Paint.fill paint ~x:(x +. 7. *. z) ~y:(y +. 7. *. z) ~w:(10. *. z) ~h:(10. *. z) (ty_color t (Some i.ty));
-  Ui.Paint.text paint ~at:(x +. 24. *. z, y +. 6. *. z) ~size:fs ~color:theme.foreground (fitted paint fs (w -. 40. *. z) i.name);
-  Ui.Paint.text paint ~at:(x +. 14. *. z, y +. (P.head_height +. 6.) *. z) ~size:fs ~color:(Pxui.Theme.muted theme)
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
+    ~stroke:(if selected then Pxui.Theme.border theme else Pxui.Theme.edge theme) ();
+  Ui.Paint.fill paint ~x:(x +. 8. *. z) ~y:(y +. 8. *. z) ~w:(8. *. z) ~h:(8. *. z) (ty_color t (Some i.ty));
+  Ui.Paint.text paint ~at:(x +. 22. *. z, y +. 4. *. z) ~size:fs ~color:theme.foreground (fitted paint fs (w -. 40. *. z) i.name);
+  Ui.Paint.text paint ~at:(x +. 12. *. z, y +. (P.head_height +. 4.) *. z) ~size:fs ~color:(Pxui.Theme.muted theme)
     (Ty.to_string i.ty ^ (match i.default with Some d -> " = " ^ Flow.Lisp.flat d | None -> ""));
   paint_socket paint theme (Some i.ty) ~connected:true ~z (x +. w, y +. 12. *. z);
-  if selected then
-    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. theme.accent
+  if selected then Ui.Paint.brackets paint ~x ~y ~w ~h theme.accent
 
 let paint_return paint t ~z ~fs (s : P.scope) ~selected (x, y, w, h) =
   let theme = t.theme in
-  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
-  Ui.Paint.rect paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(w -. 2.) ~h:(P.head_height *. z -. 1.) ~fill:theme.control ();
-  Ui.Paint.text paint ~at:(x +. 10. *. z, y +. 6. *. z) ~size:fs ~color:theme.foreground "return";
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
+    ~stroke:(if selected then Pxui.Theme.border theme else Pxui.Theme.edge theme) ();
+  Ui.Paint.fill paint ~x:(x +. 8. *. z) ~y:(y +. 8. *. z) ~w:(8. *. z) ~h:(8. *. z) theme.foreground;
+  Ui.Paint.text paint ~at:(x +. 22. *. z, y +. 4. *. z) ~size:fs ~color:theme.foreground "return";
   let shown = match s.result with
     | P.Link l -> l | Node _ -> "result" | Literal e -> Flow.Lisp.flat e in
-  Ui.Paint.text paint ~at:(x +. 14. *. z, y +. (P.head_height +. 6.) *. z) ~size:fs ~color:(Pxui.Theme.muted theme)
+  Ui.Paint.text paint ~at:(x +. 12. *. z, y +. (P.head_height +. 4.) *. z) ~size:fs ~color:(Pxui.Theme.muted theme)
     (fitted paint fs (w -. 24. *. z) shown);
   paint_socket paint theme None ~connected:(s.result <> P.Literal (S.make (S.Sym "nil"))) ~z (x, y +. 36. *. z);
-  if selected then
-    Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:2. theme.accent
+  if selected then Ui.Paint.brackets paint ~x ~y ~w ~h theme.accent
 
 (* a wire as an orthogonal polyline with a vertical run at the midpoint, or a straight segment *)
 let wire_points ?(style = `Rect) (ax, ay) (bx, by) =
@@ -1045,11 +1057,26 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
   let vx, vy, vw, vh = viewport in
   let z = t.zoom in
   let spacing = 24. *. z in
-  Ui.Paint.fill paint ~x:vx ~y:vy ~w:vw ~h:vh
-    (if theme = Pxui.default_theme then Color.hex_exn "#eaede7" else Color.blend theme.panel theme.accent ~pct:0.25);
+  Ui.Paint.fill paint ~x:vx ~y:vy ~w:vw ~h:vh theme.panel;
   Ui.Paint.grid paint ~x:vx ~y:vy ~w:vw ~h:vh
     ~origin:(vx +. Float.rem t.pan_x spacing, vy +. Float.rem t.pan_y spacing) ~spacing ~dot:2.
-    (Color.with_alpha theme.foreground 46);
+    (Color.with_alpha theme.foreground 66);
+  if z >= 0.5 then begin
+    let px = 480. *. z and py = 192. *. z in
+    let rem v m = let r = Float.rem v m in if r < 0. then r +. m else r in
+    let x0 = vx +. rem (t.pan_x +. (84. *. z)) px and y0 = vy +. rem (t.pan_y +. (84. *. z)) py in
+    let line = Pxui.Theme.border theme in
+    let cx = ref x0 in
+    while !cx < vx +. vw do
+      let cy = ref y0 in
+      while !cy < vy +. vh do
+        Ui.Paint.fill paint ~x:(!cx -. 4.) ~y:!cy ~w:9. ~h:1. line;
+        Ui.Paint.fill paint ~x:!cx ~y:(!cy -. 4.) ~w:1. ~h:9. line;
+        cy := !cy +. py
+      done;
+      cx := !cx +. px
+    done
+  end;
   List.iter (fun ((n : P.node), (zn : P.zone), (p : P.placed), ax, ay) ->
     paint_zone paint theme zn.kind ~selected:(Path_set.mem n.path t.selected)
       (sx t ax, sy t ay, p.w *. z, p.h *. z)) zones;
@@ -1057,29 +1084,28 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
   List.iter (fun (scope_path, (ox, oy)) ->
     List.iter (fun (title, (fx, fy), (fw, fh)) ->
       let x = sx t (ox +. fx) and y = sy t (oy +. fy) in
-      Ui.Paint.rect paint ~x ~y ~w:(fw *. z) ~h:(fh *. z) ~fill:(Color.with_alpha theme.foreground 10)
-        ~stroke:(Pxui.Theme.faint_border theme) ();
+      Ui.Paint.rect paint ~x ~y ~w:(fw *. z) ~h:(fh *. z) ~fill:(Color.with_alpha theme.foreground 8)
+        ~stroke:(Pxui.Theme.edge theme) ();
       Ui.Paint.text paint ~at:(x +. 6., y +. 4.) ~size:(max 7 (int_of_float (10. *. z)))
         ~color:(Pxui.Theme.muted theme) title;
       (* delete cross top right, resize grip bottom right *)
       Ui.Paint.text paint ~at:(x +. fw *. z -. 14., y +. 4.) ~size:(max 7 (int_of_float (10. *. z)))
         ~color:(Pxui.Theme.muted theme) "x";
-      Ui.Paint.fill paint ~x:(x +. fw *. z -. 8.) ~y:(y +. fh *. z -. 8.) ~w:6. ~h:6.
-        (Color.with_alpha theme.accent 160)) (frame_list t scope_path)) t.geo.origins;
+      let ink = Pxui.Theme.ink_3 theme in
+      Ui.Paint.fill paint ~x:(x +. fw *. z -. 4.) ~y:(y +. fh *. z -. 11.) ~w:1. ~h:8. ink;
+      Ui.Paint.fill paint ~x:(x +. fw *. z -. 11.) ~y:(y +. fh *. z -. 4.) ~w:8. ~h:1. ink) (frame_list t scope_path)) t.geo.origins;
   Array.iter (fun w ->
     let pts = List.map (fun (x, y) -> sx t x, sy t y) (wire_points ~style:t.wires w.a w.b) in
     let is_selected = match t.selected_wire, w.target with
       | Some (sp, sk, _), Some (tp, tk, _) -> sp = tp && sk = tk
       | _ -> false in
     let is_highlighted = List.mem w t.highlighted in
-    let width = if is_selected then Float.max 2.5 (3. *. z)
-      else if is_highlighted then Float.max 2. (2.4 *. z)
-      else Float.max 1. (1.6 *. z) in
+    let width = if is_highlighted then Float.max 2. (2.4 *. z) else Float.max 1. (1.5 *. z) in
     (* a switch's active wire is solid and accented, the others dashed grey *)
     let layout = match w.target with
       | Some (p, E.Pos i, _) -> Option.map (fun a -> i = a) (List.assoc_opt p t.switches)
       | _ -> None in
-    let color = if is_selected || layout = Some true then theme.accent
+    let color = if is_selected then theme.foreground else if layout = Some true then theme.accent
       else if layout = Some false then Pxui.Theme.muted theme else ty_color t w.ty in
     if layout = Some false then
       let rec dash = function a :: (b :: _ as rest) -> dashed_line paint ~width color a b; dash rest | _ -> () in
@@ -1179,7 +1205,7 @@ let update t ui (frame : Frame.t) =
     | _ -> t in
   let z = t.zoom in
   (* text follows the zoom down to 5 points (a 6-point row at zoom 0.25 holds it) *)
-  let fs = max 5 (int_of_float (Float.round (11. *. z))) in
+  let fs = max 5 (int_of_float (Float.round (13. *. z))) in
   let viewport = (float t.x, float t.y, float t.width, float t.height) in
   let visible = Array.to_list t.geo.items |> List.filter (fun ((p : P.placed), ax, ay) ->
     let r = (sx t ax -. 20., sy t ay -. 20., p.w *. z +. 40., p.h *. z +. 40.) in
@@ -1277,7 +1303,7 @@ let update t ui (frame : Frame.t) =
                     (match r.key, r.expr, sink with
                      | Some key, Some e, Some sink when E.free_names e <> [] ->
                          dels := (sink,
-                                  E.Disconnect { node = n.path; key; fallback = None }) :: !dels
+                                  [ E.Disconnect { node = n.path; key; fallback = None } ]) :: !dels
                      | _ -> ())) zn.rail;
                   ignore (input "yield" (p.w -. P.yield_width, top +. 12.));
                   if zn.kind <> P.Let then begin
@@ -1321,8 +1347,7 @@ let update t ui (frame : Frame.t) =
                     let ry = top +. float i *. P.row_height in
                     if r.socket then begin
                       let sink = input ("d:" ^ string_of_int i) (0., ry +. 12.) in
-                      if wired r then dels := (sink,
-                        E.Disconnect { node = n.path; key = r.key; fallback = fallback r }) :: !dels
+                      if wired r then dels := (sink, unwire n r) :: !dels
                     end) n.rows));
         List.rev !outs, List.rev !dels, List.rev !taps, !inputs) in
       (* fields, inside the tile *)
@@ -1336,7 +1361,7 @@ let update t ui (frame : Frame.t) =
                 let ay = (ry +. 4.) *. z in
                 match r.chip, r.expr with
                 | P.Const, Some ({ node = S.Num text; _ }) ->
-                    (match num_field ui ~at:(at, ay) ~w:vw ~h ~size:fs ("f" ^ string_of_int i) text with
+                    (match num_field ui ~at:(at, ay) ~w:vw ~h ~size:(max 4 (fs - 2)) ("f" ^ string_of_int i) text with
                      | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [];
                          value = S.make (S.Num text') }) ]
                      | None -> [])
@@ -1347,7 +1372,7 @@ let update t ui (frame : Frame.t) =
                     let cw = (vw -. float (k - 1) *. 2.) /. float k in
                     List.concat (List.mapi (fun c (e : S.t) -> match e.node with
                       | S.Num text ->
-                          (match num_field ui ~at:(at +. float c *. (cw +. 2.), ay) ~w:cw ~h ~size:(max 4 (fs - 1))
+                          (match num_field ui ~at:(at +. float c *. (cw +. 2.), ay) ~w:cw ~h ~size:(max 4 (fs - 2))
                                    (Printf.sprintf "f%d.%d" i c) text with
                            | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [ c ];
                                value = S.make (S.Num text') }) ]
@@ -1392,7 +1417,7 @@ let update t ui (frame : Frame.t) =
       let editors = match t.editing, p.item with
         | Some (Name path), P.Item n when path = n.path ->
             Ui.within ui tile (fun () ->
-              edit_field ~at:(44. *. z, 3. *. z) ~w:((p.w -. 56.) *. z) ~h:(18. *. z) "name" n.name valid_name
+              edit_field ~at:(44. *. z, 3. *. z) ~w:((p.w -. 56.) *. z) ~h:(18. *. z) "name" (P.title n) valid_name
                 (fun v -> Syntax_edit (E.Rename { node = n.path; to_ = v })))
         | Some (Default path), P.Input i when path = i.path ->
             Ui.within ui tile (fun () ->
@@ -1659,7 +1684,7 @@ let update t ui (frame : Frame.t) =
            end
        | _ -> ());
       t) t taps in
-    List.iter (fun (b, op) -> if (Ui.signal ui b).clicked then emit (Syntax_edit op)) dels;
+    List.iter (fun (b, ops) -> if (Ui.signal ui b).clicked then List.iter (fun op -> emit (Syntax_edit op)) ops) dels;
     (* wires *)
     let t = List.fold_left (fun t (b, src, ty) ->
       let bs = Ui.signal ui b in
@@ -1782,20 +1807,26 @@ let update t ui (frame : Frame.t) =
   let canvas_hot = match t.carry_hot with Some ([ g ], ok) when g = t.key -> Some ok | _ -> None in
   Ui.draw_over ui canvas (fun paint (cx, cy, cw, ch) ->
     let refused = Color.hex_exn "#b0485a" in
-    Option.iter (fun ok -> Ui.Paint.stroke paint ~x:cx ~y:cy ~w:cw ~h:ch ~width:3.
+    Option.iter (fun ok -> Ui.Paint.dashed_rect paint ~x:(cx +. 1.5) ~y:(cy +. 1.5) ~w:(cw -. 3.) ~h:(ch -. 3.)
       (if ok then snapshot.theme.accent else refused)) canvas_hot;
     List.iter (fun ((x, y, w, h), letter, hot) ->
       let color = match hot with Some false -> refused | _ -> snapshot.theme.accent in
-      Ui.Paint.stroke paint ~x ~y ~w ~h ~width:(if hot <> None then 3. else 2.) color;
+      if hot <> None then begin
+        Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.tint snapshot.theme);
+        Ui.Paint.dashed_rect paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) color
+      end else Ui.Paint.stroke paint ~x ~y ~w ~h color;
+      (* a letter of the key route: the hint colour under ink *)
       Option.iter (fun letter ->
-        Ui.Paint.rect paint ~x:(x -. 4.) ~y:(y -. 9.) ~w:16. ~h:16. ~fill:color ();
-        Ui.Paint.text paint ~at:(x -. 1., y -. 6.) ~size:10 ~color:snapshot.theme.input letter) letter) marks;
+        let size = max 8 (Ui.font_size ui - 2) in
+        let lw = Ui.Paint.text_width paint ~size letter +. 6. in
+        Ui.Paint.fill paint ~x:(x -. 8.) ~y:(y -. 8.) ~w:(Float.max 14. lw) ~h:14.
+          (if hot = Some false then refused else (Pxui.Theme.ports snapshot.theme).hint);
+        Ui.Paint.text paint ~at:(x -. 5., y -. 7.) ~size ~color:snapshot.theme.foreground letter) letter) marks;
     List.iter (fun w ->
-      paint_polyline paint ~width:3. snapshot.theme.accent
+      paint_polyline paint ~width:2. snapshot.theme.foreground
         (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) (wire_points ~style:snapshot.wires w.a w.b));
-      List.iter (fun (x, y) -> Ui.Paint.stroke paint
-        ~x:(sx snapshot x -. 6.) ~y:(sy snapshot y -. 6.) ~w:12. ~h:12.
-        ~width:2. snapshot.theme.accent) [w.a; w.b]) snapshot.highlighted;
+      List.iter (fun (x, y) -> Ui.Paint.circle paint ~at:(sx snapshot x, sy snapshot y) ~radius:6.
+        ~stroke:snapshot.theme.foreground ()) [w.a; w.b]) snapshot.highlighted;
     (match band with
      | Some w -> Ui.Paint.line paint ~from_:w.from ~to_:mouse ~width:1.5 (ty_color snapshot w.ty)
      | None -> ());
@@ -1803,7 +1834,7 @@ let update t ui (frame : Frame.t) =
      | Some (Marquee _) ->
          let x0, y0 = canvas_signal.press_point and mx, my = mouse in
          Ui.Paint.rect paint ~x:(Float.min x0 mx) ~y:(Float.min y0 my) ~w:(abs_float (mx -. x0)) ~h:(abs_float (my -. y0))
-           ~fill:(Color.with_alpha snapshot.theme.accent 45) ~stroke:snapshot.theme.accent ()
+           ~fill:(Pxui.Theme.tint snapshot.theme) ~stroke:snapshot.theme.accent ()
      | _ -> ());
     (match hover with
      | Some (n, ax, ay, i) ->
@@ -1816,7 +1847,7 @@ let update t ui (frame : Frame.t) =
               let x = sx snapshot (ax +. cell_x) and y = sy snapshot (rows_top n ay +. float i *. P.row_height) in
               if w > (P.node_width -. cell_x -. 8.) *. z then begin
                 Ui.Paint.rect paint ~x ~y:(y +. 2. *. z) ~w ~h:(20. *. z) ~fill:snapshot.theme.input
-                  ~stroke:snapshot.theme.accent ();
+                  ~stroke:(Pxui.Theme.edge snapshot.theme) ();
                 Ui.Paint.text paint ~at:(x +. 6. *. z, y +. 6. *. z) ~size ~color:snapshot.theme.foreground full
               end
           | _ -> ())

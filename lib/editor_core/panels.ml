@@ -1,8 +1,9 @@
 type panel = View of string | Graph | List | Lisp | Inspector | Outline | Timeline
 type axis = [ `H | `V ]
+type size = [ `Ratio of float | `First of int | `Second of int ]
 type t =
   | Leaf of panel
-  | Split of { axis : axis; ratio : float; a : t; b : t }
+  | Split of { axis : axis; size : size; a : t; b : t }
   | Tile of t list
   | Float of t
 type path = int list
@@ -12,8 +13,8 @@ let default_state = { collapsed = false; window = None }
 let main = View "main"
 
 (* graph and inspector widths of the default 45/35/20 columns *)
-let default = Split { axis = `H; ratio = 0.45; a = Leaf main;
-  b = Split { axis = `H; ratio = 0.35 /. 0.55; a = Leaf Graph; b = Leaf Inspector } }
+let default = Split { axis = `H; size = `Ratio 0.45; a = Leaf main;
+  b = Split { axis = `H; size = `Ratio (0.35 /. 0.55); a = Leaf Graph; b = Leaf Inspector } }
 
 let name = function
   | View _ -> "VIEW" | Graph -> "GRAPH" | List -> "LIST" | Lisp -> "LISP"
@@ -31,22 +32,26 @@ let leaves tree =
     List.concat_map fst parts, List.concat_map snd parts in
   let r, f = walk [] tree in r @ f
 
-let clamp r = Float.max 0.1 (Float.min 0.9 r)
+let clamp_size : size -> size = function
+  | `Ratio r -> `Ratio (Float.max 0.1 (Float.min 0.9 r))
+  | `First n -> `First (max 1 n) | `Second n -> `Second (max 1 n)
 
-let rec set_ratio path ratio tree = match path, tree with
-  | [], Split s -> Split { s with ratio = clamp ratio }
-  | 0 :: rest, Split s -> Split { s with a = set_ratio rest ratio s.a }
-  | 1 :: rest, Split s -> Split { s with b = set_ratio rest ratio s.b }
+let rec set_size path size tree = match path, tree with
+  | [], Split s -> Split { s with size = clamp_size size }
+  | 0 :: rest, Split s -> Split { s with a = set_size rest size s.a }
+  | 1 :: rest, Split s -> Split { s with b = set_size rest size s.b }
   | i :: rest, Tile cells ->
-      Tile (List.mapi (fun j c -> if i = j then set_ratio rest ratio c else c) cells)
-  | 0 :: rest, Float t -> Float (set_ratio rest ratio t)
+      Tile (List.mapi (fun j c -> if i = j then set_size rest size c else c) cells)
+  | 0 :: rest, Float t -> Float (set_size rest size t)
   | _ -> tree
 
 let rec valid = function
   | Leaf _ -> Ok ()
-  | Split { ratio; a; b; _ } ->
-      if ratio < 0.1 || ratio > 0.9 then Error "Split ratio is 0.1-0.9."
-      else Result.bind (valid a) (fun () -> valid b)
+  | Split { size; a; b; _ } ->
+      (match size with
+       | `Ratio r when r < 0.1 || r > 0.9 -> Error "Split ratio is 0.1-0.9."
+       | `First n | `Second n when n < 1 -> Error "A fixed split size is 1 point or more."
+       | _ -> Result.bind (valid a) (fun () -> valid b))
   | Tile cells ->
       let n = List.length cells in
       if n < 1 || n > 16 then Error "A tile holds 1-16 panels."
@@ -106,7 +111,10 @@ let label t =
 let largest t =
   let rec areas share = function
     | Leaf p -> [ p, share ]
-    | Split s -> areas (share *. s.ratio) s.a @ areas (share *. (1. -. s.ratio)) s.b
+    | Split s ->
+        (* ponytail: a fixed side has no share without a window size; it reads as half *)
+        let r = match s.size with `Ratio r -> r | `First _ | `Second _ -> 0.5 in
+        areas (share *. r) s.a @ areas (share *. (1. -. r)) s.b
     | Tile cells -> List.concat_map (areas (share /. float (List.length cells))) cells
     | Float _ -> [] in
   match Option.map (areas 1.) (docked t) with

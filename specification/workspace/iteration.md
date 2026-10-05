@@ -387,7 +387,8 @@ The dotted header handle undocks and moves a panel. Drop at a docked panel's
 edge to create a split; the header menu's Dock returns a floating panel to its
 original place. Window mode floats inside the editor. The lower-right handle
 resizes it, and the disclosure chevron collapses or expands its body. One drag
-is one undo entry. Splitter ratios, docking syntax, disclosure and window bounds
+is one undo entry. Splitter ratios and fixed sizes (`flow.md` §11.11 has the layout forms, fixed
+sizes, strips and start keywords), docking syntax, disclosure and window bounds
 save with the selected layout, including leader-key visibility changes.
 
 ```lisp

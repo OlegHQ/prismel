@@ -39,12 +39,12 @@ let tokenize source =
     while !j < n && not (separator source.[!j]) do incr j done; !j in
   let string_end start =
     let buf = Buffer.create 32 in
-    let unclosed = fail source start n "E_UNCLOSED" "This string is never closed" in
+    let unclosed () = fail source start n "E_UNCLOSED" "This string is never closed" in
     let rec go j =
-      if j >= n then unclosed
+      if j >= n then unclosed ()
       else match source.[j] with
       | '"' -> Ok (Buffer.contents buf, j + 1)
-      | '\\' when j + 1 >= n -> unclosed
+      | '\\' when j + 1 >= n -> unclosed ()
       | '\\' ->
           let add c = Buffer.add_char buf c; go (j + 2) in
           (match source.[j + 1] with

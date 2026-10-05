@@ -74,20 +74,24 @@ let lex text =
   tokens, List.rev !pairs, List.map (fun (c, at, _) -> c, at) !stack
 
 let colorize (theme : Pxui.Theme.t) text =
-  let ports = Pxui.Theme.ports theme and muted = Pxui.Theme.muted theme in
-  let rainbow = [| ports.vec3; ports.int; ports.fn; ports.record |] in
+  (* kit rev 3: forms in the float blue, a kind's namespace in the vector purple, keywords in the
+     bool red, numbers green, strings in the record green; brackets and comments recede to ink-3 *)
+  let ports = Pxui.Theme.ports theme and quiet = Pxui.Theme.ink_3 theme in
   let tokens, _, _ = lex text in
-  Array.to_list tokens |> List.filter_map (fun t ->
-    let color = match t.kind with
-      | Comment | Meta -> Some muted
-      | Str -> Some ports.text
-      | Num -> Some ports.float
-      | Kw -> Some ports.bool
-      | Head -> Some theme.accent
-      | Sym -> None
-      | Open d | Close d -> Some rainbow.(d mod Array.length rainbow)
-      | Unmatched -> Some Pxui.Theme.invalid in
-    Option.map (fun c -> t.start, t.stop, c) color)
+  Array.to_list tokens |> List.concat_map (fun t ->
+    let span color = [ t.start, t.stop, color ] in
+    match t.kind with
+    | Comment | Meta -> span quiet
+    | Str -> span ports.record
+    | Num -> span ports.int
+    | Kw -> span ports.bool
+    | Head ->
+        (match String.index_from_opt text t.start '/' with
+         | Some slash when slash < t.stop - 1 -> [ t.start, slash + 1, ports.vec3 ]
+         | _ -> span ports.float)
+    | Sym -> []
+    | Open _ | Close _ -> span quiet
+    | Unmatched -> span Pxui.Theme.invalid)
 
 let brackets text = let _, pairs, _ = lex text in pairs
 
@@ -466,6 +470,19 @@ let complete ?(names = no_names) vocab text caret =
                  (Array.to_list options)
            | _ -> [])
       | _ -> [] in
+    (* an operator's text argument: after its keyword, or at its place among the positional ones *)
+    let choices = if choices <> [] then choices else
+      match enclosing_head with
+      | None -> []
+      | Some h ->
+          let argument = match after_kw with
+            | Some kw -> Some (String.sub kw 1 (String.length kw - 1))
+            | None when present = [] ->
+                Option.bind (Flow.Workspace.op_signature (ws_context context) h) (fun s ->
+                  Option.map fst (List.nth_opt s.pos (List.length prior - 1)))
+            | None -> None in
+          List.map (fun o -> mk ~group:0 ~insert:("\"" ^ o ^ "\"") o "choice" (h ^ " · " ^ o))
+            (Option.fold ~none:[] ~some:(Flow.Workspace.op_choices h) argument) in
     (* a new name in a binder's vector is the writer's to choose *)
     let naming = match open_stack, enclosing with
       | ('[', _) :: _, Some i ->

@@ -26,7 +26,7 @@ type op =
   | Add_field of { node : path; name : string; value : S.t }
   | Add_node of { scope : path; name : string; expr : S.t }
   | Delete_nodes of { nodes : path list }
-  | Set_layout_ratio of { node : path; ratio : float }
+  | Set_layout_size of { node : path; size : [ `Ratio of float | `First of int | `Second of int ] }
   | Split_panel of { node : path; axis : [ `H | `V ] }
   | Close_panel of { node : path }
   | Dock_panel of { node : path; target : path; side : [ `Left | `Right | `Top | `Bottom ] }
@@ -264,7 +264,30 @@ let rebuild s ps res : S.t = match s.form.node with
   | S.List [ h; _; _ ] -> { s.form with node = S.List [ h; { s.vec with node = S.Vec (flat_pairs ps) }; res ] }
   | _ -> s.form
 let collapse s ps res = if ps = [] then res else rebuild s ps res  (* an empty let* is its result *)
-let find_pair s leaf = List.find_index (fun (p, _) -> pat_key p = leaf) s.ps
+
+(* a call written in an argument is a node of the graph too.  It has no binding: its leaf is the
+   leaf of the binding (or [@result]) that holds it, then [#] and each argument on the way down
+   ([result#0#:cutters]: the [:cutters] input of the first input of [result]) *)
+let node_call (e : S.t) = match head_sym e with
+  | Some h -> String.length h > 1 && String.contains h '/'
+  | None -> false
+let nested leaf = String.contains leaf '#'
+let key_segment = function
+  | Pos i -> string_of_int i
+  | Kw k -> ":" ^ k
+  | Whole | Field _ | Bv _ -> fail "Only an input of a call holds a nested node."
+let nested_leaf leaf key = leaf ^ "#" ^ key_segment key
+let split_leaf leaf = match String.split_on_char '#' leaf with
+  | base :: keys -> base, List.map (fun k ->
+      if String.length k > 0 && k.[0] = ':' then Kw (String.sub k 1 (String.length k - 1))
+      else match int_of_string_opt k with Some i -> Pos i | None -> fail "Node %s no longer exists." leaf) keys
+  | [] -> leaf, []
+(* the node that holds a nested one, and the input it is written in *)
+let holder leaf =
+  let i = String.rindex leaf '#' in
+  String.sub leaf 0 i, List.hd (snd (split_leaf (String.sub leaf i (String.length leaf - i))))
+
+let find_pair s leaf = let leaf = fst (split_leaf leaf) in List.find_index (fun (p, _) -> pat_key p = leaf) s.ps
 
 let is_zone (e : S.t) = e.meta = [] && (match head_sym e with
   | Some ("for" | "fold" | "scan" | "sum") -> true | _ -> false)
@@ -340,7 +363,12 @@ let split_node = function
   | [] | [ _ ] -> fail "Not a node."
   | node -> let r = List.rev node in List.rev (List.tl r), List.hd r
 
-let get_node s leaf = match scope_of s with
+let rec get_node s leaf =
+  if nested leaf then
+    let base, keys = split_leaf leaf in
+    List.fold_left (fun e key -> match arg_get e key with
+      | Some a -> a | None -> fail "Node %s no longer exists." leaf) (get_node s base) keys
+  else match scope_of s with
   | Some sc when leaf = "@result" -> sc.res
   | Some sc -> (match find_pair sc leaf with Some j -> snd (List.nth sc.ps j)
       | None -> fail "Binding %s no longer exists." leaf)
@@ -362,7 +390,16 @@ let reorder (s : S.t) = match scope_of s with
                  go (pat_names (fst q) @ seen) (List.filter (fun x -> x != q) left) (q :: out)) in
       rebuild sc (go [] sc.ps []) sc.res
 
-let set_node s leaf e = match scope_of s with
+let rec set_node s leaf e =
+  if nested leaf then
+    let base, keys = split_leaf leaf in
+    let rec put cur = function
+      | [] -> keep_notes cur e
+      | key :: rest -> (match arg_get cur key with
+          | Some a -> arg_set cur key (Some (put a rest))
+          | None -> fail "Node %s no longer exists." leaf) in
+    set_node s base (put (get_node s base) keys)
+  else match scope_of s with
   | Some sc when leaf = "@result" -> rebuild sc sc.ps (keep_notes sc.res e)
   | Some sc ->
       (match find_pair sc leaf with
@@ -440,6 +477,7 @@ let scope_path_of nodes =
 let select s nodes what =
   let leaves = List.map (fun n -> snd (split_node n)) nodes in
   if List.mem "@result" leaves then fail "A result cannot be part of %s." what;
+  if List.exists nested leaves then fail "Name the nodes first (rename them): %s needs named nodes." what;
   let sc = ensure s in
   let sel = List.filter (fun (p, _) -> List.mem (pat_key p) leaves) sc.ps in
   if List.length sel <> List.length (dedup leaves) then fail "A selected node no longer exists.";
@@ -587,6 +625,7 @@ let duplicate_plan src nodes =
   let used = root_used src (List.hd sp) in
   let leaves = dedup (List.map (fun n -> snd (split_node n)) nodes) in
   if List.mem "@result" leaves then fail "The result cannot be duplicated.";
+  if List.exists nested leaves then fail "Name the node first (rename it), then duplicate it.";
   sp, List.map (fun leaf -> leaf, fresh used leaf) leaves
 
 (* ---- layouts: the editor graph's panels, with the switch at the root ----
@@ -663,11 +702,23 @@ let rec has_docked (e : S.t) = match head_sym e with
   | Some ("ui/split" | "ui/split-at" | "ui/tile") -> List.exists has_docked (layout_kids e)
   | _ -> true
 
-let editor_scope s =
-  let sc = ensure s in
-  if head_sym sc.res <> Some "ui/workspace" then fail "This editor graph does not return a (ui/workspace ...).";
-  sc
-let workspace_arg sc = match arg_get sc.res (Pos 0) with Some r -> r | None -> fail "The workspace holds no panels."
+(* the [(ui/workspace ...)] an editor graph returns: its result, or the binding its result names *)
+let workspace_call sc = match sc.res.node with
+  | S.Sym n -> (match binding_of sc.ps n with
+      | Some b when head_sym b = Some "ui/workspace" -> b
+      | _ -> fail "This editor graph does not return a (ui/workspace ...).")
+  | _ when head_sym sc.res = Some "ui/workspace" -> sc.res
+  | _ -> fail "This editor graph does not return a (ui/workspace ...)."
+let editor_scope s = let sc = ensure s in ignore (workspace_call sc); sc
+let workspace_arg sc = match arg_get (workspace_call sc) (Pos 0) with
+  | Some r -> r | None -> fail "The workspace holds no panels."
+(* the scope with [root] as the workspace's panel, written where the call is *)
+let set_workspace sc ps root =
+  let call = arg_set (workspace_call sc) (Pos 0) (Some root) in
+  match sc.res.node with
+  | S.Sym n -> { sc with ps = List.map (fun (p, e) -> if pat_key p = n then p, call else p, e) ps }
+  | _ -> { sc with ps; res = call }
+let rebuilt sc = rebuild sc sc.ps sc.res
 
 let is_switch (e : S.t) = head_sym e = Some "ui/switch"
 (* the first switch of the layout: the root itself, or one nested in its splits, tiles and floats
@@ -695,7 +746,7 @@ let replace_inline_switch sw (root : S.t) =
       | _ -> e in
   go root
 let set_switch sc ps place sw = match place with
-  | None -> rebuild sc ps (arg_set sc.res (Pos 0) (Some (replace_inline_switch sw (workspace_arg sc))))
+  | None -> rebuilt (set_workspace sc ps (replace_inline_switch sw (workspace_arg sc)))
   | Some n -> rebuild sc (List.map (fun (p, e) -> if pat_key p = n then p, keep_notes e sw else p, e) ps) sc.res
 
 let active_of args = match kw_get args "active" with
@@ -724,8 +775,38 @@ let edit_layout src graph f = edit_scope src [ graph ] (fun s ->
         (match List.nth_opt (positional args) a with
          | Some o -> o | None -> fail "The active layout is not one of the switch's layouts."),
         (fun e -> set_switch sc sc.ps place (arg_set sw (Pos a) (Some e)))
-    | None -> workspace_arg sc, (fun e -> rebuild sc sc.ps (arg_set sc.res (Pos 0) (Some e))) in
+    | None -> workspace_arg sc, (fun e -> rebuilt (set_workspace sc sc.ps e)) in
   prune (put (f sc.ps slot)) (reach sc.ps slot))
+
+(* the call, loop or scope written in input [key] of [leaf] becomes a binding just before the
+   binding that held it; the scope with it, and its name *)
+let unfold_in ~used ?name s leaf key sub =
+  let e = get_node s leaf in
+  let whole = match arg_get e key with Some w -> w | None -> fail "That input is not set." in
+  let inner = match get_sub whole sub with Some i -> i | None -> fail "That part does not exist." in
+  let h = match head_sym inner with
+    | Some h when h <> "ref" -> h
+    | _ -> fail "Only a call, loop or scope can be unfolded." in
+  let base = fst (split_leaf leaf) in
+  let name = match name with
+    | Some n -> n
+    | None ->
+        fresh used
+          (if is_zone inner then
+             (if base = "@result" then "each" else base ^ "_" ^ (if h = "sum" then "total" else "each"))
+           else if h = "let*" then "block" else h) in
+  let e' = arg_set e key (Some (set_sub whole sub (sym name))) in
+  let sc = ensure (set_node s leaf e') in
+  let at = if base = "@result" then List.length sc.ps else first_pair_index sc leaf in
+  rebuild sc (insert_at sc.ps at [ sym name, inner ]) sc.res, name
+
+(* a wire never deletes a node: the nested node an input held stays, as a binding nothing reads *)
+let keep_nested ~used s leaf key = match key with
+  | Pos _ | Kw _ ->
+      (match arg_get (get_node s leaf) key with
+       | Some a when node_call a -> fst (unfold_in ~used s leaf key [])
+       | _ -> s)
+  | _ -> s
 
 let rewrite src op : (unit -> S.t list) list =
   let one f = [ f ] in
@@ -741,7 +822,14 @@ let rewrite src op : (unit -> S.t list) list =
         reorder (set_node s leaf (arg_set e key (Some arg)))))
   | Connect { node; key; src = name; iter } -> one (fun () ->
       let sp, leaf = split_node node in
+      let used = root_used src (List.hd sp) in
       edit_scope src sp (fun s ->
+        (* the output of a nested node feeds a second input: it needs a name *)
+        let s, name = if nested name then
+            (if fst (split_leaf name) <> "@result" && find_pair (ensure s) name = None then
+               fail "Name that node first (rename it): it is written inside another scope.";
+             let held, at = holder name in unfold_in ~used s held at [])
+          else s, name in
         if leaf = "@result" && key = Whole then
           let sc = ensure s in
           let ps = match sc.res.node with
@@ -754,6 +842,7 @@ let rewrite src op : (unit -> S.t list) list =
                 sc.ps @ [ sym fresh, sc.res ] in
           reorder (rebuild sc ps (sym name))
         else
+          let s = keep_nested ~used s leaf key in
           let e = get_node s leaf in
           let step = match iter, arg_get e key with
             | true, Some ({ S.node = S.Num n; _ } as cur) when n <> "0" && n <> "1" && float_of_string_opt n <> Some 0.
@@ -784,27 +873,13 @@ let rewrite src op : (unit -> S.t list) list =
   | Unfold { node; key; sub } -> one (fun () ->
       let sp, leaf = split_node node in
       let used = root_used src (List.hd sp) in
-      edit_scope src sp (fun s ->
-        let e = get_node s leaf in
-        let whole = match arg_get e key with Some w -> w | None -> fail "That input is not set." in
-        let inner = match get_sub whole sub with Some i -> i | None -> fail "That part does not exist." in
-        let h = match head_sym inner with
-          | Some h when h <> "ref" -> h
-          | _ -> fail "Only a call, loop or scope can be unfolded." in
-        let base =
-          if is_zone inner then
-            (if leaf = "@result" then "each" else leaf ^ "_" ^ (if h = "sum" then "total" else "each"))
-          else if h = "let*" then "block" else h in
-        let name = fresh used base in
-        let e' = arg_set e key (Some (set_sub whole sub (sym name))) in
-        let sc = ensure (set_node s leaf e') in
-        let at = if leaf = "@result" then List.length sc.ps else first_pair_index sc leaf in
-        reorder (rebuild sc (insert_at sc.ps at [ sym name, inner ]) sc.res)))
+      edit_scope src sp (fun s -> reorder (fst (unfold_in ~used s leaf key sub))))
   | Fold_into { node } -> one (fun () ->
       let sp, leaf = split_node node in
       edit_scope src sp (fun s ->
         let sc = match scope_of s with Some sc -> sc | None -> fail "Fold needs a named node." in
         if leaf = "@result" then fail "A result cannot be folded.";
+        if nested leaf then fail "That node is already written in its use.";
         let j = first_pair_index sc leaf in
         let p, e = List.nth sc.ps j in
         let name = match p.node with S.Sym n -> n | _ -> fail "Only a plain name can be folded." in
@@ -817,12 +892,23 @@ let rewrite src op : (unit -> S.t list) list =
           fail "%s is read by field; it cannot be folded." name;
         collapse sc ps res))
   | Delete_nodes { nodes } -> one (fun () ->
-      let by_depth = List.sort (fun a b -> compare (List.length b) (List.length a)) nodes in
+      (* inner first: deeper scopes, then nodes nested deeper in one binding *)
+      let depth n = List.length n, List.length (String.split_on_char '#' (snd (split_node n))) in
+      let by_depth = List.sort (fun a b -> compare (depth b) (depth a)) nodes in
       let out = List.fold_left (fun src node ->
         let sp, leaf = split_node node in
         let gone = ref None in
         let src = edit_scope src sp (fun s ->
-          match scope_of s with
+          if nested leaf then
+            (* a nested node leaves its chain: what it read first takes its place *)
+            let held, key = holder leaf in
+            let h = get_node s held in
+            let below = match Option.bind (arg_get h key) (fun e -> arg_get e (Pos 0)), key with
+              | Some b, _ -> Some b
+              | None, Pos _ -> Some (sym "nil")
+              | None, _ -> None in
+            set_node s held (arg_set h key below)
+          else match scope_of s with
           | Some sc when leaf <> "@result" ->
               let j = first_pair_index sc leaf in
               gone := Some (snd (List.nth sc.ps j));
@@ -838,7 +924,7 @@ let rewrite src op : (unit -> S.t list) list =
         | _ -> src) src by_depth in
       List.iter (fun node ->
         let name = snd (split_node node) in
-        if List.mem name (sym_list (root_form out (List.hd node))) then
+        if not (nested name) && List.mem name (sym_list (root_form out (List.hd node))) then
           fail "%s still feeds another node. Disconnect it first." name) nodes;
       out)
   | Rename { node; to_ } -> one (fun () ->
@@ -847,6 +933,11 @@ let rewrite src op : (unit -> S.t list) list =
       if not (valid_name to_) || List.mem to_ used || W.name_taken to_ then
         fail "Pick a new lowercase name that is not used anywhere in this graph.";
       edit_scope src sp (fun s ->
+        (* naming a nested node binds it *)
+        if nested leaf then
+          let held, key = holder leaf in
+          reorder (fst (unfold_in ~used:(ref []) ~name:to_ s held key []))
+        else
         let sc = match scope_of s with Some sc -> sc | None -> fail "Rename needs a named node." in
         let j = first_pair_index sc leaf in
         let old = match (fst (List.nth sc.ps j)).node with S.Sym n -> n | _ -> fail "Only a plain name can be renamed." in
@@ -1007,6 +1098,7 @@ let rewrite src op : (unit -> S.t list) list =
       | [ root ] -> with_root src root (fun r -> { r with S.notes = notes })
       | _ ->
           let sp, leaf = split_node node in
+          if nested leaf then fail "Name the node first (rename it): notes attach to named bindings.";
           edit_scope src sp (fun s ->
             match scope_of s with
             | Some sc when leaf = "@result" -> rebuild sc sc.ps { sc.res with S.notes = notes }
@@ -1064,19 +1156,26 @@ let rewrite src op : (unit -> S.t list) list =
           | None -> body in
         reorder body))
 
-  | Set_layout_ratio { node; ratio } -> one (fun () ->
+  | Set_layout_size { node; size } -> one (fun () ->
       let sp, leaf = split_node node in
-      let ratio = Float.round (Float.max 0.1 (Float.min 0.9 ratio) *. 100.) /. 100. in
-      let text = mk (S.Num (Printf.sprintf "%.2f" ratio |> fun t ->
-        if String.ends_with ~suffix:"0" t then String.sub t 0 (String.length t - 1) else t)) in
       edit_scope src sp (fun s ->
         let e = get_node s leaf in
-        set_node s leaf (match e.node with
-          | S.List (({ S.node = S.Sym "ui/split-at"; _ } as h) :: axis :: _ :: rest) ->
-              { e with node = S.List (h :: axis :: text :: rest) }
-          | S.List ({ S.node = S.Sym "ui/split"; _ } :: axis :: rest) ->
-              { e with node = S.List (sym "ui/split-at" :: axis :: text :: rest) }
-          | _ -> fail "That panel is not a split.")))
+        let axis, a, b = match head_sym e, e.node with
+          | Some ("ui/split" | "ui/split-at"), S.List (_ :: args) ->
+              (match positional args, layout_kids e with
+               | axis :: _, [ a; b ] -> axis, a, b
+               | _ -> fail "That panel is not a split.")
+          | _ -> fail "That panel is not a split." in
+        (* one side fixed in whole points, or a ratio with four decimals *)
+        let fixed key n = call "ui/split" [ axis; a; b; kwf key; num (max 1 n) ] in
+        set_node s leaf (keep_notes e (match size with
+          | `First n -> fixed "first_size" n
+          | `Second n -> fixed "second_size" n
+          | `Ratio r ->
+              let text = Printf.sprintf "%.4f" (Float.max 0.1 (Float.min 0.9 r)) in
+              let rec trim t = if String.ends_with ~suffix:"0" t && not (String.ends_with ~suffix:".0" t)
+                then trim (String.sub t 0 (String.length t - 1)) else t in
+              call "ui/split-at" [ axis; mk (S.Num (trim text)); a; b ]))))
   | Split_panel { node; axis } -> one (fun () ->
       let sp, leaf = split_node node in
       let used = root_used src (List.hd sp) in
@@ -1102,12 +1201,9 @@ let rewrite src op : (unit -> S.t list) list =
           | Some sc -> sc
           | None -> fail "This editor graph is a single expression. Edit it in Lisp." in
         let is_leaf (x : S.t) = x.node = S.Sym leaf in
-        let sibling (e : S.t) = match e.node with
-          | S.List ({ S.node = S.Sym ("ui/split" | "ui/split-at"); _ } :: args) ->
-              (match List.rev args with
-               | y :: x :: _ when is_leaf x -> Some y
-               | y :: x :: _ when is_leaf y -> Some x
-               | _ -> None)
+        let sibling (e : S.t) = match head_sym e, layout_kids e with
+          | Some ("ui/split" | "ui/split-at"), [ x; y ] when is_leaf x -> Some y
+          | Some ("ui/split" | "ui/split-at"), [ x; y ] when is_leaf y -> Some x
           | _ -> None in
         match List.find_opt (fun (_, e) -> sibling e <> None) sc.ps with
         | None -> fail "Only a panel inside a split can close. Restore layout brings the shell back."
@@ -1128,12 +1224,13 @@ let rewrite src op : (unit -> S.t list) list =
         (* Strip the moved panel from its split/tile; empty wrappers disappear too. *)
         let rec strip (e : S.t) = match e.node with
           | S.Sym name when List.mem name !removed -> None
-          | S.List (({ S.node = S.Sym ("ui/split" | "ui/split-at"); _ } as head) :: args) ->
-              let rev = List.rev args in
-              (match rev with b :: a :: rest ->
-                 (match strip a, strip b with
-                  | None, other | other, None -> other
-                  | Some a, Some b -> Some {e with node = S.List (head :: List.rev rest @ [a; b])})
+          | S.List ({ S.node = S.Sym ("ui/split" | "ui/split-at"); _ } :: _) ->
+              (match layout_kids e with
+               | [ a; b ] ->
+                   (match strip a, strip b with
+                    | None, other | other, None -> other
+                    | Some a, Some b ->
+                        Some (arg_set (arg_set e (Pos (kid_pos e 0)) (Some a)) (Pos (kid_pos e 1)) (Some b)))
                | _ -> Some e)
           | S.List (({ S.node = S.Sym "ui/tile"; _ } as head) :: cells) ->
               (match List.filter_map strip cells with [] -> None
@@ -1248,8 +1345,7 @@ let rewrite src op : (unit -> S.t list) list =
                 | S.Sym _ -> sc.ps, tree
                 | _ -> let n = fresh used "layout" in sc.ps @ [ sym n, tree ], sym n in
               let name = fresh used "switch" and sw = call "ui/switch" [ kid ] in
-              { sc with ps = ps @ [ sym name, sw ]; res = arg_set sc.res (Pos 0) (Some (sym name)) },
-              Some name, sw in
+              set_workspace sc (ps @ [ sym name, sw ]) (sym name), Some name, sw in
         let args = List.tl (S.children sw) in
         let n = List.length (positional args) in
         if n >= 10 then fail "Ten layouts is the limit of the digit keys.";
@@ -1282,8 +1378,7 @@ let rewrite src op : (unit -> S.t list) list =
                 | S.Sym _ -> sc.ps, tree
                 | _ -> let n = fresh used "layout" in sc.ps @ [ sym n, tree ], sym n in
               let name = fresh used "switch" and sw = call "ui/switch" [ kid ] in
-              { sc with ps = ps @ [ sym name, sw ]; res = arg_set sc.res (Pos 0) (Some (sym name)) },
-              Some name, sw in
+              set_workspace sc (ps @ [ sym name, sw ]) (sym name), Some name, sw in
         let ps, sw = List.fold_left (fun (ps, sw) (name, item) ->
           let theirs = editor_scope (last_child item) in
           let names = List.map (fun (p, _) -> pat_key p, fresh used (name ^ "_" ^ pat_key p)) theirs.ps in
@@ -1342,7 +1437,7 @@ let label = function
   | Toggle_bypass _ -> "Bypass" | Set_note _ -> "Note" | Add_item _ -> "Add item"
   | Move_item _ -> "Move item" | Add_field _ -> "Add field" | Add_node _ -> "Add node"
   | Delete_nodes _ -> "Delete"
-  | Set_layout_ratio _ -> "Resize panel" | Split_panel _ -> "Split panel"
+  | Set_layout_size _ -> "Resize panel" | Split_panel _ -> "Split panel"
   | Close_panel _ -> "Close panel" | Set_panel_kind _ -> "Retype panel"
   | Dock_panel _ -> "Dock panel"
   | Set_graph _ -> "Edit graph"
@@ -1433,10 +1528,29 @@ let has_prefix ~prefix p =
   let n = List.length prefix in
   List.length p >= n && List.filteri (fun i _ -> i < n) p = prefix
 
+(* the leaf of [p] at the depth of [node]'s, when [p] is [node], a node nested in it, or below either *)
+let under node p =
+  let k = List.length node - 1 in
+  if List.length p > k && has_prefix ~prefix:(List.filteri (fun i _ -> i < k) node) p then
+    let leaf = List.nth node k and at = List.nth p k in
+    if at = leaf then Some (k, "")
+    else if String.starts_with ~prefix:(leaf ^ "#") at then
+      Some (k, String.sub at (String.length leaf) (String.length at - String.length leaf))
+    else None
+  else None
+let relabel k leaf p = List.mapi (fun i s -> if i = k then leaf else s) p
+
 let remap op p = match op with
-  | Rename { node; to_ } when has_prefix ~prefix:node p ->
-      let k = List.length node - 1 in
-      Some (List.mapi (fun i s -> if i = k then to_ else s) p)
+  | Rename { node; to_ } when under node p <> None ->
+      let k, rest = Option.get (under node p) in
+      Some (relabel k (to_ ^ rest) p)
+  | Delete_nodes { nodes } when List.exists (fun n -> nested (snd (split_node n)) && under n p <> None) nodes ->
+      (* the nodes nested in a deleted nested node: the first input moves up to its place *)
+      let n = List.find (fun n -> nested (snd (split_node n)) && under n p <> None) nodes in
+      (match under n p with
+       | Some (k, rest) when String.starts_with ~prefix:"#0" rest ->
+           Some (relabel k (List.nth n k ^ String.sub rest 2 (String.length rest - 2)) p)
+       | _ -> None)
   | Rename_graph { name; to_ } when has_prefix ~prefix:[ name ] p -> Some (to_ :: List.tl p)
   | Hoist { node } when has_prefix ~prefix:node p && List.length node >= 3 ->
       let k = List.length node - 2 in
@@ -1446,6 +1560,19 @@ let remap op p = match op with
   | _ -> Some p
 
 let arg_of = arg_get
+
+let nested_nodes (e : S.t) = match e.node with
+  | S.List (_ :: args) when e.meta <> [] || not (is_zone e) ->
+      let rec kws = function
+        | k :: v :: r when is_kw k -> (Kw (kw_name k), v) :: kws r
+        | _ :: r -> kws r
+        | [] -> [] in
+      List.filter (fun (_, a) -> node_call a) (List.mapi (fun i a -> Pos i, a) (positional args) @ kws args)
+  | _ -> []
+
+let leaf_keys leaf = match split_leaf leaf with
+  | exception Fail _ -> None
+  | parts -> Some parts
 
 let arg_text src node key =
   let sp, leaf = split_node node in

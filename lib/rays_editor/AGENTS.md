@@ -90,6 +90,10 @@ supported; source/history are unchanged when an edit is refused.
 
 - Command +/-/0 (`Leader.Ui_scale`) set the kit text size of every panel through `Ui.set_font_size`
   (8 to 18 points, rows follow); the graph pane has its own zoom and viewports have no text.
+  The editor starts at 13 points (`Core.default_text_size`: macOS control text; 11 is its small
+  size) and Command-0 returns there; `RAYS_UI_FONT_SIZE` overrides it, and the tests set 11, the
+  size their pointer positions were written for. Panel text never names a literal size: omit
+  `~size` (the kit size) or step from `Ui.font_size ui`, so every panel follows the setting.
 - Keys (graph pane): Command/Ctrl-C copies the selected bindings as `name expr` lines to the
   clipboard (`Scope.Copy_requested`, `Core.copy_bindings`), Command/Ctrl-X copies and deletes,
   Command/Ctrl-V parses the clipboard (pairs, or bare expressions named by their head) into
@@ -174,7 +178,7 @@ sketch source should primarily define its graph and scene preparation.
 The default shell is `Pxui_shell.Layout.default`: three independently collapsible
 columns, view, graph, and inspector, with default flexible proportions 45/35/20 (the
 default editor graph *is* this layout; a workspace's own `(graph editor ...)` replaces
-it, see "Workspace shell (W10)").  Splitters retain ratios across window resize. An empty graph selection shows
+it, see "Workspace shell (W10)").  Splitters retain ratios, and fixed sides their points, across window resize. An empty graph selection shows
 camera/render controls in the inspector; selecting a node shows only that
 node's generated SOP parameters. The empty-selection Viewport section toggles
 look-through, camera frustums, the axis gizmo, and translate handles on the
@@ -212,7 +216,7 @@ instance bounds and works in viewport-only layouts; an empty instance has no tar
   values to their configured ranges.
 - `WindowFocusLost` must clear held input and cancel PXUI pointer capture, text
   focus, and IME composition.
-- PXUI text uses the kit face (DepartureMono or `RAYS_UI_FONT`) through
+- PXUI text uses the kit face (Pragmasevka or `RAYS_UI_FONT`) through
   a density-aware glyph atlas that reproduces SDL_ttf string rendering;
   `Ui.create ~font` borrows a supplied font and `~font_size` selects the
   logical size of kit text.
@@ -323,8 +327,9 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
   in one undo entry; templates add a new graph. A document without an editor graph
   uses the host's `?layout` until its first panel edit writes the tree into an editor
   graph. Never store layout anywhere else.
-- Gestures are `Flow_edit` ops on the editor graph, one history entry each: `Set_layout_ratio`
-  (a drag; the split is view state, `Core.shell.live`, until release), `Split_panel`,
+- Gestures are `Flow_edit` ops on the editor graph, one history entry each: `Set_layout_size`
+  (a drag; the split is view state, `Core.shell.live`, until release; it writes the whole points
+  of a fixed side, `:first_size`/`:second_size`, else a ratio), `Split_panel`,
   `Close_panel`, `Set_panel_kind`, `Dock_panel` (the header menu and drag targets).
   They address a panel by its binding (`Document.origins`); inline calls are bound
   first. A panel made by a `for` is `Loop`: retyping changes its template; moving
@@ -332,7 +337,7 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
 - Disclosure and floating window bounds live in `Layout_by_path.panels`, keyed by
   editor graph and binding (or tree path for a loop copy). `Core.Panel_state` reduces
   Chrome's toggle/window intents in the same document history. Leader visibility
-  keys use these intents too. The dotted header handle moves a panel; dropping at
+  keys use these intents too. A drag on a header moves its panel (dock targets are four edge bars; the nearest half is tinted); dropping at
   another docked panel's edge writes a split. The menu's Dock returns an undocked
   panel to its original place. Window mode floats inside the editor.
 - Floating roots use `Ui.to_front ~order` for painting and hit precedence together.
@@ -353,9 +358,50 @@ list and lisp panels are the graph pane's), and never match a `column` or a fixe
   that hides everything is valid, so keep this command working with any tree.
 - Graph, list and lisp panels are the graph pane's three projections: a `List` or `Lisp`
   panel draws its own, otherwise `Space l l` / `t` / `g` pick one inside the `Graph` panel
-  (`projection` is normalised by which panels exist; the scene level starts as a list).  `(ui/graph "name")` names the pane's
-  graph (`Document.shell.named`); an `Outline` row picks one; there is no graph cycling key.
-  A panel kind draws once (the first leaf); a second says it is shown elsewhere.
+  (the scene level starts as a list; a graph panel shows the view it says whatever other panels exist).  `(ui/graph "name")` names its leaf's
+  graph (`Document.shell.named`, by leaf path); an `Outline` row picks one; there is no graph cycling key.
+  Every `Graph` leaf is a pane of its own: `Core.scope_view`, `scope_key`, `pane_graph`, `back` and
+  `projections` are the pane in use (`Core.graph_pane`: the focused graph leaf, else the last one
+  focused), the others wait in `Core.graph_panes` by panel key and are swapped in by
+  `Core.follow_graph` when the focus moves (`Core.as_pane` reads one without swapping;
+  `Core.graph_path` is the pane's leaf without a tree walk).  The other panes draw their canvas
+  each frame; a press gives its panel the focus before the frame builds, so a gesture always starts
+  in the pane in use.
+- Every leaf is an instance (flow.md §11.11): there is no "shown in another panel".  The same swap
+  serves the list, the text pane and the outline: `Core.tree`, `text` and `outline` belong to the
+  panel of their kind in use (`list_at`, `text_at`, `outline_at`: the focused one, else the one it
+  was), the other panels' own wait in `Core.locals` by panel key (`follow_hosts`).  A graph panel
+  in list or text view is a host like a `List` or `Lisp` panel (`panel_hosts`); a `Lisp` panel shows
+  the graph pane in use, a graph panel its own graph.  Every host draws each frame in its own pane
+  root; list and outline intents mean the one document, text intents fold into the state of the
+  pane that made them (`frame_result.other_texts`).  Every inspector and timeline leaf draws too:
+  the inspectors' edits are concatenated and the host's camera panel is the focused inspector's.
+  Keep per-panel widget state in PXUI under the leaf's pane root (keys are seeded by the parent,
+  `###id` included) and per-panel model state in `locals`; never add a "first leaf of a kind" path.
+  A graph pane also owns its navigation level and that level's selection (`graph_pane.at`,
+  `picked`: `Core.level` and `Core.selection` are the pane in use's), so the viewport's handles and
+  picks follow the pane in use.  One per editor: the node menu, the probes, the timeline.
+- `:of binding` on `ui/inspector`, `ui/list`, `ui/lisp` ties the panel to a graph panel
+  (`Document.shell.follows`, `Core.tied`, `Core.shown_as`); without it the panel shows the pane in
+  use.  A tied panel that is not the pane in use's only draws (`inspect`, the list and the text pane
+  take the pane as a value); a press in it makes its graph panel the pane in use in `follow_graph`
+  before the frame builds, so every edit is reduced by the one path.  Never reduce a panel's
+  intents against a pane that is not in use.
+- Panel keys: `Core.panel_key` is `[graph; binding]` when the binding names one leaf, else the
+  place key `[graph; "@panel"; i; j; ...]` (written in place, a loop's copy, a binding used twice:
+  `Document.shell.repeated`).  `panel_state` reads the place entry first and, for a leaf of a
+  repeated binding, the binding's entry as what it starts from.
+- A graph panel shows the view it says (`Core.projection` is the stored one): there is no rule
+  that hides its list or text view when a `List` or `Lisp` panel exists.
+- The layout forms, fixed sizes, strips and the start keywords (`:focus`, `:look_through`, `:view`,
+  `:tab`: `Document.shell.start`; `Core.follow_start` and `Viewport3.on_view` follow one when its
+  value in the text changed, by panel key, and never write it back)
+  are specified in `specification/flow.md` §11.11.  A split is converted between ratio and a fixed
+  side by `Flow_edit.Set_layout_size` from the gutter's right-click menu, the last rows of a panel's
+  header menu (the split that holds it) and the Size row of the split card's inspector; all take
+  the sizes from `Pxui_shell.Layout.resized`.  The status strip is `Layout.geometry.status_at`,
+  the full window width below the tree; never carve it out of a panel.  Look-through is per
+  viewport (`Viewport3.extra.looking`, keyed like the viewport's orbit).
 - Viewports: every `View` panel draws the scene instance its `(ref scene :k v)` names.  An
   override gets objects of its own in the scene network (`Document.shell.views`, labelled
   `garden (v1.1.1)`), drawn only by that viewport (`Core.placed_pieces ~view`); the default
@@ -384,13 +430,15 @@ Standalone 2D art sketches keep their own drawing paths.
 
 ## Bloom studio shell (W14)
 
-`Navigator` (the Outline panel, titled Navigator) and `Bars` are private modules over the same immutable `Core`
+`Navigator` (the Outline panel) and `Bars` are private modules over the same immutable `Core`
 model: both are built inside `Ui.frame`, return intents and never mutate it. `Core.navigator_params` is everything the
 Navigator reads (the checked workspace, the open graph's projection, the probe records, the applied panel tree);
 `Navigator.Open` sets `pane_graph` (which outranks a `(ui/graph "name")` panel) and selects and frames a node;
 `Navigator.Set_default` is `Flow_edit.Set_input_default`. There is no host bar: panels fill the window above the
 status strip, and every global action is a leader key and a palette row (`Space [` for layouts, `Space k` for the key
-sheet). A graph-header toolbar click that means a command runs next frame like a palette pick; one that means an
+sheet). A graph-header toolbar click that means a command runs next frame like a palette pick (so do the
+active viewport's header tools, Solid / Wire / Traced as `Leader.Render_mode` and Look through; the graph
+header's Graph / List / Text tabs set the pane's projection, and the Lisp tabs sit in its header too); one that means an
 edit is a `Syntax_edit` change. `Bars.tool_rect` is the one source of a toolbar button's place for the draw and for
 tests. Make defn (`Flow_edit.Make_defn`) is typed by `Core.defn_change`. A "Refused · ..." status clears with the
 next successful edit.

@@ -20,13 +20,13 @@ let open_camera control =
 let number ui key label ~range:(low, high) value =
   let row, x, y, w = Ui.inspector_row ui ~key ~label () in
   Ui.within ui row (fun () ->
-    let label_hit = Ui.box ui ~flags:Ui.clickable ~at:(8., 4.)
-        ~w:(Ui.Px (x -. 8.)) ~h:(Ui.Px 21.) "label-edit" in
+    let label_hit = Ui.box ui ~flags:Ui.clickable ~at:(26., 2.)
+        ~w:(Ui.Px (if y > 20. then w else Float.max 1. (x -. 34.))) ~h:(Ui.Px 20.) "label-edit" in
     let edit = (Ui.signal ui label_hit).double_clicked in
     let text = Printf.sprintf "%.17g" value in
     let slide fraction = Printf.sprintf "%.17g"
       (low +. fraction *. (high -. low)) in
-    let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:21. ~size:11
+    let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
         ~fraction:((value -. low) /. (high -. low)) ~slide ~edit
         ~valid:(fun text -> Option.fold ~none:false ~some:Float.is_finite
           (float_of_string_opt text)) (key ^ "-value") text in
@@ -37,7 +37,7 @@ let number ui key label ~range:(low, high) value =
 let text ui key label value =
   let row, x, y, w = Ui.inspector_row ui ~key ~label () in
   Ui.within ui row (fun () ->
-    fst (Ui.value_field ui ~at:(x, y) ~w ~h:21. ~size:11
+    fst (Ui.value_field ui ~at:(x, y) ~w ~h:20.
       ~left:true ~valid:(fun _ -> true) (key ^ "-value") value))
 
 let render_section control ui =

@@ -57,7 +57,7 @@ let run_lowering () =
   check (Panels.to_string shell.tree = "(h outline (h (v graph lisp) (tile view view view view)))")
     ("the variations shell: " ^ Panels.to_string shell.tree);
   (match shell.tree with
-   | Split { ratio; b = Split { ratio = inner; a = Split { ratio = left; _ }; _ }; _ } ->
+   | Split { size = `Ratio ratio; b = Split { size = `Ratio inner; a = Split { size = `Ratio left; _ }; _ }; _ } ->
        check (ratio = 0.13 && inner = 0.5 && left = 0.58) "ratios come from the editor graph"
    | _ -> fail "root split");
   (* four viewports: the default scene instance, and one scene instance for each override *)
@@ -85,9 +85,9 @@ let run_lowering () =
   let plain = build_ok (of_text (case "tree")) in
   check (plain.shell = None) "no editor graph, no shell";
   let named = build_ok (of_text (with_editor "    (ui/workspace (ui/split \"vertical\" (ui/graph \"scene\") (ui/viewport (ref scene))))")) in
-  check ((shell_of named).named = Some "scene") "ui/graph names its graph";
+  check ((shell_of named).named = [ [ 0 ], "scene" ]) "ui/graph names its graph";
   check (Panels.to_string (shell_of named).tree = "(v graph view)") "ui/split is an even split";
-  (match (shell_of named).tree with Split { ratio; _ } -> check (ratio = 0.5) "ui/split halves" | _ -> fail "split");
+  (match (shell_of named).tree with Split { size = `Ratio ratio; _ } -> check (ratio = 0.5) "ui/split halves" | _ -> fail "split");
   let floated = build_ok (of_text (with_editor "    (ui/workspace (ui/split-at \"horizontal\" 0.5 (ui/graph) (ui/floating (ui/viewport (ref scene)))))")) in
   check (Panels.to_string (shell_of floated).tree = "(h graph (float view))") "a floating panel";
   let timeline = build_ok (of_text (with_editor "    (ui/workspace (ui/split-at \"vertical\" 0.7 (ui/graph) (ui/timeline)))")) in
@@ -152,7 +152,7 @@ let run_editor () =
   (* drag the outline | rest gutter: one rewrite of the editor graph, one history entry.
      At 900 points the outline's 120-point minimum lifts its 13% to 169. *)
   drag ~from:(169.5, 300.) ~to_:(300., 300.);
-  check (has (source !e) "(ui/split-at \"horizontal\" 0.33 outline right)") ("the drag rewrote the outline split: " ^ source !e);
+  check (has (source !e) "(ui/split-at \"horizontal\" 0.3333 outline right)") ("the drag rewrote the outline split: " ^ source !e);
   check (E3.undo_label !e = Some "Resize panel") "one history entry named Resize panel";
   (* the header menu of the graph panel: split side by side *)
   let hx = 400. in
@@ -170,7 +170,7 @@ let run_editor () =
   let depth = E3.undo_label !e in
   click ~button:Input.RightButton (float (hx + (hw / 2)), float (hy + 10));
   step [];
-  click (float (hx + 30), float (hy + 22 + 12));
+  click (float (hx + 30), float (hy + 24 + 6 + 12));
   step [];
   check (E3.undo_label !e = depth) "a looped panel did not change the graph";
   settle ();
@@ -487,13 +487,13 @@ let run_ops () =
   let tree e = (shell_of (build_ok (E3.workspace e))).tree in
   let sh = tree e in
   (* resize *)
-  let r = ok "Resize panel" (E.Set_layout_ratio { node = [ "editor"; "left" ]; ratio = 0.3 }) in
+  let r = ok "Resize panel" (E.Set_layout_size { node = [ "editor"; "left" ]; size = `Ratio 0.3 }) in
   check (has (source r) "(ui/split-at \"vertical\" 0.3 network code)") "Set_layout_ratio";
-  check (match (tree (ok "Resize panel" (E.Set_layout_ratio { node = [ "editor"; "left" ]; ratio = 5. }))) with
-      | Split { b = Split { a = Split { ratio; _ }; _ }; _ } -> ratio = 0.9 | _ -> false) "a ratio clamps to 0.9";
+  check (match (tree (ok "Resize panel" (E.Set_layout_size { node = [ "editor"; "left" ]; size = `Ratio 5. }))) with
+      | Split { b = Split { a = Split { size; _ }; _ }; _ } -> size = `Ratio 0.9 | _ -> false) "a ratio clamps to 0.9";
   (* a ui/split (no ratio) becomes ui/split-at *)
   let plain = editor (with_editor "    (let* [a (ui/graph) b (ui/lisp) s (ui/split \"horizontal\" a b)] (ui/workspace s))") in
-  (match E3.edit plain (E.Set_layout_ratio { node = [ "editor"; "s" ]; ratio = 0.25 }) with
+  (match E3.edit plain (E.Set_layout_size { node = [ "editor"; "s" ]; size = `Ratio 0.25 }) with
    | Ok p -> check (has (source p) "(ui/split-at \"horizontal\" 0.25 a b)") "ui/split gets a ratio"
    | Error m -> fail m);
   (* split, close, retype *)
@@ -519,7 +519,7 @@ let run_ops () =
     | Ok _ -> fail (name ^ " was accepted") in
   refuse "close outside a split" (E.Close_panel { node = [ "editor"; "shell" ] }) "inside a split";
   refuse "an unknown panel type" (E.Set_panel_kind { node = [ "editor"; "network" ]; kind = "dashboard" }) "Unknown panel type";
-  refuse "resize a panel" (E.Set_layout_ratio { node = [ "editor"; "network" ]; ratio = 0.4 }) "not a split";
+  refuse "resize a panel" (E.Set_layout_size { node = [ "editor"; "network" ]; size = `Ratio 0.4 }) "not a split";
   refuse "no such binding" (E.Split_panel { node = [ "editor"; "nothing" ]; axis = `H }) "no longer exists";
   E3.close plain; E3.close e
 
@@ -703,6 +703,16 @@ let select_row e count k =
   for _ = 1 to k do step [ Event.KeyPressed Input.ArrowDown ] done;
   step []
 
+(* With RAYS_UI_PREVIEW=<dir> the editor is drawn into <dir>/<name>.png, without a window: the
+   picture a pointer position in these tests is read off. *)
+let preview e name = match Sys.getenv_opt "RAYS_UI_PREVIEW" with
+  | None -> ()
+  | Some directory ->
+      let canvas = Rays.Canvas.create_exn ~width:900 ~height:640 in
+      Rays.Canvas.render canvas (E3.scene !e (frame (0., 0.) [] 0));
+      ignore (Rays.Canvas.save_png canvas (Filename.concat directory (name ^ ".png")));
+      Rays.Canvas.destroy canvas
+
 (* a drag across the inspector's slider at [row] points under the panel's top *)
 let drag_slider e count row =
   let step ?(buttons = []) ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
@@ -729,7 +739,7 @@ let run_loop_copies () =
   let x () = List.map (fun i -> field_of i "translate_x") (objects !e) in
   check (List.length (objects !e) = 3 && List.for_all (fun v -> v = Some (Parameter.Float_value 0.)) (x ()))
     "the loop did not make three objects at the origin";
-  drag_slider e count 171;
+  drag_slider e count 225;
   let moved = x () in
   check (List.for_all (fun v -> v = List.hd moved && v <> Some (Parameter.Float_value 0.)) moved)
     "dragging a literal field of one copy did not move all three";
@@ -762,7 +772,8 @@ let run_loop_copies () =
   let e = ref (editor text) and count = ref 0 in
   select_row e count 2;
   let before = source !e in
-  drag_slider e count 195;
+  preview e "loop-light";
+  drag_slider e count 249;
   check (source !e = before && E3.undo_label !e = None) "a computed field of a copy was written";
   check (has (dump_line !e "edit error") "computed by the loop") ("no reason for the refused edit: " ^ dump_line !e "edit error");
   (* deleting one copy skips its iteration: the others stay where they are *)
@@ -808,7 +819,7 @@ let run_loop_expression () =
   select_row e count 2;
   let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
   let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
-  let label = float (ix + 30), float (iy + 195) in
+  let label = float (ix + 30), float (iy + 225) in
   step ~mouse:label [ Event.MouseMoved label ];
   List.iter (fun () ->
     step ~mouse:label [ Event.MousePressed (Input.LeftButton, label) ];
@@ -986,9 +997,11 @@ let run_ref_picker () =
   click node_pt;
   step [];
   check (dump_line !e "scope selected" = "scene/geom") ("the scene geometry node was not selected, got: " ^ dump_line !e "scope selected");
+  preview e "ref-picker";
   let btn = float (ix + 180), float (iy + 190) in
   click btn;
   step [];
+  preview e "ref-picker-open";
   let opt = float (ix + 180), float (iy + 245) in
   click opt;
   step [];
@@ -1197,17 +1210,20 @@ let run_root_section () =
   check (E3.undo_label !e = None && has (source !e) ":width 800") "the root is in the text, nothing to undo";
   let ix, iy, iw, ih = (E3.panes !e (frame (0., 0.) [] !count)).inspector in
   check (iw > 0 && ih > 0) "the inspector panel is showing";
-  (* press down the inspector's right half until a control of the Scene root section answers *)
+  (* the Renderer row of the Scene root section: the header (85 points at the test's 11-point
+     text), the live-update switch, the Viewport section and its four switches, then the Camera,
+     Render and Scene root section headers.  A press opens its menu under the field; the second
+     row of the menu is Wireframe. *)
   let hit = ref None in
-  let y = ref (iy + 4) in
-  while !hit = None && !y < iy + ih do
-    let at = float (ix + (iw * 3 / 4)), float !y in
+  let row = iy + 85 + 24 + 40 + 96 + 40 + 24 + 24 in
+  let press at =
     step ~mouse:at [ Event.MouseMoved at ];
     step ~mouse:at [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
-    step ~mouse:at [];
-    if E3.undo_label !e = Some "Render settings" then hit := Some !y;
-    y := !y + 5
-  done;
+    step ~mouse:at [] in
+  let x = float (ix + (iw * 3 / 4)) in
+  press (x, float (row + 12));
+  press (x, float (row + 22 + 6 + 24 + 12));
+  if E3.undo_label !e = Some "Render settings" then hit := Some row;
   check (!hit <> None) "no control of the inspector wrote the root";
   check (E3.workspace !e != before && has (source !e) "(scene/root all") "the root stayed in the text, edited";
   incr count;
@@ -1283,7 +1299,324 @@ let run_copy_lisp () =
   check (E3.undo_label !e = None) "copying changes nothing";
   E3.close !e
 
-let run () = run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances ()
+(* ---- the studio layout (flow.md 11.11): fixed sizes, strips, start state, several graph panels ---- *)
+
+let sketch name = In_channel.with_open_bin
+    (Filename.concat "../sketches" (Filename.concat name "sketch.rays")) In_channel.input_all
+
+let run_studio () =
+  let text = sketch "ws_layout" in
+  let ws = of_text text in
+  let doc = build_ok ws in
+  let shell = shell_of doc in
+  check (Panels.to_string shell.tree = "(h outline (h (v (v view timeline) graph) (v inspector lisp)))")
+    ("the studio tree: " ^ Panels.to_string shell.tree);
+  (* the target at three window sizes: every fixed side keeps its points *)
+  List.iter (fun (w, h) ->
+    let g = Layout.geometry ~hidden:[] shell.tree { (frame (0., 0.) [] 0) with width = w; height = h; size = w, h } in
+    let whole pick = match List.find_opt (fun (l : Layout.leaf) -> pick l.panel) g.leaves with
+      | Some { header = x, y, lw, hh; body = _, _, _, bh; _ } -> x, y, lw, hh + bh
+      | None -> fail "the studio lost a panel" in
+    let expect what got want = check (got = want) (Printf.sprintf "studio at %dx%d: %s" w h what) in
+    let tree = h - 24 and middle = w - 216 - 320 - 2 in
+    expect "outline" (whole (( = ) Layout.Outline)) (0, 0, 216, tree);
+    expect "viewport" (whole (function Layout.View _ -> true | _ -> false)) (217, 0, middle, tree - 336 - 24 - 2);
+    expect "timeline" (whole (( = ) Layout.Timeline)) (217, tree - 336 - 24 - 1, middle, 24);
+    expect "graph" (whole (( = ) Layout.Graph)) (217, tree - 336, middle, 336);
+    expect "inspector" (whole (( = ) Layout.Inspector)) (w - 320, 0, 320, tree - 300 - 1);
+    expect "lisp" (whole (( = ) Layout.Lisp)) (w - 320, tree - 300, 320, 300);
+    expect "status" g.status_at (0, tree, w, 24))
+    [ 1440, 900; 1920, 1080; 1100, 700 ];
+  (* what the panels' keywords open the editor with *)
+  let preview = match List.map fst shell.preview_sources with [ key ] -> key | _ -> fail "one viewport" in
+  check (shell.named = [ [ 1; 0; 1 ], "garden" ] && shell.start.focus = Some [ 1; 0; 1 ]
+         && shell.start.looking = [ preview ] && shell.start.tabs = [ [ 1; 1; 1 ], "graph" ])
+    "the start state of the studio's panels";
+  (* print and re-read *)
+  let again = shell_of (build_ok (of_text (Doc.to_text ws))) in
+  check (again.tree = shell.tree && again.named = shell.named && again.start = shell.start
+         && again.switch = shell.switch)
+    "the studio did not round-trip through its printed text";
+  let apply ws op = match Doc.edit catalog ws op with
+    | Ok ws -> ws | Error d -> fail (E.label op ^ ": " ^ Flow.Diagnostic.to_string d) in
+  let text_of ws = fst (Flow.Lisp.print ws.Doc.source) in
+  let refused name ws op needle = match Doc.edit catalog ws op with
+    | Error d -> check (has (Flow.Diagnostic.to_string d) needle) (name ^ ": " ^ Flow.Diagnostic.to_string d)
+    | Ok _ -> fail (name ^ " was accepted") in
+  (* a gutter drag writes what the split is sized by *)
+  let sized = apply ws (E.Set_layout_size { node = [ "editor"; "studio" ]; size = `First 260 }) in
+  check (has (text_of sized) "(ui/split \"horizontal\" outline work :first_size 260)") "a fixed side is written in points";
+  let ratio = apply ws (E.Set_layout_size { node = [ "editor"; "stage" ]; size = `Ratio 0.61803 }) in
+  check (has (text_of ratio) "(ui/split-at \"vertical\" 0.618 preview timeline)") "a ratio keeps four decimals";
+  let back = apply ratio (E.Set_layout_size { node = [ "editor"; "stage" ]; size = `Second 0 }) in
+  check (has (text_of back) "(ui/split \"vertical\" preview timeline :second_size 1)") "a ratio split takes a fixed side";
+  refused "two fixed sides" ws (E.Set_arg { node = [ "editor"; "studio" ]; key = E.Kw "second_size"; sub = [];
+                                            value = S.make (S.Num "100") }) "one side";
+  (* the keyword rows of the cards are the graph's view of it *)
+  let rows name = match Flow_sop.Projection.find (Flow_sop.Projection.of_graph catalog ws.checked "editor") [ "editor"; name ] with
+    | Some (n : Flow_sop.Projection.node) -> List.map (fun (r : Flow_sop.Projection.row) -> r.label) n.rows
+    | None -> fail ("no card " ^ name) in
+  check (List.mem "first_size" (rows "studio") && List.mem "second_size" (rows "studio")
+         && List.mem "look_through" (rows "preview") && List.mem "focus" (rows "network")
+         && List.mem "view" (rows "network") && List.mem "tab" (rows "code"))
+    "the layout keywords are not rows of their cards";
+  (* the layout commands take a graph whose result is a binding of the workspace *)
+  List.iter (fun name ->
+    let ws = of_text (sketch name) in
+    let ws = List.fold_left apply ws [
+      E.Layout_new { graph = "editor" }; E.Layout_window { graph = "editor"; kind = "inspector" };
+      E.Layout_float { graph = "editor"; at = [ 0; 0 ] }; E.Set_layout { graph = "editor"; index = 0 };
+      E.Layout_remove { graph = "editor" } ] in
+    check (has (text_of ws) "shell (ui/workspace") (name ^ ": the workspace binding was not kept");
+    check (not (has (text_of ws) "(-> ")) (name ^ ": a layout was printed as a thread");
+    ignore (build_ok (of_text (Doc.to_text ws)))) [ "ws_layout"; "ws_bloom" ];
+  (* diagnostics *)
+  let bad name body needle = expect_error name (with_editor ("    " ^ body)) needle in
+  bad "an unknown graph" "(ui/workspace (ui/graph \"nope\"))" "E_UNKNOWN_GRAPH";
+  bad "two fixed sides" "(ui/workspace (ui/split \"vertical\" (ui/graph) (ui/lisp) :first_size 9 :second_size 9))" "one side";
+  bad "a fixed side of nothing" "(ui/workspace (ui/split \"vertical\" (ui/graph) (ui/lisp) :first_size 0))" "1 point";
+  bad "a fixed side on split-at" "(ui/workspace (ui/split-at \"vertical\" 0.5 (ui/graph) (ui/lisp) :first_size 9))" "first_size";
+  bad "an unknown view" "(ui/workspace (ui/graph :view \"tree\"))" "view";
+  bad "an unknown tab" "(ui/workspace (ui/lisp :tab \"all\"))" "tab";
+  (* through the editor: the start state, the points a drag writes, two graph panels *)
+  let e = ref (editor text) and count = ref 0 in
+  let step ?(buttons = []) mouse events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  let click point = step point [ Event.MouseMoved point ];
+    step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
+    step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
+  step (450., 100.) []; step (450., 100.) [];
+  check (dump_line !e "focus" = "Graph" && dump_line !e "pane graph" = "garden") "the focus did not start in the graph panel";
+  check (String.starts_with ~prefix:"graph tab" (dump_line !e "text")) ("the lisp panel's tab: " ^ dump_line !e "text");
+  check (E3.look_through !e) "the viewport did not start looking through the render camera";
+  step (216.5, 100.) [ Event.MouseMoved (216.5, 100.) ];
+  step ~buttons:[ Input.LeftButton ] (216.5, 100.) [ Event.MousePressed (Input.LeftButton, (216.5, 100.)) ];
+  step ~buttons:[ Input.LeftButton ] (180.2, 100.) [ Event.MouseMoved (180.2, 100.) ];
+  step (180.2, 100.) [ Event.MouseReleased (Input.LeftButton, (180.2, 100.)) ]; step (180.2, 100.) [];
+  check (has (source !e) "(ui/split \"horizontal\" outline work :first_size 180)" && E3.undo_label !e = Some "Resize panel")
+    ("the gutter of a fixed split did not write points: " ^ source !e);
+  (* the second layout: a floating graph on the material beside the docked graph, each its own pane *)
+  e := (match E3.edit !e (E.Set_layout { graph = "editor"; index = 1 }) with Ok e -> e | Error m -> fail m);
+  step (450., 100.) []; step (450., 100.) [];
+  check (dump_line !e "graph panels" = "garden, clay") ("the graph panels: " ^ dump_line !e "graph panels");
+  check (dump_line !e "windows" = "graph 560 90 520 360, view 250 470 380 260, inspector 1090 60 320 420, lisp 640 500 420 300")
+    ("the windows: " ^ dump_line !e "windows");
+  click (500., 200.);
+  check (dump_line !e "pane graph" = "clay") "a press in the floating graph did not make it the pane in use";
+  click (230., 420.);
+  check (dump_line !e "pane graph" = "garden" && dump_line !e "graph panels" = "garden, clay")
+    "the docked graph did not keep its own graph";
+  E3.close !e;
+  (* every panel is an instance (flow.md 11.11): at 1440x900 the second layout has an inspector
+     and a text pane floating beside the docked ones; each draws, scrolls and types on its own *)
+  let e = ref (editor (replace text ":active 0" ":active 1")) and count = ref 0 and probes = ref [] in
+  let big mouse events = incr count;
+    { (frame mouse events !count) with width = 1440; height = 900; size = 1440, 900;
+      drawable_width = 1440; drawable_height = 900; drawable_size = 1440, 900 } in
+  (* the sketch's own rows end every inspector: a tall filler whose place says where that inspector
+     has scrolled to *)
+  let step ?(buttons = []) mouse events =
+    probes := [];
+    e := fst (E3.update_with !e { (big mouse events) with mouse_buttons = buttons } ~inspector:(fun ui ->
+      let filler = Pxui.Ui.box ui ~h:(Pxui.Ui.Px 1500.) "filler" in
+      let _, y, _, _ = Pxui.Ui.rect ui filler in probes := !probes @ [ y ])) in
+  let click point = step point [ Event.MouseMoved point ];
+    step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
+    step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
+  let rest point = step point []; step point []; step point [] in
+  let docked = 1300., 530. and floating = 1200., 300. in
+  rest (700., 200.);
+  let at_rest = match !probes with [ a; b ] -> a, b | l -> fail (Printf.sprintf "%d inspectors drew their rows, not 2" (List.length l)) in
+  let scroll point = step point [ Event.MouseMoved point ];
+    for _ = 1 to 6 do step point [ Event.MouseScrolled (0., -8.) ] done; rest point;
+    match !probes with [ a; b ] -> a, b | _ -> fail "an inspector stopped drawing" in
+  let d1, f1 = scroll floating in
+  check (d1 = fst at_rest && f1 <> snd at_rest)
+    (Printf.sprintf "the floating inspector did not scroll on its own: %g %g, then %g %g" (fst at_rest) (snd at_rest) d1 f1);
+  let d2, f2 = scroll docked in
+  check (d2 <> d1 && f2 = f1) "the docked inspector did not scroll on its own";
+  (* a click in a floating panel focuses it *)
+  click floating;
+  check (has (dump_line !e "panels") "inspector details*") ("a click did not focus the floating inspector: " ^ dump_line !e "panels");
+  (* typing in the floating text pane drafts there, not in the docked one *)
+  let pane name = List.find (fun l -> String.starts_with ~prefix:("lisp " ^ name) l)
+    (List.map String.trim (String.split_on_char ';' (dump_line !e "panels"))) in
+  check (has (pane "code") "graph tab, draft no" && has (pane "notes") "document tab, draft no")
+    ("each text pane opens on its own tab: " ^ dump_line !e "panels");
+  click (800., 660.);
+  step (800., 660.) [ Event.TextInput " " ]; rest (800., 660.);
+  check (has (pane "notes") "lisp notes*: document tab, draft yes" && has (pane "code") "graph tab, draft no")
+    ("typing in one text pane reached the other: " ^ dump_line !e "panels");
+  click (1280., 720.);
+  step (1280., 720.) [ Event.TextInput " " ]; rest (1280., 720.);
+  check (has (pane "code") "lisp code*: graph tab, draft yes" && has (pane "notes") "document tab, draft yes")
+    ("the docked text pane does not draft on its own: " ^ dump_line !e "panels");
+  E3.close !e;
+  (* the start keywords are followed again when their value in the text changes, and only then *)
+  let e = ref (editor text) and count = ref 0 in
+  let big mouse events = incr count;
+    { (frame mouse events !count) with width = 1440; height = 900; size = 1440, 900;
+      drawable_width = 1440; drawable_height = 900; drawable_size = 1440, 900 } in
+  let step ?(buttons = []) mouse events = e := E3.update !e { (big mouse events) with mouse_buttons = buttons } in
+  let click point = step point [ Event.MouseMoved point ];
+    step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
+    step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
+  let at = 600., 700. in
+  let rest () = step at []; step at [] in
+  let set name key value =
+    e := (match E3.edit !e (E.Set_arg { node = [ "editor"; name ]; key = E.Kw key; sub = []; value = S.make value }) with
+      | Ok e -> e | Error m -> fail m);
+    rest () in
+  rest ();
+  check (dump_line !e "projection" = "graph" && E3.look_through !e) "the studio opens as its keywords say";
+  set "network" "view" (S.Str "list");
+  check (dump_line !e "projection" = "list") "a changed :view was not followed";
+  step at [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l') ];
+  step at [ Event.KeyPressed (Input.KeyChar 'g') ]; rest ();
+  check (dump_line !e "projection" = "graph") "Space l g did not show the graph";
+  e := (match E3.edit !e (E.Set_layout_size { node = [ "editor"; "stage" ]; size = `Ratio 0.4 }) with Ok e -> e | Error m -> fail m);
+  rest ();
+  check (dump_line !e "projection" = "graph") "an edit that left :view alone reset the view the user chose";
+  set "network" "view" (S.Str "graph"); set "preview" "look_through" (S.Sym "false");
+  check (not (E3.look_through !e)) "a changed :look_through was not followed";
+  set "code" "tab" (S.Str "document");
+  check (has (dump_line !e "panels") "lisp code: document tab") ("a changed :tab was not followed: " ^ dump_line !e "panels");
+  set "outline" "focus" (S.Sym "true");
+  check (dump_line !e "focus" = "Outline") "a changed :focus was not followed";
+  (* the Size row of a split's card converts it, keeping the sizes it shows: the editor graph in
+     the pane, the studio card selected, the row's menu *)
+  step at [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'j') ];
+  step at [ Event.TextInput "editor" ]; step at [ Event.KeyPressed Input.Enter ]; rest ();
+  click (600., 600.);
+  check (dump_line !e "scope selected" = "editor/studio") ("the studio card is not where the test clicks: " ^ dump_line !e "scope selected");
+  let pick dy = click (600., 600.); click (1390., 214.); click (1390., 214. +. dy) in
+  pick 26.;
+  check (has (source !e) "studio (ui/split-at \"horizontal\" 0.1505 outline work)" && E3.undo_label !e = Some "Resize panel")
+    ("the Size row did not size the split by its ratio: " ^ source !e);
+  pick 74.;
+  check (has (source !e) "studio (ui/split \"horizontal\" outline work :second_size 1223)")
+    ("the Size row did not fix the second side at its points: " ^ source !e);
+  pick 50.;
+  check (has (source !e) "studio (ui/split \"horizontal\" outline work :first_size 216)")
+    ("the Size row did not return to the first side's points: " ^ source !e);
+  E3.close !e;
+  (* a graph panel in text view is live without the focus, and takes a gesture on the first press *)
+  let e = ref (editor (with_editor "    (ui/workspace (ui/split \"horizontal\" (ui/graph \"garden\" :focus true) (ui/graph \"scene\" :view \"text\")))"))
+  and count = ref 0 in
+  let step ?(buttons = []) mouse events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  step (100., 300.) []; step (100., 300.) [];
+  check (dump_line !e "pane graph" = "garden" && dump_line !e "projection" = "graph"
+         && has (dump_line !e "panels") "graph 0*; graph 1: selection tab, draft no")
+    ("the second graph panel does not hold its own text pane: " ^ dump_line !e "panels");
+  let point = 650., 300. in
+  step point [ Event.MouseMoved point ];
+  step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
+  step point [ Event.MouseReleased (Input.LeftButton, point) ];
+  step point [ Event.TextInput " " ]; step point []; step point [];
+  check (dump_line !e "pane graph" = "scene" && has (dump_line !e "panels") "graph 1*: selection tab, draft yes")
+    ("the first press in an unfocused text view did not start an edit there: " ^ dump_line !e "panels");
+  E3.close !e;
+  (* a float that is the bound name takes the window of its binding *)
+  let floated = editor (with_editor "    (let* [win (ui/floating (ui/inspector))]\n      (ui/workspace (ui/split \"horizontal\" (ui/graph) win)))"
+    ^ "(layout (panel [\"editor\" \"win\"] :collapsed false :window [100 80 300 200]))") in
+  check (dump_line floated "windows" = "inspector 100 80 300 200") ("a bound float's window: " ^ dump_line floated "windows");
+  E3.close floated;
+  print_endline "workspace shell: the studio layout: fixed sizes, strips, start keywords, size conversion, bound workspace, panel instances ok"
+
+(* ---- panels tied to a graph panel, bindings used twice, views as said, second lists and outlines ---- *)
+
+let run_panels () =
+  let lowered body = shell_of (build_ok (of_text (with_editor body))) in
+  (* :of ties an inspector, a list or a text pane to the graph panel a binding names *)
+  let tied = "    (let* [a (ui/graph \"garden\" :focus true)\n           b (ui/graph \"scene\")\n           ia (ui/inspector :of a)\n           ib (ui/inspector :of b)]\n      (ui/workspace (ui/split \"horizontal\" (ui/split \"vertical\" a b) (ui/split \"vertical\" ia ib))))" in
+  check ((lowered tied).follows = [ [ 1; 1 ], [ 0; 1 ]; [ 1; 0 ], [ 0; 0 ] ]) "the inspectors are tied to their graph panels";
+  expect_error "an :of that is not a graph panel"
+    (with_editor "    (let* [c (ui/lisp)] (ui/workspace (ui/split \"vertical\" c (ui/inspector :of c))))") "E_PANEL_OF";
+  expect_error "an :of that is not a binding"
+    (with_editor "    (ui/workspace (ui/split \"vertical\" (ui/graph) (ui/list :of (ui/graph))))") "E_PANEL_OF";
+  expect_error "an :of outside the layout shown"
+    (with_editor "    (let* [g (ui/graph) h (ui/graph)] (ui/workspace (ui/split \"vertical\" h (ui/lisp :of g))))") "E_PANEL_OF";
+  let rows = match Flow_sop.Projection.find (Flow_sop.Projection.of_graph catalog (of_text (with_editor tied)).checked "editor") [ "editor"; "ia" ] with
+    | Some (n : Flow_sop.Projection.node) -> List.map (fun (r : Flow_sop.Projection.row) -> r.label) n.rows
+    | None -> fail "no card ia" in
+  check (List.mem "of" rows) "the :of keyword is not a row of the inspector's card";
+  let retied = match Doc.edit catalog (of_text (with_editor tied))
+      (E.Connect { node = [ "editor"; "ia" ]; key = E.Kw "of"; src = "b"; iter = false }) with
+    | Ok ws -> shell_of (build_ok ws) | Error d -> fail (Flow.Diagnostic.to_string d) in
+  check (List.assoc [ 1; 0 ] retied.follows = [ 0; 1 ]) "a wire to the of row did not tie the inspector to the other graph panel";
+  let e = ref (editor (with_editor tied)) and count = ref 0 and drawn = ref 0 in
+  let step ?(buttons = []) mouse events = incr count; drawn := 0;
+    e := fst (E3.update_with !e (frame ~buttons mouse events !count) ~inspector:(fun _ -> incr drawn)) in
+  let click point = step point [ Event.MouseMoved point ];
+    step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
+    step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
+  step (100., 100.) []; step (100., 100.) [];
+  check (!drawn = 2) "with nothing selected both inspectors show the sketch's rows";
+  (* a node selected in graph a: its inspector shows the node, b's still the sketch's rows *)
+  click (30., 60.);
+  check (dump_line !e "scope selected" = "garden/:seed" && !drawn = 1)
+    ("the inspector tied to a did not follow a's selection: " ^ dump_line !e "scope selected");
+  (* graph b takes the focus: a's inspector keeps showing a's node *)
+  click (200., 600.);
+  check (dump_line !e "pane graph" = "scene" && dump_line !e "scope selected" = "-" && !drawn = 1)
+    "the inspector tied to a followed the focus to b";
+  (* a press in the tied inspector makes its graph panel the one in use *)
+  click (880., 300.);
+  check (dump_line !e "pane graph" = "garden" && dump_line !e "scope selected" = "garden/:seed"
+         && has (dump_line !e "panels") "inspector ia*")
+    "a press in a tied inspector did not bring its graph panel into use";
+  E3.close !e;
+  (* one binding used twice is two instances, keyed by place; the binding's saved entry is what
+     each starts from *)
+  let twice = with_editor "    (let* [g (ui/graph \"garden\")] (ui/workspace (ui/split \"horizontal\" g g)))" in
+  check ((lowered "    (let* [g (ui/graph \"garden\")] (ui/workspace (ui/split \"horizontal\" g g)))").repeated = [ "g" ])
+    "a binding used twice is not marked";
+  let e = ref (editor (twice ^ "(layout (panel [\"editor\" \"g\"] :collapsed false :window [10 30 300 200])\n        (panel [\"editor\" \"@panel\" \"1\"] :collapsed false :window [400 30 300 200]))")) and count = ref 0 in
+  let step ?(buttons = []) mouse events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  let click point = step point [ Event.MouseMoved point ];
+    step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
+    step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
+  step (700., 500.) []; step (700., 500.) [];
+  check (dump_line !e "windows" = "graph 10 30 300 200, graph 400 30 300 200")
+    ("the saved entries of a binding used twice: " ^ dump_line !e "windows");
+  check (dump_line !e "panels" = "graph 0; graph 1") ("the leaves of one binding are not two instances: " ^ dump_line !e "panels");
+  click (40., 110.);
+  let first = dump_line !e "scope selected" in
+  click (550., 200.);
+  check (first <> "-" && dump_line !e "scope selected" = "-" && dump_line !e "panels" = "graph 0; graph 1*")
+    ("the second leaf shares the first one's selection: " ^ first ^ " / " ^ dump_line !e "scope selected");
+  E3.close !e;
+  (* a graph panel shows the view it says, with a lisp panel beside it *)
+  let e = editor (with_editor "    (ui/workspace (ui/split \"horizontal\" (ui/graph \"garden\" :view \"text\" :focus true) (ui/lisp)))") in
+  let e = E3.update (E3.update e (frame (700., 500.) [] 1)) (frame (700., 500.) [] 2) in
+  check (dump_line e "projection" = "text" && has (dump_line e "panels") "graph 0*: selection tab")
+    ("a graph panel beside a lisp panel does not show its text view: " ^ dump_line e "panels");
+  E3.close e;
+  (* two lists and two outlines: each its own filter, focus row and search; a click focuses *)
+  let e = ref (editor (with_editor "    (let* [oa (ui/outline) ob (ui/outline) la (ui/list) lb (ui/list)]\n      (ui/workspace (ui/split \"horizontal\" (ui/split \"vertical\" oa ob)\n        (ui/split \"horizontal\" (ui/split \"vertical\" la lb) (ui/viewport (ref scene))))))")) and count = ref 0 in
+  let step ?(buttons = []) mouse events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  let click point = step point [ Event.MouseMoved point ];
+    step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
+    step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
+  step (800., 500.) []; step (800., 500.) [];
+  let typed point text = click point; step point [ Event.TextInput text ]; step point [ Event.KeyPressed Input.Enter ]; step point [] in
+  let panels () = dump_line !e "panels" in
+  typed (100., 38.) "zz";
+  check (has (panels ()) "outline oa*: search \"zz\"; outline ob: search \"\"") ("the first outline's search: " ^ panels ());
+  typed (100., 344.) "q";
+  check (has (panels ()) "outline oa: search \"zz\"; outline ob*: search \"q\"")
+    ("a search typed in one outline shows in the other: " ^ panels ());
+  click (550., 60.);
+  step (550., 60.) [ Event.KeyPressed (Input.KeyChar '/') ]; step (550., 60.) [ Event.TextInput "g" ]; step (550., 60.) [];
+  check (has (panels ()) "list la*: focus 336, 0 folded, filter \"g\"; list lb: focus -, 0 folded, filter -")
+    ("the first list's focus row and filter: " ^ panels ());
+  step (550., 60.) [ Event.KeyPressed Input.Enter ]; step (550., 60.) [];
+  click (550., 370.);
+  check (has (panels ()) "list la: focus 336, 0 folded, filter \"g\"; list lb*: focus 336, 0 folded, filter -")
+    ("the second list does not keep its own filter: " ^ panels ());
+  E3.close !e;
+  print_endline "workspace shell: tied panels, repeated bindings, views as said, second lists and outlines ok"
+
+let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)
@@ -1552,12 +1885,20 @@ let run_roots () =
   let step ?(events = []) () = incr count; e := E3.update !e (frame (100., 100.) events !count) in
   step (); step ();
   step ~events:[ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'v') ] (); step (); step ();
-  check (E3.look_through !e) "Space v did not look through the cameras";
+  check (E3.look_through !e) "Space v did not look through the camera";
   let near a b = Vec3.nearly_equal a b ~eps:1e-4 in
   check (near (Camera.position (E3.viewport_camera !e day)) (eye_of "day"))
     "the first viewport does not look through its own root's camera";
-  check (near (Camera.position (E3.viewport_camera !e night)) (eye_of "night"))
-    "the second viewport does not look through its own root's camera";
+  (* look-through is the focused viewport's own: the other keeps its orbit until its panel says so *)
+  check (not (near (Camera.position (E3.viewport_camera !e night)) (eye_of "night")))
+    "Space v looked through a viewport that does not have the focus";
+  let through = editor (replace (roots_text ~renderer:"Raster" ()) "(ui/viewport (ref night))"
+    "(ui/viewport (ref night) :look_through true)") in
+  let through = E3.update (E3.update through (frame (100., 100.) [] 1)) (frame (100., 100.) [] 2) in
+  check (near (Camera.position (E3.viewport_camera through night)) (eye_of "night")
+         && not (E3.look_through through))
+    "the second viewport does not look through its own root's camera as its :look_through says";
+  E3.close through;
   check (E3.slot !e day = None && E3.slot !e night = None) "a raster viewport has no tracer slot";
   E3.close !e;
   print_endline "workspace shell: film steps and turns, each viewport looks through its own root's camera ok"

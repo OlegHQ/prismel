@@ -35,7 +35,7 @@ module Editor3 = struct
   let take_export value = take_export value
   let set_render_status value status = set_render_status value status
   let flying value = (extra value).Viewport3.fly <> None
-  let look_through value = (extra value).Viewport3.look_through
+  let look_through value = Viewport3.look_through (extra value)
   let renderer value = (extra value).Viewport3.renderer.mode
   let set_renderer value mode =
     {value with extra = {value.extra with Viewport3.renderer_request = Some mode}}

@@ -1,7 +1,7 @@
 (* The workspace text pane (plan W7): three tabs over the Lisp text.
    Selection prints the selected binding's top-level ancestor with its upstream
    closure and marks the selection; Graph prints the active graph; Document is
-   the whole workspace, an editable draft with an atomic Check & apply.  The
+   the whole workspace, an editable draft with an atomic Check and apply.  The
    study's Lisp panel (prototype/src/e4.js) is the behavioural reference.
 
    Pure state and text here; [view] draws it and returns intents, [Core]
@@ -74,11 +74,18 @@ let enter (v : S.t) = match scope v, head_sym v with
 let rec find_binding (cur : S.t) = function
   | [] -> None
   | name :: rest ->
+      (* a nested node: the binding that holds it, then the inputs down to it *)
+      let name, keys = Option.value (Flow_sop.Flow_edit.leaf_keys name) ~default:(name, []) in
       let found = match scope cur with
         | Some (_, res) when name = "@result" -> Some (None, res)
         | Some (ps, _) -> List.find_map (fun ((p : S.t), v) ->
             if Flow_sop.Flow_edit.pat_key p = name then Some (Some p, v) else None) ps
+        | None when name = "@result" -> Some (None, cur)
         | None -> None in
+      let found = if keys = [] then found else
+        Option.bind found (fun (_, v) ->
+          List.fold_left (fun e key -> Option.bind e (fun e -> Flow_sop.Flow_edit.arg_of e key)) (Some v) keys
+          |> Option.map (fun e -> None, e)) in
       match found with
       | Some (p, v) when rest = [] -> Some (p, v)
       | Some (_, v) -> find_binding (enter v) rest
@@ -107,16 +114,30 @@ let mark spans (found : (S.t option * S.t) option) = match found with
 let binding_at (shown : shown) byte = match shown.body with
   | None -> None
   | Some (body, spans) ->
+      let holds (f : S.t) = match span_of spans f with
+        | Some s -> s.Flow.Diagnostic.start <= byte && byte <= s.finish | None -> false in
+      (* the nested node the byte is in, innermost: a step of a ->, a call inside a call *)
+      let rec nested prefix leaf (v : S.t) =
+        match List.find_opt (fun (_, a) -> holds a) (Flow_sop.Flow_edit.nested_nodes v) with
+        | Some (key, a) -> nested prefix (Flow_sop.Flow_edit.nested_leaf leaf key) a
+        | None -> prefix @ [ leaf ] in
       let rec within prefix cur = match scope cur with
         | None -> None
-        | Some (bindings, _) ->
-            List.find_map (fun ((p : S.t), v) ->
+        | Some (bindings, res) ->
+            let inside leaf v = match within (prefix @ [ leaf ]) (enter v) with
+              | Some _ as deeper -> deeper | None -> Some (nested prefix leaf v) in
+            (match List.find_map (fun ((p : S.t), v) ->
               match span_of spans p, span_of spans v with
               | Some a, Some b when a.Flow.Diagnostic.start <= byte && byte <= b.Flow.Diagnostic.finish ->
-                  let here = prefix @ [ Flow_sop.Flow_edit.pat_key p ] in
-                  (match within here (enter v) with Some _ as deeper -> deeper | None -> Some here)
-              | _ -> None) bindings in
-      Option.map (fun names -> shown.graph :: names) (within [] body)
+                  inside (Flow_sop.Flow_edit.pat_key p) v
+              | _ -> None) bindings with
+             | Some _ as found -> found
+             | None -> if holds res && Flow_sop.Flow_edit.node_call res then inside "@result" res else None) in
+      let found = match within [] body with
+        | Some _ as found -> found
+        | None -> if scope body = None && holds body && Flow_sop.Flow_edit.node_call body
+            then Some (nested [] "@result" body) else None in
+      Option.map (fun names -> shown.graph :: names) found
 
 (* the bindings of a scene graph that are cameras (the values of [scene/root :camera]) *)
 let cameras source graph =
@@ -335,25 +356,26 @@ let colour_popup ui ~at text (a, b) =
   let alpha = if String.length literal = 9 then String.sub literal 7 2 else "" in
   let hex r g b = Printf.sprintf "#%02x%02x%02x%s" (clamp r) (clamp g) (clamp b) alpha in
   let shown = hex r g bl in
-  Ui.popup ui ~stroke:(Pxui.Theme.edge theme) ~at ~width:300. ~height:30. "text-colour" (fun () ->
+  Ui.popup ui ~stroke:(Pxui.Theme.edge theme) ~at ~width:300. ~height:24. "text-colour" (fun () ->
     let box, cx, cy, cw = Ui.inspector_row ui ~width:300. ~key:"text-colour-row" ~label:"colour" () in
     Ui.within ui box (fun () ->
-      let swatch = Ui.box ui ~at:(cx, cy) ~w:(Ui.Px 20.) ~h:(Ui.Px 21.) "text-colour-swatch" in
+      let swatch = Ui.box ui ~at:(cx, cy) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) "text-colour-swatch" in
       Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-        Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:colour ~stroke:(Pxui.Theme.faint_border theme) ());
-      let hex_x = cx +. 24. in
-      let typed, _ = Ui.value_field ui ~at:(hex_x, cy) ~w:58. ~h:21. ~size:11 ~left:true
+        Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:colour ~stroke:(Pxui.Theme.edge theme) ());
+      let hex_x = cx +. 28. in
+      let typed, _ = Ui.value_field ui ~at:(hex_x, cy) ~w:64. ~h:20. ~left:true
           ~valid:(fun t -> Result.is_ok (Color.hex t)) "text-colour-hex" shown in
       let from_hex = if typed = shown then None else
           Option.map (fun c -> let r, g, b, _ = Color.to_floats c in hex r g b) (Result.to_option (Color.hex typed)) in
-      let sliders_x = hex_x +. 62. in
-      let field_w = (Float.max 60. (cw -. 90.) -. 8.) /. 3. in
+      let sliders_x = hex_x +. 72. in
+      let field_w = (Float.max 60. (cw -. 100.) -. 16.) /. 3. in
       let from_slider = List.find_map Fun.id (List.mapi (fun index (axis, cur) ->
-        let ax_x = sliders_x +. float index *. (field_w +. 4.) in
+        let ax_x = sliders_x +. float index *. (field_w +. 8.) in
         Ui.draw ui box (fun paint (x, y, _, _) ->
-          Ui.Paint.text paint ~at:(x +. ax_x, y +. cy +. 3.) ~size:10 ~color:(Pxui.Theme.muted theme) axis);
+          Ui.Paint.text paint ~at:(x +. ax_x +. 2., Pxui_shell.Kit.cap_y ui (y +. cy) 20.)
+            ~size:(Pxui_shell.Kit.cap_size ui) ~color:(Pxui.Theme.ink_3 theme) axis);
         let display = Printf.sprintf "%.2f" cur in
-        let changed, _ = Ui.value_field ui ~at:(ax_x +. 10., cy) ~w:(field_w -. 10.) ~h:21. ~size:11
+        let changed, _ = Ui.value_field ui ~at:(ax_x, cy) ~w:field_w ~h:20.
             ~display ~fraction:cur ~slide:(fun f -> Printf.sprintf "%.2f" f) ~edit:false ~left:false
             ~valid:(fun t -> float_of_string_opt t <> None) ("text-colour-" ^ axis) display in
         if changed = display then None else
@@ -365,40 +387,27 @@ let colour_popup ui ~at text (a, b) =
   |> Option.map (fun edit -> String.sub text 0 (a + 1) ^ Option.value ~default:literal edit
                              ^ String.sub text (b - 1) (String.length text - b + 1))
 
-let view ui ~bounds:(x, y, width, height) ~vocab ~names state (shown : shown) =
+let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names state (shown : shown) =
   let module Ui = Pxui.Ui in
   let row = float (Ui.row_height ui) in
   let x = float x and y = float y and width = float width and height = float height in
   let theme = Ui.theme ui in
   let intents = ref [] in
   let emit i = intents := i :: !intents in
-  (* a labelled, clickable rectangle at [at] *)
-  let chip key ~at:(cx, cy) ~w ~active ?(enabled = true) text =
-    let box = Ui.box ui ~flags:Ui.(clickable + blocking) ~w:(Ui.Px w) ~h:(Ui.Px row)
-        ~at:(cx, cy) key in
-    let signal = Ui.signal ui box in
-    Ui.draw ui box (fun paint _ ->
-      Ui.Paint.rect paint ~x:cx ~y:cy ~w ~h:row
-        ~fill:(if active then theme.foreground
-               else if signal.hovered && enabled then Pxui.Theme.hover_fill theme else theme.panel)
-        ~stroke:(if active || not enabled then Pxui.Theme.faint_border theme
-                 else Pxui.Theme.border theme) ();
-      Ui.Paint.text paint ~at:(cx +. 8., cy +. 5.)
-        ~color:(if active then theme.input else if enabled then theme.foreground
-                else Pxui.Theme.muted theme) text);
-    signal.clicked && enabled in
   let applied = Lazy.force shown.applied in
   let dirty = dirty state shown in
+  (* the tabs sit in the panel's header, at its right: the body is all text *)
   let tabs = [ Selection, "Selection"; Graph, "Graph";
     Document, if dirty then "Document *" else "Document" ] in
-  ignore (List.fold_left (fun cx (tab, title) ->
-    let w = 16. +. 7. *. float (String.length title) in
-    if chip ("text-tab-" ^ title) ~at:(cx, y) ~w ~active:(state.tab = tab) title
-    then emit (Tab tab);
-    cx +. w +. 2.) x tabs);
-  let footer = 2. *. row in
-  let body_y = y +. row in
-  let body_h = Float.max row (height -. row) in
+  let active = Option.value ~default:0 (List.find_index (fun (tab, _) -> tab = state.tab) tabs) in
+  (match fst (Pxui_shell.Kit.segments ui ~key:"text-tab" ~right:(x +. width -. tabs_inset)
+                ~y:(y -. float Pxui_shell.Layout.header_height +. 2.) (List.map snd tabs) active) with
+   | Some index -> emit (Tab (fst (List.nth tabs index)))
+   | None -> ());
+  let bar = 32. in
+  let footer = bar +. row in
+  let body_y = y in
+  let body_h = Float.max row height in
   let language = Lisp_text.language ~vocab ~names ~parinfer:state.parinfer theme in
   (* the toolbar and the message row under an editable area; a right-click menu offers the same
      buttons and the wrap toggle *)
@@ -443,21 +452,34 @@ let view ui ~bounds:(x, y, width, height) ~vocab ~names state (shown : shown) =
       | None -> text' in
     let can_apply = can_apply || text' <> text in
     let ty = ey +. Float.max row (eh -. footer) in
-    (* Command-Enter in the area is the button *)
-    if (chip (key ^ "-apply") ~at:(x, ty) ~w:118. ~active:false ~enabled:can_apply "Check & apply")
+    let rule name at = Ui.draw ui (Ui.box ui ~w:(Ui.Px width) ~h:(Ui.Px 1.) ~at:(x, at) (key ^ name))
+      (fun paint (x, y, w, h) -> Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.edge theme)) in
+    rule "-rule" ty;
+    (* Command-Enter in the area is the button: the one outlined button of the panel *)
+    let apply_w = Pxui_shell.Kit.button_width ui ~hint:"\xe2\x8c\x98\xe2\x86\xb5" "Check and apply" in
+    if (Pxui_shell.Kit.button ui ~key:(key ^ "-apply") ~at:(x +. 12., ty +. 6.) ~w:apply_w ~primary:true
+          ~enabled:can_apply ~hint:"\xe2\x8c\x98\xe2\x86\xb5" "Check and apply")
        || (submitted && can_apply)
     then emit (apply text');
-    if chip (key ^ "-discard") ~at:(x +. 120., ty) ~w:74. ~active:false ~enabled:can_apply "Discard"
+    if Pxui_shell.Kit.button ui ~key:(key ^ "-discard") ~at:(x +. 12. +. apply_w +. 8., ty +. 6.)
+         ~w:(Pxui_shell.Kit.button_width ui "Discard") ~enabled:can_apply "Discard"
     then emit discard;
-    let msg = Ui.box ui ~w:(Ui.Px width) ~h:(Ui.Px row) ~at:(x, ty +. row) (key ^ "-message") in
-    Ui.draw ui msg (fun paint _ ->
-      Ui.Paint.text paint ~at:(x +. 8., ty +. row +. 5.)
-        ~color:(match errors with _ :: _ -> Pxui.Theme.invalid | [] -> Pxui.Theme.muted theme) message);
+    rule "-rule2" (ty +. bar);
+    let wrong = errors <> [] in
+    let msg = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px width) ~h:(Ui.Px row) ~at:(x, ty +. bar) (key ^ "-message") in
+    Ui.draw ui msg (fun paint (x, y, _, h) ->
+      (* the state as a dot: the error colour, the accent for a draft *)
+      let tx = if wrong || can_apply then begin
+          Ui.Paint.circle paint ~at:(x +. 15., y +. (h /. 2.)) ~radius:3.
+            ~fill:(if wrong then Pxui.Theme.invalid else theme.accent) (); x +. 26.
+        end else x +. 12. in
+      Ui.Paint.text paint ~at:(tx, Pxui_shell.Kit.text_y ui y h)
+        ~color:(if wrong then Pxui.Theme.invalid else Pxui.Theme.muted theme) message);
     (match state.menu with
      | None -> ()
      | Some at ->
          (match Ui.context_menu ui ~at (key ^ "-menu")
-                  [ "Check & apply", can_apply; "Discard", can_apply; "", false;
+                  [ "Check and apply", can_apply; "Discard", can_apply; "", false;
                     (if state.wrap then "Unwrap long lines" else "Wrap long lines"), true;
                     (if state.parinfer then "Parinfer off (keep brackets as typed)"
                      else "Parinfer on (brackets follow indentation)"), true ] with
@@ -468,7 +490,7 @@ let view ui ~bounds:(x, y, width, height) ~vocab ~names state (shown : shown) =
           | `Pick 3 -> emit (Menu None); emit Toggle_wrap
           | `Pick _ -> emit (Menu None); emit Toggle_parinfer)) in
   let fit text =
-    let limit = max 8 (int_of_float ((width -. 16.) /. 7.)) in
+    let limit = max 8 (int_of_float ((width -. 40.) /. 7.)) in
     if String.length text <= limit then text else String.sub text 0 (limit - 3) ^ "..." in
   let message errors ~dirty ~clean = fit (match real_errors errors with
     | d :: _ -> String.map (function '\n' -> ' ' | c -> c) (Flow.Diagnostic.to_string d)
@@ -490,7 +512,7 @@ let view ui ~bounds:(x, y, width, height) ~vocab ~names state (shown : shown) =
          ~spans ?reveal:(if dirty then None else Option.map fst shown.mark)
          ~caret_select:(fun byte -> if dirty then None else binding_at shown byte) ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
          ~message:(message state.graph_errors ~dirty
-           ~clean:(Printf.sprintf "Edit %s as text; Check & apply checks the whole workspace." shown.graph))
+           ~clean:(Printf.sprintf "Edit %s as text; Check and apply checks the whole workspace." shown.graph))
          ~draft:(fun t -> Graph_draft (shown.graph, t))
          ~scrub:(fun t done_ -> Graph_scrub (shown.graph, t, done_)) ()
    | Selection ->
@@ -503,7 +525,7 @@ let view ui ~bounds:(x, y, width, height) ~vocab ~names state (shown : shown) =
          ~spans ?reveal:(Option.map fst shown.mark)
          ~apply:(fun t -> Binding_apply (shown.key, t)) ~discard:Binding_discard ~can_apply:dirty
          ~message:(message state.binding_errors ~dirty
-           ~clean:"The selection with what it reads; Check & apply writes the bindings shown.")
+           ~clean:"The selection with what it reads; Check and apply writes the bindings shown.")
          ~draft:(fun t -> Binding_draft (shown.key, t))
          ~scrub:(fun t done_ -> Binding_scrub (shown.key, t, done_)) ());
   List.rev !intents

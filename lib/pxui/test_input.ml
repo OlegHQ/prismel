@@ -10,7 +10,7 @@ let frame ?(buttons = []) ?(keys = []) events : Frame.t = {
   mouse = 10., 10.; mouse_delta = 0., 0.; keys; mouse_buttons = buttons; events }
 
 let run () =
-  let ui = Ui.create () in
+  let ui = Ui.create ~font_size:11 () in
   Fun.protect ~finally:(fun () -> Ui.destroy ui) (fun () ->
   let body ui =
     let view = Ui.box ui ~flags:Ui.clickable ~at:(0., 0.)

@@ -91,6 +91,7 @@ module Private : sig
       | Play_pause | Reset | Stop
       | Add_node | Frame_tile | Frame_camera
       | Look_through | Look_through_camera | Fly | Tool of int
+      | Render_mode of int
       | Undo | Redo
       | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
       | Toggle_map | Ui_scale of int | Restore_layout | Enter | Up | Go_world | Peek | Pick_up | Jump
@@ -191,7 +192,8 @@ module Private : sig
       body : (Flow.Syntax.t * (int * Flow.Diagnostic.span) list) option;
     }
     val binding_at : shown -> int -> string list option
-    (** The path of the innermost binding of the Graph tab whose text holds a byte. *)
+    (** The path of the innermost node of the Graph tab whose text holds a byte: a binding,
+        the result, or a call nested in one of their inputs. *)
     val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown
     val line_of : string -> Flow.Diagnostic.t -> int option
     val binding : Flow.Syntax.t list -> string list -> (Flow.Syntax.t option * Flow.Syntax.t) option

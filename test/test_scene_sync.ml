@@ -107,6 +107,13 @@ let run () =
       float "target_x" 0.123456789012345] in
     let saved = ok (reconcile ~adopt:false doc after) in
     check (snapshot saved = snapshot after) "camera write-back rounded its coordinates";
+    (* the cook and every prepared piece are keyed by the settings and the networks physically:
+       a camera move that rebuilt either would recook and re-prepare the scene every frame *)
+    check (saved.settings == doc.settings) "a camera write-back rebuilt the unchanged settings";
+    check (Document.Int_map.for_all (fun id network ->
+        Document.Int_map.find_opt id doc.networks == Some network
+        || Document.Int_map.find id doc.networks == network) saved.networks)
+      "a camera write-back rebuilt an unchanged network";
     same_after_reload saved "camera precision") [6.123456789012345; 10000.123456789; 1e7];
   let arm = node_id doc "arm" and fill = node_id doc "fill" in
   (* a field of a bound object *)

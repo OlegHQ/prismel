@@ -88,7 +88,9 @@ let num2 name = mk ~any_num:true name [ "a", fl; "b", fl ] (fun ts ->
 let unary name out = mk name [ "x", fl ] out
 let compare_op name = mk name [ "a", fl; "b", fl ] (fun _ -> Ty.Bool)
 let bool_op name pos = mk name pos (fun _ -> Ty.Bool)
-let panel name pos = mk ~octx:Editor name pos (fun _ -> Ty.Panel)
+let panel ?(kw = []) name pos = mk ~octx:Editor ~kw name pos (fun _ -> Ty.Panel)
+(* a panel leaf: [:focus true] gives it the keyboard focus when the editor opens *)
+let leaf ?(kw = []) name pos = panel ~kw:(kw @ [ "focus", Ty.Bool ]) name pos
 let ops = [
   num2 "+"; num2 "-"; num2 "*"; num2 "/"; num2 "mod";
   mk ~any_num:true "pow" [ "a", fl; "b", fl ] (fun ts -> if List.mem Ty.Vec3 ts then Ty.Vec3 else Ty.Float);
@@ -127,10 +129,13 @@ let ops = [
   (* a world graph is authoritative (plan W10): this is how its text says there is no World *)
   mk ~octx:World "world/none" [] (fun _ -> Ty.World);
   mk ~octx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
-  panel "ui/viewport" [ "scene", Ty.Scene ];
-  { (panel "ui/graph" []) with opt = [ "graph", Ty.Text ]; kw = [ "wires", Ty.Text ] }; panel "ui/inspector" [];
-  panel "ui/outline" []; panel "ui/list" []; panel "ui/lisp" []; panel "ui/timeline" [];
-  panel "ui/split" [ "axis", Ty.Text; "first", Ty.Panel; "second", Ty.Panel ];
+  leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.Scene ];
+  { (leaf ~kw:[ "wires", Ty.Text; "view", Ty.Text ] "ui/graph" []) with opt = [ "graph", Ty.Text ] };
+  (* [:of] ties an inspector, a list or a text pane to a graph panel: its binding *)
+  leaf ~kw:[ "of", Ty.Panel ] "ui/inspector" []; leaf "ui/outline" []; leaf ~kw:[ "of", Ty.Panel ] "ui/list" [];
+  leaf ~kw:[ "tab", Ty.Text; "of", Ty.Panel ] "ui/lisp" []; leaf "ui/timeline" [];
+  panel ~kw:[ "first_size", Ty.Int; "second_size", Ty.Int ] "ui/split"
+    [ "axis", Ty.Text; "first", Ty.Panel; "second", Ty.Panel ];
   panel "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.Panel; "second", Ty.Panel ];
   { (panel "ui/tile" []) with rest = Some ("panel", Ty.Panel) };
   panel "ui/floating" [ "panel", Ty.Panel ];
@@ -1098,11 +1103,25 @@ let check catalog forms =
         (match o.oname, pos with
          | "ui/split-at", _ :: r :: _ ->
              (match num_of r with Some n when n < 0.1 || n > 0.9 -> err x "E_RANGE" "Split ratio is 0.1–0.9." | _ -> ())
-         | _ -> ())
+         | _ -> ());
+        (* one side fixed in points, never both *)
+        let size key = List.find_opt (fun (a : arg) -> a.key = Some key) args in
+        List.iter (fun a -> match num_of a with
+          | Some n when n < 1. -> err a.aform "E_RANGE" "A fixed split size is 1 point or more." | _ -> ())
+          (List.filter_map size [ "first_size"; "second_size" ]);
+        if size "first_size" <> None && size "second_size" <> None then
+          err x "E_RANGE" "A split fixes one side: :first_size or :second_size."
     | "ui/graph" ->
         (match List.find_opt (fun (a : arg) -> a.key = Some "wires") args with
          | Some { aterm = { node = Text w; _ }; _ } when w <> "rect" && w <> "straight" ->
              err x "E_RANGE" "Graph wires style is rect or straight."
+         | _ -> ());
+        (* the graph the panel pins: a graph of the workspace, or [def:name] for a function *)
+        (match pos with
+         | { aterm = { node = Text g; _ }; aform; _ } :: _
+           when not (Hashtbl.mem gsigs g || (String.starts_with ~prefix:"def:" g
+                       && Hashtbl.mem sigs (String.sub g 4 (String.length g - 4)))) ->
+             err aform "E_UNKNOWN_GRAPH" (Printf.sprintf "Unknown graph: %s." g)
          | _ -> ())
     | _ -> ()
 
@@ -1431,6 +1450,14 @@ type op_signature = {
   rest : (string * Ty.t) option; kw : (string * Ty.t) list }
 
 let value_ops = List.filter_map (fun (o : op) -> if o.octx = Value then Some o.oname else None) ops
+
+(* The texts an operator's argument takes: what the checks accept and the text pane completes. *)
+let op_choices op argument = match op, argument with
+  | ("ui/split" | "ui/split-at"), "axis" -> [ "horizontal"; "vertical" ]
+  | "ui/graph", "wires" -> [ "rect"; "straight" ]
+  | "ui/graph", "view" -> [ "graph"; "list"; "text" ]
+  | "ui/lisp", "tab" -> [ "selection"; "graph"; "document" ]
+  | _ -> []
 
 let op_signature ctx name = Option.map (fun (o : op) ->
   ({ pos = o.pos; opt = o.opt; rest = o.rest; kw = o.kw } : op_signature)) (find_op name ctx)

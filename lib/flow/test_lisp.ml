@@ -309,6 +309,8 @@ let () =
   assert (not (String.contains (print "(sop/c ^:bypass (sop/b (sop/a x)))") '>'));
   (* only node calls thread; a keyword first argument starts the chain *)
   assert (print "(* (+ (- a 1) 2) 3)" = "(* (+ (- a 1) 2) 3)\n");
+  (* a layout is a tree of containers: ui/ calls nest *)
+  assert (print "(ui/floating (ui/tile (ui/viewport (ref scene))))" = "(ui/floating (ui/tile (ui/viewport (ref scene))))\n");
   assert (print "(sop/d (sop/c (sop/b (sop/a :k 1))))" = "(-> (sop/a :k 1)\n    (sop/b)\n    (sop/c)\n    (sop/d))\n");
   (* a chain inside a binding, and its spans *)
   let text, spans = Lisp.print (get (Syntax.parse "(let* [g nope] (sop/c (sop/b (sop/a g :k 1))))")) in

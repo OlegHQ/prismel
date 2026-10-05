@@ -55,7 +55,7 @@ let run () =
      || List.length (Parameter.fields parameters_schema) <> 5
   then fail "sop_params defaults or ignored-field policy is incorrect";
   let graph = inspectable_node parameters_default in
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let frame time events : Rays.Frame.t = { width = 320; height = 240;
     size = 320, 240; drawable_width = 320; drawable_height = 240;
     drawable_size = 320, 240; pixel_scale = 1., 1.; time; dt = 0.; fps = 0.;
@@ -74,8 +74,9 @@ let run () =
   let unchanged, effects = step graph 0. [] in
   if unchanged != graph || effects.cook then
     fail "an idle inspector frame changed the graph";
-  (* The shared inspector rows are 29 points below the 33-point folder header. *)
-  let row index = 3 + 24 + 33 + (index - 2) * 29 + 14 in
+  (* The shared inspector rows are 24 points, below the label and the folder's section header
+     (24 under 16 points of space). *)
+  let row index = 24 + 40 + (index - 2) * 24 + 12 in
   let click x y = [Rays.Event.MousePressed (Rays.Input.LeftButton, (float x, float y));
     Rays.Event.MouseReleased (Rays.Input.LeftButton, (float x, float y))] in
   let graph, effects = step graph 0.5 (click 110 (row 3)) in
@@ -108,7 +109,7 @@ let run () =
   if (Node.parameter_fields normalized |> List.find (fun field ->
       field.Parameter.name = "count")).current <> Parameter.Int_value 10
   then fail "hard range normalization changed";
-  let flow_ui = Pxui.Ui.create () in
+  let flow_ui = Pxui.Ui.create ~font_size:11 () in
   let count = { (field graph "count") with Parameter.folder = [] } in
   let flow_row ?drive ?(locked = false) () : Pxui_shell.Inspector.flow_row = {
     path = "count"; fields = [count]; shown = true; locked;
@@ -119,10 +120,10 @@ let run () =
       Pxui_shell.Inspector.flow_fields ui ~expanded [row]));
     Pxui.Ui.frame flow_ui (frame 2. events) (fun ui ->
       Pxui_shell.Inspector.flow_fields ui ~expanded [row]) in
-  if flow_step (flow_row ()) (click 261 12)
+  if flow_step (flow_row ()) (click 14 12)
       <> [Pxui_shell.Inspector.Pinned ("count", false)] then
     fail "Flow inspector pin did not emit the card-row request";
-  if flow_step (flow_row ~drive:"← Clock.t" ~locked:true ()) (click 235 12)
+  if flow_step (flow_row ~drive:"← Clock.t" ~locked:true ()) (click 258 12)
       <> [Pxui_shell.Inspector.Reset "count"] then
     fail "Flow inspector reset did not clear the drive";
   let expression_row = flow_row ~drive:"=t" ~locked:true () in
@@ -143,7 +144,7 @@ let run () =
     shown = true; locked = false; drive = None; live = None;
     components = []; split = None;
   } in
-  if flow_step vector_row (click 235 12)
+  if flow_step vector_row (click 258 12)
       <> [Pxui_shell.Inspector.Split ("size", true)] then
     fail "Flow inspector xyz control did not request a vector split";
   let color_f name current = {
@@ -156,7 +157,7 @@ let run () =
     path = "color"; fields = [ color_f "color_r" 1.; color_f "color_g" 0.5; color_f "color_b" 0. ];
     shown = true; locked = false; drive = None; live = None; components = []; split = None;
   } in
-  if flow_step color_row (click 235 12)
+  if flow_step color_row (click 258 12)
       <> [ Pxui_shell.Inspector.Split ("color", true) ] then
     fail "Flow inspector color row rgb control did not request a split";
   ignore (flow_step color_row (click 140 12));
@@ -177,14 +178,14 @@ let run () =
     fail "Flow inspector color row hex edit did not update color channels";
   let folder_row = { (flow_row ()) with
     fields = [{count with Parameter.folder = ["Geometry"]}] } in
-  if flow_step ~expanded:["Geometry"] folder_row (click 261 45)
+  if flow_step ~expanded:["Geometry"] folder_row (click 14 40)
       <> [Pxui_shell.Inspector.Pinned ("count", false)] then
     fail "Flow inspector did not show an initially expanded folder";
   ignore (flow_step ~expanded:["Geometry"] folder_row (click 10 16));
-  if flow_step ~expanded:["Geometry"] folder_row (click 261 45) <> [] then
+  if flow_step ~expanded:["Geometry"] folder_row (click 14 40) <> [] then
     fail "Flow inspector collapsed folder kept its field interactive";
   ignore (flow_step ~expanded:["Geometry"] folder_row (click 10 16));
-  if flow_step ~expanded:["Geometry"] folder_row (click 261 45)
+  if flow_step ~expanded:["Geometry"] folder_row (click 14 40)
       <> [Pxui_shell.Inspector.Pinned ("count", false)] then
     fail "Flow inspector folder did not reopen";
   (match Sys.getenv_opt "RAYS_UI_PREVIEW" with

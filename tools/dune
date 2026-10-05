@@ -137,6 +137,11 @@
  (libraries rays rays_pathtracer rdk unix))
 
 (executable
+ (name pt_convergence)
+ (modules pt_convergence)
+ (libraries rays rays_pathtracer rdk unix))
+
+(executable
  (name bench_shattered_renderer)
  (modules bench_shattered_renderer)
  (libraries rays flow rdk rdk_rays procedural sop_catalog sketch_support rays_editor unix))
@@ -262,3 +267,8 @@
  (name bench_traced_panes)
  (modules bench_traced_panes)
  (libraries rays procedural rdk rdk_rays rays_editor unix))
+
+(executable
+ (name ui_shot)
+ (modules ui_shot)
+ (libraries rays rays_editor procedural rdk rdk_rays flow))

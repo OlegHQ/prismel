@@ -1,7 +1,9 @@
 (* Rays Editor edit frames on a large workspace graph: one full [Editor3.update]
    per sample while a node drag records into the undo document, plus the
    undo frame that restores the layout. Prints CSV:
-   name,nodes,median_s,p95_s,bytes_per_frame. *)
+   name,nodes,median_s,p95_s,bytes_per_frame.
+   [--panels [nodes]] measures idle frames (the pointer moving over the viewport) of layouts
+   with one and three graph panels and one and two inspectors over the same graph. *)
 open Procedural
 
 let pointer (x, y) = float x, float y
@@ -22,30 +24,38 @@ let percentile values fraction =
     (max 0 (int_of_float (Float.ceil
       (fraction *. float_of_int (Array.length values))) - 1)))
 
-(* Layers of two-input merges over a row of point sources, as a workspace text. *)
-let workspace count =
+(* Layers of two-input nodes over a row of point sources, as a workspace text.  The nodes are
+   switches, not merges: a merge of two nodes of the layer before doubles the geometry every
+   layer (2^30 points at 2000 nodes), and the bench measures the editor, not that cook. *)
+let workspace_text count =
   let width = 64 in
   let b = Buffer.create 65_536 in
   Buffer.add_string b "(workspace bench\n  (graph g :context sop\n    (let* [";
   let layer = ref (Array.init width (fun index ->
     let name = Printf.sprintf "s%d" index in
     Buffer.add_string b (Printf.sprintf "%s (sop/points :points 1)\n           " name); name))
-  and created = ref width and generation = ref 0 in
+  and created = ref width and generation = ref 0 and all = ref [] in
   while !created < count - 1 do
     let size = min width (count - 1 - !created) and previous = !layer in
     layer := Array.init size (fun index ->
       let name = Printf.sprintf "n%d_%d" !generation index in
-      Buffer.add_string b (Printf.sprintf "%s (sop/merge %s %s)\n           " name
+      Buffer.add_string b (Printf.sprintf "%s (sop/switch %s %s)\n           " name
         previous.(index mod Array.length previous) previous.((index + 1) mod Array.length previous));
+      all := name :: !all;
       name);
     created := !created + size;
     incr generation
   done;
   Buffer.add_string b (Printf.sprintf "output (sop/merge %s)]\n      output)))\n"
     (String.concat " " (Array.to_list !layer)));
-  match Rays_editor.Workspace.load (Buffer.contents b) with
-  | Ok workspace -> workspace, Array.to_list !layer
+  (* the last layer first: the card the drag bench looks for, then every other layer *)
+  Buffer.contents b, Array.to_list !layer @ !all
+
+let load text = match Rays_editor.Workspace.load text with
+  | Ok workspace -> workspace
   | Error diagnostics -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string diagnostics))
+
+let workspace count = let text, names = workspace_text count in load text, names
 
 let report name nodes samples bytes =
   Printf.printf "%s,%d,%.9f,%.9f,%.0f\n%!" name nodes
@@ -76,12 +86,21 @@ let measure nodes =
   done;
   step ~events:[key (Rays.Input.KeyChar 'i')] ();
   step ();
-  let x, y, width, _height = List.find_map (fun name ->
+  (* a large graph opens with its cards outside the pane: frame all of it, then take one inside *)
+  let x, y, width, height = match List.find_map (fun name ->
+      match E.node_box !environment [ "g"; name ] with
+      | Some (x, y, width, height) when x >= gx && y >= gy && x + width < gx + gw
+          && y + height < gy + gh -> Some (x, y, width, height)
+      | _ -> None) ("output" :: names) with
+    | Some box -> box
+    | None ->
+        step ~mouse:inside ~events:[key Rays.Input.Home] (); step ~mouse:inside ();
+        List.find_map (fun name ->
       match E.node_box !environment [ "g"; name ] with
       | Some (x, y, width, height) when x >= gx && y >= gy && x + width < gx + gw
           && y + height < gy + gh -> Some (x, y, width, height)
       | _ -> None) ("output" :: names) |> Option.get in
-  let start = x + (width / 2), y + 12 in
+  let start = x + (width / 2), y + min 12 (height / 2) in
   step ~mouse:start ();  (* hover: hit testing uses the last frame *)
   step ~mouse:start ~buttons:[Rays.Input.LeftButton]
     ~events:[Rays.Event.MousePressed (Rays.Input.LeftButton, pointer start)] ();
@@ -109,6 +128,42 @@ let measure nodes =
   report "rays_editor_undo_frame" nodes undo (Gc.allocated_bytes () -. before);
   if E.can_redo !environment |> not then failwith "undo did not step the history";
   E.close !environment
+
+(* Idle frames of one graph under layouts that differ only in how many graph panels and
+   inspectors they hold: what an extra panel instance costs a frame. *)
+let measure_panels nodes =
+  let module E = Rays_editor.Editor3 in
+  let text, _ = workspace_text nodes in
+  let body = String.sub text 0 (String.length text - 2) in  (* without the workspace's closing bracket *)
+  let graphs n = if n = 1 then "(ui/graph \"g\")"
+    else "(ui/tile " ^ String.concat " " (List.init n (fun _ -> "(ui/graph \"g\")")) ^ ")" in
+  let inspectors n = if n = 1 then "(ui/inspector)" else "(ui/split \"vertical\" (ui/inspector) (ui/inspector))" in
+  List.iter (fun (name, g, i) ->
+    let workspace = load (Printf.sprintf
+      "%s\n  (graph scene :context scene (scene/merge (scene/geometry (ref g))))\n  \
+       (graph editor :context editor\n    (ui/workspace (ui/split-at \"horizontal\" 0.3 (ui/viewport (ref scene))\n      \
+       (ui/split \"horizontal\" %s %s :second_size 300)))))\n" body (graphs g) (inspectors i)) in
+    let environment = ref (E.create ~workspace ~await:true
+        ~domains:1 ~presets:(Filename.temp_dir "rays-editor-bench" "")
+        ~max_entries:4 ~max_payload_bytes:(1024 * 1024)
+        ~prepare:(fun _ _ -> Ok ())
+        ~scene3:(fun _ () -> Rays.Scene3.create []) () |> Result.get_ok) in
+    let count = ref 0 in
+    let step mouse =
+      environment := E.update !environment (frame ~mouse ~events:[Rays.Event.MouseMoved (pointer mouse)] !count);
+      incr count in
+    for _ = 1 to 20 do step (100, 300) done;
+    let samples = Array.make 300 0. in
+    Gc.full_major ();
+    let before = Gc.allocated_bytes () in
+    Array.iteri (fun index _ ->
+      let started = Unix.gettimeofday () in
+      step (100 + (index mod 50), 300);
+      samples.(index) <- Unix.gettimeofday () -. started) samples;
+    report name nodes samples (Gc.allocated_bytes () -. before);
+    E.close !environment)
+    [ "panels_1_graph_1_inspector", 1, 1; "panels_3_graphs_1_inspector", 3, 1;
+      "panels_1_graph_2_inspectors", 1, 2; "panels_3_graphs_2_inspectors", 3, 2 ]
 
 let measure_world () =
   let open Rays in
@@ -156,6 +211,10 @@ let () =
   if Array.to_list Sys.argv = [Sys.argv.(0); "--world"] then begin
     print_endline "name,objects,median_s,p95_s,bytes_per_frame";
     for _ = 1 to 3 do measure_world () done
+  end else if Array.length Sys.argv > 1 && Sys.argv.(1) = "--panels" then begin
+    print_endline "name,nodes,median_s,p95_s,bytes_per_frame";
+    List.iter measure_panels (match Array.to_list Sys.argv with
+      | _ :: _ :: (_ :: _ as sizes) -> List.map int_of_string sizes | _ -> [ 200; 800; 2_000 ])
   end else begin
   let sizes = match Array.to_list Sys.argv with
     | _ :: (_ :: _ as sizes) -> List.map int_of_string sizes

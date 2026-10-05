@@ -24,7 +24,7 @@ module Node_menu = Pxui_graph.Node_menu
 
 (* The menu is built inside a UI frame; hit rectangles come from the previous frame, so each
    step first settles the layout without events. *)
-let menu_ui = Pxui.Ui.create ()
+let menu_ui = Pxui.Ui.create ~font_size:11 ()
 let bounds = 20, 30, 800, 520
 let menu_step menu (frame : Frame.t) =
   let settle = { frame with events = [] } in
@@ -97,7 +97,7 @@ let load_workspace name =
   | Ok forms -> (match Flow.Workspace.check scope_catalog forms with
       | Some w, _ -> w
       | None, _ -> fail (name ^ " did not check"))
-let scope_ui = Pxui.Ui.create ()
+let scope_ui = Pxui.Ui.create ~font_size:11 ()
 let scope_step view (frame : Frame.t) =
   let settle = { frame with events = [] } in
   let view, _ = Pxui.Ui.frame scope_ui settle (fun ui -> Scope.update view ui settle) in
@@ -487,9 +487,9 @@ let run_scope () =
     check (s.nodes = nodes && s.zones = zones && s.rows = rows)
       (Printf.sprintf "%s/%s: pane counts %d/%d/%d" name graph s.nodes s.zones s.rows);
     check (s.drawn_items > 0 && s.drawn_zones <= s.zones) (name ^ ": nothing drawn"))
-    [ "bloom", "flower", 9, 1, 35; "sunflower", "sunflower", 8, 1, 24; "orrery", "orrery", 15, 1, 62;
-      "facade", "facade", 12, 2, 59; "kit", "kit", 15, 2, 49; "tree", "tree", 8, 1, 67;
-      "garland", "garland", 14, 3, 59; "wave", "wave", 6, 2, 39; "tiles", "tiles", 8, 1, 34 ];
+    [ "bloom", "flower", 12, 1, 46; "sunflower", "sunflower", 9, 1, 27; "orrery", "orrery", 19, 1, 90;
+      "facade", "facade", 14, 2, 85; "kit", "kit", 16, 2, 56; "tree", "tree", 9, 1, 72;
+      "garland", "garland", 15, 3, 61; "wave", "wave", 7, 2, 41; "tiles", "tiles", 9, 1, 38 ];
   (* the iteration selector: buttons and track are hit-tested boxes *)
   let w = load_workspace "sunflower" in
   let zone = [ "sunflower"; "seeds_each" ] in
@@ -637,7 +637,7 @@ let run_scope () =
    collapsed.  Command: dune exec test/test_main.exe -- bench_scope_pane *)
 let bench_scope_pane () =
   let w = load_workspace "sunflower" in
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let frames = 300 in
   let time label build step =
     let view = ref build in

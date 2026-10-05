@@ -633,7 +633,9 @@ let layer_network ?previous ~homes layers =
 module Panels = Editor_core.Panels
 
 type editor = { tree : Panels.t; origins : (Panels.path * Document.origin) list;
-                named : string option; wires : string option; viewports : (string * E.value) list;
+                named : (Panels.path * string) list; start : Document.start;
+                repeated : string list; follows : (Panels.path * Panels.path) list;
+                wires : string option; viewports : (string * E.value) list;
                 preview_sources : (string * Document.preview_source) list;
                 switch : Document.switch option }
 
@@ -642,7 +644,13 @@ let viewport_key path = "v" ^ String.concat "." (List.map string_of_int path)
 (* The tree of a [ui/workspace] value, with the graph a [ui/graph] names and the scene
    of each viewport; the origins come from walking the terms beside the values. *)
 let panel_tree root =
-  let graph = ref None and wires = ref None and viewports = ref [] and switch = ref None in
+  let named = ref [] and wires = ref None and viewports = ref [] and switch = ref None in
+  let start = ref { Document.focus = None; looking = []; graph_views = []; tabs = [] } in
+  let flag name args = List.assoc_opt name args = Some (E.Bool true) in
+  let text name args = match List.assoc_opt name args with Some (E.Text t) -> Some t | _ -> None in
+  let leaf path args panel =
+    if flag "focus" args && !start.focus = None then start := { !start with focus = Some (List.rev path) };
+    Ok (Panels.Leaf panel) in
   let arg name args = match List.assoc_opt name args with
     | Some v -> Ok v | None -> Error (diag "E_LOWER" ("A panel is missing its " ^ name ^ ".")) in
   let axis = function E.Text "vertical" -> `V | _ -> `H in
@@ -650,28 +658,38 @@ let panel_tree root =
     | E.Struct ("ui/viewport", args) ->
         let key = viewport_key (List.rev path) in
         let* scene = arg "scene" args in
-        viewports := (key, scene) :: !viewports; Ok (Panels.Leaf (Panels.View key))
+        viewports := (key, scene) :: !viewports;
+        if flag "look_through" args then start := { !start with looking = key :: !start.looking };
+        leaf path args (Panels.View key)
     | E.Struct ("ui/graph", args) ->
-        (match List.assoc_opt "graph" args with
-         | Some (E.Text name) when !graph = None -> graph := Some name | _ -> ());
-        (match List.assoc_opt "wires" args with
-         | Some (E.Text w) when !wires = None -> wires := Some w | _ -> ());
-        Ok (Leaf Graph)
-    | E.Struct ("ui/inspector", _) -> Ok (Leaf Inspector)
-    | E.Struct ("ui/outline", _) -> Ok (Leaf Outline)
-    | E.Struct ("ui/list", _) -> Ok (Leaf List)
-    | E.Struct ("ui/lisp", _) -> Ok (Leaf Lisp)
-    | E.Struct ("ui/timeline", _) -> Ok (Leaf Timeline)
-    | E.Struct (("ui/split" | "ui/split-at") as kind, args) ->
+        let here = List.rev path in
+        Option.iter (fun name -> named := (here, name) :: !named) (text "graph" args);
+        Option.iter (fun view -> start := { !start with graph_views = (here, view) :: !start.graph_views })
+          (text "view" args);
+        if !wires = None then wires := text "wires" args;
+        leaf path args Graph
+    | E.Struct ("ui/inspector", args) -> leaf path args Inspector
+    | E.Struct ("ui/outline", args) -> leaf path args Outline
+    | E.Struct ("ui/list", args) -> leaf path args List
+    | E.Struct ("ui/lisp", args) ->
+        Option.iter (fun tab -> start := { !start with tabs = (List.rev path, tab) :: !start.tabs }) (text "tab" args);
+        leaf path args Lisp
+    | E.Struct ("ui/timeline", args) -> leaf path args Timeline
+    | E.Struct (("ui/split" | "ui/split-at"), args) ->
         let* first = arg "first" args in
         let* second = arg "second" args in
         let* a = go (0 :: path) first in
         let* b = go (1 :: path) second in
-        let ratio = match List.assoc_opt "ratio" args with
-          | Some (E.Float r) -> r | Some (E.Int n) -> float_of_int n | _ -> 0.5 in
-        ignore kind;
+        let points name = match List.assoc_opt name args with
+          | Some (E.Int n) -> Some n | Some (E.Float f) -> Some (int_of_float f) | _ -> None in
+        let size : Panels.size = match points "first_size", points "second_size", List.assoc_opt "ratio" args with
+          | Some n, _, _ -> `First n
+          | None, Some n, _ -> `Second n
+          | None, None, Some (E.Float r) -> `Ratio r
+          | None, None, Some (E.Int n) -> `Ratio (float_of_int n)
+          | _ -> `Ratio 0.5 in
         Ok (Panels.Split { axis = axis (Option.value (List.assoc_opt "axis" args) ~default:(E.Text "horizontal"));
-                           ratio; a; b })
+                           size; a; b })
     | E.Struct ("ui/tile", args) ->
         let* cells = List.fold_left (fun acc (i, (_, v)) ->
           let* acc = acc in let* c = go (i :: path) v in Ok (c :: acc)) (Ok [])
@@ -689,9 +707,9 @@ let panel_tree root =
         let kids = List.filter_map (fun (n, v) -> if n = "active" then None else Some v) args in
         let* trees = List.fold_left (fun acc (i, kid) ->
           let* acc = acc in
-          let saved = !graph, !wires, !viewports in
+          let saved = !named, !wires, !viewports, !start in
           let* tree = go path kid in
-          if i <> active then (let g, w, v = saved in graph := g; wires := w; viewports := v);
+          if i <> active then (let g, w, v, s = saved in named := g; wires := w; viewports := v; start := s);
           Ok (tree :: acc)) (Ok []) (List.mapi (fun i k -> i, k) kids) in
         let trees = List.rev trees in
         if first then switch := Some { Document.layouts = trees; active };
@@ -699,14 +717,14 @@ let panel_tree root =
     | _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...) of panels.") in
   let* tree = go [] root in
   let* () = Result.map_error (diag "E_RANGE") (Panels.valid tree) in
-  Ok (tree, !graph, !wires, List.rev !viewports, !switch)
+  Ok (tree, List.rev !named, !start, !wires, List.rev !viewports, !switch)
 
 (* Which panels are named: the terms of the graph beside its value. *)
 let origins (graph : W.graph) value =
   let bindings, result = match graph.body.node with
     | W.Let (bs, r) -> bs, r | _ -> [], graph.body in
   let env = List.filter_map (fun (p, t) -> match p with W.Name n -> Some (n, t) | _ -> None) bindings in
-  let found = ref [] in
+  let found = ref [] and ofs = ref [] in
   let add path o = found := (List.rev path, o) :: !found in
   (* a panel that is not a name is written in place: the argument [key] of the call around it *)
   let inline home path key (t : W.term) = match t.node with
@@ -722,7 +740,9 @@ let origins (graph : W.graph) value =
     | W.Ref_binding (n, []), _ ->
         add path (Document.Bound n);
         Option.iter (fun t' -> walk None path t' v) (List.assoc_opt n env)
-    | W.Op { op = "ui/workspace"; args = [ _, r ]; _ }, E.Struct (_, [ _, rv ]) ->
+    | W.Op { op = "ui/inspector" | "ui/list" | "ui/lisp"; args; _ }, _ ->
+        Option.iter (fun (a : W.term) -> ofs := (List.rev path, a) :: !ofs) (List.assoc_opt "of" args)
+    | W.Op { op = "ui/workspace"; args = (_, r) :: _; _ }, E.Struct (_, (_, rv) :: _) ->
         let h = here () in
         inline h path (pos 0) r;
         walk (Some (h, pos 0)) path r rv
@@ -744,7 +764,7 @@ let origins (graph : W.graph) value =
              inline h path (pos active) a;
              walk (Some (h, pos active)) path a va
          | _ -> ())
-    | W.Op { op = "ui/floating"; args = [ _, a ]; _ }, E.Struct (_, [ _, va ]) ->
+    | W.Op { op = "ui/floating"; args = (_, a) :: _; _ }, E.Struct (_, (_, va) :: _) ->
         let h = here () in
         inline h (0 :: path) (pos 0) a;
         walk (Some (h, pos 0)) (0 :: path) a va
@@ -761,16 +781,30 @@ let origins (graph : W.graph) value =
           Option.iter (walk (Some (h, pos i)) (i :: path) a) (List.nth_opt (List.map snd vargs) i)) args
     | _ -> () in
   walk None [] result value;
-  !found
+  !found, List.rev !ofs
 
 let editor (workspace : Workspace_doc.t) (plan : E.plan) =
   let* value = result ~force:false workspace plan Flow.Workspace.Editor in
   match value with
   | None -> Ok None
   | Some (E.Struct ("ui/workspace", [ _, root ]) as whole) ->
-      let* tree, graph, wires, viewports, switch = panel_tree root in
+      let* tree, named, start, wires, viewports, switch = panel_tree root in
       let g = Option.get (Workspace_doc.editor_graph workspace) in
-      let origins = origins g whole in
+      let origins, ofs = origins g whole in
+      let all = Panels.leaves tree in
+      let bound path = match List.assoc_opt path origins with Some (Document.Bound n) -> Some n | _ -> None in
+      let names = List.filter_map (fun (path, _) -> bound path) all in
+      let repeated = List.sort_uniq String.compare
+        (List.filter (fun n -> List.length (List.filter (( = ) n) names) > 1) names) in
+      (* [:of name]: the graph leaf that binding makes in the layout shown *)
+      let* follows = List.fold_left (fun acc (path, (term : W.term)) ->
+        let* acc = acc in
+        match term.node with
+        | W.Ref_binding (n, []) ->
+            (match List.find_opt (fun (p, panel) -> panel = Panels.Graph && bound p = Some n) all with
+             | Some (target, _) -> Ok ((path, target) :: acc)
+             | None -> Error (diag "E_PANEL_OF" (Printf.sprintf ":of %s is not a graph panel of the layout shown." n)))
+        | _ -> Error (diag "E_PANEL_OF" ":of takes the binding of a graph panel.")) (Ok []) ofs in
       let leaves = Panels.leaves tree |> List.filter_map (function
         | path, Panels.View key -> Some (path, key, List.assoc_opt path origins) | _ -> None) in
       (* ponytail: quadratic uniqueness scan over viewport leaves; use name
@@ -800,7 +834,8 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
         key old, {Document.editor_graph = g.name; panel = origin;
           scene_ref = Option.bind panel_form (fun form -> F.arg_of form (F.Pos 0));
           instance = List.assoc old viewports}) leaves in
-      Ok (Some { tree = remap tree; origins; named = graph; wires;
+      let start = { start with looking = List.map key start.looking } in
+      Ok (Some { tree = remap tree; origins; named; repeated; follows; start; wires;
         viewports = List.map (fun (old, scene) -> key old, scene) viewports; preview_sources; switch })
   | Some _ -> Error (diag "E_LOWER" "The editor graph returns a (ui/workspace ...).")
 
@@ -818,6 +853,10 @@ let same_network (a : Document.network) (b : Document.network) =
   && (a.graph.drives == b.graph.drives || Flow_sop.Port.Map.is_empty a.graph.drives && Flow_sop.Port.Map.is_empty b.graph.drives)
   && Edit.root a.graph.geometry = Edit.root b.graph.geometry
   && summary a = summary b
+
+let same_settings a b =
+  let values s = List.map (fun (f : Param.field_view) -> f.name, f.current) (Settings.fields s) in
+  values a = values b
 
 (* One geometry object per geometry item beside the sketch's own objects, the World
    of a world graph, the settings of a settings graph.  [previous] keeps object ids
@@ -1014,6 +1053,11 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let* settings = match settings_calls with
     | { kind; args; _ } :: _ -> settings_of (E.Struct (kind, args))
     | [] -> Ok workspace.settings in
+  (* settings the previous document already has are kept physically, like a network: the cook
+     and every prepared piece are keyed by them, so a camera move must not look like an edit *)
+  let settings = match previous with
+    | Some (doc : Document.t) when doc.settings == settings || same_settings doc.settings settings -> doc.settings
+    | Some _ | None -> settings in
   let cameras = List.filter (fun id -> not (List.exists (fun (_, ids) -> List.mem id ids) views))
     (Objects.ids "camera" graph) in
   let active_camera =
@@ -1038,7 +1082,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     Document.Int_map.empty objects in
   Ok { Document.scene; networks; active_camera; root = root.params; settings; scene_drives;
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
-                                      named = e.named; wires = e.wires; views; preview_sources = e.preview_sources;
+                                      named = e.named; repeated = e.repeated; follows = e.follows; start = e.start; wires = e.wires; views; preview_sources = e.preview_sources;
                                       switch = e.switch }) editor;
        view_worlds; view_roots; homes; workspace = (workspace, lowered) }
 

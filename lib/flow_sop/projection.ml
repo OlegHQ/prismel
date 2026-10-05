@@ -64,6 +64,7 @@ type cx = {
   ctx : W.context;
   macros : (string * S.t) list;
   terms : (path, W.term) Hashtbl.t;  (* every bound term of the graph, by path *)
+  forms : (S.id, W.term) Hashtbl.t;  (* every term, by the form it checks: a nested node has no path *)
 }
 
 let rec pairs = function a :: b :: r -> (a, b) :: pairs r | _ -> []
@@ -100,9 +101,10 @@ let subterms (t : W.term) = match t.node with
   | Bypass t -> [ t ]
   | Expanded { body; _ } -> [ body ]
 
-let rec collect tbl (t : W.term) =
+let rec collect tbl forms (t : W.term) =
   Option.iter (fun p -> Hashtbl.replace tbl p t) t.path;
-  List.iter (collect tbl) (subterms t)
+  Hashtbl.replace forms t.form.id t;
+  List.iter (collect tbl forms) (subterms t)
 
 (* ---- chips and rows ---- *)
 
@@ -362,19 +364,23 @@ let rec scope_of c ~visible ~inputs (path : path) (body : S.t) : scope =
     | Some (bs, res) -> bs, res
     | None -> [], body in
   let visible = List.concat_map (fun (p, _) -> E.pat_names p) binds @ visible in
-  let nodes = List.map (fun (pat, e) -> node_of c ~visible path (Some pat) e) binds in
+  let nodes = List.concat_map (fun (pat, e) -> node_of c ~visible path (Some pat) e) binds in
   let result, extra = match res.node with
     | S.Sym s when List.mem (root_of s) visible -> Link s, []
     | S.List _ | S.Map _ ->
-        let n = node_of c ~visible path None res in
-        Node n.path, [ n ]
+        let ns = node_of c ~visible path None res in
+        Node (path @ [ "@result" ]), ns
     | _ -> Literal res, [] in
   { path; inputs; nodes = nodes @ extra; result }
 
-and node_of c ~visible (scope_path : path) (pat : S.t option) (e : S.t) : node =
-  let name = match pat with Some p -> E.pat_key p | None -> "@result" in
+(* the node of a binding (or of the result), after the nodes of the calls nested in its inputs *)
+and node_of c ~visible ?nested (scope_path : path) (pat : S.t option) (e : S.t) : node list =
+  let name = match nested, pat with
+    | Some leaf, _ -> leaf | None, Some p -> E.pat_key p | None, None -> "@result" in
   let p = scope_path @ [ name ] in
-  let term = Hashtbl.find_opt c.terms p in
+  let term = match nested with
+    | Some _ -> Hashtbl.find_opt c.forms e.id
+    | None -> Hashtbl.find_opt c.terms p in
   let ty = match term with Some t -> t.ty | None -> Ty.Any in
   let kind = zone_kind pat e in
   let zone = Option.map (fun k ->
@@ -404,14 +410,36 @@ and node_of c ~visible (scope_path : path) (pat : S.t option) (e : S.t) : node =
       scope = scope_of c ~visible:inner_visible ~inputs:[] p body }) kind in
   let macro = match head_sym e with Some h when List.mem_assoc h c.macros -> Some h | _ -> None in
   let lens = Option.map (fun _ -> macro_lens c.w e) macro in
-  { path = p; name; binds = (match pat with Some pt -> E.pat_names pt | None -> [ name ]);
+  (* a node call written in an input is a node of its own, wired to the row by its leaf *)
+  let rows, inner = if kind <> None then [], [] else
+    List.fold_left (fun (rows, inner) (r : row) -> match r.expr, r.key with
+      (* not a macro's argument: that is a piece of its template, which may read the macro's names *)
+      | Some a, (E.Pos _ | E.Kw _) when (r.kind = Arg || r.kind = Rest) && macro = None && E.node_call a ->
+          let leaf = E.nested_leaf name r.key in
+          { r with chip = Name leaf } :: rows, inner @ node_of c ~visible ~nested:leaf scope_path None a
+      | _ -> r :: rows, inner) ([], []) (rows_of c e) |> fun (rows, inner) -> List.rev rows, inner in
+  inner @ [
+  { path = p; name; binds = (match nested, pat with None, Some pt -> E.pat_names pt | _ -> [ name ]);
     head = (match kind with
       | Some Let -> "let*" | Some _ -> Option.get (head_sym e) | None -> head_label c e);
-    rows = (if kind = None then rows_of c e else []); outputs = outputs pat ty; ty;
+    rows; outputs = (if nested = None then outputs pat ty else []); ty;
     note = (match pat with Some { S.notes = (_ :: _ as l); _ } -> Some (String.concat "\n" l) | _ -> None);
     bypass = List.mem "bypass" e.meta; macro; lens;
     live = W.Paths.mem p c.w.live; invariant = W.Paths.mem p c.w.invariant;
-    synthetic = pat = None; zone }
+    synthetic = pat = None && nested = None; zone } ]
+
+let anonymous (n : node) = E.nested n.name
+let title (n : node) =
+  if n.synthetic then "result"
+  else if anonymous n then (match String.rindex_opt n.head '/' with
+    | Some i -> String.sub n.head (i + 1) (String.length n.head - i - 1) | None -> n.head)
+  else n.name
+
+(* the names a row is wired from: the nested node in it, else every name its expression reads *)
+let sources (r : row) = match r.chip, r.expr with
+  | Name leaf, _ when E.nested leaf -> [ leaf ]
+  | _, Some e -> E.free_names e
+  | _, None -> []
 
 let bypassable (n : node) =
   n.zone = None && (not n.synthetic) && n.macro = None
@@ -432,10 +460,11 @@ let of_graph catalog (w : W.t) name =
     | None -> invalid_arg ("Projection.of_graph: no graph " ^ name) in
   let root = [ (if List.exists (fun (d : W.graph) -> d == g) w.defs then "def:" ^ g.name else g.name) ] in
   let terms = Hashtbl.create 64 in
-  collect terms g.body;
+  let forms = Hashtbl.create 64 in
+  collect terms forms g.body;
   let macros = List.filter_map (fun (m : S.t) -> match S.children m with
     | _ :: { S.node = S.Sym n; _ } :: _ -> Some (n, m) | _ -> None) w.macros in
-  let c = { w; catalog; ctx = g.context; macros; terms } in
+  let c = { w; catalog; ctx = g.context; macros; terms; forms } in
   let inputs = List.map (fun (n, ty, d) ->
     { path = root @ [ ":" ^ n ]; name = n; ty; default = Option.map (fun (t : W.term) -> t.form) d }) g.inputs in
   scope_of c ~visible:(List.map (fun (i : input) -> i.name) inputs) ~inputs root (last g.form)
@@ -507,7 +536,7 @@ and layout ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(lens = fun _ ->
   let items =
     List.map (fun (i : input) -> Input i, i.path, [], [ i.name ]) s.inputs
     @ List.map (fun (n : node) ->
-        let deps = List.concat_map (fun (r : row) -> match r.expr with Some e -> E.free_names e | None -> []) n.rows
+        let deps = List.concat_map sources n.rows
           @ (match n.zone with
              | Some z -> List.concat_map (fun (r : rail_row) ->
                  match r.role, r.expr with

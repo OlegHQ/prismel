@@ -130,6 +130,10 @@ val op_signature : context -> string -> op_signature option
     ([sin], [value/rand], [scene/object], ...); [None] for kinds and
     definitions. *)
 
+val op_choices : string -> string -> string list
+(** The texts an operator's argument takes ([ui/graph]'s [view], a split's [axis]); empty when it
+    takes any. *)
+
 val value_ops : string list
 (** The built-in operators any graph may call ([+], [sin], [value/rand], [range], ...): the value
     part of the add menu. *)

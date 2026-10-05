@@ -90,14 +90,14 @@ let run () =
   let initial = panes workspace (frame ~width:1000 0) in
   let header = (Option.get (Layout.find (Layout.geometry workspace (frame ~width:1000 0))
     Editor_core.Panels.main)).header in
-  check (header = (0, 0, width initial.view, 22))
+  check (header = (0, 0, width initial.view, 24))
     "workspace header is not a compact single line";
   check (abs (width initial.view - 449) <= 1
       && abs (width initial.graph - 349) <= 1
       && abs (width initial.inspector - 200) <= 1)
     "workspace defaults are not 45/35/20 after splitter space";
   let splitter_x = width initial.view + 2 in
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let workspace_step workspace frame =
     Pxui.Ui.frame ui frame (fun ui -> let a = Pxui_shell.Chrome.update workspace ui frame in
       a @ Pxui_shell.Chrome.splitters workspace ui frame) in
@@ -108,7 +108,7 @@ let run () =
         mouse_move (splitter_x + 80, 200);
         mouse_release (Input.LeftButton, (splitter_x + 80, 200))] 1) in
   let resized = List.fold_left (fun tree -> function
-    | Pxui_shell.Chrome.Resize { node; ratio } -> Editor_core.Panels.set_ratio node ratio tree
+    | Pxui_shell.Chrome.Resize { node; size } -> Editor_core.Panels.set_size node size tree
     | _ -> tree) workspace dragged in
   let resized_panes = panes resized (frame ~width:1000 2) in
   check (List.mem Pxui_shell.Chrome.Settled dragged && resized != workspace

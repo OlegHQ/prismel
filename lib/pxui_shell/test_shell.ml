@@ -13,7 +13,7 @@ let bindings = Editor_core.[
   Command.make ~id:"view" ~label:"View" ~trigger:(Keymap.Leader "v") ~scope:"view" "view";]
 
 let instances focus =
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   ignore (Pxui.Ui.frame ui frame (fun ui ->
     Pxui_shell.Which_key.panel ui bindings ~prefix:"" ~focus ~focus_name:"View"));
   match Scene.Private.stage_native ~width:400 ~height:300 (Pxui.Ui.scene ui) with
@@ -24,7 +24,7 @@ let instances focus =
       | _ -> total) 0 staged.layers
 
 let status_instances height =
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   ignore (Pxui.Ui.frame ui frame (fun ui ->
     Pxui_shell.Status_bar.draw ui ~bounds:(0, 272, 400, height)
       ~text:"Cook complete" ~fps:(Some 60)));
@@ -36,7 +36,7 @@ let status_instances height =
       | _ -> total) 0 staged.layers
 
 let () =
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let pane events = Pxui.Ui.frame ui { frame with events } (fun ui ->
     let root = Pxui_shell.Chrome.pane_root ui frame
       ~bounds:(100, 20, 100, 80) "pane" in
@@ -64,7 +64,7 @@ let () =
   if (view_width, graph_width, inspector_width) <> (449, 349, 200) then
     failwith "shell layout defaults are not 45/35/20";
   let divider_x = view_width in
-  let hit_ui = Pxui.Ui.create () in
+  let hit_ui = Pxui.Ui.create ~font_size:11 () in
   let chrome events = ignore (Pxui.Ui.frame hit_ui { wide_frame with events }
     (fun ui -> ignore (Pxui_shell.Chrome.update layout ui wide_frame);
       Pxui_shell.Chrome.splitters layout ui wide_frame)) in
@@ -90,23 +90,23 @@ let () =
        || p.status <> status || p.timeline <> timeline then
       failwith (Printf.sprintf "default layout changed at %dx%d" w h) in
   let module L = Pxui_shell.Layout in
-  golden (800, 600) [L.Timeline] ((0, 22, 359, 550), 279, 160, (0, 572, 359, 28), (0, 600, 800, 0));
-  golden (1280, 800) [L.Timeline; Graph] ((0, 22, 885, 750), 0, 394, (0, 772, 885, 28), (0, 800, 1280, 0));
-  golden (1920, 1080) [L.View "main"] ((0, 22, 28, 1000), 1202, 688, (0, 1022, 28, 28), (0, 1050, 1920, 30));
-  golden (1000, 300) [L.Inspector] ((0, 22, 561, 220), 438, 0, (0, 242, 561, 28), (0, 270, 1000, 30));
-  golden (500, 400) [L.Timeline] ((0, 22, 224, 350), 174, 100, (0, 372, 224, 28), (0, 400, 500, 0));
+  golden (800, 600) [L.Timeline] ((0, 24, 359, 552), 279, 160, (0, 576, 800, 24), (0, 576, 800, 0));
+  golden (1280, 800) [L.Timeline; Graph] ((0, 24, 885, 752), 0, 394, (0, 776, 1280, 24), (0, 776, 1280, 0));
+  golden (1920, 1080) [L.View "main"] ((0, 24, 24, 1008), 1205, 689, (0, 1056, 1920, 24), (0, 1032, 1920, 24));
+  golden (1000, 300) [L.Inspector] ((0, 24, 561, 228), 438, 0, (0, 276, 1000, 24), (0, 252, 1000, 24));
+  golden (500, 400) [L.Timeline] ((0, 24, 224, 352), 174, 100, (0, 376, 500, 24), (0, 376, 500, 0));
   (* every tree covers the area above the timeline exactly once, gutters included *)
   let views n = L.Tile (List.init n (fun i -> L.Leaf (L.View (string_of_int i)))) in
   let trees = [
     "default", L.default;
-    "sheet", L.Split { axis = `V; ratio = 0.13; a = Leaf Outline; b =
-      Split { axis = `H; ratio = 0.5; a = Split { axis = `V; ratio = 0.58; a = Leaf Graph; b = Leaf Lisp };
+    "sheet", L.Split { axis = `V; size = `Ratio 0.13; a = Leaf Outline; b =
+      Split { axis = `H; size = `Ratio 0.5; a = Split { axis = `V; size = `Ratio 0.58; a = Leaf Graph; b = Leaf Lisp };
               b = views 4 } };
     "tile of five", views 5;
-    "vertical stack", Split { axis = `V; ratio = 0.3; a = Leaf Graph; b =
-      Split { axis = `V; ratio = 0.5; a = Leaf Inspector; b = Leaf List } };
-    "nested", Split { axis = `H; ratio = 0.3; a = Split { axis = `V; ratio = 0.4; a = Leaf Graph;
-      b = Leaf List }; b = Split { axis = `H; ratio = 0.5; a = Leaf Inspector; b = Leaf (View "z") } } ] in
+    "vertical stack", Split { axis = `V; size = `Ratio 0.3; a = Leaf Graph; b =
+      Split { axis = `V; size = `Ratio 0.5; a = Leaf Inspector; b = Leaf List } };
+    "nested", Split { axis = `H; size = `Ratio 0.3; a = Split { axis = `V; size = `Ratio 0.4; a = Leaf Graph;
+      b = Leaf List }; b = Split { axis = `H; size = `Ratio 0.5; a = Leaf Inspector; b = Leaf (View "z") } } ] in
   List.iter (fun (name, tree) ->
     List.iter (fun (w, h) ->
       let f = { frame with width = w; height = h; size = w, h } in
@@ -124,24 +124,62 @@ let () =
         failwith (Printf.sprintf "%s at %dx%d: a point is covered %d times" name w h n))) seen)
       [ 1000, 600; 640, 480; 333, 217 ]) trees;
   (* floats overlay the rectangle of their parent and come last *)
-  let floated = L.Split { axis = `H; ratio = 0.5; a = Leaf Graph; b = Float (Leaf Inspector) } in
+  let floated = L.Split { axis = `H; size = `Ratio 0.5; a = Leaf Graph; b = Float (Leaf Inspector) } in
   let g = L.geometry floated wide_frame in
   if List.map (fun (l : L.leaf) -> l.floating) g.leaves <> [false; true] then
     failwith "authored floats lost their painting precedence";
   (match List.map (fun (l : L.leaf) -> l.panel) g.leaves, List.rev g.leaves with
    | [ Graph; Inspector ], { body = bx, by, bw, bh; _ } :: _ ->
        let gx, _, gw, _ = (Option.get (L.find g Graph)).body in
-       if gx <> 0 || gw <> 1000 || bx <= 0 || bx + bw >= 1000 || by <= 22 || bh <= 0 then
+       if gx <> 0 || gw <> 1000 || bx <= 0 || bx + bw >= 1000 || by <= 24 || bh <= 0 then
          failwith "a float is not an inset overlay over a full-size sibling"
    | _ -> failwith "float leaves are not last");
+  (* fixed sides keep their points at every window size (flow.md 11.11): the outline column,
+     the right column, the graph and the lisp panel; the timeline leaf is its 24-point strip
+     with no header; the status strip spans the window *)
+  let fixed axis size a b = L.Split { axis; size; a; b } in
+  let target = fixed `H (`First 216) (Leaf Outline)
+    (fixed `H (`Second 320)
+      (fixed `V (`Second 336) (fixed `V (`Ratio 0.5) (Leaf (View "main")) (Leaf Timeline)) (Leaf Graph))
+      (fixed `V (`Second 300) (Leaf Inspector) (Leaf Lisp))) in
+  List.iter (fun (w, h) ->
+    let g = L.geometry ~hidden:[] target { frame with width = w; height = h; size = w, h } in
+    let whole panel = match List.find_opt (fun (l : L.leaf) -> l.panel = panel) g.leaves with
+      | Some { header = x, y, w, hh; body = _, _, _, bh; _ } -> x, y, w, hh + bh
+      | None -> failwith "the target lost a panel" in
+    let expect what got want = if got <> want then failwith (Printf.sprintf "target at %dx%d: %s" w h what) in
+    let tree = h - 24 in
+    expect "outline" (whole Outline) (0, 0, 216, tree);
+    expect "viewport" (whole (View "main")) (217, 0, w - 216 - 320 - 2, tree - 336 - 24 - 2);
+    expect "timeline" (whole Timeline) (217, tree - 336 - 24 - 1, w - 216 - 320 - 2, 24);
+    expect "graph" (whole Graph) (217, tree - 336, w - 216 - 320 - 2, 336);
+    expect "inspector" (whole Inspector) (w - 320, 0, 320, tree - 300 - 1);
+    expect "lisp" (whole Lisp) (w - 320, tree - 300, 320, 300);
+    expect "status" g.status_at (0, tree, w, 24);
+    expect "no second timeline strip" g.timeline_at (0, tree, w, 0);
+    (match List.find_opt (fun (l : L.leaf) -> l.panel = Timeline) g.leaves with
+     | Some { header = _, _, _, 0; _ } -> ()
+     | _ -> failwith "a docked timeline has a header"))
+    [ 1440, 900; 1920, 1080; 1100, 700 ];
+  (* too small for both: the other side keeps its minimum, then the fixed side shrinks to a point *)
+  let narrow = fixed `H (`First 216) (Leaf Outline) (Leaf Graph) in
+  let widths w = List.map (fun (l : L.leaf) -> let _, _, lw, _ = l.header in lw)
+    (L.geometry narrow { frame with width = w; height = 300; size = w, 300 }).leaves in
+  if widths 300 <> [ 119; 180 ] || widths 100 <> [ 1; 98 ] then failwith "a fixed side did not yield";
+  (* a collapsed panel in a stack is its 24-point header, with no gap under it *)
+  let stack = fixed `V (`Ratio 0.5) (Leaf Inspector) (Leaf Lisp) in
+  (match (L.geometry stack wide_frame
+      ~state:(fun path -> { Editor_core.Panels.default_state with collapsed = path = [ 0 ] })).leaves with
+   | [ { header = _, 0, _, 24; body = _, _, _, 0; _ }; { header = _, 25, _, _; _ } ] -> ()
+   | _ -> failwith "a collapsed strip in a stack is not its header");
   (* a nested split takes its share of what its parent leaves it *)
-  (match (L.geometry (L.Split { axis = `V; ratio = 0.25; a = Leaf Graph; b = Leaf Lisp })
+  (match (L.geometry (L.Split { axis = `V; size = `Ratio 0.25; a = Leaf Graph; b = Leaf Lisp })
       wide_frame).leaves with
    | [ a; b ] -> let _, _, _, ah = a.body and _, _, _, bh = b.body in
        if ah + 22 >= bh + 22 then failwith "a vertical split ignored its ratio"
    | _ -> failwith "vertical split lost a panel");
   (* dragging a splitter reports a ratio, and the header menu reports its intents *)
-  let drag_ui = Pxui.Ui.create () in
+  let drag_ui = Pxui.Ui.create ~font_size:11 () in
   let chrome tree ?(mouse = 0., 0.) events =
     let f = { wide_frame with events; mouse; height = 600; size = 1000, 600 } in
     Pxui.Ui.frame drag_ui f (fun ui -> let a = Pxui_shell.Chrome.update tree ui f in
@@ -152,11 +190,49 @@ let () =
   ignore (chrome L.default ~mouse:(x, 100.) [Event.MousePressed (Input.LeftButton, (x, 100.))]);
   let moved = chrome L.default ~mouse:(300., 100.) [Event.MouseMoved (300., 100.)] in
   (match moved with
-   | [ Pxui_shell.Chrome.Resize { node = []; ratio } ] ->
+   | [ Pxui_shell.Chrome.Resize { node = []; size = `Ratio ratio } ] ->
        if Float.abs (ratio -. 0.3) > 0.01 then failwith "splitter ratio does not follow the pointer"
    | _ -> failwith "a drag did not report one resize of the outer split");
   let released = chrome L.default ~mouse:(300., 100.) [Event.MouseReleased (Input.LeftButton, (300., 100.))] in
   if not (List.mem Pxui_shell.Chrome.Settled released) then failwith "a drag did not settle";
+  (* the gutter of a fixed split reports whole points of its fixed side *)
+  let sized = fixed `H (`Second 320) (Leaf Graph) (Leaf Inspector) in
+  ignore (chrome sized ~mouse:(679., 100.) [Event.MouseMoved (679., 100.)]);
+  ignore (chrome sized ~mouse:(679., 100.) [Event.MousePressed (Input.LeftButton, (679., 100.))]);
+  (match chrome sized ~mouse:(599.4, 100.) [Event.MouseMoved (599.4, 100.)] with
+   | [ Pxui_shell.Chrome.Resize { node = []; size = `Second 400 } ] -> ()
+   | _ -> failwith "a fixed split's gutter did not report points");
+  ignore (chrome sized ~mouse:(599.4, 100.) [Event.MouseReleased (Input.LeftButton, (599.4, 100.))]);
+  (* a right-click on a gutter sizes its split another way, keeping the sizes it shows *)
+  let menu_pick row =
+    ignore (chrome sized ~mouse:(679., 100.) [Event.MouseMoved (679., 100.)]);
+    ignore (chrome sized ~mouse:(679., 100.) [Event.MousePressed (Input.RightButton, (679., 100.))]);
+    ignore (chrome sized ~mouse:(679., 100.) [Event.MouseReleased (Input.RightButton, (679., 100.))]);
+    let at = 700., 112. +. 24. *. float row in
+    ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
+    chrome sized ~mouse:at [Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at)] in
+  (match menu_pick 1 with
+   | [ Pxui_shell.Chrome.Resize { node = []; size = `First 679 }; Settled ] -> ()
+   | intents -> failwith (Printf.sprintf "the gutter menu did not fix the first side (%d intents)" (List.length intents)));
+  (match menu_pick 0 with
+   | [ Pxui_shell.Chrome.Resize { node = []; size = `Ratio r }; Settled ] when Float.abs (r -. (679.5 /. 999.)) < 1e-6 -> ()
+   | _ -> failwith "the gutter menu did not size the split by its ratio");
+  (* the header menu of a panel ends with the same three rows for the split that holds it (the
+     rules above them are 9 points: By ratio is at 372, each next one 24 lower) *)
+  let header_pick row =
+    let at = 800., 10. in
+    ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
+    ignore (chrome sized ~mouse:at [Event.MousePressed (Input.RightButton, at)]);
+    ignore (chrome sized ~mouse:at [Event.MouseReleased (Input.RightButton, at)]);
+    let at = 700., 372. +. 24. *. float row in
+    ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
+    chrome sized ~mouse:at [Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at)] in
+  (match header_pick 1 with
+   | [ Pxui_shell.Chrome.Resize { node = []; size = `First 679 }; Settled ] -> ()
+   | intents -> failwith (Printf.sprintf "the header menu did not fix the first side of its split (%d intents)" (List.length intents)));
+  let gutter = List.hd (L.geometry sized { wide_frame with height = 600; size = 1000, 600 }).splitters in
+  if L.sides gutter <> (679, 320) || L.resized gutter `Second <> `Second 320 then
+    failwith "a gutter does not report the sides of its split";
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseMoved (600., 10.)]);
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MousePressed (Input.RightButton, (600., 10.))]);
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseReleased (Input.RightButton, (600., 10.))]);
@@ -174,13 +250,36 @@ let () =
   Pxui.Ui.destroy drag_ui;
   if instances "view" <= instances "other" then
     failwith "focused leader bindings were not drawn";
-  if status_instances 28 <= 0 || status_instances 0 <> 0 then
+  if status_instances 24 <= 0 || status_instances 0 <> 0 then
     failwith "status strip visibility or drawing failed";
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let intents = Pxui.Ui.frame ui frame (fun ui ->
     Pxui_shell.Timeline_bar.draw ui ~bounds:(0, 270, 400, 30)
       ~playing:false ~frame:12L ~time:0.2 ~max_frame:240) in
   if intents <> [] then failwith "idle timeline emitted a playback request";
+  (* the frame field: found by pressing along the strip until a control takes the keyboard *)
+  let bar ?(mouse = 0., 0.) events = Pxui.Ui.frame ui { frame with events; mouse } (fun ui ->
+    Pxui_shell.Timeline_bar.draw ui ~bounds:(0, 270, 400, 30)
+      ~playing:false ~frame:12L ~time:0.2 ~max_frame:240) in
+  let press p = ignore (bar ~mouse:p [ Event.MouseMoved p ]);
+    ignore (bar ~mouse:p [ Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p) ]);
+    ignore (bar ~mouse:p []) in
+  let rec find x = if x > 400. then failwith "the timeline has no frame field" else begin
+    press (x, 285.);
+    if Pxui.Ui.text_input_focused ui then x else find (x +. 6.) end in
+  let x = find 3. in
+  let enter text key =
+    if not (Pxui.Ui.text_input_focused ui) then press (x, 285.);
+    ignore (bar ~mouse:(x, 285.) [ Event.TextInput text ]);
+    let sought = bar ~mouse:(x, 285.) [ Event.KeyPressed key ] @ bar ~mouse:(x, 285.) [] in
+    List.filter_map (function Pxui_shell.Timeline_bar.Seek_playback n -> Some n | _ -> None) sought in
+  if enter "7" Input.Enter <> [ 7L ] then failwith "a typed frame did not seek";
+  if enter "9" Input.Escape <> [] then failwith "Escape did not cancel the typed frame";
+  if Pxui.Ui.text_input_focused ui then failwith "Escape left the frame field open";
+  if enter "99999" Input.Enter <> [ 240L ] then failwith "a frame past the end did not clamp to the last frame";
+  if enter "-5" Input.Enter <> [ 0L ] then failwith "a negative frame did not clamp to 0";
+  if enter "x" Input.Enter <> [] then failwith "text that is not a frame was committed";
+  ignore (bar [ Event.KeyPressed Input.Escape ]);
   let query = Pxui.Ui.frame ui frame (fun ui ->
     Pxui_shell.Prompt.name ui ~key:"name" ~title:"Save" ~label:"Name"
       ~query:"draft") in
@@ -192,7 +291,7 @@ let () =
     Pxui_shell.Prompt.macro ui ~key:"macro" ~title:"Make a macro" ~literals:[| "0.5"; "12"; "\"a\"" |]
       ~free:[ "seed" ] macro) in
   if answer <> Some (macro, `None) then failwith "macro prompt changed its state or submitted on its own";
-  let shell = Pxui.Ui.create () in
+  let shell = Pxui.Ui.create ~font_size:11 () in
   if Pxui_shell.Shell.frame shell frame ~visible:false
       ~body:(fun _ -> 7) ~overlay:None <> None then
     failwith "hidden shell built editor content";
@@ -222,7 +321,7 @@ let () =
   let returned = show [Event.MouseReleased (Input.LeftButton, (20., 20.))] |> Option.get in
   if returned.clicked || returned.held then failwith "hidden control committed after disappearing";
   Pxui.Ui.destroy shell;
-  let hidden = Pxui.Ui.create () in
+  let hidden = Pxui.Ui.create ~font_size:11 () in
   ignore (Pxui_shell.Shell.frame hidden frame ~visible:false
     ~body:(fun _ -> ())
     ~overlay:(Some (fun ui -> Pxui_shell.Status_bar.draw ui
@@ -245,7 +344,7 @@ let () =
   let schema = Editor_core.Param.(schema ~name:"look" ~default:false
     [ field ~name:"on" ~label:"On" ~kind:Toggle ~default:false
         ~get:Fun.id ~set:(fun on _ -> on) () ]) in
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let click = [ Event.MousePressed (Input.LeftButton, (115., 15.));
                 Event.MouseReleased (Input.LeftButton, (115., 15.)) ] in
   let record events value = Pxui.Ui.frame ui { frame with events } (fun ui ->
@@ -298,7 +397,7 @@ let () =
   expect "the enter key activates" intents [T.Activate 2];
   let filtering, _ = run t T.Filter in
   expect "/ opens the filter" (T.editing filtering) true;
-  let ui = Pxui.Ui.create () in
+  let ui = Pxui.Ui.create ~font_size:11 () in
   let center k = 200., 24. +. (24. *. float_of_int k) +. 12. in
   let step t ?(mouse = 0., 0.) events =
     Pxui.Ui.frame ui { frame with events; mouse } (fun ui ->
@@ -347,7 +446,7 @@ let () =
     (List.filter (function T.Activate _ -> true | _ -> false) intents) [T.Activate 4];
   let scroll_rows = Array.init 20 (fun index -> row (index + 1) 0
       (string_of_int (index + 1))) in
-  let scroll_ui = Pxui.Ui.create () in
+  let scroll_ui = Pxui.Ui.create ~font_size:11 () in
   let scroll_step t events = Pxui.Ui.frame scroll_ui { frame with events;
       mouse = 200., 60. } (fun ui ->
     T.update t ui frame ~bounds:(0, 0, 400, 96)

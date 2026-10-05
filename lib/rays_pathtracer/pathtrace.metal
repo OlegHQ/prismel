@@ -527,12 +527,29 @@ inline void trace_pixel(
           break;
         }
         if (bounce == 0u) coverage += 1.0f;
-      } else if (hit.type == intersection_type::none) {
-        // MIS (balance heuristic) against the panel sampler below; camera rays
-        // have no competing strategy.
-        float w = bounce == 0 ? 1.0f : last_pdf / (last_pdf + panel_pdf(u, panels, r.direction));
-        radiance += throughput * environment(u, panels, r.direction) * w;
-        break;
+      } else {
+        // Without a World rects stay invisible to the camera, but later rays
+        // add every rect they cross, MIS-weighted against the light sampling
+        // below: sampling a point on a rect alone is unbounded for a surface
+        // right next to it. ponytail: every ray tests every rect, as above.
+        if (bounce > 0u) {
+          float tmax = hit.type == intersection_type::none ? INFINITY : hit.distance;
+          for (uint k = 0; k < u.light_count; ++k) {
+            float cos_l;
+            float t = rect_hit(lights[k], r.origin, r.direction, tmax, cos_l);
+            if (t < 0.0f) continue;
+            float pl = t * t / (cos_l * lights[k].radiance.w * float(u.light_count));
+            radiance += throughput * lights[k].radiance.xyz
+                        * (u.bsdf_only ? 1.0f : power_weight(last_pdf, pl));
+          }
+        }
+        if (hit.type == intersection_type::none) {
+          // MIS (balance heuristic) against the panel sampler below; camera rays
+          // have no competing strategy.
+          float w = bounce == 0 ? 1.0f : last_pdf / (last_pdf + panel_pdf(u, panels, r.direction));
+          radiance += throughput * environment(u, panels, r.direction) * w;
+          break;
+        }
       }
       uint prim = hit.primitive_id;
       uint instance = instance_of(hit);
@@ -602,10 +619,9 @@ inline void trace_pixel(
       float nov = max(dot(ns, v), 1e-4f);
       float a = rough * rough, a2 = a * a;
       float ps = clamp(metal + (1.0f - metal) * (0.04f + 0.96f * pow(1.0f - nov, 5.0f)), 0.05f, 0.95f);
-      // Next-event estimation on one rectangle light per bounce. Without a
-      // World lights are analytic (not in the acceleration structure), never
-      // hit by BSDF-sampled rays, so this estimator is complete for them; with
-      // a World they are also hit and both strategies are MIS-weighted.
+      // Next-event estimation on one rectangle light per bounce, MIS-weighted
+      // against the BSDF-sampled rays that cross a rect (see the hit loops
+      // above). Lights are analytic, not in the acceleration structure.
       if (u.light_count > 0 && u.bsdf_only == 0u) {
         uint li = min(uint(rnd(state) * float(u.light_count)), u.light_count - 1u);
         Light L = lights[li];
@@ -629,7 +645,8 @@ inline void trace_pixel(
                          * (power_weight(pdf, bsdf_pdf(ns, v, wi, a2, ps)) / pdf);
               if (bounce == 0u) radiance += e; else indirect += e;
             } else
-              radiance += throughput * L.radiance.xyz * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s / pdf;
+              radiance += throughput * L.radiance.xyz * eval_brdf(ns, v, wi, diffuse, f0, a2) * cos_s
+                          * (power_weight(pdf, bsdf_pdf(ns, v, wi, a2, ps)) / pdf);
           }
         }
       }

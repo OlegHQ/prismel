@@ -64,14 +64,26 @@ type view_root = { params : Objects.Root.parameters; camera : Rays.Camera.t opti
 
 type switch = { layouts : Editor_core.Panels.t list; active : int }
 
+(* What the panels' keywords say the editor opens with (flow.md 11.11): read once, not kept in step *)
+type start = {
+  focus : Editor_core.Panels.path option;  (* the first leaf with [:focus true] *)
+  looking : string list;  (* the viewports with [:look_through true], by key *)
+  graph_views : (Editor_core.Panels.path * string) list;  (* each graph leaf's [:view] *)
+  tabs : (Editor_core.Panels.path * string) list;  (* each lisp leaf's [:tab] *)
+}
+
 (* The lowered editor graph (plan W10): the shell tree, the origin of each named or
-   looped panel (any other panel is inline), the graph a [(ui/graph "name")] shows
+   looped panel (any other panel is inline), the graph each [(ui/graph "name")] leaf shows
    and, for each viewport over a scene other than the default one, the scene objects
    of that instance (they live in [scene], and no other viewport draws them). *)
 type shell = {
   tree : Editor_core.Panels.t;
   origins : (Editor_core.Panels.path * origin) list;
-  named : string option;
+  named : (Editor_core.Panels.path * string) list;
+  repeated : string list;  (* the bindings several leaves are made from: those leaves are keyed by place *)
+  follows : (Editor_core.Panels.path * Editor_core.Panels.path) list;
+  (* an inspector, list or lisp leaf with [:of]: the graph leaf it shows *)
+  start : start;
   wires : string option;
   views : (string * int list) list;
   preview_sources : (string * preview_source) list;

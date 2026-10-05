@@ -75,7 +75,9 @@ let bind_forms = ["let*"; "for"; "sum"]
    notes, flags or a tail stays nested, so nothing a reader wrote is lost.  Returns the start
    and the steps (outermost last, each without its first operand). *)
 let threadable x = match x.node with
-  | List ({node = Sym h; _} :: first :: _) -> String.contains h '/' && not (is_kw first)
+  | List ({node = Sym h; _} :: first :: _) ->
+      (* a layout is a tree of containers, not a pipeline: [ui/] calls nest *)
+      String.contains h '/' && not (String.starts_with ~prefix:"ui/" h) && not (is_kw first)
   | _ -> false
 
 let rec spine x = match x.node with

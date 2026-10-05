@@ -110,7 +110,7 @@ let update menu ui ~bounds:(bx, by, bw, bh) =
   let height = ((1 + min menu_limit shown) * row) + 6 in
   let width = max 1 (List.length levels) * menu_width in
   let x = max bx (min menu.x (bx + bw - width)) and y = max by (min menu.y (by + bh - height)) in
-  let result = Ui.popup ui ~stroke:(Ui.theme ui).accent ~at:(float_of_int x, float_of_int y)
+  let result = Ui.popup ui ~stroke:(Pxui.Theme.border (Ui.theme ui)) ~at:(float_of_int x, float_of_int y)
       ~width:(float_of_int width) ~height:(float_of_int height) "pxui-graph-menu" (fun () ->
       let query, pick = Ui.picker ui ~limit:menu_limit "Add · type to search" ~query:menu.query
           (fun query -> if query = "" then [||] else picker_rows menu query) in
@@ -118,7 +118,7 @@ let update menu ui ~bounds:(bx, by, bw, bh) =
       let clear = Ui.box ui ~flags:Ui.(clickable + blocking) ~w:(Ui.Px 22.) ~h:(Ui.Px (float_of_int row))
           ~at:(float_of_int (x + width - 26), float_of_int (y + 3)) "pxui-graph-menu-clear" in
       if query <> "" then Ui.draw ui clear (fun paint (cx, cy, _, _) ->
-        Ui.Paint.text paint ~at:(cx +. 7., cy +. 5.) ~color:(Pxui.Theme.muted (Ui.theme ui)) "\xc3\x97");
+        Ui.Paint.text paint ~at:(cx +. 7., cy +. 4.) ~color:(Pxui.Theme.muted (Ui.theme ui)) "\xc3\x97");
       let query = if (Ui.signal ui clear).clicked then "" else query in
       let hovered = ref None and clicked = ref None in
       if query = "" then
@@ -140,16 +140,15 @@ let update menu ui ~bounds:(bx, by, bw, bh) =
                 if signal.clicked then clicked := Some (prefix, item);
                 let theme = Ui.theme ui in
                 Ui.draw ui item_box (fun paint (x, y, w, h) ->
-                  if opened || signal.hovered then
-                    Ui.Paint.fill paint ~x ~y:(y +. 1.) ~w ~h:(h -. 2.)
-                      (if opened then theme.foreground else Pxui.Theme.hover_fill theme);
-                  let color = if opened then theme.input else theme.foreground in
-                  let text_y = y +. Float.max 4. ((h -. float_of_int (Ui.font_size ui)) /. 2.) in
-                  let detail_x = x +. w -. 8. -. Ui.Paint.text_width paint detail in
-                  Ui.Paint.text paint ~at:(x +. 8., text_y) ~color
-                    (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(detail_x -. x -. 16.) label);
-                  Ui.Paint.text paint ~at:(detail_x, text_y)
-                    ~color:(if opened then theme.input else Pxui.Theme.muted theme) detail))
+                  (* the open category and the row under the pointer: the control fill *)
+                  if opened || signal.hovered then Ui.Paint.fill paint ~x ~y ~w ~h theme.control;
+                  let text_y = y +. Float.max 4. (Float.floor ((h -. float_of_int (Ui.font_size ui) -. 3.) /. 2.)) in
+                  let category = match item with Category _ -> true | Entry _ -> false in
+                  let detail_x = x +. w -. 12. -. (if category then 8. else Ui.Paint.text_width paint detail) in
+                  Ui.Paint.text paint ~at:(x +. 12., text_y) ~color:theme.foreground
+                    (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(detail_x -. x -. 20.) label);
+                  if category then Ui.Paint.chevron paint ~at:(x +. w -. 16., y +. (h /. 2.)) `Right (Pxui.Theme.ink_3 theme)
+                  else Ui.Paint.text paint ~at:(detail_x, text_y) ~color:(Pxui.Theme.muted theme) detail))
                 (rows_of prefix))) levels);
       query, pick, !hovered, !clicked) in
   let menu, picked = match result with

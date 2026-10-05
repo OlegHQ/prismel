@@ -919,10 +919,22 @@ as its first operand, so the text reads in wire order, left to right like the ca
 the reader (`Syntax.parse`): nothing after the reader sees a `->`. The outermost call keeps the
 form's id and the span of the whole `(-> ...)`, each step keeps the span of its own clause, and the
 value `x` keeps its own. A step that is not a call, or a `->` with no value, is `E_THREAD`.
-The printer threads a chain of three or more calls of node kinds (a head with a `/`) whose first
+The printer threads a chain of three or more calls of node kinds (a head with a `/`, except the
+`ui/` layout forms, which nest) whose first
 operand is the next call down, and leaves shorter chains, chains with a note or a `^:` flag on a
 link, and every `let*`-named value nested, so print and re-read keep the same forms
 (`test/test_threading.ml` prints and re-reads every checked-in workspace).
+
+Every step of a `->`, and every call of a node kind written inside another call, is a node of the
+graph (`Flow_sop.Projection`): a card before the card that holds it, wired to the row it is written
+in. It has no binding, so its path leaf is the holder's leaf, `#`, and the input (`result#0`,
+`result#0#:cutters`; `Flow_edit.nested_leaf`). Its rows edit in place (`Set_arg`, `Connect`,
+`Disconnect`, `Toggle_bypass` take the path); naming it (`Rename`, the name field) binds it under that
+name; deleting it hands its place to its first input; dragging its output to a second input, viewing
+it, or dropping a wire where it is written binds it first, so a wire never deletes a node. The caret
+in its text selects it and selecting it marks its text. Expressions, `ref`s, loops, and calls of
+functions and macros written in an input stay chips (`Unfold` binds them); a macro's arguments are
+pieces of its template and stay chips too. Rule: no syntax is text-only.
 
 A file has exactly one `graph` and any number of `defgraph`s; a definition is
 defined before its first use (single pass, so definitions are acyclic by
@@ -1088,6 +1100,102 @@ parameters also match labels written with `_` for spaces.
 | 11 | bypass | metadata `^:bypass`, never a parameter |
 | 12 | partly driven vector | `[0 wave 0]`; splitting is implied |
 
+### 11.11 Editor context: the layout forms
+
+An `editor` graph returns `(ui/workspace root)`, written in place or bound to a name the graph
+returns. `Contexts.editor` lowers it to an `Editor_core.Panels.t` tree; `Pxui_shell.Layout.geometry`
+places it. All sizes are logical points.
+
+| Form | Meaning |
+|---|---|
+| `(ui/split axis a b)` | two panels along `"horizontal"` (a left of b) or `"vertical"` (a above b), half each |
+| `(ui/split axis a b :first_size n)` | `a` is `n` points along the axis, `b` takes the rest |
+| `(ui/split axis a b :second_size n)` | `b` is `n` points, `a` takes the rest |
+| `(ui/split-at axis ratio a b)` | `a` gets `ratio` (0.1–0.9) of the split, `b` the rest |
+| `(ui/tile panel...)` | a grid of 1–16 equal cells |
+| `(ui/floating panel)` | a window over the layout (bounds in `(layout (panel ...))`) |
+| `(ui/switch panel... :active n)` | the layouts of the graph; the active one is the tree |
+| `(ui/viewport scene :look_through b)` | a viewport of a scene |
+| `(ui/graph ["name"] :wires w :view v)` | the graph pane; `name` pins a graph of the workspace (`def:name` a function), `:wires` is `"rect"` or `"straight"`, `:view` is `"graph"`, `"list"` or `"text"` |
+| `(ui/list :of g)` `(ui/inspector :of g)` | a list view, an inspector; `:of` names the graph panel it shows |
+| `(ui/lisp :tab t :of g)` | a text pane; `:tab` is `"selection"`, `"graph"` or `"document"` |
+| `(ui/outline)` | the Navigator |
+| `(ui/timeline)` | the timeline strip |
+
+**Fixed sizes.** A split is sized one way: by a ratio, or by one fixed side. `:first_size` and
+`:second_size` are whole points (1 or more) and exclude each other (`E_RANGE`); `ui/split-at` takes
+neither. The fixed side keeps its points at every window size and the other side takes what is left
+of the split after the one-point gutter. When the split is too small for both, the other side keeps
+its minimum first (a column: 220 points for a viewport, 180 for a graph, list or lisp panel, 120
+otherwise; a row: one point) and the fixed side shrinks, never below one point. A side that is
+hidden gives its space to the other; a collapsed side is its strip. Splits by ratio nested along one
+axis are one run that divides its extent once by the product of the ratios; a fixed split is placed
+on its own, so a fixed column never moves when a neighbour's ratio changes.
+
+**Dragging a gutter** writes what the split is sized by (`Flow_edit.Set_layout_size`, one history
+entry "Resize panel"): the fixed side's whole points for a fixed split, else a ratio with four
+decimals in a `ui/split-at` (a `ui/split` without a size becomes one). The same op converts a split:
+a right-click on a gutter, and the Size row the inspector shows for a selected `ui/split` or
+`ui/split-at` card, offer *By ratio*, *Fix first side* and *Fix second side*; the new form keeps the
+sizes the split has on screen (the side's points, or their ratio). A panel's header menu has the
+same three rows for the split that holds the panel. The keyword rows of a `ui/split`
+card edit the points in place.
+
+**Strips.** A `ui/timeline` leaf has no header and, in a vertical split by ratio (a plain
+`ui/split` reads best), a height of 30 points whatever the ratio says, the other side taking the
+rest: it sits between two panels at any window size. A fixed size written for it wins. Hiding the
+timeline (`Space t`) removes the leaf's strip. The strip's frame field is typed (a click opens it,
+Enter commits, Escape cancels) and clamps to 0 and the last frame. A tree without a
+timeline leaf has the same strip under the tree. The status strip (28 points) spans the window below
+both; no panel gives up space for it. A collapsed panel is a strip of its header: 22 points in a
+vertical split, 28 points wide in a horizontal one.
+
+**Start keywords.** `:focus true` on any panel form gives that panel the keyboard focus (the first
+in tree order when several say so; none: the first viewport), `:look_through true` shows the
+viewport through its scene's render camera, `:view` picks a graph panel's view and `:tab` a lisp
+panel's tab. They say how the editor opens the document; use never rewrites them. The editor
+follows one again whenever its value in the text changes, by any route (a reload of the source file,
+a preset, an edit, undo), for the panel that changed; a reload that leaves them as they were leaves
+what the user did in the UI alone. `Space v` and the inspector toggle look-through for the focused
+viewport only.
+
+**Panels are instances.** Every leaf draws and works, docked or floating, however many of a kind the
+layout has. A panel's own view state is keyed by its binding when that binding names one leaf, else
+by its place in the tree (a panel written in place, made by a loop, or a binding used twice: each
+leaf is its own instance), and stays with it: a graph panel's graph (the one it names, else the
+graph of its open level), navigation level, the selection of that level, canvas pan and zoom, node
+selection, view and follow-and-back route; a list's folds, filter, focus row and scroll; a lisp
+panel's tab, drafts, errors, caret and scroll; an outline's search and scroll; an inspector's scroll
+and open sections; a viewport's orbit and look-through. PXUI keys are seeded by the leaf, so two
+instances never share widget state or pointer capture. The node menu, the probes and the timeline's
+time are one per editor and go with the graph panel in use (the focused one, else the last one
+focused); the viewport's handles and picks follow its level. A graph panel shows the view it says,
+whatever other panels the layout has. A press gives its panel the focus before the frame builds, so
+a gesture works on the first press in any panel. `(ui/graph "nope")` is `E_UNKNOWN_GRAPH`.
+
+**Following and `:of`.** An inspector, a list and a lisp panel show a graph panel: its graph, its
+level and its selection. Without `:of` that is the graph panel in use, so the panel follows the
+focus. `:of name`, where `name` is the binding of a `ui/graph` panel of the layout shown, ties the
+panel to that graph panel whatever has the focus (`(ui/inspector :of network)`; a wire from the
+graph panel's card to the row `of`). A press in a tied panel makes its graph panel the one in use,
+so its edits land there. An `:of` that is not a binding of a graph panel of the layout shown is
+`E_PANEL_OF`.
+
+**Saved panel state.** `(layout (panel [graph name] ...))` is the disclosure and window of the
+panel that binding names. When the binding is used by several leaves the entry is what each of them
+starts from, and a change to one leaf is saved under its place, `[graph "@panel" i j ...]`, which
+wins for that leaf.
+
+**Floating windows.** `(ui/floating panel)` takes its bounds from the `(layout (panel [graph name]
+:window [x y w h]))` entry of the panel's binding or, when the float itself is the bound name
+(`name (ui/floating (ui/inspector))`), of the float's binding.
+
+**Editing.** Every layout form is a card of the editor graph and its keywords are rows of the card
+(`Set_arg`). The layout gestures (`Set_layout_size`, `Split_panel`, `Close_panel`, `Dock_panel`,
+`Set_panel_kind`, `Set_layout`, `Layout_new`, `Layout_remove`, `Layout_window`, `Layout_float`,
+`Merge_layouts`) accept a graph whose result is the `ui/workspace` call or a binding of it. The
+printer never threads a `ui/` call (§11.3): a layout is a tree of containers, not a pipeline.
+
 ## 12. `[%flow]` (M7, removed in W12)
 
 The `[%flow]` PPX, `Flow_sop.Build.program`, `Flow_sop.Program.t`, `Flow.Check.check`
@@ -1249,6 +1357,11 @@ a per-node cache ring for scrubbing. (Marquee selection and panel keys were buil
 | Compound Vec3 default | `Port.literal` stores the three components on one interface port; scalar defaults remain `Port.Scalar` |
 | Named `defgraph` results | `(values :name expr …)` preserves M5 output renames; unnamed results still receive `geo`/`out` names |
 | No display node | a graph result of `nil` preserves `display = None` |
+| Fixed panel sizes (2026-10-05) | `:first_size` / `:second_size` on `ui/split`: one concept, on the split that the gutter drag rewrites; `ui/split-at` stays the ratio form (§11.11) |
+| Start keywords (2026-10-05) | keywords on the panel forms (`:focus`, `:look_through`, `:view`, `:tab`), followed when the document opens and whenever their value in the text changes; saved UI state stays in `(layout ...)` |
+| Panel instances (2026-10-05) | every leaf is an instance with its own view state; the level and its selection belong to a graph panel; a binding used twice makes two instances keyed by place |
+| Following a graph panel (2026-10-05) | `:of binding` on `ui/inspector`, `ui/list`, `ui/lisp`: one keyword, a panel-typed wire in the graph; without it the panel follows the focus |
+| Layout forms in the printer (2026-10-05) | `ui/` calls are never threaded with `->` |
 | Literal-only Math node | explicit `value/math` call preserves the node; operator syntax with no references lowers to an expression |
 | Primary rows without annotations | the first folder's fields |
 | Compound reuse | shared definitions with "make unique" |

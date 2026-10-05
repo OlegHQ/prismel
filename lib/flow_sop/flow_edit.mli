@@ -12,6 +12,14 @@
     (notes) travel with the binding name they precede, so reordering,
     rewiring, renaming, folding and wrapping keep them.
 
+    A call of a node kind written in an argument ({!node_call}) is a node too, with no
+    binding: its leaf is the leaf of the node that holds it, then [#] and the input
+    ({!nested_leaf}: [["g"; "result#0#:cutters"]]).  Every op that edits an input takes
+    such a path; [Rename] binds the node under the new name, [Delete_nodes] hands its
+    place to its first input, and a wire that leaves it or lands where it is written
+    ([Connect]) binds it first, so a new wire never deletes a node.  [Disconnect] removes
+    what is written, a nested node included: [Unfold] it first to keep it.
+
     Child indices ([sub], [Bv]) count {!Flow.Syntax.children}: for a list the
     head is child 0. *)
 
@@ -68,9 +76,10 @@ type op =
   | Add_node of { scope : path; name : string; expr : Flow.Syntax.t }
       (** [scope] is a scope path, [["g"]] for the graph body *)
   | Delete_nodes of { nodes : path list }
-  | Set_layout_ratio of { node : path; ratio : float }
+  | Set_layout_size of { node : path; size : [ `Ratio of float | `First of int | `Second of int ] }
       (** the binding [node] of an editor graph is a [ui/split] or [ui/split-at]; it becomes
-          [ui/split-at] with this ratio (clamped to 0.1-0.9, two decimals) *)
+          [ui/split-at] with this ratio (clamped to 0.1-0.9, four decimals), or a [ui/split] with
+          [:first_size] or [:second_size] in whole points (1 or more) *)
   | Split_panel of { node : path; axis : [ `H | `V ] }
       (** the panel [node] becomes a half of a new [ui/split-at] (a fresh lisp panel beside
           it, a graph panel beside a lisp one) *)
@@ -118,6 +127,22 @@ type op =
 (** ponytail: one variant and one [apply]; no command objects.  The four panel
     operations address a binding of an editor graph by its path, as every other
     op does; panels made by a loop have no binding, so they are edited on the loop. *)
+
+val node_call : Flow.Syntax.t -> bool
+(** A call of a node kind (a head with a [/]): written in an argument, it is a nested node. *)
+
+val nested : string -> bool
+(** The leaf names a nested node. *)
+
+val nested_leaf : string -> arg_key -> string
+(** The leaf of the node written in input [key] ([Pos] or [Kw]) of the node at this leaf. *)
+
+val nested_nodes : Flow.Syntax.t -> (arg_key * Flow.Syntax.t) list
+(** The node calls written in the inputs of a call, with the input each is written in. *)
+
+val leaf_keys : string -> (string * arg_key list) option
+(** A leaf as the binding (or [@result]) and the inputs down to the nested node; no inputs
+    for a bound node. *)
 
 val label : op -> string
 (** The history label: "Repeat", "Iterate", "Unfold", "Make macro", ... *)

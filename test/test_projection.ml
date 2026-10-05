@@ -33,26 +33,27 @@ let rec counts (s : P.scope) =
     (0, 0, 0) s.nodes
 
 let snapshot = [
-  "bloom", [ "flower", (9, 1, 35); "scene", (5, 0, 47); "world", (1, 0, 13); "settings", (2, 0, 6);
-             "editor", (10, 0, 19); "half", (1, 0, 2); "petal", (1, 0, 7) ];
-  "facade", [ "facade", (12, 2, 59) ];
-  "garland", [ "garland", (14, 3, 59); "ring", (1, 0, 2) ];
-  "kit", [ "kit", (15, 2, 49); "window", (3, 0, 30) ];
-  "orrery", [ "orrery", (15, 1, 62) ];
+  "bloom", [ "flower", (12, 1, 46); "scene", (5, 0, 47); "world", (3, 0, 24); "settings", (2, 0, 6);
+             "editor", (10, 0, 29); "half", (1, 0, 2); "petal", (2, 0, 19) ];
+  "facade", [ "facade", (14, 2, 85) ];
+  "garland", [ "garland", (15, 3, 61); "ring", (1, 0, 2) ];
+  "kit", [ "kit", (16, 2, 56); "window", (3, 0, 30) ];
+  "orrery", [ "orrery", (19, 1, 90) ];
   "rosette", [ "rosette", (4, 0, 29) ];
-  "sunflower", [ "sunflower", (8, 1, 24) ];
-  "tiles", [ "tiles", (8, 1, 34) ];
-  "tree", [ "tree", (8, 1, 67) ];
-  "tunnel", [ "rings", (3, 1, 22) ];
-  "variations", [ "garden", (5, 0, 54); "scene", (1, 0, 8); "editor", (8, 0, 16) ];
-  "wave", [ "wave", (6, 2, 39) ];
+  "sunflower", [ "sunflower", (9, 1, 27) ];
+  "tiles", [ "tiles", (9, 1, 38) ];
+  "tree", [ "tree", (9, 1, 72) ];
+  "tunnel", [ "rings", (4, 1, 29) ];
+  "variations", [ "garden", (6, 0, 57); "scene", (1, 0, 8); "editor", (8, 0, 22) ];
+  "wave", [ "wave", (7, 2, 41) ];
 ]
 
 let snapshots () =
   List.iter (fun (name, expected) ->
     let w = load name in
     let got = List.map (fun (g : Flow.Workspace.graph) -> g.name, counts (scope w g.name)) (w.graphs @ w.defs) in
-    check (got = expected) (name ^ ": node, zone and row counts changed"))
+    check (got = expected) (name ^ ": node, zone and row counts changed: " ^ String.concat "; "
+      (List.map (fun (g, (n, z, r)) -> Printf.sprintf "%S, (%d, %d, %d)" g n z r) got)))
     snapshot
 
 let kinds (n : P.node) = List.map (fun (r : P.row) -> r.label, r.kind) n.rows
@@ -68,9 +69,15 @@ let rows () =
   let i = List.hd z.rail in
   check (i.key = Some (E.Bv (1, 1)) && flat i.expr = "(range petals)" && i.ty = Some Flow.Ty.Int)
     "the loop variable edits its collection through Bv";
-  check (List.length z.scope.nodes = 5
-         && (List.nth z.scope.nodes 4).synthetic && z.scope.result = P.Node [ "flower"; "ring"; "@result" ])
+  (* the four bindings, the two calls nested in them, and the result last *)
+  check (List.length z.scope.nodes = 7
+         && (List.nth z.scope.nodes 6).synthetic && z.scope.result = P.Node [ "flower"; "ring"; "@result" ])
     "the body's result is a synthetic node";
+  let names = List.map (fun (n : P.node) -> n.name) z.scope.nodes in
+  check (List.mem "wobble#1" names && List.mem "tint#:color" names) "a call written in an input is a node";
+  let hsv = node w "flower" [ "ring"; "tint#:color" ] in
+  check (P.anonymous hsv && P.title hsv = "hsv" && hsv.head = "value/hsv" && not hsv.synthetic)
+    "a nested node is titled by its kind";
   (* a call: a rest slot with its add row, chips *)
   let bloom = node w "flower" [ "bloom" ] in
   check (kinds bloom = [ "input", P.Rest; "+ input", P.Add ]) "merge is one rest slot and an add row";
@@ -83,8 +90,8 @@ let rows () =
   check (List.map (fun (r : P.row) -> r.label) tint.rows = [ "in0"; "group"; "owner"; "color"; "alpha" ])
     "set_color rows: the slot, then the parameters";
   let color = List.find (fun (r : P.row) -> r.label = "color") tint.rows in
-  check (color.key = E.Kw "color" && (match color.chip with P.Inline { glyph = "ƒ"; _ } -> true | _ -> false))
-    "a nested call is a chip";
+  check (color.key = E.Kw "color" && color.chip = P.Name "tint#:color" && P.sources color = [ "tint#:color" ])
+    "the row a nested node is written in is wired from it";
   let group = List.find (fun (r : P.row) -> r.label = "group") tint.rows in
   check (group.kind = P.Group_reader && group.chip = P.No_value && group.default = Some "") "group reader row";
   let leaf = node w "flower" [ "ring"; "leaf" ] in
@@ -228,8 +235,8 @@ let zone_order () =
   check (order "(workspace w (graph g :context sop (let* [z (for [p (sop/piece_list (sop/grid) :key \"id\")] (sop/box))] (sop/merge z))))" = Some "by id")
     "a loop over pieces keyed by an attribute is ordered by it";
   check ((match (scope (workspace_of "(workspace w (graph g :context sop (let* [pts (sop/point_list (sop/grid)) z (for [p pts] (sop/box))] (sop/merge z))))") "g").nodes with
-             | [ _; n; _ ] -> (match n.zone with Some z -> z.order = Some "by index" | None -> false)
-             | _ -> false))
+             | nodes -> List.exists (fun (n : P.node) -> match n.zone with
+                 | Some z -> z.order = Some "by index" | None -> false) nodes))
     "a loop over a bound point list is ordered by index too";
   check (order "(workspace w (graph g :context sop (let* [z (for [i (range 3)] (sop/box))] (sop/merge z))))" = None)
     "a loop over a range has no order to show"

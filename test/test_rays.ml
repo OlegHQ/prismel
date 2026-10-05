@@ -247,7 +247,7 @@ let run_1 () =
   (* The camera panel is built inside a UI frame; a settle frame lays it out
      before each press. *)
   let module Camera_control = Pxui.Camera_control in
-  let camera_ui = Pxui.Ui.create () in
+  let camera_ui = Pxui.Ui.create ~font_size:11 () in
   let run control camera (frame : Frame.t) =
     let control, camera, requests = Pxui.Ui.frame camera_ui frame (fun ui ->
       if Camera_control.ui_visible control then
@@ -264,10 +264,11 @@ let run_1 () =
       mouse_release (Input.LeftButton, point)] } in
   let camera_control = Camera_control.create () in
   let camera_control, _, _ = run camera_control easy idle in
-  (* Rows: Camera, Render; opening Render adds Output and the save button. *)
-  let camera_control, _, _ = run camera_control easy (click (30, 39)) in
+  (* Two closed sections of 24 points under 4 of space; opening Render adds Output and the
+     save button, a row each. *)
+  let camera_control, _, _ = run camera_control easy (click (30, 40)) in
   let camera_control, _, _ = run camera_control easy idle in
-  let camera_control, _, requests = run camera_control easy (click (30, 110)) in
+  let camera_control, _, requests = run camera_control easy (click (30, 88)) in
   if List.map (fun (request : Camera_control.render_request) -> request.filename)
       requests <> ["_out/rays-render.png"]
   then fail "camera render section did not request a PNG";
