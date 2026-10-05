@@ -1859,7 +1859,7 @@ let carry_line (c : _ carry) =
        | `Keys, _ ->
            Printf.sprintf "Carrying %s · nothing here takes it · u, i or Space j go elsewhere · Esc drops" held)
 
-let status_text value =
+let status_text ?(brief = false) value =
   match value.carry with Some c -> carry_line c | None ->
   let cook = match Cook.status value.cook with
     | Async_cook.Cooking { seconds; queued = true; _ }
@@ -1880,7 +1880,7 @@ let status_text value =
          | None, None, Some seconds ->
              (match Flow_sop.Lower.status (snd value.doc.Document.workspace) ~seconds with
               | Some text -> text
-              | None -> Printf.sprintf "Cook complete · %.3fs" seconds)
+              | None -> Printf.sprintf "checked · cooked %.3f s" seconds)
          | None, None, None -> "Waiting for first cook") in
   (* What the open level's keys do, so the World and the menu are findable. *)
   let hint = match value.level with
@@ -1892,7 +1892,7 @@ let status_text value =
     | Inside _ when value.scene_level -> "u up · Space a add · Space l panel kind"
     | Inside _ -> "Space a add · Space l panel kind" in
   (if value.workspace.restored then "Default layout · Space z returns to the editor graph · " else "")
-  ^ cook ^ " · " ^ level_name value ^ (if hint = "" then "" else " · " ^ hint)
+  ^ cook ^ (if brief then "" else " · " ^ level_name value ^ (if hint = "" then "" else " · " ^ hint))
 
 (* "ring · iteration 1 of 12": which iteration the viewport's highlight and the inspector show for the
    node selected in the graph pane (the innermost loop around it, or itself when it is one). *)
@@ -1927,7 +1927,7 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
         Printf.sprintf "layout %d \xc2\xb7 %s" active (List.nth (Editor_core.Panels.labels layouts) active)
     | _ -> "" in
   let line = match error_status with Some error -> error | None ->
-    status_text value ^ match render_status with None -> "" | Some status -> " \xc2\xb7 " ^ status in
+    status_text ~brief:true value ^ match render_status with None -> "" | Some status -> " \xc2\xb7 " ^ status in
   (* the focused pane's kind and what is selected: in the graph pane its node, in a viewport the
      object the brackets stand round *)
   let kind = match value.focus with Pxui_shell.Layout.View _ -> "Viewport" | panel -> Editor_core.Panels.name panel in
@@ -1960,12 +1960,13 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
       ?fps:value.status_fps ~notes ~accent:true ~kind:("moving " ^ Option.get moving)
       ~extra:[ "drag to an edge", "dock"; "Space o f", "float or dock"; "Space n", "new window" ]
-      ~context:Editor_core.Guide_context.Hints ([] : Leader.command list)
+      ~context:Editor_core.Guide_context.Canvas ([] : Leader.command list)
   end
   else if error_status = None && value.carry = None && value.guide then begin
     (* the keys of the focused pane only: the keymap's commands scoped to it *)
     let commands = if focus_scope = Pxui_shell.Layout.Graph then commands
-      else List.filter (fun (c : Leader.command) -> c.scope = Some focus_scope) commands in
+      else List.filter (fun (c : Leader.command) -> c.scope = Some focus_scope)
+          (Editor_core.Command.for_guide value.keymap ~focus:focus_scope ~context:Editor_core.Guide_context.Canvas) in
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
       ?fps:value.status_fps ~notes ~extra ~kind ?selection ~context commands
   end

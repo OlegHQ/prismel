@@ -163,7 +163,7 @@ let run_editor () =
   check (has (source_text !e) "0.7") ("the file's text is the document: " ^ source_text !e);
   check (E3.undo_label !e = Some "Reload sketch.rays") "one history entry named Reload sketch.rays";
   check (E3.probe !e zone = Some 3) "the probe survived by path";
-  check (has (cook_line !e) "Reloaded sketch.rays" || has (cook_line !e) "Cook complete") (cook_line !e);
+  check (has (cook_line !e) "Reloaded sketch.rays" || has (cook_line !e) "checked") (cook_line !e);
   (* text that does not check keeps the last good document and says why *)
   write file typo;
   run_for 1.;
