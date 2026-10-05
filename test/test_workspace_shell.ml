@@ -1570,7 +1570,7 @@ let run_panels () =
   check (!drawn = 2) "with nothing selected both inspectors show the sketch's rows";
   (* a node selected in graph a: its inspector shows the node, b's still the sketch's rows *)
   (* the graph input's header (cards sit on the 24-point lattice now: ask where it is) *)
-  let click_node path = let x, y, w, _ = Option.get (E3.node_box !e path) in click (float (x + w / 2), float (y + 3)) in
+  let click_node path = let x, y, w, h = Option.get (E3.node_box !e path) in click (float (x + w / 2), float (y + max 1 (h / 2))) in
   click_node [ "garden"; ":seed" ];
   check (dump_line !e "scope selected" = "garden/:seed" && !drawn = 1)
     ("the inspector tied to a did not follow a's selection: " ^ dump_line !e "scope selected");
@@ -1598,7 +1598,9 @@ let run_panels () =
   check (dump_line !e "windows" = "graph 10 30 300 200, graph 400 30 300 200")
     ("the saved entries of a binding used twice: " ^ dump_line !e "windows");
   check (dump_line !e "panels" = "graph 0; graph 1") ("the leaves of one binding are not two instances: " ^ dump_line !e "panels");
-  (let x, y, w, _ = Option.get (E3.node_box !e [ "garden"; ":seed" ]) in click (float (x + w / 2), float (y + 3)));
+  (* the window is small, so the node is a 12 x 3 point (the zoom cap); the box is reported from the
+     pane's own origin, which the window's frame moves by about 8 points *)
+  (let x, y, _, _ = Option.get (E3.node_box !e [ "garden"; ":seed" ]) in click (float (x + 9), float (y + 2)));
   let first = dump_line !e "scope selected" in
   click (550., 200.);
   check (first <> "-" && dump_line !e "scope selected" = "-" && dump_line !e "panels" = "graph 0; graph 1*")

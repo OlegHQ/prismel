@@ -202,22 +202,46 @@ let rect_points (ax, ay) (bx, by) =
   else [ (ax, ay); (mx, ay); (mx, (ay +. by) /. 2.); (bx -. 12., (ay +. by) /. 2.); (bx -. 12., by); (bx, by) ]
 
 (* where a card's out-port wire starts, a node's rows are read and a zone's rail rows end *)
-let out_anchor (p : P.placed) ax ay = match p.item with
-  | P.Item { zone = None; _ } when p.level = P.Point -> ax +. P.point_size, ay +. P.point_size /. 2.
-  | _ -> ax +. p.w, ay +. wire_head_y
-let in_anchor (p : P.placed) ax ay = match p.item with
-  | P.Item { zone = None; _ } when p.level = P.Point -> ax, ay +. P.point_size /. 2.
-  | _ -> ax, ay +. wire_head_y
+let out_anchor (p : P.placed) ax ay =
+  if p.shown = P.Point then ax +. p.w, ay +. P.point_size /. 2. else ax +. p.w, ay +. wire_head_y
+let in_anchor (p : P.placed) ax ay =
+  if p.shown = P.Point then ax, ay +. P.point_size /. 2. else ax, ay +. wire_head_y
+
+(* the level a card is drawn at: the requested one, under the zoom's caps (flow.md 6.4: below
+   0.34 a point, below 0.5 at most a chip); a pinned card ignores them.  A zone, the return card
+   and a frame keep their card. *)
+let level_rank = function P.Point -> 0 | Chip -> 1 | Card -> 2 | Full -> 3
+let cap_of zoom = if zoom < 0.34 then P.Point else if zoom < 0.5 then P.Chip else P.Full
+let shown_of ~level_at ~cap (p : P.placed) = match p.item with
+  | P.Item { zone = Some _; _ } | P.Return -> P.Card
+  | P.Item _ | P.Input _ ->
+      let pinned = match level_at p.path with Some (_, true) -> true | _ -> false in
+      if pinned || level_rank cap >= level_rank p.level then p.level else cap
+
+(* a point's box: the disc and its name; its wires meet the disc on the left and the name's end on
+   the right *)
+let point_name (p : P.placed) = match p.item with
+  | P.Item n -> P.point_title n | P.Input i -> i.name | P.Return -> "return"
+let point_box_w name = P.point_size +. 8. +. 7. *. float (String.length name)
 
 (* [shift] moves a placed item by its path (a drag in progress); a zone's
    children follow through the origin they are laid out from. *)
-let compute ?(style = `Straight) (scope : P.scope) (layout : P.layout) ~shift =
+let compute ?(style = `Straight) ~shown (scope : P.scope) (layout : P.layout) ~shift =
   let items = ref [] and pos = Hashtbl.create 64 and rel = Hashtbl.create 64 in
   let origins = ref [ (scope.path, (0., 0.)) ] in
   let rec walk ox oy (l : P.layout) =
     List.iter (fun (p : P.placed) ->
       let dx, dy = shift p.path in
       let ax = ox +. p.x +. dx and ay = oy +. p.y +. dy in
+      (* one geometry per node at the level it is shown: the box, the ports and the wires' ends,
+         the obstacles and the hit boxes all come from it *)
+      let lv = shown p in
+      let p, ay = match lv with
+        | P.Point -> { p with shown = lv; w = point_box_w (point_name p); h = P.point_size },
+                     if p.level = P.Point && (match p.item with P.Input _ -> false | _ -> true)
+                     then ay else ay +. 5.
+        | P.Chip -> { p with shown = lv; h = P.head_height }, ay
+        | _ -> { p with shown = lv }, ay in
       items := (p, ax, ay) :: !items;
       Hashtbl.replace pos p.path (ax, ay, p.w, p.h);
       Hashtbl.replace rel p.path (p.x, p.y);
@@ -250,15 +274,17 @@ let compute ?(style = `Straight) (scope : P.scope) (layout : P.layout) ~shift =
   List.iter (fun ((p : P.placed), _, _) -> Hashtbl.replace placed_of p.path p) items_list;
   let declared (s : P.scope) =
     let tbl = Hashtbl.create 16 in
-    List.iter (fun (i : P.input) -> match Hashtbl.find_opt pos i.path with
-      | Some (ax, ay, w, _) ->
-          Hashtbl.replace tbl i.name { pos = (ax +. w, ay +. wire_head_y); ty = Some i.ty; owner = Some i.path }
-      | None -> ()) s.inputs;
+    List.iter (fun (i : P.input) -> match Hashtbl.find_opt pos i.path, Hashtbl.find_opt placed_of i.path with
+      | Some (ax, ay, _, _), Some p ->
+          Hashtbl.replace tbl i.name { pos = out_anchor p ax ay; ty = Some i.ty; owner = Some i.path }
+      | _ -> ()) s.inputs;
     List.iter (fun (n : P.node) -> match Hashtbl.find_opt pos n.path, Hashtbl.find_opt placed_of n.path with
       | Some (ax, ay, w, _), Some p ->
           let lines = Array.length p.lines in
-          let out j = (ax +. w, rows_top n ay +. (float (lines + j) +. 0.5) *. P.row_height +. 0.75) in
-          let main = (let x, y = out_anchor p ax ay in x, y) in
+          let main = out_anchor p ax ay in
+          (* a point or a chip has the one out end; its named outputs are listed on a card *)
+          let out j = if p.shown = P.Point || p.shown = P.Chip then main
+            else (ax +. w, rows_top n ay +. (float (lines + j) +. 0.5) *. P.row_height +. 0.75) in
           (match n.binds with
            | [ b ] when b = n.name ->
                Hashtbl.replace tbl b { pos = main; ty = Some n.ty; owner = Some n.path };
@@ -275,15 +301,11 @@ let compute ?(style = `Straight) (scope : P.scope) (layout : P.layout) ~shift =
           (match n.zone with
            | None ->
                let lines = line_of_row p.lines in
-               let chip_k = ref 0 in
                List.iteri (fun i (r : P.row) ->
                  let target_pos =
                    if r.head then in_anchor p ax ay
-                   else match p.level with
-                     | P.Point -> in_anchor p ax ay
-                     | P.Chip ->
-                         let k = !chip_k in incr chip_k;
-                         ax +. 22. +. 12. *. float k, ay +. P.head_height
+                   else match p.shown with
+                     | P.Point | P.Chip -> in_anchor p ax ay
                      | _ ->
                          (match Hashtbl.find_opt lines i with
                           | Some k -> ax, rows_top n ay +. float k *. P.row_height +. wire_row_y
@@ -396,6 +418,7 @@ type t = {
   framed : bool;
   layout : P.layout;
   geo : geo;
+  geo_cap : P.level;  (* the zoom cap [geo] was computed under *)
   pan_x : float; pan_y : float; zoom : float;
   wires : [ `Rect | `Straight ];
   selected : Path_set.t;
@@ -417,13 +440,19 @@ type t = {
   measure : int -> string -> float;  (* text width in points, from the last built frame *)
 }
 
+(* the geometry of the scope at the levels the zoom shows *)
+let regeo t scope layout ~shift =
+  let cap = cap_of t.zoom in
+  { t with geo_cap = cap;
+    geo = compute ~style:t.wires ~shown:(shown_of ~level_at:t.level_at ~cap) scope layout ~shift }
+
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
   x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
   at = (fun _ -> None); level_at = (fun _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
-  layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
+  layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; geo_cap = P.Full; pan_x = 12.; pan_y = 12.; zoom = 1.;
   wires = `Straight; selected = Path_set.empty; selected_wire = None; panning_grab = false;
   hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats; switches = [];
   carry_lit = []; carry_hot = None; failed = []; hinting = None; held = [], false; back = [];
@@ -451,7 +480,7 @@ let wires t = t.wires
 let with_wires wires t =
   if t.wires = wires then t else match t.scope with
     | None -> { t with wires }
-    | Some scope -> { t with wires; geo = compute ~style:wires scope t.layout ~shift:(fun _ -> 0., 0.) }
+    | Some scope -> regeo { t with wires } scope t.layout ~shift:(fun _ -> 0., 0.)
 
 (* a screen point as a position inside [scope], snapped to the 24-point dot lattice (where a node
    added from the menu opened there goes) *)
@@ -516,8 +545,8 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(collapsed = fun 
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
     chains = Flow_sop.Probe.chains scope; wires;
-    geo = compute ~style:wires scope layout ~shift:no_shift;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
+  let t = regeo t scope layout ~shift:no_shift in
   (* an edit that removed or moved a node drops it from the selection *)
   let t = { (refresh t) with selected = Path_set.filter (Hashtbl.mem t.geo.pos) t.selected } in
   let selected_wire = match t.selected_wire with
@@ -538,7 +567,7 @@ let relayout t = match t.scope with
   | None -> t
   | Some scope ->
       let layout = lay t scope ~at:t.at ~collapsed:t.collapsed in
-      { t with layout; geo = compute ~style:t.wires scope layout ~shift:no_shift }
+      regeo { t with layout } scope layout ~shift:no_shift
 
 let with_records records t =
   match t.records with
@@ -708,7 +737,6 @@ let frame_selection t =
 
 (* ---- levels (flow.md 6.4) ---- *)
 
-let level_rank = function P.Point -> 0 | Chip -> 1 | Card -> 2 | Full -> 3
 let level_up = function P.Point -> P.Chip | Chip -> Card | Card | Full -> P.Full
 
 (* the nodes a level applies to: cards, not zones or value cards *)
@@ -1525,31 +1553,24 @@ let paint_card paint ~x ~y ~w ~h ~fill ~edge =
   Ui.Paint.fill paint ~x ~y ~w ~h fill;
   Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) edge
 
-(* the level a card is drawn at: the requested one, under the zoom's caps (flow.md 6.4: below
-   0.34 a point, below 0.5 at most a chip); a pinned card ignores them *)
-let shown_level t (p : P.placed) =
-  let pinned = match t.level_at p.path with Some (_, true) -> true | _ -> false in
-  if pinned then p.level else
-  let cap = if t.zoom < 0.34 then P.Point else if t.zoom < 0.5 then P.Chip else P.Full in
-  if level_rank cap < level_rank p.level then cap else p.level
-
 (* a point: the 14-point disc in the node's colour with its name beside it (a compound is a ring
    with a dot), brackets when selected; the displayed one wears its flag below the disc *)
-let paint_point paint ui t ~z ~fs (n : P.node) ?failed ~selected (x, y, _, _) =
+let paint_point paint ui t ~z ~fs (p : P.placed) ?failed ~selected (x, y, _, _) =
   let theme = t.theme in
   let c = (x +. 7. *. z, y +. 7. *. z) in
-  let color = if failed <> None then Pxui.Theme.invalid else ty_color t (Some n.ty) in
-  if n.macro <> None then begin
+  let ty, macro, bypass, title, viewed = match p.item with
+    | P.Item n -> n.ty, n.macro <> None, n.bypass, P.title n, t.display = Some n.path
+    | P.Input i -> i.ty, false, false, i.name, false
+    | P.Return -> Ty.Geometry, false, false, "return", false in
+  let color = if failed <> None then Pxui.Theme.invalid else ty_color t (Some ty) in
+  if macro then begin
     Ui.Paint.circle paint ~at:c ~radius:(7. *. z) ~fill:theme.Pxui.panel ~stroke:color ();
     Ui.Paint.circle paint ~at:c ~radius:(2. *. z) ~fill:color ()
   end else Ui.Paint.circle paint ~at:c ~radius:(7. *. z) ~fill:color ();
-  let name_color = if failed <> None then Pxui.Theme.invalid else if n.bypass then Pxui.Theme.ink_3 theme
+  let name_color = if failed <> None then Pxui.Theme.invalid else if bypass then Pxui.Theme.ink_3 theme
     else theme.foreground in
-  let name_w = Ui.Paint.text_width paint ~size:fs (P.point_title n) in
-  text_in paint ui ~size:fs ~color:name_color ~x:(x +. 22. *. z) ~y:(y +. 7. *. z -. 12. *. z) ~h:(24. *. z)
-    (P.title n);
-  ignore name_w;
-  if t.display = Some n.path then begin
+  text_in paint ui ~size:fs ~color:name_color ~x:(x +. 22. *. z) ~y:(y +. 7. *. z -. 12. *. z) ~h:(24. *. z) title;
+  if viewed then begin
     let fy = y +. 21. *. z in
     frame_in paint ~x ~y:fy ~w:(12. *. z) ~h:(12. *. z) ~fill:theme.input (Pxui.Theme.border theme);
     Ui.Paint.fill paint ~x:(x +. 3. *. z) ~y:(fy +. 3. *. z) ~w:(6. *. z) ~h:(6. *. z) theme.accent
@@ -1559,7 +1580,7 @@ let paint_point paint ui t ~z ~fs (n : P.node) ?failed ~selected (x, y, _, _) =
 
 let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(carry = false) ?(out_wired = true) ~shown ?failed
     (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
-  if shown = P.Point then paint_point paint ui t ~z ~fs n ?failed ~selected (x, y, w, h) else
+  if shown = P.Point then paint_point paint ui t ~z ~fs p ?failed ~selected (x, y, w, h) else
   let theme = t.theme in
   let z_ = n.zone in
   let ls = max 4 (fs - 2) in
@@ -1738,7 +1759,9 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
   let theme = t.theme in
   let vx, vy, vw, vh = viewport in
   let z = t.zoom in
-  let spacing = 24. *. z in
+  (* a dot every 24 points, thinned by powers of two so the dots stay 24 screen points apart or more *)
+  let thin = if z >= 1. then 1. else 2. ** Float.ceil (Float.log2 (1. /. z) -. 1e-9) in
+  let spacing = 24. *. z *. thin in
   Ui.Paint.fill paint ~x:vx ~y:vy ~w:vw ~h:vh theme.panel;
   Ui.Paint.grid paint ~x:vx ~y:vy ~w:vw ~h:vh
     ~origin:(vx +. Float.rem t.pan_x spacing -. 1., vy +. Float.rem t.pan_y spacing -. 1.) ~spacing ~dot:2.
@@ -1890,15 +1913,17 @@ let update t ui (frame : Frame.t) =
       { t with zoom; pan_x = (mx -. float t.x) -. ((mx -. float t.x) -. t.pan_x) *. k;
         pan_y = (my -. float t.y) -. ((my -. float t.y) -. t.pan_y) *. k }
     end in
+  (* the zoom crossed a cap: the nodes change level, and with them boxes, ports and wire ends *)
+  let t = match t.scope with
+    | Some scope when cap_of t.zoom <> t.geo_cap -> regeo t scope t.layout ~shift:no_shift
+    | _ -> t in
   (* a drag in progress moves its items in a fresh geometry *)
   let t = match t.drag, t.scope with
     | Some (Moving m), Some scope when m.moved ->
         let paths = m.paths in
-        { t with geo = compute ~style:t.wires scope t.layout ~shift:(fun p ->
-            if List.mem p paths then m.dx, m.dy else 0., 0.) }
+        regeo t scope t.layout ~shift:(fun p -> if List.mem p paths then m.dx, m.dy else 0., 0.)
     | Some (Carrying c), Some scope when Float.hypot c.dx c.dy > 0. ->
-        { t with geo = compute ~style:t.wires scope t.layout ~shift:(fun p ->
-            if List.mem p c.paths then c.dx, c.dy else 0., 0.) }
+        regeo t scope t.layout ~shift:(fun p -> if List.mem p c.paths then c.dx, c.dy else 0., 0.)
     | _ -> t in
   let t = { t with measure = (fun size s -> Ui.text_width ui ~size s) } in
   let z = t.zoom in
@@ -1970,7 +1995,7 @@ let update t ui (frame : Frame.t) =
       let bx, by = sx t ax, sy t ay in
       let key = "t:" ^ String.concat "/" p.path in
       let w = p.w *. z and h = p.h *. z in
-      let shown = match p.item with P.Item _ -> shown_level t p | _ -> P.Card in
+      let shown = p.shown in
       let tile = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px w) ~h:(Ui.Px h) ~at:(local (bx, by)) key in
       (* the live editors of a row: a number, a vector of numbers, a flag *)
       let row_fields (n : P.node) (r : P.row) ~name ~ry ~size =
@@ -2014,12 +2039,12 @@ let update t ui (frame : Frame.t) =
         let out name src ty pos = outs := (box name (fst pos -. 7., snd pos -. 7.) (14., 14.), src, ty) :: !outs in
         let tap name pos size on = taps := (box name pos size, on) :: !taps in
         (match p.item with
-         | P.Input i -> out "out" i.name (Some i.ty) (p.w -. 1., port_y)
+         | P.Input i -> out "out" i.name (Some i.ty) (if shown = P.Point then (p.w, P.point_size /. 2.) else (p.w -. 1., port_y))
          | Return -> ignore (input "in" (0., P.body_top +. 12.))
          | Item n ->
              let node_src = if n.binds = [ n.name ] then Some n.name else None in
              Option.iter (fun s ->
-               out "out" s (Some n.ty) (if shown = P.Point then (P.point_size, P.point_size /. 2.) else (p.w -. 1., port_y)))
+               out "out" s (Some n.ty) (if shown = P.Point then (p.w, P.point_size /. 2.) else (p.w -. 1., port_y)))
                node_src;
              (* the header's in-port: the first geometry slot *)
              (match List.find_opt (fun (r : P.row) -> r.head) n.rows with
@@ -2286,7 +2311,7 @@ let update t ui (frame : Frame.t) =
     match p.item with
     | P.Item ({ zone = None; _ } as n) when Ui.hovered_within ui tile ->
         let px = (fst mouse -. sx t ax) /. z and py = (snd mouse -. sy t ay) /. z in
-        (match row_at p n ~shown:(shown_level t p) ~px ~py with
+        (match row_at p n ~shown:(p.shown) ~px ~py with
          | Some i when i < List.length n.rows -> Some (n, ax, ay, i)
          | _ -> None)
     | _ -> None) tiles in
@@ -2456,7 +2481,7 @@ let update t ui (frame : Frame.t) =
                    (match n.zone with
                     | None ->
                         (* anywhere on the header is the in-port of the first geometry slot *)
-                        (match row_at ~header:infinity tp n ~shown:(shown_level t tp) ~px:lx ~py:ly with
+                        (match row_at ~header:infinity tp n ~shown:(tp.shown) ~px:lx ~py:ly with
                          | Some i when i < List.length n.rows ->
                              let r = List.nth n.rows i in
                              if r.socket then Some (n.path, r.key) else None
@@ -2528,6 +2553,7 @@ let update t ui (frame : Frame.t) =
     let hovered = t.drag = None && t.carry_hot = None && Ui.hovered_within ui tile in
     Ui.draw ui tile (fun paint (x, y, w, h) ->
       match p.item with
+      | P.Input _ when p.shown = P.Point -> paint_point paint ui snapshot ~z ~fs p ~selected:isel (x, y, w, h)
       | P.Input i -> paint_input paint ui snapshot ~z ~fs i ~selected:isel (x, y, w, h)
       | Return -> (match snapshot.scope with
           | Some s -> paint_return paint ui snapshot ~z ~fs s ~selected:isel (x, y, w, h)
@@ -2542,7 +2568,7 @@ let update t ui (frame : Frame.t) =
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in
                paint_node paint ui snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) ~hovered
                  ~carry:(match snapshot.carry_hot with Some (hp, _) -> hp = n.path | None -> false)
-                 ~out_wired:(Hashtbl.mem read (out_anchor p ax ay)) ~shown:(shown_level snapshot p)
+                 ~out_wired:(Hashtbl.mem read (out_anchor p ax ay)) ~shown:(p.shown)
                  ?failed:(List.assoc_opt n.path snapshot.failed) p n ~selected:isel ~row_hover:rh (x, y, w, h);
                if dimmed n then Ui.Paint.fill paint ~x ~y ~w ~h (Color.with_alpha snapshot.theme.panel 150)));
     ignore (ax, ay); ignore node_placed; drawn_rows := !drawn_rows) tiles;
@@ -2565,7 +2591,7 @@ let update t ui (frame : Frame.t) =
   let tip_at, tip_open = match t.display with
     | Some path ->
         (match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
-         | Some (({ item = P.Item _; _ } as p), ax, ay) when shown_level t p <> P.Point && p.level <> P.Point ->
+         | Some (({ item = P.Item _; _ } as p), ax, ay) when p.shown <> P.Point ->
              let fx = sx t ax +. (p.w -. head_pad -. 12.) *. z and fy = sy t ay +. 6. *. z in
              let mx, my = mouse in
              let over = mx >= fx && mx < fx +. 12. *. z && my >= fy && my < fy +. 12. *. z in
@@ -2663,8 +2689,10 @@ module Private = struct
     let sx, sy, sw, sh, _ = selector_geo ~measure:t.measure ~z ~fs ~w ~count:(count_of t path) ~probe:(t.probe path) in
     let x = x +. sx and y = y +. sy in
     (x -. 4. *. z, y, 16. *. z, sh), (x +. 12. *. z, y, sw -. 24. *. z, sh), (x +. sw -. 12. *. z, y, 16. *. z, sh)) (box_of t path)
-  let output_socket t path = Hashtbl.find_opt t.geo.pos path
-    |> Option.map (fun (x, y, w, _) -> sx t (x +. w -. 1.), sy t (y +. port_y))
+  let output_socket t path =
+    Option.map (fun ((p : P.placed), ax, ay) ->
+      let x, y = out_anchor p ax ay in if p.shown = P.Point then sx t x, sy t y else sx t (x -. 1.), sy t (y -. wire_head_y +. port_y))
+      (Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items)
   let row_center t path i =
     match node_of t path, Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
     | Some n, Some (p, x, y) ->
@@ -2691,6 +2719,23 @@ module Private = struct
         let (rx, ry), size = lens_replace_box lh in
         tile_point t path (rx, lens_top h lh +. ry) size
     | _ -> None
+  (* every port of a plain node at the level it is shown, in screen points: the in end, the out
+     end, a card's row sockets and named outputs *)
+  let ports t path =
+    match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+    | Some (p, ax, ay) ->
+        let s (x, y) = sx t x, sy t y in
+        let rows = match p.item with
+          | P.Item ({ zone = None; _ } as n) when p.shown = P.Card || p.shown = P.Full ->
+              List.concat (List.mapi (fun k line -> match line with
+                | P.Row (_, r) when r.socket ->
+                    [ s (ax, rows_top n ay +. float k *. P.row_height +. wire_row_y) ]
+                | _ -> []) (Array.to_list p.lines))
+              @ List.mapi (fun j _ ->
+                  s (ax +. p.w, rows_top n ay +. (float (Array.length p.lines + j) +. 0.5) *. P.row_height +. 0.75)) n.outputs
+          | _ -> [] in
+        s (in_anchor p ax ay) :: s (out_anchor p ax ay) :: rows
+    | None -> []
   let wire_count t = Array.length t.geo.wires
   let wire_points t i =
     if i < 0 || i >= Array.length t.geo.wires then [] else List.map (fun (x, y) -> sx t x, sy t y) t.geo.wires.(i).pts

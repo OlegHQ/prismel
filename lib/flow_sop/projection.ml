@@ -587,6 +587,7 @@ type placed = {
   collapsed : bool; inner : layout option;
   level : level;  (* the requested level; the pane draws less below its zoom caps *)
   lines : line array;
+  shown : level;
 }
 and layout = { placed : placed list; w : float; h : float }
 
@@ -705,7 +706,7 @@ and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?
         | Some (ax, ay) -> ax, ay
         | None -> !x, base +. zdy in
       placed := { item = it; path; x = px; y = py; w = iw; h = ih; collapsed = coll; inner = inner_l;
-                  level = lvl_; lines = ln } :: !placed;
+                  level = lvl_; lines = ln; shown = lvl_ } :: !placed;
       List.iter (fun nm -> Hashtbl.replace pos_of nm py) names;
       y := ceil_lattice (Float.max !y (py -. zdy +. ih +. row_gap));
       cw := Float.max !cw iw;
