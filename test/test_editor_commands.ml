@@ -23,7 +23,7 @@ let run () =
     Pxui_shell.Layout.[View ""; View "v1.0"; Graph; List; Lisp; Inspector; Outline; Timeline];
   check (Keymap.label (Chord (Input.KeyChar '/', [Input.Shift])) = "?"
       && Keymap.label (Chord (Input.ArrowLeft, [])) = "←"
-      && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "Cmd-Shift-z")
+      && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "⌘⇧Z")
     "shared key labels lost a modifier or alias";
   let module Scope = Pxui_graph.Scope in
   let ids context = Command.for_guide Scope.bindings ~focus:() ~context

@@ -285,6 +285,14 @@ module Paint : sig
     ?radius:float -> Rays.Color.t -> unit
   (** A band of [width] centred on the rectangle's edges. *)
 
+  val frame :
+    t -> x:float -> y:float -> w:float -> h:float -> ?width:float -> ?radius:float ->
+    Rays.Color.t -> unit
+  (** A border drawn inside the box, as CSS draws one: [stroke] centres its band on the edge, so
+      a caller handing it the box of a frame ends half a [width] outside; [frame] insets by half a
+      [width], so a 1-point border covers exactly the box's outermost whole point.  The one way to
+      frame a box. *)
+
   val rect :
     t -> x:float -> y:float -> w:float -> h:float -> ?fill:Rays.Color.t ->
     ?stroke:Rays.Color.t -> ?radius:float -> unit -> unit
@@ -329,13 +337,14 @@ module Paint : sig
   (** The label size: two points under the kit text. *)
 
   val cap : t -> at:float * float -> ?color:Rays.Color.t -> string -> unit
-  (** A label: upper case at {!label_size} with a point of tracking, ink-2 by default.
+  (** A label: upper case at {!label_size} with 0.08 em of tracking, ink-2 by default.
       Sections, headers, units. *)
 
   val cap_width : t -> string -> float
+  (** The width of {!cap}: the tracking follows every letter but the last. *)
 
   val chevron : t -> at:float * float -> [ `Down | `Up | `Left | `Right ] -> Rays.Color.t -> unit
-  (** A 7-point chevron centred at [at]. *)
+  (** A chevron centred at [at]: strokes 7 by 3.5 points, 9 by 5.5 of ink with the line. *)
 
   val brackets :
     t -> x:float -> y:float -> w:float -> h:float -> ?offset:float -> ?length:float ->

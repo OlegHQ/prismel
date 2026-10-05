@@ -289,15 +289,18 @@ module Kit = struct
   let cap_y ui y h = Ui.text_top ui ~size:(max 8 (Ui.font_size ui - 2)) y h
   let cap_size ui = max 8 (Ui.font_size ui - 2)
 
-  (* the width of a label ({!Ui.Paint.cap}): upper case, a point of tracking a character *)
+  (* the width of a label ({!Ui.Paint.cap}): upper case, 0.08 em of tracking after each letter
+     but the last *)
   let cap_width ui text =
     let count = ref 0 in
     String.iter (fun c -> if Char.code c land 0xC0 <> 0x80 then incr count) text;
-    Ui.text_width ui ~size:(cap_size ui) (String.uppercase_ascii text) +. float !count
+    Ui.text_width ui ~size:(cap_size ui) (String.uppercase_ascii text)
+    +. (0.08 *. float (cap_size ui) *. float (max 0 (!count - 1)))
 
-  (* the width of a text button: 6, the label, 6 and the key, 6 *)
+  (* the width of a text button, the kit's [.btn]: a transparent 1-point edge, 6, the label, 6 and
+     the key, 6, the edge *)
   let button_width ui ?hint ?(icon = false) label =
-    12. +. Ui.text_width ui label +. (if icon then 13. else 0.)
+    14. +. Ui.text_width ui label +. (if icon then 13. else 0.)
     +. (match hint with Some hint -> 6. +. Ui.text_width ui ~size:(cap_size ui) hint | None -> 0.)
 
   (* A button is its text and, in ink-3, its key: a fill on hover and press, the control fill
@@ -317,14 +320,14 @@ module Kit = struct
       let color = if enabled then theme.foreground else Pxui.Theme.ink_3 theme in
       let tx = match icon with
         | None when centered -> x +. Float.floor ((w -. Ui.Paint.text_width paint label) /. 2.)
-        | None -> x +. 6.
+        | None -> x +. 7.
         | Some shape ->
             let cy = y +. (h /. 2.) in
             (match shape with
              | `Play -> for i = 0 to 3 do
-                 Ui.Paint.fill paint ~x:(x +. 6. +. (2. *. float i)) ~y:(cy -. 4. +. float i) ~w:2. ~h:(8. -. (2. *. float i)) color done
-             | `Stop -> Ui.Paint.fill paint ~x:(x +. 6.) ~y:(cy -. 4.) ~w:8. ~h:8. color);
-            x +. 19. in
+                 Ui.Paint.fill paint ~x:(x +. 7. +. (2. *. float i)) ~y:(cy -. 4. +. float i) ~w:2. ~h:(8. -. (2. *. float i)) color done
+             | `Stop -> Ui.Paint.fill paint ~x:(x +. 7.) ~y:(cy -. 4.) ~w:8. ~h:8. color);
+            x +. 20. in
       Ui.Paint.text paint ~at:(tx, text_y ui y h) ~color label;
       Option.iter (fun hint ->
         Ui.Paint.text paint ~size:(cap_size ui) ~color:(Pxui.Theme.ink_3 theme)
@@ -1540,7 +1543,7 @@ module Tree = struct
         (* current (the keyboard cursor) and selected are the control fill; selected adds the
            accent brackets, drawn once the rows are down *)
         Ui.Paint.fill paint ~x ~y:row_y ~w ~h:height theme.panel;
-        if selected then Ui.Paint.fill paint ~x:(x +. 4.) ~y:row_y ~w:(w -. 8.) ~h:height theme.control
+        if selected then Ui.Paint.fill paint ~x:(x +. 6.) ~y:row_y ~w:(w -. 12.) ~h:height theme.control
         else if t.focus = Some row.id then Ui.Paint.fill paint ~x ~y:row_y ~w ~h:height theme.control
         else if hover = Some k then Ui.Paint.fill paint ~x ~y:row_y ~w ~h:height (Pxui.Theme.faint_border theme);
         let indent level = x +. 12. +. float_of_int level *. indent_step in
@@ -1572,29 +1575,28 @@ module Tree = struct
              and, when on, a mark 3 points inside in ink-2 *)
           if column = 0 then begin
             Ui.Paint.fill paint ~x:(cx -. 6.) ~y:(cy -. 6.) ~w:12. ~h:12. theme.input;
-            Ui.Paint.stroke paint ~x:(cx -. 5.5) ~y:(cy -. 5.5) ~w:11. ~h:11. (Pxui.Theme.border theme);
+            Ui.Paint.frame paint ~x:(cx -. 6.) ~y:(cy -. 6.) ~w:12. ~h:12. (Pxui.Theme.border theme);
             if value then Ui.Paint.fill paint ~x:(cx -. 3.) ~y:(cy -. 3.) ~w:6. ~h:6. ink_2
           end else begin
-            Ui.Paint.circle paint ~at:(cx, cy) ~radius:6. ~fill:theme.input
+            Ui.Paint.circle paint ~at:(cx, cy) ~radius:5.5 ~fill:theme.input
               ~stroke:(Pxui.Theme.border theme) ();
             if value then Ui.Paint.circle paint ~at:(cx, cy) ~radius:3. ~fill:ink_2 ()
           end) row.flags;
-        if selected then Ui.Paint.brackets paint ~x:(x +. 4.) ~y:row_y ~w:(w -. 8.) ~h:height
-          ~offset:3. ~length:8. theme.accent in
+        (* the sheet's brackets: 4 points out of the fill, which is 6 in from the list's edge *)
+        if selected then Ui.Paint.brackets paint ~x:(x +. 6.) ~y:row_y ~w:(w -. 12.) ~h:height
+          ~offset:4. ~length:8. theme.accent in
       for k = first to last do
         draw_row k (top +. float_of_int k *. height -. scroll)
       done;
       List.iteri (fun slot k -> draw_row k (top +. float_of_int slot *. height)) sticky;
       if sticky <> [] then
-        Ui.Paint.line paint ~from_:(x, top +. float_of_int (List.length sticky) *. height)
-          ~to_:(x +. w, top +. float_of_int (List.length sticky) *. height)
+        Ui.Paint.fill paint ~x ~y:(top +. float_of_int (List.length sticky) *. height) ~w ~h:1.
           (Pxui.Theme.edge theme);
       (match drop_hint with
        | Some (k, drop) ->
            let row_y = top +. float_of_int k *. height -. scroll in
            (match drop with
-            | Inside -> Ui.Paint.stroke paint ~x:(x +. 1.) ~y:row_y ~w:(w -. 2.)
-                          ~h:height ~width:2. theme.accent
+            | Inside -> Ui.Paint.frame paint ~x ~y:row_y ~w ~h:height ~width:2. theme.accent
             | Before | After ->
                 let line_y = if drop = Before then row_y else row_y +. height in
                 Ui.Paint.line paint ~from_:(x, line_y) ~to_:(x +. w, line_y) ~width:2.

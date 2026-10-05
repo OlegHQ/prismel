@@ -1418,6 +1418,13 @@ module Paint = struct
     Batch.Builder.rect paint.builder ~x ~y ~width:w ~height:h
       ~border_color:(packed color) ~border:width ~radius ()
 
+  (* A border drawn inside its box, as CSS draws one: [stroke] centres its line on the rectangle's
+     edge, so a box of whole points gets the line half a width in; the border then covers whole
+     points (a 1-point border on a 2x display is two pixels, on the box's own pixels). *)
+  let frame paint ~x ~y ~w ~h ?(width = 1.) ?(radius = 0.) color =
+    let half = width /. 2. in
+    stroke paint ~x:(x +. half) ~y:(y +. half) ~w:(w -. width) ~h:(h -. width) ~width ~radius color
+
   let rect paint ~x ~y ~w ~h ?fill:fill_color ?stroke:stroke_color ?radius () =
     let fill_color = match fill_color, stroke_color with
       | None, None -> Some Color.white | _ -> fill_color in
@@ -1485,13 +1492,15 @@ module Paint = struct
           let snap value = Float.round (value *. density) /. density in
           let screen_x = snap ((x *. scale) +. paint.tx)
           and screen_y = snap ((y *. scale) +. paint.ty) in
-          let pen = ref 0 and tracking = int_of_float (Float.round (tracking *. density)) in
+          (* the pen runs in fractional physical pixels (0.88 points of tracking is 1.76 at 2x);
+             each glyph is placed on a whole pixel *)
+          let pen = ref 0. and tracking = tracking *. density in
           iter_code_points text (fun code ->
             match glyph ui.atlas font ~density:ui.density code with
             | None -> ()
             | Some glyph ->
                 if glyph.gw > 0 then begin
-                  let gx = screen_x +. (float !pen /. density)
+                  let gx = screen_x +. (Float.round !pen /. density)
                   and gw = float glyph.gw /. density
                   and gh = float glyph.gh /. density in
                   Batch.Builder.textured paint.builder ~texture:1
@@ -1502,28 +1511,32 @@ module Paint = struct
                     ~u1:(float (add glyph.gx glyph.gw))
                     ~v1:(float (add glyph.gy glyph.gh)) ~color
                 end;
-                pen := add (add !pen glyph.advance) tracking)
+                pen := !pen +. float glyph.advance +. tracking)
 
   let text_width paint ?size text =
     float (text_width_px paint.owner ?size text) /. float paint.owner.density
 
-  (* The label style: upper case, two points under the body, one point of tracking. *)
+  (* The label style: upper case, two points under the body, 0.08 em of tracking. *)
   let label_size paint = max 8 (paint.owner.font_size - 2)
+  let cap_tracking paint = 0.08 *. float (label_size paint)
   let cap paint ~at ?color label =
-    text paint ~at ~size:(label_size paint) ~tracking:1.
+    text paint ~at ~size:(label_size paint) ~tracking:(cap_tracking paint)
       ~color:(Option.value color ~default:(Theme.ink_2 paint.owner.theme)) (String.uppercase_ascii label)
+  (* the tracking follows each letter but the last: no trailing gap *)
   let cap_width paint label =
     let label = String.uppercase_ascii label in
     let count = ref 0 in
     iter_code_points label (fun _ -> incr count);
-    text_width paint ~size:(label_size paint) label +. float !count
+    text_width paint ~size:(label_size paint) label +. (cap_tracking paint *. float (max 0 (!count - 1)))
 
+  (* A chevron centred on [at]: its strokes span 7 x 3.5, which with the 1-point line is the
+     sheet's 9 x 5.5 of ink. *)
   let chevron paint ~at:(cx, cy) direction color =
     let a, b = match direction with
-      | `Down -> (-4., -2.), (4., -2.) | `Up -> (-4., 2.), (4., 2.)
-      | `Right -> (-2., -4.), (-2., 4.) | `Left -> (2., -4.), (2., 4.) in
+      | `Down -> (-3.5, -1.75), (3.5, -1.75) | `Up -> (-3.5, 1.75), (3.5, 1.75)
+      | `Right -> (-1.75, -3.5), (-1.75, 3.5) | `Left -> (1.75, -3.5), (1.75, 3.5) in
     let tip = match direction with
-      | `Down -> 0., 2. | `Up -> 0., -2. | `Right -> 2., 0. | `Left -> -2., 0. in
+      | `Down -> 0., 1.75 | `Up -> 0., -1.75 | `Right -> 1.75, 0. | `Left -> -1.75, 0. in
     let p (dx, dy) = cx +. dx, cy +. dy in
     line paint ~from_:(p a) ~to_:(p tip) color; line paint ~from_:(p tip) ~to_:(p b) color
 
@@ -1552,7 +1565,7 @@ module Paint = struct
 
   (* Empty: a hairline box crossed corner to corner. *)
   let cross paint ~x ~y ~w ~h color =
-    stroke paint ~x ~y ~w ~h color;
+    frame paint ~x ~y ~w ~h color;
     line paint ~from_:(x, y) ~to_:(x +. w, y +. h) color;
     line paint ~from_:(x, y +. h) ~to_:(x +. w, y) color
 
@@ -1652,9 +1665,8 @@ let paint_all ui (frame : Frame.t) =
       if ui.keyboard_focus && ui.focus = ui.b_key.(index) then begin
         paint.scale <- ui.l_scale.(index); paint.tx <- ui.l_tx.(index);
         paint.ty <- ui.l_ty.(index); paint.clip_rect <- clip_rect;
-        Paint.stroke paint ~x:(ui.l_x.(index) +. 1.) ~y:(ui.l_y.(index) +. 1.)
-          ~w:(Float.max 0. (ui.l_w.(index) -. 2.))
-          ~h:(Float.max 0. (ui.l_h.(index) -. 2.)) ui.theme.accent
+        Paint.frame paint ~x:ui.l_x.(index) ~y:ui.l_y.(index)
+          ~w:(Float.max 0. ui.l_w.(index)) ~h:(Float.max 0. ui.l_h.(index)) ui.theme.accent
       end
     end else
       (* Culled: keep retained rectangles current for [rect] queries. *)
@@ -1824,7 +1836,7 @@ let tooltip ?shortcut ui ~key ~text =
       ui.overlays <- tip.index :: ui.overlays;
       draw ui tip (fun paint (x, y, w, h) ->
         Paint.fill paint ~x ~y ~w ~h ui.theme.input;
-        Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) (Theme.edge ui.theme);
+        Paint.frame paint ~x ~y ~w ~h (Theme.edge ui.theme);
         List.iteri (fun i line ->
           Paint.text paint ~size ~color:ui.theme.foreground
             ~at:(x +. 7., y +. (14. *. float i) +. Float.floor (float (20 - size) /. 2.)) line) lines;
@@ -1926,7 +1938,7 @@ let cap_y ui y h = text_top ui ~size:(max 8 (ui.font_size - 2)) y h
 let paint_section paint ui (x, y, w, h) label ~open_ ~hovered =
   if hovered then Paint.fill paint ~x ~y ~w ~h (Theme.faint_border ui.theme);
   Paint.cap paint ~at:(x +. float side, cap_y ui y h) ~color:(Theme.ink_3 ui.theme) label;
-  Paint.chevron paint ~at:(x +. w -. float side -. 3., y +. (h /. 2.) -. 0.5)
+  Paint.chevron paint ~at:(x +. w -. float side -. 3., y +. (h /. 2.))
     (if open_ then `Down else `Right) ui.theme.foreground
 (* the space above a section header: 4 at the top of its parent, none after a closed one *)
 let section_gap ui =
@@ -1951,7 +1963,7 @@ let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_hei
     Paint.fill paint ~x ~y ~w ~h (if Option.is_some stroke then theme.input else theme.panel));
   draw_over ui panel (fun paint rect ->
     Option.iter (fun color -> let x, y, w, h = rect in
-      Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:1. color) stroke;
+      Paint.frame paint ~x ~y ~w ~h color) stroke;
     let x, y, width, height = ints rect in
     let content = int_of_float ui.l_content.(index) in
     let maximum = max 0 (content - height) in
@@ -2470,7 +2482,7 @@ let edit_text_event ui edit ~accept ~modifiers event =
   | Event.KeyPressed Input.End -> move (line_end edit.text edit.caret); false
   | _ -> false
 
-let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
+let paint_text_edit paint ?size ?(right = false) ~control:(cx, cy, cw, ch) ~y ~composition edit =
   let ui = paint.owner in
   let theme = ui.theme in
   let width text = Paint.text_width paint ?size text /. paint.scale in
@@ -2483,7 +2495,10 @@ let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
     else if caret_width -. scroll > visible then caret_width -. visible
     else scroll in
   ui.edit_scroll_x <- scroll;
-  let text_x = float (cx + 2) -. scroll in
+  (* a number keeps its right edge while it is edited, until it outgrows the field *)
+  let origin = if right && width edit.text <= visible
+    then float (cx + cw - 2) -. width edit.text else float (cx + 2) in
+  let text_x = origin -. scroll in
   let caret_x = text_x +. caret_width in
   Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
     ~h:(float ch) ~focused:true ~cursor:(caret_x -. float cx) ();
@@ -2514,7 +2529,7 @@ let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
 (* Numeric label editing shared by float and integer sliders. The retained
    state records validity; [parse] validates the edit buffer. *)
 let rec numeric_editor ?size ?control ?(click_to_edit = false)
-    ?(edit_request = false) ?(alt_to_edit = false)
+    ?(edit_request = false) ?(alt_to_edit = false) ?(align_right = false)
     ?(accept = String.for_all numeric_character) ui row signal ~keys ~current ~parse =
   let enter = function
     | Event.KeyPressed Input.Enter, modifiers -> not (command_modifiers modifiers)
@@ -2541,8 +2556,11 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
       let committed = ref None and state = ref state
       and cancelled = ref false in
       let (cx, _, cw, _) = control in
+      let left = if align_right then
+          Float.max (float (cx + 2)) (float (cx + cw - 2) -. float (text_width_px ui ?size edit.text) /. float (max 1 ui.density))
+        else float (cx + 2) in
       point_text_caret ui ?size edit signal ~shift:(press_shift ui row)
-        ~x:(float (cx + 2)) ~right:(float (cx + cw - 2));
+        ~x:left ~right:(float (cx + cw - 2));
       List.iter (fun ((event : Event.t), modifiers) -> match event with
         | Event.KeyPressed Input.Enter when not (command_modifiers modifiers) ->
             (match parse edit.text with
@@ -2578,7 +2596,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
           | event :: rest when enter event -> rest
           | _ :: rest -> after_enter rest | [] -> [] in
         let keys = if signal.double_clicked || signal.clicked then keys else after_enter keys in
-        numeric_editor ?size ~control:control_bounds ~click_to_edit ~accept ui row
+        numeric_editor ?size ~control:control_bounds ~click_to_edit ~align_right ~accept ui row
           { signal with keys = List.map fst keys; pressed = false;
             clicked = false; double_clicked = false } ~keys ~current ~parse
       end else None, false
@@ -2776,7 +2794,7 @@ let slider_row ui ?(disabled = false) text ~draw_value ~value_text ~fraction_of 
   let bounds = ints (rect ui row) in
   let control = value_control bounds in
   let in_control point = contains (floats control) point in
-  let typed, editing = numeric_editor ui row signal ~keys:(key_events ui row)
+  let typed, editing = numeric_editor ~align_right:true ui row signal ~keys:(key_events ui row)
       ~current:(fun () -> current value)
       ~parse in
   if editing then ui.b_flags.(row.index) <- clickable lor focusable lor blocking;
@@ -2808,9 +2826,9 @@ let slider_row ui ?(disabled = false) text ~draw_value ~value_text ~fraction_of 
     match edit with
     | Some text ->
         underline paint control (if valid then theme.accent else Theme.invalid);
-        if focused then paint_text_edit paint ~control ~y:(label_y ui y h)
+        if focused then paint_text_edit paint ~right:true ~control ~y:(label_y ui y h)
           ~composition { text; caret = edit_caret; anchor = edit_anchor }
-        else kit_text paint (cx + 2) (label_y ui y h) text
+        else kit_text paint (cx + cw - 2 - int_of_float (Float.round (Paint.text_width paint text))) (label_y ui y h) text
     | None ->
         underline paint control (if disabled then Theme.faint_border theme else Theme.edge theme);
         (* the 2-point line over the hairline is the position in the soft range *)
@@ -2836,7 +2854,7 @@ let slider ui ?disabled text ~range:(low, high) value =
       match float_of_string_opt text with
       | Some value when Float.is_finite value -> Some value
       | Some _ | None -> None)
-    ~current:(Printf.sprintf "%.17g") value
+    ~current:(range_float ~span:(high -. low)) value
 
 let int_slider ui ?disabled text ~range:(low, high) value =
   if high <= low then invalid_arg "Ui.int_slider: range must be increasing";
@@ -3351,7 +3369,8 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     set_at ui container ~at:(px, py);
     let selected = !selected in
     draw ui container (fun paint (x, y, w, h) ->
-      Paint.rect paint ~x ~y ~w ~h ~fill:theme.input ~stroke:(Theme.edge theme) ();
+      Paint.fill paint ~x ~y ~w ~h theme.input;
+      Paint.frame paint ~x ~y ~w ~h (Theme.edge theme);
       let doc = items.(selected).doc in
       if doc <> "" then
         Paint.text paint ~color:(Theme.muted theme)
@@ -3414,7 +3433,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       Option.iter (fun (o, k) -> List.iter (fun b ->
         let ls = start_of rows line and le = stop_of rows line in
         if b >= ls && b < le then
-          Paint.stroke paint ~x:(text_x +. width (String.sub final ls (b - ls))) ~y:(y +. 1.)
+          Paint.frame paint ~x:(text_x +. width (String.sub final ls (b - ls))) ~y:(y +. 1.)
             ~w:char_w ~h:(row -. 2.) theme.accent) [ o; k ]) matched;
       (* a number under the pointer (or being dragged) wears an accent underline *)
       Option.iter (fun (a, b) ->
@@ -3456,7 +3475,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       let caret_x = text_x +. width (String.sub final (start_of rows caret_line)
         (edit.caret - start_of rows caret_line)) in
       Paint.input_region paint ~x:bx ~y ~w:bw ~h:row ~focused:true ~cursor:(caret_x -. bx) ();
-      Paint.line paint ~from_:(caret_x, y +. 2.) ~to_:(caret_x, y +. row -. 2.) ~width:1. theme.accent
+      Paint.fill paint ~x:(Float.round caret_x) ~y:(y +. 2.) ~w:1. ~h:(row -. 4.) theme.accent
     end else Paint.input_region paint ~x:bx ~y:by ~w:bw ~h:bh ~focused:false ();
     paint.clip_rect <- previous);
   final, !submitted
@@ -3497,7 +3516,7 @@ let choice ui ?(disabled = false) text options selected =
     underline paint control (if pressed || keyboard then theme.accent
       else if disabled then Theme.faint_border theme else Theme.edge theme);
     kit_text paint ~color:ink (cx + 2) (label_y ui y h) options.(selected);
-    Paint.chevron paint ~at:(float (cx + cw) -. 5., float cy +. (float ch /. 2.) -. 0.5) `Down ink);
+    Paint.chevron paint ~at:(float (cx + cw) -. 5., float cy +. (float ch /. 2.)) `Down ink);
   selected
 
 let range_slider ui text ~range:(low, high) (lower, upper) =
@@ -3767,8 +3786,9 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) la
               Paint.fill paint ~x:(float rx +. float side) ~y:(float y +. (float h /. 2.) -. 3.) ~w:6. ~h:6. theme.accent;
             let lead = if selected = None then 0 else 14 in
             Option.iter (fun color ->
-              Paint.rect paint ~x:(float (rx + side + lead)) ~y:(float y +. float h /. 2. -. 4.)
-                ~w:8. ~h:8. ~fill:color ~stroke:(Theme.edge theme) ())
+              let sx = float (rx + side + lead) and sy = float y +. float h /. 2. -. 4. in
+              Paint.fill paint ~x:sx ~y:sy ~w:8. ~h:8. color;
+              Paint.frame paint ~x:sx ~y:sy ~w:8. ~h:8. (Theme.edge theme))
               (Option.join (List.nth_opt swatches index));
             kit_text paint ~color:(if enabled then theme.foreground else Theme.ink_3 theme)
               (rx + side + lead + int_of_float swatch_pad) (label_y ui y h) shown;
