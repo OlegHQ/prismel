@@ -2678,7 +2678,11 @@ let paint_text_edit paint ?size ?(right = false) ?(inset = 2.) ?(caret = true) ~
       (String.sub edit.text edit.caret
         (String.length edit.text - edit.caret))
   end;
-  if caret then Paint.fill paint ~x:caret_x ~y:(float cy +. 2.5) ~w:1. ~h:14. theme.accent;
+  (* the caret is the line of the text it sits in: 14 of a 20-point field at body size *)
+  let caret_y, caret_h = match size with
+    | None -> float cy +. 2.5, 14.
+    | Some size -> let h = float size *. 1.1 in float cy +. ((float ch -. h) /. 2.), h in
+  if caret then Paint.fill paint ~x:caret_x ~y:caret_y ~w:1. ~h:caret_h theme.accent;
   paint.clip_rect <- previous_clip
 
 (* Numeric label editing shared by float and integer sliders. The retained
@@ -2868,7 +2872,7 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
   let title', editing = match rename with
     | Some valid ->
         within ui header (fun () ->
-          value_field ui ~at:(text_x -. 2., if win then y_title else y_title -. 2.)
+          value_field ui ~at:(text_x -. 2., if win then y_title -. 1. else y_title -. 2.)
             ~w:(width -. (2. *. (text_x -. 2.))) ~h:title_h ~size:display
             ~left:true ~bare:true ~tracking:(-0.01 *. float display) ~valid (key ^ "-name") title)
     | None -> title, false in

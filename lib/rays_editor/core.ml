@@ -591,12 +591,31 @@ let kind_fields value graph head authored =
     | World -> Some Flow.Context.World | Settings -> Some Flow.Context.Settings
     | Material -> Some Flow.Context.Material | _ -> None) in
   match Lazy.force value.flow_catalog, context with
+  | _ when head = "material/standard" ->
+      (* a built-in of the workspace, not a catalog kind: its four keywords *)
+      let number (e : S.t) = match e.node with S.Num t -> float_of_string_opt t | _ -> None in
+      let field name default view =
+        let current = match authored name, default with
+          | Some { S.node = S.Str t; _ }, Parameter.Text_value _ -> Parameter.Text_value t
+          | Some e, Parameter.Float_value _ -> (match number e with Some f -> Parameter.Float_value f | None -> default)
+          | _ -> default in
+        { Parameter.name; label = name; description = None; folder = []; impact = Parameter.Cook; primary = false;
+          vec3 = None; kind = view; default; current } in
+      Some [ field "name" (Parameter.Text_value "") Parameter.Text_view;
+             field "color" (Parameter.Text_value "#cccccc") Parameter.Text_view;
+             field "roughness" (Parameter.Float_value 0.5)
+               (Parameter.Floating_view { soft_min = 0.; soft_max = 1.; hard_min = Some 0.; hard_max = Some 1. });
+             field "emission" (Parameter.Text_value "#000000") Parameter.Text_view ]
   | Some catalog, Some context ->
       (match Flow.Check.resolve_kind catalog context head with
        | Error _ -> None
        | Ok (k : Flow.Check.kind) ->
            let number (e : S.t) = match e.node with S.Num t -> float_of_string_opt t | _ -> None in
+           (* the render settings an old camera carried are shown only while a file still writes them *)
+           let legacy (p : Flow.Check.parameter) = head = "scene/camera" && authored p.name = None
+             && List.mem p.name [ "width"; "height"; "max_spp" ] in
            Some (List.concat_map (fun (p : Flow.Check.parameter) ->
+             if legacy p then [] else
              let written = authored p.name in
              let three = List.length p.fields = 3 && p.ty = Some Flow.Port_type.Vec3 in
              List.mapi (fun i (name, view, default) ->
@@ -3616,7 +3635,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       let open_network = network value in
       let window = List.exists (fun (l : Pxui_shell.Layout.leaf) -> l.floating && l.panel = Inspector && l.body = bounds) g.leaves in
       (* a window keeps its 1-point border on the left, right and bottom: its panel lies inside *)
-      let bounds = if window then (let x, y, w, h = bounds in x + 1, y, max 1 (w - 2), max 1 (h - 1)) else bounds in
+      let bounds = if window then (let x, y, w, h = bounds in x, y, max 1 w, max 1 (h - 1)) else bounds in
       let inspector_panel ui bounds build = inspector_panel ~window ui bounds build in
       on_sheet ui window
       @@ fun () -> Pxui.Ui.within ui inspector_root (fun () -> match selected_ids with
