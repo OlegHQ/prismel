@@ -361,6 +361,17 @@ module Paint : sig
   val hatch : t -> x:float -> y:float -> w:float -> h:float -> Rays.Color.t -> unit
   (** Diagonal hairlines clipped to the rectangle: bypassed, stale, cooking. *)
 
+  val flag : t -> at:float * float -> ?round:bool -> bool -> unit
+  (** An outline flag centred at [at]: 12 points, the input fill, a line-3 edge inside the box and,
+      when on, a 6-point mark in ink-2; square, or [round] for the columns after the first. *)
+
+  val progress : t -> x:float -> y:float -> ?w:float -> ?h:float -> float -> unit
+  (** A progress bar, 96 by 8 by default: hatched with a line-3 edge, and the done fraction a
+      bar in ink one point inside the edge. *)
+
+  val ratio : t -> at:float * float -> int -> int -> unit
+  (** The ratio of a splitter being dragged, [first / second], as an accent label with no box. *)
+
   val input_region :
     t -> ?cursor:float -> x:float -> y:float -> w:float -> h:float -> focused:bool -> unit -> unit
   (** Text-input metadata for on-screen keyboards and IME placement. [cursor]
@@ -468,13 +479,17 @@ val inspector_message : t -> key:string -> string -> unit
 (** A short muted inspector note, clipped to the available width. *)
 
 val popup :
-  t -> ?stroke:Rays.Color.t -> ?max_height:float -> ?dismiss_initial:bool ->
+  t -> ?stroke:Rays.Color.t -> ?max_height:float -> ?dismiss_initial:bool -> ?attached:bool ->
+  ?keep:(float * float * float * float) list ->
   at:float * float -> width:float -> height:float -> string ->
   (unit -> 'a) -> 'a option
 (** A floating panel dismissed by Escape, focus loss, or a press outside its
     last laid-out bounds. [height] supplies the first-frame hit area.
     Build it before the body it shields; it paints on top and consumes
-    underlying input, including its opening/dismissal frame. *)
+    underlying input, including its opening/dismissal frame.  An [attached] popup (a submenu,
+    built after the popup it belongs to) shares that popup's events and is never dismissed by
+    itself; the owner passes the rectangles of its attached popups as [keep] so that a press
+    in one of them is not a press outside. *)
 
 val modal : t -> ?width:float -> string -> (unit -> 'a) -> 'a option
 (** A kit panel centered in the frame, outlined in the accent colour. Build it
@@ -493,11 +508,19 @@ val footer : t -> ?right:string -> (string * string) list -> unit
     in ink-2) and [right], a count as a label, at the end. *)
 
 val button :
-  t -> ?key:string -> ?primary:bool -> ?on:bool -> ?disabled:bool -> string -> bool
+  t -> ?key:string -> ?primary:bool -> ?on:bool -> ?disabled:bool -> ?bare:bool -> ?icon:bool ->
+  ?at_end:bool -> ?ink:Rays.Color.t -> string -> bool
 (** [true] on the frame a press and release both land inside the button. A button is its text
     (kit rev 3): [key] is the shortcut shown after it in ink-3, [primary] outlines the one
     button of a panel, [on] fills a button that is switched on, [disabled] greys it and makes it
-    inert. *)
+    inert.  [bare] narrows the padding to 4 points (a button in a head); [icon] makes it the
+    20-point square with its glyph (a [x], [+], [<]) centred; [at_end] puts the box at the row's end,
+    8 points from the edge; [ink] colours the text.  The keyboard focus is an accent line over the
+    last row of the box. *)
+
+val message : t -> ?error:bool -> key:string -> string -> unit
+(** A message row: a 6-point dot (accent, or the error ink with [error]) and the text, wrapped to
+    the parent's width on lines of 20 points with 4 above and below (28 high for one line). *)
 
 val toggle : t -> ?disabled:bool -> string -> bool -> bool
 
@@ -507,14 +530,16 @@ val slider : t -> ?disabled:bool -> string -> range:float * float -> float -> fl
     cancels). *)
 
 val int_slider : t -> ?disabled:bool -> string -> range:int * int -> int -> int
-val text_field : t -> ?disabled:bool -> string -> string -> string
+val text_field : t -> ?disabled:bool -> ?placeholder:string -> ?invalid:string -> string -> string -> string
 (** A single-line field.  Every text widget edits as macOS does: a click places the caret and
     Shift-click or a drag extends the selection, a double click selects the word (a triple the
     line), Option-arrows move by words and Command-arrows (or Home/End) by lines, each with
     Shift extending, Option-Backspace/Delete take a word and Command-Backspace/Delete the line
     to the caret, Command-A/C/X/V select all, copy, cut and paste, and Command-Z and
     Shift-Command-Z (or Command-Y) undo and redo the focused text (consecutive typing is one
-    step; the stack is dropped when the focus or the value changes from outside). *)
+    step; the stack is dropped when the focus or the value changes from outside).  An empty field
+    shows [placeholder] in ink-3; with [invalid] (the reason) the underline and the value take the
+    error ink and a 24-point row under the field says why, in 11 points. *)
 
 type completion = {
   replace : int * int;  (** the byte span [insert] replaces *)
@@ -608,7 +633,10 @@ val value_field : t -> at:float * float -> w:float -> h:float ->
     Only valid text commits; the boolean reports an open text editor. *)
 
 val choice : t -> ?disabled:bool -> string -> string list -> int -> int
-(** Press the left or right half to step through the options. *)
+(** A field showing the current option; a click opens the options as the kit's menu (accent
+    underline and a chevron up while open, the menu a point under the field and as wide, the
+    current option marked with the accent square) and picking one returns it.  The arrow keys
+    step through the options. *)
 
 val range_slider :
   t -> string -> range:float * float -> float * float -> float * float
@@ -623,7 +651,8 @@ val fuzzy_match : query:string -> string -> bool
 (** Case-insensitive subsequence match. *)
 
 val picker :
-  t -> ?limit:int -> ?mark:(int -> Rays.Color.t option) -> ?slash:bool -> string -> query:string ->
+  t -> ?limit:int -> ?mark:(int -> Rays.Color.t option) -> ?off:(int -> bool) -> ?slash:bool ->
+  string -> query:string ->
   (string -> (string * string) array) -> string * pick
 (** A focused search row (the label is its placeholder and key) over the
     [(label, detail)] rows for the current query, windowed to [limit] (default
@@ -632,22 +661,38 @@ val picker :
     and at most one result: [`Pick] on Enter or a
     row click, [`Submit] on Enter with no rows, [`Delete] on a second Delete
     over the same (red, armed) row, [`Back] on Backspace or Left with an empty
-    query, and [`Cancel] on Escape. Build it inside a panel or {!modal}. *)
+    query, and [`Cancel] on Escape. [mark] gives a row its type square.  An [off] row (one that
+    cannot be chosen here) reads in ink-3 whole, square included, and neither Enter nor a click
+    picks it.  Build it inside a panel or {!modal}. *)
 
 val context_clicked : signal -> bool
 (** A right press and release that moved less than 4 points: open a context
     menu rather than pan. *)
 
+type submenu = {
+  row : int;  (** the row of the menu that opens it (drawn with a chevron) *)
+  rows : (string * bool) list;
+  keys : string list;
+  current : int option;  (** the row marked with the accent square *)
+}
+
 val context_menu :
   t -> at:float * float -> ?width:float -> ?selected:int -> ?swatches:Rays.Color.t option list ->
-  ?keys:string list -> string -> (string * bool) list -> [ `Open | `Pick of int | `Dismiss ]
+  ?keys:string list -> ?danger:int list -> ?submenus:submenu list -> ?dismiss_initial:bool -> string ->
+  (string * bool) list ->
+  [ `Open | `Pick of int | `Dismiss ]
 (** A floating menu at [at] with [(label, enabled)] rows, as wide as its longest
     row and at least [width] wide, capped to the frame. An empty label is a separator
     line (never picked). [selected] marks the current choice; [swatches] gives a row a small colour square
     before its label. The host keeps it
     open while this returns [`Open]; a row commits on press and release inside
     it, and Escape, focus loss, or a press outside return [`Dismiss]. Build it
-    before content it shields; it floats at the root regardless of its parent. *)
+    before content it shields; it floats at the root regardless of its parent.
+    [keys] are the shortcuts in ink-2 at the right; [danger] rows (a delete) read in the error ink.
+    A row named by a {!submenu} has a chevron and, while the pointer is on it, opens a second menu
+    overlapping the first by a point, level with the row; the rows of the submenus are numbered after
+    those of the menu, in the order the submenus are given.  A press outside the menu in the frame
+    that first builds it dismisses it, unless [dismiss_initial] is false (the press that opened it). *)
 
 val accordion :
   t -> ?expanded:bool -> ?set_expanded:bool -> string -> (unit -> 'a) ->
