@@ -437,7 +437,7 @@ Navigator reads (the checked workspace, the open graph's projection, the probe r
 scene object's row opens its scene graph on its binding; `Core.outline_objects` and the editor graph's layouts are in
 the params; `Navigator.Layout` and `Add` run `Leader.Layout_switch` and `Add_node` like a toolbar click);
 `Navigator.Set_default` is `Flow_edit.Set_input_default`. There is no host bar: panels fill the window above the
-status strip, and every global action is a leader key and a palette row (`Space [` for layouts, `Space k` for the key
+status strip, and every global action is a leader key and a palette row (`Space [` for layouts, `Space ?` for the key
 sheet). A graph-header toolbar click that means a command runs next frame like a palette pick (so do the
 active viewport's header tools, Solid / Wire / Traced as `Leader.Render_mode` and Look through; the graph
 header's Graph / List / Text tabs set the pane's projection, and the Lisp tabs sit in its header too); one that means an

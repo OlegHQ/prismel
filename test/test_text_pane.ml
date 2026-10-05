@@ -501,16 +501,17 @@ let editor_w9 () =
   check (contains text "(petals : int 7)" && label = Some "Input default")
     ("the inspector's input default: " ^ Option.value label ~default:"-");
   (* the inspector note: click the field, type, Enter *)
-  (* the note is the last section, closed: `soft` is bypassed, so its rows are the Output section's three
-     (4 + 24 above, then 3 rows of 24) under the 173-point head: the Note header (16 above, 24) has its
-     middle at 173 + 28 + 72 + 16 + 12 = 301, and its row 24 lower *)
+  (* the note is the last section, closed, and below the fold of a node with this many rows: the
+     wheel over a value field scrolls the inspector to its end, where the 24-point Note header sits
+     on the pane's bottom edge (y 776 less the 1-point rule: middle 763); open, the same scroll puts
+     its row there *)
+  let wheel _ _ = [ Event.MouseMoved (1260., 405.); Event.MouseScrolled (0., -100.) ] in
   let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.)));
-    26, (fun click _ -> click (1250., 302.)); 30, (fun click _ -> click (1290., 326.));
+    24, wheel; 25, wheel; 26, (fun click _ -> click (1250., 763.));
+    28, wheel; 29, wheel; 30, (fun click _ -> click (1290., 763.));
     32, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 34, (fun _ _ -> [ Event.TextInput "a fresh note" ]);
     36, (fun _ _ -> [ Event.KeyPressed Input.Enter ]) ] in
-  (* TODO: a bypassed node now lists its own rows (not the upstream Output section), so the Note header
-     moved from y 302; the position is to be re-derived. Until then the edit is only exercised. *)
-  ignore (text, label);
+  check (contains text "; a fresh note" && label = Some "Note") ("the note edit: " ^ Option.value label ~default:"-");
   (* the dialog: m over the selection, then Create macro *)
   let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.)));
     26, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click _ -> click (500., 461.)) ] in

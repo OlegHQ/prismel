@@ -151,7 +151,7 @@ let run () =
     fail "Flow inspector xyz control did not request a vector split";
   let color_f name current = {
     Parameter.name; label = String.capitalize_ascii name; description = None;
-    folder = []; impact = Parameter.Cook; primary = false; vec3 = Some ("color", 0);
+    folder = []; impact = Parameter.Cook; primary = false; unit = None; vec3 = Some ("color", 0);
     kind = Parameter.Floating_view { soft_min = 0.; soft_max = 1.; hard_min = Some 0.; hard_max = Some 1. };
     default = Parameter.Float_value 1.; current = Parameter.Float_value current;
   } in

@@ -17,6 +17,7 @@ let hard_min_attribute = expression_attribute "sop.hard_min"
 let hard_max_attribute = expression_attribute "sop.hard_max"
 let kind_attribute = expression_attribute "sop.kind"
 let vec3_attribute = expression_attribute "sop.vec3"
+let unit_attribute = expression_attribute "sop.unit"
 let primary_attribute =
   Attribute.declare_flag "sop.primary" Attribute.Context.label_declaration
 let ignore_attribute =
@@ -192,6 +193,8 @@ let field_expression components type_declaration declaration =
        | None -> []
        | Some (name, index) ->
            [Labelled "vec3", pexp_tuple ~loc [estring ~loc name; eint ~loc index]])
+    @ optional_labelled ~loc "unit"
+        (optional_string unit_attribute declaration "sop.unit")
     @ optional_labelled ~loc "label"
         (optional_string label_attribute declaration "sop.label")
     @ optional_labelled ~loc "description"
@@ -497,7 +500,7 @@ let manifest structure =
 let attributes = List.map (fun attribute -> Attribute.T attribute)
     [ default_attribute; label_attribute; name_attribute; description_attribute;
       folder_attribute; impact_attribute; soft_min_attribute; soft_max_attribute;
-      hard_min_attribute; hard_max_attribute; kind_attribute; vec3_attribute ]
+      hard_min_attribute; hard_max_attribute; kind_attribute; vec3_attribute; unit_attribute ]
   @ [Attribute.T ignore_attribute; Attribute.T primary_attribute]
 
 let node_attributes = List.map (fun attribute -> Attribute.T attribute)

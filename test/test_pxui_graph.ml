@@ -818,5 +818,6 @@ let bench_scope_big () =
   time "2001 nodes: with_scope" 5 (fun () -> Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope);
   let view = ref (Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope) in
   for _ = 1 to 5 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
+  time "2001 nodes: with_scope again" 20 (fun () -> Scope.with_scope ~key:"g" scope !view);
   time "2001 nodes: frame" 100 (fun () ->
     view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))); ())

@@ -732,14 +732,18 @@ let flags_of_key ui key =
   let index = hit_index ui key in
   if index < 0 then 0 else ui.hit_flags_of.(index)
 
+(* The scroll box the wheel goes to at [point]: the topmost one, unless a blocking box lies over it
+   that is not its own content (a field inside a scrolling panel lets the panel scroll; a menu over
+   it does not). *)
 let scroll_target ui point =
-  let rec search index =
+  let rec search blocker index =
     if index < 0 then 0
-    else if not (hit_contains ui index point) then search (index - 1)
-    else if ui.hit_flags_of.(index) land scroll <> 0 then ui.hit_keys.(index)
-    else if ui.hit_flags_of.(index) land blocking <> 0 then 0
-    else search (index - 1) in
-  search (ui.hit_count - 1)
+    else if not (hit_contains ui index point) then search blocker (index - 1)
+    else if ui.hit_flags_of.(index) land scroll <> 0 then
+      (if blocker = 0 || hit_within ui blocker ui.hit_keys.(index) then ui.hit_keys.(index) else 0)
+    else if blocker = 0 && ui.hit_flags_of.(index) land blocking <> 0 then search ui.hit_keys.(index) (index - 1)
+    else search blocker (index - 1) in
+  search 0 (ui.hit_count - 1)
 
 let traverse_focus ui ~shift =
   let eligible index = ui.hit_flags_of.(index) land focusable <> 0
@@ -2338,6 +2342,15 @@ let message ui ?(error = false) ~key text =
    a fill on hover and press, the control fill when [on], an accent line inside the bottom edge with
    the keyboard, a line-3 edge for the one [primary]; [key] follows the text in ink-3 at the label
    size.  The box starts 5 points in so that its text lines up with the labels at 12. *)
+(* The ground of a button, the one painter of [button] and of the shell's positioned buttons: a fill
+   on press and hover, the control fill when [on], a line-3 edge for the [primary]. *)
+let paint_button_ground paint theme ~held ~hovered ~on ~primary (cx, cy, cw, ch) =
+  if held then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.pressed_fill theme)
+  else if hovered then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.hover_fill theme)
+  else if on then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch theme.control;
+  if primary then
+    Paint.stroke paint ~x:(cx +. 0.5) ~y:(cy +. 0.5) ~w:(cw -. 1.) ~h:(ch -. 1.) (Theme.border theme)
+
 let button ui ?key ?(primary = false) ?(on = false) ?(disabled = false) ?(bare = false)
     ?(icon = false) ?(at_end = false) ?ink text =
   let shown = display text in
@@ -2358,17 +2371,19 @@ let button ui ?key ?(primary = false) ?(on = false) ?(disabled = false) ?(bare =
   draw ui row (fun paint rect ->
     let x, y, w, h = rect in
     let cx, cy, cw, ch = extent (x, y, w, h) in
-    let ink = if disabled then Theme.ink_3 theme else Option.value ink ~default:theme.foreground in
-    if disabled then ()
-    else if signal.held then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.pressed_fill theme)
-    else if signal.hovered then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.hover_fill theme)
-    else if on then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch theme.control;
-    if primary && not disabled then
-      Paint.stroke paint ~x:(cx +. 0.5) ~y:(cy +. 0.5) ~w:(cw -. 1.) ~h:(ch -. 1.) (Theme.border theme);
+    let ink = if disabled then Theme.ink_3 theme
+      else Option.value ink ~default:(if bare then Theme.ink_2 theme else theme.foreground) in
+    if not disabled then paint_button_ground paint theme ~held:signal.held ~hovered:signal.hovered
+        ~on ~primary (cx, cy, cw, ch);
     (* the keyboard's mark: the accent over the last row of the box, its whole width *)
     if focus then Paint.fill paint ~x:cx ~y:(cy +. ch -. 1.) ~w:cw ~h:1. theme.accent;
     let pad = if icon then Float.floor ((cw -. measure shown) /. 2.) else if bare then 5. else 7. in
-    Paint.text paint ~at:(cx +. pad, text_top ui y h) ~color:ink shown;
+    (match icon, shown with
+     | true, ("<" | ">" | "v" | "^") ->
+         let direction = match shown with
+           | "<" -> `Left | ">" -> `Right | "v" -> `Down | _ -> `Up in
+         Paint.chevron paint ~at:(cx +. (cw /. 2.), cy +. (ch /. 2.)) direction ink
+     | _ -> Paint.text paint ~at:(cx +. pad, text_top ui y h) ~color:ink shown);
     Option.iter (fun key ->
       Paint.text paint ~size ~at:(cx +. pad +. measure shown +. 6., text_top ui ~size y h)
         ~color:(Theme.ink_3 theme) key) key);
@@ -2838,10 +2853,13 @@ let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub ?(left = fal
             width in
           let lead_w = Option.fold ~none:0. ~some:(fun l -> draw_part l +. 6.) lead in
           let trail_w = Option.fold ~none:0. ~some:(fun t -> draw_part ~right:true t +. 6.) trail in
-          Paint.text paint ?size ~color:ui.theme.foreground
-            ~at:(float (x + 2) +. lead_w, text_y)
-            (inspector_fit paint ~size:(Option.value ~default:ui.font_size size)
-               ~width:(float w -. 4. -. lead_w -. trail_w) display)
+          (* with no lead the value sits against its trail (a unit: [35 mm]) *)
+          let shown = inspector_fit paint ~size:(Option.value ~default:ui.font_size size)
+            ~width:(float w -. 4. -. lead_w -. trail_w) display in
+          let value_x = if lead = None && not left
+            then float (x + w - 2) -. trail_w -. Paint.text_width paint ?size shown
+            else float (x + 2) +. lead_w in
+          Paint.text paint ?size ~color:ui.theme.foreground ~at:(value_x, text_y) shown
     end;
     paint.clip_rect <- previous_clip);
   value, editing

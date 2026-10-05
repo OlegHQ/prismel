@@ -100,6 +100,7 @@ let describe = function
       (if g.prims = 0 && g.points > 0 then Printf.sprintf "%s pt%s" (spaced g.points) (if g.points = 1 then "" else "s")
        else Printf.sprintf "%d prim%s" g.prims (if g.prims = 1 then "" else "s"))
       ^ (if g.groups = [] then "" else " · groups " ^ String.concat ", " g.groups)
+      ^ (match g.seconds with Some s -> Printf.sprintf " · %.3f s" s | None -> "")
 
 (* ---- chains, series ---- *)
 

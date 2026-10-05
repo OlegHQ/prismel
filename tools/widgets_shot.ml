@@ -46,9 +46,11 @@ let sheet ui =
       288.5, 178., "defn", (fun n -> ignore (Ui.button ui ~key:"D" ~disabled:true n));
       48., 208., "Check and apply", (fun n -> ignore (Ui.button ui ~key:"⌘↵" ~primary:true n));
       180.5, 208., "Discard", (fun n -> ignore (Ui.button ui n));
-      48., 238., "Reset", (fun n -> ignore (Ui.button ui ~bare:true n));
-      110., 238., "×", (fun n -> ignore (Ui.button ui ~icon:true n));
-      140., 238., "+", (fun n -> ignore (Ui.button ui ~icon:true n)) ];
+      244., 208., "Reset", (fun n -> ignore (Ui.button ui ~bare:true n));
+      290.5, 208., "<", (fun n -> ignore (Ui.button ui ~icon:true n));
+      314.5, 208., "v", (fun n -> ignore (Ui.button ui ~icon:true n));
+      339., 208., "+", (fun n -> ignore (Ui.button ui ~icon:true n));
+      363.5, 208., "×", (fun n -> ignore (Ui.button ui ~icon:true n)) ];
   (* [03] switches *)
   at ui ~x:49. ~y:415. ~w:462. "sw" (fun () ->
     ignore (Ui.toggle ui "Live update while dragging" true);
@@ -74,6 +76,22 @@ let sheet ui =
     st.caption <- Ui.text_field ui "caption" st.caption;
     ignore (Ui.text_field ui ~placeholder:"all points" "group" "");
     st.count_text <- Ui.text_field ui ~invalid:"expected an integer" "count" st.count_text);
+  (* [07] a vector and a colour, the kit's own functions, in rows of the control column *)
+  at ui ~x:537. ~y:555. ~w:462. "vec" (fun () ->
+    let row = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.) "vec-row" in
+    Ui.within ui row (fun () ->
+      Ui.draw ui row (fun paint (x, y, _, _) ->
+        Ui.Paint.text paint ~at:(x +. 12., Ui.text_top ui y 24.) ~color:(Pxui.Theme.ink_2 (Ui.theme ui)) "translate");
+      ignore (Pxui_shell.Kit.vector ui row ~at:(132., 2.) ~w:318. (fun i ~x ~w ->
+        ignore (Ui.value_field ui ~at:(x, 2.) ~w ~h:20. ~valid:(fun _ -> true)
+          (Printf.sprintf "vec-%d" i) (List.nth [ "0"; "1.25"; "0" ] i)); []))));
+  at ui ~x:537. ~y:723. ~w:462. "col" (fun () ->
+    let row = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px 24.) "col-row" in
+    Ui.within ui row (fun () ->
+      Ui.draw ui row (fun paint (x, y, _, _) ->
+        Ui.Paint.text paint ~at:(x +. 12., Ui.text_top ui y 24.) ~color:(Pxui.Theme.ink_2 (Ui.theme ui)) "colour");
+      ignore (Pxui_shell.Kit.colour ui ~key:"c" ~at:(132., 2.) ~w:318.
+        ~swatch:(Color.rgb 0x28 0x5f 0x77) ~hex:"#285f77")));
   (* [08] messages *)
   at ui ~x:537. ~y:1023. ~w:462. "msg" (fun () ->
     Ui.message ui ~key:"info" "Select a node to edit its parameters.";

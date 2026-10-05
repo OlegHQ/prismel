@@ -26,6 +26,15 @@ hatched, the displayed node wears an accent flag, a drop target is dashed; the c
 with a dot every 24 points and a register cross every 480 by 192.
 
 
+Card rule (kit rev 3): a Card is the header plus its wired or written rows, with no `+ N more` row; the footer
+(value, spark, `1 204 pts · 0.003 s` cook time) is drawn on Full only. Geometry is computed once per node at the
+level the zoom shows (`shown`): a point's box is as wide as its name at the zoom's font (re-measured when the font
+changes), a chip is the header, and ports, wire ends, obstacles and hit boxes all read that box. Columns sit on a
+288-point pitch (196 + 92 gap on the 24-point lattice). A wire is one straight segment, or one bend (5-point square,
+72 points before the port) when a card is in the way, round above or below only as a last resort; zone label rows
+and bottom edges are obstacles. The obstacle grid is int-keyed and `crosses` rejects by box first: routing is on the
+`with_scope` hot path (`dune exec test/test_main.exe -- bench_scope_big`).
+
 Deterministic left-to-right layout by longest input path with short branches
 tightened toward consumers and shared fan-outs anchored. Upstream branches
 are separated in port order; layout reserves authored detail heights at every

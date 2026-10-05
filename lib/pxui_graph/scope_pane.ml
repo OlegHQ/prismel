@@ -67,15 +67,21 @@ type wire = {
   dashed : bool;  (* a loop's feedback *)
 }
 
+type obstacle = { path : path; rx : float; ry : float; rw : float; rh : float }
+
 type geo = {
   items : (P.placed * float * float) array;  (* absolute top-left, graph units *)
   wires : wire array;
   rel : (path, float * float) Hashtbl.t;  (* position inside the scope, for [at] *)
   pos : (path, float * float * float * float) Hashtbl.t;
   origins : (path * (float * float)) list;  (* where each scope's own coordinates start *)
+  obstacles : obstacle list;  (* what the routes were drawn around *)
+  routes : ((float * float) * (float * float) * path list, (float * float) list) Hashtbl.t;
+      (* each wire's route by its ends: a rebuild around the same obstacles (a number scrubbed, a
+         name edited) reuses them; one entry, replaced by every rebuild *)
 }
 
-let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = [] }
+let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = []; obstacles = []; routes = Hashtbl.create 1 }
 let root_name s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 let fallback (r : P.row) = Option.bind r.ty (fun ty -> E.default_for ty r.label)
 
@@ -95,18 +101,21 @@ let line_of_row (lines : P.line array) =
 
 (* ---- wire routing: straight, or bent clear of every card ---- *)
 
-type obstacle = { path : path; rx : float; ry : float; rw : float; rh : float }
-
 (* a bucket grid over the cards: a wire asks only the cells its box crosses *)
-type grid = { cell : float; cells : (int * int, obstacle list) Hashtbl.t }
+module Cells = Hashtbl.Make (Int)
+
+(* a cell's key: one int (cells are far fewer than 32768 high) *)
+let cell_key cx cy = cx * 65536 + cy
+
+type grid = { cell : float; cells : obstacle list Cells.t }
 
 let grid_of obstacles =
   let cell = 128. in
-  let cells = Hashtbl.create 64 in
+  let cells = Cells.create 64 in
   List.iter (fun o ->
     for cx = int_of_float (Float.floor (o.rx /. cell)) to int_of_float (Float.floor ((o.rx +. o.rw) /. cell)) do
       for cy = int_of_float (Float.floor (o.ry /. cell)) to int_of_float (Float.floor ((o.ry +. o.rh) /. cell)) do
-        Hashtbl.replace cells (cx, cy) (o :: Option.value ~default:[] (Hashtbl.find_opt cells (cx, cy)))
+        Cells.replace cells (cell_key cx cy) (o :: Option.value ~default:[] (Cells.find_opt cells (cell_key cx cy)))
       done
     done) obstacles;
   { cell; cells }
@@ -115,6 +124,8 @@ let grid_of obstacles =
 let crosses (x0, y0) (x1, y1) o ~margin =
   let xmin = o.rx -. margin and xmax = o.rx +. o.rw +. margin
   and ymin = o.ry -. margin and ymax = o.ry +. o.rh +. margin in
+  (* the segment's box misses the rectangle: no need for the clip *)
+  if Float.max x0 x1 < xmin || Float.min x0 x1 > xmax || Float.max y0 y1 < ymin || Float.min y0 y1 > ymax then false else
   let dx = x1 -. x0 and dy = y1 -. y0 in
   let t0 = ref 0. and t1 = ref 1. and ok = ref true in
   let clip p q =
@@ -134,8 +145,8 @@ let blockers grid ~excl p q =
   for cx = c (Float.min x0 x1) to c (Float.max x0 x1) do
     for cy = c (Float.min y0 y1) to c (Float.max y0 y1) do
       List.iter (fun o ->
-        if not (List.mem o.path excl) && not (List.memq o !found) && crosses p q o ~margin:2. then found := o :: !found)
-        (Option.value ~default:[] (Hashtbl.find_opt grid.cells (cx, cy)))
+        if crosses p q o ~margin:2. && not (List.memq o !found) && not (List.mem o.path excl) then found := o :: !found)
+        (Option.value ~default:[] (Cells.find_opt grid.cells (cell_key cx cy)))
     done
   done;
   !found
@@ -149,8 +160,8 @@ let is_blocked ?(margin = 2.) grid ~excl p q =
     for cx = c (Float.min x0 x1) to c (Float.max x0 x1) do
       for cy = c (Float.min y0 y1) to c (Float.max y0 y1) do
         List.iter (fun o ->
-          if not (List.mem o.path excl) && crosses p q o ~margin then raise Blocked)
-          (Option.value ~default:[] (Hashtbl.find_opt grid.cells (cx, cy)))
+          if crosses p q o ~margin && not (List.mem o.path excl) then raise Blocked)
+          (Option.value ~default:[] (Cells.find_opt grid.cells (cell_key cx cy)))
       done
     done;
     false
@@ -234,11 +245,12 @@ let shown_of ~level_at ~cap (p : P.placed) = match p.item with
    the right *)
 let point_name (p : P.placed) = match p.item with
   | P.Item n -> P.point_title n | P.Input i -> i.name | P.Return -> "return"
-let point_box_w name = P.point_size +. 8. +. 7. *. float (String.length name)
+(* [name_w] is the name's real width in graph units at the font the zoom draws it in *)
+let point_box_w ~name_w name = P.point_size +. 8. +. name_w name
 
 (* [shift] moves a placed item by its path (a drag in progress); a zone's
    children follow through the origin they are laid out from. *)
-let compute ?(style = `Straight) ~shown (scope : P.scope) (layout : P.layout) ~shift =
+let compute ?(style = `Straight) ?(previous = empty_geo) ~name_w ~shown (scope : P.scope) (layout : P.layout) ~shift =
   let items = ref [] and pos = Hashtbl.create 64 and rel = Hashtbl.create 64 in
   let origins = ref [ (scope.path, (0., 0.)) ] in
   let rec walk ox oy (l : P.layout) =
@@ -249,7 +261,7 @@ let compute ?(style = `Straight) ~shown (scope : P.scope) (layout : P.layout) ~s
          the obstacles and the hit boxes all come from it *)
       let lv = shown p in
       let p, ay = match lv with
-        | P.Point -> { p with shown = lv; w = point_box_w (point_name p); h = P.point_size },
+        | P.Point -> { p with shown = lv; w = point_box_w ~name_w (point_name p); h = P.point_size },
                      if p.level = P.Point && (match p.item with P.Input _ -> false | _ -> true)
                      then ay else ay +. 5.
         | P.Chip -> { p with shown = lv; h = P.head_height }, ay
@@ -264,19 +276,26 @@ let compute ?(style = `Straight) ~shown (scope : P.scope) (layout : P.layout) ~s
       | _ -> ()) l.placed in
   walk 0. 0. layout;
   let items_list = List.rev !items in
-  let obstacles = List.filter_map (fun ((p : P.placed), ax, ay) -> match p.item with
+  let obstacles = List.concat_map (fun ((p : P.placed), ax, ay) -> match p.item with
     | P.Item { zone = Some _; _ } when not p.collapsed ->
-        (* an expanded zone's label row is in the way; its inside is not *)
-        Some { path = p.path; rx = ax; ry = ay; rw = p.w; rh = P.head_height }
-    | _ -> Some { path = p.path; rx = ax; ry = ay; rw = p.w; rh = p.h }) items_list in
+        (* an expanded zone's label row is in the way, and its bottom edge (no wire runs along it);
+           its inside is not *)
+        [ { path = p.path; rx = ax; ry = ay; rw = p.w; rh = P.head_height };
+          { path = p.path; rx = ax; ry = ay +. p.h -. 3.; rw = p.w; rh = 6. } ]
+    | _ -> [ { path = p.path; rx = ax; ry = ay; rw = p.w; rh = p.h } ]) items_list in
   let grid = grid_of obstacles in
+  let reuse = if previous.obstacles = obstacles then previous.routes else Hashtbl.create 1 in
+  let routes = Hashtbl.create (max 16 (Hashtbl.length reuse)) in
   let wires = ref [] in
   let wire ?target ?(dashed = false) (s : src option) b ~into =
     match s with
     | Some s ->
         let excl = (match s.owner with Some o -> [ o ] | None -> []) @ into in
         let pts = match style with
-          | `Straight -> route grid ~excl s.pos b
+          | `Straight ->
+              let key = (s.pos, b, excl) in
+              let pts = match Hashtbl.find_opt reuse key with Some pts -> pts | None -> route grid ~excl s.pos b in
+              Hashtbl.replace routes key pts; pts
           | `Rect -> rect_points s.pos b in
         wires := { a = s.pos; b; ty = s.ty; target; pts; dashed } :: !wires
     | None -> () in
@@ -406,7 +425,7 @@ let compute ?(style = `Straight) ~shown (scope : P.scope) (layout : P.layout) ~s
             let target = (ax, ay +. P.body_top +. wire_row_y) in
             wire source target ~into:[ scope.path @ [ "@return" ] ]
         | None -> ()));
-  { items = Array.of_list items_list; wires = Array.of_list (List.rev !wires); rel; pos; origins = !origins }
+  { items = Array.of_list items_list; wires = Array.of_list (List.rev !wires); rel; pos; origins = !origins; obstacles; routes }
 
 (* ---------------------------------------------------------------- state *)
 
@@ -447,6 +466,7 @@ type t = {
   framed : bool;
   layout : P.layout;
   geo : geo;
+  geo_fs : int;  (* the font size point names were measured at *)
   geo_cap : P.level;  (* the zoom cap [geo] was computed under *)
   pan_x : float; pan_y : float; zoom : float;
   wires : [ `Rect | `Straight ];
@@ -470,10 +490,11 @@ type t = {
 }
 
 (* the geometry of the scope at the levels the zoom shows *)
+let font_of zoom = max 5 (int_of_float (Float.round (13. *. zoom)))
 let regeo t scope layout ~shift =
-  let cap = cap_of t.zoom in
-  { t with geo_cap = cap;
-    geo = compute ~style:t.wires ~shown:(shown_of ~level_at:t.level_at ~cap) scope layout ~shift }
+  let cap = cap_of t.zoom and fs = font_of t.zoom in
+  { t with geo_cap = cap; geo_fs = fs;
+    geo = compute ~style:t.wires ~previous:t.geo ~name_w:(fun s -> t.measure fs s /. t.zoom) ~shown:(shown_of ~level_at:t.level_at ~cap) scope layout ~shift }
 
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
@@ -481,7 +502,7 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
   at = (fun _ -> None); level_at = (fun _ -> None); pin_at = (fun _ _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
-  layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; geo_cap = P.Full; pan_x = 12.; pan_y = 12.; zoom = 1.;
+  layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; geo_fs = 13; geo_cap = P.Full; pan_x = 12.; pan_y = 12.; zoom = 1.;
   wires = `Straight; selected = Path_set.empty; selected_wire = None; panning_grab = false;
   hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats; switches = [];
   carry_lit = []; carry_hot = None; failed = []; hinting = None; held = [], false; back = [];
@@ -1955,9 +1976,14 @@ let update t ui (frame : Frame.t) =
       { t with zoom; pan_x = (mx -. float t.x) -. ((mx -. float t.x) -. t.pan_x) *. k;
         pan_y = (my -. float t.y) -. ((my -. float t.y) -. t.pan_y) *. k }
     end in
+  let t = { t with measure = (fun size s -> Ui.text_width ui ~size s) } in
   (* the zoom crossed a cap: the nodes change level, and with them boxes, ports and wire ends *)
   let t = match t.scope with
     | Some scope when cap_of t.zoom <> t.geo_cap -> regeo t scope t.layout ~shift:no_shift
+    | Some scope when font_of t.zoom <> t.geo_fs ->
+        (* a point's box is as wide as its name, drawn at the zoom's font *)
+        if Array.exists (fun ((p : P.placed), _, _) -> p.shown = P.Point) t.geo.items
+        then regeo t scope t.layout ~shift:no_shift else { t with geo_fs = font_of t.zoom }
     | _ -> t in
   (* a drag in progress moves its items in a fresh geometry *)
   let t = match t.drag, t.scope with
@@ -1967,10 +1993,9 @@ let update t ui (frame : Frame.t) =
     | Some (Carrying c), Some scope when Float.hypot c.dx c.dy > 0. ->
         regeo t scope t.layout ~shift:(fun p -> if List.mem p c.paths then c.dx, c.dy else 0., 0.)
     | _ -> t in
-  let t = { t with measure = (fun size s -> Ui.text_width ui ~size s) } in
   let z = t.zoom in
   (* text follows the zoom down to 5 points (a 6-point row at zoom 0.25 holds it) *)
-  let fs = max 5 (int_of_float (Float.round (13. *. z))) in
+  let fs = font_of z in
   let viewport = (float t.x, float t.y, float t.width, float t.height) in
   let visible = Array.to_list t.geo.items |> List.filter (fun ((p : P.placed), ax, ay) ->
     let r = (sx t ax -. 20., sy t ay -. 20., p.w *. z +. 40., p.h *. z +. 40.) in
@@ -2723,7 +2748,7 @@ module Private = struct
     |> Option.map (fun (x, y, w, h) -> sx t x, sy t y, w *. t.zoom, h *. t.zoom)
   let selector t path = Option.map (fun (x, y, w, _) ->
     let z = t.zoom in
-    let fs = max 5 (int_of_float (Float.round (13. *. z))) in
+    let fs = font_of z in
     let sx, sy, sw, sh, _ = selector_geo ~measure:t.measure ~z ~fs ~w ~count:(count_of t path) ~probe:(t.probe path) in
     let x = x +. sx and y = y +. sy in
     (x -. 4. *. z, y, 16. *. z, sh), (x +. 12. *. z, y, sw -. 24. *. z, sh), (x +. sw -. 12. *. z, y, 16. *. z, sh)) (box_of t path)

@@ -2,6 +2,7 @@ type parameter = {
   name : string; label : string; ty : Port_type.t option;
   fields : (string * Param.kind_view * Param.value) list;
   folder : string list; primary : bool;
+  unit : string option;
 }
 type slot = { name : string; required : bool; rest : bool }
 type kind = {
@@ -55,11 +56,11 @@ let parameters_of_fields fields =
              gather ({name = group; label = field.label; ty = Some Port_type.Vec3;
                fields = List.map (fun (field : Param.field_view) ->
                  field.name, field.kind, field.default)
-                 [field;y;z]; folder = field.Param.folder; primary = field.Param.primary} :: reversed) tail
+                 [field;y;z]; folder = field.Param.folder; primary = field.Param.primary; unit = None} :: reversed) tail
          | _ -> gather ({name = field.name; label = field.label;
              ty = Port_type.of_field_kind field.kind;
              fields = [field.name, field.kind, field.default];
-             folder = field.Param.folder; primary = field.Param.primary} :: reversed) rest) in
+             folder = field.Param.folder; primary = field.Param.primary; unit = field.Param.unit} :: reversed) rest) in
   gather [] fields
 
 exception Invalid_manifest of Diagnostic.t
@@ -131,7 +132,10 @@ let catalog_of_manifest source =
             Param.Choice_view (Array.of_list (List.map string labels))
         | _ -> bad form "Unknown field kind in Flow manifest" in
       let field form = match tagged "field" form with
-        | [name; label; folder; kind; default; primary; vec3] ->
+        | name :: label :: folder :: kind :: default :: primary :: vec3 :: tail ->
+            let unit = match tail with
+              | [u] -> (match tagged "unit" u with [text] -> Some (string text) | _ -> None)
+              | _ -> None in
             let default = literal default in
             let vec3 = match tagged "vec3" vec3 with
               | [] -> None | [name; index] -> Some (string name, integer index)
@@ -139,7 +143,7 @@ let catalog_of_manifest source =
             {Param.name = string name; label = string label;
               description = None; folder = strings "folder" folder;
               impact = Param.Cook; primary = bool (one "primary" primary);
-              vec3; kind = kind_view kind; default; current = default}
+              unit; vec3; kind = kind_view kind; default; current = default}
         | _ -> bad form "Malformed field in Flow manifest" in
       let port_type form = match word form with
         | "geometry" -> Port_type.Geometry | "float" -> Float

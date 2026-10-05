@@ -483,3 +483,23 @@ let () =
   expect "Shift selection uses the captured press keys" intents [T.Select [3; 1; 2]];
   Pxui.Ui.destroy ui;
   print_endline "pxui shell tests passed"
+
+(* Echo: a refusal is a tip in the error ink (no dot), information has its dot; neither is drawn
+   for no tips, and a card under a tip does not change what is drawn. *)
+let () =
+  let tip_instances ?avoid tips =
+    let ui = Pxui.Ui.create ~font_size:11 () in
+    ignore (Pxui.Ui.frame ui frame (fun ui ->
+      Pxui_shell.Status_bar.tips ui ~bounds:(0, 0, 400, 300) ?avoid tips));
+    match Scene.Private.stage_native ~width:400 ~height:300 (Pxui.Ui.scene ui) with
+    | Error message -> failwith message
+    | Ok staged -> List.fold_left (fun total -> function
+        | Scene.Private.Ui_layer (batch, _) -> total + Scene_command.Ui_batch.count batch
+        | _ -> total) 0 staged.layers in
+  let refusal = [ "Cannot delete the root", `Refusal ] and info = [ "Saved", `Info ] in
+  if tip_instances [] <> 0 then failwith "no tips drew something";
+  if tip_instances refusal = 0 then failwith "a refusal tip drew nothing";
+  if tip_instances refusal = tip_instances info then
+    failwith "a refusal tip is drawn like information (it has no dot)";
+  if tip_instances ~avoid:[ 12., 250., 100., 40. ] refusal <> tip_instances refusal then
+    failwith "a tip over a card changed what it draws"

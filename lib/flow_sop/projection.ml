@@ -210,12 +210,16 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
   (* a schema with no primary field takes the fields of its first folder as primary *)
   let any_primary = List.exists (fun (p : Flow.Check.parameter) -> p.primary) k.parameters in
   let first_folder = match k.parameters with p :: _ -> p.folder | [] -> [] in
+  (* the arguments with no folder are the kind's own section, named as the inspector names it *)
+  let kind_section (k : Flow.Check.kind) =
+    String.capitalize_ascii (match String.rindex_opt k.qualified '/' with
+      | Some i -> String.sub k.qualified (i + 1) (String.length k.qualified - i - 1) | None -> k.qualified) in
   let param_rows = List.map (fun (p : Flow.Check.parameter) ->
     let kind = if W.group_reader p then Group_reader else if W.group_writer k p then Group_writer else Arg in
     let material = k.qualified = "sop/material" && p.name = "material" in
     row c ~ty:(if material then Ty.Material else match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
       ~control:(control_of p) ~socket:true ~kind
-      ~folder:(String.concat " / " p.folder)
+      ~folder:(if p.folder = [] then kind_section k else String.concat " / " p.folder)
       ~primary:(if any_primary then p.primary else p.folder = first_folder)
       p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
   slot_rows @ param_rows
@@ -542,6 +546,12 @@ let lines ?(pin = fun _ -> None) level (n : node) : line array =
   match level with
   | Point | Chip -> [||]
   | Full ->
+      (* every section is labelled, in the order its first row appears, and holds all its rows; the
+         slots (no folder) stay above the first label *)
+      let seen = ref [] in
+      List.iter (fun (_, (r : row)) -> if not (List.mem r.folder !seen) then seen := !seen @ [ r.folder ]) body;
+      let rank (r : row) = Option.value ~default:0 (List.find_index (( = ) r.folder) !seen) in
+      let body = List.stable_sort (fun (_, a) (_, b) -> compare (rank a) (rank b)) body in
       let folders = ref 0 and current = ref "" in
       Array.of_list (List.concat_map (fun (i, (r : row)) ->
         let label =
@@ -688,6 +698,11 @@ and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?
     List.iter (fun d -> match Hashtbl.find_opt by_name (root_of d) with
       | Some k when k <> j && j < consumer.(k) -> consumer.(k) <- j
       | _ -> ()) deps) arr;
+  (* the graph's inputs stack in the order they are written, each no earlier than the one before *)
+  let prev = ref 0 in
+  Array.iteri (fun k (it, _, _, _, _) -> match it with
+    | Input _ -> prev := max !prev consumer.(k); consumer.(k) <- !prev
+    | _ -> ()) arr;
   let order k = (consumer.(k), match arr.(k) with (Input _, _, _, _, _) -> 1 | _ -> 0) in
   (* the items of each column, in item order *)
   let by_level = Array.make cols [] in

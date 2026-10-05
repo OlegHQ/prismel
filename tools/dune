@@ -288,4 +288,4 @@
 (executable
  (name widgets_shot)
  (modules widgets_shot)
- (libraries rays pxui))
+ (libraries rays pxui pxui_shell))

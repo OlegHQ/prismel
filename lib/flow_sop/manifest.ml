@@ -61,6 +61,9 @@ let field (field : Param.field_view) =
     group "primary" [string_of_bool field.primary];
     (match field.vec3 with None -> group "vec3" []
      | Some (name, index) -> group "vec3" [quote name; string_of_int index])]
+  |> fun text -> match field.unit with
+    | None -> text
+    | Some unit -> String.sub text 0 (String.length text - 1) ^ " " ^ group "unit" [quote unit] ^ ")"
 
 let outputs ports = group "outputs" (List.map (fun (name, ty) ->
   group "output" [quote name; String.lowercase_ascii (Flow.Port_type.name ty)]) ports)

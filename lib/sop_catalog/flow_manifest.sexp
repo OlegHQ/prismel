@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "1891faf08f35233ac4ca88751679edcb")
+  (digest "9fdf8e789989ef4bb4702225e4e1d6bf")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -22,9 +22,9 @@
         (field "center_x" "Center X" (folder "Transform" "Center") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3 "center" 0))
         (field "center_y" "Center Y" (folder "Transform" "Center") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3 "center" 1))
         (field "center_z" "Center Z" (folder "Transform" "Center") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3 "center" 2))
-        (field "rotation_x" "Rotate X" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 0))
-        (field "rotation_y" "Rotate Y" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 1))
-        (field "rotation_z" "Rotate Z" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 2))
+        (field "rotation_x" "Rotate X" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 0) (unit "rad"))
+        (field "rotation_y" "Rotate Y" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 1) (unit "rad"))
+        (field "rotation_z" "Rotate Z" (folder "Transform" "Rotate") (float (soft -3.1415899999999999 3.1415899999999999) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 2) (unit "rad"))
         (field "rotation_order" "Rotation order" (folder "Transform" "Rotate") (choice "XYZ" "XZY" "YXZ" "YZX" "ZXY" "ZYX") (choice "XYZ") (primary false) (vec3))
         (field "uniform_scale" "Uniform scale" (folder "Transform") (float (soft 0.01 10) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "") (primary false) (vec3))
@@ -3113,7 +3113,7 @@
         (field "width" "Width (old files)" (folder) (int (soft 1 16384) (hard 1 16384)) (int 1920) (primary false) (vec3))
         (field "height" "Height (old files)" (folder) (int (soft 1 16384) (hard 1 16384)) (int 1080) (primary false) (vec3))
         (field "max_spp" "Max samples (old files)" (folder) (int (soft 1 16384) (hard 1 16384)) (int 256) (primary false) (vec3))
-        (field "fov" "FOV (degrees)" (folder "Lens") (float (soft 5 150) (hard 1 179)) (float 60) (primary false) (vec3))
+        (field "fov" "FOV (degrees)" (folder "Lens") (float (soft 5 150) (hard 1 179)) (float 60) (primary false) (vec3) (unit "deg"))
         (field "near" "Near clip" (folder "Lens") (float (soft 0.01 10) (hard 0.0001 nil)) (float 0.10000000000000001) (primary false) (vec3))
         (field "far" "Far clip" (folder "Lens") (float (soft 10 10000) (hard 0.001 nil)) (float 1000) (primary false) (vec3))
         (field "aperture" "Aperture (lens radius)" (folder "Lens") (float (soft 0 2) (hard 0 nil)) (float 0) (primary false) (vec3))

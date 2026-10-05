@@ -160,8 +160,10 @@ module Layout = struct
       let hh = if strip then 0
         else min header_height (max 0 (if collapsed then h - margin else h - margin - 1)) in
       let body = if collapsed then 0 else max 1 (h - margin - hh) in
+      (* a viewport window's picture stands 12 points in from the sheet, under a frame (windows.html) *)
+      let inset = floating && (match panel with View _ -> true | _ -> false) && not collapsed && w > 40 && body > 40 in
       leaves := { path; panel; floating; frame = outer; header = (x, y + margin, w, hh);
-                  body = (x, y + margin + hh, w, body) } :: !leaves in
+                  body = (if inset then (x + 12, y + margin + hh, w - 24, body - 12) else (x, y + margin + hh, w, body)) } :: !leaves in
     let cut total n = (* n cells and n-1 gutters over [total] *)
       let cell = max 1 ((total - ((n - 1) * splitter_width)) / n) in
       Array.init n (fun i -> if i = n - 1 then max 1 (total - (i * (cell + splitter_width))) else cell) in
@@ -313,11 +315,8 @@ module Kit = struct
     let box = Ui.box ui ~flags:Ui.(clickable + blocking) ~w:(Ui.Px w) ~h:(Ui.Px h) ~at:(bx, by) key in
     let signal = Ui.signal ui box in
     Ui.draw ui box (fun paint (x, y, w, h) ->
-      if enabled && signal.held then Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.pressed_fill theme)
-      else if enabled && signal.hovered then Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.hover_fill theme)
-      else if active then Ui.Paint.fill paint ~x ~y ~w ~h theme.control;
-      (* a stroke is centred on the edge: inset half a point to keep it inside the 20-point box *)
-      if primary then Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) (Pxui.Theme.border theme);
+      Ui.paint_button_ground paint theme ~held:(enabled && signal.held)
+        ~hovered:(enabled && signal.hovered) ~on:active ~primary (x, y, w, h);
       let color = if enabled then theme.foreground else Pxui.Theme.ink_3 theme in
       let tx = match icon with
         | None when centered -> x +. Float.floor ((w -. Ui.Paint.text_width paint label) /. 2.)
@@ -339,6 +338,33 @@ module Kit = struct
         Ui.Paint.text paint ~size:(cap_size ui) ~color:(Pxui.Theme.ink_3 theme)
           ~at:(tx +. Ui.Paint.text_width paint label +. 6., cap_y ui y h) hint) hint);
     signal.clicked && enabled
+
+  (* A colour: a 20-point swatch, then its hex field to the right edge of the control column;
+     the hex text typed (or [hex] unchanged).  [key] names the pair; [at] is the control column. *)
+  let colour ui ~key ~at:(x, y) ~w ~swatch ~hex =
+    let box = Ui.box ui ~at:(x, y) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) ("swatch-" ^ key) in
+    Ui.draw ui box (fun paint (sx, sy, sw, sh) ->
+      (* a 20-point square with its border inside *)
+      Ui.Paint.fill paint ~x:sx ~y:sy ~w:sw ~h:sh swatch;
+      Ui.Paint.stroke paint ~x:(sx +. 0.5) ~y:(sy +. 0.5) ~w:(sw -. 1.) ~h:(sh -. 1.)
+        (Pxui.Theme.edge (Ui.theme ui)));
+    fst (Ui.value_field ui ~at:(x +. 28., y) ~w:(w -. 28.) ~h:20.
+      ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ key) hex)
+
+  (* A vector: three cells in the control column, 8 between, each with its axis letter in ink-3
+     drawn on [box] (the row); [cell index ~x ~w] makes the cell's own field (x, w relative to
+     [box]) and returns what it asks for.  [reserve] keeps room at the right for a row's toggle. *)
+  let vector ui box ~at:(cx, cy) ~w ?(reserve = 0.) ?(axes = [ "x"; "y"; "z" ]) cell =
+    let n = float (List.length axes) in
+    let cell_w = (w -. reserve -. (8. *. (n -. 1.))) /. n in
+    List.concat (List.mapi (fun index axis ->
+      (* the cells' edges land on whole points, as the sheet's do *)
+      let start = cx +. float index *. (cell_w +. 8.) in
+      let fx = Float.round start and fw = Float.round (start +. cell_w) -. Float.round start in
+      Ui.draw ui box (fun paint (x, y, _, _) ->
+        Ui.Paint.text paint ~at:(x +. fx +. 2., cap_y ui (y +. cy -. 0.5) 20.)
+          ~size:(cap_size ui) ~color:(Pxui.Theme.ink_3 (Ui.theme ui)) axis);
+      cell index ~x:fx ~w:fw) axes)
 
   (* The kit's switch: 28 x 14, a line-3 edge, an 8-point knob that is ink-3 on the track at the left
      and the accent on white at the right.  True on a click. *)
@@ -425,7 +451,7 @@ module Chrome = struct
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
-  let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
+  let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel) ?(reserve = fun (_ : leaf) -> 0.)
       ?(key_of = fun _ -> "") ?focus tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
     let geometry = geometry ~state ~hidden tree frame in
@@ -443,6 +469,17 @@ module Chrome = struct
             let line = edge_color l.path in
             let _, hy, _, _ = l.header and _, fy, _, _ = l.frame in
             Ui.Paint.fill paint ~x ~y ~w ~h:(float (hy - fy)) theme.input;
+            (* a viewport window: the sheet's white round the picture and a line-2 frame on it *)
+            (match l.panel with
+             | View _ when (let _, _, bw, _ = l.body in bw > 0) ->
+                 let bx, by, bw, bh = l.body in
+                 let bx = float bx and by = float by and bw = float bw and bh = float bh in
+                 Ui.Paint.fill paint ~x ~y:(float hy) ~w ~h:(by -. float hy) theme.input;
+                 Ui.Paint.fill paint ~x ~y:by ~w:(bx -. x) ~h:(y +. h -. by) theme.input;
+                 Ui.Paint.fill paint ~x:(bx +. bw) ~y:by ~w:(x +. w -. bx -. bw) ~h:(y +. h -. by) theme.input;
+                 Ui.Paint.fill paint ~x:(bx) ~y:(by +. bh) ~w:bw ~h:(y +. h -. by -. bh) theme.input;
+                 Ui.Paint.frame paint ~x:bx ~y:by ~w:bw ~h:bh (Pxui.Theme.edge theme)
+             | _ -> ());
             Ui.Paint.fill paint ~x ~y ~w ~h:1. line;
             Ui.Paint.fill paint ~x ~y ~w:1. ~h line; Ui.Paint.fill paint ~x:(x +. w -. 1.) ~y ~w:1. ~h line;
             Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. line)
@@ -491,9 +528,8 @@ module Chrome = struct
         Ui.draw ui dock (fun paint (x, y, w, h) ->
           if signal.hovered then Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.hover_fill theme);
           if Ui.focused ui dock then Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. theme.accent;
-          (* the dock mark: a 10-point hollow square on a 1-point ink-3 edge *)
-          Ui.Paint.frame paint ~x:(x +. (w /. 2.) -. 5.) ~y:(y +. (h /. 2.) -. 5.) ~w:10. ~h:10.
-            (Pxui.Theme.ink_3 theme))
+          (* the dock mark: a chevron-down in ink-2, as the sheet's window rows *)
+          Ui.Paint.chevron paint ~at:(x +. (w /. 2.), y +. (h /. 2.)) `Down (Pxui.Theme.ink_2 theme))
       end;
       let grip = floating ui ~flags:Ui.(clickable + blocking)
           (x, y, max 0 (w - tools), h) ("workspace-drag-" ^ label) in
@@ -607,23 +643,24 @@ module Chrome = struct
           Ui.Paint.cap paint ~at:(!tx, Kit.cap_y ui y h) ~color:(if focused then theme.foreground else ink_2) main;
           tx := !tx +. Ui.Paint.cap_width paint main +. 8.;
           let ty = Kit.text_y ui y h in
-          let put color part = Ui.Paint.text paint ~at:(!tx, ty) ~color part;
+          (* the title ends before what follows it: the pane's tabs, then the window's tools *)
+          let limit = x +. w -. (if l.floating then 64. else 36.) -. reserve l in
+          let cut ?size part = Ui.ellipsis ~width:(Ui.Paint.text_width paint ?size) ~limit:(Float.max 0. (limit -. !tx)) part in
+          let put color part = let part = cut part in
+            if part <> "" then Ui.Paint.text paint ~at:(!tx, ty) ~color part;
             tx := !tx +. Ui.Paint.text_width paint part +. 8. in
           let rec crumbs = function
             | [] -> ()
             | [ last ] -> put (if has_crumbs sub then theme.foreground else ink_2) last
             | part :: rest -> put ink_2 part; put ink_3 "/"; crumbs rest in
           (* a window's title row: the path is one string in ink-2 at the label size *)
-          if sub <> "" && l.floating then begin
-            (* the subject sits right-aligned, 8 points before the dock mark (a window's tools:
-               dock and close, 28 points each from the right edge) *)
+          if sub <> "" && l.floating && not collapsed then begin
+            (* the subject follows the kind, 8 points on (windows.html's title row) *)
             let size = Kit.cap_size ui in
-            let sw = Ui.Paint.text_width paint ~size sub in
-            let right = x +. w -. (if windowed then 46. +. 5. +. 8. else 26. +. 8.) in
-            Ui.Paint.text paint ~size ~at:(Float.max !tx (right -. sw), Kit.cap_y ui y h)
-              ~color:(Rays.Color.with_alpha ink_2 179) sub
+            Ui.Paint.text paint ~size ~at:(!tx, Kit.cap_y ui y h)
+              ~color:(Rays.Color.with_alpha ink_2 179) (cut ~size sub)
           end
-          else if sub <> "" then crumbs (split_crumbs sub);
+          else if sub <> "" && not collapsed then crumbs (split_crumbs sub);
           if collapsed then put ink_3 "collapsed"
         end;
         let cx = x +. w -. 18. and cy = y +. (h /. 2.) in
@@ -739,17 +776,13 @@ module Chrome = struct
             (* the ratio it makes, in a tip beside the gutter: "58 / 42" *)
             let first, second = sides s in
             let a = int_of_float (Float.round (100. *. float first /. float (max 1 (first + second)))) in
-            let words = Printf.sprintf "%d / %d" a (100 - a) in
-            let tw = Ui.text_width ui ~size:(Kit.cap_size ui) words in
+            let tw = Kit.cap_width ui (Printf.sprintf "%d / %d" a (100 - a)) in
             let px, py = signal.pointer in
             let tx, ty = if s.axis = `H then float (x + 8), py -. 10. else px +. 8., float (y + 8) in
-            let tip = Ui.box ui ~w:(Ui.Px (tw +. 14.)) ~h:(Ui.Px 20.) ~at:(tx, ty) "workspace-gutter-tip" in
+            let tip = Ui.box ui ~w:(Ui.Px tw) ~h:(Ui.Px 20.) ~at:(tx, ty) "workspace-gutter-tip" in
             Ui.to_front ui ~order:max_int tip;
-            Ui.draw ui tip (fun paint (x, y, w, h) ->
-              let theme = Ui.theme ui in
-              Ui.Paint.fill paint ~x ~y ~w ~h theme.input;
-              Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) (Pxui.Theme.edge theme);
-              Ui.Paint.text paint ~size:(Kit.cap_size ui) ~at:(x +. 7., Kit.cap_y ui y h) ~color:theme.foreground words)
+            Ui.draw ui tip (fun paint (x, y, _, h) ->
+              Ui.Paint.ratio paint ~at:(x, Kit.cap_y ui y h) a (100 - a))
           end;
           let dx, dy = signal.drag in
           if (signal.held || signal.released) && (if s.axis = `H then dx else dy) <> 0. then begin
@@ -1006,15 +1039,16 @@ module Status_bar = struct
     after
 
   (* where the end's parts start (the layout, then the frame rate), 12 from the edge, 8 apart *)
-  let trail_start ui ~x ~w ?(notes = []) ~layout ~fps () =
+  let trail_start ui ~x ~w ?(notes = []) ?(readout = "") ~layout ~fps () =
     let right = x +. w -. 12. in
     let right = match fps with
       | Some fps -> right -. Kit.cap_width ui (Printf.sprintf "%d fps" fps) -. 8. | None -> right in
     let right = if layout <> "" then right -. Kit.cap_width ui layout -. 8. else right in
-    List.fold_left (fun right note -> right -. Kit.cap_width ui note -. 8.) right (List.rev notes)
+    let right = List.fold_left (fun right note -> right -. Kit.cap_width ui note -. 8.) right (List.rev notes) in
+    if readout = "" then right else right -. Pxui.Ui.text_width ui readout -. 8.
 
   (* the strip's end: the layout in use, then the frame rate in ink, 8 apart; where they start *)
-  let trail ui paint (x, y, w, h) ?(notes = []) ~layout ~fps () =
+  let trail ui paint (x, y, w, h) ?(notes = []) ?(readout = "") ~layout ~fps () =
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
     let right = ref (x +. w -. 12.) in
@@ -1033,6 +1067,12 @@ module Status_bar = struct
       right := !right -. Ui.Paint.cap_width paint note;
       Ui.Paint.cap paint ~at:(!right, Kit.cap_y ui y h) note;
       right := !right -. 8.) (List.rev notes);
+    (* a graph alone in the strip: its counts in ink-2 before the zoom *)
+    if readout <> "" then begin
+      right := !right -. Ui.Paint.text_width paint readout;
+      Ui.Paint.text paint ~at:(!right, Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) readout;
+      right := !right -. 8.
+    end;
     !right
 
   (* the hairline above the bar; the bar is the 24 points under it *)
@@ -1063,7 +1103,7 @@ module Status_bar = struct
     List.fold_left (fun tx text -> tx +. Kit.cap_width ui text +. 8.)
       (after +. 17.) (List.filter_map Fun.id [ kind; selection ])
 
-  let draw ui ~bounds:(x, y, width, height) ?(file = "") ?(state = `Ok) ?(layout = "") ?(notes = [])
+  let draw ui ~bounds:(x, y, width, height) ?(file = "") ?(state = `Ok) ?(layout = "") ?(notes = []) ?(readout = "")
       ?(accent = false) ?kind ?selection ~text ~fps () =
     if height > 0 then begin
       let module Ui = Pxui.Ui in
@@ -1072,7 +1112,7 @@ module Status_bar = struct
           ~at:(float_of_int x, float_of_int y) "workspace-status" in
       Ui.draw ui box (fun paint bounds ->
         let x, y, w, h = ground ui paint bounds in
-        let right = trail ui paint (x, y, w, h) ~notes ~layout ~fps () in
+        let right = trail ui paint (x, y, w, h) ~notes ~readout ~layout ~fps () in
         let limit = if kind = None && selection = None then right else right -. 160. in
         let after = lead ui paint (x, y, h) ~file ~state ~limit text in
         if kind <> None || selection <> None then
@@ -1080,7 +1120,7 @@ module Status_bar = struct
     end
 
   let guide ui ~bounds:(x, y, width, height) ?(file = "") ?(state = `Ok) ?(layout = "") ?(text = "") ?fps
-      ?(notes = []) ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context commands =
+      ?(notes = []) ?(readout = "") ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context commands =
     let module Ui = Pxui.Ui in
     if height <= 0 then false else
     match leader with
@@ -1092,7 +1132,7 @@ module Status_bar = struct
         Ui.draw ui box (fun paint bounds ->
           let x, y, w, h = ground ui paint bounds in
           let theme = Ui.theme ui in
-          let right = trail ui paint (x, y, w, h) ~notes ~layout ~fps () in
+          let right = trail ui paint (x, y, w, h) ~notes ~readout ~layout ~fps () in
           let after = lead ui paint (x, y, h) ~file ~state ~limit:(x +. Float.min 320. (w /. 4.)) text in
           ignore right;
           let tx = focus_labels ui paint (x, y, h) ~accent:true ~after ~kind:pending () in
@@ -1115,7 +1155,7 @@ module Status_bar = struct
     (* the strip is laid out before it is painted, so the "toggle guide" pair, where a click hides
        the strip, is known to the box built for it *)
     let fx = float x and fw = float width in
-    let limit = trail_start ui ~x:fx ~w:fw ~notes ~layout ~fps () in
+    let limit = trail_start ui ~x:fx ~w:fw ~notes ~readout ~layout ~fps () in
     let has_lead = not (file = "" && text = "") in
     let after_lead = if has_lead then (let _, _, _, _, after = lead_plan ui ~x:fx ~file ~limit:(fx +. Float.min 320. (fw /. 4.)) text in after)
       else fx -. 5. in
@@ -1129,7 +1169,7 @@ module Status_bar = struct
       if label = "toggle guide" then Some (tx, kw +. 8. +. lw) else None) pairs in
     Ui.draw ui bar (fun paint bounds ->
       let x, y, w, h = ground ui paint bounds in
-      let limit = trail ui paint (x, y, w, h) ~notes ~layout ~fps () in
+      let limit = trail ui paint (x, y, w, h) ~notes ~readout ~layout ~fps () in
       ignore limit;
       (* the file and its state take at most a quarter of the strip, then the labels *)
       if has_lead then begin
@@ -1149,13 +1189,13 @@ module Status_bar = struct
       Ui.Paint.fill paint ~x ~y:(y +. 1.) ~w ~h:(h -. 1.) (Pxui.Theme.faint_border theme));
     if (Ui.signal ui bar).hovered then
       Ui.tooltip ui ~key:"guide-strip" ~text:(title ^ " \xc2\xb7 "
-        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 Space k: all keys");
+        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 Space ?: all keys");
     hide_rect <> None && (Ui.signal ui hide).clicked
 
   (* Echo, the sheet's [08]: tips stacked 4 apart in the pane's bottom-left corner, the last at the
      bottom.  A tip is 24 high on the sheet fill with a line-2 edge and 13-point text 7 in; information
      starts with a 6-point dot in the hint colour, a refusal reads in the error ink. *)
-  let tips ui ~bounds:(x, y, width, height) tips =
+  let tips ui ~bounds:(x, y, width, height) ?(avoid = []) tips =
     let module Ui = Pxui.Ui in
     if width > 0 && height > 0 && tips <> [] then begin
       let theme = Ui.theme ui in
@@ -1164,6 +1204,12 @@ module Status_bar = struct
         let w = Float.min (float (max 0 (width - 24)))
             (Ui.text_width ui text +. (match kind with `Info -> 32. | `Refusal -> 14.)) in
         let top = float (y + max 0 (height - 12)) -. (float (count - index) *. 28.) +. 4. in
+        (* a tip that would sit on a rectangle of [avoid] (a graph card) moves up above it *)
+        let left = float (x + 12) in
+        let top = List.fold_left (fun top (ax, ay, aw, ah) ->
+          if left < ax +. aw && ax < left +. w && top < ay +. ah && ay < top +. 24.
+          then ay -. 28. else top) top
+          (List.sort (fun (_, a, _, _) (_, b, _, _) -> compare b a) avoid) in
         let box = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px w) ~h:(Ui.Px 24.) ~at:(float (x + 12), top)
             (Printf.sprintf "echo-tip-%d" index) in
         Ui.draw ui box (fun paint (x, y, w, h) ->
@@ -1740,17 +1786,7 @@ module Tree = struct
         List.iteri (fun column value ->
           let cx = columns_x +. (float_of_int column *. flag_width) +. 6.
           and cy = row_y +. (height /. 2.) in
-          (* a 12-point square (the first column) or round flag: the input fill, a line-3 edge
-             and, when on, a mark 3 points inside in ink-2 *)
-          if column = 0 then begin
-            Ui.Paint.fill paint ~x:(cx -. 6.) ~y:(cy -. 6.) ~w:12. ~h:12. theme.input;
-            Ui.Paint.frame paint ~x:(cx -. 6.) ~y:(cy -. 6.) ~w:12. ~h:12. (Pxui.Theme.border theme);
-            if value then Ui.Paint.fill paint ~x:(cx -. 3.) ~y:(cy -. 3.) ~w:6. ~h:6. ink_2
-          end else begin
-            Ui.Paint.circle paint ~at:(cx, cy) ~radius:5.5 ~fill:theme.input
-              ~stroke:(Pxui.Theme.border theme) ();
-            if value then Ui.Paint.circle paint ~at:(cx, cy) ~radius:3. ~fill:ink_2 ()
-          end) row.flags;
+          Ui.Paint.flag paint ~at:(cx, cy) ~round:(column > 0) value) row.flags;
         (* the sheet's brackets: 4 points out of the fill, which is 6 in from the list's edge *)
         if selected then Ui.Paint.brackets paint ~x:(x +. 6.) ~y:row_y ~w:(w -. 12.) ~h:height
           ~offset:4. ~length:8. theme.accent in
@@ -1889,7 +1925,8 @@ module Inspector = struct
       let numeric text valid ?display ?fraction ?slide convert =
         let fraction = if ranged then fraction else None in
         let changed, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
-            ?display ?fraction ?slide ~edit ~left:(expression text) ~valid:(fun text -> valid text || expression text)
+            ?display ?fraction ?slide ~edit ~left:(expression text)
+            ?trail:(Option.map (fun unit -> unit, ink_3) field.Param.unit) ~valid:(fun text -> valid text || expression text)
             key text in
         if changed = text then [] else if expression changed then
           [Expression (path, changed)]
@@ -2021,16 +2058,8 @@ module Inspector = struct
           (String.starts_with ~prefix:"#" text || has_substr "color" field.name)
           && Result.is_ok (Color.hex text)
       | _ -> false in
-    (* a colour: a 20-point swatch, then its hex field to the right edge of the control column *)
     let swatch_and_hex ~path ~control_x ~control_y ~control_w ~swatch_color ~hex_str =
-      let swatch = Ui.box ui ~at:(control_x, control_y) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) ("swatch-" ^ path) in
-      Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-        (* a 20-point square with its border inside *)
-        Ui.Paint.fill paint ~x:sx ~y:sy ~w:sw ~h:sh swatch_color;
-        Ui.Paint.stroke paint ~x:(sx +. 0.5) ~y:(sy +. 0.5) ~w:(sw -. 1.) ~h:(sh -. 1.)
-          (Pxui.Theme.edge theme));
-      fst (Ui.value_field ui ~at:(control_x +. 28., control_y) ~w:(control_w -. 28.) ~h:20.
-        ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ path) hex_str) in
+      Kit.colour ui ~key:path ~at:(control_x, control_y) ~w:control_w ~swatch:swatch_color ~hex:hex_str in
     let color_row_3 (row : flow_row) title fields shown =
       let path = row.path in
       let to_f = function
@@ -2110,18 +2139,12 @@ module Inspector = struct
               ~width ?pin:(pin_of row.shown) ~key:("flow-row-" ^ row.path) ~label:title () in
           let whole = Ui.within ui box (fun () ->
             let split = Option.value ~default:false row.split in
-            let field_width = (control_w -. (if actions then 24. else 0.) -. 16.) /. 3. in
             let edits = if split || row.components <> [] then [] else
-              List.concat (List.mapi (fun index field ->
-                let axis = List.nth ["x"; "y"; "z"] index in
-                (* the fields' edges land on whole points, as the sheet's do *)
-                let start = control_x +. float index *. (field_width +. 8.) in
-                let fx = Float.round start and fw = Float.round (start +. field_width) -. Float.round start in
-                Ui.draw ui box (fun paint (x, y, _, _) ->
-                  Ui.Paint.text paint ~at:(x +. fx +. 2., Kit.cap_y ui (y +. control_y -. 0.5) 20.)
-                    ~size:(Kit.cap_size ui) ~color:ink_3 axis);
-                input ~ranged:false field (row.path ^ "." ^ axis)
-                  ~edit:false ~x:fx ~y:control_y ~w:fw) fields) in
+              Kit.vector ui box ~at:(control_x, control_y) ~w:control_w
+                ~reserve:(if actions then 24. else 0.) (fun index ~x ~w ->
+                  let field = List.nth fields index in
+                  input ~ranged:false field (row.path ^ "." ^ List.nth ["x"; "y"; "z"] index)
+                    ~edit:false ~x ~y:control_y ~w) in
             let toggle = actions && action ui ("split-" ^ row.path) "xyz"
                 ~x:(width -. 32.) ~y:control_y
                 ~enabled:(not row.locked) () in

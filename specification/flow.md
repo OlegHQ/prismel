@@ -446,6 +446,14 @@ and [Graphviz dot](https://graphviz.org/docs/layouts/dot/), without adding a run
 
 Positions of nodes and bend points snap to a 12-point grid.
 
+**Kit rev 3 (current, supersedes the table where they differ).** A Card is its header plus the rows that are
+wired or written (§5.1 rules 1 to 4); there is no `+ N more` row. The footer row (value, spark, cook
+time) is drawn on Full only: geometry reads `1 204 pts · 0.003 s`, the cook time from
+`Probe.geometry.seconds`. Boxes are laid out at the level the zoom shows (`shown`): a point is as wide as
+its name drawn at the zoom's font, a chip is the header, so ports, wire ends and obstacles come from the
+one geometry. Positions sit on the 24-point lattice and columns on a 288-point pitch (196 card plus 92
+gap, rounded up). A scope's inputs stack in the order written.
+
 ### 6.3 Wires
 
 - A wire is a polyline: source port, a 14-point stub (right from outputs,
@@ -463,6 +471,12 @@ Positions of nodes and bend points snap to a 12-point grid.
 - Scalar and vec3 wires carry a live readout (10-point text 6 points above the
   polyline's arc-length midpoint, `paint-order: stroke` style outline in the
   canvas colour).
+- Kit rev 3 routing (supersedes the stub and bend-point rules above for generated wires): a wire is
+  one straight segment from port to port, 1.5 points in the port colour. When a card is in the way it
+  gets one bend (a 5-point square), horizontal out of the source then a diagonal into the port, the bend
+  72 points before it (or 24-point steps, or the diagonal first). Only when no one-bend way is clear
+  does it go round above or below, 24 points clear; a backward wire always goes round. A zone's label
+  row and bottom edge are obstacles, so no wire runs along them. Wires are cut to the pane's body.
 - Wires into collapsed nodes: chips take driven rows along their bottom edge
   at x 22 + 12k (k = index among driven rows); points take every wire at the
   centre, trimmed 10 points from it.
@@ -568,7 +582,7 @@ context (§7.11).
 | `⌘G` / `⇧⌘G` | `graph.group` / `graph.ungroup` | group selection / ungroup a compound | M5 |
 | `i` / `u` | `scene.enter` / `scene.up` | enter / leave (exists; extended to compounds) | M5 |
 | `?` | `guide.toggle` (global) | guide strip and tooltips on or off | M2 |
-| `Space k` | `guide.keys` (leader) | key sheet | M2 |
+| `Space ?` | `guide.keys` (leader) | key sheet | M2 |
 | `Space l` | `graph.projection` (leader, exists) | graph → list → text → graph | M6 (two-way until then) |
 | `F2` | `scope.rename` | rename the selected node, or edit the default of a selected graph input (double-click does the same) | W13 |
 | `⇧G` | `scope.frame` | titled frame around the selected nodes (corner resizes, title double-click renames, cross deletes) | W13 |
@@ -853,7 +867,7 @@ persists in user preferences.
   thing is and what can be done to it (the prototype's `describe` is the
   reference wording).
 - **Which-key** after `Space` (exists).
-- **Key sheet** `Space k`: the whole table of §7.2 grouped as Move, Build,
+- **Key sheet** `Space ?`: the whole table of §7.2 grouped as Move, Build,
   Shape, Rows, Change, Guide.
 - **HUD**: each key press echoes `key · command label` for 1.5 s in the
   graph pane's corner.

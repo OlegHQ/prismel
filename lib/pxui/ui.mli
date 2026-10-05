@@ -530,6 +530,12 @@ val button :
     8 points from the edge; [ink] colours the text.  The keyboard focus is an accent line over the
     last row of the box. *)
 
+val paint_button_ground :
+  Paint.t -> Theme.t -> held:bool -> hovered:bool -> on:bool -> primary:bool ->
+  float * float * float * float -> unit
+(** The ground {!button} paints (fill on press, hover or [on]; a line-3 edge for [primary]) over a
+    rectangle, so a button placed by hand looks the same. *)
+
 val message : t -> ?error:bool -> key:string -> string -> unit
 (** A message row: a 6-point dot (accent, or the error ink with [error]) and the text, wrapped to
     the parent's width on lines of 20 points with 4 above and below (28 high for one line). *)

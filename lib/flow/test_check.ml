@@ -3,13 +3,13 @@ open Flow
 let float_range = Param.{soft_min = 0.; soft_max = 2.;
   hard_min = Some 0.; hard_max = Some 4.}
 let size = Check.{name = "size"; label = "Size"; ty = Some Port_type.Float;
-  fields = ["size", Param.Floating_view float_range, Param.Float_value 1.]; folder = []; primary = false}
+  fields = ["size", Param.Floating_view float_range, Param.Float_value 1.]; folder = []; primary = false; unit = None}
 let rows = Check.{name = "rows"; label = "Rows"; ty = Some Port_type.Int;
   fields = ["rows", Param.Integer_view Param.{soft_min = 2; soft_max = 40;
-    hard_min = Some 1; hard_max = Some 100}, Param.Int_value 10]; folder = []; primary = false}
+    hard_min = Some 1; hard_max = Some 100}, Param.Int_value 10]; folder = []; primary = false; unit = None}
 let mode = Check.{name = "mode"; label = "Mode"; ty = None;
   fields = ["mode", Param.Choice_view [|"solid"; "wire"|],
-    Param.Choice_value "solid"]; folder = []; primary = false}
+    Param.Choice_value "solid"]; folder = []; primary = false; unit = None}
 let box = Check.{qualified = "sop/box"; aliases = [];
   context = Context.Sop; slots = []; parameters = [size; rows; mode];
   outputs = ["geo", Port_type.Geometry]}

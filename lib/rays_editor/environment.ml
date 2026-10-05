@@ -301,7 +301,7 @@ let compose_view ?map ~ui_visible ~background ~rendered ~focused ~views ~camera 
       | Some (_, path, (x, y, w, h)) ->
           let root = List.find_map (fun (root, (panel, p)) ->
             if panel = Pxui_shell.Layout.View key && p = Some path then Some root else None) core.Core.pane_keys in
-          let image = Scene.rect ~at:(x, y) ~w ~h ~fill:background () :: image
+          let image = Scene.rect ~at:(x, y) ~w ~h ~fill:Color.white () :: image
             @ (if bounds = viewport then overlay else []) in
           painted, (root, image) :: windows) ([], []) (Core.view_bodies core frame) in
     let under key = Option.value ~default:[] (List.assoc_opt (Some key) windows) in

@@ -7,6 +7,7 @@ type parameter = {
   fields : (string * Param.kind_view * Param.value) list;
   folder : string list;  (** the folder of its (first) field *)
   primary : bool;  (** a primary field: the card shows it unset ([Flow_sop.Exposure]) *)
+  unit : string option;  (** the unit suffix of a scalar field *)
 }
 type slot = { name : string; required : bool; rest : bool }
 (** [rest]: the last slot repeats; extras are [name_2], [name_3], ... *)

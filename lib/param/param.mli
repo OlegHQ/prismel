@@ -57,6 +57,7 @@ type 'record field = Field : {
   folder : string list;
   impact : impact;
   primary : bool;
+  unit : string option;  (** suffix drawn after the value, e.g. ["mm"] *)
   vec3 : (string * int) option;
   kind : 'value kind;
   default : 'value;
@@ -89,6 +90,7 @@ type field_view = {
   folder : string list;
   impact : impact;
   primary : bool;
+  unit : string option;  (** suffix drawn after the value, e.g. ["mm"] *)
   vec3 : (string * int) option;  (** group name and x/y/z component index (0/1/2) *)
   kind : kind_view;
   default : value;
@@ -121,6 +123,7 @@ val field :
   ?folder:string list ->
   ?impact:impact ->
   ?primary:bool ->
+  ?unit:string ->
   ?vec3:(string * int) ->
   kind:'value kind ->
   default:'value ->

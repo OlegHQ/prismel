@@ -53,8 +53,8 @@ let keymap = [
     ~trigger:(Chord (Input.KeyChar '/', [Input.Shift])) Guide_toggle;
   command ~id:"guide.toggle" ~label:"toggle guide"
     ~trigger:(Chord (Input.KeyChar '?', [])) Guide_toggle;
-  command ~id:"guide.keys" ~label:"all Flow keys"
-    ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; Hints; List] ~trigger:(Leader "k") Guide_keys;
+  command ~id:"guide.keys" ~label:"all keys"
+    ~guide:Editor_core.Guide_context.[Canvas; Node; Multi; Hints; List] ~trigger:(Leader "?") Guide_keys;
   command ~id:"preset.save" ~label:"save preset" ~trigger:(Leader "s") Save_preset;
   command ~id:"preset.browse" ~label:"browse presets" ~trigger:(Leader "b") Browse_presets;
   command ~id:"workspace.toggle-timeline" ~label:"toggle timeline" ~trigger:(Leader "t")
@@ -111,6 +111,8 @@ let keymap = [
     (Panel_retype (View ""));
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
+  (* the graph's own key for the same menu: with a node selected the pick is wired after it *)
+  command ~id:"graph.add-after" ~label:"add after" ~trigger:(Chord (Input.Tab, [])) ~scope:graph Add_node;
   command ~guide:Editor_core.Guide_context.[Node; List]
     ~id:"world.emit" ~label:"dome / light" ~trigger:(Chord (Input.KeyChar 't', []))
     ~scope:graph World_emit;
@@ -200,7 +202,7 @@ let order = function
   | "Layout" -> [ "[" ]
   | "Go" -> [ "j"; "e" ]
   | "Time" -> [ "p" ]
-  | "File" -> [ "s"; "b"; "?"; "k"; "/" ]
+  | "File" -> [ "s"; "b"; "?"; "/" ]
   | _ -> []
 
 (* What a leader key that continues into more keys stands for *)

@@ -94,6 +94,17 @@ module Kit : sig
     int option * float
   (** Text tabs laid out leftwards from [right], the one in use underlined: the tab clicked
       and where the row starts. *)
+
+  val colour : Pxui.Ui.t -> key:string -> at:float * float -> w:float -> swatch:Rays.Color.t ->
+    hex:string -> string
+  (** A colour in the control column at [at], [w] wide: a 20-point swatch and its hex field;
+      the hex text as typed. *)
+
+  val vector : Pxui.Ui.t -> Pxui.Ui.box -> at:float * float -> w:float -> ?reserve:float ->
+    ?axes:string list -> (int -> x:float -> w:float -> 'a list) -> 'a list
+  (** A vector in the control column of the row [box]: one cell a letter of [axes] (x y z), 8
+      points between, each with its letter in ink-3; [cell index ~x ~w] builds the field (relative
+      to the box) and returns its requests.  [reserve] keeps room at the right. *)
 end
 
 module Chrome : sig
@@ -111,7 +122,7 @@ module Chrome : sig
     | Close_panel of Layout.path
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
-  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) ->
+  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> ?reserve:(Layout.leaf -> float) ->
     ?key_of:(string -> string) -> ?focus:Layout.path -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t -> intent list
   (** A [title] is ["Kind<TAB>a / b"]: the kind is the header's label, the rest its breadcrumb
       (the last part in ink).  The header of the [focus] leaf wears the accent square.  A docked
@@ -169,7 +180,7 @@ module Status_bar : sig
   (** What the dot after the file says: checked and cooked, cooking, refused. *)
 
   val guide : Pxui.Ui.t -> bounds:Layout.bounds -> ?file:string -> ?state:state -> ?layout:string ->
-    ?text:string -> ?fps:int -> ?notes:string list -> ?accent:bool -> ?extra:(string * string) list ->
+    ?text:string -> ?fps:int -> ?notes:string list -> ?readout:string -> ?accent:bool -> ?extra:(string * string) list ->
     ?leader:string -> ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
     ('scope, 'action) Editor_core.Command.t list -> bool
   (** The strip of the workspace sheet: a hairline over a 24-point bar of the file, its state dot
@@ -178,17 +189,18 @@ module Status_bar : sig
       selection; a List or Text context shows the selection given), each applicable key in ink-3
       before what it does in ink-2 ([extra] pairs follow the keymap's, for gestures that are no
       command), then the [notes] (labels such as "3 graphs"), the layout in use and the frame rate
-      at the right; [accent] draws the kind in the accent (a panel being moved); true when the
+      at the right ([readout], when given, is plain ink-2 text just before the notes); [accent] draws the kind in the accent (a panel being moved); true when the
       "toggle guide" pair is clicked.  With [leader] (the pending prefix, [Space]) the strip is the
       sheet's [09] one: the file, a rule, the prefix in the accent and [waiting for a key]. *)
 
-  val tips : Pxui.Ui.t -> bounds:Layout.bounds -> (string * [ `Info | `Refusal ]) list -> unit
+  val tips : Pxui.Ui.t -> bounds:Layout.bounds -> ?avoid:(float * float * float * float) list -> (string * [ `Info | `Refusal ]) list -> unit
   (** Echo, the sheet's [08]: noninteractive tips stacked 4 apart in the pane's bottom-left corner,
       the last at the bottom; each 24 high on the sheet fill with a line-2 edge.  Information has a
-      dot in the hint colour, a refusal reads in the error ink. *)
+      dot in the hint colour, a refusal reads in the error ink.  A tip that would cover a rectangle of
+      [avoid] (the graph's cards) stands above it. *)
 
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> ?file:string -> ?state:state ->
-    ?layout:string -> ?notes:string list -> ?accent:bool -> ?kind:string -> ?selection:string ->
+    ?layout:string -> ?notes:string list -> ?readout:string -> ?accent:bool -> ?kind:string -> ?selection:string ->
     text:string -> fps:int option -> unit -> unit
   (** The status strip without the keys: the file, its state, the whole status line, the
       layout in use and the frame rate. *)

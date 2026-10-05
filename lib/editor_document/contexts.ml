@@ -27,7 +27,7 @@ let flow r = Result.map_error (diag "E_DOCUMENT") r
 
 let name_field : Param.field_view = {
   name = "name"; label = "Name"; description = None; folder = []; impact = Param.Cook;
-  primary = false; vec3 = None; kind = Param.Text_view; default = Param.Text_value "";
+  primary = false; unit = None; vec3 = None; kind = Param.Text_view; default = Param.Text_value "";
   current = Param.Text_value "" }
 
 (* [:parent "label"] places an object under another by name (a camera has none); [:active true]

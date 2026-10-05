@@ -19,8 +19,14 @@ let run () =
         ~frame:(Test_editor_input.frame (500.,400.) events 1) Idle in
       check (List.map (fun (c : _ Command.t) -> c.action) actions = [expected]) "guide key failed outside or inside graph focus")
       [key Input.Shift :: [char '/'], L.Guide_toggle;
-       [char '?'], L.Guide_toggle; [key Input.Space; char 'k'], L.Guide_keys])
+       [char '?'], L.Guide_toggle; [key Input.Space; char '?'], L.Guide_keys])
     Pxui_shell.Layout.[View ""; View "v1.0"; Graph; List; Lisp; Inspector; Outline; Timeline];
+  (* Tab is the graph's own key for the add menu ("Tab add after" on the strip), and no other pane's *)
+  List.iter (fun (focus, expected) ->
+    let _, actions, _ = Editor_core.Router.step L.keymap ~focus ~text_focus:false
+      ~frame:(Test_editor_input.frame (500.,400.) [key Input.Tab] 1) Idle in
+    check (List.map (fun (c : _ Command.t) -> c.action) actions = expected) "Tab is not the graph's add key alone")
+    Pxui_shell.Layout.[Graph, [L.Add_node]; View "", []; Outline, []; Inspector, []];
   check (Keymap.label (Chord (Input.KeyChar '/', [Input.Shift])) = "?"
       && Keymap.label (Chord (Input.ArrowLeft, [])) = "←"
       && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "⌘⇧Z")
@@ -182,7 +188,7 @@ let run () =
     E2.close !current; current := create (); step [] 2; step [char '?'] 3;
     check (enabled () = Some true) "a new host did not load the saved guide preference";
     (* A sheet owns input until shared modal dismissal, then shortcuts resume. *)
-    step [key Input.Space; char 'k'] 4; step [char '?'] 5;
+    step [key Input.Space; char '?'] 4; step [char '?'] 5;
     check (enabled () = Some true) "guide key escaped the key-sheet modal";
     step [key Input.Escape] 6; step [char '?'] 7;
     check (enabled () = Some false) "key-sheet dismissal kept keyboard focus";
@@ -190,30 +196,16 @@ let run () =
     Editor_core.Store.Settings.save ~sketch:"rays-editor" filename
       ["guide", Bool false; "other", Int 7] |> Result.get_ok;
     step [key Input.Shift; char '/'; Event.KeyReleased Input.Shift] 8;
-    let point = (500.,500.) in
-    step [Event.MousePressed (Input.LeftButton, point);
-      Event.MouseReleased (Input.LeftButton, point)] 9;
-    let x,y,w,h = (E2.panes !current (Test_editor_input.frame (100.,300.) [] 9)).status in
-    (* the strip's "? toggle guide" pair is the Hide control: press along the strip until the
-       preference is off (the pair sits after the file, its state, the status and the kind) *)
-    let off () = Editor_core.Store.Settings.load ~sketch:"rays-editor" filename
-      |> Result.get_ok |> fun values -> Editor_core.Store.Settings.bool values "guide" = Some false in
-    let count = ref 10 in
-    let at = ref (x + 4) in
-    while not (off ()) && !at < x + w - 60 do
-      let hide = float !at, float (y + (h / 2)) in
-      current := E2.update !current (Test_editor_input.frame hide [Event.MouseMoved hide] !count);
-      current := E2.update !current (Test_editor_input.frame hide
-        [Event.MousePressed (Input.LeftButton, hide); Event.MouseReleased (Input.LeftButton, hide)] (!count + 1));
-      count := !count + 2; at := !at + 6
-    done;
+    (* the strip's keys are the sheets' own and carry no "toggle guide" pair: the key is the control,
+       and it saves through the same path, keeping the other preferences *)
+    step [char '?'] 9;
     let values = Editor_core.Store.Settings.load ~sketch:"rays-editor" filename |> Result.get_ok in
     check (Editor_core.Store.Settings.bool values "guide" = Some false
       && Editor_core.Store.Settings.int values "other" = Some 7)
       "Hide did not save off or discarded another preference";
     let contents = "invalid saved preferences" in
     Out_channel.with_open_bin filename (fun out -> output_string out contents);
-    step [char '?'] (!count + 1);
+    step [char '?'] 10;
     check (In_channel.with_open_bin filename In_channel.input_all = contents)
       "guide toggle overwrote an unreadable preference file";
     E2.crash_dump !current directory;

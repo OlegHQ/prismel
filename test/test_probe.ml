@@ -50,7 +50,7 @@ let sunflower () =
   let f = footer r head ~probes:[] in
   check (f.value = "geometry" && f.runs = None && not f.invariant) "head: geometry without counts";
   let r' = recorded w ~geometry:(fun _ -> Some { Probe.points = 1204; prims = 1440; groups = [ "a"; "b" ]; data_id = 7; extent = None; seconds = Some 0.003 }) in
-  check ((footer r' head ~probes:[]).value = "1440 prims · groups a, b") "head: cooked counts";
+  check ((footer r' head ~probes:[]).value = "1440 prims · groups a, b · 0.003 s") "head: cooked counts";
   check ((footer r' { head with path = [ "nowhere" ] } ~probes:[]).value = "geometry") "an unrecorded node shows its type";
   (* iterations: the inspector list *)
   let its = Probe.iterations r (node "r") ~probes:[ 0 ] in

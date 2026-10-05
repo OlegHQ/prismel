@@ -61,6 +61,7 @@ type 'record field = Field : {
   folder : string list;
   impact : impact;
   primary : bool;
+  unit : string option;
   vec3 : (string * int) option;
   kind : 'value kind;
   default : 'value;
@@ -96,6 +97,7 @@ type field_view = {
   folder : string list;
   impact : impact;
   primary : bool;
+  unit : string option;
   vec3 : (string * int) option;
   kind : kind_view;
   default : value;
@@ -209,7 +211,7 @@ let validate_vec3 : type a. a kind -> (string * int) option -> unit = fun kind -
       | _ -> invalid_arg "Parameter.field: vec3 components must be float fields")
 
 let field ~name ?label ?description ?(folder = []) ?(impact = Cook)
-    ?(primary = false) ?vec3
+    ?(primary = false) ?unit ?vec3
     ~kind ~default ~get ~set () =
   nonblank "Parameter.field name" name;
   List.iter (nonblank "Parameter.field folder") folder;
@@ -220,7 +222,7 @@ let field ~name ?label ?description ?(folder = []) ?(impact = Cook)
     | Ok value -> value
     | Error message -> invalid_arg ("Parameter.field " ^ name ^ ": " ^ message)
   in
-  Field { name; label; description; folder; impact; primary; vec3; kind; default; get; set }
+  Field { name; label; description; folder; impact; primary; unit; vec3; kind; default; get; set }
 
 let schema ~name ~default fields =
   nonblank "Parameter.schema name" name;
@@ -274,7 +276,7 @@ let view_field : type record. record -> record field -> field_view =
     in
     { name = field.name; label = field.label;
       description = field.description; folder = field.folder;
-      impact = field.impact; primary = field.primary; vec3 = field.vec3; kind; default; current }
+      impact = field.impact; primary = field.primary; unit = field.unit; vec3 = field.vec3; kind; default; current }
 
 let view schema record = List.map (view_field record) schema.fields
 

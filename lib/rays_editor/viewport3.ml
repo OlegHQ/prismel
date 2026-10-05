@@ -640,10 +640,12 @@ let gizmo (x, y, width, height) view =
 let light_guide bounds view color (light : Light.t) =
   let marker (x, y) = [Scene.circle ~at:(Float.to_int x, Float.to_int y) ~radius:5
       ~fill:color ()] in
+  (* a light whose marker is off the pane draws no stray line *)
+  let inside (x, y) = let bx, by, bw, bh = bounds in x >= float bx && x <= float (bx + bw) && y >= float by && y <= float (by + bh) in
   let aim at direction = match project bounds view at with
-    | Some point -> marker point @ segment bounds view color at
+    | Some point when inside point -> marker point @ segment bounds view color at
         (Vec3.add at (Vec3.scale direction 1.5))
-    | None -> [] in
+    | _ -> [] in
   match light.kind with
   | Directional { direction } -> aim (Vec3.scale direction (-4.)) direction
   | Point { position; _ } ->

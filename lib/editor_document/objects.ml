@@ -45,7 +45,7 @@ end
 (* A camera looks from its eye at its target; it has no parent. *)
 module Camera = struct
   type parameters = {
-    fov : float [@sop.default 60.] [@sop.label "FOV (degrees)"]
+    fov : float [@sop.default 60.] [@sop.label "FOV (degrees)"] [@sop.unit "deg"]
       [@sop.folder "Lens"] [@sop.min 5.] [@sop.max 150.] [@sop.hard_min 1.] [@sop.hard_max 179.];
     near : float [@sop.default 0.1] [@sop.label "Near clip"]
       [@sop.folder "Lens"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.0001];

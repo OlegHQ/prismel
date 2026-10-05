@@ -1591,26 +1591,20 @@ let run_panels () =
   let twice = with_editor "    (let* [g (ui/graph \"garden\")] (ui/workspace (ui/split \"horizontal\" g g)))" in
   check ((lowered "    (let* [g (ui/graph \"garden\")] (ui/workspace (ui/split \"horizontal\" g g)))").repeated = [ "g" ])
     "a binding used twice is not marked";
-  let e = ref (editor (twice ^ "(layout (panel [\"editor\" \"g\"] :collapsed false :window [10 30 300 200])\n        (panel [\"editor\" \"@panel\" \"1\"] :collapsed false :window [400 30 300 200]))")) and count = ref 0 in
+  let e = ref (editor (twice ^ "(layout (panel [\"editor\" \"g\"] :collapsed false :window [10 30 430 400])\n        (panel [\"editor\" \"@panel\" \"1\"] :collapsed false :window [450 30 430 400]))")) and count = ref 0 in
   let step ?(buttons = []) mouse events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
   let click point = step point [ Event.MouseMoved point ];
     step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
     step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
   step (700., 500.) []; step (700., 500.) [];
-  check (dump_line !e "windows" = "graph 10 30 300 200, graph 400 30 300 200")
+  check (dump_line !e "windows" = "graph 10 30 430 400, graph 450 30 430 400")
     ("the saved entries of a binding used twice: " ^ dump_line !e "windows");
   check (dump_line !e "panels" = "graph 0; graph 1") ("the leaves of one binding are not two instances: " ^ dump_line !e "panels");
-  (* the window is small, so the node is a 12 x 3 point (the zoom cap); the box is reported from the
-     pane's own origin, which the window's frame moves by about 8 points *)
-  (let x, y, _, _ = Option.get (E3.node_box !e [ "garden"; ":seed" ]) in
-   (* a tiny point in a small window: try its neighbourhood until a press selects it *)
-   List.iter (fun (dx, dy) -> if dump_line !e "scope selected" = "-" then click (float (x + dx), float (y + dy)))
-     (List.concat_map (fun dy -> List.init 16 (fun k -> 2 * k, dy)) [ 1; 2 ]));
+  (let x, y, w, h = Option.get (E3.node_box !e [ "garden"; ":seed" ]) in
+   click (float (x + w / 2), float (y + max 1 (h / 2))));
   let first = dump_line !e "scope selected" in
-  click (550., 200.);
-  (* TODO(graph pass): the node is a few points wide in this small window and the press can miss it;
-     the isolation of the second leaf is still checked whenever it hit *)
-  check (dump_line !e "scope selected" = "-" && dump_line !e "panels" = "graph 0; graph 1*")
+  click (860., 410.);
+  check (first <> "-" && dump_line !e "scope selected" = "-" && dump_line !e "panels" = "graph 0; graph 1*")
     ("the second leaf shares the first one's selection: " ^ first ^ " / " ^ dump_line !e "scope selected");
   E3.close !e;
   (* a graph panel shows the view it says, with a lisp panel beside it *)
