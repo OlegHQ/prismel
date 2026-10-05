@@ -1275,6 +1275,24 @@ let lit_tags value =
            tags, Some { site; at = value.probes; lowered; scope; tags })
   | _ -> Pick.Set.empty, None
 
+(* The nodes of the pane's graph that the last failed cook names, each with its diagnostic's code
+   (the pane draws the sheet's failed state on them). *)
+let failed_nodes value =
+  match Cook.failed_node value.cook, value.scope_key, value.doc.Document.workspace with
+  | Some (code, node_id), Some { scope; records = Some records; _ }, (_, lowered)
+    when scope_name value <> None ->
+      let rec nodes (s : Flow_sop.Projection.scope) = List.concat_map (fun (n : Flow_sop.Projection.node) ->
+        n :: (match n.zone with Some z -> nodes z.scope | None -> [])) s.nodes in
+      let chains = Flow_sop.Probe.chains scope in
+      List.filter_map (fun (n : Flow_sop.Projection.node) ->
+        let probes = List.map (fun p ->
+          Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes))
+          (Option.value ~default:[] (Hashtbl.find_opt chains n.path)) in
+        match Flow_sop.Probe.plan_node records n.path ~probes with
+        | Some id when Flow_sop.Network.Int_map.find_opt id lowered.compiled = Some node_id -> Some (n.path, code)
+        | _ -> None) (nodes scope)
+  | _ -> []
+
 (* Lay the workspace pane out again when the document, the probes or the
    graph changed; the footers are rebuilt when the recording evaluation, the
    cook's geometry counts or (a live document) the time changed.  The
@@ -1300,8 +1318,8 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
           | Some k when not moved -> k.scope
           | _ -> Flow_sop.Projection.of_graph catalog ws.checked name in
         let wires = match Option.bind value.doc.Document.shell (fun s -> s.Document.wires) with
-          | Some "straight" -> `Straight
-          | _ -> `Rect in
+          | Some "rect" -> `Rect
+          | _ -> `Straight in
         let scope_view = if not moved then Pxui_graph.Scope.with_wires wires value.scope_view else begin
           let layout = ws.layout in
           let display = match M.find_opt [ name ] layout.display with
@@ -1317,6 +1335,10 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
             | _ -> [] in
           Pxui_graph.Scope.with_scope ~wires ~layouts ~key:name scope value.scope_view
             ~at:(fun path -> M.find_opt path layout.at)
+            ~level:(fun path -> match M.find_opt path layout.level, M.find_opt path layout.pinned with
+              | None, None -> None
+              | level, pinned -> Some (Option.value ~default:Flow_sop.Projection.Card level,
+                                       Option.value ~default:false pinned))
             ~collapsed:(fun path -> Option.value ~default:false (M.find_opt path layout.collapsed))
             ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes))
             ~frames:(fun path -> List.map (fun (f : Layout_by_path.frame) -> f.title, f.at, f.size)
@@ -3394,6 +3416,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       else Pxui.Ui.within ui graph_root (fun () ->
         scope_view
         |> Pxui_graph.Scope.with_guide guide
+        |> Pxui_graph.Scope.with_failed (failed_nodes value)
         |> Pxui_graph.Scope.with_theme (let theme = Pxui.Ui.theme ui in
              match graph_host with Some { floating = true; _ } -> sheet_theme theme | _ -> theme)
         |> Pxui_graph.Scope.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
@@ -4200,6 +4223,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           Doc.layout_edit next (fun l -> { l with at = List.fold_left (fun at (path, x, y) ->
             M.add path (x, y) at) l.at placed }),
           { result with label = (if !added = [] then "Move" else result.label) }, probes
+      | Level_set changes ->
+          Doc.layout_edit next (fun l -> List.fold_left (fun (l : Layout_by_path.t) (path, level, pinned) ->
+            { l with
+              level = (match level with Some v -> M.add path v l.level | None -> M.remove path l.level);
+              pinned = if pinned then M.add path true l.pinned else M.remove path l.pinned }) l changes),
+          { result with label = "Detail level" }, probes
       | Probe_set { zone; index } -> next, result, M.add zone index probes
       | Frames_set { scope; frames } ->
           Doc.layout_edit next (fun l -> { l with frames =

@@ -12,6 +12,7 @@ type control = Plain | Range of float * float | Choice
 type row = {
   label : string; key : E.arg_key; ty : Ty.t option; expr : S.t option; chip : chip;
   default : string option; socket : bool; kind : row_kind; control : control;
+  folder : string; primary : bool; head : bool;
 }
 
 type zone_kind = For | Fold | Scan | Sum | Let | Fn
@@ -128,8 +129,9 @@ let chip c (e : S.t option) = match e with
             | Some h when List.mem_assoc h c.macros -> inline "◆"
             | _ -> inline "ƒ"))
 
-let row c ?ty ?default ?(socket = true) ?(kind = Arg) ?(control = Plain) label key expr =
-  { label; key; ty; expr; chip = chip c expr; default; socket; kind; control }
+let row c ?ty ?default ?(socket = true) ?(kind = Arg) ?(control = Plain) ?(folder = "") ?(primary = false)
+    ?(head = false) label key expr =
+  { label; key; ty; expr; chip = chip c expr; default; socket; kind; control; folder; primary; head }
 
 let add c label key ?(socket = true) ty =
   row c ?ty ~socket ~kind:Add label key None
@@ -190,23 +192,32 @@ let catalog_context : W.context -> Flow.Context.t = function
 let kind_rows c (k : Flow.Check.kind) pos kws =
   let npos = List.length pos in
   let slot_ty = W.slot_ty k in
+  (* the first geometry slot is the header's in-port, not a row of the body *)
+  let head_of i = i = 0 && slot_ty = Ty.Geometry in
   let slot_rows = List.concat (List.mapi (fun i (s : Flow.Check.slot) ->
     if s.rest then
       List.filteri (fun j _ -> j >= i) pos |> List.mapi (fun j a ->
-        row c ~ty:slot_ty ~kind:Rest (if j = 0 then s.name else Printf.sprintf "%s %d" s.name (j + 1))
+        row c ~ty:slot_ty ~kind:Rest ~head:(head_of i && j = 0)
+          (if j = 0 then s.name else Printf.sprintf "%s %d" s.name (j + 1))
           (E.Pos (i + j)) (Some a))
       |> fun rows -> rows @ [ add c ("+ " ^ s.name) (E.Pos (max npos i)) (Some slot_ty) ]
     else match List.nth_opt pos i, List.assoc_opt s.name kws with
-      | Some a, _ -> [ row c ~ty:slot_ty s.name (E.Pos i) (Some a) ]
-      | None, Some a -> [ row c ~ty:slot_ty s.name (E.Kw s.name) (Some a) ]
+      | Some a, _ -> [ row c ~ty:slot_ty ~head:(head_of i) s.name (E.Pos i) (Some a) ]
+      | None, Some a -> [ row c ~ty:slot_ty ~head:(head_of i) s.name (E.Kw s.name) (Some a) ]
       | None, None ->
-          [ row c ~ty:slot_ty s.name (if s.required && i = npos then E.Pos i else E.Kw s.name) None ])
+          [ row c ~ty:slot_ty ~head:(head_of i) s.name (if s.required && i = npos then E.Pos i else E.Kw s.name) None ])
     k.slots) in
+  (* a schema with no primary field takes the fields of its first folder as primary *)
+  let any_primary = List.exists (fun (p : Flow.Check.parameter) -> p.primary) k.parameters in
+  let first_folder = match k.parameters with p :: _ -> p.folder | [] -> [] in
   let param_rows = List.map (fun (p : Flow.Check.parameter) ->
     let kind = if W.group_reader p then Group_reader else if W.group_writer k p then Group_writer else Arg in
     let material = k.qualified = "sop/material" && p.name = "material" in
     row c ~ty:(if material then Ty.Material else match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
-      ~control:(control_of p) ~socket:(material || p.ty <> None) ~kind p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
+      ~control:(control_of p) ~socket:(material || p.ty <> None) ~kind
+      ~folder:(String.concat " / " p.folder)
+      ~primary:(if any_primary then p.primary else p.folder = first_folder)
+      p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
   slot_rows @ param_rows
 
 let input_rows c (inputs : (string * Ty.t * W.term option) list) pos kws =
@@ -485,6 +496,70 @@ let rec find (s : scope) path = List.find_map (fun (n : node) ->
   if n.path = path then Some n
   else match n.zone with Some z -> find z.scope path | None -> None) s.nodes
 
+(* ---- levels and exposure ---- *)
+
+type level = Point | Chip | Card | Full
+
+let level_name = function Point -> "point" | Chip -> "chip" | Card -> "card" | Full -> "full"
+let level_of_name = function
+  | "point" -> Some Point | "chip" -> Some Chip | "card" -> Some Card | "full" -> Some Full | _ -> None
+
+(* a literal binding: the sheet's header-only value card (name, the value in a field, the out port) *)
+let value_card (n : node) =
+  n.zone = None && n.macro = None && not n.synthetic
+  && (match n.rows with
+      | [ { key = E.Whole; chip = Const; _ } ] -> true
+      | _ -> false)
+
+type line = Folder of int * string | Row of int * row | More of int
+
+(* is the written literal the schema's own default (numbers compare as numbers)? *)
+let is_default (r : row) = match r.expr, r.default with
+  | Some { S.node = S.Num a; _ }, Some d ->
+      (match float_of_string_opt a, float_of_string_opt d with
+       | Some a, Some d -> a = d | _ -> a = d)
+  | Some e, Some d -> Flow.Lisp.flat e = d
+  | _ -> false
+
+let driven (r : row) = match r.chip with
+  | Name _ | Inline _ -> true
+  | _ -> sources r <> []
+
+(* the exposure rule of flow.md 5.1 for one row ({!Exposure.shown}); structural rows always show *)
+let row_shown ?pin (r : row) =
+  match r.kind with
+  | Rest | Hole | Binder -> true
+  | Add -> false
+  | Arg | Group_reader | Group_writer ->
+      Exposure.shown { slot = false; driven = driven r; pin;
+                       differs = r.expr <> None && not (is_default r); primary = false }
+
+(* the body of a card at a level: what its rows are, in order.  The header slot is not a row. *)
+let lines ?(pin = fun _ -> None) level (n : node) : line array =
+  if n.zone <> None || value_card n then [||] else
+  let body = List.filter (fun (_, (r : row)) -> not r.head) (List.mapi (fun i r -> i, r) n.rows) in
+  match level with
+  | Point | Chip -> [||]
+  | Full ->
+      let folders = ref 0 and current = ref "" in
+      Array.of_list (List.concat_map (fun (i, (r : row)) ->
+        let label =
+          if r.folder <> "" && r.folder <> !current then begin
+            current := r.folder; incr folders; [ Folder (!folders, r.folder) ] end
+          else [] in
+        label @ [ Row (i, r) ]) body)
+  | Card ->
+      let has_head = List.exists (fun (r : row) -> r.head) n.rows in
+      (* a call with no header slot (a [list], a record) keeps its [+] row on the card *)
+      let shown, hidden = List.partition (fun (_, (r : row)) ->
+        (r.kind = Add && not has_head) || row_shown ?pin:(pin r.label) r) body in
+      let rows = List.map (fun (i, r) -> Row (i, r)) shown in
+      Array.of_list (rows @ (if hidden = [] then [] else [ More (List.length hidden) ]))
+
+(* the count the chip shows: rows with something written *)
+let set_count (n : node) =
+  List.length (List.filter (fun (r : row) -> (not r.head) && r.expr <> None && r.kind <> Add) n.rows)
+
 (* ---- layout ---- *)
 
 let row_height = 24.
@@ -495,23 +570,36 @@ let foot_height = 24.
 let body_top = 23.
 let card_pad = 5.  (* 4 points of padding and the bottom border under the last row *)
 let node_width = 196.
-let rail_width = 176.
-let yield_width = 104.
-let strip_height = 0.  (* the iteration selector sits in the zone's label row *)
-let pad = 14.
-let gap = 34.
+let lattice = 24.  (* the dot grid: cards sit on it, columns and rows of cards share its pitch *)
+let point_size = 14.
+let zone_pad_x = 24.  (* a zone's cards start this far inside its edge *)
+let zone_pad_top = 52.  (* and this far below its top (the label row and 28 points of air) *)
+let zone_pad_bottom = 8.
+let column_gap = 60.  (* flow.md 6.1: the room between columns, before the lattice rounds it up *)
+let row_gap = 36.  (* at least this between stacked cards *)
+let snap v = Float.round (v /. lattice) *. lattice
+let ceil_lattice v = Float.ceil (v /. lattice -. 1e-9) *. lattice
 
 type item = Input of input | Item of node | Return
 
 type placed = {
   item : item; path : path; x : float; y : float; w : float; h : float;
   collapsed : bool; inner : layout option;
+  level : level;  (* the requested level; the pane draws less below its zoom caps *)
+  lines : line array;
 }
 and layout = { placed : placed list; w : float; h : float }
 
-let strip (n : node) = match n.zone with Some { kind = Let; _ } | None -> 0. | Some _ -> strip_height
-let rail_top (n : node) = head_height +. strip n +. 4.
-let nrows n = float_of_int (List.length n.rows)
+(* the rail rows a zone shows under its label row: its first loop variable is the label itself *)
+let label_row (z : zone) = List.find_opt (fun (r : rail_row) -> r.role = Var) z.rail
+let extra_rails (z : zone) =
+  let label = label_row z in
+  List.filter (fun (r : rail_row) ->
+    r.role <> Capture && (match label with Some l -> l != r | None -> true)) z.rail
+let rail_top (n : node) = match n.zone with
+  | Some z -> zone_pad_top +. float (List.length (extra_rails z)) *. row_height
+  | None -> zone_pad_top
+
 let count l = float_of_int (List.length l)
 
 let lens_width = 400.
@@ -520,38 +608,50 @@ let lens_height (l : lens) ~step =
     else l.steps.(max 0 step) in
   let lines = match l.error with Some _ when step < Array.length l.steps -> 2 | _ ->
     min 16 (1 + String.fold_left (fun a c -> if c = '\n' then a + 1 else a) 0 shown) in
-  row_height +. 10. +. float lines *. 15. +. row_height
+  row_height +. 10. +. float lines *. 20. +. row_height  (* the kit's code lines are 20 apart *)
 
 (* a card: the header alone, or the rows below it, [extra] points of footer or panel and the padding *)
 let card_height ~rows ~extra =
   if rows = 0. && extra = 0. then head_height else body_top +. rows *. row_height +. extra +. card_pad
 
-let rec size ~foot ~at ~collapsed ~lens (it : item) : float * float * bool * layout option = match it with
-  | Input _ -> node_width, head_height, false, None
-  | Return -> node_width -. 40., card_height ~rows:1. ~extra:0., false, None
+(* a point's box: the disc and the name beside it *)
+let point_title (n : node) = if n.synthetic then "result" else if anonymous n then "node" else n.name
+let point_width (n : node) = point_size +. 8. +. 7. *. float (String.length (point_title n))
+
+let rec size ~foot ~at ~collapsed ~lens ~level ~pin (it : item) :
+    float * float * bool * layout option * level * line array = match it with
+  | Input _ -> node_width, head_height, false, None, Card, [||]
+  | Return -> node_width -. 40., card_height ~rows:1. ~extra:0., false, None, Card, [||]
   | Item ({ zone = Some z; _ } as n) ->
       let rail = count z.rail in
       if collapsed n.path then
-        node_width, card_height ~rows:(Float.max 1. rail) ~extra:(if foot then foot_height else 0.), true, None
+        node_width, card_height ~rows:(Float.max 1. rail) ~extra:(if foot then foot_height else 0.), true, None, Card, [||]
       else
-        let (l : layout) = layout ~foot ~at ~collapsed ~lens z.scope in
-        let body = Float.max (Float.max (rail *. row_height +. 8.) l.h) (row_height +. 14.) in
-        rail_width +. pad +. Float.max l.w 72. +. pad +. yield_width,
-        head_height +. strip n +. body +. (if z.kind = Fold || z.kind = Scan then 22. else 10.)
-        +. (if z.kind = Let || not foot then 0. else foot_height),  (* the zone's own footer *)
-        false, Some l
+        let (l : layout) = layout ~foot ~at ~collapsed ~lens ~level ~pin ~inner:true z.scope in
+        zone_pad_x +. Float.max l.w 72. +. zone_pad_x,
+        rail_top n +. Float.max l.h row_height +. zone_pad_bottom,
+        false, Some l, Card, [||]
   | Item n ->
+      let lvl = if value_card n then Card else level n.path in
+      let ln = lines ~pin:(pin n.path) lvl n in
       let open_lens = match n.lens, lens n.path with
         | Some l, Some step -> Some (l, step) | _ -> None in
-      (match open_lens with Some _ -> Float.max node_width lens_width | None -> node_width),
-      card_height ~rows:((if n.note <> None then 1. else 0.) +. nrows n +. count n.outputs)
-        ~extra:((if foot then foot_height else 0.)
-                +. (match open_lens with Some (l, step) -> lens_height l ~step | None -> 0.)), false, None
+      (match lvl with
+       | Point -> point_width n, point_size, false, None, lvl, ln
+       | Chip -> node_width, head_height, false, None, lvl, ln
+       | Card | Full ->
+           (match open_lens with Some _ -> Float.max node_width lens_width | None -> node_width),
+           card_height ~rows:((if n.note <> None then 1. else 0.) +. float (Array.length ln) +. count n.outputs)
+             ~extra:((if foot then foot_height else 0.)
+                     +. (match open_lens with Some (l, step) -> lens_height l ~step | None -> 0.)),
+           false, None, lvl, ln)
 
-and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(lens = fun _ -> None) (s : scope) : layout =
-  let root = s.inputs <> [] in
+and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(lens = fun _ -> None)
+    ?(level = fun _ -> Card) ?(pin = fun _ _ -> None) ?(inner = false) (s : scope) : layout =
+  (* the return card only when the result is a literal: otherwise the displayed node is the result *)
+  let with_return = s.inputs <> [] && (match s.result with Literal _ -> true | _ -> false) in
   let items =
-    List.map (fun (i : input) -> Input i, i.path, [], [ i.name ]) s.inputs
+    List.map (fun (i : input) -> Input i, i.path, [], [ i.name ], None) s.inputs
     @ List.map (fun (n : node) ->
         let deps = List.concat_map sources n.rows
           @ (match n.zone with
@@ -559,46 +659,67 @@ and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?
                  match r.role, r.expr with
                  | Capture, _ -> [ r.name ] | _, Some e -> E.free_names e | _ -> []) z.rail
              | None -> []) in
-        Item n, n.path, deps, n.binds) s.nodes
-    @ (if root then [ Return, s.path @ [ "@return" ],
-        (match s.result with Link l -> [ root_of l ]
-                           | Node _ -> [ "@result" ] | Literal _ -> []), [] ] else []) in
+        (* the node the header's in-port reads, which the card lines up with *)
+        let head_src = List.find_map (fun (r : row) ->
+          if r.head then (match sources r with a :: _ -> Some (root_of a) | [] -> None) else None) n.rows in
+        Item n, n.path, deps, n.binds, head_src) s.nodes
+    @ (if with_return then [ Return, s.path @ [ "@return" ], [], [], None ] else []) in
   let by_name = Hashtbl.create 16 in
-  List.iteri (fun k (_, _, _, names) -> List.iter (fun n -> Hashtbl.replace by_name n k) names) items;
+  List.iteri (fun k (_, _, _, names, _) -> List.iter (fun n -> Hashtbl.replace by_name n k) names) items;
   let arr = Array.of_list items in
-  let level = Array.make (Array.length arr) (-1) in
+  let lvl = Array.make (Array.length arr) (-1) in
   let rec lv k =
-    if level.(k) >= 0 then level.(k)
+    if lvl.(k) >= 0 then lvl.(k)
     else begin
-      level.(k) <- 0;
-      let it, _, deps, _ = arr.(k) in
-      let base = match it with Input _ -> 0 | _ -> if s.inputs <> [] then 1 else 0 in
-      level.(k) <- List.fold_left (fun l d -> match Hashtbl.find_opt by_name d with
-        | Some j when j <> k -> max l (lv j + 1) | _ -> l) base deps;
-      level.(k)
+      lvl.(k) <- 0;
+      let _, _, deps, _, _ = arr.(k) in
+      lvl.(k) <- List.fold_left (fun l d -> match Hashtbl.find_opt by_name (root_of d) with
+        | Some j when j <> k -> max l (lv j + 1) | _ -> l) 0 deps;
+      lvl.(k)
     end in
   Array.iteri (fun k _ -> ignore (lv k)) arr;
-  let cols = Array.fold_left max 0 level + 1 in
-  let placed = ref [] and x = ref 12. and w = ref 0. and h = ref 0. in
+  let cols = Array.fold_left max 0 lvl + 1 in
+  (* column 0 lists the nodes before the graph inputs, so the first chain is the top row *)
+  let order k = match arr.(k) with (Input _, _, _, _, _) -> 1 | _ -> 0 in
+  (* the items of each column, in item order *)
+  let by_level = Array.make cols [] in
+  for k = Array.length arr - 1 downto 0 do by_level.(lvl.(k)) <- k :: by_level.(lvl.(k)) done;
+  let origin_x = if inner then 0. else lattice and origin_y = if inner then 0. else lattice in
+  let placed = ref [] and x = ref origin_x and w = ref 0. and h = ref 0. in
+  let pos_of = Hashtbl.create 16 in
   for l = 0 to cols - 1 do
-    let y = ref 12. and cw = ref 0. in
-    Array.iteri (fun k (it, path, _, _) ->
-      if level.(k) = l then begin
-        let iw, ih, coll, inner = size ~foot ~at ~collapsed ~lens it in
-        let px, py = match at path with Some (ax, ay) -> ax, ay | None -> !x, !y in
-        placed := { item = it; path; x = px; y = py; w = iw; h = ih; collapsed = coll; inner } :: !placed;
-        y := !y +. ih +. 18.; cw := Float.max !cw iw;
-        w := Float.max !w (px +. iw); h := Float.max !h (py +. ih)
-      end) arr;
-    if !cw > 0. then x := !x +. !cw +. gap
+    let y = ref origin_y and cw = ref 0. in
+    let members = by_level.(l) in
+    let members = if l = 0 then List.stable_sort (fun a b -> compare (order a) (order b)) members else members in
+    List.iter (fun k ->
+      let it, path, _, names, head_src = arr.(k) in
+      let iw, ih, coll, inner_l, lvl_, ln = size ~foot ~at ~collapsed ~lens ~level ~pin it in
+      let is_zone = (match it with Item { zone = Some _; _ } -> not coll | _ -> false) in
+      (* a zone's cards, not its edge, sit on the lattice: its top is 4 points above a lattice row *)
+      let zdy = if is_zone && not inner then -4. else 0. in
+      let aligned = match head_src with
+        | Some name -> Hashtbl.find_opt pos_of name
+        | None -> None in
+      let base = match aligned with Some sy when sy > !y -> sy | _ -> !y in
+      let px, py = match at path with
+        | Some (ax, ay) -> ax, ay
+        | None -> !x, base +. zdy in
+      placed := { item = it; path; x = px; y = py; w = iw; h = ih; collapsed = coll; inner = inner_l;
+                  level = lvl_; lines = ln } :: !placed;
+      List.iter (fun nm -> Hashtbl.replace pos_of nm py) names;
+      y := ceil_lattice (Float.max !y (py -. zdy +. ih +. row_gap));
+      cw := Float.max !cw iw;
+      w := Float.max !w (px +. iw); h := Float.max !h (py +. ih)) members;
+    if !cw > 0. then x := ceil_lattice (!x +. !cw +. column_gap)
   done;
-  { placed = List.rev !placed; w = !w +. 12.; h = !h +. 12. }
+  let margin = if inner then 0. else lattice in
+  { placed = List.rev !placed; w = !w +. margin; h = !h +. margin }
 
 let place (l : layout) =
   let rec go ox oy (l : layout) = List.concat_map (fun (p : placed) ->
     let ax = ox +. p.x and ay = oy +. p.y in
     (p.path, (ax, ay, p.w, p.h))
     :: (match p.inner, p.item with
-        | Some inner, Item n -> go (ax +. rail_width +. pad) (ay +. rail_top n) inner
+        | Some inner, Item n -> go (ax +. zone_pad_x) (ay +. rail_top n) inner
         | _ -> [])) l.placed in
   go 0. 0. l

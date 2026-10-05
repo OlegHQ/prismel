@@ -5,6 +5,8 @@ type parameter = {
   label : string;
   ty : Port_type.t option;  (** [None] is a literal-only text/choice field. *)
   fields : (string * Param.kind_view * Param.value) list;
+  folder : string list;  (** the folder of its (first) field *)
+  primary : bool;  (** a primary field: the card shows it unset ([Flow_sop.Exposure]) *)
 }
 type slot = { name : string; required : bool; rest : bool }
 (** [rest]: the last slot repeats; extras are [name_2], [name_3], ... *)

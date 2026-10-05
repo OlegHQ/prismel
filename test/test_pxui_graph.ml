@@ -106,10 +106,10 @@ let scope_step view (frame : Frame.t) =
   Pxui.Ui.frame scope_ui frame (fun ui -> Scope.update view ui frame)
 let recorded ?inputs workspace =
   Flow_sop.Probe.make (Result.get_ok (Flow.Eval.static ~record:true ?inputs workspace))
-let scope_view ?inputs ?probe ?at ?collapsed workspace graph =
+let scope_view ?inputs ?probe ?at ?level ?collapsed workspace graph =
   let scope = P.of_graph scope_catalog workspace graph in
   Scope.create ~width:1000 ~height:700 ()
-  |> Scope.with_scope ?probe ?at ?collapsed ~key:graph scope
+  |> Scope.with_scope ?probe ?at ?level ?collapsed ~key:graph scope
   |> Scope.with_records (recorded ?inputs workspace), scope
 let scope_paint view =
   ignore (scope_step view (frame ()));
@@ -122,6 +122,75 @@ let click point = [mouse_press (Input.LeftButton, point); mouse_release (Input.L
 let scope_click view point =
   scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ())
 let rect_center (x, y, w, h) = int_of_float (x +. w /. 2.), int_of_float (y +. h /. 2.)
+
+(* Levels, wire routing, the header's in-port and letter hints (flow.md 6.4, 7.5; graph.html). *)
+let scope_levels () =
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace levels (graph g :context sop (let* [a (sop/box) b (sop/box) c (sop/transform a) d (sop/transform b)] (sop/merge c d))))"
+    |> Result.get_ok in
+  let a = [ "g"; "a" ] and b = [ "g"; "b" ] and c = [ "g"; "c" ] in
+  let view, scope = scope_view ~at:(fun p ->
+    if p = a then Some (24., 24.) else if p = b then Some (336., 24.) else if p = c then Some (648., 24.)
+    else if p = [ "g"; "d" ] then Some (336., 360.) else if p = [ "g"; "@result" ] then Some (960., 360.) else None)
+    ws.checked "g" in
+  let view, _ = scope_step view (frame ()) in
+  (* the first geometry slot is the header's in-port, never a row *)
+  let node_c = Option.get (P.find scope c) in
+  check (List.exists (fun (r : P.row) -> r.head) node_c.rows) "the first geometry slot is not the header's";
+  (* a wire that would pass under a card bends clear of it: a -> c crosses b *)
+  let wires = List.init (Scope.Private.wire_count view) Fun.id in
+  let crossing = List.find (fun i -> Scope.Private.wire_target view i = Some (c, Flow_sop.Flow_edit.Pos 0)) wires in
+  let pts = Scope.Private.wire_points view crossing in
+  check (List.length pts >= 3) "a wire under a card was not bent";
+  let bx, by, bw, bh = Option.get (Scope.Private.box_of view b) in
+  let rec clear = function
+    | (x0, y0) :: ((x1, y1) :: _ as rest) ->
+        let inside px py = px > bx && px < bx +. bw && py > by && py < by +. bh in
+        let samples = List.init 20 (fun k -> let u = float k /. 19. in x0 +. (x1 -. x0) *. u, y0 +. (y1 -. y0) *. u) in
+        List.for_all (fun (px, py) -> not (inside px py)) samples && clear rest
+    | _ -> true in
+  check (clear pts) "a bent wire still runs under a card";
+  (* o opens the selection one level and pins it; p points it, again goes back *)
+  let sel = Scope.select [ a ] view in
+  let _, changes = Scope.run_command sel Scope.Open_level in
+  check (changes = [ Scope.Level_set [ a, Some P.Full, true ] ]) "o is not Level_set full, pinned";
+  let pointed, changes = Scope.run_command sel Scope.Point_level in
+  check (changes = [ Scope.Level_set [ a, Some P.Point, false ] ]) "p is not Level_set point";
+  ignore pointed;
+  let pview, _ = scope_view ~at:(fun p -> if p = a then Some (24., 24.) else None)
+    ~level:(fun p -> if p = a then Some (P.Point, false) else None) ws.checked "g" in
+  let pview, _ = scope_step pview (frame ()) in
+  let _, _, pw, ph = Option.get (Scope.Private.box_of pview a) in
+  check (ph = P.point_size *. Scope.zoom pview && pw < 100. *. Scope.zoom pview) "a point is the 14-point disc and its name";
+  let back, changes = Scope.run_command (Scope.select [ a ] pview) Scope.Point_level in
+  ignore back;
+  check (match changes with [ Scope.Level_set [ p, l, false ] ] -> p = a && l = None | _ -> false)
+    "p on a point does not go back to the card";
+  (* the header's in-port takes a wire: dropped anywhere on the header it is Connect on the first slot *)
+  let sx, sy = Option.get (Scope.Private.output_socket view b) in
+  let tx, ty = Option.get (Scope.Private.row_center view c 0) in
+  let start = int_of_float sx, int_of_float sy and stop = int_of_float tx, int_of_float ty in
+  let v, _ = scope_step view (frame ~mouse:start ~events:[ mouse_move start; mouse_press (Input.LeftButton, start) ] ()) in
+  let v, _ = scope_step v (frame ~mouse:stop ~events:[ mouse_move stop ] ()) in
+  let _, changes = scope_step v (frame ~mouse:stop ~events:[ mouse_release (Input.LeftButton, stop) ] ()) in
+  check (List.exists (function
+    | Scope.Syntax_edit (Flow_sop.Flow_edit.Connect { node; key = Flow_sop.Flow_edit.Pos 0; src = "b"; _ }) -> node = c
+    | _ -> false) changes) "a wire dropped on the header did not connect the first slot";
+  (* f: letter hints; a letter connects the selected output *)
+  let hint_view, notices = Scope.run_command (Scope.select [ b ] view) Scope.Show_hints in
+  check (notices = [] && Scope.editing hint_view) "f did not start the hints";
+  let hint_view, _ = scope_step hint_view (frame ()) in  (* the key that began it *)
+  (* one frame with the key down: scope_step's settle frame would take the press *)
+  let one_frame key v =
+    let f = frame ~keys:[ key ] () in
+    Pxui.Ui.frame scope_ui f (fun ui -> Scope.update v ui f) in
+  let v, changes = one_frame (Input.KeyChar 'a') hint_view in
+  let connects = List.filter (function Scope.Syntax_edit (Flow_sop.Flow_edit.Connect { src = "b"; _ }) -> true | _ -> false)
+    changes in
+  check (connects <> [] && not (Scope.editing v)) "a hint letter did not connect and end the hints";
+  let esc, _ = one_frame Input.Escape hint_view in
+  check (not (Scope.editing esc)) "Escape did not end the hints"
+
 
 let scope_connection_hover () =
   let ws = Editor_document.Workspace_doc.of_text scope_catalog
@@ -153,13 +222,11 @@ let scope_connection_hover () =
   let ws = Editor_document.Workspace_doc.of_text scope_catalog
     "(workspace capture (graph g :context sop (let* [a (sop/box) copies (for [i (range 2)] (sop/transform a :translate [i 0 0]))] (sop/merge copies))))"
     |> Result.get_ok in
-  let view, scope = scope_view ws.checked "g" in
+  let view, _ = scope_view ws.checked "g" in
   let view, _ = scope_step view (frame ()) in
-  let zone = Option.get (P.find scope ["g"; "copies"]) in
-  let rail = (Option.get zone.zone).rail in
-  let index = Option.get (List.find_index (fun (r : P.rail_row) -> r.role = P.Capture && r.name = "a") rail) in
-  let x, y, _, _ = Option.get (Scope.Private.box_of view zone.path) in
-  let point = int_of_float x, int_of_float (y +. (P.rail_top zone +. (float index +. 0.5) *. P.row_height) *. Scope.zoom view) in
+  (* a captured value is wired straight across the zone's edge from the node that makes it *)
+  let ax, ay = Option.get (Scope.Private.output_socket view [ "g"; "a" ]) in
+  let point = int_of_float ax, int_of_float ay in
   let hovered, changes = scope_step view (frame ~mouse:point ~events:[mouse_move point] ()) in
   check (changes = [] && List.length (Scope.Private.highlighted_connections hovered) = 1)
     "hover on a captured value's socket missed its outer connection"
@@ -504,7 +571,9 @@ let run_scope () =
   check (List.mem (Scope.Probe_set { zone; index = 4 }) changes) "the previous button did not step the probe";
   let x, y, tw, th = track in
   let _, changes = scope_click view (int_of_float (x +. tw *. 0.75), int_of_float (y +. th /. 2.)) in
-  check (List.exists (function Scope.Probe_set { zone = z; index } -> z = zone && index >= 165 && index <= 195
+  (* a click at 75 % of the 57.5-point track reads 180 of 240; the one slack is the test's whole-point
+     click (up to 1 point is 4.2 iterations): 175 to 181 *)
+  check (List.exists (function Scope.Probe_set { zone = z; index } -> z = zone && index >= 175 && index <= 181
                               | _ -> false) changes) "the track did not map the pointer to an iteration";
   let _, changes = scope_click view (10, 690) in
   check (changes = [] || List.for_all (function Scope.Selected _ -> true | _ -> false) changes)
@@ -631,6 +700,7 @@ let run_scope () =
   scope_gestures ();
   scope_carry ();
   scope_connection_hover ();
+  scope_levels ();
   scope_pinch ();
   print_endline "pxui graph scope pane tests passed"
 
@@ -678,3 +748,26 @@ let bench_scope_pane () =
   time "orrery pane, live records" (live_view (Some 0.)) (fun view ui f ->
     t := !t +. 0.016;
     Scope.update (Scope.with_records (Flow_sop.Probe.make ~time:!t evaluated) view) ui f)
+
+(* 2,001 nodes in one scope: laying it out and painting a frame.  Command:
+   dune exec test/test_main.exe -- bench_scope_big *)
+let bench_scope_big () =
+  let n = 2001 in
+  let b = Buffer.create 65536 in
+  Buffer.add_string b "(workspace big (graph g :context sop (let* [n0 (sop/box)";
+  for i = 1 to n - 1 do
+    Printf.bprintf b " n%d (sop/transform n%d :translate [%d 0 0])" i (if i mod 7 = 0 then i / 2 else i - 1) i
+  done;
+  Printf.bprintf b "] n%d)))" (n - 1);
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog (Buffer.contents b) |> Result.get_ok in
+  let scope = P.of_graph scope_catalog ws.checked "g" in
+  let ui = Pxui.Ui.create ~font_size:11 () in
+  let time label runs f =
+    let started = Unix.gettimeofday () in
+    for _ = 1 to runs do ignore (Sys.opaque_identity (f ())) done;
+    Printf.printf "%-28s %.3f ms\n%!" label ((Unix.gettimeofday () -. started) *. 1000. /. float runs) in
+  time "2001 nodes: with_scope" 5 (fun () -> Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope);
+  let view = ref (Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope) in
+  for _ = 1 to 5 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
+  time "2001 nodes: frame" 100 (fun () ->
+    view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))); ())

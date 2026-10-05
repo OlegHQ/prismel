@@ -1,7 +1,7 @@
 (** Canvas layout keyed by {!type:Flow.Workspace.path}: the fields of
     the workspace's active layout and preserved legacy canvas metadata.
-    Scope consumes positions, collapsed zones, frames and displayed paths;
-    pinned nodes, row disclosure, bends and wireless flags round-trip but
+    Scope consumes positions, detail levels with their pins, collapsed zones, frames and
+    displayed paths; row disclosure, bends and wireless flags round-trip but
     have no current presentation reader. A path is the lexical identity of a binding, so a key
     survives every text edit that keeps the path; {!Flow_sop.Flow_edit.remap}
     rewrites keys in the same transaction as a rename or a hoist.
@@ -11,7 +11,7 @@
       (layout
         (editor "studio")
         (panel ["studio" "network"] :collapsed false :window [500 80 620 450])
-        (node ["g" "ring"] :at [120 40] :pinned true :collapsed true :rows {:radius false})
+        (node ["g" "ring"] :at [120 48] :level "full" :pinned true :collapsed true :rows {:radius false})
         (bend ["g" "b"] "in0" [12 24] [30 40])
         (wireless ["g" "b"] "in0")
         (frame ["g"] "Legs" :at [0 0] :size [200 100])
@@ -33,7 +33,9 @@ type t = {
   panels : Editor_core.Panels.state Path_map.t;
       (** Saved panel disclosure and floating window bounds, keyed by editor graph and binding. *)
   at : (float * float) Path_map.t;
-  pinned : bool Path_map.t;
+  pinned : bool Path_map.t;  (** opened explicitly: the node ignores the zoom caps *)
+  level : Flow_sop.Projection.level Path_map.t;
+      (** the detail level of a node (absent: a card), by path like [at] *)
   rows : bool String_map.t Path_map.t;
   bends : (float * float) list Port_map.t;  (** keyed by the consumer and its input *)
   wireless : Port_set.t;

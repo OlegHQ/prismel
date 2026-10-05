@@ -6,6 +6,7 @@ let tests = [
   "test_pxui_graph", Test_pxui_graph.run_menu;
   "test_pxui_graph_scope", Test_pxui_graph.run_scope;
   "bench_scope_pane", Test_pxui_graph.bench_scope_pane;
+  "bench_scope_big", Test_pxui_graph.bench_scope_big;
   "test_rays_editor", Test_rays_editor.run;
   "test_rays_editor_logic", Test_rays_editor.run_logic;
   "test_editor_document", Test_editor_document.run;

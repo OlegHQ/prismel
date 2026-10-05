@@ -55,6 +55,9 @@ type row = {
   socket : bool;  (** a wire can land here (literal-only text and choices: no) *)
   kind : row_kind;
   control : control;
+  folder : string;  (** the schema folder the row sits in (shown at level [Full]); empty for none *)
+  primary : bool;  (** a primary row of the schema ({!Exposure}) *)
+  head : bool;  (** the first geometry slot of a node kind: the header's in-port, not a row of the body *)
 }
 
 type zone_kind = For | Fold | Scan | Sum | Let | Fn
@@ -146,7 +149,34 @@ val find : scope -> path -> node option
 val zones : scope -> node list
 (** Every zone below the scope, outer first. *)
 
-(** {2 Layout}  logical points on the 24-point row grid *)
+(** {2 Levels} flow.md 6.4 *)
+
+type level = Point | Chip | Card | Full
+(** Point: a 14-point disc and the name; Chip: the header with a [+N] count; Card: the rows the
+    exposure rule shows, then [+ N more]; Full: every row under its folder labels. *)
+
+val level_name : level -> string
+val level_of_name : string -> level option
+
+val value_card : node -> bool
+(** A literal binding: a header-only card with the value in a field (the sheet's value node). *)
+
+type line =
+  | Folder of int * string  (** the n-th folder label row of a [Full] card *)
+  | Row of int * row  (** [n.rows.(i)] *)
+  | More of int  (** the [+ N more] row: how many rows the card hides *)
+
+val lines : ?pin:(string -> bool option) -> level -> node -> line array
+(** The body of a card at a level, in order; the header slot, and every row of a value card, a
+    zone, a chip or a point, are not lines.  [pin] is a row's pin by label ([layout.rows]). *)
+
+val set_count : node -> int
+(** What the chip's [+N] says: the rows with something written. *)
+
+val point_title : node -> string
+val point_width : node -> float
+
+(** {2 Layout}  logical points on the 24-point dot lattice *)
 
 type item = Input of input | Item of node | Return
 
@@ -159,13 +189,16 @@ type placed = {
   h : float;
   collapsed : bool;
   inner : layout option;  (** an expanded zone's own layout *)
+  level : level;  (** the requested level (the pane draws less below its zoom caps) *)
+  lines : line array;  (** the card's body at that level *)
 }
 
 and layout = { placed : placed list; w : float; h : float }
 
 val layout :
   ?foot:bool -> ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
-  ?lens:(path -> int option) -> scope -> layout
+  ?lens:(path -> int option) -> ?level:(path -> level) -> ?pin:(path -> string -> bool option) ->
+  ?inner:bool -> scope -> layout
 (** Columns by dependency depth, inputs first and the return last; a node
     stacks below its column's previous one.  [at] overrides a node's position
     ([Layout_by_path.at]), [collapsed] folds a zone to its card, [lens] gives the step of
@@ -178,14 +211,31 @@ val layout :
 val lens_width : float
 val lens_height : lens -> step:int -> float
 (** The expansion panel under a macro call: a row of step buttons, the printed step
-    (at most 16 lines of 15 points) and the button row. *)
+    (at most 16 lines of 20 points) and the button row. *)
 
 val place : layout -> (path * (float * float * float * float)) list
 (** Absolute [(x, y, w, h)] of every placed item, zones' children included,
     outer first. *)
 
 val rail_top : node -> float
-(** Offset of a zone's first rail row from the zone's top. *)
+(** Where a zone's cards start below its top: the label row and 28 points of air, plus a row
+    for each rail row beyond the label ({!extra_rails}). *)
+
+val label_row : zone -> rail_row option
+(** The rail row the zone's label row shows: its first loop variable. *)
+
+val extra_rails : zone -> rail_row list
+(** The rail rows drawn under the label row (accumulators, further variables, parameters): a
+    plain [for] has none, so a loop adds nothing it does not use. *)
+
+val lattice : float
+(** The dot grid (24): cards and columns sit on it. *)
+
+val snap : float -> float
+val zone_pad_x : float
+val zone_pad_top : float
+val zone_pad_bottom : float
+val point_size : float
 
 val row_height : float
 val head_height : float
@@ -201,7 +251,3 @@ val card_height : rows:float -> extra:float -> float
     alone when it has neither. *)
 
 val node_width : float
-val rail_width : float
-val yield_width : float
-val strip_height : float
-(** The constants of the study's card geometry (24-point rows). *)

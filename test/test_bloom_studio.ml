@@ -100,8 +100,8 @@ let run () =
   (* v on a node of the shown graph views it in the viewport without entering the object *)
   click (row_centre "heart");
   (* a Shift-click on empty canvas focuses the pane and keeps the selection *)
-  let gx, gy, gw, gh = (graph_leaf ()).body in
-  let p = float (gx + gw - 40), float (gy + gh - 40) in
+  let gx, gy, gw, _ = (graph_leaf ()).body in
+  let p = float (gx + gw - 40), float (gy + 40) in  (* the top right: nothing is laid out there *)
   step ~mouse:p [ Event.MouseMoved p ];
   step ~keys:[ Input.Shift ] ~buttons:[ Input.LeftButton ] ~mouse:p [ Event.MousePressed (Input.LeftButton, p) ];
   step ~keys:[ Input.Shift ] ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];

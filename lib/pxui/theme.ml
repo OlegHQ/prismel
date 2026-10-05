@@ -72,7 +72,7 @@ let zone theme ~light ~dark:night ~dashed =
   let r, g, b, fill, edge = if dark theme then night else light in
   { fill = Rays.Color.rgba r g b fill; edge = Rays.Color.rgba r g b edge; dashed }
 let zone_for theme = zone theme ~dashed:false
-  ~light:(240, 72, 31, 14, 90) ~dark:(255, 107, 69, 16, 100)
+  ~light:(240, 72, 31, 15, 92) ~dark:(255, 107, 69, 16, 100)
 let zone_fold theme = zone theme ~dashed:false
   ~light:(107, 80, 174, 19, 128) ~dark:(169, 140, 245, 20, 128)
 let zone_sum theme = zone theme ~dashed:false

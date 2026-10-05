@@ -1,6 +1,7 @@
 type parameter = {
   name : string; label : string; ty : Port_type.t option;
   fields : (string * Param.kind_view * Param.value) list;
+  folder : string list; primary : bool;
 }
 type slot = { name : string; required : bool; rest : bool }
 type kind = {
@@ -54,10 +55,11 @@ let parameters_of_fields fields =
              gather ({name = group; label = field.label; ty = Some Port_type.Vec3;
                fields = List.map (fun (field : Param.field_view) ->
                  field.name, field.kind, field.default)
-                 [field;y;z]} :: reversed) tail
+                 [field;y;z]; folder = field.Param.folder; primary = field.Param.primary} :: reversed) tail
          | _ -> gather ({name = field.name; label = field.label;
              ty = Port_type.of_field_kind field.kind;
-             fields = [field.name, field.kind, field.default]} :: reversed) rest) in
+             fields = [field.name, field.kind, field.default];
+             folder = field.Param.folder; primary = field.Param.primary} :: reversed) rest) in
   gather [] fields
 
 exception Invalid_manifest of Diagnostic.t
