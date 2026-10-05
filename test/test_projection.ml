@@ -179,8 +179,8 @@ let rec check_layout name (l : P.layout) =
   List.iter (fun (p : P.placed) ->
     check (inside (0., 0., l.w, l.h) (p.x, p.y, p.w, p.h)) (name ^ ": a node is outside its scope");
     Option.iter (fun (inner : P.layout) ->
-      (* the zone's body has room for its whole inner layout, between the rail and the yield *)
-      check (P.rail_width +. inner.w <= p.w -. P.yield_width && P.rail_top (match p.item with P.Item n -> n | _ -> fail "item") +. inner.h <= p.h)
+      (* the zone's body has room for its whole inner layout, between its padding *)
+      check (P.zone_pad_x +. inner.w +. P.zone_pad_x <= p.w && P.rail_top (match p.item with P.Item n -> n | _ -> fail "item") +. inner.h <= p.h)
         (name ^ ": a zone is smaller than its body");
       check_layout name inner) p.inner) l.placed
 
@@ -208,8 +208,10 @@ let layout () =
   (* inputs come first, the return last, and a node sits right of what it reads *)
   let x path = let (x, _, _, _) = List.assoc path (P.place l) in x in
   check (x [ "sunflower"; ":seeds" ] < x [ "sunflower"; "seeds_each" ]
-         && x [ "sunflower"; "seeds_each" ] < x head && x head < x [ "sunflower"; "@return" ])
+         && x [ "sunflower"; "seeds_each" ] < x head)
     "columns follow the dependencies";
+  (* a graph whose result is a node has no return card: the displayed node is the result *)
+  check (not (List.exists (fun (q : P.placed) -> q.item = P.Return) l.placed)) "no return card for a linked result";
   (* a position override moves one node; a collapsed zone is a card *)
   let moved = P.layout ~at:(fun p -> if p = head then Some (500., 300.) else None) s in
   let (hx, hy, _, _) = List.assoc head (P.place moved) in
@@ -222,7 +224,14 @@ let layout () =
     "a collapsed zone is a card without its children";
   (* the study's card geometry, on the 24-point grid *)
   let p = List.find (fun (p : P.placed) -> p.path = head) l.placed in
-  check (p.w = P.node_width && p.h = P.card_height ~rows:2. ~extra:0.) "node size";
+  check (p.w = P.node_width && p.h = P.card_height ~rows:(float (Array.length p.lines)) ~extra:0.) "node size";
+  (* cards and columns sit on the dot lattice; the card's rows are the exposure rule's *)
+  List.iter (fun (q : P.placed) ->
+    match q.item with
+    | P.Item { zone = None; _ } | P.Input _ ->
+        check (Float.rem q.x P.lattice = 0. && Float.rem q.y P.lattice = 0.)
+          ("off the lattice: " ^ String.concat "/" q.path)
+    | _ -> ()) l.placed;
   check (P.card_height ~rows:0. ~extra:0. = P.head_height
          && P.card_height ~rows:3. ~extra:0. = 100.
          && (P.layout ~foot:true s |> fun l -> (List.find (fun (q : P.placed) -> q.path = head) l.placed).h)

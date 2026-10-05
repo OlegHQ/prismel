@@ -19,6 +19,10 @@ type change =
   | Selected of path list
   | Moved of (path * float * float) list
       (** dragged items, at their new position inside their scope *)
+  | Level_set of (path * Flow_sop.Projection.level option * bool) list
+      (** [o], [p] and their [⇧] forms, or a click on [+ N more]: these nodes' new level ([None]:
+          back to the default, a card) and whether it is pinned (it then ignores the zoom caps).
+          The host stores it by path ([Layout_by_path.level] / [pinned]), one history entry. *)
   | Copy_requested of path list
       (** Command-C / Command-X: the host puts these bindings' text on the clipboard (a cut
           also deletes them) *)
@@ -58,7 +62,16 @@ type command =
   | Duplicate  (** Command-D: copy the selected nodes with fresh names ({!Flow_sop.Flow_edit.Duplicate}) *)
   | Display  (** [v]: {!Display_set} for the selected geometry node *)
   | Copy | Cut | Paste  (** Command-C / X / V: {!Copy_requested} (a cut deletes too), {!Paste_requested} *)
-  | Frame_selection  (** [f]: pan and zoom to the selected nodes (all of them with none selected) *)
+  | Frame_selection  (** [⇧F]: pan and zoom to the selected nodes (all of them with none selected) *)
+  | Open_level  (** [o]: the selected nodes one level more detailed, pinned *)
+  | Point_level  (** [p]: the selected nodes to points, or back to the level they had *)
+  | Open_all  (** [⇧O]: every node to the default level *)
+  | Point_all  (** [⇧P]: every node to a point, or every node back *)
+  | Show_hints
+      (** [f]: with one node selected, a letter chip on every node it can connect to (a node with
+          several fitting inputs asks for a second letter); a complete label is a
+          [Syntax_edit (Connect ...)], Escape, Backspace on an empty label or a click cancels.
+          {!editing} is true meanwhile, so the host keeps its keys out. *)
 
 type stats = {
   nodes : int; zones : int; rows : int;  (** of the whole scope *)
@@ -74,12 +87,17 @@ val with_guide : bool -> t -> t
 val with_theme : Pxui.theme -> t -> t
 (** The theme the pane paints with: a window's canvas is the sheet, a docked one the ground. *)
 
+val with_failed : (path * string) list -> t -> t
+(** The nodes a cook or the checker refused, each with the diagnostic's code: the card wears the
+    sheet's failed state (invalid edge, square and name, the code in the kind's place). *)
+
 val with_carry : lit:(path * string) list -> hot:(path * bool) option -> t -> t
 (** While a payload is carried: the nodes it can be put on, each with its letter (the key
     route), and the node or canvas under the pointer with whether it takes the payload. *)
 
 val with_scope :
-  ?at:(path -> (float * float) option) -> ?collapsed:(path -> bool) ->
+  ?at:(path -> (float * float) option) ->
+  ?level:(path -> (Flow_sop.Projection.level * bool) option) -> ?collapsed:(path -> bool) ->
   ?probe:(path -> int) ->
   ?frames:(path -> (string * (float * float) * (float * float)) list) -> ?display:path ->
   ?wires:[ `Rect | `Straight ] -> ?layouts:string list ->
@@ -104,7 +122,8 @@ val macro_step : t -> path -> int option
     "Replace call with expansion" button is [Syntax_edit (Inline_macro ...)]. *)
 
 val editing : t -> bool
-(** A text field (a name, an input default, a frame title) is open: the host keeps its keys out. *)
+(** A text field (a name, an input default, a frame title) is open, or letter hints are up: the
+    host keeps its keys out. *)
 
 val selected : t -> path list
 val selected_wire : t -> (path * Flow_sop.Flow_edit.arg_key) option
@@ -113,11 +132,14 @@ val clear_selection : t -> t
 val stats : t -> stats
 val zoom : t -> float
 val wires : t -> [ `Rect | `Straight ]
+(** [`Straight] (the default, the sheet's wires): one segment port to port, bent clear of any
+    card it would cross; [`Rect] is the old orthogonal routing, for [:wires "rect"]. *)
+
 val with_wires : [ `Rect | `Straight ] -> t -> t
 
 val scope_point : t -> scope:path -> float * float -> (float * float) option
 (** A screen point as a position inside [scope] (a scope path of the shown graph), snapped to the
-    12-point grid: where a node added from a menu opened there is placed ([Moved]). *)
+    24-point dot lattice: where a node added from a menu opened there is placed ([Moved]). *)
 
 val bindings : ('scope, command) Editor_core.Command.t list
 val run_command : t -> command -> t * change list

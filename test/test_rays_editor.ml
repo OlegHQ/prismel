@@ -21,6 +21,10 @@ let frame ?(width = 900) ?(height = 640) ?mouse ?(events = []) count : Frame.t =
 
 let width (_, _, width, _) = width
 let center (x, y, width, height) = x + (width / 2), y + (height / 2)
+(* the middle of a card's header: the middle of the card may be a row, or the [+ N more] row *)
+let card_header (x, y, width, _) = x + (width / 2), y + 3  (* inside the header at any zoom *)
+(* the label of a card's first row (left of its value field), at any zoom: a press there is the tile's *)
+let card_row (x, y, width, _) = x + (width * 20 / 196), y + (width * 36 / 196)
 
 (* False in the window-free [runtest] pass: the editor logic runs, and only
    checks that stage through Metal or open a window are skipped. *)
@@ -232,7 +236,8 @@ let run () =
    | None -> ());
   let box path = match Rays_editor.Editor3.node_box environment path with
     | Some rect -> rect | None -> fail "the node has no box in the graph pane" in
-  let point = center (box [ "geo1"; "source" ]) in
+  (* the header: the middle of the card is a row (or the [+ N more] row, which opens it) *)
+  let point = (let x, y, w, _ = box [ "geo1"; "source" ] in x + w / 2, y + 12) in
   let selection_frame = frame ~mouse:point ~events:[
       mouse_press (Input.LeftButton, point);
       mouse_release (Input.LeftButton, point)] 20 in
@@ -263,7 +268,7 @@ let run () =
     at 0 in
   (* Shared undo stack: an added node is one entry; Command-Z removes it,
      Shift-Command-Z brings it back. *)
-  let source_point = center (box environment [ "geo1"; "source" ]) in
+  let source_point = card_row (box environment [ "geo1"; "source" ]) in
   let environment = Rays_editor.Editor3.update environment (frame ~mouse:source_point ~events:[
       mouse_press (Input.LeftButton, source_point);
       mouse_release (Input.LeftButton, source_point)] 23) in
@@ -308,7 +313,7 @@ let run () =
   let paths = [ [ "geo1"; "source" ]; [ "geo1"; "output" ] ] in
   let xs env = List.map (tile_x env) paths in
   let xs0 = xs environment in
-  let ox, oy = center (box environment [ "geo1"; "output" ]) in
+  let ox, oy = card_header (box environment [ "geo1"; "output" ]) in
   let held = [Input.LeftButton] in
   let environment = List.fold_left (fun environment (count, mouse, buttons, keys, events) ->
       Rays_editor.Editor3.update environment
@@ -546,7 +551,7 @@ let run () =
   let environment = enter3 environment 400 in
   let environment = Rays_editor.Editor3.update environment (frame 404) in
   let source_at = match Rays_editor.Editor3.node_box environment [ "geo1"; "source" ] with
-    | Some rect -> center rect | None -> fail "the source node has no box" in
+    | Some rect -> card_header rect | None -> fail "the source node has no box" in
   let environment = Rays_editor.Editor3.update environment (frame ~mouse:source_at 405) in
   let environment = Rays_editor.Editor3.update environment (frame ~mouse:source_at ~events:[
       mouse_press (Input.LeftButton, source_at); mouse_release (Input.LeftButton, source_at)] 406) in

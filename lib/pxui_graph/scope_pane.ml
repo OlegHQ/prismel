@@ -21,6 +21,9 @@ type change =
   | Zone_collapsed of { zone : path; collapsed : bool }
   | Selected of path list
   | Moved of (path * float * float) list
+  | Level_set of (path * P.level option * bool) list
+      (** nodes opened or pointed: their new level ([None]: back to the default, [Card]) and
+          whether it is pinned (it then ignores the zoom caps) *)
   | Copy_requested of path list  (** the host puts these bindings' text on the clipboard *)
   | Paste_requested  (** the host adds the clipboard's bindings here *)
   | Menu_requested of float * float  (** a right-click on empty canvas: the host opens its add menu there *)
@@ -42,7 +45,12 @@ type command =
   | Item_up | Item_down  (** move the hovered list item *)
   | Make_frame  (** a titled frame around the selected nodes *)
   | Duplicate | Display | Copy | Cut | Paste
-  | Frame_selection  (** [f]: pan and zoom to the selected nodes (all, with none selected) *)
+  | Frame_selection  (** [⇧F]: pan and zoom to the selected nodes (all, with none selected) *)
+  | Open_level  (** [o]: the selection one level more detailed, pinned *)
+  | Point_level  (** [p]: the selection to points, or back to its previous level *)
+  | Open_all  (** [⇧O]: every node to card *)
+  | Point_all  (** [⇧P]: every node to a point, or every node back *)
+  | Show_hints  (** [f]: letter hints; a letter connects the selected node's output *)
 
 type stats = {
   nodes : int; zones : int; rows : int;
@@ -51,8 +59,13 @@ type stats = {
 
 (* ------------------------------------------------------------ geometry *)
 
-type src = { pos : float * float; ty : Ty.t option }
-type wire = { a : float * float; b : float * float; ty : Ty.t option; target : (path * E.arg_key * S.t option) option }
+type src = { pos : float * float; ty : Ty.t option; owner : path option }
+type wire = {
+  a : float * float; b : float * float; ty : Ty.t option;
+  target : (path * E.arg_key * S.t option) option;
+  pts : (float * float) list;  (* the drawn polyline, [a] .. [b]: straight, or bent clear of the cards *)
+  dashed : bool;  (* a loop's feedback *)
+}
 
 type geo = {
   items : (P.placed * float * float) array;  (* absolute top-left, graph units *)
@@ -63,18 +76,126 @@ type geo = {
 }
 
 let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = [] }
-let pad = 14.
 let root_name s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 let fallback (r : P.row) = Option.bind r.ty (fun ty -> E.default_for ty r.label)
 
-let rail_y (n : P.node) ~collapsed ay =
-  if collapsed then ay +. P.body_top else ay +. P.rail_top n
-let rows_top (n : P.node) ay =
-  ay +. P.body_top +. (if n.note <> None then P.row_height else 0.)
+(* the sheet's wire ends: a header port's wire runs 1.5 points from y + 11, a row port's from the
+   row's centre line (kit [.wire], measured on graph@2x.png) *)
+let wire_head_y = 11.75
+let wire_row_y = 12.75
+
+let note_rows (n : P.node) = if n.note <> None then 1. else 0.
+let rows_top (n : P.node) ay = ay +. P.body_top +. note_rows n *. P.row_height
+
+(* where the rows are: the line each row of a card sits on, by row index *)
+let line_of_row (lines : P.line array) =
+  let tbl = Hashtbl.create 8 in
+  Array.iteri (fun k -> function P.Row (i, _) -> Hashtbl.replace tbl i k | _ -> ()) lines;
+  tbl
+
+(* ---- wire routing: straight, or bent clear of every card ---- *)
+
+type obstacle = { path : path; rx : float; ry : float; rw : float; rh : float }
+
+(* a bucket grid over the cards: a wire asks only the cells its box crosses *)
+type grid = { cell : float; cells : (int * int, obstacle list) Hashtbl.t }
+
+let grid_of obstacles =
+  let cell = 128. in
+  let cells = Hashtbl.create 64 in
+  List.iter (fun o ->
+    for cx = int_of_float (Float.floor (o.rx /. cell)) to int_of_float (Float.floor ((o.rx +. o.rw) /. cell)) do
+      for cy = int_of_float (Float.floor (o.ry /. cell)) to int_of_float (Float.floor ((o.ry +. o.rh) /. cell)) do
+        Hashtbl.replace cells (cx, cy) (o :: Option.value ~default:[] (Hashtbl.find_opt cells (cx, cy)))
+      done
+    done) obstacles;
+  { cell; cells }
+
+(* does the segment cross the rectangle grown by [margin]?  (Liang-Barsky) *)
+let crosses (x0, y0) (x1, y1) o ~margin =
+  let xmin = o.rx -. margin and xmax = o.rx +. o.rw +. margin
+  and ymin = o.ry -. margin and ymax = o.ry +. o.rh +. margin in
+  let dx = x1 -. x0 and dy = y1 -. y0 in
+  let t0 = ref 0. and t1 = ref 1. and ok = ref true in
+  let clip p q =
+    if p = 0. then (if q < 0. then ok := false)
+    else begin
+      let r = q /. p in
+      if p < 0. then (if r > !t1 then ok := false else if r > !t0 then t0 := r)
+      else if r < !t0 then ok := false else if r < !t1 then t1 := r
+    end in
+  clip (-. dx) (x0 -. xmin); clip dx (xmax -. x0); clip (-. dy) (y0 -. ymin); clip dy (ymax -. y0);
+  !ok && !t0 <= !t1
+
+let blockers grid ~excl p q =
+  let x0, y0 = p and x1, y1 = q in
+  let c v = int_of_float (Float.floor (v /. grid.cell)) in
+  let found = ref [] in
+  for cx = c (Float.min x0 x1) to c (Float.max x0 x1) do
+    for cy = c (Float.min y0 y1) to c (Float.max y0 y1) do
+      List.iter (fun o ->
+        if not (List.mem o.path excl) && not (List.memq o !found) && crosses p q o ~margin:2. then found := o :: !found)
+        (Option.value ~default:[] (Hashtbl.find_opt grid.cells (cx, cy)))
+    done
+  done;
+  !found
+
+let length pts =
+  let rec go acc = function
+    | (x0, y0) :: ((x1, y1) :: _ as rest) -> go (acc +. Float.hypot (x1 -. x0) (y1 -. y0)) rest
+    | _ -> acc in
+  go 0. pts
+
+(* A wire is one straight segment, port to port.  One that would pass under a card gets a bend
+   (a 5-point square) 24 points clear of the card, on the source's level or the target's, as
+   box1 -> copy1.template does in the sheet; a backward wire goes round above or below. *)
+let route grid ~excl ((ax, ay) as a) ((bx, by) as b) =
+  let free pts =
+    let rec go = function
+      | p :: (q :: _ as rest) -> blockers grid ~excl p q = [] && go rest
+      | _ -> true in
+    go pts in
+  if bx > ax +. 8. && free [ a; b ] then [ a; b ] else begin
+    let hit = blockers grid ~excl a b in
+    let hit = if hit = [] then
+        (* a backward wire: the cards in the box it spans *)
+        blockers grid ~excl (Float.min ax bx, Float.min ay by) (Float.max ax bx, Float.max ay by)
+      else hit in
+    let right = List.fold_left (fun m o -> Float.max m (o.rx +. o.rw)) ax hit +. 24.
+    and left = List.fold_left (fun m o -> Float.min m o.rx) bx hit -. 24.
+    and top = List.fold_left (fun m o -> Float.min m o.ry) (Float.min ay by) hit -. 24.
+    and bottom = List.fold_left (fun m o -> Float.max m (o.ry +. o.rh)) (Float.max ay by) hit +. 24. in
+    let forward = bx > ax +. 8. in
+    let candidates =
+      (if forward then
+         [ [ a; (right, ay); b ]; [ a; (left, by); b ];
+           [ a; (right, ay); (right, by); b ]; [ a; (left, ay); (left, by); b ] ]
+       else [])
+      @ [ [ a; (ax +. 24., ay); (ax +. 24., top); (bx -. 24., top); (bx -. 24., by); b ];
+          [ a; (ax +. 24., ay); (ax +. 24., bottom); (bx -. 24., bottom); (bx -. 24., by); b ] ] in
+    match List.filter free candidates with
+    | [] -> if forward then [ a; b ] else List.hd (List.rev candidates)
+    | clear ->
+        List.fold_left (fun best c -> if length c < length best then c else best) (List.hd clear) clear
+  end
+
+(* the old orthogonal style, kept for [:wires "rect"] *)
+let rect_points (ax, ay) (bx, by) =
+  let mx = if bx >= ax +. 24. then (ax +. bx) /. 2. else ax +. 12. in
+  if bx >= ax +. 24. then [ (ax, ay); (mx, ay); (mx, by); (bx, by) ]
+  else [ (ax, ay); (mx, ay); (mx, (ay +. by) /. 2.); (bx -. 12., (ay +. by) /. 2.); (bx -. 12., by); (bx, by) ]
+
+(* where a card's out-port wire starts, a node's rows are read and a zone's rail rows end *)
+let out_anchor (p : P.placed) ax ay = match p.item with
+  | P.Item { zone = None; _ } when p.level = P.Point -> ax +. P.point_size, ay +. P.point_size /. 2.
+  | _ -> ax +. p.w, ay +. wire_head_y
+let in_anchor (p : P.placed) ax ay = match p.item with
+  | P.Item { zone = None; _ } when p.level = P.Point -> ax, ay +. P.point_size /. 2.
+  | _ -> ax, ay +. wire_head_y
 
 (* [shift] moves a placed item by its path (a drag in progress); a zone's
    children follow through the origin they are laid out from. *)
-let compute (scope : P.scope) (layout : P.layout) ~shift =
+let compute ?(style = `Straight) (scope : P.scope) (layout : P.layout) ~shift =
   let items = ref [] and pos = Hashtbl.create 64 and rel = Hashtbl.create 64 in
   let origins = ref [ (scope.path, (0., 0.)) ] in
   let rec walk ox oy (l : P.layout) =
@@ -86,61 +207,107 @@ let compute (scope : P.scope) (layout : P.layout) ~shift =
       Hashtbl.replace rel p.path (p.x, p.y);
       match p.inner, p.item with
       | Some inner, P.Item n ->
-          origins := (n.path, (ax +. P.rail_width +. pad, ay +. P.rail_top n)) :: !origins;
-          walk (ax +. P.rail_width +. pad) (ay +. P.rail_top n) inner
+          origins := (n.path, (ax +. P.zone_pad_x, ay +. P.rail_top n)) :: !origins;
+          walk (ax +. P.zone_pad_x) (ay +. P.rail_top n) inner
       | _ -> ()) l.placed in
   walk 0. 0. layout;
+  let items_list = List.rev !items in
+  let obstacles = List.filter_map (fun ((p : P.placed), ax, ay) -> match p.item with
+    | P.Item { zone = Some _; _ } when not p.collapsed -> None
+    | _ -> Some { path = p.path; rx = ax; ry = ay; rw = p.w; rh = p.h }) items_list in
+  let grid = grid_of obstacles in
   let wires = ref [] in
-  let wire ?target (s : src option) b = match s with
-    | Some s -> wires := { a = s.pos; b; ty = s.ty; target } :: !wires
+  let wire ?target ?(dashed = false) (s : src option) b ~into =
+    match s with
+    | Some s ->
+        let excl = (match s.owner with Some o -> [ o ] | None -> []) @ into in
+        let pts = match style with
+          | `Straight -> route grid ~excl s.pos b
+          | `Rect -> rect_points s.pos b in
+        wires := { a = s.pos; b; ty = s.ty; target; pts; dashed } :: !wires
     | None -> () in
   let resolve chain name =
     List.find_map (fun tbl -> match Hashtbl.find_opt tbl name with
       | Some s -> Some s | None -> Hashtbl.find_opt tbl (root_name name)) chain in
   let names_of (e : S.t option) = match e with Some e -> E.free_names e | None -> [] in
+  let placed_of = Hashtbl.create 64 in
+  List.iter (fun ((p : P.placed), _, _) -> Hashtbl.replace placed_of p.path p) items_list;
   let declared (s : P.scope) =
     let tbl = Hashtbl.create 16 in
     List.iter (fun (i : P.input) -> match Hashtbl.find_opt pos i.path with
-      | Some (ax, ay, w, _) -> Hashtbl.replace tbl i.name { pos = (ax +. w -. 1., ay +. 12.); ty = Some i.ty }
-      | None -> ()) s.inputs;
-    List.iter (fun (n : P.node) -> match Hashtbl.find_opt pos n.path with
-      | None -> ()
       | Some (ax, ay, w, _) ->
-          let out j = (ax +. w, rows_top n ay +. (float (List.length n.rows + j) +. 0.5) *. P.row_height) in
+          Hashtbl.replace tbl i.name { pos = (ax +. w, ay +. wire_head_y); ty = Some i.ty; owner = Some i.path }
+      | None -> ()) s.inputs;
+    List.iter (fun (n : P.node) -> match Hashtbl.find_opt pos n.path, Hashtbl.find_opt placed_of n.path with
+      | Some (ax, ay, w, _), Some p ->
+          let lines = Array.length p.lines in
+          let out j = (ax +. w, rows_top n ay +. (float (lines + j) +. 0.5) *. P.row_height +. 0.75) in
+          let main = (let x, y = out_anchor p ax ay in x, y) in
           (match n.binds with
            | [ b ] when b = n.name ->
-               Hashtbl.replace tbl b { pos = (ax +. w -. 1., ay +. 12.); ty = Some n.ty };
+               Hashtbl.replace tbl b { pos = main; ty = Some n.ty; owner = Some n.path };
                List.iteri (fun j (f, ty) ->
-                 Hashtbl.replace tbl (b ^ "." ^ f) { pos = out j; ty = Some ty }) n.outputs
+                 Hashtbl.replace tbl (b ^ "." ^ f) { pos = out j; ty = Some ty; owner = Some n.path }) n.outputs
            | _ -> List.iteri (fun j (f, ty) ->
-               Hashtbl.replace tbl f { pos = out j; ty = Some ty }) n.outputs)) s.nodes;
+               Hashtbl.replace tbl f { pos = out j; ty = Some ty; owner = Some n.path }) n.outputs)
+      | _ -> ()) s.nodes;
     tbl in
-  (* the second pass reads the placed items, which know their collapsed flag *)
-  let placed_of = Hashtbl.create 64 in
-  Array.iter (fun ((p : P.placed), _, _) -> Hashtbl.replace placed_of p.path p) (Array.of_list !items);
   let rec scope_wires chain (s : P.scope) =
     let chain = declared s :: chain in
     List.iter (fun (n : P.node) -> match Hashtbl.find_opt pos n.path, Hashtbl.find_opt placed_of n.path with
       | Some (ax, ay, w, _), Some (p : P.placed) ->
           (match n.zone with
            | None ->
+               let lines = line_of_row p.lines in
+               let chip_k = ref 0 in
                List.iteri (fun i (r : P.row) ->
-                 let target_pos = (ax, rows_top n ay +. (float i +. 0.5) *. P.row_height) in
+                 let target_pos =
+                   if r.head then in_anchor p ax ay
+                   else match p.level with
+                     | P.Point -> in_anchor p ax ay
+                     | P.Chip ->
+                         let k = !chip_k in incr chip_k;
+                         ax +. 22. +. 12. *. float k, ay +. P.head_height
+                     | _ ->
+                         (match Hashtbl.find_opt lines i with
+                          | Some k -> ax, rows_top n ay +. float k *. P.row_height +. wire_row_y
+                          | None -> ax, ay +. wire_head_y) in
                  let target = Some (n.path, r.key, fallback r) in
-                 List.iter (fun name -> wire ?target (resolve chain name) target_pos) (P.sources r)) n.rows
+                 List.iter (fun name -> wire ?target (resolve chain name) target_pos ~into:[ n.path ])
+                   (P.sources r)) n.rows
            | Some z ->
                let collapsed = p.collapsed in
-               List.iteri (fun i (r : P.rail_row) ->
-                 let target_pos = (ax, rail_y n ~collapsed ay +. (float i +. 0.5) *. P.row_height) in
-                 let names = if r.role = P.Capture then [ r.name ] else names_of r.expr in
-                 let target = match r.key with Some key -> Some (n.path, key, None) | None -> None in
-                 List.iter (fun name -> wire ?target (resolve chain name) target_pos) names) z.rail;
+               let label = P.label_row z in
+               let extras = P.extra_rails z in
+               let rail_pos (r : P.rail_row) =
+                 if collapsed then
+                   let i = Option.value ~default:0 (List.find_index (fun x -> x == r) z.rail) in
+                   ax, ay +. P.body_top +. float i *. P.row_height +. wire_row_y
+                 else match label with
+                   | Some l when l == r -> ax, ay +. wire_head_y
+                   | _ ->
+                       let i = Option.value ~default:0 (List.find_index (fun x -> x == r) extras) in
+                       ax, ay +. P.head_height +. float i *. P.row_height +. wire_row_y in
+               List.iter (fun (r : P.rail_row) ->
+                 if collapsed || r.role <> P.Capture then begin
+                   let names = if r.role = P.Capture then [ r.name ] else names_of r.expr in
+                   let target = match r.key with Some key -> Some (n.path, key, None) | None -> None in
+                   List.iter (fun name -> wire ?target (resolve chain name) (rail_pos r) ~into:[ n.path ]) names
+                 end) z.rail;
                if not collapsed then begin
+                 (* the loop's variables: a port in the zone's left strip (the label's), or at the
+                    right of the rail row *)
                  let rail = Hashtbl.create 8 in
-                 List.iteri (fun i (r : P.rail_row) ->
-                   let s = { pos = (ax +. P.rail_width, ay +. P.rail_top n +. (float i +. 0.5) *. P.row_height);
-                             ty = r.ty } in
-                   List.iter (fun name -> Hashtbl.replace rail name s) r.names) z.rail;
+                 List.iter (fun (r : P.rail_row) ->
+                   if r.role <> P.Capture then begin
+                     let pos = match label with
+                       | Some l when l == r -> ax +. 12., ay +. 36.
+                       | _ ->
+                           let i = Option.value ~default:0 (List.find_index (fun x -> x == r) extras) in
+                           ax +. w -. 12., ay +. P.head_height +. float i *. P.row_height +. wire_row_y in
+                     let s = { pos; ty = r.ty; owner = Some n.path } in
+                     List.iter (fun name -> Hashtbl.replace rail name s) r.names
+                   end) z.rail;
                  let inner = rail :: chain in
                  scope_wires inner z.scope;
                  let inner_chain = declared z.scope :: inner in
@@ -148,8 +315,15 @@ let compute (scope : P.scope) (layout : P.layout) ~shift =
                    | P.Link l -> resolve inner_chain l
                    | P.Node _ -> resolve inner_chain "@result"
                    | P.Literal _ -> None in
-                 let target = (ax +. w -. P.yield_width, ay +. P.rail_top n +. 12.) in
-                 wire source target
+                 (* the collected result ends at the zone's own out-port; a fold or scan feeds it
+                    back to its accumulator, dashed *)
+                 wire source (ax +. w, ay +. wire_head_y) ~into:[ n.path ];
+                 (match List.find_opt (fun (r : P.rail_row) -> r.role = P.Acc) z.rail with
+                  | Some acc ->
+                      (match Hashtbl.find_opt rail acc.name, source with
+                       | Some target, Some src -> wire ~dashed:true (Some src) target.pos ~into:[ n.path ]
+                       | _ -> ())
+                  | None -> ())
                end)
       | _ -> ()) s.nodes in
   scope_wires [] scope;
@@ -163,10 +337,10 @@ let compute (scope : P.scope) (layout : P.layout) ~shift =
               | P.Link l -> resolve chain l
               | P.Node _ -> resolve chain "@result"
               | P.Literal _ -> None in
-            let target = (ax, ay +. P.body_top +. 12.) in
-            wire source target
+            let target = (ax, ay +. P.body_top +. wire_row_y) in
+            wire source target ~into:[ scope.path @ [ "@return" ] ]
         | None -> ()));
-  { items = Array.of_list (List.rev !items); wires = Array.of_list (List.rev !wires); rel; pos; origins = !origins }
+  { items = Array.of_list items_list; wires = Array.of_list (List.rev !wires); rel; pos; origins = !origins }
 
 (* ---------------------------------------------------------------- state *)
 
@@ -184,12 +358,17 @@ type editing = Name of path | Default of path | Title of path * int
 
 type fr = string * (float * float) * (float * float)
 
+(* letter hints (flow.md 7.5): [f] labels every input the selected node's output can connect to *)
+type hint_target = { label : string; node : path; key : E.arg_key option; pos : float * float }
+type hinting = { src : string; src_ty : Ty.t; typed : string; targets : hint_target list; stage : path option; armed : bool }
+
 type t = {
   x : int; y : int; width : int; height : int;
   theme : Pxui.theme; visible : bool; guide : bool;
   key : string;
   scope : P.scope option;
   at : path -> (float * float) option;
+  level_at : path -> (P.level * bool) option;  (* a node's saved level and whether it is pinned *)
   collapsed : path -> bool;
   lens : (path * int) list;  (* macro calls whose expansion panel is open, and its step *)
   probe : path -> int;
@@ -215,19 +394,24 @@ type t = {
   switches : (path * int) list;  (* the [ui/switch] nodes and their active layout *)
   carry_lit : (path * string) list;  (* the places a carried payload can be put, with their letters *)
   carry_hot : (path * bool) option;  (* the place under the pointer, and whether it takes the payload *)
+  failed : (path * string) list;  (* nodes a cook or the checker refused, with the diagnostic's code *)
+  hinting : hinting option;
+  held : Input.key list * bool;  (* keys and any button held last frame: a press is a change *)
+  back : (path * P.level) list;  (* the level a node had before [p] pointed it *)
   measure : int -> string -> float;  (* text width in points, from the last built frame *)
 }
 
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
   x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
-  at = (fun _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
+  at = (fun _ -> None); level_at = (fun _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
-  wires = `Rect; selected = Path_set.empty; selected_wire = None; panning_grab = false;
+  wires = `Straight; selected = Path_set.empty; selected_wire = None; panning_grab = false;
   hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats; switches = [];
-  carry_lit = []; carry_hot = None; measure = (fun size s -> 0.6 *. float (size * String.length s)) }
+  carry_lit = []; carry_hot = None; failed = []; hinting = None; held = [], false; back = [];
+  measure = (fun size s -> 0.6 *. float (size * String.length s)) }
 
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
@@ -235,11 +419,12 @@ let with_bounds ~x ~y ~width ~height t =
 let with_visible visible t = if t.visible = visible then t else { t with visible }
 let with_guide guide t = if t.guide = guide then t else { t with guide }
 let with_theme theme t = if t.theme == theme then t else { t with theme }
+let with_failed failed t = if t.failed = failed then t else { t with failed }
 let with_carry ~lit ~hot t =
   if t.carry_lit = lit && t.carry_hot = hot then t else { t with carry_lit = lit; carry_hot = hot }
 let selected t = Path_set.elements t.selected
 let selected_wire t = Option.map (fun (path, key, _) -> path, key) t.selected_wire
-let editing t = t.editing <> None
+let editing t = t.editing <> None || t.hinting <> None
 let select paths t = { t with selected = Path_set.of_list paths; selected_wire = None }
 let clear_selection t =
   if Path_set.is_empty t.selected && t.selected_wire = None then t
@@ -247,13 +432,16 @@ let clear_selection t =
 let stats t = t.stats
 let zoom t = t.zoom
 let wires t = t.wires
-let with_wires wires t = if t.wires = wires then t else { t with wires }
+let with_wires wires t =
+  if t.wires = wires then t else match t.scope with
+    | None -> { t with wires }
+    | Some scope -> { t with wires; geo = compute ~style:wires scope t.layout ~shift:(fun _ -> 0., 0.) }
 
-(* a screen point as a position inside [scope], snapped to the 12-point grid (where a node added
-   from the menu opened there goes) *)
+(* a screen point as a position inside [scope], snapped to the 24-point dot lattice (where a node
+   added from the menu opened there goes) *)
 let scope_point t ~scope (mx, my) =
   Option.map (fun (ox, oy) ->
-    let snap v = Float.round (v /. 12.) *. 12. in
+    let snap = P.snap in
     snap ((mx -. float t.x -. t.pan_x) /. t.zoom -. ox), snap ((my -. float t.y -. t.pan_y) /. t.zoom -. oy))
     (List.assoc_opt scope t.geo.origins)
 
@@ -288,7 +476,8 @@ let macro_step = lens_of
 
 (* the cards reserve a footer row once the host has probe records to show *)
 let lay t scope ~at ~collapsed =
-  P.layout ~foot:(t.records <> None) ~at ~collapsed ~lens:(lens_of t) scope
+  P.layout ~foot:(t.records <> None) ~at ~collapsed ~lens:(lens_of t)
+    ~level:(fun p -> match t.level_at p with Some (l, _) -> l | None -> P.Card) scope
 
 (* a switch's rows read as the names of its layouts; [switches] are its nodes with the active input *)
 let switch_nodes (scope : P.scope) = List.filter_map (fun (n : P.node) ->
@@ -297,7 +486,7 @@ let switch_nodes (scope : P.scope) = List.filter_map (fun (n : P.node) ->
     | Some { expr = Some { S.node = S.Num s; _ }; _ } -> Option.value ~default:0 (int_of_string_opt s)
     | _ -> 0)) scope.nodes
 
-let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
+let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
     ?(frames = fun _ -> []) ?display ?wires ?(layouts = []) ~key scope t =
   let wires = Option.value wires ~default:t.wires in
   let scope = if layouts = [] then scope else
@@ -306,11 +495,12 @@ let with_scope ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun
         if n.head <> "ui/switch" || List.length inputs <> List.length layouts then n
         else { n with rows = List.map (fun (r : P.row) -> match r.key with
           | E.Pos i when r.kind <> P.Add -> { r with label = List.nth layouts i } | _ -> r) n.rows }) scope.P.nodes } in
+  let t = { t with level_at = level } in
   let layout = lay t scope ~at ~collapsed in
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
     chains = Flow_sop.Probe.chains scope; wires;
-    geo = compute scope layout ~shift:no_shift;
+    geo = compute ~style:wires scope layout ~shift:no_shift;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   (* an edit that removed or moved a node drops it from the selection *)
   let t = { (refresh t) with selected = Path_set.filter (Hashtbl.mem t.geo.pos) t.selected } in
@@ -332,7 +522,7 @@ let relayout t = match t.scope with
   | None -> t
   | Some scope ->
       let layout = lay t scope ~at:t.at ~collapsed:t.collapsed in
-      { t with layout; geo = compute scope layout ~shift:no_shift }
+      { t with layout; geo = compute ~style:t.wires scope layout ~shift:no_shift }
 
 let with_records records t =
   match t.records with
@@ -468,7 +658,8 @@ let action_changes t command =
             if count <= 0 then None else
             let index = max 0 (min (count - 1) (t.probe n.path + delta)) in
             if index = t.probe n.path then None else Some (Probe_set { zone = n.path; index })) nodes
-  | Frame_all | Frame_selection | Walk _ | Edit_name | Make_frame -> []
+  | Frame_all | Frame_selection | Walk _ | Edit_name | Make_frame
+  | Open_level | Point_level | Open_all | Point_all | Show_hints -> []
   | Duplicate -> if paths = [] then [ Notice "Select nodes to duplicate" ] else edit (E.Duplicate { nodes = paths })
   | Copy -> if paths = [] then [ Notice "Select nodes to copy" ] else [ Copy_requested paths ]
   | Cut -> if paths = [] then [ Notice "Select nodes to cut" ]
@@ -499,8 +690,147 @@ let frame_selection t =
       { t with zoom; pan_x = (float t.width -. w *. zoom) /. 2. -. x0 *. zoom;
                pan_y = (float t.height -. h *. zoom) /. 2. -. y0 *. zoom }
 
+(* ---- levels (flow.md 6.4) ---- *)
+
+let level_rank = function P.Point -> 0 | Chip -> 1 | Card -> 2 | Full -> 3
+let level_up = function P.Point -> P.Chip | Chip -> Card | Card | Full -> P.Full
+
+(* the nodes a level applies to: cards, not zones or value cards *)
+let levelled t path =
+  match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+  | Some (({ item = P.Item n; _ } as p), _, _) when n.zone = None && not (P.value_card n) -> Some p.level
+  | _ -> None
+
+let level_command t command =
+  let all_levelled = Array.to_list t.geo.items |> List.filter_map (fun ((p : P.placed), _, _) ->
+    Option.map (fun l -> p.path, l) (levelled t p.path)) in
+  let chosen = match command with
+    | Open_all | Point_all -> all_levelled
+    | _ -> List.filter_map (fun p -> Option.map (fun l -> p, l) (levelled t p)) (selected t) in
+  if chosen = [] then t, [ Notice "Select a card to change its level" ] else
+  let back_of p = Option.value ~default:P.Card (List.assoc_opt p t.back) in
+  let changes, back = match command with
+    | Open_level -> List.map (fun (p, l) -> p, Some (level_up l), true) chosen, t.back
+    | Open_all -> List.map (fun (p, _) -> p, None, false) chosen, t.back
+    | Point_level | Point_all | _ ->
+        let all_points = List.for_all (fun (_, l) -> l = P.Point) chosen in
+        if all_points then
+          List.map (fun (p, _) -> let l = back_of p in p, (if l = P.Card then None else Some l), false) chosen, t.back
+        else
+          List.map (fun (p, _) -> p, Some P.Point, false) chosen,
+          List.map (fun (p, l) -> p, (if l = P.Point then back_of p else l)) chosen
+          @ List.filter (fun (p, _) -> not (List.mem_assoc p chosen)) t.back in
+  { t with back }, [ Level_set changes ]
+
+(* ---- letter hints (flow.md 7.5): [f] labels every input the selected output can connect to ---- *)
+
+let hint_alphabet = "asdfghjklqwertyuiopzxcvbnm"
+let hint_labels n =
+  if n <= 26 then List.init n (fun i -> String.make 1 hint_alphabet.[i])
+  else List.init (min n 676) (fun i -> Printf.sprintf "%c%c" hint_alphabet.[i / 26] hint_alphabet.[i mod 26])
+
+(* the nodes of [scope] that [name] depends on: connecting from [name] to them would close a cycle *)
+let upstream_of t (src : P.node) =
+  let nodes = match t.scope with
+    | Some scope ->
+        let rec all (s : P.scope) = List.concat_map (fun (n : P.node) ->
+          n :: (match n.zone with Some z -> all z.scope | None -> [])) s.nodes in
+        all scope
+    | None -> [] in
+  let seen = Hashtbl.create 16 in
+  let rec visit (n : P.node) =
+    if not (Hashtbl.mem seen n.path) then begin
+      Hashtbl.replace seen n.path ();
+      List.iter (fun (r : P.row) -> List.iter (fun name ->
+        List.iter (fun (m : P.node) -> if List.mem (root_name name) m.binds then visit m) nodes) (P.sources r)) n.rows
+    end in
+  visit src; seen
+
+let start_hints t =
+  match selected_nodes t with
+  | [ src ] when src.zone = None && not src.synthetic ->
+      let up = upstream_of t src in
+      let scope = scope_of_path src.path in
+      let sx, sy = match Hashtbl.find_opt t.geo.pos src.path with Some (x, y, _, _) -> x, y | None -> 0., 0. in
+      let candidates = Array.to_list t.geo.items |> List.filter_map (fun ((p : P.placed), ax, ay) -> match p.item with
+        | P.Item n when n.zone = None && p.path <> src.path && scope_of_path p.path = scope
+                        && not (Hashtbl.mem up n.path) ->
+            let lines = line_of_row p.lines in
+            let rows = List.filter_map (fun (i, (r : P.row)) ->
+              match r.ty with
+              | Some ty when r.socket && r.kind <> P.Add && Ty.fits src.ty ty
+                             && (r.head || Hashtbl.mem lines i) ->
+                  let y = if r.head then ay +. 12. else
+                    rows_top n ay +. (float (Hashtbl.find lines i) +. 0.5) *. P.row_height in
+                  Some (r, (ax, y))
+              | _ -> None) (List.mapi (fun i r -> i, r) n.rows) in
+            if rows = [] then None else Some (n, (ax, ay), rows)
+        | _ -> None) in
+      let by_distance = List.sort (fun (_, (ax, ay), _) (_, (bx, by), _) ->
+        compare (Float.hypot (ax -. sx) (ay -. sy)) (Float.hypot (bx -. sx) (by -. sy))) candidates in
+      let by_distance = List.filteri (fun i _ -> i < 676) by_distance in
+      let labels = hint_labels (List.length by_distance) in
+      let targets = List.map2 (fun label ((n : P.node), at, rows) ->
+        match rows with
+        | [ ((r : P.row), _) ] -> { label; node = n.path; key = Some r.key; pos = at }
+        | _ -> { label; node = n.path; key = None; pos = at }) labels by_distance in
+      if targets = [] then t, [ Notice "Nothing the selected output can connect to" ]
+      else { t with hinting = Some { src = src.name; src_ty = src.ty; typed = ""; targets; stage = None; armed = false } }, []
+  | _ -> t, [ Notice "Select one node to connect from" ]
+
+(* a letter, Backspace or Escape while hints are up; [None] when it was not a hint key *)
+let step_hints t (frame : Frame.t) =
+  let pressed = List.filter (fun k -> not (List.mem k (fst t.held))) frame.keys in
+  let clicked = frame.mouse_buttons <> [] && not (snd t.held) in
+  let t = { t with held = (frame.keys, frame.mouse_buttons <> []) } in
+  match t.hinting with
+  | None -> t, []
+  | Some h when not h.armed -> { t with hinting = Some { h with armed = true } }, []  (* the key that began it *)
+  | Some h ->
+      let h_ref = ref h and out = ref [] and cancel = ref false in
+      if clicked then cancel := true;
+      List.iter (function
+        | Input.Escape -> cancel := true
+        | Input.Backspace ->
+            let h = !h_ref in
+            if h.typed <> "" then h_ref := { h with typed = String.sub h.typed 0 (String.length h.typed - 1) }
+            else if h.stage <> None then h_ref := { h with stage = None }
+            else cancel := true
+        | Input.KeyChar c when String.contains hint_alphabet (Char.lowercase_ascii c) && !out = [] ->
+            let h = !h_ref in
+            let typed = h.typed ^ String.make 1 (Char.lowercase_ascii c) in
+            let live = List.filter (fun (tg : hint_target) -> String.starts_with ~prefix:typed tg.label) h.targets in
+            (match List.find_opt (fun (tg : hint_target) -> tg.label = typed) live with
+             | Some { node; key = Some key; _ } when h.stage = None ->
+                 out := [ Syntax_edit (E.Connect { node; key; src = h.src; iter = false }) ]; cancel := true
+             | Some { node; key = None; _ } when h.stage = None ->
+                 (* a node with several inputs: its inputs get letters of their own *)
+                 let rows = match node_of t node with
+                   | Some n -> List.filter_map (fun (r : P.row) ->
+                       match r.ty with
+                       | Some ty when r.socket && r.kind <> P.Add && Ty.fits h.src_ty ty -> Some r | _ -> None) n.rows
+                   | None -> [] in
+                 let labels = hint_labels (List.length rows) in
+                 let ax, ay = match Hashtbl.find_opt t.geo.pos node with Some (x, y, _, _) -> x, y | None -> 0., 0. in
+                 let n = Option.get (node_of t node) in
+                 let lines = match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = node) t.geo.items with
+                   | Some (p, _, _) -> line_of_row p.lines | None -> Hashtbl.create 1 in
+                 let targets = List.map2 (fun label (r : P.row) ->
+                   let i = Option.value ~default:0 (List.find_index (fun x -> x == r) n.rows) in
+                   let y = if r.head then ay +. 12. else match Hashtbl.find_opt lines i with
+                     | Some k -> rows_top n ay +. (float k +. 0.5) *. P.row_height | None -> ay +. 12. in
+                   { label; node; key = Some r.key; pos = (ax, y) }) labels rows in
+                 h_ref := { h with typed = ""; targets; stage = Some node }
+             | Some { node; key = Some key; _ } ->
+                 out := [ Syntax_edit (E.Connect { node; key; src = h.src; iter = false }) ]; cancel := true
+             | _ -> if live = [] then () else h_ref := { h with typed })
+        | _ -> ()) pressed;
+      if !cancel then { t with hinting = None }, !out else { t with hinting = Some !h_ref }, !out
+
 let run_command t = function
   | Frame_all -> frame_all t, []
+  | (Open_level | Point_level | Open_all | Point_all) as command -> level_command t command
+  | Show_hints -> start_hints t
   | Frame_selection -> frame_selection t, []
   | Edit_name ->
       (match selected t with
@@ -563,7 +893,12 @@ let bindings =
     make ~guide:one "probe-prev" "previous iteration" (Probe_step (-1)) (ch '[') [];
     make ~guide:one "probe-next" "next iteration" (Probe_step 1) (ch ']') [];
     make ~guide:any "frame-all" "frame all" Frame_all Input.Home [];
-    make ~guide:any "frame-selection" "frame the selection" Frame_selection (ch 'f') [];
+    make ~guide:any "frame-selection" "frame the selection" Frame_selection (ch 'f') [ Input.Shift ];
+    make ~guide:one "hints" "letter hints: connect the selected output" Show_hints (ch 'f') [];
+    make ~guide:some "open" "open one level" Open_level (ch 'o') [];
+    make ~guide:some "point" "point, or back" Point_level (ch 'p') [];
+    make ~guide:any "open-all" "every node to card" Open_all (ch 'o') [ Input.Shift ];
+    make ~guide:any "point-all" "every node to a point, or back" Point_all (ch 'p') [ Input.Shift ];
     make ~guide:one "rename" "rename node / edit input default" Edit_name Input.F2 [];
     make ~guide:some "frame" "frame the selection (titled box)" Make_frame (ch 'g') [ Input.Shift ];
     make ~guide:some "duplicate" "duplicate" Duplicate (ch 'd') [ Input.Meta ];
@@ -604,19 +939,38 @@ let fitted paint size width text =
 
 let dashed_line paint ~width color a b = Ui.Paint.dashed paint ~from_:a ~to_:b ~width color
 
+(* A 1-point frame inside the box, on whole points: a stroke is centred on its rectangle, so the
+   box's own edge would paint half a point outside it (and blur at 1x). *)
+let frame_in paint ~x ~y ~w ~h ?fill color =
+  Option.iter (fun f -> Ui.Paint.fill paint ~x ~y ~w ~h f) fill;
+  Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) color
+
+(* the same, dashed (a drop target, a dashed zone) *)
+let dashed_frame_in paint ~x ~y ~w ~h color =
+  Ui.Paint.dashed_rect paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) color
+
+(* crisp 1-point lines on the pixel grid: a line of width 1 centred on a whole point blurs *)
+let hline paint ~x ~y ~w color = Ui.Paint.fill paint ~x ~y ~w ~h:1. color
+
+(* the kit's chevron scaled with the zoom (the pane draws everything at [z]) *)
+let draw_chevron paint ~z ~at:(cx, cy) direction color =
+  let a, b, tip = match direction with
+    | `Down -> (-4., -2.), (4., -2.), (0., 2.) | `Up -> (-4., 2.), (4., 2.), (0., -2.)
+    | `Right -> (-2., -4.), (-2., 4.), (2., 0.) | `Left -> (2., -4.), (2., 4.), (-2., 0.) in
+  let p (dx, dy) = cx +. dx *. z, cy +. dy *. z in
+  Ui.Paint.line paint ~from_:(p a) ~to_:(p tip) color; Ui.Paint.line paint ~from_:(p tip) ~to_:(p b) color
+
 let zone_style theme = function
   | P.For -> Pxui.Theme.zone_for theme | Fold | Scan -> Pxui.Theme.zone_fold theme
   | Sum -> Pxui.Theme.zone_sum theme | Fn -> Pxui.Theme.zone_fn theme | Let -> Pxui.Theme.zone_let theme
 
-let paint_zone paint theme kind ~selected (x, y, w, h) =
+(* the tinted rectangle of an expanded zone: fill and a 1-point edge inside the box; the brackets
+   of a selected zone are the frame pass's, one set *)
+let paint_zone paint theme kind (x, y, w, h) =
   let s = zone_style theme kind in
-  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:s.fill ();
-  if s.dashed then begin
-    List.iter (fun (a, b) -> dashed_line paint ~width:1.2 s.edge a b)
-      [ (x, y), (x +. w, y); (x +. w, y), (x +. w, y +. h);
-        (x +. w, y +. h), (x, y +. h); (x, y +. h), (x, y) ]
-  end else Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) s.edge;
-  if selected then Ui.Paint.brackets paint ~x ~y ~w ~h theme.Pxui.accent
+  Ui.Paint.fill paint ~x ~y ~w ~h s.fill;
+  if s.dashed then dashed_frame_in paint ~x ~y ~w ~h s.edge
+  else Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) s.edge
 
 let sx t gx = float t.x +. t.pan_x +. gx *. t.zoom
 let sy t gy = float t.y +. t.pan_y +. gy *. t.zoom
@@ -632,8 +986,8 @@ let switch_w = 28. and switch_h = 14.
 let value_x w = w -. head_pad -. field_w
 let port_y = 13.  (* the header's ports; a row's are centred on the row *)
 
-(* a socket: an 8-point circle (a 1-point ring in the port colour, filled once wired); a list is
-   two of them, a record a 10 by 6 pill, a function the same 8-point square turned 45 degrees *)
+(* a socket: an 8-point circle (a 1-point ring in the port colour, filled once wired), a record a
+   10 by 6 pill, a function the same 8-point square turned 45 degrees; a list is a plain circle *)
 let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
   let p = Pxui.Theme.ports theme in
   let color = match ty with
@@ -657,15 +1011,12 @@ let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
       if hw > 0. then Ui.Paint.fill paint ~x:(cx -. hw) ~y:(cy +. float k) ~w:(2. *. hw) ~h:1. colour
     done in
   match ty with
-  | Some (Ty.List _) ->
-      Ui.Paint.circle paint ~at:(cx +. 2. *. z, cy +. 2. *. z) ~radius:r ~fill:theme.input ~stroke:color ();
-      ring (cx, cy)
   | Some Ty.Fn ->
       let half = 4. *. Float.sqrt 2. *. z in
       diamond half color;
       if not connected then diamond (half -. Float.sqrt 2.) theme.input
   | Some (Ty.Record _) ->
-      Ui.Paint.rect paint ~x:(cx -. 5. *. z) ~y:(cy -. 3. *. z) ~w:(10. *. z) ~h:(6. *. z) ~fill ~stroke:color ()
+      frame_in paint ~x:(cx -. 5. *. z) ~y:(cy -. 3. *. z) ~w:(10. *. z) ~h:(6. *. z) ~fill color
   | _ -> ring (cx, cy)
 
 (* kit text centred in a row: its top is [Ui.text_top], scaled by the zoom through [h] *)
@@ -675,8 +1026,9 @@ let text_in paint ui ~size ~color ~x ~y ~h text =
 (* a label: upper case, tracked by a point; returns its width *)
 let cap_in paint ui ~size ~color ~x ~y ~h label =
   let label = String.uppercase_ascii label in
-  Ui.Paint.text paint ~at:(x, Ui.text_top ui ~size y h) ~size ~tracking:1. ~color label;
-  Ui.Paint.text_width paint ~size label +. float (String.length label)
+  let tracking = 0.08 *. float size in  (* kit: +0.08em *)
+  Ui.Paint.text paint ~at:(x, Ui.text_top ui ~size y h) ~size ~tracking ~color label;
+  Ui.Paint.text_width paint ~size label +. float (String.length label) *. tracking
 
 let kind_label = function
   | P.For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let" | Fn -> "fn"
@@ -727,29 +1079,53 @@ let fraction_of (r : P.row) text = match r.control, float_of_string_opt text wit
   | _ -> None
 
 (* a field painted without the live editor: a value on a line-2 hairline, label-size text *)
+let all_numbers elems = List.for_all (fun (e : S.t) -> match e.node with S.Num _ -> true | _ -> false) elems
+
+(* a number or a vector of numbers at a zoom where the live editors are built: they paint
+   themselves (see [update]) *)
+let live_numbers ~z (r : P.row) = z >= 0.5 && (match r.chip, r.expr with
+  | P.Const, Some { S.node = S.Num _; _ } -> true
+  | P.Const, Some { S.node = S.Vec elems; _ } ->
+      let k = List.length elems in k >= 2 && k <= 4 && all_numbers elems
+  | _ -> false)
+
+(* a field painted without the live editor: a value on a line-2 hairline, label-size text; the
+   position line of a ranged number is 2 points above the hairline (rows 13 and 14 of 16) *)
 let paint_field paint ui ~z ~ls ~theme ~x ~y ~w ?(left = false) ?fraction ?(chevron = false) ~color text =
   let h = field_h *. z in
   Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. (Pxui.Theme.edge theme);
   Option.iter (fun f ->
-    Ui.Paint.fill paint ~x ~y:(y +. h -. 2.) ~w:(w *. f) ~h:2. (Pxui.Theme.ink_2 theme)) fraction;
+    Ui.Paint.fill paint ~x ~y:(y +. h -. 3.) ~w:(w *. f) ~h:2. (Pxui.Theme.ink_2 theme)) fraction;
   let room = w -. 4. *. z -. (if chevron then 10. *. z else 0.) in
   let text = fitted paint ls room text in
   let tw = Ui.Paint.text_width paint ~size:ls text in
   let tx = if left || chevron then x +. 2. *. z else x +. w -. 2. *. z -. tw in
   text_in paint ui ~size:ls ~color ~x:tx ~y ~h text;
-  if chevron then Ui.Paint.chevron paint ~at:(x +. w -. 5. *. z, y +. h /. 2. -. 1. *. z) `Down color
+  if chevron then draw_chevron paint ~z ~at:(x +. w -. 5. *. z, y +. h /. 2. -. 1. *. z) `Down color
 
 let paint_switch paint theme ~z ~x ~y on =
-  Ui.Paint.rect paint ~x ~y ~w:(switch_w *. z) ~h:(switch_h *. z)
-    ~fill:(if on then theme.Pxui.input else theme.Pxui.track) ~stroke:(Pxui.Theme.border theme) ();
+  frame_in paint ~x ~y ~w:(switch_w *. z) ~h:(switch_h *. z)
+    ~fill:(if on then theme.Pxui.input else theme.Pxui.track) (Pxui.Theme.border theme);
   Ui.Paint.fill paint ~x:(x +. (if on then 17. else 3.) *. z) ~y:(y +. 3. *. z) ~w:(8. *. z) ~h:(8. *. z)
     (if on then theme.accent else Pxui.Theme.ink_3 theme)
 
-(* the value of a row, at the right of it (kit [.nr]): a number or vector is the live editor's
-   (built in [update], never painted here) *)
-let paint_value paint ui t ~z ~fs ~x ~y ~w (r : P.row) =
+(* the cells of a vector: each element is a field, its number right-aligned, anything else the
+   expression's text *)
+let paint_vector paint ui ~z ~ls ~theme ~right ~y (elems : S.t list) =
+  let k = List.length elems in
+  let vw = vec_w *. z and gap = 8. *. z in
+  let cw = (vw -. gap *. float (k - 1)) /. float k in
+  List.iteri (fun c (e : S.t) ->
+    let text, left = match e.node with
+      | S.Num s -> s, false | S.Str s -> s, true | _ -> Flow.Lisp.flat e, true in
+    paint_field paint ui ~z ~ls ~theme ~x:(right -. vw +. float c *. (cw +. gap)) ~y ~w:cw ~left
+      ~color:theme.Pxui.foreground text) elems
+
+(* the value of a row, at the right of it (kit [.nr]).  [live]: the live editor of a number or
+   vector of numbers is built over it (in [update]), so it is not painted here. *)
+let paint_value paint ui t ~z ~fs ?size ~x ~y ~w ~live (r : P.row) =
   let theme = t.theme in
-  let ls = max 4 (fs - 2) in
+  let ls = match size with Some s -> s | None -> max 4 (fs - 2) in
   let rh = P.row_height *. z in
   let right = x +. w -. head_pad *. z in
   let fx = right -. field_w *. z and fy = y +. 4. *. z in
@@ -773,7 +1149,12 @@ let paint_value paint ui t ~z ~fs ~x ~y ~w (r : P.row) =
                   ?fraction:(fraction_of r d) ~chevron:(r.control = P.Choice) ~color:dim d)
        | None -> ())
   | Const -> (match r.expr with
-      | Some { S.node = S.Num _ | S.Vec _; _ } -> ()
+      | Some { S.node = S.Num text; _ } ->
+          if not live then
+            paint_field paint ui ~z ~ls ~theme ~x:fx ~y:fy ~w:(field_w *. z) ?fraction:(fraction_of r text)
+              ~color:theme.foreground text
+      | Some { S.node = S.Vec elems; _ } ->
+          if not live then paint_vector paint ui ~z ~ls ~theme ~right ~y:fy elems
       | Some { S.node = S.Sym (("true" | "false") as b); _ } ->
           paint_switch paint theme ~z ~x:(right -. switch_w *. z) ~y:(y +. 5. *. z) (b = "true")
       | Some e ->
@@ -809,12 +1190,10 @@ let paint_value paint ui t ~z ~fs ~x ~y ~w (r : P.row) =
 
 (* where a row's label must stop: the control (or the wired value) takes the right of the row *)
 let value_room paint t ~z ~fs ~w (r : P.row) =
-  let ls = max 4 (fs - 2) in
   let numbers = match r.chip, r.expr with
     | P.Const, Some { S.node = S.Vec _; _ } -> true
     | P.No_value, _ -> (match Option.bind r.default number_words with Some _ -> true | None -> false)
     | _ -> false in
-  ignore ls;
   match r.chip with
   | _ when r.kind = P.Add -> w -. (label_x +. head_pad) *. z
   | P.No_value when r.default = None -> w -. (label_x +. head_pad) *. z
@@ -833,37 +1212,50 @@ let value_room paint t ~z ~fs ~w (r : P.row) =
   | _ ->
       w -. (label_x +. head_pad) *. z -. (if numbers then vec_w else field_w) *. z -. 6. *. z
 
-let paint_rows paint ui t ~z ~fs ~x ~y ~w rows ~selected_row =
+let paint_rows paint ui t ~z ~fs ~x ~y ~w (n : P.node) (lines : P.line array) ~selected_row =
   let theme = t.theme in
   let ls = max 4 (fs - 2) in
   let rh = P.row_height *. z in
-  List.iteri (fun i (r : P.row) ->
-    let ry = y +. float i *. rh in
-    if selected_row = Some i then
-      Ui.Paint.fill paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) ~h:rh (Pxui.Theme.faint_border theme);
-    let add = r.kind = P.Add in
-    let color = match r.kind with
-      | P.Add -> Pxui.Theme.ink_2 theme | Binder | Hole -> theme.accent | _ -> Pxui.Theme.ink_2 theme in
-    let size = if add then ls else fs in
-    text_in paint ui ~size ~color ~x:(x +. label_x *. z) ~y:ry ~h:rh
-      (fitted paint size (Float.max 0. (value_room paint t ~z ~fs ~w r)) r.label);
-    if r.socket then
-      paint_socket paint theme r.ty ~connected:(wired r) ~z (x, ry +. 12. *. z);
-    if not add then paint_value paint ui t ~z ~fs ~x ~y:ry ~w r) rows
+  Array.iteri (fun k line ->
+    let ry = y +. float k *. rh in
+    match line with
+    | P.Folder (_, name) ->
+        (* a folder's label row: its name in the foreground, 8 points in *)
+        ignore (cap_in paint ui ~size:ls ~color:theme.foreground ~x:(x +. 9. *. z) ~y:ry ~h:rh name)
+    | More hidden ->
+        (* [+ N more]: a hairline over a label-size row; a click opens the card *)
+        hline paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) (Pxui.Theme.faint_border theme);
+        text_in paint ui ~size:ls ~color:(Pxui.Theme.ink_2 theme) ~x:(x +. label_x *. z) ~y:(ry +. 1.) ~h:(rh -. 1.)
+          (Printf.sprintf "+ %d more" hidden)
+    | Row (i, r) ->
+        if selected_row = Some i then
+          Ui.Paint.fill paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) ~h:rh (Pxui.Theme.faint_border theme);
+        let add = r.kind = P.Add in
+        let color = match r.kind with
+          | P.Add -> Pxui.Theme.ink_2 theme | Binder | Hole -> theme.accent | _ -> Pxui.Theme.ink_2 theme in
+        let size = if add then ls else fs in
+        text_in paint ui ~size ~color ~x:(x +. label_x *. z) ~y:ry ~h:rh
+          (fitted paint size (Float.max 0. (value_room paint t ~z ~fs ~w r)) r.label);
+        if r.socket then
+          paint_socket paint theme r.ty ~connected:(wired r) ~z (x, ry +. 12. *. z);
+        if not add then paint_value paint ui t ~z ~fs ~x ~y:ry ~w ~live:(live_numbers ~z r) r) lines;
+  ignore n
 
-let paint_outputs paint ui t ~z ~fs ~x ~y ~w (n : P.node) =
+let paint_outputs paint ui t ~z ~fs ~x ~y ~w (n : P.node) ~nlines =
   let theme = t.theme in
   let ls = max 4 (fs - 2) in
   let rh = P.row_height *. z in
   List.iteri (fun j (name, ty) ->
-    let ry = y +. float (List.length n.rows + j) *. rh in
+    let ry = y +. float (nlines + j) *. rh in
     text_in paint ui ~size:fs ~color:(colors t).record ~x:(x +. label_x *. z) ~y:ry ~h:rh ("→ " ^ name);
     let label = Ty.to_string ty in
     let lw = Ui.Paint.text_width paint ~size:ls label in
     text_in paint ui ~size:ls ~color:(Pxui.Theme.ink_2 theme) ~x:(x +. w -. head_pad *. z -. lw) ~y:ry ~h:rh label;
     paint_socket paint theme (Some ty) ~connected:true ~z (x +. w, ry +. 12. *. z)) n.outputs
 
-(* a rail row of a zone: name, role, and what feeds it *)
+(* rail rows of a zone: name, role, and what feeds it.  Under an expanded zone's label row they
+   are the accumulators, further variables and parameters (the port at the right is the
+   variable's); a collapsed zone's card lists every row, its captures too. *)
 let paint_rail paint ui t ~z ~fs ~x ~y ~w ~expanded (rail : P.rail_row list) =
   let theme = t.theme in
   let palette = colors t in
@@ -881,7 +1273,7 @@ let paint_rail paint ui t ~z ~fs ~x ~y ~w ~expanded (rail : P.rail_row list) =
          let sym = (match e.node with S.Sym _ -> true | _ -> false) in
          let shown = match e.node with S.Sym s -> s | _ -> Flow.Lisp.flat e in
          let ex = x +. 92. *. z in
-         let room = Float.max 0. (x +. w -. 8. *. z -. ex) in
+         let room = Float.max 0. (x +. w -. (if expanded then 24. else 8.) *. z -. ex) in
          if sym then begin
            text_in paint ui ~size:ls ~color:theme.accent ~x:ex ~y:ry ~h:rh "\xe2\x86\x90";
            let aw = Ui.Paint.text_width paint ~size:ls "\xe2\x86\x90 " in
@@ -893,11 +1285,11 @@ let paint_rail paint ui t ~z ~fs ~x ~y ~w ~expanded (rail : P.rail_row list) =
     if r.key <> None || r.role = P.Capture then
       paint_socket paint theme r.ty ~connected:(r.role = P.Capture || r.expr <> None) ~z (x, ry +. 12. *. z);
     if expanded then
-      paint_socket paint theme r.ty ~connected:true ~z (x +. P.rail_width *. z, ry +. 12. *. z)) rail
+      paint_socket paint theme r.ty ~connected:true ~z (x +. w -. 12. *. z, ry +. 12. *. z)) rail
 
 (* the zone's label row (kit [.zone] label): [FOR] in accent, the binder in ink, "in ..." in ink-2 *)
 let zone_binder (n : P.node) (zn : P.zone) =
-  match List.find_opt (fun (r : P.rail_row) -> r.role = P.Var) zn.rail with
+  match P.label_row zn with
   | Some { name; expr = Some e; _ } -> name, Some (strip_parens (Flow.Lisp.flat e))
   | Some { name; _ } -> name, None
   | None -> P.title n, None
@@ -920,14 +1312,14 @@ let paint_zone_label paint ui t ~z ~fs ~x ~y ~w (n : P.node) (zn : P.zone) =
         (fitted paint fs (Float.max 0. (x +. w -. 9. *. z -. ix)) ("in " ^ e))
   | None -> ()
 
-(* the iteration selector at the zone's top right: [‹ 2 / 5 ›] on the sheet fill, 8 points in and
-   2 down, 20 high; tile-relative screen points *)
+(* the iteration selector at the zone's top right: [‹ 2 / 5 ›] on the sheet fill, 9 points in
+   from the zone's edge and 3 down (inside its 1-point border), 20 high; tile-relative points *)
 let selector_geo ~measure ~z ~fs ~w ~count ~probe =
   let read = if count > 0 then Printf.sprintf "%d / %d" (probe + 1) count else "no runs" in
   let tw = measure fs read in
   let chev = 6. *. z and gap = 12. *. z in
   let total = chev +. gap +. tw +. gap +. chev in
-  w -. head_pad *. z -. total, 2. *. z, total, 20. *. z, read
+  w -. head_pad *. z -. total, 3. *. z, total, 20. *. z, read
 
 let paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w) =
   let theme = t.theme in
@@ -936,30 +1328,39 @@ let paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w) =
   Ui.Paint.fill paint ~x:sx ~y:sy ~w:sw ~h:sh theme.input;
   (* the sheet's [.seg] children are ink-3 *)
   let ink = Pxui.Theme.ink_3 theme in
-  Ui.Paint.chevron paint ~at:(sx +. 3. *. z, sy +. sh /. 2.) `Left ink;
-  Ui.Paint.chevron paint ~at:(sx +. sw -. 3. *. z, sy +. sh /. 2.) `Right ink;
+  draw_chevron paint ~z ~at:(sx +. 3. *. z, sy +. sh /. 2.) `Left ink;
+  draw_chevron paint ~z ~at:(sx +. sw -. 3. *. z, sy +. sh /. 2.) `Right ink;
   text_in paint ui ~size:fs ~color:ink ~x:(sx +. 18. *. z) ~y:sy ~h:sh read
 
-let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?lens_open () =
+(* the card's header: the in-port of the first geometry slot, the type square, the name, and at
+   the right the view flag, the marks and the kind (a failed node says its code instead) *)
+let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?lens_open ?failed ?head ?(shown = P.Card) () =
   let theme = t.theme in
   let ls = max 4 (fs - 2) in
   let hh = P.head_height *. z in
   let viewed = t.display = Some n.path in
   let ink_3 = Pxui.Theme.ink_3 theme in
-  Ui.Paint.fill paint ~x:(x +. head_pad *. z) ~y:(y +. 8. *. z) ~w:(8. *. z) ~h:(8. *. z)
-    (if n.bypass then ink_3 else ty_color t (Some n.ty));
+  let invalid = Pxui.Theme.invalid in
+  let square =
+    if failed <> None then invalid
+    else if n.bypass then ink_3
+    else if viewed then theme.foreground
+    else ty_color t (Some n.ty) in
+  Ui.Paint.fill paint ~x:(x +. head_pad *. z) ~y:(y +. 8. *. z) ~w:(8. *. z) ~h:(8. *. z) square;
+  Option.iter (fun (r : P.row) ->
+    paint_socket paint theme r.ty ~connected:(wired r) ~z (x +. 1. *. z, y +. port_y *. z)) head;
   let name_x = x +. 23. *. z in
   let right = x +. w -. head_pad *. z in
   let right = match lens_open with
     | Some open_ ->
-        Ui.Paint.chevron paint ~at:(x +. w -. 14. *. z, y +. 12. *. z) (if open_ then `Down else `Right)
+        draw_chevron paint ~z ~at:(x +. w -. 14. *. z, y +. 12. *. z) (if open_ then `Down else `Right)
           (Pxui.Theme.muted theme);
         x +. w -. 24. *. z
     | None -> right in
-  (* the displayed node: the 12-point view flag, accent inside *)
+  (* the displayed node: the 12-point view flag, a line-3 frame and the accent square inside *)
   let right = if viewed then begin
       let fx = right -. 12. *. z and fy = y +. 6. *. z in
-      Ui.Paint.rect paint ~x:fx ~y:fy ~w:(12. *. z) ~h:(12. *. z) ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
+      frame_in paint ~x:fx ~y:fy ~w:(12. *. z) ~h:(12. *. z) ~fill:theme.input (Pxui.Theme.border theme);
       Ui.Paint.fill paint ~x:(fx +. 3. *. z) ~y:(fy +. 3. *. z) ~w:(6. *. z) ~h:(6. *. z) theme.accent;
       fx -. 6. *. z
     end else right in
@@ -969,19 +1370,29 @@ let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?lens_open () =
   let right = right -. marks_width paint ~size:ls ~gap m -. (if m = [] then 0. else 1. *. z) in
   let title = P.title n in
   let name_color =
-    if n.bypass then ink_3
+    if failed <> None then invalid
+    else if n.bypass then ink_3
     else if n.synthetic || P.anonymous n then Pxui.Theme.muted theme else theme.foreground in
   let name = fitted paint fs (Float.max 0. (right -. name_x)) title in
   text_in paint ui ~size:fs ~color:name_color ~x:name_x ~y ~h:hh name;
+  let name_end = name_x +. Ui.Paint.text_width paint ~size:fs name in
+  (* a chip: how many rows have something written, in the kind's place at the right *)
+  let right = if shown = P.Chip && P.set_count n > 0 then begin
+      let text = Printf.sprintf "+%d" (P.set_count n) in
+      text_in paint ui ~size:ls ~color:(Pxui.Theme.ink_2 theme) ~x:(name_end +. 9. *. z) ~y ~h:hh text;
+      right end else right in
+  let name_end = if shown = P.Chip && P.set_count n > 0 then
+      name_end +. 9. *. z +. Ui.Paint.text_width paint ~size:ls (Printf.sprintf "+%d" (P.set_count n)) else name_end in
   (* where the name and the kind meet, the kind yields *)
-  if n.zone = None && n.head <> n.name then begin
-    let room = right -. (name_x +. Ui.Paint.text_width paint ~size:fs name +. 6. *. z) in
+  let kind_text = match failed with Some code -> Some code | None ->
+    if n.zone = None && n.head <> n.name then Some n.head else None in
+  Option.iter (fun text ->
+    let room = right -. (name_end +. 6. *. z) in
     if room >= 3. *. Ui.Paint.text_width paint ~size:ls "m" then begin
-      let kind = fitted paint ls room n.head in
+      let kind = fitted paint ls room text in
       let kw = Ui.Paint.text_width paint ~size:ls kind in
       text_in paint ui ~size:ls ~color:(Pxui.Theme.ink_2 theme) ~x:(right -. kw) ~y ~h:hh kind
-    end
-  end
+    end) kind_text
 
 (* The footer row of a node card or a collapsed zone: the value at the probe, a sparkline across
    the innermost zone, the tags, and the hoist button; label-size ink-2 over a line-1 hairline.
@@ -1018,7 +1429,8 @@ let paint_footer paint ui t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) ~pad 
        let sx0 = Float.max (left +. 30. *. z) (!right -. sw) in
        let lo = Array.fold_left Float.min infinity values and hi = Array.fold_left Float.max neg_infinity values in
        let px i = sx0 +. float i /. float (Array.length values - 1) *. sw
-       and py v = if hi = lo then fy +. 7. *. z +. sh /. 2. else fy +. 7. *. z +. sh -. (v -. lo) /. (hi -. lo) *. sh in
+       (* flat runs sit on a whole point plus a half, so a 1-point line is not blurred over two rows *)
+       and py v = Float.floor (if hi = lo then fy +. 7. *. z +. sh /. 2. else fy +. 7. *. z +. sh -. (v -. lo) /. (hi -. lo) *. sh) +. 0.5 in
        (* at most 16 segments: a 240-iteration series draws as many as a 20-iteration one *)
        let n = Array.length values in
        let step = max 1 (n / 16) in
@@ -1070,8 +1482,7 @@ let paint_lens paint ui t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
       Ui.Paint.text paint ~at:(x +. 10. *. z, y +. (P.row_height +. 4. +. float k *. 15.) *. z) ~size:fs
         ~color:theme.foreground (fitted paint fs (w -. 20. *. z) (if k = 15 && List.length lines > 16 then line ^ " …" else line))) lines;
   let (rx, ry), (rw, rh) = lens_replace_box lh in
-  Ui.Paint.rect paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z)
-    ~stroke:(Pxui.Theme.border theme) ();
+  frame_in paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z) (Pxui.Theme.border theme);
   text_in paint ui ~size:ls ~color:theme.foreground ~x:(x +. (rx +. 8.) *. z) ~y:(y +. ry *. z) ~h:(rh *. z)
     "Replace call with expansion";
   let reading = match l.error with
@@ -1092,8 +1503,41 @@ let paint_card paint ~x ~y ~w ~h ~fill ~edge =
   Ui.Paint.fill paint ~x ~y ~w ~h fill;
   Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) edge
 
-let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(out_wired = true) (p : P.placed) (n : P.node)
-    ~selected ~row_hover (x, y, w, h) =
+(* the level a card is drawn at: the requested one, under the zoom's caps (flow.md 6.4: below
+   0.34 a point, below 0.5 at most a chip); a pinned card ignores them *)
+let shown_level t (p : P.placed) =
+  let pinned = match t.level_at p.path with Some (_, true) -> true | _ -> false in
+  if pinned then p.level else
+  let cap = if t.zoom < 0.34 then P.Point else if t.zoom < 0.5 then P.Chip else P.Full in
+  if level_rank cap < level_rank p.level then cap else p.level
+
+(* a point: the 14-point disc in the node's colour with its name beside it (a compound is a ring
+   with a dot), brackets when selected; the displayed one wears its flag below the disc *)
+let paint_point paint ui t ~z ~fs (n : P.node) ?failed ~selected (x, y, _, _) =
+  let theme = t.theme in
+  let c = (x +. 7. *. z, y +. 7. *. z) in
+  let color = if failed <> None then Pxui.Theme.invalid else ty_color t (Some n.ty) in
+  if n.macro <> None then begin
+    Ui.Paint.circle paint ~at:c ~radius:(7. *. z) ~fill:theme.Pxui.panel ~stroke:color ();
+    Ui.Paint.circle paint ~at:c ~radius:(2. *. z) ~fill:color ()
+  end else Ui.Paint.circle paint ~at:c ~radius:(7. *. z) ~fill:color ();
+  let name_color = if failed <> None then Pxui.Theme.invalid else if n.bypass then Pxui.Theme.ink_3 theme
+    else theme.foreground in
+  let name_w = Ui.Paint.text_width paint ~size:fs (P.point_title n) in
+  text_in paint ui ~size:fs ~color:name_color ~x:(x +. 22. *. z) ~y:(y +. 7. *. z -. 12. *. z) ~h:(24. *. z)
+    (P.title n);
+  ignore name_w;
+  if t.display = Some n.path then begin
+    let fy = y +. 21. *. z in
+    frame_in paint ~x ~y:fy ~w:(12. *. z) ~h:(12. *. z) ~fill:theme.input (Pxui.Theme.border theme);
+    Ui.Paint.fill paint ~x:(x +. 3. *. z) ~y:(fy +. 3. *. z) ~w:(6. *. z) ~h:(6. *. z) theme.accent
+  end;
+  if selected then
+    Ui.Paint.brackets paint ~x ~y ~w:(14. *. z) ~h:(14. *. z) ~offset:5. ~length:6. theme.accent
+
+let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(out_wired = true) ~shown ?failed
+    (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
+  if shown = P.Point then paint_point paint ui t ~z ~fs n ?failed ~selected (x, y, w, h) else
   let theme = t.theme in
   let z_ = n.zone in
   let ls = max 4 (fs - 2) in
@@ -1102,19 +1546,30 @@ let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(out_wir
     List.iter (fun d ->
       paint_card paint ~x:(x +. d *. z) ~y:(y +. d *. z) ~w ~h ~fill:theme.input
         ~edge:(card_edge t ~fill:theme.input ~selected:false)) [ 6.; 3. ];
+  (* a chip is the header of a card that is laid out larger: the zoom, not the document, shrank it *)
+  let h = if shown = P.Chip && z_ = None then P.head_height *. z else h in
   let fill = if hovered && not selected then Pxui.Theme.hover_fill theme else theme.input in
-  paint_card paint ~x ~y ~w ~h ~fill ~edge:(card_edge t ~fill ~selected);
-  if n.bypass then Ui.Paint.hatch paint ~x ~y ~w ~h (Pxui.Theme.border theme);
+  let edge = match failed with
+    | Some _ -> Pxui.Theme.invalid
+    | None -> card_edge t ~fill ~selected in
+  paint_card paint ~x ~y ~w ~h ~fill ~edge;
   let lens = match n.lens, lens_step with Some l, Some step -> Some (l, step) | _ -> None in
   let lh = match lens with Some (l, step) -> P.lens_height l ~step | None -> 0. in
+  let head = List.find_opt (fun (r : P.row) -> r.head) n.rows in
   (match z_ with
    | Some zn ->
        (* a collapsed zone: its kind as a label, the card's name, the toggle chevron *)
        paint_zone_label paint ui t ~z ~fs ~x:(x +. head_pad *. z) ~y ~w:(w -. head_pad *. z) n zn
    | None ->
-       paint_header paint ui t ~z ~fs ~x ~y ~w n ?lens_open:(if n.lens <> None then Some (lens <> None) else None) ());
+       paint_header paint ui t ~z ~fs ~x ~y ~w n ~shown ?failed ?head
+         ?lens_open:(if n.lens <> None && shown <> P.Chip then Some (lens <> None) else None) ());
   paint_socket paint theme (Some n.ty) ~connected:out_wired ~z (x +. w -. 1. *. z, y +. port_y *. z);
+  (* a literal binding is the header alone: its value in the field at the right *)
+  (match n.rows with
+   | [ r ] when P.value_card n -> paint_value paint ui t ~z ~fs ~size:fs ~x ~y ~w ~live:(live_numbers ~z r) r
+   | _ -> ());
   let body_y = y +. P.body_top *. z in
+  if shown <> P.Chip then begin
   (match n.note with
    | Some note ->
        let bg, ink = note_colors theme in
@@ -1126,71 +1581,79 @@ let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(out_wir
   let rows_y = body_y +. (if n.note <> None then P.row_height *. z else 0.) in
   (match z_ with
    | None ->
-       paint_rows paint ui t ~z ~fs ~x ~y:rows_y ~w n.rows ~selected_row:row_hover;
+       paint_rows paint ui t ~z ~fs ~x ~y:rows_y ~w n p.lines ~selected_row:row_hover;
        if n.head = "list" || n.head = "str" then
-         List.iteri (fun i (r : P.row) -> match r.kind, r.key with
-           | P.Rest, E.Pos k when k >= 1 ->
-               text_in paint ui ~size:fs ~color:theme.accent ~x:(x +. w -. 20. *. z) ~y:(rows_y +. float i *. P.row_height *. z)
+         Array.iteri (fun k -> function
+           | P.Row (_, ({ kind = P.Rest; key = E.Pos j; _ } : P.row)) when j >= 1 ->
+               text_in paint ui ~size:fs ~color:theme.accent ~x:(x +. w -. 20. *. z) ~y:(rows_y +. float k *. P.row_height *. z)
                  ~h:(P.row_height *. z) "↑"
-           | _ -> ()) n.rows;
-       paint_outputs paint ui t ~z ~fs ~x ~y:rows_y ~w n
+           | _ -> ()) p.lines;
+       paint_outputs paint ui t ~z ~fs ~x ~y:rows_y ~w n ~nlines:(Array.length p.lines)
    | Some zn when p.collapsed -> paint_rail paint ui t ~z ~fs ~x ~y:body_y ~w ~expanded:false zn.rail
    | Some _ -> ());
   Option.iter (fun f -> paint_footer paint ui t ~z ~fs f n.ty ~pad:(P.card_pad +. lh) (x, y, w, h)) footer;
-  Option.iter (fun (l, step) -> paint_lens paint ui t ~z ~fs l ~step (x, y +. h -. (lh +. P.card_pad) *. z, w) ~lh) lens;
+  Option.iter (fun (l, step) -> paint_lens paint ui t ~z ~fs l ~step (x, y +. h -. (lh +. P.card_pad) *. z, w) ~lh) lens
+  end;
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
 
-(* the expanded zone's label row, rail, yield and selector, over its tint *)
-let paint_zone_frame paint ui t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected (x, y, w, h) ~probe ~count =
+(* does anything inside the zone read this name (a loop variable shows its port only then)? *)
+let zone_uses (zn : P.zone) names =
+  let reads name = List.mem (root_name name) (List.map root_name names) in
+  let rec scope (s : P.scope) =
+    List.exists (fun (n : P.node) ->
+      List.exists (fun (r : P.row) -> List.exists reads (P.sources r)) n.rows
+      || (match n.zone with
+          | Some z -> List.exists (fun (r : P.rail_row) ->
+              match r.expr with Some e -> List.exists reads (E.free_names e) | None -> false) z.rail
+              || scope z.scope
+          | None -> false)) s.nodes
+    || (match s.result with P.Link l -> reads l | _ -> false) in
+  scope zn.scope
+
+(* the expanded zone's label row, selector, rail rows and ports, over its tint; the cards inside
+   are wired directly across its edge *)
+let paint_zone_frame paint ui t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected ~out_wired (x, y, w, h) ~probe ~count =
   let theme = t.theme in
-  (* the zone's own footer under its body; the yield line and the feedback line end above it *)
+  (* the zone's own footer under its body *)
   let h = match footer with
     | Some f -> paint_footer paint ui t ~z ~fs f n.ty ~pad:0. (x, y, w, h); h -. P.foot_height *. z
     | None -> h in
-  let edge = (zone_style theme zn.kind).edge in
   paint_zone_label paint ui t ~z ~fs ~x ~y ~w n zn;
-  paint_socket paint theme (Some n.ty) ~connected:true ~z (x +. w -. 1. *. z, y +. port_y *. z);
+  paint_socket paint theme (Some n.ty) ~connected:out_wired ~z (x +. w -. 1. *. z, y +. port_y *. z);
+  (match P.label_row zn with
+   | Some r ->
+       (* the collection's in-port when a name feeds it; the variable's out-port once something reads it *)
+       (match r.expr with
+        | Some e when r.key <> None && E.free_names e <> [] ->
+            paint_socket paint theme r.ty ~connected:true ~z (x +. 1. *. z, y +. port_y *. z)
+        | _ -> ());
+       if zone_uses zn r.names then
+         paint_socket paint theme r.ty ~connected:true ~z (x +. 12. *. z, y +. 36. *. z)
+   | None -> ());
   if zn.kind <> P.Let then paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w);
-  let top = y +. P.rail_top n *. z in
-  paint_rail paint ui t ~z ~fs ~x ~y:top ~w:(P.rail_width *. z) ~expanded:true zn.rail;
-  let yx = x +. w -. P.yield_width *. z in
-  Ui.Paint.line paint ~from_:(yx, top) ~to_:(yx, y +. h -. 6. *. z) ~width:1. (Color.with_alpha edge 120);
-  text_in paint ui ~size:fs ~color:(Pxui.Theme.muted theme) ~x:(yx +. 14. *. z) ~y:top ~h:(P.row_height *. z) zn.yield_label;
-  paint_socket paint theme (Some n.ty) ~connected:true ~z (yx, top +. 12. *. z);
-  if zn.kind = P.Fold || zn.kind = P.Scan then begin
-    (* the feedback line: yield back to the accumulator *)
-    let acc = List.find_index (fun (r : P.rail_row) -> r.role = P.Acc) zn.rail in
-    match acc with
-    | Some i ->
-        let by = y +. h -. 10. *. z in
-        let ax = x +. P.rail_width *. z and ay = top +. (float i +. 0.5) *. P.row_height *. z in
-        let color = (colors t).vec3 in
-        let pts = [ (yx, top +. 12. *. z); (yx -. 8. *. z, top +. 12. *. z); (yx -. 8. *. z, by);
-                    (ax +. 8. *. z, by); (ax +. 8. *. z, ay); (ax, ay) ] in
-        List.iter2 (fun a b -> dashed_line paint ~width:1.2 color a b)
-          (List.filteri (fun i _ -> i < List.length pts - 1) pts) (List.tl pts)
-    | None -> ()
-  end;
+  paint_rail paint ui t ~z ~fs ~x ~y:(y +. P.head_height *. z) ~w ~expanded:true (P.extra_rails zn);
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
 
 (* a graph input is a value node: a header-only card with its value in a field at the right *)
 let paint_input paint ui t ~z ~fs (i : P.input) ~selected (x, y, w, h) =
   let theme = t.theme in
-  let ls = max 4 (fs - 2) in
   let hh = P.head_height *. z in
   paint_card paint ~x ~y ~w ~h ~fill:theme.input ~edge:(card_edge t ~fill:theme.input ~selected);
   Ui.Paint.fill paint ~x:(x +. head_pad *. z) ~y:(y +. 8. *. z) ~w:(8. *. z) ~h:(8. *. z) (ty_color t (Some i.ty));
   let fx = x +. value_x P.node_width *. z in
   text_in paint ui ~size:fs ~color:theme.foreground ~x:(x +. 23. *. z) ~y ~h:hh
     (fitted paint fs (Float.max 0. (fx -. 6. *. z -. (x +. 23. *. z))) i.name);
-  (* a number is the live editor's (built in [update]); anything else is painted here *)
+  (* a number is the live editor's (built in [update] at 13 points, like the sheet's header value);
+     anything else is painted here *)
   (match i.default with
-   | Some { S.node = S.Num _; _ } -> ()
+   | Some { S.node = S.Num _; _ } when z >= 0.5 -> ()
    | Some d ->
        let text = match d.node with S.Str s -> s | _ -> Flow.Lisp.flat d in
-       paint_field paint ui ~z ~ls ~theme ~x:fx ~y:(y +. 4. *. z) ~w:(field_w *. z) ~left:true ~color:theme.foreground text
+       let numeric = (match d.node with S.Num _ -> true | _ -> false) in
+       paint_field paint ui ~z ~ls:fs ~theme ~x:fx ~y:(y +. 4. *. z) ~w:(field_w *. z) ~left:(not numeric)
+         ~color:theme.foreground text
    | None ->
-       paint_field paint ui ~z ~ls ~theme ~x:fx ~y:(y +. 4. *. z) ~w:(field_w *. z) ~left:true
+       paint_field paint ui ~z ~ls:fs ~theme ~x:fx ~y:(y +. 4. *. z) ~w:(field_w *. z) ~left:true
          ~color:(Pxui.Theme.ink_3 theme) (Ty.to_string i.ty));
   paint_socket paint theme (Some i.ty) ~connected:true ~z (x +. w -. 1. *. z, y +. port_y *. z);
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
@@ -1220,20 +1683,30 @@ let paint_return paint ui t ~z ~fs (s : P.scope) ~selected (x, y, w, h) =
   paint_socket paint theme None ~connected:(s.result <> P.Literal (S.make (S.Sym "nil"))) ~z (x, ry +. 12. *. z);
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
 
-(* a wire as an orthogonal polyline with a vertical run at the midpoint, or a straight segment *)
-let wire_points ?(style = `Rect) (ax, ay) (bx, by) =
-  match style with
-  | `Straight -> [ (ax, ay); (bx, by) ]
-  | `Rect ->
-      let mx = if bx >= ax +. 24. then (ax +. bx) /. 2. else ax +. 12. in
-      if bx >= ax +. 24. then [ (ax, ay); (mx, ay); (mx, by); (bx, by) ]
-      else [ (ax, ay); (mx, ay); (mx, (ay +. by) /. 2.); (bx -. 12., (ay +. by) /. 2.); (bx -. 12., by); (bx, by) ]
-
 let paint_polyline paint ~width color pts =
   let rec go = function
     | a :: (b :: _ as rest) -> Ui.Paint.line paint ~from_:a ~to_:b ~width color; go rest
     | _ -> () in
   go pts
+
+(* the dashes of a loop's feedback or a switch's inactive wire *)
+let paint_dashed_polyline paint ~width color pts =
+  let rec go = function
+    | a :: (b :: _ as rest) -> dashed_line paint ~width color a b; go rest
+    | _ -> () in
+  go pts
+
+(* a bend: the 5-point square of the wire's colour on the line (kit [.bend]) *)
+let paint_bends paint ~z color pts =
+  match pts with
+  | _ :: (_ :: _ as rest) ->
+      let rec go = function
+        | (x, y) :: (_ :: _ as more) ->
+            let s = Float.max 3. (5. *. z) in
+            Ui.Paint.fill paint ~x:(x -. 2. *. z) ~y:(Float.floor (y -. 2.5 *. z)) ~w:s ~h:s color; go more
+        | _ -> () in
+      go rest
+  | _ -> ()
 
 let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * float * float) list) =
   let theme = t.theme in
@@ -1260,15 +1733,14 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
       cx := !cx +. px
     done
   end;
-  List.iter (fun ((n : P.node), (zn : P.zone), (p : P.placed), ax, ay) ->
-    paint_zone paint theme zn.kind ~selected:(Path_set.mem n.path t.selected)
-      (sx t ax, sy t ay, p.w *. z, p.h *. z)) zones;
+  List.iter (fun ((_ : P.node), (zn : P.zone), (p : P.placed), ax, ay) ->
+    paint_zone paint theme zn.kind (sx t ax, sy t ay, p.w *. z, p.h *. z)) zones;
   (* titled frames sit under the wires *)
   List.iter (fun (scope_path, (ox, oy)) ->
     List.iter (fun (title, (fx, fy), (fw, fh)) ->
       let x = sx t (ox +. fx) and y = sy t (oy +. fy) in
-      Ui.Paint.rect paint ~x ~y ~w:(fw *. z) ~h:(fh *. z) ~fill:(Color.with_alpha theme.foreground 8)
-        ~stroke:(Pxui.Theme.edge theme) ();
+      frame_in paint ~x ~y ~w:(fw *. z) ~h:(fh *. z) ~fill:(Color.with_alpha theme.foreground 8)
+        (Pxui.Theme.edge theme);
       Ui.Paint.text paint ~at:(x +. 6., y +. 4.) ~size:(max 7 (int_of_float (10. *. z)))
         ~color:(Pxui.Theme.muted theme) title;
       (* delete cross top right, resize grip bottom right *)
@@ -1278,7 +1750,7 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
       Ui.Paint.fill paint ~x:(x +. fw *. z -. 4.) ~y:(y +. fh *. z -. 11.) ~w:1. ~h:8. ink;
       Ui.Paint.fill paint ~x:(x +. fw *. z -. 11.) ~y:(y +. fh *. z -. 4.) ~w:8. ~h:1. ink) (frame_list t scope_path)) t.geo.origins;
   Array.iter (fun w ->
-    let pts = List.map (fun (x, y) -> sx t x, sy t y) (wire_points ~style:t.wires w.a w.b) in
+    let pts = List.map (fun (x, y) -> sx t x, sy t y) w.pts in
     let is_selected = match t.selected_wire, w.target with
       | Some (sp, sk, _), Some (tp, tk, _) -> sp = tp && sk = tk
       | _ -> false in
@@ -1290,10 +1762,9 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
       | _ -> None in
     let color = if is_selected then theme.foreground else if layout = Some true then theme.accent
       else if layout = Some false then Pxui.Theme.muted theme else ty_color t w.ty in
-    if layout = Some false then
-      let rec dash = function a :: (b :: _ as rest) -> dashed_line paint ~width color a b; dash rest | _ -> () in
-      dash pts
-    else paint_polyline paint ~width color pts) t.geo.wires
+    if layout = Some false || w.dashed then paint_dashed_polyline paint ~width color pts
+    else paint_polyline paint ~width color pts;
+    if t.wires = `Straight then paint_bends paint ~z color pts) t.geo.wires
 
 (* ---------------------------------------------------------------- update *)
 
@@ -1313,9 +1784,18 @@ let num_field ui ~at ~w ~h ~size ?fraction label text =
   let text', _ = Ui.value_field ui ~at ~w ~h ~size ?fraction ~scrub ~valid label text in
   if text' <> text && valid text' then Some text' else None
 
-let row_index (n : P.node) ~ay ~py =
-  let top = rows_top n ay in
-  if py < top then None else Some (int_of_float ((py -. top) /. P.row_height))
+(* the row of a card at a point of it ([px], [py] relative to the card, graph units): the header's
+   in-port row at the top left (anywhere in the header with [header]), else the row of the line
+   there; nothing for a folder label, the [+ N more] row or a card drawn as a chip or point *)
+let row_at ?(header = 14.) (p : P.placed) (n : P.node) ~shown ~px ~py =
+  if shown = P.Point || shown = P.Chip then
+    (if px < header && py < P.head_height then List.find_index (fun (r : P.row) -> r.head) n.rows else None)
+  else if py < P.body_top then
+    (if px < header then List.find_index (fun (r : P.row) -> r.head) n.rows else None)
+  else
+    let k = int_of_float (Float.floor ((py -. P.body_top -. note_rows n *. P.row_height) /. P.row_height)) in
+    if k < 0 || k >= Array.length p.lines then None
+    else match p.lines.(k) with P.Row (i, _) -> Some i | _ -> None
 
 (* the nodes of one scope a rubber band touches (an expanded zone only when it is inside it) *)
 let marquee_hits t (rx, ry, rw, rh) =
@@ -1358,6 +1838,8 @@ let update t ui (frame : Frame.t) =
   let t = if t.framed then t else { (frame_all t) with framed = true } in
   let changes = ref [] in
   let emit c = changes := c :: !changes in
+  let t, hint_changes = step_hints t frame in
+  List.iter emit hint_changes;
   let canvas = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
       ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height))
       ~at:(float t.x, float t.y) "pxui-scope" in
@@ -1380,10 +1862,10 @@ let update t ui (frame : Frame.t) =
   let t = match t.drag, t.scope with
     | Some (Moving m), Some scope when m.moved ->
         let paths = m.paths in
-        { t with geo = compute scope t.layout ~shift:(fun p ->
+        { t with geo = compute ~style:t.wires scope t.layout ~shift:(fun p ->
             if List.mem p paths then m.dx, m.dy else 0., 0.) }
     | Some (Carrying c), Some scope when Float.hypot c.dx c.dy > 0. ->
-        { t with geo = compute scope t.layout ~shift:(fun p ->
+        { t with geo = compute ~style:t.wires scope t.layout ~shift:(fun p ->
             if List.mem p c.paths then c.dx, c.dy else 0., 0.) }
     | _ -> t in
   let t = { t with measure = (fun size s -> Ui.text_width ui ~size s) } in
@@ -1433,7 +1915,7 @@ let update t ui (frame : Frame.t) =
                     else found) found segs in
                   segments (j + 1) found rest
               | _ -> found in
-            segments 0 [] (wire_points ~style:t.wires w.a w.b))) t.geo.wires) in
+            segments 0 [] w.pts)) t.geo.wires) in
   (* footers: only for what is in view, and not when too small to read *)
   let footers = Hashtbl.create 16 in
   (match t.records with
@@ -1456,7 +1938,40 @@ let update t ui (frame : Frame.t) =
       let bx, by = sx t ax, sy t ay in
       let key = "t:" ^ String.concat "/" p.path in
       let w = p.w *. z and h = p.h *. z in
+      let shown = match p.item with P.Item _ -> shown_level t p | _ -> P.Card in
       let tile = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px w) ~h:(Ui.Px h) ~at:(local (bx, by)) key in
+      (* the live editors of a row: a number, a vector of numbers, a flag *)
+      let row_fields (n : P.node) (r : P.row) ~name ~ry ~size =
+        let at = value_x p.w *. z and vw = field_w *. z and h = field_h *. z in
+        let ay = (ry +. 4.) *. z in
+        match r.chip, r.expr with
+        | P.Const, Some ({ node = S.Num text; _ }) ->
+            (match num_field ui ~at:(at, ay) ~w:vw ~h ~size ?fraction:(fraction_of r text) ("f" ^ name) text with
+             | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [];
+                 value = S.make (S.Num text') }) ]
+             | None -> [])
+        | P.Const, Some { node = S.Vec elems; _ }
+          when List.length elems >= 2 && List.length elems <= 4 && all_numbers elems ->
+            let k = List.length elems in
+            (* a vector is its fields 8 points apart, 112 wide, at the row's right *)
+            let at = (p.w -. head_pad -. vec_w) *. z and gap = 8. *. z in
+            let cw = (vec_w *. z -. float (k - 1) *. gap) /. float k in
+            List.concat (List.mapi (fun c (e : S.t) -> match e.node with
+              | S.Num text ->
+                  (match num_field ui ~at:(at +. float c *. (cw +. gap), ay) ~w:cw ~h ~size
+                           (Printf.sprintf "f%s.%d" name c) text with
+                   | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [ c ];
+                       value = S.make (S.Num text') }) ]
+                   | None -> [])
+              | _ -> []) elems)
+        | P.Const, Some { node = S.Sym (("true" | "false") as b); _ } ->
+            let toggle = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (switch_w *. z)) ~h:(Ui.Px (switch_h *. z))
+                ~at:((p.w -. head_pad -. switch_w) *. z, (ry +. 5.) *. z) ("b" ^ name) in
+            if (Ui.signal ui toggle).clicked then
+              [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [];
+                  value = S.make (S.Sym (if b = "true" then "false" else "true")) }) ]
+            else []
+        | _ -> [] in
       let sub = Ui.within ui tile (fun () ->
         let box ?(flags = Ui.clickable) name (dx, dy) (bw, bh) =
           Ui.box ui ~flags ~w:(Ui.Px (bw *. z)) ~h:(Ui.Px (bh *. z)) ~at:(dx *. z, dy *. z) name in
@@ -1471,9 +1986,17 @@ let update t ui (frame : Frame.t) =
          | Return -> ignore (input "in" (0., P.body_top +. 12.))
          | Item n ->
              let node_src = if n.binds = [ n.name ] then Some n.name else None in
-             Option.iter (fun s -> out "out" s (Some n.ty) (p.w -. 1., port_y)) node_src;
+             Option.iter (fun s ->
+               out "out" s (Some n.ty) (if shown = P.Point then (P.point_size, P.point_size /. 2.) else (p.w -. 1., port_y)))
+               node_src;
+             (* the header's in-port: the first geometry slot *)
+             (match List.find_opt (fun (r : P.row) -> r.head) n.rows with
+              | Some r when n.zone = None ->
+                  let sink = input "d:head" (if shown = P.Point then (0., P.point_size /. 2.) else (1., port_y)) in
+                  if wired r then dels := (sink, unwire n r) :: !dels
+              | _ -> ());
              (match Hashtbl.find_opt footers n.path with
-              | Some { invariant = true; _ } ->
+              | Some { invariant = true; _ } when shown <> P.Point && shown <> P.Chip ->
                   let lh = match n.lens, lens_of t n.path with
                     | Some l, Some step -> P.lens_height l ~step | _ -> 0. in
                   let pad = if n.zone <> None && not p.collapsed then 0. else P.card_pad +. lh in
@@ -1481,19 +2004,27 @@ let update t ui (frame : Frame.t) =
               | _ -> ());
              (match n.zone with
               | Some zn when not p.collapsed ->
-                  let top = P.rail_top n in
+                  (* the label row's variable: the collection's in-port at the edge, the variable's
+                     out-port in the left strip once something reads it *)
+                  Option.iter (fun (r : P.rail_row) ->
+                    if r.key <> None then begin
+                      let sink = input "rd:label" (1., port_y) in
+                      (match r.key, r.expr with
+                       | Some key, Some e when E.free_names e <> [] ->
+                           dels := (sink, [ E.Disconnect { node = n.path; key; fallback = None } ]) :: !dels
+                       | _ -> ())
+                    end;
+                    if zone_uses zn r.names then out "rail:label" (List.hd r.names) r.ty (12., 36.)) (P.label_row zn);
                   List.iteri (fun i (r : P.rail_row) ->
-                    out ("rail:" ^ string_of_int i) (List.hd r.names) r.ty
-                      (P.rail_width, top +. (float i +. 0.5) *. P.row_height);
+                    let cy = P.head_height +. float i *. P.row_height +. 12. in
+                    out ("rail:" ^ string_of_int i) (List.hd r.names) r.ty (p.w -. 12., cy);
                     (* wired rail rows can be disconnected from their socket *)
-                    let sink = if r.key <> None || r.role = P.Capture then
-                      Some (input ("rd:" ^ string_of_int i) (0., top +. (float i +. 0.5) *. P.row_height)) else None in
+                    let sink = if r.key <> None then Some (input ("rd:" ^ string_of_int i) (0., cy)) else None in
                     (match r.key, r.expr, sink with
                      | Some key, Some e, Some sink when E.free_names e <> [] ->
                          dels := (sink,
                                   [ E.Disconnect { node = n.path; key; fallback = None } ]) :: !dels
-                     | _ -> ())) zn.rail;
-                  ignore (input "yield" (p.w -. P.yield_width, top +. 12.));
+                     | _ -> ())) (P.extra_rails zn);
                   if zn.kind <> P.Let then begin
                     (* the selector of the label row: a button each side of the reading *)
                     let sx, sy, sw, sh, _ = selector_geo ~measure:t.measure ~z ~fs ~w:(p.w *. z) ~count:(count_of t n.path) ~probe:(t.probe n.path) in
@@ -1512,7 +2043,7 @@ let update t ui (frame : Frame.t) =
               | Some _ -> ()
               | None ->
                   (match n.lens with
-                   | Some l ->
+                   | Some l when shown <> P.Point && shown <> P.Chip ->
                        tap "lens" (p.w -. 22., 2.) (20., 20.) `Lens;
                        (match lens_of t n.path with
                         | Some step ->
@@ -1526,92 +2057,72 @@ let update t ui (frame : Frame.t) =
                             let (rx, ry), size = lens_replace_box lh in
                             tap "lr" (rx, top +. ry) size `Replace
                         | None -> ())
-                   | None -> ());
-                  let top = rows_top n 0. in
-                  List.iteri (fun j (f, ty) ->
-                    let src = if n.binds = [ n.name ] then n.name ^ "." ^ f else f in
-                    out ("o:" ^ string_of_int j) src (Some ty)
-                      (p.w, top +. (float (List.length n.rows + j) +. 0.5) *. P.row_height)) n.outputs;
-                  List.iteri (fun i (r : P.row) ->
-                    let ry = top +. float i *. P.row_height in
-                    if r.socket then begin
-                      let sink = input ("d:" ^ string_of_int i) (0., ry +. 12.) in
-                      if wired r then dels := (sink, unwire n r) :: !dels
-                    end) n.rows));
+                   | _ -> ());
+                  if shown = P.Card || shown = P.Full then begin
+                    let top = rows_top n 0. in
+                    let nlines = Array.length p.lines in
+                    List.iteri (fun j (f, ty) ->
+                      let src = if n.binds = [ n.name ] then n.name ^ "." ^ f else f in
+                      out ("o:" ^ string_of_int j) src (Some ty)
+                        (p.w, top +. (float (nlines + j) +. 0.5) *. P.row_height)) n.outputs;
+                    Array.iteri (fun k -> function
+                      | P.Row (i, r) ->
+                          let ry = top +. float k *. P.row_height in
+                          if r.socket then begin
+                            let sink = input ("d:" ^ string_of_int i) (0., ry +. 12.) in
+                            if wired r then dels := (sink, unwire n r) :: !dels
+                          end
+                      | P.More _ -> tap "more" (0., top +. float k *. P.row_height) (p.w, P.row_height) `More
+                      | P.Folder _ -> ()) p.lines
+                  end));
         List.rev !outs, List.rev !dels, List.rev !taps, !inputs) in
       (* fields, inside the tile *)
       let fields = match p.item with
-        | P.Item ({ zone = None; _ } as n) when z >= 0.5 ->
+        | P.Item ({ zone = None; _ } as n) when z >= 0.5 && P.value_card n ->
+            (* a literal binding: its value is the field of its header, at body size *)
+            Ui.within ui tile (fun () ->
+              List.concat_map (fun (r : P.row) -> row_fields n r ~name:"v" ~ry:0. ~size:fs) n.rows)
+        | P.Item ({ zone = None; _ } as n) when z >= 0.5 && (shown = P.Card || shown = P.Full) ->
             Ui.within ui tile (fun () ->
               let top = rows_top n 0. in
-              List.concat (List.mapi (fun i (r : P.row) ->
-                let ry = top +. float i *. P.row_height in
-                let at = value_x p.w *. z and vw = field_w *. z and h = field_h *. z in
-                let ay = (ry +. 4.) *. z in
-                match r.chip, r.expr with
-                | P.Const, Some ({ node = S.Num text; _ }) ->
-                    (match num_field ui ~at:(at, ay) ~w:vw ~h ~size:(max 4 (fs - 2)) ?fraction:(fraction_of r text)
-                             ("f" ^ string_of_int i) text with
-                     | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [];
-                         value = S.make (S.Num text') }) ]
-                     | None -> [])
-                | P.Const, Some { node = S.Vec elems; _ }
-                  when List.length elems >= 2 && List.length elems <= 4
-                       && List.for_all (fun (e : S.t) -> match e.node with S.Num _ -> true | _ -> false) elems ->
-                    let k = List.length elems in
-                    (* a vector is its fields 8 points apart, 112 wide, at the row's right *)
-                    let at = (p.w -. head_pad -. vec_w) *. z and gap = 8. *. z in
-                    let cw = (vec_w *. z -. float (k - 1) *. gap) /. float k in
-                    List.concat (List.mapi (fun c (e : S.t) -> match e.node with
-                      | S.Num text ->
-                          (match num_field ui ~at:(at +. float c *. (cw +. gap), ay) ~w:cw ~h ~size:(max 4 (fs - 2))
-                                   (Printf.sprintf "f%d.%d" i c) text with
-                           | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [ c ];
-                               value = S.make (S.Num text') }) ]
-                           | None -> [])
-                      | _ -> []) elems)
-                | P.Const, Some { node = S.Sym (("true" | "false") as b); _ } ->
-                    let toggle = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (switch_w *. z)) ~h:(Ui.Px (switch_h *. z))
-                        ~at:((p.w -. head_pad -. switch_w) *. z, (ry +. 5.) *. z) ("b" ^ string_of_int i) in
-                    if (Ui.signal ui toggle).clicked then
-                      [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [];
-                          value = S.make (S.Sym (if b = "true" then "false" else "true")) }) ]
-                    else []
-                | _ -> []) n.rows))
+              List.concat (List.mapi (fun k line -> match line with
+                | P.Row (i, r) -> row_fields n r ~name:(string_of_int i) ~ry:(top +. float k *. P.row_height) ~size:(max 4 (fs - 2))
+                | _ -> []) (Array.to_list p.lines)))
         | P.Input ({ default = Some { node = S.Num text; _ }; _ } as i) when z >= 0.5 && t.editing <> Some (Default p.path) ->
-            (* a value node: its number is a field in the header *)
+            (* a value node: its number is a field in the header, at body size *)
             Ui.within ui tile (fun () ->
-              match num_field ui ~at:(value_x p.w *. z, 4. *. z) ~w:(field_w *. z) ~h:(field_h *. z) ~size:(max 4 (fs - 2)) "default" text with
+              match num_field ui ~at:(value_x p.w *. z, 4. *. z) ~w:(field_w *. z) ~h:(field_h *. z) ~size:fs "default" text with
               | Some text' -> [ Syntax_edit (E.Set_input_default { form = List.hd i.path; input = i.name;
                                 value = S.make (S.Num text') }) ]
               | None -> [])
         | _ -> [] in
       let add_clicks = match p.item with
-        | P.Item ({ zone = None; _ } as n) when z >= 0.5 ->
+        | P.Item ({ zone = None; _ } as n) when z >= 0.5 && (shown = P.Card || shown = P.Full) ->
             Ui.within ui tile (fun () ->
               let top = rows_top n 0. in
-              List.concat (List.mapi (fun i (r : P.row) ->
-                if r.kind <> P.Add && (match r.chip with P.Inline _ -> false | _ -> true) then [] else
+              List.concat (List.mapi (fun k line -> match line with
+                | P.Row (i, r) when r.kind = P.Add || (match r.chip with P.Inline _ -> true | _ -> false) ->
                 let b = Ui.box ui ~flags:Ui.(clickable + tab_stop)
                     ~w:(Ui.Px (if r.kind = P.Add then (p.w -. label_x -. head_pad) *. z else 24. *. z)) ~h:(Ui.Px (16. *. z))
-                    ~at:((if r.kind = P.Add then label_x else value_x p.w) *. z, (top +. float i *. P.row_height +. 4.) *. z)
+                    ~at:((if r.kind = P.Add then label_x else value_x p.w) *. z, (top +. float k *. P.row_height +. 4.) *. z)
                     ("a" ^ string_of_int i) in
                 if not (Ui.signal ui b).clicked then [] else
-                match r.kind, r.chip with
-                | P.Add, _ ->
-                    (match r.key with
-                     | E.Field _ -> [ Syntax_edit (E.Add_field { node = n.path;
-                         name = "f" ^ string_of_int (List.length n.rows);
-                         value = S.make (S.Num "0") }) ]
-                     | key when n.head = "list" || n.head = "str" || n.head = "concat" && false ->
-                         ignore key; [ Syntax_edit (E.Add_item { node = n.path }) ]
-                     | key when r.ty = Some Ty.Geometry -> ignore key; [ Notice "Wire a node onto this row" ]
-                     | key ->
-                         let value = match Option.bind r.ty (fun ty -> E.default_for ty r.label) with
-                           | Some v -> v | None -> S.make (S.Num "0") in
-                         [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ])
-                | _, P.Inline _ -> [ Syntax_edit (E.Unfold { node = n.path; key = r.key; sub = [] }) ]
-                | _ -> []) n.rows))
+                (match r.kind, r.chip with
+                 | P.Add, _ ->
+                     (match r.key with
+                      | E.Field _ -> [ Syntax_edit (E.Add_field { node = n.path;
+                          name = "f" ^ string_of_int (List.length n.rows);
+                          value = S.make (S.Num "0") }) ]
+                      | key when n.head = "list" || n.head = "str" || n.head = "concat" && false ->
+                          ignore key; [ Syntax_edit (E.Add_item { node = n.path }) ]
+                      | key when r.ty = Some Ty.Geometry -> ignore key; [ Notice "Wire a node onto this row" ]
+                      | key ->
+                          let value = match Option.bind r.ty (fun ty -> E.default_for ty r.label) with
+                            | Some v -> v | None -> S.make (S.Num "0") in
+                          [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ])
+                 | _, P.Inline _ -> [ Syntax_edit (E.Unfold { node = n.path; key = r.key; sub = [] }) ]
+                 | _ -> [])
+                | _ -> []) (Array.to_list p.lines)))
         | _ -> [] in
       let editors = match t.editing, p.item with
         | Some (Name path), P.Item n when path = n.path ->
@@ -1627,27 +2138,27 @@ let update t ui (frame : Frame.t) =
                   value = Option.get (single_form v) })))
         | _ -> [] in
       let movers = match p.item with
-        | P.Item n when P.reorderable n && z >= 0.5 ->
+        | P.Item n when P.reorderable n && z >= 0.5 && (shown = P.Card || shown = P.Full) ->
             Ui.within ui tile (fun () ->
               let top = rows_top n 0. in
-              List.concat (List.mapi (fun i (r : P.row) -> match r.kind, r.key with
-                | P.Rest, E.Pos k when k >= 1 ->
+              List.concat (List.mapi (fun k line -> match line with
+                | P.Row (i, ({ kind = P.Rest; key = E.Pos j; _ } : P.row)) when j >= 1 ->
                     let b = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px (16. *. z)) ~h:(Ui.Px (16. *. z))
-                        ~at:((p.w -. 22.) *. z, (top +. float i *. P.row_height +. 4.) *. z) ("mv" ^ string_of_int i) in
-                    if (Ui.signal ui b).clicked then [ Syntax_edit (E.Move_item { node = n.path; pos = k }) ] else []
-                | _ -> []) n.rows))
+                        ~at:((p.w -. 22.) *. z, (top +. float k *. P.row_height +. 4.) *. z) ("mv" ^ string_of_int i) in
+                    if (Ui.signal ui b).clicked then [ Syntax_edit (E.Move_item { node = n.path; pos = j }) ] else []
+                | _ -> []) (Array.to_list p.lines)))
         | _ -> [] in
       (* a switch's rows: a click on a layout's name makes it the active one *)
       let switchers = match p.item, List.assoc_opt p.path t.switches with
-        | P.Item n, Some active when z >= 0.5 ->
+        | P.Item n, Some active when z >= 0.5 && (shown = P.Card || shown = P.Full) ->
             Ui.within ui tile (fun () ->
               let top = rows_top n 0. in
-              List.concat (List.mapi (fun i (r : P.row) -> match r.key with
-                | E.Pos k when r.kind <> P.Add && k <> active ->
+              List.concat (List.mapi (fun k line -> match line with
+                | P.Row (i, ({ key = E.Pos j; kind; _ } : P.row)) when kind <> P.Add && j <> active ->
                     let b = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px ((p.w -. 24.) *. z)) ~h:(Ui.Px (16. *. z))
-                        ~at:(12. *. z, (top +. float i *. P.row_height +. 4.) *. z) ("sw" ^ string_of_int i) in
-                    if (Ui.signal ui b).clicked then [ Syntax_edit (E.Set_layout { graph = t.key; index = k }) ] else []
-                | _ -> []) n.rows))
+                        ~at:(12. *. z, (top +. float k *. P.row_height +. 4.) *. z) ("sw" ^ string_of_int i) in
+                    if (Ui.signal ui b).clicked then [ Syntax_edit (E.Set_layout { graph = t.key; index = j }) ] else []
+                | _ -> []) (Array.to_list p.lines)))
         | _ -> [] in
       p, ax, ay, tile, Ui.signal ui tile, sub, fields @ add_clicks @ editors @ movers @ switchers) visible) in
   let t = if !finished then { t with editing = None } else t in
@@ -1742,8 +2253,8 @@ let update t ui (frame : Frame.t) =
   let hover = List.find_map (fun ((p : P.placed), ax, ay, tile, _, _, _) ->
     match p.item with
     | P.Item ({ zone = None; _ } as n) when Ui.hovered_within ui tile ->
-        let gy = (snd mouse -. sy t 0.) /. z in
-        (match row_index n ~ay ~py:gy with
+        let px = (fst mouse -. sx t ax) /. z and py = (snd mouse -. sy t ay) /. z in
+        (match row_at p n ~shown:(shown_level t p) ~px ~py with
          | Some i when i < List.length n.rows -> Some (n, ax, ay, i)
          | _ -> None)
     | _ -> None) tiles in
@@ -1756,8 +2267,8 @@ let update t ui (frame : Frame.t) =
     | None -> List.find_map port_centre inputs) tiles in
   let same_port point = match hovered_port with
     | None -> false
-    | Some (x, y) -> abs_float (sx t (fst point) -. x) < 0.5
-        && abs_float (sy t (snd point) -. y) <= 1.5 in
+    | Some (x, y) -> abs_float (sx t (fst point) -. x) <= 1.5 *. z +. 0.5
+        && abs_float (sy t (snd point) -. y) <= 1.5 *. z +. 0.5 in
   let highlighted = ref [] in
   Array.iteri (fun i w ->
     if t.context = None &&
@@ -1863,6 +2374,7 @@ let update t ui (frame : Frame.t) =
        | P.Item n, `Toggle when bs.clicked ->
            emit (Zone_collapsed { zone = n.path; collapsed = not p.collapsed })
        | P.Item n, `Replace when bs.clicked -> emit (Syntax_edit (E.Inline_macro { node = n.path }))
+       | P.Item n, `More when bs.clicked -> emit (Level_set [ n.path, Some P.Full, true ])
        | P.Item n, `Lens when bs.clicked ->
            lens_next := if List.mem_assoc n.path !lens_next then List.remove_assoc n.path !lens_next
              else (n.path, (match n.lens with Some l -> Array.length l.steps - 1 | None -> 0)) :: !lens_next
@@ -1911,21 +2423,30 @@ let update t ui (frame : Frame.t) =
                | Item n ->
                    (match n.zone with
                     | None ->
-                        (match row_index n ~ay:0. ~py:ly with
+                        (* anywhere on the header is the in-port of the first geometry slot *)
+                        (match row_at ~header:infinity tp n ~shown:(shown_level t tp) ~px:lx ~py:ly with
                          | Some i when i < List.length n.rows ->
                              let r = List.nth n.rows i in
                              if r.socket then Some (n.path, r.key) else None
                          | _ -> None)
+                    | Some zn when tp.collapsed ->
+                        let i = int_of_float ((ly -. P.head_height) /. P.row_height) in
+                        (match List.nth_opt zn.rail i with
+                         | Some { key = Some key; _ } when ly >= P.head_height -> Some (n.path, key)
+                         | _ -> None)
                     | Some zn ->
-                        let base = if tp.collapsed then P.head_height else P.rail_top n in
-                        if lx > tp.w -. P.yield_width && (not tp.collapsed) && ly >= base && ly < base +. P.row_height then
+                        let extras = P.extra_rails zn in
+                        if ly < P.head_height then
+                          (match P.label_row zn with
+                           | Some { key = Some key; _ } when lx < 24. -> Some (n.path, key)
+                           | _ -> None)
+                        else if ly < P.rail_top n -. 28. then
+                          (match List.nth_opt extras (int_of_float ((ly -. P.head_height) /. P.row_height)) with
+                           | Some { key = Some key; _ } when lx < 24. -> Some (n.path, key)
+                           | _ -> None)
+                        else if lx > tp.w -. 24. && ly >= P.rail_top n then
                           Some (zn.scope.path @ [ "@result" ], E.Whole)
-                        else if lx < P.rail_width || tp.collapsed then begin
-                          let i = int_of_float ((ly -. base) /. P.row_height) in
-                          match List.nth_opt zn.rail i with
-                          | Some { key = Some key; _ } when ly >= base -> Some (n.path, key)
-                          | _ -> None
-                        end else None)) tiles in
+                        else None)) tiles in
              (match target with
               | Some (node, key) -> emit (Syntax_edit (E.Connect { node; key; src = w.src; iter = w.iter }))
               | None -> emit (Notice "Drop the wire on an input row"))
@@ -1965,7 +2486,7 @@ let update t ui (frame : Frame.t) =
   let dimmed (n : P.node) = not n.synthetic && n.zone = None
     && String.starts_with ~prefix:"scene/" n.head && n.head <> "scene/merge" && n.head <> "scene/root"
     && (match Hashtbl.find_opt t.geo.pos n.path with
-        | Some (ax, ay, w, _) -> not (Hashtbl.mem read (ax +. w, ay +. 12.))
+        | Some (ax, ay, w, _) -> not (Hashtbl.mem read (ax +. w, ay +. wire_head_y))
         | None -> false) in
   Ui.draw ui layer (fun paint (rx, ry, rw, rh) ->
     paint_background paint snapshot ~viewport:(rx, ry, rw, rh) zones);
@@ -1982,11 +2503,14 @@ let update t ui (frame : Frame.t) =
       | Item n ->
           (match n.zone with
            | Some zn when not p.collapsed ->
-               paint_zone_frame paint ui snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) n zn ~selected:isel (x, y, w, h)
+               paint_zone_frame paint ui snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) n zn ~selected:isel
+                 ~out_wired:(Hashtbl.mem read (out_anchor p ax ay)) (x, y, w, h)
                  ~probe:(snapshot.probe n.path) ~count:(count_of snapshot n.path)
            | _ ->
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in
-               paint_node paint ui snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) ~hovered ~out_wired:(Hashtbl.mem read (ax +. p.w -. 1., ay +. 12.)) p n ~selected:isel ~row_hover:rh (x, y, w, h);
+               paint_node paint ui snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) ~hovered
+                 ~out_wired:(Hashtbl.mem read (out_anchor p ax ay)) ~shown:(shown_level snapshot p)
+                 ?failed:(List.assoc_opt n.path snapshot.failed) p n ~selected:isel ~row_hover:rh (x, y, w, h);
                if dimmed n then Ui.Paint.fill paint ~x ~y ~w ~h (Color.with_alpha snapshot.theme.panel 150)));
     ignore (ax, ay); ignore node_placed; drawn_rows := !drawn_rows) tiles;
   let rows = List.fold_left (fun a ((p : P.placed), _, _, _, _, _, _) -> match p.item with
@@ -2004,8 +2528,27 @@ let update t ui (frame : Frame.t) =
       | Some letter, _ -> Some (rect, Some letter, None)
       | None, _ -> None) tiles in
   let canvas_hot = match t.carry_hot with Some ([ g ], ok) when g = t.key -> Some ok | _ -> None in
+  (* the view flag of the displayed node: a tip below it after the pointer rests there *)
+  let tip_at, tip_open = match t.display with
+    | Some path ->
+        (match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+         | Some (({ item = P.Item _; _ } as p), ax, ay) when shown_level t p <> P.Point && p.level <> P.Point ->
+             let fx = sx t ax +. (p.w -. head_pad -. 12.) *. z and fy = sy t ay +. 6. *. z in
+             let mx, my = mouse in
+             let over = mx >= fx && mx < fx +. 12. *. z && my >= fy && my < fy +. 12. *. z in
+             Some (sx t ax +. 116. *. z, sy t ay +. 32. *. z), over && Ui.hover_delay ui ~key:"scope-flag"
+         | _ -> None, false)
+    | None -> None, false in
+  let hint_chip paint ~bg (x, y) letter =
+    let letter = String.uppercase_ascii letter in
+    let size = max 8 (Ui.font_size ui - 2) in
+    let lw = Float.max 14. (Ui.Paint.text_width paint ~size letter +. 6.) in
+    Ui.Paint.fill paint ~x:(x -. 7.) ~y:(y -. 7.) ~w:lw ~h:14. bg;
+    let tw = Ui.Paint.text_width paint ~size letter in
+    Ui.Paint.text paint ~at:(x -. 7. +. (lw -. tw) /. 2., Ui.text_top ui ~size (y -. 7.) 14.) ~size
+      ~color:snapshot.theme.foreground letter in
   Ui.draw_over ui canvas (fun paint (cx, cy, cw, ch) ->
-    let refused = Color.hex_exn "#b0485a" in
+    let refused = Pxui.Theme.invalid in
     Option.iter (fun ok -> Ui.Paint.dashed_rect paint ~x:(cx +. 1.5) ~y:(cy +. 1.5) ~w:(cw -. 3.) ~h:(ch -. 3.)
       (if ok then snapshot.theme.accent else refused)) canvas_hot;
     List.iter (fun ((x, y, w, h), letter, hot) ->
@@ -2013,19 +2556,31 @@ let update t ui (frame : Frame.t) =
       (* a drop target: a dashed accent edge on the card *)
       if hot <> None then
         Ui.Paint.dashed_rect paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) color
-      else Ui.Paint.stroke paint ~x ~y ~w ~h color;
+      else Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) color;
       (* a letter of the key route: the hint colour under ink, at the card's top left (-7, -7) *)
       Option.iter (fun letter ->
-        let size = max 8 (Ui.font_size ui - 2) in
-        let lw = Float.max 14. (Ui.Paint.text_width paint ~size letter +. 6.) in
-        Ui.Paint.fill paint ~x:(x -. 7.) ~y:(y -. 7.) ~w:lw ~h:14.
-          (if hot = Some false then refused else (Pxui.Theme.ports snapshot.theme).hint);
-        let tw = Ui.Paint.text_width paint ~size letter in
-        Ui.Paint.text paint ~at:(x -. 7. +. (lw -. tw) /. 2., Ui.text_top ui ~size (y -. 7.) 14.) ~size
-          ~color:snapshot.theme.foreground letter) letter) marks;
+        hint_chip paint ~bg:(if hot = Some false then refused else (Pxui.Theme.ports snapshot.theme).hint)
+          (x, y) letter) letter) marks;
+    (* letter hints: a chip per target still matching what was typed, the rest of its letters shown *)
+    Option.iter (fun (h : hinting) ->
+      List.iter (fun (tg : hint_target) ->
+        if String.starts_with ~prefix:h.typed tg.label then begin
+          let rest = String.sub tg.label (String.length h.typed) (String.length tg.label - String.length h.typed) in
+          hint_chip paint ~bg:(Pxui.Theme.ports snapshot.theme).hint (sx snapshot (fst tg.pos), sy snapshot (snd tg.pos)) rest
+        end) h.targets) snapshot.hinting;
+    (* the displayed node's tip, once the pointer has rested on its flag *)
+    if tip_open then Option.iter (fun (fx, fy) ->
+      let size = max 4 (Ui.font_size ui - 2) in
+      let label = "displayed" and key = "V" in
+      let lw = Ui.Paint.text_width paint ~size label and kw = Ui.Paint.text_width paint ~size key in
+      let tw = 2. +. 12. +. lw +. 6. +. kw in
+      frame_in paint ~x:fx ~y:fy ~w:tw ~h:20. ~fill:snapshot.theme.input (Pxui.Theme.edge snapshot.theme);
+      let ty = Ui.text_top ui ~size fy 20. in
+      Ui.Paint.text paint ~at:(fx +. 7., ty) ~size ~color:snapshot.theme.foreground label;
+      Ui.Paint.text paint ~at:(fx +. 7. +. lw +. 6., ty) ~size ~color:(Pxui.Theme.ink_3 snapshot.theme) key) tip_at;
     List.iter (fun w ->
       paint_polyline paint ~width:2. snapshot.theme.foreground
-        (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) (wire_points ~style:snapshot.wires w.a w.b));
+        (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) w.pts);
       List.iter (fun (x, y) -> Ui.Paint.circle paint ~at:(sx snapshot x, sy snapshot y) ~radius:6.
         ~stroke:snapshot.theme.foreground ()) [w.a; w.b]) snapshot.highlighted;
     (match band with
@@ -2034,8 +2589,8 @@ let update t ui (frame : Frame.t) =
     (match snapshot.drag with
      | Some (Marquee _) ->
          let x0, y0 = canvas_signal.press_point and mx, my = mouse in
-         Ui.Paint.rect paint ~x:(Float.min x0 mx) ~y:(Float.min y0 my) ~w:(abs_float (mx -. x0)) ~h:(abs_float (my -. y0))
-           ~fill:(Pxui.Theme.tint snapshot.theme) ~stroke:snapshot.theme.accent ()
+         frame_in paint ~x:(Float.min x0 mx) ~y:(Float.min y0 my) ~w:(abs_float (mx -. x0)) ~h:(abs_float (my -. y0))
+           ~fill:(Pxui.Theme.tint snapshot.theme) snapshot.theme.accent
      | _ -> ());
     (match hover with
      | Some (n, ax, ay, i) ->
@@ -2045,10 +2600,13 @@ let update t ui (frame : Frame.t) =
               let size = max 4 (fs - 2) in
               let full = shown_glyph glyph ^ " " ^ text in
               let w = Ui.Paint.text_width paint ~size full +. 12. *. z in
-              let x = sx snapshot (ax +. value_x P.node_width) and y = sy snapshot (rows_top n ay +. float i *. P.row_height) in
+              let k = match Array.find_opt (fun ((q : P.placed), _, _) -> q.path = n.path) snapshot.geo.items with
+                | Some (q, _, _) -> Option.value ~default:0 (Hashtbl.find_opt (line_of_row q.lines) i)
+                | None -> 0 in
+              let x = sx snapshot (ax +. value_x P.node_width) and y = sy snapshot (rows_top n ay +. float k *. P.row_height) in
               if w > field_w *. z then begin
-                Ui.Paint.rect paint ~x ~y:(y +. 2. *. z) ~w ~h:(20. *. z) ~fill:snapshot.theme.input
-                  ~stroke:(Pxui.Theme.edge snapshot.theme) ();
+                frame_in paint ~x ~y:(y +. 2. *. z) ~w ~h:(20. *. z) ~fill:snapshot.theme.input
+                  (Pxui.Theme.edge snapshot.theme);
                 Ui.Paint.text paint ~at:(x +. 6. *. z, Ui.text_top ui ~size (y +. 2. *. z) (20. *. z)) ~size
                   ~color:snapshot.theme.foreground full
               end
@@ -2075,9 +2633,14 @@ module Private = struct
   let output_socket t path = Hashtbl.find_opt t.geo.pos path
     |> Option.map (fun (x, y, w, _) -> sx t (x +. w -. 1.), sy t (y +. port_y))
   let row_center t path i =
-    match node_of t path, Hashtbl.find_opt t.geo.pos path with
-    | Some n, Some (x, y, _, _) ->
-        Some (sx t (x +. 100.), sy t (rows_top n y +. (float i +. 0.5) *. P.row_height))
+    match node_of t path, Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+    | Some n, Some (p, x, y) ->
+        (match List.nth_opt n.rows i with
+         | Some { head = true; _ } -> Some (sx t (x +. 100.), sy t (y +. 12.))
+         | Some _ ->
+             Option.map (fun k -> sx t (x +. 100.), sy t (rows_top n y +. (float k +. 0.5) *. P.row_height))
+               (Hashtbl.find_opt (line_of_row p.lines) i)
+         | None -> None)
     | _ -> None
   let tile_point t path (dx, dy) (w, h) = Hashtbl.find_opt t.geo.pos path
     |> Option.map (fun (x, y, _, _) -> sx t x +. (dx +. w /. 2.) *. t.zoom, sy t y +. (dy +. h /. 2.) *. t.zoom)
@@ -2102,7 +2665,7 @@ module Private = struct
   let wire_midpoint t i =
     if i < 0 || i >= Array.length t.geo.wires then None else
     let w = t.geo.wires.(i) in
-    match wire_points ~style:t.wires w.a w.b with
+    match w.pts with
     | (x0, y0) :: (x1, y1) :: _ -> Some (sx t ((x0 +. x1) /. 2.), sy t ((y0 +. y1) /. 2.))
     | _ -> None
   let _ = contains

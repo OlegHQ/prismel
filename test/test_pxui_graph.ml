@@ -153,13 +153,11 @@ let scope_connection_hover () =
   let ws = Editor_document.Workspace_doc.of_text scope_catalog
     "(workspace capture (graph g :context sop (let* [a (sop/box) copies (for [i (range 2)] (sop/transform a :translate [i 0 0]))] (sop/merge copies))))"
     |> Result.get_ok in
-  let view, scope = scope_view ws.checked "g" in
+  let view, _ = scope_view ws.checked "g" in
   let view, _ = scope_step view (frame ()) in
-  let zone = Option.get (P.find scope ["g"; "copies"]) in
-  let rail = (Option.get zone.zone).rail in
-  let index = Option.get (List.find_index (fun (r : P.rail_row) -> r.role = P.Capture && r.name = "a") rail) in
-  let x, y, _, _ = Option.get (Scope.Private.box_of view zone.path) in
-  let point = int_of_float x, int_of_float (y +. (P.rail_top zone +. (float index +. 0.5) *. P.row_height) *. Scope.zoom view) in
+  (* a captured value is wired straight across the zone's edge from the node that makes it *)
+  let ax, ay = Option.get (Scope.Private.output_socket view [ "g"; "a" ]) in
+  let point = int_of_float ax, int_of_float ay in
   let hovered, changes = scope_step view (frame ~mouse:point ~events:[mouse_move point] ()) in
   check (changes = [] && List.length (Scope.Private.highlighted_connections hovered) = 1)
     "hover on a captured value's socket missed its outer connection"

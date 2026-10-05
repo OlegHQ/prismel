@@ -13,6 +13,7 @@ type t = {
   panels : Editor_core.Panels.state Path_map.t;
   at : (float * float) Path_map.t;
   pinned : bool Path_map.t;
+  level : Flow_sop.Projection.level Path_map.t;  (* a node's detail level, when it is not the default card *)
   rows : bool String_map.t Path_map.t;
   bends : (float * float) list Port_map.t;
   wireless : Port_set.t;
@@ -21,7 +22,7 @@ type t = {
   display : path Path_map.t;
 }
 
-let empty = { editor = None; panels = Path_map.empty; at = Path_map.empty; pinned = Path_map.empty; rows = Path_map.empty;
+let empty = { editor = None; panels = Path_map.empty; at = Path_map.empty; pinned = Path_map.empty; level = Path_map.empty; rows = Path_map.empty;
   bends = Port_map.empty; wireless = Port_set.empty; collapsed = Path_map.empty;
   frames = Path_map.empty; display = Path_map.empty }
 
@@ -33,7 +34,7 @@ let remap f t =
     | Some k -> Port_map.add (k, p) v acc | None -> acc) m Port_map.empty in
   { editor = Option.bind t.editor (fun name -> match f [name] with Some [name] -> Some name | _ -> None);
     panels = keys t.panels;
-    at = keys t.at; pinned = keys t.pinned; rows = keys t.rows; bends = port_keys t.bends;
+    at = keys t.at; pinned = keys t.pinned; level = keys t.level; rows = keys t.rows; bends = port_keys t.bends;
     wireless = Port_set.filter_map (fun (k, p) -> Option.map (fun k -> k, p) (f k)) t.wireless;
     collapsed = keys t.collapsed; frames = keys t.frames;
     display = Path_map.fold (fun k v acc -> match f k, f v with
@@ -57,6 +58,7 @@ let path_form p = vec (List.map str p)
 let to_syntax t =
   let nodes = Path_map.empty
     |> Path_map.fold (fun p v -> Path_map.add p [ kw "at", pair v ]) t.at
+    |> fun m -> Path_map.fold (fun p v m -> Path_map.add p (Option.value ~default:[] (Path_map.find_opt p m) @ [ kw "level", str (Flow_sop.Projection.level_name v) ]) m) t.level m
     |> fun m -> Path_map.fold (fun p v m -> Path_map.add p (Option.value ~default:[] (Path_map.find_opt p m) @ [ kw "pinned", bool v ]) m) t.pinned m
     |> fun m -> Path_map.fold (fun p v m -> Path_map.add p (Option.value ~default:[] (Path_map.find_opt p m) @ [ kw "collapsed", bool v ]) m) t.collapsed m
     |> fun m -> Path_map.fold (fun p rows m ->
@@ -127,6 +129,11 @@ let of_syntax (form : S.t) = match form.node with
             let rec go t = function
               | [] -> Ok t
               | { S.node = S.Kw "at"; _ } :: v :: r -> let* v = read_pair v in go { t with at = Path_map.add p v t.at } r
+              | { S.node = S.Kw "level"; _ } :: v :: r ->
+                  let* name = read_str v in
+                  (match Flow_sop.Projection.level_of_name name with
+                   | Some l -> go { t with level = Path_map.add p l t.level } r
+                   | None -> fail "unknown level %s" name)
               | { S.node = S.Kw "pinned"; _ } :: v :: r -> let* v = read_bool v in go { t with pinned = Path_map.add p v t.pinned } r
               | { S.node = S.Kw "collapsed"; _ } :: v :: r -> let* v = read_bool v in go { t with collapsed = Path_map.add p v t.collapsed } r
               | { S.node = S.Kw "rows"; _ } :: { S.node = S.Map kvs; _ } :: r ->

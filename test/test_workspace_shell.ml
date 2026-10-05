@@ -388,8 +388,8 @@ let run_result_view () =
       step ~mouse:point [Event.MouseMoved point];
       step ~mouse:point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)] in
     let select name =
-      let x, y, _, _ = Option.get (E3.node_box !e ["g"; name]) in
-      click (float (x + 60), float (y + 12));
+      let x, y, w, _ = Option.get (E3.node_box !e ["g"; name]) in
+      click (float (x + w * (20 + 35 * (!count mod 4)) / 196), float (y + 3));  (* a different point each time: two presses on one are a double-click, which renames *)
       check (dump_line !e "scope selected" = "g/" ^ name) "the result node could not be selected" in
     let key k = step [Event.KeyPressed k] in
     let edit op = e := (match E3.edit !e op with Ok e -> e | Error m -> fail m); step [] in
@@ -1563,7 +1563,9 @@ let run_panels () =
   step (100., 100.) []; step (100., 100.) [];
   check (!drawn = 2) "with nothing selected both inspectors show the sketch's rows";
   (* a node selected in graph a: its inspector shows the node, b's still the sketch's rows *)
-  click (30., 60.);
+  (* the graph input's header (cards sit on the 24-point lattice now: ask where it is) *)
+  let click_node path = let x, y, w, _ = Option.get (E3.node_box !e path) in click (float (x + w / 2), float (y + 3)) in
+  click_node [ "garden"; ":seed" ];
   check (dump_line !e "scope selected" = "garden/:seed" && !drawn = 1)
     ("the inspector tied to a did not follow a's selection: " ^ dump_line !e "scope selected");
   (* graph b takes the focus: a's inspector keeps showing a's node *)
@@ -1590,7 +1592,7 @@ let run_panels () =
   check (dump_line !e "windows" = "graph 10 30 300 200, graph 400 30 300 200")
     ("the saved entries of a binding used twice: " ^ dump_line !e "windows");
   check (dump_line !e "panels" = "graph 0; graph 1") ("the leaves of one binding are not two instances: " ^ dump_line !e "panels");
-  click (40., 110.);
+  (let x, y, w, _ = Option.get (E3.node_box !e [ "garden"; ":seed" ]) in click (float (x + w / 2), float (y + 3)));
   let first = dump_line !e "scope selected" in
   click (550., 200.);
   check (first <> "-" && dump_line !e "scope selected" = "-" && dump_line !e "panels" = "graph 0; graph 1*")

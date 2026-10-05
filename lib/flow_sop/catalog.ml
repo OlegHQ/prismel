@@ -36,7 +36,9 @@ let of_factories ~version ?(extra = []) factories =
                 | [] -> port.path in
               Flow.Check.{name = port.path; label; ty = port.ty;
                 fields = List.map (fun (field : Param.field_view) ->
-                  field.name, field.kind, field.default) port.fields}) ports in
+                  field.name, field.kind, field.default) port.fields;
+                folder = (match port.Port.fields with (f : Param.field_view) :: _ -> f.folder | [] -> []);
+                primary = (match port.Port.fields with (f : Param.field_view) :: _ -> f.primary | [] -> false)}) ports in
             let context = Option.get (context_of entry.qualified) in
             let outputs = if context = Flow.Context.Sop
               then ["geo", Flow.Port_type.Geometry] else [] in

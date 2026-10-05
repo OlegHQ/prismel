@@ -36,6 +36,8 @@ type 'prepared t = {
   pieces : 'prepared piece list;
   settings : Settings.t option;  (* the latest desired submission settings *)
   error : string option;
+  failure : (string * int) option ref;
+      (* the code and compiled node id of the node the last failed cook names (read while [error] is set) *)
   seconds : float option;
   (* A framing job can supersede a display cook that must be resubmitted. *)
   framing : bool option;
@@ -107,11 +109,19 @@ let create ~prepare ~seed ~grain ?domains ?await ~max_entries ~max_payload_bytes
   if domains <= 0 then invalid_arg "Rays_editor: domains must be positive";
   Result.map (fun worker ->
     { worker; seed; grain; domains; await; prepare; schedule = Schedule.initial;
-      pieces = []; settings = None; error = None; seconds = None;
+      pieces = []; settings = None; error = None; failure = ref None; seconds = None;
       framing = None; force = false; compiled = Document.Int_map.empty; graphs = [];
       value_lanes = Document.Int_map.empty; applied = Document.Int_map.empty;
       displayed = []; probing = []; summaries = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
+
+(* the failing node of a cook error: the innermost entry of its trace *)
+let failure_of = function
+  | Async_cook.Cook_error { code; trace; _ } when trace <> [] ->
+      Some (code, (List.nth trace (List.length trace - 1)).Procedural.Diagnostic.node_id)
+  | _ -> None
+
+let failed_node value = if value.error = None then None else !(value.failure)
 
 let status value = Async_cook.status value.worker
 
@@ -203,6 +213,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
         value.pieces, value.error, value.seconds, false,
         Some None, None, resume
     | Some { result = Error error; seconds; _ } ->
+        value.failure := failure_of error;
         value.pieces, Some (Async_cook.error_to_string error),
         Some seconds, false, None, None, false in
   (* Empty/removed objects have no current preview, including when a job
@@ -274,7 +285,8 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
           List.filter (fun piece -> Document.Int_map.mem piece.id compiled) pieces,
           None, Some awaited.seconds, true
       | Ok (Framed _) -> pieces, error, seconds, prepared_changed
-      | Error failure -> pieces, Some (Async_cook.error_to_string failure),
+      | Error failure -> value.failure := failure_of failure;
+          pieces, Some (Async_cook.error_to_string failure),
           Some awaited.seconds, prepared_changed
     else pieces, error, seconds, prepared_changed in
   (* a piece prepared under another highlight is prepared again from its kept
