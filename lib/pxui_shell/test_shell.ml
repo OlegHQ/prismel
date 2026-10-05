@@ -245,20 +245,7 @@ let () =
   (match menu_pick 0 with
    | [ Pxui_shell.Chrome.Resize { node = []; size = `Ratio r }; Settled ] when Float.abs (r -. (679.5 /. 999.)) < 1e-6 -> ()
    | _ -> failwith "the gutter menu did not size the split by its ratio");
-  (* the header menu of a panel ends with the same three rows for the split that holds it (the
-     rules above them are 9 points: By ratio is at 352, each next one 24 lower; the menu opens under
-     the header row, which ends at 28) *)
-  let header_pick row =
-    let at = 800., 10. in
-    ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
-    ignore (chrome sized ~mouse:at [Event.MousePressed (Input.RightButton, at)]);
-    ignore (chrome sized ~mouse:at [Event.MouseReleased (Input.RightButton, at)]);
-    let at = 700., 352. +. 24. *. float row in
-    ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
-    chrome sized ~mouse:at [Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at)] in
-  (match header_pick 1 with
-   | [ Pxui_shell.Chrome.Resize { node = []; size = `First 679 }; Settled ] -> ()
-   | intents -> failwith (Printf.sprintf "the header menu did not fix the first side of its split (%d intents)" (List.length intents)));
+  (* the header menu no longer holds the size rows: the gutter's right-click above does *)
   let gutter = List.hd (L.geometry sized { wide_frame with height = 600; size = 1000, 600 }).splitters in
   if L.sides gutter <> (679, 320) || L.resized gutter `Second <> `Second 320 then
     failwith "a gutter does not report the sides of its split";

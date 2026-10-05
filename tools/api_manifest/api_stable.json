@@ -391,13 +391,13 @@
       "source_sha256": "af5167c162c115ae94630afe72db202f126459df5d634dbe8a9ba9a3e0a21526"
     },
     {
-      "api_sha256": "af34e8d2e25e9242612022b0a1fbc94b40c80859cc94d3fde1dcbc1ce3e977c3",
+      "api_sha256": "436e52468972a577e20831bc650ee0eb5518a48848644f1a6afb093835a63abe",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 38026,
-      "source_sha256": "62892bde15964b063fbe9b350b0cd1b10af998c291d31671ecf4b5570fd0e115"
+      "source_bytes": 38211,
+      "source_sha256": "b5be9f426378654eca720ccc1a935792c2451458847ad77caa4551a10c8ddddf"
     },
     {
       "api_sha256": "81732506c560dc005333d6ce7e80ee928877732e6f666865dc7351ce9f10d7a2",
@@ -405,8 +405,8 @@
       "library": "pxui_graph",
       "module": "Node_menu",
       "source": "lib/pxui_graph/node_menu.mli",
-      "source_bytes": 1799,
-      "source_sha256": "380f5b4db16c65a3a84d104aaebe724394d5f8d90e927ca546b92c1128506501"
+      "source_bytes": 1856,
+      "source_sha256": "eee148523e198d715a7368468419324ea77ac2ffd1c2383194600fe277be02d9"
     },
     {
       "api_sha256": "3497113ab63f6c2b86f2783437fecbc2b3f7c16947bc3123377dce5c09813816",
@@ -427,13 +427,13 @@
       "source_sha256": "9c80e4070269a193e2e3744b036be3f8c06dcc26850ce0881101804b59c91794"
     },
     {
-      "api_sha256": "c37a5081a7ac87c481b798cd0c8b6a6121d52065089e7a23c81d523312d210b6",
+      "api_sha256": "c034d60b2b29f39295d38aff09e36e9079d93c224be3c41fb134314d99b1422c",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 18548,
-      "source_sha256": "9e9a880fd7715a0992aef62cf0e74f167cfb1b420e57e26678c4a64475a8683f"
+      "source_bytes": 19053,
+      "source_sha256": "73452646e9d850d47292f781f3a00e6cc92b455d00453642ea22a4918cfb4526"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",

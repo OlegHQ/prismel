@@ -267,7 +267,7 @@ let run_unbound_panels () =
     ("an inline panel was retyped: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e);
   E3.close !e;
   let e, step = started inline (300., 100.) in
-  step [ key Input.Space; ch 'o'; ch 'h' ]; step [];
+  step [ key Input.Space; ch 'o'; ch 'v' ]; step [];
   check (E3.undo_label !e = Some "Split panel" && has (source !e) "graph_a" || has (source !e) "ui/split-at \"horizontal\" 0.5")
     ("an inline panel was split: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e);
   E3.close !e;
