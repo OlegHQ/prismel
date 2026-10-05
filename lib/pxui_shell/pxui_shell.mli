@@ -112,13 +112,15 @@ module Chrome : sig
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
   val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) ->
-    ?focus:Layout.path -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t -> intent list
+    ?key_of:(string -> string) -> ?focus:Layout.path -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t -> intent list
   (** A [title] is ["Kind<TAB>a / b"]: the kind is the header's label, the rest its breadcrumb
       (the last part in ink).  The header of the [focus] leaf wears the accent square.  A docked
       header ends in its collapse chevron, a window's in dock and close.
       Panel backgrounds, the drawn gutters, headers with their collapse button and
-      right-click menu (split, close, dock, retype, and the size of the split that holds the
-      panel: a [Resize] then [Settled], as the gutter's menu).  Pure: the host applies the intents. *)
+      right-click menu (split, close, dock, retype; the keys at its right are [key_of] a command id
+      of the host's keymap: [panel.split-right], [panel.split-below], [panel.float], [panel.close],
+      [panel.graph] ... [panel.viewport]).  The size of a split is its gutter's right-click
+      ({!splitters}).  Pure: the host applies the intents. *)
 
   val tools_start : Pxui.Ui.t -> focused:bool -> floating:bool -> collapsed:bool -> string -> float
   (** Where the tools of a header begin, from its left edge: after the title as {!update} lays

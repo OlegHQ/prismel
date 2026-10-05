@@ -3175,6 +3175,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | None -> List.find_map (fun (path, p) -> if p = focus then Some path else None)
                   (Editor_core.Panels.leaves (shell_tree value workspace)) in
     let intents = Pxui_shell.Chrome.update ~state:(panel_state value) ~hidden:workspace.hidden ~title:(panel_title vw)
+        ~key_of:(fun id -> match List.find_opt (fun (c : Leader.command) -> c.id = id) keymap with
+          | Some { trigger = Some trigger; _ } -> Editor_core.Keymap.label trigger | _ -> "")
         ?focus:header_focus (shell_tree value workspace) ui shortcut_frame in
     (* where a header's tools begin: after its title as the chrome laid it out *)
     let tools_from (leaf : Pxui_shell.Layout.leaf) =

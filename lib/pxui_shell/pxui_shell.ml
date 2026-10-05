@@ -427,7 +427,7 @@ module Chrome = struct
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
   let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel)
-      ?focus tree ui (frame : Frame.t) =
+      ?(key_of = fun _ -> "") ?focus tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
     let geometry = geometry ~state ~hidden tree frame in
     let theme = Ui.theme ui in
@@ -529,23 +529,21 @@ module Chrome = struct
       let opened = opened || Ui.context_clicked drag || (drag.clicked && still) in
       Ui.set_state ui box (if opened then 1 else 0);
       if opened then begin
-        let holder = match List.rev l.path with
-          | _ :: up -> List.find_opt (fun (s : splitter) -> s.node = Some (List.rev up)) geometry.splitters
-          | [] -> None in
         (* the sheet's [04]: the four actions with their leader keys, a rule, the panel kinds (a square
-           before the one in use, the key that makes the panel one at the right) *)
+           before the one in use, the key that makes the panel one at the right); the keys are the
+           host's own ([key_of] a command id), the kinds' one letter.  The size of the split is the
+           gutter's right-click. *)
         let rows = [ "Split right", true; "Split down", true;
                      (if (state l.path).window = None then "Float" else "Dock"), true; "Close", true;
                      "", false ]
-          @ List.map (fun (name, _) -> name, true) retypes
-          (* the split that holds the panel, sized another way *)
-          @ (match holder with
-             | Some s -> ("", false) :: ("Size of its split", false) :: size_rows s
-             | None -> []) in
-        let keys = [ "Space o h"; "Space o v"; "Space o f"; "Space o x"; "" ]
-          @ List.map (fun (_, panel) -> match panel with
-              | Graph -> "g" | List -> "l" | Lisp -> "t" | Inspector -> "i" | Outline -> "u"
-              | Timeline -> "m" | View _ -> "w") retypes in
+          @ List.map (fun (name, _) -> name, true) retypes in
+        let last key = if key = "" then "" else String.sub key (String.length key - 1) 1 in
+        let keys = [ key_of "panel.split-right"; key_of "panel.split-below"; key_of "panel.float";
+                     key_of "panel.close"; "" ]
+          @ List.map (fun (_, panel) -> last (key_of (match panel with
+              | Graph -> "panel.graph" | List -> "panel.list" | Lisp -> "panel.lisp"
+              | Inspector -> "panel.inspector" | Outline -> "panel.outline"
+              | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
         let current = let rec find i = function
           | [] -> 5 | (_, panel) :: rest -> if panel = l.panel then 5 + i else find (i + 1) rest in
           find 0 retypes in
@@ -559,12 +557,7 @@ module Chrome = struct
               | 2 -> Window (l.path, if (state l.path).window <> None then None else
                     Some (let fx, fy, _, fh = l.frame in fx, fy, max 120 w, max 80 fh))
               | 3 -> Close_panel l.path
-              | i when i < 5 + List.length retypes -> Retype_panel (l.path, snd (List.nth retypes (i - 5)))
-              | i ->
-                  let s = Option.get holder in
-                  emit (Resize { node = Option.get s.node;
-                                 size = resized s (List.nth size_ways (i - 7 - List.length retypes)) });
-                  Settled)
+              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 5))))
       end;
       l, title l, box, button, grip) headed in
     (* the tip of a panel being moved: a 20-point sheet with a line-2 edge, the label size in ink *)

@@ -65,7 +65,8 @@ let () =
          | "rclick" ->
              mouse := point argument;
              step [ Rays.Event.MouseMoved !mouse ];
-             step [ Rays.Event.MousePressed (Rays.Input.RightButton, !mouse); Rays.Event.MouseReleased (Rays.Input.RightButton, !mouse) ]
+             step [ Rays.Event.MousePressed (Rays.Input.RightButton, !mouse) ];
+             step [ Rays.Event.MouseReleased (Rays.Input.RightButton, !mouse) ]
          | "click" ->
              mouse := point argument;
              step [ Rays.Event.MouseMoved !mouse ];

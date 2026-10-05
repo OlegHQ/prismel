@@ -1120,7 +1120,7 @@ that state out, and Gap B removed the wait: the tests use `Editor3/2.create ~awa
 
 The W12 audit's gaps that the plan's text required were closed (details, tests and numbers in
 `specification/workspace/progress.md` "W13"): the graph pane makes every W3 gesture (rename, input default,
-list item move, frames as `Frames_set` layout edits, marquee selection); `Space o h/v/x/g/l/t/i/u/m/w` split,
+list item move, frames as `Frames_set` layout edits, marquee selection); `Space o v/h/x/g/l/t/i/u/m/w` split,
 close and retype the focused panel; a binding apply's checker error carries a line and error marks clear on
 typing; instanced pieces are picked per instance; residuals compile to closures (Wave 7.0 to 1.8 ms p50,
 bit-identical); a `.rays` that differs from the built text reloads on the first poll and `(layout ...)` /
