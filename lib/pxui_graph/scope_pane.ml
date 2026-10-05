@@ -385,6 +385,7 @@ type t = {
   scope : P.scope option;
   at : path -> (float * float) option;
   level_at : path -> (P.level * bool) option;  (* a node's saved level and whether it is pinned *)
+  pin_at : path -> string -> bool option;  (* a node's row pinned onto (or off) its card, by label *)
   collapsed : path -> bool;
   lens : (path * int) list;  (* macro calls whose expansion panel is open, and its step *)
   probe : path -> int;
@@ -420,7 +421,7 @@ type t = {
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
   x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
-  at = (fun _ -> None); level_at = (fun _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
+  at = (fun _ -> None); level_at = (fun _ -> None); pin_at = (fun _ _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
   layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; pan_x = 12.; pan_y = 12.; zoom = 1.;
@@ -493,7 +494,7 @@ let macro_step = lens_of
 (* the cards reserve a footer row once the host has probe records to show *)
 let lay t scope ~at ~collapsed =
   P.layout ~foot:(t.records <> None) ~at ~collapsed ~lens:(lens_of t)
-    ~level:(fun p -> match t.level_at p with Some (l, _) -> l | None -> P.Card) scope
+    ~level:(fun p -> match t.level_at p with Some (l, _) -> l | None -> P.Card) ~pin:t.pin_at scope
 
 (* a switch's rows read as the names of its layouts; [switches] are its nodes with the active input *)
 let switch_nodes (scope : P.scope) = List.filter_map (fun (n : P.node) ->
@@ -502,7 +503,7 @@ let switch_nodes (scope : P.scope) = List.filter_map (fun (n : P.node) ->
     | Some { expr = Some { S.node = S.Num s; _ }; _ } -> Option.value ~default:0 (int_of_string_opt s)
     | _ -> 0)) scope.nodes
 
-let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
+let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
     ?(frames = fun _ -> []) ?display ?wires ?(layouts = []) ~key scope t =
   let wires = Option.value wires ~default:t.wires in
   let scope = if layouts = [] then scope else
@@ -511,7 +512,7 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(collapsed = fun 
         if n.head <> "ui/switch" || List.length inputs <> List.length layouts then n
         else { n with rows = List.map (fun (r : P.row) -> match r.key with
           | E.Pos i when r.kind <> P.Add -> { r with label = List.nth layouts i } | _ -> r) n.rows }) scope.P.nodes } in
-  let t = { t with level_at = level } in
+  let t = { t with level_at = level; pin_at = pin } in
   let layout = lay t scope ~at ~collapsed in
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;

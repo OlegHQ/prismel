@@ -1339,6 +1339,7 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
               | None, None -> None
               | level, pinned -> Some (Option.value ~default:Flow_sop.Projection.Card level,
                                        Option.value ~default:false pinned))
+            ~pin:(fun path label -> Option.bind (M.find_opt path layout.rows) (Layout_by_path.String_map.find_opt label))
             ~collapsed:(fun path -> Option.value ~default:false (M.find_opt path layout.collapsed))
             ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes))
             ~frames:(fun path -> List.map (fun (f : Layout_by_path.frame) -> f.title, f.at, f.size)

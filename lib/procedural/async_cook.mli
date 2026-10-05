@@ -63,6 +63,9 @@ val submit_some :
 val set_volatile : 'a t -> (int -> bool) -> unit
 (** [Session.set_volatile] on the worker's session. *)
 
+val node_seconds : 'a t -> int -> float option
+(** [Session.node_seconds] on the worker's session. *)
+
 val stats : 'a t -> Session.stats
 (** The worker's session counters (hits, misses, evictions, volatile). Call
     while idle for a settled reading. *)

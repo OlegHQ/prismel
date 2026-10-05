@@ -63,6 +63,8 @@ type t = {
   mutable volatile_misses : int;
   mutable evictions : int;
   mutable last_node : node_timing option;
+  times : (int, float) Hashtbl.t;  (* node id -> its own seconds the last time it was really cooked *)
+  times_lock : Mutex.t;
   mutable closed : bool;
   mutable materialized : (output * Rdk.Geometry.t) list;  (* see [input_geometry] *)
 }
@@ -92,7 +94,7 @@ let create ~max_entries ~max_payload_bytes =
     inspection_cache = [];
     cooks = 0; hits = 0; misses = 0; evictions = 0;
     volatile = (fun _ -> false); slots = Hashtbl.create 16; volatile_hits = 0; volatile_misses = 0;
-    last_node = None; closed = false; materialized = [];
+    last_node = None; times = Hashtbl.create 64; times_lock = Mutex.create (); closed = false; materialized = [];
   }
 
 let inspect session root =
@@ -190,6 +192,16 @@ let timing node ~seconds ~cache_hit = {
   seconds;
   cache_hit;
 }
+
+(* a cache hit keeps the node's last real cook time; bounded: a full table starts over *)
+let times_capacity = 4096
+let record_time session id seconds =
+  Mutex.protect session.times_lock (fun () ->
+    if Hashtbl.length session.times >= times_capacity then Hashtbl.reset session.times;
+    Hashtbl.replace session.times id seconds)
+
+let node_seconds session id =
+  Mutex.protect session.times_lock (fun () -> Hashtbl.find_opt session.times id)
 
 let cancellation_error node =
   Diagnostic.error ~code:"cancelled" "procedural cook was cancelled"
@@ -302,6 +314,7 @@ and evaluate_uncached memo session context node =
             in
             let seconds = max 0. (Unix.gettimeofday () -. started) in
             session.last_node <- Some (timing node ~seconds ~cache_hit:false);
+            record_time session (Node.id node) seconds;
             match cooked with
             | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
             | Ok _ when Context.cancelled context -> Error (cancellation_error node)
@@ -348,6 +361,7 @@ let stats session = {
 }
 
 let clear session =
+  Mutex.protect session.times_lock (fun () -> Hashtbl.reset session.times);
   session.inspection_cache <- [];
   Entry_cache.clear session.cache;
   Hashtbl.reset session.slots;
