@@ -13,6 +13,7 @@ type theme = Theme.t = {
   input : Rays.Color.t;
   track : Rays.Color.t;
   accent : Rays.Color.t;
+  ink_ground : Rays.Color.t option;
 }
 
 val default_theme : theme

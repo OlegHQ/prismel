@@ -198,7 +198,9 @@ let run () =
        ignore (Canvas.save_png canvas (Filename.concat directory "scene-inspector.png"));
        Canvas.destroy canvas);
   let ix, iy, _, _ = (E.panes env (frame 0)).inspector in
-  let slider x = ix + 100 + x, iy + 118 + 28 + 24 + 40 + 12 in
+  (* the translate row: the 118-point head, then the Inputs (4 + 24 + the row), Geometry (16 + 24 + two rows)
+     and Transform (16 + 24) sections, 12 into its row to the middle of the x field *)
+  let slider x = ix + 100 + x, iy + 118 + (4 + 24 + 24) + (16 + 24 + 48) + (16 + 24) + 12 in
   let at (x, y) = float x, float y in
   let translate_x env = Option.bind (E.selected_node env) (fun node ->
       List.find_map (fun (field : Parameter.field_view) ->

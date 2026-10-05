@@ -131,10 +131,11 @@ let run () =
   let control = Control.create () in
   let control, _, _ = run control camera (frame ()) in
   (* Two closed sections of 24 points under 4 of space; opening Render adds Output and the
-     save button, a row each. *)
+     save button, a row each; the open Render has 16 above it, as it follows a closed section. Its
+     button is then at 92..116. *)
   let control, _, _ = run control camera (click (30, 40)) in
   let control, _, _ = run control camera (frame ()) in
-  let control, _, requests = run control camera (click (30, 88)) in
+  let control, _, requests = run control camera (click (30, 104)) in
   if List.length requests <> 1 then
     fail "2D camera render section did not request a PNG";
   let control, controlled, _ = run (Control.open_camera control) camera (frame ()) in

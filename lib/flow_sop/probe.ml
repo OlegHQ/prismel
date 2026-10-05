@@ -2,7 +2,10 @@ module E = Flow.Eval
 module P = Projection
 
 type path = Flow.Workspace.path
-type geometry = { prims : int; groups : string list; data_id : int }
+type geometry = {
+  points : int; prims : int; groups : string list; data_id : int;
+  extent : (float * float * float) option;
+}
 type summary = Value of E.value | Geometry of geometry
 
 type footer = {

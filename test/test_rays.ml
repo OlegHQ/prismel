@@ -265,10 +265,11 @@ let run_1 () =
   let camera_control = Camera_control.create () in
   let camera_control, _, _ = run camera_control easy idle in
   (* Two closed sections of 24 points under 4 of space; opening Render adds Output and the
-     save button, a row each. *)
+     save button, a row each; the open Render has 16 above it, as it follows a closed section. Its
+     button is then at 92..116. *)
   let camera_control, _, _ = run camera_control easy (click (30, 40)) in
   let camera_control, _, _ = run camera_control easy idle in
-  let camera_control, _, requests = run camera_control easy (click (30, 88)) in
+  let camera_control, _, requests = run camera_control easy (click (30, 104)) in
   if List.map (fun (request : Camera_control.render_request) -> request.filename)
       requests <> ["_out/rays-render.png"]
   then fail "camera render section did not request a PNG";

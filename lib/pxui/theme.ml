@@ -5,6 +5,7 @@ type t = {
   input : Rays.Color.t;
   track : Rays.Color.t;
   accent : Rays.Color.t;
+  ink_ground : Rays.Color.t option;
 }
 
 let default = {
@@ -14,6 +15,7 @@ let default = {
   input = Rays.Color.hex_exn "#ffffff";
   track = Rays.Color.hex_exn "#e3e8e4";
   accent = Rays.Color.hex_exn "#f0481f";
+  ink_ground = None;
 }
 
 (* Kit rev 3 (specification/pxui.md): four type sizes, three text inks, three line strengths.
@@ -24,8 +26,10 @@ let label_size = 11 (* upper-case captions, keys, units *)
 let title_size = 20
 let display_size = 40
 
-let ink_2 theme = Rays.Color.blend theme.foreground theme.panel ~pct:0.32 (* labels, secondary *)
-let ink_3 theme = Rays.Color.blend theme.foreground theme.panel ~pct:0.52 (* disabled, placeholder, keys *)
+(* the inks are blended against the ground, which a sheet (a window) keeps when it paints its own *)
+let ground theme = Option.value theme.ink_ground ~default:theme.panel
+let ink_2 theme = Rays.Color.blend theme.foreground (ground theme) ~pct:0.32 (* labels, secondary *)
+let ink_3 theme = Rays.Color.blend theme.foreground (ground theme) ~pct:0.52 (* disabled, placeholder, keys *)
 let muted = ink_2
 let border theme = Rays.Color.with_alpha theme.foreground 76 (* line-3: the primary button, switch *)
 let edge theme = Rays.Color.with_alpha theme.foreground 38 (* line-2: panes, cards, windows, fields *)

@@ -7,6 +7,9 @@ type t = {
   input : Rays.Color.t;
   track : Rays.Color.t;
   accent : Rays.Color.t;
+  ink_ground : Rays.Color.t option;
+      (** the ground the inks blend against when it is not [panel] (a window sheet paints [input]
+          as [panel] and keeps the inks of the ground); [None] means [panel] *)
 }
 
 val default : t

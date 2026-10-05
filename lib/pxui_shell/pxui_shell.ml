@@ -1671,8 +1671,19 @@ module Inspector = struct
         in
         loop [] items
 
+  (* Sections are one level deep: the top folder of a parameter, never the vector's own folder
+     (its row is one row, in the section it belongs to). *)
+  let top_folder (row : flow_row) =
+    let folder = match row.fields with
+      | (field : Param.field_view) :: _ -> field.folder | [] -> [] in
+    let squash name = String.lowercase_ascii (String.concat "" (String.split_on_char ' ' name)) in
+    let folder = match List.rev folder with
+      | last :: rest when squash last = squash row.path -> List.rev rest
+      | _ -> folder in
+    match folder with first :: _ -> [ first ] | [] -> []
+
   let flow_fields ui ?(expanded = []) ?width ?(actions = true) ?(pins = false) ?(chips = [])
-      ?(on_choice = fun _ _ -> ()) rows =
+      ?kind_label ?(on_choice = fun _ _ -> ()) rows =
     (* the rows fill the panel they are built in *)
     let width = Option.value width ~default:(Ui.inspector_width ui) in
     let theme = Ui.theme ui in
@@ -1721,14 +1732,19 @@ module Inspector = struct
             /. Float.max 0.000001 (range.soft_max -. range.soft_min) in
           let slide fraction = Printf.sprintf "%.6g"
             (range.soft_min +. fraction *. (range.soft_max -. range.soft_min)) in
-          numeric (Printf.sprintf "%.17g" value)
+          numeric (Printf.sprintf "%.6g" value)
             (fun text -> Option.fold ~none:false ~some:Float.is_finite
               (float_of_string_opt text)) ~display:(Printf.sprintf "%.6g" value)
             ~fraction ~slide
             (fun text -> Option.map (fun n -> Param.Float_value n)
               (float_of_string_opt text))
       | Param.Text_view, Param.Text_value value ->
-          let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
+          (* an empty group means every element of its owner *)
+          let placeholder = match field.default with
+            | Param.Text_value "" when field.name = "group" || String.ends_with ~suffix:"_group" field.name ->
+                Some "all"
+            | _ -> None in
+          let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20. ?placeholder
               ~left:true ~valid:(fun _ -> true) key value in
           if text = value then [] else [Edited (field.name, Param.Text_value text)]
       | Param.Choice_view choices, Param.Choice_value value ->
@@ -1747,13 +1763,13 @@ module Inspector = struct
                   Ui.Paint.rect paint ~x:(x +. 2.) ~y:(y +. 6.) ~w:8. ~h:8. ~fill:color
                     ~stroke:(Pxui.Theme.edge theme) (); 14.
               | None -> 0. in
-            Ui.Paint.text paint ~at:(x +. 2. +. pad, Kit.text_y ui y h)
+            Ui.Paint.text paint ~at:(x +. 2. +. pad, Kit.text_y ui (y -. 0.5) h)
               ~color:theme.foreground choices.(index);
             Ui.Paint.chevron paint ~at:(x +. w -. 5., y +. (h /. 2.))
               (if open_ then `Up else `Down) theme.foreground);
           if not open_ || just_opened then [] else
             let bx, by, bw, bh = Ui.rect ui box in
-            (match Ui.context_menu ui ~at:(bx, by +. bh) ~width:bw ~selected:index
+            (match Ui.context_menu ui ~at:(bx, by +. bh +. 1.) ~width:bw ~selected:index
                 ~swatches:(Array.to_list (Array.map (fun choice -> List.assoc_opt choice chips) choices))
                 (key ^ "-options")
                 (Array.to_list (Array.map (fun choice -> choice, true) choices)) with
@@ -1784,7 +1800,7 @@ module Inspector = struct
               ~valid:expression ("flow-expression-" ^ path) source in
           if text = source then [] else [Expression (path, text)]
         else (Ui.draw ui box (fun paint (x, y, _, _) ->
-          let ty = Kit.text_y ui (y +. control_y) 20. in
+          let ty = Kit.text_y ui (y +. control_y -. 0.5) 20. in
           let left = x +. control_x +. 2. and right = x +. control_x +. control_w -. 2. in
           Ui.Paint.text paint ~at:(left, ty) ~color:theme.accent "\xe2\x86\x90";
           let source_x = left +. Ui.Paint.text_width paint "\xe2\x86\x90" +. 6. in
@@ -1802,8 +1818,9 @@ module Inspector = struct
           ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
       Ui.within ui box (fun () ->
         (* the label's own extent: its column *)
-        let label = Ui.box ui ~flags:Ui.clickable ~at:(26., 2.)
-            ~w:(Ui.Px (Float.max 1. (control_x -. 34.))) ~h:(Ui.Px 20.) "label-edit" in
+        let label_x = Ui.inspector_label_x ui in
+        let label = Ui.box ui ~flags:Ui.clickable ~at:(label_x, 2.)
+            ~w:(Ui.Px (Float.max 1. (control_x -. label_x -. 8.))) ~h:(Ui.Px 20.) "label-edit" in
         let edit = (Ui.signal ui label).double_clicked in
         let edits = input field path ~x:control_x ~y:control_y ~w:control_w ~edit in
         let pinned = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
@@ -1830,8 +1847,10 @@ module Inspector = struct
     let swatch_and_hex ~path ~control_x ~control_y ~control_w ~swatch_color ~hex_str =
       let swatch = Ui.box ui ~at:(control_x, control_y) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) ("swatch-" ^ path) in
       Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-        Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:swatch_color
-          ~stroke:(Pxui.Theme.edge theme) ());
+        (* a 20-point square with its border inside *)
+        Ui.Paint.fill paint ~x:sx ~y:sy ~w:sw ~h:sh swatch_color;
+        Ui.Paint.stroke paint ~x:(sx +. 0.5) ~y:(sy +. 0.5) ~w:(sw -. 1.) ~h:(sh -. 1.)
+          (Pxui.Theme.edge theme));
       fst (Ui.value_field ui ~at:(control_x +. 28., control_y) ~w:(control_w -. 28.) ~h:20.
         ~left:true ~valid:(fun t -> Result.is_ok (Color.hex t)) ("hex-" ^ path) hex_str) in
     let color_row_3 (row : flow_row) title fields shown =
@@ -1898,8 +1917,10 @@ module Inspector = struct
         let pin = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
         hex_edits @ (if pin then [ Pinned (path, not shown) ] else [])) in
     let row_widget (row : flow_row) =
+      (* a row is named by its argument, as the sheet and the card name it *)
       let title = match row.fields with
-        | [field] -> field.Param.label | _ -> row.path in
+        | [field] when String.starts_with ~prefix:"@" row.path -> field.Param.label
+        | _ -> row.path in
       match row.drive, row.fields with
       | Some source, _ -> driven row.path title source row.live row.shown
       | None, [field] when is_color_1 field -> color_row_1 row.path title field row.shown
@@ -1919,7 +1940,7 @@ module Inspector = struct
                 let start = control_x +. float index *. (field_width +. 8.) in
                 let fx = Float.round start and fw = Float.round (start +. field_width) -. Float.round start in
                 Ui.draw ui box (fun paint (x, y, _, _) ->
-                  Ui.Paint.text paint ~at:(x +. fx +. 2., Kit.cap_y ui (y +. control_y) 20.)
+                  Ui.Paint.text paint ~at:(x +. fx +. 2., Kit.cap_y ui (y +. control_y -. 0.5) 20.)
                     ~size:(Kit.cap_size ui) ~color:ink_3 axis);
                 input ~ranged:false field (row.path ^ "." ^ axis)
                   ~edit:false ~x:fx ~y:control_y ~w:fw) fields) in
@@ -1945,13 +1966,15 @@ module Inspector = struct
           let key = String.concat "/" path in
           Option.value ~default:[]
             (Ui.inspector_section ui ~key:("flow-section-" ^ key)
-              ~expanded:(List.mem key expanded) label
+              ~expanded:(List.mem key expanded || (path = [ label ] && Some label = kind_label)) label
               (fun () -> build path children))) items in
     if rows = [] then (Ui.inspector_message ui ~key:"no-parameters" "No parameters"; []) else
-      build [] (List.fold_left (fun items (row : flow_row) ->
-        let folder = match row.fields with
-          | (field : Param.field_view) :: _ -> field.folder | [] -> [] in
-        insert folder row items) [] rows)
+      (* a kind's own section first, for the arguments that have no folder *)
+      let folder_of row = match top_folder row, kind_label with
+        | [], Some label -> [ label ] | folder, _ -> folder in
+      let own, others = List.partition (fun row -> top_folder row = []) rows in
+      build [] (List.fold_left (fun items (row : flow_row) -> insert (folder_of row) row items) []
+                  (own @ others))
 
   let fields ui ?expanded ?width views =
     let rows = List.map (fun (field : Param.field_view) ->

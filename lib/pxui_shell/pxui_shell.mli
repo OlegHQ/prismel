@@ -290,7 +290,7 @@ module Inspector : sig
     | Pinned of string * bool | Split of string * bool | Reset of string
     | Expression of string * string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
-    ?actions:bool -> ?pins:bool -> ?chips:(string * Rays.Color.t) list ->
+    ?actions:bool -> ?pins:bool -> ?chips:(string * Rays.Color.t) list -> ?kind_label:string ->
     ?on_choice:(string -> Pxui.Ui.box -> unit) -> flow_row list -> flow_change list
   (** Responsive rows shared by Flow, scene, World, and compound interface
       inspectors, laid out as the kit's inspector sheet. [actions=false] hides card pin and split
@@ -299,7 +299,9 @@ module Inspector : sig
       hovered row. A choice named in [chips]
       wears its colour as a small square, on the closed control and in its menu. [on_choice]
       is called with the field's name and the box of each choice control, built or not
-      open: a host makes it a {!Pxui.Ui.drop_target}. *)
+      open: a host makes it a {!Pxui.Ui.drop_target}.  Sections are one level deep (a parameter's
+      top folder; a vector is one row, never a section of its own); with [kind_label] the
+      arguments that have no folder go in a first, open section of that name. *)
 
   val fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
     Editor_core.Param.field_view list -> (string * Editor_core.Param.value) list

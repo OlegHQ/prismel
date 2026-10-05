@@ -398,11 +398,12 @@ val splitter : t -> ?axis:axis -> ?thickness:float -> string -> float
     or an ink fill. Widgets must be built inside a {!val-panel}. *)
 
 val panel :
-  t -> ?x:float -> ?y:float -> ?width:float -> ?height:float -> ?max_height:float ->
+  ?window:bool -> t -> ?x:float -> ?y:float -> ?width:float -> ?height:float -> ?max_height:float ->
   ?row_height:int -> ?padding:int -> string -> (unit -> 'a) -> 'a
 (** A light panel at [(x, y)] (default [(12, 12)], width 280). [height]
     fills a fixed pane; otherwise content sets the height. Rows beyond the
-    height or [max_height] use the shared elastic scroll. *)
+    height or [max_height] use the shared elastic scroll.  [window] lays inspector rows and heads
+    out as a floating window's (label at 12, 88-point column, no pin slot, a 20-point title). *)
 
 val inspector_row :
   t -> ?width:float -> ?pin:bool -> key:string -> label:string -> unit ->
@@ -412,6 +413,9 @@ val inspector_row :
     given: filled ink for a row on its card, an ink-3 ring for one that is not), 8, the label column
     (0.3 of the panel less 16 points: 98 at 380 wide, 80 at 320), 8, the control to 12 from the
     right edge.  A long label ellipsizes in its column.  The hovered row has the line-1 fill. *)
+
+val inspector_label_x : t -> float
+(** Where an inspector row's label starts: 26 (after the pin slot), 12 in a window. *)
 
 val inspector_width : t -> float
 (** The width of the panel being built: what an inspector row lays its columns out in. *)
@@ -447,6 +451,10 @@ val inspector_header :
 val inspector_body : t -> (unit -> 'a) -> 'a
 (** The part of an inspector under its head: a column filling the rest of the panel that scrolls
     on its own (the head stays), with a 4-point line-3 thumb 2 points from the right edge. *)
+
+val inspector_bar : t -> hints:(string * string) list -> count:int -> unit
+(** The bar under an inspector body: a line-2 hairline, then a 24-point bar of [hints] (a key in
+    ink-3 at the label size, what it does in ink-2) and at the right a dot and "[count] on card". *)
 
 val inspector_button : t -> key:string -> string -> bool
 (** A full-width action row with the inspector's spacing and colors. *)
@@ -588,14 +596,15 @@ val value_field : t -> at:float * float -> w:float -> h:float ->
   ?slide:(float -> string) ->
   ?scrub:(string -> float -> bool -> string) -> ?left:bool -> ?edit:bool ->
   ?lead:string * Rays.Color.t -> ?trail:string * Rays.Color.t -> ?line:Rays.Color.t ->
-  ?bare:bool -> valid:(string -> bool) ->
+  ?bare:bool -> ?placeholder:string -> valid:(string -> bool) ->
   string -> string -> string * bool
 (** Compact field. Numeric sliders follow the pointer with [slide]; Option-click
     or [edit] opens text entry. [scrub] handles fields without a track.
     [left] aligns text values to the left (default false for numeric fields).
     [lead] and [trail] frame the value at the left and right with 6 points between (an
     expression's ƒ and its live value); [line] is the idle hairline's colour (an expression's port
-    colour); [bare] leaves the hairline out until the field is edited or invalid.
+    colour); [bare] leaves the hairline out until the field is edited or invalid; [placeholder] is
+    shown in ink-3 where an empty value would be.
     Only valid text commits; the boolean reports an open text editor. *)
 
 val choice : t -> ?disabled:bool -> string -> string list -> int -> int

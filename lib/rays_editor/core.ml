@@ -467,7 +467,8 @@ let pane_ui bounds =
 (* The inspector column's kit panel. *)
 (* A window is the input sheet: its panes paint their ground with the theme's panel colour, so
    they are built with the sheet as that colour. *)
-let sheet_theme (theme : Pxui.Theme.t) = { theme with panel = theme.input }
+let sheet_theme (theme : Pxui.Theme.t) =
+  { theme with panel = theme.input; ink_ground = Some (Option.value theme.ink_ground ~default:theme.panel) }
 let on_sheet ui floating build =
   if not floating then build () else begin
     let theme = Pxui.Ui.theme ui in
@@ -475,9 +476,9 @@ let on_sheet ui floating build =
     Fun.protect ~finally:(fun () -> Pxui.Ui.set_theme ui theme) build
   end
 
-let inspector_panel ui bounds build =
+let inspector_panel ?window ui bounds build =
   let x, y, width, height = bounds in
-  Pxui.Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y)
+  Pxui.Ui.panel ?window ui ~x:(float_of_int x) ~y:(float_of_int y)
     ~width:(float_of_int width) ~height:(float_of_int height)
     ~padding:0 "workspace-inspector-panel" build
 
@@ -559,6 +560,59 @@ let expression_text text =
   | Ok _ -> Error "Write one expression after the ="
   | Error d -> Error ("Expression: " ^ d.Flow.Diagnostic.message)
 
+(* 1204 as "1 204" *)
+let group_digits n =
+  let text = string_of_int (abs n) in
+  let len = String.length text in
+  let b = Buffer.create (len + 4) in
+  if n < 0 then Buffer.add_char b '-';
+  String.iteri (fun i c -> if i > 0 && (len - i) mod 3 = 0 then Buffer.add_char b ' '; Buffer.add_char b c) text;
+  Buffer.contents b
+
+(* the section of a kind's arguments that have no folder: its own name ("sop/copy_to_points" is Copy to points) *)
+let kind_label head =
+  let leaf = match String.rindex_opt head '/' with
+    | Some i -> String.sub head (i + 1) (String.length head - i - 1) | None -> head in
+  String.capitalize_ascii (String.map (fun c -> if c = '_' then ' ' else c) leaf)
+
+(* The arguments of a kind the editor has no compiled node for (a scene or material node), as the
+   fields a node would give: the checked kind's parameters, valued by what is written in [authored]. *)
+let kind_fields value graph head authored =
+  let module S = Flow.Syntax in
+  let ws, _ = value.doc.Document.workspace in
+  let context = Option.bind (List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = graph)
+      (ws.checked.graphs @ ws.checked.defs)) (fun (g : Flow.Workspace.graph) -> match g.context with
+    | Flow.Workspace.Sop -> Some Flow.Context.Sop | Scene -> Some Flow.Context.Scene
+    | World -> Some Flow.Context.World | Settings -> Some Flow.Context.Settings
+    | Material -> Some Flow.Context.Material | _ -> None) in
+  match Lazy.force value.flow_catalog, context with
+  | Some catalog, Some context ->
+      (match Flow.Check.resolve_kind catalog context head with
+       | Error _ -> None
+       | Ok (k : Flow.Check.kind) ->
+           let number (e : S.t) = match e.node with S.Num t -> float_of_string_opt t | _ -> None in
+           Some (List.concat_map (fun (p : Flow.Check.parameter) ->
+             let written = authored p.name in
+             let three = List.length p.fields = 3 && p.ty = Some Flow.Port_type.Vec3 in
+             List.mapi (fun i (name, view, default) ->
+               let current = match written, default with
+                 | Some { S.node = S.Vec [ a; b; c ]; _ }, Parameter.Float_value _ when three ->
+                     (match number (List.nth [ a; b; c ] i) with Some f -> Parameter.Float_value f | None -> default)
+                 | Some e, Parameter.Float_value _ when not three ->
+                     (match number e with Some f -> Parameter.Float_value f | None -> default)
+                 | Some { S.node = S.Num t; _ }, Parameter.Int_value _ ->
+                     (match int_of_string_opt t with Some n -> Parameter.Int_value n | None -> default)
+                 | Some { S.node = S.Str t; _ }, Parameter.Choice_value _ -> Parameter.Choice_value t
+                 | Some { S.node = S.Str t; _ }, Parameter.Text_value _ -> Parameter.Text_value t
+                 | Some { S.node = S.Sym ("true" | "false" as b); _ }, Parameter.Bool_value _ ->
+                     Parameter.Bool_value (b = "true")
+                 | _ -> default in
+               { Parameter.name; label = (if three then name else p.label); description = None; folder = [];
+                 impact = Parameter.Cook; primary = false;
+                 vec3 = (if three then Some (p.name, i) else None); kind = view; default; current })
+               p.fields) k.parameters))
+  | _ -> None
+
 (* The inspector of the node selected in the workspace pane (plan W5): its
    value at the probe, whether it recooks every frame, the list of its
    iterations (a click moves the zone's probe), and the catalog parameters of
@@ -609,6 +663,22 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
            let node_id = Option.bind (Probe.plan_node records n.path ~probes) (fun id ->
              Flow_sop.Network.Int_map.find_opt id lowered.compiled) in
            let node = Option.bind node_id (compiled_node value) in
+           let literal = function
+             | { S.node = S.Num _ | S.Str _ | S.Sym ("true" | "false"); _ } -> true
+             | { S.node = S.Vec l; _ } -> List.for_all (fun (e : S.t) -> match e.node with S.Num _ -> true | _ -> false) l
+             | _ -> false in
+           let authored_row key =
+             Option.bind (List.find_opt (fun (r : P.row) -> r.key = Flow_sop.Flow_edit.Kw key) n.rows)
+               (fun (r : P.row) -> r.expr) in
+           let authored (parameter : Flow_sop.Port.parameter) = authored_row parameter.path in
+           (* the arguments: a compiled node's own fields, else (a scene or material node, which
+              has none) the checked kind's parameters, valued by what is written *)
+           let fields = match node with
+             | Some node -> Node.parameter_fields node
+             | None -> Option.value ~default:[] (kind_fields value graph n.head authored_row) in
+           let parameters = Result.value ~default:[] (Flow_sop.Port.parameters fields) in
+           let geo = Option.bind node_id (fun id -> Option.bind (node_owner value id) (fun object_id ->
+             Cook.geometry value.cook ~object_id ~node_id:id)) in
            (* the node shown in the viewport: the graph's recorded display, else its result *)
            let displayed = match Layout_by_path.Path_map.find_opt [ graph ] (fst value.doc.Document.workspace).layout.display with
              | Some p -> Some p
@@ -637,9 +707,24 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
              ~detail:(match zone_text with
                | Some (kind, _) -> Printf.sprintf "%s · %s" kind (Flow.Ty.to_string n.ty)
                | None ->
+                   (match geo with
+                    | Some g ->
+                        (* what the cook knows of the node: its points and primitives *)
+                        let count k word = Printf.sprintf "%s %s" (group_digits k) word in
+                        String.concat " · " [ count g.points (if g.points = 1 then "point" else "points");
+                          count g.prims (if g.prims = 1 then "prim" else "prims") ]
+                    | None ->
                    (match String.concat " · " (List.map snd readouts) with
-                    | "" -> Flow.Ty.to_string n.ty | text -> text)) () in
+                    | "" -> Flow.Ty.to_string n.ty | text -> text))) ~reset:"Reset all" () in
            let pressed = Option.map (fun i -> snd (List.nth buttons i)) head.chosen in
+           (* Reset all: every written argument of the node removed, one undoable entry *)
+           let reset_all = if not head.reset_pressed then [] else
+             match List.filter_map (fun (parameter : Flow_sop.Port.parameter) ->
+               Option.map (fun _ -> Flow_sop.Flow_edit.Disconnect { node = n.path;
+                 key = Flow_sop.Flow_edit.Kw parameter.path; fallback = None }) (authored parameter)) parameters with
+             | [] -> []
+             | [ op ] -> [ Syntax_edit op ]
+             | ops -> [ Syntax_batch ("Reset all", ops) ] in
            (* the name: editing it is the pane's Rename (the text's binding name); a nested node
               has no name yet, giving it one binds it *)
            let rename = if n.synthetic || head.renamed = Flow_sop.Projection.title n then []
@@ -649,6 +734,7 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
              | Some `View -> [], [ Pxui_graph.Scope.Display_set n.path ]
              | Some `Enter -> [], [ Pxui_graph.Scope.Activated n.path ]
              | None -> [], [] in
+           let on_card = ref 0 in
            let requests, picks = Pxui.Ui.inspector_body ui (fun () ->
            (match n.zone, zone_text with
             | Some z, Some (_, sentence) ->
@@ -675,20 +761,6 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                  if Pxui.Ui.inspector_button ui ~key:"ws-inline" "Replace call with expansion"
                  then [ Syntax_edit (Flow_sop.Flow_edit.Inline_macro { node = n.path }) ] else []
              | None -> [] in
-           (* the note above the binding in the Lisp: one line here, typing is one history entry *)
-           let note = if n.synthetic || Flow_sop.Projection.anonymous n then [] else begin
-             let current = Option.value n.note ~default:"" in
-             if String.contains current '\n' then begin
-               Pxui.Ui.inspector_message ui ~key:"ws-note-lines" "A note of several lines is edited in the text pane.";
-               []
-             end else begin
-               let box, control_x, control_y, control_w = Pxui.Ui.inspector_row ui ~width ~key:"ws-note" ~label:"note" () in
-               let text = Pxui.Ui.within ui box (fun () ->
-                 fst (Pxui.Ui.value_field ui ~at:(control_x, control_y) ~w:control_w ~h:20.
-                   ~left:true ~valid:(fun _ -> true) "ws-note-field" current)) in
-               if text = current then []
-               else [ Syntax_edit (Flow_sop.Flow_edit.Set_note { node = n.path; text }) ]
-             end end in
            (* the items of a list or a string: each can move up a place *)
            let movers = if n.synthetic || not (Flow_sop.Projection.reorderable n) then [] else
              List.concat_map (fun (r : P.row) -> match r.key with
@@ -697,10 +769,8 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                        (Printf.sprintf "Move item %d up" (k + 1))
                    then [ Syntax_edit (Flow_sop.Flow_edit.Move_item { node = n.path; pos = k }) ] else []
                | _ -> []) n.rows in
-           let fields = match node with Some node -> Node.parameter_fields node | None -> [] in
            if n.head = "settings/config" then Pxui.Ui.inspector_message ui ~key:"ws-startup-settings"
              "Title, size, frame rate and seed apply on restart.";
-           let parameters = Result.value ~default:[] (Flow_sop.Port.parameters fields) in
            let is_ref_slot (r : P.row) =
              (match r.expr with
               | Some { S.node = S.List [ { S.node = S.Sym "ref"; _ }; { S.node = S.Sym _; _ } ]; _ } -> true
@@ -740,13 +810,6 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
              Some (r, { Pxui_shell.Inspector.path = field_name; fields = [ field ]; shown = true; locked = false;
                         drive = None; live = None; components = []; split = None }))
              n.rows in
-           let literal = function
-             | { S.node = S.Num _ | S.Str _ | S.Sym ("true" | "false"); _ } -> true
-             | { S.node = S.Vec l; _ } -> List.for_all (fun (e : S.t) -> match e.node with S.Num _ -> true | _ -> false) l
-             | _ -> false in
-           let authored (parameter : Flow_sop.Port.parameter) =
-             Option.bind (List.find_opt (fun (r : P.row) -> r.key = Flow_sop.Flow_edit.Kw parameter.path) n.rows)
-               (fun (r : P.row) -> r.expr) in
            (* a switch's :active is a choice among its layouts, named from their panels *)
            let layout_names = match n.head, value.doc.Document.shell with
              | "ui/switch", Some { switch = Some sw; _ }
@@ -796,6 +859,7 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
              S.make (S.Num (if String.exists (fun c -> c = '.' || c = 'e' || c = 'n' || c = 'i') t then t else t ^ ".0")) in
            let edits = if rows = [] then [] else
              Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false ~pins:true ~on_choice
+               ~kind_label:(kind_label n.head)
                ~chips:(match value.scope_key with
                  | Some { evaluated = Some ev; _ } -> Navigator.chips ev
                  | _ -> []) rows
@@ -864,16 +928,36 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                           key = Flow_sop.Flow_edit.Kw (List.hd (String.split_on_char '.' path)); fallback = None })))
                | _ -> None) in
            (* what the cook made of a geometry node: read-out rows, as the sheet's Output section *)
-           (match Option.bind node_id (fun id -> Option.bind (node_owner value id) (fun object_id ->
-                    Cook.geometry value.cook ~object_id ~node_id:id)) with
-            | Some (geo : Flow_sop.Probe.geometry) ->
+           (match geo with
+            | Some (g : Flow_sop.Probe.geometry) ->
                 ignore (Pxui.Ui.inspector_section ui ~key:"ws-output" ~expanded:true "Output" (fun () ->
+                  Pxui.Ui.inspector_readout ui ~width ~key:"ws-output-points" ~label:"points"
+                    (group_digits g.points);
                   Pxui.Ui.inspector_readout ui ~width ~key:"ws-output-prims" ~label:"prims"
-                    (string_of_int geo.prims);
-                  if geo.groups <> [] then
+                    (group_digits g.prims);
+                  Option.iter (fun (x, y, z) ->
+                    Pxui.Ui.inspector_readout ui ~width ~key:"ws-output-bounds" ~label:"bounds"
+                      (Printf.sprintf "%.1f \xc3\x97 %.1f \xc3\x97 %.1f" x y z)) g.extent;
+                  if g.groups <> [] then
                     Pxui.Ui.inspector_readout ui ~width ~key:"ws-output-groups" ~label:"groups"
-                      (String.concat ", " geo.groups)))
+                      (String.concat ", " g.groups)))
             | None -> ());
+           (* the note above the binding in the Lisp: one line here, typing is one history entry;
+              the last section, closed *)
+           let note = if n.synthetic || Flow_sop.Projection.anonymous n then [] else begin
+             let current = Option.value n.note ~default:"" in
+             Option.value ~default:[] (Pxui.Ui.inspector_section ui ~key:"ws-note-section" "Note" (fun () ->
+               if String.contains current '\n' then begin
+                 Pxui.Ui.inspector_message ui ~key:"ws-note-lines" "A note of several lines is edited in the text pane.";
+                 []
+               end else begin
+                 let box, control_x, control_y, control_w = Pxui.Ui.inspector_row ui ~width ~key:"ws-note" ~label:"note" () in
+                 let text = Pxui.Ui.within ui box (fun () ->
+                   fst (Pxui.Ui.value_field ui ~at:(control_x, control_y) ~w:control_w ~h:20.
+                     ~left:true ~valid:(fun _ -> true) "ws-note-field" current)) in
+                 if text = current then []
+                 else [ Syntax_edit (Flow_sop.Flow_edit.Set_note { node = n.path; text }) ]
+               end)) end in
            let iterations = Probe.iterations records n ~probes in
            let zone = List.nth_opt (List.rev chain) 0 in
            let picks = match zone with
@@ -889,8 +973,11 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                        (Printf.sprintf "%s%d  %s" (if k = current then "► " else "  ") (k + 1) iterations.(k))
                    then [ Pxui_graph.Scope.Probe_set { zone = z; index = k } ] else []))
              | _ -> [] in
+           on_card := List.length (List.filter (fun (r : Pxui_shell.Inspector.flow_row) -> r.shown) rows);
            hoist @ macro @ note @ movers @ edits, picks) in
-           fst flags @ rename @ requests, snd flags @ picks)
+           (* the sheet's bar: what a field takes, and how many rows are on the card *)
+           Pxui.Ui.inspector_bar ui ~hints:[ "\xe2\x8c\xa5 click", "type a value" ] ~count:!on_card;
+           fst flags @ rename @ reset_all @ requests, snd flags @ picks)
   | _ -> [], []
 
 (* The node of the graph pane that a lowered node of the open object was made by, at the iterations
@@ -2223,7 +2310,8 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
         ^ Option.fold ~none:"" ~some:(fun c -> " / " ^ c) context
     | List -> "List", level_name value
     | Lisp -> "Lisp", graph
-    | Inspector -> "Inspector", graph
+    | Inspector -> "Inspector", (match (if value.scope_key = None then [] else Pxui_graph.Scope.selected value.scope_view) with
+        | [ path ] when graph <> "" -> graph ^ " / " ^ List.nth path (List.length path - 1) | _ -> graph)
     | Outline -> "Outline", (fst value.doc.Document.workspace).checked.name
     | Timeline -> "Timeline", "" in
   let name = if sub = "" then name else name ^ "\t" ^ sub in
@@ -3336,7 +3424,11 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       let scope_selected = if scope_active || (lowered_level && value.scope_key <> None)
         then Pxui_graph.Scope.selected scope_view else [] in
       let open_network = network value in
-      on_sheet ui (List.exists (fun (l : Pxui_shell.Layout.leaf) -> l.floating && l.panel = Inspector && l.body = bounds) g.leaves)
+      let window = List.exists (fun (l : Pxui_shell.Layout.leaf) -> l.floating && l.panel = Inspector && l.body = bounds) g.leaves in
+      (* a window keeps its 1-point border on the left, right and bottom: its panel lies inside *)
+      let bounds = if window then (let x, y, w, h = bounds in x + 1, y, max 1 (w - 2), max 1 (h - 1)) else bounds in
+      let inspector_panel ui bounds build = inspector_panel ~window ui bounds build in
+      on_sheet ui window
       @@ fun () -> Pxui.Ui.within ui inspector_root (fun () -> match selected_ids with
       | _ when not inspector_visible ->
           None, [], [], value.live_cook
@@ -3467,7 +3559,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                       match field.Parameter.folder with [] -> None
                       | first :: _ -> Some first) |> List.sort_uniq String.compare in
                     Pxui_shell.Inspector.flow_fields ui ~expanded ~actions:false
-                      ~width:inspector_width rows in
+                      ~kind_label:(kind_label kind) ~width:inspector_width rows in
               List.filter_map (function
                 | Pxui_shell.Inspector.Edited (path, value) ->
                     Some (Set_parameter {node = node_id; path; value})

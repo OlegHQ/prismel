@@ -235,7 +235,10 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     Option.map (fun node -> key, node) (node_of key)) (List.filteri (fun i _ -> i < 64) probes) in
   let summary (key, _) (output : Session.output) =
     let g = output.geometry in
-    key, { Flow_sop.Probe.prims = Rdk.Geometry.primitive_count g; data_id = Rdk.Geometry.data_id g;
+    key, { Flow_sop.Probe.points = Rdk.Packed.Float3.length (Rdk.Geometry.positions g);
+           prims = Rdk.Geometry.primitive_count g; data_id = Rdk.Geometry.data_id g;
+           extent = Option.map (fun (lo, hi) ->
+             hi.Vec3.x -. lo.Vec3.x, hi.y -. lo.y, hi.z -. lo.z) (geometry_bounds g);
            groups = List.sort_uniq compare (List.map Rdk.Group.name (Rdk.Geometry.groups g)) } in
   let prepare context outputs optional =
     let found = List.filter_map Fun.id (List.map2 (fun target output ->
