@@ -220,13 +220,13 @@
       "source_sha256": "6167766eb19e16ad2d0c66d7c4e10f153f0738b852e8a4090bf758baebbe0609"
     },
     {
-      "api_sha256": "68779bcabd903fc382d0709aec62c24138e7467d6c5214f813b484a3a839deef",
+      "api_sha256": "b13d277c294f1c08a5b880e2a87ea7793d9f0096eb9d30652c606298790a25e1",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Projection",
       "source": "lib/flow_sop/projection.mli",
-      "source_bytes": 10559,
-      "source_sha256": "ed25490d4c2b4163dfefa30a83e711c51f33aebbb2de9521a690b939ce275ca5"
+      "source_bytes": 10757,
+      "source_sha256": "89d0d4b6627692434019f659905c293f97a7c1553276d4b80ce8cb60e85762a7"
     },
     {
       "api_sha256": "34e222cfbacc256f00dada326228441213b4d92a5fd2ae68f9b3bb9c1bcf98a3",
@@ -418,13 +418,13 @@
       "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
-      "api_sha256": "9634871f213181353959f8f4e53a1ce353c4d1a4b8e0218c04088359e1faa07e",
+      "api_sha256": "ac17b9e3e24075a7b5b42bec62b78f30a9a2174a13b487f9291a96d0e8d738dc",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 9508,
-      "source_sha256": "9c80e4070269a193e2e3744b036be3f8c06dcc26850ce0881101804b59c91794"
+      "source_bytes": 9658,
+      "source_sha256": "3371a3da08eeab6980d7dc85c2fa429bc32eb954dd3976deb5979686ebb8666f"
     },
     {
       "api_sha256": "c37a5081a7ac87c481b798cd0c8b6a6121d52065089e7a23c81d523312d210b6",
@@ -728,13 +728,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "84c59bfa86531ea44403b26828c73b9a67307e0ba73982ff5015ce6efdda33e3",
+      "api_sha256": "0490baba623de9d819206c2515c5c348c218b21099cde2c867eaa2191468edda",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37606,
-      "source_sha256": "503c422661fd72b0649b7667018edfc52d82dcefa5abf20a8e81c58a77d03e75"
+      "source_bytes": 37614,
+      "source_sha256": "e5eae0adfc36aaee1066fce32162935f6acc8abdbfe6f91deb974a02719e37f0"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",
