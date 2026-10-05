@@ -45,35 +45,35 @@ end
 (* A camera looks from its eye at its target; it has no parent. *)
 module Camera = struct
   type parameters = {
-    eye_x : float [@sop.default 0.] [@sop.label "Eye X"] [@sop.folder "Eye"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    eye_y : float [@sop.default 0.] [@sop.label "Eye Y"] [@sop.folder "Eye"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    eye_z : float [@sop.default 7.] [@sop.label "Eye Z"] [@sop.folder "Eye"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    target_x : float [@sop.default 0.] [@sop.label "Target X"] [@sop.folder "Target"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    target_y : float [@sop.default 0.] [@sop.label "Target Y"] [@sop.folder "Target"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    target_z : float [@sop.default 0.] [@sop.label "Target Z"] [@sop.folder "Target"]
-      [@sop.min (-100.)] [@sop.max 100.];
-    up_x : float [@sop.default 0.] [@sop.label "Up X"] [@sop.folder "Up"]
-      [@sop.min (-1.)] [@sop.max 1.];
-    up_y : float [@sop.default 1.] [@sop.label "Up Y"] [@sop.folder "Up"]
-      [@sop.min (-1.)] [@sop.max 1.];
-    up_z : float [@sop.default 0.] [@sop.label "Up Z"] [@sop.folder "Up"]
-      [@sop.min (-1.)] [@sop.max 1.];
     fov : float [@sop.default 60.] [@sop.label "FOV (degrees)"]
-      [@sop.min 5.] [@sop.max 150.] [@sop.hard_min 1.] [@sop.hard_max 179.];
+      [@sop.folder "Lens"] [@sop.min 5.] [@sop.max 150.] [@sop.hard_min 1.] [@sop.hard_max 179.];
     near : float [@sop.default 0.1] [@sop.label "Near clip"]
-      [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.0001];
+      [@sop.folder "Lens"] [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.0001];
     far : float [@sop.default 1000.] [@sop.label "Far clip"]
-      [@sop.min 10.] [@sop.max 10000.] [@sop.hard_min 0.001];
-    follow_viewport : bool [@sop.default false] [@sop.label "Follow viewport"];
+      [@sop.folder "Lens"] [@sop.min 10.] [@sop.max 10000.] [@sop.hard_min 0.001];
     aperture : float [@sop.default 0.] [@sop.label "Aperture (lens radius)"]
-      [@sop.folder "Depth of field"] [@sop.min 0.] [@sop.max 2.] [@sop.hard_min 0.];
+      [@sop.folder "Lens"] [@sop.min 0.] [@sop.max 2.] [@sop.hard_min 0.];
     focus_distance : float [@sop.default 0.] [@sop.label "Focus distance (0: target)"]
-      [@sop.folder "Depth of field"] [@sop.min 0.] [@sop.max 100.] [@sop.hard_min 0.];
+      [@sop.folder "Lens"] [@sop.min 0.] [@sop.max 100.] [@sop.hard_min 0.];
+    eye_x : float [@sop.default 0.] [@sop.label "Eye X"] [@sop.folder "Transform"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    eye_y : float [@sop.default 0.] [@sop.label "Eye Y"] [@sop.folder "Transform"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    eye_z : float [@sop.default 7.] [@sop.label "Eye Z"] [@sop.folder "Transform"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    target_x : float [@sop.default 0.] [@sop.label "Target X"] [@sop.folder "Transform"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    target_y : float [@sop.default 0.] [@sop.label "Target Y"] [@sop.folder "Transform"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    target_z : float [@sop.default 0.] [@sop.label "Target Z"] [@sop.folder "Transform"]
+      [@sop.min (-100.)] [@sop.max 100.];
+    up_x : float [@sop.default 0.] [@sop.label "Up X"] [@sop.folder "Transform"]
+      [@sop.min (-1.)] [@sop.max 1.];
+    up_y : float [@sop.default 1.] [@sop.label "Up Y"] [@sop.folder "Transform"]
+      [@sop.min (-1.)] [@sop.max 1.];
+    up_z : float [@sop.default 0.] [@sop.label "Up Z"] [@sop.folder "Transform"]
+      [@sop.min (-1.)] [@sop.max 1.];
+    follow_viewport : bool [@sop.default false] [@sop.label "Follow viewport"] [@sop.folder "Transform"];
   } [@@sop.node_key "camera"] [@@sop.node_label "Camera"]
     [@@sop.node_category "Object"] [@@sop.node_inputs 0]
     [@@deriving sop_params, sop_node]

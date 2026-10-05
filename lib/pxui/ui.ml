@@ -2209,7 +2209,8 @@ let inspector_bar ui ~hints ~count =
       Paint.text paint ~color:(Theme.ink_2 theme) ~at:(!at, text_top ui y line) what;
       at := !at +. mono_width ui.font_size what +. 8.) hints;
     let label = Printf.sprintf "%d on card" count in
-    let label_w = Paint.cap_width paint label in
+    (* the sheet's tracking follows the last letter too: the ink ends that much before the 12 *)
+    let label_w = Paint.cap_width paint label +. Paint.cap_tracking paint in
     let left = x +. w -. 12. -. label_w in
     Paint.cap paint ~at:(left, cap_y ui y line) ~color:(Theme.ink_2 theme) label;
     Paint.circle paint ~at:(left -. 11., y +. (line /. 2.)) ~radius:3. ~fill:theme.foreground ())
@@ -2756,7 +2757,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
       end else None, false
 
 let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub ?(left = false)
-    ?(edit = false) ?lead ?trail ?line ?(bare = false) ?placeholder ~valid label value =
+    ?(edit = false) ?lead ?trail ?line ?(bare = false) ?placeholder ?tracking ~valid label value =
   let box = box ui ~flags:(clickable lor tab_stop lor blocking lor clip)
     ~at ~w:(Px w) ~h:(Px h) label in
   let signal = signal ui box in
@@ -2818,7 +2819,7 @@ let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub ?(left = fal
             ~at:(float (x + 2), text_y) (Option.get placeholder)
       | None, None ->
           let width = Paint.text_width paint ?size display in
-          Paint.text paint ?size ~at:((if left then float (x + 2)
+          Paint.text paint ?size ?tracking ~at:((if left then float (x + 2)
             else float (x + w - 2) -. width), text_y) display
       | _ ->
           (* a lead (the expression's ƒ) and a trail (its live value) frame the value: 6 between *)
@@ -2844,7 +2845,7 @@ type head = { renamed : string; chosen : int option; reset_pressed : bool }
    ink-2, a badge in the accent, an index at the right in ink-3), the name at the display size
    (edited in place when [rename] says which names are valid), one detail line in ink-2, a row of
    text buttons with their keys and a trailing [reset] button, 8 below and a line-2 hairline. *)
-let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset ~title ~detail () =
+let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset ?(reset_enabled = true) ~title ~detail () =
   let win = ui.kit_window in
   (* a window's head (windows.html): the 20-point title and one detail line, 8 above, no chips,
      buttons or hairline *)
@@ -2869,7 +2870,7 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
         within ui header (fun () ->
           value_field ui ~at:(text_x -. 2., if win then y_title else y_title -. 2.)
             ~w:(width -. (2. *. (text_x -. 2.))) ~h:title_h ~size:display
-            ~left:true ~bare:true ~valid (key ^ "-name") title)
+            ~left:true ~bare:true ~tracking:(-0.01 *. float display) ~valid (key ^ "-name") title)
     | None -> title, false in
   (* the buttons: a box each, in a row from 8 with 4 between; [reset] is bare at the right *)
   let pressed = ref None in
@@ -2900,7 +2901,7 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
   Option.iter (fun label ->
     let w = 10. +. measure label in
     let before = !pressed in
-    button (-1) ~label ~hint:"" ~on:false ~dim:true ~enabled:true ~x:(width -. 8. -. w) ~w ~pad:4.;
+    button (-1) ~label ~hint:"" ~on:false ~dim:true ~enabled:reset_enabled ~x:(width -. 8. -. w) ~w ~pad:4.;
     if !pressed <> before then (pressed := before; reset_pressed := true)) reset;
   draw ui header (fun paint (x, y, w, h) ->
     if not win then Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. (Theme.edge theme);
@@ -2920,14 +2921,18 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
         cx := !cx +. Float.max (mono_width ~tracking:(0.08 *. float small) small text)
                 (Paint.cap_width paint text) +. 6.) kind;
       Option.iter (fun text -> Paint.cap paint ~at:(!cx, at) ~color:theme.accent text) badge;
+      (* the sheet's 0.04em tracking follows every letter, the last too, so it ends 8 from the edge *)
       Option.iter (fun text ->
-        Paint.text paint ~size:small ~color:(Theme.ink_3 theme)
-          ~at:(x +. w -. 8. -. Paint.text_width paint ~size:small text, at) text) index
+        let tracking = 0.04 *. float small in
+        let count = ref 0 in
+        String.iter (fun c -> if Char.code c land 0xc0 <> 0x80 then incr count) text;
+        Paint.text paint ~size:small ~tracking ~color:(Theme.ink_3 theme)
+          ~at:(x +. w -. 8. -. Paint.text_width paint ~size:small text -. (tracking *. float !count), at) text) index
     end;
     if rename = None then
       Paint.text paint ~at:(x +. text_x,
           y +. y_title +. (if win then text_top ui ~size:display 0. title_h else 2.))
-        ~size:display ~color:theme.foreground
+        ~size:display ~tracking:(-0.01 *. float display) ~color:theme.foreground
         (inspector_fit paint ~size:display ~width:(w -. (2. *. text_x)) title);
     Paint.text paint ~at:(x +. text_x, y +. y_detail +. text_top ui 0. line) ~color:(Theme.ink_2 theme)
       (inspector_fit paint ~size:ui.font_size ~width:(w -. (2. *. text_x)) detail));

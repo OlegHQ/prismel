@@ -166,6 +166,10 @@ type line =
   | Row of int * row  (** [n.rows.(i)] *)
   | More of int  (** the [+ N more] row: how many rows the card hides *)
 
+val row_shown : ?pin:bool -> row -> bool
+(** Is the row on its node's card ({!Exposure.shown}): written and not the default, driven, primary, or pinned
+    by [pin] (a pin of [false] hides it); structural rows always show. *)
+
 val lines : ?pin:(string -> bool option) -> level -> node -> line array
 (** The body of a card at a level, in order; the header slot, and every row of a value card, a
     zone, a chip or a point, are not lines.  [pin] is a row's pin by label ([layout.rows]). *)
