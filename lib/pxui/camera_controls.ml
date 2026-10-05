@@ -20,16 +20,19 @@ let open_camera control =
 let number ui key label ~range:(low, high) value =
   let row, x, y, w = Ui.inspector_row ui ~key ~label () in
   Ui.within ui row (fun () ->
-    let label_hit = Ui.box ui ~flags:Ui.clickable ~at:(26., 2.)
-        ~w:(Ui.Px (if y > 20. then w else Float.max 1. (x -. 34.))) ~h:(Ui.Px 20.) "label-edit" in
+    let label_hit = Ui.box ui ~flags:Ui.clickable ~at:(Ui.inspector_label_x ui, 2.)
+        ~w:(Ui.Px (if y > 20. then w else Float.max 1. (x -. Ui.inspector_label_x ui -. 8.))) ~h:(Ui.Px 20.) "label-edit" in
     let edit = (Ui.signal ui label_hit).double_clicked in
-    let text = Printf.sprintf "%.17g" value in
-    let slide fraction = Printf.sprintf "%.17g"
+    let text = Printf.sprintf "%.6g" value in
+    let slide fraction = Printf.sprintf "%.6g"
       (low +. fraction *. (high -. low)) in
+    let shown = text in
     let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
         ~fraction:((value -. low) /. (high -. low)) ~slide ~edit
         ~valid:(fun text -> Option.fold ~none:false ~some:Float.is_finite
           (float_of_string_opt text)) (key ^ "-value") text in
+    (* the text shows 6 digits: an unedited field leaves the value as it is *)
+    if text = shown then value else
     match float_of_string_opt text with
     | Some number when Float.is_finite number -> number
     | _ -> value)

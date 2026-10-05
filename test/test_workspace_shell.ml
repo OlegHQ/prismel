@@ -742,9 +742,9 @@ let run_loop_copies () =
   let x () = List.map (fun i -> field_of i "translate_x") (objects !e) in
   check (List.length (objects !e) = 3 && List.for_all (fun v -> v = Some (Parameter.Float_value 0.)) (x ()))
     "the loop did not make three objects at the origin";
-  (* the head is 118 tall at the test's 11 points, then Inputs (4 + 24, 24) and Transform (16 + 24):
-     the translate row is 118 + 28 + 24 + 40 = 210 down, its middle 12 more *)
-  drag_slider e count 222;
+  (* the head is 118 tall at the test's 11 points, then Inputs (4 + 24, 24), Geometry (16 + 24, two switch
+     rows) and Transform (16 + 24): the translate row is 118 + 52 + 88 + 40 = 298 down, its middle 12 more *)
+  drag_slider e count 310;
   let moved = x () in
   check (List.for_all (fun v -> v = List.hd moved && v <> Some (Parameter.Float_value 0.)) moved)
     "dragging a literal field of one copy did not move all three";
@@ -778,7 +778,9 @@ let run_loop_copies () =
   select_row e count 2;
   let before = source !e in
   preview e "loop-light";
-  drag_slider e count 249;
+  (* the head 118, Inputs (4 + 24, 24), Light (16 + 24, five rows) and Transform (16 + 24), then 12 into
+     the translate row: 118 + 52 + 160 + 40 + 12 = 382 *)
+  drag_slider e count 382;
   check (source !e = before && E3.undo_label !e = None) "a computed field of a copy was written";
   check (has (dump_line !e "edit error") "computed by the loop") ("no reason for the refused edit: " ^ dump_line !e "edit error");
   (* deleting one copy skips its iteration: the others stay where they are *)
@@ -825,9 +827,9 @@ let run_loop_expression () =
   let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
   let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
   (* Option-click on the translate X field of the lamp: its row is 12 + 6 + 8 + 56 + 8 = 90 from
-     the panel's left; vertically the head (118), Inputs (28, 24), Type (24), Transform (40) and
-     half the translate row (12) above it, as in the preview *)
-  let label = float (ix + 100), float (iy + 118 + 28 + 24 + 24 + 40 + 12) in
+     the panel's left; vertically the head (118), Inputs (28, 24), Light (40, five rows) and Transform (40)
+     and half the translate row (12) above it, as in the preview *)
+  let label = float (ix + 100), float (iy + 118 + 28 + 24 + 40 + 120 + 40 + 12) in
   step ~mouse:label [ Event.MouseMoved label ];
   let alt ?(buttons = []) events = incr count;
     e := E3.update !e (Test_editor_input.frame ~buttons ~keys:[ Input.Alt ] label events !count) in
@@ -1224,14 +1226,16 @@ let run_root_section () =
      Render and Scene root section headers.  A press opens its menu under the field; the second
      row of the menu is Wireframe. *)
   let hit = ref None in
-  let row = iy + 85 + 24 + 40 + 96 + 40 + 24 + 24 in
+  (* now: the head is 90 (12 + 41 + 4 + 24 + 8 + 1), the switch row has 4 above it, the open Scene root
+     follows the closed Render with 16 of space *)
+  let row = iy + 90 + 4 + 24 + 40 + 96 + 40 + 24 + 40 in
   let press at =
     step ~mouse:at [ Event.MouseMoved at ];
     step ~mouse:at [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
     step ~mouse:at [] in
   let x = float (ix + (iw * 3 / 4)) in
   press (x, float (row + 12));
-  press (x, float (row + 22 + 6 + 24 + 12));
+  press (x, float (row + 23 + 6 + 24 + 12));
   if E3.undo_label !e = Some "Render settings" then hit := Some row;
   check (!hit <> None) "no control of the inspector wrote the root";
   check (E3.workspace !e != before && has (source !e) "(scene/root all") "the root stayed in the text, edited";
@@ -1432,7 +1436,8 @@ let run_studio () =
     step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
     step point [ Event.MouseReleased (Input.LeftButton, point) ]; step point [] in
   let rest point = step point []; step point []; step point [] in
-  let docked = 1300., 530. and floating = 1200., 300. in
+  (* the floating inspector's labels run to x 1199 (window 1090 + 109): a point left of that is no field *)
+  let docked = 1300., 530. and floating = 1110., 300. in
   rest (700., 200.);
   let at_rest = match !probes with [ a; b ] -> a, b | l -> fail (Printf.sprintf "%d inspectors drew their rows, not 2" (List.length l)) in
   let scroll point = step point [ Event.MouseMoved point ];
@@ -1497,16 +1502,17 @@ let run_studio () =
   step at [ Event.TextInput "editor" ]; step at [ Event.KeyPressed Input.Enter ]; rest ();
   click (600., 600.);
   check (dump_line !e "scope selected" = "editor/studio") ("the studio card is not where the test clicks: " ^ dump_line !e "scope selected");
-  (* the 320-wide inspector starts at y 24; the split's head is 125 tall (chips, name, detail), then the
-     note row (24) and the Size row, whose middle is 24 + 125 + 24 + 12 = 185 *)
-  let pick dy = click (600., 600.); click (1390., 185.); click (1390., 185. +. dy) in
-  pick 26.;
+  (* the 320-wide inspector starts at y 24; the split's head is 153 tall (chips 12 + 24 + 4, the 40-point
+     name in 48, 4, the detail line, 8, the 20-point buttons, 8 and its rule), then the Split section (4 above its
+     header, 24) and the Size row, whose middle is 24 + 153 + 28 + 12 = 217; its menu opens 1 below the field *)
+  let pick dy = click (600., 600.); click (1390., 217.); click (1390., 217. +. dy) in
+  pick 27.;
   check (has (source !e) "studio (ui/split-at \"horizontal\" 0.1505 outline work)" && E3.undo_label !e = Some "Resize panel")
     ("the Size row did not size the split by its ratio: " ^ source !e);
-  pick 74.;
+  pick 75.;
   check (has (source !e) "studio (ui/split \"horizontal\" outline work :second_size 1223)")
     ("the Size row did not fix the second side at its points: " ^ source !e);
-  pick 50.;
+  pick 51.;
   check (has (source !e) "studio (ui/split \"horizontal\" outline work :first_size 216)")
     ("the Size row did not return to the first side's points: " ^ source !e);
   E3.close !e;

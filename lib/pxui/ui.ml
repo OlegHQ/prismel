@@ -122,6 +122,8 @@ let tab_stop = focusable lor tab_only
 let keep_tab = 64
 (* a press on such a box leaves the keyboard focus where it is (a completion row under an editor) *)
 let keep_focus = 128
+(* a scrolling box whose thumb is drawn over its content (an inspector body): no gutter *)
+let over_thumb = 4096
 let add = Stdlib.( + )
 let hit_flags = clickable lor focusable lor scroll lor blocking
 
@@ -219,6 +221,7 @@ and ui = {
   mutable kit_row_height : int;
   mutable kit_padding : int;
   mutable closed_section : int;  (* the last closed section header: the next one follows it closely *)
+  mutable kit_window : bool;  (* inside a floating window's inspector: its row grid and head *)
   (* input *)
   mutable pointer : float * float;
   mutable hot : int;
@@ -517,7 +520,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     l_scale = Array.make capacity 1.; l_tx = Array.make capacity 0.;
     l_ty = Array.make capacity 0.;
     parents = []; overlays = []; foreground = []; seeds = []; building = false; frame_number = 0; density = 1;
-    kit_row_height = 24; kit_padding = 0; closed_section = -1;
+    kit_row_height = 24; kit_padding = 0; closed_section = -1; kit_window = false;
     pointer = (Float.nan, Float.nan); hot = 0; hover_rest = None; active = None;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0;
     keyboard_focus = false; composition = "";
@@ -1312,7 +1315,7 @@ let arrange ui =
     let padding = ui.b_padding.(index) and row = ui.b_row.(index) in
     let scrolls = ui.b_flags.(index) land scroll <> 0 in
     let max_scroll = Float.max 0. (ui.l_content.(index) -. ui.l_h.(index)) in
-    let gutter = if scrolls && max_scroll > 0. then 10. else 0. in
+    let gutter = if scrolls && max_scroll > 0. && ui.b_flags.(index) land over_thumb = 0 then 10. else 0. in
     ui.l_gutter.(index) <- gutter;
     let slot = ui.b_slot.(index) in
     if scrolls then
@@ -1924,16 +1927,18 @@ let paint_switch paint ?(disabled = false) (theme : Theme.t) ~x ~y value =
 let cap_y ui y h = text_top ui ~size:(max 8 (ui.font_size - 2)) y h
 (* a section header: a label in ink-3 and a chevron, under 16 points of space *)
 let paint_section paint ui (x, y, w, h) label ~open_ ~hovered =
-  if hovered then Paint.fill paint ~x ~y ~w ~h (Theme.faint_border ui.theme);
+  ignore hovered;  (* the sheet has no hover state on a section header *)
   Paint.cap paint ~at:(x +. float side, cap_y ui y h) ~color:(Theme.ink_3 ui.theme) label;
   Paint.chevron paint ~at:(x +. w -. float side -. 3., y +. (h /. 2.) -. 0.5)
     (if open_ then `Down else `Right) ui.theme.foreground
-(* the space above a section header: 4 at the top of its parent, none after a closed one *)
-let section_gap ui =
-  let last = ui.b_last.(current_parent ui) in
-  if last < 0 then 4 else if last = ui.closed_section then 0 else 16
+(* the space above a section header: 4 at the top of its parent (16 under a window's head), 16
+   after anything else, none when this closed section directly follows a closed one *)
+let section_gap ?(next_closed = true) ?last ui =
+  let last = match last with Some last -> last | None -> ui.b_last.(current_parent ui) in
+  if last < 0 then (if ui.kit_window then 16 else 4)
+  else if last = ui.closed_section && next_closed then 0 else 16
 
-let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_height
+let panel_with ?stroke ?(window = false) ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_height
     ?(row_height = 24) ?(padding = 0) label f =
   if row_height < 24 then invalid_arg "Ui.panel: row_height must be at least 24";
   if padding < 0 then invalid_arg "Ui.panel: padding must be non-negative";
@@ -1967,13 +1972,15 @@ let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_hei
       Paint.fill paint ~x:(float track_x) ~y:(float thumb_y) ~w:4.
         ~h:(float thumb_height) (Theme.border theme)
     end);
-  let previous_row = ui.kit_row_height and previous_padding = ui.kit_padding in
-  ui.kit_row_height <- row_height; ui.kit_padding <- padding;
+  let previous_row = ui.kit_row_height and previous_padding = ui.kit_padding
+  and previous_window = ui.kit_window in
+  ui.kit_row_height <- row_height; ui.kit_padding <- padding; ui.kit_window <- window;
   Fun.protect ~finally:(fun () ->
-    ui.kit_row_height <- previous_row; ui.kit_padding <- previous_padding)
+    ui.kit_row_height <- previous_row; ui.kit_padding <- previous_padding;
+    ui.kit_window <- previous_window)
     (fun () -> within ui panel f)
 
-let panel ui = panel_with ui
+let panel ?window ui = panel_with ?window ui
 
 let inspector_width ui =
   let rec find index =
@@ -2002,10 +2009,20 @@ let inspector_fit paint ~size ~width text =
 let inspector_label_width width = Float.max 56. (Float.floor (width *. 0.3) -. 16.)
 let inspector_control_x width = 12. +. 6. +. 8. +. inspector_label_width width +. 8.
 
+(* A window's rows (windows.html): the label at 12, a 88-point column and no pin slot. *)
+let inspector_label_x ui = if ui.kit_window then 12. else 26.
+
+(* The 4 points between a head's rule and the first element of the body, when it is not a section. *)
+let lead_gap ui =
+  if ui.b_last.(current_parent ui) < 0 then ignore (box ui ~w:Grow ~h:(Px 4.) "lead-gap")
+
 let inspector_row ui ?width ?pin ~key ~label () =
   let width = Option.value width ~default:(inspector_width ui) in
-  let label_x = 26. and label_w = inspector_label_width width in
-  let control_x = inspector_control_x width in
+  let label_x = inspector_label_x ui in
+  let label_w = if ui.kit_window then 88. else inspector_label_width width in
+  let control_x = if ui.kit_window then 12. +. 88. +. 8. else inspector_control_x width in
+  let pin = if ui.kit_window then None else pin in
+  lead_gap ui;
   let row = box ui ~flags:clickable ~w:Grow ~h:(Px (float ui.kit_row_height)) key in
   let theme = ui.theme and hovered = hovered_within ui row in
   draw ui row (fun paint (x, y, w, h) ->
@@ -2014,19 +2031,22 @@ let inspector_row ui ?width ?pin ~key ~label () =
     Option.iter (fun on ->
       let at = x +. 15., y +. (h /. 2.) in
       if on then Paint.circle paint ~at ~radius:3. ~fill:theme.foreground ()
-      else Paint.circle paint ~at ~radius:3. ~stroke:(Theme.ink_3 theme) ()) pin;
+      else Paint.circle paint ~at ~radius:2.5 ~stroke:(Theme.ink_3 theme) ()) pin;
     Paint.text paint ~at:(x +. label_x, text_top ui y h) ~color:(Theme.ink_2 theme)
       (inspector_fit paint ~size:ui.font_size ~width:label_w label));
   row, control_x, 2., Float.max 40. (width -. control_x -. 12.)
 
 let inspector_section ui ~key ?(expanded = false) ?set_expanded label f =
-  let gap = float (section_gap ui) in
+  let last = ui.b_last.(current_parent ui) in
   let title = box ui ~flags:(clickable lor tab_stop) ~w:Grow
-      ~h:(Px (gap +. float ui.kit_row_height)) key in
+      ~h:(Px (float ui.kit_row_height)) key in
   let open_ = state ui title ~default:(if expanded then 1 else 0) <> 0 in
   let open_ = Option.value set_expanded ~default:open_ in
   let signal = signal ui title in
   let open_ = if signal.clicked then not open_ else open_ in
+  (* the gap above depends on this section's own state, known only now *)
+  let gap = float (section_gap ~next_closed:(not open_) ~last ui) in
+  ui.b_h.(title.index) <- Px (gap +. float ui.kit_row_height);
   set_state ui title (if open_ then 1 else 0);
   if not open_ then ui.closed_section <- title.index;
   draw ui title (fun paint (x, y, w, h) ->
@@ -2047,6 +2067,7 @@ let inspector_toggle ui ?pin ~key ~label value =
 
 (* A text button on a row of its own. *)
 let inspector_button ui ~key label =
+  lead_gap ui;
   let row = box ui ~flags:(clickable lor tab_stop) ~w:Grow ~h:(Px (float ui.kit_row_height)) key in
   let signal = signal ui row in
   draw ui row (fun paint (x, y, w, h) ->
@@ -2069,7 +2090,7 @@ let inspector_readout ui ?width ~key ~label value =
 (* The scrolling part of an inspector under its head (the head stays): a column that takes the
    rest of the panel and scrolls, its 4-point line-3 thumb 2 from the right edge. *)
 let inspector_body ui f =
-  let body = box ui ~flags:(scroll lor clip) ~w:Grow ~h:Grow ~axis:Column
+  let body = box ui ~flags:(scroll lor clip lor over_thumb) ~w:Grow ~h:Grow ~axis:Column
       ~scroll_step:(float ui.kit_row_height) "inspector-body" in
   draw_over ui body (fun paint (x, y, w, h) ->
     let content = ui.l_content.(body.index) in
@@ -2082,7 +2103,39 @@ let inspector_body ui f =
     end);
   within ui body f
 
+(* The width the kit's CSS gives [text] of [size] points: the face is monospaced at half an em
+   (plus [tracking] a character).  A head lays its buttons and chips out with it, as the sheet
+   does, whatever advance the rasterised glyphs round to. *)
+let mono_width ?(tracking = 0.) size text =
+  let count = ref 0 in
+  String.iter (fun c -> if Char.code c land 0xc0 <> 0x80 then incr count) text;
+  float !count *. ((float size /. 2.) +. tracking)
+
+(* The bar under an inspector (inspector.html): a line-2 hairline and a 24-point bar of hints, each a
+   key in ink-3 at the label size and what it does in ink-2, and at the right a 6-point dot and a
+   count as a label.  It sits below the body, which scrolls above it. *)
+let inspector_bar ui ~hints ~count =
+  let small = max 8 (ui.font_size - 2) in
+  let line = float ui.kit_row_height in
+  let bar = box ui ~w:Grow ~h:(Px (line +. 1.)) "inspector-bar" in
+  draw ui bar (fun paint (x, y, w, _) ->
+    let theme = ui.theme in
+    Paint.fill paint ~x ~y ~w ~h:1. (Theme.edge theme);
+    let y = y +. 1. in
+    let at = ref (x +. 12.) in
+    List.iter (fun (key, what) ->
+      Paint.text paint ~size:small ~color:(Theme.ink_3 theme) ~at:(!at, text_top ui ~size:small y line) key;
+      at := !at +. mono_width small key +. 8.;
+      Paint.text paint ~color:(Theme.ink_2 theme) ~at:(!at, text_top ui y line) what;
+      at := !at +. mono_width ui.font_size what +. 8.) hints;
+    let label = Printf.sprintf "%d on card" count in
+    let label_w = Paint.cap_width paint label in
+    let left = x +. w -. 12. -. label_w in
+    Paint.cap paint ~at:(left, cap_y ui y line) ~color:(Theme.ink_2 theme) label;
+    Paint.circle paint ~at:(left -. 11., y +. (line /. 2.)) ~radius:3. ~fill:theme.foreground ())
+
 let inspector_message ui ~key message =
+  lead_gap ui;
   let row = box ui ~w:Grow ~h:(Px (float ui.kit_row_height)) key in
   draw ui row (fun paint (x, y, w, h) ->
     Paint.circle paint ~at:(x +. 15., y +. (h /. 2.)) ~radius:3. ~fill:ui.theme.accent ();
@@ -2584,7 +2637,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
       end else None, false
 
 let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub ?(left = false)
-    ?(edit = false) ?lead ?trail ?line ?(bare = false) ~valid label value =
+    ?(edit = false) ?lead ?trail ?line ?(bare = false) ?placeholder ~valid label value =
   let box = box ui ~flags:(clickable lor tab_stop lor blocking lor clip)
     ~at ~w:(Px w) ~h:(Px h) label in
   let signal = signal ui box in
@@ -2631,41 +2684,39 @@ let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub ?(left = fal
       underline paint bounds (if invalid then Theme.invalid
         else if editing then ui.theme.accent
         else Option.value line ~default:(Theme.edge ui.theme));
-    let text_y = y + max 0 ((h - Option.value ~default:ui.font_size size) / 2) in
-    if editing && focus then paint_text_edit paint ?size ~control:bounds ~y:text_y ~composition edit
+    (* the content is centred in the 19 points above the hairline: a body line starts half a point up *)
+    let text_y = match size with
+      | Some size -> float (y + max 0 ((h - size) / 2))
+      | None -> float y +. (float (h - 1 - ui.font_size) /. 2.) -. 0.5 in
+    if editing && focus then paint_text_edit paint ?size ~control:bounds ~y:(y + max 0 ((h - Option.value ~default:ui.font_size size) / 2)) ~composition edit
     else begin
       (* the 2-point line under the value is its position in the soft range *)
-      Option.iter (fun f -> Paint.fill paint ~x:(float x) ~y:(float (y + h - 2))
+      Option.iter (fun f -> Paint.fill paint ~x:(float x) ~y:(float (y + h - 3))
         ~w:(float w *. Float.max 0. (Float.min 1. f)) ~h:2. (Theme.ink_2 ui.theme)) fraction;
       match lead, trail with
+      | None, None when display = "" && placeholder <> None ->
+          Paint.text paint ?size ~color:(Theme.ink_3 ui.theme)
+            ~at:(float (x + 2), text_y) (Option.get placeholder)
       | None, None ->
           let width = Paint.text_width paint ?size display in
           Paint.text paint ?size ~at:((if left then float (x + 2)
-            else float (x + w - 2) -. width), float text_y) display
+            else float (x + w - 2) -. width), text_y) display
       | _ ->
           (* a lead (the expression's ƒ) and a trail (its live value) frame the value: 6 between *)
           let draw_part ?(right = false) (text, color) =
             let width = Paint.text_width paint ?size text in
             Paint.text paint ?size ~color
-              ~at:((if right then float (x + w - 2) -. width else float (x + 2)), float text_y) text;
+              ~at:((if right then float (x + w - 2) -. width else float (x + 2)), text_y) text;
             width in
           let lead_w = Option.fold ~none:0. ~some:(fun l -> draw_part l +. 6.) lead in
           let trail_w = Option.fold ~none:0. ~some:(fun t -> draw_part ~right:true t +. 6.) trail in
           Paint.text paint ?size ~color:ui.theme.foreground
-            ~at:(float (x + 2) +. lead_w, float text_y)
+            ~at:(float (x + 2) +. lead_w, text_y)
             (inspector_fit paint ~size:(Option.value ~default:ui.font_size size)
                ~width:(float w -. 4. -. lead_w -. trail_w) display)
     end;
     paint.clip_rect <- previous_clip);
   value, editing
-
-(* The width the kit's CSS gives [text] of [size] points: the face is monospaced at half an em
-   (plus [tracking] a character).  A head lays its buttons and chips out with it, as the sheet
-   does, whatever advance the rasterised glyphs round to. *)
-let mono_width ?(tracking = 0.) size text =
-  let count = ref 0 in
-  String.iter (fun c -> if Char.code c land 0xc0 <> 0x80 then incr count) text;
-  float !count *. ((float size /. 2.) +. tracking)
 
 type head_action = { caption : string; keycap : string; active : bool; usable : bool }
 type head = { renamed : string; chosen : int option; reset_pressed : bool }
@@ -2675,23 +2726,30 @@ type head = { renamed : string; chosen : int option; reset_pressed : bool }
    (edited in place when [rename] says which names are valid), one detail line in ink-2, a row of
    text buttons with their keys and a trailing [reset] button, 8 below and a line-2 hairline. *)
 let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset ~title ~detail () =
-  let display = ui.font_size * Theme.display_size / Theme.font_size in
+  let win = ui.kit_window in
+  (* a window's head (windows.html): the 20-point title and one detail line, 8 above, no chips,
+     buttons or hairline *)
+  let display = ui.font_size * (if win then Theme.title_size else Theme.display_size) / Theme.font_size in
   let small = max 8 (ui.font_size - 2) in
-  let line = float ui.kit_row_height and title_h = float (display + 8) in
+  let line = float ui.kit_row_height and title_h = if win then float ui.kit_row_height else float (display + 8) in
   let width = inspector_width ui in
-  let chips = kind <> None || badge <> None || index <> None in
+  let chips = not win && (kind <> None || badge <> None || index <> None) in
+  let actions = if win then [] else actions and reset = if win then None else reset in
   let buttons = actions <> [] || reset <> None in
-  let y_title = if chips then 12. +. line +. 4. else 12. in
-  let y_detail = y_title +. title_h +. 4. in
+  let text_x = if win then 12. else 8. in
+  let y_title = if win then 8. else if chips then 12. +. line +. 4. else 12. in
+  let y_detail = y_title +. title_h +. (if win then 0. else 4.) in
   let y_buttons = y_detail +. line +. 8. in
-  let height = (if buttons then y_buttons +. 20. else y_detail +. line) +. 8. +. 1. in
+  let height = if win then y_detail +. line
+    else (if buttons then y_buttons +. 20. else y_detail +. line) +. 8. +. 1. in
   let header = box ui ~flags:clip ~w:Grow ~h:(Px height) key in
   let theme = ui.theme in
   let measure ?(size = ui.font_size) text = mono_width size text in
   let title', editing = match rename with
     | Some valid ->
         within ui header (fun () ->
-          value_field ui ~at:(6., y_title -. 2.) ~w:(width -. 12.) ~h:title_h ~size:display
+          value_field ui ~at:(text_x -. 2., if win then y_title else y_title -. 2.)
+            ~w:(width -. (2. *. (text_x -. 2.))) ~h:title_h ~size:display
             ~left:true ~bare:true ~valid (key ^ "-name") title)
     | None -> title, false in
   (* the buttons: a box each, in a row from 8 with 4 between; [reset] is bare at the right *)
@@ -2726,7 +2784,7 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
     button (-1) ~label ~hint:"" ~on:false ~dim:true ~enabled:true ~x:(width -. 8. -. w) ~w ~pad:4.;
     if !pressed <> before then (pressed := before; reset_pressed := true)) reset;
   draw ui header (fun paint (x, y, w, h) ->
-    Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. (Theme.edge theme);
+    if not win then Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. (Theme.edge theme);
     if chips then begin
       let at = y +. 12. +. text_top ui ~size:small 0. line in
       let cx = ref (x +. 8.) in
@@ -2748,11 +2806,12 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
           ~at:(x +. w -. 8. -. Paint.text_width paint ~size:small text, at) text) index
     end;
     if rename = None then
-      Paint.text paint ~at:(x +. 8., y +. y_title +. 2.)
+      Paint.text paint ~at:(x +. text_x,
+          y +. y_title +. (if win then text_top ui ~size:display 0. title_h else 2.))
         ~size:display ~color:theme.foreground
-        (inspector_fit paint ~size:display ~width:(w -. 16.) title);
-    Paint.text paint ~at:(x +. 8., y +. y_detail +. text_top ui 0. line) ~color:(Theme.ink_2 theme)
-      (inspector_fit paint ~size:ui.font_size ~width:(w -. 16.) detail));
+        (inspector_fit paint ~size:display ~width:(w -. (2. *. text_x)) title);
+    Paint.text paint ~at:(x +. text_x, y +. y_detail +. text_top ui 0. line) ~color:(Theme.ink_2 theme)
+      (inspector_fit paint ~size:ui.font_size ~width:(w -. (2. *. text_x)) detail));
   ignore editing;
   { renamed = title'; chosen = !pressed; reset_pressed = !reset_pressed }
 
