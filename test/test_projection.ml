@@ -222,7 +222,11 @@ let layout () =
     "a collapsed zone is a card without its children";
   (* the study's card geometry, on the 24-point grid *)
   let p = List.find (fun (p : P.placed) -> p.path = head) l.placed in
-  check (p.w = P.node_width && p.h = P.head_height +. 2. *. P.row_height +. P.foot_height) "node size"
+  check (p.w = P.node_width && p.h = P.card_height ~rows:2. ~extra:0.) "node size";
+  check (P.card_height ~rows:0. ~extra:0. = P.head_height
+         && P.card_height ~rows:3. ~extra:0. = 100.
+         && (P.layout ~foot:true s |> fun l -> (List.find (fun (q : P.placed) -> q.path = head) l.placed).h)
+            = p.h +. P.foot_height) "kit card heights: header only 24, three rows 100, a footer row 24 more"
 
 (* a loop over the points or pieces of geometry says how its elements are ordered *)
 let zone_order () =

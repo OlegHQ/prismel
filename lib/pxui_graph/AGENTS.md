@@ -13,6 +13,12 @@ text-entry path.
 
 ## Current contract
 
+Card geometry is the kit sheet's box model (`graph.html`, `kit.css` `.node .nh .nr .port`), measured
+against its render: header 24 overlapping the 1-point border, rows from `Projection.body_top` (23),
+4 points of padding (`card_pad` 5 with the border), a 24-point footer row only when the host has probe
+records (`Projection.layout ~foot`), text placed with `Ui.text_top`. Strokes are inset by half a point
+(`paint_card`); ports are 8-point circles centred on the edge. Do not paint by eye: re-measure.
+
 Painting follows kit rev 3 (`specification/pxui.md`): a card is a sheet with one hairline, a type
 square, the name and the kind in ink-2; ports are rings (filled once wired), wires 1.5 points in
 the port colour (ink when selected); the selection is accent corner brackets, a bypassed card is
@@ -96,8 +102,8 @@ in the tile: step buttons choose the printed step, "Replace call with expansion"
 own (`Projection.anonymous`, titled by its kind, wired through `Projection.sources`): never draw it
 as a chip, and take a wire off its row with `Scope_pane.unwire` (Unfold, then Disconnect) so the
 node stays. A call whose first input fits its result
-(`Projection.bypassable`) has a `B` flag on its title, `Syntax_edit (Toggle_bypass ...)`
-like the `b` key. On a node that cannot be bypassed but has a boolean `:visible` argument (a scene
+(`Projection.bypassable`) is bypassed by the `b` key or the context menu, `Syntax_edit (Toggle_bypass ...)`;
+a bypassed card is hatched with ink-3 text (kit rev 3 has no flag on the title). On a node that cannot be bypassed but has a boolean `:visible` argument (a scene
 object) `b` is `Set_arg :visible` instead (`Scope_pane.hide_row`: false, then true): one key means
 "out of the render, not removed" in every graph. `Alt` `Up`/`Down` on a hovered input of a node for
 which `Projection.reorderable` holds (a `list`, a `str` or a `scene/merge`) is `Move_item`. `m` is `Macro_requested paths`: the host owns the dialog

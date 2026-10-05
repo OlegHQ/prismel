@@ -283,7 +283,7 @@ let scope_gestures () =
   let petals = [ "flower"; ":petals" ] in
   let view = settled (Scope.clear_selection view) in
   let x, y, _, _ = center_of view petals in
-  let view, _ = double_click view (int_of_float x + 60, int_of_float y + 30) in
+  let view, _ = double_click view (int_of_float x + 60, int_of_float y + 12) in  (* a value node is its 24-point header *)
   check (Scope.editing view) "a double-click on a graph input did not open its default";
   let view = settled view in
   let _, changes = type_text view "9" in
@@ -405,7 +405,7 @@ let scope_gestures () =
   ignore (ox, oy);
   (* the frame's screen position: its scope's origin is the pane's, so use the pan through a tile *)
   let tile_x, tile_y, _, _ = center_of framed heart in
-  let heart_rel = P.layout ~at:(fun _ -> None) (P.of_graph scope_catalog w "flower") in
+  let heart_rel = P.layout ~foot:true ~at:(fun _ -> None) (P.of_graph scope_catalog w "flower") in
   let hp = List.find (fun (p : P.placed) -> p.path = heart) heart_rel.placed in
   let z = Scope.zoom framed in
   let sx0 = tile_x -. hp.x *. z and sy0 = tile_y -. hp.y *. z in
@@ -504,7 +504,7 @@ let run_scope () =
   check (List.mem (Scope.Probe_set { zone; index = 4 }) changes) "the previous button did not step the probe";
   let x, y, tw, th = track in
   let _, changes = scope_click view (int_of_float (x +. tw *. 0.75), int_of_float (y +. th /. 2.)) in
-  check (List.exists (function Scope.Probe_set { zone = z; index } -> z = zone && index >= 178 && index <= 181
+  check (List.exists (function Scope.Probe_set { zone = z; index } -> z = zone && index >= 165 && index <= 195
                               | _ -> false) changes) "the track did not map the pointer to an iteration";
   let _, changes = scope_click view (10, 690) in
   check (changes = [] || List.for_all (function Scope.Selected _ -> true | _ -> false) changes)
@@ -617,12 +617,11 @@ let run_scope () =
   let tx, ty = Option.get (Scope.Private.lens_toggle view outer) in
   let view, _ = scope_click view (int_of_float tx, int_of_float ty) in
   check (Scope.macro_step view outer = None) "the toggle closes the panel";
-  (* the bypass flag: a title flag on a call whose input fits, the same request as the key *)
-  check (Scope.Private.bypass_flag view outer = None) "a macro call has no bypass flag";
-  let fx, fy = Option.get (Scope.Private.bypass_flag view soft) in
-  let _, changes = scope_click view (int_of_float fx, int_of_float fy) in
+  (* bypass is the b key (and the context menu): the same request, and a card with nothing to pass
+     through has none *)
+  let _, changes = Scope.run_command (Scope.select [ soft ] view) Scope.Bypass in
   check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = soft })) changes)
-    "the bypass flag did not become Toggle_bypass";
+    "the b key did not become Toggle_bypass";
   check ((Option.get (P.find scope soft)).bypass) "soft is authored bypassed";
   (* m asks the host for the make-macro dialog over the selection *)
   let _, changes = Scope.run_command (Scope.select [ soft ] view) Scope.Make_macro in

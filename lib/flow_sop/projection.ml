@@ -7,9 +7,11 @@ type path = W.path
 type chip = No_value | Const | Name of string | Inline of { glyph : string; text : string }
 type row_kind = Arg | Rest | Add | Hole | Binder | Group_reader | Group_writer
 
+type control = Plain | Range of float * float | Choice
+
 type row = {
   label : string; key : E.arg_key; ty : Ty.t option; expr : S.t option; chip : chip;
-  default : string option; socket : bool; kind : row_kind;
+  default : string option; socket : bool; kind : row_kind; control : control;
 }
 
 type zone_kind = For | Fold | Scan | Sum | Let | Fn
@@ -126,8 +128,8 @@ let chip c (e : S.t option) = match e with
             | Some h when List.mem_assoc h c.macros -> inline "◆"
             | _ -> inline "ƒ"))
 
-let row c ?ty ?default ?(socket = true) ?(kind = Arg) label key expr =
-  { label; key; ty; expr; chip = chip c expr; default; socket; kind }
+let row c ?ty ?default ?(socket = true) ?(kind = Arg) ?(control = Plain) label key expr =
+  { label; key; ty; expr; chip = chip c expr; default; socket; kind; control }
 
 let add c label key ?(socket = true) ty =
   row c ?ty ~socket ~kind:Add label key None
@@ -141,6 +143,13 @@ let show_value = function
   | Int_value i -> string_of_int i
   | Float_value f -> Printf.sprintf "%g" f
   | Text_value s | Choice_value s -> s
+
+(* what a parameter's field is: a soft range paints a position line, a choice a chevron *)
+let control_of (p : Flow.Check.parameter) = match p.fields with
+  | [ (_, Param.Floating_view r, _) ] -> Range (r.soft_min, r.soft_max)
+  | [ (_, Param.Integer_view r, _) ] -> Range (float r.soft_min, float r.soft_max)
+  | [ (_, Param.Choice_view _, _) ] -> Choice
+  | _ -> Plain
 
 let default_text (p : Flow.Check.parameter) = match p.fields with
   | [ (_, _, v) ] -> Some (show_value v)
@@ -197,7 +206,7 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
     let kind = if W.group_reader p then Group_reader else if W.group_writer k p then Group_writer else Arg in
     let material = k.qualified = "sop/material" && p.name = "material" in
     row c ~ty:(if material then Ty.Material else match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
-      ~socket:(material || p.ty <> None) ~kind p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
+      ~control:(control_of p) ~socket:(material || p.ty <> None) ~kind p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
   slot_rows @ param_rows
 
 let input_rows c (inputs : (string * Ty.t * W.term option) list) pos kws =
@@ -480,11 +489,15 @@ let rec find (s : scope) path = List.find_map (fun (n : node) ->
 
 let row_height = 24.
 let head_height = 24.
-let foot_height = 20.
+let foot_height = 24.
+(* kit rev 3: the header overlaps the card's 1-point border, and the rows start 1 point above its
+   bottom edge (the sheet's [.nh] has a -1 margin) *)
+let body_top = 23.
+let card_pad = 5.  (* 4 points of padding and the bottom border under the last row *)
 let node_width = 196.
 let rail_width = 176.
 let yield_width = 104.
-let strip_height = 34.
+let strip_height = 0.  (* the iteration selector sits in the zone's label row *)
 let pad = 14.
 let gap = 34.
 
@@ -509,29 +522,33 @@ let lens_height (l : lens) ~step =
     min 16 (1 + String.fold_left (fun a c -> if c = '\n' then a + 1 else a) 0 shown) in
   row_height +. 10. +. float lines *. 15. +. row_height
 
-let rec size ~at ~collapsed ~lens (it : item) : float * float * bool * layout option = match it with
-  | Input _ -> node_width, head_height +. row_height +. foot_height, false, None
-  | Return -> node_width -. 40., head_height +. row_height, false, None
+(* a card: the header alone, or the rows below it, [extra] points of footer or panel and the padding *)
+let card_height ~rows ~extra =
+  if rows = 0. && extra = 0. then head_height else body_top +. rows *. row_height +. extra +. card_pad
+
+let rec size ~foot ~at ~collapsed ~lens (it : item) : float * float * bool * layout option = match it with
+  | Input _ -> node_width, head_height, false, None
+  | Return -> node_width -. 40., card_height ~rows:1. ~extra:0., false, None
   | Item ({ zone = Some z; _ } as n) ->
       let rail = count z.rail in
       if collapsed n.path then
-        node_width, head_height +. Float.max 1. rail *. row_height +. foot_height, true, None
+        node_width, card_height ~rows:(Float.max 1. rail) ~extra:(if foot then foot_height else 0.), true, None
       else
-        let (l : layout) = layout ~at ~collapsed ~lens z.scope in
+        let (l : layout) = layout ~foot ~at ~collapsed ~lens z.scope in
         let body = Float.max (Float.max (rail *. row_height +. 8.) l.h) (row_height +. 14.) in
         rail_width +. pad +. Float.max l.w 72. +. pad +. yield_width,
         head_height +. strip n +. body +. (if z.kind = Fold || z.kind = Scan then 22. else 10.)
-        +. (if z.kind = Let then 0. else foot_height),  (* the zone's own footer *)
+        +. (if z.kind = Let || not foot then 0. else foot_height),  (* the zone's own footer *)
         false, Some l
   | Item n ->
       let open_lens = match n.lens, lens n.path with
         | Some l, Some step -> Some (l, step) | _ -> None in
       (match open_lens with Some _ -> Float.max node_width lens_width | None -> node_width),
-      head_height +. (if n.note <> None then row_height else 0.) +. (nrows n +. count n.outputs) *. row_height
-      +. foot_height
-      +. (match open_lens with Some (l, step) -> lens_height l ~step | None -> 0.), false, None
+      card_height ~rows:((if n.note <> None then 1. else 0.) +. nrows n +. count n.outputs)
+        ~extra:((if foot then foot_height else 0.)
+                +. (match open_lens with Some (l, step) -> lens_height l ~step | None -> 0.)), false, None
 
-and layout ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(lens = fun _ -> None) (s : scope) : layout =
+and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(lens = fun _ -> None) (s : scope) : layout =
   let root = s.inputs <> [] in
   let items =
     List.map (fun (i : input) -> Input i, i.path, [], [ i.name ]) s.inputs
@@ -567,7 +584,7 @@ and layout ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?(lens = fun _ ->
     let y = ref 12. and cw = ref 0. in
     Array.iteri (fun k (it, path, _, _) ->
       if level.(k) = l then begin
-        let iw, ih, coll, inner = size ~at ~collapsed ~lens it in
+        let iw, ih, coll, inner = size ~foot ~at ~collapsed ~lens it in
         let px, py = match at path with Some (ax, ay) -> ax, ay | None -> !x, !y in
         placed := { item = it; path; x = px; y = py; w = iw; h = ih; collapsed = coll; inner } :: !placed;
         y := !y +. ih +. 18.; cw := Float.max !cw iw;
