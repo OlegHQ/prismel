@@ -1712,16 +1712,30 @@ let carry_ghost ui =
   match ui.payload with
   | Some (payload, _) when Float.is_finite (fst ui.pointer) ->
       let px, py = ui.pointer in
-      let width = float (text_width_px ui payload.value) /. float ui.density +. 16. in
+      let width = float (text_width_px ui payload.value) /. float ui.density +. 12. in
       let parents = ui.parents and seeds = ui.seeds in
       ui.parents <- [0]; ui.seeds <- [0x2c1b3c6d];
       Fun.protect ~finally:(fun () -> ui.parents <- parents; ui.seeds <- seeds) (fun () ->
-        let ghost = box ui ~w:(Px width) ~h:(Px 22.) ~at:(px +. 14., py +. 14.) "ui-carry-ghost" in
+        (* kit overlays [07]: a white 20-point chip with the payload in body-size ink, and under
+           it the sheet's tip with the key that drops it *)
+        let ghost = box ui ~w:(Px width) ~h:(Px 20.) ~at:(px +. 14., py +. 14.) "ui-carry-ghost" in
         let theme = ui.theme in
+        let size = ui.font_size in
+        let small = max 8 (size - 2) in
+        let tip_text = "drop to put" and tip_key = "esc" in
+        let tw s = float (text_width_px ui ~size:small s) /. float ui.density in
+        let tip_w = 2. +. 12. +. tw tip_text +. 6. +. tw tip_key in
+        let tip = box ui ~w:(Px tip_w) ~h:(Px 20.) ~at:(px +. 14., py +. 14. +. 20. +. 8.) "ui-carry-tip" in
         draw_over ui ghost (fun paint (x, y, w, h) ->
-          Paint.rect paint ~x ~y ~w ~h ~fill:theme.accent ~radius:3. ();
-          Paint.text paint ~at:(x +. 8., y +. 5.) ~color:theme.input payload.value);
-        ui.foreground <- (max_int, ghost.index) :: ui.foreground)
+          Paint.fill paint ~x ~y ~w ~h theme.input;
+          Paint.text paint ~at:(x +. 6., y +. Float.floor (float (20 - size) /. 2.)) ~size ~color:theme.foreground payload.value);
+        draw_over ui tip (fun paint (x, y, w, h) ->
+          Paint.fill paint ~x ~y ~w ~h theme.input;
+          Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) (Theme.edge theme);
+          let ty = y +. Float.floor (float (20 - small) /. 2.) in
+          Paint.text paint ~at:(x +. 7., ty) ~size:small ~color:theme.foreground tip_text;
+          Paint.text paint ~at:(x +. 7. +. tw tip_text +. 6., ty) ~size:small ~color:(Theme.ink_3 theme) tip_key);
+        ui.foreground <- (max_int, ghost.index) :: (max_int, tip.index) :: ui.foreground)
   | _ -> ()
 
 let frame ui (frame : Frame.t) f =

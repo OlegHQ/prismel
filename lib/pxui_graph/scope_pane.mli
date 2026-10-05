@@ -160,6 +160,7 @@ module Private : sig
   val lens_step_button : t -> path -> int -> (float * float) option
   val lens_replace : t -> path -> (float * float) option
   val wire_count : t -> int
+  val wire_points : t -> int -> (float * float) list
   val wire_target : t -> int -> (path * Flow_sop.Flow_edit.arg_key) option
   val wire_midpoint : t -> int -> (float * float) option
 end

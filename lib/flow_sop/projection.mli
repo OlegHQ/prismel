@@ -211,7 +211,7 @@ val layout :
 val lens_width : float
 val lens_height : lens -> step:int -> float
 (** The expansion panel under a macro call: a row of step buttons, the printed step
-    (at most 16 lines of 15 points) and the button row. *)
+    (at most 16 lines of 20 points) and the button row. *)
 
 val place : layout -> (path * (float * float * float * float)) list
 (** Absolute [(x, y, w, h)] of every placed item, zones' children included,

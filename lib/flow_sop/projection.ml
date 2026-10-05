@@ -608,7 +608,7 @@ let lens_height (l : lens) ~step =
     else l.steps.(max 0 step) in
   let lines = match l.error with Some _ when step < Array.length l.steps -> 2 | _ ->
     min 16 (1 + String.fold_left (fun a c -> if c = '\n' then a + 1 else a) 0 shown) in
-  row_height +. 10. +. float lines *. 15. +. row_height
+  row_height +. 10. +. float lines *. 20. +. row_height  (* the kit's code lines are 20 apart *)
 
 (* a card: the header alone, or the rows below it, [extra] points of footer or panel and the padding *)
 let card_height ~rows ~extra =

@@ -51,7 +51,7 @@ let of_text ?settings text = match Doc.of_text ?settings catalog text with
 let part_text () =
   let text = still ^ {|
 (layout
-  (node ["g" "a"] :at [120 40] :pinned true :collapsed false :rows {:radius false})
+  (node ["g" "a"] :at [120 48] :level "full" :pinned true :collapsed false :rows {:radius false})
   (node ["g" "b"] :at [300.5 40])
   (bend ["g" "b"] "in0" [12 24] [30 40])
   (wireless ["g" "b"] "in0")
@@ -61,7 +61,9 @@ let part_text () =
 |} in
   let doc = of_text ~settings:(settings (0., "a")) text in
   check (Doc.name doc = "study") "name";
-  check (Layout.Path_map.find [ "g"; "a" ] doc.layout.at = (120., 40.)) "layout at";
+  check (Layout.Path_map.find [ "g"; "a" ] doc.layout.at = (120., 48.)) "layout at";
+  check (Layout.Path_map.find [ "g"; "a" ] doc.layout.level = Flow_sop.Projection.Full
+         && Layout.Path_map.find [ "g"; "a" ] doc.layout.pinned) "layout level and pin";
   check (Layout.Path_map.find [ "g"; "b" ] doc.layout.at = (300.5, 40.)) "layout float";
   check (Layout.Port_map.find ([ "g"; "b" ], "in0") doc.layout.bends = [ (12., 24.); (30., 40.) ]) "bends";
   check (Layout.Port_set.mem ([ "g"; "b" ], "in0") doc.layout.wireless) "wireless";

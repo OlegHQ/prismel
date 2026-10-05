@@ -1212,7 +1212,7 @@ let value_room paint t ~z ~fs ~w (r : P.row) =
   | _ ->
       w -. (label_x +. head_pad) *. z -. (if numbers then vec_w else field_w) *. z -. 6. *. z
 
-let paint_rows paint ui t ~z ~fs ~x ~y ~w (n : P.node) (lines : P.line array) ~selected_row =
+let paint_rows paint ui t ~z ~fs ~x ~y ~w ?(carry = false) (n : P.node) (lines : P.line array) ~selected_row =
   let theme = t.theme in
   let ls = max 4 (fs - 2) in
   let rh = P.row_height *. z in
@@ -1228,10 +1228,16 @@ let paint_rows paint ui t ~z ~fs ~x ~y ~w (n : P.node) (lines : P.line array) ~s
         text_in paint ui ~size:ls ~color:(Pxui.Theme.ink_2 theme) ~x:(x +. label_x *. z) ~y:(ry +. 1.) ~h:(rh -. 1.)
           (Printf.sprintf "+ %d more" hidden)
     | Row (i, r) ->
+        let target = carry && selected_row = Some i in
         if selected_row = Some i then
-          Ui.Paint.fill paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) ~h:rh (Pxui.Theme.faint_border theme);
+          Ui.Paint.fill paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) ~h:rh
+            (if target then Pxui.Theme.hover_fill theme else Pxui.Theme.faint_border theme);
+        (* a carried value over a row: the row takes the hover fill, an ink label and an accent underline *)
+        if target then
+          hline paint ~x:(x +. value_x w *. z) ~y:(ry +. 19. *. z) ~w:(field_w *. z) theme.accent;
         let add = r.kind = P.Add in
         let color = match r.kind with
+          | _ when target -> theme.foreground
           | P.Add -> Pxui.Theme.ink_2 theme | Binder | Hole -> theme.accent | _ -> Pxui.Theme.ink_2 theme in
         let size = if add then ls else fs in
         text_in paint ui ~size ~color ~x:(x +. label_x *. z) ~y:ry ~h:rh
@@ -1451,10 +1457,10 @@ let paint_footer paint ui t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) ~pad 
    buttons on the first row ("call", 1, 2, ...), the printed step, and the replace
    button with the reading on the last row. *)
 let lens_button_box ~len i =
-  if i = 0 then (8., 4.), (36., 16.)
-  else if i >= len then (8. +. 40. +. float (max 0 (len - 1)) *. 28. +. 4., 4.), (64., 16.)  (* the template *)
-  else (8. +. 40. +. float (i - 1) *. 28., 4.), (24., 16.)
-let lens_replace_box lh = (8., lh -. P.row_height +. 3.), (196., 18.)
+  if i = 0 then (8., 2.), (36., 20.)
+  else if i >= len then (8. +. 40. +. float (max 0 (len - 1)) *. 28. +. 4., 2.), (64., 20.)  (* the template *)
+  else (8. +. 40. +. float (i - 1) *. 28., 2.), (24., 20.)
+let lens_replace_box lh = (8., lh -. P.row_height +. 2.), (196., 20.)  (* a control is 20 high *)
 (* the panel's top inside a card of height [h]: above the padding *)
 let lens_top h lh = h -. lh -. P.card_pad
 
@@ -1479,7 +1485,7 @@ let paint_lens paint ui t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   let lines = String.split_on_char '\n' text in
   List.iteri (fun k line ->
     if k < 16 then
-      Ui.Paint.text paint ~at:(x +. 10. *. z, y +. (P.row_height +. 4. +. float k *. 15.) *. z) ~size:fs
+      Ui.Paint.text paint ~at:(x +. 10. *. z, y +. (P.row_height +. 4. +. float k *. 20.) *. z) ~size:fs
         ~color:theme.foreground (fitted paint fs (w -. 20. *. z) (if k = 15 && List.length lines > 16 then line ^ " …" else line))) lines;
   let (rx, ry), (rw, rh) = lens_replace_box lh in
   frame_in paint ~x:(x +. rx *. z) ~y:(y +. ry *. z) ~w:(rw *. z) ~h:(rh *. z) (Pxui.Theme.border theme);
@@ -1535,7 +1541,7 @@ let paint_point paint ui t ~z ~fs (n : P.node) ?failed ~selected (x, y, _, _) =
   if selected then
     Ui.Paint.brackets paint ~x ~y ~w:(14. *. z) ~h:(14. *. z) ~offset:5. ~length:6. theme.accent
 
-let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(out_wired = true) ~shown ?failed
+let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(carry = false) ?(out_wired = true) ~shown ?failed
     (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
   if shown = P.Point then paint_point paint ui t ~z ~fs n ?failed ~selected (x, y, w, h) else
   let theme = t.theme in
@@ -1581,7 +1587,7 @@ let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(out_wir
   let rows_y = body_y +. (if n.note <> None then P.row_height *. z else 0.) in
   (match z_ with
    | None ->
-       paint_rows paint ui t ~z ~fs ~x ~y:rows_y ~w n p.lines ~selected_row:row_hover;
+       paint_rows paint ui t ~z ~fs ~x ~y:rows_y ~w ~carry n p.lines ~selected_row:row_hover;
        if n.head = "list" || n.head = "str" then
          Array.iteri (fun k -> function
            | P.Row (_, ({ kind = P.Rest; key = E.Pos j; _ } : P.row)) when j >= 1 ->
@@ -2241,7 +2247,7 @@ let update t ui (frame : Frame.t) =
             (match t.drag with
              | Some (Carrying c) when Float.hypot c.dx c.dy > 3. /. z ->
                  emit (Moved (List.filter_map (fun path -> match Hashtbl.find_opt t.geo.rel path with
-                   | Some (rx, ry) -> Some (path, rx +. c.dx, ry +. c.dy)
+                   | Some (rx, ry) -> Some (path, P.snap (rx +. c.dx), P.snap (ry +. c.dy))
                    | None -> None) c.paths));
                  emit (Frames_set { scope; frames = frame_list t scope })
              | _ -> ());
@@ -2372,7 +2378,7 @@ let update t ui (frame : Frame.t) =
       | Some (Moving m) when s.released && left s ->
           if m.moved then
             emit (Moved (List.filter_map (fun path -> match Hashtbl.find_opt t.geo.rel path with
-              | Some (rx, ry) -> Some (path, rx +. m.dx, ry +. m.dy)
+              | Some (rx, ry) -> Some (path, P.snap (rx +. m.dx), P.snap (ry +. m.dy))
               | None -> None) m.paths));
           { t with drag = None }
       | _ -> t in
@@ -2503,7 +2509,7 @@ let update t ui (frame : Frame.t) =
   List.iter (fun ((p : P.placed), ax, ay, tile, _, _, _) ->
     let path = p.path in
     let isel = Path_set.mem path selected in
-    let hovered = t.drag = None && Ui.hovered_within ui tile in
+    let hovered = t.drag = None && t.carry_hot = None && Ui.hovered_within ui tile in
     Ui.draw ui tile (fun paint (x, y, w, h) ->
       match p.item with
       | P.Input i -> paint_input paint ui snapshot ~z ~fs i ~selected:isel (x, y, w, h)
@@ -2519,6 +2525,7 @@ let update t ui (frame : Frame.t) =
            | _ ->
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in
                paint_node paint ui snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) ~hovered
+                 ~carry:(match snapshot.carry_hot with Some (hp, _) -> hp = n.path | None -> false)
                  ~out_wired:(Hashtbl.mem read (out_anchor p ax ay)) ~shown:(shown_level snapshot p)
                  ?failed:(List.assoc_opt n.path snapshot.failed) p n ~selected:isel ~row_hover:rh (x, y, w, h);
                if dimmed n then Ui.Paint.fill paint ~x ~y ~w ~h (Color.with_alpha snapshot.theme.panel 150)));
@@ -2669,6 +2676,8 @@ module Private = struct
         tile_point t path (rx, lens_top h lh +. ry) size
     | _ -> None
   let wire_count t = Array.length t.geo.wires
+  let wire_points t i =
+    if i < 0 || i >= Array.length t.geo.wires then [] else List.map (fun (x, y) -> sx t x, sy t y) t.geo.wires.(i).pts
   let wire_target t i =
     if i < 0 || i >= Array.length t.geo.wires then None
     else Option.map (fun (p, k, _) -> p, k) t.geo.wires.(i).target
