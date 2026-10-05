@@ -29,7 +29,7 @@ let display_size = 40
 (* the inks are blended against the ground, which a sheet (a window) keeps when it paints its own *)
 let ground theme = Option.value theme.ink_ground ~default:theme.panel
 let ink_2 theme = Rays.Color.blend theme.foreground (ground theme) ~pct:0.32 (* labels, secondary *)
-let ink_3 theme = Rays.Color.blend theme.foreground (ground theme) ~pct:0.52 (* disabled, placeholder, keys *)
+let ink_3 theme = Rays.Color.blend theme.foreground (ground theme) ~pct:0.521 (* disabled, placeholder, keys *)
 let muted = ink_2
 let border theme = Rays.Color.with_alpha theme.foreground 77 (* line-3: the primary button, switch *)
 let edge theme = Rays.Color.with_alpha theme.foreground 38 (* line-2: panes, cards, windows, fields *)
