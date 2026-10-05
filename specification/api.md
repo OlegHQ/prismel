@@ -837,7 +837,7 @@ clicking a binding selects its node, and its header toggles qualified names.
 `?` toggles the contextual guide and delayed tooltips globally. The guide
 starts on and saves its setting in `~/.rays/preferences.rays` through
 `Editor_core.Store` (override with `RAYS_EDITOR_PREFERENCES`). Its strip
-uses Command guide membership in table order. `Space k` shows the grouped
+lists each pane's own keys as its design sheet does. `Space ?` shows the grouped
 key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
 and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
 traversal. World keys are `t`/`n`/`d`, described in `scene.md`.

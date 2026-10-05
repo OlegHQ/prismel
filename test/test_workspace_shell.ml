@@ -1681,13 +1681,14 @@ let run_view_native () =
           E3.edit e (E.Set_arg {node = ["shattered"; "exploded_view"]; key = E.Kw "amount";
             sub = []; value = S.make (S.Num "0.8")}) |> Result.get_ok
         else e in
-      let gx, gy, _, _ = (E3.panes e frame).graph in
+      let gx, gy, gw, _ = (E3.panes e frame).graph in
       let graph = float (gx + 40), float (gy + 40) and view = 150., 300. in
       let mouse = if frame.count = 24 then
           (* the first v (frame 14) made the box the result, binding the old
              anonymous result under the name its head gives it *)
-          let x, y, w, _ = Option.get (E3.node_box e ["shattered"; "exploded_view"]) in
-          float (x + w / 2), float (y + 2)
+          let x, y, w, h = Option.get (E3.node_box e ["shattered"; "exploded_view"]) in
+          (* a wide graph in a narrow pane sits at the zoom floor, the last column on the pane's edge *)
+          float (min (x + w / 2) (gx + gw - 6)), float (y + min 12 (max 1 (h / 2)))
         else if List.mem frame.count [3; 4; 18; 19; 20; 21; 22] then view else graph in
       let key k = Event.KeyPressed k in
       let events = match frame.count with
