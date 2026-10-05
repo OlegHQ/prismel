@@ -2062,7 +2062,7 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     else match Cook.status value.cook with Async_cook.Cooking _ -> `Busy | Idle -> `Ok in
   let layout = match Option.bind value.doc.Document.shell (fun s -> s.switch) with
     | Some { layouts; active } when active < List.length layouts ->
-        Printf.sprintf "layout %d \xc2\xb7 %s" active (List.nth (Editor_core.Panels.labels layouts) active)
+        Printf.sprintf "layout %d \xc2\xb7 %s" active (Editor_core.Panels.summary (List.nth layouts active))
     | _ -> "" in
   let line = match error_status with Some error -> error | None ->
     status_text ~brief:true value ^ match render_status with None -> "" | Some status -> " \xc2\xb7 " ^ status in
@@ -2399,7 +2399,8 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
         else if graph = "" then value.file else if value.file = "" then graph else value.file ^ " / " ^ graph
     | Inspector -> "Inspector", (match (if value.scope_key = None then [] else Pxui_graph.Scope.selected value.scope_view) with
         | [ path ] when graph <> "" -> graph ^ " / " ^ List.nth path (List.length path - 1) | _ -> graph)
-    | Outline -> "Outline", (fst value.doc.Document.workspace).checked.name
+    | Outline -> "Outline", if (let _, _, w, _ = leaf.frame in w < 300) then ""  (* the narrow sheet has the kind alone *)
+        else value.file
     | Timeline -> "Timeline",
         (* the real step of the sketch: the same step every frame is a fixed one *)
         if value.steady >= 3 && value.last_dt > 0. then Printf.sprintf "fixed dt 1/%d" (int_of_float (Float.round (1. /. value.last_dt)))
@@ -2478,10 +2479,17 @@ let outline_objects value : Navigator.obj list =
       | Some "camera" -> true, Some lead
       | Some "world" -> true, Some true
       | _ -> false, flag "render" in
-    { Navigator.depth = row.depth; letter = fst row.badge; name; detail;
-      visible = flag "visible"; render; lead; inert; chosen = List.mem row.id selected;
+    (* the render camera has both flags, its visible one only showing *)
+    let visible = match operation with Some "camera" -> Some true | _ -> flag "visible" in
+    let rank = match operation with Some "camera" -> 0 | Some "light" -> 1 | Some "world" -> 4 | _ -> 2 in
+    rank, { Navigator.depth = row.depth; letter = fst row.badge; name; detail;
+      visible; render; lead; inert; chosen = List.mem row.id selected;
       home = (match List.assoc_opt row.id value.doc.Document.homes.objects with
-        | Some (Document.Bound_at path) -> Some path | _ -> None) })
+        | Some (Document.Bound_at path) -> Some path | _ -> None) }) |> fun rows ->
+  (* the sheet's order: the camera, the lights, the geometry, the World; a nested scene keeps its tree *)
+  if List.for_all (fun (_, (o : Navigator.obj)) -> o.depth = 0) rows
+  then List.map snd (List.stable_sort (fun (a, _) (b, _) -> compare a b) rows)
+  else List.map snd rows
 
 let navigator_params value : Navigator.params =
   let ws = fst value.doc.Document.workspace in
@@ -2501,7 +2509,7 @@ let navigator_params value : Navigator.params =
       | _ -> []);
     objects = outline_objects value;
     root_detail = Printf.sprintf "%d spp" (Objects.Root.render value.doc.Document.root).max_spp;
-    layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active)
+    layouts = Option.map (fun (sw : Document.switch) -> List.map Editor_core.Panels.summary sw.layouts, sw.active)
       (Option.bind value.doc.Document.shell (fun s -> s.switch)) }
 
 (* The leaf the graph pane in use draws in, when it is open. *)

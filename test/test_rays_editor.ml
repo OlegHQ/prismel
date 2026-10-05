@@ -737,9 +737,14 @@ let run () =
     "the scene root did not carry default render settings";
   (* the frame keeps clear of the label row above it (40), the readouts' row under it (36) and 12
      at each side ([Viewport3.film]), the film's aspect inside what is left, centred there *)
-  let area_w = pane_w - 24 and area_h = pane_h - 76 in
+  (* a body under 1000 wide follows the workspace sheet: 14.63 percent at each side, 32 above, 93 below *)
+  let narrow = pane_w < 1000 in
+  let side = if narrow then int_of_float (Float.round (0.1463 *. float pane_w)) else 12 in
+  let top = if narrow then 32 else 40 and bottom = if narrow then 93 else 36 in
+  let area_w = pane_w - (2 * side) and area_h = pane_h - top - bottom in
   check (fw <= area_w && fh <= area_h && (fw = area_w || fh = area_h)
-      && abs (fw * 1080 - fh * 1920) <= 1920 && fx = 12 + ((area_w - fw) / 2) && fy = 40 + ((area_h - fh) / 2))
+      && abs (fw * 1080 - fh * 1920) <= 1920 && fx = side + ((area_w - fw) / 2)
+      && fy = (if narrow then top else top + ((area_h - fh) / 2)))
     "look-through did not letterbox the film to the camera's aspect";
   (* Space v toggles look-through off: the view camera is the free viewport
      (a following camera keeps it at the viewport). *)

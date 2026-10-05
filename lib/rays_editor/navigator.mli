@@ -26,6 +26,9 @@ type state
 
 val initial : state
 
+val open_graph : string -> state -> state
+(** Unfold the node rows of a graph under its row (they are folded by default). *)
+
 val editing : state -> bool
 (** The search field holds the keyboard. *)
 
@@ -60,8 +63,9 @@ type row
 val pretty : string -> string
 (** A workspace name as a title: [bloom_studio] is [Bloom studio]. *)
 
-val rows : state -> params -> row array
-(** Every row in order; a search shows the matching bindings instead. *)
+val rows : ?wide:bool -> state -> params -> row array
+(** Every row in order; a search shows the matching bindings instead.  Under 300 points (not
+    [wide]) the outline is the workspace sheet's: no node rows, no Layout, no Data flow. *)
 
 val row_rects : ?row_height:int -> state -> params -> bounds:int * int * int * int ->
   (row * (float * float * float * float)) array
