@@ -436,6 +436,16 @@ let active_color = Color.hex_exn "#f0481f"
 let project bounds camera point = Option.map (fun (screen : Vec3.t) ->
   screen.x, screen.y) (Camera.world_to_screen ~viewport:bounds camera point)
 
+let screen_box view ~bounds ~world ((low : Vec3.t), (high : Vec3.t)) =
+  let corners = List.concat_map (fun x -> List.concat_map (fun y -> List.map (fun z ->
+    project bounds view (Mat4.transform_point world (Vec3.create x y z))) [ low.z; high.z ]) [ low.y; high.y ])
+    [ low.x; high.x ] in
+  if List.exists Option.is_none corners then None else
+  let xs = List.filter_map (Option.map fst) corners and ys = List.filter_map (Option.map snd) corners in
+  let min = List.fold_left Float.min infinity and max = List.fold_left Float.max neg_infinity in
+  let x0 = Float.to_int (min xs) and y0 = Float.to_int (min ys) in
+  Some (x0, y0, Float.to_int (max xs) - x0, Float.to_int (max ys) - y0)
+
 let line ?(width = 1) color (x0, y0) (x1, y1) =
   Scene.line ~from_:(Float.to_int x0, Float.to_int y0)
     ~to_:(Float.to_int x1, Float.to_int y1) ~color ~width ()

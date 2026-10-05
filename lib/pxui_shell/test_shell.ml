@@ -27,7 +27,7 @@ let status_instances height =
   let ui = Pxui.Ui.create ~font_size:11 () in
   ignore (Pxui.Ui.frame ui frame (fun ui ->
     Pxui_shell.Status_bar.draw ui ~bounds:(0, 272, 400, height)
-      ~text:"Cook complete" ~fps:(Some 60)));
+      ~text:"Cook complete" ~fps:(Some 60) ()));
   match Scene.Private.stage_native ~width:400 ~height:300 (Pxui.Ui.scene ui) with
   | Error message -> failwith message
   | Ok staged -> List.fold_left (fun total -> function
@@ -325,7 +325,7 @@ let () =
   ignore (Pxui_shell.Shell.frame hidden frame ~visible:false
     ~body:(fun _ -> ())
     ~overlay:(Some (fun ui -> Pxui_shell.Status_bar.draw ui
-      ~bounds:(0, 272, 400, 28) ~text:"Overlay" ~fps:None)));
+      ~bounds:(0, 272, 400, 28) ~text:"Overlay" ~fps:None ())));
   if Pxui.Ui.scene hidden = [] then
     failwith "hidden shell did not draw its pending overlay";
   if Sys.getenv_opt "RAYS_BENCH_LAYOUT" = Some "1" then begin

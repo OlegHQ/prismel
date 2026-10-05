@@ -1,8 +1,8 @@
-(** The Navigator panel (the workspace's outline): a map of the document.  The case-study
-    header, the active graph's inputs as sliders, the composition (every graph, with the
-    active one unfolded into its loops and bindings and their values), the reusable
-    functions and macros, the data flow around the active graph and the shell's panel
-    tree.  The behavioural reference is [specification/workspace/prototype] (navigator).
+(** The Outline panel: a map of the document.  A search field, then a section per kind of graph
+    (the scene with its objects and their visible and render flags, geometry and materials with
+    how many graphs use each, the World, the layouts), the active graph unfolded into its loops
+    and bindings, the reusable functions and macros, the active graph's inputs as sliders and
+    the data flow around it.  The behavioural reference is [specification/workspace/prototype] (navigator).
 
     Pure state and rows; {!view} draws inside [Pxui.Ui.frame] and returns intents that
     [Core] applies after the frame. *)
@@ -17,6 +17,8 @@ type intent =
   | Macro of string  (** a macro row: its definition in the text pane *)
   | Rename of { graph : string; to_ : string }  (** F2 on a graph row *)
   | Remove of string  (** Delete on a graph row *)
+  | Layout of int  (** a row of the Layout section: show that layout *)
+  | Add  (** the [+] beside the search field: the add menu *)
 
 type state
 
@@ -29,16 +31,23 @@ val with_query : string -> state -> state
 val query : state -> string
 (** The search field holding this text. *)
 
+type obj = { depth : int; letter : string; name : string; detail : string;
+             visible : bool option; render : bool option; lead : bool; chosen : bool;
+             home : path option }
+(** A scene object's row: its kind's letter, name and detail, its visible and render flags
+    (where it has them), [lead] for the render camera, [chosen] when selected, and the binding
+    that places it (a click opens its graph on it). *)
+
 type params = {
   workspace : Flow.Workspace.t;
-  title : string;
   active : string option;  (** the graph the pane shows *)
   scope : Flow_sop.Projection.scope option;  (** the projection of [active] *)
   records : Flow_sop.Probe.t option;
   probes : path -> int;  (** the iteration each zone shows *)
   selected : path list;
-  shell : Editor_core.Panels.t option;  (** the applied editor graph's panel tree *)
   chips : (string * Rays.Color.t) list;  (** the evaluated colour of each material graph *)
+  objects : obj list;  (** the scene's objects, in tree order *)
+  layouts : (string list * int) option;  (** the layouts of the editor graph, and the one shown *)
 }
 
 type row

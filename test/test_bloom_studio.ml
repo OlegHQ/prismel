@@ -59,20 +59,22 @@ let run () =
   let graph_leaf () = Option.get (Layout.find (geometry ()) Layout.Graph) in
     (* the Navigator lists the document *)
   let ws = E3.workspace !e in
-  let params ?(active = "flower") scope : N.params = { workspace = ws.Doc.checked; title = ws.checked.name;
+  let params ?(active = "flower") scope : N.params = { workspace = ws.Doc.checked;
     active = Some active; scope; records = None; probes = (fun _ -> 0); selected = [];
-    shell = Some (shell ()).tree; chips = [] } in
+    chips = [];
+    (* as many object and layout rows as the panel draws: a row's place depends on them *)
+    objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
+        lead = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
+    layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch } in
   let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked "flower") in
   let lines = Array.to_list (Array.map N.describe (N.rows N.initial (params scope))) in
   let listed text = List.exists (fun l -> has l text) lines in
-  check (listed "Bloom studio") "the case study header names the workspace";
   check (listed "input petals = 12" && listed "input seed = 7") ("the inputs of flower: " ^ String.concat " | " lines);
-  check (listed "> flower · 1 loop" && listed "scene · scene") "the composition lists every graph, the open one marked";
+  check (listed "> flower · " && listed "1 loop" && listed "scene · scene") "the composition lists every graph, the open one marked";
   check (listed "for ring") "the open graph's loop is a tree row";
-  check (listed "ƒ half · 2 calls" && listed "ƒ petal · 1 call" && listed "λ twice · 1 use")
+  check (listed "ƒ half · defn · ×2" && listed "ƒ petal · defn · ×1" && listed "λ twice · 1 use")
     "the reusable functions and macros count their uses";
   check (listed "read by scene") "the data flow names who reads flower";
-  check (listed "split side by side") "the shell tree follows the editor graph";
   (* a click on a row of the Navigator opens that graph in the pane *)
   let row_centre text =
     let active = dump_line !e "pane graph" in
@@ -83,13 +85,13 @@ let run () =
     ignore row;
     x +. 20. +. (w /. 8.), y +. h /. 2. in
   click (row_centre "scene · scene");
-  click (row_centre "flower · 1 loop");
+  click (row_centre "flower · ");
   click (row_centre "ƒ half");
   check (dump_line !e "pane graph" = "def:half") ("a function opens in the pane: " ^ dump_line !e "pane graph");
   check (dump_line !e "projection" = "graph") "the function shows as a network";
   click (row_centre "scene · scene");
   check (dump_line !e "pane graph" = "scene") "a graph row opens that graph";
-  click (row_centre "flower · 1 loop");
+  click (row_centre "flower · ");
   check (dump_line !e "pane graph" = "flower") "and back to flower";
   (* a node row opens its graph and selects the node there *)
   click (row_centre "wobble");

@@ -71,6 +71,9 @@ val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_visible : bool -> t -> t
 val with_guide : bool -> t -> t
 
+val with_theme : Pxui.theme -> t -> t
+(** The theme the pane paints with: a window's canvas is the sheet, a docked one the ground. *)
+
 val with_carry : lit:(path * string) list -> hot:(path * bool) option -> t -> t
 (** While a payload is carried: the nodes it can be put on, each with its letter (the key
     route), and the node or canvas under the pointer with whether it takes the payload. *)

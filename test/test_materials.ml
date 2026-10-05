@@ -128,8 +128,8 @@ let follow_tests () =
   let chips = match Flow.Eval.static ws with
     | Ok ev -> N.chips ev
     | Error d -> fail (Flow.Diagnostic.to_string d) in
-  let params : N.params = { workspace = ws; title = "follow"; active = Some "scene"; scope = None;
-    records = None; probes = (fun _ -> 0); selected = []; shell = None; chips } in
+  let params : N.params = { workspace = ws; active = Some "scene"; scope = None;
+    records = None; probes = (fun _ -> 0); selected = []; chips; objects = []; layouts = None } in
   let lines = Array.to_list (Array.map N.describe (N.rows N.initial params)) in
   let index text = match List.find_index (fun l -> has l text) lines with
     | Some i -> i | None -> fail (text ^ " is not in the outline: " ^ String.concat " | " lines) in
@@ -264,8 +264,12 @@ let carry_tests () =
     let chips = match Flow.Eval.static doc with Ok ev -> N.chips ev | Error d -> fail (Flow.Diagnostic.to_string d) in
     let active = pane () in
     let scope = try Some (Flow_sop.Projection.of_graph catalog doc active) with Invalid_argument _ -> None in
-    let params : N.params = { workspace = doc; title = "carrying"; active = Some active; scope;
-      records = None; probes = (fun _ -> 0); selected = []; shell = None; chips } in
+    let params : N.params = { workspace = doc; active = Some active; scope;
+      records = None; probes = (fun _ -> 0); selected = []; chips;
+      (* as many object rows as the panel draws: a row's place depends on them *)
+      objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
+        lead = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
+      layouts = None } in
     let geometry = L.geometry ~hidden:[ L.Timeline ] layout (frame (0., 0.) [] 0) in
     let bounds = (Option.get (L.find geometry L.Outline)).body in
     match List.find_map (fun (row, (x, y, w, h)) ->

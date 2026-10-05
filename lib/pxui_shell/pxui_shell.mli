@@ -141,16 +141,23 @@ module Which_key : sig
 end
 
 module Status_bar : sig
-  val guide : Pxui.Ui.t -> bounds:Layout.bounds -> context:Editor_core.Guide_context.t ->
+  type state = [ `Ok | `Busy | `Error ]
+  (** What the dot after the file says: checked and cooked, cooking, refused. *)
+
+  val guide : Pxui.Ui.t -> bounds:Layout.bounds -> ?file:string -> ?state:state -> ?layout:string ->
+    ?text:string -> ?fps:int -> context:Editor_core.Guide_context.t ->
     ('scope, 'action) Editor_core.Command.t list -> bool
-  (** Context and applicable keys in table order; true when Hide is clicked. *)
+  (** The file, its state and status line (a quarter of the strip at most), the context as a
+      label and each applicable key before what it does, then the layout in use and the frame
+      rate; true when Hide is clicked. *)
 
   val hud : Pxui.Ui.t -> bounds:Layout.bounds -> text:string -> unit
   (** Noninteractive key feedback in the pane's bottom corner. *)
 
-  val draw : Pxui.Ui.t -> bounds:(int * int * int * int) ->
-    text:string -> fps:int option -> unit
-  (** Paint the standard status strip in logical-point bounds. *)
+  val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> ?file:string -> ?state:state ->
+    ?layout:string -> text:string -> fps:int option -> unit -> unit
+  (** The status strip without the keys: the file, its state, the whole status line, the
+      layout in use and the frame rate. *)
 end
 
 module Timeline_bar : sig

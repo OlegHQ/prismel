@@ -81,6 +81,10 @@ module type VIEWPORT = sig
   (** A traced viewport's header text: resolution, film step and samples. *)
   val render_status : extra -> string option
   val paint : extra -> key:string -> Pxui_shell.Layout.bounds -> view -> rendered -> Scene.t
+  val screen_box : view -> bounds:Pxui_shell.Layout.bounds -> world:Mat4.t -> Vec3.t * Vec3.t ->
+    Pxui_shell.Layout.bounds option
+  (** The screen rectangle of a box in [world] space, when all of it is in front of the view:
+      where the selected object's brackets go. *)
   val guides : scene:Edit_graph.t -> selected:Node.t option -> space:Mat4.t ->
     view -> extra -> bounds:Pxui_shell.Layout.bounds -> Scene.t
   (* Editor-only lines over the view (cameras, lights, axes, handles), screen
@@ -826,6 +830,17 @@ module Make (V : VIEWPORT) = struct
         Option.map (fun scene ->
           key, V.film extra ~key:(look_key rendering key) bounds, camera_of rendering key, scene) scene) bodies) in
     let core = { core with Core.view_tools = V.header_tools extra } in
+    (* what the panes draw over a view: the gate where it is not the whole pane, and the
+       selected object's box in the focused view *)
+    let core = { core with
+      Core.gates = List.filter_map (fun (key, bounds) ->
+        let film = V.film extra ~key:(look_key rendering key) bounds in
+        if film = bounds || key = "@hidden" then None else Some (key, film)) bodies;
+      selected_box = Option.bind (Core.selected_bounds core) (fun (world, box, name) ->
+        let key = focus_key rendering in
+        Option.bind (List.assoc_opt key bodies) (fun bounds ->
+          Option.map (fun rect -> key, rect, name)
+            (V.screen_box (camera_of rendering key) ~bounds:(V.film extra ~key:(look_key rendering key) bounds) ~world box))) } in
     let core = { core with Core.captions = List.filter_map (fun (key, _) ->
       Option.map (fun caption -> key, caption) (V.caption extra ~key:(look_key rendering key))) bodies } in
     let map = match baked, value.map with

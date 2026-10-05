@@ -235,16 +235,19 @@ module Private : sig
     type state
     val initial : state
     val with_query : string -> state -> state
+    type obj = { depth : int; letter : string; name : string; detail : string;
+                 visible : bool option; render : bool option; lead : bool; chosen : bool;
+                 home : string list option }
     type params = {
       workspace : Flow.Workspace.t;
-      title : string;
       active : string option;
       scope : Flow_sop.Projection.scope option;
       records : Flow_sop.Probe.t option;
       probes : string list -> int;
       selected : string list list;
-      shell : Editor_core.Panels.t option;
       chips : (string * Rays.Color.t) list;
+      objects : obj list;
+      layouts : (string list * int) option;
     }
     type row
     val chips : Flow.Eval.t -> (string * Rays.Color.t) list

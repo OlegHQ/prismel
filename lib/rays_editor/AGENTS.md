@@ -433,7 +433,9 @@ Standalone 2D art sketches keep their own drawing paths.
 `Navigator` (the Outline panel) and `Bars` are private modules over the same immutable `Core`
 model: both are built inside `Ui.frame`, return intents and never mutate it. `Core.navigator_params` is everything the
 Navigator reads (the checked workspace, the open graph's projection, the probe records, the applied panel tree);
-`Navigator.Open` sets `pane_graph` (which outranks a `(ui/graph "name")` panel) and selects and frames a node;
+`Navigator.Open` sets `pane_graph` (which outranks a `(ui/graph "name")` panel) and selects and frames a node (a
+scene object's row opens its scene graph on its binding; `Core.outline_objects` and the editor graph's layouts are in
+the params; `Navigator.Layout` and `Add` run `Leader.Layout_switch` and `Add_node` like a toolbar click);
 `Navigator.Set_default` is `Flow_edit.Set_input_default`. There is no host bar: panels fill the window above the
 status strip, and every global action is a leader key and a palette row (`Space [` for layouts, `Space k` for the key
 sheet). A graph-header toolbar click that means a command runs next frame like a palette pick (so do the

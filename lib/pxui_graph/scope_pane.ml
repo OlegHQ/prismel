@@ -233,6 +233,7 @@ let with_bounds ~x ~y ~width ~height t =
   else { t with x; y; width; height }
 let with_visible visible t = if t.visible = visible then t else { t with visible }
 let with_guide guide t = if t.guide = guide then t else { t with guide }
+let with_theme theme t = if t.theme == theme then t else { t with theme }
 let with_carry ~lit ~hot t =
   if t.carry_lit = lit && t.carry_hot = hot then t else { t with carry_lit = lit; carry_hot = hot }
 let selected t = Path_set.elements t.selected
@@ -908,7 +909,7 @@ let paint_lens paint t ~z ~fs (l : P.lens) ~step (x, y, w) ~lh =
   Ui.Paint.text paint ~at:(x +. w -. 8. *. z -. tw, y +. (ry +. 4.) *. z) ~size ~color:(Pxui.Theme.muted theme)
     (fitted paint size (w -. (rx +. rw +. 24.) *. z) reading)
 
-let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
+let paint_node paint t ~z ~fs ?footer ?lens_step ?(hovered = false) (p : P.placed) (n : P.node) ~selected ~row_hover (x, y, w, h) =
   let theme = t.theme in
   let z_ = n.zone in
   let stacked = match z_ with Some _ -> p.collapsed | None -> false in
@@ -916,7 +917,7 @@ let paint_node paint t ~z ~fs ?footer ?lens_step (p : P.placed) (n : P.node) ~se
     List.iter (fun d ->
       Ui.Paint.rect paint ~x:(x +. d *. z) ~y:(y +. d *. z) ~w ~h ~fill:theme.input
         ~stroke:(Pxui.Theme.edge theme) ()) [ 6.; 3. ];
-  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:theme.input
+  Ui.Paint.rect paint ~x ~y ~w ~h ~fill:(if hovered && not selected then Pxui.Theme.hover_fill theme else theme.input)
     ~stroke:(if selected then Pxui.Theme.border theme else Pxui.Theme.edge theme) ();
   if n.bypass then Ui.Paint.hatch paint ~x ~y ~w ~h (Pxui.Theme.edge theme);
   (match z_ with
@@ -1774,6 +1775,7 @@ let update t ui (frame : Frame.t) =
   List.iter (fun ((p : P.placed), ax, ay, tile, _, _, _) ->
     let path = p.path in
     let isel = Path_set.mem path selected in
+    let hovered = t.drag = None && Ui.hovered_within ui tile in
     Ui.draw ui tile (fun paint (x, y, w, h) ->
       match p.item with
       | P.Input i -> paint_input paint snapshot ~z ~fs i ~selected:isel (x, y, w, h)
@@ -1787,7 +1789,7 @@ let update t ui (frame : Frame.t) =
                  ~probe:(snapshot.probe n.path) ~count:(count_of snapshot n.path)
            | _ ->
                let rh = match row_hover with Some (rp, i) when rp = n.path -> Some i | _ -> None in
-               paint_node paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) p n ~selected:isel ~row_hover:rh (x, y, w, h);
+               paint_node paint snapshot ~z ~fs ?footer:(Hashtbl.find_opt footers n.path) ?lens_step:(lens_of snapshot n.path) ~hovered p n ~selected:isel ~row_hover:rh (x, y, w, h);
                if dimmed n then Ui.Paint.fill paint ~x ~y ~w ~h (Color.with_alpha snapshot.theme.panel 150)));
     ignore (ax, ay); ignore node_placed; drawn_rows := !drawn_rows) tiles;
   let rows = List.fold_left (fun a ((p : P.placed), _, _, _, _, _, _) -> match p.item with

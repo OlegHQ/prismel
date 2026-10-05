@@ -54,6 +54,7 @@ let header_tools () = None
 let caption () ~key:_ = None
 let render_status () = None
 let paint () ~key:_ viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
+let screen_box _ ~bounds:_ ~world:_ _ = None
 let guides ~scene:_ ~selected:_ ~space:_ _ () ~bounds:_ = []
 (* A click on the drawing is a ray straight down onto the plane the geometry lies in. *)
 let pick_ray ~viewport camera (x, y) =

@@ -235,6 +235,8 @@ type 'prepared t = {
   carry : 'prepared carry option;
   carry_budget : float;  (* seconds a carry's preview may take to apply or cook before it is only described *)
   captions : (string * string) list;
+  gates : (string * (int * int * int * int)) list;  (* the render frame of each viewport that shows less than its pane *)
+  selected_box : (string * (int * int * int * int) * string) option;  (* the selected object in the focused view: its screen box and name *)
   view_tools : (bool * int) option;  (* the active viewport's header: looking through, and its renderer (0 solid, 1 wire, 2 traced); none for a 2D view *)
   (* each traced viewport's header text (resolution, film step, samples), set by the host after
      it renders: view state, not history *)
@@ -462,6 +464,16 @@ let pane_ui bounds =
   x + 8, y + 8, max 1 (width - 16), max 40 (height - 16)
 
 (* The inspector column's kit panel. *)
+(* A window is the input sheet: its panes paint their ground with the theme's panel colour, so
+   they are built with the sheet as that colour. *)
+let sheet_theme (theme : Pxui.Theme.t) = { theme with panel = theme.input }
+let on_sheet ui floating build =
+  if not floating then build () else begin
+    let theme = Pxui.Ui.theme ui in
+    Pxui.Ui.set_theme ui (sheet_theme theme);
+    Fun.protect ~finally:(fun () -> Pxui.Ui.set_theme ui theme) build
+  end
+
 let inspector_panel ui bounds build =
   let x, y, width, height = bounds in
   Pxui.Ui.panel ui ~x:(float_of_int x) ~y:(float_of_int y)
@@ -1371,6 +1383,14 @@ let piece value = Option.bind (focus_object value) (fun id ->
     List.find_opt (fun (piece : _ Cook.piece) -> piece.id = id) (pieces value))
 
 let prepared value = Option.map (fun (piece : _ Cook.piece) -> piece.prepared) (piece value)
+
+(* The object in focus (the selected scene object, or the one whose network is open): its world
+   transform, its cooked bounds in its own space, and its name. *)
+let selected_bounds value =
+  Option.bind (piece value) (fun (piece : _ Cook.piece) ->
+    Option.bind piece.bounds (fun bounds ->
+      Option.map (fun node -> Objects.world (scene value) piece.id, bounds, Node.label node)
+        (Edit_graph.find (scene value) ~node_id:piece.id)))
 let no_graph = Sop.points [||]
 let graph value = match Option.bind (focus_object value) (fun id ->
     List.assoc_opt id value.cook.Cook.graphs), piece value with
@@ -1742,7 +1762,7 @@ let create ?settings ?(keymap = Leader.keymap)
         graph_at = None; graph_pane = None; graph_panes = [];
         list_at = None; text_at = None; outline_at = None; locals = [];
         started = { on = None; views = []; tabs = [] };
-        carry = None; carry_budget; captions = []; view_tools = None } in
+        carry = None; carry_budget; captions = []; view_tools = None; gates = []; selected_box = None } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       (* the panels open as their start keywords say; the first graph pane (the focused leaf, else
          the first) opens on the graph it pins *)
@@ -1847,16 +1867,23 @@ let probe_caption value = match value.scope_key, Pxui_graph.Scope.selected value
 (* The status strip under the view: kit text on the ground, under a hairline. *)
 let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context ~commands =
   let x, y, width, height = (geometry value value.workspace frame).status_at in
+  (* what every strip says first: the workspace, a dot for its state, then the layout in use *)
+  let file = (fst value.doc.Document.workspace).checked.name in
+  let state = if error_status <> None || value.edit_error <> None || value.cook.error <> None then `Error
+    else match Cook.status value.cook with Async_cook.Cooking _ -> `Busy | Idle -> `Ok in
+  let layout = match Option.bind value.doc.Document.shell (fun s -> s.switch) with
+    | Some { layouts; active } when active < List.length layouts ->
+        Printf.sprintf "layout %d \xc2\xb7 %s" active (List.nth (Editor_core.Panels.labels layouts) active)
+    | _ -> "" in
+  let line = match error_status with Some error -> error | None ->
+    status_text value ^ match render_status with None -> "" | Some status -> " \xc2\xb7 " ^ status in
   if height <= 0 then false
   else if error_status = None && value.carry = None && value.guide && Leader.scope value.focus = Pxui_shell.Layout.Graph then
-    Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~context commands
+    Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
+      ?fps:value.status_fps ~context commands
   else begin
-    let text = truncate (max 1 ((width - 80) / 7))
-        (match error_status with Some error -> error | None ->
-          status_text value ^ match render_status with
-            | None -> "" | Some status -> " · " ^ status) in
-    Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height)
-      ~text ~fps:value.status_fps;
+    Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height) ~file ~state ~layout
+      ~text:line ~fps:value.status_fps ();
     false
   end
 
@@ -2180,21 +2207,43 @@ let defn_change value paths =
              params = List.map (fun (n, t) -> n, Option.get t) typed }))
 
 (* The Navigator: what it shows of the document (see {!Navigator}). *)
+(* The scene's objects as the Outline lists them: the list panel's rows, with what each is and
+   the binding that places it. *)
+let outline_objects value : Navigator.obj list =
+  let document = scene value in
+  let selected = if value.level = Document.Scene then Selection.selected_nodes value.selection else [] in
+  Array.to_list (scene_rows document) |> List.map (fun (row : Pxui_shell.Tree.row) ->
+    let node = Edit_graph.find document ~node_id:row.id in
+    let flag name = Option.bind node (fun node ->
+      if Objects.has_flag name node then Some (Objects.flag name node) else None) in
+    let lead = value.doc.Document.active_camera = Some row.id in
+    (* a light says its shape, the render camera that it is active *)
+    let choice = Option.bind node (fun node -> List.find_map (fun (f : Parameter.field_view) ->
+      match f.name, f.current with
+      | ("shape" | "type"), Parameter.Choice_value v -> Some (String.lowercase_ascii v) | _ -> None)
+      (Node.parameter_fields node)) in
+    { Navigator.depth = row.depth; letter = fst row.badge; name = row.label;
+      detail = (if lead then "active" else Option.value choice ~default:row.detail);
+      visible = flag "visible"; render = flag "render"; lead; chosen = List.mem row.id selected;
+      home = (match List.assoc_opt row.id value.doc.Document.homes.objects with
+        | Some (Document.Bound_at path) -> Some path | _ -> None) })
+
 let navigator_params value : Navigator.params =
   let ws = fst value.doc.Document.workspace in
   let active = graph_name value in
   let here = match value.scope_key, active with
     | Some k, Some name when k.graph = name -> Some k | _ -> None in
-  { workspace = ws.checked; title = ws.checked.name; active;
+  { workspace = ws.checked; active;
     scope = Option.map (fun (k : scope_key) -> k.scope) here;
     records = Option.bind here (fun (k : scope_key) -> k.records);
     probes = (fun p -> Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes));
     selected = Pxui_graph.Scope.selected value.scope_view;
-    shell = (if value.workspace.restored then None
-             else Option.map (fun (s : Document.shell) -> s.tree) value.doc.Document.shell);
     chips = (match value.scope_key with
       | Some { evaluated = Some ev; _ } -> Navigator.chips ev
-      | _ -> []) }
+      | _ -> []);
+    objects = outline_objects value;
+    layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active)
+      (Option.bind value.doc.Document.shell (fun s -> s.switch)) }
 
 (* The leaf the graph pane in use draws in, when it is open. *)
 let graph_leaf value (g : Pxui_shell.Layout.geometry) =
@@ -2954,6 +3003,67 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
            Pxui.Ui.Paint.fill paint ~x:(px -. 4.) ~y:py ~w:(Pxui.Ui.Paint.cap_width paint text +. 8.) ~h:16. theme.panel;
            Pxui.Ui.Paint.cap paint ~at:(px, py +. 2.) text)
      | _ -> ());
+    (* over each view, in the kit's marks: the render frame where it is not the whole pane, the
+       selected object's brackets and name, the render camera at the upper right and the scene's
+       size and the frame rate at the lower right; every label sits on a patch of the ground *)
+    let module P = Pxui.Ui.Paint in
+    let theme = Pxui.Ui.theme ui in
+    let patch paint ~at:(x, y) ?color text =
+      P.fill paint ~x:(x -. 4.) ~y:(y -. 2.) ~w:(P.cap_width paint text +. 8.) ~h:16. theme.panel;
+      P.cap paint ~at:(x, y) ?color text in
+    List.iter (fun ((leaf : Pxui_shell.Layout.leaf), _) -> match leaf.panel with
+      | View key when (let _, _, w, h = leaf.body in w > 320 && h > 160) ->
+          let bx, by, bw, bh = leaf.body in
+          let overlay = Pxui.Ui.box ui ~flags:Pxui.Ui.clip ~w:(Pxui.Ui.Px (float bw)) ~h:(Pxui.Ui.Px (float bh))
+              ~at:(float bx, float by) ("viewport-marks-" ^ key) in
+          let gate = List.assoc_opt key value.gates in
+          let box = match value.selected_box with Some (k, rect, name) when k = key -> Some (rect, name) | _ -> None in
+          let root : Objects.Root.parameters = Option.fold ~none:value.doc.Document.root
+              ~some:(fun (r : Document.view_root) -> r.params) (List.assoc_opt key value.doc.Document.view_roots) in
+          let camera = Option.bind value.doc.Document.active_camera (fun id -> Edit_graph.find (scene value) ~node_id:id) in
+          let prims = List.fold_left (fun n (piece : _ Cook.piece) ->
+            n + Rdk.Geometry.primitive_count piece.output.Procedural.Session.geometry) 0 (pieces value) in
+          let objects = List.length (pieces value) in
+          Pxui.Ui.draw ui overlay (fun paint (x, y, w, h) ->
+            Option.iter (fun (gx, gy, gw, gh) ->
+              let gx = float gx and gy = float gy and gw = float gw and gh = float gh in
+              P.stroke paint ~x:(gx +. 0.5) ~y:(gy +. 0.5) ~w:(gw -. 1.) ~h:(gh -. 1.) (Pxui.Theme.edge theme);
+              P.brackets paint ~x:gx ~y:gy ~w:gw ~h:gh ~offset:(-1.) ~length:16. ~width:1. theme.foreground;
+              patch paint ~at:(gx +. 4., if gy -. y >= 20. then gy -. 18. else gy +. 6.)
+                (Printf.sprintf "Render frame \xc2\xb7 %d \xc3\x97 %d" root.width root.height)) gate;
+            Option.iter (fun ((sx, sy, sw, sh), name) ->
+              let sx = float sx and sy = float sy and sw = float sw and sh = float sh in
+              if sw > 8. && sh > 8. then begin
+                P.brackets paint ~x:sx ~y:sy ~w:sw ~h:sh theme.accent;
+                patch paint ~at:(sx -. 4., sy -. 26.) ~color:theme.accent name
+              end) box;
+            (* the render camera: its name and its lens *)
+            Option.iter (fun node ->
+              let field name = List.find_map (fun (f : Parameter.field_view) ->
+                match f.name = name, f.current with
+                | true, Parameter.Float_value v -> Some v | _ -> None) (Node.parameter_fields node) in
+              let rows = [ "Camera", Node.label node ]
+                @ (match field "fov" with Some fov -> [ "Lens", Printf.sprintf "fov %g\xc2\xb0" fov ] | None -> [])
+                @ (match field "focus_distance" with Some d when d > 0. -> [ "Focus", Printf.sprintf "%.2f" d ] | _ -> []) in
+              let value_w = List.fold_left (fun m (_, v) -> Float.max m (P.text_width paint v)) 0. rows in
+              let label_w = List.fold_left (fun m (l, _) -> Float.max m (P.cap_width paint l)) 0. rows in
+              let rx = x +. w -. 12. -. value_w and row = float (Pxui.Ui.row_height ui) -. 4. in
+              P.fill paint ~x:(rx -. label_w -. 18.) ~y:(y +. 8.) ~w:(label_w +. value_w +. 30.)
+                ~h:(row *. float (List.length rows) +. 8.) theme.panel;
+              List.iteri (fun i (label, text) ->
+                let ry = y +. 12. +. (row *. float i) in
+                P.cap paint ~at:(rx -. 10. -. P.cap_width paint label, Pxui_shell.Kit.cap_y ui ry row) label;
+                P.text paint ~at:(rx, Pxui_shell.Kit.text_y ui ry row -. 2.) ~color:theme.foreground text) rows) camera;
+            (* the scene's size and the frame rate *)
+            let right = ref (x +. w -. 12.) in
+            List.iter (fun (text, color) ->
+              right := !right -. P.cap_width paint text;
+              patch paint ~at:(!right, y +. h -. 24.) ?color text;
+              right := !right -. 16.)
+              ((match value.status_fps with Some fps -> [ Printf.sprintf "%d fps" fps, Some theme.foreground ] | None -> [])
+               @ [ Printf.sprintf "%d object%s" objects (if objects = 1 then "" else "s"), None;
+                   Printf.sprintf "%d prims" prims, None ]))
+      | _ -> ()) roots;
     (* a traced viewport's readout, over its upper left corner: the samples as a title, their
        progress as a 4-point bar, the film as a label; all on the ground *)
     List.iter (fun ((leaf : Pxui_shell.Layout.leaf), _) -> match leaf.panel with
@@ -2993,6 +3103,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       else Pxui.Ui.within ui graph_root (fun () ->
         scope_view
         |> Pxui_graph.Scope.with_guide guide
+        |> Pxui_graph.Scope.with_theme (let theme = Pxui.Ui.theme ui in
+             match graph_host with Some { floating = true; _ } -> sheet_theme theme | _ -> theme)
         |> Pxui_graph.Scope.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
         |> Pxui_graph.Scope.with_visible true
         |> Pxui_graph.Scope.with_carry ~lit:carry_lit ~hot:carry_hot
@@ -3018,9 +3130,9 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           let mine = in_use pane in
           let rows, columns = if mine then rows, columns else rows_of pane in
           let selected = if mine then selected () else Selection.selected_nodes pane.selection in
-          let draw state = Pxui.Ui.within ui root (fun () ->
+          let draw state = on_sheet ui leaf.floating (fun () -> Pxui.Ui.within ui root (fun () ->
             Pxui_shell.Tree.update state ui shortcut_frame ~bounds:leaf.body
-              ~title:(level_name pane) ~columns rows ~selected) in
+              ~title:(level_name pane) ~columns rows ~selected)) in
           if Some key = value.list_at then
             let tree, emitted = draw tree in tree, (if mine then intents @ emitted else intents), locals
           else
@@ -3048,8 +3160,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       match root_at path with
       | None -> outline, intents, locals
       | Some ((leaf : Pxui_shell.Layout.leaf), root) ->
-          let draw state = Pxui.Ui.within ui root (fun () ->
-            Navigator.view state ui ~bounds:leaf.body (navigator_params value)) in
+          let draw state = on_sheet ui leaf.floating (fun () -> Pxui.Ui.within ui root (fun () ->
+            Navigator.view state ui ~bounds:leaf.body (navigator_params value))) in
           if Some key = value.outline_at then let outline, emitted = draw outline in outline, intents @ emitted, locals
           else
             let state, emitted = draw (local_of value key).nav in
@@ -3065,6 +3177,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
               Pxui.Ui.within ui hosted (fun () ->
                 pane.scope_view
                 |> Pxui_graph.Scope.with_guide false
+                |> Pxui_graph.Scope.with_theme (let theme = Pxui.Ui.theme ui in
+                     if leaf.floating then sheet_theme theme else theme)
                 |> Pxui_graph.Scope.with_bounds ~x ~y ~width:(max 1 width) ~height:(max 1 height)
                 |> Pxui_graph.Scope.with_visible true
                 |> fun view -> fst (Pxui_graph.Scope.update view ui shortcut_frame))
@@ -3090,7 +3204,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
               value = Flow.Syntax.make (Flow.Syntax.Num text) }))
         | Rename { graph; to_ } -> Some (Syntax_edit (Flow_sop.Flow_edit.Rename_graph { name = graph; to_ }))
         | Remove graph -> Some (Syntax_edit (Flow_sop.Flow_edit.Remove_graph { name = graph }))
-        | Open _ | Macro _ -> None) outline_intents in
+        | Open _ | Macro _ | Layout _ | Add -> None) outline_intents in
+    (* a layout row and the add button are commands: they run like a toolbar click *)
+    List.iter (function
+      | Navigator.Layout index -> bar_action := Some (Leader.Layout_switch index)
+      | Add -> bar_action := Some Leader.Add_node
+      | _ -> ()) outline_intents;
     (* Selection is view state; inspection intents retain the selected stable
        id. Topology and parameter application wait until Ui.frame finishes. *)
     let selection = List.fold_left (fun selection -> function
@@ -3128,7 +3247,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       let scope_selected = if scope_active || (lowered_level && value.scope_key <> None)
         then Pxui_graph.Scope.selected scope_view else [] in
       let open_network = network value in
-      Pxui.Ui.within ui inspector_root (fun () -> match selected_ids with
+      on_sheet ui (List.exists (fun (l : Pxui_shell.Layout.leaf) -> l.floating && l.panel = Inspector && l.body = bounds) g.leaves)
+      @@ fun () -> Pxui.Ui.within ui inspector_root (fun () -> match selected_ids with
       | _ when not inspector_visible ->
           None, [], [], value.live_cook
       | _ when scope_selected <> [] ->

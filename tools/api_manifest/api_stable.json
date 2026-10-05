@@ -409,22 +409,22 @@
       "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
-      "api_sha256": "c6f2ce7eea4f91992b0071ee737bcf1ac30142a5b68001fb8c363d4cb4bcc6c9",
+      "api_sha256": "e6744c5124b8688d5bde9cdab5d87056dfb92655f6063a768db2eca5bcfd4c01",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 7935,
-      "source_sha256": "c206325ae322e26127d6f7ad1116c2c0ee213c2b484eb19dce3606c3f00aa322"
+      "source_bytes": 8070,
+      "source_sha256": "f7367c9aa00a23bc4da7d18c1f4c5128ee292cab069bba02ecd9556ae91643eb"
     },
     {
-      "api_sha256": "c9da5132df252745f9f4831564de56b623a5693547be9595ab6fadf2c6c4d23c",
+      "api_sha256": "d3ac23709d63b0bf2f2f4fcc1d6ca40fe4cf01b4f2eb317bdcc1651783f7516c",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 14332,
-      "source_sha256": "6e296209465e8b53121752e69dc8704f84b59915a8e8b5408903b39255c5137a"
+      "source_bytes": 14809,
+      "source_sha256": "2787f29aaecd6ff848e8c65146fcef508da6eac083ba78a09eac47a1d3b4e1d0"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",
@@ -719,13 +719,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "e2af0f298ae3174f75790f33e9b2dc5f476a0ccec2787107f02802236bcff9e9",
+      "api_sha256": "1fae51680bbcdf325e740b7a3d69c8676a2238498285e90da0ddf10371385c0e",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37339,
-      "source_sha256": "d447fd6ed3fec270c7d183815239247c0bfafa92bf3e5b1482be05dd02a0cffe"
+      "source_bytes": 37558,
+      "source_sha256": "94ad73d1287c65e3204610b46260c68de2eb5d72d523f5a2188a970b2616f12c"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",
