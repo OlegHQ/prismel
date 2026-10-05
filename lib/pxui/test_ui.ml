@@ -418,7 +418,13 @@ let with_scale scale =
   step ui [press (20, row 0); release (20, row 0)] build;
   if !mode <> 0 then fail (label "choice label area activated its control");
   step ui [press (200, row 0); release (200, row 0)] build;
-  if !mode <> 1 then fail (label "choice right half did not advance");
+  if !mode <> 0 then fail (label "choice stepped instead of opening its menu");
+  (* the menu is under the control (a row is 24 high from 3, the control 20 of it, a point of gap):
+     its options start 7 below its top (the edge and 6 of padding) *)
+  let option n = 3 + 24 + 1 + 7 + (n * 24) + 12 in
+  step ui [press (200, option 1); release (200, option 1)] build;
+  if !mode <> 1 then fail (label "choice menu option did not pick");
+  settle ui build;
   step ui [press (130, row 1); move (160, row 1); release (160, row 1)] build;
   if !band = (0.25, 0.75) || snd !band <> 0.75 then
     fail (label "range did not drag its nearer handle");

@@ -145,14 +145,20 @@ module Chrome : sig
 end
 
 module Which_key : sig
-  val sheet : Pxui.Ui.t -> ('scope, 'action) Editor_core.Command.t list -> bool
-  (** Grouped Flow key table. False on dismissal or Close. *)
+  val sheet : Pxui.Ui.t -> ?context:string -> ('scope, 'action) Editor_core.Command.t list -> bool
+  (** The Flow key table, the sheet's [05]: a title row with [context] (what has the focus) and a
+      close button, the filter (at rest until typed in), and three columns, one section each.  False
+      on dismissal or the close button. *)
 
-  val panel : Pxui.Ui.t -> ('scope, 'action) Editor_core.Command.t list ->
+  val panel : Pxui.Ui.t -> ?category:(('scope, 'action) Editor_core.Command.t -> string) ->
+    ?describe:(string -> string option) -> ('scope, 'action) Editor_core.Command.t list ->
     prefix:string -> focus:'scope -> focus_name:string -> unit
-  (** Draw the page of global and focused commands whose leader sequence
-      continues [prefix] (plus key chords on the first page) in the standard
-      modal; a key leading to several commands shows as a [+group] row. *)
+  (** The leader sheet over the status strip: the commands, global and of the focused pane, whose
+      leader sequence continues [prefix].  With [category] (the host's section of a command) the page is
+      the sheet's [09]: a column to a section, a row of one letter to a key, a chevron when it
+      continues, no chords, [describe] naming the keys that continue (by their sequence, [Space o]
+      is ["o"]).  Without it the sections are the global commands and those of [focus_name], with the
+      key chords on the first page, and a continuing key is a [+group] row. *)
 end
 
 module Status_bar : sig
@@ -168,8 +174,10 @@ module Status_bar : sig
       selection), each applicable key in ink-3 before what it does in ink-2, then the layout in
       use and the frame rate at the right; true when the "toggle guide" pair is clicked. *)
 
-  val hud : Pxui.Ui.t -> bounds:Layout.bounds -> text:string -> unit
-  (** Noninteractive key feedback in the pane's bottom corner. *)
+  val tips : Pxui.Ui.t -> bounds:Layout.bounds -> (string * [ `Info | `Refusal ]) list -> unit
+  (** Echo, the sheet's [08]: noninteractive tips stacked 4 apart in the pane's bottom-left corner,
+      the last at the bottom; each 24 high on the sheet fill with a line-2 edge.  Information has a
+      dot in the hint colour, a refusal reads in the error ink. *)
 
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> ?file:string -> ?state:state ->
     ?layout:string -> ?kind:string -> ?selection:string -> text:string -> fps:int option -> unit -> unit
@@ -192,12 +200,15 @@ module Timeline_bar : sig
 end
 
 module Prompt : sig
-  val name : Pxui.Ui.t -> key:string -> title:string -> label:string ->
+  val name : Pxui.Ui.t -> key:string -> title:string -> description:string -> label:string ->
     query:string -> (string * Pxui.Ui.pick) option
   val search : Pxui.Ui.t -> key:string -> title:string -> label:string ->
     query:string -> rows:(string -> (string * string) array) ->
     (string * Pxui.Ui.pick) option
-  (** Standard name and searchable-picker modals; hosts interpret the result. *)
+  (** Standard name and searchable-picker modals; hosts interpret the result.  A name prompt is the
+      sheet's [06]: 320 wide, [description] under the title, the field, and [Cancel esc] and the
+      outlined [Save ↵] right-aligned; a searchable one keeps its rows between field and buttons.  A
+      click on a button answers as its key does ([`Cancel], [`Submit]). *)
 
   type macro = { name : string; holes : (bool * string) array }
   (** The macro dialog's state, kept by the host: the macro's name and, for each

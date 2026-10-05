@@ -81,19 +81,21 @@ module Keymap = struct
         let open Rays.Input in
         let key, modifiers = if key = KeyChar '/' && List.mem Shift modifiers then
           KeyChar '?', List.filter (( <> ) Shift) modifiers else key, modifiers in
+        (* the sheets' vocabulary: modifier glyphs before the key with no dash, a letter under a
+           modifier in capitals (⌘G, ⇧D), ↵ ⇥ ⌫ and esc *)
         let key = match key with
-          | KeyChar c -> String.make 1 (Char.lowercase_ascii c)
+          | KeyChar c -> String.make 1 (if modifiers = [] then Char.lowercase_ascii c else Char.uppercase_ascii c)
           | ArrowUp -> "↑" | ArrowDown -> "↓" | ArrowLeft -> "←" | ArrowRight -> "→"
-          | Space -> "Space" | Enter -> "Enter" | Escape -> "Esc" | Backspace -> "Backspace"
-          | Tab -> "Tab" | Home -> "Home" | End -> "End" | PageUp -> "PgUp"
-          | PageDown -> "PgDn" | Insert -> "Ins" | Delete -> "Del"
-          | Shift -> "Shift" | Ctrl -> "Ctrl" | Alt -> "Alt" | Meta -> "⌘"
+          | Space -> "Space" | Enter -> "↵" | Escape -> "esc" | Backspace -> "⌫"
+          | Tab -> "⇥" | Home -> "Home" | End -> "End" | PageUp -> "PgUp"
+          | PageDown -> "PgDn" | Insert -> "Ins" | Delete -> "⌦"
+          | Shift -> "⇧" | Ctrl -> "⌃" | Alt -> "⌥" | Meta -> "⌘"
           | F1 -> "F1" | F2 -> "F2" | F3 -> "F3" | F4 -> "F4" | F5 -> "F5" | F6 -> "F6"
           | F7 -> "F7" | F8 -> "F8" | F9 -> "F9" | F10 -> "F10" | F11 -> "F11" | F12 -> "F12"
           | Unknown code -> "Key " ^ string_of_int code in
         List.fold_left (fun label (modifier, name) ->
           if List.mem modifier modifiers then label ^ name else label) ""
-          [Meta, "Cmd-"; Ctrl, "Ctrl-"; Alt, "Alt-"; Shift, "Shift-"] ^ key
+          [Meta, "⌘"; Ctrl, "⌃"; Alt, "⌥"; Shift, "⇧"] ^ key
 end
 
 module Guide_context = struct

@@ -33,7 +33,7 @@ let menu_step menu (frame : Frame.t) =
   | Some menu, _ -> Pxui.Ui.frame menu_ui frame (fun ui -> Node_menu.update menu ui ~bounds)
 
 let menu_of entries = Node_menu.create ~x:400 ~y:250 entries
-let entry ?(arity = 0) ?(category = [ "Utility" ]) key label = { Node_menu.key; label; category; arity }
+let entry ?(arity = 0) ?(category = [ "Utility" ]) key label = { Node_menu.key; label; category; arity; context = "sop"; output = Flow.Ty.Geometry; off = None }
 let picks menu events = snd (menu_step menu (frame ~mouse:(400, 250) ~events ()))
 let opened entries = match menu_step (menu_of entries) (frame ~mouse:(400, 250) ()) with
   | Some menu, _ -> menu | None, _ -> fail "the menu closed without input"
@@ -55,8 +55,8 @@ let run_menu () =
   let menu = match menu_step (opened nested) (frame ~mouse:(420, row_y)
       ~events:[ Event.MouseMoved (420., float row_y) ] ()) with
     | Some menu, _ -> menu | None, _ -> fail "hovering closed the menu" in
-  let point = float (420 + 286), float row_y in
-  let _, picked = menu_step menu (frame ~mouse:(420 + 286, row_y)
+  let point = float (420 + 320), float row_y in
+  let _, picked = menu_step menu (frame ~mouse:(420 + 320, row_y)
     ~events:[ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ] ()) in
   check (picked = Some "box") "the menu did not open category submenus on hover down to a node";
   (* the visual row window never makes later nodes inaccessible *)

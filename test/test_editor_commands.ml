@@ -23,7 +23,7 @@ let run () =
     Pxui_shell.Layout.[View ""; View "v1.0"; Graph; List; Lisp; Inspector; Outline; Timeline];
   check (Keymap.label (Chord (Input.KeyChar '/', [Input.Shift])) = "?"
       && Keymap.label (Chord (Input.ArrowLeft, [])) = "←"
-      && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "Cmd-Shift-z")
+      && Keymap.label (Chord (Input.KeyChar 'z', [Input.Shift; Input.Meta])) = "⌘⇧Z")
     "shared key labels lost a modifier or alias";
   let module Scope = Pxui_graph.Scope in
   let ids context = Command.for_guide Scope.bindings ~focus:() ~context
@@ -226,7 +226,7 @@ let run () =
       "key HUD did not use the routed command label";
     step [key Input.Ctrl; char 'z'; Event.KeyReleased Input.Ctrl] 13;
     E2.crash_dump !current directory;
-    check (contains (dump ()) "key hud: Ctrl-z · undo\n")
+    check (contains (dump ()) "key hud: ⌃Z · undo\n")
       "key HUD displayed a different alias from the routed chord";
     step [] 200; E2.crash_dump !current directory;
     check (contains (dump ()) "key hud: -\n") "key HUD outlived 1.5 seconds");

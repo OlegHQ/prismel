@@ -39,8 +39,6 @@ let run () =
     check !model.enabled "Space did not toggle the focused control";
     step [key Input.Tab; key Input.ArrowLeft];
     check (!model.choice = 2) "keyboard choice did not wrap backwards";
-    step [key Input.Enter];
-    check (!model.choice = 0) "Enter did not advance a choice";
     step [key Input.Tab; key Input.End; key Input.ArrowRight];
     check (!model.amount = 1.) "slider keyboard adjustment did not clamp";
     step [key Input.Home; key Input.Shift; key Input.ArrowRight;
