@@ -1852,7 +1852,12 @@ let floats (x, y, w, h) = float x, float y, float w, float h
 (* Kit rev 3 geometry from a row rectangle: 12 points at each side, a label column of 112
    (half of a narrow row), then the 20-point control. *)
 let side = 12
-let label_y ui y h = y + max 4 ((h - ui.font_size - 3) / 2)
+(* Text of [size] points centred in a row: its top is half of what the row has over the text
+   size.  Measured against the kit's reference renders (specification/pxui-kit): 13-point text
+   in a 24-point row has its ascenders at 7 and its descenders at 18. *)
+let text_top ui ?size y h =
+  y +. Float.floor ((h -. float (Option.value size ~default:ui.font_size)) /. 2.)
+let label_y ui y h = y + ((h - ui.font_size) / 2)
 let value_column w = min 112 (max 0 ((w - (2 * side) - 8) / 2))
 let value_control (x, y, w, h) =
   let cx = x + side + value_column w + 8 in
@@ -1890,7 +1895,7 @@ let paint_switch paint (theme : Theme.t) ~x ~y value =
     ~stroke:(Theme.border theme) ();
   Paint.fill paint ~x:(x +. (if value then 17. else 3.)) ~y:(y +. 3.) ~w:8. ~h:8.
     (if value then theme.accent else Theme.ink_3 theme)
-let cap_y ui y h = y +. Float.floor ((h -. float (max 8 (ui.font_size - 2)) -. 3.) /. 2.)
+let cap_y ui y h = text_top ui ~size:(max 8 (ui.font_size - 2)) y h
 (* a section header: a label in ink-3 and a chevron, under 16 points of space *)
 let paint_section paint ui (x, y, w, h) label ~open_ ~hovered =
   if hovered then Paint.fill paint ~x ~y ~w ~h (Theme.faint_border ui.theme);
@@ -2566,7 +2571,7 @@ let value_field ui ~at ~w ~h ?size ?display ?fraction ?slide ?scrub ?(left = fal
        float w *. paint.scale, float h *. paint.scale);
     underline paint bounds (if invalid then Theme.invalid
       else if editing then ui.theme.accent else Theme.edge ui.theme);
-    let text_y = y + max 1 ((h - Option.value ~default:ui.font_size size - 3) / 2) in
+    let text_y = y + max 0 ((h - Option.value ~default:ui.font_size size) / 2) in
     if editing && focus then paint_text_edit paint ?size ~control:bounds ~y:text_y ~composition edit
     else begin
       (* the 2-point line under the value is its position in the soft range *)
@@ -3209,7 +3214,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
         Paint.fill paint ~x:(text_x +. x0) ~y ~w:(Float.max 1. (x1 -. x0)) ~h:row color in
     for line = first to last do
       let y = by -. offset +. float line *. row in
-      let text_y = y +. float (max 0 ((text_line_height ui - ui.font_size - 3) / 2)) in
+      let text_y = y +. float (max 0 ((text_line_height ui - ui.font_size) / 2)) in
       let _, _, logical = rows.(line) in
       let starts_line = line = 0 || (let _, _, before = rows.(line - 1) in before <> logical) in
       clip bx bw;

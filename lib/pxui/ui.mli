@@ -617,6 +617,10 @@ val expanded : t -> string -> bool option
 
 val row_height : t -> int
 
+val text_top : t -> ?size:int -> float -> float -> float
+(** [text_top ui ?size y h]: where the top of kit text of [size] points goes to sit centred in a
+    row at [y] of height [h].  Every row, bar and field places its text with this one rule. *)
+
 val text_width : t -> ?size:int -> string -> float
 (** The width of kit text in points, for layout during the build ({!Paint.text_width} while painting). *)
 

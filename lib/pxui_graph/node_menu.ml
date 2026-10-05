@@ -142,7 +142,7 @@ let update menu ui ~bounds:(bx, by, bw, bh) =
                 Ui.draw ui item_box (fun paint (x, y, w, h) ->
                   (* the open category and the row under the pointer: the control fill *)
                   if opened || signal.hovered then Ui.Paint.fill paint ~x ~y ~w ~h theme.control;
-                  let text_y = y +. Float.max 4. (Float.floor ((h -. float_of_int (Ui.font_size ui) -. 3.) /. 2.)) in
+                  let text_y = Ui.text_top ui y h in
                   let category = match item with Category _ -> true | Entry _ -> false in
                   let detail_x = x +. w -. 12. -. (if category then 8. else Ui.Paint.text_width paint detail) in
                   Ui.Paint.text paint ~at:(x +. 12., text_y) ~color:theme.foreground

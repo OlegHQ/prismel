@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>08 Lisp panel</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet" style="width:560px;height:760px;display:flex;flex-direction:column">
+  <div class="phead"><span class="grip"></span><span class="chip">Lisp</span><span class="dim">kit.rays</span><span class="off">/</span><span>garden</span><span class="grow"></span>
+    <div class="seg"><button>Selection</button><button class="on">Graph</button><button>Document</button></div>
+    <button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+
+  <div class="code" style="flex:1 1 0;min-height:0;position:relative;background:var(--input);padding:6px 0;overflow:hidden">
+    <div style="position:absolute;left:36px;top:0;bottom:0;width:1px;background:var(--line-1)"></div>
+    <div class="ln"><span class="g">1</span><span><span class="c-par">(</span><span class="c-kw">graph</span> garden <span class="c-key">:context</span> sop <span class="c-par">[(</span>floors : int <span class="c-num">5</span><span class="c-par">)]</span></span></div>
+    <div class="ln"><span class="g">2</span><span style="padding-left:2ch"><span class="c-par">(</span><span class="c-kw">let*</span> <span class="c-par">[</span>count <span class="c-num">120</span></span></div>
+    <div class="ln"><span class="g">3</span><span style="padding-left:9ch">grid1 <span class="c-par">(</span><span class="c-ns">sop/</span>grid <span class="c-key">:size</span> <span class="c-par">[</span><span class="c-num">2 2</span><span class="c-par">])</span></span></div>
+    <div class="ln"><span class="g">4</span><span style="padding-left:9ch">box1 <span class="c-par">(</span><span class="c-ns">sop/</span>box <span class="c-key">:size</span> <span class="c-par">[</span><span class="c-num">0.3 0.4 0.3</span><span class="c-par">])</span></span></div>
+    <div class="ln"><span class="g">5</span><span style="padding-left:9ch">rows <span class="c-par">(</span><span class="c-kw">for</span> <span class="c-par">[</span>f <span class="c-par">(</span>range floors<span class="c-par">)]</span></span></div>
+    <div class="ln" style="background:var(--line-1)"><span class="g" style="color:var(--fg)">6</span><span style="padding-left:16ch"><span class="c-par" style="outline:1px solid var(--accent)">(</span><span class="c-kw">-&gt;</span> grid1</span></div>
+    <div class="ln" style="background:var(--line-1)"><span class="g" style="color:var(--fg)">7</span><span style="padding-left:20ch"><span class="c-par">(</span><span class="c-ns">sop/</span>scatter <span class="c-key">:count</span> count <span class="c-key">:seed</span> <span class="c-num">1</span> <span class="c-key">:relax</span> <span class="sel"><span class="c-num">0.50</span></span><span class="caret" style="height:16px;vertical-align:-3px"></span><span class="c-par">)</span></span></div>
+    <div class="ln" style="background:rgba(194,37,92,.07)"><span class="g bad">■ 8</span><span style="padding-left:20ch"><span class="c-par">(</span><span class="c-ns">sop/</span>copy <span class="c-key">:template</span> box1 <span class="c-key">:pscale</span> <span style="border-bottom:1px solid var(--invalid)">[<span class="c-num">0.25 0</span>]</span><span class="c-par" style="outline:1px solid var(--accent)">)))</span></span></div>
+    <div class="ln"><span class="g"></span><span class="bad" style="font-size:11px;padding-left:23.6363636363636ch">E_PORT_TYPE  copy.pscale takes float, got a list of 2</span></div>
+    <div class="ln"><span class="g">9</span><span style="padding-left:9ch">label <span class="c-par">(</span>str <span class="c-str">"floors "</span> floors<span class="c-par">)</span></span></div>
+    <div class="ln"><span class="g">10</span><span style="padding-left:9ch"><span class="c-com">; the merge is the displayed node</span></span></div>
+    <div class="ln"><span class="g">11</span><span style="padding-left:9ch">out <span class="c-par">(</span><span class="c-ns">sop/</span>merge rows<span class="c-par">)]</span></span></div>
+    <div class="ln"><span class="g">12</span><span style="padding-left:4ch">out<span class="c-par">))</span></span></div>
+    <div class="ln"><span class="g off">13</span><span></span></div>
+    <div class="scroll" style="top:6px;height:180px"></div>
+  </div>
+
+  <div class="hsep"></div>
+  <div class="bar" style="height:32px">
+    <button class="btn primary">Check and apply<span class="key">⌘↵</span></button>
+    <button class="btn">Discard<span class="key">esc</span></button>
+    <span class="grow"></span>
+    <span class="dim">parinfer</span><div class="switch on"><i></i></div>
+  </div>
+  <div class="hsep"></div>
+  <div class="bar"><span class="dot bad"></span><span class="bad">1 error</span><span class="dim ell grow">line 8 · the graph keeps its last checked form</span><span class="cap">7:58 · modified</span></div>
+</div>
+</body></html>

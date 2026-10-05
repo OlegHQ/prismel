@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>03 Workspace · all panels docked</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet" style="width:1440px;height:900px;display:flex;flex-direction:column">
+
+  <div style="display:flex;flex:1 1 0;min-height:0">
+
+    <div class="pane" style="width:216px;flex:none">
+      <div class="phead"><span class="grip"></span><span class="chip line">Outline</span><span class="grow"></span><button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+      <div style="padding:2px 8px;height:24px;margin-top:4px"><div class="field"><span class="dim">/</span><span class="off">go to</span></div></div>
+      <div class="sec" style="margin-top:4px"><span class="idx">[01]</span><span class="cap">Scene</span><div class="rule"></div><span class="cap" style="width:12px;text-align:center">v</span><span class="cap" style="width:12px;text-align:center">r</span></div>
+      <div class="row"><span class="chip line">R</span><span class="grow ell">root</span><span style="width:12px"></span><span style="width:12px"></span></div>
+      <div class="row" style="padding-left:20px"><span class="chip line">C</span><span class="grow ell">camera</span><div class="flag on"></div><div class="flag round on a"></div></div>
+      <div class="row" style="padding-left:20px"><span class="chip line">L</span><span class="grow ell">key light</span><div class="flag on"></div><div class="flag round on"></div></div>
+      <div style="padding:0 4px"><div class="row brk" style="padding-left:15px;padding-right:3px;background:var(--control);height:24px;--bo:-3px"><span class="chip">G</span><span class="grow ell">garden</span><div class="flag on"></div><div class="flag round on"></div></div></div>
+      <div class="row" style="padding-left:20px"><span class="chip line">G</span><span class="grow ell">hedge</span><div class="flag"></div><div class="flag round on"></div></div>
+      <div class="row" style="padding-left:20px"><span class="chip line">W</span><span class="grow ell">world</span><span style="width:12px"></span><div class="flag round on"></div></div>
+      <div class="sec"><span class="idx">[02]</span><span class="cap">Geometry</span><div class="rule"></div></div>
+      <div class="row cur"><span class="sq" style="color:var(--p-geo)"></span><span class="grow ell">garden</span><span class="dim">2</span></div>
+      <div class="row"><span class="sq" style="color:var(--p-geo)"></span><span class="grow ell">hedge</span><span class="dim">1</span></div>
+      <div class="row"><span class="sq" style="color:var(--p-fn);transform:rotate(45deg);width:7px;height:7px"></span><span class="grow ell">window</span><span class="dim">2</span></div>
+      <div class="sec"><span class="idx">[03]</span><span class="cap">Materials</span><div class="rule"></div></div>
+      <div class="row"><span class="swatch" style="width:12px;height:12px;background:#b0680f"></span><span class="grow ell">brass</span><span class="dim">3</span></div>
+      <div class="row"><span class="swatch" style="width:12px;height:12px;background:#285f77"></span><span class="grow ell">glass</span><span class="dim">1</span></div>
+      <div class="sec"><span class="idx">[04]</span><span class="cap">World</span><div class="rule"></div></div>
+      <div class="row"><span class="sq" style="color:var(--p-rec)"></span><span class="grow ell">sky</span><span class="dim">1</span></div>
+      <div class="sec"><span class="idx">[05]</span><span class="cap">Inputs</span><div class="rule"></div></div>
+      <div class="row"><span class="lab" style="flex-basis:56px">floors</span><div class="field num ticks"><div class="fill" style="width:50%"></div><div class="mark" style="left:50%"></div><span class="v">5</span></div></div>
+      <div class="row"><span class="lab" style="flex-basis:56px">seed</span><div class="field num">1</div></div>
+    </div>
+    <div class="vsep"></div>
+
+    <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column">
+      <div class="pane" style="flex:1 1 0">
+        <div class="phead"><span class="grip"></span><span class="chip line">Viewport</span><span class="dim">scene</span><span class="off">/</span><span>camera</span>
+          <div style="width:1px;height:12px;background:var(--line-3);margin:0 4px"></div>
+          <div class="seg"><button>Solid</button><button>Wire</button><button class="on">Traced</button></div>
+          <button class="btn on">Look through<span class="key">C</span></button>
+          <span class="grow"></span><button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+        <div style="position:relative;flex:1 1 0;min-height:0;overflow:hidden">
+          <div class="xbox brk ink in" style="position:absolute;left:132px;top:32px;width:640px;height:360px;border-color:var(--line-2);--bo:-1px;--bl:16px"></div>
+          <span class="cap" style="position:absolute;left:132px;top:12px">Render frame · 1920 × 1080</span>
+          <span class="cap" style="position:absolute;left:404px;top:204px;background:var(--panel);padding:0 8px">Scene render</span>
+          <div style="position:absolute;left:8px;top:8px;display:flex;flex-direction:column;gap:4px;width:112px;background:var(--panel)">
+            <span class="chip" style="align-self:flex-start">Path traced</span>
+            <div class="t-title">128<span class="dim" style="font-size:13px"> / 512</span></div>
+            <div style="height:4px;border:1px solid var(--line-3);position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:25%;background:var(--fg)"></div></div>
+            <div class="cap">spp · 0.8 s</div>
+          </div>
+          <div class="brk" style="position:absolute;left:372px;top:128px;width:160px;height:176px"></div>
+          <div style="position:absolute;left:368px;top:100px"><span class="chip acc">garden</span></div>
+          <div style="position:absolute;left:16px;bottom:12px;width:72px;height:64px">
+            <div style="position:absolute;left:24px;top:4px;width:0;height:36px;border-left:1.5px solid var(--p-int)"></div>
+            <div class="wire" style="left:24px;top:40px;width:36px;transform:rotate(14deg);color:var(--p-bool)"></div>
+            <div class="wire" style="left:24px;top:40px;width:24px;transform:rotate(146deg);color:var(--p-float)"></div>
+          </div>
+          <div style="position:absolute;right:8px;bottom:6px;display:flex;gap:12px"><span class="cap">2 408 tris</span><span class="cap" style="color:var(--fg)">60 fps</span></div>
+        </div>
+      </div>
+      <div class="hsep"></div>
+
+      <div class="bar" style="padding-right:0">
+        <button class="btn"><span style="width:0;height:0;border-left:7px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent"></span>Play</button>
+        <button class="btn dis"><span class="sq"></span>Stop</button>
+        <span class="cap">F</span><div class="field num" style="width:48px">48</div><span class="dim">0.80 s</span>
+        <div style="position:relative;flex:1 1 0;height:24px;background:var(--input);border-left:1px solid var(--line-2);overflow:hidden">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:48%;background:var(--tint)"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:5px;background:repeating-linear-gradient(90deg,var(--line-2) 0 1px,transparent 1px 2%)"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:10px;background:repeating-linear-gradient(90deg,var(--line-3) 0 1px,transparent 1px 10%)"></div>
+          <div style="position:absolute;left:48%;top:0;bottom:0;width:2px;background:var(--accent)"></div>
+          <span class="chip acc" style="position:absolute;left:calc(48% + 2px);top:0;height:14px">48</span>
+        </div>
+      </div>
+      <div class="hsep"></div>
+
+      <div class="pane" style="height:336px;flex:none">
+        <div class="phead"><span class="grip"></span><span class="chip">Graph</span><span class="dim">garden</span><span class="off">/</span><span>sop</span>
+          <div style="width:1px;height:12px;background:var(--line-3);margin:0 4px"></div>
+          <button class="btn">Add<span class="key">A</span></button><button class="btn">Repeat<span class="key">R</span></button><button class="btn">Iterate<span class="key">⇧R</span></button><button class="btn">fn<span class="key">L</span></button><button class="btn">defn<span class="key">D</span></button>
+          <span class="grow"></span>
+          <div class="seg"><button class="on">Graph</button><button>List</button><button>Text</button></div>
+          <button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+        <div class="dots" style="position:relative;flex:1 1 0;min-height:0;overflow:hidden">
+          <div class="reg" style="left:80px;top:176px"></div><div class="reg" style="left:560px;top:176px"></div>
+          <div class="wire" style="left:220px;top:47px;width:96px;color:var(--p-geo)"></div>
+          <div class="wire" style="left:220px;top:119px;width:107.33px;transform:rotate(-26.565deg);color:var(--p-int)"></div>
+          <div class="wire" style="left:512px;top:47px;width:96px;color:var(--p-geo)"></div>
+          <div class="wire" style="left:220px;top:191px;width:316px;color:var(--p-geo)"></div>
+          <div class="wire" style="left:536px;top:191px;width:139.94px;transform:rotate(-59.036deg);color:var(--p-geo)"></div>
+          <div class="bend" style="left:536px;top:192px;color:var(--p-geo)"></div>
+          <div class="wire" style="left:804px;top:47px;width:48px;color:var(--p-geo)"></div>
+          <div class="node" style="left:24px;top:36px"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>grid1</span><span class="kind">sop/grid</span><span class="port out w" style="color:var(--p-geo)"></span></div></div>
+          <div class="node" style="left:24px;top:108px"><div class="nh"><span class="sq" style="color:var(--p-int)"></span><span>count</span><div class="field num ticks" style="margin-left:auto;width:76px;height:16px;line-height:14px"><div class="fill" style="width:30%"></div><div class="mark" style="left:30%"></div><span class="v">120</span></div><span class="port out w" style="color:var(--p-int)"></span></div></div>
+          <div class="node" style="left:24px;top:180px"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>box1</span><span class="kind">sop/box</span><span class="port out w" style="color:var(--p-geo)"></span></div></div>
+          <div class="node cur brk" style="left:316px;top:36px">
+            <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq" style="color:var(--p-geo)"></span><span>scatter1</span><span class="kind">sop/scatter</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+            <div class="nr"><span class="port w" style="color:var(--p-int)"></span><span class="l">count</span><span class="acc">←</span><span class="dim">count</span><span>120</span></div>
+            <div class="nr"><span class="port" style="color:var(--p-int)"></span><span class="l">seed</span><div class="field num">1</div></div>
+            <div class="nr"><span class="port" style="color:var(--p-float)"></span><span class="l">relax</span><div class="field num ticks"><div class="fill" style="width:50%"></div><div class="mark" style="left:50%"></div><span class="v">0.50</span></div></div>
+          </div>
+          <div class="node" style="left:608px;top:36px">
+            <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq" style="color:var(--p-geo)"></span><span>copy1</span><span class="kind">sop/copy</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+            <div class="nr"><span class="port w" style="color:var(--p-geo)"></span><span class="l">template</span><span class="acc">←</span><span class="dim">box1</span></div>
+            <div class="nr"><span class="port" style="color:var(--p-float)"></span><span class="l">pscale</span><div class="field num ticks"><div class="fill" style="width:25%"></div><div class="mark" style="left:25%"></div><span class="v">0.25</span></div></div>
+          </div>
+          <div class="pt" style="left:852px;top:41px;color:var(--fg)"></div><span style="position:absolute;left:872px;top:36px">out</span><span class="flag on a" style="position:absolute;left:852px;top:62px"></span>
+        </div>
+      </div>
+    </div>
+    <div class="vsep"></div>
+
+    <div style="width:320px;flex:none;display:flex;flex-direction:column">
+      <div class="pane" style="flex:1 1 0">
+        <div class="phead"><span class="grip"></span><span class="chip line">Inspector</span><span class="dim">scatter1</span><span class="grow"></span><button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+        <div style="padding:8px 8px 8px;display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--line-2)">
+          <div style="display:flex;gap:6px"><span class="chip line">sop/scatter</span></div>
+          <div class="t-display ell">scatter1</div>
+          <div class="dim">1 204 points · cooked 0.003 s</div>
+          <div style="display:flex;gap:4px;margin-top:4px"><button class="btn">View<span class="key">V</span></button><button class="btn">Bypass<span class="key">B</span></button><span class="grow"></span><button class="btn bare dim">Reset all</button></div>
+        </div>
+        <div class="sec" style="margin-top:4px"><span class="idx">[01]</span><span class="cap">Points</span><div class="rule"></div><span class="chev"></span></div>
+        <div class="row"><span class="dot"></span><span class="lab" style="flex-basis:80px">count</span><div class="field flat"><span class="acc">←</span><span class="dim ell grow">count</span><span>120</span></div></div>
+        <div class="row"><span class="dot"></span><span class="lab" style="flex-basis:80px">seed</span><div class="field num">1</div></div>
+        <div class="row"><span class="dot"></span><span class="lab" style="flex-basis:80px">relax</span><div class="field num ticks"><div class="fill" style="width:50%"></div><div class="mark" style="left:50%"></div><span class="v">0.50</span></div></div>
+        <div class="row"><span class="dot" style="background:none;border:1px solid var(--ink-3)"></span><span class="lab" style="flex-basis:80px">iterations</span><div class="field num ticks"><div class="fill" style="width:20%"></div><div class="mark" style="left:20%"></div><span class="v">4</span></div></div>
+        <div class="sec"><span class="idx">[02]</span><span class="cap">Attributes</span><div class="rule"></div><span class="chev"></span></div>
+        <div class="row"><span class="dot" style="background:none;border:1px solid var(--ink-3)"></span><span class="lab" style="flex-basis:80px">up</span><div class="vec"><div class="field num"><span class="ax">x</span>0</div><div class="field num"><span class="ax">y</span>1</div><div class="field num"><span class="ax">z</span>0</div></div></div>
+        <div class="row"><span class="dot" style="background:none;border:1px solid var(--ink-3)"></span><span class="lab grow" style="flex-basis:80px">normals</span><div class="switch on"><i></i></div></div>
+        <div class="row"><span class="dot" style="background:none;border:1px solid var(--ink-3)"></span><span class="lab" style="flex-basis:80px">source</span><div class="field"><span class="grow">Surface</span><span class="chev"></span></div></div>
+        <div class="sec"><span class="idx">[03]</span><span class="cap">Transform</span><div class="rule"></div><span class="chev r"></span></div>
+        <div class="sec" style="margin-top:0"><span class="idx">[04]</span><span class="cap">Viewport</span><div class="rule"></div><span class="chev r"></span></div>
+      </div>
+      <div class="hsep"></div>
+      <div class="pane" style="height:300px;flex:none">
+        <div class="phead"><span class="grip"></span><span class="chip line">Lisp</span><span class="grow"></span><div class="seg"><button class="on">Selection</button><button>Graph</button><button>Doc</button></div><button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+        <div class="code" style="flex:1 1 0;min-height:0;position:relative;background:var(--input);padding:6px 0;overflow:hidden">
+          <div style="position:absolute;left:36px;top:0;bottom:0;width:1px;background:var(--line-1)"></div>
+          <div class="ln"><span class="g">6</span><span><span class="c-par">(</span><span class="c-kw">-&gt;</span> grid1</span></div>
+          <div class="ln" style="background:var(--line-1)"><span class="g" style="color:var(--fg)">7</span><span style="padding-left:4ch"><span class="c-par">(</span><span class="c-ns">sop/</span>scatter</span></div>
+          <div class="ln"><span class="g">8</span><span style="padding-left:6ch"><span class="c-key">:count</span> count</span></div>
+          <div class="ln"><span class="g">9</span><span style="padding-left:6ch"><span class="c-key">:seed</span> <span class="c-num">1</span></span></div>
+          <div class="ln"><span class="g">10</span><span style="padding-left:6ch"><span class="c-key">:relax</span> <span class="c-num">0.50</span><span class="caret" style="height:16px;vertical-align:-3px"></span><span class="c-par">)</span></span></div>
+          <div class="ln"><span class="g">11</span><span style="padding-left:4ch"><span class="c-par">(</span><span class="c-ns">sop/</span>copy <span class="c-key">:template</span> box1</span></div>
+          <div class="ln"><span class="g">12</span><span style="padding-left:6ch"><span class="c-key">:pscale</span> <span class="c-num">0.25</span><span class="c-par">))</span></span></div>
+        </div>
+        <div class="hsep"></div>
+        <div class="bar" style="height:32px"><button class="btn primary">Check and apply<span class="key">⌘↵</span></button><button class="btn">Discard</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hsep"></div>
+  <div class="bar">
+    <span>kit.rays</span><span class="dot" style="color:var(--p-int)"></span><span class="dim">checked · cooked 0.003 s</span>
+    <div style="width:1px;height:12px;background:var(--line-3);margin:0 4px"></div>
+    <span class="chip">Graph</span><span class="cap">scatter1</span>
+    <span class="key">Tab</span><span class="dim">add after</span>
+    <span class="key">o</span><span class="dim">open</span>
+    <span class="key">v</span><span class="dim">view</span>
+    <span class="key">b</span><span class="dim">bypass</span>
+    <span class="key">i</span><span class="dim">enter</span>
+    <span class="key">Space</span><span class="dim">leader</span>
+    <span class="grow"></span>
+    <span class="cap">layout 0 · View | Graph / Lisp</span><span class="cap" style="color:var(--fg)">60 fps</span>
+  </div>
+</div>
+</body></html>

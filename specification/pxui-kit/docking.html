@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>12 Docking states</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet" style="width:1440px;height:440px;padding:32px 48px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:32px">
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <span class="cap" style="color:var(--fg)">Dock targets</span>
+    <div style="position:relative;height:240px;border:1px solid var(--line-2);display:flex;flex-direction:column">
+      <div class="phead"><span class="chip line">Viewport</span></div>
+      <div style="position:relative;flex:1 1 0">
+        <div style="position:absolute;right:0;top:0;bottom:0;width:50%;background:var(--tint);border:1px dashed var(--accent);display:flex;align-items:center;justify-content:center"><span class="cap acc">split right</span></div>
+        <div style="position:absolute;left:50%;top:6px;width:48px;height:4px;margin-left:-24px;background:var(--line-3)"></div>
+        <div style="position:absolute;left:50%;bottom:6px;width:48px;height:4px;margin-left:-24px;background:var(--line-3)"></div>
+        <div style="position:absolute;top:50%;left:6px;width:4px;height:48px;margin-top:-24px;background:var(--line-3)"></div>
+        <div style="position:absolute;top:50%;right:6px;width:4px;height:48px;margin-top:-24px;background:var(--accent)"></div>
+      </div>
+    </div>
+    <span class="dim">While a panel is dragged, the pane under the pointer shows four edge bars. The nearest turns accent and the half it would take is tinted.</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <span class="cap" style="color:var(--fg)">Splitter</span>
+    <div style="position:relative;height:240px;border:1px solid var(--line-2);display:flex">
+      <div style="flex:58 1 0;display:flex;flex-direction:column"><div class="phead"><span class="chip line">Graph</span></div></div>
+      <div style="width:1px;background:var(--accent)"></div>
+      <div style="flex:42 1 0;display:flex;flex-direction:column"><div class="phead"><span class="chip line">Inspector</span></div></div>
+      <span class="tip" style="left:calc(58% + 8px);top:108px">58 / 42</span>
+    </div>
+    <span class="dim">A gutter is one line-2 hairline with a 7 pt drag target. Dragging turns it accent and shows the ratio; one undo step on release.</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <span class="cap" style="color:var(--fg)">Collapsed</span>
+    <div style="position:relative;height:240px;border:1px solid var(--line-2);display:flex;flex-direction:column">
+      <div class="phead"><span class="chip line">Viewport</span><span class="grow"></span><button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+      <div style="flex:1 1 0"></div>
+      <div class="hsep"></div>
+      <div class="phead" style="margin-top:0"><span class="chip line">Lisp</span><span class="off">collapsed</span><span class="grow"></span><button class="btn icon bare" aria-label="Expand panel"><span class="chev"></span></button></div>
+      <div class="hsep"></div>
+      <div class="phead" style="margin-top:0"><span class="chip line">Timeline</span><span class="off">collapsed</span><span class="grow"></span><button class="btn icon bare" aria-label="Expand panel"><span class="chev"></span></button></div>
+    </div>
+    <span class="dim">A collapsed pane is its 24 pt header; the neighbour takes the space. The chevron points to where it opens.</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <span class="cap" style="color:var(--fg)">Tile</span>
+    <div style="height:240px;border:1px solid var(--line-2);display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:var(--line-2)">
+      <div style="background:var(--panel)"><div class="phead"><span class="chip">Viewport</span><span class="dim">v1</span></div></div>
+      <div style="background:var(--panel)"><div class="phead"><span class="chip line">Viewport</span><span class="dim">v2</span></div></div>
+      <div style="background:var(--panel)"><div class="phead"><span class="chip line">Viewport</span><span class="dim">v3</span></div></div>
+      <div style="background:var(--panel)"><div class="phead"><span class="chip line">Viewport</span><span class="dim">v4</span></div></div>
+    </div>
+    <span class="dim">Tiles share fixed hairline gutters. The accent square marks the focused pane, docked or floating.</span>
+  </div>
+</div>
+</body></html>

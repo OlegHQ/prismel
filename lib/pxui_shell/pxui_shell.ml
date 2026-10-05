@@ -278,8 +278,8 @@ end
 (* Kit rev 3 pieces the chrome shares: where text sits in a 24-point bar, and the text button. *)
 module Kit = struct
   module Ui = Pxui.Ui
-  let text_y ui y h = y +. Float.max 4. (Float.floor ((h -. float (Ui.font_size ui) -. 3.) /. 2.))
-  let cap_y ui y h = y +. Float.floor ((h -. float (max 8 (Ui.font_size ui - 2)) -. 3.) /. 2.)
+  let text_y ui y h = Ui.text_top ui y h
+  let cap_y ui y h = Ui.text_top ui ~size:(max 8 (Ui.font_size ui - 2)) y h
   let cap_size ui = max 8 (Ui.font_size ui - 2)
 
   (* the width of a text button: 6, the label, 6 and the key, 6 *)

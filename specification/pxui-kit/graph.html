@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>05 Graph panel</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet" style="width:1200px;height:760px;display:flex;flex-direction:column">
+
+  <div class="phead">
+    <span class="grip"></span><span class="chip">Graph</span><span class="dim">garden</span><span class="off">/</span><span>sop</span>
+    <div style="width:1px;height:12px;background:var(--line-3);margin:0 4px"></div>
+    <button class="btn">Add<span class="key">A</span></button>
+    <button class="btn">Repeat<span class="key">R</span></button>
+    <button class="btn">Iterate<span class="key">⇧R</span></button>
+    <button class="btn">fn<span class="key">L</span></button>
+    <button class="btn">macro<span class="key">M</span></button>
+    <button class="btn">defn<span class="key">D</span></button>
+    <span class="grow"></span>
+    <div class="seg"><button class="on">Graph</button><button>List</button><button>Text</button></div>
+    <button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button>
+  </div>
+
+  <div class="dots" style="position:relative;flex:1 1 0;min-height:0;overflow:hidden">
+    <div class="reg" style="left:80px;top:80px"></div><div class="reg" style="left:560px;top:272px"></div><div class="reg" style="left:1040px;top:80px"></div><div class="reg" style="left:1040px;top:272px"></div><div class="reg" style="left:80px;top:272px"></div>
+
+    <div class="zone" style="left:316px;top:20px;width:536px;height:160px;background:rgba(240,72,31,.055);border-color:rgba(240,72,31,.36)">
+      <div style="position:absolute;left:-1px;top:-1px;display:flex;align-items:center;gap:8px;height:24px"><span class="chip acc">for</span><span>f</span><span class="dim">in range floors</span></div>
+      <div class="seg" style="position:absolute;right:8px;top:2px;background:var(--input)"><button aria-label="Previous iteration"><span class="chev l"></span></button><span>2 / 5</span><button aria-label="Next iteration"><span class="chev r"></span></button></div>
+    </div>
+
+    <div class="wire" style="left:244px;top:83px;width:96px;color:var(--p-geo)"></div>
+    <div class="wire" style="left:244px;top:155px;width:107.33px;transform:rotate(-26.565deg);color:var(--p-int)"></div>
+    <div class="wire" style="left:536px;top:83px;width:96px;color:var(--p-geo)"></div>
+    <div class="wire" style="left:244px;top:227px;width:316px;color:var(--p-geo)"></div>
+    <div class="wire" style="left:560px;top:227px;width:139.94px;transform:rotate(-59.036deg);color:var(--p-geo)"></div>
+    <div class="bend" style="left:560px;top:228px;color:var(--p-geo)"></div>
+    <div class="wire" style="left:828px;top:83px;width:96px;color:var(--p-geo)"></div>
+
+    <div class="node" style="left:48px;top:72px">
+      <div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>grid1</span><span class="kind">sop/grid</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+    </div>
+    <div class="node" style="left:48px;top:144px">
+      <div class="nh"><span class="sq" style="color:var(--p-int)"></span><span>count</span><div class="field num ticks" style="margin-left:auto;width:76px;height:16px;line-height:14px"><div class="fill" style="width:30%"></div><div class="mark" style="left:30%"></div><span class="v">120</span></div><span class="port out w" style="color:var(--p-int)"></span></div>
+    </div>
+    <div class="node" style="left:48px;top:216px">
+      <div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>box1</span><span class="kind">sop/box</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+    </div>
+
+    <div class="node cur brk" style="left:340px;top:72px">
+      <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq" style="color:var(--p-geo)"></span><span>scatter1</span><span class="kind">sop/scatter</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+      <div class="nr"><span class="port w" style="color:var(--p-int)"></span><span class="l">count</span><span class="acc">←</span><span class="dim">count</span><span>120</span></div>
+      <div class="nr"><span class="port" style="color:var(--p-int)"></span><span class="l">seed</span><div class="field num">1</div></div>
+      <div class="nr"><span class="port" style="color:var(--p-float)"></span><span class="l">relax</span><div class="field num ticks"><div class="fill" style="width:50%"></div><div class="mark" style="left:50%"></div><span class="v">0.50</span></div></div>
+    </div>
+
+    <div class="node" style="left:632px;top:72px">
+      <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq" style="color:var(--p-geo)"></span><span>copy1</span><span class="kind">sop/copy</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+      <div class="nr"><span class="port w" style="color:var(--p-geo)"></span><span class="l">template</span><span class="acc">←</span><span class="dim">box1</span></div>
+      <div class="nr"><span class="port" style="color:var(--p-float)"></span><span class="l">pscale</span><div class="field num ticks"><div class="fill" style="width:25%"></div><div class="mark" style="left:25%"></div><span class="v">0.25</span></div></div>
+      <div class="nr"><span class="l">align</span><div class="field" style="width:76px"><span class="grow">Normal</span><span class="chev"></span></div></div>
+    </div>
+
+    <div class="node" style="left:924px;top:72px">
+      <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq"></span><span>out</span><span class="kind">sop/merge</span><span class="flag on a" aria-label="Displayed"></span></div>
+    </div>
+    <span class="tip" style="left:1040px;top:104px">displayed<span class="key">V</span></span>
+
+    <div style="position:absolute;left:24px;right:24px;top:300px;display:flex;align-items:center;gap:8px"><span class="idx">[A]</span><span class="cap" style="color:var(--fg)">Levels</span><div class="rule"></div><span class="key">o</span><span class="key">p</span><span class="cap">change level</span></div>
+
+    <span class="cap" style="position:absolute;left:48px;top:336px">Point</span>
+    <div class="pt" style="left:48px;top:372px;color:var(--p-geo)"></div><span style="position:absolute;left:70px;top:367px">grid1</span>
+    <div class="pt brk" style="left:48px;top:408px;color:var(--p-int);--bo:-5px;--bl:6px"></div><span style="position:absolute;left:70px;top:403px">count</span>
+    <div class="pt" style="left:48px;top:444px;background:none;border:1px solid var(--p-vec);color:var(--p-vec)"><div style="position:absolute;left:4px;top:4px;width:4px;height:4px;border-radius:50%;background:currentColor"></div></div><span style="position:absolute;left:70px;top:439px">window</span>
+    <span class="dim" style="position:absolute;left:48px;top:476px;font-size:11px;line-height:16px">plain<br>selected<br>compound</span>
+
+    <span class="cap" style="position:absolute;left:168px;top:336px">Chip</span>
+    <div class="node" style="left:168px;top:368px">
+      <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq" style="color:var(--p-geo)"></span><span>scatter1</span><span class="chip line" style="height:14px;padding:0 3px">+1</span><span class="kind">sop/scatter</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+    </div>
+
+    <span class="cap" style="position:absolute;left:396px;top:336px">Card</span>
+    <div class="node" style="left:396px;top:368px">
+      <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq" style="color:var(--p-geo)"></span><span>scatter1</span><span class="kind">sop/scatter</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+      <div class="nr"><span class="port w" style="color:var(--p-int)"></span><span class="l">count</span><span class="acc">←</span><span class="dim">count</span><span>120</span></div>
+      <div class="nr"><span class="port" style="color:var(--p-int)"></span><span class="l">seed</span><div class="field num">1</div></div>
+      <div class="nr"><span class="port" style="color:var(--p-float)"></span><span class="l">relax</span><div class="field num ticks"><div class="fill" style="width:50%"></div><div class="mark" style="left:50%"></div><span class="v">0.50</span></div></div>
+      <div class="nr" style="border-top:1px solid var(--line-1)"><span class="l" style="font-size:11px">+ 5 more</span></div>
+    </div>
+
+    <span class="cap" style="position:absolute;left:624px;top:336px">Full</span>
+    <div class="node" style="left:624px;top:368px">
+      <div class="nh"><span class="port w" style="color:var(--p-geo)"></span><span class="sq" style="color:var(--p-geo)"></span><span>scatter1</span><span class="kind">sop/scatter</span><span class="port out w" style="color:var(--p-geo)"></span></div>
+      <div class="nr" style="padding-left:8px"><span class="idx">[01]</span><span class="cap" style="color:var(--fg)">Points</span><div class="rule"></div></div>
+      <div class="nr"><span class="port w" style="color:var(--p-int)"></span><span class="l">count</span><span class="acc">←</span><span class="dim">count</span><span>120</span></div>
+      <div class="nr"><span class="port" style="color:var(--p-int)"></span><span class="l">seed</span><div class="field num">1</div></div>
+      <div class="nr"><span class="port" style="color:var(--p-float)"></span><span class="l">relax</span><div class="field num ticks"><div class="fill" style="width:50%"></div><div class="mark" style="left:50%"></div><span class="v">0.50</span></div></div>
+      <div class="nr" style="padding-left:8px"><span class="idx">[02]</span><span class="cap" style="color:var(--fg)">Attributes</span><div class="rule"></div></div>
+      <div class="nr"><span class="port" style="color:var(--p-vec)"></span><span class="l">up</span><div class="vec"><div class="field num">0</div><div class="field num">1</div><div class="field num">0</div></div></div>
+      <div class="nr"><span class="port" style="color:var(--p-bool)"></span><span class="l">normals</span><div class="switch on"><i></i></div></div>
+      <div class="nr"><span class="port" style="color:var(--ink-2)"></span><span class="l">group</span><div class="field"><span class="off">all</span></div></div>
+      <div class="nr" style="border-top:1px solid var(--line-1)"><span class="l" style="font-size:11px">1 204 pts · 0.003 s</span></div>
+    </div>
+
+    <span class="cap" style="position:absolute;left:888px;top:336px">States</span>
+    <div class="node" style="left:888px;top:368px"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>rest</span><span class="kind">line-3 edge</span></div></div>
+    <div class="node" style="left:888px;top:404px;background:var(--hover)"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>hover</span><span class="kind">ink edge</span></div></div>
+    <div class="node cur brk" style="left:888px;top:444px"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>selected</span><span class="kind">brackets</span></div></div>
+    <div class="node" style="left:888px;top:484px"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>displayed</span><span class="kind">view flag</span><span class="flag on a"></span></div></div>
+    <div class="node hatch" style="left:888px;top:520px"><div class="nh"><span class="sq off"></span><span class="off">bypassed</span><span class="kind">hatch</span></div></div>
+    <div class="node bad" style="left:888px;top:556px"><div class="nh"><span class="sq bad"></span><span>failed</span><span class="kind bad">E_PORT_TYPE</span></div></div>
+    <div class="node" style="left:888px;top:592px;border:1px dashed var(--accent)"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>drop target</span><span class="kind">accent dash</span></div></div>
+    <div class="node" style="left:888px;top:628px"><div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>hinted</span><span class="kind">letter hint</span><span class="hintl" style="left:-8px;top:-8px">AS</span></div></div>
+
+    <div style="position:absolute;left:48px;top:592px;width:520px;display:grid;grid-template-columns:auto 1fr auto 1fr;column-gap:10px;row-gap:2px;align-items:center">
+      <span class="port w" style="position:static;color:var(--p-geo)"></span><span class="dim">wired port, filled</span>
+      <div style="width:32px;height:0;border-top:1.5px solid var(--p-geo)"></div><span class="dim">wire, 1.5 pt, port colour</span>
+      <span class="port" style="position:static;color:var(--p-float)"></span><span class="dim">free port, ring</span>
+      <div style="width:32px;height:0;border-top:1.5px dashed var(--p-float)"></div><span class="dim">wireless drive</span>
+      <span class="port fn" style="position:static;color:var(--p-fn)"></span><span class="dim">function port, diamond</span>
+      <div style="width:32px;height:0;border-top:1.5px solid var(--fg)"></div><span class="dim">selected wire, ink</span>
+    </div>
+  </div>
+
+  <div class="hsep"></div>
+  <div class="bar">
+    <span class="cap">scatter1</span>
+    <span class="key">Tab</span><span class="dim">add after</span>
+    <span class="key">o</span><span class="dim">open</span>
+    <span class="key">v</span><span class="dim">view</span>
+    <span class="key">b</span><span class="dim">bypass</span>
+    <span class="key">i</span><span class="dim">enter</span>
+    <span class="key">f</span><span class="dim">hints</span>
+    <span class="key">Space</span><span class="dim">leader</span>
+    <span class="grow"></span>
+    <span class="dim">6 nodes · 1 selected</span><span class="cap">zoom 100%</span>
+  </div>
+</div>
+</body></html>

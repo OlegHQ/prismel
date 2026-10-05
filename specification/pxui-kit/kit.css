@@ -1,0 +1,245 @@
+/* Rays kit, revision 2. Every artboard links this one file: a widget is defined once.
+   Units are logical points (1px here = 1pt in PXUI). Everything is drawable with
+   Ui.Paint: rect, 1pt stroke, line, circle, text. No radius, no shadow, no gradient. */
+:root{
+  /* base tokens: Pxui.Theme.default, unchanged */
+  --panel:#f4f5f0; --fg:#222b2b; --control:#dce3de; --input:#ffffff; --track:#e3e8e4;
+  --accent:#f0481f; --invalid:#c2255c;
+  /* derived: text */
+  --ink-2:#656c6a;            /* secondary text: fg 68% over panel, 4.8:1 */
+  --ink-3:#8f9492;            /* disabled, placeholder, tick labels only */
+  /* derived: lines (fg alpha) */
+  --line-1:rgba(34,43,43,.08); /* faint: row separators, grid */
+  --line-2:rgba(34,43,43,.15); /* edge: panes, cards, windows */
+  --line-3:rgba(34,43,43,.30); /* border: controls */
+  /* derived: fills */
+  --hover:#fdebe6;            /* input + accent 11% */
+  --pressed:#e0c7bc;          /* control + accent 18% */
+  --tint:rgba(240,72,31,.16); /* accent wash: slider fill, selection in text */
+  /* ports: Pxui.Theme.ports, unchanged */
+  --p-geo:#f0481f; --p-float:#285f77; --p-int:#3b7d4e; --p-vec:#6b50ae; --p-bool:#b0435f;
+  --p-fn:#a3407a; --p-rec:#4f6a5f; --hint:#f5cf4f;
+  /* metrics */
+  --u:24px;    /* row, header, bar, graph grid pitch */
+  --ctl:20px;  /* control height: row minus 2 above and below */
+  --font:'Pragmasevka',ui-monospace,'SF Mono',Menlo,monospace;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;text-align:left}
+.sheet{position:relative;overflow:hidden;background:var(--panel);color:var(--fg);
+  font:13px/24px var(--font);font-variant-ligatures:none;-webkit-font-smoothing:antialiased}
+.sheet *{box-sizing:border-box}
+
+/* ---- type ---- */
+.t-display{font-size:40px;line-height:48px;letter-spacing:-.01em}
+.t-title{font-size:20px;line-height:24px}
+.cap{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.idx{font-size:11px;color:var(--ink-3);letter-spacing:.04em}
+.dim{color:var(--ink-2)} .off{color:var(--ink-3)} .acc{color:var(--accent)} .bad{color:var(--invalid)}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.grow{flex:1 1 0;min-width:0}
+
+/* ---- marks ---- */
+.chip{display:inline-flex;align-items:center;height:16px;padding:0 6px;background:var(--fg);color:var(--input);
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.chip.line{background:none;color:var(--fg);border:1px solid var(--line-3)}
+.chip.acc{background:var(--accent);color:var(--input)}
+.key{display:inline-flex;align-items:center;justify-content:center;height:16px;min-width:16px;padding:0 4px;
+  border:1px solid var(--line-3);background:var(--input);color:var(--ink-2);font-size:11px;white-space:nowrap}
+.rule{flex:1 1 0;min-width:8px;height:7px;border-left:1px solid var(--line-3);border-right:1px solid var(--line-3);
+  background:linear-gradient(var(--line-2),var(--line-2)) 0 50%/100% 1px no-repeat}
+.hair{height:1px;background:var(--line-2)}
+.brk{position:relative;--bc:var(--accent);--bw:2px;--bl:8px;--bo:-4px}
+.brk::after{content:"";position:absolute;inset:var(--bo);pointer-events:none;background:
+  linear-gradient(var(--bc),var(--bc)) 0 0/var(--bl) var(--bw) no-repeat,
+  linear-gradient(var(--bc),var(--bc)) 0 0/var(--bw) var(--bl) no-repeat,
+  linear-gradient(var(--bc),var(--bc)) 100% 0/var(--bl) var(--bw) no-repeat,
+  linear-gradient(var(--bc),var(--bc)) 100% 0/var(--bw) var(--bl) no-repeat,
+  linear-gradient(var(--bc),var(--bc)) 0 100%/var(--bl) var(--bw) no-repeat,
+  linear-gradient(var(--bc),var(--bc)) 0 100%/var(--bw) var(--bl) no-repeat,
+  linear-gradient(var(--bc),var(--bc)) 100% 100%/var(--bl) var(--bw) no-repeat,
+  linear-gradient(var(--bc),var(--bc)) 100% 100%/var(--bw) var(--bl) no-repeat}
+.brk.ink{--bc:var(--fg);--bw:1px}
+.brk.in{--bo:6px;--bl:12px}
+.xbox{border:1px solid var(--line-3);background:
+  linear-gradient(to top right,transparent calc(50% - .5px),var(--line-2) calc(50% - .5px),var(--line-2) calc(50% + .5px),transparent calc(50% + .5px)),
+  linear-gradient(to bottom right,transparent calc(50% - .5px),var(--line-2) calc(50% - .5px),var(--line-2) calc(50% + .5px),transparent calc(50% + .5px))}
+.hatch{background-image:repeating-linear-gradient(135deg,var(--line-3) 0 1px,transparent 1px 5px)}
+.dots{background-image:radial-gradient(circle,rgba(34,43,43,.26) 1px,transparent 1.3px);background-size:24px 24px;background-position:-12px -12px}
+.reg{position:absolute;width:9px;height:9px;background:
+  linear-gradient(var(--line-3),var(--line-3)) 50% 0/1px 100% no-repeat,
+  linear-gradient(var(--line-3),var(--line-3)) 0 50%/100% 1px no-repeat}
+.chev{display:inline-block;width:6px;height:6px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;
+  transform:translateY(-2px) rotate(45deg);flex:none}
+.chev.r{transform:translateX(-2px) rotate(-45deg)} .chev.l{transform:translateX(2px) rotate(135deg)}
+.chev.u{transform:translateY(2px) rotate(225deg)}
+.grip{width:6px;height:10px;flex:none;background-image:radial-gradient(circle,var(--ink-3) 1px,transparent 1.2px);background-size:4px 4px}
+.sq{display:inline-block;width:8px;height:8px;flex:none;background:currentColor}
+.dot{display:inline-block;width:6px;height:6px;flex:none;border-radius:50%;background:currentColor}
+
+/* ---- controls ---- */
+.btn{display:inline-flex;align-items:center;gap:6px;height:var(--ctl);padding:0 8px;border:1px solid var(--line-3);
+  white-space:nowrap;flex:none;line-height:18px}
+.btn.hover{background:var(--hover);border-color:var(--fg)}
+.btn.down{background:var(--pressed);border-color:var(--fg)}
+.btn.on,.btn.primary{background:var(--fg);color:var(--input);border-color:var(--fg)}
+.btn.on .key,.btn.primary .key{background:none;border-color:rgba(255,255,255,.4);color:var(--input)}
+.btn.focus{border-color:var(--accent)}
+.btn.dis{color:var(--ink-3);border-color:var(--line-1)}
+.btn.dis .key{color:var(--ink-3);border-color:var(--line-1);background:none}
+.btn.bare{border-color:transparent;padding:0 4px}
+.btn.icon{width:var(--ctl);padding:0;justify-content:center}
+.btn .key{height:14px;min-width:14px;margin-right:-3px}
+.seg{display:inline-flex;border:1px solid var(--line-3);height:var(--ctl);flex:none}
+.seg>*{display:flex;align-items:center;gap:6px;padding:0 8px;border-right:1px solid var(--line-3);line-height:18px;white-space:nowrap}
+.seg>*:last-child{border-right:0}
+.seg>.on{background:var(--fg);color:var(--input)}
+.field{position:relative;display:flex;align-items:center;gap:6px;height:var(--ctl);padding:0 6px;border:1px solid var(--line-3);
+  background:var(--input);min-width:0;line-height:18px;white-space:nowrap;overflow:hidden}
+.field.num{justify-content:flex-end}
+.field.focus{border-color:var(--accent)}
+.field.bad{border-color:var(--invalid)}
+.field.dis{background:none;color:var(--ink-3);border-color:var(--line-1)}
+.field.flat{background:var(--track);border-color:transparent}
+.field>.fill{position:absolute;left:0;top:0;bottom:0;background:var(--tint)}
+.field>.mark{position:absolute;top:0;bottom:0;width:2px;background:var(--fg)}
+.field>.v{position:relative}
+.field.ticks::after{content:"";position:absolute;left:-1px;right:0;bottom:0;height:3px;
+  background:repeating-linear-gradient(90deg,var(--line-3) 0 1px,transparent 1px 10%)}
+.caret{display:inline-block;width:1px;height:14px;background:var(--accent);margin:0 -1px 0 0;flex:none}
+.sel{background:var(--tint)}
+.vec{display:flex;min-width:0}
+.vec>.field{flex:1 1 0;margin-left:-1px;padding:0 4px}
+.vec>.field:first-child{margin-left:0}
+.ax{font-size:11px;color:var(--ink-3);margin-right:auto}
+.switch{position:relative;width:28px;height:14px;border:1px solid var(--line-3);background:var(--track);flex:none}
+.switch>i{position:absolute;top:2px;left:2px;width:8px;height:8px;background:var(--ink-3)}
+.switch.on{border-color:var(--fg);background:var(--input)}
+.switch.on>i{left:16px;background:var(--accent)}
+.switch.dis{border-color:var(--line-1);background:none}
+.switch.dis>i{background:var(--line-3)}
+.flag{position:relative;width:12px;height:12px;border:1px solid var(--line-3);flex:none;background:var(--input)}
+.flag.on{border-color:var(--fg)}
+.flag.on::after{content:"";position:absolute;inset:2px;background:var(--fg)}
+.flag.on.a::after{background:var(--accent)}
+.flag.round,.flag.round::after{border-radius:50%}
+.swatch{width:var(--ctl);height:var(--ctl);border:1px solid var(--line-3);flex:none}
+
+/* ---- rows and structure ---- */
+.row{display:flex;align-items:center;gap:8px;height:var(--u);padding:0 8px}
+.row>.lab{flex:0 0 112px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row>.field,.row>.vec{flex:1 1 0}
+.row.hover{background:var(--line-1)}
+.row.cur{background:var(--control)}
+.sec{display:flex;align-items:center;gap:8px;height:var(--u);padding:0 8px;margin-top:8px}
+.sec .cap{color:var(--fg)}
+.phead{display:flex;align-items:center;gap:8px;height:var(--u);padding:0 6px 0 8px;border-bottom:1px solid var(--line-2);flex:none;white-space:nowrap}
+.bar{display:flex;align-items:center;gap:8px;height:var(--u);padding:0 8px;flex:none;white-space:nowrap}
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;position:relative}
+.vsep{width:1px;background:var(--line-2);flex:none;align-self:stretch}
+.hsep{height:1px;background:var(--line-2);flex:none}
+.scroll{position:absolute;right:2px;width:4px;background:var(--line-3)}
+
+/* ---- floating ---- */
+.menu{background:var(--input);border:1px solid var(--line-3);padding:4px 0;position:absolute}
+.mi{display:flex;align-items:center;gap:8px;height:var(--u);padding:0 10px;white-space:nowrap}
+.mi.hover{background:var(--control)}
+.mi.dis{color:var(--ink-3)}
+.mi>.k{margin-left:auto;padding-left:24px;color:var(--ink-2);font-size:11px}
+.msep{height:1px;background:var(--line-2);margin:4px 0}
+.win{position:absolute;background:var(--panel);border:1px solid var(--fg);display:flex;flex-direction:column}
+.wt{display:flex;align-items:center;gap:8px;height:var(--u);padding:0 6px 0 8px;background:var(--fg);color:var(--input);flex:none;
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.wc{width:10px;height:10px;border:1px solid var(--input);flex:none}
+.tip{position:absolute;display:inline-flex;align-items:center;gap:6px;height:18px;padding:0 6px;background:var(--fg);color:var(--input);font-size:11px;white-space:nowrap}
+
+/* ---- graph ---- */
+.node{position:absolute;width:196px;background:var(--input);border:1px solid var(--line-3)}
+.node.cur{border-color:var(--fg)}
+.nh{display:flex;align-items:center;gap:6px;height:var(--u);padding:0 8px;position:relative;white-space:nowrap;margin:-1px;border:1px solid transparent}
+.node>.nh:not(:last-child){border-bottom-color:var(--line-2)}
+.nh>.kind{margin-left:auto;font-size:11px;color:var(--ink-2)}
+.nr{display:flex;align-items:center;gap:6px;height:var(--u);padding:0 6px 0 12px;position:relative;white-space:nowrap}
+.nr>.l{flex:1 1 0;min-width:0;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis}
+.nr>.field{width:76px;flex:none;height:16px;line-height:14px}
+.nr>.vec{width:112px;flex:none}
+.nr>.vec>.field{height:16px;line-height:14px}
+.port{position:absolute;left:-5px;top:8px;width:8px;height:8px;border:1px solid currentColor;background:var(--input);border-radius:50%}
+.port.out{left:auto;right:-5px}
+.port.w{background:currentColor}
+.port.fn{border-radius:0;transform:rotate(45deg)}
+.wire{position:absolute;height:0;border-top:1.5px solid;transform-origin:0 0;pointer-events:none}
+.wire.dash{border-top-style:dashed}
+.zone{position:absolute;border:1px solid}
+.hintl{position:absolute;display:flex;align-items:center;justify-content:center;height:14px;min-width:14px;padding:0 3px;background:var(--fg);color:var(--hint);font-size:11px}
+
+/* ---- code ---- */
+.code{font-size:13px;line-height:20px}
+.ln{display:flex;white-space:pre}
+.ln>.g{flex:0 0 36px;text-align:right;padding-right:10px;color:var(--ink-3);font-size:11px}
+.c-kw{color:var(--p-float)} .c-key{color:var(--p-bool)} .c-num{color:var(--p-int)} .c-str{color:var(--p-rec)}
+.c-ns{color:var(--p-vec)} .c-par{color:var(--ink-3)} .c-com{color:var(--ink-3)}
+.nh>.port{left:-4px} .nh>.port.out{left:auto;right:-4px}
+.node.bad{border-color:var(--invalid)}
+.pt{position:absolute;width:14px;height:14px;border-radius:50%;background:currentColor}
+.bend{position:absolute;width:5px;height:5px;background:currentColor;margin:-3px 0 0 -2px}
+
+/* ================= rev 3: lighter =================
+   No ink fills, no boxed keys or chips, fields are an underline, buttons are text.
+   Separation comes from space first, a hairline second, a rectangle last. */
+.chip,.chip.line,.chip.acc{background:none;border:0;padding:0;height:auto;color:var(--fg)}
+.chip.line{color:var(--ink-2)} .chip.acc{color:var(--accent)}
+.phead .chip:not(.line)::before{content:"";width:6px;height:6px;background:var(--accent);margin-right:6px}
+.key{border:0;background:none;padding:0;min-width:0;height:auto;color:var(--ink-3)}
+.rule{visibility:hidden}
+.sec .idx,.nr .idx{display:none}
+.grip{display:none}
+.xbox{border-color:var(--line-2)}
+
+.btn{border:1px solid transparent;padding:0 6px}
+.btn.hover{background:var(--hover);border-color:transparent}
+.btn.down{background:var(--pressed);border-color:transparent}
+.btn.on{background:var(--control);color:var(--fg);border-color:transparent}
+.btn.primary{background:none;color:var(--fg);border-color:var(--line-3)}
+.btn.focus{border-color:transparent;box-shadow:inset 0 -1px var(--accent)}
+.btn.dis{border-color:transparent}
+.btn .key,.btn.on .key,.btn.primary .key,.btn.dis .key{margin:0;height:auto;min-width:0;color:var(--ink-3);border:0}
+.seg{border:0;gap:12px}
+.seg>*{border:0;padding:0;color:var(--ink-3)}
+.seg>.on{background:none;color:var(--fg);box-shadow:inset 0 -1px var(--fg)}
+
+.field{border:0;border-bottom:1px solid var(--line-2);background:none;padding:0 2px}
+.field.focus{border-bottom-color:var(--accent)}
+.field.bad{border-bottom-color:var(--invalid)}
+.field.dis{border-bottom-color:var(--line-1)}
+.field.flat{background:none;border-bottom-color:transparent}
+.field>.fill{top:auto;bottom:0;height:2px;background:var(--ink-2)}
+.field>.mark{display:none}
+.field.ticks::after{display:none}
+.vec{gap:8px}
+.vec>.field{margin-left:0;padding:0 2px}
+.switch.on{border-color:var(--line-3)}
+.flag.on{border-color:var(--line-3)}
+.flag.on::after{background:var(--ink-2)}
+.swatch{border-color:var(--line-2)}
+
+.row,.sec,.bar{padding:0 12px}
+.sec{margin-top:16px}
+.sec .cap{color:var(--ink-3)}
+.phead{border-bottom:0;padding:0 8px 0 12px;margin-top:4px}
+
+.menu{border-color:var(--line-2);padding:6px 0}
+.mi{padding:0 12px}
+.win{border-color:var(--line-3);background:var(--input)}
+.wt{background:none;color:var(--ink-2);padding:0 8px 0 12px;margin-top:4px}
+.wc{border-color:var(--ink-3)}
+.tip{background:var(--input);color:var(--fg);border:1px solid var(--line-2);height:20px}
+.hintl{background:var(--hint);color:var(--fg)}
+
+.node{border-color:var(--line-2)}
+.node.cur{border-color:var(--line-3)}
+.node>.nh:not(:last-child){border-bottom-color:transparent}
+.nr{padding:0 8px 0 12px}
+.nr>.field{font-size:11px}
+.nr>.vec>.field{font-size:11px}
+.node{padding-bottom:4px}
+.node:has(>.nh:only-child){padding-bottom:0}

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>02 Widgets · every control and state</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet" style="width:1440px;height:1320px;padding:40px 48px;display:flex;flex-direction:column;gap:20px">
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:8px"><span class="cap">Rays kit rev 3</span><div class="rule"></div><span class="cap">Sheet 02 / 10</span></div>
+    <div style="display:flex;align-items:flex-end;gap:24px">
+      <div class="t-display">WIDGETS</div>
+      <span class="dim" style="padding-bottom:8px">Pxui.Ui · every control at 24 pt rows, 20 pt controls</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;flex:1 1 0;min-height:0">
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="idx">[01]</span><span class="cap" style="color:var(--fg)">Button</span><div class="rule"></div><span class="cap">Ui.button</span></div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn">Add<span class="key">A</span></button>
+        <button class="btn hover">Repeat<span class="key">R</span></button>
+        <button class="btn down">Iterate<span class="key">⇧R</span></button>
+        <button class="btn on">fn<span class="key">L</span></button>
+        <button class="btn dis">defn<span class="key">D</span></button>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+        <button class="btn primary">Check and apply<span class="key">⌘↵</span></button>
+        <button class="btn">Discard</button>
+        <button class="btn bare dim">Reset</button>
+        <button class="btn icon" aria-label="Collapse"><span class="chev l"></span></button>
+        <button class="btn icon" aria-label="Open menu"><span class="chev"></span></button>
+        <button class="btn icon" aria-label="Add">+</button>
+        <button class="btn icon" aria-label="Close">×</button>
+      </div>
+      <div class="dim">buttons are text; the key follows in ink-3 · primary is the only outlined one, one per panel</div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[02]</span><span class="cap" style="color:var(--fg)">Segmented</span><div class="rule"></div><span class="cap">tabs, modes</span></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="seg"><button class="on">Selection</button><button>Graph</button><button>Document</button></div>
+        <div class="seg"><button>Solid</button><button>Wire</button><button class="on">Traced</button></div>
+        <div class="seg"><button class="on">0</button><button>1</button><button>2</button><button class="dim">+</button></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[03]</span><span class="cap" style="color:var(--fg)">Switch and flag</span><div class="rule"></div><span class="cap">Ui.toggle</span></div>
+      <div style="border:1px solid var(--line-2)">
+        <div class="row"><span class="grow">Live update while dragging</span><div class="switch on"><i></i></div></div>
+        <div class="row"><span class="grow">Camera follows viewport</span><div class="switch"><i></i></div></div>
+        <div class="row"><span class="grow off">Axis gizmo</span><div class="switch dis"><i></i></div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:auto auto 1fr;column-gap:10px;row-gap:4px;align-items:center">
+        <div class="flag on"></div><div class="flag"></div><span class="dim">vis · square flag, a column in lists</span>
+        <div class="flag round on"></div><div class="flag round"></div><span class="dim">rnd · round flag, render membership</span>
+        <div class="flag on a"></div><div class="flag"></div><span class="dim">view · accent flag, the displayed node</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[04]</span><span class="cap" style="color:var(--fg)">Headers</span><div class="rule"></div></div>
+      <div style="border:1px solid var(--line-2);display:flex;flex-direction:column">
+        <div class="phead"><span class="grip"></span><span class="chip">Graph</span><span class="dim">garden</span><span class="off">/</span><span>scatter</span><span class="grow"></span><button class="btn icon bare" aria-label="Collapse"><span class="chev l"></span></button></div>
+        <div class="phead"><span class="grip"></span><span class="chip line">Inspector</span><span class="dim">scatter1</span><span class="grow"></span><button class="btn icon bare" aria-label="Collapse"><span class="chev l"></span></button></div>
+        <div class="phead" style="border-bottom:0"><span class="grip"></span><span class="chip line">Lisp</span><span class="off">collapsed</span><span class="grow"></span><button class="btn icon bare" aria-label="Expand"><span class="chev"></span></button></div>
+      </div>
+      <div class="dim">pane header: kind, breadcrumb, tools, collapse · the accent square marks focus</div>
+      <div style="border:1px solid var(--line-2);padding-bottom:8px">
+        <div class="sec" style="margin-top:0"><span class="idx">[01]</span><span class="cap">Shape</span><div class="rule"></div><span class="chev"></span></div>
+        <div class="row"><span class="lab">rings</span><div class="field num">12</div></div>
+        <div class="sec"><span class="idx">[02]</span><span class="cap">Transform</span><div class="rule"></div><span class="chev r"></span></div>
+      </div>
+      <div class="dim">section: a label in ink-3 and 16 pt of space above · the same in every panel</div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[05]</span><span class="cap" style="color:var(--fg)">List row</span><div class="rule"></div></div>
+      <div style="border:1px solid var(--line-2);padding:4px 0">
+        <div class="row"><span class="chip line">G</span><span class="grow">garden</span><span class="dim">geometry</span><div class="flag on"></div><div class="flag round on"></div></div>
+        <div class="row hover"><span class="chip line">G</span><span class="grow">hedge</span><span class="dim">geometry</span><div class="flag on"></div><div class="flag round"></div></div>
+        <div class="row cur"><span class="chip">C</span><span class="grow">camera</span><span class="dim">camera</span><div class="flag on"></div><div class="flag round on"></div></div>
+        <div style="padding:4px 6px"><div class="row brk" style="background:var(--control);padding:0 2px;height:24px"><span class="chip line">L</span><span class="grow">key light</span><span class="dim">light</span><div class="flag"></div><div class="flag round on"></div></div></div>
+      </div>
+      <div class="dim">rest · hover · current (keyboard cursor) · selected</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="idx">[06]</span><span class="cap" style="color:var(--fg)">Number</span><div class="rule"></div><span class="cap">slider · value_field</span></div>
+      <div style="border:1px solid var(--line-2);padding:4px 0">
+        <div class="row"><span class="lab">radius</span><div class="field num ticks"><div class="fill" style="width:40%"></div><div class="mark" style="left:40%"></div><span class="v">48.0</span></div></div>
+        <div class="row"><span class="lab">steps</span><div class="field num ticks"><div class="fill" style="width:12%"></div><div class="mark" style="left:12%"></div><span class="v">8</span></div></div>
+        <div class="row"><span class="lab">seed</span><div class="field num">1</div></div>
+        <div class="row"><span class="lab">band</span><div class="field ticks" style="justify-content:space-between"><div class="fill" style="left:20%;width:60%"></div><div class="mark" style="left:20%"></div><div class="mark" style="left:80%"></div><span class="v">0.20</span><span class="v">0.80</span></div></div>
+        <div class="row"><span class="lab">radius</span><div class="field num focus"><span class="sel">48.0</span><span class="caret"></span></div></div>
+        <div class="row"><span class="lab">height</span><div class="field flat"><span class="acc">←</span><span class="dim ell grow">wave.amp</span><span>0.42</span></div></div>
+        <div class="row"><span class="lab">twist</span><div class="field" style="border-color:var(--p-float)"><span class="dim">ƒ</span><span class="ell grow">(* t 0.5)</span><span class="dim">1.20</span></div></div>
+        <div class="row"><span class="lab off">density</span><div class="field num dis">0.5</div></div>
+      </div>
+      <div class="dim">float · int · unbounded · range · editing · driven · expression · disabled</div>
+      <div class="dim">a value on a hairline; the 2 pt line under it is the position in the soft range</div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[07]</span><span class="cap" style="color:var(--fg)">Vector, choice, text, colour</span><div class="rule"></div></div>
+      <div style="border:1px solid var(--line-2);padding:4px 0">
+        <div class="row"><span class="lab">translate</span><div class="vec"><div class="field num"><span class="ax">x</span>0</div><div class="field num"><span class="ax">y</span>1.25</div><div class="field num"><span class="ax">z</span>0</div></div></div>
+        <div class="row"><span class="lab">normals</span><div class="field"><span class="grow">Point</span><span class="chev"></span></div></div>
+        <div class="row"><span class="lab">name</span><div class="field">scatter1</div></div>
+        <div class="row"><span class="lab">caption</span><div class="field focus">Functional UI<span class="caret"></span></div></div>
+        <div class="row"><span class="lab">group</span><div class="field"><span class="off">all points</span></div></div>
+        <div class="row"><span class="lab">count</span><div class="field bad">12x</div></div>
+        <div class="row"><span class="lab"></span><span class="bad ell" style="font-size:11px">expected an integer</span></div>
+        <div class="row"><span class="lab">colour</span><div class="swatch" style="background:#285f77"></div><div class="field">#285f77</div></div>
+      </div>
+
+      <div style="display:flex;gap:16px">
+        <div style="flex:1 1 0;display:flex;flex-direction:column;gap:6px">
+          <span class="cap">Choice, open</span>
+          <div style="position:relative;height:124px">
+            <div class="field focus"><span class="grow">Point</span><span class="chev u"></span></div>
+            <div class="menu" style="left:0;right:0;top:21px">
+              <div class="mi"><span class="sq acc" style="width:6px;height:6px"></span>Point</div>
+              <div class="mi hover"><span style="width:6px"></span>Vertex</div>
+              <div class="mi"><span style="width:6px"></span>Primitive</div>
+              <div class="mi dis"><span style="width:6px"></span>None</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1 1 0;display:flex;flex-direction:column;gap:6px">
+          <span class="cap">XY pad</span>
+          <div style="position:relative;height:124px;border:1px solid var(--line-3);background:var(--input)">
+            <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-1)"></div>
+            <div style="position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--line-1)"></div>
+            <div style="position:absolute;left:62%;top:0;bottom:0;width:1px;background:var(--line-3)"></div>
+            <div style="position:absolute;top:34%;left:0;right:0;height:1px;background:var(--line-3)"></div>
+            <div style="position:absolute;left:calc(62% - 4px);top:calc(34% - 4px);width:9px;height:9px;border-radius:50%;background:var(--accent);border:1px solid var(--fg)"></div>
+            <span class="cap" style="position:absolute;right:4px;bottom:0">0.24 · 0.32</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[08]</span><span class="cap" style="color:var(--fg)">Readout and message</span><div class="rule"></div></div>
+      <div style="border:1px solid var(--line-2);padding:4px 0">
+        <div class="row"><span class="lab">points</span><span class="grow" style="text-align:right">1 204</span></div>
+        <div class="row"><span class="lab">cook</span><span class="grow" style="text-align:right">0.003 s</span></div>
+        <div class="row" style="height:auto;align-items:flex-start;padding-top:4px;padding-bottom:4px"><span class="dot acc" style="margin-top:9px"></span><span class="dim grow" style="line-height:20px">Select a node to edit its parameters.</span></div>
+        <div class="row" style="height:auto;align-items:flex-start;padding-top:4px;padding-bottom:4px"><span class="dot bad" style="margin-top:9px"></span><span class="bad grow" style="line-height:20px">E_PORT_TYPE: scatter.count takes int, got vec3</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="idx">[09]</span><span class="cap" style="color:var(--fg)">Menu</span><div class="rule"></div><span class="cap">context_menu · popup</span></div>
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div class="menu" style="position:relative;flex:1 1 0">
+          <div class="mi">View<span class="k">V</span></div>
+          <div class="mi hover">Bypass<span class="k">B</span></div>
+          <div class="mi">Fold into compound<span class="k">⌘G</span></div>
+          <div class="mi">Level<span class="k"><span class="chev r"></span></span></div>
+          <div class="msep"></div>
+          <div class="mi dis">Set active camera</div>
+          <div class="mi bad">Delete<span class="k">⌫</span></div>
+        </div>
+        <div style="flex:1 1 0;display:flex;flex-direction:column;gap:4px" class="dim">
+          <span>sheet fill, line-3 edge</span><span>row 24, pad 10</span><span>hover = control fill</span><span>keys right, 11 pt</span><span>no shadow</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[10]</span><span class="cap" style="color:var(--fg)">Picker</span><div class="rule"></div><span class="cap">Ui.picker</span></div>
+      <div class="win" style="position:relative">
+        <div class="wt"><span>Add node</span><span class="grow"></span><span style="text-transform:none;letter-spacing:0">14 of 212</span></div>
+        <div style="padding:4px"><div class="field focus"><span class="dim">/</span>sca<span class="caret"></span></div></div>
+        <div class="row cur"><span class="sq" style="color:var(--p-geo)"></span><span class="grow"><span class="acc">sca</span>tter</span><span class="dim">sop / points</span><span class="key">↵</span></div>
+        <div class="row"><span class="sq" style="color:var(--p-geo)"></span><span class="grow"><span class="acc">sca</span>le</span><span class="dim">sop / transform</span></div>
+        <div class="row"><span class="sq" style="color:var(--p-float)"></span><span class="grow"><span class="acc">s</span>mooth_<span class="acc">ca</span>p</span><span class="dim">value / math</span></div>
+        <div class="row" style="border-top:1px solid var(--line-2);margin-top:4px"><span class="key">↑↓</span><span class="dim">move</span><span class="key">↵</span><span class="dim">place</span><span class="key">⇥</span><span class="dim">wire to selection</span><span class="grow"></span><span class="key">esc</span></div>
+      </div>
+      <div class="dim">a floating window: sheet fill, one line-3 edge, a label for a title</div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[11]</span><span class="cap" style="color:var(--fg)">Tooltip, hint, ghost</span><div class="rule"></div></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span class="tip" style="position:relative">Bypass node<span class="key">B</span></span>
+        <span class="hintl" style="position:relative">AS</span>
+        <span class="chip line" style="background:var(--input);border-color:var(--accent);text-transform:none;letter-spacing:0;font-size:13px;height:20px">wave.amp 0.42</span>
+        <span class="dim">tooltip · letter hint · carried value</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[12]</span><span class="cap" style="color:var(--fg)">Status and progress</span><div class="rule"></div></div>
+      <div style="border:1px solid var(--line-2)">
+        <div class="bar"><span class="dot" style="color:var(--p-int)"></span><span>Checked</span><span class="dim">4 graphs · 0.003 s</span></div>
+        <div class="bar" style="border-top:1px solid var(--line-1)"><span class="dot acc"></span><span>Cooking</span><div class="hatch" style="width:96px;height:8px;border:1px solid var(--line-3);position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:38%;background:var(--fg)"></div></div><span class="dim">scatter1</span></div>
+        <div class="bar" style="border-top:1px solid var(--line-1)"><span class="dot bad"></span><span class="bad">1 error</span><span class="dim ell">line 4 · stale output kept</span></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[13]</span><span class="cap" style="color:var(--fg)">Scrollbar and splitter</span><div class="rule"></div></div>
+      <div style="display:flex;height:96px;border:1px solid var(--line-2)">
+        <div style="flex:1 1 0;position:relative;padding:4px 8px" class="dim">4 pt thumb, line-3<br>no track, no arrows<br>10 pt gutter reserved<div class="scroll" style="top:8px;height:40px"></div></div>
+        <div class="vsep"></div>
+        <div style="flex:1 1 0;padding:4px 8px" class="dim">1 pt line-2 gutter<br>7 pt drag target</div>
+        <div style="width:1px;background:var(--accent)"></div>
+        <div style="flex:1 1 0;padding:4px 8px" class="dim">dragging: accent,<br>ratio as a chip<br><span class="chip acc" style="margin-top:4px">58 / 42</span></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="idx">[14]</span><span class="cap" style="color:var(--fg)">Empty</span><div class="rule"></div></div>
+      <div class="xbox" style="height:72px;display:flex;align-items:center;justify-content:center"><span class="cap" style="background:var(--panel);padding:0 8px">Nothing displayed · press <span class="key" style="text-transform:none">V</span> on a node</span></div>
+    </div>
+
+  </div>
+</div>
+</body></html>

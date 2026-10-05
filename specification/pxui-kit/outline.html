@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>07 Outline panel</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet" style="width:380px;height:760px;display:flex;flex-direction:column">
+  <div class="phead"><span class="grip"></span><span class="chip">Outline</span><span class="dim">kit.rays</span><span class="grow"></span><button class="btn icon bare" aria-label="Collapse panel"><span class="chev l"></span></button></div>
+
+  <div style="padding:2px 8px;display:flex;gap:4px;align-items:center;height:24px;margin-top:4px">
+    <div class="field grow"><span class="dim">/</span><span class="off">go to node, graph, function</span></div>
+    <button class="btn icon" aria-label="Add object">+</button>
+  </div>
+
+  <div style="flex:1 1 0;min-height:0;position:relative;overflow:hidden">
+    <div class="sec" style="margin-top:4px"><span class="idx">[01]</span><span class="cap">Scene</span><div class="rule"></div><span class="cap" style="width:12px;text-align:center">v</span><span class="cap" style="width:12px;text-align:center">r</span></div>
+    <div class="row"><span class="chev"></span><span class="chip line">R</span><span class="grow">root</span><span class="dim">512 spp</span><span style="width:12px"></span><span style="width:12px"></span></div>
+    <div class="row" style="padding-left:24px"><span style="width:6px"></span><span class="chip line">C</span><span class="grow">camera</span><span class="dim">35 mm</span><div class="flag on"></div><div class="flag round on a"></div></div>
+    <div class="row" style="padding-left:24px"><span style="width:6px"></span><span class="chip line">L</span><span class="grow">key light</span><span class="dim">area</span><div class="flag on"></div><div class="flag round on"></div></div>
+    <div style="padding:0 4px"><div class="row brk" style="padding-left:20px;padding-right:3px;background:var(--control);height:24px;--bo:-3px"><span class="chev" style="margin-left:-12px"></span><span class="chip">G</span><span class="grow">garden</span><span class="dim">ref garden</span><div class="flag on"></div><div class="flag round on"></div></div></div>
+    <div class="row" style="padding-left:24px"><span style="width:6px"></span><span class="chip line">G</span><span class="grow">hedge</span><span class="dim">ref hedge</span><div class="flag"></div><div class="flag round on"></div></div>
+    <div class="row" style="padding-left:24px"><span style="width:6px"></span><span class="chip line">W</span><span class="grow">world</span><span class="dim">ref sky</span><span style="width:12px"></span><div class="flag round on"></div></div>
+
+    <div class="sec"><span class="idx">[02]</span><span class="cap">Geometry</span><div class="rule"></div><span class="cap">used</span></div>
+    <div class="row cur"><span class="sq" style="color:var(--p-geo)"></span><span class="grow">garden</span><span class="dim">6 nodes · 1 loop</span><span style="width:20px;text-align:right">2</span></div>
+    <div class="row"><span class="sq" style="color:var(--p-geo)"></span><span class="grow">hedge</span><span class="dim">3 nodes</span><span style="width:20px;text-align:right">1</span></div>
+    <div class="row"><span class="sq" style="color:var(--p-fn);transform:rotate(45deg);width:7px;height:7px"></span><span class="grow">window</span><span class="dim">defn · w h</span><span style="width:20px;text-align:right">2</span></div>
+
+    <div class="sec"><span class="idx">[03]</span><span class="cap">Materials</span><div class="rule"></div><span class="cap">used</span></div>
+    <div class="row"><span class="swatch" style="width:12px;height:12px;background:#b0680f"></span><span class="grow">brass</span><span class="dim">rough 0.3</span><span style="width:20px;text-align:right">3</span></div>
+    <div class="row"><span class="swatch" style="width:12px;height:12px;background:#285f77"></span><span class="grow">glass</span><span class="dim">rough 0.0</span><span style="width:20px;text-align:right">1</span></div>
+    <div class="row off"><span class="swatch" style="width:12px;height:12px;background:#dce3de"></span><span class="grow">plaster</span><span>unused</span><span style="width:20px;text-align:right">0</span></div>
+
+    <div class="sec"><span class="idx">[04]</span><span class="cap">World</span><div class="rule"></div></div>
+    <div class="row"><span class="sq" style="color:var(--p-rec)"></span><span class="grow">sky</span><span class="dim">panel dome</span><span style="width:20px;text-align:right">1</span></div>
+
+    <div class="sec"><span class="idx">[05]</span><span class="cap">Layout</span><div class="rule"></div><span class="key">Space [</span></div>
+    <div class="row"><span class="key">0</span><span class="grow">View | Graph / Lisp</span><span class="sq acc" style="width:6px;height:6px"></span></div>
+    <div class="row"><span class="key">1</span><span class="grow">Graph</span></div>
+    <div class="row"><span class="key">2</span><span class="grow">View ×4</span></div>
+
+    <div class="sec"><span class="idx">[06]</span><span class="cap">Inputs</span><div class="rule"></div><span class="cap">garden</span></div>
+    <div class="row"><span class="lab">floors</span><div class="field num ticks"><div class="fill" style="width:50%"></div><div class="mark" style="left:50%"></div><span class="v">5</span></div></div>
+    <div class="row"><span class="lab">seed</span><div class="field num">1</div></div>
+
+    <div class="sec"><span class="idx">[07]</span><span class="cap">Data flow</span><div class="rule"></div></div>
+    <div class="row"><span class="lab">reads</span><span class="grow">window</span></div>
+    <div class="row"><span class="lab">read by</span><span class="grow">scene · editor</span></div>
+    <div class="scroll" style="top:6px;height:300px"></div>
+  </div>
+
+  <div class="hsep"></div>
+  <div class="bar"><span class="key">/</span><span class="dim">filter</span><span class="key">i</span><span class="dim">enter</span><span class="key">Space j</span><span class="dim">jump</span><span class="grow"></span><span class="cap">3 graphs</span></div>
+</div>
+</body></html>

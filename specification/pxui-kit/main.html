@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>01 Foundations · tokens</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet" style="width:1440px;height:1180px;padding:40px 48px;display:flex;flex-direction:column;gap:24px">
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="cap">Rays kit rev 3</span><div class="rule"></div><span class="cap">Sheet 01 / 10</span>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:24px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span class="cap">Pxui.Theme / rev 3</span>
+        <div class="t-display">FOUNDATIONS</div>
+      </div>
+      <div style="display:grid;grid-template-columns:auto auto;column-gap:16px;padding-bottom:6px">
+        <span class="cap">Face</span><span>Pragmasevka Regular, one weight</span>
+        <span class="cap">Grid</span><span>24 pt, shared by rows, bars and the graph</span>
+        <span class="cap">Line</span><span>hairlines, used sparingly: space separates first</span>
+        <span class="cap">Corner</span><span>square, radius 0</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;flex:1 1 0;min-height:0">
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="idx">[01]</span><span class="cap" style="color:var(--fg)">Base colour</span><div class="rule"></div><span class="cap">unchanged</span></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+        <div><div style="height:56px;background:var(--panel);border:1px solid var(--line-2)"></div><div>panel</div><div class="cap">#f4f5f0 · ground</div></div>
+        <div><div style="height:56px;background:var(--fg)"></div><div>foreground</div><div class="cap">#222b2b · ink</div></div>
+        <div><div style="height:56px;background:var(--accent)"></div><div>accent</div><div class="cap">#f0481f · signal</div></div>
+        <div><div style="height:56px;background:var(--input);border:1px solid var(--line-2)"></div><div>input</div><div class="cap">#ffffff · sheet</div></div>
+        <div><div style="height:56px;background:var(--control)"></div><div>control</div><div class="cap">#dce3de · current</div></div>
+        <div><div style="height:56px;background:var(--track)"></div><div>track</div><div class="cap">#e3e8e4 · well</div></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="idx">[02]</span><span class="cap" style="color:var(--fg)">Derived</span><div class="rule"></div></div>
+      <div style="display:grid;grid-template-columns:24px 88px 1fr;column-gap:10px;align-items:center">
+        <div style="height:16px;background:var(--fg)"></div><span>ink-1</span><span class="dim">#222b2b · text, marks, chips</span>
+        <div style="height:16px;background:var(--ink-2)"></div><span>ink-2</span><span class="dim">#656c6a · labels, secondary 4.8:1</span>
+        <div style="height:16px;background:var(--ink-3)"></div><span>ink-3</span><span class="dim">#8f9492 · disabled, placeholder</span>
+        <div style="height:16px;border:1px solid var(--line-1)"></div><span>line-1</span><span class="dim">fg 8% · row rules, disabled edge</span>
+        <div style="height:16px;border:1px solid var(--line-2)"></div><span>line-2</span><span class="dim">fg 15% · panes, cards, windows</span>
+        <div style="height:16px;border:1px solid var(--line-3)"></div><span>line-3</span><span class="dim">fg 30% · controls</span>
+        <div style="height:16px;background:var(--hover);border:1px solid var(--line-2)"></div><span>hover</span><span class="dim">#fdebe6 · input + accent 11%</span>
+        <div style="height:16px;background:var(--pressed)"></div><span>pressed</span><span class="dim">#e0c7bc · control + accent 18%</span>
+        <div style="height:16px;background:var(--tint);border:1px solid var(--line-1)"></div><span>tint</span><span class="dim">accent 16% · value fill, selection</span>
+        <div style="height:16px;background:var(--invalid)"></div><span>invalid</span><span class="dim">#c2255c · errors only</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="idx">[03]</span><span class="cap" style="color:var(--fg)">Ports</span><div class="rule"></div><span class="cap">unchanged</span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));row-gap:6px;column-gap:8px">
+        <div style="display:flex;align-items:center;gap:6px;color:var(--p-geo)"><span class="dot" style="width:8px;height:8px"></span><span style="color:var(--fg)">geometry</span></div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--p-float)"><span class="dot" style="width:8px;height:8px"></span><span style="color:var(--fg)">float</span></div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--p-int)"><span class="dot" style="width:8px;height:8px"></span><span style="color:var(--fg)">int</span></div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--p-vec)"><span class="dot" style="width:8px;height:8px"></span><span style="color:var(--fg)">vec3</span></div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--p-bool)"><span class="dot" style="width:8px;height:8px"></span><span style="color:var(--fg)">bool</span></div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--ink-2)"><span class="dot" style="width:8px;height:8px"></span><span style="color:var(--fg)">text</span></div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--p-fn)"><span class="sq" style="transform:rotate(45deg);width:7px;height:7px"></span><span style="color:var(--fg)">fn</span></div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--p-rec)"><span style="width:12px;height:6px;background:currentColor"></span><span style="color:var(--fg)">record</span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="idx">[04]</span><span class="cap" style="color:var(--fg)">Type</span><div class="rule"></div><span class="cap">4 sizes</span></div>
+      <div style="display:grid;grid-template-columns:72px 1fr;column-gap:12px;row-gap:10px;align-items:baseline">
+        <span class="cap">40 / 48<br>display</span><div class="t-display">uv_sphere</div>
+        <span class="cap">20 / 24<br>title</span><div class="t-title">Path traced · 128 of 512 spp</div>
+        <span class="cap">13 / 24<br>body</span><div>segments 24 · rings 12 · radius [1 1 1]</div>
+        <span class="cap">11 / 16<br>label</span><div class="cap" style="color:var(--fg)">Viewport · camera follows · no t</div>
+      </div>
+      <div style="display:grid;grid-template-columns:72px 1fr;column-gap:12px;row-gap:2px">
+        <span class="cap">Display</span><span class="dim">the selected thing's name, once per panel</span>
+        <span class="cap">Title</span><span class="dim">window titles, viewport readouts</span>
+        <span class="cap">Body</span><span class="dim">values, names, code, menu rows</span>
+        <span class="cap">Label</span><span class="dim">upper case, +0.08em: sections, headers, units, keys</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="idx">[05]</span><span class="cap" style="color:var(--fg)">Metrics</span><div class="rule"></div><span class="cap">logical points</span></div>
+      <div style="display:flex;gap:16px">
+        <div style="flex:1 1 0;display:flex;flex-direction:column">
+          <div style="position:relative;border:1px solid var(--line-3);border-bottom:0" class="row"><span class="lab">segments</span><div class="field num ticks"><div class="fill" style="width:48%"></div><div class="mark" style="left:48%"></div><span class="v">24</span></div></div>
+          <div style="position:relative;border:1px solid var(--line-3)" class="row"><span class="lab">caption</span><div class="field">Functional UI</div></div>
+          <div style="display:flex;align-items:center;height:16px;margin-top:4px"><div style="width:8px;height:7px;border-left:1px solid var(--accent);border-right:1px solid var(--accent)"></div><div style="width:112px;height:7px;border-right:1px solid var(--accent);background:linear-gradient(var(--accent),var(--accent)) 0 50%/100% 1px no-repeat"></div><div style="width:8px;height:7px;border-right:1px solid var(--accent)"></div><div style="flex:1;height:7px;border-right:1px solid var(--accent);background:linear-gradient(var(--accent),var(--accent)) 0 50%/100% 1px no-repeat"></div><div style="width:8px;height:7px;border-right:1px solid var(--accent)"></div></div>
+          <div style="display:flex;font-size:11px;color:var(--ink-2)"><span style="width:8px">8</span><span style="width:112px;text-align:center">label 112</span><span style="width:8px">8</span><span style="flex:1;text-align:center">control, grows</span><span>8</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:auto auto;column-gap:12px;align-content:start">
+          <span>24</span><span class="dim">row, header, bar</span>
+          <span>20</span><span class="dim">control height</span>
+          <span>16</span><span class="dim">chip, key, node field</span>
+          <span>8</span><span class="dim">pad and gap</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:12px;height:40px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:2px;height:16px;background:var(--fg)"></div><span class="cap">2</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:4px;height:16px;background:var(--fg)"></div><span class="cap">4</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:8px;height:16px;background:var(--fg)"></div><span class="cap">8</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:12px;height:16px;background:var(--fg)"></div><span class="cap">12</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:16px;height:16px;background:var(--fg)"></div><span class="cap">16</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:24px;height:16px;background:var(--fg)"></div><span class="cap">24</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:48px;height:16px;background:var(--fg)"></div><span class="cap">48</span></div>
+        <span class="dim" style="margin-left:8px">the only spacings</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="idx">[06]</span><span class="cap" style="color:var(--fg)">Line</span><div class="rule"></div></div>
+      <div style="display:grid;grid-template-columns:120px 1fr;column-gap:12px;row-gap:0;align-items:center">
+        <div style="height:1px;background:var(--line-1)"></div><span class="dim">line-1 · inside a list</span>
+        <div style="height:1px;background:var(--line-2)"></div><span class="dim">line-2 · between panes</span>
+        <div style="height:1px;background:var(--line-3)"></div><span class="dim">line-3 · the primary button, switch</span>
+        <div style="height:1px;background:var(--fg)"></div><span class="dim">ink-2 · slider value line, 2 pt</span>
+        <div style="height:1px;background:var(--accent)"></div><span class="dim">accent · keyboard focus, caret</span>
+        <div style="height:2px;background:var(--accent)"></div><span class="dim">accent 2 · selection brackets, playhead</span>
+        <div style="height:0;border-top:1px dashed var(--line-3)"></div><span class="dim">dashed · let and fn zones, wireless</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="idx">[07]</span><span class="cap" style="color:var(--fg)">Marks</span><div class="rule"></div><span class="cap">5 shapes</span></div>
+      <div style="display:grid;grid-template-columns:120px 1fr;column-gap:16px;row-gap:14px;align-items:center">
+        <div style="padding:6px"><div class="brk" style="height:28px;background:var(--control)"></div></div><div><div>corner brackets</div><div class="dim">selected object: node, list row, viewport object; no border</div></div>
+        <div style="padding:2px 6px"><div class="field focus">0.50</div></div><div><div>focus line</div><div class="dim">keyboard focus on a control: accent underline</div></div>
+        <div class="xbox" style="height:40px"></div><div><div>crossed box</div><div class="dim">empty: nothing displayed, missing input</div></div>
+        <div class="hatch" style="height:24px;border:1px solid var(--line-3)"></div><div><div>hatch</div><div class="dim">bypassed, stale, cooking</div></div>
+        <div class="dots" style="height:48px;position:relative;border:1px solid var(--line-1)"><div class="reg" style="left:55px;top:19px"></div></div><div><div>dot grid and register</div><div class="dim">canvas ground, 24 pt; a cross every 96</div></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="idx">[08]</span><span class="cap" style="color:var(--fg)">State</span><div class="rule"></div><span class="cap">one rule each</span></div>
+      <div style="display:grid;grid-template-columns:72px 96px 1fr;column-gap:12px;row-gap:6px;align-items:center">
+        <span class="cap">rest</span><button class="btn">Apply</button><span class="dim">text only, no border</span>
+        <span class="cap">hover</span><button class="btn hover">Apply</button><span class="dim">hover fill</span>
+        <span class="cap">pressed</span><button class="btn down">Apply</button><span class="dim">pressed fill</span>
+        <span class="cap">on</span><button class="btn on">Apply</button><span class="dim">control fill</span>
+        <span class="cap">focus</span><button class="btn focus">Apply</button><span class="dim">accent underline</span>
+        <span class="cap">disabled</span><button class="btn dis">Apply</button><span class="dim">ink-3 text</span>
+        <span class="cap">invalid</span><div class="field bad" style="width:96px">1e9x</div><span class="dim">invalid underline, message row below</span>
+        <span class="cap">selected</span><div style="padding:0 4px"><div class="brk" style="height:20px;background:var(--control);padding:0 6px;line-height:18px">box1</div></div><span class="dim">control fill, accent brackets</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>04 Overlays · menus, leader, windows</title>
+<link rel="stylesheet" href="kit.css">
+<style>@font-face{font-family:'Pragmasevka';src:url(../../assets/fonts/Pragmasevka-Regular.ttf) format('truetype')}body{margin:0}</style>
+</head><body>
+<div class="sheet dots" style="width:1440px;height:900px">
+
+  <span class="cap" style="position:absolute;left:48px;top:40px"><span class="idx">[01]</span> Node menu · Tab</span>
+  <div class="win" style="left:48px;top:64px;width:320px">
+    <div class="wt"><span>Add node</span><span class="grow"></span><span style="text-transform:none;letter-spacing:0">after scatter1</span></div>
+    <div style="padding:4px"><div class="field focus"><span class="dim">/</span>sca<span class="caret"></span></div></div>
+    <div class="row cur"><span class="sq" style="color:var(--p-geo)"></span><span class="grow"><span class="acc">sca</span>tter</span><span class="dim">sop / points</span><span class="key">↵</span></div>
+    <div class="row"><span class="sq" style="color:var(--p-geo)"></span><span class="grow"><span class="acc">sca</span>le</span><span class="dim">sop / transform</span></div>
+    <div class="row"><span class="sq" style="color:var(--p-float)"></span><span class="grow"><span class="acc">s</span>mooth_<span class="acc">ca</span>p</span><span class="dim">value / math</span></div>
+    <div class="row"><span class="sq" style="color:var(--p-vec)"></span><span class="grow"><span class="acc">s</span>plit_ve<span class="acc">c</span>3</span><span class="dim">value / vector</span></div>
+    <div class="row off"><span class="sq"></span><span class="grow">scene/geometry</span><span>not in sop</span></div>
+    <div class="hsep" style="margin-top:4px"></div>
+    <div class="bar"><span class="key">↑↓</span><span class="dim">move</span><span class="key">↵</span><span class="dim">place</span><span class="grow"></span><span class="cap">4 of 212</span></div>
+  </div>
+
+  <span class="cap" style="position:absolute;left:48px;top:332px"><span class="idx">[02]</span> Floating panel · Space n</span>
+  <div class="win" style="left:48px;top:356px;width:320px;height:256px">
+    <div class="wt"><span class="grip" style="opacity:.6"></span><span>Inspector</span><span class="grow"></span><span style="text-transform:none;letter-spacing:0;opacity:.7">camera</span><button class="wc" aria-label="Dock"></button><button class="btn icon bare" aria-label="Close">×</button></div>
+    <div class="sec" style="margin-top:4px"><span class="idx">[01]</span><span class="cap">Lens</span><div class="rule"></div><span class="chev"></span></div>
+    <div class="row"><span class="lab" style="flex-basis:88px">focal</span><div class="field num ticks"><div class="fill" style="width:35%"></div><div class="mark" style="left:35%"></div><span class="v">35 mm</span></div></div>
+    <div class="row"><span class="lab" style="flex-basis:88px">aperture</span><div class="field num ticks"><div class="fill" style="width:18%"></div><div class="mark" style="left:18%"></div><span class="v">2.8</span></div></div>
+    <div class="row"><span class="lab" style="flex-basis:88px">focus</span><div class="field num">4.20</div></div>
+    <div class="sec"><span class="idx">[02]</span><span class="cap">Render</span><div class="rule"></div><span class="chev"></span></div>
+    <div class="row"><span class="lab" style="flex-basis:88px">max spp</span><div class="field num">512</div></div>
+    <div class="row"><span class="lab" style="flex-basis:88px">bounces</span><div class="field num ticks"><div class="fill" style="width:40%"></div><div class="mark" style="left:40%"></div><span class="v">4</span></div></div>
+    <div style="position:absolute;right:2px;bottom:2px;width:8px;height:8px;border-right:1px solid var(--fg);border-bottom:1px solid var(--fg)"></div>
+  </div>
+
+  <span class="cap" style="position:absolute;left:416px;top:40px"><span class="idx">[03]</span> Context menu · node</span>
+  <div class="menu" style="left:416px;top:64px;width:232px">
+    <div class="mi">View<span class="k">V</span></div>
+    <div class="mi">Bypass<span class="k">B</span></div>
+    <div class="mi hover">Level<span class="k"><span class="chev r"></span></span></div>
+    <div class="mi">Fold into compound<span class="k">⌘G</span></div>
+    <div class="mi">Dissolve<span class="k">⇧D</span></div>
+    <div class="msep"></div>
+    <div class="mi">Copy as Lisp<span class="k">⌘C</span></div>
+    <div class="mi dis">Set active camera</div>
+    <div class="msep"></div>
+    <div class="mi bad">Delete<span class="k">⌫</span></div>
+  </div>
+  <div class="menu" style="left:647px;top:112px;width:132px">
+    <div class="mi"><span style="width:6px"></span>Point<span class="k">p</span></div>
+    <div class="mi"><span style="width:6px"></span>Chip</div>
+    <div class="mi"><span class="sq acc" style="width:6px;height:6px"></span>Card</div>
+    <div class="mi"><span style="width:6px"></span>Full<span class="k">o</span></div>
+  </div>
+
+  <span class="cap" style="position:absolute;left:416px;top:332px"><span class="idx">[04]</span> Panel menu · header right-click</span>
+  <div class="menu" style="left:416px;top:356px;width:232px">
+    <div class="mi">Split right<span class="k">Space o v</span></div>
+    <div class="mi">Split down<span class="k">Space o h</span></div>
+    <div class="mi">Float<span class="k">Space o f</span></div>
+    <div class="mi">Close<span class="k">Space o x</span></div>
+    <div class="msep"></div>
+    <div class="mi"><span class="sq acc" style="width:6px;height:6px"></span>Graph<span class="k">g</span></div>
+    <div class="mi"><span style="width:6px"></span>List<span class="k">l</span></div>
+    <div class="mi"><span style="width:6px"></span>Lisp<span class="k">t</span></div>
+    <div class="mi"><span style="width:6px"></span>Inspector<span class="k">i</span></div>
+    <div class="mi"><span style="width:6px"></span>Outline<span class="k">u</span></div>
+    <div class="mi"><span style="width:6px"></span>Timeline<span class="k">m</span></div>
+    <div class="mi"><span style="width:6px"></span>Viewport<span class="k">w</span></div>
+  </div>
+
+  <span class="cap" style="position:absolute;left:820px;top:40px"><span class="idx">[05]</span> Key sheet · ?</span>
+  <div class="win" style="left:820px;top:64px;width:572px">
+    <div class="wt"><span>Keys</span><span class="grow"></span><span style="text-transform:none;letter-spacing:0;opacity:.7">graph focused</span><button class="btn icon bare" aria-label="Close">×</button></div>
+    <div style="padding:4px"><div class="field"><span class="dim">/</span><span class="off">filter commands</span></div></div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding-bottom:8px">
+      <div>
+        <div class="sec" style="margin-top:0"><span class="idx">[01]</span><span class="cap">Create</span><div class="rule"></div></div>
+        <div class="row"><span class="key">Tab</span><span class="dim ell">add after</span></div>
+        <div class="row"><span class="key">A</span><span class="dim ell">add node</span></div>
+        <div class="row"><span class="key">R</span><span class="dim ell">repeat last</span></div>
+        <div class="row"><span class="key">⇧R</span><span class="dim ell">iterate</span></div>
+        <div class="row"><span class="key">⇧G</span><span class="dim ell">frame</span></div>
+      </div>
+      <div>
+        <div class="sec" style="margin-top:0"><span class="idx">[02]</span><span class="cap">Change</span><div class="rule"></div></div>
+        <div class="row"><span class="key">v</span><span class="dim ell">display</span></div>
+        <div class="row"><span class="key">b</span><span class="dim ell">bypass</span></div>
+        <div class="row"><span class="key">s</span><span class="dim ell">pin row</span></div>
+        <div class="row"><span class="key">⇧D</span><span class="dim ell">dissolve</span></div>
+        <div class="row"><span class="key">⌫</span><span class="dim ell">delete</span></div>
+      </div>
+      <div>
+        <div class="sec" style="margin-top:0"><span class="idx">[03]</span><span class="cap">Move</span><div class="rule"></div></div>
+        <div class="row"><span class="key">o</span><span class="key">p</span><span class="dim ell">level</span></div>
+        <div class="row"><span class="key">f</span><span class="dim ell">letter hints</span></div>
+        <div class="row"><span class="key">i</span><span class="key">u</span><span class="dim ell">enter, back</span></div>
+        <div class="row"><span class="key">h j k l</span><span class="dim ell">walk wires</span></div>
+        <div class="row"><span class="key">.</span><span class="dim ell">frame selection</span></div>
+      </div>
+    </div>
+  </div>
+
+  <span class="cap" style="position:absolute;left:820px;top:332px"><span class="idx">[06]</span> Prompt</span>
+  <div class="win" style="left:820px;top:356px;width:320px">
+    <div class="wt"><span>Save preset</span></div>
+    <div style="padding:8px;display:flex;flex-direction:column;gap:8px">
+      <span class="dim">Name for the current parameters of scatter1</span>
+      <div class="field focus">wall<span class="caret"></span></div>
+      <div style="display:flex;gap:4px;justify-content:flex-end"><button class="btn">Cancel<span class="key">esc</span></button><button class="btn primary">Save<span class="key">↵</span></button></div>
+    </div>
+  </div>
+
+  <span class="cap" style="position:absolute;left:1180px;top:332px"><span class="idx">[07]</span> Carry and drop</span>
+  <div class="node" style="left:1180px;top:356px;border:1px dashed var(--accent)">
+    <div class="nh"><span class="sq" style="color:var(--p-geo)"></span><span>copy1</span><span class="kind">sop/copy</span></div>
+    <div class="nr" style="background:var(--hover)"><span class="port" style="color:var(--p-float)"></span><span class="l" style="color:var(--fg)">pscale</span><div class="field num" style="border-color:var(--accent)">0.25</div></div>
+    <div class="nr"><span class="l">align</span><div class="field" style="width:76px"><span class="grow">Normal</span><span class="chev"></span></div></div>
+  </div>
+  <span class="chip line" style="position:absolute;left:1296px;top:404px;background:var(--input);border-color:var(--accent);text-transform:none;letter-spacing:0;font-size:13px;height:20px">wave.amp 0.42</span>
+  <span class="tip" style="left:1180px;top:452px">drop to drive pscale<span class="key">esc</span></span>
+
+  <span class="cap" style="position:absolute;left:1180px;top:500px"><span class="idx">[08]</span> Echo</span>
+  <div style="position:absolute;left:1180px;top:524px;display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+    <span class="tip" style="position:relative;height:24px;font-size:13px"><span class="dot" style="color:var(--hint)"></span>Saved kit.rays</span>
+    <span class="tip" style="position:relative;height:24px;font-size:13px;color:var(--invalid)">Undo: nothing to undo</span>
+  </div>
+
+  <span class="cap" style="position:absolute;left:48px;top:668px;background:var(--panel);padding:0 6px"><span class="idx">[09]</span> Leader · Space</span>
+  <div style="position:absolute;left:0;right:0;top:692px;bottom:25px;background:var(--panel);border-top:1px solid var(--line-3);display:flex;flex-direction:column">
+    <div class="bar" style="margin-top:8px"><span class="key">Space</span><span class="cap">Leader</span><span class="grow"></span><span class="dim" style="font-size:11px">a key continues · esc closes</span></div>
+    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding:0 16px 8px">
+      <div>
+        <div class="sec" style="margin-top:4px"><span class="cap">Add</span><div class="rule"></div></div>
+        <div class="row"><span class="key">a</span><span class="grow ell">object</span><span class="chev r off"></span></div>
+        <div class="row"><span class="key">n</span><span class="grow ell">window</span><span class="chev r off"></span></div>
+      </div>
+      <div>
+        <div class="sec" style="margin-top:4px"><span class="cap">Panel</span><div class="rule"></div></div>
+        <div class="row"><span class="key">o</span><span class="grow ell">split, retype</span><span class="chev r off"></span></div>
+        <div class="row"><span class="key">l</span><span class="grow ell">graph, list, text</span></div>
+      </div>
+      <div>
+        <div class="sec" style="margin-top:4px"><span class="cap">Layout</span><div class="rule"></div></div>
+        <div class="row"><span class="key">[</span><span class="grow ell">switch layout</span><span class="chev r off"></span></div>
+      </div>
+      <div>
+        <div class="sec" style="margin-top:4px"><span class="cap">Go</span><div class="rule"></div></div>
+        <div class="row"><span class="key">j</span><span class="grow ell">jump to graph</span></div>
+        <div class="row"><span class="key">e</span><span class="grow ell">world</span></div>
+      </div>
+      <div>
+        <div class="sec" style="margin-top:4px"><span class="cap">Time</span><div class="rule"></div></div>
+        <div class="row"><span class="key">p</span><span class="grow ell">play, pause</span></div>
+      </div>
+      <div>
+        <div class="sec" style="margin-top:4px"><span class="cap">File</span><div class="rule"></div></div>
+        <div class="row"><span class="key">s</span><span class="grow ell">save</span></div>
+        <div class="row"><span class="key">?</span><span class="grow ell">all keys</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line-2)" class="bar">
+    <span class="dot" style="color:var(--p-int)"></span><span>Cook complete</span>
+    <div style="width:1px;height:12px;background:var(--line-3);margin:0 4px"></div>
+    <span class="chip acc">Space</span><span class="dim">waiting for a key</span>
+    <span class="grow"></span><span class="cap" style="color:var(--fg)">60 fps</span>
+  </div>
+</div>
+</body></html>
