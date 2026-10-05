@@ -225,7 +225,7 @@ module Private : sig
 
   (** The host bars: where their buttons sit. *)
   module Bars : sig
-    type tool = Add | Repeat | Iterate | Fn | Macro | Defn
+    type tool = Add | Repeat | Iterate | Fn | Defn
     val tool_rect : Pxui.Ui.t -> header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
   end
 
@@ -235,7 +235,7 @@ module Private : sig
     val initial : state
     val with_query : string -> state -> state
     type obj = { depth : int; letter : string; name : string; detail : string;
-                 visible : bool option; render : bool option; lead : bool; chosen : bool;
+                 visible : bool option; render : bool option; lead : bool; inert : bool; chosen : bool;
                  home : string list option }
     type params = {
       workspace : Flow.Workspace.t;
@@ -246,6 +246,7 @@ module Private : sig
       selected : string list list;
       chips : (string * Rays.Color.t) list;
       objects : obj list;
+      root_detail : string;
       layouts : (string list * int) option;
       notes : (string * string) list;
     }

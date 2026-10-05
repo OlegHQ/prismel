@@ -34,10 +34,11 @@ val query : state -> string
 (** The search field holding this text. *)
 
 type obj = { depth : int; letter : string; name : string; detail : string;
-             visible : bool option; render : bool option; lead : bool; chosen : bool;
+             visible : bool option; render : bool option; lead : bool; inert : bool; chosen : bool;
              home : path option }
 (** A scene object's row: its kind's letter, name and detail, its visible and render flags
-    (where it has them), [lead] for the render camera, [chosen] when selected, and the binding
+    (where it has them), [lead] for the render camera, [inert] when the render mark only shows
+    (the camera's, the World's: a press on it opens the row), [chosen] when selected, and the binding
     that places it (a click opens its graph on it). *)
 
 type params = {
@@ -49,6 +50,7 @@ type params = {
   selected : path list;
   chips : (string * Rays.Color.t) list;  (** the evaluated colour of each material graph *)
   objects : obj list;  (** the scene's objects, in tree order *)
+  root_detail : string;  (** what the scene's root row says beside its name *)
   layouts : (string list * int) option;  (** the layouts of the editor graph, and the one shown *)
   notes : (string * string) list;  (** what a material graph says beside its swatch ({!notes}) *)
 }

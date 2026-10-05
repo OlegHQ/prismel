@@ -1,11 +1,11 @@
-(* The host bars of the workspace: the graph panel's toolbar (Add, Repeat, Iterate, fn, macro, defn).  Buttons only report a
+(* The host bars of the workspace: the graph panel's toolbar (Add, Repeat, Iterate, fn, defn: the sheet's list; macro is its key, M).  Buttons only report a
    click: [Core] maps it to the one command or edit it means. *)
 module Ui = Pxui.Ui
 
-type tool = Add | Repeat | Iterate | Fn | Macro | Defn
+type tool = Add | Repeat | Iterate | Fn | Defn
 
 let tools = [ Add, "Add", "A"; Repeat, "Repeat", "R"; Iterate, "Iterate", "\xe2\x87\xa7R";
-              Fn, "fn", "L"; Macro, "macro", "M"; Defn, "defn", "D" ]
+              Fn, "fn", "L"; Defn, "defn", "D" ]
 
 (* The toolbar sits in the graph panel's header, after its title, breadcrumb and the 1 x 12 rule
    ([Pxui_shell.Chrome.tools_start]): text buttons 20 high and 8 apart, as wide as their text

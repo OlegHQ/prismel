@@ -398,8 +398,12 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
   let applied = Lazy.force shown.applied in
   let dirty = dirty state shown in
   (* the tabs sit in the panel's header, at its right: the body is all text *)
+  (* the workspace sheet's narrow Lisp panel (under 400 points): "Doc", the two buttons alone in
+     the bar and no status row *)
+  let narrow = width < 400. in
+  let doc_label = if narrow then "Doc" else "Document" in
   let tabs = [ Selection, "Selection"; Graph, "Graph";
-    Document, if dirty then "Document *" else "Document" ] in
+    Document, if dirty then doc_label ^ " *" else doc_label ] in
   let active = Option.value ~default:0 (List.find_index (fun (tab, _) -> tab = state.tab) tabs) in
   (match fst (Pxui_shell.Kit.segments ui ~key:"text-tab" ~right:(x +. width -. tabs_inset)
                 ~y:(y -. float Pxui_shell.Layout.header_height +. 2.) (List.map snd tabs) active) with
@@ -407,7 +411,7 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
    | None -> ());
   let bar = 32. in
   (* a hairline, the 32-point button bar, a hairline and the 24-point status row *)
-  let footer = bar +. row +. 2. in
+  let footer = if narrow then bar +. 1. else bar +. row +. 2. in
   let body_y = y in
   let body_h = Float.max row height in
   let language = Lisp_text.language ~vocab ~names ~parinfer:state.parinfer theme in
@@ -417,9 +421,14 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
       ~apply ~discard ~can_apply ~message ~draft ~scrub () =
     let chips = Lisp_text.color_chips text in
     (* a dragged number applies live ([scrub], merged into one history entry); typing is a draft *)
-    let phase = ref None in
+    let phase = ref None and caret = ref None in
     let text', submitted = Ui.text_area_submit ui ~at:(x, ey) ~w:width ~h:(Float.max row (eh -. footer))
-        ~wrap:state.wrap ~errors:(List.filter_map (line_of text) errors) ~spans ?reveal ~language
+        ~wrap:state.wrap ~errors:(List.filter_map (line_of text) errors)
+        ~messages:(List.filter_map (fun (d : Flow.Diagnostic.t) ->
+          Option.map (fun line ->
+            line, Option.map (fun (s : Flow.Diagnostic.span) -> s.start, s.finish) d.span,
+            d.code ^ "  " ^ String.map (function '\n' -> ' ' | c -> c) d.message) (line_of text d)) errors)
+        ~spans ?reveal ~language
         ~on_context:(fun at -> emit (Menu (Some at))) ~on_scrub:(fun p -> phase := Some p)
         ~chips
         ~on_drop:(fun byte drop -> emit (Carry_over (byte, (match drop with Ui.Dropped _ -> true | Hover _ -> false))))
@@ -433,7 +442,7 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
             | Some (a, b, _) -> emit (Picker (Some (a, b, false)))
             | None -> ())
         (* the caret in a binding selects its node *)
-        ~on_caret:(fun byte -> match caret_select byte with
+        ~on_caret:(fun byte -> caret := Some byte; match caret_select byte with
           | Some path when path <> shown.key -> emit (Select_binding path)
           | _ -> ())
         key text in
@@ -459,35 +468,44 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
     rule "-rule" ty;
     (* Command-Enter in the area is the button: the one outlined button of the panel *)
     let hint = "\xe2\x8c\x98\xe2\x86\xb5" in
+    (* the caret's line and column, 1-based, in the status row's label *)
+    let position = Option.map (fun byte ->
+      let p = Flow.Diagnostic.position_of_offset text' (min byte (String.length text')) in
+      Printf.sprintf "%d:%d" p.line p.col) !caret in
     let apply_w = Pxui_shell.Kit.button_width ui ~hint "Check and apply" in
     let by = ty +. 1. +. ((bar -. 20.) /. 2.) in
     if (Pxui_shell.Kit.button ui ~key:(key ^ "-apply") ~at:(x +. 12., by) ~w:apply_w ~primary:true
           ~enabled:can_apply ~hint "Check and apply")
        || (submitted && can_apply)
     then emit (apply text');
+    let discard_hint = if narrow then None else Some "esc" in
     if Pxui_shell.Kit.button ui ~key:(key ^ "-discard") ~at:(x +. 12. +. apply_w +. 8., by)
-         ~w:(Pxui_shell.Kit.button_width ui ~hint:"esc" "Discard") ~enabled:can_apply ~hint:"esc" "Discard"
+         ~w:(Pxui_shell.Kit.button_width ui ?hint:discard_hint "Discard") ~enabled:can_apply ?hint:discard_hint "Discard"
     then emit discard;
     (* parinfer and its switch, at the bar's end *)
     let switch_x = x +. width -. 12. -. 28. in
-    if Pxui_shell.Kit.switch ui ~key:(key ^ "-parinfer") ~at:(switch_x, ty +. 1. +. ((bar -. 14.) /. 2.)) state.parinfer
-    then emit Toggle_parinfer;
-    Ui.draw ui (Ui.box ui ~w:(Ui.Px 80.) ~h:(Ui.Px bar) ~at:(switch_x -. 8. -. 80., ty +. 1.) (key ^ "-parinfer-label"))
-      (fun paint (x, y, w, h) ->
-        let label = "parinfer" in
-        Ui.Paint.text paint ~at:(x +. w -. Ui.Paint.text_width paint label, Pxui_shell.Kit.text_y ui y h)
-          ~color:(Pxui.Theme.ink_2 theme) label);
-    rule "-rule2" (ty +. 1. +. bar);
+    if not narrow then begin
+      if Pxui_shell.Kit.switch ui ~key:(key ^ "-parinfer") ~at:(switch_x, ty +. 1. +. ((bar -. 14.) /. 2.)) state.parinfer
+      then emit Toggle_parinfer;
+      Ui.draw ui (Ui.box ui ~w:(Ui.Px 80.) ~h:(Ui.Px bar) ~at:(switch_x -. 8. -. 80., ty +. 1.) (key ^ "-parinfer-label"))
+        (fun paint (x, y, w, h) ->
+          let label = "parinfer" in
+          Ui.Paint.text paint ~at:(x +. w -. Ui.Paint.text_width paint label, Pxui_shell.Kit.text_y ui y h)
+            ~color:(Pxui.Theme.ink_2 theme) label);
+      rule "-rule2" (ty +. 1. +. bar)
+    end;
     let wrong = errors <> [] in
-    let msg = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px width) ~h:(Ui.Px row) ~at:(x, ty +. bar +. 2.) (key ^ "-message") in
-    Ui.draw ui msg (fun paint (x, y, w, h) ->
+    let msg = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px width) ~h:(Ui.Px (if narrow then 0. else row)) ~at:(x, ty +. bar +. 2.) (key ^ "-message") in
+    if not narrow then Ui.draw ui msg (fun paint (x, y, w, h) ->
       (* the state: a dot in the error colour or the accent for a draft, then what it says; the
          first error is "n errors" in the error colour and its line and message in ink-2 *)
       let tx = if wrong || can_apply then begin
           Ui.Paint.circle paint ~at:(x +. 15., y +. (h /. 2.)) ~radius:3.
             ~fill:(if wrong then Pxui.Theme.invalid else theme.accent) (); x +. 26.
         end else x +. 12. in
-      let tail = if can_apply then Pxui_shell.Kit.cap_width ui "modified" +. 20. else 12. in
+      (* the label at the row's end: where the caret is, and whether the text is a draft *)
+      let state_label = String.concat " \xc2\xb7 " (Option.to_list position @ (if can_apply then [ "modified" ] else [])) in
+      let tail = if state_label <> "" then Pxui_shell.Kit.cap_width ui state_label +. 20. else 12. in
       let ty = Pxui_shell.Kit.text_y ui y h in
       (match errors with
        | (first : Flow.Diagnostic.t) :: _ ->
@@ -501,9 +519,9 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
        | [] ->
            Ui.Paint.text paint ~at:(tx, ty) ~color:(Pxui.Theme.ink_2 theme)
              (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(x +. w -. tail -. tx) message));
-      if can_apply then
-        Ui.Paint.cap paint ~at:(x +. w -. 12. -. Pxui_shell.Kit.cap_width ui "modified", Pxui_shell.Kit.cap_y ui y h)
-          "modified");
+      if state_label <> "" then
+        Ui.Paint.cap paint ~at:(x +. w -. 12. -. Pxui_shell.Kit.cap_width ui state_label, Pxui_shell.Kit.cap_y ui y h)
+          state_label);
     (match state.menu with
      | None -> ()
      | Some at ->

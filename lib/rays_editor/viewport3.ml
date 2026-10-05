@@ -374,6 +374,11 @@ let gated extra key =
 
 let film extra ~key (x, y, width, height) =
   if not (gated extra key) then x, y, width, height else
+  (* the sheets keep the frame clear of the label row above it (40 points) and of the readouts'
+     row under it (36), and of 12 points at each side *)
+  let top = if height > 160 then 40 else 0 and bottom = if height > 160 then 36 else 0
+  and side = if width > 160 then 12 else 0 in
+  let x, y, width, height = x + side, y + top, width - (2 * side), height - top - bottom in
   let { settings; _ } = look extra key in
   let aspect = float settings.width /. float (max 1 settings.height) in
   let w = min width (int_of_float (Float.round (float height *. aspect))) in
@@ -453,6 +458,17 @@ let screen_box view ~bounds ~world ((low : Vec3.t), (high : Vec3.t)) =
 let line ?(width = 1) color (x0, y0) (x1, y1) =
   Scene.line ~from_:(Float.to_int x0, Float.to_int y0)
     ~to_:(Float.to_int x1, Float.to_int y1) ~color ~width ()
+
+(* a line of a width in whole or half points: Scene lines have whole widths only, so the stroke is a
+   filled quad of the line's length *)
+let thick_line width color (x0, y0) (x1, y1) =
+  let dx = x1 -. x0 and dy = y1 -. y0 in
+  let length = Float.hypot dx dy in
+  if length < 1e-6 then Scene.rect ~at:(Float.to_int x0, Float.to_int y0) ~w:0 ~h:0 () else
+  let nx = -. dy /. length *. width /. 2. and ny = dx /. length *. width /. 2. in
+  Scene.path ~fill:color
+    (Path.empty |> Path.move_to (x0 +. nx) (y0 +. ny) |> Path.line_to (x1 +. nx) (y1 +. ny)
+     |> Path.line_to (x1 -. nx) (y1 -. ny) |> Path.line_to (x0 -. nx) (y0 -. ny) |> Path.close)
 
 let segment bounds view color a b =
   match project bounds view a, project bounds view b with
@@ -594,8 +610,8 @@ let gizmo (x, y, _, height) view =
     let d = Vec3.sub (Camera.world_to_camera view axes.(axis)) origin in
     let tip = cx +. d.x *. 40., cy -. d.y *. 40. in
     let dx, dy = [| 3., 4.; 6., 4.; -8., 7. |].(axis) in
-    [line ~width:2 axis_colors.(axis) (cx, cy) tip;
-     Scene.text ~at:(Float.to_int (fst tip +. dx), Float.to_int (snd tip +. dy) - 6) ~size:11
+    [thick_line 1.5 axis_colors.(axis) (cx, cy) tip;
+     Scene.text ~at:(Float.to_int (fst tip +. dx), Float.to_int (snd tip +. dy) - 6) ~size:Pxui.Theme.label_size
        ~color:axis_colors.(axis) (String.uppercase_ascii axis_names.(axis))]))
 
 (* A light object: a marker at its position, a line to its target. *)

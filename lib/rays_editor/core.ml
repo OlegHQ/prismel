@@ -212,6 +212,8 @@ type 'prepared t = {
   edit_error : string option;
   status_fps : int option;
   status_fps_at : float;
+  last_dt : float;  (* the step of the last frame, and how many frames in a row had exactly it: *)
+  steady : int;     (* three or more is a fixed step, the timeline header says so *)
   history : Document.t Editor_core.History.t;
   focus : Pxui_shell.Layout.panel;
   focus_path : Pxui_shell.Layout.path option;  (* which leaf of that kind: every leaf is an
@@ -1545,16 +1547,16 @@ let trunk_rows (network : Flow_sop.Network.t) ~viewed ~flags =
 
 let rows value (network : Document.network) = match value.level with
   | Document.Scene -> scene_rows ?active:value.doc.active_camera network.graph.geometry,
-      ["vis"; "rnd"]
+      ["v"; "r"]
   | Inside id when kind value id = Some "geometry" ->
       trunk_rows network.graph ~viewed:network.displayed ~flags:(fun node_id node ->
-        match node with Some _ -> [Some node_id = network.displayed] | None -> []), ["disp"]
+        match node with Some _ -> [Some node_id = network.displayed] | None -> []), ["d"]
   | Inside _ ->
       trunk_rows network.graph ~viewed:None ~flags:(fun _ node ->
         match node with
         | Some node when Objects.has_flag "visible" node -> [Objects.flag "visible" node]
         | _ -> []),
-      ["vis"]
+      ["v"]
 
 (* Rewire [ids] under [parent] (None: the scene root), keeping each one's
    world placement. *)
@@ -1802,7 +1804,7 @@ let create ?settings ?(keymap = Leader.keymap)
         ui = (let ui = Pxui.Ui.create () in Pxui.Ui.set_font_size ui (default_text_size ()); ui); workspace;
         timeline = Sketch_support.Timeline.create (); cook;
         edit_error = None; status_fps = None;
-        status_fps_at = Float.neg_infinity;
+        status_fps_at = Float.neg_infinity; last_dt = 0.; steady = 0;
         history = Editor_core.History.create doc;
         focus = Editor_core.Panels.main; focus_path = None; pane_keys = []; leader = Leader.Idle;
         keymap; timeline_frames = max 1 timeline_frames; queued = [];
@@ -2254,10 +2256,14 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
          else String.concat " / " (List.map String.trim (String.split_on_char '>' (route value))))
         ^ Option.fold ~none:"" ~some:(fun c -> " / " ^ c) context
     | List -> "List", level_name value
-    | Lisp -> "Lisp", graph
+    | Lisp -> "Lisp", if (let _, _, w, _ = leaf.frame in w < 400) then ""  (* the narrow sheet has the kind alone *)
+        else if graph = "" then value.file else if value.file = "" then graph else value.file ^ " / " ^ graph
     | Inspector -> "Inspector", graph
     | Outline -> "Outline", (fst value.doc.Document.workspace).checked.name
-    | Timeline -> "Timeline", "" in
+    | Timeline -> "Timeline",
+        (* the real step of the sketch: the same step every frame is a fixed one *)
+        if value.steady >= 3 && value.last_dt > 0. then Printf.sprintf "fixed dt 1/%d" (int_of_float (Float.round (1. /. value.last_dt)))
+        else "realtime" in
   let name = if sub = "" then name else name ^ "\t" ^ sub in
   match Option.bind value.doc.Document.shell (fun s ->
       if value.workspace.restored then None else List.assoc_opt leaf.path s.origins) with
@@ -2310,9 +2316,30 @@ let outline_objects value : Navigator.obj list =
       match f.name, f.current with
       | ("shape" | "type"), Parameter.Choice_value v -> Some (String.lowercase_ascii v) | _ -> None)
       (Node.parameter_fields node)) in
-    { Navigator.depth = row.depth; letter = fst row.badge; name = row.label;
-      detail = (if lead then "active" else Option.value choice ~default:row.detail);
-      visible = flag "visible"; render = flag "render"; lead; chosen = List.mem row.id selected;
+    let operation = Option.map Node.operation node in
+    let field name = Option.bind node (fun node -> List.find_map (fun (f : Parameter.field_view) ->
+      match f.name = name, f.current with
+      | true, Parameter.Float_value v -> Some v | _ -> None) (Node.parameter_fields node)) in
+    (* the sheet's words: a camera its focal length, a geometry object the graph it references, the
+       World a reference to its graph; a light its shape *)
+    let name, detail = match operation with
+      | Some "camera" ->
+          row.label, (match field "fov" with
+            | Some fov when fov > 0. && fov < 180. ->
+                Printf.sprintf "%.0f mm" (12. /. Float.tan (fov *. Float.pi /. 360.))
+            | _ -> row.detail)
+      | Some "geometry" ->
+          row.label, (match graph_of_object value row.id with Some graph -> "ref " ^ graph | None -> row.detail)
+      | Some "world" -> "world", "ref " ^ row.label
+      | _ -> row.label, Option.value choice ~default:row.detail in
+    (* the render camera's mark is its flag (the accent); the World renders while it is in the scene;
+       neither is a field a press can write *)
+    let inert, render = match operation with
+      | Some "camera" -> true, Some lead
+      | Some "world" -> true, Some true
+      | _ -> false, flag "render" in
+    { Navigator.depth = row.depth; letter = fst row.badge; name; detail;
+      visible = flag "visible"; render; lead; inert; chosen = List.mem row.id selected;
       home = (match List.assoc_opt row.id value.doc.Document.homes.objects with
         | Some (Document.Bound_at path) -> Some path | _ -> None) })
 
@@ -2333,6 +2360,7 @@ let navigator_params value : Navigator.params =
       | Some { evaluated = Some ev; _ } -> Navigator.notes ev
       | _ -> []);
     objects = outline_objects value;
+    root_detail = Printf.sprintf "%d spp" (Objects.Root.render value.doc.Document.root).max_spp;
     layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active)
       (Option.bind value.doc.Document.shell (fun s -> s.switch)) }
 
@@ -2853,6 +2881,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         let index = if delta = 0 then default else max 0 (min (List.length sizes - 1) (here + delta)) in
         Pxui.Ui.set_font_size value.ui (List.nth sizes index)
     | _ -> ()) actions;
+  let steady = if frame.dt > 0. && frame.dt = value.last_dt then value.steady + 1 else 0 in
   let sample_fps = frame.time < value.status_fps_at
     || frame.time -. value.status_fps_at >= 1. in
   let status_fps, status_fps_at = if not sample_fps then
@@ -3030,7 +3059,6 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           | Some Repeat -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Wrap_repeat)
           | Some Iterate -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Wrap_iterate)
           | Some Fn -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Make_fn)
-          | Some Macro -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Make_macro)
           | Some Defn -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Make_defn)
           | None -> ())
      | _ -> ());
@@ -3052,14 +3080,19 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
          let seg_w = List.fold_left (fun w label -> w +. Pxui.Ui.text_width ui label) 24. modes in
          let look_w = Pxui_shell.Kit.button_width ui ~hint:"C" "Look through" in
          let ty = float hy +. float (hh - 20) /. 2. in
-         if from +. seg_w +. 8. +. look_w < float (hx + hw - 36) then begin
+         let frame_w = Pxui_shell.Kit.button_width ui ~hint:"F" "Frame" in
+         if from +. seg_w +. 8. +. look_w +. 8. +. frame_w < float (hx + hw - 36) then begin
            Bars.rule ui ~key:"workspace-view-rule" ~header:leaf.header ~from:(from -. float hx);
            (match fst (Pxui_shell.Kit.segments ui ~key:"workspace-render" ~right:(from +. seg_w) ~y:ty modes mode) with
             | Some i when i <> mode -> bar_action := Some (Leader.Render_mode i)
             | _ -> ());
            if Pxui_shell.Kit.button ui ~key:"workspace-look" ~at:(from +. seg_w +. 8., ty) ~w:look_w
                 ~active:looks ~hint:"C" "Look through"
-           then bar_action := Some Leader.Look_through
+           then bar_action := Some Leader.Look_through;
+           (* the key's own command (view.frame-camera): the camera onto the displayed node *)
+           if Pxui_shell.Kit.button ui ~key:"workspace-frame" ~at:(from +. seg_w +. 8. +. look_w +. 8., ty) ~w:frame_w
+                ~hint:"F" "Frame"
+           then bar_action := Some Leader.Frame_camera
          end
      | _ -> ());
     let root order (leaf : Pxui_shell.Layout.leaf) =
@@ -3124,6 +3157,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           let prims = List.fold_left (fun n (piece : _ Cook.piece) ->
             n + Rdk.Geometry.primitive_count piece.output.Procedural.Session.geometry) 0 (pieces value) in
           let objects = List.length (pieces value) in
+          let points = Option.map (fun (piece : _ Cook.piece) ->
+            Rdk.Geometry.point_count piece.output.Procedural.Session.geometry) (piece value) in
           (* the traced readout: its samples are the caption's "n/cap spp" *)
           let traced = Option.bind (List.assoc_opt key value.captions) (fun caption ->
             try Scanf.sscanf (List.hd (List.rev (String.split_on_char ' ' (String.trim
@@ -3136,7 +3171,9 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
               P.stroke paint ~x:(gx +. 0.5) ~y:(gy +. 0.5) ~w:(gw -. 1.) ~h:(gh -. 1.) (Pxui.Theme.edge theme);
               (* the corner marks lie on the frame's own edge: 16 points, 1 wide, in ink *)
               P.brackets paint ~x:gx ~y:gy ~w:gw ~h:gh ~offset:0. ~length:16. ~width:1. theme.foreground;
-              ignore (label paint ~x:gx ~y:(if gy -. y >= 20. then gy -. 20. else gy +. 4.) ~pl:4. ~pr:4.
+              (* the label starts at the frame, or clear of the traced readout when that stands over it *)
+              let lx = if traced <> None then Float.max gx (x +. 12. +. Float.min 224. (w -. 24.) +. 12.) else gx in
+              ignore (label paint ~x:lx ~y:(if gy -. y >= 20. then gy -. 20. else gy +. 4.) ~pl:4. ~pr:4.
                 (Printf.sprintf "Render frame \xc2\xb7 %d \xc3\x97 %d" root.width root.height))) gate;
             (* a traced viewport's readout: the path tracer and its backend as labels, the samples as
                a 20-point count over a 4-point bar, the film as a label; 4 apart, on the ground *)
@@ -3151,9 +3188,9 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 let ty = Pxui.Ui.text_top ui ~size:title in
                 let row2 = oy +. rh +. 4. in
                 let count = string_of_int (min samples cap) in
-                P.text paint ~size:title ~at:(ox, ty row2 rh) ~color:theme.foreground count;
+                P.text paint ~size:title ~at:(ox, ty row2 rh -. 1.) ~color:theme.foreground count;
                 P.text paint ~size:title
-                  ~at:(ox +. P.text_width paint ~size:title (count ^ " "), ty row2 rh)
+                  ~at:(ox +. P.text_width paint ~size:title (count ^ " "), ty row2 rh -. 1.)
                   ~color:(Pxui.Theme.ink_2 theme) (Printf.sprintf "/ %d spp" cap);
                 (* the bar: a line-3 box 4 high, filled inside it with the share of the samples *)
                 let by = row2 +. rh +. 4. in
@@ -3170,8 +3207,16 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
               let sx = float sx and sy = float sy and sw = float sw and sh = float sh in
               if sw > 8. && sh > 8. then begin
                 P.brackets paint ~x:sx ~y:sy ~w:sw ~h:sh theme.accent;
-                (* the name in the accent, in the row that ends where the brackets begin *)
-                ignore (label paint ~x:(sx -. 4.) ~y:(sy -. 4. -. rh) ~pr:4. ~color:theme.accent name)
+                (* the name in the accent, in the row that ends where the brackets begin, then how
+                   many points the object cooked to, on the ground *)
+                let ny = sy -. 4. -. rh in
+                P.cap paint ~at:(sx -. 4., cap_y ny) ~color:theme.accent name;
+                Option.iter (fun n ->
+                  let digits = string_of_int n in
+                  let grouped = String.concat " " (List.rev (let rec chop s = if String.length s <= 3 then [ s ]
+                    else String.sub s (String.length s - 3) 3 :: chop (String.sub s 0 (String.length s - 3)) in chop digits)) in
+                  ignore (label paint ~x:(sx -. 4. +. P.cap_width paint name +. 8.) ~y:ny ~pl:4. ~pr:4.
+                    ~color:(Pxui.Theme.ink_2 theme) (grouped ^ " pts"))) points
               end) box;
             (* the render camera: its name, its lens and focus as a two-column grid whose labels
                and values both end at their column's right edge, 10 apart *)
@@ -4298,7 +4343,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   let prepared_changed = cooked.prepared_changed
     && not (List.equal ( == ) (Cook.pieces cooked.cook) (Cook.pieces value.cook)) in
   { core = { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
-      status_fps; status_fps_at; guide; hud; focus = result.focus; focus_path = result.focus_path;
+      status_fps; status_fps_at; last_dt = frame.dt; steady; guide; hud; focus = result.focus; focus_path = result.focus_path;
       pane_keys = result.pane_keys; graph_panes = result.graph_panes; leader; held_keys;
       prompt;
       queued = (match result.prompt_intent with Some (Run_action action) -> [action]

@@ -18,9 +18,10 @@ type intent =
   | Flag of { node : path; name : string; value : bool }
 
 (* [rename]: the graph whose name the field holds, and whether the field has opened yet *)
-type state = { query : string; typing : bool; rename : (string * bool) option }
+type state = { query : string; typing : bool; rename : (string * bool) option;
+               scene_closed : bool  (* the scene's root row is folded: its objects are hidden *) }
 
-let initial = { query = ""; typing = false; rename = None }
+let initial = { query = ""; typing = false; rename = None; scene_closed = false }
 let editing s = s.typing || s.rename <> None
 let with_query query s = { s with query }
 let query s = s.query
@@ -28,7 +29,7 @@ let query s = s.query
 (* a scene object: its kind's letter, what it is, its visible and render flags (where it has
    them), whether it is the render camera, and the binding that places it *)
 type obj = { depth : int; letter : string; name : string; detail : string;
-             visible : bool option; render : bool option; lead : bool; chosen : bool;
+             visible : bool option; render : bool option; lead : bool; inert : bool; chosen : bool;
              home : path option }
 
 type params = {
@@ -40,6 +41,7 @@ type params = {
   selected : path list;
   chips : (string * Rays.Color.t) list;  (** the evaluated colour of each material graph *)
   objects : obj list;
+  root_detail : string;  (** what the scene's root row says: its samples *)
   layouts : (string list * int) option;
   notes : (string * string) list;
 }
@@ -47,6 +49,7 @@ type params = {
 type row =
   | Head of string * string  (* a section's label and what its right column is *)
   | Object_row of obj
+  | Root_row of { graph : string; detail : string; folded : bool; active : bool }
   | Layout_row of { index : int; label : string; active : bool }
   | Input_row of { graph : string; name : string; integer : bool; value : float }
   | Graph_row of { graph : string; label : string; context : W.context option; detail : string;
@@ -194,7 +197,7 @@ let search state p chains counts =
     if contains ~query:q g.name then add (graph_row p g (group_of g.context))) ws.graphs;
   List.iter (fun (d : W.graph) ->
     if contains ~query:q d.name then
-      add (Graph_row { graph = "def:" ^ d.name; label = "ƒ " ^ d.name; context = None;
+      add (Graph_row { graph = "def:" ^ d.name; label = d.name; context = None;
                        detail = "function"; active = p.active = Some ("def:" ^ d.name);
                        chip = None; dim = false; used = None })) ws.defs;
   (match p.scope, p.active with
@@ -223,31 +226,55 @@ let rows state p =
       | _ -> () in
     let nodes (form : S.t) = count_where (fun f -> match head f with
       | Some h -> String.contains h '/' | None -> false) form in
-    List.iter (fun (group, graphs) ->
-      add (Head (group, match group with
-        | "Scene" -> "v  r" | "Geometry" | "Materials" -> "used" | "Layout" -> "Space [" | _ -> ""));
-      List.iter (fun (g : W.graph) ->
-        let n = loops g.form in
-        add (graph_row p g (match g.context with
-          | W.Sop -> plural (nodes g.form) "node" ^ (if n > 0 then " · " ^ plural n "loop" else "")
-          | _ -> if n > 0 then plural n "loop" else W.context_name g.context));
-        active_tree g.name) graphs;
-      (* the scene's objects under its graphs, the layouts under the editor graphs *)
-      if group = "Scene" then List.iter (fun o -> add (Object_row o)) p.objects;
-      if group = "Layout" then Option.iter (fun (labels, active) ->
-        List.iteri (fun index label -> add (Layout_row { index; label; active = index = active })) labels)
-        p.layouts) (grouped ws);
-    if ws.defs <> [] || ws.macros <> [] then begin
-      add (Head ("Reusable", ""));
+    let defs_rows () =
       List.iter (fun (d : W.graph) ->
         let n = calls ws d.name in
-        add (Graph_row { graph = "def:" ^ d.name; label = "ƒ " ^ d.name; context = None;
-                         detail = "defn"; active = p.active = Some ("def:" ^ d.name);
+        add (Graph_row { graph = "def:" ^ d.name; label = d.name; context = None;
+                         detail = (if d.inputs = [] then "defn"
+                                   else "defn \xc2\xb7 " ^ String.concat " " (List.map (fun (name, _, _) -> name) d.inputs));
+                         active = p.active = Some ("def:" ^ d.name);
                          chip = None; dim = false; used = Some n });
         active_tree ("def:" ^ d.name)) ws.defs;
       List.iter (fun m -> Option.iter (fun name ->
-        add (Macro_row (name, macro_uses ws name))) (macro_name m)) ws.macros
-    end;
+        add (Macro_row (name, macro_uses ws name))) (macro_name m)) ws.macros in
+    let groups = grouped ws in
+    let groups = if (ws.defs <> [] || ws.macros <> []) && not (List.mem_assoc "Geometry" groups)
+      then List.filter_map (fun group ->
+        match List.assoc_opt group groups with
+        | Some graphs -> Some (group, graphs)
+        | None -> if group = "Geometry" then Some (group, []) else None) group_order
+      else groups in
+    (* the scene's first graph is the root row; its objects are its tree *)
+    let root_graph = List.find_opt (fun (g : W.graph) -> g.context = W.Scene) ws.graphs in
+    List.iter (fun (group, graphs) ->
+      add (Head (group, match group with
+        | "Scene" -> "v  r" | "Geometry" | "Materials" -> "used" | "Layout" -> "Space [" | _ -> ""));
+      let graph_rows graphs = List.iter (fun (g : W.graph) ->
+        let n = loops g.form in
+        add (graph_row p g (match g.context with
+          | W.Sop -> plural (nodes g.form) "node" ^ (if n > 0 then " \xc2\xb7 " ^ plural n "loop" else "")
+          | _ -> if n > 0 then plural n "loop" else W.context_name g.context));
+        active_tree g.name) graphs in
+      if group = "Scene" then begin
+        (match root_graph with
+         | Some g ->
+             add (Root_row { graph = g.name; detail = p.root_detail; folded = state.scene_closed;
+                             active = p.active = Some g.name });
+             if not state.scene_closed then List.iter (fun o -> add (Object_row o)) p.objects;
+             graph_rows (List.filter (fun (x : W.graph) -> x != g) graphs)
+         | None -> graph_rows graphs; List.iter (fun o -> add (Object_row o)) p.objects)
+      end
+      else if group = "Layout" then begin
+        (* the numbered layouts, then the editor graphs that hold them *)
+        Option.iter (fun (labels, active) ->
+          List.iteri (fun index label -> add (Layout_row { index; label; active = index = active })) labels)
+          p.layouts;
+        graph_rows graphs
+      end
+      else begin
+        graph_rows graphs;
+        if group = "Geometry" then defs_rows ()
+      end) groups;
     (* the active graph's inputs *)
     (match p.scope, p.active with
      | Some scope, Some graph when scope.inputs <> [] ->
@@ -278,6 +305,8 @@ let describe = function
   | Head (s, right) -> if right = "" then String.uppercase_ascii s else String.uppercase_ascii s ^ " · " ^ right
   | Object_row o -> Printf.sprintf "%s%s %s · %s%s%s" (String.make (2 * o.depth) ' ') o.letter o.name o.detail
       (match o.visible with Some true -> " · v" | _ -> "") (match o.render with Some true -> " · r" | _ -> "")
+  | Root_row { graph; detail; folded; _ } ->
+      Printf.sprintf "R root (%s) · %s%s" graph detail (if folded then " · folded" else "")
   | Layout_row { index; label; active } -> Printf.sprintf "layout %d %s%s" index label (if active then " *" else "")
   | Input_row { name; value; _ } -> Printf.sprintf "input %s = %g" name value
   | Graph_row { label; detail; active; chip; used; _ } ->
@@ -344,26 +373,29 @@ let view state ui ~bounds:(x, y, w, h) p =
   let muted = Pxui.Theme.muted theme in
   (* the search field above the list *)
   let was_typing = state.typing in
+  (* the wide sheet's field leaves room for the add button; the narrow one has no button *)
+  let field_w = if w >= 300. then w -. 40. else w -. 16. in
   (* F2 puts the graph's name in this field instead of the search *)
   let state, renamed = match state.rename with
     | Some (graph, seen) ->
-        let text, open_ = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 40.) ~h:20.
+        let text, open_ = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:field_w ~h:20.
             ~left:true ~edit:(not seen) ~valid:Flow.Symbol.valid_name "navigator-rename" graph in
         if text <> graph then { state with rename = None }, [ Rename { graph; to_ = text } ]
         else if open_ then { state with rename = Some (graph, true) }, []
         else { state with rename = (if seen then None else state.rename) }, []
     | None ->
-        let query, typing = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 40.) ~h:20.
+        let query, typing = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:field_w ~h:20.
             ~left:true ~valid:(fun _ -> true) "navigator-search" state.query in
         { state with query; typing }, [] in
   let query = state.query and typing = state.typing in
   if query = "" && not typing && state.rename = None then
-    Ui.draw ui (Ui.box ui ~flags:Ui.clip ~w:(Ui.Px (w -. 44.)) ~h:(Ui.Px 20.) ~at:(x +. 10., y +. 6.) "navigator-placeholder")
+    Ui.draw ui (Ui.box ui ~flags:Ui.clip ~w:(Ui.Px (field_w -. 4.)) ~h:(Ui.Px 20.) ~at:(x +. 10., y +. 6.) "navigator-placeholder")
       (fun paint (px, py, pw, h) ->
         let ty = Pxui_shell.Kit.text_y ui py h in
         Ui.Paint.text paint ~at:(px, ty) ~color:muted "/";
-        Ui.Paint.text paint ~at:(px +. 12., ty) ~color:(Pxui.Theme.ink_3 theme)
-          (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(pw -. 12.) "go to node, graph, function"));
+        Ui.Paint.text paint ~at:(px +. 12.5, ty) ~color:(Pxui.Theme.ink_3 theme)
+          (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(pw -. 12.5)
+             (if w >= 300. then "go to node, graph, function" else "go to")));
   let rows = rows state p in
   let tops = tops ~rh rows in
   let total = tops.(Array.length rows) in
@@ -394,12 +426,15 @@ let view state ui ~bounds:(x, y, w, h) p =
   let wide = w >= 300. in
   let label_w = if wide then 112. else 56. in
   (* add an object, a graph, a node: the add menu *)
-  if Pxui_shell.Kit.button ui ~key:"navigator-add" ~at:(x +. w -. 28., y +. 6.) ~w:20. ~centered:true "+" then emit Add;
+  if w >= 300. && Pxui_shell.Kit.button ui ~key:"navigator-add" ~at:(x +. w -. 28., y +. 6.) ~w:20. ~centered:true "+" then emit Add;
+  let fold = ref false in
   let begin_rename = ref None in
   (* a material or a SOP graph is a source: pressed and moved 4 points it is carried, as the
      Flow value that reads it *)
   if signal.held then
     (match Option.map (fun k -> rows.(k)) (row_at signal.press_point) with
+     | Some (Root_row { graph; _ }) ->
+         Ui.carry ui ~from:box ~kind:"scene" ~value:("(ref " ^ graph ^ ")") ()
      | Some (Graph_row { graph; context = Some ((W.Material | W.Sop | W.Scene) as context); _ }) ->
          Ui.carry ui ~from:box ~kind:(match context with W.Material -> "material" | W.Scene -> "scene" | _ -> "sop")
            ~value:("(ref " ^ graph ^ ")") ()
@@ -407,6 +442,9 @@ let view state ui ~bounds:(x, y, w, h) p =
   let put = match Ui.drop_target ui box with Some (Ui.Dropped _) -> true | _ -> false in
   (if signal.clicked && not put then match Option.map (fun k -> rows.(k)) (row_at signal.release_point) with
    | Some (Graph_row { graph; _ }) -> emit (Open { graph; node = None })
+   | Some (Root_row { graph; _ }) ->
+       (* the chevron folds the scene's objects; the rest of the row opens the scene graph *)
+       if wide && fst signal.release_point < x +. 24. then fold := true else emit (Open { graph; node = None })
    | Some (Node_row { graph; path; _ }) -> emit (Open { graph; node = Some path })
    | Some (Link_row { graph; _ }) -> emit (Open { graph; node = None })
    | Some (Macro_row (name, _)) -> emit (Macro name)
@@ -416,7 +454,7 @@ let view state ui ~bounds:(x, y, w, h) p =
        let flag column = let fx = x +. w -. 12. -. 12. -. (float (1 - column) *. 20.) in px >= fx -. 4. && px < fx +. 16. in
        (match o.visible, o.render with
         | Some on, _ when flag 0 -> emit (Flag { node = path; name = "visible"; value = not on })
-        | _, Some on when flag 1 -> emit (Flag { node = path; name = "render"; value = not on })
+        | _, Some on when flag 1 && not o.inert -> emit (Flag { node = path; name = "render"; value = not on })
         | _ -> emit (Open { graph; node = Some path }))
    | Some (Layout_row { index; _ }) -> emit (Layout index)
    | _ -> ());
@@ -429,7 +467,7 @@ let view state ui ~bounds:(x, y, w, h) p =
   let hovered = if signal.hovered then row_at signal.pointer else None in
   (* F2 renames and Delete removes the graph under the pointer (a refused removal says who reads it) *)
   (match Option.map (fun k -> rows.(k)) hovered with
-   | Some (Graph_row { graph; _ }) when not (String.starts_with ~prefix:"def:" graph)
+   | Some (Graph_row { graph; _ } | Root_row { graph; _ }) when not (String.starts_with ~prefix:"def:" graph)
        && not typing && state.rename = None ->
        if Ui.key_pressed ui Rays.Input.F2 then begin_rename := Some (graph, false)
        else if Ui.key_pressed ui Rays.Input.Delete then emit (Remove graph)
@@ -484,13 +522,13 @@ let view state ui ~bounds:(x, y, w, h) p =
               let kw = Ui.Paint.text_width paint ~size:small right in
               Ui.Paint.text paint ~size:small ~at:(x +. w -. 12. -. kw, cy)
                 ~color:ink_3 right
-            end else if right <> "" then
+            end else if right <> "" && (wide || right <> "used") then
               Ui.Paint.cap paint ~at:(x +. w -. 12. -. Ui.Paint.cap_width paint right, cy) ~color:ink_3 right
         | Object_row o ->
             shade ~selected:o.chosen false;
-            (* the objects are the children of the scene graph's row, each level 8 points in; the selected row sits in a 4-point wrapper with its own
+            (* the objects are the children of the root row (its letter at 26 wide, 12 narrow), each level 8 points in; wide, the root's chevron takes the first 14; the selected row sits in a 4-point wrapper with its own
                padding (15 and 3), so its letter is a point left and its flags 5 points right *)
-            let ox = x +. 12. +. 8. *. float (o.depth + 1) -. (if o.chosen then 1. else 0.) in
+            let ox = x +. (if wide then 38. else 20.) +. 8. *. float o.depth -. (if o.chosen then 1. else 0.) in
             let right = x +. w -. (if o.chosen then 7. else 12.) in
             let flag_x column = right -. 12. -. (float (1 - column) *. 20.) in
             Ui.Paint.cap paint ~at:(ox, Pxui_shell.Kit.cap_y ui ry rh)
@@ -514,6 +552,19 @@ let view state ui ~bounds:(x, y, w, h) p =
             text (name_x, 0.) name;
             if wide && name_x +. Ui.Paint.text_width paint name +. 8. < edge -. dw then
               Ui.Paint.text paint ~at:(edge -. dw, ty) ~color:muted o.detail
+        | Root_row { detail; folded; active; _ } ->
+            shade active;
+            (* the chevron opens or folds the objects; wide only, where the sheet draws it *)
+            if wide then Ui.Paint.chevron paint ~at:(x +. 15., ry +. (rh /. 2.)) (if folded then `Right else `Down) theme.foreground;
+            let ox = x +. (if wide then 26. else 12.) in
+            Ui.Paint.cap paint ~at:(ox, Pxui_shell.Kit.cap_y ui ry rh) ~color:muted "R";
+            let name_x = ox +. Ui.Paint.cap_width paint "R" +. 8. in
+            text (name_x, 0.) "root";
+            if wide then begin
+              let edge = flag_x 0 -. 8. in
+              let dw = Ui.Paint.text_width paint detail in
+              Ui.Paint.text paint ~at:(edge -. dw, ty) ~color:muted detail
+            end
         | Layout_row { index; label; active } ->
             shade false;
             (* its key as the kit's key text, then the name 8 points on *)
@@ -544,7 +595,9 @@ let view state ui ~bounds:(x, y, w, h) p =
             (match used with
              | Some n ->
                  let count = string_of_int n in
-                 Ui.Paint.text paint ~at:(x +. w -. 12. -. Ui.Paint.text_width paint count, ty) ~color count;
+                 (* a count is ink on the wide sheet, ink-2 on the narrow one *)
+                 Ui.Paint.text paint ~at:(x +. w -. 12. -. Ui.Paint.text_width paint count, ty)
+                   ~color:(if wide then color else if dim then ink_3 else muted) count;
                  let edge = x +. w -. 40. in
                  let dw = Ui.Paint.text_width paint detail in
                  let name = Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(edge -. from) label in
@@ -617,4 +670,5 @@ let view state ui ~bounds:(x, y, w, h) p =
               (float_of_string_opt changed)
         end
     | _ -> ()) rows;
-  { state with rename = (if !begin_rename <> None then !begin_rename else state.rename) }, List.rev !intents
+  { state with rename = (if !begin_rename <> None then !begin_rename else state.rename);
+               scene_closed = (if !fold then not state.scene_closed else state.scene_closed) }, List.rev !intents

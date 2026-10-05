@@ -560,7 +560,7 @@ val text_area :
 
 val text_area_submit :
   t -> at:float * float -> w:float -> h:float -> ?readonly:bool -> ?wrap:bool ->
-  ?errors:int list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
+  ?errors:int list -> ?messages:(int * (int * int) option * string) list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
   ?on_context:(float * float -> unit) -> ?on_scrub:([ `Live | `Done ] -> unit) ->
   ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) -> ?on_drop:(int -> drop -> unit) ->
   ?chips:(int * int * Rays.Color.t) list ->
@@ -569,7 +569,8 @@ val text_area_submit :
     "apply").  Tab inserts two spaces and Shift-Tab takes up to two leading spaces off the line
     (the editor keeps Tab instead of moving the focus).  With [wrap] a long line continues on
     the next row, so nothing scrolls sideways; the gutter numbers logical lines and [errors] are
-    logical lines.  [language] colours the text, lights the bracket pair at the caret, indents
+    logical lines.  A [messages] entry (1-based line, the wrong byte span, the text) is a row of its
+    own in the error colour under that line, with the span underlined.  [language] colours the text, lights the bracket pair at the caret, indents
     after Enter, pairs brackets, completes the token at the caret and describes the token under
     the pointer; [on_context] is called with the pointer when the area is right-clicked (the
     host opens its menu).  A numeric literal of the language dragged sideways follows the

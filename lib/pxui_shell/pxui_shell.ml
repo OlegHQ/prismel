@@ -398,6 +398,15 @@ module Chrome = struct
       ~hit:(fun _ -> float x, float y, float width, float height) label
 
   let key path = String.concat "." (List.map string_of_int path)
+  (* a title's path is its parts joined by " / "; a bare slash ("fixed dt 1/60") is part of a word *)
+  let split_crumbs sub =
+    let n = String.length sub in
+    let rec go from i acc =
+      if i + 3 > n then List.rev (String.sub sub from (n - from) :: acc)
+      else if String.sub sub i 3 = " / " then go (i + 3) (i + 3) (String.sub sub from (i - from) :: acc)
+      else go from (i + 1) acc in
+    List.map String.trim (go 0 0 [])
+  let has_crumbs sub = List.length (split_crumbs sub) > 1
   let retypes = [ "Graph", Graph; "List", List; "Lisp", Lisp; "Inspector", Inspector;
                   "Outline", Outline; "Timeline", Timeline; "Viewport", View "" ]
 
@@ -591,12 +600,12 @@ module Chrome = struct
             tx := !tx +. Ui.Paint.text_width paint part +. 8. in
           let rec crumbs = function
             | [] -> ()
-            | [ last ] -> put (if String.contains sub '/' then theme.foreground else ink_2) last
+            | [ last ] -> put (if has_crumbs sub then theme.foreground else ink_2) last
             | part :: rest -> put ink_2 part; put ink_3 "/"; crumbs rest in
           (* a window's title row: the path is one string in ink-2 at the label size *)
           if sub <> "" && l.floating then
             Ui.Paint.text paint ~size:(Kit.cap_size ui) ~at:(!tx, Kit.cap_y ui y h) ~color:ink_2 sub
-          else if sub <> "" then crumbs (List.map String.trim (String.split_on_char '/' sub));
+          else if sub <> "" then crumbs (split_crumbs sub);
           if collapsed then put ink_3 "collapsed"
         end;
         let cx = x +. w -. 18. and cy = y +. (h /. 2.) in
@@ -622,7 +631,7 @@ module Chrome = struct
       else if floating then x +. 8. +. Pxui.Ui.text_width ui ~size:(Kit.cap_size ui) sub
       else List.fold_left (fun x part -> x +. 8. +. Pxui.Ui.text_width ui part) x
           (List.concat (List.mapi (fun i part -> if i = 0 then [ part ] else [ "/"; part ])
-             (List.map String.trim (String.split_on_char '/' sub)))) in
+             (split_crumbs sub))) in
     let x = if collapsed then x +. 8. +. Pxui.Ui.text_width ui "collapsed" else x in
     x +. 25.
 
