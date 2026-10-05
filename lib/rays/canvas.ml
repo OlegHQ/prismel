@@ -10,22 +10,23 @@ let width value=fst(size value)
 let height value=snd(size value)
 let execution_message operation error=
   Format.asprintf"%s: %a"operation Rays_execution.pp_error error
-let execution value=
+let execution?(density=1) value=
   if value.destroyed then invalid_arg"Canvas.render: canvas is destroyed";
   match value.execution with
   |Some execution->execution
   |None->
       let width,height=size value in
       let configuration={Rays_execution.
-        logical_width=width;logical_height=height;drawable_width=width;
+        logical_width=width/density;logical_height=height/density;drawable_width=width;
         drawable_height=height;title="Rays Canvas";
         vsync=false}in
       match Rays_execution.create_offscreen configuration with
       |Error error->failwith(execution_message"Canvas.render"error)
       |Ok execution->value.execution<-Some execution;execution
-let render value scene=
-  let execution=execution value and width,height=size value in
-  (match Native_scene_lowering.render~execution~density:1~width~height scene with
+let render ?(density=1) value scene=
+  if density<1 then invalid_arg"Canvas.render: density must be positive";
+  let execution=execution~density value and width,height=size value in
+  (match Native_scene_lowering.render~execution~density~width:(width/density)~height:(height/density) scene with
   |Ok _->()
   |Error error->
       failwith(Format.asprintf"Canvas.render: %a"Native_scene_lowering.pp_error error));

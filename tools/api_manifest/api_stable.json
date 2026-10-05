@@ -463,13 +463,13 @@
       "source_sha256": "1dd94be2d757d407af74b2c7e7333b80b3dbd30320a0b23e8de6e7c261df26d3"
     },
     {
-      "api_sha256": "1ad09ede4a7f76f9b52a7b322802e5a7c86e8f140a68cd7fa1b45bb1a9da50e8",
+      "api_sha256": "7fb7bebd2356373722032e1da0dd5b2e6b9d1629e5649aef5ddb04c4d4a0416a",
       "excluded_legacy_symbols": [],
       "library": "rays",
       "module": "Canvas",
       "source": "lib/rays/canvas.mli",
-      "source_bytes": 1076,
-      "source_sha256": "c14e14e02d8308d3b4e85fc6b12819ed39dce873a0e29203ea50e7f0958e9afc"
+      "source_bytes": 1323,
+      "source_sha256": "d7ecc58b0288ef80c9e3108758bb9cde2106a08b0a83062feadb0cfe1d19f183"
     },
     {
       "api_sha256": "e6fc3b440ea896706d408cd6b3bd3f5da5ab09ca96715005ca4a6558f0cbff94",

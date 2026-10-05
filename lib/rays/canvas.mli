@@ -6,7 +6,10 @@ val height : t -> int
 val size : t -> int * int
 (* Replace the canvas contents through a reusable, layerless native Metal
    target owned by the canvas. *)
-val render : t -> Scene.t -> unit
+val render : ?density:int -> t -> Scene.t -> unit
+(* [density] (default 1) renders the scene at that many canvas pixels a logical point, as a
+   Retina window does: the scene is [width / density] by [height / density] points.  A canvas
+   keeps the density of its first render. *)
 val capture : unit -> (t,string) result
 val pixel : t -> x:int -> y:int -> Color.t option
 val pixels : t -> Color.t array

@@ -33,3 +33,5 @@ render at 1581 x 784).
 
 The second command selects `scatter1`: the graph panel is the left 1200 points, the inspector the
 right 380.
+`UI_SHOT_SCALE=2` renders two pixels a point, as a Retina window does: compare that with the
+`@2x` renders (at 1x the app's glyph advances are whole pixels, so text runs a little wide).

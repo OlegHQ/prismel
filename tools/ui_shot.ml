@@ -4,11 +4,14 @@
 let () = if Array.length Sys.argv < 3 then failwith "usage: ui_shot FILE.rays OUTPUT.png [WIDTH HEIGHT [FRAMES]]"
 let arg index default = if Array.length Sys.argv > index then int_of_string Sys.argv.(index) else default
 let width = arg 3 1440 and height = arg 4 900 and frames = arg 5 8
+(* UI_SHOT_SCALE=2: the picture a Retina window shows, two pixels a point (glyphs at their 2x
+   advances), for comparing with the sheets' @2x renders *)
+let scale = Option.value ~default:1 (Option.bind (Sys.getenv_opt "UI_SHOT_SCALE") int_of_string_opt)
 
 let frame count : Rays.Frame.t = {
   width; height; size = width, height;
-  drawable_width = width; drawable_height = height;
-  drawable_size = width, height; pixel_scale = 1., 1.;
+  drawable_width = width * scale; drawable_height = height * scale;
+  drawable_size = width * scale, height * scale; pixel_scale = float scale, float scale;
   time = float_of_int count /. 60.; dt = 1. /. 60.; fps = 60.; count;
   mouse = -100., -100.; mouse_delta = 0., 0.; keys = [];
   mouse_buttons = []; events = [];
@@ -20,7 +23,7 @@ let () =
   let workspace = match Rays_editor.Workspace.load text with
     | Ok workspace -> workspace
     | Error diagnostics -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string diagnostics)) in
-  let canvas = Rays.Canvas.create_exn ~width:(width) ~height:(height) in
+  let canvas = Rays.Canvas.create_exn ~width:(width * scale) ~height:(height * scale) in
   let editor = E.create ~workspace ~await:true ~presets:(Filename.temp_dir "ui-shot" "")
       ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
         |> Result.map_error Rdk.Error.to_string)
@@ -64,6 +67,7 @@ let () =
     (String.split_on_char ' ' (Option.value ~default:"" (Sys.getenv_opt "UI_SHOT_DO")));
   (* let hover delays and cooks settle; a held button stays down *)
   for _ = 1 to 30 do step [] done;
-  Rays.Canvas.render canvas (E.scene !editor { (frame !count) with mouse = !mouse; mouse_buttons = !buttons });
+  let scene = E.scene !editor { (frame !count) with mouse = !mouse; mouse_buttons = !buttons } in
+  Rays.Canvas.render ~density:scale canvas scene;
   (match Rays.Canvas.save_png canvas Sys.argv.(2) with Ok () -> () | Error message -> failwith message);
   E.close !editor; Rays.Canvas.destroy canvas
