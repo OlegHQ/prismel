@@ -418,13 +418,13 @@
       "source_sha256": "f7367c9aa00a23bc4da7d18c1f4c5128ee292cab069bba02ecd9556ae91643eb"
     },
     {
-      "api_sha256": "ed116eb91d3c1c9796cda6314c15261dd75f8476734b01e5ee38135f065666be",
+      "api_sha256": "08bed0982e23ab48725d418fe219bd9be1c6334382ea37fe5fdefdc4b2490bbe",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 14891,
-      "source_sha256": "0ed08aa6adff4d86d5d90cbaa084e355f962522ac19b3f31ec7715ffd89978eb"
+      "source_bytes": 16499,
+      "source_sha256": "68ae6ac592f6855e2c7d9135c74417ba344927030be3561bd123c4b2830ba68e"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",
@@ -719,13 +719,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "1f0a620c7a2dd2a362dea264fab03ce2d242512282e5bc5149e885b3c45af498",
+      "api_sha256": "0dd83821bc8fd4d2fb4598d7ed9e0f712580c7ac63c54850ef8b6cd14e14996f",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37596,
-      "source_sha256": "ae39f82b5b5f4d7ed1753b0db4d0d601ff49d67f404681907b9c1c0224701e8f"
+      "source_bytes": 37572,
+      "source_sha256": "c7ddbc2108874138347ee2d934db8709e73463b61f55ed99426bc4f9cab26f80"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",

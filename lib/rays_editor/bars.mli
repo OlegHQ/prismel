@@ -3,11 +3,12 @@
 
 type tool = Add | Repeat | Iterate | Fn | Macro | Defn
 
-val tools_from : string -> float
-(** The toolbar starts after a header title (and subtitle) of this text. *)
+val tool_rect : Pxui.Ui.t -> header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
+(** Where a toolbar button sits ([from] points after the header's left edge, see
+    {!Pxui_shell.Chrome.tools_start}); none when the header is too narrow for it. *)
 
-val tool_rect : header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
-(** Where a toolbar button sits; none when the header is too narrow for it. *)
+val rule : Pxui.Ui.t -> key:string -> header:int * int * int * int -> from:float -> unit
+(** The 1 x 12 rule that parts a header's title from the tools that start at [from]. *)
 
 val graph_tools : Pxui.Ui.t -> header:int * int * int * int -> from:float -> enabled:bool -> tool option
 (** The toolbar in a panel header, [from] points after the header's left edge; the tool

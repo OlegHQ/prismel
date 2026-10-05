@@ -20,9 +20,12 @@ module Layout : sig
   val header_height : int
   (** One unit, 24 points: a panel header, the status strip, a docked timeline. *)
 
-  type leaf = { path : path; panel : panel; header : bounds; body : bounds; floating : bool }
-  (** One panel: its 24-point header and the body below it.  A docked timeline has no
-      header: it is its strip. [floating] covers both authored
+  val header_margin : int
+  (** The 4 points above a panel's header row (none on a collapsed docked pane). *)
+
+  type leaf = { path : path; panel : panel; frame : bounds; header : bounds; body : bounds; floating : bool }
+  (** One panel: its [frame], the 24-point [header] row under a 4-point margin, and the body
+      below it.  A docked timeline under 90 points has no header: it is its strip. [floating] covers both authored
       [Float] trees and panels undocked through saved window state. *)
 
   type splitter = { node : path option; axis : axis; size : Editor_core.Panels.size; bounds : bounds;
@@ -48,8 +51,9 @@ module Layout : sig
       column in a row).  A split with a fixed side gives that side its points and the other
       the rest; when both do not fit, the other side keeps its minimum first and the fixed
       side shrinks, never below one point.  A [Timeline] leaf in a stack is 24 points; a tree
-      without one has the same strip under it.  The 24-point status strip spans the frame
-      below both.  Every point of the frame is covered exactly once, floats aside. *)
+      without one has a 25-point strip under it (a hairline and the bar).  The 25-point status
+      strip (a hairline and a 24-point bar) spans the frame below both.  Every point of the frame
+      is covered exactly once, floats aside; a leaf's [frame] is its margin, header and body. *)
 
   val toggle : panel -> panel list -> panel list
   val expand : panel -> panel list -> panel list
@@ -66,6 +70,9 @@ end
 
 (** Kit rev 3 pieces every bar shares. *)
 module Kit : sig
+  val cap_width : Pxui.Ui.t -> string -> float
+  (** The width of a label ({!Pxui.Ui.Paint.cap}), measurable before painting. *)
+
   val text_y : Pxui.Ui.t -> float -> float -> float
   (** [text_y ui y h]: where kit text sits in a bar at [y] of height [h]. *)
 
@@ -75,9 +82,13 @@ module Kit : sig
   val button_width : Pxui.Ui.t -> ?hint:string -> ?icon:bool -> string -> float
 
   val button : Pxui.Ui.t -> key:string -> at:float * float -> w:float -> ?h:float -> ?enabled:bool ->
-    ?active:bool -> ?primary:bool -> ?hint:string -> ?icon:[ `Play | `Stop ] -> string -> bool
+    ?active:bool -> ?primary:bool -> ?centered:bool -> ?hint:string -> ?icon:[ `Play | `Stop ] -> string -> bool
   (** A text button and, in ink-3, its key: hover and pressed fills, the control fill while
-      [active]; [primary] is the one outlined button of a panel.  True on a click. *)
+      [active]; [primary] is the one outlined button of a panel; [centered] centres a label in a
+      button wider than its text (an icon button).  True on a click. *)
+
+  val switch : Pxui.Ui.t -> key:string -> at:float * float -> bool -> bool
+  (** The kit's 28 x 14 switch, on or off; true on a click. *)
 
   val segments : Pxui.Ui.t -> key:string -> right:float -> y:float -> ?h:float -> string list -> int ->
     int option * float
@@ -108,6 +119,10 @@ module Chrome : sig
       Panel backgrounds, the drawn gutters, headers with their collapse button and
       right-click menu (split, close, dock, retype, and the size of the split that holds the
       panel: a [Resize] then [Settled], as the gutter's menu).  Pure: the host applies the intents. *)
+
+  val tools_start : Pxui.Ui.t -> focused:bool -> floating:bool -> collapsed:bool -> string -> float
+  (** Where the tools of a header begin, from its left edge: after the title as {!update} lays
+      it out, an 8-point gap, the 1 x 12 rule between two 4-point margins and an 8-point gap. *)
 
   val splitters : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t ->
     intent list
@@ -145,17 +160,19 @@ module Status_bar : sig
   (** What the dot after the file says: checked and cooked, cooking, refused. *)
 
   val guide : Pxui.Ui.t -> bounds:Layout.bounds -> ?file:string -> ?state:state -> ?layout:string ->
-    ?text:string -> ?fps:int -> context:Editor_core.Guide_context.t ->
+    ?text:string -> ?fps:int -> ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
     ('scope, 'action) Editor_core.Command.t list -> bool
-  (** The file, its state and status line (a quarter of the strip at most), the context as a
-      label and each applicable key before what it does, then the layout in use and the frame
-      rate; true when Hide is clicked. *)
+  (** The strip of the workspace sheet: a hairline over a 24-point bar of the file, its state dot
+      and status line (a quarter of the strip at most), a rule, the focused pane's [kind] and the
+      [selection] as labels (a context that is not a node's names itself in place of the
+      selection), each applicable key in ink-3 before what it does in ink-2, then the layout in
+      use and the frame rate at the right; true when the "toggle guide" pair is clicked. *)
 
   val hud : Pxui.Ui.t -> bounds:Layout.bounds -> text:string -> unit
   (** Noninteractive key feedback in the pane's bottom corner. *)
 
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> ?file:string -> ?state:state ->
-    ?layout:string -> text:string -> fps:int option -> unit -> unit
+    ?layout:string -> ?kind:string -> ?selection:string -> text:string -> fps:int option -> unit -> unit
   (** The status strip without the keys: the file, its state, the whole status line, the
       layout in use and the frame rate. *)
 end
@@ -165,10 +182,13 @@ module Timeline_bar : sig
     | Seek_playback of int64
     | Set_end of int  (** the last frame, typed in a tall timeline's End field *)
 
-  val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> playing:bool ->
-    frame:int64 -> time:float -> max_frame:int -> intent list
+  val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> ?edge:bool -> playing:bool ->
+    frame:int64 -> time:float -> max_frame:int -> unit -> intent list
   (** Draw timeline controls and return playback requests.  The frame is a field: a click
-      opens it, Enter commits (clamped to 0 and [max_frame]), Escape cancels. *)
+      opens it, Enter commits (clamped to 0 and [max_frame]), Escape cancels.  A body under 56
+      points is the one 24-point bar of the workspace sheet (Play, Stop, F, the frame, the time,
+      the ruler); a taller panel adds Reset, Frame, Time, End and a numbered ruler under a hairline.
+      [edge] puts a line-2 hairline on the strip's top row (a strip no gutter lies over). *)
 end
 
 module Prompt : sig

@@ -226,8 +226,7 @@ module Private : sig
   (** The host bars: where their buttons sit. *)
   module Bars : sig
     type tool = Add | Repeat | Iterate | Fn | Macro | Defn
-    val tools_from : string -> float
-    val tool_rect : header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
+    val tool_rect : Pxui.Ui.t -> header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
   end
 
   (** The Navigator panel: its rows and where each is drawn. *)

@@ -90,7 +90,8 @@ let run () =
   let initial = panes workspace (frame ~width:1000 0) in
   let header = (Option.get (Layout.find (Layout.geometry workspace (frame ~width:1000 0))
     Editor_core.Panels.main)).header in
-  check (header = (0, 0, width initial.view, 24))
+  (* a header is one 24-point row under a 4-point margin *)
+  check (header = (0, 4, width initial.view, 24))
     "workspace header is not a compact single line";
   check (abs (width initial.view - 449) <= 1
       && abs (width initial.graph - 349) <= 1
