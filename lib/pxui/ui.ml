@@ -1520,10 +1520,10 @@ module Paint = struct
 
   let chevron paint ~at:(cx, cy) direction color =
     let a, b = match direction with
-      | `Down -> (-3.5, -2.), (3.5, -2.) | `Up -> (-3.5, 2.), (3.5, 2.)
-      | `Right -> (-2., -3.5), (-2., 3.5) | `Left -> (2., -3.5), (2., 3.5) in
+      | `Down -> (-4., -2.), (4., -2.) | `Up -> (-4., 2.), (4., 2.)
+      | `Right -> (-2., -4.), (-2., 4.) | `Left -> (2., -4.), (2., 4.) in
     let tip = match direction with
-      | `Down -> 0., 1.5 | `Up -> 0., -1.5 | `Right -> 1.5, 0. | `Left -> -1.5, 0. in
+      | `Down -> 0., 2. | `Up -> 0., -2. | `Right -> 2., 0. | `Left -> -2., 0. in
     let p (dx, dy) = cx +. dx, cy +. dy in
     line paint ~from_:(p a) ~to_:(p tip) color; line paint ~from_:(p tip) ~to_:(p b) color
 
@@ -1792,17 +1792,27 @@ let hover_delay ui ~key =
         time -. start >= 0.380
     | _ -> ui.hover_rest <- Some (key, ui.pointer, time, ui.frame_number); false
 
-let tooltip ui ~key ~text =
+(* A tooltip: a 20-point sheet with a line-2 edge and 6 points of padding, text at the label size and
+   the shortcut [shortcut] after it in ink-3; long text wraps to further 14-point lines. *)
+let tooltip ?shortcut ui ~key ~text =
   if hover_delay ui ~key then begin
+    let size = max 8 (ui.font_size - 2) in
+    let text_width ui ~size text = float (text_width_px ui ~size text) /. float (max 1 ui.density) in
+    let char_width = Float.max 1. (text_width ui ~size "0") in
     let width = Float.min 400. (Float.max 40. (ui.view_w -. 16.)) in
-    let columns = max 1 (int_of_float ((width -. 16.) /. 7.)) in
+    let columns = max 1 (int_of_float ((width -. 14.) /. char_width)) in
     let lines, last = List.fold_left (fun (lines, line) word ->
       if line = "" then lines, word
       else if String.length line + String.length word + 1 <= columns then
         lines, line ^ " " ^ word
       else line :: lines, word) ([], "") (String.split_on_char ' ' text) in
     let lines = List.rev (last :: lines) in
-    let height = 4. +. (16. *. float (List.length lines)) in
+    let key_text = Option.value shortcut ~default:"" in
+    let widest = List.fold_left (fun most line -> Float.max most (text_width ui ~size line)) 0. lines in
+    let last_width = text_width ui ~size last in
+    let with_key = if key_text = "" then 0. else 6. +. text_width ui ~size key_text in
+    let width = Float.min width (14. +. Float.max widest (last_width +. with_key)) in
+    let height = 20. +. (14. *. float (List.length lines - 1)) in
     let px, py = ui.pointer in
     let x = Float.max 8. (Float.min (px +. 12.) (ui.view_w -. width -. 8.)) in
     let y = if py +. height +. 24. <= ui.view_h then py +. 20.
@@ -1813,9 +1823,15 @@ let tooltip ui ~key ~text =
       let tip = box ui ~w:(Px width) ~h:(Px height) ~at:(x, y) "ui-tooltip" in
       ui.overlays <- tip.index :: ui.overlays;
       draw ui tip (fun paint (x, y, w, h) ->
-        Paint.rect paint ~x ~y ~w ~h ~fill:ui.theme.input ~stroke:(Theme.edge ui.theme) ();
-        List.iteri (fun i line -> Paint.text paint ~color:ui.theme.foreground
-          ~at:(x +. 8., y +. 2. +. (16. *. float i)) line) lines))
+        Paint.fill paint ~x ~y ~w ~h ui.theme.input;
+        Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) (Theme.edge ui.theme);
+        List.iteri (fun i line ->
+          Paint.text paint ~size ~color:ui.theme.foreground
+            ~at:(x +. 7., y +. (14. *. float i) +. Float.floor (float (20 - size) /. 2.)) line) lines;
+        if key_text <> "" then
+          Paint.text paint ~size ~color:(Theme.ink_3 ui.theme)
+            ~at:(x +. 7. +. last_width +. 6.,
+                 y +. (14. *. float (List.length lines - 1)) +. Float.floor (float (20 - size) /. 2.)) key_text))
   end
 
 let row ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
@@ -1824,7 +1840,7 @@ let row ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
 let col ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
   within ui (box ui ~w ~h ~axis:Column ~gap ~padding label) f
 
-let splitter ui ?(axis = Row) ?(thickness = 6.) label =
+let splitter ui ?(axis = Row) ?(thickness = 7.) label =
   let w, h = match axis with Row -> Px thickness, Grow | Column -> Grow, Px thickness in
   let divider = box ui ~flags:(clickable lor blocking) ~w ~h label in
   let theme = ui.theme in
@@ -1874,34 +1890,44 @@ let compact_float value =
   then Printf.sprintf "%.2g" value
   else Printf.sprintf "%.3g" value
 
+(* A value shown to three significant digits of its range (48.0 in 0..120, 0.20 in 0..1). *)
+let range_float ~span value =
+  if abs_float value >= 1000. || not (Float.is_finite span) || span <= 0. then compact_float value
+  else
+    let decimals = max 1 (min 4 (2 - int_of_float (Float.floor (Float.log10 span)))) in
+    Printf.sprintf "%.*f" decimals value
+
 let fraction_at (x, _, w, _) pointer_x =
   Float.max 0. (Float.min 1. ((pointer_x -. float x) /. float (max 1 (w - 1))))
 
 let fill paint (x, y, w, h) color =
   Paint.fill paint ~x:(float x) ~y:(float y) ~w:(float w) ~h:(float h) color
 let framed paint (x, y, w, h) ~fill:color ~stroke =
-  Paint.rect paint ~x:(float x) ~y:(float y) ~w:(float w) ~h:(float h)
-    ~fill:color ~stroke ()
+  Paint.fill paint ~x:(float x) ~y:(float y) ~w:(float w) ~h:(float h) color;
+  Paint.stroke paint ~x:(float x +. 0.5) ~y:(float y +. 0.5) ~w:(float (w - 1)) ~h:(float (h - 1)) stroke
 let kit_text paint ?color x y text =
   Paint.text paint ~at:(float x, float y) ?color text
-let kit_line paint ~from_:(x0, y0) ~to_:(x1, y1) ?width color =
-  Paint.line paint ~from_:(float x0, float y0) ~to_:(float x1, float y1) ?width color
 
 let hover_row paint ui bounds = fill paint bounds (Theme.faint_border ui.theme)
 (* a field is a value on a hairline: accent while it holds the keyboard *)
 let underline paint (cx, cy, cw, ch) color = fill paint (cx, cy + ch - 1, cw, 1) color
-let paint_switch paint (theme : Theme.t) ~x ~y value =
-  Paint.rect paint ~x ~y ~w:28. ~h:14. ~fill:(if value then theme.input else theme.track)
-    ~stroke:(Theme.border theme) ();
-  Paint.fill paint ~x:(x +. (if value then 17. else 3.)) ~y:(y +. 3.) ~w:8. ~h:8.
-    (if value then theme.accent else Theme.ink_3 theme)
+let paint_switch paint ?(disabled = false) (theme : Theme.t) ~x ~y value =
+  if disabled then begin
+    Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:27. ~h:13. (Theme.faint_border theme);
+    Paint.fill paint ~x:(x +. 3.) ~y:(y +. 3.) ~w:8. ~h:8. (Theme.border theme)
+  end else begin
+    Paint.fill paint ~x ~y ~w:28. ~h:14. (if value then theme.input else theme.track);
+    Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:27. ~h:13. (Theme.border theme);
+    Paint.fill paint ~x:(x +. (if value then 17. else 3.)) ~y:(y +. 3.) ~w:8. ~h:8.
+      (if value then theme.accent else Theme.ink_3 theme)
+  end
 let cap_y ui y h = text_top ui ~size:(max 8 (ui.font_size - 2)) y h
 (* a section header: a label in ink-3 and a chevron, under 16 points of space *)
 let paint_section paint ui (x, y, w, h) label ~open_ ~hovered =
   if hovered then Paint.fill paint ~x ~y ~w ~h (Theme.faint_border ui.theme);
   Paint.cap paint ~at:(x +. float side, cap_y ui y h) ~color:(Theme.ink_3 ui.theme) label;
-  Paint.chevron paint ~at:(x +. w -. float side -. 4., y +. (h /. 2.))
-    (if open_ then `Down else `Right) (Theme.ink_2 ui.theme)
+  Paint.chevron paint ~at:(x +. w -. float side -. 3., y +. (h /. 2.) -. 0.5)
+    (if open_ then `Down else `Right) ui.theme.foreground
 (* the space above a section header: 4 at the top of its parent, none after a closed one *)
 let section_gap ui =
   let last = ui.b_last.(current_parent ui) in
@@ -1925,7 +1951,7 @@ let panel_with ?stroke ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_hei
     Paint.fill paint ~x ~y ~w ~h (if Option.is_some stroke then theme.input else theme.panel));
   draw_over ui panel (fun paint rect ->
     Option.iter (fun color -> let x, y, w, h = rect in
-      Paint.stroke paint ~x ~y ~w ~h ~width:1. color) stroke;
+      Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) ~width:1. color) stroke;
     let x, y, width, height = ints rect in
     let content = int_of_float ui.l_content.(index) in
     let maximum = max 0 (content - height) in
@@ -2097,7 +2123,9 @@ let popup ui ?stroke ?max_height ?(dismiss_initial = true)
     ui.parents <- [0];
     let index = ui.count in
     Fun.protect ~finally:(fun () -> ui.parents <- parents) (fun () ->
-      let result = panel_with ?stroke ?max_height ui ~x ~y ~width label f in
+      (* a window's 1-point edge is part of its box: its content starts inside it *)
+      let result = panel_with ?stroke ?max_height ~padding:(if stroke = None then 0 else 1)
+          ui ~x ~y ~width label f in
       ui.overlays <- index :: ui.overlays;
       ui.modal_key <- Some key;
       Some result)
@@ -2124,41 +2152,78 @@ let modal ui ?(width = 320.) label f =
   popup ui ~stroke:(Theme.border ui.theme) ~dismiss_initial:false ~at:(x, y)
     ~width ~height ~max_height:(Float.max 48. (ui.view_h -. 32.)) label f
 
+(* A label: ink-2 capitals 12 from the left (a window's title), 4 points under the top of its parent. *)
 let label ui text =
-  let row = kit_row ui ~flags:none text in
+  let gap = if ui.b_last.(current_parent ui) < 0 then 4. else 0. in
+  let row = box ui ~flags:none ~w:Grow ~h:(Px (gap +. float ui.kit_row_height)) text in
   let theme = ui.theme and shown = display text in
   draw ui row (fun paint (x, y, _, h) ->
-    Paint.cap paint ~at:(x +. float side, cap_y ui y h) ~color:theme.foreground shown)
+    Paint.cap paint ~at:(x +. float side, cap_y ui (y +. gap) (h -. gap)) ~color:(Theme.ink_2 theme) shown)
 
-(* A button is its text: a fill on hover and press, an accent underline with the keyboard. *)
-let button ui text =
+(* A window's foot: a line-2 hairline under 4 points of space, then the keys in ink-3 each followed by
+   what it does in ink-2, 8 points apart, and [right] (a key or a count) at the end. *)
+let footer ui ?right hints =
+  let row = box ui ~flags:none ~w:Grow ~h:(Px (4. +. float ui.kit_row_height)) "footer" in
+  let theme = ui.theme and size = max 8 (ui.font_size - 2) in
+  draw ui row (fun paint (x, y, w, h) ->
+    Paint.fill paint ~x ~y:(y +. 4.) ~w ~h:1. (Theme.edge theme);
+    let key_y = text_top ui ~size (y +. 4.) (h -. 4.) and hint_y = text_top ui (y +. 4.) (h -. 4.) in
+    let pen = List.fold_left (fun pen (key, what) ->
+      Paint.text paint ~size ~color:(Theme.ink_3 theme) ~at:(pen, key_y) key;
+      let pen = pen +. Paint.text_width paint ~size key +. 8. in
+      Paint.text paint ~color:(Theme.ink_2 theme) ~at:(pen, hint_y) what;
+      pen +. Paint.text_width paint what +. 8.) (x +. float side) hints in
+    ignore pen;
+    Option.iter (fun text ->
+      Paint.cap paint ~at:(x +. w -. float side -. Paint.cap_width paint text, key_y) text) right)
+
+(* A button is its text on a 20-point box (6 points of padding in a transparent 1-point edge):
+   a fill on hover and press, the control fill when [on], an accent line inside the bottom edge with
+   the keyboard, a line-3 edge for the one [primary]; [key] follows the text in ink-3 at the label
+   size.  The box starts 5 points in so that its text lines up with the labels at 12. *)
+let button ui ?key ?(primary = false) ?(on = false) ?(disabled = false) text =
   let shown = display text in
-  let width = (float (text_width_px ui shown) /. float (max 1 ui.density)) +. 12. in
-  let extent (x, y, w, h) = x +. 6., y +. 2., Float.max 1. (Float.min width (w -. 12.)), h -. 4. in
-  let row = kit_row ui ~hit:extent text in
+  let size = max 8 (ui.font_size - 2) in
+  let measure ?size text = float (text_width_px ui ?size text) /. float (max 1 ui.density) in
+  let key_width = match key with Some key -> 6. +. measure ~size key | None -> 0. in
+  let width = measure shown +. key_width +. 14. in
+  let extent (x, y, w, h) = x +. 5., y +. 2., Float.max 1. (Float.min width (w -. 10.)), h -. 4. in
+  let row = kit_row ui ~flags:(if disabled then blocking else clickable lor focusable lor blocking lor tab_only)
+      ~hit:extent text in
   let signal = signal ui row in
-  let theme = ui.theme and focus = focused ui row in
+  let theme = ui.theme and focus = (not disabled) && focused ui row in
   draw ui row (fun paint rect ->
-    let _, y, _, h = ints rect in
-    let (cx, _, _, _) as control = ints (extent rect) in
-    if signal.held then fill paint control (Theme.pressed_fill theme)
-    else if signal.hovered then fill paint control (Theme.hover_fill theme);
-    if focus then underline paint control theme.accent;
-    kit_text paint (cx + 6) (label_y ui y h) shown);
-  signal.clicked
+    let x, y, w, h = rect in
+    let cx, cy, cw, ch = extent (x, y, w, h) in
+    let ink = if disabled then Theme.ink_3 theme else theme.foreground in
+    if disabled then ()
+    else if signal.held then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.pressed_fill theme)
+    else if signal.hovered then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.hover_fill theme)
+    else if on then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch theme.control;
+    if primary && not disabled then
+      Paint.stroke paint ~x:(cx +. 0.5) ~y:(cy +. 0.5) ~w:(cw -. 1.) ~h:(ch -. 1.) (Theme.border theme);
+    if focus then Paint.fill paint ~x:(cx +. 1.) ~y:(cy +. ch -. 2.) ~w:(cw -. 2.) ~h:1. theme.accent;
+    Paint.text paint ~at:(cx +. 7., text_top ui y h) ~color:ink shown;
+    Option.iter (fun key ->
+      Paint.text paint ~size ~at:(cx +. 7. +. measure shown +. 6., text_top ui ~size y h)
+        ~color:(Theme.ink_3 theme) key) key);
+  (not disabled) && signal.clicked
 
-let toggle ui text value =
-  let row = kit_row ui ~hit:(control_hit toggle_control) text in
+(* A switch on its row: the label (ink-3 when [disabled]) and the 28 x 14 switch at the end. *)
+let toggle ui ?(disabled = false) text value =
+  let row = kit_row ui ~flags:(if disabled then blocking else clickable lor focusable lor blocking lor tab_only)
+      ~hit:(control_hit toggle_control) text in
   let signal = signal ui row in
-  let value = if signal.clicked then not value else value in
+  let value = if (not disabled) && signal.clicked then not value else value in
   let theme = ui.theme and shown = display text in
-  let hovered = signal.hovered in
+  let hovered = signal.hovered && not disabled in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let cx, cy, _, _ = toggle_control bounds in
     if hovered then hover_row paint ui bounds;
-    kit_text paint (x + side) (label_y ui y h) shown;
-    paint_switch paint theme ~x:(float cx) ~y:(float cy) value);
+    kit_text paint ~color:(if disabled then Theme.ink_3 theme else theme.foreground)
+      (x + side) (label_y ui y h) shown;
+    paint_switch paint ~disabled theme ~x:(float cx) ~y:(float cy) value);
   value
 
 let previous_utf8 text index =
@@ -2437,9 +2502,9 @@ let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
     let start, stop = text_selection edit in
     Paint.fill paint
       ~x:(text_x +. width (String.sub edit.text 0 start))
-      ~y:(float (cy + 2))
+      ~y:(float cy +. 0.5)
       ~w:(width (String.sub edit.text start (stop - start)))
-      ~h:(float (max 1 (ch - 4))) (Theme.tint theme)
+      ~h:(float (max 1 (ch - 2))) (Theme.tint theme)
   end;
   if composition = "" then Paint.text paint ?size ~at:(text_x, float y) edit.text
   else begin
@@ -2449,8 +2514,7 @@ let paint_text_edit paint ?size ~control:(cx, cy, cw, ch) ~y ~composition edit =
       (String.sub edit.text edit.caret
         (String.length edit.text - edit.caret))
   end;
-  Paint.line paint ~from_:(caret_x, float (cy + 3))
-    ~to_:(caret_x, float (cy + ch - 3)) ~width:1. theme.accent;
+  Paint.fill paint ~x:caret_x ~y:(float cy +. 2.5) ~w:1. ~h:14. theme.accent;
   paint.clip_rect <- previous_clip
 
 (* Numeric label editing shared by float and integer sliders. The retained
@@ -2596,9 +2660,9 @@ let keyboard_fraction keys ~step value =
     | Event.KeyPressed Input.End -> 1.
     | _ -> value) value keys
 
-let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~step ~parse
+let slider_row ui ?(disabled = false) text ~draw_value ~value_text ~fraction_of ~from_fraction ~step ~parse
     ~current value =
-  let row = kit_row ui text in
+  let row = if disabled then kit_row ui ~flags:blocking text else kit_row ui text in
   let signal = signal ui row in
   let bounds = ints (rect ui row) in
   let control = value_control bounds in
@@ -2630,7 +2694,8 @@ let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~step
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
     if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y h) shown;
+    kit_text paint ~color:(if disabled then Theme.ink_3 theme else Theme.ink_2 theme)
+      (x + side) (label_y ui y h) shown;
     match edit with
     | Some text ->
         underline paint control (if valid then theme.accent else Theme.invalid);
@@ -2638,22 +2703,24 @@ let slider_row ui text ~draw_value ~value_text ~fraction_of ~from_fraction ~step
           ~composition { text; caret = edit_caret; anchor = edit_anchor }
         else kit_text paint (cx + 2) (label_y ui y h) text
     | None ->
-        let marker = position control (fraction_of value) in
-        underline paint control (Theme.edge theme);
-        fill paint (cx, cy + ch - 2, max 1 (marker - cx + 1), 2)
-          (if pressed then theme.foreground else Theme.ink_2 theme);
+        underline paint control (if disabled then Theme.faint_border theme else Theme.edge theme);
+        (* the 2-point line over the hairline is the position in the soft range *)
+        if not disabled then
+          Paint.fill paint ~x:(float cx) ~y:(float (cy + ch - 3))
+            ~w:(float cw *. Float.max 0. (Float.min 1. (fraction_of value))) ~h:2.
+            (if pressed then theme.foreground else Theme.ink_2 theme);
         if draw_value then begin
           let text = value_text value in
-          Paint.text paint ~at:(float (cx + cw - 2) -. Paint.text_width paint text,
-            float (label_y ui y h)) text
+          Paint.text paint ~color:(if disabled then Theme.ink_3 theme else theme.foreground)
+            ~at:(float (cx + cw - 2) -. Paint.text_width paint text, float (label_y ui y h)) text
         end);
   value
 
-let slider ui text ~range:(low, high) value =
+let slider ui ?disabled text ~range:(low, high) value =
   if not (Float.is_finite low && Float.is_finite high) || high <= low then
     invalid_arg "Ui.slider: range must be finite and increasing";
   if not (Float.is_finite value) then invalid_arg "Ui.slider: value must be finite";
-  slider_row ui text ~draw_value:true ~value_text:compact_float ~step:0.01
+  slider_row ui ?disabled text ~draw_value:true ~value_text:(range_float ~span:(high -. low)) ~step:0.01
     ~fraction_of:(fun value -> (value -. low) /. (high -. low))
     ~from_fraction:(fun _ fraction -> low +. (fraction *. (high -. low)))
     ~parse:(fun text ->
@@ -2662,20 +2729,20 @@ let slider ui text ~range:(low, high) value =
       | Some _ | None -> None)
     ~current:(Printf.sprintf "%.17g") value
 
-let int_slider ui text ~range:(low, high) value =
+let int_slider ui ?disabled text ~range:(low, high) value =
   if high <= low then invalid_arg "Ui.int_slider: range must be increasing";
-  slider_row ui text ~draw_value:true ~value_text:string_of_int
+  slider_row ui ?disabled text ~draw_value:true ~value_text:string_of_int
     ~step:(1. /. float (high - low))
     ~fraction_of:(fun value -> float (value - low) /. float (high - low))
     ~from_fraction:(fun _ fraction ->
       max low (min high (low + int_of_float ((fraction *. float (high - low)) +. 0.5))))
     ~parse:int_of_string_opt ~current:string_of_int value
 
-let text_field ui text value =
-  let row = kit_row ui ~flags:(clickable lor focusable lor blocking)
+let text_field ui ?(disabled = false) text value =
+  let row = kit_row ui ~flags:(if disabled then blocking else clickable lor focusable lor blocking)
       ~hit:(control_hit value_control) text in
   let signal = signal ui row in
-  let focused = focused ui row in
+  let focused = (not disabled) && focused ui row in
   let edit = if focused then load_text_edit ui row.box_key value else
     let end_ = String.length value in
     { text = value; caret = end_; anchor = end_ } in
@@ -2689,7 +2756,7 @@ let text_field ui text value =
   end;
   let value = edit.text in
   let theme = ui.theme and shown = display text and composition = ui.composition in
-  let hovered = signal.hovered in
+  let hovered = signal.hovered && not disabled in
   (* the I-beam over the value, as in any text field *)
   (let (px, py) = ui.pointer in
    let (cx, cy, cw, ch) = value_control (ints (rect ui row)) in
@@ -2699,14 +2766,17 @@ let text_field ui text value =
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
     if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y h) shown;
-    underline paint control (if focused then theme.accent else Theme.edge theme);
+    kit_text paint ~color:(if disabled then Theme.ink_3 theme else Theme.ink_2 theme)
+      (x + side) (label_y ui y h) shown;
+    underline paint control (if focused then theme.accent
+      else if disabled then Theme.faint_border theme else Theme.edge theme);
     if focused then paint_text_edit paint ~control ~y:(label_y ui y h)
       ~composition edit
     else begin
       Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
         ~h:(float ch) ~focused:false ();
-      kit_text paint (cx + 2) (label_y ui y h) value
+      kit_text paint ~color:(if disabled then Theme.ink_3 theme else theme.foreground)
+        (cx + 2) (label_y ui y h) value
     end);
   value
 
@@ -3285,13 +3355,14 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
 let text_area ui ~at ~w ~h ?readonly ?errors ?spans ?reveal ?language label text =
   fst (text_area_submit ui ~at ~w ~h ?readonly ?errors ?spans ?reveal ?language label text)
 
-let choice ui text options selected =
+let choice ui ?(disabled = false) text options selected =
   let options = Array.of_list options in
   let count = Array.length options in
   if count = 0 then invalid_arg "Ui.choice: options must not be empty";
   if selected < 0 || selected >= count then
     invalid_arg "Ui.choice: selected index is out of bounds";
-  let row = kit_row ui ~hit:(control_hit value_control) text in
+  let row = if disabled then kit_row ui ~flags:blocking text
+    else kit_row ui ~hit:(control_hit value_control) text in
   let signal = signal ui row in
   let selected =
     let direction = List.fold_left (fun direction -> function
@@ -3305,15 +3376,19 @@ let choice ui text options selected =
         && fst signal.release_point < float (cx + (cw / 2)) then -1 else 1 in
       (selected + direction + count) mod count in
   let theme = ui.theme and shown = display text in
-  let hovered = signal.hovered and pressed = signal.held in
+  let hovered = signal.hovered && not disabled and pressed = signal.held in
+  let keyboard = (not disabled) && focused ui row in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
+    let ink = if disabled then Theme.ink_3 theme else theme.foreground in
     if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y h) shown;
-    underline paint control (if pressed then theme.accent else Theme.edge theme);
-    kit_text paint (cx + 2) (label_y ui y h) options.(selected);
-    Paint.chevron paint ~at:(float (cx + cw - 6), float cy +. (float ch /. 2.)) `Down theme.foreground);
+    kit_text paint ~color:(if disabled then Theme.ink_3 theme else Theme.ink_2 theme)
+      (x + side) (label_y ui y h) shown;
+    underline paint control (if pressed || keyboard then theme.accent
+      else if disabled then Theme.faint_border theme else Theme.edge theme);
+    kit_text paint ~color:ink (cx + 2) (label_y ui y h) options.(selected);
+    Paint.chevron paint ~at:(float (cx + cw) -. 5., float cy +. (float ch /. 2.) -. 0.5) `Down ink);
   selected
 
 let range_slider ui text ~range:(low, high) (lower, upper) =
@@ -3355,14 +3430,15 @@ let range_slider ui text ~range:(low, high) (lower, upper) =
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
-    let low_x = position control (fraction lower)
-    and high_x = position control (fraction upper) in
     if hovered then hover_row paint ui bounds;
     kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y h) shown;
     underline paint control (Theme.edge theme);
-    fill paint (low_x, cy + ch - 2, max 1 (high_x - low_x + 1), 2) (Theme.ink_2 theme);
-    kit_text paint (cx + 2) (label_y ui y h) (compact_float lower);
-    let upper = compact_float upper in
+    (* the line between the two positions, over the hairline *)
+    let clamp value = Float.max 0. (Float.min 1. (fraction value)) in
+    Paint.fill paint ~x:(float cx +. (float cw *. clamp lower)) ~y:(float (cy + ch - 3))
+      ~w:(float cw *. (clamp upper -. clamp lower)) ~h:2. (Theme.ink_2 theme);
+    kit_text paint (cx + 2) (label_y ui y h) (range_float ~span:(high -. low) lower);
+    let upper = range_float ~span:(high -. low) upper in
     Paint.text paint ~at:(float (cx + cw - 2) -. Paint.text_width paint upper, float (label_y ui y h)) upper);
   lower, upper
 
@@ -3370,15 +3446,18 @@ let xy ui text ~x_range:(x_min, x_max) ~y_range:(y_min, y_max) (px, py) =
   if x_max <= x_min || y_max <= y_min then invalid_arg "Ui.xy: ranges must increase";
   let clamp low high value = Float.max low (Float.min high value) in
   let px = clamp x_min x_max px and py = clamp y_min y_max py in
-  let row = kit_row ui ~hit:(control_hit value_control) text in
+  (* a 124-point pad in the value column: a row of 128 around it *)
+  let row = box ui ~flags:(clickable lor focusable lor blocking lor tab_only) ~w:Grow ~h:(Px 128.)
+      ~hit:(control_hit value_control) text in
   let signal = signal ui row in
-  let (_, cy, _, ch) as control = value_control (ints (rect ui row)) in
+  let (cx, cy, cw, ch) = value_control (ints (rect ui row)) in
+  (* the pad's inside, within its 1-point edge *)
+  let ix = float (cx + 1) and iy = float (cy + 1) and iw = float (max 1 (cw - 2)) and ih = float (max 1 (ch - 2)) in
   let px, py =
     if signal.held || signal.released then
       let x, y = if signal.released then signal.release_point else signal.pointer in
-      let fy = Float.max 0. (Float.min 1. ((y -. float cy) /. float (max 1 (ch - 1)))) in
-      x_min +. (fraction_at control x *. (x_max -. x_min)),
-      y_min +. (fy *. (y_max -. y_min))
+      let fx = clamp 0. 1. ((x -. ix) /. iw) and fy = clamp 0. 1. ((y -. iy) /. ih) in
+      x_min +. (fx *. (x_max -. x_min)), y_min +. (fy *. (y_max -. y_min))
     else
       List.fold_left (fun (px, py) -> function
         | Event.KeyPressed Input.ArrowLeft -> clamp x_min x_max (px -. (x_max -. x_min) *. 0.01), py
@@ -3390,22 +3469,23 @@ let xy ui text ~x_range:(x_min, x_max) ~y_range:(y_min, y_max) (px, py) =
   let hovered = signal.hovered and pressed = signal.held in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
-    let (cx, cy, cw, ch) as control = value_control bounds in
-    let knob_x = position control ((px -. x_min) /. (x_max -. x_min)) in
-    let knob_y = cy + int_of_float (((py -. y_min) /. (y_max -. y_min)
-      *. float (max 1 (ch - 1))) +. 0.5) in
+    let (cx, cy, cw, ch) = value_control bounds in
+    let knob_x = ix +. (((px -. x_min) /. (x_max -. x_min)) *. iw) +. 0.5
+    and knob_y = iy +. (((py -. y_min) /. (y_max -. y_min)) *. ih) +. 0.5 in
     if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y h) shown;
-    framed paint control ~fill:theme.input ~stroke:(Theme.border theme);
-    kit_line paint ~from_:(cx + (cw / 2), cy + 1) ~to_:(cx + (cw / 2), cy + ch - 1)
-      (Theme.faint_border theme);
-    kit_line paint ~from_:(cx + 1, cy + (ch / 2)) ~to_:(cx + cw - 1, cy + (ch / 2))
-      (Theme.faint_border theme);
-    kit_line paint ~from_:(knob_x, cy + 1) ~to_:(knob_x, cy + ch - 1) (Theme.border theme);
-    kit_line paint ~from_:(cx + 1, knob_y) ~to_:(cx + cw - 1, knob_y) (Theme.border theme);
-    Paint.circle paint ~at:(float knob_x, float knob_y)
-      ~radius:(if pressed then 5.5 else 4.5) ~fill:theme.accent
-      ~stroke:theme.foreground ());
+    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y (min h 24)) shown;
+    framed paint (cx, cy, cw, ch) ~fill:theme.input ~stroke:(Theme.border theme);
+    Paint.fill paint ~x:(ix +. Float.floor (iw /. 2.)) ~y:iy ~w:1. ~h:ih (Theme.faint_border theme);
+    Paint.fill paint ~x:ix ~y:(iy +. Float.floor (ih /. 2.)) ~w:iw ~h:1. (Theme.faint_border theme);
+    Paint.fill paint ~x:(knob_x -. 0.5) ~y:iy ~w:1. ~h:ih (Theme.border theme);
+    Paint.fill paint ~x:ix ~y:(knob_y -. 0.5) ~w:iw ~h:1. (Theme.border theme);
+    Paint.circle paint ~at:(knob_x, knob_y) ~radius:(if pressed then 5.25 else 4.25)
+      ~fill:theme.accent ~stroke:theme.foreground ();
+    (* the readout, right and at the foot of the pad *)
+    let readout = Printf.sprintf "%s \xc2\xb7 %s" (range_float ~span:(x_max -. x_min) px)
+        (range_float ~span:(y_max -. y_min) py) in
+    Paint.cap paint ~at:(ix +. iw -. 4. -. Paint.cap_width paint readout,
+      text_top ui ~size:(max 8 (ui.font_size - 2)) (iy +. ih -. 24.) 24.) readout);
   px, py
 
 type pick = [ `None | `Pick of int | `Delete of int | `Submit | `Back | `Cancel ]
@@ -3423,10 +3503,11 @@ let fuzzy_match ~query text =
 (* A focused search row over a windowed list. The cursor (search box state)
    and an armed delete row (list box state) are retained; the host keeps the
    query and applies the result. *)
-let picker ui ?(limit = 10) label ~query rows_of =
+let picker ui ?(limit = 10) ?mark ?(slash = true) label ~query rows_of =
   let rows = ref (rows_of query) in
   let count () = Array.length !rows in
-  let search = kit_row ui ~flags:(clickable lor focusable lor blocking) label in
+  (* the search row: a 20-point field in 4 points of padding, a [/] before the query *)
+  let search = box ui ~flags:(clickable lor focusable lor blocking) ~w:Grow ~h:(Px 28.) label in
   if ui.focus = 0 || ui.rw.(search.box_slot) = 0. then focus ui search;
   let list = box_keyed ui ~w:Grow ~h:Fit ~axis:Column (int_key search.box_key 0) in
   let search_signal = signal ui search in
@@ -3438,8 +3519,9 @@ let picker ui ?(limit = 10) label ~query rows_of =
   and result = ref `None in
   let edit = load_text_edit ui search.box_key !query in
   let (sx, _, sw, _) = ints (rect ui search) in
+  let prefix = if slash then 13 else 0 in
   point_text_caret ui edit search_signal ~shift:(press_shift ui search)
-    ~x:(float (sx + side + 2)) ~right:(float (sx + sw - side - 2));
+    ~x:(float (sx + 4 + prefix + 2)) ~right:(float (sx + sw - 4 - 2));
   let set_query text = query := text; rows := rows_of text; cursor := 0; armed := -1 in
   List.iter (fun ((event : Event.t), modifiers) -> let count = count () in
     if !result = `None then match event with
@@ -3468,13 +3550,14 @@ let picker ui ?(limit = 10) label ~query rows_of =
   let placeholder = display label in
   draw ui search (fun paint rect ->
     let (x, y, w, h) = ints rect in
-    let control = x + side, y + 2, max 1 (w - (2 * side)), max 1 (h - 4) in
-    let cx, _, _, _ = control in
-    underline paint control theme.accent;
+    let (cx, cy, cw, ch) as field = x + 4, y + 4, max 1 (w - 8), max 1 (h - 8) in
+    underline paint field theme.accent;
+    if slash then kit_text paint ~color:(Theme.ink_2 theme) (cx + 2) (label_y ui cy ch) "/";
+    let control = cx + prefix, cy, max 1 (cw - prefix), ch in
     if edit.text = "" then
-      kit_text paint ~color:(Theme.ink_3 theme) (cx + 2)
-        (label_y ui y h) placeholder;
-    paint_text_edit paint ~control ~y:(label_y ui y h) ~composition edit);
+      kit_text paint ~color:(Theme.ink_3 theme) (cx + prefix + 2)
+        (label_y ui cy ch) placeholder;
+    paint_text_edit paint ~control ~y:(label_y ui cy ch) ~composition edit);
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in
@@ -3485,17 +3568,50 @@ let picker ui ?(limit = 10) label ~query rows_of =
       let current = index = !cursor and hovered = row_signal.hovered in
       let doomed = index = !armed in
       let text, detail = rows.(index) in
+      let swatch = Option.bind mark (fun mark -> mark index) in
       draw ui row (fun paint rect ->
         let (x, y, w, h) as bounds = ints rect in
         (* the keyboard cursor is the control fill; a row armed for deletion reads in the error colour *)
         if doomed then fill paint bounds (Theme.pressed_fill theme)
         else if current then fill paint bounds theme.control
         else if hovered then hover_row paint ui bounds;
-        kit_text paint ~color:(if doomed then Theme.invalid else theme.foreground)
-          (x + side) (label_y ui y h) text;
-        let detail_width = int_of_float (Paint.text_width paint detail) in
-        kit_text paint ~color:(Theme.muted theme)
-          (x + w - detail_width - side) (label_y ui y h) detail)
+        let text_x = if mark = None then x + side else x + side + 16 in
+        Option.iter (fun color -> fill paint (x + side, y + ((h - 8) / 2), 8, 8) color) swatch;
+        (* the query's letters, matched in order, in the accent *)
+        let query = String.lowercase_ascii !query and lower = String.lowercase_ascii text in
+        let matched = Array.make (String.length text) false in
+        let next = ref 0 and at = ref 0 in
+        while !at < String.length text do
+          let decoded = String.get_utf_8_uchar text !at in
+          let length = Uchar.utf_decode_length decoded in
+          if !next < String.length query && String.length lower > !at && lower.[!at] = query.[!next]
+          then (matched.(!at) <- true; incr next);
+          at := !at + length
+        done;
+        let pen = ref (float text_x) and start = ref 0 in
+        while !start < String.length text do
+          let flag = matched.(!start) in
+          let stop = ref !start in
+          while !stop < String.length text
+                && (!stop = !start || matched.(!stop) = flag || Char.code text.[!stop] land 0xc0 = 0x80) do
+            incr stop
+          done;
+          let run = String.sub text !start (!stop - !start) in
+          Paint.text paint ~at:(!pen, float (label_y ui y h))
+            ~color:(if doomed then Theme.invalid else if flag then theme.accent else theme.foreground) run;
+          pen := !pen +. Paint.text_width paint run;
+          start := !stop
+        done;
+        let key_size = max 8 (ui.font_size - 2) in
+        let key_text = "\xe2\x86\xb5" in
+        let right = if current then
+            (let width = Paint.text_width paint ~size:key_size key_text in
+             Paint.text paint ~size:key_size ~color:(Theme.ink_3 theme)
+               ~at:(float (x + w - side) -. width, text_top ui ~size:key_size (float y) (float h)) key_text;
+             float (x + w - side) -. width -. 8.)
+          else float (x + w - side) in
+        Paint.text paint ~color:(Theme.muted theme)
+          ~at:(right -. Paint.text_width paint detail, float (label_y ui y h)) detail)
     done);
   set_state ui search !cursor; set_state ui list !armed;
   !query, !result
@@ -3503,13 +3619,20 @@ let picker ui ?(limit = 10) label ~query rows_of =
 (* A floating kit menu at [at], kept inside the frame. The host holds whether
    it is open; rows commit on press and release inside, disabled rows are
    inert, and Escape, focus loss, or a press outside dismiss it. *)
-let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) label items =
-  (* the width follows the longest row; an empty label is a separator line *)
+let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) label items =
+  (* the width follows the longest row; an empty label is a separator line; [keys] are the
+     shortcuts at the right of the rows, in ink-2 at the label size *)
   let row_height = float ui.kit_row_height and gap = 9. in
+  let key_size = max 8 (ui.font_size - 2) in
+  let key_of index = match List.nth_opt keys index with Some key when key <> "" -> Some key | _ -> None in
   let swatch_pad = if List.exists Option.is_some swatches then 14. else 0. in
-  let width = List.fold_left (fun w (text, _) -> Float.max w (text_width ui text +. 36. +. swatch_pad))
-    (Option.value ~default:150. width) items |> Float.min ui.view_w in
-  let height = List.fold_left (fun h (text, _) -> h +. (if text = "" then gap else row_height)) 12. items in
+  let lead = if selected = None then 0. else 14. in
+  (* the 1-point edge, 12 points of padding, then the label, 24 points and the key *)
+  let width = List.fold_left (fun (w, index) (text, _) ->
+      Float.max w (text_width ui text +. 26. +. lead +. swatch_pad
+        +. (match key_of index with Some key -> 24. +. text_width ui ~size:key_size key | None -> 0.)),
+      index + 1) (Option.value ~default:150. width, 0) items |> fst |> Float.min ui.view_w in
+  let height = List.fold_left (fun h (text, _) -> h +. (if text = "" then gap else row_height)) 14. items in
   let x = Float.max 0. (Float.min x (ui.view_w -. width))
   and y = Float.max 0. (Float.min y (ui.view_h -. height)) in
   let pad name = ignore (box ui ~flags:blocking ~w:Grow ~h:(Px 6.) name) in
@@ -3539,7 +3662,12 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) label items =
                 ~w:8. ~h:8. ~fill:color ~stroke:(Theme.edge theme) ())
               (Option.join (List.nth_opt swatches index));
             kit_text paint ~color:(if enabled then theme.foreground else Theme.ink_3 theme)
-              (rx + side + lead + int_of_float swatch_pad) (label_y ui y h) shown);
+              (rx + side + lead + int_of_float swatch_pad) (label_y ui y h) shown;
+            Option.iter (fun key ->
+              let _, _, w, _ = bounds in
+              Paint.text paint ~size:key_size ~color:(Theme.ink_2 theme)
+                ~at:(float (rx + w - side) -. Paint.text_width paint ~size:key_size key,
+                     text_top ui ~size:key_size (float y) (float h)) key) (key_of index));
           if enabled && signal.clicked then Some index else None
         end) items
       |> List.find_map Fun.id in

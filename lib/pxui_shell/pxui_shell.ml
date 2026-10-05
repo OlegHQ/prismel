@@ -690,33 +690,37 @@ module Which_key = struct
           rows @ [Editor_core.Keymap.label (Chord (key, modifiers)), command.label]
       | _ -> rows) [] keymap
 
-  (* Sections of key rows flowed into columns and painted by one box. *)
-  let columns ui paint (x, y, w) ~per_column sections =
+  (* Sections of key rows flowed into columns and painted by one box.  A section is a label in
+     ink-3 ([gap] points above it) over rows of 24: the key in ink-3 at the label size, 8 points
+     on, what it does, and a chevron when the key continues into more keys.  A column holds
+     [per_column] rows; [cols] columns share [w]. *)
+  let columns ui paint (x, y, w) ~per_column ~cols ~gap ~label_ink sections =
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
     let row = float (Ui.row_height ui) in
-    let count = List.fold_left (fun n (_, rows) -> n + 1 + List.length rows) 0 sections in
-    let cols = max 1 ((count + per_column - 1) / per_column) in
-    let col_w = Float.floor (w /. float cols) in
-    let slot = ref 0 in
-    let place () = let c = !slot / per_column and r = !slot mod per_column in
-      incr slot; x +. (float c *. col_w), y +. (float r *. row) in
+    let col_w = Float.floor (w /. float (max 1 cols)) in
+    let capacity = (float per_column *. row) +. gap in
+    let column = ref 0 and used = ref 0. in
+    let place cost need =
+      if !used > 0. && !used +. need > capacity then (incr column; used := 0.);
+      let at = x +. (float !column *. col_w), y +. !used in
+      used := !used +. cost; at in
     List.iter (fun (title, rows) ->
       (* a header never ends a column *)
-      if !slot mod per_column = per_column - 1 then incr slot;
-      let hx, hy = place () in
-      Ui.Paint.cap paint ~at:(hx +. 12., Kit.cap_y ui hy row) ~color:(Pxui.Theme.ink_3 theme) title;
+      let hx, hy = place (gap +. row) (gap +. (2. *. row)) in
+      Ui.Paint.cap paint ~at:(hx +. 12., Kit.cap_y ui (hy +. gap) row) ~color:(Pxui.Theme.ink_3 theme) title;
       List.iter (fun (key, label) ->
-        let rx, ry = place () in
+        let rx, ry = place row row in
         let group = String.starts_with ~prefix:"+" label in
         let label = if group then String.sub label 1 (String.length label - 1) else label in
+        let key_width = Ui.Paint.text_width paint ~size:(Kit.cap_size ui) key in
         Ui.Paint.text paint ~size:(Kit.cap_size ui) ~at:(rx +. 12., Kit.cap_y ui ry row)
           ~color:(Pxui.Theme.ink_3 theme) key;
-        let lx = rx +. 12. +. Float.max 28. (Ui.Paint.text_width paint ~size:(Kit.cap_size ui) key +. 8.) in
-        Ui.Paint.text paint ~at:(lx, Kit.text_y ui ry row) ~color:theme.foreground
-          (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(rx +. col_w -. lx -. (if group then 28. else 8.)) label);
+        let lx = rx +. 12. +. key_width +. 8. in
+        Ui.Paint.text paint ~at:(lx, Kit.text_y ui ry row) ~color:label_ink
+          (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(rx +. col_w -. lx -. (if group then 20. else 12.)) label);
         (* a key that continues into more keys *)
-        if group then Ui.Paint.chevron paint ~at:(rx +. col_w -. 16., ry +. (row /. 2.)) `Right
+        if group then Ui.Paint.chevron paint ~at:(rx +. col_w -. 15., ry +. (row /. 2.) -. 0.5) `Right
           (Pxui.Theme.ink_3 theme)) rows) sections
 
   let slots sections = List.fold_left (fun n (_, rows) -> n + 1 + List.length rows) 0 sections
@@ -728,9 +732,11 @@ module Which_key = struct
         [ "Global", page keymap ~prefix None; focus_name, page keymap ~prefix (Some focus) ] in
     let view_w, view_h = Ui.view_size ui in
     let row = float (Ui.row_height ui) in
+    (* the sheet: 16 points aside, columns of at least 220 *)
     let cols = max 1 (int_of_float ((view_w -. 32.) /. 220.)) in
-    let per_column = max 3 ((slots sections + List.length sections + cols - 1) / cols) in
-    let height = row +. 8. +. (float per_column *. row) +. 8. in
+    let per_column = max 3 ((slots sections + cols - 1) / cols) in
+    (* the edge, 8, the head row, a section label under 4, its rows, 8 *)
+    let height = 1. +. 8. +. row +. 4. +. row +. (float per_column *. row) +. 8. in
     let y = Float.max 0. (view_h -. float Layout.status_height -. height) in
     let leader = if prefix = "" then "Space" else "Space " ^ prefix in
     (* build before the body it shields; the host closes it on any key *)
@@ -738,7 +744,7 @@ module Which_key = struct
       let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px height) "leader-sheet" in
       Ui.draw ui box (fun paint (x, y, w, _) ->
         Ui.Paint.fill paint ~x ~y ~w ~h:1. (Pxui.Theme.border theme);
-        let y = y +. 8. in
+        let y = y +. 9. in
         Ui.Paint.text paint ~size:(Kit.cap_size ui) ~at:(x +. 12., Kit.cap_y ui y row)
           ~color:(Pxui.Theme.ink_3 theme) leader;
         Ui.Paint.cap paint ~at:(x +. 20. +. Ui.Paint.text_width paint ~size:(Kit.cap_size ui) leader, Kit.cap_y ui y row)
@@ -746,7 +752,8 @@ module Which_key = struct
         let hint = "a key continues \xc2\xb7 esc closes" in
         Ui.Paint.text paint ~size:(Kit.cap_size ui) ~color:(Pxui.Theme.ink_2 theme)
           ~at:(x +. w -. 12. -. Ui.Paint.text_width paint ~size:(Kit.cap_size ui) hint, Kit.cap_y ui y row) hint;
-        columns ui paint (x +. 4., y +. row, w -. 8.) ~per_column sections)))
+        columns ui paint (x +. 16., y +. row, w -. 32.) ~per_column ~cols ~gap:4.
+          ~label_ink:theme.foreground sections)))
 
   let sheet ui keymap =
     let module Ui = Pxui.Ui in
@@ -770,7 +777,7 @@ module Which_key = struct
             | Some trigger -> Some (Editor_core.Keymap.label trigger) | None -> None) keymap
           |> List.sort_uniq String.compare |> String.concat " / " in
         keys, command.label) commands)) groups in
-    match Ui.modal ui ~width:660. "guide-keys" (fun () ->
+    match Ui.modal ui ~width:572. "guide-keys" (fun () ->
       Ui.label ui "Keys";
       (* the filter: what is typed narrows the rows to the commands and keys that match; the
          query lives with its box, Escape closes the sheet *)
@@ -783,7 +790,8 @@ module Which_key = struct
         | [] -> None | rows -> Some (title, rows)) sections in
       let per_column = max 3 ((slots sections + List.length sections + 2) / 3) in
       let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px (float (per_column * Ui.row_height ui) +. 8.)) "keys-sheet" in
-      Ui.draw ui box (fun paint (x, y, w, _) -> columns ui paint (x, y, w) ~per_column sections);
+      Ui.draw ui box (fun paint (x, y, w, _) ->
+        columns ui paint (x, y, w) ~per_column ~cols:3 ~gap:0. ~label_ink:(Pxui.Theme.ink_2 (Ui.theme ui)) sections);
       pick <> `Cancel && not (Ui.button ui "Close###guide-close")) with
     | Some open_ -> open_ | None -> false
 end
@@ -997,12 +1005,16 @@ module Prompt = struct
   let name ui ~key ~title ~label ~query =
     Pxui.Ui.modal ui ~width:360. key (fun () ->
       Pxui.Ui.label ui title;
-      Pxui.Ui.picker ui label ~query (fun _ -> [||]))
+      let result = Pxui.Ui.picker ui ~slash:false label ~query (fun _ -> [||]) in
+      Pxui.Ui.footer ui ["\xe2\x86\xb5", "accept"; "esc", "cancel"];
+      result)
 
   let search ui ~key ~title ~label ~query ~rows =
     Pxui.Ui.modal ui ~width:420. key (fun () ->
       Pxui.Ui.label ui title;
-      Pxui.Ui.picker ui label ~query rows)
+      let result = Pxui.Ui.picker ui label ~query rows in
+      Pxui.Ui.footer ui ["\xe2\x86\x91\xe2\x86\x93", "move"; "\xe2\x86\xb5", "pick"; "esc", "close"];
+      result)
 
   type macro = { name : string; holes : (bool * string) array }
 
@@ -1226,7 +1238,8 @@ module Tree = struct
     let row_at (_, py) =
       let k = int_of_float (Float.floor ((py -. top +. scroll) /. height)) in
       if py < top || k < 0 || k >= count then None else Some k in
-    let columns_x = x +. w -. 8. -. flag_width *. float_of_int (List.length columns) in
+    (* the last flag ends 12 from the edge, a flag column is a 12-point flag and an 8-point gap *)
+    let columns_x = x +. w -. 24. -. flag_width *. float_of_int (max 0 (List.length columns - 1)) in
     let column_at (px, _) =
       if px < columns_x -. 4. then None
       else Some (int_of_float ((px -. columns_x) /. flag_width)) in
@@ -1382,8 +1395,8 @@ module Tree = struct
         let badge_x = indent row.depth +. 14. in
         let letter = if row.link then "\xe2\x86\xb3" else fst row.badge in
         Ui.Paint.cap paint ~at:(badge_x, Kit.cap_y ui row_y height)
-          ~color:(if selected then theme.foreground else ink_2) letter;
-        let label_x = badge_x +. 16. in
+          ~color:(if selected || t.focus = Some row.id then theme.foreground else ink_2) letter;
+        let label_x = badge_x +. Ui.Paint.cap_width paint letter +. 8. in
         let hidden = match row.flags with shown :: _ -> not shown | [] -> false in
         let color = if row.ghost || row.link || hidden then ink_3 else theme.foreground in
         text ~color (label_x, text_y) row.label;
@@ -1398,9 +1411,11 @@ module Tree = struct
         List.iteri (fun column value ->
           let cx = columns_x +. (float_of_int column *. flag_width) +. 6.
           and cy = row_y +. (height /. 2.) in
+          (* a 12-point square (the first column) or round flag: the input fill, a line-3 edge
+             and, when on, a mark 3 points inside in ink-2 *)
           if column = 0 then begin
-            Ui.Paint.rect paint ~x:(cx -. 6.) ~y:(cy -. 6.) ~w:12. ~h:12. ~fill:theme.input
-              ~stroke:(Pxui.Theme.border theme) ();
+            Ui.Paint.fill paint ~x:(cx -. 6.) ~y:(cy -. 6.) ~w:12. ~h:12. theme.input;
+            Ui.Paint.stroke paint ~x:(cx -. 5.5) ~y:(cy -. 5.5) ~w:11. ~h:11. (Pxui.Theme.border theme);
             if value then Ui.Paint.fill paint ~x:(cx -. 3.) ~y:(cy -. 3.) ~w:6. ~h:6. ink_2
           end else begin
             Ui.Paint.circle paint ~at:(cx, cy) ~radius:6. ~fill:theme.input
@@ -1408,7 +1423,7 @@ module Tree = struct
             if value then Ui.Paint.circle paint ~at:(cx, cy) ~radius:3. ~fill:ink_2 ()
           end) row.flags;
         if selected then Ui.Paint.brackets paint ~x:(x +. 4.) ~y:row_y ~w:(w -. 8.) ~h:height
-          ~offset:(-1.) ~length:6. theme.accent in
+          ~offset:3. ~length:8. theme.accent in
       for k = first to last do
         draw_row k (top +. float_of_int k *. height -. scroll)
       done;

@@ -212,7 +212,7 @@ val hover_delay : t -> key:string -> bool
     380 ms of pointer rest; movement, a target change, a skipped frame,
     capture, a popup or focus loss resets the single timer. *)
 
-val tooltip : t -> key:string -> text:string -> unit
+val tooltip : ?shortcut:string -> t -> key:string -> text:string -> unit
 (** Delayed, noninteractive overlay using {!hover_delay}. Call only for the
     current hovered target. It does not change focus or pointer ownership. *)
 
@@ -454,18 +454,29 @@ val modal : t -> ?width:float -> string -> (unit -> 'a) -> 'a option
     closing in this frame; {!val-input} still delivers cancellation. *)
 
 val label : t -> string -> unit
-val button : t -> string -> bool
-(** [true] on the frame a press and release both land inside the button. *)
+(** A window's title or a panel's caption: ink-2 capitals 12 points from the left, with 4 points
+    above it when it is the first thing of its parent. *)
 
-val toggle : t -> string -> bool -> bool
+val footer : t -> ?right:string -> (string * string) list -> unit
+(** A window's foot: a line-2 hairline, then [(key, what it does)] pairs (the key in ink-3, the text
+    in ink-2) and [right], a count as a label, at the end. *)
 
-val slider : t -> string -> range:float * float -> float -> float
+val button :
+  t -> ?key:string -> ?primary:bool -> ?on:bool -> ?disabled:bool -> string -> bool
+(** [true] on the frame a press and release both land inside the button. A button is its text
+    (kit rev 3): [key] is the shortcut shown after it in ink-3, [primary] outlines the one
+    button of a panel, [on] fills a button that is switched on, [disabled] greys it and makes it
+    inert. *)
+
+val toggle : t -> ?disabled:bool -> string -> bool -> bool
+
+val slider : t -> ?disabled:bool -> string -> range:float * float -> float -> float
 (** The range is a soft drag range; values outside it are kept and may also
     be typed after double-clicking the label (Enter commits, Escape
     cancels). *)
 
-val int_slider : t -> string -> range:int * int -> int -> int
-val text_field : t -> string -> string -> string
+val int_slider : t -> ?disabled:bool -> string -> range:int * int -> int -> int
+val text_field : t -> ?disabled:bool -> string -> string -> string
 (** A single-line field.  Every text widget edits as macOS does: a click places the caret and
     Shift-click or a drag extends the selection, a double click selects the word (a triple the
     line), Option-arrows move by words and Command-arrows (or Home/End) by lines, each with
@@ -561,7 +572,7 @@ val value_field : t -> at:float * float -> w:float -> h:float ->
     [left] aligns text values to the left (default false for numeric fields).
     Only valid text commits; the boolean reports an open text editor. *)
 
-val choice : t -> string -> string list -> int -> int
+val choice : t -> ?disabled:bool -> string -> string list -> int -> int
 (** Press the left or right half to step through the options. *)
 
 val range_slider :
@@ -577,7 +588,7 @@ val fuzzy_match : query:string -> string -> bool
 (** Case-insensitive subsequence match. *)
 
 val picker :
-  t -> ?limit:int -> string -> query:string ->
+  t -> ?limit:int -> ?mark:(int -> Rays.Color.t option) -> ?slash:bool -> string -> query:string ->
   (string -> (string * string) array) -> string * pick
 (** A focused search row (the label is its placeholder and key) over the
     [(label, detail)] rows for the current query, windowed to [limit] (default
@@ -594,7 +605,7 @@ val context_clicked : signal -> bool
 
 val context_menu :
   t -> at:float * float -> ?width:float -> ?selected:int -> ?swatches:Rays.Color.t option list ->
-  string -> (string * bool) list -> [ `Open | `Pick of int | `Dismiss ]
+  ?keys:string list -> string -> (string * bool) list -> [ `Open | `Pick of int | `Dismiss ]
 (** A floating menu at [at] with [(label, enabled)] rows, as wide as its longest
     row and at least [width] wide, capped to the frame. An empty label is a separator
     line (never picked). [selected] marks the current choice; [swatches] gives a row a small colour square

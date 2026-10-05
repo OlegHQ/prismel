@@ -47,9 +47,11 @@ let run_menu () =
          = (None, None))
     "Escape did not close the menu";
   (* A lone top-level category (Create) opens by itself; hovering a category opens its column
-     to the right, clicking an entry picks it.  Rows sit one search row below the menu's top. *)
+     to the right, clicking an entry picks it.  The first row's middle: the window's 1-point edge, its
+     28-point title (4 above a 24-point label), the 28-point search row (a 20-point field in 4 points of
+     padding), then half a 24-point row. *)
   let nested = [ entry ~category:[ "Create"; "Primitive" ] "box" "Box" ] in
-  let row_y = 250 + 3 + 24 + 12 in
+  let row_y = 250 + 1 + 28 + 28 + 12 in
   let menu = match menu_step (opened nested) (frame ~mouse:(420, row_y)
       ~events:[ Event.MouseMoved (420., float row_y) ] ()) with
     | Some menu, _ -> menu | None, _ -> fail "hovering closed the menu" in

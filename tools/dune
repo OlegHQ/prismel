@@ -272,3 +272,8 @@
  (name ui_shot)
  (modules ui_shot)
  (libraries rays rays_editor procedural rdk rdk_rays flow))
+
+(executable
+ (name widgets_shot)
+ (modules widgets_shot)
+ (libraries rays pxui))
