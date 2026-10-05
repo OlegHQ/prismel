@@ -454,6 +454,8 @@ let face ui size =
       | None ->
           let loaded = match Lazy.force kit_font_path with
             | Some path -> Font.load path size
+              (* the sheets' renderer does not hint: unhinted glyphs have its weight and x-height *)
+              |> Result.map (fun font -> ignore (Font.set_hinting font Font.None_hinting); font)
             | None -> Error (`Msg "no kit font") in
           let face = match loaded with
             | Ok font -> Some font
@@ -1552,12 +1554,13 @@ module Paint = struct
   let cap paint ~at ?color label =
     text paint ~at ~size:(label_size paint) ~tracking:(cap_tracking paint)
       ~color:(Option.value color ~default:(Theme.ink_2 paint.owner.theme)) (String.uppercase_ascii label)
-  (* the tracking follows each letter but the last: no trailing gap *)
+  (* the tracking follows every letter, the last too (CSS letter-spacing): text after a label
+     starts one step later, and a right-aligned label ends one step early *)
   let cap_width paint label =
     let label = String.uppercase_ascii label in
     let count = ref 0 in
     iter_code_points label (fun _ -> incr count);
-    text_width paint ~size:(label_size paint) label +. (cap_tracking paint *. float (max 0 (!count - 1)))
+    text_width paint ~size:(label_size paint) label +. (cap_tracking paint *. float !count)
 
   (* A chevron centred on [at]: its strokes span 7 x 3.5, which with the 1-point line is the
      sheet's 9 x 5.5 of ink. *)
