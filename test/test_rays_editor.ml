@@ -730,8 +730,11 @@ let run () =
   let fx, fy, fw, fh = Rays_editor.Editor3.film environment (frame 54) in
   check (settings.width = 1920 && settings.height = 1080 && settings.max_spp = 256)
     "the scene root did not carry default render settings";
-  check (fw <= pane_w && fh <= pane_h && (fw = pane_w || fh = pane_h)
-      && abs (fw * 1080 - fh * 1920) <= 1920 && fx = (pane_w - fw) / 2 && fy = (pane_h - fh) / 2)
+  (* the frame keeps clear of the label row above it (40), the readouts' row under it (36) and 12
+     at each side ([Viewport3.film]), the film's aspect inside what is left, centred there *)
+  let area_w = pane_w - 24 and area_h = pane_h - 76 in
+  check (fw <= area_w && fh <= area_h && (fw = area_w || fh = area_h)
+      && abs (fw * 1080 - fh * 1920) <= 1920 && fx = 12 + ((area_w - fw) / 2) && fy = 40 + ((area_h - fh) / 2))
     "look-through did not letterbox the film to the camera's aspect";
   (* Space v toggles look-through off: the view camera is the free viewport
      (a following camera keeps it at the viewport). *)

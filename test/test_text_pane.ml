@@ -113,7 +113,9 @@ module E = Rays_editor.Editor3
    tabs end at [right], 12 points apart, in the test face's 7-point glyphs.  A graph panel in
    text view keeps its own Graph / List / Text after them (159 points with the collapse
    button); a Lisp panel only the button (36: 8, 20 and 8). *)
-let tab_at ~right ~top index = float (right - 178 + List.nth [ 31; 92; 150 ] index), float (top - 12)
+(* a panel under 400 points wide labels the third tab "Doc": 5 glyphs shorter, so the row starts 35 later *)
+let tab_at ?(narrow = false) ~right ~top index =
+  float (right - 178 + List.nth (if narrow then [ 66; 127; 168 ] else [ 31; 92; 150 ]) index), float (top - 12)
 
 let editor_text () =
   let open Rays in
@@ -151,9 +153,11 @@ let editor_text () =
   let original = ws () in
   let base = E.undo_label !env in
   let applied = Flow.Lisp.print original.source |> fst in
-  let tab_document = tab_at ~right:(gx + gw - 159) ~top:gy 2 in
+  let tab_document = tab_at ~narrow:(gw < 400) ~right:(gx + gw - 159) ~top:gy 2 in
   let area = float (gx + 200), float (gy + 24 + 60) in
-  let apply = float (gx + 32), float (gy + gh - 40) and discard = float (gx + 180), float (gy + gh - 40) in
+  (* the bar: 33 points under a narrow panel (hairline and 32), 58 under a wide one (and the status row) *)
+  let bar_y = float (gy + gh - (if gw < 400 then 16 else 40)) in
+  let apply = float (gx + 32), bar_y and discard = float (gx + 180), bar_y in
   click tab_document;
   check (contains (dump ()) "document tab, draft no") ("Document tab\n" ^ dump ());
   (* typing makes a draft; every other pane keeps the applied document *)
@@ -196,7 +200,7 @@ let editor_text () =
   check (E.redo_label !env = Some "Edit text") "redo label";
   (* the Graph tab edits one graph through the same apply; Command-Enter is the button *)
   let original = ws () in
-  let tab_graph = tab_at ~right:(gx + gw - 159) ~top:gy 1 in
+  let tab_graph = tab_at ~narrow:(gw < 400) ~right:(gx + gw - 159) ~top:gy 1 in
   click tab_graph;
   check (contains (dump ()) "graph tab, draft no") ("Graph tab\n" ^ dump ());
   let graph_text = (Rays_editor.Private.Text_pane.make_shown original.source "sunflower" None Graph).text in
@@ -269,14 +273,14 @@ let editor_binding () =
       In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all) in
   let settle () = for _ = 1 to 4 do step [] done in
   settle ();
-  let gx, gy, _, gh = (E.panes !env (frame 0 [])).graph in
+  let gx, gy, gw, gh = (E.panes !env (frame 0 [])).graph in
   click (float (gx + 50), float (gy + 100));
   step [ key Input.Home ]; step [ char 'i' ]; settle ();
   (* walk to a binding, then show the text pane: its Selection tab edits the closure shown *)
   for _ = 1 to 4 do step [ key Input.ArrowRight ] done;
   step [ key Input.Space; char 'l'; char 't' ]; step [];
   check (contains (dump ()) "projection: text") "Space l t did not reach the text pane";
-  let area = float (gx + 200), float (gy + 24 + 60) and apply = float (gx + 32), float (gy + gh - 40) in
+  let area = float (gx + 200), float (gy + 24 + 60) and apply = float (gx + 32), float (gy + gh - (if gw < 400 then 16 else 40)) in
   let type_closure text = click area; step ~keys:[ Input.Meta ] [ char 'a' ]; step [ Event.TextInput text ] in
   let ws () = E.workspace !env in
   let original = ws () in
@@ -544,7 +548,7 @@ let editor_active_scrub () =
   (* the Lisp panel sits under the graph: a splitter of one point, the 4-point margin and the 24-point header *)
   let gy = gy + gh + 1 + 28 in
   (* the Document tab *)
-  let tab = tab_at ~right:(gx + gw - 36) ~top:gy 2 in
+  let tab = tab_at ~narrow:(gw < 400) ~right:(gx + gw - 36) ~top:gy 2 in
   at tab [ Event.MouseMoved tab ];
   at tab [ Event.MousePressed (Input.LeftButton, tab); Event.MouseReleased (Input.LeftButton, tab) ]; step [];
   let printed = Flow.Lisp.print (E.workspace !env).source |> fst in
@@ -552,10 +556,10 @@ let editor_active_scrub () =
   let line = Option.get (List.find_index (fun l -> contains l ":active 0") lines) in
   let col = let l = List.nth lines line in
     let rec find i = if String.sub l i 9 = ":active 0" then i + 8 else find (i + 1) in find 0 in
-  (* the digit sits [col] glyphs into its line: the gutter (16 and three glyphs), 4 points of padding,
+  (* the digit sits [col] glyphs into its line: the 36-point gutter, the 6 points above the first row,
      the line's indentation; a press within half a glyph of its left edge is on it *)
   let char_w = 6.95 in
-  let number = float gx +. 16. +. 3. *. char_w +. 4. +. float col *. char_w, float gy +. 2. +. float line *. line_pitch in
+  let number = float gx +. 36. +. float col *. char_w, float gy +. 6. +. 2. +. float line *. line_pitch in
   let before = E.workspace !env and history = E.undo_label !env in
   let nx, ny = number in
   at number [ Event.MouseMoved number ];
@@ -606,7 +610,7 @@ let editor_text_drop () =
     step [] in
   (* the Graph tab, graph b open, graph a held *)
   jump "b";
-  click (tab_at ~right:(gx + gw - 36) ~top 1);
+  click (tab_at ~narrow:(gw < 400) ~right:(gx + gw - 36) ~top 1);
   jump "a";
   step [ char 'y' ]; step [];
   check (E.carrying !env = Some ("sop", "(ref a)")) "y holds graph a";
@@ -624,7 +628,7 @@ let editor_text_drop () =
   let char_w = 6.95 in
   let point tab needle ~after =
     let line, col = where tab needle in
-    float gx +. 16. +. 3. *. char_w +. 4. +. float (col + after) *. char_w, float top +. 2. +. float line *. line_pitch in
+    float gx +. 36. +. float (col + after) *. char_w, float top +. 6. +. 2. +. float line *. line_pitch in
   (* hover between the call and its first argument: the text is the edit, the strip says where *)
   let over = point Rays_editor.Private.Text_pane.Graph "(sop/merge" ~after:10 in
   at over [ Event.MouseMoved over ]; at over [];
@@ -655,7 +659,7 @@ let editor_text_drop () =
   check (contains (line ()) "unapplied draft") ("a draft refuses: " ^ line ());
   step [ key Input.Escape ]; step [];
   (* the Document tab: the whole text is checked and installed *)
-  click (tab_at ~right:(gx + gw - 36) ~top 2);
+  click (tab_at ~narrow:(gw < 400) ~right:(gx + gw - 36) ~top 2);
   let original = E.workspace !env in
   jump "a"; step [ char 'y' ]; step [];
   let over = point Rays_editor.Private.Text_pane.Document "(sop/merge" ~after:10 in

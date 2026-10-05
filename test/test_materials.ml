@@ -129,7 +129,7 @@ let follow_tests () =
     | Ok ev -> N.chips ev
     | Error d -> fail (Flow.Diagnostic.to_string d) in
   let params : N.params = { workspace = ws; active = Some "scene"; scope = None;
-    records = None; probes = (fun _ -> 0); selected = []; chips; objects = []; layouts = None; notes = [] } in
+    records = None; probes = (fun _ -> 0); selected = []; chips; objects = []; root_detail = ""; layouts = None; notes = [] } in
   let lines = Array.to_list (Array.map N.describe (N.rows N.initial params)) in
   let index text = match List.find_index (fun l -> has l text) lines with
     | Some i -> i | None -> fail (text ^ " is not in the outline: " ^ String.concat " | " lines) in
@@ -268,8 +268,8 @@ let carry_tests () =
       records = None; probes = (fun _ -> 0); selected = []; chips;
       (* as many object rows as the panel draws: a row's place depends on them *)
       objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
-        lead = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
-      layouts = None; notes = [] } in
+        lead = false; inert = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
+      root_detail = ""; layouts = None; notes = [] } in
     let geometry = L.geometry ~hidden:[ L.Timeline ] layout (frame (0., 0.) [] 0) in
     let bounds = (Option.get (L.find geometry L.Outline)).body in
     match List.find_map (fun (row, (x, y, w, h)) ->

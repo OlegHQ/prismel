@@ -64,15 +64,15 @@ let run () =
     chips = [];
     (* as many object and layout rows as the panel draws: a row's place depends on them *)
     objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
-        lead = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
-    layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch; notes = [] } in
+        lead = false; inert = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
+    root_detail = ""; layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch; notes = [] } in
   let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked "flower") in
   let lines = Array.to_list (Array.map N.describe (N.rows N.initial (params scope))) in
   let listed text = List.exists (fun l -> has l text) lines in
   check (listed "input petals = 12" && listed "input seed = 7") ("the inputs of flower: " ^ String.concat " | " lines);
-  check (listed "> flower · " && listed "1 loop" && listed "scene · scene") "the composition lists every graph, the open one marked";
+  check (listed "> flower · " && listed "1 loop" && listed "R root (scene)") "the composition lists every graph, the open one marked";
   check (listed "for ring") "the open graph's loop is a tree row";
-  check (listed "ƒ half · defn · ×2" && listed "ƒ petal · defn · ×1" && listed "λ twice · 1 use")
+  check (listed "half · defn" && listed "×2" && listed "petal · defn" && listed "×1" && listed "λ twice · 1 use")
     "the reusable functions and macros count their uses";
   check (listed "read by scene") "the data flow names who reads flower";
   (* a click on a row of the Navigator opens that graph in the pane *)
@@ -84,12 +84,12 @@ let run () =
       | Some found -> found | None -> fail ("no Navigator row " ^ text) in
     ignore row;
     x +. 20. +. (w /. 8.), y +. h /. 2. in
-  click (row_centre "scene · scene");
+  click (row_centre "R root (scene)");
   click (row_centre "flower · ");
-  click (row_centre "ƒ half");
+  click (row_centre "half · defn");
   check (dump_line !e "pane graph" = "def:half") ("a function opens in the pane: " ^ dump_line !e "pane graph");
   check (dump_line !e "projection" = "graph") "the function shows as a network";
-  click (row_centre "scene · scene");
+  click (row_centre "R root (scene)");
   check (dump_line !e "pane graph" = "scene") "a graph row opens that graph";
   click (row_centre "flower · ");
   check (dump_line !e "pane graph" = "flower") "and back to flower";
