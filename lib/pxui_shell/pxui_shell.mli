@@ -310,12 +310,12 @@ module Inspector : sig
     | Pinned of string * bool | Split of string * bool | Reset of string
     | Expression of string * string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
-    ?actions:bool -> ?pins:bool -> ?chips:(string * Rays.Color.t) list -> ?kind_label:string ->
+    ?actions:bool -> ?pins:bool -> ?pin_click:bool -> ?chips:(string * Rays.Color.t) list -> ?kind_label:string ->
     ?on_choice:(string -> Pxui.Ui.box -> unit) -> flow_row list -> flow_change list
   (** Responsive rows shared by Flow, scene, World, and compound interface
       inspectors, laid out as the kit's inspector sheet. [actions=false] hides card pin and split
       controls; [pins] draws each row's pin dot ([shown]: filled when the row is on its card, a
-      ring when not), a click on it being [Pinned] under [actions]. A drive's cross shows on the
+      ring when not), a click on it being [Pinned] under [actions] or [pin_click]; so is the s key over a row. A drive's cross shows on the
       hovered row. A choice named in [chips]
       wears its colour as a small square, on the closed control and in its menu. [on_choice]
       is called with the field's name and the box of each choice control, built or not

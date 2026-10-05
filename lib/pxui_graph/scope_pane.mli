@@ -97,14 +97,16 @@ val with_carry : lit:(path * string) list -> hot:(path * bool) option -> t -> t
 
 val with_scope :
   ?at:(path -> (float * float) option) ->
-  ?level:(path -> (Flow_sop.Projection.level * bool) option) -> ?collapsed:(path -> bool) ->
+  ?level:(path -> (Flow_sop.Projection.level * bool) option) -> ?pin:(path -> string -> bool option) ->
+  ?collapsed:(path -> bool) ->
   ?probe:(path -> int) ->
   ?frames:(path -> (string * (float * float) * (float * float)) list) -> ?display:path ->
   ?wires:[ `Rect | `Straight ] -> ?layouts:string list ->
   key:string ->
   Flow_sop.Projection.scope -> t -> t
 (** Lay a scope out.  A new [key] (the graph's name) frames it and clears the
-    selection; the same key keeps pan, zoom and selection.  [layouts] are the names of a
+    selection; the same key keeps pan, zoom and selection.  [pin] says whether a node's row (by label) is
+    pinned onto its card or off it ({!Flow_sop.Projection.lines}).  [layouts] are the names of a
     [ui/switch]'s layouts: its rows read as them, the active wire is solid and accented, the
     others dashed grey, and a click on a row is [Set_layout] on the graph [key]. *)
 

@@ -1228,7 +1228,8 @@ let run_root_section () =
   let hit = ref None in
   (* now: the head is 90 (12 + 41 + 4 + 24 + 8 + 1), the switch row has 4 above it, the open Scene root
      follows the closed Render with 16 of space *)
-  let row = iy + 90 + 4 + 24 + 40 + 96 + 40 + 24 + 40 in
+  (* the live-update switch sits under its own section header now: 24 more *)
+  let row = iy + 90 + 24 + 4 + 24 + 40 + 96 + 40 + 24 + 40 in
   let press at =
     step ~mouse:at [ Event.MouseMoved at ];
     step ~mouse:at [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];

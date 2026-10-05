@@ -244,9 +244,9 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
           Result.to_option (Edit_graph.compiled_node c ~node_id))) in
   let probed = if not submit then [] else List.filter_map (fun key ->
     Option.map (fun node -> key, node) (node_of key)) (List.filteri (fun i _ -> i < 64) probes) in
-  let summary (key, _) (output : Session.output) =
+  let summary (key, node) (output : Session.output) =
     let g = output.geometry in
-    key, { Flow_sop.Probe.points = Rdk.Packed.Float3.length (Rdk.Geometry.positions g);
+    key, { Flow_sop.Probe.seconds = Async_cook.node_seconds value.worker (Node.id node); points = Rdk.Packed.Float3.length (Rdk.Geometry.positions g);
            prims = Rdk.Geometry.primitive_count g; data_id = Rdk.Geometry.data_id g;
            extent = Option.map (fun (lo, hi) ->
              hi.Vec3.x -. lo.Vec3.x, hi.y -. lo.y, hi.z -. lo.z) (geometry_bounds g);

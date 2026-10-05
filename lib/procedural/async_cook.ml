@@ -155,6 +155,7 @@ let submit value ~context ~node ~prepare =
 let set_volatile value predicate = Session.set_volatile value.session predicate
 
 let stats value = Session.stats value.session
+let node_seconds value id = Session.node_seconds value.session id
 
 let await value = with_lock value (fun () ->
   if value.closed || value.stopping then invalid_arg "Async_cook.await: worker is closed";

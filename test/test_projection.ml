@@ -254,7 +254,25 @@ let zone_order () =
   check (order "(workspace w (graph g :context sop (let* [z (for [i (range 3)] (sop/box))] (sop/merge z))))" = None)
     "a loop over a range has no order to show"
 
+(* a row pinned onto a card shows there, and one pinned off leaves it: [lines ~pin] and
+   [row_shown] read the layout's per-row flags *)
+let pins () =
+  let w = workspace_of "(workspace w (graph g :context sop (let* [s (sop/scatter (sop/grid) :count 50)] (sop/merge s))))" in
+  let n = node w "g" [ "s" ] in
+  let group = match List.find_opt (fun (r : P.row) -> r.label = "group") n.rows with
+    | Some r -> r | None -> fail "scatter has no group row" in
+  let count = match List.find_opt (fun (r : P.row) -> r.label = "count") n.rows with
+    | Some r -> r | None -> fail "scatter has no count row" in
+  let on_card pin = Array.exists (function P.Row (_, (r : P.row)) -> r.label = "group" | _ -> false)
+    (P.lines ~pin P.Card n) in
+  check (not (P.row_shown group)) "an unset group is off the card by default";
+  check (P.row_shown ~pin:true group) "a pin shows it";
+  check (not (on_card (fun _ -> None))) "the card leaves it out";
+  check (on_card (fun label -> if label = "group" then Some true else None)) "a pinned row is on the card";
+  check (P.row_shown count && not (P.row_shown ~pin:false count)) "a pin of false takes a written row off the card"
+
 let run () =
+  pins ();
   zone_order ();
   snapshots ();
   rows ();

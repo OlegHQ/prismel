@@ -1853,7 +1853,7 @@ module Inspector = struct
       | _ -> folder in
     match folder with first :: _ -> [ first ] | [] -> []
 
-  let flow_fields ui ?(expanded = []) ?width ?(actions = true) ?(pins = false) ?(chips = [])
+  let flow_fields ui ?(expanded = []) ?width ?(actions = true) ?(pins = false) ?(pin_click = false) ?(chips = [])
       ?kind_label ?(on_choice = fun _ _ -> ()) rows =
     (* the rows fill the panel they are built in *)
     let width = Option.value width ~default:(Ui.inspector_width ui) in
@@ -1863,6 +1863,12 @@ module Inspector = struct
       && String.length (String.trim text) > 1 in
     (* the dot of a row is drawn by the row ([pins]); with [actions] a click on it pins the row *)
     let pin_of shown = if pins then Some shown else None in
+    let pinnable = actions || pin_click in
+    (* a click on the dot, or the s key over the row, asks to flip the row's pin *)
+    let pin_change box path shown clicked edits =
+      let key = pinnable && Ui.hovered_within ui box && not (Ui.text_input_focused ui)
+        && Ui.key_pressed ui (Rays.Input.KeyChar 's') in
+      (if clicked || key then [ Pinned (path, not shown) ] else []) @ edits in
     let action ui key label ~x ~y ~enabled ?(visible = true) () =
       let pin = label = "pin" in
       let x = if pin then 6. else x and w = if pin then 18. else 20. in
@@ -1912,8 +1918,8 @@ module Inspector = struct
       | Param.Text_view, Param.Text_value value ->
           (* an empty group means every element of its owner *)
           let placeholder = match field.default with
-            | Param.Text_value "" when field.name = "group" || String.ends_with ~suffix:"_group" field.name ->
-                Some "all"
+            | Param.Text_value "" when field.name = "group" -> Some "all points"
+            | Param.Text_value "" when String.ends_with ~suffix:"_group" field.name -> Some "all"
             | _ -> None in
           let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20. ?placeholder
               ~left:true ~valid:(fun _ -> true) key value in
@@ -1983,7 +1989,8 @@ module Inspector = struct
               ~at:(right -. Ui.Paint.text_width paint value, ty) value) live); []) in
         let reset = hovered && action ui ("reset-" ^ path) "\xc3\x97" ~x:(width -. 32.)
             ~y:control_y ~enabled:true () in
-        if reset then Reset path :: edits else edits) in
+        let pin = pinnable && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
+        pin_change box path shown pin (if reset then Reset path :: edits else edits)) in
     let scalar path title field shown =
       let box, control_x, control_y, control_w = Ui.inspector_row ui
           ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
@@ -1994,8 +2001,8 @@ module Inspector = struct
             ~w:(Ui.Px (Float.max 1. (control_x -. label_x -. 8.))) ~h:(Ui.Px 20.) "label-edit" in
         let edit = (Ui.signal ui label).double_clicked in
         let edits = input field path ~x:control_x ~y:control_y ~w:control_w ~edit in
-        let pinned = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
-        if pinned then Pinned (path, not shown) :: edits else edits) in
+        let pinned = pinnable && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
+        pin_change box path shown pinned edits) in
     let has_substr sub s =
       let len_s = String.length s and len_sub = String.length sub in
       let rec check i =
@@ -2056,11 +2063,11 @@ module Inspector = struct
         let toggle = actions && action ui ("split-" ^ path) "rgb"
             ~x:(width -. 32.) ~y:control_y
             ~enabled:(not row.locked) () in
-        let pin = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y
+        let pin = pinnable && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y
             ~enabled:(not row.locked) () in
         hex_edits
         @ (if toggle then [ Split (path, not split) ] else [])
-        @ (if pin then [ Pinned (path, not shown) ] else [])) in
+        @ pin_change box path shown pin []) in
       if row.split = Some true || row.components <> [] then
         whole @ List.concat (List.mapi (fun index field ->
           let axis = List.nth [ "r"; "g"; "b" ] index in
@@ -2085,8 +2092,8 @@ module Inspector = struct
           match Color.hex text with
           | Ok _ -> [ Edited (field.Param.name, Param.Text_value text) ]
           | Error _ -> [] in
-        let pin = actions && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
-        hex_edits @ (if pin then [ Pinned (path, not shown) ] else [])) in
+        let pin = pinnable && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in
+        hex_edits @ pin_change box path shown pin []) in
     let row_widget (row : flow_row) =
       (* a row is named by its argument, as the sheet and the card name it *)
       let title = match row.fields with
@@ -2118,10 +2125,10 @@ module Inspector = struct
             let toggle = actions && action ui ("split-" ^ row.path) "xyz"
                 ~x:(width -. 32.) ~y:control_y
                 ~enabled:(not row.locked) () in
-            let pin = actions && action ui ("pin-" ^ row.path) "pin" ~x:0. ~y:control_y
+            let pin = pinnable && action ui ("pin-" ^ row.path) "pin" ~x:0. ~y:control_y
                 ~enabled:(not row.locked) () in
             edits @ (if toggle then [Split (row.path, not split)] else [])
-            @ (if pin then [Pinned (row.path, not row.shown)] else [])) in
+            @ pin_change box row.path row.shown pin []) in
           if row.split = Some true || row.components <> [] then
             whole @ List.concat (List.mapi (fun index field ->
               let axis = List.nth ["x"; "y"; "z"] index in

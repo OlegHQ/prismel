@@ -465,12 +465,12 @@ type head = { renamed : string; chosen : int option; reset_pressed : bool }
 
 val inspector_header :
   t -> key:string -> ?kind:string -> ?badge:string -> ?index:string ->
-  ?rename:(string -> bool) -> ?actions:head_action list -> ?reset:string ->
+  ?rename:(string -> bool) -> ?actions:head_action list -> ?reset:string -> ?reset_enabled:bool ->
   title:string -> detail:string -> unit -> head
 (** The head block of an inspector: a chips row ([kind] in ink-2, [badge] in the accent, [index]
     at the right in ink-3), the name at the display size (edited in place when [rename] accepts
     names), one detail line in ink-2, a row of text [actions] and a bare [reset] button at the
-    right, then a line-2 hairline. *)
+    right (ink-3 and inert when [reset_enabled] is false: nothing to reset), then a line-2 hairline. *)
 
 val inspector_body : t -> (unit -> 'a) -> 'a
 (** The part of an inspector under its head: a column filling the rest of the panel that scrolls
@@ -635,7 +635,7 @@ val value_field : t -> at:float * float -> w:float -> h:float ->
   ?slide:(float -> string) ->
   ?scrub:(string -> float -> bool -> string) -> ?left:bool -> ?edit:bool ->
   ?lead:string * Rays.Color.t -> ?trail:string * Rays.Color.t -> ?line:Rays.Color.t ->
-  ?bare:bool -> ?placeholder:string -> valid:(string -> bool) ->
+  ?bare:bool -> ?placeholder:string -> ?tracking:float -> valid:(string -> bool) ->
   string -> string -> string * bool
 (** Compact field. Numeric sliders follow the pointer with [slide]; Option-click
     or [edit] opens text entry. [scrub] handles fields without a track.
