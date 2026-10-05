@@ -182,7 +182,19 @@ let route grid ~excl ((ax, ay) as a) ((bx, by) as b) =
       if d > room then [] else [ [ a; (bx -. d, ay); b ]; [ a; (ax +. d, by); b ] ]) steps in
     match List.find_opt (free ~margin:6.) candidates with
     | Some c -> c
-    | None -> (match List.find_opt free candidates with Some c -> c | None -> [ a; b ])
+    | None ->
+        (match List.find_opt free candidates with
+         | Some c -> c
+         | None ->
+             (* no one-bend way: round the cards above or below, 24 points clear *)
+             let hit = blockers grid ~excl a b in
+             let top = List.fold_left (fun m o -> Float.min m o.ry) (Float.min ay by) hit -. 24.
+             and bottom = List.fold_left (fun m o -> Float.max m (o.ry +. o.rh)) (Float.max ay by) hit +. 24. in
+             let round y = [ a; (ax +. 24., y); (bx -. 24., y); b ] in
+             let around = [ round top; round bottom ] in
+             (match List.filter free around with
+              | [] -> [ a; b ]
+              | c :: rest -> List.fold_left (fun best c -> if length c < length best then c else best) c rest))
   end else begin
     let hit = blockers grid ~excl (Float.min ax bx, Float.min ay by) (Float.max ax bx, Float.max ay by) in
     let top = List.fold_left (fun m o -> Float.min m o.ry) (Float.min ay by) hit -. 24.
@@ -1745,9 +1757,28 @@ let paint_return paint ui t ~z ~fs (s : P.scope) ~selected (x, y, w, h) =
   paint_socket paint theme None ~connected:(s.result <> P.Literal (S.make (S.Sym "nil"))) ~z (x, ry +. 12. *. z);
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
 
-let paint_polyline paint ~width color pts =
+(* a segment cut to a rectangle (Liang-Barsky): the GPU's diagonal wire primitive ignores the clip
+   of the box that paints it, so the pane cuts its own lines to its body *)
+let clip_segment (x0, y0) (x1, y1) (rx, ry, rw, rh) =
+  let dx = x1 -. x0 and dy = y1 -. y0 in
+  let t0 = ref 0. and t1 = ref 1. and ok = ref true in
+  let clip p q =
+    if p = 0. then (if q < 0. then ok := false)
+    else begin
+      let r = q /. p in
+      if p < 0. then (if r > !t1 then ok := false else if r > !t0 then t0 := r)
+      else if r < !t0 then ok := false else if r < !t1 then t1 := r
+    end in
+  clip (-. dx) (x0 -. rx); clip dx (rx +. rw -. x0); clip (-. dy) (y0 -. ry); clip dy (ry +. rh -. y0);
+  if !ok && !t0 <= !t1 then Some ((x0 +. dx *. !t0, y0 +. dy *. !t0), (x0 +. dx *. !t1, y0 +. dy *. !t1)) else None
+
+let paint_polyline ~clip paint ~width color pts =
   let rec go = function
-    | a :: (b :: _ as rest) -> Ui.Paint.line paint ~from_:a ~to_:b ~width color; go rest
+    | a :: (b :: _ as rest) ->
+        (match clip_segment a b clip with
+         | Some (a, b) -> Ui.Paint.line paint ~from_:a ~to_:b ~width color
+         | None -> ());
+        go rest
     | _ -> () in
   go pts
 
@@ -1827,7 +1858,7 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
     let color = if is_selected then theme.foreground else if layout = Some true then theme.accent
       else if layout = Some false then Pxui.Theme.muted theme else ty_color t w.ty in
     if layout = Some false || w.dashed then paint_dashed_polyline paint ~width color pts
-    else paint_polyline paint ~width color pts;
+    else paint_polyline ~clip:viewport paint ~width color pts;
     if t.wires = `Straight then paint_bends paint ~z color pts) t.geo.wires
 
 (* ---------------------------------------------------------------- update *)
@@ -2642,12 +2673,14 @@ let update t ui (frame : Frame.t) =
       Ui.Paint.text paint ~at:(fx +. 7., ty) ~size ~color:snapshot.theme.foreground label;
       Ui.Paint.text paint ~at:(fx +. 7. +. lw +. 6., ty) ~size ~color:(Pxui.Theme.ink_3 snapshot.theme) key) tip_at;
     List.iter (fun w ->
-      paint_polyline paint ~width:2. snapshot.theme.foreground
+      paint_polyline ~clip:(cx, cy, cw, ch) paint ~width:2. snapshot.theme.foreground
         (List.map (fun (x, y) -> sx snapshot x, sy snapshot y) w.pts);
       List.iter (fun (x, y) -> Ui.Paint.circle paint ~at:(sx snapshot x, sy snapshot y) ~radius:6.
         ~stroke:snapshot.theme.foreground ()) [w.a; w.b]) snapshot.highlighted;
     (match band with
-     | Some w -> Ui.Paint.line paint ~from_:w.from ~to_:mouse ~width:1.5 (ty_color snapshot w.ty)
+     | Some w ->
+         Option.iter (fun (a, b) -> Ui.Paint.line paint ~from_:a ~to_:b ~width:1.5 (ty_color snapshot w.ty))
+           (clip_segment w.from mouse (cx, cy, cw, ch))
      | None -> ());
     (match snapshot.drag with
      | Some (Marquee _) ->
@@ -2749,8 +2782,13 @@ module Private = struct
   let wire_midpoint t i =
     if i < 0 || i >= Array.length t.geo.wires then None else
     let w = t.geo.wires.(i) in
-    match w.pts with
-    | (x0, y0) :: (x1, y1) :: _ -> Some (sx t ((x0 +. x1) /. 2.), sy t ((y0 +. y1) /. 2.))
-    | _ -> None
+    let rec longest best = function
+      | ((x0, y0) as p) :: ((x1, y1) :: _ as rest) ->
+          let len = Float.hypot (x1 -. x0) (y1 -. y0) in
+          longest (match best with Some (l, _, _) when l >= len -> best | _ -> Some (len, p, List.hd rest)) rest
+      | _ -> best in
+    (match longest None w.pts with
+     | Some (_, (x0, y0), (x1, y1)) -> Some (sx t ((x0 +. x1) /. 2.), sy t ((y0 +. y1) /. 2.))
+     | None -> None)
   let _ = contains
 end

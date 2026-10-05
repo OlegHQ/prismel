@@ -234,8 +234,11 @@ let layout () =
     | _ -> ()) l.placed;
   check (P.card_height ~rows:0. ~extra:0. = P.head_height
          && P.card_height ~rows:3. ~extra:0. = 100.
-         && (P.layout ~foot:true s |> fun l -> (List.find (fun (q : P.placed) -> q.path = head) l.placed).h)
-            = p.h +. P.foot_height) "kit card heights: header only 24, three rows 100, a footer row 24 more"
+         && (let full foot = P.layout ~foot ~level:(fun _ -> P.Full) s |> fun l ->
+               (List.find (fun (q : P.placed) -> q.path = head) l.placed).h in
+             full true = full false +. P.foot_height
+             && (P.layout ~foot:true s |> fun l -> (List.find (fun (q : P.placed) -> q.path = head) l.placed).h) = p.h))
+    "kit card heights: header only 24, three rows 100, a footer row 24 more on a full card only"
 
 (* a loop over the points or pieces of geometry says how its elements are ordered *)
 let zone_order () =
