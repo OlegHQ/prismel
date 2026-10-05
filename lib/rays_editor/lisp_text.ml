@@ -78,20 +78,24 @@ let colorize (theme : Pxui.Theme.t) text =
      bool red, numbers green, strings in the record green; brackets and comments recede to ink-3 *)
   let ports = Pxui.Theme.ports theme and quiet = Pxui.Theme.ink_3 theme in
   let tokens, _, _ = lex text in
-  Array.to_list tokens |> List.concat_map (fun t ->
+  Array.to_list (Array.mapi (fun i t ->
     let span color = [ t.start, t.stop, color ] in
+    (* the name of a typed input, [(floors : int 5)], is a binding, not a form: ink *)
+    let declares = i + 1 < Array.length tokens
+      && tokens.(i + 1).kind = Sym && String.sub text tokens.(i + 1).start (tokens.(i + 1).stop - tokens.(i + 1).start) = ":" in
     match t.kind with
     | Comment | Meta -> span quiet
     | Str -> span ports.record
     | Num -> span ports.int
     | Kw -> span ports.bool
+    | Head when declares -> []
     | Head ->
         (match String.index_from_opt text t.start '/' with
          | Some slash when slash < t.stop - 1 -> [ t.start, slash + 1, ports.vec3 ]
          | _ -> span ports.float)
     | Sym -> []
     | Open _ | Close _ -> span quiet
-    | Unmatched -> span Pxui.Theme.invalid)
+    | Unmatched -> span Pxui.Theme.invalid) tokens) |> List.concat
 
 let brackets text = let _, pairs, _ = lex text in pairs
 

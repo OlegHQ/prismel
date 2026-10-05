@@ -147,7 +147,8 @@ let keymap = [
     ~scope:graph Frame_tile;
   command ~guide:Editor_core.Guide_context.[List] ~id:"graph.frame-tile" ~label:"reveal list selection"
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:graph Frame_tile;
-  command ~id:"view.frame-camera" ~label:"focus camera on displayed node"
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi] ~id:"view.frame-camera"
+    ~label:"frame the displayed node"
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:view Frame_camera;
 ] @ List.concat_map (fun modifier -> [
   command ~id:"file.save" ~label:"save sketch" ~trigger:(Chord (Input.KeyChar 's', [modifier])) Save_source;
@@ -171,13 +172,13 @@ let keymap3 = keymap @ [
   command ~id:"view.fly" ~label:"fly (WASD, Q/E, Esc)" ~trigger:(Leader "w") ~scope:view Fly;
   command ~id:"view.look-through" ~label:"look through render camera" ~trigger:(Leader "v")
     ~scope:view Look_through;
-  command ~id:"view.translate" ~label:"translate handles"
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi] ~id:"view.translate" ~label:"move handles"
     ~trigger:(Chord (Input.KeyChar 'w', [])) ~scope:view (Tool 1);
-  command ~id:"view.rotate" ~label:"rotate handles"
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi] ~id:"view.rotate" ~label:"rotate handles"
     ~trigger:(Chord (Input.KeyChar 'e', [])) ~scope:view (Tool 2);
-  command ~id:"view.scale" ~label:"scale handles"
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi] ~id:"view.scale" ~label:"scale handles"
     ~trigger:(Chord (Input.KeyChar 'r', [])) ~scope:view (Tool 3);
-  command ~id:"view.orbit" ~label:"orbit only (hide handles)"
+  command ~guide:Editor_core.Guide_context.[Canvas; Node; Multi] ~id:"view.orbit" ~label:"orbit only (hide handles)"
     ~trigger:(Chord (Input.Escape, [])) ~scope:view (Tool 0);
 ]
 

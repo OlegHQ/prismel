@@ -382,13 +382,13 @@
       "source_sha256": "af5167c162c115ae94630afe72db202f126459df5d634dbe8a9ba9a3e0a21526"
     },
     {
-      "api_sha256": "715fe4d2ffc946610e0bc433b3a78d42974e69eec6c531eb1367b28575358b27",
+      "api_sha256": "af34e8d2e25e9242612022b0a1fbc94b40c80859cc94d3fde1dcbc1ce3e977c3",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 37819,
-      "source_sha256": "d379cf5e51644a9e93d2a774030551977dedab97497aa8e29669afc7cd2404d4"
+      "source_bytes": 38026,
+      "source_sha256": "62892bde15964b063fbe9b350b0cd1b10af998c291d31671ecf4b5570fd0e115"
     },
     {
       "api_sha256": "81732506c560dc005333d6ce7e80ee928877732e6f666865dc7351ce9f10d7a2",
@@ -418,13 +418,13 @@
       "source_sha256": "a9bab1121364681f839074792c539c8bc5e7d5305a245c69bef65b451270798d"
     },
     {
-      "api_sha256": "0137e64574fb4372c0a88b242c3f509803cae885940faa365e4e3f2242894b97",
+      "api_sha256": "c37a5081a7ac87c481b798cd0c8b6a6121d52065089e7a23c81d523312d210b6",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 18191,
-      "source_sha256": "0670185c82958075ba00cd2ca5a75615063cba27c42c269d2096cbe8754cd915"
+      "source_bytes": 18548,
+      "source_sha256": "9e9a880fd7715a0992aef62cf0e74f167cfb1b420e57e26678c4a64475a8683f"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",
@@ -719,13 +719,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "0dd83821bc8fd4d2fb4598d7ed9e0f712580c7ac63c54850ef8b6cd14e14996f",
+      "api_sha256": "84c59bfa86531ea44403b26828c73b9a67307e0ba73982ff5015ce6efdda33e3",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37572,
-      "source_sha256": "c7ddbc2108874138347ee2d934db8709e73463b61f55ed99426bc4f9cab26f80"
+      "source_bytes": 37606,
+      "source_sha256": "503c422661fd72b0649b7667018edfc52d82dcefa5abf20a8e81c58a77d03e75"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",

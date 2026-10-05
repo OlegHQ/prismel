@@ -461,6 +461,25 @@ let face ui size =
           Int_table.replace ui.faces size face;
           face
 
+(* The kit face's ascent as a fraction of its size, measured once on a large face.  SDL_ttf rounds
+   a font's ascent up to a whole pixel; the sheets' renderer rounds it to the nearest.  Where the two
+   differ (13 points at two pixels a point: 23.4 pixels, so 24 against 23) every glyph of the string
+   sits a device pixel lower than the reference, see [ascent_shift]. *)
+let ascent_ratio = lazy (match Lazy.force kit_font_path with
+  | Some path ->
+      (match Font.load path 4096 with
+       | Ok font -> let ratio = float (Font.get_ascent font) /. 4096. in Font.destroy font; ratio
+       | Error _ -> 0.)
+  | None -> 0.)
+
+(* the move, in points, that puts a glyph raster's baseline on the nearest pixel row of its
+   ascent instead of the one above: 0 or one device pixel up *)
+let ascent_shift ~size ~density =
+  let ratio = Lazy.force ascent_ratio in
+  if ratio = 0. then 0. else
+  let exact = ratio *. float size *. float density in
+  (Float.round exact -. Float.ceil (exact -. 0.02)) /. float density
+
 let iter_code_points text visit =
   let length = String.length text in
   let rec loop index =
@@ -1501,7 +1520,8 @@ module Paint = struct
              lands on exactly one backing pixel, as whole-string text does. *)
           let snap value = Float.round (value *. density) /. density in
           let screen_x = snap ((x *. scale) +. paint.tx)
-          and screen_y = snap ((y *. scale) +. paint.ty) in
+          and screen_y = snap ((y *. scale) +. paint.ty
+                               +. ascent_shift ~size:(Option.value size ~default:ui.font_size) ~density:ui.density) in
           (* the pen runs in fractional physical pixels (0.88 points of tracking is 1.76 at 2x);
              each glyph is placed on a whole pixel *)
           let pen = ref 0. and tracking = tracking *. density in
@@ -3156,7 +3176,7 @@ let scrubbed literal dx ~coarse =
       if !n > 0 && s.[!n - 1] = '.' then String.sub s 0 (!n + 1) else String.sub s 0 !n
   | None, None -> literal
 
-let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(spans = [])
+let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(messages = []) ?(spans = [])
     ?reveal ?language ?on_context ?on_scrub ?on_click ?on_caret ?on_drop ?(chips = []) label text =
   (* a line of code is one and a half times its text, as code editors set it (17 points at 11,
      20 at 13): the 24-point row is a control's, twice the text *)
@@ -3166,10 +3186,14 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
               lor (if readonly then 0 else keep_tab))
       ~at ~w:(Px w) ~h:(Px h) ~scroll_step:row label in
   let char_w = text_width ui "0" in
+  (* the sheet's code area: a 36-point gutter (wider only past 999 lines), the text at its edge,
+     6 points of padding above the first row *)
+  let gutter_of lines = 36. +. char_w *. float (max 0 (String.length (string_of_int lines) - 3)) in
+  let pad = 6. in
   let columns_of count =
     if not wrap then None
     else
-      let gutter = 16. +. char_w *. float (max 3 (String.length (string_of_int count))) in
+      let gutter = gutter_of count in
       Some (int_of_float (Float.floor (Float.max 1. (w -. gutter -. 16.) /. Float.max 1. char_w))) in
   (* the gutter width follows the number of logical lines, the wrap width follows the gutter *)
   let rows_of text =
@@ -3177,6 +3201,22 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     text_rows ?cols:(columns_of logical) text in
   let rows = rows_of text in
   let count = Array.length rows in
+  (* a diagnostic's message is a row of its own under the last row of its line: [note_rows] are
+     (the display row it follows, the wrong span, the message), in order; a row's slot counts
+     the message rows above it *)
+  let note_rows rows = if messages = [] then [||] else begin
+    let found = List.filter_map (fun (line, span, message) ->
+      let last = ref (-1) in
+      Array.iteri (fun i (_, _, logical) -> if logical = line - 1 then last := i) rows;
+      if !last >= 0 then Some (!last, span, message) else None) messages in
+    Array.of_list (List.stable_sort (fun (a, _, _) (b, _, _) -> Int.compare a b) found)
+  end in
+  let slot_of notes i = Array.fold_left (fun n (after, _, _) -> if after < i then n + 1 else n) i notes in
+  let row_at_slot notes count k =
+    if notes = [||] then max 0 (min (count - 1) k) else begin
+      let i = ref 0 in
+      while !i + 1 < count && slot_of notes (!i + 1) <= k do incr i done; !i
+    end in
   let logical_count rows = let _, _, l = rows.(Array.length rows - 1) in l + 1 in
   let start_of rows i = let s, _, _ = rows.(i) in s in
   let stop_of rows i = let _, e, _ = rows.(i) in e in
@@ -3184,7 +3224,8 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   (* the content box scrolls; two empty boxes keep the completion popup's and the number
      scrub's state between frames *)
   let content, suggest, scrub = within ui body (fun () ->
-    let content = box ui ~w:(Px w) ~h:(Px (float count *. row)) (label ^ "-content") in
+    let content = box ui ~w:(Px w)
+        ~h:(Px ((float (count + Array.length (note_rows rows)) *. row) +. pad)) (label ^ "-content") in
     let suggest = box ui ~w:(Px 0.) ~h:(Px 0.) ~at:(0., 0.) (label ^ "-suggest") in
     let scrub = box ui ~w:(Px 0.) ~h:(Px 0.) ~at:(0., 0.) (label ^ "-scrub") in
     content, suggest, scrub) in
@@ -3194,15 +3235,15 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
      cursor further down, and the last request wins *)
   if signal.hovered then request_cursor ui `Text;
   let focused = focused ui body in
-  let gutter = 16. +. char_w *. float (max 3 (String.length (string_of_int (logical_count rows)))) in
+  let gutter = gutter_of (logical_count rows) in
   let bx, by, bw, bh = rect ui body in
   let horizontal = ref (float (state ui body ~default:0)) in
   (* the byte at a point; [strict] answers only over the row's glyphs *)
   let point_in ?(strict = false) text rows (px, py) =
     let count = Array.length rows in
-    let line = max 0 (min (count - 1)
-      (int_of_float (Float.floor ((py -. by +. scroll_position ui body) /. row)))) in
-    let x = px -. bx -. gutter -. 4. +. !horizontal in
+    let line = row_at_slot (note_rows rows) count
+      (int_of_float (Float.floor ((py -. by +. scroll_position ui body -. pad) /. row))) in
+    let x = px -. bx -. gutter +. !horizontal in
     let line_text = row_text text rows line in
     if strict && (x < 0. || x > text_width ui line_text || py < by || py > by +. bh) then None
     else Some (start_of rows line + text_caret_at ui line_text (Float.max 0. x)) in
@@ -3443,6 +3484,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
    | None -> ());
   let rows = if final == text then rows else rows_of final in
   let count = Array.length rows in
+  let notes = note_rows rows in
   (* [reveal] scrolls once per (offset, length): the content box remembers it *)
   let revealed = match reveal with
     | Some index when bw > 0.
@@ -3456,11 +3498,11 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   let visible = Float.max 1. (bw -. gutter -. 16.) in
   let max_x = if wrap then 0. else Float.max 0. (float !longest *. char_w -. visible) in
   horizontal := Float.max 0. (Float.min max_x (!horizontal +. fst signal.scroll *. row));
-  let vertical = ref (Float.max 0. (Float.min (Float.max 0. (float count *. row -. bh))
+  let vertical = ref (Float.max 0. (Float.min (Float.max 0. ((float (count + Array.length notes) *. row) +. pad -. bh))
     (scroll_offset ui body))) in
   Option.iter (fun index ->
     let line = row_at rows index in
-    let top = float line *. row in
+    let top = pad +. (float (slot_of notes line) *. row) in
     if top < !vertical then vertical := top
     else if top +. row > !vertical +. bh then vertical := top +. row -. bh;
     let x = text_width ui (String.sub final (start_of rows line) (min index (stop_of rows line) - start_of rows line)) in
@@ -3498,7 +3540,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
          (l.describe final byte)
    | _ -> ());
   (* the completion popup sits under the caret's row (above it near the bottom of the view) *)
-  let text_x0 = bx +. gutter +. 4. -. horizontal in
+  let text_x0 = bx +. gutter -. horizontal in
   let x_at index =
     let line = row_at rows index in
     text_x0 +. text_width ui (String.sub final (start_of rows line) (index - start_of rows line)) in
@@ -3506,9 +3548,9 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     let caret_line = row_at rows edit.caret in
     let anchor = x_at (fst items.(!selected).replace) in
     let px = Float.max 8. (Float.min (anchor -. 8.) (ui.view_w -. width -. 8.)) in
-    let below = by -. offset +. (float (caret_line + 1) *. row) in
+    let below = by -. offset +. pad +. (float (slot_of notes caret_line + 1) *. row) in
     let py = if below +. height <= ui.view_h -. 8. then below
-      else Float.max 8. (by -. offset +. (float caret_line *. row) -. height) in
+      else Float.max 8. (by -. offset +. pad +. (float (slot_of notes caret_line) *. row) -. height) in
     set_at ui container ~at:(px, py);
     let selected = !selected in
     draw ui container (fun paint (x, y, w, h) ->
@@ -3535,10 +3577,10 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     let clip x w = paint.clip_rect <- intersect previous
       ((x *. paint.scale) +. paint.tx, (by *. paint.scale) +. paint.ty,
        w *. paint.scale, bh *. paint.scale) in
-    let text_x = bx +. gutter +. 4. -. horizontal in
+    let text_x = bx +. gutter -. horizontal in
     Paint.fill paint ~x:(bx +. gutter) ~y:by ~w:1. ~h:bh (Theme.faint_border theme);
     let small = Paint.label_size paint in
-    let first = max 0 (int_of_float (Float.floor (offset /. row)))
+    let first = max 0 (int_of_float (Float.floor ((offset -. pad) /. row)) - Array.length notes)
     and last = min (count - 1) (int_of_float (Float.floor ((offset +. bh) /. row))) in
     let caret_line = row_at rows edit.caret in
     let selected = focused && edit.caret <> edit.anchor in
@@ -3554,7 +3596,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           else width (String.sub final ls (stop - ls)) in
         Paint.fill paint ~x:(text_x +. x0) ~y ~w:(Float.max 1. (x1 -. x0)) ~h:row color in
     for line = first to last do
-      let y = by -. offset +. float line *. row in
+      let y = by -. offset +. pad +. (float (slot_of notes line) *. row) in
       let text_y = y +. float (max 0 ((text_line_height ui - ui.font_size) / 2)) in
       let _, _, logical = rows.(line) in
       let starts_line = line = 0 || (let _, _, before = rows.(line - 1) in before <> logical) in
@@ -3576,8 +3618,9 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       Option.iter (fun (o, k) -> List.iter (fun b ->
         let ls = start_of rows line and le = stop_of rows line in
         if b >= ls && b < le then
-          Paint.frame paint ~x:(text_x +. width (String.sub final ls (b - ls))) ~y:(y +. 1.)
-            ~w:char_w ~h:(row -. 2.) theme.accent) [ o; k ]) matched;
+          (* the glyph's box (6.5 x 14) with a 1-point outline outside it: 8.5 x 16 *)
+          Paint.frame paint ~x:(text_x +. width (String.sub final ls (b - ls)) -. 1.) ~y:(y +. 2.)
+            ~w:(char_w +. 2.) ~h:16. theme.accent) [ o; k ]) matched;
       (* a number under the pointer (or being dragged) wears an accent underline *)
       Option.iter (fun (a, b) ->
         let ls = start_of rows line and le = stop_of rows line in
@@ -3592,6 +3635,13 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
         if a >= ls && a < le && b <= String.length final then
           Paint.fill paint ~x:(text_x +. width (String.sub final ls (a - ls))) ~y:(y +. row -. 5.)
             ~w:(width (String.sub final a (min b le - a))) ~h:4. color) chips;
+      (* the wrong span of a diagnostic is underlined in the error colour *)
+      List.iter (fun (_, span, _) -> match span with
+        | Some (a, b) when a < le && b > ls && b > a && b <= String.length final ->
+            let a = max a ls and b = min b le in
+            Paint.fill paint ~x:(text_x +. width (String.sub final ls (a - ls))) ~y:(y +. row -. 3.)
+              ~w:(Float.max 1. (width (String.sub final a (b - a)))) ~h:1. Theme.invalid
+        | _ -> ()) messages;
       let line_str = String.sub final ls (le - ls) in
       if focused && line = caret_line && composition <> "" then begin
         let before = String.sub final ls (edit.caret - ls) in
@@ -3612,9 +3662,20 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
         run pos le theme.foreground
       end
     done;
+    (* the message rows: the diagnostic at the label size, under the indent of its line *)
+    clip (bx +. gutter) (bw -. gutter);
+    Array.iteri (fun k (after, _, message) ->
+      let y = by -. offset +. pad +. (float (after + 1 + k) *. row) in
+      if y +. row > by && y < by +. bh then begin
+        let ls = start_of rows after in
+        let indent = ref 0 in
+        while ls + !indent < String.length final && final.[ls + !indent] = ' ' do incr indent done;
+        Paint.text paint ~size:small ~at:(text_x +. width (String.make !indent ' '), text_top ui ~size:small y row)
+          ~color:Theme.invalid message
+      end) notes;
     clip (bx +. gutter) (bw -. gutter);
     if focused then begin
-      let y = by -. offset +. float caret_line *. row in
+      let y = by -. offset +. pad +. (float (slot_of notes caret_line) *. row) in
       let caret_x = text_x +. width (String.sub final (start_of rows caret_line)
         (edit.caret - start_of rows caret_line)) in
       Paint.input_region paint ~x:bx ~y ~w:bw ~h:row ~focused:true ~cursor:(caret_x -. bx) ();
