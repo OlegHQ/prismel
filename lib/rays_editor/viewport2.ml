@@ -52,6 +52,7 @@ let film () ~key:_ viewport = viewport
 let render () ~pixel_scale:_ ~focus:_ _ = ()
 let header_tools () = None
 let caption () ~key:_ = None
+let trace () ~key:_ = None
 let render_status () = None
 let paint () ~key:_ viewport camera rendered = Easy_camera2.scene ~viewport camera rendered
 let screen_box _ ~bounds:_ ~world:_ _ = None

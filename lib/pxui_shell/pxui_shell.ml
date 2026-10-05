@@ -291,13 +291,12 @@ module Kit = struct
   let cap_y ui y h = Ui.text_top ui ~size:(max 8 (Ui.font_size ui - 2)) y h
   let cap_size ui = max 8 (Ui.font_size ui - 2)
 
-  (* the width of a label ({!Ui.Paint.cap}): upper case, 0.08 em of tracking after each letter
-     but the last *)
+  (* the width of a label ({!Ui.Paint.cap}): upper case, 0.08 em of tracking after each letter *)
   let cap_width ui text =
     let count = ref 0 in
     String.iter (fun c -> if Char.code c land 0xC0 <> 0x80 then incr count) text;
     Ui.text_width ui ~size:(cap_size ui) (String.uppercase_ascii text)
-    +. (0.08 *. float (cap_size ui) *. float (max 0 (!count - 1)))
+    +. (0.08 *. float (cap_size ui) *. float !count)
 
   (* the width of a text button, the kit's [.btn]: a transparent 1-point edge, 6, the label, 6 and
      the key, 6, the edge *)

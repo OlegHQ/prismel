@@ -21,7 +21,8 @@ let factories = Sop_catalog.Editor.factories
 let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.get_ok
 
 (* tall enough to show the whole Navigator without scrolling *)
-let width = 1600 and height = 1400
+(* wide enough for the outline to be the wide sheet's (300 points): node rows, data flow *)
+let width = 2400 and height = 1400
 let frame ?(buttons = []) ?(keys = []) mouse events count =
   { (Test_editor_input.frame ~buttons ~keys mouse events count) with
     width; height; size = width, height; drawable_width = width; drawable_height = height;
@@ -67,7 +68,7 @@ let run () =
         lead = false; inert = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
     root_detail = ""; layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch; notes = [] } in
   let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked "flower") in
-  let lines = Array.to_list (Array.map N.describe (N.rows N.initial (params scope))) in
+  let lines = Array.to_list (Array.map N.describe (N.rows (N.open_graph "flower" N.initial) (params scope))) in
   let listed text = List.exists (fun l -> has l text) lines in
   check (listed "input petals = 12" && listed "input seed = 7") ("the inputs of flower: " ^ String.concat " | " lines);
   check (listed "> flower · " && listed "1 loop" && listed "R root (scene)") "the composition lists every graph, the open one marked";
@@ -79,11 +80,18 @@ let run () =
   let row_centre text =
     let active = dump_line !e "pane graph" in
     let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked active) in
-    let rects = N.row_rects N.initial (params ~active scope) ~bounds:(outline ()) in
+    let rects = N.row_rects (N.open_graph "flower" N.initial) (params ~active scope) ~bounds:(outline ()) in
     let row, (x, y, w, h) = match List.find_opt (fun (r, _) -> has (N.describe r) text) (Array.to_list rects) with
       | Some found -> found | None -> fail ("no Navigator row " ^ text) in
     ignore row;
     x +. 20. +. (w /. 8.), y +. h /. 2. in
+  (* the open graph's chevron unfolds its node rows *)
+  (let active = dump_line !e "pane graph" in
+   let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked active) in
+   let rects = N.row_rects (N.open_graph "flower" N.initial) (params ~active scope) ~bounds:(outline ()) in
+   match List.find_opt (fun (r, _) -> has (N.describe r) "flower · ") (Array.to_list rects) with
+   | Some (_, (x, y, _, h)) -> click (x +. 5., y +. h /. 2.)
+   | None -> fail "no flower row");
   click (row_centre "R root (scene)");
   click (row_centre "flower · ");
   click (row_centre "half · defn");
@@ -116,7 +124,7 @@ let run () =
   check (Procedural.Node.label (E3.displayed_node !e) <> "uv_sphere") "undo restores the result";
   (* an input's slider writes the graph input's default: one history entry, the text follows *)
   let slider_y, slider_x, slider_w =
-    let rects = N.row_rects N.initial (params scope) ~bounds:(outline ()) in
+    let rects = N.row_rects (N.open_graph "flower" N.initial) (params scope) ~bounds:(outline ()) in
     match List.find_opt (fun (r, _) -> has (N.describe r) "input petals") (Array.to_list rects) with
     | Some (_, (x, y, w, h)) -> y +. (h /. 2.), x +. 76., w -. 86.
     | None -> fail "no petals slider" in

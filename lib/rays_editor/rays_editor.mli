@@ -234,6 +234,7 @@ module Private : sig
     type state
     val initial : state
     val with_query : string -> state -> state
+    val open_graph : string -> state -> state
     type obj = { depth : int; letter : string; name : string; detail : string;
                  visible : bool option; render : bool option; lead : bool; inert : bool; chosen : bool;
                  home : string list option }
@@ -252,7 +253,7 @@ module Private : sig
     }
     type row
     val chips : Flow.Eval.t -> (string * Rays.Color.t) list
-    val rows : state -> params -> row array
+    val rows : ?wide:bool -> state -> params -> row array
     val describe : row -> string
     val row_rects : ?row_height:int -> state -> params -> bounds:int * int * int * int ->
       (row * (float * float * float * float)) array

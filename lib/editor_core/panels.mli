@@ -60,6 +60,11 @@ val label : t -> string
     bracketed), same-axis nesting flattens, a tile is a row, neighbours of one name collapse to
     [View ×4], and floating windows come last after [+]. *)
 
+val summary : t -> string
+(** The short name the status strip and the outline's layout rows use: one name per column
+    group, [Outline | View | Inspector] (a stack or a tile reads as its first panel, floating
+    windows are left out). *)
+
 val labels : t list -> string list
 (** {!label} of each layout; layouts that read the same add their largest panel and its share
     ([View | Graph · Graph 70%]), and any that still match get a number. *)

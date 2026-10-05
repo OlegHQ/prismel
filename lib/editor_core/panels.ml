@@ -107,6 +107,25 @@ let label t =
   let main = Option.fold ~none:[] ~some:(fun d -> [ shape None d ]) (docked t) in
   String.concat " + " (main @ List.map (fun f -> shape None f) (floats t))
 
+(* the short reading, one name per column group: the docked panels side by side, each stack or tile
+   as its first panel, neighbours of one name collapsed; floating windows count apart *)
+let summary t =
+  let rec first = function
+    | Leaf p -> Some p
+    | Float _ -> None
+    | Split s -> (match first s.a with Some _ as p -> p | None -> first s.b)
+    | Tile cells -> List.find_map first cells in
+  let rec columns = function
+    | Split { axis = `H; a; b; _ } -> columns a @ columns b
+    | Tile cells -> List.concat_map columns cells
+    | Float _ -> []
+    | t -> Option.to_list (Option.map word (first t)) in
+  let rec runs = function
+    | [] -> []
+    | n :: rest -> (match runs rest with (m, c) :: tl when m = n -> (m, c + 1) :: tl | tl -> (n, 1) :: tl) in
+  String.concat " | " (List.map (fun (n, c) -> if c > 1 then Printf.sprintf "%s \xc3\x97%d" n c else n)
+    (runs (columns t)))
+
 (* the largest docked panel and its share, in percent *)
 let largest t =
   let rec areas share = function

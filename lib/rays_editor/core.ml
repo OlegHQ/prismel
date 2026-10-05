@@ -68,6 +68,11 @@ type prompt_intent = Save_preset_file of string | Load_preset_file of string | L
 type timeline_intent = Pxui_shell.Timeline_bar.intent =
   Pause_toggle | Stop_playback | Reset_playback | Seek_playback of int64 | Set_end of int
 
+(* A traced viewport's readout: the film in pixels, the samples per pixel against their cap, the
+   bounces, and the seconds the accumulation has taken (counted from the time [since] its samples
+   last restarted, frozen once the cap is reached). *)
+type trace = { film : int * int; samples : int; cap : int; bounces : int; seconds : float; since : float }
+
 (* Transient shell presentation: the fallback tree before the first panel edit,
    a splitter draft, and the default-tree override ("Restore layout"). Saved
    disclosure and floating bounds come from the document's layout. *)
@@ -242,6 +247,7 @@ type 'prepared t = {
   carry : 'prepared carry option;
   carry_budget : float;  (* seconds a carry's preview may take to apply or cook before it is only described *)
   captions : (string * string) list;
+  traces : (string * trace) list;  (* what each traced viewport's readout says: the film, the samples, the bounces and the seconds the accumulation took *)
   file : string;  (* what the status strip calls the document: its source file, else its name *)
   gates : (string * (int * int * int * int)) list;  (* the render frame of each viewport that shows less than its pane *)
   selected_box : (string * (int * int * int * int) * string) option;  (* the selected object in the focused view: its screen box and name *)
@@ -1931,7 +1937,7 @@ let create ?settings ?(keymap = Leader.keymap)
         graph_at = None; graph_pane = None; graph_panes = [];
         list_at = None; text_at = None; outline_at = None; locals = [];
         started = { on = None; views = []; tabs = [] };
-        carry = None; carry_budget; captions = []; view_tools = None; gates = []; selected_box = None;
+        carry = None; carry_budget; captions = []; traces = []; view_tools = None; gates = []; selected_box = None;
         file = (fst doc.Document.workspace).checked.name ^ ".rays" } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       (* the panels open as their start keywords say; the first graph pane (the focused leaf, else
@@ -1978,6 +1984,13 @@ let carry_line (c : _ carry) =
              (String.concat " · " (List.map (fun (letter, _, label) -> letter ^ " " ^ label) targets))
        | `Keys, _ ->
            Printf.sprintf "Carrying %s · nothing here takes it · u, i or Space j go elsewhere · Esc drops" held)
+
+(* 2408 -> "2 408", the sheets' thousands *)
+let group_thousands n =
+  let digits = string_of_int n in
+  let rec chop s = if String.length s <= 3 then [ s ]
+    else String.sub s (String.length s - 3) 3 :: chop (String.sub s 0 (String.length s - 3)) in
+  String.concat " " (List.rev (chop digits))
 
 let status_text ?(brief = false) value =
   match value.carry with Some c -> carry_line c | None ->
@@ -2044,7 +2057,7 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     else match Cook.status value.cook with Async_cook.Cooking _ -> `Busy | Idle -> `Ok in
   let layout = match Option.bind value.doc.Document.shell (fun s -> s.switch) with
     | Some { layouts; active } when active < List.length layouts ->
-        Printf.sprintf "layout %d \xc2\xb7 %s" active (List.nth (Editor_core.Panels.labels layouts) active)
+        Printf.sprintf "layout %d \xc2\xb7 %s" active (Editor_core.Panels.summary (List.nth layouts active))
     | _ -> "" in
   let line = match error_status with Some error -> error | None ->
     status_text ~brief:true value ^ match render_status with None -> "" | Some status -> " \xc2\xb7 " ^ status in
@@ -2388,7 +2401,8 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
         else if graph = "" then value.file else if value.file = "" then graph else value.file ^ " / " ^ graph
     | Inspector -> "Inspector", (match (if value.scope_key = None then [] else Pxui_graph.Scope.selected value.scope_view) with
         | [ path ] when graph <> "" -> graph ^ " / " ^ List.nth path (List.length path - 1) | _ -> graph)
-    | Outline -> "Outline", (fst value.doc.Document.workspace).checked.name
+    | Outline -> "Outline", if (let _, _, w, _ = leaf.frame in w < 300) then ""  (* the narrow sheet has the kind alone *)
+        else value.file
     | Timeline -> "Timeline",
         (* the real step of the sketch: the same step every frame is a fixed one *)
         if value.steady >= 3 && value.last_dt > 0. then Printf.sprintf "fixed dt 1/%d" (int_of_float (Float.round (1. /. value.last_dt)))
@@ -2467,10 +2481,17 @@ let outline_objects value : Navigator.obj list =
       | Some "camera" -> true, Some lead
       | Some "world" -> true, Some true
       | _ -> false, flag "render" in
-    { Navigator.depth = row.depth; letter = fst row.badge; name; detail;
-      visible = flag "visible"; render; lead; inert; chosen = List.mem row.id selected;
+    (* the render camera has both flags, its visible one only showing *)
+    let visible = match operation with Some "camera" -> Some true | _ -> flag "visible" in
+    let rank = match operation with Some "camera" -> 0 | Some "light" -> 1 | Some "world" -> 4 | _ -> 2 in
+    rank, { Navigator.depth = row.depth; letter = fst row.badge; name; detail;
+      visible; render; lead; inert; chosen = List.mem row.id selected;
       home = (match List.assoc_opt row.id value.doc.Document.homes.objects with
-        | Some (Document.Bound_at path) -> Some path | _ -> None) })
+        | Some (Document.Bound_at path) -> Some path | _ -> None) }) |> fun rows ->
+  (* the sheet's order: the camera, the lights, the geometry, the World; a nested scene keeps its tree *)
+  if List.for_all (fun (_, (o : Navigator.obj)) -> o.depth = 0) rows
+  then List.map snd (List.stable_sort (fun (a, _) (b, _) -> compare a b) rows)
+  else List.map snd rows
 
 let navigator_params value : Navigator.params =
   let ws = fst value.doc.Document.workspace in
@@ -2490,7 +2511,7 @@ let navigator_params value : Navigator.params =
       | _ -> []);
     objects = outline_objects value;
     root_detail = Printf.sprintf "%d spp" (Objects.Root.render value.doc.Document.root).max_spp;
-    layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active)
+    layouts = Option.map (fun (sw : Document.switch) -> List.map Editor_core.Panels.summary sw.layouts, sw.active)
       (Option.bind value.doc.Document.shell (fun s -> s.switch)) }
 
 (* The leaf the graph pane in use draws in, when it is open. *)
@@ -3308,54 +3329,60 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           let root : Objects.Root.parameters = Option.fold ~none:value.doc.Document.root
               ~some:(fun (r : Document.view_root) -> r.params) (List.assoc_opt key value.doc.Document.view_roots) in
           let camera = Option.bind value.doc.Document.active_camera (fun id -> Edit_graph.find (scene value) ~node_id:id) in
-          let prims = List.fold_left (fun n (piece : _ Cook.piece) ->
-            n + Rdk.Geometry.primitive_count piece.output.Procedural.Session.geometry) 0 (pieces value) in
+          (* the triangles the scene draws: a polygon of n corners fans into n - 2 (exact for polygons, a
+             count of corners and faces, not a walk of every face, for a frame's cost) *)
+          let tris = List.fold_left (fun n (piece : _ Cook.piece) ->
+            let g = piece.output.Procedural.Session.geometry in
+            n + max 0 (Rdk.Geometry.vertex_count g - (2 * Rdk.Geometry.primitive_count g))) 0 (pieces value) in
           let objects = List.length (pieces value) in
           let points = Option.map (fun (piece : _ Cook.piece) ->
             Rdk.Geometry.point_count piece.output.Procedural.Session.geometry) (piece value) in
           (* the traced readout: its samples are the caption's "n/cap spp" *)
-          let traced = Option.bind (List.assoc_opt key value.captions) (fun caption ->
-            try Scanf.sscanf (List.hd (List.rev (String.split_on_char ' ' (String.trim
-                  (String.sub caption 0 (max 0 (String.length caption - 4))))))) "%d/%d"
-                  (fun samples cap -> Some (caption, samples, cap))
-            with Scanf.Scan_failure _ | Failure _ | End_of_file | Invalid_argument _ -> None) in
+          let traced = List.assoc_opt key value.traces in
+          (* a body about as wide as the workspace sheet's follows that sheet: the narrow traced
+             block, no camera readout, no object count; a wide one follows viewport.html *)
+          let narrow = bw < 1000 in
           Pxui.Ui.draw ui overlay (fun paint (x, y, w, h) ->
             Option.iter (fun (gx, gy, gw, gh) ->
               let gx = float gx and gy = float gy and gw = float gw and gh = float gh in
               P.stroke paint ~x:(gx +. 0.5) ~y:(gy +. 0.5) ~w:(gw -. 1.) ~h:(gh -. 1.) (Pxui.Theme.edge theme);
               (* the corner marks lie on the frame's own edge: 16 points, 1 wide, in ink *)
               P.brackets paint ~x:gx ~y:gy ~w:gw ~h:gh ~offset:0. ~length:16. ~width:1. theme.foreground;
-              (* the label starts at the frame, or clear of the traced readout when that stands over it *)
-              let lx = if traced <> None then Float.max gx (x +. 12. +. Float.min 224. (w -. 24.) +. 12.) else gx in
-              ignore (label paint ~x:lx ~y:(if gy -. y >= 20. then gy -. 20. else gy +. 4.) ~pl:4. ~pr:4.
-                (Printf.sprintf "Render frame \xc2\xb7 %d \xc3\x97 %d" root.width root.height))) gate;
+              (* the label stands over the frame's left end with no ground of its own; the traced
+                 readout, drawn after it, covers its head where the sheet's does *)
+              P.cap paint ~at:(gx, cap_y (if gy -. y >= 20. then gy -. 20. else gy +. 4.))
+                (Printf.sprintf "Render frame \xc2\xb7 %d \xc3\x97 %d" root.width root.height)) gate;
             (* a traced viewport's readout: the path tracer and its backend as labels, the samples as
                a 20-point count over a 4-point bar, the film as a label; 4 apart, on the ground *)
-            Option.iter (fun (caption, samples, cap) ->
+            Option.iter (fun (t : trace) ->
               if w > 200. && h > 120. then begin
-                let ox = x +. 12. and oy = y +. 12. in
+                let ox = x +. (if narrow then 8. else 12.) and oy = y +. (if narrow then 8. else 12.) in
                 let title = Pxui.Ui.font_size ui * Pxui.Theme.title_size / Pxui.Theme.font_size in
-                let bar_w = Float.min 224. (w -. 24.) in
-                P.fill paint ~x:ox ~y:oy ~w:(bar_w +. 8.) ~h:((3. *. rh) +. 24.) theme.panel;
+                let bar_w = if narrow then 112. else Float.min 224. (w -. 24.) in
+                P.fill paint ~x:ox ~y:oy ~w:(if narrow then bar_w else bar_w +. 8.) ~h:((3. *. rh) +. 24.) theme.panel;
                 let tw = label paint ~x:ox ~y:oy ~color:theme.foreground "Path traced" in
-                ignore (P.cap paint ~at:(ox +. tw +. 6., cap_y oy) ~color:(Pxui.Theme.ink_2 theme) "Metal RT");
+                if not narrow then
+                  ignore (P.cap paint ~at:(ox +. tw +. 6., cap_y oy) ~color:(Pxui.Theme.ink_2 theme) "Metal RT");
                 let ty = Pxui.Ui.text_top ui ~size:title in
                 let row2 = oy +. rh +. 4. in
-                let count = string_of_int (min samples cap) in
+                let count = string_of_int (min t.samples t.cap) in
                 P.text paint ~size:title ~at:(ox, ty row2 rh -. 1.) ~color:theme.foreground count;
                 P.text paint ~size:title
                   ~at:(ox +. P.text_width paint ~size:title (count ^ " "), ty row2 rh -. 1.)
-                  ~color:(Pxui.Theme.ink_2 theme) (Printf.sprintf "/ %d spp" cap);
+                  ~color:(Pxui.Theme.ink_2 theme)
+                  (if narrow then Printf.sprintf "/ %d" t.cap else Printf.sprintf "/ %d spp" t.cap);
                 (* the bar: a line-3 box 4 high, filled inside it with the share of the samples *)
                 let by = row2 +. rh +. 4. in
                 P.stroke paint ~x:(ox +. 0.5) ~y:(by +. 0.5) ~w:(bar_w -. 1.) ~h:3. (Pxui.Theme.border theme);
-                P.fill paint ~x:(ox +. 1.) ~y:(by +. 1.) ~w:((bar_w -. 2.) *. Float.min 1. (float samples /. float (max 1 cap)))
+                P.fill paint ~x:(ox +. 1.) ~y:(by +. 1.) ~w:((bar_w -. 2.) *. Float.min 1. (float t.samples /. float (max 1 t.cap)))
                   ~h:2. theme.foreground;
-                (* the film: what the caption says before the samples *)
-                let film = try Scanf.sscanf caption "%d\xc3\x97%d %s" (fun fw fh step ->
-                    Printf.sprintf "%d \xc3\x97 %d \xc2\xb7 %s" fw fh step)
-                  with Scanf.Scan_failure _ | Failure _ | End_of_file -> caption in
-                ignore (P.cap paint ~at:(ox, cap_y (by +. 8.)) film)
+                (* under it: the seconds the accumulation took and, on a wide body, the bounces and
+                   the film in pixels *)
+                let fw, fh = t.film in
+                ignore (P.cap paint ~at:(ox, cap_y (by +. 8.))
+                  (if narrow then Printf.sprintf "spp \xc2\xb7 %.1f s" t.seconds
+                   else Printf.sprintf "%.1f s \xc2\xb7 %d bounce%s \xc2\xb7 %d \xc3\x97 %d" t.seconds t.bounces
+                     (if t.bounces = 1 then "" else "s") fw fh))
               end) traced;
             Option.iter (fun ((sx, sy, sw, sh), name) ->
               let sx = float sx and sy = float sy and sw = float sw and sh = float sh in
@@ -3374,7 +3401,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
               end) box;
             (* the render camera: its name, its lens and focus as a two-column grid whose labels
                and values both end at their column's right edge, 10 apart *)
-            Option.iter (fun node ->
+            if not narrow then Option.iter (fun node ->
               let field name = List.find_map (fun (f : Parameter.field_view) ->
                 match f.name = name, f.current with
                 | true, Parameter.Float_value v -> Some v | _ -> None) (Node.parameter_fields node) in
@@ -3398,17 +3425,21 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 P.text paint ~at:(right -. P.text_width paint text, Pxui_shell.Kit.text_y ui ry rh)
                   ~color:theme.foreground text) rows) camera;
             (* the scene's size and the frame rate: labels 12 apart, the rate in ink, in the row
-               that ends 12 above the pane's foot *)
-            let row_y = y +. h -. 12. -. rh in
+               that ends 12 (6 on a narrow body) above the pane's foot *)
+            let edge = if narrow then 8. else 12. in
+            let row_y = y +. h -. (if narrow then 6. else 12.) -. rh in
+            let tris_text = Printf.sprintf "%s tris" (group_thousands tris) in
             let items =
-              [ Printf.sprintf "%d prims" prims, None;
-                Printf.sprintf "%d object%s" objects (if objects = 1 then "" else "s"), None ]
+              (tris_text, None)
+              :: (if narrow then [] else
+                  [ Printf.sprintf "%d object%s" objects (if objects = 1 then "" else "s"), None ])
               @ (match value.status_fps with Some fps -> [ Printf.sprintf "%d fps" fps, Some theme.foreground ] | None -> []) in
             let total = List.fold_left (fun sum (text, _) -> sum +. P.cap_width paint text) (12. *. float (List.length items - 1)) items in
-            P.fill paint ~x:(x +. w -. 12. -. total -. 8.) ~y:row_y ~w:(total +. 8.) ~h:rh theme.panel;
+            (* the wide sheet's readout stands on a patch of the ground; the narrow one on the view *)
+            if not narrow then P.fill paint ~x:(x +. w -. edge -. total -. 8.) ~y:row_y ~w:(total +. 8.) ~h:rh theme.panel;
             ignore (List.fold_left (fun at (text, color) ->
               P.cap paint ~at:(at, cap_y row_y) ?color text;
-              at +. P.cap_width paint text +. 12.) (x +. w -. 12. -. total) items))
+              at +. P.cap_width paint text +. 12.) (x +. w -. edge -. total) items))
       | _ -> ()) roots;
     let view_root = match active with
       | Some leaf -> snd (List.find (fun ((l : Pxui_shell.Layout.leaf), _) -> l == leaf) roots)

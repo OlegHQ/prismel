@@ -13,13 +13,13 @@
       "source_sha256": "9905fe7f08223046d4ebe6e07b673913151ac70fc99667f1dbf7d32749d2ea09"
     },
     {
-      "api_sha256": "a44148c0573477c6767c8c7e359e63bf6505ef07348fdb4ad407121b279bf32b",
+      "api_sha256": "47ca1d3fdc307976d32cad9e681c2dc0a60f377e325265fc736a73574db1fa00",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Panels",
       "source": "lib/editor_core/panels.mli",
-      "source_bytes": 2780,
-      "source_sha256": "abd6fcfdf27f6494ab39fd9261e9c14b4ffbc2bb324bfc4be7fed54a7612cd07"
+      "source_bytes": 3022,
+      "source_sha256": "4577481b4861945febe1e9086f589d8dc0353b769d8dfbc628be0ecee44f4ed3"
     },
     {
       "api_sha256": "50f8c7a8131443266141876c6ba0ea60d1c55cf462584390d930ed879bd97b6a",
@@ -728,13 +728,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "84c59bfa86531ea44403b26828c73b9a67307e0ba73982ff5015ce6efdda33e3",
+      "api_sha256": "0e11f97fe112c5d998f2d4ff58b8ea622c9d50ddb86982286c59da6e8d7f57f8",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37606,
-      "source_sha256": "503c422661fd72b0649b7667018edfc52d82dcefa5abf20a8e81c58a77d03e75"
+      "source_bytes": 37666,
+      "source_sha256": "7fb14238e1eabd18b9396f035958f30fd288e2886d1f02741902132d7527903e"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",

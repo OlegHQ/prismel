@@ -19,9 +19,11 @@ type intent =
 
 (* [rename]: the graph whose name the field holds, and whether the field has opened yet *)
 type state = { query : string; typing : bool; rename : (string * bool) option;
-               scene_closed : bool  (* the scene's root row is folded: its objects are hidden *) }
+               scene_closed : bool;  (* the scene's root row is folded: its objects are hidden *)
+               opened : string list  (* graphs whose node rows are unfolded under their row *) }
 
-let initial = { query = ""; typing = false; rename = None; scene_closed = false }
+let initial = { query = ""; typing = false; rename = None; scene_closed = false; opened = [] }
+let open_graph graph s = if List.mem graph s.opened then s else { s with opened = graph :: s.opened }
 let editing s = s.typing || s.rename <> None
 let with_query query s = { s with query }
 let query s = s.query
@@ -178,6 +180,9 @@ let contains ~query text =
 
 let graph_row p (g : W.graph) detail =
   let used = readers p.workspace g.name in
+  (* the scene's own reference counts: its World object reads the graph *)
+  let used = if g.context <> W.World then used else
+      max used (List.length (List.filter (fun o -> o.letter = "W" && o.detail = "ref " ^ g.name) p.objects)) in
   let unused = used = 0 && (g.context = W.Material || g.context = W.Sop) in
   Graph_row { graph = g.name; label = g.name; context = Some g.context; active = p.active = Some g.name;
               chip = (if g.context = W.Material then List.assoc_opt g.name p.chips else None);
@@ -211,7 +216,7 @@ let search state p chains counts =
   Head (Printf.sprintf "%s · click opens" (plural !hits "match"), "") :: List.rev !acc
   |> fun rows -> if !hits = 0 then rows @ [ Empty "nothing matches" ] else rows
 
-let rows state p =
+let rows ?(wide = true) state p =
   let ws = p.workspace in
   let chains = match p.scope with Some s -> Flow_sop.Probe.chains s | None -> Hashtbl.create 1 in
   let counts = match p.scope, p.records with
@@ -222,7 +227,7 @@ let rows state p =
     let add row = acc := row :: !acc in
     let active_tree graph =
       match p.scope with
-      | Some scope when p.active = Some graph -> node_rows ~graph ~depth:1 p scope chains counts acc
+      | Some scope when wide && p.active = Some graph && List.mem graph state.opened -> node_rows ~graph ~depth:1 p scope chains counts acc
       | _ -> () in
     let nodes (form : S.t) = count_where (fun f -> match head f with
       | Some h -> String.contains h '/' | None -> false) form in
@@ -238,6 +243,8 @@ let rows state p =
       List.iter (fun m -> Option.iter (fun name ->
         add (Macro_row (name, macro_uses ws name))) (macro_name m)) ws.macros in
     let groups = grouped ws in
+    (* the narrow sheet has no Layout section, and so none of the editor graphs *)
+    let groups = if wide then groups else List.filter (fun (g, _) -> g <> "Layout") groups in
     let groups = if (ws.defs <> [] || ws.macros <> []) && not (List.mem_assoc "Geometry" groups)
       then List.filter_map (fun group ->
         match List.assoc_opt group groups with
@@ -278,7 +285,7 @@ let rows state p =
     (* the active graph's inputs *)
     (match p.scope, p.active with
      | Some scope, Some graph when scope.inputs <> [] ->
-         add (Head ("Inputs", if String.length graph > 4 && String.sub graph 0 4 = "def:"
+         add (Head ("Inputs", if not wide then "" else if String.length graph > 4 && String.sub graph 0 4 = "def:"
                                 then String.sub graph 4 (String.length graph - 4) else graph));
          List.iter (fun (i : P.input) ->
            match Option.bind i.default number with
@@ -287,7 +294,7 @@ let rows state p =
            | _ -> ()) scope.inputs
      | _ -> ());
     (match p.active with
-     | Some graph when not (String.length graph > 4 && String.sub graph 0 4 = "def:") ->
+     | Some graph when wide && not (String.length graph > 4 && String.sub graph 0 4 = "def:") ->
          let out = match List.find_opt (fun (g : W.graph) -> g.name = graph) ws.graphs with
            | Some g -> List.filter (fun n -> List.exists (fun (x : W.graph) -> x.name = n) ws.graphs) (reads g.form)
            | None -> [] in
@@ -361,8 +368,7 @@ let search_height = 28.
 
 let row_rects ?(row_height = 24) state p ~bounds:(x, y, w, _) =
   let rh = float row_height and x = float x and y = float y and w = float w in
-  let rows = rows state p in
-  ignore w;
+  let rows = rows ~wide:(w >= 300.) state p in
   let t = tops ~rh rows in
   Array.mapi (fun i r -> r, (x, y +. search_height +. t.(i), w, t.(i + 1) -. t.(i))) rows
 
@@ -396,7 +402,7 @@ let view state ui ~bounds:(x, y, w, h) p =
         Ui.Paint.text paint ~at:(px +. 12.5, ty) ~color:(Pxui.Theme.ink_3 theme)
           (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(pw -. 12.5)
              (if w >= 300. then "go to node, graph, function" else "go to")));
-  let rows = rows state p in
+  let rows = rows ~wide:(w >= 300.) state p in
   let tops = tops ~rh rows in
   let total = tops.(Array.length rows) in
   let top = y +. search_height in
@@ -428,6 +434,7 @@ let view state ui ~bounds:(x, y, w, h) p =
   (* add an object, a graph, a node: the add menu *)
   if w >= 300. && Pxui_shell.Kit.button ui ~key:"navigator-add" ~at:(x +. w -. 28., y +. 6.) ~w:20. ~centered:true "+" then emit Add;
   let fold = ref false in
+  let toggle = ref None in
   let begin_rename = ref None in
   (* a material or a SOP graph is a source: pressed and moved 4 points it is carried, as the
      Flow value that reads it *)
@@ -441,7 +448,10 @@ let view state ui ~bounds:(x, y, w, h) p =
      | _ -> ());
   let put = match Ui.drop_target ui box with Some (Ui.Dropped _) -> true | _ -> false in
   (if signal.clicked && not put then match Option.map (fun k -> rows.(k)) (row_at signal.release_point) with
-   | Some (Graph_row { graph; _ }) -> emit (Open { graph; node = None })
+   | Some (Graph_row { graph; active; _ }) ->
+       (* the chevron of the open graph's row folds its node rows; the rest of the row opens it *)
+       if wide && active && p.scope <> None && fst signal.release_point < x +. 10. then toggle := Some graph
+       else emit (Open { graph; node = None })
    | Some (Root_row { graph; _ }) ->
        (* the chevron folds the scene's objects; the rest of the row opens the scene graph *)
        if wide && fst signal.release_point < x +. 24. then fold := true else emit (Open { graph; node = None })
@@ -453,7 +463,7 @@ let view state ui ~bounds:(x, y, w, h) p =
        let px = fst signal.release_point in
        let flag column = let fx = x +. w -. 12. -. 12. -. (float (1 - column) *. 20.) in px >= fx -. 4. && px < fx +. 16. in
        (match o.visible, o.render with
-        | Some on, _ when flag 0 -> emit (Flag { node = path; name = "visible"; value = not on })
+        | Some on, _ when flag 0 && not o.inert -> emit (Flag { node = path; name = "visible"; value = not on })
         | _, Some on when flag 1 && not o.inert -> emit (Flag { node = path; name = "render"; value = not on })
         | _ -> emit (Open { graph; node = Some path }))
    | Some (Layout_row { index; _ }) -> emit (Layout index)
@@ -528,7 +538,10 @@ let view state ui ~bounds:(x, y, w, h) p =
             shade ~selected:o.chosen false;
             (* the objects are the children of the root row (its letter at 26 wide, 12 narrow), each level 8 points in; wide, the root's chevron takes the first 14; the selected row sits in a 4-point wrapper with its own
                padding (15 and 3), so its letter is a point left and its flags 5 points right *)
-            let ox = x +. (if wide then 38. else 20.) +. 8. *. float o.depth -. (if o.chosen then 1. else 0.) in
+            let ox = if o.chosen && wide then x +. 26.5
+              else x +. (if wide then 38. else 20.) +. 8. *. float o.depth -. (if o.chosen then 1. else 0.) in
+            (* the selected object stands in the root's indent with a chevron of its own *)
+            if o.chosen && wide then Ui.Paint.chevron paint ~at:(x +. 15., ry +. (rh /. 2.)) `Down theme.foreground;
             let right = x +. w -. (if o.chosen then 7. else 12.) in
             let flag_x column = right -. 12. -. (float (1 - column) *. 20.) in
             Ui.Paint.cap paint ~at:(ox, Pxui_shell.Kit.cap_y ui ry rh)
@@ -578,15 +591,20 @@ let view state ui ~bounds:(x, y, w, h) p =
             text (x +. 12., 0.) ~color:muted (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:label_w name)
         | Graph_row { label; context; detail; active; chip; dim; used; graph } ->
             shade active;
+            if wide && active && p.scope <> None then
+              Ui.Paint.chevron paint ~at:(x +. 5., ry +. (rh /. 2.)) (if List.mem graph state.opened then `Down else `Right) ink_3;
             (match chip with
              | Some c ->
                  Ui.Paint.fill paint ~x:(x +. 12.) ~y:(ry +. (rh /. 2.) -. 6.) ~w:12. ~h:12. c;
                  Ui.Paint.stroke paint ~x:(x +. 12.5) ~y:(ry +. (rh /. 2.) -. 5.5) ~w:11. ~h:11. (Pxui.Theme.edge theme)
              | None when String.starts_with ~prefix:"def:" graph ->
-                 (* a function: the diamond of its port *)
-                 for k = 0 to 6 do
-                   let d = Float.abs (float k -. 3.) in
-                   Ui.Paint.fill paint ~x:(x +. 12. +. d) ~y:(ry +. (rh /. 2.) -. 3.5 +. float k) ~w:(8. -. (2. *. d)) ~h:1.
+                 (* a function: the diamond of its port, a 7-point square turned 45 degrees (10 across),
+                    in half-point rows *)
+                 let cx = x +. 16. and cy = ry +. (rh /. 2.) in
+                 for k = 0 to 19 do
+                   let off = (float k +. 0.5) *. 0.5 -. 5. in
+                   let half = 5. -. Float.abs off in
+                   Ui.Paint.fill paint ~x:(cx -. half) ~y:(cy +. off -. 0.25) ~w:(2. *. half) ~h:0.5
                      (Pxui.Theme.ports theme).fn
                  done
              | None -> square ~at:(x +. 12.) (context_color theme context));
@@ -670,5 +688,9 @@ let view state ui ~bounds:(x, y, w, h) p =
               (float_of_string_opt changed)
         end
     | _ -> ()) rows;
+  let state = match !toggle with
+    | Some graph -> { state with opened = (if List.mem graph state.opened
+                                           then List.filter (( <> ) graph) state.opened else graph :: state.opened) }
+    | None -> state in
   { state with rename = (if !begin_rename <> None then !begin_rename else state.rename);
                scene_closed = (if !fold then not state.scene_closed else state.scene_closed) }, List.rev !intents
