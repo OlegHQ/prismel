@@ -532,7 +532,7 @@ let row_shown ?pin (r : row) =
   | Add -> false
   | Arg | Group_reader | Group_writer ->
       Exposure.shown { slot = false; driven = driven r; pin;
-                       differs = r.expr <> None && not (is_default r); primary = r.primary }
+                       differs = r.expr <> None && not (is_default r); primary = false }
 
 (* the body of a card at a level: what its rows are, in order.  The header slot is not a row. *)
 let lines ?(pin = fun _ -> None) level (n : node) : line array =
@@ -629,8 +629,7 @@ let rec size ~foot ~at ~collapsed ~lens ~level ~pin (it : item) :
       else
         let (l : layout) = layout ~foot ~at ~collapsed ~lens ~level ~pin ~inner:true z.scope in
         zone_pad_x +. Float.max l.w 72. +. zone_pad_x,
-        rail_top n +. Float.max l.h row_height +. zone_pad_bottom
-        +. (if z.kind = Let || not foot then 0. else foot_height),  (* the zone's own footer *)
+        rail_top n +. Float.max l.h row_height +. zone_pad_bottom,
         false, Some l, Card, [||]
   | Item n ->
       let lvl = if value_card n then Card else level n.path in

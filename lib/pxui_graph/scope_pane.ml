@@ -1618,7 +1618,11 @@ let paint_zone_frame paint ui t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selec
   let h = match footer with
     | Some f -> paint_footer paint ui t ~z ~fs f n.ty ~pad:0. (x, y, w, h); h -. P.foot_height *. z
     | None -> h in
-  paint_zone_label paint ui t ~z ~fs ~x ~y ~w n zn;
+  (* the label clears the collection's in-port when a name feeds it *)
+  let in_wired = match P.label_row zn with
+    | Some { key = Some _; expr = Some e; _ } -> E.free_names e <> [] | _ -> false in
+  let ind = if in_wired then 8. *. z else 0. in
+  paint_zone_label paint ui t ~z ~fs ~x:(x +. ind) ~y ~w:(w -. ind) n zn;
   paint_socket paint theme (Some n.ty) ~connected:out_wired ~z (x +. w -. 1. *. z, y +. port_y *. z);
   (match P.label_row zn with
    | Some r ->
@@ -1835,7 +1839,13 @@ let context_command = function
 
 let update t ui (frame : Frame.t) =
   if not t.visible then { t with drag = None; context = None; editing = None; highlighted = [] }, [] else
-  let t = if t.framed then t else { (frame_all t) with framed = true } in
+  (* the first view shows the cards at zoom 1 when they all but fit (Home frames everything) *)
+  let t = if t.framed then t else begin
+      let fitted = frame_all t in
+      if fitted.zoom >= 0.8 && fitted.zoom < 1. then
+        { t with zoom = 1.; pan_x = Float.round (Float.max 0. ((float t.width -. t.layout.w) /. 2.)); pan_y = 0.; framed = true }
+      else { fitted with framed = true }
+    end in
   let changes = ref [] in
   let emit c = changes := c :: !changes in
   let t, hint_changes = step_hints t frame in
@@ -1921,7 +1931,7 @@ let update t ui (frame : Frame.t) =
   (match t.records with
    | Some records when z >= 0.4 ->
        List.iter (fun ((p : P.placed), _, _) -> match p.item with
-         | P.Item n when (match n.zone with Some { kind = P.Let; _ } -> p.collapsed | _ -> true) ->
+         | P.Item n when (match n.zone with Some _ -> p.collapsed | None -> true) ->
              let chain = Option.value ~default:[] (Hashtbl.find_opt t.chains n.path) in
              Hashtbl.replace footers n.path (Flow_sop.Probe.footer records n ~probes:(List.map t.probe chain))
          | _ -> ()) visible
