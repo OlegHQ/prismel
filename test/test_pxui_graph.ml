@@ -127,6 +127,45 @@ let scope_click view point =
   scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ())
 let rect_center (x, y, w, h) = int_of_float (x +. w /. 2.), int_of_float (y +. h /. 2.)
 
+
+(* Zoomed out, a node is its shown level's geometry: at every zoom, and with one card pinned
+   full among points, each wire end is a port of a node (the dot for a point, the two ends of a
+   chip, the sockets of a card). *)
+let scope_zoom_geometry () =
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace z (graph g :context sop [(n : int 3)] (let* [a (sop/box) b (sop/scatter a :count n) c (sop/copy_to_points a b) d (sop/transform c)] (sop/merge c d))))"
+    |> Result.get_ok in
+  let level pinned p = if pinned && p = [ "g"; "b" ] then Some (P.Full, true) else None in
+  let scope = P.of_graph scope_catalog ws.checked "g" in
+  let paths = List.map (fun (n : P.node) -> n.path) scope.nodes
+    @ List.map (fun (i : P.input) -> i.path) scope.inputs in
+  List.iter (fun (pinned, factor, expect) ->
+    let view, _ = scope_view ~level:(level pinned) ws.checked "g" in
+    let view, _ = scope_step view (frame ()) in
+    let mouse = (500, 350) in
+    let view, _ = scope_step view (frame ~mouse ~events:[ mouse_move mouse; Event.MousePinched (factor /. Scope.zoom view) ] ()) in
+    let view, _ = scope_step view (frame ~mouse ~events:[] ()) in
+    let ports = List.concat_map (Scope.Private.ports view) paths in
+    let at (x, y) = List.exists (fun (px, py) -> Float.abs (px -. x) < 0.01 && Float.abs (py -. y) < 0.01) ports in
+    let count = Scope.Private.wire_count view in
+    check (count > 0) "no wires to check";
+    for i = 0 to count - 1 do
+      match Scope.Private.wire_points view i with
+      | first :: _ as pts ->
+          let last = List.nth pts (List.length pts - 1) in
+          check (at first && at last)
+            (Printf.sprintf "zoom %.2f%s: wire %d does not end on a port" (Scope.zoom view) (if pinned then " (b full)" else "") i)
+      | [] -> fail "an empty wire"
+    done;
+    check (expect (Scope.zoom view)) "the pinch did not reach the zoom under test";
+    (* a click on a node's box, at whatever level it is shown, selects it *)
+    if Scope.zoom view < 0.5 then List.iter (fun path ->
+      let x, y, w, h = Option.get (Scope.Private.box_of view path) in
+      let view, _ = scope_click view (int_of_float (x +. w /. 2.), int_of_float (y +. Float.min (h /. 2.) (11. *. Scope.zoom view))) in
+      check (Scope.selected view = [ path ]) ("a click on " ^ String.concat "/" path ^ " did not select it")) paths) 
+    [ false, 1., (fun z -> z >= 0.5); false, 0.45, (fun z -> z < 0.5 && z >= 0.34);
+      false, 0.3, (fun z -> z < 0.34); true, 0.3, (fun z -> z < 0.34); true, 0.45, (fun z -> z < 0.5) ]
+
 (* Levels, wire routing, the header's in-port and letter hints (flow.md 6.4, 7.5; graph.html). *)
 let scope_levels () =
   let ws = Editor_document.Workspace_doc.of_text scope_catalog
@@ -631,10 +670,15 @@ let run_scope () =
   check (Scope.Private.wire_count view > 0) "there are wires in the graph";
   let wire_idx = Option.get (List.find_index (fun i -> Scope.Private.wire_target view i <> None)
     (List.init (Scope.Private.wire_count view) (fun i -> i))) in
-  let wpt = Option.get (Scope.Private.wire_midpoint view wire_idx) in
-  let view = Scope.select [ heart ] view in
-  check (Scope.selected view = [ heart ]) "heart is selected";
-  let view, _ = scope_click view (int_of_float (fst wpt), int_of_float (snd wpt)) in
+  ignore wire_idx;
+  let view0 = Scope.select [ heart ] view in
+  check (Scope.selected view0 = [ heart ]) "heart is selected";
+  (* some wire of the graph (not under a card) is hit at its longest segment's middle *)
+  let view = List.fold_left (fun found i ->
+    if Scope.selected_wire found <> None || Scope.Private.wire_target view0 i = None then found else
+    let wpt = Option.get (Scope.Private.wire_midpoint view0 i) in
+    fst (scope_click view0 (int_of_float (fst wpt), int_of_float (snd wpt))))
+    view0 (List.init (Scope.Private.wire_count view0) Fun.id) in
   check (Scope.selected_wire view <> None) "clicking wire selected it";
   check (Scope.selected view = []) "clicking wire cleared node selection";
   let _, changes = Scope.run_command view Scope.Delete in
@@ -705,6 +749,7 @@ let run_scope () =
   scope_carry ();
   scope_connection_hover ();
   scope_levels ();
+  scope_zoom_geometry ();
   scope_pinch ();
   print_endline "pxui graph scope pane tests passed"
 

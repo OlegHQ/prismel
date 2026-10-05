@@ -1,11 +1,11 @@
-(* The host bars of the workspace: the graph panel's toolbar (Add, Repeat, Iterate, fn, defn: the sheet's list; macro is its key, M).  Buttons only report a
+(* The host bars of the workspace: the graph panel's toolbar (Add, Repeat, Iterate, fn, macro, defn: graph.html's list; the narrower workspace.html header drops macro).  Buttons only report a
    click: [Core] maps it to the one command or edit it means. *)
 module Ui = Pxui.Ui
 
-type tool = Add | Repeat | Iterate | Fn | Defn
+type tool = Add | Repeat | Iterate | Fn | Macro | Defn
 
 let tools = [ Add, "Add", "A"; Repeat, "Repeat", "R"; Iterate, "Iterate", "\xe2\x87\xa7R";
-              Fn, "fn", "L"; Defn, "defn", "D" ]
+              Fn, "fn", "L"; Macro, "macro", "M"; Defn, "defn", "D" ]
 
 (* The toolbar sits in the graph panel's header, after its title, breadcrumb and the 1 x 12 rule
    ([Pxui_shell.Chrome.tools_start]): text buttons 20 high and 8 apart, as wide as their text
@@ -19,11 +19,17 @@ let tool_rects ui ~header:(hx, hy, hw, hh) ~from =
   (* the views are 12 apart and end 36 points from the edge (8, the 20-point button, 8) *)
   let views_w = List.fold_left (fun w v -> w +. Pxui.Ui.text_width ui v) 24. views in
   let limit = hx +. hw -. 36. -. views_w -. 8. in
-  List.filter_map (fun (tool, label, hint) ->
-    let w = Pxui_shell.Kit.button_width ui ~hint label in
-    let at = !x in
-    x := !x +. w +. 8.;
-    if at +. w <= limit then Some (tool, label, hint, (at, hy +. ((hh -. 20.) /. 2.), w, 20.)) else None) tools
+  let place tools =
+    x := hx +. from;
+    List.filter_map (fun (tool, label, hint) ->
+      let w = Pxui_shell.Kit.button_width ui ~hint label in
+      let at = !x in
+      x := !x +. w +. 8.;
+      if at +. w <= limit then Some (tool, label, hint, (at, hy +. ((hh -. 20.) /. 2.), w, 20.)) else None) tools in
+  (* macro goes first when the tools do not all fit *)
+  match place tools with
+  | all when List.length all = List.length tools -> all
+  | _ -> place (List.filter (fun (tool, _, _) -> tool <> Macro) tools)
 
 let tool_rect ui ~header ~from tool =
   List.find_map (fun (t, _, _, r) -> if t = tool then Some r else None) (tool_rects ui ~header ~from)

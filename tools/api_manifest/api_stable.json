@@ -13,13 +13,13 @@
       "source_sha256": "9905fe7f08223046d4ebe6e07b673913151ac70fc99667f1dbf7d32749d2ea09"
     },
     {
-      "api_sha256": "a44148c0573477c6767c8c7e359e63bf6505ef07348fdb4ad407121b279bf32b",
+      "api_sha256": "47ca1d3fdc307976d32cad9e681c2dc0a60f377e325265fc736a73574db1fa00",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Panels",
       "source": "lib/editor_core/panels.mli",
-      "source_bytes": 2780,
-      "source_sha256": "abd6fcfdf27f6494ab39fd9261e9c14b4ffbc2bb324bfc4be7fed54a7612cd07"
+      "source_bytes": 3022,
+      "source_sha256": "4577481b4861945febe1e9086f589d8dc0353b769d8dfbc628be0ecee44f4ed3"
     },
     {
       "api_sha256": "50f8c7a8131443266141876c6ba0ea60d1c55cf462584390d930ed879bd97b6a",
@@ -220,13 +220,13 @@
       "source_sha256": "d155ed41fb4db2f210712b1b425a0c3fa8e47fa1dd016e0b503c358c52663bae"
     },
     {
-      "api_sha256": "781d3d4f8aba893f1ecad79996786d9775d914f02479ef314c4bfe74ceb4f277",
+      "api_sha256": "490f718ba4fde26917635a07612e439a65658b75f6c2e55525c74e707a2a7d54",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Projection",
       "source": "lib/flow_sop/projection.mli",
-      "source_bytes": 10786,
-      "source_sha256": "2a5bef1b3d0a7c7cab205a15ea7960cd2fa7403305ceb2bcd3f739cbfd22e1d4"
+      "source_bytes": 10984,
+      "source_sha256": "74c6bc20ebf7e534bb09c61eeb9b8248fd955cd38897e4512a2f81fd860e8f23"
     },
     {
       "api_sha256": "34e222cfbacc256f00dada326228441213b4d92a5fd2ae68f9b3bb9c1bcf98a3",
@@ -391,13 +391,13 @@
       "source_sha256": "af5167c162c115ae94630afe72db202f126459df5d634dbe8a9ba9a3e0a21526"
     },
     {
-      "api_sha256": "61823f7ac02fd6dc4afc7605894126e1ca39412711a8338a3e39da2417227b18",
+      "api_sha256": "3392c8511fb715067ddae13627d2474f9ef38754d81b1463380870cf312df3d9",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 38134,
-      "source_sha256": "baa0ee34d4916533be2c17d08a532b4efca595c5ef4ac8b9a28303d269b78cd8"
+      "source_bytes": 38319,
+      "source_sha256": "f6a183c4c56e45af7ae00326159092dfa24d0981853a0a698f44e8132998754b"
     },
     {
       "api_sha256": "81732506c560dc005333d6ce7e80ee928877732e6f666865dc7351ce9f10d7a2",
@@ -405,8 +405,8 @@
       "library": "pxui_graph",
       "module": "Node_menu",
       "source": "lib/pxui_graph/node_menu.mli",
-      "source_bytes": 1799,
-      "source_sha256": "380f5b4db16c65a3a84d104aaebe724394d5f8d90e927ca546b92c1128506501"
+      "source_bytes": 1856,
+      "source_sha256": "eee148523e198d715a7368468419324ea77ac2ffd1c2383194600fe277be02d9"
     },
     {
       "api_sha256": "3497113ab63f6c2b86f2783437fecbc2b3f7c16947bc3123377dce5c09813816",
@@ -418,22 +418,22 @@
       "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
-      "api_sha256": "dd1c78d47318a612a16856c13b97be8d2b8297bbdb9d1d7c2359f8e42a62557f",
+      "api_sha256": "d0c3f97c69ae2ca82150115249516d268ffcda632a5c91d12ea0b65b049f84c6",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 9664,
-      "source_sha256": "8870aea481826660cac8746cbfe4d18b6a6bedd668131322caed81b1c4d07cbf"
+      "source_bytes": 9814,
+      "source_sha256": "89bfe8405caf9981089c169c01cb1b333d58c5ab8d9d14b2826afe0ffa3e25fe"
     },
     {
-      "api_sha256": "5cd075ca39b5ad0e4b9c72e8e26065ca92187ad75733053cb2563f9e70f79843",
+      "api_sha256": "c0404c573856597ff569a5537808fcffbdb9bf2aa5d710f35d42146ce720173b",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 18610,
-      "source_sha256": "a26c19028e4e4af93dd5efc489b2f2d0d1b101d7490696edcaeaa634bec36dbc"
+      "source_bytes": 19115,
+      "source_sha256": "b161dd38780e65392f3fe20f286b25c6ec4a51dd54aa88048dcba5dcadb136bb"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",
@@ -728,13 +728,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "84c59bfa86531ea44403b26828c73b9a67307e0ba73982ff5015ce6efdda33e3",
+      "api_sha256": "8e9b88140e4c3dd564918c1ccceb951314b3e2efe5803624ddba509b6c58f41c",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37606,
-      "source_sha256": "503c422661fd72b0649b7667018edfc52d82dcefa5abf20a8e81c58a77d03e75"
+      "source_bytes": 37674,
+      "source_sha256": "b076a399cd19ce1d5ff9a08e61a15a2a4fb402ec7f22bc9aeb2095c57381b55e"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",

@@ -214,7 +214,7 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
     let kind = if W.group_reader p then Group_reader else if W.group_writer k p then Group_writer else Arg in
     let material = k.qualified = "sop/material" && p.name = "material" in
     row c ~ty:(if material then Ty.Material else match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
-      ~control:(control_of p) ~socket:(material || p.ty <> None) ~kind
+      ~control:(control_of p) ~socket:true ~kind
       ~folder:(String.concat " / " p.folder)
       ~primary:(if any_primary then p.primary else p.folder = first_folder)
       p.name (E.Kw p.name) (List.assoc_opt p.name kws)) k.parameters in
@@ -458,6 +458,7 @@ let title (n : node) =
 (* the names a row is wired from: the nested node in it, else every name its expression reads *)
 let sources (r : row) = match r.chip, r.expr with
   | Name leaf, _ when E.nested leaf -> [ leaf ]
+  | _, Some { S.node = S.Sym ("t" | "pi" | "true" | "false" | "nil"); _ } -> []  (* constants, not wires *)
   | _, Some e -> E.free_names e
   | _, None -> []
 
@@ -553,8 +554,8 @@ let lines ?(pin = fun _ -> None) level (n : node) : line array =
       (* a call with no header slot (a [list], a record) keeps its [+] row on the card *)
       let shown, hidden = List.partition (fun (_, (r : row)) ->
         (r.kind = Add && not has_head) || row_shown ?pin:(pin r.label) r) body in
-      let rows = List.map (fun (i, r) -> Row (i, r)) shown in
-      Array.of_list (rows @ (if hidden = [] then [] else [ More (List.length hidden) ]))
+      ignore hidden;  (* a card shows its wired and written rows; [o] and [p] reveal the rest *)
+      Array.of_list (List.map (fun (i, r) -> Row (i, r)) shown)
 
 (* the count the chip shows: rows with something written *)
 let set_count (n : node) =
@@ -575,7 +576,7 @@ let point_size = 14.
 let zone_pad_x = 24.  (* a zone's cards start this far inside its edge *)
 let zone_pad_top = 52.  (* and this far below its top (the label row and 28 points of air) *)
 let zone_pad_bottom = 8.
-let column_gap = 60.  (* flow.md 6.1: the room between columns, before the lattice rounds it up *)
+let column_gap = 92.  (* the room between columns before the lattice rounds the pitch up: 196 + 92 gives 288 *)
 let row_gap = 36.  (* at least this between stacked cards *)
 let snap v = Float.round (v /. lattice) *. lattice
 let ceil_lattice v = Float.ceil (v /. lattice -. 1e-9) *. lattice
@@ -587,6 +588,7 @@ type placed = {
   collapsed : bool; inner : layout option;
   level : level;  (* the requested level; the pane draws less below its zoom caps *)
   lines : line array;
+  shown : level;
 }
 and layout = { placed : placed list; w : float; h : float }
 
@@ -642,7 +644,7 @@ let rec size ~foot ~at ~collapsed ~lens ~level ~pin (it : item) :
        | Card | Full ->
            (match open_lens with Some _ -> Float.max node_width lens_width | None -> node_width),
            card_height ~rows:((if n.note <> None then 1. else 0.) +. float (Array.length ln) +. count n.outputs)
-             ~extra:((if foot then foot_height else 0.)
+             ~extra:((if foot && lvl = Full then foot_height else 0.)
                      +. (match open_lens with Some (l, step) -> lens_height l ~step | None -> 0.)),
            false, None, lvl, ln)
 
@@ -679,35 +681,69 @@ and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?
     end in
   Array.iteri (fun k _ -> ignore (lv k)) arr;
   let cols = Array.fold_left max 0 lvl + 1 in
-  (* column 0 lists the nodes before the graph inputs, so the first chain is the top row *)
-  let order k = match arr.(k) with (Input _, _, _, _, _) -> 1 | _ -> 0 in
+  (* column 0 is ordered by the first item that reads each of its items (a node before an input on a
+     tie, then as written), so what feeds one consumer stacks together and the chains stay level *)
+  let consumer = Array.make (Array.length arr) max_int in
+  Array.iteri (fun j (_, _, deps, _, _) ->
+    List.iter (fun d -> match Hashtbl.find_opt by_name (root_of d) with
+      | Some k when k <> j && j < consumer.(k) -> consumer.(k) <- j
+      | _ -> ()) deps) arr;
+  let order k = (consumer.(k), match arr.(k) with (Input _, _, _, _, _) -> 1 | _ -> 0) in
   (* the items of each column, in item order *)
   let by_level = Array.make cols [] in
   for k = Array.length arr - 1 downto 0 do by_level.(lvl.(k)) <- k :: by_level.(lvl.(k)) done;
   let origin_x = if inner then 0. else lattice and origin_y = if inner then 0. else lattice in
+  (* a zone's cards sit on the lattice row of the cards beside it: its edge is [rail_top] above, so
+     the first row starts that far down when the scope has a zone of its own *)
+  let lead_of it = match it with
+    | Item ({ zone = Some _; _ } as n) when not inner && not (collapsed n.path) -> rail_top n
+    | _ -> 0. in
+  let floor_lattice v = Float.floor (v /. lattice +. 1e-9) *. lattice in
+  let row_start = origin_y +. 0. in
+  let row_start = if inner then row_start
+    else floor_lattice (origin_y +. Array.fold_left (fun m (it, _, _, _, _) -> Float.max m (lead_of it)) 0. arr) in
   let placed = ref [] and x = ref origin_x and w = ref 0. and h = ref 0. in
   let pos_of = Hashtbl.create 16 in
   for l = 0 to cols - 1 do
-    let y = ref origin_y and cw = ref 0. in
+    let y = ref row_start and cw = ref 0. and first = ref true in
     let members = by_level.(l) in
     let members = if l = 0 then List.stable_sort (fun a b -> compare (order a) (order b)) members else members in
     List.iter (fun k ->
-      let it, path, _, names, head_src = arr.(k) in
+      let it, path, deps, names, head_src = arr.(k) in
       let iw, ih, coll, inner_l, lvl_, ln = size ~foot ~at ~collapsed ~lens ~level ~pin it in
-      let is_zone = (match it with Item { zone = Some _; _ } -> not coll | _ -> false) in
-      (* a zone's cards, not its edge, sit on the lattice: its top is 4 points above a lattice row *)
-      let zdy = if is_zone && not inner then -4. else 0. in
-      let aligned = match head_src with
-        | Some name -> Hashtbl.find_opt pos_of name
-        | None -> None in
-      let base = match aligned with Some sy when sy > !y -> sy | _ -> !y in
+      let lead = lead_of it in
+      (* the card it lines up with: its deepest source (the main chain), the header's on a tie *)
+      let aligned =
+        let best = List.fold_left (fun best d -> match Hashtbl.find_opt by_name (root_of d) with
+          | Some j when j <> k && (match best with None -> true | Some (_, bl) -> lvl.(j) > bl) -> Some (root_of d, lvl.(j))
+          | _ -> best) None deps in
+        let head = match head_src with
+          | Some name -> (match Hashtbl.find_opt by_name name with
+              | Some j when (match best with Some (_, bl) -> lvl.(j) >= bl | None -> true) -> Some name
+              | _ -> None)
+          | None -> None in
+        match head, best with
+        | _ when lead > 0. || (match it with Item { zone = Some _; _ } -> true | _ -> false) ->
+            (* a zone lines its first card up with the topmost of its deepest sources *)
+            let rows = List.filter_map (fun d -> match Hashtbl.find_opt by_name (root_of d) with
+              | Some j when j <> k && (match best with Some (_, bl) -> lvl.(j) = bl | None -> false) ->
+                  Hashtbl.find_opt pos_of (root_of d)
+              | _ -> None) deps in
+            (match rows with [] -> None | r :: rest -> Some (List.fold_left Float.min r rest))
+        | Some name, _ -> Hashtbl.find_opt pos_of name
+        | None, Some (name, _) -> Hashtbl.find_opt pos_of name
+        | None, None -> None in
+      let row_min = if !first then !y else floor_lattice (!y +. lead) in
+      let row = match aligned with Some sr when sr > row_min -> sr | _ -> row_min in
       let px, py = match at path with
         | Some (ax, ay) -> ax, ay
-        | None -> !x, base +. zdy in
+        | None -> !x, row -. lead in
+      let row = py +. lead in
+      first := false;
       placed := { item = it; path; x = px; y = py; w = iw; h = ih; collapsed = coll; inner = inner_l;
-                  level = lvl_; lines = ln } :: !placed;
-      List.iter (fun nm -> Hashtbl.replace pos_of nm py) names;
-      y := ceil_lattice (Float.max !y (py -. zdy +. ih +. row_gap));
+                  level = lvl_; lines = ln; shown = lvl_ } :: !placed;
+      List.iter (fun nm -> Hashtbl.replace pos_of nm row) names;
+      y := ceil_lattice (Float.max !y (py +. ih +. row_gap));
       cw := Float.max !cw iw;
       w := Float.max !w (px +. iw); h := Float.max !h (py +. ih)) members;
     if !cw > 0. then x := ceil_lattice (!x +. !cw +. column_gap)

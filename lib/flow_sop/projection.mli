@@ -195,6 +195,9 @@ type placed = {
   inner : layout option;  (** an expanded zone's own layout *)
   level : level;  (** the requested level (the pane draws less below its zoom caps) *)
   lines : line array;  (** the card's body at that level *)
+  shown : level;
+  (** the level it is drawn at: [level] under the pane's zoom caps (the pane sets it, and then
+      [w] and [h] are the box of that level); [layout] returns it equal to [level] *)
 }
 
 and layout = { placed : placed list; w : float; h : float }

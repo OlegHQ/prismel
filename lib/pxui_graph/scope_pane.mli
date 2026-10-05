@@ -161,6 +161,8 @@ module Private : sig
   (* centres, in screen points, of the panel's parts *)
   val lens_step_button : t -> path -> int -> (float * float) option
   val lens_replace : t -> path -> (float * float) option
+  (* the in end, the out end, the row sockets and named outputs of a plain node at its shown level *)
+  val ports : t -> path -> (float * float) list
   val wire_count : t -> int
   val wire_points : t -> int -> (float * float) list
   val wire_target : t -> int -> (path * Flow_sop.Flow_edit.arg_key) option

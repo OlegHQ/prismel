@@ -37,6 +37,7 @@ let () =
        type:TEXT       typed text (no spaces: _ is a space)
        key:ctrl+z      modifiers (shift ctrl alt meta) joined to a key with +, held for that step
        move:X,Y        rest the pointer there (it stays for the picture)
+       pinch:X,Y,F     a trackpad pinch of factor F at that point (above 1 zooms in)
        hold:X0,Y0,X1,Y1  press at the first point and keep the button down at the second, so
                        the picture shows the drag in flight
      e.g. UI_SHOT_DO="key:space key:[ key:1 click:490,95" *)
@@ -72,6 +73,10 @@ let () =
              step [ Rays.Event.MouseMoved !mouse ];
              step [ Rays.Event.MousePressed (Rays.Input.LeftButton, !mouse); Rays.Event.MouseReleased (Rays.Input.LeftButton, !mouse) ]
          | "move" -> mouse := point argument; step [ Rays.Event.MouseMoved !mouse ]
+         | "pinch" ->
+             let (x, y), factor = Scanf.sscanf argument "%f,%f,%f" (fun x y f -> (x, y), f) in
+             mouse := (x, y); step [ Rays.Event.MouseMoved !mouse ];
+             step [ Rays.Event.MousePinched factor ]
          | "hold" ->
              let from, to_ = Scanf.sscanf argument "%f,%f,%f,%f" (fun a b c d -> (a, b), (c, d)) in
              mouse := from; step [ Rays.Event.MouseMoved from ];

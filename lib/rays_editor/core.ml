@@ -3303,6 +3303,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           | Some Repeat -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Wrap_repeat)
           | Some Iterate -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Wrap_iterate)
           | Some Fn -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Make_fn)
+          | Some Macro -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Make_macro)
           | Some Defn -> bar_action := Some (Leader.Scope_command Pxui_graph.Scope.Make_defn)
           | None -> ())
      | _ -> ());

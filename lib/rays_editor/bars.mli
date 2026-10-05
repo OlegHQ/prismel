@@ -1,7 +1,7 @@
 (** The host bar of the workspace: the graph panel's toolbar (Add, Repeat, Iterate, function, macro, defn).  Buttons only
     report a click; [Core] maps it to the one command or edit it means. *)
 
-type tool = Add | Repeat | Iterate | Fn | Defn
+type tool = Add | Repeat | Iterate | Fn | Macro | Defn
 
 val tool_rect : Pxui.Ui.t -> header:int * int * int * int -> from:float -> tool -> (float * float * float * float) option
 (** Where a toolbar button sits ([from] points after the header's left edge, see
