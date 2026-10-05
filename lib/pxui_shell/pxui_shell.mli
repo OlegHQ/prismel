@@ -151,13 +151,14 @@ module Which_key : sig
       on dismissal or the close button. *)
 
   val panel : Pxui.Ui.t -> ?category:(('scope, 'action) Editor_core.Command.t -> string) ->
-    ?describe:(string -> string option) -> ('scope, 'action) Editor_core.Command.t list ->
-    prefix:string -> focus:'scope -> focus_name:string -> unit
+    ?describe:(string -> string option) -> ?order:(string -> string list) ->
+    ('scope, 'action) Editor_core.Command.t list -> prefix:string -> focus:'scope -> focus_name:string -> unit
   (** The leader sheet over the status strip: the commands, global and of the focused pane, whose
       leader sequence continues [prefix].  With [category] (the host's section of a command) the page is
       the sheet's [09]: a column to a section, a row of one letter to a key, a chevron when it
       continues, no chords, [describe] naming the keys that continue (by their sequence, [Space o]
-      is ["o"]).  Without it the sections are the global commands and those of [focus_name], with the
+      is ["o"]); [order] gives the keys of a section in the order the sheet shows them (the rest
+      follow in keymap order).  Without it the sections are the global commands and those of [focus_name], with the
       key chords on the first page, and a continuing key is a [+group] row. *)
 end
 

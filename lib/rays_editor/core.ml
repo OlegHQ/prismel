@@ -3833,7 +3833,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       handle_changes; hide_guide } in
   let leader_panel = match leader with
     | Leader.Pending prefix -> Some (fun ui ->
-        Pxui_shell.Which_key.panel ui ~category:Leader.group ~describe:Leader.describe_prefix keymap ~prefix
+        Pxui_shell.Which_key.panel ui ~category:Leader.group ~describe:Leader.describe_prefix ~order:Leader.order keymap ~prefix
           ~focus:(Leader.scope focus) ~focus_name:(Leader.pane_name focus))
     | Idle -> None in
   (* Presets: Space s names and saves the document, Space b browses, loads

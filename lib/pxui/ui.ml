@@ -127,6 +127,7 @@ let over_thumb = 4096
 (* the control marks its own keyboard focus (a button's accent line, a field's accent underline):
    the engine strokes no ring round it *)
 let focus_mark = 256
+let tab_stop_marked = tab_stop lor focus_mark
 let add = Stdlib.( + )
 let hit_flags = clickable lor focusable lor scroll lor blocking
 

@@ -193,6 +193,16 @@ let group (c : command) =
   else if starts "preset." || starts "file." || id = "guide.keys" || id = "workspace.command-palette" then "File"
   else "Go"
 
+(* The keys of a section in the sheet's [09] order, not the keymap's *)
+let order = function
+  | "Add" -> [ "a"; "n" ]
+  | "Panel" -> [ "o"; "l" ]
+  | "Layout" -> [ "[" ]
+  | "Go" -> [ "j"; "e" ]
+  | "Time" -> [ "p" ]
+  | "File" -> [ "s"; "b"; "?"; "k"; "/" ]
+  | _ -> []
+
 (* What a leader key that continues into more keys stands for *)
 let describe_prefix = function
   | "o" -> Some "split, close, float"

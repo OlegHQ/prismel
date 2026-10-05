@@ -478,20 +478,23 @@ module Chrome = struct
       (* docked: the collapse chevron, a 20-point button 8 points from the edge.  A window: dock,
          then close. *)
       let windowed = (state l.path).window <> None && not (state l.path).collapsed in
-      let button = floating ui ~flags:Ui.(clickable + tab_stop)
+      let button = floating ui ~flags:Ui.(clickable + tab_stop_marked)
           (x + max 0 (w - 8 - size), y + ((h - size) / 2), size, size) ("workspace-collapse-" ^ label) in
       if l.floating then Ui.to_front ui ~order button;
       if (Ui.signal ui button).clicked then emit (if windowed then Close_panel l.path else Toggle l.path);
       let tools = 8 + size + (if windowed then size + 8 else 0) in
       if windowed then begin
-        let dock = floating ui ~flags:Ui.(clickable + tab_stop)
+        let dock = floating ui ~flags:Ui.(clickable + tab_stop_marked)
             (x + max 0 (w - tools), y + ((h - size) / 2), size, size) ("workspace-dock-" ^ label) in
         Ui.to_front ui ~order dock;
         let signal = Ui.signal ui dock in
         if signal.clicked then emit (Window (l.path, None));
         Ui.draw ui dock (fun paint (x, y, w, h) ->
           if signal.hovered then Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.hover_fill theme);
-          Ui.Paint.chevron paint ~at:(x +. (w /. 2.), y +. (h /. 2.)) `Down (Pxui.Theme.ink_2 theme))
+          if Ui.focused ui dock then Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. theme.accent;
+          (* the dock mark: a 10-point hollow square on a 1-point ink-3 edge *)
+          Ui.Paint.frame paint ~x:(x +. (w /. 2.) -. 5.) ~y:(y +. (h /. 2.) -. 5.) ~w:10. ~h:10.
+            (Pxui.Theme.ink_3 theme))
       end;
       let grip = floating ui ~flags:Ui.(clickable + blocking)
           (x, y, max 0 (w - tools), h) ("workspace-drag-" ^ label) in
@@ -588,6 +591,9 @@ module Chrome = struct
       end) geometry.leaves) !moving;
     List.iter (fun ((l : leaf), text, box, button, _grip) ->
       let collapse_hovered = (Ui.signal ui button).hovered in
+      (* the keyboard's mark is the sheet's: an accent line over the last row of the button *)
+      if Ui.focused ui button then Ui.draw_over ui button (fun paint (x, y, w, h) ->
+        Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. theme.accent);
       let panel_state = state l.path in
       let collapsed = panel_state.collapsed || List.mem l.panel hidden in
       let windowed = panel_state.window <> None && not panel_state.collapsed in
@@ -616,8 +622,15 @@ module Chrome = struct
             | [ last ] -> put (if has_crumbs sub then theme.foreground else ink_2) last
             | part :: rest -> put ink_2 part; put ink_3 "/"; crumbs rest in
           (* a window's title row: the path is one string in ink-2 at the label size *)
-          if sub <> "" && l.floating then
-            Ui.Paint.text paint ~size:(Kit.cap_size ui) ~at:(!tx, Kit.cap_y ui y h) ~color:ink_2 sub
+          if sub <> "" && l.floating then begin
+            (* the subject sits right-aligned, 8 points before the dock mark (a window's tools:
+               dock and close, 28 points each from the right edge) *)
+            let size = Kit.cap_size ui in
+            let sw = Ui.Paint.text_width paint ~size sub in
+            let right = x +. w -. (if windowed then 46. +. 5. +. 8. else 26. +. 8.) in
+            Ui.Paint.text paint ~size ~at:(Float.max !tx (right -. sw), Kit.cap_y ui y h)
+              ~color:(Rays.Color.with_alpha ink_2 179) sub
+          end
           else if sub <> "" then crumbs (split_crumbs sub);
           if collapsed then put ink_3 "collapsed"
         end;
@@ -831,7 +844,7 @@ module Which_key = struct
   (* The leader's page by category: one-letter continuations only, no chords.  A key that
      continues into longer sequences is "+" and a name from [describe], else the first word of its
      first command. *)
-  let by_category keymap ~prefix ~focus ~category ~describe =
+  let by_category keymap ~prefix ~focus ~category ~describe ~order =
     let rows = List.fold_left (fun rows command -> match command.trigger with
       | Some (Leader sequence) when (command.scope = None || command.scope = Some focus)
           && String.length sequence > String.length prefix
@@ -845,8 +858,13 @@ module Which_key = struct
     let titles = List.fold_left (fun acc (t, _, _) -> if List.mem t acc then acc else acc @ [ t ]) [] rows in
     let ordered = List.filter (fun t -> List.mem t titles) category_order
       @ List.filter (fun t -> not (List.mem t category_order)) titles in
+    (* the host's order of a section's keys; keys it does not name keep the keymap's order after them *)
+    let rank title key =
+      let rec find i = function [] -> max_int | k :: rest -> if k = key then i else find (i + 1) rest in
+      find 0 (order title) in
     List.map (fun title -> title,
-      List.filter_map (fun (t, k, l) -> if t = title then Some (k, l) else None) rows) ordered
+      List.stable_sort (fun (a, _) (b, _) -> compare (rank title a) (rank title b))
+        (List.filter_map (fun (t, k, l) -> if t = title then Some (k, l) else None) rows)) ordered
 
   (* Sections of key rows, one to a column, painted by one box.  A section is a label in ink-3
      ([gap] points above it) over rows of 24: the key in ink-3 at the label size, 8 points on,
@@ -878,11 +896,11 @@ module Which_key = struct
   (* The leader: a sheet over the status strip, the [Space] key and its name over six columns.  Hosts
      that give a [category] get the sections of the sheet (the keys of the leader only); without it the
      sections are the commands everywhere and those of the focused pane, with the key chords. *)
-  let panel ui ?category ?(describe = fun _ -> None) keymap ~prefix ~focus ~focus_name =
+  let panel ui ?category ?(describe = fun _ -> None) ?(order = fun _ -> []) keymap ~prefix ~focus ~focus_name =
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
     let sections = match category with
-      | Some category -> by_category keymap ~prefix ~focus ~category ~describe
+      | Some category -> by_category keymap ~prefix ~focus ~category ~describe ~order
       | None -> List.filter (fun (_, rows) -> rows <> [])
           [ "Global", page keymap ~prefix None; focus_name, page keymap ~prefix (Some focus) ] in
     let view_w, view_h = Ui.view_size ui in
