@@ -92,8 +92,13 @@ let rec describe_value = function
 let describe = function
   | Value v -> describe_value v
   | Geometry g ->
-      Printf.sprintf "%d prim%s%s" g.prims (if g.prims = 1 then "" else "s")
-        (if g.groups = [] then "" else " · groups " ^ String.concat ", " g.groups)
+      (* point-only geometry (a scatter) reads in points, thousands apart as the sheet's [1 204 pts] *)
+      let spaced n = let s = string_of_int n in
+        String.concat "" (List.mapi (fun i c ->
+          (if i > 0 && (String.length s - i) mod 3 = 0 then " " else "") ^ String.make 1 c) (List.of_seq (String.to_seq s))) in
+      (if g.prims = 0 && g.points > 0 then Printf.sprintf "%s pt%s" (spaced g.points) (if g.points = 1 then "" else "s")
+       else Printf.sprintf "%d prim%s" g.prims (if g.prims = 1 then "" else "s"))
+      ^ (if g.groups = [] then "" else " · groups " ^ String.concat ", " g.groups)
 
 (* ---- chains, series ---- *)
 
