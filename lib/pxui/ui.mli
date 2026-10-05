@@ -651,7 +651,7 @@ val fuzzy_match : query:string -> string -> bool
 (** Case-insensitive subsequence match. *)
 
 val picker :
-  t -> ?limit:int -> ?mark:(int -> Rays.Color.t option) -> ?off:(int -> bool) -> ?slash:bool ->
+  t -> ?limit:int -> ?mark:(int -> Rays.Color.t option) -> ?off:(int -> bool) -> ?slash:bool -> ?at_rest:bool ->
   string -> query:string ->
   (string -> (string * string) array) -> string * pick
 (** A focused search row (the label is its placeholder and key) over the
@@ -663,7 +663,8 @@ val picker :
     over the same (red, armed) row, [`Back] on Backspace or Left with an empty
     query, and [`Cancel] on Escape. [mark] gives a row its type square.  An [off] row (one that
     cannot be chosen here) reads in ink-3 whole, square included, and neither Enter nor a click
-    picks it.  Build it inside a panel or {!modal}. *)
+    picks it.  With [at_rest] the field keeps the keyboard but looks at rest (a hairline, no caret) until
+    something is typed in it.  Build it inside a panel or {!modal}. *)
 
 val context_clicked : signal -> bool
 (** A right press and release that moved less than 4 points: open a context
@@ -678,7 +679,7 @@ type submenu = {
 
 val context_menu :
   t -> at:float * float -> ?width:float -> ?selected:int -> ?swatches:Rays.Color.t option list ->
-  ?keys:string list -> ?danger:int list -> ?submenus:submenu list -> ?dismiss_initial:bool -> string ->
+  ?keys:string list -> ?danger:int list -> ?submenus:submenu list -> ?lead_from:int -> ?dismiss_initial:bool -> string ->
   (string * bool) list ->
   [ `Open | `Pick of int | `Dismiss ]
 (** A floating menu at [at] with [(label, enabled)] rows, as wide as its longest
@@ -691,7 +692,8 @@ val context_menu :
     [keys] are the shortcuts in ink-2 at the right; [danger] rows (a delete) read in the error ink.
     A row named by a {!submenu} has a chevron and, while the pointer is on it, opens a second menu
     overlapping the first by a point, level with the row; the rows of the submenus are numbered after
-    those of the menu, in the order the submenus are given.  A press outside the menu in the frame
+    those of the menu, in the order the submenus are given.  With [selected], the rows from
+    [lead_from] (default 0) on keep a slot for the accent square before their label.  A press outside the menu in the frame
     that first builds it dismisses it, unless [dismiss_initial] is false (the press that opened it). *)
 
 val accordion :

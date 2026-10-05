@@ -182,6 +182,7 @@ type 'prepared t = {
   name : string;  (* sketch name recorded in presets *)
   prompt : prompt option;
   notice : string option;
+  notice_at : float;  (* when the notice last changed: the echo tip shows it for a while *)
   doc : Document.t;  (* always the history's present *)
   level : Document.level;
   scene_level : bool;  (* false: one geometry object, no scene to go up to *)
@@ -1278,14 +1279,20 @@ let add_target value =
 (* The menu's "Value" entries: a value is a binding with an expression (a number, the time, an
    operator call), which the other nodes read by name ("=number", "=t", "=+", ...). *)
 let value_entries =
-  let entry sub key label = { Pxui_graph.Node_menu.key; label; category = [ "Value"; sub ]; arity = 0 } in
+  (* the colour of a value's square: what it makes, as far as its section says *)
+  let entry ?output sub key label =
+    let output = match output, sub with
+      | Some ty, _ -> ty | None, "Compare" -> Flow.Ty.Bool | None, "Text" -> Text
+      | None, "Convert" when key = "=int" -> Int | None, _ -> Float in
+    { Pxui_graph.Node_menu.key; label; category = [ "Value"; sub ]; arity = 0; context = "value"; output;
+      off = None } in
   let categorize = function
     | "int" | "float" | "floor" | "round" | "ceil" -> "Convert"
     | "<" | ">" | "<=" | ">=" | "=" | "and" | "or" | "not" -> "Compare"
     | "str" -> "Text"
     | "range" | "linspace" | "count" | "first" | "last" | "rest" | "nth" | "reverse" | "take" | "drop" -> "List"
     | _ -> "Math" in
-  [ entry "Math" "=number" "Number"; entry "Math" "=t" "Time (t)"; entry "Math" "=vec3" "Vector";
+  [ entry "Math" "=number" "Number"; entry "Math" "=t" "Time (t)"; entry ~output:Flow.Ty.Vec3 "Math" "=vec3" "Vector";
     entry "Text" "=text" "Text"; entry "Text" "=str" "str" ]
   @ List.map (fun op -> entry (categorize op) ("=" ^ op) op) Flow.Workspace.value_ops
 
@@ -1786,7 +1793,7 @@ let create ?settings ?(keymap = Leader.keymap)
         | Ok values -> Option.value ~default:true (Editor_core.Store.Settings.bool values "guide")
         | Error _ -> true in
       let state_name = Contexts.sha256 state_key in
-      let value = { preferences; guide; hud = None; presets; state_name; name; prompt = None; notice = None;
+      let value = { preferences; guide; hud = None; presets; state_name; name; prompt = None; notice = None; notice_at = 0.;
         doc; level; scene_level;
         projections = Level_map.empty; text = Text_pane.initial; map_view = false;
         rows = []; live_cook = true;
@@ -1856,6 +1863,15 @@ let carry_line (c : _ carry) =
              (String.concat " · " (List.map (fun (letter, _, label) -> letter ^ " " ^ label) targets))
        | `Keys, _ ->
            Printf.sprintf "Carrying %s · nothing here takes it · u, i or Space j go elsewhere · Esc drops" held)
+
+(* a notice that says something was refused or could not be done reads in the error ink in its tip *)
+let notice_refused text =
+  let has part =
+    let n = String.length part in
+    let rec at i = i + n <= String.length text && (String.sub text i n = part || at (i + 1)) in
+    at 0 in
+  List.exists has [ "Refused"; "rejected"; "Nothing"; "nothing"; "Open a graph"; "could not"; "not reloaded";
+                    "Clipboard:"; "No material"; "cannot"; "Default:" ]
 
 let status_text value =
   match value.carry with Some c -> carry_line c | None ->
@@ -2527,7 +2543,9 @@ let paste_bindings value =
 (* What the add menu of a scene adds beside the object kinds: the World, a merge, and the
    geometry of each SOP graph (a second object over a graph that already exists) *)
 let scene_entries value =
-  let entry key label category = { Pxui_graph.Node_menu.key; label; category; arity = 0 } in
+  let entry key label category =
+    { Pxui_graph.Node_menu.key; label; category; arity = 0; context = "scene"; output = Flow.Ty.Geometry;
+      off = None } in
   entry "world" "World" [ "Object" ] :: entry "merge" "Merge" [ "Object" ]
   :: entry "material" "Material" [ "Material" ]
   :: List.filter_map (fun (g : Flow.Workspace.graph) ->
@@ -2539,17 +2557,38 @@ let material_entries value =
   List.filter_map (fun (g : Flow.Workspace.graph) ->
     if g.context = Flow.Workspace.Material then
       Some { Pxui_graph.Node_menu.key = "of-material:" ^ g.name; label = g.name;
-             category = [ "Material of..." ]; arity = 1 }
+             category = [ "Material of..." ]; arity = 1; context = "sop"; output = Flow.Ty.Geometry;
+             off = None }
     else None) (fst value.doc.Document.workspace).checked.graphs
 
-(* The kinds the node menu offers where the pane shows [graph], at a screen point. *)
+(* The graph a menu entry is for, as the entries name it *)
+let context_name = function
+  | Flow.Workspace.Scene -> "scene" | World -> "world" | Material -> "material" | _ -> "sop"
+
+(* The kinds the node menu offers where the pane shows [graph], at a screen point; the kinds of the
+   other graphs follow in the search, in ink-3, saying that they are not placed here.  The title says
+   which node the new one goes after. *)
 let open_menu value (x, y) =
   match add_target value with
   | Some (_, context) ->
-      Some (Pxui_graph.Node_menu.create ~x ~y
-        (Pxui_graph.Node_menu.entries_of_factories (catalog value context)
+      let module M = Pxui_graph.Node_menu in
+      let factories context = M.entries_of_factories ~context:(context_name context) (catalog value context) in
+      let not_here entries =
+        List.map (fun (e : M.entry) -> { e with off = Some ("not in " ^ context_name context) }) entries in
+      let elsewhere =
+        (if context = Flow.Workspace.Scene then [] else not_here (scene_entries value))
+        @ List.concat_map (fun other -> if other = context then [] else not_here (factories other))
+            [ Flow.Workspace.Scene; World; Sop ] in
+      let after = match Pxui_graph.Scope.selected value.scope_view with
+        | [ path ] when List.length path >= 2 ->
+            let last = List.nth path (List.length path - 1) in
+            if last = "" || last.[0] = ':' || last.[0] = '@' then None else Some last
+        | _ -> None in
+      Some (M.create ?after ~x ~y
+        (factories context
          @ (if context = Flow.Workspace.Scene then scene_entries value else [])
-         @ (if context = Flow.Workspace.Sop then material_entries value else []) @ value_entries))
+         @ (if context = Flow.Workspace.Sop then material_entries value else []) @ value_entries
+         @ elsewhere))
   | None -> None
 
 (* ---- carry ---- *)
@@ -3561,8 +3600,15 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     let commands = Editor_core.Command.for_guide keymap ~focus:(Leader.scope focus) ~context in
     let hide_guide = status_box { value with workspace; status_fps; selection; guide; focus }
         ui frame ~render_status ~error_status ~context ~commands in
-    if graph_shown then Option.iter (fun (text, _) ->
-      Pxui_shell.Status_bar.hud ui ~bounds:graph_body ~text) hud;
+    (* echo, the sheet's [08]: the key just pressed and the last notice, which fades after 3 seconds *)
+    if graph_shown then begin
+      let notices = match value.notice with
+        | Some text when frame.time -. value.notice_at < 3. ->
+            [ text, if notice_refused text then `Refusal else `Info ]
+        | _ -> [] in
+      Pxui_shell.Status_bar.tips ui ~bounds:graph_body
+        (notices @ Option.to_list (Option.map (fun (text, _) -> text, `Info) hud))
+    end;
     let pane_roots = List.map (fun ((l : Pxui_shell.Layout.leaf), box) -> (l.panel, Some l.path), box) roots
       @ Option.to_list (Option.map (fun (panel, box) -> (panel, None), box) timeline_root) in
     let focus, focus_path = List.fold_left (fun (latest, focus) (target, box) ->
@@ -3594,8 +3640,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       handle_changes; hide_guide } in
   let leader_panel = match leader with
     | Leader.Pending prefix -> Some (fun ui ->
-        Pxui_shell.Which_key.panel ui keymap ~prefix ~focus:(Leader.scope focus)
-          ~focus_name:(Leader.pane_name focus))
+        Pxui_shell.Which_key.panel ui ~category:Leader.group ~describe:Leader.describe_prefix keymap ~prefix
+          ~focus:(Leader.scope focus) ~focus_name:(Leader.pane_name focus))
     | Idle -> None in
   (* Presets: Space s names and saves the document, Space b browses, loads
      (Enter), and deletes (Delete twice). A load replaces the document below
@@ -3615,10 +3661,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     | Some Keys ->
         let commands = List.filter (fun (command : Leader.command) -> match command.action with
           | List_command _ | Frame_tile -> false | _ -> true) value.keymap in
-        (if Pxui_shell.Which_key.sheet ui commands then Some Keys else None), None
+        let context = String.lowercase_ascii (Leader.pane_name focus) ^ " focused" in
+        (if Pxui_shell.Which_key.sheet ui ~context commands then Some Keys else None), None
     | Some (Saving name) ->
         (match Pxui_shell.Prompt.name ui ~key:"preset-save"
-            ~title:"Save preset" ~label:"Preset name" ~query:name with
+            ~title:"Save preset" ~description:"Name for the current state of the document"
+            ~label:"Preset name" ~query:name with
          | None | Some (_, `Cancel) -> None, None
          | Some (name, `Submit) -> None, Some (Save_preset_file name)
          | Some (name, _) -> Some (Saving name), None)
@@ -4265,6 +4313,11 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
      nothing to recompose, and no accumulating render to restart *)
   let prepared_changed = cooked.prepared_changed
     && not (List.equal ( == ) (Cook.pieces cooked.cook) (Cook.pieces value.cook)) in
+  let new_notice = if guide_error <> None then guide_error
+    else if pick_error <> None then pick_error
+    else if copied <> None then copied
+    else if document_changed && Option.is_none loaded && not undone then !edit_note
+    else notice in
   { core = { value' with timeline; cook = cooked.cook; lit = lit_cache; edit_error = cooked.edit_error;
       status_fps; status_fps_at; guide; hud; focus = result.focus; focus_path = result.focus_path;
       pane_keys = result.pane_keys; graph_panes = result.graph_panes; leader; held_keys;
@@ -4274,11 +4327,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
             && has_panel value' Pxui_shell.Layout.Graph -> [Leader.Add_node]
         | _ -> []);
       carry;
-      notice = if guide_error <> None then guide_error
-        else if pick_error <> None then pick_error
-        else if copied <> None then copied
-        else if document_changed && Option.is_none loaded && not undone then !edit_note
-        else notice };
+      notice = new_notice;
+      notice_at = if new_notice <> value'.notice then frame.time else value'.notice_at };
     effects; prepared_changed;
     scene_changed = carry_changed || doc.scene != value.doc.scene || prepared_changed;
     framed;

@@ -382,22 +382,22 @@
       "source_sha256": "dbe2041840da30cbe73f06fd98ebeacb1c5aad9c0f1b939a5cf5b0458dc278f6"
     },
     {
-      "api_sha256": "a580babb622ed3c64a6f676a17a217bd7f06f15455722e78f1b620b20afda022",
+      "api_sha256": "bbdf77cd02c616a42b7485865b8d7b52d1541a2218f118b7b6edf9f66449f2ad",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 33266,
-      "source_sha256": "3a0a7e4baba7d41a0f852d65d9b72b2116fe621d4300341a3c18be6c59fb654d"
+      "source_bytes": 37182,
+      "source_sha256": "a4073feebe0763d128ba9445e7a652a2bc23c8e39d3238637430685f72532f7c"
     },
     {
-      "api_sha256": "bdb4d891cc187ac37dfcee1c30fc6d516a92966102eefc79625626c9a0b87862",
+      "api_sha256": "81732506c560dc005333d6ce7e80ee928877732e6f666865dc7351ce9f10d7a2",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Node_menu",
       "source": "lib/pxui_graph/node_menu.mli",
-      "source_bytes": 1253,
-      "source_sha256": "9f7f273a03726dcacf0292ed1c027384b390f2a08a8d9cc1fd101538766d545d"
+      "source_bytes": 1799,
+      "source_sha256": "380f5b4db16c65a3a84d104aaebe724394d5f8d90e927ca546b92c1128506501"
     },
     {
       "api_sha256": "3497113ab63f6c2b86f2783437fecbc2b3f7c16947bc3123377dce5c09813816",
@@ -418,13 +418,13 @@
       "source_sha256": "a9bab1121364681f839074792c539c8bc5e7d5305a245c69bef65b451270798d"
     },
     {
-      "api_sha256": "09d0db0b21e9f055b91dc870a74b6bdc416fc4059b51b0fe62e785df86fe012d",
+      "api_sha256": "eae46f5730b9d053109782539daf746d4cf8758d9d3b05c0663bbb30abe5683a",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 16754,
-      "source_sha256": "4472069695b4e1d49e8d082057a3414137e373a60aea81a18c13062b713f9b12"
+      "source_bytes": 17957,
+      "source_sha256": "f0312da721fb48eded637260916dcd1e59a837dfcce6efba84ef048ad0435863"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",

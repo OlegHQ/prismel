@@ -2549,7 +2549,7 @@ let edit_text_event ui edit ~accept ~modifiers event =
   | Event.KeyPressed Input.End -> move (line_end edit.text edit.caret); false
   | _ -> false
 
-let paint_text_edit paint ?size ?(right = false) ?(inset = 2.) ~control:(cx, cy, cw, ch) ~y ~composition edit =
+let paint_text_edit paint ?size ?(right = false) ?(inset = 2.) ?(caret = true) ~control:(cx, cy, cw, ch) ~y ~composition edit =
   let ui = paint.owner in
   let theme = ui.theme in
   let width text = Paint.text_width paint ?size text /. paint.scale in
@@ -2590,7 +2590,7 @@ let paint_text_edit paint ?size ?(right = false) ?(inset = 2.) ~control:(cx, cy,
       (String.sub edit.text edit.caret
         (String.length edit.text - edit.caret))
   end;
-  Paint.fill paint ~x:caret_x ~y:(float cy +. 2.5) ~w:1. ~h:14. theme.accent;
+  if caret then Paint.fill paint ~x:caret_x ~y:(float cy +. 2.5) ~w:1. ~h:14. theme.accent;
   paint.clip_rect <- previous_clip
 
 (* Numeric label editing shared by float and integer sliders. The retained
@@ -3679,7 +3679,7 @@ let fuzzy_match ~query text =
 (* A focused search row over a windowed list. The cursor (search box state)
    and an armed delete row (list box state) are retained; the host keeps the
    query and applies the result. *)
-let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) label ~query rows_of =
+let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_rest = false) label ~query rows_of =
   let rows = ref (rows_of query) in
   let count () = Array.length !rows in
   (* the search row: a 20-point field in 4 points of padding, a [/] before the query *)
@@ -3729,13 +3729,15 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) label 
   draw ui search (fun paint rect ->
     let (x, y, w, h) = ints rect in
     let (cx, cy, cw, ch) as field = x + 4, y + 4, max 1 (w - 8), max 1 (h - 8) in
-    underline paint field theme.accent;
+    (* a field that has not been typed in yet can sit at rest: the hairline and no caret *)
+    let resting = at_rest && edit.text = "" in
+    underline paint field (if resting then Theme.edge theme else theme.accent);
     if slash then kit_text paint ~color:(Theme.ink_2 theme) (cx + 2) (label_y ui cy ch) "/";
     let control = cx + prefix, cy, max 1 (cw - prefix), ch in
     if edit.text = "" then
       Paint.text paint ~color:(Theme.ink_3 theme) ~at:(float (cx + prefix) +. inset, float (label_y ui cy ch))
         placeholder;
-    paint_text_edit paint ~inset ~control ~y:(label_y ui cy ch) ~composition edit);
+    paint_text_edit paint ~inset ~caret:(not resting) ~control ~y:(label_y ui cy ch) ~composition edit);
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in
@@ -3803,7 +3805,7 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) label 
 type submenu = { row : int; rows : (string * bool) list; keys : string list; current : int option }
 
 let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(danger = [])
-    ?(submenus = []) ?dismiss_initial label items =
+    ?(submenus = []) ?(lead_from = 0) ?dismiss_initial label items =
   (* the width follows the longest row; an empty label is a separator line; [keys] are the
      shortcuts at the right of the rows, in ink-2 at the label size *)
   let row_height = float ui.kit_row_height and gap = 9. in
@@ -3841,9 +3843,9 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
   let base_of sub = List.assq sub bases in
   let pad name = box ui ~flags:blocking ~w:Grow ~h:(Px 6.) name in
   (* the rows of one menu: the row picked, and the row the pointer is on *)
-  let rows_of ~items ~keys ~selected ~swatches ~danger ~opened ~chevrons =
+  let rows_of ~lead_from ~items ~keys ~selected ~swatches ~danger ~opened ~chevrons =
     let hovered = ref None in
-    let lead = if selected = None then 0 else 14 in
+    let lead_of index = if selected = None || index < lead_from then 0 else 14 in
     let picked = List.mapi (fun index (text, enabled) ->
       if text = "" then begin
         let line = box ui ~flags:blocking ~w:Grow ~h:(Px gap) (Printf.sprintf "separator-%d" index) in
@@ -3865,14 +3867,14 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
           if selected = Some index then
             Paint.fill paint ~x:(float rx +. float side) ~y:(float y +. (float h /. 2.) -. 3.) ~w:6. ~h:6. theme.accent;
           Option.iter (fun color ->
-            let sx = float (rx + side + lead) and sy = float y +. float h /. 2. -. 4. in
+            let sx = float (rx + side + lead_of index) and sy = float y +. float h /. 2. -. 4. in
             Paint.fill paint ~x:sx ~y:sy ~w:8. ~h:8. color;
             Paint.frame paint ~x:sx ~y:sy ~w:8. ~h:8. (Theme.edge theme))
             (Option.join (List.nth_opt swatches index));
           (* the destructive row reads in the error ink *)
           kit_text paint ~color:(if not enabled then Theme.ink_3 theme
               else if List.mem index danger then Theme.invalid else theme.foreground)
-            (rx + side + lead + int_of_float swatch_pad) (label_y ui y h) shown;
+            (rx + side + lead_of index + int_of_float swatch_pad) (label_y ui y h) shown;
           let _, _, w, _ = bounds in
           if chevron then Paint.chevron paint ~at:(float (rx + w) -. 15.25, float y +. (float h /. 2.))
             `Right (Theme.ink_2 theme);
@@ -3890,7 +3892,7 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
       let top = pad "menu-top" in
       let open_row = state ui top ~default:(-1) in
       opened := if open_row >= 0 then Some open_row else None;
-      let picked, hovered = rows_of ~items ~keys ~selected ~swatches ~danger ~opened:!opened
+      let picked, hovered = rows_of ~lead_from ~items ~keys ~selected ~swatches ~danger ~opened:!opened
           ~chevrons:(List.map (fun sub -> sub.row) submenus) in
       (* the pointer opens the submenu of a row, or closes it on any other *)
       Option.iter (fun index ->
@@ -3909,7 +3911,7 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
            let result = popup ui ~stroke ~attached:true ~at:(sx, sy) ~width:sw ~height:sh
                (label ^ "-sub") (fun () ->
              ignore (pad "menu-top");
-             let picked, _ = rows_of ~items:sub.rows ~keys:sub.keys ~selected:sub.current
+             let picked, _ = rows_of ~lead_from:0 ~items:sub.rows ~keys:sub.keys ~selected:sub.current
                  ~swatches:[] ~danger:[] ~opened:None ~chevrons:[] in
              ignore (pad "menu-bottom");
              picked) in

@@ -246,14 +246,14 @@ let () =
    | [ Pxui_shell.Chrome.Resize { node = []; size = `Ratio r }; Settled ] when Float.abs (r -. (679.5 /. 999.)) < 1e-6 -> ()
    | _ -> failwith "the gutter menu did not size the split by its ratio");
   (* the header menu of a panel ends with the same three rows for the split that holds it (the
-     rules above them are 9 points: By ratio is at 376, each next one 24 lower; the menu opens under
+     rules above them are 9 points: By ratio is at 352, each next one 24 lower; the menu opens under
      the header row, which ends at 28) *)
   let header_pick row =
     let at = 800., 10. in
     ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
     ignore (chrome sized ~mouse:at [Event.MousePressed (Input.RightButton, at)]);
     ignore (chrome sized ~mouse:at [Event.MouseReleased (Input.RightButton, at)]);
-    let at = 700., 376. +. 24. *. float row in
+    let at = 700., 352. +. 24. *. float row in
     ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
     chrome sized ~mouse:at [Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at)] in
   (match header_pick 1 with
@@ -310,7 +310,7 @@ let () =
   if enter "x" Input.Enter <> [] then failwith "text that is not a frame was committed";
   ignore (bar [ Event.KeyPressed Input.Escape ]);
   let query = Pxui.Ui.frame ui frame (fun ui ->
-    Pxui_shell.Prompt.name ui ~key:"name" ~title:"Save" ~label:"Name"
+    Pxui_shell.Prompt.name ui ~key:"name" ~title:"Save" ~description:"Name it" ~label:"Name"
       ~query:"draft") in
   if query <> Some ("draft", `None) then
     failwith "name prompt lost its initial query";

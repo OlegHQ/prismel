@@ -181,6 +181,25 @@ let keymap3 = keymap @ [
     ~trigger:(Chord (Input.Escape, [])) ~scope:view (Tool 0);
 ]
 
+(* The leader sheet's sections ([Pxui_shell.Which_key.panel]): what a command is for, from its id. *)
+let group (c : command) =
+  let id = c.id in
+  let starts prefix = String.starts_with ~prefix id in
+  if id = "graph.add-node" || starts "window." then "Add"
+  else if starts "panel." || starts "workspace.toggle-" || id = "workspace.hide-ui" then "Panel"
+  else if starts "layout." || id = "workspace.restore-layout" then "Layout"
+  else if starts "timeline." || id = "sketch.stop" then "Time"
+  else if starts "preset." || starts "file." || id = "guide.keys" || id = "workspace.command-palette" then "File"
+  else "Go"
+
+(* What a leader key that continues into more keys stands for *)
+let describe_prefix = function
+  | "o" -> Some "split, close, float"
+  | "l" -> Some "panel kind"
+  | "n" -> Some "window"
+  | "[" -> Some "switch layout"
+  | _ -> None
+
 let pane_name = function
   | Pxui_shell.Layout.View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
   | Inspector -> "Inspector" | Outline -> "Outline" | Timeline -> "Timeline"
