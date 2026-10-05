@@ -65,7 +65,7 @@ let run () =
     (* as many object and layout rows as the panel draws: a row's place depends on them *)
     objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
         lead = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
-    layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch } in
+    layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch; notes = [] } in
   let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked "flower") in
   let lines = Array.to_list (Array.map N.describe (N.rows N.initial (params scope))) in
   let listed text = List.exists (fun l -> has l text) lines in

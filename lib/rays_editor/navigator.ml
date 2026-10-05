@@ -15,6 +15,7 @@ type intent =
   | Remove of string
   | Layout of int
   | Add
+  | Flag of { node : path; name : string; value : bool }
 
 (* [rename]: the graph whose name the field holds, and whether the field has opened yet *)
 type state = { query : string; typing : bool; rename : (string * bool) option }
@@ -40,6 +41,7 @@ type params = {
   chips : (string * Rays.Color.t) list;  (** the evaluated colour of each material graph *)
   objects : obj list;
   layouts : (string list * int) option;
+  notes : (string * string) list;
 }
 
 type row =
@@ -90,6 +92,16 @@ let chips (ev : Flow.Eval.t) =
           | None -> Some Rays.Color.white
           | Some _ -> None in
         Option.map (fun c -> name, c) colour
+    | _ -> None) ev.results
+
+(* what a material graph says of itself beside its swatch: its roughness *)
+let notes (ev : Flow.Eval.t) =
+  List.filter_map (fun (name, v) -> match v with
+    | Flow.Eval.Struct ("material/standard", fields) ->
+        (match List.assoc_opt "roughness" fields with
+         | Some (Flow.Eval.Float r) -> Some (name, Printf.sprintf "rough %.2g" r)
+         | Some (Flow.Eval.Int r) -> Some (name, Printf.sprintf "rough %d" r)
+         | _ -> None)
     | _ -> None) ev.results
 
 (* The outline's groups, in dependency order. *)
@@ -169,7 +181,8 @@ let graph_row p (g : W.graph) detail =
               dim = unused;
               (* how many graphs read it, in the section's right column *)
               used = (if g.context = W.Material || g.context = W.Sop || g.context = W.World then Some used else None);
-              detail = (if unused then "unused" else if g.context = W.Material then "" else detail) }
+              detail = (if unused then "unused" else if g.context = W.Material
+                        then Option.value ~default:"" (List.assoc_opt g.name p.notes) else detail) }
 
 let search state p chains counts =
   let q = String.trim state.query in
@@ -390,7 +403,14 @@ let view state ui ~bounds:(x, y, w, h) p =
    | Some (Node_row { graph; path; _ }) -> emit (Open { graph; node = Some path })
    | Some (Link_row { graph; _ }) -> emit (Open { graph; node = None })
    | Some (Macro_row (name, _)) -> emit (Macro name)
-   | Some (Object_row { home = Some (graph :: _ as path); _ }) -> emit (Open { graph; node = Some path })
+   | Some (Object_row ({ home = Some (graph :: _ as path); _ } as o)) ->
+       (* a press on a flag toggles it in the text; anywhere else on the row opens the object *)
+       let px = fst signal.release_point in
+       let flag column = let fx = x +. w -. 12. -. 12. -. (float (1 - column) *. 20.) in px >= fx -. 4. && px < fx +. 16. in
+       (match o.visible, o.render with
+        | Some on, _ when flag 0 -> emit (Flag { node = path; name = "visible"; value = not on })
+        | _, Some on when flag 1 -> emit (Flag { node = path; name = "render"; value = not on })
+        | _ -> emit (Open { graph; node = Some path }))
    | Some (Layout_row { index; _ }) -> emit (Layout index)
    | _ -> ());
   if (typing || was_typing) && Ui.key_pressed ui Rays.Input.Enter then

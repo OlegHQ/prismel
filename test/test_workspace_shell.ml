@@ -1742,7 +1742,7 @@ let run_renderers_native ?(authored = false) () =
       ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh
-        ~material:(Material.unlit (Color.rgb 190 30 20)) mesh]) () |> Result.get_ok)
+        ~material:(Material.unlit (Color.rgb 200 20 200)) mesh]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
       let mode = if frame.count < 10 || frame.count >= 40 then Rays_editor.Renderer.Raster
         else if frame.count < 25 then Wireframe else Path_traced in
@@ -1759,7 +1759,7 @@ let run_renderers_native ?(authored = false) () =
       end;
       E3.after_present e frame)
     ~on_stop:E3.close ());
-  let red_pixels path =
+  let mesh_pixels path =
     let image = Image.load_exn path in
     let pixels = Image.Private.pixels image |> Result.get_ok in
     let w = Image.get_width image and h = Image.get_height image in
@@ -1770,15 +1770,17 @@ let run_renderers_native ?(authored = false) () =
         for px = int_of_float (float x *. scale) to min (w - 1) (int_of_float (float (x + width) *. scale) - 1) do
           let offset = 4 * (py * w + px) in
           let r = Char.code (Bytes.get pixels offset) and g = Char.code (Bytes.get pixels (offset + 1)) in
-          if r > 110 && r > g + 40 then counts.(i) <- counts.(i) + 1
+          let b = Char.code (Bytes.get pixels (offset + 2)) in
+          (* the mesh's magenta, a colour the kit's guides, brackets and labels over the view never use *)
+          if r > 110 && b > 110 && g < 100 && g + 40 < r then counts.(i) <- counts.(i) + 1
         done
       done) [|(0, 50, 440, 450); (450, 142, 320, 258)|];
     Image.destroy image; counts in
   List.iter (fun frame ->
-    let counts = red_pixels (Filename.concat directory (Printf.sprintf "%d.png" frame)) in
+    let counts = mesh_pixels (Filename.concat directory (Printf.sprintf "%d.png" frame)) in
     check (counts.(0) > 30 && counts.(1) > 30)
       (Printf.sprintf "renderer frame %d missed a docked or floating viewport (%d, %d)" frame counts.(0) counts.(1))) [5; 35; 45];
-  let wire = red_pixels (Filename.concat directory "15.png") in
+  let wire = mesh_pixels (Filename.concat directory "15.png") in
   check (wire.(0) < 30 && wire.(1) < 30)
     (Printf.sprintf "wireframe still painted filled faces (%d, %d)" wire.(0) wire.(1));
   List.iter Sys.remove !samples;
@@ -1910,7 +1912,9 @@ let run_roots () =
 let run_roots_native () =
   let directory = Filename.temp_dir "rays-roots" "" in
   let png = Filename.concat directory "roots.png" in
-  let doc = build_ok (of_text (roots_text ())) in
+  (* look-through is each viewport's own: the first takes Space v, the second says so in the text *)
+  let text = replace (roots_text ()) "(ui/viewport (ref night))" "(ui/viewport (ref night) :look_through true)" in
+  let doc = build_ok (of_text text) in
   let shell = shell_of doc in
   let day, night = match List.map fst shell.preview_sources with [ d; n ] -> d, n | _ -> fail "two viewports" in
   let geometry = Layout.geometry ~hidden:[ Layout.Timeline ] shell.tree (frame (0., 0.) [] 0) in
@@ -1935,7 +1939,7 @@ let run_roots_native () =
     | Ok e -> e | Error message -> fail message in
   ignore (Sketch.run_state ~max_frames:200
     ~config:{ Sketch.default_config with width = 900; height = 640; title = "two roots" }
-    ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text (roots_text ()))
+    ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
       ~presets:(Filename.concat directory "presets")
       ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
         |> Result.map_error Rdk.Error.to_string)
@@ -1971,8 +1975,11 @@ let run_roots_native () =
   check (List.mem night60.step steps && night60.film = (640 / night60.step, 640 / night60.step))
     ("the second slot's film is not its root's 640x640 in a step: " ^ describe night60);
   check (day60.max_spp = 4096 && night60.max_spp = 16) "each slot carries its own root's cap";
-  List.iter (fun (key, eye) -> check (Vec3.nearly_equal eye (eye_of (if key = day then "day" else "night")) ~eps:1e-4)
-      "a pane's camera is not its root's authored camera") !cameras;
+  List.iter (fun (key, eye) ->
+    let want = eye_of (if key = day then "day" else "night") in
+    check (Vec3.nearly_equal eye want ~eps:1e-4)
+      (Printf.sprintf "a pane's camera is not its root's authored camera (%s: %g %g %g, authored %g %g %g)"
+         key eye.Vec3.x eye.y eye.z want.Vec3.x want.y want.z)) !cameras;
   check (night60.samples >= 16 && day60.samples >= 16)
     (Printf.sprintf "the slots did not accumulate: %s, %s" (describe day60) (describe night60));
   (* the cap read each frame: raised, the second slot goes on from where it stopped *)

@@ -248,6 +248,7 @@ module Private : sig
       chips : (string * Rays.Color.t) list;
       objects : obj list;
       layouts : (string list * int) option;
+      notes : (string * string) list;
     }
     type row
     val chips : Flow.Eval.t -> (string * Rays.Color.t) list

@@ -19,6 +19,8 @@ type intent =
   | Remove of string  (** Delete on a graph row *)
   | Layout of int  (** a row of the Layout section: show that layout *)
   | Add  (** the [+] beside the search field: the add menu *)
+  | Flag of { node : path; name : string; value : bool }
+      (** a press on an object's visible or render flag: that argument of its binding *)
 
 type state
 
@@ -48,6 +50,7 @@ type params = {
   chips : (string * Rays.Color.t) list;  (** the evaluated colour of each material graph *)
   objects : obj list;  (** the scene's objects, in tree order *)
   layouts : (string list * int) option;  (** the layouts of the editor graph, and the one shown *)
+  notes : (string * string) list;  (** what a material graph says beside its swatch ({!notes}) *)
 }
 
 type row
@@ -72,6 +75,9 @@ val view : state -> Pxui.Ui.t -> bounds:int * int * int * int -> params -> state
 val jump_rows : Flow.Workspace.t -> (string * string) list
 (** Every graph with its outline group (Scene, Geometry, Materials, World, Layout, ...), in the
     outline's order: what [Space j] filters. *)
+
+val notes : Flow.Eval.t -> (string * string) list
+(** The roughness of each evaluated material graph, as its row's detail. *)
 
 val chips : Flow.Eval.t -> (string * Rays.Color.t) list
 (** The evaluated colour of each material graph (a vector or hex text; white when unset). *)

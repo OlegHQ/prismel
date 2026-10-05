@@ -63,7 +63,7 @@ type prompt_intent = Save_preset_file of string | Load_preset_file of string | L
   | Go of string  (* Space j picked a graph *)
 
 type timeline_intent = Pxui_shell.Timeline_bar.intent =
-  Pause_toggle | Stop_playback | Reset_playback | Seek_playback of int64
+  Pause_toggle | Stop_playback | Reset_playback | Seek_playback of int64 | Set_end of int
 
 (* Transient shell presentation: the fallback tree before the first panel edit,
    a splitter draft, and the default-tree override ("Restore layout"). Saved
@@ -235,6 +235,7 @@ type 'prepared t = {
   carry : 'prepared carry option;
   carry_budget : float;  (* seconds a carry's preview may take to apply or cook before it is only described *)
   captions : (string * string) list;
+  file : string;  (* what the status strip calls the document: its source file, else its name *)
   gates : (string * (int * int * int * int)) list;  (* the render frame of each viewport that shows less than its pane *)
   selected_box : (string * (int * int * int * int) * string) option;  (* the selected object in the focused view: its screen box and name *)
   view_tools : (bool * int) option;  (* the active viewport's header: looking through, and its renderer (0 solid, 1 wire, 2 traced); none for a 2D view *)
@@ -1762,7 +1763,8 @@ let create ?settings ?(keymap = Leader.keymap)
         graph_at = None; graph_pane = None; graph_panes = [];
         list_at = None; text_at = None; outline_at = None; locals = [];
         started = { on = None; views = []; tabs = [] };
-        carry = None; carry_budget; captions = []; view_tools = None; gates = []; selected_box = None } in
+        carry = None; carry_budget; captions = []; view_tools = None; gates = []; selected_box = None;
+        file = (fst doc.Document.workspace).checked.name ^ ".rays" } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       (* the panels open as their start keywords say; the first graph pane (the focused leaf, else
          the first) opens on the graph it pins *)
@@ -1868,7 +1870,7 @@ let probe_caption value = match value.scope_key, Pxui_graph.Scope.selected value
 let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context ~commands =
   let x, y, width, height = (geometry value value.workspace frame).status_at in
   (* what every strip says first: the workspace, a dot for its state, then the layout in use *)
-  let file = (fst value.doc.Document.workspace).checked.name in
+  let file = value.file in
   let state = if error_status <> None || value.edit_error <> None || value.cook.error <> None then `Error
     else match Cook.status value.cook with Async_cook.Cooking _ -> `Busy | Idle -> `Ok in
   let layout = match Option.bind value.doc.Document.shell (fun s -> s.switch) with
@@ -2240,6 +2242,9 @@ let navigator_params value : Navigator.params =
     selected = Pxui_graph.Scope.selected value.scope_view;
     chips = (match value.scope_key with
       | Some { evaluated = Some ev; _ } -> Navigator.chips ev
+      | _ -> []);
+    notes = (match value.scope_key with
+      | Some { evaluated = Some ev; _ } -> Navigator.notes ev
       | _ -> []);
     objects = outline_objects value;
     layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active)
@@ -3043,7 +3048,13 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 match f.name = name, f.current with
                 | true, Parameter.Float_value v -> Some v | _ -> None) (Node.parameter_fields node) in
               let rows = [ "Camera", Node.label node ]
-                @ (match field "fov" with Some fov -> [ "Lens", Printf.sprintf "fov %g\xc2\xb0" fov ] | None -> [])
+                @ (match field "fov" with
+                   | Some fov when fov > 0. && fov < 180. ->
+                       (* the focal length that gives this vertical angle on a 24 mm gate *)
+                       let mm = 12. /. Float.tan (fov *. Float.pi /. 360.) in
+                       [ "Lens", Printf.sprintf "%.0f mm" mm
+                         ^ (match field "aperture" with Some a when a > 0. -> Printf.sprintf " \xc2\xb7 r %g" a | _ -> "") ]
+                   | _ -> [])
                 @ (match field "focus_distance" with Some d when d > 0. -> [ "Focus", Printf.sprintf "%.2f" d ] | _ -> []) in
               let value_w = List.fold_left (fun m (_, v) -> Float.max m (P.text_width paint v)) 0. rows in
               let label_w = List.fold_left (fun m (l, _) -> Float.max m (P.cap_width paint l)) 0. rows in
@@ -3204,6 +3215,9 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
               value = Flow.Syntax.make (Flow.Syntax.Num text) }))
         | Rename { graph; to_ } -> Some (Syntax_edit (Flow_sop.Flow_edit.Rename_graph { name = graph; to_ }))
         | Remove graph -> Some (Syntax_edit (Flow_sop.Flow_edit.Remove_graph { name = graph }))
+        | Flag { node; name; value } ->
+            Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg { node; key = Flow_sop.Flow_edit.Kw name; sub = [];
+              value = Flow.Syntax.make (Flow.Syntax.Sym (if value then "true" else "false")) }))
         | Open _ | Macro _ | Layout _ | Add -> None) outline_intents in
     (* a layout row and the add button are commands: they run like a toolbar click *)
     List.iter (function
@@ -3683,8 +3697,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline
       | Stop_playback -> Sketch_support.Timeline.stop timeline
       | Reset_playback -> Sketch_support.Timeline.reset timeline
-      | Seek_playback frame -> Sketch_support.Timeline.seek timeline ~frame in
+      | Seek_playback frame -> Sketch_support.Timeline.seek timeline ~frame
+      | Set_end _ -> timeline, [] in
     next, changes @ emitted) (timeline, timeline_changes) result.timeline_intents in
+  (* the End field of a tall timeline: the scrub range (view state, like the playhead) *)
+  let value = { value with timeline_frames = List.fold_left (fun frames -> function
+    | Set_end last -> max 1 last | _ -> frames) value.timeline_frames result.timeline_intents } in
   let prompt, notice, loaded = match result.prompt_intent with
     | None -> result.prompt, (match List.find_map (function
         | Notice message -> Some message | _ -> None) result.changes with

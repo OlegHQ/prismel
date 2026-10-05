@@ -426,6 +426,9 @@ module Make (V : VIEWPORT) = struct
             | None -> validate (command :: seen) rest in
     Result.bind (validate [] commands) (fun () -> Result.map (fun core ->
       let core, extra = V.init core camera in
+      let core = match source with
+        | Some source -> { core with Core.file = Filename.basename (Source_file.file source) }
+        | None -> core in
       { core; camera; control = V.create_control (); draw; overlay; status;
         rendered = None; views = []; drawn = Document.Int_map.empty; composed = None;
         resolved = None; context_error = None; baked = None; baked_from = None; baked_views = []; map = None;

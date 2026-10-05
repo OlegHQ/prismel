@@ -901,7 +901,7 @@ end
 
 module Timeline_bar = struct
   type intent = Pause_toggle | Stop_playback | Reset_playback
-    | Seek_playback of int64
+    | Seek_playback of int64 | Set_end of int
 
   let draw ui ~bounds:(x, y, width, height) ~playing ~frame ~time ~max_frame =
     let module Ui = Pxui.Ui in
@@ -933,6 +933,12 @@ module Timeline_bar = struct
           ~valid:(fun text -> Int64.of_string_opt (String.trim text) <> None)
           "timeline-frame-field" current) in
       let readout = Printf.sprintf "%.2f s" time in
+      (* the last frame, typed, at the end of a tall panel's bar *)
+      let last = string_of_int max_frame in
+      let ended = if not tall then last else
+        fst (Ui.value_field ui ~at:(fw -. 12. -. 56., cy) ~w:56. ~h:20.
+          ~valid:(fun text -> match int_of_string_opt (String.trim text) with Some n -> n >= 1 | None -> false)
+          "timeline-end-field" last) in
       let ruler_x = if tall then 0. else field_x +. 56. +. Ui.text_width ui readout +. 12. in
       let ruler_y = if tall then bar_h +. 1. else 0. in
       let ruler_w = Float.max 0. (fw -. ruler_x) and ruler_h = fh -. ruler_y in
@@ -952,10 +958,7 @@ module Timeline_bar = struct
           ~color:(Pxui.Theme.ink_2 theme) readout;
         if tall then begin
           Ui.Paint.fill paint ~x ~y:(y +. bar_h) ~w ~h:1. (Pxui.Theme.edge theme);
-          let last = string_of_int max_frame in
-          let lx = x +. w -. 12. -. Ui.Paint.text_width paint last in
-          Ui.Paint.text paint ~at:(lx, Kit.text_y ui y h) ~color:theme.foreground last;
-          Ui.Paint.cap paint ~at:(lx -. 8. -. Ui.Paint.cap_width paint "End", Kit.cap_y ui y h) "End"
+          Ui.Paint.cap paint ~at:(x +. w -. 12. -. 56. -. 8. -. Ui.Paint.cap_width paint "End", Kit.cap_y ui y h) "End"
         end);
       Ui.draw ui ruler (fun paint (x, y, w, h) ->
         Ui.Paint.fill paint ~x ~y:(y +. 1.) ~w ~h:(h -. 1.) theme.input;
@@ -981,6 +984,7 @@ module Timeline_bar = struct
         (if typed <> current then Option.map (fun n ->
            Seek_playback (Int64.max 0L (Int64.min (Int64.of_int max_frame) n)))
            (Int64.of_string_opt (String.trim typed)) else None);
+        (if ended <> last then Option.map (fun n -> Set_end n) (int_of_string_opt (String.trim ended)) else None);
         (if pause then Some Pause_toggle else None);
         (if stop then Some Stop_playback else None);
         (if reset then Some Reset_playback else None);

@@ -163,6 +163,7 @@ end
 module Timeline_bar : sig
   type intent = Pause_toggle | Stop_playback | Reset_playback
     | Seek_playback of int64
+    | Set_end of int  (** the last frame, typed in a tall timeline's End field *)
 
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> playing:bool ->
     frame:int64 -> time:float -> max_frame:int -> intent list
