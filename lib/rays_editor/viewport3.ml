@@ -187,7 +187,11 @@ let begin_frame extra frame = match extra.fly with
 let panel ui ~control ~camera ~extra ~inspector =
   let extra = Option.value ~default:extra
       (Pxui.Ui.inspector_section ui ~key:"Viewport" ~expanded:true "Viewport" (fun () ->
-        let toggle label value = Pxui.Ui.inspector_toggle ui ~key:label ~label value in
+        (* the label column is 0.3 of the panel less 16: the rows say it short, their keys stay *)
+        let short = function
+          | "Look through render camera" -> "Look through" | "Camera follows viewport" -> "Follows view"
+          | "Cameras and lights" -> "Cameras" | "Selected node handles" -> "Handles" | label -> label in
+        let toggle label value = Pxui.Ui.inspector_toggle ui ~key:label ~label:(short label) value in
         let through = toggle "Look through render camera" (look_through extra) in
         (* The ACTIVE camera's own parameter, here so a look-through can be
            set up by orbiting: on, the viewport drives the camera. *)

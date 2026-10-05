@@ -176,10 +176,11 @@ let run () =
   check (List.length (E.lights env) = lights_before) "undo did not show the light again";
   check (not (contains (source env) ":visible false")) "undo left the hidden flag in the text";
   (* Nor does dragging an object transform slider in the inspector (undo
-     itself re-cooks, so let that settle first): rows are 24 points and
-     Translate X follows the node header (85 at the test's 11 points), the Inputs section and
-     its row, and the folder's section; its label takes a row of its own in this narrow panel,
-     the control the next. *)
+     itself re-cooks, so let that settle first): rows are 24 points; the head is 118 tall at the
+     test's 11 points (12, a 24 chips row, 4, the 41-point name, 4, 24 of detail, 8, the hairline),
+     then the Inputs section (4 + 24) and its row (24), the Transform section (16 + 24) and the
+     translate row, whose x field starts at the control column: 12 + 6 + 8 + 56 + 8 = 90 points in
+     the 180-wide panel. *)
   let env = List.fold_left (fun env _ -> step env []) env (List.init 40 Fun.id) in
   let cooked = Atomic.get cooks in
   let rec select_up name env tries =
@@ -196,8 +197,8 @@ let run () =
        Canvas.render canvas (E.scene env (frame 0));
        ignore (Canvas.save_png canvas (Filename.concat directory "scene-inspector.png"));
        Canvas.destroy canvas);
-  let ix, iy, iw, _ = (E.panes env (frame 0)).inspector in
-  let slider x = ix + (iw * 70 / 100) + x, iy + 225 in
+  let ix, iy, _, _ = (E.panes env (frame 0)).inspector in
+  let slider x = ix + 100 + x, iy + 118 + 28 + 24 + 40 + 12 in
   let at (x, y) = float x, float y in
   let translate_x env = Option.bind (E.selected_node env) (fun node ->
       List.find_map (fun (field : Parameter.field_view) ->

@@ -487,7 +487,7 @@ let object_rows ?(locked = false) fields =
     { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = false;
       locked; drive = None; live = None; components = [];
       split = if parameter.ty = Some Flow.Port_type.Vec3 then Some false else None }))
-    (Flow_sop.Port.parameters fields)
+    (Flow_sop.Port.parameters (Editor_document.Contexts.group_triples fields))
 
 (* ---- levels ---- *)
 
@@ -565,7 +565,7 @@ let expression_text text =
    the lowered node at that iteration.  An edit is a [Set_arg] on the authored
    argument; an argument that is not a literal shows its expression and is
    locked.  Returns the graph requests and the probe moves. *)
-let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None) value ui ~width path =
+let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None) ?(follows = fun _ -> None) value ui ~width path =
   let module P = Flow_sop.Projection in
   let module Probe = Flow_sop.Probe in
   let module S = Flow.Syntax in
@@ -577,14 +577,15 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
            (match List.find_opt (fun (i : P.input) -> i.path = path) scope.inputs with
             | None -> [], []
             | Some input ->
-                ignore (Pxui.Ui.inspector_header ui ~key:"ws-input" ~title:input.name
-                  ~detail:("input · " ^ Flow.Ty.to_string input.ty));
+                ignore (Pxui.Ui.inspector_header ui ~key:"ws-input" ~kind:"input" ~title:input.name
+                  ~detail:(Flow.Ty.to_string input.ty) ());
                 let shown = match input.default with Some d -> Flow.Lisp.flat d | None -> "" in
-                let box, cx, cy, cw = Pxui.Ui.inspector_row ui ~width ~key:"ws-input-default" ~label:"default" () in
-                let text = Pxui.Ui.within ui box (fun () ->
-                  fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:20.
-                    ~left:(float_of_string_opt shown = None)
-                    ~valid:(fun t -> String.trim t <> "") "ws-input-default-field" shown)) in
+                let text = Pxui.Ui.inspector_body ui (fun () ->
+                  let box, cx, cy, cw = Pxui.Ui.inspector_row ui ~width ~key:"ws-input-default" ~label:"default" () in
+                  Pxui.Ui.within ui box (fun () ->
+                    fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:20.
+                      ~left:(float_of_string_opt shown = None)
+                      ~valid:(fun t -> String.trim t <> "") "ws-input-default-field" shown))) in
                 (match (if text = shown then Ok [] else Flow.Syntax.parse text) with
                  | Ok [ form ] ->
                      [ Syntax_edit (Flow_sop.Flow_edit.Set_input_default { form = graph; input = input.name; value = form }) ], []
@@ -605,10 +606,50 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
              | Sum -> "sum · add up", Printf.sprintf "Runs its body for every %s and adds the results."
              | Let -> "scope · names for its result", (fun _ -> "Names shared by its result; it runs once.")
              | Fn -> "function · runs per call", (fun _ -> "A function: its body runs each time it is called.")) n.zone in
-           ignore (Pxui.Ui.inspector_header ui ~key:"ws-header" ~title:(Flow_sop.Projection.title n)
+           let node_id = Option.bind (Probe.plan_node records n.path ~probes) (fun id ->
+             Flow_sop.Network.Int_map.find_opt id lowered.compiled) in
+           let node = Option.bind node_id (compiled_node value) in
+           (* the node shown in the viewport: the graph's recorded display, else its result *)
+           let displayed = match Layout_by_path.Path_map.find_opt [ graph ] (fst value.doc.Document.workspace).layout.display with
+             | Some p -> Some p
+             | None -> (match scope.result with
+                 | P.Link target -> Some [ graph; target ]
+                 | Node p -> Some p
+                 | Literal _ -> None) in
+           let readouts = Probe.readouts records n ~probes in
+           (* the head: the kind, VIEW while displayed, the node's number; the name edited in
+              place; what the probe and the cook know; the flags the card has as buttons *)
+           let follow = follows n.path in
+           let buttons =
+             (if n.ty = Flow.Ty.Geometry && List.length n.path = 2 && not n.synthetic then
+                [ { Pxui.Ui.caption = "View"; keycap = "V"; active = displayed = Some n.path; usable = true }, `View ]
+              else [])
+             @ (if P.bypassable n then
+                  [ { Pxui.Ui.caption = "Bypass"; keycap = "B"; active = n.bypass; usable = true }, `Bypass ] else [])
+             @ (if follow <> None then
+                  [ { Pxui.Ui.caption = "Enter"; keycap = "I"; active = false; usable = true }, `Enter ] else []) in
+           let head = Pxui.Ui.inspector_header ui ~key:"ws-header" ~kind:n.head
+             ?badge:(if displayed = Some n.path then Some "view" else None)
+             ?index:(Option.map (Printf.sprintf "NO. %04d") node_id)
+             ?rename:(if n.synthetic then None else Some Flow.Symbol.valid_name)
+             ~actions:(List.map fst buttons)
+             ~title:(Flow_sop.Projection.title n)
              ~detail:(match zone_text with
                | Some (kind, _) -> Printf.sprintf "%s · %s" kind (Flow.Ty.to_string n.ty)
-               | None -> Printf.sprintf "%s · %s" n.head (Flow.Ty.to_string n.ty)));
+               | None ->
+                   (match String.concat " · " (List.map snd readouts) with
+                    | "" -> Flow.Ty.to_string n.ty | text -> text)) () in
+           let pressed = Option.map (fun i -> snd (List.nth buttons i)) head.chosen in
+           (* the name: editing it is the pane's Rename (the text's binding name); a nested node
+              has no name yet, giving it one binds it *)
+           let rename = if n.synthetic || head.renamed = Flow_sop.Projection.title n then []
+             else [ Syntax_edit (Flow_sop.Flow_edit.Rename { node = n.path; to_ = head.renamed }) ] in
+           let flags = match pressed with
+             | Some `Bypass -> [ Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = n.path }) ], []
+             | Some `View -> [], [ Pxui_graph.Scope.Display_set n.path ]
+             | Some `Enter -> [], [ Pxui_graph.Scope.Activated n.path ]
+             | None -> [], [] in
+           let requests, picks = Pxui.Ui.inspector_body ui (fun () ->
            (match n.zone, zone_text with
             | Some z, Some (_, sentence) ->
                 let vars = List.filter_map (fun (r : P.rail_row) -> if r.role = P.Var then Some r.name else None) z.rail in
@@ -620,9 +661,10 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                   Pxui.Ui.inspector_readout ui ~width ~key:("ws-rail-" ^ r.name) ~label
                     (match r.expr with Some e -> Flow.Lisp.flat e | None -> "same for all")) z.rail
             | _ -> ());
-           List.iter (fun (label, text) ->
-             Pxui.Ui.inspector_readout ui ~width ~key:("ws-" ^ label) ~label text)
-             (Probe.readouts records n ~probes);
+           (* the head's detail line says it for a node; a zone keeps its readout rows *)
+           if zone_text <> None then
+             List.iter (fun (label, text) ->
+               Pxui.Ui.inspector_readout ui ~width ~key:("ws-" ^ label) ~label text) readouts;
            let hoist = if footer.invariant && Pxui.Ui.inspector_button ui ~key:"ws-hoist" "Move out of the loop"
              then [ Syntax_edit (Flow_sop.Flow_edit.Hoist { node = n.path }) ] else [] in
            (* a macro call: what it is, and the request the pane's lens button makes *)
@@ -647,16 +689,6 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                if text = current then []
                else [ Syntax_edit (Flow_sop.Flow_edit.Set_note { node = n.path; text }) ]
              end end in
-           (* the node's name: editing it is the pane's Rename (the text's binding name) *)
-           let rename = if n.synthetic then [] else begin
-             (* a nested node has no name yet: giving it one binds it *)
-             let current = if Flow_sop.Projection.anonymous n then "" else n.name in
-             let box, cx, cy, cw = Pxui.Ui.inspector_row ui ~width ~key:"ws-rename" ~label:"name" () in
-             let text = Pxui.Ui.within ui box (fun () ->
-               fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:20.
-                 ~left:true ~valid:(fun t -> Flow.Symbol.valid_name t) "ws-rename-field" current)) in
-             if text = current then [] else [ Syntax_edit (Flow_sop.Flow_edit.Rename { node = n.path; to_ = text }) ]
-           end in
            (* the items of a list or a string: each can move up a place *)
            let movers = if n.synthetic || not (Flow_sop.Projection.reorderable n) then [] else
              List.concat_map (fun (r : P.row) -> match r.key with
@@ -665,14 +697,6 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                        (Printf.sprintf "Move item %d up" (k + 1))
                    then [ Syntax_edit (Flow_sop.Flow_edit.Move_item { node = n.path; pos = k }) ] else []
                | _ -> []) n.rows in
-           (* the B flag of the card, as a toggle: a bypassed call passes its first input through *)
-           let bypass = if not (P.bypassable n) then [] else begin
-             let on = Pxui.Ui.inspector_toggle ui ~key:"ws-bypass" ~label:"Bypass" n.bypass in
-             if on <> n.bypass then [ Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = n.path }) ] else []
-           end in
-           let node = Option.bind (Probe.plan_node records n.path ~probes) (fun id ->
-             Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
-               compiled_node value node_id)) in
            let fields = match node with Some node -> Node.parameter_fields node | None -> [] in
            if n.head = "settings/config" then Pxui.Ui.inspector_message ui ~key:"ws-startup-settings"
              "Title, size, frame rate and seed apply on restart.";
@@ -750,18 +774,28 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
            end in
            let rows = Option.to_list layout_row @ Option.to_list size_row @ List.map snd ref_rows @ List.map (fun (parameter : Flow_sop.Port.parameter) ->
              let wired = match authored parameter with Some e -> not (literal e) | None -> false in
-             { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = true; locked = false;
+             { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = authored parameter <> None; locked = false;
                (* a computed argument reads as its expression, "=" first: typing another one, or
                   a number, replaces it; the cross removes it *)
-               drive = (match authored parameter with Some e when wired -> Some ("=" ^ Flow.Lisp.flat e) | _ -> None);
-               live = None; components = []; split = None }) parameters in
+               (* a plain name is a link, read as "<- name"; anything else is an expression *)
+               drive = (match authored parameter with
+                 | Some { S.node = S.Sym name; _ } when wired -> Some name
+                 | Some e when wired -> Some ("=" ^ Flow.Lisp.flat e)
+                 | _ -> None);
+               (* what the drive gives now: the node's value at the probe *)
+               live = (match parameter.fields with
+                 | [ { Parameter.current = Parameter.Int_value i; _ } ] -> Some (string_of_int i)
+                 | [ { current = Parameter.Float_value f; _ } ] -> Some (Printf.sprintf "%.6g" f)
+                 | [ { current = Parameter.Bool_value b; _ } ] -> Some (string_of_bool b)
+                 | _ -> None);
+               components = []; split = None }) parameters in
            let expanded = List.filter_map (fun (f : Parameter.field_view) ->
              match f.folder with [] -> None | first :: _ -> Some first) fields |> List.sort_uniq String.compare in
            let num f =
              let t = Printf.sprintf "%.6g" f in
              S.make (S.Num (if String.exists (fun c -> c = '.' || c = 'e' || c = 'n' || c = 'i') t then t else t ^ ".0")) in
            let edits = if rows = [] then [] else
-             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false ~on_choice
+             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false ~pins:true ~on_choice
                ~chips:(match value.scope_key with
                  | Some { evaluated = Some ev; _ } -> Navigator.chips ev
                  | _ -> []) rows
@@ -829,6 +863,17 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                         Some (Syntax_edit (Flow_sop.Flow_edit.Disconnect { node = n.path;
                           key = Flow_sop.Flow_edit.Kw (List.hd (String.split_on_char '.' path)); fallback = None })))
                | _ -> None) in
+           (* what the cook made of a geometry node: read-out rows, as the sheet's Output section *)
+           (match Option.bind node_id (fun id -> Option.bind (node_owner value id) (fun object_id ->
+                    Cook.geometry value.cook ~object_id ~node_id:id)) with
+            | Some (geo : Flow_sop.Probe.geometry) ->
+                ignore (Pxui.Ui.inspector_section ui ~key:"ws-output" ~expanded:true "Output" (fun () ->
+                  Pxui.Ui.inspector_readout ui ~width ~key:"ws-output-prims" ~label:"prims"
+                    (string_of_int geo.prims);
+                  if geo.groups <> [] then
+                    Pxui.Ui.inspector_readout ui ~width ~key:"ws-output-groups" ~label:"groups"
+                      (String.concat ", " geo.groups)))
+            | None -> ());
            let iterations = Probe.iterations records n ~probes in
            let zone = List.nth_opt (List.rev chain) 0 in
            let picks = match zone with
@@ -844,7 +889,8 @@ let workspace_inspector ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None
                        (Printf.sprintf "%s%d  %s" (if k = current then "► " else "  ") (k + 1) iterations.(k))
                    then [ Pxui_graph.Scope.Probe_set { zone = z; index = k } ] else []))
              | _ -> [] in
-           hoist @ macro @ rename @ note @ movers @ bypass @ edits, picks)
+           hoist @ macro @ note @ movers @ edits, picks) in
+           fst flags @ rename @ requests, snd flags @ picks)
   | _ -> [], []
 
 (* The node of the graph pane that a lowered node of the open object was made by, at the iterations
@@ -3299,6 +3345,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
             | [ path ] ->
                 let requests, moves = inspector_panel ui bounds (fun () ->
                   workspace_inspector value ui ~width:(float (let _, _, w, _ = bounds in max 1 w)) path ~resized
+                    ~follows:(fun path -> follow_target ~path value)
                     ~on_choice:(fun name box -> if name = "@ref:material" then
                       Option.iter (fun d -> inspector_drops := (Carry.Node path, (match d with
                         | Pxui.Ui.Dropped _ -> true | Hover _ -> false)) :: !inspector_drops)
@@ -3306,7 +3353,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 workspace_requests := requests; workspace_moves := !workspace_moves @ moves
             | paths -> inspector_panel ui bounds (fun () ->
                 ignore (Pxui.Ui.inspector_header ui ~key:"multi-header"
-                  ~title:(Printf.sprintf "%d nodes" (List.length paths)) ~detail:"Selected")) in
+                  ~title:(Printf.sprintf "%d nodes" (List.length paths)) ~detail:"Selected" ())) in
           None, !workspace_requests, [], value.live_cook
       | [] ->
           (* Sketch settings above the environment's camera/render panel. *)
@@ -3325,9 +3372,10 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                   k.graph, Printf.sprintf "%d nodes · %d loop%s · select a node to edit it" (count k.scope)
                     zones (if zones = 1 then "" else "s")
               | _ -> level_name value, Printf.sprintf "%d nodes · display %s" node_count display in
-            ignore (Pxui.Ui.inspector_header ui ~key:"network-header" ~title ~detail);
+            ignore (Pxui.Ui.inspector_header ui ~key:"network-header" ~title ~detail ());
+            Pxui.Ui.inspector_body ui (fun () ->
             let live = Pxui.Ui.inspector_toggle ui
-                ~key:"live-cook" ~label:"Live update while dragging"
+                ~key:"live-cook" ~label:"Live update"
                 value.live_cook in
             let changes = match Settings.fields unchanged |> List.filter (fun (field : Parameter.field_view) ->
                 not (value.scene_level && field.name = "renderer")) with
@@ -3339,13 +3387,13 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                       ~key:"sketch-settings-section" ~expanded:true "Settings"
                       (fun () -> Pxui_shell.Inspector.fields ui
                         ~width:(float width) fields))) in
-            changes, live, camera_panel ()) in
+            changes, live, camera_panel ())) in
           Some panel, [], changes, live
       | _ :: _ :: _ ->
           let () = inspector_panel ui bounds (fun () ->
             ignore (Pxui.Ui.inspector_header ui ~key:"multi-header"
               ~title:(Printf.sprintf "%d nodes" (List.length selected_ids))
-              ~detail:"Selected")) in
+              ~detail:"Selected" ())) in
           None, [], [], value.live_cook
       | [node_id] ->
           (* the nodes of a geometry object are the lowering of its graph: the graph pane's node
@@ -3362,28 +3410,29 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
             Pxui.Ui.scope ui (Printf.sprintf "node.%d" node_id) (fun () ->
               let _, _, inspector_width, _ = bounds in
               let inspector_width = float (max 1 inspector_width) in
-              let header = Pxui.Ui.inspector_header ui
-                  ~key:"flow-inspector-header" ~title:label
-                  ~detail:(Printf.sprintf "%s/%s · #%d%s%s"
-                    (Flow.Context.name open_network.context) kind node_id
-                    (if Edit_graph.is_bypassed document ~node_id then " · muted" else "")
-                    (if open_network.displayed = Some node_id then " · displayed" else "")) in
-              (* the name is a field at the display size, over the header's own title *)
-              let display = Pxui.Ui.font_size ui * Pxui.Theme.display_size / Pxui.Theme.font_size in
-              let name_h = float (display + 8) in
-              let renamed, editing = Pxui.Ui.within ui header (fun () ->
-                Pxui.Ui.value_field ui ~at:(10., 12.)
-                  ~w:(inspector_width -. 22.) ~h:name_h ~size:display
-                  ~left:true ~valid:(fun text -> String.trim text <> "")
-                  "node-label" label) in
-              if not editing then Pxui.Ui.draw_over ui header (fun paint (x, y, w, _) ->
-                let theme = Pxui.Ui.theme ui in
-                Pxui.Ui.Paint.fill paint ~x ~y:(y +. 12.) ~w ~h:name_h theme.panel;
-                Pxui.Ui.Paint.text paint ~at:(x +. 12., y +. 12.) ~size:display
-                  ~color:theme.foreground
-                  (Pxui.Ui.ellipsis ~width:(Pxui.Ui.Paint.text_width paint ~size:display) ~limit:(w -. 24.) renamed));
+              let input_count = Array.length (Option.value ~default:[||] (Edit_graph.inputs document ~node_id)) in
+              (* the head: the kind as the sheet writes it (scene/camera), VIEW while displayed,
+                 the node's number; the name edited in place; what is true of the node *)
+              let facts = List.filter_map Fun.id [
+                if Edit_graph.is_bypassed document ~node_id then Some "muted" else None;
+                if value.doc.Document.active_camera = Some node_id then Some "active camera" else None;
+                if input_count > 0 then Some (Printf.sprintf "%d input%s" input_count (if input_count = 1 then "" else "s"))
+                else None;
+                if preview then Some "preview instance" else None ] in
+              let head = Pxui.Ui.inspector_header ui
+                  ~key:"flow-inspector-header"
+                  ~kind:(Printf.sprintf "%s/%s" (Flow.Context.name open_network.context) kind)
+                  ?badge:(if open_network.displayed = Some node_id then Some "view" else None)
+                  ~index:(Printf.sprintf "NO. %04d" node_id)
+                  ?rename:(if derived || preview then None else Some (fun text -> String.trim text <> ""))
+                  ~title:label
+                  ~detail:(match facts with
+                    | [] -> Printf.sprintf "%d parameter%s" (List.length fields) (if List.length fields = 1 then "" else "s")
+                    | facts -> String.concat " · " facts) () in
+              let renamed = head.renamed in
               let rename = if renamed = label || derived || preview then [] else
                 [Rename {node = node_id; label = renamed}] in
+              rename @ Pxui.Ui.inspector_body ui (fun () ->
               let names = Option.value ~default:[]
                 (Edit_graph.node_slot_names document ~node_id) in
               let inputs = Option.value ~default:[||]
@@ -3419,7 +3468,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                       | first :: _ -> Some first) |> List.sort_uniq String.compare in
                     Pxui_shell.Inspector.flow_fields ui ~expanded ~actions:false
                       ~width:inspector_width rows in
-              rename @ List.filter_map (function
+              List.filter_map (function
                 | Pxui_shell.Inspector.Edited (path, value) ->
                     Some (Set_parameter {node = node_id; path; value})
                 | Pxui_shell.Inspector.Expression (path, text) ->
@@ -3427,13 +3476,18 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                        vector's field is one component of it) *)
                     let parameters = Result.value ~default:[] (Flow_sop.Port.parameters (Editor_document.Contexts.group_triples fields)) in
                     let key_sub = List.find_map (fun (p : Flow_sop.Port.parameter) ->
-                      Option.map (fun i -> p.path, if List.length p.fields = 3 then [ i ] else [])
-                        (List.find_index (fun (f : Parameter.field_view) -> f.name = path) p.fields)) parameters in
+                      match List.find_index (fun (f : Parameter.field_view) -> f.name = path) p.fields with
+                      | Some i -> Some (p.path, if List.length p.fields = 3 then [ i ] else [])
+                      | None ->
+                          (* a vector's component row is named [row.axis] *)
+                          Option.map (fun i -> p.path, [ i ])
+                            (List.find_index (fun axis -> p.path ^ "." ^ axis = path) [ "x"; "y"; "z" ])
+                          |> fun found -> if List.length p.fields = 3 then found else None) parameters in
                     (match expression_text text, key_sub with
                      | Ok expr, Some (key, sub) -> Some (Object_arg { node = node_id; key; sub; expr })
                      | Error message, _ -> Some (Notice message)
                      | Ok _, None -> None)
-                | Pinned _ | Split _ | Reset _ -> None) edits)) in
+                | Pinned _ | Split _ | Reset _ -> None) edits))) in
           None, changes, [], value.live_cook) in
     (* an inspector shows the pane in use, or the graph panel its [:of] names; one of another pane
        only shows (a press there makes that pane the one in use first) *)
