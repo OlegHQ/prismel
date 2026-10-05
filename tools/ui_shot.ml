@@ -33,6 +33,9 @@ let () =
   (* UI_SHOT_DO is a script run after the settle frames, one step a frame, in order:
        key:NAME        a key press (a letter, a digit or a sign is itself; space tab enter esc)
        click:X,Y       move there, press and release the left button
+       rclick:X,Y      the same with the right button (a context menu)
+       type:TEXT       typed text (no spaces: _ is a space)
+       key:ctrl+z      modifiers (shift ctrl alt meta) joined to a key with +, held for that step
        move:X,Y        rest the pointer there (it stays for the picture)
        hold:X0,Y0,X1,Y1  press at the first point and keep the button down at the second, so
                        the picture shows the drag in flight
@@ -41,8 +44,8 @@ let () =
     | "space" -> Rays.Input.Space | "tab" -> Tab | "enter" -> Enter | "esc" -> Escape
     | name -> KeyChar name.[0] in
   let count = ref frames and mouse = ref (-100., -100.) and buttons = ref [] in
-  let step events =
-    editor := E.update !editor { (frame !count) with mouse = !mouse; mouse_buttons = !buttons; events };
+  let step ?(keys = []) events =
+    editor := E.update !editor { (frame !count) with mouse = !mouse; mouse_buttons = !buttons; events; keys };
     incr count in
   let point text = Scanf.sscanf text "%f,%f" (fun x y -> x, y) in
   List.iter (fun word -> match String.index_opt word ':' with
@@ -50,7 +53,19 @@ let () =
     | Some colon ->
         let argument = String.sub word (colon + 1) (String.length word - colon - 1) in
         (match String.sub word 0 colon with
-         | "key" -> step [ Rays.Event.KeyPressed (key argument) ]
+         | "key" ->
+             let parts = String.split_on_char '+' argument in
+             let name = List.nth parts (List.length parts - 1) in
+             let modifier = function
+               | "shift" -> Some Rays.Input.Shift | "ctrl" -> Some Rays.Input.Ctrl
+               | "alt" -> Some Rays.Input.Alt | "meta" -> Some Rays.Input.Meta | _ -> None in
+             let keys = List.filter_map modifier (List.filteri (fun i _ -> i < List.length parts - 1) parts) in
+             step ~keys [ Rays.Event.KeyPressed (key name) ]
+         | "type" -> step [ Rays.Event.TextInput (String.map (fun c -> if c = '_' then ' ' else c) argument) ]
+         | "rclick" ->
+             mouse := point argument;
+             step [ Rays.Event.MouseMoved !mouse ];
+             step [ Rays.Event.MousePressed (Rays.Input.RightButton, !mouse); Rays.Event.MouseReleased (Rays.Input.RightButton, !mouse) ]
          | "click" ->
              mouse := point argument;
              step [ Rays.Event.MouseMoved !mouse ];

@@ -3872,7 +3872,7 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
     if edit.text = "" then
       Paint.text paint ~color:(Theme.ink_3 theme) ~at:(float (cx + prefix) +. inset, float (label_y ui cy ch))
         placeholder;
-    paint_text_edit paint ~inset ~caret:(not resting) ~control ~y:(label_y ui cy ch) ~composition edit);
+    paint_text_edit paint ~inset ~caret:(edit.text <> "") ~control ~y:(label_y ui cy ch) ~composition edit);
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in
@@ -3967,7 +3967,7 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
       0. (List.filteri (fun i _ -> i < index) items) in
   let sub_geometry sub =
     let sub_width = Float.min ui.view_w (measure ~lead:(if sub.current = None then 0. else 14.) ~keys:sub.keys
-      ~chevrons:[] 120. sub.rows) in
+      ~chevrons:[] 0. sub.rows) in
     let sub_height = height_of sub.rows in
     let sx = if x +. width -. 1. +. sub_width <= ui.view_w then x +. width -. 1. else x -. sub_width +. 1. in
     let sy = Float.max 0. (Float.min (row_top sub.row -. 7.) (ui.view_h -. sub_height)) in

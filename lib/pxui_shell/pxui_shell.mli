@@ -168,7 +168,7 @@ module Status_bar : sig
 
   val guide : Pxui.Ui.t -> bounds:Layout.bounds -> ?file:string -> ?state:state -> ?layout:string ->
     ?text:string -> ?fps:int -> ?notes:string list -> ?accent:bool -> ?extra:(string * string) list ->
-    ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
+    ?leader:string -> ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
     ('scope, 'action) Editor_core.Command.t list -> bool
   (** The strip of the workspace sheet: a hairline over a 24-point bar of the file, its state dot
       and status line (a quarter of the strip at most), a rule, the focused pane's [kind] and the
@@ -177,7 +177,8 @@ module Status_bar : sig
       before what it does in ink-2 ([extra] pairs follow the keymap's, for gestures that are no
       command), then the [notes] (labels such as "3 graphs"), the layout in use and the frame rate
       at the right; [accent] draws the kind in the accent (a panel being moved); true when the
-      "toggle guide" pair is clicked. *)
+      "toggle guide" pair is clicked.  With [leader] (the pending prefix, [Space]) the strip is the
+      sheet's [09] one: the file, a rule, the prefix in the accent and [waiting for a key]. *)
 
   val tips : Pxui.Ui.t -> bounds:Layout.bounds -> (string * [ `Info | `Refusal ]) list -> unit
   (** Echo, the sheet's [08]: noninteractive tips stacked 4 apart in the pane's bottom-left corner,

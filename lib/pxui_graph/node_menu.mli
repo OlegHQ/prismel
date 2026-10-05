@@ -1,6 +1,7 @@
-(** The categorised node menu (leader [Space a]): a search field over the top-level column of
-    category paths, submenus that open on hover or click, typed search over the whole
-    catalog.  Pure state plus one PXUI popup; the host decides what a picked key adds. *)
+(** The node menu (leader [Space a], the sheet's [01]): a search field over the kinds from the
+    start, the likeliest first (what takes an input after the selected node, then the rest), typed
+    search over the whole catalog by name, key or category.  Pure state plus one PXUI popup; the
+    host decides what a picked key adds. *)
 
 type entry = {
   key : string;
@@ -15,7 +16,7 @@ type entry = {
 }
 
 val entries_of_factories : ?context:string -> Procedural.Edit_graph.factory list -> entry list
-(** One entry per factory, its category path being the submenus; a SOP kind makes geometry.  No
+(** One entry per factory, its category path searchable; a SOP kind makes geometry.  No
     second catalog. *)
 
 type t

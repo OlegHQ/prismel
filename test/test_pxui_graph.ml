@@ -46,19 +46,23 @@ let run_menu () =
   check (menu_step (opened null) (frame ~mouse:(400, 250) ~events:[ Event.KeyPressed Input.Escape ] ())
          = (None, None))
     "Escape did not close the menu";
-  (* A lone top-level category (Create) opens by itself; hovering a category opens its column
-     to the right, clicking an entry picks it.  The first row's middle: the window's 1-point edge, its
-     28-point title (4 above a 24-point label), the 28-point search row (a 20-point field in 4 points of
-     padding), then half a 24-point row. *)
+  (* the kinds are listed from the start: Enter places the first row, and a click on a row picks it.
+     The first row's middle: the window's 1-point edge, its 28-point title (4 above a 24-point
+     label), the 28-point search row (a 20-point field in 4 points of padding), then half a
+     24-point row. *)
   let nested = [ entry ~category:[ "Create"; "Primitive" ] "box" "Box" ] in
+  check (picks (opened nested) [ Event.KeyPressed Input.Enter ] = Some "box")
+    "the menu did not list its kinds from the start";
   let row_y = 250 + 1 + 28 + 28 + 12 in
-  let menu = match menu_step (opened nested) (frame ~mouse:(420, row_y)
-      ~events:[ Event.MouseMoved (420., float row_y) ] ()) with
-    | Some menu, _ -> menu | None, _ -> fail "hovering closed the menu" in
-  let point = float (420 + 320), float row_y in
-  let _, picked = menu_step menu (frame ~mouse:(420 + 320, row_y)
+  let point = 420., float row_y in
+  let _, picked = menu_step (opened nested) (frame ~mouse:(420, row_y)
     ~events:[ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ] ()) in
-  check (picked = Some "box") "the menu did not open category submenus on hover down to a node";
+  check (picked = Some "box") "a click on a row of the menu did not pick it";
+  (* after a node, the kinds that take an input come first *)
+  let fitting = Node_menu.create ~after:"grid1" ~x:400 ~y:250
+    [ entry "box" "Box"; entry ~arity:1 "null" "Null" ] in
+  check (Node_menu.Private.keys fitting ~query:"" = [ "null"; "box" ])
+    "the menu did not list what fits after the node first";
   (* the visual row window never makes later nodes inaccessible *)
   let many = List.init 15 (fun index -> entry (Printf.sprintf "node_%02d" index) (Printf.sprintf "Node %02d" index)) in
   let menu = match menu_step (opened many) (frame ~mouse:(400, 250) ~events:[ Event.TextInput "node" ] ()) with

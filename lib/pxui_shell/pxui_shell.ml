@@ -1088,9 +1088,25 @@ module Status_bar = struct
     end
 
   let guide ui ~bounds:(x, y, width, height) ?(file = "") ?(state = `Ok) ?(layout = "") ?(text = "") ?fps
-      ?(notes = []) ?(accent = false) ?(extra = []) ?kind ?selection ~context commands =
+      ?(notes = []) ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context commands =
     let module Ui = Pxui.Ui in
     if height <= 0 then false else
+    match leader with
+    | Some pending ->
+        (* an open leader: the file and its state, a rule, the pending prefix in the accent and
+           [waiting for a key], the frame rate at the end *)
+        let box = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
+            ~at:(float x, float y) "workspace-guide" in
+        Ui.draw ui box (fun paint bounds ->
+          let x, y, w, h = ground ui paint bounds in
+          let theme = Ui.theme ui in
+          let right = trail ui paint (x, y, w, h) ~notes ~layout ~fps () in
+          let after = lead ui paint (x, y, h) ~file ~state ~limit:(x +. Float.min 320. (w /. 4.)) text in
+          ignore right;
+          let tx = focus_labels ui paint (x, y, h) ~accent:true ~after ~kind:pending () in
+          Ui.Paint.text paint ~at:(tx, Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) "waiting for a key");
+        false
+    | None ->
     let bar = Ui.box ui ~flags:Ui.(clickable + clip)
         ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
         ~at:(float x, float y) "workspace-guide" in

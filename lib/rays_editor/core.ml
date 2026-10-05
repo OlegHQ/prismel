@@ -2081,6 +2081,13 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     | Pxui_shell.Layout.Outline -> [ "/", "filter"; "i", "enter" ] @ Option.to_list jump
     | _ -> [] in
   if height <= 0 then false
+  else if (match value.leader with Leader.Pending _ -> true | Idle -> false) then begin
+    (* an open leader: the pending prefix in the accent and what the strip waits for *)
+    let prefix = match value.leader with Leader.Pending p when p <> "" -> "Space " ^ p | _ -> "Space" in
+    Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
+      ?fps:value.status_fps ~notes ~leader:prefix ~context:Editor_core.Guide_context.Leader
+      ([] : Leader.command list)
+  end
   else if moving <> None then begin
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~text:line
       ?fps:value.status_fps ~notes ~accent:true ~kind:("moving " ^ Option.get moving)
@@ -3431,7 +3438,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | menu, _ -> menu in
     let menu, menu_pick = match menu with
       | Some menu -> Pxui.Ui.within ui graph_root (fun () ->
-          Pxui_graph.Node_menu.update menu ui ~bounds:(0, 0, frame.width, frame.height))
+          Pxui_graph.Node_menu.update menu ui ~bounds:(0, 0, frame.width, (let _, sy, _, _ = (geometry value workspace frame).status_at in sy)))
       | None -> None, None in
     (* every list shows the level and selection of its graph panel, with its own folds, filter and
        scroll; the one in use takes the keys.  A list of another pane only shows: a press makes its
@@ -3791,7 +3798,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                         else List.map (fun id -> [ string_of_int id ]) (Selection.selected_nodes selection)) with
           | [] -> Canvas | [_] -> Node | _ -> Multi) in
     let commands = Editor_core.Command.for_guide keymap ~focus:(Leader.scope focus) ~context in
-    let hide_guide = status_box { value with workspace; status_fps; selection; guide; focus }
+    let hide_guide = status_box { value with workspace; status_fps; selection; guide; focus; leader }
         ui frame ~render_status ~error_status ~context ~commands in
     (* echo, the sheet's [08]: the key just pressed and the last notice, which fades after 3 seconds *)
     if graph_shown then begin
