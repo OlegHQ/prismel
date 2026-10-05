@@ -1315,17 +1315,17 @@ let run_studio () =
   List.iter (fun (w, h) ->
     let g = Layout.geometry ~hidden:[] shell.tree { (frame (0., 0.) [] 0) with width = w; height = h; size = w, h } in
     let whole pick = match List.find_opt (fun (l : Layout.leaf) -> pick l.panel) g.leaves with
-      | Some { header = x, y, lw, hh; body = _, _, _, bh; _ } -> x, y, lw, hh + bh
+      | Some { frame; _ } -> frame
       | None -> fail "the studio lost a panel" in
     let expect what got want = check (got = want) (Printf.sprintf "studio at %dx%d: %s" w h what) in
-    let tree = h - 24 and middle = w - 216 - 320 - 2 in
+    let tree = h - 25 and middle = w - 216 - 320 - 2 in
     expect "outline" (whole (( = ) Layout.Outline)) (0, 0, 216, tree);
     expect "viewport" (whole (function Layout.View _ -> true | _ -> false)) (217, 0, middle, tree - 336 - 24 - 2);
     expect "timeline" (whole (( = ) Layout.Timeline)) (217, tree - 336 - 24 - 1, middle, 24);
     expect "graph" (whole (( = ) Layout.Graph)) (217, tree - 336, middle, 336);
     expect "inspector" (whole (( = ) Layout.Inspector)) (w - 320, 0, 320, tree - 300 - 1);
     expect "lisp" (whole (( = ) Layout.Lisp)) (w - 320, tree - 300, 320, 300);
-    expect "status" g.status_at (0, tree, w, 24))
+    expect "status" g.status_at (0, tree, w, 25))
     [ 1440, 900; 1920, 1080; 1100, 700 ];
   (* what the panels' keywords open the editor with *)
   let preview = match List.map fst shell.preview_sources with [ key ] -> key | _ -> fail "one viewport" in

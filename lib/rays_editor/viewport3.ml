@@ -580,15 +580,19 @@ let handles ui ~selected ~scene ~space view extra ~bounds =
       | Some _ | None -> grab, picked) (grab, None) (camera_ids scene) in
   edits, grab, picked
 
+(* The axis gizmo (viewport.html): its origin 48 points from the pane's left and 44 from its foot,
+   an axis is 40 points at full length in its port colour, and its letter a label at the tip (the
+   sheet's offsets: y 6 right, x 3 right, z 8 left, each a few points below the tip). *)
 let gizmo (x, y, _, height) view =
-  let cx = float_of_int x +. 40. and cy = float_of_int (y + height) -. 40. in
+  let cx = float_of_int x +. 48. and cy = float_of_int (y + height) -. 44. in
   let origin = Camera.world_to_camera view Vec3.zero in
   List.concat (List.init 3 (fun axis ->
     let d = Vec3.sub (Camera.world_to_camera view axes.(axis)) origin in
-    let tip = cx +. d.x *. 28., cy -. d.y *. 28. in
+    let tip = cx +. d.x *. 40., cy -. d.y *. 40. in
+    let dx, dy = [| 3., 4.; 6., 4.; -8., 7. |].(axis) in
     [line ~width:2 axis_colors.(axis) (cx, cy) tip;
-     Scene.text ~at:(Float.to_int (fst tip) + 2, Float.to_int (snd tip) - 6)
-       ~color:axis_colors.(axis) axis_names.(axis)]))
+     Scene.text ~at:(Float.to_int (fst tip +. dx), Float.to_int (snd tip +. dy) - 6) ~size:11
+       ~color:axis_colors.(axis) (String.uppercase_ascii axis_names.(axis))]))
 
 (* A light object: a marker at its position, a line to its target. *)
 let light_guide bounds view color (light : Light.t) =

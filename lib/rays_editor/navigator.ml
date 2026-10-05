@@ -327,7 +327,8 @@ let tops ~rh rows =
     -. (match i, r with 0, Head _ -> 12. | _ -> 0.)) rows;
   tops
 
-let search_height = 32.
+(* the search row: 4 points of margin over a 24-point row *)
+let search_height = 28.
 
 let row_rects ?(row_height = 24) state p ~bounds:(x, y, w, _) =
   let rh = float row_height and x = float x and y = float y and w = float w in
@@ -346,18 +347,18 @@ let view state ui ~bounds:(x, y, w, h) p =
   (* F2 puts the graph's name in this field instead of the search *)
   let state, renamed = match state.rename with
     | Some (graph, seen) ->
-        let text, open_ = Ui.value_field ui ~at:(x +. 12., y +. 6.) ~w:(w -. 52.) ~h:20.
+        let text, open_ = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 40.) ~h:20.
             ~left:true ~edit:(not seen) ~valid:Flow.Symbol.valid_name "navigator-rename" graph in
         if text <> graph then { state with rename = None }, [ Rename { graph; to_ = text } ]
         else if open_ then { state with rename = Some (graph, true) }, []
         else { state with rename = (if seen then None else state.rename) }, []
     | None ->
-        let query, typing = Ui.value_field ui ~at:(x +. 12., y +. 6.) ~w:(w -. 52.) ~h:20.
+        let query, typing = Ui.value_field ui ~at:(x +. 8., y +. 6.) ~w:(w -. 40.) ~h:20.
             ~left:true ~valid:(fun _ -> true) "navigator-search" state.query in
         { state with query; typing }, [] in
   let query = state.query and typing = state.typing in
   if query = "" && not typing && state.rename = None then
-    Ui.draw ui (Ui.box ui ~flags:Ui.clip ~w:(Ui.Px (w -. 56.)) ~h:(Ui.Px 18.) ~at:(x +. 14., y +. 7.) "navigator-placeholder")
+    Ui.draw ui (Ui.box ui ~flags:Ui.clip ~w:(Ui.Px (w -. 44.)) ~h:(Ui.Px 20.) ~at:(x +. 10., y +. 6.) "navigator-placeholder")
       (fun paint (px, py, pw, h) ->
         let ty = Pxui_shell.Kit.text_y ui py h in
         Ui.Paint.text paint ~at:(px, ty) ~color:muted "/";
@@ -367,7 +368,9 @@ let view state ui ~bounds:(x, y, w, h) p =
   let tops = tops ~rh rows in
   let total = tops.(Array.length rows) in
   let top = y +. search_height in
-  let body = Float.max rh (h -. search_height) in
+  (* the wide sheet closes with a hairline and a 24-point bar of its keys and the graph count *)
+  let footer = if w >= 300. then rh +. 1. else 0. in
+  let body = Float.max rh (h -. search_height -. footer) in
   let box = Ui.box ui ~flags:Ui.(clickable + scroll + clip + blocking)
       ~w:(Ui.Px w) ~h:(Ui.Px body) ~at:(x, top) ~scroll_step:rh "navigator-list" in
   let signal = Ui.signal ui box in
@@ -386,8 +389,12 @@ let view state ui ~bounds:(x, y, w, h) p =
     end in
   let intents = ref (List.rev renamed) in
   let emit i = intents := i :: !intents in
+  (* the two sheets of the kit: a column under 300 points (the workspace) drops the details and
+     keeps 56 points for an input's label, a wide one (the outline sheet) shows them and keeps 112 *)
+  let wide = w >= 300. in
+  let label_w = if wide then 112. else 56. in
   (* add an object, a graph, a node: the add menu *)
-  if Pxui_shell.Kit.button ui ~key:"navigator-add" ~at:(x +. w -. 32., y +. 6.) ~w:20. "+" then emit Add;
+  if Pxui_shell.Kit.button ui ~key:"navigator-add" ~at:(x +. w -. 28., y +. 6.) ~w:20. ~centered:true "+" then emit Add;
   let begin_rename = ref None in
   (* a material or a SOP graph is a source: pressed and moved 4 points it is carried, as the
      Flow value that reads it *)
@@ -446,7 +453,7 @@ let view state ui ~bounds:(x, y, w, h) p =
         let shade ?(selected = false) current =
           if selected then begin
             Ui.Paint.fill paint ~x:(x +. 4.) ~y:ry ~w:(w -. 8.) ~h:rhh theme.control;
-            Ui.Paint.brackets paint ~x:(x +. 4.) ~y:ry ~w:(w -. 8.) ~h:rhh ~offset:(-1.) ~length:6. theme.accent
+            Ui.Paint.brackets paint ~x:(x +. 4.) ~y:ry ~w:(w -. 8.) ~h:rhh ~offset:3. ~length:8. ~width:2. theme.accent
           end else if current then Ui.Paint.fill paint ~x ~y:ry ~w ~h:rhh theme.control
           else if hovered = Some k then
             Ui.Paint.fill paint ~x ~y:ry ~w ~h:rhh (Pxui.Theme.faint_border theme) in
@@ -467,44 +474,63 @@ let view state ui ~bounds:(x, y, w, h) p =
         | Head (s, right) ->
             let cy = Pxui_shell.Kit.cap_y ui (ry +. rhh -. rh) rh in
             Ui.Paint.cap paint ~at:(x +. 12., cy) ~color:ink_3 s;
+            (* the right column is a label in ink-3 too: two 12-point columns over the flags, a
+               word, or the leader keys as the kit's key text *)
             if right = "v  r" then List.iteri (fun column name ->
-              Ui.Paint.cap paint ~at:(flag_x column +. 6. -. (Ui.Paint.cap_width paint name /. 2.), cy) name) [ "v"; "r" ]
-            else if right <> "" then
-              Ui.Paint.cap paint ~at:(x +. w -. 12. -. Ui.Paint.cap_width paint right, cy) right
+              Ui.Paint.cap paint ~at:(flag_x column +. 6. -. (Ui.Paint.cap_width paint name /. 2.), cy) ~color:ink_3 name)
+              [ "v"; "r" ]
+            else if right = "Space [" then begin
+              let small = Pxui_shell.Kit.cap_size ui in
+              let kw = Ui.Paint.text_width paint ~size:small right in
+              Ui.Paint.text paint ~size:small ~at:(x +. w -. 12. -. kw, cy)
+                ~color:ink_3 right
+            end else if right <> "" then
+              Ui.Paint.cap paint ~at:(x +. w -. 12. -. Ui.Paint.cap_width paint right, cy) ~color:ink_3 right
         | Object_row o ->
             shade ~selected:o.chosen false;
-            let ox = x +. 12. +. 12. *. float o.depth in
+            (* the objects are the children of the scene graph's row, each level 8 points in; the selected row sits in a 4-point wrapper with its own
+               padding (15 and 3), so its letter is a point left and its flags 5 points right *)
+            let ox = x +. 12. +. 8. *. float (o.depth + 1) -. (if o.chosen then 1. else 0.) in
+            let right = x +. w -. (if o.chosen then 7. else 12.) in
+            let flag_x column = right -. 12. -. (float (1 - column) *. 20.) in
             Ui.Paint.cap paint ~at:(ox, Pxui_shell.Kit.cap_y ui ry rh)
               ~color:(if o.chosen then theme.foreground else muted) o.letter;
             let cy = ry +. (rh /. 2.) in
+            (* a flag is a 12-point box with its 1-point line and a 6-point mark inset 2 inside it: the render camera's is the accent *)
             Option.iter (fun on ->
               let fx = flag_x 0 in
-              Ui.Paint.rect paint ~x:fx ~y:(cy -. 6.) ~w:12. ~h:12. ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
+              (* a stroke is centred on its edge: inset half a point to keep the box 12 points *)
+              Ui.Paint.fill paint ~x:fx ~y:(cy -. 6.) ~w:12. ~h:12. theme.input;
+              Ui.Paint.stroke paint ~x:(fx +. 0.5) ~y:(cy -. 5.5) ~w:11. ~h:11. (Pxui.Theme.border theme);
               if on then Ui.Paint.fill paint ~x:(fx +. 3.) ~y:(cy -. 3.) ~w:6. ~h:6. muted) o.visible;
             Option.iter (fun on ->
               let fx = flag_x 1 +. 6. in
-              Ui.Paint.circle paint ~at:(fx, cy) ~radius:6. ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
-              (* the render camera's flag is the accent *)
+              Ui.Paint.circle paint ~at:(fx, cy) ~radius:5.5 ~fill:theme.input ~stroke:(Pxui.Theme.border theme) ();
               if on then Ui.Paint.circle paint ~at:(fx, cy) ~radius:3. ~fill:(if o.lead then theme.accent else muted) ()) o.render;
             let edge = flag_x 0 -. 8. in
             let dw = Ui.Paint.text_width paint o.detail in
-            let name_x = ox +. 16. in
+            let name_x = ox +. Ui.Paint.cap_width paint o.letter +. 8. in
             let name = Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(edge -. name_x) o.name in
             text (name_x, 0.) name;
-            if name_x +. Ui.Paint.text_width paint name +. 8. < edge -. dw then
+            if wide && name_x +. Ui.Paint.text_width paint name +. 8. < edge -. dw then
               Ui.Paint.text paint ~at:(edge -. dw, ty) ~color:muted o.detail
         | Layout_row { index; label; active } ->
             shade false;
-            Ui.Paint.text paint ~size:(Pxui_shell.Kit.cap_size ui) ~at:(x +. 12., Pxui_shell.Kit.cap_y ui ry rh)
-              ~color:ink_3 (string_of_int index);
-            text (x +. 28., 0.) (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(w -. 60.) label);
+            (* its key as the kit's key text, then the name 8 points on *)
+            let small = Pxui_shell.Kit.cap_size ui in
+            let key = string_of_int index in
+            Ui.Paint.text paint ~size:small ~at:(x +. 12., Pxui_shell.Kit.cap_y ui ry rh) ~color:(Pxui.Theme.ink_3 theme) key;
+            let name_x = x +. 12. +. Ui.Paint.text_width paint ~size:small key +. 8. in
+            text (name_x, 0.) (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(x +. w -. 38. -. name_x) label);
             if active then Ui.Paint.fill paint ~x:(x +. w -. 18.) ~y:(ry +. (rh /. 2.) -. 3.) ~w:6. ~h:6. theme.accent
-        | Input_row { name; _ } -> text (x +. 12., 0.) ~color:muted name
+        | Input_row { name; _ } ->
+            text (x +. 12., 0.) ~color:muted (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:label_w name)
         | Graph_row { label; context; detail; active; chip; dim; used; graph } ->
             shade active;
             (match chip with
-             | Some c -> Ui.Paint.rect paint ~x:(x +. 12.) ~y:(ry +. (rh /. 2.) -. 6.) ~w:12. ~h:12. ~fill:c
-                           ~stroke:(Pxui.Theme.edge theme) ()
+             | Some c ->
+                 Ui.Paint.fill paint ~x:(x +. 12.) ~y:(ry +. (rh /. 2.) -. 6.) ~w:12. ~h:12. c;
+                 Ui.Paint.stroke paint ~x:(x +. 12.5) ~y:(ry +. (rh /. 2.) -. 5.5) ~w:11. ~h:11. (Pxui.Theme.edge theme)
              | None when String.starts_with ~prefix:"def:" graph ->
                  (* a function: the diamond of its port *)
                  for k = 0 to 6 do
@@ -513,7 +539,7 @@ let view state ui ~bounds:(x, y, w, h) p =
                      (Pxui.Theme.ports theme).fn
                  done
              | None -> square ~at:(x +. 12.) (context_color theme context));
-            let from = x +. (if chip = None then 28. else 32.) in
+            let from = x +. (if chip <> None then 32. else if String.starts_with ~prefix:"def:" graph then 27. else 28.) in
             let color = if dim then ink_3 else theme.foreground in
             (match used with
              | Some n ->
@@ -523,9 +549,9 @@ let view state ui ~bounds:(x, y, w, h) p =
                  let dw = Ui.Paint.text_width paint detail in
                  let name = Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(edge -. from) label in
                  text ~color (from, 0.) name;
-                 if from +. Ui.Paint.text_width paint name +. 8. < edge -. dw then
+                 if wide && from +. Ui.Paint.text_width paint name +. 8. < edge -. dw then
                    Ui.Paint.text paint ~at:(edge -. dw, ty) ~color:(if dim then ink_3 else muted) detail
-             | None -> labelled ~color from label detail)
+             | None -> labelled ~color from label (if wide then detail else ""))
         | Node_row { depth; label; detail; zone; ty; result; selected; _ } ->
             shade ~selected false;
             let nx = x +. 28. +. 12. *. float depth in
@@ -541,9 +567,35 @@ let view state ui ~bounds:(x, y, w, h) p =
         | Link_row { label; graph; _ } ->
             shade false;
             text (x +. 12., 0.) ~color:muted label;
-            text (x +. 76., 0.) ~color:theme.foreground graph
+            text (x +. 20. +. label_w, 0.) ~color:theme.foreground graph
         | Empty s -> text (x +. 12., 0.) ~color:ink_3 s
       end) rows);
+  if footer > 0. then
+    Ui.draw ui (Ui.box ui ~w:(Ui.Px w) ~h:(Ui.Px footer) ~at:(x, y +. h -. footer) "navigator-footer")
+      (fun paint (fx, fy, fw, _) ->
+        Ui.Paint.fill paint ~x:fx ~y:fy ~w:fw ~h:footer theme.panel;
+        Ui.Paint.fill paint ~x:fx ~y:fy ~w:fw ~h:1. (Pxui.Theme.edge theme);
+        let small = Pxui_shell.Kit.cap_size ui in
+        let tx = ref (fx +. 12.) in
+        (* each key in ink-3 at the label size, what it does in ink-2, 8 apart *)
+        List.iter (fun (key, what) ->
+          Ui.Paint.text paint ~size:small ~at:(!tx, Pxui_shell.Kit.cap_y ui (fy +. 1.) rh) ~color:(Pxui.Theme.ink_3 theme) key;
+          tx := !tx +. Ui.Paint.text_width paint ~size:small key +. 8.;
+          Ui.Paint.text paint ~at:(!tx, Pxui_shell.Kit.text_y ui (fy +. 1.) rh) ~color:muted what;
+          tx := !tx +. Ui.Paint.text_width paint what +. 8.)
+          [ "/", "filter"; "i", "enter"; "Space j", "jump" ];
+        let count = plural (List.length p.workspace.graphs) "graph" in
+        Ui.Paint.cap paint ~at:(fx +. fw -. 12. -. Ui.Paint.cap_width paint count, Pxui_shell.Kit.cap_y ui (fy +. 1.) rh) count);
+  (* the scroll thumb: 4 points wide, 2 from the edge, line-3, over a track 6 points in from both ends *)
+  Ui.draw_over ui box (fun paint (bx, by, bw, bh) ->
+    let content = total +. rh in
+    if content > bh then begin
+      let track = Float.max 1. (bh -. 12.) in
+      let thumb = Float.min track (Float.max 20. (track *. bh /. content)) in
+      let scroll = Ui.scroll_position ui box in
+      let y = by +. 6. +. ((track -. thumb) *. Float.min 1. (Float.max 0. (scroll /. Float.max 1. (content -. bh)))) in
+      Ui.Paint.fill paint ~x:(bx +. bw -. 6.) ~y ~w:4. ~h:thumb (Pxui.Theme.border theme)
+    end);
   (* the sliders of the inputs, over their rows *)
   Array.iteri (fun k row -> match row with
     | Input_row { graph; name; integer; value } ->
@@ -557,7 +609,7 @@ let view state ui ~bounds:(x, y, w, h) p =
             | Some o when integer -> show (o +. Float.round (dx /. (if shift then 24. else 6.)))
             | Some o -> show (o +. dx *. 0.01 *. Float.max 1. (Float.abs o) *. (if shift then 0.1 else 1.)) in
           let text = show value in
-          let changed, _ = Ui.value_field ui ~at:(x +. 76., ry +. 2.) ~w:(w -. 88.) ~h:20.
+          let changed, _ = Ui.value_field ui ~at:(x +. 20. +. label_w, ry +. 2.) ~w:(w -. 32. -. label_w) ~h:20.
               ~scrub ~valid:(fun t -> float_of_string_opt t <> None)
               ("navigator-input-" ^ graph ^ "-" ^ name) text in
           if changed <> text then

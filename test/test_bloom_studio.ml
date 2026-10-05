@@ -139,9 +139,10 @@ let run () =
   let header = (graph_leaf ()).header in
   (* the header names the route taken as a breadcrumb, scene / flower after the clicks above,
      and ends with the graph's context *)
-  let from = Bars.tools_from ("Graph "
-    ^ String.concat " / " (List.map String.trim (String.split_on_char '>' (dump_line !e "route"))) ^ " / sop") in
-  let tool t = match Bars.tool_rect ~header ~from t with
+  let ui = Pxui.Ui.create ~font_size:11 () in
+  let from = Pxui_shell.Chrome.tools_start ui ~focused:true ~floating:false ~collapsed:false
+    ("Graph\t" ^ String.concat " / " (List.map String.trim (String.split_on_char '>' (dump_line !e "route"))) ^ " / sop") in
+  let tool t = match Bars.tool_rect ui ~header ~from t with
     | Some (x, y, w, h) -> x +. (w /. 2.), y +. (h /. 2.) | None -> let hx, _, hw, _ = header in fail (Printf.sprintf "the toolbar is cut off (header %d+%d, tools from %.0f)" hx hw from) in
   let before = source !e in
   click (row_centre "heart");

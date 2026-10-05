@@ -111,8 +111,8 @@ module E = Rays_editor.Editor3
 
 (* The centre of a tab (Selection, Graph, Document) in the header over a text pane's body: the
    tabs end at [right], 12 points apart, in the test face's 7-point glyphs.  A graph panel in
-   text view keeps its own Graph / List / Text after them (171 points with the collapse
-   chevron); a Lisp panel only the chevron (32). *)
+   text view keeps its own Graph / List / Text after them (159 points with the collapse
+   button); a Lisp panel only the button (36: 8, 20 and 8). *)
 let tab_at ~right ~top index = float (right - 178 + List.nth [ 31; 92; 150 ] index), float (top - 12)
 
 let editor_text () =
@@ -151,7 +151,7 @@ let editor_text () =
   let original = ws () in
   let base = E.undo_label !env in
   let applied = Flow.Lisp.print original.source |> fst in
-  let tab_document = tab_at ~right:(gx + gw - 171) ~top:gy 2 in
+  let tab_document = tab_at ~right:(gx + gw - 159) ~top:gy 2 in
   let area = float (gx + 200), float (gy + 24 + 60) in
   let apply = float (gx + 32), float (gy + gh - 40) and discard = float (gx + 180), float (gy + gh - 40) in
   click tab_document;
@@ -196,7 +196,7 @@ let editor_text () =
   check (E.redo_label !env = Some "Edit text") "redo label";
   (* the Graph tab edits one graph through the same apply; Command-Enter is the button *)
   let original = ws () in
-  let tab_graph = tab_at ~right:(gx + gw - 171) ~top:gy 1 in
+  let tab_graph = tab_at ~right:(gx + gw - 159) ~top:gy 1 in
   click tab_graph;
   check (contains (dump ()) "graph tab, draft no") ("Graph tab\n" ^ dump ());
   let graph_text = (Rays_editor.Private.Text_pane.make_shown original.source "sunflower" None Graph).text in
@@ -452,10 +452,10 @@ let editor_w9 () =
       let events = match List.assoc_opt n script with
         | Some events -> events click
         | None -> match n with
-          | 4 -> click (900., 300.) | 6 -> [ Event.KeyPressed Input.ArrowDown ]
+          | 4 -> click (900., 304.) | 6 -> [ Event.KeyPressed Input.ArrowDown ]
           | 8 -> [ Event.KeyPressed (Input.KeyChar 'i') ]
           | 12 -> [ Event.MouseMoved (780., 380.); Event.MouseScrolled (0., 9.) ]
-          | 16 -> click (960., 466.)
+          | 16 -> click (960., 470.)
           | _ -> [] in
       let f : Frame.t = { width = 1400; height = 800; size = 1400, 800; drawable_width = 1400;
         drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
@@ -467,38 +467,38 @@ let editor_w9 () =
     Flow.Lisp.print ws.source |> fst, E.undo_label !env in
   let untouched, _ = scenario [] in
   check (contains untouched "^:bypass (sop/subdivide inner") "soft starts bypassed";
-  (* the flag *)
-  let text, label = scenario [ 22, (fun click -> click (1044., 208.)) ] in
+  (* the flag (a header is a 24-point row under a 4-point margin: every y in a panel is 4 points lower) *)
+  let text, label = scenario [ 22, (fun click -> click (1044., 212.)) ] in
   check (not (contains text "^:bypass") && label = Some "Bypass")
     (Printf.sprintf "the B flag: %s, bypass %b" (Option.value label ~default:"-") (contains text "^:bypass"));
   (* the inspector's Bypass toggle is the flag's request too *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1374., 217.)) ] in
+  let text, label = scenario [ 22, (fun click -> click (1075., 212.)); 26, (fun click -> click (1374., 221.)) ] in
   check (not (contains text "^:bypass") && label = Some "Bypass")
     (Printf.sprintf "the inspector's Bypass toggle: %s" (Option.value label ~default:"-"));
   (* and its name field is the pane's rename *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1290., 193.));
+  let text, label = scenario [ 22, (fun click -> click (1075., 212.)); 26, (fun click -> click (1290., 197.));
     28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "gentle" ]);
     32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "gentle ^:bypass (sop/subdivide" && not (contains text "soft ^:bypass") && label = Some "Rename")
     ("the inspector's name field: " ^ Option.value label ~default:"-");
   (* a graph input's default is edited in the inspector too *)
-  let text, label = scenario [ 22, (fun click -> click (700., 212.)); 26, (fun click -> click (1290., 121.));
+  let text, label = scenario [ 22, (fun click -> click (700., 216.)); 26, (fun click -> click (1290., 125.));
     28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "7" ]);
     32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "(petals : int 7)" && label = Some "Input default")
     ("the inspector's input default: " ^ Option.value label ~default:"-");
   (* the inspector note: click the field, type, Enter *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.)); 26, (fun click -> click (1290., 169.));
+  let text, label = scenario [ 22, (fun click -> click (1075., 212.)); 26, (fun click -> click (1290., 173.));
     28, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ -> [ Event.TextInput "a fresh note" ]);
     32, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "; a fresh note" && label = Some "Note") ("the note edit: " ^ Option.value label ~default:"-");
   (* the dialog: m over the selection, then Create macro *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.));
+  let text, label = scenario [ 22, (fun click -> click (1075., 212.));
     26, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click -> click (500., 461.)) ] in
   check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
     ("the make-macro dialog: " ^ Option.value label ~default:"-");
   (* Enter in the name field creates the macro too *)
-  let text, label = scenario [ 22, (fun click -> click (1075., 208.));
+  let text, label = scenario [ 22, (fun click -> click (1075., 212.));
     26, (fun _ -> [ Event.KeyPressed (Input.KeyChar 'm') ]); 30, (fun click -> click (700., 437.));
     34, (fun _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "(defmacro soft_tpl [p1 inner]" && label = Some "Make macro")
@@ -532,10 +532,10 @@ let editor_active_scrub () =
   let char c = Event.KeyPressed (Input.KeyChar c) in
   for _ = 1 to 4 do step [] done;
   let gx, gy, gw, gh = (E.panes !env (frame 0 [])).graph in
-  (* the Lisp panel sits under the graph: a splitter of one point and the 24-point header *)
-  let gy = gy + gh + 1 + 24 in
+  (* the Lisp panel sits under the graph: a splitter of one point, the 4-point margin and the 24-point header *)
+  let gy = gy + gh + 1 + 28 in
   (* the Document tab *)
-  let tab = tab_at ~right:(gx + gw - 32) ~top:gy 2 in
+  let tab = tab_at ~right:(gx + gw - 36) ~top:gy 2 in
   at tab [ Event.MouseMoved tab ];
   at tab [ Event.MousePressed (Input.LeftButton, tab); Event.MouseReleased (Input.LeftButton, tab) ]; step [];
   let printed = Flow.Lisp.print (E.workspace !env).source |> fst in
@@ -591,13 +591,13 @@ let editor_text_drop () =
   let source () = Flow.Lisp.print (E.workspace !env).source |> fst in
   for _ = 1 to 4 do step [] done;
   let gx, gy, gw, gh = (E.panes !env (frame 0 [])).graph in
-  let top = gy + gh + 1 + 24 in
+  let top = gy + gh + 1 + 28 in
   let click point = at point [ Event.MouseMoved point ];
     at point [ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ];
     step [] in
   (* the Graph tab, graph b open, graph a held *)
   jump "b";
-  click (tab_at ~right:(gx + gw - 32) ~top 1);
+  click (tab_at ~right:(gx + gw - 36) ~top 1);
   jump "a";
   step [ char 'y' ]; step [];
   check (E.carrying !env = Some ("sop", "(ref a)")) "y holds graph a";
@@ -646,7 +646,7 @@ let editor_text_drop () =
   check (contains (line ()) "unapplied draft") ("a draft refuses: " ^ line ());
   step [ key Input.Escape ]; step [];
   (* the Document tab: the whole text is checked and installed *)
-  click (tab_at ~right:(gx + gw - 32) ~top 2);
+  click (tab_at ~right:(gx + gw - 36) ~top 2);
   let original = E.workspace !env in
   jump "a"; step [ char 'y' ]; step [];
   let over = point Rays_editor.Private.Text_pane.Document "(sop/merge" ~after:10 in

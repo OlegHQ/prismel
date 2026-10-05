@@ -361,7 +361,8 @@ let colour_popup ui ~at text (a, b) =
     Ui.within ui box (fun () ->
       let swatch = Ui.box ui ~at:(cx, cy) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) "text-colour-swatch" in
       Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-        Ui.Paint.rect paint ~x:sx ~y:sy ~w:sw ~h:sh ~fill:colour ~stroke:(Pxui.Theme.edge theme) ());
+        Ui.Paint.fill paint ~x:sx ~y:sy ~w:sw ~h:sh colour;
+        Ui.Paint.stroke paint ~x:(sx +. 0.5) ~y:(sy +. 0.5) ~w:(sw -. 1.) ~h:(sh -. 1.) (Pxui.Theme.edge theme));
       let hex_x = cx +. 28. in
       let typed, _ = Ui.value_field ui ~at:(hex_x, cy) ~w:64. ~h:20. ~left:true
           ~valid:(fun t -> Result.is_ok (Color.hex t)) "text-colour-hex" shown in
@@ -405,7 +406,8 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
    | Some index -> emit (Tab (fst (List.nth tabs index)))
    | None -> ());
   let bar = 32. in
-  let footer = bar +. row in
+  (* a hairline, the 32-point button bar, a hairline and the 24-point status row *)
+  let footer = bar +. row +. 2. in
   let body_y = y in
   let body_h = Float.max row height in
   let language = Lisp_text.language ~vocab ~names ~parinfer:state.parinfer theme in
@@ -456,25 +458,52 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
       (fun paint (x, y, w, h) -> Ui.Paint.fill paint ~x ~y ~w ~h (Pxui.Theme.edge theme)) in
     rule "-rule" ty;
     (* Command-Enter in the area is the button: the one outlined button of the panel *)
-    let apply_w = Pxui_shell.Kit.button_width ui ~hint:"\xe2\x8c\x98\xe2\x86\xb5" "Check and apply" in
-    if (Pxui_shell.Kit.button ui ~key:(key ^ "-apply") ~at:(x +. 12., ty +. 6.) ~w:apply_w ~primary:true
-          ~enabled:can_apply ~hint:"\xe2\x8c\x98\xe2\x86\xb5" "Check and apply")
+    let hint = "\xe2\x8c\x98\xe2\x86\xb5" in
+    let apply_w = Pxui_shell.Kit.button_width ui ~hint "Check and apply" in
+    let by = ty +. 1. +. ((bar -. 20.) /. 2.) in
+    if (Pxui_shell.Kit.button ui ~key:(key ^ "-apply") ~at:(x +. 12., by) ~w:apply_w ~primary:true
+          ~enabled:can_apply ~hint "Check and apply")
        || (submitted && can_apply)
     then emit (apply text');
-    if Pxui_shell.Kit.button ui ~key:(key ^ "-discard") ~at:(x +. 12. +. apply_w +. 8., ty +. 6.)
-         ~w:(Pxui_shell.Kit.button_width ui "Discard") ~enabled:can_apply "Discard"
+    if Pxui_shell.Kit.button ui ~key:(key ^ "-discard") ~at:(x +. 12. +. apply_w +. 8., by)
+         ~w:(Pxui_shell.Kit.button_width ui ~hint:"esc" "Discard") ~enabled:can_apply ~hint:"esc" "Discard"
     then emit discard;
-    rule "-rule2" (ty +. bar);
+    (* parinfer and its switch, at the bar's end *)
+    let switch_x = x +. width -. 12. -. 28. in
+    if Pxui_shell.Kit.switch ui ~key:(key ^ "-parinfer") ~at:(switch_x, ty +. 1. +. ((bar -. 14.) /. 2.)) state.parinfer
+    then emit Toggle_parinfer;
+    Ui.draw ui (Ui.box ui ~w:(Ui.Px 80.) ~h:(Ui.Px bar) ~at:(switch_x -. 8. -. 80., ty +. 1.) (key ^ "-parinfer-label"))
+      (fun paint (x, y, w, h) ->
+        let label = "parinfer" in
+        Ui.Paint.text paint ~at:(x +. w -. Ui.Paint.text_width paint label, Pxui_shell.Kit.text_y ui y h)
+          ~color:(Pxui.Theme.ink_2 theme) label);
+    rule "-rule2" (ty +. 1. +. bar);
     let wrong = errors <> [] in
-    let msg = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px width) ~h:(Ui.Px row) ~at:(x, ty +. bar) (key ^ "-message") in
-    Ui.draw ui msg (fun paint (x, y, _, h) ->
-      (* the state as a dot: the error colour, the accent for a draft *)
+    let msg = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px width) ~h:(Ui.Px row) ~at:(x, ty +. bar +. 2.) (key ^ "-message") in
+    Ui.draw ui msg (fun paint (x, y, w, h) ->
+      (* the state: a dot in the error colour or the accent for a draft, then what it says; the
+         first error is "n errors" in the error colour and its line and message in ink-2 *)
       let tx = if wrong || can_apply then begin
           Ui.Paint.circle paint ~at:(x +. 15., y +. (h /. 2.)) ~radius:3.
             ~fill:(if wrong then Pxui.Theme.invalid else theme.accent) (); x +. 26.
         end else x +. 12. in
-      Ui.Paint.text paint ~at:(tx, Pxui_shell.Kit.text_y ui y h)
-        ~color:(if wrong then Pxui.Theme.invalid else Pxui.Theme.muted theme) message);
+      let tail = if can_apply then Pxui_shell.Kit.cap_width ui "modified" +. 20. else 12. in
+      let ty = Pxui_shell.Kit.text_y ui y h in
+      (match errors with
+       | (first : Flow.Diagnostic.t) :: _ ->
+           let count = Printf.sprintf "%d error%s" (List.length errors) (if List.length errors = 1 then "" else "s") in
+           Ui.Paint.text paint ~at:(tx, ty) ~color:(Pxui.Theme.invalid) count;
+           let dx = tx +. Ui.Paint.text_width paint count +. 8. in
+           let detail = (match line_of text first with Some l -> Printf.sprintf "line %d \xc2\xb7 " l | None -> "")
+             ^ String.map (function '\n' -> ' ' | c -> c) (Flow.Diagnostic.to_string first) in
+           Ui.Paint.text paint ~at:(dx, ty) ~color:(Pxui.Theme.ink_2 theme)
+             (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(x +. w -. tail -. dx) detail)
+       | [] ->
+           Ui.Paint.text paint ~at:(tx, ty) ~color:(Pxui.Theme.ink_2 theme)
+             (Ui.ellipsis ~width:(Ui.Paint.text_width paint) ~limit:(x +. w -. tail -. tx) message));
+      if can_apply then
+        Ui.Paint.cap paint ~at:(x +. w -. 12. -. Pxui_shell.Kit.cap_width ui "modified", Pxui_shell.Kit.cap_y ui y h)
+          "modified");
     (match state.menu with
      | None -> ()
      | Some at ->
@@ -489,13 +518,10 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
           | `Pick 1 -> emit (Menu None); emit discard
           | `Pick 3 -> emit (Menu None); emit Toggle_wrap
           | `Pick _ -> emit (Menu None); emit Toggle_parinfer)) in
-  let fit text =
-    let limit = max 8 (int_of_float ((width -. 40.) /. 7.)) in
-    if String.length text <= limit then text else String.sub text 0 (limit - 3) ^ "..." in
-  let message errors ~dirty ~clean = fit (match real_errors errors with
+  let message errors ~dirty ~clean = match real_errors errors with
     | d :: _ -> String.map (function '\n' -> ' ' | c -> c) (Flow.Diagnostic.to_string d)
     | [] -> if dirty then "Unapplied draft. Every other pane shows the last applied document."
-        else clean) in
+        else clean in
   (match state.tab with
    | Document ->
        let text = Option.value ~default:applied state.draft in

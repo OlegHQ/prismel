@@ -194,17 +194,26 @@ let run () =
     step [Event.MousePressed (Input.LeftButton, point);
       Event.MouseReleased (Input.LeftButton, point)] 9;
     let x,y,w,h = (E2.panes !current (Test_editor_input.frame (100.,300.) [] 9)).status in
-    let hide = float (x+w-21), float (y+h/2) in
-    current := E2.update !current (Test_editor_input.frame hide [Event.MouseMoved hide] 10);
-    current := E2.update !current (Test_editor_input.frame hide
-      [Event.MousePressed (Input.LeftButton, hide); Event.MouseReleased (Input.LeftButton, hide)] 11);
+    (* the strip's "? toggle guide" pair is the Hide control: press along the strip until the
+       preference is off (the pair sits after the file, its state, the status and the kind) *)
+    let off () = Editor_core.Store.Settings.load ~sketch:"rays-editor" filename
+      |> Result.get_ok |> fun values -> Editor_core.Store.Settings.bool values "guide" = Some false in
+    let count = ref 10 in
+    let at = ref (x + 4) in
+    while not (off ()) && !at < x + w - 60 do
+      let hide = float !at, float (y + (h / 2)) in
+      current := E2.update !current (Test_editor_input.frame hide [Event.MouseMoved hide] !count);
+      current := E2.update !current (Test_editor_input.frame hide
+        [Event.MousePressed (Input.LeftButton, hide); Event.MouseReleased (Input.LeftButton, hide)] (!count + 1));
+      count := !count + 2; at := !at + 6
+    done;
     let values = Editor_core.Store.Settings.load ~sketch:"rays-editor" filename |> Result.get_ok in
     check (Editor_core.Store.Settings.bool values "guide" = Some false
       && Editor_core.Store.Settings.int values "other" = Some 7)
       "Hide did not save off or discarded another preference";
     let contents = "invalid saved preferences" in
     Out_channel.with_open_bin filename (fun out -> output_string out contents);
-    step [char '?'] 12;
+    step [char '?'] (!count + 1);
     check (In_channel.with_open_bin filename In_channel.input_all = contents)
       "guide toggle overwrote an unreadable preference file";
     E2.crash_dump !current directory;

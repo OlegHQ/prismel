@@ -90,11 +90,13 @@ let () =
        || p.status <> status || p.timeline <> timeline then
       failwith (Printf.sprintf "default layout changed at %dx%d" w h) in
   let module L = Pxui_shell.Layout in
-  golden (800, 600) [L.Timeline] ((0, 24, 359, 552), 279, 160, (0, 576, 800, 24), (0, 576, 800, 0));
-  golden (1280, 800) [L.Timeline; Graph] ((0, 24, 885, 752), 0, 394, (0, 776, 1280, 24), (0, 776, 1280, 0));
-  golden (1920, 1080) [L.View "main"] ((0, 24, 24, 1008), 1205, 689, (0, 1056, 1920, 24), (0, 1032, 1920, 24));
-  golden (1000, 300) [L.Inspector] ((0, 24, 561, 228), 438, 0, (0, 276, 1000, 24), (0, 252, 1000, 24));
-  golden (500, 400) [L.Timeline] ((0, 24, 224, 352), 174, 100, (0, 376, 500, 24), (0, 376, 500, 0));
+  (* a header is a 4-point margin and a 24-point row: the bodies start at 28; the status strip is a
+     hairline and a 24-point bar, the strip under a tree without a timeline the same *)
+  golden (800, 600) [L.Timeline] ((0, 28, 359, 547), 279, 160, (0, 575, 800, 25), (0, 575, 800, 0));
+  golden (1280, 800) [L.Timeline; Graph] ((0, 28, 885, 747), 0, 394, (0, 775, 1280, 25), (0, 775, 1280, 0));
+  golden (1920, 1080) [L.View "main"] ((0, 28, 24, 1002), 1205, 689, (0, 1055, 1920, 25), (0, 1030, 1920, 25));
+  golden (1000, 300) [L.Inspector] ((0, 28, 561, 222), 438, 0, (0, 275, 1000, 25), (0, 250, 1000, 25));
+  golden (500, 400) [L.Timeline] ((0, 28, 224, 347), 174, 100, (0, 375, 500, 25), (0, 375, 500, 0));
   (* every tree covers the area above the timeline exactly once, gutters included *)
   let views n = L.Tile (List.init n (fun i -> L.Leaf (L.View (string_of_int i)))) in
   let trees = [
@@ -116,8 +118,12 @@ let () =
         if i >= 0 && j >= 0 && i < w && j < h then seen.(i).(j) <- seen.(i).(j) + 1
         else failwith (name ^ ": a rectangle leaves the frame") done done in
       List.iter (fun (l : L.leaf) ->
-        let hx, hy, hw, hh = l.header and bx, by, bw, bh = l.body in
-        cover (hx, hy, hw, hh); cover (bx, by, bw, bh)) g.leaves;
+        (* the frame is the margin, the header row and the body, once *)
+        let fx, fy, fw, fh = l.frame and hx, hy, hw, hh = l.header and bx, by, bw, bh = l.body in
+        if (hx, hw) <> (fx, fw) || (bx, bw) <> (fx, fw) || hy < fy || by <> hy + hh || by + bh > fy + fh
+           || (not l.floating && (hy - fy) + hh + bh <> fh && bh > 0) then
+          failwith (name ^ ": a leaf's header and body do not tile its frame");
+        cover l.frame) g.leaves;
       cover g.status_at;
       List.iter (fun (s : L.splitter) -> cover s.bounds) g.splitters;
       Array.iter (Array.iter (fun n -> if n <> 1 then
@@ -131,7 +137,7 @@ let () =
   (match List.map (fun (l : L.leaf) -> l.panel) g.leaves, List.rev g.leaves with
    | [ Graph; Inspector ], { body = bx, by, bw, bh; _ } :: _ ->
        let gx, _, gw, _ = (Option.get (L.find g Graph)).body in
-       if gx <> 0 || gw <> 1000 || bx <= 0 || bx + bw >= 1000 || by <= 24 || bh <= 0 then
+       if gx <> 0 || gw <> 1000 || bx <= 0 || bx + bw >= 1000 || by <= 28 || bh <= 0 then
          failwith "a float is not an inset overlay over a full-size sibling"
    | _ -> failwith "float leaves are not last");
   (* fixed sides keep their points at every window size (flow.md 11.11): the outline column,
@@ -145,17 +151,17 @@ let () =
   List.iter (fun (w, h) ->
     let g = L.geometry ~hidden:[] target { frame with width = w; height = h; size = w, h } in
     let whole panel = match List.find_opt (fun (l : L.leaf) -> l.panel = panel) g.leaves with
-      | Some { header = x, y, w, hh; body = _, _, _, bh; _ } -> x, y, w, hh + bh
+      | Some { frame; _ } -> frame
       | None -> failwith "the target lost a panel" in
     let expect what got want = if got <> want then failwith (Printf.sprintf "target at %dx%d: %s" w h what) in
-    let tree = h - 24 in
+    let tree = h - 25 in
     expect "outline" (whole Outline) (0, 0, 216, tree);
     expect "viewport" (whole (View "main")) (217, 0, w - 216 - 320 - 2, tree - 336 - 24 - 2);
     expect "timeline" (whole Timeline) (217, tree - 336 - 24 - 1, w - 216 - 320 - 2, 24);
     expect "graph" (whole Graph) (217, tree - 336, w - 216 - 320 - 2, 336);
     expect "inspector" (whole Inspector) (w - 320, 0, 320, tree - 300 - 1);
     expect "lisp" (whole Lisp) (w - 320, tree - 300, 320, 300);
-    expect "status" g.status_at (0, tree, w, 24);
+    expect "status" g.status_at (0, tree, w, 25);
     expect "no second timeline strip" g.timeline_at (0, tree, w, 0);
     (match List.find_opt (fun (l : L.leaf) -> l.panel = Timeline) g.leaves with
      | Some { header = _, _, _, 0; _ } -> ()
@@ -166,12 +172,34 @@ let () =
   let widths w = List.map (fun (l : L.leaf) -> let _, _, lw, _ = l.header in lw)
     (L.geometry narrow { frame with width = w; height = 300; size = w, 300 }).leaves in
   if widths 300 <> [ 119; 180 ] || widths 100 <> [ 1; 98 ] then failwith "a fixed side did not yield";
-  (* a collapsed panel in a stack is its 24-point header, with no gap under it *)
+  (* a collapsed panel in a stack is its 24-point header, with no margin over it; the next panel's
+     header sits under its own 4-point margin *)
   let stack = fixed `V (`Ratio 0.5) (Leaf Inspector) (Leaf Lisp) in
   (match (L.geometry stack wide_frame
       ~state:(fun path -> { Editor_core.Panels.default_state with collapsed = path = [ 0 ] })).leaves with
-   | [ { header = _, 0, _, 24; body = _, _, _, 0; _ }; { header = _, 25, _, _; _ } ] -> ()
+   | [ { header = _, 0, _, 24; body = _, _, _, 0; _ }; { header = _, 29, _, _; _ } ] -> ()
    | _ -> failwith "a collapsed strip in a stack is not its header");
+  (* a header is a 24-point row under a 4-point margin; a docked timeline under 90 points is its
+     strip alone, a taller one has a header like any panel (timeline.html) *)
+  (match (L.geometry (fixed `V (`Second 97) (Leaf (View "main")) (Leaf Timeline)) ~hidden:[] wide_frame).leaves with
+   | [ _; { panel = Timeline; frame = fx, fy, fw, 97; header = hx, hy, hw, 24; body = bx, by, bw, bh; _ } ] ->
+       if (hx, hy, hw) <> (fx, fy + 4, fw) || (bx, by, bw) <> (fx, fy + 28, fw) || bh <> 97 - 28 then
+         failwith "a tall timeline's header and body are not under the 4-point margin"
+   | _ -> failwith "a tall timeline has no header row");
+  (match (L.geometry (fixed `V (`Second 24) (Leaf (View "main")) (Leaf Timeline)) ~hidden:[] wide_frame).leaves with
+   | [ _; { panel = Timeline; header = _, _, _, 0; body = _, _, _, 24; _ } ] -> ()
+   | _ -> failwith "a 24-point timeline is not its strip");
+  (* where a header's tools begin: after the title, 8, the 1-point rule between 4-point margins, 8;
+     the focus square adds 12; a window sets its path in the label size *)
+  let tools_ui = Pxui.Ui.create ~font_size:11 () in
+  let from ?(focused = false) ?(floating = false) text =
+    Pxui_shell.Chrome.tools_start tools_ui ~focused ~floating ~collapsed:false text in
+  if abs_float (from ~focused:true "Graph\tgarden / sop" -. from "Graph\tgarden / sop" -. 12.) > 1e-6
+     || from "Graph\tgarden / sop" <= from "Graph" +. 25. then
+    failwith "a header's tools do not start after its focus square, title and breadcrumb";
+  if abs_float (from "Graph" -. (12. +. Pxui_shell.Kit.cap_width tools_ui "Graph" +. 25.)) > 1e-6 then
+    failwith "a title alone is not 12 in, its label and 25 to the tools";
+  Pxui.Ui.destroy tools_ui;
   (* a nested split takes its share of what its parent leaves it *)
   (match (L.geometry (L.Split { axis = `V; size = `Ratio 0.25; a = Leaf Graph; b = Leaf Lisp })
       wide_frame).leaves with
@@ -218,13 +246,14 @@ let () =
    | [ Pxui_shell.Chrome.Resize { node = []; size = `Ratio r }; Settled ] when Float.abs (r -. (679.5 /. 999.)) < 1e-6 -> ()
    | _ -> failwith "the gutter menu did not size the split by its ratio");
   (* the header menu of a panel ends with the same three rows for the split that holds it (the
-     rules above them are 9 points: By ratio is at 372, each next one 24 lower) *)
+     rules above them are 9 points: By ratio is at 376, each next one 24 lower; the menu opens under
+     the header row, which ends at 28) *)
   let header_pick row =
     let at = 800., 10. in
     ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
     ignore (chrome sized ~mouse:at [Event.MousePressed (Input.RightButton, at)]);
     ignore (chrome sized ~mouse:at [Event.MouseReleased (Input.RightButton, at)]);
-    let at = 700., 372. +. 24. *. float row in
+    let at = 700., 376. +. 24. *. float row in
     ignore (chrome sized ~mouse:at [Event.MouseMoved at]);
     chrome sized ~mouse:at [Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at)] in
   (match header_pick 1 with
@@ -236,10 +265,10 @@ let () =
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseMoved (600., 10.)]);
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MousePressed (Input.RightButton, (600., 10.))]);
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseReleased (Input.RightButton, (600., 10.))]);
-  ignore (chrome L.default ~mouse:(470., 34.) [Event.MouseMoved (470., 34.)]);
-  let pick = [Event.MousePressed (Input.LeftButton, (470., 34.));
-    Event.MouseReleased (Input.LeftButton, (470., 34.))] in
-  (match chrome L.default ~mouse:(470., 34.) pick with
+  ignore (chrome L.default ~mouse:(470., 38.) [Event.MouseMoved (470., 38.)]);
+  let pick = [Event.MousePressed (Input.LeftButton, (470., 38.));
+    Event.MouseReleased (Input.LeftButton, (470., 38.))] in
+  (match chrome L.default ~mouse:(470., 38.) pick with
    | [ Pxui_shell.Chrome.Split_panel ([ 1; 0 ], `H) ] -> ()
    | intents -> failwith (Printf.sprintf "the header menu did not split the graph panel (%d intents)" (List.length intents)));
   let collapse = [Event.MousePressed (Input.LeftButton, (985., 10.));
@@ -255,12 +284,12 @@ let () =
   let ui = Pxui.Ui.create ~font_size:11 () in
   let intents = Pxui.Ui.frame ui frame (fun ui ->
     Pxui_shell.Timeline_bar.draw ui ~bounds:(0, 270, 400, 30)
-      ~playing:false ~frame:12L ~time:0.2 ~max_frame:240) in
+      ~playing:false ~frame:12L ~time:0.2 ~max_frame:240 ()) in
   if intents <> [] then failwith "idle timeline emitted a playback request";
   (* the frame field: found by pressing along the strip until a control takes the keyboard *)
   let bar ?(mouse = 0., 0.) events = Pxui.Ui.frame ui { frame with events; mouse } (fun ui ->
     Pxui_shell.Timeline_bar.draw ui ~bounds:(0, 270, 400, 30)
-      ~playing:false ~frame:12L ~time:0.2 ~max_frame:240) in
+      ~playing:false ~frame:12L ~time:0.2 ~max_frame:240 ()) in
   let press p = ignore (bar ~mouse:p [ Event.MouseMoved p ]);
     ignore (bar ~mouse:p [ Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p) ]);
     ignore (bar ~mouse:p []) in
