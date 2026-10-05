@@ -748,3 +748,26 @@ let bench_scope_pane () =
   time "orrery pane, live records" (live_view (Some 0.)) (fun view ui f ->
     t := !t +. 0.016;
     Scope.update (Scope.with_records (Flow_sop.Probe.make ~time:!t evaluated) view) ui f)
+
+(* 2,001 nodes in one scope: laying it out and painting a frame.  Command:
+   dune exec test/test_main.exe -- bench_scope_big *)
+let bench_scope_big () =
+  let n = 2001 in
+  let b = Buffer.create 65536 in
+  Buffer.add_string b "(workspace big (graph g :context sop (let* [n0 (sop/box)";
+  for i = 1 to n - 1 do
+    Printf.bprintf b " n%d (sop/transform n%d :translate [%d 0 0])" i (if i mod 7 = 0 then i / 2 else i - 1) i
+  done;
+  Printf.bprintf b "] n%d)))" (n - 1);
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog (Buffer.contents b) |> Result.get_ok in
+  let scope = P.of_graph scope_catalog ws.checked "g" in
+  let ui = Pxui.Ui.create ~font_size:11 () in
+  let time label runs f =
+    let started = Unix.gettimeofday () in
+    for _ = 1 to runs do ignore (Sys.opaque_identity (f ())) done;
+    Printf.printf "%-28s %.3f ms\n%!" label ((Unix.gettimeofday () -. started) *. 1000. /. float runs) in
+  time "2001 nodes: with_scope" 5 (fun () -> Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope);
+  let view = ref (Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope) in
+  for _ = 1 to 5 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
+  time "2001 nodes: frame" 100 (fun () ->
+    view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))); ())

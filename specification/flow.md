@@ -353,6 +353,10 @@ The inactive `b` input of unary Math keeps its literal and drives. It is
 hidden after rules 2–3 unless explicitly pinned; changing `op` never deletes
 its data. Full shows it dimmed when neither driven nor pinned.
 
+The canvas card applies rules 1 to 4 and 6: a primary row (rule 5) that is neither wired nor written stays
+behind `+ N more` so that the fixture's layout shows its cards at zoom 1 as `workspace.html` does; `Exposure.shown`
+still takes `primary`, and Full, the list and the inspector show it.
+
 Level `full` shows every row, grouped under folder headers in schema order,
 with rows that fail the rule drawn dimmed, and ends with `− show fewer`.
 Compound nodes and the Inputs/Outputs nodes show every interface row.
@@ -405,7 +409,8 @@ place the consumer between its input branches. Shared sources are placed once.
 Independent outputs get separate bands. Keep at least 36 points between cards
 in a column, 60 between input branches, and 96 between independent outputs;
 x = column × (W + 60), with
-positions snapped to 12. Ascending id keeps disconnected nodes deterministic.
+positions on the 24-point dot lattice (Package B: a card's top-left corner is on a dot; a card whose header
+in-port reads another card lines up with it). Ascending id keeps disconnected nodes deterministic.
 Reserve the requested card/full height regardless of the current zoom cap;
 re-layout at point/chip zoom must leave space for the cards on zoom-in.
 Align unary chains at their header sockets. Re-layout clears old bend points
@@ -542,7 +547,7 @@ context (§7.11).
 | `h` `j` `k` `l`, arrows | `graph.walk.left/down/up/right` | walk (§7.6) | M2 |
 | `Tab` | `graph.add` | add by context (§7.3) | M2 |
 | `.` | `graph.repeat` | repeat the last add (§7.4) | M2 |
-| `c` | `graph.connect-hint` | connect by letter hints (§7.5) | M2 |
+| `f` | `scope.hints` | connect by letter hints (§7.5); the sheet's status bar says `f hints` (`c` stays collapse) | Package B |
 | `b` | `graph.bind` | bind by hints; on a selected wire, toggle wireless | M4 |
 | `o` | `graph.open` | open the selection one level, pinning | M1 |
 | `p` | `graph.point` | selection to points, or back to its previous level | M1 |
@@ -553,7 +558,7 @@ context (§7.11).
 | `x`, Delete, Backspace | `graph.delete` | delete selection or selected wire | M2 (Delete/Backspace exist) |
 | `⇧X` | `graph.dissolve` | delete and reconnect the trunk | M2 |
 | `/` | `graph.find` | find a node by name in the current level | M2 |
-| `f` | `scope.frame-selection` | pan and zoom the pane to the selection (all with none); in the list `f` reveals the selection | Gap A |
+| `⇧F` | `scope.frame-selection` | pan and zoom the pane to the selection (all with none); in the list `f` reveals the selection | Gap A (moved from `f` by Package B) |
 | Home | `graph.frame-all` | frame all (exists) | – |
 | `w` | `graph.show-wireless` | show every wireless wire | M4 |
 | `=` | `row.expression` | expression on the hovered row | M4 |

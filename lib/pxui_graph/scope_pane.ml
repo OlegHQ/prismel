@@ -140,6 +140,22 @@ let blockers grid ~excl p q =
   done;
   !found
 
+(* is anything in the way?  The same walk, stopping at the first card *)
+exception Blocked
+let is_blocked grid ~excl p q =
+  let x0, y0 = p and x1, y1 = q in
+  let c v = int_of_float (Float.floor (v /. grid.cell)) in
+  try
+    for cx = c (Float.min x0 x1) to c (Float.max x0 x1) do
+      for cy = c (Float.min y0 y1) to c (Float.max y0 y1) do
+        List.iter (fun o ->
+          if not (List.mem o.path excl) && crosses p q o ~margin:2. then raise Blocked)
+          (Option.value ~default:[] (Hashtbl.find_opt grid.cells (cx, cy)))
+      done
+    done;
+    false
+  with Blocked -> true
+
 let length pts =
   let rec go acc = function
     | (x0, y0) :: ((x1, y1) :: _ as rest) -> go (acc +. Float.hypot (x1 -. x0) (y1 -. y0)) rest
@@ -152,7 +168,7 @@ let length pts =
 let route grid ~excl ((ax, ay) as a) ((bx, by) as b) =
   let free pts =
     let rec go = function
-      | p :: (q :: _ as rest) -> blockers grid ~excl p q = [] && go rest
+      | p :: (q :: _ as rest) -> (not (is_blocked grid ~excl p q)) && go rest
       | _ -> true in
     go pts in
   if bx > ax +. 8. && free [ a; b ] then [ a; b ] else begin

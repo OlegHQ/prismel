@@ -681,12 +681,15 @@ and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?
   let cols = Array.fold_left max 0 lvl + 1 in
   (* column 0 lists the nodes before the graph inputs, so the first chain is the top row *)
   let order k = match arr.(k) with (Input _, _, _, _, _) -> 1 | _ -> 0 in
+  (* the items of each column, in item order *)
+  let by_level = Array.make cols [] in
+  for k = Array.length arr - 1 downto 0 do by_level.(lvl.(k)) <- k :: by_level.(lvl.(k)) done;
   let origin_x = if inner then 0. else lattice and origin_y = if inner then 0. else lattice in
   let placed = ref [] and x = ref origin_x and w = ref 0. and h = ref 0. in
   let pos_of = Hashtbl.create 16 in
   for l = 0 to cols - 1 do
     let y = ref origin_y and cw = ref 0. in
-    let members = List.filter (fun k -> lvl.(k) = l) (List.init (Array.length arr) Fun.id) in
+    let members = by_level.(l) in
     let members = if l = 0 then List.stable_sort (fun a b -> compare (order a) (order b)) members else members in
     List.iter (fun k ->
       let it, path, _, names, head_src = arr.(k) in

@@ -62,7 +62,9 @@ Compound bodies hide the display flag; `v` reports that display belongs to
 the enclosing SOP network. Double-click entry follows current instance data.
 Rules that hold throughout:
 
-- Wires are polylines drawn with `Ui.line`; no curves after M1.
+- Wires are straight segments, port to port, 1.5 points in the source port's colour, drawn with `Ui.line`; a wire
+  that would pass under a card is a two-or-more segment polyline bent clear of it (a 5-point square marks each
+  bend, `route` in `scope_pane.ml`). `:wires "rect"` keeps the old orthogonal routing. No curves.
 - New interactions return new `change` cases; `Rays_editor.Doc.apply` is
   the only reducer, and each gesture is one history entry (`flow.md` §4.3).
 - Layout (positions, levels, pins, splits, bends, wireless) is document data
@@ -141,3 +143,29 @@ path `[graph]`. The host decides whether the place takes the payload (it runs th
 and hands the answer back with `with_carry ~lit ~hot`: `lit` are the letters of the key route's places
 (nodes, or the canvas), `hot` the place under the pointer and whether it takes the payload; the pane only
 outlines them. Never match a node's operation here, and never emit a `Syntax_edit` for a drop.
+
+## Sheet structure (Package B, round 2)
+
+The pane's structure is `graph.html`'s, not only its card internals:
+
+- **Levels.** `Projection.level` Point / Chip / Card / Full is layout data stored by path (`Layout_by_path.level`,
+  `pinned`) and travels as `Level_set` through `Doc.layout_edit`, one history entry per gesture. `o` opens the
+  selection one level and pins it, `p` points it or goes back, `⇧O` / `⇧P` do it for every node; a click on
+  `+ N more` opens the card. The layout reserves the requested level's size; the pane draws less below the zoom caps
+  (point under 0.34, chip under 0.5) unless pinned. A card's body is `P.placed.lines` (`Projection.lines`): the rows
+  `Flow_sop.Exposure.shown` lets through (wired or written; the schema's primary rows are not applied on the card, see
+  flow.md 5.1), then `+ N more`; Full lists every row under its folder label rows. Index rows through `lines`
+  (`line_of_row`), never through `n.rows`.
+- **Header in-port.** The first geometry slot of a node kind (`row.head`) is the header's in-port at (1, 13), not a row;
+  connecting, disconnecting, hover and the drop target work on it (`row_at ~header`).
+- **Value cards.** A literal binding (`Projection.value_card`) is the header-only card: name, the value field, out port.
+- **Lattice.** Cards and columns sit on the 24-point dot lattice (`Projection.lattice`, `snap`); a zone's cards, not its
+  edge, are on it. `Moved` and `scope_point` snap to it.
+- **Zones.** A plain `for` is the tint, a 1-point edge, the label row (`FOR`, binder, `in <source>`) and the selector at
+  top + 3; cards inside are wired across the edge. What a loop needs beyond that is drawn only when used: the
+  collection's in-port at the label row when a name feeds it, the loop variable's out-port at (12, 36) when something
+  reads it, accumulators and further variables as rows under the label row (`Projection.extra_rails`, out-port at the
+  row's right end), the zone's own out-port at the right of the label row, and a fold's feedback as a dashed wire.
+- **Failed node.** `Scope.with_failed` paths with codes; the host (`Core.failed_nodes`) maps a failed cook's node id to
+  paths through the probe plan. **Letter hints.** `f` (`Show_hints`) labels every node the selected output can connect
+  to; `⇧F` frames the selection. 1-point frames are drawn inside the box (`frame_in`), never as a centred stroke.
