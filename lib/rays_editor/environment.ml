@@ -78,6 +78,7 @@ module type VIEWPORT = sig
   (** The active viewport's header controls: looking through its camera, and its renderer (0 solid,
       1 wire, 2 traced); none for a view without them. *)
   val caption : extra -> key:string -> string option
+  val trace : extra -> key:string -> ((int * int) * int * int * int) option  (* film, samples, cap, bounces *)
   (** A traced viewport's header text: resolution, film step and samples. *)
   val render_status : extra -> string option
   val paint : extra -> key:string -> Pxui_shell.Layout.bounds -> view -> rendered -> Scene.t
@@ -846,6 +847,16 @@ module Make (V : VIEWPORT) = struct
             (V.screen_box (camera_of rendering key) ~bounds:(V.film extra ~key:(look_key rendering key) bounds) ~world box))) } in
     let core = { core with Core.captions = List.filter_map (fun (key, _) ->
       Option.map (fun caption -> key, caption) (V.caption extra ~key:(look_key rendering key))) bodies } in
+    (* the render clock: a restart of the samples starts it, reaching the cap stops it *)
+    let core = { core with Core.traces = List.filter_map (fun (key, _) ->
+      Option.map (fun (film, samples, cap, bounces) ->
+        let now = frame.Frame.time in
+        let seconds, since = match List.assoc_opt key value.core.Core.traces with
+          | Some (t : Core.trace) when samples >= t.samples && t.film = film ->
+              (if t.samples >= cap then t.seconds else now -. t.since), t.since
+          | _ -> 0., now in
+        key, { Core.film; samples; cap; bounces; seconds; since })
+        (V.trace extra ~key:(look_key rendering key))) bodies } in
     let map = match baked, value.map with
       | Some baked, Some (source, image) when baked == source || not core.Core.map_view ->
           ignore baked; Some (source, image)

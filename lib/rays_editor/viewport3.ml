@@ -374,13 +374,24 @@ let gated extra key =
 
 let film extra ~key (x, y, width, height) =
   if not (gated extra key) then x, y, width, height else
-  (* the sheets keep the frame clear of the label row above it (40 points) and of the readouts'
+  let { settings; _ } = look extra key in
+  let aspect = float settings.width /. float (max 1 settings.height) in
+  if width < 1000 && width > 160 && height > 160 then begin
+    (* the workspace sheet's frame (640 x 360 in 902 x 485): a side margin of 14.6 percent of the
+       body, 32 above, and clear of the gizmo (76 over the foot) and the readout row *)
+    let side = int_of_float (Float.round (0.1463 *. float width)) in
+    let top = 32 and bottom = 93 in
+    let avail_w = width - (2 * side) and avail_h = max 1 (height - top - bottom) in
+    let w = min avail_w (int_of_float (Float.round (float avail_h *. aspect))) in
+    let h = min avail_h (int_of_float (Float.round (float avail_w /. aspect))) in
+    let w = max 1 w and h = max 1 h in
+    x + ((width - w) / 2), y + top, w, h
+  end else
+  (* viewport.html keeps the frame clear of the label row above it (40 points) and of the readouts'
      row under it (36), and of 12 points at each side *)
   let top = if height > 160 then 40 else 0 and bottom = if height > 160 then 36 else 0
   and side = if width > 160 then 12 else 0 in
   let x, y, width, height = x + side, y + top, width - (2 * side), height - top - bottom in
-  let { settings; _ } = look extra key in
-  let aspect = float settings.width /. float (max 1 settings.height) in
   let w = min width (int_of_float (Float.round (float height *. aspect))) in
   let h = min height (int_of_float (Float.round (float width /. aspect))) in
   let w = max 1 w and h = max 1 h in
@@ -409,6 +420,11 @@ let header_tools extra =
 let caption extra ~key =
   let { settings; _ } = look extra key in
   Option.map (Renderer.caption ~resolution:(settings.width, settings.height))
+    (Renderer.info extra.renderer ~key)
+(* a traced viewport's film in pixels, samples, cap and bounces *)
+let trace extra ~key =
+  let { settings; _ } = look extra key in
+  Option.map (fun (i : Renderer.info) -> i.size, i.samples, i.cap, settings.bounces)
     (Renderer.info extra.renderer ~key)
 let render_status extra = extra.renderer.error
 let paint extra ~key viewport camera rendered = Renderer.paint extra.renderer ~key viewport camera rendered
@@ -603,16 +619,22 @@ let handles ui ~selected ~scene ~space view extra ~bounds =
 (* The axis gizmo (viewport.html): its origin 48 points from the pane's left and 44 from its foot,
    an axis is 40 points at full length in its port colour, and its letter a label at the tip (the
    sheet's offsets: y 6 right, x 3 right, z 8 left, each a few points below the tip). *)
-let gizmo (x, y, _, height) view =
-  let cx = float_of_int x +. 48. and cy = float_of_int (y + height) -. 44. in
+let gizmo (x, y, width, height) view =
+  (* a body about as wide as the workspace sheet's draws that sheet's gizmo: its origin 40 from the
+     left and 36 from the foot, axes 36 long, no letters *)
+  let compact = width < 1000 in
+  let cx = float_of_int x +. (if compact then 40. else 48.)
+  and cy = float_of_int (y + height) -. (if compact then 36. else 44.) in
+  let length = if compact then 36. else 40. in
   let origin = Camera.world_to_camera view Vec3.zero in
   List.concat (List.init 3 (fun axis ->
     let d = Vec3.sub (Camera.world_to_camera view axes.(axis)) origin in
-    let tip = cx +. d.x *. 40., cy -. d.y *. 40. in
+    let tip = cx +. d.x *. length, cy -. d.y *. length in
     let dx, dy = [| 3., 4.; 6., 4.; -8., 7. |].(axis) in
-    [thick_line 1.5 axis_colors.(axis) (cx, cy) tip;
-     Scene.text ~at:(Float.to_int (fst tip +. dx), Float.to_int (snd tip +. dy) - 6) ~size:Pxui.Theme.label_size
-       ~color:axis_colors.(axis) (String.uppercase_ascii axis_names.(axis))]))
+    thick_line 1.5 axis_colors.(axis) (cx, cy) tip
+    :: (if compact then [] else
+        [Scene.text ~at:(Float.to_int (fst tip +. dx), Float.to_int (snd tip +. dy) - 6) ~size:Pxui.Theme.label_size
+           ~color:axis_colors.(axis) (String.uppercase_ascii axis_names.(axis))])))
 
 (* A light object: a marker at its position, a line to its target. *)
 let light_guide bounds view color (light : Light.t) =
