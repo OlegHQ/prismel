@@ -328,6 +328,34 @@ let scope_connection_hover () =
   check (changes = [] && List.length (Scope.Private.highlighted_connections hovered) = 1)
     "hover on a captured value's socket missed its outer connection"
 
+(* [n] nodes in one scope: a chain with a long wire back at every seventh node *)
+let big_scope n =
+  let b = Buffer.create 65536 in
+  Buffer.add_string b "(workspace big (graph g :context sop (let* [n0 (sop/box)";
+  for i = 1 to n - 1 do
+    Printf.bprintf b " n%d (sop/transform n%d :translate [%d 0 0])" i (if i mod 7 = 0 then i / 2 else i - 1) i
+  done;
+  Printf.bprintf b "] n%d)))" (n - 1);
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog (Buffer.contents b) |> Result.get_ok in
+  P.of_graph scope_catalog ws.checked "g"
+
+(* Frame work does not scale with what is out of view: an idle frame of a pane that shows no card
+   of a 2,001-node graph allocates a small constant (it was 6.3 MB when every wire was cut into
+   hit boxes before the viewport test), and the level keys answer for every node at once. *)
+let scope_idle_frame () =
+  let ui = Pxui.Ui.create ~font_size:11 () in
+  let view = ref (Scope.create ~width:16 ~height:16 () |> Scope.with_scope ~key:"g" (big_scope 2001)) in
+  let step () = view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) in
+  for _ = 1 to 3 do step () done;
+  let before = Gc.allocated_bytes () in
+  for _ = 1 to 10 do step () done;
+  let per_frame = (Gc.allocated_bytes () -. before) /. 10. in
+  check ((Scope.stats !view).nodes >= 2001) "the big graph is not laid out";
+  check (per_frame < 500_000.) (Printf.sprintf "an idle frame with nothing in view allocates %.0f bytes" per_frame);
+  check (match snd (Scope.run_command !view Scope.Point_all) with
+    | [ Scope.Level_set l ] -> List.length l = 2001 && List.for_all (fun (_, level, _) -> level = Some P.Point) l
+    | _ -> false) "Point_all did not point every node"
+
 (* A trackpad pinch zooms the graph where the wheel does: at the pointer, the
    frame's pinch factors multiplied, clamped like the wheel. *)
 let scope_pinch () =
@@ -876,6 +904,7 @@ let run_scope () =
   scope_levels ();
   scope_zoom_geometry ();
   scope_pinch ();
+  scope_idle_frame ();
   print_endline "pxui graph scope pane tests passed"
 
 (* the node menu and the pane (its gestures are [scope_gestures]), with the number of checks made *)
@@ -932,15 +961,7 @@ let bench_scope_pane () =
 (* 2,001 nodes in one scope: laying it out and painting a frame.  Command:
    dune exec test/test_main.exe -- bench_scope_big *)
 let bench_scope_big () =
-  let n = 2001 in
-  let b = Buffer.create 65536 in
-  Buffer.add_string b "(workspace big (graph g :context sop (let* [n0 (sop/box)";
-  for i = 1 to n - 1 do
-    Printf.bprintf b " n%d (sop/transform n%d :translate [%d 0 0])" i (if i mod 7 = 0 then i / 2 else i - 1) i
-  done;
-  Printf.bprintf b "] n%d)))" (n - 1);
-  let ws = Editor_document.Workspace_doc.of_text scope_catalog (Buffer.contents b) |> Result.get_ok in
-  let scope = P.of_graph scope_catalog ws.checked "g" in
+  let scope = big_scope 2001 in
   let ui = Pxui.Ui.create ~font_size:11 () in
   let time label runs f =
     let started = Unix.gettimeofday () in
