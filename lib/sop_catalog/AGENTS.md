@@ -1,20 +1,27 @@
 # lib/sop_catalog rules
 
-Define an inspectable editor SOP once in the matching private operation file
-(`shapes.ml`, `topology.ml`, `attributes.ml`, or `groups.ml`): keep its parameter
-record, stable node key, runtime operation identity, display label, category
-path, input arity, defaults, and rebuild closure together through
-`[@@deriving sop_params, sop_node]`, then
-register its module alias in `sop_catalog.ml` with `[@@sop.register]`.
-Only the facade carries registration attributes; the private files keep the
-schema and builder together, and `shared.ml` holds their common helpers.
-Write the node as
+A SOP node is declared once. The declaration is its `parameters` record with
+`[@@deriving sop_params, sop_node]`, which yields the inspector schema, the
+Lisp manifest entry, the editor factory and, with `[@@sop.fn "name"]
+[@@sop.args "..."]`, the typed `Procedural.Sop.name` constructor, next to the
+cook that reads the record. Such a declaration lives in `lib/procedural`
+(`sop_groups.ml`, `sop_topology.ml`, `sop_attributes.ml`, `sop_shapes.ml`;
+`Sop_support` holds their helpers, `Procedural.Nodes` exports the factories,
+`sop.ml` aliases the typed function) and is registered here as
+`module X = Procedural.Nodes.X [@@sop.register]`. A node whose typed
+constructor the record cannot express (a structured rdk argument the record
+flattens, a `Select.t`, a closure, an optional whose absence means the kernel
+default, a check that is not blank/finite/hard-range) keeps its typed
+function hand-written in `sop.ml` and its record in the matching private
+file here (`shapes.ml`, `topology.ml`, `attributes.ml`, or `groups.ml`) with
 `let build = parameters_build (fun ~label parameters input0 ... -> Sop.op ...)`
 and `let factory = parameters_factory build`; the generated build owns the
-input-arity match, optional-slot presence, `Node.parameterize`, and the
-schema-derived cache key, so never hand-write that boilerplate. Add a `create`
-(and its `.mli` entry) only for a node with callers outside this library. The PPX-generated deterministic manifest is
-the only node-menu registry. Do not add a parallel hand-written factory list,
+input-arity match, optional-slot presence, `Node.parameterize` and the
+schema-derived cache key, so never hand-write that boilerplate, and
+`shared.ml` holds the common helpers. `tools/sop_merge` converts a hand-written
+pair into one declaration and prints why it cannot. Add a `create` (and its
+`.mli` entry) only for a node with callers outside this library. The
+PPX-generated deterministic manifest is the only node-menu registry. Do not add a parallel hand-written factory list,
 mutable registration initializer, or menu-only parameter defaults. Catalog
 tests must reject duplicate keys, instantiate every registered factory with
 disconnected input placeholders, and prove that the resulting `Node.operation`
@@ -41,6 +48,18 @@ names/defaults/ranges into hand-built widgets, or make `procedural` import
 PXUI.
 
 Workflow for a new node: the `add-sop` skill.
+
+Typed-function attributes (`[@@sop.fn]` nodes only): `[@@sop.args "?a ~b c ()"]`
+lists the arguments of `Sop.name` in order, each a field, a `sop.vec3` group
+(one `Vec3.t`), an input slot or a trailing `()`; `~x=field` names an
+argument differently from its field. A `?x` takes the editor default unless
+`[@sop.arg_default e]` overrides it (a listed drift between the editor and
+the typed API). `[@sop.nonblank "m"]` on a text and `[@sop.validate "m"]` on
+a number (finite and within the hard range) raise `Invalid_argument "Sop.name:
+m"` from the typed constructor only; the editor clamps. `[@sop.present
+"use_x"]` / `[@sop.absent "context_seed"]` set a toggle field from a `?x`'s
+presence. `Node.parameters` of such a node is `Parameter.cook_text` of its
+values (`name=value;...`).
 
 ## Rays Flow (`specification/flow.md`)
 

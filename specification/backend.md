@@ -103,6 +103,13 @@ runtime, and the dependency gate keeps it so. The Rays-dependent glue
 schemas name `Rays_math.Vec3`/`Mat4` directly, and the gate rejects any path
 from it to `rays`, the runtime or a GPU library.
 
+`procedural` is preprocessed by `rays.ppx` (which links `ppxlib` and `flow`
+at build time only, never into the library): the node declarations that
+yield both the editor factory and the typed `Sop` constructor live there, in
+private `sop_*.ml` modules, and `Procedural.Nodes` exports their factories to
+`sop_catalog`. `Edit_graph` no longer calls `Sop`, so a declaration may use
+`Edit_graph.factory` without a cycle.
+
 `runtime` owns process setup, initial-domain lifecycle, the SDL3 window, its
 Metal view, resize scheduling, and presentation. It depends on `sdl3` and the
 virtual `ogpu` only: it obtains the driver through `Ogpu.Impl.create_driver`,
