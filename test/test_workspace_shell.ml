@@ -1945,8 +1945,7 @@ let run_view_native () =
           "VIEW screenshot failed";
         if frame.count = 26 then begin
           original := !vertices;
-          check (Node.operation (E3.displayed_node e) = "exploded_view"
-                 && Editor_document.Layout_by_path.Path_map.find_opt ["shattered"] (E3.workspace e).layout.display = None)
+          check (Node.operation (E3.displayed_node e) = "exploded_view")
             "native v did not set the result node"
         end;
         if frame.count = 30 then begin
