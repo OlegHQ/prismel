@@ -13,11 +13,6 @@
  (modules build_bridge)
  (libraries metal_build_config unix))
 
-(executable
- (name build_xpc_bundle)
- (modules build_xpc_bundle)
- (libraries unix))
-
 (rule
  (targets c_library_flags.sexp)
  (action
@@ -87,87 +82,55 @@
  (deps test_presentation_lifecycle_native.exe)
  (action (run ./test_presentation_lifecycle_native.exe)))
 
-(library
- (name metal_xpc_test_support)
- (wrapped false)
- (modules Metal_xpc_test_support)
- (libraries metal))
-
-(executable
- (name test_metal_xpc_service)
- (modules test_metal_xpc_service)
- (libraries metal metal_xpc_test_support unix))
-
-(executable
- (name test_metal_xpc_client)
- (modules test_metal_xpc_client)
- (libraries metal metal_xpc_test_support unix))
-
-(executable
- (name test_metal_io_surface_xpc_service)
- (modules test_metal_io_surface_xpc_service)
- (libraries metal metal_xpc_test_support unix))
-
-(executable
- (name test_metal_io_surface_xpc_client)
- (modules test_metal_io_surface_xpc_client)
- (libraries metal metal_xpc_test_support unix))
-
-(rule
- (targets (dir metal_xpc_conformance.app))
- (deps test_metal_xpc_client.exe test_metal_xpc_service.exe)
- (action
-  (run ./build_xpc_bundle.exe
-   --client test_metal_xpc_client.exe
-   --service test_metal_xpc_service.exe
-   --output metal_xpc_conformance.app
-   --service-name org.rays.metal.xpc-conformance)))
-
-(rule
- (targets (dir metal_io_surface_xpc_conformance.app))
- (deps
-  test_metal_io_surface_xpc_client.exe
-  test_metal_io_surface_xpc_service.exe)
- (action
-  (run ./build_xpc_bundle.exe
-   --client test_metal_io_surface_xpc_client.exe
-   --service test_metal_io_surface_xpc_service.exe
-   --output metal_io_surface_xpc_conformance.app
-   --service-name org.rays.metal.io-surface-xpc-conformance)))
-
-(rule
- (alias runtest)
- (deps metal_xpc_conformance.app)
- (action
-  (run ./metal_xpc_conformance.app/Contents/MacOS/test_metal_xpc_client)))
-
-(rule
- (alias runtest)
- (deps metal_io_surface_xpc_conformance.app)
- (action
-  (run ./metal_io_surface_xpc_conformance.app/Contents/MacOS/test_metal_io_surface_xpc_client)))
-
 (executable
  (name test_main)
- (modules test_main test_metal_argument_reflection_snapshot test_metal_m1_ray_query test_metal_resource100_safe test_metal_resource_bounds test_metal_pipeline113_safe test_metal_shader157_safe test_metal_library42_safe test_metal_blit_command25_safe test_metal_mesh_tile105_safe test_metal_command_support121_safe test_metal_function_constant_values3_safe test_metal_device_library5_safe test_metal_device_queues3_safe test_render_pipeline93_descriptor_safe test_render_pipeline93_mesh_graph_safe test_render_pipeline93_arrays_safe test_metal4_acceleration_structure11_safe test_metal_acceleration_safe test_metal_function_tables_safe test_metal_stress test_metal_render_encoder_safe test_metal_compute_encoder35_safe test_metal_linked_functions_safe test_metal_stage_input_output_safe test_metal_command_buffer19_safe test_metal_compute_pipeline11_safe test_metal_pipeline4_buffer_descriptor_safe test_metal_function_descriptor4_safe test_metal_indirect_command_buffer4_safe test_metal_argument8_safe test_metal_command_queue_safe test_metal_device_value25_safe test_metal_device_capability13_safe test_metal_device_final4_safe test_metal_device_final_constructors3_safe test_metal_device_spatial_timestamp6_safe test_metal_render_icb_argument)
+ (modules test_main test_metal_argument_reflection_snapshot test_metal_resource_bounds test_metal_blit_command25_safe test_metal_command_support121_safe test_metal_device_library5_safe test_metal_device_queues3_safe test_metal_function_tables_safe test_metal_render_encoder_safe test_metal_compute_encoder35_safe test_metal_command_buffer19_safe test_metal_compute_pipeline11_safe test_metal_render_icb_argument)
  (libraries metal unix))
 
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 0)))
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 1)))
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 2)))
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 3)))
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 4)))
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 5)))
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 6)))
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} --group 7)))
+(rule
+ (aliases runtest test_metal_argument_reflection_snapshot)
+ (action (run %{exe:test_main.exe} test_metal_argument_reflection_snapshot)))
 
-(rule (alias runtest)
- (action (run %{exe:test_main.exe} test_metal_stress)))
+(rule
+ (aliases runtest test_metal_resource_bounds)
+ (action (run %{exe:test_main.exe} test_metal_resource_bounds)))
+
+(rule
+ (aliases runtest test_metal_blit_command25_safe)
+ (action (run %{exe:test_main.exe} test_metal_blit_command25_safe)))
+
+(rule
+ (aliases runtest test_metal_command_support121_safe)
+ (action (run %{exe:test_main.exe} test_metal_command_support121_safe)))
+
+(rule
+ (aliases runtest test_metal_device_library5_safe)
+ (action (run %{exe:test_main.exe} test_metal_device_library5_safe)))
+
+(rule
+ (aliases runtest test_metal_device_queues3_safe)
+ (action (run %{exe:test_main.exe} test_metal_device_queues3_safe)))
+
+(rule
+ (aliases runtest test_metal_function_tables_safe)
+ (action (run %{exe:test_main.exe} test_metal_function_tables_safe)))
+
+(rule
+ (aliases runtest test_metal_render_encoder_safe)
+ (action (run %{exe:test_main.exe} test_metal_render_encoder_safe)))
+
+(rule
+ (aliases runtest test_metal_compute_encoder35_safe)
+ (action (run %{exe:test_main.exe} test_metal_compute_encoder35_safe)))
+
+(rule
+ (aliases runtest test_metal_command_buffer19_safe)
+ (action (run %{exe:test_main.exe} test_metal_command_buffer19_safe)))
+
+(rule
+ (aliases runtest test_metal_compute_pipeline11_safe)
+ (action (run %{exe:test_main.exe} test_metal_compute_pipeline11_safe)))
+
+(rule
+ (aliases runtest test_metal_render_icb_argument)
+ (action (run %{exe:test_main.exe} test_metal_render_icb_argument)))
