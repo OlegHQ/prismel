@@ -2,7 +2,6 @@ open Rays_math
 open Procedural
 open Shared
 
-
 module Group_edges = struct
   let incidence_parameter = Parameter.choice ~equal:( = ) [
       "Any", Rdk.Group_mesh.Any_edge; "Boundary", Rdk.Group_mesh.Boundary_edge;
@@ -196,51 +195,6 @@ module Group_normal = struct
   let factory = parameters_factory build
 end
 
-module Group_non_planar = struct
-  type parameters = {
-    name : string [@sop.default "nonplanar"] [@sop.label "Group name"];
-    tolerance : float [@sop.default 1e-6] [@sop.label "Tolerance"]
-      [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
-    base : string [@sop.default ""] [@sop.label "Base group"]
-      [@sop.folder "Combine"];
-    merge : Rdk.Group_ops.boolean_operation
-      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
-      [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
-  } [@@sop.node_key "group_non_planar"] [@@sop.node_label "Group Non-Planar"]
-    [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.group_non_planar ~label
-        ?base:(optional_text parameters.base) ~merge:parameters.merge
-        ~tolerance:parameters.tolerance ~name:parameters.name input)
-  let factory = parameters_factory build
-end
-
-module Group_backface = struct
-  type parameters = {
-    name : string [@sop.default "backface"] [@sop.label "Group name"];
-    viewpoint_x : float [@sop.default 0.] [@sop.label "Viewpoint X"]
-      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "viewpoint"]
-    viewpoint_y : float [@sop.default 0.] [@sop.label "Viewpoint Y"]
-      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "viewpoint"]
-    viewpoint_z : float [@sop.default 10.] [@sop.label "Viewpoint Z"]
-      [@sop.folder "Viewpoint"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "viewpoint"]
-    base : string [@sop.default ""] [@sop.label "Base group"]
-      [@sop.folder "Combine"];
-    merge : Rdk.Group_ops.boolean_operation
-      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
-      [@sop.folder "Combine"] [@sop.kind group_merge_parameter];
-  } [@@sop.node_key "group_backface"] [@@sop.node_label "Group Backfaces"]
-    [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.group_backface ~label ?base:(optional_text parameters.base)
-        ~merge:parameters.merge
-        ~viewpoint:(Vec3.create parameters.viewpoint_x parameters.viewpoint_y
-          parameters.viewpoint_z) ~name:parameters.name input)
-  let factory = parameters_factory build
-end
-
 module Group_edge_depth = struct
   type parameters = {
     point_group : string [@sop.default "seed"] [@sop.label "Seed point group"];
@@ -257,23 +211,6 @@ module Group_edge_depth = struct
     Sop.group_edge_depth ~label ~merge:parameters.merge
         ~depth:parameters.depth ~point_group:parameters.point_group
         ~name:parameters.name input)
-  let factory = parameters_factory build
-end
-
-module Group_unshared = struct
-  type parameters = {
-    owner : Rdk.Group_ops.owner [@sop.default Rdk.Group_ops.Group_edges]
-      [@sop.label "Group type"] [@sop.kind group_owner_parameter];
-    name : string [@sop.default "unshared"] [@sop.label "Group name"];
-    merge : Rdk.Group_ops.boolean_operation
-      [@sop.default Rdk.Group_ops.Group_replace] [@sop.label "Operation"]
-      [@sop.kind group_merge_parameter];
-  } [@@sop.node_key "group_unshared"] [@@sop.node_label "Group Unshared"]
-    [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.group_unshared ~label ~merge:parameters.merge
-        ~owner:parameters.owner ~name:parameters.name input)
   let factory = parameters_factory build
 end
 

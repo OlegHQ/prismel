@@ -1,6 +1,6 @@
 open Rays_math
+open Sop_support
 
-let finite value = Float.is_finite value
 let float_key value = Int64.to_string (Int64.bits_of_float value)
 
 type element_group =
@@ -38,7 +38,6 @@ let resolve_element_group ~operation selection geometry = match selection with
        | None -> Error (Diagnostic.error ~code:"missing_group"
            (Printf.sprintf "%s could not find edge group %S" operation name)))
 
-let vec3_copy value = Vec3.create value.Vec3.x value.y value.z
 let vec3_key value = String.concat "," [ float_key value.Vec3.x;
   float_key value.y; float_key value.z ]
 let vec2_copy value = Vec2.create value.Vec2.x value.y
@@ -62,16 +61,6 @@ let matrix_key matrix =
 let color_key color =
   let r, g, b, a = Color.to_tuple color in
   Printf.sprintf "%d,%d,%d,%d" r g b a
-
-let cooked geometry = Ok Node.Private.{ geometry; diagnostics = []; instances = None }
-let rdk_error ?(hints = []) operation message =
-  Error (Diagnostic.error ~code:(operation ^ "_failed") ~cause:message ~hints
-    (operation ^ " could not produce valid geometry"))
-
-let structured_rdk_error error =
-  Error (Diagnostic.error ~code:(Rdk.Error.code error)
-    ~cause:(Rdk.Error.to_string error) ~hints:(Rdk.Error.hints error)
-    (Rdk.Error.operation error ^ " could not produce valid geometry"))
 
 let snapshot ?label geometry =
   let parameters = Printf.sprintf "data_id=%d;bytes=%d"
@@ -6574,53 +6563,9 @@ let group_normal ?label ?normal_attribute ?(use_existing_normal = true) ?base
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let group_non_planar ?label ?base ?(merge = Rdk.Group_ops.Group_replace)
-    ~tolerance ~name input =
-  if String.trim name = "" then
-    invalid_arg "Sop.group_non_planar: empty group name";
-  if not (Float.is_finite tolerance) || tolerance < 0. then
-    invalid_arg "Sop.group_non_planar: tolerance must be finite and non-negative";
-  (match base with Some value when String.trim value = "" ->
-     invalid_arg "Sop.group_non_planar: empty base group name"
-   | None | Some _ -> ());
-  Node.Private.make ?label ~operation:"group_non_planar" ~version:1
-    ~parameters:(String.concat ";" [
-      "name=" ^ Printf.sprintf "%S" name;
-      "base=" ^ option_string_key base;
-      "merge=" ^ group_boolean_operation_key merge;
-      "tolerance=" ^ float_key tolerance])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.group_non_planar ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?base ~merge ~tolerance ~name inputs.(0)
-      with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_non_planar = Sop_groups.Group_non_planar.fn
 
-let group_backface ?label ?base ?(merge = Rdk.Group_ops.Group_replace)
-    ~viewpoint ~name input =
-  if String.trim name = "" then
-    invalid_arg "Sop.group_backface: empty group name";
-  if not (Float.is_finite viewpoint.Vec3.x && Float.is_finite viewpoint.y
-      && Float.is_finite viewpoint.z) then
-    invalid_arg "Sop.group_backface: viewpoint must be finite";
-  (match base with Some value when String.trim value = "" ->
-     invalid_arg "Sop.group_backface: empty base group name"
-   | None | Some _ -> ());
-  let viewpoint = vec3_copy viewpoint in
-  Node.Private.make ?label ~operation:"group_backface" ~version:1
-    ~parameters:(String.concat ";" [
-      "name=" ^ Printf.sprintf "%S" name;
-      "base=" ^ option_string_key base;
-      "merge=" ^ group_boolean_operation_key merge;
-      "viewpoint=" ^ vec3_key viewpoint])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.group_backface ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?base ~merge ~viewpoint ~name inputs.(0)
-      with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_backface = Sop_groups.Group_backface.fn
 
 let group_edge_depth ?label ?(merge = Rdk.Group_ops.Group_replace) ~depth
     ~point_group ~name input =
@@ -6639,18 +6584,7 @@ let group_edge_depth ?label ?(merge = Rdk.Group_ops.Group_replace) ~depth
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let group_unshared ?label ?(merge = Rdk.Group_ops.Group_replace) ~owner ~name input =
-  if String.trim name = "" then
-    invalid_arg "Sop.group_unshared: empty output group name";
-  Node.Private.make ?label ~operation:"group_unshared" ~version:1
-    ~parameters:(Printf.sprintf "owner=%s;name=%S;merge=%s"
-      (boundary_group_owner_key owner) name (group_boolean_operation_key merge))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.group_unshared ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~merge ~owner ~name inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_unshared = Sop_groups.Group_unshared.fn
 
 let group_boundary_components ?label ?(prefix = "boundary")
     ?(conflict = Rdk.Group_ops.Name_replace) ?(max_groups = 4_096)
