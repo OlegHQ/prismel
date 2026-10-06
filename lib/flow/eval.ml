@@ -246,10 +246,7 @@ let mk_node c kind args =
 
 (* ---- built-in value operators ---- *)
 
-let value_ops = [ "+"; "-"; "*"; "/"; "mod"; "pow"; "min"; "max"; "sin"; "cos"; "abs"; "floor";
-  "ceil"; "round"; "int"; "float"; "sqrt"; "<"; ">"; "<="; ">="; "="; "and"; "or"; "not"; "value/rand"; "value/hsv";
-  "value/lerp"; "value/polar"; "range"; "linspace"; "count"; "first"; "last"; "rest"; "nth";
-  "reverse"; "take"; "drop" ]
+let value_ops = W.value_ops
 let value_op_name n =
   if List.mem n value_ops then Some n
   else if List.mem ("value/" ^ n) value_ops then Some ("value/" ^ n) else None
