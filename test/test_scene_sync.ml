@@ -192,6 +192,7 @@ let run () =
   (* the render camera *)
   let side = node_id doc "side" in
   let edited = ok (reconcile doc { doc with active_camera = Some side }) in
+  text_first "render camera" doc Document.Scene (Sync.Camera (Some side)) { doc with active_camera = Some side };
   check (contains (source edited) ":active true" && edited.active_camera = Some side) "the render camera did not reach the text";
   let reopened = open_text (source edited) in
   check (reopened.active_camera = Some (node_id reopened "side")) "the render camera did not survive a reload";
@@ -734,6 +735,7 @@ let run_root () =
   check (contains (flat (source tidy)) ":bounces 8 :round_samples 2") "the root printed its keywords out of order";
   (* the render camera is written on the root *)
   let to_cam = { doc with active_camera = Some (node_id doc "cam") } in
+  text_first "root camera" doc Document.Scene (Sync.Camera (Some (node_id doc "cam"))) to_cam;
   let cam = ok (reconcile doc to_cam) in
   check (contains (flat (source cam)) ":camera cam :renderer \"Path traced\" :width 800"
          && not (contains (source cam) ":camera side")

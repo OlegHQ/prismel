@@ -264,6 +264,27 @@ let delete_objects st (before : Document.t) gone =
     && List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) st.workspace.checked.graphs
     then apply st (F.Remove_graph { name })) orphans
 
+(* The render camera in the text: the root's [:camera] when the scene has a root, else [:active]
+   on the camera.  [alive] says whether the camera it replaces is still an object. *)
+let set_camera st (before : Document.t) ~alive camera =
+  let home id = List.assoc_opt id before.homes.objects in
+  match before.homes.root with
+  | Some root ->
+      (* the root names the active camera; an old [:active] on the camera it replaces goes *)
+      let path id = Option.map (bind st) (home id) in
+      (match Option.bind before.active_camera (fun id -> if alive id then path id else None) with
+       | Some p when F.arg_text st.workspace.source p (F.Kw "active") <> None ->
+           apply st (F.Disconnect { node = p; key = F.Kw "active"; fallback = None })
+       | _ -> ());
+      (match Option.bind camera path with
+       | Some p -> set st root [ "camera", Some (sym (List.nth p (List.length p - 1))) ]
+       | None -> set st root [ "camera", None ])
+  | None ->
+      (match Option.bind before.active_camera home with
+       | Some home when Option.fold ~none:false ~some:alive before.active_camera -> set st home [ "active", None ]
+       | _ -> ());
+      Option.iter (fun home -> set st home [ "active", Some (sym "true") ]) (Option.bind camera home)
+
 let objects st (before : Document.t) (after : Document.t) =
   let b = Document.scene_graph before and a = Document.scene_graph after in
   let refuse_preview = refuse_preview before in
@@ -280,28 +301,8 @@ let objects st (before : Document.t) (after : Document.t) =
     | Some _, None -> refuse_preview id; gone := (id, home) :: !gone
     | None, _ -> ()) before.homes.objects;
   delete_objects st before !gone;
-  let camera_of_root = before.homes.root in
-  if camera_of_root <> None && before.active_camera <> after.active_camera then begin
-    (* the root names the active camera; an old [:active] on the camera it replaces goes *)
-    let path id = Option.map (bind st) (List.assoc_opt id before.homes.objects) in
-    (match Option.bind before.active_camera (fun id ->
-         if Edit.find a ~node_id:id = None then None else path id) with
-     | Some p when F.arg_text st.workspace.source p (F.Kw "active") <> None ->
-         apply st (F.Disconnect { node = p; key = F.Kw "active"; fallback = None })
-     | _ -> ());
-    (match Option.bind after.active_camera path with
-     | Some p -> set st (Option.get camera_of_root) [ "camera", Some (sym (List.nth p (List.length p - 1))) ]
-     | None -> set st (Option.get camera_of_root) [ "camera", None ])
-  end
-  else if before.active_camera <> after.active_camera then begin
-    (match Option.bind before.active_camera (fun id -> List.assoc_opt id before.homes.objects) with
-     | Some home when Option.fold ~none:false ~some:(fun id -> Edit.find a ~node_id:id <> None) before.active_camera ->
-         set st home [ "active", None ]
-     | _ -> ());
-    (match Option.bind after.active_camera (fun id -> List.assoc_opt id before.homes.objects) with
-     | Some home -> set st home [ "active", Some (sym "true") ]
-     | None -> ())
-  end
+  if before.active_camera <> after.active_camera then
+    set_camera st before ~alive:(fun id -> Edit.find a ~node_id:id <> None) after.active_camera
 
 (* ---- the World ---- *)
 
@@ -654,6 +655,7 @@ type edit =
   | Delete of int list
   | Restack of int list  (* the World's layers, bottom first *)
   | Layers of Document.network * (string * Param.value) list  (* a preset: the layers and the World's fields *)
+  | Camera of int option  (* the render camera *)
 
 let graph_at (doc : Document.t) = function
   | Document.Scene -> Some (Document.scene_graph doc)
@@ -666,6 +668,7 @@ let writes (doc : Document.t) level = function
   | Fields edits -> List.for_all (fun (node, _) -> in_text doc level node) edits
   | Rename (node, _) -> in_text doc level node
   | Delete ids | Restack ids -> List.for_all (in_text doc level) ids
+  | Camera _ -> true  (* a camera the text does not have is the document's alone *)
   | Layers _ -> (match level with
     | Inside wid -> world_id doc = Some wid && doc.homes.world <> None
     | Scene -> false)
@@ -741,6 +744,9 @@ let write_edit st (doc : Document.t) level = function
              | None -> stop "The World's graph is not named; edit the text.")
        | Scene -> ());
       None
+  | Camera camera ->
+      if camera <> doc.active_camera then set_camera st doc ~alive:(fun _ -> true) camera;
+      None
   | Restack bottom_first ->
       (match level, world_id doc with
        | Inside wid, Some w when w = wid ->
@@ -767,6 +773,7 @@ let write ~factories (doc : Document.t) level edit =
   let st = { catalog; workspace = fst doc.workspace; unfolded = []; adopted = false } in
   try
     let note = write_edit st doc level edit in
+    let doc = match edit with Camera active_camera -> { doc with active_camera } | _ -> doc in
     if st.workspace == fst doc.workspace then Ok (Some (doc, note))
     else Result.map (fun doc -> Some (doc, note)) (Contexts.of_workspace ~factories ~previous:doc st.workspace
                                                    |> Result.map_error Flow.Diagnostic.to_string)

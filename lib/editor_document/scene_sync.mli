@@ -38,6 +38,9 @@ type edit =
   | Restack of int list  (** the World's layers, bottom first *)
   | Layers of Document.network * (string * Editor_core.Param.value) list
       (** a preset: the World's layers replaced and its own fields set (the level is the World) *)
+  | Camera of int option
+      (** the render camera: the root's [:camera], else [:active]; the document's alone when the
+          text has neither camera *)
 (** A derived edit as its caller means it: scene objects at the scene level, World layers inside
     the World. *)
 

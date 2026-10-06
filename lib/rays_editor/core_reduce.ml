@@ -172,9 +172,9 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
       match candidate with
       | Some id when kind value id = Some "camera" && view_wants value `Primary id -> Some id
       | _ -> None in
-  let next = match entered_camera with
-    | Some id when next.active_camera <> Some id -> { next with active_camera = Some id }
-    | _ -> next in
+  let tree_edits = match entered_camera with
+    | Some id when next.active_camera <> Some id -> tree_edits @ [ Editor_document.Scene_sync.Camera (Some id) ]
+    | _ -> tree_edits in
   (* the scene and World edits above act on derived objects: each difference is written to
      the text (a refused one changes nothing) *)
   let edit_note = ref None in

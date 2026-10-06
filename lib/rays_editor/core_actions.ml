@@ -87,7 +87,7 @@ let world_keys value (doc : Document.t) selection actions =
         (match level with
          | Inside id -> with_fields (Document.with_network doc level network) Document.Scene [ id, values ]
          | Scene -> doc)
-    | Rename _ | Delete _ | Restack _ -> doc in
+    | Rename _ | Delete _ | Restack _ | Camera _ -> doc in
   let field name node = List.find_map (fun (field : Parameter.field_view) ->
       if field.name = name then Some field.current else None) (Node.parameter_fields node) in
   List.filter_map (function
