@@ -59,6 +59,13 @@ let snapshots () =
 let kinds (n : P.node) = List.map (fun (r : P.row) -> r.label, r.kind) n.rows
 
 let rows () =
+  (* a keyword written before a positional argument: the input is still input 0, and wired *)
+  let first = node (workspace_of "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/transform :translate [1 2 3] a)] b)))") "g" [ "b" ] in
+  (match List.find_opt (fun (r : P.row) -> r.key = E.Pos 0) first.rows with
+   | Some r -> check (flat r.expr = "a" && P.sources r = [ "a" ]) "a keyword-first call lost its input"
+   | None -> fail "a keyword-first call has no input row");
+  check (List.exists (fun (r : P.row) -> r.key = E.Kw "translate" && flat r.expr = "[1 2 3]") first.rows)
+    "a keyword-first call lost its keyword";
   let w = load "bloom" in
   (* a zone: rail with the loop variable, captures, and the yield *)
   let ring = node w "flower" [ "ring" ] in

@@ -155,6 +155,9 @@ let kw_name (k : S.t) = match k.node with S.Kw s -> s | _ -> ""
 let positional args =
   let rec go = function k :: _ :: r when is_kw k -> go r | x :: r -> x :: go r | [] -> [] in
   go args
+let keywords args =
+  let rec go = function k :: v :: r when is_kw k -> (kw_name k, v) :: go r | _ :: r -> go r | [] -> [] in
+  go args
 let kw_get args k =
   let rec go = function
     | a :: b :: r -> if is_kw a && kw_name a = k then Some b else go (if is_kw a then r else b :: r)
@@ -1136,9 +1139,19 @@ let rewrite src op : (unit -> S.t list) list =
       edit_scope src sp (fun s ->
         let e = get_node s leaf in
         match e.node with
-        | S.List (h :: args) when pos >= 1 && pos < List.length args ->
-            let args = List.mapi (fun i c ->
-              if i = pos then List.nth args (pos - 1) else if i = pos - 1 then List.nth args pos else c) args in
+        | S.List (h :: args) when pos >= 1 && pos < List.length (positional args) ->
+            (* the items are the positional arguments: keyword pairs stay where they are written *)
+            let items = Array.of_list (positional args) in
+            let rec go k = function
+              | a :: b :: r when is_kw a -> a :: b :: go k r
+              | _ :: r -> items.(if k = pos then pos - 1 else if k = pos - 1 then pos else k) :: go (k + 1) r
+              | [] -> [] in
+            let args = go 0 args in
+            (* a [scene/merge]'s [:skip] tuples end in an argument position: they follow the items *)
+            let args = if head_sym e <> Some "scene/merge" || skip_of_args args = [] then args else
+              with_kw args "skip" (Some (skip_value (List.map (fun t -> match List.rev t with
+                | p :: outer -> List.rev ((if p = pos then pos - 1 else if p = pos - 1 then pos else p) :: outer)
+                | [] -> t) (skip_of_args args)))) in
             set_node s leaf { e with node = S.List (h :: args) }
         | _ -> fail "There is no item %d to move up." pos))
   | Add_field { node; name; value } -> one (fun () ->
@@ -1573,11 +1586,8 @@ let arg_of = arg_get
 
 let nested_nodes (e : S.t) = match e.node with
   | S.List (_ :: args) when e.meta <> [] || not (is_zone e) ->
-      let rec kws = function
-        | k :: v :: r when is_kw k -> (Kw (kw_name k), v) :: kws r
-        | _ :: r -> kws r
-        | [] -> [] in
-      List.filter (fun (_, a) -> node_call a) (List.mapi (fun i a -> Pos i, a) (positional args) @ kws args)
+      List.filter (fun (_, a) -> node_call a)
+        (List.mapi (fun i a -> Pos i, a) (positional args) @ List.map (fun (k, v) -> Kw k, v) (keywords args))
   | _ -> []
 
 let leaf_keys leaf = match split_leaf leaf with

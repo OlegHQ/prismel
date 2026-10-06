@@ -77,15 +77,6 @@ let last (e : S.t) = List.nth (S.children e) (List.length (S.children e) - 1)
 let root_of s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 let is_zone_head = function "for" | "fold" | "scan" | "sum" -> true | _ -> false
 
-(* positional arguments, then :keyword pairs *)
-let split_args l =
-  let rec go acc = function
-    | ({ S.node = S.Kw _; _ } :: _) as rest -> List.rev acc, rest
-    | x :: r -> go (x :: acc) r
-    | [] -> List.rev acc, [] in
-  let pos, rest = go [] l in
-  pos, List.filter_map (fun ((k : S.t), v) -> match k.node with S.Kw k -> Some (k, v) | _ -> None) (pairs rest)
-
 let subterms (t : W.term) = match t.node with
   | Lit _ | Text _ | Nil | Time | Ref_binding _ | Fn_ref _ -> []
   | Vec l | List_lit l | Str l | List_op (_, l) | Hof (_, l) -> l
@@ -232,7 +223,7 @@ let input_rows c (inputs : (string * Ty.t * W.term option) list) pos kws =
     | None -> row c ~ty ?default n (E.Kw n) (List.assoc_opt n kws)) inputs
 
 let call_rows c (e : S.t) h args =
-  let pos, kws = split_args args in
+  let pos = E.positional args and kws = E.keywords args in
   let npos = List.length pos in
   let at i = List.nth_opt pos i in
   let posrow ?ty ?socket label i = row c ?ty ?socket label (E.Pos i) (at i) in

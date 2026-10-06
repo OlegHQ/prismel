@@ -255,6 +255,11 @@ let part9 () = (* lists and records *)
   same "move up" list (E.Move_item { node = node [ "xs" ]; pos = 2 })
     (v "(let* [xs (list 0.2 0.6 0.4) k (count xs)] k)");
   refused "move the first" list (E.Move_item { node = node [ "xs" ]; pos = 0 });
+  (* the items are the positional arguments wherever the keywords are written, and :skip follows them *)
+  let merged = "(workspace w\n  (graph g :context sop (sop/box))\n  (graph scene :context scene\n    (let* [a (scene/geometry (ref g)) b (scene/light) c (scene/light) all (scene/merge :skip [0] a b c)] all)))" in
+  let moved = apply merged (E.Move_item { node = [ "scene"; "all" ]; pos = 1 }) in
+  check (has moved "(scene/merge :skip [1] b a c)") ("move up after a keyword\n" ^ moved);
+  refused "move past the items" merged (E.Move_item { node = [ "scene"; "all" ]; pos = 3 });
   let record = g "(let* [r {:size 0.5 :count 6} a (sop/uv_sphere :radius r.size)] a)" in
   same "record field" record (E.Add_field { node = node [ "r" ]; name = "depth"; value = num "2" })
     (g "(let* [r {:size 0.5 :count 6 :depth 2} a (sop/uv_sphere :radius r.size)] a)");
