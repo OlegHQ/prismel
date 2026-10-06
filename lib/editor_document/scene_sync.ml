@@ -327,19 +327,6 @@ let owned (workspace : Workspace_doc.t) =
       | S.List [ _; { S.node = S.Sym n; _ }; _; _ ] | S.List ({ S.node = S.Sym _; _ } :: { S.node = S.Sym n; _ } :: _) -> Some n
       | _ -> None) c.macros
 
-(* A name for a new graph, or for a binding of a graph that is written whole (nothing to ask
-   [Flow_edit.fresh_name] about yet): the label as a lowercase symbol, unused in [used].  A binding
-   added to a graph the text has takes [Flow_edit.fresh_name]. *)
-let fresh used base =
-  let clean = String.map (function 'a' .. 'z' | '0' .. '9' | '_' as c -> c
-    | 'A' .. 'Z' as c -> Char.lowercase_ascii c | _ -> '_') base in
-  let clean = if clean = "" || not (clean.[0] >= 'a' && clean.[0] <= 'z') then "n" ^ clean else clean in
-  let rec go n =
-    let candidate = if n = 1 then clean else clean ^ "_" ^ string_of_int n in
-    if List.mem candidate !used || Flow.Workspace.name_taken candidate then go (n + 1) else candidate in
-  let name = go 1 in
-  used := name :: !used; name
-
 (* [(kind slots... :name "label" :field value ...)] for a derived node; only what differs from the
    kind's defaults is written. *)
 let call_of ~kind ~label ~default_label ?(slots = []) ?(extra = []) node =
@@ -370,7 +357,7 @@ let object_binding (doc : Document.t) used id (info : Edit.node_info) =
   let default_label = match info.operation, slots with
     | "geometry", [ { S.node = S.List [ _; { S.node = S.Sym g; _ } ]; _ } ] -> g
     | _ -> default_label info.node in
-  fresh used info.label,
+  F.fresh_among used info.label,
   call_of ~kind:("scene/" ^ info.operation) ~label:info.label ~default_label ~slots
     ~extra:(parent @ active) info.node
 
@@ -419,7 +406,7 @@ let write_layers st (doc : Document.t) wid name =
   let used = ref (owned st.workspace) in
   let bindings = List.map (fun id ->
     let info = List.find (fun (i : Edit.node_info) -> i.id = id) (Edit.inspect g) in
-    id, fresh used info.label, info) (List.rev (order network)) in
+    id, F.fresh_among used info.label, info) (List.rev (order network)) in
   let layers = List.mapi (fun i (_, name, (info : Edit.node_info)) ->
     let below = if i = 0 then [] else [ sym (let _, n, _ = List.nth bindings (i - 1) in n) ] in
     name, call_of ~kind:("world/" ^ info.operation) ~label:info.label
@@ -680,7 +667,7 @@ let add_geometry (doc : Document.t) ~existing =
   let graph_ops, graph = match existing with
     | Some g -> [], g
     | None ->
-        let g = fresh used "shape" in
+        let g = F.fresh_among used "shape" in
         [ F.Set_graph { name = g; form = graph_form g "sop" (mk (S.List [ sym "sop/box" ])) } ], g in
   let labels = List.map (fun (i : Edit.node_info) -> i.label) (Edit.inspect (Document.scene_graph doc)) in
   let name = if not (List.mem graph labels) then []
@@ -697,7 +684,7 @@ let add_world (doc : Document.t) =
   else
     let workspace = fst doc.workspace in
     let used = ref (owned workspace) in
-    let g = fresh used "sky" in
+    let g = F.fresh_among used "sky" in
     let body = mk (S.List [ sym "world/sun"; mk (S.List [ sym "world/sky" ]) ]) in
     Ok [ F.Set_graph { name = g; form = graph_form g "world" body };
          F.Add_node { scope = [ scene_name workspace ];

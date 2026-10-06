@@ -200,6 +200,10 @@ val fresh_name : Flow.Syntax.t list -> root:string -> string -> string
     operator or special form; a slash prefix and other characters are
     dropped ([sop/transform] gives [transform], then [transform_2]). *)
 
+val fresh_among : string list ref -> string -> string
+(** {!fresh_name} against the names in [used], which the new name joins: several bindings named
+    in one batch (a graph written whole, before any source has it) stay distinct. *)
+
 val rename_ref : string -> string -> Flow.Syntax.t -> Flow.Syntax.t
 (** [rename_ref old new form]: every symbol [old] (or [old.field]) in [form] reads [new]. *)
 
