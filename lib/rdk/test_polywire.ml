@@ -757,7 +757,18 @@ let check_segment_seam () =
       ~segment_seam_attribute:"segment_seam" ~seam_offset:max_int
       ~radius:0.1 source |> get_ok in
   check (Geometry.point_count extreme = Geometry.point_count one)
-    "large combined seam offsets overflowed"
+    "large combined seam offsets overflowed";
+  (* two negative seams sum below -sides: wrap each, not only their sum *)
+  let plain = Line_geometry.polyline
+      [|(0.,0.,0.);(1.,0.,0.);(2.,0.,0.)|] |> get_ok in
+  let negative = Sweep_circle.run ~grain:1 ~sides:4 ~segments:2
+      ~seam_offset:(-3) ~seam_attribute:"seam" ~radius:0.1
+      (plain |> with_int "seam" [|-3; -3; -3|]) |> get_ok
+  and wrapped = Sweep_circle.run ~grain:1 ~sides:4 ~segments:2
+      ~seam_offset:2 ~radius:0.1 plain |> get_ok in
+  check (Packed.Float3.Private.view (Geometry.positions negative)
+      = Packed.Float3.Private.view (Geometry.positions wrapped))
+    "negative seam offset and seam attribute did not wrap together"
 
 let check_segment_seam_validation () =
   let line = Line_geometry.polyline [|(0.,0.,0.);(1.,0.,0.)|] |> get_ok in
