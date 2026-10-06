@@ -844,6 +844,29 @@ let run driver =
     render_depth ~load:Clear ~clear:1. "\xff\xff\x00\xff" "depth clear-to-far rejected the triangle";
     render_depth ~load:Clear ~clear:0. "\x00\x00\x00\xff" "depth clear-to-near admitted the triangle";
     render_depth ~load:Load ~clear:1. "\x00\x00\x00\xff" "depth load ignored the retained near depth";
+    (* Multisampling: [Store] with a resolve texture resolves and keeps the
+       samples, so a following [Load] pass resolves the same colour; [Discard]
+       cannot resolve. *)
+    let msaa=get (Backend.create_texture device
+      {target_descriptor with label=Some"msaa";sample_count=4;usage=[Render_attachment]}) in
+    let msaa_pass load store clear=
+      let commands=get (Backend.begin_commands queue) in
+      let encoder=get (Backend.render_encoder commands
+        {colors=[{texture=msaa;resolve=Some target;load;store;clear}];depth=None;stencil=None}) in
+      get (Backend.end_render encoder);
+      poll_epoch (get (Backend.commit commands)) 1000 in
+    msaa_pass Clear Store (0.125,0.25,0.5,1.);
+    expect_pixels "\x20\x40\x80\xff" "stored multisample pass did not resolve";
+    clear_target 0. 0. 0. 1.;
+    msaa_pass Load Resolve (0.,0.,0.,0.);
+    expect_pixels "\x20\x40\x80\xff" "Store with a resolve texture did not keep the samples";
+    let commands=get (Backend.begin_commands queue) in
+    (match Backend.render_encoder commands
+       {colors=[{texture=msaa;resolve=Some target;load=Clear;store=Discard;clear=(0.,0.,0.,1.)}];depth=None;stencil=None} with
+     | Error { Error.kind = Invalid_argument; _ } -> ()
+     | _ -> failwith "a discarded attachment was allowed to resolve");
+    get (Backend.abandon commands);
+    get (Backend.destroy_texture msaa);
     get (Backend.destroy_texture depth);
     get (Backend.destroy_pipeline depth_pipeline);
     get (Backend.destroy_pipeline textured);

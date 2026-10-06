@@ -230,6 +230,13 @@ a dispatch (Metal `useResource:usage:`; they are otherwise evicted over time).
 `Caps` is the live set: `Compute_pipeline`, `Render_pipeline`, `Ray_tracing`,
 `Function_tables`, and `Ray_tracing_curves` (Metal: Apple9 and later; the M1
 answers curves with typed `Unsupported`).
+A colour attachment's `store` is honoured: `Store` keeps the contents (and
+also resolves when a resolve texture is given), `Resolve` writes only the
+resolve texture, `Discard` keeps nothing and is rejected with a resolve
+texture; conformance resolves a stored multisample pass again from a `Load`
+pass. `render_descriptor.depth_format` is portable description only: Metal 4
+pipelines are not specialized on the depth format, so the Metal driver does
+not read it.
 
 Removed with their Metal bindings, mock arms, conformance cases, and
 capability flags, because no product code called them: placement heaps and

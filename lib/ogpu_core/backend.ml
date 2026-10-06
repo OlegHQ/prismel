@@ -689,6 +689,7 @@ let render_encoder commands (target:render_target)=
   let resolve_ok=match color.resolve with
     |None->if color.store=Render_pass.Resolve then error op Error.Invalid_argument"resolve store needs a resolve texture"else Ok()
     |Some resolve->if samples=1 then error op Error.Invalid_argument"single-sample attachment cannot resolve"
+        else if color.store=Render_pass.Discard then error op Error.Invalid_argument"a resolve texture needs a Store or Resolve store action"
         else match attachment_check resolve with Error _ as e->e|Ok()->
           if not(same_extent resolve)||resolve.texture_descriptor.sample_count<>1 then error op Error.Invalid_argument"resolve texture extent or sample count differs"else Ok()in
   match resolve_ok with Error _ as e->e|Ok()->

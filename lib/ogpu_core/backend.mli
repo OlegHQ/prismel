@@ -301,6 +301,10 @@ type sampler
 type icb
 type argument
 type render_encoder
+
+(** [store]: [Store] keeps the attachment's contents (and, with [resolve], also
+    writes the resolve texture), [Resolve] writes only the resolve texture, and
+    [Discard] keeps nothing and cannot be combined with [resolve]. *)
 type color_attachment = { texture:texture; resolve:texture option; load:Render_pass.load; store:Render_pass.store; clear:float * float * float * float }
 type depth_attachment = { depth_texture:texture; depth_load:Render_pass.load; depth_store:Render_pass.store; depth_clear:float }
 type stencil_attachment = { stencil_texture:texture; stencil_load:Render_pass.load; stencil_store:Render_pass.store; stencil_clear:int }

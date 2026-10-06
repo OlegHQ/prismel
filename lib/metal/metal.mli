@@ -480,7 +480,9 @@ module Render_pass_descriptor : sig
   type color_load_action = Load_dont_care | Load | Clear
   val create : width:int -> height:int -> ?sample_count:int -> unit -> (t,error) result
   val set_resolve_texture : t -> Texture.t option -> (unit,error) result
-  val set_color_store_action : t -> resolve:bool -> (unit,error) result
+  (** [store] keeps the attachment's contents after the pass; [resolve] writes
+      the resolve texture (multisampled passes only). *)
+  val set_color_store_action : t -> store:bool -> resolve:bool -> (unit,error) result
   val set_color_load_action : t -> color_load_action -> (unit,error) result
   type store_action = Store_dont_care | Store
 

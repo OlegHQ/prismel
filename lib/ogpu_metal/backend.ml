@@ -1076,18 +1076,19 @@ let create () =
                                             Metal.Render_pass_descriptor.set_color_load_action pass
                                               (load color.color_load)
                                           in
+                                          let keep = color.color_store = Ogpu_core.Render_pass.Store in
                                           let* () =
                                             match resolve with
                                             | None ->
                                                 Metal.Render_pass_descriptor.set_color_store_action
-                                                  pass ~resolve:false
+                                                  pass ~store:keep ~resolve:false
                                             | Some resolve ->
                                                 let* () =
                                                   Metal.Render_pass_descriptor.set_resolve_texture
                                                     pass (Some (Texture.Private.metal resolve))
                                                 in
                                                 Metal.Render_pass_descriptor.set_color_store_action
-                                                  pass ~resolve:true
+                                                  pass ~store:keep ~resolve:true
                                           in
                                           let depth_actions =
                                             match target.target_depth with

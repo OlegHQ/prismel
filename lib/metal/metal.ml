@@ -2773,11 +2773,12 @@ module Render_pass_descriptor = struct
               Ok ()
             end)
 
-  let set_color_store_action (value : t) ~resolve =
+  let set_color_store_action (value : t) ~store ~resolve =
     let operation = "Metal.Render_pass_descriptor.set_color_store_action" in
     on_main operation (fun () ->
         let* () = ensure_live operation value.lifetime in
-        let code = if resolve then 2 else 1 in
+        (* MTLStoreAction: DontCare, Store, MultisampleResolve, StoreAndMultisampleResolve *)
+        let code = match store, resolve with false, false -> 0 | true, false -> 1 | false, true -> 2 | true, true -> 3 in
         if resolve && value.pass_sample_count = 1 then
           error operation Invalid_argument "resolve store actions require multisampling"
         else
