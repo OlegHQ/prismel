@@ -335,8 +335,6 @@ module Font=struct
     if not(valid_utf8 text)then error"Font.size_text"Invalid_argument"text is not strict UTF-8"
     else match set_density x 1 with Error _ as e->e|Ok()->ttf"Font.size_text"(match wrap_width with
       |None->Sdl3_ttf.Font.size_text x.raw text|Some wrap_width->Sdl3_ttf.Font.size_text_wrapped x.raw~wrap_width text))
-  let family_name x=live"Font.family_name"x(fun()->ttf"Font.family_name"(Sdl3_ttf.Font.family_name x.raw))
-  let style_name x=live"Font.style_name"x(fun()->ttf"Font.style_name"(Sdl3_ttf.Font.style_name x.raw))
   let render x ?wrap_width ?(align=Left) ~density ~color text=live"Font.render"x(fun()->
     if density<=0||density>16 then error"Font.render"Invalid_argument"density must be in 1..16"
     else if not(valid_utf8 text)then error"Font.render"Invalid_argument"text is not strict UTF-8"

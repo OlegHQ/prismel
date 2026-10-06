@@ -19,14 +19,6 @@ type face = {
   face_normal : Vec3.t;
 }
 
-val create :
-  ?mode:mode ->
-  ?indices:int list ->
-  ?normals:Vec3.t list ->
-  ?colors:Color.t list ->
-  ?tex_coords:Vec2.t list ->
-  Vec3.t list ->
-  (t, string) result
 val create_exn :
   ?mode:mode ->
   ?indices:int list ->
@@ -38,9 +30,7 @@ val create_exn :
 
 val mode : t -> mode
 val vertices : t -> Vec3.t list
-val indices : t -> int list
 val normals : t -> Vec3.t list
-val colors : t -> Color.t list
 val tex_coords : t -> Vec2.t list
 val vertex_count : t -> int
 val index_count : t -> int
@@ -50,34 +40,16 @@ val has_colors : t -> bool
 val has_tex_coords : t -> bool
 
 val vertex : int -> t -> Vec3.t option
-val index : int -> t -> int option
-val normal : int -> t -> Vec3.t option
-val color : int -> t -> Color.t option
-val tex_coord : int -> t -> Vec2.t option
 
 val with_mode : mode -> t -> t
 val with_vertex : int -> Vec3.t -> t -> (t, string) result
-val with_index : int -> int -> t -> (t, string) result
-val with_normal : int -> Vec3.t -> t -> (t, string) result
-val with_color : int -> Color.t -> t -> (t, string) result
-val with_tex_coord : int -> Vec2.t -> t -> (t, string) result
-val with_indices : int list -> t -> (t, string) result
-val with_normals : Vec3.t list -> t -> (t, string) result
-val with_colors : Color.t list -> t -> (t, string) result
-val with_tex_coords : Vec2.t list -> t -> (t, string) result
 (* [remove_vertex] preserves valid indexing and therefore returns an error
    while the vertex is still referenced. *)
 val remove_vertex : int -> t -> (t, string) result
-val without_normals : t -> t
-val without_colors : t -> t
-val without_tex_coords : t -> t
-val auto_indices : t -> t
 val clear : t -> t
-val transformed : Mat4.t -> t -> t
 val recalculate_normals : t -> t
 (* Duplicate triangle vertices so every face has one constant normal. *)
 val flat_shaded : t -> t
-val append : t -> t -> (t, string) result
 
 (* Expand triangle, strip, and fan modes to indexed triangles. *)
 val triangles : t -> (int * int * int) list

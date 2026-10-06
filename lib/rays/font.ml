@@ -1,5 +1,4 @@
 type render_mode=Blended of Color.t
-type style=Normal|Bold|Italic|Underline|Strikethrough
 type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting
 type alignment=Left|Center|Right
 (* density, size, text, wrap, align, rgba *)
@@ -7,18 +6,16 @@ module Text_key=struct
   type t=int*int*string*int option*alignment*(int*int*int*int)
   let equal=(=) let hash=Hashtbl.hash end
 module Text_cache=Lru.Make(Text_key)
-type t={resource:Runtime_resources.Font.t;size:int;source:string option;mutable styles:style list;
-  mutable hinting:hinting;mutable kerning:bool;mutable generation:int;
+type t={resource:Runtime_resources.Font.t;size:int;
+  mutable generation:int;
   cache:Image.t Text_cache.t}
 let text_cache_capacity=256
 let text_cache()=Text_cache.create ~release:(fun _ image->Image.destroy image)text_cache_capacity
 let message operation error=`Msg(Format.asprintf"%s: %a"operation Runtime_resources.pp_error error)
 let fonts:t list ref=ref[]
-let make ?source size=function Ok resource->let value={resource;size;source;styles=[];hinting=Normal_hinting;kerning=true;generation=1;cache=text_cache()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
+let make ?source:_ size=function Ok resource->let value={resource;size;generation=1;cache=text_cache()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
 let load path size=make ~source:path size(Runtime_resources.Font.open_file ~path ~size:(float size))
-let system_path()=match Sys.getenv_opt"RAYS_UI_FONT"with Some path when Sys.file_exists path->Some path|_->List.find_opt Sys.file_exists["/System/Library/Fonts/SFNSMono.ttf";"/System/Library/Fonts/SFNS.ttf";"/Library/Fonts/Arial.ttf";"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 let system ?(size=16)()=make size(Runtime_resources.Font.open_system ~size:(float size))
-let resize font size=match font.source with Some path->load path size|None->system ~size()
 let rgba(Blended c)=c.Color.r,c.g,c.b,c.a
 (* Invalid UTF-8 becomes U+FFFD rather than failing mid-frame. *)
 let sanitize text=if String.is_valid_utf_8 text then text else begin
@@ -40,29 +37,17 @@ let cached_text ?wrap ?(align=Left) ?(density=1) font text mode=let key=key ?wra
   match paint ~density ?wrap ~align font text mode with Error _ as error->error|Ok image->
     Text_cache.add font.cache key image;Ok image
 let clear_cache font=Text_cache.clear font.cache
-let resource_styles styles=List.map(function
-  |Normal->Runtime_resources.Font.Normal
-  |Bold->Runtime_resources.Font.Bold
-  |Italic->Runtime_resources.Font.Italic
-  |Underline->Runtime_resources.Font.Underline
-  |Strikethrough->Runtime_resources.Font.Strikethrough)styles
-let set_style font styles=match Runtime_resources.Font.set_style font.resource(resource_styles styles)with Ok()->clear_cache font;font.styles<-styles;font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_style"e)
-let get_style font=font.styles
 let resource_hinting=function
   |Normal_hinting->Runtime_resources.Font.Normal_hinting
   |Light_hinting->Runtime_resources.Font.Light_hinting
   |Mono_hinting->Runtime_resources.Font.Mono_hinting
   |None_hinting->Runtime_resources.Font.None_hinting
-let set_hinting font value=match Runtime_resources.Font.set_hinting font.resource(resource_hinting value)with Ok()->clear_cache font;font.hinting<-value;font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_hinting"e)
-let get_hinting font=font.hinting
-let set_kerning font value=match Runtime_resources.Font.set_kerning font.resource value with Ok()->clear_cache font;font.kerning<-value;font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_kerning"e)
-let get_kerning font=font.kerning
+let set_hinting font value=match Runtime_resources.Font.set_hinting font.resource(resource_hinting value)with Ok()->clear_cache font;();font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_hinting"e)
 let get_size font=font.size
 let destroy font=
   fonts:=List.filter(fun candidate->candidate!=font)!fonts;
   clear_cache font;ignore(Runtime_resources.Font.destroy font.resource)
 module Private=struct
- let cached_text=cached_text
  type automatic_entry={image:Image.t;mutable references:int;mutable cached:bool}
  type automatic={entry:automatic_entry;mutable released:bool}
  let capacity=256 and font_capacity=32
@@ -107,18 +92,6 @@ module Private=struct
  let automatic_counts()=
   Text_cache.length automatic_cache,Font_cache.length automatic_fonts,
     !automatic_references
- type retained_text=Owned_text of Image.t|Automatic_text of automatic
- let retain_text ?font ?(density=1) ~size text mode=match font with
-  |Some font->Result.map(fun image->Owned_text image)
-      (render_text~density font text mode)
-  |None->Result.map(fun handle->Automatic_text handle)
-      (borrow_automatic~density~size text mode)
- let retained_image=function
-  |Owned_text image->image
-  |Automatic_text handle->automatic_image handle
- let release_retained=function
-  |Owned_text image->Image.destroy image
-  |Automatic_text handle->release_automatic handle
  let generation font=font.generation
  type glyph={glyph_width:int;glyph_height:int;glyph_advance:int;glyph_alpha:bytes}
  (* One code point rendered exactly as [render_text] rasterizes it inside a
@@ -149,14 +122,8 @@ module Private=struct
 end
 let shutdown()=Private.clear_automatic();let owned= !fonts in fonts:=[];List.iter destroy owned
 let text_size ?wrap font text=match Runtime_resources.Font.size_text font.resource ?wrap_width:wrap(sanitize text)with Ok size->Ok size|Error e->Error(message"Font.text_size"e)
-let text_width font text=Result.map fst(text_size font text)
-let text_height font text=Result.map snd(text_size font text)
 let metrics font=match Runtime_resources.Font.metrics font.resource with
   |Ok m->m|Error e->let `Msg text=message"Font.metrics"e in invalid_arg text
-let get_height font=(metrics font).height
 let get_ascent font=(metrics font).ascent
 let get_descent font=(metrics font).descent
 let get_line_skip font=(metrics font).line_skip
-let get_family_name font=Result.value(Runtime_resources.Font.family_name font.resource)~default:None
-let get_style_name font=Result.value(Runtime_resources.Font.style_name font.resource)~default:None
-let glyph_metrics font code=match Runtime_resources.Font.glyph_metrics font.resource code with Ok m->Ok(m.min_x,m.max_x,m.min_y,m.max_y,m.advance)|Error e->Error(message"Font.glyph_metrics"e)

@@ -1,7 +1,7 @@
 (library
  (name rays)
  (public_name rays)
- (modules vec2 vec3 bounds2 bounds3 color mat4 quat rand noise light material
+ (modules vec2 vec3 bounds2 color mat4 quat rand noise light material
   path parallel texture input event input_state frame time clipboard image
   canvas canvas_runtime font audio mesh camera easy_camera shadow3
   scene3 scene3_native_lowering

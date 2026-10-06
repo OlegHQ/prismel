@@ -264,9 +264,7 @@ let create_exn ?mode ?indices ?normals ?colors ?tex_coords vertices =
 
 let mode (mesh : t) = mesh.mode
 let vertices (mesh : t) = Vec3_buffer.to_list mesh.vertices
-let indices (mesh : t) = Array.to_list mesh.indices
 let normals (mesh : t) = Option.fold ~none:[] ~some:Vec3_buffer.to_list mesh.normals
-let colors (mesh : t) = Option.fold ~none:[] ~some:Array.to_list mesh.colors
 let tex_coords (mesh : t) =
   Option.fold ~none:[] ~some:Array.to_list mesh.tex_coords
 let vertex_count (mesh : t) = Vec3_buffer.length mesh.vertices
@@ -287,104 +285,16 @@ let has_normals (mesh : t) = Option.is_some mesh.normals
 let has_colors (mesh : t) = Option.is_some mesh.colors
 let has_tex_coords (mesh : t) = Option.is_some mesh.tex_coords
 
-let array_get values index =
-  if index < 0 || index >= Array.length values then None
-  else Some values.(index)
-
 let vertex index (mesh : t) =
   if index < 0 || index >= Vec3_buffer.length mesh.vertices then None
   else Some (Vec3_buffer.get mesh.vertices index)
-let index index (mesh : t) = array_get mesh.indices index
-let normal index (mesh : t) =
-  Option.bind mesh.normals (fun values ->
-    if index < 0 || index >= Vec3_buffer.length values then None
-    else Some (Vec3_buffer.get values index))
-let color index (mesh : t) =
-  Option.bind mesh.colors (fun values -> array_get values index)
-let tex_coord index (mesh : t) =
-  Option.bind mesh.tex_coords (fun values -> array_get values index)
 
 let with_mode mode mesh = { mesh with mode }
-
-let replace name index value values =
-  if index < 0 || index >= Array.length values then
-    Error
-      (Printf.sprintf "Mesh.with_%s: index %d is out of range" name index)
-  else
-    let copy = Array.copy values in
-    copy.(index) <- value;
-    Ok copy
 
 let with_vertex index value mesh =
   if index < 0 || index >= Vec3_buffer.length mesh.vertices then
     Error (Printf.sprintf "Mesh.with_vertex: index %d is out of range" index)
   else Ok { mesh with vertices = Vec3_buffer.replace index value mesh.vertices }
-
-let with_index index value mesh =
-  if value < 0 || value >= Vec3_buffer.length mesh.vertices then
-    Error
-      (Printf.sprintf
-         "Mesh.with_index: vertex index %d is out of range" value)
-  else
-    replace "index" index value mesh.indices
-    |> Result.map (fun indices -> { mesh with indices })
-
-let replace_optional name plural index value = function
-  | None -> Error ("Mesh.with_" ^ name ^ ": mesh has no " ^ plural)
-  | Some values ->
-      replace name index value values |> Result.map Option.some
-
-let with_normal index value mesh =
-  match mesh.normals with
-  | None -> Error "Mesh.with_normal: mesh has no normals"
-  | Some normals when index < 0 || index >= Vec3_buffer.length normals ->
-      Error (Printf.sprintf "Mesh.with_normal: index %d is out of range" index)
-  | Some normals ->
-      Ok { mesh with normals = Some (Vec3_buffer.replace index value normals) }
-
-let with_color index value mesh =
-  replace_optional "color" "colors" index value mesh.colors
-  |> Result.map (fun colors -> { mesh with colors })
-
-let with_tex_coord index value mesh =
-  replace_optional "tex_coord" "texture coordinates"
-    index value mesh.tex_coords
-  |> Result.map (fun tex_coords -> { mesh with tex_coords })
-
-let with_indices values mesh =
-  let values = Array.of_list values in
-  match
-    Array.find_opt
-      (fun index -> index < 0 || index >= Vec3_buffer.length mesh.vertices)
-      values
-  with
-  | Some index ->
-      Error
-        (Printf.sprintf
-           "Mesh.with_indices: vertex index %d is out of range" index)
-  | None -> Ok { mesh with indices = values }
-
-let replace_attribute name values mesh =
-  let values = Array.of_list values in
-  if Array.length values <> Vec3_buffer.length mesh.vertices then
-    Error
-      (Printf.sprintf
-         "Mesh.with_%s: received %d values for %d vertices"
-         name (Array.length values) (Vec3_buffer.length mesh.vertices))
-  else Ok values
-
-let with_normals values mesh =
-  replace_attribute "normals" values mesh
-  |> Result.map (fun normals ->
-    { mesh with normals = Some (Vec3_buffer.of_array normals) })
-
-let with_colors values mesh =
-  replace_attribute "colors" values mesh
-  |> Result.map (fun colors -> { mesh with colors = Some colors })
-
-let with_tex_coords values mesh =
-  replace_attribute "tex_coords" values mesh
-  |> Result.map (fun tex_coords -> { mesh with tex_coords = Some tex_coords })
 
 let remove_at name index values =
   let count = Array.length values in
@@ -420,13 +330,6 @@ let remove_vertex index mesh =
       colors = Option.map remove mesh.colors;
       tex_coords = Option.map remove mesh.tex_coords;
     }
-
-let without_normals mesh = { mesh with normals = None }
-let without_colors mesh = { mesh with colors = None }
-let without_tex_coords mesh = { mesh with tex_coords = None }
-
-let auto_indices mesh =
-  { mesh with indices = Array.init (Vec3_buffer.length mesh.vertices) Fun.id }
 
 let clear mesh =
   {
