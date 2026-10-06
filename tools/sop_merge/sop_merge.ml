@@ -50,7 +50,7 @@ let apply_edits src edits =
     Buffer.add_string b (String.sub src pos (s - pos)); Buffer.add_string b t; e) 0 edits in
   Buffer.add_string b (String.sub src pos (String.length src - pos));
   let out = Str.global_replace (Str.regexp "\n\n\n+") "\n\n" (Buffer.contents b) in
-  Str.global_replace (Str.regexp "\n\n+\\'") "\n" out
+  Str.global_replace (Str.regexp "[ \t\n]+\\'") "\n" out
 
 exception Skip of string
 let skip format = Printf.ksprintf (fun message -> raise (Skip message)) format
@@ -75,9 +75,10 @@ let typed_params = function
   | { pexp_desc = Pexp_function (params, _, Pfunction_body body); _ } ->
       List.map (fun (p : function_param) -> match p.pparam_desc with
         | Pparam_val (label, default, pattern) ->
-            (match pat_var pattern with
-             | Some name -> { label; name; default }
-             | None -> skip "typed function has a non-variable parameter")
+            (match pat_var pattern, pattern.ppat_desc with
+             | Some name, _ -> { label; name; default }
+             | None, Ppat_construct ({ txt = Lident "()"; _ }, None) -> { label; name = "()"; default }
+             | None, _ -> skip "typed function has a non-variable parameter")
         | Pparam_newtype _ -> skip "typed function has a type parameter") params, body
   | { pexp_desc = Pexp_function (_, _, Pfunction_cases _); _ } -> skip "typed function uses [function]"
   | body -> [], body
@@ -139,18 +140,17 @@ let classify_check fname (e : expression) : [ `Checks of check list | `Vec3 of v
   | Pexp_ifthenelse (test, branch, None) ->
       let message = match invalid_arg_message branch with
         | Some m -> strip_prefix fname m | None -> skip "if-check does not raise invalid_arg" in
-      (match test with
-       | _ when (match test with
-           | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "="; _ }; _ },
-               [Nolabel, { pexp_desc = Pexp_apply (trim, [Nolabel, x]); _ }; _]); _ }
-             when lident trim = Some ["String"; "trim"] && var x <> None -> true
-           | _ -> false) ->
-           let v = match test with
-             | { pexp_desc = Pexp_apply (_, [Nolabel, { pexp_desc = Pexp_apply (_, [Nolabel, x]); _ }; _]); _ } ->
-                 Option.get (var x)
-             | _ -> assert false in
-           if not (is_blank_test v test) then skip "unrecognised blank test";
-           `Checks [Nonblank (v, message)]
+      (* String.trim x = "" [|| String.trim y = ""] *)
+      let blank_var = function
+        | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "="; _ }; _ },
+            [Nolabel, { pexp_desc = Pexp_apply (trim, [Nolabel, x]); _ }; _]); _ } as t
+          when lident trim = Some ["String"; "trim"] ->
+            (match var x with Some v when is_blank_test v t -> Some v | _ -> None)
+        | _ -> None in
+      let blanks = List.map blank_var (disjuncts test) in
+      (match blanks with
+       | _ when List.for_all Option.is_some blanks ->
+           `Checks (List.map (fun v -> Nonblank (Option.get v, message)) blanks)
        | _ ->
            (* not (Float.is_finite x) || x < lo || x > hi, or
               not (Float.is_finite v.x && Float.is_finite v.y && Float.is_finite v.z) *)
@@ -241,6 +241,9 @@ type argument_binding =
   | Optional_text of string    (* ?x:(optional_text parameters.f) *)
   | Vec3 of string             (* ~x:(Vec3.create parameters.g_x parameters.g_y parameters.g_z) *)
   | Slot of int                (* a lambda input *)
+  | Toggled of string * string * bool
+    (* ?x:(if parameters.t then Some parameters.f else None): Toggled (f, t, true);
+       ?x:(if parameters.t then None else Some parameters.f): Toggled (f, t, false) *)
   | Unit_argument
 
 let record_field = function
@@ -256,8 +259,20 @@ let classify_argument slots (label, (e : expression)) = match label, e with
   | (Labelled _ | Optional _), _ ->
       (match record_field e with
        | Some f -> Field f
+       | None when (match var e with Some v -> List.mem_assoc v slots | None -> false) ->
+           Slot (List.assoc (Option.get (var e)) slots)
        | None ->
            match e.pexp_desc with
+           | Pexp_ifthenelse (t, a, Some b) ->
+               let some = function
+                 | { pexp_desc = Pexp_construct ({ txt = Lident "Some"; _ }, Some x); _ } -> record_field x
+                 | _ -> None in
+               let none = function
+                 | { pexp_desc = Pexp_construct ({ txt = Lident "None"; _ }, None); _ } -> true | _ -> false in
+               (match record_field t, some a, none b, none a, some b with
+                | Some t, Some f, true, _, _ -> Toggled (f, t, true)
+                | Some t, _, _, true, Some f -> Toggled (f, t, false)
+                | _ -> skip "if-argument is not a toggled field")
            | Pexp_apply (f, [Nolabel, x]) when lident f = Some ["optional_text"] ->
                (match record_field x with Some f -> Optional_text f | None -> skip "optional_text of a non-field")
            | Pexp_apply (f, [Nolabel, x; Nolabel, y; Nolabel, z]) when lident f = Some ["Vec3"; "create"] ->
@@ -299,14 +314,6 @@ let same_expression (src_a, a) (src_b, b) =
 
 (* ---------- shared.ml helpers ---------- *)
 
-let shared_items = lazy (
-  let src, items = parse_with Parse.implementation "lib/sop_catalog/shared.ml" in
-  List.filter_map (fun (item : structure_item) ->
-    let names = match item.pstr_desc with
-      | Pstr_value (_, bindings) -> List.filter_map (fun b -> pat_var b.pvb_pat) bindings
-      | Pstr_type (_, decls) -> List.map (fun d -> d.ptype_name.txt) decls
-      | _ -> [] in
-    if names = [] then None else Some (names, text src item.pstr_loc, item)) items)
 
 let identifiers (iter : 'a -> Ast_iterator.iterator -> unit) value =
   let names = Hashtbl.create 64 and bound = Hashtbl.create 64 in
@@ -329,7 +336,10 @@ let identifiers (iter : 'a -> Ast_iterator.iterator -> unit) value =
   names
 
 (* The shared items the module names, transitively, that sop_support.ml lacks. *)
-let needed_shared support_src (module_items : structure) =
+(* The items of [candidates] (names defined, text, item, location) that
+   [module_items] or [extra] name, transitively, and sop_support.ml lacks, in
+   their original order so each is defined before use. *)
+let needed support_src candidates (module_items : structure) (extra : expression) =
   let have = Hashtbl.create 64 in
   let _, support = (let lexbuf = Lexing.from_string support_src in Lexer.init ();
                     support_src, Parse.implementation lexbuf) in
@@ -337,17 +347,23 @@ let needed_shared support_src (module_items : structure) =
     | Pstr_value (_, bindings) -> List.iter (fun b -> Option.iter (fun n -> Hashtbl.replace have n ()) (pat_var b.pvb_pat)) bindings
     | Pstr_type (_, decls) -> List.iter (fun d -> Hashtbl.replace have d.ptype_name.txt ()) decls
     | _ -> ()) support;
-  let shared = Lazy.force shared_items in
-  let out = ref [] in
+  let wanted = Hashtbl.create 64 in
   let rec visit (names : (string, unit) Hashtbl.t) =
-    List.iter (fun (defined, item_text, item) ->
+    List.iter (fun (defined, _, item, _) ->
       if List.exists (Hashtbl.mem names) defined && not (List.exists (Hashtbl.mem have) defined) then begin
-        List.iter (fun n -> Hashtbl.replace have n ()) defined;
-        out := item_text :: !out;
+        List.iter (fun n -> Hashtbl.replace have n (); Hashtbl.replace wanted n ()) defined;
         visit (identifiers (fun i it -> it.structure_item it i) item)
-      end) shared in
+      end) candidates in
   visit (identifiers (fun items it -> it.structure it items) module_items);
-  List.rev !out
+  visit (identifiers (fun e it -> it.expr it e) extra);
+  List.filter (fun (defined, _, _, _) -> List.exists (Hashtbl.mem wanted) defined) candidates
+
+let definitions src (items : structure) = List.filter_map (fun (item : structure_item) ->
+    let names = match item.pstr_desc with
+      | Pstr_value (_, bindings) -> List.filter_map (fun b -> pat_var b.pvb_pat) bindings
+      | Pstr_type (_, decls) -> List.map (fun d -> d.ptype_name.txt) decls
+      | _ -> [] in
+    if names = [] then None else Some (names, text src item.pstr_loc, item, item.pstr_loc)) items
 
 (* ---------- one node ---------- *)
 
@@ -400,7 +416,9 @@ let merge ~dry name =
   let bound = List.map (fun (label, e) ->
     (match label with Asttypes.Labelled l | Optional l -> l | Nolabel -> ""), (label, e)) application_args in
   let positional = ref (List.filter_map (fun (l, (label, e)) -> if l = "" then Some (label, e) else None) bound) in
-  let drift = ref [] and field_attrs = ref [] and args = ref [] and lets = ref [] in
+  let drift = ref [] and field_attrs = ref [] and args = ref [] in
+  (* the cook keeps f's [?label] by rebinding the build's label *)
+  let lets = ref ["label", "Some label"] in
   let add_field_attr f a = field_attrs := (f, a) :: !field_attrs in
   let field f = match List.assoc_opt f fields with Some d -> d | None -> skip "no field %s" f in
   let catalog_text e = text catalog_src e.pexp_loc in
@@ -420,6 +438,13 @@ let merge ~dry name =
     let arg_text = catalog_text expr in
     (match binding with
      | Unit_argument -> args := "()" :: !args
+     | Toggled (f, toggle, present) ->
+         (match p.label, p.default with
+          | Optional _, None -> ()
+          | _ -> skip "toggled argument %s is not a plain ?%s" p.name p.name);
+         token prefix (p.name ^ (if f = p.name then "" else "=" ^ f));
+         add_field_attr f (Printf.sprintf "[@sop.%s %S]" (if present then "present" else "absent") toggle);
+         let_ arg_text
      | Slot i -> token prefix (slot_name i);
          if Option.get (var expr) <> p.name then let_ arg_text
      | Field f | Optional_text f ->
@@ -479,7 +504,7 @@ let merge ~dry name =
           let l = p.name in
           (match List.assoc_opt l bound with
            | Some (_, e) -> (match classify_argument slots (Asttypes.Labelled l, e) with
-               | Field f | Optional_text f -> `Field f | Vec3 g -> `Vec3 g
+               | Field f | Optional_text f | Toggled (f, _, _) -> `Field f | Vec3 g -> `Vec3 g
                | _ -> skip "check on an input")
            | None -> skip "check on %s, which the catalog does not pass" l) in
     match classify_check fname check with
@@ -537,14 +562,41 @@ let merge ~dry name =
       let rec eat i = if i < String.length sop_src && (sop_src.[i] = ' ' || sop_src.[i] = '\n') then eat (i + 1) else i in
       body_edits := (s - start, eat e - start, "") :: !body_edits) checks;
     List.iter (fun (label, (e : expression)) -> match label with
-      | Asttypes.Optional "label" -> body_edits := (e.pexp_loc.loc_start.pos_cnum - 1 - start,
-          e.pexp_loc.loc_end.pos_cnum - start, "~label") :: !body_edits
-      | Labelled "parameters" ->
+      | Asttypes.Labelled "parameters" ->
           (* the argument text spans "~parameters:(...)": find its label start *)
           let rec back i = if sop_src.[i] = '~' then i else back (i - 1) in
           let s = back (e.pexp_loc.loc_start.pos_cnum - 1) in
           body_edits := (s - start, e.pexp_loc.loc_end.pos_cnum - start, "~parameters:\"\"") :: !body_edits
       | _ -> ()) make_args;
+    (* a [let x = e in] the hand key alone used goes with it *)
+    let parameters_arg = List.find_map (fun (label, e) ->
+        if label = Asttypes.Labelled "parameters" then Some e else None) make_args in
+    let uses name =
+      let count = ref 0 in
+      let it = { Ast_iterator.default_iterator with
+        expr = (fun self e ->
+          (match e.pexp_desc with
+           | Pexp_ident { txt = Lident v; _ } when v = name -> incr count
+           | _ -> ());
+          if not (match parameters_arg with Some p -> p == e | None -> false) then
+            Ast_iterator.default_iterator.expr self e) } in
+      it.expr it final;
+      !count in
+    let rec lets = function
+      | { pexp_desc = Pexp_let (_, [binding], body); pexp_loc; _ } ->
+          (match pat_var binding.pvb_pat with
+           | Some name when uses name = 0 ->
+               (* "let x = e in" through the whitespace after [in] *)
+               let s = pexp_loc.loc_start.pos_cnum in
+               let rec in_after i = if String.sub sop_src i 2 = "in" then i + 2 else in_after (i + 1) in
+               let e = in_after binding.pvb_loc.loc_end.pos_cnum in
+               let rec eat i = if sop_src.[i] = ' ' || sop_src.[i] = '\n' then eat (i + 1) else i in
+               body_edits := (s - start, eat e - start, "") :: !body_edits
+           | _ -> ());
+          lets body
+      | { pexp_desc = Pexp_let (_, _, body); _ } -> lets body
+      | _ -> () in
+    lets final;
     ignore make;
     apply_edits (text sop_src typed_body.pexp_loc) !body_edits in
   let lambda_header =
@@ -565,24 +617,55 @@ let merge ~dry name =
   let new_module = apply_edits module_src !edits in
   let support_path = "lib/procedural/sop_support.ml" in
   let support_src = read support_path in
-  let helpers = needed_shared support_src body in
+  (* Shared helpers are copied (the catalog still has nodes); sop.ml helpers the
+     cook names, other than typed SOPs, move *)
+  let shared_src, shared = parse_with Parse.implementation "lib/sop_catalog/shared.ml" in
+  let cook = Parse.expression (Lexing.from_string body_text) in
+  let helpers = needed support_src (definitions shared_src shared) body cook in
+  let exported = let _, mli = parse_with Parse.interface "lib/procedural/sop.mli" in
+    List.filter_map (fun (i : signature_item) -> match i.psig_desc with
+      | Psig_value v -> Some v.pval_name.txt | _ -> None) mli in
+  (* of a name defined twice, the definition in scope at the typed function *)
+  let in_scope = List.filter (fun (defined, _, _, (loc : Location.t)) ->
+      loc.loc_end.pos_cnum <= typed_item.pstr_loc.loc_start.pos_cnum
+      && not (List.exists (fun n -> List.mem n exported) defined)) (definitions sop_src sop_items) in
+  let movable = List.filter (fun (defined, _, _, (loc : Location.t)) ->
+      not (List.exists (fun (names, _, _, (later : Location.t)) ->
+        later.loc_start.pos_cnum > loc.loc_start.pos_cnum
+        && List.exists (fun n -> List.mem n names) defined) in_scope)) in_scope in
+  let moved = needed (support_src ^ String.concat "\n" (List.map (fun (_, t, _, _) -> t) helpers))
+      movable body cook in
   let target = Printf.sprintf "lib/procedural/sop_%s.ml" file in
   Printf.printf "%s: %s -> %s (Sop.%s); args %S\n" name catalog_path target fname args_text;
   List.iter (fun d -> Printf.printf "  drift: %s\n" d) (List.rev !drift);
   List.iter (fun (f, a) -> Printf.printf "  %s %s\n" f a) (List.rev !field_attrs);
-  List.iter (fun h -> Printf.printf "  shared helper: %s\n" (List.hd (String.split_on_char '\n' h))) helpers;
+  List.iter (fun (_, h, _, _) -> Printf.printf "  shared helper: %s\n" (List.hd (String.split_on_char '\n' h))) helpers;
+  List.iter (fun (_, h, _, _) -> Printf.printf "  moved from sop.ml: %s\n" (List.hd (String.split_on_char '\n' h))) moved;
   if not dry then begin
     write target (read target ^ "\n" ^ new_module ^ "\n");
-    if helpers <> [] then write support_path (support_src ^ "\n" ^ String.concat "\n\n" helpers ^ "\n");
+    if helpers <> [] || moved <> [] then write support_path (support_src ^ "\n"
+      ^ String.concat "\n\n" (List.map (fun (_, t, _, _) -> t) (helpers @ moved)) ^ "\n");
     let s, e = line_range catalog_src module_item.pstr_loc in
     write catalog_path (apply_edits catalog_src [s, e, ""]);
     let s, e = line_range sop_src typed_item.pstr_loc in
     write "lib/procedural/sop.ml" (apply_edits sop_src
-      [s, e, Printf.sprintf "let %s = Sop_%s.%s.fn\n" fname file name]);
+      ((s, e, Printf.sprintf "let %s = Sop_%s.%s.fn\n" fname file name)
+       :: List.map (fun (_, _, _, loc) -> let s, e = line_range sop_src loc in s, e, "") moved));
     write "lib/procedural/nodes.ml" (read "lib/procedural/nodes.ml"
       ^ Printf.sprintf "module %s = Sop_%s.%s\n" name file name);
+    (* the signature Sop_catalog exports for the module ([create]) moves along *)
+    let exported =
+      let mli_src, items = parse_with Parse.interface "lib/sop_catalog/sop_catalog.mli" in
+      List.concat_map (fun (item : signature_item) -> match item.psig_desc with
+        | Psig_module { pmd_name = { txt = Some m; _ }; pmd_type = { pmty_desc = Pmty_signature inner; _ }; _ }
+          when m = name ->
+            List.map (fun (i : signature_item) ->
+              Str.global_replace (Str.regexp_string "Procedural.") "" (text mli_src i.psig_loc)) inner
+        | _ -> []) items in
     write "lib/procedural/nodes.mli" (read "lib/procedural/nodes.mli"
-      ^ Printf.sprintf "module %s : sig val factory : Edit_graph.factory end\n" name);
+      ^ (if exported = [] then Printf.sprintf "module %s : sig val factory : Edit_graph.factory end\n" name
+         else Printf.sprintf "module %s : sig\n  val factory : Edit_graph.factory\n  %s\nend\n" name
+           (String.concat "\n  " exported)));
     let registry = read "lib/sop_catalog/sop_catalog.ml" in
     let old = Printf.sprintf "module %s = %s.%s [@@sop.register]" name (String.capitalize_ascii file) name in
     let fresh = Printf.sprintf "module %s = Procedural.Nodes.%s [@@sop.register]" name name in

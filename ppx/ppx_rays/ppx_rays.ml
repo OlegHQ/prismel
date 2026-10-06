@@ -30,6 +30,11 @@ let ignore_attribute =
 let arg_default_attribute = expression_attribute "sop.arg_default"
 let nonblank_attribute = expression_attribute "sop.nonblank"
 let validate_attribute = expression_attribute "sop.validate"
+(* The toggle field a typed optional argument sets: true when the argument is
+   given ([sop.present "use_x"]) or when it is left out ([sop.absent
+   "context_seed"]). *)
+let present_attribute = expression_attribute "sop.present"
+let absent_attribute = expression_attribute "sop.absent"
 
 let type_expression_attribute name =
   Attribute.declare name Attribute.Context.type_declaration
@@ -560,6 +565,17 @@ let typed_function declaration ~key ~inputs ~optional ~slots ~name ~arguments =
                 ~access:(fun value -> component value axis) f.pld_name.txt)
               [x; y; z] ["x"; "y"; "z"]
         | None, None, Some f ->
+            (* a toggle reads the argument's presence before its default resolves *)
+            List.iter (fun (attribute, test) ->
+              Option.iter (fun toggle ->
+                if not optional_value then Location.raise_errorf ~loc:f.pld_loc
+                    "sop.present/absent needs an optional argument for %s" name;
+                let given = name ^ "_given" in
+                bindings := (given, apply ~loc (ident ~loc ["Stdlib"; "Option"; test])
+                    [Nolabel, var name]) :: !bindings;
+                sets := (string_constant toggle "sop.present", var given) :: !sets)
+                (Attribute.get attribute f))
+              [present_attribute, "is_some"; absent_attribute, "is_none"];
             resolve name ~optional_value ~default_value:(argument_default f);
             settle ~name ~optional_value ~access:Fun.id name
         | None, None, None ->
@@ -669,7 +685,8 @@ let attributes = List.map (fun attribute -> Attribute.T attribute)
     [ default_attribute; label_attribute; name_attribute; description_attribute;
       folder_attribute; impact_attribute; soft_min_attribute; soft_max_attribute;
       hard_min_attribute; hard_max_attribute; kind_attribute; vec3_attribute; unit_attribute;
-      arg_default_attribute; nonblank_attribute; validate_attribute ]
+      arg_default_attribute; nonblank_attribute; validate_attribute; present_attribute;
+      absent_attribute ]
   @ [Attribute.T ignore_attribute; Attribute.T primary_attribute]
 
 let node_attributes = List.map (fun attribute -> Attribute.T attribute)
@@ -677,7 +694,8 @@ let node_attributes = List.map (fun attribute -> Attribute.T attribute)
      node_inputs_attribute; node_optional_attribute; node_slots_attribute;
      fn_attribute; args_attribute]
   @ List.map (fun attribute -> Attribute.T attribute)
-    [arg_default_attribute; nonblank_attribute; validate_attribute; hard_min_attribute;
+    [arg_default_attribute; nonblank_attribute; validate_attribute; present_attribute;
+     absent_attribute; hard_min_attribute;
      hard_max_attribute; vec3_attribute]
 
 let () =

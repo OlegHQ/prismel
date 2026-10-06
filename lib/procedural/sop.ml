@@ -4451,51 +4451,7 @@ let uv_auto_seam ?label ?(name = "uv_seams") ?group
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let edge_incidence_key = function
-  | Rdk.Group_mesh.Any_edge -> "any"
-  | Rdk.Group_mesh.Boundary_edge -> "boundary"
-  | Rdk.Group_mesh.Manifold_edge -> "manifold"
-  | Rdk.Group_mesh.Non_manifold_edge -> "non_manifold"
-
-let edge_angle_basis_key = function
-  | Rdk.Group_mesh.Primitive_dihedral -> "primitive_dihedral"
-  | Rdk.Group_mesh.Incident_edges -> "incident_edges"
-
-let group_edges ?label ?(name = "edges") ?group
-    ?(incidence = Rdk.Group_mesh.Any_edge) ?min_length ?max_length
-    ?(angle_basis = Rdk.Group_mesh.Primitive_dihedral) ?min_angle ?max_angle input =
-  if String.trim name = "" then invalid_arg "Sop.group_edges: empty group name";
-  Option.iter (fun value -> if String.trim value = "" then
-    invalid_arg "Sop.group_edges: empty primitive group name") group;
-  let optional_float = function None -> "" | Some value -> float_key value in
-  Node.Private.make ?label ~operation:"group_edges" ~version:2
-    ~parameters:(Printf.sprintf
-      "name=%S;group=%S;incidence=%s;min_length=%s;max_length=%s;angle_basis=%s;min_angle=%s;max_angle=%s"
-      name (Option.value ~default:"" group) (edge_incidence_key incidence)
-      (optional_float min_length) (optional_float max_length)
-      (edge_angle_basis_key angle_basis)
-      (optional_float min_angle) (optional_float max_angle))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let primitives = match group with
-        | None -> Ok None
-        | Some group_name ->
-            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
-                group_name inputs.(0) with
-             | Some value -> Ok (Some value)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 ~hints:["Create the primitive group before Edge Group"]
-                 (Printf.sprintf "group_edges could not find primitive group %S"
-                   group_name))) in
-      match primitives with
-      | Error _ as error -> error
-      | Ok primitives ->
-          match Rdk.Group_mesh.group_edges ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ~name ?primitives ~incidence
-              ?min_length ?max_length ~angle_basis ?min_angle ?max_angle
-              inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let group_edges = Sop_groups.Group_edges.fn
 
 let boundary_group_owner_key = function
   | Rdk.Group_ops.Group_points -> "points"
@@ -4507,94 +4463,11 @@ let group_boundary_attribute_key (rule : Rdk.Group_ops.boundary_attribute) =
   attribute_owner_key rule.boundary_attribute_owner ^ ":"
   ^ Printf.sprintf "%S" rule.boundary_attribute_pattern
 
-let group_from_attribute_boundary ?label ?(attributes = [])
-    ?(tolerance = 1e-6) ?(include_unshared_edges = false)
-    ?(include_all_unshared_curve_edges = false)
-    ?(include_all_primitives_sharing_boundary_points = false)
-    ~owner ~name input =
-  if String.trim name = "" then
-    invalid_arg "Sop.group_from_attribute_boundary: empty group name";
-  let attributes = List.map (fun (rule : Rdk.Group_ops.boundary_attribute) ->
-    { Rdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
-      boundary_attribute_pattern = rule.boundary_attribute_pattern }) attributes in
-  Node.Private.make ?label ~operation:"group_from_attribute_boundary" ~version:1
-    ~parameters:(String.concat ";" [
-      "owner=" ^ boundary_group_owner_key owner;
-      "name=" ^ Printf.sprintf "%S" name;
-      "attributes=" ^ String.concat ","
-        (List.map group_boundary_attribute_key attributes);
-      "tolerance=" ^ float_key tolerance;
-      "include_unshared_edges=" ^ string_of_bool include_unshared_edges;
-      "include_all_unshared_curve_edges="
-        ^ string_of_bool include_all_unshared_curve_edges;
-      "include_all_primitives_sharing_boundary_points="
-        ^ string_of_bool include_all_primitives_sharing_boundary_points])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.group_from_attribute_boundary
-          ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
-          ~attributes ~tolerance ~include_unshared_edges
-          ~include_all_unshared_curve_edges
-          ~include_all_primitives_sharing_boundary_points ~owner ~name inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_from_attribute_boundary = Sop_groups.Group_from_attribute_boundary.fn
 
-let group_name_conflict_key = function
-  | Rdk.Group_ops.Name_replace -> "replace"
-  | Rdk.Group_ops.Name_union -> "union"
+let groups_from_name = Sop_groups.Groups_from_name.fn
 
-let invalid_group_name_policy_key = function
-  | Rdk.Group_ops.Ignore_invalid -> "ignore"
-  | Rdk.Group_ops.Force_valid -> "force_valid"
-
-let groups_from_name ?label ?(prefix = "")
-    ?(conflict = Rdk.Group_ops.Name_replace)
-    ?(invalid_names = Rdk.Group_ops.Ignore_invalid) ?(max_groups = 4_096)
-    ?(max_payload_bytes = 268_435_456) ~owner ~attribute input =
-  if String.trim attribute = "" then
-    invalid_arg "Sop.groups_from_name: empty attribute name";
-  Node.Private.make ?label ~operation:"groups_from_name" ~version:1
-    ~parameters:(String.concat ";" [
-      "owner=" ^ attribute_owner_key owner;
-      "attribute=" ^ Printf.sprintf "%S" attribute;
-      "prefix=" ^ Printf.sprintf "%S" prefix;
-      "conflict=" ^ group_name_conflict_key conflict;
-      "invalid_names=" ^ invalid_group_name_policy_key invalid_names;
-      "max_groups=" ^ string_of_int max_groups;
-      "max_payload_bytes=" ^ string_of_int max_payload_bytes])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.groups_from_name ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~prefix ~conflict ~invalid_names
-          ~max_groups ~max_payload_bytes ~owner ~attribute inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
-
-let group_name_overlap_key = function
-  | Rdk.Group_ops.First_group -> "first"
-  | Rdk.Group_ops.Last_group -> "last"
-  | Rdk.Group_ops.Error_on_overlap -> "error"
-
-let name_from_groups ?label ?(attribute = "name") ?(pattern = "*")
-    ?(default = "") ?(overlap = Rdk.Group_ops.Last_group)
-    ?(delete_groups = false) ~owner input =
-  if String.trim attribute = "" then
-    invalid_arg "Sop.name_from_groups: empty attribute name";
-  Node.Private.make ?label ~operation:"name_from_groups" ~version:1
-    ~parameters:(String.concat ";" [
-      "owner=" ^ attribute_owner_key owner;
-      "attribute=" ^ Printf.sprintf "%S" attribute;
-      "pattern=" ^ Printf.sprintf "%S" pattern;
-      "default=" ^ Printf.sprintf "%S" default;
-      "overlap=" ^ group_name_overlap_key overlap;
-      "delete_groups=" ^ string_of_bool delete_groups])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.name_from_groups ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~attribute ~pattern ~default ~overlap
-          ~delete_groups ~owner inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let name_from_groups = Sop_groups.Name_from_groups.fn
 
 let uv_unitize_mode_key = function
   | Rdk.Uv_ops.Per_face -> "per_face"
@@ -5370,11 +5243,6 @@ let attribute_transfer_all ?label ?point_pattern ?vertex_pattern
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let group_owner_key = function
-  | Rdk.Group.Point -> "point"
-  | Rdk.Group.Vertex -> "vertex"
-  | Rdk.Group.Primitive -> "primitive"
-
 let attribute_count geometry = function
   | Rdk.Attribute.Point -> Rdk.Geometry.point_count geometry
   | Rdk.Attribute.Vertex -> Rdk.Geometry.vertex_count geometry
@@ -5640,24 +5508,9 @@ let swap_attributes ?label ~rules input =
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let delete_edge_group ?label ~name input =
-  if String.trim name = "" then invalid_arg "Sop.delete_edge_group: empty name";
-  Node.Private.make ?label ~operation:"delete_edge_group" ~version:1
-    ~parameters:(Printf.sprintf "name=%S" name)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      cooked (Rdk.Geometry.without_edge_group name inputs.(0)))
+let delete_edge_group = Sop_groups.Delete_edge_group.fn
 
-let rename_edge_group ?label ~from ~into input =
-  if String.trim from = "" || String.trim into = "" then
-    invalid_arg "Sop.rename_edge_group: empty name";
-  Node.Private.make ?label ~operation:"rename_edge_group" ~version:1
-    ~parameters:(Printf.sprintf "from=%S;into=%S" from into)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Rdk.Geometry.rename_edge_group ~from ~into inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error message -> rdk_error "rename_edge_group" message)
+let rename_edge_group = Sop_groups.Rename_edge_group.fn
 
 let group ?label ~name selection input =
   if String.trim name = "" then invalid_arg "Sop.group: empty name";
@@ -5764,48 +5617,7 @@ let group_promotions ?label ?(max_outputs = 4_096)
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let group_promote_boundary ?label ?name ?(keep_original = false)
-    ?output_attribute ?(attributes = []) ?(tolerance = 1e-6)
-    ?(include_unshared_edges = false)
-    ?(include_all_unshared_curve_edges = false)
-    ?(include_all_primitives_sharing_boundary_points = false)
-    ~source ~destination ~group input =
-  if String.trim group = "" then
-    invalid_arg "Sop.group_promote_boundary: empty group name";
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.group_promote_boundary: empty output name") name;
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.group_promote_boundary: empty output attribute name")
-    output_attribute;
-  let attributes = List.map (fun (rule : Rdk.Group_ops.boundary_attribute) ->
-    { Rdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
-      boundary_attribute_pattern = rule.boundary_attribute_pattern }) attributes in
-  Node.Private.make ?label ~operation:"group_promote_boundary" ~version:1
-    ~parameters:(String.concat ";" [
-      "source=" ^ topology_group_owner_key source;
-      "destination=" ^ topology_group_owner_key destination;
-      "group=" ^ Printf.sprintf "%S" group;
-      "name=" ^ option_string_key name;
-      "keep_original=" ^ string_of_bool keep_original;
-      "output_attribute=" ^ option_string_key output_attribute;
-      "attributes=" ^ String.concat ","
-        (List.map group_boundary_attribute_key attributes);
-      "tolerance=" ^ float_key tolerance;
-      "include_unshared_edges=" ^ string_of_bool include_unshared_edges;
-      "include_all_unshared_curve_edges=" ^
-        string_of_bool include_all_unshared_curve_edges;
-      "include_all_primitives_sharing_boundary_points=" ^
-        string_of_bool include_all_primitives_sharing_boundary_points])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.group_promote_boundary
-          ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
-          ?name ~keep_original ?output_attribute ~attributes ~tolerance
-          ~include_unshared_edges ~include_all_unshared_curve_edges
-          ~include_all_primitives_sharing_boundary_points
-          ~source ~destination ~group inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_promote_boundary = Sop_groups.Group_promote_boundary.fn
 
 let primitive_group_connectivity_key = function
   | Rdk.Group_ops.Primitive_share_points -> "share_points"
@@ -6041,149 +5853,15 @@ let group_invert ?label ?(conflict = Rdk.Group_ops.Rename_overwrite) ?owner
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let group_delete_rule_key (rule : Rdk.Group_ops.delete_rule) =
-  optional_topology_group_owner_key rule.delete_owner ^ ":"
-  ^ Printf.sprintf "%S" rule.delete_pattern
+let group_delete = Sop_groups.Group_delete.fn
 
-let group_delete ?label ?(delete_unused = false) ~rules input =
-  let rules = List.map (fun (rule : Rdk.Group_ops.delete_rule) ->
-    { Rdk.Group_ops.delete_owner = rule.delete_owner;
-      delete_pattern = rule.delete_pattern }) rules in
-  Node.Private.make ?label ~operation:"group_delete" ~version:1
-    ~parameters:(Printf.sprintf "delete_unused=%b;rules=%s" delete_unused
-      (String.concat "," (List.map group_delete_rule_key rules)))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Rdk.Group_ops.delete ~rules ~delete_unused inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_rename = Sop_groups.Group_rename.fn
 
-let group_rename_rule_key (rule : Rdk.Group_ops.rename_rule) =
-  String.concat ":" [
-    optional_topology_group_owner_key rule.rename_owner;
-    Printf.sprintf "%S" rule.rename_pattern;
-    Printf.sprintf "%S" rule.rename_replacement;
-    group_rename_conflict_key rule.rename_conflict]
+let group_copy = Sop_groups.Group_copy.fn
 
-let group_rename ?label ~rules input =
-  let rules = List.map (fun (rule : Rdk.Group_ops.rename_rule) ->
-    { Rdk.Group_ops.rename_owner = rule.rename_owner;
-      rename_pattern = rule.rename_pattern;
-      rename_replacement = rule.rename_replacement;
-      rename_conflict = rule.rename_conflict }) rules in
-  Node.Private.make ?label ~operation:"group_rename" ~version:1
-    ~parameters:("rules=" ^ String.concat ","
-      (List.map group_rename_rule_key rules))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
-      match Rdk.Group_ops.rename ~rules inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_transfer = Sop_groups.Group_transfer.fn
 
-let group_copy_conflict_key = function
-  | Rdk.Group_ops.Copy_skip -> "skip"
-  | Rdk.Group_ops.Copy_overwrite -> "overwrite"
-  | Rdk.Group_ops.Copy_add_suffix -> "add_suffix"
-
-let group_copy_rule_key (rule : Rdk.Group_ops.copy_rule) =
-  String.concat ":" [topology_group_owner_key rule.copy_owner;
-    Printf.sprintf "%S" rule.copy_pattern;
-    Printf.sprintf "%S" rule.copy_prefix;
-    option_string_key rule.match_attribute]
-
-let group_copy ?label ?rules ?(conflict = Rdk.Group_ops.Copy_skip)
-    ?(copy_empty = false) ~source ~target () =
-  let rules = Option.map (List.map (fun (rule : Rdk.Group_ops.copy_rule) ->
-    { Rdk.Group_ops.copy_owner = rule.copy_owner;
-      copy_pattern = rule.copy_pattern;
-      copy_prefix = rule.copy_prefix;
-      match_attribute = rule.match_attribute })) rules in
-  Node.Private.make ?label ~operation:"group_copy" ~version:1
-    ~parameters:(String.concat ";" [
-      "rules=" ^ (match rules with None -> "default" | Some rules ->
-        String.concat "," (List.map group_copy_rule_key rules));
-      "conflict=" ^ group_copy_conflict_key conflict;
-      "copy_empty=" ^ string_of_bool copy_empty])
-    ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
-    ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.copy ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?rules ~conflict ~copy_empty
-          ~source:inputs.(0) ~target:inputs.(1) () with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
-
-let group_transfer_rule_key (rule : Rdk.Group_ops.transfer_rule) =
-  String.concat ":" [topology_group_owner_key rule.transfer_owner;
-    Printf.sprintf "%S" rule.transfer_pattern;
-    Printf.sprintf "%S" rule.transfer_prefix]
-
-let group_transfer ?label ?rules ?(conflict = Rdk.Group_ops.Copy_skip)
-    ?(create_empty = false) ?(distance = 0.001) ~source ~target () =
-  let rules = Option.map (List.map (fun (rule : Rdk.Group_ops.transfer_rule) ->
-    { Rdk.Group_ops.transfer_owner = rule.transfer_owner;
-      transfer_pattern = rule.transfer_pattern;
-      transfer_prefix = rule.transfer_prefix })) rules in
-  Node.Private.make ?label ~operation:"group_transfer" ~version:1
-    ~parameters:(String.concat ";" [
-      "rules=" ^ (match rules with None -> "default" | Some rules ->
-        String.concat "," (List.map group_transfer_rule_key rules));
-      "conflict=" ^ group_copy_conflict_key conflict;
-      "create_empty=" ^ string_of_bool create_empty;
-      "distance=" ^ float_key distance])
-    ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
-    ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.transfer ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?rules ~conflict ~create_empty ~distance
-          ~source:inputs.(0) ~target:inputs.(1) () with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
-
-let group_path_mode_key = function
-  | Rdk.Group_mesh.Through_each -> "through_each"
-  | Rdk.Group_mesh.Start_end_pairs -> "start_end_pairs"
-
-let group_path_ending_key = function
-  | Rdk.Group_mesh.Stop_at_end -> "stop_at_end"
-  | Rdk.Group_mesh.Close_path -> "close_path"
-
-let group_find_path ?label ?(mode = Rdk.Group_mesh.Through_each)
-    ?(ending = Rdk.Group_mesh.Stop_at_end) ?(avoid_self_intersection = true)
-    ?(owner = Rdk.Group.Point) ?collision_group ?(contain = false)
-    ~base_group ~name input =
-  Node.Private.make ?label ~operation:"group_find_path" ~version:2
-    ~parameters:(String.concat ";" [
-      "mode=" ^ group_path_mode_key mode;
-      "ending=" ^ group_path_ending_key ending;
-      "avoid_self_intersection=" ^ string_of_bool avoid_self_intersection;
-      "owner=" ^ group_owner_key owner;
-      "collision_group=" ^ option_string_key collision_group;
-      "contain=" ^ string_of_bool contain;
-      "base_group=" ^ Printf.sprintf "%S" base_group;
-      "name=" ^ Printf.sprintf "%S" name])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      match Rdk.Geometry.find_group ~owner base_group geometry with
-      | None -> Error (Diagnostic.error ~code:"missing_group"
-          (Printf.sprintf "group_find_path could not find %s group %S"
-            (group_owner_key owner) base_group))
-      | Some base ->
-          let collision = match collision_group with
-            | None -> Ok None
-            | Some group ->
-                (match Rdk.Geometry.find_group ~owner group geometry with
-                 | Some group -> Ok (Some group)
-                 | None -> Error (Diagnostic.error ~code:"missing_group"
-                     (Printf.sprintf
-                       "group_find_path could not find collision %s group %S"
-                       (group_owner_key owner) group))) in
-          Result.bind collision (fun collision ->
-            match Rdk.Group_mesh.group_find_path
-                ~cancel:(Context.cancel_token context)
-                ~grain:(Context.grain context) ~mode ~ending
-                ~avoid_self_intersection ?collision ~contain ~base ~name geometry with
-            | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+let group_find_path = Sop_groups.Group_find_path.fn
 
 let delete_policy_key = function
   | Rdk.Deletion.Destroy_touched_primitives -> "destroy_touched_primitives"
@@ -6432,54 +6110,7 @@ let custom ?label ?(version = 1) ?(parameters = "")
         | Ok geometry -> cooked geometry
         | Error message -> rdk_error operation message)
 
-let stable_string_hash value =
-  let hash = ref 0xcbf29ce484222325L in
-  String.iter (fun character ->
-    hash := Int64.mul (Int64.logxor !hash (Int64.of_int (Char.code character)))
-        0x100000001b3L) value;
-  !hash
-
-let mixed_seed context identity =
-  let mixed = Int64.logxor (Context.seed context)
-      (Int64.mul identity 0x9e3779b97f4a7c15L) in
-  Int64.to_int (Int64.logxor mixed (Int64.shift_right_logical mixed 32))
-
-let group_random ?label ?seed ?seed_attribute ?base
-    ?(merge = Rdk.Group_ops.Group_replace) ~probability ~owner ~name input =
-  if String.trim name = "" then invalid_arg "Sop.group_random: empty group name";
-  if not (Float.is_finite probability) || probability < 0. || probability > 1.
-  then invalid_arg "Sop.group_random: probability must be in [0,1]";
-  List.iter (fun (field, value) -> match value with
-    | Some value when String.trim value = "" ->
-        invalid_arg ("Sop.group_random: empty " ^ field)
-    | None | Some _ -> ())
-    ["seed attribute name", seed_attribute; "base group name", base];
-  let dependencies = match seed with
-    | Some _ -> Context.Dependencies.static
-    | None -> Context.Dependencies.one Context.Dependencies.Seed in
-  let stable_identity = Option.map (fun label ->
-    stable_string_hash ("group_random:" ^ label)) label in
-  Node.Private.make ?label ~operation:"group_random" ~version:1
-    ~parameters:(String.concat ";" [
-      "owner=" ^ boundary_group_owner_key owner;
-      "name=" ^ Printf.sprintf "%S" name;
-      "probability=" ^ float_key probability;
-      "seed=" ^ (match seed with None -> "context"
-        | Some seed -> string_of_int seed);
-      "seed_attribute=" ^ option_string_key seed_attribute;
-      "base=" ^ option_string_key base;
-      "merge=" ^ group_boolean_operation_key merge])
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
-    (fun ~node_id context inputs ->
-      let identity = Option.value ~default:(Int64.of_int node_id)
-          stable_identity in
-      let seed = Rand.seed (Option.value ~default:(mixed_seed context identity)
-          seed) in
-      match Rdk.Group_ops.group_random ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~seed ?seed_attribute ?base ~merge
-          ~probability ~owner ~name inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_random = Sop_groups.Group_random.fn
 
 let group_bounds_key = function
   | Rdk.Group_ops.Bounds_box { minimum; maximum } ->
@@ -6567,41 +6198,11 @@ let group_non_planar = Sop_groups.Group_non_planar.fn
 
 let group_backface = Sop_groups.Group_backface.fn
 
-let group_edge_depth ?label ?(merge = Rdk.Group_ops.Group_replace) ~depth
-    ~point_group ~name input =
-  if String.trim point_group = "" then
-    invalid_arg "Sop.group_edge_depth: empty seed point group name";
-  if String.trim name = "" then
-    invalid_arg "Sop.group_edge_depth: empty output group name";
-  Node.Private.make ?label ~operation:"group_edge_depth" ~version:1
-    ~parameters:(Printf.sprintf "depth=%d;point_group=%S;name=%S;merge=%s"
-      depth point_group name (group_boolean_operation_key merge))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.group_edge_depth ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~merge ~depth ~point_group ~name
-          inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_edge_depth = Sop_groups.Group_edge_depth.fn
 
 let group_unshared = Sop_groups.Group_unshared.fn
 
-let group_boundary_components ?label ?(prefix = "boundary")
-    ?(conflict = Rdk.Group_ops.Name_replace) ?(max_groups = 4_096)
-    ?(max_payload_bytes = 268_435_456) input =
-  if String.trim prefix = "" then
-    invalid_arg "Sop.group_boundary_components: empty output prefix";
-  Node.Private.make ?label ~operation:"group_boundary_components" ~version:1
-    ~parameters:(Printf.sprintf
-      "prefix=%S;conflict=%s;max_groups=%d;max_payload_bytes=%d"
-      prefix (group_name_conflict_key conflict) max_groups max_payload_bytes)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Group_ops.group_boundary_components
-          ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
-          ~prefix ~conflict ~max_groups ~max_payload_bytes inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let group_boundary_components = Sop_groups.Group_boundary_components.fn
 
 let numeric_value_key = function
   | Rdk.Attribute_ops.Scalar value -> "scalar:" ^ float_key value

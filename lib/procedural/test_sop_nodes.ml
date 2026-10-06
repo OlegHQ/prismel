@@ -18,13 +18,13 @@ let cook domains graph =
   Session.close session;
   output
 
-(* The factory node carrying [values], built on [input]. *)
-let from_factory factory values input =
-  let node = Edit_graph.instantiate factory [input] |> get in
+(* The factory node carrying [values], built on [inputs]. *)
+let from_factory factory values inputs =
+  let node = Edit_graph.instantiate factory inputs |> get in
   fst (Node.apply_parameters node values |> get)
 
-let same_cook name ~typed ~factory values input =
-  let catalog = from_factory factory values input in
+let same_cook ?(inputs = []) name ~typed ~factory values input =
+  let catalog = from_factory factory values (input :: inputs) in
   check (Node.parameter_key typed = Node.parameter_key catalog && Node.parameter_key typed <> "")
     (name ^ ": typed constructor and factory share the schema key");
   let one = cook 1 typed in
@@ -58,7 +58,11 @@ let cache_identity name node =
   ignore (cook node);
   check (misses () = before) (name ^ ": equal parameters hit the session cache");
   List.iter (fun (view : Parameter.field_view) ->
-    let edited = fst (Node.apply_parameters node [view.name, changed view] |> get) in
+    (* an encoded table rejects an arbitrary text: that field is not probed *)
+    match Node.apply_parameters node [view.name, changed view] with
+    | Error _ when view.kind = Parameter.Text_view -> ()
+    | result ->
+    let edited = fst (get result) in
     let before = misses () in
     let cooked = cook edited in
     check (misses () = before + 1) (name ^ ": changed " ^ view.name ^ " misses the cache");
@@ -83,8 +87,75 @@ let run () =
   let unshared = Sop.group_unshared ~owner:Rdk.Group_ops.Group_points ~name:"rim" warped in
   same_cook "group_unshared" ~typed:unshared ~factory:Nodes.Group_unshared.factory
     [ "owner", Parameter.Choice_value "Points"; "name", Text_value "rim" ] warped;
+  let edges = Sop.group_edges ~name:"rim" ~incidence:Rdk.Group_mesh.Boundary_edge
+      ~min_length:0.1 warped in
+  same_cook "group_edges" ~typed:edges ~factory:Nodes.Group_edges.factory
+    [ "name", Parameter.Text_value "rim"; "incidence", Choice_value "Boundary";
+      "use_min_length", Bool_value true; "min_length", Float_value 0.1 ] warped;
+  let random = Sop.group_random ~seed:5 ~probability:0.4 ~owner:Rdk.Group_ops.Group_points
+      ~name:"random" warped in
+  same_cook "group_random" ~typed:random ~factory:Nodes.Group_random.factory
+    [ "seed", Parameter.Int_value 5; "probability", Float_value 0.4; "name", Text_value "random" ]
+    warped;
+  let seeded = Sop.group ~name:"seed" (Select.point_indices [|0|]) warped in
+  let depth = Sop.group_edge_depth ~depth:2 ~point_group:"seed" ~name:"near" seeded in
+  same_cook "group_edge_depth" ~typed:depth ~factory:Nodes.Group_edge_depth.factory
+    [ "depth", Parameter.Int_value 2; "name", Text_value "near" ] seeded;
+  let components = Sop.group_boundary_components ~prefix:"rim" warped in
+  same_cook "group_boundary_components" ~typed:components
+    ~factory:Nodes.Group_boundary_components.factory [ "prefix", Parameter.Text_value "rim" ] warped;
+  let boundary = Sop.group_from_attribute_boundary ~owner:Rdk.Group_ops.Group_edges
+      ~name:"seams" ~tolerance:1e-6 warped in
+  same_cook "group_from_attribute_boundary" ~typed:boundary
+    ~factory:Nodes.Group_from_attribute_boundary.factory
+    [ "name", Parameter.Text_value "seams"; "tolerance", Float_value 1e-6 ] warped;
+  let grouped = Sop.group ~name:"half" (Select.primitive_indices [|0; 1; 2|]) box in
+  let named = Sop.name_from_groups ~owner:Rdk.Attribute.Primitive ~pattern:"half"
+      ~overlap:Rdk.Group_ops.First_group grouped in
+  same_cook "name_from_groups" ~typed:named ~factory:Nodes.Name_from_groups.factory
+    [ "pattern", Parameter.Text_value "half"; "overlap", Choice_value "First group" ] grouped;
+  let regrouped = Sop.groups_from_name ~owner:Rdk.Attribute.Primitive ~attribute:"name"
+      ~prefix:"g_" named in
+  same_cook "groups_from_name" ~typed:regrouped ~factory:Nodes.Groups_from_name.factory
+    [ "prefix", Parameter.Text_value "g_" ] named;
+  let promoted = Sop.group_promote_boundary ~source:Rdk.Group_ops.Group_primitives
+      ~destination:Rdk.Group_ops.Group_points ~group:"half" ~name:"rim" grouped in
+  same_cook "group_promote_boundary" ~typed:promoted ~factory:Nodes.Group_promote_boundary.factory
+    [ "source", Parameter.Choice_value "Primitives"; "destination", Choice_value "Points";
+      "group", Text_value "half"; "name", Text_value "rim";
+      (* the typed default differs from the editor default (a listed drift) *)
+      "tolerance", Float_value 1e-6 ] grouped;
+  let deleted = Sop.group_delete ~delete_unused:true ~rules:[] grouped in
+  same_cook "group_delete" ~typed:deleted ~factory:Nodes.Group_delete.factory
+    [ "delete_unused", Parameter.Bool_value true ] grouped;
+  let renamed = Sop.group_rename ~rules:[] grouped in
+  same_cook "group_rename" ~typed:renamed ~factory:Nodes.Group_rename.factory [] grouped;
+  let copied = Sop.group_copy ~conflict:Rdk.Group_ops.Copy_overwrite ~copy_empty:true
+      ~source:grouped ~target:box () in
+  same_cook "group_copy" ~typed:copied ~factory:Nodes.Group_copy.factory
+    [ "copy_empty", Parameter.Bool_value true ] grouped ~inputs:[box];
+  let transferred = Sop.group_transfer ~conflict:Rdk.Group_ops.Copy_overwrite ~distance:0.5
+      ~source:grouped ~target:box () in
+  same_cook "group_transfer" ~typed:transferred ~factory:Nodes.Group_transfer.factory
+    [ "distance", Parameter.Float_value 0.5 ] grouped ~inputs:[box];
+  let path_base = Sop.ordered_group ~owner:Rdk.Group.Point ~name:"path" [|0; 3|] warped in
+  let path = Sop.group_find_path ~base_group:"path" ~name:"walk" path_base in
+  same_cook "group_find_path" ~typed:path ~factory:Nodes.Group_find_path.factory
+    [ "base_group", Parameter.Text_value "path"; "name", Text_value "walk" ] path_base;
+  let edge_deleted = Sop.delete_edge_group ~name:"rim" edges in
+  same_cook "delete_edge_group" ~typed:edge_deleted ~factory:Nodes.Delete_edge_group.factory
+    [ "name", Parameter.Text_value "rim" ] edges;
+  let edge_renamed = Sop.rename_edge_group ~from:"rim" ~into:"border" edges in
+  same_cook "rename_edge_group" ~typed:edge_renamed ~factory:Nodes.Rename_edge_group.factory
+    [ "from", Parameter.Text_value "rim"; "into", Text_value "border" ] edges;
   List.iter (fun (name, node) -> cache_identity name node)
-    [ "group_non_planar", non_planar; "group_backface", backface; "group_unshared", unshared ];
+    [ "group_non_planar", non_planar; "group_backface", backface; "group_unshared", unshared;
+      "group_edges", edges; "group_random", random; "group_edge_depth", depth;
+      "group_boundary_components", components; "group_from_attribute_boundary", boundary;
+      "name_from_groups", named; "groups_from_name", regrouped;
+      "group_promote_boundary", promoted; "group_delete", deleted; "group_rename", renamed;
+      "group_copy", copied; "group_transfer", transferred; "group_find_path", path;
+      "delete_edge_group", edge_deleted; "rename_edge_group", edge_renamed ];
   (* the typed constructor keeps its validation *)
   List.iter (fun (name, build) ->
     check (match build () with _ -> false | exception Invalid_argument _ -> true)
