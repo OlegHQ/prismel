@@ -14,11 +14,10 @@ type t = {
   rows : bool String_map.t Path_map.t;
   collapsed : bool Path_map.t;
   frames : frame list Path_map.t;
-  display : path Path_map.t;
 }
 
 let empty = { editor = None; panels = Path_map.empty; at = Path_map.empty; pinned = Path_map.empty; level = Path_map.empty; rows = Path_map.empty; collapsed = Path_map.empty;
-  frames = Path_map.empty; display = Path_map.empty }
+  frames = Path_map.empty }
 
 let is_empty t = t = empty
 
@@ -27,9 +26,7 @@ let remap f t =
   { editor = Option.bind t.editor (fun name -> match f [name] with Some [name] -> Some name | _ -> None);
     panels = keys t.panels;
     at = keys t.at; pinned = keys t.pinned; level = keys t.level; rows = keys t.rows;
-    collapsed = keys t.collapsed; frames = keys t.frames;
-    display = Path_map.fold (fun k v acc -> match f k, f v with
-      | Some k, Some v -> Path_map.add k v acc | _ -> acc) t.display Path_map.empty }
+    collapsed = keys t.collapsed; frames = keys t.frames }
 
 (* ---- s-expression ---- *)
 
@@ -60,15 +57,13 @@ let to_syntax t =
   let frames = List.concat_map (fun (p, fs) -> List.map (fun f ->
     mk (S.List [ sym "frame"; path_form p; str f.title; kw "at"; pair f.at; kw "size"; pair f.size ])) fs)
     (Path_map.bindings t.frames) in
-  let display = List.map (fun (p, v) -> mk (S.List [ sym "display"; path_form p; path_form v ]))
-    (Path_map.bindings t.display) in
   let editor = Option.to_list (Option.map (fun name -> mk (S.List [sym "editor"; str name])) t.editor) in
   let panels = List.map (fun (path, (state : Editor_core.Panels.state)) ->
     mk (S.List ([sym "panel"; path_form path; kw "collapsed"; bool state.collapsed]
       @ match state.window with None -> [] | Some (x, y, w, h) ->
         [kw "window"; vec (List.map (fun n -> number (float n)) [x; y; w; h])])))
     (Path_map.bindings t.panels) in
-  mk (S.List (sym "layout" :: editor @ panels @ node_forms @ frames @ display))
+  mk (S.List (sym "layout" :: editor @ panels @ node_forms @ frames))
 
 let ( let* ) = Result.bind
 let fail fmt = Printf.ksprintf (fun m -> Error ("layout: " ^ m)) fmt
@@ -131,9 +126,8 @@ let of_syntax (form : S.t) = match form.node with
                   go { t with rows = Path_map.add p m t.rows } r
               | _ -> fail "bad node entry" in
             go t fields
-        | S.List [ { S.node = S.Sym "display"; _ }; p; v ] ->
-            let* p = read_path p in let* v = read_path v in
-            Ok { t with display = Path_map.add p v t.display }
+        (* entries of features that are gone: an older file still opens, and saves without them *)
+        | S.List ({ S.node = S.Sym ("display" | "bend" | "wireless"); _ } :: _) -> Ok t
         | S.List [ { S.node = S.Sym "frame"; _ }; p; title; { S.node = S.Kw "at"; _ }; at;
                    { S.node = S.Kw "size"; _ }; size ] ->
             let* p = read_path p in let* title = read_str title in

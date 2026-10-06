@@ -1,7 +1,6 @@
 (** Canvas layout keyed by {!type:Flow.Workspace.path}: the fields of
-    the workspace's active layout and preserved legacy canvas metadata.
-    Scope consumes positions, detail levels with their pins, collapsed zones, frames and
-    displayed paths. A path is the lexical identity of a binding, so a key
+    the workspace's active layout.  Scope consumes positions, detail levels with their pins,
+    collapsed zones and frames.  A path is the lexical identity of a binding, so a key
     survives every text edit that keeps the path; {!Flow_sop.Flow_edit.remap}
     rewrites keys in the same transaction as a rename or a hoist.
 
@@ -11,8 +10,7 @@
         (editor "studio")
         (panel ["studio" "network"] :collapsed false :window [500 80 620 450])
         (node ["g" "ring"] :at [120 48] :level "full" :pinned true :collapsed true :rows {:radius false})
-        (frame ["g"] "Legs" :at [0 0] :size [200 100])
-        (display ["g"] ["g" "ring" "u"]))
+        (frame ["g"] "Legs" :at [0 0] :size [200 100]))
     ]} *)
 
 type path = Flow.Workspace.path
@@ -34,8 +32,6 @@ type t = {
   rows : bool String_map.t Path_map.t;
   collapsed : bool Path_map.t;
   frames : frame list Path_map.t;
-  display : path Path_map.t;
-      (** a graph (its path is its name) to the node the viewport shows instead of its result *)
 }
 
 val empty : t
