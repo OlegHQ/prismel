@@ -86,13 +86,6 @@ module Table = struct
     end
 end
 
-let grow_float values size default =
-  if Array.length values >= size then values
-  else begin
-    let grown = Array.make (max size (2 * Array.length values)) default in
-    Array.blit values 0 grown 0 (Array.length values); grown
-  end
-
 let grow values size default =
   if Array.length values >= size then values
   else begin
@@ -527,6 +520,9 @@ let text_width_px ui ?size text =
         | None -> ());
       !total
 
+(* the width of kit text in points: the one measure of the build and of painting *)
+let text_width ui ?size text = float (text_width_px ui ?size text) /. float ui.density
+
 (* ----------------------------------------------------------- create *)
 
 let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
@@ -626,24 +622,24 @@ let ensure_slot_capacity ui size =
   if size > Array.length ui.slot_key then begin
     ui.slot_key <- grow ui.slot_key size 0;
     ui.touched <- grow ui.touched size (-1);
-    ui.rx <- grow_float ui.rx size 0.; ui.ry <- grow_float ui.ry size 0.;
-    ui.rw <- grow_float ui.rw size 0.; ui.rh <- grow_float ui.rh size 0.;
-    ui.hx <- grow_float ui.hx size 0.; ui.hy <- grow_float ui.hy size 0.;
-    ui.hw <- grow_float ui.hw size 0.; ui.hh <- grow_float ui.hh size 0.;
-    ui.scroll_y <- grow_float ui.scroll_y size 0.;
-    ui.scroll_raw <- grow_float ui.scroll_raw size 0.;
-    ui.scroll_visual <- grow_float ui.scroll_visual size 0.;
-    ui.scroll_event_time <- grow_float ui.scroll_event_time size Float.neg_infinity;
-    ui.scroll_frame_time <- grow_float ui.scroll_frame_time size 0.;
+    ui.rx <- grow ui.rx size 0.; ui.ry <- grow ui.ry size 0.;
+    ui.rw <- grow ui.rw size 0.; ui.rh <- grow ui.rh size 0.;
+    ui.hx <- grow ui.hx size 0.; ui.hy <- grow ui.hy size 0.;
+    ui.hw <- grow ui.hw size 0.; ui.hh <- grow ui.hh size 0.;
+    ui.scroll_y <- grow ui.scroll_y size 0.;
+    ui.scroll_raw <- grow ui.scroll_raw size 0.;
+    ui.scroll_visual <- grow ui.scroll_visual size 0.;
+    ui.scroll_event_time <- grow ui.scroll_event_time size Float.neg_infinity;
+    ui.scroll_frame_time <- grow ui.scroll_frame_time size 0.;
     ui.scroll_mode <- grow ui.scroll_mode size 0;
-    ui.scroll_velocity <- grow_float ui.scroll_velocity size 0.;
-    ui.scroll_start <- grow_float ui.scroll_start size 0.;
-    ui.scroll_from <- grow_float ui.scroll_from size 0.;
+    ui.scroll_velocity <- grow ui.scroll_velocity size 0.;
+    ui.scroll_start <- grow ui.scroll_start size 0.;
+    ui.scroll_from <- grow ui.scroll_from size 0.;
     ui.state_values <- grow ui.state_values size min_int;
     ui.text_values <- grow ui.text_values size None;
-    ui.press_time <- grow_float ui.press_time size Float.neg_infinity;
-    ui.press_x <- grow_float ui.press_x size 0.;
-    ui.press_y <- grow_float ui.press_y size 0.;
+    ui.press_time <- grow ui.press_time size Float.neg_infinity;
+    ui.press_x <- grow ui.press_x size 0.;
+    ui.press_y <- grow ui.press_y size 0.;
     ui.press_count <- grow ui.press_count size 0;
     ui.caches <- grow ui.caches size None
   end
@@ -1090,26 +1086,26 @@ let ensure_box_capacity ui size =
     ui.b_next <- grow ui.b_next size (-1);
     ui.b_flags <- grow ui.b_flags size 0;
     ui.b_w <- grow ui.b_w size Grow; ui.b_h <- grow ui.b_h size Grow;
-    ui.b_max_h <- grow_float ui.b_max_h size Float.infinity;
+    ui.b_max_h <- grow ui.b_max_h size Float.infinity;
     ui.b_row <- grow ui.b_row size false;
-    ui.b_padding <- grow_float ui.b_padding size 0.;
-    ui.b_gap <- grow_float ui.b_gap size 0.;
-    ui.b_at_x <- grow_float ui.b_at_x size Float.nan;
-    ui.b_at_y <- grow_float ui.b_at_y size Float.nan;
+    ui.b_padding <- grow ui.b_padding size 0.;
+    ui.b_gap <- grow ui.b_gap size 0.;
+    ui.b_at_x <- grow ui.b_at_x size Float.nan;
+    ui.b_at_y <- grow ui.b_at_y size Float.nan;
     ui.b_xform <- grow ui.b_xform size None;
     ui.b_text <- grow ui.b_text size "";
     ui.b_text_size <- grow ui.b_text_size size 0;
-    ui.b_scroll_step <- grow_float ui.b_scroll_step size 0.;
+    ui.b_scroll_step <- grow ui.b_scroll_step size 0.;
     ui.b_hit <- grow ui.b_hit size None;
     ui.b_painters <- grow ui.b_painters size [];
     ui.b_overlays <- grow ui.b_overlays size [];
-    ui.l_x <- grow_float ui.l_x size 0.; ui.l_y <- grow_float ui.l_y size 0.;
-    ui.l_w <- grow_float ui.l_w size 0.; ui.l_h <- grow_float ui.l_h size 0.;
-    ui.l_content <- grow_float ui.l_content size 0.;
-    ui.l_gutter <- grow_float ui.l_gutter size 0.;
-    ui.l_scale <- grow_float ui.l_scale size 1.;
-    ui.l_tx <- grow_float ui.l_tx size 0.;
-    ui.l_ty <- grow_float ui.l_ty size 0.
+    ui.l_x <- grow ui.l_x size 0.; ui.l_y <- grow ui.l_y size 0.;
+    ui.l_w <- grow ui.l_w size 0.; ui.l_h <- grow ui.l_h size 0.;
+    ui.l_content <- grow ui.l_content size 0.;
+    ui.l_gutter <- grow ui.l_gutter size 0.;
+    ui.l_scale <- grow ui.l_scale size 1.;
+    ui.l_tx <- grow ui.l_tx size 0.;
+    ui.l_ty <- grow ui.l_ty size 0.
   end
 
 let require_building ui =
@@ -1380,8 +1376,8 @@ let text_extent ui index row =
   let text = ui.b_text.(index) in
   if text = "" then 0.
   else if row then
-    float (text_width_px ui ?size:(if ui.b_text_size.(index) > 0
-      then Some ui.b_text_size.(index) else None) text) /. float ui.density
+    text_width ui ?size:(if ui.b_text_size.(index) > 0
+      then Some ui.b_text_size.(index) else None) text
   else float (if ui.b_text_size.(index) > 0 then ui.b_text_size.(index)
     else ui.font_size) *. 1.3
 
@@ -1742,8 +1738,7 @@ module Paint = struct
                 end;
                 pen := !pen +. float glyph.advance +. tracking)
 
-  let text_width paint ?size text =
-    float (text_width_px paint.owner ?size text) /. float paint.owner.density
+  let text_width paint ?size text = text_width paint.owner ?size text
 
   (* The label style: upper case, two points under the body, 0.08 em of tracking. *)
   let label_size paint = max 8 (paint.owner.font_size - 2)
@@ -1853,8 +1848,8 @@ let record_hit ui index parent (x, y, w, h) =
     ui.hit_keys <- grow ui.hit_keys size 0;
     ui.hit_parent <- grow ui.hit_parent size 0;
     ui.hit_flags_of <- grow ui.hit_flags_of size 0;
-    ui.hit_x <- grow_float ui.hit_x size 0.; ui.hit_y <- grow_float ui.hit_y size 0.;
-    ui.hit_w <- grow_float ui.hit_w size 0.; ui.hit_h <- grow_float ui.hit_h size 0.
+    ui.hit_x <- grow ui.hit_x size 0.; ui.hit_y <- grow ui.hit_y size 0.;
+    ui.hit_w <- grow ui.hit_w size 0.; ui.hit_h <- grow ui.hit_h size 0.
   end;
   ui.hit_keys.(position) <- ui.b_key.(index);
   ui.hit_parent.(position) <- parent;
@@ -1942,16 +1937,21 @@ let paint_all ui (frame : Frame.t) =
 
 (* -------------------------------------------------------------- frame *)
 
+(* Build at the root under the root's own seed, wherever the caller is in the tree: what is built
+   is laid out in the window, clipped by no pane. *)
+let at_root ui f =
+  let parents = ui.parents and seeds = ui.seeds in
+  ui.parents <- [0]; ui.seeds <- [0x2c1b3c6d];
+  Fun.protect ~finally:(fun () -> ui.parents <- parents; ui.seeds <- seeds) f
+
 (* The payload in flight follows the pointer as a small label above everything. Idle frames
    (nothing carried) build and paint nothing. *)
 let carry_ghost ui =
   match ui.payload with
   | Some (payload, _) when Float.is_finite (fst ui.pointer) ->
       let px, py = ui.pointer in
-      let width = float (text_width_px ui payload.value) /. float ui.density +. 12. in
-      let parents = ui.parents and seeds = ui.seeds in
-      ui.parents <- [0]; ui.seeds <- [0x2c1b3c6d];
-      Fun.protect ~finally:(fun () -> ui.parents <- parents; ui.seeds <- seeds) (fun () ->
+      let width = text_width ui payload.value +. 12. in
+      at_root ui (fun () ->
         (* kit overlays [07]: a white 20-point chip with the payload in body-size ink, and under
            it the sheet's tip with the key that drops it *)
         let ghost = box ui ~w:(Px width) ~h:(Px 20.) ~at:(px +. 14., py +. 14.) "ui-carry-ghost" in
@@ -1959,7 +1959,7 @@ let carry_ghost ui =
         let size = ui.font_size in
         let small = max 8 (size - 2) in
         let tip_text = "drop to put" and tip_key = "esc" in
-        let tw s = float (text_width_px ui ~size:small s) /. float ui.density in
+        let tw = text_width ui ~size:small in
         let tip_w = 2. +. 12. +. tw tip_text +. 6. +. tw tip_key in
         let tip = box ui ~w:(Px tip_w) ~h:(Px 20.) ~at:(px +. 14., py +. 14. +. 20. +. 8.) "ui-carry-tip" in
         draw_over ui ghost (fun paint (x, y, w, h) ->
@@ -2051,7 +2051,6 @@ let hover_delay ui ~key =
 let tooltip ?shortcut ui ~key ~text =
   if hover_delay ui ~key then begin
     let size = max 8 (ui.font_size - 2) in
-    let text_width ui ~size text = float (text_width_px ui ~size text) /. float (max 1 ui.density) in
     let char_width = Float.max 1. (text_width ui ~size "0") in
     let width = Float.min 400. (Float.max 40. (ui.view_w -. 16.)) in
     let columns = max 1 (int_of_float ((width -. 14.) /. char_width)) in
@@ -2071,9 +2070,7 @@ let tooltip ?shortcut ui ~key ~text =
     let x = Float.max 8. (Float.min (px +. 12.) (ui.view_w -. width -. 8.)) in
     let y = if py +. height +. 24. <= ui.view_h then py +. 20.
       else Float.max 8. (py -. height -. 8.) in
-    let parents = ui.parents and seeds = ui.seeds in
-    ui.parents <- [0]; ui.seeds <- [0x2c1b3c6d];
-    Fun.protect ~finally:(fun () -> ui.parents <- parents; ui.seeds <- seeds) (fun () ->
+    at_root ui (fun () ->
       let tip = box ui ~w:(Px width) ~h:(Px height) ~at:(x, y) "ui-tooltip" in
       ui.overlays <- tip.index :: ui.overlays;
       draw ui tip (fun paint (x, y, w, h) ->
@@ -2188,6 +2185,15 @@ let section_gap ?(next_closed = true) ?last ui =
   let last = match last with Some last -> last | None -> ui.b_last.(current_parent ui) in
   if last < 0 then (if ui.kit_window then 16 else 4)
   else if last = ui.closed_section && next_closed then 0 else 16
+
+(* The ground of a button, the one painter of [button], of the inspector's and of the shell's positioned buttons: a fill
+   on press and hover, the control fill when [on], a line-3 edge for the [primary]. *)
+let paint_button_ground paint theme ~held ~hovered ~on ~primary (cx, cy, cw, ch) =
+  if held then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.pressed_fill theme)
+  else if hovered then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.hover_fill theme)
+  else if on then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch theme.control;
+  if primary then
+    Paint.stroke paint ~x:(cx +. 0.5) ~y:(cy +. 0.5) ~w:(cw -. 1.) ~h:(ch -. 1.) (Theme.border theme)
 
 let panel_with ?stroke ?(window = false) ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_height
     ?(row_height = 24) ?(padding = 0) label f =
@@ -2315,9 +2321,8 @@ let inspector_button ui ~key label =
   let signal = signal ui row in
   draw ui row (fun paint (x, y, w, h) ->
     let shown = inspector_fit paint ~size:ui.font_size ~width:(w -. 24.) label in
-    if signal.held || signal.hovered then
-      Paint.fill paint ~x:(x +. 6.) ~y:(y +. 2.) ~w:(Paint.text_width paint shown +. 12.) ~h:(h -. 4.)
-        (if signal.held then Theme.pressed_fill ui.theme else Theme.hover_fill ui.theme);
+    paint_button_ground paint ui.theme ~held:signal.held ~hovered:signal.hovered ~on:false ~primary:false
+      (x +. 6., y +. 2., Paint.text_width paint shown +. 12., h -. 4.);
     Paint.text paint ~at:(x +. float side, text_top ui y h) ~color:ui.theme.foreground shown);
   signal.clicked
 
@@ -2479,11 +2484,10 @@ let footer ui ?right hints =
 let message ui ?(error = false) ~key text =
   let parent = current_parent ui in
   let room = (if parent >= 0 && ui.rw.(ui.b_slot.(parent)) > 0. then ui.rw.(ui.b_slot.(parent)) else ui.view_w) -. 38. in
-  let measure t = float (text_width_px ui t) /. float (max 1 ui.density) in
   let lines = List.fold_left (fun lines word -> match lines with
     | [] -> [ word ]
     | line :: rest ->
-        if measure (line ^ " " ^ word) <= room then (line ^ " " ^ word) :: rest else word :: line :: rest)
+        if text_width ui (line ^ " " ^ word) <= room then (line ^ " " ^ word) :: rest else word :: line :: rest)
     [] (String.split_on_char ' ' text) |> List.rev in
   let row = box ui ~flags:none ~w:Grow ~h:(Px (8. +. (20. *. float (List.length lines)))) key in
   draw ui row (fun paint (x, y, _, _) ->
@@ -2497,20 +2501,11 @@ let message ui ?(error = false) ~key text =
    a fill on hover and press, the control fill when [on], an accent line inside the bottom edge with
    the keyboard, a line-3 edge for the one [primary]; [key] follows the text in ink-3 at the label
    size.  The box starts 5 points in so that its text lines up with the labels at 12. *)
-(* The ground of a button, the one painter of [button] and of the shell's positioned buttons: a fill
-   on press and hover, the control fill when [on], a line-3 edge for the [primary]. *)
-let paint_button_ground paint theme ~held ~hovered ~on ~primary (cx, cy, cw, ch) =
-  if held then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.pressed_fill theme)
-  else if hovered then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch (Theme.hover_fill theme)
-  else if on then Paint.fill paint ~x:cx ~y:cy ~w:cw ~h:ch theme.control;
-  if primary then
-    Paint.stroke paint ~x:(cx +. 0.5) ~y:(cy +. 0.5) ~w:(cw -. 1.) ~h:(ch -. 1.) (Theme.border theme)
-
 let button ui ?key ?(primary = false) ?(on = false) ?(disabled = false) ?(bare = false)
     ?(icon = false) ?(at_end = false) ?ink text =
   let shown = display text in
   let size = max 8 (ui.font_size - 2) in
-  let measure ?size text = float (text_width_px ui ?size text) /. float (max 1 ui.density) in
+  let measure = text_width ui in
   let key_width = match key with Some key -> 6. +. measure ~size key | None -> 0. in
   (* the box: a 1-point edge and 6 points of padding (4 when [bare]) round the text; an [icon] is the
      20-point control square with its glyph centred *)
@@ -2897,7 +2892,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
       and cancelled = ref false in
       let (cx, _, cw, _) = control in
       let left = if align_right then
-          Float.max (float (cx + 2)) (float (cx + cw - 2) -. float (text_width_px ui ?size edit.text) /. float (max 1 ui.density))
+          Float.max (float (cx + 2)) (float (cx + cw - 2) -. text_width ui ?size edit.text)
         else float (cx + 2) in
       point_text_caret ui ?size edit signal ~shift:(press_shift ui row)
         ~x:left ~right:(float (cx + cw - 2));
@@ -3066,11 +3061,9 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
         ~w:(Px w) ~h:(Px 20.) (Printf.sprintf "%s-button-%d" key index)) in
     let signal = signal ui b in
     if enabled && signal.clicked then pressed := Some index;
-    draw ui b (fun paint (x, y, w, h) ->
-      let fill = if enabled && signal.held then Some (Theme.pressed_fill theme)
-        else if enabled && signal.hovered then Some (Theme.hover_fill theme)
-        else if on then Some theme.control else None in
-      Option.iter (fun color -> Paint.fill paint ~x ~y ~w ~h color) fill;
+    draw ui b (fun paint ((x, y, _, h) as rect) ->
+      paint_button_ground paint theme ~held:(enabled && signal.held) ~hovered:(enabled && signal.hovered)
+        ~on ~primary:false rect;
       Paint.text paint ~at:(x +. 1. +. pad, text_top ui y h)
         ~color:(if not enabled then Theme.ink_3 theme
                 else if dim then Theme.ink_2 theme else theme.foreground) label;
@@ -3281,19 +3274,6 @@ let text_field ui ?(disabled = false) ?placeholder ?invalid text value =
    and the pointer maps to (row, column).  With [wrap] a long line continues on the next row
    (DepartureMono is monospaced: a row holds as many characters as fit).  ponytail: rows are
    found per frame (O(text)), only visible rows are drawn. *)
-let text_width ui ?size text =
-  match face ui size with
-  | None -> 0.
-  | Some font ->
-      let density = float ui.density in
-      let rec sum index width =
-        if index >= String.length text then width else
-          let decoded = String.get_utf_8_uchar text index in
-          let advance = match glyph ui.atlas font ~density:ui.density
-              (Uchar.to_int (Uchar.utf_decode_uchar decoded)) with
-            | Some glyph -> float glyph.advance /. density | None -> 0. in
-          sum (index + Uchar.utf_decode_length decoded) (width +. advance) in
-      sum 0 0.
 
 (* The rows of a text: (start, stop, logical line) with [stop] exclusive and before the newline.
    Without [cols] a row is a line; with it a line continues every [cols] characters. *)
@@ -3358,9 +3338,7 @@ type language = {
 (* A box at the root, laid out and painted after every pane (like a tooltip), so a popup under
    a caret is never clipped by its pane. *)
 let overlay_box ui ?flags ~at ~w ~h label =
-  let parents = ui.parents and seeds = ui.seeds in
-  ui.parents <- [0]; ui.seeds <- [0x2c1b3c6d];
-  Fun.protect ~finally:(fun () -> ui.parents <- parents; ui.seeds <- seeds) (fun () ->
+  at_root ui (fun () ->
     let overlay = box ui ?flags ~w:(Px w) ~h:(Px h) ~at label in
     ui.overlays <- overlay.index :: ui.overlays;
     overlay)
