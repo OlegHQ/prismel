@@ -1,8 +1,5 @@
 open Procedural
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get = function Ok value -> value | Error message -> fail message
+open Rdk_test_support
 
 let attribute owner name storage =
   Rdk.Attribute.create_owned ~owner ~name storage |> Result.get_ok

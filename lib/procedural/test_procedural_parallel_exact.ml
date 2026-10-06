@@ -1,13 +1,9 @@
 open Rays
 open Rdk
 open Procedural
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get_ok = function Ok value -> value | Error message -> fail message
-let get_rdk = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
 
 let with_detail name storage geometry =
   let attribute = Attribute.create_owned ~owner:Attribute.Detail ~name storage
@@ -60,17 +56,6 @@ let equal_group left right =
     !equal
   end
   && Group.ordered_elements left = Group.ordered_elements right
-
-let equal_edge_group left right =
-  String.equal (Edge_group.name left) (Edge_group.name right)
-  && Edge_group.length left = Edge_group.length right
-  && begin
-    let equal = ref true in
-    for edge = 0 to Edge_group.length left - 1 do
-      if Edge_group.mem edge left <> Edge_group.mem edge right then equal := false
-    done;
-    !equal
-  end
 
 let equal_geometry left right =
   let left_positions = Packed.Float3.Private.view (Geometry.positions left)

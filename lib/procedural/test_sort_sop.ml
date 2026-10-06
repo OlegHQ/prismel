@@ -1,16 +1,9 @@
 open Rdk
 open Procedural
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get = function Ok value -> value | Error _ -> fail "unexpected error"
 let context domains = Context.create ~domains ~grain:257 ~seed:101L () |> get
-
-let contains text pattern =
-  let rec search offset = offset + String.length pattern <= String.length text
-      && (String.sub text offset (String.length pattern) = pattern
-          || search (offset + 1)) in
-  pattern = "" || search 0
 
 let source () =
   let values = Array.init 60_001 (fun point ->

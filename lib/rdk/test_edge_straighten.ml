@@ -1,10 +1,8 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get_ok = function Ok value -> value | Error message -> fail message
-let get_rdk = function Ok value -> value | Error error -> fail (Error.to_string error)
 
 let attribute owner name storage =
   Attribute.create_owned ~owner ~name storage |> get_ok
@@ -28,8 +26,6 @@ let geometry_owned ~kinds positions vertex_points primitive_offsets =
       ~primitive_offsets ~primitive_kinds:kinds |> get_ok in
   Geometry.create ~positions:(Packed.Float3.Private.of_owned_exn ~x ~y ~z)
     ~topology () |> get_ok
-
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let equal_attribute left right =
   Attribute.owner left = Attribute.owner right

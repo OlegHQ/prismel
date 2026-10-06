@@ -1,17 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
-let near ?(epsilon = 1e-10) left right = abs_float (left -. right) <= epsilon
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
-
-let expect_code code = function
-  | Error error when String.equal (Error.code error) code -> ()
-  | Error error -> fail (Printf.sprintf "expected %s, received %s" code
-      (Error.to_string error))
-  | Ok _ -> fail ("expected error " ^ code)
+open Rdk_test_support
 
 let float3_attribute geometry owner name =
   match Geometry.find_attribute ~owner name geometry with
@@ -20,33 +9,6 @@ let float3_attribute geometry owner name =
        | Attribute.Float3 values -> Packed.Float3.Private.view values
        | _ -> fail (name ^ " has unexpected storage"))
   | None -> fail ("missing attribute " ^ name)
-
-let equal_storage left right = match Attribute.storage left, Attribute.storage right with
-  | Attribute.Float left, Attribute.Float right -> left = right
-  | Attribute.Int left, Attribute.Int right -> left = right
-  | Attribute.Text left, Attribute.Text right -> left = right
-  | Attribute.Float2 left, Attribute.Float2 right ->
-      let left = Packed.Float2.Private.view left
-      and right = Packed.Float2.Private.view right in
-      left.x = right.x && left.y = right.y
-  | Attribute.Float3 left, Attribute.Float3 right ->
-      let left = Packed.Float3.Private.view left
-      and right = Packed.Float3.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z
-  | Attribute.Float4 left, Attribute.Float4 right ->
-      let left = Packed.Float4.Private.view left
-      and right = Packed.Float4.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z
-      && left.w = right.w
-  | Attribute.Int_array left, Attribute.Int_array right ->
-      let left = Packed.Int_array.Private.view left
-      and right = Packed.Int_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | Attribute.Float_array left, Attribute.Float_array right ->
-      let left = Packed.Float_array.Private.view left
-      and right = Packed.Float_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | _ -> false
 
 let equal_geometry left right =
   let lp = positions left and rp = positions right

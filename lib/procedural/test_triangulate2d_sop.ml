@@ -1,13 +1,5 @@
 open Procedural
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get = function Ok value -> value | Error message -> fail message
-
-let contains text pattern =
-  let rec loop at = at + String.length pattern <= String.length text
-      && (String.sub text at (String.length pattern) = pattern || loop (at + 1)) in
-  pattern = "" || loop 0
+open Rdk_test_support
 
 let input () =
   let geometry = Rdk.Line_geometry.points

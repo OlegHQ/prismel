@@ -1,8 +1,7 @@
 open Rays
 open Procedural
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get_ok = function Ok value -> value | Error _ -> fail "unexpected error"
 let edit_parameters graph ~node_id changes =
   Result.bind (Edit_graph.apply_parameters (Edit_graph.of_graph graph)

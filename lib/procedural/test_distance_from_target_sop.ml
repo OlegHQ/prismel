@@ -1,17 +1,10 @@
 open Rays
 open Rdk
 open Procedural
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get = function Ok value -> value | Error _ -> fail "unexpected error"
 let context domains = Context.create ~domains ~grain:97 ~seed:97L () |> get
-
-let contains text pattern =
-  let rec search offset = offset + String.length pattern <= String.length text
-      && (String.sub text offset (String.length pattern) = pattern
-          || search (offset + 1)) in
-  pattern = "" || search 0
 
 let source () =
   let geometry = Rdk.Plane_generators.grid ~columns:260 ~rows:160 ~size:12. () |> function
@@ -37,15 +30,6 @@ let float_attribute name geometry =
        | Attribute.Float values -> values
        | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
-
-let same_float_array left right =
-  Array.length left = Array.length right
-  && let same = ref true in
-     for index = 0 to Array.length left - 1 do
-       if Int64.bits_of_float left.(index) <> Int64.bits_of_float right.(index)
-       then same := false
-     done;
-     !same
 
 let run () =
   let graph = Sop.snapshot (source ())

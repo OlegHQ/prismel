@@ -1,10 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_string = function Ok value -> value | Error error -> fail error
-let get_rdk = function Ok value -> value | Error error -> fail (Error.to_string error)
+open Rdk_test_support
 
 let attribute owner name storage =
   Attribute.create_owned ~owner ~name storage |> get_string
@@ -68,33 +64,6 @@ let int_values owner name geometry =
        | Attribute.Int values -> values
        | _ -> fail ("wrong integer storage for " ^ name))
   | None -> fail ("missing integer attribute " ^ name)
-
-let equal_storage left right =
-  match Attribute.storage left, Attribute.storage right with
-  | Attribute.Float left, Attribute.Float right -> left = right
-  | Attribute.Int left, Attribute.Int right -> left = right
-  | Attribute.Text left, Attribute.Text right -> left = right
-  | Attribute.Float2 left, Attribute.Float2 right ->
-      let left = Packed.Float2.Private.view left
-      and right = Packed.Float2.Private.view right in
-      left.x = right.x && left.y = right.y
-  | Attribute.Float3 left, Attribute.Float3 right ->
-      let left = Packed.Float3.Private.view left
-      and right = Packed.Float3.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z
-  | Attribute.Float4 left, Attribute.Float4 right ->
-      let left = Packed.Float4.Private.view left
-      and right = Packed.Float4.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z && left.w = right.w
-  | Attribute.Int_array left, Attribute.Int_array right ->
-      let left = Packed.Int_array.Private.view left
-      and right = Packed.Int_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | Attribute.Float_array left, Attribute.Float_array right ->
-      let left = Packed.Float_array.Private.view left
-      and right = Packed.Float_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | _ -> false
 
 let equal_group left right =
   Group.owner left = Group.owner right

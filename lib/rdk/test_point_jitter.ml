@@ -1,18 +1,10 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
-let get_string_ok = function Ok value -> value | Error message -> fail message
+open Rdk_test_support
 
 let add_attribute ~owner ~name storage geometry =
   Attribute.create_owned ~owner ~name storage |> get_string_ok
   |> Fun.flip Geometry.with_attribute geometry |> get_string_ok
-
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let equal_positions left right =
   let left = positions left and right = positions right in

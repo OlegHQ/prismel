@@ -1,22 +1,10 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
-let near ?(epsilon = 1e-10) left right = abs_float (left -. right) <= epsilon
-
-let expect_code code = function
-  | Error error when String.equal (Error.code error) code -> ()
-  | Error error -> fail (Printf.sprintf "expected %s, received %s" code
-      (Error.to_string error))
-  | Ok _ -> fail ("expected error " ^ code)
+open Rdk_test_support
 
 let bounds geometry = match Analysis.bounds geometry with
   | Some bounds -> bounds
   | None -> fail "geometry has no bounds"
-
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let normal_values owner geometry =
   match Geometry.find_attribute ~owner "N" geometry with
@@ -58,30 +46,6 @@ let equal_attribute left right =
   && String.equal (Attribute.name left) (Attribute.name right)
   && String.equal (Attribute.kind_name left) (Attribute.kind_name right)
   && equal_storage left right
-
-let equal_group left right =
-  Group.owner left = Group.owner right
-  && String.equal (Group.name left) (Group.name right)
-  && Group.length left = Group.length right
-  && Group.ordered_elements left = Group.ordered_elements right
-  && begin
-    let equal = ref true in
-    for element = 0 to Group.length left - 1 do
-      if Group.mem element left <> Group.mem element right then equal := false
-    done;
-    !equal
-  end
-
-let equal_edge_group left right =
-  String.equal (Edge_group.name left) (Edge_group.name right)
-  && Edge_group.length left = Edge_group.length right
-  && begin
-    let equal = ref true in
-    for edge = 0 to Edge_group.length left - 1 do
-      if Edge_group.mem edge left <> Edge_group.mem edge right then equal := false
-    done;
-    !equal
-  end
 
 let equal_geometry left right =
   let left_positions = positions left and right_positions = positions right

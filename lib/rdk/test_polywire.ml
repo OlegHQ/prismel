@@ -1,10 +1,7 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
-let get_string = function Ok value -> value | Error error -> fail error
 let near ?(epsilon = 1e-9) left right = abs_float (left -. right) <= epsilon
 
 let float2_attribute geometry name =
@@ -22,57 +19,6 @@ let float3_attribute ~owner geometry name =
        | Attribute.Float3 values -> Packed.Float3.Private.view values
        | _ -> fail (name ^ " has unexpected storage"))
   | None -> fail ("missing attribute " ^ name)
-
-let equal_storage left right = match Attribute.storage left, Attribute.storage right with
-  | Attribute.Float left, Attribute.Float right -> left = right
-  | Attribute.Int left, Attribute.Int right -> left = right
-  | Attribute.Text left, Attribute.Text right -> left = right
-  | Attribute.Float2 left, Attribute.Float2 right ->
-      let left = Packed.Float2.Private.view left
-      and right = Packed.Float2.Private.view right in
-      left.x = right.x && left.y = right.y
-  | Attribute.Float3 left, Attribute.Float3 right ->
-      let left = Packed.Float3.Private.view left
-      and right = Packed.Float3.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z
-  | Attribute.Float4 left, Attribute.Float4 right ->
-      let left = Packed.Float4.Private.view left
-      and right = Packed.Float4.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z
-      && left.w = right.w
-  | Attribute.Int_array left, Attribute.Int_array right ->
-      let left = Packed.Int_array.Private.view left
-      and right = Packed.Int_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | Attribute.Float_array left, Attribute.Float_array right ->
-      let left = Packed.Float_array.Private.view left
-      and right = Packed.Float_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | _ -> false
-
-let equal_group left right =
-  Group.owner left = Group.owner right
-  && String.equal (Group.name left) (Group.name right)
-  && Group.length left = Group.length right
-  && Group.ordered_elements left = Group.ordered_elements right
-  && begin
-    let equal = ref true in
-    for element = 0 to Group.length left - 1 do
-      if Group.mem element left <> Group.mem element right then equal := false
-    done;
-    !equal
-  end
-
-let equal_edge_group left right =
-  String.equal (Edge_group.name left) (Edge_group.name right)
-  && Edge_group.length left = Edge_group.length right
-  && begin
-    let equal = ref true in
-    for edge = 0 to Edge_group.length left - 1 do
-      if Edge_group.mem edge left <> Edge_group.mem edge right then equal := false
-    done;
-    !equal
-  end
 
 let equal_geometry left right =
   let lp = Packed.Float3.Private.view (Geometry.positions left)

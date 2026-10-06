@@ -1,85 +1,13 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_rdk = function Ok value -> value | Error error -> fail (Error.to_string error)
-let get_string = function Ok value -> value | Error error -> fail error
 let contains text needle =
   let text_length = String.length text and needle_length = String.length needle in
   let rec search offset =
     offset + needle_length <= text_length
     && (String.sub text offset needle_length = needle || search (offset + 1)) in
   needle_length = 0 || search 0
-
-let equal_storage left right = match Attribute.storage left, Attribute.storage right with
-  | Attribute.Float left, Attribute.Float right -> left = right
-  | Attribute.Int left, Attribute.Int right -> left = right
-  | Attribute.Text left, Attribute.Text right -> left = right
-  | Attribute.Float2 left, Attribute.Float2 right ->
-      let left = Packed.Float2.Private.view left
-      and right = Packed.Float2.Private.view right in
-      left.x = right.x && left.y = right.y
-  | Attribute.Float3 left, Attribute.Float3 right ->
-      let left = Packed.Float3.Private.view left
-      and right = Packed.Float3.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z
-  | Attribute.Float4 left, Attribute.Float4 right ->
-      let left = Packed.Float4.Private.view left
-      and right = Packed.Float4.Private.view right in
-      left.x = right.x && left.y = right.y && left.z = right.z && left.w = right.w
-  | Attribute.Int_array left, Attribute.Int_array right ->
-      let left = Packed.Int_array.Private.view left
-      and right = Packed.Int_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | Attribute.Float_array left, Attribute.Float_array right ->
-      let left = Packed.Float_array.Private.view left
-      and right = Packed.Float_array.Private.view right in
-      left.offsets = right.offsets && left.values = right.values
-  | _ -> false
-
-let equal_group left right =
-  Group.owner left = Group.owner right
-  && String.equal (Group.name left) (Group.name right)
-  && Group.length left = Group.length right
-  && Group.ordered_elements left = Group.ordered_elements right
-  && begin
-    let same = ref true in
-    for index = 0 to Group.length left - 1 do
-      if Group.mem index left <> Group.mem index right then same := false
-    done;
-    !same
-  end
-
-let equal_edge_group left right =
-  String.equal (Edge_group.name left) (Edge_group.name right)
-  && Edge_group.length left = Edge_group.length right
-  && begin
-    let same = ref true in
-    for edge = 0 to Edge_group.length left - 1 do
-      if Edge_group.mem edge left <> Edge_group.mem edge right then same := false
-    done;
-    !same
-  end
-
-let equal_geometry left right =
-  let lp = Packed.Float3.Private.view (Geometry.positions left)
-  and rp = Packed.Float3.Private.view (Geometry.positions right)
-  and lt = Topology.Private.view (Geometry.topology left)
-  and rt = Topology.Private.view (Geometry.topology right) in
-  lp.x = rp.x && lp.y = rp.y && lp.z = rp.z
-  && lt.point_count = rt.point_count
-  && lt.vertex_points = rt.vertex_points
-  && lt.primitive_offsets = rt.primitive_offsets
-  && Bytes.equal lt.primitive_kinds rt.primitive_kinds
-  && List.equal (fun left right ->
-       Attribute.owner left = Attribute.owner right
-       && String.equal (Attribute.name left) (Attribute.name right)
-       && equal_storage left right)
-       (Geometry.attributes left) (Geometry.attributes right)
-  && List.equal equal_group (Geometry.groups left) (Geometry.groups right)
-  && List.equal equal_edge_group
-       (Geometry.edge_groups left) (Geometry.edge_groups right)
 
 let equal_topology left right =
   let left = Topology.Private.view (Geometry.topology left)

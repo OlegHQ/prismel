@@ -1,11 +1,8 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get = function Ok value -> value | Error error -> fail (Error.to_string error)
-let get_string = function Ok value -> value | Error message -> fail message
-let near ?(epsilon = 1e-10) left right = abs_float (left -. right) <= epsilon
 
 let with_attribute name storage geometry =
   let attribute = Attribute.create_owned ~owner:Attribute.Point ~name storage

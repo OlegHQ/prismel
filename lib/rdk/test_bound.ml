@@ -1,17 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
-let near ?(epsilon = 1e-10) a b = abs_float (a -. b) <= epsilon
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
-
-let expect_code code = function
-  | Error error when String.equal (Error.code error) code -> ()
-  | Error error -> fail (Printf.sprintf "expected %s, received %s"
-      code (Error.to_string error))
-  | Ok _ -> fail ("expected error " ^ code)
+open Rdk_test_support
 
 let detail_float3 geometry name =
   match Geometry.find_attribute ~owner:Attribute.Detail name geometry with

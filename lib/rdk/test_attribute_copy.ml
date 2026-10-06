@@ -1,8 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
+open Rdk_test_support
 
 let add storage ~owner ~name geometry =
   let attribute = Attribute.create_owned ~owner ~name storage |> Result.get_ok in
@@ -47,8 +45,6 @@ let float4_values ~owner name geometry =
        | Attribute.Float4 values -> Packed.Float4.Private.view values
        | _ -> fail ("wrong float4 storage for " ^ name))
   | None -> fail ("missing " ^ name)
-
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let test_cyclic_order_and_rename () =
   let source = Line_geometry.points [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]

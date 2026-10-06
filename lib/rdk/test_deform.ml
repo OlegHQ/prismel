@@ -1,11 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
-let get_string_ok = function Ok value -> value | Error message -> fail message
-
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
+open Rdk_test_support
 
 let near left right = abs_float (left -. right) <= 1e-11
 

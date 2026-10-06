@@ -1,11 +1,7 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
 let close left right = abs_float (left -. right) <= 1e-10
 
 let point_group name length predicate =
@@ -23,15 +19,6 @@ let with_float name values geometry =
   let attribute = Attribute.create_owned ~owner:Attribute.Point ~name
       (Attribute.Float values) |> Result.get_ok in
   Geometry.with_attribute attribute geometry |> Result.get_ok
-
-let same_float_array left right =
-  Array.length left = Array.length right
-  && let same = ref true in
-     for index = 0 to Array.length left - 1 do
-       if Int64.bits_of_float left.(index) <> Int64.bits_of_float right.(index)
-       then same := false
-     done;
-     !same
 
 let test_projections () =
   let source = Line_geometry.points [|3., 4., 0.; 1., 2., 3.; 0., -2., 0.|] in
