@@ -23,8 +23,15 @@ dune exec tools/codemod/codemod.exe -- prune lib/<name> [lib/<other> ...]
 - `--modules`: a submodule whose values are all dead goes as a unit (kept, with
   its values dropped, while a type or live value still names it).
 - `--cut-tests`: a test that stops compiling is removed (its top-level item, or
-  the failing statement inside `run`/`let () =`). Cutting a statement can leave
-  an assertion whose setup is gone: run the tests and repair.
+  the failing statement or local binding inside `run`/`let () =`; the next
+  rounds cut what named that binding). Cutting can leave an assertion whose
+  setup is gone: run the tests and repair. A suite whose checks all go through
+  a removed operation (the OGPU conformance run) is rewritten by hand.
+- Driver records: the compiler does not warn about an unread field of an
+  exported record. `codemod.exe -- dead-fields [--users-exclude S] DIR...`
+  lists them, `--apply` removes the field and its `field = e` in every
+  literal (`--skip TYPE.FIELD` keeps one); then `prune` again. A record listed
+  as `type.*` has every field unread: delete the type by hand.
 - Metal: after pruning `lib/metal`, run
   `codemod.exe -- dead-stubs lib/metal/metal_bridge.mm lib tools test` and
   `codemod.exe -- drop-c-unused lib/metal` (clang's unused-function errors as
