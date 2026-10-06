@@ -495,7 +495,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     let graph_body = match graph_host with Some leaf -> leaf.body | None -> 0, 0, 0, 0 in
     let gx, gy, gw, gh = graph_body in
     let scope_view, scope_frame_changes =
-      if not scope_active then scope_view, []
+      (* a pane that is not drawn gives up what it held: a field, the hints, a drag, the pointer *)
+      if not scope_active then Pxui_graph.Scope.suspend scope_view, []
       else Pxui.Ui.within ui graph_root (fun () ->
         scope_view
         |> Pxui_graph.Scope.with_guide guide

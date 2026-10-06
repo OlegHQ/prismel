@@ -857,7 +857,7 @@ let crash_dump value directory =
   let history = core.history in
   Out_channel.with_open_text (Filename.concat directory "editor.txt") (fun channel ->
     Printf.fprintf channel
-      "level: %s\nprojection: %s\npane graph: %s\ngraph panels: %s\nwindows: %s\npanels: %s\nroute: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
+      "level: %s\nprojection: %s\npane graph: %s\ngraph panels: %s\nwindows: %s\npanels: %s\nroute: %s\ntext: %s\nmap view: %b\ngraph pan: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
        undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\nrenderer: %s\nlive scene: %s\nautosave: %s\n\
        load document.rays with Space b (workspace documents only) after copying it to %s\n"
       (Core.level_name core)
@@ -867,7 +867,7 @@ let crash_dump value directory =
       (Core.graph_panels core) (Core.windows core) (Core.panels_line core)
       (Core.route core)
       (Text_pane.summary core.text)
-      core.map_view core.guide (Option.fold ~none:"-" ~some:fst core.hud)
+      core.map_view (Pxui_graph.Scope.Private.grabbed core.scope_view) core.guide (Option.fold ~none:"-" ~some:fst core.hud)
       (Option.fold ~none:"none" ~some:(fun node ->
         Printf.sprintf "%s (#%d, %s)" (Node.label node) (Node.id node) (Node.operation node))
         (Core.selected_node core))

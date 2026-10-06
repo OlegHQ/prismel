@@ -181,7 +181,12 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                     | Some { S.node = S.Num _; _ } ->
                         (* a number: the pane's own field, so it drags here as it does on the card *)
                         Option.value ~default:shown
-                          (Pxui_graph.Scope.num_field ui ~at:(cx, cy) ~w:cw ~h:20. "ws-input-default-field" shown)
+                          (Pxui_graph.Scope.num_field ui ~at:(cx, cy) ~w:cw ~h:20.
+                             (* the input's type decides the step: a float written [1] scrubs by fractions *)
+                             ?kind:(match input.ty with
+                               | Flow.Ty.Int -> Some Editor_core.Number.Int
+                               | Flow.Ty.Float -> Some Editor_core.Number.Float | _ -> None)
+                             "ws-input-default-field" shown)
                     | _ ->
                         fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:20.
                           ~left:(float_of_string_opt shown = None)
@@ -426,7 +431,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                (* what the drive gives now: the node's value at the probe *)
                live = (match parameter.fields with
                  | [ { Parameter.current = Parameter.Int_value i; _ } ] -> Some (string_of_int i)
-                 | [ { current = Parameter.Float_value f; _ } ] -> Some (Printf.sprintf "%.6g" f)
+                 | [ { current = Parameter.Float_value f; _ } ] -> Some (Editor_core.Number.show f)
                  | [ { current = Parameter.Bool_value b; _ } ] -> Some (string_of_bool b)
                  | _ -> None) }) parameters in
            let expanded = List.filter_map (fun (f : Parameter.field_view) ->

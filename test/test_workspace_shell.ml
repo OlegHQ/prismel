@@ -1340,14 +1340,18 @@ let run_copy_lisp () =
   let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
   let key k = Event.KeyPressed k in
   step []; step [];
+  (* whether this run has a clipboard is asked first, so each case has one outcome that passes *)
+  let available = Result.is_ok (Rays.Clipboard.set_text "probe") in
   step [ key Input.Space; Event.KeyPressed (Input.KeyChar '/') ]; step [];
   step [ Event.TextInput "copy workspace" ]; step [ key Input.Enter ]; step [];
   let note = dump_line !e "cook" in
-  (match Rays.Clipboard.get_text () with
-   | Ok clip when has note "Copied the workspace as Lisp" ->
-       check (has clip "(workspace copied" && has clip "(scene/geometry (ref g))")
-         ("the clipboard holds the workspace text: " ^ clip)
-   | _ -> check (has note "Clipboard: ") ("the palette row ran and said why it could not copy: " ^ note));
+  if available then begin
+    check (has note "Copied the workspace as Lisp") ("the palette row did not copy: " ^ note);
+    match Rays.Clipboard.get_text () with
+    | Ok clip -> check (has clip "(workspace copied" && has clip "(scene/geometry (ref g))")
+        ("the clipboard does not hold the workspace text: " ^ clip)
+    | Error message -> fail ("the clipboard took the text and gives none back: " ^ message)
+  end else check (has note "Clipboard: ") ("without a clipboard the palette row did not say so: " ^ note);
   check (E3.undo_label !e = None) "copying changes nothing";
   E3.close !e
 
@@ -1814,6 +1818,24 @@ let run_undo_and_input () =
   List.iter (fun c -> step [ press c ]; step []) [ ' '; 'l'; 'g' ]; step [];
   check (dump_line !e "projection" = "graph")
     "a name field open in the graph pane kept the keyboard after the panel turned to its list";
+  E3.close !e;
+  (* E20: a pan in progress gives the pointer back when the panel turns to its list *)
+  let e, count, step = session (450., 300.) in
+  let gx, gy, gw, gh = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let row = float (gx + 60), float (gy + 24 + 12) in
+  step ~mouse:row [ Event.MouseMoved row ];
+  step ~mouse:row [ Event.MousePressed (Input.LeftButton, row); Event.MouseReleased (Input.LeftButton, row) ];
+  step ~mouse:row [ press 'i' ]; step [];
+  count := !count + 30;
+  let canvas = float (gx + gw - 40), float (gy + gh - 40) and away = float (gx + gw - 80), float (gy + gh - 60) in
+  step ~mouse:canvas [ Event.MouseMoved canvas ];
+  step ~buttons:[ Input.MiddleButton ] ~mouse:canvas [ Event.MousePressed (Input.MiddleButton, canvas) ];
+  step ~buttons:[ Input.MiddleButton ] ~mouse:away [ Event.MouseMoved away ];
+  check (dump_line !e "graph pan" = "true") "a middle drag on the canvas is not a pan";
+  List.iter (fun c -> step ~buttons:[ Input.MiddleButton ] ~mouse:away [ press c ]; step ~buttons:[ Input.MiddleButton ] ~mouse:away [])
+    [ ' '; 'l'; 'l' ];
+  check (dump_line !e "projection" = "list" && dump_line !e "graph pan" = "false")
+    ("a pan in progress kept the pointer after the panel turned to its list: " ^ dump_line !e "projection");
   E3.close !e
 
 (* E15, on the reducer alone: while a payload is carried the document shown is a preview, and
