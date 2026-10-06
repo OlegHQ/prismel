@@ -39,4 +39,3 @@ val validate_sampler : sampler_descriptor -> (unit,Error.t) result
     overflow gives infinity and NaN a quiet NaN. Write each [Rgba16_float]
     channel as these 16 bits little-endian ([Bytes.set_uint16_le]). *)
 val half_of_float : float -> int
-

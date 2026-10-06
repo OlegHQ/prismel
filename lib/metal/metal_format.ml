@@ -385,4 +385,3 @@ let supports_lossy_compression = function
   | Rg32_sint | Rg32_float | Rgba16_unorm | Rgba16_snorm | Rgba16_uint
   | Rgba16_sint | Rgba16_float | Bgra10_xr | Bgra10_xr_srgb
   | Rgba32_uint | Rgba32_sint | Rgba32_float -> true
-

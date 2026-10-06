@@ -1426,4 +1426,3 @@ module Blit_encoder : sig
     destination_region:Texture.region -> (unit, error) result
   val end_encoding : t -> (unit, error) result
 end
-

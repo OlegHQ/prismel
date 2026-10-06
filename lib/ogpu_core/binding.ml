@@ -22,4 +22,3 @@ let create_pipeline_layout ~device ~capabilities groups =
       ~operation:"Ogpu.Binding.create_pipeline_layout"~max_groups:capabilities.Caps.limits.max_bind_groups(List.map fst groups))
 
 let pipeline_layouts value = List.map (fun (group, layout) -> group, layout) value.groups
-

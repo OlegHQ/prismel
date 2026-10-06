@@ -363,4 +363,3 @@ val commit_present : commands -> source:texture -> frame -> (receipt,Error.t) re
     rays silently miss. Every structure must be built and of the encoder's
     device. An empty list is a no-op. *)
 val compute_use_accels : compute_encoder -> accel list -> (unit,Error.t) result
-

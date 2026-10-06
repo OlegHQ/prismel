@@ -9,4 +9,3 @@ val create_pipeline_layout :
   device:Handle.device -> capabilities:Caps.t -> (int * layout) list ->
   (pipeline_layout, Error.t) result
 val pipeline_layouts : pipeline_layout -> (int * layout_entry list) list
-

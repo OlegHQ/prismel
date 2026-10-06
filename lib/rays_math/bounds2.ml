@@ -17,4 +17,3 @@ let corners bounds =
     bounds.max;
     Vec2.create bounds.min.x bounds.max.y;
   ]
-
