@@ -525,8 +525,10 @@ let editor_w9 () =
   (* the note is the last section, closed, and below the fold of a node with this many rows: the
      wheel over a value field scrolls the inspector to its end, where the 24-point Note header sits
      on the pane's bottom edge (y 776 less the 1-point rule: middle 763); open, the same scroll puts
-     its row there *)
-  let wheel _ _ = [ Event.MouseMoved (1260., 405.); Event.MouseScrolled (0., -100.) ] in
+     its row there.  Two notches a frame reach the end (59 points, 83 with the note open) and go
+     little past it: the inspector stretches past its end as every scroll box does, so a hard wheel
+     would hold the rows off their places for the frames this script has *)
+  let wheel _ _ = [ Event.MouseMoved (1260., 405.); Event.MouseScrolled (0., -2.) ] in
   let text, label = scenario [ 22, (fun click head -> click (head soft (60., 12.)));
     24, wheel; 25, wheel; 26, (fun click _ -> click (1250., 763.));
     28, wheel; 29, wheel; 30, (fun click _ -> click (1290., 763.));
