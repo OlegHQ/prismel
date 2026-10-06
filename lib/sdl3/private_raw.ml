@@ -10,6 +10,8 @@ external quit_subsystem : int -> unit = "caml_sdl3_quit_subsystem"
 
 external create_window : string -> int -> int -> int -> nativeint
   = "caml_sdl3_create_window"
+external set_window_background : nativeint -> float -> float -> float -> unit
+  = "caml_sdl3_set_window_background"
 external destroy_window : nativeint -> unit = "caml_sdl3_destroy_window"
 external window_size : nativeint -> (int * int) option = "caml_sdl3_window_size"
 external window_size_in_pixels : nativeint -> (int * int) option

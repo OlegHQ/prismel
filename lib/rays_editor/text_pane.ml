@@ -208,14 +208,13 @@ let selection_form source path form =
            | Some (root, body) ->
                (match scope body with
                 | Some (bindings, res) ->
-                    let changed = ref false in
+                    (* a closure that changes nothing is the graph as it is, not a refusal: a
+                       scrub applies on every frame of its drag, also the ones that did not move *)
                     let bindings = List.map (fun (p, old) ->
                       match List.find_opt (fun (q, _) -> q.S.node = p.S.node) patches with
                       | Some (_, v) when printed old <> printed v ->
-                          changed := true;
                           p, (if v.notes = [] then { v with notes = old.notes } else v)
                       | _ -> p, old) bindings in
-                    if not !changed then error "Nothing changed." else
                     let body = { body with node = S.List [List.hd (S.children body);
                       { (List.nth (S.children body) 1) with node = S.Vec
                           (List.concat_map (fun (p, v) -> [p; v]) bindings) }; res] } in
@@ -274,6 +273,86 @@ let shown ?workspace state ~(source : S.t list) ~graph ~selected =
             { shown with applied;
               text = if state.tab = Document then Lazy.force applied else shown.text } in
       { state with cache = Some (key, shown) }, shown
+
+(* ---- a draft against a document that changed under it ---- *)
+
+(* Three texts, merged form by form: [base] is what the draft began from, [mine] the draft,
+   [theirs] the text now.  A form only one side changed takes that side's; a form both changed
+   merges child by child; graphs of a workspace and bindings of a [let*] pair up by name, so one
+   added or removed on either side is kept.  [None]: both changed the same value, or [mine] does
+   not read.
+   ponytail: a binding or keyword argument [theirs] added goes last in its form; keep [theirs]'
+   place for it when the order of bindings bites (the merged text is still checked). *)
+let merge3 ~base ~mine ~theirs =
+  let text f = fst (Flow.Lisp.print [ f ]) in
+  let same a b = text a = text b in
+  let rec all = function
+    | [] -> Some [] | None :: _ -> None
+    | Some x :: rest -> Option.map (fun rest -> x :: rest) (all rest) in
+  let key (f : S.t) = match f.node with
+    | S.List ({ node = S.Sym h; _ } :: { node = S.Sym n; _ } :: _) -> h ^ " " ^ n
+    | S.List ({ node = S.Sym h; _ } :: _) -> h
+    | _ -> text f in
+  let entries = List.map (fun f -> key f, [ f ]) in
+  let rec pairs = function
+    | p :: v :: rest -> Option.map (fun rest -> (text p, [ p; v ]) :: rest) (pairs rest)
+    | [] -> Some [] | [ _ ] -> None in
+  let rec merge (b : S.t) (m : S.t) (t : S.t) =
+    if same m b then Some t else if same t b || same m t then Some m
+    else
+      let node make kids = Option.map (fun kids -> { m with node = make kids }) kids in
+      match b.node, m.node, t.node with
+      | S.List ({ node = S.Sym "let*"; _ } :: { node = S.Vec bv; _ } :: br),
+        S.List (head :: ({ node = S.Vec mv; _ } as vec) :: mr),
+        S.List (_ :: { node = S.Vec tv; _ } :: tr) ->
+          (match pairs bv, pairs mv, pairs tv with
+           | Some bv, Some mv, Some tv ->
+               Option.bind (keyed bv mv tv) (fun bindings ->
+                 node (fun rest -> S.List (head :: { vec with node = S.Vec bindings } :: rest)) (seq br mr tr))
+           | _ -> None)
+      | S.List ({ node = S.Sym "workspace"; _ } :: _ as bl), S.List ml, S.List tl ->
+          node (fun kids -> S.List kids) (keyed (entries bl) (entries ml) (entries tl))
+      | S.List bl, S.List ml, S.List tl ->
+          node (fun kids -> S.List kids) (match seq bl ml tl with Some _ as kids -> kids | None -> call bl ml tl)
+      | S.Vec bl, S.Vec ml, S.Vec tl -> node (fun kids -> S.Vec kids) (seq bl ml tl)
+      | S.Map bl, S.Map ml, S.Map tl -> node (fun kids -> S.Map kids) (seq bl ml tl)
+      | _ -> None
+  (* a call whose argument count differs: what stands before the first keyword pairs by position,
+     the keyword arguments by name *)
+  and call bl ml tl =
+    let rec split before = function
+      | ({ S.node = S.Kw _; _ } :: _) as rest ->
+          let rec keywords = function
+            | { S.node = S.Kw _; _ } :: _ :: rest -> keywords rest | [] -> true | _ -> false in
+          List.rev before, if keywords rest then pairs rest else None
+      | f :: rest -> split (f :: before) rest
+      | [] -> List.rev before, Some [] in
+    match split [] bl, split [] ml, split [] tl with
+    | (bp, Some bk), (mp, Some mk), (tp, Some tk) ->
+        Option.bind (seq bp mp tp) (fun positional ->
+          Option.map (fun keywords -> positional @ keywords) (keyed bk mk tk))
+    | _ -> None
+  and seq bl ml tl =
+    if List.length bl = List.length ml && List.length ml = List.length tl
+    then all (List.map2 (fun b (m, t) -> merge b m t) bl (List.combine ml tl)) else None
+  and keyed bl ml tl =
+    let unique l = let keys = List.map fst l in
+      List.length (List.sort_uniq String.compare keys) = List.length keys in
+    let sames a b = List.length a = List.length b && List.for_all2 same a b in
+    if not (unique bl && unique ml && unique tl) then None else
+    let mine = List.map (fun (k, m) -> match List.assoc_opt k bl, List.assoc_opt k tl with
+      | Some b, Some t -> seq b m t
+      | Some b, None -> if sames m b then Some [] else None  (* they removed what I left alone *)
+      | None, Some t -> if sames m t then Some m else None   (* both added it *)
+      | None, None -> Some m) ml in
+    let theirs = List.map (fun (k, t) -> match List.mem_assoc k ml, List.assoc_opt k bl with
+      | true, _ -> Some []
+      | false, None -> Some t                                 (* they added it *)
+      | false, Some b -> if sames t b then Some [] else None) tl in  (* I removed what they left alone *)
+    Option.map List.concat (all (mine @ theirs)) in
+  match S.parse base, S.parse mine, S.parse theirs with
+  | Ok b, Ok m, Ok t -> Option.map (fun forms -> fst (Flow.Lisp.print forms)) (keyed (entries b) (entries m) (entries t))
+  | _ -> None
 
 (* ---- errors ---- *)
 
@@ -388,7 +467,18 @@ let colour_popup ui ~at text (a, b) =
   |> Option.map (fun edit -> String.sub text 0 (a + 1) ^ Option.value ~default:literal edit
                              ^ String.sub text (b - 1) (String.length text - b + 1))
 
-let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names state (shown : shown) =
+(* the tabs' names: the workspace sheet's narrow Lisp panel (under 400 points) says "Doc"; a
+   document with a draft wears a star *)
+let tab_labels ~width ~dirty =
+  let doc = if width < 400 then "Doc" else "Document" in
+  [ Selection, "Selection"; Graph, "Graph"; Document, if dirty then doc ^ " *" else doc ]
+
+(* the room the tabs take in the panel's header, 12 apart *)
+let tabs_width ui ~width state shown =
+  List.fold_left (fun w (_, label) -> w +. 12. +. Pxui.Ui.text_width ui label) (-12.)
+    (tab_labels ~width ~dirty:(dirty state shown))
+
+let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown : shown) =
   let module Ui = Pxui.Ui in
   let row = float (Ui.row_height ui) in
   let x = float x and y = float y and width = float width and height = float height in
@@ -401,14 +491,15 @@ let view ui ~bounds:(x, y, width, height) ?(tabs_inset = 32.) ~vocab ~names stat
   (* the workspace sheet's narrow Lisp panel (under 400 points): "Doc", the two buttons alone in
      the bar and no status row *)
   let narrow = width < 400. in
-  let doc_label = if narrow then "Doc" else "Document" in
-  let tabs = [ Selection, "Selection"; Graph, "Graph";
-    Document, if dirty then doc_label ^ " *" else doc_label ] in
+  let tabs = tab_labels ~width:(int_of_float width) ~dirty in
   let active = Option.value ~default:0 (List.find_index (fun (tab, _) -> tab = state.tab) tabs) in
-  (match fst (Pxui_shell.Kit.segments ui ~key:"text-tab" ~right:(x +. width -. tabs_inset)
-                ~y:(y -. float Pxui_shell.Layout.header_height +. 2.) (List.map snd tabs) active) with
-   | Some index -> emit (Tab (fst (List.nth tabs index)))
-   | None -> ());
+  (* [tabs_right] is where the header has room for them ([Pxui_shell.Chrome.header_slots]); none
+     in a header too narrow *)
+  Option.iter (fun right ->
+    match fst (Pxui_shell.Kit.segments ui ~key:"text-tab" ~right
+                 ~y:(y -. float Pxui_shell.Layout.header_height +. 2.) (List.map snd tabs) active) with
+    | Some index -> emit (Tab (fst (List.nth tabs index)))
+    | None -> ()) tabs_right;
   let bar = 32. in
   (* a hairline, the 32-point button bar, a hairline and the 24-point status row *)
   let footer = if narrow then bar +. 1. else bar +. row +. 2. in

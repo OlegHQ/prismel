@@ -24,6 +24,17 @@ decode and upload, audio devices, and resource destruction. Pure update,
 geometry, and scene preparation may use the shared domain pool, then join before
 crossing this boundary.
 
+## Title bar
+
+Every Rays window keeps the traffic lights, hides its title text and has a
+transparent title bar (`titlebarAppearsTransparent`, `NSWindowTitleHidden`, set
+when the window is created). The content view is not full-size: layout and hit
+testing start under the bar as before. The bar shows the NSWindow background,
+which is the system's until `Sketch.set_window_background color` sets it; a
+PXUI host gets its theme's ground from `Pxui.Ui` without asking. The title is
+still the window's name in Mission Control and the Window menu. Off the Cocoa
+video driver none of this does anything.
+
 ## Logical and drawable coordinates
 
 Window configuration, `Window.size`, `Frame.size`, scene coordinates, pointer
@@ -60,11 +71,19 @@ and a fixed clock to write deterministic numbered PNG sequences.
 
 ## Events and resizing
 
-Keyboard, pointer, scroll, pinch, committed text, IME editing, file-drop (and
+Keyboard, pointer, scroll, trackpad scroll gesture, pinch, committed text, IME editing, file-drop (and
 file-drag position), file-dialog, focus, resize, and close events enter one
 ordered `Event.t` stream. Pointer movement is
 summed into `Frame.mouse_delta` for the frame. Focus loss clears held input and
 cancels capture. File-drop strings are copied before SDL3 releases its payload.
+
+On macOS a trackpad scroll is two events. SDL's wheel event (`MouseScrolled`)
+is a tenth of the points moved and merges the fingers with the system's
+momentum; it says nothing of the gesture's phases and nothing at all when the
+fingers lift. `TrackpadScrolled { delta; phase; time }` carries those: points,
+`Touched`/`Moved`/`Lifted`/`Momentum`, and the event's own clock. Each one that
+moves has its `MouseScrolled` in the same frame, so a reader of `MouseScrolled`
+alone sees what it always did.
 
 The authoritative SDL3 size-change notification (the window is not polled)
 updates logical window facts on the next frame, refreshes drawable size, resizes

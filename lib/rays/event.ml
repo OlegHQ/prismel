@@ -1,3 +1,4 @@
+type scroll_phase = Touched | Moved | Lifted | Momentum
 type t = KeyPressed of Input.key | KeyReleased of Input.key | MouseMoved of (float*float)
   | MousePressed of Input.mouse_button*(float*float) | MouseReleased of Input.mouse_button*(float*float)
   | PointerCancelled of Input.mouse_button | MouseScrolled of (float*float) | TextInput of string
@@ -5,6 +6,7 @@ type t = KeyPressed of Input.key | KeyReleased of Input.key | MouseMoved of (flo
   | FileDragMoved of (float*float) | FileDragEnded | MousePinched of float
   | FileDialog of {id:int;result:(string list,string) result}
   | WindowResized of (int*int) | WindowFocusLost | WindowClosed
+  | TrackpadScrolled of {delta:float*float;phase:scroll_phase;time:float}
 module Private = struct
   (* The binding names a key once, from SDL's keycode; this is only the move
      to Rays's own variant. *)

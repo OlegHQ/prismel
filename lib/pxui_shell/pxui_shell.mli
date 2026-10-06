@@ -122,10 +122,20 @@ module Chrome : sig
     | Close_panel of Layout.path
     | Retype_panel of Layout.path * Layout.panel  (** [View ""] means a viewport *)
 
-  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> ?reserve:(Layout.leaf -> float) ->
+  val header_slots : Layout.leaf -> float list -> float option list * float
+  (** The one layout of a header's right end.  The groups of tabs a host stands there, outermost
+      first and each as wide as given, end 8 points apart before the collapse button (a window's
+      dock and close): the right edge of each, and where the title {!update} draws must end.
+      The title gives way first: its breadcrumb loses its head (["… / sop"]), then its tail, then
+      the label and the focus square go whole.  A group that does not fit in the header is
+      [None], with every group after it, so a header never draws over itself or past its own
+      rectangle. *)
+
+  val update : ?state:(Layout.path -> Editor_core.Panels.state) -> ?hidden:Layout.panel list -> ?title:(Layout.leaf -> string) -> ?groups:(Layout.leaf -> float list) ->
     ?key_of:(string -> string) -> ?focus:Layout.path -> Layout.t -> Pxui.Ui.t -> Rays.Frame.t -> intent list
   (** A [title] is ["Kind<TAB>a / b"]: the kind is the header's label, the rest its breadcrumb
-      (the last part in ink).  The header of the [focus] leaf wears the accent square.  A docked
+      (the last part in ink), cut to the room [groups] (the widths {!header_slots} takes) leave.
+      The header of the [focus] leaf wears the accent square.  A docked
       header ends in its collapse chevron, a window's in dock and close.
       Panel backgrounds, the drawn gutters, headers with their collapse button and
       right-click menu (split, close, dock, retype; the keys at its right are [key_of] a command id

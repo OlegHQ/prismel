@@ -54,6 +54,7 @@ type presentation_facts = {
 val presentation_facts : t -> (presentation_facts,error) result
 val show : t -> (unit,error) result
 val set_relative_mouse : t -> bool -> (unit,error) result
+val set_window_background : t -> float*float*float -> (unit,error) result
 val set_cursor : t -> [`Default|`Horizontal_resize|`Vertical_resize|`Text] ->
   (unit,error) result
 (* Some (region, cursor) starts text input at a focused field, None stops it. *)

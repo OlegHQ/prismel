@@ -154,9 +154,12 @@ Viewport section pairs the look-through toggle with "Camera follows
 viewport" (the ACTIVE camera's parameter, one undo entry) so a fixed camera
 is set up by looking through it and orbiting. Looking through, the render
 fills `Editor3.film`: the root's aspect (its render resolution, the gate) fitted
-into the pane, and so does a path-traced viewport (the film covers the gate and nothing outside
-it); otherwise the whole pane. The editor paints its 3D view and
-the sketch overlay inside that rect. "Render / save PNG" captures the screen
+into the pane; otherwise the whole pane, whatever draws it. Solid, Wire and Traced are the
+same camera in the same rectangle: a path-traced free view is traced at the pane's own drawable
+pixels and replaces the raster picture in place, and only looking through the camera shows the
+gate (the tracer's film is then the root's resolution in the step that fits it). The editor
+paints its 3D view, the sketch overlay, the guides and the handles inside that rect (the axis
+gizmo keeps the pane's corner), and every mark over a view is clipped to its pane. "Render / save PNG" captures the screen
 unless the sketch takes the request (`Editor3.take_export`) to render at
 `Editor3.render_settings` (resolution, max samples) with progress in the
 status bar (`Editor3.set_render_status`).
@@ -240,7 +243,11 @@ so playback and `Sketch.export` with `Fixed dt` are deterministic. See
 
 ### The path tracer's film, budget and sample cap
 
-- The film of a traced viewport is the root's resolution divided by 1, 2, 4 or 8 (`Renderer.film`):
+- A traced viewport that is not looking through the render camera shows its own free view, in
+  place of the raster picture: its film is its pane in drawable pixels (step 1), so a resize of
+  the pane restarts the accumulation.  The steps below are for a viewport looking through the
+  camera, whose rectangle is the gate.
+- The film of a traced viewport looking through its camera is the root's resolution divided by 1, 2, 4 or 8 (`Renderer.film`):
   the largest that does not exceed the viewport's gate in drawable pixels (the gate is the root's
   aspect fitted into the pane, in points, times the pixel scale; the eighth when even that is too
   big). A pane resize changes the film, and restarts the accumulation, only when it crosses a

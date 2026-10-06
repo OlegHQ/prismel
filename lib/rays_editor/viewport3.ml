@@ -365,15 +365,12 @@ let view_camera camera extra ~key ~pending =
 let pick_ray ~viewport view at =
   Camera.screen_ray ~viewport view ~at
 
-(* A viewport shows the root's gate, not the whole pane, while looking through the camera and
-   while its tracer renders: the film covers the gate and nothing outside it.  A sketch's own
-   renderer ([custom]) keeps the whole pane. *)
-let gated extra key =
-  looks extra key
-  || (not extra.renderer.custom && of_root (look extra key).settings.renderer = Renderer.Path_traced)
-
+(* A viewport shows the root's gate, not the whole pane, only while looking through the render
+   camera.  Its own free view fills the pane whatever draws it: Solid, Wire and Traced are the
+   same picture of the same camera in the same rectangle, so switching one for another moves
+   nothing and the guides, handles and brackets stay on what they mark. *)
 let film extra ~key (x, y, width, height) =
-  if not (gated extra key) then x, y, width, height else
+  if not (looks extra key) then x, y, width, height else
   let { settings; _ } = look extra key in
   let aspect = float settings.width /. float (max 1 settings.height) in
   if width < 1000 && width > 160 && height > 160 then begin
@@ -397,17 +394,19 @@ let film extra ~key (x, y, width, height) =
   let w = max 1 w and h = max 1 h in
   x + ((width - w) / 2), y + ((height - h) / 2), w, h
 
-(* Each viewport renders as its own root says: the tracer's film is its resolution in a step
-   (1, 1/2, 1/4, 1/8) that fits the viewport's gate in drawable pixels, so the film changes only
-   when a resize crosses a step; the image is scaled to the gate when painted.  The sample cap is
-   read here, each frame, and is not part of the renderer's setting: raising one continues the
-   accumulation.  [views] carry each viewport's gate ({!film}). *)
+(* Each viewport renders as its own root says.  Looking through the render camera, the tracer's
+   film is the root's resolution in a step (1, 1/2, 1/4, 1/8) that fits the viewport's gate in
+   drawable pixels, so the film changes only when a resize crosses a step; the image is scaled to
+   the gate when painted.  A free view is not the render: its film is the pane itself, pixel for
+   pixel ({!Renderer.film}).  The sample cap is read here, each frame, and is not part of the
+   renderer's setting: raising one continues the accumulation.  [views] carry each viewport's
+   rectangle ({!film}). *)
 let render extra ~pixel_scale:(scale_x, scale_y) ~focus views =
   let views = List.map (fun (key, (_, _, width, height), camera, scene) ->
     let { settings; _ } = look extra key in
     let gate = int_of_float (Float.round (float width *. scale_x)),
                int_of_float (Float.round (float height *. scale_y)) in
-    let film, step = Renderer.film ~resolution:(settings.width, settings.height) ~gate in
+    let film, step = Renderer.film ~through:(looks extra key) ~resolution:(settings.width, settings.height) ~gate in
     { Renderer.key; film; step; camera; scene; cap = settings.max_spp;
       setting = { mode = of_root settings.renderer; bounces = settings.bounces;
                   round_samples = settings.round_samples } }) views in
@@ -661,7 +660,9 @@ let light_guide bounds view color (light : Light.t) =
       aim position direction @ List.concat (List.init 4 (fun index ->
         segment bounds view color corners.(index) corners.((index + 1) mod 4)))
 
-let guides ~scene ~selected ~space view extra ~bounds =
+(* [bounds] is the rectangle the view is drawn in ({!film}): what is projected lies on the
+   picture.  The axis gizmo belongs to the [pane]'s corner. *)
+let guides ~scene ~selected ~space view extra ~pane ~bounds =
   let cameras = if not extra.show.cameras then [] else
     List.concat_map (fun node_id ->
       match Option.bind (Edit_graph.find scene ~node_id) node_camera with
@@ -687,7 +688,7 @@ let guides ~scene ~selected ~space view extra ~bounds =
             | Move | No_tool -> [Scene.circle ~at ~radius:5 ~fill:color ()]))
           (arrows node view bounds space extra.tool)
     | Some _ | None -> [] in
-  cameras @ lights @ (if extra.show.axes then gizmo bounds view else []) @ handles
+  cameras @ lights @ (if extra.show.axes then gizmo pane view else []) @ handles
 
 let save = CC.save
 let filename request = request.CC.filename

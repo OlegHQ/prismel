@@ -76,6 +76,10 @@ val map_logical_rect : frame_facts -> int * int * int * int ->
 val presentation_facts : t -> (presentation_facts, Ogpu.Error.t) result
 
 val set_resizable : t -> bool -> (unit, Ogpu.Error.t) result
+val set_window_background : t -> float * float * float -> (unit, Ogpu.Error.t) result
+(** The native window's own background (sRGB, 0..1): what the title bar shows,
+    since a Rays window hides its title and keeps only the traffic lights. *)
+
 val set_relative_mouse : t -> bool -> (unit, Ogpu.Error.t) result
 (** Hide and capture the pointer, reporting relative motion (fly cameras). *)
 

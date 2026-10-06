@@ -140,7 +140,7 @@ let run () =
       | Text_input _ -> "Text_input" | Text_editing _ -> "Text_editing"
       | Mouse_motion _ -> "Mouse_motion" | Mouse_button _ -> "Mouse_button"
       | Mouse_wheel _ -> "Mouse_wheel" | Pinch _ -> "Pinch" | Drop _ -> "Drop"
-      | Dialog _ -> "Dialog" in
+      | Dialog _ -> "Dialog" | Scroll _ -> "Scroll" in
     let first_difference =
       let rec go index a b = match a, b with
         | [], [] -> "none"

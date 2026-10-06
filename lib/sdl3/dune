@@ -30,16 +30,17 @@
  (private_modules Private_raw)
  (foreign_stubs
   (language c)
-  (names sdl3_stubs sdl3_dialog)
+  (names sdl3_stubs sdl3_dialog sdl3_cocoa)
   (flags (:include c_flags.sexp) -Wall -Wextra -Werror)
-  (extra_deps generated_abi.h sdl3_probed.h sdl3_dialog.h))
- (c_library_flags (:include c_library_flags.sexp))
+  (extra_deps generated_abi.h sdl3_probed.h sdl3_dialog.h sdl3_cocoa.h))
+ (c_library_flags (:include c_library_flags.sexp) -lobjc)
  (libraries threads native_layer_token))
 
 (executable
  (name test_main)
  (modules test_main test_sdl3 test_sdl3_metal test_sdl3_stress test_sdl3_failure test_sdl3_events)
  (libraries sdl3 sdl3_lock)
+ (link_flags (-ccopt "-framework ApplicationServices"))
  (foreign_stubs
   (language c)
   (names test_sdl3_events_stubs)

@@ -328,6 +328,8 @@ let window operation call value=match ensure operation value with Error _ as e->
 let show value=window"Rays_execution.show"Runtime.show value
 let set_relative_mouse value enabled=window"Rays_execution.set_relative_mouse"
   (fun runtime->Runtime.set_relative_mouse runtime enabled) value
+let set_window_background value color=window"Rays_execution.set_window_background"
+  (fun runtime->Runtime.set_window_background runtime color)value
 let set_cursor value shape=window"Rays_execution.set_cursor"
   (fun runtime->Runtime.set_cursor runtime shape)value
 let set_text_input value area=window"Rays_execution.set_text_input"

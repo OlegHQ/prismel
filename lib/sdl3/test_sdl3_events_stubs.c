@@ -328,3 +328,35 @@ CAMLprim value caml_sdl3_test_dialog_finish_huge(value id)
   free(list);
   return Val_true;
 }
+
+/* A phased trackpad scroll as AppKit delivers one, posted to this process's own queue: the
+   native test checks that the NSEvent monitor of sdl3_cocoa.c turns it into Sdl3.Event.Scroll.
+   [phase] is a CGScrollPhase (1 began, 2 changed, 4 ended). */
+#ifdef __APPLE__
+#include <ApplicationServices/ApplicationServices.h>
+#include <objc/message.h>
+#include <objc/runtime.h>
+
+CAMLprim value caml_sdl3_test_post_scroll(value points, value phase)
+{
+  CGEventRef event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1,
+      (int32_t)Int_val(points));
+  id native, app;
+  CGEventSetIntegerValueField(event, kCGScrollWheelEventIsContinuous, 1);
+  CGEventSetIntegerValueField(event, kCGScrollWheelEventScrollPhase, Int_val(phase));
+  native = ((id (*)(id, SEL, CGEventRef))objc_msgSend)(
+      (id)objc_getClass("NSEvent"), sel_getUid("eventWithCGEvent:"), event);
+  app = ((id (*)(id, SEL))objc_msgSend)(
+      (id)objc_getClass("NSApplication"), sel_getUid("sharedApplication"));
+  ((void (*)(id, SEL, id, signed char))objc_msgSend)(
+      app, sel_getUid("postEvent:atStart:"), native, 0);
+  CFRelease(event);
+  return Val_unit;
+}
+#else
+CAMLprim value caml_sdl3_test_post_scroll(value points, value phase)
+{
+  (void)points; (void)phase;
+  return Val_unit;
+}
+#endif

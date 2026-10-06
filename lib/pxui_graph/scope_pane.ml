@@ -45,12 +45,12 @@ type command =
   | Item_up | Item_down  (** move the hovered list item *)
   | Make_frame  (** a titled frame around the selected nodes *)
   | Duplicate | Display | Copy | Cut | Paste
-  | Frame_selection  (** [⇧F]: pan and zoom to the selected nodes (all, with none selected) *)
+  | Frame_selection  (** [f]: pan and zoom to the selected nodes (all, with none selected) *)
   | Open_level  (** [o]: the selection one level more detailed, pinned *)
   | Point_level  (** [p]: the selection to points, or back to its previous level *)
   | Open_all  (** [⇧O]: every node to card *)
   | Point_all  (** [⇧P]: every node to a point, or every node back *)
-  | Show_hints  (** [f]: letter hints; a letter connects the selected node's output *)
+  | Show_hints  (** [w]: letter hints; a letter connects the selected node's output *)
 
 type stats = {
   nodes : int; zones : int; rows : int;
@@ -83,7 +83,12 @@ type geo = {
 
 let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = []; obstacles = []; routes = Hashtbl.create 1 }
 let root_name s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
-let fallback (r : P.row) = Option.bind r.ty (fun ty -> E.default_for ty r.label)
+(* what a row reads once its wire is taken off: a named argument goes back to its schema default,
+   written so the row stays on the card; a positional one takes a value of its type *)
+let fallback (r : P.row) = match r.key with
+  | E.Kw _ | E.Field _ ->
+      Option.bind r.default (fun d -> match Flow.Syntax.parse d with Ok [ form ] -> Some form | _ -> None)
+  | _ -> Option.bind r.ty (fun ty -> E.default_for ty r.label)
 
 (* the sheet's wire ends: a header port's wire runs 1.5 points from y + 11, a row port's from the
    row's centre line (kit [.wire], measured on graph@2x.png) *)
@@ -230,16 +235,11 @@ let out_anchor (p : P.placed) ax ay =
 let in_anchor (p : P.placed) ax ay =
   if p.shown = P.Point then ax, ay +. P.point_size /. 2. else ax, ay +. wire_head_y
 
-(* the level a card is drawn at: the requested one, under the zoom's caps (flow.md 6.4: below
-   0.34 a point, below 0.5 at most a chip); a pinned card ignores them.  A zone, the return card
+(* the level a card is drawn at: the one it was given, at every zoom.  A zone, the return card
    and a frame keep their card. *)
-let level_rank = function P.Point -> 0 | Chip -> 1 | Card -> 2 | Full -> 3
-let cap_of zoom = if zoom < 0.34 then P.Point else if zoom < 0.5 then P.Chip else P.Full
-let shown_of ~level_at ~cap (p : P.placed) = match p.item with
+let shown_of (p : P.placed) = match p.item with
   | P.Item { zone = Some _; _ } | P.Return -> P.Card
-  | P.Item _ | P.Input _ ->
-      let pinned = match level_at p.path with Some (_, true) -> true | _ -> false in
-      if pinned || level_rank cap >= level_rank p.level then p.level else cap
+  | P.Item _ | P.Input _ -> p.level
 
 (* a point's box: the disc and its name; its wires meet the disc on the left and the name's end on
    the right *)
@@ -357,7 +357,11 @@ let compute ?(style = `Straight) ?(previous = empty_geo) ~name_w ~shown (scope :
                           | Some k -> ax, rows_top n ay +. float k *. P.row_height +. wire_row_y
                           | None -> ax, ay +. wire_head_y) in
                  let target = Some (n.path, r.key, fallback r) in
-                 List.iter (fun name -> wire ?target (resolve chain name) target_pos ~into:[ n.path ])
+                 (* a binding cannot read itself: a name that resolves to this node is one from outside
+                    its scope (a [ref] to a graph of the same name), not a wire *)
+                 List.iter (fun name -> match resolve chain name with
+                   | Some { owner = Some o; _ } when o = n.path -> ()
+                   | src -> wire ?target src target_pos ~into:[ n.path ])
                    (P.sources r)) n.rows
            | Some z ->
                let collapsed = p.collapsed in
@@ -443,7 +447,7 @@ type editing = Name of path | Default of path | Title of path * int
 
 type fr = string * (float * float) * (float * float)
 
-(* letter hints (flow.md 7.5): [f] labels every input the selected node's output can connect to *)
+(* letter hints (flow.md 7.5): [w] labels every input the selected node's output can connect to *)
 type hint_target = { label : string; node : path; key : E.arg_key option; pos : float * float }
 type hinting = { src : string; src_ty : Ty.t; typed : string; targets : hint_target list; stage : path option; armed : bool }
 
@@ -460,6 +464,7 @@ type t = {
   probe : path -> int;
   records : Flow_sop.Probe.t option;
   chains : (path, path list) Hashtbl.t;  (* the iterating zones around each node *)
+  folds : (path * int, path) Hashtbl.t;  (* a wired row (node, row index) whose one source can fold into it: that node *)
   counts : (path, int) Hashtbl.t;  (* iterations each zone ran, under the probes *)
   frames : path -> (string * (float * float) * (float * float)) list;
   display : path option;  (* the node the viewport shows instead of the graph's result *)
@@ -467,7 +472,6 @@ type t = {
   layout : P.layout;
   geo : geo;
   geo_fs : int;  (* the font size point names were measured at *)
-  geo_cap : P.level;  (* the zoom cap [geo] was computed under *)
   pan_x : float; pan_y : float; zoom : float;
   wires : [ `Rect | `Straight ];
   selected : Path_set.t;
@@ -489,20 +493,20 @@ type t = {
   measure : int -> string -> float;  (* text width in points, from the last built frame *)
 }
 
-(* the geometry of the scope at the levels the zoom shows *)
+(* the geometry of the scope *)
 let font_of zoom = max 5 (int_of_float (Float.round (13. *. zoom)))
 let regeo t scope layout ~shift =
-  let cap = cap_of t.zoom and fs = font_of t.zoom in
-  { t with geo_cap = cap; geo_fs = fs;
-    geo = compute ~style:t.wires ~previous:t.geo ~name_w:(fun s -> t.measure fs s /. t.zoom) ~shown:(shown_of ~level_at:t.level_at ~cap) scope layout ~shift }
+  let fs = font_of t.zoom in
+  { t with geo_fs = fs;
+    geo = compute ~style:t.wires ~previous:t.geo ~name_w:(fun s -> t.measure fs s /. t.zoom) ~shown:shown_of scope layout ~shift }
 
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
   x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
   at = (fun _ -> None); level_at = (fun _ -> None); pin_at = (fun _ _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
-  chains = Hashtbl.create 1; counts = Hashtbl.create 1;
+  chains = Hashtbl.create 1; folds = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
-  layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; geo_fs = 13; geo_cap = P.Full; pan_x = 12.; pan_y = 12.; zoom = 1.;
+  layout = { P.placed = []; w = 0.; h = 0. }; geo = empty_geo; geo_fs = 13; pan_x = 12.; pan_y = 12.; zoom = 1.;
   wires = `Straight; selected = Path_set.empty; selected_wire = None; panning_grab = false;
   hovered_row = None; highlighted = []; drag = None; editing = None; context = None; stats = no_stats; switches = [];
   carry_lit = []; carry_hot = None; failed = []; hinting = None; held = [], false; back = [];
@@ -574,6 +578,37 @@ let lay t scope ~at ~collapsed =
   P.layout ~foot:(t.records <> None) ~at ~collapsed ~lens:(lens_of t)
     ~level:(fun p -> match t.level_at p with Some (l, _) -> l | None -> P.Card) ~pin:t.pin_at scope
 
+(* the rows a fold button is drawn on (flow.md 7.7): a row wired from one named node of its scope
+   or an enclosing one, read nowhere else.  The edit checks again and says why when it refuses.
+   ponytail: uses are counted by name over the whole graph, so a name shadowed in another scope
+   gets no button (the context menu still folds it); count per scope if that bites. *)
+let fold_sources (scope : P.scope) =
+  let uses = Hashtbl.create 64 and binders = Hashtbl.create 64 and out = Hashtbl.create 16 in
+  let add name =
+    let k = root_name name in
+    Hashtbl.replace uses k (1 + Option.value ~default:0 (Hashtbl.find_opt uses k)) in
+  let rec count (s : P.scope) =
+    (match s.result with P.Link target -> add target | _ -> ());
+    List.iter (fun (n : P.node) ->
+      if n.binds = [ n.name ] && not n.synthetic && not (E.nested n.name) then Hashtbl.replace binders n.path ();
+      List.iter (fun (r : P.row) -> List.iter add (P.sources r)) n.rows;
+      Option.iter (fun (z : P.zone) ->
+        List.iter (fun (r : P.rail_row) -> Option.iter (fun e -> List.iter add (E.free_names e)) r.expr) z.rail;
+        count z.scope) n.zone) s.nodes in
+  count scope;
+  let rec binder sc name = match sc with
+    | [] -> None
+    | _ when Hashtbl.mem binders (sc @ [ name ]) -> Some (sc @ [ name ])
+    | _ -> binder (List.rev (List.tl (List.rev sc))) name in
+  let rec mark (s : P.scope) =
+    List.iter (fun (n : P.node) ->
+      List.iteri (fun i (r : P.row) -> match r.chip, P.sources r with
+        | P.Name _, [ src ] when not r.head && Hashtbl.find_opt uses src = Some 1 ->
+            Option.iter (Hashtbl.replace out (n.path, i)) (binder (List.rev (List.tl (List.rev n.path))) src)
+        | _ -> ()) n.rows;
+      Option.iter (fun (z : P.zone) -> mark z.scope) n.zone) s.nodes in
+  mark scope; out
+
 (* a switch's rows read as the names of its layouts; [switches] are its nodes with the active input *)
 let switch_nodes (scope : P.scope) = List.filter_map (fun (n : P.node) ->
   if n.head <> "ui/switch" || n.zone <> None then None else
@@ -594,7 +629,7 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
   let layout = lay t scope ~at ~collapsed in
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
-    chains = Flow_sop.Probe.chains scope; wires;
+    chains = Flow_sop.Probe.chains scope; folds = fold_sources scope; wires;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   let t = regeo t scope layout ~shift:no_shift in
   (* an edit that removed or moved a node drops it from the selection *)
@@ -643,8 +678,6 @@ let inline_rail (n : P.node) = match n.zone with
   | None -> None
   | Some z -> List.find_opt (fun (r : P.rail_row) -> match r.expr with
       | Some { S.node = S.List _; _ } -> r.key <> None | _ -> false) z.rail
-
-let fallback (r : P.row) = Option.bind r.ty (fun ty -> E.default_for ty r.label)
 
 let wired (r : P.row) = P.sources r <> []
 
@@ -762,7 +795,6 @@ let action_changes t command =
   | Paste -> [ Paste_requested ]
   | Display -> one (fun n ->
       if n.ty <> Ty.Geometry then [ Notice "Only a geometry node can be viewed" ]
-      else if List.length n.path <> 2 then [ Notice "A node inside a loop cannot be the result" ]
       else [ Display_set n.path ])
   | Item_up | Item_down ->
       (match t.hovered_row with
@@ -816,7 +848,7 @@ let level_command t command =
           @ List.filter (fun (p, _) -> not (List.mem_assoc p chosen)) t.back in
   { t with back }, [ Level_set changes ]
 
-(* ---- letter hints (flow.md 7.5): [f] labels every input the selected output can connect to ---- *)
+(* ---- letter hints (flow.md 7.5): [w] labels every input the selected output can connect to ---- *)
 
 let hint_alphabet = "asdfghjklqwertyuiopzxcvbnm"
 let hint_labels n =
@@ -987,8 +1019,8 @@ let bindings =
     make ~guide:one "probe-prev" "previous iteration" (Probe_step (-1)) (ch '[') [];
     make ~guide:one "probe-next" "next iteration" (Probe_step 1) (ch ']') [];
     make ~guide:any "frame-all" "frame all" Frame_all Input.Home [];
-    make ~guide:any "frame-selection" "frame the selection" Frame_selection (ch 'f') [ Input.Shift ];
-    make ~guide:one "hints" "letter hints: connect the selected output" Show_hints (ch 'f') [];
+    make ~guide:any "frame-selection" "frame the selection" Frame_selection (ch 'f') [];
+    make ~guide:one "hints" "letter hints: connect the selected output" Show_hints (ch 'w') [];
     make ~guide:some "open" "open one level" Open_level (ch 'o') [];
     make ~guide:some "point" "point, or back" Point_level (ch 'p') [];
     make ~guide:any "open-all" "every node to card" Open_all (ch 'o') [ Input.Shift ];
@@ -1217,7 +1249,24 @@ let paint_vector paint ui ~z ~ls ~theme ~right ~y (elems : S.t list) =
 
 (* the value of a row, at the right of it (kit [.nr]).  [live]: the live editor of a number or
    vector of numbers is built over it (in [update]), so it is not painted here. *)
-let paint_value paint ui t ~z ~fs ?size ~x ~y ~w ~live (r : P.row) =
+(* a wired row, right-aligned: [ƒ] when its source can fold into it, [←], the source and its live
+   value.  Returns where the arrow starts, the room the name has, the live value and its width;
+   [update] puts the fold button's box where this paints the glyph. *)
+let wired_name (r : P.row) s = match r.expr with
+  | Some { S.node = S.List ({ S.node = S.Sym head; _ } :: _); _ } when E.nested s -> head
+  | _ -> s
+let fold_glyph = "\xc6\x92"
+let wired_geo ~measure t ~z ~fs ~x ~w ~fold s =
+  let right = x +. w -. head_pad *. z and gap = 6. *. z in
+  let live = live_value t s in
+  let aw = measure fs "\xe2\x86\x90" in
+  let fw = if fold then measure fs fold_glyph +. gap else 0. in
+  let live_w = match live with Some v -> measure fs v +. gap | None -> 0. in
+  let room = Float.max 0. (right -. x -. (label_x +. 40.) *. z -. aw -. gap -. live_w -. fw) in
+  let left = right -. live_w -. Float.min (measure fs s) room -. gap -. aw in
+  left, fw, room, live, live_w
+
+let paint_value paint ui t ~z ~fs ?size ?(fold = false) ~x ~y ~w ~live (r : P.row) =
   let theme = t.theme in
   let ls = match size with Some s -> s | None -> max 4 (fs - 2) in
   let rh = P.row_height *. z in
@@ -1259,19 +1308,15 @@ let paint_value paint ui t ~z ~fs ?size ~x ~y ~w ~live (r : P.row) =
   | Name s ->
       (* a nested node is its own card: the row names its kind; a wired row reads [← source] and
          the live value at the right *)
-      let s = match r.expr with
-        | Some { S.node = S.List ({ S.node = S.Sym head; _ } :: _); _ } when E.nested s -> head
-        | _ -> s in
-      let live = live_value t s in
+      let s = wired_name r s in
       let gap = 6. *. z in
       let arrow = "\xe2\x86\x90" in
       let aw = Ui.Paint.text_width paint ~size:fs arrow in
-      let live_w = match live with Some v -> Ui.Paint.text_width paint ~size:fs v +. gap | None -> 0. in
-      let room = Float.max 0. (right -. x -. (label_x +. 40.) *. z -. aw -. gap -. live_w) in
+      let left, fw, room, live, live_w =
+        wired_geo ~measure:(fun size s -> Ui.Paint.text_width paint ~size s) t ~z ~fs ~x ~w ~fold s in
       let s = fitted paint fs room s in
-      let sw = Ui.Paint.text_width paint ~size:fs s in
-      let left = right -. live_w -. sw -. gap -. aw in
-      text_in paint ui ~size:fs ~color:theme.accent ~x:left ~y ~h:rh arrow;
+      if fold then text_in paint ui ~size:fs ~color:theme.accent ~x:(left -. fw) ~y ~h:rh fold_glyph;
+      text_in paint ui ~size:fs ~color:(if fold then Pxui.Theme.ink_3 theme else theme.accent) ~x:left ~y ~h:rh arrow;
       text_in paint ui ~size:fs ~color:(Pxui.Theme.ink_2 theme) ~x:(left +. aw +. gap) ~y ~h:rh s;
       Option.iter (fun v ->
         text_in paint ui ~size:fs ~color:theme.foreground ~x:(right -. live_w +. gap) ~y ~h:rh v) live
@@ -1283,7 +1328,7 @@ let paint_value paint ui t ~z ~fs ?size ~x ~y ~w ~live (r : P.row) =
         (fitted paint ls (field_w *. z -. gw) text)
 
 (* where a row's label must stop: the control (or the wired value) takes the right of the row *)
-let value_room paint t ~z ~fs ~w (r : P.row) =
+let value_room paint t ~z ~fs ~w ?(fold = false) (r : P.row) =
   let numbers = match r.chip, r.expr with
     | P.Const, Some { S.node = S.Vec _; _ } -> true
     | P.No_value, _ -> (match Option.bind r.default number_words with Some _ -> true | None -> false)
@@ -1302,7 +1347,7 @@ let value_room paint t ~z ~fs ~w (r : P.row) =
       let aw = Ui.Paint.text_width paint ~size:fs "\xe2\x86\x90" in
       let sw = Float.min (Ui.Paint.text_width paint ~size:fs s) (w *. 0.4) in
       let lw = match live with Some v -> Ui.Paint.text_width paint ~size:fs v +. 6. *. z | None -> 0. in
-      w -. (label_x +. head_pad) *. z -. aw -. sw -. lw -. 12. *. z
+      w -. (label_x +. head_pad) *. z -. aw -. sw -. lw -. 12. *. z -. (if fold then 14. *. z else 0.)
   | _ ->
       w -. (label_x +. head_pad) *. z -. (if numbers then vec_w else field_w) *. z -. 6. *. z
 
@@ -1322,6 +1367,7 @@ let paint_rows paint ui t ~z ~fs ~x ~y ~w ?(carry = false) (n : P.node) (lines :
         text_in paint ui ~size:ls ~color:(Pxui.Theme.ink_2 theme) ~x:(x +. label_x *. z) ~y:(ry +. 1.) ~h:(rh -. 1.)
           (Printf.sprintf "+ %d more" hidden)
     | Row (i, r) ->
+        let fold = Hashtbl.mem t.folds (n.path, i) in
         let target = carry && selected_row = Some i in
         if selected_row = Some i then
           Ui.Paint.fill paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) ~h:rh
@@ -1335,11 +1381,10 @@ let paint_rows paint ui t ~z ~fs ~x ~y ~w ?(carry = false) (n : P.node) (lines :
           | P.Add -> Pxui.Theme.ink_2 theme | Binder | Hole -> theme.accent | _ -> Pxui.Theme.ink_2 theme in
         let size = if add then ls else fs in
         text_in paint ui ~size ~color ~x:(x +. label_x *. z) ~y:ry ~h:rh
-          (fitted paint size (Float.max 0. (value_room paint t ~z ~fs ~w r)) r.label);
+          (fitted paint size (Float.max 0. (value_room paint t ~z ~fs ~w ~fold r)) r.label);
         if r.socket then
           paint_socket paint theme r.ty ~connected:(wired r) ~z (x, ry +. 12. *. z);
-        if not add then paint_value paint ui t ~z ~fs ~x ~y:ry ~w ~live:(live_numbers ~z r) r) lines;
-  ignore n
+        if not add then paint_value paint ui t ~z ~fs ~fold ~x ~y:ry ~w ~live:(live_numbers ~z r) r) lines
 
 let paint_outputs paint ui t ~z ~fs ~x ~y ~w (n : P.node) ~nlines =
   let theme = t.theme in
@@ -1888,7 +1933,7 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
 let left_button (s : Ui.signal) = s.button = Some Input.LeftButton
 let contains (x, y, w, h) (px, py) = px >= x && px < x +. w && py >= y && py < y +. h
 
-let num_field ui ~at ~w ~h ~size ?fraction label text =
+let num_field ui ~at ~w ~h ?size ?fraction label text =
   let is_float = String.exists (fun c -> c = '.' || c = 'e') text in
   let scrub origin dx shift = match float_of_string_opt origin with
     | None -> origin
@@ -1898,7 +1943,7 @@ let num_field ui ~at ~w ~h ~size ?fraction label text =
         if String.exists (fun c -> c = '.' || c = 'e') s then s else s ^ ".0"
     | Some v -> string_of_int (int_of_float (Float.round (v +. Float.round (dx /. 6.)))) in
   let valid s = match float_of_string_opt s with Some f -> Float.is_finite f | None -> false in
-  let text', _ = Ui.value_field ui ~at ~w ~h ~size ?fraction ~scrub ~valid label text in
+  let text', _ = Ui.value_field ui ~at ~w ~h ?size ?fraction ~scrub ~valid label text in
   if text' <> text && valid text' then Some text' else None
 
 (* the row of a card at a point of it ([px], [py] relative to the card, graph units): the header's
@@ -1977,9 +2022,7 @@ let update t ui (frame : Frame.t) =
         pan_y = (my -. float t.y) -. ((my -. float t.y) -. t.pan_y) *. k }
     end in
   let t = { t with measure = (fun size s -> Ui.text_width ui ~size s) } in
-  (* the zoom crossed a cap: the nodes change level, and with them boxes, ports and wire ends *)
   let t = match t.scope with
-    | Some scope when cap_of t.zoom <> t.geo_cap -> regeo t scope t.layout ~shift:no_shift
     | Some scope when font_of t.zoom <> t.geo_fs ->
         (* a point's box is as wide as its name, drawn at the zoom's font *)
         if Array.exists (fun ((p : P.placed), _, _) -> p.shown = P.Point) t.geo.items
@@ -2240,6 +2283,13 @@ let update t ui (frame : Frame.t) =
                           [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ])
                  | _, P.Inline _ -> [ Syntax_edit (E.Unfold { node = n.path; key = r.key; sub = [] }) ]
                  | _ -> [])
+                | P.Row (i, (({ chip = P.Name s; _ } : P.row) as r)) when Hashtbl.mem t.folds (n.path, i) ->
+                    (* the fold button of a wired row, where [paint_value] draws its glyph *)
+                    let left, fw, _, _, _ = wired_geo ~measure:t.measure t ~z ~fs ~x:0. ~w:(p.w *. z) ~fold:true (wired_name r s) in
+                    let b = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px fw) ~h:(Ui.Px (16. *. z))
+                        ~at:(left -. fw -. 2. *. z, (top +. float k *. P.row_height +. 4.) *. z) ("fold" ^ string_of_int i) in
+                    if (Ui.signal ui b).clicked
+                    then [ Syntax_edit (E.Fold_into { node = Hashtbl.find t.folds (n.path, i) }) ] else []
                 | _ -> []) (Array.to_list p.lines)))
         | _ -> [] in
       let editors = match t.editing, p.item with
@@ -2765,6 +2815,17 @@ module Private = struct
              Option.map (fun k -> sx t (x +. 100.), sy t (rows_top n y +. (float k +. 0.5) *. P.row_height))
                (Hashtbl.find_opt (line_of_row p.lines) i)
          | None -> None)
+    | _ -> None
+  let fold_button t path i =
+    match node_of t path, Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+    | Some n, Some (p, x, y) when Hashtbl.mem t.folds (path, i) ->
+        (match List.nth_opt n.rows i, Hashtbl.find_opt (line_of_row p.lines) i with
+         | Some ({ chip = P.Name s; _ } as r), Some k ->
+             let z = t.zoom in
+             let left, fw, _, _, _ =
+               wired_geo ~measure:t.measure t ~z ~fs:(font_of z) ~x:0. ~w:(p.w *. z) ~fold:true (wired_name r s) in
+             Some (sx t x +. left -. fw /. 2. -. 2. *. z, sy t (rows_top n y +. (float k +. 0.5) *. P.row_height))
+         | _ -> None)
     | _ -> None
   let tile_point t path (dx, dy) (w, h) = Hashtbl.find_opt t.geo.pos path
     |> Option.map (fun (x, y, _, _) -> sx t x +. (dx +. w /. 2.) *. t.zoom, sy t y +. (dy +. h /. 2.) *. t.zoom)

@@ -854,9 +854,8 @@ let rewrite src op : (unit -> S.t list) list =
       edit_scope src sp (fun s ->
         let e = get_node s leaf in
         let v = match key, fallback with
-          | (Kw _ | Field _), _ -> None
           | _, Some d -> Some d
-          | Pos _, None -> None
+          | (Kw _ | Field _ | Pos _), None -> None
           | _, None -> fail "Nothing to fall back to. Drag another output onto it instead." in
         reorder (set_node s leaf (arg_set e key v))))
   | Set_input_default { form; input; value } -> one (fun () ->

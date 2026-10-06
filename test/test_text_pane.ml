@@ -244,6 +244,25 @@ let editor_text () =
     "an old Document draft overwrote a host edit";
   check (contains (dump ()) "draft yes" && contains (dump ()) "E_DRAFT_CONFLICT")
     ("an old Document draft was not kept as a conflict: " ^ dump ());
+  (* a draft and a host edit of different values merge on the syntax tree: both are kept *)
+  click discard;
+  type_text (replace (Rays_editor.Workspace_doc.to_text (ws ()))
+    ~from:"(spread : float 0.062)" ~by:"(spread : float 0.07)");
+  env := E.edit !env (Flow_sop.Flow_edit.Set_input_default {form = "sunflower";
+    input = "seeds"; value = Flow.Syntax.make (Flow.Syntax.Num "300")}) |> Result.get_ok;
+  click apply;
+  let merged = Rays_editor.Workspace_doc.to_text (ws ()) in
+  check (contains merged "(seeds : int 300)" && contains merged "(spread : float 0.07)"
+         && contains (dump ()) "draft no")
+    ("a draft and a host edit of different values did not merge: " ^ dump () ^ merged);
+  (* the host adds a keyword argument to a call the draft edits: arguments pair by name *)
+  type_text (replace merged ~from:":segments 6" ~by:":segments 8");
+  env := E.edit !env (Flow_sop.Flow_edit.Set_arg { node = [ "sunflower"; "seeds_each"; "@result" ]; key = Kw "uniform_scale";
+    sub = []; value = Flow.Syntax.make (Flow.Syntax.Num "0.5") }) |> (function Ok e -> e | Error m -> failwith m);
+  click apply;
+  let merged = Rays_editor.Workspace_doc.to_text (ws ()) in
+  check (contains merged ":segments 8" && contains merged ":uniform_scale 0.5" && contains (dump ()) "draft no")
+    ("an added keyword argument and a draft did not merge: " ^ dump () ^ merged);
   E.close !env; Test_workspace_source.remove_tree presets
 
 (* A checker error from a binding apply is marked on the binding text's line, and typing clears it. *)
@@ -494,8 +513,10 @@ let editor_w9 () =
     32, (fun _ _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "gentle ^:bypass (sop/subdivide" && not (contains text "soft ^:bypass") && label = Some "Rename")
     ("the inspector's name field: " ^ Option.value label ~default:"-");
-  (* a graph input's default is edited in the inspector too *)
-  let text, label = scenario [ 22, (fun click head -> click (head petals (60., 12.))); 26, (fun click _ -> click (1290., 165.));
+  (* a graph input's default is edited in the inspector too: a number scrubs there as on its card, so
+     typing is the kit's Option-click *)
+  let text, label = scenario [ 22, (fun click head -> click (head petals (60., 12.)));
+    26, (fun click _ -> Event.KeyPressed Input.Alt :: click (1290., 165.) @ [ Event.KeyReleased Input.Alt ]);
     28, (fun _ _ -> [ Event.KeyPressed (Input.KeyChar 'a') ]); 30, (fun _ _ -> [ Event.TextInput "7" ]);
     32, (fun _ _ -> [ Event.KeyPressed Input.Enter ]) ] in
   check (contains text "(petals : int 7)" && label = Some "Input default")

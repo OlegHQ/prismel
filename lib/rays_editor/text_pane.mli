@@ -56,6 +56,11 @@ val graph_op : Flow.Syntax.t list -> graph:string -> ?selection:path -> string -
 (** The [Set_graph] of the graph form a Graph tab holds, or (with [selection], the shown binding's
     path) of the Selection closure patched into the graph; the error of text that is neither. *)
 
+val merge3 : base:string -> mine:string -> theirs:string -> string option
+(** A draft ([mine]) begun from [base], against the text the document has now ([theirs]): the
+    three merged on the syntax tree, graphs and [let*] bindings paired by name.  [None] when both
+    changed the same value or the draft does not read. *)
+
 val make_shown : Flow.Syntax.t list -> string -> path option -> tab -> shown
 (** [make_shown source graph selected tab]: Selection prints the selected
     binding's top-level ancestor as a [let*] over the root bindings it reads
@@ -112,4 +117,8 @@ type intent =
   | Carry_over of int * bool
       (** a payload is held over the text at this byte of the shown text; [true] on the frame it is released *)
 
-val view : Pxui.Ui.t -> bounds:int * int * int * int -> ?tabs_inset:float -> vocab:Lisp_text.vocab -> names:Lisp_text.names -> state -> shown -> intent list
+val tabs_width : Pxui.Ui.t -> width:int -> state -> shown -> float
+(** The room the Selection / Graph / Document tabs of {!view} take in the header of a panel
+    [width] wide. *)
+
+val view : Pxui.Ui.t -> bounds:int * int * int * int -> tabs_right:float option -> vocab:Lisp_text.vocab -> names:Lisp_text.names -> state -> shown -> intent list

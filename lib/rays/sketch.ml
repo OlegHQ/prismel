@@ -11,6 +11,10 @@ let set_relative_mouse enabled = match !relative_current with
 let set_cursor shape = match !cursor_current with
   |None->Error"Sketch.set_cursor: no sketch is running"
   |Some set->set shape
+let background_current : (float*float*float -> (unit,string) result) option ref = ref None
+let set_window_background color = match !background_current with
+  |None->Error"Sketch.set_window_background: no sketch is running"
+  |Some set->let r,g,b,_=Color.to_tuple color in set(float r/.255.,float g/.255.,float b/.255.)
 type dialog=Open_file|Open_files|Save_file|Open_folder
 let dialog_current : (?filters:(string*string list)list-> ?default_location:string->dialog->
   (int,string)result)option ref=ref None
@@ -45,6 +49,8 @@ let event_text=function
   |FileDropped f->"drop "^f|WindowResized(w,h)->Printf.sprintf"resize %dx%d"w h
   |FileDragMoved(x,y)->Printf.sprintf"drag %.0f,%.0f"x y|FileDragEnded->"drag-end"
   |MousePinched scale->Printf.sprintf"pinch %.3f"scale
+  |TrackpadScrolled{delta=(x,y);phase;_}->Printf.sprintf"trackpad %s %.1f,%.1f"
+    (match phase with Touched->"touch"|Moved->"move"|Lifted->"lift"|Momentum->"momentum")x y
   |WindowFocusLost->"focus-lost"|WindowClosed->"close"
 let write_crash ~title ~dump ~recent exn backtrace=
   let tm=Unix.localtime(Unix.gettimeofday())in
@@ -137,6 +143,9 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
     match Rays_execution.set_relative_mouse coordinator enabled with
     |Ok()->Input_state.set_relative enabled;Ok()
     |Error error->Error(Format.asprintf"%a"Rays_execution.pp_error error));
+  background_current:=Some(fun color->
+    Rays_execution.set_window_background coordinator color
+    |>Result.map_error(fun error->Format.asprintf"%a"Rays_execution.pp_error error));
   cursor_current:=Some(fun shape->
     match Rays_execution.set_cursor coordinator shape with
     |Ok()->Ok()
@@ -181,7 +190,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
   let cleanup()=Fun.protect~finally:(fun()->
       (* Never leave the pointer captured after the sketch stops. *)
       Option.iter(fun set->ignore(set false))!relative_current;
-      relative_current:=None;cursor_current:=None;dialog_current:=None;
+      relative_current:=None;cursor_current:=None;background_current:=None;dialog_current:=None;
       Canvas_runtime.clear();ignore(Rays_execution.destroy coordinator))(fun()->on_stop!model)in
   Fun.protect~finally:cleanup(fun()->
     let profile=Sys.getenv_opt"RAYS_PROFILE"<>None in

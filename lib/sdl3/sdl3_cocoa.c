@@ -1,0 +1,135 @@
+#include "sdl3_cocoa.h"
+
+#ifdef __APPLE__
+
+#include <string.h>
+#include <objc/message.h>
+#include <objc/runtime.h>
+
+#define RAYS_SCROLL_QUEUE 256
+static rays_scroll scroll_queue[RAYS_SCROLL_QUEUE];
+static int scroll_head, scroll_count;
+static bool scroll_installed;
+static SEL sel_phase, sel_momentum, sel_precise, sel_dx, sel_dy, sel_timestamp;
+
+static bool cocoa_driver(void)
+{
+  const char *driver = SDL_GetCurrentVideoDriver();
+  return driver != NULL && strcmp(driver, "cocoa") == 0;
+}
+
+static unsigned long event_ulong(id event, SEL selector)
+{
+  return ((unsigned long (*)(id, SEL))objc_msgSend)(event, selector);
+}
+
+static double event_double(id event, SEL selector)
+{
+  return ((double (*)(id, SEL))objc_msgSend)(event, selector);
+}
+
+/* NSEventPhase bits. */
+enum {
+  PHASE_BEGAN = 1, PHASE_CHANGED = 4, PHASE_ENDED = 8, PHASE_CANCELLED = 16,
+  PHASE_MAY_BEGIN = 32
+};
+
+static void scroll_push(id event)
+{
+  unsigned long phase = event_ulong(event, sel_phase);
+  unsigned long momentum = event_ulong(event, sel_momentum);
+  rays_scroll item;
+  if (!((signed char (*)(id, SEL))objc_msgSend)(event, sel_precise)) return;
+  item.x = -event_double(event, sel_dx);
+  item.y = event_double(event, sel_dy);
+  item.seconds = event_double(event, sel_timestamp);
+  if (momentum != 0) {
+    if (item.x == 0. && item.y == 0.) return;
+    item.phase = RAYS_SCROLL_MOMENTUM;
+  } else if ((phase & (PHASE_BEGAN | PHASE_MAY_BEGIN)) != 0) {
+    item.phase = RAYS_SCROLL_BEGAN;
+  } else if ((phase & PHASE_CHANGED) != 0) {
+    item.phase = RAYS_SCROLL_CHANGED;
+  } else if ((phase & (PHASE_ENDED | PHASE_CANCELLED)) != 0) {
+    item.phase = RAYS_SCROLL_ENDED;
+  } else {
+    return; /* an unphased wheel, or fingers resting: SDL's event is enough */
+  }
+  if (scroll_count == RAYS_SCROLL_QUEUE) { /* drop the oldest */
+    scroll_head = (scroll_head + 1) % RAYS_SCROLL_QUEUE;
+    scroll_count--;
+  }
+  scroll_queue[(scroll_head + scroll_count) % RAYS_SCROLL_QUEUE] = item;
+  scroll_count++;
+}
+
+void rays_scroll_monitor_install(void)
+{
+  const unsigned long long scroll_wheel_mask = 1ULL << 22;
+  Class events = objc_getClass("NSEvent");
+  id monitor;
+  if (scroll_installed || !cocoa_driver() || events == Nil) return;
+  sel_phase = sel_getUid("phase");
+  sel_momentum = sel_getUid("momentumPhase");
+  sel_precise = sel_getUid("hasPreciseScrollingDeltas");
+  sel_dx = sel_getUid("scrollingDeltaX");
+  sel_dy = sel_getUid("scrollingDeltaY");
+  sel_timestamp = sel_getUid("timestamp");
+  monitor = ((id (*)(id, SEL, unsigned long long, id (^)(id)))objc_msgSend)(
+      (id)events, sel_getUid("addLocalMonitorForEventsMatchingMask:handler:"),
+      scroll_wheel_mask, ^id(id event) { scroll_push(event); return event; });
+  scroll_installed = monitor != nil;
+}
+
+bool rays_scroll_take(rays_scroll *out)
+{
+  if (scroll_count == 0) return false;
+  *out = scroll_queue[scroll_head];
+  scroll_head = (scroll_head + 1) % RAYS_SCROLL_QUEUE;
+  scroll_count--;
+  return true;
+}
+
+static id cocoa_window(SDL_Window *window)
+{
+  if (window == NULL || !cocoa_driver()) return nil;
+  return (id)SDL_GetPointerProperty(SDL_GetWindowProperties(window),
+      SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+}
+
+void rays_window_plain_titlebar(SDL_Window *window)
+{
+  id native = cocoa_window(window);
+  if (native == nil) return;
+  ((void (*)(id, SEL, signed char))objc_msgSend)(
+      native, sel_getUid("setTitlebarAppearsTransparent:"), 1);
+  ((void (*)(id, SEL, long))objc_msgSend)(
+      native, sel_getUid("setTitleVisibility:"), 1 /* NSWindowTitleHidden */);
+}
+
+void rays_window_set_background(SDL_Window *window,
+    double red, double green, double blue)
+{
+  id native = cocoa_window(window);
+  Class colors = objc_getClass("NSColor");
+  id color;
+  if (native == nil || colors == Nil) return;
+  color = ((id (*)(id, SEL, double, double, double, double))objc_msgSend)(
+      (id)colors, sel_getUid("colorWithSRGBRed:green:blue:alpha:"),
+      red, green, blue, 1.);
+  ((void (*)(id, SEL, id))objc_msgSend)(
+      native, sel_getUid("setBackgroundColor:"), color);
+}
+
+#else
+
+void rays_scroll_monitor_install(void) {}
+bool rays_scroll_take(rays_scroll *out) { (void)out; return false; }
+void rays_window_plain_titlebar(SDL_Window *window) { (void)window; }
+void rays_window_set_background(SDL_Window *window,
+    double red, double green, double blue)
+{
+  (void)window; (void)red; (void)green; (void)blue;
+}
+
+#endif

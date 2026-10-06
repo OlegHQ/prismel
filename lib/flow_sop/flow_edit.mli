@@ -43,8 +43,8 @@ type op =
       (** [src] is a name; [iter] marks a loop variable, which makes a literal
           step [n] into the product [src * n].  With [Whole] on a [@result] node it makes [src] the result of that scope. *)
   | Disconnect of { node : path; key : arg_key; fallback : Flow.Syntax.t option }
-      (** a keyword or field is removed; else [fallback] (see {!default_for})
-          replaces the argument, and [None] removes a positional one *)
+      (** [fallback] replaces the argument (see {!default_for}; the pane writes a named argument's
+          schema default, so the row stays on its card); [None] removes it *)
   | Set_input_default of { form : string; input : string; value : Flow.Syntax.t }
       (** [form] is a graph name or ["def:name"] *)
   | Unfold of { node : path; key : arg_key; sub : int list }

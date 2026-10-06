@@ -74,10 +74,11 @@ module Private : sig
       scope or from the focused pane, the one last clicked. Escape, Space, an
       unknown key, a click, or window focus loss cancel it. *)
   module Render_budget : sig
-    val film : resolution:int * int -> gate:int * int -> (int * int) * int
-    (** The path tracer's film for a root's resolution and a gate in drawable pixels: the
-        resolution divided by the first of 1, 2, 4, 8 that does not exceed the gate (the
-        eighth when none does), and that divisor. *)
+    val film : through:bool -> resolution:int * int -> gate:int * int -> (int * int) * int
+    (** The path tracer's film for a root's resolution and a viewport's rectangle in drawable
+        pixels.  Looking [through] the render camera the rectangle is the gate: the resolution
+        divided by the first of 1, 2, 4, 8 that does not exceed it (the eighth when none does),
+        and that divisor.  A free view is traced as it is drawn: the rectangle itself, step 1. *)
 
     val next_turn : order:string list -> last:string option -> string list -> string option
     (** Of the viewports that want the shared sample budget, the one after [last] in [order],

@@ -277,6 +277,8 @@ module Window = struct
     Private_raw.clear_error ();
     if call raw then Ok () else sdl_error operation)
 
+  let set_background value ~red ~green ~blue = live "SDL3.Window.set_background" value
+      (fun raw -> Ok (Private_raw.set_window_background raw red green blue))
   let set_resizable value enabled = live "SDL3.Window.set_resizable" value
       (fun raw -> Private_raw.clear_error ();
         if Private_raw.set_window_resizable raw enabled then Ok ()
@@ -502,6 +504,7 @@ module Event = struct
   type mouse_button = Left | Middle | Right | X1 | X2
   type wheel_direction = Normal | Flipped
   type pinch_phase = Began | Updated | Ended
+  type scroll_phase = Scroll_began | Scroll_changed | Scroll_ended | Scroll_momentum
 
   type window_change =
     | Shown
@@ -557,6 +560,7 @@ module Event = struct
     | Pinch of { phase : pinch_phase; scale : float }
     | Drop of { change : drop_change; x : float; y : float }
     | Dialog of { id : int; outcome : dialog_outcome }
+    | Scroll of { x : float; y : float; phase : scroll_phase; seconds : float }
 
   let poll () : t option = Private_raw.poll_event ()
 

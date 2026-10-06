@@ -82,8 +82,8 @@ Tasks:
    construction (stubs, bends), segment-distance hit testing through the
    existing spatial index, bend handles as `Ui.box`es keyed by
    (destination node, slot, bend index).
-3. [x] Render levels point/chip/card/full (§6.4) with zoom caps 0.34/0.50,
-   pinning, bloom during wire drags. Cards show slot rows and parameter rows by
+3. [x] Render levels point/chip/card/full (§6.4) with explicit
+   pinning (the zoom caps were removed: a node keeps its level at every zoom), bloom during wire drags. Cards show slot rows and parameter rows by
    the exposure rule, with steps 1, 3, 4 and the first-folder primary default
    (driven rows arrive with M3); non-drivable kinds render as fields without
    sockets. Rows edit literals: scrub (soft range / 150, Shift / 1500) and
@@ -114,7 +114,7 @@ Tests:
 - `test/test_pxui_graph.ml`: layout is left to right and deterministic;
   polyline hit tests (on segment, off by 7 points, at bends); bend add, move,
   remove; knife removes exactly the crossed wires; level rendering counts
-  boxes per level; zoom caps and pinning; bloom; exposure rows for a SOP with
+  boxes per level; pinning; bloom; exposure rows for a SOP with
   folders; scrub and typed edits emit `Set_parameter_requested`.
 - `test/test_editor_document.ml`: v1/v2 rejection; v3
   round trip; invalid layout rejected without installing.

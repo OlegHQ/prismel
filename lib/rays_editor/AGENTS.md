@@ -290,8 +290,11 @@ handed to `Cook.update ?lit`, which prepares a piece again from its kept
 other document has a text projection). `Core.text` is its view state: tab,
 Document draft, Selection draft, the errors of the last refused apply, the wrap flag and the
 right-click menu; the draft is never in the document.
-Each draft retains its base workspace. Apply and scrub refuse a changed source with
-`E_DRAFT_CONFLICT`, keeping the draft; Document also checks saved layout/settings. A
+Each draft retains its base workspace. Apply and scrub of a draft whose source changed merge
+base, draft and current text on the syntax tree (`Text_pane.merge3`: graphs, `let*` bindings and
+a call's keyword arguments pair by name, other children by position) and apply the result; only a
+value both changed refuses
+with `E_DRAFT_CONFLICT`, keeping the draft. Document also checks saved layout/settings. A
 successful live scrub advances its base, and discard or successful reload clears it.
 `Text_pane.view` runs inside `Ui.frame` and only returns intents;
 `Core.apply_text` folds them after the frame. A Check &

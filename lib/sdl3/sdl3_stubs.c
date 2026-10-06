@@ -15,6 +15,7 @@
 
 #include "generated_abi.h"
 #include "sdl3_dialog.h"
+#include "sdl3_cocoa.h"
 #include "../native_layer_token/native_layer_token.h"
 
 static SDL_Window *window_of_value(value raw)
@@ -91,7 +92,19 @@ CAMLprim value caml_sdl3_create_window(
   if ((Int_val(flags) & WINDOW_FLAG_METAL) != 0) native |= SDL_WINDOW_METAL;
   window = SDL_CreateWindow(
       String_val(title), Int_val(width), Int_val(height), native);
+  rays_window_plain_titlebar(window);
+  rays_scroll_monitor_install();
   CAMLreturn(caml_copy_nativeint((intnat)window));
+}
+
+/* Sdl3.Window.set_background: unboxed floats would need a second entry
+   point; this is called when a theme changes, not per frame. */
+CAMLprim value caml_sdl3_set_window_background(
+    value raw, value red, value green, value blue)
+{
+  rays_window_set_background(window_of_value(raw),
+      Double_val(red), Double_val(green), Double_val(blue));
+  return Val_unit;
 }
 
 CAMLprim value caml_sdl3_destroy_window(value raw)
@@ -472,7 +485,7 @@ enum { DROP_BEGIN, DROP_POSITION, DROP_COMPLETE };
 enum {
   EVENT_WINDOW, EVENT_KEY, EVENT_TEXT_INPUT, EVENT_TEXT_EDITING,
   EVENT_MOUSE_MOTION, EVENT_MOUSE_BUTTON, EVENT_MOUSE_WHEEL, EVENT_PINCH,
-  EVENT_DROP, EVENT_DIALOG
+  EVENT_DROP, EVENT_DIALOG, EVENT_SCROLL
 };
 
 static value key_of_event(SDL_Keycode keycode, SDL_Scancode scancode)
@@ -735,6 +748,25 @@ static bool translate_event(const SDL_Event *event, value *out)
   CAMLreturnT(bool, true);
 }
 
+/* A queued trackpad scroll (sdl3_cocoa.c) as Sdl3.Event.Scroll. */
+static bool take_scroll(value *out)
+{
+  CAMLparam0();
+  CAMLlocal2(result, number);
+  rays_scroll scroll;
+  if (!rays_scroll_take(&scroll)) CAMLreturnT(bool, false);
+  result = caml_alloc(4, EVENT_SCROLL);
+  number = caml_copy_double(scroll.x);
+  Store_field(result, 0, number);
+  number = caml_copy_double(scroll.y);
+  Store_field(result, 1, number);
+  Store_field(result, 2, Val_int(scroll.phase));
+  number = caml_copy_double(scroll.seconds);
+  Store_field(result, 3, number);
+  *out = result;
+  CAMLreturnT(bool, true);
+}
+
 /* Event operations are safe-module main-domain-only, so one reusable native
    union is sufficient. SDL-owned pointer fields are copied before reuse. */
 static SDL_Event rays_sdl3_event;
@@ -757,12 +789,25 @@ CAMLprim value caml_sdl3_poll_event(value unit)
     Store_field(some, 0, translated);
     CAMLreturn(some);
   }
+  /* A trackpad scroll the pump queued comes before SDL's own events and is
+     looked for again after the last pump, so a gesture and the wheel events
+     SDL made of it reach the same frame. */
+  if (take_scroll(&translated)) {
+    some = caml_alloc(1, 0);
+    Store_field(some, 0, translated);
+    CAMLreturn(some);
+  }
   while (SDL_PollEvent(&rays_sdl3_event)) {
     if (translate_event(&rays_sdl3_event, &translated)) {
       some = caml_alloc(1, 0);
       Store_field(some, 0, translated);
       CAMLreturn(some);
     }
+  }
+  if (take_scroll(&translated)) {
+    some = caml_alloc(1, 0);
+    Store_field(some, 0, translated);
+    CAMLreturn(some);
   }
   CAMLreturn(Val_none);
 }

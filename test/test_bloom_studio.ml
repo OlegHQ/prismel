@@ -138,6 +138,12 @@ let run () =
     ("the slider changed the input's default: " ^ source !e);
   check (E3.undo_label !e = Some "Input default") ("named in history: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (dump_line !e "edit error" = "-") "and checks";
+  (* a double click on the input's name types in its field; Enter writes the default, an int *)
+  let name_at = (slider_x -. 60., slider_y) in
+  click name_at; click name_at;
+  step [ Event.TextInput "7" ]; step [ Event.KeyPressed Input.Enter ]; step [];
+  check (has (source !e) "(petals : int 7)") ("a typed default is written as an int: " ^ source !e);
+  check (E3.undo_label !e = Some "Input default") "the typed default is a history entry";
   (* the search field lists matches instead of the tree *)
   let matches = Array.to_list (Array.map N.describe
       (N.rows (N.with_query "wob" N.initial) (params scope))) in

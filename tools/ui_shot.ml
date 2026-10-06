@@ -41,6 +41,7 @@ let () =
        scroll:X,Y,DY   a wheel scroll of DY at that point (negative scrolls the content up)
        hold:X0,Y0,X1,Y1  press at the first point and keep the button down at the second, so
                        the picture shows the drag in flight
+       release:X,Y     let the held button go there (the end of a hold)
      e.g. UI_SHOT_DO="key:space key:[ key:1 click:490,95" *)
   let key = function
     | "space" -> Rays.Input.Space | "tab" -> Tab | "enter" -> Enter | "esc" -> Escape
@@ -88,6 +89,9 @@ let () =
              step [ Rays.Event.MousePressed (Rays.Input.LeftButton, from) ];
              mouse := to_;
              for _ = 1 to 4 do step [ Rays.Event.MouseMoved to_ ] done
+         | "release" ->
+             mouse := point argument; buttons := [];
+             step [ Rays.Event.MouseReleased (Rays.Input.LeftButton, !mouse) ]
          | other -> failwith ("ui_shot: unknown step " ^ other)))
     (String.split_on_char ' ' (Option.value ~default:"" (Sys.getenv_opt "UI_SHOT_DO")));
   (* let hover delays and cooks settle; a held button stays down *)

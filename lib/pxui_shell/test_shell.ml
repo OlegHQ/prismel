@@ -503,3 +503,30 @@ let () =
     failwith "a refusal tip is drawn like information (it has no dot)";
   if tip_instances ~avoid:[ 12., 250., 100., 40. ] refusal <> tip_instances refusal then
     failwith "a tip over a card changed what it draws"
+
+(* A header's right end: the groups stand outermost first inside the header and never over one
+   another; the title's room shrinks first, then the last group goes. *)
+let () =
+  let leaf width : Pxui_shell.Layout.leaf =
+    { path = [ 0 ]; panel = Graph; frame = 100, 0, width, 200; header = 100, 4, width, 24;
+      body = 100, 28, width, 172; floating = false } in
+  let slots width = Pxui_shell.Chrome.header_slots (leaf width) [ 100.; 150. ] in
+  (match slots 600 with
+   | [ Some views; Some tabs ], limit ->
+       if views <> 664. then failwith "the first group does not end before the collapse button";
+       if tabs <> views -. 108. || limit <> tabs -. 158. then failwith "header groups are not 8 apart"
+   | _ -> failwith "a wide header dropped a group");
+  (match slots 290 with
+   | [ Some views; None ], limit -> if limit <> views -. 108. then failwith "a dropped group kept its room"
+   | _ -> failwith "a narrow header did not drop its last group alone");
+  (match slots 130 with
+   | [ None; None ], limit -> if limit <> 194. then failwith "a header with no groups ends its title at the button"
+   | _ -> failwith "a group stands in a header too narrow for it");
+  (* whatever the width, no group starts left of the margin or ends over the button, and
+     the title ends before the groups *)
+  for width = 0 to 700 do
+    let placed, limit = slots width in
+    List.iter2 (fun slot w -> Option.iter (fun right ->
+      if right -. w < 104. || right > float (100 + width - 36) || limit > right -. w
+      then failwith "a header group leaves its header") slot) placed [ 100.; 150. ]
+  done

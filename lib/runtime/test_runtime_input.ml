@@ -148,6 +148,19 @@ let run () =
    | _ -> failwith "a pinch gesture did not become one zoom factor");
   if Result.is_ok (Input.push native (Pinch 0.)) then
     failwith "a zero pinch factor passed input validation";
+  (* a phased trackpad scroll keeps its points, phase and clock, and only its wheel twin counts
+     toward the frame's wheel delta *)
+  let before = (Input.snapshot native).wheel_delta in
+  get (Runtime_input_sdl3.push native
+    (Sdl3.Event.Scroll { x = 0.; y = -12.; phase = Scroll_changed; seconds = 3.5 }));
+  (match Input.drain native with
+   | [Scroll { x = 0.; y = -12.; phase = Scroll_changed; seconds = 3.5 }] -> ()
+   | _ -> failwith "a trackpad scroll was not translated as it came");
+  if (Input.snapshot native).wheel_delta <> before then
+    failwith "a trackpad scroll was counted twice in the wheel delta";
+  if Result.is_ok (Input.push native
+      (Scroll { x = Float.nan; y = 0.; phase = Scroll_ended; seconds = 0. })) then
+    failwith "a non-finite trackpad scroll passed input validation";
   (* a finished file dialog is one event: the paths, an empty cancel, or the failure *)
   List.iter (fun (outcome, expected) ->
     match Runtime_input_sdl3.translate (Sdl3.Event.Dialog { id = 7; outcome }) with

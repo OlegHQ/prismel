@@ -366,6 +366,46 @@ let run_duplicate_and_view () =
 
 (* An inline result is a geometry node too: viewing and editing it must follow the current
    lowering, including when an edit inserts a new plan node before the viewed one. *)
+(* v on a node inside a loop shows that node at the probed iteration (the layout's display, not a
+   rewiring of the result: a loop's body cannot be the graph's result); v again goes back. *)
+let run_loop_view () =
+  let e = ref (editor {|(workspace loop_view
+    (graph g :context sop
+      (let* [a (sop/box)
+             rows (for [i (range 3)] (sop/transform a :translate [(+ 5 (* i 10)) 0 0]))]
+        (sop/merge rows)))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g))
+        (scene/camera :eye [0 0 6] :follow_viewport true))))|}) in
+  Fun.protect ~finally:(fun () -> E3.close !e) (fun () ->
+    let count = ref 0 in
+    let step ?(mouse = (450., 300.)) events =
+      incr count; e := E3.update !e (frame mouse events !count) in
+    let centre what expected =
+      let actual = Option.map (fun p -> p.Vec3.x) (Option.bind (E3.prepared !e) Mesh.centroid) in
+      check (match actual with Some x -> Float.abs (x -. expected) < 1e-4 | None -> false)
+        (Printf.sprintf "%s: expected the geometry at %.1f, got %s" what expected
+           (Option.fold ~none:"none" ~some:string_of_float actual)) in
+    let click point =
+      step ~mouse:point [Event.MouseMoved point];
+      step ~mouse:point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)] in
+    let key k = step [Event.KeyPressed k] in
+    step []; step []; centre "the result" 15.;
+    let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+    click (float (gx + 40), float (gy + 40));
+    key Input.Home; key (Input.KeyChar 'i'); step [];
+    let inner = ["g"; "rows"; "@result"] in
+    let x, y, w, _ = Option.get (E3.node_box !e inner) in
+    click (float (x + w / 2), float (y + 3));
+    check (dump_line !e "scope selected" = "g/rows/@result") "the node inside the loop could not be selected";
+    key (Input.KeyChar 'v'); step [];
+    check (Editor_document.Layout_by_path.Path_map.find_opt ["g"] (E3.workspace !e).layout.display = Some inner)
+      ("v refused a node inside a loop: " ^ Option.value ~default:"-" (E3.undo_label !e));
+    centre "the node inside the loop" 5.;
+    key (Input.KeyChar 'v'); step [];
+    check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).layout.display) "v again did not go back to the result";
+    centre "the result again" 15.)
+
 let run_result_view () =
   let e = ref (editor {|(workspace result_view
     (graph g :context sop
@@ -1638,7 +1678,38 @@ let run_panels () =
   E3.close !e;
   print_endline "workspace shell: tied panels, repeated bindings, views as said, second lists and outlines ok"
 
-let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances ()
+(* a graph gesture on an object of the scene the host composes (no scene graph in the text yet)
+   writes that scene first instead of refusing with "No graph or definition scene." *)
+let run_host_scene_edit () =
+  let e = editor "(workspace studio (graph g :context sop (sop/box)))" in
+  let value = match S.parse "false" with Ok [ v ] -> v | _ -> fail "bad literal" in
+  (match E3.edit e (Flow_sop.Flow_edit.Set_arg { node = [ "scene"; "camera1" ]; key = Kw "follow_viewport"; sub = []; value }) with
+   | Ok e -> check (has (source e) "(graph scene" && not (has (source e) ":follow_viewport true"))
+       ("the host camera's edit did not reach the text: " ^ source e)
+   | Error m -> fail ("an edit of the host's camera was refused: " ^ m));
+  E3.close e
+
+(* panel keys one after another: the focus follows the leaf a split moved and a retype changed, so
+   the next key still acts on it *)
+let run_panel_chain () =
+  let at = 200., 300. in
+  let e = ref (editor "(workspace studio (graph g :context sop (sop/box)))") and count = ref 0 in
+  let step events = incr count; e := E3.update !e (frame at events !count) in
+  for _ = 1 to 6 do step [] done;
+  step [ Event.MouseMoved at ];
+  step [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
+  let keys cs = List.iter (fun c -> step [ Event.KeyPressed (if c = ' ' then Input.Space else Input.KeyChar c) ]; step []) cs;
+    step [] in
+  keys [ ' '; 'o'; 'v' ];
+  keys [ ' '; 'l'; 'u' ];
+  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/outline)")
+    ("a retype after splitting a viewport did nothing: " ^ source !e);
+  keys [ ' '; 'o'; 'v' ];
+  check (E3.undo_label !e = Some "Split panel" && has (dump_line !e "panels") "outline preview_a_a*")
+    ("a split after a retype did nothing: " ^ dump_line !e "panels");
+  E3.close !e
+
+let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)
@@ -1886,17 +1957,21 @@ let eye_of = function
    names, at its own gate; the renderer's film steps and turns are pure. *)
 let run_roots () =
   let module B = Rays_editor.Private.Render_budget in
-  check (B.film ~resolution:(1600, 900) ~gate:(1700, 1000) = ((1600, 900), 1)) "a gate over the resolution is step 1";
-  check (B.film ~resolution:(1600, 900) ~gate:(1600, 900) = ((1600, 900), 1)) "a gate at the resolution is step 1";
-  check (B.film ~resolution:(1600, 900) ~gate:(1599, 899) = ((800, 450), 2)) "one pixel under is a half";
-  check (B.film ~resolution:(1600, 900) ~gate:(800, 450) = ((800, 450), 2)) "the half fits its gate exactly";
-  check (B.film ~resolution:(1600, 900) ~gate:(799, 449) = ((400, 225), 4)) "then a quarter";
-  check (B.film ~resolution:(1600, 900) ~gate:(300, 169) = ((200, 112), 8)) "then an eighth";
-  check (B.film ~resolution:(1600, 900) ~gate:(10, 10) = ((200, 112), 8)) "never smaller than an eighth";
+  check (B.film ~through:true ~resolution:(1600, 900) ~gate:(1700, 1000) = ((1600, 900), 1)) "a gate over the resolution is step 1";
+  check (B.film ~through:true ~resolution:(1600, 900) ~gate:(1600, 900) = ((1600, 900), 1)) "a gate at the resolution is step 1";
+  check (B.film ~through:true ~resolution:(1600, 900) ~gate:(1599, 899) = ((800, 450), 2)) "one pixel under is a half";
+  check (B.film ~through:true ~resolution:(1600, 900) ~gate:(800, 450) = ((800, 450), 2)) "the half fits its gate exactly";
+  check (B.film ~through:true ~resolution:(1600, 900) ~gate:(799, 449) = ((400, 225), 4)) "then a quarter";
+  check (B.film ~through:true ~resolution:(1600, 900) ~gate:(300, 169) = ((200, 112), 8)) "then an eighth";
+  check (B.film ~through:true ~resolution:(1600, 900) ~gate:(10, 10) = ((200, 112), 8)) "never smaller than an eighth";
   (* a resize inside a step leaves the film alone *)
-  let step gate = B.film ~resolution:(1600, 900) ~gate in
+  let step gate = B.film ~through:true ~resolution:(1600, 900) ~gate in
   check (List.for_all (fun w -> step (w, w * 9 / 16) = ((400, 225), 4)) (List.init 200 (fun i -> 400 + i)))
     "every gate from 400 to 599 points wide gets the same film";
+  (* a free view is traced in place: its film is its pane, whatever the root's resolution *)
+  check (List.for_all (fun gate -> B.film ~through:false ~resolution:(1920, 1080) ~gate = (gate, 1))
+           [ 1396, 1960; 640, 360; 3000, 2000 ])
+    "a traced free view does not fill its pane pixel for pixel";
   let order = [ "a"; "b"; "c"; "d" ] in
   check (B.next_turn ~order ~last:None [ "b"; "c"; "d" ] = Some "b") "the first wanting viewport takes the first turn";
   check (B.next_turn ~order ~last:(Some "b") [ "b"; "c"; "d" ] = Some "c") "the next takes the next";
@@ -1909,8 +1984,15 @@ let run_roots () =
   let count = ref 0 in
   let step ?(events = []) () = incr count; e := E3.update !e (frame (100., 100.) events !count) in
   step (); step ();
+  (* the free view is drawn in its whole pane; only looking through the camera gates it *)
+  let film () = E3.film !e (frame (100., 100.) [] !count) in
+  let fx, fy, pane_w, pane_h = film () in
+  check ((fx, fy) = (0, 0) && pane_w > 0 && pane_h > 0) "a free view does not fill its pane";
   step ~events:[ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'v') ] (); step (); step ();
   check (E3.look_through !e) "Space v did not look through the camera";
+  let gx, gy, gate_w, gate_h = film () in
+  check (gx > 0 && gy > 0 && gate_w < pane_w && gate_h < pane_h && abs ((gate_w * 450) - (gate_h * 800)) <= 800)
+    "looking through the camera does not show the root's 800 x 450 gate inside the pane";
   let near a b = Vec3.nearly_equal a b ~eps:1e-4 in
   check (near (Camera.position (E3.viewport_camera !e day)) (eye_of "day"))
     "the first viewport does not look through its own root's camera";
@@ -2070,7 +2152,8 @@ let run_roots_native () =
   Unix.rmdir directory;
   print_endline "workspace shell: two roots in one frame, each with its own film, camera and cap ok"
 
-(* Native: four traced viewports over three roots (two of them over one).  The two share a slot;
+(* Native: four traced viewports over three roots (two of them over one, both looking through its
+   render camera: the same render.  Two free views are two pictures, each its own pane).  The two share a slot;
    the focused one renders every frame and the others take turns, so over a run it gets about
    twice the samples of each of the two that alternate. *)
 let run_budget_native () =
@@ -2085,8 +2168,8 @@ let run_budget_native () =
   (graph set :context scene (scene/merge (scene/geometry (ref g) :name "body")))
 |} ^ root "a" "[0 1 8]" ^ root "b" "[5 2 6]" ^ root "c" "[-5 2 6]" ^ {|  (graph editor :context editor
     (ui/workspace (ui/split-at "horizontal" 0.5
-      (ui/split-at "vertical" 0.5 (ui/viewport (ref a)) (ui/viewport (ref b)))
-      (ui/split-at "vertical" 0.5 (ui/viewport (ref c)) (ui/viewport (ref a)))))))|} in
+      (ui/split-at "vertical" 0.5 (ui/viewport (ref a) :look_through true) (ui/viewport (ref b)))
+      (ui/split-at "vertical" 0.5 (ui/viewport (ref c)) (ui/viewport (ref a) :look_through true))))))|} in
   let directory = Filename.temp_dir "rays-budget" "" in
   let keys = List.map fst (shell_of (build_ok (of_text text))).preview_sources in
   let a, b, c, a_again = match keys with [ a; b; c; d ] -> a, b, c, d | _ -> fail "four viewports" in

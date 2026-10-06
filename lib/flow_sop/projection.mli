@@ -167,7 +167,7 @@ type line =
   | More of int  (** the [+ N more] row: how many rows the card hides *)
 
 val row_shown : ?pin:bool -> row -> bool
-(** Is the row on its node's card ({!Exposure.shown}): written and not the default, driven, primary, or pinned
+(** Is the row on its node's card ({!Exposure.shown}): written, driven, primary, or pinned
     by [pin] (a pin of [false] hides it); structural rows always show. *)
 
 val lines : ?pin:(string -> bool option) -> level -> node -> line array
@@ -193,10 +193,10 @@ type placed = {
   h : float;
   collapsed : bool;
   inner : layout option;  (** an expanded zone's own layout *)
-  level : level;  (** the requested level (the pane draws less below its zoom caps) *)
+  level : level;  (** the requested level *)
   lines : line array;  (** the card's body at that level *)
   shown : level;
-  (** the level it is drawn at: [level] under the pane's zoom caps (the pane sets it, and then
+  (** the level it is drawn at: [level], except a zone and the return card (the pane sets it, and then
       [w] and [h] are the box of that level); [layout] returns it equal to [level] *)
 }
 

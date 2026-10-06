@@ -941,6 +941,11 @@ let set_resizable value enabled =
     (fun window -> Sdl3.Window.set_resizable window enabled)
     value
 
+let set_window_background value (red, green, blue) =
+  window_call "Runtime.set_window_background"
+    (fun window -> Sdl3.Window.set_background window ~red ~green ~blue)
+    value
+
 let set_relative_mouse value enabled =
   window_call "Runtime.set_relative_mouse"
     (fun window -> Sdl3.Window.set_relative_mouse window enabled)

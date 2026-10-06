@@ -37,6 +37,10 @@ let convert : Runtime_input.event -> Event.t option = function
   | Pointer_released (b, x, y) -> Some (MouseReleased (button b, (x, y)))
   | Pointer_cancelled b -> Some (PointerCancelled (button b))
   | Wheel (x, y) -> Some (MouseScrolled (x, y))
+  | Scroll { x; y; phase; seconds } ->
+      Some (TrackpadScrolled { delta = (x, y); time = seconds; phase = (match phase with
+        | Scroll_began -> Touched | Scroll_changed -> Moved
+        | Scroll_ended -> Lifted | Scroll_momentum -> Momentum) })
   | Pinch scale -> Some (MousePinched scale)
   | Key_pressed e -> Some (KeyPressed (Event.Private.key_of_runtime e.key))
   | Key_released e -> Some (KeyReleased (Event.Private.key_of_runtime e.key))

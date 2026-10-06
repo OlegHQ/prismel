@@ -285,7 +285,7 @@ type level = Point | Chip | Card | Full
 type layout = {
   at : (float * float) Int_map.t;               (* graph-space top-left, snapped to 12 pt *)
   level : level Int_map.t;                      (* absent: Card for SOP nodes, Chip for time *)
-  pinned : bool Int_map.t;                      (* opened explicitly: ignores zoom caps *)
+  pinned : bool Int_map.t;                      (* opened explicitly with o *)
   rows : bool String_map.t Int_map.t;           (* per node: row -> shown on card (the s pin) *)
   split : String_set.t Int_map.t;               (* per node: vec3 groups shown as x/y/z rows *)
   bends : (float * float) list Port.Map.t;      (* by destination port *)
@@ -345,7 +345,8 @@ For each parameter row of a node at level `card`, evaluated in order:
 2. A driven row (wire, wireless, expression, or any driven vec3 component)
    shows. Pins cannot hide it.
 3. If the row has a pin (`layout.rows`), the pin decides.
-4. A row whose literal differs from its schema default shows.
+4. A row with a literal written in the text shows, the schema default included: what the Lisp says
+   is drawn. Taking a wire off a named argument writes its schema default, so the row stays.
 5. A primary row (§5.2) shows.
 6. Otherwise it is hidden, and the card ends with a `+ N more` row.
 
@@ -411,8 +412,6 @@ in a column, 60 between input branches, and 96 between independent outputs;
 x = column × (W + 60), with
 positions on the 24-point dot lattice (Package B: a card's top-left corner is on a dot; a card whose header
 in-port reads another card lines up with it). Ascending id keeps disconnected nodes deterministic.
-Reserve the requested card/full height regardless of the current zoom cap;
-re-layout at point/chip zoom must leave space for the cards on zoom-in.
 Align unary chains at their header sockets. Re-layout clears old bend points
 along with moving nodes; the host saves the result as one undoable view edit.
 
@@ -449,7 +448,7 @@ Positions of nodes and bend points snap to a 12-point grid.
 **Kit rev 3 (current, supersedes the table where they differ).** A Card is its header plus the rows that are
 wired or written (§5.1 rules 1 to 4); there is no `+ N more` row. The footer row (value, spark, cook
 time) is drawn on Full only: geometry reads `1 204 pts · 0.003 s`, the cook time from
-`Probe.geometry.seconds`. Boxes are laid out at the level the zoom shows (`shown`): a point is as wide as
+`Probe.geometry.seconds`. Boxes are laid out at the level the node was given (`shown`, never changed by the zoom): a point is as wide as
 its name drawn at the zoom's font, a chip is the header, so ports, wire ends and obstacles come from the
 one geometry. Positions sit on the 24-point lattice and columns on a 288-point pitch (196 card plus 92
 gap, rounded up). A scope's inputs stack in the order written.
@@ -492,9 +491,8 @@ gap, rounded up). A scope's inputs stack in the order written.
 - Selected chips, cards and full nodes have a 2-point theme-accent outline;
   unselected nodes keep the faint neutral outline. The VIEW flag remains
   separate from selection.
-- Zoom range 0.25–2.0. Zoom caps the shown level: below 0.34 every unpinned
-  node shows as a point, below 0.50 at most as a chip. Pinned nodes ignore
-  caps. `o`, double-click and opening a field pin a node; `p` and `⇧P` unpin.
+- Zoom range 0.25–2.5. The zoom never changes a node's level: a card stays a card with its rows at
+  every zoom, only smaller. `o` opens a node one level, `p` points it or goes back (`⇧O`, `⇧P` for all).
 - During a wire drag, hovering a node that has a compatible input and shows
   less than `full` shows it as `full` until the pointer leaves it (bloom), so
   hidden rows are drop targets.
@@ -561,7 +559,7 @@ context (§7.11).
 | `h` `j` `k` `l`, arrows | `graph.walk.left/down/up/right` | walk (§7.6) | M2 |
 | `Tab` | `graph.add` | add by context (§7.3) | M2 |
 | `.` | `graph.repeat` | repeat the last add (§7.4) | M2 |
-| `f` | `scope.hints` | connect by letter hints (§7.5); the sheet's status bar says `f hints` (`c` stays collapse) | Package B |
+| `w` | `scope.hints` | connect (wire) by letter hints (§7.5); the status bar says `w hints` | Package B, moved from `f` |
 | `b` | `graph.bind` | bind by hints; on a selected wire, toggle wireless | M4 |
 | `o` | `graph.open` | open the selection one level, pinning | M1 |
 | `p` | `graph.point` | selection to points, or back to its previous level | M1 |
@@ -572,7 +570,7 @@ context (§7.11).
 | `x`, Delete, Backspace | `graph.delete` | delete selection or selected wire | M2 (Delete/Backspace exist) |
 | `⇧X` | `graph.dissolve` | delete and reconnect the trunk | M2 |
 | `/` | `graph.find` | find a node by name in the current level | M2 |
-| `⇧F` | `scope.frame-selection` | pan and zoom the pane to the selection (all with none); in the list `f` reveals the selection | Gap A (moved from `f` by Package B) |
+| `f` | `scope.frame-selection` | pan and zoom the pane to the selection (all with none); in the list `f` reveals the selection | Gap A |
 | Home | `graph.frame-all` | frame all (exists) | – |
 | `w` | `graph.show-wireless` | show every wireless wire | M4 |
 | `=` | `row.expression` | expression on the hovered row | M4 |
@@ -662,6 +660,11 @@ Pan so the new selection is visible.
   column. Wire the result into the row.
 - Property: unfold then fold gives back an equal expression when it contains
   `t` or an operator (M4 test). A bare number becomes a literal.
+- In the workspace pane (`Scope`) both are one click on the row: an expression row reads `ƒ (expr)` and
+  its `ƒ` is `Unfold`; a row wired from a named node that nothing else reads reads `ƒ ← name` and its
+  `ƒ` is `Fold_into` that node, so an expression unfolded into cards collapses back into the parameter.
+  A source read in two places has no `ƒ` (the edit would refuse); `⇧F` and the context menu fold the
+  selected node the same way.
 
 ### 7.8 Compounds (M5)
 

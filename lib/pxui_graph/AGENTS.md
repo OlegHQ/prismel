@@ -28,7 +28,7 @@ with a dot every 24 points and a register cross every 480 by 192.
 
 Card rule (kit rev 3): a Card is the header plus its wired or written rows, with no `+ N more` row; the footer
 (value, spark, `1 204 pts · 0.003 s` cook time) is drawn on Full only. Geometry is computed once per node at the
-level the zoom shows (`shown`): a point's box is as wide as its name at the zoom's font (re-measured when the font
+level it was given (`shown`; the zoom never reduces a card to a chip or a point): a point's box is as wide as its name at the zoom's font (re-measured when the font
 changes), a chip is the header, and ports, wire ends, obstacles and hit boxes all read that box. Columns sit on a
 288-point pitch (196 + 92 gap on the 24-point lattice). A wire is one straight segment, or one bend (5-point square,
 72 points before the port) when a card is in the way, round above or below only as a last resort; zone label rows
@@ -41,8 +41,7 @@ are separated in port order; layout reserves authored detail heights at every
 zoom and re-layout clears stale bends. 196-point cards,
 24-point headers and rows, 12-point snapping, geometry sockets in headers
 and rows, and polyline wires with editable bends. Levels point/chip/card/full
-have zoom caps, explicit pins and temporary full expansion during a wire
-drag. Cards set numeric literals from pointer position through `Ui.value_field`;
+are explicit (`o`, `p`), never zoom-driven. Cards set numeric literals from pointer position through `Ui.value_field`;
 Option-click or label double-click opens text entry. Value tiles and typed row
 sockets use the same hit tree and spatial wire index. A VIEW flag marks the
 display node; marquee selects, Alt/right/middle-drag pans, wheel,
@@ -160,9 +159,9 @@ The pane's structure is `graph.html`'s, not only its card internals:
 - **Levels.** `Projection.level` Point / Chip / Card / Full is layout data stored by path (`Layout_by_path.level`,
   `pinned`) and travels as `Level_set` through `Doc.layout_edit`, one history entry per gesture. `o` opens the
   selection one level and pins it, `p` points it or goes back, `⇧O` / `⇧P` do it for every node; a click on
-  `+ N more` opens the card. The layout reserves the requested level's size; the pane draws less below the zoom caps
-  (point under 0.34, chip under 0.5) unless pinned. A card's body is `P.placed.lines` (`Projection.lines`): the rows
-  `Flow_sop.Exposure.shown` lets through (wired or written; the schema's primary rows are not applied on the card, see
+  `+ N more` opens the card. The layout reserves the requested level's size and the pane draws that level at every zoom. A card's body is `P.placed.lines` (`Projection.lines`): the rows
+  `Flow_sop.Exposure.shown` lets through (wired or written, a written default included, so a row whose wire is taken off stays: `fallback` writes the
+  schema default; the schema's primary rows are not applied on the card, see
   flow.md 5.1), then `+ N more`; Full lists every row under its folder label rows. Index rows through `lines`
   (`line_of_row`), never through `n.rows`.
 - **Header in-port.** The first geometry slot of a node kind (`row.head`) is the header's in-port at (1, 13), not a row;
@@ -176,5 +175,8 @@ The pane's structure is `graph.html`'s, not only its card internals:
   reads it, accumulators and further variables as rows under the label row (`Projection.extra_rails`, out-port at the
   row's right end), the zone's own out-port at the right of the label row, and a fold's feedback as a dashed wire.
 - **Failed node.** `Scope.with_failed` paths with codes; the host (`Core.failed_nodes`) maps a failed cook's node id to
-  paths through the probe plan. **Letter hints.** `f` (`Show_hints`) labels every node the selected output can connect
-  to; `⇧F` frames the selection. 1-point frames are drawn inside the box (`frame_in`), never as a centred stroke.
+  paths through the probe plan. **Letter hints.** `w` (`Show_hints`) labels every node the selected output can connect
+  to; `f` frames the selection (all with none selected).
+- **Fold button.** A row wired from one named node that nothing else reads (`fold_sources`, computed in
+  `with_scope`) draws `ƒ` before its `←`; a click is `Syntax_edit (Fold_into ...)`, the inverse of the click on an
+  expression row's `ƒ` (`Unfold`). `wired_geo` places the glyph for the painter and the hit box alike. 1-point frames are drawn inside the box (`frame_in`), never as a centred stroke.

@@ -76,6 +76,9 @@ let part2 () = (* connect, disconnect, input defaults *)
   same "disconnect keyword" (g "(let* [k 0.4 a (sop/uv_sphere :radius k)] a)")
     (E.Disconnect { node = node [ "a" ]; key = Kw "radius"; fallback = None })
     (g "(let* [k 0.4 a (sop/uv_sphere)] a)");
+  same "disconnect keyword onto a written default" (g "(let* [k 0.4 a (sop/uv_sphere :radius k)] a)")
+    (E.Disconnect { node = node [ "a" ]; key = Kw "radius"; fallback = Some (num "1.0") })
+    (g "(let* [k 0.4 a (sop/uv_sphere :radius 1.0)] a)");
   same "disconnect positional with fallback" base
     (E.Disconnect { node = node [ "b" ]; key = Pos 0; fallback = E.default_for Flow.Ty.Geometry "geo" })
     (g "(let* [a (sop/uv_sphere :radius 0.5) b (sop/transform nil :translate [1 2 3]) c (sop/subdivide b :iterations 1)] c)");

@@ -21,7 +21,7 @@ type change =
       (** dragged items, at their new position inside their scope *)
   | Level_set of (path * Flow_sop.Projection.level option * bool) list
       (** [o], [p] and their [⇧] forms, or a click on [+ N more]: these nodes' new level ([None]:
-          back to the default, a card) and whether it is pinned (it then ignores the zoom caps).
+          back to the default, a card) and whether it is pinned.
           The host stores it by path ([Layout_by_path.level] / [pinned]), one history entry. *)
   | Copy_requested of path list
       (** Command-C / Command-X: the host puts these bindings' text on the clipboard (a cut
@@ -62,13 +62,13 @@ type command =
   | Duplicate  (** Command-D: copy the selected nodes with fresh names ({!Flow_sop.Flow_edit.Duplicate}) *)
   | Display  (** [v]: {!Display_set} for the selected geometry node *)
   | Copy | Cut | Paste  (** Command-C / X / V: {!Copy_requested} (a cut deletes too), {!Paste_requested} *)
-  | Frame_selection  (** [⇧F]: pan and zoom to the selected nodes (all of them with none selected) *)
+  | Frame_selection  (** [f]: pan and zoom to the selected nodes (all of them with none selected) *)
   | Open_level  (** [o]: the selected nodes one level more detailed, pinned *)
   | Point_level  (** [p]: the selected nodes to points, or back to the level they had *)
   | Open_all  (** [⇧O]: every node to the default level *)
   | Point_all  (** [⇧P]: every node to a point, or every node back *)
   | Show_hints
-      (** [f]: with one node selected, a letter chip on every node it can connect to (a node with
+      (** [w]: with one node selected, a letter chip on every node it can connect to (a node with
           several fitting inputs asks for a second letter); a complete label is a
           [Syntax_edit (Connect ...)], Escape, Backspace on an empty label or a click cancels.
           {!editing} is true meanwhile, so the host keeps its keys out. *)
@@ -143,6 +143,12 @@ val scope_point : t -> scope:path -> float * float -> (float * float) option
 (** A screen point as a position inside [scope] (a scope path of the shown graph), snapped to the
     24-point dot lattice: where a node added from a menu opened there is placed ([Moved]). *)
 
+val num_field :
+  Pxui.Ui.t -> at:float * float -> w:float -> h:float -> ?size:int -> ?fraction:float -> string -> string -> string option
+(** The pane's number field ({!Pxui.Ui.value_field}): dragged sideways it scrubs (a float by 0.05 a point,
+    0.005 with Shift; an integer by one every 6 points), Option-click types.  [Some text] the frame the
+    number changed.  Hosts use it for the same number shown elsewhere (an input's default in the inspector). *)
+
 val bindings : ('scope, command) Editor_core.Command.t list
 val run_command : t -> command -> t * change list
 val update : t -> Pxui.Ui.t -> Rays.Frame.t -> t * change list
@@ -157,6 +163,8 @@ module Private : sig
     ((float * float * float * float) * (float * float * float * float) * (float * float * float * float)) option
   val output_socket : t -> path -> (float * float) option
   val row_center : t -> path -> int -> (float * float) option
+  val fold_button : t -> path -> int -> (float * float) option
+  (* the centre of the fold button of a wired row ([n.rows.(i)]); [None] when it has none *)
   val lens_toggle : t -> path -> (float * float) option
   (* centres, in screen points, of the panel's parts *)
   val lens_step_button : t -> path -> int -> (float * float) option

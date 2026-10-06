@@ -153,8 +153,8 @@
       "library": "flow_sop",
       "module": "Exposure",
       "source": "lib/flow_sop/exposure.mli",
-      "source_bytes": 789,
-      "source_sha256": "fc5fa2ea84e7550c6d74911c3afaee4851ef918a14d1b29fab7bcc98cbdc75c7"
+      "source_bytes": 796,
+      "source_sha256": "56f19fdd159be0455b21f31f62ff421cad5d5a6a1e7936db5163a87bce3516c3"
     },
     {
       "api_sha256": "400b738e487a614c4db4a990074d5cc75efaaaac22ec3281bb9403fa8c670d99",
@@ -162,8 +162,8 @@
       "library": "flow_sop",
       "module": "Flow_edit",
       "source": "lib/flow_sop/flow_edit.mli",
-      "source_bytes": 13091,
-      "source_sha256": "e0f0e6e782b680ebea071167dea50daa7f4af480a84adabe7ac30b1f7938e7f4"
+      "source_bytes": 13118,
+      "source_sha256": "3260985f60d5167baf4a98ac8aad29ff059ae3a6fd419e79496e98d7b37e56af"
     },
     {
       "api_sha256": "13e51ba6fd0803c83783ae21d917160a0fe5e18e8c21e193343df21b33411666",
@@ -225,8 +225,8 @@
       "library": "flow_sop",
       "module": "Projection",
       "source": "lib/flow_sop/projection.mli",
-      "source_bytes": 10984,
-      "source_sha256": "74c6bc20ebf7e534bb09c61eeb9b8248fd955cd38897e4512a2f81fd860e8f23"
+      "source_bytes": 10930,
+      "source_sha256": "db15c1322c60edbffe179332c271ef8229eb56437417ac2ee40816ba31afeff2"
     },
     {
       "api_sha256": "34e222cfbacc256f00dada326228441213b4d92a5fd2ae68f9b3bb9c1bcf98a3",
@@ -396,8 +396,8 @@
       "library": "pxui",
       "module": "Ui",
       "source": "lib/pxui/ui.mli",
-      "source_bytes": 38626,
-      "source_sha256": "43f9f324c25c9a65e394b561aaa031692f21d36c2bd3227e3a1e2b6eb82940f8"
+      "source_bytes": 38642,
+      "source_sha256": "aeef2ef6c319ea9d17926a31f203b59d44d82c9ce20c19b6d51703102ee9b0a0"
     },
     {
       "api_sha256": "81732506c560dc005333d6ce7e80ee928877732e6f666865dc7351ce9f10d7a2",
@@ -418,22 +418,22 @@
       "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
-      "api_sha256": "d0c3f97c69ae2ca82150115249516d268ffcda632a5c91d12ea0b65b049f84c6",
+      "api_sha256": "e28dc91d4734d56909719346a2dae2e76b27d5965972e45c027e56d5714b924f",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 9814,
-      "source_sha256": "89bfe8405caf9981089c169c01cb1b333d58c5ab8d9d14b2826afe0ffa3e25fe"
+      "source_bytes": 10398,
+      "source_sha256": "c3e7d0c54c771a88f44837b3c15a636d91a9850493abffb77ccaf2c3594aa7df"
     },
     {
-      "api_sha256": "e0364636eb1fa04de6cf28d1886bb27def88010d90f5a438201e9a6ba99a3619",
+      "api_sha256": "c3ec3d105dd4f4bbb4a922de72c432004c4e6cbc7887d4acadba6c56d28e88c3",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 20083,
-      "source_sha256": "1fb36e1bf1d3e064d6c982eb3cdbfcb6012ba9594966302355f71a6291096511"
+      "source_bytes": 20827,
+      "source_sha256": "64522dcc28838881041a0df34d7804954d2e2c80e8d052c34b985585368dff5b"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",
@@ -517,13 +517,13 @@
       "source_sha256": "aa6d5d26a78c0836ce353cedebbfa63676cf077656f85b48ad363ca650b41f51"
     },
     {
-      "api_sha256": "260fac94d4335f5e0adddc0a2e952078facfe286ebc99c9f6527d97fbc229e90",
+      "api_sha256": "0acbf83074209cddb7499c5bc3183d6425aaab31d10af1ec0d72611f857ff5db",
       "excluded_legacy_symbols": [],
       "library": "rays",
       "module": "Event",
       "source": "lib/rays/event.mli",
-      "source_bytes": 2099,
-      "source_sha256": "5bcdce853c355daaee8e58ec904429ab26ca7a7807b6364ad849fc18595481b9"
+      "source_bytes": 2857,
+      "source_sha256": "9681e86f801d21cfa771ff4107c8af32b4ab8702dd4fe3bad829159113f2b4b7"
     },
     {
       "api_sha256": "5f29f30c6553b9d996cb148e8316b1096514d14c162e8183f03d3d39f22e40aa",
@@ -683,13 +683,13 @@
       "source_sha256": "8102f285082a04807a3ac44d7281b7f91b9198b3c8237bdcd51bb4fa5fd071e4"
     },
     {
-      "api_sha256": "94e262bbbd60cc97bbaa934e119a587d5f4fdd758a3ea6af8a03175dc3834891",
+      "api_sha256": "5d923c196128ed90e465a8fd45b82e78477e87ccba439b7f3437c449084395db",
       "excluded_legacy_symbols": [],
       "library": "rays",
       "module": "Sketch",
       "source": "lib/rays/sketch.mli",
-      "source_bytes": 3386,
-      "source_sha256": "7db986abb7d96ded4062992953eebd16bf97a87a2deb4febc4fce93e8bbc54f0"
+      "source_bytes": 3749,
+      "source_sha256": "eb7a5680b2a44cd7d49ac003295a5d5e24ae54c8b8dd99219c88c18065ccd1d1"
     },
     {
       "api_sha256": "2a75c1e3859f6c608c14dca506eb8e82a9dd4f8ec2b9657ff7a9391640f55809",
@@ -728,13 +728,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "8e9b88140e4c3dd564918c1ccceb951314b3e2efe5803624ddba509b6c58f41c",
+      "api_sha256": "1e38b5bf2337eab023ee16b6269bab6b0695b0932c8169fbf29d0641392e03eb",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37674,
-      "source_sha256": "b076a399cd19ce1d5ff9a08e61a15a2a4fb402ec7f22bc9aeb2095c57381b55e"
+      "source_bytes": 37841,
+      "source_sha256": "1c984edca7efb082401a97b497577381e7ab8dbe4c6549577d9189b110eb5e6e"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",

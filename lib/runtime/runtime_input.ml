@@ -9,6 +9,9 @@ type key = Sdl3.Key.t =
   | Home | End | Page_up | Page_down | Insert | Delete
   | Unknown of int
 
+type scroll_phase = Sdl3.Event.scroll_phase =
+  | Scroll_began | Scroll_changed | Scroll_ended | Scroll_momentum
+
 type modifier = Sdl3.Key.modifier =
   | Shift_held | Control_held | Alt_held | Meta_held
   | Num_lock | Caps_lock | Scroll_lock
@@ -21,6 +24,7 @@ type event =
   | Pointer_released of mouse_button * float * float
   | Pointer_cancelled of mouse_button
   | Wheel of float * float
+  | Scroll of { x : float; y : float; phase : scroll_phase; seconds : float }
   | Key_pressed of key_event
   | Key_released of key_event
   | Text_input of string
@@ -134,7 +138,7 @@ let apply value = function
       value.logical_height <- height
   | Visibility_changed visible -> value.visible <- visible
   | Text_input _ | Text_editing _ | File_dropped _ | File_dragged _ | File_drag_ended
-  | Pixel_size_changed _ | Pinch _ | Focus_gained | Quit | Dialog_closed _ -> ()
+  | Pixel_size_changed _ | Pinch _ | Scroll _ | Focus_gained | Quit | Dialog_closed _ -> ()
 
 let push value event =
   match event with
@@ -145,6 +149,9 @@ let push value event =
       Error "resize dimensions must be positive"
   | Pinch scale when not (Float.is_finite scale) || scale <= 0. ->
       Error "pinch scale must be finite and positive"
+  | Scroll { x; y; seconds; _ }
+    when not (Float.is_finite x && Float.is_finite y && Float.is_finite seconds) ->
+      Error "scroll gesture must be finite"
   | _ ->
       apply value event;
       if Queue.length value.events = value.max_events then begin

@@ -74,6 +74,12 @@ val set_cursor : [`Default|`Horizontal_resize|`Vertical_resize|`Text] ->
   (unit, string) result
 (** Set the active native pointer cursor; an error when no sketch is running. *)
 
+val set_window_background : Color.t -> (unit, string) result
+(** The native window's own background. A Rays window keeps the traffic lights,
+    hides its title and has a transparent title bar, so this is the title bar's
+    colour: a host sets it to the colour its top edge is painted with. An error
+    when no sketch is running; nothing happens off macOS. *)
+
 type dialog = Open_file | Open_files | Save_file | Open_folder
 
 val show_file_dialog :

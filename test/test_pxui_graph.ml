@@ -158,6 +158,10 @@ let scope_zoom_geometry () =
       | [] -> fail "an empty wire"
     done;
     check (expect (Scope.zoom view)) "the pinch did not reach the zoom under test";
+    (* the zoom never reduces a card: b has a written row at every zoom *)
+    let _, _, _, bh = Option.get (Scope.Private.box_of view [ "g"; "b" ]) in
+    check (bh > (P.head_height +. P.row_height) *. Scope.zoom view -. 0.01)
+      (Printf.sprintf "zoom %.2f: a card lost its rows" (Scope.zoom view));
     (* a click on a node's box, at whatever level it is shown, selects it *)
     if Scope.zoom view < 0.5 then List.iter (fun path ->
       let x, y, w, h = Option.get (Scope.Private.box_of view path) in
@@ -232,7 +236,50 @@ let scope_levels () =
     changes in
   check (connects <> [] && not (Scope.editing v)) "a hint letter did not connect and end the hints";
   let esc, _ = one_frame Input.Escape hint_view in
-  check (not (Scope.editing esc)) "Escape did not end the hints"
+  check (not (Scope.editing esc)) "Escape did not end the hints";
+  (* f frames the selection (all with none); the hints are on w *)
+  let key_of action = List.find_map (fun (c : _ Editor_core.Command.t) ->
+    if c.action = action then c.trigger else None) Scope.bindings in
+  check (key_of Scope.Frame_selection = Some (Editor_core.Keymap.Chord (Input.KeyChar 'f', []))) "f does not frame the selection";
+  check (key_of Scope.Show_hints = Some (Editor_core.Keymap.Chord (Input.KeyChar 'w', []))) "w does not start the hints";
+  (* a node named as the graph it refers to is not wired to itself *)
+  let sw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace s (graph g :context sop (sop/box)) (graph scene :context scene (let* [g (scene/geometry (ref g))] (scene/merge g))))"
+    |> Result.get_ok in
+  let sview, _ = scope_view sw.checked "scene" in
+  let sview, _ = scope_step sview (frame ()) in
+  check (List.for_all (fun i -> match Scope.Private.wire_target sview i with
+    | Some (path, _) -> path <> [ "scene"; "g" ] | None -> true) (List.init (Scope.Private.wire_count sview) Fun.id))
+    "a node that refers to a graph of its own name is wired to itself";
+  (* v on a node inside a loop asks for it too: the host shows it at the probed iteration *)
+  let lw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace l (graph g :context sop [(n : int 3)] (let* [k 0.4 a (sop/uv_sphere :radius k :segments n) copies (for [i (range 2)] (sop/transform a :translate [i 0 0]))] (sop/merge copies))))"
+    |> Result.get_ok in
+  let lview, lscope = scope_view lw.checked "g" in
+  let lview, _ = scope_step lview (frame ()) in
+  let inner = [ "g"; "copies"; "@result" ] in
+  check (snd (Scope.run_command (Scope.select [ inner ] lview) Scope.Display) = [ Scope.Display_set inner ])
+    "v refused a node inside a loop";
+  (* a row wired from a node nothing else reads has a fold button; a click folds that node into the row.
+     A row wired from a graph input has none. *)
+  let sphere = [ "g"; "a" ] in
+  let rows = (Option.get (P.find lscope sphere)).rows in
+  let row label = Option.get (List.find_index (fun (r : P.row) -> r.label = label) rows) in
+  check (Scope.Private.fold_button lview sphere (row "segments") = None) "a row wired from an input has a fold button";
+  let fx, fy = match Scope.Private.fold_button lview sphere (row "radius") with
+    | Some at -> at | None -> fail "a row wired from a single-use node has no fold button" in
+  let _, changes = scope_click lview (int_of_float fx, int_of_float fy) in
+  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Fold_into { node = [ "g"; "k" ] })) changes)
+    "a click on the fold button did not fold the source into the row";
+  (* taking the wire off a named argument writes its schema default: the row stays on the card *)
+  let rx, ry = Option.get (Scope.Private.row_center lview sphere (row "radius")) in
+  let at = int_of_float rx, int_of_float ry in
+  let hovered, _ = scope_step lview (frame ~mouse:at ~events:[ mouse_move at ] ()) in
+  let default = Option.get (List.nth rows (row "radius")).default in
+  (match snd (Scope.run_command hovered Scope.Delete) with
+   | [ Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect { node; key = Flow_sop.Flow_edit.Kw "radius"; fallback = Some f }) ] ->
+       check (node = sphere && Flow.Lisp.flat f = default) "the wire taken off radius did not fall back to its default"
+   | _ -> fail "Delete over a wired row is not a Disconnect with the default")
 
 
 let scope_connection_hover () =

@@ -671,9 +671,15 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                 let text = Pxui.Ui.inspector_body ui (fun () ->
                   let box, cx, cy, cw = Pxui.Ui.inspector_row ui ~width ~key:"ws-input-default" ~label:"default" () in
                   Pxui.Ui.within ui box (fun () ->
-                    fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:20.
-                      ~left:(float_of_string_opt shown = None)
-                      ~valid:(fun t -> String.trim t <> "") "ws-input-default-field" shown))) in
+                    match input.default with
+                    | Some { S.node = S.Num _; _ } ->
+                        (* a number: the pane's own field, so it drags here as it does on the card *)
+                        Option.value ~default:shown
+                          (Pxui_graph.Scope.num_field ui ~at:(cx, cy) ~w:cw ~h:20. "ws-input-default-field" shown)
+                    | _ ->
+                        fst (Pxui.Ui.value_field ui ~at:(cx, cy) ~w:cw ~h:20.
+                          ~left:(float_of_string_opt shown = None)
+                          ~valid:(fun t -> String.trim t <> "") "ws-input-default-field" shown))) in
                 (match (if text = shown then Ok [] else Flow.Syntax.parse text) with
                  | Ok [ form ] ->
                      [ Syntax_edit (Flow_sop.Flow_edit.Set_input_default { form = graph; input = input.name; value = form }) ], []
@@ -1598,6 +1604,20 @@ let open_level value level =
   { value with level; pane_graph = None; selection = Selection.empty; map_view = world;
     tree = Pxui_shell.Tree.create () }
 
+(* The node of an object's graph the viewport shows instead of its result: a node inside a loop that
+   [v] marked in the pane (the layout's display), at the iterations the selectors probe. *)
+let display_node value id =
+  match value.scope_key, value.doc.Document.workspace with
+  | Some { scope; records = Some records; graph; _ }, (ws, lowered)
+    when graph_of_object value id = Some graph ->
+      Option.bind (Layout_by_path.Path_map.find_opt [ graph ] ws.layout.display) (fun path ->
+        let chain = Option.value ~default:[] (Hashtbl.find_opt (Flow_sop.Probe.chains scope) path) in
+        let probes = List.map (fun zone ->
+          Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes)) chain in
+        Option.bind (Flow_sop.Probe.plan_node records path ~probes) (fun plan ->
+          Flow_sop.Network.Int_map.find_opt plan lowered.compiled))
+  | _ -> None
+
 (* The geometry objects to cook: visible ones, each with its network. *)
 let geometry_objects value =
   List.filter_map (fun id ->
@@ -1606,7 +1626,10 @@ let geometry_objects value =
     | Some node, Some network when Objects.visible node
         && not (Edit_graph.is_bypassed (scene value) ~node_id:id) ->
         Option.map (fun displayed ->
-          id, network.Document.graph, displayed) network.displayed
+          let shown = match display_node value id with
+            | Some node when Edit_graph.find network.Document.graph.geometry ~node_id:node <> None -> node
+            | _ -> displayed in
+          id, network.Document.graph, shown) network.displayed
     | _ -> None) (Objects.ids "geometry" (scene value))
 
 (* The object the sketch-facing single-object accessors describe: the open
@@ -2014,10 +2037,6 @@ let create ?settings ?(keymap = Leader.keymap)
     (Cook.create ~prepare ~seed ~grain ?domains ?await ~max_entries
       ~max_payload_bytes ()))
 
-let truncate limit text = if String.length text <= limit then text
-  else if limit <= 3 then String.make (max 0 limit) '.'
-  else String.sub text 0 (limit - 3) ^ "..."
-
 (* the open dialog, for the crash report *)
 let prompt_name value = match value.prompt with
   | None -> "-" | Some Keys -> "keys" | Some (Saving _) -> "save preset" | Some (Palette _) -> "commands" | Some (Jumping _) -> "jump"
@@ -2068,10 +2087,10 @@ let status_text ?(brief = false) value =
     | Idle ->
         (match value.edit_error, value.cook.error, value.cook.seconds with
          | _ when projection value = Text_view && Text_pane.first_error value.text <> None ->
-             "Text rejected: " ^ truncate 52 (Flow.Diagnostic.to_string
-               (Option.get (Text_pane.first_error value.text)))
-         | Some error, _, _ -> "Graph edit rejected: " ^ truncate 49 error
-         | None, Some error, _ -> "Cook rejected: " ^ truncate 54 error
+             "Text rejected: " ^ Flow.Diagnostic.to_string
+               (Option.get (Text_pane.first_error value.text))
+         | Some error, _, _ -> "Graph edit rejected: " ^ error
+         | None, Some error, _ -> "Cook rejected: " ^ error
          | None, None, _ when value.notice <> None -> snd (Option.get value.notice)
          | None, None, Some seconds ->
              (match Flow_sop.Lower.status (snd value.doc.Document.workspace) ~seconds with
@@ -2166,7 +2185,7 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     if c.id = "scene.jump" then Option.map (fun t -> Editor_core.Keymap.label t, "jump") c.trigger else None) Leader.keymap in
   let extra = match value.focus with
     | Pxui_shell.Layout.Outline -> [ "/", "filter"; "i", "enter" ] @ Option.to_list jump
-    | Graph -> [ "Tab", "add after"; "o", "open"; "v", "view"; "b", "bypass"; "i", "enter"; "f", "hints";
+    | Graph -> [ "Tab", "add after"; "o", "open"; "v", "view"; "b", "bypass"; "i", "enter"; "f", "frame"; "w", "hints";
                  "Space", "leader" ]
     | View _ -> [ "w", "move"; "e", "rotate"; "r", "scale"; "i", "enter object"; "\xe2\x8c\xa5 drag", "orbit" ]
     | _ -> [] in
@@ -2184,12 +2203,14 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
       ~extra:[ "drag to an edge", "dock"; "Space o f", "float or dock"; "Space n", "new window" ]
       ~context:Editor_core.Guide_context.Canvas ([] : Leader.command list)
   end
-  else if error_status = None && value.carry = None && value.guide then begin
+  else if state <> `Error && value.carry = None && value.guide then begin
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~readout ~text:line
       ?fps:status_fps ~notes ~extra ~kind ?selection ~context ([] : Leader.command list)
   end
   else begin
-    Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height) ~file ~state ~layout ~notes ~readout ~kind ?selection
+    (* a refusal has the strip to itself: the whole message, up to the layout and frame rate *)
+    let kind, selection = if state = `Error then None, None else Some kind, selection in
+    Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height) ~file ~state ~layout ~notes ~readout ?kind ?selection
       ~text:line ~fps:status_fps ();
     false
   end
@@ -2400,13 +2421,23 @@ let apply_text value intents =
     let with_text text = { value with text } in
     let workspace = fst value.doc.Document.workspace in
     let base old = Some (Option.value ~default:workspace old) in
-    let checked ?(metadata = false) old apply =
+    (* a draft begun on an older document: merged with what changed since on the syntax tree
+       ({!Text_pane.merge3}); only a value both changed keeps the draft as a conflict *)
+    let checked ?(metadata = false) ~shown ~draft old apply =
       match old with
       | Some (previous : Editor_document.Workspace_doc.t) when previous.source != workspace.source
           || (metadata && (previous.layout != workspace.layout || previous.settings != workspace.settings)) ->
-          Error [Flow.Diagnostic.error ~position:{line = 1; col = 0} ~code:"E_DRAFT_CONFLICT"
-            "The document changed since this draft began. Your draft is kept; discard it and reapply your edits to the current text."]
-      | _ -> apply () in
+          (match Text_pane.merge3 ~base:(shown previous) ~mine:draft ~theirs:(shown workspace) with
+           | Some merged -> apply merged
+           | None ->
+               Error [Flow.Diagnostic.error ~position:{line = 1; col = 0} ~code:"E_DRAFT_CONFLICT"
+                 "The document changed in the same place as this draft. Your draft is kept; discard it and reapply your edits to the current text."])
+      | _ -> apply draft in
+    let whole = Editor_document.Workspace_doc.to_text in
+    let of_graph graph (ws : Editor_document.Workspace_doc.t) =
+      (Text_pane.make_shown ws.source graph None Text_pane.Graph).text in
+    let of_binding path (ws : Editor_document.Workspace_doc.t) =
+      (Text_pane.make_shown ws.source (List.hd path) (Some path) Text_pane.Selection).text in
     match intent with
     | Text_pane.Tab tab -> with_text { text with tab }
     | Menu menu -> with_text { text with menu }
@@ -2420,7 +2451,7 @@ let apply_text value intents =
     | Doc_draft draft -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors = [] }
     | Doc_discard -> with_text { text with draft = None; doc_base = None; doc_errors = [] }
     | Doc_apply draft ->
-        (match checked ~metadata:true text.doc_base (fun () -> text_edit value draft) with
+        (match checked ~metadata:true ~shown:whole ~draft text.doc_base (text_edit value) with
          | Ok value -> { value with text = { text with draft = None; doc_base = None; doc_errors = [] } }
          | Error doc_errors -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors })
     | Binding_draft (path, draft) ->
@@ -2430,11 +2461,11 @@ let apply_text value intents =
         with_text { text with graph_draft = Some (graph, draft); graph_base = base (match text.graph_draft with Some (old, _) when old = graph -> text.graph_base | _ -> None); graph_errors = [] }
     | Graph_discard -> with_text { text with graph_draft = None; graph_base = None; graph_errors = [] }
     | Graph_apply (graph, draft) ->
-        (match checked text.graph_base (fun () -> graph_edit value graph draft) with
+        (match checked ~shown:(of_graph graph) ~draft text.graph_base (graph_edit value graph) with
          | Ok value -> { value with text = { text with graph_draft = None; graph_base = None; graph_errors = [] } }
          | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors })
     | Binding_apply (path, draft) ->
-        (match checked text.binding_base (fun () -> binding_edit value path draft) with
+        (match checked ~shown:(of_binding path) ~draft text.binding_base (binding_edit value path) with
          | Ok value -> { value with text = { text with binding_draft = None; binding_base = None; binding_errors = [] } }
          | Error binding_errors ->
              with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors })
@@ -2442,15 +2473,15 @@ let apply_text value intents =
        (the gesture seals on release); the draft stays until the drag ends so the editor keeps
        the text it is dragging in *)
     | Doc_scrub (draft, done_) ->
-        (match checked ~metadata:true text.doc_base (fun () -> text_edit ~merge:scrub_merge value draft) with
+        (match checked ~metadata:true ~shown:whole ~draft text.doc_base (text_edit ~merge:scrub_merge value) with
          | Ok value -> { value with text = { text with draft = (if done_ then None else Some draft); doc_base = (if done_ then None else Some (fst value.doc.workspace)); doc_errors = [] } }
          | Error doc_errors -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors })
     | Graph_scrub (graph, draft, done_) ->
-        (match checked text.graph_base (fun () -> graph_edit ~merge:scrub_merge value graph draft) with
+        (match checked ~shown:(of_graph graph) ~draft text.graph_base (graph_edit ~merge:scrub_merge value graph) with
          | Ok value -> { value with text = { text with graph_draft = (if done_ then None else Some (graph, draft)); graph_base = (if done_ then None else Some (fst value.doc.workspace)); graph_errors = [] } }
          | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors })
     | Binding_scrub (path, draft, done_) ->
-        (match checked text.binding_base (fun () -> binding_edit ~merge:scrub_merge value path draft) with
+        (match checked ~shown:(of_binding path) ~draft text.binding_base (binding_edit ~merge:scrub_merge value path) with
          | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_base = (if done_ then None else Some (fst value.doc.workspace)); binding_errors = [] } }
          | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors })) value intents
 
@@ -2613,7 +2644,19 @@ let graph_leaf value (g : Pxui_shell.Layout.geometry) =
 let focused_leaf (g : Pxui_shell.Layout.geometry) focus path =
   match List.find_opt (fun (l : Pxui_shell.Layout.leaf) -> Some l.path = path && l.panel = focus) g.leaves with
   | Some leaf -> Some leaf
-  | None -> Pxui_shell.Layout.find g focus
+  | None ->
+      (* the tree changed under the focus: a split moves the leaf a level down (and a viewport's
+         key follows its path), a retype leaves another kind at the path.  The leaf of that kind
+         under the old path, else the leaf now at the path, else the first of the kind. *)
+      let kind (l : Pxui_shell.Layout.leaf) = Leader.scope l.panel = Leader.scope focus in
+      let rec under prefix path = match prefix, path with
+        | [], _ -> true | a :: p, b :: q -> a = b && under p q | _ :: _, [] -> false in
+      let first f = List.find_opt f g.leaves in
+      let ( <|> ) a b = match a with Some _ -> a | None -> b () in
+      Option.bind path (fun p -> first (fun l -> kind l && under p l.path))
+      <|> (fun () -> first (fun l -> Some l.path = path))
+      <|> (fun () -> Pxui_shell.Layout.find g focus)
+      <|> (fun () -> first kind)
 
 let panel_kind : Pxui_shell.Layout.panel -> string = function
   | View _ -> "viewport" | Graph -> "graph" | List -> "list" | Lisp -> "lisp"
@@ -3277,15 +3320,22 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | Some _ as path -> path
       | None -> List.find_map (fun (path, p) -> if p = focus then Some path else None)
                   (Editor_core.Panels.leaves (shell_tree value workspace)) in
+    (* the tabs standing at a header's end, outermost first: a graph panel's Graph / List / Text,
+       then a text view's Selection / Graph / Document.  [Pxui_shell.Chrome.header_slots] places
+       them and cuts the title, so a narrow header drops the text tabs, then the views, and never
+       draws one over another *)
+    let header_groups (leaf : Pxui_shell.Layout.leaf) =
+      let text = match text_host, text_shown with
+        | Some (_, path, _, _), Some shown when path = leaf.path -> Some (text, shown)
+        | _ -> List.find_map (fun (_, path, state, shown) ->
+            if path = leaf.path then Some (state, shown) else None) other_texts in
+      (if leaf.panel = Graph then [ Pxui.Ui.text_width ui "GraphListText" +. 24. ] else [])
+      @ Option.to_list (Option.map (fun (state, shown) ->
+          Text_pane.tabs_width ui ~width:(let _, _, w, _ = leaf.body in w) state shown) text) in
+    let header_slots (leaf : Pxui_shell.Layout.leaf) =
+      fst (Pxui_shell.Chrome.header_slots leaf (header_groups leaf)) in
     let intents = Pxui_shell.Chrome.update ~state:(panel_state value) ~hidden:workspace.hidden ~title:(panel_title vw)
-        ~reserve:(fun (leaf : Pxui_shell.Layout.leaf) ->
-          (* the tabs standing at a header's end: a window's dock and close, or the collapse button, then
-             the pane's own *)
-          let tabs labels = List.fold_left (fun w s -> w +. 12. +. Pxui.Ui.text_width ui s) (-12.) labels +. 8. in
-          match leaf.panel with
-          | Lisp -> tabs [ "Selection"; "Graph"; "Document" ]
-          | Graph | List -> tabs [ "Graph"; "List"; "Text" ]
-          | _ -> 0.)
+        ~groups:header_groups
         ~key_of:(fun id -> match List.find_opt (fun (c : Leader.command) -> c.id = id) keymap with
           | Some { trigger = Some trigger; _ } -> Editor_core.Keymap.label trigger | _ -> "")
         ?focus:header_focus (shell_tree value workspace) ui shortcut_frame in
@@ -3335,12 +3385,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
      | _ -> ());
     (match graph_host with
      | Some leaf when has_panel vw Pxui_shell.Layout.Graph ->
-         let hx, hy, hw, hh = leaf.header in
+         let _, hy, _, hh = leaf.header in
          let active = match projection vw with Graph_view -> 0 | List_view -> 1 | Text_view -> 2 in
          (* 12 apart, 8 and the 20-point collapse button from the edge (a window: dock and close) *)
-         (match fst (Pxui_shell.Kit.segments ui ~key:"workspace-view"
-                       ~right:(float (hx + hw - (if leaf.floating then 64 else 36)))
-                       ~y:(float hy +. float (hh - 20) /. 2.) [ "Graph"; "List"; "Text" ] active) with
+         (match Option.bind (List.nth_opt (header_slots leaf) 0) (fun slot -> Option.bind slot (fun right ->
+            fst (Pxui_shell.Kit.segments ui ~key:"workspace-view" ~right
+                   ~y:(float hy +. float (hh - 20) /. 2.) [ "Graph"; "List"; "Text" ] active))) with
           | Some i -> view_pick := Some (List.nth [ Graph_view; List_view; Text_view ] i)
           | None -> ())
      | _ -> ());
@@ -3390,14 +3440,19 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     let graph_root = match Option.bind graph_host (fun (l : Pxui_shell.Layout.leaf) -> root_at l.path) with
       | Some (_, box) -> box | None -> none_root () in
     let active = active_view vw g in
+    (* What is painted over a view stays in its pane: the box the marks are drawn in fills a
+       clipping one ([Ui.clip] binds a box's children, not its own paint), so a bracket, a label
+       or a frame that runs past the pane's edge is cut there and never lies on its neighbour. *)
+    let view_layer ui (bx, by, bw, bh) key =
+      let pane = Pxui.Ui.box ui ~flags:Pxui.Ui.clip ~w:(Pxui.Ui.Px (float bw)) ~h:(Pxui.Ui.Px (float bh))
+          ~at:(float bx, float by) key in
+      Pxui.Ui.within ui pane (fun () -> Pxui.Ui.box ui ~w:Pxui.Ui.Grow ~h:Pxui.Ui.Grow "marks") in
     (* the iteration the selected node shows, over the viewport's lower left corner *)
     (match probe_caption vw, active with
      | Some text, Some (leaf : Pxui_shell.Layout.leaf) ->
-         let x, y, _, h = leaf.body in
-         let box = Pxui.Ui.box ui ~w:(Pxui.Ui.Px 320.) ~h:(Pxui.Ui.Px 16.)
-             ~at:(float (x + 12), float (y + h - 24)) "viewport-caption" in
          (* a label on the ground, like every readout over the view *)
-         Pxui.Ui.draw ui box (fun paint (px, py, _, _) ->
+         Pxui.Ui.draw ui (view_layer ui leaf.body "viewport-caption") (fun paint (x, y, _, h) ->
+           let px = x +. 12. and py = y +. h -. 24. in
            let theme = Pxui.Ui.theme ui in
            Pxui.Ui.Paint.fill paint ~x:(px -. 4.) ~y:py ~w:(Pxui.Ui.Paint.cap_width paint text +. 8.) ~h:16. theme.panel;
            Pxui.Ui.Paint.cap paint ~at:(px, py +. 2.) text)
@@ -3432,9 +3487,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | _ -> ()) roots;
     List.iter (fun ((leaf : Pxui_shell.Layout.leaf), _) -> match leaf.panel with
       | View key when (let _, _, w, h = leaf.body in w > 320 && h > 160) ->
-          let bx, by, bw, bh = leaf.body in
-          let overlay = Pxui.Ui.box ui ~flags:Pxui.Ui.clip ~w:(Pxui.Ui.Px (float bw)) ~h:(Pxui.Ui.Px (float bh))
-              ~at:(float bx, float by) ("viewport-marks-" ^ key) in
+          let _, _, bw, _ = leaf.body in
+          let overlay = view_layer ui leaf.body ("viewport-marks-" ^ key) in
           let gate = List.assoc_opt key value.gates in
           let box = match value.selected_box with Some (k, rect, name) when k = key -> Some (rect, name) | _ -> None in
           let root : Objects.Root.parameters = Option.fold ~none:value.doc.Document.root
@@ -3467,10 +3521,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                a 20-point count over a 4-point bar, the film as a label; 4 apart, on the ground *)
             Option.iter (fun (t : trace) ->
               if w > 200. && h > 120. then begin
-                let ox = x +. (if narrow then 8. else 12.) and oy = y +. (if narrow then 8. else 12.) in
+                (* the readout's ground stands 8 clear of its text and bar on both sides *)
+                let fx = x +. (if narrow then 8. else 12.) and oy = y +. (if narrow then 8. else 12.) in
+                let ox = fx +. 8. in
                 let title = Pxui.Ui.font_size ui * Pxui.Theme.title_size / Pxui.Theme.font_size in
                 let bar_w = if narrow then 112. else Float.min 224. (w -. 24.) in
-                P.fill paint ~x:ox ~y:oy ~w:(if narrow then bar_w else bar_w +. 8.) ~h:((3. *. rh) +. 24.) theme.panel;
+                P.fill paint ~x:fx ~y:oy ~w:(bar_w +. 16.) ~h:((3. *. rh) +. 24.) theme.panel;
                 let tw = label paint ~x:ox ~y:oy ~color:theme.foreground "Path traced" in
                 if not narrow then
                   ignore (P.cap paint ~at:(ox +. tw +. 6., cap_y oy) ~color:(Pxui.Theme.ink_2 theme) "Metal RT");
@@ -3605,8 +3661,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           Pxui.Ui.within ui root (fun () ->
             Text_pane.view ui ~bounds:leaf.body
               (* a graph panel in text view keeps its Graph / List / Text at the header's end *)
-              ~tabs_inset:((if leaf.floating then 64. else 36.)
-                           +. (if leaf.panel = Graph then Pxui.Ui.text_width ui "GraphListText" +. 24. +. 8. else 0.))
+              ~tabs_right:(Option.join (List.nth_opt (List.rev (header_slots leaf)) 0))
               ~vocab:(Lazy.force value.lisp_vocab) ~names:(Lazy.force names) state shown)
       | None -> [] in
     let text_intents = match text_shown, text_host with
@@ -3961,6 +4016,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | Some index when index >= latest -> index, target
       | _ -> latest, focus) (-1, (focus, focus_path)) pane_roots
       |> snd in
+    (* a focus whose leaf an edit split, retyped or moved follows it, so the next panel key acts *)
+    let focus, focus_path = match focus_path with
+      | None -> focus, focus_path
+      | Some _ -> (match focused_leaf (geometry value workspace frame) focus focus_path with
+          | Some leaf -> leaf.panel, Some leaf.path
+          | None -> focus, focus_path) in
     let pane_keys = List.map (fun (target, box) -> Pxui.Ui.key box, target) pane_roots in
     (* The gutters last, on top of every pane's hit area: a drag applies from the next frame. *)
     let grips = Pxui_shell.Chrome.splitters ~state:(panel_state value) ~hidden:workspace.hidden (shell_tree value workspace) ui
@@ -4412,8 +4473,15 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                  { l with display = M.remove [ graph ] l.display }) in
                doc, { (result : _ frame_result) with label = "View node"; edit_error = None;
                  effects = Parameter.union_effects result.effects Doc.cook_effects }, probes
-           | _ ->
-               next, { (result : _ frame_result) with edit_error = Some "A node inside a loop cannot be the result" }, probes)
+           | graph :: _ ->
+               (* a node inside a loop cannot be the graph's result: the layout marks it as the one shown,
+                  at the iteration the selectors probe; v on it again goes back to the result *)
+               let doc = Doc.layout_edit next (fun l -> { l with display =
+                 if M.find_opt [ graph ] l.display = Some path then M.remove [ graph ] l.display
+                 else M.add [ graph ] path l.display }) in
+               doc, { (result : _ frame_result) with label = "View node"; edit_error = None;
+                 effects = Parameter.union_effects result.effects Doc.cook_effects }, probes
+           | [] -> next, result, probes)
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ | Defn_requested _
       | Copy_requested _ | Paste_requested | Menu_requested _ | Activated _ | Drop_over _ | Dropped _ ->
           next, result, probes)

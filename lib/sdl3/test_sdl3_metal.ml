@@ -7,6 +7,23 @@ let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a"
 let rec drain_events () = match get (Event.poll_coalesced ()) with
   | [] -> () | _ :: _ -> drain_events ()
 
+external post_scroll : int -> int -> unit = "caml_sdl3_test_post_scroll"
+
+(* a trackpad gesture posted as AppKit delivers it reaches the poll with its phases and its points *)
+let scroll_phases () =
+  drain_events ();
+  List.iter (fun (points, phase) -> post_scroll points phase) [ 0, 1; -7, 2; 0, 4 ];
+  let deadline = Unix.gettimeofday () +. 5. in
+  let rec collect seen =
+    let seen = seen @ List.filter_map (function
+      | Event.Scroll { y; phase; _ } -> Some (phase, y) | _ -> None) (get (Event.poll_coalesced ())) in
+    if List.length seen >= 3 || Unix.gettimeofday () >= deadline then seen
+    else (System_thread.delay 0.01; collect seen) in
+  match collect [] with
+  | [ Event.Scroll_began, _; Event.Scroll_changed, y; Event.Scroll_ended, _ ] when Float.abs y = 7. -> ()
+  | seen -> fail (Printf.sprintf "the trackpad monitor delivered %d of 3 phased scrolls%s" (List.length seen)
+      (String.concat "" (List.map (fun (_, y) -> Printf.sprintf " %.1f" y) seen)))
+
 let run () =
   if Sys.os_type <> "Unix" || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
   then Printf.printf "SDL3 Metal bridge skipped on this platform\n%!"
@@ -44,6 +61,9 @@ let run () =
     get (Window.set_resizable window false);
     get (Window.set_resizable window true);
     get (Window.center window);
+    (* the title bar's ground: the Cocoa calls run on a real NSWindow here *)
+    get (Window.set_background window ~red:0.95 ~green:0.95 ~blue:0.93);
+    scroll_phases ();
     List.iter (fun shape ->
       let cursor = get (Cursor.create shape) in
       get (Cursor.set cursor);

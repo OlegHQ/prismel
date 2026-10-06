@@ -667,7 +667,10 @@ let view state ui ~bounds:(x, y, w, h) p =
       let y = by +. 6. +. ((track -. thumb) *. Float.min 1. (Float.max 0. (scroll /. Float.max 1. (content -. bh)))) in
       Ui.Paint.fill paint ~x:(bx +. bw -. 6.) ~y ~w:4. ~h:thumb (Pxui.Theme.border theme)
     end);
-  (* the sliders of the inputs, over their rows *)
+  (* the sliders of the inputs, over their rows: a drag scrubs and Option-click types, as every
+     numeric field of the kit; a double click on the row's name types too, as an inspector row's
+     label does (the field itself keeps its drag) *)
+  let typed_row = if signal.double_clicked then row_at signal.press_point else None in
   Array.iteri (fun k row -> match row with
     | Input_row { graph; name; integer; value } ->
         let ry = top +. tops.(k) -. scroll in
@@ -681,7 +684,9 @@ let view state ui ~bounds:(x, y, w, h) p =
             | Some o -> show (o +. dx *. 0.01 *. Float.max 1. (Float.abs o) *. (if shift then 0.1 else 1.)) in
           let text = show value in
           let changed, _ = Ui.value_field ui ~at:(x +. 20. +. label_w, ry +. 2.) ~w:(w -. 32. -. label_w) ~h:20.
-              ~scrub ~valid:(fun t -> float_of_string_opt t <> None)
+              ~scrub ~edit:(typed_row = Some k)
+              ~valid:(fun t -> match float_of_string_opt t with
+                | Some v -> Float.is_finite v && (not integer || Float.is_integer v) | None -> false)
               ("navigator-input-" ^ graph ^ "-" ^ name) text in
           if changed <> text then
             Option.iter (fun v -> emit (Set_default { graph; input = name; value = v; integer }))

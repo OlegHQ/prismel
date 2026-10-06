@@ -87,9 +87,11 @@ module type VIEWPORT = sig
   (** The screen rectangle of a box in [world] space, when all of it is in front of the view:
       where the selected object's brackets go. *)
   val guides : scene:Edit_graph.t -> selected:Node.t option -> space:Mat4.t ->
-    view -> extra -> bounds:Pxui_shell.Layout.bounds -> Scene.t
+    view -> extra -> pane:Pxui_shell.Layout.bounds -> bounds:Pxui_shell.Layout.bounds -> Scene.t
   (* Editor-only lines over the view (cameras, lights, axes, handles), screen
-     space. [space] is the transform the selected node's parameters live in. *)
+     space, projected into [bounds] (the rectangle the view is drawn in, {!film}); the axis
+     gizmo stands in the [pane]'s corner. [space] is the transform the selected node's
+     parameters live in. *)
 
   val handles : Pxui.Ui.t -> selected:Node.t option -> scene:Edit_graph.t ->
     space:Mat4.t -> view -> extra -> bounds:Pxui_shell.Layout.bounds ->
@@ -678,8 +680,9 @@ module Make (V : VIEWPORT) = struct
     let camera_panel () = V.panel ui ~control:value.control ~camera:value.camera
         ~extra ~inspector in
     let view_handles ui ~selected ~space ~bounds =
+      (* a handle is where the picture shows its point: in the view's film, not its pane *)
       V.handles ui ~selected ~scene:(Core.scene value.core) ~space (view_camera value)
-        extra ~bounds in
+        extra ~bounds:(V.film extra ~key:(focus_key value) bounds) in
     let update = Core.update value.core ~all_ui_visible:visible
         ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel ~view_handles
         ~render_status:(match value.status (Core.prepared value.core), value.render_status with
@@ -901,7 +904,8 @@ module Make (V : VIEWPORT) = struct
       ~guides:(fun bounds -> if value.core.Core.map_view then [] else
         V.guides ~scene:(Core.scene value.core)
         ~selected:(Core.selected_node value.core) ~space:(Core.space value.core)
-        (view_camera value) value.extra ~bounds)
+        (view_camera value) value.extra ~pane:bounds
+        ~bounds:(V.film value.extra ~key:(focus_key value) bounds))
       ~cache:value.hidden_scene_cache value.core frame
 
   (* A crash report's editor part: the document as a loadable preset and a

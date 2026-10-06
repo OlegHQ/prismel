@@ -643,8 +643,8 @@ val value_field : t -> at:float * float -> w:float -> h:float ->
   ?lead:string * Rays.Color.t -> ?trail:string * Rays.Color.t -> ?line:Rays.Color.t ->
   ?bare:bool -> ?placeholder:string -> ?tracking:float -> valid:(string -> bool) ->
   string -> string -> string * bool
-(** Compact field. Numeric sliders follow the pointer with [slide]; Option-click
-    or [edit] opens text entry. [scrub] handles fields without a track.
+(** Compact field. Numeric sliders follow the pointer with [slide]; Option-click, a
+    double-click or [edit] opens text entry. [scrub] handles fields without a track.
     [left] aligns text values to the left (default false for numeric fields).
     [lead] and [trail] frame the value at the left and right with 6 points between (an
     expression's ƒ and its live value); [line] is the idle hairline's colour (an expression's port

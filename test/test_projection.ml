@@ -272,7 +272,13 @@ let pins () =
   check (P.row_shown ~pin:true group) "a pin shows it";
   check (not (on_card (fun _ -> None))) "the card leaves it out";
   check (on_card (fun label -> if label = "group" then Some true else None)) "a pinned row is on the card";
-  check (P.row_shown count && not (P.row_shown ~pin:false count)) "a pin of false takes a written row off the card"
+  check (P.row_shown count && not (P.row_shown ~pin:false count)) "a pin of false takes a written row off the card";
+  (* what the text says is drawn: a default written out stays on the card *)
+  let radius w = List.find (fun (r : P.row) -> r.label = "radius") (node w "g" [ "s" ]).rows in
+  let bare = radius (workspace_of "(workspace w (graph g :context sop (let* [s (sop/uv_sphere)] (sop/merge s))))") in
+  let written = radius (workspace_of (Printf.sprintf
+    "(workspace w (graph g :context sop (let* [s (sop/uv_sphere :radius %s)] (sop/merge s))))" (Option.get bare.default))) in
+  check (not (P.row_shown bare) && P.row_shown written) "a written default is not on the card"
 
 let run () =
   pins ();

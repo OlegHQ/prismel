@@ -42,7 +42,8 @@
 keys are the binding's `Sdl3.Key.t` (the keycode is mapped once, in the stubs),
 zero or negative sizes a minimizing window reports are dropped, `Occluded`,
 `Hidden` and `Minimized` are `Visibility_changed false`, only a pinch update
-carries a zoom factor, and a drag over the window, a dropped file and a finished
+carries a zoom factor, a phased trackpad scroll is `Scroll` beside the `Wheel` SDL makes of it
+(only `Wheel` feeds `wheel_delta`), and a drag over the window, a dropped file and a finished
 file dialog are `File_dragged`, `File_dropped` and `Dialog_closed`. The pump
 returns the first rejected event as an error and still delivers the rest;
 `Sketch` fails loudly on it.

@@ -518,14 +518,6 @@ let value_card (n : node) =
 
 type line = Folder of int * string | Row of int * row | More of int
 
-(* is the written literal the schema's own default (numbers compare as numbers)? *)
-let is_default (r : row) = match r.expr, r.default with
-  | Some { S.node = S.Num a; _ }, Some d ->
-      (match float_of_string_opt a, float_of_string_opt d with
-       | Some a, Some d -> a = d | _ -> a = d)
-  | Some e, Some d -> Flow.Lisp.flat e = d
-  | _ -> false
-
 let driven (r : row) = match r.chip with
   | Name _ | Inline _ -> true
   | _ -> sources r <> []
@@ -537,7 +529,7 @@ let row_shown ?pin (r : row) =
   | Add -> false
   | Arg | Group_reader | Group_writer ->
       Exposure.shown { slot = false; driven = driven r; pin;
-                       differs = r.expr <> None && not (is_default r); primary = false }
+                       differs = r.expr <> None; primary = false }
 
 (* the body of a card at a level: what its rows are, in order.  The header slot is not a row. *)
 let lines ?(pin = fun _ -> None) level (n : node) : line array =

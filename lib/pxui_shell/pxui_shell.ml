@@ -451,7 +451,21 @@ module Chrome = struct
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
-  let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel) ?(reserve = fun (_ : leaf) -> 0.)
+  (* The one layout of a header's right end: the groups of tabs standing there, outermost first and
+     [widths] wide, end 8 points apart before the collapse button (a window's dock and close).  The
+     right edge of each, and where the title must end.  The title gives way first (its
+     breadcrumb, then its label and the focus square: tabs are how a pane is used, the title only
+     names it); a group that would not fit in the header is left out, with those after it. *)
+  let header_slots (l : leaf) widths =
+    let x, _, w, _ = l.header in
+    let left = float x +. 4. in
+    let right = ref (float (x + w) -. (if l.floating then 64. else 36.)) and fits = ref true in
+    let slots = List.map (fun width ->
+      fits := !fits && !right -. width >= left;
+      if !fits then (let at = !right in right := at -. width -. 8.; Some at) else None) widths in
+    slots, !right
+
+  let update ?(state = fun _ -> Editor_core.Panels.default_state) ?(hidden = [ Timeline ]) ?(title = fun (l : leaf) -> Editor_core.Panels.name l.panel) ?(groups = fun (_ : leaf) -> [])
       ?(key_of = fun _ -> "") ?focus tree ui (frame : Frame.t) =
     let module Ui = Pxui.Ui in
     let geometry = geometry ~state ~hidden tree frame in
@@ -637,14 +651,20 @@ module Chrome = struct
         if w >= 60. then begin
           let tx = ref (x +. 12.) in
           (* the accent square marks the focused pane, docked or floating *)
+          (* the title ends before what follows it: the pane's tabs, then the window's tools; a
+             square or a label with no room is left out whole, and the breadcrumb with it *)
+          let limit = snd (header_slots l (groups l)) in
           if focused then begin
-            Ui.Paint.fill paint ~x:!tx ~y:(y +. (h /. 2.) -. 3.) ~w:6. ~h:6. theme.accent; tx := !tx +. 12.
+            if !tx +. 6. <= limit then
+              Ui.Paint.fill paint ~x:!tx ~y:(y +. (h /. 2.) -. 3.) ~w:6. ~h:6. theme.accent;
+            tx := !tx +. 12.
           end;
-          Ui.Paint.cap paint ~at:(!tx, Kit.cap_y ui y h) ~color:(if focused then theme.foreground else ink_2) main;
+          let labelled = !tx +. Ui.Paint.cap_width paint main <= limit in
+          let limit = if labelled then limit else !tx in
+          if labelled then
+            Ui.Paint.cap paint ~at:(!tx, Kit.cap_y ui y h) ~color:(if focused then theme.foreground else ink_2) main;
           tx := !tx +. Ui.Paint.cap_width paint main +. 8.;
           let ty = Kit.text_y ui y h in
-          (* the title ends before what follows it: the pane's tabs, then the window's tools *)
-          let limit = x +. w -. (if l.floating then 64. else 36.) -. reserve l in
           let cut ?size part = Ui.ellipsis ~width:(Ui.Paint.text_width paint ?size) ~limit:(Float.max 0. (limit -. !tx)) part in
           let put color part = let part = cut part in
             if part <> "" then Ui.Paint.text paint ~at:(!tx, ty) ~color part;
@@ -653,6 +673,17 @@ module Chrome = struct
             | [] -> ()
             | [ last ] -> put (if has_crumbs sub then theme.foreground else ink_2) last
             | part :: rest -> put ink_2 part; put ink_3 "/"; crumbs rest in
+          (* a path too long for its room loses its head, not its subject: "… / sop" *)
+          let rec fitted parts =
+            let row = List.fold_left (fun w part -> w +. Ui.Paint.text_width paint part +. 8.)
+                (float (List.length parts - 1) *. (Ui.Paint.text_width paint "/" +. 8.) -. 8.) parts in
+            let over = row > limit -. !tx and dots = "\xe2\x80\xa6" in
+            match parts with
+            | [ head; last ] when over && head = dots -> [ last ]
+            | head :: _ :: (_ :: _ as rest) when over && head = dots -> fitted (dots :: rest)
+            | _ :: (_ :: _ as rest) when over -> fitted (dots :: rest)
+            | parts -> parts in
+          let crumbs parts = crumbs (fitted parts) in
           (* a window's title row: the path is one string in ink-2 at the label size *)
           if sub <> "" && l.floating && not collapsed then begin
             (* the subject follows the kind, 8 points on (windows.html's title row) *)
@@ -1786,14 +1817,17 @@ module Tree = struct
         List.iteri (fun column value ->
           let cx = columns_x +. (float_of_int column *. flag_width) +. 6.
           and cy = row_y +. (height /. 2.) in
-          Ui.Paint.flag paint ~at:(cx, cy) ~round:(column > 0) value) row.flags;
-        (* the sheet's brackets: 4 points out of the fill, which is 6 in from the list's edge *)
-        if selected then Ui.Paint.brackets paint ~x:(x +. 6.) ~y:row_y ~w:(w -. 12.) ~h:height
-          ~offset:4. ~length:8. theme.accent in
+          Ui.Paint.flag paint ~at:(cx, cy) ~round:(column > 0) value) row.flags in
       for k = first to last do
         draw_row k (top +. float_of_int k *. height -. scroll)
       done;
+      (* the sheet's brackets: 4 points out of the fill, which is 6 in from the list's edge; after
+         every row, since they reach into the rows above and below, whose ground would cover them *)
+      let mark k row_y = if is_selected (at k).id then
+        Ui.Paint.brackets paint ~x:(x +. 6.) ~y:row_y ~w:(w -. 12.) ~h:height ~offset:4. ~length:8. theme.accent in
+      for k = first to last do mark k (top +. float_of_int k *. height -. scroll) done;
       List.iteri (fun slot k -> draw_row k (top +. float_of_int slot *. height)) sticky;
+      List.iteri (fun slot k -> mark k (top +. float_of_int slot *. height)) sticky;
       if sticky <> [] then
         Ui.Paint.fill paint ~x ~y:(top +. float_of_int (List.length sticky) *. height) ~w ~h:1.
           (Pxui.Theme.edge theme);

@@ -272,6 +272,81 @@ let with_scale scale =
   if Ui.scroll_offset ui parent <> 80. then
     fail (label "negative wheel scroll did not move the view down");
 
+  (* A trackpad (Event.TrackpadScrolled, each motion with the wheel steps SDL makes of it): the
+     fingers move the content point for point, a lift in motion coasts to rest, an edge is
+     overshot and returned to, a stretch is held until the lift, and content that fits stays. *)
+  let pad ?(content = 2000.) ?(start = 0.) ~dt () =
+    let ui = Ui.create ~font_size:11 () and clock = ref 100. in
+    let step events =
+      clock := !clock +. dt;
+      Ui.frame ui (frame ~scale ~time:!clock events) (fun ui ->
+        let parent = Ui.box ui ~flags:Ui.(scroll + clip) ~at:(0., 0.)
+            ~w:(Ui.Px 100.) ~h:(Ui.Px 80.) ~scroll_step:24. "pad" in
+        Ui.within ui parent (fun () ->
+          ignore (Ui.box ui ~w:(Ui.Px 100.) ~h:(Ui.Px content) "long"));
+        parent) in
+    let parent = step [move (50, 40)] in
+    Ui.set_scroll_offset ui parent start;
+    ignore (step [Event.TrackpadScrolled { delta = (0., 0.); phase = Touched; time = 5. }]);
+    ui, step in
+  let finger time dy =
+    [Event.TrackpadScrolled { delta = (0., dy); phase = Moved; time };
+     Event.MouseScrolled (0., dy *. 0.1)] in
+  let lifted = [Event.TrackpadScrolled { delta = (0., 0.); phase = Lifted; time = 5.04 }] in
+  (* the same flick at two frame rates: 625 points a second at the lift *)
+  let glide dt =
+    let pad_ui, flick = pad ~dt () in
+    ignore (flick (finger 5.016 (-10.)));
+    let parent = flick (finger 5.032 (-10.)) in
+    if Ui.scroll_offset pad_ui parent <> 20. then
+      fail (label "trackpad fingers did not move the content point for point");
+    let previous = ref 20. and stride = ref Float.infinity and parent = ref (flick lifted) in
+    for _ = 1 to int_of_float (3. /. dt) do
+      parent := flick [];
+      let offset = Ui.scroll_offset pad_ui !parent in
+      (* a pixel of slack: the coast is snapped to device pixels *)
+      if offset < !previous || offset -. !previous > !stride +. 1. then
+        fail (label "trackpad coast did not slow down monotonically");
+      stride := offset -. !previous; previous := offset
+    done;
+    if !stride <> 0. || Ui.scroll_position pad_ui !parent <> !previous then
+      fail (label "trackpad coast did not come to rest");
+    !previous in
+  let slow = glide (1. /. 60.) and fast = glide (1. /. 120.) in
+  if slow < 150. || slow > 185. then fail (label "trackpad coast went the wrong distance");
+  if Float.abs (slow -. fast) > 2. then fail (label "trackpad coast depends on the frame rate");
+  (* a flick into the top edge overshoots it and returns to it exactly *)
+  let pad_ui, flick = pad ~start:20. ~dt:(1. /. 60.) () in
+  ignore (flick (finger 5.016 10.));
+  ignore (flick (finger 5.032 10.));
+  let parent = ref (flick lifted) and deepest = ref 0. in
+  for _ = 1 to 120 do
+    parent := flick [];
+    deepest := Float.min !deepest (Ui.scroll_position pad_ui !parent)
+  done;
+  if !deepest > -1. || !deepest < -80. then fail (label "trackpad coast did not bounce off the edge");
+  if Ui.scroll_position pad_ui !parent <> 0. || Ui.scroll_offset pad_ui !parent <> 0. then
+    fail (label "trackpad bounce did not settle on the edge");
+  (* a pull past the edge is held while the fingers rest and springs back when they lift *)
+  let pad_ui, flick = pad ~dt:(1. /. 60.) () in
+  ignore (flick (finger 5.016 200.));
+  let parent = ref (flick []) in
+  for _ = 1 to 60 do parent := flick [] done;
+  if Ui.scroll_position pad_ui !parent >= -1. then fail (label "held trackpad stretch let go");
+  parent := flick lifted;
+  for _ = 1 to 60 do parent := flick [] done;
+  if Ui.scroll_position pad_ui !parent <> 0. then fail (label "trackpad stretch did not spring back");
+  (* content shorter than the box neither scrolls, stretches nor coasts *)
+  let pad_ui, flick = pad ~content:40. ~dt:(1. /. 60.) () in
+  ignore (flick (finger 5.016 (-30.)));
+  let parent = ref (flick (finger 5.032 30.)) in
+  let still () = Ui.scroll_position pad_ui !parent = 0. in
+  let ok = ref (still ()) in
+  parent := flick lifted; ok := !ok && still ();
+  parent := flick [Event.MouseScrolled (0., -3.)]; ok := !ok && still ();
+  for _ = 1 to 30 do parent := flick []; ok := !ok && still () done;
+  if not !ok then fail (label "content that fits moved under a scroll");
+
   (* A pinch goes where the wheel goes: to the scrollable box under the pointer,
      its factors multiplied within a frame, and nowhere else. *)
   let ui = Ui.create ~font_size:11 () in
@@ -367,6 +442,25 @@ let with_scale scale =
   step ui [] build;
   if !short <> "x" || !long <> "long text" then
     fail (label "unfocused short field reused the longer field caret");
+  Ui.destroy ui;
+
+  (* a scrub field (a number dragged sideways) opens for typing on a double-click *)
+  let number = ref "240" and typing = ref false in
+  let build ui =
+    let value, open_ = Ui.value_field ui ~at:(20., 20.) ~w:100. ~h:21.
+      ~scrub:(fun origin _ _ -> origin) ~valid:(fun _ -> true) "scrub-field" !number in
+    number := value; typing := open_ in
+  let ui = Ui.create ~font_size:11 () in
+  let clock = ref 0. in
+  let tick events = clock := !clock +. 0.05; ignore (Ui.frame ui (frame ~scale ~time:!clock events) build) in
+  tick []; tick [move (60, 30)];
+  tick [press (60, 30); release (60, 30)];
+  if !typing then fail (label "one click on a scrub field opened typing");
+  tick [press (60, 30); release (60, 30)]; tick [];
+  if not !typing then fail (label "a double-click on a scrub field did not open typing");
+  tick [Event.KeyPressed (Input.KeyChar 'a'); Event.TextInput "99"]; tick [Event.KeyPressed Input.Enter]; tick [];
+  if !typing || not (String.ends_with ~suffix:"99" !number) then
+    fail (label ("typing in a scrub field did not commit: " ^ !number));
   Ui.destroy ui;
 
   let long_value = "abcdefghijklmnopqrstuvwxyz0123456789" in

@@ -1,5 +1,9 @@
 (** Input events delivered, in order, through [Frame.events]. *)
 
+(** Where a trackpad scroll gesture is: the fingers touched, moved, lifted, or
+    the system is sending its own inertia after the lift. *)
+type scroll_phase = Touched | Moved | Lifted | Momentum
+
 type t =
   | KeyPressed of Input.key
   | KeyReleased of Input.key
@@ -20,6 +24,13 @@ type t =
   | WindowResized of (int * int)                             (* new width and height *)
   | WindowFocusLost
   | WindowClosed                                             (* user attempted to close *)
+  | TrackpadScrolled of { delta : float * float; phase : scroll_phase; time : float }
+      (** macOS: a trackpad (or Magic Mouse) scroll as the system phases it.
+          [delta] is in points with [MouseScrolled]'s directions and [time] is
+          the event's own clock in seconds, for velocities. Every one that moves
+          is also delivered as a [MouseScrolled] of a tenth of [delta] in the same
+          frame, so code that reads only [MouseScrolled] sees what it always
+          did; code that reads these ignores that frame's [MouseScrolled]. *)
 
 module Private : sig
   val key_of_runtime : Runtime_input.key -> Input.key

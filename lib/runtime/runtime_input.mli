@@ -11,6 +11,9 @@ type key = Sdl3.Key.t =
   | Home | End | Page_up | Page_down | Insert | Delete
   | Unknown of int
 
+type scroll_phase = Sdl3.Event.scroll_phase =
+  | Scroll_began | Scroll_changed | Scroll_ended | Scroll_momentum
+
 type modifier = Sdl3.Key.modifier =
   | Shift_held | Control_held | Alt_held | Meta_held
   | Num_lock | Caps_lock | Scroll_lock
@@ -23,6 +26,9 @@ type event =
   | Pointer_released of mouse_button * float * float
   | Pointer_cancelled of mouse_button
   | Wheel of float * float
+  | Scroll of { x : float; y : float; phase : scroll_phase; seconds : float }
+      (** A phased trackpad scroll in points ([Sdl3.Event.Scroll]). Its motion
+          is also a [Wheel] of a tenth, which alone feeds [wheel_delta]. *)
   | Key_pressed of key_event
   | Key_released of key_event
   | Text_input of string

@@ -70,9 +70,13 @@ let close state = List.iter (fun slot -> Option.iter P.destroy slot.tracer) stat
 
 (* The film of a traced viewport: the root's resolution divided by 1, 2, 4 or 8, the largest that
    does not exceed the gate (in drawable pixels, the root's aspect fitted in the pane), the eighth
-   when even that is too big.  A pane resize changes the film only by crossing a step. *)
+   when even that is too big.  A pane resize changes the film only by crossing a step.
+   A viewport that is not looking [through] the render camera shows its own free view, not the
+   render: its film is its rectangle, pixel for pixel, so the picture has the pane's aspect and
+   lies where the raster one does. *)
 let film_steps = [ 1; 2; 4; 8 ]
-let film ~resolution:(width, height) ~gate:(gate_width, gate_height) =
+let film ~through ~resolution:(width, height) ~gate:(gate_width, gate_height) =
+  if not through then (max 1 gate_width, max 1 gate_height), 1 else
   let step = Option.value ~default:8 (List.find_opt (fun step ->
     width / step <= gate_width && height / step <= gate_height) film_steps) in
   (max 1 (width / step), max 1 (height / step)), step

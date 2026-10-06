@@ -80,6 +80,10 @@ module Window : sig
   val center : t -> (unit, error) result
   val set_size : t -> width:int -> height:int -> (unit, error) result
   val set_resizable : t -> bool -> (unit, error) result
+  val set_background : t -> red:float -> green:float -> blue:float -> (unit, error) result
+  (* macOS: the NSWindow background (sRGB, 0..1). Every window is created
+     with its title hidden and a transparent title bar, so this is the colour
+     behind the traffic lights. Nothing happens on another video driver. *)
   val set_relative_mouse : t -> bool -> (unit, error) result
   val presentation_facts : t -> vsync:bool -> (presentation_facts, error) result
   val show : t -> (unit, error) result
@@ -148,6 +152,7 @@ module Event : sig
   type mouse_button = Left | Middle | Right | X1 | X2
   type wheel_direction = Normal | Flipped
   type pinch_phase = Began | Updated | Ended
+  type scroll_phase = Scroll_began | Scroll_changed | Scroll_ended | Scroll_momentum
 
   type window_change =
     | Shown
@@ -205,6 +210,14 @@ module Event : sig
     | Drop of { change : drop_change; x : float; y : float }
     | Dialog of { id : int; outcome : dialog_outcome }
         (** a file dialog [Dialog.show] opened has finished *)
+    | Scroll of { x : float; y : float; phase : scroll_phase; seconds : float }
+        (** macOS: a trackpad scroll as AppKit phases it, which [Mouse_wheel]
+            cannot say. [x], [y] are points in [Mouse_wheel]'s directions and
+            [seconds] the event's own clock. [Scroll_began] is the fingers
+            touching, [Scroll_changed] their motion, [Scroll_ended] the lift and
+            [Scroll_momentum] the system's inertia after it. Every one that
+            moves also arrives as a [Mouse_wheel] of a tenth of it, in the same
+            poll. *)
 
   (** Drain the native queue without building a motion/resize flood. Pointer
       motion and each kind of window size event keep only the latest sample

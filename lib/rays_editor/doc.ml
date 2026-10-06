@@ -18,32 +18,24 @@ let relabel document ~node_id label = flow_result (Flow_sop.Network.relabel ~nod
    lower it into the document's objects.  Atomic: an error changes nothing. *)
 let syntax_edit_result ~factories (doc : Editor_document.Document.t) op =
   let ( let* ) = Result.bind in
-  let head (expr : Flow.Syntax.t) = match expr.node with
-    | Flow.Syntax.List ({ node = Flow.Syntax.Sym h; _ } :: _) -> h | _ -> "" in
-  (* an object or a layer added to a scene or World graph the document does not have yet: the
-     host's own objects are written out first *)
   let missing graph = not (List.exists (fun (g : Flow.Workspace.graph) -> g.name = graph)
     (fst doc.workspace).checked.graphs) in
-  let* doc = match op with
-    | Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; expr; _ }
-      when missing "scene" && String.starts_with ~prefix:"scene/" (head expr) ->
-        Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
-          (Editor_document.Scene_sync.adopt ~factories ~world:false doc)
-    | Add_node { scope = [ "world" ]; expr; _ }
-      when missing "world" && String.starts_with ~prefix:"world/" (head expr) ->
-        Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
-          (Editor_document.Scene_sync.adopt ~factories ~world:true doc)
-    (* an editor graph whose viewport shows the scene the host composes: written out first *)
-    | Set_graph { form; _ } when missing "scene" && (let rec refs (f : Flow.Syntax.t) = match f.node with
-        | Flow.Syntax.List [ { node = Sym "ref"; _ }; { node = Sym "scene"; _ } ] -> true
-        | _ -> List.exists refs (Flow.Syntax.children f) in refs form) ->
-        Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
-          (Editor_document.Scene_sync.adopt ~factories ~world:false doc)
-    | _ -> Ok doc in
-  let workspace, _ = doc.workspace in
-  let* catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories in
-  let* workspace = Editor_document.Workspace_doc.edit catalog workspace op in
-  Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace
+  let run (doc : Editor_document.Document.t) =
+    let* catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories in
+    let* workspace = Editor_document.Workspace_doc.edit catalog (fst doc.workspace) op in
+    Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace in
+  (* a gesture on the scene or the World the host composes (the text has no such graph yet, so
+     the edit finds nothing to change): the host's own objects are written out first, and the
+     gesture is tried on that text.  Kept only when it then checks. *)
+  let adopted ~world = Result.bind (Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
+    (Editor_document.Scene_sync.adopt ~factories ~world doc)) run in
+  match run doc with
+  | Ok _ as done_ -> done_
+  | Error _ as refused ->
+      let retry = List.filter_map (fun (graph, world) ->
+        if missing graph then Result.to_option (adopted ~world) else None)
+        [ "scene", false; "world", true ] in
+      (match retry with doc :: _ -> Ok doc | [] -> refused)
 
 let syntax_edit ~factories (doc : Editor_document.Document.t) op =
   Result.map_error Flow.Diagnostic.to_string (syntax_edit_result ~factories doc op)
