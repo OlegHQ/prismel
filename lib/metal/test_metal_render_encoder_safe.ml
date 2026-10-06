@@ -51,7 +51,6 @@ let run () =
             ~usage:[ Texture.Shader_read ] ~format:Texture.Rgba8_unorm
             ~width:1 ~height:1 ()))
   in
-  let sampler = get (Sampler.create ~device (Sampler.default ())) in
   expect Invalid_argument
     (Render_encoder.set_viewport encoder
        { x = 0.; y = 0.; width = 9.; height = 8.; znear = 0.; zfar = 1. });
@@ -60,6 +59,4 @@ let run () =
   expect Invalid_argument
     (Render_encoder.set_vertex_texture encoder ~index:31 sampled);
   expect Invalid_state
-    (Render_encoder.draw_primitives encoder ~primitive:Render_encoder.Point ~first:0 ~count:1 ());
-  expect Invalid_argument
-    (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler)
+    (Render_encoder.draw_primitives encoder ~primitive:Render_encoder.Point ~first:0 ~count:1 ())

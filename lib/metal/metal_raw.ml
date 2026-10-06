@@ -54,8 +54,6 @@ let indirect_render_command_set_pipeline =
   Registry.indirect_render_command_set_pipeline
 let function_name raw = get (Registry.function_name raw)
 let function_kind raw = Int64.to_int (get (Registry.function_kind raw))
-let dynamic_library_install_name raw =
-  get (Registry.dynamic_library_install_name raw)
 let compute_pipeline_create = Registry.compute_pipeline_create
 let compute_pipeline_max_total_threads raw =
   Int64.to_int (get (Registry.compute_pipeline_max_total_threads raw))

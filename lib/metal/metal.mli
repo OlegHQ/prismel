@@ -30,21 +30,11 @@ type intersection_function_table
 type render_pipeline
 type compute_pipeline
 type depth_stencil
-type binary_archive
-type counter_sample_buffer
 
 type purgeable_state =
   | Nonvolatile
   | Volatile
   | Empty
-
-module Sparse_page_size : sig
-  type t =
-    | Page_16_kib
-    | Page_64_kib
-    | Page_256_kib
-
-end
 
 val pp_error : Format.formatter -> error -> unit
 
@@ -71,8 +61,6 @@ type blit_encoder
 type command_queue
 module Device : sig
   type t = device
-  type counter_sampling_point=Stage_boundary|Draw_boundary|Dispatch_boundary|Blit_boundary
-  type capability_snapshot={barycentric_coordinates:bool;max_threads:(int64*int64*int64);maximize_concurrent_compilation:bool;bc_texture_compression:bool;counter_set_count:int}
 
   type family =
     | Apple1
@@ -115,8 +103,6 @@ module Device : sig
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
 
-  type sparse_region = { x:int64; y:int64; z:int64; width:int64; height:int64; depth:int64 }
-  type sparse_alignment = Outward | Inward
   val destroy : t -> (unit, error) result
 end
 
@@ -137,19 +123,14 @@ module Buffer : sig
     | Untracked
     | Tracked
 
-  type sparse_tier =
-    | Not_sparse
-    | Sparse_tier_1
-
   val create :
     device:Device.t -> length:int64 -> storage:storage_mode ->
-    ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
-    ?label:string -> unit -> (t, error) result
+    ?cpu_cache:cpu_cache_mode -> ?label:string -> unit -> (t, error) result
 
   val length : t -> int64
 
   val write_bytes :
-    t -> ?src_offset:int -> dst_offset:int64 -> bytes -> (unit, error) result
+    t -> dst_offset:int64 -> bytes -> (unit, error) result
   val read_bytes : t -> offset:int64 -> length:int -> (bytes, error) result
 
   val destroy : t -> (unit, error) result
@@ -214,8 +195,7 @@ module Acceleration_structure : sig
 
     (** [motion_transforms] is (buffer, offset, count) of packed 4x3 keyframe
         transforms and is required for [Motion_instances]. *)
-    val instances : Device.t -> buffer:Buffer.t -> ?offset:int64 -> ?stride:int64 ->
-      count:int64 -> ?kind:instance_kind -> ?motion_transforms:(Buffer.t * int64 * int64) ->
+    val instances : Device.t -> buffer:Buffer.t -> ?offset:int64 -> count:int64 -> ?kind:instance_kind -> ?motion_transforms:(Buffer.t * int64 * int64) ->
       ?usage:usage list -> structure array -> (t, error) result
     val sizes : device:Device.t -> t -> (sizes, error) result
 
@@ -415,11 +395,6 @@ module Texture : sig
     ; alpha : swizzle_channel
     }
 
-  type sparse_tier =
-    | Not_sparse
-    | Sparse_tier_1
-    | Sparse_tier_2
-
   type descriptor =
     { kind : kind
     ; format : format
@@ -448,25 +423,9 @@ module Texture : sig
     ; depth : int
     }
 
-  type sparse_info =
-    { page_size : Sparse_page_size.t
-    ; tile_width : int
-    ; tile_height : int
-    ; tile_depth : int
-    ; tile_size_in_bytes : int64
-    ; first_mip_in_tail : int option
-    ; tail_size_in_bytes : int64
-    }
-
-  type buffer_backing =
-    { buffer : Buffer.t
-    ; offset : int64
-    ; bytes_per_row : int
-    }
-
   val descriptor_2d :
-    ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
-    ?compression:compression_type -> ?swizzle:swizzle -> ?label:string ->
+    ?storage:Buffer.storage_mode -> ?usage:usage list ->
+    ?label:string ->
     format:format -> width:int -> height:int -> unit -> descriptor
   val create : device:Device.t -> descriptor -> (t, error) result
 
@@ -487,7 +446,6 @@ end
 
 module Metal_layer : sig
   type t
-  type edr_metadata = Standard | Hlg | Hdr10 of {minimum_luminance:float;maximum_luminance:float;optical_output_scale:float}
   type config =
     { width:int; height:int; format:Texture.format; framebuffer_only:bool
     ; maximum_drawables:int; allows_timeout:bool; display_sync:bool
@@ -502,7 +460,6 @@ end
 module Drawable : sig
   type t
   type loss = Timeout_or_unavailable
-  type present_time = Immediate | At_time of float | After_minimum_duration of float
   val acquire : Metal_layer.t -> ((t,loss) result,error) result
   val texture : t -> (Texture.t,error) result
   val destroy : t -> (unit,error) result
@@ -522,22 +479,7 @@ end
 module Render_pass_descriptor : sig
   type t
   type color_load_action = Load_dont_care | Load | Clear
-  type visibility_result_type = Disabled | Boolean
-  type sample_attachment =
-    { start_vertex : int64
-    ; end_vertex : int64
-    ; start_fragment : int64
-    ; end_fragment : int64
-    ; has_sample_buffer : bool }
-  type advanced =
-    { imageblock_sample_length : int64
-    ; threadgroup_memory_length : int64
-    ; tile_width : int64
-    ; tile_height : int64
-    ; visibility_result_type : visibility_result_type
-    ; support_color_attachment_mapping : bool
-    ; sample_positions : (float * float) array }
-  val create : width:int -> height:int -> ?array_length:int -> ?sample_count:int -> unit -> (t,error) result
+  val create : width:int -> height:int -> ?sample_count:int -> unit -> (t,error) result
   val set_resolve_texture : t -> Texture.t option -> (unit,error) result
   val set_color_store_action : t -> resolve:bool -> (unit,error) result
   val set_color_load_action : t -> color_load_action -> (unit,error) result
@@ -550,8 +492,7 @@ module Render_pass_descriptor : sig
     stencil:(color_load_action * store_action * int) -> (unit,error) result
   val set_attachments :
     t -> color:Texture.t -> ?clear:float * float * float * float ->
-    ?depth:Texture.t -> ?stencil:Texture.t -> ?visibility_result:Buffer.t ->
-    unit -> (unit,error) result
+    ?depth:Texture.t -> ?stencil:Texture.t -> unit -> (unit,error) result
   val destroy : t -> (unit,error) result
 end
 
@@ -736,38 +677,10 @@ module Binding : sig
     ; reflection : Reflection.reflected_type option
     }
 
-  type layout_kind =
-    | Buffer_layout
-    | Threadgroup_memory_layout
-    | Texture_layout
-    | Sampler_layout
-    | Imageblock_data_layout
-    | Imageblock_layout
-    | Visible_function_table_layout
-    | Primitive_acceleration_structure_layout
-    | Instance_acceleration_structure_layout
-    | Intersection_function_table_layout
-    | Object_payload_layout
-    | Tensor_layout
-    | Other_binding_layout of int
-
-  type layout =
-    { name : string
-    ; index : int64
-    ; access : access
-    ; kind : layout_kind
-    ; data_type : Shader_type.t option
-    }
-
 end
 
 module Library : sig
   type t
-
-  type kind =
-    | Executable_library
-    | Dynamic_library_source
-    | Unknown_library_kind of int
 
   val compile_source :
     ?label:string -> device:Device.t -> string -> (t, error) result
@@ -780,8 +693,6 @@ end
 
 module rec Function : sig
   type t
-  type options = int64
-  type patch_type = No_patch | Triangle_patch | Quad_patch | Other_patch of int64
 
   type kind =
     | Vertex
@@ -807,33 +718,15 @@ module rec Function : sig
     | Float16_constant of float
     | Float32_constant of float
 
-  type constant =
-    { name : string
-    ; data_type : Shader_type.t
-    ; index : int64
-    ; required : bool
-    }
-
-  type descriptor
-
   val find : library:Library.t -> string -> (t, error) result
   val specialize :
-    library:Library.t -> ?label:string ->
-    constants:(string * constant_value) list -> string -> (t, error) result
+    library:Library.t -> constants:(string * constant_value) list -> string -> (t, error) result
   val argument_encoder : t -> buffer_index:int64 -> (Shader_argument_encoder.t,error) result
   val destroy : t -> (unit, error) result
 end
 
 and Shader_argument_encoder : sig
   type t
-  type access = Read_only | Read_write | Write_only
-  type descriptor =
-    { data_type : Data_type.t
-    ; index : int64
-    ; array_length : int64
-    ; access : access
-    ; texture_kind : Texture.kind
-    ; constant_block_alignment : int64 }
   type resource =
     | Buffer of Buffer.t | Texture of Texture.t | Sampler of Sampler.t
     | Acceleration_structure of acceleration_structure
@@ -844,39 +737,17 @@ and Shader_argument_encoder : sig
     | Compute_pipeline of compute_pipeline | Depth_stencil of depth_stencil
   val encoded_length : t -> int64
   val alignment : t -> int64
-  val set : t -> index:int64 -> ?offset:int64 -> resource -> (unit,error) result
-  val set_argument_buffer : t -> Buffer.t -> offset:int64 -> ?start_offset:int64 -> ?array_element:int64 -> unit -> (unit,error) result
+  val set : t -> index:int64 -> resource -> (unit,error) result
+  val set_argument_buffer : t -> Buffer.t -> offset:int64 -> unit -> (unit,error) result
   val destroy : t -> (unit,error) result
-end
-
-module Dynamic_library : sig
-  type t
-
-end
-
-module Binary_archive : sig
-  type t = binary_archive
-
-end
-
-module Pipeline_buffer_descriptor : sig
-  type mutability = Default | Mutable | Immutable
-  type t
 end
 
 module Compute_pipeline : sig
   type t
-  type size3 = { width:int64; height:int64; depth:int64 }
-  type shader_validation = Default | Enabled | Disabled
-  type function_handle_info={name:string;kind:Function.kind;resource_id:int64}
 
   val create :
     ?label:string ->
-    ?buffer_descriptors:(int * Pipeline_buffer_descriptor.t option) list ->
     ?linked_functions:Function.t list ->
-    ?preloaded_libraries:Dynamic_library.t list ->
-    ?binary_archives:Binary_archive.t list ->
-    ?fail_on_binary_archive_miss:bool -> ?support_indirect_command_buffers:bool ->
     ?reflection:bool -> Function.t ->
     (t, error) result
   val bindings : t -> Binding.t list option
@@ -884,87 +755,6 @@ module Compute_pipeline : sig
 end
 
 module Vertex_descriptor : sig
-  type format =
-    | Uchar2
-    | Uchar3
-    | Uchar4
-    | Char2
-    | Char3
-    | Char4
-    | Uchar2_normalized
-    | Uchar3_normalized
-    | Uchar4_normalized
-    | Char2_normalized
-    | Char3_normalized
-    | Char4_normalized
-    | Ushort2
-    | Ushort3
-    | Ushort4
-    | Short2
-    | Short3
-    | Short4
-    | Ushort2_normalized
-    | Ushort3_normalized
-    | Ushort4_normalized
-    | Short2_normalized
-    | Short3_normalized
-    | Short4_normalized
-    | Half2
-    | Half3
-    | Half4
-    | Float
-    | Float2
-    | Float3
-    | Float4
-    | Int
-    | Int2
-    | Int3
-    | Int4
-    | Uint
-    | Uint2
-    | Uint3
-    | Uint4
-    | Int1010102_normalized
-    | Uint1010102_normalized
-    | Uchar4_normalized_bgra
-    | Uchar
-    | Char
-    | Uchar_normalized
-    | Char_normalized
-    | Ushort
-    | Short
-    | Ushort_normalized
-    | Short_normalized
-    | Half
-    | Float_rg11b10
-    | Float_rgb9e5
-
-  type step_function =
-    | Constant
-    | Per_vertex
-    | Per_instance
-    | Per_patch
-    | Per_patch_control_point
-
-  type stride =
-    | Static of int
-    | Dynamic
-
-  type attribute = private
-    { index : int
-    ; format : format
-    ; offset : int
-    ; buffer_index : int
-    }
-
-  type layout = private
-    { buffer_index : int
-    ; stride : stride
-    ; step_function : step_function
-    ; step_rate : int
-    }
-
-  type t
 
 end
 
@@ -976,7 +766,6 @@ end
 
 module Intersection_function_table : sig
   type t
-  type opaque_shape = Triangle | Curve
   val create : pipeline:Compute_pipeline.t -> capacity:int -> (t, error) result
   val set_function : t -> index:int -> Function_handle.t option -> (unit, error) result
   val set_buffer : t -> index:int -> ?offset:int64 -> Buffer.t option -> (unit, error) result
@@ -985,8 +774,6 @@ end
 
 module Render_pipeline : sig
   type t
-  type size3 = { width:int64; height:int64; depth:int64 }
-  type shader_validation = Default | Enabled | Disabled
 
   type kind =
     | Render
@@ -1075,87 +862,26 @@ module Render_pipeline : sig
   val destroy : t -> (unit, error) result
 end
 
-module Pipeline_dataset : sig
-  type t
-
-  type capture =
-    | Descriptors
-    | Binaries
-
-end
-
-module Binary_function : sig
-  type t
-  type function_t = t
-
-  module Descriptor : sig
-    type t
-    type stage = Vertex | Fragment | Tile | Object | Mesh
-  end
-end
-
-module Pipeline_archive : sig
-  type t
-
-end
-
 module Compiler : sig
   type t
 
-  type static_function =
-    { library : Library.t
-    ; name : string
-    }
-
-  (** Functions are exported for function handles, private functions are linked
-      without requiring function-pointer support, and groups constrain named
-      indirect call sites. *)
-  type static_linking =
-    { functions : static_function list
-    ; private_functions : static_function list
-    ; groups : (string * static_function list) list
-    }
-
-  type stage_linking = private
-    { binary_functions : Binary_function.t list
-    ; preloaded_libraries : Dynamic_library.t list
-    ; max_call_stack_depth : int
-    }
-
-  (** Creates a synchronous Metal 4 compiler. A supplied pipeline dataset is
-      retained by the compiler until compiler destruction. *)
+  (** Creates a synchronous Metal 4 compiler. *)
   val create :
-    ?label:string -> ?dataset:Pipeline_dataset.t -> Device.t ->
+    Device.t ->
     (t, error) result
 
   (** Compiles a conventional vertex/fragment Metal 4 render pipeline.
       Rasterized pipelines require a fragment function and one to eight color
       formats or typed color attachments, but not both. Vertex-only pipelines
       use a void-returning vertex function, disable rasterization, and use no
-      color attachments. An optional immutable vertex descriptor enables
-      Metal stage-in attribute fetch. Optional static descriptors and dynamic
-      linking values configure the vertex and fragment stages independently;
-      dynamic values carry binary functions, preloaded libraries, and maximum
-      call-stack depth. Alpha-to-coverage/one default off, vertex amplification
-      defaults to one, and color-attachment mapping defaults to identity. *)
+      color attachments. *)
   val create_render_pipeline :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
-    ?vertex_descriptor:Vertex_descriptor.t ->
-    ?alpha_to_coverage:bool -> ?alpha_to_one:bool ->
-    ?max_vertex_amplification_count:int ->
-    ?color_attachment_mapping:Render_pipeline.color_attachment_mapping ->
-    ?support_vertex_binary_linking:bool ->
-    ?support_fragment_binary_linking:bool ->
-    ?vertex_dynamic_linking:stage_linking ->
-    ?fragment_dynamic_linking:stage_linking ->
-    ?vertex_static_linking:static_linking ->
-    ?fragment_static_linking:static_linking ->
-    ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
-    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    t -> library:Library.t ->
     vertex:string -> (Render_pipeline.t, error) result
 
   (* Compiles a Metal 4 mesh pipeline, optionally with an object stage.
@@ -1189,21 +915,11 @@ module Indirect_command_buffer : sig
   val descriptor :
     ?inherit_buffers:bool -> ?inherit_pipeline_state:bool ->
     ?max_vertex_buffer_bind_count:int -> ?max_fragment_buffer_bind_count:int ->
-    ?max_kernel_buffer_bind_count:int -> ?support_ray_tracing:bool ->
-    ?support_dynamic_attribute_stride:bool ->
-    ?max_kernel_threadgroup_memory_bind_count:int ->
-    ?max_object_buffer_bind_count:int -> ?max_mesh_buffer_bind_count:int ->
-    ?max_object_threadgroup_memory_bind_count:int ->
-    ?inherit_depth_stencil_state:bool -> ?inherit_depth_bias:bool ->
-    ?inherit_depth_clip_mode:bool -> ?inherit_cull_mode:bool ->
-    ?inherit_front_facing_winding:bool -> ?inherit_triangle_fill_mode:bool ->
-    ?support_color_attachment_mapping:bool -> command_types:command_type list ->
+    command_types:command_type list ->
     unit -> descriptor
 
   val create :
-    device:Device.t -> ?storage:Buffer.storage_mode ->
-    ?cpu_cache:Buffer.cpu_cache_mode ->
-    ?hazard_tracking:Buffer.hazard_tracking_mode -> max_command_count:int ->
+    device:Device.t -> max_command_count:int ->
     descriptor -> (t, error) result
   val destroy : t -> (unit, error) result
 
@@ -1211,20 +927,15 @@ module Indirect_command_buffer : sig
     type t
     type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
     type index_type = Uint16 | Uint32
-    type cull_mode=No_cull|Cull_front|Cull_back
-    type depth_clip_mode=Clip|Clamp
-    type winding=Clockwise|Counter_clockwise
-    type fill_mode=Fill|Lines
     val at : buffer -> int -> (t, error) result
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
     val set_vertex_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
     val set_fragment_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
     val draw_indexed : t -> primitive:primitive -> index_type:index_type ->
       index_buffer:Buffer.t -> index_offset:int64 -> index_count:int64 ->
-      ?instance_count:int64 -> ?base_vertex:int64 -> ?base_instance:int64 ->
-      unit -> (unit,error) result
+      ?instance_count:int64 -> unit -> (unit,error) result
     val draw_primitives : t -> primitive:primitive -> vertex_start:int ->
-      vertex_count:int -> ?instance_count:int -> ?base_instance:int -> unit ->
+      vertex_count:int -> ?instance_count:int -> unit ->
       (unit, error) result
     val destroy : t -> (unit, error) result
   end
@@ -1243,9 +954,6 @@ module Command_buffer : sig
   type diagnostics =
     { error_options:int64; gpu_start_time:float; gpu_end_time:float
     ; kernel_start_time:float; kernel_end_time:float; retained_references:bool }
-  type encoder_info =
-    { label : string option; debug_signposts : string list; error_state : int }
-  type dispatch_type = Serial | Concurrent
 
   type status =
     | Not_enqueued
@@ -1256,13 +964,13 @@ module Command_buffer : sig
     | Error of string
     | Unknown of int
 
-  val create : Command_queue.t -> ?label:string -> unit -> (t, error) result
+  val create : Command_queue.t -> unit -> (t, error) result
   val device : t -> Device.t
   val status : t -> (status, error) result
   val diagnostics : t -> (diagnostics,error) result
 
   val present :
-    t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
+    t -> Drawable.t -> unit -> (unit, error) result
   val commit : t -> (unit, error) result
   val wait_until_completed : t -> (unit, error) result
   val destroyed : t -> bool
@@ -1275,8 +983,6 @@ end
 
 module Acceleration_encoder : sig
   type t = acceleration_encoder
-  type resource_usage = Read | Write | Read_write
-  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
   type compacted_size_type = Uint32 | Uint64
 
   val create : Command_buffer.t -> (t, error) result
@@ -1296,11 +1002,6 @@ end
 
 module Compute_encoder : sig
   type t = compute_encoder
-  type dispatch_type = Serial | Concurrent
-  type barrier_scope = Barrier_buffers | Barrier_textures
-  type resource_usage = Resource_read | Resource_write | Resource_sample
-  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
-  type region = { x:int64; y:int64; z:int64; width:int64; height:int64; depth:int64 }
 
   val create : Command_buffer.t -> (t, error) result
   val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
@@ -1329,21 +1030,11 @@ module Render_encoder : sig
 
   type cull_mode = No_cull | Cull_front | Cull_back
   type winding = Clockwise | Counter_clockwise
-  type fill_mode = Fill | Lines
-  type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
-  type store_action = Store_dont_care | Store | Multisample_resolve
-                    | Store_and_multisample_resolve
   type stage = Vertex | Fragment | Tile | Object | Mesh
-  type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
   type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
   type index_type = Uint16 | Uint32
-  type prepared_resources
-  type prepared_resource_use =
-    { resources : prepared_resources
-    ; usage : resource_usage list
-    ; stages : stage list }
   type viewport =
     { x : float; y : float; width : float; height : float
     ; znear : float; zfar : float }
@@ -1351,8 +1042,7 @@ module Render_encoder : sig
 
   val create :
     Command_buffer.t -> target:Texture.t ->
-    ?clear:float * float * float * float -> ?depth:Texture.t ->
-    ?stencil:Texture.t -> unit -> (t, error) result
+    unit -> (t, error) result
   val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
   val set_vertex_buffer :
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
@@ -1361,10 +1051,10 @@ module Render_encoder : sig
   val set_vertex_texture : t -> index:int -> Texture.t -> (unit, error) result
   val set_fragment_texture : t -> index:int -> Texture.t -> (unit, error) result
   val set_vertex_sampler :
-    t -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t ->
+    t -> index:int -> Sampler.t ->
     (unit, error) result
   val set_fragment_sampler :
-    t -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t ->
+    t -> index:int -> Sampler.t ->
     (unit, error) result
   val set_viewport : t -> viewport -> (unit, error) result
   val set_scissor : t -> scissor -> (unit, error) result
@@ -1379,7 +1069,7 @@ module Render_encoder : sig
   val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
 
   val draw_triangles :
-    t -> first:int -> count:int -> ?instances:int -> unit ->
+    t -> first:int -> count:int -> unit ->
     (unit, error) result
   val draw_primitives :
     t -> primitive:primitive -> first:int -> count:int -> ?instances:int -> unit ->
@@ -1402,7 +1092,6 @@ module Render_encoder : sig
       ; prepared_index_offset:int64
       ; prepared_index_count:int64 }
     type prepared_indexed_draws
-    type prepared_indirect_render_pass
 
     (* Creates an explicitly-ended pass encoder without an OCaml finalizer. *)
     val create_from_pass_scoped :

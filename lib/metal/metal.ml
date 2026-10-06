@@ -34,161 +34,7 @@ let contains_nul value = String.contains value '\000'
 let option_exists predicate = function Some value -> predicate value | None -> false
 
 module Vertex_descriptor = struct
-  type format =
-    | Uchar2
-    | Uchar3
-    | Uchar4
-    | Char2
-    | Char3
-    | Char4
-    | Uchar2_normalized
-    | Uchar3_normalized
-    | Uchar4_normalized
-    | Char2_normalized
-    | Char3_normalized
-    | Char4_normalized
-    | Ushort2
-    | Ushort3
-    | Ushort4
-    | Short2
-    | Short3
-    | Short4
-    | Ushort2_normalized
-    | Ushort3_normalized
-    | Ushort4_normalized
-    | Short2_normalized
-    | Short3_normalized
-    | Short4_normalized
-    | Half2
-    | Half3
-    | Half4
-    | Float
-    | Float2
-    | Float3
-    | Float4
-    | Int
-    | Int2
-    | Int3
-    | Int4
-    | Uint
-    | Uint2
-    | Uint3
-    | Uint4
-    | Int1010102_normalized
-    | Uint1010102_normalized
-    | Uchar4_normalized_bgra
-    | Uchar
-    | Char
-    | Uchar_normalized
-    | Char_normalized
-    | Ushort
-    | Short
-    | Ushort_normalized
-    | Short_normalized
-    | Half
-    | Float_rg11b10
-    | Float_rgb9e5
 
-  type step_function = Constant | Per_vertex | Per_instance | Per_patch | Per_patch_control_point
-  type stride = Static of int | Dynamic
-  type attribute = { index : int; format : format; offset : int; buffer_index : int }
-
-  type layout = {
-    buffer_index : int;
-    stride : stride;
-    step_function : step_function;
-    step_rate : int;
-  }
-
-  type t = { attributes : attribute list; layouts : layout list }
-
-  let format_code = function
-    | Uchar2 -> 1
-    | Uchar3 -> 2
-    | Uchar4 -> 3
-    | Char2 -> 4
-    | Char3 -> 5
-    | Char4 -> 6
-    | Uchar2_normalized -> 7
-    | Uchar3_normalized -> 8
-    | Uchar4_normalized -> 9
-    | Char2_normalized -> 10
-    | Char3_normalized -> 11
-    | Char4_normalized -> 12
-    | Ushort2 -> 13
-    | Ushort3 -> 14
-    | Ushort4 -> 15
-    | Short2 -> 16
-    | Short3 -> 17
-    | Short4 -> 18
-    | Ushort2_normalized -> 19
-    | Ushort3_normalized -> 20
-    | Ushort4_normalized -> 21
-    | Short2_normalized -> 22
-    | Short3_normalized -> 23
-    | Short4_normalized -> 24
-    | Half2 -> 25
-    | Half3 -> 26
-    | Half4 -> 27
-    | Float -> 28
-    | Float2 -> 29
-    | Float3 -> 30
-    | Float4 -> 31
-    | Int -> 32
-    | Int2 -> 33
-    | Int3 -> 34
-    | Int4 -> 35
-    | Uint -> 36
-    | Uint2 -> 37
-    | Uint3 -> 38
-    | Uint4 -> 39
-    | Int1010102_normalized -> 40
-    | Uint1010102_normalized -> 41
-    | Uchar4_normalized_bgra -> 42
-    | Uchar -> 45
-    | Char -> 46
-    | Uchar_normalized -> 47
-    | Char_normalized -> 48
-    | Ushort -> 49
-    | Short -> 50
-    | Ushort_normalized -> 51
-    | Short_normalized -> 52
-    | Half -> 53
-    | Float_rg11b10 -> 54
-    | Float_rgb9e5 -> 55
-
-  let step_function_code = function
-    | Constant -> 0
-    | Per_vertex -> 1
-    | Per_instance -> 2
-    | Per_patch -> 3
-    | Per_patch_control_point -> 4
-
-  let raw_attribute (value : attribute) =
-    ({
-       Metal_raw.attribute_index = value.index;
-       vertex_format = format_code value.format;
-       offset = Int64.of_int value.offset;
-       buffer_index = value.buffer_index;
-     }
-      : Metal_raw.metal4_vertex_attribute_descriptor)
-
-  let raw_layout (value : layout) =
-    ({
-       Metal_raw.buffer_index = value.buffer_index;
-       stride =
-         (match value.stride with Static stride -> Some (Int64.of_int stride) | Dynamic -> None);
-       step_function = step_function_code value.step_function;
-       step_rate = Int64.of_int value.step_rate;
-     }
-      : Metal_raw.metal4_vertex_layout_descriptor)
-
-  let raw value =
-    ({
-       Metal_raw.attributes = Array.of_list (List.map raw_attribute value.attributes);
-       layouts = Array.of_list (List.map raw_layout value.layouts);
-     }
-      : Metal_raw.metal4_vertex_descriptor)
 end
 
 module Thread = struct
@@ -378,29 +224,6 @@ type shader_binding = {
   reflection : Metal_argument_reflection_snapshot.reflected_type option;
 }
 
-type shader_binding_layout_kind =
-  | Buffer_layout
-  | Threadgroup_memory_layout
-  | Texture_layout
-  | Sampler_layout
-  | Imageblock_data_layout
-  | Imageblock_layout
-  | Visible_function_table_layout
-  | Primitive_acceleration_structure_layout
-  | Instance_acceleration_structure_layout
-  | Intersection_function_table_layout
-  | Object_payload_layout
-  | Tensor_layout
-  | Other_binding_layout of int
-
-type shader_binding_layout = {
-  name : string;
-  index : int64;
-  access : shader_binding_access;
-  kind : shader_binding_layout_kind;
-  data_type : shader_data_type option;
-}
-
 type function_kind =
   | Vertex
   | Fragment
@@ -424,19 +247,10 @@ type function_constant_value =
   | Float16_constant of float
   | Float32_constant of float
 
-type function_constant = {
-  name : string;
-  data_type : shader_data_type;
-  index : int64;
-  required : bool;
-}
-
-type library_kind = Executable_library | Dynamic_library_source | Unknown_library_kind of int
 type pixel_format = Metal_format.t
 type resource_cpu_cache_mode = Default_cache | Write_combined
 type resource_hazard_tracking_mode = Default_hazard_tracking | Untracked | Tracked
 type purgeable_state = Nonvolatile | Volatile | Empty
-type sparse_page_size = Page_16_kib | Page_64_kib | Page_256_kib
 type resource_state = { relinquished : bool Atomic.t; purgeable : purgeable_state Atomic.t }
 
 type texture_usage =
@@ -476,11 +290,6 @@ type texture_descriptor = {
 }
 
 type heap_allocation = {   active : bool Atomic.t }
-
-type metal_layer_edr_metadata =
-  | Standard
-  | Hlg
-  | Hdr10 of { minimum_luminance : float; maximum_luminance : float; optical_output_scale : float }
 
 type heap = {
 
@@ -543,7 +352,6 @@ and buffer = {
 
   parent : resource_parent;
 
-  placement_sparse_page_size : sparse_page_size option;
   allocation : heap_allocation option;
   state : resource_state;
 
@@ -565,12 +373,10 @@ and texture = {
   descriptor : texture_descriptor;
   parent : texture_parent;
 
-  placement_sparse_page_size : sparse_page_size option;
   allocation : heap_allocation option;
   state : resource_state;
 }
 
-and buffer_texture_backing = { buffer : buffer; offset : int64; bytes_per_row : int }
 and texture_parent =
   | Texture_resource of resource_parent
   | Texture_drawable_resource of metal_drawable
@@ -668,44 +474,10 @@ type shader_argument_encoder = {
   parent_encoder : shader_argument_encoder option;
 }
 
-type dynamic_library = { raw : Metal_raw.handle; lifetime : lifetime; device : device }
-
-type binary_archive = {
-  raw : Metal_raw.handle;
-  lifetime : lifetime;
-  device : device;
-
-}
-
-type pipeline_dataset = {
-  raw : Metal_raw.handle;
-  lifetime : lifetime;
-  device : device;
-
-}
-
-type pipeline_archive = { raw : Metal_raw.handle; lifetime : lifetime; device : device }
-
-type binary_function = {
-  raw : Metal_raw.handle;
-  lifetime : lifetime;
-  device : device;
-
-  name : string;
-
-}
-
-type binary_functions_descriptor = {
-
-  descriptor_device : device option;
-
-} [@@warning "-69"]
-
 type compiler = {
   raw : Metal_raw.handle;
   lifetime : lifetime;
   device : device;
-  dataset : pipeline_dataset option;
 }
 
 type compute_pipeline = {
@@ -962,8 +734,6 @@ type render_encoder = {
 
   mutable pipeline : render_pipeline option;
 }
-
-type counter_sample_buffer = resource100_sample_buffer
 
 type blit_encoder = { raw : Metal_raw.handle; lifetime : lifetime; command_buffer : command_buffer }
 
@@ -1329,22 +1099,8 @@ let concrete_hazard_tracking ~heap = function
   | Default_hazard_tracking -> if heap then Untracked else Tracked
   | (Untracked | Tracked) as mode -> mode
 
-module Sparse_page_size = struct
-  type t = sparse_page_size = Page_16_kib | Page_64_kib | Page_256_kib
-
-end
-
 module Device = struct
   type t = device
-  type counter_sampling_point = Stage_boundary | Draw_boundary | Dispatch_boundary | Blit_boundary
-
-  type capability_snapshot = {
-    barycentric_coordinates : bool;
-    max_threads : int64 * int64 * int64;
-    maximize_concurrent_compilation : bool;
-    bc_texture_compression : bool;
-    counter_set_count : int;
-  }
 
   type family =
     | Apple1
@@ -1480,17 +1236,6 @@ module Device = struct
             (Metal_raw.Registry.device_supports_texture_sample_count value.raw
                (Int64.of_int sample_count)))
 
-  type sparse_region = {
-    x : int64;
-    y : int64;
-    z : int64;
-    width : int64;
-    height : int64;
-    depth : int64;
-  }
-
-  type sparse_alignment = Outward | Inward
-
   let destroy (value : t) =
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
 end
@@ -1505,8 +1250,6 @@ module Buffer = struct
     | Untracked
     | Tracked
 
-  type sparse_tier = Not_sparse | Sparse_tier_1
-
   let validate_create operation (device : Device.t) ~length ~label =
     if length <= 0L then error operation Invalid_argument "buffer length must be positive"
     else if (match Metal_raw.Registry.device_max_buffer_length device.raw with Ok limit -> length > limit | Error _ -> true) then
@@ -1515,7 +1258,7 @@ module Buffer = struct
       error operation Invalid_argument "label contains a NUL byte"
     else Ok ()
 
-  let finish_create ?placement_sparse_page_size operation ~(device : Device.t) ~parent ~length
+  let finish_create operation ~(device : Device.t) ~parent ~length
       ~storage ~cpu_cache ~hazard_tracking ~heap_offset ~allocation ~label raw =
     let actual_length, actual_storage, actual_cache, actual_hazard, actual_offset =
       Metal_raw.buffer_info raw
@@ -1558,7 +1301,6 @@ module Buffer = struct
 
               parent;
 
-              placement_sparse_page_size;
               allocation;
               state = resource_state ();
 
@@ -1575,8 +1317,8 @@ module Buffer = struct
           Ok value
 
   let create ~(device : Device.t) ~length ~storage ?(cpu_cache = Default_cache)
-      ?(hazard_tracking = Default_hazard_tracking) ?label () =
-    on_main "Metal.Buffer.create" (fun () ->
+      ?label () =
+    let hazard_tracking = (Default_hazard_tracking) in on_main "Metal.Buffer.create" (fun () ->
         let* () = ensure_live "Metal.Buffer.create" device.lifetime in
         let* () = validate_create "Metal.Buffer.create" device ~length ~label in
         let options = resource_options_code ~storage ~cpu_cache ~hazard_tracking in
@@ -1596,13 +1338,10 @@ module Buffer = struct
         error operation Invalid_argument "range exceeds the buffer"
       else Ok ()
 
-  let write_bytes (value : t) ?(src_offset = 0) ~dst_offset bytes =
-    on_main "Metal.Buffer.write_bytes" (fun () ->
+  let write_bytes (value : t) ~dst_offset bytes =
+    let src_offset = (0) in on_main "Metal.Buffer.write_bytes" (fun () ->
         let* () = ensure_buffer_usable "Metal.Buffer.write_bytes" value in
-        if Option.is_some value.placement_sparse_page_size then
-          error "Metal.Buffer.write_bytes" Invalid_state
-            "placement sparse buffers have no CPU-visible backing until mapped"
-        else if value.storage = Private then
+        if value.storage = Private then
           error "Metal.Buffer.write_bytes" Unsupported "private buffers have no CPU mapping"
         else
           let source_length = Bytes.length bytes in
@@ -1624,10 +1363,7 @@ module Buffer = struct
   let read_bytes (value : t) ~offset ~length =
     on_main "Metal.Buffer.read_bytes" (fun () ->
         let* () = ensure_buffer_usable "Metal.Buffer.read_bytes" value in
-        if Option.is_some value.placement_sparse_page_size then
-          error "Metal.Buffer.read_bytes" Invalid_state
-            "placement sparse buffers have no CPU-visible backing until mapped"
-        else if value.storage = Private then
+        if value.storage = Private then
           error "Metal.Buffer.read_bytes" Unsupported "private buffers have no CPU mapping"
         else if length > Sys.max_string_length then
           error "Metal.Buffer.read_bytes" Invalid_argument
@@ -1929,10 +1665,10 @@ module Acceleration_structure = struct
               ~buffers:(List.concat_map geometry_buffers geometries)
               ~structures:[] ~instance_count:0L ~kind:None)
 
-    let instances (device : Device.t) ~(buffer : buffer) ?(offset = 0L) ?stride ~count
+    let instances (device : Device.t) ~(buffer : buffer) ?(offset = 0L) ~count
         ?(kind = Default_instances) ?motion_transforms ?(usage = []) (primitives : structure array)
         =
-      let operation = "Metal.Acceleration_structure.Build.instances" in
+      let stride = None in let operation = "Metal.Acceleration_structure.Build.instances" in
       on_main operation (fun () ->
           let layout = instance_layout kind in
           let stride = Option.value stride ~default:(Int64.of_int layout.size) in
@@ -2216,8 +1952,6 @@ module Texture = struct
     alpha : swizzle_channel;
   }
 
-  type sparse_tier = Not_sparse | Sparse_tier_1 | Sparse_tier_2
-
   type descriptor = texture_descriptor = {
     kind : kind;
     format : format;
@@ -2267,25 +2001,9 @@ module Texture = struct
 
   type region = { x : int; y : int; z : int; width : int; height : int; depth : int }
 
-  type sparse_info = {
-    page_size : Sparse_page_size.t;
-    tile_width : int;
-    tile_height : int;
-    tile_depth : int;
-    tile_size_in_bytes : int64;
-    first_mip_in_tail : int option;
-    tail_size_in_bytes : int64;
-  }
-
-  type buffer_backing = buffer_texture_backing = {
-    buffer : Buffer.t;
-    offset : int64;
-    bytes_per_row : int;
-  }
-
-  let descriptor_2d ?(mipmapped = false) ?(storage = Private) ?(usage = [ Shader_read ])
-      ?(compression = Lossless) ?(swizzle = default_swizzle) ?label ~format ~width ~height () =
-    let max_dimension = max width height in
+  let descriptor_2d ?(storage = Private) ?(usage = [ Shader_read ])
+      ?label ~format ~width ~height () =
+    let compression = (Lossless) in let mipmapped = (false) in let swizzle = (default_swizzle) in let max_dimension = max width height in
     let rec mip_count dimension count =
       if dimension <= 1 then count else mip_count (dimension / 2) (count + 1)
     in
@@ -2586,7 +2304,7 @@ module Texture = struct
                  expected.(index) info.(index))
       end
 
-  let finish_create ?expected_shareable ?placement_sparse_page_size operation ~device ~descriptor
+  let finish_create ?expected_shareable operation ~device ~descriptor
       ~parent ~heap_offset:_ ~allocation raw =
     let heap =
       match parent with
@@ -2608,15 +2326,6 @@ module Texture = struct
         native_error operation "Metal changed the checked texture sharing mode during creation"
     | Ok descriptor ->
         let parent_lifetime = texture_parent_lifetime parent in
-        let placement_sparse_page_size =
-          match (placement_sparse_page_size, parent) with
-          | Some page_size, _ -> Some page_size
-
-          | ( None,
-              ( Texture_resource _
-              | Texture_drawable_resource _ ) ) ->
-              None
-        in
         let state =
           match parent with
           | Texture_resource _ -> resource_state ()
@@ -2632,7 +2341,6 @@ module Texture = struct
             descriptor;
             parent;
 
-            placement_sparse_page_size;
             allocation;
             state;
           }
@@ -2684,10 +2392,7 @@ module Texture = struct
   let validate_transfer operation (value : t) ~region ~mip_level ~slice ~bytes_per_row
       ~bytes_per_image =
     let invalid message = error operation Invalid_argument message in
-    if Option.is_some value.placement_sparse_page_size then
-      error operation Invalid_state
-        "placement sparse textures have no CPU-visible backing until mapped"
-    else if value.descriptor.storage = Private then
+    if value.descriptor.storage = Private then
       error operation Unsupported "private textures have no CPU transfer mapping"
     else if is_multisample value.descriptor.kind then
       error operation Unsupported "multisample textures do not support CPU transfer"
@@ -2793,15 +2498,6 @@ end
 
 module Metal_layer = struct
   type t = metal_layer
-
-  type edr_metadata = metal_layer_edr_metadata =
-    | Standard
-    | Hlg
-    | Hdr10 of {
-        minimum_luminance : float;
-        maximum_luminance : float;
-        optical_output_scale : float;
-      }
 
   type config = {
     width : int;
@@ -2914,7 +2610,6 @@ end
 module Drawable = struct
   type t = metal_drawable
   type loss = Timeout_or_unavailable
-  type present_time = Immediate | At_time of float | After_minimum_duration of float
 
   let acquire_owned ~finalize (layer : metal_layer) =
     let operation = "Metal.Drawable.acquire" in
@@ -2987,7 +2682,6 @@ module Drawable = struct
                 descriptor;
                 parent = Texture_drawable_resource value;
 
-                placement_sparse_page_size = None;
                 allocation = None;
                 state = { relinquished = Atomic.make false; purgeable = Atomic.make Nonvolatile };
               }
@@ -3012,28 +2706,9 @@ end
 module Render_pass_descriptor = struct
   type color_load_action = Load_dont_care | Load | Clear
   type t = render_pass_descriptor
-  type visibility_result_type = Disabled | Boolean
 
-  type sample_attachment = {
-    start_vertex : int64;
-    end_vertex : int64;
-    start_fragment : int64;
-    end_fragment : int64;
-    has_sample_buffer : bool;
-  }
-
-  type advanced = {
-    imageblock_sample_length : int64;
-    threadgroup_memory_length : int64;
-    tile_width : int64;
-    tile_height : int64;
-    visibility_result_type : visibility_result_type;
-    support_color_attachment_mapping : bool;
-    sample_positions : (float * float) array;
-  }
-
-  let create ~width ~height ?(array_length = 1) ?(sample_count = 1) () =
-    let operation = "Metal.Render_pass_descriptor.create" in
+  let create ~width ~height ?(sample_count = 1) () =
+    let array_length = (1) in let operation = "Metal.Render_pass_descriptor.create" in
     on_main operation (fun () ->
         if width <= 0 || height <= 0 || array_length <= 0 || sample_count <= 0 then
           error operation Invalid_argument "render pass sizes must be positive"
@@ -3162,9 +2837,9 @@ module Render_pass_descriptor = struct
     | _ -> false
 
   let set_attachments (value : t) ~(color : texture) ?(clear = (0., 0., 0., 1.))
-      ?(depth : texture option) ?(stencil : texture option) ?(visibility_result : buffer option) ()
+      ?(depth : texture option) ?(stencil : texture option) ()
       =
-    let operation = "Metal.Render_pass_descriptor.set_attachments" in
+    let visibility_result : buffer option = None in let operation = "Metal.Render_pass_descriptor.set_attachments" in
     on_main operation (fun () ->
         let textures = color :: List.filter_map Fun.id [ depth; stencil ] in
         let* () = ensure_live operation value.lifetime in
@@ -3691,29 +3366,6 @@ module Binding = struct
     reflection : Reflection.reflected_type option;
   }
 
-  type layout_kind = shader_binding_layout_kind =
-    | Buffer_layout
-    | Threadgroup_memory_layout
-    | Texture_layout
-    | Sampler_layout
-    | Imageblock_data_layout
-    | Imageblock_layout
-    | Visible_function_table_layout
-    | Primitive_acceleration_structure_layout
-    | Instance_acceleration_structure_layout
-    | Intersection_function_table_layout
-    | Object_payload_layout
-    | Tensor_layout
-    | Other_binding_layout of int
-
-  type layout = shader_binding_layout = {
-    name : string;
-    index : int64;
-    access : access;
-    kind : layout_kind;
-    data_type : Shader_type.t option;
-  }
-
   let access_of_code = function
     | 0 -> Read_only
     | 1 -> Read_write
@@ -3793,11 +3445,6 @@ end
 module Library = struct
   type t = library
 
-  type kind = library_kind =
-    | Executable_library
-    | Dynamic_library_source
-    | Unknown_library_kind of int
-
   let make device raw =
     let value : t = { raw; lifetime = lifetime (); device } in
     attach device.lifetime;
@@ -3850,23 +3497,6 @@ module Function = struct
     | Uint64_bits_constant of int64
     | Float16_constant of float
     | Float32_constant of float
-
-  type constant = function_constant = {
-    name : string;
-    data_type : Shader_type.t;
-    index : int64;
-    required : bool;
-  }
-
-  type descriptor = {
-    name : string;
-    specialized_name : string option;
-    constants : (string * constant_value) list;
-    compile_to_binary : bool;
-    binary_archives : binary_archive list;
-    intersection : bool;
-    descriptor_lifetime : lifetime;
-  } [@@warning "-69"]
 
   let kind_of_code = function
     | 1 -> Vertex
@@ -3935,8 +3565,8 @@ module Function = struct
           attach_finalizer value value.lifetime library.lifetime;
           Ok value)
 
-  let specialize ~(library : Library.t) ?label ~constants name =
-    let operation = "Metal.Function.specialize" in
+  let specialize ~(library : Library.t) ~constants name =
+    let label = None in let operation = "Metal.Function.specialize" in
     on_main operation (fun () ->
         let* () = ensure_live operation library.lifetime in
         if name = "" || contains_nul name then
@@ -3953,9 +3583,6 @@ module Function = struct
           attach library.lifetime;
           attach_finalizer value value.lifetime library.lifetime;
           Ok value)
-
-  type options = int64
-  type patch_type = No_patch | Triangle_patch | Quad_patch | Other_patch of int64
 
   let query operation raw (value : t) =
     on_main operation (fun () ->
@@ -4020,17 +3647,6 @@ module Shader_argument_encoder = struct
     | Compute_pipeline of compute_pipeline
     | Depth_stencil of depth_stencil
 
-  type access = Read_only | Read_write | Write_only
-
-  type descriptor = {
-    data_type : Data_type.t;
-    index : int64;
-    array_length : int64;
-    access : access;
-    texture_kind : Texture.kind;
-    constant_block_alignment : int64;
-  }
-
   let encoded_length (value : t) = value.encoded_length
   let alignment (value : t) = value.alignment
 
@@ -4054,8 +3670,8 @@ module Shader_argument_encoder = struct
         attach lifetime;
         Hashtbl.replace value.retained index lifetime
 
-  let set (value : t) ~index ?(offset = 0L) resource =
-    let op = "Metal.Shader_argument_encoder.set" in
+  let set (value : t) ~index resource =
+    let offset = (0L) in let op = "Metal.Shader_argument_encoder.set" in
     on_main op (fun () ->
         let* () = ensure_live op value.lifetime in
         if index < 0L || offset < 0L then
@@ -4072,9 +3688,9 @@ module Shader_argument_encoder = struct
             retain_at value index lifetime;
             Ok ())
 
-  let set_argument_buffer (value : t) (buffer : buffer) ~offset ?(start_offset = 0L)
-      ?(array_element = 0L) () =
-    let op = "Metal.Shader_argument_encoder.set_argument_buffer" in
+  let set_argument_buffer (value : t) (buffer : buffer) ~offset
+      () =
+    let array_element = (0L) in let start_offset = (0L) in let op = "Metal.Shader_argument_encoder.set_argument_buffer" in
     on_main op (fun () ->
         let* () = ensure_live op value.lifetime in
         let* () = ensure_buffer_usable op buffer in
@@ -4120,63 +3736,8 @@ let validate_linked_functions operation device linked_functions =
   in
   loop [] linked_functions
 
-let validate_dynamic_libraries operation device libraries =
-  let rec loop install_names = function
-    | [] -> Ok ()
-    | (library : dynamic_library) :: rest ->
-        let* () = ensure_live operation library.lifetime in
-        let* () = ensure_same_device operation device library.device in
-        let install_name = Metal_raw.dynamic_library_install_name library.raw in
-        if List.mem install_name install_names then
-          error operation Invalid_argument "dynamic-library list contains a duplicate install name"
-        else loop (install_name :: install_names) rest
-  in
-  loop [] libraries
-
-let validate_binary_archives operation device archives =
-  let rec loop seen = function
-    | [] -> Ok ()
-    | (archive : binary_archive) :: rest ->
-        if List.exists (fun (value : binary_archive) -> value.lifetime == archive.lifetime) seen
-        then error operation Invalid_argument "binary-archive list contains a duplicate handle"
-        else
-          let* () = ensure_live operation archive.lifetime in
-          let* () = ensure_same_device operation device archive.device in
-          loop (archive :: seen) rest
-  in
-  loop [] archives
-
-module Dynamic_library = struct
-  type t = dynamic_library
-
-end
-
-module Binary_archive = struct
-  type t = binary_archive
-
-end
-
-type pipeline_buffer_mutability = Default | Mutable | Immutable
-
-type pipeline_buffer_descriptor = {
-
-  lifetime : lifetime;
-  mutability : pipeline_buffer_mutability;
-}
-
-module Pipeline_buffer_descriptor = struct
-  type mutability = pipeline_buffer_mutability = Default | Mutable | Immutable
-  type t = pipeline_buffer_descriptor
-
-  let mutability_code = function Default -> 0 | Mutable -> 1 | Immutable -> 2
-
-end
-
 module Compute_pipeline = struct
   type t = compute_pipeline
-  type size3 = Metal_gen.Record.Mtl_size.t = { width : int64; height : int64; depth : int64 }
-  type shader_validation = Default | Enabled | Disabled
-  type function_handle_info = { name : string; kind : Function.kind; resource_id : int64 }
 
   let make device ~reflection raw raw_bindings =
     let bindings = if reflection then Some (Array.map Binding.of_raw raw_bindings) else None in
@@ -4194,28 +3755,13 @@ module Compute_pipeline = struct
     attach_finalizer value value.lifetime device.lifetime;
     value
 
-  let create ?label ?(buffer_descriptors = []) ?(linked_functions = []) ?(preloaded_libraries = [])
-      ?(binary_archives = []) ?(fail_on_binary_archive_miss = false)
-      ?(support_indirect_command_buffers = false) ?(reflection = false)
+  let create ?label ?(linked_functions = [])
+
+      ?(reflection = false)
       (function_value : Function.t) =
     let operation = "Metal.Compute_pipeline.create" in
     on_main operation (fun () ->
         let* () = ensure_live operation function_value.lifetime in
-        let buffer_mutabilities = Array.make 31 0 in
-        let rec validate_buffers seen = function
-          | [] -> Ok ()
-          | (index, _) :: _ when index < 0 || index >= 31 ->
-              error operation Invalid_argument "pipeline buffer index must be in [0,31)"
-          | (index, _) :: _ when List.mem index seen ->
-              error operation Invalid_argument "pipeline buffer indices must be unique"
-          | (index, None) :: rest -> validate_buffers (index :: seen) rest
-          | (index, Some (descriptor : pipeline_buffer_descriptor)) :: rest ->
-              let* () = ensure_live operation descriptor.lifetime in
-              buffer_mutabilities.(index) <-
-                Pipeline_buffer_descriptor.mutability_code descriptor.mutability;
-              validate_buffers (index :: seen) rest
-        in
-        let* () = validate_buffers [] buffer_descriptors in
         if option_exists contains_nul label then
           error operation Invalid_argument "pipeline label contains a NUL byte"
         else
@@ -4232,24 +3778,7 @@ module Compute_pipeline = struct
             then
               error operation Unsupported "linked functions require Metal function-pointer support"
             else
-              let* () = validate_dynamic_libraries operation device preloaded_libraries in
-              if
-                preloaded_libraries <> []
-                && not (probe (Metal_raw.Registry.device_supports_dynamic_libraries device.raw))
-              then
-                error operation Unsupported
-                  "preloaded libraries require Metal dynamic-library support"
-              else
-                let* () = validate_binary_archives operation device binary_archives in
-                if fail_on_binary_archive_miss && binary_archives = [] then
-                  error operation Invalid_argument
-                    "fail-on-archive-miss requires at least one binary archive"
-                else
-                  let descriptor_required =
-                    label <> None || linked_functions <> [] || preloaded_libraries <> []
-                    || binary_archives <> [] || fail_on_binary_archive_miss
-                    || support_indirect_command_buffers || reflection || buffer_descriptors <> []
-                  in
+                  let descriptor_required = label <> None || linked_functions <> [] || reflection in
                   let creation =
                     if not descriptor_required then
                       Result.map
@@ -4263,19 +3792,11 @@ module Compute_pipeline = struct
                           linked_functions =
                             Array.of_list
                               (List.map (fun (value : Function.t) -> value.raw) linked_functions);
-                          preloaded_libraries =
-                            Array.of_list
-                              (List.map
-                                 (fun (value : Dynamic_library.t) -> value.raw)
-                                 preloaded_libraries);
-                          binary_archives =
-                            Array.of_list
-                              (List.map
-                                 (fun (value : Binary_archive.t) -> value.raw)
-                                 binary_archives);
-                          fail_on_binary_archive_miss;
-                          support_indirect_command_buffers;
-                          buffer_mutabilities;
+                          preloaded_libraries = [||];
+                          binary_archives = [||];
+                          fail_on_binary_archive_miss = false;
+                          support_indirect_command_buffers = false;
+                          buffer_mutabilities = Array.make 31 0;
                         }
                       in
                       Metal_raw.compute_pipeline_create_descriptor device.raw function_value.raw
@@ -4323,7 +3844,6 @@ end
 
 module Intersection_function_table = struct
   type t = intersection_function_table
-  type opaque_shape = Triangle | Curve
 
   let create ~(pipeline : compute_pipeline) ~capacity =
     let operation = "Metal.Intersection_function_table.create" in
@@ -4427,8 +3947,6 @@ end
 
 module Render_pipeline = struct
   type t = render_pipeline
-  type size3 = { width : int64; height : int64; depth : int64 }
-  type shader_validation = Default | Enabled | Disabled
   type kind = render_pipeline_kind = Render | Tile | Mesh
   type primitive_topology = Point | Line | Triangle
   type color_attachment_mapping = render_color_attachment_mapping = Identity | Inherited
@@ -4628,176 +4146,21 @@ let ensure_metal4 operation (device : Device.t) =
   then error operation Unsupported "the Metal device does not support Metal 4"
   else Ok ()
 
-module Pipeline_dataset = struct
-  type t = pipeline_dataset
-  type capture = Descriptors | Binaries
-
-end
-
-module Binary_function = struct
-  type t = binary_function
-  type function_t = t
-
-  module Descriptor = struct
-    type t = binary_functions_descriptor
-    type stage = Vertex | Fragment | Tile | Object | Mesh
-
-  end
-end
-
-module Pipeline_archive = struct
-  type t = pipeline_archive
-
-end
-
-let validate_binary_functions operation device functions =
-  let rec loop names seen = function
-    | [] -> Ok ()
-    | (function_ : binary_function) :: rest ->
-        if List.exists (fun (value : binary_function) -> value.lifetime == function_.lifetime) seen
-        then error operation Invalid_argument "binary-function list contains a duplicate handle"
-        else
-          let* () = ensure_live operation function_.lifetime in
-          let* () = ensure_same_device operation device function_.device in
-          if List.mem function_.name names then
-            error operation Invalid_argument "binary-function list contains a duplicate name"
-          else loop (function_.name :: names) (function_ :: seen) rest
-  in
-  loop [] [] functions
-
-let validate_pipeline_archives operation device archives =
-  let rec loop seen = function
-    | [] -> Ok ()
-    | (archive : pipeline_archive) :: rest ->
-        if List.exists (fun (value : pipeline_archive) -> value.lifetime == archive.lifetime) seen
-        then error operation Invalid_argument "pipeline-archive list contains a duplicate handle"
-        else
-          let* () = ensure_live operation archive.lifetime in
-          let* () = ensure_same_device operation device archive.device in
-          loop (archive :: seen) rest
-  in
-  loop [] archives
-
 module Compiler = struct
   type t = compiler
-  type static_function = { library : Library.t; name : string }
 
-  type static_linking = {
-    functions : static_function list;
-    private_functions : static_function list;
-    groups : (string * static_function list) list;
-  }
-
-  type stage_linking = {
-    binary_functions : Binary_function.t list;
-    preloaded_libraries : Dynamic_library.t list;
-    max_call_stack_depth : int;
-  }
-
-  let validate_static_functions operation device category functions =
-    let rec loop names reversed = function
-      | [] -> Ok (Array.of_list (List.rev reversed))
-      | function_ :: rest ->
-          let* () = ensure_live operation function_.library.lifetime in
-          let* () = ensure_same_device operation device function_.library.device in
-          if function_.name = "" || contains_nul function_.name then
-            error operation Invalid_argument
-              (category ^ " function name must be nonempty and contain no NUL byte")
-          else if List.mem function_.name names then
-            error operation Invalid_argument (category ^ " function list contains a duplicate name")
-          else
-            loop (function_.name :: names)
-              ((function_.library.raw, function_.name) :: reversed)
-              rest
-    in
-    loop [] [] functions
-
-  let validate_static_linking ?supports_public_linking operation device = function
-    | None -> Ok None
-    | Some ({ functions; private_functions; groups } : static_linking) ->
-        if functions = [] && private_functions = [] && groups = [] then
-          error operation Invalid_argument
-            "static-linking descriptor must contain at least one function"
-        else
-          let* raw_functions =
-            validate_static_functions operation device "public static-linked" functions
-          in
-          let* raw_private_functions =
-            validate_static_functions operation device "private static-linked" private_functions
-          in
-          let public_names = List.map (fun value -> value.name) functions in
-          let private_names = List.map (fun value -> value.name) private_functions in
-          if List.exists (fun name -> List.mem name private_names) public_names then
-            error operation Invalid_argument
-              "a static-linked function cannot be both public and private"
-          else
-            let rec validate_groups names reversed = function
-              | [] -> Ok (Array.of_list (List.rev reversed))
-              | (name, _) :: _ when name = "" || contains_nul name ->
-                  error operation Invalid_argument
-                    "static-link group name must be nonempty and contain no NUL byte"
-              | (name, _) :: _ when List.mem name names ->
-                  error operation Invalid_argument "static-link groups contain a duplicate name"
-              | (_, []) :: _ ->
-                  error operation Invalid_argument
-                    "static-link groups must contain at least one function"
-              | (name, functions) :: rest ->
-                  let* raw_group =
-                    validate_static_functions operation device ("static-link group " ^ name)
-                      functions
-                  in
-                  validate_groups (name :: names) ((name, raw_group) :: reversed) rest
-            in
-            let* raw_groups = validate_groups [] [] groups in
-            let supports_public_linking =
-              match supports_public_linking with
-              | Some supported -> supported
-              | None -> probe (Metal_raw.Registry.device_supports_function_pointers device.raw)
-            in
-            if (functions <> [] || groups <> []) && not supports_public_linking then
-              error operation Unsupported
-                "public static linking requires Metal function-pointer support"
-            else
-              Ok
-                (Some
-                   ({
-                      functions = raw_functions;
-                      private_functions = raw_private_functions;
-                      groups = raw_groups;
-                    }
-                     : Metal_raw.metal4_static_linking_descriptor))
-
-  let make device dataset raw =
-    let value : t = { raw; lifetime = lifetime (); device; dataset } in
+  let make device raw =
+    let value : t = { raw; lifetime = lifetime (); device } in
     attach device.lifetime;
-    Option.iter (fun (dataset : pipeline_dataset) -> attach dataset.lifetime) dataset;
-    attach_finalizer
-      ~on_finalize:(fun () ->
-        Option.iter (fun (dataset : pipeline_dataset) -> detach dataset.lifetime) dataset)
-      value value.lifetime device.lifetime;
+    attach_finalizer value value.lifetime device.lifetime;
     value
 
-  let create ?label ?dataset device =
+  let create device =
     let operation = "Metal.Compiler.create" in
     on_main operation (fun () ->
         let* () = ensure_metal4 operation device in
-        if option_exists contains_nul label then
-          error operation Invalid_argument "compiler label contains a NUL byte"
-        else
-          let* () =
-            match dataset with
-            | None -> Ok ()
-            | Some (dataset : Pipeline_dataset.t) ->
-                let* () = ensure_live operation dataset.lifetime in
-                ensure_same_device operation device dataset.device
-          in
-          let* raw =
-            native_result operation
-              (Metal_raw.compiler_create device.raw
-                 (Option.map (fun (value : Pipeline_dataset.t) -> value.raw) dataset)
-                 label)
-          in
-          Ok (make device dataset raw))
+        let* raw = native_result operation (Metal_raw.compiler_create device.raw None None) in
+        Ok (make device raw))
 
   let validate_pipeline_entry operation (library : Library.t) ~stage name =
     if name = "" || contains_nul name then
@@ -4819,42 +4182,6 @@ module Compiler = struct
     | Some formats, None -> Ok (List.map Render_pipeline.color_attachment formats)
     | None, Some attachments -> Ok attachments
     | None, None -> Ok [ Render_pipeline.color_attachment Texture.Bgra8_unorm ]
-
-  let raw_stage_dynamic_linking operation device ~support_binary_linking ~stage = function
-    | None -> Ok None
-    | Some (linking : stage_linking) ->
-        if linking.max_call_stack_depth <= 0 then
-          error operation Invalid_argument
-            (stage ^ " dynamic-link call-stack depth must be positive")
-        else
-          let* () = validate_binary_functions operation device linking.binary_functions in
-          let* () = validate_dynamic_libraries operation device linking.preloaded_libraries in
-          if linking.binary_functions <> [] && not support_binary_linking then
-            error operation Invalid_argument
-              (stage ^ " binary functions require binary-linking support")
-          else if
-            linking.preloaded_libraries <> []
-            && not (probe (Metal_raw.Registry.device_supports_dynamic_libraries device.raw))
-          then
-            error operation Unsupported
-              (stage ^ " preloaded libraries require dynamic-library support")
-          else
-            Ok
-              (Some
-                 ({
-                    max_call_stack_depth = Int64.of_int linking.max_call_stack_depth;
-                    binary_linked_functions =
-                      Array.of_list
-                        (List.map
-                           (fun (function_ : Binary_function.t) -> function_.raw)
-                           linking.binary_functions);
-                    preloaded_libraries =
-                      Array.of_list
-                        (List.map
-                           (fun (library : Dynamic_library.t) -> library.raw)
-                           linking.preloaded_libraries);
-                  }
-                   : Metal_raw.metal4_stage_dynamic_linking_descriptor))
 
   let validate_render_target operation (device : Device.t) ~has_fragment ~raster_sample_count
       ~color_attachments ~rasterization_enabled =
@@ -4893,76 +4220,25 @@ module Compiler = struct
           Array.of_list (List.map Render_pipeline.raw_color_attachment color_attachments) )
 
   let with_render_descriptor operation callback ?label ?fragment ?(reflection = false)
-      ?(raster_sample_count = 1) ?color_formats ?color_attachments ?vertex_descriptor
-      ?(alpha_to_coverage = false) ?(alpha_to_one = false) ?(max_vertex_amplification_count = 1)
-      ?(color_attachment_mapping = Render_pipeline.Identity)
-      ?(support_vertex_binary_linking = false) ?(support_fragment_binary_linking = false)
-      ?vertex_dynamic_linking ?fragment_dynamic_linking ?vertex_static_linking
-      ?fragment_static_linking ?(rasterization_enabled = true)
+      ?(raster_sample_count = 1) ?color_formats ?color_attachments
       ?(primitive_topology = Render_pipeline.Triangle) ?(support_indirect_command_buffers = false)
-      ?(lookup_archives = []) (value : t) ~(library : Library.t) ~vertex =
+      (value : t) ~(library : Library.t) ~vertex =
     on_main operation (fun () ->
         let* () = ensure_live operation value.lifetime in
         let* () = ensure_live operation library.lifetime in
         let* () = ensure_same_device operation value.device library.device in
         let* () = validate_pipeline_entry operation library ~stage:"vertex" vertex in
         let* () = validate_optional_pipeline_entry operation library ~stage:"fragment" fragment in
-        let render_function_pointers =
-          probe (Metal_raw.Registry.device_supports_function_pointers_from_render value.device.raw)
-        in
         if option_exists contains_nul label then
           error operation Invalid_argument "render-pipeline label contains a NUL byte"
-        else if max_vertex_amplification_count <= 0 then
-          error operation Invalid_argument "maximum vertex amplification count must be positive"
-        else if
-          not
-            (probe
-               (Metal_raw.Registry.device_supports_vertex_amplification_count value.device.raw
-                  (Int64.of_int max_vertex_amplification_count)))
-        then
-          error operation Unsupported
-            "the Metal device does not support the vertex amplification count"
-        else if
-          Option.is_none fragment
-          && (support_fragment_binary_linking
-             || Option.is_some fragment_dynamic_linking
-             || Option.is_some fragment_static_linking)
-        then error operation Invalid_argument "fragment-stage linking requires a fragment function"
         else
           let* color_attachments =
             resolve_color_attachments operation ?color_formats ?color_attachments ()
           in
           let* raster_sample_count, color_formats, raw_color_attachments =
             validate_render_target operation value.device ~has_fragment:(Option.is_some fragment)
-              ~raster_sample_count ~color_attachments ~rasterization_enabled
+              ~raster_sample_count ~color_attachments ~rasterization_enabled:true
           in
-          let* () =
-            if
-              (support_vertex_binary_linking || support_fragment_binary_linking)
-              && not render_function_pointers
-            then
-              error operation Unsupported "render binary linking requires function-pointer support"
-            else Ok ()
-          in
-          let* vertex_dynamic_linking =
-            raw_stage_dynamic_linking operation value.device
-              ~support_binary_linking:support_vertex_binary_linking ~stage:"vertex"
-              vertex_dynamic_linking
-          in
-          let* fragment_dynamic_linking =
-            raw_stage_dynamic_linking operation value.device
-              ~support_binary_linking:support_fragment_binary_linking ~stage:"fragment"
-              fragment_dynamic_linking
-          in
-          let* vertex_static_linking =
-            validate_static_linking ~supports_public_linking:render_function_pointers operation
-              value.device vertex_static_linking
-          in
-          let* fragment_static_linking =
-            validate_static_linking ~supports_public_linking:render_function_pointers operation
-              value.device fragment_static_linking
-          in
-          let* () = validate_pipeline_archives operation value.device lookup_archives in
           let descriptor : Metal_raw.metal4_render_descriptor =
             {
               label;
@@ -4972,59 +4248,48 @@ module Compiler = struct
               reflection;
               raster_sample_count;
               color_attachments = raw_color_attachments;
-              rasterization_enabled;
+              rasterization_enabled = true;
               primitive_topology = Render_pipeline.topology_code primitive_topology;
               support_indirect_commands = support_indirect_command_buffers;
-              lookup_archives =
-                Array.of_list
-                  (List.map (fun (archive : Pipeline_archive.t) -> archive.raw) lookup_archives);
-              vertex_descriptor = Option.map Vertex_descriptor.raw vertex_descriptor;
-              support_vertex_binary_linking;
-              support_fragment_binary_linking;
-              vertex_dynamic_linking;
-              fragment_dynamic_linking;
-              vertex_static_linking;
-              fragment_static_linking;
-              alpha_to_coverage;
-              alpha_to_one;
-              max_vertex_amplification_count = Int64.of_int max_vertex_amplification_count;
+              lookup_archives = [||];
+              vertex_descriptor = None;
+              support_vertex_binary_linking = false;
+              support_fragment_binary_linking = false;
+              vertex_dynamic_linking = None;
+              fragment_dynamic_linking = None;
+              vertex_static_linking = None;
+              fragment_static_linking = None;
+              alpha_to_coverage = false;
+              alpha_to_one = false;
+              max_vertex_amplification_count = 1L;
               color_attachment_mapping =
-                Render_pipeline.color_attachment_mapping_code color_attachment_mapping;
+                Render_pipeline.color_attachment_mapping_code Render_pipeline.Identity;
             }
           in
-          callback reflection vertex_descriptor color_attachments color_formats descriptor)
+          callback reflection color_attachments color_formats descriptor)
 
   let create_render_pipeline ?label ?fragment ?(reflection = false) ?(raster_sample_count = 1)
-      ?color_formats ?color_attachments ?vertex_descriptor ?(alpha_to_coverage = false)
-      ?(alpha_to_one = false) ?(max_vertex_amplification_count = 1)
-      ?(color_attachment_mapping = Render_pipeline.Identity)
-      ?(support_vertex_binary_linking = false) ?(support_fragment_binary_linking = false)
-      ?vertex_dynamic_linking ?fragment_dynamic_linking ?vertex_static_linking
-      ?fragment_static_linking ?(rasterization_enabled = true)
+      ?color_formats ?color_attachments
+
       ?(primitive_topology = Render_pipeline.Triangle) ?(support_indirect_command_buffers = false)
-      ?(lookup_archives = []) (value : t) ~(library : Library.t) ~vertex =
+      (value : t) ~(library : Library.t) ~vertex =
     let operation = "Metal.Compiler.create_render_pipeline" in
     with_render_descriptor operation
-      (fun reflection vertex_descriptor color_attachments color_formats descriptor ->
+      (fun reflection color_attachments color_formats descriptor ->
         let* raw, raw_reflection =
           native_result operation (Metal_raw.compiler_create_render_pipeline value.raw descriptor)
         in
         Ok
           (Render_pipeline.make value.device ~kind:Render_pipeline.Render ~raster_sample_count
-             ~alpha_to_coverage ~alpha_to_one ~max_vertex_amplification_count
-             ~color_attachment_mapping ~color_formats ~color_attachments ?vertex_descriptor
+             ~alpha_to_coverage:false ~alpha_to_one:false ~max_vertex_amplification_count:1
+             ~color_attachment_mapping:Render_pipeline.Identity ~color_formats ~color_attachments
              ~reflection raw raw_reflection))
       ?label ?fragment ~reflection ~raster_sample_count ?color_formats ?color_attachments
-      ?vertex_descriptor ~alpha_to_coverage ~alpha_to_one ~max_vertex_amplification_count
-      ~color_attachment_mapping ~support_vertex_binary_linking ~support_fragment_binary_linking
-      ?vertex_dynamic_linking ?fragment_dynamic_linking ?vertex_static_linking
-      ?fragment_static_linking ~rasterization_enabled ~primitive_topology
-      ~support_indirect_command_buffers ~lookup_archives value ~library ~vertex
+      ~primitive_topology ~support_indirect_command_buffers value ~library ~vertex
 
   let destroy (value : t) =
     destroy_parent "Metal.Compiler.destroy" value.lifetime value.raw (fun () ->
-        detach value.device.lifetime;
-        Option.iter (fun (dataset : pipeline_dataset) -> detach dataset.lifetime) value.dataset)
+        detach value.device.lifetime)
 end
 
 module Indirect_command_buffer = struct
@@ -5040,14 +4305,9 @@ module Indirect_command_buffer = struct
 
   let descriptor ?(inherit_buffers = false) ?(inherit_pipeline_state = false)
       ?(max_vertex_buffer_bind_count = 0) ?(max_fragment_buffer_bind_count = 0)
-      ?(max_kernel_buffer_bind_count = 0) ?(support_ray_tracing = false)
-      ?(support_dynamic_attribute_stride = false) ?(max_kernel_threadgroup_memory_bind_count = 0)
-      ?(max_object_buffer_bind_count = 0) ?(max_mesh_buffer_bind_count = 0)
-      ?(max_object_threadgroup_memory_bind_count = 0) ?(inherit_depth_stencil_state = true)
-      ?(inherit_depth_bias = true) ?(inherit_depth_clip_mode = true) ?(inherit_cull_mode = true)
-      ?(inherit_front_facing_winding = true) ?(inherit_triangle_fill_mode = true)
-      ?(support_color_attachment_mapping = false) ~command_types () =
-    {
+
+      ~command_types () =
+    let inherit_cull_mode = (true) in let inherit_depth_bias = (true) in let inherit_depth_clip_mode = (true) in let inherit_depth_stencil_state = (true) in let inherit_front_facing_winding = (true) in let inherit_triangle_fill_mode = (true) in let max_kernel_buffer_bind_count = (0) in let max_kernel_threadgroup_memory_bind_count = (0) in let max_mesh_buffer_bind_count = (0) in let max_object_buffer_bind_count = (0) in let max_object_threadgroup_memory_bind_count = (0) in let support_color_attachment_mapping = (false) in let support_dynamic_attribute_stride = (false) in let support_ray_tracing = (false) in {
       command_types;
       inherit_buffers;
       inherit_pipeline_state;
@@ -5128,10 +4388,10 @@ module Indirect_command_buffer = struct
      }
       : Metal_raw.indirect_command_buffer_descriptor)
 
-  let create ~(device : Device.t) ?(storage = Buffer.Private) ?(cpu_cache = Buffer.Default_cache)
-      ?(hazard_tracking = Buffer.Default_hazard_tracking) ~max_command_count
+  let create ~(device : Device.t)
+      ~max_command_count
       (descriptor : descriptor) =
-    let operation = "Metal.Indirect_command_buffer.create" in
+    let cpu_cache = (Buffer.Default_cache) in let hazard_tracking = (Buffer.Default_hazard_tracking) in let storage = (Buffer.Private) in let operation = "Metal.Indirect_command_buffer.create" in
     on_main operation (fun () ->
         let counts =
           [
@@ -5221,11 +4481,6 @@ module Indirect_command_buffer = struct
             attach_finalizer command command.lifetime value.lifetime;
             Ok command)
 
-    type cull_mode = No_cull | Cull_front | Cull_back
-    type depth_clip_mode = Clip | Clamp
-    type winding = Clockwise | Counter_clockwise
-    type fill_mode = Fill | Lines
-
     let set_pipeline (value : t) (pipeline : Render_pipeline.t) =
       let operation = "Metal.Indirect_command_buffer.Render_command.set_pipeline" in
       on_main operation (fun () ->
@@ -5269,8 +4524,8 @@ module Indirect_command_buffer = struct
         Metal_raw.indirect_render_command_set_fragment_buffer value ~index ~offset buffer
 
     let draw_indexed (value : t) ~primitive ~index_type ~(index_buffer : Buffer.t) ~index_offset
-        ~index_count ?(instance_count = 1L) ?(base_vertex = 0L) ?(base_instance = 0L) () =
-      let operation = "Metal.Indirect_command_buffer.Render_command.draw_indexed" in
+        ~index_count ?(instance_count = 1L) () =
+      let base_instance = (0L) in let base_vertex = (0L) in let operation = "Metal.Indirect_command_buffer.Render_command.draw_indexed" in
       let type_code, element = match index_type with Uint16 -> (0, 2L) | Uint32 -> (1, 4L) in
       on_main operation (fun () ->
           let* () = ensure_live operation value.lifetime in
@@ -5293,8 +4548,8 @@ module Indirect_command_buffer = struct
             Ok ())
 
     let draw_primitives (value : t) ~primitive ~vertex_start ~vertex_count ?(instance_count = 1)
-        ?(base_instance = 0) () =
-      let operation = "Metal.Indirect_command_buffer.Render_command.draw_primitives" in
+        () =
+      let base_instance = (0) in let operation = "Metal.Indirect_command_buffer.Render_command.draw_primitives" in
       on_main operation (fun () ->
           let* () = ensure_live operation value.lifetime in
           if vertex_start < 0 || vertex_count <= 0 || instance_count <= 0 || base_instance < 0 then
@@ -5361,9 +4616,6 @@ module Command_buffer = struct
     kernel_end_time : float;
     retained_references : bool;
   }
-
-  type encoder_info = { label : string option; debug_signposts : string list; error_state : int }
-  type dispatch_type = Serial | Concurrent
 
   let release_callback_tokens tokens =
     let retained = !tokens in
@@ -5432,7 +4684,7 @@ module Command_buffer = struct
                   detach queue.lifetime;
                 native_error "Metal.Command_buffer.create" message))
 
-  let create queue ?label () = create_owned ~finalize:true queue ?label ()
+  let create queue () = let label = None in create_owned ~finalize:true queue ?label ()
 
   module Private = struct
     (* Scoped callers must arrange [destroy] on every exit.  In particular a
@@ -5504,8 +4756,8 @@ module Command_buffer = struct
                    ~default:"Metal command buffer failed without NSError")
           | value -> Unknown value))
 
-  let present (value : t) (drawable : metal_drawable) ?(at = Immediate) () =
-    let operation = "Metal.Command_buffer.present" in
+  let present (value : t) (drawable : metal_drawable) () =
+    let at = (Immediate) in let operation = "Metal.Command_buffer.present" in
     let* () = before_main operation in
     let* () = ensure_live operation value.lifetime in
     if value.phase <> Recording then
@@ -5603,8 +4855,6 @@ end
 
 module Acceleration_encoder = struct
   type t = acceleration_encoder
-  type resource_usage = Read | Write | Read_write
-  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
   type compacted_size_type = Uint32 | Uint64
 
   let create (command_buffer : Command_buffer.t) =
@@ -5749,28 +4999,12 @@ module Render_encoder = struct
   type t = render_encoder
   type cull_mode = No_cull | Cull_front | Cull_back
   type winding = Clockwise | Counter_clockwise
-  type fill_mode = Fill | Lines
-  type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
-
-  type store_action =
-    | Store_dont_care
-    | Store
-    | Multisample_resolve
-    | Store_and_multisample_resolve
 
   type stage = Vertex | Fragment | Tile | Object | Mesh
-  type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
   type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
   type index_type = Uint16 | Uint32
-  type prepared_resources = render_encoder_prepared_resources
-
-  type prepared_resource_use = {
-    resources : prepared_resources;
-    usage : resource_usage list;
-    stages : stage list;
-  }
 
   type viewport = {
     x : float;
@@ -5865,8 +5099,8 @@ module Render_encoder = struct
           if finalize then attach_lifetime_finalizer value.lifetime command_buffer.lifetime;
           Ok value
 
-  let create command_buffer ~target ?clear ?depth ?stencil () =
-    create_owned ~finalize:true command_buffer ~target ?clear ?depth ?stencil ()
+  let create command_buffer ~target () =
+    let clear = None in let depth = None in let stencil = None in create_owned ~finalize:true command_buffer ~target ?clear ?depth ?stencil ()
 
   let create_from_pass_owned ~finalize (command_buffer : Command_buffer.t)
       (pass : render_pass_descriptor) =
@@ -5946,28 +5180,6 @@ module Render_encoder = struct
       prepared_index_offsets : int64 array;
       prepared_command_resources : prepared_command_resources;
     }
-
-    type prepared_render_pass_header = {
-
-      prepared_pass : render_pass_descriptor;
-      prepared_pass_color : texture;
-      prepared_pass_depth : texture option;
-      prepared_pass_stencil : texture option;
-      prepared_pass_resolve : texture option;
-      prepared_pass_visibility : buffer option;
-      prepared_pass_samples : render_pass_sample_state option array;
-
-    } [@@warning "-69"]
-
-    type prepared_indirect_render_pass = {
-      prepared_indirect_header : prepared_render_pass_header;
-      prepared_indirect_pipeline : render_pipeline;
-      prepared_indirect_commands : indirect_command_buffer;
-      prepared_indirect_location : int;
-      prepared_indirect_length : int;
-      prepared_indirect_resource_uses : prepared_resource_use array;
-
-    } [@@warning "-69"]
 
     let distinct_roots lifetime_of values =
       let length = Array.length values in
@@ -6284,50 +5496,26 @@ module Render_encoder = struct
     set_texture "Metal.Render_encoder.set_fragment_texture"
       (fun e t i -> Metal_raw.Registry.render_encoder_set_fragment_texture e t (Int64.of_int i))
 
-  let set_sampler operation raw_call (value : t) ~index ?lod_min ?lod_max (sampler : Sampler.t) =
+  let set_sampler operation raw_call (value : t) ~index (sampler : Sampler.t) =
     on_main operation (fun () ->
         let* () = ensure_live operation value.lifetime in
         let* () = ensure_live operation sampler.lifetime in
         if index < 0 || index >= 31 then
           error operation Invalid_argument "sampler index must be in [0, 31)"
-        else if
-          match (lod_min, lod_max) with
-          | None, None -> false
-          | Some lo, Some hi ->
-              not (Float.is_finite lo && Float.is_finite hi && lo >= 0. && lo <= hi)
-          | _ -> true
-        then
-          error operation Invalid_argument
-            "LOD clamps must be finite, nonnegative, ordered, and supplied together"
         else
           let* () = ensure_same_device operation value.command_buffer.queue.device sampler.device in
-          let result =
-            match (lod_min, lod_max) with
-            | None, None -> raw_call `Plain value.raw sampler.raw index
-            | Some lo, Some hi -> raw_call (`Lod (lo, hi)) value.raw sampler.raw index
-            | _ -> assert false
-          in
+          let result = raw_call value.raw sampler.raw index in
           let* () = native_result operation result in
           retain_command_buffer_sampler value.command_buffer sampler;
           Ok ())
 
-  let sampler_call plain lod = function
-    | `Plain -> plain
-    | `Lod clamps -> fun encoder sampler index -> lod encoder sampler clamps index
-
   let set_vertex_sampler =
     set_sampler "Metal.Render_encoder.set_vertex_sampler"
-      (sampler_call
-         (fun e s i -> Metal_raw.Registry.render_encoder_set_vertex_sampler e s (Int64.of_int i))
-         (fun e s (lo, hi) i ->
-           Metal_raw.Registry.render_encoder_set_vertex_sampler_lod e s lo hi (Int64.of_int i)))
+      (fun e s i -> Metal_raw.Registry.render_encoder_set_vertex_sampler e s (Int64.of_int i))
 
   let set_fragment_sampler =
     set_sampler "Metal.Render_encoder.set_fragment_sampler"
-      (sampler_call
-         (fun e s i -> Metal_raw.Registry.render_encoder_set_fragment_sampler e s (Int64.of_int i))
-         (fun e s (lo, hi) i ->
-           Metal_raw.Registry.render_encoder_set_fragment_sampler_lod e s lo hi (Int64.of_int i)))
+      (fun e s i -> Metal_raw.Registry.render_encoder_set_fragment_sampler e s (Int64.of_int i))
 
   let set_validated operation validate raw_call (value : t) argument =
     let* () = before_main operation in
@@ -6634,8 +5822,8 @@ module Render_encoder = struct
      object threadgroup is given exactly when it has an object stage, and any
      required threadgroup sizes compiled into it must match. *)
 
-  let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
-    let operation = "Metal.Render_encoder.draw_triangles" in
+  let draw_triangles (value : t) ~first ~count () =
+    let instances = (1) in let operation = "Metal.Render_encoder.draw_triangles" in
     let* () = before_main operation in
     let* () = ensure_live operation value.lifetime in
     if Option.is_none value.pipeline then
@@ -6665,11 +5853,6 @@ end
 
 module Compute_encoder = struct
   type t = compute_encoder
-  type dispatch_type = Serial | Concurrent
-  type barrier_scope = Barrier_buffers | Barrier_textures
-  type resource_usage = Resource_read | Resource_write | Resource_sample
-  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
-  type region = { x : int64; y : int64; z : int64; width : int64; height : int64; depth : int64 }
 
   let create (command_buffer : Command_buffer.t) =
     on_main "Metal.Compute_encoder.create" (fun () ->
