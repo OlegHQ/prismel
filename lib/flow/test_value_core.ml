@@ -12,7 +12,7 @@ let () =
     [""; "9a"; "A"; "a-b"; "a.b"; "a/b"];
   List.iter (fun (target, input, expected) -> assert (coerce ~target input = Ok expected))
     [Float, Int_value 3, Float_value 3.; Int, Float_value 1.5, Int_value 2;
-     Int, Float_value (-1.5), Int_value (-2); Bool, Float_value (-0.), Bool_value false;
+     Int, Float_value (-1.5), Int_value (-1); Bool, Float_value (-0.), Bool_value false;
      Bool, Int_value (-1), Bool_value true; Float, Bool_value true, Float_value 1.;
      Int, Bool_value false, Int_value 0; Vec3, Bool_value true, Vec3_value (1.,1.,1.);
      Vec3, Int_value 2, Vec3_value (2.,2.,2.); Vec3, Float_value 3., Vec3_value (3.,3.,3.);

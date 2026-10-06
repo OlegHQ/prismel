@@ -103,13 +103,13 @@
       "source_sha256": "c112936a6b72d1746eba9a6f4201e2f62798ef06e82070740d7558563802eecf"
     },
     {
-      "api_sha256": "7069c70e202bc4254af0f13bc0e011064d35b1597d1b6139f2d3056cdc57c772",
+      "api_sha256": "ff535f9f88cea0703c9c4021eee5acff3c926a76cec4f53f2e9b3a2bd0751765",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Syntax",
       "source": "lib/flow/syntax.mli",
-      "source_bytes": 2228,
-      "source_sha256": "f2f47dcaa5baf99c869cc86f01c1d7d6348dc326670362e774115419614ecd8e"
+      "source_bytes": 2335,
+      "source_sha256": "902d6fd5f0a683e5a15a8ee0c4a63dbb4d0355fde775d360f83202e1ad4b22eb"
     },
     {
       "api_sha256": "00693e8fc58f595486ca5f85c9a47d18ccb3dade0f4ac05e6d754b83a187a63e",

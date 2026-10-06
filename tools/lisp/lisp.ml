@@ -13,7 +13,7 @@ let catalog () =
   | Ok c -> c
   | Error d -> die "rays-lisp: catalog: %s" (D.to_string d)
 
-let head (f : S.t) = match f.node with S.List ({ S.node = S.Sym h; _ } :: _) -> Some h | _ -> None
+let head = S.head
 
 (* The checked document and every diagnostic to print. Warnings fail the file
    unless the workspace form carries ^:allow-warnings.  The document is also

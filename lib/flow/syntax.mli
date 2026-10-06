@@ -45,6 +45,9 @@ val parse : string -> (t list, Diagnostic.t) result
 val make : ?notes:string list -> ?meta:string list -> node -> t
 (** A form with id 0 and an empty span, for macro expansion; [renumber] it. *)
 
+val head : t -> string option
+(** The symbol a list starts with: the name of a call or a special form. *)
+
 val children : t -> t list
 (** Direct sub-forms in reading order. *)
 

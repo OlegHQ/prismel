@@ -15,7 +15,7 @@ let editor_graph t =
   List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Editor
     && Option.fold ~none:true ~some:(( = ) g.name) t.layout.editor) t.checked.graphs
 
-let head (f : S.t) = match f.node with S.List ({ S.node = S.Sym h; _ } :: _) -> Some h | _ -> None
+let head = S.head
 
 (* ---- settings: (settings :name value ...), only non-default fields ---- *)
 

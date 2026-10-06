@@ -200,6 +200,8 @@ let parse source =
 let make ?(notes = []) ?(meta = []) node =
   {id = 0; node; span = {start = 0; finish = 0}; notes; meta; tail = []}
 
+let head x = match x.node with List ({node = Sym h; _} :: _) -> Some h | _ -> None
+
 let children x = match x.node with
   | Sym _ | Kw _ | Num _ | Str _ -> []
   | List xs | Vec xs | Map xs -> xs

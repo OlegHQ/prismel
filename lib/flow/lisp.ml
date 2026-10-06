@@ -65,8 +65,7 @@ let meta_pre x = String.concat "" (List.map (fun m -> "^:" ^ m ^ " ") x.meta)
 
 let kids x = children x
 let is_kw x = match x.node with Kw _ -> true | _ -> false
-let head x = match x.node with
-  | List ({node = Sym s; _} :: _) -> s | _ -> ""
+let head x = Option.value ~default:"" (Syntax.head x)
 
 (* flat: one line, notes ignored; [core_flat] leaves the form's own marker and flags to the caller. *)
 let rec core_flat x =

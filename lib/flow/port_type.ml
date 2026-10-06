@@ -34,7 +34,7 @@ let coerce ~target value =
             if not (Float.is_finite number) then
               Error (Diagnostic.error ~code:"E_TYPE" "A non-finite value cannot drive Int")
             else
-              let rounded = Float.round number in
+              let rounded = Float.floor (number +. 0.5) in  (* as [Eval.round]: a tie rounds up *)
               let integer = if rounded >= float_of_int max_int then max_int
                 else if rounded <= float_of_int min_int then min_int
                 else int_of_float rounded in
