@@ -122,6 +122,19 @@ let run () =
   check (node_id edited "arm" = arm) "an edit changed an object's id";
   check (snd edited.workspace != snd doc.workspace) "the edited text was not lowered again";
   same_after_reload edited "transform";
+  (* the inspector's and the handles' route writes the fields text first (the derived object is
+     never edited): the same text as the reconciled edit, ranges applied, ids kept *)
+  let direct doc label values =
+    match Sync.set_fields ~factories doc Document.Scene ~node:(node_id doc label) values with
+    | Ok (Some (written, _, _)) -> written
+    | Ok None -> failwith (label ^ " has no text") | Error message -> failwith message in
+  List.iter (fun (label, values) ->
+    let written = direct doc label values in
+    check (source written = source (ok (reconcile doc (set doc label values))))
+      ("fields written text first differ from the reconciled edit of " ^ label ^ ": " ^ source written);
+    check (node_id written label = node_id doc label) ("fields written text first changed the id of " ^ label))
+    [ "arm", [ float "translate_x" 4.; float "translate_y" 2. ]; "fill", [ float "intensity" 99. ];
+      "cam", [ float "fov" 500. ] ];
   (* an inline object is unfolded into a binding first *)
   let edited = ok (reconcile doc (set doc "fill" [ float "intensity" 99. ])) in
   check (contains (source edited) ":intensity 99.0") "an inline object's edit did not reach the text";
@@ -238,6 +251,9 @@ let run () =
     with_scene doc (Result.get_ok (Edit_graph.add_node ~factory:Objects.Camera.factory camera graph)) in
   let bare = with_light bare in
   check (not (contains (source bare) "scene/")) "the host's objects were written before any edit";
+  check (Sync.set_fields ~factories bare Document.Scene ~node:(node_id bare "light1") [ float "intensity" 12. ] = Ok None
+         && not (Sync.in_text bare Document.Scene (node_id bare "light1")))
+    "an object only the host made was taken to have text";
   let edited = ok (reconcile bare (set bare "light1" [ float "intensity" 12. ])) in
   check (contains (source edited) "graph scene" && contains (source edited) "scene/light"
          && contains (source edited) ":intensity 12.0" && contains (source edited) "scene/geometry (ref g)"
@@ -403,6 +419,9 @@ let run_loops () =
     let message = refused (reconcile doc (set_id doc third [ float "translate_x" 9. ])) in
     check (contains message "translate is computed by the loop" && contains message "(now i)")
       (what ^ ": a computed component was not refused with its expression: " ^ message);
+    (match Sync.set_fields ~factories doc Document.Scene ~node:third [ float "translate_x" 9. ] with
+     | Error direct -> check (direct = message) (what ^ ": the text-first route refuses otherwise: " ^ direct)
+     | Ok _ -> failwith (what ^ ": the text-first route wrote a computed component"));
     (* a component the loop does not compute is the template's: every copy follows *)
     let lifted = ok (reconcile doc (set_id doc third [ float "translate_y" 5. ])) in
     check (contains (source lifted) ":translate [i 5.0 0]"

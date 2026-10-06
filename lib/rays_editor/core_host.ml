@@ -102,6 +102,16 @@ let world_id value = match Objects.ids "world" (scene value) with
    undo entry per pointer gesture. *)
 let edit_node value level node_id values ~label =
   if value.carry <> None then value else
+  let written doc =
+    Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd doc.Document.workspace));
+    { value with doc;
+      history = commit ~label ~merge:(Gesture (parameter_gesture label level node_id values)) doc value.history } in
+  (* an object the text declares takes the values in its text; one only the host made is edited
+     as a derived node, which the reconciliation adopts *)
+  match Editor_document.Scene_sync.set_fields ~factories:value.factories value.doc level ~node:node_id values with
+  | Ok (Some (doc, _, _)) -> written doc
+  | Error message -> { value with edit_error = Some message }
+  | Ok None ->
   match Document.network value.doc level with
   | None -> value
   | Some network ->
@@ -111,11 +121,7 @@ let edit_node value level node_id values ~label =
           let edited = Document.with_network value.doc level { network with graph = Result.get_ok (Flow_sop.Network.with_geometry graph network.graph) } in
           (match Doc.reconcile ~factories:value.factories value.doc edited with
            | Error message -> { value with edit_error = Some message }
-           | Ok doc ->
-               Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
-               { value with doc;
-                 history = commit ~label ~merge:(Gesture
-                   (parameter_gesture label level node_id values)) doc value.history })
+           | Ok doc -> written doc)
 
 (* A click in the view (plan W6): the primitive under the ray, its
    [__flow_src] tag, the merge input that made it (`Lower.provenance`), then

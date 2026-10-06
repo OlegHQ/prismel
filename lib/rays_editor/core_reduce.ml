@@ -47,8 +47,12 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     match save_guide value.preferences guide with
     | Ok () -> None | Error message -> Some (Refusal, "Guide preference not saved: " ^ message) in
   (* The one reduction phase: panes have finished constructing their boxes. *)
+  (* the fields of an object the text declares are written to the text (below, with the frame's
+     gestures); only an object the host made is edited as a derived node, for reconcile to adopt *)
+  let in_text node = Editor_document.Scene_sync.in_text value.doc value.level node in
   let document, edit_error, editor_effects = List.fold_left apply_change
-      ((network value).graph, value.edit_error, Parameter.no_effects) result.changes in
+      ((network value).graph, value.edit_error, Parameter.no_effects)
+      (List.filter (function Set_parameter { node; _ } -> not (in_text node) | _ -> true) result.changes) in
   let document, selection, tree, opened, tree_label, _ = List.fold_left
       (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
       result.tree_intents in
@@ -59,7 +63,8 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
          | Ok (document, changed) -> document, Parameter.union_effects effects changed, error
          | Error message -> document, effects, Some message) in
   let document, parameter_effects, edit_error =
-    apply_changes (document, Parameter.no_effects, edit_error) result.handle_changes in
+    apply_changes (document, Parameter.no_effects, edit_error)
+      (match result.handle_changes with Some (id, _) when in_text id -> None | handle -> handle) in
   let settings, settings_effects, edit_error = match result.settings_changes with
     | [] -> value.doc.settings, Parameter.no_effects, edit_error
     | changes -> (match Settings.apply value.doc.settings changes with
@@ -183,10 +188,24 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
      later one cannot hide its message *)
   let refused = ref None in
   let gestures = next, result in
+  let set_fields ((next : Document.t), (result : _ frame_result)) node values =
+    match Editor_document.Scene_sync.set_fields ~factories:value.factories next value.level ~node values with
+    | Ok (Some (doc, effects, home)) ->
+        if !edit_note = None then edit_note := Editor_document.Scene_sync.template_note next home;
+        doc, { result with edit_error = None;
+               effects = Parameter.union_effects result.effects (node_effects effects) }
+    | Ok None -> next, result
+    | Error message -> refused := Some message; next, result in
+  (* a viewport handle's values *)
+  let next, result = match result.handle_changes with
+    | Some (id, values) when Option.is_none loaded && in_text id -> set_fields (next, result) id values
+    | _ -> next, result in
   let next, result = if Option.is_some loaded then next, result else
     List.fold_left (fun ((next : Document.t), result) change ->
       let refuse message = refused := Some message; next, result in
       if !refused <> None then next, result else match change with
+      | Set_parameter { node; path; value = field } when in_text node ->
+          set_fields (next, result) node [ path, field ]
       | Dock_panels (source, target, side) ->
           (match dock_panels ~factories:value.factories next source target side with
            | Ok doc -> doc, { (result : _ frame_result) with label = "Arrange panel"; edit_error = None }

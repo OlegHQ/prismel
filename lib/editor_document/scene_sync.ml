@@ -235,13 +235,16 @@ let source_graph_of (doc : Document.t) id =
             | S.List [ { node = S.Sym "ref"; _ }; { node = S.Sym g; _ } ] -> Some g | _ -> None) args
       | _ -> None))
 
+(* an object a viewport over another scene instance draws is derived: its text is that reference *)
+let refuse_preview (doc : Document.t) id =
+  match Option.bind doc.shell (fun shell -> List.find_map (fun (key, ids) ->
+    if List.mem id ids then Some key else None) shell.views) with
+  | Some key -> stop "Preview [%s] is derived; edit its viewport scene reference or source graph." key
+  | None -> ()
+
 let objects st (before : Document.t) (after : Document.t) =
   let b = Document.scene_graph before and a = Document.scene_graph after in
-  let refuse_preview id =
-    match Option.bind before.shell (fun shell -> List.find_map (fun (key, ids) ->
-      if List.mem id ids then Some key else None) shell.views) with
-    | Some key -> stop "Preview [%s] is derived; edit its viewport scene reference or source graph." key
-    | None -> () in
+  let refuse_preview = refuse_preview before in
   let gone = ref [] in
   List.iter (fun (id, home) -> if homed before id then
     match Edit.find b ~node_id:id, Edit.find a ~node_id:id with
@@ -584,6 +587,47 @@ let world_changed (before : Document.t) (after : Document.t) =
       || (match Edit.find (Document.scene_graph before) ~node_id:wid, Edit.find (Document.scene_graph after) ~node_id:wid with
           | Some nb, Some na -> Node.label nb <> Node.label na || differing ~before:nb na <> []
           | _ -> false)
+
+(* ---- one object's fields, text first ---- *)
+
+(* Where the text of a scene object (at the scene level) or of a World layer (inside the World) is,
+   when it has one an edit can be written to; none for an object only the host made. *)
+let field_home (doc : Document.t) level node = match level with
+  | Document.Scene ->
+      (match List.assoc_opt node doc.homes.objects with
+       | Some home when homed doc node -> Some home
+       | Some _ -> None
+       | None -> if world_id doc = Some node then doc.homes.world else None)
+  | Inside id when world_id doc = Some id -> List.assoc_opt node doc.homes.layers
+  | Inside _ -> None
+
+let in_text doc level node = field_home doc level node <> None
+
+(* Field values of one object (an inspector row, a viewport handle) written to its text and lowered
+   again, with no edit of the derived object in between: the node only says what the values are
+   once its ranges have had their say, and which effects they have.  [None]: the object has no
+   text (the caller edits the derived object and {!reconcile} adopts it). *)
+let set_fields ~factories (doc : Document.t) level ~node values =
+  let ( let* ) = Result.bind in
+  let graph = match level with
+    | Document.Scene -> Some (Document.scene_graph doc)
+    | Inside id -> Option.map (fun (n : Document.network) -> n.graph.geometry)
+        (Document.Int_map.find_opt id doc.networks) in
+  match field_home doc level node, Option.bind graph (fun g -> Edit.find g ~node_id:node) with
+  | Some home, Some was ->
+      let* now, effects = Node.apply_parameters was values in
+      let* catalog = Result.map_error Flow.Diagnostic.to_string
+          (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+      let st = { catalog; workspace = fst doc.workspace; unfolded = []; adopted = false } in
+      (try
+         if level = Document.Scene then refuse_preview doc node;
+         set ~before:(current_syntax was) st home (differing ~before:was now);
+         let* doc = if st.workspace == fst doc.workspace then Ok doc
+           else Contexts.of_workspace ~factories ~previous:doc st.workspace
+                |> Result.map_error Flow.Diagnostic.to_string in
+         Ok (Some (doc, effects, home))
+       with Stop message -> Error message)
+  | _ -> Ok None
 
 (* [after] is [before] edited in place (its scene, World networks, active camera or settings);
    the result is [after] with the edit written to its text and lowered again.  [adopt]: an
