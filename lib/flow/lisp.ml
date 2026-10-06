@@ -108,12 +108,20 @@ let rec spine x = match x.node with
   | _ -> x, []
 let spine x = let start, steps = spine x in start, List.rev steps
 
+(* more atoms than columns: the one-line text cannot fit, so it is not built to find out *)
+let wide x =
+  let left = ref width in
+  let rec go x = decr left; !left >= 0 && List.for_all go (kids x) in
+  not (go x)
+
 let rec pp x ind =
   let pre = meta_pre x in
   wrap x (pre ^ core x (ind + String.length pre))
 
 and core x ind =
-  let f = core_flat x in
+  let flat = lazy (core_flat x) in
+  let narrow = lazy (not (wide x)) in
+  let fits ind limit = Lazy.force narrow && vis (Lazy.force flat) + ind <= limit in
   let ks = kids x in
   let len = List.length ks in
   let deep_ = deep in
@@ -123,10 +131,10 @@ and core x ind =
   (* a child on its own line at [col], after its notes *)
   let line k col = "\n" ^ sp col ^ with_notes (nth ks k) col (pp (nth ks k) col) in
   match x.node with
-  | Sym _ | Kw _ | Num _ | Str _ -> f
+  | Sym _ | Kw _ | Num _ | Str _ -> Lazy.force flat
   | Quote (k, y) -> prefix k ^ pp y (ind + String.length (prefix k))
   | Vec _ | Map _ ->
-      if not deep && (is_vec x || vis f + ind <= width) then f
+      if not deep && (is_vec x || fits ind width) then Lazy.force flat
       else
         let col = ind + 1 in
         let rec parts = function
@@ -141,7 +149,7 @@ and core x ind =
         let o, c = if is_vec x then "[", "]" else "{", "}" in
         o ^ (match ks with y :: _ when y.notes <> [] -> "\n" ^ sp col | _ -> "")
         ^ String.concat ("\n" ^ sp col) (parts ks) ^ end_n col ^ c
-  | List [] -> f
+  | List [] -> Lazy.force flat
   | List (h :: _) ->
       let hd = head x in
       let bind_vec v col =
@@ -185,11 +193,11 @@ and core x ind =
             (List.filteri (fun i _ -> i >= 2) ks))
         ^ end_n (ind + 2) ^ ")"
       else if not deep
-           && (vis f + ind <= width
-               || (vis f <= 44 && not (List.mem hd bind_forms) && hd <> "fold" && hd <> "scan"))
+           && (fits ind width
+               || (fits 0 44 && not (List.mem hd bind_forms) && hd <> "fold" && hd <> "scan"))
            && not special
            && not (hd = "let*" && len > 1 && vec_at 1 && vec_len 1 > 2)
-      then f
+      then Lazy.force flat
       else if List.mem hd bind_forms && vec_at 1 && len = 3 && slots_plain 2 then
         let col = ind + String.length hd + 2 in
         "(" ^ hd ^ " " ^ bind_vec (nth ks 1) col
@@ -250,7 +258,7 @@ and core x ind =
           | y :: rest -> [y] :: units rest in
         let units = units (List.tl ks) in
         let hs = flat_ h in
-        if units = [] && x.tail = [] then f
+        if units = [] && x.tail = [] then Lazy.force flat
         else if own x then
           let col = ind + 2 in
           let unit = function
