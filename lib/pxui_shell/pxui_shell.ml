@@ -984,28 +984,29 @@ module Which_key = struct
 
   (* The key sheet: a title row ([Keys], what has the focus, a close button), the filter, and the
      commands in three columns, one section each. *)
-  let sheet ui ?(context = "") keymap =
+  (* The key sheet's sections: every command a key reaches, once per id with all its keys (the
+     Ctrl twins of the Command chords left out), under the section [category] gives it, the
+     leader sheet's sections first. *)
+  let sheet_sections ?(category = fun _ -> "Keys") keymap =
+    let commands = List.fold_left (fun seen command ->
+      if command.trigger = None || List.exists (fun previous -> previous.id = command.id) seen then seen
+      else command :: seen) [] keymap |> List.rev in
+    let titles = List.fold_left (fun acc command ->
+      let title = category command in if List.mem title acc then acc else acc @ [ title ]) [] commands in
+    List.map (fun title -> title, List.filter_map (fun command ->
+      if category command <> title then None else
+      let keys = List.filter_map (fun alias -> if alias.id <> command.id then None
+        else match alias.trigger with
+          | Some (Chord (_, modifiers)) when List.mem Input.Ctrl modifiers -> None
+          | Some trigger -> Some (Editor_core.Keymap.label trigger) | None -> None) keymap
+        |> List.sort_uniq String.compare |> String.concat " / " in
+      Some (keys, command.label)) commands)
+      (List.filter (fun t -> List.mem t titles) category_order
+       @ List.filter (fun t -> not (List.mem t category_order)) titles)
+
+  let sheet ui ?(context = "") ?category keymap =
     let module Ui = Pxui.Ui in
-    let groups = [
-      "Create", ["graph.add"; "graph.repeat"; "graph.connect-hint"; "graph.open"; "graph.point";
-        "graph.group"; "graph.ungroup"];
-      "Change", ["graph.display"; "graph.mute"; "graph.delete"; "graph.dissolve";
-        "graph.copy"; "graph.cut"; "graph.paste"; "graph.duplicate"; "edit."; "row."];
-      "Move", ["graph.walk."; "graph.frame-"; "scene.enter"; "scene.up"; "guide."; "graph.find";
-        "graph.projection"] ] in
-    let sections = List.filter_map (fun (title, prefixes) ->
-      let commands = List.filter (fun command -> command.trigger <> None
-        && List.exists (fun prefix -> String.starts_with ~prefix command.id) prefixes) keymap in
-      let commands = List.fold_left (fun seen command ->
-        if List.exists (fun previous -> previous.id = command.id) seen then seen
-        else command :: seen) [] commands |> List.rev in
-      if commands = [] then None else Some (title, List.map (fun command ->
-        let keys = List.filter_map (fun alias -> if alias.id <> command.id then None
-          else match alias.trigger with
-            | Some (Chord (_, modifiers)) when List.mem Input.Ctrl modifiers -> None
-            | Some trigger -> Some (Editor_core.Keymap.label trigger) | None -> None) keymap
-          |> List.sort_uniq String.compare |> String.concat " / " in
-        keys, command.label) commands)) groups in
+    let sections = sheet_sections ?category keymap in
     match Ui.modal ui ~width:572. "guide-keys" (fun () ->
       let theme = Ui.theme ui in
       let closed = ref false in
@@ -1033,10 +1034,24 @@ module Which_key = struct
       let sections = if query = "" then sections else List.filter_map (fun (title, rows) ->
         match List.filter (fun (keys, label) -> Ui.fuzzy_match ~query label || Ui.fuzzy_match ~query keys) rows with
         | [] -> None | rows -> Some (title, rows)) sections in
-      let box = Ui.box ui ~w:Ui.Grow
-          ~h:(Ui.Px (float ((1 + tallest sections) * Ui.row_height ui) +. 8.)) "keys-sheet" in
+      (* three columns: each section goes under the shortest column so far *)
+      let rows_of (_, rows) = 1 + List.length rows in
+      let stacks = List.fold_left (fun stacks section ->
+        let height stack = List.fold_left (fun n s -> n + rows_of s) 0 stack in
+        let shortest = List.fold_left (fun best i ->
+          if height (List.nth stacks i) < height (List.nth stacks best) then i else best) 0 [ 1; 2 ] in
+        List.mapi (fun i stack -> if i = shortest then stack @ [ section ] else stack) stacks)
+        [ []; []; [] ] sections in
+      let tallest = List.fold_left (fun most stack ->
+        max most (List.fold_left (fun n s -> n + rows_of s) 0 stack)) 0 stacks in
+      let row = float (Ui.row_height ui) in
+      let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px (float tallest *. row +. 8.)) "keys-sheet" in
       Ui.draw ui box (fun paint (x, y, w, _) ->
-        columns ui paint (x, y, w) ~cols:3 ~gap:0. ~label_ink:(Pxui.Theme.ink_2 theme) sections);
+        List.iteri (fun column stack ->
+          ignore (List.fold_left (fun top section ->
+            columns ui paint (x +. (float column *. w /. 3.), top, w /. 3.) ~cols:1 ~gap:0.
+              ~label_ink:(Pxui.Theme.ink_2 theme) [ section ];
+            top +. (float (rows_of section) *. row)) y stack)) stacks);
       pick <> `Cancel && not !closed) with
     | Some open_ -> open_ | None -> false
 end

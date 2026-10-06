@@ -477,6 +477,10 @@ let lisp_text () =
   check (p "(a (b)\n  c)" = "(a (b)\n  c)") "a closer in the middle of a line stays";
   check (p "(a \"(\" ; )\n  b" = "(a \"(\" ; )\n  b)") "strings and comments are not brackets";
   check (p "(a]" = "(a)") "a closer matching nothing is replaced";
+  (* E22: a string runs over line breaks: nothing inside it is a bracket or an indentation *)
+  check (p "(a \"x\n(y]\" b" = "(a \"x\n(y]\" b)") ("a string over two lines: " ^ p "(a \"x\n(y]\" b");
+  check (p "(a\n  (b \"x\ny\")\n(c)" = "(a\n  (b \"x\ny\"))\n(c)") ("closers after a string's last line: " ^ p "(a\n  (b \"x\ny\")\n(c)");
+  check (L.brackets "(a \"x\n)\" b)" = [ (0, 10) ]) "a bracket on a string's second line is not one";
   check (p "(let* [a 1\n       b 2]\n  a)" = "(let* [a 1\n       b 2]\n  a)") "a vector over two lines";
   check (p "(a\n  )" = "(a)\n") "a line of closers alone becomes blank";
   check (L.parinfer_text "(a \n  )" 6 = ("(a) \n  ", 7)) "Enter before a closer keeps the caret's indentation";

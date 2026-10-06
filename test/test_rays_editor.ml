@@ -491,11 +491,15 @@ let run () =
     "the following camera did not track a viewport orbit";
   let command key count = { (frame ~events:[Event.KeyPressed (Input.KeyChar key)] count)
     with keys = [Input.Meta] } in
+  (* navigation is view state (E12): the orbit leaves no undo entry, and an undo with nothing to
+     undo leaves the view where it is *)
+  check (not (Rays_editor.Editor3.can_undo environment)) "a viewport orbit made an undo entry";
+  let orbited = eye environment in
   let environment = Rays_editor.Editor3.update environment (command 'z' 9) in
   let environment = Rays_editor.Editor3.update environment (frame 10) in
-  check (near (eye environment) start_eye && near (viewport_eye environment) start_eye
+  check (near (eye environment) orbited && near (viewport_eye environment) orbited
       && not (Rays_editor.Editor3.can_undo environment))
-    "one undo did not revert the whole drag and move the viewport back";
+    "an undo with nothing to undo moved the viewport";
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Home] 10) in
   let environment = Rays_editor.Editor3.update environment (frame 10) in

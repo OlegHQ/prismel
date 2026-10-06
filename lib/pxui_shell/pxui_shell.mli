@@ -168,10 +168,16 @@ module Chrome : sig
 end
 
 module Which_key : sig
-  val sheet : Pxui.Ui.t -> ?context:string -> ('scope, 'action) Editor_core.Command.t list -> bool
+  val sheet_sections : ?category:(('scope, 'action) Editor_core.Command.t -> string) ->
+    ('scope, 'action) Editor_core.Command.t list -> (string * (string * string) list) list
+  (** The sections of {!sheet}: every command a key reaches, once per id, as its keys and its
+      label, under the section [category] names (the host's, as for {!panel}). *)
+
+  val sheet : Pxui.Ui.t -> ?context:string -> ?category:(('scope, 'action) Editor_core.Command.t -> string) ->
+    ('scope, 'action) Editor_core.Command.t list -> bool
   (** The Flow key table, the sheet's [05]: a title row with [context] (what has the focus) and a
-      close button, the filter (at rest until typed in), and three columns, one section each.  False
-      on dismissal or the close button. *)
+      close button, the filter (at rest until typed in), and the sections of {!sheet_sections} in
+      three columns.  False on dismissal or the close button. *)
 
   val panel : Pxui.Ui.t -> ?category:(('scope, 'action) Editor_core.Command.t -> string) ->
     ?describe:(string -> string option) -> ?order:(string -> string list) ->

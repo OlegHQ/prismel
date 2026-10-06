@@ -44,6 +44,13 @@ let toggle_ui = CC.toggle_ui
 let open_camera = CC.open_camera
 let set_relative enabled = ignore (Sketch.set_relative_mouse enabled)
 
+(* The one way out of a pointer grab: the orbit drag's relative mouse and the fly mode end
+   together, on every path that stops navigating. *)
+let release extra =
+  if extra.relative_grab || extra.fly <> None then begin
+    set_relative false; { extra with relative_grab = false; fly = None }
+  end else extra
+
 (* ---- camera objects: scene nodes with operation "camera" (Objects.Camera). *)
 
 let camera_ids scene = Objects.ids "camera" scene
@@ -176,12 +183,10 @@ let init core camera =
 let begin_frame extra frame = match extra.fly with
   | None ->
       let lost = List.exists (function Rays.Event.WindowFocusLost -> true | _ -> false) frame.Frame.events in
-      if lost && extra.relative_grab then (set_relative false; { extra with relative_grab = false }, frame)
-      else extra, frame
+      (if lost then release extra else extra), frame
   | Some _ ->
       let ended, frame = Editor_core.Router.fly frame in
-      if not ended then extra, frame
-      else (set_relative false; { extra with fly = None }, frame)
+      (if ended then release extra else extra), frame
 
 let panel ui ~control ~camera ~extra ~inspector =
   let extra = Option.value ~default:extra
@@ -252,7 +257,7 @@ let navigate ~area control camera extra core ~(raw_frame : Frame.t) ~(input : Fr
   let active = active_node core in
   let following = Option.fold ~none:false ~some:follows active in
   (* A fixed render camera owns the view while look-through is enabled. *)
-  if look_through extra && active <> None && not following then camera, extra
+  if look_through extra && active <> None && not following then camera, release extra
   else match extra.fly with
     | Some speed ->
         let camera, speed = Easy_camera.fly ~speed camera
@@ -275,9 +280,10 @@ let navigate ~area control camera extra core ~(raw_frame : Frame.t) ~(input : Fr
 
 let frame_bounds ~viewport:_ ~min ~max camera = Easy_camera.frame_bounds ~min ~max camera
 
-(* Follow-viewport motion changes the camera node in the same undo burst;
-   node edits and undo pull the viewport back to the document. *)
-let on_view core ~previous ~key camera extra ~time =
+(* Follow-viewport motion writes the camera node as view state (no undo entry); node edits and
+   undo pull the viewport back to the document.  On a frame that stepped the history ([stepped])
+   nothing is written: the document just restored is the one to show. *)
+let on_view core ~previous ~key camera extra ~stepped =
   (* a change in the Render section: an authored root takes it; without one only the renderer
      is the viewport's own choice, and any other setting writes the root *)
   let core, extra = match extra.root_request with
@@ -307,7 +313,7 @@ let on_view core ~previous ~key camera extra ~time =
   let written = ref extra.written in
   let core, camera = match active_node core with
     | Some node when follows node ->
-        let moved = not (same_view (Easy_camera.camera previous)
+        let moved = not stepped && not (same_view (Easy_camera.camera previous)
             (Easy_camera.camera camera)) in
         (match node_camera node with
          | Some node_view when moved || not (same_view node_view (Easy_camera.camera camera)) ->
@@ -316,7 +322,7 @@ let on_view core ~previous ~key camera extra ~time =
                    (view_parameters camera) with
                | Ok (scene, _) ->
                    written := Some (Easy_camera.camera camera);
-                   Core.scene_edit core (`View time) scene, camera
+                   Core.scene_edit core `Amend scene, camera
                | Error _ -> core, camera
              else if (match !written with Some w -> same_view w node_view | None -> false) then
                (* the node shows what a viewport last wrote: another viewport took over, and
@@ -691,4 +697,4 @@ let guides ~scene ~selected ~space view extra ~pane ~bounds =
 
 let save = CC.save
 let filename request = request.CC.filename
-let close extra = Renderer.close extra.renderer; if extra.fly <> None || extra.relative_grab then set_relative false
+let close extra = Renderer.close extra.renderer; ignore (release extra)

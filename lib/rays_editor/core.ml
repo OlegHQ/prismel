@@ -2678,6 +2678,13 @@ let focused_leaf (g : Pxui_shell.Layout.geometry) focus path =
       <|> (fun () -> first (fun l -> Some l.path = path))
       <|> (fun () -> Pxui_shell.Layout.find g focus)
       <|> (fun () -> first kind)
+      (* its panel was closed and no other is of its kind: the leaf that shares the most of its
+         path, the neighbour that took its place *)
+      <|> (fun () -> Option.bind path (fun p ->
+        let rec shared a b = match a, b with x :: a, y :: b when x = y -> 1 + shared a b | _ -> 0 in
+        List.fold_left (fun best (l : Pxui_shell.Layout.leaf) -> match best with
+          | Some (b : Pxui_shell.Layout.leaf) when shared p b.path >= shared p l.path -> best
+          | _ -> Some l) None g.leaves))
 
 let panel_kind : Pxui_shell.Layout.panel -> string = function
   | View _ -> "viewport" | Graph -> "graph" | List -> "list" | Lisp -> "lisp"
@@ -3144,8 +3151,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   (* the lists, text panes and outlines open, and the ones the focus makes the ones in use *)
   let hosts = if all_ui_visible then panel_hosts value else [] in
   let value = follow_hosts value ~focus_path hosts in
+  (* a field of the graph pane owns the keys only while the pane is drawn: one left open when the
+     panel turned to its list or text view must not lock the keyboard *)
   let modal = value.prompt <> None || value.menu <> None
-    || Pxui_graph.Scope.editing value.scope_view || Pxui_shell.Tree.editing value.tree in
+    || (all_ui_visible && graph_family value && scope_name value <> None
+        && Pxui_graph.Scope.editing value.scope_view)
+    || Pxui_shell.Tree.editing value.tree in
   let text_focus = text_focus || modal in
   let keymap = routed { value with focus } in
   let keymap = if all_ui_visible then keymap else List.filter (fun command ->
@@ -4033,6 +4044,14 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | Some _ when List.exists (function Pxui_shell.Chrome.Window_drag _ -> true | _ -> false)
           (intents @ grips) -> workspace
       | Some _ -> { workspace with window_live = None } in
+    (* a gutter drag that ended without its release (the window lost the focus, the pointer was
+       cancelled) leaves no size behind for the next click on a gutter to commit *)
+    let workspace = match workspace.live with
+      | Some _ when not (List.exists (function Pxui_shell.Chrome.Resize _ | Settled -> true | _ -> false) grips)
+          && (not (Frame.mouse_down Input.LeftButton frame) || Frame.has_event (function
+               | Event.WindowFocusLost | Event.PointerCancelled Input.LeftButton -> true | _ -> false) frame) ->
+          { workspace with live = None }
+      | _ -> workspace in
     let changes = changes @ drag_changes in
     { workspace; focus; focus_path; pane_keys; outline; outline_intents; selection; menu; menu_pick; scope_view; scope_changes; tree; document = (network value).graph;
       edit_error = value.edit_error;
@@ -4067,7 +4086,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         let commands = List.filter (fun (command : Leader.command) -> match command.action with
           | List_command _ | Frame_tile -> false | _ -> true) value.keymap in
         let context = String.lowercase_ascii (Leader.pane_name focus) ^ " focused" in
-        (if Pxui_shell.Which_key.sheet ui ~context commands then Some Keys else None), None
+        (if Pxui_shell.Which_key.sheet ui ~context ~category:Leader.sheet_group commands then Some Keys else None), None
     | Some (Saving name) ->
         (match Pxui_shell.Prompt.name ui ~key:"preset-save"
             ~title:"Save preset" ~description:"Name for the current state of the document"
@@ -4300,7 +4319,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         if result.settings == doc.settings then doc
         else { doc with settings = result.settings } in
   (* Enter and row activation share camera selection and look-through. *)
-  let entered_camera = if value.level <> Document.Scene || Option.is_some loaded then None
+  let entered_camera = if value.level <> Document.Scene || Option.is_some loaded || carrying then None
     else
       let candidate = match result.opened with
         | Some _ as id -> id
@@ -4531,6 +4550,10 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         Some (parameter_gesture "handle" value.level id changes)
     | [], [], None, (_ :: _ as changes) ->
         Some (parameter_gesture "settings" value.level (-1) changes)
+    | [], (Pxui_shell.Tree.Flag { column; _ } :: _ as intents), None, []
+      when List.for_all (function Pxui_shell.Tree.Flag _ -> true | _ -> false) intents ->
+        (* a stroke down a flag column of the list is one entry *)
+        Some (Printf.sprintf "list.flag:%s:%d" (level_key value.level) column)
     | _ -> None in
   let history = if next == present then value.history
     else commit
@@ -4777,10 +4800,9 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render
   update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state frame
 
-(* Environment-owned scene edits (camera bookkeeping, follow viewport).
-   [`Reset] starts the history, [`Amend] folds into the present entry, and
-   [`View time] coalesces a burst of view edits (a drag, a wheel gesture)
-   into one undo entry. *)
+(* Environment-owned scene edits (camera bookkeeping, a camera following the viewport): view
+   state, never an undo entry.  [`Reset] starts the history, [`Amend] folds into the present
+   entry and keeps what redo would restore. *)
 let scene_edit value mode ?(active_camera = value.doc.active_camera) scene =
   if value.carry <> None then value else
   let edited = { value.doc with scene = { value.doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry scene value.doc.scene.graph);
@@ -4792,10 +4814,7 @@ let scene_edit value mode ?(active_camera = value.doc.active_camera) scene =
   | Ok doc ->
   let history = match mode with
     | `Reset -> Editor_core.History.create doc
-    | `Amend -> commit ~merge:Repair doc value.history
-    | `View time -> commit ~label:"Move camera"
-        ~merge:(Burst { key = "view"; at = time; window = 0.25 })
-        doc value.history in
+    | `Amend -> commit ~merge:Repair doc value.history in
   (* camera bookkeeping is not unsaved work: a document that was the file's still is *)
   { value with doc; history; filed = if same_text value.doc value.filed then doc else value.filed }
 
@@ -4887,6 +4906,7 @@ let world_id value = match Objects.ids "world" (scene value) with
 (* A parameter edit made in the view (a map drag, a World rotation): one
    undo entry per pointer gesture. *)
 let edit_node value level node_id values ~label =
+  if value.carry <> None then value else
   match Document.network value.doc level with
   | None -> value
   | Some network ->

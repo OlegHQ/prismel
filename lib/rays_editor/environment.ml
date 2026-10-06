@@ -724,7 +724,7 @@ let update_with value frame ~inspector =
               | None -> core)
          | None -> core)
     | _ -> core in
-  let camera, extra = if core.Core.map_view then camera, extra
+  let camera, extra = if core.Core.map_view then camera, V.release extra
     else V.navigate ~area control camera extra core ~raw_frame ~input in
   let camera, render_status = match update.framed with
     | Some (Some (min, max)) ->
@@ -735,7 +735,7 @@ let update_with value frame ~inspector =
     | Some None -> camera, Some "Nothing to frame: no cooked points"
     | None -> camera, render_status in
   let core, camera, extra = V.on_view core ~previous:previous_camera ~key:(focus_key focused) camera extra
-      ~time:frame.Frame.time in
+      ~stepped:(List.exists (function Leader.Undo | Redo -> true | _ -> false) update.actions) in
   let ends_pointer = function
       | Event.MouseReleased (Input.LeftButton, _) | PointerCancelled Input.LeftButton
       | WindowFocusLost -> true | _ -> false in

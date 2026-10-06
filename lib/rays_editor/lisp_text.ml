@@ -32,8 +32,9 @@ let lex text =
         let j = match String.index_from_opt text i '\n' with Some j -> j | None -> n in
         tok Comment i j; go j
     | '"' ->
+        (* a string runs over line breaks, as the reader takes it; an open one to the end *)
         let rec close j =
-          if j >= n || text.[j] = '\n' then j
+          if j >= n then j
           else match text.[j] with '\\' -> close (j + 2) | '"' -> j + 1 | _ -> close (j + 1) in
         let j = min n (close (i + 1)) in
         tok Str i j; head_next := false; go j
@@ -625,8 +626,8 @@ let number_at text byte =
 
 (* Parinfer's indent mode: the closing brackets at the end of each line (its paren trail) are
    inferred from the indentation of the code lines that follow, so a form holds exactly the
-   lines indented past its opener, and a closer that matches nothing is dropped.  Strings and
-   comments are left alone; on the caret's line the trail starts no earlier than the caret, so
+   lines indented past its opener, and a closer that matches nothing is dropped.  Strings (over
+   as many lines as they run) and comments are left alone; on the caret's line the trail starts no earlier than the caret, so
    typing before a closer is never undone.  [parinfer text caret] returns the text and where
    [caret] lands in it.  ponytail: the text is scanned once per edited frame. *)
 let parinfer_text text caret =
@@ -647,10 +648,12 @@ let parinfer_text text caret =
   let stack = ref [] in  (* the open brackets: closer and column, innermost first *)
   let last_code = ref (-1) in  (* the last line holding code *)
   let append line closer = trail.(line) <- trail.(line) ^ String.make 1 closer in
+  let in_string = ref false in  (* a string stays open over line breaks *)
   Array.iteri (fun index (start, stop) ->
     (* which bytes are code: not in a string, not in the comment *)
     let code = Array.make (stop - start) true in
-    let in_string = ref false and comment = ref stop and i = ref start in
+    let opened_in_string = !in_string in
+    let comment = ref stop and i = ref start in
     while !i < !comment do
       let c = text.[!i] in
       if !in_string then begin
@@ -678,7 +681,8 @@ let parinfer_text text caret =
        closes every bracket opened at that column or further right *)
     let first = ref start in
     while !first < ts && is_space text.[!first] do incr first done;
-    let is_code_line = !first < ts && !first < !comment in
+    (* a line that begins inside a string is its text: its indentation closes nothing *)
+    let is_code_line = !first < ts && !first < !comment && not opened_in_string in
     if is_code_line then begin
       let x = !first - start in
       let rec pop () = match !stack with
@@ -699,7 +703,8 @@ let parinfer_text text caret =
       end
     done;
     for i = ts to te - 1 do removed := i :: !removed done;
-    if is_code_line then last_code := index) lines;
+    (* closers go after the last thing written, never into a string still open at the line's end *)
+    if !first < ts && !first < !comment && not !in_string then last_code := index) lines;
   List.iter (fun (closer, _) -> if !last_code >= 0 then append !last_code closer) !stack;
   (* the text again: the kept bytes, each line's closers at its code end *)
   let removed = List.sort_uniq compare !removed in

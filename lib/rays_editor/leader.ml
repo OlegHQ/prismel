@@ -197,6 +197,13 @@ let group (c : command) =
   else if starts "preset." || starts "file." || id = "guide.keys" || id = "workspace.command-palette" then "File"
   else "Go"
 
+(* The key sheet's sections ([Pxui_shell.Which_key.sheet]): a pane's own keys under the pane, the
+   rest as the leader sheet has them. *)
+let sheet_group (c : command) = match c.scope with
+  | Some Pxui_shell.Layout.Graph -> "Graph"
+  | Some (View _) -> "Viewport"
+  | Some _ | None -> group c
+
 (* The keys of a section in the sheet's [09] order, not the keymap's *)
 let order = function
   | "Add" -> [ "a"; "n" ]

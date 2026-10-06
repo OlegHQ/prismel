@@ -482,6 +482,22 @@ let () =
     Event.MouseReleased (Input.LeftButton, center 2)] in
   expect "Shift selection uses the captured press keys" intents [T.Select [3; 1; 2]];
   Pxui.Ui.destroy ui;
+  (* E18: the key sheet lists every command a key reaches, once, under its host's section *)
+  let command ?scope id trigger = Editor_core.Command.make ~id ~label:id ~trigger ?scope id in
+  let keymap = Editor_core.Keymap.[
+    command "file.save" (Chord (Input.KeyChar 's', [ Input.Meta ]));
+    command "file.save" (Chord (Input.KeyChar 's', [ Input.Ctrl ]));
+    command "scope.delete" ~scope:"graph" (Chord (Input.Delete, []));
+    command "scope.delete" ~scope:"graph" (Chord (Input.KeyChar 'x', []));
+    command "panel.close" (Leader "ox");
+    Editor_core.Command.make ~id:"palette.only" ~label:"no key" "palette" ] in
+  let sections = Pxui_shell.Which_key.sheet_sections
+      ~category:(fun (c : _ Editor_core.Command.t) -> if c.scope <> None then "Graph"
+        else if String.starts_with ~prefix:"panel." c.id then "Panel" else "File") keymap in
+  assert (List.map fst sections = [ "Panel"; "File"; "Graph" ]);
+  assert (List.concat_map (fun (_, rows) -> List.map snd rows) sections
+          = [ "panel.close"; "file.save"; "scope.delete" ]);
+  assert (List.assoc "Graph" sections = [ "x / \xe2\x8c\xa6", "scope.delete" ]);
   print_endline "pxui shell tests passed"
 
 (* Echo: a refusal is a tip in the error ink (no dot), information has its dot; neither is drawn

@@ -472,7 +472,7 @@ module Editor3 : sig
       document has none). A workspace with no scene graph starts with a default camera
       following the viewport; a scene graph is authoritative (an empty one
       means no camera, and deleting the host's camera writes one). With follow viewport on, viewport motion writes
-      the node (one undo entry per gesture) and node edits or undo move the
+      the node as view state (no undo entry) and node edits or undo move the
       viewport. PNG export and look-through use it. *)
 
   type render_settings = { width : int; height : int; max_spp : int }
