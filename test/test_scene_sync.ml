@@ -135,6 +135,18 @@ let run () =
     check (node_id written label = node_id doc label) ("fields written text first changed the id of " ^ label))
     [ "arm", [ float "translate_x" 4.; float "translate_y" 2. ]; "fill", [ float "intensity" 99. ];
       "cam", [ float "fov" 500. ] ];
+  (* the list's intents, text first: the same text as the reconciled edit of the derived scene *)
+  let written what doc level edit after =
+    match Sync.write ~factories doc level edit with
+    | Ok (Some text_first) ->
+        check (source text_first = source (ok (reconcile doc after)))
+          (what ^ ": the text-first edit and the reconciled one wrote different text:\n" ^ source text_first);
+        text_first
+    | Ok None -> failwith (what ^ ": the text did not take the edit")
+    | Error message -> failwith (what ^ ": " ^ message) in
+  let hidden = [ "visible", Parameter.Bool_value false ] in
+  ignore (written "flags" doc Document.Scene (Sync.Fields [ arm, hidden; fill, hidden ])
+    (set (set doc "arm" hidden) "fill" hidden));
   (* an inline object is unfolded into a binding first *)
   let edited = ok (reconcile doc (set doc "fill" [ float "intensity" 99. ])) in
   check (contains (source edited) ":intensity 99.0") "an inline object's edit did not reach the text";

@@ -53,9 +53,15 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   let document, edit_error, editor_effects = List.fold_left apply_change
       ((network value).graph, value.edit_error, Parameter.no_effects)
       (List.filter (function Set_parameter { node; _ } -> not (in_text node) | _ -> true) result.changes) in
-  let document, selection, tree, opened, tree_label, _ = List.fold_left
+  (* a list intent the text can take is written to the text (below); the derived network is edited
+     only for the others.  The selection, the label and what opens are every intent's. *)
+  let tree_edits = List.filter_map (tree_edit value) result.tree_intents in
+  let _, selection, tree, opened, tree_label, _ = List.fold_left
       (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
       result.tree_intents in
+  let document, _, _, _, _, _ = List.fold_left
+      (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
+      (List.filter (fun intent -> tree_edit value intent = None) result.tree_intents) in
   let apply_changes (document, effects, error) = function
     | None -> document, effects, error
     | Some (node_id, values) ->
@@ -196,6 +202,13 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
                effects = Parameter.union_effects result.effects (node_effects effects) }
     | Ok None -> next, result
     | Error message -> refused := Some message; next, result in
+  let next, result = if Option.is_some loaded then next, result else
+    List.fold_left (fun ((next : Document.t), (result : _ frame_result)) edit ->
+      if !refused <> None then next, result else
+      match Editor_document.Scene_sync.write ~factories:value.factories next value.level edit with
+      | Ok (Some doc) -> doc, { result with edit_error = None }
+      | Ok None -> next, result
+      | Error message -> refused := Some message; next, result) (next, result) tree_edits in
   (* a viewport handle's values *)
   let next, result = match result.handle_changes with
     | Some (id, values) when Option.is_none loaded && in_text id -> set_fields (next, result) id values

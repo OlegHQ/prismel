@@ -616,6 +616,52 @@ let set_fields ~factories (doc : Document.t) level ~node values =
        with Stop message -> Error message)
   | _ -> Ok None
 
+(* ---- derived edits, text first ---- *)
+
+(* What a list, a key or a panel asks of the derived scene or World, written to the text with no
+   edit of the derived document in between.  Ids are scene objects at the scene level and World
+   layers inside the World. *)
+type edit =
+  | Fields of (int * (string * Param.value) list) list  (* several objects' fields: a stroke of flags *)
+
+let graph_at (doc : Document.t) = function
+  | Document.Scene -> Some (Document.scene_graph doc)
+  | Inside id -> Option.map (fun (n : Document.network) -> n.graph.geometry)
+      (Document.Int_map.find_opt id doc.networks)
+
+(* every object the edit names has text of its own; else the caller edits the derived document and
+   {!reconcile} adopts it *)
+let writes (doc : Document.t) level = function
+  | Fields edits -> List.for_all (fun (node, _) -> in_text doc level node) edits
+
+let node_at doc level id = match Option.bind (graph_at doc level) (fun g -> Edit.find g ~node_id:id) with
+  | Some node -> node | None -> stop "That object is gone."
+
+let write_edit st (doc : Document.t) level = function
+  | Fields edits ->
+      List.iter (fun (node, values) ->
+        let was = node_at doc level node in
+        match field_home doc level node, Node.apply_parameters was values with
+        | _, Error message -> stop "%s" message
+        | None, _ -> stop "That object is not in the text."
+        | Some home, Ok (now, _) ->
+            if level = Document.Scene then refuse_preview doc node;
+            set ~before:(current_syntax was) st home (differing ~before:was now)) edits
+
+(* [None] when {!writes} says the edit is not the text's to take. *)
+let write ~factories (doc : Document.t) level edit =
+  if not (writes doc level edit) then Ok None else
+  let ( let* ) = Result.bind in
+  let* catalog = Result.map_error Flow.Diagnostic.to_string
+      (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+  let st = { catalog; workspace = fst doc.workspace; unfolded = []; adopted = false } in
+  try
+    write_edit st doc level edit;
+    if st.workspace == fst doc.workspace then Ok (Some doc)
+    else Result.map Option.some (Contexts.of_workspace ~factories ~previous:doc st.workspace
+                                 |> Result.map_error Flow.Diagnostic.to_string)
+  with Stop message -> Error message
+
 (* [after] is [before] edited in place (its scene, World networks, active camera or settings);
    the result is [after] with the edit written to its text and lowered again.  [adopt]: an
    explicit edit of an object the text lacks writes it (a follow-the-viewport camera move is

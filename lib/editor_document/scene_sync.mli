@@ -30,6 +30,21 @@ val set_fields : factories:Procedural.Edit_graph.factory list -> Document.t -> D
     loop's copy its template (a computed argument refuses).  The document, the effects of the
     fields and the home written; [None] when the object has no text ({!reconcile} adopts it). *)
 
+type edit =
+  | Fields of (int * (string * Editor_core.Param.value) list) list
+      (** field values of several objects (a stroke down a flag column) *)
+(** A derived edit as its caller means it: scene objects at the scene level, World layers inside
+    the World. *)
+
+val writes : Document.t -> Document.level -> edit -> bool
+(** Every object the edit names has text of its own, so {!write} takes it. *)
+
+val write : factories:Procedural.Edit_graph.factory list -> Document.t -> Document.level -> edit ->
+  (Document.t option, string) result
+(** The edit written to the text and lowered again, the derived document never edited in between;
+    the same text as {!reconcile} writes for the same edit of the derived document.  [None] when
+    not {!writes}: the caller edits the derived document and {!reconcile} adopts it. *)
+
 val template_note : Document.t -> Document.home -> string option
 (** The status line for an edit written to a loop'"'"'s template: every copy changes. *)
 

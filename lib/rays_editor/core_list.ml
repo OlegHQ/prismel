@@ -309,3 +309,22 @@ let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
   in Result.get_ok (Doc.update_geometry (fun _ -> Ok document) overlay),
     selection, tree, opened, label, rows
 
+
+(* A list intent as an edit of the text, when it is one the text can take whole ([Scene_sync.write]):
+   the derived network is then not touched for it. *)
+let tree_edit value intent =
+  let module T = Pxui_shell.Tree in
+  let world = match value.level with Document.Inside id -> kind value id = Some "world" | Scene -> false in
+  let lowered = match value.level with Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
+  let graph = (network value).graph.geometry in
+  let edit = if lowered then None else match intent with
+    | T.Flag { ids; column; value = on } ->
+        let name = List.nth (if world then [ "visible" ] else [ "visible"; "render" ]) column in
+        Some (Editor_document.Scene_sync.Fields (List.filter_map (fun id ->
+          match Edit_graph.find graph ~node_id:id with
+          | Some node when Objects.has_flag name node -> Some (id, [ name, Parameter.Bool_value on ])
+          | _ -> None) ids))
+    | _ -> None in
+  match edit with
+  | Some edit when Editor_document.Scene_sync.writes value.doc value.level edit -> Some edit
+  | _ -> None
