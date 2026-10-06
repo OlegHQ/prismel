@@ -1,9 +1,12 @@
 # lib/ogpu rules
 
 OGPU is Rays's GPU API: modelled on Metal's object model with immediate-mode
-encoders, full capability, and backend-agnostic (plan decision 2). Metal
-(`ogpu_metal`) is the only backend today; a Vulkan backend must be addable
-without changing callers.
+encoders and backend-agnostic (plan decision 2). It carries what the runtime
+and the path tracer call, plus what keeps it backend-agnostic (the virtual
+library, the driver records, `Caps`); an operation with no product caller is
+deleted, with its Metal binding, mock arm and conformance case, and comes
+back with its first caller. Metal (`ogpu_metal`) is the only backend today; a
+Vulkan backend must be addable without changing callers.
 
 - `ogpu_core` depends only on `native_layer_token`. Virtual `ogpu` aliases
   the core and depends only on it. Backend types never appear in its interface.
@@ -18,9 +21,10 @@ without changing callers.
   no-handle-leak checks.
 - MSL is the canonical shader language. Shader interfaces are checked against
   reflection at pipeline creation.
-- Shape (plan G, complete): dune virtual library with `ogpu_metal`/`ogpu_mock`
-  implementations, one backend per executable, conformance suite over the
-  mock and Metal covering every capability (ray tracing incl. motion, curves,
-  tables; heaps, residency, fences, events, timestamps; mesh/tile pipelines,
-  dynamic libraries, archives, sparse textures, MetalFX).
-- Workflow for a new capability: the `add-ogpu-feature` skill.
+- Shape: dune virtual library with `ogpu_metal`/`ogpu_mock` implementations,
+  one backend per executable, conformance suite over the mock and Metal
+  covering every capability that exists (compute and render pipelines, ray
+  tracing incl. motion, curves and intersection tables).
+- Workflow for a new capability: the `add-ogpu-feature` skill. Removing one:
+  delete the caller, then the `prune-dead-code` skill (`prune`, `dead-fields`
+  for the driver records, `dead-stubs`, `drop-c-unused`).

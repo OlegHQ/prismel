@@ -3,17 +3,12 @@
     structures (copy and compaction targets) carry no descriptor. *)
 type t
 
-val validate_scratch_plan : buffer_size:int64 -> offset:int64 -> required:int64 ->
-  (unit, Ogpu_core.Error.t) result
 val create : Device.t -> Ogpu_core.Backend.driver_accel_descriptor ->
   resolve_buffer:(int64 -> (Buffer.t, Ogpu_core.Error.t) result) ->
   resolve_structure:(int64 -> (t, Ogpu_core.Error.t) result) -> (t, Ogpu_core.Error.t) result
 val sizes : t -> Metal.Acceleration_structure.sizes
 val encode_build : Metal.Acceleration_encoder.t -> Device.t -> t -> scratch:Buffer.t ->
   scratch_offset:int64 -> (unit, Ogpu_core.Error.t) result
-val encode_refit : Metal.Acceleration_encoder.t -> Device.t -> t -> scratch:Buffer.t ->
-  scratch_offset:int64 -> (unit, Ogpu_core.Error.t) result
-val encode_copy : Metal.Acceleration_encoder.t -> Device.t -> src:t -> dst:t -> (unit, Ogpu_core.Error.t) result
 val encode_compact : Metal.Acceleration_encoder.t -> Device.t -> src:t -> dst:t -> (unit, Ogpu_core.Error.t) result
 val encode_compacted_size : Metal.Acceleration_encoder.t -> Device.t -> t -> destination:Buffer.t ->
   offset:int64 -> (unit, Ogpu_core.Error.t) result

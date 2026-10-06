@@ -3,7 +3,7 @@ type memory = Device_local | Shared
 type t =
   { metal : Metal.Texture.t; handle : unit Ogpu_core.Handle.t; device : Device.t
   ; descriptor : Ogpu_core.Types.texture_descriptor; format : format
-  ; view_formats : format list; parent : t option; mutable live_views : int;
+  ;  parent : t option; mutable live_views : int;
     mutable submission_uses:int;mutable destroy_requested:bool }
 
 let error operation kind message = Error (Ogpu_core.Error.make operation kind message)
@@ -48,9 +48,9 @@ let native_descriptor ~operation device ~memory ~format ~view_formats (descripto
     let base=Metal.Texture.descriptor_2d ~storage ~usage:native_usage ?label:descriptor.label ~format:(metal_format format) ~width:descriptor.width ~height:descriptor.height () in
     Ok{base with kind=(if descriptor.sample_count>1 then Metal.Texture.Texture_2d_multisample else if descriptor.depth>1 then Texture_3d else Texture_2d);depth=descriptor.depth;mip_levels=descriptor.mip_levels;sample_count=descriptor.sample_count}
 
-let wrap device ~operation ~memory:_ ~format ~view_formats descriptor created=
+let wrap device ~operation ~memory:_ ~format ~view_formats:_ descriptor created=
   match created with Error e->Error(Device.of_metal_error~operation e)|Ok metal->
-    let value={metal;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;descriptor;format;view_formats;parent=None;live_views=0;submission_uses=0;destroy_requested=false}in
+    let value={metal;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;descriptor;format;parent=None;live_views=0;submission_uses=0;destroy_requested=false}in
     Device.Private.attach_resource device;Ok value
 
 let create device ~memory ~format ?(view_formats=[]) descriptor =
@@ -58,43 +58,10 @@ let create device ~memory ~format ?(view_formats=[]) descriptor =
   match native_descriptor ~operation device ~memory ~format ~view_formats descriptor with Error _ as e->e|Ok native->
   wrap device ~operation ~memory ~format ~view_formats descriptor (Metal.Texture.create ~device:(Device.Private.metal device) native)
 
-let heap_hazard heap=match (Metal.Heap.descriptor heap).hazard_tracking with
-  |Metal.Heap.Untracked->Metal.Texture.Untracked|Tracked->Tracked|Default_hazard_tracking->Default_hazard_tracking
-
-let create_in_heap device ~memory heap ~offset ~format descriptor =
-  let operation="Ogpu_metal.Texture.create_in_heap" in
-  match native_descriptor ~operation device ~memory ~format ~view_formats:[] descriptor with Error _ as e->e|Ok native->
-  (* Heap resources inherit the heap's hazard tracking. *)
-  wrap device ~operation ~memory ~format ~view_formats:[] descriptor (Metal.Heap.create_texture heap ~offset {native with hazard_tracking=heap_hazard heap})
-
-let create_sparse device heap ~format descriptor =
-  let operation="Ogpu_metal.Texture.create_sparse" in
-  match native_descriptor ~operation device ~memory:Device_local ~format ~view_formats:[] descriptor with Error _ as e->e|Ok native->
-  wrap device ~operation ~memory:Device_local ~format ~view_formats:[] descriptor (Metal.Heap.create_texture heap {native with hazard_tracking=heap_hazard heap})
-
-let placement device ~memory ~format descriptor =
-  let operation="Ogpu_metal.Texture.placement" in
-  match native_descriptor ~operation device ~memory ~format ~view_formats:[] descriptor with Error _ as e->e|Ok native->
-  match Metal.Heap.texture_size_and_align ~device:(Device.Private.metal device) native with
-  |Error e->Error(Device.of_metal_error~operation e)
-  |Ok sizes->Ok(sizes.size,sizes.alignment)
-
 let validate operation device value=Ogpu_core.Handle.validate_for~operation(Device.Private.handle device)value.handle
 let destroyed value=Ogpu_core.Handle.destroyed value.handle
 let descriptor device value=Result.map(fun()->value.descriptor)(validate"Ogpu_metal.Texture.descriptor"device value)
 let format device value=Result.map(fun()->value.format)(validate"Ogpu_metal.Texture.format"device value)
-
-let create_view device parent ~format ~base_mip ~mip_count ~base_slice ~slice_count =
-  let operation="Ogpu_metal.Texture.create_view" in
-  match validate operation device parent with Error _ as e->e|Ok()->
-  if not(List.mem format parent.view_formats) then error operation Ogpu_core.Error.Invalid_argument "view format was not declared"
-  else if format <> parent.format then error operation Ogpu_core.Error.Invalid_argument "view format is not in the parent's compatibility class"
-  else if base_mip<0||mip_count<=0||base_mip+mip_count>parent.descriptor.mip_levels||base_slice<>0||slice_count<>1 then error operation Ogpu_core.Error.Invalid_argument "view range is outside the parent"
-  else match Metal.Texture.create_view parent.metal~format:(metal_format format)~base_mip~mip_count~base_slice~slice_count()with Error e->Error(Device.of_metal_error~operation e)|Ok metal->
-    let extent shift x=max 1(x lsr shift)in
-    let descriptor={parent.descriptor with width=extent base_mip parent.descriptor.width;height=extent base_mip parent.descriptor.height;depth=extent base_mip parent.descriptor.depth;mip_levels=mip_count;sample_count=parent.descriptor.sample_count}in
-    let value={metal;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;descriptor;format;view_formats=[];parent=Some parent;live_views=0;submission_uses=0;destroy_requested=false}in
-    parent.live_views<-parent.live_views+1;Device.Private.attach_resource device;Ok value
 
 let read_bytes device value ~mip_level ~bytes_per_row =
   let operation="Ogpu_metal.Texture.read_bytes"in match validate operation device value with Error _ as e->e|Ok()->
@@ -125,16 +92,6 @@ let read_bytes_into device value ~mip_level ~bytes_per_row ~destination =
           ~region:{x=0;y=0;z=0;width;height;depth=1}~mip_level~slice:0
           ~bytes_per_row~bytes_per_image:required~destination with
         |Ok()->Ok()|Error e->Error(Device.of_metal_error~operation e)
-
-let write_bytes device value ~mip_level ~bytes_per_row bytes =
-  let operation="Ogpu_metal.Texture.write_bytes"in match validate operation device value with Error _ as e->e|Ok()->
-  if mip_level<0||mip_level>=value.descriptor.mip_levels then error operation Ogpu_core.Error.Invalid_argument "mip level is outside the texture"
-  else let width=max 1(value.descriptor.width lsr mip_level)and height=max 1(value.descriptor.height lsr mip_level)in
-    let minimum=width*bytes_per_pixel value.format in
-    if bytes_per_row<minimum||bytes_per_row>max_int/height then error operation Ogpu_core.Error.Invalid_argument "texture row layout is invalid"
-    else let required=bytes_per_row*height in
-      if Bytes.length bytes<>required then error operation Ogpu_core.Error.Invalid_argument "texture byte cardinality is invalid"
-      else match Metal.Texture.write_bytes value.metal~region:{x=0;y=0;z=0;width;height;depth=1}~mip_level~slice:0~bytes_per_row~bytes_per_image:required bytes with Ok()->Ok()|Error e->Error(Device.of_metal_error~operation e)
 
 let destroy value =
   let operation="Ogpu_metal.Texture.destroy"in if destroyed value then Ok()else if value.live_views<>0 then error operation Ogpu_core.Error.Invalid_state "texture still owns live views"else

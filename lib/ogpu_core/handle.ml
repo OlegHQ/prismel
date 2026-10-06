@@ -12,7 +12,6 @@ let destroy_device (value:device)=if not value.dead then(value.dead<-true;value.
 let device_destroyed (value:device)=value.dead
 let create ~(device:device) = {id=fresh next_handle;device;device_epoch=device.epoch;generation=1L;dead=false}
 let id value=value.id
-let generation value=value.generation
 let destroy value=if not value.dead then(value.dead<-true;value.generation<-Int64.succ value.generation)
 let destroyed value=value.dead
 let validate ~operation value =

@@ -12,17 +12,13 @@ let run () =
   let descriptor=Ogpu.Acceleration.Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Triangles{vertices=range;vertex_stride=12;vertex_count=6}|];allow_refit=true;motion_keyframes=None}in
   expect Ogpu.Error.Unsupported(Ogpu.Acceleration.create d1 ~ray_tracing:false descriptor);
   let value=ok(Ogpu.Acceleration.create d1 ~ray_tracing:true descriptor)in
-  expect Ogpu.Error.Invalid_state(Ogpu.Acceleration.refit d1 value);ok(Ogpu.Acceleration.build d1 value);ok(Ogpu.Acceleration.refit d1 value);
-  expect Ogpu.Error.Cross_device(Ogpu.Acceleration.compacted_size d2 value);
+  ok(Ogpu.Acceleration.build d1 value);expect Ogpu.Error.Cross_device(Ogpu.Acceleration.compacted_size d2 value);
   let sized=ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Sized{size=512L;template=Ogpu.Acceleration.handle value}))in
   expect Ogpu.Error.Invalid_state(Ogpu.Acceleration.build d1 sized);
   ok(Ogpu.Acceleration.compacted_size d1 value);
   ok(Ogpu.Acceleration.compact_into d1 ~source:value ~destination:sized);
   expect Ogpu.Error.Invalid_state(Ogpu.Acceleration.compact_into d1 ~source:value ~destination:sized);
   expect Ogpu.Error.Invalid_state(Ogpu.Acceleration.compacted_size d1 sized);
-  let copy=ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Sized{size=512L;template=Ogpu.Acceleration.handle value}))in
-  ok(Ogpu.Acceleration.copy_into d1 ~source:sized ~destination:copy);
-  if not(Ogpu.Acceleration.built copy)then fail"copied structure is not built";
   (* Motion: every keyframed range must match the keyframe count. *)
   let motion=Ogpu.Acceleration.Blas{geometries=[|Motion_triangles{keyframes=[range;range];vertex_stride=12;vertex_count=3}|];allow_refit=false;motion_keyframes=Some 2}in
   ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true motion));

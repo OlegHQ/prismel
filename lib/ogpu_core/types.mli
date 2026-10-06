@@ -40,5 +40,3 @@ val validate_sampler : sampler_descriptor -> (unit,Error.t) result
     channel as these 16 bits little-endian ([Bytes.set_uint16_le]). *)
 val half_of_float : float -> int
 
-(** The exact float value of binary16 bits. *)
-val float_of_half : int -> float

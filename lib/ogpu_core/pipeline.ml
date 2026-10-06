@@ -6,23 +6,16 @@ type render_descriptor =
   ; vertex : Shader.t; vertex_entry : string
   ; fragment : Shader.t option; fragment_entry : string option
   ; color_format : color_format; depth_format : depth_format; sample_count : int }
-type compute_descriptor =
-  { backend : string; label : string option; layout : Binding.pipeline_layout
-  ; shader : Shader.t; entry : string }
-type kind = Render | Compute
-type t = { kind : kind;   key : string; description : string }
 
 let invalid operation message = Error (Error.make operation Error.Invalid_argument message)
 let valid_text value = value <> "" && not (String.contains value '\000')
 let binding_kind = function
-  | Shader.Uniform_buffer | Storage_buffer | Intersection_table | Visible_table -> Binding.Buffer
+  | Shader.Uniform_buffer | Storage_buffer | Intersection_table -> Binding.Buffer
   | Sampled_texture | Storage_texture -> Binding.Texture
   | Sampler -> Binding.Sampler
   | Acceleration_structure -> Binding.Acceleration_structure
 let binding_stage = function
   | Shader.Vertex -> Binding.Vertex | Fragment -> Binding.Fragment | Compute -> Binding.Compute
-let kind_code = function Binding.Buffer -> "b" | Texture -> "t" | Sampler -> "s" | Acceleration_structure -> "a"
-let add output value = Buffer.add_string output (string_of_int (String.length value)); Buffer.add_char output ':'; Buffer.add_string output value
 
 let validate_label operation = function
   | Some value when not (valid_text value) -> invalid operation "pipeline label is empty or contains NUL"
@@ -63,23 +56,7 @@ let reflection operation layout shaders =
     in
     validate reflected
 
-let layout_text layout =
-  Binding.pipeline_layouts layout |> List.map (fun (group, entries) ->
-    let values = entries |> List.map (fun (value : Binding.layout_entry) ->
-      Printf.sprintf "%d.%d.%s.%s" group value.binding (kind_code value.kind)
-        (String.concat "" (List.map (function Binding.Vertex -> "v" | Fragment -> "f" | Compute -> "c") value.visibility))) in
-    String.concat "," values) |> String.concat ";"
-
-let finish kind fields =
-  let output = Buffer.create 192 in
-  List.iter (add output) fields;
-  let description = Buffer.contents output in
-  { kind;   description; key = Digest.to_hex (Digest.string description) }
-
-let blend_text = function Replace -> "replace" | Alpha -> "alpha" | Add -> "add"
-  | Multiply -> "multiply" | Screen -> "screen" | Subtract -> "subtract"
-
-let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor) =
+let create_render capabilities (descriptor : render_descriptor) =
   let operation = "Ogpu.Pipeline.create_render" in
   let shaders = descriptor.vertex :: Option.to_list descriptor.fragment in
   match validate_label operation descriptor.label with
@@ -102,36 +79,4 @@ let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor)
           | Error _ as error -> error
           | Ok fragment -> match reflection operation descriptor.layout ((descriptor.vertex, Shader.Vertex) :: fragment) with
             | Error _ as error -> error
-            | Ok () ->
-                let color = match descriptor.color_format with Rgba8_unorm -> "rgba8" | Bgra8_unorm -> "bgra8" in
-                let depth = match descriptor.depth_format with No_depth -> "none" | Depth32_float -> "depth32" | Stencil8 -> "stencil8" | Depth32_float_stencil8 -> "depth32-stencil8" in
-                Ok (finish Render
-                  [ "render"; descriptor.backend; Option.value descriptor.label ~default:""
-                  ; Shader.provenance_hash descriptor.vertex; descriptor.vertex_entry
-                  ; Option.fold ~none:"" ~some:Shader.provenance_hash descriptor.fragment
-                  ; Option.value descriptor.fragment_entry ~default:""; layout_text descriptor.layout
-                  ; color; depth; string_of_int descriptor.sample_count; blend_text blend ])
-
-let create_compute capabilities (descriptor : compute_descriptor) =
-  let operation = "Ogpu.Pipeline.create_compute" in
-  match Result.bind (Caps.validate capabilities)
-          (fun () -> Caps.require ~operation capabilities Caps.Compute_pipeline) with
-  | Error _ as error -> error
-  | Ok () -> match validate_label operation descriptor.label with
-    | Error _ as error -> error
-    | Ok () -> match validate_backend operation descriptor.backend [ descriptor.shader ] with
-      | Error _ as error -> error
-      | Ok () -> match entry operation descriptor.shader descriptor.entry Shader.Compute with
-        | Error _ as error -> error
-        | Ok () -> match reflection operation descriptor.layout [ descriptor.shader, Shader.Compute ] with
-          | Error _ as error -> error
-          | Ok () -> Ok (finish Compute
-              [ "compute"; descriptor.backend; Option.value descriptor.label ~default:""
-              ; Shader.provenance_hash descriptor.shader; descriptor.entry; layout_text descriptor.layout ])
-
-let kind value = value.kind
-let cache_key value = value.key
-let description value = value.description
-
-module Private = struct
-end
+            | Ok () -> Ok ()

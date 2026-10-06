@@ -27,9 +27,6 @@ let run () =
     [-1.;-1.;3.;-1.;-1.;3.];
   let sampled=get(Texture.create~device(Texture.descriptor_2d~storage:Buffer.Shared
     ~usage:[Texture.Shader_read]~format:Texture.Rgba8_unorm~width:1~height:1())) in
-  let region={Texture.x=0;y=0;z=0;width=1;height=1;depth=1} in
-  get(Texture.write_bytes sampled~region~mip_level:0~slice:0~bytes_per_row:4
-    ~bytes_per_image:4(Bytes.of_string"\x11\x22\x33\xff"));
   let sampler=get(Sampler.create~device{(Sampler.default())with support_argument_buffers=true}) in
   let argument_buffer=get(Buffer.create~device
     ~length:(Shader_argument_encoder.encoded_length argument_encoder)

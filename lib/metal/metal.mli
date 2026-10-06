@@ -64,23 +64,11 @@ module Release_queue : sig
 end
 
 type device
-module Shared_event : sig
-  type t
-  val signaled_value:t->(int64,error)result
-  val set_signaled_value:t->int64->(unit,error)result
-
-  (** Blocks the calling thread (releasing the OCaml runtime) until the event
-      reaches [value] or [timeout_ms] elapses; [Ok false] on timeout. *)
-  val wait_until_signaled:t->value:int64->timeout_ms:int64->(bool,error)result
-  val destroy:t->(unit,error)result
-end
 
 type compute_encoder
 type acceleration_encoder
 type blit_encoder
-type resource_state_encoder
 type command_queue
-type fence
 module Device : sig
   type t = device
   type counter_sampling_point=Stage_boundary|Draw_boundary|Dispatch_boundary|Blit_boundary
@@ -122,20 +110,13 @@ module Device : sig
     }
 
   val system_default : unit -> (t, error) result
-  val new_fence : t -> (fence,error) result
-  val new_shared_event:t->(Shared_event.t,error)result
   val same : t -> t -> bool
   val info : t -> (info, error) result
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
 
-  val supports_residency_sets : t -> (bool, error) result
-  val supports_sparse_textures : t -> (bool, error) result
-
   type sparse_region = { x:int64; y:int64; z:int64; width:int64; height:int64; depth:int64 }
   type sparse_alignment = Outward | Inward
-  val sample_timestamps : t -> ((int64*int64),error) result
-  val timestamp_frequency : t -> (int64,error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -171,7 +152,6 @@ module Buffer : sig
     t -> ?src_offset:int -> dst_offset:int64 -> bytes -> (unit, error) result
   val read_bytes : t -> offset:int64 -> length:int -> (bytes, error) result
 
-  val make_aliasable : t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -490,22 +470,10 @@ module Texture : sig
     format:format -> width:int -> height:int -> unit -> descriptor
   val create : device:Device.t -> descriptor -> (t, error) result
 
-  (** The optional swizzle is composed with the parent's effective swizzle.
-      A same-format swizzled view does not require [Pixel_format_view]; format
-      reinterpretation still does. The returned descriptor records the
-      effective composed swizzle. *)
-  val create_view :
-    t -> format:format -> base_mip:int -> mip_count:int -> base_slice:int ->
-    slice_count:int -> ?swizzle:swizzle -> ?label:string -> unit ->
-    (t, error) result
   val device : t -> Device.t
   val descriptor : t -> descriptor
 
-  val sparse_info : t -> (sparse_info option, error) result
   val destroyed : t -> bool
-  val write_bytes :
-    t -> region:region -> mip_level:int -> slice:int -> ?src_offset:int ->
-    bytes_per_row:int -> bytes_per_image:int -> bytes -> (unit, error) result
   val read_bytes :
     t -> region:region -> mip_level:int -> slice:int -> bytes_per_row:int ->
     bytes_per_image:int -> (bytes, error) result
@@ -514,7 +482,6 @@ module Texture : sig
   val read_bytes_into :
     t -> region:region -> mip_level:int -> slice:int -> bytes_per_row:int ->
     bytes_per_image:int -> destination:bytes -> (unit, error) result
-  val make_aliasable : t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -526,12 +493,9 @@ module Metal_layer : sig
     ; maximum_drawables:int; allows_timeout:bool; display_sync:bool
     ; presents_with_transaction:bool }
   val default : width:int -> height:int -> config
-  val create : Device.t -> config -> (t,error) result
   val adopt_borrowed : Device.t -> Native_layer_token.t -> config -> (t,error) result
   val configure : t -> config -> (unit,error) result
   val device : t -> Device.t
-  val config : t -> config
-  val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end
 
@@ -589,92 +553,6 @@ module Render_pass_descriptor : sig
     ?depth:Texture.t -> ?stencil:Texture.t -> ?visibility_result:Buffer.t ->
     unit -> (unit,error) result
   val destroy : t -> (unit,error) result
-end
-
-module Fence : sig
-  type t = fence
-  val create : Device.t -> (t, error) result
-  val destroy : t -> (unit, error) result
-end
-
-module Heap : sig
-  type t
-  type kind = Automatic | Placement | Sparse
-  type cpu_cache_mode = Default_cache | Write_combined
-  type hazard_tracking_mode =
-    | Default_hazard_tracking
-    | Untracked
-    | Tracked
-
-  type descriptor =
-    { size : int64
-    ; storage : Buffer.storage_mode
-    ; cpu_cache : cpu_cache_mode
-    ; hazard_tracking : hazard_tracking_mode
-    ; kind : kind
-    ; sparse_page_size : Sparse_page_size.t option
-      (** Exact page size for [Sparse], or the maximum compatible placement
-          sparse page size for [Placement]. [Automatic] requires [None]. *)
-    ; label : string option
-    }
-
-  type size_and_align =
-    { size : int64
-    ; alignment : int64
-    }
-
-  type info =
-    { size : int64
-    ; used_size : int64
-    ; current_allocated_size : int64
-    ; storage : Buffer.storage_mode
-    ; cpu_cache : cpu_cache_mode
-    ; hazard_tracking : hazard_tracking_mode
-    ; kind : kind
-    }
-
-  val make_descriptor :
-    ?storage:Buffer.storage_mode -> ?cpu_cache:cpu_cache_mode ->
-    ?hazard_tracking:hazard_tracking_mode -> ?kind:kind ->
-    ?sparse_page_size:Sparse_page_size.t -> ?label:string -> size:int64 -> unit ->
-    descriptor
-  val buffer_size_and_align :
-    device:Device.t -> length:int64 -> storage:Buffer.storage_mode ->
-    ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
-    unit -> (size_and_align, error) result
-  val texture_size_and_align :
-    device:Device.t -> Texture.descriptor -> (size_and_align, error) result
-  val create : device:Device.t -> descriptor -> (t, error) result
-  val create_buffer :
-    t -> ?offset:int64 -> length:int64 -> ?label:string -> unit ->
-    (Buffer.t, error) result
-  val create_texture :
-    t -> ?offset:int64 -> Texture.descriptor -> (Texture.t, error) result
-  val descriptor : t -> descriptor
-  val destroy : t -> (unit, error) result
-end
-
-module Residency_set : sig
-  type t
-
-  type allocation =
-    | Buffer of Buffer.t
-    | Texture of Texture.t
-    | Heap of Heap.t
-
-  type descriptor =
-    { label : string option
-    ; initial_capacity : int
-    }
-
-  val make_descriptor :
-    ?label:string -> ?initial_capacity:int -> unit -> descriptor
-  val create : device:Device.t -> descriptor -> (t, error) result
-  val allocated_size : t -> (int64, error) result
-  val add_allocation : t -> allocation -> (unit, error) result
-  val remove_allocation : t -> allocation -> (unit, error) result
-  val commit : t -> (unit, error) result
-  val destroy : t -> (unit, error) result
 end
 
 module Sampler : sig
@@ -894,11 +772,6 @@ module Library : sig
   val compile_source :
     ?label:string -> device:Device.t -> string -> (t, error) result
 
-  val compile_dynamic_source :
-    ?label:string -> device:Device.t -> install_name:string -> string ->
-    (t, error) result
-
-  val load_data : device:Device.t -> string -> (t, error) result
   (* Calls the deprecated path-based SDK constructor exactly. New code should
      prefer [load_file], which uses the URL-based constructor. *)
 
@@ -979,43 +852,11 @@ end
 module Dynamic_library : sig
   type t
 
-  val create : ?label:string -> Library.t -> (t, error) result
-  val load_file :
-    ?label:string -> device:Device.t -> string -> (t, error) result
-
-  (** Compiles an executable library whose unresolved symbols are linked
-      against the supplied same-device dynamic libraries. *)
-  val compile_source :
-    ?label:string -> device:Device.t -> libraries:t list -> string ->
-    (Library.t, error) result
-
-  (** Serializes device code and its source-library fallback to an absolute
-      file path. *)
-  val serialize : t -> string -> (unit, error) result
-  val destroy : t -> (unit, error) result
 end
 
 module Binary_archive : sig
   type t = binary_archive
 
-  (** With no [path], creates an empty archive. An absolute [path] opens a
-      previously serialized archive. *)
-  val create :
-    ?path:string -> ?label:string -> Device.t -> (t, error) result
-
-  val add_compute_functions :
-    t -> ?linked_functions:Function.t list ->
-    ?preloaded_libraries:Dynamic_library.t list -> Function.t ->
-    (unit, error) result
-
-  val add_mesh_render_pipeline :
-    t -> mesh:Function.t -> ?fragment:Function.t ->
-    color_format:Texture.format -> unit -> (unit,error) result
-  val add_tile_render_pipeline :
-    t -> tile:Function.t -> color_format:Texture.format -> (unit,error) result
-
-  val serialize : t -> string -> (unit, error) result
-  val destroy : t -> (unit, error) result
 end
 
 module Pipeline_buffer_descriptor : sig
@@ -1133,13 +974,6 @@ module Function_handle : sig
   val destroy : t -> (unit, error) result
 end
 
-module Visible_function_table : sig
-  type t
-  val create : pipeline:Compute_pipeline.t -> capacity:int -> (t, error) result
-  val set_function : t -> index:int -> Function_handle.t option -> (unit, error) result
-  val destroy : t -> (unit, error) result
-end
-
 module Intersection_function_table : sig
   type t
   type opaque_shape = Triangle | Curve
@@ -1237,35 +1071,7 @@ module Render_pipeline : sig
     }
 
   val supports_indirect_command_buffers : t -> (bool,error) result
-  val kind : t -> kind
-  val color_formats : t -> Texture.format list
-  val color_attachments : t -> color_attachment list
   val reflection : t -> reflection option
-  module Mesh_tile:sig
-    type size3={width:int64;height:int64;depth:int64}
-    type mutability=Pipeline_buffer_descriptor.mutability=Default|Mutable|Immutable
-    type mesh_descriptor
-    type tile_descriptor
-    type buffer_descriptor=Pipeline_buffer_descriptor.t
-    type color_attachment
-    type descriptor_kind=Render_descriptor|Mesh_descriptor|Tile_descriptor
-    type buffer_stage=Vertex_buffers|Fragment_buffers|Object_buffers|Mesh_buffers|Tile_buffers
-    type pipeline_descriptor
-    type color_attachment_array
-
-    (** Without [depth_format]/[stencil_format] the pipeline renders to color
-        attachments only. *)
-    val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> ?depth_format:Texture.format -> ?stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
-    val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result
-
-    (** Pixel format of a color attachment the pipeline renders into. *)
-    val set_mesh_color_format : mesh_descriptor -> index:int -> Texture.format -> (unit,error) result
-    val set_tile_color_format : tile_descriptor -> index:int -> Texture.format -> (unit,error) result
-    val compile_mesh : ?reflection:bool -> mesh_descriptor -> (t,error) result
-    val compile_tile : ?reflection:bool -> tile_descriptor -> (t,error) result
-    val destroy_mesh : mesh_descriptor -> (unit,error) result
-    val destroy_tile : tile_descriptor -> (unit,error) result
-  end
   val destroy : t -> (unit, error) result
 end
 
@@ -1399,7 +1205,6 @@ module Indirect_command_buffer : sig
     ?cpu_cache:Buffer.cpu_cache_mode ->
     ?hazard_tracking:Buffer.hazard_tracking_mode -> max_command_count:int ->
     descriptor -> (t, error) result
-  val reset : t -> location:int -> length:int -> (unit, error) result
   val destroy : t -> (unit, error) result
 
   module Render_command : sig
@@ -1429,8 +1234,6 @@ end
 module Command_queue : sig
   type t = command_queue
   val create : Device.t -> (t, error) result
-  val add_residency_set : t -> Residency_set.t -> (unit, error) result
-  val remove_residency_set : t -> Residency_set.t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -1455,14 +1258,9 @@ module Command_buffer : sig
 
   val create : Command_queue.t -> ?label:string -> unit -> (t, error) result
   val device : t -> Device.t
-  val use_residency_set : t -> Residency_set.t -> (unit, error) result
   val status : t -> (status, error) result
   val diagnostics : t -> (diagnostics,error) result
 
-  (** Shared (host-visible, cross-queue) event signal and wait, encoded between
-      encoders of a recording command buffer. *)
-  val encode_signal_shared_event : t -> Shared_event.t -> value:int64 -> (unit,error) result
-  val encode_wait_for_shared_event : t -> Shared_event.t -> value:int64 -> (unit,error) result
   val present :
     t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
   val commit : t -> (unit, error) result
@@ -1488,13 +1286,6 @@ module Acceleration_encoder : sig
   val build_with :
     t -> destination:Acceleration_structure.t -> descriptor:Acceleration_structure.Build.t ->
     scratch:Buffer.t -> scratch_offset:int64 -> (unit, error) result
-  val refit_with :
-    t -> source:Acceleration_structure.t -> destination:Acceleration_structure.t ->
-    descriptor:Acceleration_structure.Build.t -> scratch:Buffer.t -> scratch_offset:int64 ->
-    (unit, error) result
-  val copy :
-    t -> source:Acceleration_structure.t ->
-    destination:Acceleration_structure.t -> (unit, error) result
   val copy_and_compact :
     t -> source:Acceleration_structure.t ->
     destination:Acceleration_structure.t -> (unit, error) result
@@ -1517,13 +1308,8 @@ module Compute_encoder : sig
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
   val set_texture : t -> index:int -> Texture.t -> (unit, error) result
   val set_acceleration_structure : t -> index:int -> Acceleration_structure.t option -> (unit,error) result
-  val set_visible_function_table : t -> index:int -> Visible_function_table.t option -> (unit,error) result
   val set_intersection_function_table : t -> index:int -> Intersection_function_table.t option -> (unit,error) result
   val set_bytes : t -> index:int -> bytes -> (unit,error) result
-  val dispatch_threadgroups : t -> threadgroups:int*int*int -> threadgroup:int*int*int -> (unit,error) result
-  val update_fence : t -> Fence.t -> (unit,error) result
-  val wait_for_fence : t -> Fence.t -> (unit,error) result
-  val use_heaps : t -> Heap.t list -> (unit,error) result
 
   (** [useResource:usage:MTLResourceUsageRead] on each structure: an instance
       structure bound with [set_acceleration_structure] only references its
@@ -1574,8 +1360,6 @@ module Render_encoder : sig
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
   val set_vertex_texture : t -> index:int -> Texture.t -> (unit, error) result
   val set_fragment_texture : t -> index:int -> Texture.t -> (unit, error) result
-  val set_vertex_bytes : t -> index:int -> bytes -> (unit, error) result
-  val set_fragment_bytes : t -> index:int -> bytes -> (unit, error) result
   val set_vertex_sampler :
     t -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t ->
     (unit, error) result
@@ -1588,31 +1372,11 @@ module Render_encoder : sig
   val set_front_facing_winding : t -> winding -> (unit, error) result
   val set_stencil_reference_values :
     t -> front:int32 -> back:int32 -> (unit, error) result
-  val tile_width : t -> (int, error) result
-  val tile_height : t -> (int, error) result
-  val update_fence : t -> Fence.t -> after:stage list -> (unit,error) result
-  val wait_for_fence : t -> Fence.t -> before:stage list -> (unit,error) result
-  val use_heaps : t -> Heap.t list -> stages:stage list -> (unit,error) result
   val use_resources : t -> resource list -> usage:resource_usage list -> stages:stage list -> (unit,error) result
-  val set_stage_buffer : t -> stage:stage -> index:int -> offset:int64 -> ?stride:int64 -> Buffer.t option -> (unit,error) result
-  val set_stage_texture : t -> stage:stage -> index:int -> Texture.t option -> (unit,error) result
-  val set_stage_sampler : t -> stage:stage -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t option -> (unit,error) result
   val set_depth_stencil_state : t -> Depth_stencil.t option -> (unit,error) result
-  val set_stage_bytes : t -> stage:stage -> index:int -> bytes -> (unit,error) result
   val draw_indexed_basic : t -> primitive:primitive -> index_type:index_type -> index_buffer:Buffer.t -> index_offset:int64 -> index_count:int64 -> (unit,error) result
   val draw_indexed_instances : t -> primitive:primitive -> index_type:index_type -> index_buffer:Buffer.t -> index_offset:int64 -> index_count:int64 -> instances:int64 -> (unit,error) result
   val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
-
-  (** Mesh dispatch on the classic encoder. The bound pipeline must be a mesh
-      pipeline; [object_threadgroup] is given exactly when it has an object
-      stage; compiled required sizes must match. *)
-  val draw_mesh_threadgroups :
-    t -> threadgroups:(int * int * int) -> ?object_threadgroup:(int * int * int) ->
-    mesh_threadgroup:(int * int * int) -> unit -> (unit, error) result
-
-  (** Tile dispatch on the classic encoder; the bound pipeline must be a tile
-      pipeline and [threads] positive with depth one. *)
-  val dispatch_threads_per_tile : t -> threads:(int * int * int) -> (unit, error) result
 
   val draw_triangles :
     t -> first:int -> count:int -> ?instances:int -> unit ->
@@ -1651,29 +1415,6 @@ module Render_encoder : sig
   end
 end
 
-module Resource_state_encoder : sig
-  type t = resource_state_encoder
-
-  type mapping_mode =
-    | Map
-    | Unmap
-
-  type tile_region =
-    { x : int
-    ; y : int
-    ; z : int
-    ; width : int
-    ; height : int
-    ; depth : int
-    }
-
-  val create : Command_buffer.t -> (t, error) result
-  val update_texture_mapping :
-    t -> mode:mapping_mode -> Texture.t -> mip_level:int -> slice:int ->
-    region:tile_region -> (unit, error) result
-  val end_encoding : t -> (unit, error) result
-end
-
 module Blit_encoder : sig
   type t = blit_encoder
 
@@ -1683,105 +1424,6 @@ module Blit_encoder : sig
     source_bytes_per_image:int -> destination:Texture.t ->
     destination_slice:int -> destination_level:int ->
     destination_region:Texture.region -> (unit, error) result
-  val fill_buffer : t -> Buffer.t -> offset:int64 -> length:int64 -> byte:int -> (unit,error) result
-  val copy_buffer : t -> source:Buffer.t -> source_offset:int64 -> destination:Buffer.t -> destination_offset:int64 -> length:int64 -> (unit,error) result
-  val copy_texture_to_buffer : t -> source:Texture.t -> source_slice:int -> source_level:int -> source_region:Texture.region -> destination:Buffer.t -> destination_offset:int64 -> destination_bytes_per_row:int64 -> destination_bytes_per_image:int64 -> ?options:int64 -> unit -> (unit,error) result
-  val copy_texture_region : t -> source:Texture.t -> source_slice:int -> source_level:int -> source_region:Texture.region -> destination:Texture.t -> destination_slice:int -> destination_level:int -> destination_origin:(int*int*int) -> (unit,error) result
-  val update_fence : t -> Fence.t -> (unit,error) result
-  val wait_for_fence : t -> Fence.t -> (unit,error) result
   val end_encoding : t -> (unit, error) result
 end
 
-module Resource100 : sig
-  type tensor
-  type sample_buffer = counter_sample_buffer
-  module Sample_buffer : sig
-    type t = sample_buffer
-    val create : Device.t -> ?label:string -> sample_count:int64 -> unit -> (t,error) result
-    val sample : Blit_encoder.t -> t -> index:int64 -> (unit,error) result
-    val resolve : Blit_encoder.t -> t -> first:int64 -> count:int64 -> Buffer.t -> offset:int64 -> (unit,error) result
-    val destroy : t -> (unit,error) result
-  end
-end
-
-module Counters : sig
-  type sampling_point=Stage_boundary|Draw_boundary|Dispatch_boundary|Blit_boundary
-  type set={name:string;counters:string list}
-  val supports : Device.t -> sampling_point -> (bool,error) result
-  val sets : Device.t -> (set list,error) result
-  module Descriptor : sig
-    type t
-    val create : Device.t -> set_name:string -> ?label:string -> sample_count:int64 -> storage:Buffer.storage_mode -> unit -> (t,error) result
-    val create_buffer : t -> (counter_sample_buffer,error) result
-    val destroy : t -> (unit,error) result
-  end
-  val resolve : counter_sample_buffer -> first:int64 -> count:int64 -> (bytes,error) result
-  val set_render_pass_attachment :
-    Render_pass_descriptor.t -> index:int -> counter_sample_buffer ->
-    start_vertex:int64 -> end_vertex:int64 -> start_fragment:int64 ->
-    end_fragment:int64 -> (unit,error) result
-end
-
-module rec Blit_pass_descriptor : sig
-  type t
-  val create : Device.t -> (t,error) result
-  val attachments : t -> (Blit_pass_attachments.t,error) result
-
-  (** A blit encoder whose stage boundaries sample the configured counter
-      attachments; the command buffer retains the descriptor and its sample
-      buffers until completion. *)
-  val create_encoder : Command_buffer.t -> t -> (Blit_encoder.t,error) result
-  val destroy : t -> (unit,error) result
-end
-and Blit_pass_attachments : sig
-  type t
-  val get : t -> index:int -> (Blit_pass_attachment.t option,error) result
-  val destroy : t -> (unit,error) result
-end
-and Blit_pass_attachment : sig
-  type t
-  type sample_index = Dont_sample | Index of int64
-  val configure : t -> sample_buffer:Resource100.Sample_buffer.t option ->
-    start:sample_index -> finish:sample_index -> (unit,error) result
-  val destroy : t -> (unit,error) result
-end
-
-module Compute_pass : sig
-  type dispatch = Serial | Concurrent
-  type attachment =
-    { sample_buffer : Resource100.Sample_buffer.t
-    ; start_index : int64
-    ; end_index : int64 }
-  type t
-  val create : Device.t -> ?dispatch:dispatch ->
-    ?attachments:attachment option array -> unit -> (t,error) result
-
-  (** A compute encoder whose stage boundaries sample the configured counter
-      attachments; the command buffer retains the descriptor and its sample
-      buffers until completion. *)
-  val create_encoder : Command_buffer.t -> t -> (Compute_encoder.t,error) result
-  val destroy : t -> (unit,error) result
-end
-
-(** MetalFX, linked as its own framework. *)
-module Fx : sig
-  (** Spatial upscaling of one color texture into a larger output. *)
-  module Spatial_scaler : sig
-    type t
-    val supported : Device.t -> (bool, error) result
-
-    (** [input]/[output] are (width, height); the output is never smaller
-        than the input. The color texture needs shader-read usage and the
-        output shader-read plus render-target usage, checked at [encode]. *)
-    val create :
-      Device.t -> input:int * int -> output:int * int -> color_format:Texture.format ->
-      output_format:Texture.format -> (t, error) result
-    val input : t -> int * int
-    val output : t -> int * int
-
-    (** Encodes the upscale between encoders of a recording command buffer,
-        which retains the scaler and both textures until it completes. *)
-    val encode : t -> Command_buffer.t -> color:Texture.t -> output:Texture.t -> (unit, error) result
-    val destroy : t -> (unit, error) result
-  end
-end

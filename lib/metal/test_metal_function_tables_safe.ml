@@ -11,23 +11,16 @@ let run () =
   in
   let function_ = get (Function.find ~library "table_kernel") in
   let pipeline = get (Compute_pipeline.create function_) in
-  let visible = get (Visible_function_table.create ~pipeline ~capacity:4) in
   let intersection = get (Intersection_function_table.create ~pipeline ~capacity:4) in
-  get (Visible_function_table.set_function visible ~index:0 None);
   get (Intersection_function_table.set_function intersection ~index:0 None);
   let buffer = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
   get (Intersection_function_table.set_buffer intersection ~index:0 ~offset:16L (Some buffer));
-  check
-    (Result.is_error (Visible_function_table.set_function visible ~index:4 None))
-    "out-of-range visible binding accepted";
   (match Function_handle.create ~pipeline ~function_ with
   | Error error -> check (error.kind = Unsupported) "function-handle rejection was not typed"
   | Ok handle ->
-      get (Visible_function_table.set_function visible ~index:1 (Some handle));
       get (Intersection_function_table.set_function intersection ~index:1 (Some handle));
       get (Function_handle.destroy handle));
   get (Intersection_function_table.destroy intersection);
-  get (Visible_function_table.destroy visible);
   get (Buffer.destroy buffer);
   get (Compute_pipeline.destroy pipeline);
   get (Function.destroy function_);

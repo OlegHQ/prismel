@@ -257,7 +257,7 @@ let validate_feature_map mappings =
       if Hashtbl.mem seen feature then
         fail "duplicate OGPU feature map entry: %s" (feature_name feature);
       Hashtbl.add seen feature ();
-      if symbols = [] && feature <> Ogpu_core.Caps.Timeline_fence then
+      if symbols = [] then
         fail "empty Metal symbol map entry: %s" (feature_name feature);
       List.iter
         (function
@@ -265,9 +265,7 @@ let validate_feature_map mappings =
           | _ -> fail "empty Metal SDK type in feature map")
         symbols)
     mappings;
-  if List.length mappings <> 23 then fail "OGPU feature map is incomplete";
-  if List.assoc_opt Ogpu_core.Caps.Timeline_fence mappings <> Some [] then
-    fail "unsupported timeline fence has a Metal symbol"
+  if List.length mappings <> 10 then fail "OGPU feature map is incomplete"
 
 let validate entries =
   validate_feature_map feature_map;
@@ -552,7 +550,7 @@ let self_test () =
   let factory = Class_method
       { objc = "MTLBlitPassDescriptor"; sel = "blitPassDescriptor"; args = []
       ; ret = Some (Obj "Blit_pass_descriptor"); ocaml = "test_factory"
-      ; since = Some (10, 15); feature = Ogpu_core.Caps.Timestamp_queries } in
+      ; since = Some (10, 15); feature = Ogpu_core.Caps.Buffer } in
   let custom = Native
       { ocaml = "test_custom"; signature = "handle -> bytes -> (unit, string) result"
       ; primitives = [ "caml_test_custom" ]; reason = "byte buffer lifetime" } in
@@ -599,8 +597,8 @@ let self_test () =
      if not (String.starts_with ~prefix:"unknown OGPU feature map entry" message) then
        fail "unexpected feature map error: %s" message);
   let checked_types = emit_feature_checks () in
-  if not (contains_token checked_types "id<MTLFXSpatialScaler>")
-     || not (contains_token checked_types "id<MTLResidencySet>")
+  if not (contains_token checked_types "id<MTLIntersectionFunctionTable>")
+     || not (contains_token checked_types "id<MTLAccelerationStructure>")
   then fail "feature map lost SDK type checks";
   let record =
     Record

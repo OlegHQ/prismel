@@ -3,10 +3,6 @@ let get = function
   | Error error -> failwith (Format.asprintf "%a" Metal.pp_error error)
 
 let () =
-  let metallib = if Array.length Sys.argv < 2 then None else
-    let channel = open_in_bin Sys.argv.(1) in
-    Some (Fun.protect ~finally:(fun () -> close_in channel)
-      (fun () -> Bytes.of_string (really_input_string channel (in_channel_length channel)))) in
   let before = get (Metal.Release_queue.stats ()) in
   let driver, live_handles = Ogpu.Impl.create_driver () in
   (match driver.Ogpu.Backend.create_device () with
@@ -18,7 +14,7 @@ let () =
        (match raw.destroy_device () with
         | Ok () -> ()
         | Error error -> failwith (Ogpu.Error.to_string error));
-       Ogpu_conformance.Conformance.run ?metallib driver;
+       Ogpu_conformance.Conformance.run driver;
        if live_handles () <> before.live_handles then
          failwith "Metal backend leaked handles";
-       print_endline "OGPU conformance (Metal): capabilities, buffer/texture round trip, Rgba8/Rgba16_float/Rgba32_float mip round trips, Rgba16_float linear LOD sampling, exact compute, library constants, encoders, blit, ray-query hits, refit, bounding boxes with intersection tables, curves or their typed rejection, motion primitives and instances, user-id masks, compaction and copy, visible tables, aliasing heaps with fences, residency sets, timeline events, stage-boundary timestamps, mesh and tile pipelines, dynamic libraries, binary archives, sparse tile mapping, MetalFX upscaling, lifetime, zero handles")
+       print_endline "OGPU conformance (Metal): capabilities, buffer round trip, texture upload and host read (padded rows, inset origin), Rgba8/Rgba16_float/Rgba32_float level-0 round trips, Rgba16_float linear LOD sampling, library constants, encoders, abandoned commands, ray-query hits, bounding boxes with intersection tables, curves or their typed rejection, motion primitives and instances, user-id masks, compaction, render path (batch, indirect, argument buffers, depth), lifetime, zero handles")

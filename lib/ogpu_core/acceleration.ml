@@ -10,7 +10,7 @@ type descriptor=
   |Tlas of{instances:buffer_range;instance_stride:int;instance_count:int;instance_kind:instance_kind;structures:unit Handle.t list;allow_refit:bool}
   |Sized of{size:int64;template:unit Handle.t}
 type state=Empty|Built|Compacted
-type t={handle:unit Handle.t;descriptor:descriptor;allow_refit:bool;mutable state:state}
+type t={handle:unit Handle.t;descriptor:descriptor;mutable state:state}
 let invalid op text=Error(Error.make op Error.Invalid_argument text)
 let validate_range device range=let op="Ogpu.Acceleration.validate_range"in match Handle.validate_for ~operation:op device range.buffer with Error _ as e->e|Ok()when range.buffer_size<0L||range.offset<0L||range.length<=0L||Int64.rem range.offset 4L<>0L->invalid op"buffer range is invalid or unaligned"|Ok()when range.offset>Int64.sub range.buffer_size range.length->invalid op"buffer range exceeds its buffer"|Ok()->Ok()
 let validate_ranges device ranges=List.fold_left(fun result range->Result.bind result(fun()->validate_range device range))(Ok())ranges
@@ -35,7 +35,6 @@ let validate_geometry device ~motion=function
       else if not(keyframes_ok motion control_points)||List.length radii<>List.length control_points then invalid"Ogpu.Acceleration.Curves""keyframe count must match the structure's motion keyframes"
       else Result.bind(validate_ranges device(control_points@radii))(fun()->validate_range device indices)
 let geometry_kind=function Triangles _|Motion_triangles _->0|Bounding_boxes _->1|Curves _->2
-let descriptor_refit=function Blas{allow_refit;_}|Tlas{allow_refit;_}->allow_refit|Sized _->false
 let validate_descriptor device=function
   |Blas{geometries;_}when Array.length geometries=0->invalid"Ogpu.Acceleration.create""BLAS geometry array is empty"
   |Blas{motion_keyframes=Some k;_}when k<2->invalid"Ogpu.Acceleration.create""motion requires at least two keyframes"
@@ -50,11 +49,9 @@ let validate_descriptor device=function
       else if structures=[]then invalid"Ogpu.Acceleration.create""TLAS references no structures"
       else Result.bind(validate_range device instances)(fun()->List.fold_left(fun result handle->Result.bind result(fun()->Handle.validate_for ~operation:"Ogpu.Acceleration.create"device handle))(Ok())structures)
   |Sized{size;template}->if size<=0L then invalid"Ogpu.Acceleration.create""structure size must be positive"else Handle.validate_for ~operation:"Ogpu.Acceleration.create"device template
-let create device ~ray_tracing descriptor=if not ray_tracing then Error(Error.make"Ogpu.Acceleration.create"Error.Unsupported"ray tracing is unsupported")else Result.bind(validate_descriptor device descriptor)(fun()->Ok{handle=Handle.create ~device;descriptor;allow_refit=descriptor_refit descriptor;state=Empty})
+let create device ~ray_tracing descriptor=if not ray_tracing then Error(Error.make"Ogpu.Acceleration.create"Error.Unsupported"ray tracing is unsupported")else Result.bind(validate_descriptor device descriptor)(fun()->Ok{handle=Handle.create ~device;descriptor;state=Empty})
 let check op device value=Handle.validate_for ~operation:op device value.handle
 let build device value=let op="Ogpu.Acceleration.build"in Result.bind(check op device value)(fun()->match value.descriptor,value.state with |Sized _,_->Error(Error.make op Error.Invalid_state"a sized structure is filled by copy or compaction")|_,Empty->value.state<-Built;Ok()|_,(Built|Compacted)->Error(Error.make op Error.Invalid_state"structure has already been built"))
-let refit device value=let op="Ogpu.Acceleration.refit"in Result.bind(check op device value)(fun()->if not value.allow_refit then Error(Error.make op Error.Unsupported"descriptor does not permit refit")else match value.state with Built->Ok()|Empty|Compacted->Error(Error.make op Error.Invalid_state"refit requires an uncompacted built structure"))
-let copy_into device ~source ~destination=let op="Ogpu.Acceleration.copy"in Result.bind(check op device source)(fun()->Result.bind(check op device destination)(fun()->match source.state,destination.state with |Empty,_->Error(Error.make op Error.Invalid_state"copy requires a built source")|_,(Built|Compacted)->Error(Error.make op Error.Invalid_state"copy destination is already filled")|state,Empty->destination.state<-state;Ok()))
 let compact_into device ~source ~destination=let op="Ogpu.Acceleration.compact"in Result.bind(check op device source)(fun()->Result.bind(check op device destination)(fun()->match source.state,destination.state with |Built,Empty->destination.state<-Compacted;Ok()|(Empty|Compacted),_->Error(Error.make op Error.Invalid_state"compaction requires an uncompacted built source")|_,(Built|Compacted)->Error(Error.make op Error.Invalid_state"compaction destination is already filled")))
 let compacted_size device value=let op="Ogpu.Acceleration.compacted_size"in Result.bind(check op device value)(fun()->match value.state with Built->Ok()|Empty|Compacted->Error(Error.make op Error.Invalid_state"compacted size requires an uncompacted built structure"))
 let destroy value=Handle.destroy value.handle

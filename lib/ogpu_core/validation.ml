@@ -19,7 +19,6 @@ let validate_texture_shape ~operation ~max_dimension ~max_samples ~width ~height
 let formats=[R8_unorm;Rgba8_unorm;Bgra8_unorm;Rgba16_float;Rgba32_float;Depth32_float]
 let storages=[Device_local;Shared;Upload;Readback]
 let storage_supported=function Device_local|Shared->true|Upload|Readback->false
-let format_storage_table=Array.of_list(List.concat_map(fun format->List.map(fun storage->format,storage,storage_supported storage)storages)formats)
 let unique values=List.sort_uniq compare values=values
 let validate_texture_profile capabilities value=
   let operation="Ogpu.Validation.validate_texture_profile"in let limits=capabilities.Caps.limits in
@@ -32,10 +31,6 @@ let validate_texture_profile capabilities value=
   else if value.sample_count>1&&(value.mip_levels<>1||value.depth<>1||value.usage<>[Attachment])then invalid operation"multisample textures require one attachment-only mip and depth slice"
   else if value.storage=Shared&&value.sample_count>1 then invalid operation"shared multisample textures are unsupported"
   else Ok()
-let power value=value>0L&&Int64.logand value(Int64.pred value)=0L
-let validate_range ~operation ~size ~offset ~length ~alignment=
-  if size<0L||offset<0L||length<=0L||not(power alignment)||Int64.rem offset alignment<>0L then invalid operation"range or alignment is invalid"
-  else if offset>Int64.sub size length then invalid operation"range is out of bounds"else Ok()
 let validate_layout ~operation entries=
   let entries=List.sort(fun(a,_)(b,_)->Int.compare a b)entries in
   let rec loop previous=function
