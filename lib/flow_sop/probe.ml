@@ -34,6 +34,13 @@ let make ?time ?(geometry = fun _ -> None) ?(dynamic = fun _ -> None)
 
 let same_eval a b = a.raw == b.raw
 
+(* the memos have a capacity: [forced] holds one entry per recorded path, [across] and [feet] one per
+   path and probe tuple asked, so a full one starts over (its entries are computed again on demand) *)
+let memo_capacity = 4096
+let remember tbl key v =
+  if Hashtbl.length tbl >= memo_capacity then Hashtbl.reset tbl;
+  Hashtbl.replace tbl key v
+
 let summarize t v =
   let v = match t.time with
     | Some time when E.is_live v -> (match E.force v ~live:{ E.t = time } with Ok v -> v | Error _ -> v)
@@ -52,7 +59,7 @@ let records t path = match Hashtbl.find_opt t.forced path with
       let a = match Hashtbl.find_opt t.raw path with
         | None -> [||]
         | Some l -> Array.of_list (List.map (fun (it, v) -> it, summarize t v) l) in
-      Hashtbl.replace t.forced path a; a
+      remember t.forced path a; a
 
 (* ---- describe ---- *)
 
@@ -175,7 +182,7 @@ let across t path ~outer =
                  let forced = Array.init count (fun k -> at_element t path zone k) in
                  if Array.for_all Option.is_some forced then Array.map Option.get forced else a
              | _ -> a) in
-      Hashtbl.replace t.across (path, outer) a; a
+      remember t.across (path, outer) a; a
 
 let series t path ~probes = if probes = [] then [||] else across t path ~outer:(drop_last probes)
 
@@ -244,7 +251,7 @@ let compute_footer t (n : P.node) ~probes =
 let footer t (n : P.node) ~probes =
   match Hashtbl.find_opt t.feet (n.path, probes) with
   | Some f -> f
-  | None -> let f = compute_footer t n ~probes in Hashtbl.replace t.feet (n.path, probes) f; f
+  | None -> let f = compute_footer t n ~probes in remember t.feet (n.path, probes) f; f
 
 let text f =
   String.concat " · " (List.filter_map Fun.id

@@ -1,7 +1,8 @@
 open Rays
 
 let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
+let checks = ref 0
+let check condition message = incr checks; if not condition then fail message
 let pointer (x, y) = float x, float y
 let mouse_press (button, point) = Event.MousePressed (button, pointer point)
 let mouse_release (button, point) = Event.MouseReleased (button, pointer point)
@@ -63,6 +64,10 @@ let run_menu () =
     [ entry "box" "Box"; entry ~arity:1 "null" "Null" ] in
   check (Node_menu.Private.keys fitting ~query:"" = [ "null"; "box" ])
     "the menu did not list what fits after the node first";
+  (* one colour per type, for the menu's squares and the pane's ports: a list is its elements' *)
+  check (Node_menu.port_color Pxui.default_theme (Flow.Ty.List Flow.Ty.Float) = (Pxui.Theme.ports Pxui.default_theme).float
+         && Node_menu.port_color Pxui.default_theme Flow.Ty.Scene = (Pxui.Theme.ports Pxui.default_theme).output)
+    "a list or a scene is not coloured as the graph pane colours it";
   (* the visual row window never makes later nodes inaccessible *)
   let many = List.init 15 (fun index -> entry (Printf.sprintf "node_%02d" index) (Printf.sprintf "Node %02d" index)) in
   let menu = match menu_step (opened many) (frame ~mouse:(400, 250) ~events:[ Event.TextInput "node" ] ()) with
@@ -237,6 +242,12 @@ let scope_levels () =
   check (connects <> [] && not (Scope.editing v)) "a hint letter did not connect and end the hints";
   let esc, _ = one_frame Input.Escape hint_view in
   check (not (Scope.editing esc)) "Escape did not end the hints";
+  (* a reloaded document ends them: their targets name nodes of the scope they were made over *)
+  check (Scope.editing (Scope.with_scope ~key:"g" scope hint_view))
+    "the same scope ended the hints";
+  let reloaded = Editor_document.Workspace_doc.of_text scope_catalog "(workspace w (graph g :context sop (sop/box)))" |> Result.get_ok in
+  check (not (Scope.editing (Scope.with_scope ~key:"g" (P.of_graph scope_catalog reloaded.checked "g") hint_view)))
+    "a new scope kept the letter hints";
   (* f frames the selection (all with none); the hints are on w *)
   let key_of action = List.find_map (fun (c : _ Editor_core.Command.t) ->
     if c.action = action then c.trigger else None) Scope.bindings in
@@ -320,6 +331,36 @@ let scope_connection_hover () =
   let hovered, changes = scope_step view (frame ~mouse:point ~events:[mouse_move point] ()) in
   check (changes = [] && List.length (Scope.Private.highlighted_connections hovered) = 1)
     "hover on a captured value's socket missed its outer connection"
+
+(* [n] nodes in one scope: a chain with a long wire back at every seventh node *)
+let big_text n =
+  let b = Buffer.create 65536 in
+  Buffer.add_string b "(workspace big (graph g :context sop (let* [n0 (sop/box)";
+  for i = 1 to n - 1 do
+    Printf.bprintf b " n%d (sop/transform n%d :translate [%d 0 0])" i (if i mod 7 = 0 then i / 2 else i - 1) i
+  done;
+  Printf.bprintf b "] n%d)))" (n - 1);
+  Buffer.contents b
+let big_scope n =
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog (big_text n) |> Result.get_ok in
+  P.of_graph scope_catalog ws.checked "g"
+
+(* Frame work does not scale with what is out of view: an idle frame of a pane that shows no card
+   of a 2,001-node graph allocates a small constant (it was 6.3 MB when every wire was cut into
+   hit boxes before the viewport test), and the level keys answer for every node at once. *)
+let scope_idle_frame () =
+  let ui = Pxui.Ui.create ~font_size:11 () in
+  let view = ref (Scope.create ~width:16 ~height:16 () |> Scope.with_scope ~key:"g" (big_scope 2001)) in
+  let step () = view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) in
+  for _ = 1 to 3 do step () done;
+  let before = Gc.allocated_bytes () in
+  for _ = 1 to 10 do step () done;
+  let per_frame = (Gc.allocated_bytes () -. before) /. 10. in
+  check ((Scope.stats !view).nodes >= 2001) "the big graph is not laid out";
+  check (per_frame < 500_000.) (Printf.sprintf "an idle frame with nothing in view allocates %.0f bytes" per_frame);
+  check (match snd (Scope.run_command !view Scope.Point_all) with
+    | [ Scope.Level_set l ] -> List.length l = 2001 && List.for_all (fun (_, level, _) -> level = Some P.Point) l
+    | _ -> false) "Point_all did not point every node"
 
 (* A trackpad pinch zooms the graph where the wheel does: at the pointer, the
    frame's pinch factors multiplied, clamped like the wheel. *)
@@ -532,6 +573,9 @@ let scope_gestures () =
   let hovered, _ = scope_step view (frame ~mouse:hover ~events:[ mouse_move hover ] ()) in
   check (snd (Scope.run_command hovered Scope.Item_up) = [ syntax (E.Move_item { node = widths; pos = 1 }) ]) "Alt-Up: Move_item";
   check (snd (Scope.run_command hovered Scope.Item_down) = [ syntax (E.Move_item { node = widths; pos = 2 }) ]) "Alt-Down: Move_item";
+  (* Delete over an item of a variadic input removes the item, whatever it holds *)
+  check (snd (Scope.run_command hovered Scope.Delete) = [ syntax (E.Disconnect { node = widths; key = E.Pos 1; fallback = None }) ])
+    "Delete on a hovered list item did not remove it";
   check (match snd (Scope.run_command view Scope.Item_up) with [ Scope.Notice _ ] -> true | _ -> false)
     "Alt-Up with no hovered item";
   let rec records (nodes : P.node list) = List.concat_map (fun (n : P.node) ->
@@ -547,6 +591,48 @@ let scope_gestures () =
               "the + field row did not become Add_field"
         | None -> ())
    | [] -> fail "kit has no record node");
+  (* the new field takes the first name the record does not have *)
+  let rw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace r (graph g :context sop (let* [r {:f2 5} a (sop/uv_sphere :radius r.f2)] a)))" |> Result.get_ok in
+  let rview, rscope = scope_view rw.checked "g" in
+  let rview, _ = scope_step rview (frame ()) in
+  let rx, ry = Option.get (Scope.Private.row_center rview [ "g"; "r" ]
+    (Option.get (List.find_index (fun (r : P.row) -> r.kind = P.Add) (Option.get (P.find rscope [ "g"; "r" ])).rows))) in
+  let _, changes = scope_click rview (int_of_float rx, int_of_float ry) in
+  check (List.exists (function Scope.Syntax_edit (E.Add_field { name = "f1"; _ }) -> true | _ -> false) changes)
+    "the + field row did not pick the first unused name";
+  (* a wire taken off a variadic input takes the item with it: no nil is left behind *)
+  let mw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace m (graph g :context sop (let* [a (sop/box) b (sop/box) m (sop/merge a b)] m)))" |> Result.get_ok in
+  let mview = settled (fst (scope_view mw.checked "g")) in
+  let wi = Option.get (List.find_index (fun i -> Scope.Private.wire_target mview i = Some ([ "g"; "m" ], E.Pos 1))
+    (List.init (Scope.Private.wire_count mview) Fun.id)) in
+  let wx, wy = Option.get (Scope.Private.wire_midpoint mview wi) in
+  let picked, _ = scope_click mview (int_of_float wx, int_of_float wy) in
+  check (snd (Scope.run_command picked Scope.Delete) = [ syntax (E.Disconnect { node = [ "g"; "m" ]; key = E.Pos 1; fallback = None }) ])
+    "a wire off a variadic input did not remove the item";
+  (* + output names the new output first; a row that only a wire can fill says so *)
+  let add_row view (scope : P.scope) path =
+    let rec find (nodes : P.node list) = List.find_map (fun (n : P.node) ->
+      if n.path = path then Some n else Option.bind n.zone (fun (z : P.zone) -> find z.scope.nodes)) nodes in
+    let n = Option.get (find scope.nodes) in
+    let x, y = Option.get (Scope.Private.row_center view path
+      (Option.get (List.find_index (fun (r : P.row) -> r.kind = P.Add) n.rows))) in
+    int_of_float x, int_of_float y in
+  let oview, oscope = scope_view kw "def:window" in
+  let oview = settled oview in
+  let values = (List.find (fun (n : P.node) -> n.head = "values") oscope.nodes).path in
+  let naming, changes = scope_click oview (add_row oview oscope values) in
+  check (changes = [] && Scope.editing naming) "the + output row did not open a name field";
+  let _, changes = scope_step naming (frame ~events:[ Event.TextInput "depth"; Event.KeyPressed Input.Enter ] ()) in
+  check (List.mem (syntax (E.Add_field { node = values; name = "depth"; value = S.make (S.Num "0") })) changes)
+    "a named output did not become Add_field";
+  let cw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace c (graph g :context value (let* [xs (list 1 2) ys (concat xs xs)] (count ys))))" |> Result.get_ok in
+  let cview, cscope = scope_view cw.checked "g" in
+  let cview = settled cview in
+  check (match snd (scope_click cview (add_row cview cscope [ "g"; "ys" ])) with [ Scope.Notice _ ] -> true | _ -> false)
+    "the + list row of a concat did not ask for a wire";
   (* frames: Shift-G makes one around the selection, the corner resizes it, the cross deletes it *)
   let view = settled (Scope.select [ heart; [ "flower"; "bloom" ] ] (fst (scope_view w "flower"))) in
   let view, changes = Scope.run_command view Scope.Make_frame in
@@ -722,17 +808,41 @@ let run_scope () =
   check (Scope.selected view0 = [ heart ]) "heart is selected";
   (* some wire of the graph (not under a card) is hit at its longest segment's middle *)
   let view = List.fold_left (fun found i ->
-    if Scope.selected_wire found <> None || Scope.Private.wire_target view0 i = None then found else
+    if Scope.Private.selected_wire found <> None || Scope.Private.wire_target view0 i = None then found else
     let wpt = Option.get (Scope.Private.wire_midpoint view0 i) in
     fst (scope_click view0 (int_of_float (fst wpt), int_of_float (snd wpt))))
     view0 (List.init (Scope.Private.wire_count view0) Fun.id) in
-  check (Scope.selected_wire view <> None) "clicking wire selected it";
+  check (Scope.Private.selected_wire view <> None) "clicking wire selected it";
   check (Scope.selected view = []) "clicking wire cleared node selection";
   let _, changes = Scope.run_command view Scope.Delete in
   check (match changes with [ Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect _) ] -> true | _ -> false)
     "Delete on selected wire emitted Disconnect";
-  let straight_view = Scope.with_wires `Straight view in
-  check (Scope.wires straight_view = `Straight) "wires style is straight";
+  (* a right-click on a node makes the nodes the selection again: Delete then removes the node *)
+  let hx, hy, _, _ = Option.get (Scope.Private.box_of view heart) in
+  let at = int_of_float hx + 60, int_of_float hy + 8 in
+  let menu, changes = scope_step view (frame ~mouse:at ~events:[ mouse_move at; mouse_press (Input.RightButton, at);
+    mouse_release (Input.RightButton, at) ] ()) in
+  check (List.mem (Scope.Selected [ heart ]) changes) "a right-click on a node did not emit Selected";
+  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Delete_nodes { nodes = [ heart ] })) (snd (Scope.run_command menu Scope.Delete)))
+    "Delete after a right-click on a node removed the wire selected before";
+  (* a wire inside a loop's body is hovered and selected like any other: its boxes lie over the zone's tile *)
+  let lw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace l (graph g :context sop (let* [ring (for [i (range 3)] (let* [u (sop/uv_sphere) v (sop/transform u)] v)) m (sop/merge ring)] m)))"
+    |> Result.get_ok in
+  let lview, _ = scope_view ~at:(function
+    | [ "g"; "ring"; "u" ] -> Some (0., 0.) | [ "g"; "ring"; "v" ] -> Some (480., 240.) | _ -> None) lw.checked "g" in
+  let lview, _ = scope_step lview (frame ()) in
+  let inner = [ "g"; "ring"; "v" ] in
+  let wi = Option.get (List.find_index (fun i -> match Scope.Private.wire_target lview i with
+    | Some (path, _) -> path = inner | None -> false) (List.init (Scope.Private.wire_count lview) Fun.id)) in
+  let mx, my = Option.get (Scope.Private.wire_midpoint lview wi) in
+  let mid = int_of_float mx, int_of_float my in
+  let hovered, _ = scope_step lview (frame ~mouse:mid ~events:[ mouse_move mid ] ()) in
+  check (List.length (Scope.Private.highlighted_connections hovered) = 1) "a wire inside a loop is not hovered";
+  let picked, _ = scope_click lview mid in
+  check (match snd (Scope.run_command picked Scope.Delete) with
+    | Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect { node; _ }) :: _ -> node = inner | _ -> false)
+    "a wire inside a loop is not selected by a click";
   (* keys and menu: every key command maps to a request *)
   let some name = check (List.exists (fun (c : (_, Scope.command) Editor_core.Command.t) -> c.id = "scope." ^ name)
     Scope.bindings) ("no key for " ^ name) in
@@ -750,23 +860,23 @@ let run_scope () =
   check (Array.length lens.steps >= 2 && lens.error = None
          && String.starts_with ~prefix:"(radial" lens.steps.(0)
          && String.starts_with ~prefix:"(sop/merge" lens.steps.(1)) "the lens steps are the call, then its expansions";
-  check (Scope.macro_step view outer = None) "the lens starts closed";
+  check (Scope.Private.macro_step view outer = None) "the lens starts closed";
   let toggle = Scope.Private.lens_toggle view outer |> Option.get in
   let view, _ = scope_click view (int_of_float (fst toggle), int_of_float (snd toggle)) in
-  check (Scope.macro_step view outer = Some (Array.length lens.steps - 1)) "the toggle opens the last step";
+  check (Scope.Private.macro_step view outer = Some (Array.length lens.steps - 1)) "the toggle opens the last step";
   let view, _ = scope_step view (frame ()) in
   let button i = let x, y = Option.get (Scope.Private.lens_step_button view outer i) in int_of_float x, int_of_float y in
   let view, changes = scope_click view (button 0) in
-  check (Scope.macro_step view outer = Some 0 && changes = []) "the call button shows the call, no edit";
+  check (Scope.Private.macro_step view outer = Some 0 && changes = []) "the call button shows the call, no edit";
   let view, _ = scope_step view (frame ()) in
   let view, _ = scope_click view (button 1) in
-  check (Scope.macro_step view outer = Some 1) "a step button chooses the step";
+  check (Scope.Private.macro_step view outer = Some 1) "a step button chooses the step";
   let view, _ = scope_step view (frame ()) in
   (* the Template button shows the macro's definition, one step past the expansions *)
   check (List.exists (String.starts_with ~prefix:"(defmacro radial") (String.split_on_char '\n' lens.template))
     "the lens carries the macro's template";
   let view, changes = scope_click view (button (Array.length lens.steps)) in
-  check (Scope.macro_step view outer = Some (Array.length lens.steps) && changes = []) "the Template button shows the definition, no edit";
+  check (Scope.Private.macro_step view outer = Some (Array.length lens.steps) && changes = []) "the Template button shows the definition, no edit";
   let view, _ = scope_step view (frame ()) in
   let view, _ = scope_click view (button 1) in
   let view, _ = scope_step view (frame ()) in
@@ -780,7 +890,7 @@ let run_scope () =
     "the replace button did not become Inline_macro";
   let tx, ty = Option.get (Scope.Private.lens_toggle view outer) in
   let view, _ = scope_click view (int_of_float tx, int_of_float ty) in
-  check (Scope.macro_step view outer = None) "the toggle closes the panel";
+  check (Scope.Private.macro_step view outer = None) "the toggle closes the panel";
   (* bypass is the b key (and the context menu): the same request, and a card with nothing to pass
      through has none *)
   let _, changes = Scope.run_command (Scope.select [ soft ] view) Scope.Bypass in
@@ -798,7 +908,14 @@ let run_scope () =
   scope_levels ();
   scope_zoom_geometry ();
   scope_pinch ();
+  scope_idle_frame ();
   print_endline "pxui graph scope pane tests passed"
+
+(* the node menu and the pane (its gestures are [scope_gestures]), with the number of checks made *)
+let run () =
+  run_menu ();
+  run_scope ();
+  Printf.printf "test_pxui_graph: %d checks\n" !checks
 
 (* Frame cost of the graph pane on Sunflower (240 iterations), expanded and
    collapsed.  Command: dune exec test/test_main.exe -- bench_scope_pane *)
@@ -848,15 +965,7 @@ let bench_scope_pane () =
 (* 2,001 nodes in one scope: laying it out and painting a frame.  Command:
    dune exec test/test_main.exe -- bench_scope_big *)
 let bench_scope_big () =
-  let n = 2001 in
-  let b = Buffer.create 65536 in
-  Buffer.add_string b "(workspace big (graph g :context sop (let* [n0 (sop/box)";
-  for i = 1 to n - 1 do
-    Printf.bprintf b " n%d (sop/transform n%d :translate [%d 0 0])" i (if i mod 7 = 0 then i / 2 else i - 1) i
-  done;
-  Printf.bprintf b "] n%d)))" (n - 1);
-  let ws = Editor_document.Workspace_doc.of_text scope_catalog (Buffer.contents b) |> Result.get_ok in
-  let scope = P.of_graph scope_catalog ws.checked "g" in
+  let scope = big_scope 2001 in
   let ui = Pxui.Ui.create ~font_size:11 () in
   let time label runs f =
     let started = Unix.gettimeofday () in
@@ -866,5 +975,20 @@ let bench_scope_big () =
   let view = ref (Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope) in
   for _ = 1 to 5 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
   time "2001 nodes: with_scope again" 20 (fun () -> Scope.with_scope ~key:"g" scope !view);
-  time "2001 nodes: frame" 100 (fun () ->
-    view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))); ())
+  (* an idle frame: time and allocation, with cards in view and with none (a 16 x 16 pane) *)
+  let idle label view =
+    for _ = 1 to 5 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
+    let runs = 100 in
+    let started = Unix.gettimeofday () and allocated = Gc.allocated_bytes () in
+    for _ = 1 to runs do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
+    Printf.printf "%-28s %.3f ms, %.2f MB allocated\n%!" label
+      ((Unix.gettimeofday () -. started) *. 1000. /. float runs)
+      ((Gc.allocated_bytes () -. allocated) /. float runs /. 1e6) in
+  idle "2001 nodes: frame" view;
+  idle "2001 nodes: frame, 16 x 16" (ref (Scope.create ~width:16 ~height:16 () |> Scope.with_scope ~key:"g" scope));
+  time "2001 nodes: Point_all" 5 (fun () -> Scope.run_command !view Scope.Point_all);
+  (* one tick of a scrub: the rewrite, the print, the parse and the check *)
+  let forms = Flow.Syntax.parse (big_text 2001) |> Result.get_ok in
+  time "2001 nodes: Set_arg edit" 5 (fun () ->
+    Flow_sop.Flow_edit.apply_checked scope_catalog forms (Flow_sop.Flow_edit.Set_arg { node = [ "g"; "n5" ];
+      key = Kw "translate"; sub = [ 0 ]; value = Flow.Syntax.make (Flow.Syntax.Num "3") }))

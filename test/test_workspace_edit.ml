@@ -100,6 +100,8 @@ let part3 () = (* unfold and fold round trip *)
     (g "(let* [node (+ 1 2) b (sop/transform nil :translate [node 0 0])] b)");
   same "fold into the result" (g "(let* [a (sop/uv_sphere) b (sop/transform a)] b)") (E.Fold_into { node = node [ "b" ] })
     (g "(let* [a (sop/uv_sphere)] (sop/transform a))");
+  check (has (apply (g "(let* [a (sop/uv_sphere)\n ; keep me\n b (sop/transform a)] (sop/subdivide b))") (E.Fold_into { node = node [ "b" ] })) "keep me")
+    "fold dropped the binding's note";
   refused "fold needs one use" (g "(let* [a (sop/uv_sphere) b (sop/transform a) c (sop/merge a b)] c)")
     (E.Fold_into { node = node [ "a" ] });
   refused "unfold an atom" base (E.Unfold { node = node [ "c" ]; key = Kw "iterations"; sub = [] })
@@ -255,9 +257,17 @@ let part9 () = (* lists and records *)
   same "move up" list (E.Move_item { node = node [ "xs" ]; pos = 2 })
     (v "(let* [xs (list 0.2 0.6 0.4) k (count xs)] k)");
   refused "move the first" list (E.Move_item { node = node [ "xs" ]; pos = 0 });
+  (* the items are the positional arguments wherever the keywords are written, and :skip follows them *)
+  let merged = "(workspace w\n  (graph g :context sop (sop/box))\n  (graph scene :context scene\n    (let* [a (scene/geometry (ref g)) b (scene/light) c (scene/light) all (scene/merge :skip [0] a b c)] all)))" in
+  let moved = apply merged (E.Move_item { node = [ "scene"; "all" ]; pos = 1 }) in
+  check (has moved "(scene/merge :skip [1] b a c)") ("move up after a keyword\n" ^ moved);
+  refused "move past the items" merged (E.Move_item { node = [ "scene"; "all" ]; pos = 3 });
   let record = g "(let* [r {:size 0.5 :count 6} a (sop/uv_sphere :radius r.size)] a)" in
   same "record field" record (E.Add_field { node = node [ "r" ]; name = "depth"; value = num "2" })
     (g "(let* [r {:size 0.5 :count 6 :depth 2} a (sop/uv_sphere :radius r.size)] a)");
+  refused ~code:"E_EDIT" "an existing field" record (E.Add_field { node = node [ "r" ]; name = "size"; value = num "2" });
+  same "a new output of values" (v "(let* [r (values :a 1)] r.a)") (E.Add_field { node = node [ "r" ]; name = "b"; value = num "0" })
+    (v "(let* [r (values :a 1 :b 0)] r.a)");
   same "keyword field" base (E.Add_field { node = node [ "b" ]; name = "scale"; value = num "2" })
     (g "(let* [a (sop/uv_sphere :radius 0.5) b (sop/transform a :translate [1 2 3] :scale 2) c (sop/subdivide b :iterations 1)] c)");
   same "record field scrub" record (E.Set_arg { node = node [ "r" ]; key = Field "size"; sub = []; value = num "0.9" })
@@ -273,6 +283,11 @@ let part10 () = (* add and delete *)
   same "delete an unused node" (g "(let* [a (sop/uv_sphere) u (sop/uv_sphere :radius 2) b (sop/transform a)] b)")
     (E.Delete_nodes { nodes = [ node [ "u" ] ] }) (g "(let* [a (sop/uv_sphere) b (sop/transform a)] b)");
   refused "delete a used node" base (E.Delete_nodes { nodes = [ node [ "a" ] ] });
+  (* a duplicated loop: its inner names are bound in both copies, and each copy's unused node can go *)
+  let twins = g "(let* [r1 (for [i (range 2)] (let* [u (sop/uv_sphere) v (sop/uv_sphere)] v)) r2 (for [i (range 2)] (let* [u (sop/uv_sphere) v (sop/uv_sphere)] v)) m (sop/merge r1 r2)] m)" in
+  check (not (has (apply twins (E.Delete_nodes { nodes = [ [ "g"; "r1"; "u" ] ] })) "r1 (for [i (range 2)] (let* [u"))
+    "an unused node of a duplicated loop was not deleted";
+  refused "delete a node its own scope reads" twins (E.Delete_nodes { nodes = [ [ "g"; "r2"; "v" ] ] });
   same "delete a chain" (g "(let* [a (sop/uv_sphere) u (sop/transform a) v (sop/transform u) b (sop/transform a)] b)")
     (E.Delete_nodes { nodes = [ node [ "u" ]; node [ "v" ] ] }) (g "(let* [a (sop/uv_sphere) b (sop/transform a)] b)")
 
@@ -322,6 +337,21 @@ let part11 () = (* atomic: a refused edit changes nothing; labels *)
   (match E.apply catalog (parse base) (E.Rename { node = node [ "b" ]; to_ = "a" }) with
    | Error _ -> () | Ok _ -> fail "expected a refusal");
   check (canon (parse base) = before) "source unchanged after a refusal";
+  (* an exception inside a rewrite (here [List.nth] on a [for] with no body) is a refusal too *)
+  let broken = parse (g "(let* [a (for)] a)") in
+  (match E.apply catalog broken (E.Set_arg { node = node [ "a" ]; key = Kw "skip"; sub = []; value = num "1" }) with
+   | Error d -> check (d.code = "E_EDIT" && has d.message "The edit failed") ("a raising rewrite: " ^ d.message)
+   | Ok _ -> fail "a raising rewrite was accepted"
+   | exception e -> fail ("a rewrite raised " ^ Printexc.to_string e));
+  check (canon broken = norm (g "(let* [a (for)] a)")) "source unchanged after a raising rewrite";
+  (* an [:active] outside the switch's layouts is refused by name, not by the last resort *)
+  List.iter (fun active ->
+    let text = Printf.sprintf "(workspace w\n  (graph editor :context editor\n    (let* [a (ui/graph) b (ui/lisp)] (ui/workspace (ui/switch a b :active %s)))))" active in
+    List.iter (fun op -> match E.apply catalog (parse text) op with
+      | Error d -> check (has d.message "not one of the switch's layouts") (E.label op ^ " :active " ^ active ^ ": " ^ d.message)
+      | Ok _ -> fail (E.label op ^ " accepted :active " ^ active))
+      [ E.Layout_remove { graph = "editor" }; E.Layout_new { graph = "editor" };
+        E.Layout_window { graph = "editor"; kind = "inspector" } ]) [ "5"; "-1" ];
   List.iter (fun (op, label) -> check (E.label op = label) ("label " ^ label))
     [ E.Wrap { nodes = []; loop = For }, "Repeat"; E.Wrap { nodes = []; loop = Fold }, "Iterate";
       E.Unfold { node = []; key = Whole; sub = [] }, "Unfold";

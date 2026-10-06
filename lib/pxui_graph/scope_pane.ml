@@ -59,6 +59,50 @@ type stats = {
 
 (* ------------------------------------------------------------ geometry *)
 
+(* bucket grids are keyed by cell *)
+module Cells = Hashtbl.Make (Int)
+
+(* a cell's key: one int (cells are far fewer than 32768 high) *)
+let cell_key cx cy = cx * 65536 + cy
+
+(* ---- what is in view: a bucket grid over boxes (the tiles, the wires' bounds), built once per
+   geometry, so a frame asks the cells its viewport covers and not every node of the graph ---- *)
+
+type index = { buckets : int list Cells.t; large : int list }  (* a box over many cells is asked every time *)
+
+let index_cell = 256.
+let index_of n box =
+  let buckets = Cells.create 64 and large = ref [] in
+  let c v = int_of_float (Float.floor (v /. index_cell)) in
+  for i = n - 1 downto 0 do
+    let x0, y0, x1, y1 = box i in
+    if (c x1 - c x0 + 1) * (c y1 - c y0 + 1) > 64 then large := i :: !large
+    else
+      for cx = c x0 to c x1 do
+        for cy = c y0 to c y1 do
+          let key = cell_key cx cy in
+          Cells.replace buckets key (i :: Option.value ~default:[] (Cells.find_opt buckets key))
+        done
+      done
+  done;
+  { buckets; large = !large }
+
+(* the boxes that may meet the rectangle, in index order, each once *)
+let index_query ix (x0, y0, x1, y1) =
+  let c v = int_of_float (Float.floor (v /. index_cell)) in
+  let found = ref ix.large in
+  if (c x1 - c x0 + 1) * (c y1 - c y0 + 1) >= Cells.length ix.buckets then
+    Cells.iter (fun _ l -> found := List.rev_append l !found) ix.buckets
+  else
+    for cx = c x0 to c x1 do
+      for cy = c y0 to c y1 do
+        match Cells.find_opt ix.buckets (cell_key cx cy) with
+        | Some l -> found := List.rev_append l !found
+        | None -> ()
+      done
+    done;
+  List.sort_uniq Int.compare !found
+
 type src = { pos : float * float; ty : Ty.t option; owner : path option }
 type wire = {
   a : float * float; b : float * float; ty : Ty.t option;
@@ -76,16 +120,25 @@ type geo = {
   pos : (path, float * float * float * float) Hashtbl.t;
   origins : (path * (float * float)) list;  (* where each scope's own coordinates start *)
   obstacles : obstacle list;  (* what the routes were drawn around *)
+  inside : (path, int list) Hashtbl.t;  (* the wires that end at a node of a zone's body, by the zone's path *)
+  slot : (path, int) Hashtbl.t;  (* an item's place in [items] *)
+  tiles : index;  (* over the items' boxes *)
+  reach : index;  (* over the wires' bounds *)
+  read : (float * float, unit) Hashtbl.t;  (* the points a wire starts from: an out-port there is wired *)
   routes : ((float * float) * (float * float) * path list, (float * float) list) Hashtbl.t;
       (* each wire's route by its ends: a rebuild around the same obstacles (a number scrubbed, a
          name edited) reuses them; one entry, replaced by every rebuild *)
 }
 
-let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = []; obstacles = []; routes = Hashtbl.create 1 }
+let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = []; obstacles = [];
+                  inside = Hashtbl.create 1; slot = Hashtbl.create 1; tiles = { buckets = Cells.create 1; large = [] };
+                  reach = { buckets = Cells.create 1; large = [] }; read = Hashtbl.create 1; routes = Hashtbl.create 1 }
 let root_name s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 (* what a row reads once its wire is taken off: a named argument goes back to its schema default,
-   written so the row stays on the card; a positional one takes a value of its type *)
+   written so the row stays on the card; a positional one takes a value of its type; an item of a
+   variadic input goes (nothing is written in its place) *)
 let fallback (r : P.row) = match r.key with
+  | _ when r.kind = P.Rest -> None
   | E.Kw _ | E.Field _ ->
       Option.bind r.default (fun d -> match Flow.Syntax.parse d with Ok [ form ] -> Some form | _ -> None)
   | _ -> Option.bind r.ty (fun ty -> E.default_for ty r.label)
@@ -107,11 +160,6 @@ let line_of_row (lines : P.line array) =
 (* ---- wire routing: straight, or bent clear of every card ---- *)
 
 (* a bucket grid over the cards: a wire asks only the cells its box crosses *)
-module Cells = Hashtbl.Make (Int)
-
-(* a cell's key: one int (cells are far fewer than 32768 high) *)
-let cell_key cx cy = cx * 65536 + cy
-
 type grid = { cell : float; cells : obstacle list Cells.t }
 
 let grid_of obstacles =
@@ -125,12 +173,11 @@ let grid_of obstacles =
     done) obstacles;
   { cell; cells }
 
-(* does the segment cross the rectangle grown by [margin]?  (Liang-Barsky) *)
-let crosses (x0, y0) (x1, y1) o ~margin =
-  let xmin = o.rx -. margin and xmax = o.rx +. o.rw +. margin
-  and ymin = o.ry -. margin and ymax = o.ry +. o.rh +. margin in
-  (* the segment's box misses the rectangle: no need for the clip *)
-  if Float.max x0 x1 < xmin || Float.min x0 x1 > xmax || Float.max y0 y1 < ymin || Float.min y0 y1 > ymax then false else
+(* the part of a segment inside a rectangle, as the parameters of its two ends (Liang-Barsky);
+   [t0 > t1] when it misses.  The one clip of the pane: routing asks whether a wire crosses a card,
+   painting and the hit boxes cut a wire to what is shown (the GPU's diagonal line ignores the
+   clip of the box that paints it). *)
+let clip_span x0 y0 x1 y1 ~xmin ~ymin ~xmax ~ymax =
   let dx = x1 -. x0 and dy = y1 -. y0 in
   let t0 = ref 0. and t1 = ref 1. and ok = ref true in
   let clip p q =
@@ -141,7 +188,21 @@ let crosses (x0, y0) (x1, y1) o ~margin =
       else if r < !t0 then ok := false else if r < !t1 then t1 := r
     end in
   clip (-. dx) (x0 -. xmin); clip dx (xmax -. x0); clip (-. dy) (y0 -. ymin); clip dy (ymax -. y0);
-  !ok && !t0 <= !t1
+  if !ok then !t0, !t1 else 1., 0.
+
+let clip_segment (x0, y0) (x1, y1) (rx, ry, rw, rh) =
+  let t0, t1 = clip_span x0 y0 x1 y1 ~xmin:rx ~ymin:ry ~xmax:(rx +. rw) ~ymax:(ry +. rh) in
+  if t0 <= t1 then Some ((x0 +. (x1 -. x0) *. t0, y0 +. (y1 -. y0) *. t0), (x0 +. (x1 -. x0) *. t1, y0 +. (y1 -. y0) *. t1))
+  else None
+
+(* does the segment cross the rectangle grown by [margin]? *)
+let crosses (x0, y0) (x1, y1) o ~margin =
+  let xmin = o.rx -. margin and xmax = o.rx +. o.rw +. margin
+  and ymin = o.ry -. margin and ymax = o.ry +. o.rh +. margin in
+  (* the segment's box misses the rectangle: no need for the clip *)
+  if Float.max x0 x1 < xmin || Float.min x0 x1 > xmax || Float.max y0 y1 < ymin || Float.min y0 y1 > ymax then false else
+  let t0, t1 = clip_span x0 y0 x1 y1 ~xmin ~ymin ~xmax ~ymax in
+  t0 <= t1
 
 let blockers grid ~excl p q =
   let x0, y0 = p and x1, y1 = q in
@@ -356,13 +417,16 @@ let compute ?(style = `Straight) ?(previous = empty_geo) ~name_w ~shown (scope :
                          (match Hashtbl.find_opt lines i with
                           | Some k -> ax, rows_top n ay +. float k *. P.row_height +. wire_row_y
                           | None -> ax, ay +. wire_head_y) in
-                 let target = Some (n.path, r.key, fallback r) in
                  (* a binding cannot read itself: a name that resolves to this node is one from outside
                     its scope (a [ref] to a graph of the same name), not a wire *)
-                 List.iter (fun name -> match resolve chain name with
-                   | Some { owner = Some o; _ } when o = n.path -> ()
-                   | src -> wire ?target src target_pos ~into:[ n.path ])
-                   (P.sources r)) n.rows
+                 (match P.sources r with
+                  | [] -> ()
+                  | names ->
+                      (* the fallback parses the row's default: only for a row that is wired *)
+                      let target = Some (n.path, r.key, fallback r) in
+                      List.iter (fun name -> match resolve chain name with
+                        | Some { owner = Some o; _ } when o = n.path -> ()
+                        | src -> wire ?target src target_pos ~into:[ n.path ]) names)) n.rows
            | Some z ->
                let collapsed = p.collapsed in
                let label = P.label_row z in
@@ -429,7 +493,23 @@ let compute ?(style = `Straight) ?(previous = empty_geo) ~name_w ~shown (scope :
             let target = (ax, ay +. P.body_top +. wire_row_y) in
             wire source target ~into:[ scope.path @ [ "@return" ] ]
         | None -> ()));
-  { items = Array.of_list items_list; wires = Array.of_list (List.rev !wires); rel; pos; origins = !origins; obstacles; routes }
+  let wires = Array.of_list (List.rev !wires) in
+  let inside = Hashtbl.create 16 in
+  Array.iteri (fun i w -> match w.target with
+    | Some (_ :: _ :: _ :: _ as path, _, _) ->
+        let zone = List.rev (List.tl (List.rev path)) in
+        Hashtbl.replace inside zone (i :: Option.value ~default:[] (Hashtbl.find_opt inside zone))
+    | _ -> ()) wires;
+  let items = Array.of_list items_list in
+  let slot = Hashtbl.create (max 16 (Array.length items)) in
+  Array.iteri (fun i ((p : P.placed), _, _) -> Hashtbl.replace slot p.path i) items;
+  let tiles = index_of (Array.length items) (fun i -> let (p : P.placed), ax, ay = items.(i) in ax, ay, ax +. p.w, ay +. p.h) in
+  let reach = index_of (Array.length wires) (fun i ->
+    List.fold_left (fun (x0, y0, x1, y1) (x, y) -> Float.min x0 x, Float.min y0 y, Float.max x1 x, Float.max y1 y)
+      (infinity, infinity, neg_infinity, neg_infinity) wires.(i).pts) in
+  let read = Hashtbl.create (max 16 (Array.length wires)) in
+  Array.iter (fun (w : wire) -> Hashtbl.replace read w.a ()) wires;
+  { items; wires; rel; pos; origins = !origins; obstacles; inside; slot; tiles; reach; read; routes }
 
 (* ---------------------------------------------------------------- state *)
 
@@ -444,6 +524,7 @@ type drag =
 
 (* the text field open over the pane: a node's name, a graph input's default, a frame's title *)
 type editing = Name of path | Default of path | Title of path * int
+             | Output of path  (* the name of a new output, over the [+ output] row of a [values] *)
 
 type fr = string * (float * float) * (float * float)
 
@@ -453,7 +534,7 @@ type hinting = { src : string; src_ty : Ty.t; typed : string; targets : hint_tar
 
 type t = {
   x : int; y : int; width : int; height : int;
-  theme : Pxui.theme; visible : bool; guide : bool;
+  theme : Pxui.theme; guide : bool;
   key : string;
   scope : P.scope option;
   at : path -> (float * float) option;
@@ -502,7 +583,7 @@ let regeo t scope layout ~shift =
 
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
-  x; y; width; height; theme; visible = true; guide = false; key = ""; scope = None;
+  x; y; width; height; theme; guide = false; key = ""; scope = None;
   at = (fun _ -> None); level_at = (fun _ -> None); pin_at = (fun _ _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; folds = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
@@ -515,14 +596,12 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
   else { t with x; y; width; height }
-let with_visible visible t = if t.visible = visible then t else { t with visible }
 let with_guide guide t = if t.guide = guide then t else { t with guide }
 let with_theme theme t = if t.theme == theme then t else { t with theme }
 let with_failed failed t = if t.failed = failed then t else { t with failed }
 let with_carry ~lit ~hot t =
   if t.carry_lit = lit && t.carry_hot = hot then t else { t with carry_lit = lit; carry_hot = hot }
 let selected t = Path_set.elements t.selected
-let selected_wire t = Option.map (fun (path, key, _) -> path, key) t.selected_wire
 let editing t = t.editing <> None || t.hinting <> None
 let select paths t = { t with selected = Path_set.of_list paths; selected_wire = None }
 let clear_selection t =
@@ -530,7 +609,6 @@ let clear_selection t =
   else { t with selected = Path_set.empty; selected_wire = None }
 let stats t = t.stats
 let zoom t = t.zoom
-let wires t = t.wires
 let with_wires wires t =
   if t.wires = wires then t else match t.scope with
     | None -> { t with wires }
@@ -571,7 +649,6 @@ let refresh t = match t.scope, t.records with
 
 let no_shift _ = 0., 0.
 let lens_of t path = List.assoc_opt path t.lens
-let macro_step = lens_of
 
 (* the cards reserve a footer row once the host has probe records to show *)
 let lay t scope ~at ~collapsed =
@@ -626,6 +703,10 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
         else { n with rows = List.map (fun (r : P.row) -> match r.key with
           | E.Pos i when r.kind <> P.Add -> { r with label = List.nth layouts i } | _ -> r) n.rows }) scope.P.nodes } in
   let t = { t with level_at = level; pin_at = pin } in
+  (* letter hints, an open context menu and the hover name nodes and wires of the scope they were made over *)
+  let t = match t.scope with
+    | Some previous when previous == scope -> t
+    | _ -> { t with hinting = None; context = None; highlighted = [] } in
   let layout = lay t scope ~at ~collapsed in
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
@@ -640,7 +721,7 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
     | _ -> None in
   let t = { t with selected_wire } in
   let t = match t.editing with
-    | Some (Name p | Default p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
+    | Some (Name p | Default p | Output p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
     | _ -> t in
   if key <> t.key then begin
     if t.panning_grab then ignore (Rays.Sketch.set_relative_mouse false);
@@ -663,12 +744,16 @@ let with_records records t =
 (* ------------------------------------------------------------- lookups *)
 
 let node_of t path = Option.bind t.scope (fun s -> P.find s path)
+let item_at t path = Option.map (fun i -> t.geo.items.(i)) (Hashtbl.find_opt t.geo.slot path)
 let selected_nodes t = List.filter_map (fun p -> node_of t p) (selected t)
 
 let parents_removed paths =
-  let prefix p q = List.length p < List.length q
-    && List.for_all2 ( = ) p (List.filteri (fun i _ -> i < List.length p) q) in
-  List.filter (fun q -> not (List.exists (fun p -> prefix p q) paths)) paths
+  let set = Path_set.of_list paths in
+  (* a path above this one is among them *)
+  let rec under = function
+    | [] | [ _ ] -> false
+    | q -> let up = List.rev (List.tl (List.rev q)) in Path_set.mem up set || under up in
+  List.filter (fun q -> not (under q)) paths
 
 let first_inline (n : P.node) =
   List.find_opt (fun (r : P.row) -> match r.chip with
@@ -741,7 +826,8 @@ let action_changes t command =
   | Delete ->
       (match t.hovered_row with
        | Some (path, key) when (match node_of t path with
-           | Some n -> List.exists (fun (r : P.row) -> r.key = key && wired r) n.rows | None -> false) ->
+           | Some n -> List.exists (fun (r : P.row) -> r.key = key && (wired r || r.kind = P.Rest)) n.rows | None -> false) ->
+           (* a wire comes off; an item of a variadic input (a list's, a merge's) goes with what it holds *)
            let n = Option.get (node_of t path) in
            let r = List.find (fun (r : P.row) -> r.key = key) n.rows in
            List.map (fun op -> Syntax_edit op) (unwire n r)
@@ -822,19 +908,22 @@ let frame_selection t =
 let level_up = function P.Point -> P.Chip | Chip -> Card | Card | Full -> P.Full
 
 (* the nodes a level applies to: cards, not zones or value cards *)
-let levelled t path =
-  match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
-  | Some (({ item = P.Item n; _ } as p), _, _) when n.zone = None && not (P.value_card n) -> Some p.level
+let level_of (p : P.placed) = match p.item with
+  | P.Item n when n.zone = None && not (P.value_card n) -> Some p.level
   | _ -> None
+let levelled t path = Option.bind (item_at t path) (fun (p, _, _) -> level_of p)
 
 let level_command t command =
-  let all_levelled = Array.to_list t.geo.items |> List.filter_map (fun ((p : P.placed), _, _) ->
-    Option.map (fun l -> p.path, l) (levelled t p.path)) in
   let chosen = match command with
-    | Open_all | Point_all -> all_levelled
+    | Open_all | Point_all ->
+        Array.to_list t.geo.items |> List.filter_map (fun ((p : P.placed), _, _) -> Option.map (fun l -> p.path, l) (level_of p))
     | _ -> List.filter_map (fun p -> Option.map (fun l -> p, l) (levelled t p)) (selected t) in
   if chosen = [] then t, [ Notice "Select a card to change its level" ] else
-  let back_of p = Option.value ~default:P.Card (List.assoc_opt p t.back) in
+  (* by path: every node may be chosen, so no list is searched per node *)
+  let before = Hashtbl.create 16 and now = Hashtbl.create 16 in
+  List.iter (fun (p, l) -> Hashtbl.replace before p l) (List.rev t.back);
+  List.iter (fun (p, _) -> Hashtbl.replace now p ()) chosen;
+  let back_of p = Option.value ~default:P.Card (Hashtbl.find_opt before p) in
   let changes, back = match command with
     | Open_level -> List.map (fun (p, l) -> p, Some (level_up l), true) chosen, t.back
     | Open_all -> List.map (fun (p, _) -> p, None, false) chosen, t.back
@@ -845,7 +934,7 @@ let level_command t command =
         else
           List.map (fun (p, _) -> p, Some P.Point, false) chosen,
           List.map (fun (p, l) -> p, (if l = P.Point then back_of p else l)) chosen
-          @ List.filter (fun (p, _) -> not (List.mem_assoc p chosen)) t.back in
+          @ List.filter (fun (p, _) -> not (Hashtbl.mem now p)) t.back in
   { t with back }, [ Level_set changes ]
 
 (* ---- letter hints (flow.md 7.5): [w] labels every input the selected output can connect to ---- *)
@@ -863,12 +952,14 @@ let upstream_of t (src : P.node) =
           n :: (match n.zone with Some z -> all z.scope | None -> [])) s.nodes in
         all scope
     | None -> [] in
+  let binders = Hashtbl.create 64 in
+  List.iter (fun (m : P.node) -> List.iter (fun b -> Hashtbl.add binders b m) m.binds) nodes;
   let seen = Hashtbl.create 16 in
   let rec visit (n : P.node) =
     if not (Hashtbl.mem seen n.path) then begin
       Hashtbl.replace seen n.path ();
       List.iter (fun (r : P.row) -> List.iter (fun name ->
-        List.iter (fun (m : P.node) -> if List.mem (root_name name) m.binds then visit m) nodes) (P.sources r)) n.rows
+        List.iter visit (Hashtbl.find_all binders (root_name name))) (P.sources r)) n.rows
     end in
   visit src; seen
 
@@ -939,7 +1030,7 @@ let step_hints t (frame : Frame.t) =
                  let labels = hint_labels (List.length rows) in
                  let ax, ay = match Hashtbl.find_opt t.geo.pos node with Some (x, y, _, _) -> x, y | None -> 0., 0. in
                  let n = Option.get (node_of t node) in
-                 let lines = match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = node) t.geo.items with
+                 let lines = match item_at t node with
                    | Some (p, _, _) -> line_of_row p.lines | None -> Hashtbl.create 1 in
                  let targets = List.map2 (fun label (r : P.row) ->
                    let i = Option.value ~default:0 (List.find_index (fun x -> x == r) n.rows) in
@@ -971,7 +1062,7 @@ let run_command t = function
   | Walk direction ->
       let center (p : P.placed) (_, ax, ay) = ax +. p.w /. 2., ay +. p.h /. 2. in
       let current = match selected t with
-        | path :: _ -> Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items
+        | path :: _ -> item_at t path
         | [] -> None in
       (match current with
        | None -> (match Array.to_list t.geo.items with
@@ -1045,14 +1136,13 @@ let bindings =
 
 (* -------------------------------------------------------------- painting *)
 
+(* a port's colour is its type's ([Node_menu.port_color], the menu's squares too); an untyped one
+   is the output's *)
+let port_color theme (ty : Ty.t option) = match ty with
+  | Some ty -> Node_menu.port_color theme ty
+  | None -> (Pxui.Theme.ports theme).output
 let colors t = Pxui.Theme.ports t.theme
-let ty_color t (ty : Ty.t option) =
-  let p = colors t in
-  let rec go = function
-    | Ty.Geometry -> p.geometry | Float -> p.float | Int -> p.int | Bool -> p.bool | Vec3 -> p.vec3
-    | Text | Color -> p.text | List e -> go e | Record _ -> p.record | Fn -> p.fn
-    | Any | Scene | World | Settings | Panel | Editor | Material -> p.output in
-  match ty with Some ty -> go ty | None -> p.output
+let ty_color t ty = port_color t.theme ty
 
 let fitted paint size width text =
   if Ui.Paint.text_width paint ~size text <= width then text else
@@ -1115,15 +1205,7 @@ let port_y = 13.  (* the header's ports; a row's are centred on the row *)
 (* a socket: an 8-point circle (a 1-point ring in the port colour, filled once wired), a record a
    10 by 6 pill, a function the same 8-point square turned 45 degrees; a list is a plain circle *)
 let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
-  let p = Pxui.Theme.ports theme in
-  let color = match ty with
-    | Some ty ->
-        let rec go = function
-          | Ty.Geometry -> p.geometry | Float -> p.float | Int -> p.int | Bool -> p.bool | Vec3 -> p.vec3
-          | Text | Color -> p.text | List e -> go e | Record _ -> p.record | Fn -> p.fn
-          | Any | Scene | World | Settings | Panel | Editor | Material -> p.output in
-        go ty
-    | None -> p.output in
+  let color = port_color theme ty in
   let r = 4. *. z in
   let fill = if connected then color else theme.Pxui.input in
   let ring (cx, cy) =
@@ -1361,11 +1443,6 @@ let paint_rows paint ui t ~z ~fs ~x ~y ~w ?(carry = false) (n : P.node) (lines :
     | P.Folder (_, name) ->
         (* a folder's label row: its name in the foreground, 8 points in *)
         ignore (cap_in paint ui ~size:ls ~color:theme.foreground ~x:(x +. 9. *. z) ~y:ry ~h:rh name)
-    | More hidden ->
-        (* [+ N more]: a hairline over a label-size row; a click opens the card *)
-        hline paint ~x:(x +. 1.) ~y:ry ~w:(w -. 2.) (Pxui.Theme.faint_border theme);
-        text_in paint ui ~size:ls ~color:(Pxui.Theme.ink_2 theme) ~x:(x +. label_x *. z) ~y:(ry +. 1.) ~h:(rh -. 1.)
-          (Printf.sprintf "+ %d more" hidden)
     | Row (i, r) ->
         let fold = Hashtbl.mem t.folds (n.path, i) in
         let target = carry && selected_row = Some i in
@@ -1824,21 +1901,6 @@ let paint_return paint ui t ~z ~fs (s : P.scope) ~selected (x, y, w, h) =
   paint_socket paint theme None ~connected:(s.result <> P.Literal (S.make (S.Sym "nil"))) ~z (x, ry +. 12. *. z);
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
 
-(* a segment cut to a rectangle (Liang-Barsky): the GPU's diagonal wire primitive ignores the clip
-   of the box that paints it, so the pane cuts its own lines to its body *)
-let clip_segment (x0, y0) (x1, y1) (rx, ry, rw, rh) =
-  let dx = x1 -. x0 and dy = y1 -. y0 in
-  let t0 = ref 0. and t1 = ref 1. and ok = ref true in
-  let clip p q =
-    if p = 0. then (if q < 0. then ok := false)
-    else begin
-      let r = q /. p in
-      if p < 0. then (if r > !t1 then ok := false else if r > !t0 then t0 := r)
-      else if r < !t0 then ok := false else if r < !t1 then t1 := r
-    end in
-  clip (-. dx) (x0 -. rx); clip dx (rx +. rw -. x0); clip (-. dy) (y0 -. ry); clip dy (ry +. rh -. y0);
-  if !ok && !t0 <= !t1 then Some ((x0 +. dx *. !t0, y0 +. dy *. !t0), (x0 +. dx *. !t1, y0 +. dy *. !t1)) else None
-
 let paint_polyline ~clip paint ~width color pts =
   let rec go = function
     | a :: (b :: _ as rest) ->
@@ -1868,7 +1930,7 @@ let paint_bends paint ~z color pts =
       go rest
   | _ -> ()
 
-let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * float * float) list) =
+let paint_background paint t ~viewport ~wires (zones : (P.node * P.zone * P.placed * float * float) list) =
   let theme = t.theme in
   let vx, vy, vw, vh = viewport in
   let z = t.zoom in
@@ -1911,7 +1973,8 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
       let ink = Pxui.Theme.ink_3 theme in
       Ui.Paint.fill paint ~x:(x +. fw *. z -. 4.) ~y:(y +. fh *. z -. 11.) ~w:1. ~h:8. ink;
       Ui.Paint.fill paint ~x:(x +. fw *. z -. 11.) ~y:(y +. fh *. z -. 4.) ~w:8. ~h:1. ink) (frame_list t scope_path)) t.geo.origins;
-  Array.iter (fun w ->
+  List.iter (fun i ->
+    let w = t.geo.wires.(i) in
     let pts = List.map (fun (x, y) -> sx t x, sy t y) w.pts in
     let is_selected = match t.selected_wire, w.target with
       | Some (sp, sk, _), Some (tp, tk, _) -> sp = tp && sk = tk
@@ -1926,7 +1989,7 @@ let paint_background paint t ~viewport (zones : (P.node * P.zone * P.placed * fl
       else if layout = Some false then Pxui.Theme.muted theme else ty_color t w.ty in
     if layout = Some false || w.dashed then paint_dashed_polyline paint ~width color pts
     else paint_polyline ~clip:viewport paint ~width color pts;
-    if t.wires = `Straight then paint_bends paint ~z color pts) t.geo.wires
+    if t.wires = `Straight then paint_bends paint ~z color pts) wires
 
 (* ---------------------------------------------------------------- update *)
 
@@ -1947,7 +2010,7 @@ let num_field ui ~at ~w ~h ?size ?fraction label text =
 
 (* the row of a card at a point of it ([px], [py] relative to the card, graph units): the header's
    in-port row at the top left (anywhere in the header with [header]), else the row of the line
-   there; nothing for a folder label, the [+ N more] row or a card drawn as a chip or point *)
+   there; nothing for a folder label or a card drawn as a chip or point *)
 let row_at ?(header = 14.) (p : P.placed) (n : P.node) ~shown ~px ~py =
   if shown = P.Point || shown = P.Chip then
     (if px < header && py < P.head_height then List.find_index (fun (r : P.row) -> r.head) n.rows else None)
@@ -1995,7 +2058,6 @@ let context_command = function
   | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | 9 -> Make_defn | _ -> Delete
 
 let update t ui (frame : Frame.t) =
-  if not t.visible then { t with drag = None; context = None; editing = None; highlighted = [] }, [] else
   (* the first view shows the whole graph, at zoom 1 when it fits (Home frames everything) *)
   let t = if t.framed then t else { (frame_all t) with framed = true } in
   let changes = ref [] in
@@ -2030,58 +2092,61 @@ let update t ui (frame : Frame.t) =
   (* a drag in progress moves its items in a fresh geometry *)
   let t = match t.drag, t.scope with
     | Some (Moving m), Some scope when m.moved ->
-        let paths = m.paths in
-        regeo t scope t.layout ~shift:(fun p -> if List.mem p paths then m.dx, m.dy else 0., 0.)
+        let moving = Path_set.of_list m.paths in
+        regeo t scope t.layout ~shift:(fun p -> if Path_set.mem p moving then m.dx, m.dy else 0., 0.)
     | Some (Carrying c), Some scope when Float.hypot c.dx c.dy > 0. ->
-        regeo t scope t.layout ~shift:(fun p -> if List.mem p c.paths then c.dx, c.dy else 0., 0.)
+        let moving = Path_set.of_list c.paths in
+        regeo t scope t.layout ~shift:(fun p -> if Path_set.mem p moving then c.dx, c.dy else 0., 0.)
     | _ -> t in
   let z = t.zoom in
   (* text follows the zoom down to 5 points (a 6-point row at zoom 0.25 holds it) *)
   let fs = font_of z in
   let viewport = (float t.x, float t.y, float t.width, float t.height) in
-  let visible = Array.to_list t.geo.items |> List.filter (fun ((p : P.placed), ax, ay) ->
-    let r = (sx t ax -. 20., sy t ay -. 20., p.w *. z +. 40., p.h *. z +. 40.) in
-    let x, y, w, h = r and vx, vy, vw, vh = viewport in
-    x < vx +. vw && x +. w > vx && y < vy +. vh && y +. h > vy) in
-  let node_placed (p : P.placed) = match p.item with P.Item n -> Some n | _ -> None in
+  (* what the pane shows, grown by [margin] screen points, in graph units: the indices answer it *)
+  let in_view margin =
+    (-. t.pan_x -. margin) /. z, (-. t.pan_y -. margin) /. z,
+    (float t.width -. t.pan_x +. margin) /. z, (float t.height -. t.pan_y +. margin) /. z in
+  let visible = List.filter_map (fun i ->
+    let ((p : P.placed), ax, ay) as item = t.geo.items.(i) in
+    let x = sx t ax -. 20. and y = sy t ay -. 20. and w = p.w *. z +. 40. and h = p.h *. z +. 40. in
+    let vx, vy, vw, vh = viewport in
+    if x < vx +. vw && x +. w > vx && y < vy +. vh && y +. h > vy then Some item else None)
+    (index_query t.geo.tiles (in_view 20.)) in
+  let wires_in_view = index_query t.geo.reach (in_view 4.) in
   let zones = List.filter_map (fun ((p : P.placed), ax, ay) -> match p.item with
     | P.Item ({ zone = Some zn; _ } as n) when not p.collapsed -> Some (n, zn, p, ax, ay)
     | _ -> None) visible in
   let local (x, y) = x -. float t.x, y -. float t.y in
   let mouse = frame.mouse in
-  (* Segment rectangles live in the shared hit tree, behind the cards;
-     ports built below take hover precedence. *)
-  let wire_hits = Ui.within ui canvas (fun () ->
-    Array.mapi (fun i w ->
-      match w.target with
-      | None -> []
-      | Some _ ->
-          Ui.scope ui ("wire:" ^ string_of_int i) (fun () ->
-            let rec segments j found = function
-              | (ax, ay) :: ((bx, by) :: _ as rest) ->
-                  let ax, ay = sx t ax -. float t.x, sy t ay -. float t.y
-                  and bx, by = sx t bx -. float t.x, sy t by -. float t.y in
-                  let segs =
-                    if ax = bx || ay = by then [ (ax, ay, bx, by) ]
-                    else
-                      let len = Float.hypot (bx -. ax) (by -. ay) in
-                      let steps = max 1 (int_of_float (len /. 16.)) in
-                      List.init steps (fun s ->
-                        let u0 = float s /. float steps in
-                        let u1 = float (s + 1) /. float steps in
-                        (ax +. (bx -. ax) *. u0, ay +. (by -. ay) *. u0,
-                         ax +. (bx -. ax) *. u1, ay +. (by -. ay) *. u1))
-                  in
-                  let found = List.fold_left (fun found (x0, y0, x1, y1) ->
-                    let x = Float.min x0 x1 -. 4. and y = Float.min y0 y1 -. 4.
-                    and width = abs_float (x1 -. x0) +. 8. and height = abs_float (y1 -. y0) +. 8. in
-                    if x < float t.width && x +. width > 0. && y < float t.height && y +. height > 0. then
-                      Ui.box ui ~flags:Ui.clickable ~at:(x, y) ~w:(Ui.Px width)
-                        ~h:(Ui.Px height) (string_of_int j ^ "-" ^ string_of_int (List.length found)) :: found
-                    else found) found segs in
-                  segments (j + 1) found rest
-              | _ -> found in
-            segments 0 [] w.pts)) t.geo.wires) in
+  (* Segment rectangles live in the shared hit tree, behind the cards; ports built below take
+     hover precedence.  A segment is cut to [clip] (pane points) first, so what is out of view
+     costs one clip; a diagonal is then a run of 16-point boxes. *)
+  let wire_hits = Cells.create 16 in
+  let hits i = Option.value ~default:[] (Cells.find_opt wire_hits i) in
+  let wire_boxes name (cx, cy, cw, ch) i =
+    let w = t.geo.wires.(i) in
+    let count = ref 0 in
+    let rec segments j = function
+      | (ax, ay) :: ((bx, by) :: _ as rest) ->
+          (match clip_segment (sx t ax -. float t.x, sy t ay -. float t.y) (sx t bx -. float t.x, sy t by -. float t.y)
+                   (cx -. 4., cy -. 4., cw +. 8., ch +. 8.) with
+           | None -> ()
+           | Some ((ax, ay), (bx, by)) ->
+               let steps = if ax = bx || ay = by then 1 else max 1 (int_of_float (Float.hypot (bx -. ax) (by -. ay) /. 16.)) in
+               for s = 0 to steps - 1 do
+                 let u0 = float s /. float steps and u1 = float (s + 1) /. float steps in
+                 let x0 = ax +. (bx -. ax) *. u0 and y0 = ay +. (by -. ay) *. u0
+                 and x1 = ax +. (bx -. ax) *. u1 and y1 = ay +. (by -. ay) *. u1 in
+                 incr count;
+                 Cells.replace wire_hits i (Ui.box ui ~flags:Ui.clickable ~at:(Float.min x0 x1 -. 4., Float.min y0 y1 -. 4.)
+                     ~w:(Ui.Px (abs_float (x1 -. x0) +. 8.)) ~h:(Ui.Px (abs_float (y1 -. y0) +. 8.))
+                     (Printf.sprintf "%s:%d:%d-%d" name i j !count) :: hits i)
+               done);
+          segments (j + 1) rest
+      | _ -> () in
+    if w.target <> None then segments 0 w.pts in
+  Ui.within ui canvas (fun () ->
+    List.iter (wire_boxes "wire" (0., 0., float t.width, float t.height)) wires_in_view);
   (* footers: only for what is in view, and not when too small to read *)
   let footers = Hashtbl.create 16 in
   (match t.records with
@@ -2092,7 +2157,7 @@ let update t ui (frame : Frame.t) =
              Hashtbl.replace footers n.path (Flow_sop.Probe.footer records n ~probes:(List.map t.probe chain))
          | _ -> ()) visible
    | _ -> ());
-  let finished = ref false in
+  let finished = ref false and opened = ref None in
   let edit_field ~at ~w ~h key current valid commit =
     let v, open_ = Ui.value_field ui ~at ~w ~h ~size:fs ~edit:true
       ~left:(float_of_string_opt current = None) ~valid key current in
@@ -2106,6 +2171,15 @@ let update t ui (frame : Frame.t) =
       let w = p.w *. z and h = p.h *. z in
       let shown = p.shown in
       let tile = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px w) ~h:(Ui.Px h) ~at:(local (bx, by)) key in
+      (* an expanded zone's tile covers its body: the wires that end inside it get their boxes again
+         here, over the tile and under the cards built after it *)
+      (match p.item with
+       | P.Item { zone = Some _; _ } when not p.collapsed ->
+           let lx, ly = local (bx, by) in
+           let x0 = Float.max 0. lx and y0 = Float.max 0. ly in
+           let clip = x0, y0, Float.min (float t.width) (lx +. w) -. x0, Float.min (float t.height) (ly +. h) -. y0 in
+           List.iter (wire_boxes "zwire" clip) (Option.value ~default:[] (Hashtbl.find_opt t.geo.inside p.path))
+       | _ -> ());
       (* the live editors of a row: a number, a vector of numbers, a flag *)
       let row_fields (n : P.node) (r : P.row) ~name ~ry ~size =
         let at = value_x p.w *. z and vw = field_w *. z and h = field_h *. z in
@@ -2232,7 +2306,6 @@ let update t ui (frame : Frame.t) =
                             let sink = input ("d:" ^ string_of_int i) (0., ry +. 12.) in
                             if wired r then dels := (sink, unwire n r) :: !dels
                           end
-                      | P.More _ -> tap "more" (0., top +. float k *. P.row_height) (p.w, P.row_height) `More
                       | P.Folder _ -> ()) p.lines
                   end));
         List.rev !outs, List.rev !dels, List.rev !taps, !inputs) in
@@ -2270,16 +2343,24 @@ let update t ui (frame : Frame.t) =
                 (match r.kind, r.chip with
                  | P.Add, _ ->
                      (match r.key with
-                      | E.Field _ -> [ Syntax_edit (E.Add_field { node = n.path;
-                          name = "f" ^ string_of_int (List.length n.rows);
+                      | E.Field _ ->
+                          (* the first [fN] the record does not have *)
+                          let rec free i =
+                            let name = "f" ^ string_of_int i in
+                            if List.exists (fun (r : P.row) -> r.key = E.Field name) n.rows then free (i + 1) else name in
+                          [ Syntax_edit (E.Add_field { node = n.path; name = free 1;
                           value = S.make (S.Num "0") }) ]
-                      | key when n.head = "list" || n.head = "str" || n.head = "concat" && false ->
-                          ignore key; [ Syntax_edit (E.Add_item { node = n.path }) ]
-                      | key when r.ty = Some Ty.Geometry -> ignore key; [ Notice "Wire a node onto this row" ]
+                      | E.Kw "" -> opened := Some (Output n.path); []  (* a new output is named first *)
+                      | _ when n.head = "list" || n.head = "str" -> [ Syntax_edit (E.Add_item { node = n.path }) ]
                       | key ->
-                          let value = match Option.bind r.ty (fun ty -> E.default_for ty r.label) with
-                            | Some v -> v | None -> S.make (S.Num "0") in
-                          [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ])
+                          (* a type with no literal (geometry, a list, a function, a scene) is wired *)
+                          (match r.ty with
+                           | Some Ty.Geometry -> [ Notice "Wire a node onto this row" ]
+                           | Some ty ->
+                               (match E.default_for ty r.label with
+                                | Some value -> [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ]
+                                | None -> [ Notice "Wire a node onto this row" ])
+                           | None -> [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value = S.make (S.Num "0") }) ]))
                  | _, P.Inline _ -> [ Syntax_edit (E.Unfold { node = n.path; key = r.key; sub = [] }) ]
                  | _ -> [])
                 | P.Row (i, (({ chip = P.Name s; _ } : P.row) as r)) when Hashtbl.mem t.folds (n.path, i) ->
@@ -2296,6 +2377,14 @@ let update t ui (frame : Frame.t) =
             Ui.within ui tile (fun () ->
               edit_field ~at:(21. *. z, 3. *. z) ~w:((p.w -. 21. -. head_pad) *. z) ~h:(18. *. z) "name" (P.title n) valid_name
                 (fun v -> Syntax_edit (E.Rename { node = n.path; to_ = v })))
+        | Some (Output path), P.Item n when path = n.path ->
+            (match Array.find_index (function P.Row (_, { kind = P.Add; key = E.Kw ""; _ }) -> true | _ -> false) p.lines with
+             | Some k ->
+                 Ui.within ui tile (fun () ->
+                   edit_field ~at:(label_x *. z, (rows_top n 0. +. float k *. P.row_height +. 4.) *. z)
+                     ~w:((p.w -. label_x -. head_pad) *. z) ~h:(field_h *. z) "output" "" valid_name
+                     (fun v -> Syntax_edit (E.Add_field { node = n.path; name = v; value = S.make (S.Num "0") })))
+             | None -> finished := true; [])
         | Some (Default path), P.Input i when path = i.path ->
             Ui.within ui tile (fun () ->
               let text = match i.default with Some d -> Flow.Lisp.flat d | None -> "" in
@@ -2413,9 +2502,7 @@ let update t ui (frame : Frame.t) =
           end else t
       | _ -> t) t frame_boxes in
   let t = if !finished then { t with editing = None } else t in
-  let overlay = Ui.within ui canvas (fun () ->
-    Ui.box ui ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height)) ~at:(0., 0.) "overlay") in
-  ignore overlay;
+  let t = match !opened with Some _ as editing -> { t with editing } | None -> t in
   (* hovered row and chip expansion *)
   let hover = List.find_map (fun ((p : P.placed), ax, ay, tile, _, _, _) ->
     match p.item with
@@ -2437,10 +2524,11 @@ let update t ui (frame : Frame.t) =
     | Some (x, y) -> abs_float (sx t (fst point) -. x) <= 1.5 *. z +. 0.5
         && abs_float (sy t (snd point) -. y) <= 1.5 *. z +. 0.5 in
   let highlighted = ref [] in
-  Array.iteri (fun i w ->
+  List.iter (fun i ->
+    let w = t.geo.wires.(i) in
     if t.context = None &&
-      (List.exists (Ui.hovered_within ui) wire_hits.(i) || same_port w.a || same_port w.b)
-    then highlighted := w :: !highlighted) t.geo.wires;
+      (List.exists (Ui.hovered_within ui) (hits i) || same_port w.a || same_port w.b)
+    then highlighted := w :: !highlighted) wires_in_view;
   let t = { t with hovered_row; highlighted = !highlighted } in
   (* interactions *)
   let left (s : Ui.signal) = s.button = Some Input.LeftButton in
@@ -2467,9 +2555,9 @@ let update t ui (frame : Frame.t) =
   let tile_pressed = List.exists (fun (_, _, _, _, (s : Ui.signal), _, _) -> s.pressed) tiles in
   let wire_pressed =
     if t.context <> None || tile_pressed then None
-    else Array.find_mapi (fun i boxes ->
-      if List.exists (fun b -> let s = Ui.signal ui b in s.pressed && left s) boxes
-      then Some i else None) wire_hits in
+    else List.find_map (fun i ->
+      if List.exists (fun b -> let s = Ui.signal ui b in s.pressed && left s) (hits i)
+      then Some i else None) wires_in_view in
   let t = match wire_pressed with
     | Some i ->
         if not (Path_set.is_empty t.selected) then emit (Selected []);
@@ -2537,11 +2625,9 @@ let update t ui (frame : Frame.t) =
     let t = List.fold_left (fun t (b, on) ->
       let bs = Ui.signal ui b in
       (match p.item, on with
-       | P.Item n, `Hoist when bs.clicked -> emit (Syntax_edit (E.Hoist { node = n.path }))
        | P.Item n, `Toggle when bs.clicked ->
            emit (Zone_collapsed { zone = n.path; collapsed = not p.collapsed })
        | P.Item n, `Replace when bs.clicked -> emit (Syntax_edit (E.Inline_macro { node = n.path }))
-       | P.Item n, `More when bs.clicked -> emit (Level_set [ n.path, Some P.Full, true ])
        | P.Item n, `Lens when bs.clicked ->
            lens_next := if List.mem_assoc n.path !lens_next then List.remove_assoc n.path !lens_next
              else (n.path, (match n.lens with Some l -> Array.length l.steps - 1 | None -> 0)) :: !lens_next
@@ -2580,8 +2666,6 @@ let update t ui (frame : Frame.t) =
                if not (Ui.hovered_within ui ttile) then None else
                let mx, my = mouse in
                let gx = (mx -. sx t 0.) /. z and gy = (my -. sy t 0.) /. z in
-               ignore tax; ignore tay;
-               let _, tax, tay = (tp, tax, tay) in
                let lx = gx -. tax and ly = gy -. tay in
                match tp.item with
                | P.Return ->
@@ -2628,8 +2712,10 @@ let update t ui (frame : Frame.t) =
         (match List.find_map (fun ((p : P.placed), _, _, _, (s : Ui.signal), _, _) ->
             if Ui.context_clicked s then Some (s.release_point, p.path) else None) tiles with
          | Some ((x, y), path) ->
+             (* the menu acts on the nodes: a wire selected before is no longer the selection *)
              let selected = if Path_set.mem path t.selected then t.selected else Path_set.singleton path in
-             { t with context = Some ((x, y), path); selected }
+             if not (Path_set.equal selected t.selected) then emit (Selected (Path_set.elements selected));
+             { t with context = Some ((x, y), path); selected; selected_wire = None }
          | None -> t) in
   if t.context = None && Ui.context_clicked canvas_signal then (let x, y = canvas_signal.release_point in emit (Menu_requested (x, y)));
   let t = match t.context with
@@ -2642,21 +2728,18 @@ let update t ui (frame : Frame.t) =
              List.iter emit (action_changes t (context_command i));
              { t with context = None }) in
   (* the frame's paint *)
-  let drawn_rows = ref 0 and drawn_zones = ref (List.length zones) in
-  ignore drawn_zones;
   let selected = t.selected in
   let snapshot = t in
   let row_hover = match hover with Some (n, _, _, i) -> Some (n.path, i) | None -> None in
   (* a scene object nothing reads (taken out of its merge) is dimmed; a wire from it brings it back *)
-  let read = Hashtbl.create 16 in
-  Array.iter (fun (w : wire) -> Hashtbl.replace read w.a ()) t.geo.wires;
+  let read = t.geo.read in
   let dimmed (n : P.node) = not n.synthetic && n.zone = None
     && String.starts_with ~prefix:"scene/" n.head && n.head <> "scene/merge" && n.head <> "scene/root"
     && (match Hashtbl.find_opt t.geo.pos n.path with
         | Some (ax, ay, w, _) -> not (Hashtbl.mem read (ax +. w, ay +. wire_head_y))
         | None -> false) in
   Ui.draw ui layer (fun paint (rx, ry, rw, rh) ->
-    paint_background paint snapshot ~viewport:(rx, ry, rw, rh) zones);
+    paint_background paint snapshot ~viewport:(rx, ry, rw, rh) ~wires:wires_in_view zones);
   List.iter (fun ((p : P.placed), ax, ay, tile, _, _, _) ->
     let path = p.path in
     let isel = Path_set.mem path selected in
@@ -2681,7 +2764,7 @@ let update t ui (frame : Frame.t) =
                  ~out_wired:(Hashtbl.mem read (out_anchor p ax ay)) ~shown:(p.shown)
                  ?failed:(List.assoc_opt n.path snapshot.failed) p n ~selected:isel ~row_hover:rh (x, y, w, h);
                if dimmed n then Ui.Paint.fill paint ~x ~y ~w ~h (Color.with_alpha snapshot.theme.panel 150)));
-    ignore (ax, ay); ignore node_placed; drawn_rows := !drawn_rows) tiles;
+    ) tiles;
   let rows = List.fold_left (fun a ((p : P.placed), _, _, _, _, _, _) -> match p.item with
     | P.Item n -> a + List.length n.rows | _ -> a) 0 tiles in
   let drawn_items = List.length tiles in
@@ -2700,7 +2783,7 @@ let update t ui (frame : Frame.t) =
   (* the view flag of the displayed node: a tip below it after the pointer rests there *)
   let tip_at, tip_open = match t.display with
     | Some path ->
-        (match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+        (match item_at t path with
          | Some (({ item = P.Item _; _ } as p), ax, ay) when p.shown <> P.Point ->
              let fx = sx t ax +. (p.w -. head_pad -. 12.) *. z and fy = sy t ay +. 6. *. z in
              let mx, my = mouse in
@@ -2771,7 +2854,7 @@ let update t ui (frame : Frame.t) =
               let size = max 4 (fs - 2) in
               let full = shown_glyph glyph ^ " " ^ text in
               let w = Ui.Paint.text_width paint ~size full +. 12. *. z in
-              let k = match Array.find_opt (fun ((q : P.placed), _, _) -> q.path = n.path) snapshot.geo.items with
+              let k = match item_at snapshot n.path with
                 | Some (q, _, _) -> Option.value ~default:0 (Hashtbl.find_opt (line_of_row q.lines) i)
                 | None -> 0 in
               let x = sx snapshot (ax +. value_x P.node_width) and y = sy snapshot (rows_top n ay +. float k *. P.row_height) in
@@ -2791,6 +2874,8 @@ let update t ui (frame : Frame.t) =
 (* ------------------------------------------------------------- test hooks *)
 
 module Private = struct
+  let macro_step = lens_of
+  let selected_wire t = Option.map (fun (path, key, _) -> path, key) t.selected_wire
   let highlighted_connections t = List.map (fun w ->
     (sx t (fst w.a), sy t (snd w.a)), (sx t (fst w.b), sy t (snd w.b))) t.highlighted
   let box_of t path = Hashtbl.find_opt t.geo.pos path
@@ -2804,9 +2889,9 @@ module Private = struct
   let output_socket t path =
     Option.map (fun ((p : P.placed), ax, ay) ->
       let x, y = out_anchor p ax ay in if p.shown = P.Point then sx t x, sy t y else sx t (x -. 1.), sy t (y -. wire_head_y +. port_y))
-      (Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items)
+      (item_at t path)
   let row_center t path i =
-    match node_of t path, Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+    match node_of t path, item_at t path with
     | Some n, Some (p, x, y) ->
         (match List.nth_opt n.rows i with
          | Some { head = true; _ } -> Some (sx t (x +. 100.), sy t (y +. 12.))
@@ -2816,7 +2901,7 @@ module Private = struct
          | None -> None)
     | _ -> None
   let fold_button t path i =
-    match node_of t path, Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+    match node_of t path, item_at t path with
     | Some n, Some (p, x, y) when Hashtbl.mem t.folds (path, i) ->
         (match List.nth_opt n.rows i, Hashtbl.find_opt (line_of_row p.lines) i with
          | Some ({ chip = P.Name s; _ } as r), Some k ->
@@ -2845,7 +2930,7 @@ module Private = struct
   (* every port of a plain node at the level it is shown, in screen points: the in end, the out
      end, a card's row sockets and named outputs *)
   let ports t path =
-    match Array.find_opt (fun ((p : P.placed), _, _) -> p.path = path) t.geo.items with
+    match item_at t path with
     | Some (p, ax, ay) ->
         let s (x, y) = sx t x, sy t y in
         let rows = match p.item with

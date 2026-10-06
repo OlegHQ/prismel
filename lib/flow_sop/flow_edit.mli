@@ -128,6 +128,13 @@ type op =
     operations address a binding of an editor graph by its path, as every other
     op does; panels made by a loop have no binding, so they are edited on the loop. *)
 
+val positional : Flow.Syntax.t list -> Flow.Syntax.t list
+(** The positional arguments of a call, in written order: [:keyword value] pairs may stand anywhere
+    among them, so [(sop/transform :translate [1 2 3] a)] has [a] as input 0. *)
+
+val keywords : Flow.Syntax.t list -> (string * Flow.Syntax.t) list
+(** The [:keyword value] pairs of a call's arguments, in written order. *)
+
 val node_call : Flow.Syntax.t -> bool
 (** A call of a node kind (a head with a [/]): written in an argument, it is a nested node. *)
 

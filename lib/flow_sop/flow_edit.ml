@@ -155,6 +155,9 @@ let kw_name (k : S.t) = match k.node with S.Kw s -> s | _ -> ""
 let positional args =
   let rec go = function k :: _ :: r when is_kw k -> go r | x :: r -> x :: go r | [] -> [] in
   go args
+let keywords args =
+  let rec go = function k :: v :: r when is_kw k -> (kw_name k, v) :: go r | _ :: r -> go r | [] -> [] in
+  go args
 let kw_get args k =
   let rec go = function
     | a :: b :: r -> if is_kw a && kw_name a = k then Some b else go (if is_kw a then r else b :: r)
@@ -378,17 +381,21 @@ let rec get_node s leaf =
 let reorder (s : S.t) = match scope_of s with
   | None -> s
   | Some sc ->
-      let names = List.concat_map (fun (p, _) -> pat_names p) sc.ps in
-      let rec go seen left out = match left with
+      (* the first binding whose reads are all bound goes next; by name in two tables, and a scope
+         already in order (every scrub) is one pass *)
+      let names = Hashtbl.create 64 and seen = Hashtbl.create 64 in
+      List.iter (fun (p, _) -> List.iter (fun n -> Hashtbl.replace names n ()) (pat_names p)) sc.ps;
+      let ready (_, e) = List.for_all (fun x -> not (Hashtbl.mem names x) || Hashtbl.mem seen x) (free e) in
+      let take q = List.iter (fun n -> Hashtbl.replace seen n ()) (pat_names (fst q)) in
+      let rec go left out = match left with
         | [] -> List.rev out
+        | q :: rest when ready q -> take q; go rest (q :: out)
         | _ ->
-            (match List.find_opt (fun (_, e) ->
-                List.for_all (fun x -> not (List.mem x names) || List.mem x seen) (free e)) left with
+            (match List.find_opt ready left with
              | None -> fail ~code:"E_GRAPH_CYCLE" "That connection would make a cycle through %s."
                  (String.concat ", " (List.map (fun (p, _) -> pat_key p) left))
-             | Some q ->
-                 go (pat_names (fst q) @ seen) (List.filter (fun x -> x != q) left) (q :: out)) in
-      rebuild sc (go [] sc.ps []) sc.res
+             | Some q -> take q; go (List.filter (fun x -> x != q) left) (q :: out)) in
+      rebuild sc (go sc.ps []) sc.res
 
 let rec set_node s leaf e =
   if nested leaf then
@@ -753,6 +760,12 @@ let active_of args = match kw_get args "active" with
   | None -> 0
   | Some { S.node = S.Num s; _ } -> Option.value ~default:0 (int_of_string_opt s)
   | Some _ -> fail "The active layout is an expression: change it in the text."
+(* the switch's active input; an [:active] outside its layouts is refused *)
+let active_layout args =
+  let a = active_of args in
+  match if a < 0 then None else List.nth_opt (positional args) a with
+  | Some o -> o
+  | None -> fail "The active layout is not one of the switch's layouts."
 
 (* layout bindings in [cands] that nothing reads any more go *)
 let prune body cands = match scope_of body with
@@ -772,8 +785,7 @@ let edit_layout src graph f = edit_scope src [ graph ] (fun s ->
     | Some (place, sw) ->
         let args = List.tl (S.children sw) in
         let a = active_of args in
-        (match List.nth_opt (positional args) a with
-         | Some o -> o | None -> fail "The active layout is not one of the switch's layouts."),
+        active_layout args,
         (fun e -> set_switch sc sc.ps place (arg_set sw (Pos a) (Some e)))
     | None -> workspace_arg sc, (fun e -> rebuilt (set_workspace sc sc.ps e)) in
   prune (put (f sc.ps slot)) (reach sc.ps slot))
@@ -885,7 +897,8 @@ let rewrite src op : (unit -> S.t list) list =
         let others = List.filteri (fun k _ -> k <> j) sc.ps in
         let uses = List.fold_left (fun n (_, x) -> n + count_refs name x) (count_refs name sc.res) others in
         if uses <> 1 then fail "Fold needs exactly one use of %s inside its scope." name;
-        let rep = replace_ref name e in
+        (* the binding's note goes with it *)
+        let rep = replace_ref name { e with notes = p.notes @ e.notes } in
         let ps = List.map (fun (q, x) -> q, rep x) others and res = rep sc.res in
         if List.exists (fun (_, x) -> count_refs name x > 0) ps || count_refs name res > 0 then
           fail "%s is read by field; it cannot be folded." name;
@@ -922,8 +935,11 @@ let rewrite src op : (unit -> S.t list) list =
               if starts_with "world/" (head_sym e) then detach_result leaf below root else root)
         | _ -> src) src by_depth in
       List.iter (fun node ->
-        let name = snd (split_node node) in
-        if not (nested name) && List.mem name (sym_list (root_form out (List.hd node))) then
+        (* read inside its own scope only: a sibling scope may bind the same name (a duplicated loop) *)
+        let sp, name = split_node node in
+        let used = ref false in
+        (try ignore (edit_scope out sp (fun s -> used := List.mem name (sym_list s); s)) with Fail _ -> ());
+        if not (nested name) && !used then
           fail "%s still feeds another node. Disconnect it first." name) nodes;
       out)
   | Rename { node; to_ } -> one (fun () ->
@@ -1131,9 +1147,19 @@ let rewrite src op : (unit -> S.t list) list =
       edit_scope src sp (fun s ->
         let e = get_node s leaf in
         match e.node with
-        | S.List (h :: args) when pos >= 1 && pos < List.length args ->
-            let args = List.mapi (fun i c ->
-              if i = pos then List.nth args (pos - 1) else if i = pos - 1 then List.nth args pos else c) args in
+        | S.List (h :: args) when pos >= 1 && pos < List.length (positional args) ->
+            (* the items are the positional arguments: keyword pairs stay where they are written *)
+            let items = Array.of_list (positional args) in
+            let rec go k = function
+              | a :: b :: r when is_kw a -> a :: b :: go k r
+              | _ :: r -> items.(if k = pos then pos - 1 else if k = pos - 1 then pos else k) :: go (k + 1) r
+              | [] -> [] in
+            let args = go 0 args in
+            (* a [scene/merge]'s [:skip] tuples end in an argument position: they follow the items *)
+            let args = if head_sym e <> Some "scene/merge" || skip_of_args args = [] then args else
+              with_kw args "skip" (Some (skip_value (List.map (fun t -> match List.rev t with
+                | p :: outer -> List.rev ((if p = pos then pos - 1 else if p = pos - 1 then pos else p) :: outer)
+                | [] -> t) (skip_of_args args)))) in
             set_node s leaf { e with node = S.List (h :: args) }
         | _ -> fail "There is no item %d to move up." pos))
   | Add_field { node; name; value } -> one (fun () ->
@@ -1141,6 +1167,7 @@ let rewrite src op : (unit -> S.t list) list =
       edit_scope src sp (fun s ->
         let e = get_node s leaf in
         let key = match e.node with S.Map _ -> Field name | _ -> Kw name in
+        if arg_get e key <> None then fail "There is a field %s already." name;
         reorder (set_node s leaf (arg_set e key (Some value)))))
   | Add_node { scope; name; expr } -> one (fun () ->
       if not (valid_name name) || List.mem name (sym_list (root_form src (List.hd scope)))
@@ -1347,7 +1374,7 @@ let rewrite src op : (unit -> S.t list) list =
         let args = List.tl (S.children sw) in
         let n = List.length (positional args) in
         if n >= 10 then fail "Ten layouts is the limit of the digit keys.";
-        let copy = solid sc.ps (List.nth (positional args) (min (active_of args) (n - 1))) in
+        let copy = solid sc.ps (active_layout args) in
         let name = fresh used "layout" in
         let sw = arg_set (arg_set sw (Pos n) (Some (sym name))) (Kw "active") (Some (num n)) in
         reorder (set_switch sc (sc.ps @ [ sym name, copy ]) place sw)))
@@ -1401,7 +1428,7 @@ let rewrite src op : (unit -> S.t list) list =
             let args = List.tl (S.children sw) in
             let n = List.length (positional args) and a = active_of args in
             if n < 2 then fail "A switch keeps its last layout.";
-            let gone = List.nth (positional args) a in
+            let gone = active_layout args in
             let sw = arg_set (arg_set sw (Pos a) None) (Kw "active") (Some (num (min a (n - 2)))) in
             prune (set_switch sc sc.ps place sw) (reach sc.ps gone)))
   | Layout_window { graph; kind } -> one (fun () ->
@@ -1506,15 +1533,22 @@ let check catalog forms =
              | Some d -> d
              | None -> Flow.Diagnostic.error ~code:"E_EDIT" "The edit does not check."))
 
+(* the last resort: whatever a rewrite raises ([List.nth], [Option.get], [Failure]) is a refused
+   edit, never a dead editor *)
+let refusal = function
+  | Fail d -> d
+  | (Out_of_memory | Sys.Break) as e -> raise e
+  | e -> Flow.Diagnostic.error ~code:"E_EDIT" ("The edit failed: " ^ Printexc.to_string e)
+
 let apply_checked catalog src op =
   match rewrite src op with
-  | exception Fail d -> Error d
+  | exception e -> Error (refusal e)
   | candidates ->
       let rec first err = function
         | [] -> Error (Option.get err)
         | attempt :: rest ->
             (match attempt () with
-             | exception Fail d -> first (if err = None then Some d else err) rest
+             | exception e -> first (if err = None then Some (refusal e) else err) rest
              | forms -> (match check catalog forms with
                  | Ok _ as ok -> ok
                  | Error d -> first (if err = None then Some d else err) rest)) in
@@ -1561,11 +1595,8 @@ let arg_of = arg_get
 
 let nested_nodes (e : S.t) = match e.node with
   | S.List (_ :: args) when e.meta <> [] || not (is_zone e) ->
-      let rec kws = function
-        | k :: v :: r when is_kw k -> (Kw (kw_name k), v) :: kws r
-        | _ :: r -> kws r
-        | [] -> [] in
-      List.filter (fun (_, a) -> node_call a) (List.mapi (fun i a -> Pos i, a) (positional args) @ kws args)
+      List.filter (fun (_, a) -> node_call a)
+        (List.mapi (fun i a -> Pos i, a) (positional args) @ List.map (fun (k, v) -> Kw k, v) (keywords args))
   | _ -> []
 
 let leaf_keys leaf = match split_leaf leaf with

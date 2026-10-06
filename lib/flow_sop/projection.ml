@@ -77,15 +77,6 @@ let last (e : S.t) = List.nth (S.children e) (List.length (S.children e) - 1)
 let root_of s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 let is_zone_head = function "for" | "fold" | "scan" | "sum" -> true | _ -> false
 
-(* positional arguments, then :keyword pairs *)
-let split_args l =
-  let rec go acc = function
-    | ({ S.node = S.Kw _; _ } :: _) as rest -> List.rev acc, rest
-    | x :: r -> go (x :: acc) r
-    | [] -> List.rev acc, [] in
-  let pos, rest = go [] l in
-  pos, List.filter_map (fun ((k : S.t), v) -> match k.node with S.Kw k -> Some (k, v) | _ -> None) (pairs rest)
-
 let subterms (t : W.term) = match t.node with
   | Lit _ | Text _ | Nil | Time | Ref_binding _ | Fn_ref _ -> []
   | Vec l | List_lit l | Str l | List_op (_, l) | Hof (_, l) -> l
@@ -232,7 +223,7 @@ let input_rows c (inputs : (string * Ty.t * W.term option) list) pos kws =
     | None -> row c ~ty ?default n (E.Kw n) (List.assoc_opt n kws)) inputs
 
 let call_rows c (e : S.t) h args =
-  let pos, kws = split_args args in
+  let pos = E.positional args and kws = E.keywords args in
   let npos = List.length pos in
   let at i = List.nth_opt pos i in
   let posrow ?ty ?socket label i = row c ?ty ?socket label (E.Pos i) (at i) in
@@ -516,7 +507,7 @@ let value_card (n : node) =
       | [ { key = E.Whole; chip = Const; _ } ] -> true
       | _ -> false)
 
-type line = Folder of int * string | Row of int * row | More of int
+type line = Folder of int * string | Row of int * row
 
 let driven (r : row) = match r.chip with
   | Name _ | Inline _ -> true
@@ -554,9 +545,9 @@ let lines ?(pin = fun _ -> None) level (n : node) : line array =
   | Card ->
       let has_head = List.exists (fun (r : row) -> r.head) n.rows in
       (* a call with no header slot (a [list], a record) keeps its [+] row on the card *)
-      let shown, hidden = List.partition (fun (_, (r : row)) ->
+      (* a card shows its wired and written rows; [o] and [p] reveal the rest *)
+      let shown = List.filter (fun (_, (r : row)) ->
         (r.kind = Add && not has_head) || row_shown ?pin:(pin r.label) r) body in
-      ignore hidden;  (* a card shows its wired and written rows; [o] and [p] reveal the rest *)
       Array.of_list (List.map (fun (i, r) -> Row (i, r)) shown)
 
 (* the count the chip shows: rows with something written *)
@@ -757,12 +748,3 @@ and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?
   done;
   let margin = if inner then 0. else lattice in
   { placed = List.rev !placed; w = !w +. margin; h = !h +. margin }
-
-let place (l : layout) =
-  let rec go ox oy (l : layout) = List.concat_map (fun (p : placed) ->
-    let ax = ox +. p.x and ay = oy +. p.y in
-    (p.path, (ax, ay, p.w, p.h))
-    :: (match p.inner, p.item with
-        | Some inner, Item n -> go (ax +. zone_pad_x) (ay +. rail_top n) inner
-        | _ -> [])) l.placed in
-  go 0. 0. l

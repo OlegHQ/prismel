@@ -102,13 +102,15 @@ let entry_label entry = match entry.off with
   | Some _ -> entry.context ^ "/" ^ entry.key
   | None -> entry.label
 
-(* the colour of a kind's square: its output type's port *)
-let port_color theme (ty : Flow.Ty.t) =
+(* the colour of a type's port: a kind's square here, the ports, squares and wires of the graph pane.
+   A list is its elements' colour; what has no colour of its own is the output's *)
+let rec port_color theme (ty : Flow.Ty.t) =
   let ports = Pxui.Theme.ports theme in
   match ty with
   | Geometry -> ports.geometry | Float -> ports.float | Int -> ports.int | Vec3 -> ports.vec3
-  | Bool -> ports.bool | Text -> ports.text | Fn -> ports.fn | Record _ -> ports.record
-  | _ -> ports.compound
+  | Bool -> ports.bool | Text | Color -> ports.text | Fn -> ports.fn | Record _ -> ports.record
+  | List e -> port_color theme e
+  | Any | Scene | World | Settings | Panel | Editor | Material -> ports.output
 
 let picker_rows menu query =
   rows { menu with query } |> Array.map (fun entry -> entry_label entry, entry_detail entry)
