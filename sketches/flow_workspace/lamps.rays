@@ -1,8 +1,0 @@
-(workspace lamps
-  (graph bead :context sop [(i : int 0)]
-    (sop/uv_sphere :radius 0.35 :segments 24 :rings 12))
-
-  (graph scene :context scene
-    (let* [row (for [i (range 5)]
-                 (scene/geometry (ref bead :i i) :name "bead" :translate [(- i 2) 0 0]))]
-      (scene/merge row (scene/light :shape "Directional" :translate [8 11.2 6.4] :intensity 1)))))

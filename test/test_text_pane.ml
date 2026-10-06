@@ -453,7 +453,7 @@ let lisp_text () =
   check ((L.language ~parinfer:true Pxui.Theme.default).rewrite <> None
          && (L.language Pxui.Theme.default).rewrite = None) "the language rewrites only with parinfer on"
 
-(* W9 through the editor: the 1400x800 window of sketches/flow_workspace, Rosette, the graph
+(* W9 through the editor: a 1400x800 window, Rosette, the graph
    pane zoomed once (frame 12) so the cards sit where FLOW_W9 clicks them: the B flag of
    `soft`, its note in the inspector, and the make-macro dialog (m, Create macro).  The frame's
    mouse stays at the window centre (the pointer is the events'), as the export driver's does. *)
