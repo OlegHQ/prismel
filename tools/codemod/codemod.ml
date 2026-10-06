@@ -900,7 +900,7 @@ let () =
   match Array.to_list Sys.argv |> List.tl with
   | [ "result-bind"; "--self-test"; ppx ] -> Result_bind.self_test ppx
   | [ "result-bind"; "--self-test" ] ->
-      Result_bind.self_test (Filename.concat (Filename.dirname Sys.executable_name) "result_bind_ppx.exe")
+      Result_bind.self_test "_build/default/ppx/result_bind/result_bind_ppx.exe"
   | [ "result-bind"; "--verify"; before; after; ppx ] -> Result_bind.verify before after ppx
   | [ "result-bind"; path ] -> Result_bind.migrate path
   | [ "metal-registry"; "--self-test" ] -> Metal_registry.self_test ()

@@ -57,7 +57,7 @@
  (public_name rays.metal)
  (preprocess
   (per_module
-   ((action (run %{exe:../../tools/codemod/result_bind_ppx.exe} --source-dir lib/metal %{input-file})) Metal)))
+   ((action (run %{exe:../../ppx/result_bind/result_bind_ppx.exe} --source-dir lib/metal %{input-file})) Metal)))
  (modules Metal Metal_argument_reflection_snapshot Metal_format Metal_raw_types Metal_raw Metal_gen)
  (private_modules
   Metal_format

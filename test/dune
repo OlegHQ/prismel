@@ -172,7 +172,7 @@
 (rule
  (aliases runtest dependency_gate)
  (deps (source_tree ../lib) (source_tree ../ppx) (source_tree ../examples)
-  (source_tree ../sketches))
+  (source_tree ../sketches) (source_tree ../tools) (source_tree .))
  (action
   (chdir %{workspace_root} (run %{exe:test_main.exe} dependency_gate))))
 

@@ -362,6 +362,28 @@ aliases them without changing type identity. Nothing outside `lib/metal` and
 `lib/ogpu_metal` references `Metal` or `Ogpu_metal_native`; the dependency
 gate lists no Metal exception.
 
+The gate (`test/dependency_gate.ml`) holds three kinds of rule. "May never
+reach" rules run over the transitive closure; `rays_pathtracer` (no Metal
+backend, mock, geometry graph, catalog, UI or editor library), `rdk_rays`
+(the renderer leaf: `rdk_core`, `rdk_attrib`, `rdk_mesh` and `rays`, never the
+Boolean stack, `procedural` or anything above) and `scene_execution_fixtures`
+(only `scene_execution` and `ogpu`) have theirs. "Depends only on" whitelists
+check every direct dependency, external ones included: `param`,
+`native_layer_token` and `lru` list none, `flow` only `param`, `ogpu_core`
+only `native_layer_token`, `ogpu` and `ogpu_mock` only `ogpu_core`, `metal`
+only `threads` and `native_layer_token`, `ogpu_metal_native` only `ogpu_core`,
+`metal` and `lru`, `ogpu_metal` only `ogpu_metal_native` and `metal`,
+`pxui_shell` only `rays`, `editor_core` and `pxui`, `sop_catalog` only
+`rays_math`, `rdk` and `procedural`. The Metal token scan covers `lib`,
+`examples`, `sketches`, `tools` and `test`; outside the backend it admits
+only the binding tooling (`tools/codemod/metal_registry.ml`), the two binding
+benches (`tools/bench_metal_ffi.ml`, `tools/bench_metal_registry.ml`), the
+Metal conformance driver (`test/ogpu_conformance/test_metal.ml`) and the gate
+itself. `lib/metal` takes its source preprocessor from
+`ppx/result_bind`, so no foundational library is built by something under
+`tools/`; the gate rejects a `tools/` path in `lib/metal/dune`. Each rule has
+an injected violation in the gate's own run.
+
 Texture pixel formats (World plan P6): `Types.texture_descriptor.format` is
 `Rgba8_unorm`, `Rgba16_float`, or `Rgba32_float` (4, 8, 16 bytes per texel,
 `Types.texel_bytes`). Host bytes are little-endian; half floats are IEEE
