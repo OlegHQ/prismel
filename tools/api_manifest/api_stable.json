@@ -4,13 +4,13 @@
   "module_count": 157,
   "modules": [
     {
-      "api_sha256": "67f30a95bb3d0205fea5463e4297322cc7e75dbde06ed1a32b012a368d2a78ea",
+      "api_sha256": "14d3c34a3e3c535886937ee35e568b4c346ed002013be973974413df344a6136",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Editor_core",
       "source": "lib/editor_core/editor_core.mli",
-      "source_bytes": 3704,
-      "source_sha256": "9905fe7f08223046d4ebe6e07b673913151ac70fc99667f1dbf7d32749d2ea09"
+      "source_bytes": 5131,
+      "source_sha256": "809aec570571e8dee691797a49a5ed060dc7a6dbda64fdfc919bbc4a8b08787c"
     },
     {
       "api_sha256": "2906ab2699a91b7b74ad6e9760a140e5d491edc4a48f8fa13a875df98b510c94",
@@ -157,13 +157,13 @@
       "source_sha256": "56f19fdd159be0455b21f31f62ff421cad5d5a6a1e7936db5163a87bce3516c3"
     },
     {
-      "api_sha256": "0092ddd9f1ee8b90251247e767a70fb2807e259d47d3d0f91a19deef411bfe58",
+      "api_sha256": "7731992a06064a50c5dff04fbf80de40990bc8751200fa352cf8c0afd7a483e7",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Flow_edit",
       "source": "lib/flow_sop/flow_edit.mli",
-      "source_bytes": 13501,
-      "source_sha256": "88c784a6d8edd44afbe215566e0c604698d0282cb4117a37e23274c7e323fc8f"
+      "source_bytes": 13737,
+      "source_sha256": "649f08c2a36357e63d6bf5c5d55b8b07e37df60857fa092c877a92cf176b1e8b"
     },
     {
       "api_sha256": "13e51ba6fd0803c83783ae21d917160a0fe5e18e8c21e193343df21b33411666",
@@ -418,22 +418,22 @@
       "source_sha256": "566ad7a2bc621cf618f4fee5aea1b7a8aa2e950c535c9c8315dbc8c73ef94b84"
     },
     {
-      "api_sha256": "17fcbacaf9996de8488215fc55c61a25303bbf2b352979194ae2183171ce70a7",
+      "api_sha256": "31f94f923d0e848a77696b544983daed8043fa722754b9b00cd924895b10be93",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
       "source": "lib/pxui_graph/scope_pane.mli",
-      "source_bytes": 10360,
-      "source_sha256": "5cecaf81d325ee466c4d0e69c4d0d4965a13ef76ca3d389dd2d3c86aa9f1cdc0"
+      "source_bytes": 10927,
+      "source_sha256": "f8fee45e42788609b10bcd9e222a257db75a6b031e4ed5fcb6e1be9e01532db2"
     },
     {
-      "api_sha256": "ef4e0b0856dafb4ed323f3340e1ee75e05192186ed1d290d1a179fe8d0a3d594",
+      "api_sha256": "95e2c50b4a117779b74dade87c13c476f80d5315359b6376c34dcc5d34f52142",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 20712,
-      "source_sha256": "4683c447a26e0ac5fb0c96e59032b53d3ea9fdd918492308aeffe222c50d66f6"
+      "source_bytes": 21449,
+      "source_sha256": "4ebddcb7977ed7dd73e695fa564cd0146717514a1e1d09df1ae61767f38029f8"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",
