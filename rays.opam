@@ -10,7 +10,7 @@ tags: ["ocaml" "graphics" "framework" "creative-coding" "gamedev"]
 homepage: "https://github.com/OlegHQ/rays"
 bug-reports: "https://github.com/OlegHQ/rays/issues"
 depends: [
-  "ocaml" {>= "5.2"}
+  "ocaml" {>= "5.3"}
   "dune" {>= "3.17" & >= "3.21"}
   "digestif"
   "dune-configurator"

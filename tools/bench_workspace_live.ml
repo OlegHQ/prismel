@@ -42,7 +42,7 @@ let run ~frames ~domains name source =
     let context = Result.get_ok (Procedural.Context.create ~domains ~grain:256 ~seed:1L ()) in
     (* BENCH_PROBES: the footers' request, up to 64 upstream nodes cooked after the display (cache and volatile hits) *)
     let probes = if Sys.getenv_opt "BENCH_PROBES" = None then [] else
-      List.filteri (fun i _ -> i < 64) (List.filter_map (fun (info : Procedural.Graph.info) ->
+      List.take 64 (List.filter_map (fun (info : Procedural.Graph.info) ->
         if info.id = root then None else Procedural.Graph.find node ~node_id:info.id) (Procedural.Graph.inspect node)) in
     ignore (Result.get_ok (Procedural.Async_cook.submit_all worker ~context ~nodes:(node :: probes)
       ~prepare:(fun outputs -> Ok (List.hd outputs).geometry)));

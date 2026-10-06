@@ -18,12 +18,6 @@ type process_result =
 
 let fail format = Printf.ksprintf failwith format
 
-let read_file path =
-  let input = open_in_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_in_noerr input)
-    (fun () -> really_input_string input (in_channel_length input))
-
 let rec remove_directory path =
   Sys.readdir path
   |> Array.iter (fun name ->
@@ -71,8 +65,8 @@ let run ~environment program arguments =
     in
     let _, status = Unix.waitpid [] pid in
     { status
-    ; stdout = read_file stdout_path
-    ; stderr = read_file stderr_path
+    ; stdout = Sdl3_lock.read_file stdout_path
+    ; stderr = Sdl3_lock.read_file stderr_path
     })
 
 let status_string = function

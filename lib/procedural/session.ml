@@ -224,7 +224,7 @@ let input_geometry session output = match output.instances with
               ~cause:(Rdk.Error.to_string error) "packed instances could not be materialized")
           | Ok geometry ->
               session.materialized <- (output, geometry)
-                :: List.filteri (fun index _ -> index < 7) session.materialized;
+                :: List.take 7 session.materialized;
               Ok geometry
 
 (* [memo] holds this cook's results by node id so a node reachable through

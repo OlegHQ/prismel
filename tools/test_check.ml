@@ -45,7 +45,7 @@ let () =
         let failure = launch ["@check"; "--fail"] in
         assert (snd (Unix.waitpid [] failure) = Unix.WEXITED 23);
         success (launch ["--ship"]);
-        assert (List.rev (lines ()) |> List.filteri (fun index _ -> index < 4)
+        assert (List.rev (lines ()) |> List.take 4
           = ["git end diff --check"; "git start diff --check";
              "dune end build @all @runtest @smoke";
              "dune start build @all @runtest @smoke"]);

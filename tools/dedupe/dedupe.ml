@@ -2,6 +2,7 @@
 
      dedupe [--dry-run] [--only NAME,...] (--open MODULE | --qualify PREFIX) SHARED.ml FILE.ml...
      dedupe --show FILE.ml NAME        print how one definition is compared
+     dedupe [--dry-run] --take FILE.ml...   List.filteri (fun i _ -> i < 7) to List.take 7
 
    A top-level [let NAME] in FILE goes when it is the same definition as [let NAME] in
    SHARED.ml. "The same" is decided from the compiler's output, not from the text:
@@ -339,6 +340,53 @@ let dedupe ~dry_run ~mode ~only shared paths =
     end) paths;
   Printf.printf "%d definitions, %d lines\n" !removed_total !lines_total
 
+(* [List.filteri (fun i _ -> i < N) xs] with a literal N >= 0 is [List.take N xs] (OCaml 5.3).
+   A computed bound stays: [List.take] raises on a negative one where the filter gives []. *)
+let take ~dry_run paths =
+  let total = ref 0 in
+  List.iter (fun path ->
+    let source = load path in
+    let stdlib_list start = Array.exists (fun (at, _, _, uid) -> at = start && match uid with
+      | Some (Shape.Uid.Item { comp_unit = "Stdlib__List"; _ }) -> true
+      | _ -> false) source.occurrences in
+    let edits = ref [] in
+    let iterator = { Ast_iterator.default_iterator with
+      expr = (fun self expression ->
+        (match expression.pexp_desc with
+         | Pexp_apply ({ pexp_desc = Pexp_ident { txt = Ldot (Lident "List", "filteri"); loc }; _ },
+             (Nolabel, ({ pexp_desc = Pexp_function (
+               [{ pparam_desc = Pparam_val (Nolabel, None,
+                    { ppat_desc = Ppat_var { txt = index; _ }; _ }); _ };
+                { pparam_desc = Pparam_val (Nolabel, None, { ppat_desc = Ppat_any; _ }); _ }],
+               None,
+               Pfunction_body { pexp_desc = Pexp_apply (
+                 { pexp_desc = Pexp_ident { txt = Lident "<"; _ }; _ },
+                 [Nolabel, { pexp_desc = Pexp_ident { txt = Lident used; _ }; _ };
+                  Nolabel, { pexp_desc = Pexp_constant
+                    { pconst_desc = Pconst_integer (bound, None); _ }; _ }]); _ }); _ }
+               as predicate)) :: _)
+           when index = used && stdlib_list loc.loc_start.pos_cnum ->
+             (* the predicate's range with its parentheses, wherever the parser put them *)
+             let start = ref predicate.pexp_loc.loc_start.pos_cnum
+             and stop = ref predicate.pexp_loc.loc_end.pos_cnum in
+             if source.text.[!start] <> '(' then begin
+               while source.text.[!start] <> '(' do decr start done;
+               while source.text.[!stop - 1] <> ')' do incr stop done
+             end;
+             edits := ((loc.loc_start.pos_cnum, loc.loc_end.pos_cnum), "List.take", `Text)
+               :: ((!start, !stop), bound, `Text) :: !edits
+         | _ -> ());
+        Ast_iterator.default_iterator.expr self expression) } in
+    let lexbuf = Lexing.from_string source.text in
+    Lexing.set_filename lexbuf path;
+    iterator.structure iterator (Parse.implementation lexbuf);
+    if !edits <> [] then begin
+      Printf.printf "%s: %d\n" path (List.length !edits / 2);
+      total := !total + (List.length !edits / 2);
+      if not dry_run then write path (apply source.text !edits)
+    end) paths;
+  Printf.printf "%d calls\n" !total
+
 let show path name =
   let source = load path in
   let matched = Hashtbl.create 16 in
@@ -351,7 +399,7 @@ let show path name =
 
 let () =
   let dry_run = ref false and mode = ref None and rest = ref [] and showing = ref false
-  and only = ref [] in
+  and only = ref [] and taking = ref false in
   Arg.parse [
     "--dry-run", Arg.Set dry_run, " report without writing";
     "--open", Arg.String (fun name -> mode := Some (Open name)), "MODULE open it in each file";
@@ -359,10 +407,12 @@ let () =
     "--only", Arg.String (fun names -> only := String.split_on_char ',' names),
       "NAME,... consider these definitions of SHARED only";
     "--show", Arg.Set showing, " print one definition's compared form";
+    "--take", Arg.Set taking, " rewrite List.filteri prefixes to List.take in FILE...";
   ] (fun argument -> rest := argument :: !rest)
     "dedupe [--dry-run] (--open MODULE | --qualify PREFIX) SHARED.ml FILE.ml...";
   load_cmts ();
   match !showing, !mode, List.rev !rest with
+  | _ when !taking -> take ~dry_run:!dry_run (List.rev !rest)
   | true, _, [path; name] -> show path name
   | false, Some mode, shared :: paths ->
       let shared = load shared in

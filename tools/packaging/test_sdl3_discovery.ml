@@ -15,18 +15,6 @@ type process_result =
 
 let fail format = Printf.ksprintf failwith format
 
-let read_file path =
-  let input = open_in_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_in_noerr input)
-    (fun () -> really_input_string input (in_channel_length input))
-
-let write_file path contents =
-  let output = open_out_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_out_noerr output)
-    (fun () -> output_string output contents)
-
 let rec remove_directory path =
   Sys.readdir path
   |> Array.iter (fun name ->
@@ -77,8 +65,8 @@ let run ~directory ~environment executable =
   in
   let _, status = Unix.waitpid [] pid in
   { status
-  ; stdout = read_file stdout_path
-  ; stderr = read_file stderr_path
+  ; stdout = Sdl3_lock.read_file stdout_path
+  ; stderr = Sdl3_lock.read_file stderr_path
   }
 
 let status_string = function
@@ -134,7 +122,7 @@ let atoms contents =
   loop [] 0
 
 let output_flags directory name =
-  read_file (Filename.concat directory name) |> atoms
+  Sdl3_lock.read_file (Filename.concat directory name) |> atoms
 
 let require_flag label flag flags =
   if not (List.mem flag flags)
@@ -165,7 +153,7 @@ let package_file ~root ~lock component =
   let library_directory = Filename.concat root (component.package ^ "-lib") in
   mkdir include_directory;
   mkdir library_directory;
-  write_file
+  Sdl3_lock.write_file
     (Filename.concat library_directory ("lib" ^ component.library ^ ".a")) "";
   let requires =
     if component.package = "sdl3" then "" else "Requires: sdl3\n"
@@ -186,7 +174,7 @@ let package_file ~root ~lock component =
       (Sdl3_lock.version_string (fake_version lock component))
       requires component.library component.private_library
   in
-  write_file (Filename.concat root (component.package ^ ".pc")) contents;
+  Sdl3_lock.write_file (Filename.concat root (component.package ^ ".pc")) contents;
   include_directory, library_directory
 
 let run_case_full ~root ~mode ?sanitizers ?include_override ?library_override component =
@@ -230,7 +218,7 @@ let run_case_full ~root ~mode ?sanitizers ?include_override ?library_override co
       expect_success component result;
       ( output_flags directory "c_flags.sexp"
       , output_flags directory "c_library_flags.sexp"
-      , read_file (Filename.concat directory "sdl3_probed.h") ))
+      , Sdl3_lock.read_file (Filename.concat directory "sdl3_probed.h") ))
 
 let run_case ~root ~mode ?sanitizers ?include_override ?library_override component =
   let cflags, libraries, _ =
@@ -300,7 +288,7 @@ let test_overrides root components =
       let library_directory = Filename.concat root (component.package ^ "-override-l") in
       mkdir include_directory;
       mkdir library_directory;
-      write_file
+      Sdl3_lock.write_file
         (Filename.concat library_directory ("lib" ^ component.library ^ ".a")) "";
       let cflags, libraries =
         run_case ~root ~mode:"dynamic" ~include_override:include_directory
