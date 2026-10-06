@@ -248,6 +248,72 @@ module Reverse = struct
   let factory = parameters_factory build
 end
 
+module Clean = struct
+  let overlaps_parameter = Parameter.choice ~equal:( = ) [
+      "Keep first", Rdk.Clean.Keep_first_overlap;
+      "Delete pairs", Rdk.Clean.Delete_overlap_pairs;
+    ]
+
+  type parameters = {
+    epsilon : float [@sop.default 1e-9] [@sop.label "Epsilon"]
+      [@sop.folder "Robustness"] [@sop.min 0.] [@sop.max 0.001]
+      [@sop.hard_min 0.];
+    remove_degenerate : bool [@sop.default true]
+      [@sop.label "Remove degenerate primitives"];
+    consolidate_distance : float [@sop.default 0.]
+      [@sop.label "Consolidate distance"] [@sop.min 0.] [@sop.max 0.1]
+      [@sop.hard_min 0.];
+    overlaps : Rdk.Clean.overlap_policy
+      [@sop.default Rdk.Clean.Keep_first_overlap]
+      [@sop.label "Overlaps"] [@sop.kind overlaps_parameter];
+    reverse_winding : bool [@sop.default false]
+      [@sop.label "Reverse winding"];
+    remove_nan_points : bool [@sop.default true]
+      [@sop.label "Remove non-finite points"];
+    remove_unused_points : bool [@sop.default true]
+      [@sop.label "Remove unused points"];
+    delete_unused_groups : bool [@sop.default true]
+      [@sop.label "Delete unused groups"];
+    point_attributes : string [@sop.default ""]
+      [@sop.label "Point attributes"] [@sop.folder "Delete attributes"];
+    vertex_attributes : string [@sop.default ""]
+      [@sop.label "Vertex attributes"] [@sop.folder "Delete attributes"];
+    primitive_attributes : string [@sop.default ""]
+      [@sop.label "Primitive attributes"] [@sop.folder "Delete attributes"];
+    detail_attributes : string [@sop.default ""]
+      [@sop.label "Detail attributes"] [@sop.folder "Delete attributes"];
+    point_groups : string [@sop.default ""] [@sop.label "Point groups"]
+      [@sop.folder "Delete groups"];
+    vertex_groups : string [@sop.default ""] [@sop.label "Vertex groups"]
+      [@sop.folder "Delete groups"];
+    primitive_groups : string [@sop.default ""] [@sop.label "Primitive groups"]
+      [@sop.folder "Delete groups"];
+    edge_groups : string [@sop.default ""] [@sop.label "Edge groups"]
+      [@sop.folder "Delete groups"];
+  } [@@sop.node_key "clean"] [@@sop.node_label "Clean"]
+    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 1]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.clean ~label ~epsilon:parameters.epsilon
+      ~remove_degenerate:parameters.remove_degenerate
+      ~consolidate_distance:parameters.consolidate_distance
+      ~overlaps:parameters.overlaps ~reverse_winding:parameters.reverse_winding
+      ~remove_nan_points:parameters.remove_nan_points
+      ~remove_unused_points:parameters.remove_unused_points
+      ~delete_unused_groups:parameters.delete_unused_groups
+      ?point_attributes:(optional_text parameters.point_attributes)
+      ?vertex_attributes:(optional_text parameters.vertex_attributes)
+      ?primitive_attributes:(optional_text parameters.primitive_attributes)
+      ?detail_attributes:(optional_text parameters.detail_attributes)
+      ?point_groups:(optional_text parameters.point_groups)
+      ?vertex_groups:(optional_text parameters.vertex_groups)
+      ?primitive_groups:(optional_text parameters.primitive_groups)
+      ?edge_groups:(optional_text parameters.edge_groups) input)
+
+  let factory = parameters_factory build
+end
+
 module Facet = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"];

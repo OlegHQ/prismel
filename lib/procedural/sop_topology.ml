@@ -41,11 +41,13 @@ module Edge_divide = struct
                 ~grain:(Context.grain context) ?edges ~divisions ~share_points
                 inputs.(0) with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Edge_collapse = struct
   let position_parameter = Parameter.choice ~equal:( = ) [
@@ -111,11 +113,13 @@ module Edge_collapse = struct
                 ~position
                 ~remove_degenerate_primitives ~recompute_point_normals geometry with
         | Ok geometry -> cooked geometry
-        | Error error -> structured_rdk_error error))
+        | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Dissolve = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
@@ -184,11 +188,13 @@ module Dissolve = struct
                 ~remove_unused_points ~create_boundary_curves ~recompute_normals
                 inputs.(0) with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Triangulate = struct
   type parameters = {
@@ -220,95 +226,14 @@ module Triangulate = struct
             match Rdk.Triangulate.run ~cancel:(Context.cancel_token context)
                 ~grain:(Context.grain context) ?primitives geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 
 end
 
-module Clean = struct
-  let overlaps_parameter = Parameter.choice ~equal:( = ) [
-      "Keep first", Rdk.Clean.Keep_first_overlap;
-      "Delete pairs", Rdk.Clean.Delete_overlap_pairs;
-    ]
-
-  type parameters = {
-    epsilon : float [@sop.default 1e-9] [@sop.label "Epsilon"]
-      [@sop.folder "Robustness"] [@sop.min 0.] [@sop.max 0.001]
-      [@sop.hard_min 0.];
-    remove_degenerate : bool [@sop.default true]
-      [@sop.label "Remove degenerate primitives"];
-    consolidate_distance : float [@sop.default 0.]
-      [@sop.label "Consolidate distance"] [@sop.min 0.] [@sop.max 0.1]
-      [@sop.hard_min 0.];
-    overlaps : Rdk.Clean.overlap_policy
-      [@sop.default Rdk.Clean.Keep_first_overlap]
-      [@sop.label "Overlaps"] [@sop.kind overlaps_parameter];
-    reverse_winding : bool [@sop.default false]
-      [@sop.label "Reverse winding"];
-    remove_nan_points : bool [@sop.default true]
-      [@sop.label "Remove non-finite points"] [@sop.arg_default (false)];
-    remove_unused_points : bool [@sop.default true]
-      [@sop.label "Remove unused points"] [@sop.arg_default (false)];
-    delete_unused_groups : bool [@sop.default true]
-      [@sop.label "Delete unused groups"] [@sop.arg_default (false)];
-    point_attributes : string [@sop.default ""]
-      [@sop.label "Point attributes"] [@sop.folder "Delete attributes"];
-    vertex_attributes : string [@sop.default ""]
-      [@sop.label "Vertex attributes"] [@sop.folder "Delete attributes"];
-    primitive_attributes : string [@sop.default ""]
-      [@sop.label "Primitive attributes"] [@sop.folder "Delete attributes"];
-    detail_attributes : string [@sop.default ""]
-      [@sop.label "Detail attributes"] [@sop.folder "Delete attributes"];
-    point_groups : string [@sop.default ""] [@sop.label "Point groups"]
-      [@sop.folder "Delete groups"];
-    vertex_groups : string [@sop.default ""] [@sop.label "Vertex groups"]
-      [@sop.folder "Delete groups"];
-    primitive_groups : string [@sop.default ""] [@sop.label "Primitive groups"]
-      [@sop.folder "Delete groups"];
-    edge_groups : string [@sop.default ""] [@sop.label "Edge groups"]
-      [@sop.folder "Delete groups"];
-  } [@@sop.node_key "clean"] [@@sop.node_label "Clean"]
-    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 1]
-    [@@sop.fn "clean"] [@@sop.args "?epsilon ?remove_degenerate ?consolidate_distance ?overlaps ?reverse_winding ?remove_nan_points ?remove_unused_points ?delete_unused_groups ?point_attributes ?vertex_attributes ?primitive_attributes ?detail_attributes ?point_groups ?vertex_groups ?primitive_groups ?edge_groups in0"]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    let label = Some label in
-    let epsilon = Some (parameters.epsilon) in
-    let remove_degenerate = parameters.remove_degenerate in
-    let consolidate_distance = Some (parameters.consolidate_distance) in
-    let overlaps = Some (parameters.overlaps) in
-    let reverse_winding = parameters.reverse_winding in
-    let remove_nan_points = parameters.remove_nan_points in
-    let remove_unused_points = parameters.remove_unused_points in
-    let delete_unused_groups = parameters.delete_unused_groups in
-    let point_attributes = optional_text parameters.point_attributes in
-    let vertex_attributes = optional_text parameters.vertex_attributes in
-    let primitive_attributes = optional_text parameters.primitive_attributes in
-    let detail_attributes = optional_text parameters.detail_attributes in
-    let point_groups = optional_text parameters.point_groups in
-    let vertex_groups = optional_text parameters.vertex_groups in
-    let primitive_groups = optional_text parameters.primitive_groups in
-    let edge_groups = optional_text parameters.edge_groups in
-    Node.Private.make ?label ~operation:"clean" ~version:2
-      ~parameters:""
-      ~cook_mode:(Node.Duplicate_input 0)
-      ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-      (fun ~node_id:_ context inputs ->
-        match Rdk.Clean.run ~cancel:(Context.cancel_token context)
-            ~grain:(Context.grain context) ?epsilon ~remove_degenerate
-            ?consolidate_distance ?overlaps ~reverse_winding ~remove_nan_points
-            ~remove_unused_points ~delete_unused_groups ?point_attributes
-            ?vertex_attributes ?primitive_attributes ?detail_attributes
-            ?point_groups ?vertex_groups ?primitive_groups ?edge_groups inputs.(0) with
-        | Ok geometry -> cooked geometry
-        | Error error -> structured_rdk_error error))
-
-  let factory = parameters_factory build
-  let fn = parameters_fn build
-end
 
 module Edge_flip = struct
   type parameters = {
@@ -350,11 +275,13 @@ module Edge_flip = struct
                 ~grain:(Context.grain context) ?edges ~cycles
                 ~cycle_vertex_attributes ~recompute_point_normals geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Edge_cusp = struct
   type parameters = {
@@ -390,11 +317,13 @@ module Edge_cusp = struct
                 ~grain:(Context.grain context) ?edges ~update_point_normals
                 geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Edge_straighten = struct
   type parameters = {
@@ -428,11 +357,13 @@ module Edge_straighten = struct
             match Rdk.Edge_ops.straighten ~cancel:(Context.cancel_token context)
                 ~grain:(Context.grain context) ?edges ?output_group geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Poly_extrude = struct
   let divide_parameter = Parameter.choice ~equal:( = ) [
@@ -517,11 +448,13 @@ module Poly_extrude = struct
                 ?back_group ?side_group ?front_boundary_group
                 ?back_boundary_group ~distance geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Poly_fill = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
@@ -574,11 +507,13 @@ module Poly_fill = struct
                 ~grain:(Context.grain context) ?boundary ~mode ~reverse_patches
                 ~unique_points ~update_point_normals ?patch_group geometry with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Convert_line = struct
   type parameters = {
@@ -631,11 +566,13 @@ module Convert_line = struct
                 ~make_isolated_loops_closed ~remove_unused_points
                 ?length_attribute inputs.(0) with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
 
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
+
 
 module Blast = struct
   type parameters = {
@@ -674,7 +611,8 @@ module Blast = struct
                 ~grain:(Context.grain context) ~selected ~compact_points ~policy
                 selection inputs.(0) with
             | Ok geometry -> cooked geometry
-            | Error error -> structured_rdk_error error))
+            | Error error -> structured_rdk_error error)
+  )
   let factory = parameters_factory build
 
   let create ?label:node_label ?(selected = parameters_default.selected)
@@ -684,3 +622,4 @@ module Blast = struct
       { parameters_default with selected; compact_points; owner; group }
   let fn = parameters_fn build
 end
+

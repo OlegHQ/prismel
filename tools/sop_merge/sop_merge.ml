@@ -50,7 +50,10 @@ let apply_edits src edits =
     Buffer.add_string b (String.sub src pos (s - pos)); Buffer.add_string b t; e) 0 edits in
   Buffer.add_string b (String.sub src pos (String.length src - pos));
   let out = Str.global_replace (Str.regexp "\n\n\n+") "\n\n" (Buffer.contents b) in
-  Str.global_replace (Str.regexp "[ \t\n]+\\'") "\n" out
+  (* one newline at the end *)
+  let n = ref (String.length out) in
+  while !n > 0 && (out.[!n - 1] = '\n' || out.[!n - 1] = ' ' || out.[!n - 1] = '\t') do decr n done;
+  String.sub out 0 !n ^ "\n"
 
 exception Skip of string
 let skip format = Printf.ksprintf (fun message -> raise (Skip message)) format
@@ -499,7 +502,8 @@ let merge ~dry name =
          (match catalog_label, p.label, p.default with
           | Asttypes.Optional _, Optional _, None | Labelled _, (Labelled _ | Nolabel), _ -> let_ arg_text
           | Labelled _, Optional _, Some _ -> let_ arg_text
-          | Labelled _, Optional _, None -> let_ ("Some (" ^ arg_text ^ ")")
+          | Labelled _, Optional _, None ->
+              skip "?%s has no typed default (None means the kernel default) but the editor always passes %s" p.name f
           | Optional _, Optional _, Some td ->
               let_ (Printf.sprintf "Option.value ~default:(%s) (%s)" (text sop_src td.pexp_loc) arg_text)
           | _ -> skip "argument %s: unsupported label combination" p.name)
@@ -605,11 +609,11 @@ let merge ~dry name =
       let count = ref 0 in
       let it = { Ast_iterator.default_iterator with
         expr = (fun self e ->
-          (match e.pexp_desc with
-           | Pexp_ident { txt = Lident v; _ } when v = name -> incr count
-           | _ -> ());
-          if not (match parameters_arg with Some p -> p == e | None -> false) then
-            Ast_iterator.default_iterator.expr self e) } in
+          if not (match parameters_arg with Some p -> p == e | None -> false) then begin
+            (match e.pexp_desc with
+             | Pexp_ident { txt = Lident v; _ } when v = name -> incr count
+             | _ -> ());
+            Ast_iterator.default_iterator.expr self e end) } in
       it.expr it final;
       !count in
     let rec lets = function

@@ -31,7 +31,6 @@ module Material = struct
   let factory = parameters_factory build
 end
 
-
 module Attribute_noise_quaternion = struct
   let encode_location = function
     | Rdk.Attribute_ops.Noise_position -> "position"
@@ -651,45 +650,6 @@ module Uv_unitize = struct
         ?seams:(optional_text parameters.seams)
         ~tolerance:parameters.tolerance ~uniform:parameters.uniform
         parameters.mode input)
-  let factory = parameters_factory build
-end
-
-module Uv_flatten = struct
-  type parameters = {
-    name : string [@sop.default "uv"] [@sop.label "UV attribute"];
-    seams : string [@sop.default ""] [@sop.label "Seam group"];
-    iterations : int [@sop.default 500] [@sop.label "Iterations"]
-      [@sop.min 1] [@sop.max 2000] [@sop.hard_min 1];
-    tolerance : float [@sop.default 1e-7] [@sop.label "Tolerance"]
-      [@sop.min 0.] [@sop.max 0.01] [@sop.hard_min 0.];
-  } [@@sop.node_key "uv_flatten"] [@@sop.node_label "UV Flatten"]
-    [@@sop.node_category "UV/Layout"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.uv_flatten ~label ~name:parameters.name
-        ?seams:(optional_text parameters.seams)
-        ~iterations:parameters.iterations ~tolerance:parameters.tolerance input)
-  let factory = parameters_factory build
-end
-
-module Uv_relax = struct
-  type parameters = {
-    name : string [@sop.default "uv"] [@sop.label "UV attribute"];
-    seams : string [@sop.default ""] [@sop.label "Seam group"];
-    uv_tolerance : float [@sop.default 1e-9] [@sop.label "UV tolerance"]
-      [@sop.min 0.] [@sop.max 0.01] [@sop.hard_min 0.];
-    iterations : int [@sop.default 500] [@sop.label "Iterations"]
-      [@sop.min 1] [@sop.max 2000] [@sop.hard_min 1];
-    tolerance : float [@sop.default 1e-7] [@sop.label "Tolerance"]
-      [@sop.min 0.] [@sop.max 0.01] [@sop.hard_min 0.];
-  } [@@sop.node_key "uv_relax"] [@@sop.node_label "UV Relax"]
-    [@@sop.node_category "UV/Layout"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.uv_relax ~label ~name:parameters.name
-        ?seams:(optional_text parameters.seams)
-        ~uv_tolerance:parameters.uv_tolerance
-        ~iterations:parameters.iterations ~tolerance:parameters.tolerance input)
   let factory = parameters_factory build
 end
 
@@ -1327,58 +1287,6 @@ module Delete_attributes = struct
       ?vertex_pattern:(optional_text parameters.vertex_pattern)
       ?primitive_pattern:(optional_text parameters.primitive_pattern)
       ?detail_pattern:(optional_text parameters.detail_pattern) input)
-  let factory = parameters_factory build
-end
-
-module Rename_attributes = struct
-  let conflict_token = function
-    | Rdk.Attribute_ops.Attribute_rename_skip -> "skip"
-    | Rdk.Attribute_ops.Attribute_rename_error -> "error"
-    | Rdk.Attribute_ops.Attribute_rename_overwrite -> "overwrite"
-  let conflict_of_token = function
-    | "skip" -> Ok Rdk.Attribute_ops.Attribute_rename_skip
-    | "error" -> Ok Rdk.Attribute_ops.Attribute_rename_error
-    | "overwrite" -> Ok Rdk.Attribute_ops.Attribute_rename_overwrite
-    | token -> Error (Printf.sprintf
-        "unknown attribute rename conflict %S" token)
-  let encode_rule (rule : Rdk.Attribute_ops.rename_rule) = [
-      (match rule.rename_attribute_owner with None -> "any"
-       | Some owner -> attribute_owner_token owner);
-      rule.rename_attribute_pattern; rule.rename_attribute_replacement;
-      conflict_token rule.rename_attribute_conflict;
-    ]
-  let decode_rule = function
-    | [owner; pattern; replacement; conflict] ->
-        let owner = String.lowercase_ascii (String.trim owner)
-        and conflict = String.lowercase_ascii (String.trim conflict) in
-        let owner = if owner = "any" || owner = "*" then Ok None
-          else Result.map Option.some (attribute_owner_of_token owner) in
-        Result.bind owner (fun rename_attribute_owner ->
-          Result.map (fun rename_attribute_conflict -> {
-            Rdk.Attribute_ops.rename_attribute_owner;
-            rename_attribute_pattern = pattern;
-            rename_attribute_replacement = replacement;
-            rename_attribute_conflict }) (conflict_of_token conflict))
-    | row -> Error (Printf.sprintf
-        "Attribute Rename rule needs owner, pattern, replacement, and conflict; got %d columns"
-        (List.length row))
-  let decode text = Result.bind (decode_table text) (fun rows ->
-      List.fold_left (fun result row -> Result.bind result (fun rules ->
-        Result.map (fun rule -> rule :: rules) (decode_rule row))) (Ok []) rows
-      |> Result.map List.rev)
-  let rules_parameter = Parameter.encoded ~equal:( = )
-      ~encode:(fun rules -> encode_table (List.map encode_rule rules)) ~decode
-  type parameters = {
-    rules : Rdk.Attribute_ops.rename_rule list [@sop.default []]
-      [@sop.label "Rules (owner, pattern, replacement, conflict)"]
-      [@sop.kind rules_parameter];
-  } [@@sop.node_key "rename_attributes"]
-    [@@sop.node_operation "attribute_rename_pattern"]
-    [@@sop.node_label "Rename Attributes"]
-    [@@sop.node_category "Attribute/Manage"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.rename_attributes ~label ~rules:parameters.rules input)
   let factory = parameters_factory build
 end
 

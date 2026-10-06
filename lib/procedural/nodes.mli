@@ -29,7 +29,6 @@ module Edge_divide : sig val factory : Edit_graph.factory end
 module Edge_collapse : sig val factory : Edit_graph.factory end
 module Dissolve : sig val factory : Edit_graph.factory end
 module Triangulate : sig val factory : Edit_graph.factory end
-module Clean : sig val factory : Edit_graph.factory end
 module Edge_flip : sig val factory : Edit_graph.factory end
 module Edge_cusp : sig val factory : Edit_graph.factory end
 module Edge_straighten : sig val factory : Edit_graph.factory end
@@ -43,3 +42,10 @@ module Blast : sig
     owner:Rdk.Group.owner -> group:string ->
     Node.t -> Node.t
 end
+module Uv_flatten : sig val factory : Edit_graph.factory end
+module Uv_relax : sig val factory : Edit_graph.factory end
+module Rename_attributes : sig val factory : Edit_graph.factory end
+module Line : sig val factory : Edit_graph.factory end
+module Mirror : sig val factory : Edit_graph.factory end
+module Match_axis : sig val factory : Edit_graph.factory end
+module Noise_displace : sig val factory : Edit_graph.factory end

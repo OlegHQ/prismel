@@ -107,25 +107,7 @@ let point_generate_origin ?label ?generated_group
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let line_kind_key = function
-  | Rdk.Line_geometry.Line_curve -> "curve"
-  | Rdk.Line_geometry.Line_points -> "points"
-
-let line ?label ?(kind = Rdk.Line_geometry.Line_curve) ?(points = 2)
-    ~origin ~direction ~length () =
-  let origin = vec3_copy origin and direction = vec3_copy direction in
-  Node.Private.make ?label ~operation:"line" ~version:1
-    ~parameters:(Printf.sprintf
-      "kind=%s;points=%d;origin=%s;direction=%s;length=%s"
-      (line_kind_key kind) points (vec3_key origin) (vec3_key direction)
-      (float_key length))
-    ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
-    ~inputs:[||] (fun ~node_id:_ context _inputs ->
-      match Rdk.Line_geometry.line ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~kind ~points ~origin ~direction
-          ~length () with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let line = Sop_shapes.Line.fn
 
 let polyline ?label ?(closed = false) values =
   let values = Array.copy values in
@@ -1041,18 +1023,7 @@ let snap_to_grid ?label ?group ?(spacing = Vec3.create 1. 1. 1.)
            | Ok geometry -> cooked geometry
            | Error error -> structured_rdk_error error))
 
-let mirror ?label ?(keep_original = true) ~origin ~normal input =
-  let origin = vec3_copy origin and normal = vec3_copy normal in
-  Node.Private.make ?label ~operation:"mirror" ~version:1
-    ~parameters:(Printf.sprintf "origin=%s;normal=%s;keep_original=%b"
-      (vec3_key origin) (vec3_key normal) keep_original)
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      match Rdk.Mirror_geometry.run ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~keep_original ~origin ~normal inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let mirror = Sop_shapes.Mirror.fn
 
 let clip_keep_key = function
   | Rdk.Plane_clip.Above -> "above"
@@ -3230,7 +3201,50 @@ let smooth ?label ?group ?constrained_points
                | Ok geometry -> cooked geometry
                | Error error -> structured_rdk_error error))
 
-let clean = Sop_topology.Clean.fn
+let clean_overlap_key = function
+  | Rdk.Clean.Keep_first_overlap -> "keep_first"
+  | Rdk.Clean.Delete_overlap_pairs -> "delete_pairs"
+
+let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
+    ?overlaps ?(reverse_winding = false) ?(remove_nan_points = false)
+    ?(remove_unused_points = false) ?(delete_unused_groups = false)
+    ?point_attributes ?vertex_attributes ?primitive_attributes ?detail_attributes
+    ?point_groups ?vertex_groups ?primitive_groups ?edge_groups input =
+  let epsilon_key = match epsilon with
+    | None -> "default" | Some value -> float_key value in
+  let distance_key = match consolidate_distance with
+    | None -> "none" | Some value -> float_key value in
+  let overlap_key = match overlaps with
+    | None -> "none" | Some value -> clean_overlap_key value in
+  Node.Private.make ?label ~operation:"clean" ~version:2
+    ~parameters:(String.concat ";" [
+      "epsilon=" ^ epsilon_key;
+      "remove_degenerate=" ^ string_of_bool remove_degenerate;
+      "consolidate_distance=" ^ distance_key;
+      "overlaps=" ^ overlap_key;
+      "reverse_winding=" ^ string_of_bool reverse_winding;
+      "remove_nan_points=" ^ string_of_bool remove_nan_points;
+      "remove_unused_points=" ^ string_of_bool remove_unused_points;
+      "delete_unused_groups=" ^ string_of_bool delete_unused_groups;
+      "point_attributes=" ^ option_string_key point_attributes;
+      "vertex_attributes=" ^ option_string_key vertex_attributes;
+      "primitive_attributes=" ^ option_string_key primitive_attributes;
+      "detail_attributes=" ^ option_string_key detail_attributes;
+      "point_groups=" ^ option_string_key point_groups;
+      "vertex_groups=" ^ option_string_key vertex_groups;
+      "primitive_groups=" ^ option_string_key primitive_groups;
+      "edge_groups=" ^ option_string_key edge_groups])
+    ~cook_mode:(Node.Duplicate_input 0)
+    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+    (fun ~node_id:_ context inputs ->
+      match Rdk.Clean.run ~cancel:(Context.cancel_token context)
+          ~grain:(Context.grain context) ?epsilon ~remove_degenerate
+          ?consolidate_distance ?overlaps ~reverse_winding ~remove_nan_points
+          ~remove_unused_points ~delete_unused_groups ?point_attributes
+          ?vertex_attributes ?primitive_attributes ?detail_attributes
+          ?point_groups ?vertex_groups ?primitive_groups ?edge_groups inputs.(0) with
+      | Ok geometry -> cooked geometry
+      | Error error -> structured_rdk_error error)
 
 let facet ?label ?group ?selection ?(pre_compute_normals = false)
     ?(make_normals_unit_length = false) ?(unique_points = false)
@@ -4137,58 +4151,9 @@ let uv_unitize ?label ?(name = "uv") ?group ?seams ?(tolerance = 1e-9)
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let uv_parameterize_seams operation input = function
-  | None -> Ok (None, None)
-  | Some group_name ->
-      (match Rdk.Geometry.find_edge_group group_name input with
-       | Some value -> Ok (Some value, None)
-       | None ->
-           match Rdk.Geometry.find_group ~owner:Rdk.Group.Vertex group_name input with
-           | Some value -> Ok (None, Some value)
-           | None -> Error (Diagnostic.error ~code:"missing_group"
-               ~hints:["Create a native edge group or compatibility vertex-edge group before " ^ operation]
-               (Printf.sprintf "%s could not find edge or vertex seam group %S"
-                 operation group_name)))
+let uv_flatten = Sop_attributes.Uv_flatten.fn
 
-let uv_flatten ?label ?(name = "uv") ?seams ?(iterations = 500)
-    ?(tolerance = 1e-7) input =
-  if String.trim name = "" then invalid_arg "Sop.uv_flatten: empty attribute name";
-  Option.iter (fun value -> if String.trim value = "" then
-    invalid_arg "Sop.uv_flatten: empty seam group name") seams;
-  Node.Private.make ?label ~operation:"uv_flatten" ~version:1
-    ~parameters:(Printf.sprintf "name=%S;seams=%S;iterations=%d;tolerance=%s"
-      name (Option.value ~default:"" seams) iterations (float_key tolerance))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match uv_parameterize_seams "uv_flatten" inputs.(0) seams with
-      | Error _ as error -> error
-      | Ok (edge_seams, seams) ->
-          match Rdk.Uv_ops.flatten ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ~name ?seams ?edge_seams
-              ~iterations ~tolerance inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
-
-let uv_relax ?label ?(name = "uv") ?seams ?(uv_tolerance = 1e-9)
-    ?(iterations = 500) ?(tolerance = 1e-7) input =
-  if String.trim name = "" then invalid_arg "Sop.uv_relax: empty attribute name";
-  Option.iter (fun value -> if String.trim value = "" then
-    invalid_arg "Sop.uv_relax: empty seam group name") seams;
-  Node.Private.make ?label ~operation:"uv_relax" ~version:1
-    ~parameters:(Printf.sprintf
-      "name=%S;seams=%S;uv_tolerance=%s;iterations=%d;tolerance=%s"
-      name (Option.value ~default:"" seams) (float_key uv_tolerance)
-      iterations (float_key tolerance))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match uv_parameterize_seams "uv_relax" inputs.(0) seams with
-      | Error _ as error -> error
-      | Ok (edge_seams, seams) ->
-          match Rdk.Uv_ops.relax ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ~name ?seams ?edge_seams
-              ~uv_tolerance ~iterations ~tolerance inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let uv_relax = Sop_attributes.Uv_relax.fn
 
 let promote_method_key = function
   | Rdk.Attribute_ops.First -> "first"
@@ -5060,38 +5025,7 @@ let delete_attributes ?label ?reference ?(delete_non_selected = false)
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let attribute_rename_conflict_key = function
-  | Rdk.Attribute_ops.Attribute_rename_skip -> "skip"
-  | Rdk.Attribute_ops.Attribute_rename_error -> "error"
-  | Rdk.Attribute_ops.Attribute_rename_overwrite -> "overwrite"
-
-let attribute_rename_rule_key (rule : Rdk.Attribute_ops.rename_rule) =
-  String.concat ":" [
-    (match rule.rename_attribute_owner with
-     | None -> "any"
-     | Some owner -> attribute_owner_key owner);
-    String.escaped rule.rename_attribute_pattern;
-    String.escaped rule.rename_attribute_replacement;
-    attribute_rename_conflict_key rule.rename_attribute_conflict]
-
-let rename_attributes ?label ~rules input =
-  let rules = List.map (fun (rule : Rdk.Attribute_ops.rename_rule) ->
-      match Rdk.Attribute_pattern.compile_rewrite
-          ~pattern:rule.rename_attribute_pattern
-          ~replacement:rule.rename_attribute_replacement with
-      | Ok _ -> rule
-      | Error message -> invalid_arg ("Sop.rename_attributes: " ^ message))
-      rules in
-  Node.Private.make ?label ~operation:"attribute_rename_pattern" ~version:1
-    ~parameters:("rules=" ^ String.concat ","
-      (List.map attribute_rename_rule_key rules))
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      match Rdk.Attribute_ops.rename ~cancel:(Context.cancel_token context)
-          ~rules inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let rename_attributes = Sop_attributes.Rename_attributes.fn
 
 let attribute_swap_method_key = function
   | Rdk.Attribute_ops.Attribute_swap -> "swap"
@@ -5556,15 +5490,7 @@ let match_size_fit_key = function
   | Rdk.Match_size.Match_area -> "match_area"
   | Rdk.Match_size.Match_volume -> "match_volume"
 
-let match_axis ?label ~from ~into input =
-  let from = vec3_copy from and into = vec3_copy into in
-  Node.Private.make ?label ~operation:"match_axis" ~version:1
-    ~parameters:(Printf.sprintf "from=%s;into=%s" (vec3_key from) (vec3_key into))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Match_size.match_axis ~grain:(Context.grain context) ~from ~into inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let match_axis = Sop_shapes.Match_axis.fn
 
 let sort ?label ?group ?(descending = false) ?output_indices
     ?(combine_indices = false) ~owner ~key input =
@@ -6661,26 +6587,7 @@ let attribute_remap ?label ?group ?into
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let noise_displace ?label ?seed ~amplitude ~frequency input =
-  let dependencies = match seed with
-    | Some _ -> Context.Dependencies.static
-    | None -> Context.Dependencies.one Context.Dependencies.Seed
-  in
-  let parameters = Printf.sprintf "amplitude=%s;frequency=%s;seed=%s"
-      (float_key amplitude) (float_key frequency)
-      (match seed with None -> "context" | Some seed -> string_of_int seed) in
-  let stable_identity = Option.map (fun label ->
-    stable_string_hash ("noise_displace:" ^ label)) label in
-  Node.Private.make ?label ~operation:"noise_displace" ~version:1 ~parameters
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
-    (fun ~node_id context inputs ->
-      let identity = Option.value ~default:(Int64.of_int node_id) stable_identity in
-      let seed = Option.value ~default:(mixed_seed context identity) seed in
-      match Rdk.Deform.noise_displace ~grain:(Context.grain context)
-          ~cancel:(Context.cancel_token context)
-          ~amplitude ~frequency ~seed inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let noise_displace = Sop_shapes.Noise_displace.fn
 
 let color_by_height ?label ~low ~high input =
   let parameters = Printf.sprintf "low=%s;high=%s"

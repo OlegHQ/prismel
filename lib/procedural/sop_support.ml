@@ -164,3 +164,16 @@ let delete_topology_policy_parameter = Parameter.choice ~equal:( = ) [
     "Destroy touched primitives", Rdk.Deletion.Destroy_touched_primitives;
     "Heal primitives", Rdk.Deletion.Heal_primitives;
   ]
+
+let uv_parameterize_seams operation input = function
+  | None -> Ok (None, None)
+  | Some group_name ->
+      (match Rdk.Geometry.find_edge_group group_name input with
+       | Some value -> Ok (Some value, None)
+       | None ->
+           match Rdk.Geometry.find_group ~owner:Rdk.Group.Vertex group_name input with
+           | Some value -> Ok (None, Some value)
+           | None -> Error (Diagnostic.error ~code:"missing_group"
+               ~hints:["Create a native edge group or compatibility vertex-edge group before " ^ operation]
+               (Printf.sprintf "%s could not find edge or vertex seam group %S"
+                 operation group_name)))

@@ -23,8 +23,7 @@ let from_factory factory values inputs =
   let node = Edit_graph.instantiate factory inputs |> get in
   fst (Node.apply_parameters node values |> get)
 
-let same_cook ?(inputs = []) name ~typed ~factory values input =
-  let catalog = from_factory factory values (input :: inputs) in
+let same_node name ~typed ~catalog =
   check (Node.parameter_key typed = Node.parameter_key catalog && Node.parameter_key typed <> "")
     (name ^ ": typed constructor and factory share the schema key");
   let one = cook 1 typed in
@@ -33,6 +32,12 @@ let same_cook ?(inputs = []) name ~typed ~factory values input =
     [ "typed at four domains", cook 4 typed;
       "factory at one domain", cook 1 catalog;
       "factory at four domains", cook 4 catalog ]
+
+let same_cook ?(inputs = []) name ~typed ~factory values input =
+  same_node name ~typed ~catalog:(from_factory factory values (input :: inputs))
+
+let same_generator name ~typed ~factory values =
+  same_node name ~typed ~catalog:(from_factory factory values [])
 
 (* A value that differs from [current] and stays inside the hard range. *)
 let changed (view : Parameter.field_view) = match view.kind, view.current with
@@ -163,11 +168,6 @@ let run () =
       "remove_inline_points", Bool_value false; "collinearity_tolerance", Float_value 0. ] edges;
   let triangulated = Sop.triangulate quads in
   same_cook "triangulate" ~typed:triangulated ~factory:Nodes.Triangulate.factory [] quads;
-  let cleaned = Sop.clean ~consolidate_distance:0.05 warped in
-  same_cook "clean" ~typed:cleaned ~factory:Nodes.Clean.factory
-    [ "consolidate_distance", Parameter.Float_value 0.05;
-      "remove_nan_points", Bool_value false; "remove_unused_points", Bool_value false;
-      "delete_unused_groups", Bool_value false ] warped;
   let flipped = Sop.edge_flip ~cycles:1 box in
   same_cook "edge_flip" ~typed:flipped ~factory:Nodes.Edge_flip.factory [] box;
   let cusped = Sop.edge_cusp ~group:"rim" edges in
@@ -190,9 +190,34 @@ let run () =
     [ "group", Parameter.Text_value "half" ] grouped;
   List.iter (fun (name, node) -> cache_identity name node)
     [ "edge_divide", divided; "edge_collapse", collapsed; "dissolve", dissolved;
-      "triangulate", triangulated; "clean", cleaned; "edge_flip", flipped; "edge_cusp", cusped;
+      "triangulate", triangulated; "edge_flip", flipped; "edge_cusp", cusped;
       "edge_straighten", straightened; "poly_extrude", extruded; "poly_fill", filled;
       "convert_line", lines; "blast", blasted ];
+  (* attribute and shape nodes *)
+  let flat = Sop.grid ~columns:4 ~rows:4 ~size:2. () in
+  let flattened = Sop.uv_flatten ~name:"uv" flat in
+  same_cook "uv_flatten" ~typed:flattened ~factory:Nodes.Uv_flatten.factory [] flat;
+  let relaxed = Sop.uv_relax ~iterations:10 flattened in
+  same_cook "uv_relax" ~typed:relaxed ~factory:Nodes.Uv_relax.factory
+    [ "iterations", Parameter.Int_value 10 ] flattened;
+  let renamed_attributes = Sop.rename_attributes ~rules:[] warped in
+  same_cook "rename_attributes" ~typed:renamed_attributes ~factory:Nodes.Rename_attributes.factory
+    [] warped;
+  let line = Sop.line ~points:5 ~origin:Vec3.zero ~direction:Vec3.unit_y ~length:2. () in
+  same_generator "line" ~typed:line ~factory:Nodes.Line.factory
+    [ "points", Parameter.Int_value 5; "length", Float_value 2. ];
+  let mirrored = Sop.mirror ~keep_original:false ~origin:Vec3.zero ~normal:Vec3.unit_x box in
+  same_cook "mirror" ~typed:mirrored ~factory:Nodes.Mirror.factory
+    [ "keep_original", Parameter.Bool_value false ] box;
+  let matched = Sop.match_axis ~from:Vec3.unit_y ~into:Vec3.unit_x box in
+  same_cook "match_axis" ~typed:matched ~factory:Nodes.Match_axis.factory
+    [ "into_x", Parameter.Float_value 1.; "into_y", Float_value 0. ] box;
+  let displaced = Sop.noise_displace ~seed:3 ~amplitude:0.2 ~frequency:2. warped in
+  same_cook "noise_displace" ~typed:displaced ~factory:Nodes.Noise_displace.factory
+    [ "seed", Parameter.Int_value 3; "amplitude", Float_value 0.2; "frequency", Float_value 2. ] warped;
+  List.iter (fun (name, node) -> cache_identity name node)
+    [ "uv_flatten", flattened; "uv_relax", relaxed; "rename_attributes", renamed_attributes;
+      "line", line; "mirror", mirrored; "match_axis", matched; "noise_displace", displaced ];
   List.iter (fun (name, node) -> cache_identity name node)
     [ "group_non_planar", non_planar; "group_backface", backface; "group_unshared", unshared;
       "group_edges", edges; "group_random", random; "group_edge_depth", depth;
