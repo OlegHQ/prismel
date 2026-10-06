@@ -1,6 +1,6 @@
 # Workspace case studies
 
-**Proposal, 30 September 2026.** These are the reference programs for sketches
+**Status: implemented.** These are the reference programs for sketches
 that use iteration, scopes, groups, functions, records, lists, branches and macros. Each isolates one construct. The
 [study](prototype/index.html) opens every one of them: pick it from the case
 menu or from its gallery card. The design they exercise is in
@@ -9,8 +9,7 @@ menu or from its gallery card. The design they exercise is in
 
 This file is generated from `prototype/cases.js`, so the Lisp here is
 exactly what the study checks. Each is shown as the `sketch.rays` file
-that dune would compile (plan W11). Today’s `[%flow]` accepts one `graph`
-inside OCaml and does not yet have loops or graph inputs. Studies without an
+that dune compiles (`sketches/ws_*/sketch.rays` are the checked-in ones). Studies without an
 editor graph get the study’s default shell and scene when opened.
 
 | Case | Construct | Iterations |
@@ -240,7 +239,7 @@ Time t is a live input. A node that depends on it carries a ◷ t mark and recoo
 
 **An implementation must show**
 
-- Playback recooks only the live cone: over 600 fixed-step frames `base` and `plinth` miss the cache once and never again, and no static entry is evicted (W2b).
+- Playback recooks only the live cone: over 600 fixed-step frames `base` and `plinth` miss the cache once and never again, and no static entry is evicted.
 - `(range (+ moons (floor (* 2 (sin t)))))` is E_TIME_COUNT at `moons_each`; `(if (> (sin t) 0.5) (sop/merge moons_each) plinth)` is E_TIME_BRANCH.
 - The number of primitives is the same at every t; a fixed-step export is byte-identical at 1 and 3 domains.
 
@@ -561,4 +560,4 @@ radial is a macro: a template with holes. Its first hole is a name the caller ch
 
 Note: `sop/transform` takes `:rotate` while the generators take `:rotation`.
 This is a catalog naming difference, not a bug; add aliases only if users
-complain (plan W0 item 5).
+complain.

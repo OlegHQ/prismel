@@ -160,9 +160,10 @@ apply to the pane you clicked last.
 | `Space t` / `g` / `i` | toggle timeline / graph / inspector |
 | `Space h` / `Space c` | hide all UI / camera section |
 | `Space p` / `r` / `x` | play-pause / reset / stop |
-| `Space a` / `l` / `f` (graph) | add node / layout / frame displayed tile |
+| `Space a` / `Space f` (graph) | add node / frame displayed tile |
+| `Space o` / `Space l` / `Space [` | split, close or float the focused panel / retype it / switch layout |
 | `Space w` / `Space v` (3D view) | fly (WASD, Q/E, Shift, wheel; Esc) / look through render camera |
-| `F` (graph / viewport) | frame the displayed tile / focus the camera on the displayed node |
+| `F` (graph / viewport) | frame the selected nodes / focus the camera on the displayed node |
 | `Home`, Delete, Cmd/Ctrl-C/V/X/D/Z | frame all tiles, delete, clipboard, undo |
 | right click | context menu (right drag pans) |
 
@@ -210,7 +211,7 @@ lib/rdk/              packed geometry/topology core
 lib/procedural/       immutable SOP graphs
 lib/pxui*/            UI and graph presentation
 lib/sketch_support/   target-neutral sketch helpers
-lib/rays_editor/        interactive sketch environments
+lib/rays_editor/        Rays Editor, the interactive sketch environment
 lib/rays_pathtracer/ Metal ray-tracing path tracer
 examples/             self-contained examples
 sketches/             experimental native applications
@@ -288,7 +289,8 @@ generation does not use Python glue.
 - [Native backend](specification/backend.md)
 - [Graphics](specification/graphics.md)
 - [3D rendering](specification/3d.md)
-- [Resources](specification/assets.md)
+- [Images](specification/image.md) and [audio](specification/audio.md)
+- [Rays Flow, the workspace editor](specification/flow.md)
 - [Input and events](specification/input.md)
 - [SDL3 bindings](specification/sdl3.md)
 - [Metal bindings](specification/metal.md)
