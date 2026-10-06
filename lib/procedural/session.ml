@@ -238,7 +238,7 @@ let rec evaluate memo session context node =
       Hashtbl.add memo (Node.id node) (node, result);
       result
 
-(* A zone node (plan W8) cooks the sub-graph of each element through this
+(* A zone node cooks the sub-graph of each element through this
    session, so an unchanged element is a cache hit, then merges their outputs.
    ponytail: sequential over elements; parallelise with [Parallel.map_array]
    only after a byte-identical test and a bench show a win. *)

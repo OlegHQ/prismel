@@ -1,4 +1,4 @@
-(** Probes and footers (plan W5): what a recording evaluation
+(** Probes and footers: what a recording evaluation
     ({!Flow.Eval.static} [~record:true]) saw at each path, per iteration tuple,
     and the text and numbers a node footer, the iteration counts and the
     inspector's per-iteration list show.  No drawing here.
@@ -27,7 +27,7 @@ val make :
   ?element:(path -> int -> (string * Flow.Eval.value) list option) -> Flow.Eval.t -> t
 (** [time] forces live (residual) values on lookup; [geometry] maps a plan
     node id to its cooked counts; [dynamic] gives the element count a loop over
-    geometry ran over in the last cook (plan W8): {!counts} reports it, and a
+    geometry ran over in the last cook: {!counts} reports it, and a
     node inside such a loop reads its one template record at every element.  [element zone k]
     names element [k] of that loop and gives its value (a point's position): the template's
     element-dependent values are then forced for it (without it they read [?]). *)

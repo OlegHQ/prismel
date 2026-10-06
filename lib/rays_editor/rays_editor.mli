@@ -611,7 +611,7 @@ module Reduce : sig
     Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t
 end
 
-(** A [.rays] sketch as a program (plan W11).  Command-S rewrites the file when it is
+(** A [.rays] sketch as a program.  Command-S rewrites the file when it is
     still the text the document came from (comments intact), else saves a preset;
     an edit of the file from any editor reloads the running document as one history
     entry, "Reload <file>", and a file that does not check leaves the last good

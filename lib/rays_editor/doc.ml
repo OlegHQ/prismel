@@ -52,7 +52,7 @@ let syntax_batch ~factories (doc : Editor_document.Document.t) ops =
   List.fold_left (fun doc op -> Result.bind doc (fun doc -> syntax_edit ~factories doc op))
     (Result.map_error Fun.id first) ops
 
-(* The whole workspace text, edited (plan W7): parsed and checked as a
+(* The whole workspace text, edited: parsed and checked as a
    document, lowered, atomic. *)
 let text_edit ~factories (doc : Editor_document.Document.t) text =
   let workspace, _ = doc.workspace in

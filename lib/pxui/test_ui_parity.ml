@@ -70,7 +70,7 @@ let check_overlays () =
     failwith "PXUI modal/picker/context menu drifted from fixtures/kit_overlays_2x.png"
   else print_endline "PXUI overlay parity: exact"
 
-(* The graph pane's zone tokens (plan W4): for, fold, sum, a hollow dashed fn
+(* The graph pane's zone tokens: for, fold, sum, a hollow dashed fn
    zone and a let scope, with the socket colours of lists and functions. *)
 let zones ui =
   let theme = Pxui.Ui.theme ui in

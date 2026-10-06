@@ -1,4 +1,4 @@
-(* rays-lisp: check, ml, source, dune and fmt for .rays sketches (plan W11).
+(* rays-lisp: check, ml, source, dune and fmt for .rays sketches.
    Stdlib and Arg only; the catalog is the in-process one. *)
 module S = Flow.Syntax
 module D = Flow.Diagnostic

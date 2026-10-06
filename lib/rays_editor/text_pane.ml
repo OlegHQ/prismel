@@ -1,4 +1,4 @@
-(* The workspace text pane (plan W7): three tabs over the Lisp text.
+(* The workspace text pane: three tabs over the Lisp text.
    Selection prints the selected binding's top-level ancestor with its upstream
    closure and marks the selection; Graph prints the active graph; Document is
    the whole workspace, an editable draft with an atomic Check and apply.  The

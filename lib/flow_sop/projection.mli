@@ -1,4 +1,4 @@
-(** The graph pane's view of a checked workspace (plan W4): nodes, zones,
+(** The graph pane's view of a checked workspace: nodes, zones,
     rows, chips and their layout, with no drawing.  A port of the study's
     [buildView] / [buildScope] / [mkNode] / [argRows] (e1.js) and
     [layoutScope] / [nodeSize] / [place] (e2.js).

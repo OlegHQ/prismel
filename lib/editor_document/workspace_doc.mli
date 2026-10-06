@@ -1,5 +1,5 @@
 (** The v4 document: a checked workspace, its layout keyed by path and the
-    sketch settings (plan W3).  UI-free.  The source text is the authored
+    sketch settings.  UI-free.  The source text is the authored
     truth; [checked] is derived from it and every edit re-checks atomically.
 
     The persisted text is the workspace form itself followed by optional

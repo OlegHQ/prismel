@@ -1,4 +1,4 @@
-(* Viewport provenance (plan W6).  Every collecting merge of a workspace tags
+(* Viewport provenance.  Every collecting merge of a workspace tags
    its primitives with [Flow_sop.Lower.tag]; this module reads the tag back
    from the displayed geometry, casts a CPU ray to find the primitive under the
    pointer, and tints the primitives of the probed iteration.

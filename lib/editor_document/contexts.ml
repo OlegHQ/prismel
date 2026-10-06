@@ -1,4 +1,4 @@
-(* The scene, world and settings contexts of a workspace (plan W10, part A).
+(* The scene, world and settings contexts of a workspace.
 
    Their Lisp spellings are generated from the schemas that exist: one kind
    per object factory ([scene/geometry], [scene/light], [scene/camera]), per

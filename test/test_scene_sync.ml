@@ -1,4 +1,4 @@
-(* Edits of the derived scene and World are edits of the text (plan W10): each kind of change
+(* Edits of the derived scene and World are edits of the text: each kind of change
    (an object's field, an inline object, a rename, a reparent, a delete, the render camera, the
    World node, its layers, a preset, settings, and objects only the host made) goes through
    [Scene_sync.reconcile], and the text it leaves lowers to the same document (by labels). *)

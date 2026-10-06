@@ -1,4 +1,4 @@
-(** Lowering of a checked workspace to SOP networks (plan W2).
+(** Lowering of a checked workspace to SOP networks.
 
     {!workspace} checks the source ({!Flow.Workspace.check}), evaluates every
     non-geometry term ({!Flow.Eval.static}) and turns the geometry plan into
@@ -32,9 +32,8 @@
       and the call makes no plan node.
 
     A parameter that depends on [t] cooks at [t = 0] in the literal network
-    and is listed in {!t.pending}; every network also carries one
-    {!Drive.Live} drive per pending argument of its nodes, keyed (compiled id,
-    argument name), which {!Value_lane.resolve} evaluates for each time.
+    and is listed in {!t.pending}, keyed (compiled id, argument name), which
+    {!Value_lane.resolve} evaluates for each time.
     [sop/curve] lowers to {!Curve.factory} (a text-encoded [points]
     parameter), so a live list is one drive. *)
 

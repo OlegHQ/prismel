@@ -1,4 +1,4 @@
-(** Edits of the derived scene and World, written back to the workspace text (plan W10).
+(** Edits of the derived scene and World, written back to the workspace text.
 
     The scene list, the inspector, the handles and the World keys edit a document's derived
     objects; the text is the truth, so every such edit goes through {!reconcile}. *)

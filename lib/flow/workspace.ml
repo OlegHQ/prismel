@@ -122,7 +122,7 @@ let ops = [
   mk ~octx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
   mk ~octx:Material ~kw:["name", Ty.Text; "color", Ty.Color;
     "roughness", Ty.Float; "emission", Ty.Color] "material/standard" [] (fun _ -> Ty.Material);
-  (* a world graph is authoritative (plan W10): this is how its text says there is no World *)
+  (* a world graph is authoritative: this is how its text says there is no World *)
   mk ~octx:World "world/none" [] (fun _ -> Ty.World);
   mk ~octx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
   leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.Scene ];

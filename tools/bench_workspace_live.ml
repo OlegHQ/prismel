@@ -1,4 +1,4 @@
-(* Live workspace playback (plan W2b).
+(* Live workspace playback.
    dune exec tools/bench_workspace_live.exe -- [frames] [domains] [cases-dir]
    Per case: p50 / p99 frame cost split into resolve (Value_lane), compile
    (compile_all + compiled_node), submit (Async_cook.submit) and cook (await

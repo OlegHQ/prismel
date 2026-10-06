@@ -1,5 +1,4 @@
-(** Every graph gesture as a pure rewrite of the workspace source (plan W3;
-    a port of the study's [e1.js] / [e2.js] primitives).
+(** Every graph gesture as a pure rewrite of the workspace source (a port of the study's [e1.js] / [e2.js] primitives).
 
     A gesture names its target by a {!type:Flow.Workspace.path}: the scope path of
     the binding, then its name ([["flower"; "ring"; "u"]], or [["g"; "@result"]]
@@ -93,7 +92,7 @@ type op =
           scene graph) *)
   | Set_graph of { name : string; form : Flow.Syntax.t }
       (** the whole [(graph name ...)] form, replacing the graph or appended; the scene and World
-          graphs written from the editor's own objects (plan W10 write-back) *)
+          graphs written from the editor's own objects *)
   | Duplicate of { nodes : path list }
       (** the bindings of one scope, copied with fresh names (the copies read each other where the
           originals did, and notes stay with the originals) *)

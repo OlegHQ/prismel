@@ -156,7 +156,7 @@ let compiled_at value chains records path =
   Option.bind (Flow_sop.Probe.plan_node records path ~probes:(probes_of value chains path)) (fun plan ->
     Flow_sop.Network.Int_map.find_opt plan (snd value.doc.Document.workspace).compiled)
 
-(* The inspector of the node selected in the workspace pane (plan W5): its
+(* The inspector of the node selected in the workspace pane: its
    value at the probe, whether it recooks every frame, the list of its
    iterations (a click moves the zone's probe), and the catalog parameters of
    the lowered node at that iteration.  An edit is a [Set_arg] on the authored

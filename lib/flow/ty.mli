@@ -1,5 +1,5 @@
 (** The workspace language's static types (port of the study's type strings).
-    Independent of [Port_type], which types [%flow] ports. *)
+    {!Port_type} is the smaller set a driven parameter port carries at run time. *)
 
 type t =
   | Geometry | Float | Int | Bool | Vec3 | Text

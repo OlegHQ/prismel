@@ -1,4 +1,4 @@
-(* Workspace lowering and cook (plan W2).
+(* Workspace lowering and cook.
    dune exec tools/bench_workspace_lower.exe -- [cases-dir] [repeats]
    Per fixture: check / eval / lower+cook medians.  Then, for Bloom, Sunflower,
    Wave and Tree: cold and warm cook at Session capacity 32 and 512. *)

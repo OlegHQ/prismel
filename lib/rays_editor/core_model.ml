@@ -56,7 +56,7 @@ type prompt =
   | Jumping of string  (* Space j: graph search query *)
   | Browsing of { query : string; presets : (string * float) list; last_state : float option }
   | Making_macro of { nodes : Flow.Workspace.path list; draft : Flow_sop.Flow_edit.macro_draft;
-                      state : Pxui_shell.Prompt.macro }  (* the make-macro dialog (plan W9) *)
+                      state : Pxui_shell.Prompt.macro }  (* the make-macro dialog *)
 
 type prompt_intent = Save_preset_file of string | Load_preset_file of string | Load_last_state
   | Edit_source of Flow_sop.Flow_edit.op  (* the dialog's answer: one workspace gesture *)

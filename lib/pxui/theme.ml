@@ -62,7 +62,7 @@ let ports theme =
     text = muted theme; fn = color 4;
     record = color 5 }
 
-(* Graph zones (plan W4): a tinted rectangle with a border; [dashed] draws the
+(* Graph zones: a tinted rectangle with a border; [dashed] draws the
    border as dashes, and a hollow zone has no fill worth the name.  The
    colours are the study's [--z-*] tokens. *)
 type zone = { fill : Rays.Color.t; edge : Rays.Color.t; dashed : bool }

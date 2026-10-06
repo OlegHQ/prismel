@@ -123,7 +123,7 @@ let edit_node value level node_id values ~label =
            | Error message -> { value with edit_error = Some message }
            | Ok doc -> written doc)
 
-(* A click in the view (plan W6): the primitive under the ray, its
+(* A click in the view: the primitive under the ray, its
    [__flow_src] tag, the merge input that made it (`Lower.provenance`), then
    the selection is that node and every enclosing zone probes that iteration,
    so the highlight ({!lit_tags}), the selectors and the inspector agree.  A
@@ -202,7 +202,7 @@ let pick ?view ?(alt = false) value ~origin ~direction =
        | None -> { value with scope_view = Pxui_graph.Scope.clear_selection value.scope_view })
   | _ -> value
 
-(* A changed source file (plan W11): the whole text replaces the document as one
+(* A changed source file: the whole text replaces the document as one
    history entry; layout, settings, probes and the selection (all keyed by path)
    stay.  A refused text changes nothing but the pane: it shows the file's text
    with the diagnostics, and the status says the last good document is kept. *)

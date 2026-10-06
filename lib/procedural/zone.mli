@@ -1,4 +1,4 @@
-(** The zone cook step (plan W8): a loop over the elements of cooked geometry.
+(** The zone cook step: a loop over the elements of cooked geometry.
 
     A zone node has the collection as input 0 (and any outer geometry its body
     reads as further inputs).  When the session cooks it, {!Node.Private.expand}

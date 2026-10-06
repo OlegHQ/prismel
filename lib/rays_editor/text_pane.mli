@@ -1,4 +1,4 @@
-(** The workspace text pane (plan W7): Selection, Graph and Document tabs over
+(** The workspace text pane: Selection, Graph and Document tabs over
     the Lisp text.  Pure state and text plus [view], which draws and returns
     intents for [Core] to apply after the frame. *)
 

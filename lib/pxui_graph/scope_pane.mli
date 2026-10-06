@@ -1,4 +1,4 @@
-(** The graph pane of a workspace document (plan W4).  It draws one
+(** The graph pane of a workspace document.  It draws one
     {!Flow_sop.Projection.scope} (nodes, zones with their rails, iteration
     selectors and yields, chips, output rows, typed sockets) and returns typed
     requests; the host reduces them.  Selection, pan, zoom and a drag in

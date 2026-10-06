@@ -1,4 +1,4 @@
-(** The shell as data (plan W10): a tree of panels.  The editor graph
+(** The shell as data: a tree of panels.  The editor graph
     evaluates to one; [Pxui_shell.Layout] gives it geometry.  Pure and
     presentation-free, so the document library can lower into it. *)
 

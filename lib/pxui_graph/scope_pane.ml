@@ -1,4 +1,4 @@
-(* The graph pane of a workspace document (plan W4): draws one
+(* The graph pane of a workspace document: draws one
    [Flow_sop.Projection.scope] with its zones, rails, iteration selectors,
    chips and output rows on the shared PXUI handle, and returns typed
    requests.  It never edits: a gesture is a [Flow_edit.op] the host reduces.

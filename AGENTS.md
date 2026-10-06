@@ -17,7 +17,7 @@ update them when behavior or architecture changes materially.
 The SOP network editor is Rays Flow: a left-to-right
 typed canvas with value ports, drives, graph/list/text views and a
 checked Lisp text form. `specification/flow.md` is the normative design.
-Work on `pxui_graph`, the graph pane, parameter drives, value nodes
+Work on `pxui_graph`, the graph pane, parameter drives
 or sketch Lisp follows it. Everything the Lisp can say is drawn in the graph and edited
 there directly: a call of a node kind is a card whether it is bound in a `let*`, written inside
 another call or a step of a `->` (a nested node, path leaf `holder#input`), and its inputs are rows
@@ -42,7 +42,7 @@ in a browser, never product code and never a web fallback.
 | `rdk` | The single packed geometry/topology compute core, built from `rdk_core` → `rdk_exact` → `rdk_spatial` → `rdk_attrib` → `rdk_gen`/`rdk_curve` → `rdk_mesh` → `rdk_boolean`; `rdk_rays` is its glue to `rays` meshes |
 | `procedural` | Immutable SOP graphs over `rdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
-| `flow` | UI-free value nodes, graphs, expressions, contexts and coercions over `param` |
+| `flow` | UI-free workspace language over `param`: reader, printer, macros, checker and evaluator |
 | `flow_sop` | Typed SOP/value overlay, drives, exposure and environment-owned value lane |
 | `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, the shell's panel tree (`Panels`), plus atomic file writes and s-expression user preferences (`Store`, printed by `Flow.Lisp`) |
 | `editor_document` | Package-private scene/network/settings model, workspace document (`Workspace_doc`, `Layout_by_path`), validation, object/layer schemas and s-expression presets; no presentation dependencies |

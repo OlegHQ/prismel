@@ -1,4 +1,4 @@
-(* Edits of the derived scene and World, written back to the workspace text (plan W10).
+(* Edits of the derived scene and World, written back to the workspace text.
 
    The inspector, the handles, the scene list (reparent, rename, delete, hide), the World keys and
    the camera follow all edit the document's derived objects.  Nothing else holds them: the text

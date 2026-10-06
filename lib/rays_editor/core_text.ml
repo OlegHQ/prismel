@@ -21,7 +21,7 @@ let install value doc ~label ~merge =
   { value' with history = commit ~label ~merge doc value.history;
     selection = if level = value.level then value.selection else Selection.empty }
 
-(* The text pane's applies (plan W7): the whole workspace text, or one
+(* The text pane's applies: the whole workspace text, or one
    binding's expression; atomic, one history entry "Edit text". *)
 let text_edit ?(label = "Edit text") ?(merge = Editor_core.History.Step) value text =
   Result.map (fun doc -> install value doc ~label ~merge)

@@ -72,7 +72,7 @@ type start = {
   tabs : (Editor_core.Panels.path * string) list;  (* each lisp leaf's [:tab] *)
 }
 
-(* The lowered editor graph (plan W10): the shell tree, the origin of each named or
+(* The lowered editor graph: the shell tree, the origin of each named or
    looped panel (any other panel is inline), the graph each [(ui/graph "name")] leaf shows
    and, for each viewport over a scene other than the default one, the scene objects
    of that instance (they live in [scene], and no other viewport draws them). *)

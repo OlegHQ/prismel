@@ -101,7 +101,7 @@ module Private : sig
 
   val expand :
     t -> (Context.t -> t array -> Rdk.Geometry.t array -> (t array, Diagnostic.error) result) option
-  (** A zone node (plan W8): given its current input nodes and their cooked outputs it returns the roots of the
+  (** A zone node: given its current input nodes and their cooked outputs it returns the roots of the
       sub-graphs to cook, one per element; the session cooks them (through its
       cache) and passes their outputs, in order, to [cook] in place of the
       inputs. *)
