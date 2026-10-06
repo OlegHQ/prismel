@@ -1,6 +1,6 @@
 let tests = [
   "test_rays", Test_rays.run;
-  "test_easy_camera2", Test_easy_camera2.run;
+  "test_easy_camera", Test_easy_camera.run;
   "test_sop_ui", Test_sop_ui.run;
   "test_custom_sop", Test_custom_sop.run;
   "test_pxui_graph", Test_pxui_graph.run;
