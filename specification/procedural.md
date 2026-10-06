@@ -173,20 +173,19 @@ rebuild decodes the physical input list with the slot presence captured at
 build time, so sparse optional connections keep their slot. Match Size exercises
 this path with one required geometry input and one optional target input.
 
-The node menu (leader `Space a`, or the canvas context menu) consumes category
-paths as real nested submenus. Typing searches
-the entire manifest by stable key, display label, or breadcrumb. Its ten visible
-rows form a moving window over the complete result set rather than truncating
-node accessibility. Catalog tests require unique keys, instantiate every
+The node menu (`Pxui_graph.Node_menu`: leader `Space a`, `Tab` in the graph panel, or a
+right-click on the empty canvas) is a search field over the kinds, the likeliest first.
+Typing searches the whole catalog by stable key, display label, or category. Catalog tests require unique keys, instantiate every
 registered factory with disconnected placeholders, and compare the constructed
 `Node.operation` with the descriptor identity, so a descriptor that cannot
 enter an editable graph or points at the wrong SOP fails the test suite. They
 also perturb every cook-impact field of every registered node and require its
 `Node.parameter_key` to change.
-`Pxui_graph.catalog_of_factories` is the single adapter from descriptors to
-menu entries. Exact stable-key matches rank before partial label/category
-matches, and a reachability regression opens the real node menu for every
-generated descriptor and requires the corresponding add request.
+`Pxui_graph.Node_menu.entries_of_factories` is the single adapter from factories to
+menu entries, and a reachability regression searches the node menu for every
+generated stable key. `Sop.blend_shapes`, `Sop.attribute_composite`, `Sop.skin` and
+`Sop.ordered_group` are registered as `sop/blend_shapes`, `sop/attribute_composite`,
+`sop/skin` and `sop/ordered_group`; `sketches/ws_morph` uses all four.
 
 Structured immutable parameters use `Parameter.encoded` when a SOP owns an
 ordered rule list or nested value. The codec is typed at the descriptor,
@@ -228,70 +227,44 @@ Dissolve reconnects every consumer through the selected chain's primary
 inputs. Wire insertion fills the new node's primary slot and leaves any
 additional slots disconnected.
 
-`Editor_document.Document.network` now stores one `Flow_sop.Network`: geometry
-in `Edit_graph`, value nodes from `flow`, and typed wire or expression drives
-on parameter ports.
-The graph clipboard copies a Flow fragment, so an expression on a copied SOP
-survives paste. Before each visible-object cook submission, the editor's value
-lane resolves drives to a temporary graph without changing stored literals.
-Time-dependent networks resolve on each advancing frame. The environment keeps
-the applied values for live canvas and inspector readouts; unchanged effective
-values retain their graph and cook keys. Compounds are later M5 work.
+The editor's document is workspace text (`Editor_document.Workspace_doc`), not a
+hand-edited `Edit_graph`. `Flow_sop.Lower.workspace` lowers each evaluation of a `sop`
+graph to one `Flow_sop.Network`: the `Edit_graph` plus the arguments that depend on `t`.
+Before each visible-object cook submission, the editor's value
+lane forces those arguments and applies the changed ones to a temporary graph without
+changing stored literals. Time-dependent networks resolve on each advancing frame;
+unchanged effective values retain their graph and cook keys. A `^:bypass` call makes no
+node: the evaluator passes its first input through.
 
-An expression drive can be entered in a numeric canvas field or inspector
-with `=…`; parse errors carry a source span and leave the network unchanged.
-The ƒ row action folds an unshared Math/Value/Time source tree into an
-expression or unfolds an expression into Math nodes and one shared Time node.
-Shared or unsupported sources produce a diagnostic naming the node. A bare
-number becomes a normalized row literal. Reset clears a drive first; on an
-undriven row it restores the schema default. Wireless binds are saved layout
-flags keyed by destination port and do not affect cooking.
-
-`rays.pxui_graph` presents that document. Its deterministic left-to-right
-layout snaps positions to 12 points. Header and row sockets connect through
-selectable polyline wires with editable bends. Point/chip/card/full levels
-use zoom caps, explicit pins and temporary expansion during a wire drag.
-Cards edit literals through shared PXUI fields. The canvas retains manual positions,
-supports Shift/marquee multi-selection and group dragging, and emits typed
-commands for Delete/Backspace, port connections, the searchable node-menu
-catalog, and Command/Ctrl copy, paste, cut, and duplicate. Catalog nodes may be
-created with disconnected input slots. Copy/paste preserves induced-subgraph
-wiring, allocates fresh node IDs, and leaves external inputs disconnected.
-`optimize_layout` is offered by the context menu and palette; plain `f`
-frames the selection or display node, `Space f` frames the display node,
-and Home frames all. Tab adds by context, `.` repeats the last kind, `c`
-connects by cycle-safe letter hints, and `/` finds nodes by label or qualified
-kind. Append insertion moves only the downstream nodes beyond its position,
-in the same undo entry. A separate VIEW button
-chooses the document node compiled and submitted by `rays_editor` without changing
-inspector selection. The canvas never mutates the document or cooks geometry;
-`rays_editor` applies commands, reports validation errors, and retains the prior
+`rays.pxui_graph` presents the text as a graph (`Pxui_graph.Scope` over
+`Flow_sop.Projection`): a left-to-right layout on a 24-point lattice, straight wires bent
+clear of cards, explicit point/chip/card/full levels, zones for loops and functions.
+Its gestures and keys are `specification/flow.md` §6 and §7. The canvas never mutates
+the document or cooks geometry; it returns typed requests, and
+`rays_editor` applies them as checked rewrites of the text, reports validation errors, and retains the prior
 successful viewport result until a newly compiled graph finishes cooking.
 This clean-room interaction contract follows SideFX's public descriptions
-of the [Network Editor](https://www.sidefx.com/docs/houdini/ref/panes/network.html),
-[network navigation](https://www.sidefx.com/docs/houdini/network/navigate.html),
-and [automatic layout](https://www.sidefx.com/docs/houdini/network/layout.html),
+of the [Network Editor](https://www.sidefx.com/docs/houdini/ref/panes/network.html)
+and [network navigation](https://www.sidefx.com/docs/houdini/network/navigate.html),
 without copying implementation or assets.
 
 `rays.rays_editor` composes a responsive workspace of panels (by default the
-view/graph/inspector columns; a workspace's editor graph describes its own), selected-node inspector, dimensional `Easy_camera`/`Easy_camera2`
+view/graph/inspector columns; a workspace's editor graph describes its own), selected-node inspector, `Easy_camera`
 render controls, a sketch-owned playback clock, and one bounded latest-request
-cook worker. Default column ratios are 45/35/20; splitters preserve user ratios
+cook worker. Default column ratios are 45/35/20; gutters keep the sizes the text says
 through resize and every panel can collapse. Empty selection puts camera/render
 controls in the inspector, while node selection puts generated parameters there.
-Display selection remains independent and keeps the previous successful image
-visible while the newly flagged node cooks. Overlay scenes use view-local
+The previous successful image stays
+visible while a new result cooks. Overlay scenes use view-local
 coordinates, not full-window coordinates.
-`Editor3` and `Editor2` are one `Environment.Make` functor applied to
-the `Viewport3` and `Viewport2` adapters, which supply camera widgets,
-navigation, painting, view persistence and any mode state; the lifecycle core
-is shared.
+`Editor3` is the one editor: `Viewport3` supplies its camera widgets,
+navigation, painting, view persistence and mode state.
 Reachable `Context.Time`/`Context.Frame`
 dependencies trigger external-effect recooks while static graphs remain cached.
 Long dynamic cooks finish before the newest clock snapshot is submitted;
-parameter edits remain urgent and supersede stale work. `P`, `S`, and `R`
-pause, stop, and reset the local clock; `G`, `I`, `C`, and `H` control graph,
-inspector, camera controls, and all UI/labels.
+parameter edits remain urgent and supersede stale work. `Space p`, `x` and `r`
+play or pause, stop, and reset the local clock; `Space g`, `i`, `c` and `h` control graph,
+inspector, camera controls, and all UI.
 
 The template/value split and soft-versus-strict behavior are based on the
 public [Houdini ParmTemplate contract](https://www.sidefx.com/docs/houdini/hom/hou/ParmTemplate.html),

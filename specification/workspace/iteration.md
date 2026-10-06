@@ -1,12 +1,13 @@
 # Iteration, functions, data and macros in workspaces
 
-**§2 and §7 are normative for the workspace language as of W1, 30 September
-2026** (`Flow.Syntax`, `Flow.Lisp`, `Flow.Macro`, `Flow.Workspace` and
-`Flow.Eval` implement them; the study's `prototype/check.cjs` is ported to
-`lib/flow/test_workspace*.ml`). §1 and §3–§6 remain proposals. This extends the
-[composable workspaces report](../../reports/Composable%20Lisp%20workspaces.md).
-[`flow.md`](../flow.md) §11 remains the language that `[%flow]` accepts today.
-The language core adds no native code, Dune rule or catalog change.
+**Status: implemented.** §2 and §7 are normative for the workspace language
+(`Flow.Syntax`, `Flow.Lisp`, `Flow.Macro`, `Flow.Workspace` and `Flow.Eval` implement
+them; the study's `prototype/check.cjs` is ported to `lib/flow/test_workspace*.ml`).
+§3 to §5a are the design the graph pane, the editor graph and `.rays` sketches were built
+from (`Flow_sop.Projection`, `Pxui_graph.Scope`, `Rays_editor`, `tools/lisp`); §6 says which
+module implements what. [`flow.md`](../flow.md) has the reader, the printer, argument
+rules, the pane's gestures and keys and the layout forms, and is the current statement
+where it is more specific than §3.
 
 The interactive study is [`prototype/index.html`](prototype/index.html). It
 checks and runs every construct below and draws it in the Pxui kit. The
@@ -37,9 +38,8 @@ otherwise make two ways.
 
 ### 2.1 Grammar delta
 
-These rules are added to the workspace grammar of the report. They use the
-Flow §11 conventions: keywords for parameters, positional geometry slots,
-and `let*` for sharing. The `material` context returns a typed material value
+The grammar of loops, branches and references. Conventions: keywords for parameters,
+positional geometry slots (`flow.md` §11.6), and `let*` for sharing. The `material` context returns a typed material value
 from `material/standard`; a SOP assigns it through `sop/material` and a
 material graph reference. Group assignment and renderer behavior are specified
 in [materials.md](materials.md).
@@ -76,10 +76,10 @@ conversion explicit and give an Int; `float` gives a Float.
 |---|---|---|
 | `(for [x xs] b)` | evaluate `b` once per element of `xs`, collect in order | `list T` where `b : T` |
 | `(for [x xs y ys] b)` | product, row-major, last clause fastest; `ys` may read `x` | `list T` |
-| `(fold [a init] [i xs] b)` | `a := init`; per element `a := b`; return `a` | type of `init` |
+| `(fold [a init] [i xs] b)` | `a := init`; per element `a := b`; return `a` | the wider of `init`'s and `b`'s types (an int seed does not round a float body) |
 | `(scan [a init] [i xs] b)` | as fold, but collect each new `a` | `list A` |
 | `(sum [i xs] b)` | add `b` over the elements; empty is `0` | Int, Float or Vec3 |
-| `(if c a b)` | only the taken branch runs | the type both branches share |
+| `(if c a b)` | only the taken branch runs | the type both branches fit (int and float give float) |
 | `(let* [...] r)` inside an expression | a scope: names are private, only `r` leaves | type of `r` |
 | `(ref g :k v)` | evaluate graph `g` with input `k` overridden; cached by input values | `g`'s context type |
 
@@ -145,13 +145,13 @@ component, a list `[a b]`, a record `{:a 1 :b 2}` in written order.
 
 ### 2.3 Checking
 
-The checker has two passes, both implemented in the study's `model.js`:
+The checker has two passes (`Flow.Workspace` and `Flow.Eval`; the study's `model.js` has both):
 
 1. **Static pass.** It types every definition, graph and zone body once,
    whatever the iteration count, and types both branches of every `if`.
    Arity, keywords, contexts, shadowing, recursion, fold accumulator
    agreement (`E_ACC_TYPE`), group names (`W_UNKNOWN_GROUP`, §3.7) and
-   literal loop bounds are all reported here. This is what `rays-lisp check` runs at build time.
+   literal loop bounds are all reported here.
 2. **Run pass.** `Flow.Eval` evaluates everything that is not geometry, in
    order, on IEEE doubles. Geometry calls become a plan (see `eval.mli`), so
    nothing here cooks. These are reported here, each with its code and the
@@ -172,15 +172,18 @@ The checker has two passes, both implemented in the study's `model.js`:
 
    `t` is not known to the static run: a term that depends on it is kept as
    a *residual* (the term with its environment) and evaluated by
-   `Flow.Eval.residual_eval` for a given time (register T1; W2b).
+   `Flow.Eval.residual_eval` for a given time (register T1).
+
+`rays-lisp check` runs both at build time: it checks the file, then evaluates and lowers
+it with its default inputs as a window opens it.
 
 ### 2.4 Bounds
 
-The study's limits are 4,096 iterations per zone, 600,000 evaluation steps
-and 20,000 primitives. Native limits must be measured, published and named
-in their diagnostics (see register L3), not hidden constants. A literal
-count is checked at compile time; a count that depends on an input, `t` or
-geometry is checked when the program runs.
+The limits are 4,096 iterations per zone (`Flow.Workspace.max_iterations`), 600,000
+evaluation steps and 64 nested calls (`Flow.Eval`), each named in its diagnostic
+(register L3). The study's cap of 20,000 primitives is not part of the evaluator, which
+builds no geometry. A literal count is checked at compile time; a count that depends on
+an input, `t` or geometry is checked when the program runs.
 
 ## 3. Graph representation
 
@@ -190,7 +193,8 @@ geometry is checked when the program runs.
 |---|---|
 | `name (op …)` in a `let*` | node card: title, one row per slot and keyword, footer |
 | a keyword left at its default | a dimmed row; scrubbing it writes the keyword |
-| a nested call in an argument | a chip, `ƒ (op …)`, whose numbers stay scrubbable |
+| a call of a node kind in an argument, a step of a `->` | a card of its own before the card that holds it, wired to its row (`flow.md` §11.3) |
+| an expression or a function call in an argument | a chip, `ƒ (op …)`, whose numbers stay scrubbable |
 | `name (for …)` / `fold` / `scan` / `sum` | a **zone**: a tinted region with rail, iteration selector, body and yield |
 | `name (let* …)` | a **scope**: a dashed region with a rail and a result |
 | an inline loop or scope in an argument | a chip whose glyph names it: `for`, `⟲`, `Σ`, `let` |
@@ -201,9 +205,8 @@ geometry is checked when the program runs.
 | group writer `:name "x"` → reader `:group "x"` | a dotted named link, `▦ x` |
 | graph inputs `[(n : int 12)]` | input nodes at the left, and sliders in the navigator |
 
-Frames (visual grouping), positions, bends and collapsed zones are layout.
-They are stored with the document and never printed (Flow ambiguity rule
-10).
+Frames (visual grouping), positions, detail levels and collapsed zones are layout.
+They are stored with the document and never printed in the workspace form (`flow.md` §4.1).
 
 ### 3.2 Zones
 
@@ -400,15 +403,16 @@ save with the selected layout, including leader-key visibility changes.
 A workspace without an editor graph writes its current shell on the first panel
 edit. Floating viewports share the shell's UI paint order and hit tree.
 
-Layout has one codec, `Layout_by_path`. Its active readers are:
+Layout has one codec, `Layout_by_path`. There is no display, bend or wireless entry: a file
+that has one reads and the entry is dropped, and an entry whose path is no longer in the
+workspace is pruned on load and on structural edits (`flow.md` §4.1). Its readers are:
 
 | Saved field | Reader / behavior |
 |---|---|
 | `editor` | `Workspace_doc.editor_graph` selects the authored shell. |
 | `panels` | `Core.panel_state` supplies disclosure and floating bounds to shell geometry. |
 | `at`, `collapsed`, `frames` | `Core.sync_scope` supplies Scope positions, zone disclosure and canvas frames. |
-| `display` | `Core.sync_scope` marks the displayed binding; `Core.display_node` selects its geometry. |
-| `pinned`, `rows`, `bends`, `wireless` | Preserved and remapped by the codec; the current Scope pane has no reader for these legacy fields. |
+| `level`, `pinned`, `rows` | `Core.sync_scope` supplies each node's detail level and its row pins. |
 
 Scope movement/frame sizing, shell splitters and floating-window movement keep
 their held-drag offsets in pane/chrome state. Release emits one document edit;
@@ -443,11 +447,12 @@ per-view render-camera/World controllers would require an explicit API extension
   - For each sketch the include has a `subdir` stanza: a rule running
     `rays-lisp ml sketch.rays` to produce `main.ml`, an executable, and
     a `smoke-all` run.
-  - There is no custom dune stanza and no per-sketch `dune` file. Plan W11
-    has the full text.
+  - There is no custom dune stanza and no per-sketch `dune` file.
 - **Errors at their line.** `rays-lisp check` prints `File "…/sketch.rays",
   line L, characters A-B:` diagnostics, the OCaml compiler's format, so dune
-  and editors jump to them (register O3). Warnings are errors.
+  and editors jump to them (register O3). Warnings are errors unless the workspace form
+  carries `^:allow-warnings`. `rays-lisp fmt` prints the canonical text, also for a file
+  with warnings.
 - **One plan.** The generated `main.ml` embeds the verbatim source and its
   digest, and calls `Rays_editor.Workspace.main`. That re-parses the
   source at startup and runs the same plan the live editor edits (register
@@ -461,9 +466,9 @@ per-view render-camera/World controllers would require an explicit API extension
     entry. Probes and layout are kept by path id.
 - **OCaml hosts.**
   - There is no antiquotation (register O2).
-  - A host program calls `Workspace.load` on a `.rays` and overrides graph
-    inputs with `Workspace_program.with_inputs`.
-  - The editor shows an overridden input as driven from OCaml.
+  - A host program checks a `.rays` text with `Rays_editor.Workspace.load`; graph inputs
+    are overridden by graph name through the `?inputs` of `Flow.Eval.static` and
+    `Flow_sop.Lower.workspace`.
   - A `[%workspace]` PPX with generated input records is deferred until a
     host needs it.
 
@@ -488,38 +493,31 @@ per-view render-camera/World controllers would require an explicit API extension
   - Live nodes keep one cache slot, so they never evict static entries.
 - **Drags are live edits.** Scrubbing a value recooks the affected cone and
   commits one history entry on release.
-- **Case study.** The [Orrery](case-studies.md#orrery). Plan W2b has the
-  implementation.
+- **Case study.** The [Orrery](case-studies.md#orrery). `Flow_sop.Value_lane` is the
+  implementation (`flow.md` §13.2).
 
-## 6. Mapping onto Flow
+## 6. Where it is implemented
 
-This is a plan for review, not a milestone commitment.
-
-1. **Language.** Extend `Flow.Check` with lists, zones, `if`, graph inputs and
-   `E_SHADOW`, typing zone bodies once. Keep `defgraph` compatibility. Add
-   expect tests for every new code and every register rule marked as a
-   proposed rule.
-2. **Document.** A zone is a new instance kind in `Flow_sop.Network`: like a
-   compound (§3.8), it owns a body network. It adds iteration clauses,
-   accumulators and captures computed from the body. Compiled ids extend
-   `Instance_path` with an iteration index (register I1).
-3. **Evaluation.** Unroll zones into `Edit_graph` when the count is small and
-   static; otherwise run them through a zone cook step that caches per
-   `(path, index)`. Measure both approaches on the case studies before
-   choosing (flow.md §15). Keep the value lane's determinism regression, and
-   add a one-domain versus multi-domain check for zones.
-4. **Canvas.** `pxui_graph` draws zones, rails, iteration selectors and chips as widgets
-   over `Ui.box`, with no second hit-test or capture path. It emits typed
-   requests (`Wrap_in_loop`, `Hoist`, `Set_probe`), and the reducer applies
-   them outside `Ui.frame`.
-5. **Build.** `.rays` files compile through a small `rays-lisp` tool
-   and generated dune rules (§5). `[%flow]` remains for OCaml sketches.
+| Part | Module |
+|---|---|
+| Reader, printer | `Flow.Syntax`, `Flow.Lisp` |
+| Macros | `Flow.Macro` |
+| Static pass: names, types, zones, liveness, loop invariance | `Flow.Workspace` |
+| Run pass: values, the geometry plan, residuals | `Flow.Eval` |
+| Lowering to SOP networks, compiled ids by iteration tuple (register I1) | `Flow_sop.Lower`, `Flow_sop.Instance_path` |
+| Live values | `Flow_sop.Value_lane` |
+| Gestures as rewrites of the text | `Flow_sop.Flow_edit` |
+| Zones, rails, rows and chips, without drawing | `Flow_sop.Projection` |
+| Footers, sparklines, iteration lists | `Flow_sop.Probe` |
+| The pane: zones, selectors, typed requests | `Pxui_graph.Scope` |
+| Scene, World, settings and editor graphs | `Editor_document.Contexts`, `Scene_sync` |
+| `.rays` build and check | `tools/lisp` (`rays-lisp`), `sketches/dune.rays.inc` |
 
 ## 7. Functions, data, branches and macros
 
 This section extends §2–§3 with the rest of the language a sketch needs.
 The rules are in the [register](ambiguities.md) (F, D, C, M and N items). All
-of them are implemented in the study, and `prototype/check.cjs` covers each.
+of them are implemented in `lib/flow` and in the study, whose `prototype/check.cjs` covers each.
 
 ### 7.1 Grammar delta
 
@@ -562,7 +560,8 @@ parameters.
   chosen by the caller (M2), which is what makes `radial` usable. The
   expansion is a read-only view (M3).
 - **Comments attach to the next binding by name** (N1), and `^:bypass` is
-  the only metadata (N2).
+  the only metadata of an expression (N2). A `defmacro` template is always quasiquoted, and a
+  catalog kind may be passed as a function value: `(map sop/facet xs)`.
 
 ### 7.3 Drawing and gestures
 
@@ -577,7 +576,7 @@ parameters.
 | `str` | a row per part; the result in the footer | + adds a text part; a wire makes a part |
 | macro call | ◆ card; rows are holes; a binder hole is a pill; ⤵ opens a lens with steps from call to full expansion | **M** on a selection turns chosen literals into holes and inner names into `x#`; *Replace call with expansion* inlines it |
 | `; note` | a note row on the node | type in the inspector (**N**) |
-| `^:bypass` | a B flag and a striped title | click B, or press **B** |
+| `^:bypass` | a hatched card with dimmed text | press **B**, or the context menu |
 
 ### 7.4 Why these designs
 
@@ -605,8 +604,7 @@ Deferred ideas, recorded so they aren't lost:
 
 ## 8. Editor consistency contract (2 October 2026)
 
-These are implementation requirements for the current editor. The detailed
-audit and remaining gaps are in [consistency-audit.md](consistency-audit.md).
+These are implementation requirements for the current editor.
 
 - Authored source, layout and sketch settings install as one checked document.
   A derived scene/World/settings edit reconciles through its source home before

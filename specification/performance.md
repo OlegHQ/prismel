@@ -36,22 +36,10 @@ use locally owned mutation and packed storage without exposing mutable aliases.
   boxed face lists.
 - Persistent spatial structures are for incremental/query workloads. Bulk
   construction may use mutable staging and freeze once.
-- The interactive SOP graph stores tiles and edges in compact arrays with a
-  stable-ID lookup only when graph identity changes. Unchanged frames reuse the
-  presentation value directly; parameter graph replacement preserves manual
-  tile positions, and scene construction allocates node primitives only for
-  tiles intersecting the visible graph bounds. Navigation and node movement do
+- A graph-pane frame costs what is in view, never the size of the graph: `Pxui_graph.Scope`
+  builds bucket indices over tiles and wire bounds with the geometry and asks them each
+  frame (`lib/pxui_graph/AGENTS.md`). Navigation and node movement do
   no procedural cook work.
-- `Voxel3` stores immutable occupancy in 4,096-bit pages keyed by linear cell
-  ranges. Persistent edits copy one 512-byte page, while `Voxel3.Builder`
-  mutates owned pages and freezes once. `Voxel3.init` evaluates pure dense
-  predicates in deterministic parallel page partitions.
-- `Svo3` stores sparse occupancy in a shared immutable 8-way trie. Branches use
-  an 8-bit child mask plus a compact child array; point lookup and persistent
-  edits touch only one root-to-leaf path. A leaf stores the complete Morton
-  path, eliding every unary tail below the last actual branch. Bulk construction
-  sorts and deduplicates 60-bit Morton paths and freezes the compact trie
-  directly, without an eight-slot mutable staging array per temporary node.
 - `Iso3.extract` streams deterministic XY-plane windows in two passes. It
   retains exact-sized output and finite-difference normals without the former
   four full XYZ scalar/gradient volumes; fixed ring buffers make temporary

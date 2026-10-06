@@ -1,529 +1,312 @@
-# Rays Flow: the SOP network editor
+# Rays Flow: the workspace editor
 
 ## 1. Status and authority
 
-Status: approved design, revision 3 (2026-09-28). **M1–M7 implemented; the
-workspace plan (W0–W12, `workspace/plan.md`) is implemented too and supersedes
-the text form of this file.** Milestones M1–M7, the file-level tasks for each,
-progress and the W12 removals live in `flow-migration.md`. What W12 deleted
-(the v3 text checker, printer and builder, `Flow_sop.Program`, the `[%flow]`
-PPX and the `?program` editor argument) is marked where it is described below;
-those paragraphs are the origin of the value semantics, not a guide to code
-that still exists. The language, the projection pane, probes, the editable text
-pane, contexts, the composable shell and `.rays` sketches are specified in
-`workspace/` (`iteration.md` §2 and §7 are normative). The behavioral reference is the prototype at
-`specification/flow/prototype/index.html` (open it in a browser; no build).
+This file describes the code as it is. A workspace is one text, the `.rays` Lisp; every
+graph, card, wire and panel is derived from it, and every gesture is a checked rewrite of
+it. Nothing is stored beside the text except layout.
 
-Authority, in order:
+What is normative, and where:
 
-1. This file.
-2. The prototype, for behavior this file does not pin down.
-3. Other specifications (`pxui.md`, `procedural.md`, `api.md`, `scene.md`),
-   **only** for areas whose milestone has not landed. Each of those files
-   marks the paragraphs that a milestone replaces.
+| Subject | Specified in | Implemented by |
+|---|---|---|
+| The language's forms, types, loops, functions, macros, time rules | `workspace/iteration.md` §2 and §7, with the rule register `workspace/ambiguities.md` | `Flow.Syntax`, `Flow.Macro`, `Flow.Workspace`, `Flow.Eval` |
+| The reader, the printer, argument rules, metadata, the editor graph's layout forms | this file, §11 | `Flow.Syntax`, `Flow.Lisp`, `Flow.Workspace`, `Editor_document.Contexts` |
+| The document, layout, exposure, the graph pane, its gestures and keys, carry, the views | this file, §3 to §10 | `Editor_document`, `Flow_sop.Flow_edit`, `Flow_sop.Projection`, `Pxui_graph.Scope`, `Rays_editor` |
+| Lowering and live values | this file, §13 | `Flow_sop.Lower`, `Flow_sop.Value_lane` |
+| Materials | `workspace/materials.md` | |
+| The kit the pane is drawn with | `pxui.md` | `Pxui.Theme`, `Pxui.Ui` |
 
-Rules for implementers:
+Section numbers are stable because code comments cite them (§5.1, §6.4, §7.5, §7.7, §7.12,
+§11.11); a number whose section was removed is not reused.
 
-- Implement milestones in order. Do not add hooks for a later milestone to an
-  earlier one. A milestone is finished only when its tests, docs and status
-  row in `flow-migration.md` are done.
-- Keep the current editor working at every commit; default `dune runtest` stays
-  green.
-- The prototype is HTML/JS reference material. It is never linked, built, or
-  shipped, and is not a browser fallback.
-- If implementation shows that this spec is wrong, change this spec (and the
-  prototype, if affected) in the same change as the code, and record the
-  decision in §18.
+Two HTML studies are behavioural references and never product code or a web fallback:
+`specification/flow/prototype/` (the first canvas study, older than the workspace: its value
+nodes and grouped definitions were never kept) and `specification/workspace/prototype/` (the language
+and zones). When a study and this file disagree, the code and this file win.
 
-> Status (Gap A, 2026-09-30): value nodes, compounds and expression drives described below were deleted with the
-> flat pane; read them as historical design. The live model is `.rays` workspace text.
+If an implementation shows that this file is wrong, change it in the same change as the code
+and record a decision in §18.
 
-## 2. Scope, non-goals and vocabulary
+## 2. Scope and vocabulary
 
-In scope: the SOP network canvas; keys and guide mode; the inspector's role;
-graph, list and text views; value ports, value nodes and drives; compounds;
-per-level contexts; the canonical Lisp text form with its reader and checker;
-the `[%flow]` PPX (removed in W12); workspace presets (s-expressions).
+In scope: the workspace document; the graph pane and its keys; the list and text views; the
+inspector's role; exposure; carry; the reader and printer; the layout forms; lowering and the
+live value lane.
 
-Not in scope (do not build): Bézier wires anywhere in the graph; an editable
-text view in the editor; per-element fields (the diamond socket and `Field`
-port type are reserved names only); zoom-to-enter; modulation depth rings;
-macros; exposing `defgraph` as OCaml functions; sharing cooked results between
-compound instances; the scene-graph conversion (a later spec revision after
-M7); any Python or JavaScript in the build.
+Not built (do not add without a spec change): Bézier wires; authored wire bends and wireless
+wires; per-element fields; zoom-driven detail; any Python or JavaScript in the build.
 
 | Term | Meaning |
 |---|---|
-| network | One editable graph: today's `Document.network` (a SOP network, the scene, or the World's layers) |
-| level | The network the graph pane shows (`Document.level`), extended with compound paths in M5 |
-| context | What a network is about: `sop`, `value`; reserved `scene`, `world`. Decides the port types and the catalog that short names resolve to |
-| kind | A node type: a SOP factory (`sop/<key>`), a value kind (`value/<key>`), or a compound definition (`user/<name>`) |
-| slot | A geometry input of a SOP node (today's `Edit_graph` input index) |
-| parameter | A schema field of a node (`Param.field`) |
-| row | One slot, parameter, vec3 component, or output shown on a card |
-| port | A slot, parameter or output that a wire can attach to |
-| literal | The value stored in a node's parameter record |
-| drive | What overrides a literal while cooking: a wire from a value output, or an expression |
-| wireless | A wire drawn only while one of its ends is selected or hovered (view flag, same semantics) |
-| compound | A node whose kind is a definition: an inner network with an interface |
-| layout | Per-network view metadata saved with the document: positions, levels, pins, splits, bends, wireless flags |
-| trunk | The chain of primary geometry slots; it runs through node headers |
-| level of detail | `point`, `chip`, `card` or `full` (§6.4) |
-| display node | The node the viewport cooks (today's VIEW flag) |
+| workspace | The one `(workspace name ...)` form of a `.rays` text: graphs, `defn`s and `defmacro`s |
+| graph | `(graph name :context c [inputs] body)`; a `defn` is a function with the same body shape |
+| context | What a graph is about: `sop`, `value`, `scene`, `world`, `settings`, `editor`, `material` (`Flow.Context`) |
+| kind | A catalog node type, `namespace/key`: a SOP factory (`sop/box`) or a kind `Editor_document.Contexts` generates from the scene, World and settings schemas |
+| operator | A built-in call the checker types itself (`+`, `range`, `value/rand`, `scene/object`, `ui/split`); `Flow.Workspace.op_signature` |
+| path | The lexical identity of a binding, `["flower"; "ring"; "u"]` (§3.4) |
+| node | A call of a kind or operator drawn as a card: bound in a `let*`, or written in an input (a nested node) |
+| zone | A bound `for`, `fold`, `scan`, `sum`, `let*` or `fn`, drawn as a region with its own scope |
+| row | One input of a node as the pane draws it: a slot, a keyword, a list item, a record field |
+| chip | What a row shows for what is written in it: nothing, a constant, a name (a wire), or inline text |
+| layout | Per-path view data saved after the workspace: positions, levels, pins, collapsed zones, frames, panel state (§4.1) |
+| level | `point`, `chip`, `card` or `full` (§6.4) |
+| probe | The iteration of a zone that footers and the viewport highlight show |
 
 ## 3. Document model
 
 ### 3.1 Contexts
 
-Every network has a context. Before M5 the SOP networks are `sop`, the
-scene network is `scene` and World networks are `world`; only `sop` networks
-get value ports, value nodes and drives (M3). The scene and World canvases keep
-their current behavior (plus M1 rendering and M2 keys) until the scene
-revision of this spec. A compound definition declares its context; a `value`
-definition contains only value nodes and may be used in any context.
+`Flow.Context.t = Sop | Value | Scene | World | Settings | Editor | Material`. A graph
+declares its context; a kind belongs to one (the namespace of its qualified name) and a call
+of a kind from another context is `E_WRONG_CONTEXT`. No kind is an `Editor` kind: an editor
+graph sees the value operators and its own `ui/` operators (§11.11). `(ref name ...)` reads
+another graph, with input overrides.
 
 ### 3.2 Port types and coercions
 
-| Type | Comes from | Socket | Drivable |
-|---|---|---|---|
-| Geometry | SOP slots and outputs | square 9×9 | wire only |
-| Float | `Param.Floating` fields, value outputs | circle r 4.5 | yes |
-| Int | `Param.Integer` fields | circle r 4.5 | yes |
-| Bool | `Param.Toggle` fields | circle r 4.5 | yes |
-| Vec3 | three float fields grouped with `[@sop.vec3]` (§5.3); `combine_xyz` output | circle r 4.5 | yes, whole or per component |
-| Text, Choice, Encoded | `Param.Text`, `Choice`, `Encoded` | none | no; literal only |
-| Field | reserved | diamond | not in this revision |
+The language's types are `Flow.Ty.t`: `Geometry`, `Float`, `Int`, `Bool`, `Vec3`, `Text`,
+`Color` (text or vec3; only catalog parameters ask for it), `List`, `Record`, `Fn`, `Any` and
+the context types `Scene`, `World`, `Settings`, `Panel`, `Editor`, `Material`. `Ty.fits`
+decides whether a value may be used where a type is expected: numbers and Bool interconvert,
+numbers widen to Vec3, a record fits when it has every wanted field.
 
-Coercions happen when a drive's value reaches a port, never in storage:
+A catalog parameter's port type is `Flow.Port_type.t` (`Geometry | Float | Int | Bool |
+Vec3`); text and choice fields have none and take literals only. A value reaching a
+parameter is coerced by `Port_type.coerce`, then normalised to the field's hard bounds
+(`Flow_sop.Port.normalize`):
 
 | From → to | Rule |
 |---|---|
-| Int → Float | IEEE double conversion (integers beyond its 53-bit precision may round) |
-| Float → Int | finite values: `Float.round`, saturate the machine int range, then the field's hard bounds through `Param.apply`; non-finite values are errors |
+| Int → Float | IEEE double conversion |
+| Float → Int | finite values round half up (`floor (x + 0.5)`) and saturate the machine int range; a non-finite value is `E_TYPE` |
 | Float or Int → Bool | nonzero is `true` |
 | Bool → Float or Int | `true` is 1 |
 | Float, Int or Bool → Vec3 | broadcast to all three components |
-| Vec3 → scalar, Geometry ↔ anything else | rejected when connecting (`E_TYPE`) |
+| Vec3 → scalar, Geometry ↔ anything else | rejected (`E_TYPE`) |
 
 ### 3.3 Kinds
 
-- **SOP kinds** are the registered factories (`Sop_catalog.Editor.factories`).
-  Symbol `sop/<key>` where `<key>` is the factory's stable key verbatim
-  (`uv_sphere`, `noise_displace`). Keys match `[a-z][a-z0-9_]*` (PPX check,
-  M3) and are never renamed; a rename ships an alias (§11.4).
-- **Value kinds** live in the new `flow` library and are context-free. Each has
-  a `Param` schema, so the inspector renders them like SOPs:
+- **SOP kinds** are the registered factories (`Sop_catalog.Editor.factories`), symbol
+  `sop/<key>` where `<key>` is the factory's stable key verbatim (`uv_sphere`,
+  `noise_displace`). The PPX rejects a key or slot name that does not match
+  `[a-z][a-z0-9_]*`. `Flow_sop.Catalog.of_factories` turns them into the checker's
+  `Flow.Check.catalog`.
+- **Scene, World and settings kinds** are descriptors `Editor_document.Contexts`
+  builds from the editor's own schemas and passes as `~extra`.
+- **Operators** are built into the checker and the evaluator. The value operators any graph
+  may call are `Flow.Workspace.value_ops` (arithmetic, comparisons, `range`, `linspace`,
+  list operations, `value/rand`, `value/hsv`, `value/lerp`, `value/polar`, ...); they are the
+  value part of the add menu. `material/standard`, `scene/merge` and the `ui/`
+  forms are operators of their contexts.
+- A short name resolves within the graph's context (`Flow.Check.resolve_kind`); a kind's
+  aliases, when the manifest lists any, resolve to it. A catalog kind may be passed as a
+  function value: `(map sop/facet xs)`.
 
-| Kind | Inputs (default) | Outputs | Semantics |
-|---|---|---|---|
-| `time` | `speed` Float (1) | `t` Float | context time in seconds × speed |
-| `value` | `v` Float (0) | `out` Float | `v` |
-| `math` | `op` Choice (`mul`), `a` Float (0), `b` Float (1; hidden for unary ops) | `out` Float | see ops below |
-| `combine_xyz` | `x`, `y`, `z` Float (0) | `out` Vec3 | |
-| `separate_xyz` | `v` Vec3 (0,0,0) | `x`, `y`, `z` Float | |
-| `remap` | `v` Float (0), `from_min` 0, `from_max` 1, `to_min` 0, `to_max` 1, `clamp` Bool (false) | `out` Float | linear map; `from_min = from_max` gives `to_min`; clamp limits the input fraction to [0,1], including reversed ranges |
+### 3.4 Identity
 
-Math ops (radians, IEEE doubles, no exceptions): `add`, `sub`, `mul`,
-`div` (b = 0 gives 0), `pow` (|a|^b), `min`, `max`, `sin`, `cos`, `abs`,
-`floor`, `sqrt` (of |a|). The Lisp spells them `+ - * / pow min max sin cos
-abs floor sqrt`.
+A node is identified by its `Flow.Workspace.path`: the graph name (or `def:name`), the zones
+down to it, then the binding name. Reserved segments: `:x` a loop variable or parameter,
+`@result` a body result, `~for` / `~let` / `~fn` an unbound inline form (a second one under
+the same binding is `~for~1`, then `~for~2`). A nested node has no binding: its leaf is the
+holder's leaf, `#`, and the input (`result#0`, `result#0#:cutters`;
+`Flow_edit.nested_leaf`). Selection, probes and layout are keyed by path, so they survive
+every edit that keeps the path; `Flow_edit.remap` says where a key goes after a rename or a
+hoist.
 
-- **Compound kinds** are definitions (§3.8), symbol `user/<name>`.
+### 3.5 Edits
 
-### 3.4 Ports and port paths
+Every gesture is one `Flow_sop.Flow_edit.op`. `Flow_edit.apply` rewrites the syntax tree,
+prints it canonically, parses it again and checks it with `Flow.Workspace.check`; an edit
+that does not check is refused whole and nothing changes. `Editor_document.Workspace_doc.edit`
+does this for a document and moves layout keys in the same transaction. Comments travel
+with the binding they precede.
 
-A port is `{ node : int; path : string }`. Paths:
+The ops are the list in `flow_edit.mli`: `Set_arg`, `Connect`, `Disconnect`,
+`Set_input_default`, `Unfold`, `Fold_into`, `Wrap` (Repeat, Iterate), `Hoist`, `Rename`,
+`Make_local_fn`, `Make_defn`, `Make_macro`, `Inline_macro`, `Toggle_bypass`, `Set_note`,
+`Add_item`, `Move_item`, `Add_field`, `Add_node`, `Delete_nodes`, `Duplicate`, `Set_graph`,
+`Remove_graph`, `Rename_graph`, `Group_merge`, and the layout ops of §11.11.
 
-- a slot name, a parameter name, or a vec3 group name;
-- `<group>.x`, `<group>.y`, `<group>.z` for one vec3 component;
-- output names on the source side (`t`, `out`, `x`…; SOP geometry output is `geo`).
-
-Slot names come from `[@@sop.node_slots "input, target"]` (new in M3); a SOP
-without the attribute names its slots `in0`, `in1`, …. Inside a vec3 group the
-underlying field names (`center_x`) are not addressable; the group name is.
-
-### 3.5 Literals and drives
-
-Every parameter keeps its literal in the node's record (today's behavior).
-A drive is optional per port:
-
-```ocaml
-type drive =
-  | Wire of { node : int; output : string }   (* a value node's output *)
-  | Expr of Flow.Expr.t
-```
-
-While a port is driven, cooking uses the driven value (§13) and the stored
-literal is untouched, so removing the drive (`r`, inspector "reset") restores
-it. A vec3 port is driven either whole (`center`) or per component
-(`center.y`), never both at once.
-
-`Flow.Expr.t`:
-
-```ocaml
-type op = Add | Sub | Mul | Div | Pow | Min | Max | Sin | Cos | Abs | Floor | Sqrt
-type t = Num of float | Time | Op of op * t list   (* arity checked on construction *)
-```
-
-The infix form typed into fields: numbers, `t`, `pi`, `+ - * / ^`, unary
-minus, parentheses, calls `sin(x) cos(x) abs(x) floor(x) sqrt(x) min(a, b)
-max(a, b) pow(a, b)`. Unary minus binds tighter than `^`, following the
-prototype. `^` is right-associative; `*` `/` bind tighter than `+` `-`.
-Printers preserve the operation tree, including parentheses around a
-right-nested sum or product; IEEE arithmetic is not reassociated.
-Parse errors are values (`(t, Flow.Diagnostic.t) result`), never
-exceptions. Fields also accept the s-expression form when the text starts
-with `(`. A known operator head followed by whitespace prefers s-expression
-parsing, with infix as a fallback; otherwise infix is tried first. This makes
-`(- -2 -0)` unambiguously a subtraction. Fields print infix with minimal
-parentheses; the text form prints
-s-expressions (§11.7).
-
-### 3.6 Edges
-
-Every input port has at most one incoming edge, so an edge is identified by
-its destination port. There are no edge ids.
-
-- Geometry edges are today's `Edit_graph` connections (consumer, input index);
-  the destination port is `{ node = consumer; path = slot name }`.
-- Value edges are `Wire` drives whose destination is a SOP parameter or a
-  value-node input.
-- Bends and wireless flags are layout keyed by destination port (§4.1).
-
-### 3.7 The `sop` network overlay
-
-`Edit_graph` retains geometry topology and gains a per-entry bypass flag in
-M2. A bypassed SOP passes its primary slot through, including packed
-instances; without a connected primary slot it produces empty geometry.
-Other slots are not cooked while bypassed. The flag preserves the node's
-identity, literal record and wiring and is saved as `^:bypass` in the workspace text.
-In the existing scene and World contexts, bypass suppresses the selected
-object's or layer's contribution while retaining parent transforms and
-the layer stack. It does not overwrite visibility literals.
-The `sop` context adds an overlay beside it in the new `flow_sop` library:
-
-```ocaml
-(* lib/flow_sop/network.mli *)
-type t = private {
-  geometry : Procedural.Edit_graph.t;       (* SOP nodes and geometry edges, as today *)
-  values : Flow.Graph.t;                    (* value nodes: kind, label, literal record *)
-  drives : Drive.t Port.Map.t;              (* destination -> drive *)
-  geometry_outputs : string Port.Map.t;     (* destination -> named compound source output; absent = geo *)
-  instances : Instance.t Int_map.t;         (* compound nodes (M5) *)
-}
-```
-
-Node ids share one space per network. Value-node ids are allocated from the
-same process-wide source as `Procedural.Node` (`Node.Private.fresh_id`,
-exposed in M3). Loading validates disjointness.
-
-### 3.8 Compounds (M5)
-
-```ocaml
-type interface_port = {
-  name : string; ty : Port_type.t; default : Port.literal option;
-  label : string; soft : (float * float) option;
-}
-type definition = {
-  name : string;                  (* user/<name>; [a-z][a-z0-9_]* *)
-  context : Context.t;
-  inputs : interface_port list;   (* geometry first *)
-  outputs : interface_port list;
-  body : Network.t;               (* contains exactly one Inputs and one Outputs node *)
-}
-```
-
-- Definitions are shared: a document holds `definitions : definition
-  String_map.t`, and an instance node stores only the definition name, its
-  interface literals and its drives. Editing inside an instance edits the
-  definition; "make unique" copies it under a new name.
-- Definitions may nest; a definition that reaches itself is rejected (`E_RECURSIVE`).
-- Compile inlines definitions (§13.3).
-
-### 3.9 Identity
-
-- Node ids are unique within a network and never reused for another node.
-  Paste allocates fresh ids (today's behavior).
-- A label is display only. Binding names in the text form derive from labels
-  (§11.7); renaming never changes an id.
-- Compiled ids for compound internals are allocated once per
-  (instance id, inner id) pair and stored in the document, so they stay stable
-  across edits and sessions (§13.3).
-
-### 3.10 Invariants (checked by `Flow_sop.Network.validate` on load and in tests)
-
-1. Every drive's destination exists, is drivable (§3.2), and is not both
-   whole-vec3 and per-component driven.
-2. Every `Wire` source is a value-node output; the value graph plus drives is
-   acyclic.
-3. Types are compatible after coercion (§3.2).
-4. No id is both a SOP node and a value node.
-5. Every instance names an existing definition of a compatible context;
-   definitions are acyclic.
-6. Layout keys refer to existing nodes and ports; coordinates are finite.
-
-### 3.11 Operations
-
-All edits are pure functions returning `(Network.t, Flow.Diagnostic.t) result`:
-`add_value_node`, `remove_nodes` (SOP and value alike, drives into and out of
-them removed), `connect_value` (source output → destination port),
-`disconnect` (by destination), `set_literal`, `set_expr`, `clear_drive`,
-`fold`, `unfold` (§7.7), `group`, `ungroup`, `export`, `unexport`,
-`rename_interface_port`, `reorder_interface`, `make_unique` (§7.8). Existing
-`Edit_graph` operations (connect geometry, insert on connection, copy, paste,
-parameters) keep their current API; `flow_sop` wraps them so drives and layout
-follow node ids through paste and delete.
+`^:bypass` on a call passes its first input through; the checker refuses it on a call whose
+first input does not fit its result (`E_BYPASS`). It never reaches lowering.
 
 ## 4. Layout, view state and history
 
 ### 4.1 Layout (saved with the document, undoable)
 
-`Document.network.layout` changes from `(float * float) Layout.t` to:
+`Editor_document.Layout_by_path.t`, written as one `(layout ...)` form after the workspace:
 
-```ocaml
-type level = Point | Chip | Card | Full
-type layout = {
-  at : (float * float) Int_map.t;               (* graph-space top-left, snapped to 12 pt *)
-  level : level Int_map.t;                      (* absent: Card for SOP nodes, Chip for time *)
-  pinned : bool Int_map.t;                      (* opened explicitly with o *)
-  rows : bool String_map.t Int_map.t;           (* per node: row -> shown on card (the s pin) *)
-  split : String_set.t Int_map.t;               (* per node: vec3 groups shown as x/y/z rows *)
-  bends : (float * float) list Port.Map.t;      (* by destination port *)
-  wireless : Port.Set.t;                        (* by destination port *)
-}
+```lisp
+(layout
+  (editor "studio")
+  (panel ["studio" "network"] :collapsed false :window [500 80 620 450])
+  (node ["g" "ring"] :at [120 48] :level "full" :pinned true :collapsed true :rows {:radius false})
+  (frame ["g"] "Legs" :at [0 0] :size [200 100]))
 ```
 
-`display` stays where it is today (`Document.network.displayed`).
-`Network_view.edit` keeps its rule: an edit frame updates only the ids and
-ports that frame touched.
+| Field | Meaning |
+|---|---|
+| `editor` | the selected editor graph, for an older file with several (§11.11); the first by default |
+| `panels` | disclosure and floating-window bounds of a panel, by editor graph and binding |
+| `at` | a node's position inside its scope, on the 24-point lattice |
+| `level`, `pinned` | a node's detail level (absent: a card) and whether `o` pinned it |
+| `rows` | per node, a row pinned onto its card or off it, by label |
+| `collapsed` | a zone folded to its card |
+| `frames` | titled rectangles of a scope |
+
+There are no bend, wireless or display entries. A file that still has `bends`, `wireless` or
+`display` entries reads, and the entries are dropped. An entry whose path is not in the
+checked workspace is dropped on load and after every structural edit, and so is an
+`(editor "x")` that names no editor graph; neither is an error.
 
 ### 4.2 View state (not saved in the document, not undoable)
 
-Selection, hover, pan and zoom, the open projection per level (graph, list,
-text; today's per-level list/graph memory extended), hint mode, search, guide
-on/off (persisted in user preferences through `Editor_core.Store`).
+Selection, hover, pan and zoom, the selected wire, a drag in progress, the open macro lens
+and its step, letter hints, probes, and each panel's own state (§11.11 "Panels are
+instances"). Guide on or off is a user preference (`Editor_core.Store`). Viewport navigation
+is view state too, including when the camera object has `follow_viewport` set: the motion
+writes the camera node without a history entry.
 
 ### 4.3 History
 
-Each gesture is one `Editor_core.History` entry with a label shown as
-"Undo <label>":
+Each gesture is one `Editor_core.History` entry whose label reads "Undo <label>". The label
+of a syntax edit is `Flow_edit.label` (`Edit value`, `Connect`, `Disconnect`, `Unfold`,
+`Fold`, `Repeat`, `Iterate`, `Move out`, `Rename`, `Make function`, `Make macro`, `Bypass`,
+`Add node`, `Delete`, `Duplicate`, `Resize panel`, ...). Merging:
 
-| Gesture | Label | Merge |
-|---|---|---|
-| Move nodes | Move | `Gesture "graph.move:<level>"` until release |
-| Bend drag, add, remove | Bend wire | `Gesture "graph.bend:<port>"` |
-| Scrub a row | Set <parameter> | `Gesture "graph.scrub:<node>:<path>"` |
-| Type a value or expression | Set <parameter> / Expression on <parameter> | `Step` |
-| Connect, pick up, bind, knife | Connect / Disconnect / Bind / Cut wires | `Step` |
-| Level, pin, row pin, split changes | Detail level | `Burst { key = "layout.level:<level>"; window = 1.0 }` |
-| Fold, unfold, group, ungroup, export | Fold / Unfold / Group / Ungroup / Export <parameter> | `Step` |
-| Add via Tab or `.` (including the ripple move) | Add <kind label> | `Step` |
+| Gesture | Merge |
+|---|---|
+| Scrubbing an argument or an input default, typing a note | `Gesture` keyed by node and input (`Flow_edit.gesture`): one entry until the drag seals |
+| Dragging a number in the text pane | one `Gesture` for the drag |
+| Switching layouts by key | `Burst`, 1.5 seconds |
+| Everything else (connect, delete, wrap, level, pin, frame, move) | `Step` |
 
-Undo restores selection only where the selected ids still exist.
+A layout edit made by a release (moved nodes, a resized frame, a docked panel) is one entry.
+`v` is one entry, "View node".
 
 ### 4.4 Presets
 
-A preset is one s-expression file (`.rays`), the same text a workspace
-sketch is written in: the `(workspace ...)` form with its comments, then
-optional `(layout ...)` (tile positions, pins, row exposure, bends, wireless
-flags, collapsed zones and frames, keyed by lexical path, so they survive text
-edits), `(settings :name value ...)` for settings that differ from their
-default, and `(view {...})` for the environment's camera and render settings.
-Nothing else is written: no JSON, no version number, and no reader for older
-presets (the migration removed the old editor representation without a
-compatibility layer). A file that does not parse, check or lower is
-rejected without changing the installed document; only a workspace document
-can be saved. See `workspace/plan.md` W3.
+A preset is one s-expression file (`.rays`), the same text a workspace sketch is written in:
+the `(workspace ...)` form with its comments, then optional `(layout ...)`,
+`(settings :name value ...)` for settings that differ from their default, and `(view {...})`
+for the environment's camera and render settings. `Workspace_doc.to_text` keeps comments
+between and after the root forms and keeps a `(view ...)` form verbatim. There is no JSON and
+no version number. A file that does not parse, check or lower is rejected without changing
+the installed document. An unknown or repeated root form is `E_DOCUMENT_FORM`; a layout or
+settings form that does not read is `E_LAYOUT` or `E_SETTINGS`.
 
 ## 5. Exposure: which rows a card shows
 
 ### 5.1 The rule
 
-For each parameter row of a node at level `card`, evaluated in order:
+`Flow_sop.Exposure.shown` is the one place the rule lives. For one row, in order:
 
-1. Geometry slots always show. Primary slot 0 is in the header, not a row.
-2. A driven row (wire, wireless, expression, or any driven vec3 component)
-   shows. Pins cannot hide it.
+1. A geometry slot shows. The first slot of a node kind is the header's in-port, not a row.
+2. A driven row (a wire, an expression or a nested node is written there) shows. A pin
+   cannot hide it.
 3. If the row has a pin (`layout.rows`), the pin decides.
-4. A row with a literal written in the text shows, the schema default included: what the Lisp says
-   is drawn. Taking a wire off a named argument writes its schema default, so the row stays.
+4. A row with something written in the text shows, the schema default included: what the
+   Lisp says is drawn. Taking a wire off a named argument writes its schema default, so the
+   row stays.
 5. A primary row (§5.2) shows.
-6. Otherwise it is hidden, and the card ends with a `+ N more` row.
+6. Otherwise it is hidden.
 
-The inactive `b` input of unary Math keeps its literal and drives. It is
-hidden after rules 2–3 unless explicitly pinned; changing `op` never deletes
-its data. Full shows it dimmed when neither driven nor pinned.
-
-The canvas card applies rules 1 to 4 and 6: a primary row (rule 5) that is neither wired nor written stays
-behind `+ N more` so that the fixture's layout shows its cards at zoom 1 as `workspace.html` does; `Exposure.shown`
-still takes `primary`, and Full, the list and the inspector show it.
-
-Level `full` shows every row, grouped under folder headers in schema order,
-with rows that fail the rule drawn dimmed, and ends with `− show fewer`.
-Compound nodes and the Inputs/Outputs nodes show every interface row.
-Non-drivable rows (Text, Choice, Encoded) follow the same rule and render as
-fields without sockets. The rule is the same function for the canvas, the
-list badges and the inspector's ● toggle (`Flow_sop.Exposure.shown`).
+The canvas card (`Projection.row_shown`) asks the rule with `primary = false`: a Card is its
+header plus the rows that are wired, written or pinned, and there is no `+ N more` row. A
+list item, a macro hole and a binder always show; the `+` row is not a card line. Level
+`full` lists every row under its folder labels. The inspector's pin toggle writes
+`layout.rows` (`Pin row to card` / `Unpin row from card`).
 
 ### 5.2 Primary rows
 
-`[@sop.primary]` on a field marks it primary (new PPX attribute, M3; sets
-`Param.field.primary`). A schema with no primary field treats the fields of
-its first folder, in declaration order, as primary (the first field's folder,
-including the empty folder). Value kinds mark every input primary.
+`[@sop.primary]` on a field sets `Param.field.primary`; the manifest records it and
+`Flow.Check.parameter.primary` carries it.
 
 ### 5.3 Vec3 grouping
 
-`[@sop.vec3 "center"]` on three consecutive float fields groups them into
-the vec3 port `center` with components x, y, z in declaration order. The PPX
-rejects a group that is not exactly three consecutive `float` fields in one
-folder, or a group name equal to another field's name. The record keeps its
-three fields, so cook code does not change. `Param.field` gains
-`vec3 : (string * int) option` (group name, component index).
-In M3 every catalog triple named `*_x/_y/_z` (89 float triples, 267 fields
-in the current catalog) is annotated; the group name is the common prefix.
-If that prefix already names another field, use `<prefix>_vector` (Ray's
-`direction_vector` keeps its `direction` choice field unambiguous).
-
-### 5.4 Split vectors
-
-A vec3 row shows one socket and three fields (x, y, z). Clicking its name, or
-the inspector's `xyz` button, toggles `layout.split`: split rows show a header
-row with the live vector and three component rows, each with its own socket.
-Joining is refused while any component is driven; splitting is refused while
-the whole vector is driven (toast names the fix: `r` first). Wiring or typing
-an expression into a component splits automatically.
+`[@sop.vec3 "center"]` on three float fields groups them into the vec3 parameter `center`
+with components x, y, z. The record keeps its three fields, so cook code does not change;
+`Param.field.vec3 : (string * int) option` is the group name and component index, and
+`Flow_sop.Port.parameters` checks the same grouping invariants as the PPX. The keyword is
+the group name (`:center [0 1 0]`); the underlying field names are not addressable. When the
+common prefix already names another field the group takes another name (Ray's
+`direction_vector` beside its `direction` choice).
 
 ## 6. Canvas
 
-### 6.1 Direction and auto layout
+### 6.1 Direction and automatic layout
 
-Data flows left to right. Auto layout (context menu and palette only, as
-today; also for code graphs): column =
-longest path from any source over all edges, then move each upstream node
-right to the column immediately before its earliest consumer (processing
-consumers first); destinations of shared sources retain their initial column
-so tightening does not stretch a fan-out across its siblings. This keeps short branches near their join rather than
-stretching them across unrelated columns. Starting at each output, lay out
-its upstream input branches in separate vertical bands in port order;
-place the consumer between its input branches. Shared sources are placed once.
-Independent outputs get separate bands. Keep at least 36 points between cards
-in a column, 60 between input branches, and 96 between independent outputs;
-x = column × (W + 60), with
-positions on the 24-point dot lattice (Package B: a card's top-left corner is on a dot; a card whose header
-in-port reads another card lines up with it). Ascending id keeps disconnected nodes deterministic.
-Align unary chains at their header sockets. Re-layout clears old bend points
-along with moving nodes; the host saves the result as one undoable view edit.
-
-This is a deterministic branch heuristic, not a globally optimal DAG drawing.
-Dense shared cross-branch graphs can still need manual bends; dummy edge lanes
-and constrained layer sweeps are the next step if those graphs become common.
-The decomposition follows the separation of ranking, ordering and placement
-used by [ELK Layered](https://eclipse.dev/elk/blog/posts/2025/25-08-21-layered.html)
-and [Graphviz dot](https://graphviz.org/docs/layouts/dot/), without adding a runtime dependency.
+Data flows left to right. `Projection.layout` places a scope: columns by dependency depth,
+graph inputs first and the return last; a node stacks below the previous one of its column.
+Columns sit on a 288-point pitch (a 196-point card plus a 92-point gap, rounded up to the
+24-point lattice). A saved position (`layout.at`) overrides the computed one. A zone's size
+comes from its inner layout, recursively. There is no crossing minimisation.
 
 ### 6.2 Node geometry (logical points, kit font, 24-point rows)
 
-| Element | Geometry |
-|---|---|
-| Card width `W` | 196 (today's `node_width`) |
-| Header | 24 high; 10×10 type square at (7, 7); label at x 24, baseline 16; truncated with … to fit |
-| Rows | 24 high each below the header; body bottom padding 6; corner radius 3 |
-| Primary slot socket | header left edge, y 12 |
-| Single output socket | header right edge, y 12. Multiple outputs are rows at the top of the body, right-aligned |
-| Row socket | left edge, row centre |
-| Row label | x 14 (vec3 components x 26, in the vec colour) |
-| Scalar field | 76×16 at x `W − 84`, soft-range fill, value right-aligned |
-| Vec3 fields | three 34×16 fields at x 82, 118, 154 with axis letters |
-| Choice field | 98×16 at x `W − 106`; click cycles, Shift-click back |
-| Driven row | right-aligned `← <source> <live value>`; `⌁` instead of `←` when wireless |
-| Fold button ƒ | 14×14 at x `W − 104` on rows whose drive is foldable or is an expression |
-| Expression field | 76×16 accent field showing the infix text |
-| Folder header row (full) | uppercase folder name in the accent colour at x 10, then a rule |
-| More row | `+ N more` / `− show fewer`, accent text, whole row clickable |
-| VIEW flag | 26×12 filled accent at the header's right; `M` tag for muted; `+N` badge on chips counts driven rows |
+Card geometry is the kit sheet's box model, measured against its render: card width 196
+(`Projection.node_width`), header 24 overlapping the 1-point border, rows of 24 from
+`Projection.body_top`, 4 points of padding under the last row (`card_pad`), and a 24-point
+footer row only when the host has probe records (`Projection.layout ~foot`). Ports are
+8-point circles centred on the card's edge.
 
-Positions of nodes and bend points snap to a 12-point grid.
-
-**Kit rev 3 (current, supersedes the table where they differ).** A Card is its header plus the rows that are
-wired or written (§5.1 rules 1 to 4); there is no `+ N more` row. The footer row (value, spark, cook
-time) is drawn on Full only: geometry reads `1 204 pts · 0.003 s`, the cook time from
-`Probe.geometry.seconds`. Boxes are laid out at the level the node was given (`shown`, never changed by the zoom): a point is as wide as
-its name drawn at the zoom's font, a chip is the header, so ports, wire ends and obstacles come from the
-one geometry. Positions sit on the 24-point lattice and columns on a 288-point pitch (196 card plus 92
-gap, rounded up). A scope's inputs stack in the order written.
+- A **Card** is its header plus the rows of §5.1. A **value card** (a literal binding,
+  `Projection.value_card`) is the header alone: name, the value field, the out-port.
+- The footer (value, sparkline, cook time, as in `1 204 pts · 0.003 s`) is drawn on Full
+  only; the cook time is `Probe.geometry.seconds`.
+- Boxes are laid out at the level the node was given (`shown`, never changed by the zoom): a
+  point is as wide as its name at the zoom's font, a chip is the header. Ports, wire ends,
+  obstacles and hit boxes all read that one box.
+- Positions sit on the 24-point dot lattice (`Projection.lattice`, `snap`); a zone's cards,
+  not its edge, are on it.
+- A zone is a tint, a 1-point edge, a label row (the kind, the binder, `in <source>`) and
+  the iteration selector; accumulators, further loop variables and parameters are rows under
+  the label row, drawn only when the loop has them (`Projection.extra_rails`). A loop over
+  `sop/point_list` or `sop/piece_list` says `by index` or `by <key>` in its header.
 
 ### 6.3 Wires
 
-- A wire is a polyline: source port, a 14-point stub (right from outputs,
-  left into row and header sockets, down into chip bottom attachments),
-  the bend points in order, the destination stub, the destination port.
-  Rendered with `Ui.line` segments; no curves.
-- Widths: Geometry 2.4, Float and Int 1.5, Vec3 1.8, Bool 1.5. Wireless:
-  dashed 2/5, drawn only while either end is selected or hovered or the
-  selected wire is it, or `w` is on.
-- Hit tolerance: 6 points either side of any segment. Alt-click on a wire
-  inserts a bend point at the click, in the segment nearest the pointer, and
-  starts dragging it. Alt-click or double-click on a bend point removes it.
-- Selected wire: an 8-point accent halo at 28% opacity. Bend handles are 7×7
-  squares.
-- Scalar and vec3 wires carry a live readout (10-point text 6 points above the
-  polyline's arc-length midpoint, `paint-order: stroke` style outline in the
-  canvas colour).
-- Kit rev 3 routing (supersedes the stub and bend-point rules above for generated wires): a wire is
-  one straight segment from port to port, 1.5 points in the port colour. When a card is in the way it
-  gets one bend (a 5-point square), horizontal out of the source then a diagonal into the port, the bend
-  72 points before it (or 24-point steps, or the diagonal first). Only when no one-bend way is clear
-  does it go round above or below, 24 points clear; a backward wire always goes round. A zone's label
-  row and bottom edge are obstacles, so no wire runs along them. Wires are cut to the pane's body.
-- Wires into collapsed nodes: chips take driven rows along their bottom edge
-  at x 22 + 12k (k = index among driven rows); points take every wire at the
-  centre, trimmed 10 points from it.
+- A wire is one straight segment from port to port, 1.5 points in the port colour, drawn
+  with `Ui.line`. No curves.
+- When a card is in the way it gets one bend (a 5-point square): horizontal out of the
+  source, then a diagonal into the port, the bend 72 points before it. Only when no one-bend
+  way is clear does the wire go round above or below, 24 points clear. A zone's label row
+  and bottom edge are obstacles. Bends are computed, never authored or saved.
+- `:wires "rect"` on a `ui/graph` panel keeps the older orthogonal routing.
+- A fold's feedback is a dashed wire.
+- Hovering a connected port highlights its wires; hovering a wire highlights that
+  connection. Wire hit boxes join the shared PXUI hit tree behind the cards.
 
 ### 6.4 Levels of detail and zoom
 
-- `point`: a filled circle r 7 at (x + 12, y + 12) in the node's type colour
-  (compound: hollow ring with a dot), label to the right. Selection ring r 11;
-  display halo r 15 dashed.
-- `chip`: the header only.
-- `card`: header plus the rows of §5.1.
-- `full`: header plus every row with folder headers.
-- Selected chips, cards and full nodes have a 2-point theme-accent outline;
-  unselected nodes keep the faint neutral outline. The VIEW flag remains
-  separate from selection.
-- Zoom range 0.25–2.5. The zoom never changes a node's level: a card stays a card with its rows at
-  every zoom, only smaller. `o` opens a node one level, `p` points it or goes back (`⇧O`, `⇧P` for all).
-- During a wire drag, hovering a node that has a compatible input and shows
-  less than `full` shows it as `full` until the pointer leaves it (bloom), so
-  hidden rows are drop targets.
+`Projection.level = Point | Chip | Card | Full`, stored by path (`layout.level`, `pinned`).
+
+- `point`: a 14-point disc and the name.
+- `chip`: the header with a `+N` count of the rows with something written.
+- `card`: the header plus the rows of §5.1 (the default).
+- `full`: every row under its folder labels, plus the footer.
+- Zones and value cards have no level.
+- Zoom range 0.25 to 2.5, at the pointer. The zoom never changes a node's level: a card
+  stays a card with its rows at every zoom, only smaller. `o` opens the selection one level
+  and pins it, `p` points it or goes back to the level it had; `⇧O` returns every node to a
+  card and `⇧P` points every node, or puts every node back.
 
 ### 6.5 Colour and type
 
-A node's square, point and header accent use the colour of the type it
-produces. `Pxui.Theme` gains a port palette; the existing six theme tokens do
-not change.
-
-| Token | Light | Dark |
-|---|---|---|
-| geometry | theme accent `#285f77` | `#72b3cf` |
-| float | `#b0680f` | `#e5a54c` |
-| int | `#3b7d4e` | `#74c28e` |
-| vec3 | `#6b50ae` | `#a98cf5` |
-| bool | `#b0435f` | `#f08aa3` |
-| compound | `#6b50ae` | `#a98cf5` |
-| output node | theme foreground | theme foreground |
-| hint label | `#f5cf4f` on foreground | same |
-
-`lib/pxui/test_ui_parity` fixtures that include the graph change on purpose
-in M1; every other fixture stays pixel-identical.
+A node's type square, its ports and its wires take the colour of the type
+(`Pxui_graph.Node_menu.port_color`, from `Pxui.Theme.ports`: geometry is the theme accent;
+float, int, vec3, bool, text, function and record have their own; a list draws its elements'
+colour). The selection is accent corner brackets, a bypassed card is hatched, the node the
+viewport shows wears an accent flag, a drop target is dashed, a node the checker or a cook
+refused wears the failed state with the diagnostic's code (`Scope.with_failed`).
 
 ### 6.6 Hit testing and PXUI
 
-Every node, row, socket, field, fold button, more row and bend handle is a
-`Ui.box` keyed by stable ids (node id, port path, bend index). Wire hits keep
-using the graph's spatial index over polyline segments. No second hit-test,
-capture or text-entry path (root `AGENTS.md`). The canvas emits typed
-requests; `Doc.apply` applies them after `Ui.frame`.
+Every node, row, socket, field and button is a `Ui.box` keyed by stable ids. There is no
+second hit-test, capture or text-entry path (root `AGENTS.md`). The pane returns typed
+`Scope.change` requests and never edits; the host reduces them after `Ui.frame`. A frame's
+work follows what is in view, never the size of the graph.
 
 ## 7. Interaction
 
@@ -531,189 +314,128 @@ requests; `Doc.apply` applies them after `Ui.frame`.
 
 | Gesture | Effect |
 |---|---|
-| Left-drag on empty canvas | box select (replaces the selection; Shift adds) |
-| Right-drag, middle-drag, Alt-drag on empty canvas | pan |
-| Pinch, two-finger scroll, Command/Ctrl-wheel, mouse wheel | zoom at the pointer |
-| Click node | select; Shift toggles |
-| Drag node | move the selection (snap 12) |
-| Double-click node | card ⇄ chip (pins); on a compound: enter |
-| Drag from an output socket | wire; release on a socket connects, on a node body connects to the row under the pointer or the first free compatible input, on empty canvas opens search filtered to kinds with a compatible input |
-| Drag from a connected input socket | picks the wire up (release on empty canvas disconnects) |
-| Drag from an unconnected input socket | reverse wire; release on empty canvas opens search filtered to kinds with a compatible output |
-| Click or drag a numeric field | set its soft-range value from the pointer's position on the field |
-| Alt-click a numeric field or double-click its label | text entry; a leading `=` makes an expression |
-| Click a wire | select it |
-| Alt-click a wire | add a bend point and drag it |
-| Ctrl-drag or Command-drag on empty canvas | knife; wires crossing the stroke are removed in one entry |
-| Right click (no drag) | context menu, as today |
+| Left-drag on empty canvas | marquee: the nodes of one scope it touches (Shift adds) |
+| Right-drag or middle-drag | pan |
+| Wheel, two-finger scroll, pinch | zoom at the pointer |
+| Click a node | select; Shift toggles |
+| Drag a node | move the selection, snapped to the lattice, one `Moved` on release |
+| Double-click a node's title | rename it in place (`F2` does the same) |
+| Double-click a node's body | follow what it references (`Activated`) |
+| Double-click a graph input | edit its default |
+| Drag from an output | a wire; released on a row it is `Connect` |
+| Drag a number field sideways | scrub: a float by 0.05 a point (0.005 with Shift), an integer by one every 6 points |
+| Option-click a number field | type the value |
+| Click a wire | select it; Delete takes it off |
+| Click `ƒ` on a row | `Unfold` an expression row into its own binding, or `Fold_into` on a row wired from a node nothing else reads |
+| Right-click a node | the node becomes the selection and the pane's context menu opens |
+| Right-click empty canvas | the host's add menu at that point (`Menu_requested`) |
+| Drag a frame by its title | the frame and the nodes whose centres lie inside it move together |
+
+Taking a wire off a nested node's row unfolds the node first (`Unfold`, then `Disconnect`),
+so a wire never deletes a node.
 
 ### 7.2 Keys
 
-All keys are `Editor_core.Command.t` entries in the one keymap (today's rule).
-Graph-pane scope unless noted. Row verbs act on the row under the pointer;
-node verbs on the selection. The letters in this table are reserved in every
-context (§7.11).
+All keys are `Editor_core.Command.t` entries in the one keymap. The graph pane's own keys are
+`Pxui_graph.Scope.bindings`; the host scopes them to the graph panel. Node keys act on the
+selection, row keys on the row under the pointer.
 
-| Key | Command id | Action | Milestone |
-|---|---|---|---|
-| `h` `j` `k` `l`, arrows | `graph.walk.left/down/up/right` | walk (§7.6) | M2 |
-| `Tab` | `graph.add` | add by context (§7.3) | M2 |
-| `.` | `graph.repeat` | repeat the last add (§7.4) | M2 |
-| `w` | `scope.hints` | connect (wire) by letter hints (§7.5); the status bar says `w hints` | Package B, moved from `f` |
-| `b` | `graph.bind` | bind by hints; on a selected wire, toggle wireless | M4 |
-| `o` | `graph.open` | open the selection one level, pinning | M1 |
-| `p` | `graph.point` | selection to points, or back to its previous level | M1 |
-| `⇧O` | `graph.open-all` | every node to card | M1 |
-| `⇧P` | `graph.point-all` | every node to a point, or every node back to its previous level | M1 |
-| `v` | `scope.display` | view the selected geometry node in the viewport instead of the graph's result (a `(display ...)` entry of the layout, one history entry; again returns to the result) | Gap A |
-| `m` | `graph.mute` | toggle bypass | M2 |
-| `x`, Delete, Backspace | `graph.delete` | delete selection or selected wire | M2 (Delete/Backspace exist) |
-| `⇧X` | `graph.dissolve` | delete and reconnect the trunk | M2 |
-| `/` | `graph.find` | find a node by name in the current level | M2 |
-| `f` | `scope.frame-selection` | pan and zoom the pane to the selection (all with none); in the list `f` reveals the selection | Gap A |
-| Home | `graph.frame-all` | frame all (exists) | – |
-| `w` | `graph.show-wireless` | show every wireless wire | M4 |
-| `=` | `row.expression` | expression on the hovered row | M4 |
-| `r` | `row.reset` | remove the hovered row's drive; restore its literal default if undriven | M4 |
-| `s` | `row.pin` | keep the hovered row on the card, or hide it | M3 |
-| `e` | `row.export` | export the hovered row to the enclosing compound | M5 |
-| `⌘G` / `⇧⌘G` | `graph.group` / `graph.ungroup` | group selection / ungroup a compound | M5 |
-| `i` / `u` | `scene.enter` / `scene.up` | enter / leave (exists; extended to compounds) | M5 |
-| `?` | `guide.toggle` (global) | guide strip and tooltips on or off | M2 |
-| `Space ?` | `guide.keys` (leader) | key sheet | M2 |
-| `Space l` | `graph.projection` (leader, exists) | graph → list → text → graph | M6 (two-way until then) |
-| `F2` | `scope.rename` | rename the selected node, or edit the default of a selected graph input (double-click does the same) | W13 |
-| `⇧G` | `scope.frame` | titled frame around the selected nodes (corner resizes, title double-click renames, cross deletes) | W13 |
-| `⌥↑` / `⌥↓` | `scope.item-up` / `scope.item-down` | move the hovered list item | W13 |
-| drag on empty canvas, `⇧` adds | – | marquee selection of one scope's nodes | W13 |
-| `Space o` `v` `h` `x` | `panel.split-right/below`, `panel.close` | split (side by side, stacked) or close the focused panel | W13 |
-| `Space o` `g` `l` `t` `i` `u` `m` `w` | `panel.graph/list/lisp/inspector/outline/timeline/viewport` | retype the focused panel | W13 |
-| `⌘D` / Ctrl-D | `scope.duplicate` | copy the selected bindings of one scope with fresh names (the copies read each other), select the copies | Gap A |
-| `j` / `k` (list) | `list.down` / `list.up` | walk the list like the arrows; a row of a geometry object's list selects its node in the pane | Gap A |
-| drag a frame by its title | – | the frame and the nodes whose centres lie inside move together (one `Moved`, one `Frames_set`) | Gap A |
-| `⌘C/V/X`, `⌘Z`, `⇧⌘Z` | exist | unchanged | – |
+| Key | Command id | Action |
+|---|---|---|
+| arrows | `scope.walk.left/down/up/right` | walk (§7.6) |
+| `Tab` | `graph.add-after` | the add menu; with a node selected the pick is wired after it (§7.3) |
+| `w` | `scope.hints` | connect by letter hints (§7.5) |
+| `o` / `p` | `scope.open` / `scope.point` | open the selection one level, pinned / point it, or back |
+| `⇧O` / `⇧P` | `scope.open-all` / `scope.point-all` | every node to a card / every node to a point, or back |
+| `v` | `scope.display` | view the selected geometry node: it becomes the graph's result (below) |
+| `b` | `scope.bypass` | toggle `^:bypass`; on a node with a boolean `:visible` and no bypass, toggle that instead |
+| `x`, Delete, Backspace | `scope.delete` | the hovered wired row's wire or list item, else the selected wire, else the selected nodes |
+| `f` | `scope.frame-selection` | pan and zoom to the selection (all with none) |
+| Home | `scope.frame-all` | frame everything |
+| `⇧F` / `⇧U` | `scope.fold` / `scope.unfold` | fold a binding into its one use / unfold a call into its own binding |
+| `⇧H` | `scope.hoist` | move a loop-invariant binding out of its loop |
+| `r` / `⇧R` | `scope.repeat` / `scope.iterate` | wrap the selection in a `for` / a `fold` |
+| `l` | `scope.function` | make a local `fn` of the selection |
+| `d` | `scope.defn` | make a `defn` (the host's dialog types its parameters) |
+| `m` | `scope.macro` | make a macro (the host's dialog picks its holes) |
+| `c` | `scope.collapse` | collapse or expand a zone |
+| `[` / `]` | `scope.probe-prev` / `scope.probe-next` | step the selected zone's probe |
+| `F2` | `scope.rename` | rename the selected node, or edit the default of a selected graph input |
+| `⇧G` | `scope.frame` | a titled frame around the selection (its corner resizes, its cross deletes) |
+| `⌥↑` / `⌥↓` | `scope.item-up` / `scope.item-down` | move the hovered item of a `list`, a `str` or a `scene/merge` |
+| `⌘D` | `scope.duplicate` | copy the selected bindings of one scope with fresh names |
+| `⌘C` / `⌘X` / `⌘V` | `scope.copy` / `scope.cut` / `scope.paste` | bindings as text on the clipboard |
+| `i` / `⇧I` / `u` | `scene.enter` / `scene.peek` / `scene.up` | follow a reference / peek it in a floating graph / back |
+| `y` | `carry.pick-up` | pick up a graph or object (§7.12) |
+| `?` | `guide.toggle` | guide strip on or off |
 
-`Space a` (categorised add menu), `Space f` (frame displayed), `Space /`
-(palette) and every other leader key keep their current meaning.
+Every `⌘` chord is also bound with Ctrl. Leader keys (`Space`, then): `a` add menu, `j` jump
+to a graph, `e` the World, `f` frame the displayed tile, `/` palette, `?` key sheet, `s`
+save preset, `b` browse presets, `t` `g` `i` `h` toggle the timeline, graph, inspector or
+all UI, `p` `r` `x` play, reset, stop, `z` restore layout, `o` `v`/`h`/`x`/`f` split side by
+side, split stacked, close, float or dock the focused panel, `l` `g`/`l`/`t`/`i`/`u`/`m`/`w`
+retype the focused panel (graph, list, lisp, inspector, outline, timeline, viewport), `n`
+plus the same letters a floating window of that kind, `[` `0`..`9`/`n`/`x` the layouts
+(§11.11). `⌘S` saves the sketch, `⌘Z` / `⇧⌘Z` / `⌘Y` undo and redo.
 
-### 7.3 Tab
+**`v`.** Only a geometry node can be viewed, and what the viewport shows is the graph's
+result. `v` on a binding at the root of the graph rewrites the result to that binding
+(`Connect` of `[graph; "@result"]`, one entry "View node"). `v` on the result itself does
+nothing. A node inside a loop cannot be viewed alone; the pane says so.
 
-- A wire is selected: insert a node on it (kinds with a compatible input and a
-  compatible output), placed at the wire's midpoint.
-- Exactly one node is selected and it has an output: append. The new node is
-  placed at (x + W + 60, y). If the selection's output feeds a trunk slot, the
-  new node is inserted into that edge and every node downstream of it along
-  non-wireless edges, with x ≥ the new node's x, moves right by W + 60.
-- Otherwise: add at the pointer.
+### 7.3 Add
 
-The search lists kinds filtered by that context, ranked: label prefix,
-word prefix, substring, subsequence, category match. It searches SOP kinds,
-value kinds and definitions. The new node is selected.
-
-### 7.4 Repeat
-
-`.` adds the last added kind (including its preset op, such as Sine) with the
-append rule of §7.3 relative to the current single selection, or at the
-pointer when there is none.
+`Space a`, `Tab` in the graph panel and a right-click on empty canvas open the node menu
+(`Pxui_graph.Node_menu`): a search field over the kinds, the likeliest first (what takes an
+input after the selected node, then the rest), typed search over the whole catalog by name,
+key or category. A kind of another context is listed after the others, dimmed, and cannot be
+picked. The host writes one `Add_node`: a kind with an input reads the selected node, or the
+graph's result when nothing is selected, so the text still checks. `Scope.scope_point` gives
+the lattice position under a menu opened by the pointer.
 
 ### 7.5 Letter hints
 
-`c` (and `b`, which excludes geometry ports and creates wireless wires):
+`w` with one node selected:
 
-1. The source is the single selected node's first output. None: toast.
-2. Candidates: every input port of every other node in the level that is type
-   compatible and would not create a cycle.
-3. A node whose compatible candidates are all visible at its current level
-   gets one label per candidate; a node with exactly one candidate gets one
-   label for it; any other node gets one label for the node.
-4. Order by distance between node origins, nearest first. Labels come from
-   `asdfghjklqwertyuiopzxcvbnm`, one letter each; if there are more than 26
-   targets, every label has two letters (first × second in that alphabet,
-   limit 676).
-5. Typing narrows; an exact label picks. Picking a node label shows that node
-   as `full` and relabels its candidates. Backspace deletes a letter, Escape
-   cancels, a click cancels.
+1. The source is that node's output. A zone or the synthetic result is not a source.
+2. Candidates: every other node of the same scope that the source does not depend on (a
+   connection must not close a cycle) and that has an input the source's type fits, on its
+   header port or a row its card shows.
+3. Order by distance between node origins, nearest first, at most 676. Labels come from
+   `asdfghjklqwertyuiopzxcvbnm`, one letter each; with more than 26 targets every label has
+   two letters.
+4. Typing narrows; a complete label on a node with one fitting input is the `Connect`. A
+   node with several fitting inputs then labels its inputs and asks for a second label.
+5. Backspace deletes a letter, Escape or a click cancels. `Scope.editing` is true meanwhile,
+   so the host keeps its keys out.
 
 ### 7.6 Walk
 
-`h` moves to the source of the selection's first connected input (port order,
-primary slot first); `l` to the consumer of its first output, topmost first.
-If there is none, or for `j`/`k`, pick the nearest node in that direction:
-candidates with Δx < −10 (`h`), Δx > 10 (`l`), Δy > 10 (`j`), Δy < −10 (`k`);
-score |Δ along| + 2·|Δ across|. With no selection, select the leftmost node.
-Pan so the new selection is visible.
+An arrow selects the nearest node in that direction: among nodes whose centre is more than
+one point further along the arrow, the one with the least `along + 2 × across`. With no
+selection it selects the first node.
 
 ### 7.7 Fold and unfold
 
-- **Fold** (ƒ on a row driven by a wire): collect the source and, recursively,
-  every node feeding it. Only `math`, `value` and `time` nodes with no drive
-  on `time.speed` other than a literal or expression may take part, and no
-  collected node may feed anything outside the collection except this row.
-  Otherwise refuse with a toast naming the offending node. The expression is
-  built as: `time` → `t` (or `t * speed`), `value` → its `v`, `math` → its op
-  over `a` (and `b`). Remove the collected nodes; set the row's drive to
-  `Expr`. A pure number becomes the row's literal instead.
-- **Unfold** (ƒ on an expression row): build one `math` node per operator,
-  numbers become literals on their inputs, all `t` share one `time` chip.
-  Place math nodes in columns to the left of the target (W + 24 apart), each
-  vertically centred on its inputs; the `time` node goes left of the leftmost
-  column. Wire the result into the row.
-- Property: unfold then fold gives back an equal expression when it contains
-  `t` or an operator (M4 test). A bare number becomes a literal.
-- In the workspace pane (`Scope`) both are one click on the row: an expression row reads `ƒ (expr)` and
-  its `ƒ` is `Unfold`; a row wired from a named node that nothing else reads reads `ƒ ← name` and its
-  `ƒ` is `Fold_into` that node, so an expression unfolded into cards collapses back into the parameter.
-  A source read in two places has no `ƒ` (the edit would refuse); `⇧F` and the context menu fold the
-  selected node the same way.
-
-### 7.8 Compounds (M5)
-
-- **Group** (`⌘G`): a definition named `compound_<n>` (first free n) gets the
-  selected nodes. Inputs: one interface input per distinct outside source
-  feeding the selection (named after the first destination port, deduplicated
-  with `_2`, `_3`; type and default from that port; geometry first). Outputs:
-  one per distinct inside output used outside. Outside edges are rewired to
-  the instance; inside edges attach to Inputs/Outputs. The instance takes the
-  selection's top-left position; Inputs goes 240 left of the leftmost node and
-  Outputs W + 60 right of the rightmost. If the display node was grouped, the
-  instance becomes the display node when it has a geometry output.
-- **Ungroup** (`⇧⌘G`): the inverse for one instance; inner ids are freshly
-  allocated.
-- **Enter** (`i`, double-click): the level becomes the definition body at
-  that instance; crumbs show `network · sop › Compound 1 · sop compound`.
-  **Up** (`u`) returns and selects the instance.
-- **Export** (`e` on a hovered row inside a definition): add an interface
-  input with the row's type, current literal as default, label and range; wire
-  Inputs to the row. The instance gains the row. Refused on a driven row.
-- **Unexport** (Inputs/Outputs inspector): remove an interface port across the
-  shared definition and its instances. A geometry port must first have its
-  body wire and every instance wire disconnected; a displayed geometry output
-  is in use. Removing another geometry port preserves the remaining named
-  wires. Value-port removal retains the literal at the body destination.
-- The display flag lives at the top level of a SOP network; `v` inside a
-  definition toasts.
+- **Unfold** (`ƒ` on an expression row, `⇧U`): the nested call, loop or scope becomes its
+  own binding in the same scope, named by `Flow_edit.fresh_name`.
+- **Fold** (`ƒ` on a wired row, `⇧F`): a binding used once is inlined into its use
+  (`Fold_into`). A row wired from a node that something else also reads has no `ƒ`; the edit
+  would be refused.
+- An expression row reads `ƒ (expr)`; a row wired from a named node that nothing else reads
+  reads `ƒ ← name`.
 
 ### 7.9 Field editing
 
-Numbers parse with the OCaml float syntax used by the inspector today; Int
-fields round; hard bounds normalize through `Param.apply`. `=expr` sets an
-expression drive (§3.5); an expression that is a pure number sets the literal.
-Enter commits, Escape cancels, blur commits.
-
-### 7.10 Search and find
-
-Search (Tab, `Space a`, release on empty canvas) is today's node menu data
-(`Pxui_graph.catalog_of_factories`, category submenus, windowed results)
-plus value kinds and definitions. Find (`/`) lists nodes of the current
-level by label and qualified kind; picking selects and frames.
+A number field is `Ui.value_field` (`Scope.num_field`): dragged it scrubs, Option-click
+types; Enter commits, Escape or a click away cancels. A name, an input default, a frame
+title and a new output's name use the same field. Each is one `Set_arg`, `Rename`,
+`Set_input_default` or `Add_field`.
 
 ### 7.11 Context keys and the World
 
-The grammar's letters are reserved in every context. Context-specific plain
-keys use only free letters (`a d g n q t z`, digits, brackets; `y` picks up a carry, §7.12). In M2 the
-World's graph-scope keys change: `e` (dome ⇄ light) becomes `t`, `r`
-(reseed) becomes `n`, `p` (play day cycle) becomes `d`; `[`, `]` and `1`–`4`
-stay. `scene.md` and `api.md` update with that milestone.
+While the World's graph is open, plain keys in the graph panel are: `t` dome ⇄ light, `n`
+reseed, `d` play the day cycle, `[` / `]` time −30 / +30 minutes, `1`..`4` the presets.
 
 ### 7.12 Carry
 
@@ -773,12 +495,10 @@ While carrying:
   holding the pointer over a node for 0.6 s follows its reference. Nothing else edits the
   document until the put, and the autosave never writes a preview.
 - **Budget.** A put whose apply (edit and check) or whose target cook takes 500 ms or more
-  (`?carry_budget` of `Editor3/2.create`, seconds, default 0.5) is not shown: the target is lit and
+  (`?carry_budget` of `Editor3.create`, seconds, default 0.5) is not shown: the target is lit and
   the strip says what it would write and why there is no picture (`Would write :material (ref cobalt)
   on shards/m · no preview, applying takes 612 ms · release writes it`); the release still writes it.
-  `test_materials` runs it with a zero budget.
-  `test_materials` times a preview's apply and restore frames (about 1 ms each on the fixture,
-  cooks awaited).
+  `test_materials` runs it with a zero budget and times a preview's apply and restore frames.
 
 Gesture echo: every other gesture that writes the text also prints what it wrote in the same strip
 slot, in the words of the text (`Wrote :visible false on scene/body`, `Wrote :translate [3 0 0] on scene/b`;
@@ -786,29 +506,30 @@ slot, in the words of the text (`Wrote :visible false on scene/body`, `Wrote :tr
 a whole graph) prints nothing and the history label stands. The palette's "Copy workspace as Lisp"
 (`Leader.Copy_lisp`, no key) puts the text Command-S writes on the clipboard.
 
-The key `y` is unbound as a plain key; only Command-Y (redo) uses the letter. `Pxui.Ui` holds the
+The key `y` is otherwise used only by Command-Y (redo). `Pxui.Ui` holds the
 payload on the handle (`Ui.carry`, `Ui.carrying`, `Ui.drop_target`, `Ui.cancel_carry`; see
 `pxui.md`), `Scope` reports the node or canvas under it (`Drop_over`, `Dropped`) and never edits,
 and `Core` turns a drop into the put.
 
-## 8. Views (M6; the list exists today)
+## 8. Views
+
+A panel of the editor graph is a graph, a list or a lisp panel (§11.11); `Space l` retypes
+the focused one. They show the same graph, level and selection and write the same edits.
 
 ### 8.1 Graph
 
-Everything in §6–§7. Default for SOP networks, as today.
+Everything in §6 and §7.
 
 ### 8.2 List
 
-Today's `Pxui_shell.Tree` over `Pxui_graph.trunk` rows, extended: value nodes
-appear, a node's first incoming edge (by port order) continues its row
-chain, other inputs nest one level under their consumer, a node reached twice
-repeats as a `↳` link row. Badges: `n driven`, `n set` (overridden, undriven),
-`VIEW`, `M`. `j`/`k` move, Enter opens the node in the graph (switch and
-frame). Existing WAI-ARIA tree keys stay.
+`Pxui_shell.Tree` rows. Its keys (`Tree.bindings`, scoped to the graph panel): arrows or
+`j` / `k` move, Shift extends, Left and Right fold and unfold, Home and End, Tab and
+Shift-Tab reparent, `⌥↑` / `⌥↓` move a row, `F2` renames, Delete removes, `/` filters, `h`
+hides or shows, Enter opens the selected row in the graph, `f` reveals the selection.
 
 ### 8.3 Text
 
-Since W7 the Lisp pane is editable (`Rays_editor.Text_pane`, `Ui.text_area`).
+The Lisp pane is editable (`Rays_editor.Text_pane`, `Ui.text_area`).
 Its tabs: Selection (the top-level ancestor of the selected binding as a `let*`
 over the root bindings it needs, the binding marked; an edit is one `Set_arg`),
 Graph (the current graph's text) and Document (the whole workspace
@@ -826,301 +547,183 @@ hex, r g b), each edit applied live as one history entry; and completion after `
 (the material graphs, inserted as `(ref name)`), `:camera` (the scene's cameras), `:active` (the
 layouts, inserted as their index) and inside `(ref ` reads the document, not only the text shown
 (`Lisp_text.names`).  The pane paints at the shared elastic
-scroll position, so it overshoots and settles like every other scrolling view. The qualified-names toggle and the
-network printer of M6 are gone (W12); a document that is not a workspace has no
-text projection. See `workspace/plan.md` W7 and `flow-migration.md`.
-
-### 8.4 Shared state
-
-The three views share selection, the inspector, history, the display node and
-the document. `Space l` cycles graph → list → text and each level remembers its
-view (today's per-level projection memory, three-valued).
+scroll position, so it overshoots and settles like every other scrolling view.
 
 ## 9. Inspector
 
-`Pxui_shell.Inspector` keeps its role and current behavior: empty selection
-shows camera/render controls (and, new, a short network summary: context,
-node count, display node, the exposure rule in one sentence); a multi-selection
-shows the count and `⌘G`; a single node shows every parameter.
+`Pxui_shell.Inspector` shows the selected node's inputs: the same rows the card has, every
+one of them, with a pin toggle per row (§5.1) and a reset. An edit there is the same
+`Flow_edit` op the canvas writes and records the same history entry. An `:of` keyword ties it to one graph panel
+(§11.11).
 
-Single node (M3):
+## 10. Guide
 
-- Header: editable label; `qualified kind · #id` and flags (muted, displayed).
-- Inputs section: geometry slots with their sources, read-only.
-- Folders: accordions in schema order (existing), nested with `/` paths
-  (existing `[@sop.folder "Transform/Center"]`).
-- Row: label, editor, card pin (● shown on the card, ○ hidden, locked ● when
-  driven). Editors: number fields (Float/Int), toggle (Bool), choice, text,
-  vec3 as three number fields plus an `xyz` split toggle; a driven row shows
-  `← source live-value` or `⌁ …`, an expression row shows an editable `=…`
-  field, and both show a `reset` button.
-- Every edit goes through the same `Doc.apply` requests as the canvas and
-  records the same history entries (§4.3).
+On by default until the user turns it off (`?`); the setting persists in user preferences.
 
-## 10. Guide mode (M2)
-
-On by default until the user turns it off (`?`, "hide" button); the setting
-persists in user preferences.
-
-- **Context strip**, rendered by `Pxui_shell.Status_bar` when the graph pane
-  has focus (today the status bar already names the open level's keys; this
-  generalizes it). It shows a context name and the keys that apply now.
-- **Tooltips** after 380 ms of pointer rest on a socket, row, field, fold
-  button, more row, wire, bend handle or node header; text says what the
-  thing is and what can be done to it (the prototype's `describe` is the
-  reference wording).
-- **Which-key** after `Space` (exists).
-- **Key sheet** `Space ?`: the whole table of §7.2 grouped as Move, Build,
-  Shape, Rows, Change, Guide.
-- **HUD**: each key press echoes `key · command label` for 1.5 s in the
-  graph pane's corner.
-
-Data model: `Editor_core.Command.t` gains `guide : Guide_context.t list`
-(pure data; no predicate, keeping the "no `enabled`" rule). The strip lists,
-in table order, the commands whose `guide` contains the current context,
-computed by the host:
-
-`Canvas | Node | Value_node | Compound | Multi | Wire | Row | Hints | Leader |
-Search | List | Text | Inside_compound`
-
-A value node is a node whose first output is not geometry. Row applies while a
-parameter row is hovered.
+- **Strip.** `Pxui_shell.Status_bar.guide` lists the keys that apply now. Each command
+  carries `guide : Guide_context.t list` (pure data, no predicate), and the host computes the
+  current context: `Canvas | Node | Multi | Hints | Leader | Search | List | Text`. `Canvas`
+  is the empty canvas, `Node` one node selected, `Multi` several.
+- **Which-key** after `Space`, and the **key sheet** on `Space ?`, grouped Add, Panel,
+  Layout, Go, Time, File, plus a section per pane.
+- **HUD.** A key press echoes `key · command label` for 1.5 seconds.
 
 ## 11. Language
 
-The workspace language is in `specification/workspace/` (`iteration.md` §2 and §7)
-and is what the editor reads, checks, prints and lowers. The rest of §11 is the
-M1–M7 single-graph language; its reader, checker, printer and builder were deleted
-in W12 and it is kept for the value semantics (types, coercions, expressions) that
-the workspace language inherits.
+The forms of the language, their types and their meaning are in
+`specification/workspace/iteration.md` (§2 loops, lists, `if`, `ref`, checking and bounds; §7
+functions, data, branches, macros) with the rule register `ambiguities.md`. This section has
+what those files leave to the reader, the printer and the checker's argument handling.
 
 ### 11.1 Lexical syntax
 
-- Whitespace separates tokens. `;` starts a comment to the end of the line.
-- Delimiters: `(` `)` `[` `]`.
-- Number: `-?(\d+\.?\d*|\.\d+)`; an integer literal has no `.`.
-- String: `"…"` with `\"`, `\\`, `\n` escapes.
-- Keyword: `:` followed by a name.
-- Metadata: `^:` followed by a name, applying to the next form.
-- Symbol: anything else up to a delimiter, whitespace, `;` or `"`.
-- Name: `[a-z][a-z0-9_]*`. Qualified symbol: `<namespace>/<name>`. Output
-  reference: `<binding>.<output>`.
-- Reserved symbols: `t`, `pi`, `nil`, `true`, `false`, `let*`, `values`,
-  `graph`, `defgraph`, and the math op symbols.
+- Whitespace separates tokens. `;` starts a comment to the end of the line. A comment is a
+  note on the next form; comments before a closing bracket are that container's tail.
+- Delimiters: `(` `)` for calls and special forms, `[` `]` for vectors and binding vectors,
+  `{` `}` for records (keys and values alternate).
+- Number: `-?digits(.digits)?` with an optional exponent (`1e-14`, `2.5E+6`). A number with
+  neither `.` nor exponent is an integer. The tree keeps the spelling, so `2.0` stays a
+  float.
+- String: `"…"` with the escapes `\"`, `\\`, `\n`, `\t`, `\r`; any other escape is
+  `E_UNEXPECTED`.
+- Keyword: `:` followed by a name. Metadata: `^:` followed by a name, on the next form.
+- Quotes, for macro templates only: `` ` `` quasiquote, `~` unquote, `~@` splice, `'`.
+- Names are `[a-z][a-z0-9_-]*` (`Flow.Macro.valid_name`); a SOP key and a slot name have no
+  `-` (§3.3). `name.field` reads a record field.
+- The bytes 1, 2 and 3 are refused anywhere in a text (`E_UNEXPECTED`): the printer uses
+  them as in-band span markers.
+- Nesting deeper than 256 forms is `E_DEPTH`, and the steps of a `->` count toward it.
 
-### 11.2 Literals
+### 11.2 Printing
 
-Float and Int numbers; `true`/`false` for Bool; strings for Text, Choice (the
-choice's public label, as `Param` prints it) and Encoded (its encoding);
-vectors `[x y z]` whose components are numbers, expressions or scalar
-references; `nil` for an unconnected geometry slot.
+`Flow.Lisp.print` is the one printer: 84 columns, aligned `let*` bindings, keyword pairs one
+per line when a form breaks, notes and `^:` flags kept. Printing is a fixed point:
+`print (parse (print x)) = print x`. Comments are kept inside parameter vectors and between
+and after root forms; a comment written after a quote prefix is moved before it.
 
-### 11.3 Grammar
+`Flow.Lisp.float` is the one spelling of a float in workspace text, and every writer uses
+it: the shortest digits that read back as the same value, always with a `.` and never an
+exponent (`1e-14` is written `0.00000000000001`). A non-finite value prints `0.0`; a writer
+for which that matters rejects the value first.
 
-```text
-file      = { graph_form | defgraph_form } ;
-graph     = "(" "graph" name [ ":context" context ] [ ":catalog" integer ] body ")" ;
-defgraph  = "(" "defgraph" name [ ":context" context ]
-            "[" { "(" name ":" type [ literal ] ")" } "]" body ")" ;
-type      = "geometry" | "float" | "int" | "bool" | "vec3" ;
-body      = "(" "let*" "[" { name expr } "]" result ")" | result ;
-result    = expr | "(" "values" result_entry { result_entry } ")" ;
-result_entry = expr | ":" name expr ;                       (* values: defgraph only *)
-expr      = literal | "t" | "pi" | name | name "." name | vector
-          | [ "^:bypass" ] "(" head { arg } ")" | thread ;
-thread    = "(" "->" expr { "(" head { arg } ")" } ")" ;          (* sugar, read as nested calls *)
-vector    = "[" expr expr expr "]" ;
-head      = op | name | namespace "/" name ;
-op        = "+" | "-" | "*" | "/" | "pow" | "min" | "max"
-          | "sin" | "cos" | "abs" | "floor" | "sqrt" ;
-arg       = expr | ":" name expr ;       (* positional geometry slots first *)
-```
+### 11.3 Threading and nested nodes
 
 `(-> x (f a) (g b))` is read as `(g (f x a) b)`: each step is a call that takes the value before it
 as its first operand, so the text reads in wire order, left to right like the canvas. It is sugar of
 the reader (`Syntax.parse`): nothing after the reader sees a `->`. The outermost call keeps the
 form's id and the span of the whole `(-> ...)`, each step keeps the span of its own clause, and the
 value `x` keeps its own. A step that is not a call, or a `->` with no value, is `E_THREAD`.
+
 The printer threads a chain of three or more calls of node kinds (a head with a `/`, except the
-`ui/` layout forms, which nest) whose first
-operand is the next call down, and leaves shorter chains, chains with a note or a `^:` flag on a
-link, and every `let*`-named value nested, so print and re-read keep the same forms
-(`test/test_threading.ml` prints and re-reads every checked-in workspace).
+`ui/` layout forms, which nest) whose first operand is the next call down. A step that carries a
+comment or `^:bypass` is still threaded and keeps them on its own line. Shorter chains and every
+`let*`-named value stay nested, so print and re-read keep the same forms (`test/test_threading.ml`
+prints and re-reads every checked-in workspace).
 
 Every step of a `->`, and every call of a node kind written inside another call, is a node of the
 graph (`Flow_sop.Projection`): a card before the card that holds it, wired to the row it is written
-in. It has no binding, so its path leaf is the holder's leaf, `#`, and the input (`result#0`,
-`result#0#:cutters`; `Flow_edit.nested_leaf`). Its rows edit in place (`Set_arg`, `Connect`,
-`Disconnect`, `Toggle_bypass` take the path); naming it (`Rename`, the name field) binds it under that
-name; deleting it hands its place to its first input; dragging its output to a second input, viewing
-it, or dropping a wire where it is written binds it first, so a wire never deletes a node. The caret
-in its text selects it and selecting it marks its text. Expressions, `ref`s, loops, and calls of
-functions and macros written in an input stay chips (`Unfold` binds them); a macro's arguments are
-pieces of its template and stay chips too. Rule: no syntax is text-only.
+in. It has no binding, so its path leaf is the holder's leaf, `#`, and the input (§3.4). Its rows
+edit in place (`Set_arg`, `Connect`, `Disconnect`, `Toggle_bypass` take the path); naming it
+(`Rename`, the name field) binds it under that name; deleting it hands its place to its first input;
+dragging its output to a second input, viewing it, or dropping a wire where it is written binds it
+first, so a wire never deletes a node. The caret in its text selects it and selecting it marks its
+text. Expressions, `ref`s, loops, and calls of functions and macros written in an input stay chips
+(`Unfold` binds them); a macro's arguments are pieces of its template and stay chips too.
 
-A file has exactly one `graph` and any number of `defgraph`s; a definition is
-defined before its first use (single pass, so definitions are acyclic by
-construction). `let*` is sequential.
+Rule: no syntax is text-only. New syntax or sugar ships with its graph projection, its
+`Flow_edit` gestures and a test.
 
-### 11.4 Namespaces and resolution
+### 11.4 Resolution
 
-| Namespace | Holds |
-|---|---|
-| `sop/` | registered SOP factories by stable key |
-| `value/` | value kinds and math ops; usable in every context |
-| `user/` | this file's `defgraph`s and file-local custom nodes (§12.4) |
-| `<library>/` | a compound library (reserved; name = library name) |
-| `scene/`, `world/`, `shader/` | reserved for later contexts |
+A call head is, in order: a special form; a local function in scope; a `defn`; a `defmacro`; a
+built-in operator of the graph's context (a bare name also tries `value/<name>`); a catalog
+kind, by its qualified name or its short name within the graph's context
+(`Flow.Check.resolve_kind`). An unknown head is `E_UNKNOWN_KIND` with a suggestion at edit
+distance 2 or less; a kind of another context is `E_WRONG_CONTEXT`.
 
-Parameter keywords need no namespace: `:amp` is resolved against the schema
-of the node it is passed to (field name, or vec3 group name). Slot keywords
-use slot names. A kind's rename keeps the old key as an alias in the catalog
-manifest; the printer always writes the current key.
+Parameter keywords need no namespace: `:amp` is resolved against the schema of the kind it
+is passed to (a field name, or a vec3 group name). Slot keywords use slot names. An invalid
+or reserved binding name is `E_BINDING`; editors pick fresh names with
+`Flow.Workspace.name_taken` and `Flow_edit.fresh_name`.
 
-Call heads resolve in this order: math op symbols; qualified symbols as
-written; otherwise `user/`, then the graph's context catalog, then `value/`.
-More than one match is `E_AMBIGUOUS`. A bare symbol in argument position is a
-binding (or `t`, `pi`, `nil`, `true`, `false`); a kind name used as a value is
-`E_KIND_AS_VALUE`. Kinds and bindings are separate namespaces, so
-`(let* [grid (grid)] …)` is valid.
+### 11.6 Arguments
 
-### 11.5 Contexts
+- Positional arguments fill a kind's slots in the order they are written, and `:keyword
+  value` pairs may stand anywhere among them: `(sop/transform :translate [1 2 3] a)` has `a`
+  as input 0 (`Flow_edit.positional`). A positional after a keyword is allowed.
+- More positionals than slots is `E_EXTRA_POSITIONAL`. A kind whose last slot repeats
+  (`sop/merge`) takes any number.
+- An input given twice, by two keywords or by a keyword and a position, is
+  `E_DUPLICATE_PARAM`.
+- A keyword with no value is `E_MISSING_VALUE`; an unknown one is `E_UNKNOWN_PARAM` with a
+  suggestion.
+- A literal is checked against the field: a non-integral number for an Int field is
+  `E_INT_LITERAL`, outside the hard bounds `E_HARD_RANGE`, outside the soft range
+  `W_SOFT_RANGE` (`Flow.Check.validate_parameter`).
+- `if` has the type both branches fit (`Ty.join`). A `fold` or `scan` accumulator has the
+  wider of its seed's and its body's types, so an int seed does not round a float body; a
+  body that does not fit the seed's type is `E_ACC_TYPE`.
+- Errors do not cascade: a term that failed is poisoned and its uses report nothing further.
 
-`:context` defaults to `sop`. A `sop` graph may call `sop/`, `value/` and
-`user/` kinds whose context is `sop` or `value`. A `value` definition may call
-only `value/` and `value` definitions. `scene`, `world` and `shader` are
-`E_CONTEXT_PLANNED` in this revision.
+### 11.7 Metadata and macros
 
-### 11.6 Typing and construction
+`^:bypass` on a call is the only metadata of an expression; any other there is `E_META`.
+`^:allow-warnings` on the workspace form lets a build pass with warnings. Any other metadata
+on the workspace form, or any on a root child (`graph`, `defn`, `defmacro`), is ignored with
+the warning `W_UNKNOWN_META`.
 
-- Positional arguments fill geometry slots in order; extra positionals are
-  `E_EXTRA_POSITIONAL`; a positional after a keyword is `E_POSITIONAL_AFTER_KEYWORD`.
-- A keyword argument sets a parameter: a number or literal sets the literal
-  (Int fields reject non-integral numbers, `E_INT_LITERAL`; outside hard
-  bounds `E_HARD_RANGE`; outside the soft range `W_SOFT_RANGE`); an
-  expression over numbers and `t` becomes an `Expr` drive; a reference to a
-  scalar or vec3 output becomes a `Wire` drive; a vector sets a vec3 literal
-  or per-component drives (splitting it).
-- A math call whose arguments are all numbers or expressions is an expression.
-  A math call with any reference argument creates a `math` value node.
-- A `let*` binding always names a node: if its form is a number or
-  expression, a `value` node is created with that literal or expression.
-  The node's label is the binding name.
-- `^:bypass` mutes the node. Other metadata is `W_UNKNOWN_META`.
-- A `graph` result is a geometry reference (the display node), or `nil` when
-  the network has no display node. Other result types are `E_RESULT_TYPE`.
-- A `defgraph` result is one expression or `(values …)`; each unnamed value
-  becomes an interface output (`geo`, `geo2`… for geometry, `out`, `out2`…
-  otherwise). `:name expr` entries give explicit interface output names, so
-  renaming an output remains round-trippable. Duplicate or invalid output
-  names are `E_INTERFACE_ENTRY`. The canonical printer names every output in
-  a multi-output or renamed-output definition.
-- Errors do not cascade: a binding whose form failed is poisoned, and uses of
-  it report nothing further.
-
-### 11.7 Canonical printing
-
-*(Removed in W12: the printer of the M6 text view. `Flow.Lisp.print` prints workspaces.)*
-`Flow_sop.Print.network` took the level's context, display selection,
-definitions and live `Flow.Check.catalog`. It returns canonical text and a
-node-id-to-binding-line map deterministically and independently of layout.
-The read-only text view requests six significant digits for legibility;
-the default printer retains 17-digit float spelling for exact round trips.
-Parameter fields likewise show six significant digits while retaining full
-precision for editing and storage:
-
-- Header `(graph <name> :context sop` where the sketch or network name follows
-  the binding-name normalization rule below; definitions print first as
-  `defgraph` blocks, innermost first, each
-  once.
-- Order: visit nodes by ascending id; before a node, visit the sources of its
-  inputs in port order (slots, then fields in declaration order, vec3
-  components x < y < z); print each node once, after its sources.
-- Binding names: the label lowercased, runs of other characters replaced by
-  `_`, leading digits prefixed `n`, never a reserved symbol; duplicates get
-  `_2`, `_3` in print order.
-- Arguments: the primary slot positionally when connected (`nil` only when a
-  later positional slot is connected); other connected slots as `:slot`;
-  parameters in declaration order, only when driven or overridden; vec3 as
-  `[x y z]` with per-component drives inline; expressions as s-expressions;
-  math nodes with a reference operand as `(op a b)`; literal-only Math nodes as
-  `value/math` calls so reading does not fold the node into an expression;
-  `^:bypass` before muted nodes.
-- Layout: `let*` with bindings aligned in one column (two-space indent, `(let* [`
-  then 9-space continuation), result on its own line, closing parens on the
-  last line.
-- `;;` comment lines after the graph report layout counts in the text view
-  only; they are not part of the canonical form.
-- Short names in the text view by default; qualified names in presets'
-  debug dumps, `[%flow]` diagnostics and the "qualified names" toggle.
-
-### 11.8 Round-trip laws (M6 text checks; M7 rebuild checks)
-
-1. `read (print d)` equals `d` up to layout and id renumbering.
-2. `print (read s) = s` for every canonical `s`.
-3. Printing does not depend on layout: moving, bending, re-levelling or
-   pinning never changes the text.
+`(defmacro name [a b & rest] `template)` has only the quasiquote form: `~a` fills a hole,
+`~@rest` splices, `x#` is a fresh name. A template that is not quoted is
+`E_MACRO_TEMPLATE`. Every other name in a template must be global (`E_MACRO_CAPTURE`
+otherwise); a name a binding could take, such as `count` or `first`, is free only as the
+head of a call, not as an argument.
 
 ### 11.9 Diagnostics
 
-`Flow.Diagnostic.t = { code; severity; position : { line; col } option;
-message; span }`. Source-language diagnostics have a 1-based position and a
-half-open byte span. Runtime diagnostics without source text leave position
-and span absent.
-Messages are sentences that name the fix; the prototype's wording is the
-reference.
+`Flow.Diagnostic.t = { code; severity; position : { line; col } option; message; span }`.
+A source diagnostic has a 1-based position and a half-open byte span; one without source
+text leaves both absent. `Diagnostic.report` prints the OCaml compiler's format, so dune and
+editors jump to the line. Messages are sentences that name the fix.
+
+The reader's and the argument checker's codes (the language's own are listed in
+`workspace.mli`, `eval.mli` and `macro.mli`):
 
 | Code | When | Message shape |
 |---|---|---|
-| `E_UNCLOSED` | a `(`/`[` never closes | This "(" is never closed |
-| `E_UNEXPECTED` | stray `)`/`]` or mismatched close | Expected "]" to close the "[" on line 3, found ")" |
-| `E_DEPTH` | more than 256 nested forms | S-expression nesting exceeds 256 forms |
-| `E_TOPLEVEL` | other top-level form | Top-level forms are graph and defgraph |
-| `E_NO_GRAPH` / `E_ONE_GRAPH` | zero / several graphs | No (graph …) form found / One graph per file |
-| `E_CONTEXT_UNKNOWN` / `E_CONTEXT_PLANNED` | bad `:context` | Unknown context x. Known contexts: sop, value |
-| `E_NAMESPACE` | unknown prefix | Unknown namespace x. This file knows sop, value and user |
+| `E_UNCLOSED` | a bracket or a string never closes | This '(' is never closed |
+| `E_UNEXPECTED` | a stray or mismatched close, an unknown string escape, a byte 1 to 3 | Expected ']' to close the '[' on line 3, found ')' |
+| `E_DEPTH` | more than 256 nested forms, `->` steps included | S-expression nesting exceeds 256 forms |
+| `E_DEPTH` (evaluator) | more than 64 nested calls when the document is evaluated | Call depth exceeds 64. |
+| `E_THREAD` | a `->` with no value, or a step that is not a call | A -> step is a call, as in (sop/normals :cusp_angle 0.6) |
 | `E_UNKNOWN_KIND` | no such kind | Unknown node x. Did you mean y? |
-| `E_AMBIGUOUS` | several matches | swirl is ambiguous: user/swirl or sop/swirl. Write the namespace to choose |
-| `E_WRONG_CONTEXT` | kind not allowed here | sop/grid is a SOP node and cannot appear in a value graph |
-| `E_UNBOUND` | unknown binding | x is not bound. Did you mean y? |
-| `E_KIND_AS_VALUE` | kind used as a value | grid is a node kind; call it as (grid …) or bind it in let* |
-| `E_BINDING_T` / `E_BINDING_NAME` / `E_DUPLICATE_BINDING` | bad binding | t is the context time; pick another binding name |
-| `E_DUPLICATE_DEF` | definition twice | defgraph ripple is defined twice |
-| `E_UNKNOWN_PARAM` | no such keyword | noise_displace has no parameter :ampl. Did you mean :amp (amplitude)? |
-| `E_DUPLICATE_PARAM` | keyword twice | :amp is given twice |
-| `E_EXTRA_POSITIONAL` / `E_POSITIONAL_AFTER_KEYWORD` | argument order | grid takes 0 geometry inputs; this one is extra |
+| `E_WRONG_CONTEXT` | a kind of another context | |
+| `E_UNBOUND` | unknown name | x is not bound. Did you mean y? |
+| `E_UNKNOWN_PARAM` | no such keyword | noise_displace has no parameter :ampl. Did you mean :amp? |
+| `E_DUPLICATE_PARAM` | an input given twice | :amp is given twice / Input input is given twice: by :input and by position |
+| `E_EXTRA_POSITIONAL` | more positionals than slots | grid takes 0 geometry inputs; this one is extra |
 | `E_MISSING_VALUE` | keyword without value | :amp has no value |
-| `E_TYPE` | wrong type | Input in0 of ripple takes geometry, but this is Float |
-| `E_INT_LITERAL` / `E_HARD_RANGE` | bad literal | :rows is an integer (2–40), not 22.5 |
-| `W_SOFT_RANGE` | outside the slider range | :amp 3 is outside the slider range 0–2. Allowed, but check it |
-| `E_VECTOR_ARITY` | not 3 components | A vector has 3 components [x y z]; this one has 2 |
-| `E_ARITY` | math op arity | sin takes 1 argument, got 2 |
-| `E_OUTPUT_UNKNOWN` | bad `.port` | Separate XYZ has no output w. Outputs: x, y, z |
-| `E_VALUES_PLACE` / `E_RESULT_TYPE` | bad result | A sop graph returns geometry, but this returns Float |
-| `E_INTERFACE_ENTRY` / `E_UNKNOWN_TYPE` / `W_NO_DEFAULT` | bad defgraph interface | Each interface entry is (name :type default) |
-| `E_RECURSIVE` | definition reaches itself (documents only) | Compound ripple contains itself |
-| `W_UNKNOWN_META` | metadata other than bypass | Unknown metadata ^:x; only ^:bypass is defined |
-| `E_CATALOG` | `:catalog` newer than the build's manifest | This file needs catalog 202611; the build has 202609 |
-
-Suggestions use edit distance ≤ 2 over the candidates in scope, and for
-parameters also match labels written with `_` for spaces.
+| `E_TYPE` | wrong type | |
+| `E_INT_LITERAL` / `E_HARD_RANGE` | bad literal | |
+| `W_SOFT_RANGE` | outside the slider range | |
+| `E_META` | metadata other than `^:bypass` in an expression | Unknown metadata ^:x. The only metadata is ^:bypass. |
+| `W_UNKNOWN_META` | metadata on the workspace form or a root child | Unknown metadata ^:x here; it is ignored. |
+| `E_BYPASS` | `^:bypass` on a call that cannot pass its input through | |
+| `E_CATALOG` | the catalog manifest does not read | |
+| `E_DOCUMENT_FORM` / `E_LAYOUT` / `E_SETTINGS` | a root form of the document that does not read (§4.4) | |
+| `E_UNKNOWN_GRAPH` / `E_PANEL_OF` | a `ui/graph` or `:of` that names nothing (§11.11) | |
 
 ### 11.10 Ambiguity rules
 
+The register `workspace/ambiguities.md` extends this table.
+
 | # | Case | Rule |
 |---|---|---|
-| 01 | same short name in two namespaces | `E_AMBIGUOUS` at every use; qualify |
-| 02 | binding named like a kind | allowed (separate namespaces) |
-| 03 | binding named `t` | `E_BINDING_T` |
-| 04 | several outputs | `binding.output`; `.` and `/` are illegal in names |
-| 05 | slot and field with the same name | PPX error when the node is declared (M3) |
-| 06 | `3` vs `3.0` | integer literals fit Int and Float fields; `2.5` into Int is `E_INT_LITERAL` |
-| 07 | soft vs hard range | hard is an error, soft a warning |
-| 08 | a default changes between catalog versions | the manifest has an integer catalog version; files may pin `:catalog N`; upgrading a document whose node's default changed writes the old default as an explicit literal |
-| 09 | rename | ids are document data, never derived from names |
-| 10 | wire vs wireless, bends, levels, pins, display | layout; never printed |
-| 11 | bypass | metadata `^:bypass`, never a parameter |
-| 12 | partly driven vector | `[0 wave 0]`; splitting is implied |
+| 01 | `3` versus `3.0` | the spelling decides (register L15); an integer literal fits Int and Float fields, `2.5` into an Int field is `E_INT_LITERAL` |
+| 02 | soft versus hard range | hard is an error, soft a warning |
+| 03 | rename | identity is the path; `Rename` rewrites the binding, its uses and the layout keys together |
+| 04 | levels, pins, positions, frames, collapsed zones | layout; never printed in the workspace form |
+| 05 | bypass | metadata `^:bypass`, never a parameter |
+| 06 | a positional after a keyword | allowed; positionals are numbered in written order (§11.6) |
 
 ### 11.11 Editor context: the layout forms
 
@@ -1217,269 +820,148 @@ wins for that leaf.
 `Set_panel_kind`, `Set_layout`, `Layout_new`, `Layout_remove`, `Layout_window`, `Layout_float`,
 `Merge_layouts`) accept a graph whose result is the `ui/workspace` call or a binding of it. The
 printer never threads a `ui/` call (§11.3): a layout is a tree of containers, not a pipeline.
+Named layouts, the `Space [` keys and the migration of an older file with several editor graphs are
+in `workspace/iteration.md` §4.
 
-## 12. `[%flow]` (M7, removed in W12)
+## 12. Catalog manifest and `rays-lisp`
 
-The `[%flow]` PPX, `Flow_sop.Build.program`, `Flow_sop.Program.t`, `Flow.Check.check`
-and the editors' `?program` argument were deleted in W12: no sketch needed them once
-single-graph sketches became `sketches/<name>/sketch.rays` (`workspace/plan.md` W11-W12),
-and a workspace is the one document. An OCaml sketch that mixes host code passes a
-workspace text through `Rays_editor.Workspace_doc.of_text`, or writes the `.rays`
-beside it (`Rays_editor.Workspace.load`).
+`tools/flow_manifest.exe` writes `lib/sop_catalog/flow_manifest.sexp`
+(`Flow_sop.Manifest.generate`): the catalog version, a digest, and for every kind its
+qualified name, key, aliases, operation, label, category path, slots, fields (name, label,
+folder, kind with soft and hard range, default, primary, vec3 group, unit) and outputs. The
+file is checked in; `dune build @lib/sop_catalog/runtest` regenerates it and diffs, and an
+intended change is accepted with `dune promote`. `Flow.Check.catalog_of_manifest` reads it:
+`lib/flow`'s own tests check against it (the library cannot link the catalog), and
+`test/test_sop_catalog.ml` proves it equals the live catalog. The editor and `rays-lisp`
+check against the live catalog (`Editor_document.Contexts.catalog`), and a `.rays` binary
+compares the catalog digest it was generated with (`Contexts.catalog_digest`).
 
-### 12.2 Catalog manifest (still current)
+`tools/lisp` is `rays-lisp`:
 
-`tools/flow_manifest.exe` (OCaml, links `sop_catalog` and `flow_sop`) writes
-`lib/sop_catalog/flow_manifest.sexp`: catalog version, digest, and for every
-factory its key, aliases, label, category path, slots (name, required),
-fields (name, label, folder, kind, default, soft and hard range, primary,
-vec3 group), outputs; plus the value kinds. The file is checked in; a runtest
-rule regenerates it and diffs, and an intended change is accepted with
-`dune promote` (the same flow as `tools/api_manifest`). `tools/lisp` and the
-workspace checker read it (`Flow.Check.catalog_of_manifest`).
+| Command | Does |
+|---|---|
+| `check FILE...` | parses, checks, then evaluates and lowers the document as a window opens it (`Contexts.of_workspace`), so a file that passes opens. Diagnostics print in the compiler's format. A warning fails the file unless the workspace form carries `^:allow-warnings` |
+| `fmt FILE` | prints the canonical text; a file with warnings still formats |
+| `ml FILE` | the generated `main.ml` of a `sketch.rays` (the verbatim source, its digest and the catalog digest, passed to `Rays_editor.Workspace.main`) |
+| `source FILE` | the text as an OCaml module, for a sketch with its own `main.ml` |
+| `dune DIR` | the `sketches/dune.rays.inc` include |
 
 ## 13. Evaluation
 
-### 13.1 The value lane
+### 13.1 Lowering
 
-Cooking keeps its path (compile `Edit_graph`, `Async_cook`, session cache).
-Before each cook submission, `Flow_sop.Value_lane.resolve` runs on the initial
-domain:
+`Flow_sop.Lower.workspace` checks the source, evaluates every non-geometry term
+(`Flow.Eval.static`) and turns the geometry plan into one `Flow_sop.Network.t` per evaluation
+of a `sop` graph: each graph with its default inputs and each distinct `(ref g ...)` override
+tuple. A plan node keyed by `(site, iter)` in instance `i` gets the compiled id
+`compiled_ids.[i :: site_index :: (-(k+1))*]` (`Flow_sop.Instance_path`), allocated on first
+use; passing a previous result's `sites` and `compiled_ids` back keeps ids stable across
+edits, so session cache entries survive them.
 
-1. Evaluate value nodes reachable from drives, memoized per frame, in
-   dependency order. `time` reads the cook context time (`Frame.time`, or
-   `Sketch.Fixed dt` time).
-2. For each driven port, compute the value (expression or wire), coerce it
-   (§3.2) and normalize hard bounds with `Param.apply`.
-3. Compare with the value applied for that port in the previous resolution
-   (kept in the environment, not the document). Apply only changed ports with
-   `Edit_graph.apply_parameters` to a copy of the document graph. The document
-   literal is never overwritten by a drive.
-4. Cook the resulting graph. An unchanged value leaves the node's cook key
-   unchanged, so nothing re-cooks.
+- A catalog call becomes its factory node with literal parameters.
+- Every `sop/merge` becomes one `flow.merge_n` node that tags each primitive with a running
+  input index in the `__flow_src` primitive attribute; `Lower.origin` maps a tag back to the
+  site and iteration that made it (viewport provenance).
+- `sop/curve` becomes a `flow.curve` node whose `points` parameter is a text-encoded list
+  (`Flow_sop.Curve`).
+- A bypassed call makes no node: the evaluator passes its input through.
 
-A lowered workspace (specification/workspace/plan.md W2b) adds one more drive kind,
-`Drive.Live`: an argument that depends on `t`, held as an `Eval` value with its
-static captures folded in. `resolve` evaluates it beside expression drives
-(a scalar, a vec3, a colour text, or a list of vec3 for a text-encoded list
-parameter such as `flow.curve`'s points) and applies it only when the value
-changed. Its nodes are marked volatile in the session (one replaced slot each,
-outside the LRU), so playing never evicts the static entries.
+### 13.2 The value lane
 
-A network whose drives read `t` is time-dependent: it resolves every frame
-while the timeline plays, and its SOP nodes' cook keys change each frame.
-`Async_cook`'s latest-request rule bounds the work to one active and one
-pending cook. Networks without drives do no lane work.
+A `Network.t` is the SOP `Edit_graph` plus `drives`: the arguments that depend on `t`, each
+a `Flow.Eval.value` holding residuals, keyed (compiled node id, argument name). In the
+literal network such a parameter holds its `t = 0` value. Before each cook submission, and
+outside `Ui.frame`, `Flow_sop.Value_lane.resolve` runs on the initial domain:
 
-### 13.2 Determinism
+1. Force each drive at the cook time (a scalar, a vec3, a colour text, or a list of vec3 for
+   `flow.curve`'s points).
+2. Coerce it (§3.2) and normalise hard bounds.
+3. Compare with the value applied in the previous resolution (kept in the environment, not
+   the document) and apply only changed ports to a copy of the graph. The document's text is
+   never overwritten by a live value.
+4. Cook the result. An unchanged value leaves the node's cook key unchanged, so nothing
+   re-cooks.
 
-The lane is sequential IEEE double arithmetic with fixed op semantics (§3.3),
-so results are identical for one and many domains and across runs with
-`Sketch.Fixed dt`. The M3 regression runs the same drives at 1 and N domains
-and compares cooked geometry bytes.
+A network without drives does no lane work and reuses its result. Live nodes are marked
+volatile in the session (`Lower.is_volatile`: one replaced slot each, outside the LRU), so
+playing never evicts static entries. Structure cannot depend on `t` (`E_TIME_COUNT`,
+`E_TIME_BRANCH`), so one lowering serves every frame.
 
-### 13.3 Compounds
+### 13.3 Determinism
 
-`Flow_sop.Compile.flatten` inlines instances recursively into one
-`Edit_graph` plus one resolved drive set before the value lane. Inner nodes
-get compiled ids from the document's `compiled_ids : int Instance_path.Map.t`,
-allocated once per (instance path, inner id) and saved in presets, so session
-cache entries survive unrelated edits. Two instances of one definition cook
-separately (cache keys include node ids; sharing is out of scope).
-The editor allocates missing compiled ids into the document before recording
-an edit in history. Cooking calls `flatten ~allocate:false` and reports a
-missing-id diagnostic instead of creating an unsaved id. An unchanged source
-network, definitions, display and id map reuse the same flattened network.
+Evaluation and the lane are sequential IEEE double arithmetic with fixed operator semantics,
+so results are identical for one and many domains and across runs with `Sketch.Fixed dt`.
 
-### 13.4 Workspace lowering
+## 14. Libraries
 
-`Flow_sop.Lower.workspace` (specification/workspace/plan.md W2) builds one
-network per evaluated sop graph from the `Flow.Eval` geometry plan. Its
-compiled ids use the same `Instance_path.Map` with the key
-`instance :: site_index :: (-(k+1))*`; a negative segment is an iteration
-index, so the encoding needs no new type. A collected geometry list is one
-`flow.merge_n` node that tags each primitive with its input index in the
-`__flow_src` primitive attribute; `Lower` records where each input came from.
-Parameters that depend on `t` cook with their `t = 0` value and are listed for
-W2b, so a frame never re-lowers.
+| Library | Owns, for Flow |
+|---|---|
+| `param` | field schemas, with `primary` and `vec3` |
+| `flow` | `Syntax` (reader), `Lisp` (printer), `Macro`, `Workspace` (checker), `Eval`, `Ty`, `Port_type`, `Context`, `Check` (catalog descriptors and the manifest reader), `Diagnostic` |
+| `flow_sop` | `Catalog`, `Manifest`, `Flow_edit`, `Projection`, `Exposure`, `Probe`, `Lower`, `Network`, `Port`, `Value_lane`, `Curve` |
+| `editor_document` | `Workspace_doc`, `Layout_by_path`, `Contexts` (scene, World, settings and editor lowering), `Scene_sync`, `Preset` |
+| `pxui_graph` | `Scope` (the pane) and `Node_menu` |
+| `pxui_shell` | the inspector, the list (`Tree`), the status strip and guide |
+| `rays_editor` | the keymap, carry, the text pane, cook scheduling |
+| `ppx/ppx_rays` | `[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_key]`, `[@@sop.node_slots]` |
 
-## 14. Libraries and the dependency gate
-
-| Library | Status | Depends on | Owns |
-|---|---|---|---|
-| `param` | changed (M3) | nothing | adds `primary : bool` and `vec3 : (string * int) option` to fields and field views |
-| `flow` | new (M3) | `param` | `Symbol`, `Context`, `Port_type`, `Expr`, value kinds, `Graph`, `Sexp` (reader with positions, printer primitives), `Check`, `Diagnostic` |
-| `flow_sop` | new (M3) | `flow`, `param`, `procedural` | `Network`, `Drive`, `Exposure`, `Value_lane`, `Compile`, manifest writer, and since W2-W9 `Lower`, `Flow_edit`, `Projection`, `Probe` (`Print`, `Build`, `Program` were deleted in W12) |
-| `editor_document` | changed | + `flow_sop` | overlay and layout record in `Document.network`; `Workspace_doc`, `Layout_by_path`, s-expression presets |
-| `pxui_graph` | changed | + `flow`, `flow_sop` | the canvas of §6–§7 |
-| `pxui_shell` | changed | + `flow` (types only) | inspector rows (§9), guide strip in `Status_bar` |
-| `rays_editor` | changed | + `flow`, `flow_sop` | keys, guide contexts, views, value lane scheduling |
-| `ppx_rays` | changed | `ppxlib`, + `flow` | `[@sop.primary]`, `[@sop.vec3]`, `[@@sop.node_slots]` (`[%flow]` was deleted in W12) |
-| `sop_catalog` | changed (M3) | unchanged | annotations, private operation groups and one PPX registry facade |
-
-Gate changes in `test/dependency_gate.ml` (M3): add `flow` and `flow_sop` to
-`upper`; rules `"flow", "rays" :: "rays_math" :: "rdk" :: "procedural" ::
-"editor_core" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog" ::
-"editor_document" :: "rays_editor" :: gpu` and `"flow_sop", ["rays";
-"pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog"; "sketch_support";
-"editor_document"; "rays_editor"] @ gpu`; `ppx_rays` never reaches
-anything but `ppxlib`, `flow` and `param`. `specification/backend.md` records
-the new edges in the same change.
+`test/dependency_gate.ml` enforces the edges; the root `AGENTS.md` and `backend.md` state
+them.
 
 ## 15. Performance
 
-Rules from the root `AGENTS.md` apply. Targets to measure, not claims:
+Rules from the root `AGENTS.md` apply. What the code holds itself to:
 
-- Canvas frame cost scales with visible nodes and wires; points are one quad
-  and one label, wires are segment lists without allocation per unchanged frame.
-- The value lane does no work for networks without drives and no allocation
-  for time-independent drives after their first resolution.
-- Text printing and list rows are computed only when their view is open and
-  the document or selection changed.
+- A graph-pane frame costs what is in view, never the size of the graph
+  (`lib/pxui_graph/AGENTS.md`); hidden iterations are never built, a zone draws its body
+  once.
+- The value lane does no work for networks without drives.
+- A frame never re-lowers.
 
-Benchmarks, reported before and after in each milestone's hand-off:
-`tools/bench_rays_editor.exe 200 1000 2000` (existing), `test/test_pxui_graph`'s
-2,001-node smoke (existing), plus new cases: all nodes as points, 200 driven
-rows with a time source, printing a 2,000-node network.
+Benchmarks: `tools/bench_rays_editor.exe`, `tools/bench_workspace_lower.exe`,
+`tools/bench_workspace_live.exe`, and `dune exec test/test_main.exe -- bench_scope_big`.
 
 ## 16. Tests
 
-Window-free logic tests in `runtest` for: exposure rule table (every row of
-§5.1), vec3 grouping and PPX errors, coercions, value lane (exactness,
-change-only application, cook-key identity when unchanged, 1 vs N domains),
-walk and hint labelling (deterministic labels for fixed layouts), Tab
-placement and ripple, fold/unfold identity, group/ungroup/export invariants,
-preset round trip, printer laws of §11.8 over every
-catalog factory with non-default literals and drives, every diagnostic code,
-key routing for every new command (`test_rays_editor_logic`), the carry (the payload's life in `lib/pxui/test_ui.ml`, a drop over a node in `test_pxui_graph`, a put as one entry by pointer and by keys, a cancel that leaves the document physically equal and the preview timings in `test_materials`), and gate
-rules. Visual checks go in `@runtest-native` once per milestone
-(`test_ui_parity` fixtures updated intentionally in M1).
+Window-free logic tests in `runtest`: the reader, printer, macros, checker and evaluator
+(`lib/flow/test_*.ml`), threading round trips over every checked-in workspace
+(`test/test_threading.ml`), edits (`test/test_workspace_edit.ml`), projection and probes
+(`test/test_projection.ml`, `test/test_probe.ml`), the pane's gestures
+(`test/test_pxui_graph.ml`), the document and its layout (`test/test_workspace_doc.ml`),
+lowering, zones and live values (`test/test_workspace_cook.ml`, `test_workspace_zone.ml`,
+`test_workspace_live.ml`), the shell and its layout forms (`test/test_workspace_shell.ml`),
+the text pane (`test/test_text_pane.ml`), the carry (`lib/pxui/test_ui.ml`,
+`test/test_pxui_graph.ml`, `test/test_materials.ml`), and the gate. Visual checks are in
+`@runtest-native`.
 
 ## 17. Deferred
 
-Done since this revision (workspace plan): the editable text view (W7), the scene,
-World and settings as contexts (W10), macros (W9), loops, records and functions
-(W1, W8). Still deferred: fields and the diamond socket as data; zoom-to-enter;
-depth rings; compound libraries as packages; content-addressed cache sharing
-between instances; `defgraph` as OCaml functions. Deferred by the workspace plan
-and listed in `workspace/plan.md` §4 and `workspace/progress.md` (gaps): procedural macros,
-a per-node cache ring for scrubbing. (Marquee selection and panel keys were built in W13.)
+Fields and the diamond socket as data; zoom-to-enter; a `[%workspace]` PPX with generated
+input records (register O2); procedural macros; a per-node cache ring for scrubbing; a file
+dropped from Finder (§7.12).
 
 ## 18. Decisions
 
 | Decision | Choice |
 |---|---|
-| Wire shape | straight polylines with authored bends; no curves |
-| Automatic layout | output-rooted input branches receive separate vertical bands in port order; tighten short branches toward consumers, anchor shared fan-outs, reserve authored detail heights, clear stale bends |
-| Architecture | `flow` overlay beside the geometry `Edit_graph`; M2 adds bypass metadata to its existing entries |
-| Value kinds | built into `flow`, context-free; not SOP catalog entries |
-| Edge identity | destination port; no edge ids |
-| Shared saved layout | UI-free `Editor_core.Network_layout`; document and canvas share it without importing presentation into the document |
+| The document | the workspace text; graphs, networks and cards are derived from it and nothing is stored beside it but layout |
+| Identity | the lexical path of a binding; a nested node's leaf is `holder#input` |
+| Edits | one variant (`Flow_edit.op`) and one `apply` that prints, re-parses and re-checks; a refused edit changes nothing |
+| Wire shape | straight segments with computed bends; no curves, no authored bends, no wireless wires |
+| Levels | explicit (`o`, `p`), never zoom-driven |
+| Viewing a node | `v` rewrites the graph's result; there is no display entry in the layout |
 | Vec3 | metadata grouping of three float fields; no new `Param.value` case |
-| Compound Vec3 default | `Port.literal` stores the three components on one interface port; scalar defaults remain `Port.Scalar` |
-| Named `defgraph` results | `(values :name expr …)` preserves M5 output renames; unnamed results still receive `geo`/`out` names |
-| No display node | a graph result of `nil` preserves `display = None` |
+| Names in the language | stable keys and field names verbatim (`noise_displace`, `size_x`) |
+| Float spelling | one printer, shortest round-trip, always a `.`, never an exponent; the reader accepts exponents |
+| Positional after keyword | allowed; positionals are numbered in written order, an input given twice is `E_DUPLICATE_PARAM` |
+| Nesting limit | 256, `->` steps included |
+| Macros | quasiquote templates only |
+| Stale layout entries | pruned on load and on structural edits, never an error |
+| Viewport navigation | view state, also with follow-viewport; not an undo entry |
 | Fixed panel sizes (2026-10-05) | `:first_size` / `:second_size` on `ui/split`: one concept, on the split that the gutter drag rewrites; `ui/split-at` stays the ratio form (§11.11) |
 | Start keywords (2026-10-05) | keywords on the panel forms (`:focus`, `:look_through`, `:view`, `:tab`), followed when the document opens and whenever their value in the text changes; saved UI state stays in `(layout ...)` |
 | Panel instances (2026-10-05) | every leaf is an instance with its own view state; the level and its selection belong to a graph panel; a binding used twice makes two instances keyed by place |
 | Following a graph panel (2026-10-05) | `:of binding` on `ui/inspector`, `ui/list`, `ui/lisp`: one keyword, a panel-typed wire in the graph; without it the panel follows the focus |
 | Layout forms in the printer (2026-10-05) | `ui/` calls are never threaded with `->` |
-| Literal-only Math node | explicit `value/math` call preserves the node; operator syntax with no references lowers to an expression |
-| Primary rows without annotations | the first folder's fields |
-| Compound reuse | shared definitions with "make unique" |
-| Names in the language | stable keys and field names verbatim (`noise_displace`, `size_x`), `[a-z][a-z0-9_]*` |
-| Names in the text view | short by default, qualified toggle; qualified in diagnostics |
-| World keys | `e`→`t`, `r`→`n`, `p`→`d`; grammar letters reserved everywhere |
-| `f` | frames the selection, or the display node when nothing is selected |
-| Editor text view | read-only in this revision; editable since W7 |
-| Scene and World text | the third projection shows a reserved-context message until those contexts receive Flow syntax after M7 |
-| Round-trip test staging | M6 checks printed text and layout independence; M7's builder enables document reconstruction and canonical reprinting laws |
-| Catalog pinning | integer catalog version in the manifest, optional `:catalog N` in files |
-| Cache sharing between instances | none |
-| Guide mode | on by default, persisted off |
-| Wheel and trackpad scroll | zoom at the pointer after SDL normalizes natural direction; SDL3 wheel events do not identify a trackpad separately, so right/Alt-drag pans |
-
-2026-09-28: a bare number has no source node after unfolding, so the
-fold/unfold identity law applies to expressions containing time or an operator.
-Bare numbers become normalized target literals as specified above.
-
-2026-09-28: compound interface defaults use `Port.literal` rather than one
-`Param.value`, because a Vec3 default can have three different components.
-Presets encode that case as a `vec3` triple; scalar defaults keep their
-existing value encoding.
-
-2026-09-28: M5 permits renaming compound outputs. Unnamed `defgraph` results
-could only reconstruct `geo`/`out` names, so the `values` form now accepts
-`:name expr` entries. Canonical text writes explicit names whenever a
-definition has multiple outputs or a renamed single output.
-
-2026-09-28: the M6 printer and checker can verify that printed networks are
-well typed and unaffected by layout. The `read(print d)` and `print(read s)`
-laws require reconstructing a network from the checked program, which belongs
-to M7's `Flow_sop.Build.program`; those two laws run in M7 rather than adding
-a throwaway builder in M6.
-
-2026-09-28: saved editor networks can have no display node, and `Program.t`
-already models display as optional. A graph result of `nil` now represents
-that state. Literal-only Math nodes print as explicit `value/math` calls,
-because operator syntax with no references is intentionally an expression.
-
-2026-09-28: unexporting a connected geometry port would discard topology,
-unlike a value input that can fall back to a literal. Geometry unexport is
-therefore allowed only after body and instance wires are disconnected; the
-displayed output also counts as a use.
-
-2026-09-28: `Flow.Diagnostic` also serves runtime and expression errors, so
-its source position is optional. Language-reader and checker diagnostics always
-populate it; byte spans remain for PPX source mapping.
-
-2026-09-27: the requested full migration has no backward compatibility;
-version 3 replaces the v1/v2 readers and preserves saved node ids.
-M1 preserves explicit row exposure metadata as part of that layout; vector
-splits and wireless flags stay empty until their milestones.
-
-2026-09-30 (W3): the v3 JSON preset reader and writer are deleted; presets are
-s-expression workspace files (§4.4) and old presets are not supported.
-
-2026-09-27: bypass was specified without a storage or execution path. It is
-an immutable `Edit_graph` entry flag, shared by compile, copy, undo and
-presets, rather than a second host map. Only the primary slot is compiled
-while bypassed; disconnected secondary slots cannot prevent the pass-through.
-
-2026-09-27: an AST inventory found 89 named float triples; the previous
-92/278 count was stale. Ray has both a `direction` choice and
-`direction_x/y/z`; its group is `direction_vector`, preserving the existing
-field names and the rule that a group cannot shadow another field.
-
-2026-09-27: coercions use the actual OCaml int and IEEE double ranges.
-Int-to-Float cannot be exact beyond 53 bits. Rounded Float-to-Int saturates
-the machine range before field hard bounds, preventing overflow wraparound;
-non-finite values cannot drive an integer field.
-
-2026-09-27: expression unary minus follows the prototype's tight binding.
-Infix printing preserves right-nested sums/products as well as subtraction,
-division and powers, so a print/parse round trip cannot reassociate IEEE
-operations. The prototype printer now follows that same rule.
-
-2026-09-27: automatic expression parsing prefers a spaced operator head as
-an s-expression; trying infix first changes the meaning of `(- -2 -0)`.
-Unary Math keeps its inactive `b` input, including any drive; driven and
-pinned rows remain visible and full shows all schema fields. Remap's `v`
-defaults to zero and clamping applies to its interpolation fraction, so
-reversed ranges behave consistently.
-
-2026-09-28: `Edit_graph` geometry connections identify a source by node id,
-while compound instances may expose multiple geometry outputs. The Flow
-overlay therefore stores a named source output by destination port for those
-connections; an absent entry means the ordinary `geo` output. This keeps
-existing SOP geometry topology and `Edit_graph` APIs intact while preserving
-the selected output through copying and presets.
-
-2026-09-30 (W12): the M1-M7 text stack is deleted: `[%flow]`, `Flow.Check.check`,
-`Flow_sop.Build`/`Print`/`Program`, `?program`. The flat single-graph pane stays for
-documents built from an OCaml `Procedural.Graph` (`?graph`), which have no text.
-
-2026-09-30 (Gap A): the flat pane and `?graph` are deleted too, together with value nodes, compounds (group,
-ungroup, make unique), `Flow.Expr`/`Drive.Expr` and `Flow.Sexp`. Sections above describing them (value nodes,
-compound definitions, expression drives, the flat canvas keys, `Network_layout`) are historical design; the
-implemented editor is the workspace text plus `Pxui_graph.Scope`.
+| Guide | on by default, persisted off |
+| Wheel and trackpad scroll | zoom at the pointer; right-drag and middle-drag pan |

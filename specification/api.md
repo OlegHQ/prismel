@@ -599,8 +599,8 @@ returns an error outside an active sketch. A trackpad pinch reaches a box as
 `signal.pinch`, the product of the frame's pinch factors for the scrollable box
 under the pointer.
 
-`Editor_core.Store.Settings` saves model values in Rays's versioned JSON
-envelope and reads existing `PXUI1` files.
+`Editor_core.Store.Settings` saves model values as one
+`(settings :sketch "name" :key value ...)` s-expression, written atomically.
 `Pxui.Camera_control` builds Camera (FOV, distance, clipping, inertia, reset)
 and Render (output name, save) sections through `widgets`. Hosts decide when
 to build them using `ui_visible`, `open_camera`, and `toggle_ui`, and call
@@ -612,8 +612,6 @@ explicit values.
 laid-out panel bounds. `Ui.modal`, `Ui.picker` (fuzzy windowed list with
 Enter/click pick and double-Delete), and `Ui.context_menu` (host-held open state, right click
 under 4 points via `Ui.context_clicked`) are the shared overlay widgets.
-`Pxui.Camera2_control` does the same for `Easy_camera2` with center, zoom,
-rotation, inertia, and reset.
 
 ### `Pxui_shell.Inspector`
 
@@ -625,8 +623,7 @@ rows from any schema, so a SOP node and a plain sketch record share one
 inspector.
 
 `Pxui.Ui.inspector_row` and `inspector_section` supply the same responsive
-layout to those fields and to Camera, Render, Viewport, settings, and compound
-interface controls. `inspector_header`, `inspector_toggle`,
+layout to those fields and to Camera, Render, Viewport and settings controls. `inspector_header`, `inspector_toggle`,
 `inspector_button`, `inspector_readout`, and `inspector_message` cover their
 other content.
 The Rays Editor inspector panel has no outer padding; long labels move
@@ -649,14 +646,12 @@ let node, effects =
 | changes -> Result.get_ok (Procedural.Node.apply_parameters node changes)
 ```
 
-In Rays Editor, `Inspector.flow_fields` renders the selected SOP or value
-node from its saved Flow network. It shows the node label, qualified kind,
-flags, geometry inputs, all parameter folders, card pin toggles, grouped vec3
-controls and split state. A driven row shows its source and applied value;
-reset removes the drive so its stored literal takes effect. Numeric fields
-accept `=…` expressions and reject malformed text without changing the
-document. It returns typed
-requests that `Doc.apply` commits after `Ui.frame`.
+In Rays Editor, `Inspector.flow_fields` renders the rows of the selected node of the
+workspace text (`flow_row`: its fields, whether it is on the card, what drives it, its
+live value). It shows every parameter under its top folder, a pin dot per row and grouped
+vec3 controls. It returns typed `flow_change` requests (`Edited`, `Pinned`, `Reset`,
+`Expression`) that the host turns into `Flow_sop.Flow_edit` ops and layout edits after
+`Ui.frame`; an expression that does not check is refused without changing the document.
 
 `effects.cook` requests a deferred/asynchronous graph cook;
 `effects.view` updates render-only metadata without invalidating geometry;
@@ -665,23 +660,19 @@ shared subgraphs; the sketch host's `Doc` module applies typed graph edit
 requests, and selected-node changes go through
 `Procedural.Edit_graph.apply_parameters` before compiling the cookable graph.
 The host's `Cook` module owns compilation, reactive scheduling, polling, and
-framing work; `Core` composes those results with the workspace UI. One
-`Environment.Make` functor over a `VIEWPORT` adapter (`Viewport3`, `Viewport2`)
-turns that core into the public `Editor3`/`Editor2`, which differ
-only in their viewport.
+framing work; `Core` composes those results with the workspace UI, and
+`Environment` with the 3D viewport (`Viewport3`) makes it the public `Editor3`.
 The graph pane is `Pxui_graph.Scope`: a left-to-right canvas over workspace text (polyline wires, zones, editable
 literal rows, typed sockets, live drives written as `t` expressions). `Pxui_graph.Node_menu` is its categorised add
 menu. `Editor_document.Layout_by_path` is the UI-free saved layout shared by the host and canvas. Graph/list/text
-views (the Lisp pane is editable) and `.rays` sketches follow `flow-migration.md`. Value nodes, compounds and
-expression drives were deleted in Gap A.
+views (the Lisp pane is editable) and the pane's gestures and keys are specified in `flow.md`.
 `rays.pxui_graph` supplies deterministic initial layout,
-persistent graph-space tile positions, ordered ports/wires, topology-safe node
-dragging, independent inspector/display selection through each tile's VIEW
-button, selection clearing, captured pan, zoom, and framing. `Rays_editor.Editor3.run`
-and `Editor2.run` compose both in a splitter-resizable, independently
+persistent tile positions by path, ordered ports and wires, node
+dragging, selection, captured pan, zoom, and framing. `Rays_editor.Editor3.run`
+composes them in a gutter-resizable, independently
 collapsible workspace of panels (view, graph, list, lisp, inspector, outline, timeline) whose
 default is the view/graph/inspector columns at 45/35/20; a workspace's `(graph editor …)` replaces the
-layout (`Editor_core.Panels`, `specification/workspace/plan.md` W10).
+layout (`Editor_core.Panels`, `flow.md` §11.11).
 The workspace defaults to a light viewport background. Every 3D/SOP editor
 shares a Renderer section with Raster, Wireframe and Path traced choices.
 `Editor3.renderer` reads it and `set_renderer` queues a choice for the next
@@ -689,27 +680,24 @@ update. The choice saves with viewport preferences; switching the common
 renderer retains cooked geometry. A sketch's existing renderer setting uses
 the same control and custom renderer. Standalone 2D art drawing paths are separate.
 The inspector shows camera/render controls with no selection and generated SOP
-parameters with a selection. Display selection cooks the flagged node while
-retaining the previous successful preview. Overlay callbacks receive a
-view-local frame. Both environments retain one shared pause/stop/reset,
+parameters with a selection. A cook that fails keeps
+the previous successful preview. Overlay callbacks receive a
+view-local frame. The editor has one shared pause/stop/reset,
 dependency-aware cooking, status, selection, inspection, and finite native
-lifecycle. Both expose `update_with` for sketch-owned inspector widgets and
-`can_undo`/`can_redo` for the shared document history.
+lifecycle. It exposes `update_with` for sketch-owned inspector widgets and
+`can_undo`/`can_redo` for the document history.
 
-One immutable document holds everything a user edits and saves: the scene of
-objects (as its own node network), each geometry object's SOP network and
-the World's layer stack with their tile positions and display nodes, the
-active camera object, and sketch `Settings` (a typed `Editor_core.Param`
-record passed as `?settings`). History (128 entries) snapshots that
+One immutable document holds everything a user edits and saves: the workspace text
+(the scene graph, each SOP graph, the World, materials and the editor graph), its layout
+keyed by path (`Editor_document.Layout_by_path`: positions, detail levels, pins, row
+exposure, collapsed zones, frames and panel state) and sketch `Settings` (a typed
+`Editor_core.Param` record passed as `?settings`). History (128 entries) snapshots that
 document, so moving a tile, an object, or changing a sketch setting is one undo
-step. Each network saves positions, detail levels, pins, row exposure and
-wire bends in its layout record. An edit frame updates only the node ids
-and destination ports it touched; a preset load or automatic layout takes
-a complete snapshot. Pointer gestures seal on release; detail changes
-merge as a one-second burst.
+step. Pointer gestures seal on release.
 Settings show in the unselected inspector, are saved in presets, and reach
-`prepare settings output`; `set_settings` changes them from code. The
-viewport camera enters history only while a camera object follows it. The
+`prepare settings output`; `set_settings` changes them from code. Viewport
+navigation is view state and never a history entry, also while a camera object
+follows the viewport. The
 scene level, list projection, and World are described in `scene.md`.
 Entering a scene camera by `i`, double-click or the row menu selects the
 render camera and enables look-through; repeated Enter keeps that view.
@@ -722,7 +710,7 @@ an absent settings form keeps the supplied fallback, while an explicit
 `(settings ...)` starts from defaults. Startup window configuration and the
 cook seed currently take effect when the host starts, rather than on an edit.
 
-Both editors autosave document edits and viewport navigation to one atomic
+The editor autosaves document edits and viewport navigation to one atomic
 `.rays` recovery file under `~/.rays/<name>/state` (or `<presets>/state`).
 The source file's absolute path identifies a file-backed sketch; other sketches
 use their workspace name. Writes coalesce at most twice a second, and close
@@ -763,43 +751,23 @@ do not change parameter values or cook keys. `[@sop.primary]` and checked
 also expose geometry input names through `Edit_graph.factory_slot_names`:
 `[@@sop.node_slots "input, target"]` supplies names; omitted annotations
 use `in0`, `in1`, and so on. Slot names must be distinct from parameter
-names. Generated factories also expose field views; the editor uses those
-views to filter Tab search to kinds whose parameter ports accept a dragged
-value output.
+names. Generated factories also expose field views.
 
-The new `flow` library depends only on `param`. Its current value core
-provides checked symbols, contexts, port types, scalar/vector coercions,
-checked expressions and immutable value graphs;
-the PPX uses its shared name validation. Geometry cannot connect to value
-ports, and vectors cannot drive scalars. Float-to-int coercion rounds and
-saturates the machine range before the caller applies the parameter's hard
-bounds. Its six value kinds use typed `Param` schemas: Time, Value, Math,
-Combine XYZ, Separate XYZ and Remap. Expression parsing returns errors with
-source byte spans; infix and s-expression printers preserve the operation
-tree.
+The `flow` library depends only on `param`. It owns the workspace language: the reader
+(`Syntax`), the canonical printer (`Lisp`), macros (`Macro`), the checker (`Workspace`),
+the evaluator (`Eval`), the static types (`Ty`), contexts, and the catalog descriptors
+the checker reads (`Check`). The PPX uses its shared name validation. Geometry cannot
+connect to value ports, and vectors cannot drive scalars. Float-to-int coercion rounds and
+saturates the machine range before the caller applies the parameter's hard bounds.
 
-`Flow_sop.Network` now keeps geometry, value literals and typed drives in one
-immutable overlay. It rejects cycles, incompatible types, missing ports,
-duplicate SOP/value ids and overlapping whole/component vector drives.
-Copy/paste remaps internal geometry and value connections together. The
-environment-owned `Value_lane` resolves reachable values before cooking,
+`Flow_sop.Lower.workspace` turns a checked workspace into one `Flow_sop.Network` per
+evaluated `sop` graph: the SOP `Edit_graph` plus the arguments that depend on `t`. The
+environment-owned `Value_lane` forces those live arguments before each cook,
 normalizes hard bounds with the same `Param.normalize_value` kernel as
-`Param.apply`, and preserves literal records. Unchanged effective values keep
-the resolved geometry and cook keys; clearing a drive restores its literal.
-`Exposure.shown` is the shared card visibility rule. The editor document,
-graph clipboard now carry the overlay. The canvas
-connects value outputs to visible or hidden parameter rows, filters typed Tab
-results, and shows live wire readouts. The inspector displays drive sources,
-applied values and reset controls; the cook adapter resolves dynamic values
-before each visible-object submission.
-
-`Flow_sop.Network.fold` converts an unshared tree of Math, Value and Time
-nodes feeding one row into an expression, removing those nodes. It refuses
-unsupported or shared sources with a diagnostic naming the node. `unfold`
-builds Math nodes for operators and one shared Time node; numeric leaves
-become input literals. The editor places them to the left of the target.
-The row's stored literal remains available while an expression or wire drives
-it. Wireless binds change only saved layout visibility, never evaluation.
+`Param.apply`, and applies only the ones that changed; unchanged values keep
+the resolved geometry and cook keys. `Exposure.shown` is the shared card visibility
+rule. `Flow_sop.Flow_edit` is every gesture as a checked rewrite of the text, and
+`Flow_sop.Projection` the pane's view of it (`flow.md` §3 to §7, §13).
 
 | Key | Scope | Action |
 |---|---|---|
@@ -807,34 +775,40 @@ it. Wireless binds change only saved layout visibility, never evaluation.
 | `t` / `g` / `i` | global | toggle timeline / graph / inspector |
 | `h` / `c` | global | hide all UI / camera section |
 | `p` / `r` / `x` | global | play-pause / reset / stop |
-| `a` | global | add menu of the open level (hover submenus, type to search) |
-| `l` / `e` | global | graph → list → text → graph (map view in the World) / open the World |
+| `a` | global | add menu of the open graph (type to search) |
+| `j` / `e` / `m` | global | jump to a graph / open the World / 3D or map view in the World |
+| `o` + `v` `h` `x` `f` | global | split the focused panel side by side or stacked, close it, float or dock it |
+| `l` + `g` `l` `t` `i` `u` `m` `w` | global | retype the focused panel: graph, list, lisp, inspector, outline, timeline, viewport |
+| `n` + the same letters | global | a floating window of that kind |
+| `[` + `0`..`9` `n` `x` | global | switch layout, new layout from this one, remove this one |
+| `z` | global | restore layout |
 | `f` | graph | frame displayed tile |
-| `k` | global | grouped Flow key sheet |
-| `w` / `v` | view (3D) | fly mode / look through render camera |
+| `?` / `/` | global | grouped key sheet / command palette |
+| `w` / `v` | view | fly mode / look through render camera |
 
-The table above lists keys after `Space`. With the graph focused:
-
-The list and text projections use `j`/`k` to move between rows or bindings.
-Enter opens the selected node in the graph. The text projection is read-only;
-clicking a binding selects its node, and its header toggles qualified names.
+The table above lists keys after `Space`. With a graph panel focused, the pane's own
+keys are `Pxui_graph.Scope.bindings`; `flow.md` §7.2 has the whole table. In short:
 
 | Key | Action |
 |---|---|
-| `h j k l`, arrows | walk through connections or to the nearest node in that direction |
-| `Tab` | insert on the selected wire, append to one selected node, or add at the pointer |
-| `.` / `c` | repeat the last add / connect by letter hints |
-| `o` / `p` | open selected detail / toggle selected points |
-| `⇧O` / `⇧P` | open all cards / toggle all points |
-| `v` / `m` | display selected geometry / toggle bypass |
-| `x`, Delete, Backspace / `⇧X` | delete selection / dissolve and reconnect the primary trunk |
-| `/` / `f` / Home | find / frame selection or display / frame all |
+| arrows | walk to the nearest node in that direction |
+| `Tab` | the add menu; with a node selected the pick is wired after it |
+| `w` | connect the selected output by letter hints |
+| `o` / `p`, `⇧O` / `⇧P` | open the selection one detail level / point it or go back; the same for every node |
+| `v` / `b` | view the selected geometry node (it becomes the graph's result) / toggle bypass |
+| `x`, Delete, Backspace | delete the hovered wire or item, the selected wire, or the selection |
+| `f` / Home | frame the selection / frame all |
+| `⇧F` / `⇧U` / `⇧H` | fold into its use / unfold a call / hoist out of a loop |
+| `r` / `⇧R` / `l` / `d` / `m` | repeat / iterate / make function / make `defn` / make macro |
+| `c`, `[` / `]` | collapse a zone, step its probe |
+| `F2`, `⇧G` | rename, frame the selection with a titled box |
 | `⌘C/V/X/D`, Ctrl equivalents | copy / paste / cut / duplicate |
 | `⌘Z` / `⇧⌘Z`, Ctrl equivalents | undo / redo |
-| `b` / `w` | bind by hints or toggle a selected wire's wireless state / show wireless wires |
-| `=` / `r` | edit the hovered row's expression / clear its drive or restore its default |
 
-`?` toggles the contextual guide and delayed tooltips globally. The guide
+The list uses the arrows or `j`/`k` to move between rows and Enter opens the selected row in
+the graph. The Lisp pane is editable.
+
+`?` toggles the contextual guide globally. The guide
 starts on and saves its setting in `~/.rays/preferences.rays` through
 `Editor_core.Store` (override with `RAYS_EDITOR_PREFERENCES`). Its strip
 lists each pane's own keys as its design sheet does. `Space ?` shows the grouped
@@ -853,29 +827,26 @@ error while successful siblings remain visible.
 
 The Lisp pane shows and edits the workspace text (`Rays_editor.Text_pane`: Selection, Graph and
 Document tabs; Check and apply is atomic and one "Edit text" history entry). A sketch is a `.rays` file
-(below); an OCaml host that needs its own code passes a workspace to `Editor3.run ?workspace`, for
+(below); an OCaml host that needs its own code passes a workspace to `Editor3.run ~workspace`, for
 example `Rays_editor.Workspace.open_text` over its `sketch.rays` (see `sketches/cube_cage/`, a
 sketch with a node of its own). The catalog manifest `lib/sop_catalog/flow_manifest.sexp` is generated by
 `dune exec tools/flow_manifest.exe` and checked for drift by the `sop_catalog` runtest rule; `dune promote`
-accepts an intended catalog change. The `[%flow]` PPX, `Flow_sop.Build`, `Flow_sop.Program` and the
-`?program` editor argument were deleted in W12; `?graph` was deleted in Gap A: every document is a workspace (`Workspace.load`, `Workspace.open_text`) and saves.
-Plain keys: `i` enters the selected object or compound, `u` goes up and selects
-the compound instance; in the view `w`/`e`/`r`
+accepts an intended catalog change. Every document is a workspace (`Workspace.load`, `Workspace.open_text`) and saves.
+Plain keys: `i` follows the selected node's reference or enters the selected object, `⇧I` peeks it in a
+floating graph and `u` goes back; in the view `w`/`e`/`r`
 pick translate/rotate/scale handles and Escape hides them;
-the list's WAI-ARIA keys and the World keys are listed in `scene.md`. Graph
-layout is in the graph context menu and the palette only.
+the list's WAI-ARIA keys and the World keys are listed in `scene.md`.
 
-Graph-focused `f` frames the selection, or the display node with no selection. Viewport-focused
-`F` frames the camera on the displayed node's cooked bounds through the shared
-cook worker; in 3D it uses the orbit camera, and in 2D it centers and zooms the
-pan/zoom camera. Escape still dismisses UI modes. A right
+Graph-focused `f` frames the selection, or everything with no selection. Viewport-focused
+`F` frames the orbit camera on the displayed node's cooked bounds through the shared
+cook worker. Escape still dismisses UI modes. A right
 click (not a drag) opens graph context menus that emit the ordinary typed
 graph changes. The timeline bar (hidden by default) has play/pause, stop,
 reset, a frame/time readout, and a scrub slider that seeks (`Timeline.seek`)
 and recooks. Its widgets return playback intents, and graph camera-framing
 requests return in the workspace frame result; the host applies both after
 `Ui.frame` completes. Preset prompts likewise return save/load/delete intents;
-file I/O runs after the UI frame. The 2D and 3D camera panels return their
+file I/O runs after the UI frame. The camera panel returns its
 edited camera, control state, and render requests in that same frame result;
 preset saves use the returned camera state, and navigation and render scheduling
 run afterward. PNG render status is held in the environment model and updated
@@ -938,8 +909,8 @@ so a later pane crossing in the same frame cannot discard an owned wheel.
 default one following the viewport is added to a scene without one, exactly
 one is ACTIVE (tile button or context menu), and
 `render_camera` drives look-through, PNG export, and sketch renderers such as
-the voxel wall's path tracer. Follow-viewport writes coalesce into one undo
-entry per gesture. The camera object's generated parameter schema is read
+the voxel wall's path tracer. Follow-viewport motion writes the camera node as view
+state, with no undo entry. The camera object's generated parameter schema is read
 into a typed camera and follow flag and written from viewport edits, so the
 host has no camera field names or copied defaults. Fly mode captures the pointer with
 `Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
@@ -954,8 +925,8 @@ s-expression file: the `(workspace ...)` source with its comments, then
 optional `(layout ...)` by path, `(settings ...)` and `(view ...)` forms
 (`specification/flow.md` §4.4). Loading checks and lowers the source into one
 geometry object per `sop` graph and is one undo entry; there is no older
-format. Only a workspace document saves (open one with `?workspace` on
-`Editor3`/`Editor2`; `Editor3.edit` applies a `Flow_sop.Flow_edit.op` as one
+format. Every document is a workspace (`~workspace` of
+`Editor3.create`); `Editor3.edit` applies a `Flow_sop.Flow_edit.op` as one
 history entry named by the op). Scene and World edits made through the list, the inspector, the handles or the
 World keys are written back to the text in the same frame (`Editor_document.Scene_sync`), so Save round-trips them;
 `create ?await` makes each frame block on the cook it submits (a fixed-step run, a test); the crash report writes `document.txt` (a text

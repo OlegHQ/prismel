@@ -1,14 +1,12 @@
 # Workspace study: iteration, functions, data and macros
 
-Implemented in Rays (W0-W12); this study remains the behavioural reference. Written 29 September 2026. Open **[index.html](index.html)** directly;
+Implemented in Rays; this study remains the behavioural reference. Written 29 September 2026. Open **[index.html](index.html)** directly;
 no server, build step or network is needed. It is a behavioral reference, not
 product code and never a web fallback. The native editor stays PXUI on Metal.
 
 The design is in [../iteration.md](../iteration.md), the reference programs in
 [../case-studies.md](../case-studies.md), and the ambiguity register in
-[../ambiguities.md](../ambiguities.md). The earlier
-[report](../../../reports/Composable%20Lisp%20workspaces.md) covers contexts,
-reuse and the composed shell.
+[../ambiguities.md](../ambiguities.md).
 
 ## Try it
 
@@ -73,8 +71,10 @@ The preview is a small 3D JavaScript renderer (painter's algorithm) illustrating
 the catalog's semantics, not Rays geometry or Metal. The language core (loops, functions, records, hygienic macros, graph inputs, `ref`
 and `t`) is implemented in `lib/flow` (`Syntax`, `Lisp`, `Macro`, `Workspace`,
 `Eval`) and `check.cjs` is ported to `lib/flow/test_workspace*.ml`; `model.js`
-remains the behavioral reference. Live drives (`t`) and `.rays` sketches are
-implemented too (W2b, W11); the old single-graph `[%flow]` was deleted (W12). Positions, frames and collapsed zones are session layout and
-never reach the Lisp. Comments attach to the next binding and survive graph edits. The
+remains the behavioral reference. Live values (`t`) and `.rays` sketches are
+implemented too. Where the study and `lib/flow` differ, the code and `../ambiguities.md` are
+current (the study reads no exponent in a number, for one; the register's status line names
+the entries corrected after the study). Positions, frames and collapsed zones are layout and
+never reach the workspace form. Comments attach to the next binding and survive graph edits. The
 study limits (4,096 iterations per zone, 600,000 steps) are constants of `Flow.Workspace`
-and `Flow.Eval` still to be measured (W2); 20,000 primitives exists only in the study.
+and `Flow.Eval`; 20,000 primitives exists only in the study.

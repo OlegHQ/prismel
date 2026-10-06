@@ -1,15 +1,13 @@
 # Scene tree
 
 Rays Editor navigates between the scene and each geometry object’s SOP
-network (the World has its layer stack instead). SOP networks hold shared
-compound definitions created by grouping SOP and value nodes. Entering an
-instance with `i` or double-click follows its instance path into the shared
-definition; `u` returns to and selects the parent instance. There is no
-"no subnetworks" limit within SOP networks. Every network records its
-`sop`, `scene`, or `world` context.
+graph (the World has its layer stack instead). All of them are graphs of one
+workspace text, each with its context (`sop`, `scene`, `world`, `material`, `settings`,
+`editor`). `i` or a double-click follows a reference into the graph it names; `u` goes
+back.
 
-`Space l` cycles graph → list → text. Converting the scene and
-World into full Flow contexts remains for a later revision of `flow.md`.
+A graph, a list and a lisp panel show the same graph; `Space l` and a letter retypes the
+focused panel (`flow.md` §8, §11.11).
 
 ## The scene graph: objects, merge, root
 
@@ -108,39 +106,34 @@ settings, and the sketch `Settings`. History snapshots it; the open level, selec
 (graph, list, or text), and the map view are view state. A deleted object's
 network goes with it; a pasted object copies its source's network.
 
-An empty scene or object network has no display node (`null` in presets).
+An empty scene or SOP graph has no displayed node (a SOP graph's result is `nil`).
 Deleting every SOP clears that object's preview, including a late cook from
 before deletion. Disconnected nonempty SOPs stay editable; a compile error
 retains the last successful preview with an error. Editor3 preserves an empty
-scene without adding a camera. Editor2 requires a geometry object and rejects
-a scene without one before installation; that object's SOPs may be empty.
+scene without adding a camera.
 
-Preset load validates unique IDs and owners, owner kinds, input arity and
-references, display and camera references, and finite parameters/coordinates.
+A preset load parses, checks and lowers the text.
 Rejected loads leave the installed document, history, camera and preview
-unchanged. The same serializer writes crash-report presets. Document owns no
-PXUI state; `Network_view` converts saved networks to and from graph presentation.
+unchanged. The same serializer writes the crash report's `document.rays`. Document owns no
+PXUI state; the graph pane's layout is `Editor_document.Layout_by_path`, keyed by path.
 
-The sketch's code graph becomes the geometry object `geo1`; camera SOPs in it
-move to the scene as camera objects. `?lights` become light objects and
-`?world` the World. Presets are workspace documents (s-expressions, see `api.md`).
+A workspace's scene graph is authoritative: it replaces the host's camera and lights, and
+an empty one means none. Presets are workspace documents (s-expressions, see `api.md`).
 
 ## Levels and keys
 
-The scene and the World open as lists, a SOP network as a graph; `Space l`
-cycles graph → list → text → graph (switching to the graph frames it), and each
-level remembers its projection. The text projection prints SOP networks and
-compound definitions read-only; scene and World levels show a reserved-context
-message until their Flow syntax is specified. Inside the World the view pane
-opens on the lat-long map and `Space l` flips it back to 3D. `i`, a double-click on a tile or row, or the row
+The scene and the World open as lists, a SOP network as a graph; a graph panel's
+`:view` keyword and `Space l` choose the view, and each panel keeps its own. The Lisp
+pane shows and edits the text of any graph, the scene's and the World's included.
+Inside the World the view pane
+opens on the lat-long map and `Space m` flips it between the map and 3D. `i`, a double-click on a tile or row, or the row
 menu's Enter open a geometry object or the World. On a camera, Enter selects it
 as the active render camera and enables look-through; entering it again keeps
 look-through enabled. `u` goes back up (both
 from any pane). `Space e` selects the World and opens it, creating it on first use as a
 daylight sky with a sun. `Space a` opens the add menu of the open level
-(objects, SOPs, or World layers) in list and graph alike: hovering a
-category opens its submenu to the right, typing searches everything, a lone
-top-level category opens by itself. Leader sequences are
+(objects, SOPs, or World layers) in list and graph alike: a search field over the kinds,
+the likeliest first; typing searches everything. Leader sequences are
 `Editor_core.Keymap.Leader` strings; which-key shows one page per typed
 prefix. In the view, `w`/`e`/`r` show translate, rotate, or scale handles on
 the selected node's xyz triples and Escape hides them so drags only orbit; a
@@ -178,8 +171,7 @@ selection when the row is in it, and never changes the selection. New rows
 open in rename mode.
 
 A SOP list follows each node's first input; other inputs nest under their
-consumer, and a node used twice repeats as a muted `↳` row
-(`Pxui_graph.trunk`). Scene siblings list by their canvas y position.
+consumer, and a node used twice repeats as a muted `↳` row. Scene siblings list by their canvas y position.
 Reordering swaps the affected siblings' positions and saves both in history.
 
 Inside the World (graph pane focused): `t` flips the selected emitter
