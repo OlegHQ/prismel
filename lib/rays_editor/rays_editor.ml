@@ -117,8 +117,7 @@ module Workspace = struct
 
   let run ?factories ?source doc =
     let source = Option.bind source (fun { path; digest } -> Source.find ~path ~digest) in
-    let window = match workspace_window doc with
-      | Ok w -> w | Error d -> failwith (Flow.Diagnostic.to_string d) in
+    Result.map (fun window ->
     let config = { Rays.Sketch.default_config with width = window.width; height = window.height;
                    title = window.title; fps = Some window.fps } in
     let prepare _ = Sketch_support.Surface.of_output in
@@ -127,7 +126,8 @@ module Workspace = struct
                      ~diffuse:Rays.Color.white () ] in
     let camera = declared_camera ?factories doc (Rays.Easy_camera.create ~target:Rays.Vec3.zero ~distance:3.6
         ~azimuth:0.4 ~elevation:0.6 ()) in
-    Editor3.run ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ()
+    Editor3.run ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ())
+      (workspace_window doc)
 
   let main ?factories ~path ~digest ~catalog text =
     let expected = Contexts.catalog_digest (Option.value ~default:Sop_catalog.Editor.factories factories) in
@@ -137,5 +137,8 @@ module Workspace = struct
     | Error ds ->
         List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d)) ds;
         exit 1
-    | Ok doc -> run ?factories ~source:{ path; digest } doc
+    | Ok doc ->
+        (match run ?factories ~source:{ path; digest } doc with
+         | Ok () -> ()
+         | Error d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d); exit 1)
 end

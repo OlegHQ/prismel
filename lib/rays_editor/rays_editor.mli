@@ -641,11 +641,12 @@ module Workspace : sig
     Rays.Easy_camera.t -> Rays.Easy_camera.t
   (** The camera of the scene's first camera node, or the default base camera. *)
 
-  val run : ?factories:Procedural.Edit_graph.factory list -> ?source:source -> Workspace_doc.t -> unit
+  val run : ?factories:Procedural.Edit_graph.factory list -> ?source:source -> Workspace_doc.t ->
+    (unit, Flow.Diagnostic.t) result
   (** Open {!Editor3} on the document, with the window title, size, frame rate
       and seed of its settings graph, saving and reloading through [source] (found
       from the executable, then the working directory; without the file the sketch
-      runs unwired). *)
+      runs unwired).  [Error]: the settings graph asks for a window that cannot be made. *)
 
   val main : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string -> catalog:string -> string -> unit
   (** Entry point of a generated [main.ml]: [load] then [run]; on failure prints

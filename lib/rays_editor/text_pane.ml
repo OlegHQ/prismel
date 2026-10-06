@@ -44,8 +44,6 @@ let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft
 
 (* ---- reading the source ---- *)
 
-let head_sym (f : S.t) = match f.node with S.List ({ S.node = S.Sym h; _ } :: _) -> Some h | _ -> None
-
 let root_form (source : S.t list) name =
   match source with
   | { S.node = S.List (_ :: _ :: items); _ } :: _ ->
@@ -65,7 +63,7 @@ let scope (e : S.t) = match e.node with
   | _ -> None
 
 (* the scope inside a binding's value: itself, or a loop's body *)
-let enter (v : S.t) = match scope v, head_sym v with
+let enter (v : S.t) = match scope v, S.head v with
   | Some _, _ -> v
   | None, Some ("for" | "fold" | "scan" | "sum") -> Option.value ~default:v (last v)
   | None, _ -> v
@@ -107,7 +105,7 @@ let paste_ops source ~graph ~scope text =
   let rec named = function
     | { S.node = S.Sym n; _ } :: v :: rest -> Option.map (fun r -> (n, v) :: r) (named rest)
     | [] -> Some [] | _ -> None in
-  let head (f : S.t) = match head_sym f with
+  let head (f : S.t) = match S.head f with
     | Some h -> (match String.rindex_opt h '/' with
         | Some i -> String.sub h (i + 1) (String.length h - i - 1) | None -> h)
     | None -> "value" in
@@ -181,7 +179,7 @@ let cameras source graph =
   match Option.bind (Option.bind (root_form source graph) last) scope with
   | None -> []
   | Some (bindings, _) ->
-      List.filter_map (fun ((p : S.t), v) -> match head_sym v, p.node with
+      List.filter_map (fun ((p : S.t), v) -> match S.head v, p.node with
         | Some "scene/camera", S.Sym n -> Some n
         | _ -> None) bindings
 

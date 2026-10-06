@@ -7,7 +7,7 @@ let set_ui_cursor ui visible =
   let shape = match if visible then Pxui.Ui.cursor ui else None with
     | Some shape -> (shape :> [`Default|`Horizontal_resize|`Vertical_resize|`Text])
     | None -> `Default in
-  match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
+  Sketch.set_cursor shape
 
 type ('rendered, 'camera) hidden_scene_cache = {
   width : int;
@@ -900,7 +900,9 @@ let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?
       ~workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
   let update value frame =
     let value = update value frame in
-    set_ui_cursor value.core.ui (V.ui_visible value.control);
-    value in
+    (* a cursor the platform refuses is said in the strip; the editor runs on *)
+    match set_ui_cursor value.core.ui (V.ui_visible value.control) with
+    | Ok () -> value
+    | Error message -> { value with render_status = Some ("Cursor: " ^ message) } in
   ignore (Sketch.run_state ~config ~init ~update ~view:scene
     ~after_present ~crash_dump ~on_stop:close ())

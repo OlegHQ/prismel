@@ -62,10 +62,13 @@ let new_material value =
   let rec pick i = let n = if i = 1 then "material" else "material_" ^ string_of_int i in
     if taken n then pick (i + 1) else n in
   let name = pick 1 in
-  match Flow.Syntax.parse (Printf.sprintf
-      "(graph %s :context material (material/standard :name \"%s\" :color \"#cccccc\" :roughness 0.4))" name name) with
-  | Ok [ form ] -> name, Flow_sop.Flow_edit.Set_graph { name; form }
-  | _ -> failwith "new_material"
+  let module S = Flow.Syntax in
+  let list items = S.make (S.List items) and sym s = S.make (S.Sym s) and kw k = S.make (S.Kw k) in
+  (* (graph name :context material (material/standard :name "name" :color "#cccccc" :roughness 0.4)) *)
+  let form = list [ sym "graph"; sym name; kw "context"; sym "material";
+    list [ sym "material/standard"; kw "name"; S.make (S.Str name); kw "color"; S.make (S.Str "#cccccc");
+           kw "roughness"; S.make (S.Num "0.4") ] ] in
+  name, Flow_sop.Flow_edit.Set_graph { name; form }
 
 (* "=(* 2 t)" typed in a row: the expression after the "=", any Lisp expression *)
 let expression_text text =

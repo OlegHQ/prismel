@@ -16,7 +16,7 @@ let message operation error=`Msg(Format.asprintf"%s: %a"operation Runtime_resour
 let fonts:t list ref=ref[]
 let make ?source size=function Ok resource->let value={resource;size;source;styles=[];hinting=Normal_hinting;kerning=true;generation=1;cache=text_cache()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
 let load path size=make ~source:path size(Runtime_resources.Font.open_file ~path ~size:(float size))
-let system_path()=match Sys.getenv_opt"RAYS_UI_FONT"with Some path when Sys.file_exists path->Some path|_->List.find_opt Sys.file_exists["/System/Library/Fonts/SFNSMono.ttf";"/System/Library/Fonts/SFNS.ttf";"/Library/Fonts/Arial.ttf";"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+let system_path()=Result.to_option(Sdl3_ttf.Font.system_path())
 let system ?(size=16)()=make size(Runtime_resources.Font.open_system ~size:(float size))
 let resize font size=match font.source with Some path->load path size|None->system ~size()
 let rgba(Blended c)=c.Color.r,c.g,c.b,c.a
