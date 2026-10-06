@@ -109,6 +109,7 @@
 
 (rule
  (aliases runtest test_sop_catalog)
+ (deps ../sketches/ws_morph/sketch.rays)
  (action (run %{exe:test_main.exe} test_sop_catalog)))
 
 (rule

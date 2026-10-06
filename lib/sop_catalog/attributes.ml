@@ -1432,6 +1432,123 @@ module Swap_attributes = struct
   let factory = parameters_factory build
 end
 
+module Blend_shapes = struct
+  let mode_parameter = Parameter.choice ~equal:( = ) [
+      "Normalized", Rdk.Blend_shapes.Blend_normalized;
+      "Differencing", Rdk.Blend_shapes.Blend_differencing;
+    ]
+  let masking_parameter = Parameter.choice ~equal:( = ) [
+      "None", Rdk.Blend_shapes.Blend_no_mask;
+      "Set from attribute", Rdk.Blend_shapes.Blend_set_from_attribute;
+      "Scale from attribute", Rdk.Blend_shapes.Blend_scale_from_attribute;
+    ]
+  let mask_source_parameter = Parameter.choice ~equal:( = ) [
+      "First input", Rdk.Blend_shapes.Blend_mask_first_input;
+      "Shape", Rdk.Blend_shapes.Blend_mask_shape;
+    ]
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Point group"];
+    mode : Rdk.Blend_shapes.mode [@sop.default Rdk.Blend_shapes.Blend_normalized]
+      [@sop.label "Mode"] [@sop.kind mode_parameter];
+    attributes : string [@sop.default "*"] [@sop.label "Attributes"];
+    weight1 : float [@sop.default 1.] [@sop.label "Weight 1"]
+      [@sop.folder "Weights"] [@sop.min (-1.)] [@sop.max 2.];
+    weight2 : float [@sop.default 0.] [@sop.label "Weight 2"]
+      [@sop.folder "Weights"] [@sop.min (-1.)] [@sop.max 2.];
+    weight3 : float [@sop.default 0.] [@sop.label "Weight 3"]
+      [@sop.folder "Weights"] [@sop.min (-1.)] [@sop.max 2.];
+    weight4 : float [@sop.default 0.] [@sop.label "Weight 4"]
+      [@sop.folder "Weights"] [@sop.min (-1.)] [@sop.max 2.];
+    masking : Rdk.Blend_shapes.masking
+      [@sop.default Rdk.Blend_shapes.Blend_no_mask] [@sop.label "Masking"]
+      [@sop.folder "Mask"] [@sop.kind masking_parameter];
+    mask_attribute : string [@sop.default "mask"] [@sop.label "Mask attribute"]
+      [@sop.folder "Mask"];
+    mask_source : Rdk.Blend_shapes.mask_source
+      [@sop.default Rdk.Blend_shapes.Blend_mask_first_input]
+      [@sop.label "Mask source"] [@sop.folder "Mask"]
+      [@sop.kind mask_source_parameter];
+    point_id_attribute : string [@sop.default ""]
+      [@sop.label "Point ID attribute"] [@sop.folder "Matching"];
+  } [@@sop.node_key "blend_shapes"] [@@sop.node_label "Blend Shapes"]
+    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 5]
+    [@@sop.node_slots "input, shape1, shape2, shape3, shape4"]
+    [@@sop.node_optional "1,2,3,4"] [@@deriving sop_params, sop_node]
+  (* Unwired shape slots drop out (none wired passes the input through); the
+     mask applies to every wired shape. *)
+  let build = parameters_build (fun ~label parameters input shape1 shape2 shape3 shape4 ->
+    let masked = parameters.masking <> Rdk.Blend_shapes.Blend_no_mask in
+    let mask_attribute =
+      if masked then optional_text parameters.mask_attribute else None in
+    let shapes = List.filter_map (fun (weight, shape) ->
+        Option.map (Sop.blend_shape ?mask_attribute
+          ~mask_source:parameters.mask_source ~weight) shape) [
+        parameters.weight1, shape1; parameters.weight2, shape2;
+        parameters.weight3, shape3; parameters.weight4, shape4] in
+    if shapes = [] then
+      operator ~label ~operation:"blend_shapes" [|input|]
+        (fun ~node_id:_ _context inputs -> cooked inputs.(0))
+    else
+    Sop.blend_shapes ~label ?point_group:(optional_text parameters.group)
+      ~mode:parameters.mode ~masking:parameters.masking ?mask_attribute
+      ?point_id_attribute:(optional_text parameters.point_id_attribute)
+      ~attributes:parameters.attributes ~shapes input)
+  let factory = parameters_factory build
+end
+
+module Attribute_composite = struct
+  let operation_parameter = Parameter.choice ~equal:( = ) [
+      "Mean", Rdk.Attribute_composite.Composite_mean;
+      "Maximum", Rdk.Attribute_composite.Composite_maximum;
+      "Minimum", Rdk.Attribute_composite.Composite_minimum;
+      "Over", Rdk.Attribute_composite.Composite_over;
+      "Under", Rdk.Attribute_composite.Composite_under;
+    ]
+  type parameters = {
+    operation : Rdk.Attribute_composite.operation
+      [@sop.default Rdk.Attribute_composite.Composite_mean]
+      [@sop.label "Operation"] [@sop.kind operation_parameter];
+    weight : float [@sop.default 1.] [@sop.label "Weight"]
+      [@sop.min 0.] [@sop.max 1.];
+    point_attributes : string [@sop.default "*"]
+      [@sop.label "Point attributes"];
+    allow_position : bool [@sop.default false] [@sop.label "Allow P"];
+    alpha_attribute : string [@sop.default ""] [@sop.label "Alpha attribute"];
+    vertex_attributes : string [@sop.default "*"]
+      [@sop.label "Vertex attributes"] [@sop.folder "Attributes"];
+    primitive_attributes : string [@sop.default "*"]
+      [@sop.label "Primitive attributes"] [@sop.folder "Attributes"];
+    detail_attributes : string [@sop.default "*"]
+      [@sop.label "Detail attributes"] [@sop.folder "Attributes"];
+    weight1 : float [@sop.default 1.] [@sop.label "Weight 1"]
+      [@sop.folder "Layers"] [@sop.min 0.] [@sop.max 1.];
+    weight2 : float [@sop.default 1.] [@sop.label "Weight 2"]
+      [@sop.folder "Layers"] [@sop.min 0.] [@sop.max 1.];
+    weight3 : float [@sop.default 1.] [@sop.label "Weight 3"]
+      [@sop.folder "Layers"] [@sop.min 0.] [@sop.max 1.];
+    weight4 : float [@sop.default 1.] [@sop.label "Weight 4"]
+      [@sop.folder "Layers"] [@sop.min 0.] [@sop.max 1.];
+  } [@@sop.node_key "attribute_composite"]
+    [@@sop.node_label "Attribute Composite"]
+    [@@sop.node_category "Attribute/Transfer"] [@@sop.node_inputs 5]
+    [@@sop.node_slots "input, layer1, layer2, layer3, layer4"]
+    [@@sop.node_optional "1,2,3,4"] [@@deriving sop_params, sop_node]
+  let build = parameters_build (fun ~label parameters input layer1 layer2 layer3 layer4 ->
+    let inputs = List.filter_map (fun (weight, layer) ->
+        Option.map (Sop.attribute_composite_input ~weight) layer) [
+        parameters.weight1, layer1; parameters.weight2, layer2;
+        parameters.weight3, layer3; parameters.weight4, layer4] in
+    Sop.attribute_composite ~label ~operation:parameters.operation
+      ~weight:parameters.weight
+      ~detail_attributes:parameters.detail_attributes
+      ~primitive_attributes:parameters.primitive_attributes
+      ~point_attributes:parameters.point_attributes
+      ~vertex_attributes:parameters.vertex_attributes
+      ~allow_position:parameters.allow_position
+      ?alpha_attribute:(optional_text parameters.alpha_attribute) ~inputs input)
+  let factory = parameters_factory build
+end
+
 module Attribute_fade = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Point group"];
