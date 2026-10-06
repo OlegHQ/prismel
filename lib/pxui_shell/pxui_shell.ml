@@ -549,8 +549,12 @@ module Chrome = struct
           (x, y, max 0 (w - tools), h) ("workspace-drag-" ^ label) in
       if l.floating then Ui.to_front ui ~order grip;
       let drag = Ui.signal ui grip in
-      let original = Option.value (state l.path).window
-        ~default:(if l.floating then l.frame else (x, y, max 120 w, max 80 (let _, _, _, bh = l.body in h + bh))) in
+      (* a window is dragged from where it is drawn (the layout keeps it inside the frame, whatever
+         its saved place says), with the size it has when it is not collapsed *)
+      let original = match (state l.path).window with
+        | Some (_, _, ww, wh) when l.floating -> let fx, fy, _, _ = l.frame in fx, fy, ww, wh
+        | Some window -> window
+        | None -> if l.floating then l.frame else (x, y, max 120 w, max 80 (let _, _, _, bh = l.body in h + bh)) in
       let ox, oy, ow, oh = drag_origin ui grip original drag in
       (* Escape puts the panel back where the drag began (a docked one stays docked) *)
       let cancelled = (Ui.state ui grip ~default:0 = 1 && not drag.pressed)
@@ -564,7 +568,9 @@ module Chrome = struct
             if (state l.path).window <> None then emit (Window_drag (l.path, (ox, oy, ow, oh), drag.released))
           end else begin
             emit (Dragging (l.path, drag.released));
-            let wx = max 0 (min (frame.width - 18) (ox + int_of_float (Float.round (px -. sx))))
+            (* as far as the layout shows it ({!Layout.geometry}): a place past the edge would be
+               saved and not drawn, and the next drag would start from where the window is not *)
+            let wx = max 0 (min (frame.width - min frame.width ow) (ox + int_of_float (Float.round (px -. sx))))
             and wy = max 0 (min (frame.height - header_height) (oy + int_of_float (Float.round (py -. sy)))) in
             if not drag.released then (tip := Some (wx, wy, ow); moving := Some l.path);
             emit (Window_drag (l.path, (wx, wy, ow, oh), drag.released))
@@ -594,7 +600,11 @@ module Chrome = struct
               | Inspector -> "panel.inspector" | Outline -> "panel.outline"
               | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
         let current = let rec find i = function
-          | [] -> 5 | (_, panel) :: rest -> if panel = l.panel then 5 + i else find (i + 1) rest in
+          | [] -> 5
+          | (_, panel) :: rest ->
+              (* every viewport is the Viewport row, whatever its key *)
+              if (match panel, l.panel with View _, View _ -> true | a, b -> a = b) then 5 + i
+              else find (i + 1) rest in
           find 0 retypes in
         match Ui.context_menu ui ~at:(float x, float (y + h)) ~width:232. ~keys ~selected:current ~lead_from:5
             ("workspace-menu-" ^ label) rows with
@@ -1656,9 +1666,25 @@ module Tree = struct
     ignore (Ui.within ui box (fun () ->
       Ui.box ui ~w:(Ui.Px w)
         ~h:(Ui.Px (float_of_int (count + 1) *. height)) "tree-content"));
+    let ancestors k =
+      let chain = ref [] and depth = ref (at k).depth in
+      for candidate = k - 1 downto 0 do
+        if (at candidate).depth < !depth then begin
+          chain := candidate :: !chain; depth := (at candidate).depth end
+      done;
+      !chain in
+    (* the ancestors of the first row in view stay at the top while the list is scrolled *)
+    let sticky_of scroll = if count = 0 || scroll <= 0. then []
+      else List.filteri (fun index _ -> index < 3)
+          (ancestors (max 0 (min (count - 1) (int_of_float (Float.floor (scroll /. height)))))) in
     let row_at (_, py) =
-      let k = int_of_float (Float.floor ((py -. top +. scroll) /. height)) in
-      if py < top || k < 0 || k >= count then None else Some k in
+      (* a sticky row is the row under the pointer, not the one scrolled beneath it *)
+      let slot = int_of_float (Float.floor ((py -. top) /. height)) in
+      match if py < top then None else List.nth_opt (sticky_of scroll) slot with
+      | Some k -> Some k
+      | None ->
+          let k = int_of_float (Float.floor ((py -. top +. scroll) /. height)) in
+          if py < top || k < 0 || k >= count then None else Some k in
     (* the last flag ends 12 from the edge, a flag column is a 12-point flag and an 8-point gap *)
     let columns_x = x +. w -. 24. -. flag_width *. float_of_int (max 0 (List.length columns - 1)) in
     let column_at (px, _) =
@@ -1768,13 +1794,6 @@ module Tree = struct
           (if fresh = [] then intents else intents @ [Flag { ids = fresh; column; value }])
       | Some _ -> { t with drag = None }, intents
       | None -> t, intents in
-    let ancestors k =
-      let chain = ref [] and depth = ref (at k).depth in
-      for candidate = k - 1 downto 0 do
-        if (at candidate).depth < !depth then begin
-          chain := candidate :: !chain; depth := (at candidate).depth end
-      done;
-      !chain in
     let drop_hint = match t.drag with
       | Some (Rows { moved = true; ids }) ->
           (match row_at signal.pointer with
@@ -1790,8 +1809,7 @@ module Tree = struct
       let first = max 0 (int_of_float (Float.floor (scroll /. height))) in
       let last = min (count - 1)
           (int_of_float (Float.ceil ((scroll +. body) /. height))) in
-      let sticky = if count = 0 || scroll <= 0. then []
-        else List.filteri (fun index _ -> index < 3) (ancestors first) in
+      let sticky = sticky_of scroll in
       let text ?(color = theme.foreground) at label =
         Ui.Paint.text paint ~at ~color label in
       Ui.Paint.fill paint ~x ~y ~w ~h theme.panel;
@@ -1971,10 +1989,15 @@ module Inspector = struct
       clicked in
     let input ?(ranged = true) field path ~edit ~x ~y ~w =
       let key = "flow-value-" ^ path in
-      let numeric text valid ?display ?fraction ?slide convert =
-        let fraction = if ranged then fraction else None in
+      let numeric text valid ?display ?fraction ?slide ~step convert =
+        (* a field with a range slides to where the pointer is on its track; one without (a
+           vector's cell) has no track: a drag changes it from the value it had, so a click
+           without a drag writes nothing *)
+        let fraction = if ranged then fraction else None
+        and slide = if ranged then slide else None
+        and scrub = if ranged then None else Some (fun origin dx shift -> step origin dx shift) in
         let changed, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
-            ?display ?fraction ?slide ~edit ~left:(expression text)
+            ?display ?fraction ?slide ?scrub ~edit ~left:(expression text)
             ?trail:(Option.map (fun unit -> unit, ink_3) field.Param.unit) ~valid:(fun text -> valid text || expression text)
             key text in
         if changed = text then [] else if expression changed then
@@ -1988,7 +2011,10 @@ module Inspector = struct
           let slide fraction = string_of_int (range.soft_min + int_of_float
             (Float.round (fraction *. float (range.soft_max - range.soft_min)))) in
           numeric (string_of_int value) (fun text -> int_of_string_opt text <> None)
-            ~fraction ~slide (fun text -> Option.map (fun n -> Param.Int_value n)
+            ~fraction ~slide
+            ~step:(fun origin dx _ -> match int_of_string_opt origin with
+              | Some n -> string_of_int (n + int_of_float (Float.round (dx /. 6.))) | None -> origin)
+            (fun text -> Option.map (fun n -> Param.Int_value n)
               (int_of_string_opt text))
       | Param.Floating_view range, Param.Float_value value ->
           let fraction = (value -. range.soft_min)
@@ -1999,6 +2025,8 @@ module Inspector = struct
             (fun text -> Option.fold ~none:false ~some:Float.is_finite
               (float_of_string_opt text)) ~display:(Printf.sprintf "%.6g" value)
             ~fraction ~slide
+            ~step:(fun origin dx shift -> match float_of_string_opt origin with
+              | Some v -> Printf.sprintf "%.6g" (v +. (dx *. (if shift then 0.005 else 0.05))) | None -> origin)
             (fun text -> Option.map (fun n -> Param.Float_value n)
               (float_of_string_opt text))
       | Param.Text_view, Param.Text_value value ->

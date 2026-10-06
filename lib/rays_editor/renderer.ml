@@ -204,8 +204,10 @@ let update state ~mode ~custom ~focus views =
           {blank with scene; wire = Some (match previous with
             | Some {wire = Some wire; scene = last; _} when last == scene -> wire
             | Some _ | None -> wire_scene scene)}
-      | Path_traced when not (plan.focused || Option.fold ~none:false ~some:(( == ) plan) chosen) ->
-          (* not this frame's turn: the picture it had stays *)
+      | Path_traced when not plan.wants
+                         || not (plan.focused || Option.fold ~none:false ~some:(( == ) plan) chosen) ->
+          (* at its cap with nothing changed (the focused one too), or not this frame's turn: the
+             picture it had stays *)
           (match previous with Some slot -> {slot with keys; cap} | None -> blank)
       | Path_traced ->
           let prior = Option.value ~default:blank previous in

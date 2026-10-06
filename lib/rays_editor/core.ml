@@ -246,6 +246,7 @@ type 'prepared t = {
   outline_at : string list option;  (* the panel [outline] belongs to *)
   locals : (string list * local) list;  (* the other panels' own, by panel key *)
   started : started;
+  framing : int option;  (* the object a framing cook is running for: its bounds come back in its own space *)
   carry : 'prepared carry option;
   carry_budget : float;  (* seconds a carry's preview may take to apply or cook before it is only described *)
   captions : (string * string) list;
@@ -2017,7 +2018,7 @@ let create ?settings ?(keymap = Leader.keymap)
         graph_at = None; graph_pane = None; graph_panes = [];
         list_at = None; text_at = None; outline_at = None; locals = [];
         started = { on = None; views = []; tabs = [] };
-        carry = None; carry_budget; captions = []; traces = []; view_tools = None; gates = []; selected_box = None;
+        framing = None; carry = None; carry_budget; captions = []; traces = []; view_tools = None; gates = []; selected_box = None;
         file = (fst doc.Document.workspace).checked.name ^ ".rays" } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       (* the panels open as their start keywords say; the first graph pane (the focused leaf, else
@@ -4733,8 +4734,10 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         (if index land 4 = 0 then lo.z else hi.z))) in
     List.fold_left (fun (lo, hi) point -> lower lo point, upper hi point)
       (List.hd corners, List.hd corners) corners in
-  let framed = match cooked.framed, frame_request with
-    | Some (Some bounds), Some (id, _) -> Some (Some (world_bounds id bounds))
+  (* a framing cook may finish frames after its request: the object is remembered until it does *)
+  let framing = match frame_request with Some (id, _) -> Some id | None -> value.framing in
+  let framed = match cooked.framed, framing with
+    | Some (Some bounds), Some id -> Some (Some (world_bounds id bounds))
     | framed, _ when List.mem Leader.Frame_camera actions && value'.level = Document.Scene ->
         ignore framed;
         let view = match active_view value' (geometry value' result.workspace frame) with
@@ -4780,7 +4783,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         | _ when all_ui_visible && List.mem Leader.Add_node actions && not graph_shown
             && has_panel value' Pxui_shell.Layout.Graph -> [Leader.Add_node]
         | _ -> []);
-      carry;
+      carry; framing = (if cooked.framed <> None then None else framing);
       notice = new_notice;
       notice_at = if new_notice <> value'.notice then frame.time else value'.notice_at };
     effects; prepared_changed;
