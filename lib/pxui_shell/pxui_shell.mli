@@ -20,9 +20,6 @@ module Layout : sig
   val header_height : int
   (** One unit, 24 points: a panel header, the status strip, a docked timeline. *)
 
-  val header_margin : int
-  (** The 4 points above a panel's header row (none on a collapsed docked pane). *)
-
   type leaf = { path : path; panel : panel; frame : bounds; header : bounds; body : bounds; floating : bool }
   (** One panel: its [frame], the 24-point [header] row under a 4-point margin, and the body
       below it.  A docked timeline under 90 points has no header: it is its strip. [floating] covers both authored
@@ -98,15 +95,6 @@ module Kit : sig
     hex:string -> string
   (** A colour in the control column at [at], [w] wide: a 20-point swatch and its hex field;
       the hex text as typed. *)
-
-  val number : Pxui.Ui.t -> key:string -> at:float * float -> w:float -> ?h:float -> ?size:int ->
-    kind:Editor_core.Number.kind -> ?range:float * float -> ?display:string -> ?edit:bool -> ?left:bool ->
-    ?trail:string * Rays.Color.t -> ?valid:(string -> bool) -> string -> string
-  (** The kit's number field over {!Pxui.Ui.value_field}: the text, changed the frame a drag or a
-      typed value changed it.  A drag follows {!Editor_core.Number.scrub} for the parameter's
-      [kind] and soft [range] (which also draws the position line); a click without a drag returns
-      the text as given; Option-click, a double-click or [edit] types.  [valid] replaces the
-      kind's own check (an inspector also takes an expression). *)
 
   val vector : Pxui.Ui.t -> Pxui.Ui.box -> at:float * float -> w:float -> ?reserve:float ->
     ?axes:string list -> (int -> x:float -> w:float -> 'a list) -> 'a list
