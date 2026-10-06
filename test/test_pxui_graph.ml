@@ -362,6 +362,29 @@ let scope_idle_frame () =
     | [ Scope.Level_set l ] -> List.length l = 2001 && List.for_all (fun (_, level, _) -> level = Some P.Point) l
     | _ -> false) "Point_all did not point every node"
 
+(* A pane that stops being drawn keeps nothing open: a pan gives the pointer back and a text field closes. *)
+let scope_suspend () =
+  let w = load_workspace "bloom" in
+  let view, _ = scope_view w "flower" in
+  let view, _ = scope_step view (frame ()) in
+  let empty = 990, 690 in
+  let held = { (frame ~mouse:empty ~events:[ mouse_move empty; mouse_press (Input.RightButton, empty) ] ()) with
+    mouse_buttons = [ Input.RightButton ] } in
+  let panning, _ = scope_step view held in
+  check (Scope.Private.grabbed panning) "a right-button press on the canvas did not begin a pan";
+  let naming, _ = Scope.run_command (Scope.select [ [ "flower"; "heart" ] ] panning) Scope.Edit_name in
+  check (Scope.editing naming && Scope.Private.grabbed naming) "the name field did not open during the pan";
+  let idle = Scope.suspend naming in
+  check (not (Scope.Private.grabbed idle) && not (Scope.editing idle)) "suspend left the grab or the field";
+  check (Scope.suspend idle == idle) "suspending an idle pane made a new value";
+  (* drawn again as the button comes up: no grab, no field, no edit *)
+  let after, changes = scope_step idle (frame ~mouse:empty ~events:[ mouse_release (Input.RightButton, empty) ] ()) in
+  let after, later = scope_step after (frame ~mouse:empty ()) in
+  let changes = changes @ later in
+  check (not (Scope.Private.grabbed after) && not (Scope.editing after)
+         && not (List.exists (function Scope.Syntax_edit _ | Scope.Moved _ -> true | _ -> false) changes))
+    "the pane woke with a grab, a field or an edit"
+
 (* A trackpad pinch zooms the graph where the wheel does: at the pointer, the
    frame's pinch factors multiplied, clamped like the wheel. *)
 let scope_pinch () =
@@ -500,6 +523,35 @@ let scope_gestures () =
   let _, released = scope_step view (frame ~mouse:towards ~events:[ mouse_release (Input.LeftButton, towards) ] ()) in
   check (List.exists (function Scope.Syntax_edit (E.Set_arg { node; sub = [ _ ]; _ }) -> node = heart | _ -> false)
            (moved @ released)) "scrubbing a vector field did not become Set_arg";
+  (* G13: a float parameter written as an integer scrubs as a float (the kind is the row's type), a
+     long value keeps its digits, a click writes nothing and a drag is one history entry *)
+  let nw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace n (graph g :context sop (let* [a (sop/uv_sphere :radius 1) b (sop/transform a :translate [1234567.89 2 3])] b)))"
+    |> Result.get_ok in
+  let field path label ~inset =
+    let view = settled (fst (scope_view nw.checked "g")) in
+    let node = Option.get (P.find (P.of_graph scope_catalog nw.checked "g") path) in
+    let i = Option.get (List.find_index (fun (r : P.row) -> r.label = label) node.rows) in
+    let bx, _, bw, _ = Option.get (Scope.Private.box_of view path) in
+    view, (int_of_float (bx +. bw -. inset), int_of_float (snd (Option.get (Scope.Private.row_center view path i)))) in
+  let scrub (view, from) by =
+    let view, _ = scope_step view (frame ~mouse:from ~events:[ mouse_move from; mouse_press (Input.LeftButton, from) ] ()) in
+    let towards = fst from + by, snd from in
+    let view, moved = if by = 0 then view, [] else scope_step view (frame ~mouse:towards ~events:[ mouse_move towards ] ()) in
+    let _, released = scope_step view (frame ~mouse:towards ~events:[ mouse_release (Input.LeftButton, towards) ] ()) in
+    List.filter_map (function Scope.Syntax_edit (E.Set_arg _ as op) -> Some op | _ -> None) (moved @ released) in
+  let written ops = List.filter_map (function
+    | E.Set_arg { value = { S.node = S.Num n; _ }; _ } -> Some n | _ -> None) ops in
+  (* at two places: a second press at one would be a double-click, which types *)
+  check (scrub (field [ "g"; "a" ] "radius" ~inset:20.) 0 = []) "a click on a number field wrote a value";
+  let radius = scrub (field [ "g"; "a" ] "radius" ~inset:60.) 10 in
+  check (match written radius with
+    | n :: _ -> String.contains n '.' && not (Float.is_integer (float_of_string n)) | [] -> false)
+    ("a float written 1 scrubbed as an integer: " ^ String.concat " " (written radius));
+  check (List.for_all (fun op -> E.gesture op <> None && E.gesture op = E.gesture (List.hd radius)) radius)
+    "a scrub is not one history entry";
+  let cell = scrub (field [ "g"; "b" ] "translate" ~inset:110.) 2 in
+  check (List.mem "1234567.99" (written cell)) ("a scrub of 1234567.89 lost its digits: " ^ String.concat " " (written cell));
   (* the selection commands and their requests *)
   let view = settled (Scope.select [ heart ] (fst (scope_view w "flower"))) in
   let only command = snd (Scope.run_command view command) in
@@ -908,6 +960,7 @@ let run_scope () =
   scope_levels ();
   scope_zoom_geometry ();
   scope_pinch ();
+  scope_suspend ();
   scope_idle_frame ();
   print_endline "pxui graph scope pane tests passed"
 

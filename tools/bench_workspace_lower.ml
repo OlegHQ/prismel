@@ -20,7 +20,7 @@ let cook_graph ~session (graph : Lower.graph) =
   | Error e -> failwith (Procedural.Diagnostic.error_to_string e)
 
 let () =
-  let dir = if Array.length Sys.argv > 1 then Sys.argv.(1) else "specification/workspace/cases" in
+  let dir = if Array.length Sys.argv > 1 then Sys.argv.(1) else "_build/default/specification/workspace/cases" in
   let repeats = if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 21 in
   Printf.printf "domains available %d, repeats %d (medians, ms)\n"
     (Domain.recommended_domain_count ()) repeats;

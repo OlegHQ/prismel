@@ -72,7 +72,7 @@ let run ~frames ~domains name source =
 let () =
   let frames = if Array.length Sys.argv > 1 then int_of_string Sys.argv.(1) else 600 in
   let domains = if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 1 in
-  let dir = if Array.length Sys.argv > 3 then Sys.argv.(3) else "specification/workspace/cases" in
+  let dir = if Array.length Sys.argv > 3 then Sys.argv.(3) else "_build/default/specification/workspace/cases" in
   Printf.printf "frames %d domains %d (available %d)\n" frames domains
     (Domain.recommended_domain_count ());
   let only = Sys.getenv_opt "BENCH_CASE" in

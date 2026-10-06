@@ -26,9 +26,7 @@ type path = string list
 
 module Paths : Set.S with type elt = path
 
-type context = Sop | Value | Scene | World | Settings | Editor | Material
-(** [Flow.Context.t] has no [Settings] or [Editor] until W10, so the workspace
-    language carries its own. *)
+type context = Context.t = Sop | Value | Scene | World | Settings | Editor | Material
 
 val context_name : context -> string
 

@@ -99,6 +99,15 @@ module Kit : sig
   (** A colour in the control column at [at], [w] wide: a 20-point swatch and its hex field;
       the hex text as typed. *)
 
+  val number : Pxui.Ui.t -> key:string -> at:float * float -> w:float -> ?h:float -> ?size:int ->
+    kind:Editor_core.Number.kind -> ?range:float * float -> ?display:string -> ?edit:bool -> ?left:bool ->
+    ?trail:string * Rays.Color.t -> ?valid:(string -> bool) -> string -> string
+  (** The kit's number field over {!Pxui.Ui.value_field}: the text, changed the frame a drag or a
+      typed value changed it.  A drag follows {!Editor_core.Number.scrub} for the parameter's
+      [kind] and soft [range] (which also draws the position line); a click without a drag returns
+      the text as given; Option-click, a double-click or [edit] types.  [valid] replaces the
+      kind's own check (an inspector also takes an expression). *)
+
   val vector : Pxui.Ui.t -> Pxui.Ui.box -> at:float * float -> w:float -> ?reserve:float ->
     ?axes:string list -> (int -> x:float -> w:float -> 'a list) -> 'a list
   (** A vector in the control column of the row [box]: one cell a letter of [axes] (x y z), 8
