@@ -753,6 +753,12 @@ let active_of args = match kw_get args "active" with
   | None -> 0
   | Some { S.node = S.Num s; _ } -> Option.value ~default:0 (int_of_string_opt s)
   | Some _ -> fail "The active layout is an expression: change it in the text."
+(* the switch's active input; an [:active] outside its layouts is refused *)
+let active_layout args =
+  let a = active_of args in
+  match if a < 0 then None else List.nth_opt (positional args) a with
+  | Some o -> o
+  | None -> fail "The active layout is not one of the switch's layouts."
 
 (* layout bindings in [cands] that nothing reads any more go *)
 let prune body cands = match scope_of body with
@@ -772,8 +778,7 @@ let edit_layout src graph f = edit_scope src [ graph ] (fun s ->
     | Some (place, sw) ->
         let args = List.tl (S.children sw) in
         let a = active_of args in
-        (match List.nth_opt (positional args) a with
-         | Some o -> o | None -> fail "The active layout is not one of the switch's layouts."),
+        active_layout args,
         (fun e -> set_switch sc sc.ps place (arg_set sw (Pos a) (Some e)))
     | None -> workspace_arg sc, (fun e -> rebuilt (set_workspace sc sc.ps e)) in
   prune (put (f sc.ps slot)) (reach sc.ps slot))
@@ -1347,7 +1352,7 @@ let rewrite src op : (unit -> S.t list) list =
         let args = List.tl (S.children sw) in
         let n = List.length (positional args) in
         if n >= 10 then fail "Ten layouts is the limit of the digit keys.";
-        let copy = solid sc.ps (List.nth (positional args) (min (active_of args) (n - 1))) in
+        let copy = solid sc.ps (active_layout args) in
         let name = fresh used "layout" in
         let sw = arg_set (arg_set sw (Pos n) (Some (sym name))) (Kw "active") (Some (num n)) in
         reorder (set_switch sc (sc.ps @ [ sym name, copy ]) place sw)))
@@ -1401,7 +1406,7 @@ let rewrite src op : (unit -> S.t list) list =
             let args = List.tl (S.children sw) in
             let n = List.length (positional args) and a = active_of args in
             if n < 2 then fail "A switch keeps its last layout.";
-            let gone = List.nth (positional args) a in
+            let gone = active_layout args in
             let sw = arg_set (arg_set sw (Pos a) None) (Kw "active") (Some (num (min a (n - 2)))) in
             prune (set_switch sc sc.ps place sw) (reach sc.ps gone)))
   | Layout_window { graph; kind } -> one (fun () ->
