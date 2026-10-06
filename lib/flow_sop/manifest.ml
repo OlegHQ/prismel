@@ -16,7 +16,8 @@ let group name values = "(" ^ name ^
 let strings name values = group name (List.map quote values)
 let number number =
   if not (Float.is_finite number) then invalid_arg "Manifest.number: non-finite";
-  Flow.Lisp.float number
+  let text = Flow.Lisp.float number in
+  if String.ends_with ~suffix:".0" text then String.sub text 0 (String.length text - 2) else text
 let optional render = function None -> "nil" | Some value -> render value
 let literal = function
   | Param.Bool_value value -> group "bool" [string_of_bool value]
