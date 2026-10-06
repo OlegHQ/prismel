@@ -1819,10 +1819,10 @@ let paint_all ui (frame : Frame.t) =
       vw > 0. && vh > 0. in
     let has_hit = ui.b_flags.(index) land hit_flags <> 0 && hw > 0. && hh > 0. in
     if has_hit then record_hit ui index parent_hit clipped_hit;
-    (* only a box that clips its children hides them with itself: a child placed with [~at] may
-       show outside a box with no extent (a [Fit] box of such children) or one out of view *)
+    (* a box with no extent of its own (a [Fit] box whose children are all placed with [~at]) is
+       not out of view: its children show unless it clips them *)
     let shown = visible || ui.b_xform.(index) <> None in
-    if shown || ui.b_flags.(index) land clip = 0 then begin
+    if shown || ((w <= 0. || h <= 0.) && ui.b_flags.(index) land clip = 0) then begin
       if shown then run ui.b_painters.(index) index clip_rect;
       let child_clip = if ui.b_flags.(index) land clip <> 0 then
           let padding = ui.b_padding.(index) *. ui.l_scale.(index) in
