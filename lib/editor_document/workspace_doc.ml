@@ -157,5 +157,10 @@ let edit catalog t op =
           { layout with display = Layout_by_path.Path_map.remove [ graph ] layout.display }
       | Flow_sop.Flow_edit.Merge_layouts _ -> { layout with editor = None }  (* the other editor graphs are gone *)
       | _ -> layout in
-    { t with source; checked; layout = pruned checked catalog layout })
+    (* the edits a scrub repeats every frame change a value, never which nodes there are:
+       projecting the graphs again for them costs 16 ms of a 44 ms edit at 2,001 nodes *)
+    let layout = match op with
+      | Flow_sop.Flow_edit.Set_arg _ | Set_input_default _ | Set_note _ | Toggle_bypass _ | Set_layout_size _ -> layout
+      | _ -> pruned checked catalog layout in
+    { t with source; checked; layout })
     (Flow_sop.Flow_edit.apply_checked catalog t.source op)
