@@ -10,8 +10,6 @@ type box_normals = Box_no_normals | Box_point_normals | Box_vertex_normals
 type box_rotation_order =
   | Box_xyz | Box_xzy | Box_yxz | Box_yzx | Box_zxy | Box_zyx
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let box_rotation_matrix order rotation =
   let x = Mat4.rotation_x rotation.Vec3.x
   and y = Mat4.rotation_y rotation.y
@@ -106,7 +104,7 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
         ~vertex_points ~primitive_offsets:(Array.init 13 (fun index -> index * 3))
         ~primitive_kinds:(Bytes.make 12 '\000') in
     let normal = Attribute.create_key_owned
-        (Attribute.normal ~owner:Attribute.Point) normals |> get_ok in
+        (Attribute.normal ~owner:Attribute.Point) normals |> Support.get_ok in
     Geometry.create ~positions ~topology ~attributes:[normal] ()
   end
   else
@@ -449,21 +447,21 @@ let box ?cancel ?(grain = 16_384) ?(connectivity = Box_triangles)
            | Some (x, y, z) ->
                let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                attributes := (Attribute.create_key_owned
-                   (Attribute.normal ~owner:Attribute.Point) values |> get_ok)
+                   (Attribute.normal ~owner:Attribute.Point) values |> Support.get_ok)
                  :: !attributes
            | None -> ());
           (match vertex_normals with
            | Some (x, y, z) ->
                let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                attributes := (Attribute.create_key_owned
-                   (Attribute.normal ~owner:Attribute.Vertex) values |> get_ok)
+                   (Attribute.normal ~owner:Attribute.Vertex) values |> Support.get_ok)
                  :: !attributes
            | None -> ());
           (match uv_attribute, uv with
            | Some name, Some (x, y) ->
-               let values = Packed.Float2.of_owned ~x ~y |> get_ok in
+               let values = Packed.Float2.of_owned ~x ~y |> Support.get_ok in
                attributes := (Attribute.create_owned ~name ~owner:Attribute.Vertex
-                   (Attribute.Float2 values) |> get_ok) :: !attributes
+                   (Attribute.Float2 values) |> Support.get_ok) :: !attributes
            | None, None -> ()
            | _ -> assert false);
           let groups = match face_groups with

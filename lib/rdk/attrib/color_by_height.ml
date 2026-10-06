@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let run_raw ?cancel ?(grain = 16_384) ~low ~high geometry =
   if grain <= 0 then invalid_arg "Rdk.Color_by_height.color_by_height: grain must be positive";
   let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
@@ -25,9 +23,9 @@ let run_raw ?cancel ?(grain = 16_384) ~low ~high geometry =
         g.(index) <- lg +. ((hg -. lg) *. t);
         b.(index) <- lb +. ((hb -. lb) *. t);
         a.(index) <- la +. ((ha -. la) *. t));
-  let values = Packed.Float4.of_owned ~x:r ~y:g ~z:b ~w:a |> get_ok in
+  let values = Packed.Float4.of_owned ~x:r ~y:g ~z:b ~w:a |> Support.get_ok in
   let attribute = Attribute.create_key_owned
-      (Attribute.color ~owner:Attribute.Point) values |> get_ok in
+      (Attribute.color ~owner:Attribute.Point) values |> Support.get_ok in
   Geometry.with_attribute attribute geometry
 
 let run ?cancel ?grain ~low ~high geometry =

@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let run ?cancel ?(grain = 16_384) ?(keep_original = true) ~origin ~normal
     geometry =
   Error.guard ~operation:"mirror" ~code:"invalid_parameter" @@ fun () ->
@@ -163,10 +161,10 @@ let run ?cancel ?(grain = 16_384) ?(keep_original = true) ~origin ~normal
                       point + offset) in
                     Edge_group.remap ?cancel ~source_index
                       ~target_topology:topology ~target_index ~point_map group
-                    |> get_ok in
+                    |> Support.get_ok in
                   List.map (fun group ->
                     if keep_original then
                       Edge_group.union (remap 0 group)
-                        (remap reflected_point_base group) |> get_ok
+                        (remap reflected_point_base group) |> Support.get_ok
                     else remap 0 group) source_groups in
             Geometry.create ~positions ~topology ~attributes ~groups ~edge_groups ())

@@ -1,6 +1,6 @@
 (* Removes copy-pasted top-level helpers in favour of one shared module.
 
-     dedupe [--dry-run] (--open MODULE | --qualify PREFIX) SHARED.ml FILE.ml...
+     dedupe [--dry-run] [--only NAME,...] (--open MODULE | --qualify PREFIX) SHARED.ml FILE.ml...
      dedupe --show FILE.ml NAME        print how one definition is compared
 
    A top-level [let NAME] in FILE goes when it is the same definition as [let NAME] in
@@ -11,7 +11,7 @@
      shapes in the .cmt files, to the same declaration: the same global one, the same local
      one by position, or a helper of the file that was itself matched to SHARED's.
    An identifier the compiler could not resolve keeps the definition, as does a second
-   definition of the name in the file.
+   definition of the name in the file or a [val] for it in the file's interface.
 
    --open MODULE puts [open MODULE] where the first removed helper stood. A file is skipped
    when that open could capture anything: a use of a shared name that resolves outside the
@@ -251,7 +251,7 @@ let apply text edits =
 
 type mode = Open of string | Qualify of string
 
-let dedupe ~dry_run ~mode shared paths =
+let dedupe ~dry_run ~mode ~only shared paths =
   let shared_names = Hashtbl.create 32 in
   let shared_matched = Hashtbl.create 32 in
   List.iter (fun definition ->
@@ -259,20 +259,28 @@ let dedupe ~dry_run ~mode shared paths =
     Option.iter (fun uid -> Hashtbl.replace shared_matched uid definition.name) definition.uid)
     shared.definitions;
   let shared_form = Hashtbl.create 32 in
-  List.iter (fun definition ->
+  List.iter (fun definition -> if only = [] || List.mem definition.name only then begin
     let tokens, unknown = resolution shared ~matched:shared_matched definition in
     if unknown then fail "%s: %s names something the compiler did not resolve: %s"
         shared.path definition.name (String.concat " " tokens);
-    Hashtbl.replace shared_form definition.name (shape_of definition.item, tokens))
-    shared.definitions;
+    Hashtbl.replace shared_form definition.name (shape_of definition.item, tokens)
+  end) shared.definitions;
   let removed_total = ref 0 and lines_total = ref 0 in
   List.iter (fun path ->
     let source = load path in
     let count name = List.length (List.filter (fun d -> d.name = name) source.definitions) in
+    (* a helper the file's interface exports stays *)
+    let exported =
+      let interface = path ^ "i" in
+      if not (Sys.file_exists interface) then []
+      else List.filter_map (fun (item : Parsetree.signature_item) -> match item.psig_desc with
+        | Psig_value value -> Some value.pval_name.txt
+        | _ -> None) (Parse.interface (Lexing.from_string (read interface))) in
     let matched = Hashtbl.create 16 in
     let removed = List.filter (fun definition ->
       match Hashtbl.find_opt shared_form definition.name, definition.uid with
-      | Some (form, tokens), Some uid when count definition.name = 1 ->
+      | Some (form, tokens), Some uid
+        when count definition.name = 1 && not (List.mem definition.name exported) ->
           let own_tokens, unknown = resolution source ~matched definition in
           let same = not unknown && shape_of definition.item = form && own_tokens = tokens in
           if same then Hashtbl.replace matched uid definition.name;
@@ -342,11 +350,14 @@ let show path name =
   end) source.definitions
 
 let () =
-  let dry_run = ref false and mode = ref None and rest = ref [] and showing = ref false in
+  let dry_run = ref false and mode = ref None and rest = ref [] and showing = ref false
+  and only = ref [] in
   Arg.parse [
     "--dry-run", Arg.Set dry_run, " report without writing";
     "--open", Arg.String (fun name -> mode := Some (Open name)), "MODULE open it in each file";
     "--qualify", Arg.String (fun prefix -> mode := Some (Qualify prefix)), "PREFIX name each use";
+    "--only", Arg.String (fun names -> only := String.split_on_char ',' names),
+      "NAME,... consider these definitions of SHARED only";
     "--show", Arg.Set showing, " print one definition's compared form";
   ] (fun argument -> rest := argument :: !rest)
     "dedupe [--dry-run] (--open MODULE | --qualify PREFIX) SHARED.ml FILE.ml...";
@@ -355,5 +366,5 @@ let () =
   | true, _, [path; name] -> show path name
   | false, Some mode, shared :: paths ->
       let shared = load shared in
-      dedupe ~dry_run:!dry_run ~mode shared (List.filter (fun path -> path <> shared.path) paths)
+      dedupe ~dry_run:!dry_run ~mode ~only:!only shared (List.filter (fun path -> path <> shared.path) paths)
   | _ -> fail "usage: dedupe [--dry-run] (--open MODULE | --qualify PREFIX) SHARED.ml FILE.ml..."

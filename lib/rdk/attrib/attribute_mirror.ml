@@ -60,12 +60,6 @@ let owner_count owner geometry = match owner with
   | Mirror_vertex_attributes -> Geometry.vertex_count geometry
   | Mirror_primitive_attributes -> Geometry.primitive_count geometry
 
-let parallel_for ?cancel ~grain count work =
-  if count > 0 then Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1)
-    (fun element ->
-      if element land 4095 = 0 then Cancel.check_opt cancel;
-      work element)
-
 let record_first_bad bad element =
   let current = ref (Atomic.get bad) in
   while element < !current
@@ -116,7 +110,7 @@ let primitive_locations ?cancel ~grain geometry =
   let count = Geometry.primitive_count geometry in
   let x = Array.make count 0. and y = Array.make count 0.
   and z = Array.make count 0. and bad = Atomic.make max_int in
-  parallel_for ?cancel ~grain count (fun primitive ->
+  Support.parallel_for ?cancel ~grain count (fun primitive ->
     let first, last = Topology.primitive_vertex_range topology primitive in
     if last <= first then record_first_bad bad primitive
     else begin
@@ -180,7 +174,7 @@ let plane_mapping ?cancel ~grain ~group ~group_use owner plane geometry =
   let locations = locations ?cancel ~grain owner geometry in
   let view = Packed.Float3.Private.view locations in
   let side = Bytes.make count '\000' and bad = Atomic.make max_int in
-  parallel_for ?cancel ~grain count (fun element ->
+  Support.parallel_for ?cancel ~grain count (fun element ->
     let distance = plane_distance plane view.x.(element) view.y.(element)
         view.z.(element) in
     if not (Float.is_finite distance) then record_first_bad bad element
@@ -244,7 +238,7 @@ let plane_mapping ?cancel ~grain ~group ~group_use owner plane geometry =
     ~queries ~max_distance_squared:(plane.tolerance *. plane.tolerance)
     ~capacity:1 ~indices:nearest ~distances_squared:distances ~counts;
   let source_of_output = Array.make count (-1) in
-  parallel_for ?cancel ~grain !destination_count (fun slot ->
+  Support.parallel_for ?cancel ~grain !destination_count (fun slot ->
     if counts.(slot) = 1 then
       source_of_output.(destination_elements.(slot)) <-
         source_elements.(nearest.(slot)));
@@ -269,7 +263,7 @@ let explicit_mapping ?cancel ~grain ~group ~group_use owner
          | _ -> fail "Attribute Mirror mapping attribute must be integer") in
   let source_of_output = Array.init count Fun.id
   and pair_destination = Bytes.make count '\000' in
-  parallel_for ?cancel ~grain count (fun destination ->
+  Support.parallel_for ?cancel ~grain count (fun destination ->
     if Group.mem destination destination_group then begin
       let source = values.(destination) in
       if source >= 0 && source < count then begin
@@ -344,14 +338,14 @@ let replace_all ~search ~replacement source =
 let copy_array ?cancel ~grain mapping values =
   let count = Array.length mapping.source_of_output in
   let output = Array.make count values.(0) in
-  parallel_for ?cancel ~grain count (fun element ->
+  Support.parallel_for ?cancel ~grain count (fun element ->
     output.(element) <- values.(mapping.source_of_output.(element)));
   output
 
 let copy_float ?cancel ~grain mapping label values =
   let count = Array.length mapping.source_of_output in
   let output = Array.make count 0. and bad = Atomic.make max_int in
-  parallel_for ?cancel ~grain count (fun element ->
+  Support.parallel_for ?cancel ~grain count (fun element ->
     let value = values.(mapping.source_of_output.(element)) in
     if Float.is_finite value then output.(element) <- value
     else record_first_bad bad element);
@@ -386,7 +380,7 @@ let copy_tuple ?cancel ~grain mapping transform label source =
   let width = Array.length source and count = Array.length mapping.source_of_output in
   let output = Array.init width (fun _ -> Array.make count 0.)
   and bad = Atomic.make max_int in
-  parallel_for ?cancel ~grain count (fun element ->
+  Support.parallel_for ?cancel ~grain count (fun element ->
     let source_element = mapping.source_of_output.(element) in
     let valid = ref true in
     for component = 0 to width - 1 do
@@ -436,7 +430,7 @@ let remap_attribute ?cancel ~grain ~transform ~string_replace mapping attribute 
         (match string_replace with
          | None -> ()
          | Some (search, replacement) ->
-             parallel_for ?cancel ~grain (Array.length output) (fun element ->
+             Support.parallel_for ?cancel ~grain (Array.length output) (fun element ->
                if Bytes.get mapping.pair_destination element = '\001' then
                  output.(element) <- replace_all ~search ~replacement output.(element)));
         Attribute.Text output

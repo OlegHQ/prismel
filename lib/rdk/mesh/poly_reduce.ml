@@ -38,8 +38,6 @@ type target =
   | Reduce_ratio of float
   | Reduce_primitive_count of int
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 
 let validate_group ~owner ~length label = function
   | None -> ()
@@ -449,7 +447,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
         | None -> geometry, None
         | Some group ->
             let name = unique_group_name owner base geometry in
-            Geometry.with_group (Group.with_name name group) geometry |> get_ok,
+            Geometry.with_group (Group.with_name name group) geometry |> Support.get_ok,
             Some name in
       let geometry, primitive_name = install_group Group.Primitive
           "__rdk_poly_reduce_primitives" primitives geometry in
@@ -460,7 +458,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
         | Some group ->
             let name = unique_edge_name "__rdk_poly_reduce_hard_edges" geometry in
             Geometry.with_edge_group (Edge_group.with_name name group) geometry
-              |> get_ok, Some name in
+              |> Support.get_ok, Some name in
       Result.bind (Error.unguard (Triangulate.run ?cancel ~grain geometry))
         (fun triangulated ->
         let working_count = Geometry.primitive_count triangulated in
@@ -529,7 +527,7 @@ let run ?cancel ?(grain = 16_384) ?(target = Reduce_ratio 0.5)
                            (Geometry.primitive_count output) (fun _ -> false))
                   | None -> Group.init ~grain ~owner:Group.Primitive ~name
                       (Geometry.primitive_count output) (fun _ -> true) in
-                Geometry.with_group group output |> get_ok in
+                Geometry.with_group group output |> Support.get_ok in
           let output = match primitive_name with None -> output | Some name ->
               Geometry.without_group ~owner:Group.Primitive name output in
           let output = match hard_point_name with None -> output | Some name ->

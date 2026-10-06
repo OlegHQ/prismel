@@ -6,7 +6,6 @@ type deform_selection = Deform.selection =
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let finite_vec3 value = Float.is_finite value.Vec3.x && Float.is_finite value.y && Float.is_finite value.z
 let selected_bounds = Bound.Private.selected_bounds
 let transform = Transform_ops.transform
@@ -137,7 +136,7 @@ let match_size_transform ?cancel ~grain ?selection ~scale ~translation geometry 
         "Rdk.Match_size.match_size: transformed point %d is not finite" invalid)
     else
       let positions = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
-      let output = Geometry.with_positions positions geometry |> get_ok in
+      let output = Geometry.with_positions positions geometry |> Support.get_ok in
       if scale.x = 1. && scale.y = 1. && scale.z = 1. then Ok output
       else if abs_float scale.x <= 1e-20 || abs_float scale.y <= 1e-20
           || abs_float scale.z <= 1e-20 then
@@ -199,7 +198,7 @@ let match_size_transform ?cancel ~grain ?selection ~scale ~translation geometry 
                    else
                      let packed = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                      let attribute = Attribute.create_key_owned
-                         (Attribute.normal ~owner) packed |> get_ok in
+                         (Attribute.normal ~owner) packed |> Support.get_ok in
                      Geometry.with_attribute attribute output) in
         Result.bind (transform_normals Attribute.Point output)
           (transform_normals Attribute.Vertex)

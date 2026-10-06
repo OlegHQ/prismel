@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 type deform_selection = Deform.selection =
   | Selected_points of Group.t
   | Selected_vertices of Group.t
@@ -910,8 +908,8 @@ let transform ?grain matrix geometry =
              | Some normals ->
                  let normals = normalized_direction ?grain normal_matrix normals in
                  let attribute = Attribute.create_key_owned
-                     (Attribute.normal ~owner) normals |> get_ok in
-                 Geometry.with_attribute attribute output |> get_ok))
+                     (Attribute.normal ~owner) normals |> Support.get_ok in
+                 Geometry.with_attribute attribute output |> Support.get_ok))
         transformed [Attribute.Point; Attribute.Vertex]
 
 let compose_transform ?order ?rotation_order ?translate ?rotate ?scale ?shear

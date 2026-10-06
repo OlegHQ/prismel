@@ -1,13 +1,5 @@
-open Rays_math
-
 exception Rewire_error of string
 let fail message = raise (Rewire_error message)
-
-let parallel_for ?cancel ~grain count work =
-  if count > 0 then Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1)
-    (fun element ->
-      if element land 4095 = 0 then Cancel.check_opt cancel;
-      work element)
 
 let target_group_owner = function
   | Attribute.Point -> Group.Point
@@ -83,7 +75,7 @@ let remap_edge_groups ?cancel ~grain ~source_topology ~target_topology groups =
       let target_edge_count = Topology_index.edge_count target_index
       and vertex_count = Array.length source.edge_of_vertex in
       let target_of_vertex = Array.make vertex_count (-1) in
-      parallel_for ?cancel ~grain vertex_count (fun vertex ->
+      Support.parallel_for ?cancel ~grain vertex_count (fun vertex ->
         if source.edge_of_vertex.(vertex) >= 0 then begin
           let next = source.next_vertex.(vertex) in
           let edge = Topology_index.find_edge_index target_index
@@ -115,7 +107,7 @@ let remap_edge_groups ?cancel ~grain ~source_topology ~target_topology groups =
       List.map (fun group ->
         let byte_count = (target_edge_count + 7) / 8 in
         let bits = Bytes.make byte_count '\000' in
-        parallel_for ?cancel ~grain byte_count (fun byte ->
+        Support.parallel_for ?cancel ~grain byte_count (fun byte ->
           let packed = ref 0 in
           for bit = 0 to 7 do
             let edge = (byte lsl 3) + bit in
@@ -135,7 +127,7 @@ let remap_edge_groups ?cancel ~grain ~source_topology ~target_topology groups =
 
 let select_float ?cancel ~grain mapping source =
   let output = Array.make (Array.length mapping) 0. in
-  parallel_for ?cancel ~grain (Array.length mapping) (fun element ->
+  Support.parallel_for ?cancel ~grain (Array.length mapping) (fun element ->
     output.(element) <- source.(mapping.(element)));
   output
 
@@ -207,9 +199,9 @@ let run ?cancel ?(grain = 16_384) ?selection ?(recursive = false)
            if valid_target destination && destination <> point then
              target_points.(vertex) <- destination in
          (match selected with
-          | None -> parallel_for ?cancel ~grain (Array.length source_points) rewire
+          | None -> Support.parallel_for ?cancel ~grain (Array.length source_points) rewire
           | Some group ->
-              parallel_for ?cancel ~grain (Array.length source_points) (fun vertex ->
+              Support.parallel_for ?cancel ~grain (Array.length source_points) (fun vertex ->
                 if Group.mem source_points.(vertex) group then rewire vertex))
      | Attribute.Vertex ->
          let rewire vertex =
@@ -217,9 +209,9 @@ let run ?cancel ?(grain = 16_384) ?selection ?(recursive = false)
              if valid_target destination && destination <> source_points.(vertex)
              then target_points.(vertex) <- destination in
          (match selected with
-          | None -> parallel_for ?cancel ~grain (Array.length source_points) rewire
+          | None -> Support.parallel_for ?cancel ~grain (Array.length source_points) rewire
           | Some group ->
-              parallel_for ?cancel ~grain (Array.length source_points) (fun vertex ->
+              Support.parallel_for ?cancel ~grain (Array.length source_points) (fun vertex ->
                 if Group.mem vertex group then rewire vertex))
      | Attribute.Primitive ->
          let rewire primitive =
@@ -234,9 +226,9 @@ let run ?cancel ?(grain = 16_384) ?selection ?(recursive = false)
                  done
              in
          (match selected with
-          | None -> parallel_for ?cancel ~grain
+          | None -> Support.parallel_for ?cancel ~grain
               (Topology.primitive_count topology_value) rewire
-          | Some group -> parallel_for ?cancel ~grain
+          | Some group -> Support.parallel_for ?cancel ~grain
               (Topology.primitive_count topology_value) (fun primitive ->
                 if Group.mem primitive group then rewire primitive))
      | Attribute.Detail -> assert false);
@@ -252,7 +244,7 @@ let run ?cancel ?(grain = 16_384) ?selection ?(recursive = false)
     let final_point_count, new_to_old = match compaction with
       | None -> point_count, None
       | Some (old_to_new, new_to_old) ->
-          parallel_for ?cancel ~grain (Array.length target_points) (fun vertex ->
+          Support.parallel_for ?cancel ~grain (Array.length target_points) (fun vertex ->
             target_points.(vertex) <- old_to_new.(target_points.(vertex)));
           Array.length new_to_old, Some new_to_old in
     let final_topology = if changed then

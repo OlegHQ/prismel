@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let remap_edge_groups_identity ?cancel ~source_topology ~target_topology
     ~point_count groups =
   match groups with
@@ -11,7 +9,7 @@ let remap_edge_groups_identity ?cancel ~source_topology ~target_topology
       and target_index = Topology_index.create ?cancel target_topology
       and point_map = Array.init point_count Fun.id in
       List.map (fun group -> Edge_group.remap ?cancel ~source_index
-        ~target_topology ~target_index ~point_map group |> get_ok) groups
+        ~target_topology ~target_index ~point_map group |> Support.get_ok) groups
 
 type operation =
   | Reverse_vertices

@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let interpolated_array ~grain left right weights source =
   Parallel.init_array ~grain (Array.length weights) (fun index ->
     let t = weights.(index) in
@@ -31,7 +29,7 @@ let interpolate_attribute ~grain point_left point_right vertex_left vertex_right
             let view = Packed.Float2.Private.view values in
             Attribute.Float2 (Packed.Float2.of_owned
               ~x:(interpolated_array ~grain left right weights view.x)
-              ~y:(interpolated_array ~grain left right weights view.y) |> get_ok)
+              ~y:(interpolated_array ~grain left right weights view.y) |> Support.get_ok)
         | Attribute.Float3 values ->
             let view = Packed.Float3.Private.view values in
             let x = interpolated_array ~grain left right weights view.x
@@ -54,7 +52,7 @@ let interpolate_attribute ~grain point_left point_right vertex_left vertex_right
               ~x:(interpolated_array ~grain left right weights view.x)
               ~y:(interpolated_array ~grain left right weights view.y)
               ~z:(interpolated_array ~grain left right weights view.z)
-              ~w:(interpolated_array ~grain left right weights view.w) |> get_ok)
+              ~w:(interpolated_array ~grain left right weights view.w) |> Support.get_ok)
         | Attribute.Int_array values ->
             let mapping = Parallel.init_array ~grain (Array.length weights) (fun index ->
                 if weights.(index) < 0.5 then left.(index) else right.(index)) in
@@ -511,7 +509,7 @@ let run ?cancel ?(grain = 16_384) ?primitives ?segments
                 let add name storage = match name with
                   | None -> ()
                   | Some name -> generated := (Attribute.create_owned
-                      ~owner:Attribute.Point ~name storage |> get_ok) :: !generated in
+                      ~owner:Attribute.Point ~name storage |> Support.get_ok) :: !generated in
                 Option.iter (fun values -> add curve_u_attribute
                     (Attribute.Float values)) curve_u;
                 Option.iter (fun values -> add curve_number_attribute

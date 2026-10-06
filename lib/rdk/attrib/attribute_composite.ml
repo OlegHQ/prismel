@@ -1,5 +1,3 @@
-open Rays_math
-
 type operation =
   | Composite_mean
   | Composite_maximum
@@ -212,13 +210,6 @@ let owner_slot = function
   | Attribute.Point -> 2
   | Attribute.Vertex -> 3
 
-let parallel_for ?cancel ~grain count work =
-  if count > 0 then
-    Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1)
-      (fun element ->
-        if element land 4095 = 0 then Cancel.check_opt cancel;
-        work element)
-
 let record_first_bad bad element =
   let current = ref (Atomic.get bad) in
   while element < !current
@@ -228,7 +219,7 @@ let record_first_bad bad element =
 
 let validate_plane ?cancel ~grain ~label values =
   let bad = Atomic.make max_int in
-  parallel_for ?cancel ~grain (Array.length values) (fun element ->
+  Support.parallel_for ?cancel ~grain (Array.length values) (fun element ->
     if not (Float.is_finite values.(element)) then record_first_bad bad element);
   let element = Atomic.get bad in
   if element <> max_int then fail (Printf.sprintf
@@ -264,9 +255,9 @@ let denominator_for_owner ?cancel ~grain ~owner ~count weights alpha =
   else begin
     let values = Array.make count 0. in
     Array.iteri (fun input_index weight -> match alpha.(input_index) with
-      | None -> parallel_for ?cancel ~grain count (fun element ->
+      | None -> Support.parallel_for ?cancel ~grain count (fun element ->
           values.(element) <- values.(element) +. weight)
-      | Some mask -> parallel_for ?cancel ~grain count (fun element ->
+      | Some mask -> Support.parallel_for ?cancel ~grain count (fun element ->
           values.(element) <- values.(element) +. (weight *. mask.(element))))
       weights;
     validate_plane ?cancel ~grain
@@ -285,14 +276,14 @@ let compute_mean ?cancel ~grain weights alpha denominators (plan : plan) =
         Array.iteri (fun component values ->
           let output = plan.output.(component) in
           match mask with
-          | None -> parallel_for ?cancel ~grain count (fun element ->
+          | None -> Support.parallel_for ?cancel ~grain count (fun element ->
               let value = values.(element) in
               if not (Float.is_finite value) then record_first_bad bad_source element
               else
                 let value = output.(element) +. (value *. weight) in
                 if Float.is_finite value then output.(element) <- value
                 else record_first_bad bad_output element)
-          | Some mask -> parallel_for ?cancel ~grain count (fun element ->
+          | Some mask -> Support.parallel_for ?cancel ~grain count (fun element ->
               let value = values.(element) in
               if not (Float.is_finite value) then record_first_bad bad_source element
               else
@@ -302,7 +293,7 @@ let compute_mean ?cancel ~grain weights alpha denominators (plan : plan) =
                 else record_first_bad bad_output element))
           source) plan.sources;
   let denominator = Option.get denominators.(owner_slot plan.owner) in
-  Array.iter (fun output -> parallel_for ?cancel ~grain count (fun element ->
+  Array.iter (fun output -> Support.parallel_for ?cancel ~grain count (fun element ->
     let divisor = match denominator with
       | Constant_denominator value -> value
       | Element_denominator values -> values.(element) in
@@ -321,14 +312,14 @@ let initialize_weighted ?cancel ~grain ~bad_source ~bad_output weights masks
       Array.iteri (fun component values ->
         let output = plan.output.(component) in
         match mask with
-        | None -> parallel_for ?cancel ~grain count (fun element ->
+        | None -> Support.parallel_for ?cancel ~grain count (fun element ->
             let source = values.(element) in
             if not (Float.is_finite source) then record_first_bad bad_source element
             else
               let value = source *. weight in
               if Float.is_finite value then output.(element) <- value
               else record_first_bad bad_output element)
-        | Some mask -> parallel_for ?cancel ~grain count (fun element ->
+        | Some mask -> Support.parallel_for ?cancel ~grain count (fun element ->
             let source = values.(element) in
             if not (Float.is_finite source) then record_first_bad bad_source element
             else
@@ -348,7 +339,7 @@ let compute_extreme ?cancel ~grain ~maximum weights alpha (plan : plan) =
     for component = 0 to Array.length plan.output - 1 do
       let output = plan.output.(component) in
       match source with
-      | None -> parallel_for ?cancel ~grain count (fun element ->
+      | None -> Support.parallel_for ?cancel ~grain count (fun element ->
           let candidate = 0. in
           if (maximum && candidate > output.(element))
               || ((not maximum) && candidate < output.(element)) then
@@ -356,7 +347,7 @@ let compute_extreme ?cancel ~grain ~maximum weights alpha (plan : plan) =
       | Some planes ->
           let values = planes.(component) in
           (match mask with
-           | None -> parallel_for ?cancel ~grain count (fun element ->
+           | None -> Support.parallel_for ?cancel ~grain count (fun element ->
                let candidate = values.(element) *. weight in
                if not (Float.is_finite values.(element)) then
                  record_first_bad bad_source element
@@ -365,7 +356,7 @@ let compute_extreme ?cancel ~grain ~maximum weights alpha (plan : plan) =
                else if (maximum && candidate > output.(element))
                    || ((not maximum) && candidate < output.(element)) then
                  output.(element) <- candidate)
-           | Some mask -> parallel_for ?cancel ~grain count (fun element ->
+           | Some mask -> Support.parallel_for ?cancel ~grain count (fun element ->
                let candidate = values.(element) *. weight *. mask.(element) in
                if not (Float.is_finite values.(element)) then
                  record_first_bad bad_source element
@@ -390,7 +381,7 @@ let compute_alpha_fold ?cancel ~grain ~over weights alpha (plan : plan) =
     for component = 0 to Array.length plan.output - 1 do
       let output = plan.output.(component) in
       match source with
-      | None -> parallel_for ?cancel ~grain count (fun element ->
+      | None -> Support.parallel_for ?cancel ~grain count (fun element ->
           let alpha = match mask with None -> 1. | Some mask -> mask.(element) in
           let value = if over then output.(element) *. (1. -. alpha)
             else output.(element) *. alpha in
@@ -398,7 +389,7 @@ let compute_alpha_fold ?cancel ~grain ~over weights alpha (plan : plan) =
           else record_first_bad bad_output element)
       | Some planes ->
           let values = planes.(component) in
-          parallel_for ?cancel ~grain count (fun element ->
+          Support.parallel_for ?cancel ~grain count (fun element ->
             let alpha = match mask with None -> 1. | Some mask -> mask.(element) in
             let source = values.(element) in
             if not (Float.is_finite source) then record_first_bad bad_source element

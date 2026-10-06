@@ -1,6 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let merge = Mesh_merge.merge
 
 let point_float geometry name =
@@ -178,7 +177,7 @@ let copy_target_attribute ?cancel ~grain ~copies ~per_copy rule target_attribute
                    y.(index) <- float_existing values.y.(index)
                        target.y.(target_index))
             done);
-          Attribute.Float2 (Packed.Float2.of_owned ~x ~y |> get_ok)) destination
+          Attribute.Float2 (Packed.Float2.of_owned ~x ~y |> Support.get_ok)) destination
     | Attribute.Float3 target ->
         let target = Packed.Float3.Private.view target in
         let destination = match operation, destination_storage () with
@@ -235,7 +234,7 @@ let copy_target_attribute ?cancel ~grain ~copies ~per_copy rule target_attribute
                    w.(index) <- float_existing values.w.(index)
                        target.w.(target_index))
             done);
-          Attribute.Float4 (Packed.Float4.of_owned ~x ~y ~z ~w |> get_ok)) destination
+          Attribute.Float4 (Packed.Float4.of_owned ~x ~y ~z ~w |> Support.get_ok)) destination
     | Attribute.Text target ->
         let output = Array.make output_count "" in
         parallel_output_ranges ?cancel ~grain output_count (fun ~first ~last ->
@@ -431,7 +430,7 @@ let repeat_attribute ?cancel ?(grain = 16_384) copies attribute =
           let view = Packed.Float2.Private.view values in
           Attribute.Float2 (Packed.Float2.of_owned
             ~x:(repeat_array ?cancel ~grain copies view.x)
-            ~y:(repeat_array ?cancel ~grain copies view.y) |> get_ok)
+            ~y:(repeat_array ?cancel ~grain copies view.y) |> Support.get_ok)
       | Attribute.Float3 values ->
           let view = Packed.Float3.Private.view values in
           Attribute.Float3 (Packed.Float3.Private.of_owned_exn
@@ -444,7 +443,7 @@ let repeat_attribute ?cancel ?(grain = 16_384) copies attribute =
             ~x:(repeat_array ?cancel ~grain copies view.x)
             ~y:(repeat_array ?cancel ~grain copies view.y)
             ~z:(repeat_array ?cancel ~grain copies view.z)
-            ~w:(repeat_array ?cancel ~grain copies view.w) |> get_ok)
+            ~w:(repeat_array ?cancel ~grain copies view.w) |> Support.get_ok)
       | Attribute.Int_array values ->
           let source_count = Packed.Int_array.length values in
           let mapping = Array.init (copies * source_count)
@@ -502,7 +501,7 @@ let transform_single_instance ?cancel ~grain matrix geometry =
       end
     done);
   let positions = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
-  let output = Geometry.with_positions positions geometry |> get_ok in
+  let output = Geometry.with_positions positions geometry |> Support.get_ok in
   match Mat4.inverse matrix with
   | None ->
       List.fold_left (fun output owner ->
@@ -543,8 +542,8 @@ let transform_single_instance ?cancel ~grain matrix geometry =
                      done);
                  let value = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                  let attribute = Attribute.create_key_owned
-                     (Attribute.normal ~owner) value |> get_ok in
-                 Geometry.with_attribute attribute output |> get_ok))
+                     (Attribute.normal ~owner) value |> Support.get_ok in
+                 Geometry.with_attribute attribute output |> Support.get_ok))
         output [Attribute.Point; Attribute.Vertex]
 
 let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
@@ -718,7 +717,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
             output_at := !output_at + count
           done);
         let value = Packed.Float3.Private.of_owned_exn ~x:nx ~y:ny ~z:nz in
-        Attribute.create_key_owned (Attribute.normal ~owner) value |> get_ok in
+        Attribute.create_key_owned (Attribute.normal ~owner) value |> Support.get_ok in
       let rec attributes output = function
         | [] -> Ok (List.rev output)
         | attribute :: rest when apply_transform ->
@@ -744,7 +743,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
               in
               List.map (fun group -> Edge_group.replicate_exact_copies ?cancel
                 ~source_topology:(Geometry.topology geometry) ~source_index
-                ~target_topology:topology ~copies:total group |> get_ok)
+                ~target_topology:topology ~copies:total group |> Support.get_ok)
                 source_groups in
         let groups = List.map (fun group -> repeat_group ?cancel ~grain total group)
             (Geometry.groups geometry) in
@@ -1185,7 +1184,7 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
               in
               List.map (fun group -> Edge_group.replicate_exact_copies ?cancel
                 ~source_topology:(Geometry.topology source) ~source_index
-                ~target_topology:topology ~copies group |> get_ok) source_groups in
+                ~target_topology:topology ~copies group |> Support.get_ok) source_groups in
         let base = Geometry.create ~positions:output_positions ~topology
             ~attributes ~edge_groups () in
         Result.bind base (fun geometry ->
@@ -1230,8 +1229,8 @@ let copy_to_points_all ?cancel ?(grain = 16_384) ~target_attributes
                          done);
                      let normal = Packed.Float3.Private.of_owned_exn ~x:nx ~y:ny ~z:nz in
                      let attribute = Attribute.create_key_owned
-                         (Attribute.normal ~owner) normal |> get_ok in
-                     geometry := Geometry.with_attribute attribute !geometry |> get_ok))
+                         (Attribute.normal ~owner) normal |> Support.get_ok in
+                     geometry := Geometry.with_attribute attribute !geometry |> Support.get_ok))
             [Attribute.Point; Attribute.Vertex];
           let output_groups = List.map (fun group ->
             repeat_group ?cancel ~grain copies group)

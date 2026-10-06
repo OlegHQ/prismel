@@ -22,9 +22,6 @@ type t = {
 exception Surface_metric_error of string
 let fail message = raise (Surface_metric_error message)
 
-let ceiling_div value divisor =
-  (value / divisor) + if value mod divisor = 0 then 0 else 1
-
 let triangulate ?cancel ~grain ~positions ~topology () =
   let primitive_count = Bytes.length topology.Topology.Private.primitive_kinds in
   let offsets = Array.make (primitive_count + 1) 0 in
@@ -43,9 +40,9 @@ let triangulate ?cancel ~grain ~positions ~topology () =
   and triangle_b = Array.make triangle_count 0
   and triangle_c = Array.make triangle_count 0 in
   let average = if primitive_count = 0 then 1
-    else max 1 (ceiling_div triangle_count primitive_count) in
+    else max 1 (Support.ceiling_div triangle_count primitive_count) in
   let primitive_chunk = max 1 (grain / average) in
-  let range_count = ceiling_div primitive_count primitive_chunk in
+  let range_count = Support.ceiling_div primitive_count primitive_chunk in
   let errors = Array.make range_count None in
   if range_count > 0 then
     Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(range_count - 1) (fun range ->

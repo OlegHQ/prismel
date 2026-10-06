@@ -3,8 +3,6 @@ open Plane_generators
 
 type revolve_type = Revolve_closed | Revolve_open_arc
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let run ?cancel ?(grain = 16_384) ?primitives
     ?(revolve_type = Revolve_closed) ?(connectivity = Grid_quads)
     ?(start_angle = 0.) ?(end_angle = 2. *. Float.pi)
@@ -632,13 +630,13 @@ let run ?cancel ?(grain = 16_384) ?primitives
                         | Some name, Some x, Some y, None, None ->
                             (Attribute.create_owned ~name ~owner:Attribute.Point
                               (Attribute.Float2
-                                (Packed.Float2.of_owned ~x ~y |> get_ok))
-                              |> get_ok) :: attributes
+                                (Packed.Float2.of_owned ~x ~y |> Support.get_ok))
+                              |> Support.get_ok) :: attributes
                         | Some name, None, None, Some x, Some y ->
                             (Attribute.create_owned ~name ~owner:Attribute.Vertex
                               (Attribute.Float2
-                                (Packed.Float2.of_owned ~x ~y |> get_ok))
-                              |> get_ok) :: attributes
+                                (Packed.Float2.of_owned ~x ~y |> Support.get_ok))
+                              |> Support.get_ok) :: attributes
                         | _ -> assert false in
                       let groups = List.map
                           (Topology_remap.mapped_group ~grain:16_384 ~point_map ~vertex_map

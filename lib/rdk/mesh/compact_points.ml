@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let compact_points ?cancel ?(grain = 16_384) geometry =
   if grain <= 0 then invalid_arg "Rdk.Compact_points.compact_points: grain must be positive";
   Cancel.check_opt cancel;
@@ -55,7 +53,7 @@ let compact_points ?cancel ?(grain = 16_384) geometry =
             (Geometry.groups geometry) in
         let edge_groups = Topology_remap.edge_groups ?cancel
             ~source_topology:source_topology_value ~target_topology:topology
-            ~point_map:old_to_new (Geometry.edge_groups geometry) |> get_ok in
+            ~point_map:old_to_new (Geometry.edge_groups geometry) |> Support.get_ok in
         Geometry.create ~positions ~topology ~attributes ~groups ~edge_groups ())
   end
 

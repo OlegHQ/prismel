@@ -28,13 +28,11 @@ type grid_connectivity =
   | Grid_alternating_triangles
   | Grid_reverse_triangles
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let normal_attribute owner count nx ny nz =
   let x = Array.make count nx and y = Array.make count ny
   and z = Array.make count nz in
   let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
-  Attribute.create_key_owned (Attribute.normal ~owner) values |> get_ok
+  Attribute.create_key_owned (Attribute.normal ~owner) values |> Support.get_ok
 
 let normalize_plane_axis operation label value =
   if not (Float.is_finite value.Vec3.x && Float.is_finite value.y && Float.is_finite value.z) then
@@ -403,9 +401,9 @@ let grid ?cancel ?(grain = 16_384) ?(counts = Grid_divisions)
                let attributes = match uv_attribute, uv_x, uv_y with
                  | None, None, None -> [normal_attribute]
                  | Some name, Some x, Some y ->
-                     let uv = Packed.Float2.of_owned ~x ~y |> get_ok in
+                     let uv = Packed.Float2.of_owned ~x ~y |> Support.get_ok in
                      let uv = Attribute.create_owned ~name ~owner:Attribute.Point
-                         (Attribute.Float2 uv) |> get_ok in
+                         (Attribute.Float2 uv) |> Support.get_ok in
                      [normal_attribute; uv]
                  | _ -> assert false in
                Geometry.create ~positions ~topology ~attributes ()))
