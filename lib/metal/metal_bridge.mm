@@ -5932,7 +5932,6 @@ extern "C" CAMLprim value caml_rays_metal_command_buffer_error(value raw) {
 enum class RaysRenderStage:intnat{Vertex=0,Fragment=1,Tile=2,Object=3,Mesh=4};
 template<class T>static std::vector<T> rays_render_handles(value a,Handle_kind kind){mlsize_t n=Wosize_val(a);std::vector<T>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(Is_none(Field(a,i))?nil:object_of_handle(Field(Field(a,i),0),kind));return v;}
 
-
 /* M3: former metal_render_command_draw_state.inc */
 
 #pragma clang diagnostic pop
@@ -6768,6 +6767,5 @@ extern "C" CAMLprim value caml_rays_metal_accel_instance_layout(value raw_kind) 
   for (int i = 0; i < 13; i++) Store_field(layout, i, Val_long(values[i]));
   CAMLreturn(layout);
 }
-
 
 #include "metal_gen_feature_checks.inc"
