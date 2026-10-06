@@ -181,9 +181,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   let edit_note = ref None in
   let reconciled ~before next result =
     match Doc.reconcile ~factories:value.factories before next with
-    | Ok doc ->
-        Option.iter (fun note -> edit_note := Some note) (Editor_document.Scene_sync.note before next);
-        doc, result
+    | Ok doc -> doc, result
     | Error message ->
         before, { (result : _ frame_result) with edit_error = Some message } in
   let next, result = if Option.is_some loaded then next, result else

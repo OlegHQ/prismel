@@ -5,18 +5,16 @@
 
 val reconcile : factories:Procedural.Edit_graph.factory list -> ?adopt:bool ->
   Document.t -> Document.t -> (Document.t, string) result
-(** [reconcile ~factories before after]: [after] is [before] with its scene, World networks,
-    active camera or settings edited.  Each difference becomes a {!Flow_sop.Flow_edit} op on the
-    graph that declares the object (an inline call is unfolded into a binding first), and the
-    result is [after] with the new text lowered again (objects keep their ids).  An edit the text
-    cannot take (an object made by an expression, a name two objects share, a field a loop
-    computes) is an [Error] and changes nothing.  The copies of a loop are one template: an edit
-    of a literal field of one is written to the template (every copy changes).  Deleting one
-    is exact at any nesting depth and for any number of clauses: the iteration that made it (or,
-    when its iteration made other objects that stay, its place in the [scene/merge] that holds it)
-    is added to a [:skip] list (register L16), and every other copy keeps its iteration tuple.
-    An object only the host made is written to a scene graph by its first explicit
-    edit; [~adopt:false] (a camera following the viewport) leaves such edits to the host. *)
+(** [reconcile ~factories before after]: [after] is [before] with objects only the host made
+    edited, added or deleted (its camera and lights, its World), or with the fields of an object
+    of the text changed by the host (a camera following the viewport).  An object only the host
+    made is written to a scene graph (a World to a world graph) by its first explicit edit, and
+    the result is [after] with the new text lowered again (objects keep their ids);
+    [~adopt:false] (the camera follow) leaves the host's objects to the host.  A changed field,
+    name or parent of an object of the text is written as {!write} writes it; an edit the text
+    cannot take is an [Error] and changes nothing.  Everything else asked of an object of the
+    text (deleting it, the render camera, the World and its layers, the root, the settings) is
+    {!write}'s and is not looked for here. *)
 
 val in_text : Document.t -> Document.level -> int -> bool
 (** The scene object (at the scene level) or World layer (inside the World) with this id has text
@@ -34,7 +32,12 @@ type edit =
   | Fields of (int * (string * Editor_core.Param.value) list) list
       (** field values of several objects (a stroke down a flag column) *)
   | Rename of int * string  (** an object's name; its children's [:parent] follows *)
-  | Delete of int list  (** objects (their children are unparented) or layers (the stack closes) *)
+  | Delete of int list
+      (** objects (their children are unparented) or layers (the stack closes).  A copy of a loop
+          is deleted exactly, at any nesting depth and for any number of clauses: the iteration
+          that made it (or, when its iteration made other objects that stay, its place in the
+          [scene/merge] that holds it) is added to a [:skip] list (register L16), and every other
+          copy keeps its iteration tuple. *)
   | Restack of int list  (** the World's layers, bottom first *)
   | Layers of Document.network * (string * Editor_core.Param.value) list
       (** a preset: the World's layers replaced and its own fields set (the level is the World) *)
@@ -62,10 +65,7 @@ val write : factories:Procedural.Edit_graph.factory list -> Document.t -> Docume
     derived document and {!reconcile} adopts it. *)
 
 val template_note : Document.t -> Document.home -> string option
-(** The status line for an edit written to a loop'"'"'s template: every copy changes. *)
-
-val note : Document.t -> Document.t -> string option
-(** What a {!reconcile}d edit did to the copies of a loop, for the status line. *)
+(** The status line for an edit written to a loop's template: every copy changes. *)
 
 val value_syntax : Editor_core.Param.field_view list -> Flow.Syntax.t
 (** The text of a parameter's current value: a number, flag or text, or a vector of numbers

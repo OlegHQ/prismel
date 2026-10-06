@@ -1,12 +1,13 @@
-(* Edits of the derived scene and World, written back to the workspace text (plan W10).
+(* Edits of the scene and the World, written to the workspace text (plan W10).
 
-   The inspector, the handles, the scene list (reparent, rename, delete, hide), the World keys and
-   the camera follow all edit the document's derived objects.  Nothing else holds them: the text
-   is the truth, so [reconcile] compares the edited document with the one it came from, turns
-   each difference into [Flow_edit] ops on the graph that declares the object (an inline call is
-   unfolded into a binding first), and lowers the new text again.  Objects that only the host
-   made (its camera and lights, a scene of one geometry object per [sop] graph, a World given by
-   [?world]) have no text: the first explicit edit of one writes its kind as a graph, once. *)
+   The text is the truth.  What the inspector, the handles, the scene list (reparent, rename,
+   delete, hide), the World keys and the panels ask of an object the text has is written to its
+   text ([set_fields], [write]: [Flow_edit] ops on the graph that declares it, an inline call
+   unfolded into a binding first) and the text lowered again; the derived document is never edited
+   in between.  Objects that only the host made (its camera and lights, a scene of one geometry
+   object per [sop] graph, a World given by [?world]) have no text: those are edited as derived
+   objects, and [reconcile] writes their kind as a graph on the first explicit edit, once.  It
+   also writes the fields of a camera that follows the viewport. *)
 open Procedural
 module S = Flow.Syntax
 module F = Flow_sop.Flow_edit
@@ -286,11 +287,10 @@ let set_camera st (before : Document.t) ~alive camera =
       Option.iter (fun home -> set st home [ "active", Some (sym "true") ]) (Option.bind camera home)
 
 (* The objects of the text as the scene [a] has them: a changed one's name, parent and fields are
-   written; the ones [a] lacks are returned, [(id, home)]. *)
+   written. *)
 let object_changes st (before : Document.t) a =
   let b = Document.scene_graph before in
   let refuse_preview = refuse_preview before in
-  let gone = ref [] in
   List.iter (fun (id, home) -> if homed before id then
     match Edit.find b ~node_id:id, Edit.find a ~node_id:id with
     | Some nb, Some na ->
@@ -300,16 +300,7 @@ let object_changes st (before : Document.t) a =
         (* a name is what [:parent] reads: one two objects share would move the other's children *)
         if List.mem_assoc "name" edits then unique a id;
         set ~before:(current_syntax nb) st home edits
-    | Some _, None -> refuse_preview id; gone := (id, home) :: !gone
-    | None, _ -> ()) before.homes.objects;
-  !gone
-
-let objects st (before : Document.t) (after : Document.t) =
-  let a = Document.scene_graph after in
-  let gone = ref (object_changes st before a) in
-  delete_objects st before !gone;
-  if before.active_camera <> after.active_camera then
-    set_camera st before ~alive:(fun id -> Edit.find a ~node_id:id <> None) after.active_camera
+    | _ -> ()) before.homes.objects
 
 (* ---- the World ---- *)
 
@@ -429,10 +420,6 @@ let write_stack st g bottom_first name =
     | (top, _) :: _ -> let_star layers (sym top) in
   apply st (F.Set_graph { name; form = graph_form name "world" body })
 
-let write_layers st (doc : Document.t) wid name =
-  let network = Document.Int_map.find wid doc.networks in
-  write_stack st network.graph.geometry (List.rev (order network)) name
-
 (* The layers of the World [wid] the text has, with [removed] gone and the others stacked as [stack]
    says (top down): a deleted or moved layer is one edit of its binding, so the graph's inputs,
    expressions, comments and names stay.  [graph] has the layers as they are to be written when the
@@ -491,59 +478,6 @@ let adopt_world ?graph st (doc : Document.t) =
   Option.iter (fun wid -> place_world ?graph st doc (Document.Int_map.find wid doc.networks)
     (Option.get (Edit.find (Document.scene_graph doc) ~node_id:wid))) (world_id doc)
 
-(* ---- the whole reconciliation ---- *)
-
-let world st (before : Document.t) (after : Document.t) =
-  match world_id before, before.homes.world with
-  | Some wid, None when Edit.find (Document.scene_graph after) ~node_id:wid = None ->
-      (* the host's World, deleted: the world graph says so (it is authoritative) *)
-      set_world st none_world
-  | Some wid, Some home ->
-      (* a [scene/world] object is edited and deleted as any object ([objects]); an old file's
-         [world/world] call is written here *)
-      let member = List.mem_assoc wid before.homes.objects in
-      let b = Document.scene_graph before and a = Document.scene_graph after in
-      (match Edit.find b ~node_id:wid, Edit.find a ~node_id:wid with
-       | Some nb, Some na when not member ->
-           let name = if Node.label nb <> Node.label na then [ "name", Some (mk (S.Str (Node.label na))) ] else [] in
-           set st home (name @ differing ~before:nb na)
-       | Some _, None when not member ->
-           (* a deleted World: its graph says none (removing the graph would let the host seed it) *)
-           (match home with Document.Looped -> stop "The World is made by a loop; edit the text." | _ -> ());
-           set_world st none_world
-       | _ -> ());
-      (match Document.Int_map.find_opt wid before.networks, Document.Int_map.find_opt wid after.networks with
-       | Some bn, Some an ->
-           let g (n : Document.network) = n.graph.geometry in
-           let known = List.map fst before.homes.layers in
-           let surviving = List.filter (fun id -> Edit.find (g an) ~node_id:id <> None) known in
-           let removed = List.filter (fun id -> not (List.mem id surviving)) known in
-           let stack n = List.filter (fun id -> List.mem id surviving) (order n) in
-           if List.exists (fun (i : Edit.node_info) -> not (List.mem i.id known)) (Edit.inspect (g an)) then begin
-             (* new layers (a preset): the graph is written out whole.  A deleted or moved layer is
-                one edit of its binding below, so the graph's inputs, expressions, comments and
-                names stay *)
-             if member then
-               (match before.homes.world_graph with
-                | Some name -> write_layers st after wid name
-                | None -> stop "The World's graph is not named; edit the text.")
-             else
-               (* a World its graph returns as a [world/world] call over the layers: written as
-                  Worlds are now, the layers its graph and the World an object of the scene *)
-               adopt_world ~graph:(world_graph st) st after
-           end
-           else begin
-             List.iter (fun id -> match Edit.find (g bn) ~node_id:id, Edit.find (g an) ~node_id:id with
-               | Some nb, Some na ->
-                   let name = if Node.label nb <> Node.label na then [ "name", Some (mk (S.Str (Node.label na))) ] else [] in
-                   set st (List.assoc id before.homes.layers) (name @ differing ~before:nb na)
-               | _ -> ()) surviving;
-             ignore bn;
-             stack_layers st before wid ~graph:(g an) ~removed ~stack:(stack an)
-           end
-       | _ -> ())
-  | _ -> ()
-
 (* ---- the root ---- *)
 
 (* the render settings that changed, as keywords *)
@@ -563,11 +497,11 @@ let adopt_root st (doc : Document.t) root =
     [ mk (S.Kw key); Option.get value ]) changed)) in
   apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "root"; expr })
 
-let root st (before : Document.t) now ~adopt =
+let root st (before : Document.t) now =
   if before.root != now && before.root <> now then
     match before.homes.root with
     | Some home -> set st home (root_edits ~before:before.root ~after:now)
-    | None -> if adopt then adopt_root st before now
+    | None -> adopt_root st before now
 
 (* ---- settings ---- *)
 
@@ -616,32 +550,6 @@ let field_home (doc : Document.t) level node = match level with
   | Inside _ -> None
 
 let in_text doc level node = field_home doc level node <> None
-
-(* Field values of one object (an inspector row, a viewport handle) written to its text and lowered
-   again, with no edit of the derived object in between: the node only says what the values are
-   once its ranges have had their say, and which effects they have.  [None]: the object has no
-   text (the caller edits the derived object and {!reconcile} adopts it). *)
-let set_fields ~factories (doc : Document.t) level ~node values =
-  let ( let* ) = Result.bind in
-  let graph = match level with
-    | Document.Scene -> Some (Document.scene_graph doc)
-    | Inside id -> Option.map (fun (n : Document.network) -> n.graph.geometry)
-        (Document.Int_map.find_opt id doc.networks) in
-  match field_home doc level node, Option.bind graph (fun g -> Edit.find g ~node_id:node) with
-  | Some home, Some was ->
-      let* now, effects = Node.apply_parameters was values in
-      let* catalog = Result.map_error Flow.Diagnostic.to_string
-          (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
-      let st = { catalog; workspace = fst doc.workspace; unfolded = []; adopted = false } in
-      (try
-         if level = Document.Scene then refuse_preview doc node;
-         set ~before:(current_syntax was) st home (differing ~before:was now);
-         let* doc = if st.workspace == fst doc.workspace then Ok doc
-           else Contexts.of_workspace ~factories ~previous:doc st.workspace
-                |> Result.map_error Flow.Diagnostic.to_string in
-         Ok (Some (doc, effects, home))
-       with Stop message -> Error message)
-  | _ -> Ok None
 
 (* ---- derived edits, text first ---- *)
 
@@ -767,9 +675,9 @@ let write_edit st (doc : Document.t) level = function
       let moved = match edit with
         | Reparent (ids, parent) -> Objects.reparent graph ids parent
         | _ -> Objects.outdent graph ids in
-      ignore (object_changes st doc moved);
+      object_changes st doc moved;
       first (List.map (fun id -> Option.bind (List.assoc_opt id doc.homes.objects) (template_note doc)) ids)
-  | Root now -> root st doc now ~adopt:true; None
+  | Root now -> root st doc now; None
   | Settings now -> settings st doc now; None
   | Restack bottom_first ->
       (match level, world_id doc with
@@ -802,7 +710,17 @@ let write ~factories (doc : Document.t) level edit =
       | Camera active_camera -> { doc with active_camera }
       | Root root -> { doc with root }
       | Settings settings -> { doc with settings }
-      | Fields _ | Rename _ | Delete _ | Restack _ | Layers _ | Reparent _ | Outdent _ -> doc in
+      | Delete ids ->
+          (* the lowering finds an object of the text by its home, else by kind and label: the
+             deleted ones are not there to be taken for the copies of a loop that stay *)
+          let without (graph : Flow_sop.Network.t) = match Flow_sop.Network.remove_nodes ids graph with
+            | Ok graph -> Result.value ~default:graph
+                (Flow_sop.Network.with_geometry (Edit.remove_nodes ids graph.geometry) graph)
+            | Error _ -> graph in
+          (match Document.network doc level with
+           | Some network -> Document.prune (Document.with_network doc level { network with graph = without network.graph })
+           | None -> doc)
+      | Fields _ | Rename _ | Restack _ | Layers _ | Reparent _ | Outdent _ -> doc in
     if st.workspace == fst doc.workspace then Ok (Some (doc, note))
     else if st.workspace.source == (fst doc.workspace).source then
       Ok (Some ({ doc with workspace = st.workspace, snd doc.workspace }, note))
@@ -810,48 +728,44 @@ let write ~factories (doc : Document.t) level edit =
                                                    |> Result.map_error Flow.Diagnostic.to_string)
   with Stop message -> Error message
 
-(* [after] is [before] edited in place (its scene, World networks, active camera or settings);
-   the result is [after] with the edit written to its text and lowered again.  [adopt]: an
+(* Field values of one object (an inspector row, a viewport handle) written to its text and lowered
+   again: the node only says what the values are once its ranges have had their say, and which
+   effects they have.  [None]: the object has no text (the caller edits the derived object and
+   {!reconcile} adopts it). *)
+let set_fields ~factories (doc : Document.t) level ~node values =
+  match field_home doc level node, Option.bind (graph_at doc level) (fun g -> Edit.find g ~node_id:node) with
+  | Some home, Some was ->
+      Result.bind (Node.apply_parameters was values) (fun (_, effects) ->
+        Result.map (Option.map (fun (doc, _) -> doc, effects, home))
+          (write ~factories doc level (Fields [ node, values ])))
+  | _ -> Ok None
+
+(* [after] is [before] with objects the host made edited (or a camera moved that follows the
+   viewport); the result is [after] with the edit written to its text and lowered again.  [adopt]: an
    explicit edit of an object the text lacks writes it (a follow-the-viewport camera move is
    not one, so it stays the host's). *)
 let run ~factories ~adopt (before : Document.t) (after : Document.t) =
-  if before.scene == after.scene && before.networks == after.networks
-     && before.active_camera = after.active_camera && before.settings == after.settings
-     && before.root == after.root
-  then Ok after
+  if before.scene == after.scene && before.networks == after.networks then Ok after
   else
     let ( let* ) = Result.bind in
     let* catalog = Result.map_error Flow.Diagnostic.to_string
         (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
     let st = { catalog; workspace = fst before.workspace; unfolded = []; adopted = false } in
     try
-      objects st before after;
-      world st before after;
-      root st before after.root ~adopt;
-      settings st before after.settings;
+      object_changes st before (Document.scene_graph after);
+      (* the host's World, deleted: the world graph says so (it is authoritative) *)
+      (match world_id before, before.homes.world with
+       | Some wid, None when Edit.find (Document.scene_graph after) ~node_id:wid = None -> set_world st none_world
+       | _ -> ());
       if adopt && unhomed_changes before after then adopt_objects st after;
       if adopt && before.homes.world = None && world_changed before after then adopt_world st after;
       if st.workspace == fst before.workspace then Ok after
-      else if st.workspace.source == (fst before.workspace).source then
-        Ok { after with workspace = st.workspace, snd after.workspace }
       else Contexts.of_workspace ~factories ~previous:after st.workspace
            |> Result.map_error Flow.Diagnostic.to_string
     with Stop message -> Error message
 
 let reconcile ~factories ?(adopt = true) before after = run ~factories ~adopt before after
 
-
-(* What an edit of the derived objects did to the copies of a loop, for the status line. *)
-let note (before : Document.t) (after : Document.t) =
-  let b = Document.scene_graph before and a = Document.scene_graph after in
-  List.find_map (fun (id, home) -> match Document.loop_of home with
-    | None -> None
-    | Some loop ->
-        (match Edit.find b ~node_id:id, Edit.find a ~node_id:id with
-         | Some nb, Some na when object_edits ~before:b ~after:a id nb na <> [] -> template_note before home
-         | Some _, None ->
-             Some (Printf.sprintf "Removed a copy from the loop (%s)." (Document.describe (fst before.workspace).source loop))
-         | _ -> None)) before.homes.objects
 
 (* The scene graph (or the World graph) of a document that has none: the objects the host
    made (or its World, else an empty one) are written, so that an object or layer can be added

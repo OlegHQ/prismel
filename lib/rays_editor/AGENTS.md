@@ -46,10 +46,11 @@ turns the result and the frame's actions into the next model. Never set a ref or
   edits to `Flow_edit`, never to `Core`.
 - A frame's gestures land together: the first one refused leaves none applied.
 - The fields of a scene object or World layer the text declares are written text first
-  (`Scene_sync.set_fields`: inspector rows, viewport handles, World drags). An object only the host
-  made is edited as a derived node and adopted by `Doc.reconcile`. The list's gestures (flags,
-  rename, reparent, delete, restack), World keys and presets, the render camera, the root and the
-  settings still go through the derived edit and `reconcile`.
+  (`Scene_sync.set_fields`: inspector rows, viewport handles, World drags), and so are the list's
+  gestures (flags, rename, reparent, delete, restack), World keys and presets, the render camera,
+  the root and the settings (`Scene_sync.write` with an `edit`; `Core_list.tree_edit` maps a list
+  intent to one). Only an object the host made is edited as a derived node and adopted by
+  `Doc.reconcile`, and only a camera following the viewport reconciles an object of the text.
 - Every history entry has a label. One pointer gesture is one entry: a scrub merges by a
   `Gesture` key, a burst of keys by `Burst`. Viewport navigation with a camera that follows the
   viewport is view state: it amends the present (`Repair`) and leaves no entry.
