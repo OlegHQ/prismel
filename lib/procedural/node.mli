@@ -91,7 +91,6 @@ module Private : sig
   val rebuild_with_inputs : t -> t array -> t
   (* Clone a node with a fresh logical id. Parameter values and operator
      metadata are preserved and input-dependent schemas are rebuilt. *)
-  val clone_with_inputs : t -> t array -> t
   (* Retain a document node's logical identity and label on a freshly rebuilt
      operator whose physical input list may differ because optional slots were
      connected or disconnected. *)

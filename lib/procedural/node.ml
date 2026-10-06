@@ -139,13 +139,6 @@ module Private = struct
         let rebuilt = parameterization.rebuild ~label:value.label
             ~inputs parameterization.values in
         { rebuilt with id = value.id }
-  let clone_with_inputs value inputs =
-    let inputs = Array.copy inputs in
-    match value.parameterization with
-    | None -> { value with id = fresh_id (); inputs }
-    | Some (Parameters parameterization) ->
-        parameterization.rebuild ~label:value.label
-          ~inputs parameterization.values
   let adopt_identity ~source value =
     { value with id = source.id; label = source.label }
   let cook value context inputs = value.cook ~node_id:value.id context inputs

@@ -15,7 +15,7 @@ type factory = {
   label : string;
   category : string list;
   fields : Parameter.field_view list;
-  output_fields : Parameter.field_view list;
+
   requirements : input_requirement array;
   slots : string array;
   build : Node.t option list -> Node.t;
@@ -32,11 +32,6 @@ type t = {
   entries : entry Id_map.t;
   order_rev : int list;
   root : int option;
-}
-
-type fragment = {
-  fragment_entries : (int * entry) list;
-  fragment_root : int option;
 }
 
 type node_info = {
@@ -111,11 +106,6 @@ let node_factory_fields value ~node_id =
     (Option.bind (Id_map.find_opt node_id value.entries)
       (fun (entry : entry) -> entry.factory))
 
-let node_factory_output_fields value ~node_id =
-  Option.fold ~none:[] ~some:(fun factory -> factory.output_fields)
-    (Option.bind (Id_map.find_opt node_id value.entries)
-      (fun (entry : entry) -> entry.factory))
-
 let inputs value ~node_id = Option.map (fun (entry : entry) ->
     Array.copy entry.inputs)
     (Id_map.find_opt node_id value.entries)
@@ -126,28 +116,8 @@ let node_slot_names value ~node_id = Option.map (fun (entry : entry) ->
     | None -> List.init (Array.length entry.inputs) (fun index -> "in" ^ string_of_int index))
     (Id_map.find_opt node_id value.entries)
 
-let set_bypass value ~node_id bypass =
-  match Id_map.find_opt node_id value.entries with
-  | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
-  | Some entry when entry.bypass = bypass -> Ok value
-  | Some entry -> Ok { value with entries =
-      Id_map.add node_id { entry with bypass } value.entries }
-
 let is_bypassed value ~node_id = match Id_map.find_opt node_id value.entries with
   | Some entry -> entry.bypass | None -> false
-
-let subgraph ids value =
-  let selected = Id_set.of_list ids in
-  let entries = Id_map.filter_map (fun id (entry : entry) ->
-    if not (Id_set.mem id selected) then None else
-    Some {entry with inputs = Array.map (function
-      | Some source when Id_set.mem source selected -> Some source
-      | _ -> None) entry.inputs}) value.entries in
-  let order_rev = List.filter (fun id -> Id_map.mem id entries) value.order_rev in
-  let root = match value.root with
-    | Some id when Id_map.mem id entries -> Some id
-    | _ -> List.nth_opt order_rev 0 in
-  {entries; order_rev; root}
 
 let empty_geometry = lazy (Sop.snapshot (Result.get_ok (Rdk.Geometry.create
   ~positions:(Rdk.Packed.Float3.Builder.freeze (Rdk.Packed.Float3.Builder.create 0))
@@ -279,36 +249,6 @@ let replace_node node value =
           (Node.label node) (Array.length entry.inputs) arity)
       else Ok { value with entries = Id_map.add id { entry with node } value.entries }
 
-let rebind_factory ?(preserve_wires_by_name = false) ~node_id
-    (factory : factory) value =
-  match Id_map.find_opt node_id value.entries with
-  | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
-  | Some entry when Node.operation entry.node <> factory.operation
-      || not preserve_wires_by_name
-         && not (arity_ok factory (Array.length entry.inputs))
-      || Array.exists (( = ) Required) factory.requirements ->
-      Error "replacement factory must have the same operation and optional input arity"
-  | Some entry ->
-      let inputs = if not preserve_wires_by_name then Ok entry.inputs else
-        let names = Option.get (node_slot_names value ~node_id) in
-        if List.length (List.sort_uniq String.compare names)
-            <> Array.length entry.inputs then
-          Error "replacement factory has ambiguous old slot names"
-        else if List.exists (fun (index, name) ->
-          not (Array.exists (String.equal name) factory.slots)
-          && entry.inputs.(index) <> None)
-          (List.mapi (fun index name -> index, name) names) then
-          Error "replacement factory would remove a connected slot"
-        else Ok (Array.map (fun name -> match
-          List.find_index (String.equal name) names with
-          | None -> None | Some index -> entry.inputs.(index)) factory.slots) in
-      Result.map (fun inputs ->
-        let node = factory.build (List.init (Array.length inputs)
-          (fun _ -> None)) |> Node.Private.adopt_identity ~source:entry.node in
-        {value with entries = Id_map.add node_id
-          {entry with node; inputs; factory = Some factory} value.entries})
-        inputs
-
 let apply_parameters value ~node_id changes =
   match find value ~node_id with
   | None -> Error (Printf.sprintf "editable graph has no node #%d" node_id)
@@ -363,22 +303,6 @@ let remove_nodes ids value =
     root = Option.bind value.root (fun id ->
       if Id_set.mem id removed then None else Some id) }
 
-let dissolve_nodes ids value =
-  let removed = Id_set.of_list ids in
-  let rec trunk seen id =
-    if not (Id_set.mem id removed) then Some id
-    else if Id_set.mem id seen then None
-    else match Id_map.find_opt id value.entries with
-      | Some entry when Array.length entry.inputs > 0 ->
-          Option.bind entry.inputs.(0) (trunk (Id_set.add id seen))
-      | _ -> None in
-  let root = Option.bind value.root (trunk Id_set.empty) in
-  let entries = Id_map.map (fun (entry : entry) ->
-    let inputs = Array.map (fun input ->
-      Option.bind input (trunk Id_set.empty)) entry.inputs in
-    { entry with inputs }) value.entries in
-  remove_nodes ids { value with entries; root }
-
 let depends_on value ~node_id ~candidate =
   let seen = Hashtbl.create 16 in
   let rec visit id =
@@ -411,80 +335,6 @@ let rebuild_if_connected entries (entry : entry) inputs =
          | Some (source : entry) -> nodes.(index) <- source.node)) inputs;
   if !complete then Node.Private.rebuild_with_inputs entry.node nodes
   else entry.node
-
-let copy_nodes ids value =
-  let selected = List.fold_left (fun selected id -> Id_set.add id selected)
-      Id_set.empty ids in
-  if Id_set.is_empty selected then Error "no nodes are selected"
-  else match List.find_opt (fun id -> not (Id_map.mem id value.entries)) ids with
-    | Some id -> Error (Printf.sprintf "editable graph has no node #%d" id)
-    | None ->
-        let fragment_entries = if Id_set.cardinal selected = 1 then
-          let id = Id_set.min_elt selected in
-          let entry = Id_map.find id value.entries in
-          [id, {entry with inputs = Array.make (Array.length entry.inputs) None}]
-        else inspect value |> List.filter_map (fun info ->
-          if not (Id_set.mem info.id selected) then None else
-          let entry = Id_map.find info.id value.entries in
-          let inputs = Array.map (function
-            | Some source when Id_set.mem source selected -> Some source
-            | Some _ | None -> None) entry.inputs in
-          Some (info.id, { entry with inputs })) in
-        let fragment_root = Option.bind value.root (fun id ->
-          if Id_set.mem id selected then Some id else None) in
-        Ok { fragment_entries; fragment_root }
-
-let paste ?ids fragment value =
-  if fragment.fragment_entries = [] then Error "cannot paste an empty node fragment"
-  else
-    let supplied = Option.map Id_map.of_list ids in
-    let valid_ids = match ids with
-      | None -> Ok ()
-      | Some ids ->
-          let old_ids = List.map fst ids and new_ids = List.map snd ids in
-          let fragment_ids = List.fold_left (fun ids (id, _) -> Id_set.add id ids)
-            Id_set.empty fragment.fragment_entries in
-          if List.length ids <> List.length fragment.fragment_entries
-            || List.length old_ids <> List.length (List.sort_uniq Int.compare old_ids)
-            || List.length new_ids <> List.length (List.sort_uniq Int.compare new_ids)
-            || List.exists (fun (old_id, id) ->
-              not (Id_set.mem old_id fragment_ids)
-              || id < 1 || id = max_int || Id_map.mem id value.entries) ids then
-            Error "invalid compound paste id mapping" else Ok () in
-    Result.bind valid_ids (fun () ->
-    let clones = List.map (fun (old_id, (entry : entry)) ->
-      (* Editable optional slots include absent inputs. Clone the physical
-         arity; the factory below rebuilds presence from remapped slots. *)
-      let placeholders = Node.Private.input_array entry.node in
-      let node = match supplied with
-        | None -> Node.Private.clone_with_inputs entry.node placeholders
-        | Some supplied -> Node.Private.restore_id (Id_map.find old_id supplied) entry.node
-            |> Result.get_ok in
-      old_id, node,
-      entry.inputs, entry.factory, entry.bypass)
-        fragment.fragment_entries in
-    let remap = List.fold_left (fun remap (old_id, node, _, _, _) ->
-      Id_map.add old_id (Node.id node) remap) Id_map.empty clones in
-    let appended_ids = List.map (fun (_, node, _, _, _) -> Node.id node) clones in
-    let entries = List.fold_left (fun entries (_, node, inputs, factory, bypass) ->
-      let inputs = Array.map (function
-        | None -> None
-        | Some old_id -> Id_map.find_opt old_id remap) inputs in
-      Id_map.add (Node.id node) { node; inputs; factory; bypass } entries)
-        value.entries clones in
-    let entries = List.fold_left (fun entries (_, node, _, _, _) ->
-      let id = Node.id node in
-      let entry = Id_map.find id entries in
-      let node = rebuild_if_connected entries entry entry.inputs in
-      Id_map.add id { entry with node } entries) entries clones in
-    let mapping = List.map (fun (old_id, node, _, _, _) ->
-      old_id, Node.id node) clones in
-    let root = match value.root, fragment.fragment_root with
-      | Some root, _ -> Some root
-      | None, Some old_id -> Id_map.find_opt old_id remap
-      | None, None -> None in
-    Ok ({ entries; root;
-          order_rev = List.rev_append appended_ids value.order_rev }, mapping))
 
 let connect ~source ~consumer ~input_index value =
   if not (Id_map.mem source value.entries) then Error (Printf.sprintf
@@ -522,27 +372,6 @@ let disconnect ~consumer ~input_index value =
       Ok { value with entries = Id_map.add consumer { entry with inputs }
            value.entries }
 
-let insert_on_connection ?factory connection node value =
-  let arity = match factory with
-    | None -> List.length (Node.inputs node)
-    | Some factory -> Array.length factory.requirements in
-  if arity < 1 then Error (Printf.sprintf
-      "node %S cannot be inserted on a wire because it has %d inputs"
-      (Node.label node) arity)
-  else match Id_map.find_opt connection.consumer value.entries with
-    | None -> Error (Printf.sprintf "editable graph has no consumer node #%d"
-        connection.consumer)
-    | Some (consumer : entry) when connection.input_index < 0
-        || connection.input_index >= Array.length consumer.inputs ->
-        Error "selected connection input no longer exists"
-    | Some (consumer : entry) when consumer.inputs.(connection.input_index)
-        <> Some connection.source -> Error "selected connection is stale"
-    | Some _ ->
-        Result.bind (add_node ~inputs:(Array.init arity (fun slot ->
-          if slot = 0 then Some connection.source else None)) ?factory node value)
-          (connect ~source:(Node.id node) ~consumer:connection.consumer
-             ~input_index:connection.input_index)
-
 let slot_names arity = function
   | None -> Array.init arity (fun index -> "in" ^ string_of_int index)
   | Some names ->
@@ -552,7 +381,7 @@ let slot_names arity = function
         invalid_arg "Edit_graph factory slots must have one distinct name per input";
       Array.of_list names
 
-let factory ?operation ?slots ?(fields = []) ?(output_fields = [])
+let factory ?operation ?slots ?(fields = []) ?output_fields:_
     ~key ~label ~category ~arity build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
@@ -561,12 +390,12 @@ let factory ?operation ?slots ?(fields = []) ?(output_fields = [])
       || List.exists (fun item -> String.trim item = "") category then
     invalid_arg "Edit_graph.factory names must not be blank";
   if arity < 0 then invalid_arg "Edit_graph.factory arity must be non-negative";
-  { key; operation; label; category; fields; output_fields;
+  { key; operation; label; category; fields;
     requirements = Array.make arity Required;
     slots = slot_names arity slots;
     build = (fun inputs -> build (List.map Option.get inputs)) }
 
-let factory_slots ?operation ?slots ?(fields = []) ?(output_fields = [])
+let factory_slots ?operation ?slots ?(fields = []) ?output_fields:_
     ~key ~label ~category ~inputs build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
@@ -578,7 +407,7 @@ let factory_slots ?operation ?slots ?(fields = []) ?(output_fields = [])
       "Edit_graph.factory_slots requires at least one input slot";
   if List.exists (( = ) Rest) (List.filteri (fun i _ -> i < List.length inputs - 1) inputs)
   then invalid_arg "Edit_graph.factory_slots: only the last input may be Rest";
-  { key; operation; label; category; fields; output_fields;
+  { key; operation; label; category; fields;
     requirements = Array.of_list inputs;
     slots = slot_names (List.length inputs) slots; build }
 
@@ -590,10 +419,6 @@ let factory_fields (value : factory) = value.fields
 let factory_arity (value : factory) = Array.length value.requirements
 let factory_inputs (value : factory) = Array.to_list value.requirements
 let factory_slot_names (value : factory) = Array.to_list value.slots
-let factory_ready (value : factory) inputs =
-  arity_ok value (List.length inputs)
-  && List.for_all Fun.id (List.mapi (fun index input ->
-    requirement value index = Optional || Option.is_some input) inputs)
 
 let instantiate (value : factory) inputs =
   let arity = Array.length value.requirements in
