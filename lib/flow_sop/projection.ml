@@ -39,9 +39,6 @@ and scope = { path : path; inputs : input list; nodes : node list; result : resu
 and result = Link of string | Node of path | Literal of S.t
 
 (* the call, then each [expand_once] of it (at most 12 steps, like the study's lens) *)
-let head_sym_of (e : S.t) = match e.node with
-  | S.List ({ S.node = S.Sym h; _ } :: _) -> Some h | _ -> None
-
 let macro_lens (w : W.t) (call : S.t) =
   let state = Flow.Macro.state () in
   let text f = let t = fst (Flow.Lisp.print [ f ]) in
@@ -52,7 +49,7 @@ let macro_lens (w : W.t) (call : S.t) =
     | Error (d : Flow.Diagnostic.t) -> acc, Some d.message
     | Ok next -> if next == cur then acc, None else go next (text next :: acc) (n + 1) in
   let steps, error = go call [ text call ] 0 in
-  let template = match head_sym_of call with
+  let template = match S.head call with
     | Some name -> (match List.find_opt (fun (m : S.t) -> match S.children m with
         | _ :: { S.node = S.Sym n; _ } :: _ -> n = name | _ -> false) w.macros with
         | Some m -> text m | None -> "")
@@ -71,8 +68,7 @@ type cx = {
 }
 
 let rec pairs = function a :: b :: r -> (a, b) :: pairs r | _ -> []
-let head_sym (e : S.t) = match e.node with
-  | S.List ({ S.node = S.Sym h; _ } :: _) -> Some h | _ -> None
+let head_sym = S.head
 let last (e : S.t) = List.nth (S.children e) (List.length (S.children e) - 1)
 let root_of s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 let is_zone_head = function "for" | "fold" | "scan" | "sum" -> true | _ -> false

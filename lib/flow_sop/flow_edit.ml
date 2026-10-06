@@ -61,9 +61,7 @@ let unquote x = mk (S.Quote (S.Unquote, x))
 let rec pairs = function a :: b :: r -> (a, b) :: pairs r | _ -> []
 let flat_pairs ps = List.concat_map (fun (a, b) -> [ a; b ]) ps
 
-let head_sym (e : S.t) = match e.node with
-  | S.List ({ S.node = S.Sym h; _ } :: _) -> Some h
-  | _ -> None
+let head_sym = S.head
 
 let map_children f (e : S.t) : S.t =
   { e with node = (match e.node with
