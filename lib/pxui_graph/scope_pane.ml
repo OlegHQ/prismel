@@ -1145,13 +1145,9 @@ let colors t = Pxui.Theme.ports t.theme
 let ty_color t ty = port_color t.theme ty
 
 let fitted paint size width text =
+  (* as before, the mark alone when not even it fits *)
   if Ui.Paint.text_width paint ~size text <= width then text else
-  let rec prefix at previous =
-    if at >= String.length text then String.sub text 0 previous ^ "…" else
-    let next = at + Uchar.utf_decode_length (String.get_utf_8_uchar text at) in
-    if Ui.Paint.text_width paint ~size (String.sub text 0 next ^ "…") > width
-    then String.sub text 0 previous ^ "…" else prefix next next in
-  prefix 0 0
+  match Ui.ellipsis ~width:(Ui.Paint.text_width paint ~size) ~limit:width text with "" -> "…" | t -> t
 
 let dashed_line paint ~width color a b = Ui.Paint.dashed paint ~from_:a ~to_:b ~width color
 
