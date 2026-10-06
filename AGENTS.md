@@ -15,11 +15,10 @@ Read the one for the directory you change. Design notes live in `specification/`
 update them when behavior or architecture changes materially.
 
 The SOP network editor is Rays Flow: a left-to-right
-typed canvas with value ports, drives, compounds, graph/list/text views and a
-checked Lisp text form. `specification/flow.md` is the normative design and
-`specification/flow-migration.md` the completed M1–M7 implementation log.
-Work on `pxui_graph`, the graph pane, parameter drives, value nodes, compounds
-or sketch Lisp follows those files. Everything the Lisp can say is drawn in the graph and edited
+typed canvas with value ports, drives, graph/list/text views and a
+checked Lisp text form. `specification/flow.md` is the normative design.
+Work on `pxui_graph`, the graph pane, parameter drives, value nodes
+or sketch Lisp follows it. Everything the Lisp can say is drawn in the graph and edited
 there directly: a call of a node kind is a card whether it is bound in a `let*`, written inside
 another call or a step of a `->` (a nested node, path leaf `holder#input`), and its inputs are rows
 the pane edits in place. New syntax or sugar ships with its graph projection, its `Flow_edit`
@@ -30,28 +29,28 @@ in a browser, never product code and never a web fallback.
 
 | Library | Owns |
 |---|---|
+| `native_layer_token`, `lru`, `param`, `rays_math` | Leaves with no dependencies: the opaque presentation-layer handle, a bounded LRU, typed parameter schemas (`Procedural.Parameter`, `Editor_core.Param`), and the pure `Vec2`/`Vec3`/`Mat4`/`Quat`/`Color` math that `rays` re-exports |
 | `sdl3`, `sdl3_image/ttf/mixer` | SDL3 bindings (foundational) |
 | `metal` | Metal bindings: safe layer over a handwritten bridge (foundational) |
 | `ogpu_core`, `ogpu` | Portable GPU core and virtual public API |
 | `ogpu_metal_native`, `ogpu_metal`, `ogpu_mock` | Native Metal detail and the two OGPU implementations |
 | `runtime`, `runtime_input`, `runtime_resources` | SDL3 lifecycle, Metal presentation, frame stats, typed event translation, SDL image/ttf/mixer services |
 | `rays_execution` | Private frame coordinator: Scene lowering caches over one window or offscreen `Runtime` |
-| `scene_command`, `scene_execution` | Renderer-neutral commands and their GPU execution |
+| `scene_command`, `scene_execution` | Renderer-neutral commands, and prepared GPU execution; neither depends on the other, `rays_execution` joins them |
 | `rays` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
 | `rays_pathtracer` | Hardware ray-traced path tracer |
-| `rdk` | The single packed geometry/topology compute core |
+| `rdk` | The single packed geometry/topology compute core, built from `rdk_core` → `rdk_exact` → `rdk_spatial` → `rdk_attrib` → `rdk_gen`/`rdk_curve` → `rdk_mesh` → `rdk_boolean`; `rdk_rays` is its glue to `rays` meshes |
 | `procedural` | Immutable SOP graphs over `rdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
-| `param` | Typed parameter schemas; no dependencies (`Procedural.Parameter`, `Editor_core.Param`) |
 | `flow` | UI-free value nodes, graphs, expressions, contexts and coercions over `param` |
 | `flow_sop` | Typed SOP/value overlay, drives, exposure and environment-owned value lane |
-| `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, the shell's panel tree (`Panels`), plus atomic file writes and JSON user preferences (`Store`) |
+| `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, the shell's panel tree (`Panels`), plus atomic file writes and s-expression user preferences (`Store`, printed by `Flow.Lisp`) |
 | `editor_document` | Package-private scene/network/settings model, workspace document (`Workspace_doc`, `Layout_by_path`), validation, object/layer schemas and s-expression presets; no presentation dependencies |
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_shell` | Editor chrome over PXUI: layout, headers, keys, status, timeline, prompts, frame, `Inspector` |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
 | `sketch_support` | Procedural-to-Scene glue (`Bridge`: cooked meshes, instances, frame context) and packed pieces |
-| `rays_editor` | Rays Editor: the Houdini-like SOP shell (`Editor3`/`2`), composed only from public blocks |
+| `rays_editor` | Rays Editor: the Houdini-like SOP shell (`Editor3`), composed only from public blocks |
 
 `examples/<name>/` are short teaching programs; `sketches/<name>/` are
 experiments. Each has its own `dune`, depends only on what it shows, keeps
@@ -61,14 +60,14 @@ example with `dune exec tools/new_example.exe -- <name>`. A sketch that is only 
 generates its executable with `rays-lisp`, and after adding or removing one you run
 `dune build @runtest; dune promote` to update the checked-in `sketches/dune.rays.inc`. Command-S in
 its window rewrites the file (comments kept) and an edit of the file reloads the window. Prefer
-`Rays_editor.Editor3`/`2` for SOP sketches, SOP graphs for geometry, and
+`Rays_editor.Editor3` for SOP sketches, SOP graphs for geometry, and
 deterministic seeds.
 
 ## Dependency rules
 
 `test/dependency_gate.ml` reads every `lib/**/dune`, builds the transitive
-graph, and enforces "may never reach" rules plus a token scan. Known
-violations are listed there with the plan item that removes them.
+graph, and enforces "may never reach" rules plus a token scan. It lists no
+exception.
 
 - Foundational libraries (`sdl3*`, `metal`, `ogpu_core`, `ogpu`, `native_layer_token`,
   `scene_command`) never reach `runtime`, `rays`, or anything above.
