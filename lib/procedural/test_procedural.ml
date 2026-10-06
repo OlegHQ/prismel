@@ -4551,6 +4551,52 @@ let test_volatile_slots () =
   check ((Session.stats evaluator).volatile_entries = 0) "set_volatile kept a stale slot";
   Session.close evaluator
 
+(* E5: the volatile predicate travels with the cook request. Set while a cook
+   is in flight, it is neither called nor installed off the worker's domain:
+   the running cook keeps its slots and the next request applies it. *)
+let test_async_volatile_on_worker () =
+  let worker = Async_cook.create ~max_entries:4 ~max_payload_bytes:4_000_000 |> get_ok in
+  let main = Domain.self () and off_worker = Atomic.make false in
+  let release = Atomic.make true and entered = Atomic.make false in
+  let node = Sop.custom ~operation:"async_volatile_test" ~version:1 ~parameters:""
+      [Sop.points [|0., 0., 0.|]] (fun ~context:_ inputs ->
+        Atomic.set entered true;
+        while not (Atomic.get release) do Unix.sleepf 0.001 done;
+        Ok inputs.(0)) in
+  let again () = Node.Private.adopt_identity ~source:node
+      (Sop.custom ~operation:"async_volatile_test" ~version:1 ~parameters:"again"
+        [Sop.points [|0., 0., 0.|]] (fun ~context:_ inputs ->
+          Atomic.set entered true;
+          while not (Atomic.get release) do Unix.sleepf 0.001 done;
+          Ok inputs.(0))) in
+  let predicate answer id =
+    if Domain.self () = main then Atomic.set off_worker true;
+    answer && id = Node.id node in
+  let prepare _ = Ok () in
+  let cook node =
+    ignore (Async_cook.submit worker ~context:(context ()) ~node ~prepare |> get_ok) in
+  Async_cook.set_volatile worker (predicate true);
+  cook node;
+  ignore (Async_cook.await worker);
+  check ((Async_cook.stats worker).volatile_entries = 1)
+    "the request did not carry its volatile predicate";
+  Atomic.set release false;
+  Atomic.set entered false;
+  cook (again ());
+  ignore (wait_until (fun () -> if Atomic.get entered then Some () else None));
+  Async_cook.set_volatile worker (predicate false);
+  check (not (Atomic.get off_worker))
+    "set_volatile ran the predicate on the caller's domain during a cook";
+  Atomic.set release true;
+  ignore (Async_cook.await worker);
+  check ((Async_cook.stats worker).volatile_entries = 1)
+    "set_volatile changed the session under the cook in flight";
+  cook node;
+  ignore (Async_cook.await worker);
+  check ((Async_cook.stats worker).volatile_entries = 0 && not (Atomic.get off_worker))
+    "the next request did not install the new volatile predicate on the worker";
+  Async_cook.close worker
+
 let test_async_await () =
   let worker = Async_cook.create ~max_entries:4 ~max_payload_bytes:4_000_000 |> get_ok in
   let node = Sop.points [|0., 0., 0.; 1., 0., 0.|] in
@@ -4578,6 +4624,7 @@ let test_async_await () =
 let run () =
   test_volatile_slots ();
   test_async_await ();
+  test_async_volatile_on_worker ();
   test_node_owned_parameters_and_graph_edit ();
   test_shared_input_memo ();
   test_encoded_parameter ();
