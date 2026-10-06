@@ -67,6 +67,7 @@
 
 (rule
  (aliases runtest test_pxui_graph)
+ (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_pxui_graph)))
 
 (rule
@@ -198,11 +199,6 @@
  (aliases runtest test_projection)
  (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_projection)))
-
-(rule
- (aliases runtest test_pxui_graph_scope)
- (deps (glob_files ../specification/workspace/cases/*.lisp))
- (action (run %{exe:test_main.exe} test_pxui_graph_scope)))
 
 (rule
  (aliases runtest test_probe)

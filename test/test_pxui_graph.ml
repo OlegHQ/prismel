@@ -1,7 +1,8 @@
 open Rays
 
 let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
+let checks = ref 0
+let check condition message = incr checks; if not condition then fail message
 let pointer (x, y) = float x, float y
 let mouse_press (button, point) = Event.MousePressed (button, pointer point)
 let mouse_release (button, point) = Event.MouseReleased (button, pointer point)
@@ -800,6 +801,12 @@ let run_scope () =
   scope_pinch ();
   print_endline "pxui graph scope pane tests passed"
 
+(* the node menu and the pane (its gestures are [scope_gestures]), with the number of checks made *)
+let run () =
+  run_menu ();
+  run_scope ();
+  Printf.printf "test_pxui_graph: %d checks\n" !checks
+
 (* Frame cost of the graph pane on Sunflower (240 iterations), expanded and
    collapsed.  Command: dune exec test/test_main.exe -- bench_scope_pane *)
 let bench_scope_pane () =
@@ -866,5 +873,15 @@ let bench_scope_big () =
   let view = ref (Scope.create ~width:1000 ~height:700 () |> Scope.with_scope ~key:"g" scope) in
   for _ = 1 to 5 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
   time "2001 nodes: with_scope again" 20 (fun () -> Scope.with_scope ~key:"g" scope !view);
-  time "2001 nodes: frame" 100 (fun () ->
-    view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))); ())
+  (* an idle frame: time and allocation, with cards in view and with none (a 16 x 16 pane) *)
+  let idle label view =
+    for _ = 1 to 5 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
+    let runs = 100 in
+    let started = Unix.gettimeofday () and allocated = Gc.allocated_bytes () in
+    for _ = 1 to runs do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> Scope.update !view ui (frame ()))) done;
+    Printf.printf "%-28s %.3f ms, %.2f MB allocated\n%!" label
+      ((Unix.gettimeofday () -. started) *. 1000. /. float runs)
+      ((Gc.allocated_bytes () -. allocated) /. float runs /. 1e6) in
+  idle "2001 nodes: frame" view;
+  idle "2001 nodes: frame, 16 x 16" (ref (Scope.create ~width:16 ~height:16 () |> Scope.with_scope ~key:"g" scope));
+  time "2001 nodes: Point_all" 5 (fun () -> Scope.run_command !view Scope.Point_all)
