@@ -623,6 +623,7 @@ let set_fields ~factories (doc : Document.t) level ~node values =
    layers inside the World. *)
 type edit =
   | Fields of (int * (string * Param.value) list) list  (* several objects' fields: a stroke of flags *)
+  | Rename of int * string
 
 let graph_at (doc : Document.t) = function
   | Document.Scene -> Some (Document.scene_graph doc)
@@ -633,6 +634,7 @@ let graph_at (doc : Document.t) = function
    {!reconcile} adopts it *)
 let writes (doc : Document.t) level = function
   | Fields edits -> List.for_all (fun (node, _) -> in_text doc level node) edits
+  | Rename (node, _) -> in_text doc level node
 
 let node_at doc level id = match Option.bind (graph_at doc level) (fun g -> Edit.find g ~node_id:id) with
   | Some node -> node | None -> stop "That object is gone."
@@ -647,6 +649,23 @@ let write_edit st (doc : Document.t) level = function
         | Some home, Ok (now, _) ->
             if level = Document.Scene then refuse_preview doc node;
             set ~before:(current_syntax was) st home (differing ~before:was now)) edits
+  | Rename (id, name) when Node.label (node_at doc level id) = name -> ()
+  | Rename (id, name) ->
+      let value = Some (mk (S.Str name)) in
+      if level = Document.Scene && List.mem_assoc id doc.homes.objects then begin
+        (* a name is what [:parent] reads: the children's follow, and one two objects share would
+           move the other's children *)
+        let graph = Document.scene_graph doc in
+        if List.exists (fun (i : Edit.node_info) -> i.id <> id && i.label = name && i.operation <> "world")
+            (Edit.inspect graph)
+        then stop "Two objects are named %S. Rename one of them first." name;
+        List.iter (fun (o, home) ->
+          let key = if o = id then Some "name" else if Objects.parent graph o = Some id then Some "parent" else None in
+          match key with
+          | Some key when homed doc o -> refuse_preview doc o; set st home [ key, value ]
+          | _ -> ()) doc.homes.objects
+      end
+      else Option.iter (fun home -> set st home [ "name", value ]) (field_home doc level id)
 
 (* [None] when {!writes} says the edit is not the text's to take. *)
 let write ~factories (doc : Document.t) level edit =

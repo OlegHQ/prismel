@@ -158,6 +158,7 @@ let run () =
   let renamed = with_scene doc (Edit_graph.replace_node
     (Node.relabel "forearm" (Option.get (Edit_graph.find (scene doc) ~node_id:arm))) (scene doc) |> Result.get_ok) in
   let edited = ok (reconcile doc renamed) in
+  ignore (written "rename" doc Document.Scene (Sync.Rename (arm, "forearm")) renamed);
   check (contains (source edited) ":name \"forearm\"" && node_id edited "forearm" = arm) "a rename did not keep the id";
   same_after_reload edited "rename";
   (* reparent keeping the world placement, rename the parent, then unparent *)
@@ -169,6 +170,9 @@ let run () =
   let torso = with_scene edited (Edit_graph.replace_node
     (Node.relabel "torso" (Option.get (Edit_graph.find (scene edited) ~node_id:body))) (scene edited) |> Result.get_ok) in
   let edited' = ok (reconcile edited torso) in
+  ignore (written "parent rename" edited Document.Scene (Sync.Rename (body, "torso")) torso);
+  (match Sync.write ~factories doc Document.Scene (Sync.Rename (arm, "body")) with
+   | Error _ -> () | Ok _ -> failwith "a rename to a name another object has was written");
   check (contains (source edited') ":parent \"torso\"" && not (contains (source edited') ":parent \"body\""))
     "renaming a parent left its child pointing at the old name";
   same_after_reload edited' "parent rename";

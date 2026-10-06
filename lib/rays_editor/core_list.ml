@@ -324,6 +324,7 @@ let tree_edit value intent =
           match Edit_graph.find graph ~node_id:id with
           | Some node when Objects.has_flag name node -> Some (id, [ name, Parameter.Bool_value on ])
           | _ -> None) ids))
+    | Rename (id, name) -> Some (Rename (id, name))
     | _ -> None in
   match edit with
   | Some edit when Editor_document.Scene_sync.writes value.doc value.level edit -> Some edit

@@ -33,6 +33,7 @@ val set_fields : factories:Procedural.Edit_graph.factory list -> Document.t -> D
 type edit =
   | Fields of (int * (string * Editor_core.Param.value) list) list
       (** field values of several objects (a stroke down a flag column) *)
+  | Rename of int * string  (** an object's name; its children's [:parent] follows *)
 (** A derived edit as its caller means it: scene objects at the scene level, World layers inside
     the World. *)
 
