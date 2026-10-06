@@ -1816,6 +1816,31 @@ let run_undo_and_input () =
     "a name field open in the graph pane kept the keyboard after the panel turned to its list";
   E3.close !e
 
+(* E15, on the reducer alone: while a payload is carried the document shown is a preview, and
+   entering a camera then must not make it the render camera in the history. *)
+let run_carry_reaches_no_history () =
+  let e = editor {x|(workspace cams
+  (graph g :context sop (sop/box))
+  (graph scene :context scene
+    (let* [cam (scene/camera :name "cam")
+           side (scene/camera :name "side" :eye [6 2 0])
+           all (scene/merge (scene/geometry (ref g)) cam side)]
+      (scene/root all :camera cam))))|x} in
+  let e = E3.update (E3.update e (frame (450., 300.) [] 1)) (frame (450., 300.) [] 2) in
+  let side = (List.find (fun (i : Edit_graph.node_info) -> i.label = "side") (Edit_graph.inspect (E3.scene_document e))).id in
+  let preview = E.Set_arg { node = [ "scene"; "side" ]; key = E.Kw "fov"; sub = []; value = S.make (S.Num "40.0") } in
+  let before = source e in
+  let stepped = Rays_editor.Reduce.step e ~select:[ side ] ~preview
+      [ Rays_editor.Private.Leader.Enter ] (frame (450., 300.) [] 3) in
+  check (E3.carrying stepped <> None) "the reducer dropped the carry";
+  check (not (E3.can_undo stepped))
+    ("entering a camera during a carry reached the history: " ^ Option.value ~default:"-" (E3.undo_label stepped));
+  (* without the carry the same keys do make the camera the render camera: the test reaches the path *)
+  let entered = Rays_editor.Reduce.step e ~select:[ side ] [ Rays_editor.Private.Leader.Enter ] (frame (450., 300.) [] 3) in
+  check (E3.can_undo entered && has (source entered) ":camera side" && source e = before)
+    ("Enter on a camera did not make it the render camera: " ^ source entered);
+  E3.close e
+
 (* E16: a frame's gestures land together.  Closing the only panel of a document with no editor
    graph is two gestures (write the layout shown as an editor graph, then close the panel): the
    close is refused, so the editor graph is not left written either. *)
@@ -1871,7 +1896,7 @@ let run_undo_under_pane () =
   E3.close !e
 
 let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
-  run_undo_under_pane (); run_atomic_frame (); run_undo_and_input ()
+  run_undo_under_pane (); run_atomic_frame (); run_undo_and_input (); run_carry_reaches_no_history ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)

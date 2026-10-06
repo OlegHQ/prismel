@@ -55,6 +55,11 @@ module Editor3 = struct
       ~draw:scene3 ?overlay ?status ()
 end
 
+module Reduce = struct
+  let step (e : _ Editor3.t) ?select ?preview actions frame =
+    { e with Environment.core = Core.reduce_idle ?select ?preview e.Environment.core actions frame }
+end
+
 module Private = struct
   module Render_budget = struct let film = Renderer.film let next_turn = Renderer.next_turn end
   module Leader = Leader module Schedule = Schedule

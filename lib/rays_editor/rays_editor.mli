@@ -602,6 +602,15 @@ module Editor3 : sig
     unit
 end
 
+(** The frame reducer without a UI frame: an unstable hook for tests, like {!Private}.
+    [step e actions frame] reduces one frame in which no pane was built: the keys are [actions],
+    the list's selection is [select] (scene object ids), and [preview] puts a payload in flight
+    whose hot target shows that edit on a scratch document, as a carry does. *)
+module Reduce : sig
+  val step : 'prepared Editor3.t -> ?select:int list -> ?preview:Flow_sop.Flow_edit.op ->
+    Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t
+end
+
 (** A [.rays] sketch as a program (plan W11).  Command-S rewrites the file when it is
     still the text the document came from (comments intact), else saves a preset;
     an edit of the file from any editor reloads the running document as one history
