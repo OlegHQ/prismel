@@ -129,11 +129,6 @@
       (run %{exe:../examples/pathtracer/main.exe})))))))
 
 (executable
- (name bench_edit_graph)
- (modules bench_edit_graph)
- (libraries procedural sop_catalog unix))
-
-(executable
  (name bench_instances)
  (modules bench_instances)
  (libraries rays unix))
@@ -146,11 +141,6 @@
 (executable
  (name bench_pathtracer_mesh)
  (modules bench_pathtracer_mesh)
- (libraries rays rays_pathtracer rdk unix))
-
-(executable
- (name pt_convergence)
- (modules pt_convergence)
  (libraries rays rays_pathtracer rdk unix))
 
 (executable
@@ -256,16 +246,6 @@
  (libraries rays procedural flow rays_editor unix))
 
 (executable
- (name bench_editor_cook)
- (modules bench_editor_cook)
- (libraries rays procedural rdk rays_editor editor_document sketch_support unix))
-
-(executable
- (name bench_camera_input)
- (modules bench_camera_input)
- (libraries rays unix))
-
-(executable
  (name bench_workspace_live)
  (modules bench_workspace_live)
  (libraries flow_sop sop_catalog flow procedural param str unix))
@@ -276,11 +256,6 @@
  (libraries flow_sop sop_catalog flow procedural rdk param unix editor_document))
 
 (executable
- (name bench_traced_panes)
- (modules bench_traced_panes)
- (libraries rays procedural rdk rdk_rays rays_editor unix))
-
-(executable
  (name ui_shot)
  (modules ui_shot)
  (libraries rays rays_editor procedural rdk rdk_rays flow))
@@ -289,3 +264,38 @@
  (name widgets_shot)
  (modules widgets_shot)
  (libraries rays pxui pxui_shell))
+
+; Builds every bench without running one, so they keep compiling.
+(alias
+ (name bench-build)
+ (deps
+  bench_boolean_pipeline.exe
+  bench_circle_from_edges.exe
+  bench_convex_hull.exe
+  bench_curvature.exe
+  bench_delaunay2.exe
+  bench_extract_centroid.exe
+  bench_extract_point_curve.exe
+  bench_graph_color.exe
+  bench_instances.exe
+  bench_laplacian.exe
+  bench_live_lights.exe
+  bench_material_assign.exe
+  bench_metal_ffi.exe
+  bench_metal_registry.exe
+  bench_named_owner.exe
+  bench_pathtracer_mesh.exe
+  bench_predicates.exe
+  bench_pxui.exe
+  bench_rays_editor.exe
+  bench_rdk_iso.exe
+  bench_rdk_ops.exe
+  bench_scene2_ir.exe
+  bench_sdl3.exe
+  bench_shattered_renderer.exe
+  bench_source_poll.exe
+  bench_uniforms.exe
+  bench_workspace_live.exe
+  bench_workspace_lower.exe
+  bench_world.exe
+  boolean_stress.exe))
