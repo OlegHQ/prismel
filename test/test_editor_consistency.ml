@@ -465,14 +465,6 @@ let live_light_failure_isolation () = with_editor
     check (List.nth (layers !e) 1 <> List.nth failed 1)
       "a recovered preview light retained stale output")
 
-let refuse_empty_2d () = with_dir (fun presets ->
-  let module E2 = Rays_editor.Editor2 in
-  let e = E2.create ~presets ~workspace:(workspace plain) ~prepare:(fun _ _ -> Ok ())
-    ~scene2:(fun _ _ -> []) () |> Result.get_ok in
-  Fun.protect ~finally:(fun () -> E2.close e) (fun () ->
-    check (Result.is_error (E2.edit e (F.Set_graph {name = "g"; form = parse "(graph g :context value 1)"})))
-      "an edit removing the last 2D network was accepted"))
-
 let document_forms () =
   List.iter (fun extra -> check (Result.is_error (D.Workspace_doc.of_text catalog (plain ^ extra)))
     ("a document silently discarded " ^ extra))
@@ -856,7 +848,7 @@ let run () =
      "preview identity and provenance", preview_identity;
      "preview orbit identity", preview_orbits;
      "preview camera and World ownership", preview_camera_world;
-     "preview lighting", preview_lights; "2D edit refusal", refuse_empty_2d;
+     "preview lighting", preview_lights;
      "live lighting", live_lights; "live lighting failure", live_light_failure;
      "live lighting determinism and reuse", live_light_determinism;
      "live lighting failure isolation", live_light_failure_isolation;
@@ -871,4 +863,4 @@ let run () =
      "camera Enter and row menu", enter_camera;
      "no viewport click", no_viewport_click] in
   if failures <> [] then failwith (String.concat "\n" failures);
-  print_endline "editor consistency: settings, saved defaults, scene pictures, isolated previews and atomic 2D refusals passed"
+  print_endline "editor consistency: settings, saved defaults, scene pictures, and isolated previews passed"

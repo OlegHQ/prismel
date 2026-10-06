@@ -37,7 +37,6 @@ type extra = { looking : string list;  (* the viewports that look through their 
                renderer_request : Renderer.t option }
 
 let keymap = Leader.keymap3
-let scene_level = true
 let default_camera () = Easy_camera.create ~target:Vec3.zero ~distance:7. ()
 let create_control () = CC.create ()
 let ui_visible = CC.ui_visible

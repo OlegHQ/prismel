@@ -20,13 +20,6 @@ let () =
       ["bad", Float infinity]));
     assert (get (Editor_core.Store.Settings.load ~sketch:"test" path) = values));
   let open Rays in
-  let view2 = Easy_camera2.create ~center:(Vec2.create 2. 3.)
-    ~zoom:1.5 ~rotation:0.25 () in
-  let loaded2 = Editor_core.Store.Viewport.decode2 (Easy_camera2.create ())
-    (Editor_core.Store.Viewport.encode2 view2) in
-  assert (Easy_camera2.center loaded2 = Easy_camera2.center view2);
-  assert (Easy_camera2.zoom loaded2 = Easy_camera2.zoom view2);
-  assert (Easy_camera2.rotation loaded2 = Easy_camera2.rotation view2);
   let view3 = Easy_camera.create ~distance:9. ~fov_y:0.8 () in
   let loaded3, look = Editor_core.Store.Viewport.decode3 (Easy_camera.create ())
     (Editor_core.Store.Viewport.encode3 view3 ~look_through:true) in

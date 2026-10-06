@@ -297,33 +297,6 @@ let run_autosave () =
   E3.close !e;
   remove_tree dir
 
-let run_autosave2 () =
-  let module E2 = Rays_editor.Editor2 in
-  let dir = directory () in
-  let create () = E2.create ~presets:dir ~await:true
-    ~workspace:(Result.get_ok (Doc.of_text catalog text0))
-    ~camera:(Easy_camera2.create ~inertia:false ())
-    ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok in
-  let e = ref (create ()) and count = ref 0 in
-  let step events = incr count;
-    e := E2.update !e (Test_editor_input.frame (200., 300.) events !count) in
-  step [];
-  step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
-  let saved = E2.camera !e in
-  for _ = 1 to 35 do step [] done;
-  let state = Editor_document.Preset.path ~directory:(Filename.concat dir "state")
-    ~name:(sha "workspace:w") in
-  check (has (read state) ":zoom") "2D camera navigation did not autosave while open";
-  E2.close !e;
-  e := create (); count := 0; step [];
-  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
-  step [Event.KeyPressed Input.Enter];
-  check (Easy_camera2.center (E2.camera !e) = Easy_camera2.center saved
-         && Easy_camera2.zoom (E2.camera !e) = Easy_camera2.zoom saved)
-    "2D recovery did not restore the viewport";
-  E2.close !e;
-  remove_tree dir
-
 (* The start keywords (flow.md 11.11) through the two routes that replace the document from a
    file: a changed keyword is followed, an unchanged one leaves what the user chose in the UI. *)
 let run_start_keywords () =
@@ -386,5 +359,5 @@ let run_start_keywords () =
   E3.close !e;
   remove_tree dir
 
-let run () = run_files (); run_find (); run_editor (); run_autosave (); run_autosave2 (); run_start_keywords ();
+let run () = run_files (); run_find (); run_editor (); run_autosave (); run_start_keywords ();
   print_endline "workspace source tests passed"

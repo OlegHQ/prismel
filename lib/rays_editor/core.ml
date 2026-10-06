@@ -196,7 +196,6 @@ type 'prepared t = {
   notice_at : float;  (* when the notice last changed: the echo tip shows it for a while *)
   doc : Document.t;  (* always the history's present *)
   level : Document.level;
-  scene_level : bool;  (* false: one geometry object, no scene to go up to *)
   projections : projection Level_map.t;
   text : Text_pane.state;  (* the workspace text pane: tab, drafts, errors (view state) *)
   map_view : bool;  (* in the World, the view pane shows the lat-long map *)
@@ -1461,7 +1460,7 @@ let add_target value =
       Some (name, context)
   | None ->
       (match value.level with
-       | Document.Scene when value.scene_level -> Some ("scene", Flow.Workspace.Scene)
+       | Document.Scene -> Some ("scene", Flow.Workspace.Scene)
        | Inside id when kind value id = Some "world" -> Some ("world", World)
        | _ -> None)
 
@@ -1928,7 +1927,7 @@ let workspace_doc ~factories ~seed_scene workspace =
   let* graph = flow (Flow_sop.Network.with_geometry scene doc.scene.graph) in
   let doc = { doc with scene = { doc.scene with graph };
     active_camera = if has_scene then doc.active_camera else List.nth_opt (Objects.ids "camera" scene) 0 } in
-  Ok (doc, List.nth_opt (Objects.ids "geometry" scene) 0)
+  Ok doc
 
 (* A World object for [world], with its layer network. *)
 let add_world (doc : Document.t) world =
@@ -1967,7 +1966,7 @@ let browse value query =
   Some (Browsing { query; presets = Preset.list ~directory:value.presets; last_state })
 
 let create ?settings ?(keymap = Leader.keymap)
-    ?(seed_scene = fun _ scene -> scene) ?(scene_level = true) ?world
+    ?(seed_scene = fun _ scene -> scene) ?world
     ?(name = "sketch") ?presets ?(state_key = name) ?(timeline_frames = 240)
     ?(layout = Pxui_shell.Layout.default) ?(factories = [])
     ?(seed = 0L) ?(grain = 16_384)
@@ -1978,7 +1977,7 @@ let create ?settings ?(keymap = Leader.keymap)
   let settings = Option.value settings ~default:workspace.Workspace_doc.settings in
   let opened = workspace_doc ~factories ~seed_scene:(seed_scene factories)
       { workspace with Workspace_doc.settings } in
-  Result.bind opened (fun (doc, geometry) ->
+  Result.bind opened (fun doc ->
   let has_world = Editor_document.Contexts.graph_of workspace Flow.Workspace.World <> None in
   let doc = match (if Objects.ids "world" doc.scene.graph.geometry = [] && not has_world
                    then Option.map (add_world doc) world else None) with
@@ -1991,16 +1990,14 @@ let create ?settings ?(keymap = Leader.keymap)
         | None -> Filename.concat (Filename.concat
             (Option.value ~default:"." (Sys.getenv_opt "HOME")) ".rays")
             (Preset.sanitize name) in
-      let level = match geometry with
-        | Some id when not scene_level -> Document.Inside id
-        | Some _ | None -> Document.Scene in
+      let level = Document.Scene in
       let preferences = preferences_file () in
       let guide = match read_preferences preferences with
         | Ok values -> Option.value ~default:true (Editor_core.Store.Settings.bool values "guide")
         | Error _ -> true in
       let state_name = Contexts.sha256 state_key in
       let value = { preferences; guide; hud = None; presets; state_name; name; prompt = None; notice = None; notice_at = 0.;
-        doc; level; scene_level;
+        doc; level;
         projections = Level_map.empty; text = Text_pane.initial; map_view = false;
         rows = []; live_cook = true;
         factories;
@@ -2098,15 +2095,12 @@ let status_text ?(brief = false) value =
          | None, None, None -> "Waiting for first cook") in
   (* What the open level's keys do, so the World and the menu are findable. *)
   let hint = match value.level with
-    | Document.Scene when value.scene_level ->
-        "i/double-click enter · Space a add · Space e World"
-    | Scene -> ""
+    | Document.Scene -> "i/double-click enter · Space a add · Space e World"
     | Inside id when kind value id = Some "world" ->
         "u up · drag map: move layer/sun · t dome/light · n reseed · d day cycle · [ ] time · Space m 3D/map"
-    | Inside _ when value.scene_level -> "u up · Space a add · Space l panel kind"
-    | Inside _ -> "Space a add · Space l panel kind" in
+    | Inside _ -> "u up · Space a add · Space l panel kind" in
   (if value.workspace.restored then "Default layout · Space z returns to the editor graph · " else "")
-  ^ cook ^ (if brief then "" else " · " ^ level_name value ^ (if hint = "" then "" else " · " ^ hint))
+  ^ cook ^ (if brief then "" else " · " ^ level_name value ^ " · " ^ hint)
 
 (* "ring · iteration 1 of 12": which iteration the viewport's highlight and the inspector show for the
    node selected in the graph pane (the innermost loop around it, or itself when it is one). *)
@@ -2347,11 +2341,6 @@ let routed value =
     | Add_node -> not texting && (not listing || command.trigger = Some (Editor_core.Keymap.Leader "a"))
         && List.exists (fun (_, panel) -> panel = Pxui_shell.Layout.Graph)
         (Editor_core.Panels.leaves (shell_tree value value.workspace))
-    | Enter -> value.scene_level || (match value.level with
-        | Inside id -> kind value id = Some "geometry"
-        | Scene -> false)
-    | Up -> value.scene_level || value.back <> []
-    | Go_world -> value.scene_level
     | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->
         in_world value
     | _ -> true) value.keymap |> layout_labels value
@@ -2370,20 +2359,17 @@ let parameter_gesture operation level id values =
    one history entry, the open level is re-resolved and the cook told about
    the new volatile nodes. *)
 let install value doc ~label ~merge =
-  Result.map_error (Flow.Diagnostic.error ~code:"E_DOCUMENT")
-    (Document.resolve_level ~scene_level:value.scene_level doc value.level)
-  |> Result.map (fun level ->
+  let level = Document.resolve_level doc value.level in
   let value' = { value with doc; level; workspace = unrestore value.doc doc value.workspace } in
   Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
   { value' with history = commit ~label ~merge doc value.history;
-    selection = if level = value.level then value.selection else Selection.empty })
+    selection = if level = value.level then value.selection else Selection.empty }
 
 (* The text pane's applies (plan W7): the whole workspace text, or one
    binding's expression; atomic, one history entry "Edit text". *)
 let text_edit ?(label = "Edit text") ?(merge = Editor_core.History.Step) value text =
-  Result.bind
+  Result.map (fun doc -> install value doc ~label ~merge)
     (Doc.text_edit ~factories:value.factories value.doc text)
-    (fun doc -> Result.map_error (fun d -> [ d ]) (install value doc ~label ~merge))
 
 (* Selection patches root bindings into one candidate graph, checked and
    installed once. Omitted bindings stay and the shown result cannot change.
@@ -2395,7 +2381,7 @@ let binding_edit ?(merge = Editor_core.History.Step) value path text =
   | Error d -> Error [ (if d.position = None then at_line_1 d else d) ]
   | Ok op ->
       (match Doc.syntax_edit_result ~factories:value.factories value.doc op with
-       | Ok doc -> Result.map_error (fun d -> [ at_line_1 d ]) (install value doc ~label:"Edit text" ~merge)
+       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge)
        | Error d -> Error [ at_line_1 d ])
 
 (* The Graph tab's apply: the draft must be the one graph (or function) form, which replaces the
@@ -2407,7 +2393,7 @@ let graph_edit ?(merge = Editor_core.History.Step) value name text =
       Error [ (if d.position = None then { d with position = Some { line = 1; col = 0 } } else d) ]
   | Ok op ->
       (match Doc.syntax_edit_result ~factories:value.factories value.doc op with
-       | Ok doc -> Result.map_error (fun d -> [d]) (install value doc ~label:"Edit text" ~merge)
+       | Ok doc -> Ok (install value doc ~label:"Edit text" ~merge)
        | Error d -> Error [ { d with position = Some { line = 1; col = 0 }; span = None } ])
 
 (* Fold the pane's intents: drafts live in [value.text] (view state); a
@@ -3020,18 +3006,15 @@ let carry_payload value =
 let carry_cancel value (c : _ carry) ~notice =
   Pxui.Ui.cancel_carry value.ui;
   let doc = c.original in
-  let level = Result.value ~default:Document.Scene
-    (Document.resolve_level ~scene_level:value.scene_level doc value.level) in
+  let level = Document.resolve_level doc value.level in
   if doc != value.doc then Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
   { value with carry = None; doc; level; notice = Some notice;
     workspace = unrestore value.doc doc value.workspace }
 
 let carry_commit value (c : _ carry) doc what =
   Pxui.Ui.cancel_carry value.ui;
-  match install { value with carry = None } doc ~label:"Put" ~merge:Editor_core.History.Step with
-  | Ok value ->
-      { value with notice = Some (Info, Printf.sprintf "Put %s · wrote %s · one undo entry" c.payload.value what) }
-  | Error d -> carry_cancel value c ~notice:(Refusal, "Refused · " ^ Flow.Diagnostic.to_string d)
+  let value = install { value with carry = None } doc ~label:"Put" ~merge:Editor_core.History.Step in
+  { value with notice = Some (Info, Printf.sprintf "Put %s · wrote %s · one undo entry" c.payload.value what) }
 
 (* The carry's turn of a frame, before the panes build: the keys of the route and the ends of the
    gesture, then the preview (the scratch document the panels read), or the put or the restore.
@@ -3113,8 +3096,7 @@ let carry_step value ~text_focus (frame : Frame.t) =
           if shown == value.doc then value, taken, false
           else begin
             Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd shown.workspace));
-            let level = Result.value ~default:Document.Scene
-              (Document.resolve_level ~scene_level:value.scene_level shown value.level) in
+            let level = Document.resolve_level shown value.level in
             { value with doc = shown; level; workspace = unrestore value.doc shown value.workspace },
             taken, true
           end
@@ -3810,7 +3792,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 ~key:"live-cook-section" ~expanded:true title (fun () ->
                   Pxui.Ui.inspector_toggle ui ~key:"live-cook" ~label:"Live update" value.live_cook)) in
             let changes = match Settings.fields unchanged |> List.filter (fun (field : Parameter.field_view) ->
-                not (value.scene_level && field.name = "renderer")) with
+                field.name <> "renderer") with
               | [] -> []
               | fields ->
                   Pxui.Ui.scope ui "sketch-settings" (fun () ->
@@ -4257,10 +4239,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         let rejected = if intent = Load_last_state then "Last edited state rejected: " else "Preset rejected: " in
         (match Preset.load ~path
             ~factories:value.factories ~settings:value.doc.settings with
-         | Ok preset ->
-             (match Document.resolve_level ~scene_level:value.scene_level preset.doc Document.Scene with
-              | Ok _ -> result.prompt, Some (Info, restored), Some preset
-              | Error message -> result.prompt, Some (Refusal, rejected ^ message), None)
+         | Ok preset -> result.prompt, Some (Info, restored), Some preset
          | Error message -> result.prompt, Some (Refusal, rejected ^ message), None)
     | Some ((Delete_preset_file _ | Delete_last_state _) as intent) ->
         let directory, name, query, description = match intent with
@@ -4489,7 +4468,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     then world_keys value next result.selection actions else next, None in
   (* Space e opens the World, creating the singleton on first use. *)
   let next, world_added = match Objects.ids "world" next.scene.graph.geometry with
-    | [] when List.mem Leader.Go_world actions && value.scene_level ->
+    | [] when List.mem Leader.Go_world actions ->
         (match add_world next daylight with Ok doc -> doc, true | Error _ -> next, false)
     | _ -> next, false in
   let next, result = if Option.is_some loaded then next, result
@@ -4550,9 +4529,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   let effects = if undone || Option.is_some loaded || carry_changed
     then Parameter.union_effects result.effects Doc.cook_effects else result.effects in
   (* The open level must still exist after undo or a preset load. *)
-  let level = Document.resolve_level ~scene_level:value.scene_level doc
-      (if Option.is_some loaded then Document.Scene else value.level)
-    |> Result.get_ok in
+  let level = Document.resolve_level doc
+      (if Option.is_some loaded then Document.Scene else value.level) in
   let value' = { value with doc; level; workspace = unrestore value.doc doc result.workspace } in
   (* the selection keeps the nodes that still exist in the open network *)
   let selection =
@@ -4575,8 +4553,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     | _ when followed <> None -> None
     | Some Leader.Up, _ when value.back <> [] -> None
     | Some Leader.Up, _ -> (match level with
-      | Inside _ when value.scene_level -> Some Document.Scene
-      | Scene | Inside _ -> None)
+      | Inside _ -> Some Document.Scene
+      | Scene -> None)
     | Some Leader.Go_world, _ ->
         Option.map (fun id -> Document.Inside id)
           (List.find_opt (enterable value') (Objects.ids "world" doc.scene.graph.geometry))
@@ -4618,8 +4596,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   (* u goes back along the route taken *)
   let value' = match value'.back with
     | (back_level, pane_graph) :: rest when List.mem Leader.Up actions && target = None && followed = None ->
-        let back_level = Result.value ~default:Document.Scene
-          (Document.resolve_level ~scene_level:value.scene_level doc back_level) in
+        let back_level = Document.resolve_level doc back_level in
         { (open_level { value' with back = rest } back_level) with pane_graph }
     | _ -> value' in
   let value' = match followed with Some graph -> go value' graph | None -> value' in
@@ -4828,10 +4805,10 @@ let set_root value root =
    entry): the same reduction as a [Syntax_edit] intent, committed as one
    history entry named by the op ([Gesture] merge for a scrub). *)
 let syntax_edit value op =
-  Result.bind (Doc.syntax_edit_result ~factories:value.factories value.doc op)
-    (fun doc -> install value doc ~label:(Flow_sop.Flow_edit.label op)
+  Result.map (fun doc -> install value doc ~label:(Flow_sop.Flow_edit.label op)
     ~merge:(Option.fold ~none:Editor_core.History.Step
       ~some:(fun key -> Editor_core.History.Gesture key) (Flow_sop.Flow_edit.gesture op)))
+    (Doc.syntax_edit_result ~factories:value.factories value.doc op)
   |> Result.map_error Flow.Diagnostic.to_string
 
 (* The scene's World at timeline [time] (the day cycle advances with it). *)

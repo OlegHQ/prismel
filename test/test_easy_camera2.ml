@@ -113,44 +113,6 @@ let run () =
         Event.PointerCancelled Input.RightButton; mouse_move (180, 180)] ()) in
   if not (Vec2.nearly_equal (Easy_camera2.center cancelled) Vec2.zero ~eps:1e-9)
   then fail "2D camera pointer cancellation did not release capture";
-  let module Control = Pxui.Camera2_control in
-  let ui = Pxui.Ui.create ~font_size:11 () in
-  let run control camera (frame : Frame.t) =
-    let control, camera, requests = Pxui.Ui.frame ui frame (fun ui ->
-      if Control.ui_visible control then
-        Pxui.Ui.panel ui ~x:0. ~y:0. ~width:240. "camera-panel"
-          (fun () -> Control.widgets control ui ~camera)
-      else control, camera, []) in
-    let area = if Control.ui_visible control then 248, 0, 392, 360
-      else 0, 0, frame.width, frame.height in
-    control, Control.navigate ~control_area:area control camera frame,
-    requests in
-  let click point = frame ~mouse:point ~events:[
-      mouse_press (Input.LeftButton, point);
-      mouse_release (Input.LeftButton, point)] () in
-  let control = Control.create () in
-  let control, _, _ = run control camera (frame ()) in
-  (* Two closed sections of 24 points under 4 of space; opening Render adds Output and the
-     save button, a row each; the open Render has 16 above it, as it follows a closed section. Its
-     button is then at 92..116. *)
-  let control, _, _ = run control camera (click (30, 40)) in
-  let control, _, _ = run control camera (frame ()) in
-  let control, _, requests = run control camera (click (30, 104)) in
-  if List.length requests <> 1 then
-    fail "2D camera render section did not request a PNG";
-  let control, controlled, _ = run (Control.open_camera control) camera (frame ()) in
-  if Easy_camera2.control_area controlled <> Some (248, 0, 392, 360)
-  then fail "2D camera controls did not reserve the area beside the panel";
-  let control, zoomed, _ = run control controlled (frame ~mouse:(400, 180)
-      ~events:[Event.MouseScrolled (0., 2.)] ()) in
-  let control, zoomed_idle, _ = run control zoomed (frame ~mouse:(400, 180) ()) in
-  if Easy_camera2.zoom zoomed = Easy_camera2.zoom controlled
-     || Easy_camera2.zoom zoomed_idle <> Easy_camera2.zoom zoomed
-  then fail "2D camera control undid gesture-driven zoom";
-  let hidden, _, _ = run (Control.toggle_ui control) zoomed_idle (frame ()) in
-  if Control.ui_visible hidden || Pxui.Ui.scene ui <> []
-  then fail "2D camera toggle_ui did not hide controls and labels";
-  Pxui.Ui.destroy ui;
   let rotated = Easy_camera2.create ~viewport ~center:(Vec2.create 10. 20.)
       ~zoom:2. ~rotation:0.4 () in
   let projected = Easy_camera2.world_to_screen ~viewport rotated world in

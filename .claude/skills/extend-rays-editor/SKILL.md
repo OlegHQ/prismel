@@ -12,7 +12,7 @@ Read `lib/rays_editor/AGENTS.md` first. Pick the lowest level that works:
 | 0 sketch | `rays` (`Sketch`, `Frame`, `Scene`) | `examples/basic` |
 | 1 sketch + panel | `pxui`, `Editor_core.Param/History/Store`, `Pxui_shell.Inspector` | `sketches/pastel_flow` |
 | 2 custom shell | `Pxui_shell` (Layout, Chrome, Which_key, Prompt, Timeline_bar, Status_bar, Shell), `Pxui_graph`, `Editor_core.Command/Keymap/Router` | none yet |
-| 3 Rays Editor | `Rays_editor.Editor3`/`Editor2` with a SOP graph | `sketches/voxel_wall`, `sketches/shattered_cube` |
+| 3 Rays Editor | `Rays_editor.Editor3` with a SOP graph | `sketches/voxel_wall`, `sketches/shattered_cube` |
 
 1. **Command**: one `Editor_core.Command.make ~id ~label ?trigger ?scope
    action` entry, the same type as every built-in. In Rays Editor pass it

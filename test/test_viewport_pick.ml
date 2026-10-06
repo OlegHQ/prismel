@@ -146,34 +146,43 @@ let pick_run () =
   Cook.close cook;
   print_endline "viewport pick tests passed"
 
-(* The 2D editor picks the same way: a click is a ray down onto the drawing, and the node that
-   made the clicked box is selected in the graph pane. *)
+(* The editor picks the same way: a click in the viewport is a ray through its camera, and the
+   node that made the clicked box is selected in the graph pane. *)
 let flat text clicks =
   let open Rays in
-  let module E2 = Rays_editor.Editor2 in
+  let module E3 = Rays_editor.Editor3 in
   let workspace = Ws_fixture.of_text text in
   (* the cook is awaited, not waited for: the editor blocks on the job each frame submits *)
-  let env = ref (E2.create ~await:true ~workspace
+  let env = ref (E3.create ~await:true ~workspace ~camera:(Easy_camera.create ~inertia:false ())
       ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
         |> Result.map_error Rdk.Error.to_string)
-      ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok) in
+      ~scene3:(fun _ _ -> Scene3.empty) () |> Result.get_ok) in
   let count = ref 0 in
   let step ?(buttons = []) mouse events =
-    incr count; env := E2.update !env (Test_editor_input.frame ~buttons mouse events !count) in
+    incr count; env := E3.update !env (Test_editor_input.frame ~buttons mouse events !count) in
   let selected () =
     let directory = Filename.temp_dir "rays-pick2" "" in
     Fun.protect ~finally:(fun () ->
       Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
       Unix.rmdir directory) (fun () ->
-      E2.crash_dump !env directory;
+      E3.crash_dump !env directory;
       let text = In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all in
       List.find_map (fun line -> if String.starts_with ~prefix:"scope selected: " line
         then Some (String.sub line 16 (String.length line - 16)) else None)
         (String.split_on_char '\n' text) |> Option.get) in
   for _ = 1 to 6 do step (450., 300.) [] done;
-  let viewport = (E2.panes !env (Test_editor_input.frame (0., 0.) [] 0)).view in
-  let at world = let p = Easy_camera2.world_to_screen ~viewport (E2.camera !env) (Vec2.create (fst world) (snd world)) in
-    p.Vec2.x, p.y in
+  let panes = E3.panes !env (Test_editor_input.frame (0., 0.) [] 0) in
+  (* the scene opens as a list: a click on the object's row selects it and [i] enters its graph *)
+  let gx, gy, _, _ = panes.graph in
+  let row = float (gx + 60), float (gy + 24 + 12) in
+  step row [];
+  step row [ Event.MousePressed (Input.LeftButton, row); Event.MouseReleased (Input.LeftButton, row) ];
+  step row [ Event.KeyPressed (Input.KeyChar 'i') ];
+  count := !count + 30;  (* past the double-click interval *)
+  for _ = 1 to 4 do step (450., 300.) [] done;
+  let at (x, y) =
+    match Camera.world_to_screen ~viewport:panes.view (E3.view_camera !env) (Vec3.create x y 0.) with
+    | Some p -> p.Vec3.x, p.y | None -> failwith "the point is behind the camera" in
   let click world =
     let p = at world in
     step p [ Event.MouseMoved p ];
@@ -182,7 +191,7 @@ let flat text clicks =
   List.iter (fun (world, expected, message) ->
     click world;
     if selected () <> expected then failwith (message ^ ": " ^ selected ())) clicks;
-  E2.close !env
+  E3.close !env
 
 let run_2d () =
   flat {|(workspace flat
@@ -192,7 +201,7 @@ let run_2d () =
         (sop/merge left right))))|}
     [ (2., 0.), "g/right", "a click on the right box selected";
       (-2., 0.), "g/left", "a click on the left box selected";
-      (0., 40.), "-", "a click on nothing kept the selection" ];
+      (0., 0.), "-", "a click on nothing kept the selection" ];
   (* a pick inside a collapsed loop selects the loop, which shows what is inside *)
   let loop = {|(workspace looped
     (graph g :context sop

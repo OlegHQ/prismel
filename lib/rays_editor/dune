@@ -2,6 +2,6 @@
  (name rays_editor)
  (public_name rays.rays_editor)
  (private_modules echo carry selection common leader doc schedule pick cook lisp_text text_pane navigator bars source_file core environment
-  viewport2 viewport3 renderer)
+  viewport3 renderer)
  (libraries editor_document rays rays_pathtracer procedural flow flow_sop editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support unix)
  (preprocess (pps rays.ppx)))

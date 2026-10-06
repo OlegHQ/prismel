@@ -620,67 +620,6 @@ let run () =
   check (mode environment = 3) "the command palette did not run the sketch command";
   Rays_editor.Editor3.close environment;
 
-  let cooks2 = Atomic.make 0 in
-  let environment2 = Rays_editor.Editor2.create ~await:true ~workspace:(fixture ())
-      ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun _ output -> Atomic.incr cooks2;
-        Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
-        |> Result.map_error Rdk.Error.to_string)
-      ~scene2:(fun _graph _mesh -> Scene.[
-        rect ~at:(-60, -40) ~w:120 ~h:80
-          ~fill:(Color.hex_exn "#5eead4") ()
-      ]) ()
-    |> Result.get_ok in
-  let deadline = Unix.gettimeofday () +. 60. in
-  let rec wait2 count environment =
-    let environment = Rays_editor.Editor2.update environment (frame count) in
-    match Rays_editor.Editor2.prepared environment with
-    | Some _ -> environment
-    | None when Unix.gettimeofday () < deadline ->
-        Unix.sleepf 0.001;
-        wait2 (count + 1) environment
-    | None -> fail "2D sketch environment did not publish its initial cook"
-  in
-  let environment2 = wait2 0 environment2 in
-  let environment2 = Rays_editor.Editor2.update environment2
-      (frame ~events:[Event.KeyPressed (Input.KeyChar 'f')] 9) in
-  check (Float.abs ((Easy_camera2.center (Rays_editor.Editor2.camera environment2)).x -. 5.) < 1e-6)
-    "2D viewport-focused F did not focus on the displayed node";
-  check (not (Rays_editor.Editor2.can_undo environment2)
-      && not (Rays_editor.Editor2.can_redo environment2))
-    "new 2D environment has an unexpected undo history";
-  let environment2, inspected = Rays_editor.Editor2.update_with
-      environment2 (frame 10) ~inspector:(fun _ui -> 7) in
-  check (inspected = Some 7) "2D update_with omitted the unselected inspector";
-  let prior_cooks = Atomic.get cooks2 in
-  let environment2 = Rays_editor.Editor2.set_settings environment2
-      (Rays_editor.Settings.make mode_schema 2) in
-  let deadline = Unix.gettimeofday () +. 60. in
-  let rec wait_reprepare count environment =
-    let environment = Rays_editor.Editor2.update environment (frame count) in
-    if Atomic.get cooks2 > prior_cooks then environment
-    else if Unix.gettimeofday () < deadline then
-      (Unix.sleepf 0.001; wait_reprepare (count + 1) environment)
-    else fail "2D settings change did not force a new cook" in
-  let environment2 = wait_reprepare 11 environment2 in
-  check (Rays_editor.Editor2.selected_node environment2 = None)
-    "2D camera/render controls should own an unselected inspector";
-  check (Rays_editor.Editor2.scene environment2 (frame 10) <> [])
-    "2D sketch environment produced an empty composed scene";
-  check (Sketch_support.Timeline.time (Rays_editor.Editor2.timeline environment2)
-      > 0.) "shared 2D sketch lifecycle did not advance playback time";
-  let hidden_frame = frame ~events:[Event.KeyPressed Input.Space;
-      Event.KeyPressed (Input.KeyChar 'h')] 11 in
-  let environment2 = Rays_editor.Editor2.update environment2 hidden_frame in
-  let hidden_frame = frame 11 in
-  let environment2 = Rays_editor.Editor2.update environment2 hidden_frame in
-  check (Easy_camera2.control_area (Rays_editor.Editor2.camera environment2)
-      = Some (0, 0, hidden_frame.width, hidden_frame.height))
-    "hidden 2D sketch UI still reserved invisible workspace bounds";
-  let hidden_scene = Rays_editor.Editor2.scene environment2 hidden_frame in
-  check (Rays_editor.Editor2.scene environment2 (frame 12) == hidden_scene)
-    "unchanged hidden 2D scene composition was rebuilt";
-  Rays_editor.Editor2.close environment2;
   (* Every document is a workspace, so every document saves: the prompt owns the keyboard
      while it is open, Enter writes the workspace text, and Space b loads it back. *)
   let module Preset = Rays_editor.Private.Preset in

@@ -47,12 +47,12 @@ history labels; the rework extends them.  The workspace layout is described in
 (object ids, tile layout and lowering ids survive edits), so the list
 and inspector show the lowered top-level networks, and undo restores the source and the lowering together. A gesture is a
 `Flow_sop.Flow_edit.op`: `Pxui_graph.Syntax_edit` in a frame or
-`Editor3/2.edit` from a host reduce through `Doc.syntax_edit` (rewrite,
+`Editor3.edit` from a host reduce through `Doc.syntax_edit` (rewrite,
 re-check, lower; atomic), one history entry named by `Flow_edit.label`, with
 `Flow_edit.gesture` as the `Gesture` merge key of a scrub. After each lowering
 `Cook.set_volatile` gets `Lower.is_volatile`, so time-driven workspaces
 recook each frame and static nodes stay cached. Open one with `?workspace`
-(`Editor3`/`Editor2` `create` and `run`; without `?factories` the whole SOP
+(`Editor3` `create` and `run`; without `?factories` the whole SOP
 catalog). Presets save and load only workspace documents (s-expression
 `.rays`: source, layout, settings, view). Every document is a workspace
 (`?graph` was deleted); sketches open text through `Workspace.load`/`Workspace.open_text`,
@@ -121,7 +121,7 @@ supported; source/history are unchanged when an edit is refused.
   Never match strings in the text for these: the lexer and the span map are the only readers.
 - Each viewport keeps its own orbit (`Environment.follow_focus`, `viewport_camera`); a camera following the viewport
   is written by the focused one only.  A click picks in the focused viewport's scene instance, selects a collapsed
-  loop instead of a node inside it, and 2D editors pick the same way (a ray down onto the plane).
+  loop instead of a node inside it.
 - A viewport over another scene instance renders as its instance (`Core.view_root_opt` for the root, `Core.world ~view`
   and `Document.view_worlds` for the World; `Document.view_roots` for its render settings and its
   `:camera`); `Viewport3.film`, `view_camera` and `render` take the viewport's key and read that
@@ -136,7 +136,7 @@ supported; source/history are unchanged when an edit is refused.
   (`Cook.same_pieces`), so nothing recomposes and no tracer restarts. Every editor a test
   creates is closed (`E3.close`): each one holds worker domains and the runtime allows 128, so a leak shows as
   "failed to allocate domain" in whichever test runs last.
-- Tests never wait on the clock for a cook: `Editor3/2.create ~await:true` blocks each frame on the cook it
+- Tests never wait on the clock for a cook: `Editor3.create ~await:true` blocks each frame on the cook it
   submits; bounded frame counts replace deadlines; deadlines left are failure bounds only.
 
 ## Follow and back
@@ -168,8 +168,7 @@ same document (or use `Node.apply_parameters` for a standalone node).
 
 ## Workspace UX
 
-Prefer `Rays_editor.Editor3` for 3D SOP scenes and
-`Rays_editor.Editor2` for 2D SOP scenes. Both own leader-key (`Space`)
+`Rays_editor.Editor3` is the one editor (there is no 2D host). It owns leader-key (`Space`)
 playback, timeline, visibility, and preset bindings (one leader keymap table),
 selected-node inspection, reactive cooking, camera/render
 controls, resize handling, status, export, and finite native termination;
@@ -280,7 +279,7 @@ marquee. `sketches/flow_workspace` scripts them with `FLOW_SCRIPT`.
 (`Rdk.Surface_index`, built at the first click and kept with the `Cook.piece`)
 and tints by a per-corner `Cd`. A click (press and release within 4 points among
 the events the UI did not consume) reaches `Core.pick` through
-`VIEWPORT.pick_ray`; the highlight is `Core.lit_tags` (selection and probes)
+`Viewport3.pick_ray`; the highlight is `Core.lit_tags` (selection and probes)
 handed to `Cook.update ?lit`, which prepares a piece again from its kept
 `output`. Never recook or lower for a highlight.
 

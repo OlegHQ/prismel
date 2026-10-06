@@ -161,31 +161,26 @@ let run () =
     ~create:(fun commands -> E3.create ~workspace ~commands ~settings:(Settings.make schema 0)
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) ())
     ~update:E3.update ~close:E3.close ~settings:E3.settings ~set_settings:E3.set_settings;
-  let module E2 = Rays_editor.Editor2 in
-  exercise ~name:"Editor2"
-    ~create:(fun commands -> E2.create ~workspace ~commands ~settings:(Settings.make schema 0)
-      ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ())
-    ~update:E2.update ~close:E2.close ~settings:E2.settings ~set_settings:E2.set_settings;
   let directory = Filename.temp_dir "rays-guide" "" in
   let filename = Filename.concat directory "preferences.rays" in
   let previous = Sys.getenv_opt "RAYS_EDITOR_PREFERENCES" in
   Unix.putenv "RAYS_EDITOR_PREFERENCES" filename;
-  let create () = E2.create ~workspace ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) ()
+  let create () = E3.create ~workspace ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) ()
     |> Result.get_ok in
   let current = ref (create ()) in
   Fun.protect ~finally:(fun () ->
-    E2.close !current;
+    E3.close !current;
     Unix.putenv "RAYS_EDITOR_PREFERENCES" (Option.value ~default:"" previous);
     Array.iter (fun file -> Sys.remove (Filename.concat directory file)) (Sys.readdir directory);
     Unix.rmdir directory) (fun () ->
-    let step events count = current := E2.update !current
+    let step events count = current := E3.update !current
       (Test_editor_input.frame (100.,300.) events count) in
     let enabled () = Editor_core.Store.Settings.load ~sketch:"rays-editor" filename
       |> Result.get_ok |> fun values -> Editor_core.Store.Settings.bool values "guide" in
     step [] 0; step [char '?'] 1;
     check (enabled () = Some false) "guide did not default on and persist off";
-    check (not (E2.can_undo !current)) "guide preference entered document history";
-    E2.close !current; current := create (); step [] 2; step [char '?'] 3;
+    check (not (E3.can_undo !current)) "guide preference entered document history";
+    E3.close !current; current := create (); step [] 2; step [char '?'] 3;
     check (enabled () = Some true) "a new host did not load the saved guide preference";
     (* A sheet owns input until shared modal dismissal, then shortcuts resume. *)
     step [key Input.Space; char '?'] 4; step [char '?'] 5;
@@ -208,7 +203,7 @@ let run () =
     step [char '?'] 10;
     check (In_channel.with_open_bin filename In_channel.input_all = contents)
       "guide toggle overwrote an unreadable preference file";
-    E2.crash_dump !current directory;
+    E3.crash_dump !current directory;
     let dump () = In_channel.with_open_bin (Filename.concat directory "editor.txt")
       In_channel.input_all in
     let contains text piece = let n = String.length piece in
@@ -217,9 +212,9 @@ let run () =
     check (contains (dump ()) "key hud: ? · toggle guide\n")
       "key HUD did not use the routed command label";
     step [key Input.Ctrl; char 'z'; Event.KeyReleased Input.Ctrl] 13;
-    E2.crash_dump !current directory;
+    E3.crash_dump !current directory;
     check (contains (dump ()) "key hud: ⌃Z · undo\n")
       "key HUD displayed a different alias from the routed chord";
-    step [] 200; E2.crash_dump !current directory;
+    step [] 200; E3.crash_dump !current directory;
     check (contains (dump ()) "key hud: -\n") "key HUD outlived 1.5 seconds");
-  print_endline "editor commands: both hosts reject ambiguity and share alias/scoped keyboard/palette actions"
+  print_endline "editor commands: the host rejects ambiguity and share alias/scoped keyboard/palette actions"

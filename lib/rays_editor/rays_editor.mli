@@ -1,10 +1,8 @@
-(** Reusable graph-driven procedural sketch environments.
+(** The reusable graph-driven procedural sketch environment.
 
-    Both environments share a responsive view/graph/inspector workspace,
-    persistent graph navigation, generated node inspection, bounded
-    asynchronous cooking, status UI, and finite native execution. Their thin
-    adapters own only the dimensional camera, viewport composition, and
-    still-image renderer. Overlay callbacks receive a frame and coordinates
+    A responsive view/graph/inspector workspace, persistent graph navigation,
+    generated node inspection, bounded asynchronous cooking, status UI, and
+    finite native execution. Overlay callbacks receive a frame and coordinates
     local to the current view pane. *)
 
 (** The v4 document a sketch can open the editor on: a checked workspace, its
@@ -65,7 +63,7 @@ type layout = Pxui_shell.Layout.t
 val default_layout : layout
 
 (** Editor internals exposed for tests and diagnostics.
-    Layout and chrome live in [Pxui_shell]; sketches use [Editor3]/[2]. *)
+    Layout and chrome live in [Pxui_shell]; sketches use [Editor3]. *)
 module Private : sig
   (** Unstable test and diagnostic hooks. These are outside the supported
       sketch API and may change without compatibility shims. *)
@@ -596,130 +594,6 @@ module Editor3 : sig
     ?source:Source.t ->
     prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
     scene3:(Procedural.Graph.t -> 'prepared -> Rays.Scene3.t) ->
-    ?overlay:(Procedural.Graph.t -> 'prepared option -> Rays.Frame.t ->
-      Rays.Scene.t) ->
-    ?status:('prepared option -> string option) ->
-    unit ->
-    unit
-end
-
-module Editor2 : sig
-  type 'prepared t
-  type nonrec layout = layout
-  val default_layout : layout
-
-  val create :
-    ?layout:layout ->
-    ?name:string ->
-    ?presets:string ->
-    ?timeline_frames:int ->
-    ?factories:Procedural.Edit_graph.factory list ->
-    ?settings:Settings.t ->
-    ?commands:(Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
-    ?lights:Rays.Light.t list ->
-    ?world:Rays.World.t ->
-    ?camera:Rays.Easy_camera2.t ->
-    ?background:Rays.Color.t ->
-    ?seed:int64 ->
-    ?grain:int ->
-    ?domains:int ->
-    ?max_entries:int ->
-    ?max_payload_bytes:int ->
-    ?await:bool ->
-    ?carry_budget:float ->
-    workspace:Workspace_doc.t ->
-    prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
-    scene2:(Procedural.Graph.t -> 'prepared -> Rays.Scene.t) ->
-    ?overlay:(Procedural.Graph.t -> 'prepared option -> Rays.Frame.t ->
-      Rays.Scene.t) ->
-    ?status:('prepared option -> string option) ->
-    unit ->
-    ('prepared t, string) result
-  (** [factories] is the SOP catalog (default [Sop_catalog.Editor.factories]);
-      passing a non-empty list replaces it (prepend custom SOPs to
-      [Sop_catalog.Editor.factories] to extend).
-      [prepare] runs on the cook worker domain with submission settings.
-      It must only do pure CPU work on immutable/disjointly owned data;
-      SDL, Metal, textures, fonts, audio, UI and runtime caches stay on the
-      initial domain. [scene2] and [overlay] run on the initial domain. *)
-
-  val update : 'prepared t -> Rays.Frame.t -> 'prepared t
-  val update_with :
-    'prepared t -> Rays.Frame.t -> inspector:(Pxui.Ui.t -> 'a) ->
-    'prepared t * 'a option
-  (** [update], also building sketch-owned widgets in the unselected inspector.
-      The result is [None] when that panel is not built. *)
-
-  (* Call from [Sketch.run_state ~after_present] when driving the environment
-      manually so PNG requests save the completed frame. *)
-  val after_present : 'prepared t -> Rays.Frame.t -> 'prepared t
-  val settings : 'prepared t -> Settings.t
-  val set_settings : 'prepared t -> Settings.t -> 'prepared t
-  val can_undo : 'prepared t -> bool
-  val can_redo : 'prepared t -> bool
-  val undo_label : 'prepared t -> string option
-  (** The label of the edit undo would revert ("Repeat", "Connect", ...). *)
-
-  val redo_label : 'prepared t -> string option
-
-  val workspace : 'prepared t -> Workspace_doc.t
-  (** The document the editor is open on: every document is a workspace. *)
-
-  val node_box : 'prepared t -> Flow.Workspace.path -> (int * int * int * int) option
-  (** The rectangle, in window points, of the node at a path in the graph pane as last laid out
-      (tests and tools that click on a node). *)
-
-  val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ('prepared t, string) result
-  (** One gesture on the workspace: rewrite the source, re-check, lower into
-      the scene's objects, recook, and record one history entry named by the
-      op. An error changes nothing. *)
-
-  val carrying : 'prepared t -> (string * string) option
-  (** The payload in flight (kind and value, [("material", "(ref cobalt)")]), picked up by a
-      press on a Navigator row or by [y]: every document change waits for the put, one history
-      entry named "Put"; while a target is hot the panels show the edit on a scratch document,
-      and Escape, a release over nothing or a focus loss restores the one that was there. *)
-
-  val carry_line : 'prepared t -> string option
-  (** What the status strip says about the carry: the target letters, the preview's words, or
-      the checker's reason for a refusal. *)
-
-  val scene : 'prepared t -> Rays.Frame.t -> Rays.Scene.t
-  val close : 'prepared t -> unit
-  val crash_dump : 'prepared t -> string -> unit
-  (** Write the document (a preset) and editor state into a crash report
-      folder; pass it as [Sketch.run_state ~crash_dump] when driving the
-      editor from your own [run_state]. [run] does this itself. *)
-  val graph : 'prepared t -> Procedural.Graph.t
-  val document : 'prepared t -> Procedural.Edit_graph.t
-  val selected_node : 'prepared t -> Procedural.Node.t option
-  val displayed_node : 'prepared t -> Procedural.Node.t
-  val prepared : 'prepared t -> 'prepared option
-  val camera : 'prepared t -> Rays.Easy_camera2.t
-  val timeline : 'prepared t -> Sketch_support.Timeline.t
-  val panes : 'prepared t -> Rays.Frame.t -> Pxui_shell.Layout.panes
-
-  val run :
-    ?layout:layout ->
-    ?name:string ->
-    ?presets:string ->
-    ?timeline_frames:int ->
-    ?factories:Procedural.Edit_graph.factory list ->
-    ?settings:Settings.t ->
-    ?commands:(Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list ->
-    ?lights:Rays.Light.t list ->
-    ?world:Rays.World.t ->
-    ?camera:Rays.Easy_camera2.t ->
-    ?background:Rays.Color.t ->
-    ?seed:int64 ->
-    ?grain:int ->
-    ?domains:int ->
-    ?max_entries:int ->
-    ?max_payload_bytes:int ->
-    config:Rays.Sketch.config ->
-    workspace:Workspace_doc.t ->
-    prepare:(Settings.t -> Procedural.Session.output -> ('prepared, string) result) ->
-    scene2:(Procedural.Graph.t -> 'prepared -> Rays.Scene.t) ->
     ?overlay:(Procedural.Graph.t -> 'prepared option -> Rays.Frame.t ->
       Rays.Scene.t) ->
     ?status:('prepared option -> string option) ->
