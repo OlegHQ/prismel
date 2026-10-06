@@ -507,7 +507,7 @@ let value_card (n : node) =
       | [ { key = E.Whole; chip = Const; _ } ] -> true
       | _ -> false)
 
-type line = Folder of int * string | Row of int * row | More of int
+type line = Folder of int * string | Row of int * row
 
 let driven (r : row) = match r.chip with
   | Name _ | Inline _ -> true
@@ -545,9 +545,9 @@ let lines ?(pin = fun _ -> None) level (n : node) : line array =
   | Card ->
       let has_head = List.exists (fun (r : row) -> r.head) n.rows in
       (* a call with no header slot (a [list], a record) keeps its [+] row on the card *)
-      let shown, hidden = List.partition (fun (_, (r : row)) ->
+      (* a card shows its wired and written rows; [o] and [p] reveal the rest *)
+      let shown = List.filter (fun (_, (r : row)) ->
         (r.kind = Add && not has_head) || row_shown ?pin:(pin r.label) r) body in
-      ignore hidden;  (* a card shows its wired and written rows; [o] and [p] reveal the rest *)
       Array.of_list (List.map (fun (i, r) -> Row (i, r)) shown)
 
 (* the count the chip shows: rows with something written *)
@@ -748,12 +748,3 @@ and layout ?(foot = false) ?(at = fun _ -> None) ?(collapsed = fun _ -> false) ?
   done;
   let margin = if inner then 0. else lattice in
   { placed = List.rev !placed; w = !w +. margin; h = !h +. margin }
-
-let place (l : layout) =
-  let rec go ox oy (l : layout) = List.concat_map (fun (p : placed) ->
-    let ax = ox +. p.x and ay = oy +. p.y in
-    (p.path, (ax, ay, p.w, p.h))
-    :: (match p.inner, p.item with
-        | Some inner, Item n -> go (ax +. zone_pad_x) (ay +. rail_top n) inner
-        | _ -> [])) l.placed in
-  go 0. 0. l

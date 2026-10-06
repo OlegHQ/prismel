@@ -153,7 +153,7 @@ val zones : scope -> node list
 
 type level = Point | Chip | Card | Full
 (** Point: a 14-point disc and the name; Chip: the header with a [+N] count; Card: the rows the
-    exposure rule shows, then [+ N more]; Full: every row under its folder labels. *)
+    exposure rule shows; Full: every row under its folder labels. *)
 
 val level_name : level -> string
 val level_of_name : string -> level option
@@ -164,7 +164,6 @@ val value_card : node -> bool
 type line =
   | Folder of int * string  (** the n-th folder label row of a [Full] card *)
   | Row of int * row  (** [n.rows.(i)] *)
-  | More of int  (** the [+ N more] row: how many rows the card hides *)
 
 val row_shown : ?pin:bool -> row -> bool
 (** Is the row on its node's card ({!Exposure.shown}): written, driven, primary, or pinned
@@ -178,7 +177,6 @@ val set_count : node -> int
 (** What the chip's [+N] says: the rows with something written. *)
 
 val point_title : node -> string
-val point_width : node -> float
 
 (** {2 Layout}  logical points on the 24-point dot lattice *)
 
@@ -220,10 +218,6 @@ val lens_height : lens -> step:int -> float
 (** The expansion panel under a macro call: a row of step buttons, the printed step
     (at most 16 lines of 20 points) and the button row. *)
 
-val place : layout -> (path * (float * float * float * float)) list
-(** Absolute [(x, y, w, h)] of every placed item, zones' children included,
-    outer first. *)
-
 val rail_top : node -> float
 (** Where a zone's cards start below its top: the label row and 28 points of air, plus a row
     for each rail row beyond the label ({!extra_rails}). *)
@@ -240,8 +234,6 @@ val lattice : float
 
 val snap : float -> float
 val zone_pad_x : float
-val zone_pad_top : float
-val zone_pad_bottom : float
 val point_size : float
 
 val row_height : float

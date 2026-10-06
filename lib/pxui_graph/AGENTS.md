@@ -158,11 +158,10 @@ The pane's structure is `graph.html`'s, not only its card internals:
 
 - **Levels.** `Projection.level` Point / Chip / Card / Full is layout data stored by path (`Layout_by_path.level`,
   `pinned`) and travels as `Level_set` through `Doc.layout_edit`, one history entry per gesture. `o` opens the
-  selection one level and pins it, `p` points it or goes back, `⇧O` / `⇧P` do it for every node; a click on
-  `+ N more` opens the card. The layout reserves the requested level's size and the pane draws that level at every zoom. A card's body is `P.placed.lines` (`Projection.lines`): the rows
+  selection one level and pins it, `p` points it or goes back, `⇧O` / `⇧P` do it for every node. The layout reserves the requested level's size and the pane draws that level at every zoom. A card's body is `P.placed.lines` (`Projection.lines`): the rows
   `Flow_sop.Exposure.shown` lets through (wired or written, a written default included, so a row whose wire is taken off stays: `fallback` writes the
   schema default; the schema's primary rows are not applied on the card, see
-  flow.md 5.1), then `+ N more`; Full lists every row under its folder label rows. Index rows through `lines`
+  flow.md 5.1); Full lists every row under its folder label rows. Index rows through `lines`
   (`line_of_row`), never through `n.rows`.
 - **Header in-port.** The first geometry slot of a node kind (`row.head`) is the header's in-port at (1, 13), not a row;
   connecting, disconnecting, hover and the drop target work on it (`row_at ~header`).
@@ -180,3 +179,27 @@ The pane's structure is `graph.html`'s, not only its card internals:
 - **Fold button.** A row wired from one named node that nothing else reads (`fold_sources`, computed in
   `with_scope`) draws `ƒ` before its `←`; a click is `Syntax_edit (Fold_into ...)`, the inverse of the click on an
   expression row's `ƒ` (`Unfold`). `wired_geo` places the glyph for the painter and the hit box alike. 1-point frames are drawn inside the box (`frame_in`), never as a centred stroke.
+
+## What a frame costs (audit G22, G25)
+
+A frame's work follows what is in view, never the size of the graph. `compute` builds, with the geometry, the
+bucket indices over the tiles and over the wires' bounds (`geo.tiles`, `geo.reach`, asked through `index_query`),
+the item of a path (`geo.slot`, `item_at`), the wired out-ports (`geo.read`) and the wires that end inside each
+zone (`geo.inside`); `update` asks them and never walks `geo.items` or `geo.wires`. A wire segment is cut to the
+viewport (`clip_segment`, the pane's one Liang-Barsky clip, which routing's `crosses` shares) before it is made
+into 16-point hit boxes; the wires of a zone's body get their boxes again right after the zone's tile, cut to
+it, so they lie over the tile and under the cards. Gestures that take every node (`⇧P`, a drag of the whole
+selection, the letter hints) look paths up in tables or sets, never in lists. `scope_idle_frame` in
+`test/test_pxui_graph.ml` bounds the allocation of an idle frame with nothing in view on 2,001 nodes;
+`dune exec test/test_main.exe -- bench_scope_big` prints the frame, the 16 x 16 pane, `Point_all` and one
+`Set_arg` edit.
+
+## Rows and items (audit G5, G12, G14, G15)
+
+A port's colour is `Node_menu.port_color`, for the menu's squares and the pane's ports, type squares and wires.
+`+ field` names the field with the first unused `fN`; `+ output` opens a name field over its row (`Output` in
+the editing state) and commits `Add_field`; a `+` row whose type has no literal (geometry, a list, a function,
+a scene) answers with the "wire a node" notice. An item of a variadic input has no fallback: taking its wire off
+removes the item, and Delete over a hovered item removes it whatever it holds. A right-click on a node makes
+the nodes the selection (`Selected`, and the selected wire is dropped). `with_scope` ends the letter hints and
+the context menu when the scope it is given is a new one.

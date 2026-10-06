@@ -64,6 +64,10 @@ let run_menu () =
     [ entry "box" "Box"; entry ~arity:1 "null" "Null" ] in
   check (Node_menu.Private.keys fitting ~query:"" = [ "null"; "box" ])
     "the menu did not list what fits after the node first";
+  (* one colour per type, for the menu's squares and the pane's ports: a list is its elements' *)
+  check (Node_menu.port_color Pxui.default_theme (Flow.Ty.List Flow.Ty.Float) = (Pxui.Theme.ports Pxui.default_theme).float
+         && Node_menu.port_color Pxui.default_theme Flow.Ty.Scene = (Pxui.Theme.ports Pxui.default_theme).output)
+    "a list or a scene is not coloured as the graph pane colours it";
   (* the visual row window never makes later nodes inaccessible *)
   let many = List.init 15 (fun index -> entry (Printf.sprintf "node_%02d" index) (Printf.sprintf "Node %02d" index)) in
   let menu = match menu_step (opened many) (frame ~mouse:(400, 250) ~events:[ Event.TextInput "node" ] ()) with
@@ -804,11 +808,11 @@ let run_scope () =
   check (Scope.selected view0 = [ heart ]) "heart is selected";
   (* some wire of the graph (not under a card) is hit at its longest segment's middle *)
   let view = List.fold_left (fun found i ->
-    if Scope.selected_wire found <> None || Scope.Private.wire_target view0 i = None then found else
+    if Scope.Private.selected_wire found <> None || Scope.Private.wire_target view0 i = None then found else
     let wpt = Option.get (Scope.Private.wire_midpoint view0 i) in
     fst (scope_click view0 (int_of_float (fst wpt), int_of_float (snd wpt))))
     view0 (List.init (Scope.Private.wire_count view0) Fun.id) in
-  check (Scope.selected_wire view <> None) "clicking wire selected it";
+  check (Scope.Private.selected_wire view <> None) "clicking wire selected it";
   check (Scope.selected view = []) "clicking wire cleared node selection";
   let _, changes = Scope.run_command view Scope.Delete in
   check (match changes with [ Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect _) ] -> true | _ -> false)
@@ -839,8 +843,6 @@ let run_scope () =
   check (match snd (Scope.run_command picked Scope.Delete) with
     | Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect { node; _ }) :: _ -> node = inner | _ -> false)
     "a wire inside a loop is not selected by a click";
-  let straight_view = Scope.with_wires `Straight view in
-  check (Scope.wires straight_view = `Straight) "wires style is straight";
   (* keys and menu: every key command maps to a request *)
   let some name = check (List.exists (fun (c : (_, Scope.command) Editor_core.Command.t) -> c.id = "scope." ^ name)
     Scope.bindings) ("no key for " ^ name) in
@@ -858,23 +860,23 @@ let run_scope () =
   check (Array.length lens.steps >= 2 && lens.error = None
          && String.starts_with ~prefix:"(radial" lens.steps.(0)
          && String.starts_with ~prefix:"(sop/merge" lens.steps.(1)) "the lens steps are the call, then its expansions";
-  check (Scope.macro_step view outer = None) "the lens starts closed";
+  check (Scope.Private.macro_step view outer = None) "the lens starts closed";
   let toggle = Scope.Private.lens_toggle view outer |> Option.get in
   let view, _ = scope_click view (int_of_float (fst toggle), int_of_float (snd toggle)) in
-  check (Scope.macro_step view outer = Some (Array.length lens.steps - 1)) "the toggle opens the last step";
+  check (Scope.Private.macro_step view outer = Some (Array.length lens.steps - 1)) "the toggle opens the last step";
   let view, _ = scope_step view (frame ()) in
   let button i = let x, y = Option.get (Scope.Private.lens_step_button view outer i) in int_of_float x, int_of_float y in
   let view, changes = scope_click view (button 0) in
-  check (Scope.macro_step view outer = Some 0 && changes = []) "the call button shows the call, no edit";
+  check (Scope.Private.macro_step view outer = Some 0 && changes = []) "the call button shows the call, no edit";
   let view, _ = scope_step view (frame ()) in
   let view, _ = scope_click view (button 1) in
-  check (Scope.macro_step view outer = Some 1) "a step button chooses the step";
+  check (Scope.Private.macro_step view outer = Some 1) "a step button chooses the step";
   let view, _ = scope_step view (frame ()) in
   (* the Template button shows the macro's definition, one step past the expansions *)
   check (List.exists (String.starts_with ~prefix:"(defmacro radial") (String.split_on_char '\n' lens.template))
     "the lens carries the macro's template";
   let view, changes = scope_click view (button (Array.length lens.steps)) in
-  check (Scope.macro_step view outer = Some (Array.length lens.steps) && changes = []) "the Template button shows the definition, no edit";
+  check (Scope.Private.macro_step view outer = Some (Array.length lens.steps) && changes = []) "the Template button shows the definition, no edit";
   let view, _ = scope_step view (frame ()) in
   let view, _ = scope_click view (button 1) in
   let view, _ = scope_step view (frame ()) in
@@ -888,7 +890,7 @@ let run_scope () =
     "the replace button did not become Inline_macro";
   let tx, ty = Option.get (Scope.Private.lens_toggle view outer) in
   let view, _ = scope_click view (int_of_float tx, int_of_float ty) in
-  check (Scope.macro_step view outer = None) "the toggle closes the panel";
+  check (Scope.Private.macro_step view outer = None) "the toggle closes the panel";
   (* bypass is the b key (and the context menu): the same request, and a card with nothing to pass
      through has none *)
   let _, changes = Scope.run_command (Scope.select [ soft ] view) Scope.Bypass in

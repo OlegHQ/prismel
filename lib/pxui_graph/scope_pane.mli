@@ -20,7 +20,7 @@ type change =
   | Moved of (path * float * float) list
       (** dragged items, at their new position inside their scope *)
   | Level_set of (path * Flow_sop.Projection.level option * bool) list
-      (** [o], [p] and their [⇧] forms, or a click on [+ N more]: these nodes' new level ([None]:
+      (** [o], [p] and their [⇧] forms: these nodes' new level ([None]:
           back to the default, a card) and whether it is pinned.
           The host stores it by path ([Layout_by_path.level] / [pinned]), one history entry. *)
   | Copy_requested of path list
@@ -83,7 +83,6 @@ type stats = {
 
 val create : ?x:int -> ?y:int -> ?width:int -> ?height:int -> ?theme:Pxui.theme -> unit -> t
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
-val with_visible : bool -> t -> t
 val with_guide : bool -> t -> t
 
 val with_theme : Pxui.theme -> t -> t
@@ -119,27 +118,18 @@ val with_records : Flow_sop.Probe.t -> t -> t
     when the evaluation, the cooked geometry counts or the time (a live
     document) changed; a change of probe or scope is [with_scope]. *)
 
-val macro_step : t -> path -> int option
-(** The step shown by the open expansion panel of a macro call ([0] is the call as
-    written); [None] while the panel is closed.  The panel is opened by the toggle at the
-    right of the card's title and its step buttons choose the step (view state); its
-    "Replace call with expansion" button is [Syntax_edit (Inline_macro ...)]. *)
-
 val editing : t -> bool
 (** A text field (a name, an input default, a frame title) is open, or letter hints are up: the
     host keeps its keys out. *)
 
 val selected : t -> path list
-val selected_wire : t -> (path * Flow_sop.Flow_edit.arg_key) option
 val select : path list -> t -> t
 val clear_selection : t -> t
 val stats : t -> stats
 val zoom : t -> float
-val wires : t -> [ `Rect | `Straight ]
+val with_wires : [ `Rect | `Straight ] -> t -> t
 (** [`Straight] (the default, the sheet's wires): one segment port to port, bent clear of any
     card it would cross; [`Rect] is the old orthogonal routing, for [:wires "rect"]. *)
-
-val with_wires : [ `Rect | `Straight ] -> t -> t
 
 val scope_point : t -> scope:path -> float * float -> (float * float) option
 (** A screen point as a position inside [scope] (a scope path of the shown graph), snapped to the
@@ -158,6 +148,11 @@ val update : t -> Pxui.Ui.t -> Rays.Frame.t -> t * change list
     built: a zone draws its body once, whatever its iteration count. *)
 
 module Private : sig
+  val macro_step : t -> path -> int option
+  (* the step shown by the open expansion panel of a macro call ([0] is the call as written, one
+     past the expansions the template); [None] while the panel is closed.  View state: the toggle
+     at the right of the card's title opens it and its step buttons choose the step *)
+  val selected_wire : t -> (path * Flow_sop.Flow_edit.arg_key) option
   val highlighted_connections : t -> ((float * float) * (float * float)) list
   val box_of : t -> path -> (float * float * float * float) option
   (* previous button, track, next button, in screen points *)

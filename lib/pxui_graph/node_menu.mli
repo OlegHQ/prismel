@@ -26,6 +26,10 @@ val create : ?after:string -> x:int -> y:int -> entry list -> t
     the new one goes after, which the title says.  Entries with an
     empty key, label or category path, or a repeated key, are dropped. *)
 
+val port_color : Pxui.theme -> Flow.Ty.t -> Rays.Color.t
+(** The colour of a type's port: the square of a kind in the menu, and the ports, type squares and
+    wires of the graph pane (a list is its elements' colour). *)
+
 val position : t -> int * int
 (** The screen point the menu was opened at (where the host places what it adds). *)
 

@@ -3621,7 +3621,6 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         |> Pxui_graph.Scope.with_theme (let theme = Pxui.Ui.theme ui in
              match graph_host with Some { floating = true; _ } -> sheet_theme theme | _ -> theme)
         |> Pxui_graph.Scope.with_bounds ~x:gx ~y:gy ~width:(max 1 gw) ~height:(max 1 gh)
-        |> Pxui_graph.Scope.with_visible true
         |> Pxui_graph.Scope.with_carry ~lit:carry_lit ~hot:carry_hot
         |> fun view -> Pxui_graph.Scope.update view ui shortcut_frame) in
     (* a right-click on the pane's empty canvas opens the add menu there *)
@@ -3694,7 +3693,6 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 |> Pxui_graph.Scope.with_theme (let theme = Pxui.Ui.theme ui in
                      if leaf.floating then sheet_theme theme else theme)
                 |> Pxui_graph.Scope.with_bounds ~x ~y ~width:(max 1 width) ~height:(max 1 height)
-                |> Pxui_graph.Scope.with_visible true
                 |> fun view -> fst (Pxui_graph.Scope.update view ui shortcut_frame))
             else pane.scope_view in  (* its list or text view is drawn with the lists and text panes *)
           Some (key, { (stash pane) with view })

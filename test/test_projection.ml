@@ -175,6 +175,16 @@ let flags () =
 
 (* ---- layout ---- *)
 
+(* absolute (x, y, w, h) of every placed item, zones' children included, outer first *)
+let place (l : P.layout) =
+  let rec go ox oy (l : P.layout) = List.concat_map (fun (p : P.placed) ->
+    let ax = ox +. p.x and ay = oy +. p.y in
+    (p.path, (ax, ay, p.w, p.h))
+    :: (match p.inner, p.item with
+        | Some inner, P.Item n -> go (ax +. P.zone_pad_x) (ay +. P.rail_top n) inner
+        | _ -> [])) l.placed in
+  go 0. 0. l
+
 let overlaps (ax, ay, aw, ah) (bx, by, bw, bh) = ax < bx +. bw && bx < ax +. aw && ay < by +. bh && by < ay +. ah
 let inside (px, py, pw, ph) (x, y, w, h) = x >= px && y >= py && x +. w <= px +. pw && y +. h <= py +. ph
 
@@ -200,7 +210,7 @@ let layout () =
       check_layout (name ^ "/" ^ g.name) l;
       check (P.layout s = l) (name ^ "/" ^ g.name ^ ": layout is deterministic");
       (* absolute boxes: every zone child lies inside its zone *)
-      let abs = P.place l in
+      let abs = place l in
       List.iter (fun (z : P.node) ->
         let zb = List.assoc z.path abs in
         let zn = zone z in
@@ -213,7 +223,7 @@ let layout () =
   let l = P.layout s in
   let head = [ "sunflower"; "head" ] in
   (* inputs come first, the return last, and a node sits right of what it reads *)
-  let x path = let (x, _, _, _) = List.assoc path (P.place l) in x in
+  let x path = let (x, _, _, _) = List.assoc path (place l) in x in
   check (x [ "sunflower"; ":seeds" ] < x [ "sunflower"; "seeds_each" ]
          && x [ "sunflower"; "seeds_each" ] < x head)
     "columns follow the dependencies";
@@ -221,13 +231,13 @@ let layout () =
   check (not (List.exists (fun (q : P.placed) -> q.item = P.Return) l.placed)) "no return card for a linked result";
   (* a position override moves one node; a collapsed zone is a card *)
   let moved = P.layout ~at:(fun p -> if p = head then Some (500., 300.) else None) s in
-  let (hx, hy, _, _) = List.assoc head (P.place moved) in
+  let (hx, hy, _, _) = List.assoc head (place moved) in
   check (hx = 500. && hy = 300.) "at overrides the position";
   let z = [ "sunflower"; "seeds_each" ] in
-  let (_, _, _, open_h) = List.assoc z (P.place l) in
+  let (_, _, _, open_h) = List.assoc z (place l) in
   let collapsed = P.layout ~collapsed:(fun p -> p = z) s in
-  let (_, _, cw, ch) = List.assoc z (P.place collapsed) in
-  check (cw = P.node_width && ch < open_h && List.length (P.place collapsed) < List.length (P.place l))
+  let (_, _, cw, ch) = List.assoc z (place collapsed) in
+  check (cw = P.node_width && ch < open_h && List.length (place collapsed) < List.length (place l))
     "a collapsed zone is a card without its children";
   (* the study's card geometry, on the 24-point grid *)
   let p = List.find (fun (p : P.placed) -> p.path = head) l.placed in
