@@ -29,8 +29,6 @@ and term_node =
   | Nil
   | Vector of term list
   | Reference of string * string  (** binding, output *)
-  | Call of call
-and call = { kind : string; arguments : (string * term) list; bypass : bool }
 
 val catalog_of_manifest : string -> (catalog * string, Diagnostic.t) result
 (** Read the generated catalog snapshot for compile-time checking, returning

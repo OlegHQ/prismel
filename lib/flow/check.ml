@@ -14,11 +14,7 @@ type catalog = { version : int; kinds : kind list }
 type term = { node : term_node; ty : Port_type.t option }
 and term_node =
   | Literal of Param.value | Nil | Vector of term list
-  | Reference of string * string | Call of call
-and call = { kind : string; arguments : (string * term) list; bypass : bool }
-
-type checked = { term : term }
-type state = { catalog : catalog }
+  | Reference of string * string
 
 let symbol form = match form.Syntax.node with Syntax.Sym name -> Some name | _ -> None
 let list form = match form.Syntax.node with Syntax.List items -> Some items | _ -> None
@@ -211,14 +207,12 @@ let catalog_of_manifest source =
       | _ -> Error (Diagnostic.error ~code:"E_CATALOG"
           "Flow manifest needs one top-level form")
       with Invalid_manifest diagnostic -> Error diagnostic
-let kinds state = state.catalog.kinds
-let known_prefix state name = List.mem name ["sop"; "value"; "user"] ||
-  List.exists (fun kind -> String.starts_with ~prefix:(name ^ "/") kind.qualified)
-    (kinds state)
+let known_prefix catalog name = List.mem name ["sop"; "value"; "user"] ||
+  List.exists (fun kind -> String.starts_with ~prefix:(name ^ "/") kind.qualified) catalog.kinds
 let allowed context (kind : kind) =
   kind.context = Context.Value || kind.context = context
-let resolve_report state context report head =
-  let all = kinds state in
+let resolve_report catalog context report head =
+  let all = catalog.kinds in
   let matches name = List.filter (fun kind ->
     kind.qualified = name || List.mem name kind.aliases) all in
   let candidates = if String.contains head '/' then matches head else
@@ -239,7 +233,7 @@ let resolve_report state context report head =
       None
   | [] ->
       (match String.split_on_char '/' head with
-       | prefix :: _ :: _ when not (known_prefix state prefix) ->
+       | prefix :: _ :: _ when not (known_prefix catalog prefix) ->
            report "E_NAMESPACE"
              (Printf.sprintf "Unknown namespace %s. This file knows sop, value and user" prefix)
        | _ ->
@@ -250,8 +244,7 @@ let resolve_report state context report head =
 
 let resolve_kind catalog context head =
   let failure = ref None in
-  let state = {catalog} in
-  match resolve_report state context (fun code message -> failure := Some (code, message)) head with
+  match resolve_report catalog context (fun code message -> failure := Some (code, message)) head with
   | Some kind -> Ok kind
   | None -> Error (Option.value !failure ~default:("E_UNKNOWN_KIND", "Unknown node " ^ head))
 
@@ -260,7 +253,6 @@ let numeric_value = function
   | Float_value n -> Some n
   | Bool_value n -> Some (if n then 1. else 0.)
   | Text_value _ | Choice_value _ -> None
-let checked term = {term}
 
 let validate_range report (parameter : parameter) field value =
   match field, numeric_value value with
@@ -285,9 +277,9 @@ let validate_range report (parameter : parameter) field value =
             parameter.name number range.soft_min range.soft_max)
   | _ -> ()
 
-let validate_parameter report (parameter : parameter) (value : checked) =
-  let ty = value.term.ty in
-  let good = match parameter.ty, value.term.node with
+let validate_parameter report (parameter : parameter) (term : term) =
+  let ty = term.ty in
+  let good = match parameter.ty, term.node with
     | None, Literal (Param.Text_value _ | Param.Choice_value _) -> true
     | None, _ -> false
     | Some Port_type.Vec3, Vector components ->
@@ -302,7 +294,7 @@ let validate_parameter report (parameter : parameter) (value : checked) =
     (Printf.sprintf ":%s takes %s, but this is %s" parameter.name
       (Option.fold ~none:"text" ~some:Port_type.name parameter.ty)
       (Option.fold ~none:"nil or text" ~some:Port_type.name ty));
-  (match parameter.ty, value.term.node with
+  (match parameter.ty, term.node with
    | Some Port_type.Int, Literal (Param.Float_value number)
        when Float.floor number <> number ->
        report Diagnostic.Error "E_INT_LITERAL"
@@ -312,7 +304,7 @@ let validate_parameter report (parameter : parameter) (value : checked) =
        report Diagnostic.Error "E_HARD_RANGE"
          (Printf.sprintf ":%s is outside the integer range" parameter.name)
    | _ -> ());
-  (match parameter.fields, value.term.node with
+  (match parameter.fields, term.node with
    | [(_, Param.Choice_view options, _)],
        Literal (Param.Text_value label | Param.Choice_value label)
        when not (Array.exists (( = ) label) options) ->
@@ -320,7 +312,7 @@ let validate_parameter report (parameter : parameter) (value : checked) =
          (Printf.sprintf ":%s must be one of %s" parameter.name
            (String.concat ", " (Array.to_list options)))
    | _ -> ());
-  if good then (match value.term.node, parameter.fields with
+  if good then (match term.node, parameter.fields with
     | Literal literal, field :: _ -> validate_range report parameter field literal
     | Vector components, fields ->
         List.iter2 (fun component field -> match component.node with
@@ -329,6 +321,3 @@ let validate_parameter report (parameter : parameter) (value : checked) =
           (if List.length fields = 3 then fields else List.init 3 (fun _ ->
             "", Param.Text_view, Param.Text_value ""))
     | _ -> ())
-
-let validate_parameter report parameter term =
-  validate_parameter report parameter (checked term)

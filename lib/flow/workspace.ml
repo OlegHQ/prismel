@@ -3,10 +3,8 @@ module Smap = Map.Make (String)
 module Paths = Set.Make (struct type t = string list let compare = compare end)
 
 type path = string list
-type context = Sop | Value | Scene | World | Settings | Editor | Material
-let context_name = function
-  | Sop -> "sop" | Value -> "value" | Scene -> "scene" | World -> "world"
-  | Settings -> "settings" | Editor -> "editor" | Material -> "material"
+type context = Context.t = Sop | Value | Scene | World | Settings | Editor | Material
+let context_name = Context.name
 let context_of_name = function
   | "sop" -> Some Sop | "value" -> Some Value | "scene" -> Some Scene
   | "world" -> Some World | "settings" -> Some Settings | "editor" -> Some Editor
@@ -15,10 +13,6 @@ let context_of_name = function
 let context_ty = function
   | Sop -> Ty.Geometry | Value -> Ty.Float | Scene -> Ty.Scene | World -> Ty.World
   | Settings -> Ty.Settings | Editor -> Ty.Editor | Material -> Ty.Material
-(* Catalog kinds know every context but the editor, which only sees value kinds. *)
-let catalog_context = function
-  | Sop -> Context.Sop | Scene -> Context.Scene | World -> Context.World
-  | Settings -> Context.Settings | Material -> Context.Material | Value | Editor -> Context.Value
 
 type pattern = Name of string | Seq of pattern list | Keys of string list
 type term = { path : path option; ty : Ty.t; node : node; form : S.t }
@@ -314,7 +308,7 @@ let check catalog forms =
     match Hashtbl.find_opt kind_memo key with
     | Some r -> r
     | None ->
-        let r = Check.resolve_kind catalog (catalog_context ctx) head in
+        let r = Check.resolve_kind catalog ctx head in
         Hashtbl.add kind_memo key r; r in
   let resolve_head cx s = match Hashtbl.find_opt sigs s with
     | Some d -> `Def d

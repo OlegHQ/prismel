@@ -173,9 +173,6 @@ let macro_rows c (m : S.t) pos =
             |> fun rows -> rows @ [ add c ("+ " ^ r) (E.Pos npos) None ] in
       req_rows @ rest_rows
 
-let catalog_context : W.context -> Flow.Context.t = function
-  | Sop -> Sop | Scene -> Scene | World -> World | Settings -> Settings | Material -> Material | Value | Editor -> Value
-
 let kind_rows c (k : Flow.Check.kind) pos kws =
   let npos = List.length pos in
   let slot_ty = W.slot_ty k in
@@ -279,7 +276,7 @@ let call_rows c (e : S.t) h args =
                       | None -> [])
                    @ List.map (fun (n, ty) -> kwrow ~ty n) o.kw
                | None ->
-                   match Flow.Check.resolve_kind c.catalog (catalog_context c.ctx) h with
+                   match Flow.Check.resolve_kind c.catalog c.ctx h with
                    | Ok k -> kind_rows c k pos kws
                    | Error _ -> ignore e; List.mapi (fun i a -> row c (Printf.sprintf "arg%d" (i + 1)) (E.Pos i) (Some a)) pos)
 
