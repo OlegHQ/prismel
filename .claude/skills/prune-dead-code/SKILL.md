@@ -32,8 +32,14 @@ dune exec tools/codemod/codemod.exe -- prune lib/<name> [lib/<other> ...]
   lists them, `--apply` removes the field and its `field = e` in every
   literal (`--skip TYPE.FIELD` keeps one); then `prune` again. A record listed
   as `type.*` has every field unread: delete the type by hand.
+- `codemod.exe -- dead-optionals [--users-exclude S] DIR...` lists optional
+  parameters no application passes (report only; remove the parameter and its
+  plumbing by hand, outermost wrapper first).
+- `dead-exports` counts a unit passed to a functor or packed as a first-class
+  module as used whole.
 - Metal: after pruning `lib/metal`, run
-  `codemod.exe -- dead-stubs lib/metal/metal_bridge.mm lib tools test` and
+  `codemod.exe -- dead-stubs lib/metal/metal_bridge.mm lib tools test`
+  (`dead-stubs --report ...` only lists them) and
   `codemod.exe -- drop-c-unused lib/metal` (clang's unused-function errors as
   the oracle); unused registry entries are dropped during `prune`.
 

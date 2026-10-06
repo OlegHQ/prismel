@@ -4,7 +4,8 @@
      Reads every .cmt under _build/default, resolves each identifier
      occurrence to its defining uid through compiler shapes, and prints
      "file.mli<TAB>Path.name" for every value exported by a unit under DIR
-     that no other source file references.
+     that no other source file references. A unit passed to a functor or
+     packed as a first-class module counts as used whole.
    dead-fields [--apply] [--users-exclude SUBSTR]... [--skip TYPE.FIELD]... DIR...
      Prints "file.mli<TAB>type.field" for every field of a record exported
      by a unit under DIR that no implementation reads; --apply removes it
@@ -57,6 +58,30 @@ let dead_exports ?(modules = false) ~excludes dirs =
   (* "Module.name" -> files naming it, however it resolved: recursive modules
      resolve to their signature uid, so their values fall back to names *)
   let qualified : (string, string list) Hashtbl.t = Hashtbl.create 65536 in
+  (* units applied to a functor or packed as a first-class module: their
+     values are reached through the parameter's signature, which no
+     identifier names, so the whole unit counts as used *)
+  let through_signature : (string, unit) Hashtbl.t = Hashtbl.create 16 in
+  List.iter (fun (_, (i : Cmt_format.cmt_infos)) -> match i.cmt_annots with
+    | Implementation tree when not (excluded (source i)) ->
+        let rec named (m : Typedtree.module_expr) = match m.mod_desc with
+          | Tmod_ident (path, _) ->
+              let name = Path.last path in
+              (* [Lib__Unit] and [Unit] name the same unit *)
+              let unit_ = match List.rev (Str.split (Str.regexp_string "__") name) with
+                | u :: _ -> u | [] -> name in
+              Hashtbl.replace through_signature unit_ ()
+          | Tmod_constraint (m, _, _, _) -> named m
+          | _ -> () in
+        let it = { Tast_iterator.default_iterator with
+          module_expr = (fun self (m : Typedtree.module_expr) ->
+            (match m.mod_desc with Tmod_apply (_, arg, _) -> named arg | _ -> ());
+            Tast_iterator.default_iterator.module_expr self m);
+          expr = (fun self (e : Typedtree.expression) ->
+            (match e.exp_desc with Texp_pack m -> named m | _ -> ());
+            Tast_iterator.default_iterator.expr self e) } in
+        it.structure it tree
+    | _ -> ()) infos;
   List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
     let file = source i in
     if not (excluded file) then begin
@@ -98,7 +123,8 @@ let dead_exports ?(modules = false) ~excludes dirs =
     let ml = source i in
     let unit_name = String.capitalize_ascii (Filename.remove_extension (Filename.basename ml)) in
     let cmti = Filename.chop_suffix p ".cmt" ^ ".cmti" in
-    if under ml && Filename.check_suffix ml ".ml" && Sys.file_exists cmti then
+    if Hashtbl.mem through_signature unit_name then ()
+    else if under ml && Filename.check_suffix ml ".ml" && Sys.file_exists cmti then
       match i.cmt_impl_shape, (Cmt_format.read_cmt cmti).cmt_annots with
       | Some shape, Interface sg ->
           let mli = Filename.chop_suffix ml ".ml" ^ ".mli" in
@@ -296,7 +322,7 @@ let drop_lets path names =
 (* Every [extern "C" ... caml_*(...) { ... }] definition and one-line
    PREFIX_MACRO(caml_*, ...) instance in [mm] whose name no OCaml external in
    [roots] (or generated _build .ml) mentions, and no other kept stub calls. *)
-let dead_stubs ~roots mm =
+let dead_stubs ?(apply = true) ~roots mm =
   let src = read_file mm in
   let named = Hashtbl.create 1024 in
   let re = Str.regexp "\"\\(caml_[A-Za-z0-9_]+\\)\"" in
@@ -361,7 +387,7 @@ let dead_stubs ~roots mm =
   done;
   let dead = List.filter (fun (name, _, _) -> not (Hashtbl.mem live name)) !defs in
   List.iter (fun (name, _, _) -> Printf.printf "%s\n" name) dead;
-  remove_ranges mm src (List.map (fun (_, s, e) -> s, e) dead)
+  if apply then remove_ranges mm src (List.map (fun (_, s, e) -> s, e) dead)
 
 (* [s, e) of a record field (declaration or [f = e] in a literal) widened to
    take one separating ';'. *)
@@ -1150,6 +1176,7 @@ let () =
       let excludes, _, dirs = split [] "" [] args in dead_fields ~apply ~excludes ~skip dirs
   | "dead-optionals" :: args ->
       let excludes, _, dirs = split [] "" [] args in dead_optionals ~excludes dirs
+  | "dead-stubs" :: "--report" :: mm :: roots -> dead_stubs ~apply:false ~roots mm
   | "dead-stubs" :: mm :: roots -> dead_stubs ~roots mm
   | [ "drop-c-unused"; dir ] ->
       (* loop: rebuild, feed the log, until nothing is removed *)
@@ -1167,6 +1194,7 @@ let () =
                     \       codemod dead-fields [--apply] [--users-exclude S] [--skip TYPE.FIELD] DIR...\n\
                     \       codemod dead-optionals [--users-exclude S] DIR...\n\
                     \       codemod drop-vals FILE.mli NAME... | drop-unused < log\n\
+                    \       codemod dead-stubs [--report] BRIDGE.mm ROOT... | drop-c-unused DIR\n\
                     \       codemod result-bind FILE.ml | result-bind --self-test\n\
                     \       codemod result-bind --verify BEFORE.ml AFTER.ml PPX.exe\n\
                     \       codemod metal-registry [--audit | --apply | --self-test | --drop-unused-macros]\n\
