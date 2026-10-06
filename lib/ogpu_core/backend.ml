@@ -22,10 +22,10 @@ type driver_geometry=
   |Driver_boxes of{boxes:driver_keyframe array;stride:int;count:int;opaque:bool;duplicate:bool;table_offset:int}
   |Driver_curves of{control:driver_keyframe array;control_stride:int;control_count:int;radii:driver_keyframe array;radius_stride:int;indices:token;index_offset:int64;segment_count:int;per_segment:int;curve_type:int;basis:int;caps:int}
 type driver_motion={motion_keyframes:int;motion_start:float;motion_end:float;motion_start_border:int;motion_end_border:int}
-type instance_kind=Acceleration.instance_kind=Default_instances|User_id_instances|Motion_instances
+type instance_kind=Acceleration.instance_kind=User_id_instances|Motion_instances
 type driver_accel_descriptor=
-  |Driver_blas of{geometries:driver_geometry array;allow_refit:bool;motion:driver_motion option}
-  |Driver_tlas of{instances:token;offset:int64;instance_count:int;kind:instance_kind;structures:token array;allow_refit:bool;motion_transforms:(token*int64*int)option}
+  |Driver_blas of{geometries:driver_geometry array;motion:driver_motion option}
+  |Driver_tlas of{instances:token;offset:int64;instance_count:int;kind:instance_kind;structures:token array;motion_transforms:(token*int64*int)option}
   |Driver_sized of{size:int64;template:token}
 type driver_accel={accel_token:token;accel_sizes:accel_sizes;destroy_accel:unit->(unit,Error.t)result}
 type instance={transform:float array;mask:int;structure_index:int}
@@ -235,10 +235,9 @@ type geometry=
 type border=Clamp|Vanish
 type motion={keyframes:int;start_time:float;end_time:float;start_border:border;end_border:border}
 type accel_descriptor=
-  |Blas of{geometries:geometry list;allow_refit:bool}
-  |Motion_blas of{geometries:geometry list;motion:motion;allow_refit:bool}
-  |Tlas of{instances:buffer;offset:int64;instance_count:int;structures:accel list;allow_refit:bool}
-  |Tlas_of of{instances:buffer;offset:int64;instance_count:int;kind:instance_kind;structures:accel list;allow_refit:bool;motion_transforms:(buffer*int64*int)option}
+  |Blas of{geometries:geometry list}
+  |Motion_blas of{geometries:geometry list;motion:motion}
+  |Tlas_of of{instances:buffer;offset:int64;instance_count:int;kind:instance_kind;structures:accel list;motion_transforms:(buffer*int64*int)option}
   |Sized of{size:int64;template:accel}
 type instance_record={instance:instance;user_id:int;table_offset:int}
 type motion_instance={record:instance_record;transforms_start:int;transforms_count:int;start_time:float;end_time:float;start_border:border;end_border:border}
@@ -313,12 +312,11 @@ let geometry_buffers=function
   |Curves{control_points;radii;indices;_}->List.map(fun(k:keyframe)->k.buffer)(control_points@radii)@[indices]
 let descriptor_buffers=function
   |Blas{geometries;_}|Motion_blas{geometries;_}->List.concat_map geometry_buffers geometries
-  |Tlas{instances;_}->[instances]
   |Tlas_of{instances;motion_transforms;_}->instances::Option.fold ~none:[] ~some:(fun(b,_,_)->[b])motion_transforms
   |Sized _->[]
 let descriptor_structures=function
   |Blas _|Motion_blas _->[]
-  |Tlas{structures;_}|Tlas_of{structures;_}->structures
+  |Tlas_of{structures;_}->structures
   |Sized{template;_}->[template]
 let create_accel device descriptor=
   let op="Backend.create_accel"in
@@ -334,7 +332,7 @@ let create_accel device descriptor=
     |[]->Ok()
     |(value:accel)::rest->match check_accel op device value with Error _ as e->e|Ok()->
         (match descriptor,Acceleration.descriptor value.portable with
-         |(Tlas _|Tlas_of _),Acceleration.Tlas _->error op Error.Invalid_argument"TLAS instances must reference bottom-level structures"
+         |Tlas_of _,Acceleration.Tlas _->error op Error.Invalid_argument"TLAS instances must reference bottom-level structures"
          |_->check_structures rest)in
   match check_structures structures with Error _ as e->e|Ok()->
   let range (b:buffer) offset length={Acceleration.buffer=b.resource.handle;buffer_size=b.buffer_descriptor.size;offset;length}in
@@ -349,13 +347,12 @@ let create_accel device descriptor=
           radii=keyframe_ranges radius_stride control_point_count radii;radius_stride;
           indices=range indices index_offset(span 4 segment_count);segment_count;control_points_per_segment}in
   let motion_option=function Blas _->None|Motion_blas{motion;_}->Some motion.keyframes|_->None in
-  let kind_of=function Tlas_of{kind;_}->kind|_->Default_instances in
   let portable_descriptor=match descriptor with
-    |Blas{geometries;allow_refit}|Motion_blas{geometries;allow_refit;_}->
-        Acceleration.Blas{geometries=Array.of_list(List.map portable_geometry geometries);allow_refit;motion_keyframes=motion_option descriptor}
-    |Tlas{instances;offset;instance_count;structures;allow_refit}|Tlas_of{instances;offset;instance_count;structures;allow_refit;_}->
-        let stride=instance_stride_of device(kind_of descriptor)in
-        Acceleration.Tlas{instances=range instances offset(span stride instance_count);instance_stride=stride;instance_count;instance_kind=kind_of descriptor;structures=List.map(fun(a:accel)->Acceleration.handle a.portable)structures;allow_refit}
+    |Blas{geometries}|Motion_blas{geometries;_}->
+        Acceleration.Blas{geometries=Array.of_list(List.map portable_geometry geometries);motion_keyframes=motion_option descriptor}
+    |Tlas_of{instances;offset;instance_count;kind;structures;_}->
+        let stride=instance_stride_of device kind in
+        Acceleration.Tlas{instances=range instances offset(span stride instance_count);instance_stride=stride;instance_count;instance_kind=kind;structures=List.map(fun(a:accel)->Acceleration.handle a.portable)structures}
     |Sized{size;template}->Acceleration.Sized{size;template=Acceleration.handle template.portable}in
   let motion_valid=match descriptor with
     |Motion_blas{motion;_}->motion.keyframes>=2&&Float.is_finite motion.start_time&&Float.is_finite motion.end_time&&motion.start_time<motion.end_time
@@ -374,11 +371,10 @@ let create_accel device descriptor=
         Driver_curves{control=keyframes control_points;control_stride;control_count=control_point_count;radii=keyframes radii;radius_stride;indices=tok indices;index_offset;segment_count;per_segment=control_points_per_segment;
           curve_type=(match curve_type with Round_curve->0|Flat_curve->1);basis=(match basis with Bspline->0|Catmull_rom->1|Linear_basis->2|Bezier->3);caps=(match caps with No_caps->0|Disk_caps->1|Sphere_caps->2)}in
   let driver_descriptor=match descriptor with
-    |Blas{geometries;allow_refit}->Driver_blas{geometries=Array.of_list(List.map driver_geometry geometries);allow_refit;motion=None}
-    |Motion_blas{geometries;motion;allow_refit}->Driver_blas{geometries=Array.of_list(List.map driver_geometry geometries);allow_refit;
+    |Blas{geometries}->Driver_blas{geometries=Array.of_list(List.map driver_geometry geometries);motion=None}
+    |Motion_blas{geometries;motion}->Driver_blas{geometries=Array.of_list(List.map driver_geometry geometries);
         motion=Some{motion_keyframes=motion.keyframes;motion_start=motion.start_time;motion_end=motion.end_time;motion_start_border=border_code motion.start_border;motion_end_border=border_code motion.end_border}}
-    |Tlas{instances;offset;instance_count;structures;allow_refit}->Driver_tlas{instances=tok instances;offset;instance_count;kind=Default_instances;structures=Array.of_list(List.map(fun(a:accel)->a.accel_raw.accel_token)structures);allow_refit;motion_transforms=None}
-    |Tlas_of{instances;offset;instance_count;kind;structures;allow_refit;motion_transforms}->Driver_tlas{instances=tok instances;offset;instance_count;kind;structures=Array.of_list(List.map(fun(a:accel)->a.accel_raw.accel_token)structures);allow_refit;
+    |Tlas_of{instances;offset;instance_count;kind;structures;motion_transforms}->Driver_tlas{instances=tok instances;offset;instance_count;kind;structures=Array.of_list(List.map(fun(a:accel)->a.accel_raw.accel_token)structures);
         motion_transforms=Option.map(fun(b,o,c)->tok b,o,c)motion_transforms}
     |Sized{size;template}->Driver_sized{size;template=template.accel_raw.accel_token}in
   match device.raw.create_accel driver_descriptor with

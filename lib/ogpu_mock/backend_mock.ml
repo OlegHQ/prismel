@@ -149,8 +149,7 @@ let create()=
       "mock backend does not rasterize");
     (* The mock mirrors Metal's documented instance record layouts. *)
     instance_layout=(function
-      |Backend.Default_instances->[|64;0;48;52;56;60;-1;-1;-1;-1;-1;-1;-1|]
-      |User_id_instances->[|68;0;48;52;56;60;64;-1;-1;-1;-1;-1;-1|]
+      |Backend.User_id_instances->[|68;0;48;52;56;60;64;-1;-1;-1;-1;-1;-1|]
       |Motion_instances->[|44;-1;8;12;16;20;24;0;4;28;32;36;40|]);
     create_texture=(fun d->
       let operation="Backend_mock.create_texture" in

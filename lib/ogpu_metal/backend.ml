@@ -406,8 +406,7 @@ let create () =
             let layout =
               Metal.Acceleration_structure.Build.instance_layout
                 (match kind with
-                 | Ogpu_core.Backend.Default_instances -> Metal.Acceleration_structure.Build.Default_instances
-                 | User_id_instances -> User_id_instances
+                 | Ogpu_core.Backend.User_id_instances -> Metal.Acceleration_structure.Build.User_id_instances
                  | Motion_instances -> Motion_instances)
             in
             [| layout.size; layout.transform; layout.options; layout.mask; layout.table_offset

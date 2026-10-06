@@ -750,7 +750,7 @@ let encode_instances device (build : mesh_build) command =
           (B.create_accel device
              (B.Tlas_of
                 { instances; offset = 0L; instance_count = build.instance_count; kind
-                ; structures; allow_refit = false
+                ; structures
                 ; motion_transforms =
                     Option.map (fun buffer -> (buffer, 0L, 2 * build.instance_count)) build.gpu.motion_buffer }))
       in
@@ -892,7 +892,7 @@ let upload_mesh_async ?reuse device queue mesh =
             | [] -> Ok (List.rev acc)
             | part :: rest ->
                 let* geometry = geometry part in
-                let* blas = accel (B.Blas { geometries = [ geometry ]; allow_refit = false }) in
+                let* blas = accel (B.Blas { geometries = [ geometry ] }) in
                 build_all (blas :: acc) rest
           in
           let* blas = build_all [] parts in

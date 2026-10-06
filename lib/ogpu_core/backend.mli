@@ -41,11 +41,11 @@ type driver_geometry =
                      ; segment_count:int; per_segment:int; curve_type:int; basis:int; caps:int }
 type driver_motion =
   { motion_keyframes:int; motion_start:float; motion_end:float; motion_start_border:int; motion_end_border:int }
-type instance_kind = Acceleration.instance_kind = Default_instances | User_id_instances | Motion_instances
+type instance_kind = Acceleration.instance_kind = User_id_instances | Motion_instances
 type driver_accel_descriptor =
-  | Driver_blas of { geometries:driver_geometry array; allow_refit:bool; motion:driver_motion option }
+  | Driver_blas of { geometries:driver_geometry array; motion:driver_motion option }
   | Driver_tlas of { instances:token; offset:int64; instance_count:int; kind:instance_kind
-                   ; structures:token array; allow_refit:bool; motion_transforms:(token * int64 * int) option }
+                   ; structures:token array; motion_transforms:(token * int64 * int) option }
   | Driver_sized of { size:int64; template:token }
 type driver_accel = { accel_token:token; accel_sizes:accel_sizes; destroy_accel:unit -> (unit,Error.t) result }
 
@@ -225,17 +225,15 @@ type geometry =
 type border = Clamp | Vanish
 type motion = { keyframes:int; start_time:float; end_time:float; start_border:border; end_border:border }
 
-(** [Tlas] packs default instance records; [Tlas_of] selects the record kind
-    (user ids, or motion instances whose [motion_transforms] buffer holds packed
-    4x3 keyframe transforms). [Sized] allocates an empty structure of [size]
-    bytes shaped like [template], to be filled by [copy_accel] or
-    [compact_accel]. *)
+(** [Tlas_of] selects the instance record kind (user ids, or motion instances
+    whose [motion_transforms] buffer holds packed 4x3 keyframe transforms).
+    [Sized] allocates an empty structure of [size] bytes shaped like
+    [template], to be filled by [compact_accel]. *)
 type accel_descriptor =
-  | Blas of { geometries:geometry list; allow_refit:bool }
-  | Motion_blas of { geometries:geometry list; motion:motion; allow_refit:bool }
-  | Tlas of { instances:buffer; offset:int64; instance_count:int; structures:accel list; allow_refit:bool }
+  | Blas of { geometries:geometry list }
+  | Motion_blas of { geometries:geometry list; motion:motion }
   | Tlas_of of { instances:buffer; offset:int64; instance_count:int; kind:instance_kind
-               ; structures:accel list; allow_refit:bool; motion_transforms:(buffer * int64 * int) option }
+               ; structures:accel list; motion_transforms:(buffer * int64 * int) option }
   | Sized of { size:int64; template:accel }
 type instance_record = { instance:instance; user_id:int; table_offset:int }
 type motion_instance =

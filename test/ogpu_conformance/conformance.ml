@@ -308,8 +308,7 @@ let run driver =
   get (Backend.write_buffer rays ~offset:0L ray_bytes);
   let hits=get (Backend.create_buffer device {label=Some"hits";size=64L;usage=[Storage;Copy_src]}) in
   let blas_descriptor=Backend.Blas
-    {geometries=[Backend.Triangles {vertices;offset=0L;length=72L;vertex_stride=12;vertex_count=6}];
-     allow_refit=false} in
+    {geometries=[Backend.Triangles {vertices;offset=0L;length=72L;vertex_stride=12;vertex_count=6}]} in
   if Caps.has profile Caps.Ray_tracing then begin
     let ray_library=get (Backend.create_library device ray_shader) in
     let trace=get (Backend.create_compute_pipeline_from ray_library ~entry:"trace" ~interface:ray_interface ()) in
@@ -327,9 +326,9 @@ let run driver =
       {label=Some"instances";size=Int64.of_int (2*stride);usage=[Storage;Copy_dst]}) in
     get (Backend.write_buffer instance_buffer ~offset:0L instances);
     let tlas=get (Backend.create_accel device
-      (Backend.Tlas_of {instances=instance_buffer;offset=0L;instance_count=2;kind=User_id_instances;structures=[blas];allow_refit=false;motion_transforms=None})) in
+      (Backend.Tlas_of {instances=instance_buffer;offset=0L;instance_count=2;kind=User_id_instances;structures=[blas];motion_transforms=None})) in
     (match Backend.create_accel device
-       (Backend.Tlas_of {instances=instance_buffer;offset=0L;instance_count=3;kind=User_id_instances;structures=[blas];allow_refit=false;motion_transforms=None}) with
+       (Backend.Tlas_of {instances=instance_buffer;offset=0L;instance_count=3;kind=User_id_instances;structures=[blas];motion_transforms=None}) with
      | Error { Error.kind = Invalid_argument; _ } -> ()
      | _ -> failwith "oversized TLAS instance count was accepted");
     let tlas_scratch=get (Backend.create_buffer ~memory:Types.Device_local device
@@ -443,7 +442,7 @@ let run driver =
     let spheres=float_buffer "spheres" [|0.;0.;0.;0.5; 4.;0.;0.;0.5|] in
     let boxes=float_buffer "boxes" [|-0.5;-0.5;-0.5;0.5;0.5;0.5; 3.5;-0.5;-0.5;4.5;0.5;0.5|] in
     let box_blas=get (Backend.create_accel device (Backend.Blas
-      {geometries=[Backend.Bounding_boxes {boxes=[{buffer=boxes;offset=0L}];stride=24;count=2;options=Backend.default_geometry_options}];allow_refit=false})) in
+      {geometries=[Backend.Bounding_boxes {boxes=[{buffer=boxes;offset=0L}];stride=24;count=2;options=Backend.default_geometry_options}]})) in
     let big_scratch=get (Backend.create_buffer ~memory:Types.Device_local device
       {label=Some"scratch-extra";size=1_048_576L;usage=[Storage]}) in
     let build_one structure=
@@ -489,7 +488,7 @@ let run driver =
     let curve_descriptor=Backend.Blas
       {geometries=[Backend.Curves {control_points=[{buffer=control;offset=0L}];control_stride=12;control_point_count=2;
          radii=[{buffer=radii;offset=0L}];radius_stride=4;indices;index_offset=0L;segment_count=1;control_points_per_segment=2;
-         curve_type=Round_curve;basis=Linear_basis;caps=Sphere_caps}];allow_refit=false} in
+         curve_type=Round_curve;basis=Linear_basis;caps=Sphere_caps}]} in
     let curve_pipeline=get (Backend.create_compute_pipeline_from extra ~entry:"trace_curves" ~interface:ray_interface ()) in
     let curve_blas=
       if Caps.has profile Caps.Ray_tracing_curves then begin
@@ -515,11 +514,11 @@ let run driver =
     get (Backend.write_buffer vertices1 ~offset:0L (vertex_bytes 1.5));
     let motion={Backend.keyframes=2;start_time=0.;end_time=1.;start_border=Clamp;end_border=Clamp} in
     (match Backend.create_accel device (Backend.Motion_blas
-       {geometries=[Backend.Motion_triangles {keyframes=[{buffer=vertices0;offset=0L}];vertex_stride=12;vertex_count=6}];motion;allow_refit=false}) with
+       {geometries=[Backend.Motion_triangles {keyframes=[{buffer=vertices0;offset=0L}];vertex_stride=12;vertex_count=6}];motion}) with
      | Error { Error.kind = Invalid_argument; _ } -> ()
      | _ -> failwith "keyframe count mismatch was accepted");
     let motion_blas=get (Backend.create_accel device (Backend.Motion_blas
-      {geometries=[Backend.Motion_triangles {keyframes=[{buffer=vertices0;offset=0L};{buffer=vertices1;offset=0L}];vertex_stride=12;vertex_count=6}];motion;allow_refit=false})) in
+      {geometries=[Backend.Motion_triangles {keyframes=[{buffer=vertices0;offset=0L};{buffer=vertices1;offset=0L}];vertex_stride=12;vertex_count=6}];motion})) in
     build_one motion_blas;
     let motion_pipeline=get (Backend.create_compute_pipeline_from extra ~entry:"trace_motion" ~interface:(ray_interface@[binding 3 Shader.Uniform_buffer]) ()) in
     let time_bytes t=let bytes=Bytes.create 4 in put_f32 bytes 0 t; bytes in
@@ -538,7 +537,7 @@ let run driver =
     let record_buffer=get (Backend.create_buffer device {label=Some"user-id-instances";size=Int64.of_int (Bytes.length records);usage=[Storage;Copy_dst]}) in
     get (Backend.write_buffer record_buffer ~offset:0L records);
     let masked_tlas=get (Backend.create_accel device (Backend.Tlas_of
-      {instances=record_buffer;offset=0L;instance_count=2;kind=User_id_instances;structures=[blas];allow_refit=false;motion_transforms=None})) in
+      {instances=record_buffer;offset=0L;instance_count=2;kind=User_id_instances;structures=[blas];motion_transforms=None})) in
     build_one masked_tlas;
     let masked_pipeline=get (Backend.create_compute_pipeline_from extra ~entry:"trace_masked" ~interface:(ray_interface@[binding 3 Shader.Uniform_buffer]) ()) in
     let mask_bytes mask=let bytes=Bytes.create 4 in Bytes.set_int32_le bytes 0 (Int32.of_int mask); bytes in
@@ -560,11 +559,11 @@ let run driver =
     let motion_record_buffer=get (Backend.create_buffer device {label=Some"motion-instances";size=Int64.of_int (Bytes.length motion_records);usage=[Storage;Copy_dst]}) in
     get (Backend.write_buffer motion_record_buffer ~offset:0L motion_records);
     (match Backend.create_accel device (Backend.Tlas_of
-      {instances=motion_record_buffer;offset=0L;instance_count=1;kind=Motion_instances;structures=[blas];allow_refit=false;motion_transforms=None}) with
+      {instances=motion_record_buffer;offset=0L;instance_count=1;kind=Motion_instances;structures=[blas];motion_transforms=None}) with
      | Error { Error.kind = Invalid_argument; _ } -> ()
      | _ -> failwith "motion instances without keyframe transforms were accepted");
     let motion_tlas=get (Backend.create_accel device (Backend.Tlas_of
-      {instances=motion_record_buffer;offset=0L;instance_count=1;kind=Motion_instances;structures=[blas];allow_refit=false;
+      {instances=motion_record_buffer;offset=0L;instance_count=1;kind=Motion_instances;structures=[blas];
        motion_transforms=Some (keyframe_buffer,0L,2)})) in
     build_one motion_tlas;
     let motion_instances_pipeline=get (Backend.create_compute_pipeline_from extra ~entry:"trace_motion_instances" ~interface:(ray_interface@[binding 3 Shader.Uniform_buffer]) ()) in

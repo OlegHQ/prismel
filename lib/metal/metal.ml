@@ -1423,8 +1423,7 @@ module Acceleration_structure = struct
           ; segment_count : int64; control_points_per_segment : int
           ; curve_type : curve_type; basis : curve_basis; end_caps : end_caps
           ; common : common }
-    type usage = Refit | Prefer_fast_build
-    type instance_kind = Default_instances | User_id_instances | Motion_instances
+    type instance_kind = User_id_instances | Motion_instances
     type instance_layout =
       { size : int; transform : int; options : int; mask : int; table_offset : int
       ; structure_index : int; user_id : int; transforms_start : int; transforms_count : int
@@ -1435,7 +1434,6 @@ module Acceleration_structure = struct
       ; structures : structure list;  kind : instance_kind option }
 
     let kind_code = function
-      | Default_instances -> 0
       | User_id_instances -> 1
       | Motion_instances -> 2
 
@@ -1618,7 +1616,7 @@ module Acceleration_structure = struct
       ignore operation;
       Ok value
 
-    let primitive (device : Device.t) ?motion ?(usage = []) geometries =
+    let primitive (device : Device.t) ?motion geometries =
       let operation = "Metal.Acceleration_structure.Build.primitive" in
       on_main operation (fun () ->
           let* () = ensure_live operation device.lifetime in
@@ -1656,8 +1654,8 @@ module Acceleration_structure = struct
                         end_border = (match m.end_border with Clamp -> 0 | Vanish -> 1);
                       })
                     motion;
-                primitive_refit = List.mem Refit usage;
-                fast_build = List.mem Prefer_fast_build usage;
+                primitive_refit = false;
+                fast_build = false;
               }
             in
             let* raw = native_result operation (Metal_raw.accel_descriptor_primitive raw) in
@@ -1666,7 +1664,7 @@ module Acceleration_structure = struct
               ~structures:[] ~instance_count:0L ~kind:None)
 
     let instances (device : Device.t) ~(buffer : buffer) ?(offset = 0L) ~count
-        ?(kind = Default_instances) ?motion_transforms ?(usage = []) (primitives : structure array)
+        ~kind ?motion_transforms (primitives : structure array)
         =
       let stride = None in let operation = "Metal.Acceleration_structure.Build.instances" in
       on_main operation (fun () ->
@@ -1723,7 +1721,7 @@ module Acceleration_structure = struct
                 motion_transforms = Option.map (fun ((b : buffer), _, _) -> b.raw) transforms;
                 motion_transform_offset = Option.fold ~none:0L ~some:(fun (_, o, _) -> o) transforms;
                 motion_transform_count = Option.fold ~none:0L ~some:(fun (_, _, c) -> c) transforms;
-                instances_refit = List.mem Refit usage;
+                instances_refit = false;
               }
             in
             let* raw = native_result operation (Metal_raw.accel_descriptor_instances raw) in

@@ -177,8 +177,7 @@ module Acceleration_structure : sig
           ; segment_count : int64; control_points_per_segment : int
           ; curve_type : curve_type; basis : curve_basis; end_caps : end_caps
           ; common : common }
-    type usage = Refit | Prefer_fast_build
-    type instance_kind = Default_instances | User_id_instances | Motion_instances
+    type instance_kind = User_id_instances | Motion_instances
 
     (** Byte offsets inside one native instance record; [-1] where the kind
         lacks the field. [transform] is a packed 4x3 (48 bytes), [user_id] and
@@ -190,13 +189,13 @@ module Acceleration_structure : sig
       ; end_time_offset : int }
     val instance_layout : instance_kind -> instance_layout
     type t
-    val primitive : Device.t -> ?motion:motion -> ?usage:usage list -> geometry list ->
+    val primitive : Device.t -> ?motion:motion -> geometry list ->
       (t, error) result
 
     (** [motion_transforms] is (buffer, offset, count) of packed 4x3 keyframe
         transforms and is required for [Motion_instances]. *)
-    val instances : Device.t -> buffer:Buffer.t -> ?offset:int64 -> count:int64 -> ?kind:instance_kind -> ?motion_transforms:(Buffer.t * int64 * int64) ->
-      ?usage:usage list -> structure array -> (t, error) result
+    val instances : Device.t -> buffer:Buffer.t -> ?offset:int64 -> count:int64 -> kind:instance_kind -> ?motion_transforms:(Buffer.t * int64 * int64) ->
+      structure array -> (t, error) result
     val sizes : device:Device.t -> t -> (sizes, error) result
 
     val instance_kind : t -> instance_kind option

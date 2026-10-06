@@ -217,7 +217,7 @@ with typed `Unsupported`.
 
 Ray tracing: geometry variants are `Triangles`, `Motion_triangles` (one vertex
 buffer per keyframe), `Bounding_boxes`, and `Curves`; descriptors are `Blas`,
-`Motion_blas`, `Tlas`, `Tlas_of` with an `instance_kind` (user-id or motion
+`Motion_blas`, `Tlas_of` with an `instance_kind` (user-id or motion
 records packed by `pack_instance_records`/`pack_motion_instances` through the
 driver's `instance_layout`, plus a keyframe transform buffer packed by
 `pack_transforms`), and `Sized` structures that `compact_accel` fills after
