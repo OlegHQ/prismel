@@ -52,16 +52,17 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   let in_text node = Editor_document.Scene_sync.in_text value.doc value.level node in
   let document, edit_error, editor_effects = List.fold_left apply_change
       ((network value).graph, value.edit_error, Parameter.no_effects)
-      (List.filter (function Set_parameter { node; _ } -> not (in_text node) | _ -> true) result.changes) in
-  (* a list intent the text can take is written to the text (below); the derived network is edited
-     only for the others.  The selection, the label and what opens are every intent's. *)
-  let tree_edits = List.filter_map (tree_edit value rows) result.tree_intents in
-  let _, selection, tree, opened, tree_label, _ = List.fold_left
+      (List.filter (function Set_parameter { node; _ } | Rename { node; _ } -> not (in_text node) | _ -> true)
+         result.changes) in
+  (* what a list or the inspector's name row asks of an object the text has is written to the text
+     (below); the derived network is edited only for the others *)
+  let tree_edits = List.filter_map (tree_edit value rows) result.tree_intents
+    @ List.filter_map (function
+        | Rename { node; label } when in_text node -> Some (Editor_document.Scene_sync.Rename (node, label))
+        | _ -> None) result.changes in
+  let document, selection, tree, opened, tree_label, _ = List.fold_left
       (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
       result.tree_intents in
-  let document, _, _, _, _, _ = List.fold_left
-      (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
-      (List.filter (fun intent -> tree_edit value rows intent = None) result.tree_intents) in
   let apply_changes (document, effects, error) = function
     | None -> document, effects, error
     | Some (node_id, values) ->
