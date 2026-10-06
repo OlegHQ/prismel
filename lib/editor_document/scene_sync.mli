@@ -18,6 +18,18 @@ val reconcile : factories:Procedural.Edit_graph.factory list -> ?adopt:bool ->
     An object only the host made is written to a scene graph by its first explicit
     edit; [~adopt:false] (a camera following the viewport) leaves such edits to the host. *)
 
+val in_text : Document.t -> Document.level -> int -> bool
+(** The scene object (at the scene level) or World layer (inside the World) with this id has text
+    of its own that an edit can be written to. *)
+
+val set_fields : factories:Procedural.Edit_graph.factory list -> Document.t -> Document.level ->
+  node:int -> (string * Editor_core.Param.value) list ->
+  ((Document.t * Editor_core.Param.effects * Document.home) option, string) result
+(** Field values of one object written to its text and lowered again, the derived object never
+    edited in between: the values as the node's ranges leave them, an inline call unfolded first, a
+    loop's copy its template (a computed argument refuses).  The document, the effects of the
+    fields and the home written; [None] when the object has no text ({!reconcile} adopts it). *)
+
 val template_note : Document.t -> Document.home -> string option
 (** The status line for an edit written to a loop'"'"'s template: every copy changes. *)
 

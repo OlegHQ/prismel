@@ -93,8 +93,9 @@ let colorize (theme : Pxui.Theme.t) text =
 let brackets text = let _, pairs, _ = lex text in pairs
 
 (* forms whose body is indented two in from the paren rather than under the first argument *)
-let body_forms = [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "let"; "for"; "fold"; "scan";
-                   "sum"; "if"; "when"; "fn"; "do"; "cond"; "case" ]
+let body_forms = List.filter (fun form -> List.mem form Flow.Workspace.special_forms)
+    [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "for"; "fold"; "scan"; "sum"; "if"; "fn";
+      "cond"; "case" ]
 
 let indent text caret =
   let text = String.sub text 0 (max 0 (min caret (String.length text))) in
@@ -150,8 +151,9 @@ let vocab (descriptors : Flow_sop.Catalog.descriptor list) =
 
 let empty_vocab = vocab []
 
-(* the special forms and their one-line docs (the grammar of specification/workspace) *)
-let specials = [
+(* the one-line docs of the special forms; [specials] are the checker's forms ({!Flow.Workspace.special_forms})
+   with theirs, so a form the language does not have is never offered *)
+let special_docs = [
   "workspace", "(workspace name graphs...) · the document: graphs, defns, macros";
   "graph", "(graph name :context sop [inputs] body) · a network; the body is a let* or an expression";
   "defn", "(defn name :context value [(p : type) ...] body) · a function called as (name args)";
@@ -181,6 +183,9 @@ let specials = [
   "unquote", "~x · fill a hole of a template";
   "unquote-splicing", "~@xs · splice a list into a template";
 ]
+
+let specials = List.filter_map (fun form ->
+  Option.map (fun doc -> form, doc) (List.assoc_opt form special_docs)) Flow.Workspace.special_forms
 
 let constants = [
   "t", "time in seconds · a binding reading t recooks every frame";

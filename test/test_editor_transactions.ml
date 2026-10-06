@@ -94,6 +94,4 @@ let run () =
     check (text () = first_move) "separate node drags merged after release";
     undo ();
     check (text () = unmoved) "one drag did not undo as one entry";
-    (* a scrub gesture edits the value and undoes whole *)
-    step [Event.KeyPressed Input.Escape];
     print_endline "editor transactions: stable selection/edit target, undo agreement, drawing reuse and one-entry drags passed")

@@ -62,6 +62,7 @@ let special = [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "ref"; "for"; 
   "scan"; "sum"; "if"; "values"; "fn"; "cond"; "case"; "list"; "concat"; "str"; "get";
   "assoc"; "map"; "filter"; "reduce"; "sort-by"; "quote"; "quasiquote"; "unquote";
   "unquote-splicing" ]
+let special_forms = special
 let reserved s = List.mem s special || List.mem s [ "t"; "pi"; "true"; "false"; "nil" ]
 let type_names = [ "float"; "int"; "bool"; "text"; "vec3"; "geometry"; "scene"; "world";
   "settings"; "panel"; "editor"; "material" ]

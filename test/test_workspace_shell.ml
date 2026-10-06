@@ -1340,14 +1340,18 @@ let run_copy_lisp () =
   let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
   let key k = Event.KeyPressed k in
   step []; step [];
+  (* whether this run has a clipboard is asked first, so each case has one outcome that passes *)
+  let available = Result.is_ok (Rays.Clipboard.set_text "probe") in
   step [ key Input.Space; Event.KeyPressed (Input.KeyChar '/') ]; step [];
   step [ Event.TextInput "copy workspace" ]; step [ key Input.Enter ]; step [];
   let note = dump_line !e "cook" in
-  (match Rays.Clipboard.get_text () with
-   | Ok clip when has note "Copied the workspace as Lisp" ->
-       check (has clip "(workspace copied" && has clip "(scene/geometry (ref g))")
-         ("the clipboard holds the workspace text: " ^ clip)
-   | _ -> check (has note "Clipboard: ") ("the palette row ran and said why it could not copy: " ^ note));
+  if available then begin
+    check (has note "Copied the workspace as Lisp") ("the palette row did not copy: " ^ note);
+    match Rays.Clipboard.get_text () with
+    | Ok clip -> check (has clip "(workspace copied" && has clip "(scene/geometry (ref g))")
+        ("the clipboard does not hold the workspace text: " ^ clip)
+    | Error message -> fail ("the clipboard took the text and gives none back: " ^ message)
+  end else check (has note "Clipboard: ") ("without a clipboard the palette row did not say so: " ^ note);
   check (E3.undo_label !e = None) "copying changes nothing";
   E3.close !e
 
@@ -1814,7 +1818,50 @@ let run_undo_and_input () =
   List.iter (fun c -> step [ press c ]; step []) [ ' '; 'l'; 'g' ]; step [];
   check (dump_line !e "projection" = "graph")
     "a name field open in the graph pane kept the keyboard after the panel turned to its list";
+  E3.close !e;
+  (* E20: a pan in progress gives the pointer back when the panel turns to its list *)
+  let e, count, step = session (450., 300.) in
+  let gx, gy, gw, gh = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let row = float (gx + 60), float (gy + 24 + 12) in
+  step ~mouse:row [ Event.MouseMoved row ];
+  step ~mouse:row [ Event.MousePressed (Input.LeftButton, row); Event.MouseReleased (Input.LeftButton, row) ];
+  step ~mouse:row [ press 'i' ]; step [];
+  count := !count + 30;
+  let canvas = float (gx + gw - 40), float (gy + gh - 40) and away = float (gx + gw - 80), float (gy + gh - 60) in
+  step ~mouse:canvas [ Event.MouseMoved canvas ];
+  step ~buttons:[ Input.MiddleButton ] ~mouse:canvas [ Event.MousePressed (Input.MiddleButton, canvas) ];
+  step ~buttons:[ Input.MiddleButton ] ~mouse:away [ Event.MouseMoved away ];
+  check (dump_line !e "graph pan" = "true") "a middle drag on the canvas is not a pan";
+  List.iter (fun c -> step ~buttons:[ Input.MiddleButton ] ~mouse:away [ press c ]; step ~buttons:[ Input.MiddleButton ] ~mouse:away [])
+    [ ' '; 'l'; 'l' ];
+  check (dump_line !e "projection" = "list" && dump_line !e "graph pan" = "false")
+    ("a pan in progress kept the pointer after the panel turned to its list: " ^ dump_line !e "projection");
   E3.close !e
+
+(* E15, on the reducer alone: while a payload is carried the document shown is a preview, and
+   entering a camera then must not make it the render camera in the history. *)
+let run_carry_reaches_no_history () =
+  let e = editor {x|(workspace cams
+  (graph g :context sop (sop/box))
+  (graph scene :context scene
+    (let* [cam (scene/camera :name "cam")
+           side (scene/camera :name "side" :eye [6 2 0])
+           all (scene/merge (scene/geometry (ref g)) cam side)]
+      (scene/root all :camera cam))))|x} in
+  let e = E3.update (E3.update e (frame (450., 300.) [] 1)) (frame (450., 300.) [] 2) in
+  let side = (List.find (fun (i : Edit_graph.node_info) -> i.label = "side") (Edit_graph.inspect (E3.scene_document e))).id in
+  let preview = E.Set_arg { node = [ "scene"; "side" ]; key = E.Kw "fov"; sub = []; value = S.make (S.Num "40.0") } in
+  let before = source e in
+  let stepped = Rays_editor.Reduce.step e ~select:[ side ] ~preview
+      [ Rays_editor.Private.Leader.Enter ] (frame (450., 300.) [] 3) in
+  check (E3.carrying stepped <> None) "the reducer dropped the carry";
+  check (not (E3.can_undo stepped))
+    ("entering a camera during a carry reached the history: " ^ Option.value ~default:"-" (E3.undo_label stepped));
+  (* without the carry the same keys do make the camera the render camera: the test reaches the path *)
+  let entered = Rays_editor.Reduce.step e ~select:[ side ] [ Rays_editor.Private.Leader.Enter ] (frame (450., 300.) [] 3) in
+  check (E3.can_undo entered && has (source entered) ":camera side" && source e = before)
+    ("Enter on a camera did not make it the render camera: " ^ source entered);
+  E3.close e
 
 (* E16: a frame's gestures land together.  Closing the only panel of a document with no editor
    graph is two gestures (write the layout shown as an editor graph, then close the panel): the
@@ -1871,7 +1918,7 @@ let run_undo_under_pane () =
   E3.close !e
 
 let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
-  run_undo_under_pane (); run_atomic_frame (); run_undo_and_input ()
+  run_undo_under_pane (); run_atomic_frame (); run_undo_and_input (); run_carry_reaches_no_history ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)

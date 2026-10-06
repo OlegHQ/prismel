@@ -65,9 +65,7 @@ type row =
 
 let rec walk f (form : S.t) = f form; List.iter (walk f) (S.children form)
 
-let head (form : S.t) = match form.node with
-  | S.List ({ S.node = S.Sym h; _ } :: _) -> Some h
-  | _ -> None
+let head = S.head
 
 let count_where pred form =
   let n = ref 0 in walk (fun f -> if pred f then incr n) form; !n

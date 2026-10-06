@@ -602,6 +602,15 @@ module Editor3 : sig
     unit
 end
 
+(** The frame reducer without a UI frame: an unstable hook for tests, like {!Private}.
+    [step e actions frame] reduces one frame in which no pane was built: the keys are [actions],
+    the list's selection is [select] (scene object ids), and [preview] puts a payload in flight
+    whose hot target shows that edit on a scratch document, as a carry does. *)
+module Reduce : sig
+  val step : 'prepared Editor3.t -> ?select:int list -> ?preview:Flow_sop.Flow_edit.op ->
+    Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t
+end
+
 (** A [.rays] sketch as a program (plan W11).  Command-S rewrites the file when it is
     still the text the document came from (comments intact), else saves a preset;
     an edit of the file from any editor reloads the running document as one history
@@ -632,11 +641,12 @@ module Workspace : sig
     Rays.Easy_camera.t -> Rays.Easy_camera.t
   (** The camera of the scene's first camera node, or the default base camera. *)
 
-  val run : ?factories:Procedural.Edit_graph.factory list -> ?source:source -> Workspace_doc.t -> unit
+  val run : ?factories:Procedural.Edit_graph.factory list -> ?source:source -> Workspace_doc.t ->
+    (unit, Flow.Diagnostic.t) result
   (** Open {!Editor3} on the document, with the window title, size, frame rate
       and seed of its settings graph, saving and reloading through [source] (found
       from the executable, then the working directory; without the file the sketch
-      runs unwired). *)
+      runs unwired).  [Error]: the settings graph asks for a window that cannot be made. *)
 
   val main : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string -> catalog:string -> string -> unit
   (** Entry point of a generated [main.ml]: [load] then [run]; on failure prints

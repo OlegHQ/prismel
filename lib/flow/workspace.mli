@@ -113,6 +113,10 @@ val skip_tuples : Syntax.t -> int list list option
 (** The tuples of a [:skip] value (register L16): a list of tuples of non-negative integers, a bare
     integer being a tuple of one; [None] when it is not one. *)
 
+val special_forms : string list
+(** The special forms of the language, as the checker knows them (an editor's completions and
+    indentation read this list, so they offer no form the language lacks). *)
+
 val name_taken : string -> bool
 (** A name a binding may not take: a special form, built-in operator or type
     name.  Editors use it to pick fresh names. *)

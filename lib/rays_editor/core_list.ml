@@ -1,0 +1,311 @@
+open Rays
+open Procedural
+open Editor_document
+include Core_add
+
+let enterable value id = match kind value id with
+  | Some ("geometry" | "world") ->
+      Document.Int_map.mem id value.doc.Document.networks
+  | Some _ | None -> false
+
+(* Switch the open level: nothing is selected there, and the list starts again. *)
+let open_level value level =
+  if level = value.level then value else
+  let () = Pxui.Ui.unfocus value.ui in
+  let world = match level with
+    | Document.Inside id -> kind value id = Some "world"
+    | Scene -> false in
+  { value with level; pane_graph = None; selection = Selection.empty; map_view = world;
+    tree = Pxui_shell.Tree.create () }
+
+(* The geometry objects to cook: visible ones, each with its network. *)
+let geometry_objects value =
+  List.filter_map (fun id ->
+    match Edit_graph.find (scene value) ~node_id:id,
+        Document.Int_map.find_opt id value.doc.Document.networks with
+    | Some node, Some network when Objects.visible node
+        && not (Edit_graph.is_bypassed (scene value) ~node_id:id) ->
+        Option.map (fun displayed -> id, network.Document.graph, displayed) network.displayed
+    | _ -> None) (Objects.ids "geometry" (scene value))
+
+(* The object the sketch-facing single-object accessors describe: the open
+   one, else the first visible geometry object. *)
+let focus_object value = match value.level with
+  | Inside id when kind value id = Some "geometry" -> Some id
+  | Inside _ | Scene ->
+      Option.map (fun (id, _, _) -> id) (List.nth_opt (geometry_objects value) 0)
+
+let pieces value = value.cook.Cook.pieces
+let piece value = Option.bind (focus_object value) (fun id ->
+    List.find_opt (fun (piece : _ Cook.piece) -> piece.id = id) (pieces value))
+
+let prepared value = Option.map (fun (piece : _ Cook.piece) -> piece.prepared) (piece value)
+
+(* The object in focus (the selected scene object, or the one whose network is open): its world
+   transform, its cooked bounds in its own space, and its name. *)
+let selected_bounds value =
+  Option.bind (piece value) (fun (piece : _ Cook.piece) ->
+    Option.bind piece.bounds (fun bounds ->
+      Option.map (fun node -> Objects.world (scene value) piece.id, bounds, Node.label node)
+        (Edit_graph.find (scene value) ~node_id:piece.id)))
+let no_graph = Sop.points [||]
+let graph value = match Option.bind (focus_object value) (fun id ->
+    List.assoc_opt id value.cook.Cook.graphs), piece value with
+  | Some graph, _ -> graph
+  | None, Some piece -> piece.graph
+  | None, None -> no_graph
+let displayed_node = graph
+let settings value = value.doc.Document.settings
+let timeline value = value.timeline
+let selected_node value = match scope_node value with
+  | Some (_, node) -> Some node
+  | None -> Option.bind (Selection.selected value.selection)
+      (fun node_id -> Edit_graph.find (document value) ~node_id)
+(* Scoped SOP handles use their owning object's transform. Navigation
+   selection uses the open object or the scene object's parent chain. *)
+let space value = match Option.bind (scope_node value) (fun (_, node) -> node_owner value (Node.id node)) with
+  | Some owner -> Objects.world (scene value) owner
+  | None -> match value.level with
+  | Inside id when kind value id = Some "geometry" -> Objects.world (scene value) id
+  | Inside _ -> Mat4.identity
+  | Scene -> (match Selection.selected value.selection with
+    | Some id -> Objects.parent_world (scene value) id
+    | None -> Mat4.identity)
+
+(* ---- the graph as a list ---- *)
+
+(* A row's kind letter and colour (the prototype's palette). *)
+let badge operation =
+  let hex = Color.hex_exn in
+  match operation with
+  | "geometry" -> "G", hex "#3f7a52" | "light" -> "L", hex "#b07a1c"
+  | "camera" -> "C", hex "#5a4f86" | "world" -> "W", hex "#285f77"
+  | "sun" -> "✦", hex "#b07a1c"
+  | "gradient" | "sky" | "shape" | "scatter" | "room" -> "·", hex "#6d8a95"
+  | _ -> "S", hex "#566463"
+
+(* The objects as a tree by parent, siblings in id order. *)
+let scene_rows ?active document =
+  let infos = Edit_graph.inspect document in
+  let children = Hashtbl.create 16 in
+  List.iter (fun (info : Edit_graph.node_info) ->
+    let parent = if Array.length info.inputs > 0 then info.inputs.(0) else None in
+    Hashtbl.replace children parent
+      (info :: Option.value ~default:[] (Hashtbl.find_opt children parent))) infos;
+  let sorted parent = List.sort (fun (a : Edit_graph.node_info) b -> Int.compare a.id b.id)
+      (Option.value ~default:[] (Hashtbl.find_opt children parent)) in
+  let rec emit depth (info : Edit_graph.node_info) =
+    let flags = List.filter_map (fun name ->
+        if Objects.has_flag name info.node then Some (Objects.flag name info.node) else None)
+        ["visible"; "render"] in
+    { Pxui_shell.Tree.id = info.id; depth; label = info.label;
+      detail = (if active = Some info.id then "* render cam" else info.operation);
+      badge = badge info.operation; link = false; ghost = false; flags }
+    :: List.concat_map (emit (depth + 1)) (sorted (Some info.id)) in
+  Array.of_list (List.concat_map (emit 0) (sorted None))
+
+(* The network as list rows [(id, depth, link)], sources first: rows follow each node's first
+   input, other inputs nest one level under the node that consumes them, and a node reached
+   twice repeats as a [link] row. *)
+let trunk (network : Flow_sop.Network.t) =
+  let infos = Edit_graph.inspect network.geometry in
+  let consumed = Hashtbl.create 64 and inputs = Hashtbl.create 64 in
+  List.iter (fun (info : Edit_graph.node_info) ->
+    Hashtbl.replace inputs info.id (Array.to_list info.inputs);
+    Array.iter (Option.iter (fun source -> Hashtbl.replace consumed source ())) info.inputs) infos;
+  let ids = List.map (fun (info : Edit_graph.node_info) -> info.id) infos in
+  let emitted = Hashtbl.create 64 and rows = ref [] in
+  let first id = match Hashtbl.find_opt inputs id with
+    | Some slots -> List.find_map Fun.id slots | None -> None in
+  let rec emit_trunk id depth =
+    (* The chain up the first inputs, stopping at a node already listed. *)
+    let rec chain id acc =
+      if Hashtbl.mem emitted id then Some id, acc
+      else match first id with
+        | Some source when Hashtbl.mem inputs source -> chain source (id :: acc)
+        | _ -> None, id :: acc in
+    let shared, nodes = chain id [] in
+    Option.iter (fun id -> rows := (id, depth, true) :: !rows) shared;
+    List.iter (fun id ->
+      Hashtbl.replace emitted id ();
+      rows := (id, depth, false) :: !rows;
+      let primary_seen = ref false in
+      List.iter (function
+        | Some side when Hashtbl.mem inputs side ->
+            if not !primary_seen then primary_seen := true
+            else if Hashtbl.mem emitted side then
+              rows := (side, depth + 1, true) :: !rows
+            else emit_trunk side (depth + 1)
+        | _ -> ()) (Option.value ~default:[] (Hashtbl.find_opt inputs id))) nodes in
+  List.iter (fun id -> if not (Hashtbl.mem consumed id) then emit_trunk id 0) ids;
+  Array.of_list (List.rev !rows)
+
+let trunk_rows (network : Flow_sop.Network.t) ~viewed ~flags =
+  Array.map (fun (id, depth, link) ->
+    let node = Edit_graph.find network.Flow_sop.Network.geometry ~node_id:id in
+    let label = match node with Some node -> Node.label node | None -> "" in
+    let operation = match node with Some node -> Node.operation node | None -> "" in
+    let details = [operation] @
+      (if viewed = Some id then ["VIEW"] else []) @
+      (if Edit_graph.is_bypassed network.geometry ~node_id:id then ["M"] else []) in
+    { Pxui_shell.Tree.id; depth; link; ghost = false;
+      label; detail = String.concat " · " details;
+      badge = badge operation; flags = flags id node })
+    (trunk network)
+
+let rows value (network : Document.network) = match value.level with
+  | Document.Scene -> scene_rows ?active:value.doc.active_camera network.graph.geometry,
+      ["v"; "r"]
+  | Inside id when kind value id = Some "geometry" ->
+      trunk_rows network.graph ~viewed:network.displayed ~flags:(fun node_id node ->
+        match node with Some _ -> [Some node_id = network.displayed] | None -> []), ["d"]
+  | Inside _ ->
+      trunk_rows network.graph ~viewed:None ~flags:(fun _ node ->
+        match node with
+        | Some node when Objects.has_flag "visible" node -> [Objects.flag "visible" node]
+        | _ -> []),
+      ["v"]
+
+(* Rewire [ids] under [parent] (None: the scene root), keeping each one's
+   world placement. *)
+let reparent document ids parent =
+  List.fold_left (fun document id ->
+    let before = Objects.parent_world document id in
+    let rewired = match parent with
+      | Some parent when parent <> id ->
+          Edit_graph.connect ~source:parent ~consumer:id ~input_index:0 document
+      | Some _ -> Ok document
+      | None when Objects.parent document id <> None ->
+          Edit_graph.disconnect ~consumer:id ~input_index:0 document
+      | None -> Ok document in
+    match rewired with
+    | Error _ -> document
+    | Ok document ->
+        (match Objects.keep_world document id ~before with
+         | [] -> document
+         | values -> (match Edit_graph.apply_parameters document ~node_id:id values with
+           | Ok (document, _) -> document | Error _ -> document))) document ids
+
+(* A layer chain in stack order, bottom first, with [ids] moved. *)
+let restack document order =
+  let document = List.fold_left (fun document id ->
+      match Edit_graph.inputs document ~node_id:id with
+      | Some inputs when Array.length inputs > 0 && inputs.(0) <> None ->
+          Result.value ~default:document
+            (Edit_graph.disconnect ~consumer:id ~input_index:0 document)
+      | _ -> document) document order in
+  let rec wire document = function
+    | below :: (above :: _ as rest) ->
+        wire (Result.value ~default:document
+          (Edit_graph.connect ~source:below ~consumer:above ~input_index:0 document)) rest
+    | [_] | [] -> document in
+  wire document order
+
+let apply_parameter document id name value =
+  match Edit_graph.find document ~node_id:id with
+  | Some node when Objects.has_flag name node ->
+      (match Edit_graph.apply_parameters document ~node_id:id [name, value] with
+       | Ok (document, _) -> document | Error _ -> document)
+  | Some _ | None -> document
+
+(* Tree intents become document edits, selection, or an entry request. *)
+let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
+  let document = overlay.Flow_sop.Network.geometry in
+  let module T = Pxui_shell.Tree in
+  let world = match value.level with
+    | Document.Inside id -> kind value id = Some "world"
+    | Scene -> false in
+  (* the nodes of a geometry object are the lowering of its graph: its list only selects *)
+  let geometry = match value.level with
+    | Document.Inside id -> kind value id = Some "geometry"
+    | Scene -> false in
+  let overlay = match intent with
+    | Pxui_shell.Tree.Delete ids when not geometry ->
+        Result.get_ok (Flow_sop.Network.remove_nodes ids overlay)
+    | _ -> overlay in
+  let stack () = Array.to_list rows
+    |> List.filter_map (fun (row : T.row) -> if row.link then None else Some row.id) in
+  let restacked order =
+    let document = restack document order in
+    document, selection, tree, opened, Some "Reorder layers", rows in
+  let move_in order ids target drop =
+    let rest = List.filter (fun id -> not (List.mem id ids)) order in
+    List.concat_map (fun id ->
+      if id <> target then [id]
+      else match drop with
+        | T.Before -> ids @ [id] | After | Inside -> id :: ids) rest in
+  let document, selection, tree, opened, label, rows = match intent with
+  | T.Select ids ->
+      document, (match ids with
+        | [] -> Selection.clear selection
+        | ids -> Selection.select_nodes ids selection), tree, opened, label, rows
+  | Flag _ when geometry ->
+      (* the display node of a workspace graph is its result *)
+      document, selection, tree, opened, label, rows
+  | Flag { ids; column; value = on } ->
+      let name = List.nth (if world then ["visible"] else ["visible"; "render"]) column in
+      let document = List.fold_left (fun document id ->
+          apply_parameter document id name (Parameter.Bool_value on)) document ids in
+      document, selection, tree, opened, Some (if on then "Show" else "Hide"), rows
+  | Move { ids; target; drop } when world ->
+      restacked (move_in (stack ()) ids target drop)
+  | Move { ids; target; drop } when value.level = Document.Scene ->
+      let parent = match drop with
+        | T.Inside -> Some target
+        | Before | After -> Objects.parent document target in
+      reparent document ids parent, selection, tree, opened, Some "Reparent", rows
+  | Indent ids when value.level = Document.Scene ->
+      (* Under the previous sibling row. *)
+      let parent = match ids with
+        | [] -> None
+        | id :: _ ->
+            let index = ref None in
+            Array.iteri (fun k (row : T.row) -> if row.id = id && !index = None
+              then index := Some k) rows;
+            Option.bind !index (fun k ->
+              let depth = rows.(k).depth in
+              let found = ref None in
+              for candidate = k - 1 downto 0 do
+                if !found = None && rows.(candidate).depth = depth then
+                  found := Some rows.(candidate).id
+                else if rows.(candidate).depth < depth then found := Some (-1)
+              done;
+              match !found with Some id when id >= 0 -> Some id | _ -> None) in
+      (match parent with
+       | None -> document, selection, tree, opened, label, rows
+       | Some parent ->
+           reparent document ids (Some parent), selection, tree, opened, Some "Reparent", rows)
+  | Outdent ids when value.level = Document.Scene ->
+      let document = List.fold_left (fun document id ->
+          match Objects.parent document id with
+          | Some parent -> reparent document [id] (Objects.parent document parent)
+          | None -> document) document ids in
+      document, selection, tree, opened, Some "Reparent", rows
+  | Reorder { ids; delta } when world ->
+      let order = stack () in
+      (match List.find_index (fun id -> List.mem id ids) order with
+       | Some index ->
+           let target = List.nth_opt (List.filter (fun id -> not (List.mem id ids)) order)
+               (max 0 (index + delta)) in
+           (match target with
+            | Some target -> restacked (move_in order ids target
+                (if delta < 0 then T.Before else After))
+            | None -> document, selection, tree, opened, label, rows)
+       | None -> document, selection, tree, opened, label, rows)
+  | Rename (id, name) when not geometry ->
+      (match Option.map (Node.relabel name) (Edit_graph.find document ~node_id:id) with
+       | Some node -> (match Edit_graph.replace_node node document with
+         | Ok document -> document, selection, tree, opened, Some "Rename", rows
+         | Error _ -> document, selection, tree, opened, label, rows)
+       | None -> document, selection, tree, opened, label, rows)
+  | Activate _ when geometry -> document, selection, tree, opened, label, rows
+  | Activate id -> document, selection, tree, Some id, label, rows
+  | Delete ids when not geometry ->
+      let document = Edit_graph.remove_nodes ids document in
+      document, Selection.clear selection, tree, opened, Some "Delete", rows
+  | Rename _ | Delete _ | Move _ | Indent _ | Outdent _ | Reorder _ ->
+      document, selection, tree, opened, label, rows
+
+  in Result.get_ok (Doc.update_geometry (fun _ -> Ok document) overlay),
+    selection, tree, opened, label, rows
+

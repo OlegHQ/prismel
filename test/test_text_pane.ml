@@ -416,6 +416,11 @@ let lisp_text () =
       || Pxui.Ui.fuzzy_match ~query:"sop/tra" l) (labels (doc ^ "sop/tra"))) "every head completion matches";
   check (List.mem "let*" (labels (doc ^ "le")) && List.mem "sop/merge" (labels (doc ^ "me")))
     "forms and kinds complete at a head";
+  (* every special form of the checker completes at a head, and nothing the language lacks does *)
+  List.iter (fun form -> check (List.mem form (labels (doc ^ form))) ("the form " ^ form ^ " does not complete"))
+    Flow.Workspace.special_forms;
+  check (not (List.mem "when" (labels (doc ^ "whe"))) && indent "(do" = 1 && indent "(let*" = 2)
+    "a form the language does not have is offered or indented as one";
   (* an operator's own name being typed has no argument place yet (E1: it raised) *)
   check (List.mem "max" (labels (doc ^ "max")) && List.mem "+" (labels (doc ^ "+")))
     "an operator's head completes";

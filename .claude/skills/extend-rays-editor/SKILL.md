@@ -49,12 +49,15 @@ Read `lib/rays_editor/AGENTS.md` first. Pick the lowest level that works:
 
 8. **Graph pane work** (canvas, graph keys, parameter drives,
    list/text views, guide strip): the graph pane is `Pxui_graph.Scope` over workspace text.
-   Follow `specification/flow.md` and the next open milestone in
-   `specification/flow-migration.md` (skill `implement-flow-milestone`); new
-   graph commands carry their `guide` contexts from M2 on.
+   Follow `specification/flow.md` and `lib/pxui_graph/AGENTS.md`. A gesture is a
+   `Flow_sop.Flow_edit.op` the pane emits and the host applies; a new graph command carries
+   its `guide` contexts.
+9. **Editor behaviour without a window**: `Rays_editor.Reduce.step` runs one frame's reduction
+   with chosen actions and selection; `Editor3.create ~await:true` plus scripted frames drives
+   the whole editor (see `test/test_workspace_shell.ml`). Close every editor a test creates.
 
 Check: `dune build @lib/editor_core/runtest @lib/pxui_shell/runtest`,
-`SDL_VIDEODRIVER=dummy dune build @test/test_scene_tree @test/test_rays_editor_logic`, then one
-native run of `dune build @test/test_rays_editor` (opens a few windows;
-do not loop on it), `dune build @tools/api_manifest/runtest` (promote an
-intended `.mli` change), and the dependency gate in `dune runtest`.
+`SDL_VIDEODRIVER=dummy dune build @test_scene_tree @test_workspace_shell @test_rays_editor_logic`,
+then one native run of `dune build @test_rays_editor` (opens a few windows; do not loop on it),
+`dune build @tools/api_manifest/runtest` (promote an intended `.mli` change), and the dependency
+gate in `dune runtest`.

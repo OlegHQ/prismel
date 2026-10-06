@@ -7,7 +7,7 @@ let set_ui_cursor ui visible =
   let shape = match if visible then Pxui.Ui.cursor ui else None with
     | Some shape -> (shape :> [`Default|`Horizontal_resize|`Vertical_resize|`Text])
     | None -> `Default in
-  match Sketch.set_cursor shape with Ok () -> () | Error error -> failwith error
+  Sketch.set_cursor shape
 
 type ('rendered, 'camera) hidden_scene_cache = {
   width : int;
@@ -857,7 +857,7 @@ let crash_dump value directory =
   let history = core.history in
   Out_channel.with_open_text (Filename.concat directory "editor.txt") (fun channel ->
     Printf.fprintf channel
-      "level: %s\nprojection: %s\npane graph: %s\ngraph panels: %s\nwindows: %s\npanels: %s\nroute: %s\ntext: %s\nmap view: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
+      "level: %s\nprojection: %s\npane graph: %s\ngraph panels: %s\nwindows: %s\npanels: %s\nroute: %s\ntext: %s\nmap view: %b\ngraph pan: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
        undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\nrenderer: %s\nlive scene: %s\nautosave: %s\n\
        load document.rays with Space b (workspace documents only) after copying it to %s\n"
       (Core.level_name core)
@@ -867,7 +867,7 @@ let crash_dump value directory =
       (Core.graph_panels core) (Core.windows core) (Core.panels_line core)
       (Core.route core)
       (Text_pane.summary core.text)
-      core.map_view core.guide (Option.fold ~none:"-" ~some:fst core.hud)
+      core.map_view (Pxui_graph.Scope.Private.grabbed core.scope_view) core.guide (Option.fold ~none:"-" ~some:fst core.hud)
       (Option.fold ~none:"none" ~some:(fun node ->
         Printf.sprintf "%s (#%d, %s)" (Node.label node) (Node.id node) (Node.operation node))
         (Core.selected_node core))
@@ -900,7 +900,9 @@ let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?
       ~workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
   let update value frame =
     let value = update value frame in
-    set_ui_cursor value.core.ui (V.ui_visible value.control);
-    value in
+    (* a cursor the platform refuses is said in the strip; the editor runs on *)
+    match set_ui_cursor value.core.ui (V.ui_visible value.control) with
+    | Ok () -> value
+    | Error message -> { value with render_status = Some ("Cursor: " ^ message) } in
   ignore (Sketch.run_state ~config ~init ~update ~view:scene
     ~after_present ~crash_dump ~on_stop:close ())
