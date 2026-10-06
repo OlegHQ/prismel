@@ -2274,8 +2274,12 @@ let update t ui (frame : Frame.t) =
                 (match r.kind, r.chip with
                  | P.Add, _ ->
                      (match r.key with
-                      | E.Field _ -> [ Syntax_edit (E.Add_field { node = n.path;
-                          name = "f" ^ string_of_int (List.length n.rows);
+                      | E.Field _ ->
+                          (* the first [fN] the record does not have *)
+                          let rec free i =
+                            let name = "f" ^ string_of_int i in
+                            if List.exists (fun (r : P.row) -> r.key = E.Field name) n.rows then free (i + 1) else name in
+                          [ Syntax_edit (E.Add_field { node = n.path; name = free 1;
                           value = S.make (S.Num "0") }) ]
                       | key when n.head = "list" || n.head = "str" || n.head = "concat" && false ->
                           ignore key; [ Syntax_edit (E.Add_item { node = n.path }) ]

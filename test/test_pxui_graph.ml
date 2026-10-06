@@ -554,6 +554,16 @@ let scope_gestures () =
               "the + field row did not become Add_field"
         | None -> ())
    | [] -> fail "kit has no record node");
+  (* the new field takes the first name the record does not have *)
+  let rw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace r (graph g :context sop (let* [r {:f2 5} a (sop/uv_sphere :radius r.f2)] a)))" |> Result.get_ok in
+  let rview, rscope = scope_view rw.checked "g" in
+  let rview, _ = scope_step rview (frame ()) in
+  let rx, ry = Option.get (Scope.Private.row_center rview [ "g"; "r" ]
+    (Option.get (List.find_index (fun (r : P.row) -> r.kind = P.Add) (Option.get (P.find rscope [ "g"; "r" ])).rows))) in
+  let _, changes = scope_click rview (int_of_float rx, int_of_float ry) in
+  check (List.exists (function Scope.Syntax_edit (E.Add_field { name = "f1"; _ }) -> true | _ -> false) changes)
+    "the + field row did not pick the first unused name";
   (* frames: Shift-G makes one around the selection, the corner resizes it, the cross deletes it *)
   let view = settled (Scope.select [ heart; [ "flower"; "bloom" ] ] (fst (scope_view w "flower"))) in
   let view, changes = Scope.run_command view Scope.Make_frame in

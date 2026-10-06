@@ -893,7 +893,8 @@ let rewrite src op : (unit -> S.t list) list =
         let others = List.filteri (fun k _ -> k <> j) sc.ps in
         let uses = List.fold_left (fun n (_, x) -> n + count_refs name x) (count_refs name sc.res) others in
         if uses <> 1 then fail "Fold needs exactly one use of %s inside its scope." name;
-        let rep = replace_ref name e in
+        (* the binding's note goes with it *)
+        let rep = replace_ref name { e with notes = p.notes @ e.notes } in
         let ps = List.map (fun (q, x) -> q, rep x) others and res = rep sc.res in
         if List.exists (fun (_, x) -> count_refs name x > 0) ps || count_refs name res > 0 then
           fail "%s is read by field; it cannot be folded." name;
@@ -930,8 +931,11 @@ let rewrite src op : (unit -> S.t list) list =
               if starts_with "world/" (head_sym e) then detach_result leaf below root else root)
         | _ -> src) src by_depth in
       List.iter (fun node ->
-        let name = snd (split_node node) in
-        if not (nested name) && List.mem name (sym_list (root_form out (List.hd node))) then
+        (* read inside its own scope only: a sibling scope may bind the same name (a duplicated loop) *)
+        let sp, name = split_node node in
+        let used = ref false in
+        (try ignore (edit_scope out sp (fun s -> used := List.mem name (sym_list s); s)) with Fail _ -> ());
+        if not (nested name) && !used then
           fail "%s still feeds another node. Disconnect it first." name) nodes;
       out)
   | Rename { node; to_ } -> one (fun () ->
@@ -1159,6 +1163,7 @@ let rewrite src op : (unit -> S.t list) list =
       edit_scope src sp (fun s ->
         let e = get_node s leaf in
         let key = match e.node with S.Map _ -> Field name | _ -> Kw name in
+        if arg_get e key <> None then fail "There is a field %s already." name;
         reorder (set_node s leaf (arg_set e key (Some value)))))
   | Add_node { scope; name; expr } -> one (fun () ->
       if not (valid_name name) || List.mem name (sym_list (root_form src (List.hd scope)))
