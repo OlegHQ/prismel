@@ -145,6 +145,10 @@ type 'panel frame_result = {
   other_texts : (string list * Text_pane.shown * Text_pane.intent list) list;
   (* the text panes that are not the one in use: what each showed and asked this frame *)
   handle_changes : (int * (string * Parameter.value) list) option;
+  bar_action : Leader.action option;  (* a header tool or an outline row that means a command *)
+  view_pick : projection option;  (* a click on the graph header's Graph / List / Text *)
+  drops : (Carry.place * bool) list;
+  (* where a carried payload is hovered or released ([true]), from panes that are not the graph's *)
 }
 
 (* The tags {!Pick.tint} highlights: those of the merge inputs made by the selected

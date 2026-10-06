@@ -6,7 +6,7 @@ include Core_carry
 (* The one reduction phase of a frame: what the panes asked for ([result]) and the keys ([actions])
    become the next model.  Nothing here builds UI: the panes have finished constructing their
    boxes, and a test can run it on a frame result it made itself. *)
-let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~leader ~frame ~hud ~actions ~guide ~copied ~steady ~status_fps ~status_fps_at ~timeline ~timeline_changes ~graph_shown ~text ~text_shown ~row_sets ~rows ~view_pick ~inspector_drops ~viewport_drops value (result : _ frame_result) =
+let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~leader ~frame ~hud ~actions ~guide ~copied ~steady ~status_fps ~status_fps_at ~timeline ~timeline_changes ~graph_shown ~text ~text_shown ~row_sets ~rows value (result : _ frame_result) =
   let result = match result.prompt_intent with
     | Some (Edit_source op) -> { result with changes = result.changes @ [ Syntax_edit op ] }
     | _ -> result in
@@ -31,7 +31,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     let text_drops = Option.fold ~none:[] ~some:(fun shown -> text_drops text shown result.text_intents) text_shown
       @ List.concat_map (fun (key, shown, intents) -> text_drops (local_of { value with locals = result.locals } key).code shown intents)
           result.other_texts in
-    match scope @ text_drops @ List.rev !inspector_drops @ List.rev !viewport_drops with
+    match scope @ text_drops @ result.drops with
     | (over, dropped) :: _ -> Some { over; dropped }
     | [] -> None
   end in
@@ -512,7 +512,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
      retypes), so opening a graph is the only thing that changes it *)
   let projections = if result.open_graph <> None || outlined <> None then
       Level_map.add value'.level Graph_view value'.projections
-    else match !view_pick with
+    else match result.view_pick with
     | Some view when view <> Text_view || graph_name value' <> None -> Level_map.add value'.level view value'.projections
     | Some _ -> value'.projections
     | None -> match List.find_map (function
@@ -523,7 +523,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
       | Some _ when graph_name value' <> None -> Level_map.add value'.level Text_view value'.projections
       | _ -> value'.projections in
   let value' = { value' with projections; text;
-    rows = !row_sets;
+    rows = row_sets;
     live_cook = result.live_cook } in
   let value' = apply_text { value' with timeline; history; locals = result.locals } result.text_intents in
   (* each other text pane's intents fold into its own state *)
@@ -631,13 +631,13 @@ let reduce_idle ?select ?preview value actions (frame : Frame.t) =
     panel = None; grab = false; settings = value.doc.settings; opened = None; live_cook = value.live_cook;
     label = "Edit"; changes = []; tree_intents = []; text_intents = []; open_graph = None;
     settings_changes = []; graph_panes = value.graph_panes; locals = value.locals; other_texts = [];
-    handle_changes = None } in
+    handle_changes = None; bar_action = None; view_pick = None; drops = [] } in
   let update : (_, unit) update = reduce ~carry_changed:false ~all_ui_visible:false
       ~view_state:(fun _ -> Flow.Syntax.make (Flow.Syntax.Map [])) ~carrying:(value.carry <> None)
       ~held_keys:value.held_keys ~leader:value.leader ~frame ~hud:value.hud ~actions ~guide:value.guide
       ~copied:None ~steady:value.steady ~status_fps:value.status_fps ~status_fps_at:value.status_fps_at
       ~timeline:value.timeline ~timeline_changes:[] ~graph_shown:false ~text:value.text ~text_shown:None
-      ~row_sets:(ref []) ~rows:[||] ~view_pick:(ref None) ~inspector_drops:(ref []) ~viewport_drops:(ref [])
+      ~row_sets:[] ~rows:[||]
       value result in
   update.core
 
