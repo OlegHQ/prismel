@@ -308,6 +308,22 @@ let encode_key ~cook_only (schema : 'record schema) record =
 let key schema record = encode_key ~cook_only:false schema record
 let cook_key schema record = encode_key ~cook_only:true schema record
 
+let cook_text (schema : 'record schema) record =
+  let token label = String.map (fun c -> match c with
+      | 'a' .. 'z' | '0' .. '9' -> c
+      | 'A' .. 'Z' -> Char.lowercase_ascii c
+      | _ -> '_') label in
+  schema.fields |> List.filter_map (fun (Field field) ->
+    if field.impact <> Cook then None else
+    Some (field.name ^ "=" ^ (match field.kind with
+      | Toggle -> string_of_bool (field.get record)
+      | Integer _ -> string_of_int (field.get record)
+      | Floating _ -> Int64.to_string (Int64.bits_of_float (field.get record))
+      | Text -> field.get record
+      | Choice choice -> token (choice_label choice (field.get record))
+      | Encoded encoding -> encoding.encode (field.get record))))
+  |> String.concat ";"
+
 let apply_field : type record value.
     record -> value kind -> value -> (value -> record -> record) -> impact ->
     value -> (record * impact option, string) result =

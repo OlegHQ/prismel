@@ -1406,113 +1406,11 @@ let subdivide ?label ?group ?(scheme = Rdk.Subdivide.Catmull_clark)
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let edge_divide ?label ?group ?(divisions = 2) ?(share_points = true) input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.edge_divide: empty edge group name") group;
-  if divisions <= 0 then
-    invalid_arg "Sop.edge_divide: divisions must be positive";
-  Node.Private.make ?label ~operation:"edge_divide" ~version:1
-    ~parameters:(Printf.sprintf "group=%s;divisions=%d;share_points=%b"
-      (option_string_key group) divisions share_points)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let edges = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name inputs.(0) with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                    "edge_divide could not find native edge group %S" name))) in
-      match edges with
-      | Error error -> Error error
-      | Ok edges ->
-          match Rdk.Subdivide.edge_divide ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?edges ~divisions ~share_points
-              inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let edge_divide = Sop_topology.Edge_divide.fn
 
-let edge_collapse ?label ?group ?connectivity_attribute
-    ?(position = Rdk.Fuse_reduce.Average_position)
-    ?(remove_degenerate_primitives = true)
-    ?(recompute_point_normals = true) input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.edge_collapse: empty edge group name") group;
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.edge_collapse: empty connectivity attribute name")
-    connectivity_attribute;
-  Node.Private.make ?label ~operation:"edge_collapse" ~version:1
-    ~parameters:(Printf.sprintf
-      "group=%s;connectivity_attribute=%s;position=%s;remove_degenerate_primitives=%b;recompute_point_normals=%b"
-      (option_string_key group) (option_string_key connectivity_attribute)
-      (fuse_position_key position)
-      remove_degenerate_primitives recompute_point_normals)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      let edges = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name geometry with
-             | Some edges -> Ok (Some edges)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                    "edge_collapse could not find native edge group %S" name))) in
-      match edges with
-      | Error error -> Error error
-      | Ok edges ->
-          match Rdk.Edge_collapse.run ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?edges ?connectivity_attribute
-              ~position
-              ~remove_degenerate_primitives ~recompute_point_normals geometry with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let edge_collapse = Sop_topology.Edge_collapse.fn
 
-let dissolve_operation_key = function
-  | Rdk.Dissolve.Dissolve_selected -> "selected"
-  | Rdk.Dissolve.Dissolve_non_selected -> "non_selected"
-
-let dissolve_bridge_policy_key = function
-  | Rdk.Dissolve.Create_bridged_polygons -> "bridged"
-  | Rdk.Dissolve.Create_disjoint_polygons -> "disjoint"
-  | Rdk.Dissolve.Delete_bridge_polygons -> "delete"
-
-let dissolve ?label ?group ?(operation = Rdk.Dissolve.Dissolve_selected)
-    ?(bridge_policy = Rdk.Dissolve.Create_bridged_polygons)
-    ?(remove_inline_points = false) ?(collinearity_tolerance = 0.)
-    ?(remove_unused_points = true) ?(create_boundary_curves = false)
-    ?(recompute_normals = true) input =
-  Node.Private.make ?label ~operation:"dissolve" ~version:1
-    ~parameters:(String.concat ";" [
-      "group=" ^ option_string_key group;
-      "operation=" ^ dissolve_operation_key operation;
-      "bridge=" ^ dissolve_bridge_policy_key bridge_policy;
-      "remove_inline=" ^ string_of_bool remove_inline_points;
-      "collinearity=" ^ float_key collinearity_tolerance;
-      "remove_unused=" ^ string_of_bool remove_unused_points;
-      "boundary_curves=" ^ string_of_bool create_boundary_curves;
-      "normals=" ^ string_of_bool recompute_normals])
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      let edges = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name inputs.(0) with
-             | Some value -> Ok (Some value)
-             | None -> Error (Diagnostic.error ~code:"missing_edge_group"
-                 (Printf.sprintf "dissolve could not find edge group %S" name))) in
-      match edges with
-      | Error error -> Error error
-      | Ok edges ->
-          match Rdk.Dissolve.run ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?edges ~operation ~bridge_policy
-              ~remove_inline_points ~collinearity_tolerance
-              ~remove_unused_points ~create_boundary_curves ~recompute_normals
-              inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let dissolve = Sop_topology.Dissolve.fn
 
 let poly_bevel_shape_key = function
   | Rdk.Poly_bevel.Bevel_chamfer -> "chamfer"
@@ -1724,89 +1622,11 @@ let poly_bridge ?label ~source_group ~destination_group
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let edge_flip ?label ?group ?(cycles = 1)
-    ?(cycle_vertex_attributes = true) ?(recompute_point_normals = false) input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.edge_flip: empty edge group name") group;
-  if cycles < 0 then invalid_arg "Sop.edge_flip: cycles must be non-negative";
-  Node.Private.make ?label ~operation:"edge_flip" ~version:1
-    ~parameters:(Printf.sprintf
-      "group=%s;cycles=%d;cycle_vertex_attributes=%b;recompute_point_normals=%b"
-      (option_string_key group) cycles cycle_vertex_attributes
-      recompute_point_normals)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      let edges = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name geometry with
-             | Some edges -> Ok (Some edges)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                    "edge_flip could not find native edge group %S" name))) in
-      match edges with
-      | Error error -> Error error
-      | Ok edges ->
-          match Rdk.Edge_flip.run ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?edges ~cycles
-              ~cycle_vertex_attributes ~recompute_point_normals geometry with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let edge_flip = Sop_topology.Edge_flip.fn
 
-let edge_cusp ?label ?group ?(update_point_normals = true) input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.edge_cusp: empty edge group name") group;
-  Node.Private.make ?label ~operation:"edge_cusp" ~version:1
-    ~parameters:(Printf.sprintf "group=%s;update_point_normals=%b"
-      (option_string_key group) update_point_normals)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      let edges = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name geometry with
-             | Some edges -> Ok (Some edges)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                    "edge_cusp could not find native edge group %S" name))) in
-      match edges with
-      | Error error -> Error error
-      | Ok edges ->
-          match Rdk.Facet.edge_cusp ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?edges ~update_point_normals
-              geometry with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let edge_cusp = Sop_topology.Edge_cusp.fn
 
-let edge_straighten ?label ?group ?output_group input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.edge_straighten: empty edge group name") group;
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.edge_straighten: empty output edge group name")
-    output_group;
-  Node.Private.make ?label ~operation:"edge_straighten" ~version:1
-    ~parameters:(Printf.sprintf "group=%s;output_group=%s"
-      (option_string_key group) (option_string_key output_group))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      let edges = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name geometry with
-             | Some edges -> Ok (Some edges)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                    "edge_straighten could not find native edge group %S" name))) in
-      match edges with
-      | Error error -> Error error
-      | Ok edges ->
-          match Rdk.Edge_ops.straighten ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?edges ?output_group geometry with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let edge_straighten = Sop_topology.Edge_straighten.fn
 
 let circle_from_edges ?label ?group ?radius
     ?(scale = Vec3.create 1. 1. 1.) ?output_group input =
@@ -2576,29 +2396,7 @@ let unary_result ?label ~operation cook input =
       | Ok geometry -> cooked geometry
       | Error error -> structured_rdk_error error)
 
-let triangulate ?label ?group input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.triangulate: empty primitive group name") group;
-  Node.Private.make ?label ~operation:"triangulate" ~version:2
-    ~parameters:("group=" ^ option_string_key group)
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      let primitives = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                    "triangulate could not find primitive group %S" name))) in
-      match primitives with
-      | Error error -> Error error
-      | Ok primitives ->
-          match Rdk.Triangulate.run ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?primitives geometry with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let triangulate = Sop_topology.Triangulate.fn
 
 let triangulate_2d_projection_key = function
   | Rdk.Triangulate2d.Best_fit -> "best_fit"
@@ -3432,50 +3230,7 @@ let smooth ?label ?group ?constrained_points
                | Ok geometry -> cooked geometry
                | Error error -> structured_rdk_error error))
 
-let clean_overlap_key = function
-  | Rdk.Clean.Keep_first_overlap -> "keep_first"
-  | Rdk.Clean.Delete_overlap_pairs -> "delete_pairs"
-
-let clean ?label ?epsilon ?(remove_degenerate = true) ?consolidate_distance
-    ?overlaps ?(reverse_winding = false) ?(remove_nan_points = false)
-    ?(remove_unused_points = false) ?(delete_unused_groups = false)
-    ?point_attributes ?vertex_attributes ?primitive_attributes ?detail_attributes
-    ?point_groups ?vertex_groups ?primitive_groups ?edge_groups input =
-  let epsilon_key = match epsilon with
-    | None -> "default" | Some value -> float_key value in
-  let distance_key = match consolidate_distance with
-    | None -> "none" | Some value -> float_key value in
-  let overlap_key = match overlaps with
-    | None -> "none" | Some value -> clean_overlap_key value in
-  Node.Private.make ?label ~operation:"clean" ~version:2
-    ~parameters:(String.concat ";" [
-      "epsilon=" ^ epsilon_key;
-      "remove_degenerate=" ^ string_of_bool remove_degenerate;
-      "consolidate_distance=" ^ distance_key;
-      "overlaps=" ^ overlap_key;
-      "reverse_winding=" ^ string_of_bool reverse_winding;
-      "remove_nan_points=" ^ string_of_bool remove_nan_points;
-      "remove_unused_points=" ^ string_of_bool remove_unused_points;
-      "delete_unused_groups=" ^ string_of_bool delete_unused_groups;
-      "point_attributes=" ^ option_string_key point_attributes;
-      "vertex_attributes=" ^ option_string_key vertex_attributes;
-      "primitive_attributes=" ^ option_string_key primitive_attributes;
-      "detail_attributes=" ^ option_string_key detail_attributes;
-      "point_groups=" ^ option_string_key point_groups;
-      "vertex_groups=" ^ option_string_key vertex_groups;
-      "primitive_groups=" ^ option_string_key primitive_groups;
-      "edge_groups=" ^ option_string_key edge_groups])
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      match Rdk.Clean.run ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ?epsilon ~remove_degenerate
-          ?consolidate_distance ?overlaps ~reverse_winding ~remove_nan_points
-          ~remove_unused_points ~delete_unused_groups ?point_attributes
-          ?vertex_attributes ?primitive_attributes ?detail_attributes
-          ?point_groups ?vertex_groups ?primitive_groups ?edge_groups inputs.(0) with
-      | Ok geometry -> cooked geometry
-      | Error error -> structured_rdk_error error)
+let clean = Sop_topology.Clean.fn
 
 let facet ?label ?group ?selection ?(pre_compute_normals = false)
     ?(make_normals_unit_length = false) ?(unique_points = false)
@@ -3534,111 +3289,9 @@ let facet ?label ?group ?selection ?(pre_compute_normals = false)
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let poly_extrude_divide_key = function
-  | Rdk.Poly_extrude.Extrude_individual -> "individual"
-  | Rdk.Poly_extrude.Extrude_connected_components -> "connected_components"
+let poly_extrude = Sop_topology.Poly_extrude.fn
 
-let poly_extrude ?label ?group ?split_edges
-    ?(divide = Rdk.Poly_extrude.Extrude_individual) ?(divisions = 1)
-    ?(output_front = true) ?(output_back = true) ?(output_side = true)
-    ?front_group ?back_group ?side_group ?front_boundary_group
-    ?back_boundary_group ~distance input =
-  if divisions <= 0 then invalid_arg "Sop.poly_extrude: divisions must be positive";
-  List.iter (fun (kind, value) -> match value with
-    | Some name when String.trim name = "" ->
-        invalid_arg ("Sop.poly_extrude: empty " ^ kind ^ " group name")
-    | None | Some _ -> ())
-    ["selection", group; "split edge", split_edges; "front", front_group;
-     "back", back_group; "side", side_group;
-     "front boundary", front_boundary_group;
-     "back boundary", back_boundary_group];
-  Node.Private.make ?label ~operation:"poly_extrude" ~version:2
-    ~parameters:(String.concat ";" [
-      "distance=" ^ float_key distance;
-      "group=" ^ option_string_key group;
-      "split_edges=" ^ option_string_key split_edges;
-      "divide=" ^ poly_extrude_divide_key divide;
-      "divisions=" ^ string_of_int divisions;
-      "output_front=" ^ string_of_bool output_front;
-      "output_back=" ^ string_of_bool output_back;
-      "output_side=" ^ string_of_bool output_side;
-      "front_group=" ^ option_string_key front_group;
-      "back_group=" ^ option_string_key back_group;
-      "side_group=" ^ option_string_key side_group;
-      "front_boundary_group=" ^ option_string_key front_boundary_group;
-      "back_boundary_group=" ^ option_string_key back_boundary_group])
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      let primitives = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                   "poly_extrude could not find primitive group %S" name))) in
-      let split = match split_edges with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name geometry with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                   "poly_extrude could not find edge split group %S" name))) in
-      match primitives, split with
-      | Error error, _ | _, Error error -> Error error
-      | Ok primitives, Ok split_edges ->
-          match Rdk.Poly_extrude.run ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?primitives ?split_edges ~divide
-              ~divisions ~output_front ~output_back ~output_side ?front_group
-              ?back_group ?side_group ?front_boundary_group
-              ?back_boundary_group ~distance geometry with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
-
-let poly_fill_mode_key = function
-  | Rdk.Poly_fill.Fill_single_polygon -> "single_polygon"
-  | Rdk.Poly_fill.Fill_triangles -> "triangles"
-  | Rdk.Poly_fill.Fill_triangle_fan -> "triangle_fan"
-
-let poly_fill ?label ?boundary_group ?(mode = Rdk.Poly_fill.Fill_triangles)
-    ?(reverse_patches = false) ?(unique_points = false)
-    ?(update_point_normals = false) ?patch_group input =
-  List.iter (fun (label, name) -> match name with
-    | Some name when String.trim name = "" ->
-        invalid_arg ("Sop.poly_fill: empty " ^ label ^ " group name")
-    | None | Some _ -> ())
-    ["boundary", boundary_group; "patch", patch_group];
-  Node.Private.make ?label ~operation:"poly_fill" ~version:1
-    ~parameters:(String.concat ";" [
-      "boundary_group=" ^ option_string_key boundary_group;
-      "mode=" ^ poly_fill_mode_key mode;
-      "reverse_patches=" ^ string_of_bool reverse_patches;
-      "unique_points=" ^ string_of_bool unique_points;
-      "update_point_normals=" ^ string_of_bool update_point_normals;
-      "patch_group=" ^ option_string_key patch_group])
-    ~cook_mode:(Node.Duplicate_input 0)
-    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
-    (fun ~node_id:_ context inputs ->
-      let geometry = inputs.(0) in
-      let boundary = match boundary_group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name geometry with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 (Printf.sprintf
-                   "poly_fill could not find boundary edge group %S" name))) in
-      match boundary with
-      | Error error -> Error error
-      | Ok boundary ->
-          match Rdk.Poly_fill.run ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?boundary ~mode ~reverse_patches
-              ~unique_points ~update_point_normals ?patch_group geometry with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let poly_fill = Sop_topology.Poly_fill.fn
 
 let resample ?label ?group ?segments ?maximum_segment_length
     ?segment_length_attribute ?segments_attribute ?(even_last_segment = true)
@@ -3767,43 +3420,7 @@ let extract_point_from_curve ?label ?group
           | Ok geometry -> cooked geometry
           | Error error -> structured_rdk_error error)
 
-let convert_line ?label ?group ?(connect_path = false)
-    ?(maximum_distance = 0.001)
-    ?(connect_only_to_other_end_points = false)
-    ?(make_isolated_loops_closed = false) ?(remove_unused_points = false)
-    ?length_attribute input =
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.convert_line: empty edge group name") group;
-  Option.iter (fun name -> if String.trim name = "" then
-    invalid_arg "Sop.convert_line: empty length attribute name") length_attribute;
-  Node.Private.make ?label ~operation:"convert_line" ~version:2
-    ~parameters:(Printf.sprintf
-      "group=%S;connect_path=%b;maximum_distance=%s;connect_only_to_other_end_points=%b;make_isolated_loops_closed=%b;remove_unused_points=%b;length_attribute=%S"
-      (Option.value ~default:"" group) connect_path
-      (float_key maximum_distance) connect_only_to_other_end_points
-      make_isolated_loops_closed remove_unused_points
-      (Option.value ~default:"" length_attribute))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      let edges = match group with
-        | None -> Ok None
-        | Some name ->
-            (match Rdk.Geometry.find_edge_group name inputs.(0) with
-             | Some group -> Ok (Some group)
-             | None -> Error (Diagnostic.error ~code:"missing_group"
-                 ~hints:["Create the native edge group before Convert Line"]
-                 (Printf.sprintf "convert_line could not find edge group %S"
-                   name))) in
-      match edges with
-      | Error _ as error -> error
-      | Ok edges ->
-          match Rdk.Curve_topology.convert_line ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ?edges ~connect_path
-              ~maximum_distance ~connect_only_to_other_end_points
-              ~make_isolated_loops_closed ~remove_unused_points
-              ?length_attribute inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let convert_line = Sop_topology.Convert_line.fn
 
 let carve_keep_key = function
   | Rdk.Curve_ops.Inside -> "inside"
@@ -5863,10 +5480,6 @@ let group_transfer = Sop_groups.Group_transfer.fn
 
 let group_find_path = Sop_groups.Group_find_path.fn
 
-let delete_policy_key = function
-  | Rdk.Deletion.Destroy_touched_primitives -> "destroy_touched_primitives"
-  | Rdk.Deletion.Heal_primitives -> "heal_primitives"
-
 let blast_attribute_owner_key = function
   | Rdk.Blast_by_attribute.Blast_points -> "points"
   | Rdk.Blast_by_attribute.Blast_primitives -> "primitives"
@@ -5923,32 +5536,7 @@ let blast_by_attribute ?label ?group ?(invert = false)
         | Ok geometry -> cooked geometry
         | Error error -> structured_rdk_error error))
 
-let group_owner_key = function
-  | Rdk.Group.Point -> "point"
-  | Rdk.Group.Vertex -> "vertex"
-  | Rdk.Group.Primitive -> "primitive"
-
-let blast ?label ?(selected = true) ?(compact_points = false)
-    ?(policy = Rdk.Deletion.Destroy_touched_primitives) ~owner ~group input =
-  if String.trim group = "" then invalid_arg "Sop.blast: empty group name";
-  Node.Private.make ?label ~operation:"blast" ~version:1
-    ~parameters:(Printf.sprintf
-      "owner=%s;group=%S;selected=%b;compact_points=%b;policy=%s"
-      (group_owner_key owner) group selected compact_points
-      (delete_policy_key policy))
-    ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
-    ~inputs:[|input|] (fun ~node_id:_ context inputs ->
-      match Rdk.Geometry.find_group ~owner group inputs.(0) with
-      | None -> Error (Diagnostic.error ~code:"missing_group"
-          ~hints:["Create the typed group before Blast or correct its owner/name"]
-          (Printf.sprintf "blast could not find %s group %S"
-            (group_owner_key owner) group))
-      | Some selection ->
-          match Rdk.Deletion.delete ~cancel:(Context.cancel_token context)
-              ~grain:(Context.grain context) ~selected ~compact_points ~policy
-              selection inputs.(0) with
-          | Ok geometry -> cooked geometry
-          | Error error -> structured_rdk_error error)
+let blast = Sop_topology.Blast.fn
 
 let compact_points ?label input =
   unary_result ?label ~operation:"compact_points"

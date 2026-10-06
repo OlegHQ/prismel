@@ -159,3 +159,8 @@ let group_owner_key = function
   | Rdk.Group.Point -> "point"
   | Rdk.Group.Vertex -> "vertex"
   | Rdk.Group.Primitive -> "primitive"
+
+let delete_topology_policy_parameter = Parameter.choice ~equal:( = ) [
+    "Destroy touched primitives", Rdk.Deletion.Destroy_touched_primitives;
+    "Heal primitives", Rdk.Deletion.Heal_primitives;
+  ]

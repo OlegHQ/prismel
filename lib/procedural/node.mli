@@ -16,6 +16,9 @@ val label : t -> string
 val operation : t -> string
 val version : t -> int
 val parameters : t -> string
+(** The hand-written cache text of an unparameterized node, or, for a
+    parameterized node that has none, [Parameter.cook_text] of its schema
+    values ([name=value;...]). *)
 
 (** [Parameter.cook_key] of the attached schema values, computed once when
     the node is parameterized, or [""] for an unparameterized node. Session

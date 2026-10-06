@@ -148,6 +148,51 @@ let run () =
   let edge_renamed = Sop.rename_edge_group ~from:"rim" ~into:"border" edges in
   same_cook "rename_edge_group" ~typed:edge_renamed ~factory:Nodes.Rename_edge_group.factory
     [ "from", Parameter.Text_value "rim"; "into", Text_value "border" ] edges;
+  (* topology nodes *)
+  let quads = Sop.box ~connectivity:Rdk.Box_generator.Box_quads ~size:(Vec3.create 2. 2. 2.) () in
+  let divided = Sop.edge_divide ~divisions:3 quads in
+  same_cook "edge_divide" ~typed:divided ~factory:Nodes.Edge_divide.factory
+    [ "divisions", Parameter.Int_value 3 ] quads;
+  let collapsed = Sop.edge_collapse ~group:"rim" edges in
+  same_cook "edge_collapse" ~typed:collapsed ~factory:Nodes.Edge_collapse.factory
+    [ "group", Parameter.Text_value "rim" ] edges;
+  let dissolved = Sop.dissolve ~group:"rim" edges in
+  same_cook "dissolve" ~typed:dissolved ~factory:Nodes.Dissolve.factory
+    [ "group", Parameter.Text_value "rim";
+      (* typed defaults that differ from the editor defaults (listed drifts) *)
+      "remove_inline_points", Bool_value false; "collinearity_tolerance", Float_value 0. ] edges;
+  let triangulated = Sop.triangulate quads in
+  same_cook "triangulate" ~typed:triangulated ~factory:Nodes.Triangulate.factory [] quads;
+  let cleaned = Sop.clean ~consolidate_distance:0.05 warped in
+  same_cook "clean" ~typed:cleaned ~factory:Nodes.Clean.factory
+    [ "consolidate_distance", Parameter.Float_value 0.05;
+      "remove_nan_points", Bool_value false; "remove_unused_points", Bool_value false;
+      "delete_unused_groups", Bool_value false ] warped;
+  let flipped = Sop.edge_flip ~cycles:1 box in
+  same_cook "edge_flip" ~typed:flipped ~factory:Nodes.Edge_flip.factory [] box;
+  let cusped = Sop.edge_cusp ~group:"rim" edges in
+  same_cook "edge_cusp" ~typed:cusped ~factory:Nodes.Edge_cusp.factory
+    [ "group", Parameter.Text_value "rim" ] edges;
+  let straightened = Sop.edge_straighten ~group:"rim" ~output_group:"straight" edges in
+  same_cook "edge_straighten" ~typed:straightened ~factory:Nodes.Edge_straighten.factory
+    [ "group", Parameter.Text_value "rim"; "output_group", Text_value "straight" ] edges;
+  let extruded = Sop.poly_extrude ~group:"half" ~distance:0.2 grouped in
+  same_cook "poly_extrude" ~typed:extruded ~factory:Nodes.Poly_extrude.factory
+    [ "group", Parameter.Text_value "half"; "distance", Float_value 0.2 ] grouped;
+  let filled = Sop.poly_fill ~unique_points:true warped in
+  same_cook "poly_fill" ~typed:filled ~factory:Nodes.Poly_fill.factory
+    [ "unique_points", Parameter.Bool_value true ] warped;
+  let lines = Sop.convert_line ~connect_path:true warped in
+  same_cook "convert_line" ~typed:lines ~factory:Nodes.Convert_line.factory
+    [ "connect_path", Parameter.Bool_value true ] warped;
+  let blasted = Sop.blast ~owner:Rdk.Group.Primitive ~group:"half" grouped in
+  same_cook "blast" ~typed:blasted ~factory:Nodes.Blast.factory
+    [ "group", Parameter.Text_value "half" ] grouped;
+  List.iter (fun (name, node) -> cache_identity name node)
+    [ "edge_divide", divided; "edge_collapse", collapsed; "dissolve", dissolved;
+      "triangulate", triangulated; "clean", cleaned; "edge_flip", flipped; "edge_cusp", cusped;
+      "edge_straighten", straightened; "poly_extrude", extruded; "poly_fill", filled;
+      "convert_line", lines; "blast", blasted ];
   List.iter (fun (name, node) -> cache_identity name node)
     [ "group_non_planar", non_planar; "group_backface", backface; "group_unshared", unshared;
       "group_edges", edges; "group_random", random; "group_edge_depth", depth;

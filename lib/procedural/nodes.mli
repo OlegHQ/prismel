@@ -25,3 +25,21 @@ module Group_transfer : sig val factory : Edit_graph.factory end
 module Group_find_path : sig val factory : Edit_graph.factory end
 module Delete_edge_group : sig val factory : Edit_graph.factory end
 module Rename_edge_group : sig val factory : Edit_graph.factory end
+module Edge_divide : sig val factory : Edit_graph.factory end
+module Edge_collapse : sig val factory : Edit_graph.factory end
+module Dissolve : sig val factory : Edit_graph.factory end
+module Triangulate : sig val factory : Edit_graph.factory end
+module Clean : sig val factory : Edit_graph.factory end
+module Edge_flip : sig val factory : Edit_graph.factory end
+module Edge_cusp : sig val factory : Edit_graph.factory end
+module Edge_straighten : sig val factory : Edit_graph.factory end
+module Poly_extrude : sig val factory : Edit_graph.factory end
+module Poly_fill : sig val factory : Edit_graph.factory end
+module Convert_line : sig val factory : Edit_graph.factory end
+module Blast : sig
+  val factory : Edit_graph.factory
+  val create :
+    ?label:string -> ?selected:bool -> ?compact_points:bool ->
+    owner:Rdk.Group.owner -> group:string ->
+    Node.t -> Node.t
+end

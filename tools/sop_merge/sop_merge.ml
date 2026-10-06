@@ -97,9 +97,31 @@ let rec make_application = function
 
 (* ---------- checks -> attributes ---------- *)
 
-type check = Nonblank of string * string | Validate of string * string * expression option * expression option
+type check = Nonblank of string * string | Validate of string * string * float option * float option
 (* Nonblank (parameter, message); Validate (parameter, message, lower, upper) *)
 type vec3_check = Vec3_finite of string * string
+
+let number e = match e.pexp_desc with
+  | Pexp_constant { pconst_desc = Pconst_float (f, _); _ } -> Some (float_of_string f)
+  | Pexp_constant { pconst_desc = Pconst_integer (i, _); _ } -> Some (float_of_string i)
+  | Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "~-"; _ }; _ }, [Nolabel,
+      { pexp_desc = Pexp_constant { pconst_desc = Pconst_float (f, _) | Pconst_integer (f, _); _ }; _ }]) ->
+      Some (-. float_of_string f)
+  | _ -> None
+
+(* A message built from literals and one variable [hole]: ["a" ^ hole ^ "b"],
+   [Printf.sprintf "a %s b" hole] or a literal. *)
+let rec message_template hole e = match e.pexp_desc with
+  | Pexp_constant { pconst_desc = Pconst_string (s, _, _); _ } -> Some (fun _ -> s)
+  | Pexp_ident { txt = Lident v; _ } when v = hole -> Some Fun.id
+  | Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "^"; _ }; _ }, [Nolabel, a; Nolabel, b]) ->
+      (match message_template hole a, message_template hole b with
+       | Some a, Some b -> Some (fun x -> a x ^ b x) | _ -> None)
+  | Pexp_apply (f, [Nolabel, format; Nolabel, x]) when lident f = Some ["Printf"; "sprintf"] && var x = Some hole ->
+      (match string_literal format with
+       | Some format -> Some (fun x -> Str.global_replace (Str.regexp_string "%s") x format)
+       | None -> None)
+  | _ -> None
 
 let strip_prefix fname message =
   let prefix = "Sop." ^ fname ^ ": " in
@@ -178,9 +200,16 @@ let classify_check fname (e : expression) : [ `Checks of check list | `Vec3 of v
                 let lower = ref None and upper = ref None in
                 List.iter (function
                   | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident op; _ }; _ },
-                      [Nolabel, x; Nolabel, bound]); _ } when op = "<" || op = ">" ->
+                      [Nolabel, x; Nolabel, bound]); _ } when List.mem op ["<"; ">"; "<="; ">="] ->
                       ignore (name x);
-                      if op = "<" then lower := Some bound else upper := Some bound
+                      let bound = match number bound with
+                        | Some b -> b | None -> skip "range check against a non-literal" in
+                      (* [x <= n] on an int is [x < n + 1] *)
+                      (match op with
+                       | "<" -> lower := Some bound
+                       | "<=" -> lower := Some (bound +. 1.)
+                       | ">" -> upper := Some bound
+                       | _ -> upper := Some (bound -. 1.))
                   | _ -> skip "unrecognised range check") bounds;
                 match !v with
                 | None -> skip "empty range check"
@@ -210,18 +239,26 @@ let classify_check fname (e : expression) : [ `Checks of check list | `Vec3 of v
       (* List.iter (fun (field, value) -> match value with
            | Some value when String.trim value = "" -> invalid_arg ("Sop.f: empty " ^ field)
            | None | Some _ -> ()) ["seed attribute name", seed_attribute; ...] *)
-      let inner = match p.ppat_desc with
-        | Ppat_tuple [_; v] -> (match pat_var v with Some v -> v | None -> skip "unrecognised List.iter check")
+      let hole, inner = match p.ppat_desc with
+        | Ppat_tuple [h; v] -> (match pat_var h, pat_var v with
+            | Some h, Some v -> h, v | _ -> skip "unrecognised List.iter check")
         | _ -> skip "unrecognised List.iter check" in
-      let prefix = match body.pexp_desc with
+      let raise_argument = function
+        | { pexp_desc = Pexp_apply (raise_, [Nolabel, m]); _ } when lident raise_ = Some ["invalid_arg"] -> m
+        | _ -> skip "List.iter check does not raise invalid_arg" in
+      let message = match body.pexp_desc with
         | Pexp_match (x, [ { pc_lhs = { ppat_desc = Ppat_construct ({ txt = Lident "Some"; _ }, Some (_, p)); _ };
-                             pc_guard = Some guard; pc_rhs = { pexp_desc = Pexp_apply (raise_, [Nolabel,
-                               { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "^"; _ }; _ },
-                                 [Nolabel, m; Nolabel, _]); _ }]); _ } }; _ ])
-          when var x = Some inner && lident raise_ = Some ["invalid_arg"]
-            && (match pat_var p with Some v -> is_blank_test v guard | None -> false) ->
-            (match string_literal m with Some m -> strip_prefix fname m | None -> skip "List.iter message")
+                             pc_guard = Some guard; pc_rhs }; _ ])
+          when var x = Some inner && (match pat_var p with Some v -> is_blank_test v guard | None -> false) ->
+            raise_argument pc_rhs
+        | Pexp_apply (f, [Nolabel, { pexp_desc = Pexp_function ([{ pparam_desc = Pparam_val (Nolabel, None, p); _ }],
+            None, Pfunction_body { pexp_desc = Pexp_ifthenelse (test, branch, None); _ }); _ }; Nolabel, x])
+          when lident f = Some ["Option"; "iter"] && var x = Some inner
+            && (match pat_var p with Some v -> is_blank_test v test | None -> false) ->
+            raise_argument branch
         | _ -> skip "unrecognised List.iter check" in
+      let template = match message_template hole message with
+        | Some template -> template | None -> skip "List.iter message is not a template" in
       let rec items = function
         | { pexp_desc = Pexp_construct ({ txt = Lident "::"; _ }, Some { pexp_desc = Pexp_tuple [h; t]; _ }); _ } -> h :: items t
         | { pexp_desc = Pexp_construct ({ txt = Lident "[]"; _ }, None); _ } -> []
@@ -229,7 +266,7 @@ let classify_check fname (e : expression) : [ `Checks of check list | `Vec3 of v
       `Checks (List.map (function
         | { pexp_desc = Pexp_tuple [field; x]; _ } ->
             (match string_literal field, var x with
-             | Some field, Some v -> Nonblank (v, prefix ^ field)
+             | Some field, Some v -> Nonblank (v, strip_prefix fname (template field))
              | _ -> skip "unrecognised List.iter pair")
         | _ -> skip "unrecognised List.iter pair") (items pairs))
   | _ -> skip "unrecognised check statement: %s" (Pprintast.string_of_expression e)
@@ -300,13 +337,6 @@ let attribute_payload name (attrs : attributes) = List.find_map (fun a ->
 
 (* numeric literals compare by value, anything else by text *)
 let same_expression (src_a, a) (src_b, b) =
-  let number e = match e.pexp_desc with
-    | Pexp_constant { pconst_desc = Pconst_float (f, _); _ } -> Some (float_of_string f)
-    | Pexp_constant { pconst_desc = Pconst_integer (i, _); _ } -> Some (float_of_string i)
-    | Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "~-"; _ }; _ }, [Nolabel,
-        { pexp_desc = Pexp_constant { pconst_desc = Pconst_float (f, _) | Pconst_integer (f, _); _ }; _ }]) ->
-        Some (-. float_of_string f)
-    | _ -> None in
   match number a, number b with
   | Some x, Some y -> x = y
   | _ -> let norm s = String.concat "" (String.split_on_char ' ' s) in
@@ -518,7 +548,7 @@ let merge ~dry name =
                  let d = field f in
                  let same bound attr = match bound, attribute_payload attr d.pld_attributes with
                    | None, None -> true
-                   | Some b, Some h -> same_expression (sop_src, b) (catalog_src, h)
+                   | Some b, Some h -> number h = Some b
                    | _ -> false in
                  if not (same lower "sop.hard_min" && same upper "sop.hard_max") then
                    skip "range check on %s differs from its hard range" v;
