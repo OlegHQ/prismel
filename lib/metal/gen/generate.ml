@@ -661,7 +661,7 @@ let self_test () =
     Method
       { recv = "Compute_encoder"; objc = "id<MTLComputeCommandEncoder>"
       ; sel = "dispatchThreads:threadsPerThreadgroup:"
-      ; args = [ Rec "Mtl_size"; Rec "Mtl_size" ]; ret = None; error = false; pool = true
+      ; args = [ Rec "Mtl_size_int"; Rec "Mtl_size_int" ]; ret = None; error = false; pool = true
       ; ocaml = "compute_encoder_dispatch_threads"; since = None
       ; feature = Ogpu_core.Caps.Compute_pipeline }
   and label =
@@ -671,14 +671,14 @@ let self_test () =
   validate [ dispatch; label ];
   let native = emit_c [ dispatch; label ] and ml = emit_ml [ dispatch ] in
   if not (contains_token native
-            "MTLSize{static_cast<NSUInteger>(Int64_val(Field(arg0, 0))), static_cast<NSUInteger>(Int64_val(Field(arg0, 1)))")
-     || not (contains_token ml "Types.handle -> Record.Mtl_size.t -> Record.Mtl_size.t -> (unit, string) result")
+            "MTLSize{static_cast<NSUInteger>(Long_val(Field(arg0, 0))), static_cast<NSUInteger>(Long_val(Field(arg0, 1)))")
+     || not (contains_token ml "Types.handle -> Record.Mtl_size_int.t -> Record.Mtl_size_int.t -> (unit, string) result")
      || not (contains_token native "NSString *text0 = string_from_ocaml(arg0)")
      || not (contains_token native "object.label = text0")
   then fail "generated record or string argument lost its conversion";
   (match dispatch with
    | Method m ->
-       (try validate [ Method { m with ret = Some (Rec "Mtl_size") } ];
+       (try validate [ Method { m with ret = Some (Rec "Mtl_size_int") } ];
           fail "record result was accepted"
         with Failure message ->
           if not (String.starts_with ~prefix:"record result" message)
