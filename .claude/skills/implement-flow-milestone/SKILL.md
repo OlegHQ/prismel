@@ -23,7 +23,7 @@ description: Implement the next milestone of the Rays Flow node-editor rework (l
    - apply its "Docs when it lands" list: rewrite the target notes in the named
      specs and `AGENTS.md` files into current text;
    - run its "Measure" benchmarks before and after and put the numbers in
-     `specification/performance.md` and the hand-off;
+     `specification/performance-log.md` and the hand-off;
    - set the status row to `done` with the date and add a log line.
 6. If the spec turns out wrong or ambiguous, change `flow.md` first (and the
    prototype if it shows the old behavior), record the decision in `flow.md`

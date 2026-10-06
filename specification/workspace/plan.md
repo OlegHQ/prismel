@@ -1166,7 +1166,7 @@ _build/default/sketches/bloom/main.ml   ← generated per build, never checked i
    - `tools/new_example`: document `--lisp`.
    - `backend.md`: the gate, if boundaries changed.
    - `pxui.md`: `text_area` and the layout tree.
-   - `performance.md`: the new benches.
+   - `performance-log.md`: the new benches.
 4. Run `prune-dead-code` to a fixpoint.
 
 ---

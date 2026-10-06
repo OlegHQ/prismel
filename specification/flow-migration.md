@@ -124,7 +124,7 @@ Tests:
 
 Docs when it lands: `pxui.md` (Hosts: `Pxui_graph.update` paragraph; wire
 rendering line), `procedural.md` (Editable graph paragraph), `api.md`
-(pxui_graph paragraph and tile wording), `performance.md` (SOP graph
+(pxui_graph paragraph and tile wording), `performance-log.md` (SOP graph
 baseline), `scene.md` (tile wording), `lib/pxui_graph/AGENTS.md`,
 `lib/rays_editor/AGENTS.md`: replace the "M1" target notes with the new
 current text.
@@ -821,7 +821,7 @@ check: `sketches/flow_workspace` (`FLOW_CASE`, `FLOW_ADD=1`, `FLOW_EXPORT`).
   while time advances. Focused UI, preset, drive, unchanged-key and one-vs-many
   domain checks pass, as do `@all`, window-free `runtest`, `@smoke`, and the API
   manifest. The native suite's unrelated GPU-film test fails at its two-texture
-  assertion; the other native cases pass. Measurements are in `performance.md`.
+  assertion; the other native cases pass. Measurements are in `performance-log.md`.
 
 - 2026-09-28 M3 canvas checkpoint: value tiles and typed drive wires share the
   geometry canvas's spatial index and PXUI hit tree. Card rows expose typed
@@ -847,7 +847,7 @@ check: `sketches/flow_workspace` (`FLOW_CASE`, `FLOW_ADD=1`, `FLOW_EXPORT`).
   Regressions cover removal, later literal edits, hard-bound plateaus and exact
   one/four-domain geometry payloads on a 16,384-point driven noise graph.
   Static cached resolutions reuse their result; the 200-drive benchmark and
-  unchanged-parameter-write measurement are recorded in `performance.md`.
+  unchanged-parameter-write measurement are recorded in `performance-log.md`.
   Default tests and the dependency gate pass. Editor/preset integration follows.
 
 - 2026-09-27 M3 expression and value graph foundation: expressions have
@@ -901,7 +901,7 @@ check: `sketches/flow_workspace` (`FLOW_CASE`, `FLOW_ADD=1`, `FLOW_EXPORT`).
   parity pass. Native previews verified tooltip, key sheet and HUD; modifier
   labels use the kit's supported ASCII spelling. Documentation and intended
   API manifests are updated. Final guide benchmark: 0.175 ms median held
-  frame at 2,000 nodes, 635,543 bytes/frame; see `performance.md` for the
+  frame at 2,000 nodes, 635,543 bytes/frame; see `performance-log.md` for the
   before comparison. M3 starts next with schema metadata and catalog split.
 
 - 2026-09-27 M2 interaction: walk, contextual Tab/append/ripple, qualified
@@ -933,7 +933,7 @@ check: `sketches/flow_workspace` (`FLOW_CASE`, `FLOW_ADD=1`, `FLOW_EXPORT`).
   SOP parity and PXUI parity pass. The wider native target's GPU-film
   texture-count assertion fails at `test_gpu_film.ml:64` on both the
   unchanged `af55fffc` baseline and this change. Matched benchmark numbers
-  and release/undo limits are in `performance.md`.
+  and release/undo limits are in `performance-log.md`.
 
 ### W6 viewport provenance (2026-09-30, done)
 
