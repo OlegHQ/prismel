@@ -5,9 +5,7 @@
    [l], [t] or [g] shows the graph panel's list, text or graph (the workspace's scene graph). *)
 open Rays
 open Procedural
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
+open Test_support
 
 let frame ?(mouse = 450, 320) ?(events = []) ?(keys = []) ?(buttons = []) count : Frame.t = {
   width = 900; height = 640; size = 900, 640;

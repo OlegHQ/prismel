@@ -11,10 +11,7 @@ module Document = Editor_document.Document
 
 let fail message = failwith ("test_bloom_studio: " ^ message)
 let check condition message = if not condition then fail message
-let has text sub =
-  let n = String.length sub in
-  let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in
-  at 0
+open Test_text
 
 let bloom () = In_channel.with_open_bin "../sketches/ws_bloom/sketch.rays" In_channel.input_all
 let factories = Sop_catalog.Editor.factories

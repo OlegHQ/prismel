@@ -1,7 +1,7 @@
 open Rays
 open Procedural
+open Test_support
 
-let fail message = raise (Failure message)
 let edit_parameters graph ~node_id changes =
   Result.bind (Edit_graph.apply_parameters (Edit_graph.of_graph graph)
       ~node_id changes) (fun (document, effects) ->

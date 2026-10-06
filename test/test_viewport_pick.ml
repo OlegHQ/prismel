@@ -11,8 +11,7 @@ module Geometry = Rdk.Geometry
 
 let fail message = failwith ("test_viewport_pick: " ^ message)
 let check condition message = if not condition then fail message
-let case name = In_channel.with_open_bin
-  (Filename.concat "../specification/workspace/cases" (name ^ ".lisp")) In_channel.input_all
+open Test_text
 
 let lower name =
   match Flow.Syntax.parse (case name) with

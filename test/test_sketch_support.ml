@@ -1,7 +1,6 @@
 open Rays
 open Procedural
-
-let fail message = raise (Failure message)
+open Test_support
 
 let string_ok = function Ok value -> value | Error message -> fail message
 

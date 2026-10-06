@@ -1,4 +1,18 @@
 (library
  (name pxui_graph)
  (public_name rays.pxui_graph)
+ (modules :standard \ test_main test_pxui_graph)
  (libraries rays procedural flow flow_sop pxui editor_core))
+
+; The pane's own tests: no rays_editor. Fixtures are read relative to test/,
+; where they ran before. test/ compiles this file too, for test_probe.
+(executable
+ (name test_main)
+ (modules test_main test_pxui_graph)
+ (libraries rays pxui pxui_graph editor_core editor_document flow flow_sop
+  sop_catalog scene_command unix))
+
+(rule
+ (aliases runtest test_pxui_graph)
+ (deps (glob_files ../../specification/workspace/cases/*.lisp))
+ (action (chdir ../../test (run %{exe:test_main.exe} test_pxui_graph))))

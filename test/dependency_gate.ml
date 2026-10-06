@@ -31,7 +31,7 @@ let parse text =
   let rec all acc = skip (); if !i >= n then List.rev acc else all (item () :: acc) in
   all []
 
-let read path = In_channel.with_open_bin path In_channel.input_all
+open Test_text
 
 let contains text needle =
   try ignore (Str.search_forward (Str.regexp_string needle) text 0); true
@@ -239,6 +239,8 @@ let violations graph ~scan =
     if not (ocaml path) then None else
     if not (metal_allowed path) && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
     else if String.starts_with ~prefix:"lib/pxui_graph/" path
+        (* its tests build key events to feed the pane *)
+        && not (String.starts_with ~prefix:"lib/pxui_graph/test_" path)
         && uses_key_pressed text then
       Some (path ^ " matches KeyPressed inside a presentation adapter")
     else None) scan in

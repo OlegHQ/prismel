@@ -16,10 +16,7 @@ let factories = Sop_catalog.Editor.factories
 let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.get_ok
 let show ds = String.concat "; " (List.map Flow.Diagnostic.to_string ds)
 
-let has text sub =
-  let n = String.length sub in
-  let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in
-  at 0
+open Test_text
 
 let schema = Editor_core.Param.(schema ~name:"doc-settings" ~default:(0., "a")
   [ field ~name:"amount" ~label:"Amount" ~kind:(floating ~min:0. ~max:10. ()) ~default:0.
@@ -287,8 +284,6 @@ let part_pane_layout () =
    | _ -> fail "E_LAYOUT has no span")
 
 (* W10: scene, world and settings graphs become the document's objects, World and settings *)
-let case name = In_channel.with_open_bin
-  (Filename.concat "../specification/workspace/cases" (name ^ ".lisp")) In_channel.input_all
 
 let part_contexts () =
   let module Objects = Editor_document.Objects in

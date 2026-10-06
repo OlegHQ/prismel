@@ -1,8 +1,7 @@
 open Rays
 open Procedural
+open Test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let pointer (x, y) = float x, float y
 let mouse_press (button, point) = Event.MousePressed (button, pointer point)
 let mouse_release (button, point) = Event.MouseReleased (button, pointer point)

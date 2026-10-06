@@ -9,11 +9,8 @@ module Source = Rays_editor.Source
 
 let fail message = failwith ("test_workspace_source: " ^ message)
 let check condition message = if not condition then fail message
-let has text sub =
-  let n = String.length sub in
-  let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in
-  at 0
-let read file = In_channel.with_open_bin file In_channel.input_all
+open Test_text
+
 let sha = Editor_document.Contexts.sha256
 let catalog = Editor_document.Contexts.catalog ~version:1 Sop_catalog.Editor.factories |> Result.get_ok
 
