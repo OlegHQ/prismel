@@ -626,6 +626,10 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
         else { n with rows = List.map (fun (r : P.row) -> match r.key with
           | E.Pos i when r.kind <> P.Add -> { r with label = List.nth layouts i } | _ -> r) n.rows }) scope.P.nodes } in
   let t = { t with level_at = level; pin_at = pin } in
+  (* letter hints, an open context menu and the hover name nodes and wires of the scope they were made over *)
+  let t = match t.scope with
+    | Some previous when previous == scope -> t
+    | _ -> { t with hinting = None; context = None; highlighted = [] } in
   let layout = lay t scope ~at ~collapsed in
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;

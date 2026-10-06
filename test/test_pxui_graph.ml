@@ -238,6 +238,12 @@ let scope_levels () =
   check (connects <> [] && not (Scope.editing v)) "a hint letter did not connect and end the hints";
   let esc, _ = one_frame Input.Escape hint_view in
   check (not (Scope.editing esc)) "Escape did not end the hints";
+  (* a reloaded document ends them: their targets name nodes of the scope they were made over *)
+  check (Scope.editing (Scope.with_scope ~key:"g" scope hint_view))
+    "the same scope ended the hints";
+  let reloaded = Editor_document.Workspace_doc.of_text scope_catalog "(workspace w (graph g :context sop (sop/box)))" |> Result.get_ok in
+  check (not (Scope.editing (Scope.with_scope ~key:"g" (P.of_graph scope_catalog reloaded.checked "g") hint_view)))
+    "a new scope kept the letter hints";
   (* f frames the selection (all with none); the hints are on w *)
   let key_of action = List.find_map (fun (c : _ Editor_core.Command.t) ->
     if c.action = action then c.trigger else None) Scope.bindings in
