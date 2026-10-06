@@ -3,9 +3,6 @@ module S = Flow.Syntax
 type path = Flow.Workspace.path
 module Path_map = Map.Make (struct type t = path let compare = compare end)
 module String_map = Map.Make (String)
-module Port = struct type t = path * string let compare = compare end
-module Port_map = Map.Make (Port)
-module Port_set = Set.Make (Port)
 
 type frame = { title : string; at : float * float; size : float * float }
 type t = {
@@ -15,27 +12,21 @@ type t = {
   pinned : bool Path_map.t;
   level : Flow_sop.Projection.level Path_map.t;  (* a node's detail level, when it is not the default card *)
   rows : bool String_map.t Path_map.t;
-  bends : (float * float) list Port_map.t;
-  wireless : Port_set.t;
   collapsed : bool Path_map.t;
   frames : frame list Path_map.t;
   display : path Path_map.t;
 }
 
-let empty = { editor = None; panels = Path_map.empty; at = Path_map.empty; pinned = Path_map.empty; level = Path_map.empty; rows = Path_map.empty;
-  bends = Port_map.empty; wireless = Port_set.empty; collapsed = Path_map.empty;
+let empty = { editor = None; panels = Path_map.empty; at = Path_map.empty; pinned = Path_map.empty; level = Path_map.empty; rows = Path_map.empty; collapsed = Path_map.empty;
   frames = Path_map.empty; display = Path_map.empty }
 
 let is_empty t = t = empty
 
 let remap f t =
   let keys m = Path_map.fold (fun k v acc -> match f k with Some k -> Path_map.add k v acc | None -> acc) m Path_map.empty in
-  let port_keys m = Port_map.fold (fun (k, p) v acc -> match f k with
-    | Some k -> Port_map.add (k, p) v acc | None -> acc) m Port_map.empty in
   { editor = Option.bind t.editor (fun name -> match f [name] with Some [name] -> Some name | _ -> None);
     panels = keys t.panels;
-    at = keys t.at; pinned = keys t.pinned; level = keys t.level; rows = keys t.rows; bends = port_keys t.bends;
-    wireless = Port_set.filter_map (fun (k, p) -> Option.map (fun k -> k, p) (f k)) t.wireless;
+    at = keys t.at; pinned = keys t.pinned; level = keys t.level; rows = keys t.rows;
     collapsed = keys t.collapsed; frames = keys t.frames;
     display = Path_map.fold (fun k v acc -> match f k, f v with
       | Some k, Some v -> Path_map.add k v acc | _ -> acc) t.display Path_map.empty }
@@ -66,10 +57,6 @@ let to_syntax t =
   let node_forms = List.map (fun (p, fields) ->
     mk (S.List (sym "node" :: path_form p :: List.concat_map (fun (k, v) -> [ k; v ]) fields)))
     (Path_map.bindings nodes) in
-  let bends = List.map (fun ((p, port), pts) ->
-    mk (S.List (sym "bend" :: path_form p :: str port :: List.map pair pts))) (Port_map.bindings t.bends) in
-  let wireless = List.map (fun (p, port) -> mk (S.List [ sym "wireless"; path_form p; str port ]))
-    (Port_set.elements t.wireless) in
   let frames = List.concat_map (fun (p, fs) -> List.map (fun f ->
     mk (S.List [ sym "frame"; path_form p; str f.title; kw "at"; pair f.at; kw "size"; pair f.size ])) fs)
     (Path_map.bindings t.frames) in
@@ -81,7 +68,7 @@ let to_syntax t =
       @ match state.window with None -> [] | Some (x, y, w, h) ->
         [kw "window"; vec (List.map (fun n -> number (float n)) [x; y; w; h])])))
     (Path_map.bindings t.panels) in
-  mk (S.List (sym "layout" :: editor @ panels @ node_forms @ bends @ wireless @ frames @ display))
+  mk (S.List (sym "layout" :: editor @ panels @ node_forms @ frames @ display))
 
 let ( let* ) = Result.bind
 let fail fmt = Printf.ksprintf (fun m -> Error ("layout: " ^ m)) fmt
@@ -144,12 +131,6 @@ let of_syntax (form : S.t) = match form.node with
                   go { t with rows = Path_map.add p m t.rows } r
               | _ -> fail "bad node entry" in
             go t fields
-        | S.List ({ S.node = S.Sym "bend"; _ } :: p :: port :: pts) ->
-            let* p = read_path p in let* port = read_str port in let* pts = all read_pair pts in
-            Ok { t with bends = Port_map.add (p, port) pts t.bends }
-        | S.List [ { S.node = S.Sym "wireless"; _ }; p; port ] ->
-            let* p = read_path p in let* port = read_str port in
-            Ok { t with wireless = Port_set.add (p, port) t.wireless }
         | S.List [ { S.node = S.Sym "display"; _ }; p; v ] ->
             let* p = read_path p in let* v = read_path v in
             Ok { t with display = Path_map.add p v t.display }

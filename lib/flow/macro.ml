@@ -43,31 +43,25 @@ let quasi m = match parts m with
   | Some (_, _, {node = Quote (Quasi, body); _}) -> Some body
   | _ -> None
 
-let check ~known ~value_op m =
+let check ~known m =
   try
-    let name, _, template = shape m in
+    let name, _, _ = shape m in
     let req, rest = params_exn m in
     let ps = match rest with Some r -> req @ [r] | None -> req in
     (match quasi m with
-     | None ->
-         let legacy = "Study macros without a ` template contain value operators only; write `(…) with ~parameters for anything else." in
-         let rec go x = match x.node with
-           | List ({node = Sym h; _} :: args) when value_op h -> List.iter go args
-           | List _ | Vec _ | Map _ | Quote _ -> fail x "E_MACRO_TEMPLATE" legacy
-           | Sym s -> if not (List.mem s ps) then
-               fail x "E_MACRO_CAPTURE" (Printf.sprintf "Free macro identifier: %s." s)
-           | Kw k -> fail x "E_MACRO_CAPTURE" (Printf.sprintf "Free macro identifier: :%s." k)
-           | Num _ | Str _ -> () in
-         go template
+     | None -> fail m "E_MACRO_TEMPLATE" (Printf.sprintf
+         "Macro %s: the template is quoted: write `(…) with ~parameters." name)
      | Some body ->
          let bad_unquote y = fail y "E_MACRO_UNQUOTE"
            (Printf.sprintf "Macro %s: macros unquote only their parameters; %s is not one." name (flat y)) in
-         let rec walk y = match y.node with
+         (* a name a caller can bind ([count], [first]) is free only as the head of a call: as an
+            argument it would read the caller's binding of it *)
+         let rec walk ?(head = false) y = match y.node with
            | Sym s ->
                let b = base s in
                if fresh_name b then (if not (valid_name (String.sub b 0 (String.length b - 1))) then
                  fail y "E_MACRO_TEMPLATE" (Printf.sprintf "Macro %s: %s is not a valid fresh name." name s))
-               else if not (b = ":" || known b) then fail y "E_MACRO_CAPTURE"
+               else if not (b = ":" || known ~head b) then fail y "E_MACRO_CAPTURE"
                  (Printf.sprintf "Macro %s: %s would capture a name from the call site. Pass it as a parameter (~%s) or write %s# for a fresh name." name s b b)
            | Kw _ | Num _ | Str _ -> ()
            | Quote (Unquote, {node = Sym p; _}) ->
@@ -81,7 +75,9 @@ let check ~known ~value_op m =
            | Quote (Unquote, _) -> bad_unquote y
            | Quote _ -> fail y "E_MACRO_TEMPLATE"
                (Printf.sprintf "Macro %s: nested quoting is not supported." name)
-           | List xs | Vec xs | Map xs -> List.iter walk xs in
+           | List (h :: xs) -> walk ~head:true h; List.iter walk xs
+           | List [] -> ()
+           | Vec xs | Map xs -> List.iter walk xs in
          walk body);
     []
   with Fail d -> [d]
@@ -93,7 +89,7 @@ let rec count x = 1 + List.fold_left (fun a y -> a + count y) 0 (children x)
 
 (* One expansion step of the call [x] by macro [m]. *)
 let step st m x =
-  let name, _, template = shape m in
+  let name, _, _ = shape m in
   let req, rest = params_exn m in
   let args = match x.node with List (_ :: args) -> args | _ -> [] in
   let nreq = List.length req and nargs = List.length args in
@@ -103,15 +99,7 @@ let step st m x =
   let env = List.combine req (List.filteri (fun i _ -> i < nreq) args) in
   let more = List.filteri (fun i _ -> i >= nreq) args in
   match quasi m with
-  | None ->
-      let rec sub y = match y.node with
-        | Sym s when List.mem_assoc s env -> List.assoc s env
-        | Sym _ | Kw _ | Num _ | Str _ -> y
-        | List xs -> {y with node = List (map_seq sub xs)}
-        | Vec xs -> {y with node = Vec (map_seq sub xs)}
-        | Map xs -> {y with node = Map (map_seq sub xs)}
-        | Quote (k, z) -> {y with node = Quote (k, sub z)} in
-      sub template
+  | None -> fail m "E_MACRO_TEMPLATE" (Printf.sprintf "Macro %s: the template is quoted: write `(…) with ~parameters." name)
   | Some body ->
       let fresh = Hashtbl.create 4 in
       let gs s =

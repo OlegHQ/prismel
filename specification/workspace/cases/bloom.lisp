@@ -5,7 +5,7 @@
     (* x 0.5))
 
   (defmacro twice [x]
-    (+ x x))
+    `(+ ~x ~x))
 
   (defn petal :context sop [(length : float 1.0) (width : float 0.3)]
     (sop/transform (sop/uv_sphere :radius [(half length) 0.04 width]

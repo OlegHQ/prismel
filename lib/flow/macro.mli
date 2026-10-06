@@ -4,8 +4,7 @@
     [(defmacro name [a b & rest] `template)]: [~a] fills a hole, [~@rest]
     splices the rest parameter, [x#] is a fresh name [x__N].  Every other
     name in a template must be global, so a caller's names arrive only through
-    holes.  A [defmacro] without a backquote is a legacy value template whose
-    parameters are substituted by name.
+    holes.
 
     Errors: [E_MACRO_CAPTURE] (a template names something from the call site),
     [E_MACRO_UNQUOTE] (an unquote of anything but a parameter, or a misused
@@ -26,10 +25,10 @@ val params : Syntax.t -> (string list * string option, Diagnostic.t) result
     form. *)
 
 val check :
-  known:(string -> bool) -> value_op:(string -> bool) -> Syntax.t -> Diagnostic.t list
+  known:(head:bool -> string -> bool) -> Syntax.t -> Diagnostic.t list
 (** Validate one [defmacro] form.  [known] says which names a template may use
-    freely (operators, kinds, special forms, types and workspace names);
-    [value_op] which heads a legacy value template may call. *)
+    freely (operators, kinds, special forms, types and workspace names), as the [head] of a
+    call or as an argument: a name a binding could take is not free as an argument. *)
 
 type state
 (** The fresh-name counter and size budget of one expansion. *)

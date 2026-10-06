@@ -98,9 +98,10 @@ let run_lowering () =
     (with_editor "    (let* [r (* 3 0.5)] (ui/workspace (ui/split-at \"horizontal\" r (ui/graph) (ui/lisp))))") "0.1";
   expect_error "an empty tile" (with_editor "    (ui/workspace (ui/tile (for [i (range 0)] (ui/graph))))") "tile";
   expect_error "a workspace of a number" (with_editor "    (ui/workspace 3)") "";
-  expect_error "a panel that is not one" (with_editor "    (ui/workspace (ui/split \"vertical\" (ui/graph) 3))") ""
-  ; expect_error "an unknown named layout"
-      (with_editor "    (ui/workspace (ui/graph))" ^ "\n(layout (editor \"missing\"))") "Unknown editor layout"
+  expect_error "a panel that is not one" (with_editor "    (ui/workspace (ui/split \"vertical\" (ui/graph) 3))") "";
+  (* a selected layout that names no editor graph is dropped, not an error (a removed graph) *)
+  check ((of_text (with_editor "    (ui/workspace (ui/graph))" ^ "\n(layout (editor \"missing\"))")).layout.editor = None)
+    "a dangling editor layout was kept"
 
 (* ---- through the editor ---- *)
 

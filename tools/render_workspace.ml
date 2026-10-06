@@ -15,8 +15,9 @@ let workspace = match Rays_editor.Workspace.load text with
 let document = Contexts.of_workspace ~factories:Sop_catalog.Editor.factories workspace
   |> Result.map_error Flow.Diagnostic.to_string |> get
 let scene = document.scene.graph.geometry
-let camera_node = Objects.ids "camera" scene |> List.hd
-  |> fun id -> Edit_graph.find scene ~node_id:id |> Option.get
+let camera_node = match Objects.ids "camera" scene with
+  | [] -> prerr_endline (path ^ ": the scene has no camera to render through (add a scene/camera)"); exit 1
+  | id :: _ -> Edit_graph.find scene ~node_id:id |> Option.get
 let camera = Objects.Camera.of_node camera_node |> Option.get |> fst
 let settings = Objects.Root.render document.root
 let spp = if Array.length Sys.argv > 3 then int_of_string Sys.argv.(3) else settings.max_spp

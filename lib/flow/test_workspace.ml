@@ -51,7 +51,7 @@ let () = (* the 12 fixtures check with no diagnostics at all against the real ca
   if failed <> [] then failwith (String.concat "\n" failed)
 
 let () = (* structure and the typed IR *)
-  let ws = good "; note\n(workspace w (defn f :context value [(x : float 2.0)] (* x 2)) (defmacro m [a] (+ a a)) (graph g :context value [(n : int 3)] (let* [a (f :x n)] (+ a (m 1)))))" in
+  let ws = good "; note\n(workspace w (defn f :context value [(x : float 2.0)] (* x 2)) (defmacro m [a] `(+ ~a ~a)) (graph g :context value [(n : int 3)] (let* [a (f :x n)] (+ a (m 1)))))" in
   assert (ws.name = "w" && List.length ws.graphs = 1 && List.length ws.defs = 1 && List.length ws.macros = 1);
   let g = List.hd ws.graphs in
   assert (g.context = Workspace.Value && List.length g.inputs = 1);
@@ -110,7 +110,7 @@ let () = (* E_FN_ESCAPES (F1) *)
   ignore (good (value "(reduce + 0 (map (fn [x] (* x 2)) (list 1 2 3)))"));
   ignore (good "(workspace w (defn ring :context sop [(n : int 8) (make : fn)] (sop/merge (map make (range n)))) (graph g :context sop (ring :n 3 :make (fn [i] (sop/box)))))");
   bad (value "(let* [f (fn [x] (f x))] (f 1))") "E_UNKNOWN_KIND" ~text:"Unknown operator";
-  bad "(workspace w (defmacro dbl [x] (+ x x)) (graph g :context value (count (map dbl (list 1)))))" "E_MACRO_AS_VALUE"
+  bad "(workspace w (defmacro dbl [x] `(+ ~x ~x)) (graph g :context value (count (map dbl (list 1)))))" "E_MACRO_AS_VALUE"
 
 let () = (* E_ACC_TYPE (L6) *)
   bad (sop "(fold [g (sop/box)] [i (range 3)] 1.0)") "E_ACC_TYPE" ~text:"accumulator type";
@@ -307,7 +307,7 @@ let () = (* macros through the workspace (M1, M2) *)
   bad "(workspace w (defmacro m [x] `(+ ~x 1)) (defn m :context value [(x : int)] x) (graph g :context value 1))" "E_NAME";
   (* an expansion's shadowing is reported at the call *)
   bad ("(workspace w " ^ radial ^ " (graph g :context sop (let* [k 1 r (radial k 2 (sop/box))] r)))") "E_SHADOW";
-  ignore (good "(workspace w (defmacro twice [x] (+ x x)) (graph g :context value (twice 3)))");
+  ignore (good "(workspace w (defmacro twice [x] `(+ ~x ~x)) (graph g :context value (twice 3)))");
   (* a template may call any global: kinds, defns, operators, other macros *)
   ignore (good "(workspace w (defn f :context value [(x : float)] x) (defmacro a [x] `(f ~x)) (defmacro b [x] `(a ~x)) (graph g :context value (b 1)))")
 
@@ -451,7 +451,7 @@ let () = (* 1. function values *)
   t "fn: graph inputs cannot be functions" (fun () ->
     bad "(workspace w (graph g :context value [(k : fn)] 1))" "E_FN_ESCAPES" ~text:escapes);
   t "fn: a macro is not a function value" (fun () ->
-    bad "(workspace w (defmacro dbl [x] (+ x x)) (graph g :context value (count (map dbl (list 1)))))" "E_MACRO_AS_VALUE" ~text:"macro is not a function value");
+    bad "(workspace w (defmacro dbl [x] `(+ ~x ~x)) (graph g :context value (count (map dbl (list 1)))))" "E_MACRO_AS_VALUE" ~text:"macro is not a function value");
   t "fn: defn recursion through a function value is rejected" (fun () ->
     bad "(workspace w (defn app :context value [(f : fn) (x : float)] (f f x)) (graph g :context value (app app 1)))" "E_RECURSION" ~text:"Recursive call");
   t "hof: filter predicate must return bool" (fun () ->
@@ -608,3 +608,33 @@ let () =
     exit 1
   end;
   Printf.printf "Flow workspace: 12 fixtures, register rules, liveness and macros pass (%d check.cjs cases ported here)\n" !ported
+
+(* The audit's language cases (report.md L1, L5, L7, L8, L15, L17, L20). *)
+let () =
+  (* two inline zones under one binding have paths of their own, so their compiled ids differ *)
+  let ws = good (sop "(sop/merge (sop/merge (for [i (range 2)] (sop/box))) (sop/merge (for [j (range 3)] (sop/box))))") in
+  let zones = ref [] in
+  let rec walk (t : Workspace.term) = match t.node with
+    | Workspace.Loop { zone; body; _ } -> zones := zone :: !zones; walk body
+    | Call { args; _ } | Op { args; _ } -> List.iter (fun (_, a) -> walk a) args
+    | _ -> () in
+  walk (List.hd ws.graphs).body;
+  assert (List.length !zones = 2 && List.length (List.sort_uniq compare !zones) = 2);
+  (* a positional argument may follow a keyword; an input given twice is an error *)
+  ignore (good (sop "(let* [a (sop/box)] (sop/transform :translate [1 2 3] a))"));
+  bad (sop "(sop/boolean :left (sop/box) (sop/torus))") "E_DUPLICATE_PARAM" ~text:"left is given twice";
+  (* if has the type both branches fit *)
+  bad (value "(count (range (if false 3 (list 1 2 3))))") "E_TYPE";
+  (* an operator a caller can bind is not free as an argument of a template *)
+  bad "(workspace w (defmacro m [x] `(+ count ~x)) (graph g :context value (let* [count 2] (m 1))))" "E_MACRO_CAPTURE";
+  ignore (good "(workspace w (defmacro m [xs] `(count ~xs)) (graph g :context value (m (list 1 2))))");
+  (* metadata outside an expression is reported *)
+  warns "^:nonsense (workspace w (graph g :context value 1))" "W_UNKNOWN_META";
+  warns "(workspace w ^:nonsense (graph g :context value 1))" "W_UNKNOWN_META";
+  quiet "^:allow-warnings (workspace w (graph g :context value 1))";
+  (* the static bound does not overflow *)
+  bad (value ("(count (for [" ^ String.concat " " (List.init 6 (fun i -> Printf.sprintf "i%d (range 4096)" i)) ^ "] 1))")) "E_ITER_BOUND";
+  (* a constant has no fields; messages keep UTF-8 as written *)
+  bad (value "t.x") "E_FIELD" ~text:"t is a constant";
+  bad (sop "(sop/material (sop/box) :color \"h\xc3\xa9\")") "E_TYPE" ~text:"\"h\xc3\xa9\"";
+  bad (sop "(sop/merge (for [i (range 2)] :skip [[0 x]] (sop/box)))") "E_SKIP"

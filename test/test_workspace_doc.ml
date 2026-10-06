@@ -53,8 +53,6 @@ let part_text () =
 (layout
   (node ["g" "a"] :at [120 48] :level "full" :pinned true :collapsed false :rows {:radius false})
   (node ["g" "b"] :at [300.5 40])
-  (bend ["g" "b"] "in0" [12 24] [30 40])
-  (wireless ["g" "b"] "in0")
   (frame ["g"] "Legs" :at [0 0] :size [200 100]))
 
 (settings :amount 2.5 :mode "b")
@@ -65,8 +63,6 @@ let part_text () =
   check (Layout.Path_map.find [ "g"; "a" ] doc.layout.level = Flow_sop.Projection.Full
          && Layout.Path_map.find [ "g"; "a" ] doc.layout.pinned) "layout level and pin";
   check (Layout.Path_map.find [ "g"; "b" ] doc.layout.at = (300.5, 40.)) "layout float";
-  check (Layout.Port_map.find ([ "g"; "b" ], "in0") doc.layout.bends = [ (12., 24.); (30., 40.) ]) "bends";
-  check (Layout.Port_set.mem ([ "g"; "b" ], "in0") doc.layout.wireless) "wireless";
   check ((List.hd (Layout.Path_map.find [ "g" ] doc.layout.frames)).title = "Legs") "frames";
   check (Editor_document.Settings.get schema doc.settings = (2.5, "b")) "settings read";
   let out = Doc.to_text doc in
@@ -265,10 +261,30 @@ let part_pane_layout () =
   let opened = Editor_document.Contexts.of_workspace ~factories doc |> function Ok d -> d | Error m -> fail (Flow.Diagnostic.to_string m) in
   let ws = fst (opened.workspace) in
   let ws = { ws with layout = { ws.layout with at = M.add [ "g"; "a" ] (40., 60.) ws.layout.at;
-                                               collapsed = M.add [ "g"; "z" ] true ws.layout.collapsed } } in
+                                               collapsed = M.add [ "g"; "b" ] true ws.layout.collapsed;
+                                               level = M.add [ "g"; "gone" ] Flow_sop.Projection.Full ws.layout.level;
+                                               pinned = M.add [ "nograph"; "a" ] true ws.layout.pinned } } in
   let again = of_text (Doc.to_text ws) in
-  check (M.find [ "g"; "a" ] again.layout.at = (40., 60.) && M.mem [ "g"; "z" ] again.layout.collapsed)
-    "moved items and collapsed zones round-trip through the s-expression"
+  check (M.find [ "g"; "a" ] again.layout.at = (40., 60.) && M.mem [ "g"; "b" ] again.layout.collapsed)
+    "moved items and collapsed zones round-trip through the s-expression";
+  (* a key outlives nothing: entries of a binding or a graph that is not there are dropped on load *)
+  check (M.is_empty again.layout.level && M.is_empty again.layout.pinned) "stale layout keys were kept";
+  (* and by the edit that removes what they name *)
+  let two = of_text "(workspace w (graph a :context sop (sop/box)) (graph b :context sop (let* [x (sop/box)] x)))\n(layout (node [\"b\" \"x\"] :at [10 20]))" in
+  check (M.mem [ "b"; "x" ] two.layout.at) "a live key was dropped";
+  let removed = Doc.edit catalog two (E.Remove_graph { name = "b" }) |> Result.get_ok in
+  check (Layout.is_empty removed.layout) "the layout of a removed graph was kept";
+  check (Result.is_ok (Doc.of_text catalog (Doc.to_text removed))) "the text after removing a graph does not load";
+  (* comments between and after the root forms, and a view form, survive to_text *)
+  let noted = of_text "(workspace w (graph a :context sop (let* [x (sop/box)] x)))\n; about the view\n(view {:eye [1 2 3]})\n; where things are\n(layout (node [\"a\" \"x\"] :at [10 20]))\n; the end\n" in
+  let out = Doc.to_text noted in
+  check (has out "; about the view" && has out "(view {:eye [1 2 3]})" && has out "; where things are" && has out "; the end")
+    ("root forms and their comments: " ^ out);
+  check (Doc.to_text (of_text out) = out) "to_text with root comments is a fixed point";
+  (* a layout or settings error points at its form *)
+  (match Doc.of_text catalog "(workspace w (graph a :context sop (sop/box)))\n(layout (nonsense))" with
+   | Error [ { code = "E_LAYOUT"; span = Some { start; _ }; _ } ] -> check (start > 0) "E_LAYOUT span"
+   | _ -> fail "E_LAYOUT has no span")
 
 (* W10: scene, world and settings graphs become the document's objects, World and settings *)
 let case name = In_channel.with_open_bin

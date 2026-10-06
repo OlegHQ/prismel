@@ -3,8 +3,10 @@
   (graph terrain :context sop
     (let* [grid (sop/grid :columns 32 :rows 32 :width 5 :height 5)
            pulse (+ 0.65 (* t 0.1))
-           mountain (sop/mountain grid :height pulse
-                                  :frequency [0.8 1 0.8] :octaves 3
+           mountain (sop/mountain grid
+                                  :height pulse
+                                  :frequency [0.8 1 0.8]
+                                  :octaves 3
                                   :recompute_normals true)]
       mountain))
 

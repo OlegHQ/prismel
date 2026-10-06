@@ -1,5 +1,16 @@
 let get = function Ok value -> value | Error message -> failwith message
 
+(* a symlinked file stays a link after a save, and the file it points at gets the text *)
+let () =
+  let root = Filename.temp_dir "rays-store-link" "" in
+  let target = Filename.concat root "real.rays" and link = Filename.concat root "link.rays" in
+  Fun.protect ~finally:(fun () -> Sys.remove link; Sys.remove target; Unix.rmdir root) (fun () ->
+    get (Editor_core.Store.write_text ~filename:target "old");
+    Unix.symlink target link;
+    get (Editor_core.Store.write_text ~filename:link "new");
+    assert ((Unix.lstat link).st_kind = Unix.S_LNK);
+    assert (get (Editor_core.Store.read_text ~filename:target) = "new"))
+
 let () =
   let root = Filename.temp_dir "rays-store" "" in
   let directory = Filename.concat root "nested" in

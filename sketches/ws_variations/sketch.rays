@@ -10,7 +10,9 @@
 
   (graph scene :context scene [(seed : int 1)]
     (scene/merge (scene/geometry (ref garden :seed seed))
-                 (scene/light :shape "Directional" :translate [8 11.2 6.4] :intensity 1)))
+                 (scene/light :shape "Directional"
+                              :translate [8 11.2 6.4]
+                              :intensity 1)))
 
   (graph editor :context editor
     (let* [sheet (ui/tile (for [s (range 4)]

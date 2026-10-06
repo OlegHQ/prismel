@@ -54,7 +54,8 @@ and node =
 type graph = { name : string; context : context;
   inputs : (string * Ty.t * term option) list; body : term; form : S.t }
 type t = { name : string; graphs : graph list; defs : graph list; macros : S.t list;
-  source : S.t list; live : Paths.t; invariant : Paths.t }
+  source : S.t list; live : Paths.t; invariant : Paths.t;
+  kind_fns : (string * (string * string list)) list }
 
 let max_iterations = 4096
 (* ponytail: a guard against exponential call-site typing, not a language limit. *)
@@ -293,6 +294,15 @@ let check catalog forms =
         err v "E_SKIP" ":skip is a list of iteration tuples of non-negative integers, for example :skip [[0 1] [2 0]].";
         [] in
   let mark id (v : v) = if v.live then live := Paths.add id !live in
+  (* the path of a let*, zone or fn written inline: [~for], then [~for~1], ... under one path,
+     so two of them in one expression never share compiled ids *)
+  let kind_fns = ref [] in
+  let inline_seen = Hashtbl.create 16 in
+  let inline cx segment =
+    let key = cx.path @ [ segment ] in
+    let n = Option.value ~default:0 (Hashtbl.find_opt inline_seen key) in
+    Hashtbl.replace inline_seen key (n + 1);
+    if n = 0 then key else cx.path @ [ Printf.sprintf "%s~%d" segment n ] in
   let names : (string, unit) Hashtbl.t = Hashtbl.create 16 in
   let sigs : (string, signature) Hashtbl.t = Hashtbl.create 8 in
   let gsigs : (string, signature) Hashtbl.t = Hashtbl.create 8 in
@@ -313,12 +323,12 @@ let check catalog forms =
         | None -> (match find_op s cx.ctx with
             | Some o -> `Op o
             | None -> (match kind_of cx.ctx s with Ok k -> `Kind k | Error e -> `Missing e))) in
-  let known s = reserved s || List.mem s type_names || s = "fn" || Hashtbl.mem names s
-    || List.exists (fun c -> find_op s c <> None) [ Value; Sop; Scene; World; Settings; Editor ]
-    || (match kind_of Sop s with
-        | Ok _ | Error (("E_WRONG_CONTEXT" | "E_AMBIGUOUS"), _) -> true
-        | Error _ -> false) in
-  let value_op s = match find_op s Value with Some o -> o.octx = Value | None -> false in
+  let known ~head s = reserved s || List.mem s type_names || s = "fn" || Hashtbl.mem names s
+    || ((head || not (Macro.valid_name s))
+        && (List.exists (fun c -> find_op s c <> None) [ Value; Sop; Scene; World; Settings; Editor ]
+            || (match kind_of Sop s with
+                | Ok _ | Error (("E_WRONG_CONTEXT" | "E_AMBIGUOUS"), _) -> true
+                | Error _ -> false))) in
   let no_fn x (t : Ty.t) what =
     if Ty.has_fn t then
       err x "E_FN_ESCAPES" (Printf.sprintf "%s is a function; a function value cannot be stored or returned (E_FN_ESCAPES). Call it where it is bound." what) in
@@ -448,6 +458,8 @@ let check catalog forms =
     | _ ->
         let b, fs = match String.split_on_char '.' s with b :: fs -> (b, fs) | [] -> (s, []) in
         (match Smap.find_opt b cx.env with
+         | None when fs <> [] && List.mem b [ "t"; "pi"; "true"; "false"; "nil" ] ->
+             bad x "E_FIELD" (Printf.sprintf "%s is a constant; it has no .%s." b (String.concat "." fs))
          | None -> unbound cx x b
          | Some v0 ->
              let v, _ = List.fold_left (fun (v, p) f -> (field x v f p, p ^ "." ^ f)) (v0, b) fs in
@@ -568,7 +580,10 @@ let check catalog forms =
         if not (Ty.fits av.ty bv.ty || Ty.fits bv.ty av.ty) then
           err x "E_TYPE" (Printf.sprintf "Both branches of if must have one type: %s and %s." (show av.ty) (show bv.ty));
         no_fn a av.ty "An if branch"; no_fn b bv.ty "An if branch";
-        let ty = match Ty.unify av.ty bv.ty with Some t -> t | None -> av.ty in
+        (* the type both branches fit: [(if c 3 [1 2 3])] is a list, not an int *)
+        let ty = match Ty.join av.ty bv.ty with
+          | Some t -> t
+          | None -> if Ty.fits av.ty bv.ty then bv.ty else av.ty in
         time_branch cx x cv.live ty;
         (tm x ty (If (ct, at, bt)), derive ty [ cv; av; bv ])
     | _ -> bad x "E_NO_ELSE" "if takes a condition, a then and an else."
@@ -745,18 +760,21 @@ let check catalog forms =
       if init <> None && bv.live && not acc_live0 then run true else r in
     (* ponytail: literal counts only; a driven count is bounded when Eval runs the zone. *)
     if List.for_all (fun l -> match l with Some n -> n <= max_iterations | None -> false) lens then begin
-      let total = List.fold_left (fun a l -> a * Option.get l) 1 lens in
+      let total = List.fold_left (fun a l -> min (max_iterations + 1) (a * Option.get l)) 1 lens in
       if total > max_iterations then
-        err x "E_ITER_BOUND" (Printf.sprintf "%s runs more than 4,096 iterations (%d)." name total)
+        err x "E_ITER_BOUND" (Printf.sprintf "%s runs more than 4,096 iterations." name)
     end;
     let acc_ty = match init with Some (_, _, iv) -> Some iv.ty | None -> None in
     (match acc_ty with
      | Some at when not (Ty.fits bt.ty at) ->
          err x "E_ACC_TYPE" (Printf.sprintf "%s body must return the accumulator type %s; it returns %s." h (show at) (show bt.ty))
      | _ -> ());
+    (* an int seed does not round a float body: the accumulator is the wider of the two *)
+    let acc_ty = Option.map (fun at -> Option.value ~default:at (Ty.join at bt.ty)) acc_ty in
     if kind = `Sum && not (match bt.ty with Ty.Int | Ty.Float | Ty.Vec3 | Ty.Any -> true | _ -> false) then
       err x "E_TYPE" (Printf.sprintf "sum adds numbers or vec3; the body returns %s." (show bt.ty));
     let ty = match kind, acc_ty with
+      | `Scan, Some at -> Ty.List at
       | (`For | `Scan), _ -> Ty.List bt.ty
       | `Sum, _ -> (match bt.ty with Ty.Int -> Ty.Int | Ty.Vec3 -> Ty.Vec3 | _ -> Ty.Float)
       | `Fold, Some at -> at
@@ -820,7 +838,11 @@ let check catalog forms =
           (match resolve_head cx s with
            | `Def _ -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Def_fn s) })
            | `Op o -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Op_fn o.oname) })
-           | `Kind k -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Kind_fn k) })
+           | `Kind k ->
+               let slots = if List.exists (fun (s : Check.slot) -> s.rest) k.slots then []
+                 else List.map (fun (s : Check.slot) -> s.name) k.slots in
+               if not (List.mem_assoc s !kind_fns) then kind_fns := (s, (k.qualified, slots)) :: !kind_fns;
+               (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Kind_fn k) })
            | `Macro _ -> bad x "E_MACRO_AS_VALUE" (Printf.sprintf "%s is a macro; a macro is not a function value. Wrap it: (fn [a] (%s a))." s s)
            | `Missing _ -> infer cx x)
       | _ -> infer cx x in
@@ -939,9 +961,9 @@ let check catalog forms =
 
   and call cx (x : S.t) name args : term * v =
     match name with
-    | "let*" -> scope cx x (cx.path @ [ "~let" ])
-    | "for" | "fold" | "scan" | "sum" -> zone cx x (cx.path @ [ "~" ^ name ])
-    | "fn" -> mk_fn cx x (cx.path @ [ "~fn" ]) "fn"
+    | "let*" -> scope cx x (inline cx "~let")
+    | "for" | "fold" | "scan" | "sum" -> zone cx x (inline cx ("~" ^ name))
+    | "fn" -> mk_fn cx x (inline cx "~fn") "fn"
     | "if" -> if_ cx x args
     | "cond" | "case" -> cond cx x name args
     | "ref" -> ref_ cx x args
@@ -1134,7 +1156,7 @@ let check catalog forms =
       else match want, a.aterm.node with
         | Ty.Color, Text s ->
             if not (hex_colour s) then
-              err a.aform "E_TYPE" (Printf.sprintf ":%s is a colour: write \"#rrggbb\" or a vec3, not %S" p.name s)
+              err a.aform "E_TYPE" (Printf.sprintf ":%s is a colour: write \"#rrggbb\" or a vec3, not \"%s\"" p.name s)
         | Ty.Color, _ ->
             if have = Ty.Vec3 then
               Check.validate_parameter report { p with ty = Some Port_type.Vec3 } (to_check a.aterm)
@@ -1169,8 +1191,12 @@ let check catalog forms =
             err a.aform "E_EXTRA_POSITIONAL" (Printf.sprintf "%s takes %d geometry input%s; this one is extra" short nslots (plural nslots))
           else begin
             let s = List.nth k.slots idx in
-            Hashtbl.replace seen s.name ();
-            slot_arg a s.name; out := (s.name, a.aterm) :: !out
+            if Hashtbl.mem seen s.name then
+              err a.aform "E_DUPLICATE_PARAM" (Printf.sprintf "Input %s is given twice: by :%s and by position" s.name s.name)
+            else begin
+              Hashtbl.add seen s.name ();
+              slot_arg a s.name; out := (s.name, a.aterm) :: !out
+            end
           end
       | Some n ->
           if Hashtbl.mem seen n then err a.aform "E_DUPLICATE_PARAM" (Printf.sprintf ":%s is given twice" n)
@@ -1185,7 +1211,7 @@ let check catalog forms =
                 (match a.aterm.node with
                  | Text s when group_reader p && s <> "" && not (List.mem s groups_in) ->
                      add Diagnostic.Warning a.aform "W_UNKNOWN_GROUP"
-                       (Printf.sprintf "Group %S is not made by any node upstream of %s." s short)
+                       (Printf.sprintf "Group \"%s\" is not made by any node upstream of %s." s short)
                  | Text s when group_writer k p -> writes := s :: !writes
                  | _ -> ());
                 out := (n, a.aterm) :: !out
@@ -1380,6 +1406,12 @@ let check catalog forms =
     | _ -> shape_error () in
   let driver (ws : S.t) wname children =
     ignore wname;
+    (* metadata is for expressions ([^:bypass]); the build's [^:allow-warnings] sits on the workspace *)
+    let unknown_meta (f : S.t) allowed = List.iter (fun m ->
+      if not (List.mem m allowed) then add Diagnostic.Warning f "W_UNKNOWN_META"
+        (Printf.sprintf "Unknown metadata ^:%s here; it is ignored." m)) f.meta in
+    unknown_meta ws [ "allow-warnings" ];
+    List.iter (fun f -> unknown_meta f []) children;
     List.iter (fun (f : S.t) -> match f.node with
       | S.List ({ S.node = S.Sym (("graph" | "defn" | "defmacro") as head); _ } :: { S.node = S.Sym n; _ } :: _) ->
           if not (Macro.valid_name n) || reserved n || Hashtbl.mem names n || Hashtbl.mem op_table n then
@@ -1389,7 +1421,7 @@ let check catalog forms =
     let items = List.rev !items in
     List.iter (fun (head, n, (f : S.t)) ->
       if head = "defmacro" then begin
-        diags := List.rev_append (Macro.check ~known ~value_op f) !diags;
+        diags := List.rev_append (Macro.check ~known f) !diags;
         match Macro.params f with
         | Ok _ -> Hashtbl.replace macro_tbl n f; macro_forms := f :: !macro_forms
         | Error _ -> ()
@@ -1437,7 +1469,8 @@ let check catalog forms =
   | Some (wname, _, go, dos) when not has_error ->
       let get tbl = List.filter_map (Hashtbl.find_opt tbl) in
       (Some { name = wname; graphs = get graph_terms go; defs = get def_terms dos;
-              macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant },
+              macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant;
+                kind_fns = !kind_fns },
        diagnostics)
   | _ -> (None, diagnostics)
 

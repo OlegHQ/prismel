@@ -4,9 +4,11 @@ let rec ensure_directory path =
     if parent <> path then ensure_directory parent;
     try Unix.mkdir path 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
 
-(* Written to a temporary file and renamed, so a crash never leaves a torn file. *)
+(* Written to a temporary file, synced and renamed, so a crash never leaves a torn file.  A
+   symlink stays a link: the rename replaces the file it points at. *)
 let write_text ~filename text =
   try
+    let filename = try Unix.realpath filename with Unix.Unix_error _ -> filename in
     let directory = Filename.dirname filename in
     ensure_directory directory;
     let temporary, channel = Filename.open_temp_file ~temp_dir:directory
@@ -15,6 +17,8 @@ let write_text ~filename text =
       close_out_noerr channel;
       if Sys.file_exists temporary then Sys.remove temporary) (fun () ->
       output_string channel text;
+      flush channel;
+      Unix.fsync (Unix.descr_of_out_channel channel);
       close_out channel;
       Sys.rename temporary filename);
     Ok ()

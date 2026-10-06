@@ -55,7 +55,7 @@ One fixture per diagnostic class: the exact File line.
   [1]
   $ cat > macro.rays <<'X'
   > (workspace w
-  >   (defmacro twice [x] (+ x x))
+  >   (defmacro twice [x] `(+ ~x ~x))
   >   (graph g :context sop
   >     (sop/box :size (twice))))
   > X
@@ -89,6 +89,43 @@ Warnings are errors unless the workspace says otherwise; two files, one exit cod
   File "kind.rays", line 3, characters 4-12:
   Error [E_UNKNOWN_KIND]: Unknown operator “sop/bx”. Did you mean box?
   1
+
+check opens the document as a window would: what only evaluation or lowering
+refuses fails here too, and what they accept passes.
+
+  $ cat > driven.rays <<'X'
+  > (workspace w
+  >   (graph g :context sop
+  >     (sop/merge (for [i (range (* 100 100))] (sop/box)))))
+  > X
+  $ rays-lisp check driven.rays
+  File "driven.rays", line 3, characters 23-42:
+  Error [E_ITER_BOUND]: range 0‥10000 exceeds 4,096 iterations.
+  [1]
+  $ cat > inline.rays <<'X'
+  > (workspace w
+  >   (defmacro ring [n] `(sop/merge (for [i# (range ~n)] (sop/transform (sop/box) :translate [i# 0 0]))))
+  >   (graph g :context sop (sop/merge (ring 2) (ring 3))))
+  > X
+  $ rays-lisp check inline.rays
+  $ cat > kindfn.rays <<'X'
+  > (workspace w
+  >   (graph g :context sop
+  >     (sop/merge (map sop/boolean (list (sop/box) (sop/torus)) (list (sop/torus) (sop/box))))))
+  > X
+  $ rays-lisp check kindfn.rays
+
+A layout error points at its form, and exponent numbers read.
+
+  $ cat > layout.rays <<'X'
+  > (workspace w
+  >   (graph g :context sop (sop/box :size [1e-3 2.5E+1 1])))
+  > (layout (nonsense))
+  > X
+  $ rays-lisp check layout.rays
+  File "layout.rays", line 3, characters 0-19:
+  Error [E_LAYOUT]: layout: unknown entry (nonsense)
+  [1]
 
 fmt prints the canonical text.
 

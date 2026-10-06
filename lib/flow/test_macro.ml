@@ -4,9 +4,10 @@ let parse source = match Syntax.parse source with
   | Ok forms -> forms
   | Error d -> failwith (Diagnostic.to_string d)
 let one source = List.hd (parse source)
-let known s = List.mem s [ "+"; "*"; "/"; "-"; "sop/merge"; "sop/transform"; "sop/box"; "for"; "range"; "let*" ]
-let value_op s = List.mem s [ "+"; "*"; "-"; "/" ]
-let check source = Macro.check ~known ~value_op (one source)
+(* [count] and [range] are operators a binding could be named after: free only as a head *)
+let known ~head s = List.mem s [ "+"; "*"; "/"; "-"; "sop/merge"; "sop/transform"; "sop/box"; "for"; "let*" ]
+  || (head && List.mem s [ "range"; "count" ])
+let check source = Macro.check ~known (one source)
 let flat = Lisp.flat
 
 let contains text (d : Diagnostic.t) =
@@ -90,11 +91,11 @@ let () = (* limits *)
   refuses radial "(radial k 2)" "E_MACRO_ARITY" "expects 3 arguments; got 2";
   refuses "(defmacro m [x & r] `(+ ~x ~@r))" "(m)" "E_MACRO_ARITY" "at least 1 argument; got 0"
 
-let () = (* legacy value templates substitute parameters by name *)
-  assert (check "(defmacro twice [x] (+ x x))" = []);
-  assert (expand "(defmacro twice [x] (+ x x))" "(twice 3)" = "(+ 3 3)");
-  rejects "(defmacro m [x] (sop/box x))" "E_MACRO_TEMPLATE" "value operators only";
-  rejects "(defmacro m [x] (+ x y))" "E_MACRO_CAPTURE" "Free macro identifier: y";
+let () = (* a template is quoted: there is no unquoted form *)
+  rejects "(defmacro twice [x] (+ x x))" "E_MACRO_TEMPLATE" "the template is quoted";
+  (* an operator a caller can bind is free as a head and a capture as an argument *)
+  assert (check "(defmacro n [xs] `(count ~xs))" = []);
+  rejects "(defmacro n [x] `(+ count ~x))" "E_MACRO_CAPTURE" "count would capture";
   (* a macro call is left alone inside quotes and defmacro forms *)
   assert (expand add1 "(defmacro other [a] (+ a a))" = "(defmacro other [a] (+ a a))")
 

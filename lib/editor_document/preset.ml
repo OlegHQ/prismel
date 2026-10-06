@@ -63,6 +63,8 @@ let load ~path ~factories ~settings =
   let* catalog = Result.map_error Flow.Diagnostic.to_string (flow_catalog factories) in
   let* workspace = Result.map_error diagnostics
       (Workspace_doc.of_text ~settings:(Settings.defaults settings) catalog text) in
+  (* the view is the preset's own form, not the document's *)
+  let workspace = { workspace with extra = [] } in
   let* view = match S.parse text with
     | Error d -> Error (Flow.Diagnostic.to_string d)
     | Ok forms ->

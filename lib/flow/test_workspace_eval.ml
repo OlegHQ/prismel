@@ -288,7 +288,7 @@ let () = (* 5. macros *)
   t "macro: rest parameters splice" (fun () ->
     is "(workspace w (defmacro all [& xs] `(+ 0 (+ ~@xs))) (graph g :context value (all 1 2)))" (Eval.Int 3));
   t "macro: legacy value templates still work" (fun () ->
-    is "(workspace w (defmacro twice [x] (+ x x)) (graph g :context value (twice 3)))" (Eval.Int 6))
+    is "(workspace w (defmacro twice [x] `(+ ~x ~x)) (graph g :context value (twice 3)))" (Eval.Int 6))
 
 let () = (* 6. bypass, notes *)
   t "bypass passes the first input through" (fun () ->
@@ -304,7 +304,7 @@ let () = (* 6. bypass, notes *)
 let () = (* 7. round trip and running the kitchen sink *)
   t "round trip: print(read(print(x))) is stable for every new construct" (fun () ->
     let radial = "(defmacro radial [i n body] `(sop/merge (for [~i (range ~n)] (sop/transform ~body :rotate [0 (* (/ ~i ~n) 6.2832) 0]))))" in
-    let all = "(workspace kitchen\n  ; macros\n  " ^ radial ^ "\n  (defmacro all [& xs] `(sop/merge ~@xs))\n  (defmacro add1 [a] `(let* [t# ~a] (+ t# 1)))\n  (defmacro twice [x] (+ x x))\n  (defn ring :context sop [(n : int 8) (make : fn) (opts : {:scale float :tags (list text)} {:scale 1.0 :tags (list \"a\")})]\n    (sop/transform (sop/merge (map make (range n))) :uniform_scale opts.scale))\n  (graph g :context sop [(seed : int 3)]\n    (let* [; a local function\n           petal (fn [(i : int) [w h]]\n                   (sop/transform (sop/box :size [w h 0.1]) :rotate [0 0 (* i 0.5)]))\n           sizes (map (fn [k] (list (+ 0.1 (* k 0.01)) 0.5)) (range 12))\n           petals (map petal (range 12) sizes)\n           {:keys [a b]} {:a 1 :b (twice 2)}\n           [x y z] [a b 3]\n           kind (cond (< a 1) \"small\"\n                      (< a 5) \"medium\"\n                      :else \"large\")\n           steps (case seed 1 4 2 8 :else 12)\n           order (sort-by (fn [p] (- 0 (nth p 0))) sizes)\n           kept (filter (fn [p] (> (first p) 0.12)) (concat (take 3 sizes) (drop 9 sizes) (reverse (rest sizes))))\n           total (reduce + 0 (map (fn [p] (last p)) kept))\n           name (str \"floor_\" (add1 steps) \"_\" kind)\n           state (fold [{:keys [n acc]} (values :n 0 :acc 1.0)]\n                       [i (range steps)]\n                   (assoc {:n (+ n 1) :acc (* acc 0.9)} :acc (get {:acc (* acc 0.9)} :acc)))\n           ring2 (radial k 6 (sop/box :size (+ 0.1 (* k 0.01))))\n           faded ^:bypass (sop/subdivide ring2 :iterations 2)\n           shapes (all (sop/merge petals) faded (ring :n 3 :make (fn [i] (sop/box :size 0.05))) (sop/group_bounds (sop/box) :name name))\n           ; unused but checked\n           spare (count (list))]\n      ; the result\n      (sop/transform shapes :uniform_scale (* state.acc (* x (+ y (+ z total)))))))\n  ; trailing\n  )" in
+    let all = "(workspace kitchen\n  ; macros\n  " ^ radial ^ "\n  (defmacro all [& xs] `(sop/merge ~@xs))\n  (defmacro add1 [a] `(let* [t# ~a] (+ t# 1)))\n  (defmacro twice [x] `(+ ~x ~x))\n  (defn ring :context sop [(n : int 8) (make : fn) (opts : {:scale float :tags (list text)} {:scale 1.0 :tags (list \"a\")})]\n    (sop/transform (sop/merge (map make (range n))) :uniform_scale opts.scale))\n  (graph g :context sop [(seed : int 3)]\n    (let* [; a local function\n           petal (fn [(i : int) [w h]]\n                   (sop/transform (sop/box :size [w h 0.1]) :rotate [0 0 (* i 0.5)]))\n           sizes (map (fn [k] (list (+ 0.1 (* k 0.01)) 0.5)) (range 12))\n           petals (map petal (range 12) sizes)\n           {:keys [a b]} {:a 1 :b (twice 2)}\n           [x y z] [a b 3]\n           kind (cond (< a 1) \"small\"\n                      (< a 5) \"medium\"\n                      :else \"large\")\n           steps (case seed 1 4 2 8 :else 12)\n           order (sort-by (fn [p] (- 0 (nth p 0))) sizes)\n           kept (filter (fn [p] (> (first p) 0.12)) (concat (take 3 sizes) (drop 9 sizes) (reverse (rest sizes))))\n           total (reduce + 0 (map (fn [p] (last p)) kept))\n           name (str \"floor_\" (add1 steps) \"_\" kind)\n           state (fold [{:keys [n acc]} (values :n 0 :acc 1.0)]\n                       [i (range steps)]\n                   (assoc {:n (+ n 1) :acc (* acc 0.9)} :acc (get {:acc (* acc 0.9)} :acc)))\n           ring2 (radial k 6 (sop/box :size (+ 0.1 (* k 0.01))))\n           faded ^:bypass (sop/subdivide ring2 :iterations 2)\n           shapes (all (sop/merge petals) faded (ring :n 3 :make (fn [i] (sop/box :size 0.05))) (sop/group_bounds (sop/box) :name name))\n           ; unused but checked\n           spare (count (list))]\n      ; the result\n      (sop/transform shapes :uniform_scale (* state.acc (* x (+ y (+ z total)))))))\n  ; trailing\n  )" in
     let printed = fst (Lisp.print (parse all)) in
     assert (fst (Lisp.print (parse printed)) = printed);
     let ws = check printed in
@@ -502,9 +502,11 @@ let () = (* L2, L4, L5: product order, empty results, ints *)
     is (value "(count (range 2 6))") (Eval.Int 4))
 
 let () = (* L6, L14, F3: accumulators, ref overrides, sum types *)
-  t "L6: fold coerces the body to the accumulator type; sum keeps int, float, vec3" (fun () ->
-    (* the accumulator keeps its int type: 1 -> 3 -> 8 -> 20, as in the study *)
-    assert (g_value (value "(fold [a 1] [i (range 3)] (* a 2.5))") = Eval.Int 20);
+  t "L6: an int seed does not round a float body; sum keeps int, float, vec3" (fun () ->
+    assert (g_value (value "(fold [a 1] [i (range 3)] (* a 2.5))") = Eval.Float 15.625);
+    assert (g_value (value "(fold [a 0] [i (range 3)] (+ a 0.5))") = Eval.Float 1.5);
+    assert (g_value (value "(fold [a 0] [i (range 3)] (+ a i))") = Eval.Int 3);
+    assert (bound (value "(let* [z (scan [a 0] [i (range 2)] (+ a 0.5))] 1)") "z" = Eval.List [| Float 0.5; Float 1. |]);
     assert (bound (value "(let* [z (sum [i (range 3)] [i 0 1])] 1)") "z" = Eval.Vec3 (3., 0., 3.));
     assert (g_value (value "(sum [i (range 3)] 0.5)") = Eval.Float 1.5);
     assert (g_value (value "(sum [i (range 3)] i)") = Eval.Int 3));
@@ -627,3 +629,17 @@ let () =
     exit 1
   end;
   Printf.printf "Flow workspace eval: %d value cases pass\n" !passed
+
+let () = (* report.md L10, L18, L20: one bypass index, nonfinite guards, whole indices *)
+  t "bypass passes the first positional input, after keyword pairs, for every call" (fun () ->
+    is (value "(let* [f (fn [a b] (+ a b))] ^:bypass (f 2 3))") (Eval.Int 2));
+  t "nonfinite values are refused where they are made" (fun () ->
+    List.iter (fun source ->
+      match Eval.static (check ("(workspace w (graph g :context value " ^ source ^ "))")) with
+      | Error d -> assert (d.code = "E_NONFINITE")
+      | Ok _ -> failwith (source ^ " was accepted"))
+      [ "(value/lerp 0 (pow 10 308) 100)"; "(value/polar (pow 10 308) 0 0)"; "(* [1 2 3] (* (pow 10 308) 10))" ]);
+  t "nth takes a whole index" (fun () ->
+    match Eval.static (check "(workspace w (graph g :context value (nth (list 1 2 3 4) 2.5)))") with
+    | Error d -> assert (d.code = "E_LIST_RANGE")
+    | Ok _ -> failwith "nth 2.5 read an element")

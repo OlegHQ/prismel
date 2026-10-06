@@ -55,6 +55,7 @@ and st = {
   recs : (W.path, int * (int list * value) list) Hashtbl.t;
   graphs : (string, W.graph) Hashtbl.t;
   defs : (string, W.graph) Hashtbl.t;
+  kind_fns : (string * (string * string list)) list;
 }
 
 and node = { id : int; inst : int; site : W.path; iter : int list; kind : string;
@@ -179,6 +180,9 @@ let rec coerce_like w v =
         | Some w -> (n, coerce_like w x) | None -> (n, x)) fs)
   | _ -> v
 
+(* an accumulator: as [coerce_like], but an int seed such as [0] does not round a float step *)
+let widen_like w v = match w, v with Int _, Float _ -> v | _ -> coerce_like w v
+
 let join_values xs = let t = elem_ty xs in Array.map (coerce_to t) xs
 
 let rec pat_key = function
@@ -258,7 +262,7 @@ let is_vec = function Vec3 _ -> true | _ -> false
 let arith name f a b =
   if is_vec a || is_vec b then begin
     let ax, ay, az = comps a and bx, by, bz = comps b in
-    Vec3 (f ax bx, f ay by, f az bz)
+    Vec3 (fin name (f ax bx), fin name (f ay by), fin name (f az bz))
   end else begin
     let r = fin name (f (num a) (num b)) in
     match a, b with
@@ -313,17 +317,18 @@ let value_op name (vs : value list) : value =
   | "or", [ a; b ] -> Bool (truthy a || truthy b)
   | "not", [ a ] -> Bool (not (truthy a))
   | "value/rand", ks -> Float (hash (List.map num ks))
-  | "value/hsv", [ h; s; v ] -> let r, g, b = hsv (num h) (num s) (num v) in Vec3 (r, g, b)
+  | "value/hsv", [ h; s; v ] ->
+      let r, g, b = hsv (num h) (num s) (num v) in Vec3 (fin name r, fin name g, fin name b)
   | "value/lerp", [ a; b; u ] ->
       let u = num u in
       if is_vec a || is_vec b then begin
         let ax, ay, az = comps a and bx, by, bz = comps b in
         let l x y = x *. (1. -. u) +. y *. u in
-        Vec3 (l ax bx, l ay by, l az bz)
-      end else Float (num a *. (1. -. u) +. num b *. u)
+        Vec3 (fin name (l ax bx), fin name (l ay by), fin name (l az bz))
+      end else Float (fin name (num a *. (1. -. u) +. num b *. u))
   | "value/polar", (r :: a :: h) ->
       let r = num r and a = num a in
-      Vec3 (r *. cos a, (match h with [ h ] -> num h | _ -> 0.), r *. sin a)
+      Vec3 (fin name (r *. cos a), (match h with [ h ] -> num h | _ -> 0.), fin name (r *. sin a))
   | "range", [ n ] -> range 0 (int_of n)
   | "range", [ a; b ] -> range (int_of a) (int_of b)
   | "linspace", [ a; b; n ] ->
@@ -342,6 +347,9 @@ let value_op name (vs : value list) : value =
       let xs = list_arg l in
       List (if xs = [||] then xs else Array.sub xs 1 (Array.length xs - 1))
   | "nth", [ l; i ] ->
+      (match i with
+       | Float f when not (Float.is_integer f) -> failf "E_LIST_RANGE" "nth index %g is not a whole number." f
+       | _ -> ());
       let xs = list_arg l and i = int_of i in
       if i < 0 || i >= Array.length xs then
         failf "E_LIST_RANGE" "nth index %d is out of range for a list of length %d." i (Array.length xs)
@@ -725,8 +733,9 @@ and ev_raw c env (x : W.term) : value =
         | W.Call { args; _ } | W.Op { args; _ } -> List.map snd args
         | W.Call_fn { args; _ } -> args
         | _ -> [] in
+      (* as the checker counts it: the first positional argument, after the keyword pairs *)
       let index = match t.node, t.form.node with
-        | W.Call _, S.List (_ :: args) ->
+        | _, S.List (_ :: args) ->
             let rec first i = function
               | { S.node = S.Kw _; _ } :: _ :: rest -> first (i + 1) rest
               | _ -> i in
@@ -796,7 +805,11 @@ and call_fn c f (vals : value list) : value =
         | Some n -> apply_op c' n named
         | None ->
             if is_struct_op name || name = "sop/curve" then apply_op c' name named
-            else mk_node c' name named
+            else
+              (* a catalog kind: the checker resolved its name and which input each argument is *)
+              let kind, slots = Option.value ~default:(name, []) (List.assoc_opt name c.st.kind_fns) in
+              mk_node c' kind (List.mapi (fun i v ->
+                (Option.value ~default:"input" (List.nth_opt slots i), v)) vals)
       end
 
 and hof c env kind f rest =
@@ -822,11 +835,7 @@ and hof c env kind f rest =
   | `Reduce, [ init; l ] ->
       let init = ev (sub c "init") env init in
       let xs = List.hd (lists_of [ l ]) in
-      (* an int seed such as [0] must not truncate a float sum *)
-      Array.fold_left (fun acc x ->
-        match acc, call_fn c fv [ acc; x ] with
-        | Int _, (Float _ as r) -> r
-        | _, r -> coerce_like acc r) init xs
+      Array.fold_left (fun acc x -> widen_like acc (call_fn c fv [ acc; x ])) init xs
   | _ -> fail "E_ARITY" "A higher-order form got the wrong number of arguments."
 
 and loop c env kind accs clauses skip body zone =
@@ -861,8 +870,7 @@ and loop c env kind accs clauses skip body zone =
       let v = ev ci' !env body in
       (match kind, !acc with
        | (`Fold | `Scan), Some a ->
-           let a' = coerce_like (Option.get init) v in
-           ignore a;
+           let a' = widen_like a v in
            acc := Some a';
            if kind = `Scan then outs := a' :: !outs
        | `Sum, _ -> total := Some (match !total with None -> v | Some t -> add t v)
@@ -970,7 +978,8 @@ let new_state ~record ws =
   List.iter (fun (g : W.graph) -> Hashtbl.replace graphs g.name g) ws.W.graphs;
   List.iter (fun (g : W.graph) -> Hashtbl.replace defs g.name g) ws.W.defs;
   { time = None; steps = 0; nodes = []; nnodes = 0; cells = []; cache = Hashtbl.create 8;
-    memo = Hashtbl.create 1; rids = 0; record; elems = Smap.empty; recs = Hashtbl.create 64; graphs; defs }
+    memo = Hashtbl.create 1; rids = 0; record; elems = Smap.empty; recs = Hashtbl.create 64; graphs; defs;
+    kind_fns = ws.W.kind_fns }
 
 let live_state (st : st) ?(elems = Smap.empty) (l : live) =
   { st with time = Some l.t; steps = 0; memo = Hashtbl.create 16; record = false; elems }

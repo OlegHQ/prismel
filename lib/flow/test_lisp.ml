@@ -140,9 +140,9 @@ let golden = [
    {golden|(fn [i]
   ; scale
   (* i 2))|golden});
-  ({golden|(defmacro twice [x] (+ x x))|golden},
+  ({golden|(defmacro twice [x] `(+ ~x ~x))|golden},
    {golden|(defmacro twice [x]
-  (+ x x))|golden});
+  `(+ ~x ~x))|golden});
   ({golden|(defmacro radial [i n body] `(sop/merge (for [~i (range ~n)] (sop/transform ~body :rotate [0 (* (/ ~i ~n) 6.2832) 0]))))|golden},
    {golden|(defmacro radial [i n body]
   `(sop/merge (for [~i (range ~n)]

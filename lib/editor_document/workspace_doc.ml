@@ -6,6 +6,7 @@ type t = {
   checked : Flow.Workspace.t;
   layout : Layout_by_path.t;
   settings : Settings.t;
+  extra : S.t list;
 }
 
 let name t = t.checked.name
@@ -53,7 +54,7 @@ let read_settings base (form : S.t) =
 
 (* ---- text ---- *)
 
-let diag code message = Flow.Diagnostic.error ~code message
+let diag ?span code message = Flow.Diagnostic.error ?span ~code message
 
 let check_forms forms =
   let rec go seen = function
@@ -61,14 +62,47 @@ let check_forms forms =
     | f :: rest ->
         (match head f with
          | Some name when List.mem name ["workspace"; "layout"; "settings"; "view"] ->
-             if List.mem name seen then Error [Flow.Diagnostic.error ~span:f.S.span
-               ~code:"E_DOCUMENT_FORM" ("Duplicate " ^ name ^ " form.")]
+             if List.mem name seen then Error [ diag ~span:f.S.span "E_DOCUMENT_FORM" ("Duplicate " ^ name ^ " form.") ]
              else go (name :: seen) rest
-         | _ -> Error [Flow.Diagnostic.error ~span:f.S.span ~code:"E_DOCUMENT_FORM"
-             "Expected workspace, layout, settings or view at the document root."]) in
+         | _ -> Error [ diag ~span:f.S.span "E_DOCUMENT_FORM"
+             "Expected workspace, layout, settings or view at the document root." ]) in
   go [] forms
 
-let of_text ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog text =
+(* Layout entries live as long as what they name: a key whose node, input or scope is not in
+   the checked workspace is dropped, and so is a selected editor layout that is not a graph. *)
+let prune (checked : Flow.Workspace.t) catalog (layout : Layout_by_path.t) =
+  if Layout_by_path.is_empty layout then layout
+  else
+    let module P = Flow_sop.Projection in
+    let known = Hashtbl.create 256 in
+    let rec scope (s : P.scope) =
+      Hashtbl.replace known s.path ();
+      List.iter (fun (i : P.input) -> Hashtbl.replace known i.path ()) s.inputs;
+      List.iter (fun (n : P.node) ->
+        Hashtbl.replace known n.path ();
+        Option.iter (fun (z : P.zone) -> scope z.scope) n.zone) s.nodes in
+    match
+      List.iter (fun (g : Flow.Workspace.graph) -> scope (P.of_graph catalog checked g.name)) checked.graphs;
+      List.iter (fun (g : Flow.Workspace.graph) -> scope (P.of_graph catalog checked ("def:" ^ g.name))) checked.defs
+    with
+    | exception Invalid_argument _ -> layout
+    | () ->
+        (* a scope's own pseudo items ([@result], [@panel n]) are keyed under its path *)
+        let rec keep before = function
+          | [] -> Hashtbl.mem known (List.rev before)
+          | segment :: _ when String.length segment > 0 && segment.[0] = '@' -> Hashtbl.mem known (List.rev before)
+          | segment :: rest -> keep (segment :: before) rest in
+        let keep = keep [] in
+        Layout_by_path.remap (fun path -> if keep path then Some path else None) { layout with editor = None }
+
+let editor_known (checked : Flow.Workspace.t) name =
+  List.exists (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Editor && g.name = name) checked.graphs
+
+let pruned checked catalog (layout : Layout_by_path.t) =
+  let editor = Option.bind layout.editor (fun name -> if editor_known checked name then Some name else None) in
+  { (prune checked catalog layout) with editor }
+
+let check_text ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog text =
   match S.parse text with
   | Error d -> Error [ d ]
   | Ok forms ->
@@ -78,27 +112,42 @@ let of_text ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog
            Result.bind (check_forms forms) (fun () ->
            (match Flow.Workspace.check catalog [ ws ] with
             | None, ds -> Error ds
-            | Some checked, _ ->
+            | Some checked, warnings ->
                 let layout = match List.find_opt (fun f -> head f = Some "layout") forms with
                   | None -> Ok layout
-                  | Some f -> Layout_by_path.of_syntax f in
-                (match layout with
-                 | Error m -> Error [ diag "E_LAYOUT" m ]
-                 | Ok layout when layout.editor <> None
-                     && editor_graph { source = [ws]; checked; layout; settings } = None ->
-                     Error [ diag "E_LAYOUT" ("Unknown editor layout " ^ Option.get layout.editor ^ ".") ]
-                 | Ok layout ->
-                     let settings = match List.find_opt (fun f -> head f = Some "settings") forms with
-                       | None -> Ok settings
-                       | Some f -> read_settings settings f in
-                     (match settings with
-                      | Error m -> Error [ diag "E_SETTINGS" m ]
-                      | Ok settings -> Ok { source = [ ws ]; checked; layout; settings })))))
+                  | Some f -> Result.map_error (fun m -> [ diag ~span:f.S.span "E_LAYOUT" m ]) (Layout_by_path.of_syntax f) in
+                Result.bind layout (fun layout ->
+                  let settings = match List.find_opt (fun f -> head f = Some "settings") forms with
+                    | None -> Ok settings
+                    | Some f -> Result.map_error (fun m -> [ diag ~span:f.S.span "E_SETTINGS" m ]) (read_settings settings f) in
+                  Result.map (fun settings ->
+                    { source = [ ws ]; checked; layout = pruned checked catalog layout; settings;
+                      extra = List.filter (fun f -> f != ws) forms }, warnings) settings))))
 
+let of_text ?settings ?layout catalog text = Result.map fst (check_text ?settings ?layout catalog text)
+
+(* The workspace, then the other root forms in the order they were written ([view] verbatim,
+   [layout] and [settings] rewritten from the document), each under the comments written above
+   the form it replaces.  Comments of a form that is no longer written move to the next one, or
+   to the end of the text. *)
 let to_text t =
-  let extra = (if Layout_by_path.is_empty t.layout then [] else [ Layout_by_path.to_syntax t.layout ])
-    @ Option.to_list (settings_form t.settings) in
-  fst (Flow.Lisp.print (t.source @ extra))
+  let fresh = [ "layout", (if Layout_by_path.is_empty t.layout then None else Some (Layout_by_path.to_syntax t.layout));
+                "settings", settings_form t.settings ] in
+  let written = List.filter_map head t.extra in
+  let names = written @ List.filter (fun n -> not (List.mem n written)) [ "layout"; "settings" ] in
+  let carried = ref [] in
+  let forms = List.filter_map (fun name ->
+    let old = List.find_opt (fun f -> head f = Some name) t.extra in
+    let notes = !carried @ Option.fold ~none:[] ~some:(fun (f : S.t) -> f.notes) old in
+    let tail = Option.fold ~none:[] ~some:(fun (f : S.t) -> f.tail) old in
+    match (if name = "view" then old else Option.map (fun (f : S.t) -> { f with tail }) (List.assoc name fresh)) with
+    | Some f -> carried := []; Some { f with S.notes }
+    | None -> carried := notes @ tail; None) names in
+  let forms = t.source @ forms in
+  let forms = match List.rev forms with
+    | last :: rest when !carried <> [] -> List.rev ({ last with tail = last.tail @ !carried } :: rest)
+    | _ -> forms in
+  fst (Flow.Lisp.print forms)
 
 let edit catalog t op =
   Result.map (fun (source, checked) ->
@@ -108,5 +157,5 @@ let edit catalog t op =
           { layout with display = Layout_by_path.Path_map.remove [ graph ] layout.display }
       | Flow_sop.Flow_edit.Merge_layouts _ -> { layout with editor = None }  (* the other editor graphs are gone *)
       | _ -> layout in
-    { t with source; checked; layout })
+    { t with source; checked; layout = pruned checked catalog layout })
     (Flow_sop.Flow_edit.apply_checked catalog t.source op)

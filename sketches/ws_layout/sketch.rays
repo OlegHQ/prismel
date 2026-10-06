@@ -15,7 +15,9 @@
   (graph scene :context scene
     (let* [plants (scene/geometry (ref garden) :name "garden")
            cam (scene/camera :eye [0.5 1.8 6] :target [0 0.3 0] :fov 50)
-           sun (scene/light :shape "Directional" :translate [8 11.2 6.4] :intensity 1)
+           sun (scene/light :shape "Directional"
+                            :translate [8 11.2 6.4]
+                            :intensity 1)
            all (scene/merge plants cam sun)]
       (scene/root all :camera cam)))
 
@@ -45,13 +47,16 @@
            boards (ui/split "horizontal"
                             (ui/split "horizontal"
                                       (ui/split "horizontal"
-                                                (ui/split "horizontal" studio (ui/floating material))
+                                                (ui/split "horizontal"
+                                                          studio
+                                                          (ui/floating material))
                                                 (ui/floating orbit))
                                       (ui/floating details))
                             (ui/floating notes))
            shell (ui/workspace (ui/switch studio boards :active 0))]
       shell)))
-(layout (panel ["editor" "material"] :collapsed false :window [560 90 520 360])
-        (panel ["editor" "orbit"] :collapsed false :window [250 470 380 260])
-        (panel ["editor" "details"] :collapsed false :window [1090 60 320 420])
-        (panel ["editor" "notes"] :collapsed false :window [640 500 420 300]))
+
+(layout (panel ["editor" "details"] :collapsed false :window [1090 60 320 420])
+        (panel ["editor" "material"] :collapsed false :window [560 90 520 360])
+        (panel ["editor" "notes"] :collapsed false :window [640 500 420 300])
+        (panel ["editor" "orbit"] :collapsed false :window [250 470 380 260]))
