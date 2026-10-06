@@ -640,15 +640,14 @@ let flat text = String.concat " " (List.filter (( <> ) "")
 
 let run_root () =
   let module R = Objects.Root in
-  (* an old file loads unchanged: no root is the defaults, the camera's size is read as the root's *)
+  (* a scene without a root renders as the defaults; a camera carries no render size *)
   let old = open_text text in
   check (old.root = R.default && old.homes.root = None) "a scene without a root did not get the default root";
-  let sized = open_text {|(workspace old
+  check (Result.is_error (Workspace_doc.of_text (Result.get_ok (Contexts.catalog ~version:1 factories)) {|(workspace old
     (graph g :context sop (sop/box))
     (graph scene :context scene
-      (scene/merge (scene/geometry (ref g)) (scene/camera :width 1600 :height 900 :max_spp 512))))|} in
-  check (sized.root.width = 1600 && sized.root.height = 900 && sized.root.max_spp = 512
-         && sized.homes.root = None) "the camera's old size was not read as the root's";
+      (scene/merge (scene/geometry (ref g)) (scene/camera :width 1600 :height 900 :max_spp 512))))|}))
+    "a camera still takes a render size";
   (* every sketch of the repository still loads; shattered_studio carries a root, written by the editor *)
   let sketches = "../sketches" in
   let loaded = Array.fold_left (fun n name ->
@@ -844,6 +843,66 @@ let run_compose () =
          && contains (flat (source grouped)) "all (scene/merge pair pebbles)" && geometries grouped = 3)
     ("group: " ^ source grouped);
   same_after_reload grouped "group";
+  (* E9: deleting or moving one layer of a World member is an edit of that binding: the graph's
+     input, its comment, the expression and the other names stay *)
+  let skies = open_text {x|(workspace skies
+    (graph g :context sop (sop/box))
+    (graph sky :context world [(warmth : float 0.5)]
+      ;; the stack, bottom first
+      (let* [base (world/sky :name "base")
+             haze (world/gradient base :name "haze")
+             sun (world/sun haze :name "sun" :intensity (* warmth 4))]
+        sun))
+    (graph scene :context scene (scene/root (scene/merge (scene/geometry (ref g)) (scene/world (ref sky))))))|x} in
+  let kept what (doc : Document.t) =
+    let text = flat (source doc) in
+    check (contains text "[(warmth : float 0.5)]" && contains text "; the stack, bottom first"
+           && contains text ":intensity (* warmth 4)" && contains text "base (world/sky")
+      (what ^ " rewrote the world graph: " ^ source doc) in
+  let wid, network = world_network skies in
+  let haze = layer_id skies "haze" and sun = layer_id skies "sun" and base = layer_id skies "base" in
+  let g = network.graph.geometry in
+  let closed = Edit_graph.remove_nodes [ haze ] g
+    |> Edit_graph.connect ~source:base ~consumer:sun ~input_index:0 |> Result.get_ok in
+  let edited = ok (reconcile skies (with_world_network skies wid network closed)) in
+  kept "deleting a layer" edited;
+  check (not (contains (source edited) "haze") && contains (flat (source edited)) "(world/sun base")
+    ("a deleted layer of a World member: " ^ source edited);
+  same_after_reload edited "member layer delete";
+  let swapped = Edit_graph.disconnect ~consumer:haze ~input_index:0 g |> Result.get_ok
+    |> Edit_graph.disconnect ~consumer:sun ~input_index:0 |> Result.get_ok
+    |> Edit_graph.connect ~source:sun ~consumer:haze ~input_index:0 |> Result.get_ok
+    |> Edit_graph.connect ~source:base ~consumer:sun ~input_index:0 |> Result.get_ok in
+  let swapped = Document.with_network skies (Document.Inside wid)
+    { network with graph = Result.get_ok (Flow_sop.Network.with_geometry swapped network.graph); displayed = Some haze } in
+  let edited = ok (reconcile skies swapped) in
+  kept "moving a layer" edited;
+  check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot edited in layers) = [ "haze"; "sun"; "base" ])
+    ("a moved layer of a World member: " ^ source edited);
+  same_after_reload edited "member layer move";
+  (* the first edit of a render setting writes a root beside a binding already named root *)
+  let rooted = open_text {x|(workspace r (graph g :context sop (sop/box))
+    (graph scene :context scene (let* [root (scene/geometry (ref g))] (scene/merge root))))|x} in
+  let written = ok (reconcile rooted { rooted with root = { rooted.root with width = 640 } }) in
+  check (written.homes.root <> None && written.root.width = 640 && contains (flat (source written)) "(scene/root (scene/merge root) :width 640)")
+    ("a scene that binds root refused its first render setting: " ^ source written);
+  (* a rename to a name another object has is refused: [:parent] reads names *)
+  let family = open_text {x|(workspace f
+    (graph scene :context scene
+      (scene/merge (scene/light :name "a") (scene/light :name "b") (scene/light :name "c" :parent "b"))))|x} in
+  let a = node_id family "a" in
+  (match reconcile family (with_scene family (Edit_graph.replace_node
+      (Node.relabel "b" (Option.get (Edit_graph.find (scene family) ~node_id:a))) (scene family) |> Result.get_ok)) with
+   | Error message -> check (contains message "named") message
+   | Ok _ -> failwith "a rename to another object's name was written");
+  (* an object the host made is still its graph's after another graph's edit lowered the text again *)
+  let pair = open_text "(workspace pair (graph g :context sop (sop/box)) (graph h :context sop (sop/box)))" in
+  let relowered = okx (apply_ops pair [ Flow_sop.Flow_edit.Set_arg { node = [ "h"; "@result" ];
+    key = Flow_sop.Flow_edit.Kw "uniform_scale"; sub = []; value = Flow.Syntax.make (Flow.Syntax.Num "2.0") } ]) in
+  let moved = ok (reconcile relowered (set relowered "g" [ float "translate_x" 1. ])) in
+  check (contains (flat (source moved)) "(scene/geometry (ref g) :translate [1.0 0.0 0.0])"
+         && contains (source moved) "(scene/geometry (ref h))")
+    ("a host object lost its graph after a re-lowering: " ^ source moved);
   print_endline "scene compose: add geometry (new and existing), add World, one World, take out and wire back, delete refcount, group ok"
 
 (* Several scene graphs, each with a root of its own: a viewport renders as the root of the scene it

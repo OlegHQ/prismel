@@ -68,10 +68,9 @@ let run () =
          "a saved preset did not load back"
    | Error message -> failwith message);
   Sys.remove saved;
-  (* Both public hosts: deleting every scene object through real UI events empties the
-     scene and the preview, and the document still saves (the single-object host keeps
-     its object). *)
-  let exercise ~scene_level ~create ~update ~close ~document:current_document ~prepared ~panes =
+  (* Deleting every scene object through real UI events empties the scene and the
+     preview, and the document still saves. *)
+  let exercise ~create ~update ~close ~document:current_document ~prepared ~panes =
     let value = ref (create ()) and count = ref 0 in
     Fun.protect ~finally:(fun () -> close !value) (fun () ->
     let step ?keys ?mouse events =
@@ -83,7 +82,7 @@ let run () =
       check (predicate !value) "cook did not settle" in
     settle (fun env -> prepared env <> None);
     step [];
-    if scene_level then begin
+    begin
       (* the scene opens as a list: delete its first row, twice (geo1, then the camera) *)
       let gx, gy, _, _ = (panes !value (frame [] 0)).Pxui_shell.Layout.graph in
       let mouse = float (gx + 60), float (gy + 24 + 12) in
@@ -105,13 +104,8 @@ let run () =
   let prepares = Atomic.make 0 in
   let prepare _ _ = Atomic.incr prepares; Ok (Atomic.get prepares) in
   let module E3 = Rays_editor.Editor3 in
-  exercise ~scene_level:true
+  exercise
     ~create:(fun () -> E3.create ~await:true ~workspace ~presets:directory ~factories ~prepare
       ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok)
     ~update:E3.update ~close:E3.close ~document:E3.document ~prepared:E3.prepared ~panes:E3.panes;
-  let module E2 = Rays_editor.Editor2 in
-  exercise ~scene_level:false
-    ~create:(fun () -> E2.create ~await:true ~workspace ~presets:directory ~factories ~prepare
-      ~scene2:(fun _ _ -> []) () |> Result.get_ok)
-    ~update:E2.update ~close:E2.close ~document:E2.document ~prepared:E2.prepared ~panes:E2.panes;
-  print_endline "editor document: validation, dump, preset round trip, both hosts and delete-all passed")
+  print_endline "editor document: validation, dump, preset round trip, delete-all passed")

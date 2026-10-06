@@ -13,7 +13,7 @@ let frame ?(buttons = []) ?(keys = []) ?(delta = (0., 0.)) mouse events count : 
   fps = 60.; count; mouse; mouse_delta = delta; keys; mouse_buttons = buttons; events }
 
 let run () =
-  let exercise ~name ~scene_level ~create ~update ~close ~camera ~dump ~panes =
+  let exercise ~name ~create ~update ~close ~camera ~dump ~panes =
     let current = ref (create ()) and count = ref 0 in
     let directory = Filename.temp_dir "rays-input-contract" "" in
     Fun.protect ~finally:(fun () -> close !current;
@@ -165,7 +165,7 @@ let run () =
     step [Event.MouseMoved (190., 350.)];
     check (camera !current = cancelled) (name ^ ": popup did not cancel an existing drag");
     (* the scene opens as a list: Space l g in the graph pane shows the scene graph *)
-    if scene_level then begin
+    begin
       let gx, gy, _, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in
       let point = float (gx + 25), float (gy + 300) in
       step ~mouse:point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)];
@@ -201,18 +201,11 @@ let run () =
   let workspace = Ws_fixture.box () in
   let world = { World.default with layers = []; background = World.Transparent } in
   let module E3 = Rays_editor.Editor3 in
-  exercise ~name:"Editor3" ~scene_level:true
+  exercise ~name:"Editor3"
     ~create:(fun () -> E3.create ~workspace ~world ~camera:(Easy_camera.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) () |> Result.get_ok)
     ~update:E3.update ~close:E3.close ~dump:E3.crash_dump ~panes:E3.panes
     ~camera:(fun env -> let camera = E3.camera env in
       Camera.position (Easy_camera.camera camera), Camera.target (Easy_camera.camera camera),
       Easy_camera.distance camera);
-  let module E2 = Rays_editor.Editor2 in
-  exercise ~name:"Editor2" ~scene_level:false
-    ~create:(fun () -> E2.create ~workspace ~world ~camera:(Easy_camera2.create ~inertia:false ())
-      ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> []) () |> Result.get_ok)
-    ~update:E2.update ~close:E2.close ~dump:E2.crash_dump ~panes:E2.panes
-    ~camera:(fun env -> let camera = E2.camera env in
-      Easy_camera2.center camera, Easy_camera2.zoom camera, Easy_camera2.rotation camera);
-  print_endline "editor input: both hosts shield popups/World edits and retain viewport/graph gesture owners"
+  print_endline "editor input: the host shields popups/World edits and retain viewport/graph gesture owners"

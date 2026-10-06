@@ -113,13 +113,13 @@ let run () =
   let count = { (field graph "count") with Parameter.folder = [] } in
   let flow_row ?drive ?(locked = false) () : Pxui_shell.Inspector.flow_row = {
     path = "count"; fields = [count]; shown = true; locked;
-    drive; live = Some "3"; components = []; split = None } in
+    drive; live = Some "3" } in
   let flow_step ?(expanded = []) row events =
     let settle = frame 2. [] in
     ignore (Pxui.Ui.frame flow_ui settle (fun ui ->
-      Pxui_shell.Inspector.flow_fields ui ~expanded [row]));
+      Pxui_shell.Inspector.flow_fields ui ~expanded ~pin_click:true [row]));
     Pxui.Ui.frame flow_ui (frame 2. events) (fun ui ->
-      Pxui_shell.Inspector.flow_fields ui ~expanded [row]) in
+      Pxui_shell.Inspector.flow_fields ui ~expanded ~pin_click:true [row]) in
   if flow_step (flow_row ()) (click 14 12)
       <> [Pxui_shell.Inspector.Pinned ("count", false)] then
     fail "Flow inspector pin did not emit the card-row request";
@@ -144,11 +144,9 @@ let run () =
     path = vector.path;
     fields = List.map (fun field -> {field with Parameter.folder = []}) vector.fields;
     shown = true; locked = false; drive = None; live = None;
-    components = []; split = None;
   } in
-  if flow_step vector_row (click 258 12)
-      <> [Pxui_shell.Inspector.Split ("size", true)] then
-    fail "Flow inspector xyz control did not request a vector split";
+  if flow_step vector_row (click 258 12) <> [] then
+    fail "a click beside a vector's cells changed the row";
   let color_f name current = {
     Parameter.name; label = String.capitalize_ascii name; description = None;
     folder = []; impact = Parameter.Cook; primary = false; unit = None; vec3 = Some ("color", 0);
@@ -157,11 +155,8 @@ let run () =
   } in
   let color_row : Pxui_shell.Inspector.flow_row = {
     path = "color"; fields = [ color_f "color_r" 1.; color_f "color_g" 0.5; color_f "color_b" 0. ];
-    shown = true; locked = false; drive = None; live = None; components = []; split = None;
+    shown = true; locked = false; drive = None; live = None;
   } in
-  if flow_step color_row (click 258 12)
-      <> [ Pxui_shell.Inspector.Split ("color", true) ] then
-    fail "Flow inspector color row rgb control did not request a split";
   (* the hex field starts after the 20-point swatch and 8 points, at 12 + 6 + 8 + 68 + 8 + 28 in 280 *)
   ignore (flow_step color_row (click 170 12));
   let hex_edits = Pxui.Ui.frame flow_ui (frame 2. [

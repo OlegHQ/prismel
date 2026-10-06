@@ -21,4 +21,3 @@ val default_theme : theme
 module Theme = Theme
 module Ui = Ui
 module Camera_control = Camera_controls.Camera_control
-module Camera2_control = Camera_controls.Camera2_control

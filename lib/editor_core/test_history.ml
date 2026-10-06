@@ -23,8 +23,9 @@ let () =
   let h = burst 1.5 3 h in
   assert (depth h = 2 && present (Option.get (undo h)) = 2);
   let h = Option.get (undo h) in
+  (* a repair is no edit: it leaves what redo restores (E12) *)
   let h = record ~merge:Repair 10 h in
-  assert (present h = 10 && not (can_redo h));
+  assert (present h = 10 && can_redo h && present (Option.get (redo h)) = 3);
   (* Labels name what undo reverts and what redo reapplies. *)
   let h = create 0 |> record ~label:"Connect" 1 |> record ~label:"Move" 2 in
   assert (label h = "Move");
@@ -195,4 +196,33 @@ let () =
   assert (ended && passed.events = []);
   let ended, passed = fly (frame [Event.WindowFocusLost]) in
   assert (ended && passed.events = [Event.WindowFocusLost]);
+  (* E10: a focused text field keeps its own Command chords (undo, above) and lets the others run,
+     but only commands of every pane *)
+  let save = Editor_core.Command.make ~id:"save" ~label:"save"
+      ~trigger:(Editor_core.Keymap.Chord (Input.KeyChar 's', [Input.Meta])) `Palette
+  and scoped = Editor_core.Command.make ~id:"dup" ~label:"duplicate" ~scope:View
+      ~trigger:(Editor_core.Keymap.Chord (Input.KeyChar 'd', [Input.Meta])) `Frame in
+  let typing events = Editor_core.Router.step (save :: scoped :: bindings) ~focus:View ~text_focus:true
+      ~frame:{ (frame events) with keys = [Input.Meta] } Idle in
+  let _, actions, passed = typing [Event.KeyPressed (Input.KeyChar 's')] in
+  assert (actions = [save] && passed.events = []);
+  let _, actions, passed = typing [Event.KeyPressed (Input.KeyChar 'd')] in
+  assert (actions = [] && passed.events = [Event.KeyPressed (Input.KeyChar 'd')]);
+  (* E17: Shift and a symbol key is the symbol it types: Space ? is not Space /, and a chord
+     bound to + is reached by Shift = *)
+  let leader sequence action = Editor_core.Command.make ~id:sequence ~label:sequence
+      ~trigger:(Editor_core.Keymap.Leader sequence) action in
+  let keys = leader "?" `Layout and palette = leader "/" `Palette
+  and plus = Editor_core.Command.make ~id:"plus" ~label:"larger"
+      ~trigger:(Editor_core.Keymap.Chord (Input.KeyChar '+', [Input.Meta])) `Frame in
+  let _, actions, _ = Editor_core.Router.step [palette; keys] ~focus:View ~text_focus:false
+      ~frame:(frame [Event.KeyPressed Input.Space; Event.KeyPressed Input.Shift;
+        Event.KeyPressed (Input.KeyChar '/')]) Idle in
+  assert (actions = [keys]);
+  let _, actions, _ = Editor_core.Router.step [palette; keys] ~focus:View ~text_focus:false
+      ~frame:(frame [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar '/')]) Idle in
+  assert (actions = [palette]);
+  let _, actions, _ = Editor_core.Router.step [plus] ~focus:View ~text_focus:false
+      ~frame:{ (frame [Event.KeyPressed (Input.KeyChar '=')]) with keys = [Input.Meta; Input.Shift] } Idle in
+  assert (actions = [plus]);
   print_endline "editor router: leader/chord scope, text focus, event consumption ok"

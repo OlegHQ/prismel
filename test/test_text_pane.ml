@@ -263,6 +263,14 @@ let editor_text () =
   let merged = Rays_editor.Workspace_doc.to_text (ws ()) in
   check (contains merged ":segments 8" && contains merged ":uniform_scale 0.5" && contains (dump ()) "draft no")
     ("an added keyword argument and a draft did not merge: " ^ dump () ^ merged);
+  (* Command-S with the caret in the pane (E10): the draft is applied, then saved (there is no
+     source file here, so as a preset) *)
+  type_text (replace merged ~from:":segments 8" ~by:":segments 9");
+  step ~keys:[ Input.Meta ] [ char 's' ]; step [];
+  check (contains (Rays_editor.Workspace_doc.to_text (ws ())) ":segments 9" && contains (dump ()) "draft no")
+    ("Command-S with a draft in the text pane did not apply it: " ^ dump ());
+  check (List.length (Rays_editor.Private.Preset.list ~directory:presets) = 1)
+    "Command-S with the caret in the text pane saved nothing";
   E.close !env; Test_workspace_source.remove_tree presets
 
 (* A checker error from a binding apply is marked on the binding text's line, and typing clears it. *)
@@ -359,6 +367,28 @@ let editor_binding () =
   E.close !env; Test_workspace_source.remove_tree presets
 
 (* The editor's Lisp as the text area's language: indentation and bracket pairs. *)
+(* E6: a paste pairs names with bindings by position and renames at once *)
+let paste () =
+  let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
+      Sop_catalog.Editor.factories |> Result.get_ok in
+  let workspace = Rays_editor.Workspace_doc.of_text catalog
+      "(workspace w (graph g :context sop (let* [bed (sop/box)] bed)))" |> Result.get_ok in
+  let pasted text =
+    let ops = match T.paste_ops workspace.source ~graph:"g" ~scope:[ "g" ] text with
+      | Ok ops -> ops | Error message -> fail message in
+    let after = List.fold_left (fun ws op ->
+      match Rays_editor.Workspace_doc.edit catalog ws op with
+      | Ok ws -> ws | Error d -> fail ("paste of " ^ text ^ ": " ^ Flow.Diagnostic.to_string d)) workspace ops in
+    String.concat " " (List.filter (( <> ) "") (String.split_on_char ' '
+      (String.map (function '\n' -> ' ' | c -> c) (Rays_editor.Workspace_doc.to_text after)))) in
+  (* two bare forms with one head are two bindings *)
+  let two = pasted "(sop/box) (sop/box :size [2 2 2])" in
+  check (contains two "box (sop/box)" && contains two "box_1 (sop/box :size [2 2 2])") ("two forms of one head: " ^ two);
+  (* [bed] becomes [bed_2]; the pasted [bed_2] is another binding and keeps reading the pasted bed *)
+  let chain = pasted "bed (sop/box) bed_2 (sop/transform bed)" in
+  check (contains chain "bed_2 (sop/box)" && contains chain "bed_2_1 (sop/transform bed_2)")
+    ("a pasted name that is another's new name: " ^ chain)
+
 let lisp_text () =
   let module L = Rays_editor.Private.Lisp_text in
   let indent text = String.length (L.indent text (String.length text)) in
@@ -386,6 +416,9 @@ let lisp_text () =
       || Pxui.Ui.fuzzy_match ~query:"sop/tra" l) (labels (doc ^ "sop/tra"))) "every head completion matches";
   check (List.mem "let*" (labels (doc ^ "le")) && List.mem "sop/merge" (labels (doc ^ "me")))
     "forms and kinds complete at a head";
+  (* an operator's own name being typed has no argument place yet (E1: it raised) *)
+  check (List.mem "max" (labels (doc ^ "max")) && List.mem "+" (labels (doc ^ "+")))
+    "an operator's head completes";
   (* the empty head lists the kinds the text uses first *)
   check (first doc = "sop/box") ("the used kind ranks first: " ^ first doc);
   (* a keyword: the kind's parameters, a vec3 group before its components, present ones left out *)
@@ -444,6 +477,10 @@ let lisp_text () =
   check (p "(a (b)\n  c)" = "(a (b)\n  c)") "a closer in the middle of a line stays";
   check (p "(a \"(\" ; )\n  b" = "(a \"(\" ; )\n  b)") "strings and comments are not brackets";
   check (p "(a]" = "(a)") "a closer matching nothing is replaced";
+  (* E22: a string runs over line breaks: nothing inside it is a bracket or an indentation *)
+  check (p "(a \"x\n(y]\" b" = "(a \"x\n(y]\" b)") ("a string over two lines: " ^ p "(a \"x\n(y]\" b");
+  check (p "(a\n  (b \"x\ny\")\n(c)" = "(a\n  (b \"x\ny\"))\n(c)") ("closers after a string's last line: " ^ p "(a\n  (b \"x\ny\")\n(c)");
+  check (L.brackets "(a \"x\n)\" b)" = [ (0, 10) ]) "a bracket on a string's second line is not one";
   check (p "(let* [a 1\n       b 2]\n  a)" = "(let* [a 1\n       b 2]\n  a)") "a vector over two lines";
   check (p "(a\n  )" = "(a)\n") "a line of closers alone becomes blank";
   check (L.parinfer_text "(a \n  )" 6 = ("(a) \n  ", 7)) "Enter before a closer keeps the caret's indentation";
@@ -704,6 +741,7 @@ let editor_text_drop () =
 
 let run () =
   selection_text ();
+  paste ();
   lisp_text ();
   editor_text ();
   editor_binding ();

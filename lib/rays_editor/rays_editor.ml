@@ -18,7 +18,7 @@ let default_layout = Pxui_shell.Layout.default
 module Renderer = Renderer
 
 module Editor3 = struct
-  include Environment.Make (Viewport3)
+  include Environment
 
   type render_settings = Objects.Root.render = { width : int; height : int; max_spp : int }
   let render_camera value = (extra value).Viewport3.document_camera
@@ -53,24 +53,6 @@ module Editor3 = struct
     run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
       ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
-end
-
-module Editor2 = struct
-  include Environment.Make (Viewport2)
-
-  let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ~prepare ~scene2
-      ?overlay ?status () =
-    create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ~prepare
-      ~draw:scene2 ?overlay ?status ()
-
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~workspace ~prepare
-      ~scene2 ?overlay ?status () =
-    run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?background
-      ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~workspace ~prepare
-      ~draw:scene2 ?overlay ?status ()
 end
 
 module Private = struct

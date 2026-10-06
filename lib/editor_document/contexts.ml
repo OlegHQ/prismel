@@ -100,17 +100,8 @@ let kind_slots qualified = match qualified with
   | q when String.starts_with ~prefix:"world/" q -> [ "below", Edit.Optional ]
   | _ -> []
 
-(* the render settings an old camera carried: read as the root's until the first save *)
-let legacy_render = [ "width"; "height"; "max_spp" ]
-let legacy_field name label default =
-  { name_field with name; label; kind = Param.Integer_view
-      { Param.soft_min = 1; soft_max = 16384; hard_min = Some 1; hard_max = Some 16384 };
-    default = Param.Int_value default; current = Param.Int_value default }
-
 let extra_fields = function
-  | "scene/camera" -> [ active_field; legacy_field "width" "Width (old files)" 1920;
-                        legacy_field "height" "Height (old files)" 1080;
-                        legacy_field "max_spp" "Max samples (old files)" 256 ]
+  | "scene/camera" -> [ active_field ]
   | "scene/geometry" | "scene/light" -> [ parent_field ]
   | _ -> []
 
@@ -125,7 +116,17 @@ let descriptors : Flow_sop.Catalog.descriptor list =
         label = "Settings"; category = [ "Workspace" ]; slots = [];
         fields = window_fields } ]
 
-let catalog ~version factories = Flow_sop.Catalog.of_factories ~version ~extra:descriptors factories
+(* The catalog is a function of the factories alone, and every edit asks for it (0.18 ms and
+   0.6 MB to build): the last one is kept, by the identity of its factories.  Capacity 1. *)
+let last_catalog = Atomic.make None
+
+let catalog ~version factories =
+  match Atomic.get last_catalog with
+  | Some (v, f, result) when v = version && f == factories -> result
+  | _ ->
+      let result = Flow_sop.Catalog.of_factories ~version ~extra:descriptors factories in
+      Atomic.set last_catalog (Some (version, factories, result));
+      result
 
 let ports qualified =
   match List.find_opt (fun (d : Flow_sop.Catalog.descriptor) -> d.qualified = qualified) descriptors with
@@ -141,7 +142,7 @@ let changes qualified args =
   let ports = ports qualified in
   List.fold_left (fun acc (key, value) ->
     let* acc = acc in
-    if List.mem key slot_names || (qualified = "scene/camera" && List.mem key legacy_render) then Ok acc
+    if List.mem key slot_names then Ok acc
     else
       let* port = Flow_sop.Port.find_parameter ports key in
       let* changes = Flow_sop.Lower.changes port value in
@@ -357,8 +358,7 @@ type item = { factory : Edit.factory; label : string; values : (string * Param.v
               geometry : Flow_sop.Lower.graph option; home : Document.home;
               parent : string option; active : bool; group : string option;
               drives : (string * (Flow_sop.Port.parameter * E.value) list) option;
-              via : string option;  (* the world graph a [scene/world] references *)
-              legacy : (string * Param.value) list  (* render settings an old camera carries *) }
+              via : string option  (* the world graph a [scene/world] references *) }
 
 let item_of (lowered : Flow_sop.Lower.t) { kind; args; home; via } =
   let dynamic = List.filter (fun (key, value) -> live_light_field kind key && E.is_live value) args in
@@ -382,16 +382,13 @@ let item_of (lowered : Flow_sop.Lower.t) { kind; args; home; via } =
     | Some label, _ -> label
     | None, Some g -> g.name
     | None, None -> if kind = "scene/world" then "World" else String.lowercase_ascii (Edit.factory_label factory) in
-  let legacy = if kind <> "scene/camera" then [] else List.filter_map (function
-    | key, E.Int n when List.mem key legacy_render -> Some (key, Param.Int_value n)
-    | _ -> None) args in
   let parent = match List.assoc_opt "parent" args with Some (E.Text s) when s <> "" -> Some s | _ -> None in
   let active = List.assoc_opt "active" args = Some (E.Bool true) in
-  Ok { factory; label; values; geometry; home; parent; active; group = None; drives; via; legacy }
+  Ok { factory; label; values; geometry; home; parent; active; group = None; drives; via }
 
 let is_scene_kind kind = List.mem_assoc kind scene_kinds
 
-(* How a scene renders: the settings of the scene graph's [scene/root] over the old camera's, where
+(* How a scene renders: the settings of the scene graph's [scene/root], where
    the root's text is, and the object its [:camera] slot names (an index among the objects). *)
 type root = { params : Objects.Root.parameters; root_home : Document.home option;
               camera : int option }
@@ -407,18 +404,14 @@ let find_call calls = function
         c.args == cargs || (try c.args = cargs with Invalid_argument _ -> false)) calls
   | _ -> None
 
-let root_of calls (objects : item list) =
-  let legacy = let cameras = List.filter (fun (i : item) -> Edit.factory_operation i.factory = "camera") objects in
-    match List.find_opt (fun (i : item) -> i.active) cameras, cameras with
-    | Some c, _ | None, c :: _ -> c.legacy
-    | None, [] -> [] in
+let root_of calls =
   match List.find_opt (fun (c : call) -> c.kind = "scene/root") calls with
-  | None -> let* params = root_params legacy in Ok { params; root_home = None; camera = None }
+  | None -> Ok { params = Objects.Root.default; root_home = None; camera = None }
   | Some call ->
       let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) call.args in
       let* forced = E.force (E.Struct ("scene/root", own)) ~live:{ E.t = 0. } in
       let* values = changes "scene/root" (match forced with E.Struct (_, args) -> args | _ -> []) in
-      let* params = root_params (legacy @ values) in
+      let* params = root_params values in
       let others = List.filter (fun (c : call) -> c.kind <> "scene/root") calls in
       Ok { params; root_home = Some call.home;
            camera = Option.bind (List.assoc_opt "camera" call.args) (find_call others) }
@@ -433,7 +426,7 @@ let items workspace (lowered : Flow_sop.Lower.t) =
         let* rest = rest in
         if call.kind = "scene/root" then Ok rest
         else let* item = item_of lowered call in Ok (item :: rest)) scene (Ok []) in
-      let* root = root_of scene objects in
+      let* root = root_of scene in
       let objects = List.mapi (fun i (item : item) ->
         if Some i = root.camera then { item with active = true } else item) objects in
       Ok (objects, root)
@@ -442,7 +435,7 @@ let items workspace (lowered : Flow_sop.Lower.t) =
       Ok (List.filter_map (fun (g : Flow_sop.Lower.graph) ->
         if g.default then Some { factory = Objects.Geometry.factory; label = g.name; values = [];
                                  geometry = Some g; home = Document.Looped; parent = None;
-                                 active = false; group = None; drives = None; via = None; legacy = [] }
+                                 active = false; group = None; drives = None; via = None }
         else None) lowered.graphs, { params; root_home = None; camera = None })
 
 (* The scene value of a graph, at t = 0, as loose calls (a viewport's own scene instance). *)

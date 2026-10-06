@@ -40,21 +40,16 @@ val initial : state
 val binding : Flow.Syntax.t list -> path -> (Flow.Syntax.t option * Flow.Syntax.t) option
 (** The binding a path names in the source: its pattern (none for a [@result]) and expression. *)
 
-val selection_form : Flow.Syntax.t list -> path -> Flow.Syntax.t ->
-  (Flow.Syntax.t, Flow.Diagnostic.t) result
-(** Patch named root bindings into one candidate graph. Omitted bindings stay;
-    duplicate names and changes to the shown result are refused. Check the
-
 val graph_op : Flow.Syntax.t list -> graph:string -> ?selection:path -> string ->
   (Flow_sop.Flow_edit.op, Flow.Diagnostic.t) result
 (** The [Set_graph] of the graph form a Graph tab holds, or (with [selection], the shown binding's
     path) of the Selection closure patched into the graph; the error of text that is neither. *)
-    complete returned graph once before installing it. *)
 
-val graph_op : Flow.Syntax.t list -> graph:string -> ?selection:path -> string ->
-  (Flow_sop.Flow_edit.op, Flow.Diagnostic.t) result
-(** The [Set_graph] of the graph form a Graph tab holds, or (with [selection], the shown binding's
-    path) of the Selection closure patched into the graph; the error of text that is neither. *)
+val paste_ops : Flow.Syntax.t list -> graph:string -> scope:path -> string ->
+  (Flow_sop.Flow_edit.op list, string) result
+(** Pasted text as [Add_node]s of [scope]: [name expr] pairs, or bare expressions named by their
+    head.  Names pair by position and are made free of the graph's and of each other; a pasted
+    binding that reads an earlier pasted one reads its new name (all renames at once). *)
 
 val merge3 : base:string -> mine:string -> theirs:string -> string option
 (** A draft ([mine]) begun from [base], against the text the document has now ([theirs]): the

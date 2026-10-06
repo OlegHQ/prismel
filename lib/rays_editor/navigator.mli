@@ -29,9 +29,6 @@ val initial : state
 val open_graph : string -> state -> state
 (** Unfold the node rows of a graph under its row (they are folded by default). *)
 
-val editing : state -> bool
-(** The search field holds the keyboard. *)
-
 val with_query : string -> state -> state
 val query : state -> string
 (** The search field holding this text. *)
@@ -59,9 +56,6 @@ type params = {
 }
 
 type row
-
-val pretty : string -> string
-(** A workspace name as a title: [bloom_studio] is [Bloom studio]. *)
 
 val rows : ?wide:bool -> state -> params -> row array
 (** Every row in order; a search shows the matching bindings instead.  Under 300 points (not

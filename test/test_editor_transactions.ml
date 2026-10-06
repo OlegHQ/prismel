@@ -3,7 +3,7 @@
    value is drawn again, and one pointer drag is one undo entry. *)
 open Rays
 open Procedural
-module E = Rays_editor.Editor2
+module E = Rays_editor.Editor3
 module S = Flow.Syntax
 
 let check condition message = if not condition then failwith message
@@ -25,7 +25,7 @@ let run () =
   let workspace = Ws_fixture.of_text ~factories:(factory :: Sop_catalog.Editor.factories) text in
   let draws = Atomic.make 0 in
   let current = ref (E.create ~workspace ~factories:(factory :: Sop_catalog.Editor.factories)
-    ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ () -> Atomic.incr draws; []) () |> Result.get_ok)
+    ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Atomic.incr draws; Scene3.empty) () |> Result.get_ok)
   and count = ref 0 in
   Fun.protect ~finally:(fun () -> E.close !current) (fun () ->
     let step ?(mouse = (0., 0.)) ?(keys = []) ?(buttons = []) events =
@@ -35,6 +35,11 @@ let run () =
       Event.MouseReleased (Input.LeftButton, point)] in
     let wait_draw after = Test_editor_cook.await (fun () -> step []; Atomic.get draws > after) in
     wait_draw 0;
+    (* the scene opens as a list: a click on the object's row selects it and [i] enters its graph *)
+    let gx, gy, _, _ = (E.panes !current (Test_editor_input.frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in
+    let row = float (gx + 60), float (gy + 24 + 12) in
+    step ~mouse:row []; step ~mouse:row (click row); step [Event.KeyPressed (Input.KeyChar 'i')];
+    count := !count + 30; (* past the double-click interval *)
     (* the lowered node whose value is [n], by stable id *)
     let node n = List.find (fun (info : Edit_graph.node_info) ->
         List.exists (fun (field : Parameter.field_view) -> field.name = "value"

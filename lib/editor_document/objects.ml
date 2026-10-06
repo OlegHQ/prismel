@@ -149,10 +149,6 @@ module Root = struct
   let render (p : parameters) =
     { width = max 1 p.width; height = max 1 p.height; max_spp = max 1 p.max_spp }
 
-  (* The labels of [renderer], as the viewport and the text spell them. *)
-  let renderer_label = function
-    | Raster -> "Raster" | Wireframe -> "Wireframe" | Path_traced -> "Path traced"
-
   let fields (p : parameters) = Parameter.view parameters_schema p
 end
 

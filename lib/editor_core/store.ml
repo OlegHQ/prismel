@@ -74,18 +74,6 @@ module Viewport = struct
       | _ -> easy in
     easy, (match field form "look_through" with Some { S.node = S.Sym "true"; _ } -> true | _ -> false)
 
-  let encode2 camera =
-    let center = Easy_camera2.center camera in
-    map [ "center", vec [ center.Vec2.x; center.y ]; "zoom", number (Easy_camera2.zoom camera);
-          "rotation", number (Easy_camera2.rotation camera) ]
-
-  let decode2 camera form =
-    let camera = match Option.bind (field form "center") vec_of with
-      | Some [ x; y ] -> Easy_camera2.with_center (Vec2.create x y) camera | _ -> camera in
-    let camera = match Option.bind (field form "zoom") num_of with
-      | Some zoom when zoom > 0. -> Easy_camera2.with_zoom zoom camera | _ -> camera in
-    match Option.bind (field form "rotation") num_of with
-    | Some rotation -> Easy_camera2.with_rotation rotation camera | None -> camera
 end
 
 (* A sketch's or the editor's saved settings: one [(settings :sketch "name" :key value ...)] form. *)

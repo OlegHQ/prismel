@@ -10,8 +10,6 @@ val read_text : filename:string -> (string, string) result
 module Viewport : sig
   val encode3 : Rays.Easy_camera.t -> look_through:bool -> Flow.Syntax.t
   val decode3 : Rays.Easy_camera.t -> Flow.Syntax.t -> Rays.Easy_camera.t * bool
-  val encode2 : Rays.Easy_camera2.t -> Flow.Syntax.t
-  val decode2 : Rays.Easy_camera2.t -> Flow.Syntax.t -> Rays.Easy_camera2.t
 end
 
 module Settings : sig

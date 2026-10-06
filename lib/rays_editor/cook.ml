@@ -75,25 +75,37 @@ let geometry_bounds geometry =
     Some (Vec3.create lo.(0) lo.(1) lo.(2), Vec3.create hi.(0) hi.(1) hi.(2))
   end
 
+(* The eight corners of a box under a transform: the one walk for every box taken to another
+   space (an instance's, the world's, the screen's). *)
+let iter_corners matrix ((lo, hi) : bounds) f =
+  for corner = 0 to 7 do
+    f (Mat4.transform_point matrix (Vec3.create
+      (if corner land 1 = 0 then lo.Vec3.x else hi.Vec3.x)
+      (if corner land 2 = 0 then lo.y else hi.y)
+      (if corner land 4 = 0 then lo.z else hi.z)))
+  done
+
+let union ((a, b) : bounds) ((c, d) : bounds) : bounds =
+  Vec3.create (Float.min a.x c.x) (Float.min a.y c.y) (Float.min a.z c.z),
+  Vec3.create (Float.max b.x d.x) (Float.max b.y d.y) (Float.max b.z d.z)
+
+(* The box around a box under each of [matrices]. *)
+let transformed_all matrices bounds : bounds =
+  let lower = ref (Vec3.create infinity infinity infinity)
+  and upper = ref (Vec3.create neg_infinity neg_infinity neg_infinity) in
+  Array.iter (fun matrix -> iter_corners matrix bounds (fun (p : Vec3.t) ->
+    lower := Vec3.create (Float.min !lower.x p.x) (Float.min !lower.y p.y) (Float.min !lower.z p.z);
+    upper := Vec3.create (Float.max !upper.x p.x) (Float.max !upper.y p.y) (Float.max !upper.z p.z)))
+    matrices;
+  !lower, !upper
+
+let transformed matrix bounds = transformed_all [| matrix |] bounds
+
 (* A packed output's bounds: the prototype's box at every instance. *)
 let output_bounds (output : Session.output) =
   match geometry_bounds output.geometry, output.instances with
   | None, _ | _, (None | Some [||]) as bounds -> fst bounds
-  | Some (lo, hi), Some transforms ->
-      let lower = ref (Vec3.create infinity infinity infinity)
-      and upper = ref (Vec3.create neg_infinity neg_infinity neg_infinity) in
-      Array.iter (fun matrix ->
-        for corner = 0 to 7 do
-          let p = Mat4.transform_point matrix (Vec3.create
-              (if corner land 1 = 0 then lo.Vec3.x else hi.Vec3.x)
-              (if corner land 2 = 0 then lo.y else hi.y)
-              (if corner land 4 = 0 then lo.z else hi.z)) in
-          lower := Vec3.create (Float.min !lower.x p.x) (Float.min !lower.y p.y)
-              (Float.min !lower.z p.z);
-          upper := Vec3.create (Float.max !upper.x p.x) (Float.max !upper.y p.y)
-              (Float.max !upper.z p.z)
-        done) transforms;
-      Some (!lower, !upper)
+  | Some box, Some transforms -> Some (transformed_all transforms box)
 
 (* [await]: a fixed-step run (export, RAYS_MAX_FRAMES, tests) must show the
    geometry of exactly frame n, so [update] waits for the cook it submitted;
@@ -128,7 +140,6 @@ let status value = Async_cook.status value.worker
 (* [Lower.is_volatile] of the current lowering: the nodes that recook per frame. *)
 let set_volatile value predicate = Async_cook.set_volatile value.worker predicate
 let stats value = Async_cook.stats value.worker
-let seconds value = value.seconds
 let pieces value = value.pieces
 (* the counts of a compiled node of an object, once a cook has reported them *)
 let geometry value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.summaries

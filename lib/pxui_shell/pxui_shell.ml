@@ -51,8 +51,6 @@ module Layout = struct
   type panes = { view : bounds; graph : bounds; inspector : bounds; status : bounds;
                  timeline : bounds }
 
-  let toggle panel hidden =
-    if List.mem panel hidden then List.filter (( <> ) panel) hidden else panel :: hidden
   let expand panel hidden = List.filter (( <> ) panel) hidden
 
   (* A hidden panel vanishes; a hidden viewport keeps a strip with its expand button. *)
@@ -549,8 +547,12 @@ module Chrome = struct
           (x, y, max 0 (w - tools), h) ("workspace-drag-" ^ label) in
       if l.floating then Ui.to_front ui ~order grip;
       let drag = Ui.signal ui grip in
-      let original = Option.value (state l.path).window
-        ~default:(if l.floating then l.frame else (x, y, max 120 w, max 80 (let _, _, _, bh = l.body in h + bh))) in
+      (* a window is dragged from where it is drawn (the layout keeps it inside the frame, whatever
+         its saved place says), with the size it has when it is not collapsed *)
+      let original = match (state l.path).window with
+        | Some (_, _, ww, wh) when l.floating -> let fx, fy, _, _ = l.frame in fx, fy, ww, wh
+        | Some window -> window
+        | None -> if l.floating then l.frame else (x, y, max 120 w, max 80 (let _, _, _, bh = l.body in h + bh)) in
       let ox, oy, ow, oh = drag_origin ui grip original drag in
       (* Escape puts the panel back where the drag began (a docked one stays docked) *)
       let cancelled = (Ui.state ui grip ~default:0 = 1 && not drag.pressed)
@@ -564,7 +566,9 @@ module Chrome = struct
             if (state l.path).window <> None then emit (Window_drag (l.path, (ox, oy, ow, oh), drag.released))
           end else begin
             emit (Dragging (l.path, drag.released));
-            let wx = max 0 (min (frame.width - 18) (ox + int_of_float (Float.round (px -. sx))))
+            (* as far as the layout shows it ({!Layout.geometry}): a place past the edge would be
+               saved and not drawn, and the next drag would start from where the window is not *)
+            let wx = max 0 (min (frame.width - min frame.width ow) (ox + int_of_float (Float.round (px -. sx))))
             and wy = max 0 (min (frame.height - header_height) (oy + int_of_float (Float.round (py -. sy)))) in
             if not drag.released then (tip := Some (wx, wy, ow); moving := Some l.path);
             emit (Window_drag (l.path, (wx, wy, ow, oh), drag.released))
@@ -594,7 +598,11 @@ module Chrome = struct
               | Inspector -> "panel.inspector" | Outline -> "panel.outline"
               | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
         let current = let rec find i = function
-          | [] -> 5 | (_, panel) :: rest -> if panel = l.panel then 5 + i else find (i + 1) rest in
+          | [] -> 5
+          | (_, panel) :: rest ->
+              (* every viewport is the Viewport row, whatever its key *)
+              if (match panel, l.panel with View _, View _ -> true | a, b -> a = b) then 5 + i
+              else find (i + 1) rest in
           find 0 retypes in
         match Ui.context_menu ui ~at:(float x, float (y + h)) ~width:232. ~keys ~selected:current ~lead_from:5
             ("workspace-menu-" ^ label) rows with
@@ -720,19 +728,6 @@ module Chrome = struct
              (split_crumbs sub))) in
     let x = if collapsed then x +. 8. +. Pxui.Ui.text_width ui "collapsed" else x in
     x +. 25.
-
-  (* Empty: a crossed box with the reason as a label on the ground. *)
-  let note ui ~bounds:(x, y, width, height) text =
-    let theme = Pxui.Ui.theme ui in
-    Pxui.Ui.draw ui (floating ui (x, y, width, height) (Printf.sprintf "workspace-note-%d-%d" x y))
-      (fun paint (x, y, w, h) ->
-        let module P = Pxui.Ui.Paint in
-        if w > 48. && h > 48. then P.cross paint ~x:(x +. 12.) ~y:(y +. 12.) ~w:(w -. 24.) ~h:(h -. 24.)
-          (Pxui.Theme.edge theme);
-        let tw = P.cap_width paint text in
-        let tx = x +. Float.max 12. (Float.floor ((w -. tw) /. 2.)) and ty = y +. Float.floor (h /. 2.) -. 8. in
-        P.fill paint ~x:(tx -. 8.) ~y:ty ~w:(tw +. 16.) ~h:16. theme.panel;
-        P.cap paint ~at:(tx, ty +. 2.) text)
 
   let drop_targets ui ~dragging ~(geometry : geometry) ~state =
     match dragging with
@@ -984,28 +979,29 @@ module Which_key = struct
 
   (* The key sheet: a title row ([Keys], what has the focus, a close button), the filter, and the
      commands in three columns, one section each. *)
-  let sheet ui ?(context = "") keymap =
+  (* The key sheet's sections: every command a key reaches, once per id with all its keys (the
+     Ctrl twins of the Command chords left out), under the section [category] gives it, the
+     leader sheet's sections first. *)
+  let sheet_sections ?(category = fun _ -> "Keys") keymap =
+    let commands = List.fold_left (fun seen command ->
+      if command.trigger = None || List.exists (fun previous -> previous.id = command.id) seen then seen
+      else command :: seen) [] keymap |> List.rev in
+    let titles = List.fold_left (fun acc command ->
+      let title = category command in if List.mem title acc then acc else acc @ [ title ]) [] commands in
+    List.map (fun title -> title, List.filter_map (fun command ->
+      if category command <> title then None else
+      let keys = List.filter_map (fun alias -> if alias.id <> command.id then None
+        else match alias.trigger with
+          | Some (Chord (_, modifiers)) when List.mem Input.Ctrl modifiers -> None
+          | Some trigger -> Some (Editor_core.Keymap.label trigger) | None -> None) keymap
+        |> List.sort_uniq String.compare |> String.concat " / " in
+      Some (keys, command.label)) commands)
+      (List.filter (fun t -> List.mem t titles) category_order
+       @ List.filter (fun t -> not (List.mem t category_order)) titles)
+
+  let sheet ui ?(context = "") ?category keymap =
     let module Ui = Pxui.Ui in
-    let groups = [
-      "Create", ["graph.add"; "graph.repeat"; "graph.connect-hint"; "graph.open"; "graph.point";
-        "graph.group"; "graph.ungroup"];
-      "Change", ["graph.display"; "graph.mute"; "graph.delete"; "graph.dissolve";
-        "graph.copy"; "graph.cut"; "graph.paste"; "graph.duplicate"; "edit."; "row."];
-      "Move", ["graph.walk."; "graph.frame-"; "scene.enter"; "scene.up"; "guide."; "graph.find";
-        "graph.projection"] ] in
-    let sections = List.filter_map (fun (title, prefixes) ->
-      let commands = List.filter (fun command -> command.trigger <> None
-        && List.exists (fun prefix -> String.starts_with ~prefix command.id) prefixes) keymap in
-      let commands = List.fold_left (fun seen command ->
-        if List.exists (fun previous -> previous.id = command.id) seen then seen
-        else command :: seen) [] commands |> List.rev in
-      if commands = [] then None else Some (title, List.map (fun command ->
-        let keys = List.filter_map (fun alias -> if alias.id <> command.id then None
-          else match alias.trigger with
-            | Some (Chord (_, modifiers)) when List.mem Input.Ctrl modifiers -> None
-            | Some trigger -> Some (Editor_core.Keymap.label trigger) | None -> None) keymap
-          |> List.sort_uniq String.compare |> String.concat " / " in
-        keys, command.label) commands)) groups in
+    let sections = sheet_sections ?category keymap in
     match Ui.modal ui ~width:572. "guide-keys" (fun () ->
       let theme = Ui.theme ui in
       let closed = ref false in
@@ -1033,10 +1029,24 @@ module Which_key = struct
       let sections = if query = "" then sections else List.filter_map (fun (title, rows) ->
         match List.filter (fun (keys, label) -> Ui.fuzzy_match ~query label || Ui.fuzzy_match ~query keys) rows with
         | [] -> None | rows -> Some (title, rows)) sections in
-      let box = Ui.box ui ~w:Ui.Grow
-          ~h:(Ui.Px (float ((1 + tallest sections) * Ui.row_height ui) +. 8.)) "keys-sheet" in
+      (* three columns: each section goes under the shortest column so far *)
+      let rows_of (_, rows) = 1 + List.length rows in
+      let stacks = List.fold_left (fun stacks section ->
+        let height stack = List.fold_left (fun n s -> n + rows_of s) 0 stack in
+        let shortest = List.fold_left (fun best i ->
+          if height (List.nth stacks i) < height (List.nth stacks best) then i else best) 0 [ 1; 2 ] in
+        List.mapi (fun i stack -> if i = shortest then stack @ [ section ] else stack) stacks)
+        [ []; []; [] ] sections in
+      let tallest = List.fold_left (fun most stack ->
+        max most (List.fold_left (fun n s -> n + rows_of s) 0 stack)) 0 stacks in
+      let row = float (Ui.row_height ui) in
+      let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px (float tallest *. row +. 8.)) "keys-sheet" in
       Ui.draw ui box (fun paint (x, y, w, _) ->
-        columns ui paint (x, y, w) ~cols:3 ~gap:0. ~label_ink:(Pxui.Theme.ink_2 theme) sections);
+        List.iteri (fun column stack ->
+          ignore (List.fold_left (fun top section ->
+            columns ui paint (x +. (float column *. w /. 3.), top, w /. 3.) ~cols:1 ~gap:0.
+              ~label_ink:(Pxui.Theme.ink_2 theme) [ section ];
+            top +. (float (rows_of section) *. row)) y stack)) stacks);
       pick <> `Cancel && not !closed) with
     | Some open_ -> open_ | None -> false
 end
@@ -1151,9 +1161,9 @@ module Status_bar = struct
     end
 
   let guide ui ~bounds:(x, y, width, height) ?(file = "") ?(state = `Ok) ?(layout = "") ?(text = "") ?fps
-      ?(notes = []) ?(readout = "") ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context commands =
+      ?(notes = []) ?(readout = "") ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context () =
     let module Ui = Pxui.Ui in
-    if height <= 0 then false else
+    if height > 0 then
     match leader with
     | Some pending ->
         (* an open leader: the file and its state, a rule, the pending prefix in the accent and
@@ -1167,15 +1177,12 @@ module Status_bar = struct
           let after = lead ui paint (x, y, h) ~file ~state ~limit:(x +. Float.min 320. (w /. 4.)) text in
           ignore right;
           let tx = focus_labels ui paint (x, y, h) ~accent:true ~after ~kind:pending () in
-          Ui.Paint.text paint ~at:(tx, Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) "waiting for a key");
-        false
+          Ui.Paint.text paint ~at:(tx, Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) "waiting for a key")
     | None ->
     let bar = Ui.box ui ~flags:Ui.(clickable + clip)
         ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
         ~at:(float x, float y) "workspace-guide" in
-    let keys = List.filter_map (fun (command : _ Editor_core.Command.t) ->
-        Option.map (fun trigger -> Editor_core.Keymap.label trigger, command.label) command.trigger) commands
-      @ extra in
+    let keys = extra in
     let title = Editor_core.Guide_context.name context in
     (* the kind and what is selected; a context that is no node's (the leader, a search) names itself *)
     let kind = Some (Option.value kind ~default:title) in
@@ -1183,8 +1190,6 @@ module Status_bar = struct
       | Editor_core.Guide_context.Canvas | Node | Multi | List | Text -> selection
       | _ -> Some title in
     let theme = Ui.theme ui in
-    (* the strip is laid out before it is painted, so the "toggle guide" pair, where a click hides
-       the strip, is known to the box built for it *)
     let fx = float x and fw = float width in
     let limit = trail_start ui ~x:fx ~w:fw ~notes ~readout ~layout ~fps () in
     let has_lead = not (file = "" && text = "") in
@@ -1196,8 +1201,6 @@ module Status_bar = struct
       let kw = Ui.text_width ui ~size:small key and lw = Ui.text_width ui label in
       if tx +. kw +. 8. +. lw > limit -. 8. then acc, infinity
       else (tx, key, label, kw, lw) :: acc, tx +. kw +. 8. +. lw +. 8.) ([], labels_end) keys) |> List.rev in
-    let hide_rect = List.find_map (fun (tx, _, label, kw, lw) ->
-      if label = "toggle guide" then Some (tx, kw +. 8. +. lw) else None) pairs in
     Ui.draw ui bar (fun paint bounds ->
       let x, y, w, h = ground ui paint bounds in
       let limit = trail ui paint (x, y, w, h) ~notes ~readout ~layout ~fps () in
@@ -1211,17 +1214,9 @@ module Status_bar = struct
       List.iter (fun (tx, key, label, kw, _) ->
         Ui.Paint.text paint ~size:small ~at:(tx, Kit.cap_y ui y h) ~color:(Pxui.Theme.ink_3 theme) key;
         Ui.Paint.text paint ~at:(tx +. kw +. 8., Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) label) pairs);
-    let hide = Ui.within ui bar (fun () ->
-      let hx, hw = Option.value hide_rect ~default:(0., 0.) in
-      Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px hw) ~h:(Ui.Px (float height))
-        ~at:(hx -. fx, 0.) "guide-hide") in
-    let hide_hovered = (Ui.signal ui hide).hovered in
-    if hide_hovered && hide_rect <> None then Ui.draw ui hide (fun paint (x, y, w, h) ->
-      Ui.Paint.fill paint ~x ~y:(y +. 1.) ~w ~h:(h -. 1.) (Pxui.Theme.faint_border theme));
     if (Ui.signal ui bar).hovered then
       Ui.tooltip ui ~key:"guide-strip" ~text:(title ^ " \xc2\xb7 "
-        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 Space ?: all keys");
-    hide_rect <> None && (Ui.signal ui hide).clicked
+        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 Space ?: all keys")
 
   (* Echo, the sheet's [08]: tips stacked 4 apart in the pane's bottom-left corner, the last at the
      bottom.  A tip is 24 high on the sheet fill with a line-2 edge and 13-point text 7 in; information
@@ -1641,9 +1636,25 @@ module Tree = struct
     ignore (Ui.within ui box (fun () ->
       Ui.box ui ~w:(Ui.Px w)
         ~h:(Ui.Px (float_of_int (count + 1) *. height)) "tree-content"));
+    let ancestors k =
+      let chain = ref [] and depth = ref (at k).depth in
+      for candidate = k - 1 downto 0 do
+        if (at candidate).depth < !depth then begin
+          chain := candidate :: !chain; depth := (at candidate).depth end
+      done;
+      !chain in
+    (* the ancestors of the first row in view stay at the top while the list is scrolled *)
+    let sticky_of scroll = if count = 0 || scroll <= 0. then []
+      else List.filteri (fun index _ -> index < 3)
+          (ancestors (max 0 (min (count - 1) (int_of_float (Float.floor (scroll /. height)))))) in
     let row_at (_, py) =
-      let k = int_of_float (Float.floor ((py -. top +. scroll) /. height)) in
-      if py < top || k < 0 || k >= count then None else Some k in
+      (* a sticky row is the row under the pointer, not the one scrolled beneath it *)
+      let slot = int_of_float (Float.floor ((py -. top) /. height)) in
+      match if py < top then None else List.nth_opt (sticky_of scroll) slot with
+      | Some k -> Some k
+      | None ->
+          let k = int_of_float (Float.floor ((py -. top +. scroll) /. height)) in
+          if py < top || k < 0 || k >= count then None else Some k in
     (* the last flag ends 12 from the edge, a flag column is a 12-point flag and an 8-point gap *)
     let columns_x = x +. w -. 24. -. flag_width *. float_of_int (max 0 (List.length columns - 1)) in
     let column_at (px, _) =
@@ -1753,13 +1764,6 @@ module Tree = struct
           (if fresh = [] then intents else intents @ [Flag { ids = fresh; column; value }])
       | Some _ -> { t with drag = None }, intents
       | None -> t, intents in
-    let ancestors k =
-      let chain = ref [] and depth = ref (at k).depth in
-      for candidate = k - 1 downto 0 do
-        if (at candidate).depth < !depth then begin
-          chain := candidate :: !chain; depth := (at candidate).depth end
-      done;
-      !chain in
     let drop_hint = match t.drag with
       | Some (Rows { moved = true; ids }) ->
           (match row_at signal.pointer with
@@ -1775,8 +1779,7 @@ module Tree = struct
       let first = max 0 (int_of_float (Float.floor (scroll /. height))) in
       let last = min (count - 1)
           (int_of_float (Float.ceil ((scroll +. body) /. height))) in
-      let sticky = if count = 0 || scroll <= 0. then []
-        else List.filteri (fun index _ -> index < 3) (ancestors first) in
+      let sticky = sticky_of scroll in
       let text ?(color = theme.foreground) at label =
         Ui.Paint.text paint ~at ~color label in
       Ui.Paint.fill paint ~x ~y ~w ~h theme.panel;
@@ -1892,12 +1895,10 @@ module Inspector = struct
     locked : bool;
     drive : string option;
     live : string option;
-    components : (string * string * string option) list;
-    split : bool option;
   }
 
   type flow_change = Edited of string * Param.value
-    | Pinned of string * bool | Split of string * bool | Reset of string
+    | Pinned of string * bool | Reset of string
     | Expression of string * string
 
   let rec insert path field items = match path with
@@ -1923,7 +1924,7 @@ module Inspector = struct
       | _ -> folder in
     match folder with first :: _ -> [ first ] | [] -> []
 
-  let flow_fields ui ?(expanded = []) ?width ?(actions = true) ?(pins = false) ?(pin_click = false) ?(chips = [])
+  let flow_fields ui ?(expanded = []) ?width ?(pins = false) ?(pin_click = false) ?(chips = [])
       ?kind_label ?(on_choice = fun _ _ -> ()) rows =
     (* the rows fill the panel they are built in *)
     let width = Option.value width ~default:(Ui.inspector_width ui) in
@@ -1931,9 +1932,9 @@ module Inspector = struct
     let ink_2 = Pxui.Theme.ink_2 theme and ink_3 = Pxui.Theme.ink_3 theme in
     let expression text = String.starts_with ~prefix:"=" text
       && String.length (String.trim text) > 1 in
-    (* the dot of a row is drawn by the row ([pins]); with [actions] a click on it pins the row *)
+    (* the dot of a row is drawn by the row ([pins]); with [pin_click] a click on it pins the row *)
     let pin_of shown = if pins then Some shown else None in
-    let pinnable = actions || pin_click in
+    let pinnable = pin_click in
     (* a click on the dot, or the s key over the row, asks to flip the row's pin *)
     let pin_change box path shown clicked edits =
       let key = pinnable && Ui.hovered_within ui box && not (Ui.text_input_focused ui)
@@ -1956,10 +1957,15 @@ module Inspector = struct
       clicked in
     let input ?(ranged = true) field path ~edit ~x ~y ~w =
       let key = "flow-value-" ^ path in
-      let numeric text valid ?display ?fraction ?slide convert =
-        let fraction = if ranged then fraction else None in
+      let numeric text valid ?display ?fraction ?slide ~step convert =
+        (* a field with a range slides to where the pointer is on its track; one without (a
+           vector's cell) has no track: a drag changes it from the value it had, so a click
+           without a drag writes nothing *)
+        let fraction = if ranged then fraction else None
+        and slide = if ranged then slide else None
+        and scrub = if ranged then None else Some (fun origin dx shift -> step origin dx shift) in
         let changed, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
-            ?display ?fraction ?slide ~edit ~left:(expression text)
+            ?display ?fraction ?slide ?scrub ~edit ~left:(expression text)
             ?trail:(Option.map (fun unit -> unit, ink_3) field.Param.unit) ~valid:(fun text -> valid text || expression text)
             key text in
         if changed = text then [] else if expression changed then
@@ -1973,7 +1979,10 @@ module Inspector = struct
           let slide fraction = string_of_int (range.soft_min + int_of_float
             (Float.round (fraction *. float (range.soft_max - range.soft_min)))) in
           numeric (string_of_int value) (fun text -> int_of_string_opt text <> None)
-            ~fraction ~slide (fun text -> Option.map (fun n -> Param.Int_value n)
+            ~fraction ~slide
+            ~step:(fun origin dx _ -> match int_of_string_opt origin with
+              | Some n -> string_of_int (n + int_of_float (Float.round (dx /. 6.))) | None -> origin)
+            (fun text -> Option.map (fun n -> Param.Int_value n)
               (int_of_string_opt text))
       | Param.Floating_view range, Param.Float_value value ->
           let fraction = (value -. range.soft_min)
@@ -1984,6 +1993,8 @@ module Inspector = struct
             (fun text -> Option.fold ~none:false ~some:Float.is_finite
               (float_of_string_opt text)) ~display:(Printf.sprintf "%.6g" value)
             ~fraction ~slide
+            ~step:(fun origin dx shift -> match float_of_string_opt origin with
+              | Some v -> Printf.sprintf "%.6g" (v +. (dx *. (if shift then 0.005 else 0.05))) | None -> origin)
             (fun text -> Option.map (fun n -> Param.Float_value n)
               (float_of_string_opt text))
       | Param.Text_view, Param.Text_value value ->
@@ -2108,8 +2119,7 @@ module Inspector = struct
       let swatch_color = Color.rgb (clamp r) (clamp g) (clamp b) in
       let box, control_x, control_y, control_w = Ui.inspector_row ui
           ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
-      let whole = Ui.within ui box (fun () ->
-        let split = Option.value ~default:false row.split in
+      Ui.within ui box (fun () ->
         let text = swatch_and_hex ~path ~control_x ~control_y ~control_w ~swatch_color ~hex_str in
         let hex_edits =
           if text = hex_str then [] else
@@ -2123,22 +2133,9 @@ module Inspector = struct
                      Edited (f2.name, Param.Float_value nb) ]
                | _ -> [])
           | Error _ -> [] in
-        let toggle = actions && action ui ("split-" ^ path) "rgb"
-            ~x:(width -. 32.) ~y:control_y
-            ~enabled:(not row.locked) () in
         let pin = pinnable && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y
             ~enabled:(not row.locked) () in
-        hex_edits
-        @ (if toggle then [ Split (path, not split) ] else [])
-        @ pin_change box path shown pin []) in
-      if row.split = Some true || row.components <> [] then
-        whole @ List.concat (List.mapi (fun index field ->
-          let axis = List.nth [ "r"; "g"; "b" ] index in
-          let path = path ^ "." ^ axis in
-          match List.find_opt (fun (name, _, _) -> name = path) row.components with
-          | Some (_, source, live) -> driven path field.Param.label source live shown
-          | None -> scalar path field.label field shown) fields)
-      else whole in
+        hex_edits @ pin_change box path shown pin []) in
     let color_row_1 path title field shown =
       let text_val = match field.Param.current with Param.Text_value t -> t | _ -> "#ffffff" in
       let c = Result.value (Color.hex text_val) ~default:Color.white in
@@ -2171,29 +2168,15 @@ module Inspector = struct
           (* a vector: three fields in the control column, 8 between, each with its axis letter *)
           let box, control_x, control_y, control_w = Ui.inspector_row ui
               ~width ?pin:(pin_of row.shown) ~key:("flow-row-" ^ row.path) ~label:title () in
-          let whole = Ui.within ui box (fun () ->
-            let split = Option.value ~default:false row.split in
-            let edits = if split || row.components <> [] then [] else
-              Kit.vector ui box ~at:(control_x, control_y) ~w:control_w
-                ~reserve:(if actions then 24. else 0.) (fun index ~x ~w ->
+          Ui.within ui box (fun () ->
+            let edits =
+              Kit.vector ui box ~at:(control_x, control_y) ~w:control_w (fun index ~x ~w ->
                   let field = List.nth fields index in
                   input ~ranged:false field (row.path ^ "." ^ List.nth ["x"; "y"; "z"] index)
                     ~edit:false ~x ~y:control_y ~w) in
-            let toggle = actions && action ui ("split-" ^ row.path) "xyz"
-                ~x:(width -. 32.) ~y:control_y
-                ~enabled:(not row.locked) () in
             let pin = pinnable && action ui ("pin-" ^ row.path) "pin" ~x:0. ~y:control_y
                 ~enabled:(not row.locked) () in
-            edits @ (if toggle then [Split (row.path, not split)] else [])
-            @ pin_change box row.path row.shown pin []) in
-          if row.split = Some true || row.components <> [] then
-            whole @ List.concat (List.mapi (fun index field ->
-              let axis = List.nth ["x"; "y"; "z"] index in
-              let path = row.path ^ "." ^ axis in
-              match List.find_opt (fun (name, _, _) -> name = path) row.components with
-              | Some (_, source, live) -> driven path field.Param.label source live row.shown
-              | None -> scalar path field.label field row.shown) fields)
-          else whole in
+            edits @ pin_change box row.path row.shown pin []) in
     let rec build path items = List.concat_map (function
       | Field row -> row_widget row
       | Folder (label, children) ->
@@ -2214,8 +2197,8 @@ module Inspector = struct
   let fields ui ?expanded ?width views =
     let rows = List.map (fun (field : Param.field_view) ->
       { path = field.name; fields = [field]; shown = false; locked = true;
-        drive = None; live = None; components = []; split = None }) views in
-    flow_fields ui ?expanded ?width ~actions:false rows
+        drive = None; live = None }) views in
+    flow_fields ui ?expanded ?width rows
     |> List.filter_map (function Edited (name, value) -> Some (name, value)
       | _ -> None)
 

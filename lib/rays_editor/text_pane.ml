@@ -97,6 +97,43 @@ let binding source = function
         Option.bind (last root) (fun body -> find_binding body names))
   | [] -> None
 
+(* Pasted text as bindings of [scope] in [graph]: "name expr" pairs, or bare expressions named by
+   their head.  The names are paired with the bindings by position (two forms may share a head),
+   each made free of the graph's names and of the ones before it; a pasted binding that reads an
+   earlier pasted one reads its new name.  The renames are substituted at once, through
+   placeholders, so a new name that is another pasted binding's old name is not renamed again. *)
+let paste_ops source ~graph ~scope text =
+  let module F = Flow_sop.Flow_edit in
+  let rec named = function
+    | { S.node = S.Sym n; _ } :: v :: rest -> Option.map (fun r -> (n, v) :: r) (named rest)
+    | [] -> Some [] | _ -> None in
+  let head (f : S.t) = match head_sym f with
+    | Some h -> (match String.rindex_opt h '/' with
+        | Some i -> String.sub h (i + 1) (String.length h - i - 1) | None -> h)
+    | None -> "value" in
+  match S.parse text with
+  | Error _ | Ok [] -> Error "The clipboard holds no Lisp bindings"
+  | Ok forms ->
+      let bindings, reading = match named forms with
+        | Some ps -> ps, true | None -> List.map (fun f -> head f, f) forms, false in
+      let chosen = ref [] in
+      let fresh n =
+        let rec pick k =
+          let name = F.fresh_name source ~root:graph (if k = 0 then n else Printf.sprintf "%s_%d" n k) in
+          if List.mem name !chosen then pick (k + 1) else (chosen := name :: !chosen; name) in
+        pick 0 in
+      let _, ops = List.fold_left (fun (earlier, ops) (old, expr) ->
+        let name = fresh old in
+        (* what the earlier pasted bindings are called now, the latest of a name first *)
+        let seen = ref [] in
+        let renames = List.filter (fun (o, n) ->
+          reading && o <> n && not (List.mem o !seen) && (seen := o :: !seen; true)) earlier in
+        let held = List.mapi (fun i (o, n) -> o, Printf.sprintf "@paste%d" i, n) renames in
+        let expr = List.fold_left (fun e (o, hold, _) -> F.rename_ref o hold e) expr held in
+        let expr = List.fold_left (fun e (_, hold, n) -> F.rename_ref hold n e) expr held in
+        (old, name) :: earlier, F.Add_node { scope; name; expr } :: ops) ([], []) bindings in
+      Ok (List.rev ops)
+
 let rec max_id (f : S.t) = List.fold_left (fun m c -> max m (max_id c)) f.id (S.children f)
 
 let span_of spans (f : S.t) = List.assoc_opt f.id spans
@@ -438,13 +475,9 @@ let colour_popup ui ~at text (a, b) =
   Ui.popup ui ~stroke:(Pxui.Theme.edge theme) ~at ~width:300. ~height:24. "text-colour" (fun () ->
     let box, cx, cy, cw = Ui.inspector_row ui ~width:300. ~key:"text-colour-row" ~label:"colour" () in
     Ui.within ui box (fun () ->
-      let swatch = Ui.box ui ~at:(cx, cy) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) "text-colour-swatch" in
-      Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-        Ui.Paint.fill paint ~x:sx ~y:sy ~w:sw ~h:sh colour;
-        Ui.Paint.stroke paint ~x:(sx +. 0.5) ~y:(sy +. 0.5) ~w:(sw -. 1.) ~h:(sh -. 1.) (Pxui.Theme.edge theme));
+      (* the kit's swatch and hex field; the literal's alpha stays as written *)
       let hex_x = cx +. 28. in
-      let typed, _ = Ui.value_field ui ~at:(hex_x, cy) ~w:64. ~h:20. ~left:true
-          ~valid:(fun t -> Result.is_ok (Color.hex t)) "text-colour-hex" shown in
+      let typed = Pxui_shell.Kit.colour ui ~key:"text-colour" ~at:(cx, cy) ~w:92. ~swatch:colour ~hex:shown in
       let from_hex = if typed = shown then None else
           Option.map (fun c -> let r, g, b, _ = Color.to_floats c in hex r g b) (Result.to_option (Color.hex typed)) in
       let sliders_x = hex_x +. 72. in

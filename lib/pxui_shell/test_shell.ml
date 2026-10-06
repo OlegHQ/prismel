@@ -337,6 +337,24 @@ let () =
   let returned = show [Event.MouseReleased (Input.LeftButton, (20., 20.))] |> Option.get in
   if returned.clicked || returned.held then failwith "hidden control committed after disappearing";
   Pxui.Ui.destroy shell;
+  (* a window saved past the right edge is drawn inside the frame, and a drag moves it from
+     where it is drawn: the pointer is followed at once *)
+  let window_ui = Pxui.Ui.create ~font_size:11 () in
+  let past = { Editor_core.Panels.default_state with window = Some (900, 50, 300, 200) } in
+  let windowed ?(mouse = 0., 0.) events =
+    let f = { wide_frame with events; mouse; height = 600; size = 1000, 600 } in
+    Pxui.Ui.frame window_ui f (fun ui ->
+      Pxui_shell.Chrome.update ~state:(fun path -> if path = [] then past else Editor_core.Panels.default_state)
+        (L.Leaf L.Graph) ui f) in
+  ignore (windowed []);
+  ignore (windowed ~mouse:(750., 67.) [Event.MouseMoved (750., 67.)]);
+  ignore (windowed ~mouse:(750., 67.) [Event.MousePressed (Input.LeftButton, (750., 67.))]);
+  (match List.filter_map (function Pxui_shell.Chrome.Window_drag (_, (x, _, w, _), _) -> Some (x, w) | _ -> None)
+      (windowed ~mouse:(650., 67.) [Event.MouseMoved (650., 67.)]) with
+   | [ (600, 300) ] -> ()
+   | [ (x, _) ] -> failwith (Printf.sprintf "a window saved past the edge did not follow the pointer: x %d" x)
+   | _ -> failwith "a header drag did not move its window");
+  Pxui.Ui.destroy window_ui;
   let hidden = Pxui.Ui.create ~font_size:11 () in
   ignore (Pxui_shell.Shell.frame hidden frame ~visible:false
     ~body:(fun _ -> ())
@@ -474,6 +492,17 @@ let () =
   let _, intents = scroll_step t [Event.MousePressed (Input.LeftButton, (200., 60.))] in
   expect "list uses shared scroll for row hits" intents [T.Select [4]];
   Pxui.Ui.destroy scroll_ui;
+  (* a sticky ancestor row takes its own click, not the row scrolled under it *)
+  let family = Array.init 21 (fun index -> row (index + 1) (if index = 0 then 0 else 1) (string_of_int (index + 1))) in
+  let sticky_ui = Pxui.Ui.create ~font_size:11 () in
+  let sticky_step t ?(at = 200., 60.) events = Pxui.Ui.frame sticky_ui { frame with events; mouse = at } (fun ui ->
+    T.update t ui frame ~bounds:(0, 0, 400, 96) ~columns:[] family ~selected:[]) in
+  let t, _ = sticky_step (T.create ()) [] in
+  let t, _ = sticky_step t [Event.MouseMoved (200., 60.); Event.MouseScrolled (0., -2.)] in
+  let t, _ = sticky_step t [] in
+  let _, intents = sticky_step t ~at:(200., 36.) [Event.MousePressed (Input.LeftButton, (200., 36.))] in
+  expect "a click on a sticky ancestor selects it" intents [T.Select [1]];
+  Pxui.Ui.destroy sticky_ui;
   let t, _ = step (T.create ()) [] in
   let t, _ = step t ~mouse:(center 0) [Event.MousePressed (Input.LeftButton, center 0);
     Event.MouseReleased (Input.LeftButton, center 0)] in
@@ -482,6 +511,52 @@ let () =
     Event.MouseReleased (Input.LeftButton, center 2)] in
   expect "Shift selection uses the captured press keys" intents [T.Select [3; 1; 2]];
   Pxui.Ui.destroy ui;
+  (* a vector's cell has no track: a click without a drag writes nothing, a drag changes the
+     value from what it was *)
+  let cell name index : Editor_core.Param.field_view =
+    { name; label = name; description = None; folder = []; impact = Editor_core.Param.Cook; primary = false;
+      unit = None; vec3 = Some ("translate", index);
+      kind = Editor_core.Param.Floating_view { soft_min = -10.; soft_max = 10.; hard_min = None; hard_max = None };
+      default = Editor_core.Param.Float_value 0.; current = Editor_core.Param.Float_value 1. } in
+  let vector = [ { Pxui_shell.Inspector.path = "translate";
+    fields = [ cell "translate_x" 0; cell "translate_y" 1; cell "translate_z" 2 ]; shown = false; locked = false;
+    drive = None; live = None } ] in
+  (* one press at each place per UI: a second one there would be a double-click, which types *)
+  let pass gesture =
+    let vector_ui = Pxui.Ui.create ~font_size:11 () in
+    let cells ?(mouse = 0., 0.) events = Pxui.Ui.frame vector_ui { frame with events; mouse } (fun ui ->
+      Pxui.Ui.panel ui ~x:0. ~y:0. ~width:260. "vector" (fun () ->
+        Pxui_shell.Inspector.flow_fields ui vector)) in
+    ignore (cells []);
+    let found = List.map (fun x ->
+      let at = float x, 12. in
+      ignore (cells ~mouse:at [Event.MouseMoved at]);
+      let pressed = cells ~mouse:at [Event.MousePressed (Input.LeftButton, at)] in
+      let found = pressed @ gesture cells at in
+      ignore (cells []); found <> []) [ 90; 110; 130; 150; 170; 190; 210; 230 ] in
+    Pxui.Ui.destroy vector_ui; found in
+  if List.mem true (pass (fun cells at -> cells ~mouse:at [Event.MouseReleased (Input.LeftButton, at)])) then
+    failwith "a click on a vector's cell wrote a value";
+  if not (List.mem true (pass (fun cells (x, y) ->
+      let moved = cells ~mouse:(x +. 40., y) [Event.MouseMoved (x +. 40., y)] in
+      moved @ cells ~mouse:(x +. 40., y) [Event.MouseReleased (Input.LeftButton, (x +. 40., y))])))
+  then failwith "no drag on a vector's cell changed it";
+  (* E18: the key sheet lists every command a key reaches, once, under its host's section *)
+  let command ?scope id trigger = Editor_core.Command.make ~id ~label:id ~trigger ?scope id in
+  let keymap = Editor_core.Keymap.[
+    command "file.save" (Chord (Input.KeyChar 's', [ Input.Meta ]));
+    command "file.save" (Chord (Input.KeyChar 's', [ Input.Ctrl ]));
+    command "scope.delete" ~scope:"graph" (Chord (Input.Delete, []));
+    command "scope.delete" ~scope:"graph" (Chord (Input.KeyChar 'x', []));
+    command "panel.close" (Leader "ox");
+    Editor_core.Command.make ~id:"palette.only" ~label:"no key" "palette" ] in
+  let sections = Pxui_shell.Which_key.sheet_sections
+      ~category:(fun (c : _ Editor_core.Command.t) -> if c.scope <> None then "Graph"
+        else if String.starts_with ~prefix:"panel." c.id then "Panel" else "File") keymap in
+  assert (List.map fst sections = [ "Panel"; "File"; "Graph" ]);
+  assert (List.concat_map (fun (_, rows) -> List.map snd rows) sections
+          = [ "panel.close"; "file.save"; "scope.delete" ]);
+  assert (List.assoc "Graph" sections = [ "x / \xe2\x8c\xa6", "scope.delete" ]);
   print_endline "pxui shell tests passed"
 
 (* Echo: a refusal is a tip in the error ink (no dot), information has its dot; neither is drawn

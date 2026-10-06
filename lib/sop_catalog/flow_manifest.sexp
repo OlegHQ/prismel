@@ -3181,9 +3181,6 @@
       (fields
         (field "name" "Name" (folder) (text) (text "") (primary false) (vec3))
         (field "active" "Active camera" (folder) (bool) (bool false) (primary false) (vec3))
-        (field "width" "Width (old files)" (folder) (int (soft 1 16384) (hard 1 16384)) (int 1920) (primary false) (vec3))
-        (field "height" "Height (old files)" (folder) (int (soft 1 16384) (hard 1 16384)) (int 1080) (primary false) (vec3))
-        (field "max_spp" "Max samples (old files)" (folder) (int (soft 1 16384) (hard 1 16384)) (int 256) (primary false) (vec3))
         (field "fov" "FOV (degrees)" (folder "Lens") (float (soft 5 150) (hard 1 179)) (float 60) (primary false) (vec3) (unit "deg"))
         (field "near" "Near clip" (folder "Lens") (float (soft 0.01 10) (hard 0.0001 nil)) (float 0.1) (primary false) (vec3))
         (field "far" "Far clip" (folder "Lens") (float (soft 10 10000) (hard 0.001 nil)) (float 1000) (primary false) (vec3))

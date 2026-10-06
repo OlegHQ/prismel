@@ -136,19 +136,12 @@ let displayed_of ?previous graph viewed =
       | info :: _ -> Some info.Edit_graph.id | [] -> None)
 
 (* Resolve navigation after load, undo, or object removal. The scene is
-   always a valid level, including an empty scene. The single-object 2D
-   host requires a geometry object with an editable network. *)
-let resolve_level ~scene_level value preferred =
-  let inside id = Int_map.mem id value.networks
-    && Edit_graph.find value.scene.graph.geometry ~node_id:id <> None in
+   always a valid level, including an empty scene. *)
+let resolve_level value preferred =
   match preferred with
-  | Inside id when inside id -> Ok (Inside id)
-  | _ when scene_level -> Ok Scene
-  | _ ->
-      match List.find_opt (fun (info : Edit_graph.node_info) ->
-        info.operation = "geometry" && inside info.id) (Edit_graph.inspect value.scene.graph.geometry) with
-      | Some info -> Ok (Inside info.id)
-      | None -> Error "Editor2 requires a geometry object with a SOP network"
+  | Inside id when Int_map.mem id value.networks
+      && Edit_graph.find value.scene.graph.geometry ~node_id:id <> None -> Inside id
+  | Inside _ | Scene -> Scene
 
 (* The saved/loaded document boundary. Disconnected SOPs are editable and
    valid; compiling their display is a separate cook-time check. *)
@@ -205,6 +198,17 @@ let prune value =
   if Int_map.cardinal networks = Int_map.cardinal value.networks
       && active_camera = value.active_camera then value
   else { value with networks; active_camera }
+
+(* The lowered sop graph a geometry object's network is.  An unchanged network is kept physically
+   across lowerings while the lowering is rebuilt, so identity alone is not enough: the compiled
+   root still names the graph. *)
+let object_graph value id =
+  let _, (lowered : Flow_sop.Lower.t) = value.workspace in
+  Option.bind (Int_map.find_opt id value.networks) (fun (n : network) ->
+    List.find_map (fun (g : Flow_sop.Lower.graph) ->
+      if g.network == n.graph || (match g.root, Edit_graph.root n.graph.geometry with
+        | Some a, Some b -> a = b | _ -> false)
+      then Some g.name else None) lowered.graphs)
 
 (* Read-only views for tests and tools. *)
 let scene_graph value = value.scene.graph.geometry

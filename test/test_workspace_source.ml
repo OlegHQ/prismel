@@ -228,6 +228,33 @@ let run_editor () =
   E3.close !e;
   remove_tree dir
 
+(* X5/E8: an external change never replaces unsaved work.  The file's text waits while the
+   document has an edit the file does not, the strip says so, and it loads once the edit is undone. *)
+let run_external_over_dirty () =
+  let dir = directory () in
+  let file = Filename.concat dir "sketch.rays" in
+  write file text0;
+  let e = ref (editor ~presets:(Filename.concat dir "presets") ~source:(Source.at ~file ~digest:(sha text0)) text0)
+  and count = ref 0 in
+  let step ?keys events =
+    incr count; e := E3.update !e (Test_editor_input.frame ?keys (450., 300.) events !count) in
+  let run_for seconds = for _ = 1 to int_of_float (seconds *. 60.) do step [] done in
+  step []; step [];
+  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+    node = ["g"; "@result"]; key = Kw "segments"; sub = []; value = Flow.Syntax.make (Num "12") }));
+  let label = E3.undo_label !e in
+  write file text1;
+  run_for 1.5;
+  check (has (source_text !e) ":segments 12" && has (source_text !e) "0.5" && E3.undo_label !e = label)
+    ("an external change replaced a document with unsaved edits: " ^ source_text !e);
+  check (has (cook_line !e) "changed on disk") ("the kept edits were not announced: " ^ cook_line !e);
+  step ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'z') ];
+  run_for 1.;
+  check (has (source_text !e) "0.7" && E3.undo_label !e = Some "Reload sketch.rays")
+    ("the file's text did not load once the edits were undone: " ^ source_text !e);
+  E3.close !e;
+  remove_tree dir
+
 let run_autosave () =
   let dir = directory () in
   let file = Filename.concat dir "sketch.rays" and presets = Filename.concat dir "presets" in
@@ -255,6 +282,10 @@ let run_autosave () =
   for _ = 1 to 70 do step [] done;
   check (read state = snapshot && (Unix.stat state).st_mtime = stamp)
     "an unchanged restarted sketch overwrote the last edited state";
+  (* E7: orbiting in the pristine document does not write over the earlier session's unsaved work *)
+  step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
+  for _ = 1 to 70 do step [] done;
+  check (read state = snapshot) "orbiting after a restart overwrote the last edited state";
   step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
   step [Event.KeyPressed Input.Enter];
   check (has (source_text !e) ":radius 1.25" && E3.undo_label !e = Some "Restore last edited state")
@@ -295,33 +326,6 @@ let run_autosave () =
   check (has (read state) ":radius 2" && Test_workspace_shell.dump_line !e "autosave" = "-")
     "autosave did not retry and clear its error while the editor remained open";
   E3.close !e;
-  remove_tree dir
-
-let run_autosave2 () =
-  let module E2 = Rays_editor.Editor2 in
-  let dir = directory () in
-  let create () = E2.create ~presets:dir ~await:true
-    ~workspace:(Result.get_ok (Doc.of_text catalog text0))
-    ~camera:(Easy_camera2.create ~inertia:false ())
-    ~prepare:(fun _ _ -> Ok ()) ~scene2:(fun _ _ -> Scene.empty) () |> Result.get_ok in
-  let e = ref (create ()) and count = ref 0 in
-  let step events = incr count;
-    e := E2.update !e (Test_editor_input.frame (200., 300.) events !count) in
-  step [];
-  step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
-  let saved = E2.camera !e in
-  for _ = 1 to 35 do step [] done;
-  let state = Editor_document.Preset.path ~directory:(Filename.concat dir "state")
-    ~name:(sha "workspace:w") in
-  check (has (read state) ":zoom") "2D camera navigation did not autosave while open";
-  E2.close !e;
-  e := create (); count := 0; step [];
-  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
-  step [Event.KeyPressed Input.Enter];
-  check (Easy_camera2.center (E2.camera !e) = Easy_camera2.center saved
-         && Easy_camera2.zoom (E2.camera !e) = Easy_camera2.zoom saved)
-    "2D recovery did not restore the viewport";
-  E2.close !e;
   remove_tree dir
 
 (* The start keywords (flow.md 11.11) through the two routes that replace the document from a
@@ -386,5 +390,5 @@ let run_start_keywords () =
   E3.close !e;
   remove_tree dir
 
-let run () = run_files (); run_find (); run_editor (); run_autosave (); run_autosave2 (); run_start_keywords ();
+let run () = run_files (); run_find (); run_editor (); run_external_over_dirty (); run_autosave (); run_start_keywords ();
   print_endline "workspace source tests passed"

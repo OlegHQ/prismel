@@ -38,8 +38,10 @@ module History = struct
         else List.filteri (fun index _ -> index < t.capacity) past, t.capacity in
       { t with past; present = value; label; future = []; depth; merge = None }
 
+  (* the present replaced in place: a continued gesture, or a repair that is no edit of the
+     user's (camera bookkeeping), which leaves what redo would restore *)
   let amend value t =
-    if value == t.present then t else { t with present = value; future = [] }
+    if value == t.present then t else { t with present = value }
 
   let record ?(merge = Step) ?(label = "Edit") value t =
     let continuation = match merge, t.merge with
@@ -75,14 +77,25 @@ end
 module Keymap = struct
   type trigger = Leader of string | Chord of Rays.Input.key * Rays.Input.key list
 
+  (* What a symbol key types with Shift held (the US layout): the key event names the key, a
+     binding names the symbol. *)
+  let shifted = function
+    | '/' -> Some '?' | '=' -> Some '+' | '-' -> Some '_' | ';' -> Some ':' | '\'' -> Some '"'
+    | ',' -> Some '<' | '.' -> Some '>' | '[' -> Some '{' | ']' -> Some '}' | '\\' -> Some '|'
+    | '`' -> Some '~' | '1' -> Some '!' | '2' -> Some '@' | '3' -> Some '#' | '4' -> Some '$'
+    | '5' -> Some '%' | '6' -> Some '^' | '7' -> Some '&' | '8' -> Some '*' | '9' -> Some '('
+    | '0' -> Some ')' | _ -> None
+
   let label = function
     | Leader sequence ->
         (* the sheets write each key apart: Space o v *)
         "Space " ^ String.concat " " (List.init (String.length sequence) (fun i -> String.make 1 sequence.[i]))
     | Chord (key, modifiers) ->
         let open Rays.Input in
-        let key, modifiers = if key = KeyChar '/' && List.mem Shift modifiers then
-          KeyChar '?', List.filter (( <> ) Shift) modifiers else key, modifiers in
+        let key, modifiers = match key with
+          | KeyChar c when List.mem Shift modifiers && shifted c <> None ->
+              KeyChar (Option.get (shifted c)), List.filter (( <> ) Shift) modifiers
+          | _ -> key, modifiers in
         (* the sheets' vocabulary: modifier glyphs before the key with no dash, a letter under a
            modifier in capitals (⌘G, ⇧D), ↵ ⇥ ⌫ and esc *)
         let key = match key with
@@ -174,9 +187,32 @@ module Router = struct
     | Rays.Input.Meta -> true
     | _ -> false
 
+  (* A text field owns the keyboard except the Command/Ctrl chords it has no use for (its own are
+     select all, copy, cut, paste, undo and redo): Command-S saves with the caret in a field.
+     Only commands of every pane run; a pane's own keys wait for the field to close. *)
+  let text_chords keymap ~focus ~previous_keys ~(frame : Rays.Frame.t) =
+    let open Rays in
+    let global = List.filter (fun command -> command.scope = None) keymap in
+    let owned = function
+      | Input.KeyChar c -> List.mem (Char.lowercase_ascii c) [ 'a'; 'c'; 'v'; 'x'; 'z'; 'y' ]
+      | _ -> true in
+    let modifiers = ref (Event.Private.keys_before ~previous:previous_keys ~held:frame.keys frame.events) in
+    let actions, passed = List.fold_left (fun (actions, passed) event ->
+      modifiers := Event.Private.keys_after !modifiers event;
+      match event with
+      | Event.KeyPressed key when not (owned key)
+          && (List.mem Input.Meta !modifiers || List.mem Input.Ctrl !modifiers) ->
+          (match chord global focus !modifiers key with
+           | Some command -> command :: actions, passed
+           | None -> actions, event :: passed)
+      | _ -> actions, event :: passed) ([], []) frame.events in
+    List.rev actions, { frame with events = List.rev passed }
+
   let step ?(previous_keys = []) keymap ~focus ~text_focus ~(frame : Rays.Frame.t) state =
     let open Rays in
-    if text_focus then Idle, [], frame else
+    if text_focus then
+      let actions, frame = text_chords keymap ~focus ~previous_keys ~frame in Idle, actions, frame
+    else
     let modifiers = ref (Event.Private.keys_before ~previous:previous_keys
       ~held:frame.keys frame.events) in
     let traversing = ref false in
@@ -192,7 +228,12 @@ module Router = struct
       | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
           Pending "", actions, passed
       | Idle, Event.KeyPressed key when not text_focus ->
-          (match chord keymap focus !modifiers key with
+          (* Shift and a symbol key is the symbol it types, when a chord is bound to that *)
+          let typed = match key with
+            | Input.KeyChar c when List.mem Input.Shift !modifiers ->
+                Option.bind (shifted c) (fun s -> chord keymap focus !modifiers (Input.KeyChar s))
+            | _ -> None in
+          (match (match typed with Some _ -> typed | None -> chord keymap focus !modifiers key) with
            | Some action -> Idle, action :: actions, passed
            | None -> Idle, actions, event :: passed)
       | Idle, Event.TextInput _ when actions <> [] -> Idle, actions, passed
@@ -200,6 +241,9 @@ module Router = struct
       | Pending _, Event.KeyPressed key when modifier key -> state, actions, passed
       | Pending prefix, Event.KeyPressed (Input.KeyChar character) ->
           (* An exact sequence runs; a proper prefix opens the next page. *)
+          (* Space then Shift-/ is the sequence "?", as the sheets write it *)
+          let character = if List.mem Input.Shift !modifiers
+            then Option.value (shifted character) ~default:character else character in
           let typed = prefix ^ String.make 1 (Char.lowercase_ascii character) in
           let commands = visible keymap focus in
           (match List.find_opt (fun command ->

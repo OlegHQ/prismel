@@ -39,8 +39,6 @@ let wire_mesh geometry =
 let label = function Path_traced -> "Path traced" | Raster -> "Raster" | Wireframe -> "Wireframe"
 let of_label = function "Path traced" -> Some Path_traced | "Raster" -> Some Raster
   | "Wireframe" -> Some Wireframe | _ -> None
-let schema = Editor_core.Param.schema ~name:"renderer" ~default:Raster
-  [field ~default:Raster ~get:Fun.id ~set:(fun value _ -> value)]
 
 module P = Rays_pathtracer
 type cached_mesh = { source : Mesh.t; material : Material.t; geometry : Rdk.Geometry.t;
@@ -204,8 +202,10 @@ let update state ~mode ~custom ~focus views =
           {blank with scene; wire = Some (match previous with
             | Some {wire = Some wire; scene = last; _} when last == scene -> wire
             | Some _ | None -> wire_scene scene)}
-      | Path_traced when not (plan.focused || Option.fold ~none:false ~some:(( == ) plan) chosen) ->
-          (* not this frame's turn: the picture it had stays *)
+      | Path_traced when not plan.wants
+                         || not (plan.focused || Option.fold ~none:false ~some:(( == ) plan) chosen) ->
+          (* at its cap with nothing changed (the focused one too), or not this frame's turn: the
+             picture it had stays *)
           (match previous with Some slot -> {slot with keys; cap} | None -> blank)
       | Path_traced ->
           let prior = Option.value ~default:blank previous in
@@ -264,14 +264,6 @@ let info state ~key = if state.custom || state.raster_only then None else
   | Some {tracer = Some tracer; step; cap; keys; _} ->
       Some {size = P.size tracer; step; samples = P.samples tracer; cap; viewports = List.length keys}
   | Some _ | None -> None
-
-let step_label = function 1 -> "1" | 2 -> "\xc2\xbd" | 4 -> "\xc2\xbc" | 8 -> "\xe2\x85\x9b"
-  | step -> Printf.sprintf "1/%d" step
-
-(* A traced viewport's header: the root's resolution, the film's step of it and the samples *)
-let caption ~resolution:(width, height) info =
-  Printf.sprintf "%d\xc3\x97%d %s  %d/%d spp" width height (step_label info.step)
-    (min info.samples info.cap) info.cap
 
 let paint state ~key bounds camera scene =
   if state.custom || state.raster_only then [Scene.view3d ~viewport:bounds ~camera scene]

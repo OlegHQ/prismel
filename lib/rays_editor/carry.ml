@@ -72,7 +72,6 @@ let geometry_objects (doc : Document.t) =
     Option.map (fun node -> id, Node.label node) (Edit_graph.find scene ~node_id:id))
     (Objects.ids "geometry" scene)
 
-let reference name = S.make (S.List [ S.make (S.Sym "ref"); S.make (S.Sym name) ])
 
 let readers doc graph =
   List.length (List.filter (fun (id, _) -> graph_of_object doc id = Some graph) (geometry_objects doc))

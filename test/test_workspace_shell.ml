@@ -367,8 +367,8 @@ let run_duplicate_and_view () =
 
 (* An inline result is a geometry node too: viewing and editing it must follow the current
    lowering, including when an edit inserts a new plan node before the viewed one. *)
-(* v on a node inside a loop shows that node at the probed iteration (the layout's display, not a
-   rewiring of the result: a loop's body cannot be the graph's result); v again goes back. *)
+(* v on a node inside a loop is refused: the viewport shows the graph's result, and a loop's body
+   cannot be it.  Nothing is written, the result stays in view. *)
 let run_loop_view () =
   let e = ref (editor {|(workspace loop_view
     (graph g :context sop
@@ -399,13 +399,11 @@ let run_loop_view () =
     let x, y, w, _ = Option.get (E3.node_box !e inner) in
     click (float (x + w / 2), float (y + 3));
     check (dump_line !e "scope selected" = "g/rows/@result") "the node inside the loop could not be selected";
+    let before = E3.workspace !e and label = E3.undo_label !e in
     key (Input.KeyChar 'v'); step [];
-    check (Editor_document.Layout_by_path.Path_map.find_opt ["g"] (E3.workspace !e).layout.display = Some inner)
-      ("v refused a node inside a loop: " ^ Option.value ~default:"-" (E3.undo_label !e));
-    centre "the node inside the loop" 5.;
-    key (Input.KeyChar 'v'); step [];
-    check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).layout.display) "v again did not go back to the result";
-    centre "the result again" 15.)
+    check (E3.workspace !e == before && E3.undo_label !e = label && has (dump_line !e "cook") "inside a loop")
+      ("v on a node inside a loop was not refused: " ^ dump_line !e "cook");
+    centre "the result still" 15.)
 
 let run_result_view () =
   let e = ref (editor {|(workspace result_view
@@ -441,7 +439,6 @@ let run_result_view () =
     key Input.Home; key (Input.KeyChar 'i'); step [];
     select "b"; key (Input.KeyChar 'v'); step []; centre 5.;
     select "result"; key (Input.KeyChar 'v'); step [];
-    check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).layout.display) "layout.display is cleared";
     centre 20.;
     edit (E.Set_arg {node = ["g"; "b"]; key = E.Kw "translate"; sub = []; value = parsed "[9 0 0]"});
     centre 24.;
@@ -1710,7 +1707,171 @@ let run_panel_chain () =
     ("a split after a retype did nothing: " ^ dump_line !e "panels");
   E3.close !e
 
-let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ()
+(* The undo and input fixes of the audit's phase 3, each through the editor. *)
+let run_undo_and_input () =
+  let plain = "(workspace studio (graph g :context sop (let* [a (sop/box)] a)))" in
+  let session ?(text = plain) at =
+    let e = ref (editor text) and count = ref 0 in
+    let step ?(keys = []) ?(buttons = []) ?(mouse = at) events = incr count;
+      e := E3.update !e (Test_editor_input.frame ~keys ~buttons mouse events !count) in
+    for _ = 1 to 4 do step [] done;
+    e, count, step in
+  let press c = Event.KeyPressed (if c = ' ' then Input.Space else Input.KeyChar c) in
+  (* E12: navigation is view state.  It leaves no entry, does not swallow the next undo and does
+     not drop what redo restores. *)
+  let e, _, step = session (200., 300.) in
+  let orbit () = step [ Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.) ]; for _ = 1 to 20 do step [] done in
+  let eye () = Camera.position (Easy_camera.camera (E3.camera !e)) in
+  let start = eye () in
+  orbit ();
+  check (eye () <> start) "the wheel did not move the viewport";
+  check (not (E3.can_undo !e)) ("navigating made an undo entry: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  e := (match E3.edit !e (E.Set_arg { node = [ "g"; "a" ]; key = E.Kw "uniform_scale"; sub = [];
+      value = S.make (S.Num "2.0") }) with Ok e -> e | Error m -> fail m);
+  step [];
+  let label = E3.undo_label !e in
+  orbit ();
+  check (E3.undo_label !e = label) "navigating after an edit made an undo entry";
+  step ~keys:[ Input.Meta ] [ press 'z' ];
+  check (not (has (source !e) "uniform_scale") && E3.can_redo !e) "the first undo after navigating was swallowed";
+  orbit ();
+  check (E3.can_redo !e) "navigating dropped what redo restores";
+  E3.close !e;
+  (* E13: a stroke down the visibility column is one undo entry *)
+  let lights = {x|(workspace lights (graph scene :context scene
+    (scene/merge (scene/light :name "a") (scene/light :name "b") (scene/light :name "c"))))|x} in
+  let e, count, step = session ~text:lights (200., 300.) in
+  let gx, gy, gw, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let flag row = float (gx + gw - 38), float (gy + 24 + (24 * row) + 12) in
+  count := !count + 30;
+  step ~mouse:(flag 0) [ Event.MouseMoved (flag 0) ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:(flag 0) [ Event.MousePressed (Input.LeftButton, flag 0) ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:(flag 1) [ Event.MouseMoved (flag 1) ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:(flag 2) [ Event.MouseMoved (flag 2) ];
+  step ~mouse:(flag 2) [ Event.MouseReleased (Input.LeftButton, flag 2) ]; step [];
+  check (count_of (source !e) ":visible false" = 3) ("the stroke did not hide three rows: " ^ source !e);
+  step ~keys:[ Input.Meta ] [ press 'z' ];
+  check (count_of (source !e) ":visible false" = 0) ("one undo did not restore the stroke: " ^ source !e);
+  E3.close !e;
+  (* E14: a gutter drag cut short by a focus loss leaves no size for a later click to commit *)
+  let e, _, step = session ~text:(case "variations") (450., 300.) in
+  let gutter = 169.5, 300. and away = 300., 300. in
+  step ~mouse:gutter [ Event.MouseMoved gutter ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:gutter [ Event.MousePressed (Input.LeftButton, gutter) ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:away [ Event.MouseMoved away ];
+  step ~mouse:away [ Event.WindowFocusLost ]; step ~mouse:away [];
+  let before = source !e in
+  step ~mouse:gutter [ Event.MouseMoved gutter ];
+  step ~buttons:[ Input.LeftButton ] ~mouse:gutter [ Event.MousePressed (Input.LeftButton, gutter) ];
+  step ~mouse:gutter [ Event.MouseReleased (Input.LeftButton, gutter) ]; step [];
+  check (source !e = before && E3.undo_label !e = None)
+    ("a click on a gutter committed the size of an interrupted drag: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  E3.close !e;
+  (* E19: the focus of a closed panel goes to its neighbour, so the next panel key acts *)
+  let inspector = 800., 300. in
+  let e, _, step = session inspector in
+  step [ Event.MouseMoved inspector ];
+  step [ Event.MousePressed (Input.LeftButton, inspector); Event.MouseReleased (Input.LeftButton, inspector) ];
+  let keys cs = List.iter (fun c -> step [ press c ]; step []) cs; step [] in
+  keys [ ' '; 'o'; 'x' ];
+  check (E3.undo_label !e = Some "Close panel") ("the inspector was not closed: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  keys [ ' '; 'o'; 'v' ];
+  check (E3.undo_label !e = Some "Split panel") "panel keys were dead after the focused panel closed";
+  E3.close !e;
+  (* E21: fly mode ends when the view stops navigating (a fixed camera, looked through) *)
+  let e, _, step = session (200., 300.) in
+  step [ Event.MouseMoved (200., 300.) ];
+  step [ Event.MousePressed (Input.LeftButton, (200., 300.)); Event.MouseReleased (Input.LeftButton, (200., 300.)) ];
+  List.iter (fun c -> step [ press c ]; step []) [ ' '; 'v' ];
+  List.iter (fun c -> step [ press c ]; step []) [ ' '; 'w' ];
+  check (E3.flying !e && E3.look_through !e) "the view is not flying through its camera";
+  e := (match E3.edit !e (E.Set_arg { node = [ "scene"; "camera1" ]; key = E.Kw "follow_viewport"; sub = [];
+      value = S.make (S.Sym "false") }) with Ok e -> e | Error m -> fail m);
+  step []; step [];
+  check (not (E3.flying !e)) "fly mode outlived the navigation it belongs to";
+  E3.close !e;
+  (* E20: a name field left open in the graph pane does not hold the keyboard once the panel shows
+     its list *)
+  let e, count, step = session (450., 300.) in
+  let gx, gy, gw, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+  let row = float (gx + 60), float (gy + 24 + 12) in
+  let click at = step ~mouse:at [ Event.MouseMoved at ];
+    step ~mouse:at [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
+    step ~mouse:at [] in
+  click row; step [ press 'i' ]; step [];
+  count := !count + 30;
+  let x, y, w, h = Option.get (E3.node_box !e [ "g"; "a" ]) in
+  click (float (x + (w / 2)), float (y + min 10 (h / 2)));
+  step [ Event.KeyPressed Input.F2 ]; step [];
+  step [ press 'u' ]; step [];
+  check (E3.level !e <> None) "F2 opened no name field: u left the object";
+  (* the header's List tab: found by trying, the tabs end 36 points from the header's right edge *)
+  let listed = List.exists (fun dx ->
+    dump_line !e "projection" = "list"
+    || (count := !count + 30; click (float (gx + gw - 36 - dx), float (gy - 12)); dump_line !e "projection" = "list"))
+    [ 40; 46; 52; 58; 64; 70 ] in
+  check listed ("the header's List tab was not found: " ^ dump_line !e "projection");
+  List.iter (fun c -> step [ press c ]; step []) [ ' '; 'l'; 'g' ]; step [];
+  check (dump_line !e "projection" = "graph")
+    "a name field open in the graph pane kept the keyboard after the panel turned to its list";
+  E3.close !e
+
+(* E16: a frame's gestures land together.  Closing the only panel of a document with no editor
+   graph is two gestures (write the layout shown as an editor graph, then close the panel): the
+   close is refused, so the editor graph is not left written either. *)
+let run_atomic_frame () =
+  let at = 200., 300. in
+  let e = ref (E3.create ~layout:(Panels.Leaf Panels.Graph) ~await:true
+      ~workspace:(of_text "(workspace solo (graph g :context sop (sop/box)))")
+      ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) and count = ref 0 in
+  let step events = incr count; e := E3.update !e (frame at events !count) in
+  for _ = 1 to 4 do step [] done;
+  step [ Event.MouseMoved at ];
+  step [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
+  let before = source !e and label = E3.undo_label !e in
+  List.iter (fun c -> step [ Event.KeyPressed (if c = ' ' then Input.Space else Input.KeyChar c) ]; step []) [ ' '; 'o'; 'x' ];
+  step [];
+  check (dump_line !e "edit error" <> "-") ("closing the only panel was not refused: " ^ source !e);
+  check (source !e = before && E3.undo_label !e = label)
+    ("a refused gesture left the frame's earlier gesture applied: " ^ source !e);
+  E3.close !e
+
+(* E2: a graph panel that is not the one in use is inside an object; an undo from the other panel
+   removes that object.  The panel goes back to the scene instead of reading a network that is gone. *)
+let run_undo_under_pane () =
+  let text = {|(workspace two
+  (graph g :context sop (sop/box))
+  (graph h :context sop (sop/box :size [2 2 2]))
+  (graph scene :context scene (let* [a (scene/geometry (ref g))] (scene/merge a)))
+  (graph editor :context editor
+    (ui/workspace (ui/split "horizontal" (ui/graph :focus true) (ui/graph)))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  let step ?(keys = []) mouse events = incr count;
+    e := E3.update !e (Test_editor_input.frame ~keys mouse events !count) in
+  let click point = step point [ Event.MouseMoved point ];
+    step point [ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ];
+    step point [] in
+  for _ = 1 to 4 do step (200., 500.) [] done;
+  let expr = match S.parse "(scene/geometry (ref h))" with Ok [ v ] -> v | _ -> fail "bad form" in
+  e := (match E3.edit !e (E.Add_node { scope = [ "scene" ]; name = "b"; expr }) with
+    | Ok e -> e | Error m -> fail m);
+  step (200., 500.) [];
+  (* the second panel lists the scene: enter the object made from h, its second row *)
+  count := !count + 30;
+  let row = 700., float (24 + 24 + 12 + 24) in
+  click row; step row [ Event.KeyPressed (Input.KeyChar 'i') ]; step row [];
+  check (has (dump_line !e "graph panels") "h") ("the second graph panel did not enter the object: " ^ dump_line !e "graph panels");
+  (* the first panel takes the focus and undoes the object *)
+  count := !count + 30;
+  click (200., 500.);
+  step ~keys:[ Input.Meta ] (200., 500.) [ Event.KeyPressed (Input.KeyChar 'z') ];
+  step (200., 500.) []; step (200., 500.) [];
+  check (not (has (source !e) "(ref h)") && not (has (dump_line !e "graph panels") "h"))
+    ("undo left the other panel inside a removed object: " ^ dump_line !e "graph panels");
+  E3.close !e
+
+let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
+  run_undo_under_pane (); run_atomic_frame (); run_undo_and_input ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)
@@ -1785,8 +1946,7 @@ let run_view_native () =
           "VIEW screenshot failed";
         if frame.count = 26 then begin
           original := !vertices;
-          check (Node.operation (E3.displayed_node e) = "exploded_view"
-                 && Editor_document.Layout_by_path.Path_map.find_opt ["shattered"] (E3.workspace e).layout.display = None)
+          check (Node.operation (E3.displayed_node e) = "exploded_view")
             "native v did not set the result node"
         end;
         if frame.count = 30 then begin

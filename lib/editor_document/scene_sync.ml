@@ -249,6 +249,8 @@ let objects st (before : Document.t) (after : Document.t) =
         let edits = object_edits ~before:b ~after:a id nb na in
         if edits <> [] then refuse_preview id;
         if List.mem_assoc "parent" edits then Option.iter (unique a) (Objects.parent a id);
+        (* a name is what [:parent] reads: one two objects share would move the other's children *)
+        if List.mem_assoc "name" edits then unique a id;
         set ~before:(current_syntax nb) st home edits
     | Some _, None -> refuse_preview id; gone := (id, home) :: !gone
     | None, _ -> ()) before.homes.objects;
@@ -325,7 +327,9 @@ let owned (workspace : Workspace_doc.t) =
       | S.List [ _; { S.node = S.Sym n; _ }; _; _ ] | S.List ({ S.node = S.Sym _; _ } :: { S.node = S.Sym n; _ } :: _) -> Some n
       | _ -> None) c.macros
 
-(* a name for a binding: the label as a lowercase symbol, unused in [used] *)
+(* A name for a new graph, or for a binding of a graph that is written whole (nothing to ask
+   [Flow_edit.fresh_name] about yet): the label as a lowercase symbol, unused in [used].  A binding
+   added to a graph the text has takes [Flow_edit.fresh_name]. *)
 let fresh used base =
   let clean = String.map (function 'a' .. 'z' | '0' .. '9' | '_' as c -> c
     | 'A' .. 'Z' as c -> Char.lowercase_ascii c | _ -> '_') base in
@@ -351,18 +355,11 @@ let let_star bindings result =
 
 let default_label node = String.lowercase_ascii (Node.operation node)
 
-(* the geometry graph an object's network was lowered from *)
-let source_graph (doc : Document.t) id =
-  let _, (lowered : Flow_sop.Lower.t) = doc.workspace in
-  Option.bind (Document.Int_map.find_opt id doc.networks) (fun (n : Document.network) ->
-    List.find_map (fun (g : Flow_sop.Lower.graph) -> if g.network == n.graph then Some g.name else None)
-      lowered.graphs)
-
 let object_binding (doc : Document.t) used id (info : Edit.node_info) =
   let graph = Document.scene_graph doc in
   let parent = Objects.parent graph id in
   let slots = if info.operation = "geometry" then
-      (match source_graph doc id with
+      (match Document.object_graph doc id with
        | Some g -> [ mk (S.List [ sym "ref"; sym g ]) ]
        | None -> stop "%s has no graph of its own to place." info.label)
     else [] in
@@ -397,16 +394,19 @@ let adopt_objects st (doc : Document.t) =
         let body = let_star bindings (mk (S.List (sym "scene/merge" :: names))) in
         apply st (F.Set_graph { name = "scene"; form = graph_form "scene" "scene" body })
     | Some g ->
-        List.iter2 (fun (name, expr) (i : Edit.node_info) ->
-          ignore i;
-          apply st (F.Add_node { scope = [ g.name ]; name; expr })) bindings unhomed
+        (* into a graph the text has: each name is free of what the graph binds by then *)
+        List.iter2 (fun (_, expr) (i : Edit.node_info) ->
+          apply st (F.Add_node { scope = [ g.name ]; expr;
+                                 name = F.fresh_name st.workspace.source ~root:g.name i.label })) bindings unhomed
   end
   end
 
 (* the workspace's world graph (written under its own name), else "world" *)
+let world_graph st = match Contexts.graph_of st.workspace Flow.Workspace.World with
+  | Some g -> g.name | None -> "world"
+
 let set_world st body =
-  let name = match Contexts.graph_of st.workspace Flow.Workspace.World with
-    | Some g -> g.name | None -> "world" in
+  let name = world_graph st in
   apply st (F.Set_graph { name; form = graph_form name "world" body })
 
 let none_world = mk (S.List [ sym "world/none" ])
@@ -430,40 +430,20 @@ let write_layers st (doc : Document.t) wid name =
     | (top, _) :: _ -> let_star layers (sym top) in
   apply st (F.Set_graph { name; form = graph_form name "world" body })
 
-(* an old file's World written out whole: layers bound bottom first, the [world/world] call last *)
-let adopt_world_legacy st (doc : Document.t) wid =
-  let graph = Document.scene_graph doc in
-  let network = Document.Int_map.find wid doc.networks in
-  let g = network.graph.geometry in
-  let used = ref (owned st.workspace) in
-  let bindings = List.map (fun id ->
-    let info = List.find (fun (i : Edit.node_info) -> i.id = id) (Edit.inspect g) in
-    id, fresh used info.label, info) (List.rev (order network)) in
-  let layers = List.mapi (fun i (_, name, (info : Edit.node_info)) ->
-    let below = if i = 0 then [] else [ sym (let _, n, _ = List.nth bindings (i - 1) in n) ] in
-    name, call_of ~kind:("world/" ^ info.operation) ~label:info.label
-      ~default_label:(Edit.factory_label (List.assoc ("world/" ^ info.operation) Contexts.world_kinds)) ~slots:below info.node)
-    bindings in
-  let top = match List.rev layers with (name, _) :: _ -> [ sym name ] | [] -> [] in
-  let node = Option.get (Edit.find graph ~node_id:wid) in
-  let world = call_of ~kind:"world/world" ~label:(Node.label node) ~default_label:"World" ~slots:top node in
-  set_world st (if layers = [] then world else let_star layers world)
-
-(* the World a document holds, written for the first time: its layers as the world graph [world]
-   and the object as a [scene/world] member of the scene (the scene graph is made first when
-   there is none) *)
-let adopt_world st (doc : Document.t) =
+(* the World a document holds, written as the text has Worlds: its layers as the world graph
+   [graph] and the object as a [scene/world] member of the scene (the scene graph is made first
+   when there is none) *)
+let adopt_world ?(graph = "world") st (doc : Document.t) =
   match world_id doc with
   | None -> ()
   | Some wid ->
       if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then adopt_objects st doc;
-      write_layers st doc wid "world";
+      write_layers st doc wid graph;
       let node = Option.get (Edit.find (Document.scene_graph doc) ~node_id:wid) in
-      let used = ref (owned st.workspace) in
       let expr = call_of ~kind:"scene/world" ~label:(Node.label node) ~default_label:"World"
-          ~slots:[ mk (S.List [ sym "ref"; sym "world" ]) ] node in
+          ~slots:[ mk (S.List [ sym "ref"; sym graph ]) ] node in
       let scene = (Option.get (Contexts.graph_of st.workspace Flow.Workspace.Scene)).name in
-      apply st (F.Add_node { scope = [ scene ]; name = fresh used "sky"; expr })
+      apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "sky"; expr })
 
 (* ---- the whole reconciliation ---- *)
 
@@ -493,15 +473,24 @@ let world st (before : Document.t) (after : Document.t) =
            let surviving = List.filter (fun id -> Edit.find (g an) ~node_id:id <> None) known in
            let removed = List.filter (fun id -> not (List.mem id surviving)) known in
            let stack n = List.filter (fun id -> List.mem id surviving) (order n) in
-           let rewritten = member && (removed <> [] || stack bn <> stack an) in
+           (* a World member whose top layer is its graph's result written in place has no name to
+              delete or rewire by *)
+           let unnamed = member && List.exists (fun (_, home) -> match home with
+             | Document.Bound_at path -> List.nth_opt (List.rev path) 0 = Some "@result" | _ -> false)
+             before.homes.layers in
+           let rewritten = unnamed && (removed <> [] || stack bn <> stack an) in
            if List.exists (fun (i : Edit.node_info) -> not (List.mem i.id known)) (Edit.inspect (g an)) || rewritten then begin
-             (* new layers (a preset), or a stack of a World member the new order or a deletion
-                changes: its graph is written out whole *)
+             (* new layers (a preset): the graph is written out whole.  A deleted or moved layer is
+                one edit of its binding below, so the graph's inputs, expressions, comments and
+                names stay *)
              if member then
                (match before.homes.world_graph with
                 | Some name -> write_layers st after wid name
                 | None -> stop "The World's graph is not named; edit the text.")
-             else adopt_world_legacy st after wid
+             else
+               (* a World its graph returns as a [world/world] call over the layers: written as
+                  Worlds are now, the layers its graph and the World an object of the scene *)
+               adopt_world ~graph:(world_graph st) st after
            end
            else begin
              List.iter (fun id -> match Edit.find (g bn) ~node_id:id, Edit.find (g an) ~node_id:id with
@@ -524,6 +513,11 @@ let world st (before : Document.t) (after : Document.t) =
                     | None -> apply st (F.Disconnect { node = List.assoc id paths; key = F.Pos 0; fallback = None }));
                    Some id) None bottom_first);
                  match List.rev bottom_first with
+                 | top :: _ when member ->
+                     (* a world graph's result is its top layer *)
+                     (match before.homes.world_graph with
+                      | Some graph -> apply st (F.Connect { node = [ graph; "@result" ]; key = F.Whole; src = name top; iter = false })
+                      | None -> stop "The World's graph is not named; edit the text.")
                  | top :: _ ->
                      apply st (F.Connect { node = bind st home; key = F.Pos 0; src = name top; iter = false })
                  | [] -> ()
@@ -550,8 +544,7 @@ let adopt_root st (doc : Document.t) =
   let changed = root_edits ~before:Objects.Root.default ~after:doc.root in
   let expr = mk (S.List (sym "scene/root" :: List.concat_map (fun (key, value) ->
     [ mk (S.Kw key); Option.get value ]) changed)) in
-  let used = ref (owned st.workspace) in
-  apply st (F.Add_node { scope = [ scene ]; name = fresh used "root"; expr })
+  apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "root"; expr })
 
 let root st (before : Document.t) (after : Document.t) ~adopt =
   if before.root != after.root && before.root <> after.root then
