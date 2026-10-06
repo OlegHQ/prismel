@@ -155,6 +155,117 @@ let test_morph_sketch () =
     "unwired Blend Shapes is not a passthrough";
   Session.close session
 
+(* The inputs of the Blend Shapes, Attribute Composite and Skin nodes that the
+   ws_morph sketch leaves alone: masks, point IDs, alpha and the rest guide.
+   Each cooks through its catalog factory, the same at one and four domains. *)
+let test_node_inputs () =
+  let add owner name storage geometry =
+    Rdk.Attribute.create_owned ~owner ~name storage |> Result.get_ok
+    |> fun attribute -> Rdk.Geometry.with_attribute attribute geometry
+    |> Result.get_ok in
+  let line xs = Rdk.Line_geometry.points (Array.map (fun x -> x, 0., 0.) xs) in
+  let point = Rdk.Attribute.Point in
+  let xs geometry =
+    (Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry)).x in
+  let cook_at domains node =
+    let session = Session.create ~max_entries:16 ~max_payload_bytes:8_000_000
+        |> Result.get_ok in
+    let context = Context.create ~domains ~grain:1 () |> Result.get_ok in
+    let geometry = match Session.cook session ~context node with
+      | Ok output -> output.Session.geometry
+      | Error error -> fail (Diagnostic.error_to_string error) in
+    Session.close session;
+    geometry in
+  let both message node =
+    let one = cook_at 1 node and four = cook_at 4 node in
+    check (xs one = xs four
+        && Rdk.Topology.Private.view (Rdk.Geometry.topology one)
+           = Rdk.Topology.Private.view (Rdk.Geometry.topology four)
+        && List.for_all2 (fun left right ->
+             Rdk.Attribute.storage left = Rdk.Attribute.storage right)
+             (Rdk.Geometry.attributes one) (Rdk.Geometry.attributes four))
+      (message ^ " differs between one and four domains");
+    one in
+  let near left right = Array.for_all2 (fun a b -> Float.abs (a -. b) < 1e-12)
+      left right in
+  (* Blend Shapes masks: the first input's mask, then the shape's own *)
+  let source = line [|0.; 1.; 2.|] |> add point "mask" (Rdk.Attribute.Float [|0.; 0.5; 1.|])
+  and target = line [|10.; 11.; 12.|]
+      |> add point "mask" (Rdk.Attribute.Float [|1.; 0.5; 0.|]) in
+  let blend ?(inputs = [Some (Sop.snapshot source); Some (Sop.snapshot target);
+                         None; None; None]) changes =
+    catalog_node "blend_shapes" inputs changes in
+  let scaled source_name = both "masked Blend Shapes" (blend [
+      "weight1", Parameter.Float_value 0.5;
+      "masking", Parameter.Choice_value "Scale from attribute";
+      "mask_source", Parameter.Choice_value source_name]) in
+  check (near (xs (scaled "First input")) [|0.; 3.5; 7.|])
+    "Blend Shapes did not scale by the first input's mask";
+  check (near (xs (scaled "Shape")) [|5.; 3.5; 2.|])
+    "Blend Shapes did not scale by the shape's mask";
+  let set = both "set-mask Blend Shapes" (blend [
+      "weight1", Parameter.Float_value 0.125;
+      "masking", Parameter.Choice_value "Set from attribute"]) in
+  check (near (xs set) [|0.; 6.; 12.|])
+    "Blend Shapes did not take its weight from the mask";
+  (* Blend Shapes point IDs: the shape lists the same points in another order *)
+  let ordered = line [|0.; 1.; 2.|] |> add point "id" (Rdk.Attribute.Int [|10; 20; 30|])
+  and shuffled = line [|12.; 10.; 11.|]
+      |> add point "id" (Rdk.Attribute.Int [|30; 10; 20|]) in
+  let inputs = [Some (Sop.snapshot ordered); Some (Sop.snapshot shuffled);
+                None; None; None] in
+  let by_id = both "ID-matched Blend Shapes" (blend ~inputs [
+      "point_id_attribute", Parameter.Text_value "id";
+      "attributes", Parameter.Text_value "P"])
+  and by_index = both "index-matched Blend Shapes" (blend ~inputs [
+      "attributes", Parameter.Text_value "P"]) in
+  check (near (xs by_id) [|10.; 11.; 12.|] && near (xs by_index) [|12.; 10.; 11.|])
+    "Blend Shapes point ID attribute did not match points by ID";
+  (* Attribute Composite alpha: each input's alpha weighs its values *)
+  let layer positions values alpha = line positions
+      |> add point "value" (Rdk.Attribute.Float values)
+      |> add point "alpha" (Rdk.Attribute.Float alpha) in
+  let composite = both "alpha Attribute Composite" (catalog_node "attribute_composite"
+      [Some (Sop.snapshot (layer [|0.; 1.; 2.|] [|2.; 4.; 6.|] [|1.; 1.; 0.|]));
+       Some (Sop.snapshot (layer [|10.; 11.; 12.|] [|10.; 20.; 30.|] [|1.; 0.; 1.|]));
+       None; None; None] [
+      "point_attributes", Parameter.Text_value "P value";
+      "allow_position", Parameter.Bool_value true;
+      "alpha_attribute", Parameter.Text_value "alpha"]) in
+  let values = match Rdk.Geometry.find_attribute ~owner:point "value" composite
+      |> Option.map Rdk.Attribute.storage with
+    | Some (Rdk.Attribute.Float values) -> values
+    | _ -> fail "Attribute Composite dropped or retyped value" in
+  check (near (xs composite) [|5.; 1.; 12.|] && near values [|6.; 4.; 30.|])
+    "Attribute Composite did not weigh its inputs by alpha";
+  (* Skin rest guide: the second ring's points are turned a quarter; pairing
+     on the rest positions gives the wall of the unturned rings *)
+  let ring_points turn = Array.init 8 (fun index ->
+      let section = index / 4 and local = index mod 4 in
+      let angle = Float.pi *. 0.5 *. float (local + (if section = 1 then turn else 0)) in
+      cos angle, float section, sin angle) in
+  let rings turn =
+    let points = ring_points turn in
+    let topology = Rdk.Topology.create_owned ~point_count:8
+        ~vertex_points:(Array.init 8 Fun.id) ~primitive_offsets:[|0; 4; 8|]
+        ~primitive_kinds:(Array.make 2 Rdk.Topology.Closed_polyline) |> Result.get_ok in
+    Rdk.Geometry.create
+      ~positions:(Rdk.Packed.Float3.Private.of_owned_exn
+        ~x:(Array.map (fun (x, _, _) -> x) points)
+        ~y:(Array.map (fun (_, y, _) -> y) points)
+        ~z:(Array.map (fun (_, _, z) -> z) points))
+      ~topology () |> Result.get_ok in
+  let skin inputs = both "Skin" (catalog_node "skin" inputs []) in
+  let corners geometry =
+    (Rdk.Topology.Private.view (Rdk.Geometry.topology geometry)).vertex_points in
+  let straight = skin [Some (Sop.snapshot (rings 0)); None]
+  and turned = skin [Some (Sop.snapshot (rings 1)); None]
+  and guided = skin [Some (Sop.snapshot (rings 1)); Some (Sop.snapshot (rings 0))] in
+  check (Rdk.Geometry.primitive_count guided = 4
+      && corners guided = corners straight && corners guided <> corners turned
+      && xs guided = xs turned)
+    "Skin did not pair its sections on the rest input's positions"
+
 (* Catalog-owned motion operators: Rest Position and Point Velocity. *)
 let test_motion () =
   let session = Session.create ~max_entries:32 ~max_payload_bytes:16_000_000
@@ -666,4 +777,5 @@ let run ?(exhaustive = false) () =
     "standard Exploded View node lost its operation or PPX defaults";
   set_color_test ();
   test_morph_sketch ();
+  test_node_inputs ();
   print_endline "SOP catalog tests passed"
