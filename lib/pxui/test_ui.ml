@@ -1074,6 +1074,28 @@ let run () =
    | Ok {layers = [Ui_layer _; Scene2_layer _; Ui_layer _]; _} -> ()
    | _ -> fail "native content was not between the background and floating controls");
   Ui.destroy ui;
+  (* Two text widgets share nothing: a double click's word in one and its undo stack do not
+     reach the numeric editor opened after it (a drag there stays inside its own text, and
+     Command-Z with nothing typed is the host's). *)
+  let ui = Ui.create ~font_size:11 () in
+  let words = ref "alpha beta gamma" and number = ref "240" and clock = ref 0. in
+  let tick ?(keys = []) ?(dt = 0.05) events =
+    clock := !clock +. dt;
+    ignore (Ui.frame ui { (frame ~scale:1. ~time:!clock events) with keys } (fun ui ->
+      words := fst (Ui.value_field ui ~at:(20., 20.) ~w:100. ~h:21. ~valid:(fun _ -> true) "words" !words);
+      number := fst (Ui.value_field ui ~at:(20., 60.) ~w:100. ~h:21. ~scrub:(fun origin _ _ -> origin)
+        ~valid:(fun text -> int_of_string_opt text <> None) "number" !number))) in
+  tick []; tick [press (100, 30); release (100, 30)];
+  tick ~dt:1. [press (100, 30); release (100, 30); press (100, 30)]; tick [release (100, 30)];
+  tick [Event.TextInput "X"];
+  tick ~dt:1. [press (60, 70); release (60, 70); press (60, 70)];
+  tick [move (61, 70)]; tick [release (61, 70)];
+  if not (Ui.text_input_focused ui) then fail "a double click did not open the numeric editor";
+  tick ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  if Ui.passed_undo ui <> Some `Undo then fail "a numeric editor undid another widget's edit";
+  tick [Event.KeyPressed Input.Escape];
+  if !number <> "240" then fail ("a numeric editor took another widget's text: " ^ !number);
+  Ui.destroy ui;
   (* A carry: held once the pointer has left the 4-point dead zone of the press, seen as hover
      by a box that does not own the press, put once on release, and gone after a pointer
      cancellation or a focus loss.  A key starts one with no capture: a press is the put. *)

@@ -2596,13 +2596,17 @@ let clipboard_command ~command = function
 
 type text_edit = { mutable text : string; mutable caret : int; mutable anchor : int }
 
+(* A text starts being edited: the caret at its end, the selection from [anchor], and nothing of
+   the text edited before it (scroll, undo stacks, a double click's selection unit). *)
+let reset_edit ui key text ~anchor =
+  ui.edit_focus <- key; ui.edit_value <- text;
+  ui.edit_caret <- String.length text; ui.edit_anchor <- anchor;
+  ui.edit_scroll_x <- 0.;
+  ui.edit_undo <- []; ui.edit_redo <- []; ui.edit_group <- -1; ui.edit_unit <- None
+
 let load_text_edit ui key text =
-  if ui.edit_focus <> key || ui.edit_value <> text then begin
-    ui.edit_focus <- key; ui.edit_value <- text;
-    ui.edit_caret <- String.length text; ui.edit_anchor <- ui.edit_caret;
-    ui.edit_scroll_x <- 0.;
-    ui.edit_undo <- []; ui.edit_redo <- []; ui.edit_group <- -1; ui.edit_unit <- None
-  end;
+  if ui.edit_focus <> key || ui.edit_value <> text then
+    reset_edit ui key text ~anchor:(String.length text);
   { text; caret = ui.edit_caret; anchor = ui.edit_anchor }
 
 let save_text_edit ui edit =
@@ -2915,9 +2919,7 @@ let rec numeric_editor ?size ?control ?(click_to_edit = false)
         let text = current () in
         set text ~valid:true;
         focus ui row;
-        ui.edit_focus <- row.box_key; ui.edit_value <- text;
-        ui.edit_caret <- String.length text; ui.edit_anchor <- 0;
-        ui.edit_scroll_x <- 0.;
+        reset_edit ui row.box_key text ~anchor:0;
         let rec after_enter = function
           | event :: rest when enter event -> rest
           | _ :: rest -> after_enter rest | [] -> [] in
