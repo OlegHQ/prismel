@@ -4,10 +4,10 @@ type geometry=
   |Motion_triangles of{keyframes:buffer_range list;vertex_stride:int;vertex_count:int}
   |Bounding_boxes of{boxes:buffer_range list;stride:int;count:int}
   |Curves of{control_points:buffer_range list;control_stride:int;control_point_count:int;radii:buffer_range list;radius_stride:int;indices:buffer_range;segment_count:int;control_points_per_segment:int}
-type instance_kind=Default_instances|User_id_instances|Motion_instances
+type instance_kind=User_id_instances|Motion_instances
 type descriptor=
-  |Blas of{geometries:geometry array;allow_refit:bool;motion_keyframes:int option}
-  |Tlas of{instances:buffer_range;instance_stride:int;instance_count:int;instance_kind:instance_kind;structures:unit Handle.t list;allow_refit:bool}
+  |Blas of{geometries:geometry array;motion_keyframes:int option}
+  |Tlas of{instances:buffer_range;instance_stride:int;instance_count:int;instance_kind:instance_kind;structures:unit Handle.t list}
   |Sized of{size:int64;template:unit Handle.t}
 type state=Empty|Built|Compacted
 type t={handle:unit Handle.t;descriptor:descriptor;mutable state:state}
@@ -44,7 +44,7 @@ let validate_descriptor device=function
       invalid"Ogpu.Acceleration.create""BLAS geometries must all be one kind (triangles, bounding boxes, or curves)"
   |Blas{geometries;motion_keyframes;_}->Array.fold_left(fun result geometry->Result.bind result(fun()->validate_geometry device ~motion:motion_keyframes geometry))(Ok())geometries
   |Tlas{instances;instance_stride;instance_count;instance_kind;structures;_}->
-      let minimum_stride=match instance_kind with Default_instances->64|User_id_instances->68|Motion_instances->44 in
+      let minimum_stride=match instance_kind with User_id_instances->68|Motion_instances->44 in
       if instance_count<=0||instance_stride<minimum_stride||instance_stride mod 4<>0 then invalid"Ogpu.Acceleration.create""instance cardinality/stride is invalid"
       else if structures=[]then invalid"Ogpu.Acceleration.create""TLAS references no structures"
       else Result.bind(validate_range device instances)(fun()->List.fold_left(fun result handle->Result.bind result(fun()->Handle.validate_for ~operation:"Ogpu.Acceleration.create"device handle))(Ok())structures)

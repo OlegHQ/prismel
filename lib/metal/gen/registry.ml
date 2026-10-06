@@ -227,12 +227,7 @@ let entries : entry list =
         ]
       ; feature = Ogpu_core.Caps.Buffer
       }
-  ; Record
-      { sdk = "MTLSize"
-      ; ocaml = "Mtl_size"
-      ; fields = [ "width", Nsuint; "height", Nsuint; "depth", Nsuint ]
-      ; feature = Ogpu_core.Caps.Compute_pipeline
-      }
+
   ; Record
       { sdk = "MTLViewport"
       ; ocaml = "Mtl_viewport"
@@ -305,12 +300,7 @@ let entries : entry list =
              ; access = Get; ocaml = "device_supports_dynamic_libraries"; since = None; feature = C.Buffer }
   ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsFunctionPointers"; ty = Scalar Bool
              ; access = Get; ocaml = "device_supports_function_pointers"; since = None; feature = C.Function_tables }
-  ; Property { recv = "Device"; objc = "id<MTLDevice>"; name = "supportsFunctionPointersFromRender"; ty = Scalar Bool
-             ; access = Get; ocaml = "device_supports_function_pointers_from_render"; since = None
-             ; feature = C.Function_tables }
-  ; Method { recv = "Device"; objc = "id<MTLDevice>"; sel = "supportsVertexAmplificationCount:"; args = [ Scalar Nsuint ]
-           ; ret = Some (Scalar Bool); error = false; ocaml = "device_supports_vertex_amplification_count"; since = None
-           ; feature = C.Render_pipeline ; pool = true }
+
   ; Method { recv = "Device"; objc = "id<MTLDevice>"; sel = "supportsTextureSampleCount:"; args = [ Scalar Nsuint ]
            ; ret = Some (Scalar Bool); error = false; ocaml = "device_supports_texture_sample_count"; since = None
            ; feature = C.Texture ; pool = true }
@@ -381,14 +371,7 @@ let entries : entry list =
   ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setFragmentSamplerState:atIndex:"
            ; args = [ Obj "Sampler"; Scalar Nsuint ]; ret = None; error = false
            ; ocaml = "render_encoder_set_fragment_sampler"; since = None; feature = C.Sampler ; pool = true }
-  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
-           ; sel = "setVertexSamplerState:lodMinClamp:lodMaxClamp:atIndex:"
-           ; args = [ Obj "Sampler"; Scalar Float; Scalar Float; Scalar Nsuint ]; ret = None; error = false
-           ; ocaml = "render_encoder_set_vertex_sampler_lod"; since = None; feature = C.Sampler ; pool = true }
-  ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"
-           ; sel = "setFragmentSamplerState:lodMinClamp:lodMaxClamp:atIndex:"
-           ; args = [ Obj "Sampler"; Scalar Float; Scalar Float; Scalar Nsuint ]; ret = None; error = false
-           ; ocaml = "render_encoder_set_fragment_sampler_lod"; since = None; feature = C.Sampler ; pool = true }
+
   ; Method { recv = "Render_encoder"; objc = "id<MTLRenderCommandEncoder>"; sel = "setDepthStencilState:"
            ; args = [ Opt_obj "Depth_stencil" ]; ret = None; error = false; ocaml = "render_depth_stencil"
            ; since = None; feature = C.Render_pipeline ; pool = true }
@@ -477,8 +460,6 @@ let entries : entry list =
   ; Property { recv = "Function"; objc = "id<MTLFunction>"; name = "name"; ty = Str; access = Get; ocaml = "function_name"; since = None; feature = C.Compute_pipeline }
   ; Property { recv = "Function"; objc = "id<MTLFunction>"; name = "functionType"; ty = Enum_of "MTLFunctionType"; access = Get; ocaml = "function_kind"; since = None; feature = C.Compute_pipeline }
   ; Native { ocaml = "function_specialize"; signature = "handle ->\n  string ->\n    function_constant_value array -> string option -> (handle, string) result"; primitives = [ "caml_rays_metal_function_specialize" ]; reason = "array/aggregate marshalling and native validation" }
-
-  ; Property { recv = "Dynamic_library"; objc = "id<MTLDynamicLibrary>"; name = "installName"; ty = Str; access = Get; ocaml = "dynamic_library_install_name"; since = None; feature = C.Buffer }
 
   ; Native { ocaml = "compiler_create"; signature = "handle -> handle option -> string option -> (handle, string) result"; primitives = [ "caml_rays_metal_compiler_create" ]; reason = "descriptor construction and checked object graphs" }
   ; Native { ocaml = "compiler_create_render_pipeline"; signature = "handle ->\n  metal4_render_descriptor ->\n    ((handle * render_pipeline_reflection), string) result"; primitives = [ "caml_rays_metal_compiler_create_render_pipeline" ]; reason = "descriptor construction and checked object graphs" }

@@ -6,10 +6,10 @@ let run () =
   let range={Ogpu.Acceleration.buffer;buffer_size=4096L;offset=0L;length=1024L}in
   let curves per_segment=Ogpu.Acceleration.Curves{control_points=[range];control_stride=12;control_point_count=4;radii=[range];radius_stride=4;indices=range;segment_count=1;control_points_per_segment=per_segment}in
   (* One BLAS holds one geometry kind: Metal rejects a mix at sizing. *)
-  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Bounding_boxes{boxes=[range];stride=24;count=1};curves 4|];allow_refit=false;motion_keyframes=None}));
-  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Bounding_boxes{boxes=[range];stride=24;count=1};Bounding_boxes{boxes=[range];stride=24;count=2}|];allow_refit=false;motion_keyframes=None})));
-  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|curves 4|];allow_refit=false;motion_keyframes=None})));
-  let descriptor=Ogpu.Acceleration.Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Triangles{vertices=range;vertex_stride=12;vertex_count=6}|];allow_refit=true;motion_keyframes=None}in
+  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Bounding_boxes{boxes=[range];stride=24;count=1};curves 4|];motion_keyframes=None}));
+  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Bounding_boxes{boxes=[range];stride=24;count=1};Bounding_boxes{boxes=[range];stride=24;count=2}|];motion_keyframes=None})));
+  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|curves 4|];motion_keyframes=None})));
+  let descriptor=Ogpu.Acceleration.Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3};Triangles{vertices=range;vertex_stride=12;vertex_count=6}|];motion_keyframes=None}in
   expect Ogpu.Error.Unsupported(Ogpu.Acceleration.create d1 ~ray_tracing:false descriptor);
   let value=ok(Ogpu.Acceleration.create d1 ~ray_tracing:true descriptor)in
   ok(Ogpu.Acceleration.build d1 value);expect Ogpu.Error.Cross_device(Ogpu.Acceleration.compacted_size d2 value);
@@ -20,17 +20,17 @@ let run () =
   expect Ogpu.Error.Invalid_state(Ogpu.Acceleration.compact_into d1 ~source:value ~destination:sized);
   expect Ogpu.Error.Invalid_state(Ogpu.Acceleration.compacted_size d1 sized);
   (* Motion: every keyframed range must match the keyframe count. *)
-  let motion=Ogpu.Acceleration.Blas{geometries=[|Motion_triangles{keyframes=[range;range];vertex_stride=12;vertex_count=3}|];allow_refit=false;motion_keyframes=Some 2}in
+  let motion=Ogpu.Acceleration.Blas{geometries=[|Motion_triangles{keyframes=[range;range];vertex_stride=12;vertex_count=3}|];motion_keyframes=Some 2}in
   ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true motion));
-  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Motion_triangles{keyframes=[range];vertex_stride=12;vertex_count=3}|];allow_refit=false;motion_keyframes=Some 2}));
-  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3}|];allow_refit=false;motion_keyframes=Some 2}));
-  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|curves 5|];allow_refit=false;motion_keyframes=None}));
-  let invalid_ranges=[{range with offset=(-1L)};{range with offset=2L};{range with offset=4000L;length=128L}]in List.iter(fun vertices->expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Triangles{vertices;vertex_stride=12;vertex_count=3}|];allow_refit=false;motion_keyframes=None})))invalid_ranges;
-  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=63;instance_count=1;instance_kind=Default_instances;structures=[Ogpu.Acceleration.handle value];allow_refit=false}));
-  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=68;instance_count=1;instance_kind=User_id_instances;structures=[Ogpu.Acceleration.handle value];allow_refit=false})));
+  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Motion_triangles{keyframes=[range];vertex_stride=12;vertex_count=3}|];motion_keyframes=Some 2}));
+  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Triangles{vertices=range;vertex_stride=12;vertex_count=3}|];motion_keyframes=Some 2}));
+  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|curves 5|];motion_keyframes=None}));
+  let invalid_ranges=[{range with offset=(-1L)};{range with offset=2L};{range with offset=4000L;length=128L}]in List.iter(fun vertices->expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Blas{geometries=[|Triangles{vertices;vertex_stride=12;vertex_count=3}|];motion_keyframes=None})))invalid_ranges;
+  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=67;instance_count=1;instance_kind=User_id_instances;structures=[Ogpu.Acceleration.handle value]}));
+  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=68;instance_count=1;instance_kind=User_id_instances;structures=[Ogpu.Acceleration.handle value]})));
   (* Each instance kind has its own minimum record size: 44-byte motion records are valid, user-id records need 68. *)
-  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=44;instance_count=1;instance_kind=Motion_instances;structures=[Ogpu.Acceleration.handle value];allow_refit=false})));
-  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=64;instance_count=1;instance_kind=User_id_instances;structures=[Ogpu.Acceleration.handle value];allow_refit=false}));
+  ignore(ok(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=44;instance_count=1;instance_kind=Motion_instances;structures=[Ogpu.Acceleration.handle value]})));
+  expect Ogpu.Error.Invalid_argument(Ogpu.Acceleration.create d1 ~ray_tracing:true(Tlas{instances=range;instance_stride=64;instance_count=1;instance_kind=User_id_instances;structures=[Ogpu.Acceleration.handle value]}));
   (* Packing follows the driver layout exactly. *)
   let layout=[|68;0;48;52;56;60;64;-1;-1;-1;-1;-1;-1|]in
   let packed=Ogpu.Acceleration.pack_instances layout[|[|1.;0.;0.;5.;0.;1.;0.;6.;0.;0.;1.;7.|],0xff,2,3,9|]in

@@ -11,11 +11,11 @@ type geometry =
   | Curves of { control_points:buffer_range list; control_stride:int; control_point_count:int
               ; radii:buffer_range list; radius_stride:int; indices:buffer_range
               ; segment_count:int; control_points_per_segment:int }
-type instance_kind = Default_instances | User_id_instances | Motion_instances
+type instance_kind = User_id_instances | Motion_instances
 type descriptor =
-  | Blas of { geometries:geometry array; allow_refit:bool; motion_keyframes:int option }
+  | Blas of { geometries:geometry array; motion_keyframes:int option }
   | Tlas of { instances:buffer_range; instance_stride:int; instance_count:int
-            ; instance_kind:instance_kind; structures:unit Handle.t list; allow_refit:bool }
+            ; instance_kind:instance_kind; structures:unit Handle.t list }
   | Sized of { size:int64; template:unit Handle.t }
 type t
 val create : Handle.device -> ray_tracing:bool -> descriptor -> (t,Error.t) result

@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 156,
+  "module_count": 155,
   "modules": [
     {
       "api": [
@@ -1651,43 +1651,6 @@
       "library": "rays",
       "module": "Easy_camera",
       "source": "lib/rays/easy_camera.mli"
-    },
-    {
-      "api": [
-        "type t",
-        "val create : ? center : Vec2.t -> ? zoom : float -> ? rotation : float -> ? enabled : bool -> ? viewport : ( int * int * int * int ) -> ? control_area : ( int * int * int * int ) -> ? inertia : bool -> ? drag_coefficient : float -> ? pan_sensitivity : float -> ? zoom_sensitivity : float -> ? translation_key : Input.key -> unit -> t",
-        "val update : t -> Frame.t -> t",
-        "val center : t -> Vec2.t",
-        "val zoom : t -> float",
-        "val rotation : t -> float",
-        "val enabled : t -> bool",
-        "val viewport : t -> ( int * int * int * int ) option",
-        "val control_area : t -> ( int * int * int * int ) option",
-        "val inertia : t -> bool",
-        "val drag_coefficient : t -> float",
-        "val pan_sensitivity : t -> float",
-        "val zoom_sensitivity : t -> float",
-        "val with_center : Vec2.t -> t -> t",
-        "val with_zoom : float -> t -> t",
-        "val with_rotation : float -> t -> t",
-        "val set_enabled : bool -> t -> t",
-        "val with_viewport : ( int * int * int * int ) option -> t -> t",
-        "val with_control_area : ( int * int * int * int ) option -> t -> t",
-        "val with_inertia : bool -> t -> t",
-        "val with_drag_coefficient : float -> t -> t",
-        "val with_pan_sensitivity : float -> t -> t",
-        "val with_zoom_sensitivity : float -> t -> t",
-        "val with_translation_key : Input.key option -> t -> t",
-        "val reset : t -> t",
-        "val world_to_screen : viewport : ( int * int * int * int ) -> t -> Vec2.t -> Vec2.t",
-        "val screen_to_world : viewport : ( int * int * int * int ) -> t -> Vec2.t -> Vec2.t",
-        "val scene : ? viewport : ( int * int * int * int ) -> ? pixel_scale : float -> t -> Scene.t -> Scene.t"
-      ],
-      "api_sha256": "0d9761ec98c20648c863d006e8b254a151313338360b12052d75e69f3f1680e8",
-      "excluded_legacy_symbols": [],
-      "library": "rays",
-      "module": "Easy_camera2",
-      "source": "lib/rays/easy_camera2.mli"
     },
     {
       "api": [

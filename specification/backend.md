@@ -124,14 +124,14 @@ The dependency-free `param` library owns typed parameter schemas
 `Pxui_shell.Inspector` renders SOP nodes and plain sketch records alike
 without the geometry stack. The `editor_core` library owns bounded,
 labelled undo history with explicit edit merge rules, named commands, key
-routing, and atomic file storage (user preferences are JSON; documents are
-s-expressions). Sketch hosts use
+routing, and atomic file storage (user preferences and documents are
+s-expressions printed by `Flow.Lisp`). Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
 the router filters fly-mode keyboard events before leader and chord routing,
 while passing Space through to arm the leader after fly exits.
 `flow` supplies the expression/value model, diagnostics and the workspace language
 (reader, checker, evaluator) over `param`. `ppx_rays` depends on `flow` for
-declaration checks only (its `[%flow]` rewriter was deleted in W12; no gate edge changed).
+declaration checks only.
 `flow_sop` depends on `flow`, `param` and `procedural` for the SOP overlay, value
 lane, lowering, edits, projection and probes. The editor runs
 the value lane on its initial domain before cook submissions and retains
@@ -154,7 +154,6 @@ supplies commands, playback state, and preset data. The one private
 `editor_document` library contains Document, Settings, Objects, Layers and
 Preset. Its package-private status and dependency gate enforce a transitive
 ban on PXUI, shell, graph presentation, sketch_support and rays_editor.
-`Network_view` remains the host's graph-presentation adapter.
 Loaded documents validate before installation and current levels resolve
 after load, undo, and removal. The host reduces stable-ID pane edits after UI
 construction and records every edit path through its commit helper.
@@ -217,7 +216,7 @@ with typed `Unsupported`.
 
 Ray tracing: geometry variants are `Triangles`, `Motion_triangles` (one vertex
 buffer per keyframe), `Bounding_boxes`, and `Curves`; descriptors are `Blas`,
-`Motion_blas`, `Tlas`, `Tlas_of` with an `instance_kind` (user-id or motion
+`Motion_blas`, `Tlas_of` with an `instance_kind` (user-id or motion
 records packed by `pack_instance_records`/`pack_motion_instances` through the
 driver's `instance_layout`, plus a keyframe transform buffer packed by
 `pack_transforms`), and `Sized` structures that `compact_accel` fills after
@@ -230,6 +229,13 @@ a dispatch (Metal `useResource:usage:`; they are otherwise evicted over time).
 `Caps` is the live set: `Compute_pipeline`, `Render_pipeline`, `Ray_tracing`,
 `Function_tables`, and `Ray_tracing_curves` (Metal: Apple9 and later; the M1
 answers curves with typed `Unsupported`).
+A colour attachment's `store` is honoured: `Store` keeps the contents (and
+also resolves when a resolve texture is given), `Resolve` writes only the
+resolve texture, `Discard` keeps nothing and is rejected with a resolve
+texture; conformance resolves a stored multisample pass again from a `Load`
+pass. `render_descriptor.depth_format` is portable description only: Metal 4
+pipelines are not specialized on the depth format, so the Metal driver does
+not read it.
 
 Removed with their Metal bindings, mock arms, conformance cases, and
 capability flags, because no product code called them: placement heaps and

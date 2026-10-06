@@ -406,8 +406,7 @@ let create () =
             let layout =
               Metal.Acceleration_structure.Build.instance_layout
                 (match kind with
-                 | Ogpu_core.Backend.Default_instances -> Metal.Acceleration_structure.Build.Default_instances
-                 | User_id_instances -> User_id_instances
+                 | Ogpu_core.Backend.User_id_instances -> Metal.Acceleration_structure.Build.User_id_instances
                  | Motion_instances -> Motion_instances)
             in
             [| layout.size; layout.transform; layout.options; layout.mask; layout.table_offset
@@ -1077,18 +1076,19 @@ let create () =
                                             Metal.Render_pass_descriptor.set_color_load_action pass
                                               (load color.color_load)
                                           in
+                                          let keep = color.color_store = Ogpu_core.Render_pass.Store in
                                           let* () =
                                             match resolve with
                                             | None ->
                                                 Metal.Render_pass_descriptor.set_color_store_action
-                                                  pass ~resolve:false
+                                                  pass ~store:keep ~resolve:false
                                             | Some resolve ->
                                                 let* () =
                                                   Metal.Render_pass_descriptor.set_resolve_texture
                                                     pass (Some (Texture.Private.metal resolve))
                                                 in
                                                 Metal.Render_pass_descriptor.set_color_store_action
-                                                  pass ~resolve:true
+                                                  pass ~store:keep ~resolve:true
                                           in
                                           let depth_actions =
                                             match target.target_depth with

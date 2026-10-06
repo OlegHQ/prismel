@@ -5,7 +5,7 @@
   path parallel texture input event input_state frame time clipboard image
   canvas canvas_runtime font audio mesh camera easy_camera shadow3
   scene3 scene3_native_lowering
-  scene native_scene_lowering ink sketch easy_camera2 world)
+  scene native_scene_lowering ink sketch world)
  (private_modules input_state time canvas_runtime scene3_native_lowering native_scene_lowering)
  (libraries rays_math domainslib lru runtime_resources runtime_input runtime scene_command unix
   rays_execution))

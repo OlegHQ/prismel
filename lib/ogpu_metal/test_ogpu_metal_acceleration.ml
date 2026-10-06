@@ -15,9 +15,9 @@ let run () =
   let create descriptor=Acceleration.create device descriptor~resolve_buffer~resolve_structure in
   let triangles=Ogpu.Backend.Driver_triangles{vertices=1L;offset=0L;length=36L;vertex_stride=12;vertex_count=3}in
   if(Device.capabilities device).Ogpu.Caps.ray_tracing then begin
-    let structure=get(create(Driver_blas{geometries=[|triangles|];allow_refit=true;motion=None}))in
+    let structure=get(create(Driver_blas{geometries=[|triangles|];motion=None}))in
     Hashtbl.add structures 10L structure;
-    expect Ogpu.Error.Invalid_argument(create(Driver_blas{geometries=[|Driver_triangles{vertices=1L;offset=0L;length=36L;vertex_stride=12;vertex_count=6}|];allow_refit=false;motion=None}));
+    expect Ogpu.Error.Invalid_argument(create(Driver_blas{geometries=[|Driver_triangles{vertices=1L;offset=0L;length=36L;vertex_stride=12;vertex_count=6}|];motion=None}));
     let scratch=get(Buffer.create device~memory:Buffer.Device_local{Ogpu.Types.size=1048576L;usage=[Storage];label=Some"scratch"})in
     let queue=get(Queue.create device)in
     let commands=get_metal(Metal.Command_buffer.create(Queue.Private.metal queue)())in
@@ -27,9 +27,9 @@ let run () =
     let instances=get(Buffer.create device~memory:Buffer.Shared{Ogpu.Types.size=68L;usage=[Storage];label=Some"instances"})in
     Hashtbl.add buffers 2L instances;
     get(Buffer.write_bytes device instances~dst_offset:0L(Ogpu.Acceleration.pack_instances[|68;0;48;52;56;60;64;-1;-1;-1;-1;-1;-1|][|[|1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.;0.|],0xFFFF_FFFF,0,0,7|]));
-    let top=get(create(Driver_tlas{instances=2L;offset=0L;instance_count=1;kind=User_id_instances;structures=[|10L|];allow_refit=true;motion_transforms=None}))in
+    let top=get(create(Driver_tlas{instances=2L;offset=0L;instance_count=1;kind=User_id_instances;structures=[|10L|];motion_transforms=None}))in
     Hashtbl.add structures 11L top;
-    expect Ogpu.Error.Invalid_argument(create(Driver_tlas{instances=2L;offset=0L;instance_count=1;kind=Default_instances;structures=[|11L|];allow_refit=false;motion_transforms=None}));
+    expect Ogpu.Error.Invalid_argument(create(Driver_tlas{instances=2L;offset=0L;instance_count=1;kind=User_id_instances;structures=[|11L|];motion_transforms=None}));
     get(Acceleration.encode_build encoder device top~scratch~scratch_offset:0L);
     let sized=get(create(Driver_sized{size=(Acceleration.sizes structure).acceleration_structure_size;template=10L}))in
     expect Ogpu.Error.Invalid_state(Acceleration.encode_build encoder device sized~scratch~scratch_offset:0L);
@@ -41,7 +41,7 @@ let run () =
     get(Acceleration.destroy sized);get(Acceleration.destroy top);get(Acceleration.destroy structure);
     get(Buffer.destroy instances);get(Buffer.destroy scratch);get(Queue.destroy queue)
   end else begin
-    expect Ogpu.Error.Unsupported(create(Driver_blas{geometries=[|triangles|];allow_refit=true;motion=None}))
+    expect Ogpu.Error.Unsupported(create(Driver_blas{geometries=[|triangles|];motion=None}))
   end;
   get(Buffer.destroy vertices);get(Device.destroy device);get(Device.destroy other);ignore(get_metal(Metal.Release_queue.drain()));
   let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-2 then failwith"acceleration live-handle delta";

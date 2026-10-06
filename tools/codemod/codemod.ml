@@ -11,10 +11,18 @@
      by a unit under DIR that no implementation reads; --apply removes it
      and its [field = e] in every record literal. --skip keeps a field that
      is unread on purpose.
+   dead-types DIR...
+     Prints "file.mli<TAB>Path.type" for every exported type that no
+     implementation or interface names (report only).
    dead-optionals [--users-exclude SUBSTR]... DIR...
      Prints "file.mli<TAB>Path.name<TAB>?label" for every optional parameter
      of an exported value that no application passes (report only).
-   drop-vals FILE.mli NAME...     Remove [val]/[external] items (with docs).
+   drop-optionals [--users-exclude SUBSTR]... DIR...
+     Removes those parameters: the signature loses them and the function
+     binds the default in its body.
+   drop-vals FILE.mli NAME...     Remove [val]/[external] items (with docs);
+                                  "module:Path" a submodule, "type:Path.t" a
+                                  type declared on its own.
    drop-unused < build-log        Remove the let bindings named by warning 32
                                   (unused value) in a dune build log.
    rename [--dry-run] OLD NEW     Rename the project: old/Old/OLD become
@@ -280,6 +288,9 @@ let drop_vals path names =
     | Psig_value vd when List.mem (prefix ^ vd.pval_name.txt) names ->
         found := (prefix ^ vd.pval_name.txt) :: !found;
         ranges := range src item.psig_loc vd.pval_attributes :: !ranges
+    | Psig_type (_, [ td ]) when List.mem ("type:" ^ prefix ^ td.ptype_name.txt) names ->
+        found := ("type:" ^ prefix ^ td.ptype_name.txt) :: !found;
+        ranges := range src item.psig_loc td.ptype_attributes :: !ranges
     | Psig_module { pmd_name = { txt = Some m; _ }; pmd_attributes; _ } when dead_module prefix m ->
         ranges := range src item.psig_loc pmd_attributes :: !ranges
     | Psig_module { pmd_name = { txt = Some m; _ }; pmd_type = { pmty_desc = Pmty_signature s; _ }; _ } ->
@@ -889,7 +900,165 @@ let dead_optionals ~excludes dirs =
             | _ -> ()) items in
           scan "" shape sg.sig_type
       | _ -> ()) infos;
-  List.iter (fun (f, n, l) -> Printf.printf "%s\t%s\t?%s\n" f n l) (List.sort_uniq compare !results)
+  let results = List.sort_uniq compare !results in
+  List.iter (fun (f, n, l) -> Printf.printf "%s\t%s\t?%s\n" f n l) results;
+  results
+
+(* drop-optionals: each parameter [dead_optionals] lists leaves the
+   signature, and the function binds its default instead ([?(x = d)] becomes
+   [let x = (d) in], [?x] becomes [let x = None in]), so behaviour is the
+   same and what the constant makes dead is then ordinary unused code. A
+   function whose body is a [function] match is printed and left alone. *)
+let drop_optionals ~excludes dirs =
+  let by_file = Hashtbl.create 16 in
+  List.iter (fun (mli, name, label) -> Hashtbl.replace by_file mli
+    ((name, label) :: Option.value (Hashtbl.find_opt by_file mli) ~default:[]))
+    (dead_optionals ~excludes dirs);
+  Hashtbl.iter (fun mli wanted ->
+    let ml = Filename.chop_suffix mli ".mli" ^ ".ml" in
+    let labels path = List.filter_map (fun (n, l) -> if n = path then Some l else None) wanted in
+    (* interface: cut [?l:ty ->] out of the arrow chain *)
+    let src, sg = parse_with Parse.interface mli in
+    let ranges = ref [] in
+    let rec arrows dead (t : Parsetree.core_type) = match t.ptyp_desc with
+      | Ptyp_arrow (label, _, rest) ->
+          (match label with
+           | Optional l when List.mem l dead ->
+               ranges := (t.ptyp_loc.loc_start.pos_cnum, rest.ptyp_loc.loc_start.pos_cnum) :: !ranges
+           | _ -> ());
+          arrows dead rest
+      | Ptyp_poly (_, t) -> arrows dead t
+      | _ -> () in
+    let rec signature prefix items = List.iter (fun (item : Parsetree.signature_item) ->
+      match item.psig_desc with
+      | Psig_value vd -> (match labels (prefix ^ vd.pval_name.txt) with
+          | [] -> () | dead -> arrows dead vd.pval_type)
+      | Psig_module md -> declaration prefix md
+      | Psig_recmodule mds -> List.iter (declaration prefix) mds
+      | _ -> ()) items
+    and declaration prefix (md : Parsetree.module_declaration) =
+      match md.pmd_name.txt, md.pmd_type.pmty_desc with
+      | Some m, Pmty_signature s -> signature (prefix ^ m ^ ".") s
+      | _ -> () in
+    signature "" sg;
+    if !ranges <> [] then remove_ranges mli src !ranges;
+    (* implementation: the parameter goes, its default is bound in the body *)
+    let src, str = parse_with Parse.implementation ml in
+    let ranges = ref [] and subst = ref [] in
+    let text (loc : Location.t) = String.sub src loc.loc_start.pos_cnum (loc.loc_end.pos_cnum - loc.loc_start.pos_cnum) in
+    let binding path (vb : Parsetree.value_binding) dead =
+      match vb.pvb_expr.pexp_desc with
+      | Pexp_function (params, _, Pfunction_body body) ->
+          List.iter (fun (p : Parsetree.function_param) -> match p.pparam_desc with
+            | Pparam_val (Optional l, default, pat) when List.mem l dead ->
+                let n = String.length src in
+                let rec fwd i = if i < n && src.[i] = ' ' then fwd (i + 1) else i in
+                ranges := (p.pparam_loc.loc_start.pos_cnum, fwd p.pparam_loc.loc_end.pos_cnum) :: !ranges;
+                let value = match default with Some d -> "(" ^ text d.pexp_loc ^ ")" | None -> "None" in
+                let at = body.pexp_loc.loc_start.pos_cnum in
+                subst := (at, at, Printf.sprintf "let %s = %s in " (text pat.ppat_loc) value) :: !subst
+            | _ -> ()) params
+      | _ -> Printf.printf "  left %s %s: not a plain function\n" ml path in
+    let rec structure prefix items = List.iter (fun (item : Parsetree.structure_item) ->
+      match item.pstr_desc with
+      | Pstr_value (_, vbs) -> List.iter (fun (vb : Parsetree.value_binding) ->
+          match vb.pvb_pat.ppat_desc with
+          | Ppat_var v | Ppat_constraint ({ ppat_desc = Ppat_var v; _ }, _) ->
+              (match labels (prefix ^ v.txt) with [] -> () | dead -> binding (prefix ^ v.txt) vb dead)
+          | _ -> ()) vbs
+      | Pstr_module mb -> module_binding prefix mb
+      | Pstr_recmodule mbs -> List.iter (module_binding prefix) mbs
+      | _ -> ()) items
+    and module_binding prefix (mb : Parsetree.module_binding) =
+      let rec body (me : Parsetree.module_expr) = match me.pmod_desc with
+        | Pmod_structure s -> Option.iter (fun m -> structure (prefix ^ m ^ ".") s) mb.pmb_name.txt
+        | Pmod_constraint (me, _) -> body me
+        | _ -> () in
+      body mb.pmb_expr in
+    structure "" str;
+    if !ranges <> [] || !subst <> [] then remove_ranges ~subst:!subst ml src !ranges) by_file
+
+(* ---------- dead-types: exported types nothing names ---------- *)
+
+(* Prints "file.mli<TAB>Path.type" for every type declared in an interface
+   under [dirs] that no implementation and no interface names (its own
+   declarations apart). A type exported from an .mli never gets the compiler's
+   unused-type warning; delete the listed ones from the .mli by hand and
+   [prune] takes the implementation. Types that only each other name show up
+   round by round. Report only. *)
+let dead_types dirs =
+  let files = ref [] in
+  walk "_build/default" (fun p ->
+    if Filename.check_suffix p ".cmt" || Filename.check_suffix p ".cmti" then files := p :: !files);
+  let infos = List.filter_map (fun p -> match Cmt_format.read_cmt p with
+    | i -> Some (p, i) | exception _ -> None) !files in
+  let shapes = Hashtbl.create 4096 in
+  List.iter (fun (p, (i : Cmt_format.cmt_infos)) -> if Filename.check_suffix p ".cmt" then
+    Option.iter (Hashtbl.replace shapes i.cmt_modname) i.cmt_impl_shape) infos;
+  let named : (Shape.Uid.t, unit) Hashtbl.t = Hashtbl.create 65536 in
+  List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
+    let module R = Shape_reduce.Make (struct
+      let fuel = 10
+      let read_unit_shape ~unit_name = Hashtbl.find_opt shapes unit_name
+    end) in
+    let rec uids depth (r : Shape_reduce.result) = match r with
+      | Resolved u | Approximated (Some u) -> [u]
+      | Resolved_alias (u, r) -> u :: uids depth r
+      | Unresolved s when depth = 0 -> uids 1 (R.reduce_for_uid Env.empty s)
+      | _ -> [] in
+    List.iter (fun (_, r) -> List.iter (fun u -> Hashtbl.replace named u ()) (uids 0 r))
+      i.cmt_ident_occurrences) infos;
+  let under file = List.exists (fun d ->
+    String.starts_with ~prefix:(if Filename.check_suffix d "/" then d else d ^ "/") file) dirs in
+  (* a type is named through itself, a constructor or a field, as declared
+     in the interface or in the implementation *)
+  let uses (decl : Types.type_declaration) =
+    Hashtbl.mem named decl.type_uid
+    || (match decl.type_kind with
+        | Type_variant (cds, _) -> List.exists (fun (cd : Types.constructor_declaration) ->
+            Hashtbl.mem named cd.cd_uid
+            || (match cd.cd_args with
+                | Cstr_record lds -> List.exists (fun (ld : Types.label_declaration) -> Hashtbl.mem named ld.ld_uid) lds
+                | _ -> false)) cds
+        | Type_record (lds, _) -> List.exists (fun (ld : Types.label_declaration) -> Hashtbl.mem named ld.ld_uid) lds
+        | _ -> false) in
+  let results = ref [] in
+  List.iter (fun (p, (i : Cmt_format.cmt_infos)) ->
+    let ml = source_file (Option.value i.cmt_sourcefile ~default:"") in
+    let cmti = Filename.remove_extension p ^ ".cmti" in
+    if Filename.check_suffix p ".cmt" && under ml && Sys.file_exists cmti then
+      match i.cmt_annots, (Cmt_format.read_cmt cmti).cmt_annots with
+      | Implementation tree, Interface sg ->
+          let mli = Filename.chop_suffix ml ".ml" ^ ".mli" in
+          let rec scan prefix impl items = List.iter (function
+            | Types.Sig_type (id, decl, _, _) ->
+                let in_impl = List.exists (function
+                  | Types.Sig_type (other, d, _, _) -> Ident.name other = Ident.name id && uses d
+                  | _ -> false) impl in
+                if not in_impl && not (uses decl) then
+                  results := (mli, prefix ^ Ident.name id) :: !results
+            | Sig_module (id, _, { md_type = Mty_signature items; _ }, _, _) ->
+                (match List.find_map (function
+                   | Types.Sig_module (other, _, { md_type = Mty_signature sub; _ }, _, _)
+                     when Ident.name other = Ident.name id -> Some sub
+                   | _ -> None) impl with
+                 | Some sub -> scan (prefix ^ Ident.name id ^ ".") sub items
+                 | None -> ())
+            | _ -> ()) items in
+          scan "" tree.str_type sg.sig_type
+      | _ -> ()) infos;
+  let results = List.sort_uniq compare !results in
+  List.iter (fun (f, n) -> Printf.printf "%s\t%s\n" f n) results;
+  results
+
+(* drop-types: the listed types leave their interfaces (one declared with
+   [and] stays and is reported); the build then says which were still needed,
+   and [prune] removes the implementation of the rest. *)
+let drop_types dirs =
+  let by_file = Hashtbl.create 8 in
+  List.iter (fun (f, n) -> Hashtbl.replace by_file f
+    (("type:" ^ n) :: Option.value (Hashtbl.find_opt by_file f) ~default:[])) (dead_types dirs);
+  Hashtbl.iter (fun f names -> if Sys.file_exists f then drop_vals f names) by_file
 
 (* ---------- cut-tests: a test that stops compiling goes ---------- *)
 
@@ -1174,8 +1343,12 @@ let () =
         | a :: r -> let k, r = skips r in k, a :: r | [] -> [], [] in
       let skip, args = skips (List.filter (( <> ) "--apply") args) in
       let excludes, _, dirs = split [] "" [] args in dead_fields ~apply ~excludes ~skip dirs
+  | "dead-types" :: dirs -> ignore (dead_types dirs)
+  | "drop-types" :: dirs -> drop_types dirs
   | "dead-optionals" :: args ->
-      let excludes, _, dirs = split [] "" [] args in dead_optionals ~excludes dirs
+      let excludes, _, dirs = split [] "" [] args in ignore (dead_optionals ~excludes dirs)
+  | "drop-optionals" :: args ->
+      let excludes, _, dirs = split [] "" [] args in drop_optionals ~excludes dirs
   | "dead-stubs" :: "--report" :: mm :: roots -> dead_stubs ~apply:false ~roots mm
   | "dead-stubs" :: mm :: roots -> dead_stubs ~roots mm
   | [ "drop-c-unused"; dir ] ->
@@ -1192,7 +1365,8 @@ let () =
   | _ ->
       prerr_endline "usage: codemod (dead-exports | prune [--users-exclude S] [--target ALIAS]) DIR...\n\
                     \       codemod dead-fields [--apply] [--users-exclude S] [--skip TYPE.FIELD] DIR...\n\
-                    \       codemod dead-optionals [--users-exclude S] DIR...\n\
+                    \       codemod (dead-types | drop-types) DIR...\n\
+                    \       codemod (dead-optionals | drop-optionals) [--users-exclude S] DIR...\n\
                     \       codemod drop-vals FILE.mli NAME... | drop-unused < log\n\
                     \       codemod dead-stubs [--report] BRIDGE.mm ROOT... | drop-c-unused DIR\n\
                     \       codemod result-bind FILE.ml | result-bind --self-test\n\

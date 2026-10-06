@@ -33,8 +33,14 @@ dune exec tools/codemod/codemod.exe -- prune lib/<name> [lib/<other> ...]
   literal (`--skip TYPE.FIELD` keeps one); then `prune` again. A record listed
   as `type.*` has every field unread: delete the type by hand.
 - `codemod.exe -- dead-optionals [--users-exclude S] DIR...` lists optional
-  parameters no application passes (report only; remove the parameter and its
-  plumbing by hand, outermost wrapper first).
+  parameters no application passes; `drop-optionals` removes them (the
+  signature loses the parameter, the body binds its default: `let x = (d) in`).
+  What the constant makes unreachable is then simplified by hand, outermost
+  wrapper first; rerun until the list is empty.
+- `codemod.exe -- dead-types DIR...` lists exported types that nothing names
+  (itself, a constructor or a field, in any interface or implementation);
+  `drop-types` removes them from the `.mli` and `prune` takes the rest. Loop
+  `prune` and `drop-types` until both are quiet.
 - `dead-exports` counts a unit passed to a functor or packed as a first-class
   module as used whole.
 - Metal: after pruning `lib/metal`, run

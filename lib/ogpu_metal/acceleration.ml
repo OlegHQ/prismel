@@ -19,7 +19,7 @@ let validate operation device value =
   else if Device.id device <> Device.id value.device then error operation Ogpu_core.Error.Cross_device "acceleration structure belongs to another device"
   else Ok ()
 
-let allocate operation device descriptor sizes ~allow_refit:_ ~buffers ~structures =
+let allocate operation device descriptor sizes ~buffers ~structures =
   match Metal.Acceleration_structure.create ~device:(Device.Private.metal device)
           ~size:sizes.Metal.Acceleration_structure.acceleration_structure_size with
   | Error metal -> Error (Device.of_metal_error ~operation metal)
@@ -85,7 +85,7 @@ let create device (descriptor : Ogpu_core.Backend.driver_accel_descriptor)
     let native = Device.Private.metal device in
     let sizes_of build = Result.map_error (Device.of_metal_error ~operation) (Build.sizes ~device:native build) in
     match descriptor with
-    | Driver_blas { geometries; allow_refit; motion } -> (
+    | Driver_blas { geometries; motion } -> (
         let rec convert acc buffers = function
           | [] -> Ok (List.rev acc, buffers)
           | geometry :: rest -> (
@@ -99,13 +99,13 @@ let create device (descriptor : Ogpu_core.Backend.driver_accel_descriptor)
               { keyframe_count = m.motion_keyframes; start_time = m.motion_start; end_time = m.motion_end
               ; start_border = (if m.motion_start_border = 0 then Build.Clamp else Build.Vanish)
               ; end_border = (if m.motion_end_border = 0 then Build.Clamp else Build.Vanish) }) motion in
-            match Build.primitive native ?motion ~usage:(if allow_refit then [ Build.Refit ] else []) geometries with
+            match Build.primitive native ?motion geometries with
             | Error metal -> Error (Device.of_metal_error ~operation metal)
             | Ok build -> (
                 match sizes_of build with
                 | Error _ as e -> ignore (Build.destroy build); e
-                | Ok sizes -> allocate operation device (Some build) sizes ~allow_refit ~buffers ~structures:[])))
-    | Driver_tlas { instances; offset; instance_count; kind; structures; allow_refit; motion_transforms } -> (
+                | Ok sizes -> allocate operation device (Some build) sizes ~buffers ~structures:[])))
+    | Driver_tlas { instances; offset; instance_count; kind; structures; motion_transforms } -> (
         match resolve_buffer instances with
         | Error _ as e -> e
         | Ok instances -> (
@@ -125,20 +125,18 @@ let create device (descriptor : Ogpu_core.Backend.driver_accel_descriptor)
                   | Error _ as e -> e
                   | Ok transforms -> (
                       let kind = match kind with
-                        | Ogpu_core.Backend.Default_instances -> Build.Default_instances
-                        | User_id_instances -> Build.User_id_instances
+                        | Ogpu_core.Backend.User_id_instances -> Build.User_id_instances
                         | Motion_instances -> Build.Motion_instances in
                       match Build.instances native ~buffer:(Buffer.Private.metal instances) ~offset
                               ~count:(Int64.of_int instance_count) ~kind
                               ?motion_transforms:(Option.map (fun ((b : Buffer.t), o, c) -> (Buffer.Private.metal b, o, Int64.of_int c)) transforms)
-                              ~usage:(if allow_refit then [ Build.Refit ] else [])
                               (Array.of_list (List.map (fun s -> s.metal) structures)) with
                       | Error metal -> Error (Device.of_metal_error ~operation metal)
                       | Ok build -> (
                           match sizes_of build with
                           | Error _ as e -> ignore (Build.destroy build); e
                           | Ok sizes ->
-                              allocate operation device (Some build) sizes ~allow_refit
+                              allocate operation device (Some build) sizes
                                 ~buffers:(instances :: Option.fold ~none:[] ~some:(fun (b, _, _) -> [ b ]) transforms)
                                 ~structures)))))
     | Driver_sized { size; template } -> (
@@ -148,7 +146,7 @@ let create device (descriptor : Ogpu_core.Backend.driver_accel_descriptor)
             if size <= 0L then error operation Ogpu_core.Error.Invalid_argument "structure size must be positive"
             else
               allocate operation device None
-                { template.sizes with acceleration_structure_size = size } ~allow_refit:false
+                { template.sizes with acceleration_structure_size = size }
                 ~buffers:template.buffers ~structures:template.structures)
 
 let sizes value = value.sizes

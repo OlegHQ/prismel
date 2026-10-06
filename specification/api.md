@@ -968,13 +968,6 @@ the last good document, shows the diagnostics in the Lisp panel's Document tab a
 later good text (also the last good one) reloads. The editor's own write updates the digest first, so it
 does not reload. There is no three-way merge and no file-system events (`ponytail:` polling).
 
-`Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
-viewports and gesture areas, world/screen conversion, captured pan, inertia,
-rotation, pointer-anchored zoom, and pure `Scene` composition. `Render2.save_png`
-preserves the logical camera framing at integer render factors through the
-checked Canvas/export boundary. Interactive presentation and capture use the
-native renderer.
-
 ### Boolean fracture pieces
 
 `Procedural.Sop.boolean_fracture` subtracts zero-volume cutter surfaces from an
