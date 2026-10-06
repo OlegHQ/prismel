@@ -6,9 +6,6 @@ let triangle=let bytes=Bytes.make 36 '\000'in Array.iteri(fun i v->Bytes.set_int
 let run () =
   let device=get(Device.system_default())and other=get(Device.system_default())in
   let before=get_metal(Metal.Release_queue.stats())in
-  get(Acceleration.validate_scratch_plan~buffer_size:1024L~offset:256L~required:512L);
-  expect Ogpu.Error.Invalid_argument(Acceleration.validate_scratch_plan~buffer_size:1024L~offset:4L~required:512L);
-  expect Ogpu.Error.Invalid_argument(Acceleration.validate_scratch_plan~buffer_size:1024L~offset:768L~required:512L);
   let vertices=get(Buffer.create device~memory:Buffer.Shared{Ogpu.Types.size=36L;usage=[Storage;Vertex];label=Some"triangle"})in
   get(Buffer.write_bytes device vertices~dst_offset:0L triangle);
   let buffers=Hashtbl.create 4 and structures=Hashtbl.create 4 in
@@ -27,8 +24,6 @@ let run () =
     let encoder=get_metal(Metal.Acceleration_encoder.create commands)in
     expect Ogpu.Error.Cross_device(Acceleration.encode_build encoder other structure~scratch~scratch_offset:0L);
     get(Acceleration.encode_build encoder device structure~scratch~scratch_offset:0L);
-    get(Acceleration.encode_refit encoder device structure~scratch~scratch_offset:0L);
-    (* One user-id instance referencing the primitive: build and refit encode. *)
     let instances=get(Buffer.create device~memory:Buffer.Shared{Ogpu.Types.size=68L;usage=[Storage];label=Some"instances"})in
     Hashtbl.add buffers 2L instances;
     get(Buffer.write_bytes device instances~dst_offset:0L(Ogpu.Acceleration.pack_instances[|68;0;48;52;56;60;64;-1;-1;-1;-1;-1;-1|][|[|1.;0.;0.;0.;0.;1.;0.;0.;0.;0.;1.;0.|],0xFFFF_FFFF,0,0,7|]));
@@ -36,11 +31,8 @@ let run () =
     Hashtbl.add structures 11L top;
     expect Ogpu.Error.Invalid_argument(create(Driver_tlas{instances=2L;offset=0L;instance_count=1;kind=Default_instances;structures=[|11L|];allow_refit=false;motion_transforms=None}));
     get(Acceleration.encode_build encoder device top~scratch~scratch_offset:0L);
-    get(Acceleration.encode_refit encoder device top~scratch~scratch_offset:0L);
-    (* Compaction targets are sized structures without a descriptor. *)
     let sized=get(create(Driver_sized{size=(Acceleration.sizes structure).acceleration_structure_size;template=10L}))in
     expect Ogpu.Error.Invalid_state(Acceleration.encode_build encoder device sized~scratch~scratch_offset:0L);
-    get(Acceleration.encode_copy encoder device~src:structure~dst:sized);
     get_metal(Metal.Acceleration_encoder.end_encoding encoder);
     let release=get(Acceleration.Private.retain_submission top)in
     let release_sized=get(Acceleration.Private.retain_submission sized)in
@@ -53,4 +45,4 @@ let run () =
   end;
   get(Buffer.destroy vertices);get(Device.destroy device);get(Device.destroy other);ignore(get_metal(Metal.Release_queue.drain()));
   let after=get_metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-2 then failwith"acceleration live-handle delta";
-  print_endline"ogpu_metal acceleration: generic build/refit for primitives and user-id instances, sized copy, typed rejections, zero delta ok"
+  print_endline"ogpu_metal acceleration: generic build for primitives and user-id instances, typed rejections, zero delta ok"

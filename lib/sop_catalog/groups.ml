@@ -1,4 +1,4 @@
-open Rays
+open Rays_math
 open Procedural
 open Shared
 

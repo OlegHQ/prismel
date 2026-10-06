@@ -3,18 +3,13 @@
  (modules codemod metal_registry result_bind)
  (libraries compiler-libs.common str))
 
-(executable
- (name result_bind_ppx)
- (modules result_bind_ppx)
- (libraries compiler-libs.common))
-
 (rule
  (alias runtest)
  (action (run %{exe:codemod.exe} metal-registry --self-test)))
 
 (rule
  (alias runtest)
- (action (run %{exe:codemod.exe} result-bind --self-test %{exe:result_bind_ppx.exe})))
+ (action (run %{exe:codemod.exe} result-bind --self-test %{exe:../../ppx/result_bind/result_bind_ppx.exe})))
 
 (rule
  (alias runtest)

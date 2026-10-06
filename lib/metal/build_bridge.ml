@@ -81,7 +81,6 @@ let main () =
      ; "-mmacosx-version-min=14.0"; arguments.object_file; "-framework"
      ; "Foundation"; "-framework"; "Metal"; "-framework"; "QuartzCore"
      ; "-framework"; "CoreGraphics"; "-framework"; "IOSurface"
-     ; "-framework"; "MetalFX"
      ]
      @ link_flags @ [ "-o"; arguments.shared ])
 

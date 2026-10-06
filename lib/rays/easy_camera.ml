@@ -210,20 +210,9 @@ let distance value = value.distance
 let fov_y value = value.fov_y
 let near value = value.near
 let far value = value.far
-let enabled value = value.enabled
 let control_area value = value.control_area
 let inertia value = value.inertia
-let drag_coefficient value = value.drag_coefficient
-let rotation_sensitivity value = value.rotation_sensitivity
-let translation_sensitivity value = value.translation_sensitivity
-let dolly_sensitivity value = value.dolly_sensitivity
 let up_axis value = value.up_axis
-let relative_y_axis value = value.relative_y_axis
-let middle_button_enabled value = value.middle_button_enabled
-let auto_distance value = value.auto_distance
-let interactions value = value.interactions
-let with_target target value =
-  if target = value.target then value else { value with target }
 
 (* Inverse of [camera]'s orbit placement; keeps the up axis, lens, and input
    settings and drops any in-flight inertia. *)
@@ -287,50 +276,6 @@ let with_inertia inertia value =
   if inertia = value.inertia then value
   else { value with inertia; velocity = if inertia then value.velocity else None }
 
-let with_drag_coefficient drag_coefficient value =
-  validate_drag_coefficient drag_coefficient;
-  { value with drag_coefficient }
-
-let with_rotation_sensitivity rotation_sensitivity value =
-  validate_sensitivity "rotation sensitivity" rotation_sensitivity;
-  { value with rotation_sensitivity }
-
-let with_translation_sensitivity translation_sensitivity value =
-  validate_sensitivity "translation sensitivity" translation_sensitivity;
-  { value with translation_sensitivity }
-
-let with_dolly_sensitivity dolly_sensitivity value =
-  validate_nonnegative "dolly sensitivity" dolly_sensitivity;
-  { value with dolly_sensitivity }
-
-let with_up_axis up_axis value =
-  validate_up_axis up_axis;
-  { value with up_axis = Vec3.normalize up_axis }
-
-let with_relative_y_axis relative_y_axis value =
-  { value with relative_y_axis }
-
-let with_middle_button_enabled middle_button_enabled value =
-  {
-    value with
-    middle_button_enabled;
-    drag =
-      (match value.drag with
-       | Some (Input.MiddleButton, _, _) when not middle_button_enabled -> None
-       | drag -> drag);
-  }
-
-let with_translation_key translation_key value =
-  if translation_key = value.translation_key then value
-  else { value with translation_key }
-
-let with_auto_distance auto_distance value =
-  {
-    value with
-    auto_distance;
-    auto_distance_pending = auto_distance;
-  }
-
 let same_binding button key binding =
   binding.button = button && binding.key = key
 
@@ -343,19 +288,6 @@ let add_interaction ?key ~button interaction value =
            (fun binding -> not (same_binding button key binding))
            value.interactions;
     drag = None;
-  }
-
-let remove_interaction ?key ~button value =
-  {
-    value with
-    interactions =
-      List.filter
-        (fun binding -> not (same_binding button key binding))
-        value.interactions;
-    drag =
-      (match value.drag with
-       | Some (candidate, _, _) when candidate = button -> None
-       | drag -> drag);
   }
 
 let clear_interactions value =

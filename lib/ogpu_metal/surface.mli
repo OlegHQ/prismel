@@ -5,15 +5,9 @@ type acquire_result = Acquired of frame | Timeout | Occluded | Device_lost
 val create : Device.t -> layer:Metal.Metal_layer.t ->
   Ogpu_core.Surface.configuration -> (t,Ogpu_core.Error.t) result
 val configure : t -> Ogpu_core.Surface.configuration -> (unit,Ogpu_core.Error.t) result
-val resize : t -> logical_width:int -> logical_height:int ->
-  physical_width:int -> physical_height:int -> (unit,Ogpu_core.Error.t) result
-val set_availability : t -> Ogpu_core.Surface.availability -> unit
 val acquire : t -> (acquire_result,Ogpu_core.Error.t) result
 val frame_id : frame -> int64
-val frame_generation : frame -> int64
-val frame_texture : frame -> (Metal.Texture.t,Ogpu_core.Error.t) result
 val discard : t -> frame -> (unit,Ogpu_core.Error.t) result
-val generation : t -> int64
 val in_flight_presentations : t -> int
 val destroy : t -> unit
 

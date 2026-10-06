@@ -259,8 +259,18 @@ let lexical_tokens source =
     else if index + 1 < length && String.sub source index 2 = "(*" then
       scan (comment (index + 2) 1) result
     else if whitespace source.[index] then scan (index + 1) result
-    else if source.[index] = '"' || source.[index] = '\'' then
+    else if source.[index] = '"'
+            || (source.[index] = '\'' && index + 2 < length
+                && (source.[index + 1] = '\\' || source.[index + 2] = '\''))
+    then
       let stop = quoted (index + 1) source.[index] false in
+      scan stop ({ text = String.sub source index (stop - index); start = index; stop } :: result)
+    else if source.[index] = '\'' then
+      (* a type variable, not a character literal *)
+      let rec variable cursor =
+        if cursor < length && (alphanumeric source.[cursor] || source.[cursor] = '_')
+        then variable (cursor + 1) else cursor in
+      let stop = variable (index + 1) in
       scan stop ({ text = String.sub source index (stop - index); start = index; stop } :: result)
     else
       let start = index in
@@ -357,6 +367,20 @@ let normalized_api source =
   lexical_tokens source |> List.map (fun token -> token.text)
   |> String.concat " "
 
+(* The normalised signature, one declaration per line, so a diff of the
+   manifest shows which declaration changed. Comments and layout are not
+   part of it: a doc-comment edit leaves the manifest alone. *)
+let api_lines source =
+  let starts = [ "val"; "type"; "module"; "external"; "exception"; "include"; "open"; "class"; "end" ] in
+  let lines, last =
+    List.fold_left (fun (lines, current) token ->
+      if List.mem token.text starts && current <> [] then
+        String.concat " " (List.rev current) :: lines, [ token.text ]
+      else lines, token.text :: current)
+      ([], []) (lexical_tokens source)
+  in
+  List.rev (if last = [] then lines else String.concat " " (List.rev last) :: lines)
+
 let relative_path root path =
   let prefix = if String.ends_with ~suffix:"/" root then root else root ^ "/" in
   if has_prefix ~prefix path then
@@ -374,10 +398,9 @@ let source_entry root library module_name path selectors =
     [ "library", `String library
     ; "module", `String module_name
     ; "source", `String (relative_path root path)
-    ; "source_bytes", `Int (String.length source)
-    ; "source_sha256", `String (sha256 source)
     ; "api_sha256", `String (sha256 (normalized_api filtered))
     ; "excluded_legacy_symbols", string_list selectors
+    ; "api", string_list (api_lines filtered)
     ]
 
 let json_sort_field field left right =
@@ -439,21 +462,22 @@ let manifests_equivalent actual expected =
 let self_test_manifest_comparison () =
   let entry ?(api="api") ?(source="source") module_name = `Assoc [
     "library", `String "rays"; "module", `String module_name;
-    "api_sha256", `String api; "source_sha256", `String source;
+    "api_sha256", `String api; "api", `List [ `String source ];
     "excluded_legacy_symbols", `List [] ] in
   let manifest entries = `Assoc [ "kind", `String "stable_high_level";
     "modules", `List entries ] in
   let baseline = manifest [entry "Scene"] in
   if not (manifests_equivalent baseline
       (manifest [entry ~source:"comment-only" "Scene"])) then
-    fail "API manifest comparison treated source-only drift as API drift";
+    fail "API manifest comparison treated a signature-text change with one hash as API drift";
   if manifests_equivalent baseline (manifest []) then
     fail "API manifest comparison accepted a removed module";
   if manifests_equivalent baseline (manifest [entry ~api:"changed" "Scene"])
   then fail "API manifest comparison accepted a changed signature"
 
 (* The checked-in api_stable.json is compared by a dune [diff] rule; accept
-   an intended API change with [dune promote]. *)
+   an intended API change with [dune promote]. Each module lists its
+   normalised declarations, so the diff is the API change itself. *)
 let main () =
   self_test_manifest_comparison ();
   match Sys.argv with

@@ -98,8 +98,6 @@ module Font : sig
   val glyph_metrics : t -> int -> (glyph_metrics,error) result
   val metrics : t -> (metrics,error) result
   val size_text : t -> ?wrap_width:int -> string -> (int*int,error) result
-  val family_name : t -> (string option,error) result
-  val style_name : t -> (string option,error) result
   val glyph_metrics_at : t -> density:int -> int -> (glyph_metrics,error) result
   val render : t -> ?wrap_width:int -> ?align:alignment -> density:int ->
     color:int*int*int*int -> string -> (Text.t option,error) result

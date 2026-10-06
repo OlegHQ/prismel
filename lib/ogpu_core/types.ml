@@ -41,11 +41,6 @@ let half_of_float x=
   else if e-1008>0 then sign lor(((e-1008)lsl 10)+round m 42)
   else if 1051-e>=54 then sign
   else sign lor round(m lor(1 lsl 52))(1051-e)
-let float_of_half h=
-  let sign=if h land 0x8000<>0 then -1. else 1. and e=(h lsr 10)land 31 and m=h land 1023 in
-  if e=0 then sign*.Float.ldexp(float_of_int m)(-24)
-  else if e=31 then(if m=0 then sign*.Float.infinity else Float.nan)
-  else sign*.Float.ldexp(float_of_int(m lor 1024))(e-25)
 let validate_sampler value=
   let operation="Ogpu.Types.validate_sampler"in match Validation.validate_label~operation value.label with Error _ as failure->failure|Ok()->
   if not(Float.is_finite value.lod_min)||not(Float.is_finite value.lod_max)||value.lod_min<0.||value.lod_max<value.lod_min||value.max_anisotropy<1||value.max_anisotropy>16

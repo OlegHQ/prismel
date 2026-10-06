@@ -1,9 +1,10 @@
 (* One dependency gate over the real library graph, read from every
    lib/**/dune. Rules are "may never reach" constraints on the transitive
-   closure plus token scans for Metal outside its backends and for any
-   alternate renderer or backend selector. Known violations
-   are listed with the plan item that removes them; delete an exception when
-   its item lands, and the gate then keeps it fixed. Run from the repo root. *)
+   closure, "depends only on" whitelists of direct dependencies, and token
+   scans for Metal outside its backends (lib, examples, sketches, tools and
+   test) and for any alternate renderer or backend selector. A known
+   violation would be listed with the plan item that removes it; there is
+   none. Run from the repo root. *)
 
 (* ---- a tiny s-expression reader: enough for dune files ---- *)
 type sexp = Atom of string | List of sexp list
@@ -40,7 +41,8 @@ let rec files dir = Sys.readdir dir |> Array.to_list |> List.concat_map (fun nam
   let path = Filename.concat dir name in
   if Sys.is_directory path then (if name = "_build" then [] else files path) else [path])
 
-(* library name -> direct in-repo dependencies (public names resolved) *)
+(* library name -> direct dependencies (public names resolved; a library from
+   outside the repo keeps its name and has no entry of its own) *)
 let graph roots =
   let stanzas = List.concat_map files roots
     |> List.filter (fun p -> Filename.basename p = "dune")
@@ -56,7 +58,8 @@ let graph roots =
   let resolve = Hashtbl.create 64 in
   List.iter (fun (name, public, _) ->
     Hashtbl.replace resolve name name; List.iter (fun p -> Hashtbl.replace resolve p name) public) stanzas;
-  List.map (fun (name, _, deps) -> name, List.filter_map (Hashtbl.find_opt resolve) deps) stanzas
+  List.map (fun (name, _, deps) -> name,
+    List.map (fun dep -> Option.value ~default:dep (Hashtbl.find_opt resolve dep)) deps) stanzas
 
 let reach graph =
   let memo = Hashtbl.create 64 in
@@ -118,8 +121,43 @@ let rules =
       "pxui_shell", ["procedural"; "rdk"; "sop_catalog";
                      "pxui_graph"; "sketch_support"; "rays_editor"];
       "pxui_graph", ["pxui_shell"; "sketch_support"; "rays_editor"; "sop_catalog"];
-      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "rays_editor"];
-      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "rays_editor"] ]
+      "sop_catalog", "rays" :: "rays_execution" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sketch_support"
+                     :: "rays_editor" :: gpu;
+      "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "rays_editor"];
+      "rays_pathtracer", ["metal"; "ogpu_metal_native"; "ogpu_metal"; "ogpu_mock"; "procedural";
+                          "sop_catalog"; "flow"; "editor_core"; "editor_document"; "pxui"; "pxui_shell";
+                          "pxui_graph"; "sketch_support"; "rays_editor"];
+      "rdk_rays", ["metal"; "ogpu_metal_native"; "ogpu_metal"; "rdk_boolean"; "rdk"; "procedural"; "sop_catalog";
+                   "flow"; "editor_core"; "editor_document"; "pxui"; "pxui_shell"; "pxui_graph";
+                   "sketch_support"; "rays_pathtracer"; "rays_editor"];
+      "scene_execution_fixtures", "metal" :: "ogpu_metal_native" :: "ogpu_metal" :: "sdl3" :: "runtime"
+                                  :: "runtime_resources" :: "rays_execution" :: upper ]
+
+(* "Depends only on": every direct dependency a library lists, in or out of
+   the repo, is one of these. A new edge is a boundary change: add it here,
+   in specification/backend.md and with a test at the boundary. *)
+let only =
+  [ "param", []; "native_layer_token", []; "lru", [];
+    "flow", ["param"];
+    "ogpu_core", ["native_layer_token"];
+    "ogpu", ["ogpu_core"];
+    "ogpu_mock", ["ogpu_core"];
+    "metal", ["threads"; "native_layer_token"];
+    "ogpu_metal_native", ["ogpu_core"; "metal"; "lru"];
+    "ogpu_metal", ["ogpu_metal_native"; "metal"];
+    "scene_execution_fixtures", ["scene_execution"; "ogpu"];
+    "pxui_shell", ["rays"; "editor_core"; "pxui"];
+    "sop_catalog", ["rays_math"; "rdk"; "procedural"] ]
+
+(* Files outside the Metal backend that name Metal on purpose: the binding
+   tooling, the binding benches and the Metal conformance driver. *)
+let metal_allowed path =
+  String.starts_with ~prefix:"lib/metal/" path
+  || String.starts_with ~prefix:"lib/ogpu_metal/" path
+  || List.mem path
+       [ "tools/codemod/metal_registry.ml"; "tools/bench_metal_ffi.ml";
+         "tools/bench_metal_registry.ml"; "test/ogpu_conformance/test_metal.ml";
+         "test/dependency_gate.ml" ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
 let reach_exceptions : (string * string * string) list = []
@@ -185,21 +223,26 @@ let violations graph ~scan =
          && not (List.exists (fun (l, t, _) -> l = lib && t = target) reach_exceptions)
       then Some (Printf.sprintf "%s reaches forbidden library %s" lib target) else None)
       forbidden) rules in
+  let only_errors = List.concat_map (fun (lib, allowed) ->
+    List.filter_map (fun dep -> if List.mem dep allowed then None
+      else Some (Printf.sprintf "%s depends on %s (it may depend only on: %s)" lib dep
+                   (String.concat ", " allowed)))
+      (Option.value ~default:[] (List.assoc_opt lib graph))) only in
+  let product path = not (String.starts_with ~prefix:"tools/" path || String.starts_with ~prefix:"test/" path) in
   let native_errors = List.concat_map (fun (path, text) ->
+    if not (product path) then [] else
     List.filter_map (fun needle -> if contains text needle
       then Some (Printf.sprintf "%s names %s (Metal is the only renderer)" path needle)
       else None) forbidden_native) scan in
   let ocaml path = Filename.check_suffix path ".ml" || Filename.check_suffix path ".mli" in
   let token_errors = List.filter_map (fun (path, text) ->
     if not (ocaml path) then None else
-    let allowed = String.starts_with ~prefix:"lib/metal/" path
-      || String.starts_with ~prefix:"lib/ogpu_metal/" path in
-    if not allowed && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
+    if not (metal_allowed path) && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
     else if String.starts_with ~prefix:"lib/pxui_graph/" path
         && uses_key_pressed text then
       Some (path ^ " matches KeyPressed inside a presentation adapter")
     else None) scan in
-  direct_errors @ edge_errors @ token_errors @ native_errors
+  direct_errors @ edge_errors @ only_errors @ token_errors @ native_errors
 
 let run () =
   List.iter (fun (text, needle, expected) ->
@@ -263,13 +306,33 @@ let run () =
      "ppx_rays", "procedural"; "ppx_rays", "pxui";
      "flow_sop", "pxui"; "flow_sop", "sop_catalog"; "flow_sop", "rays";
      "flow_sop", "editor_document"; "flow_sop", "ogpu"; "sdl3", "flow_sop";
-     "flow", "flow_sop"; "ppx_rays", "flow_sop"];
+     "flow", "flow_sop"; "ppx_rays", "flow_sop";
+     "sop_catalog", "rays"; "sop_catalog", "runtime"; "sop_catalog", "metal";
+     "rays_pathtracer", "ogpu_metal"; "rays_pathtracer", "procedural"; "rays_pathtracer", "pxui";
+     "rdk_rays", "procedural"; "rdk_rays", "metal"; "rdk_rays", "pxui";
+     "scene_execution_fixtures", "metal"; "scene_execution_fixtures", "runtime";
+     "scene_execution_fixtures", "rays";
+     (* "depends only on": an edge the reach rules would let through *)
+     "pxui_shell", "editor_document"; "pxui_shell", "scene_command"; "ogpu_core", "lru";
+     "ogpu", "native_layer_token"; "ogpu_mock", "lru"; "param", "unix"; "flow", "unix";
+     "ogpu_metal_native", "native_layer_token"; "ogpu_metal", "lru"; "metal", "lru";
+     "sop_catalog", "flow"];
+  List.iter (fun (lib, _) -> if not (List.mem_assoc lib graph) then
+    failwith ("dependency gate has a rule for unknown library " ^ lib)) (rules @ only);
+  (* The Metal build takes its preprocessor from ppx/, never from tools/. *)
+  if contains (read "lib/metal/dune") "tools/" then
+    failwith "lib/metal/dune depends on tools/";
   if violations graph ~scan:["lib/rays/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/rays/injected.ml", "open Ogpu_metal_native"] = []
-     || violations graph ~scan:["lib/rays/injected.ml", "open Ogpu_metal"] = [] then
+     || violations graph ~scan:["lib/rays/injected.ml", "open Ogpu_metal"] = []
+     || violations graph ~scan:["tools/injected.ml", "let x = Metal.Device.system_default"] = []
+     || violations graph ~scan:["test/injected.ml", "open Ogpu_metal_native"] = [] then
     failwith "gate accepted injected Metal reference";
   if violations graph ~scan:["lib/rays/ok.ml", "(* Metal.foo *) let s = \"Metal.framework\""] <> [] then
     failwith "gate flagged Metal inside a comment or string";
+  if violations graph ~scan:["tools/codemod/metal_registry.ml", "let x = Metal.Device.system_default";
+                              "test/ogpu_conformance/test_metal.ml", "let x = Metal.pp_error"] <> [] then
+    failwith "gate flagged a listed Metal tooling file";
   if violations graph ~scan:["lib/pxui_graph/injected.ml", "Event.KeyPressed key"] = [] then
     failwith "gate accepted adapter key handling";
   if violations graph ~scan:["lib/pxui_graph/ok.ml", "(* KeyPressed *) let s = \"KeyPressed\""] <> [] then
@@ -277,7 +340,8 @@ let run () =
   if violations graph ~scan:["lib/sdl3/injected.c", "SDL_CreateRenderer(window, 0)"] = []
      || violations graph ~scan:["lib/rays/injected.ml", "Sys.getenv \"RAYS_BACKEND\""] = [] then
     failwith "gate accepted an injected alternate renderer or backend selector";
-  let scan = List.concat_map files ["lib"; "examples"; "sketches"]
+  let scan = List.concat_map files ["lib"; "examples"; "sketches"; "tools"; "test"]
+    |> List.filter (fun p -> not (Filename.check_suffix p ".pp.ml"))
     |> List.filter (fun p -> List.exists (Filename.check_suffix p)
       [".ml"; ".mli"; ".c"; ".h"; ".m"])
     |> List.map (fun p -> p, read p) in
@@ -288,7 +352,7 @@ let run () =
       "lib/runtime/runtime.ml", "Ogpu.Impl.create_driver";
       "lib/rays_execution/rays_execution.ml", "Runtime.create" ];
   match violations graph ~scan with
-  | [] -> Printf.printf "dependency gate: %d libraries, %d rules, %d listed exceptions\n"
-            (List.length graph) (List.length rules)
+  | [] -> Printf.printf "dependency gate: %d libraries, %d rules, %d whitelists, %d listed exceptions\n"
+            (List.length graph) (List.length rules) (List.length only)
             (List.length reach_exceptions)
   | errors -> List.iter prerr_endline errors; exit 1

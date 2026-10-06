@@ -99,6 +99,9 @@ the renderer or foundational libraries back into the editor.
 runtime, and the dependency gate keeps it so. The Rays-dependent glue
 (`Sketch_support.Bridge`: frame-to-context, bounded mesh cache,
 `cook_to_mesh`/`cook_to_scene3`) lives in `sketch_support`.
+`sop_catalog` depends only on `rays_math`, `rdk` and `procedural`: its node
+schemas name `Rays_math.Vec3`/`Mat4` directly, and the gate rejects any path
+from it to `rays`, the runtime or a GPU library.
 
 `runtime` owns process setup, initial-domain lifecycle, the SDL3 window, its
 Metal view, resize scheduling, and presentation. It depends on `sdl3` and the
@@ -191,143 +194,61 @@ native poll through the presentation cleanup path;
 the mock uses independent clocks per queue and executes blit copies/fills
 against its owned byte storage. It now executes texture upload, copy, and
 readback through mip-aware RGBA8 storage as well. Shared conformance compares
-exact bytes after padded-row, mip-level, and subregion transfers on mock and
-Metal. The Metal adapter gives copy-only textures an explicit native usage bit
-because Metal expands an empty usage mask during creation. Ray-query, refit,
-and the remaining encoder surface are covered by the G2 conformance below.
+exact bytes after padded-row and subregion uploads on mock and Metal. The
+Metal adapter gives copy-only textures an explicit native usage bit because
+Metal expands an empty usage mask during creation.
 
-OGPU now carries the immediate-mode surface the path tracer needs (plan G2).
-`Backend.create_library` compiles one shader artifact into a reusable library;
-`create_compute_pipeline_from` makes a pipeline per entry point with typed
-function constants and an exact per-entry binding interface checked against
-Metal reflection (buffer, texture, and sampler bindings occupy separate index
-spaces, and `Acceleration_structure` is a binding kind). `create_accel` builds
-bottom-level triangle structures and top-level instance structures from
-`pack_instances` records (transform, mask, structure index); `begin_commands`
-records one command buffer through compute, acceleration, and blit encoders
-(`set_pipeline`, `set_buffer`, `set_bytes`, `set_texture`, `set_accel`,
-`dispatch_threads`, `build_accel`, `refit_accel`, `copy_buffer`) and commits
-without blocking, so `Command_buffer.status` and `gpu_duration` observe it
-through the queue's epochs. Buffers take a `Types.memory` class; device-local
-buffers reject host access with `Unsupported`. The Metal adapter retains every
-referenced resource until the native command buffer completes; the mock
-executes blit copies exactly and answers compute and ray tracing with typed
-`Unsupported`. Shared conformance now checks library lifetime and both
-function-constant specializations, exact encoded compute and blit output,
-abandoned commands, ray-query hits returning primitive id, instance id, and
-`t` on both structure kinds, and refit after moving vertices.
+OGPU carries what the runtime and the path tracer call, and nothing a test
+alone used (audit Q2). `Backend.create_library` compiles one MSL artifact into
+a reusable library; `create_compute_pipeline_from` makes a pipeline per entry
+point with typed function constants and an exact per-entry binding interface
+checked against Metal reflection (buffer, texture, and sampler bindings occupy
+separate index spaces, and `Acceleration_structure` and `Intersection_table`
+are binding kinds). `begin_commands` records one command buffer through
+compute, acceleration, blit, and render encoders (`set_pipeline`, `set_buffer`,
+`set_bytes`, `set_texture`, `set_accel`, `set_table`, `dispatch_threads`,
+`build_accel`, `write_compacted_size`, `compact_accel`, `buffer_to_texture`)
+and commits without blocking, so `Command_buffer.status` and `gpu_duration`
+observe it through the queue's epochs. Buffers take a `Types.memory` class;
+device-local buffers reject host access with `Unsupported`. The Metal adapter
+retains every referenced resource until the native command buffer completes;
+the mock executes uploads exactly and answers compute, render, and ray tracing
+with typed `Unsupported`.
 
-Plan G5 completed the ray-tracing surface. Geometry variants are
-`Triangles`, `Motion_triangles` (one vertex buffer per keyframe),
-`Bounding_boxes`, and `Curves` (linear or higher-order control points, radii,
-and segment indices); descriptors are `Blas`, `Motion_blas` (keyframe count,
-time range, border modes), `Tlas`, `Tlas_of` with an `instance_kind`
-(`Default_instances`, `User_id_instances`, `Motion_instances` plus a keyframe
-transform buffer packed by `pack_transforms`), and `Sized` structures that
-are only filled by `copy_accel` or `compact_accel` after
-`write_compacted_size` reports the size. Instance records pack through the
-driver's `instance_layout` (`pack_instances`, `pack_instance_records`,
-`pack_motion_instances`; Metal: 64, 68, and 44 bytes) and carry masks, user
-ids, and table offsets; TLAS refit is supported. Pipelines link `[[visible]]`
-and `[[intersection]]` functions (`create_compute_pipeline_from ~linked`), and
-`create_intersection_table`/`create_visible_table` with `table_set_function`,
-`table_set_buffer`, and the compute encoder's `set_table` bind them through
-the `Intersection_table` and `Visible_table` binding kinds, which share the
-buffer index space. `Caps.Function_tables` and `Caps.Ray_tracing_curves`
-(Metal: Apple9 and later; the M1 reports curves unsupported and answers with
-typed `Unsupported` while the kernels still compile) gate the features.
-Conformance on Metal traces bounding boxes through an intersection table,
-curves or their rejection, motion primitives and motion instances at three
-shutter times, user-id masks, TLAS refit, compaction and copy hit parity, and
-visible tables; the mock rejects linked functions and reproduces the record
-layouts.
+Ray tracing: geometry variants are `Triangles`, `Motion_triangles` (one vertex
+buffer per keyframe), `Bounding_boxes`, and `Curves`; descriptors are `Blas`,
+`Motion_blas`, `Tlas`, `Tlas_of` with an `instance_kind` (user-id or motion
+records packed by `pack_instance_records`/`pack_motion_instances` through the
+driver's `instance_layout`, plus a keyframe transform buffer packed by
+`pack_transforms`), and `Sized` structures that `compact_accel` fills after
+`write_compacted_size` reports the size. Pipelines link `[[intersection]]`
+functions (`create_compute_pipeline_from ~linked`), and
+`create_intersection_table` with `table_set_function`, `table_set_buffer`, and
+the compute encoder's `set_table` binds them. `compute_use_accels` declares
+the built bottom-level structures an instance structure references as read by
+a dispatch (Metal `useResource:usage:`; they are otherwise evicted over time).
+`Caps` is the live set: `Compute_pipeline`, `Render_pipeline`, `Ray_tracing`,
+`Function_tables`, and `Ray_tracing_curves` (Metal: Apple9 and later; the M1
+answers curves with typed `Unsupported`).
 
-Plan G6 added the memory and synchronization surface. `create_heap` makes a
-placement heap in one memory class, tracked or untracked; `create_heap_buffer`
-and `create_heap_texture` place resources at explicit offsets,
-`make_aliasable` lets a later placement overlap a resource, and
-`buffer_placement`/`texture_placement` report the size and alignment a
-resource needs; compute and render encoders declare heaps with
-`compute_use_heap`/`render_use_heap`, and `compute_use_accels` declares the
-built bottom-level structures an instance structure references as read by a
-compute dispatch (Metal `useResource:usage:` on acceleration structures; they
-are otherwise evicted over time). Residency sets (`create_residency_set`,
-`residency_add`/`residency_remove`/`residency_commit`, `queue_add_residency`,
-`use_residency`) keep allocations resident per queue or per command buffer.
-Intra-queue fences (`create_fence`, `update_fence`, `wait_fence` on compute,
-blit, and render encoders) order encoders on one queue, which is what makes
-untracked heap aliasing safe. Timeline events (`create_event`,
-`signal_event`/`wait_event` on the host, `commands_signal_event`/
-`commands_wait_event` between encoders) synchronize the host with the GPU and
-queues with each other. Timestamps (`create_timestamps`, the `?timestamps`
-argument of `compute_encoder`, `blit_encoder`, and `render_encoder`,
-`resolve_timestamps` into a buffer, `read_timestamps` on the host, and
-`timestamp_reference` for the CPU/GPU clock pair and tick rate) sample GPU
-time at encoder stage boundaries, the only sampling point Apple GPUs offer.
-`Caps` gained `Heaps`, `Residency_sets`, and `Fences`, and
-`Event_synchronization` and `Timestamp_queries` are now real probes (the M1
-reports all five). The Metal adapter defers destruction of any of these
-objects while a submission still uses it; the mock implements fences and
-events (an event wait that is not yet satisfied parks the rest of the command
-buffer until the host polls, completes, or waits) and answers heaps,
-residency sets, and timestamps with typed `Unsupported`. The safe Metal layer
-gained shared-event signal/wait on classic command buffers, a host wait with
-timeout, and compute/blit encoders created from pass descriptors, each with a
-success and a rejection test.
-
-Plan G7 completed the pipeline and memory surface. Mesh pipelines
-(`create_mesh_pipeline` from a library's object, mesh, and fragment entries
-with compiled threadgroup sizes; `draw_mesh` on the render encoder) and tile
-pipelines (`create_tile_pipeline`; `dispatch_tile` inside a render pass over
-the imageblock; `tile_size`) share the render encoder with vertex pipelines,
-whose shape the encoder tracks so that a draw of the wrong kind is
-`Invalid_state`; `shader_stage` gained `Object`, `Mesh`, and `Tile` for stage
-bindings. Dynamic libraries (`create_dynamic_library` from MSL with an install
-name; `create_library ~dynamic` links against them and preloads them into
-every pipeline of that library) and binary archives (`create_archive`,
-`archive_add` of compute, mesh, and tile pipelines, `archive_serialize`,
-`?archives`/`?archive_only` on pipeline creation) are gated by
-`Caps.Dynamic_libraries`/`Caps.Binary_archives`; vertex/fragment render
-pipelines are compiled by the Metal 4 compiler and answer archives with typed
-`Unsupported`. Sparse textures live in `create_heap ~sparse:true` heaps
-(`create_sparse_texture`, `texture_tile`, and `map_tiles` between encoders,
-unmapped tiles reading as zero) behind `Caps.Sparse_memory`, and
-`create_upscaler`/`upscale` wrap the MetalFX spatial scaler behind
-`Caps.Metal_fx`; both capabilities are real probes now. The Metal adapter
-serializes a dynamic library at its install name (or a temporary file for an
-`@rpath` name) and loads it back, which is how Metal resolves pipeline
-symbols. Safe Metal additions, handwritten in the bridge with success and
-rejection tests: classic `draw_mesh_threadgroups` and
-`dispatch_threads_per_tile`, mesh/tile descriptor color formats, optional
-mesh depth/stencil formats, and `Metal.Fx.Spatial_scaler`, whose MetalFX
-framework is linked as its own input. Conformance draws a full-screen
-triangle through an object+mesh pipeline, inverts a green pass to magenta
-through a tile kernel, calls a dynamic-library function from a kernel,
-round-trips a compute pipeline through a serialized archive with
-`archive_only`, uploads into a two-tile sparse texture and reads the mapped
-tile back and the unmapped one as zero, then remaps, and upscales a constant
-2x2 image to a constant 4x4; the mock rejects each with typed
-`Unsupported`.
-The virtual mock now reports `Compute_pipeline = false`: it validates compute
-descriptions but cannot execute MSL. Pipeline creation, adoption, and raw
-compute submissions reject with typed `Unsupported`; Metal keeps compute
-enabled. The generic mock cache test no longer pretends that a metadata-only
-compute pipeline exercises executable GPU work. Compute pipelines come only from libraries
-(`Backend.create_library` and `create_compute_pipeline_from`), whose
-reflection checks the declared interface; shared conformance dispatches them
-through the compute encoder and compares exact output words on Metal, while
-requiring typed `Unsupported` on the mock. `Ogpu.Library` now
-exposes source and compiled metallib artifacts (currently aliasing `Shader`
-for compatibility); compute pipeline identity includes typed function
-constants. The Metal adapter loads compiled bytes and specializes the selected
-function before reflection validation. The shared conformance runner has a
-second exact-output path for both Boolean constant values, compiled from
-`exact_compute.metal` by Dune. It lives under `@qualification` with
-`RAYS_METAL_DEV=1`, because the Command Line Tools installation lacks
-`xcrun metal` and `xcrun metallib`. The default headless suite still checks
-source MSL and mock compiled-pipeline `Unsupported`; compiled-output validation needs a full
-Xcode toolchain. Acceleration/refit and the remaining encoder contract remain
-in G2.
+Removed with their Metal bindings, mock arms, conformance cases, and
+capability flags, because no product code called them: placement heaps and
+aliasing, residency sets, intra-queue fences, timeline events, stage-boundary
+timestamps, mesh and tile pipelines, dynamic libraries, binary archives,
+sparse textures, the MetalFX upscaler, visible function tables, refit and
+structure copy, precompiled metallib shaders, the encoded buffer copy, fill,
+texture copy and texture-to-buffer blits, and the portable `Memory`, `Sync`,
+and `Diagnostics` modules. A capability returns through the
+`add-ogpu-feature` workflow with its first caller. Shared conformance covers
+what remains on both drivers: capabilities, buffer round trips, padded and
+inset texture uploads read back by the host, the three pixel formats, linear
+mip sampling, library lifetime and function-constant specializations, exact
+compute output, abandoned commands, ray-query hits (primitive id, instance id,
+`t`), bounding boxes through an intersection table, curves or their rejection,
+motion primitives and motion instances at three shutter times, user-id masks,
+compaction hit parity, the render path, lifetime rejection, and zero leaked
+handles; the mock rejects what it cannot execute with typed `Unsupported` and
+reproduces the record layouts.
 The path tracer's MSL now lives in `lib/rays_pathtracer/pathtrace.metal` and
 is embedded by an OCaml/Dune rule and compiled once into one OGPU library;
 the `INSTANCED` function constant selects the flat or instanced pipeline. The
@@ -358,6 +279,28 @@ mechanism. The portable types live in `ogpu_core`; the wrapped `ogpu` module
 aliases them without changing type identity. Nothing outside `lib/metal` and
 `lib/ogpu_metal` references `Metal` or `Ogpu_metal_native`; the dependency
 gate lists no Metal exception.
+
+The gate (`test/dependency_gate.ml`) holds three kinds of rule. "May never
+reach" rules run over the transitive closure; `rays_pathtracer` (no Metal
+backend, mock, geometry graph, catalog, UI or editor library), `rdk_rays`
+(the renderer leaf: `rdk_core`, `rdk_attrib`, `rdk_mesh` and `rays`, never the
+Boolean stack, `procedural` or anything above) and `scene_execution_fixtures`
+(only `scene_execution` and `ogpu`) have theirs. "Depends only on" whitelists
+check every direct dependency, external ones included: `param`,
+`native_layer_token` and `lru` list none, `flow` only `param`, `ogpu_core`
+only `native_layer_token`, `ogpu` and `ogpu_mock` only `ogpu_core`, `metal`
+only `threads` and `native_layer_token`, `ogpu_metal_native` only `ogpu_core`,
+`metal` and `lru`, `ogpu_metal` only `ogpu_metal_native` and `metal`,
+`pxui_shell` only `rays`, `editor_core` and `pxui`, `sop_catalog` only
+`rays_math`, `rdk` and `procedural`. The Metal token scan covers `lib`,
+`examples`, `sketches`, `tools` and `test`; outside the backend it admits
+only the binding tooling (`tools/codemod/metal_registry.ml`), the two binding
+benches (`tools/bench_metal_ffi.ml`, `tools/bench_metal_registry.ml`), the
+Metal conformance driver (`test/ogpu_conformance/test_metal.ml`) and the gate
+itself. `lib/metal` takes its source preprocessor from
+`ppx/result_bind`, so no foundational library is built by something under
+`tools/`; the gate rejects a `tools/` path in `lib/metal/dune`. Each rule has
+an injected violation in the gate's own run.
 
 Texture pixel formats (World plan P6): `Types.texture_descriptor.format` is
 `Rgba8_unorm`, `Rgba16_float`, or `Rgba32_float` (4, 8, 16 bytes per texel,

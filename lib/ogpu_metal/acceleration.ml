@@ -3,8 +3,7 @@ module Build = Metal.Acceleration_structure.Build
 
 type t =
   { device : Device.t; descriptor : Build.t option; metal : Metal.Acceleration_structure.t
-  ; sizes : Metal.Acceleration_structure.sizes; allow_refit : bool
-  ; buffers : Buffer.t list; structures : t list
+  ; sizes : Metal.Acceleration_structure.sizes;  buffers : Buffer.t list; structures : t list
   ; mutable dead : bool; mutable submission_uses : int; mutable destroy_requested : bool }
 
 let validate_scratch_plan ~buffer_size ~offset ~required =
@@ -20,13 +19,13 @@ let validate operation device value =
   else if Device.id device <> Device.id value.device then error operation Ogpu_core.Error.Cross_device "acceleration structure belongs to another device"
   else Ok ()
 
-let allocate operation device descriptor sizes ~allow_refit ~buffers ~structures =
+let allocate operation device descriptor sizes ~allow_refit:_ ~buffers ~structures =
   match Metal.Acceleration_structure.create ~device:(Device.Private.metal device)
           ~size:sizes.Metal.Acceleration_structure.acceleration_structure_size with
   | Error metal -> Error (Device.of_metal_error ~operation metal)
   | Ok metal ->
       Device.Private.attach_resource device;
-      Ok { device; descriptor; metal; sizes; allow_refit; buffers; structures; dead = false
+      Ok { device; descriptor; metal; sizes;  buffers; structures; dead = false
          ; submission_uses = 0; destroy_requested = false }
 
 let keyframes (frames : (Buffer.t * int64) array) : Build.keyframe list =
@@ -173,23 +172,10 @@ let encode_build encoder device value ~scratch ~scratch_offset =
         (Metal.Acceleration_encoder.build_with encoder ~destination:value.metal ~descriptor
            ~scratch:(Buffer.Private.metal scratch) ~scratch_offset))
 
-let encode_refit encoder device value ~scratch ~scratch_offset =
-  let operation = "Ogpu_metal.Acceleration.encode_refit" in
-  if not value.allow_refit then error operation Ogpu_core.Error.Unsupported "descriptor does not permit refit"
-  else match validate_scratch operation device value scratch scratch_offset value.sizes.refit_scratch_buffer_size with
-  | Error _ as failure -> failure
-  | Ok () -> with_descriptor operation value (fun descriptor ->
-      Result.map_error (Device.of_metal_error ~operation)
-        (Metal.Acceleration_encoder.refit_with encoder ~source:value.metal ~destination:value.metal
-           ~descriptor ~scratch:(Buffer.Private.metal scratch) ~scratch_offset))
-
 let encode_pair operation encoder device ~src ~dst encode =
   match validate operation device src with Error _ as failure -> failure | Ok () ->
   match validate operation device dst with Error _ as failure -> failure | Ok () ->
   Result.map_error (Device.of_metal_error ~operation) (encode encoder ~source:src.metal ~destination:dst.metal)
-
-let encode_copy encoder device ~src ~dst =
-  encode_pair "Ogpu_metal.Acceleration.encode_copy" encoder device ~src ~dst Metal.Acceleration_encoder.copy
 
 let encode_compact encoder device ~src ~dst =
   encode_pair "Ogpu_metal.Acceleration.encode_compact" encoder device ~src ~dst

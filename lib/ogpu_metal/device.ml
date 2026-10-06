@@ -35,15 +35,7 @@ let system_default () =
                |Error value->Error(of_metal_error~operation value)
                |Ok true->maximum_sample sample rest|Ok false->maximum_sample current rest)in
            match maximum_sample 1[4;9;16]with Error _ as failure->ignore(Metal.Device.destroy metal);failure|Ok max_sample_count->
-           (* Apple GPUs sample counters at encoder stage boundaries only. *)
-           match Metal.Counters.supports metal Metal.Counters.Stage_boundary with Error value->ignore(Metal.Device.destroy metal);Error(of_metal_error~operation value)|Ok timestamp_boundary->
-           match Metal.Counters.sets metal with Error value->ignore(Metal.Device.destroy metal);Error(of_metal_error~operation value)|Ok counter_sets->
-           let timestamp_queries=timestamp_boundary&&List.exists(fun(set:Metal.Counters.set)->set.name="timestamp")counter_sets in
-           match Metal.Device.supports_residency_sets metal with Error value->ignore(Metal.Device.destroy metal);Error(of_metal_error~operation value)|Ok residency_sets->
-           match Metal.Device.supports_sparse_textures metal with Error value->ignore(Metal.Device.destroy metal);Error(of_metal_error~operation value)|Ok sparse_memory->
-           match Metal.Fx.Spatial_scaler.supported metal with Error value->ignore(Metal.Device.destroy metal);Error(of_metal_error~operation value)|Ok metal_fx->
-           (* Curve primitives intersect only on Apple GPU family 9 and later;
-              mesh shaders need Apple7, tile shaders Apple4. *)
+           (* Curve primitives intersect only on Apple GPU family 9 and later. *)
            let family f = match Metal.Device.supports_family metal f with Ok true -> true | _ -> false in
            let curves = family Metal.Device.Apple9 in
            let capabilities : Ogpu_core.Caps.t =
@@ -56,32 +48,16 @@ let system_default () =
              ; render_pipeline = true
              ; ray_tracing = info.raytracing
              ; function_tables = info.raytracing
-             ; ray_tracing_curves = info.raytracing && curves
-             ; metal_fx
-             ; timestamp_queries = false
-             ; sparse_memory = false
-             ; heaps = true
-             ; residency_sets
-             ; fences = true
-             ; event_synchronization = true
-             ; mesh_shaders = family Metal.Device.Apple7
-             ; tile_shaders = family Metal.Device.Apple4
-             ; dynamic_libraries = info.dynamic_libraries
-             ; binary_archives = true
-             ; conservative_limits = [] }
+             ; ray_tracing_curves = info.raytracing && curves }
            in
-           match Ogpu_core.Caps.create capabilities ~timestamp_queries ~sparse_memory
-             ~conservative_limits:["max_texture_dimension_2d=16384";"max_bind_groups=4";"max_sample_count=probed(1/4/9/16)";"metal_fx=probed(MTLFXSpatialScaler)";"sparse_memory=probed(supportsSparseTextures)"] with
+           match Ogpu_core.Caps.validate capabilities with
            | Error _ as failure -> ignore (Metal.Device.destroy metal); failure
-           | Ok profile ->
-               Ok { metal; handle = Ogpu_core.Handle.create_device (); profile;
+           | Ok () ->
+               Ok { metal; handle = Ogpu_core.Handle.create_device (); profile = capabilities;
                     generation = 1L; live_resources = 0 })
 
 let id value = Ogpu_core.Handle.device_id value.handle
-let generation value = value.generation
 let capabilities value = value.profile
-let capability_profile value=value.profile
-let supports value feature=if Ogpu_core.Handle.device_destroyed value.handle then error"Ogpu_metal.Device.supports"Ogpu_core.Error.Stale_handle"device is destroyed"else Ogpu_core.Caps.require ~operation:"Ogpu_metal.Device.supports" value.profile feature
 let destroyed value = Ogpu_core.Handle.device_destroyed value.handle
 
 let destroy value =

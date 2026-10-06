@@ -8,14 +8,6 @@ let run () =
   let blit = get (Blit_encoder.create commands) in
   let source = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
   let destination = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
-  get (Blit_encoder.fill_buffer blit source ~offset:0L ~length:64L ~byte:0x5a);
-  get (Blit_encoder.copy_buffer blit ~source ~source_offset:0L ~destination
-         ~destination_offset:0L ~length:64L);
-  reject (Blit_encoder.copy_buffer blit ~source ~source_offset:60L ~destination
-            ~destination_offset:0L ~length:8L);
-  let fence = get (Fence.create device) in
-  get (Blit_encoder.update_fence blit fence);
-  get (Blit_encoder.wait_for_fence blit fence);
   let descriptor = Texture.descriptor_2d ~format:Texture.Rgba8_unorm
     ~width:4 ~height:4 ~mipmapped:true
     ~usage:[Texture.Shader_read;Texture.Shader_write] () in
@@ -25,7 +17,7 @@ let run () =
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
   get (Command_buffer.destroy commands);
-  get (Fence.destroy fence); get (Texture.destroy texture2); get (Texture.destroy texture);
+  get (Texture.destroy texture2); get (Texture.destroy texture);
   get (Buffer.destroy destination); get (Buffer.destroy source);
   get (Command_queue.destroy queue); get (Device.destroy device);
   print_endline "BlitCommand safe conformance: ok"

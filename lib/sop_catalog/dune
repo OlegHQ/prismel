@@ -1,7 +1,7 @@
 (library
  (name sop_catalog)
  (public_name rays.sop_catalog)
- (libraries rays rdk procedural)
+ (libraries rays_math rdk procedural)
  (private_modules shared shapes topology attributes groups)
  (preprocess (pps rays.ppx)))
 

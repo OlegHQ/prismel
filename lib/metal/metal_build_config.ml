@@ -81,7 +81,7 @@ let check_sdk_version version =
 
 let framework_link_flags =
   [ "-framework"; "Foundation"; "-framework"; "Metal"; "-framework"
-  ; "QuartzCore"; "-framework"; "CoreGraphics"; "-framework"; "IOSurface"; "-framework"; "MetalFX"; "-lc++"
+  ; "QuartzCore"; "-framework"; "CoreGraphics"; "-framework"; "IOSurface"; "-lc++"
   ]
 
 let write_sexp path flags =

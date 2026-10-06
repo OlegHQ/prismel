@@ -6,15 +6,15 @@ type driver_table={table_token:token;
   table_set_buffer:index:int->token->offset:int64->(unit,Error.t)result;
   destroy_table:unit->(unit,Error.t)result}
 type driver_pipeline={pipeline_token:token;
-  create_table:intersection:bool->capacity:int->(driver_table,Error.t)result;
+  create_table:capacity:int->(driver_table,Error.t)result;
   destroy_pipeline:unit->(unit,Error.t)result}
 type driver_frame={frame_token:token}
 type gpu_timing={timing_supported:bool;gpu_seconds:float;gpu_samples:int64}
-type driver_library={library_token:token;
+type driver_library={
   create_compute_pipeline_in:entry:string->constants:(string*Shader.constant_value)list->
-    interface:Shader.binding list->linked:string list->archives:token list->archive_only:bool->(driver_pipeline,Error.t)result;
+    interface:Shader.binding list->linked:string list->(driver_pipeline,Error.t)result;
   destroy_library:unit->(unit,Error.t)result}
-type accel_sizes={structure_size:int64;build_scratch_size:int64;refit_scratch_size:int64}
+type accel_sizes={structure_size:int64;build_scratch_size:int64}
 type driver_keyframe=token*int64
 type driver_geometry=
   |Driver_triangles of{vertices:token;offset:int64;length:int64;vertex_stride:int;vertex_count:int}
@@ -37,30 +37,22 @@ type driver_compute_encoder={
   set_accel:index:int->token->(unit,Error.t)result;
   set_table:index:int->token->(unit,Error.t)result;
   dispatch_threads:threads:int*int*int->threadgroup:int*int*int->(unit,Error.t)result;
-  dispatch_threadgroups:threadgroups:int*int*int->threadgroup:int*int*int->(unit,Error.t)result;
-  compute_use_heap:token->(unit,Error.t)result;
+
   compute_use_accels:token list->(unit,Error.t)result;
-  compute_update_fence:token->(unit,Error.t)result;
-  compute_wait_fence:token->(unit,Error.t)result;
+
   end_compute:unit->(unit,Error.t)result}
 type driver_accel_encoder={
   build:token->scratch:token->scratch_offset:int64->(unit,Error.t)result;
-  refit:token->scratch:token->scratch_offset:int64->(unit,Error.t)result;
-  copy:src:token->dst:token->(unit,Error.t)result;
+
   compact:src:token->dst:token->(unit,Error.t)result;
   write_compacted_size:token->dst:token->offset:int64->(unit,Error.t)result;
   end_accel:unit->(unit,Error.t)result}
 type driver_blit_encoder={
-  copy_buffer:src:token->src_offset:int64->dst:token->dst_offset:int64->length:int64->(unit,Error.t)result;
-  fill_buffer:token->offset:int64->length:int64->value:int->(unit,Error.t)result;
+
   buffer_to_texture:src:token->offset:int64->bytes_per_row:int64->bytes_per_image:int64->dst:token->mip:int->origin:Types.origin->extent:Types.extent->(unit,Error.t)result;
-  texture_to_buffer:src:token->mip:int->origin:Types.origin->extent:Types.extent->dst:token->offset:int64->bytes_per_row:int64->bytes_per_image:int64->(unit,Error.t)result;
-  copy_texture:src:token->src_mip:int->src_origin:Types.origin->dst:token->dst_mip:int->dst_origin:Types.origin->extent:Types.extent->(unit,Error.t)result;
-  blit_update_fence:token->(unit,Error.t)result;
-  blit_wait_fence:token->(unit,Error.t)result;
-  resolve_timestamps:token->first:int->count:int->dst:token->offset:int64->(unit,Error.t)result;
+
   end_blit:unit->(unit,Error.t)result}
-type shader_stage=Vertex|Fragment|Object|Mesh|Tile
+type shader_stage=Vertex|Fragment
 type winding=Clockwise|Counter_clockwise
 type depth_state={depth_compare:Render_pass.comparison;depth_write:bool;stencil:Render_pass.stencil_state option}
 type driver_color_attachment={color:token;color_resolve:token option;color_load:Render_pass.load;color_store:Render_pass.store;color_clear:float*float*float*float}
@@ -71,7 +63,7 @@ type driver_batch_draw={batch_pipeline:token;batch_buffers:(shader_stage*int*tok
 type driver_render_encoder={
   render_set_pipeline:token->(unit,Error.t)result;
   set_stage_buffer:shader_stage->index:int->offset:int64->token->(unit,Error.t)result;
-  set_stage_bytes:shader_stage->index:int->bytes->(unit,Error.t)result;
+
   set_stage_texture:shader_stage->index:int->token->(unit,Error.t)result;
   set_stage_sampler:shader_stage->index:int->token->(unit,Error.t)result;
   set_viewport:Render_pass.rect->(unit,Error.t)result;
@@ -85,82 +77,38 @@ type driver_render_encoder={
   draw_batch:driver_batch_draw array->(unit,Error.t)result;
   use_resources:token list->(unit,Error.t)result;
   execute_icb:token->location:int->length:int->(unit,Error.t)result;
-  render_use_heap:token->(unit,Error.t)result;
-  render_update_fence:token->(unit,Error.t)result;
-  render_wait_fence:token->(unit,Error.t)result;
-  draw_mesh:threadgroups:int*int*int->object_threadgroup:(int*int*int)option->mesh_threadgroup:int*int*int->(unit,Error.t)result;
-  dispatch_tile:threads:int*int*int->(unit,Error.t)result;
-  tile_size:unit->(int*int,Error.t)result;
+
   end_render:unit->(unit,Error.t)result}
 type driver_sampler={sampler_token:token;destroy_sampler:unit->(unit,Error.t)result}
 type driver_icb={icb_token:token;
-  icb_reset:location:int->length:int->(unit,Error.t)result;
+
   icb_set_pipeline:index:int->token->(unit,Error.t)result;
   icb_set_buffer:index:int->shader_stage->slot:int->offset:int64->token->(unit,Error.t)result;
   icb_draw:index:int->primitive:Render_pass.primitive->first:int->count:int->instances:int->(unit,Error.t)result;
   icb_draw_indexed:index:int->primitive:Render_pass.primitive->index_type:Render_pass.index_type->token->offset:int64->count:int64->instances:int->(unit,Error.t)result;
   destroy_icb:unit->(unit,Error.t)result}
-type driver_argument={argument_token:token;argument_length:int;argument_alignment:int;
+type driver_argument={argument_length:int;argument_alignment:int;
   argument_texture:buffer:token->offset:int64->slot:int->token->(unit,Error.t)result;
   argument_sampler:buffer:token->offset:int64->slot:int->token->(unit,Error.t)result;
   destroy_argument:unit->(unit,Error.t)result}
-type render_pipeline_options={blend:Pipeline.blend;topology:Render_pass.primitive;indirect:bool;archives:token list;archive_only:bool}
-type driver_mesh_options={mesh_library:token;mesh_object_entry:string option;mesh_entry:string;mesh_fragment_entry:string;
-  mesh_color:Pipeline.color_format;mesh_blend:Pipeline.blend;mesh_threads:int*int*int;object_threads:(int*int*int)option;
-  mesh_archives:token list;mesh_archive_only:bool;mesh_label:string option}
-type driver_tile_options={tile_library:token;tile_entry:string;tile_color:Pipeline.color_format;tile_threads:int*int*int;
-  tile_archives:token list;tile_archive_only:bool;tile_label:string option}
-type driver_dynamic={dynamic_token:token;destroy_dynamic:unit->(unit,Error.t)result}
-type driver_archive={archive_token:token;archive_add:token->(unit,Error.t)result;archive_serialize:string->(unit,Error.t)result;destroy_archive:unit->(unit,Error.t)result}
-type driver_upscaler={upscaler_token:token;destroy_upscaler:unit->(unit,Error.t)result}
-type heap_descriptor={heap_size:int64;heap_memory:Types.memory;heap_tracked:bool;heap_sparse:bool;heap_label:string option}
-type placement={placement_size:int64;placement_alignment:int64}
-type placement_query=Buffer_placement of Types.memory*int64|Texture_placement of Types.texture_descriptor
-type driver_heap={heap_token:token;
-  heap_buffer:offset:int64->Types.buffer_descriptor->(driver_resource,Error.t)result;
-  heap_texture:offset:int64->Types.texture_descriptor->(driver_resource,Error.t)result;
-  heap_alias:token->(unit,Error.t)result;
-  destroy_heap:unit->(unit,Error.t)result}
-type residency_item=Resident_buffer of token|Resident_texture of token|Resident_heap of token
-type driver_residency={residency_token:token;
-  residency_add:residency_item->(unit,Error.t)result;
-  residency_remove:residency_item->(unit,Error.t)result;
-  residency_commit:unit->(unit,Error.t)result;
-  residency_size:unit->(int64,Error.t)result;
-  destroy_residency:unit->(unit,Error.t)result}
-type driver_fence={fence_token:token;destroy_fence:unit->(unit,Error.t)result}
-type driver_event={event_token:token;
-  event_value:unit->(int64,Error.t)result;
-  event_signal:int64->(unit,Error.t)result;
-  event_wait:int64->timeout_ms:int->(bool,Error.t)result;
-  destroy_event:unit->(unit,Error.t)result}
-type driver_timestamps={timestamps_token:token;
-  timestamps_read:first:int->count:int->(int64 array,Error.t)result;
-  destroy_timestamps:unit->(unit,Error.t)result}
-type timestamp_reference={cpu_nanoseconds:int64;gpu_timestamp:int64;gpu_frequency:int64}
-type driver_sampling={sampling_token:token;sampling_start:int;sampling_end:int}
-type driver_commands={commands_token:token;
-  compute_encoder:driver_sampling option->(driver_compute_encoder,Error.t)result;
+type render_pipeline_options={blend:Pipeline.blend;topology:Render_pass.primitive;indirect:bool}
+type driver_commands={
+  compute_encoder:unit->(driver_compute_encoder,Error.t)result;
   accel_encoder:unit->(driver_accel_encoder,Error.t)result;
-  blit_encoder:driver_sampling option->(driver_blit_encoder,Error.t)result;
-  render_encoder:driver_sampling option->driver_render_target->(driver_render_encoder,Error.t)result;
-  commands_use_residency:token->(unit,Error.t)result;
-  commands_signal_event:token->int64->(unit,Error.t)result;
-  commands_wait_event:token->int64->(unit,Error.t)result;
-  map_tiles:token->mip:int->region:int*int*int*int->map:bool->(unit,Error.t)result;
-  upscale:token->src:token->dst:token->(unit,Error.t)result;
+  blit_encoder:unit->(driver_blit_encoder,Error.t)result;
+  render_encoder:driver_render_target->(driver_render_encoder,Error.t)result;
+
   commit:unit->(receipt,Error.t)result;
   commit_present:source:token->driver_frame->(receipt,Error.t)result;
   abandon:unit->(unit,Error.t)result}
-type driver_surface={surface_token:token;configure:Surface.configuration->(unit,Error.t)result;acquire:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;acquire_sync:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
-type driver_queue={queue_token:token;complete_through:int64->(unit,Error.t)result;poll_through:int64->(bool,Error.t)result;completed_epoch:unit->int64;
+type driver_surface={configure:Surface.configuration->(unit,Error.t)result;acquire_sync:unit->([`Acquired of driver_frame|`Timeout|`Occluded|`Device_lost],Error.t)result;discard:driver_frame->(unit,Error.t)result;destroy_surface:unit->(unit,Error.t)result}
+type driver_queue={complete_through:int64->(unit,Error.t)result;poll_through:int64->(bool,Error.t)result;completed_epoch:unit->int64;
   begin_commands:unit->(driver_commands,Error.t)result;
-  queue_add_residency:token->(unit,Error.t)result;
-  queue_remove_residency:token->(unit,Error.t)result;
+
   gpu_duration:int64->float option;
   gpu_timing:unit->gpu_timing;
   destroy_queue:unit->(unit,Error.t)result}
-type driver_device={device_token:token;device_handle:Handle.device;capabilities:Caps.t;create_buffer:Types.memory->Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_library:Shader.t->dynamic:token list->(driver_library,Error.t)result;
+type driver_device={device_handle:Handle.device;capabilities:Caps.t;create_buffer:Types.memory->Types.buffer_descriptor->(driver_resource,Error.t)result;create_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_depth_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_stencil_texture:Types.texture_descriptor->(driver_resource,Error.t)result;create_library:Shader.t->(driver_library,Error.t)result;
   create_accel:driver_accel_descriptor->(driver_accel,Error.t)result;
   instance_layout:instance_kind->Acceleration.instance_layout;
   create_sampler:Types.sampler_descriptor->(driver_sampler,Error.t)result;
@@ -168,20 +116,7 @@ type driver_device={device_token:token;device_handle:Handle.device;capabilities:
   create_icb:max_commands:int->(driver_icb,Error.t)result;
   create_argument:pipeline:token->shader_stage->index:int->(driver_argument,Error.t)result;
   create_queue:unit->(driver_queue,Error.t)result;create_surface:Surface.configuration->(driver_surface,Error.t)result;
-  create_heap:heap_descriptor->(driver_heap,Error.t)result;
-  heap_placement:placement_query->(placement,Error.t)result;
-  create_residency:capacity:int->label:string option->(driver_residency,Error.t)result;
-  create_fence:unit->(driver_fence,Error.t)result;
-  create_event:unit->(driver_event,Error.t)result;
-  create_timestamps:count:int->(driver_timestamps,Error.t)result;
-  timestamp_reference:unit->(timestamp_reference,Error.t)result;
-  create_mesh_pipeline:driver_mesh_options->(driver_pipeline,Error.t)result;
-  create_tile_pipeline:driver_tile_options->(driver_pipeline,Error.t)result;
-  create_dynamic_library:install_name:string->Shader.t->(driver_dynamic,Error.t)result;
-  create_archive:path:string option->(driver_archive,Error.t)result;
-  create_sparse_texture:heap:token->Types.texture_descriptor->(driver_resource,Error.t)result;
-  texture_tile:token->(int*int,Error.t)result;
-  create_upscaler:input:int*int->output:int*int->(driver_upscaler,Error.t)result;
+
   destroy_device:unit->(unit,Error.t)result}
 type driver={create_device:unit->(driver_device,Error.t)result}
 type device={raw:driver_device;handle:Handle.device;mutable children:int;mutable dead:bool;
@@ -191,9 +126,8 @@ and buffer={resource:resource;buffer_descriptor:Types.buffer_descriptor;memory:T
 and texture={resource:resource;texture_descriptor:Types.texture_descriptor}
 and pipeline={pipeline_driver:driver_pipeline;device:device;pipeline_library:library option;pipeline_indirect:bool;pipeline_linked:string list;
   pipeline_shape:pipeline_shape;mutable dead:bool}
-and pipeline_shape=Vertex_shape|Mesh_shape|Tile_shape|Compute_shape
-and library={library_raw:driver_library;library_device:device;mutable library_dead:bool;mutable library_pipelines:int;library_dynamic:dynamic_library list}
-and dynamic_library={dynamic_raw:driver_dynamic;dynamic_device:device;mutable dynamic_dead:bool;mutable dynamic_libraries:int}
+and pipeline_shape=Vertex_shape|Compute_shape
+and library={library_raw:driver_library;library_device:device;mutable library_dead:bool;mutable library_pipelines:int}
 and queue={raw:driver_queue;device:device;mutable dead:bool}
 type surface={raw:driver_surface;device:device;mutable dead:bool;mutable frames:int;
   mutable configuration:Surface.configuration}
@@ -207,7 +141,6 @@ let live op (device:device)=if device.dead then error op Error.Stale_handle"devi
 let make_resource (device:device) raw={raw;handle=Handle.create~device:device.handle;
   device;dead=false}
 let create_buffer ?(memory=Types.Shared) device descriptor=match live"Backend.create_buffer"device with Error _ as e->e|Ok()->match Types.validate_buffer device.raw.capabilities descriptor with Error _ as e->e|Ok()->match device.raw.create_buffer memory descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;buffer_descriptor=descriptor;memory}
-let buffer_memory (value:buffer)=value.memory
 let buffer_size (value:buffer)=value.buffer_descriptor.size
 let create_texture device descriptor=match live"Backend.create_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok()->match device.raw.create_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
 let create_depth_texture device descriptor=match live"Backend.create_depth_texture"device with Error _ as e->e|Ok()->match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok() when not(List.mem Types.Render_attachment descriptor.usage)||List.exists(fun usage->usage<>Types.Render_attachment)descriptor.usage->error"Backend.create_depth_texture"Error.Invalid_argument"depth textures are render-attachment only"|Ok()->match device.raw.create_depth_texture descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{resource=make_resource device raw;texture_descriptor=descriptor}
@@ -285,19 +218,6 @@ let destroy_device (value:device)=if value.dead then Ok()else if value.children<
 type accel={accel_raw:driver_accel;accel_device:device;portable:Acceleration.t;accel_structures:accel list;mutable accel_dead:bool}
 type commands_state=Recording|Encoding|Committed|Abandoned
 type commands={commands_raw:driver_commands;commands_queue:queue;mutable state:commands_state}
-type heap={heap_raw:driver_heap;heap_device:device;heap_descriptor:heap_descriptor;mutable heap_children:int;mutable heap_dead:bool}
-type residency_set={residency_raw:driver_residency;residency_device:device;mutable residency_dead:bool}
-type fence={fence_raw:driver_fence;fence_device:device;mutable fence_dead:bool}
-type event={event_raw:driver_event;event_device:device;mutable event_dead:bool}
-type timestamps={timestamps_raw:driver_timestamps;timestamps_device:device;timestamps_count:int;mutable timestamps_dead:bool}
-let sampling op (device:device) = function
-  |None->Ok None
-  |Some((t:timestamps),start,finish)->
-    if t.timestamps_dead then error op Error.Stale_handle"timestamps are destroyed"
-    else if t.timestamps_device!=device then error op Error.Cross_device"timestamps belong to another device"
-    else if start<0||finish<0||start>=t.timestamps_count||finish>=t.timestamps_count||start>=finish then error op Error.Invalid_argument"timestamp sample indices are out of range or not increasing"
-    else match Caps.require ~operation:op device.raw.capabilities Caps.Timestamp_queries with Error _ as e->e|Ok()->
-      Ok(Some{sampling_token=t.timestamps_raw.timestamps_token;sampling_start=start;sampling_end=finish})
 type compute_encoder={compute_raw:driver_compute_encoder;compute_commands:commands;mutable compute_open:bool;mutable pipeline_set:bool}
 type accel_encoder={accel_encoder_raw:driver_accel_encoder;accel_commands:commands;mutable accel_open:bool}
 type blit_encoder={blit_raw:driver_blit_encoder;blit_commands:commands;mutable blit_open:bool}
@@ -322,41 +242,26 @@ type accel_descriptor=
   |Sized of{size:int64;template:accel}
 type instance_record={instance:instance;user_id:int;table_offset:int}
 type motion_instance={record:instance_record;transforms_start:int;transforms_count:int;start_time:float;end_time:float;start_border:border;end_border:border}
-type function_table={table_raw:driver_table;table_device:device;table_pipeline:pipeline;table_intersection:bool;table_capacity:int;mutable table_dead:bool}
+type function_table={table_raw:driver_table;table_device:device;table_pipeline:pipeline;table_capacity:int;mutable table_dead:bool}
 let valid_name value=value<>""&&not(String.contains value '\000')
-let create_library ?(dynamic=[]) device shader=
+let create_library device shader=
   let op="Backend.create_library"in
   match live op device with Error _ as e->e|Ok()->
-  let dynamic_ok=if dynamic=[]then Ok()else match Caps.require ~operation:op device.raw.capabilities Caps.Dynamic_libraries with Error _ as e->e|Ok()->
-    List.fold_left(fun result (d:dynamic_library)->Result.bind result(fun()->
-      if d.dynamic_dead then error op Error.Stale_handle"dynamic library is destroyed"
-      else if d.dynamic_device!=device then error op Error.Cross_device"dynamic library belongs to another device"else Ok()))(Ok())dynamic in
-  match dynamic_ok with Error _ as e->e|Ok()->
-  match device.raw.create_library shader ~dynamic:(List.map(fun(d:dynamic_library)->d.dynamic_raw.dynamic_token)dynamic)with Error _ as e->e|Ok raw->
+  match device.raw.create_library shader with Error _ as e->e|Ok raw->
   device.children<-device.children+1;
-  List.iter(fun(d:dynamic_library)->d.dynamic_libraries<-d.dynamic_libraries+1)dynamic;
-  Ok{library_raw=raw;library_device=device;library_dead=false;library_pipelines=0;library_dynamic=dynamic}
-type archive={archive_raw:driver_archive;archive_device:device;mutable archive_dead:bool}
-let archive_tokens op (device:device) ?(archive_only=false) archives=
-  if archives=[]then(if archive_only then error op Error.Invalid_argument"archive_only needs at least one archive"else Ok[])
-  else match Caps.require ~operation:op device.raw.capabilities Caps.Binary_archives with Error _ as e->e|Ok()->
-  List.fold_left(fun result (a:archive)->Result.bind result(fun acc->
-    if a.archive_dead then error op Error.Stale_handle"archive is destroyed"
-    else if a.archive_device!=device then error op Error.Cross_device"archive belongs to another device"
-    else Ok(a.archive_raw.archive_token::acc)))(Ok[])archives|>Result.map List.rev
-let create_compute_pipeline_from ?(archives=[]) ?(archive_only=false) (library:library) ~entry ?(constants=[]) ~interface ?(linked=[]) ()=
+  Ok{library_raw=raw;library_device=device;library_dead=false;library_pipelines=0}
+let create_compute_pipeline_from (library:library) ~entry ?(constants=[]) ~interface ?(linked=[]) ()=
   let op="Backend.create_compute_pipeline_from"in
   if library.library_dead then error op Error.Stale_handle"library is destroyed"
   else match live op library.library_device with Error _ as e->e|Ok()->
   let device=library.library_device in
   match Caps.require ~operation:op device.raw.capabilities Caps.Compute_pipeline with Error _ as e->e|Ok()->
-  match archive_tokens op device ~archive_only archives with Error _ as e->e|Ok archives->
   if not(valid_name entry)then error op Error.Invalid_argument"entry name is empty or contains NUL"
   else match Shader.validate_bindings interface with Error _ as e->e|Ok()->
   match Shader.validate_constants constants with Error _ as e->e|Ok()->
   if not(List.for_all valid_name linked)||List.sort_uniq compare linked<>List.sort compare linked then error op Error.Invalid_argument"linked function names must be nonempty and unique"
   else if linked<>[]&&not(Caps.has device.raw.capabilities Caps.Function_tables) then error op Error.Unsupported"function tables are unavailable on this adapter profile"
-  else match library.library_raw.create_compute_pipeline_in ~entry ~constants ~interface ~linked ~archives ~archive_only with Error _ as e->e|Ok pipeline_driver->
+  else match library.library_raw.create_compute_pipeline_in ~entry ~constants ~interface ~linked with Error _ as e->e|Ok pipeline_driver->
   device.children<-device.children+1;library.library_pipelines<-library.library_pipelines+1;
   Ok{pipeline_driver;device;pipeline_library=Some library;pipeline_indirect=false;pipeline_linked=linked;pipeline_shape=Compute_shape;dead=false}
 let destroy_library (library:library)=
@@ -364,21 +269,13 @@ let destroy_library (library:library)=
   if library.library_dead then Ok()
   else if library.library_pipelines>0 then error op Error.Invalid_state"library has live pipelines"
   else match library.library_raw.destroy_library()with Error _ as e->e|Ok()->
-    library.library_dead<-true;library.library_device.children<-library.library_device.children-1;
-    List.iter(fun(d:dynamic_library)->d.dynamic_libraries<-d.dynamic_libraries-1)library.library_dynamic;Ok()
+    library.library_dead<-true;library.library_device.children<-library.library_device.children-1;Ok()
 let accel_sizes (value:accel)=value.accel_raw.accel_sizes
 let instance_stride_of (device:device) kind=(device.raw.instance_layout kind).(0)
-let instance_stride (device:device)=instance_stride_of device Default_instances
 let finite value=Float.is_finite value&&Float.abs value<=3.402823466e38
 let valid_instance (i:instance)=Array.length i.transform=12&&Array.for_all finite i.transform&&i.mask>=0&&i.mask<=0xFFFF_FFFF&&i.structure_index>=0
 let valid_record (r:instance_record)=valid_instance r.instance&&r.user_id>=0&&r.user_id<=0xFFFF_FFFF&&r.table_offset>=0
 let border_code=function Clamp->0|Vanish->1
-let pack_instances (device:device) instances=
-  let op="Backend.pack_instances"in
-  if Array.length instances=0 then error op Error.Invalid_argument"instance array is empty"
-  else if not(Array.for_all valid_instance instances)then error op Error.Invalid_argument"instance transform, mask, or structure index is invalid"
-  else Ok(Acceleration.pack_instances(device.raw.instance_layout Default_instances)
-    (Array.map(fun(i:instance)->i.transform,i.mask,i.structure_index,0,0)instances))
 let pack_instance_records (device:device) records=
   let op="Backend.pack_instance_records"in
   if Array.length records=0 then error op Error.Invalid_argument"instance array is empty"
@@ -506,12 +403,11 @@ let commands_device (commands:commands)=commands.commands_queue.device
 let max_slot=31
 let valid_slot op index=if index<0||index>max_slot then error op Error.Invalid_argument"binding slot is out of range"else Ok()
 let positive3 (x,y,z)=x>0&&y>0&&z>0
-let compute_encoder ?timestamps commands=
+let compute_encoder commands=
   let op="Backend.compute_encoder"in
   match recording op commands with Error _ as e->e|Ok()->
   match Caps.require ~operation:op (commands_device commands).raw.capabilities Caps.Compute_pipeline with Error _ as e->e|Ok()->
-  match sampling op (commands_device commands) timestamps with Error _ as e->e|Ok sampling->
-  match commands.commands_raw.compute_encoder sampling with Error _ as e->e|Ok raw->
+  match commands.commands_raw.compute_encoder () with Error _ as e->e|Ok raw->
   commands.state<-Encoding;Ok{compute_raw=raw;compute_commands=commands;compute_open=true;pipeline_set=false}
 let open_compute op (encoder:compute_encoder)=if encoder.compute_open then Ok()else error op Error.Invalid_state"compute encoder is ended"
 let set_pipeline (encoder:compute_encoder) (pipeline:pipeline)=
@@ -546,18 +442,16 @@ let set_accel (encoder:compute_encoder) ~index (accel:accel)=
   match check_accel op (commands_device encoder.compute_commands) accel with Error _ as e->e|Ok()->
   if not(Acceleration.built accel.portable)then error op Error.Invalid_state"acceleration structure has no encoded build"
   else encoder.compute_raw.set_accel ~index accel.accel_raw.accel_token
-let create_table op intersection (pipeline:pipeline) ~capacity=
+let create_intersection_table (pipeline:pipeline) ~capacity=
+  let op="Backend.create_intersection_table"in
   if pipeline.dead then error op Error.Stale_handle"pipeline is destroyed"
   else match live op pipeline.device with Error _ as e->e|Ok()->
   match Caps.require ~operation:op pipeline.device.raw.capabilities Caps.Function_tables with Error _ as e->e|Ok()->
   if capacity<=0||capacity>65536 then error op Error.Invalid_argument"table capacity must be in [1,65536]"
   else if pipeline.pipeline_linked=[]then error op Error.Invalid_argument"pipeline has no linked functions"
-  else match pipeline.pipeline_driver.create_table ~intersection ~capacity with Error _ as e->e|Ok table_raw->
+  else match pipeline.pipeline_driver.create_table ~capacity with Error _ as e->e|Ok table_raw->
   pipeline.device.children<-pipeline.device.children+1;
-  Ok{table_raw;table_device=pipeline.device;table_pipeline=pipeline;table_intersection=intersection;table_capacity=capacity;table_dead=false}
-let create_intersection_table pipeline ~capacity=create_table"Backend.create_intersection_table"true pipeline ~capacity
-let create_visible_table pipeline ~capacity=create_table"Backend.create_visible_table"false pipeline ~capacity
-let table_capacity (table:function_table)=table.table_capacity
+  Ok{table_raw;table_device=pipeline.device;table_pipeline=pipeline;table_capacity=capacity;table_dead=false}
 let live_table op (table:function_table)=
   if table.table_dead then error op Error.Stale_handle"function table is destroyed"
   else if table.table_pipeline.dead then error op Error.Stale_handle"table pipeline is destroyed"
@@ -572,8 +466,7 @@ let table_set_buffer (table:function_table) ~index ?(offset=0L) (buffer:buffer)=
   let op="Backend.table_set_buffer"in
   match live_table op table with Error _ as e->e|Ok()->
   match check_resource op table.table_device buffer.resource with Error _ as e->e|Ok()->
-  if not table.table_intersection then error op Error.Invalid_argument"only intersection tables bind buffers"
-  else if index<0||index>=table.table_capacity then error op Error.Invalid_argument"table index exceeds its capacity"
+  if index<0||index>=table.table_capacity then error op Error.Invalid_argument"table index exceeds its capacity"
   else if offset<0L||offset>=buffer.buffer_descriptor.size then error op Error.Invalid_argument"buffer offset exceeds its buffer"
   else table.table_raw.table_set_buffer ~index buffer.resource.raw.token ~offset
 let destroy_table (table:function_table)=
@@ -624,12 +517,6 @@ let build_accel encoder accel ~scratch ?(scratch_offset=0L) ()=
   else accel_operation op encoder accel scratch scratch_offset (accel_sizes accel).build_scratch_size
     (fun()->Acceleration.build device.handle accel.portable)
     (fun()->encoder.accel_encoder_raw.build accel.accel_raw.accel_token ~scratch:scratch.resource.raw.token ~scratch_offset)
-let refit_accel encoder accel ~scratch ?(scratch_offset=0L) ()=
-  let op="Backend.refit_accel"in
-  let device=commands_device encoder.accel_commands in
-  accel_operation op encoder accel scratch scratch_offset (accel_sizes accel).refit_scratch_size
-    (fun()->Acceleration.refit device.handle accel.portable)
-    (fun()->encoder.accel_encoder_raw.refit accel.accel_raw.accel_token ~scratch:scratch.resource.raw.token ~scratch_offset)
 let accel_pair op (encoder:accel_encoder) ~(src:accel) ~(dst:accel) transition encode=
   match open_accel op encoder with Error _ as e->e|Ok()->
   let device=commands_device encoder.accel_commands in
@@ -637,10 +524,6 @@ let accel_pair op (encoder:accel_encoder) ~(src:accel) ~(dst:accel) transition e
   match check_accel op device dst with Error _ as e->e|Ok()->
   if (accel_sizes dst).structure_size<=0L then error op Error.Invalid_argument"destination structure is empty"
   else match transition device with Error _ as e->e|Ok()->encode()
-let copy_accel encoder ~src ~dst=
-  let op="Backend.copy_accel"in
-  accel_pair op encoder ~src ~dst(fun device->if (accel_sizes dst).structure_size<(accel_sizes src).structure_size then error op Error.Invalid_argument"copy destination is smaller than its source"else Acceleration.copy_into device.handle ~source:src.portable ~destination:dst.portable)
-    (fun()->encoder.accel_encoder_raw.copy ~src:src.accel_raw.accel_token ~dst:dst.accel_raw.accel_token)
 let compact_accel encoder ~src ~dst=
   let op="Backend.compact_accel"in
   accel_pair op encoder ~src ~dst(fun device->Acceleration.compact_into device.handle ~source:src.portable ~destination:dst.portable)
@@ -660,24 +543,12 @@ let end_accel (encoder:accel_encoder)=
   match open_accel op encoder with Error _ as e->e|Ok()->
   match encoder.accel_encoder_raw.end_accel()with Error _ as e->e|Ok()->
   encoder.accel_open<-false;encoder.accel_commands.state<-Recording;Ok()
-let blit_encoder ?timestamps commands=
+let blit_encoder commands=
   let op="Backend.blit_encoder"in
   match recording op commands with Error _ as e->e|Ok()->
-  match sampling op (commands_device commands) timestamps with Error _ as e->e|Ok sampling->
-  match commands.commands_raw.blit_encoder sampling with Error _ as e->e|Ok raw->
+  match commands.commands_raw.blit_encoder () with Error _ as e->e|Ok raw->
   commands.state<-Encoding;Ok{blit_raw=raw;blit_commands=commands;blit_open=true}
 let open_blit op (encoder:blit_encoder)=if encoder.blit_open then Ok()else error op Error.Invalid_state"blit encoder is ended"
-let copy_buffer (encoder:blit_encoder) ~src ?(src_offset=0L) ~dst ?(dst_offset=0L) ~length ()=
-  let op="Backend.copy_buffer"in
-  match open_blit op encoder with Error _ as e->e|Ok()->
-  let device=commands_device encoder.blit_commands in
-  match check_resource op device src.resource with Error _ as e->e|Ok()->
-  match check_resource op device dst.resource with Error _ as e->e|Ok()->
-  let inside (buffer:buffer) offset=offset>=0L&&length>0L&&offset<=Int64.sub buffer.buffer_descriptor.size length in
-  if not(inside src src_offset&&inside dst dst_offset)then error op Error.Invalid_argument"buffer copy range is invalid"
-  else match encoder.blit_raw.copy_buffer ~src:src.resource.raw.token ~src_offset ~dst:dst.resource.raw.token ~dst_offset ~length with Error _ as e->e|Ok()->
-    mark_submitted encoder.blit_commands.commands_queue src.resource;
-    mark_submitted encoder.blit_commands.commands_queue dst.resource;Ok()
 let end_blit (encoder:blit_encoder)=
   let op="Backend.end_blit"in
   match open_blit op encoder with Error _ as e->e|Ok()->
@@ -694,7 +565,7 @@ let gpu_duration (queue:queue) (receipt:receipt)=if queue.dead then None else qu
 let gpu_timing (queue:queue)=queue.raw.gpu_timing()
 (* Samplers, render pipelines, argument buffers, indirect command buffers,
    and the render encoder. *)
-type sampler={sampler_raw:driver_sampler;sampler_device:device;sampler_descriptor:Types.sampler_descriptor;mutable sampler_dead:bool}
+type sampler={sampler_raw:driver_sampler;sampler_device:device;mutable sampler_dead:bool}
 type icb={icb_raw:driver_icb;icb_device:device;icb_capacity:int;mutable icb_dead:bool}
 type argument={argument_raw:driver_argument;argument_device:device;mutable argument_dead:bool}
 type render_encoder={render_raw:driver_render_encoder;render_commands:commands;mutable render_open:bool;mutable render_pipeline_set:bool;mutable render_shape:pipeline_shape}
@@ -709,21 +580,19 @@ let create_sampler device descriptor=
   match Types.validate_sampler descriptor with Error _ as e->e|Ok()->
   match device.raw.create_sampler descriptor with Error _ as e->e|Ok raw->
   device.children<-device.children+1;
-  Ok{sampler_raw=raw;sampler_device=device;sampler_descriptor=descriptor;sampler_dead=false}
-let sampler_descriptor (value:sampler)=value.sampler_descriptor
+  Ok{sampler_raw=raw;sampler_device=device;sampler_dead=false}
 let destroy_sampler (value:sampler)=
   if value.sampler_dead then Ok()
   else match value.sampler_raw.destroy_sampler()with Error _ as e->e|Ok()->
     value.sampler_dead<-true;value.sampler_device.children<-value.sampler_device.children-1;Ok()
-let create_render_pipeline ?(blend=Pipeline.Replace) ?(topology=Render_pass.Triangle_list) ?(indirect=false) ?(archives=[]) ?(archive_only=false) device descriptor=
+let create_render_pipeline ?(blend=Pipeline.Replace) ?(topology=Render_pass.Triangle_list) ?(indirect=false) device descriptor=
   let op="Backend.create_render_pipeline"in
   match live op device with Error _ as e->e|Ok()->
   match Caps.require ~operation:op device.raw.capabilities Caps.Render_pipeline with Error _ as e->e|Ok()->
-  match Pipeline.create_render ~blend device.raw.capabilities descriptor with Error _ as e->e|Ok _->
-  match archive_tokens op device ~archive_only archives with Error _ as e->e|Ok archives->
+  match Pipeline.create_render device.raw.capabilities descriptor with Error _ as e->e|Ok()->
   if topology<>Render_pass.Triangle_list&&topology<>Render_pass.Point_list then
     error op Error.Invalid_argument"pipeline topology class must be triangles or points"
-  else match device.raw.create_render_pipeline{blend;topology;indirect;archives;archive_only}descriptor with Error _ as e->e|Ok pipeline_driver->
+  else match device.raw.create_render_pipeline{blend;topology;indirect}descriptor with Error _ as e->e|Ok pipeline_driver->
     device.children<-device.children+1;
     Ok{pipeline_driver;device;pipeline_library=None;pipeline_indirect=indirect;pipeline_linked=[];pipeline_shape=Vertex_shape;dead=false}
 let pipeline_indirect (value:pipeline)=value.pipeline_indirect
@@ -806,12 +675,11 @@ let destroy_argument (value:argument)=
   if value.argument_dead then Ok()
   else match value.argument_raw.destroy_argument()with Error _ as e->e|Ok()->
     value.argument_dead<-true;value.argument_device.children<-value.argument_device.children-1;Ok()
-let render_encoder ?timestamps commands (target:render_target)=
+let render_encoder commands (target:render_target)=
   let op="Backend.render_encoder"in
   match recording op commands with Error _ as e->e|Ok()->
   let device=commands_device commands in
   match Caps.require ~operation:op device.raw.capabilities Caps.Render_pipeline with Error _ as e->e|Ok()->
-  match sampling op device timestamps with Error _ as e->e|Ok sampling->
   match target.colors with
   |[]->error op Error.Invalid_argument"render target needs one color attachment"
   |_::_::_->error op Error.Unsupported"multiple color attachments are not exposed"
@@ -847,7 +715,7 @@ let render_encoder ?timestamps commands (target:render_target)=
     target_depth=Option.map(fun d->{depth=token d.depth_texture;depth_load=d.depth_load;depth_store=d.depth_store;depth_clear=d.depth_clear})target.depth;
     target_stencil=Option.map(fun s->{stencil=token s.stencil_texture;stencil_load=s.stencil_load;stencil_store=s.stencil_store;stencil_clear=s.stencil_clear})target.stencil;
     target_width=width;target_height=height;target_samples=samples}in
-  match commands.commands_raw.render_encoder sampling driver_target with Error _ as e->e|Ok raw->
+  match commands.commands_raw.render_encoder driver_target with Error _ as e->e|Ok raw->
   let queue=commands.commands_queue in
   mark_submitted queue color.texture.resource;
   Option.iter(fun (t:texture)->mark_submitted queue t.resource)color.resolve;
@@ -871,11 +739,6 @@ let set_stage_buffer (encoder:render_encoder) stage ~index ?(offset=0L) (buffer:
   if offset<0L||offset>=buffer.buffer_descriptor.size then error op Error.Invalid_argument"buffer offset is out of range"
   else match encoder.render_raw.set_stage_buffer stage ~index ~offset buffer.resource.raw.token with Error _ as e->e|Ok()->
     mark_submitted encoder.render_commands.commands_queue buffer.resource;Ok()
-let set_stage_bytes (encoder:render_encoder) stage ~index bytes=
-  let op="Backend.set_stage_bytes"in
-  match open_render op encoder with Error _ as e->e|Ok()->match valid_slot op index with Error _ as e->e|Ok()->
-  if Bytes.length bytes=0||Bytes.length bytes>max_inline_bytes then error op Error.Invalid_argument"inline bytes must be 1..4096 bytes"
-  else encoder.render_raw.set_stage_bytes stage ~index bytes
 let set_stage_texture (encoder:render_encoder) stage ~index (texture:texture)=
   let op="Backend.set_stage_texture"in
   match open_render op encoder with Error _ as e->e|Ok()->match valid_slot op index with Error _ as e->e|Ok()->
@@ -990,23 +853,6 @@ let buffer_texture_region op ~buffer_usage ~texture_usage (b:buffer) offset row 
   else match footprint image extent.depth with
     |Some size when blit_range b.buffer_descriptor.size offset size->Ok()
     |_->error op Error.Invalid_argument"buffer range does not cover the texture region"
-let copy_texture (encoder:blit_encoder) ~(src:texture) ?(src_mip=0) ?(src_origin={Types.x=0;y=0;z=0}) ~(dst:texture) ?(dst_mip=0) ?(dst_origin={Types.x=0;y=0;z=0}) ~extent ()=
-  let op="Backend.copy_texture"in
-  match open_blit op encoder with Error _ as e->e|Ok()->
-  let device=commands_device encoder.blit_commands in
-  match check_resource op device src.resource with Error _ as e->e|Ok()->
-  match check_resource op device dst.resource with Error _ as e->e|Ok()->
-  let valid=
-    if not(List.mem Types.Texture_copy_src src.texture_descriptor.usage&&List.mem Types.Texture_copy_dst dst.texture_descriptor.usage)then
-      error op Error.Invalid_argument"texture usage does not permit the copy"
-    else if src.texture_descriptor.format<>dst.texture_descriptor.format then
-      error op Error.Invalid_argument"texture formats differ"
-    else if not(texrange src.texture_descriptor src_mip src_origin extent&&texrange dst.texture_descriptor dst_mip dst_origin extent)then
-      error op Error.Invalid_argument"texture copy region is invalid"
-    else Ok()in
-  match valid with Error _ as e->e|Ok()->
-  match encoder.blit_raw.copy_texture ~src:src.resource.raw.token ~src_mip ~src_origin ~dst:dst.resource.raw.token ~dst_mip ~dst_origin ~extent with Error _ as e->e|Ok()->
-  mark_submitted encoder.blit_commands.commands_queue src.resource;mark_submitted encoder.blit_commands.commands_queue dst.resource;Ok()
 let buffer_to_texture (encoder:blit_encoder) ~(src:buffer) ?(offset=0L) ~bytes_per_row ~bytes_per_image ~(dst:texture) ?(mip=0) ?(origin={Types.x=0;y=0;z=0}) ~extent ()=
   let op="Backend.buffer_to_texture"in
   match open_blit op encoder with Error _ as e->e|Ok()->
@@ -1016,23 +862,6 @@ let buffer_to_texture (encoder:blit_encoder) ~(src:buffer) ?(offset=0L) ~bytes_p
   match buffer_texture_region op ~buffer_usage:Types.Copy_src ~texture_usage:Types.Texture_copy_dst src offset bytes_per_row bytes_per_image dst mip origin extent with Error _ as e->e|Ok()->
   match encoder.blit_raw.buffer_to_texture ~src:src.resource.raw.token ~offset ~bytes_per_row ~bytes_per_image ~dst:dst.resource.raw.token ~mip ~origin ~extent with Error _ as e->e|Ok()->
   mark_submitted encoder.blit_commands.commands_queue src.resource;mark_submitted encoder.blit_commands.commands_queue dst.resource;Ok()
-let texture_to_buffer (encoder:blit_encoder) ~(src:texture) ?(mip=0) ?(origin={Types.x=0;y=0;z=0}) ~extent ~(dst:buffer) ?(offset=0L) ~bytes_per_row ~bytes_per_image ()=
-  let op="Backend.texture_to_buffer"in
-  match open_blit op encoder with Error _ as e->e|Ok()->
-  let device=commands_device encoder.blit_commands in
-  match check_resource op device src.resource with Error _ as e->e|Ok()->
-  match check_resource op device dst.resource with Error _ as e->e|Ok()->
-  match buffer_texture_region op ~buffer_usage:Types.Copy_dst ~texture_usage:Types.Texture_copy_src dst offset bytes_per_row bytes_per_image src mip origin extent with Error _ as e->e|Ok()->
-  match encoder.blit_raw.texture_to_buffer ~src:src.resource.raw.token ~mip ~origin ~extent ~dst:dst.resource.raw.token ~offset ~bytes_per_row ~bytes_per_image with Error _ as e->e|Ok()->
-  mark_submitted encoder.blit_commands.commands_queue src.resource;mark_submitted encoder.blit_commands.commands_queue dst.resource;Ok()
-let fill_buffer (encoder:blit_encoder) (buffer:buffer) ?(offset=0L) ~length ~value ()=
-  let op="Backend.fill_buffer"in
-  match open_blit op encoder with Error _ as e->e|Ok()->
-  let device=commands_device encoder.blit_commands in
-  match check_resource op device buffer.resource with Error _ as e->e|Ok()->
-  if value<0||value>255||offset<0L||length<=0L||offset>Int64.sub buffer.buffer_descriptor.size length then error op Error.Invalid_argument"buffer fill range or value is invalid"
-  else match encoder.blit_raw.fill_buffer buffer.resource.raw.token ~offset ~length ~value with Error _ as e->e|Ok()->
-    mark_submitted encoder.blit_commands.commands_queue buffer.resource;Ok()
 let commit_present (commands:commands) ~(source:texture) (frame:frame)=
   let op="Backend.commit_present"in
   match recording op commands with Error _ as e->e|Ok()->
@@ -1040,62 +869,6 @@ let commit_present (commands:commands) ~(source:texture) (frame:frame)=
   match validate_present op queue source frame with Error _ as e->e|Ok()->
   match commands.commands_raw.commit_present ~source:source.resource.raw.token frame.raw with Error _ as e->e|Ok receipt->
   commands.state<-Committed;consume_present frame;Ok receipt
-(* Plan G6: heaps, residency sets, fences, events, and timestamps. Every
-   feature is capability-gated here; drivers only translate tokens. *)
-let require op (device:device) feature=Caps.require ~operation:op device.raw.capabilities feature
-let create_heap device ?(memory=Types.Device_local) ?(tracked=true) ?(sparse=false) ?label ~size ()=
-  let op="Backend.create_heap"in
-  match live op device with Error _ as e->e|Ok()->
-  match require op device Caps.Heaps with Error _ as e->e|Ok()->
-  match(if sparse then require op device Caps.Sparse_memory else Ok())with Error _ as e->e|Ok()->
-  if size<=0L||size>device.raw.capabilities.limits.max_buffer_size then error op Error.Invalid_argument"heap size must be positive and within the buffer limit"
-  else let descriptor={heap_size=size;heap_memory=memory;heap_tracked=tracked;heap_sparse=sparse;heap_label=label}in
-  match device.raw.create_heap descriptor with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{heap_raw=raw;heap_device=device;heap_descriptor=descriptor;heap_children=0;heap_dead=false}
-let heap_size (heap:heap)=heap.heap_descriptor.heap_size
-let live_heap op (heap:heap)=if heap.heap_dead then error op Error.Stale_handle"heap is destroyed"else Ok()
-let buffer_placement device ?(memory=Types.Device_local) size=
-  let op="Backend.buffer_placement"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Heaps with Error _ as e->e|Ok()->
-  if size<=0L then error op Error.Invalid_argument"placement size must be positive"else device.raw.heap_placement(Buffer_placement(memory,size))
-let texture_placement device descriptor=
-  let op="Backend.texture_placement"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Heaps with Error _ as e->e|Ok()->
-  match Types.validate_texture device.raw.capabilities descriptor with Error _ as e->e|Ok()->device.raw.heap_placement(Texture_placement descriptor)
-let heap_resource (heap:heap) raw=
-  let raw={raw with destroy=(fun()->match raw.destroy()with Error _ as e->e|Ok()->heap.heap_children<-heap.heap_children-1;Ok())}in
-  heap.heap_children<-heap.heap_children+1;heap.heap_device.children<-heap.heap_device.children+1;make_resource heap.heap_device raw
-let create_heap_buffer (heap:heap) ~offset descriptor=
-  let op="Backend.create_heap_buffer"in
-  match live_heap op heap with Error _ as e->e|Ok()->
-  if heap.heap_descriptor.heap_sparse then error op Error.Invalid_argument"sparse heaps hold sparse textures only"else
-  match Types.validate_buffer heap.heap_device.raw.capabilities descriptor with Error _ as e->e|Ok()->
-  if offset<0L||descriptor.size>Int64.sub heap.heap_descriptor.heap_size offset then error op Error.Invalid_argument"buffer placement exceeds the heap"
-  else match heap.heap_raw.heap_buffer ~offset descriptor with Error _ as e->e|Ok raw->
-    Ok{resource=heap_resource heap raw;buffer_descriptor=descriptor;memory=heap.heap_descriptor.heap_memory}
-let create_heap_texture (heap:heap) ~offset descriptor=
-  let op="Backend.create_heap_texture"in
-  match live_heap op heap with Error _ as e->e|Ok()->
-  if heap.heap_descriptor.heap_sparse then error op Error.Invalid_argument"sparse heaps hold sparse textures only"else
-  match Types.validate_texture heap.heap_device.raw.capabilities descriptor with Error _ as e->e|Ok()->
-  if offset<0L||offset>=heap.heap_descriptor.heap_size then error op Error.Invalid_argument"texture placement exceeds the heap"
-  else match heap.heap_raw.heap_texture ~offset descriptor with Error _ as e->e|Ok raw->
-    Ok{resource=heap_resource heap raw;texture_descriptor=descriptor}
-let destroy_heap (heap:heap)=
-  let op="Backend.destroy_heap"in
-  if heap.heap_dead then Ok()
-  else if heap.heap_children<>0 then error op Error.Invalid_state"heap still owns live resources"
-  else match heap.heap_raw.destroy_heap()with Error _ as e->e|Ok()->heap.heap_dead<-true;heap.heap_device.children<-heap.heap_device.children-1;Ok()
-let make_aliasable (heap:heap) resource=
-  let op="Backend.make_aliasable"in
-  match live_heap op heap with Error _ as e->e|Ok()->
-  let resource=match resource with `Buffer (b:buffer)->b.resource|`Texture (t:texture)->t.resource in
-  match check_resource op heap.heap_device resource with Error _ as e->e|Ok()->heap.heap_raw.heap_alias resource.raw.token
-let check_heap op (device:device) (heap:heap)=
-  match live_heap op heap with Error _ as e->e|Ok()->if heap.heap_device!=device then error op Error.Cross_device"heap belongs to another device"else Ok()
-let compute_use_heap (encoder:compute_encoder) heap=
-  let op="Backend.compute_use_heap"in
-  match open_compute op encoder with Error _ as e->e|Ok()->
-  match check_heap op (commands_device encoder.compute_commands) heap with Error _ as e->e|Ok()->encoder.compute_raw.compute_use_heap heap.heap_raw.heap_token
 let compute_use_accels (encoder:compute_encoder) accels=
   let op="Backend.compute_use_accels"in
   match open_compute op encoder with Error _ as e->e|Ok()->
@@ -1108,224 +881,6 @@ let compute_use_accels (encoder:compute_encoder) accels=
          else check rest) in
   match check accels with Error _ as e->e|Ok()->
   if accels=[] then Ok() else encoder.compute_raw.compute_use_accels (List.map (fun (a:accel)->a.accel_raw.accel_token) accels)
-type residency_allocation=[ `Buffer of buffer | `Texture of texture | `Heap of heap ]
-let create_residency_set device ?(capacity=16) ?label ()=
-  let op="Backend.create_residency_set"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Residency_sets with Error _ as e->e|Ok()->
-  if capacity<=0 then error op Error.Invalid_argument"residency capacity must be positive"
-  else match device.raw.create_residency ~capacity ~label with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{residency_raw=raw;residency_device=device;residency_dead=false}
-let live_residency op (set:residency_set)=if set.residency_dead then error op Error.Stale_handle"residency set is destroyed"else Ok()
-let residency_item op (set:residency_set)=function
-  |`Buffer (b:buffer)->Result.map(fun()->Resident_buffer b.resource.raw.token)(check_resource op set.residency_device b.resource)
-  |`Texture (t:texture)->Result.map(fun()->Resident_texture t.resource.raw.token)(check_resource op set.residency_device t.resource)
-  |`Heap h->Result.map(fun()->Resident_heap h.heap_raw.heap_token)(check_heap op set.residency_device h)
-let residency_add set allocation=
-  let op="Backend.residency_add"in
-  match live_residency op set with Error _ as e->e|Ok()->match residency_item op set allocation with Error _ as e->e|Ok item->set.residency_raw.residency_add item
-let residency_remove set allocation=
-  let op="Backend.residency_remove"in
-  match live_residency op set with Error _ as e->e|Ok()->match residency_item op set allocation with Error _ as e->e|Ok item->set.residency_raw.residency_remove item
-let residency_commit set=match live_residency"Backend.residency_commit"set with Error _ as e->e|Ok()->set.residency_raw.residency_commit()
-let residency_size set=match live_residency"Backend.residency_size"set with Error _ as e->e|Ok()->set.residency_raw.residency_size()
-let check_residency op (device:device) set=
-  match live_residency op set with Error _ as e->e|Ok()->if set.residency_device!=device then error op Error.Cross_device"residency set belongs to another device"else Ok()
-let queue_add_residency (queue:queue) set=
-  let op="Backend.queue_add_residency"in
-  if queue.dead then error op Error.Stale_handle"queue is destroyed"else match check_residency op queue.device set with Error _ as e->e|Ok()->queue.raw.queue_add_residency set.residency_raw.residency_token
-let queue_remove_residency (queue:queue) set=
-  let op="Backend.queue_remove_residency"in
-  if queue.dead then error op Error.Stale_handle"queue is destroyed"else match check_residency op queue.device set with Error _ as e->e|Ok()->queue.raw.queue_remove_residency set.residency_raw.residency_token
-let use_residency (commands:commands) set=
-  let op="Backend.use_residency"in
-  match recording op commands with Error _ as e->e|Ok()->match check_residency op (commands_device commands) set with Error _ as e->e|Ok()->commands.commands_raw.commands_use_residency set.residency_raw.residency_token
-let destroy_residency_set (set:residency_set)=
-  if set.residency_dead then Ok()else match set.residency_raw.destroy_residency()with Error _ as e->e|Ok()->set.residency_dead<-true;set.residency_device.children<-set.residency_device.children-1;Ok()
-type fence_encoder=[ `Compute of compute_encoder | `Blit of blit_encoder | `Render of render_encoder ]
-let create_fence device=
-  let op="Backend.create_fence"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Fences with Error _ as e->e|Ok()->
-  match device.raw.create_fence()with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{fence_raw=raw;fence_device=device;fence_dead=false}
-let fence_call op (encoder:fence_encoder) (fence:fence) ~update=
-  if fence.fence_dead then error op Error.Stale_handle"fence is destroyed"else
-  let device,call=match encoder with
-    |`Compute e->commands_device e.compute_commands,(fun t->match open_compute op e with Error _ as x->x|Ok()->if update then e.compute_raw.compute_update_fence t else e.compute_raw.compute_wait_fence t)
-    |`Blit e->commands_device e.blit_commands,(fun t->match open_blit op e with Error _ as x->x|Ok()->if update then e.blit_raw.blit_update_fence t else e.blit_raw.blit_wait_fence t)
-    |`Render e->render_device e,(fun t->match open_render op e with Error _ as x->x|Ok()->if update then e.render_raw.render_update_fence t else e.render_raw.render_wait_fence t)in
-  if fence.fence_device!=device then error op Error.Cross_device"fence belongs to another device"else call fence.fence_raw.fence_token
-let update_fence encoder fence=fence_call"Backend.update_fence"encoder fence ~update:true
-let wait_fence encoder fence=fence_call"Backend.wait_fence"encoder fence ~update:false
-let destroy_fence (fence:fence)=
-  if fence.fence_dead then Ok()else match fence.fence_raw.destroy_fence()with Error _ as e->e|Ok()->fence.fence_dead<-true;fence.fence_device.children<-fence.fence_device.children-1;Ok()
-let create_event device=
-  let op="Backend.create_event"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Event_synchronization with Error _ as e->e|Ok()->
-  match device.raw.create_event()with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{event_raw=raw;event_device=device;event_dead=false}
-let live_event op (event:event)=if event.event_dead then error op Error.Stale_handle"event is destroyed"else Ok()
-let event_value event=match live_event"Backend.event_value"event with Error _ as e->e|Ok()->event.event_raw.event_value()
-let signal_event event value=
-  let op="Backend.signal_event"in
-  match live_event op event with Error _ as e->e|Ok()->if value<0L then error op Error.Invalid_argument"event value must be nonnegative"else
-  match event.event_raw.event_value()with Error _ as e->e|Ok current->if value<current then error op Error.Invalid_argument"event values only grow"else event.event_raw.event_signal value
-let wait_event event ~value ~timeout_ms=
-  let op="Backend.wait_event"in
-  match live_event op event with Error _ as e->e|Ok()->if value<0L||timeout_ms<0 then error op Error.Invalid_argument"event value and timeout must be nonnegative"else event.event_raw.event_wait value ~timeout_ms
-let commands_event op (commands:commands) (event:event) value ~signal=
-  match recording op commands with Error _ as e->e|Ok()->match live_event op event with Error _ as e->e|Ok()->
-  if event.event_device!=commands_device commands then error op Error.Cross_device"event belongs to another device"
-  else if value<0L then error op Error.Invalid_argument"event value must be nonnegative"
-  else if signal then commands.commands_raw.commands_signal_event event.event_raw.event_token value else commands.commands_raw.commands_wait_event event.event_raw.event_token value
-let commands_signal_event commands event value=commands_event"Backend.commands_signal_event"commands event value ~signal:true
-let commands_wait_event commands event value=commands_event"Backend.commands_wait_event"commands event value ~signal:false
-let destroy_event (event:event)=
-  if event.event_dead then Ok()else match event.event_raw.destroy_event()with Error _ as e->e|Ok()->event.event_dead<-true;event.event_device.children<-event.event_device.children-1;Ok()
-let create_timestamps device ~count=
-  let op="Backend.create_timestamps"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Timestamp_queries with Error _ as e->e|Ok()->
-  if count<=0||count>4096 then error op Error.Invalid_argument"timestamp count must be in [1,4096]"
-  else match device.raw.create_timestamps ~count with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{timestamps_raw=raw;timestamps_device=device;timestamps_count=count;timestamps_dead=false}
-let timestamps_count (t:timestamps)=t.timestamps_count
-let timestamp_range op (t:timestamps) first count=
-  if t.timestamps_dead then error op Error.Stale_handle"timestamps are destroyed"
-  else if first<0||count<=0||first>t.timestamps_count-count then error op Error.Invalid_argument"timestamp range is out of range"else Ok()
-let resolve_timestamps (encoder:blit_encoder) t ?(first=0) ~count ~dst ?(offset=0L) ()=
-  let op="Backend.resolve_timestamps"in
-  match open_blit op encoder with Error _ as e->e|Ok()->match timestamp_range op t first count with Error _ as e->e|Ok()->
-  let device=commands_device encoder.blit_commands in
-  if t.timestamps_device!=device then error op Error.Cross_device"timestamps belong to another device"else
-  match check_resource op device dst.resource with Error _ as e->e|Ok()->
-  if offset<0L||Int64.rem offset 8L<>0L||Int64.mul 8L(Int64.of_int count)>Int64.sub dst.buffer_descriptor.size offset then error op Error.Invalid_argument"timestamp destination range is invalid or unaligned"
-  else match encoder.blit_raw.resolve_timestamps t.timestamps_raw.timestamps_token ~first ~count ~dst:dst.resource.raw.token ~offset with Error _ as e->e|Ok()->
-    mark_submitted encoder.blit_commands.commands_queue dst.resource;Ok()
-let read_timestamps t ?(first=0) ~count ()=
-  let op="Backend.read_timestamps"in
-  match timestamp_range op t first count with Error _ as e->e|Ok()->t.timestamps_raw.timestamps_read ~first ~count
-let timestamp_reference device=
-  let op="Backend.timestamp_reference"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Timestamp_queries with Error _ as e->e|Ok()->device.raw.timestamp_reference()
-let destroy_timestamps (t:timestamps)=
-  if t.timestamps_dead then Ok()else match t.timestamps_raw.destroy_timestamps()with Error _ as e->e|Ok()->t.timestamps_dead<-true;t.timestamps_device.children<-t.timestamps_device.children-1;Ok()
-(* Plan G7: mesh and tile pipelines, dynamic libraries, binary archives,
-   sparse textures, and upscaling. *)
-let library_token op (device:device) (library:library)=
-  if library.library_dead then error op Error.Stale_handle"library is destroyed"
-  else if library.library_device!=device then error op Error.Cross_device"library belongs to another device"else Ok library.library_raw.library_token
-let positive3 (x,y,z)=x>0&&y>0&&z>0
-type mesh_descriptor={mesh_label:string option;mesh_library:library;object_entry:string option;mesh_entry:string;mesh_fragment_entry:string;
-  mesh_color_format:Pipeline.color_format;mesh_threadgroup:int*int*int;object_threadgroup:(int*int*int)option}
-let create_mesh_pipeline ?(blend=Pipeline.Replace) ?(archives=[]) ?(archive_only=false) device (d:mesh_descriptor)=
-  let op="Backend.create_mesh_pipeline"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Mesh_shaders with Error _ as e->e|Ok()->
-  match library_token op device d.mesh_library with Error _ as e->e|Ok mesh_library->
-  match archive_tokens op device ~archive_only archives with Error _ as e->e|Ok mesh_archives->
-  if not(valid_name d.mesh_entry&&valid_name d.mesh_fragment_entry&&Option.fold ~none:true ~some:valid_name d.object_entry)then error op Error.Invalid_argument"entry names must be nonempty without NUL"
-  else if not(positive3 d.mesh_threadgroup)||(match d.object_threadgroup with Some t->not(positive3 t)|None->false)then error op Error.Invalid_argument"threadgroup sizes must be positive"
-  else if (d.object_entry=None)<>(d.object_threadgroup=None)then error op Error.Invalid_argument"an object threadgroup is given exactly with an object entry"
-  else match device.raw.create_mesh_pipeline{mesh_library;mesh_object_entry=d.object_entry;mesh_entry=d.mesh_entry;mesh_fragment_entry=d.mesh_fragment_entry;
-      mesh_color=d.mesh_color_format;mesh_blend=blend;mesh_threads=d.mesh_threadgroup;object_threads=d.object_threadgroup;mesh_archives;mesh_archive_only=archive_only;mesh_label=d.mesh_label}with Error _ as e->e|Ok pipeline_driver->
-    device.children<-device.children+1;d.mesh_library.library_pipelines<-d.mesh_library.library_pipelines+1;
-    Ok{pipeline_driver;device;pipeline_library=Some d.mesh_library;pipeline_indirect=false;pipeline_linked=[];pipeline_shape=Mesh_shape;dead=false}
-let draw_mesh (encoder:render_encoder) ~threadgroups ?object_threadgroup ~mesh_threadgroup ()=
-  let op="Backend.draw_mesh"in
-  match open_render op encoder with Error _ as e->e|Ok()->
-  if not encoder.render_pipeline_set then error op Error.Invalid_state"no render pipeline is set"
-  else if encoder.render_shape<>Mesh_shape then error op Error.Invalid_state"mesh draws need a mesh pipeline"
-  else if not(positive3 threadgroups&&positive3 mesh_threadgroup&&Option.fold ~none:true ~some:positive3 object_threadgroup)then error op Error.Invalid_argument"mesh dispatch sizes must be positive"
-  else encoder.render_raw.draw_mesh ~threadgroups ~object_threadgroup ~mesh_threadgroup
-type tile_descriptor={tile_label:string option;tile_library:library;tile_entry:string;tile_color_format:Pipeline.color_format;tile_threadgroup:int*int*int}
-let create_tile_pipeline ?(archives=[]) ?(archive_only=false) device (d:tile_descriptor)=
-  let op="Backend.create_tile_pipeline"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Tile_shaders with Error _ as e->e|Ok()->
-  match library_token op device d.tile_library with Error _ as e->e|Ok tile_library->
-  match archive_tokens op device ~archive_only archives with Error _ as e->e|Ok tile_archives->
-  if not(valid_name d.tile_entry)then error op Error.Invalid_argument"entry name must be nonempty without NUL"
-  else if not(positive3 d.tile_threadgroup)||(let _,_,z=d.tile_threadgroup in z<>1)then error op Error.Invalid_argument"tile threadgroup must be positive with depth one"
-  else match device.raw.create_tile_pipeline{tile_library;tile_entry=d.tile_entry;tile_color=d.tile_color_format;tile_threads=d.tile_threadgroup;tile_archives;tile_archive_only=archive_only;tile_label=d.tile_label}with Error _ as e->e|Ok pipeline_driver->
-    device.children<-device.children+1;d.tile_library.library_pipelines<-d.tile_library.library_pipelines+1;
-    Ok{pipeline_driver;device;pipeline_library=Some d.tile_library;pipeline_indirect=false;pipeline_linked=[];pipeline_shape=Tile_shape;dead=false}
-let dispatch_tile (encoder:render_encoder) ~threads=
-  let op="Backend.dispatch_tile"in
-  match open_render op encoder with Error _ as e->e|Ok()->
-  if not encoder.render_pipeline_set then error op Error.Invalid_state"no render pipeline is set"
-  else if encoder.render_shape<>Tile_shape then error op Error.Invalid_state"tile dispatches need a tile pipeline"
-  else if not(positive3 threads)||(let _,_,z=threads in z<>1)then error op Error.Invalid_argument"tile threads must be positive with depth one"
-  else encoder.render_raw.dispatch_tile ~threads
-let tile_size (encoder:render_encoder)=match open_render"Backend.tile_size"encoder with Error _ as e->e|Ok()->encoder.render_raw.tile_size()
-let create_dynamic_library device ~install_name shader=
-  let op="Backend.create_dynamic_library"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Dynamic_libraries with Error _ as e->e|Ok()->
-  if not(valid_name install_name)then error op Error.Invalid_argument"install name must be nonempty without NUL"
-  else match device.raw.create_dynamic_library ~install_name shader with Error _ as e->e|Ok raw->
-    device.children<-device.children+1;Ok{dynamic_raw=raw;dynamic_device=device;dynamic_dead=false;dynamic_libraries=0}
-let destroy_dynamic_library (d:dynamic_library)=
-  let op="Backend.destroy_dynamic_library"in
-  if d.dynamic_dead then Ok()
-  else if d.dynamic_libraries>0 then error op Error.Invalid_state"dynamic library still links live libraries"
-  else match d.dynamic_raw.destroy_dynamic()with Error _ as e->e|Ok()->d.dynamic_dead<-true;d.dynamic_device.children<-d.dynamic_device.children-1;Ok()
-let absolute_path path=valid_name path&&not(Filename.is_relative path)
-let create_archive ?path device ()=
-  let op="Backend.create_archive"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Binary_archives with Error _ as e->e|Ok()->
-  if Option.fold ~none:false ~some:(fun p->not(absolute_path p))path then error op Error.Invalid_argument"archive path must be absolute without NUL"
-  else match device.raw.create_archive ~path with Error _ as e->e|Ok raw->device.children<-device.children+1;Ok{archive_raw=raw;archive_device=device;archive_dead=false}
-let live_archive op (a:archive)=if a.archive_dead then error op Error.Stale_handle"archive is destroyed"else Ok()
-let archive_add (a:archive) (pipeline:pipeline)=
-  let op="Backend.archive_add"in
-  match live_archive op a with Error _ as e->e|Ok()->
-  if pipeline.dead then error op Error.Stale_handle"pipeline is destroyed"
-  else if pipeline.device!=a.archive_device then error op Error.Cross_device"pipeline belongs to another device"
-  else if pipeline.pipeline_shape=Vertex_shape then error op Error.Unsupported"vertex/fragment render pipelines are not archived by this backend"
-  else a.archive_raw.archive_add pipeline.pipeline_driver.pipeline_token
-let archive_serialize (a:archive) path=
-  let op="Backend.archive_serialize"in
-  match live_archive op a with Error _ as e->e|Ok()->
-  if not(absolute_path path)then error op Error.Invalid_argument"archive path must be absolute without NUL"else a.archive_raw.archive_serialize path
-let destroy_archive (a:archive)=
-  if a.archive_dead then Ok()else match a.archive_raw.destroy_archive()with Error _ as e->e|Ok()->a.archive_dead<-true;a.archive_device.children<-a.archive_device.children-1;Ok()
-let create_sparse_texture (heap:heap) descriptor=
-  let op="Backend.create_sparse_texture"in
-  match live_heap op heap with Error _ as e->e|Ok()->
-  if not heap.heap_descriptor.heap_sparse then error op Error.Invalid_argument"sparse textures need a sparse heap"
-  else match Types.validate_texture heap.heap_device.raw.capabilities descriptor with Error _ as e->e|Ok()->
-  match heap.heap_device.raw.create_sparse_texture ~heap:heap.heap_raw.heap_token descriptor with Error _ as e->e|Ok raw->
-    Ok{resource=heap_resource heap raw;texture_descriptor=descriptor}
-let texture_tile (texture:texture)=
-  let op="Backend.texture_tile"in
-  match check_resource op texture.resource.device texture.resource with Error _ as e->e|Ok()->
-  match require op texture.resource.device Caps.Sparse_memory with Error _ as e->e|Ok()->texture.resource.device.raw.texture_tile texture.resource.raw.token
-let map_tiles (commands:commands) (texture:texture) ?(mip=0) ~region ~map ()=
-  let op="Backend.map_tiles"in
-  match recording op commands with Error _ as e->e|Ok()->
-  let device=commands_device commands in
-  match check_resource op device texture.resource with Error _ as e->e|Ok()->
-  match require op device Caps.Sparse_memory with Error _ as e->e|Ok()->
-  let x,y,w,h=region in
-  if mip<0||mip>=texture.texture_descriptor.mip_levels||x<0||y<0||w<=0||h<=0 then error op Error.Invalid_argument"tile region or mip level is invalid"
-  else match commands.commands_raw.map_tiles texture.resource.raw.token ~mip ~region ~map with Error _ as e->e|Ok()->mark_submitted commands.commands_queue texture.resource;Ok()
-type upscaler={upscaler_raw:driver_upscaler;upscaler_device:device;upscaler_input:int*int;upscaler_output:int*int;mutable upscaler_dead:bool}
-let create_upscaler device ~input ~output=
-  let op="Backend.create_upscaler"in
-  match live op device with Error _ as e->e|Ok()->match require op device Caps.Metal_fx with Error _ as e->e|Ok()->
-  let iw,ih=input and ow,oh=output in
-  if iw<=0||ih<=0||ow<iw||oh<ih then error op Error.Invalid_argument"upscaler input must be positive and the output no smaller"
-  else match device.raw.create_upscaler ~input ~output with Error _ as e->e|Ok raw->
-    device.children<-device.children+1;Ok{upscaler_raw=raw;upscaler_device=device;upscaler_input=input;upscaler_output=output;upscaler_dead=false}
-let upscale (commands:commands) (u:upscaler) ~(src:texture) ~(dst:texture)=
-  let op="Backend.upscale"in
-  match recording op commands with Error _ as e->e|Ok()->
-  let device=commands_device commands in
-  if u.upscaler_dead then error op Error.Stale_handle"upscaler is destroyed"
-  else if u.upscaler_device!=device then error op Error.Cross_device"upscaler belongs to another device"
-  else match check_resource op device src.resource with Error _ as e->e|Ok()->
-  match check_resource op device dst.resource with Error _ as e->e|Ok()->
-  let size (t:texture)=t.texture_descriptor.width,t.texture_descriptor.height in
-  if size src<>u.upscaler_input||size dst<>u.upscaler_output then error op Error.Invalid_argument"texture sizes differ from the upscaler configuration"
-  else if src.texture_descriptor.format<>Types.Rgba8_unorm then error op Error.Invalid_argument"upscale source must be Rgba8_unorm"
-  else if not(List.mem Types.Texture_binding src.texture_descriptor.usage)||not(List.mem Types.Texture_binding dst.texture_descriptor.usage&&List.mem Types.Render_attachment dst.texture_descriptor.usage)then
-    error op Error.Invalid_argument"upscale source needs texture-binding usage and the destination texture-binding plus render-attachment usage"
-  else match commands.commands_raw.upscale u.upscaler_raw.upscaler_token ~src:src.resource.raw.token ~dst:dst.resource.raw.token with Error _ as e->e|Ok()->
-    mark_submitted commands.commands_queue src.resource;mark_submitted commands.commands_queue dst.resource;Ok()
-let destroy_upscaler (u:upscaler)=
-  if u.upscaler_dead then Ok()else match u.upscaler_raw.destroy_upscaler()with Error _ as e->e|Ok()->u.upscaler_dead<-true;u.upscaler_device.children<-u.upscaler_device.children-1;Ok()
 module Private=struct
   let texture_driver_token (texture:texture) =
     Handle.device_id texture.resource.device.handle, texture.resource.raw.token

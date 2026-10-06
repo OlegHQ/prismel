@@ -15,24 +15,11 @@ let run () =
   | Ok device ->
       let queue = get (Command_queue.create device) in
       let command = get (Command_buffer.create queue ()) in
-      let buffer = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
       let blit = get (Blit_encoder.create command) in
-      get (Blit_encoder.fill_buffer blit buffer ~offset:0L ~length:64L ~byte:0x5a);
-      (* Rebinding the same resources thousands of times retains each once. *)
-      let other = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
-      for _ = 1 to 2_000 do
-        get (Blit_encoder.copy_buffer blit ~source:buffer ~source_offset:0L
-               ~destination:other ~destination_offset:0L ~length:64L);
-        get (Blit_encoder.copy_buffer blit ~source:other ~source_offset:0L
-               ~destination:buffer ~destination_offset:0L ~length:64L)
-      done;
       get (Blit_encoder.end_encoding blit);
-      expect Parent_has_dependents (Buffer.destroy buffer);
       expect Parent_has_dependents (Command_queue.destroy queue);
       get (Command_buffer.commit command);
       get (Command_buffer.wait_until_completed command);
-      get (Buffer.destroy buffer);
-      get (Buffer.destroy other);
       get (Command_buffer.destroy command);
       Gc.full_major ();
       Gc.full_major ();

@@ -3,7 +3,7 @@ open Scene_command
 let require condition message = if not condition then failwith message
 
 let () =
-  let builder = Display_list.Builder.create ~capacity:1 () in
+  let builder = Display_list.Builder.create () in
   Display_list.Builder.push_clip builder ~x:0. ~y:0. ~width:64. ~height:64.;
   for index = 0 to 15 do
     Display_list.Builder.solid_rect builder ~x:(float index) ~y:2.
@@ -50,7 +50,7 @@ let () =
    | Error Render_ir.Unbalanced_clip -> ()
    | _ -> failwith "display-list accepted an unbalanced clip");
 
-  let complete = Display_list.Builder.create ~capacity:2 () in
+  let complete = Display_list.Builder.create () in
   Display_list.Builder.reserve complete 65;
   require ((Display_list.Builder.stats complete).command_capacity = 128)
     "display-list reserve did not use geometric capacity";
@@ -85,7 +85,8 @@ let () =
        when owned.vertices.(0) = 0. && owned_glyphs.(0).glyph_id = 3 -> ()
    | _ -> failwith "display-list complete command or ownership parity drift");
 
-  let hot = Display_list.Builder.create ~capacity:10_000 () in
+  let hot = Display_list.Builder.create () in
+  Display_list.Builder.reserve hot 10_000;
   let before = Gc.allocated_bytes () in
   for _ = 0 to 9_999 do
     Display_list.Builder.solid_rect hot ~x:0. ~y:0.

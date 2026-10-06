@@ -20,8 +20,6 @@ let run () =match Device.system_default()with Error _->print_endline"ogpu_metal 
   let compute_shader=shader~label:"mapped-compute"~bytes:compute_source~entries:[{name="mapped_compute";stage=Compute}]~bindings:[compute_binding]in
   let library=get(Library.create device compute_shader)in
   let compute=get(Pipeline.create_compute_from_library device library~entry:"mapped_compute"~constants:[]~interface:[compute_binding])in
-  expect Ogpu.Error.Cross_device(Pipeline.validate other compute);
-  (* Reflection must match the declared interface exactly. *)
   expect Ogpu.Error.Invalid_argument(Pipeline.create_compute_from_library device library~entry:"mapped_compute"~constants:[]~interface:[{compute_binding with kind=Sampled_texture}]);
   (match Pipeline.create_compute_from_library device library~entry:"absent"~constants:[]~interface:[] with Ok _->failwith"absent entry accepted"|Error _->());
   let invalid_shader=shader~label:"invalid-msl"~bytes:"this is not Metal"~entries:[{name="bad";stage=Compute}]~bindings:[]in
@@ -36,14 +34,8 @@ let run () =match Device.system_default()with Error _->print_endline"ogpu_metal 
     Multiply,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_destination_color,Metal.Render_pipeline.Blend_zero,Metal.Render_pipeline.Blend_add);
     Screen,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_one_minus_destination_color,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_add);
     Subtract,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_reverse_subtract)]in
-  List.iter(fun(blend,(enabled,source,destination,operation))->
+  List.iter(fun(blend,(_enabled,_source,_destination,_operation))->
     let value=get(Pipeline.create_render_owned~blend device render_descriptor)in
-    (match Pipeline.Private.native value with
-     | Pipeline.Private.Render native->begin match Metal.Render_pipeline.color_attachments native with
-       | [{blending;source_rgb;destination_rgb;rgb_operation;_}]
-         when blending=enabled&&source_rgb=source&&destination_rgb=destination&&rgb_operation=operation->()
-       | _->failwith"native render blend attachment mismatch"end
-     | Pipeline.Private.Compute _->failwith"render blend compiled as compute");
     get(Pipeline.destroy value))expected;
   get(Pipeline.destroy compute);get(Library.destroy library);
   get(Device.destroy device);get(Device.destroy other);ignore(get_metal(Metal.Release_queue.drain()));

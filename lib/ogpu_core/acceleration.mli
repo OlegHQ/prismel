@@ -20,8 +20,6 @@ type descriptor =
 type t
 val create : Handle.device -> ray_tracing:bool -> descriptor -> (t,Error.t) result
 val build : Handle.device -> t -> (unit,Error.t) result
-val refit : Handle.device -> t -> (unit,Error.t) result
-val copy_into : Handle.device -> source:t -> destination:t -> (unit,Error.t) result
 val compact_into : Handle.device -> source:t -> destination:t -> (unit,Error.t) result
 val compacted_size : Handle.device -> t -> (unit,Error.t) result
 val destroy : t -> unit

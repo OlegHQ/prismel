@@ -39,8 +39,8 @@ module Builder = struct
 
   let minimum_capacity = 16
 
-  let create ?(capacity = minimum_capacity) () =
-    let capacity = max minimum_capacity capacity in
+  let create () =
+    let capacity = minimum_capacity in
     { opcodes = Bytes.make capacity '\000';
       values = Array.make (capacity * 8) 0.;
       colors = Array.make capacity Int32.zero;

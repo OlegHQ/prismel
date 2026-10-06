@@ -4,7 +4,16 @@
      Reads every .cmt under _build/default, resolves each identifier
      occurrence to its defining uid through compiler shapes, and prints
      "file.mli<TAB>Path.name" for every value exported by a unit under DIR
-     that no other source file references.
+     that no other source file references. A unit passed to a functor or
+     packed as a first-class module counts as used whole.
+   dead-fields [--apply] [--users-exclude SUBSTR]... [--skip TYPE.FIELD]... DIR...
+     Prints "file.mli<TAB>type.field" for every field of a record exported
+     by a unit under DIR that no implementation reads; --apply removes it
+     and its [field = e] in every record literal. --skip keeps a field that
+     is unread on purpose.
+   dead-optionals [--users-exclude SUBSTR]... DIR...
+     Prints "file.mli<TAB>Path.name<TAB>?label" for every optional parameter
+     of an exported value that no application passes (report only).
    drop-vals FILE.mli NAME...     Remove [val]/[external] items (with docs).
    drop-unused < build-log        Remove the let bindings named by warning 32
                                   (unused value) in a dune build log.
@@ -49,6 +58,30 @@ let dead_exports ?(modules = false) ~excludes dirs =
   (* "Module.name" -> files naming it, however it resolved: recursive modules
      resolve to their signature uid, so their values fall back to names *)
   let qualified : (string, string list) Hashtbl.t = Hashtbl.create 65536 in
+  (* units applied to a functor or packed as a first-class module: their
+     values are reached through the parameter's signature, which no
+     identifier names, so the whole unit counts as used *)
+  let through_signature : (string, unit) Hashtbl.t = Hashtbl.create 16 in
+  List.iter (fun (_, (i : Cmt_format.cmt_infos)) -> match i.cmt_annots with
+    | Implementation tree when not (excluded (source i)) ->
+        let rec named (m : Typedtree.module_expr) = match m.mod_desc with
+          | Tmod_ident (path, _) ->
+              let name = Path.last path in
+              (* [Lib__Unit] and [Unit] name the same unit *)
+              let unit_ = match List.rev (Str.split (Str.regexp_string "__") name) with
+                | u :: _ -> u | [] -> name in
+              Hashtbl.replace through_signature unit_ ()
+          | Tmod_constraint (m, _, _, _) -> named m
+          | _ -> () in
+        let it = { Tast_iterator.default_iterator with
+          module_expr = (fun self (m : Typedtree.module_expr) ->
+            (match m.mod_desc with Tmod_apply (_, arg, _) -> named arg | _ -> ());
+            Tast_iterator.default_iterator.module_expr self m);
+          expr = (fun self (e : Typedtree.expression) ->
+            (match e.exp_desc with Texp_pack m -> named m | _ -> ());
+            Tast_iterator.default_iterator.expr self e) } in
+        it.structure it tree
+    | _ -> ()) infos;
   List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
     let file = source i in
     if not (excluded file) then begin
@@ -90,7 +123,8 @@ let dead_exports ?(modules = false) ~excludes dirs =
     let ml = source i in
     let unit_name = String.capitalize_ascii (Filename.remove_extension (Filename.basename ml)) in
     let cmti = Filename.chop_suffix p ".cmt" ^ ".cmti" in
-    if under ml && Filename.check_suffix ml ".ml" && Sys.file_exists cmti then
+    if Hashtbl.mem through_signature unit_name then ()
+    else if under ml && Filename.check_suffix ml ".ml" && Sys.file_exists cmti then
       match i.cmt_impl_shape, (Cmt_format.read_cmt cmti).cmt_annots with
       | Some shape, Interface sg ->
           let mli = Filename.chop_suffix ml ".ml" ^ ".mli" in
@@ -288,7 +322,7 @@ let drop_lets path names =
 (* Every [extern "C" ... caml_*(...) { ... }] definition and one-line
    PREFIX_MACRO(caml_*, ...) instance in [mm] whose name no OCaml external in
    [roots] (or generated _build .ml) mentions, and no other kept stub calls. *)
-let dead_stubs ~roots mm =
+let dead_stubs ?(apply = true) ~roots mm =
   let src = read_file mm in
   let named = Hashtbl.create 1024 in
   let re = Str.regexp "\"\\(caml_[A-Za-z0-9_]+\\)\"" in
@@ -353,7 +387,18 @@ let dead_stubs ~roots mm =
   done;
   let dead = List.filter (fun (name, _, _) -> not (Hashtbl.mem live name)) !defs in
   List.iter (fun (name, _, _) -> Printf.printf "%s\n" name) dead;
-  remove_ranges mm src (List.map (fun (_, s, e) -> s, e) dead)
+  if apply then remove_ranges mm src (List.map (fun (_, s, e) -> s, e) dead)
+
+(* [s, e) of a record field (declaration or [f = e] in a literal) widened to
+   take one separating ';'. *)
+let field_range src s e =
+  let n = String.length src in
+  let rec fwd i = if i < n && (src.[i] = ' ' || src.[i] = '\n' || src.[i] = '\t') then fwd (i+1) else i in
+  let rec back i = if i > 0 && (src.[i-1] = ' ' || src.[i-1] = '\n' || src.[i-1] = '\t') then back (i-1) else i in
+  let f = fwd e in
+  if e > 0 && src.[e-1] = ';' then s, e
+  else if f < n && src.[f] = ';' then s, f + 1
+  else let b = back s in if b > 0 && src.[b-1] = ';' then b - 1, e else s, e
 
 (* ---------- drop-unused (warnings 32 value, 33 open, 34 type, 60 module) ---------- *)
 
@@ -398,7 +443,7 @@ let cmt_for file =
         | _ | exception _ -> ());
   !found
 
-let handled = [26; 27; 32; 33; 34; 37; 60; 69; 690]
+let handled = [26; 27; 32; 33; 34; 37; 39; 60; 69; 690]
 
 let drop_unused log =
   let by_file = Hashtbl.create 64 in
@@ -478,14 +523,7 @@ let drop_unused log =
          (.cmt) to find exactly the literals [f = e] and assignments [r.f <- e]
          that target that declaration. 690: a mutable field that is never
          mutated loses its [mutable]. *)
-      let field_range s e =
-        let n = String.length src in
-        let rec fwd i = if i < n && (src.[i] = ' ' || src.[i] = '\n' || src.[i] = '\t') then fwd (i+1) else i in
-        let rec back i = if i > 0 && (src.[i-1] = ' ' || src.[i-1] = '\n' || src.[i-1] = '\t') then back (i-1) else i in
-        let f = fwd e in
-        if e > 0 && src.[e-1] = ';' then s, e
-        else if f < n && src.[f] = ';' then s, f + 1
-        else let b = back s in if b > 0 && src.[b-1] = ';' then b - 1, e else s, e in
+      let field_range = field_range src in
       let subst = ref !pending_subst in
       let dead_decls = ref [] in
       (* a record whose every field is dead is a dead type: rather than empty
@@ -643,10 +681,215 @@ let drop_unused log =
            | _ -> ());
           Ast_iterator.default_iterator.pat self p) } in
       if List.exists (fun (_, _, w) -> w = 26 || w = 27) warned then it.structure it str;
+      (* 39: a [let rec] that no longer calls itself loses its [rec] *)
+      List.iter (fun (l, c, w) -> if w = 39 then begin
+        let rec line_start i k = if k = l then i
+          else match String.index_from_opt src i '\n' with Some j -> line_start (j + 1) (k + 1) | None -> i in
+        let p = line_start 0 1 + c in
+        let rec back i = if i > 0 && (src.[i-1] = ' ' || src.[i-1] = '\n') then back (i - 1) else i in
+        let q = back p in
+        if q >= 3 && String.sub src (q - 3) 3 = "rec" then subst := (q - 3, p, "") :: !subst
+      end) warned;
       total := !total + List.length !ranges + List.length !subst;
       if !ranges <> [] || !subst <> [] then remove_ranges ~subst:!subst file src !ranges
     end) by_file;
   !total
+
+(* ---------- dead-fields: fields of exported records nothing reads ---------- *)
+
+(* The compiler does not warn about an unread field of an exported record.
+   Lists "file.mli<TAB>type.field" for every field of a record declared in an
+   interface under [dirs] that no implementation outside [excludes] reads
+   (field access or record pattern); building it is not reading it. With
+   [apply], the declaration goes from the .mli and the .ml, and [field = e]
+   from every record literal; the values those named are then ordinary unused
+   code for [prune]. A record with every field dead is listed as "type.*" and
+   left for a person. *)
+let dead_fields ~apply ~excludes ~skip dirs =
+  let cmts = ref [] in
+  walk "_build/default" (fun p -> if Filename.check_suffix p ".cmt" || Filename.check_suffix p ".cmti" then cmts := p :: !cmts);
+  let infos = List.filter_map (fun p -> match Cmt_format.read_cmt p with
+    | i -> Some (source_file (Option.value i.cmt_sourcefile ~default:""), i) | exception _ -> None) !cmts in
+  let excluded file = List.exists (fun s -> contains file s) excludes in
+  let under file = List.exists (fun d ->
+    String.starts_with ~prefix:(if Filename.check_suffix d "/" then d else d ^ "/") file) dirs in
+  (* a label is keyed by its declaring unit, record type and name: the .ml and
+     the .mli declare it twice *)
+  let key (l : Types.label_description) = match Types.get_desc l.lbl_res with
+    | Tconstr (path, _, _) ->
+        Some (Filename.remove_extension (source_file l.lbl_loc.loc_start.pos_fname), Path.last path, l.lbl_name)
+    | _ -> None in
+  let read = Hashtbl.create 1024 in
+  let literals = ref [] in
+  List.iter (fun (file, (i : Cmt_format.cmt_infos)) -> match i.cmt_annots with
+    | Implementation tree ->
+        let it = { Tast_iterator.default_iterator with
+          expr = (fun self (e : Typedtree.expression) ->
+            (match e.exp_desc with
+             | Texp_field (_, _, l) when not (excluded file) -> Option.iter (fun k -> Hashtbl.replace read k ()) (key l)
+             | Texp_record { fields; _ } ->
+                 literals := (file, List.filter_map (function
+                   | (l, Typedtree.Overridden ((lid : Longident.t Location.loc), (v : Typedtree.expression))) ->
+                       Option.map (fun k -> k, lid.txt, lid.loc.loc_start.pos_cnum,
+                         max lid.loc.loc_end.pos_cnum v.exp_loc.loc_end.pos_cnum) (key l)
+                   | _ -> None) (Array.to_list fields)) :: !literals
+             | _ -> ());
+            Tast_iterator.default_iterator.expr self e);
+          pat = (fun (type k) self (p : k Typedtree.general_pattern) ->
+            (match p.pat_desc with
+             | Tpat_record (fields, _) when not (excluded file) ->
+                 List.iter (fun (_, l, _) -> Option.iter (fun k -> Hashtbl.replace read k ()) (key l)) fields
+             | _ -> ());
+            Tast_iterator.default_iterator.pat self p) } in
+        it.structure it tree
+    | _ -> ()) infos;
+  let dead = ref [] and whole = ref [] in
+  List.iter (fun (file, (i : Cmt_format.cmt_infos)) -> match i.cmt_annots with
+    | Interface sg when under file && Sys.file_exists file ->
+        let unit_ = Filename.remove_extension file in
+        let rec scan items = List.iter (function
+          | Types.Sig_type (id, { type_kind = Type_record (lds, _); type_manifest = None; _ }, _, _) ->
+              let ty = Ident.name id in
+              let unread = List.filter (fun (ld : Types.label_declaration) ->
+                not (Hashtbl.mem read (unit_, ty, Ident.name ld.ld_id))
+                && not (List.mem (ty ^ "." ^ Ident.name ld.ld_id) skip)) lds in
+              if unread <> [] && List.length unread = List.length lds then whole := (file, ty) :: !whole
+              else List.iter (fun (ld : Types.label_declaration) ->
+                dead := (unit_, ty, Ident.name ld.ld_id) :: !dead) unread
+          | Sig_module (_, _, { md_type = Mty_signature items; _ }, _, _) -> scan items
+          | _ -> ()) items in
+        scan sg.sig_type
+    | _ -> ()) infos;
+  let dead = List.sort_uniq compare !dead in
+  List.iter (fun (u, ty, f) -> Printf.printf "%s.mli\t%s.%s\n" u ty f) dead;
+  List.iter (fun (file, ty) -> Printf.printf "%s\t%s.*\n" file ty) (List.sort_uniq compare !whole);
+  if apply then begin
+    let ranges = Hashtbl.create 16 in
+    let add file r = Hashtbl.replace ranges file (r :: Option.value (Hashtbl.find_opt ranges file) ~default:[]) in
+    let sources = Hashtbl.create 16 in
+    let src file = match Hashtbl.find_opt sources file with
+      | Some s -> s | None -> let s = read_file file in Hashtbl.replace sources file s; s in
+    (* a literal names its type through one qualified field, [{ M.a = ..; b = .. }]:
+       when that field goes, the first survivor takes the qualifier *)
+    let inserts = Hashtbl.create 16 in
+    List.iter (fun (file, fields) -> if Sys.file_exists file then begin
+      let gone, kept = List.partition (fun (k, _, _, _) -> List.mem k dead) fields in
+      List.iter (fun (_, _, s, e) -> add file (field_range (src file) s e)) gone;
+      let qualifier = List.find_map (fun (_, lid, _, _) -> match lid with
+        | Longident.Ldot (m, _) -> Some (String.concat "." (Longident.flatten m) ^ ".") | _ -> None) in
+      match qualifier gone, qualifier kept, List.sort (fun (_, _, a, _) (_, _, b, _) -> compare a b) kept with
+      | Some q, None, (_, _, s, _) :: _ ->
+          Hashtbl.replace inserts file ((s, s, q) :: Option.value (Hashtbl.find_opt inserts file) ~default:[])
+      | _ -> ()
+    end) !literals;
+    let declarations file (tds : Parsetree.type_declaration list) =
+      List.iter (fun (td : Parsetree.type_declaration) -> match td.ptype_kind with
+        | Ptype_record lds -> List.iter (fun (ld : Parsetree.label_declaration) ->
+            if List.mem (Filename.remove_extension file, td.ptype_name.txt, ld.pld_name.txt) dead then
+              add file (field_range (src file) ld.pld_loc.loc_start.pos_cnum ld.pld_loc.loc_end.pos_cnum)) lds
+        | _ -> ()) tds in
+    List.iter (fun unit_ ->
+      let mli = unit_ ^ ".mli" and ml = unit_ ^ ".ml" in
+      if Sys.file_exists mli then begin
+        let it = { Ast_iterator.default_iterator with
+          type_declaration = (fun _ td -> declarations mli [td]) } in
+        it.signature it (snd (parse_with Parse.interface mli)) end;
+      if Sys.file_exists ml then begin
+        let it = { Ast_iterator.default_iterator with
+          type_declaration = (fun _ td -> declarations ml [td]) } in
+        it.structure it (snd (parse_with Parse.implementation ml)) end)
+      (List.sort_uniq compare (List.map (fun (u, _, _) -> u) dead));
+    Hashtbl.iter (fun file rs ->
+      remove_ranges ~subst:(Option.value (Hashtbl.find_opt inserts file) ~default:[]) file (src file) rs) ranges
+  end
+
+(* ---------- dead-optionals: optional arguments no call passes ---------- *)
+
+(* Prints "file.mli<TAB>Path.name<TAB>?label" for every optional parameter of
+   a value exported by a unit under [dirs] that no application outside
+   [excludes] passes. A value that is used other than by being applied (passed
+   along, aliased) is skipped: its calls are not all visible. Report only: the
+   parameter and its plumbing are removed by hand, outermost wrapper first (a
+   wrapper that forwards [?x] counts as passing it). *)
+let dead_optionals ~excludes dirs =
+  let cmts = ref [] in
+  walk "_build/default" (fun p -> if Filename.check_suffix p ".cmt" then cmts := p :: !cmts);
+  let infos = List.filter_map (fun p -> match Cmt_format.read_cmt p with
+    | i -> Some (p, i) | exception _ -> None) !cmts in
+  let shapes = Hashtbl.create 4096 in
+  List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
+    Option.iter (Hashtbl.replace shapes i.cmt_modname) i.cmt_impl_shape) infos;
+  let source (i : Cmt_format.cmt_infos) = source_file (Option.value i.cmt_sourcefile ~default:"") in
+  let excluded file = List.exists (contains file) excludes in
+  let passed : (Shape.Uid.t * string, unit) Hashtbl.t = Hashtbl.create 4096 in
+  let escapes : (Shape.Uid.t, unit) Hashtbl.t = Hashtbl.create 4096 in
+  List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
+    let file = source i in
+    match i.cmt_annots with
+    | Implementation tree when not (excluded file) ->
+        let module R = Shape_reduce.Make (struct
+          let fuel = 10
+          let read_unit_shape ~unit_name = Hashtbl.find_opt shapes unit_name
+        end) in
+        let rec uids depth (r : Shape_reduce.result) = match r with
+          | Resolved u | Approximated (Some u) -> [u]
+          | Resolved_alias (u, r) -> u :: uids depth r
+          | Unresolved s when depth = 0 -> uids 1 (R.reduce_for_uid Env.empty s)
+          | _ -> [] in
+        let at = Hashtbl.create 1024 in
+        List.iter (fun ((lid : Longident.t Location.loc), r) ->
+          Hashtbl.replace at lid.loc.loc_start.pos_cnum (uids 0 r)) i.cmt_ident_occurrences;
+        let heads = Hashtbl.create 256 in
+        let of_ident (lid : Longident.t Location.loc) =
+          Option.value (Hashtbl.find_opt at lid.loc.loc_start.pos_cnum) ~default:[] in
+        let it = { Tast_iterator.default_iterator with
+          expr = (fun self (e : Typedtree.expression) ->
+            (match e.exp_desc with
+             | Texp_apply ({ exp_desc = Texp_ident (_, lid, _); _ }, args) ->
+                 Hashtbl.replace heads lid.loc.loc_start.pos_cnum ();
+                 List.iter (fun u -> List.iter (function
+                   | Asttypes.Optional l, Some (a : Typedtree.expression)
+                     when not a.exp_loc.loc_ghost -> Hashtbl.replace passed (u, l) ()
+                   | _ -> ()) args) (of_ident lid)
+             | Texp_ident (_, lid, _) when not (Hashtbl.mem heads lid.loc.loc_start.pos_cnum) ->
+                 List.iter (fun u -> Hashtbl.replace escapes u ()) (of_ident lid)
+             | _ -> ());
+            Tast_iterator.default_iterator.expr self e) } in
+        it.structure it tree
+    | _ -> ()) infos;
+  let under file = List.exists (fun d ->
+    String.starts_with ~prefix:(if Filename.check_suffix d "/" then d else d ^ "/") file) dirs in
+  let rec head s = match (s : Shape.t).desc with Alias s -> head s | _ -> s in
+  let find shape name kind = match (head shape).desc with
+    | Struct map -> Shape.Item.Map.find_opt (Shape.Item.make name kind) map
+    | _ -> None in
+  let rec optionals ty = match Types.get_desc ty with
+    | Tarrow (Optional l, _, rest, _) -> l :: optionals rest
+    | Tarrow (_, _, rest, _) -> optionals rest
+    | _ -> [] in
+  let results = ref [] in
+  List.iter (fun (p, (i : Cmt_format.cmt_infos)) ->
+    let ml = source i in
+    let cmti = Filename.chop_suffix p ".cmt" ^ ".cmti" in
+    if under ml && Filename.check_suffix ml ".ml" && Sys.file_exists cmti then
+      match i.cmt_impl_shape, (Cmt_format.read_cmt cmti).cmt_annots with
+      | Some shape, Interface sg ->
+          let mli = Filename.chop_suffix ml ".ml" ^ ".mli" in
+          let rec scan prefix shape items = List.iter (function
+            | Types.Sig_value (id, vd, _) ->
+                (match find shape (Ident.name id) Shape.Sig_component_kind.Value with
+                 | Some { uid = Some uid; _ } when not (Hashtbl.mem escapes uid) ->
+                     List.iter (fun l -> if not (Hashtbl.mem passed (uid, l)) then
+                       results := (mli, prefix ^ Ident.name id, l) :: !results) (optionals vd.val_type)
+                 | _ -> ())
+            | Sig_module (id, _, { md_type = Mty_signature items; _ }, _, _) ->
+                (match find shape (Ident.name id) Shape.Sig_component_kind.Module with
+                 | Some sub -> scan (prefix ^ Ident.name id ^ ".") sub items
+                 | None -> ())
+            | _ -> ()) items in
+          scan "" shape sg.sig_type
+      | _ -> ()) infos;
+  List.iter (fun (f, n, l) -> Printf.printf "%s\t%s\t?%s\n" f n l) (List.sort_uniq compare !results)
 
 (* ---------- cut-tests: a test that stops compiling goes ---------- *)
 
@@ -657,7 +900,8 @@ let is_test file =
 
 (* Remove the top-level item holding each hard error in a test file; inside
    an entry point ([run], [main], [tests], [let () =]) cut only the innermost
-   sequence statement, or empty the body to [()]. Returns edits made. *)
+   sequence statement or local binding, or empty the body to [()]. Returns
+   edits made. *)
 let cut_tests log =
   let errors = List.filter (fun (f, _, _, w) -> w = 0 && is_test f && Sys.file_exists f
     && Filename.check_suffix f ".ml") (diagnostics log) in
@@ -696,8 +940,13 @@ let cut_tests log =
                  | Pexp_sequence (a, b) when inside a.pexp_loc ->
                      best := Some (a.pexp_loc.loc_start.pos_cnum, b.pexp_loc.loc_start.pos_cnum)
                  | Pexp_sequence (a, b) when inside b.pexp_loc
-                                              && (match b.pexp_desc with Pexp_sequence _ -> false | _ -> true) ->
+                                              && (match b.pexp_desc with Pexp_sequence _ | Pexp_let _ -> false | _ -> true) ->
                      best := Some (a.pexp_loc.loc_end.pos_cnum, b.pexp_loc.loc_end.pos_cnum)
+                 (* an error in what a local is bound to: the binding goes and
+                    the next rounds cut the statements that named it *)
+                 | Pexp_let (_, vbs, body) when List.exists (fun (vb : Parsetree.value_binding) ->
+                     inside vb.pvb_expr.pexp_loc || inside vb.pvb_pat.ppat_loc) vbs ->
+                     best := Some ((List.hd vbs).pvb_loc.loc_start.pos_cnum, body.pexp_loc.loc_start.pos_cnum)
                  | _ -> ());
                 Ast_iterator.default_iterator.expr self e) } in
             it.structure_item it item;
@@ -900,7 +1149,7 @@ let () =
   match Array.to_list Sys.argv |> List.tl with
   | [ "result-bind"; "--self-test"; ppx ] -> Result_bind.self_test ppx
   | [ "result-bind"; "--self-test" ] ->
-      Result_bind.self_test (Filename.concat (Filename.dirname Sys.executable_name) "result_bind_ppx.exe")
+      Result_bind.self_test "_build/default/ppx/result_bind/result_bind_ppx.exe"
   | [ "result-bind"; "--verify"; before; after; ppx ] -> Result_bind.verify before after ppx
   | [ "result-bind"; path ] -> Result_bind.migrate path
   | [ "metal-registry"; "--self-test" ] -> Metal_registry.self_test ()
@@ -919,6 +1168,15 @@ let () =
       let excludes, target, dirs = split [] "@check" [] args in
       prune ~cut:!cut ~modules:!modules ~excludes ~target dirs
   | "drop-vals" :: path :: names -> drop_vals path names
+  | "dead-fields" :: args ->
+      let apply = List.mem "--apply" args in
+      let rec skips = function "--skip" :: s :: r -> let k, r = skips r in s :: k, r
+        | a :: r -> let k, r = skips r in k, a :: r | [] -> [], [] in
+      let skip, args = skips (List.filter (( <> ) "--apply") args) in
+      let excludes, _, dirs = split [] "" [] args in dead_fields ~apply ~excludes ~skip dirs
+  | "dead-optionals" :: args ->
+      let excludes, _, dirs = split [] "" [] args in dead_optionals ~excludes dirs
+  | "dead-stubs" :: "--report" :: mm :: roots -> dead_stubs ~apply:false ~roots mm
   | "dead-stubs" :: mm :: roots -> dead_stubs ~roots mm
   | [ "drop-c-unused"; dir ] ->
       (* loop: rebuild, feed the log, until nothing is removed *)
@@ -933,7 +1191,10 @@ let () =
   | [ "rename"; old; fresh ] -> rename ~dry:false old fresh
   | _ ->
       prerr_endline "usage: codemod (dead-exports | prune [--users-exclude S] [--target ALIAS]) DIR...\n\
+                    \       codemod dead-fields [--apply] [--users-exclude S] [--skip TYPE.FIELD] DIR...\n\
+                    \       codemod dead-optionals [--users-exclude S] DIR...\n\
                     \       codemod drop-vals FILE.mli NAME... | drop-unused < log\n\
+                    \       codemod dead-stubs [--report] BRIDGE.mm ROOT... | drop-c-unused DIR\n\
                     \       codemod result-bind FILE.ml | result-bind --self-test\n\
                     \       codemod result-bind --verify BEFORE.ml AFTER.ml PPX.exe\n\
                     \       codemod metal-registry [--audit | --apply | --self-test | --drop-unused-macros]\n\

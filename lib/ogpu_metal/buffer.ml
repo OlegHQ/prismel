@@ -4,8 +4,7 @@ type t =
   ; handle : unit Ogpu_core.Handle.t
   ; device : Device.t
   ; descriptor : Ogpu_core.Types.buffer_descriptor
-  ; memory : memory
-  ; mutable submission_uses : int
+  ;  mutable submission_uses : int
   ; mutable destroy_requested : bool
   ; mutable retained_by : int64  (** Last command buffer that retained it. *)
   }
@@ -41,32 +40,12 @@ let create device ~memory descriptor =
             | Error metal -> Error (Device.of_metal_error ~operation metal)
             | Ok metal ->
                 let value = { metal; handle = Ogpu_core.Handle.create ~device:(Device.Private.handle device);
-                  device; descriptor; memory;submission_uses=0;destroy_requested=false;retained_by=0L } in
+                  device; descriptor; submission_uses=0;destroy_requested=false;retained_by=0L } in
                 Device.Private.attach_resource device;
                 Ok value
 
 (* A buffer placed at [offset] inside a heap; the heap keeps its storage class. *)
-let create_in_heap device ~memory (heap : Metal.Heap.t) ~offset descriptor =
-  let operation = "Ogpu_metal.Buffer.create_in_heap" in
-  if Device.destroyed device then
-    Error (Ogpu_core.Error.make operation Ogpu_core.Error.Stale_handle "device is destroyed")
-  else
-    match Ogpu_core.Types.validate_buffer (Device.capabilities device) descriptor with
-    | Error _ as failure -> failure
-    | Ok () ->
-        match validate_memory descriptor memory with
-        | Error _ as failure -> failure
-        | Ok () ->
-            match Metal.Heap.create_buffer heap ~offset ~length:descriptor.size ?label:descriptor.label () with
-            | Error metal -> Error (Device.of_metal_error ~operation metal)
-            | Ok metal ->
-                let value = { metal; handle = Ogpu_core.Handle.create ~device:(Device.Private.handle device);
-                  device; descriptor; memory;submission_uses=0;destroy_requested=false;retained_by=0L } in
-                Device.Private.attach_resource device;
-                Ok value
 
-let generation value = Ogpu_core.Handle.generation value.handle
-let device_id value = Device.id value.device
 let destroyed value = Ogpu_core.Handle.destroyed value.handle
 
 let validate operation device value =
@@ -75,10 +54,6 @@ let validate operation device value =
 let descriptor device value =
   Result.map (fun () -> value.descriptor)
     (validate "Ogpu_metal.Buffer.descriptor" device value)
-
-let memory device value =
-  Result.map (fun () -> value.memory)
-    (validate "Ogpu_metal.Buffer.memory" device value)
 
 let write_bytes device value ~dst_offset bytes =
   let operation="Ogpu_metal.Buffer.write_bytes"in match validate operation device value with Error _ as e->e|Ok()->
@@ -102,7 +77,6 @@ let destroy value =
 
 module Private = struct
   let metal value=value.metal
-  let resource_handle value=value.handle
   let retain_submission value=if destroyed value then Error(Ogpu_core.Error.make"Ogpu_metal.Buffer.retain_submission"Ogpu_core.Error.Stale_handle"buffer is destroyed")else(value.submission_uses<-value.submission_uses+1;Ok())
   (* Retains once per command buffer; [Ok false] when [commands] already holds it. *)
   let retain_for ~commands value=if Int64.equal value.retained_by commands && not(destroyed value)then Ok false else Result.map(fun()->value.retained_by<-commands;true)(retain_submission value)

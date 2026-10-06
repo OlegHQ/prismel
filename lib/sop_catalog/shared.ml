@@ -1,4 +1,4 @@
-open Rays
+open Rays_math
 open Procedural
 
 let label fallback = function Some label -> label | None -> fallback

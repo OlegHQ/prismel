@@ -6,18 +6,7 @@ type render_descriptor =
   ; vertex : Shader.t; vertex_entry : string
   ; fragment : Shader.t option; fragment_entry : string option
   ; color_format : color_format; depth_format : depth_format; sample_count : int }
-type compute_descriptor =
-  { backend : string; label : string option; layout : Binding.pipeline_layout
-  ; shader : Shader.t; entry : string }
-type kind = Render | Compute
-type t
 
-val create_render : ?blend:blend -> Caps.t -> render_descriptor -> (t, Error.t) result
-val create_compute : Caps.t -> compute_descriptor -> (t, Error.t) result
-val kind : t -> kind
-val cache_key : t -> string
-val description : t -> string
-
-module Private : sig
-
-end
+(** Checks a render pipeline description against the shaders' reflected
+    bindings and the adapter limits; drivers create the native pipeline. *)
+val create_render : Caps.t -> render_descriptor -> (unit, Error.t) result
