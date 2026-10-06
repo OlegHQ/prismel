@@ -652,6 +652,7 @@ type edit =
   | Fields of (int * (string * Param.value) list) list  (* several objects' fields: a stroke of flags *)
   | Rename of int * string
   | Delete of int list
+  | Restack of int list  (* the World's layers, bottom first *)
 
 let graph_at (doc : Document.t) = function
   | Document.Scene -> Some (Document.scene_graph doc)
@@ -663,7 +664,7 @@ let graph_at (doc : Document.t) = function
 let writes (doc : Document.t) level = function
   | Fields edits -> List.for_all (fun (node, _) -> in_text doc level node) edits
   | Rename (node, _) -> in_text doc level node
-  | Delete ids -> List.for_all (in_text doc level) ids
+  | Delete ids | Restack ids -> List.for_all (in_text doc level) ids
 
 let node_at doc level id = match Option.bind (graph_at doc level) (fun g -> Edit.find g ~node_id:id) with
   | Some node -> node | None -> stop "That object is gone."
@@ -718,6 +719,13 @@ let write_edit st (doc : Document.t) level = function
       List.find_map (fun (_, home) -> Option.map (fun loop ->
         Printf.sprintf "Removed a copy from the loop (%s)." (Document.describe (fst doc.workspace).source loop))
         (Document.loop_of home)) (List.rev gone)
+  | Restack bottom_first ->
+      (match level, world_id doc with
+       | Inside wid, Some w when w = wid ->
+           stack_layers st doc wid ~graph:(Document.Int_map.find wid doc.networks).graph.geometry ~removed:[]
+             ~stack:(List.rev bottom_first)
+       | _ -> ());
+      None
   | Delete ids ->
       (match level, world_id doc with
        | Inside wid, Some w when w = wid ->

@@ -35,6 +35,7 @@ type edit =
       (** field values of several objects (a stroke down a flag column) *)
   | Rename of int * string  (** an object's name; its children's [:parent] follows *)
   | Delete of int list  (** objects (their children are unparented) or layers (the stack closes) *)
+  | Restack of int list  (** the World's layers, bottom first *)
 (** A derived edit as its caller means it: scene objects at the scene level, World layers inside
     the World. *)
 

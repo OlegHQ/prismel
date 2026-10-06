@@ -226,6 +226,7 @@ let run () =
     { network with graph = Result.get_ok (Flow_sop.Network.with_geometry swapped network.graph);
                    displayed = Some sky } in
   let edited = ok (reconcile doc swapped) in
+  text_first "restack" doc (Document.Inside wid) (Sync.Restack [ sun; sky ]) swapped;
   same_after_reload edited "world restack";
   check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot edited in layers) = [ "sky"; "sun" ])
     "the World stack was not rewritten";
@@ -765,6 +766,7 @@ let run_root () =
   let swapped = Document.with_network doc (Document.Inside wid)
     { network with graph = Result.get_ok (Flow_sop.Network.with_geometry swapped network.graph); displayed = Some sky } in
   let edited = ok (reconcile doc swapped) in
+  text_first "World member restack" doc (Document.Inside wid) (Sync.Restack [ sun; sky ]) swapped;
   check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot edited in layers) = [ "sky"; "sun" ]
          && contains (source edited) "(scene/world (ref sky)") ("a restack: " ^ source edited);
   same_after_reload edited "World member restack";
@@ -906,6 +908,8 @@ let run_compose () =
   let closed = Edit_graph.remove_nodes [ haze ] g
     |> Edit_graph.connect ~source:base ~consumer:sun ~input_index:0 |> Result.get_ok in
   let edited = ok (reconcile skies (with_world_network skies wid network closed)) in
+  text_first "member middle layer delete" skies (Document.Inside wid) (Sync.Delete [ haze ])
+    (with_world_network skies wid network closed);
   kept "deleting a layer" edited;
   check (not (contains (source edited) "haze") && contains (flat (source edited)) "(world/sun base")
     ("a deleted layer of a World member: " ^ source edited);
@@ -917,6 +921,7 @@ let run_compose () =
   let swapped = Document.with_network skies (Document.Inside wid)
     { network with graph = Result.get_ok (Flow_sop.Network.with_geometry swapped network.graph); displayed = Some haze } in
   let edited = ok (reconcile skies swapped) in
+  text_first "member layer move" skies (Document.Inside wid) (Sync.Restack [ base; sun; haze ]) swapped;
   kept "moving a layer" edited;
   check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot edited in layers) = [ "haze"; "sun"; "base" ])
     ("a moved layer of a World member: " ^ source edited);

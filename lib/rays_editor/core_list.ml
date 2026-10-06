@@ -208,6 +208,25 @@ let apply_parameter document id name value =
        | Ok (document, _) -> document | Error _ -> document)
   | Some _ | None -> document
 
+(* The layer stack a World list's move asks for, in the rows' order. *)
+let restacked rows intent =
+  let module T = Pxui_shell.Tree in
+  let order = Array.to_list rows
+    |> List.filter_map (fun (row : T.row) -> if row.link then None else Some row.id) in
+  let move_in ids target drop =
+    let rest = List.filter (fun id -> not (List.mem id ids)) order in
+    List.concat_map (fun id ->
+      if id <> target then [id]
+      else match drop with
+        | T.Before -> ids @ [id] | After | Inside -> id :: ids) rest in
+  match intent with
+  | T.Move { ids; target; drop } -> Some (move_in ids target drop)
+  | Reorder { ids; delta } ->
+      Option.bind (List.find_index (fun id -> List.mem id ids) order) (fun index ->
+        Option.map (fun target -> move_in ids target (if delta < 0 then T.Before else After))
+          (List.nth_opt (List.filter (fun id -> not (List.mem id ids)) order) (max 0 (index + delta))))
+  | _ -> None
+
 (* Tree intents become document edits, selection, or an entry request. *)
 let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
   let document = overlay.Flow_sop.Network.geometry in
@@ -223,17 +242,6 @@ let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
     | Pxui_shell.Tree.Delete ids when not geometry ->
         Result.get_ok (Flow_sop.Network.remove_nodes ids overlay)
     | _ -> overlay in
-  let stack () = Array.to_list rows
-    |> List.filter_map (fun (row : T.row) -> if row.link then None else Some row.id) in
-  let restacked order =
-    let document = restack document order in
-    document, selection, tree, opened, Some "Reorder layers", rows in
-  let move_in order ids target drop =
-    let rest = List.filter (fun id -> not (List.mem id ids)) order in
-    List.concat_map (fun id ->
-      if id <> target then [id]
-      else match drop with
-        | T.Before -> ids @ [id] | After | Inside -> id :: ids) rest in
   let document, selection, tree, opened, label, rows = match intent with
   | T.Select ids ->
       document, (match ids with
@@ -247,8 +255,10 @@ let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
       let document = List.fold_left (fun document id ->
           apply_parameter document id name (Parameter.Bool_value on)) document ids in
       document, selection, tree, opened, Some (if on then "Show" else "Hide"), rows
-  | Move { ids; target; drop } when world ->
-      restacked (move_in (stack ()) ids target drop)
+  | (Move _ | Reorder _) when world ->
+      (match restacked rows intent with
+       | Some order -> restack document order, selection, tree, opened, Some "Reorder layers", rows
+       | None -> document, selection, tree, opened, label, rows)
   | Move { ids; target; drop } when value.level = Document.Scene ->
       let parent = match drop with
         | T.Inside -> Some target
@@ -281,17 +291,6 @@ let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
           | Some parent -> reparent document [id] (Objects.parent document parent)
           | None -> document) document ids in
       document, selection, tree, opened, Some "Reparent", rows
-  | Reorder { ids; delta } when world ->
-      let order = stack () in
-      (match List.find_index (fun id -> List.mem id ids) order with
-       | Some index ->
-           let target = List.nth_opt (List.filter (fun id -> not (List.mem id ids)) order)
-               (max 0 (index + delta)) in
-           (match target with
-            | Some target -> restacked (move_in order ids target
-                (if delta < 0 then T.Before else After))
-            | None -> document, selection, tree, opened, label, rows)
-       | None -> document, selection, tree, opened, label, rows)
   | Rename (id, name) when not geometry ->
       (match Option.map (Node.relabel name) (Edit_graph.find document ~node_id:id) with
        | Some node -> (match Edit_graph.replace_node node document with
@@ -312,7 +311,7 @@ let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
 
 (* A list intent as an edit of the text, when it is one the text can take whole ([Scene_sync.write]):
    the derived network is then not touched for it. *)
-let tree_edit value intent =
+let tree_edit value rows intent =
   let module T = Pxui_shell.Tree in
   let world = match value.level with Document.Inside id -> kind value id = Some "world" | Scene -> false in
   let lowered = match value.level with Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
@@ -326,6 +325,7 @@ let tree_edit value intent =
           | _ -> None) ids))
     | Rename (id, name) -> Some (Rename (id, name))
     | Delete ids -> Some (Delete ids)
+    | Move _ | Reorder _ when world -> Option.map (fun order -> Editor_document.Scene_sync.Restack order) (restacked rows intent)
     | _ -> None in
   match edit with
   | Some edit when Editor_document.Scene_sync.writes value.doc value.level edit -> Some edit

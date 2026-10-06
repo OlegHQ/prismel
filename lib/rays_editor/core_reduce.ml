@@ -55,13 +55,13 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
       (List.filter (function Set_parameter { node; _ } -> not (in_text node) | _ -> true) result.changes) in
   (* a list intent the text can take is written to the text (below); the derived network is edited
      only for the others.  The selection, the label and what opens are every intent's. *)
-  let tree_edits = List.filter_map (tree_edit value) result.tree_intents in
+  let tree_edits = List.filter_map (tree_edit value rows) result.tree_intents in
   let _, selection, tree, opened, tree_label, _ = List.fold_left
       (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
       result.tree_intents in
   let document, _, _, _, _, _ = List.fold_left
       (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
-      (List.filter (fun intent -> tree_edit value intent = None) result.tree_intents) in
+      (List.filter (fun intent -> tree_edit value rows intent = None) result.tree_intents) in
   let apply_changes (document, effects, error) = function
     | None -> document, effects, error
     | Some (node_id, values) ->
