@@ -329,14 +329,16 @@ let scope_connection_hover () =
     "hover on a captured value's socket missed its outer connection"
 
 (* [n] nodes in one scope: a chain with a long wire back at every seventh node *)
-let big_scope n =
+let big_text n =
   let b = Buffer.create 65536 in
   Buffer.add_string b "(workspace big (graph g :context sop (let* [n0 (sop/box)";
   for i = 1 to n - 1 do
     Printf.bprintf b " n%d (sop/transform n%d :translate [%d 0 0])" i (if i mod 7 = 0 then i / 2 else i - 1) i
   done;
   Printf.bprintf b "] n%d)))" (n - 1);
-  let ws = Editor_document.Workspace_doc.of_text scope_catalog (Buffer.contents b) |> Result.get_ok in
+  Buffer.contents b
+let big_scope n =
+  let ws = Editor_document.Workspace_doc.of_text scope_catalog (big_text n) |> Result.get_ok in
   P.of_graph scope_catalog ws.checked "g"
 
 (* Frame work does not scale with what is out of view: an idle frame of a pane that shows no card
@@ -982,4 +984,9 @@ let bench_scope_big () =
       ((Gc.allocated_bytes () -. allocated) /. float runs /. 1e6) in
   idle "2001 nodes: frame" view;
   idle "2001 nodes: frame, 16 x 16" (ref (Scope.create ~width:16 ~height:16 () |> Scope.with_scope ~key:"g" scope));
-  time "2001 nodes: Point_all" 5 (fun () -> Scope.run_command !view Scope.Point_all)
+  time "2001 nodes: Point_all" 5 (fun () -> Scope.run_command !view Scope.Point_all);
+  (* one tick of a scrub: the rewrite, the print, the parse and the check *)
+  let forms = Flow.Syntax.parse (big_text 2001) |> Result.get_ok in
+  time "2001 nodes: Set_arg edit" 5 (fun () ->
+    Flow_sop.Flow_edit.apply_checked scope_catalog forms (Flow_sop.Flow_edit.Set_arg { node = [ "g"; "n5" ];
+      key = Kw "translate"; sub = [ 0 ]; value = Flow.Syntax.make (Flow.Syntax.Num "3") }))

@@ -381,17 +381,21 @@ let rec get_node s leaf =
 let reorder (s : S.t) = match scope_of s with
   | None -> s
   | Some sc ->
-      let names = List.concat_map (fun (p, _) -> pat_names p) sc.ps in
-      let rec go seen left out = match left with
+      (* the first binding whose reads are all bound goes next; by name in two tables, and a scope
+         already in order (every scrub) is one pass *)
+      let names = Hashtbl.create 64 and seen = Hashtbl.create 64 in
+      List.iter (fun (p, _) -> List.iter (fun n -> Hashtbl.replace names n ()) (pat_names p)) sc.ps;
+      let ready (_, e) = List.for_all (fun x -> not (Hashtbl.mem names x) || Hashtbl.mem seen x) (free e) in
+      let take q = List.iter (fun n -> Hashtbl.replace seen n ()) (pat_names (fst q)) in
+      let rec go left out = match left with
         | [] -> List.rev out
+        | q :: rest when ready q -> take q; go rest (q :: out)
         | _ ->
-            (match List.find_opt (fun (_, e) ->
-                List.for_all (fun x -> not (List.mem x names) || List.mem x seen) (free e)) left with
+            (match List.find_opt ready left with
              | None -> fail ~code:"E_GRAPH_CYCLE" "That connection would make a cycle through %s."
                  (String.concat ", " (List.map (fun (p, _) -> pat_key p) left))
-             | Some q ->
-                 go (pat_names (fst q) @ seen) (List.filter (fun x -> x != q) left) (q :: out)) in
-      rebuild sc (go [] sc.ps []) sc.res
+             | Some q -> take q; go (List.filter (fun x -> x != q) left) (q :: out)) in
+      rebuild sc (go sc.ps []) sc.res
 
 let rec set_node s leaf e =
   if nested leaf then

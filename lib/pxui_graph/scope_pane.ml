@@ -404,13 +404,16 @@ let compute ?(style = `Straight) ?(previous = empty_geo) ~name_w ~shown (scope :
                          (match Hashtbl.find_opt lines i with
                           | Some k -> ax, rows_top n ay +. float k *. P.row_height +. wire_row_y
                           | None -> ax, ay +. wire_head_y) in
-                 let target = Some (n.path, r.key, fallback r) in
                  (* a binding cannot read itself: a name that resolves to this node is one from outside
                     its scope (a [ref] to a graph of the same name), not a wire *)
-                 List.iter (fun name -> match resolve chain name with
-                   | Some { owner = Some o; _ } when o = n.path -> ()
-                   | src -> wire ?target src target_pos ~into:[ n.path ])
-                   (P.sources r)) n.rows
+                 (match P.sources r with
+                  | [] -> ()
+                  | names ->
+                      (* the fallback parses the row's default: only for a row that is wired *)
+                      let target = Some (n.path, r.key, fallback r) in
+                      List.iter (fun name -> match resolve chain name with
+                        | Some { owner = Some o; _ } when o = n.path -> ()
+                        | src -> wire ?target src target_pos ~into:[ n.path ]) names)) n.rows
            | Some z ->
                let collapsed = p.collapsed in
                let label = P.label_row z in
