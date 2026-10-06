@@ -3,7 +3,7 @@ type memory = Device_local | Shared
 type t
 
 val create : Device.t -> memory:memory -> format:format ->
-  ?view_formats:format list -> Ogpu_core.Types.texture_descriptor ->
+  Ogpu_core.Types.texture_descriptor ->
   (t, Ogpu_core.Error.t) result
 
 val descriptor : Device.t -> t -> (Ogpu_core.Types.texture_descriptor, Ogpu_core.Error.t) result

@@ -6,7 +6,7 @@ let descriptor : Ogpu.Types.texture_descriptor={label=Some"ogpu-metal-texture";w
 let run () =match Device.system_default()with Error _->print_endline"ogpu_metal texture: skipped (no device)"|Ok device->
   let other=get(Device.system_default())in let before=get_metal(Metal.Release_queue.stats())in
   let invalid={descriptor with mip_levels=8}in expect Ogpu.Error.Invalid_argument(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm invalid);
-  let texture=get(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm~view_formats:[Texture.Rgba8_unorm]descriptor)in
+  let texture=get(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm descriptor)in
   let bytes=get(Texture.read_bytes device texture~mip_level:0~bytes_per_row:16)in
   if Bytes.length bytes<>64 then failwith"texture readback length";
   let direct=Bytes.make 64 '\xff'in

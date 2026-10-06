@@ -109,8 +109,8 @@ let execute_transfer c resources description =
 
   end
 let transfer_one=execute_transfer
-let create ?(capabilities=Caps.minimum_m1)()=
-  let capabilities={capabilities with Caps.compute_pipeline=false;render_pipeline=false;ray_tracing=false;function_tables=false;ray_tracing_curves=false} in
+let create()=
+  let capabilities={Caps.minimum_m1 with Caps.compute_pipeline=false;render_pipeline=false;ray_tracing=false;function_tables=false;ray_tracing_curves=false} in
   let run_ops ops=
     let rec go=function
       |[]->Ok()

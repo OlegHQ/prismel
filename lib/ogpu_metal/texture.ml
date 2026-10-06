@@ -35,7 +35,7 @@ let usage values =
 
 (* The validated native descriptor for an OGPU texture; shared by device and
    heap creation and by heap placement queries. *)
-let native_descriptor ~operation device ~memory ~format ~view_formats (descriptor:Ogpu_core.Types.texture_descriptor) =
+let native_descriptor ~operation device ~memory ~format (descriptor:Ogpu_core.Types.texture_descriptor) =
   if Device.destroyed device then error operation Ogpu_core.Error.Stale_handle "device is destroyed"
   else match Ogpu_core.Types.validate_texture (Device.capabilities device) descriptor with Error _ as e->e|Ok()->
     let profile:Ogpu_core.Validation.texture_profile={format=validation_format format;storage=validation_storage memory;
@@ -44,19 +44,19 @@ let native_descriptor ~operation device ~memory ~format ~view_formats (descripto
     match Ogpu_core.Validation.validate_texture_profile(Device.capabilities device)profile with Error _ as e->e|Ok()->
     match validate_descriptor descriptor format with Error _ as e->e|Ok()->
     let storage=match memory with Device_local->Metal.Buffer.Private|Shared->Metal.Buffer.Shared in
-    let native_usage=usage descriptor.usage |> fun values -> if view_formats=[] then values else add_unique Metal.Texture.Pixel_format_view values in
+    let native_usage=usage descriptor.usage in
     let base=Metal.Texture.descriptor_2d ~storage ~usage:native_usage ?label:descriptor.label ~format:(metal_format format) ~width:descriptor.width ~height:descriptor.height () in
     Ok{base with kind=(if descriptor.sample_count>1 then Metal.Texture.Texture_2d_multisample else if descriptor.depth>1 then Texture_3d else Texture_2d);depth=descriptor.depth;mip_levels=descriptor.mip_levels;sample_count=descriptor.sample_count}
 
-let wrap device ~operation ~memory:_ ~format ~view_formats:_ descriptor created=
+let wrap device ~operation ~format descriptor created=
   match created with Error e->Error(Device.of_metal_error~operation e)|Ok metal->
     let value={metal;handle=Ogpu_core.Handle.create~device:(Device.Private.handle device);device;descriptor;format;parent=None;live_views=0;submission_uses=0;destroy_requested=false}in
     Device.Private.attach_resource device;Ok value
 
-let create device ~memory ~format ?(view_formats=[]) descriptor =
+let create device ~memory ~format descriptor =
   let operation="Ogpu_metal.Texture.create" in
-  match native_descriptor ~operation device ~memory ~format ~view_formats descriptor with Error _ as e->e|Ok native->
-  wrap device ~operation ~memory ~format ~view_formats descriptor (Metal.Texture.create ~device:(Device.Private.metal device) native)
+  match native_descriptor ~operation device ~memory ~format descriptor with Error _ as e->e|Ok native->
+  wrap device ~operation ~format descriptor (Metal.Texture.create ~device:(Device.Private.metal device) native)
 
 let validate operation device value=Ogpu_core.Handle.validate_for~operation(Device.Private.handle device)value.handle
 let destroyed value=Ogpu_core.Handle.destroyed value.handle

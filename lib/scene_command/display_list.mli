@@ -14,7 +14,7 @@ type stats = {
 
 module Builder : sig
   type t
-  val create : ?capacity:int -> unit -> t
+  val create : unit -> t
   val reserve : t -> int -> unit
   val reset : t -> unit
   val clear : t -> int32 -> unit

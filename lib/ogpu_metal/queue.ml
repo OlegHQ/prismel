@@ -46,10 +46,10 @@ let complete_epoch value epoch=
     value.completed<-epoch;
     Ok()
   end
-let create ?(max_frames=3) device=
+let create device=
+  let max_frames=3 in
   let op="Ogpu_metal.Queue.create"in
   if Device.destroyed device then error op Ogpu_core.Error.Stale_handle"device is destroyed"
-  else if max_frames<1||max_frames>3 then error op Ogpu_core.Error.Invalid_argument"max_frames must be in [1,3]"
   else match Metal.Command_queue.create(Device.Private.metal device)with
   |Error e->Error(Device.of_metal_error~operation:op e)
   |Ok metal->

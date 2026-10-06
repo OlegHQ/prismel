@@ -2,7 +2,7 @@ type t
 type receipt={epoch:int64}
 type gpu_timing={supported:bool;duration_seconds:float;sample_count:int64}
 val gpu_timing_for_device : Device.t -> gpu_timing
-val create : ?max_frames:int -> Device.t -> (t,Ogpu_core.Error.t) result
+val create : Device.t -> (t,Ogpu_core.Error.t) result
 
 (** Commits an externally encoded native command buffer; [retained] runs at
     completion. The queue owns [native] only after success. *)
