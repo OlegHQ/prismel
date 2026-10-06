@@ -475,13 +475,9 @@ let colour_popup ui ~at text (a, b) =
   Ui.popup ui ~stroke:(Pxui.Theme.edge theme) ~at ~width:300. ~height:24. "text-colour" (fun () ->
     let box, cx, cy, cw = Ui.inspector_row ui ~width:300. ~key:"text-colour-row" ~label:"colour" () in
     Ui.within ui box (fun () ->
-      let swatch = Ui.box ui ~at:(cx, cy) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) "text-colour-swatch" in
-      Ui.draw ui swatch (fun paint (sx, sy, sw, sh) ->
-        Ui.Paint.fill paint ~x:sx ~y:sy ~w:sw ~h:sh colour;
-        Ui.Paint.stroke paint ~x:(sx +. 0.5) ~y:(sy +. 0.5) ~w:(sw -. 1.) ~h:(sh -. 1.) (Pxui.Theme.edge theme));
+      (* the kit's swatch and hex field; the literal's alpha stays as written *)
       let hex_x = cx +. 28. in
-      let typed, _ = Ui.value_field ui ~at:(hex_x, cy) ~w:64. ~h:20. ~left:true
-          ~valid:(fun t -> Result.is_ok (Color.hex t)) "text-colour-hex" shown in
+      let typed = Pxui_shell.Kit.colour ui ~key:"text-colour" ~at:(cx, cy) ~w:92. ~swatch:colour ~hex:shown in
       let from_hex = if typed = shown then None else
           Option.map (fun c -> let r, g, b, _ = Color.to_floats c in hex r g b) (Result.to_option (Color.hex typed)) in
       let sliders_x = hex_x +. 72. in

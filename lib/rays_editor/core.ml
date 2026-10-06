@@ -316,19 +316,12 @@ let panel_key (doc : Document.t) path =
   let graph = Option.fold ~none:"@default" ~some:(fun (g : Flow.Workspace.graph) -> g.name)
     (Workspace_doc.editor_graph (fst doc.workspace)) in
   let origin path = Option.bind doc.shell (fun s -> List.assoc_opt path s.Document.origins) in
-  let rec node path (tree : Editor_core.Panels.t) = match path, tree with
-    | [], tree -> Some tree
-    | 0 :: rest, Split s -> node rest s.a
-    | 1 :: rest, Split s -> node rest s.b
-    | i :: rest, Tile cells -> Option.bind (List.nth_opt cells i) (node rest)
-    | 0 :: rest, Float t -> node rest t
-    | _ -> None in
   (* a binding several leaves are made from names none of them: each is keyed by its place *)
   let once name = not (Option.fold ~none:false ~some:(fun (s : Document.shell) -> List.mem name s.repeated) doc.shell) in
   match origin path, List.rev path with
   | Some (Document.Bound name), _ when once name -> [graph; name]
   (* [name (ui/floating (ui/inspector))]: the window is the float's binding *)
-  | _, 0 :: up when (match Option.bind doc.shell (fun s -> node (List.rev up) s.tree), origin (List.rev up) with
+  | _, 0 :: up when (match Option.bind doc.shell (fun s -> Editor_core.Panels.at (List.rev up) s.tree), origin (List.rev up) with
       | Some (Float _), Some (Document.Bound _) -> true | _ -> false) ->
       (match origin (List.rev up) with Some (Document.Bound name) -> [graph; name] | _ -> assert false)
   | _ -> graph :: "@panel" :: List.map string_of_int path
@@ -401,15 +394,9 @@ let graph_leaves value =
 (* The leaf of the pane in use: where [graph_pane] was last seen when that is still its leaf (no
    walk: this is read many times a frame), else found again, else the first graph leaf. *)
 let graph_path value =
-  let rec panel path (tree : Editor_core.Panels.t) = match path, tree with
-    | [], Leaf p -> Some p
-    | 0 :: rest, Split s -> panel rest s.a
-    | 1 :: rest, Split s -> panel rest s.b
-    | i :: rest, Tile cells -> Option.bind (List.nth_opt cells i) (panel rest)
-    | 0 :: rest, Float t -> panel rest t
-    | _ -> None in
   match value.graph_pane, value.graph_at with
-  | Some key, Some path when panel path (shell_tree value value.workspace) = Some Pxui_shell.Layout.Graph
+  | Some key, Some path when Editor_core.Panels.at path (shell_tree value value.workspace)
+                             = Some (Editor_core.Panels.Leaf Pxui_shell.Layout.Graph)
                              && panel_key value.doc path = key -> Some path
   | _ ->
       let leaves = graph_leaves value in
@@ -642,6 +629,17 @@ let kind_fields value graph head authored =
                p.fields) k.parameters))
   | _ -> None
 
+(* The iterations the zones around a node of the pane's graph probe, outermost first, and the
+   compiled node it lowers to there.  [chains] is {!Flow_sop.Probe.chains} of the scope, made once
+   by the caller (it walks the whole scope). *)
+let probes_of value chains path =
+  List.map (fun zone -> Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes))
+    (Option.value ~default:[] (Hashtbl.find_opt chains path))
+
+let compiled_at value chains records path =
+  Option.bind (Flow_sop.Probe.plan_node records path ~probes:(probes_of value chains path)) (fun plan ->
+    Flow_sop.Network.Int_map.find_opt plan (snd value.doc.Document.workspace).compiled)
+
 (* The inspector of the node selected in the workspace pane (plan W5): its
    value at the probe, whether it recooks every frame, the list of its
    iterations (a click moves the zone's probe), and the catalog parameters of
@@ -653,7 +651,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
   let module Probe = Flow_sop.Probe in
   let module S = Flow.Syntax in
   match value.scope_key, value.doc.Document.workspace with
-  | Some { scope; records = Some records; graph; _ }, (_, lowered) ->
+  | Some { scope; records = Some records; graph; _ }, _ ->
       (match P.find scope path with
        | None ->
            (* a graph input: its type, and its default as one Lisp form (the pane's field, here) *)
@@ -682,9 +680,9 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                  | Ok _ -> [ Declined "A default is one Lisp form" ], []
                  | Error d -> [ Declined ("Default: " ^ d.Flow.Diagnostic.message) ], []))
        | Some n ->
-           let probe p = Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes) in
-           let chain = Option.value ~default:[] (Hashtbl.find_opt (Probe.chains scope) n.path) in
-           let probes = List.map probe chain in
+           let chains = Probe.chains scope in
+           let chain = Option.value ~default:[] (Hashtbl.find_opt chains n.path) in
+           let probes = probes_of value chains n.path in
            let footer = Probe.footer records n ~probes in
            (* a loop or scope says what it is, then the rows of its rail (what it runs over, what it feeds back,
               what it only reads), as the study's inspector does *)
@@ -697,8 +695,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
              | Fn -> "function · runs per call", (fun _ -> "A function: its body runs each time it is called.")) n.zone in
            (* a bypassed node passes its input through: the plan node is the upstream one, so it
               has no number, cook or arguments of its own to show here *)
-           let node_id = if n.bypass then None else Option.bind (Probe.plan_node records n.path ~probes) (fun id ->
-             Flow_sop.Network.Int_map.find_opt id lowered.compiled) in
+           let node_id = if n.bypass then None else compiled_at value chains records n.path in
            let node = Option.bind node_id (compiled_node value) in
            let literal = function
              | { S.node = S.Num _ | S.Str _ | S.Sym ("true" | "false"); _ } -> true
@@ -1055,17 +1052,12 @@ S.make (S.Num (Flow.Lisp.float f)) in
    the selectors probe. *)
 let node_path value node_id =
   match value.scope_key, value.doc.Document.workspace with
-  | Some { scope; records = Some records; _ }, (_, lowered) ->
+  | Some { scope; records = Some records; _ }, _ ->
       let chains = Flow_sop.Probe.chains scope in
       let rec search (s : Flow_sop.Projection.scope) =
         List.find_map (fun (n : Flow_sop.Projection.node) ->
-          let probes = List.map (fun zone ->
-            Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes))
-            (Option.value ~default:[] (Hashtbl.find_opt chains n.path)) in
-          match Flow_sop.Probe.plan_node records n.path ~probes with
-          | Some plan when Flow_sop.Network.Int_map.find_opt plan lowered.compiled = Some node_id ->
-              Some n.path
-          | _ -> Option.bind n.zone (fun (z : Flow_sop.Projection.zone) -> search z.scope)) s.nodes in
+          if compiled_at value chains records n.path = Some node_id then Some n.path
+          else Option.bind n.zone (fun (z : Flow_sop.Projection.zone) -> search z.scope)) s.nodes in
       search scope
   | _ -> None
 
@@ -1312,14 +1304,10 @@ let scope_name value = if projection value = Graph_view then graph_name value el
 (* The lowered node of the node selected in the graph pane, at the iteration its zones probe. *)
 let scope_node value =
   match value.scope_key, value.doc.Document.workspace, Pxui_graph.Scope.selected value.scope_view with
-  | Some { scope; records = Some records; _ }, (_, lowered), [ path ] when scope_name value <> None ->
+  | Some { scope; records = Some records; _ }, _, [ path ] when scope_name value <> None ->
       Option.bind (Flow_sop.Projection.find scope path) (fun (n : Flow_sop.Projection.node) ->
-        let chain = Option.value ~default:[] (Hashtbl.find_opt (Flow_sop.Probe.chains scope) n.path) in
-        let probes = List.map (fun p ->
-          Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes)) chain in
-        Option.bind (Flow_sop.Probe.plan_node records n.path ~probes) (fun id ->
-          Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
-            Option.map (fun node -> n.path, node) (compiled_node value node_id))))
+        Option.bind (compiled_at value (Flow_sop.Probe.chains scope) records n.path) (fun node_id ->
+          Option.map (fun node -> n.path, node) (compiled_node value node_id)))
   | _ -> None
 
 
@@ -1331,10 +1319,7 @@ let lit_tags value =
        | Some c when c.site = site && c.at == value.probes && c.lowered == lowered
            && c.scope == scope -> c.tags, value.lit
        | _ ->
-           let chain = Option.value ~default:[]
-               (Hashtbl.find_opt (Flow_sop.Probe.chains scope) site) in
-           let iter = List.map (fun zone ->
-             Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes)) chain in
+           let iter = probes_of value (Flow_sop.Probe.chains scope) site in
            let tags = Pick.Set.of_list (Flow_sop.Lower.tags lowered ~site ~iter) in
            tags, Some { site; at = value.probes; lowered; scope; tags })
   | _ -> Pick.Set.empty, None
@@ -1343,18 +1328,13 @@ let lit_tags value =
    (the pane draws the sheet's failed state on them). *)
 let failed_nodes value =
   match Cook.failed_node value.cook, value.scope_key, value.doc.Document.workspace with
-  | Some (code, node_id), Some { scope; records = Some records; _ }, (_, lowered)
+  | Some (code, node_id), Some { scope; records = Some records; _ }, _
     when scope_name value <> None ->
       let rec nodes (s : Flow_sop.Projection.scope) = List.concat_map (fun (n : Flow_sop.Projection.node) ->
         n :: (match n.zone with Some z -> nodes z.scope | None -> [])) s.nodes in
       let chains = Flow_sop.Probe.chains scope in
       List.filter_map (fun (n : Flow_sop.Projection.node) ->
-        let probes = List.map (fun p ->
-          Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes))
-          (Option.value ~default:[] (Hashtbl.find_opt chains n.path)) in
-        match Flow_sop.Probe.plan_node records n.path ~probes with
-        | Some id when Flow_sop.Network.Int_map.find_opt id lowered.compiled = Some node_id -> Some (n.path, code)
-        | _ -> None) (nodes scope)
+        if compiled_at value chains records n.path = Some node_id then Some (n.path, code) else None) (nodes scope)
   | _ -> []
 
 (* Lay the workspace pane out again when the document, the probes or the
@@ -2029,13 +2009,6 @@ let carry_line (c : _ carry) =
              (String.concat " · " (List.map (fun (letter, _, label) -> letter ^ " " ^ label) targets))
        | `Keys, _ ->
            Printf.sprintf "Carrying %s · nothing here takes it · u, i or Space j go elsewhere · Esc drops" held)
-
-(* 2408 -> "2 408", the sheets' thousands *)
-let group_thousands n =
-  let digits = string_of_int n in
-  let rec chop s = if String.length s <= 3 then [ s ]
-    else String.sub s (String.length s - 3) 3 :: chop (String.sub s 0 (String.length s - 3)) in
-  String.concat " " (List.rev (chop digits))
 
 let status_text ?(brief = false) value =
   match value.carry with Some c -> carry_line c | None ->
@@ -3538,11 +3511,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 let ny = sy -. 4. -. rh in
                 P.cap paint ~at:(sx -. 4., cap_y ny) ~color:theme.accent name;
                 Option.iter (fun n ->
-                  let digits = string_of_int n in
-                  let grouped = String.concat " " (List.rev (let rec chop s = if String.length s <= 3 then [ s ]
-                    else String.sub s (String.length s - 3) 3 :: chop (String.sub s 0 (String.length s - 3)) in chop digits)) in
                   ignore (label paint ~x:(sx -. 4. +. P.cap_width paint name +. 8.) ~y:ny ~pl:4. ~pr:4.
-                    ~color:(Pxui.Theme.ink_2 theme) (grouped ^ " pts"))) points
+                    ~color:(Pxui.Theme.ink_2 theme) (group_digits n ^ " pts"))) points
               end) box;
             (* the render camera: its name, its lens and focus as a two-column grid whose labels
                and values both end at their column's right edge, 10 apart *)
@@ -3573,7 +3543,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                that ends 12 (6 on a narrow body) above the pane's foot *)
             let edge = if narrow then 8. else 12. in
             let row_y = y +. h -. (if narrow then 6. else 12.) -. rh in
-            let tris_text = Printf.sprintf "%s tris" (group_thousands tris) in
+            let tris_text = Printf.sprintf "%s tris" (group_digits tris) in
             let items =
               (tris_text, None)
               :: (if narrow then [] else
@@ -4677,19 +4647,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       ~timeline_changes ~timeline ~frame ~frame_request in
   (* Framing: local bounds move into the world with their object; at the
      scene level [F] frames every cooked object. *)
-  let lower (a : Vec3.t) (b : Vec3.t) =
-    Vec3.create (Float.min a.x b.x) (Float.min a.y b.y) (Float.min a.z b.z)
-  and upper (a : Vec3.t) (b : Vec3.t) =
-    Vec3.create (Float.max a.x b.x) (Float.max a.y b.y) (Float.max a.z b.z) in
-  let world_bounds id (lo, hi) =
-    let matrix = Objects.world doc.scene.graph.geometry id in
-    let corners = List.init 8 (fun index ->
-      Mat4.transform_point matrix (Vec3.create
-        (if index land 1 = 0 then lo.Vec3.x else hi.Vec3.x)
-        (if index land 2 = 0 then lo.y else hi.y)
-        (if index land 4 = 0 then lo.z else hi.z))) in
-    List.fold_left (fun (lo, hi) point -> lower lo point, upper hi point)
-      (List.hd corners, List.hd corners) corners in
+  let world_bounds id bounds = Cook.transformed (Objects.world doc.scene.graph.geometry id) bounds in
   (* a framing cook may finish frames after its request: the object is remembered until it does *)
   let framing = match frame_request with Some (id, _) -> Some id | None -> value.framing in
   let framed = match cooked.framed, framing with
@@ -4705,9 +4663,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           match piece.bounds, union with
           | None, union -> union
           | Some bounds, None -> Some (world_bounds piece.id bounds)
-          | Some bounds, Some (lo, hi) ->
-              let a, b = world_bounds piece.id bounds in
-              Some (lower lo a, upper hi b)) None cooked.cook.pieces)
+          | Some bounds, Some box -> Some (Cook.union box (world_bounds piece.id bounds))) None cooked.cook.pieces)
     | framed, _ -> framed in
   let document_changed = doc != value.doc in
   (* [y]: the payload is held by the handle (no pointer capture); a press or Enter puts it *)

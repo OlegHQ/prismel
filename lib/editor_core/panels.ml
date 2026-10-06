@@ -32,6 +32,16 @@ let leaves tree =
     List.concat_map fst parts, List.concat_map snd parts in
   let r, f = walk [] tree in r @ f
 
+(* The subtree at a path: a split's sides are 0 and 1, a tile's cells their index, a float's
+   panel 0. *)
+let rec at path tree = match path, tree with
+  | [], tree -> Some tree
+  | 0 :: rest, Split s -> at rest s.a
+  | 1 :: rest, Split s -> at rest s.b
+  | i :: rest, Tile cells -> Option.bind (List.nth_opt cells i) (at rest)
+  | 0 :: rest, Float t -> at rest t
+  | _ -> None
+
 let clamp_size : size -> size = function
   | `Ratio r -> `Ratio (Float.max 0.1 (Float.min 0.9 r))
   | `First n -> `First (max 1 n) | `Second n -> `Second (max 1 n)

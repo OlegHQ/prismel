@@ -42,6 +42,9 @@ val name : panel -> string
 val leaves : t -> (path * panel) list
 (** Every leaf in tree order, floats last. *)
 
+val at : path -> t -> t option
+(** The subtree at a path of {!leaves}; [None] when the tree has no such place. *)
+
 val clamp_size : size -> size
 (** A ratio within 0.1-0.9, a fixed side of at least one point. *)
 
