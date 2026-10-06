@@ -817,7 +817,17 @@ let run () =
     area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];
     area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
     if Clipboard.get_text () <> Ok "_abX\ncé" then fail "readonly text area cannot copy";
-    readonly := false);
+    readonly := false;
+    (* copy and cut with no selection take the caret's line: of an empty area, nothing *)
+    area := "";
+    area_step [press (150, 12); release (150, 12)];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'x')];
+    expect "copy and cut of an empty area" "";
+    area := "ab\ncd";
+    area_step [press (150, 12); release (150, 12)];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'x')];
+    expect "cut with no selection takes the caret's line" "cd");
   (* Tab keeps the focus and inserts two spaces, Shift-Tab takes them off, Command-Enter is the
      host's apply *)
   area := "ab";

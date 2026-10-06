@@ -3581,10 +3581,8 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           change (); edit.anchor <- edit.caret - 1; edit.caret <- edit.caret + 1; replace_text edit ""; typed := true
       (* Command-X / C with no selection take the caret's whole logical line, newline included *)
       | Event.KeyPressed (Input.KeyChar ('x' | 'X' | 'c' | 'C' as key)) when command && edit.caret = edit.anchor ->
-          let s = match String.rindex_from_opt edit.text (max 0 (edit.caret - 1)) '\n' with
-            | Some i when edit.caret > 0 -> i + 1 | _ -> 0 in
-          let e = match String.index_from_opt edit.text edit.caret '\n' with
-            | Some i -> i + 1 | None -> String.length edit.text in
+          let s = line_start edit.text edit.caret in
+          let e = min (String.length edit.text) (line_end edit.text edit.caret + 1) in
           if Clipboard.set_text (String.sub edit.text s (e - s)) = Ok ()
              && (key = 'x' || key = 'X') && not readonly then begin
             change (); edit.anchor <- s; edit.caret <- e; replace_text edit ""; typed := true
