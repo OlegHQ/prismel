@@ -305,8 +305,10 @@ let () =
   (* two calls stay nested; a note or a flag in the chain keeps it nested *)
   assert (print "(sop/b (sop/a x))" = "(sop/b (sop/a x))\n");
   assert (print "(-> x (sop/a) (sop/b))" = "(sop/b (sop/a x))\n");
-  assert (not (String.contains (print "(sop/c (sop/b ; why\n (sop/a x)))") '>'));
-  assert (not (String.contains (print "(sop/c ^:bypass (sop/b (sop/a x)))") '>'));
+  (* a note or a flag on a step stays on the step's line, and the chain still threads *)
+  assert (print "(-> x (sop/a) ; why\n (sop/b) (sop/c))" = "(-> x\n    (sop/a)\n    ; why\n    (sop/b)\n    (sop/c))\n");
+  assert (print "(-> x (sop/a) ^:bypass (sop/b) (sop/c))" = "(-> x\n    (sop/a)\n    ^:bypass (sop/b)\n    (sop/c))\n");
+  assert (print "(-> ; start\n x (sop/a) (sop/b) (sop/c))" = "(->\n    ; start\n    x\n    (sop/a)\n    (sop/b)\n    (sop/c))\n");
   (* only node calls thread; a keyword first argument starts the chain *)
   assert (print "(* (+ (- a 1) 2) 3)" = "(* (+ (- a 1) 2) 3)\n");
   (* a layout is a tree of containers: ui/ calls nest *)
@@ -320,3 +322,53 @@ let () =
   assert (Result.is_error (Syntax.parse "(->)"));
   assert (Result.is_error (Syntax.parse "(-> x 5)"));
   assert (Result.is_error (Syntax.parse "(-> x g)"))
+
+(* One float spelling: shortest digits that read back, a point, never an exponent. *)
+let () =
+  List.iter (fun (x, text) ->
+    if Lisp.float x <> text then failwith (Printf.sprintf "float %h printed %s, want %s" x (Lisp.float x) text))
+    [ 1., "1.0"; -0.5, "-0.5"; 1e-14, "0.00000000000001"; 2e6, "2000000.0"; 6.1e-17, "0.000000000000000061";
+      1234567.89, "1234567.89"; 0.1, "0.1"; -3.3e-7, "-0.00000033"; 1e21, "1000000000000000000000.0";
+      Float.nan, "0.0"; Float.infinity, "0.0" ];
+  List.iter (fun x ->
+    let text = Lisp.float x in
+    assert (Syntax.number text && float_of_string text = x);
+    assert (print text = text ^ "\n"))
+    [ 1e-14; 2e6; 6.1e-17; 0.30000000000000004; 1.7976931348623157e308; 5e-324; -123.456e-9 ];
+  (* a hand-written exponent is read and kept *)
+  assert (print "[1e-14 2E+06]" = "[1e-14 2E+06]\n")
+
+(* Every checked-in workspace: printing is a fixed point and loses no comment. *)
+let () =
+  let comments text = List.filter_map (fun line ->
+    match String.index_opt line ';' with
+    | Some i -> Some (String.trim (String.sub line i (String.length line - i)))
+    | None -> None) (String.split_on_char '\n' text) |> List.sort compare in
+  let check name source =
+    let once = print source in
+    let twice = print once in
+    if once <> twice then failwith (name ^ ": print is not a fixed point: " ^ first_difference once twice);
+    let norm c = (* [;x] and [;; x] print as [; x] *)
+      let k = ref 0 in
+      while !k < String.length c && c.[!k] = ';' do incr k done;
+      String.trim (String.sub c !k (String.length c - !k)) in
+    let want = List.sort compare (List.map norm (comments source))
+    and got = List.sort compare (List.map norm (comments once)) in
+    if want <> got then failwith (Printf.sprintf "%s: print lost a comment (%d written, %d printed)"
+      name (List.length want) (List.length got)) in
+  let dir = "../../sketches" in
+  Array.iter (fun sketch ->
+    let path = Filename.concat (Filename.concat dir sketch) "sketch.rays" in
+    if Sys.file_exists path then check path (read path)) (Sys.readdir dir);
+  (* comments in every position the printer lays out specially *)
+  List.iter (fun source -> check source source) [
+    "(graph g [a ; first\n b] -> geometry (sop/box))";
+    "(graph g {:kind :sop} [a ; first\n b] -> geometry (sop/box))";
+    "(defn f [x ; the x\n y] -> number (+ x y))";
+    "(defmacro m [a ; why\n b] `(+ ~a ~b))";
+    "(fn [x ; arg\n ] (+ x 1))";
+    "(f ^:bypass ; between\n (sop/box))";
+    "(f ' ; quoted\n a)";
+    "(-> x ; one\n (sop/a) ; two\n (sop/b) (sop/c) ; end\n )";
+    "(let* [[a ; in a pattern\n b] xs] a)";
+    "(workspace w ; a\n (graph g [] -> geometry (sop/box)) ; tail\n )\n; after" ]

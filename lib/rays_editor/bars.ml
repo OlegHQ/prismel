@@ -72,7 +72,7 @@ let tree_text ~name ~scene tree =
         let b = go (1 :: path) b in
         let axis = if axis = `H then "horizontal" else "vertical" in
         bind "split" (match size with
-          | `Ratio ratio -> Printf.sprintf "(ui/split-at %S %.4g %s %s)" axis ratio a b
+          | `Ratio ratio -> Printf.sprintf "(ui/split-at %S %s %s %s)" axis (Flow.Lisp.float (Float.round (ratio *. 1e4) /. 1e4)) a b
           | `First n -> Printf.sprintf "(ui/split %S %s %s :first_size %d)" axis a b n
           | `Second n -> Printf.sprintf "(ui/split %S %s %s :second_size %d)" axis a b n)
     | Tile cells -> bind "tile" ("(ui/tile " ^ String.concat " " (List.mapi (fun i c -> go (i :: path) c) cells) ^ ")")

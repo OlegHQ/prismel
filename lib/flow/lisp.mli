@@ -10,5 +10,11 @@ type spans = (Syntax.id * Diagnostic.span) list
 val print : Syntax.t list -> string * spans
 (** Top-level forms separated by a blank line; the text ends in a newline. *)
 
+val float : float -> string
+(** The one spelling of a float in workspace text: the shortest digits that read
+    back as the same value, always with a [.] and never an exponent
+    ([1e-14] is [0.00000000000001]).  Total: a non-finite value prints [0.0];
+    reject it before writing where that matters. *)
+
 val flat : Syntax.t -> string
 (** One-line spelling of a form, for messages. *)

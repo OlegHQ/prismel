@@ -22,7 +22,9 @@
 (test
  (name test_lisp)
  (modules test_lisp)
- (deps (glob_files ../../specification/workspace/cases/*.lisp))
+ (deps
+  (glob_files ../../specification/workspace/cases/*.lisp)
+  (glob_files ../../sketches/*/sketch.rays))
  (libraries flow))
 
 (test

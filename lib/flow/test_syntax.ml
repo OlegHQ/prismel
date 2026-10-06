@@ -14,7 +14,7 @@ let () =
   let forms = get (parse "[-.5 1. 2.0 3 - 1e3 :kw \"s\\n\\\"q\\\"\" a/b :]") in
   (match forms with
    | [{node = Vec [{node = Num "-.5"; _}; {node = Num "1."; _}; {node = Num "2.0"; _};
-       {node = Num "3"; _}; {node = Sym "-"; _}; {node = Sym "1e3"; _};
+       {node = Num "3"; _}; {node = Sym "-"; _}; {node = Num "1e3"; _};
        {node = Kw "kw"; _}; {node = Str "s\n\"q\""; _}; {node = Sym "a/b"; _};
        {node = Sym ":"; _}]; _}] -> ()
    | _ -> failwith "atoms misread");
@@ -51,9 +51,9 @@ let () =
        assert (c.notes = [""])
    | _ -> failwith "notes misplaced");
   (match (one "(a ; end\n)").tail with ["end"] -> () | _ -> failwith "tail");
-  (* a comment between a prefix and its form has nothing to attach to *)
+  (* a comment between a prefix and its form moves before the prefix *)
   (match (one "(f ; c\n ' ; d\n x)").node with
-   | List [_; {notes = ["c"]; node = Quote (Plain, {notes = []; _}); _}] -> ()
+   | List [_; {notes = ["c"; "d"]; node = Quote (Plain, {notes = []; _}); _}] -> ()
    | _ -> failwith "prefix comment")
 
 let () =
@@ -86,7 +86,18 @@ let () =
   fails "^ x" "E_UNEXPECTED" 0;
   fails "(a ^:bypass)" "E_UNEXPECTED" 3;
   fails "'" "E_UNEXPECTED" 1;
-  fails (String.make 200 '(' ^ String.make 200 ')') "E_DEPTH" 121;
+  fails (String.make 300 '(' ^ String.make 300 ')') "E_DEPTH" 257;
+  assert (Result.is_ok (parse (String.make 250 '(' ^ String.make 250 ')')));
+  (* a -> chain nests as deep as it is long *)
+  let chain n = "(-> x" ^ String.concat "" (List.init n (fun _ -> " (f)")) ^ ")" in
+  assert (Result.is_ok (parse (chain 200)));
+  fails (chain 100_000) "E_DEPTH" 0;
+  (* the printer's marker bytes are refused anywhere, comments and strings included *)
+  fails "(a) ; \001" "E_UNEXPECTED" 6;
+  fails "\"\003\"" "E_UNEXPECTED" 1;
+  (* numbers with an exponent *)
+  List.iter (fun w -> assert (number w)) ["1e-14"; "2e+06"; "6.1E-17"; "-3.3e7"; "1.e2"];
+  List.iter (fun w -> assert (not (number w))) ["e5"; "1e"; "1e+"; "1e5x"; "-"; "."];
   assert (get (parse "") = [] && get (parse "; only a comment") = []);
   (* the message names the opening line *)
   (match parse "(a\n(b]" with

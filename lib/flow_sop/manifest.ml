@@ -16,25 +16,7 @@ let group name values = "(" ^ name ^
 let strings name values = group name (List.map quote values)
 let number number =
   if not (Float.is_finite number) then invalid_arg "Manifest.number: non-finite";
-  let text = Printf.sprintf "%.17g" number in
-  match String.index_opt text 'e' with
-  | None -> text
-  | Some exponent_at ->
-      let negative = text.[0] = '-' in
-      let mantissa = String.sub text (if negative then 1 else 0)
-        (exponent_at - if negative then 1 else 0) in
-      let exponent = int_of_string (String.sub text (exponent_at + 1)
-        (String.length text - exponent_at - 1)) in
-      let point = Option.value ~default:(String.length mantissa)
-        (String.index_opt mantissa '.') in
-      let digits = String.concat "" (String.split_on_char '.' mantissa) in
-      let shifted = point + exponent in
-      let sign = if negative then "-" else "" in
-      if shifted <= 0 then sign ^ "0." ^ String.make (-shifted) '0' ^ digits
-      else if shifted >= String.length digits then
-        sign ^ digits ^ String.make (shifted - String.length digits) '0'
-      else sign ^ String.sub digits 0 shifted ^ "." ^
-        String.sub digits shifted (String.length digits - shifted)
+  Flow.Lisp.float number
 let optional render = function None -> "nil" | Some value -> render value
 let literal = function
   | Param.Bool_value value -> group "bool" [string_of_bool value]

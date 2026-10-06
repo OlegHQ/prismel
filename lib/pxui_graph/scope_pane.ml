@@ -1939,8 +1939,7 @@ let num_field ui ~at ~w ~h ?size ?fraction label text =
     | None -> origin
     | Some v when is_float ->
         let v = v +. dx *. (if shift then 0.005 else 0.05) in
-        let s = Printf.sprintf "%.6g" v in
-        if String.exists (fun c -> c = '.' || c = 'e') s then s else s ^ ".0"
+        Flow.Lisp.float (Float.round (v *. 1e6) /. 1e6)
     | Some v -> string_of_int (int_of_float (Float.round (v +. Float.round (dx /. 6.)))) in
   let valid s = match float_of_string_opt s with Some f -> Float.is_finite f | None -> false in
   let text', _ = Ui.value_field ui ~at ~w ~h ?size ?fraction ~scrub ~valid label text in

@@ -21,10 +21,7 @@ let sym name = mk (S.Sym name)
 
 (* ---- values as text ---- *)
 
-let number x =
-  let text = Printf.sprintf "%.17g" x in
-  mk (S.Num (if String.exists (function '.' | 'e' | 'n' | 'i' -> true | _ -> false) text
-             then text else text ^ ".0"))
+let number x = mk (S.Num (Flow.Lisp.float x))
 
 let scalar : Param.value -> S.t = function
   | Float_value x -> number x

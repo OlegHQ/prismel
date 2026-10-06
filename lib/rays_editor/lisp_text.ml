@@ -11,19 +11,11 @@
 type kind = Comment | Str | Num | Kw | Meta | Head | Sym | Open of int | Close of int | Unmatched
 type token = { kind : kind; start : int; stop : int }
 
-let separator = function
-  | ' ' | '\t' | '\r' | '\n' | '(' | ')' | '[' | ']' | '{' | '}' | ';' | '"' -> true
-  | _ -> false
+let separator = Flow.Syntax.separator
 
 let closer_of = function '(' -> ')' | '[' -> ']' | _ -> '}'
 
-let number w =
-  let n = String.length w in
-  let i = ref (if n > 0 && w.[0] = '-' then 1 else 0) and digits = ref 0 in
-  let digit () = while !i < n && w.[!i] >= '0' && w.[!i] <= '9' do incr i; incr digits done in
-  digit ();
-  if !i < n && w.[!i] = '.' then (incr i; digit ());
-  !i = n && !digits > 0
+let number = Flow.Syntax.number
 
 (* the tokens in order, the matched (open, close) pairs, and the brackets still open at the end
    (innermost first) *)

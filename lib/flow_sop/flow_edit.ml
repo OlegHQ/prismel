@@ -1120,8 +1120,7 @@ let rewrite src op : (unit -> S.t list) list =
                        let x = Float.round ((2. *. fa -. fb) *. 1000.) /. 1000. in
                        if Float.is_integer fa then mk (S.Num (string_of_int (int_of_float x)))
                        else
-                         let t = Printf.sprintf "%.12g" x in
-                         mk (S.Num (if String.contains t '.' || String.contains t 'e' then t else t ^ ".0"))
+                         mk (S.Num (Flow.Lisp.float x))
                    | _ -> { last with notes = [] })
               | last :: _ -> { last with notes = [] }
               | [] -> mk (S.Num "0") in

@@ -49,9 +49,8 @@ let sym s = mk (S.Sym s)
 let vec l = mk (S.Vec l)
 let bool b = sym (if b then "true" else "false")
 let number x =
-  let shortest = List.find_map (fun p ->
-    let s = Printf.sprintf "%.*g" p x in if float_of_string s = x then Some s else None) [ 15; 16; 17 ] in
-  mk (S.Num (Option.get shortest))
+  (* positions are whole points far more often than not: keep them short *)
+  mk (S.Num (if Float.is_integer x && Float.abs x < 1e15 then Printf.sprintf "%.0f" x else Flow.Lisp.float x))
 let pair (x, y) = vec [ number x; number y ]
 let path_form p = vec (List.map str p)
 

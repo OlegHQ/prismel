@@ -29,6 +29,13 @@ and node =
   | Map of t list  (** [{}]: the children alternate key and value *)
   | Quote of quote_kind * t
 
+val number : string -> bool
+(** Whether a word is a number literal: [-?digits(.digits)?] with an optional
+    exponent ([1e-14], [2.5E+6]). *)
+
+val separator : char -> bool
+(** Whether a byte ends a word. *)
+
 val parse : string -> (t list, Diagnostic.t) result
 (** Read every top-level form.  Errors carry code, span and position
     ([E_UNCLOSED], [E_UNEXPECTED], [E_DEPTH]).  A comment becomes a note on

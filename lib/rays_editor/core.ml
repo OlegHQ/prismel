@@ -930,8 +930,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
            let expanded = List.filter_map (fun (f : Parameter.field_view) ->
              match f.folder with [] -> None | first :: _ -> Some first) fields |> List.sort_uniq String.compare in
            let num f =
-             let t = Printf.sprintf "%.6g" f in
-             S.make (S.Num (if String.exists (fun c -> c = '.' || c = 'e' || c = 'n' || c = 'i') t then t else t ^ ".0")) in
+S.make (S.Num (Flow.Lisp.float f)) in
            let edits = if rows = [] then [] else
              Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false ~pins:true ~pin_click:true ~on_choice
                ~kind_label:(kind_label n.head)
@@ -3713,8 +3712,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       @ List.filter_map (function
         | Navigator.Set_default { graph; input; value; integer } ->
             let text = if integer then string_of_int (int_of_float (Float.round value))
-              else (let t = Printf.sprintf "%.4g" value in
-                    if String.contains t '.' || String.contains t 'e' then t else t ^ ".0") in
+              else Flow.Lisp.float value in
             Some (Syntax_edit (Flow_sop.Flow_edit.Set_input_default { form = graph; input;
               value = Flow.Syntax.make (Flow.Syntax.Num text) }))
         | Rename { graph; to_ } -> Some (Syntax_edit (Flow_sop.Flow_edit.Rename_graph { name = graph; to_ }))

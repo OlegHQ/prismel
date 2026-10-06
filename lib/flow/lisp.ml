@@ -21,9 +21,31 @@ let vis s =
 
 let sp n = String.make (max n 0) ' '
 
+let float x =
+  if not (Float.is_finite x) then "0.0"
+  else
+    let text = List.find (fun t -> float_of_string t = x)
+      (List.map (fun p -> Printf.sprintf "%.*g" p x) [ 15; 16; 17 ]) in
+    let dotted t = if String.contains t '.' then t else t ^ ".0" in
+    match String.index_opt text 'e' with
+    | None -> dotted text
+    | Some at ->
+        let negative = text.[0] = '-' in
+        let mantissa = String.sub text (if negative then 1 else 0)
+          (at - if negative then 1 else 0) in
+        let exponent = int_of_string (String.sub text (at + 1) (String.length text - at - 1)) in
+        let point = Option.value ~default:(String.length mantissa) (String.index_opt mantissa '.') in
+        let digits = String.concat "" (String.split_on_char '.' mantissa) in
+        let shifted = point + exponent and n = String.length digits in
+        (if negative then "-" else "")
+        ^ (if shifted <= 0 then "0." ^ String.make (-shifted) '0' ^ digits
+           else if shifted >= n then digits ^ String.make (shifted - n) '0' ^ ".0"
+           else String.sub digits 0 shifted ^ "." ^ String.sub digits shifted (n - shifted))
+
 let number raw =
   let v = float_of_string raw in
-  if Float.is_integer v then (if String.contains raw '.' then Printf.sprintf "%.1f" v else raw)
+  if String.exists (fun c -> c = 'e' || c = 'E') raw then raw
+  else if Float.is_integer v then (if String.contains raw '.' then float v else raw)
   else
     let rec trim s = if s.[String.length s - 1] = '0' then trim (String.sub s 0 (String.length s - 1)) else s in
     let s = trim (Printf.sprintf "%.6f" v) in
@@ -71,9 +93,9 @@ let is_map x = match x.node with Map _ -> true | _ -> false
 let bind_forms = ["let*"; "for"; "sum"]
 
 (* A call of a node kind (a head with a "/") whose first operand is a call of its own, as far down
-   as it goes: [(g (f x a) b)] prints [(-> x (f a) (g b))] from three calls up.  A form carrying
-   notes, flags or a tail stays nested, so nothing a reader wrote is lost.  Returns the start
-   and the steps (outermost last, each without its first operand). *)
+   as it goes: [(g (f x a) b)] prints [(-> x (f a) (g b))] from three calls up.  A step keeps
+   its notes, flags and tail on its own line.  Returns the start and the steps (outermost last,
+   each without its first operand). *)
 let threadable x = match x.node with
   | List ({node = Sym h; _} :: first :: _) ->
       (* a layout is a tree of containers, not a pipeline: [ui/] calls nest *)
@@ -81,11 +103,11 @@ let threadable x = match x.node with
   | _ -> false
 
 let rec spine x = match x.node with
-  | List (h :: first :: args) when threadable x && not (own x) ->
-      let start, steps =
-        if first.notes = [] && first.meta = [] then spine first else first, [] in
-      start, steps @ [{x with node = List (h :: args)}]
+  | List (h :: first :: args) when threadable x ->
+      let start, steps = spine first in
+      start, {x with node = List (h :: args)} :: steps
   | _ -> x, []
+let spine x = let start, steps = spine x in start, List.rev steps
 
 let rec pp x ind =
   let pre = meta_pre x in
@@ -95,6 +117,7 @@ and core x ind =
   let f = core_flat x in
   let ks = kids x in
   let len = List.length ks in
+  let deep_ = deep in
   let deep = deep x in
   let end_n = end_n x in
   let no_notes ys = List.for_all (fun y -> y.notes = []) ys in
@@ -126,7 +149,7 @@ and core x ind =
         let rec rows = function
           | [] -> []
           | name :: rest ->
-              let n = flat_ name in
+              let n = if deep_ name then pp name (col + 1) else flat_ name in
               let pad = col + 1 + vis n + 1 in
               let value, rest = match rest with
                 | [] -> "", []
@@ -145,13 +168,16 @@ and core x ind =
       let vec_len k = match (nth ks k).node with Vec v -> List.length v | _ -> 0 in
       let tail k col = line k col in
       let slots_plain n = no_notes (List.filteri (fun i _ -> i >= 1 && i < n) ks) in
+      (* slots printed flat: no comment on or inside them *)
+      let slots_flat n = slots_plain n
+        && not (List.exists deep_ (List.filteri (fun i _ -> i >= 1 && i < n) ks)) in
       let special = List.mem hd ["graph"; "defn"; "defmacro"] in
       let start, steps = spine x in
-      if List.length steps >= 3 && start.notes = [] then begin
+      if List.length steps >= 3 then begin
         let col = ind + 4 and last = List.length steps - 1 in
-        "(-> " ^ pp start col
+        (if start.notes = [] then "(-> " else "(->\n" ^ sp col ^ note_at start col) ^ pp start col
         ^ String.concat "" (List.mapi (fun i s ->
-            "\n" ^ sp col ^ (if i = last then core s col else pp s col)) steps) ^ ")"
+            "\n" ^ sp col ^ (if i = last then core s col else note_at s col ^ pp s col)) steps) ^ ")"
       end else
       if hd = "workspace" && len >= 2 && slots_plain 2 then
         "(workspace " ^ flat_ (nth ks 1)
@@ -185,14 +211,14 @@ and core x ind =
         "(if" ^ (if (nth ks 1).notes <> [] then "\n" ^ sp c ^ note_at (nth ks 1) c else " ")
         ^ pp (nth ks 1) c ^ tail 2 c ^ tail 3 c ^ end_n c ^ ")"
       else if (hd = "graph" || hd = "defn") && (len = 5 || (len = 6 && vec_at 4))
-              && slots_plain (len - 1) then
+              && slots_flat (len - 1) then
         "(" ^ hd ^ " " ^ flat_ (nth ks 1) ^ " " ^ flat_ (nth ks 2) ^ " " ^ flat_ (nth ks 3)
         ^ (if len = 6 then " " ^ flat_ (nth ks 4) else "")
         ^ tail (len - 1) (ind + 2) ^ end_n (ind + 2) ^ ")"
-      else if hd = "defmacro" && len = 4 && slots_plain 3 then
+      else if hd = "defmacro" && len = 4 && slots_flat 3 then
         "(defmacro " ^ flat_ (nth ks 1) ^ " " ^ flat_ (nth ks 2)
         ^ tail 3 (ind + 2) ^ end_n (ind + 2) ^ ")"
-      else if hd = "fn" && len = 3 && vec_at 1 && slots_plain 2 then
+      else if hd = "fn" && len = 3 && vec_at 1 && slots_flat 2 then
         "(fn " ^ flat_ (nth ks 1) ^ tail 2 (ind + 2) ^ end_n (ind + 2) ^ ")"
       else if (hd = "cond" && len >= 1 || hd = "case" && len >= 2) && no_notes [nth ks 0] then
         let col = ind + 2 in
@@ -225,7 +251,7 @@ and core x ind =
           | y :: rest -> [y] :: units rest in
         let units = units (List.tl ks) in
         let hs = flat_ h in
-        if units = [] then f
+        if units = [] && x.tail = [] then f
         else if own x then
           let col = ind + 2 in
           let unit = function

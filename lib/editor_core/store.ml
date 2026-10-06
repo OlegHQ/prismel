@@ -30,10 +30,7 @@ module S = Flow.Syntax
 
 let make = S.make
 let kw name = make (S.Kw name)
-let number x =
-  let text = List.find_map (fun p -> let t = Printf.sprintf "%.*g" p x in
-    if float_of_string t = x then Some t else None) [ 15; 16; 17 ] |> Option.get in
-  make (S.Num (if String.exists (function '.' | 'e' | 'n' | 'i' -> true | _ -> false) text then text else text ^ ".0"))
+let number x = make (S.Num (Flow.Lisp.float x))
 let vec xs = make (S.Vec (List.map number xs))
 let map pairs = make (S.Map (List.concat_map (fun (k, v) -> [ kw k; v ]) pairs))
 let print form = fst (Flow.Lisp.print [ form ])

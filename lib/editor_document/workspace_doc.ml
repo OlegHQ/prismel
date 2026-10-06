@@ -18,12 +18,6 @@ let head (f : S.t) = match f.node with S.List ({ S.node = S.Sym h; _ } :: _) -> 
 
 (* ---- settings: (settings :name value ...), only non-default fields ---- *)
 
-let number x =
-  let s = List.find_map (fun p ->
-    let s = Printf.sprintf "%.*g" p x in if float_of_string s = x then Some s else None) [ 15; 16; 17 ] in
-  let s = Option.get s in
-  if String.exists (function '.' | 'e' | 'n' | 'i' -> true | _ -> false) s then s else s ^ ".0"
-
 let settings_form settings =
   let fields = List.filter (fun (f : Param.field_view) -> f.current <> f.default) (Settings.fields settings) in
   if fields = [] then None
@@ -31,7 +25,7 @@ let settings_form settings =
     let value : Param.value -> S.t = function
       | Bool_value b -> S.make (S.Sym (if b then "true" else "false"))
       | Int_value i -> S.make (S.Num (string_of_int i))
-      | Float_value x -> S.make (S.Num (number x))
+      | Float_value x -> S.make (S.Num (Flow.Lisp.float x))
       | Text_value s | Choice_value s -> S.make (S.Str s) in
     Some (S.make (S.List (S.make (S.Sym "settings") :: List.concat_map (fun (f : Param.field_view) ->
       [ S.make (S.Kw f.name); value f.current ]) fields)))

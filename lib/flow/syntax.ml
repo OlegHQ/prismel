@@ -10,7 +10,7 @@ type kind =
   | Comment of string | Word of node | End
 type token = { kind : kind; span : Diagnostic.span }
 
-let depth_limit = 120
+let depth_limit = 256
 
 let number text =
   let n = String.length text in
@@ -22,7 +22,14 @@ let number text =
     incr i;
     while !i < n && digit text.[!i] do incr after; incr i done
   end;
-  !i = n && !before + !after > 0
+  let mantissa = !before + !after > 0 in
+  if mantissa && !i < n && (text.[!i] = 'e' || text.[!i] = 'E') then begin
+    incr i;
+    if !i < n && (text.[!i] = '+' || text.[!i] = '-') then incr i;
+    let exponent = !i in
+    while !i < n && digit text.[!i] do incr i done;
+    !i = n && !i > exponent
+  end else !i = n && mantissa
 
 let fail source start finish code message = Error (Diagnostic.error
   ~span:{start; finish} ~position:(Diagnostic.position_of_offset source start)
@@ -34,6 +41,12 @@ let separator = function
 
 let tokenize source =
   let n = String.length source in
+  (* bytes 1-3 are the printer's in-band span markers ([Lisp.wrap]) *)
+  let marker = ref (-1) in
+  String.iteri (fun i c -> if !marker < 0 && c >= '\001' && c <= '\003' then marker := i) source;
+  if !marker >= 0 then fail source !marker (!marker + 1) "E_UNEXPECTED"
+    (Printf.sprintf "Control byte %d is not allowed in a workspace" (Char.code source.[!marker]))
+  else
   let word_end from =
     let j = ref from in
     while !j < n && not (separator source.[!j]) do incr j done; !j in
@@ -107,7 +120,6 @@ let parse source =
     match (peek ()).kind with
     | Comment text -> ignore (take ()); text :: comments ()
     | _ -> [] in
-  let skip_comments () = ignore (comments ()) in
   let close_of = function '(' -> ')' | '[' -> ']' | _ -> '}' in
   let rec form notes depth =
     let token = take () in
@@ -121,12 +133,13 @@ let parse source =
       | Open c -> let id = fresh () in group token c id notes depth []
       | Prefix kind ->
           let id = fresh () in
-          skip_comments (); (* nothing to attach a note to between ' and its form *)
+          (* a comment between ' and its form moves before the quote *)
+          let notes = notes @ comments () in
           let* inner = form [] (depth + 1) in
           Ok {id; node = Quote (kind, inner); notes; meta = []; tail = [];
             span = {start = token.span.start; finish = inner.span.finish}}
       | Meta_name name ->
-          skip_comments ();
+          let notes = notes @ comments () in
           (match (peek ()).kind with
            | End | Close _ -> error token "E_UNEXPECTED" "Metadata needs a form after it"
            | _ ->
@@ -156,7 +169,10 @@ let parse source =
             | [] -> Ok acc
             | [last] -> Result.map (fun r -> {r with id; notes = notes @ r.notes; tail = tail @ r.tail; span}) (step acc last)
             | s :: rest -> let* acc = step acc s in fold acc rest in
-          if steps = [] then Ok {x with notes = notes @ x.notes} else fold x steps
+          if steps = [] then Ok {x with notes = notes @ x.notes}
+          else if depth + List.length steps > depth_limit then error opening "E_DEPTH"
+            (Printf.sprintf "S-expression nesting exceeds %d forms" depth_limit)
+          else fold x steps
       | _ -> Ok whole in
     match token.kind with
     | Close actual when actual = close_of c -> ignore (take ()); finish leading
@@ -179,9 +195,7 @@ let parse source =
              Ok (List.rev ({last with tail = last.tail @ leading} :: rest))
          | _ -> Ok (List.rev reversed))
     | _ -> let* item = form leading 0 in all (item :: reversed) in
-  try all [] with Stack_overflow -> Error (Diagnostic.error
-    ~position:Diagnostic.{line = 1; col = 1} ~code:"E_DEPTH"
-    "S-expression nesting exceeds the stack capacity")
+  all []
 
 let make ?(notes = []) ?(meta = []) node =
   {id = 0; node; span = {start = 0; finish = 0}; notes; meta; tail = []}
