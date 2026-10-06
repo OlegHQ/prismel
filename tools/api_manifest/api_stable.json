@@ -13,22 +13,22 @@
       "source_sha256": "9905fe7f08223046d4ebe6e07b673913151ac70fc99667f1dbf7d32749d2ea09"
     },
     {
-      "api_sha256": "47ca1d3fdc307976d32cad9e681c2dc0a60f377e325265fc736a73574db1fa00",
+      "api_sha256": "2906ab2699a91b7b74ad6e9760a140e5d491edc4a48f8fa13a875df98b510c94",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Panels",
       "source": "lib/editor_core/panels.mli",
-      "source_bytes": 3022,
-      "source_sha256": "4577481b4861945febe1e9086f589d8dc0353b769d8dfbc628be0ecee44f4ed3"
+      "source_bytes": 3137,
+      "source_sha256": "5a7ebfbb2d7589cdb457672a3bf74f87eda75849cafd7364dc9d6f20e5ac90cd"
     },
     {
-      "api_sha256": "50f8c7a8131443266141876c6ba0ea60d1c55cf462584390d930ed879bd97b6a",
+      "api_sha256": "6065ffc949c7dbffa3e87367a6362de1864d607955431943788ee6ab90777a74",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Store",
       "source": "lib/editor_core/store.mli",
-      "source_bytes": 1262,
-      "source_sha256": "5181af1f16b14f9bcaaaeb638af493e1c4b4649e917c749e22dc207b66fca617"
+      "source_bytes": 1133,
+      "source_sha256": "d43627ff06d15a8c2bdae9fad256074b7229d0af8ff0a4ff915f178b2075f9b4"
     },
     {
       "api_sha256": "bb3771eb0d3632454bcb1aca35cc531ab85277e6d2778b62737b5541e58cb30a",
@@ -364,22 +364,22 @@
       "source_sha256": "ea96e940fd1aadace3ec82b4a145f1f27358c8c03c55bc8ae3eb69e01f6071c3"
     },
     {
-      "api_sha256": "cdcce34abb4236d43d87879518565efeea175e7e710884edc476909a202e8cb8",
+      "api_sha256": "a9bde64dfb9245b49c272f54401c764b9702b8f40058e35ed7e911e8202502c1",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Camera_controls",
       "source": "lib/pxui/camera_controls.mli",
-      "source_bytes": 1717,
-      "source_sha256": "9d468620564700d93bd32f037106bb0bc5f047762014c567d9e6cde64eb10678"
+      "source_bytes": 1087,
+      "source_sha256": "a859a25a18922fd9e2ad85b071f8ef1297b0156ea758720ac3bd70c918f17d1c"
     },
     {
-      "api_sha256": "365f4cea760ab29213b7e18ae31e73d1cce7e99d2291d6e1fc8784e10267d494",
+      "api_sha256": "233ab1d1ba5163bd291828b981cf53d5e0e903bf3bbbe867e2316ad82cf76f16",
       "excluded_legacy_symbols": [],
       "library": "pxui",
       "module": "Pxui",
       "source": "lib/pxui/pxui.mli",
-      "source_bytes": 729,
-      "source_sha256": "85bb8a1d95aa6460e8f38d5f7c291bcbb54fe50b94b974c1e3880cd80a4ba86b"
+      "source_bytes": 672,
+      "source_sha256": "3e3101ad8e27f335968de142d04539f3ce2340065668d2060d61b718d0726acb"
     },
     {
       "api_sha256": "c3640435d04aefe90e09161b423fa66d756b22fd0edfc0ec75457762e59ef37d",
@@ -427,13 +427,13 @@
       "source_sha256": "5cecaf81d325ee466c4d0e69c4d0d4965a13ef76ca3d389dd2d3c86aa9f1cdc0"
     },
     {
-      "api_sha256": "c3ec3d105dd4f4bbb4a922de72c432004c4e6cbc7887d4acadba6c56d28e88c3",
+      "api_sha256": "ef4e0b0856dafb4ed323f3340e1ee75e05192186ed1d290d1a179fe8d0a3d594",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
       "source": "lib/pxui_shell/pxui_shell.mli",
-      "source_bytes": 20827,
-      "source_sha256": "64522dcc28838881041a0df34d7804954d2e2c80e8d052c34b985585368dff5b"
+      "source_bytes": 20712,
+      "source_sha256": "4683c447a26e0ac5fb0c96e59032b53d3ea9fdd918492308aeffe222c50d66f6"
     },
     {
       "api_sha256": "a04e498133166e0eec6b04e05b5b1dc154fac10b1d97f933a0cee2d146e00e38",
@@ -728,13 +728,13 @@
       "source_sha256": "7d4d28d6f0b748a24c1fabb8e0a081a7d3a7f7d0b47591333c667b625cad58de"
     },
     {
-      "api_sha256": "1e38b5bf2337eab023ee16b6269bab6b0695b0932c8169fbf29d0641392e03eb",
+      "api_sha256": "6dde914b9658a04945512e2bc03f28ca5fd91d35b0ce0ff1b9732b876a317bc2",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
       "source": "lib/rays_editor/rays_editor.mli",
-      "source_bytes": 37841,
-      "source_sha256": "1c984edca7efb082401a97b497577381e7ab8dbe4c6549577d9189b110eb5e6e"
+      "source_bytes": 32490,
+      "source_sha256": "6d2b3b43cec284a74838085ab87d146833d858e7836f501888fa69167a296076"
     },
     {
       "api_sha256": "30e1cebc676bd5660e5650c70fb2ac336f2ef9645cd0fa810c69ef67d289b8e9",
