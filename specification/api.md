@@ -591,8 +591,8 @@ opens an inline numeric editor (Enter commits even beyond the soft range,
 Escape cancels). `WindowFocusLost` cancels capture, focus, and composition.
 Custom widgets are functions over `Ui.box`, `Ui.signal`, and `Ui.draw`;
 layout uses `Px`, `Pct`, `Rel`, `Grow`, `Fit`, and `Text` sizes, `row`/`col`
-nesting, `splitter`, floating `~at` boxes, and canvas `~xform` transforms.
-Splitters request resize pointers on hover or drag, and text fields, text areas
+nesting, floating `~at` boxes, and canvas `~xform` transforms.
+The shell's splitters request resize pointers on hover or drag, and text fields, text areas
 and picker search request the I-beam; `Sketch.set_cursor` accepts default,
 horizontal-resize, vertical-resize, and text shapes for native sketches and
 returns an error outside an active sketch. A trackpad pinch reaches a box as

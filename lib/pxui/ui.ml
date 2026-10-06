@@ -151,17 +151,6 @@ type paint = {
 
 and painter = paint -> rect -> unit
 
-and snapshot = {
-  s_key : int; s_parent : int; s_flags : int; s_w : size; s_h : size;
-  s_max_h : float; s_row : bool; s_padding : float; s_gap : float;
-  s_at_x : float; s_at_y : float; s_xform : (float * float * float) option;
-  s_text : string; s_text_size : int; s_scroll_step : float;
-  s_hit : (rect -> rect) option; s_painters : painter list;
-  s_overlays : painter list;
-}
-
-and cached_subtree = { stamp : int; boxes : snapshot array }
-
 and ui = {
   mutable theme : Theme.t;
   font : Font.t option;
@@ -176,8 +165,6 @@ and ui = {
   mutable touched : int array;
   mutable rx : float array; mutable ry : float array;
   mutable rw : float array; mutable rh : float array;
-  mutable hx : float array; mutable hy : float array;
-  mutable hw : float array; mutable hh : float array;
   mutable scroll_y : float array;
   mutable scroll_raw : float array;
   mutable scroll_visual : float array;
@@ -194,7 +181,6 @@ and ui = {
   mutable press_time : float array;
   mutable press_x : float array; mutable press_y : float array;
   mutable press_count : int array;  (* consecutive left presses within 0.35 s and 5 points *)
-  mutable caches : cached_subtree option array;
   (* per-frame boxes *)
   mutable count : int;
   mutable b_key : int array; mutable b_slot : int array;
@@ -227,7 +213,6 @@ and ui = {
   mutable frame_number : int;
   mutable density : int;
   mutable kit_row_height : int;
-  mutable kit_padding : int;
   mutable closed_section : int;  (* the last closed section header: the next one follows it closely *)
   mutable kit_window : bool;  (* inside a floating window's inspector: its row grid and head *)
   (* input *)
@@ -533,8 +518,6 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     touched = Array.make capacity (-1);
     rx = Array.make capacity 0.; ry = Array.make capacity 0.;
     rw = Array.make capacity 0.; rh = Array.make capacity 0.;
-    hx = Array.make capacity 0.; hy = Array.make capacity 0.;
-    hw = Array.make capacity 0.; hh = Array.make capacity 0.;
     scroll_y = Array.make capacity 0.;
     scroll_raw = Array.make capacity 0.; scroll_visual = Array.make capacity 0.;
     scroll_event_time = Array.make capacity Float.neg_infinity;
@@ -546,7 +529,6 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     press_time = Array.make capacity Float.neg_infinity;
     press_x = Array.make capacity 0.; press_y = Array.make capacity 0.;
     press_count = Array.make capacity 0;
-    caches = Array.make capacity None;
     count = 0;
     b_key = Array.make capacity 0; b_slot = Array.make capacity 0;
     b_parent = Array.make capacity (-1); b_first = Array.make capacity (-1);
@@ -568,7 +550,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     l_scale = Array.make capacity 1.; l_tx = Array.make capacity 0.;
     l_ty = Array.make capacity 0.;
     parents = []; overlays = []; foreground = []; seeds = []; building = false; frame_number = 0; density = 1;
-    kit_row_height = 24; kit_padding = 0; closed_section = -1; kit_window = false;
+    kit_row_height = 24; closed_section = -1; kit_window = false;
     pointer = (Float.nan, Float.nan); hot = 0; hover_rest = None; active = None;
     active_button = Input.LeftButton; active_press = (0., 0.); focus = 0;
     keyboard_focus = false; composition = "";
@@ -614,7 +596,6 @@ let scene ?under ui = match under with
 let row_height ui = ui.kit_row_height
 let view_size ui = ui.view_w, ui.view_h
 let text_line_height ui = ui.font_size + (ui.font_size + 1) / 2
-let panel_padding ui = ui.kit_padding
 
 (* ----------------------------------------------------- retained slots *)
 
@@ -624,8 +605,6 @@ let ensure_slot_capacity ui size =
     ui.touched <- grow ui.touched size (-1);
     ui.rx <- grow ui.rx size 0.; ui.ry <- grow ui.ry size 0.;
     ui.rw <- grow ui.rw size 0.; ui.rh <- grow ui.rh size 0.;
-    ui.hx <- grow ui.hx size 0.; ui.hy <- grow ui.hy size 0.;
-    ui.hw <- grow ui.hw size 0.; ui.hh <- grow ui.hh size 0.;
     ui.scroll_y <- grow ui.scroll_y size 0.;
     ui.scroll_raw <- grow ui.scroll_raw size 0.;
     ui.scroll_visual <- grow ui.scroll_visual size 0.;
@@ -640,8 +619,7 @@ let ensure_slot_capacity ui size =
     ui.press_time <- grow ui.press_time size Float.neg_infinity;
     ui.press_x <- grow ui.press_x size 0.;
     ui.press_y <- grow ui.press_y size 0.;
-    ui.press_count <- grow ui.press_count size 0;
-    ui.caches <- grow ui.caches size None
+    ui.press_count <- grow ui.press_count size 0
   end
 
 let slot_of ui key =
@@ -655,14 +633,12 @@ let slot_of ui key =
     ui.slot_key.(slot) <- key;
     ui.touched.(slot) <- ui.frame_number;
     ui.rx.(slot) <- 0.; ui.ry.(slot) <- 0.; ui.rw.(slot) <- 0.; ui.rh.(slot) <- 0.;
-    ui.hx.(slot) <- 0.; ui.hy.(slot) <- 0.; ui.hw.(slot) <- 0.; ui.hh.(slot) <- 0.;
     ui.scroll_y.(slot) <- 0.; ui.state_values.(slot) <- min_int;
     ui.scroll_raw.(slot) <- 0.; ui.scroll_visual.(slot) <- 0.;
     ui.scroll_event_time.(slot) <- Float.neg_infinity;
     ui.scroll_frame_time.(slot) <- 0.; ui.scroll_mode.(slot) <- 0;
     ui.text_values.(slot) <- None; ui.press_time.(slot) <- Float.neg_infinity;
     ui.press_count.(slot) <- 0;
-    ui.caches.(slot) <- None;
     Table.add ui.table key slot;
     slot
   end
@@ -674,7 +650,6 @@ let prune ui =
       Table.remove ui.table key;
       ui.slot_key.(slot) <- 0;
       ui.text_values.(slot) <- None;
-      ui.caches.(slot) <- None;
       ui.free <- slot :: ui.free;
       if ui.focus = key then begin
         ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0
@@ -1193,8 +1168,6 @@ let scope ui label f =
 
 let rect ui box = ui.rx.(box.box_slot), ui.ry.(box.box_slot),
   ui.rw.(box.box_slot), ui.rh.(box.box_slot)
-let hit_rect ui box = ui.hx.(box.box_slot), ui.hy.(box.box_slot),
-  ui.hw.(box.box_slot), ui.hh.(box.box_slot)
 
 type signal = {
   hovered : bool;
@@ -1321,48 +1294,6 @@ let to_front ui ?(order = 0) box =
   require_building ui;
   if ui.b_parent.(box.index) <> 0 then invalid_arg "Ui.to_front: expected a root box";
   ui.foreground <- (order, box.index) :: ui.foreground
-
-(* ------------------------------------------------------------- cached *)
-
-let snapshot_box ui index parent_offset =
-  { s_key = ui.b_key.(index);
-    s_parent = (if ui.b_parent.(index) < 0 then -1
-      else ui.b_parent.(index) - parent_offset);
-    s_flags = ui.b_flags.(index); s_w = ui.b_w.(index); s_h = ui.b_h.(index);
-    s_max_h = ui.b_max_h.(index); s_row = ui.b_row.(index);
-    s_padding = ui.b_padding.(index); s_gap = ui.b_gap.(index);
-    s_at_x = ui.b_at_x.(index); s_at_y = ui.b_at_y.(index);
-    s_xform = ui.b_xform.(index); s_text = ui.b_text.(index);
-    s_text_size = ui.b_text_size.(index);
-    s_scroll_step = ui.b_scroll_step.(index); s_hit = ui.b_hit.(index);
-    s_painters = ui.b_painters.(index); s_overlays = ui.b_overlays.(index) }
-
-let cached ui ~key:label ~stamp f =
-  let container = box ui ~w:Grow ~h:Fit label in
-  let slot = container.box_slot in
-  match ui.caches.(slot) with
-  | Some cache when cache.stamp = stamp ->
-      (* Replay: parents inside the subtree are relative to the container. *)
-      Array.iter (fun (entry : snapshot) ->
-        let parent = if entry.s_parent < 0 then container.index
-          else add container.index entry.s_parent in
-        let index = append_box ui ~key:entry.s_key ~parent in
-        set_box ui index ~flags:entry.s_flags ~w:entry.s_w ~h:entry.s_h
-          ~max_h:entry.s_max_h ~row:entry.s_row ~padding:entry.s_padding
-          ~gap:entry.s_gap ~at_x:entry.s_at_x ~at_y:entry.s_at_y
-          ~xform:entry.s_xform ~text:entry.s_text ~text_size:entry.s_text_size
-          ~scroll_step:entry.s_scroll_step ~hit:entry.s_hit;
-        ui.b_painters.(index) <- entry.s_painters;
-        ui.b_overlays.(index) <- entry.s_overlays) cache.boxes
-  | Some _ | None ->
-      let first = ui.count in
-      within ui container f;
-      let boxes = Array.init (ui.count - first) (fun offset ->
-        let index = add first offset in
-        let entry = snapshot_box ui index container.index in
-        if ui.b_parent.(index) = container.index
-        then { entry with s_parent = -1 } else entry) in
-      ui.caches.(slot) <- Some { stamp; boxes }
 
 (* ------------------------------------------------------------- layout *)
 
@@ -1684,20 +1615,6 @@ module Paint = struct
       ~border:(if Option.is_some stroke_color then 1. else 0.)
       ~radius ~anti_alias:true ()
 
-  let arc paint ~at:(cx, cy) ~radius ~from_ ~to_ ?(width = 1.) color =
-    let span = to_ -. from_ in
-    let segments = max 1 (int_of_float (Float.ceil (Float.abs span /. (Float.pi /. 2.)))) in
-    let step = span /. float segments in
-    let k = 4. /. 3. *. Float.tan (step /. 4.) *. radius in
-    for segment = 0 to segments - 1 do
-      let a0 = from_ +. (step *. float segment) in
-      let a1 = a0 +. step in
-      let x0 = cx +. (radius *. cos a0) and y0 = cy +. (radius *. sin a0)
-      and x3 = cx +. (radius *. cos a1) and y3 = cy +. (radius *. sin a1) in
-      wire paint (x0, y0) (x0 -. (k *. sin a0), y0 +. (k *. cos a0))
-        (x3 +. (k *. sin a1), y3 -. (k *. cos a1)) (x3, y3) ~width color
-    done
-
   let grid paint ~x ~y ~w ~h ~origin:(ox, oy) ~spacing ?(dot = 1.) color =
     prepare paint;
     Batch.Builder.grid paint.builder ~x ~y ~width:w ~height:h ~origin_x:ox
@@ -1897,8 +1814,7 @@ let paint_all ui (frame : Frame.t) =
           (hx *. scale) +. ui.l_tx.(index), (hy *. scale) +. ui.l_ty.(index),
           hw *. scale, hh *. scale in
     let clipped_hit = intersect hit clip_rect in
-    let hx, hy, hw, hh = clipped_hit in
-    ui.hx.(slot) <- hx; ui.hy.(slot) <- hy; ui.hw.(slot) <- hw; ui.hh.(slot) <- hh;
+    let _, _, hw, hh = clipped_hit in
     let visible = let _, _, vw, vh = intersect screen_rect clip_rect in
       vw > 0. && vh > 0. in
     let has_hit = ui.b_flags.(index) land hit_flags <> 0 && hw > 0. && hh > 0. in
@@ -1929,7 +1845,6 @@ let paint_all ui (frame : Frame.t) =
         let x, y, w, h = screen ui child in
         let slot = ui.b_slot.(child) in
         ui.rx.(slot) <- x; ui.ry.(slot) <- y; ui.rw.(slot) <- w; ui.rh.(slot) <- h;
-        ui.hw.(slot) <- 0.; ui.hh.(slot) <- 0.;
         retain child) in
       retain index in
   visit 0 paint.clip_rect 0;
@@ -2091,23 +2006,6 @@ let row ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
 let col ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
   within ui (box ui ~w ~h ~axis:Column ~gap ~padding label) f
 
-let splitter ui ?(axis = Row) ?(thickness = 7.) label =
-  let w, h = match axis with Row -> Px thickness, Grow | Column -> Grow, Px thickness in
-  let divider = box ui ~flags:(clickable lor blocking) ~w ~h label in
-  let theme = ui.theme in
-  let signal = signal ui divider in
-  (* a hairline in a wider drag target; accent while dragged *)
-  draw ui divider (fun paint (x, y, w, h) ->
-    let color = if signal.held then theme.accent else Theme.edge theme in
-    if axis = Row then Paint.fill paint ~x:(x +. Float.floor (w /. 2.)) ~y ~w:1. ~h color
-    else Paint.fill paint ~x ~y:(y +. Float.floor (h /. 2.)) ~w ~h:1. color);
-  if signal.hovered || signal.held then
-    request_cursor ui (match axis with Row -> `Horizontal_resize
-      | Column -> `Vertical_resize);
-  let dx, dy = signal.drag in
-  if signal.held || signal.released then (match axis with Row -> dx | Column -> dy)
-  else 0.
-
 (* --------------------------------------------------------- kit widgets *)
 
 let kit_row ui ?(flags = clickable lor focusable lor blocking lor tab_only) ?hit label =
@@ -2229,11 +2127,11 @@ let panel_with ?stroke ?(window = false) ui ?(x = 12.) ?(y = 12.) ?(width = 280.
       Paint.fill paint ~x:(float track_x) ~y:(float thumb_y) ~w:4.
         ~h:(float thumb_height) (Theme.border theme)
     end);
-  let previous_row = ui.kit_row_height and previous_padding = ui.kit_padding
+  let previous_row = ui.kit_row_height
   and previous_window = ui.kit_window in
-  ui.kit_row_height <- row_height; ui.kit_padding <- padding; ui.kit_window <- window;
+  ui.kit_row_height <- row_height; ui.kit_window <- window;
   Fun.protect ~finally:(fun () ->
-    ui.kit_row_height <- previous_row; ui.kit_padding <- previous_padding;
+    ui.kit_row_height <- previous_row;
     ui.kit_window <- previous_window)
     (fun () -> within ui panel f)
 

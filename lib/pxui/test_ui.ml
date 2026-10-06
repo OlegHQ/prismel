@@ -605,16 +605,6 @@ let run () =
   if not !hovered || not (Ui.wants_pointer ui) then fail "hover did not follow the pointer";
   Ui.frame ui (frame ~scale:2. ~time:0.2 [move (300, 200)]) build;
   if !hovered || Ui.wants_pointer ui then fail "hover outlived the pointer";
-  let divider ui =
-    let parent = Ui.box ui ~w:(Ui.Px 100.) ~h:(Ui.Px 100.)
-        ~axis:Ui.Row "divider parent" in
-    Ui.within ui parent (fun () -> ignore (Ui.splitter ui "divider")) in
-  Ui.frame ui (frame ~scale:1. ~time:0.3 []) divider;
-  Ui.frame ui (frame ~scale:1. ~time:0.4 [move (3, 12)]) divider;
-  if Ui.cursor ui <> Some `Horizontal_resize then
-    fail "splitter did not request a resize cursor on hover";
-  Ui.frame ui (frame ~scale:1. ~time:0.5 [move (300, 200)]) divider;
-  if Ui.cursor ui <> None then fail "splitter cursor outlived hover";
   (* text fields show the I-beam under the pointer, and only there *)
   let field_ui = Ui.create ~font_size:11 () in
   let title = ref "" in
@@ -677,28 +667,6 @@ let run () =
     (Ui.signal ui child).hovered) in
   ignore (placed []);
   if not (placed [move (50, 50)]) then fail "a Fit box of placed children culled them";
-  Ui.destroy ui;
-  (* A cached subtree replays last frame's boxes while its stamp holds. *)
-  let ui = Ui.create ~font_size:11 () in
-  let built = ref 0 in
-  let build stamp ui =
-    Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () ->
-      Ui.cached ui ~key:"static" ~stamp (fun () ->
-        incr built; Ui.label ui "One"; Ui.label ui "Two")) in
-  let instances () =
-    match Scene.Private.stage_native ~width:320 ~height:240 (Ui.scene ui) with
-    | Ok staged -> List.fold_left (fun total -> function
-        | Scene.Private.Ui_layer (batch, _) -> total + Scene_command.Ui_batch.count batch
-        | _ -> total) 0 staged.layers
-    | Error message -> fail message in
-  Ui.frame ui (frame ~scale:1. ~time:0. []) (build 1);
-  let painted = instances () in
-  Ui.frame ui (frame ~scale:1. ~time:0.1 []) (build 1);
-  Ui.frame ui (frame ~scale:1. ~time:0.2 []) (build 1);
-  if !built <> 1 || painted = 0 || instances () <> painted then
-    fail "cached subtree was rebuilt or lost";
-  Ui.frame ui (frame ~scale:1. ~time:0.3 []) (build 2);
-  if !built <> 2 then fail "a new stamp did not rebuild the cached subtree";
   Ui.destroy ui;
   (* One panel paints in a handful of batches, not one draw per label. *)
   let ui = Ui.create ~font_size:11 () in
