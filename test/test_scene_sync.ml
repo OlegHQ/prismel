@@ -256,6 +256,15 @@ let run () =
   (* settings graph *)
   let settings = fst (Result.get_ok (Editor_document.Settings.apply doc.settings [ "width", Parameter.Int_value 800 ])) in
   let edited = ok (reconcile doc { doc with settings }) in
+  text_first "settings" doc Document.Scene (Sync.Settings settings) { doc with settings };
+  (* a workspace with no settings graph keeps them itself *)
+  (let plain = open_text "(workspace plain (graph g :context sop (sop/box)))" in
+   match Sync.write ~factories plain Document.Scene (Sync.Settings settings) with
+   | Ok (Some (kept, _)) ->
+       check (kept.settings == settings && (fst kept.workspace).settings == settings
+              && source kept = source (ok (reconcile plain { plain with settings })))
+         "settings with no graph were not kept by the workspace"
+   | _ -> failwith "settings with no graph were refused");
   check (contains (source edited) ":width 800") "a settings edit did not reach the text";
   same_after_reload edited "settings";
   (* a name two objects share is refused whole *)
@@ -726,6 +735,8 @@ let run_root () =
   same_after_reload doc "root and World";
   (* a root edit round-trips Save, one undo entry's worth of text *)
   let edited = ok (reconcile doc { doc with root = { doc.root with width = 1024; bounces = 8 } }) in
+  text_first "root" doc Document.Scene (Sync.Root { doc.root with width = 1024; bounces = 8 })
+    { doc with root = { doc.root with width = 1024; bounces = 8 } };
   check (edited.root.width = 1024 && edited.root.bounces = 8
          && contains (flat (source edited)) ":renderer \"Path traced\" :width 1024 :height 600 :max_spp 64 :bounces 8")
     ("a root edit did not reach the text: " ^ source edited);
@@ -743,6 +754,8 @@ let run_root () =
   (* a part gets a default root; the first edit of a root setting writes one over its result *)
   let part = open_text text in
   let written = ok (reconcile part { part with root = { part.root with width = 640; renderer = R.Wireframe } }) in
+  text_first "part root" part Document.Scene (Sync.Root { part.root with width = 640; renderer = R.Wireframe })
+    { part with root = { part.root with width = 640; renderer = R.Wireframe } };
   check (written.homes.root <> None && written.root.width = 640 && contains (source written) "(scene/root"
          && contains (flat (source written)) ":renderer \"Wireframe\" :width 640"
          && (open_text (source written)).root = written.root) ("the root was not written: " ^ source written);
@@ -941,6 +954,8 @@ let run_compose () =
   let rooted = open_text {x|(workspace r (graph g :context sop (sop/box))
     (graph scene :context scene (let* [root (scene/geometry (ref g))] (scene/merge root))))|x} in
   let written = ok (reconcile rooted { rooted with root = { rooted.root with width = 640 } }) in
+  text_first "first root" rooted Document.Scene (Sync.Root { rooted.root with width = 640 })
+    { rooted with root = { rooted.root with width = 640 } };
   check (written.homes.root <> None && written.root.width = 640 && contains (flat (source written)) "(scene/root (scene/merge root) :width 640)")
     ("a scene that binds root refused its first render setting: " ^ source written);
   (* a rename to a name another object has is refused: [:parent] reads names *)

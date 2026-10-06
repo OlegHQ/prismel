@@ -548,31 +548,31 @@ let root_edits ~before ~after =
 
 (* a scene with no [scene/root] writes one over its result on the first edit of a render setting
    (only what differs from the defaults), the scene graph made first when there is none *)
-let adopt_root st (doc : Document.t) =
+let adopt_root st (doc : Document.t) root =
   if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then adopt_objects st doc;
   let scene = (Option.get (Contexts.graph_of st.workspace Flow.Workspace.Scene)).name in
-  let changed = root_edits ~before:Objects.Root.default ~after:doc.root in
+  let changed = root_edits ~before:Objects.Root.default ~after:root in
   let expr = mk (S.List (sym "scene/root" :: List.concat_map (fun (key, value) ->
     [ mk (S.Kw key); Option.get value ]) changed)) in
   apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "root"; expr })
 
-let root st (before : Document.t) (after : Document.t) ~adopt =
-  if before.root != after.root && before.root <> after.root then
+let root st (before : Document.t) now ~adopt =
+  if before.root != now && before.root <> now then
     match before.homes.root with
-    | Some home -> set st home (root_edits ~before:before.root ~after:after.root)
-    | None -> if adopt then adopt_root st after
+    | Some home -> set st home (root_edits ~before:before.root ~after:now)
+    | None -> if adopt then adopt_root st before now
 
 (* ---- settings ---- *)
 
-let settings st (before : Document.t) (after : Document.t) =
+let settings st (before : Document.t) now =
   match before.homes.settings with
-  | Some home when before.settings != after.settings ->
+  | Some home when before.settings != now ->
       let changed = List.filter_map (fun (f : Param.field_view) ->
         if current (Settings.fields before.settings) f.name <> Some f.current
-        then Some (f.name, Some (scalar f.current)) else None) (Settings.fields after.settings) in
+        then Some (f.name, Some (scalar f.current)) else None) (Settings.fields now) in
       set st home changed
-  | None when before.settings != after.settings ->
-      st.workspace <- { st.workspace with settings = after.settings }
+  | None when before.settings != now ->
+      st.workspace <- { st.workspace with settings = now }
   | _ -> ()
 
 let unhomed_changes (before : Document.t) (after : Document.t) =
@@ -656,6 +656,8 @@ type edit =
   | Restack of int list  (* the World's layers, bottom first *)
   | Layers of Document.network * (string * Param.value) list  (* a preset: the layers and the World's fields *)
   | Camera of int option  (* the render camera *)
+  | Root of Objects.Root.parameters  (* the render settings *)
+  | Settings of Settings.t
 
 let graph_at (doc : Document.t) = function
   | Document.Scene -> Some (Document.scene_graph doc)
@@ -669,6 +671,7 @@ let writes (doc : Document.t) level = function
   | Rename (node, _) -> in_text doc level node
   | Delete ids | Restack ids -> List.for_all (in_text doc level) ids
   | Camera _ -> true  (* a camera the text does not have is the document's alone *)
+  | Root _ | Settings _ -> true  (* the first edit of a render setting writes the root *)
   | Layers _ -> (match level with
     | Inside wid -> world_id doc = Some wid && doc.homes.world <> None
     | Scene -> false)
@@ -747,6 +750,8 @@ let write_edit st (doc : Document.t) level = function
   | Camera camera ->
       if camera <> doc.active_camera then set_camera st doc ~alive:(fun _ -> true) camera;
       None
+  | Root now -> root st doc now ~adopt:true; None
+  | Settings now -> settings st doc now; None
   | Restack bottom_first ->
       (match level, world_id doc with
        | Inside wid, Some w when w = wid ->
@@ -773,8 +778,15 @@ let write ~factories (doc : Document.t) level edit =
   let st = { catalog; workspace = fst doc.workspace; unfolded = []; adopted = false } in
   try
     let note = write_edit st doc level edit in
-    let doc = match edit with Camera active_camera -> { doc with active_camera } | _ -> doc in
+    (* what the text does not say is the document's; what it says is lowered over this *)
+    let doc = match edit with
+      | Camera active_camera -> { doc with active_camera }
+      | Root root -> { doc with root }
+      | Settings settings -> { doc with settings }
+      | Fields _ | Rename _ | Delete _ | Restack _ | Layers _ -> doc in
     if st.workspace == fst doc.workspace then Ok (Some (doc, note))
+    else if st.workspace.source == (fst doc.workspace).source then
+      Ok (Some ({ doc with workspace = st.workspace, snd doc.workspace }, note))
     else Result.map (fun doc -> Some (doc, note)) (Contexts.of_workspace ~factories ~previous:doc st.workspace
                                                    |> Result.map_error Flow.Diagnostic.to_string)
   with Stop message -> Error message
@@ -796,8 +808,8 @@ let run ~factories ~adopt (before : Document.t) (after : Document.t) =
     try
       objects st before after;
       world st before after;
-      root st before after ~adopt;
-      settings st before after;
+      root st before after.root ~adopt;
+      settings st before after.settings;
       if adopt && unhomed_changes before after then adopt_objects st after;
       if adopt && before.homes.world = None && world_changed before after then adopt_world st after;
       if st.workspace == fst before.workspace then Ok after

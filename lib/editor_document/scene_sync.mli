@@ -41,6 +41,9 @@ type edit =
   | Camera of int option
       (** the render camera: the root's [:camera], else [:active]; the document's alone when the
           text has neither camera *)
+  | Root of Objects.Root.parameters
+      (** the render settings: the root's call; the first edit writes a root over the scene's result *)
+  | Settings of Settings.t  (** the settings graph, else the workspace's own settings *)
 (** A derived edit as its caller means it: scene objects at the scene level, World layers inside
     the World. *)
 

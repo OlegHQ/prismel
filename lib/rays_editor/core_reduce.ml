@@ -159,9 +159,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
               current.displayed } in
         let doc = if edited == current then present
           else Document.with_network present value.level edited in
-        let doc = if value.level = Document.Scene && edited != current then Document.prune doc else doc in
-        if result.settings == doc.settings then doc
-        else { doc with settings = result.settings } in
+        if value.level = Document.Scene && edited != current then Document.prune doc else doc in
   (* Enter and row activation share camera selection and look-through. *)
   let entered_camera = if value.level <> Document.Scene || Option.is_some loaded || carrying then None
     else
@@ -172,6 +170,8 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
       match candidate with
       | Some id when kind value id = Some "camera" && view_wants value `Primary id -> Some id
       | _ -> None in
+  let tree_edits = if result.settings == value.doc.settings then tree_edits
+    else tree_edits @ [ Editor_document.Scene_sync.Settings result.settings ] in
   let tree_edits = match entered_camera with
     | Some id when next.active_camera <> Some id -> tree_edits @ [ Editor_document.Scene_sync.Camera (Some id) ]
     | _ -> tree_edits in
