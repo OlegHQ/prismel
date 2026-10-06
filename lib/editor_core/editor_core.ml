@@ -174,9 +174,32 @@ module Router = struct
     | Rays.Input.Meta -> true
     | _ -> false
 
+  (* A text field owns the keyboard except the Command/Ctrl chords it has no use for (its own are
+     select all, copy, cut, paste, undo and redo): Command-S saves with the caret in a field.
+     Only commands of every pane run; a pane's own keys wait for the field to close. *)
+  let text_chords keymap ~focus ~previous_keys ~(frame : Rays.Frame.t) =
+    let open Rays in
+    let global = List.filter (fun command -> command.scope = None) keymap in
+    let owned = function
+      | Input.KeyChar c -> List.mem (Char.lowercase_ascii c) [ 'a'; 'c'; 'v'; 'x'; 'z'; 'y' ]
+      | _ -> true in
+    let modifiers = ref (Event.Private.keys_before ~previous:previous_keys ~held:frame.keys frame.events) in
+    let actions, passed = List.fold_left (fun (actions, passed) event ->
+      modifiers := Event.Private.keys_after !modifiers event;
+      match event with
+      | Event.KeyPressed key when not (owned key)
+          && (List.mem Input.Meta !modifiers || List.mem Input.Ctrl !modifiers) ->
+          (match chord global focus !modifiers key with
+           | Some command -> command :: actions, passed
+           | None -> actions, event :: passed)
+      | _ -> actions, event :: passed) ([], []) frame.events in
+    List.rev actions, { frame with events = List.rev passed }
+
   let step ?(previous_keys = []) keymap ~focus ~text_focus ~(frame : Rays.Frame.t) state =
     let open Rays in
-    if text_focus then Idle, [], frame else
+    if text_focus then
+      let actions, frame = text_chords keymap ~focus ~previous_keys ~frame in Idle, actions, frame
+    else
     let modifiers = ref (Event.Private.keys_before ~previous:previous_keys
       ~held:frame.keys frame.events) in
     let traversing = ref false in

@@ -4,6 +4,7 @@ open Editor_core.Keymap
 type action =
   | Save_preset | Browse_presets
   | Save_source  (* Command-S: rewrite the sketch's .rays, else a preset *)
+  | Reload_source  (* the palette: take the source file's text over unsaved edits *)
   | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
   | Play_pause | Reset | Stop
   | Add_node
@@ -71,6 +72,7 @@ let keymap = [
   command ~id:"workspace.command-palette" ~label:"command palette" ~trigger:(Leader "/")
     Command_palette;
   command ~id:"file.copy-lisp" ~label:"Copy workspace as Lisp" Copy_lisp;
+  command ~id:"file.reload" ~label:"Reload sketch from its file" Reload_source;
   command ~id:"world.map" ~label:"3D / map (World)" ~trigger:(Leader "m") Toggle_map;
   command ~id:"workspace.restore-layout" ~label:"restore layout" ~trigger:(Leader "z")
     Restore_layout;

@@ -1709,6 +1709,26 @@ let run_panel_chain () =
     ("a split after a retype did nothing: " ^ dump_line !e "panels");
   E3.close !e
 
+(* E16: a frame's gestures land together.  Closing the only panel of a document with no editor
+   graph is two gestures (write the layout shown as an editor graph, then close the panel): the
+   close is refused, so the editor graph is not left written either. *)
+let run_atomic_frame () =
+  let at = 200., 300. in
+  let e = ref (E3.create ~layout:(Panels.Leaf Panels.Graph) ~await:true
+      ~workspace:(of_text "(workspace solo (graph g :context sop (sop/box)))")
+      ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) and count = ref 0 in
+  let step events = incr count; e := E3.update !e (frame at events !count) in
+  for _ = 1 to 4 do step [] done;
+  step [ Event.MouseMoved at ];
+  step [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
+  let before = source !e and label = E3.undo_label !e in
+  List.iter (fun c -> step [ Event.KeyPressed (if c = ' ' then Input.Space else Input.KeyChar c) ]; step []) [ ' '; 'o'; 'x' ];
+  step [];
+  check (dump_line !e "edit error" <> "-") ("closing the only panel was not refused: " ^ source !e);
+  check (source !e = before && E3.undo_label !e = label)
+    ("a refused gesture left the frame's earlier gesture applied: " ^ source !e);
+  E3.close !e
+
 (* E2: a graph panel that is not the one in use is inside an object; an undo from the other panel
    removes that object.  The panel goes back to the scene instead of reading a network that is gone. *)
 let run_undo_under_pane () =
@@ -1744,7 +1764,7 @@ let run_undo_under_pane () =
   E3.close !e
 
 let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
-  run_undo_under_pane ()
+  run_undo_under_pane (); run_atomic_frame ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)

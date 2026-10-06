@@ -97,6 +97,43 @@ let binding source = function
         Option.bind (last root) (fun body -> find_binding body names))
   | [] -> None
 
+(* Pasted text as bindings of [scope] in [graph]: "name expr" pairs, or bare expressions named by
+   their head.  The names are paired with the bindings by position (two forms may share a head),
+   each made free of the graph's names and of the ones before it; a pasted binding that reads an
+   earlier pasted one reads its new name.  The renames are substituted at once, through
+   placeholders, so a new name that is another pasted binding's old name is not renamed again. *)
+let paste_ops source ~graph ~scope text =
+  let module F = Flow_sop.Flow_edit in
+  let rec named = function
+    | { S.node = S.Sym n; _ } :: v :: rest -> Option.map (fun r -> (n, v) :: r) (named rest)
+    | [] -> Some [] | _ -> None in
+  let head (f : S.t) = match head_sym f with
+    | Some h -> (match String.rindex_opt h '/' with
+        | Some i -> String.sub h (i + 1) (String.length h - i - 1) | None -> h)
+    | None -> "value" in
+  match S.parse text with
+  | Error _ | Ok [] -> Error "The clipboard holds no Lisp bindings"
+  | Ok forms ->
+      let bindings, reading = match named forms with
+        | Some ps -> ps, true | None -> List.map (fun f -> head f, f) forms, false in
+      let chosen = ref [] in
+      let fresh n =
+        let rec pick k =
+          let name = F.fresh_name source ~root:graph (if k = 0 then n else Printf.sprintf "%s_%d" n k) in
+          if List.mem name !chosen then pick (k + 1) else (chosen := name :: !chosen; name) in
+        pick 0 in
+      let _, ops = List.fold_left (fun (earlier, ops) (old, expr) ->
+        let name = fresh old in
+        (* what the earlier pasted bindings are called now, the latest of a name first *)
+        let seen = ref [] in
+        let renames = List.filter (fun (o, n) ->
+          reading && o <> n && not (List.mem o !seen) && (seen := o :: !seen; true)) earlier in
+        let held = List.mapi (fun i (o, n) -> o, Printf.sprintf "@paste%d" i, n) renames in
+        let expr = List.fold_left (fun e (o, hold, _) -> F.rename_ref o hold e) expr held in
+        let expr = List.fold_left (fun e (_, hold, n) -> F.rename_ref hold n e) expr held in
+        (old, name) :: earlier, F.Add_node { scope; name; expr } :: ops) ([], []) bindings in
+      Ok (List.rev ops)
+
 let rec max_id (f : S.t) = List.fold_left (fun m c -> max m (max_id c)) f.id (S.children f)
 
 let span_of spans (f : S.t) = List.assoc_opt f.id spans

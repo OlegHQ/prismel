@@ -85,7 +85,7 @@ module Private : sig
 
   module Leader : sig
     type action =
-      | Save_preset | Browse_presets | Save_source
+      | Save_preset | Browse_presets | Save_source | Reload_source
       | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
       | Play_pause | Reset | Stop
       | Add_node | Frame_tile | Frame_camera
@@ -196,6 +196,9 @@ module Private : sig
     val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown
     val line_of : string -> Flow.Diagnostic.t -> int option
     val binding : Flow.Syntax.t list -> string list -> (Flow.Syntax.t option * Flow.Syntax.t) option
+    val paste_ops : Flow.Syntax.t list -> graph:string -> scope:string list -> string ->
+      (Flow_sop.Flow_edit.op list, string) result
+    (** Pasted text as [Add_node]s with fresh names, paired by position, renamed at once. *)
   end
 
   (** The editor's Lisp as the text area's language (tests of its indentation and lexing). *)

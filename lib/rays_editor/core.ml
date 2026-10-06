@@ -195,6 +195,7 @@ type 'prepared t = {
   notice : (notice_kind * string) option;  (* the last message and what it was: information or a refusal *)
   notice_at : float;  (* when the notice last changed: the echo tip shows it for a while *)
   doc : Document.t;  (* always the history's present *)
+  filed : Document.t;  (* the document as its source file has it: an external change may replace it *)
   level : Document.level;
   projections : projection Level_map.t;
   text : Text_pane.state;  (* the workspace text pane: tab, drafts, errors (view state) *)
@@ -1203,15 +1204,7 @@ let follow_start value =
    [sop] graph its label names), of the World opened, or the scene graph at the scene level.
    A level without such a graph shows its list only. *)
 (* The lowered sop graph a geometry object instantiates, by its network. *)
-let graph_of_object value id =
-  let _, lowered = value.doc.Document.workspace in
-  Option.bind (Document.Int_map.find_opt id value.doc.Document.networks) (fun (n : Document.network) ->
-    List.find_map (fun (g : Flow_sop.Lower.graph) ->
-      (* Scene/camera edits keep an unchanged object network physically while
-         rebuilding the lowering. Its compiled root still identifies the graph. *)
-      if g.network == n.graph || (match g.root, Edit_graph.root n.graph.geometry with
-        | Some a, Some b -> a = b | _ -> false)
-      then Some g.name else None) lowered.graphs)
+let graph_of_object value id = Document.object_graph value.doc id
 
 let graph_name value = match value.doc.Document.workspace with
   | ws, _ ->
@@ -2002,7 +1995,7 @@ let create ?settings ?(keymap = Leader.keymap)
         | Error _ -> true in
       let state_name = Contexts.sha256 state_key in
       let value = { preferences; guide; hud = None; presets; state_name; name; prompt = None; notice = None; notice_at = 0.;
-        doc; level;
+        doc; filed = doc; level;
         projections = Level_map.empty; text = Text_pane.initial; map_view = false;
         rows = []; live_cook = true;
         factories;
@@ -2239,6 +2232,7 @@ let apply_action value (workspace, selection, tree, timeline, changes) action =
   | World_play when Sketch_support.Timeline.mode timeline <> Sketch_support.Timeline.Playing ->
       timeline_step T.toggle_pause
   | Frame_tile | Hide_ui | Look_through | Look_through_camera | Render_mode _ | Fly | Save_preset | Browse_presets | Save_source
+  | Reload_source
   | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys | Copy_lisp
   | Sketch_command _ | Scope_command _ | Toggle_map | Ui_scale _ | Enter | Up | Go_world
@@ -2474,6 +2468,43 @@ let apply_text value intents =
         (match checked ~shown:(of_binding path) ~draft text.binding_base (binding_edit ~merge:scrub_merge value path) with
          | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_base = (if done_ then None else Some (fst value.doc.workspace)); binding_errors = [] } }
          | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors })) value intents
+
+(* The intents of a text pane that is not the one in use fold into its own state. *)
+let apply_text_at value key intents =
+  if intents = [] then value else
+  let mine = value.text in
+  let v = apply_text { value with text = (local_of value key).code } intents in
+  { v with text = mine; locals = put_local key (fun l -> { l with code = v.text }) v.locals }
+
+(* The unapplied drafts of a text pane, as the applies its Check & apply would make. *)
+let draft_applies ?except (text : Text_pane.state) =
+  (match text.draft with Some d when Some d <> except -> [ Text_pane.Doc_apply d ] | _ -> [])
+  @ (match text.graph_draft with Some (g, d) -> [ Text_pane.Graph_apply (g, d) ] | None -> [])
+  @ (match text.binding_draft with Some (p, d) -> [ Text_pane.Binding_apply (p, d) ] | None -> [])
+
+(* Some text pane holds text that is not in the document ([except]: the text of a refused
+   reload, which is the file's and not the user's). *)
+let has_draft ?except value =
+  draft_applies ?except value.text <> []
+  || List.exists (fun (_, (l : local)) -> draft_applies ?except l.code <> []) value.locals
+
+(* What Command-S writes: the workspace text and, without a settings graph, the settings. *)
+let same_text (a : Document.t) (b : Document.t) =
+  fst a.workspace == fst b.workspace && a.settings == b.settings
+
+(* Work a reload of the source file would lose: edits since the file's text, or a draft. *)
+let unsaved ?except value = not (same_text value.doc value.filed) || has_draft ?except value
+
+(* The document is the file's text now (saved over it). *)
+let filed value = { value with filed = value.doc }
+
+(* Command-S with a draft: every draft is applied first (each one its "Edit text" entry); a draft
+   that does not check stays with its errors, and [Error] says the save must wait. *)
+let apply_drafts ?except value =
+  let value = apply_text value (draft_applies ?except value.text) in
+  let value = List.fold_left (fun v (key, (l : local)) -> apply_text_at v key (draft_applies ?except l.code))
+    value value.locals in
+  if has_draft ?except value then Error value else Ok value
 
 
 (* A panel header's title: its type, and where a looped panel comes from (register E1). *)
@@ -2821,7 +2852,7 @@ let copy_workspace value =
   | Error message -> Refusal, "Clipboard: " ^ message
 
 (* Command-V: the clipboard's "name expr" pairs (or bare expressions, named by their head) become
-   [Add_node]s in the selected scope, renamed where the name is taken (the copies read each other). *)
+   [Add_node]s in the selected scope ({!Text_pane.paste_ops}), one history entry. *)
 let paste_bindings value =
   match add_target value, Clipboard.get_text () with
   | None, _ -> [ Declined "Open a graph to paste into" ]
@@ -2831,28 +2862,11 @@ let paste_bindings value =
       let scope = match Pxui_graph.Scope.selected value.scope_view with
         | [ path ] when List.length path >= 2 -> List.filteri (fun i _ -> i < List.length path - 1) path
         | _ -> [ graph ] in
-      let rec pairs = function
-        | { Flow.Syntax.node = Flow.Syntax.Sym n; _ } :: v :: rest -> Option.map (fun r -> (n, v) :: r) (pairs rest)
-        | [] -> Some [] | _ -> None in
-      let head (f : Flow.Syntax.t) = match f.node with
-        | Flow.Syntax.List ({ node = Sym h; _ } :: _) -> (match String.rindex_opt h '/' with
-            | Some i -> String.sub h (i + 1) (String.length h - i - 1) | None -> h)
-        | _ -> "value" in
-      (match Flow.Syntax.parse text with
-       | Error _ | Ok [] -> [ Declined "The clipboard holds no Lisp bindings" ]
-       | Ok forms ->
-           let bindings = match pairs forms with
-             | Some ps -> ps | None -> List.map (fun f -> head f, f) forms in
-           let chosen = ref [] in
-           let names = List.map (fun (n, _) ->
-             let rec pick k = let base = if k = 0 then n else Printf.sprintf "%s_%d" n k in
-               let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph base in
-               if List.mem name !chosen then pick (k + 1) else (chosen := name :: !chosen; name) in
-             n, pick 0) bindings in
-           List.map (fun (n, expr) ->
-             let expr = List.fold_left (fun e (old, fresh) -> if old = fresh then e
-               else Flow_sop.Flow_edit.rename_ref old fresh e) expr names in
-             Syntax_edit (Flow_sop.Flow_edit.Add_node { scope; name = List.assoc n names; expr })) bindings)
+      (* one gesture: every binding lands or none does *)
+      (match Text_pane.paste_ops ws.source ~graph ~scope text with
+       | Error message -> [ Declined message ]
+       | Ok [ op ] -> [ Syntax_edit op ]
+       | Ok ops -> [ Syntax_batch ("Paste", ops) ])
 
 (* What the add menu of a scene adds beside the object kinds: the World, a merge, and the
    geometry of each SOP graph (a second object over a graph that already exists) *)
@@ -4313,12 +4327,18 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   (* Workspace gestures: one rewrite of the source per gesture, lowered into
      the document, one history entry named by the op. *)
   let added = ref [] and created = ref None and renamed = ref None in
+  (* a frame's gestures land together: the first one refused leaves none of them applied, and a
+     later one cannot hide its message *)
+  let refused = ref None in
+  let gestures = next, result in
   let next, result = if Option.is_some loaded then next, result else
-    List.fold_left (fun ((next : Document.t), result) change -> match change with
+    List.fold_left (fun ((next : Document.t), result) change ->
+      let refuse message = refused := Some message; next, result in
+      if !refused <> None then next, result else match change with
       | Dock_panels (source, target, side) ->
           (match dock_panels ~factories:value.factories next source target side with
            | Ok doc -> doc, { (result : _ frame_result) with label = "Arrange panel"; edit_error = None }
-           | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+           | Error message -> refuse message)
       | Panel_state (path, state) ->
           let key = panel_key next path in
           let doc = Doc.layout_edit next (fun layout ->
@@ -4330,7 +4350,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | Select_layout name ->
           (match Doc.select_layout ~factories:value.factories next name with
            | Ok doc -> doc, { (result : _ frame_result) with label = "Switch layout"; edit_error = None }
-           | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+           | Error message -> refuse message)
       | Syntax_edit op ->
           (match Doc.syntax_edit ~factories:value.factories next op with
            | Ok doc ->
@@ -4344,7 +4364,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                  edit_note := Option.map (fun words -> "Wrote " ^ words) (Echo.words op);
                doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op; edit_error = None;
                effects = Parameter.union_effects result.effects Doc.cook_effects }
-           | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+           | Error message -> refuse message)
       | Syntax_batch (label, ops) ->
           (match Doc.syntax_batch ~factories:value.factories next ops with
            | Ok doc ->
@@ -4356,7 +4376,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                  edit_note := Option.map (fun words -> "Wrote " ^ words) (Echo.batch ops);
                doc, { (result : _ frame_result) with label; edit_error = None;
                  effects = Parameter.union_effects result.effects Doc.cook_effects }
-           | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+           | Error message -> refuse message)
       | Pin_row { node; label; pin } ->
           let module PM = Layout_by_path.Path_map in
           let module SM = Layout_by_path.String_map in
@@ -4374,8 +4394,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
             | Document.Scene -> List.assoc_opt node next.Document.homes.objects
             | Inside _ -> List.assoc_opt node next.homes.layers in
           (match home with
-           | None -> next, { (result : _ frame_result) with edit_error = Some "That object is not in the text yet: \
-               change one of its values, which writes it." }
+           | None -> refuse "That object is not in the text yet: change one of its values, which writes it."
            | Some home ->
                let op path = Flow_sop.Flow_edit.Set_arg { node = path; key = Kw key; sub; value = expr } in
                (match (let* doc, path = Editor_document.Scene_sync.bind_home ~factories:value.factories next home in
@@ -4384,7 +4403,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                     edit_note := Editor_document.Scene_sync.template_note next home;
                     doc, { result with label = "Edit expression";
                       effects = Parameter.union_effects result.effects Doc.cook_effects }
-                | Error message -> next, { result with edit_error = Some message }))
+                | Error message -> refuse message))
       | Syntax_inline { home; key; make } ->
           (* bind what is written in place (the call holding it, then the expression), then
              the gesture on its name *)
@@ -4403,8 +4422,13 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
            | Ok (doc, op) ->
                doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
                  effects = Parameter.union_effects result.effects Doc.cook_effects }
-           | Error message -> next, { (result : _ frame_result) with edit_error = Some message })
+           | Error message -> refuse message)
       | _ -> next, result) (next, result) result.changes in
+  let next, result = match !refused with
+    | None -> next, result
+    | Some _ as edit_error ->
+        added := []; created := None; renamed := None;
+        fst gestures, { (snd gestures : _ frame_result) with edit_error } in
   (* The workspace pane's layout gestures: moving an item and collapsing a zone
      edit the layout keys (one history entry each); the probe is view state and
      never reaches history. *)
@@ -4656,11 +4680,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
     live_cook = result.live_cook } in
   let value' = apply_text { value' with timeline; history; locals = result.locals } result.text_intents in
   (* each other text pane's intents fold into its own state *)
-  let value' = List.fold_left (fun v (key, _, intents) ->
-    if intents = [] then v else
-    let mine = v.text in
-    let v = apply_text { v with text = (local_of v key).code } intents in
-    { v with text = mine; locals = put_local key (fun l -> { l with code = v.text }) v.locals })
+  let value' = List.fold_left (fun v (key, _, intents) -> apply_text_at v key intents)
     value' result.other_texts |> sync_scope in
   let doc = value'.doc in
   let frame_request = match result.frame_request, value'.level with
@@ -4776,7 +4796,8 @@ let scene_edit value mode ?(active_camera = value.doc.active_camera) scene =
     | `View time -> commit ~label:"Move camera"
         ~merge:(Burst { key = "view"; at = time; window = 0.25 })
         doc value.history in
-  { value with doc; history }
+  (* camera bookkeeping is not unsaved work: a document that was the file's still is *)
+  { value with doc; history; filed = if same_text value.doc value.filed then doc else value.filed }
 
 let machinery ?under value ~all_ui_visible =
   if all_ui_visible || value.leader <> Leader.Idle then Pxui.Ui.scene ?under value.ui
@@ -4969,7 +4990,7 @@ let reload value ~name text =
     let clean (text : Text_pane.state) =
       { text with draft = None; doc_base = None; binding_base = None; graph_base = None; doc_errors = []; binding_draft = None; binding_errors = [];
         graph_draft = None; graph_errors = [] } in
-    { value with notice = Some (Info, "Reloaded " ^ name); text = clean value.text;
+    { value with notice = Some (Info, "Reloaded " ^ name); text = clean value.text; filed = value.doc;
       locals = List.map (fun (key, l) -> key, { l with code = clean l.code }) value.locals })
     (text_edit ~label:("Reload " ^ name) value text)
 

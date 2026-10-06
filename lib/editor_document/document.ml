@@ -199,6 +199,17 @@ let prune value =
       && active_camera = value.active_camera then value
   else { value with networks; active_camera }
 
+(* The lowered sop graph a geometry object's network is.  An unchanged network is kept physically
+   across lowerings while the lowering is rebuilt, so identity alone is not enough: the compiled
+   root still names the graph. *)
+let object_graph value id =
+  let _, (lowered : Flow_sop.Lower.t) = value.workspace in
+  Option.bind (Int_map.find_opt id value.networks) (fun (n : network) ->
+    List.find_map (fun (g : Flow_sop.Lower.graph) ->
+      if g.network == n.graph || (match g.root, Edit_graph.root n.graph.geometry with
+        | Some a, Some b -> a = b | _ -> false)
+      then Some g.name else None) lowered.graphs)
+
 (* Read-only views for tests and tools. *)
 let scene_graph value = value.scene.graph.geometry
 let object_network value id = Option.map (fun (network : network) ->

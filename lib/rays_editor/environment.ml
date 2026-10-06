@@ -251,6 +251,10 @@ type 'prepared t = {
   world_drag : world_drag option;
   pick_press : (float * float) option;  (* a left press in the view that may become a click *)
   source : Source_file.t option;  (* the .rays the document came from: polled, saved over *)
+  held : string option;  (* the file's changed text, waiting while the document has unsaved work *)
+  refused : string option;  (* the file's text that did not check: the Document tab shows it *)
+  opened : Document.t;  (* the document this session started from *)
+  state_owned : bool;  (* this session wrote the recovery file *)
   state_checked : float;
   saved_doc : Document.t;
   saved_view : Flow.Syntax.t;
@@ -342,7 +346,7 @@ let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames
       rendered = None; views = []; drawn = Document.Int_map.empty; composed = None;
       resolved = None; context_error = None; baked = None; baked_from = None; baked_views = []; map = None;
       render_status = None; pending_render = None;
-      background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; cameras = []; viewing = None;
+      background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; held = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
       state_checked = neg_infinity; saved_doc = core.doc; saved_view = V.section camera extra; state_error = None })
     (Core.create ?settings ?world
       ~keymap:(V.keymap @ List.map (fun (c : _ Editor_core.Command.t) ->
@@ -528,24 +532,41 @@ let compose value (update : (_, _) Core.update) ~baked ~baked_views ~scene =
     (if waiting then None else Some (compose_pieces `Primary (Core.placed_pieces update.core))),
     views, drawn
 
-(* The source file, at most every half second: a changed text reloads the document. *)
-let reload_source source (update : (_, _) Core.update) ~now = match source with
-  | None -> None, update
-  | Some file ->
-      (match Source_file.poll ~now file with
-       | polled, None ->
-           let core = if polled.error = file.error then update.core else
-             { update.core with Core.notice = Some (match polled.error with
-               | Some message -> Core.Refusal, "Source unreadable: " ^ message
-               | None -> Core.Info, "Source readable again: " ^ Filename.basename (Source_file.file polled)) } in
-           Some polled, { update with core }
-       | file, Some text ->
-           let name = Filename.basename (Source_file.file file) in
-           (match Core.reload update.core ~name text with
-            | Ok core -> Some (Source_file.accepted file text), { update with core; scene_changed = true }
+(* The source file, at most every half second: a changed text reloads the document.  Unsaved work
+   is never replaced: while the document differs from the file's last text or a text pane holds a
+   draft, the file's new text waits ([held]) and the strip says how to choose.  It loads once the
+   edits are undone, or at once by "Reload sketch from its file" (the palette).  Nothing is polled
+   while a payload is carried: the document shown is a preview then. *)
+let reload_source value (update : (_, _) Core.update) ~now = match value.source with
+  | Some previous when not (Core.carrying update.core) ->
+      let file, read = Source_file.poll ~now previous in
+      let name = Filename.basename (Source_file.file file) in
+      let core = if file.error = previous.error then update.core else
+        { update.core with Core.notice = Some (match file.error with
+          | Some message -> Core.Refusal, "Source unreadable: " ^ message
+          | None -> Core.Info, "Source readable again: " ^ name) } in
+      let forced = List.mem Leader.Reload_source update.actions in
+      let text = match read, value.held with
+        | Some _, _ -> read
+        | None, None when forced -> Result.to_option (Editor_core.Store.read_text ~filename:(Source_file.file file))
+        | None, held -> held in
+      let value = { value with source = Some file } in
+      (match text with
+       | None -> value, { update with core }
+       | Some text when not forced && Core.unsaved ?except:value.refused core ->
+           { value with held = Some text },
+           { update with core = if read = None then core else
+             { core with Core.notice = Some (Core.Info, name ^ " changed on disk · your unsaved edits are kept · \
+               undo them or run \"Reload sketch from its file\" to take the file; Command-S saves yours as a preset") } }
+       | Some text ->
+           (match Core.reload core ~name text with
+            | Ok core ->
+                { value with source = Some (Source_file.accepted file text); held = None; refused = None },
+                { update with core; scene_changed = true }
             | Error diagnostics ->
-                Some file,
-                { update with core = Core.reload_failed update.core ~name text diagnostics }))
+                { value with held = None; refused = Some text },
+                { update with core = Core.reload_failed core ~name text diagnostics }))
+  | _ -> value, update
 
 (* Command-S: over the source file while it is what the document came from, else a preset. *)
 let save_source core source view =
@@ -559,7 +580,7 @@ let save_source core source view =
   | None -> preset "no source file", source
   | Some file ->
       (match Source_file.save file text with
-       | Ok file -> notice ("Saved " ^ Filename.basename (Source_file.file file)), Some file
+       | Ok file -> Core.filed (notice ("Saved " ^ Filename.basename (Source_file.file file))), Some file
        | Error `Changed -> preset "source changed since build", Some file
        | Error (`Failed message) -> notice ~kind:Core.Refusal ("Not saved: " ^ message), Some file)
 
@@ -571,9 +592,14 @@ let autosave ?(force = false) value ~now =
   let value = { value with state_checked = now } in
   (* a preview document is never saved *)
   if (value.core.doc == value.saved_doc && view = value.saved_view) || Core.carrying value.core then value else
+  (* the recovery file of an earlier session holds its unsaved work: orbiting in a document that
+     is still the one opened never writes over it *)
+  if not value.state_owned && Core.same_text value.core.doc value.opened
+     && Sys.file_exists (Core.state_file value.core)
+  then { value with saved_doc = value.core.doc; saved_view = view } else
   match Preset.save ~directory:(Core.state_directory value.core) ~name:value.core.state_name
       ~doc:value.core.doc ~view with
-  | Ok _ -> { value with saved_doc = value.core.doc; saved_view = view; state_error = None }
+  | Ok _ -> { value with saved_doc = value.core.doc; saved_view = view; state_error = None; state_owned = true }
   | Error message -> { value with state_error = Some ("Autosave failed: " ^ message) }
 
 let update_with value frame ~inspector =
@@ -602,7 +628,7 @@ let update_with value frame ~inspector =
       ~view_state:(function
         | Some (_, camera, _, extra, _) -> V.section camera extra
         | None -> V.section value.camera extra) frame in
-  let source, update = reload_source value.source update ~now:frame.Frame.time in
+  let value, update = reload_source value update ~now:frame.Frame.time in
   let focused = follow_focus { value with core = update.core } frame in
   let core = update.core and panes = Core.panes update.core frame in
   let control, camera, requests, extra, inspected = match update.panel with
@@ -622,8 +648,15 @@ let update_with value frame ~inspector =
             control, extra, (if notice = None then status else notice))
       (control, extra, value.render_status) update.actions in
   let core = V.on_doc ~previous:value.core core camera in
-  let core, source = if List.mem Leader.Save_source update.actions
-    then save_source core source (V.section camera extra) else core, source in
+  (* Command-S with a draft in a text pane applies it first; one that does not check keeps the
+     save waiting, since the file would not have what the pane shows *)
+  let core, source = if not (List.mem Leader.Save_source update.actions) then core, value.source else
+    match Core.apply_drafts ?except:value.refused core with
+    | Ok core -> save_source core value.source (V.section camera extra)
+    | Error core ->
+        { core with Core.notice = Some (Core.Refusal,
+            "Not saved: the text pane's draft does not check · fix or discard it, then save") }, value.source in
+  let value = if source != value.source then { value with held = None } else value in
   let area = if visible then panes.view
     else 0, 0, frame.Frame.width, frame.height in
   (* Latch the World operation and target at the owned press. Movement and
