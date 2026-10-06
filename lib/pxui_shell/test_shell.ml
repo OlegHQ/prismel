@@ -541,6 +541,39 @@ let () =
       let moved = cells ~mouse:(x +. 40., y) [Event.MouseMoved (x +. 40., y)] in
       moved @ cells ~mouse:(x +. 40., y) [Event.MouseReleased (Input.LeftButton, (x +. 40., y))])))
   then failwith "no drag on a vector's cell changed it";
+  (* G13: a ranged float is the same field (Kit.number): a click writes nothing, a drag moves the
+     value from what it was by a fraction, and a long value keeps its digits (no %.6g) *)
+  let scalar value = [ { Pxui_shell.Inspector.path = "radius";
+    fields = [ { (cell "radius" 0) with vec3 = None; current = Editor_core.Param.Float_value value } ];
+    shown = false; locked = false; drive = None; live = None } ] in
+  let edits value gesture =
+    let ui = Pxui.Ui.create ~font_size:11 () in
+    let build ~mouse events = Pxui.Ui.frame ui { frame with events; mouse } (fun ui ->
+      Pxui.Ui.panel ui ~x:0. ~y:0. ~width:260. "scalar" (fun () ->
+        Pxui_shell.Inspector.flow_fields ui (scalar value))) in
+    ignore (build ~mouse:(0., 0.) []);
+    let at = 180., 12. in
+    ignore (build ~mouse:at [Event.MouseMoved at]);
+    let pressed = build ~mouse:at [Event.MousePressed (Input.LeftButton, at)] in
+    let found = pressed @ gesture build at in
+    Pxui.Ui.destroy ui; found in
+  let drag by build (x, y) =
+    let moved = build ~mouse:(x +. by, y) [Event.MouseMoved (x +. by, y)] in
+    moved @ build ~mouse:(x +. by, y) [Event.MouseReleased (Input.LeftButton, (x +. by, y))] in
+  let floats = List.filter_map (function
+    | Pxui_shell.Inspector.Edited (_, Editor_core.Param.Float_value v) -> Some v | _ -> None) in
+  if edits 1. (fun build at -> build ~mouse:at [Event.MouseReleased (Input.LeftButton, at)]) <> [] then
+    failwith "a click on a ranged number wrote a value";
+  (match floats (edits 1. (drag 5.)) with
+   | v :: _ when not (Float.is_integer v) && Float.abs (v -. 1.5) < 1e-9 -> ()
+   | _ -> failwith "a drag on a float written 1 did not reach 1.5");
+  (match floats (edits 1234567.89 (drag 2.)) with
+   | v :: _ when Float.abs (v -. 1234568.09) < 1e-6 -> ()
+   | _ -> failwith "a scrub of 1234567.89 lost its digits");
+  let module N = Editor_core.Number in
+  assert (N.scrub N.Float "1" 10. false = "1.5" && N.scrub N.Float "1" 0.04 false = "1"
+          && N.scrub N.Float "1234567.89" 2. false = "1234567.99" && N.scrub N.Int "3" 12. false = "5"
+          && N.show 1e-7 = "0.0000001" && N.show 0.5 = "0.5");
   (* E18: the key sheet lists every command a key reaches, once, under its host's section *)
   let command ?scope id trigger = Editor_core.Command.make ~id ~label:id ~trigger ?scope id in
   let keymap = Editor_core.Keymap.[

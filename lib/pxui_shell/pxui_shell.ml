@@ -352,6 +352,12 @@ module Kit = struct
   (* A vector: three cells in the control column, 8 between, each with its axis letter in ink-3
      drawn on [box] (the row); [cell index ~x ~w] makes the cell's own field (x, w relative to
      [box]) and returns what it asks for.  [reserve] keeps room at the right for a row's toggle. *)
+  let number ui ~key ~at ~w ?(h = 20.) ?size ~kind ?range ?display ?edit ?left ?trail ?valid text =
+    let module N = Editor_core.Number in
+    let valid = Option.value valid ~default:(N.valid kind) in
+    fst (Ui.value_field ui ~at ~w ~h ?size ?display ?fraction:(Option.bind range (fun r -> N.fraction r text))
+      ~scrub:(N.scrub kind ?range) ?edit ?left ?trail ~valid key text)
+
   let vector ui box ~at:(cx, cy) ~w ?(reserve = 0.) ?(axes = [ "x"; "y"; "z" ]) cell =
     let n = float (List.length axes) in
     let cell_w = (w -. reserve -. (8. *. (n -. 1.))) /. n in
@@ -1957,46 +1963,26 @@ module Inspector = struct
       clicked in
     let input ?(ranged = true) field path ~edit ~x ~y ~w =
       let key = "flow-value-" ^ path in
-      let numeric text valid ?display ?fraction ?slide ~step convert =
-        (* a field with a range slides to where the pointer is on its track; one without (a
-           vector's cell) has no track: a drag changes it from the value it had, so a click
-           without a drag writes nothing *)
-        let fraction = if ranged then fraction else None
-        and slide = if ranged then slide else None
-        and scrub = if ranged then None else Some (fun origin dx shift -> step origin dx shift) in
-        let changed, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20.
-            ?display ?fraction ?slide ?scrub ~edit ~left:(expression text)
-            ?trail:(Option.map (fun unit -> unit, ink_3) field.Param.unit) ~valid:(fun text -> valid text || expression text)
-            key text in
+      let numeric kind ?range ?display text convert =
+        (* the kit's number field: a drag changes the value from the one it had, by the step of its
+           kind and soft range (a vector's cell has none), so a click without a drag writes nothing *)
+        let range = if ranged then range else None in
+        let changed = Kit.number ui ~key ~at:(x, y) ~w ~kind ?range ?display ~edit ~left:(expression text)
+            ?trail:(Option.map (fun unit -> unit, ink_3) field.Param.unit)
+            ~valid:(fun text -> Editor_core.Number.valid kind text || expression text) text in
         if changed = text then [] else if expression changed then
           [Expression (path, changed)]
         else Option.fold ~none:[] ~some:(fun value -> [Edited (field.Param.name, value)])
             (convert changed) in
       match field.Param.kind, field.current with
       | Param.Integer_view range, Param.Int_value value ->
-          let fraction = float (value - range.soft_min)
-            /. float (max 1 (range.soft_max - range.soft_min)) in
-          let slide fraction = string_of_int (range.soft_min + int_of_float
-            (Float.round (fraction *. float (range.soft_max - range.soft_min)))) in
-          numeric (string_of_int value) (fun text -> int_of_string_opt text <> None)
-            ~fraction ~slide
-            ~step:(fun origin dx _ -> match int_of_string_opt origin with
-              | Some n -> string_of_int (n + int_of_float (Float.round (dx /. 6.))) | None -> origin)
-            (fun text -> Option.map (fun n -> Param.Int_value n)
-              (int_of_string_opt text))
+          numeric Editor_core.Number.Int ~range:(float range.soft_min, float range.soft_max) (string_of_int value)
+            (fun text -> Option.map (fun n -> Param.Int_value n) (int_of_string_opt text))
       | Param.Floating_view range, Param.Float_value value ->
-          let fraction = (value -. range.soft_min)
-            /. Float.max 0.000001 (range.soft_max -. range.soft_min) in
-          let slide fraction = Printf.sprintf "%.6g"
-            (range.soft_min +. fraction *. (range.soft_max -. range.soft_min)) in
-          numeric (Printf.sprintf "%.6g" value)
-            (fun text -> Option.fold ~none:false ~some:Float.is_finite
-              (float_of_string_opt text)) ~display:(Printf.sprintf "%.6g" value)
-            ~fraction ~slide
-            ~step:(fun origin dx shift -> match float_of_string_opt origin with
-              | Some v -> Printf.sprintf "%.6g" (v +. (dx *. (if shift then 0.005 else 0.05))) | None -> origin)
-            (fun text -> Option.map (fun n -> Param.Float_value n)
-              (float_of_string_opt text))
+          (* the text is the value in full, so a scrub starts from what is stored; it is shown short *)
+          numeric Editor_core.Number.Float ~range:(range.soft_min, range.soft_max)
+            ~display:(Editor_core.Number.show value) (Flow.Lisp.float value)
+            (fun text -> Option.map (fun n -> Param.Float_value n) (float_of_string_opt text))
       | Param.Text_view, Param.Text_value value ->
           (* an empty group means every element of its owner *)
           let placeholder = match field.default with

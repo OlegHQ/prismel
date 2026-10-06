@@ -1282,8 +1282,8 @@ let number_words text = (* "[0 1 0]" as its numbers *)
     if List.for_all (fun s -> float_of_string_opt s <> None) parts then Some parts else None
   else None
 
-let fraction_of (r : P.row) text = match r.control, float_of_string_opt text with
-  | P.Range (lo, hi), Some v when hi > lo -> Some (Float.max 0. (Float.min 1. ((v -. lo) /. (hi -. lo))))
+let fraction_of (r : P.row) text = match r.control with
+  | P.Range (lo, hi) -> Editor_core.Number.fraction (lo, hi) text
   | _ -> None
 
 (* a field painted without the live editor: a value on a line-2 hairline, label-size text *)
@@ -1996,17 +1996,24 @@ let paint_background paint t ~viewport ~wires (zones : (P.node * P.zone * P.plac
 let left_button (s : Ui.signal) = s.button = Some Input.LeftButton
 let contains (x, y, w, h) (px, py) = px >= x && px < x +. w && py >= y && py < y +. h
 
-let num_field ui ~at ~w ~h ?size ?fraction label text =
-  let is_float = String.exists (fun c -> c = '.' || c = 'e') text in
-  let scrub origin dx shift = match float_of_string_opt origin with
-    | None -> origin
-    | Some v when is_float ->
-        let v = v +. dx *. (if shift then 0.005 else 0.05) in
-        Flow.Lisp.float (Float.round (v *. 1e6) /. 1e6)
-    | Some v -> string_of_int (int_of_float (Float.round (v +. Float.round (dx /. 6.)))) in
+(* the number field of a row, the kit's ([Editor_core.Number], as [Pxui_shell.Kit.number]): the kind
+   is the row's type, and only a literal with no typed row behind it is read by its spelling *)
+let num_field ui ~at ~w ~h ?size ?kind ?range label text =
+  let module N = Editor_core.Number in
+  let kind = match kind with
+    | Some kind -> kind
+    | None -> if String.exists (fun c -> c = '.' || c = 'e') text then N.Float else N.Int in
   let valid s = match float_of_string_opt s with Some f -> Float.is_finite f | None -> false in
-  let text', _ = Ui.value_field ui ~at ~w ~h ?size ?fraction ~scrub ~valid label text in
+  let text', _ = Ui.value_field ui ~at ~w ~h ?size ?fraction:(Option.bind range (fun r -> N.fraction r text))
+      ~scrub:(N.scrub kind ?range) ~valid label text in
   if text' <> text && valid text' then Some text' else None
+
+(* what a row's field is: its type's kind (a vector's cells are floats) and its soft range *)
+let kind_of (r : P.row) = match r.ty with
+  | Some (Ty.Float | Ty.Vec3) -> Some Editor_core.Number.Float
+  | Some Ty.Int -> Some Editor_core.Number.Int
+  | _ -> None
+let range_of (r : P.row) = match r.control with P.Range (lo, hi) -> Some (lo, hi) | _ -> None
 
 (* the row of a card at a point of it ([px], [py] relative to the card, graph units): the header's
    in-port row at the top left (anywhere in the header with [header]), else the row of the line
@@ -2186,7 +2193,7 @@ let update t ui (frame : Frame.t) =
         let ay = (ry +. 4.) *. z in
         match r.chip, r.expr with
         | P.Const, Some ({ node = S.Num text; _ }) ->
-            (match num_field ui ~at:(at, ay) ~w:vw ~h ~size ?fraction:(fraction_of r text) ("f" ^ name) text with
+            (match num_field ui ~at:(at, ay) ~w:vw ~h ~size ?kind:(kind_of r) ?range:(range_of r) ("f" ^ name) text with
              | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [];
                  value = S.make (S.Num text') }) ]
              | None -> [])
@@ -2198,7 +2205,7 @@ let update t ui (frame : Frame.t) =
             let cw = (vec_w *. z -. float (k - 1) *. gap) /. float k in
             List.concat (List.mapi (fun c (e : S.t) -> match e.node with
               | S.Num text ->
-                  (match num_field ui ~at:(at +. float c *. (cw +. gap), ay) ~w:cw ~h ~size
+                  (match num_field ui ~at:(at +. float c *. (cw +. gap), ay) ~w:cw ~h ~size ?kind:(kind_of r)
                            (Printf.sprintf "f%s.%d" name c) text with
                    | Some text' -> [ Syntax_edit (E.Set_arg { node = n.path; key = r.key; sub = [ c ];
                        value = S.make (S.Num text') }) ]

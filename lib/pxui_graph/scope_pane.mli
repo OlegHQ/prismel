@@ -141,10 +141,13 @@ val scope_point : t -> scope:path -> float * float -> (float * float) option
     24-point dot lattice: where a node added from a menu opened there is placed ([Moved]). *)
 
 val num_field :
-  Pxui.Ui.t -> at:float * float -> w:float -> h:float -> ?size:int -> ?fraction:float -> string -> string -> string option
-(** The pane's number field ({!Pxui.Ui.value_field}): dragged sideways it scrubs (a float by 0.05 a point,
-    0.005 with Shift; an integer by one every 6 points), Option-click types.  [Some text] the frame the
-    number changed.  Hosts use it for the same number shown elsewhere (an input's default in the inspector). *)
+  Pxui.Ui.t -> at:float * float -> w:float -> h:float -> ?size:int ->
+  ?kind:Editor_core.Number.kind -> ?range:float * float -> string -> string -> string option
+(** The pane's number field ({!Pxui.Ui.value_field} driven by {!Editor_core.Number}, as the
+    inspector's [Pxui_shell.Kit.number]): dragged sideways it scrubs by the step of its [kind] and soft
+    [range], Option-click types, a click writes nothing.  [kind] is the parameter's type; without one the
+    literal's spelling decides.  [Some text] the frame the number changed.  Hosts use it for the same
+    number shown elsewhere (an input's default in the inspector). *)
 
 val bindings : ('scope, command) Editor_core.Command.t list
 val run_command : t -> command -> t * change list

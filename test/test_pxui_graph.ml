@@ -523,6 +523,35 @@ let scope_gestures () =
   let _, released = scope_step view (frame ~mouse:towards ~events:[ mouse_release (Input.LeftButton, towards) ] ()) in
   check (List.exists (function Scope.Syntax_edit (E.Set_arg { node; sub = [ _ ]; _ }) -> node = heart | _ -> false)
            (moved @ released)) "scrubbing a vector field did not become Set_arg";
+  (* G13: a float parameter written as an integer scrubs as a float (the kind is the row's type), a
+     long value keeps its digits, a click writes nothing and a drag is one history entry *)
+  let nw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace n (graph g :context sop (let* [a (sop/uv_sphere :radius 1) b (sop/transform a :translate [1234567.89 2 3])] b)))"
+    |> Result.get_ok in
+  let field path label ~inset =
+    let view = settled (fst (scope_view nw.checked "g")) in
+    let node = Option.get (P.find (P.of_graph scope_catalog nw.checked "g") path) in
+    let i = Option.get (List.find_index (fun (r : P.row) -> r.label = label) node.rows) in
+    let bx, _, bw, _ = Option.get (Scope.Private.box_of view path) in
+    view, (int_of_float (bx +. bw -. inset), int_of_float (snd (Option.get (Scope.Private.row_center view path i)))) in
+  let scrub (view, from) by =
+    let view, _ = scope_step view (frame ~mouse:from ~events:[ mouse_move from; mouse_press (Input.LeftButton, from) ] ()) in
+    let towards = fst from + by, snd from in
+    let view, moved = if by = 0 then view, [] else scope_step view (frame ~mouse:towards ~events:[ mouse_move towards ] ()) in
+    let _, released = scope_step view (frame ~mouse:towards ~events:[ mouse_release (Input.LeftButton, towards) ] ()) in
+    List.filter_map (function Scope.Syntax_edit (E.Set_arg _ as op) -> Some op | _ -> None) (moved @ released) in
+  let written ops = List.filter_map (function
+    | E.Set_arg { value = { S.node = S.Num n; _ }; _ } -> Some n | _ -> None) ops in
+  (* at two places: a second press at one would be a double-click, which types *)
+  check (scrub (field [ "g"; "a" ] "radius" ~inset:20.) 0 = []) "a click on a number field wrote a value";
+  let radius = scrub (field [ "g"; "a" ] "radius" ~inset:60.) 10 in
+  check (match written radius with
+    | n :: _ -> String.contains n '.' && not (Float.is_integer (float_of_string n)) | [] -> false)
+    ("a float written 1 scrubbed as an integer: " ^ String.concat " " (written radius));
+  check (List.for_all (fun op -> E.gesture op <> None && E.gesture op = E.gesture (List.hd radius)) radius)
+    "a scrub is not one history entry";
+  let cell = scrub (field [ "g"; "b" ] "translate" ~inset:110.) 2 in
+  check (List.mem "1234567.99" (written cell)) ("a scrub of 1234567.89 lost its digits: " ^ String.concat " " (written cell));
   (* the selection commands and their requests *)
   let view = settled (Scope.select [ heart ] (fst (scope_view w "flower"))) in
   let only command = snd (Scope.run_command view command) in
