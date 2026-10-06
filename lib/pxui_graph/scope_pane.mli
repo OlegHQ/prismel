@@ -51,7 +51,9 @@ type change =
 
 type direction = Left | Down | Up | Right
 type command =
-  | Delete  (** the hovered wired row's wire, else the selected nodes *)
+  | Delete
+      (** the hovered wired row's wire or the hovered item of a variadic input (a list's, a merge's: the
+          item goes), else the selected wire, else the selected nodes *)
   | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro | Make_defn
   | Collapse | Probe_step of int | Frame_all | Walk of direction
   | Edit_name

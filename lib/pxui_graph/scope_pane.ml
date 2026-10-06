@@ -86,8 +86,10 @@ let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hash
                   inside = Hashtbl.create 1; routes = Hashtbl.create 1 }
 let root_name s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 (* what a row reads once its wire is taken off: a named argument goes back to its schema default,
-   written so the row stays on the card; a positional one takes a value of its type *)
+   written so the row stays on the card; a positional one takes a value of its type; an item of a
+   variadic input goes (nothing is written in its place) *)
 let fallback (r : P.row) = match r.key with
+  | _ when r.kind = P.Rest -> None
   | E.Kw _ | E.Field _ ->
       Option.bind r.default (fun d -> match Flow.Syntax.parse d with Ok [ form ] -> Some form | _ -> None)
   | _ -> Option.bind r.ty (fun ty -> E.default_for ty r.label)
@@ -453,6 +455,7 @@ type drag =
 
 (* the text field open over the pane: a node's name, a graph input's default, a frame's title *)
 type editing = Name of path | Default of path | Title of path * int
+             | Output of path  (* the name of a new output, over the [+ output] row of a [values] *)
 
 type fr = string * (float * float) * (float * float)
 
@@ -653,7 +656,7 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
     | _ -> None in
   let t = { t with selected_wire } in
   let t = match t.editing with
-    | Some (Name p | Default p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
+    | Some (Name p | Default p | Output p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
     | _ -> t in
   if key <> t.key then begin
     if t.panning_grab then ignore (Rays.Sketch.set_relative_mouse false);
@@ -754,7 +757,8 @@ let action_changes t command =
   | Delete ->
       (match t.hovered_row with
        | Some (path, key) when (match node_of t path with
-           | Some n -> List.exists (fun (r : P.row) -> r.key = key && wired r) n.rows | None -> false) ->
+           | Some n -> List.exists (fun (r : P.row) -> r.key = key && (wired r || r.kind = P.Rest)) n.rows | None -> false) ->
+           (* a wire comes off; an item of a variadic input (a list's, a merge's) goes with what it holds *)
            let n = Option.get (node_of t path) in
            let r = List.find (fun (r : P.row) -> r.key = key) n.rows in
            List.map (fun op -> Syntax_edit op) (unwire n r)
@@ -2100,7 +2104,7 @@ let update t ui (frame : Frame.t) =
              Hashtbl.replace footers n.path (Flow_sop.Probe.footer records n ~probes:(List.map t.probe chain))
          | _ -> ()) visible
    | _ -> ());
-  let finished = ref false in
+  let finished = ref false and opened = ref None in
   let edit_field ~at ~w ~h key current valid commit =
     let v, open_ = Ui.value_field ui ~at ~w ~h ~size:fs ~edit:true
       ~left:(float_of_string_opt current = None) ~valid key current in
@@ -2294,13 +2298,17 @@ let update t ui (frame : Frame.t) =
                             if List.exists (fun (r : P.row) -> r.key = E.Field name) n.rows then free (i + 1) else name in
                           [ Syntax_edit (E.Add_field { node = n.path; name = free 1;
                           value = S.make (S.Num "0") }) ]
-                      | key when n.head = "list" || n.head = "str" || n.head = "concat" && false ->
-                          ignore key; [ Syntax_edit (E.Add_item { node = n.path }) ]
-                      | key when r.ty = Some Ty.Geometry -> ignore key; [ Notice "Wire a node onto this row" ]
+                      | E.Kw "" -> opened := Some (Output n.path); []  (* a new output is named first *)
+                      | _ when n.head = "list" || n.head = "str" -> [ Syntax_edit (E.Add_item { node = n.path }) ]
                       | key ->
-                          let value = match Option.bind r.ty (fun ty -> E.default_for ty r.label) with
-                            | Some v -> v | None -> S.make (S.Num "0") in
-                          [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ])
+                          (* a type with no literal (geometry, a list, a function, a scene) is wired *)
+                          (match r.ty with
+                           | Some Ty.Geometry -> [ Notice "Wire a node onto this row" ]
+                           | Some ty ->
+                               (match E.default_for ty r.label with
+                                | Some value -> [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ]
+                                | None -> [ Notice "Wire a node onto this row" ])
+                           | None -> [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value = S.make (S.Num "0") }) ]))
                  | _, P.Inline _ -> [ Syntax_edit (E.Unfold { node = n.path; key = r.key; sub = [] }) ]
                  | _ -> [])
                 | P.Row (i, (({ chip = P.Name s; _ } : P.row) as r)) when Hashtbl.mem t.folds (n.path, i) ->
@@ -2317,6 +2325,14 @@ let update t ui (frame : Frame.t) =
             Ui.within ui tile (fun () ->
               edit_field ~at:(21. *. z, 3. *. z) ~w:((p.w -. 21. -. head_pad) *. z) ~h:(18. *. z) "name" (P.title n) valid_name
                 (fun v -> Syntax_edit (E.Rename { node = n.path; to_ = v })))
+        | Some (Output path), P.Item n when path = n.path ->
+            (match Array.find_index (function P.Row (_, { kind = P.Add; key = E.Kw ""; _ }) -> true | _ -> false) p.lines with
+             | Some k ->
+                 Ui.within ui tile (fun () ->
+                   edit_field ~at:(label_x *. z, (rows_top n 0. +. float k *. P.row_height +. 4.) *. z)
+                     ~w:((p.w -. label_x -. head_pad) *. z) ~h:(field_h *. z) "output" "" valid_name
+                     (fun v -> Syntax_edit (E.Add_field { node = n.path; name = v; value = S.make (S.Num "0") })))
+             | None -> finished := true; [])
         | Some (Default path), P.Input i when path = i.path ->
             Ui.within ui tile (fun () ->
               let text = match i.default with Some d -> Flow.Lisp.flat d | None -> "" in
@@ -2434,6 +2450,7 @@ let update t ui (frame : Frame.t) =
           end else t
       | _ -> t) t frame_boxes in
   let t = if !finished then { t with editing = None } else t in
+  let t = match !opened with Some _ as editing -> { t with editing } | None -> t in
   let overlay = Ui.within ui canvas (fun () ->
     Ui.box ui ~w:(Ui.Px (float t.width)) ~h:(Ui.Px (float t.height)) ~at:(0., 0.) "overlay") in
   ignore overlay;

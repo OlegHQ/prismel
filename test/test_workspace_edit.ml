@@ -266,6 +266,8 @@ let part9 () = (* lists and records *)
   same "record field" record (E.Add_field { node = node [ "r" ]; name = "depth"; value = num "2" })
     (g "(let* [r {:size 0.5 :count 6 :depth 2} a (sop/uv_sphere :radius r.size)] a)");
   refused ~code:"E_EDIT" "an existing field" record (E.Add_field { node = node [ "r" ]; name = "size"; value = num "2" });
+  same "a new output of values" (v "(let* [r (values :a 1)] r.a)") (E.Add_field { node = node [ "r" ]; name = "b"; value = num "0" })
+    (v "(let* [r (values :a 1 :b 0)] r.a)");
   same "keyword field" base (E.Add_field { node = node [ "b" ]; name = "scale"; value = num "2" })
     (g "(let* [a (sop/uv_sphere :radius 0.5) b (sop/transform a :translate [1 2 3] :scale 2) c (sop/subdivide b :iterations 1)] c)");
   same "record field scrub" record (E.Set_arg { node = node [ "r" ]; key = Field "size"; sub = []; value = num "0.9" })

@@ -539,6 +539,9 @@ let scope_gestures () =
   let hovered, _ = scope_step view (frame ~mouse:hover ~events:[ mouse_move hover ] ()) in
   check (snd (Scope.run_command hovered Scope.Item_up) = [ syntax (E.Move_item { node = widths; pos = 1 }) ]) "Alt-Up: Move_item";
   check (snd (Scope.run_command hovered Scope.Item_down) = [ syntax (E.Move_item { node = widths; pos = 2 }) ]) "Alt-Down: Move_item";
+  (* Delete over an item of a variadic input removes the item, whatever it holds *)
+  check (snd (Scope.run_command hovered Scope.Delete) = [ syntax (E.Disconnect { node = widths; key = E.Pos 1; fallback = None }) ])
+    "Delete on a hovered list item did not remove it";
   check (match snd (Scope.run_command view Scope.Item_up) with [ Scope.Notice _ ] -> true | _ -> false)
     "Alt-Up with no hovered item";
   let rec records (nodes : P.node list) = List.concat_map (fun (n : P.node) ->
@@ -564,6 +567,38 @@ let scope_gestures () =
   let _, changes = scope_click rview (int_of_float rx, int_of_float ry) in
   check (List.exists (function Scope.Syntax_edit (E.Add_field { name = "f1"; _ }) -> true | _ -> false) changes)
     "the + field row did not pick the first unused name";
+  (* a wire taken off a variadic input takes the item with it: no nil is left behind *)
+  let mw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace m (graph g :context sop (let* [a (sop/box) b (sop/box) m (sop/merge a b)] m)))" |> Result.get_ok in
+  let mview = settled (fst (scope_view mw.checked "g")) in
+  let wi = Option.get (List.find_index (fun i -> Scope.Private.wire_target mview i = Some ([ "g"; "m" ], E.Pos 1))
+    (List.init (Scope.Private.wire_count mview) Fun.id)) in
+  let wx, wy = Option.get (Scope.Private.wire_midpoint mview wi) in
+  let picked, _ = scope_click mview (int_of_float wx, int_of_float wy) in
+  check (snd (Scope.run_command picked Scope.Delete) = [ syntax (E.Disconnect { node = [ "g"; "m" ]; key = E.Pos 1; fallback = None }) ])
+    "a wire off a variadic input did not remove the item";
+  (* + output names the new output first; a row that only a wire can fill says so *)
+  let add_row view (scope : P.scope) path =
+    let rec find (nodes : P.node list) = List.find_map (fun (n : P.node) ->
+      if n.path = path then Some n else Option.bind n.zone (fun (z : P.zone) -> find z.scope.nodes)) nodes in
+    let n = Option.get (find scope.nodes) in
+    let x, y = Option.get (Scope.Private.row_center view path
+      (Option.get (List.find_index (fun (r : P.row) -> r.kind = P.Add) n.rows))) in
+    int_of_float x, int_of_float y in
+  let oview, oscope = scope_view kw "def:window" in
+  let oview = settled oview in
+  let values = (List.find (fun (n : P.node) -> n.head = "values") oscope.nodes).path in
+  let naming, changes = scope_click oview (add_row oview oscope values) in
+  check (changes = [] && Scope.editing naming) "the + output row did not open a name field";
+  let _, changes = scope_step naming (frame ~events:[ Event.TextInput "depth"; Event.KeyPressed Input.Enter ] ()) in
+  check (List.mem (syntax (E.Add_field { node = values; name = "depth"; value = S.make (S.Num "0") })) changes)
+    "a named output did not become Add_field";
+  let cw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace c (graph g :context value (let* [xs (list 1 2) ys (concat xs xs)] (count ys))))" |> Result.get_ok in
+  let cview, cscope = scope_view cw.checked "g" in
+  let cview = settled cview in
+  check (match snd (scope_click cview (add_row cview cscope [ "g"; "ys" ])) with [ Scope.Notice _ ] -> true | _ -> false)
+    "the + list row of a concat did not ask for a wire";
   (* frames: Shift-G makes one around the selection, the corner resizes it, the cross deletes it *)
   let view = settled (Scope.select [ heart; [ "flower"; "bloom" ] ] (fst (scope_view w "flower"))) in
   let view, changes = Scope.run_command view Scope.Make_frame in
