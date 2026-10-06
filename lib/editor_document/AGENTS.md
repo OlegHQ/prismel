@@ -35,9 +35,13 @@ it. Selection, navigation, cooking and history policy belong to the host. Root r
   lights, one geometry object per `sop` graph and the `?world`; such an object has no text until
   its first explicit edit writes the graph from all derived objects (`adopt`). A camera following
   the viewport is not such an edit (`~adopt:false`).
-- **Write-back.** `Scene_sync.set_fields` writes one declared object's fields text first.
-  `reconcile before after` diffs a derived edit into `Flow_edit` ops for everything else and for
-  objects without text. Keep new derived edits on these two; never a third write-back.
+- **Write-back.** What is asked of an object the text declares is written text first, the derived
+  document never edited in between: `Scene_sync.set_fields` (one object's fields) and
+  `Scene_sync.write` (an `edit`: flags, rename, delete, restack, preset, render camera, root,
+  settings, reparent). `reconcile before after` is only for objects without text (it adopts them
+  on the first explicit edit) and for the fields of a camera that follows the viewport
+  (`~adopt:false`). A new kind of edit is a case of `edit`, never a derived edit for `reconcile`
+  to diff, and never a third write-back.
 - **Surgical edits.** A deleted or moved World layer is an edit of its binding: the graph's
   inputs, expressions, comments and names stay. A graph is written whole only when it gains
   layers it did not have. A name two objects would share is refused (`:parent` reads names).

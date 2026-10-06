@@ -52,7 +52,14 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   let in_text node = Editor_document.Scene_sync.in_text value.doc value.level node in
   let document, edit_error, editor_effects = List.fold_left apply_change
       ((network value).graph, value.edit_error, Parameter.no_effects)
-      (List.filter (function Set_parameter { node; _ } -> not (in_text node) | _ -> true) result.changes) in
+      (List.filter (function Set_parameter { node; _ } | Rename { node; _ } -> not (in_text node) | _ -> true)
+         result.changes) in
+  (* what a list or the inspector's name row asks of an object the text has is written to the text
+     (below); the derived network is edited only for the others *)
+  let tree_edits = List.filter_map (tree_edit value rows) result.tree_intents
+    @ List.filter_map (function
+        | Rename { node; label } when in_text node -> Some (Editor_document.Scene_sync.Rename (node, label))
+        | _ -> None) result.changes in
   let document, selection, tree, opened, tree_label, _ = List.fold_left
       (apply_tree value) (document, result.selection, result.tree, result.opened, None, rows)
       result.tree_intents in
@@ -153,9 +160,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
               current.displayed } in
         let doc = if edited == current then present
           else Document.with_network present value.level edited in
-        let doc = if value.level = Document.Scene && edited != current then Document.prune doc else doc in
-        if result.settings == doc.settings then doc
-        else { doc with settings = result.settings } in
+        if value.level = Document.Scene && edited != current then Document.prune doc else doc in
   (* Enter and row activation share camera selection and look-through. *)
   let entered_camera = if value.level <> Document.Scene || Option.is_some loaded || carrying then None
     else
@@ -166,17 +171,17 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
       match candidate with
       | Some id when kind value id = Some "camera" && view_wants value `Primary id -> Some id
       | _ -> None in
-  let next = match entered_camera with
-    | Some id when next.active_camera <> Some id -> { next with active_camera = Some id }
-    | _ -> next in
+  let tree_edits = if result.settings == value.doc.settings then tree_edits
+    else tree_edits @ [ Editor_document.Scene_sync.Settings result.settings ] in
+  let tree_edits = match entered_camera with
+    | Some id when next.active_camera <> Some id -> tree_edits @ [ Editor_document.Scene_sync.Camera (Some id) ]
+    | _ -> tree_edits in
   (* the scene and World edits above act on derived objects: each difference is written to
      the text (a refused one changes nothing) *)
   let edit_note = ref None in
   let reconciled ~before next result =
     match Doc.reconcile ~factories:value.factories before next with
-    | Ok doc ->
-        Option.iter (fun note -> edit_note := Some note) (Editor_document.Scene_sync.note before next);
-        doc, result
+    | Ok doc -> doc, result
     | Error message ->
         before, { (result : _ frame_result) with edit_error = Some message } in
   let next, result = if Option.is_some loaded then next, result else
@@ -196,6 +201,15 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
                effects = Parameter.union_effects result.effects (node_effects effects) }
     | Ok None -> next, result
     | Error message -> refused := Some message; next, result in
+  let next, result = if Option.is_some loaded then next, result else
+    List.fold_left (fun ((next : Document.t), (result : _ frame_result)) edit ->
+      if !refused <> None then next, result else
+      match Editor_document.Scene_sync.write ~factories:value.factories next value.level edit with
+      | Ok (Some (doc, note)) ->
+          if !edit_note = None then edit_note := note;
+          doc, { result with edit_error = None }
+      | Ok None -> next, result
+      | Error message -> refused := Some message; next, result) (next, result) tree_edits in
   (* a viewport handle's values *)
   let next, result = match result.handle_changes with
     | Some (id, values) when Option.is_none loaded && in_text id -> set_fields (next, result) id values
@@ -355,8 +369,9 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           next, result, probes)
       (next, result, value.probes) scope_changes in
   let before_world = next in
-  let next, world_label = if in_world value
-    then world_keys value next result.selection actions else next, None in
+  (* a World key is written to the text (below); only a World the host made is edited here *)
+  let next, world_label, world_edits = if in_world value
+    then world_keys value next result.selection actions else next, None, [] in
   (* Space e opens the World, creating the singleton on first use. *)
   let next, world_added = match Objects.ids "world" next.scene.graph.geometry with
     | [] when List.mem Leader.Go_world actions ->
@@ -364,6 +379,13 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     | _ -> next, false in
   let next, result = if Option.is_some loaded then next, result
     else reconciled ~before:before_world next result in
+  let next, result = if Option.is_some loaded then next, result else
+    List.fold_left (fun ((next : Document.t), (result : _ frame_result)) (level, edit) ->
+      if result.edit_error <> None then next, result else
+      match Editor_document.Scene_sync.write ~factories:value.factories next level edit with
+      | Ok (Some (doc, _)) -> doc, result
+      | Ok None -> next, result
+      | Error message -> next, { result with edit_error = Some message }) (next, result) world_edits in
   let is_view = function Pxui_shell.Layout.View _ -> true | _ -> false in
   let owner = match List.find_opt (fun (_, (panel, _)) -> panel = result.focus && is_view panel)
       result.pane_keys with

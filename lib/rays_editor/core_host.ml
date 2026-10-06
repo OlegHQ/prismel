@@ -9,10 +9,12 @@ include Core_reduce
 let scene_edit value mode ?(active_camera = value.doc.active_camera) scene =
   if value.carry <> None then value else
   let edited = { value.doc with scene = { value.doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry scene value.doc.scene.graph);
-      displayed = Document.displayed_of ?previous:value.doc.scene.displayed (Flow_sop.Network.of_geometry scene) None };
-    active_camera } in
+      displayed = Document.displayed_of ?previous:value.doc.scene.displayed (Flow_sop.Network.of_geometry scene) None } } in
   (* a camera that follows the viewport is an edit of the text when the text declares it *)
-  match Doc.reconcile ~factories:value.factories ~adopt:false value.doc edited with
+  match Result.bind (Doc.reconcile ~factories:value.factories ~adopt:false value.doc edited) (fun doc ->
+      if active_camera = doc.active_camera then Ok doc else
+      Editor_document.Scene_sync.write ~factories:value.factories doc Document.Scene (Camera active_camera)
+      |> Result.map (Option.fold ~none:doc ~some:fst)) with
   | Error message -> { value with edit_error = Some message }
   | Ok doc ->
   let history = match mode with
@@ -33,9 +35,10 @@ let close value =
    [prepare] reads the settings. *)
 let set_settings value settings =
   if settings == value.doc.settings || value.carry <> None then value else
-  match Doc.reconcile ~factories:value.factories value.doc { value.doc with settings } with
+  match Editor_document.Scene_sync.write ~factories:value.factories value.doc Document.Scene (Settings settings) with
   | Error message -> { value with edit_error = Some message }
-  | Ok doc ->
+  | Ok None -> value
+  | Ok (Some (doc, _)) ->
       { value with doc; cook = Cook.force value.cook;
         history = commit ~label:"Settings" doc value.history }
 
@@ -43,9 +46,10 @@ let set_settings value settings =
    a root over the scene's result; one undo step, merged while scrubbed. *)
 let set_root value root =
   if root = value.doc.root || value.carry <> None then value else
-  match Doc.reconcile ~factories:value.factories value.doc { value.doc with root } with
+  match Editor_document.Scene_sync.write ~factories:value.factories value.doc Document.Scene (Root root) with
   | Error message -> { value with edit_error = Some message }
-  | Ok doc ->
+  | Ok None -> value
+  | Ok (Some (doc, _)) ->
       { value with doc;
         history = commit ~label:"Render settings" ~merge:(Gesture "render settings") doc value.history }
 
