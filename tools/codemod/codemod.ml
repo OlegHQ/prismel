@@ -14,6 +14,9 @@
    dead-optionals [--users-exclude SUBSTR]... DIR...
      Prints "file.mli<TAB>Path.name<TAB>?label" for every optional parameter
      of an exported value that no application passes (report only).
+   drop-optionals [--users-exclude SUBSTR]... DIR...
+     Removes those parameters: the signature loses them and the function
+     binds the default in its body.
    drop-vals FILE.mli NAME...     Remove [val]/[external] items (with docs).
    drop-unused < build-log        Remove the let bindings named by warning 32
                                   (unused value) in a dune build log.
@@ -889,7 +892,83 @@ let dead_optionals ~excludes dirs =
             | _ -> ()) items in
           scan "" shape sg.sig_type
       | _ -> ()) infos;
-  List.iter (fun (f, n, l) -> Printf.printf "%s\t%s\t?%s\n" f n l) (List.sort_uniq compare !results)
+  let results = List.sort_uniq compare !results in
+  List.iter (fun (f, n, l) -> Printf.printf "%s\t%s\t?%s\n" f n l) results;
+  results
+
+(* drop-optionals: each parameter [dead_optionals] lists leaves the
+   signature, and the function binds its default instead ([?(x = d)] becomes
+   [let x = (d) in], [?x] becomes [let x = None in]), so behaviour is the
+   same and what the constant makes dead is then ordinary unused code. A
+   function whose body is a [function] match is printed and left alone. *)
+let drop_optionals ~excludes dirs =
+  let by_file = Hashtbl.create 16 in
+  List.iter (fun (mli, name, label) -> Hashtbl.replace by_file mli
+    ((name, label) :: Option.value (Hashtbl.find_opt by_file mli) ~default:[]))
+    (dead_optionals ~excludes dirs);
+  Hashtbl.iter (fun mli wanted ->
+    let ml = Filename.chop_suffix mli ".mli" ^ ".ml" in
+    let labels path = List.filter_map (fun (n, l) -> if n = path then Some l else None) wanted in
+    (* interface: cut [?l:ty ->] out of the arrow chain *)
+    let src, sg = parse_with Parse.interface mli in
+    let ranges = ref [] in
+    let rec arrows dead (t : Parsetree.core_type) = match t.ptyp_desc with
+      | Ptyp_arrow (label, _, rest) ->
+          (match label with
+           | Optional l when List.mem l dead ->
+               ranges := (t.ptyp_loc.loc_start.pos_cnum, rest.ptyp_loc.loc_start.pos_cnum) :: !ranges
+           | _ -> ());
+          arrows dead rest
+      | Ptyp_poly (_, t) -> arrows dead t
+      | _ -> () in
+    let rec signature prefix items = List.iter (fun (item : Parsetree.signature_item) ->
+      match item.psig_desc with
+      | Psig_value vd -> (match labels (prefix ^ vd.pval_name.txt) with
+          | [] -> () | dead -> arrows dead vd.pval_type)
+      | Psig_module md -> declaration prefix md
+      | Psig_recmodule mds -> List.iter (declaration prefix) mds
+      | _ -> ()) items
+    and declaration prefix (md : Parsetree.module_declaration) =
+      match md.pmd_name.txt, md.pmd_type.pmty_desc with
+      | Some m, Pmty_signature s -> signature (prefix ^ m ^ ".") s
+      | _ -> () in
+    signature "" sg;
+    if !ranges <> [] then remove_ranges mli src !ranges;
+    (* implementation: the parameter goes, its default is bound in the body *)
+    let src, str = parse_with Parse.implementation ml in
+    let ranges = ref [] and subst = ref [] in
+    let text (loc : Location.t) = String.sub src loc.loc_start.pos_cnum (loc.loc_end.pos_cnum - loc.loc_start.pos_cnum) in
+    let binding path (vb : Parsetree.value_binding) dead =
+      match vb.pvb_expr.pexp_desc with
+      | Pexp_function (params, _, Pfunction_body body) ->
+          List.iter (fun (p : Parsetree.function_param) -> match p.pparam_desc with
+            | Pparam_val (Optional l, default, pat) when List.mem l dead ->
+                let n = String.length src in
+                let rec fwd i = if i < n && src.[i] = ' ' then fwd (i + 1) else i in
+                ranges := (p.pparam_loc.loc_start.pos_cnum, fwd p.pparam_loc.loc_end.pos_cnum) :: !ranges;
+                let value = match default with Some d -> "(" ^ text d.pexp_loc ^ ")" | None -> "None" in
+                let at = body.pexp_loc.loc_start.pos_cnum in
+                subst := (at, at, Printf.sprintf "let %s = %s in " (text pat.ppat_loc) value) :: !subst
+            | _ -> ()) params
+      | _ -> Printf.printf "  left %s %s: not a plain function\n" ml path in
+    let rec structure prefix items = List.iter (fun (item : Parsetree.structure_item) ->
+      match item.pstr_desc with
+      | Pstr_value (_, vbs) -> List.iter (fun (vb : Parsetree.value_binding) ->
+          match vb.pvb_pat.ppat_desc with
+          | Ppat_var v | Ppat_constraint ({ ppat_desc = Ppat_var v; _ }, _) ->
+              (match labels (prefix ^ v.txt) with [] -> () | dead -> binding (prefix ^ v.txt) vb dead)
+          | _ -> ()) vbs
+      | Pstr_module mb -> module_binding prefix mb
+      | Pstr_recmodule mbs -> List.iter (module_binding prefix) mbs
+      | _ -> ()) items
+    and module_binding prefix (mb : Parsetree.module_binding) =
+      let rec body (me : Parsetree.module_expr) = match me.pmod_desc with
+        | Pmod_structure s -> Option.iter (fun m -> structure (prefix ^ m ^ ".") s) mb.pmb_name.txt
+        | Pmod_constraint (me, _) -> body me
+        | _ -> () in
+      body mb.pmb_expr in
+    structure "" str;
+    if !ranges <> [] || !subst <> [] then remove_ranges ~subst:!subst ml src !ranges) by_file
 
 (* ---------- cut-tests: a test that stops compiling goes ---------- *)
 
@@ -1175,7 +1254,9 @@ let () =
       let skip, args = skips (List.filter (( <> ) "--apply") args) in
       let excludes, _, dirs = split [] "" [] args in dead_fields ~apply ~excludes ~skip dirs
   | "dead-optionals" :: args ->
-      let excludes, _, dirs = split [] "" [] args in dead_optionals ~excludes dirs
+      let excludes, _, dirs = split [] "" [] args in ignore (dead_optionals ~excludes dirs)
+  | "drop-optionals" :: args ->
+      let excludes, _, dirs = split [] "" [] args in drop_optionals ~excludes dirs
   | "dead-stubs" :: "--report" :: mm :: roots -> dead_stubs ~apply:false ~roots mm
   | "dead-stubs" :: mm :: roots -> dead_stubs ~roots mm
   | [ "drop-c-unused"; dir ] ->
@@ -1192,7 +1273,7 @@ let () =
   | _ ->
       prerr_endline "usage: codemod (dead-exports | prune [--users-exclude S] [--target ALIAS]) DIR...\n\
                     \       codemod dead-fields [--apply] [--users-exclude S] [--skip TYPE.FIELD] DIR...\n\
-                    \       codemod dead-optionals [--users-exclude S] DIR...\n\
+                    \       codemod (dead-optionals | drop-optionals) [--users-exclude S] DIR...\n\
                     \       codemod drop-vals FILE.mli NAME... | drop-unused < log\n\
                     \       codemod dead-stubs [--report] BRIDGE.mm ROOT... | drop-c-unused DIR\n\
                     \       codemod result-bind FILE.ml | result-bind --self-test\n\
