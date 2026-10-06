@@ -1,10 +1,16 @@
 (executable
  (name test_main)
- (modules test_main sop_params_fixture test_rays test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_rays_editor test_editor_document test_editor_input test_editor_commands ws_fixture test_editor_cook test_editor_transactions test_editor_consistency test_scene_tree test_scene_sync test_sop_catalog test_sketch_support test_terminal_boolean_normals test_workspace_cook test_workspace_zone test_workspace_live test_workspace_edit test_workspace_doc test_projection test_probe test_viewport_pick test_text_pane test_workspace_shell test_workspace_source test_bloom_studio dependency_gate sop_render_parity)
+ (modules test_main sop_params_fixture test_rays test_easy_camera2 test_sop_ui test_custom_sop test_pxui_graph test_rays_editor test_editor_document test_editor_input test_editor_commands ws_fixture test_editor_cook test_editor_transactions test_editor_consistency test_scene_tree test_scene_sync test_sop_catalog test_sketch_support test_terminal_boolean_normals test_workspace_cook test_workspace_live test_workspace_doc test_projection test_probe test_viewport_pick test_text_pane test_workspace_shell test_workspace_source test_bloom_studio dependency_gate sop_render_parity)
  (libraries rays pxui pxui_shell runtime_input procedural rdk rdk_rays pxui_graph
   sop_catalog scene_command sketch_support rays_editor editor_document unix str rays.sdl3)
  (preprocess (pps rays.ppx))
  (link_flags -linkall))
+
+; Fixtures the editor tests share with the in-library tests of flow_sop and
+; pxui_graph, which own and run them.
+(copy_files# ../lib/flow_sop/test_workspace_cook.ml)
+(copy_files# ../lib/flow_sop/test_projection.ml)
+(copy_files# ../lib/pxui_graph/test_pxui_graph.ml)
 
 (test
  (name test_materials)
@@ -30,17 +36,17 @@
  (action (run %{test} ../sketches ../examples ../specification/workspace/cases)))
 
 (rule
- (aliases runtest test_rays)
+ (alias test_rays)
  (action (run %{exe:test_main.exe} test_rays)))
 
 (rule
- (aliases runtest test_text_pane)
+ (alias test_text_pane)
  ; pointer positions assume the golden face's advance
  (action (setenv RAYS_UI_FONT %{dep:../assets/fonts/DepartureMono-Regular.otf}
   (run %{exe:test_main.exe} test_text_pane))))
 
 (rule
- (aliases runtest test_editor_consistency)
+ (alias test_editor_consistency)
  (action (run %{exe:test_main.exe} test_editor_consistency)))
 
 (rule
@@ -54,21 +60,16 @@
  (action (run %{exe:test_main.exe} sop_render_parity)))
 
 (rule
- (aliases runtest test_easy_camera2)
+ (alias test_easy_camera2)
  (action (run %{exe:test_main.exe} test_easy_camera2)))
 
 (rule
- (aliases runtest test_sop_ui)
+ (alias test_sop_ui)
  (action (run %{exe:test_main.exe} test_sop_ui)))
 
 (rule
- (aliases runtest test_custom_sop)
+ (alias test_custom_sop)
  (action (run %{exe:test_main.exe} test_custom_sop)))
-
-(rule
- (aliases runtest test_pxui_graph)
- (deps (glob_files ../specification/workspace/cases/*.lisp))
- (action (run %{exe:test_main.exe} test_pxui_graph)))
 
 (rule
  (aliases runtest-native test_rays_editor)
@@ -76,40 +77,40 @@
  (action (run %{exe:test_main.exe} test_rays_editor)))
 
 (rule
- (aliases runtest test_rays_editor_logic)
+ (alias test_rays_editor_logic)
  (action (run %{exe:test_main.exe} test_rays_editor_logic)))
 
 (rule
- (aliases runtest test_editor_document)
+ (alias test_editor_document)
  (action (run %{exe:test_main.exe} test_editor_document)))
 
 (rule
- (aliases runtest test_editor_input)
+ (alias test_editor_input)
  (action (run %{exe:test_main.exe} test_editor_input)))
 
 (rule
- (aliases runtest test_editor_commands)
+ (alias test_editor_commands)
  (action (run %{exe:test_main.exe} test_editor_commands)))
 
 (rule
- (aliases runtest test_editor_cook)
+ (alias test_editor_cook)
  (action (run %{exe:test_main.exe} test_editor_cook)))
 
 (rule
- (aliases runtest test_editor_transactions)
+ (alias test_editor_transactions)
  (action (run %{exe:test_main.exe} test_editor_transactions)))
 
 (rule
- (aliases runtest test_scene_tree)
+ (alias test_scene_tree)
  (action (setenv SDL_VIDEODRIVER dummy (run %{exe:test_main.exe} test_scene_tree))))
 
 (rule
- (aliases runtest test_scene_sync)
+ (alias test_scene_sync)
  (deps (glob_files_rec ../sketches/*.rays))
  (action (run %{exe:test_main.exe} test_scene_sync)))
 
 (rule
- (aliases runtest test_sop_catalog)
+ (alias test_sop_catalog)
  (deps ../sketches/ws_morph/sketch.rays)
  (action (run %{exe:test_main.exe} test_sop_catalog)))
 
@@ -118,34 +119,20 @@
  (action (run %{exe:test_main.exe} test_sop_catalog_exhaustive)))
 
 (rule
- (aliases runtest test_sketch_support)
+ (alias test_sketch_support)
  (action (run %{exe:test_main.exe} test_sketch_support)))
 
 (rule
- (aliases runtest test_terminal_boolean_normals)
+ (alias test_terminal_boolean_normals)
  (action (run %{exe:test_main.exe} test_terminal_boolean_normals)))
 
 (rule
- (aliases runtest test_workspace_cook)
- (deps (glob_files ../specification/workspace/cases/*.lisp))
- (action (run %{exe:test_main.exe} test_workspace_cook)))
-
-(rule
- (aliases runtest test_workspace_zone)
- (action (run %{exe:test_main.exe} test_workspace_zone)))
-
-(rule
- (aliases runtest test_workspace_live)
+ (alias test_workspace_live)
  (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_workspace_live)))
 
 (rule
- (aliases runtest test_workspace_edit)
- (deps (glob_files ../specification/workspace/cases/*.lisp))
- (action (run %{exe:test_main.exe} test_workspace_edit)))
-
-(rule
- (aliases runtest test_workspace_shell)
+ (alias test_workspace_shell)
  (deps (glob_files ../specification/workspace/cases/*.lisp) (glob_files_rec ../sketches/*.rays))
  (action (run %{exe:test_main.exe} test_workspace_shell)))
 
@@ -167,12 +154,12 @@
  (action (run %{exe:test_main.exe} test_workspace_view_native)))
 
 (rule
- (aliases runtest test_workspace_doc)
+ (alias test_workspace_doc)
  (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_workspace_doc)))
 
 (rule
- (aliases runtest dependency_gate)
+ (alias dependency_gate)
  (deps (source_tree ../lib) (source_tree ../ppx) (source_tree ../examples)
   (source_tree ../sketches) (source_tree ../tools) (source_tree .))
  (action
@@ -197,17 +184,12 @@
     --lock %{dep:../packaging/sdl3.lock} sdl3-mixer))))
 
 (rule
- (aliases runtest test_projection)
- (deps (glob_files ../specification/workspace/cases/*.lisp))
- (action (run %{exe:test_main.exe} test_projection)))
-
-(rule
- (aliases runtest test_probe)
+ (alias test_probe)
  (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_probe)))
 
 (rule
- (aliases runtest test_viewport_pick)
+ (alias test_viewport_pick)
  (deps (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_viewport_pick)))
 
@@ -216,10 +198,41 @@
  (deps %{bin:rays-lisp}))
 
 (rule
- (aliases runtest test_workspace_source)
+ (alias test_workspace_source)
  (action (run %{exe:test_main.exe} test_workspace_source)))
 
 (rule
- (aliases runtest test_bloom_studio)
+ (alias test_bloom_studio)
  (deps ../sketches/ws_bloom/sketch.rays (glob_files ../specification/workspace/cases/*.lisp))
  (action (run %{exe:test_main.exe} test_bloom_studio)))
+
+; Each test has its own alias, so `dune build @test_rays` runs that test only
+; (a rule on two aliases runs with every other rule of runtest).
+(alias
+ (name runtest)
+ (deps
+  (alias test_rays)
+  (alias test_text_pane)
+  (alias test_editor_consistency)
+  (alias test_easy_camera2)
+  (alias test_sop_ui)
+  (alias test_custom_sop)
+  (alias test_rays_editor_logic)
+  (alias test_editor_document)
+  (alias test_editor_input)
+  (alias test_editor_commands)
+  (alias test_editor_cook)
+  (alias test_editor_transactions)
+  (alias test_scene_tree)
+  (alias test_scene_sync)
+  (alias test_sop_catalog)
+  (alias test_sketch_support)
+  (alias test_terminal_boolean_normals)
+  (alias test_workspace_live)
+  (alias test_workspace_shell)
+  (alias test_workspace_doc)
+  (alias dependency_gate)
+  (alias test_probe)
+  (alias test_viewport_pick)
+  (alias test_workspace_source)
+  (alias test_bloom_studio)))

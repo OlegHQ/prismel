@@ -239,6 +239,8 @@ let violations graph ~scan =
     if not (ocaml path) then None else
     if not (metal_allowed path) && uses_metal text then Some (path ^ " uses Metal outside lib/metal and lib/ogpu_metal")
     else if String.starts_with ~prefix:"lib/pxui_graph/" path
+        (* its tests build key events to feed the pane *)
+        && not (String.starts_with ~prefix:"lib/pxui_graph/test_" path)
         && uses_key_pressed text then
       Some (path ^ " matches KeyPressed inside a presentation adapter")
     else None) scan in

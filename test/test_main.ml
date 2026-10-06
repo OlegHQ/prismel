@@ -3,10 +3,6 @@ let tests = [
   "test_easy_camera2", Test_easy_camera2.run;
   "test_sop_ui", Test_sop_ui.run;
   "test_custom_sop", Test_custom_sop.run;
-  "test_pxui_graph", Test_pxui_graph.run;
-  "test_pxui_graph_scope", Test_pxui_graph.run_scope;
-  "bench_scope_pane", Test_pxui_graph.bench_scope_pane;
-  "bench_scope_big", Test_pxui_graph.bench_scope_big;
   "test_rays_editor", Test_rays_editor.run;
   "test_rays_editor_logic", Test_rays_editor.run_logic;
   "test_editor_document", Test_editor_document.run;
@@ -21,12 +17,7 @@ let tests = [
   "test_sop_catalog_exhaustive", (fun () -> Test_sop_catalog.run ~exhaustive:true ());
   "test_sketch_support", Test_sketch_support.run;
   "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;
-  "test_workspace_cook", Test_workspace_cook.run;
-  "test_workspace_zone", Test_workspace_zone.run;
-  "bench_workspace_zone", Test_workspace_zone.bench;
   "test_workspace_live", Test_workspace_live.run;
-  "test_workspace_edit", Test_workspace_edit.run;
-  "test_projection", Test_projection.run;
   "test_text_pane", Test_text_pane.run;
   "test_editor_consistency", Test_editor_consistency.run;
   "test_editor_consistency_native", Test_editor_consistency.run_native;

@@ -3,3 +3,36 @@
  (public_name rays.flow_sop)
  (modules port instance_path curve network value_lane catalog manifest lower flow_edit exposure projection probe)
  (libraries flow param procedural))
+
+; Tests that need no editor: they link the catalog and the document contexts,
+; not rays_editor. They read their fixtures relative to test/, where they ran
+; before, so each action runs there. Each alias runs its own test only;
+; runtest depends on all of them.
+(executable
+ (name test_main)
+ (modules test_main test_projection test_workspace_edit test_workspace_cook test_workspace_zone)
+ (libraries flow flow_sop editor_document sop_catalog procedural rdk unix))
+
+(rule
+ (alias test_projection)
+ (deps (glob_files ../../specification/workspace/cases/*.lisp))
+ (action (chdir ../../test (run %{exe:test_main.exe} test_projection))))
+
+(rule
+ (alias test_workspace_edit)
+ (deps (glob_files ../../specification/workspace/cases/*.lisp))
+ (action (chdir ../../test (run %{exe:test_main.exe} test_workspace_edit))))
+
+(rule
+ (alias test_workspace_cook)
+ (deps (glob_files ../../specification/workspace/cases/*.lisp))
+ (action (chdir ../../test (run %{exe:test_main.exe} test_workspace_cook))))
+
+(rule
+ (alias test_workspace_zone)
+ (action (chdir ../../test (run %{exe:test_main.exe} test_workspace_zone))))
+
+(alias
+ (name runtest)
+ (deps (alias test_projection) (alias test_workspace_edit)
+  (alias test_workspace_cook) (alias test_workspace_zone)))
