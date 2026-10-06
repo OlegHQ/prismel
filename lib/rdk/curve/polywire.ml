@@ -977,9 +977,8 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
           | None -> 0
           | Some values -> values.((if weight < 0.5 then left_point else right_point)) in
         let seam =
-          let a = seam_offset mod count and b = seam_attribute mod count in
-          let value = a + b in
-          let value = if value < 0 then value + count else value in
+          let value = normalized_offset seam_offset count
+              + normalized_offset seam_attribute count in
           if value >= count then value - count else value in
         let bx = (tangent_y.(ring) *. frame_z.(ring))
             -. (tangent_z.(ring) *. frame_y.(ring))
@@ -1272,9 +1271,8 @@ let run ?cancel ~grain ~primitives ~sides ~divisions_attribute ~segments
               | None -> 0
               | Some values -> values.
                   ((if weight < 0.5 then left_point else right_point)) in
-            let a = seam_offset mod count and b = seam_attribute mod count in
-            let seam = let value = a + b in
-              let value = if value < 0 then value + count else value in
+            let seam = let value = normalized_offset seam_offset count
+                + normalized_offset seam_attribute count in
               if value >= count then value - count else value in
             let edge_vertex = ring_left_vertex.(ring) in
             let segment_shift = match segment_seam_values with

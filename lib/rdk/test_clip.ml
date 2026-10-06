@@ -1,17 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
-let get_string_ok = function Ok value -> value | Error message -> fail message
-let near ?(epsilon = 1e-10) left right = abs_float (left -. right) <= epsilon
-
-let expect_code code = function
-  | Error error when String.equal (Error.code error) code -> ()
-  | Error error -> fail (Printf.sprintf "expected %s, received %s" code
-      (Error.to_string error))
-  | Ok _ -> fail ("expected error " ^ code)
+open Rdk_test_support
 
 let equal_storage left right =
   match Attribute.Private.storage left, Attribute.Private.storage right with
@@ -52,15 +41,6 @@ let equal_group left right =
   && Group.length left = Group.length right
   && Bytes.equal (Group.Private.bits_view left) (Group.Private.bits_view right)
   && Group.Private.order_view left = Group.Private.order_view right
-
-let equal_edge_group left right =
-  String.equal (Edge_group.name left) (Edge_group.name right)
-  && Edge_group.length left = Edge_group.length right
-  && let equal = ref true in
-     for edge = 0 to Edge_group.length left - 1 do
-       if Edge_group.mem edge left <> Edge_group.mem edge right then equal := false
-     done;
-     !equal
 
 let equal_geometry left right =
   let left_positions = Packed.Float3.Private.view (Geometry.positions left)

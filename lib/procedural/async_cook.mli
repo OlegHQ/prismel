@@ -61,7 +61,10 @@ val submit_some :
     footers count this way. *)
 
 val set_volatile : 'a t -> (int -> bool) -> unit
-(** [Session.set_volatile] on the worker's session. *)
+(** [Session.set_volatile] on the worker's session, applied by the worker
+    before the next request it starts (a queued one included): the cook in
+    flight keeps the predicate it started with, and the predicate is only ever
+    called on the worker's domain. *)
 
 val node_seconds : 'a t -> int -> float option
 (** [Session.node_seconds] on the worker's session. *)

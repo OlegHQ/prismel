@@ -2208,6 +2208,10 @@ let run_fuse_benchmarks () =
     geometry_output;
   measure ~input_points:duplicate_count "fuse_exact_duplicate_pair" (fun () ->
     Fuse_grid.fuse ~grain ~tolerance:0. duplicate |> get_ok) geometry_output;
+  (* several points a cluster, so the per-cluster sort of the median runs *)
+  measure ~input_points:point_count "fuse_median_position" (fun () ->
+    Fuse_grid.fuse ~grain ~tolerance:0.25
+      ~position:Fuse_reduce.Median_position source |> get_ok) geometry_output;
   let target = Plane_generators.grid ~columns:500 ~rows:400 ~size:30. () |> get_ok in
   let query = Transform_ops.transform ~grain
       (Mat4.translation (Vec3.create 0.013 (-0.017) 0.009)) target in

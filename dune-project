@@ -20,7 +20,7 @@
  (synopsis "A modern, functional graphics framework for OCaml")
  (description "A clean, type-safe API for creating interactive graphics applications, games, and generative art in OCaml")
  (depends
-  (ocaml (>= 5.2))
+  (ocaml (>= 5.3))
   (dune (>= 3.21))
   digestif
   dune-configurator

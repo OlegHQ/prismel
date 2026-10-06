@@ -204,27 +204,14 @@ module Font = struct
       error operation Invalid_argument "text is not valid UTF-8"
     else Ok ()
 
-  let system_font_candidates () =
-    let fixed =
-      [ "/System/Library/Fonts/SFNSMono.ttf"
-      ; "/System/Library/Fonts/SFNS.ttf"
-      ; "/System/Library/Fonts/SFCompact.ttf"
-      ; "/System/Library/Fonts/HelveticaNeue.ttc"
-      ; "/System/Library/Fonts/Helvetica.ttc"
-      ; "/System/Library/Fonts/LucidaGrande.ttc"
-      ; "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
-      ; "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-      ; "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"
-      ; "/usr/share/fonts/TTF/DejaVuSans.ttf"
-      ]
-    in
-    match Sys.getenv_opt "WINDIR" with
-    | None -> fixed
-    | Some root ->
-        Filename.concat root "Fonts/SegUIVar.ttf"
-        :: Filename.concat root "Fonts/segoeui.ttf"
-        :: Filename.concat root "Fonts/arial.ttf"
-        :: fixed
+  let system_font_candidates =
+    [ "/System/Library/Fonts/SFNSMono.ttf"
+    ; "/System/Library/Fonts/SFNS.ttf"
+    ; "/System/Library/Fonts/SFCompact.ttf"
+    ; "/System/Library/Fonts/HelveticaNeue.ttc"
+    ; "/System/Library/Fonts/Helvetica.ttc"
+    ; "/System/Library/Fonts/LucidaGrande.ttc"
+    ]
 
   let system_path () =
     match Sys.getenv_opt "RAYS_UI_FONT" with
@@ -233,7 +220,7 @@ module Font = struct
         else error "SDL3_ttf.Font.system_path" Font_not_found
           ("RAYS_UI_FONT does not name a readable font: " ^ path)
     | _ ->
-        (match List.find_opt Sys.file_exists (system_font_candidates ()) with
+        (match List.find_opt Sys.file_exists system_font_candidates with
          | Some path -> Ok path
          | None -> error "SDL3_ttf.Font.system_path" Font_not_found
              "no supported installed system UI font was found")

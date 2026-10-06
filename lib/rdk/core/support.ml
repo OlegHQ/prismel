@@ -149,3 +149,16 @@ let select ?cancel keys order first last selected =
     else if selected >= !left then lower := !left
     else begin lower := selected; upper := selected end
   done
+
+let get_ok = function Ok value -> value | Error message -> invalid_arg message
+
+let ceiling_div value divisor =
+  (value / divisor) + if value mod divisor = 0 then 0 else 1
+
+module Parallel = Rays_math.Parallel
+
+let parallel_for ?cancel ~grain count work =
+  if count > 0 then Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1)
+    (fun element ->
+      if element land 4095 = 0 then Cancel.check_opt cancel;
+      work element)

@@ -30,8 +30,6 @@ exception Invalid of string
 
 let segment = '\000'
 let triangle = '\001'
-let ceiling_div value divisor =
-  (value / divisor) + if value mod divisor = 0 then 0 else 1
 
 let feature_count features = Array.length features.a
 
@@ -62,7 +60,7 @@ let primitive_features ?cancel ?(grain = 16_384) geometry =
     let entities = Array.make total 0 and kinds = Bytes.make total segment
     and a = Array.make total 0
     and b = Array.make total 0 and c = Array.make total (-1) in
-    let ranges = ceiling_div entity_count grain in
+    let ranges = Support.ceiling_div entity_count grain in
     let failures = Array.make ranges None in
     if ranges > 0 then Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(ranges - 1)
         (fun range ->
@@ -464,7 +462,7 @@ let nearest_entities_with_distances ?cancel ?(grain = 16_384) ~max_distance
     let maximum = max_distance *. max_distance in
     let output = Array.make queries.entity_count (-1)
     and distances = Array.make queries.entity_count Float.infinity in
-    let ranges = ceiling_div queries.entity_count grain in
+    let ranges = Support.ceiling_div queries.entity_count grain in
     if ranges > 0 then Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(ranges - 1)
         (fun range ->
           let first_entity = range * grain

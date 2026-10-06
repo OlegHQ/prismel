@@ -1,0 +1,3 @@
+(executable
+ (name dedupe)
+ (libraries compiler-libs.common))

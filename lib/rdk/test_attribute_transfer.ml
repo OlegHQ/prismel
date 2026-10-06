@@ -1,10 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
+open Rdk_test_support
 
 let float_values ~owner ~name geometry =
   match Geometry.find_attribute ~owner name geometry with

@@ -3,9 +3,6 @@ open Rays_math
 let operation = "intersection_analysis"
 let error code message = Error (Error.make ~operation ~code message)
 
-let ceiling_div value divisor =
-  (value / divisor) + if value mod divisor = 0 then 0 else 1
-
 let validate_name = function
   | None -> true
   | Some name -> String.trim name <> ""
@@ -44,7 +41,7 @@ let event_pass ?cancel ~grain ~self ~tolerance ~include_coplanar source_index
         source_index collision_index in
   let candidate_count = Array.length source_pieces in
   let chunk = max 1 grain and counts = Array.make candidate_count 0 in
-  let range_count = ceiling_div candidate_count chunk in
+  let range_count = Support.ceiling_div candidate_count chunk in
   let source_positions = Linear_piece_index.Private.positions source_index
   and collision_positions = Linear_piece_index.Private.positions collision_index in
   let narrow scratch point_info events source_piece collision_piece =

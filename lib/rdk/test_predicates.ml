@@ -1,7 +1,5 @@
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
+open Rdk_test_support
 
 let opposite = function
   | Predicates.Negative -> Predicates.Positive

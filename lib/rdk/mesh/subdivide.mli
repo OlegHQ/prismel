@@ -25,9 +25,6 @@ type crack_policy =
   | Subdivide_stitch_divide_edges
   | Subdivide_stitch_triangulate
 exception Subdivide_error of string
-val get_ok : ('a, string) result -> 'a
-val run :
-  ?grain:int -> ?cancel:Rdk_core.Cancel.t -> int -> (int -> unit) -> unit
 type plan = {
   scheme : scheme;
   source : Rdk_core.Geometry.t;

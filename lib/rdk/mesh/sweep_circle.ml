@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let run_legacy ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
     ?(seam_offset = 0) ?seam_attribute ?v_attribute ?up_attribute
     ?(caps = false) ?cap_group ~radius geometry =
@@ -576,15 +574,15 @@ let run_legacy ?cancel ?(grain = 16_384) ?(sides = 12) ?scale_attribute
               Result.bind (attributes [] (Geometry.attributes geometry)) (fun attributes ->
                 let normal = Attribute.create_key_owned
                     (Attribute.normal ~owner:Attribute.Point)
-                    (Packed.Float3.Private.of_owned_exn ~x:nx ~y:ny ~z:nz) |> get_ok
+                    (Packed.Float3.Private.of_owned_exn ~x:nx ~y:ny ~z:nz) |> Support.get_ok
                 and uv = Attribute.create_key_owned
                     (Attribute.tex_coord ~owner:Attribute.Vertex)
-                    (Packed.Float2.of_owned ~x:uvx ~y:uvy |> get_ok) |> get_ok in
+                    (Packed.Float2.of_owned ~x:uvx ~y:uvy |> Support.get_ok) |> Support.get_ok in
                 let vertex_normal = if caps then Some
                     (Attribute.create_key_owned
                       (Attribute.normal ~owner:Attribute.Vertex)
                       (Packed.Float3.Private.of_owned_exn ~x:vertex_nx
-                        ~y:vertex_ny ~z:vertex_nz) |> get_ok)
+                        ~y:vertex_ny ~z:vertex_nz) |> Support.get_ok)
                   else None in
                 let groups = List.map
                     (Topology_remap.mapped_group ~grain:16_384 ~point_map ~vertex_map

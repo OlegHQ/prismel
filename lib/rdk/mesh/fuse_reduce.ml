@@ -59,14 +59,6 @@ exception Invalid of string
 
 let get_ok = function Ok value -> value | Error message -> raise (Invalid message)
 
-let select source mapping = Array.init (Array.length mapping) (fun index ->
-    source.(mapping.(index)))
-
-let expand clusters compact values =
-  if compact then values
-  else Array.init (Array.length clusters.Point_clusters.of_point) (fun point ->
-      values.(clusters.of_point.(point)))
-
 let average_plane ~grain clusters source =
   let output = Array.make clusters.Point_clusters.count 0. in
   Parallel.for_ ~chunk_size:(max 1 (grain / 8)) ~start:0
@@ -92,45 +84,6 @@ let average_plane ~grain clusters source =
       end);
   output
 
-let[@inline] compare_entry values points left right =
-  let compared = Float.compare values.(left) values.(right) in
-  if compared <> 0 then compared else Int.compare points.(left) points.(right)
-
-let swap values points left right =
-  if left <> right then begin
-    let value = values.(left) in values.(left) <- values.(right);
-    values.(right) <- value;
-    let point = points.(left) in points.(left) <- points.(right);
-    points.(right) <- point
-  end
-
-let sift_down values points first root count =
-  let root = ref root in
-  let continuing = ref true in
-  while !continuing do
-    let child = (!root * 2) + 1 in
-    if child >= count then continuing := false
-    else begin
-      let selected = if child + 1 < count
-          && compare_entry values points (first + child) (first + child + 1) < 0
-        then child + 1 else child in
-      if compare_entry values points (first + !root) (first + selected) < 0
-      then begin swap values points (first + !root) (first + selected);
-        root := selected end
-      else continuing := false
-    end
-  done
-
-let sort_range values points first last =
-  let count = last - first in
-  for root = (count / 2) - 1 downto 0 do
-    sift_down values points first root count
-  done;
-  for remaining = count - 1 downto 1 do
-    swap values points first (first + remaining);
-    sift_down values points first 0 remaining
-  done
-
 let sorted_reduction ~grain clusters source mode =
   let values = Array.init (Array.length clusters.Point_clusters.members)
       (fun slot -> source.(clusters.members.(slot)))
@@ -140,7 +93,7 @@ let sorted_reduction ~grain clusters source mode =
     ~finish:(clusters.count - 1) (fun cluster ->
       let first = clusters.offsets.(cluster)
       and last = clusters.offsets.(cluster + 1) in
-      sort_range values points first last;
+      Fuse_rules.sort_range Fuse_rules.compare_float_entry values points first last;
       match mode with
       | `Median -> output.(cluster) <- values.(first + ((last - first) / 2))
       | `Mode ->
@@ -166,7 +119,7 @@ let sorted_reduction ~grain clusters source mode =
 let numeric_reduction ~grain clusters source position weights =
   match position with
   | First_position | Least_point_position ->
-      select source clusters.Point_clusters.representatives
+      Fuse_rules.select source clusters.Point_clusters.representatives
   | Greatest_point_position -> Array.init clusters.count (fun cluster ->
       source.(clusters.members.(clusters.offsets.(cluster + 1) - 1)))
   | Average_position -> average_plane ~grain clusters source
@@ -289,11 +242,11 @@ let apply ?cancel ~grain ~position ?weight_attribute ~attributes
           (Option.get weights) false)
       | _ -> None in
     let cluster_plane source = match selected with
-      | Some mapping -> select source mapping
+      | Some mapping -> Fuse_rules.select source mapping
       | None -> numeric_reduction ~grain clusters source position weights in
-    let px = expand clusters compact (cluster_plane positions.x)
-    and py = expand clusters compact (cluster_plane positions.y)
-    and pz = expand clusters compact (cluster_plane positions.z) in
+    let px = Fuse_rules.expand clusters compact (cluster_plane positions.x)
+    and py = Fuse_rules.expand clusters compact (cluster_plane positions.y)
+    and pz = Fuse_rules.expand clusters compact (cluster_plane positions.z) in
     validate_positions px py pz;
     let output_positions = Packed.Float3.Private.of_owned_exn ~x:px ~y:py ~z:pz in
     let point_map = if compact then clusters.of_point

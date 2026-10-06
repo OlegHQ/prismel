@@ -51,3 +51,20 @@ val apply :
   Attribute.t list * Group.t list
 (** Apply point-attribute and point-group cluster policies. Internal validation
     failures raise [Invalid_argument] for the enclosing Fuse result boundary. *)
+
+(** Shared with [Fuse_reduce]. *)
+
+val select : 'a array -> int array -> 'a array
+(** [select source mapping] is [source.(mapping.(i))] for each [i]. *)
+
+val expand : Point_clusters.clusters -> bool -> 'a array -> 'a array
+(** Per-cluster values as given when compact, else one per source point. *)
+
+val compare_float_entry : float array -> int array -> int -> int -> int
+(** Order two slots by value, then by point index. *)
+
+val sort_range :
+  ('a array -> int array -> int -> int -> int) ->
+  'a array -> int array -> int -> int -> unit
+(** [sort_range compare values points first last] heap-sorts the slots
+    [first .. last - 1] of both planes together, in place. *)

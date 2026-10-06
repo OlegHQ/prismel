@@ -84,8 +84,6 @@ let pair_builder_add builder first second =
 
 let fail message = raise (Surface_error message)
 let leaf_size = 8
-let ceiling_div value divisor =
-  (value / divisor) + if value mod divisor = 0 then 0 else 1
 
 let diagonal_count = 4
 
@@ -145,7 +143,7 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
         let vertex_bits = Group.Private.bits_view vertices in
         let candidate_count = Array.length selected_primitives
         and chunk = max 1 grain in
-        let range_count = ceiling_div candidate_count chunk in
+        let range_count = Support.ceiling_div candidate_count chunk in
         let keep = Bytes.make candidate_count '\000'
         and range_counts = Array.make range_count 0 in
         if range_count > 0 then Parallel.for_ ~chunk_size:1 ~start:0
@@ -221,9 +219,9 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
       Array.make triangles 0, Array.make triangles 0,
       Array.make triangles 0, Array.make triangles 0 in
   let average_triangles = if selected_count = 0 then 1
-    else max 1 (ceiling_div triangles selected_count) in
+    else max 1 (Support.ceiling_div triangles selected_count) in
   let primitive_chunk = max 1 (grain / average_triangles) in
-  let primitive_ranges = ceiling_div selected_count primitive_chunk in
+  let primitive_ranges = Support.ceiling_div selected_count primitive_chunk in
   let triangulation_errors = Array.make primitive_ranges None in
   if not validated_triangles && primitive_ranges > 0 then
     Parallel.for_ ~chunk_size:1 ~start:0
@@ -257,7 +255,7 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
     | None -> triangles, primitives, vertex_a, vertex_b, vertex_c
     | Some selected_vertices ->
         let selected_vertex_bits = Group.Private.bits_view selected_vertices in
-        let range_count = ceiling_div triangles grain in
+        let range_count = Support.ceiling_div triangles grain in
         let keep = Bytes.make triangles '\000'
         and range_counts = Array.make range_count 0 in
         if range_count > 0 then Parallel.for_ ~chunk_size:1 ~start:0
@@ -315,7 +313,7 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
   and triangle_max_z = Array.make triangles 0.
   and triangle_min_d = Array.init diagonal_count (fun _ -> Array.make triangles 0.)
   and triangle_max_d = Array.init diagonal_count (fun _ -> Array.make triangles 0.) in
-  let triangle_ranges = ceiling_div triangles grain in
+  let triangle_ranges = Support.ceiling_div triangles grain in
   let triangle_errors = Array.make triangle_ranges None in
   if triangle_ranges > 0 then Parallel.for_ ~chunk_size:1 ~start:0
       ~finish:(triangle_ranges - 1) (fun range ->
@@ -617,7 +615,7 @@ let overlapping_triangle_pairs_raw ?cancel ?(single_pass = false)
        caller requests grain one; output order remains triangle-major and is
        therefore independent of this scheduling subdivision. *)
     let range_size = if single_pass then max 128 grain else max 1 grain in
-    let range_count = ceiling_div left_count range_size in
+    let range_count = Support.ceiling_div left_count range_size in
     let scan node_stack left_bounds left_triangle output_left
         output_right output_at builder =
       triangle_bounds_into left_surface left_triangle left_bounds;
@@ -1467,7 +1465,7 @@ let raycast_samples_into ?cancel ?selection ~grain value ~queries ~directions
         true
     | _ -> invalid_arg "Surface_index: sampled ray normal arrays must be supplied together" in
   let queries = Packed.Float3.Private.view queries in
-  let range_count = ceiling_div query_count grain in
+  let range_count = Support.ceiling_div query_count grain in
   if range_count > 0 then Parallel.for_ ~chunk_size:1 ~start:0
       ~finish:(range_count - 1) (fun range ->
     let first = range * grain and last = min query_count ((range + 1) * grain) in
@@ -1577,7 +1575,7 @@ let raycast_average_drivers_into ?cancel ?selection ~grain value ~queries
       || Array.length vertex_weights < offsets.(query_count) then
     invalid_arg "Surface_index: average ray driver arrays are inconsistent";
   let queries = Packed.Float3.Private.view queries in
-  let range_count = ceiling_div query_count grain in
+  let range_count = Support.ceiling_div query_count grain in
   if range_count > 0 then Parallel.for_ ~chunk_size:1 ~start:0
       ~finish:(range_count - 1) (fun range ->
     let first = range * grain and last = min query_count ((range + 1) * grain) in
@@ -1651,7 +1649,7 @@ let raycast_many_into ?cancel ?selection ~grain value ~queries ~directions
       || Array.length distances < query_count then
     invalid_arg "Surface_index: ray output arrays are too short";
   let queries = Packed.Float3.Private.view queries in
-  let range_count = ceiling_div query_count grain in
+  let range_count = Support.ceiling_div query_count grain in
   if range_count > 0 then Parallel.for_ ~chunk_size:1 ~start:0
       ~finish:(range_count - 1) (fun range ->
     let first = range * grain and last = min query_count ((range + 1) * grain) in

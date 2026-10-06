@@ -47,3 +47,13 @@ val select : ?cancel:Cancel.t -> float array -> int array -> int -> int -> int -
     [order.(k)] is the element that ordering by [keys.(i)] (ties by [i]) would
     put there, with smaller elements before it and larger after. Expected
     O(last - first) time, in place. *)
+
+val get_ok : ('a, string) result -> 'a
+(** The value, or [Invalid_argument] with the error message. *)
+
+val ceiling_div : int -> int -> int
+(** Quotient rounded up, for a non-negative value and a positive divisor. *)
+
+val parallel_for : ?cancel:Cancel.t -> grain:int -> int -> (int -> unit) -> unit
+(** [parallel_for ~grain count work] runs [work] on [0 .. count - 1] in chunks
+    of [grain] on the shared pool, checking [cancel] every 4096 elements. *)

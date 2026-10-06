@@ -1,15 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
-
-let get_string_ok = function
-  | Ok value -> value
-  | Error message -> fail message
+open Rdk_test_support
 
 let near_arrays left right =
   Array.length left = Array.length right

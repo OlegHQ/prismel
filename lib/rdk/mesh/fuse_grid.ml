@@ -2,7 +2,6 @@ open Rays_math
 open Fuse_reduce
 
 let finite value = Float.is_finite value
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
 
 type fuse_metric = Euclidean | Componentwise
 type fuse_using = Point_snap.using =
@@ -236,14 +235,14 @@ let fuse ?cancel ?(grain = 16_384) ?selection ?target_selection
                            then values.(point) <- point
                          done);
                     let attribute = Attribute.create_owned ~owner:Attribute.Point
-                        ~name (Attribute.Int values) |> get_ok in
-                    Geometry.with_attribute attribute output |> get_ok in
+                        ~name (Attribute.Int values) |> Support.get_ok in
+                    Geometry.with_attribute attribute output |> Support.get_ok in
               match snapped_group with
               | None -> output
               | Some name ->
                   let group = Group.init ~grain ~owner:Group.Point ~name count
                       (fun point -> destinations.(point) >= 0) in
-                  Geometry.with_group group output |> get_ok in
+                  Geometry.with_group group output |> Support.get_ok in
             let install_reduced_outputs clusters ~compact output =
               let output_count = Geometry.point_count output in
               let source_point output_point = if compact then
@@ -264,15 +263,15 @@ let fuse ?cancel ?(grain = 16_384) ?selection ?target_selection
                       let point = source_point output_point in
                       if point < 0 then -1 else destinations.(point)) in
                     let attribute = Attribute.create_owned ~owner:Attribute.Point
-                        ~name (Attribute.Int values) |> get_ok in
-                    Geometry.with_attribute attribute output |> get_ok in
+                        ~name (Attribute.Int values) |> Support.get_ok in
+                    Geometry.with_attribute attribute output |> Support.get_ok in
               match snapped_group with
               | None -> output
               | Some name ->
                   let group = Group.init ~grain ~owner:Group.Point ~name
                       output_count (fun output_point ->
                         source_point output_point >= 0) in
-                  Geometry.with_group group output |> get_ok in
+                  Geometry.with_group group output |> Support.get_ok in
             if same && effective_modify_target && !mapped > 0 then
               Result.bind (Point_clusters.of_links ?cancel
                   ~operation:"Rdk.Fuse_grid.fuse" destinations) (function
@@ -298,7 +297,7 @@ let fuse ?cancel ?(grain = 16_384) ?selection ?target_selection
                     end);
               Geometry.with_positions
                 (Packed.Float3.Private.of_owned_exn ~x ~y ~z) geometry
-                |> get_ok
+                |> Support.get_ok
                 |> Geometry.without_attribute ~owner:Attribute.Point "N"
                 |> Geometry.without_attribute ~owner:Attribute.Vertex "N"
             end in
@@ -418,7 +417,7 @@ let snap_to_grid ?cancel ?(grain = 16_384) ?selection
       else
         let output = if changed_count = 0 then geometry else
             Geometry.with_positions
-              (Packed.Float3.Private.of_owned_exn ~x ~y ~z) geometry |> get_ok
+              (Packed.Float3.Private.of_owned_exn ~x ~y ~z) geometry |> Support.get_ok
             |> Geometry.without_attribute ~owner:Attribute.Point "N"
             |> Geometry.without_attribute ~owner:Attribute.Vertex "N" in
         let output = match snapped_group with
@@ -426,7 +425,7 @@ let snap_to_grid ?cancel ?(grain = 16_384) ?selection
           | Some name ->
               let group = Group.Private.of_owned_bits ~owner:Group.Point ~name
                   ~length:count changed in
-              Geometry.with_group group output |> get_ok in
+              Geometry.with_group group output |> Support.get_ok in
         if not fuse_points then Ok output
         else Error.unguard (fuse ?cancel ~grain ?selection ~tolerance:0. ~position
             ?weight_attribute ~attributes ~attribute_rules ~group_rules output)

@@ -1,9 +1,6 @@
 open Rays
 open Procedural
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get = function Ok value -> value | Error message -> fail message
+open Rdk_test_support
 
 let run () =
   let source = Sop.box ~label:"source" ~size:(Vec3.create 1. 1. 1.) () in

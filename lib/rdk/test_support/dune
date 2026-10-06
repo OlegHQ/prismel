@@ -1,0 +1,3 @@
+(library
+ (name rdk_test_support)
+ (libraries rdk))

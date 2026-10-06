@@ -2,7 +2,6 @@
 
 type t
 
-val zero : t
 val is_zero : t -> bool
 val of_float : float -> t
 val add : t -> t -> t

@@ -14,7 +14,7 @@ type model = {
 let init _frame = { lines = []; dragging = None; zoom = 1. }
 
 let remember model line =
-  { model with lines = line :: List.filteri (fun index _ -> index < 7) model.lines }
+  { model with lines = line :: List.take 7 model.lines }
 
 let open_dialog ?filters kind =
   match Sketch.show_file_dialog ?filters kind with

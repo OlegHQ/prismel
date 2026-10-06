@@ -1,11 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
+open Rdk_test_support
 
 let close left right = abs_float (left -. right) <= 1e-10
 
@@ -42,15 +37,6 @@ let normal owner geometry =
       (match Attribute.get (Attribute.normal ~owner) attribute with
        | Some value -> Packed.Float3.Private.view value
        | None -> fail "invalid normal storage")
-
-let same_float_array left right =
-  Array.length left = Array.length right
-  && let equal = ref true in
-     for index = 0 to Array.length left - 1 do
-       if Int64.bits_of_float left.(index) <> Int64.bits_of_float right.(index)
-       then equal := false
-     done;
-     !equal
 
 let same_float3 left right =
   let left = Packed.Float3.Private.view left

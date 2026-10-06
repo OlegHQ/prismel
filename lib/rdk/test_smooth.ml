@@ -1,13 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
-let get_string_ok = function Ok value -> value | Error message -> fail message
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
+open Rdk_test_support
 
 let add_attribute attribute geometry =
   Geometry.with_attribute attribute geometry |> get_string_ok
@@ -19,12 +12,6 @@ let point_float name geometry =
        | Attribute.Float values -> values
        | _ -> fail (name ^ " has unexpected storage"))
   | None -> fail ("missing point attribute " ^ name)
-
-let expect_code code = function
-  | Error error when String.equal (Error.code error) code -> ()
-  | Error error -> fail (Printf.sprintf "expected %s, received %s"
-      code (Error.to_string error))
-  | Ok _ -> fail ("expected error " ^ code)
 
 let two_curves () =
   let positions = Packed.Float3.Private.of_owned_exn
@@ -75,19 +62,6 @@ let equal_attribute left right =
       and right = Packed.Float_array.Private.view right in
       left.offsets = right.offsets && left.values = right.values
   | _ -> false
-
-let equal_group left right =
-  Group.owner left = Group.owner right
-  && String.equal (Group.name left) (Group.name right)
-  && Group.length left = Group.length right
-  && Group.ordered_elements left = Group.ordered_elements right
-  && begin
-    let equal = ref true in
-    for element = 0 to Group.length left - 1 do
-      if Group.mem element left <> Group.mem element right then equal := false
-    done;
-    !equal
-  end
 
 let equal_geometry left right =
   let left_positions = positions left and right_positions = positions right

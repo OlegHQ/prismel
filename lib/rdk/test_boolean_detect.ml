@@ -1,10 +1,8 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get = function Ok value -> value | Error error -> fail (Error.to_string error)
-let get_string = function Ok value -> value | Error message -> fail message
 
 let geometry points triangles =
   let count = Array.length points in

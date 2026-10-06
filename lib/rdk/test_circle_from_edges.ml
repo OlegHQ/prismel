@@ -1,13 +1,8 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_string = function Ok value -> value | Error message -> fail message
 let get = function Ok value -> value | Error error -> fail (Error.to_string error)
-let near ?(epsilon = 1e-10) a b = abs_float (a -. b) <= epsilon
-
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let attribute owner name storage =
   Attribute.create_owned ~owner ~name storage |> get_string

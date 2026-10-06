@@ -3,8 +3,6 @@ open Rays_math
 
 type kind = Line_curve | Line_points
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let points values =
   let count = Array.length values in
   let builder = Packed.Float3.Builder.create count in
@@ -12,7 +10,7 @@ let points values =
     Packed.Float3.Builder.set builder index x y z) values;
   let positions = Packed.Float3.Builder.freeze builder in
   Geometry.create ~positions ~topology:(Topology.empty ~point_count:count) ()
-  |> get_ok
+  |> Support.get_ok
 
 let line ?cancel ?(grain = 16_384) ?(kind = Line_curve) ?(points = 2)
     ~origin ~direction ~length () =

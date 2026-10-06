@@ -1,7 +1,5 @@
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
-
 let points values =
   let count = Array.length values in
   let builder = Packed.Float3.Builder.create count in
@@ -9,7 +7,7 @@ let points values =
     Packed.Float3.Builder.set builder index x y z) values;
   let positions = Packed.Float3.Builder.freeze builder in
   Geometry.create ~positions ~topology:(Topology.empty ~point_count:count) ()
-  |> get_ok
+  |> Support.get_ok
 
 let same_attribute_schema left right =
   Attribute.owner left = Attribute.owner right
@@ -36,7 +34,7 @@ let concat_float2 attributes =
     | _ -> assert false) attributes in
   Packed.Float2.of_owned ~x:(Array.concat (Array.to_list (Array.map (fun v -> v.Packed.Float2.Private.x) views)))
     ~y:(Array.concat (Array.to_list (Array.map (fun v -> v.Packed.Float2.Private.y) views)))
-  |> get_ok
+  |> Support.get_ok
 
 let concat_float3 attributes =
   let views = Array.map (fun attribute -> match Attribute.Private.storage attribute with
@@ -56,7 +54,7 @@ let concat_float4 attributes =
     ~y:(Array.concat (Array.to_list (Array.map (fun v -> v.Packed.Float4.Private.y) views)))
     ~z:(Array.concat (Array.to_list (Array.map (fun v -> v.Packed.Float4.Private.z) views)))
     ~w:(Array.concat (Array.to_list (Array.map (fun v -> v.Packed.Float4.Private.w) views)))
-  |> get_ok
+  |> Support.get_ok
 
 let concatenate_attribute template attributes =
   let storage = match Attribute.Private.storage template with

@@ -1,8 +1,7 @@
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
 let get = function Ok value -> value | Error error -> fail (Error.to_string error)
-let get_string = function Ok value -> value | Error message -> fail message
 
 let high_valence_surface () =
   let ring = 40 in

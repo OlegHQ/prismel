@@ -1,7 +1,6 @@
 open Rdk_core
 open Rays_math
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let normalize_plane_axis = Plane_generators.normalize_plane_axis
 
 type torus_connectivity =
@@ -549,25 +548,25 @@ let torus ?cancel ?(grain = 16_384) ?(connectivity = Torus_triangles)
              | Some (x, y, z) ->
                  let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                  attributes := (Attribute.create_key_owned
-                     (Attribute.normal ~owner:Attribute.Point) values |> get_ok)
+                     (Attribute.normal ~owner:Attribute.Point) values |> Support.get_ok)
                    :: !attributes
              | None -> ());
             (match vertex_normals with
              | Some (x, y, z) ->
                  let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                  attributes := (Attribute.create_key_owned
-                     (Attribute.normal ~owner:Attribute.Vertex) values |> get_ok)
+                     (Attribute.normal ~owner:Attribute.Vertex) values |> Support.get_ok)
                    :: !attributes
              | None -> ());
             (match uv_attribute, point_uv, vertex_uv with
              | Some name, Some (x, y), None ->
-                 let values = Packed.Float2.of_owned ~x ~y |> get_ok in
+                 let values = Packed.Float2.of_owned ~x ~y |> Support.get_ok in
                  attributes := (Attribute.create_owned ~name ~owner:Attribute.Point
-                     (Attribute.Float2 values) |> get_ok) :: !attributes
+                     (Attribute.Float2 values) |> Support.get_ok) :: !attributes
              | Some name, None, Some (x, y) ->
-                 let values = Packed.Float2.of_owned ~x ~y |> get_ok in
+                 let values = Packed.Float2.of_owned ~x ~y |> Support.get_ok in
                  attributes := (Attribute.create_owned ~name
-                     ~owner:Attribute.Vertex (Attribute.Float2 values) |> get_ok)
+                     ~owner:Attribute.Vertex (Attribute.Float2 values) |> Support.get_ok)
                    :: !attributes
              | None, None, None -> ()
              | _ -> assert false);
@@ -1086,25 +1085,25 @@ let tube ?cancel ?(grain = 16_384) ?(connectivity = Tube_quads)
              | Some (x, y, z) ->
                  let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                  attributes := (Attribute.create_key_owned
-                     (Attribute.normal ~owner:Attribute.Point) values |> get_ok)
+                     (Attribute.normal ~owner:Attribute.Point) values |> Support.get_ok)
                    :: !attributes
              | None -> ());
             (match vertex_normals with
              | Some (x, y, z) ->
                  let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
                  attributes := (Attribute.create_key_owned
-                     (Attribute.normal ~owner:Attribute.Vertex) values |> get_ok)
+                     (Attribute.normal ~owner:Attribute.Vertex) values |> Support.get_ok)
                    :: !attributes
              | None -> ());
             (match uv_attribute, point_uv, vertex_uv with
              | Some name, Some (x, y), None ->
-                 let values = Packed.Float2.of_owned ~x ~y |> get_ok in
+                 let values = Packed.Float2.of_owned ~x ~y |> Support.get_ok in
                  attributes := (Attribute.create_owned ~name ~owner:Attribute.Point
-                     (Attribute.Float2 values) |> get_ok) :: !attributes
+                     (Attribute.Float2 values) |> Support.get_ok) :: !attributes
              | Some name, None, Some (x, y) ->
-                 let values = Packed.Float2.of_owned ~x ~y |> get_ok in
+                 let values = Packed.Float2.of_owned ~x ~y |> Support.get_ok in
                  attributes := (Attribute.create_owned ~name
-                     ~owner:Attribute.Vertex (Attribute.Float2 values) |> get_ok)
+                     ~owner:Attribute.Vertex (Attribute.Float2 values) |> Support.get_ok)
                    :: !attributes
              | None, None, None -> ()
              | _ -> assert false);
@@ -1375,7 +1374,7 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
          | Some (x, y, z) ->
              let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
              attributes := (Attribute.create_key_owned
-                 (Attribute.normal ~owner:Attribute.Point) values |> get_ok)
+                 (Attribute.normal ~owner:Attribute.Point) values |> Support.get_ok)
                :: !attributes
          | None -> ());
         (match normals with
@@ -1398,7 +1397,7 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
              done;
              let values = Packed.Float3.Private.of_owned_exn ~x:nx ~y:ny ~z:nz in
              attributes := (Attribute.create_key_owned
-                 (Attribute.normal ~owner:Attribute.Vertex) values |> get_ok)
+                 (Attribute.normal ~owner:Attribute.Vertex) values |> Support.get_ok)
                :: !attributes
          | Platonic_no_normals | Platonic_point_normals -> ());
         if kind = Platonic_soccer_ball then begin
@@ -1410,7 +1409,7 @@ let platonic ?cancel ?(kind = Platonic_tetrahedron)
           done;
           let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
           attributes := (Attribute.create_owned ~owner:Attribute.Primitive
-              ~name:"Cd" (Attribute.Float3 values) |> get_ok) :: !attributes
+              ~name:"Cd" (Attribute.Float3 values) |> Support.get_ok) :: !attributes
         end;
         let groups = match face_groups with
           | None -> []

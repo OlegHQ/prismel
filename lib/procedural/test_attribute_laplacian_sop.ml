@@ -1,14 +1,5 @@
 open Procedural
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get = function Ok value -> value | Error message -> fail message
-
-let contains text pattern =
-  let rec loop offset = offset + String.length pattern <= String.length text
-      && (String.sub text offset (String.length pattern) = pattern
-          || loop (offset + 1)) in
-  pattern = "" || loop 0
+open Rdk_test_support
 
 let source () =
   let geometry = Rdk.Uv_sphere.run

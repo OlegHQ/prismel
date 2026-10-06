@@ -6,18 +6,6 @@ type process_result =
 
 let fail format = Printf.ksprintf failwith format
 
-let read_file path =
-  let input = open_in_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_in_noerr input)
-    (fun () -> really_input_string input (in_channel_length input))
-
-let write_file path contents =
-  let output = open_out_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_out_noerr output)
-    (fun () -> output_string output contents)
-
 let rec remove_directory path =
   Sys.readdir path
   |> Array.iter (fun name ->
@@ -81,8 +69,8 @@ let run ?environment ~directory program arguments =
     in
     let _, status = Unix.waitpid [] pid in
     { status
-    ; stdout = read_file stdout_path
-    ; stderr = read_file stderr_path
+    ; stdout = Sdl3_lock.read_file stdout_path
+    ; stderr = Sdl3_lock.read_file stderr_path
     })
 
 let status_string = function
@@ -129,13 +117,13 @@ let install_and_check ~root ~profile =
          ; "--profile"; profile
          ; "rays"
          ]);
-    write_file (Filename.concat consumer "dune-project")
+    Sdl3_lock.write_file (Filename.concat consumer "dune-project")
       "(lang dune 3.17)\n(name rays_sdl3_installed_consumer)\n";
-    write_file (Filename.concat consumer "dune")
+    Sdl3_lock.write_file (Filename.concat consumer "dune")
       "(executable\n (name main)\n (libraries rays.sdl3 rays.sdl3_image \
        rays.sdl3_ttf rays.sdl3_mixer))\n";
-    write_file (Filename.concat consumer "main.ml")
-      (read_file (Filename.concat root "tools/packaging/installed_consumer.ml"));
+    Sdl3_lock.write_file (Filename.concat consumer "main.ml")
+      (Sdl3_lock.read_file (Filename.concat root "tools/packaging/installed_consumer.ml"));
     let library_path = Filename.concat prefix "lib" in
     let stublib_path = Filename.concat library_path "stublibs" in
     let inherited_stublibs =

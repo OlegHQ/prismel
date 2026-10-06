@@ -1,7 +1,5 @@
 type scheme = Catmull_clark | Bilinear
 exception Error of string
-val run :
-  ?grain:int -> ?cancel:Rdk_core.Cancel.t -> int -> (int -> unit) -> unit
 type plan = {
   source : Rdk_core.Geometry.t;
   source_topology : Rdk_core.Topology.Private.view;

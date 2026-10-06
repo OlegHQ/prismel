@@ -1136,6 +1136,35 @@ module Group_ranges = struct
   let factory = parameters_factory build
 end
 
+module Ordered_group = struct
+  let decode text =
+    String.split_on_char ' ' (String.map (function
+      | ',' | '\t' | '\n' -> ' ' | character -> character) text)
+    |> List.filter (fun token -> token <> "")
+    |> List.fold_left (fun result token -> Result.bind result (fun elements ->
+        Result.bind (int_of_token token) (fun element ->
+          if element < 0 then Error (Printf.sprintf
+            "expected a non-negative element index, got %d" element)
+          else Ok (element :: elements)))) (Ok [])
+    |> Result.map List.rev
+  let elements_parameter = Parameter.encoded ~equal:( = )
+      ~encode:(fun elements ->
+        String.concat " " (List.map string_of_int elements)) ~decode
+  type parameters = {
+    owner : Rdk.Group.owner [@sop.default Rdk.Group.Point]
+      [@sop.label "Group type"] [@sop.kind ordinary_group_owner_parameter];
+    name : string [@sop.default "ordered"] [@sop.label "Output group"];
+    elements : int list [@sop.default [0]] [@sop.label "Elements in order"]
+      [@sop.kind elements_parameter];
+  } [@@sop.node_key "ordered_group"] [@@sop.node_label "Group Ordered"]
+    [@@sop.node_category "Group/Create"] [@@sop.node_inputs 1]
+    [@@deriving sop_params, sop_node]
+  let build = parameters_build (fun ~label parameters input ->
+    Sop.ordered_group ~label ~owner:parameters.owner ~name:parameters.name
+      (Array.of_list parameters.elements) input)
+  let factory = parameters_factory build
+end
+
 module Group_find_path = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
       "Through each", Rdk.Group_mesh.Through_each;

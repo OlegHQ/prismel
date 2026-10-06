@@ -1,11 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
+open Rdk_test_support
 
 let geometry positions primitives =
   let packed = Packed.Float3.Builder.create (Array.length positions) in

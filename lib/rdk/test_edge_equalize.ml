@@ -1,10 +1,8 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get_ok = function Ok value -> value | Error message -> fail message
-let get_rdk = function Ok value -> value | Error error -> fail (Error.to_string error)
 
 let geometry_owned ~kinds positions vertex_points primitive_offsets =
   let positions = Array.of_list positions in
@@ -21,8 +19,6 @@ let disjoint () = geometry_owned
     ~kinds:(Array.make 3 Topology.Open_polyline)
     [0.,0.,0.; 1.,0.,0.; 3.,0.,0.; 5.,0.,0.; 7.,0.,0.; 10.,0.,0.]
     [|0;1; 2;3; 4;5|] [|0;2;4;6|]
-
-let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
 
 let edge_group_of_pairs topology name pairs =
   let index = Topology_index.create topology in

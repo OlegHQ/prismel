@@ -1,11 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
+open Rdk_test_support
 
 let two_quads () =
   let positions = Packed.Float3.Private.of_owned_exn

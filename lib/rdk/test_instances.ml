@@ -1,12 +1,8 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
 let get_ok = function Ok value -> value | Error message -> fail message
-let get_rdk = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
 
 let equal_storage left right =
   match Attribute.Private.storage left, Attribute.Private.storage right with

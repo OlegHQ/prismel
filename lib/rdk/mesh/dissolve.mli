@@ -4,11 +4,9 @@ type bridge_policy =
   | Create_disjoint_polygons
   | Delete_bridge_polygons
 exception Invalid of string
-val get_ok : ('a, string) result -> 'a
 module Int_buffer :
   sig
     type t = { mutable values : int array; mutable length : int; }
-    val create : int -> t
     val add : t -> int -> unit
   end
 module Output :
@@ -21,7 +19,6 @@ module Output :
       mutable kinds : Rdk_core.Topology.primitive_kind array;
       mutable primitive_count : int;
     }
-    val create : int -> int -> t
     val add :
       t ->
       source:int ->

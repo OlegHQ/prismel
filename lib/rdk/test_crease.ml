@@ -1,11 +1,6 @@
 open Rays
 open Rdk
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
-let get_ok = function
-  | Ok value -> value
-  | Error error -> fail (Error.to_string error)
+open Rdk_test_support
 
 let attribute owner name storage geometry =
   Attribute.create_owned ~owner ~name storage |> Result.get_ok

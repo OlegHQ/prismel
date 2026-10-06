@@ -1650,6 +1650,40 @@ module Poly_loft = struct
   let factory = parameters_factory build
 end
 
+module Skin = struct
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    connect_closest_ends : bool [@sop.default true]
+      [@sop.label "Connect closest ends"];
+    minimize : Rdk.Poly_loft.minimize
+      [@sop.default Rdk.Poly_loft.Two_point_distance]
+      [@sop.label "Minimize"] [@sop.kind Poly_loft.minimize_parameter];
+    u_wrap : bool [@sop.default false] [@sop.label "Wrap U"];
+    v_wrap : bool [@sop.default false] [@sop.label "Wrap V"];
+    keep_primitives : bool [@sop.default false]
+      [@sop.label "Keep source primitives"];
+    output_group : string [@sop.default "skin"] [@sop.label "Output group"];
+    collinearity_tolerance : float [@sop.default 0.]
+      [@sop.label "Collinearity tolerance"] [@sop.min 0.] [@sop.max 1.]
+      [@sop.hard_min 0.];
+    recompute_normals : bool [@sop.default true]
+      [@sop.label "Recompute normals"];
+  } [@@sop.node_key "skin"] [@@sop.node_label "Skin"]
+    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 2] [@@sop.node_slots "input, rest"]
+    [@@sop.node_optional "1"] [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input rest ->
+    Sop.skin ~label ?group:(optional_text parameters.group) ?rest
+      ~connect_closest_ends:parameters.connect_closest_ends
+      ~minimize:parameters.minimize ~u_wrap:parameters.u_wrap
+      ~v_wrap:parameters.v_wrap ~keep_primitives:parameters.keep_primitives
+      ?output_group:(optional_text parameters.output_group)
+      ~collinearity_tolerance:parameters.collinearity_tolerance
+      ~recompute_normals:parameters.recompute_normals input)
+
+  let factory = parameters_factory build
+end
+
 module Revolve = struct
   let type_parameter = Parameter.choice ~equal:( = ) [
       "Closed", Rdk.Sweep_modeling.Revolve_closed;

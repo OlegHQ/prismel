@@ -35,9 +35,6 @@ type t = {
 exception Piece_error of string
 exception Group_error of string
 
-let ceiling_div value divisor =
-  (value / divisor) + if value mod divisor = 0 then 0 else 1
-
 let create_raw ?cancel ?(grain = 16_384) ?primitives geometry =
   if grain <= 0 then invalid_arg "Linear_piece_index: grain must be positive";
   Cancel.check_opt cancel;
@@ -87,9 +84,9 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives geometry =
   and u0 = Array.make piece_count 0.
   and u1 = Array.make piece_count 0. in
   let average = if selected_count = 0 then 1
-    else max 1 (ceiling_div piece_count selected_count) in
+    else max 1 (Support.ceiling_div piece_count selected_count) in
   let chunk = max 1 (grain / average) in
-  let ranges = ceiling_div selected_count chunk in
+  let ranges = Support.ceiling_div selected_count chunk in
   if ranges > 0 then Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(ranges - 1)
       (fun range ->
     let first_selected = range * chunk
@@ -129,7 +126,7 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives geometry =
   and piece_max_x = Array.make piece_count 0.
   and piece_max_y = Array.make piece_count 0.
   and piece_max_z = Array.make piece_count 0. in
-  let piece_ranges = ceiling_div piece_count grain in
+  let piece_ranges = Support.ceiling_div piece_count grain in
   let errors = Array.make piece_ranges None in
   if piece_ranges > 0 then Parallel.for_ ~chunk_size:1 ~start:0
       ~finish:(piece_ranges - 1) (fun range ->
@@ -249,7 +246,7 @@ let overlapping_pairs_raw ?cancel ~self ~grain ~tolerance left_index right_index
   let left_count = piece_count left_index in
   if left_count = 0 || piece_count right_index = 0 then [||], [||]
   else begin
-    let chunk = max 1 grain and ranges = ceiling_div left_count (max 1 grain) in
+    let chunk = max 1 grain and ranges = Support.ceiling_div left_count (max 1 grain) in
     let counts = Array.make left_count 0 in
     let scan stack left_piece output_left output_right output_at =
       let top = ref 1 and found = ref 0 in
@@ -317,7 +314,7 @@ let find_overlapping_self_pair_raw ?cancel ~grain ~tolerance index predicate =
   let pieces = piece_count index in
   if pieces = 0 then None
   else begin
-    let ranges = ceiling_div pieces grain in
+    let ranges = Support.ceiling_div pieces grain in
     let found_left = Array.make ranges (-1) and found_right = Array.make ranges (-1) in
     Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(ranges - 1) (fun range ->
       let stack = Array.make 65 0

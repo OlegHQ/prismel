@@ -62,6 +62,99 @@ let float3 name geometry =
        | _ -> fail (name ^ " has wrong storage"))
   | None -> fail ("missing " ^ name)
 
+(* Blend Shapes, Attribute Composite, Skin and Group Ordered as nodes: the
+   sketches/ws_morph workspace lowers and each graph cooks to the geometry its
+   node promises, the same at one and four domains. *)
+let test_morph_sketch () =
+  let text = In_channel.with_open_bin "../sketches/ws_morph/sketch.rays"
+      In_channel.input_all in
+  let lowered = match Flow.Syntax.parse text with
+    | Error d -> fail (Flow.Diagnostic.to_string d)
+    | Ok forms ->
+        match Flow_sop.Lower.workspace
+            ~extra:Editor_document.Contexts.descriptors
+            ~factories:Sop_catalog.Editor.factories forms with
+        | Ok lowered -> lowered
+        | Error d -> fail (Flow.Diagnostic.to_string d) in
+  let cook_graph ~domains name =
+    let graph = List.find (fun (g : Flow_sop.Lower.graph) -> g.name = name)
+        lowered.graphs in
+    let node = Edit_graph.compile_node graph.network.geometry
+        ~node_id:(Option.get graph.root) |> Result.get_ok in
+    let session = Session.create ~max_entries:64
+        ~max_payload_bytes:64_000_000 |> Result.get_ok in
+    let context = Context.create ~domains ~grain:97 () |> Result.get_ok in
+    let geometry = match Session.cook session ~context node with
+      | Ok output -> output.Session.geometry
+      | Error error -> fail (name ^ ": " ^ Diagnostic.error_to_string error) in
+    Session.close session;
+    geometry in
+  let positions geometry =
+    Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry) in
+  let both name =
+    let one = cook_graph ~domains:1 name and four = cook_graph ~domains:4 name in
+    check (positions one = positions four
+        && Rdk.Topology.Private.view (Rdk.Geometry.topology one)
+           = Rdk.Topology.Private.view (Rdk.Geometry.topology four))
+      (name ^ " differs between one and four domains");
+    one in
+  (* sheet: 28x28 quads keep their topology; the blend lifts the flat sheet
+     part of the way to its two shapes. *)
+  let sheet = both "sheet" in
+  let p = positions sheet in
+  let low = Array.fold_left Float.min infinity p.y
+  and high = Array.fold_left Float.max neg_infinity p.y in
+  check (Rdk.Geometry.point_count sheet = 29 * 29
+      && Rdk.Geometry.primitive_count sheet = 28 * 28)
+    "Blend Shapes changed the sheet's topology";
+  check (Array.for_all Float.is_finite p.x && Array.for_all Float.is_finite p.y
+      && high -. low > 0.2 && high -. low < 3.)
+    (Printf.sprintf "Blend Shapes left the sheet flat or blew it up (y %g..%g)"
+      low high);
+  (* tinted: the mean of #2f6fb5 at weight 1 and #f2a03d at weight 0.35. *)
+  let tinted = both "tinted" in
+  let cd = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "Cd"
+      tinted |> Option.map Rdk.Attribute.Private.storage with
+    | Some (Rdk.Attribute.Float4 values) -> Rdk.Packed.Float4.Private.view values
+    | _ -> fail "Attribute Composite dropped or retyped Cd" in
+  let cool = Color.hex_exn "#2f6fb5" and warm = Color.hex_exn "#f2a03d" in
+  let mean a b = ((float a +. (0.35 *. float b)) /. 255.) /. 1.35 in
+  check (Array.length cd.x = 29 * 29
+      && Array.for_all (fun r -> Float.abs (r -. mean cool.r warm.r) < 1e-6) cd.x
+      && Array.for_all (fun g -> Float.abs (g -. mean cool.g warm.g) < 1e-6) cd.y
+      && Array.for_all (fun b -> Float.abs (b -. mean cool.b warm.b) < 1e-6) cd.z)
+    (Printf.sprintf "Attribute Composite Cd is %g %g %g, expected %g %g %g"
+      cd.x.(0) cd.y.(0) cd.z.(0) (mean cool.r warm.r) (mean cool.g warm.g)
+      (mean cool.b warm.b));
+  check (positions tinted = positions sheet)
+    "Attribute Composite moved points although P was not allowed";
+  (* vase: six 32-point rings skin into five bands of 32 quads. *)
+  let vase = both "vase" in
+  let skin = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "skin" vase in
+  let members group = let count = ref 0 in
+    for index = 0 to Rdk.Group.length group - 1 do
+      if Rdk.Group.mem index group then incr count done; !count in
+  check (Rdk.Geometry.point_count vase = 6 * 32
+      && Rdk.Geometry.primitive_count vase = 5 * 32
+      && Option.map members skin = Some (5 * 32))
+    (Printf.sprintf "Skin made %d primitives over %d points"
+      (Rdk.Geometry.primitive_count vase) (Rdk.Geometry.point_count vase));
+  let index = Rdk.Topology_index.create (Rdk.Geometry.topology vase) in
+  check (Rdk.Topology_index.non_manifold_edge_count index = 0)
+    "Skin wall has non-manifold edges";
+  check (Option.bind (Rdk.Geometry.find_group ~owner:Rdk.Group.Point "rim" vase)
+           Rdk.Group.ordered_elements = Some [|0; 8; 16; 24|])
+    "Group Ordered lost its authored order";
+  (* an unwired Blend Shapes passes its input through *)
+  let session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
+      |> Result.get_ok in
+  let grid = Sop.grid ~rows:2 ~columns:2 ~size:1. () in
+  let idle = catalog_node "blend_shapes" [Some grid; None; None; None; None] [] in
+  check (Node.operation idle = "blend_shapes"
+      && positions (cook session idle) = positions (cook session grid))
+    "unwired Blend Shapes is not a passthrough";
+  Session.close session
+
 (* Catalog-owned motion operators: Rest Position and Point Velocity. *)
 let test_motion () =
   let session = Session.create ~max_entries:32 ~max_payload_bytes:16_000_000
@@ -245,8 +338,8 @@ let run ?(exhaustive = false) () =
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 155
-      && List.length (List.sort_uniq String.compare factory_keys) = 155)
+  check (List.length factory_keys = 159
+      && List.length (List.sort_uniq String.compare factory_keys) = 159)
     "PPX SOP manifest has a missing or duplicate factory key";
   check (List.mem "material" factory_keys) "SOP editor catalog is missing material";
   check (not (List.mem "delete_attribute" factory_keys))
@@ -572,4 +665,5 @@ let run ?(exhaustive = false) () =
       && explosion.piece_attribute = "piece")
     "standard Exploded View node lost its operation or PPX defaults";
   set_color_test ();
+  test_morph_sketch ();
   print_endline "SOP catalog tests passed"

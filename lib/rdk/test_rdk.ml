@@ -1,7 +1,7 @@
 open Rays
 open Rdk
+open Rdk_test_support
 
-let fail message = raise (Failure message)
 let get_ok = function Ok value -> value | Error _ -> fail "unexpected error"
 
 let equal_positions left right =

@@ -22,6 +22,7 @@ type 'a request = {
   context : Context.t;
   nodes : Node.t list;
   optional : Node.t list;  (* cooked after [nodes]; one that fails is [None] *)
+  volatile : int -> bool;  (* installed in the session by the worker before this cook *)
   prepare : Session.output list -> Session.output option list -> ('a, string) result;
 }
 
@@ -40,6 +41,7 @@ type 'a t = {
   mutable active : active option;
   mutable completion : 'a completion option;
   mutable latest_id : int;
+  mutable next_volatile : int -> bool;  (* what the next request carries *)
   mutable stopping : bool;
   mutable closed : bool;
 }
@@ -74,7 +76,9 @@ let execute session request =
          | Error message -> Error (Prepare_error message))
   with exn -> Error (Uncaught_exception (Printexc.to_string exn))
 
-let rec worker_loop value =
+(* [applied] is the predicate the session holds: only this domain touches the
+   session, so a predicate set while a cook runs waits for the next request. *)
+let rec worker_loop value applied =
   let request = with_lock value (fun () ->
     while not value.stopping && Option.is_none value.pending do
       Condition.wait value.ready value.mutex
@@ -92,6 +96,8 @@ let rec worker_loop value =
   match request with
   | None -> ()
   | Some request ->
+      if request.volatile != applied then
+        Session.set_volatile value.session request.volatile;
       let started = Unix.gettimeofday () in
       let result = execute value.session request in
       let seconds = max 0. (Unix.gettimeofday () -. started) in
@@ -104,7 +110,9 @@ let rec worker_loop value =
             result;
           };
         Condition.broadcast value.finished);
-      worker_loop value
+      worker_loop value request.volatile
+
+let none_volatile _ = false
 
 let create ~max_entries ~max_payload_bytes =
   Result.map (fun session ->
@@ -118,13 +126,14 @@ let create ~max_entries ~max_payload_bytes =
       active = None;
       completion = None;
       latest_id = 0;
+      next_volatile = none_volatile;
       stopping = false;
       closed = false;
     } in
     let worker = Domain.spawn (fun () ->
       Fun.protect
         ~finally:Rays_math.Parallel.release_current_domain_pools
-        (fun () -> worker_loop value)) in
+        (fun () -> worker_loop value none_volatile)) in
     value.worker <- Some worker;
     value)
     (Session.create ~max_entries ~max_payload_bytes)
@@ -138,7 +147,8 @@ let submit_some value ~context ~nodes ~optional ~prepare =
       Option.iter (fun active -> Rdk.Cancel.cancel active.cancel) value.active;
       value.latest_id <- value.latest_id + 1;
       let id = value.latest_id in
-      value.pending <- Some { id; context; nodes; optional; prepare };
+      value.pending <- Some { id; context; nodes; optional; prepare;
+        volatile = value.next_volatile };
       value.completion <- None;
       Condition.signal value.ready;
       Ok id
@@ -152,7 +162,10 @@ let submit value ~context ~node ~prepare =
     | [output] -> prepare output
     | _ -> Error "Async_cook.submit: expected one output")
 
-let set_volatile value predicate = Session.set_volatile value.session predicate
+let set_volatile value predicate = with_lock value (fun () ->
+  value.next_volatile <- predicate;
+  value.pending <- Option.map (fun request ->
+    { request with volatile = predicate }) value.pending)
 
 let stats value = Session.stats value.session
 let node_seconds value id = Session.node_seconds value.session id

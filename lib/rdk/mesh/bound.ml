@@ -6,7 +6,6 @@ type deform_selection = Deform.selection =
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
 
-let get_ok = function Ok value -> value | Error message -> invalid_arg message
 let transform = Transform_ops.transform
 let uv_sphere = Uv_sphere.run
 
@@ -219,7 +218,7 @@ let divided_box ?cancel ~minimum ~maximum ~divisions () =
     let positions = Packed.Float3.Private.of_owned_exn ~x:px ~y:py ~z:pz in
     let normals = Packed.Float3.Private.of_owned_exn ~x:nx ~y:ny ~z:nz in
     let normal = Attribute.create_key_owned (Attribute.normal ~owner:Attribute.Point)
-        normals |> get_ok in
+        normals |> Support.get_ok in
     Geometry.create ~positions ~topology ~attributes:[normal] ()
   end
 
@@ -299,8 +298,8 @@ let bound ?cancel ?(grain = 16_384) ?selection
             let values = Packed.Float3.Private.of_owned_exn ~x:[|value.Vec3.x|]
                 ~y:[|value.y|] ~z:[|value.z|] in
             let attribute = Attribute.create_owned ~name ~owner:Attribute.Detail
-                (Attribute.Float3 values) |> get_ok in
-            Geometry.with_attribute attribute output |> get_ok in
+                (Attribute.Float3 values) |> Support.get_ok in
+            Geometry.with_attribute attribute output |> Support.get_ok in
           let output = match center_attribute with
             | None -> output | Some name -> detail_float3 name center output in
           let output = match radii_attribute with
@@ -310,7 +309,7 @@ let bound ?cancel ?(grain = 16_384) ?selection
             | Some name ->
                 let group = Group.init ~grain ~owner:Group.Primitive ~name
                     (Geometry.primitive_count output) (fun _ -> true) in
-                Geometry.with_group group output |> get_ok in
+                Geometry.with_group group output |> Support.get_ok in
           Ok output))
 
 let run = bound

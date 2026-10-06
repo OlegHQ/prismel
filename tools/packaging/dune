@@ -22,12 +22,12 @@
 (executable
  (name check_installed_consumer)
  (modules check_installed_consumer)
- (libraries unix))
+ (libraries sdl3_lock unix))
 
 (executable
  (name check_sdl3_memory)
  (modules check_sdl3_memory)
- (libraries unix))
+ (libraries sdl3_lock unix))
 
 (test
  (name check_runtime_licenses)
