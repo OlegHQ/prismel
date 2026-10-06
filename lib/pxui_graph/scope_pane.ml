@@ -76,12 +76,14 @@ type geo = {
   pos : (path, float * float * float * float) Hashtbl.t;
   origins : (path * (float * float)) list;  (* where each scope's own coordinates start *)
   obstacles : obstacle list;  (* what the routes were drawn around *)
+  inside : (path, int list) Hashtbl.t;  (* the wires that end at a node of a zone's body, by the zone's path *)
   routes : ((float * float) * (float * float) * path list, (float * float) list) Hashtbl.t;
       (* each wire's route by its ends: a rebuild around the same obstacles (a number scrubbed, a
          name edited) reuses them; one entry, replaced by every rebuild *)
 }
 
-let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = []; obstacles = []; routes = Hashtbl.create 1 }
+let empty_geo = { items = [||]; wires = [||]; rel = Hashtbl.create 1; pos = Hashtbl.create 1; origins = []; obstacles = [];
+                  inside = Hashtbl.create 1; routes = Hashtbl.create 1 }
 let root_name s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 (* what a row reads once its wire is taken off: a named argument goes back to its schema default,
    written so the row stays on the card; a positional one takes a value of its type *)
@@ -429,7 +431,14 @@ let compute ?(style = `Straight) ?(previous = empty_geo) ~name_w ~shown (scope :
             let target = (ax, ay +. P.body_top +. wire_row_y) in
             wire source target ~into:[ scope.path @ [ "@return" ] ]
         | None -> ()));
-  { items = Array.of_list items_list; wires = Array.of_list (List.rev !wires); rel; pos; origins = !origins; obstacles; routes }
+  let wires = Array.of_list (List.rev !wires) in
+  let inside = Hashtbl.create 16 in
+  Array.iteri (fun i w -> match w.target with
+    | Some (_ :: _ :: _ :: _ as path, _, _) ->
+        let zone = List.rev (List.tl (List.rev path)) in
+        Hashtbl.replace inside zone (i :: Option.value ~default:[] (Hashtbl.find_opt inside zone))
+    | _ -> ()) wires;
+  { items = Array.of_list items_list; wires; rel; pos; origins = !origins; obstacles; inside; routes }
 
 (* ---------------------------------------------------------------- state *)
 
@@ -2053,39 +2062,34 @@ let update t ui (frame : Frame.t) =
     | _ -> None) visible in
   let local (x, y) = x -. float t.x, y -. float t.y in
   let mouse = frame.mouse in
-  (* Segment rectangles live in the shared hit tree, behind the cards;
-     ports built below take hover precedence. *)
-  let wire_hits = Ui.within ui canvas (fun () ->
-    Array.mapi (fun i w ->
-      match w.target with
-      | None -> []
-      | Some _ ->
-          Ui.scope ui ("wire:" ^ string_of_int i) (fun () ->
-            let rec segments j found = function
-              | (ax, ay) :: ((bx, by) :: _ as rest) ->
-                  let ax, ay = sx t ax -. float t.x, sy t ay -. float t.y
-                  and bx, by = sx t bx -. float t.x, sy t by -. float t.y in
-                  let segs =
-                    if ax = bx || ay = by then [ (ax, ay, bx, by) ]
-                    else
-                      let len = Float.hypot (bx -. ax) (by -. ay) in
-                      let steps = max 1 (int_of_float (len /. 16.)) in
-                      List.init steps (fun s ->
-                        let u0 = float s /. float steps in
-                        let u1 = float (s + 1) /. float steps in
-                        (ax +. (bx -. ax) *. u0, ay +. (by -. ay) *. u0,
-                         ax +. (bx -. ax) *. u1, ay +. (by -. ay) *. u1))
-                  in
-                  let found = List.fold_left (fun found (x0, y0, x1, y1) ->
-                    let x = Float.min x0 x1 -. 4. and y = Float.min y0 y1 -. 4.
-                    and width = abs_float (x1 -. x0) +. 8. and height = abs_float (y1 -. y0) +. 8. in
-                    if x < float t.width && x +. width > 0. && y < float t.height && y +. height > 0. then
-                      Ui.box ui ~flags:Ui.clickable ~at:(x, y) ~w:(Ui.Px width)
-                        ~h:(Ui.Px height) (string_of_int j ^ "-" ^ string_of_int (List.length found)) :: found
-                    else found) found segs in
-                  segments (j + 1) found rest
-              | _ -> found in
-            segments 0 [] w.pts)) t.geo.wires) in
+  (* Segment rectangles live in the shared hit tree, behind the cards; ports built below take
+     hover precedence.  A segment is cut to [clip] (pane points) first, so what is out of view
+     costs one clip; a diagonal is then a run of 16-point boxes. *)
+  let wire_hits = Array.make (Array.length t.geo.wires) [] in
+  let wire_boxes name (cx, cy, cw, ch) i =
+    let w = t.geo.wires.(i) in
+    let count = ref 0 in
+    let rec segments j = function
+      | (ax, ay) :: ((bx, by) :: _ as rest) ->
+          (match clip_segment (sx t ax -. float t.x, sy t ay -. float t.y) (sx t bx -. float t.x, sy t by -. float t.y)
+                   (cx -. 4., cy -. 4., cw +. 8., ch +. 8.) with
+           | None -> ()
+           | Some ((ax, ay), (bx, by)) ->
+               let steps = if ax = bx || ay = by then 1 else max 1 (int_of_float (Float.hypot (bx -. ax) (by -. ay) /. 16.)) in
+               for s = 0 to steps - 1 do
+                 let u0 = float s /. float steps and u1 = float (s + 1) /. float steps in
+                 let x0 = ax +. (bx -. ax) *. u0 and y0 = ay +. (by -. ay) *. u0
+                 and x1 = ax +. (bx -. ax) *. u1 and y1 = ay +. (by -. ay) *. u1 in
+                 incr count;
+                 wire_hits.(i) <- Ui.box ui ~flags:Ui.clickable ~at:(Float.min x0 x1 -. 4., Float.min y0 y1 -. 4.)
+                     ~w:(Ui.Px (abs_float (x1 -. x0) +. 8.)) ~h:(Ui.Px (abs_float (y1 -. y0) +. 8.))
+                     (Printf.sprintf "%s:%d:%d-%d" name i j !count) :: wire_hits.(i)
+               done);
+          segments (j + 1) rest
+      | _ -> () in
+    if w.target <> None then segments 0 w.pts in
+  Ui.within ui canvas (fun () ->
+    Array.iteri (fun i _ -> wire_boxes "wire" (0., 0., float t.width, float t.height) i) t.geo.wires);
   (* footers: only for what is in view, and not when too small to read *)
   let footers = Hashtbl.create 16 in
   (match t.records with
@@ -2110,6 +2114,15 @@ let update t ui (frame : Frame.t) =
       let w = p.w *. z and h = p.h *. z in
       let shown = p.shown in
       let tile = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px w) ~h:(Ui.Px h) ~at:(local (bx, by)) key in
+      (* an expanded zone's tile covers its body: the wires that end inside it get their boxes again
+         here, over the tile and under the cards built after it *)
+      (match p.item with
+       | P.Item { zone = Some _; _ } when not p.collapsed ->
+           let lx, ly = local (bx, by) in
+           let x0 = Float.max 0. lx and y0 = Float.max 0. ly in
+           let clip = x0, y0, Float.min (float t.width) (lx +. w) -. x0, Float.min (float t.height) (ly +. h) -. y0 in
+           List.iter (wire_boxes "zwire" clip) (Option.value ~default:[] (Hashtbl.find_opt t.geo.inside p.path))
+       | _ -> ());
       (* the live editors of a row: a number, a vector of numbers, a flag *)
       let row_fields (n : P.node) (r : P.row) ~name ~ry ~size =
         let at = value_x p.w *. z and vw = field_w *. z and h = field_h *. z in
@@ -2636,8 +2649,10 @@ let update t ui (frame : Frame.t) =
         (match List.find_map (fun ((p : P.placed), _, _, _, (s : Ui.signal), _, _) ->
             if Ui.context_clicked s then Some (s.release_point, p.path) else None) tiles with
          | Some ((x, y), path) ->
+             (* the menu acts on the nodes: a wire selected before is no longer the selection *)
              let selected = if Path_set.mem path t.selected then t.selected else Path_set.singleton path in
-             { t with context = Some ((x, y), path); selected }
+             if not (Path_set.equal selected t.selected) then emit (Selected (Path_set.elements selected));
+             { t with context = Some ((x, y), path); selected; selected_wire = None }
          | None -> t) in
   if t.context = None && Ui.context_clicked canvas_signal then (let x, y = canvas_signal.release_point in emit (Menu_requested (x, y)));
   let t = match t.context with

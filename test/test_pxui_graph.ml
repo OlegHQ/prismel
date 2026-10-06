@@ -748,6 +748,32 @@ let run_scope () =
   let _, changes = Scope.run_command view Scope.Delete in
   check (match changes with [ Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect _) ] -> true | _ -> false)
     "Delete on selected wire emitted Disconnect";
+  (* a right-click on a node makes the nodes the selection again: Delete then removes the node *)
+  let hx, hy, _, _ = Option.get (Scope.Private.box_of view heart) in
+  let at = int_of_float hx + 60, int_of_float hy + 8 in
+  let menu, changes = scope_step view (frame ~mouse:at ~events:[ mouse_move at; mouse_press (Input.RightButton, at);
+    mouse_release (Input.RightButton, at) ] ()) in
+  check (List.mem (Scope.Selected [ heart ]) changes) "a right-click on a node did not emit Selected";
+  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Delete_nodes { nodes = [ heart ] })) (snd (Scope.run_command menu Scope.Delete)))
+    "Delete after a right-click on a node removed the wire selected before";
+  (* a wire inside a loop's body is hovered and selected like any other: its boxes lie over the zone's tile *)
+  let lw = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace l (graph g :context sop (let* [ring (for [i (range 3)] (let* [u (sop/uv_sphere) v (sop/transform u)] v)) m (sop/merge ring)] m)))"
+    |> Result.get_ok in
+  let lview, _ = scope_view ~at:(function
+    | [ "g"; "ring"; "u" ] -> Some (0., 0.) | [ "g"; "ring"; "v" ] -> Some (480., 240.) | _ -> None) lw.checked "g" in
+  let lview, _ = scope_step lview (frame ()) in
+  let inner = [ "g"; "ring"; "v" ] in
+  let wi = Option.get (List.find_index (fun i -> match Scope.Private.wire_target lview i with
+    | Some (path, _) -> path = inner | None -> false) (List.init (Scope.Private.wire_count lview) Fun.id)) in
+  let mx, my = Option.get (Scope.Private.wire_midpoint lview wi) in
+  let mid = int_of_float mx, int_of_float my in
+  let hovered, _ = scope_step lview (frame ~mouse:mid ~events:[ mouse_move mid ] ()) in
+  check (List.length (Scope.Private.highlighted_connections hovered) = 1) "a wire inside a loop is not hovered";
+  let picked, _ = scope_click lview mid in
+  check (match snd (Scope.run_command picked Scope.Delete) with
+    | Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect { node; _ }) :: _ -> node = inner | _ -> false)
+    "a wire inside a loop is not selected by a click";
   let straight_view = Scope.with_wires `Straight view in
   check (Scope.wires straight_view = `Straight) "wires style is straight";
   (* keys and menu: every key command maps to a request *)
