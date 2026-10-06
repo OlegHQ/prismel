@@ -2,7 +2,6 @@ open Rays_math
 open Procedural
 open Shared
 
-
 module Box = struct
   let connectivity_parameter = Parameter.choice ~equal:( = ) [
       "Triangles", Rdk.Box_generator.Box_triangles;
@@ -427,45 +426,6 @@ module Switch = struct
   let factory = Edit_graph.factory ~key:"switch" ~label:"Switch"
       ~slots:["a"; "b"]
       ~category:["Utility"] ~arity:2 (fun inputs -> create inputs)
-end
-
-module Line = struct
-  let kind_parameter = Parameter.choice ~equal:( = ) [
-      "Polygon curve", Rdk.Line_geometry.Line_curve;
-      "Points", Rdk.Line_geometry.Line_points;
-    ]
-
-  type parameters = {
-    kind : Rdk.Line_geometry.kind [@sop.default Rdk.Line_geometry.Line_curve]
-      [@sop.label "Primitive type"] [@sop.kind kind_parameter];
-    points : int [@sop.default 2] [@sop.label "Points"]
-      [@sop.min 2] [@sop.max 128] [@sop.hard_min 1];
-    origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
-    origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
-    origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
-    direction_x : float [@sop.default 0.] [@sop.label "Direction X"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
-    direction_y : float [@sop.default 1.] [@sop.label "Direction Y"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
-    direction_z : float [@sop.default 0.] [@sop.label "Direction Z"]
-      [@sop.folder "Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "direction"]
-    length : float [@sop.default 1.] [@sop.label "Length"]
-      [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
-  } [@@sop.node_key "line"] [@@sop.node_label "Line"]
-    [@@sop.node_category "Create/Curve"] [@@sop.node_inputs 0]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters ->
-    Sop.line ~label ~kind:parameters.kind ~points:parameters.points
-      ~origin:(Vec3.create parameters.origin_x parameters.origin_y
-        parameters.origin_z)
-      ~direction:(Vec3.create parameters.direction_x parameters.direction_y
-        parameters.direction_z) ~length:parameters.length ())
-
-  let factory = parameters_factory build
 end
 
 module Circle = struct
@@ -1069,35 +1029,6 @@ module Match_size = struct
   let factory = parameters_factory build
 end
 
-module Mirror = struct
-  type parameters = {
-    keep_original : bool [@sop.default true] [@sop.label "Keep original"];
-    origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
-    origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
-    origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
-      [@sop.folder "Plane/Origin"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "origin"]
-    normal_x : float [@sop.default 1.] [@sop.label "Normal X"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
-    normal_y : float [@sop.default 0.] [@sop.label "Normal Y"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
-    normal_z : float [@sop.default 0.] [@sop.label "Normal Z"]
-      [@sop.folder "Plane/Normal"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "normal"]
-  } [@@sop.node_key "mirror"] [@@sop.node_label "Mirror"]
-    [@@sop.node_category "Modify"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.mirror ~label ~keep_original:parameters.keep_original
-      ~origin:(Vec3.create parameters.origin_x parameters.origin_y
-        parameters.origin_z)
-      ~normal:(Vec3.create parameters.normal_x parameters.normal_y
-        parameters.normal_z) input)
-
-  let factory = parameters_factory build
-end
-
 module Clip = struct
   let keep_parameter = Parameter.choice ~equal:( = ) [
       "Above", Rdk.Plane_clip.Above;
@@ -1684,33 +1615,6 @@ module Duplicate = struct
         m30 = m 3 0; m31 = m 3 1; m32 = m 3 2; m33 = m 3 3 }
 end
 
-module Match_axis = struct
-  type parameters = {
-    from_x : float [@sop.default 0.] [@sop.label "From X"]
-      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "from"]
-    from_y : float [@sop.default 1.] [@sop.label "From Y"]
-      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "from"]
-    from_z : float [@sop.default 0.] [@sop.label "From Z"]
-      [@sop.folder "From"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "from"]
-    into_x : float [@sop.default 0.] [@sop.label "Into X"]
-      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "into"]
-    into_y : float [@sop.default 1.] [@sop.label "Into Y"]
-      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "into"]
-    into_z : float [@sop.default 0.] [@sop.label "Into Z"]
-      [@sop.folder "Into"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "into"]
-  } [@@sop.node_key "match_axis"] [@@sop.node_label "Match Axis"]
-    [@@sop.node_category "Modify/Align"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.match_axis ~label
-      ~from:(Vec3.create parameters.from_x parameters.from_y
-        parameters.from_z)
-      ~into:(Vec3.create parameters.into_x parameters.into_y
-        parameters.into_z) input)
-  let factory = parameters_factory build
-end
-
 module Extract_centroid = struct
   type run_mode = Detail | Primitives | Point_pieces | Primitive_pieces
   let run_parameter = Parameter.choice ~equal:( = ) [
@@ -2033,25 +1937,6 @@ module Sort = struct
         ?output_indices:(optional_text parameters.output_indices)
         ~combine_indices:parameters.combine_indices ~owner:parameters.owner
         ~key:(key parameters) input)
-  let factory = parameters_factory build
-end
-
-module Noise_displace = struct
-  type parameters = {
-    context_seed : bool [@sop.default false] [@sop.label "Use context seed"];
-    seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.min 0]
-      [@sop.max 9999];
-    amplitude : float [@sop.default 0.1] [@sop.label "Amplitude"]
-      [@sop.min (-10.)] [@sop.max 10.];
-    frequency : float [@sop.default 1.] [@sop.label "Frequency"]
-      [@sop.min 0.] [@sop.max 20.] [@sop.hard_min 0.];
-  } [@@sop.node_key "noise_displace"] [@@sop.node_label "Noise Displace"]
-    [@@sop.node_category "Deform/Noise"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.noise_displace ~label
-        ?seed:(if parameters.context_seed then None else Some parameters.seed)
-        ~amplitude:parameters.amplitude ~frequency:parameters.frequency input)
   let factory = parameters_factory build
 end
 

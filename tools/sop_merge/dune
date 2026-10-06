@@ -1,0 +1,3 @@
+(executable
+ (name sop_merge)
+ (libraries compiler-libs.common str))

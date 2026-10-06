@@ -137,8 +137,29 @@ Persisted parameter state belongs to the graph/node layer. The selected-node
 inspector is regenerated from concrete node metadata and never imports an
 independent canvas-wide shadow record.
 
-`rays.sop_catalog` contains inspectable catalog constructors. Its parameter
-records and node descriptors live beside each SOP definition. A parameter type
+A SOP node is one declaration: its `parameters` record. With
+`[@@deriving sop_params, sop_node]` it yields the inspector schema, the Lisp
+manifest entry and the editor factory; with `[@@sop.fn "name"]` and
+`[@@sop.args "..."]` (the typed arguments in the `.mli`'s order, each a field,
+a `sop.vec3` group or an input slot) it also yields the typed
+`Procedural.Sop.name` constructor, so defaults, validation and cache identity
+cannot drift between the API and the editor. Such declarations live in
+`lib/procedural` (`sop_groups.ml`, `sop_topology.ml`, `sop_attributes.ml`,
+`sop_shapes.ml`) next to their cooks; `Procedural.Nodes` exports their
+factories and `sop.ml` aliases their typed functions. A typed optional takes
+the editor default unless `[@sop.arg_default e]` says otherwise (every such
+override is a recorded drift); `[@sop.nonblank]` / `[@sop.validate]` make the
+typed constructor raise where the editor clamps; `[@sop.present]` /
+`[@sop.absent]` tie a toggle field to a typed optional's presence. The node's
+cache identity is the schema's `Parameter.cook_key`, and `Node.parameters`
+reads as `Parameter.cook_text` (`name=value;...`). A typed function the record
+cannot express (structured rdk arguments the record flattens, `Select.t`,
+closures, an optional whose absence means the kernel default) stays
+hand-written in `sop.ml` with its record in `rays.sop_catalog`;
+`tools/sop_merge` converts a pair and prints why it cannot.
+
+`rays.sop_catalog` registers every node and holds the records of the
+hand-written ones. A parameter type
 uses `[@@deriving sop_params, sop_node]` together with stable key, runtime
 operation identity, label, category-path, and input-arity attributes. The
 operation defaults to the key; `sop.node_operation` records deliberate aliases.

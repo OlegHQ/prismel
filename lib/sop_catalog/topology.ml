@@ -2,7 +2,6 @@ open Rays_math
 open Procedural
 open Shared
 
-
 module Crease = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
       "Add", Rdk.Crease.Crease_add;
@@ -164,116 +163,6 @@ module Subdivide = struct
   let factory = parameters_factory build
 end
 
-module Edge_divide = struct
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Edge group"];
-    divisions : int [@sop.default 2] [@sop.label "Divisions"]
-      [@sop.min 1] [@sop.max 64] [@sop.hard_min 1];
-    share_points : bool [@sop.default true] [@sop.label "Share points"];
-  } [@@sop.node_key "edge_divide"] [@@sop.node_label "Edge Divide"]
-    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.edge_divide ~label ?group:(optional_text parameters.group)
-      ~divisions:parameters.divisions ~share_points:parameters.share_points
-      input)
-
-  let factory = parameters_factory build
-end
-
-module Edge_collapse = struct
-  let position_parameter = Parameter.choice ~equal:( = ) [
-      "First", Rdk.Fuse_reduce.First_position;
-      "Least point", Rdk.Fuse_reduce.Least_point_position;
-      "Greatest point", Rdk.Fuse_reduce.Greatest_point_position;
-      "Average", Rdk.Fuse_reduce.Average_position;
-      "Minimum", Rdk.Fuse_reduce.Minimum_position;
-      "Maximum", Rdk.Fuse_reduce.Maximum_position;
-      "Mode", Rdk.Fuse_reduce.Mode_position;
-      "Median", Rdk.Fuse_reduce.Median_position;
-      "Sum", Rdk.Fuse_reduce.Sum_position;
-      "Sum squares", Rdk.Fuse_reduce.Sum_squares_position;
-      "Root mean square", Rdk.Fuse_reduce.Root_mean_square_position;
-      "Weighted average", Rdk.Fuse_reduce.Weighted_average_position;
-      "Weighted sum", Rdk.Fuse_reduce.Weighted_sum_position;
-      "Minimum weight", Rdk.Fuse_reduce.Minimum_weight_position;
-      "Maximum weight", Rdk.Fuse_reduce.Maximum_weight_position;
-    ]
-
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Edge group"];
-    connectivity_attribute : string [@sop.default ""]
-      [@sop.label "Connectivity attribute"];
-    position : Rdk.Fuse_reduce.position
-      [@sop.default Rdk.Fuse_reduce.Average_position]
-      [@sop.label "Position"] [@sop.kind position_parameter];
-    remove_degenerate_primitives : bool [@sop.default true]
-      [@sop.label "Remove degenerate primitives"] [@sop.folder "Cleanup"];
-    recompute_point_normals : bool [@sop.default true]
-      [@sop.label "Recompute point normals"] [@sop.folder "Cleanup"];
-  } [@@sop.node_key "edge_collapse"] [@@sop.node_label "Edge Collapse"]
-    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.edge_collapse ~label ?group:(optional_text parameters.group)
-      ?connectivity_attribute:(optional_text
-        parameters.connectivity_attribute)
-      ~position:parameters.position
-      ~remove_degenerate_primitives:parameters.remove_degenerate_primitives
-      ~recompute_point_normals:parameters.recompute_point_normals input)
-
-  let factory = parameters_factory build
-end
-
-module Dissolve = struct
-  let operation_parameter = Parameter.choice ~equal:( = ) [
-      "Selected", Rdk.Dissolve.Dissolve_selected;
-      "Non-selected", Rdk.Dissolve.Dissolve_non_selected;
-    ]
-
-  let bridge_parameter = Parameter.choice ~equal:( = ) [
-      "Create bridged polygons", Rdk.Dissolve.Create_bridged_polygons;
-      "Create disjoint polygons", Rdk.Dissolve.Create_disjoint_polygons;
-      "Delete bridge polygons", Rdk.Dissolve.Delete_bridge_polygons;
-    ]
-
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Edge group"];
-    operation : Rdk.Dissolve.operation
-      [@sop.default Rdk.Dissolve.Dissolve_selected]
-      [@sop.label "Operation"] [@sop.kind operation_parameter];
-    bridge_policy : Rdk.Dissolve.bridge_policy
-      [@sop.default Rdk.Dissolve.Create_bridged_polygons]
-      [@sop.label "Bridge loops"] [@sop.kind bridge_parameter];
-    remove_inline_points : bool [@sop.default true]
-      [@sop.label "Remove inline points"] [@sop.folder "Cleanup"];
-    collinearity_tolerance : float [@sop.default 1e-6]
-      [@sop.label "Collinearity tolerance"] [@sop.folder "Cleanup"]
-      [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
-    remove_unused_points : bool [@sop.default true]
-      [@sop.label "Remove unused points"] [@sop.folder "Cleanup"];
-    create_boundary_curves : bool [@sop.default false]
-      [@sop.label "Create boundary curves"];
-    recompute_normals : bool [@sop.default true]
-      [@sop.label "Recompute normals"] [@sop.folder "Cleanup"];
-  } [@@sop.node_key "dissolve"] [@@sop.node_label "Dissolve"]
-    [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.dissolve ~label ?group:(optional_text parameters.group)
-      ~operation:parameters.operation ~bridge_policy:parameters.bridge_policy
-      ~remove_inline_points:parameters.remove_inline_points
-      ~collinearity_tolerance:parameters.collinearity_tolerance
-      ~remove_unused_points:parameters.remove_unused_points
-      ~create_boundary_curves:parameters.create_boundary_curves
-      ~recompute_normals:parameters.recompute_normals input)
-
-  let factory = parameters_factory build
-end
-
 module Poly_bevel = struct
   type shape = Chamfer | Round
 
@@ -332,20 +221,6 @@ module Poly_bevel = struct
       ?(divisions = parameters_default.divisions) ~distance input =
     build ~label:(label "poly-bevel" node_label) ~inputs:[input]
       { parameters_default with shape; divisions; distance }
-end
-
-module Triangulate = struct
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Primitive group"];
-  } [@@sop.node_key "triangulate"] [@@sop.node_label "Triangulate"]
-    [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.triangulate ~label ?group:(optional_text parameters.group) input)
-
-  let factory = parameters_factory build
-
 end
 
 module Reverse = struct
@@ -494,59 +369,6 @@ module Facet = struct
   let factory = parameters_factory build
 end
 
-module Edge_flip = struct
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Edge group"];
-    cycles : int [@sop.default 1] [@sop.label "Cycles"]
-      [@sop.min 0] [@sop.max 16] [@sop.hard_min 0];
-    cycle_vertex_attributes : bool [@sop.default true]
-      [@sop.label "Cycle vertex attributes"];
-    recompute_point_normals : bool [@sop.default false]
-      [@sop.label "Recompute point normals"];
-  } [@@sop.node_key "edge_flip"] [@@sop.node_label "Edge Flip"]
-    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.edge_flip ~label ?group:(optional_text parameters.group)
-      ~cycles:parameters.cycles
-      ~cycle_vertex_attributes:parameters.cycle_vertex_attributes
-      ~recompute_point_normals:parameters.recompute_point_normals input)
-
-  let factory = parameters_factory build
-end
-
-module Edge_cusp = struct
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Edge group"];
-    update_point_normals : bool [@sop.default true]
-      [@sop.label "Update point normals"];
-  } [@@sop.node_key "edge_cusp"] [@@sop.node_label "Edge Cusp"]
-    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.edge_cusp ~label ?group:(optional_text parameters.group)
-      ~update_point_normals:parameters.update_point_normals input)
-
-  let factory = parameters_factory build
-end
-
-module Edge_straighten = struct
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Edge group"];
-    output_group : string [@sop.default ""] [@sop.label "Output group"];
-  } [@@sop.node_key "edge_straighten"] [@@sop.node_label "Edge Straighten"]
-    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.edge_straighten ~label ?group:(optional_text parameters.group)
-      ?output_group:(optional_text parameters.output_group) input)
-
-  let factory = parameters_factory build
-end
-
 module Circle_from_edges = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"];
@@ -653,122 +475,6 @@ module Remesh = struct
       ?output_quality:(optional_text parameters.output_quality)
       ~recompute_point_normals:parameters.recompute_point_normals
       ~target_length:parameters.target_length input)
-
-  let factory = parameters_factory build
-end
-
-module Poly_extrude = struct
-  let divide_parameter = Parameter.choice ~equal:( = ) [
-      "Individual elements", Rdk.Poly_extrude.Extrude_individual;
-      "Connected components", Rdk.Poly_extrude.Extrude_connected_components;
-    ]
-
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Primitive group"];
-    split_edges : string [@sop.default ""] [@sop.label "Split edge group"];
-    distance : float [@sop.default 0.1] [@sop.label "Distance"]
-      [@sop.min (-10.)] [@sop.max 10.];
-    divide : Rdk.Poly_extrude.divide
-      [@sop.default Rdk.Poly_extrude.Extrude_individual]
-      [@sop.label "Divide into"] [@sop.kind divide_parameter];
-    divisions : int [@sop.default 1] [@sop.label "Divisions"]
-      [@sop.min 1] [@sop.max 64] [@sop.hard_min 1];
-    output_front : bool [@sop.default true] [@sop.label "Output front"]
-      [@sop.folder "Output"];
-    output_back : bool [@sop.default true] [@sop.label "Output back"]
-      [@sop.folder "Output"];
-    output_side : bool [@sop.default true] [@sop.label "Output side"]
-      [@sop.folder "Output"];
-    front_group : string [@sop.default ""] [@sop.label "Front group"]
-      [@sop.folder "Groups"];
-    back_group : string [@sop.default ""] [@sop.label "Back group"]
-      [@sop.folder "Groups"];
-    side_group : string [@sop.default ""] [@sop.label "Side group"]
-      [@sop.folder "Groups"];
-    front_boundary_group : string [@sop.default ""]
-      [@sop.label "Front boundary group"] [@sop.folder "Groups"];
-    back_boundary_group : string [@sop.default ""]
-      [@sop.label "Back boundary group"] [@sop.folder "Groups"];
-  } [@@sop.node_key "poly_extrude"] [@@sop.node_label "Poly Extrude"]
-    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.poly_extrude ~label ?group:(optional_text parameters.group)
-      ?split_edges:(optional_text parameters.split_edges)
-      ~divide:parameters.divide ~divisions:parameters.divisions
-      ~output_front:parameters.output_front
-      ~output_back:parameters.output_back ~output_side:parameters.output_side
-      ?front_group:(optional_text parameters.front_group)
-      ?back_group:(optional_text parameters.back_group)
-      ?side_group:(optional_text parameters.side_group)
-      ?front_boundary_group:(optional_text parameters.front_boundary_group)
-      ?back_boundary_group:(optional_text parameters.back_boundary_group)
-      ~distance:parameters.distance input)
-
-  let factory = parameters_factory build
-end
-
-module Poly_fill = struct
-  let mode_parameter = Parameter.choice ~equal:( = ) [
-      "Single polygon", Rdk.Poly_fill.Fill_single_polygon;
-      "Triangles", Rdk.Poly_fill.Fill_triangles;
-      "Triangle fan", Rdk.Poly_fill.Fill_triangle_fan;
-    ]
-
-  type parameters = {
-    boundary_group : string [@sop.default ""] [@sop.label "Boundary group"];
-    mode : Rdk.Poly_fill.mode [@sop.default Rdk.Poly_fill.Fill_triangles]
-      [@sop.label "Fill mode"] [@sop.kind mode_parameter];
-    reverse_patches : bool [@sop.default false]
-      [@sop.label "Reverse patches"];
-    unique_points : bool [@sop.default false] [@sop.label "Unique points"];
-    update_point_normals : bool [@sop.default false]
-      [@sop.label "Update point normals"];
-    patch_group : string [@sop.default ""] [@sop.label "Patch group"];
-  } [@@sop.node_key "poly_fill"] [@@sop.node_label "Poly Fill"]
-    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.poly_fill ~label
-      ?boundary_group:(optional_text parameters.boundary_group)
-      ~mode:parameters.mode ~reverse_patches:parameters.reverse_patches
-      ~unique_points:parameters.unique_points
-      ~update_point_normals:parameters.update_point_normals
-      ?patch_group:(optional_text parameters.patch_group) input)
-
-  let factory = parameters_factory build
-end
-
-module Convert_line = struct
-  type parameters = {
-    group : string [@sop.default ""] [@sop.label "Edge group"];
-    connect_path : bool [@sop.default false] [@sop.label "Connect path"];
-    maximum_distance : float [@sop.default 0.001]
-      [@sop.label "Maximum distance"] [@sop.min 0.] [@sop.max 10.]
-      [@sop.hard_min 0.];
-    connect_only_to_other_end_points : bool [@sop.default false]
-      [@sop.label "Only other endpoints"];
-    make_isolated_loops_closed : bool [@sop.default false]
-      [@sop.label "Close isolated loops"];
-    remove_unused_points : bool [@sop.default false]
-      [@sop.label "Remove unused points"];
-    length_attribute : string [@sop.default ""]
-      [@sop.label "Length attribute"];
-  } [@@sop.node_key "convert_line"] [@@sop.node_label "Convert Line"]
-    [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.convert_line ~label ?group:(optional_text parameters.group)
-      ~connect_path:parameters.connect_path
-      ~maximum_distance:parameters.maximum_distance
-      ~connect_only_to_other_end_points:
-        parameters.connect_only_to_other_end_points
-      ~make_isolated_loops_closed:parameters.make_isolated_loops_closed
-      ~remove_unused_points:parameters.remove_unused_points
-      ?length_attribute:(optional_text parameters.length_attribute) input)
 
   let factory = parameters_factory build
 end
@@ -2065,34 +1771,6 @@ module Blast_by_attribute = struct
       ~owner:parameters.owner ~attribute:parameters.attribute
       ~mode:(blast_mode parameters) ~output input)
   let factory = parameters_factory build
-end
-
-module Blast = struct
-  type parameters = {
-    owner : Rdk.Group.owner [@sop.default Rdk.Group.Primitive]
-      [@sop.label "Group type"] [@sop.kind ordinary_group_owner_parameter];
-    group : string [@sop.default "group"] [@sop.label "Group"];
-    selected : bool [@sop.default true] [@sop.label "Delete selected"];
-    compact_points : bool [@sop.default false]
-      [@sop.label "Remove unused points"];
-    policy : Rdk.Deletion.topology_policy
-      [@sop.default Rdk.Deletion.Destroy_touched_primitives]
-      [@sop.label "Point deletion policy"]
-      [@sop.kind delete_topology_policy_parameter];
-  } [@@sop.node_key "blast"] [@@sop.node_label "Blast"]
-    [@@sop.node_category "Topology/Delete"] [@@sop.node_inputs 1]
-    [@@deriving sop_params, sop_node]
-  let build = parameters_build (fun ~label parameters input ->
-    Sop.blast ~label ~selected:parameters.selected
-        ~compact_points:parameters.compact_points ~policy:parameters.policy
-        ~owner:parameters.owner ~group:parameters.group input)
-  let factory = parameters_factory build
-
-  let create ?label:node_label ?(selected = parameters_default.selected)
-      ?(compact_points = parameters_default.compact_points) ~owner ~group
-      input =
-    build ~label:(label "blast" node_label) ~inputs:[input]
-      { parameters_default with selected; compact_points; owner; group }
 end
 
 module Compact_points = struct

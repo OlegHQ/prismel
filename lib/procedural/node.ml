@@ -71,7 +71,10 @@ let parameterize ~schema ~values ~rebuild value =
   let rebuild ~label ~inputs values =
     rebuild ~label ~inputs:(Array.to_list inputs) values
   in
-  { value with parameter_key = Parameter.cook_key schema values;
+  (* an operator with no hand key of its own reads as the schema's text *)
+  let parameters = if value.parameters = "" then Parameter.cook_text schema values
+    else value.parameters in
+  { value with parameters; parameter_key = Parameter.cook_key schema values;
                parameterization = Some (Parameters { schema; values; rebuild }) }
 
 let apply_parameters value changes = match value.parameterization with

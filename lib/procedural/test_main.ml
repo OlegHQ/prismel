@@ -1,6 +1,7 @@
 let tests = [
   "test_procedural", Test_procedural.run;
   "test_edit_graph", Test_edit_graph.run;
+  "test_sop_nodes", Test_sop_nodes.run;
   "test_procedural_parallel_exact", Test_procedural_parallel_exact.run;
   "test_dissolve_sop", Test_dissolve_sop.run;
   "test_poly_loft_sop", Test_poly_loft_sop.run;

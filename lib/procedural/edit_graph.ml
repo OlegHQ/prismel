@@ -119,9 +119,16 @@ let node_slot_names value ~node_id = Option.map (fun (entry : entry) ->
 let is_bypassed value ~node_id = match Id_map.find_opt node_id value.entries with
   | Some entry -> entry.bypass | None -> false
 
-let empty_geometry = lazy (Sop.snapshot (Result.get_ok (Rdk.Geometry.create
-  ~positions:(Rdk.Packed.Float3.Builder.freeze (Rdk.Packed.Float3.Builder.create 0))
-  ~topology:(Rdk.Topology.empty ~point_count:0) ())))
+let empty_geometry = lazy (
+  let geometry = Result.get_ok (Rdk.Geometry.create
+    ~positions:(Rdk.Packed.Float3.Builder.freeze (Rdk.Packed.Float3.Builder.create 0))
+    ~topology:(Rdk.Topology.empty ~point_count:0) ()) in
+  Node.Private.make ~operation:"snapshot" ~version:1
+    ~parameters:(Printf.sprintf "data_id=%d;bytes=%d" (Rdk.Geometry.data_id geometry)
+      (Rdk.Geometry.payload_bytes geometry))
+    ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static ~inputs:[||]
+    (fun ~node_id:_ _context _inputs ->
+      Ok Node.Private.{ geometry; diagnostics = []; instances = None }))
 
 (* One compiled node per document entry. [inputs] are the compiled input
    nodes it was built from, so a later compile can reuse [built] when both the
