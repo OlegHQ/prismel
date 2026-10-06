@@ -1073,6 +1073,13 @@ let run () =
   if Ui.ellipsis ~width:cp ~limit:200. "split side by side" <> "split side by side" then fail "a fitting label was cut";
   if Ui.ellipsis ~width:cp ~limit:70. "split side by side" <> "split sid…" then fail "a long label was not cut to the limit";
   if Ui.ellipsis ~width:cp ~limit:28. "ƒ petal" <> "ƒ p…" then fail "the cut split a multi-byte character";
+  if Ui.ellipsis ~width:cp ~limit:7. "petal" <> "…" || Ui.ellipsis ~width:cp ~limit:6. "petal" <> "" then
+    fail "a label with no room was not the ellipsis alone, then nothing";
+  (* the cut measures what it shows, not the whole label *)
+  let measured = ref 0 in
+  let counted s = measured := !measured + String.length s; cp s in
+  if Ui.ellipsis ~width:counted ~limit:70. (String.make 4000 'a') <> String.make 9 'a' ^ "…" || !measured > 100 then
+    fail "the cut of a long label measured all of it";
   Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)
   let ui = Ui.create ~font_size:11 () and shown = ref None in

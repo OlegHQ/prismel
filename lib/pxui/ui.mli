@@ -99,7 +99,9 @@ val passed_undo : t -> [`Undo | `Redo] option
 
 val ellipsis : width:(string -> float) -> limit:float -> string -> string
 (** [label] cut to [limit] points (measured by [width], e.g. [Paint.text_width paint]) with an
-    ellipsis, on a character boundary: a row label that stops short of its right-hand detail. *)
+    ellipsis, on a character boundary: a row label that stops short of its right-hand detail.
+    [width] is the sum of a text's characters, each measured once up to the cut: the cost follows
+    what is shown, not the label's length. *)
 
 val unfocus : t -> unit
 

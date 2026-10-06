@@ -1023,16 +1023,19 @@ let request_cursor ui shape = ui.requested_cursor <- Some shape
 let text_input_focused ui = ui.focus <> 0
 let passed_undo ui = ui.passed_undo
 
-(* [label] cut to [limit] points wide ([width] measures text) with an ellipsis, on a character boundary *)
+(* [label] cut to [limit] points wide with an ellipsis, on a character boundary.  [width] measures
+   text as the sum of its characters, so one pass from the start measures each character once and
+   stops at the first that does not fit: the cost follows what is shown, not the label's length. *)
 let ellipsis ~width ~limit label =
-  let rec cut s =
-    if s = "" then "" else begin
-      let n = ref (String.length s - 1) in
-      while !n > 0 && Char.code s.[!n] land 0xC0 = 0x80 do decr n done;
-      let s = String.sub s 0 !n in
-      if width (s ^ "…") <= limit then s ^ "…" else cut s
-    end in
-  if width label <= limit then label else cut label
+  let length = String.length label and dots = width "…" in
+  (* [cut]: the longest prefix that fits with the ellipsis after it; -1 when the ellipsis alone does not *)
+  let rec fit index used cut =
+    if index >= length then label else
+    let next = index + Uchar.utf_decode_length (String.get_utf_8_uchar label index) in
+    let used = used +. width (String.sub label index (next - index)) in
+    if used > limit then (if cut < 0 then "" else String.sub label 0 cut ^ "…")
+    else fit next used (if used +. dots <= limit then next else cut) in
+  fit 0 0. (if dots <= limit then 0 else -1)
 let key_pressed ui key =
   List.exists (function Event.KeyPressed k -> k = key | _ -> false) ui.frame_events
 let unfocus ui = ui.focus <- 0; ui.composition <- ""; ui.edit_focus <- 0;
@@ -2233,18 +2236,10 @@ let inspector_width ui =
     | _ -> find ui.b_parent.(index) in
   find (current_parent ui)
 
+(* [ellipsis] at a text size; a text with no room at all is the ellipsis alone *)
 let inspector_fit paint ~size ~width text =
-  if Paint.text_width paint ~size text <= width then text else
-  let rec shorten length =
-    if length <= 0 then "…" else
-    let shown = String.sub text 0 length ^ "…" in
-    if Paint.text_width paint ~size shown <= width then shown else
-    let previous = ref (length - 1) in
-    while !previous > 0 && Char.code text.[!previous] land 0xc0 = 0x80 do
-      decr previous
-    done;
-    shorten !previous in
-  shorten (String.length text)
+  let shown = ellipsis ~width:(Paint.text_width paint ~size) ~limit:width text in
+  if shown = "" && not (text = "" && width >= 0.) then "…" else shown
 
 (* The kit's inspector row, from its CSS: 12 side padding, a 6-point slot for the pin dot, 8, the
    label column, 8, the control to 12 from the right edge.  The label column is 0.3 of the panel
