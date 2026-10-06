@@ -285,8 +285,10 @@ let set_camera st (before : Document.t) ~alive camera =
        | _ -> ());
       Option.iter (fun home -> set st home [ "active", Some (sym "true") ]) (Option.bind camera home)
 
-let objects st (before : Document.t) (after : Document.t) =
-  let b = Document.scene_graph before and a = Document.scene_graph after in
+(* The objects of the text as the scene [a] has them: a changed one's name, parent and fields are
+   written; the ones [a] lacks are returned, [(id, home)]. *)
+let object_changes st (before : Document.t) a =
+  let b = Document.scene_graph before in
   let refuse_preview = refuse_preview before in
   let gone = ref [] in
   List.iter (fun (id, home) -> if homed before id then
@@ -300,6 +302,11 @@ let objects st (before : Document.t) (after : Document.t) =
         set ~before:(current_syntax nb) st home edits
     | Some _, None -> refuse_preview id; gone := (id, home) :: !gone
     | None, _ -> ()) before.homes.objects;
+  !gone
+
+let objects st (before : Document.t) (after : Document.t) =
+  let a = Document.scene_graph after in
+  let gone = ref (object_changes st before a) in
   delete_objects st before !gone;
   if before.active_camera <> after.active_camera then
     set_camera st before ~alive:(fun id -> Edit.find a ~node_id:id <> None) after.active_camera
@@ -658,6 +665,8 @@ type edit =
   | Camera of int option  (* the render camera *)
   | Root of Objects.Root.parameters  (* the render settings *)
   | Settings of Settings.t
+  | Reparent of int list * int option  (* objects under a parent (none: the root), their places kept *)
+  | Outdent of int list  (* each out to its parent's parent *)
 
 let graph_at (doc : Document.t) = function
   | Document.Scene -> Some (Document.scene_graph doc)
@@ -672,6 +681,7 @@ let writes (doc : Document.t) level = function
   | Delete ids | Restack ids -> List.for_all (in_text doc level) ids
   | Camera _ -> true  (* a camera the text does not have is the document's alone *)
   | Root _ | Settings _ -> true  (* the first edit of a render setting writes the root *)
+  | Reparent (ids, _) | Outdent ids -> level = Document.Scene && List.for_all (in_text doc level) ids
   | Layers _ -> (match level with
     | Inside wid -> world_id doc = Some wid && doc.homes.world <> None
     | Scene -> false)
@@ -750,6 +760,15 @@ let write_edit st (doc : Document.t) level = function
   | Camera camera ->
       if camera <> doc.active_camera then set_camera st doc ~alive:(fun _ -> true) camera;
       None
+  | Reparent (ids, _) | Outdent ids as edit ->
+      (* the scene rewired aside, for the transform that keeps each object where it is: only the
+         text is written *)
+      let graph = Document.scene_graph doc in
+      let moved = match edit with
+        | Reparent (ids, parent) -> Objects.reparent graph ids parent
+        | _ -> Objects.outdent graph ids in
+      ignore (object_changes st doc moved);
+      first (List.map (fun id -> Option.bind (List.assoc_opt id doc.homes.objects) (template_note doc)) ids)
   | Root now -> root st doc now ~adopt:true; None
   | Settings now -> settings st doc now; None
   | Restack bottom_first ->
@@ -783,7 +802,7 @@ let write ~factories (doc : Document.t) level edit =
       | Camera active_camera -> { doc with active_camera }
       | Root root -> { doc with root }
       | Settings settings -> { doc with settings }
-      | Fields _ | Rename _ | Delete _ | Restack _ | Layers _ -> doc in
+      | Fields _ | Rename _ | Delete _ | Restack _ | Layers _ | Reparent _ | Outdent _ -> doc in
     if st.workspace == fst doc.workspace then Ok (Some (doc, note))
     else if st.workspace.source == (fst doc.workspace).source then
       Ok (Some ({ doc with workspace = st.workspace, snd doc.workspace }, note))

@@ -44,6 +44,10 @@ type edit =
   | Root of Objects.Root.parameters
       (** the render settings: the root's call; the first edit writes a root over the scene's result *)
   | Settings of Settings.t  (** the settings graph, else the workspace's own settings *)
+  | Reparent of int list * int option
+      (** objects under a parent (none: the scene root): [:parent] and the transform that keeps
+          each where it is in the world *)
+  | Outdent of int list  (** each object out to its parent's parent, likewise *)
 (** A derived edit as its caller means it: scene objects at the scene level, World layers inside
     the World. *)
 

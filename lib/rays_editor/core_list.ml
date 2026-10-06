@@ -166,26 +166,6 @@ let rows value (network : Document.network) = match value.level with
         | _ -> []),
       ["v"]
 
-(* Rewire [ids] under [parent] (None: the scene root), keeping each one's
-   world placement. *)
-let reparent document ids parent =
-  List.fold_left (fun document id ->
-    let before = Objects.parent_world document id in
-    let rewired = match parent with
-      | Some parent when parent <> id ->
-          Edit_graph.connect ~source:parent ~consumer:id ~input_index:0 document
-      | Some _ -> Ok document
-      | None when Objects.parent document id <> None ->
-          Edit_graph.disconnect ~consumer:id ~input_index:0 document
-      | None -> Ok document in
-    match rewired with
-    | Error _ -> document
-    | Ok document ->
-        (match Objects.keep_world document id ~before with
-         | [] -> document
-         | values -> (match Edit_graph.apply_parameters document ~node_id:id values with
-           | Ok (document, _) -> document | Error _ -> document))) document ids
-
 (* A layer chain in stack order, bottom first, with [ids] moved. *)
 let restack document order =
   let document = List.fold_left (fun document id ->
@@ -227,6 +207,29 @@ let restacked rows intent =
           (List.nth_opt (List.filter (fun id -> not (List.mem id ids)) order) (max 0 (index + delta))))
   | _ -> None
 
+(* What a scene list's move asks: the objects and the parent they go under (none: the root). *)
+let reparented document rows intent =
+  let module T = Pxui_shell.Tree in
+  match intent with
+  | T.Move { ids; target; drop } ->
+      Some (ids, match drop with
+        | T.Inside -> Some target
+        | Before | After -> Objects.parent document target)
+  | Indent (id :: _ as ids) ->
+      (* Under the previous sibling row. *)
+      let index = ref None in
+      Array.iteri (fun k (row : T.row) -> if row.id = id && !index = None then index := Some k) rows;
+      Option.bind !index (fun k ->
+        let depth = rows.(k).depth in
+        let found = ref None in
+        for candidate = k - 1 downto 0 do
+          if !found = None && rows.(candidate).depth = depth then
+            found := Some rows.(candidate).id
+          else if rows.(candidate).depth < depth then found := Some (-1)
+        done;
+        match !found with Some id when id >= 0 -> Some (ids, Some id) | _ -> None)
+  | _ -> None
+
 (* Tree intents become document edits, selection, or an entry request. *)
 let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
   let document = overlay.Flow_sop.Network.geometry in
@@ -259,38 +262,12 @@ let apply_tree value (overlay, selection, tree, opened, label, rows) intent =
       (match restacked rows intent with
        | Some order -> restack document order, selection, tree, opened, Some "Reorder layers", rows
        | None -> document, selection, tree, opened, label, rows)
-  | Move { ids; target; drop } when value.level = Document.Scene ->
-      let parent = match drop with
-        | T.Inside -> Some target
-        | Before | After -> Objects.parent document target in
-      reparent document ids parent, selection, tree, opened, Some "Reparent", rows
-  | Indent ids when value.level = Document.Scene ->
-      (* Under the previous sibling row. *)
-      let parent = match ids with
-        | [] -> None
-        | id :: _ ->
-            let index = ref None in
-            Array.iteri (fun k (row : T.row) -> if row.id = id && !index = None
-              then index := Some k) rows;
-            Option.bind !index (fun k ->
-              let depth = rows.(k).depth in
-              let found = ref None in
-              for candidate = k - 1 downto 0 do
-                if !found = None && rows.(candidate).depth = depth then
-                  found := Some rows.(candidate).id
-                else if rows.(candidate).depth < depth then found := Some (-1)
-              done;
-              match !found with Some id when id >= 0 -> Some id | _ -> None) in
-      (match parent with
-       | None -> document, selection, tree, opened, label, rows
-       | Some parent ->
-           reparent document ids (Some parent), selection, tree, opened, Some "Reparent", rows)
+  | (Move _ | Indent _) when value.level = Document.Scene ->
+      (match reparented document rows intent with
+       | Some (ids, parent) -> Objects.reparent document ids parent, selection, tree, opened, Some "Reparent", rows
+       | None -> document, selection, tree, opened, label, rows)
   | Outdent ids when value.level = Document.Scene ->
-      let document = List.fold_left (fun document id ->
-          match Objects.parent document id with
-          | Some parent -> reparent document [id] (Objects.parent document parent)
-          | None -> document) document ids in
-      document, selection, tree, opened, Some "Reparent", rows
+      Objects.outdent document ids, selection, tree, opened, Some "Reparent", rows
   | Rename (id, name) when not geometry ->
       (match Option.map (Node.relabel name) (Edit_graph.find document ~node_id:id) with
        | Some node -> (match Edit_graph.replace_node node document with
@@ -326,6 +303,9 @@ let tree_edit value rows intent =
     | Rename (id, name) -> Some (Rename (id, name))
     | Delete ids -> Some (Delete ids)
     | Move _ | Reorder _ when world -> Option.map (fun order -> Editor_document.Scene_sync.Restack order) (restacked rows intent)
+    | Move _ | Indent _ ->
+        Option.map (fun (ids, parent) -> Editor_document.Scene_sync.Reparent (ids, parent)) (reparented graph rows intent)
+    | Outdent ids -> Some (Outdent ids)
     | _ -> None in
   match edit with
   | Some edit when Editor_document.Scene_sync.writes value.doc value.level edit -> Some edit

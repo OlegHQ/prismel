@@ -166,6 +166,17 @@ let run () =
   let body = node_id doc "body" in
   let under = with_scene doc (Edit_graph.connect ~source:body ~consumer:arm ~input_index:0 (scene doc) |> Result.get_ok) in
   let edited = ok (reconcile doc under) in
+  (* a list's reparent keeps the world placement: the transform is computed before the text is written *)
+  let placed = open_text (Str.global_replace (Str.regexp_string ":name \"body\"") ":name \"body\" :translate [0 3 0] :rotate [0 90 0]" text) in
+  (let arm = node_id placed "arm" and body = node_id placed "body" in
+   let moved = with_scene placed (Objects.reparent (scene placed) [ arm ] (Some body)) in
+   text_first "reparent" placed Document.Scene (Sync.Reparent ([ arm ], Some body)) moved;
+   let saved = ok (reconcile placed moved) in
+   check (contains (source saved) ":parent \"body\""
+          && Objects.parent_world (scene saved) arm <> Objects.parent_world (scene placed) arm
+          && not (contains (source saved) ":translate [1 0 0]")) ("a reparent kept the local transform: " ^ source saved);
+   text_first "outdent" saved Document.Scene (Sync.Outdent [ arm ])
+     (with_scene saved (Objects.outdent (scene saved) [ arm ])));
   check (contains (source edited) ":parent \"body\"") "a reparent did not reach the text";
   same_after_reload edited "reparent";
   let torso = with_scene edited (Edit_graph.replace_node

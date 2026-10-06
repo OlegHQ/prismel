@@ -344,3 +344,28 @@ let keep_world scene id ~before =
             float "target_z" target.z]
        | None, None -> [])
   | _ -> []
+
+(* [scene] with [ids] rewired under [under] (None: the scene root), each keeping its world
+   placement. *)
+let reparent scene ids under =
+  List.fold_left (fun scene id ->
+    let before = parent_world scene id in
+    let rewired = match under with
+      | Some above when above <> id -> Edit_graph.connect ~source:above ~consumer:id ~input_index:0 scene
+      | Some _ -> Ok scene
+      | None when parent scene id <> None ->
+          Edit_graph.disconnect ~consumer:id ~input_index:0 scene
+      | None -> Ok scene in
+    match rewired with
+    | Error _ -> scene
+    | Ok scene ->
+        (match keep_world scene id ~before with
+         | [] -> scene
+         | values -> (match Edit_graph.apply_parameters scene ~node_id:id values with
+           | Ok (scene, _) -> scene | Error _ -> scene))) scene ids
+
+(* each of [ids] moved out to its parent's parent *)
+let outdent scene ids =
+  List.fold_left (fun scene id -> match parent scene id with
+    | Some above -> reparent scene [ id ] (parent scene above)
+    | None -> scene) scene ids
