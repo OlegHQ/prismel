@@ -796,6 +796,11 @@ let route ui (frame : Frame.t) =
   ui.input_frame <- Some frame;
   ui.routed_events <- []; ui.cancelled <- [];
   ui.dropped <- None;
+  (* a carry lives with the press that holds it: capture taken away since (a popup, a host
+     dismissal) takes the payload too, so no later release puts it *)
+  (match ui.payload with
+   | Some (_, From_pointer owner) when ui.active <> Some owner -> ui.payload <- None
+   | _ -> ());
   let released_carry = ref false in
   ui.passed_undo <- None;
   ui.modal_in_frame <- ui.modal_key <> None;
@@ -1400,8 +1405,125 @@ let intrinsic ui =
         (resolve ui.b_h.(index) content_h false)
   done
 
-(* Top-down: relative sizes, grow shares, scroll gutters, and positions. *)
-let arrange ui =
+(* Scrolling as NSScrollView does it, the constants fitted to a recording of one (scriptc-ui
+   packages/appkit/src/scrolling-behavior.ts).  Past an edge [travel] points of input show as
+   [stretch travel height]; left alone the overscroll decays with tau 0.084 s.  A trackpad's fingers
+   move the content point for point and hold a stretch until they lift; lifted in motion, the box
+   coasts on the release velocity decaying with tau 0.26 s, and reaching an edge it overshoots as
+   the overdamped spring A(e^(-9.25t) - e^(-19t)) launched at 0.39 of the arrival velocity.  Every
+   motion is a closed form of the time since it began, so the frame rate does not change it. *)
+(* the fingers past an edge: the content follows at about half their travel at first (AppKit's
+   rubber band), ever less as it nears the clip's height.  A wheel notch is not a pull: its
+   travel past the edge counts for a tenth. *)
+let scroll_stiffness = 0.55
+let scroll_wheel_past = 0.05 /. 0.55
+let scroll_spring_tau = 0.084
+let scroll_coast_tau = 0.26
+let scroll_bounce_a = 9.25
+let scroll_bounce_b = 19.
+let scroll_bounce_launch = 0.39
+let scroll_min_velocity = 20.
+
+let scroll_stretch travel height =
+  if height <= 0. then 0.
+  else scroll_stiffness *. travel /. (1. +. scroll_stiffness *. Float.abs travel /. height)
+
+(* the travel that shows [overscroll]: the inverse of [scroll_stretch] *)
+let scroll_travel overscroll height =
+  if height <= 0. || overscroll = 0. then 0.
+  else
+    let shown = Float.min (Float.abs overscroll) (height *. 0.999) in
+    Float.copy_sign (shown /. (scroll_stiffness *. (1. -. shown /. height))) overscroll
+
+(* One scroll box, once its height is laid out ([arrange]): a height that comes from the parent
+   (Grow, Pct, Rel) stretches and bounces as a fixed one does. *)
+let apply_scroll ui time index =
+  let slot = ui.b_slot.(index) in
+  let height = ui.l_h.(index) in
+  let max_scroll = Float.max 0. (ui.l_content.(index) -. height) in
+  let wheel, drag, touch, lift = match Int_table.find_opt ui.signals ui.b_key.(index) with
+    | Some value -> value.scroll_wheel, value.scroll_drag, value.scroll_touch, value.scroll_lift
+    | None -> 0., 0., false, false in
+  (* input moves the content by [delta] points; content that fits does not stretch *)
+  let pull ?(past = 1.) delta =
+    let old = ui.scroll_raw.(slot) in
+    let next = ui.scroll_y.(slot) +. old -. delta in
+    let bounded = Float.max 0. (Float.min max_scroll next) in
+    let over = next -. bounded in
+    let raw = if max_scroll <= 0. || over = 0. then 0. else old +. (over -. old) *. past in
+    ui.scroll_y.(slot) <- bounded;
+    ui.scroll_raw.(slot) <- raw;
+    ui.scroll_visual.(slot) <- scroll_stretch raw height in
+  (* any input catches a coast or a bounce where it is *)
+  if touch || wheel <> 0. || drag <> 0. then ui.scroll_mode.(slot) <- 0;
+  if touch then ui.scroll_event_time.(slot) <- Float.infinity;
+  if drag <> 0. then begin
+    pull drag;
+    (* held by the fingers: it springs back when they lift *)
+    ui.scroll_event_time.(slot) <- Float.infinity
+  end else if wheel <> 0. then begin
+    pull ~past:scroll_wheel_past (wheel *. ui.b_scroll_step.(index));
+    ui.scroll_event_time.(slot) <- time
+  end;
+  if lift then begin
+    if ui.scroll_visual.(slot) <> 0. then ui.scroll_event_time.(slot) <- Float.neg_infinity
+    else if max_scroll > 0. && Float.abs ui.gesture_velocity >= scroll_min_velocity then begin
+      ui.scroll_mode.(slot) <- 1;
+      ui.scroll_velocity.(slot) <- ui.gesture_velocity;
+      ui.scroll_start.(slot) <- time;
+      ui.scroll_from.(slot) <- ui.scroll_y.(slot)
+    end
+  end;
+  if wheel = 0. && drag = 0. then begin
+    if ui.scroll_mode.(slot) = 1 then begin
+      (* v(t) = v0 e^(-t/tau), so y(t) = y0 + v0 tau (1 - e^(-t/tau)) *)
+      let velocity = ui.scroll_velocity.(slot) and from = ui.scroll_from.(slot) in
+      let at t = from +. velocity *. scroll_coast_tau
+        *. (1. -. Float.exp (-. t /. scroll_coast_tau)) in
+      let t = Float.max 0. (time -. ui.scroll_start.(slot)) in
+      let y = at t in
+      if y < 0. || y > max_scroll then begin
+        (* the coast is monotonic: bisect for when it met the edge and bounce from then *)
+        let edge = if y < 0. then 0. else max_scroll in
+        let early = ref 0. and late = ref t in
+        for _ = 1 to 24 do
+          let mid = (!early +. !late) /. 2. in
+          if (at mid -. edge) *. (y -. edge) > 0. then late := mid else early := mid
+        done;
+        let arrival = velocity *. Float.exp (-. !late /. scroll_coast_tau) in
+        ui.scroll_y.(slot) <- edge;
+        ui.scroll_mode.(slot) <- 2;
+        ui.scroll_start.(slot) <- ui.scroll_start.(slot) +. !late;
+        ui.scroll_velocity.(slot) <-
+          scroll_bounce_launch *. arrival /. (scroll_bounce_b -. scroll_bounce_a)
+      end else begin
+        (* on whole device pixels, so text is sharp where the coast ends *)
+        let density = float ui.density in
+        ui.scroll_y.(slot) <- Float.round (y *. density) /. density;
+        if Float.abs (velocity *. Float.exp (-. t /. scroll_coast_tau)) < scroll_min_velocity
+        then ui.scroll_mode.(slot) <- 0
+      end
+    end;
+    if ui.scroll_mode.(slot) = 2 then begin
+      let t = Float.max 0. (time -. ui.scroll_start.(slot)) in
+      let visual = ui.scroll_velocity.(slot)
+        *. (Float.exp (-. scroll_bounce_a *. t) -. Float.exp (-. scroll_bounce_b *. t)) in
+      let settled = t > 1. /. scroll_bounce_a && Float.abs visual < 0.25 in
+      if settled then ui.scroll_mode.(slot) <- 0;
+      ui.scroll_visual.(slot) <- if settled then 0. else visual;
+      ui.scroll_raw.(slot) <- scroll_travel ui.scroll_visual.(slot) height
+    end else if ui.scroll_visual.(slot) <> 0.
+        && time -. ui.scroll_event_time.(slot) > 0.08 then begin
+      let dt = Float.max 0. (time -. ui.scroll_frame_time.(slot)) in
+      let visual = ui.scroll_visual.(slot) *. Float.exp (-. dt /. scroll_spring_tau) in
+      ui.scroll_visual.(slot) <- if Float.abs visual < 0.25 then 0. else visual;
+      ui.scroll_raw.(slot) <- scroll_travel ui.scroll_visual.(slot) height
+    end
+  end;
+  ui.scroll_frame_time.(slot) <- time
+
+(* Top-down: relative sizes, grow shares, scrolling, scroll gutters, and positions. *)
+let arrange ui time =
   ui.l_x.(0) <- 0.; ui.l_y.(0) <- 0.;
   ui.l_scale.(0) <- 1.; ui.l_tx.(0) <- 0.; ui.l_ty.(0) <- 0.;
   for index = 0 to ui.count - 1 do
@@ -1411,8 +1533,10 @@ let arrange ui =
     let gutter = if scrolls && max_scroll > 0. && ui.b_flags.(index) land over_thumb = 0 then 10. else 0. in
     ui.l_gutter.(index) <- gutter;
     let slot = ui.b_slot.(index) in
-    if scrolls then
-      ui.scroll_y.(slot) <- Float.max 0. (Float.min max_scroll ui.scroll_y.(slot));
+    if scrolls then begin
+      apply_scroll ui time index;
+      ui.scroll_y.(slot) <- Float.max 0. (Float.min max_scroll ui.scroll_y.(slot))
+    end;
     (* Children live in this box's space, or in its canvas. *)
     let canvas = ui.b_xform.(index) in
     let child_scale, child_tx, child_ty, origin_x, origin_y, unit = match canvas with
@@ -1776,8 +1900,11 @@ let paint_all ui (frame : Frame.t) =
       vw > 0. && vh > 0. in
     let has_hit = ui.b_flags.(index) land hit_flags <> 0 && hw > 0. && hh > 0. in
     if has_hit then record_hit ui index parent_hit clipped_hit;
-    if visible || ui.b_xform.(index) <> None then begin
-      run ui.b_painters.(index) index clip_rect;
+    (* only a box that clips its children hides them with itself: a child placed with [~at] may
+       show outside a box with no extent (a [Fit] box of such children) or one out of view *)
+    let shown = visible || ui.b_xform.(index) <> None in
+    if shown || ui.b_flags.(index) land clip = 0 then begin
+      if shown then run ui.b_painters.(index) index clip_rect;
       let child_clip = if ui.b_flags.(index) land clip <> 0 then
           let padding = ui.b_padding.(index) *. ui.l_scale.(index) in
           intersect clip_rect (x +. padding, y +. padding,
@@ -1785,8 +1912,8 @@ let paint_all ui (frame : Frame.t) =
         else clip_rect in
       let parent_hit = if has_hit then ui.b_key.(index) else parent_hit in
       children ui index (fun child -> visit child child_clip parent_hit);
-      run ui.b_overlays.(index) index clip_rect;
-      if ui.keyboard_focus && ui.focus = ui.b_key.(index)
+      if shown then run ui.b_overlays.(index) index clip_rect;
+      if shown && ui.keyboard_focus && ui.focus = ui.b_key.(index)
          && ui.b_flags.(index) land focus_mark = 0 then begin
         paint.scale <- ui.l_scale.(index); paint.tx <- ui.l_tx.(index);
         paint.ty <- ui.l_ty.(index); paint.clip_rect <- clip_rect;
@@ -1806,125 +1933,6 @@ let paint_all ui (frame : Frame.t) =
   flush (); List.rev !layers
 
 (* -------------------------------------------------------------- frame *)
-
-(* Scrolling as NSScrollView does it, the constants fitted to a recording of one (scriptc-ui
-   packages/appkit/src/scrolling-behavior.ts).  Past an edge [travel] points of input show as
-   [stretch travel height]; left alone the overscroll decays with tau 0.084 s.  A trackpad's fingers
-   move the content point for point and hold a stretch until they lift; lifted in motion, the box
-   coasts on the release velocity decaying with tau 0.26 s, and reaching an edge it overshoots as
-   the overdamped spring A(e^(-9.25t) - e^(-19t)) launched at 0.39 of the arrival velocity.  Every
-   motion is a closed form of the time since it began, so the frame rate does not change it. *)
-(* the fingers past an edge: the content follows at about half their travel at first (AppKit's
-   rubber band), ever less as it nears the clip's height.  A wheel notch is not a pull: its
-   travel past the edge counts for a tenth. *)
-let scroll_stiffness = 0.55
-let scroll_wheel_past = 0.05 /. 0.55
-let scroll_spring_tau = 0.084
-let scroll_coast_tau = 0.26
-let scroll_bounce_a = 9.25
-let scroll_bounce_b = 19.
-let scroll_bounce_launch = 0.39
-let scroll_min_velocity = 20.
-
-let scroll_stretch travel height =
-  if height <= 0. then 0.
-  else scroll_stiffness *. travel /. (1. +. scroll_stiffness *. Float.abs travel /. height)
-
-(* the travel that shows [overscroll]: the inverse of [scroll_stretch] *)
-let scroll_travel overscroll height =
-  if height <= 0. || overscroll = 0. then 0.
-  else
-    let shown = Float.min (Float.abs overscroll) (height *. 0.999) in
-    Float.copy_sign (shown /. (scroll_stiffness *. (1. -. shown /. height))) overscroll
-
-let apply_scroll ui time =
-  for index = 0 to ui.count - 1 do
-    if ui.b_flags.(index) land scroll <> 0 then begin
-      let slot = ui.b_slot.(index) in
-      let height = ui.l_h.(index) in
-      let max_scroll = Float.max 0. (ui.l_content.(index) -. height) in
-      let wheel, drag, touch, lift = match Int_table.find_opt ui.signals ui.b_key.(index) with
-        | Some value -> value.scroll_wheel, value.scroll_drag, value.scroll_touch, value.scroll_lift
-        | None -> 0., 0., false, false in
-      (* input moves the content by [delta] points; content that fits does not stretch *)
-      let pull ?(past = 1.) delta =
-        let old = ui.scroll_raw.(slot) in
-        let next = ui.scroll_y.(slot) +. old -. delta in
-        let bounded = Float.max 0. (Float.min max_scroll next) in
-        let over = next -. bounded in
-        let raw = if max_scroll <= 0. || over = 0. then 0. else old +. (over -. old) *. past in
-        ui.scroll_y.(slot) <- bounded;
-        ui.scroll_raw.(slot) <- raw;
-        ui.scroll_visual.(slot) <- scroll_stretch raw height in
-      (* any input catches a coast or a bounce where it is *)
-      if touch || wheel <> 0. || drag <> 0. then ui.scroll_mode.(slot) <- 0;
-      if touch then ui.scroll_event_time.(slot) <- Float.infinity;
-      if drag <> 0. then begin
-        pull drag;
-        (* held by the fingers: it springs back when they lift *)
-        ui.scroll_event_time.(slot) <- Float.infinity
-      end else if wheel <> 0. then begin
-        pull ~past:scroll_wheel_past (wheel *. ui.b_scroll_step.(index));
-        ui.scroll_event_time.(slot) <- time
-      end;
-      if lift then begin
-        if ui.scroll_visual.(slot) <> 0. then ui.scroll_event_time.(slot) <- Float.neg_infinity
-        else if max_scroll > 0. && Float.abs ui.gesture_velocity >= scroll_min_velocity then begin
-          ui.scroll_mode.(slot) <- 1;
-          ui.scroll_velocity.(slot) <- ui.gesture_velocity;
-          ui.scroll_start.(slot) <- time;
-          ui.scroll_from.(slot) <- ui.scroll_y.(slot)
-        end
-      end;
-      if wheel = 0. && drag = 0. then begin
-        if ui.scroll_mode.(slot) = 1 then begin
-          (* v(t) = v0 e^(-t/tau), so y(t) = y0 + v0 tau (1 - e^(-t/tau)) *)
-          let velocity = ui.scroll_velocity.(slot) and from = ui.scroll_from.(slot) in
-          let at t = from +. velocity *. scroll_coast_tau
-            *. (1. -. Float.exp (-. t /. scroll_coast_tau)) in
-          let t = Float.max 0. (time -. ui.scroll_start.(slot)) in
-          let y = at t in
-          if y < 0. || y > max_scroll then begin
-            (* the coast is monotonic: bisect for when it met the edge and bounce from then *)
-            let edge = if y < 0. then 0. else max_scroll in
-            let early = ref 0. and late = ref t in
-            for _ = 1 to 24 do
-              let mid = (!early +. !late) /. 2. in
-              if (at mid -. edge) *. (y -. edge) > 0. then late := mid else early := mid
-            done;
-            let arrival = velocity *. Float.exp (-. !late /. scroll_coast_tau) in
-            ui.scroll_y.(slot) <- edge;
-            ui.scroll_mode.(slot) <- 2;
-            ui.scroll_start.(slot) <- ui.scroll_start.(slot) +. !late;
-            ui.scroll_velocity.(slot) <-
-              scroll_bounce_launch *. arrival /. (scroll_bounce_b -. scroll_bounce_a)
-          end else begin
-            (* on whole device pixels, so text is sharp where the coast ends *)
-            let density = float ui.density in
-            ui.scroll_y.(slot) <- Float.round (y *. density) /. density;
-            if Float.abs (velocity *. Float.exp (-. t /. scroll_coast_tau)) < scroll_min_velocity
-            then ui.scroll_mode.(slot) <- 0
-          end
-        end;
-        if ui.scroll_mode.(slot) = 2 then begin
-          let t = Float.max 0. (time -. ui.scroll_start.(slot)) in
-          let visual = ui.scroll_velocity.(slot)
-            *. (Float.exp (-. scroll_bounce_a *. t) -. Float.exp (-. scroll_bounce_b *. t)) in
-          let settled = t > 1. /. scroll_bounce_a && Float.abs visual < 0.25 in
-          if settled then ui.scroll_mode.(slot) <- 0;
-          ui.scroll_visual.(slot) <- if settled then 0. else visual;
-          ui.scroll_raw.(slot) <- scroll_travel ui.scroll_visual.(slot) height
-        end else if ui.scroll_visual.(slot) <> 0.
-            && time -. ui.scroll_event_time.(slot) > 0.08 then begin
-          let dt = Float.max 0. (time -. ui.scroll_frame_time.(slot)) in
-          let visual = ui.scroll_visual.(slot) *. Float.exp (-. dt /. scroll_spring_tau) in
-          ui.scroll_visual.(slot) <- if Float.abs visual < 0.25 then 0. else visual;
-          ui.scroll_raw.(slot) <- scroll_travel ui.scroll_visual.(slot) height
-        end
-      end;
-      ui.scroll_frame_time.(slot) <- time
-    end
-  done
 
 (* The payload in flight follows the pointer as a small label above everything. Idle frames
    (nothing carried) build and paint nothing. *)
@@ -1999,8 +2007,7 @@ let frame ui (frame : Frame.t) f =
       |> List.map snd |> fun foreground -> foreground @ List.rev ui.overlays);
   ui.overlays <- [];
   intrinsic ui;
-  apply_scroll ui frame.time;
-  arrange ui;
+  arrange ui frame.time;
   let layers = paint_all ui frame in
   ui.foreground <- [];
   prune ui;
@@ -2739,7 +2746,7 @@ let point_text_caret ui ?size edit signal ~shift ~x ~right =
    Shift-Command-Z (or Command-Y) undo and redo, Option-arrows move by words, Command-arrows
    and Home/End by lines, Option-Backspace/Delete take a word, Command-Backspace/Delete the
    line to the caret.  Returns whether the text changed. *)
-let edit_text_event ui edit ~accept ~modifiers event =
+let edit_text_event ?(multiline = false) ui edit ~accept ~modifiers event =
   let command = command_modifiers modifiers
   and shift = List.mem Input.Shift modifiers
   and alt = List.mem Input.Alt modifiers in
@@ -2773,7 +2780,10 @@ let edit_text_event ui edit ~accept ~modifiers event =
         true
       end else false
   | event when clipboard_command ~command event = Some 'v' ->
-      (match Clipboard.get_text () with
+      (* a field of one line takes a copied line without its break *)
+      let one_line text = if multiline then text
+        else String.of_seq (Seq.filter (fun c -> c <> '\n' && c <> '\r') (String.to_seq text)) in
+      (match Result.map one_line (Clipboard.get_text ()) with
        | Ok text when accept text -> remember ui edit ~typing:false; replace_text edit text; true
        | Ok _ | Error _ -> false)
   | event when clipboard_command ~command event = Some 'z' -> pass_undo ui edit ~redo:shift
@@ -3464,7 +3474,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
        if scrub_state < 0 || (Float.abs dx >= 3. && Float.abs dx >= Float.abs dy) then begin
          let start = abs scrub_state - 1 in
          set_state ui scrub (- (start + 1));
-         scrubbing := Some (start, Option.value ~default:"" (text_state ui scrub), dx)
+         scrubbing := Some (start, Option.value ~default:"" (text_state ui scrub), dx, scrub_state > 0)
        end else if Float.abs dy >= 3. then set_state ui scrub 0
    | _ when scrub_state <> 0 && not signal.held ->
        set_state ui scrub 0;
@@ -3573,7 +3583,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
                change ();
                replace_text edit (String.make 1 c ^ String.make 1 close);
                edit.caret <- edit.caret - 1; edit.anchor <- edit.caret
-           | None -> changed := edit_text_event ui edit ~accept:(fun _ -> true) ~modifiers event || !changed);
+           | None -> changed := edit_text_event ~multiline:true ui edit ~accept:(fun _ -> true) ~modifiers event || !changed);
           typed := true
       | Event.KeyPressed Input.Backspace when language <> None && not readonly && not command
           && edit.caret = edit.anchor && edit.caret > 0 && edit.caret < String.length edit.text
@@ -3614,7 +3624,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           move (stop_of rows line)
       | event ->
           let before = edit.text, edit.caret, edit.anchor in
-          if edit_text_event ui edit ~accept:(fun _ -> true) ~modifiers event then begin
+          if edit_text_event ~multiline:true ui edit ~accept:(fun _ -> true) ~modifiers event then begin
             if readonly then begin
               let text, caret, anchor = before in
               edit.text <- text; edit.caret <- caret; edit.anchor <- anchor;
@@ -3628,8 +3638,10 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           end))
       (key_events ui body);
     (* a dragged number: the literal at the press follows the pointer (the caret sits after it) *)
-    Option.iter (fun (start, literal, dx) ->
+    Option.iter (fun (start, literal, dx, first) ->
       if start <= String.length edit.text && literal <> "" then begin
+        (* the whole drag is one step of the editor's undo *)
+        if first then remember ui edit ~typing:false;
         let stop = ref start in
         while !stop < String.length edit.text && numeric_character edit.text.[!stop] do incr stop done;
         let coarse = match ui.input_frame with
@@ -3719,7 +3731,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
         point_in ~strict:true final rows signal.pointer
     | _ -> None in
   let hovered_number = match language, under_pointer, !scrubbing with
-    | _, _, Some (start, _, _) ->
+    | _, _, Some (start, _, _, _) ->
         let stop = ref start in
         while !stop < String.length final && numeric_character final.[!stop] do incr stop done;
         Some (start, !stop)
@@ -4054,8 +4066,10 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
   within ui list (fun () ->
     for visible = 0 to length - 1 do
       let index = start + visible in
-      let row = box_keyed ui ~flags:(clickable lor focusable lor blocking) ~w:Grow
-          ~h:(Px (float ui.kit_row_height)) (int_key list.box_key visible) in
+      (* a row that cannot be picked leaves the keyboard with the search field *)
+      let row = box_keyed ui
+          ~flags:(clickable lor focusable lor blocking lor (if off index then keep_focus else 0))
+          ~w:Grow ~h:(Px (float ui.kit_row_height)) (int_key list.box_key visible) in
       let row_signal = signal ui row in
       if !result = `None && row_signal.clicked && not (off index) then result := `Pick index;
       let current = index = !cursor and hovered = row_signal.hovered in
@@ -4262,7 +4276,7 @@ let choice ui ?(disabled = false) text options selected =
   let selected, opened =
     if not opened then selected, false
     else match context_menu ui ~at:(float cx, float (cy + ch + 1)) ~width:(float cw) ~selected
-        ~dismiss_initial:false ("choice-" ^ text) (Array.to_list (Array.map (fun option -> option, true) options)) with
+        ~dismiss_initial:false (text ^ "-choice") (Array.to_list (Array.map (fun option -> option, true) options)) with
       | `Pick index -> index, false
       | `Dismiss -> selected, false
       | `Open -> selected, true in
