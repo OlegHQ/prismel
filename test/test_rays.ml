@@ -1,4 +1,5 @@
-let fail message = raise (Failure message)
+open Test_support
+
 let pointer (x, y) = float x, float y
 let mouse_press (button, point) = Rays.Event.MousePressed (button, pointer point)
 let mouse_release (button, point) = Rays.Event.MouseReleased (button, pointer point)

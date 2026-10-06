@@ -29,7 +29,7 @@ let inspectable_node values =
       | Sphere -> Sop.uv_sphere ~label ~segments:(max 3 parameters.count)
           ~radius:1. ())
 
-let fail message = raise (Failure message)
+open Test_support
 
 let run () =
   let wire = Rays_editor.Renderer.wire_color in

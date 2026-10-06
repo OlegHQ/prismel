@@ -34,7 +34,8 @@ let rec walk directory visit =
 
 (* ---------- the compiler's view of a source file ---------- *)
 
-let cmts : (string, Cmt_format.cmt_infos) Hashtbl.t = Hashtbl.create 4096
+(* source path -> its .cmt and whether a ppx rewrote the source first *)
+let cmts : (string, Cmt_format.cmt_infos * string * bool) Hashtbl.t = Hashtbl.create 4096
 let shapes : (string, Shape.t) Hashtbl.t = Hashtbl.create 4096
 
 (* The project's units, and the standard library's so that [raise] or [String.sub] resolve. *)
@@ -46,7 +47,10 @@ let load_cmts () =
       | info ->
           Option.iter (Hashtbl.replace shapes info.cmt_modname) info.cmt_impl_shape;
           if project then
-            Option.iter (fun source -> Hashtbl.replace cmts source info) info.cmt_sourcefile in
+            Option.iter (fun source ->
+              if Filename.check_suffix source ".pp.ml" then
+                Hashtbl.replace cmts (Filename.chop_suffix source ".pp.ml" ^ ".ml") (info, path, true)
+              else Hashtbl.replace cmts source (info, path, false)) info.cmt_sourcefile in
   walk "_build/default" (read ~project:true);
   Array.iter (fun name -> read ~project:false (Filename.concat Config.standard_library name))
     (Sys.readdir Config.standard_library)
@@ -90,10 +94,14 @@ let declaration_location : Typedtree.item_declaration -> Location.t = function
 
 let load path =
   let text = read path in
-  let info = match Hashtbl.find_opt cmts path with
-    | Some info -> info
+  let info, cmt, preprocessed = match Hashtbl.find_opt cmts path with
+    | Some found -> found
     | None -> fail "%s: no .cmt under _build/default (run dune build @check)" path in
-  if info.cmt_source_digest <> Some (Digest.string text) then
+  (* a preprocessed unit's digest is of the ppx output (locations still name the source),
+     so its freshness is by time *)
+  let fresh = if preprocessed then (Unix.stat cmt).st_mtime >= (Unix.stat path).st_mtime
+    else info.cmt_source_digest = Some (Digest.string text) in
+  if not fresh then
     fail "%s: its .cmt is older than the source (run dune build @check)" path;
   let lexbuf = Lexing.from_string text in
   Lexing.set_filename lexbuf path;

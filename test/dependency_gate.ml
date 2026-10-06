@@ -31,7 +31,7 @@ let parse text =
   let rec all acc = skip (); if !i >= n then List.rev acc else all (item () :: acc) in
   all []
 
-let read path = In_channel.with_open_bin path In_channel.input_all
+open Test_text
 
 let contains text needle =
   try ignore (Str.search_forward (Str.regexp_string needle) text 0); true

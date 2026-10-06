@@ -18,15 +18,11 @@ let check condition message = if not condition then fail message
 let factories = Sop_catalog.Editor.factories
 let catalog = Contexts.catalog ~version:1 factories |> Result.get_ok
 let show ds = String.concat "; " (List.map Flow.Diagnostic.to_string ds)
-let case name = In_channel.with_open_bin
-    (Filename.concat "../specification/workspace/cases" (name ^ ".lisp")) In_channel.input_all
+open Test_text
+
 let of_text text = match Doc.of_text catalog text with Ok d -> d | Error ds -> fail (show ds)
 let build ?previous ws = Contexts.of_workspace ~factories ?previous ws
 let build_ok ws = match build ws with Ok d -> d | Error d -> fail (Flow.Diagnostic.to_string d)
-let has text sub =
-  let n = String.length sub in
-  let rec at i = i + n <= String.length text && (String.sub text i n = sub || at (i + 1)) in
-  at 0
 let replace text from by =
   let n = String.length from in
   let rec at i = if i + n > String.length text then fail ("no " ^ from)

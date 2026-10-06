@@ -8,7 +8,8 @@ module Timeline = Sketch_support.Timeline
 
 let fail message = failwith ("test_workspace_live: " ^ message)
 let check condition message = if not condition then fail message
-let read path = In_channel.with_open_bin path In_channel.input_all
+open Test_text
+
 let cases = "../specification/workspace/cases"
 let factories = Sop_catalog.Editor.factories
 let geometry_bytes = Test_workspace_cook.geometry_bytes

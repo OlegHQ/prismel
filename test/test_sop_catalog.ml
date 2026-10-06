@@ -1,8 +1,6 @@
 open Rays
 open Procedural
-
-let fail message = raise (Failure message)
-let check condition message = if not condition then fail message
+open Test_support
 
 let check_metadata factory node =
   let key = Edit_graph.factory_key factory in

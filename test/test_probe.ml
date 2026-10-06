@@ -10,9 +10,7 @@ let fail message = failwith ("test_probe: " ^ message)
 let check condition message = if not condition then fail message
 let recorded ?time ?geometry w = Probe.make ?time ?geometry (Result.get_ok (Flow.Eval.static ~record:true w))
 let footer records (n : P.node) ~probes = Probe.footer records n ~probes
-let has text part =
-  let n = String.length part in
-  let rec at i = i + n <= String.length text && (String.sub text i n = part || at (i + 1)) in at 0
+open Test_text
 
 let bounds () =
   (* two loops call one function 4,096 times each: 8,192 records at the parameter, 4,096 kept *)

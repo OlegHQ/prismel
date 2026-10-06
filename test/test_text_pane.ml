@@ -9,8 +9,8 @@ let fail message = failwith ("test_text_pane: " ^ message)
    row above it is a 24-point control row *)
 let line_pitch = 17.
 let check condition message = if not condition then fail message
-let case name = In_channel.with_open_bin
-  (Filename.concat "../specification/workspace/cases" (name ^ ".lisp")) In_channel.input_all
+open Test_text
+
 let source name = match Flow.Syntax.parse (case name) with
   | Ok forms -> forms | Error d -> fail (Flow.Diagnostic.to_string d)
 
