@@ -443,6 +443,7 @@ let root_used src seg = ref (List.concat_map (fun (i : S.t) ->
   if root_name i = Some seg then sym_list i else []) (snd (workspace_parts src)))
 
 let fresh_name src ~root base = fresh (root_used src root) base
+let fresh_among = fresh
 
 let valid_name n = Flow.Symbol.valid_name n
 

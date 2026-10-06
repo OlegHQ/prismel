@@ -307,6 +307,11 @@ let part10b () = (* duplicate; positional arguments in any order; scene and Worl
   check (E.duplicated (parse three) [ node [ "b" ]; node [ "c" ] ] = [ node [ "b_2" ]; node [ "c_2" ] ]
          && E.duplicated (parse three) [ node [ "@result" ] ] = []) "the copies' paths";
   check (E.label (E.Duplicate { nodes = [] }) = "Duplicate") "duplicate label";
+  (* names for a batch: each joins the used ones, so the next is distinct *)
+  let used = ref [ "box" ] in
+  let first = E.fresh_among used "Box" in
+  check (first = "box_2" && E.fresh_among used "sop/box" = "box_3" && List.mem "box_3" !used)
+    "names of one batch are not distinct";
   (* a keyword before the positional argument is still an argument of the call *)
   let mixed = "(workspace w\n  (graph world :context world\n    (world/world :name \"w\" (world/sky :name \"s\"))))" in
   check (has (apply mixed (E.Set_arg { node = [ "world"; "@result" ]; key = Pos 0; sub = [];

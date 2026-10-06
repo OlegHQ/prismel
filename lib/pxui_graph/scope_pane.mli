@@ -85,6 +85,11 @@ val create : ?x:int -> ?y:int -> ?width:int -> ?height:int -> ?theme:Pxui.theme 
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_guide : bool -> t -> t
 
+val suspend : t -> t
+(** The pane is not drawn this frame (its panel is hidden, covered or closed): an open text field,
+    the letter hints, a drag, the context menu and the hover end, and a pan in progress gives the
+    pointer back (relative mouse off).  The host calls it instead of {!update}. *)
+
 val with_theme : Pxui.theme -> t -> t
 (** The theme the pane paints with: a window's canvas is the sheet, a docked one the ground. *)
 
@@ -136,10 +141,13 @@ val scope_point : t -> scope:path -> float * float -> (float * float) option
     24-point dot lattice: where a node added from a menu opened there is placed ([Moved]). *)
 
 val num_field :
-  Pxui.Ui.t -> at:float * float -> w:float -> h:float -> ?size:int -> ?fraction:float -> string -> string -> string option
-(** The pane's number field ({!Pxui.Ui.value_field}): dragged sideways it scrubs (a float by 0.05 a point,
-    0.005 with Shift; an integer by one every 6 points), Option-click types.  [Some text] the frame the
-    number changed.  Hosts use it for the same number shown elsewhere (an input's default in the inspector). *)
+  Pxui.Ui.t -> at:float * float -> w:float -> h:float -> ?size:int ->
+  ?kind:Editor_core.Number.kind -> ?range:float * float -> string -> string -> string option
+(** The pane's number field ({!Pxui.Ui.value_field} driven by {!Editor_core.Number}, as the
+    inspector's [Pxui_shell.Kit.number]): dragged sideways it scrubs by the step of its [kind] and soft
+    [range], Option-click types, a click writes nothing.  [kind] is the parameter's type; without one the
+    literal's spelling decides.  [Some text] the frame the number changed.  Hosts use it for the same
+    number shown elsewhere (an input's default in the inspector). *)
 
 val bindings : ('scope, command) Editor_core.Command.t list
 val run_command : t -> command -> t * change list
@@ -148,6 +156,8 @@ val update : t -> Pxui.Ui.t -> Rays.Frame.t -> t * change list
     built: a zone draws its body once, whatever its iteration count. *)
 
 module Private : sig
+  val grabbed : t -> bool
+  (* a pan holds the pointer (relative mouse) *)
   val macro_step : t -> path -> int option
   (* the step shown by the open expansion panel of a macro call ([0] is the call as written, one
      past the expansions the template); [None] while the panel is closed.  View state: the toggle
