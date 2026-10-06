@@ -471,17 +471,17 @@ let stack_layers st (before : Document.t) wid ~graph ~removed ~stack =
 (* the World a document holds, written as the text has Worlds: its layers as the world graph
    [graph] and the object as a [scene/world] member of the scene (the scene graph is made first
    when there is none) *)
-let adopt_world ?(graph = "world") st (doc : Document.t) =
-  match world_id doc with
-  | None -> ()
-  | Some wid ->
-      if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then adopt_objects st doc;
-      write_layers st doc wid graph;
-      let node = Option.get (Edit.find (Document.scene_graph doc) ~node_id:wid) in
-      let expr = call_of ~kind:"scene/world" ~label:(Node.label node) ~default_label:"World"
-          ~slots:[ mk (S.List [ sym "ref"; sym graph ]) ] node in
-      let scene = (Option.get (Contexts.graph_of st.workspace Flow.Workspace.Scene)).name in
-      apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "sky"; expr })
+let place_world ?(graph = "world") st (doc : Document.t) (network : Document.network) node =
+  if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then adopt_objects st doc;
+  write_stack st network.graph.geometry (List.rev (order network)) graph;
+  let expr = call_of ~kind:"scene/world" ~label:(Node.label node) ~default_label:"World"
+      ~slots:[ mk (S.List [ sym "ref"; sym graph ]) ] node in
+  let scene = (Option.get (Contexts.graph_of st.workspace Flow.Workspace.Scene)).name in
+  apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "sky"; expr })
+
+let adopt_world ?graph st (doc : Document.t) =
+  Option.iter (fun wid -> place_world ?graph st doc (Document.Int_map.find wid doc.networks)
+    (Option.get (Edit.find (Document.scene_graph doc) ~node_id:wid))) (world_id doc)
 
 (* ---- the whole reconciliation ---- *)
 
@@ -653,6 +653,7 @@ type edit =
   | Rename of int * string
   | Delete of int list
   | Restack of int list  (* the World's layers, bottom first *)
+  | Layers of Document.network * (string * Param.value) list  (* a preset: the layers and the World's fields *)
 
 let graph_at (doc : Document.t) = function
   | Document.Scene -> Some (Document.scene_graph doc)
@@ -665,6 +666,9 @@ let writes (doc : Document.t) level = function
   | Fields edits -> List.for_all (fun (node, _) -> in_text doc level node) edits
   | Rename (node, _) -> in_text doc level node
   | Delete ids | Restack ids -> List.for_all (in_text doc level) ids
+  | Layers _ -> (match level with
+    | Inside wid -> world_id doc = Some wid && doc.homes.world <> None
+    | Scene -> false)
 
 let node_at doc level id = match Option.bind (graph_at doc level) (fun g -> Edit.find g ~node_id:id) with
   | Some node -> node | None -> stop "That object is gone."
@@ -719,6 +723,24 @@ let write_edit st (doc : Document.t) level = function
       List.find_map (fun (_, home) -> Option.map (fun loop ->
         Printf.sprintf "Removed a copy from the loop (%s)." (Document.describe (fst doc.workspace).source loop))
         (Document.loop_of home)) (List.rev gone)
+  | Layers (network, values) ->
+      (match level with
+       | Inside wid ->
+           let was = node_at doc Document.Scene wid in
+           let now = match Node.apply_parameters was values with
+             | Ok (now, _) -> now | Error message -> stop "%s" message in
+           let edits = differing ~before:was now in
+           if edits <> [] then refuse_preview doc wid;
+           Option.iter (fun home -> set ~before:(current_syntax was) st home edits) (field_home doc Document.Scene wid);
+           if not (List.mem_assoc wid doc.homes.objects) then
+             (* a World its graph returns as a [world/world] call over the layers: written as
+                Worlds are now, the layers its graph and the World an object of the scene *)
+             place_world ~graph:(world_graph st) st doc network now
+           else (match doc.homes.world_graph with
+             | Some name -> write_stack st network.graph.geometry (List.rev (order network)) name
+             | None -> stop "The World's graph is not named; edit the text.")
+       | Scene -> ());
+      None
   | Restack bottom_first ->
       (match level, world_id doc with
        | Inside wid, Some w when w = wid ->

@@ -201,12 +201,16 @@ let run () =
   let world_node graph values = fst (Result.get_ok (Edit_graph.apply_parameters graph ~node_id:wid values)) in
   let edited = ok (reconcile doc (with_scene doc (world_node (scene doc) [ float "exposure" (-1.) ]))) in
   check (contains (source edited) ":exposure -1.0") "a World node edit did not reach the text";
+  text_first "World key" doc Document.Scene (Sync.Fields [ wid, [ float "exposure" (-1.) ] ])
+    (with_scene doc (world_node (scene doc) [ float "exposure" (-1.) ]));
   same_after_reload edited "world node";
   let layer_edit doc id values =
     let wid, n = world_network doc in
     with_world_network doc wid n (fst (Result.get_ok (Edit_graph.apply_parameters n.graph.geometry ~node_id:id values))) in
   let edited = ok (reconcile doc (layer_edit doc sun [ float "intensity" 321. ])) in
   check (contains (source edited) ":intensity 321.0") "a World layer edit did not reach the text";
+  text_first "layer key" doc (Document.Inside wid) (Sync.Fields [ sun, [ float "intensity" 321. ] ])
+    (layer_edit doc sun [ float "intensity" 321. ]);
   check (layer_id edited "sun" = sun) "a World layer edit changed its id";
   same_after_reload edited "world layer";
   (* drag a layer (azimuth, elevation) then undo-like: the document before is untouched *)
@@ -237,6 +241,7 @@ let run () =
   let preset = with_scene (Document.with_network doc (Document.Inside wid) preset_network)
       (world_node (scene doc) values) in
   let edited = ok (reconcile doc preset) in
+  text_first "World preset" doc (Document.Inside wid) (Sync.Layers (preset_network, values)) preset;
   check (contains (source edited) "world/room") "a World preset did not reach the text";
   same_after_reload edited "world preset";
   (* deleting the World: its graph stays and says none (a removed graph would be seeded again) *)
@@ -770,6 +775,10 @@ let run_root () =
   check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot edited in layers) = [ "sky"; "sun" ]
          && contains (source edited) "(scene/world (ref sky)") ("a restack: " ^ source edited);
   same_after_reload edited "World member restack";
+  (let world = List.assoc "white room" World.presets in
+   let network = Result.get_ok (Layers.network_of_world world) and values = snd (Layers.of_world world) in
+   text_first "World member preset" doc (Document.Inside wid) (Sync.Layers (network, values))
+     (with_scene (Document.with_network doc (Document.Inside wid) network) (world_node (scene doc) values)));
   (* deleting the World leaves its merge input, its binding and its graph (nothing else reads it) *)
   let worldless = Document.prune (with_scene doc (Edit_graph.remove_nodes [ wid ] (scene doc))) in
   let edited = ok (reconcile doc worldless) in

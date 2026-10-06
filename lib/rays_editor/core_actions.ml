@@ -60,58 +60,63 @@ let in_world value = match value.level with
 let world_keys value (doc : Document.t) selection actions =
   let world_id = match value.level with Inside id -> Some id
     | Scene -> None in
-  let edit_layer f label (doc, _) = match world_id, Selection.selected selection with
+  let module Sync = Editor_document.Scene_sync in
+  (* what a key asks, as an edit of the text at a level *)
+  let edit_layer f label = match world_id, Selection.selected selection with
     | Some id, Some layer ->
-        (match Document.network doc (Inside id) with
-         | Some network ->
-             (match Option.bind (Edit_graph.find network.graph.geometry ~node_id:layer) f with
-              | Some values ->
-                  (match Edit_graph.apply_parameters network.graph.geometry ~node_id:layer values with
-                   | Ok (graph, _) ->
-                       Document.with_network doc (Inside id) { network with graph = Result.get_ok (Flow_sop.Network.with_geometry graph network.graph) }, Some label
-                   | Error _ -> doc, None)
-              | None -> doc, None)
-         | None -> doc, None)
-    | _ -> doc, None in
-  let edit_world f label (doc, _) = match world_id with
-    | Some id ->
-        (match Option.bind (Edit_graph.find doc.Document.scene.graph.geometry ~node_id:id) f with
-         | Some values ->
-             (match Edit_graph.apply_parameters doc.scene.graph.geometry ~node_id:id values with
-              | Ok (graph, _) -> { doc with scene = { doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry graph doc.scene.graph) } }, Some label
-              | Error _ -> doc, None)
-         | None -> doc, None)
-    | None -> doc, None in
+        Option.bind (Document.network doc (Inside id)) (fun network ->
+          Option.bind (Edit_graph.find network.graph.geometry ~node_id:layer) f)
+        |> Option.map (fun values -> Document.Inside id, Sync.Fields [ layer, values ], label)
+    | _ -> None in
+  let edit_world f label = Option.bind world_id (fun id ->
+    Option.bind (Edit_graph.find doc.Document.scene.graph.geometry ~node_id:id) f
+    |> Option.map (fun values -> Document.Scene, Sync.Fields [ id, values ], label)) in
+  (* a World the text does not have is edited as a derived object, for reconcile to adopt *)
+  let with_fields (doc : Document.t) level edits =
+    match Document.network doc level with
+    | None -> doc
+    | Some network ->
+        let graph = List.fold_left (fun graph (id, values) ->
+          match Edit_graph.apply_parameters graph ~node_id:id values with
+          | Ok (graph, _) -> graph | Error _ -> graph) network.graph.geometry edits in
+        Document.with_network doc level
+          { network with graph = Result.get_ok (Flow_sop.Network.with_geometry graph network.graph) } in
+  let derived (doc : Document.t) level : Sync.edit -> Document.t = function
+    | Fields edits -> with_fields doc level edits
+    | Layers (network, values) ->
+        (match level with
+         | Inside id -> with_fields (Document.with_network doc level network) Document.Scene [ id, values ]
+         | Scene -> doc)
+    | Rename _ | Delete _ | Restack _ -> doc in
   let field name node = List.find_map (fun (field : Parameter.field_view) ->
       if field.name = name then Some field.current else None) (Node.parameter_fields node) in
-  List.fold_left (fun state -> function
+  List.filter_map (function
     | Leader.World_emit -> edit_layer (fun node -> match field "emit" node with
         | Some (Parameter.Choice_value "Light") -> Some ["emit", Parameter.Choice_value "Dome"]
         | Some (Parameter.Choice_value _) -> Some ["emit", Parameter.Choice_value "Light"]
-        | _ -> None) "Dome / light" state
+        | _ -> None) "Dome / light"
     | World_reseed -> edit_layer (fun node -> match field "seed" node with
         | Some (Parameter.Int_value seed) -> Some ["seed", Parameter.Int_value (seed + 1)]
-        | _ -> None) "Reseed" state
+        | _ -> None) "Reseed"
     | World_time delta -> edit_world (fun node -> match field "time_of_day" node with
         | Some (Parameter.Float_value hours) ->
             Some ["time_of_day", Parameter.Float_value
               (Float.max 0. (Float.min 24. (hours +. delta)))]
-        | _ -> None) "Time of day" state
+        | _ -> None) "Time of day"
     | World_play -> edit_world (fun node -> match field "day_cycle" node with
         | Some (Parameter.Float_value 0.) -> Some ["day_cycle", Parameter.Float_value 1.]
-        | _ -> None) "Day cycle" state
+        | _ -> None) "Day cycle"
     | World_preset index ->
         (match world_id, List.nth_opt World.presets index with
          | Some id, Some (name, world) ->
-             let doc, _ = state in
-             (match Layers.network_of_world world, Edit_graph.apply_parameters
-                  doc.scene.graph.geometry ~node_id:id (snd (Layers.of_world world)) with
-              | Ok network, Ok (graph, _) ->
-                  { (Document.with_network doc (Inside id) network) with
-                    scene = { doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry graph doc.scene.graph) } }, Some ("Preset " ^ name)
-              | _ -> state)
-         | _ -> state)
-    | _ -> state) (doc, None) actions
+             (match Layers.network_of_world world with
+              | Ok network -> Some (Document.Inside id, Sync.Layers (network, snd (Layers.of_world world)), "Preset " ^ name)
+              | Error _ -> None)
+         | _ -> None)
+    | _ -> None) actions
+  |> List.fold_left (fun (derived_doc, _, edits) (level, edit, label) ->
+    if Sync.writes doc level edit then derived_doc, Some label, edits @ [ level, edit ]
+    else derived derived_doc level edit, Some label, edits) (doc, None, [])
 
 (* The ten digit commands take their labels from the layouts when which-key or the palette draws. *)
 let layout_labels value keymap =

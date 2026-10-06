@@ -370,8 +370,9 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           next, result, probes)
       (next, result, value.probes) scope_changes in
   let before_world = next in
-  let next, world_label = if in_world value
-    then world_keys value next result.selection actions else next, None in
+  (* a World key is written to the text (below); only a World the host made is edited here *)
+  let next, world_label, world_edits = if in_world value
+    then world_keys value next result.selection actions else next, None, [] in
   (* Space e opens the World, creating the singleton on first use. *)
   let next, world_added = match Objects.ids "world" next.scene.graph.geometry with
     | [] when List.mem Leader.Go_world actions ->
@@ -379,6 +380,13 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     | _ -> next, false in
   let next, result = if Option.is_some loaded then next, result
     else reconciled ~before:before_world next result in
+  let next, result = if Option.is_some loaded then next, result else
+    List.fold_left (fun ((next : Document.t), (result : _ frame_result)) (level, edit) ->
+      if result.edit_error <> None then next, result else
+      match Editor_document.Scene_sync.write ~factories:value.factories next level edit with
+      | Ok (Some (doc, _)) -> doc, result
+      | Ok None -> next, result
+      | Error message -> next, { result with edit_error = Some message }) (next, result) world_edits in
   let is_view = function Pxui_shell.Layout.View _ -> true | _ -> false in
   let owner = match List.find_opt (fun (_, (panel, _)) -> panel = result.focus && is_view panel)
       result.pane_keys with
