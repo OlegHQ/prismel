@@ -656,6 +656,18 @@ let run () =
   Ui.frame ui (frame ~scale:1. ~time:0.2 [press (40, 47); release (40, 47)]) build;
   if not !clicked then fail "canvas child did not receive a transformed hit";
   Ui.destroy ui;
+  (* Keys that come and go (150,000 of them, 500 a frame) leave the retained state the size it was. *)
+  let ui = Ui.create ~font_size:11 () and next = ref 0 in
+  let churn () = Ui.frame ui (frame ~scale:1. ~time:0. []) (fun ui ->
+    for _ = 1 to 500 do
+      incr next; ignore (Ui.box ui ~w:(Ui.Px 1.) ~h:(Ui.Px 1.) (string_of_int !next))
+    done) in
+  churn (); churn ();
+  let words () = Obj.reachable_words (Obj.repr ui) in
+  let settled = words () in
+  for _ = 1 to 300 do churn () done;
+  if words () > 2 * settled then fail "churned keys grew the UI's retained tables";
+  Ui.destroy ui;
   (* A box with no extent of its own (Fit, its one child placed with ~at) shows the child. *)
   let ui = Ui.create ~font_size:11 () in
   let placed events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->

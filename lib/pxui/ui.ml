@@ -41,10 +41,12 @@ let display text =
 (* ------------------------------------------------------ retained cache *)
 
 module Table = struct
+  (* [filled] counts the cells a probe stops or steps over (keys and tombstones), [live] the keys:
+     a full table grows only when its keys need the room, else it is rebuilt without its tombstones *)
   type t = { mutable keys : int array; mutable slots : int array;
-    mutable filled : int }
+    mutable filled : int; mutable live : int }
 
-  let create () = { keys = Array.make 256 0; slots = Array.make 256 0; filled = 0 }
+  let create () = { keys = Array.make 256 0; slots = Array.make 256 0; filled = 0; live = 0 }
 
   let index table key =
     let mask = Array.length table.keys - 1 in
@@ -62,23 +64,26 @@ module Table = struct
   let rec add table key slot =
     if 10 * (table.filled + 1) > 7 * Array.length table.keys then begin
       let keys = table.keys and slots = table.slots in
-      let capacity = if 10 * table.filled > 3 * Array.length keys
+      let capacity = if 10 * table.live > 3 * Array.length keys
         then 2 * Array.length keys else Array.length keys in
       table.keys <- Array.make capacity 0;
       table.slots <- Array.make capacity 0;
-      table.filled <- 0;
+      table.filled <- 0; table.live <- 0;
       Array.iteri (fun position key ->
         if key <> 0 && key <> 1 then add table key slots.(position)) keys
     end;
     let position = index table key in
-    if Array.unsafe_get table.keys position <> key then
-      table.filled <- table.filled + 1;
+    if Array.unsafe_get table.keys position <> key then begin
+      table.filled <- table.filled + 1; table.live <- table.live + 1
+    end;
     table.keys.(position) <- key;
     table.slots.(position) <- slot
 
   let remove table key =
     let position = index table key in
-    if table.keys.(position) = key then table.keys.(position) <- 1
+    if table.keys.(position) = key then begin
+      table.keys.(position) <- 1; table.live <- table.live - 1
+    end
 end
 
 let grow_float values size default =
