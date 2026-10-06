@@ -76,9 +76,6 @@
                                 :target [0.0 0.0 0.0]
                                 :fov 20.5019
                                 :aperture 0.327837
-                                :width 1600
-                                :height 1600
-                                :max_spp 512
                                 :focus_distance 7.6332
                                 :follow_viewport true)
            key (scene/light :name "Softbox key"

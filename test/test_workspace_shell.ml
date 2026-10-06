@@ -366,8 +366,8 @@ let run_duplicate_and_view () =
 
 (* An inline result is a geometry node too: viewing and editing it must follow the current
    lowering, including when an edit inserts a new plan node before the viewed one. *)
-(* v on a node inside a loop shows that node at the probed iteration (the layout's display, not a
-   rewiring of the result: a loop's body cannot be the graph's result); v again goes back. *)
+(* v on a node inside a loop is refused: the viewport shows the graph's result, and a loop's body
+   cannot be it.  Nothing is written, the result stays in view. *)
 let run_loop_view () =
   let e = ref (editor {|(workspace loop_view
     (graph g :context sop
@@ -398,13 +398,11 @@ let run_loop_view () =
     let x, y, w, _ = Option.get (E3.node_box !e inner) in
     click (float (x + w / 2), float (y + 3));
     check (dump_line !e "scope selected" = "g/rows/@result") "the node inside the loop could not be selected";
+    let before = E3.workspace !e and label = E3.undo_label !e in
     key (Input.KeyChar 'v'); step [];
-    check (Editor_document.Layout_by_path.Path_map.find_opt ["g"] (E3.workspace !e).layout.display = Some inner)
-      ("v refused a node inside a loop: " ^ Option.value ~default:"-" (E3.undo_label !e));
-    centre "the node inside the loop" 5.;
-    key (Input.KeyChar 'v'); step [];
-    check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).layout.display) "v again did not go back to the result";
-    centre "the result again" 15.)
+    check (E3.workspace !e == before && E3.undo_label !e = label && has (dump_line !e "cook") "inside a loop")
+      ("v on a node inside a loop was not refused: " ^ dump_line !e "cook");
+    centre "the result still" 15.)
 
 let run_result_view () =
   let e = ref (editor {|(workspace result_view
@@ -440,7 +438,6 @@ let run_result_view () =
     key Input.Home; key (Input.KeyChar 'i'); step [];
     select "b"; key (Input.KeyChar 'v'); step []; centre 5.;
     select "result"; key (Input.KeyChar 'v'); step [];
-    check (Editor_document.Layout_by_path.Path_map.is_empty (E3.workspace !e).layout.display) "layout.display is cleared";
     centre 20.;
     edit (E.Set_arg {node = ["g"; "b"]; key = E.Kw "translate"; sub = []; value = parsed "[9 0 0]"});
     centre 24.;

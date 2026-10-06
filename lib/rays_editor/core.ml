@@ -627,11 +627,7 @@ let kind_fields value graph head authored =
        | Error _ -> None
        | Ok (k : Flow.Check.kind) ->
            let number (e : S.t) = match e.node with S.Num t -> float_of_string_opt t | _ -> None in
-           (* the render settings an old camera carried are shown only while a file still writes them *)
-           let legacy (p : Flow.Check.parameter) = head = "scene/camera" && authored p.name = None
-             && List.mem p.name [ "width"; "height"; "max_spp" ] in
            Some (List.concat_map (fun (p : Flow.Check.parameter) ->
-             if legacy p then [] else
              let written = authored p.name in
              let three = List.length p.fields = 3 && p.ty = Some Flow.Port_type.Vec3 in
              List.mapi (fun i (name, view, default) ->
@@ -736,13 +732,11 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
              | Some r -> P.row_shown ?pin:(pin_of r) r | None -> false in
            let geo = Option.bind node_id (fun id -> Option.bind (node_owner value id) (fun object_id ->
              Cook.geometry value.cook ~object_id ~node_id:id)) in
-           (* the node shown in the viewport: the graph's recorded display, else its result *)
-           let displayed = match Layout_by_path.Path_map.find_opt [ graph ] (fst value.doc.Document.workspace).layout.display with
-             | Some p -> Some p
-             | None -> (match scope.result with
-                 | P.Link target -> Some [ graph; target ]
-                 | Node p -> Some p
-                 | Literal _ -> None) in
+           (* the node shown in the viewport: the graph's result *)
+           let displayed = match scope.result with
+             | P.Link target -> Some [ graph; target ]
+             | Node p -> Some p
+             | Literal _ -> None in
            let readouts = Probe.readouts records n ~probes in
            (* the head: the kind, VIEW while displayed, the node's number; the name edited in
               place; what the probe and the cook know; the flags the card has as buttons *)
@@ -1397,13 +1391,10 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
           | _ -> `Straight in
         let scope_view = if not moved then Pxui_graph.Scope.with_wires wires value.scope_view else begin
           let layout = ws.layout in
-          let display = match M.find_opt [ name ] layout.display with
-            | Some p -> Some p
-            | None ->
-                (match scope.result with
-                 | Link target -> Some [ name; target ]
-                 | Node target_path -> Some target_path
-                 | Literal _ -> None) in
+          let display = match scope.result with
+            | Link target -> Some [ name; target ]
+            | Node target_path -> Some target_path
+            | Literal _ -> None in
           let layouts = match value.doc.Document.shell with
             | Some { switch = Some _; _ } when Option.map (fun (g : Flow.Workspace.graph) -> g.name)
                 (Workspace_doc.editor_graph (fst value.doc.Document.workspace)) = Some name -> List.map fst (layouts value)
@@ -1601,20 +1592,6 @@ let open_level value level =
   { value with level; pane_graph = None; selection = Selection.empty; map_view = world;
     tree = Pxui_shell.Tree.create () }
 
-(* The node of an object's graph the viewport shows instead of its result: a node inside a loop that
-   [v] marked in the pane (the layout's display), at the iterations the selectors probe. *)
-let display_node value id =
-  match value.scope_key, value.doc.Document.workspace with
-  | Some { scope; records = Some records; graph; _ }, (ws, lowered)
-    when graph_of_object value id = Some graph ->
-      Option.bind (Layout_by_path.Path_map.find_opt [ graph ] ws.layout.display) (fun path ->
-        let chain = Option.value ~default:[] (Hashtbl.find_opt (Flow_sop.Probe.chains scope) path) in
-        let probes = List.map (fun zone ->
-          Option.value ~default:0 (Layout_by_path.Path_map.find_opt zone value.probes)) chain in
-        Option.bind (Flow_sop.Probe.plan_node records path ~probes) (fun plan ->
-          Flow_sop.Network.Int_map.find_opt plan lowered.compiled))
-  | _ -> None
-
 (* The geometry objects to cook: visible ones, each with its network. *)
 let geometry_objects value =
   List.filter_map (fun id ->
@@ -1622,11 +1599,7 @@ let geometry_objects value =
         Document.Int_map.find_opt id value.doc.Document.networks with
     | Some node, Some network when Objects.visible node
         && not (Edit_graph.is_bypassed (scene value) ~node_id:id) ->
-        Option.map (fun displayed ->
-          let shown = match display_node value id with
-            | Some node when Edit_graph.find network.Document.graph.geometry ~node_id:node <> None -> node
-            | _ -> displayed in
-          id, network.Document.graph, shown) network.displayed
+        Option.map (fun displayed -> id, network.Document.graph, displayed) network.displayed
     | _ -> None) (Objects.ids "geometry" (scene value))
 
 (* The object the sketch-facing single-object accessors describe: the open
@@ -4494,20 +4467,11 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                       effects = Parameter.union_effects result.effects Doc.cook_effects }, probes
                 | Error message ->
                     next, { (result : _ frame_result) with edit_error = Some message }, probes)
-           | [ graph; "@result" ] ->
-               let doc = Doc.layout_edit next (fun l ->
-                 { l with display = M.remove [ graph ] l.display }) in
-               doc, { (result : _ frame_result) with label = "View node"; edit_error = None;
-                 effects = Parameter.union_effects result.effects Doc.cook_effects }, probes
-           | graph :: _ ->
-               (* a node inside a loop cannot be the graph's result: the layout marks it as the one shown,
-                  at the iteration the selectors probe; v on it again goes back to the result *)
-               let doc = Doc.layout_edit next (fun l -> { l with display =
-                 if M.find_opt [ graph ] l.display = Some path then M.remove [ graph ] l.display
-                 else M.add [ graph ] path l.display }) in
-               doc, { (result : _ frame_result) with label = "View node"; edit_error = None;
-                 effects = Parameter.union_effects result.effects Doc.cook_effects }, probes
-           | [] -> next, result, probes)
+           | [ _; _ ] | [] -> next, result, probes  (* the result is what is viewed already *)
+           | _ ->
+               (* what the viewport shows is the graph's result, and a node inside a loop cannot be it *)
+               next, { (result : _ frame_result) with edit_error =
+                 Some "A node inside a loop cannot be viewed alone: view the loop, or move the node out of it." }, probes)
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ | Defn_requested _
       | Copy_requested _ | Paste_requested | Menu_requested _ | Activated _ | Drop_over _ | Dropped _ ->
           next, result, probes)

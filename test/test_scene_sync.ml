@@ -640,15 +640,14 @@ let flat text = String.concat " " (List.filter (( <> ) "")
 
 let run_root () =
   let module R = Objects.Root in
-  (* an old file loads unchanged: no root is the defaults, the camera's size is read as the root's *)
+  (* a scene without a root renders as the defaults; a camera carries no render size *)
   let old = open_text text in
   check (old.root = R.default && old.homes.root = None) "a scene without a root did not get the default root";
-  let sized = open_text {|(workspace old
+  check (Result.is_error (Workspace_doc.of_text (Result.get_ok (Contexts.catalog ~version:1 factories)) {|(workspace old
     (graph g :context sop (sop/box))
     (graph scene :context scene
-      (scene/merge (scene/geometry (ref g)) (scene/camera :width 1600 :height 900 :max_spp 512))))|} in
-  check (sized.root.width = 1600 && sized.root.height = 900 && sized.root.max_spp = 512
-         && sized.homes.root = None) "the camera's old size was not read as the root's";
+      (scene/merge (scene/geometry (ref g)) (scene/camera :width 1600 :height 900 :max_spp 512))))|}))
+    "a camera still takes a render size";
   (* every sketch of the repository still loads; shattered_studio carries a root, written by the editor *)
   let sketches = "../sketches" in
   let loaded = Array.fold_left (fun n name ->
