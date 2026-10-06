@@ -108,6 +108,7 @@ module Number : sig
       began at.  An integer moves by one every 6 points; a float by 0.05 a point, or by a
       two-hundredth of its soft range, a tenth of that when [fine] (Shift).  The result is rounded
       to the step's digits (the origin's when it wrote more) and printed by {!Flow.Lisp.float}, so
-      [1234567.89] stays exact and no exponent appears.  A drag shorter than one step returns
-      [origin] itself: a click writes nothing. *)
+      [1234567.89] stays exact and no exponent appears.  With a [range] the drag stops at its ends
+      (typing goes past them; a value already outside is not pulled in).  A drag shorter than one
+      step returns [origin] itself: a click writes nothing. *)
 end

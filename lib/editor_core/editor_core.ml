@@ -281,11 +281,16 @@ module Number = struct
     | Some i when not (String.exists (fun c -> c = 'e' || c = 'E') text) -> min 6 (String.length text - i - 1)
     | _ -> 0
 
-  let scrub kind ?range origin dx fine = match kind, float_of_string_opt origin with
+  let scrub kind ?range origin dx fine =
+    (* a drag stays inside the soft range; a value typed outside it is not pulled in *)
+    let held v moved = match range with
+      | Some (lo, hi) when hi > lo -> Float.max (Float.min lo v) (Float.min (Float.max hi v) moved)
+      | _ -> moved in
+    match kind, float_of_string_opt origin with
     | _, None -> origin
     | Int, Some v ->
         let n = Float.round (dx /. 6.) in
-        if n = 0. then origin else string_of_int (int_of_float (Float.round v +. n))
+        if n = 0. then origin else string_of_int (int_of_float (held v (Float.round v +. n)))
     | Float, Some v ->
         let step = (match range with Some (lo, hi) when hi > lo -> (hi -. lo) /. 200. | _ -> 0.05)
                    /. (if fine then 10. else 1.) in
@@ -293,5 +298,5 @@ module Number = struct
         let digits = max (decimals origin) (max 0 (min 6 (int_of_float (Float.ceil (-. Float.log10 step))))) in
         let unit = 10. ** float digits in
         let delta = Float.round (dx *. step *. unit) /. unit in
-        if delta = 0. then origin else Flow.Lisp.float (Float.round ((v +. delta) *. unit) /. unit)
+        if delta = 0. then origin else Flow.Lisp.float (held v (Float.round ((v +. delta) *. unit) /. unit))
 end

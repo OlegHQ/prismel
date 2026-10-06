@@ -567,12 +567,13 @@ let () =
   (match floats (edits 1. (drag 5.)) with
    | v :: _ when not (Float.is_integer v) && Float.abs (v -. 1.5) < 1e-9 -> ()
    | _ -> failwith "a drag on a float written 1 did not reach 1.5");
-  (match floats (edits 1234567.89 (drag 2.)) with
-   | v :: _ when Float.abs (v -. 1234568.09) < 1e-6 -> ()
+  (match floats (edits 1234567.89 (drag (-2.))) with
+   | v :: _ when Float.abs (v -. 1234567.69) < 1e-6 -> ()
    | _ -> failwith "a scrub of 1234567.89 lost its digits");
   let module N = Editor_core.Number in
   assert (N.scrub N.Float "1" 10. false = "1.5" && N.scrub N.Float "1" 0.04 false = "1"
           && N.scrub N.Float "1234567.89" 2. false = "1234567.99" && N.scrub N.Int "3" 12. false = "5"
+          && N.scrub N.Float ~range:(0., 2.) "1" 500. false = "2.0" && N.scrub N.Int ~range:(0., 5.) "9" 6. false = "9"
           && N.show 1e-7 = "0.0000001" && N.show 0.5 = "0.5");
   (* E18: the key sheet lists every command a key reaches, once, under its host's section *)
   let command ?scope id trigger = Editor_core.Command.make ~id ~label:id ~trigger ?scope id in
