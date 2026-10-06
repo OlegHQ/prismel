@@ -596,6 +596,11 @@ let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.defau
 let with_bounds ~x ~y ~width ~height t =
   if t.x = x && t.y = y && t.width = width && t.height = height then t
   else { t with x; y; width; height }
+(* the pane is not drawn this frame: nothing it began stays open, and the pointer is given back *)
+let suspend t =
+  if t.panning_grab then ignore (Rays.Sketch.set_relative_mouse false);
+  if t.editing = None && t.hinting = None && t.drag = None && t.context = None && not t.panning_grab && t.highlighted = [] then t
+  else { t with editing = None; hinting = None; drag = None; context = None; highlighted = []; panning_grab = false }
 let with_guide guide t = if t.guide = guide then t else { t with guide }
 let with_theme theme t = if t.theme == theme then t else { t with theme }
 let with_failed failed t = if t.failed = failed then t else { t with failed }
@@ -724,8 +729,7 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
     | Some (Name p | Default p | Output p) when not (Hashtbl.mem t.geo.pos p) -> { t with editing = None }
     | _ -> t in
   if key <> t.key then begin
-    if t.panning_grab then ignore (Rays.Sketch.set_relative_mouse false);
-    { t with key; framed = false; selected = Path_set.empty; selected_wire = None; panning_grab = false; drag = None; editing = None }
+    { (suspend t) with key; framed = false; selected = Path_set.empty; selected_wire = None }
   end else t
 
 (* the panel of a macro call opened or stepped: its card changes size *)
@@ -2870,6 +2874,7 @@ let update t ui (frame : Frame.t) =
 (* ------------------------------------------------------------- test hooks *)
 
 module Private = struct
+  let grabbed t = t.panning_grab
   let macro_step = lens_of
   let selected_wire t = Option.map (fun (path, key, _) -> path, key) t.selected_wire
   let highlighted_connections t = List.map (fun w ->

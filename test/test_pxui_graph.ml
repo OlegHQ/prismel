@@ -362,6 +362,29 @@ let scope_idle_frame () =
     | [ Scope.Level_set l ] -> List.length l = 2001 && List.for_all (fun (_, level, _) -> level = Some P.Point) l
     | _ -> false) "Point_all did not point every node"
 
+(* A pane that stops being drawn keeps nothing open: a pan gives the pointer back and a text field closes. *)
+let scope_suspend () =
+  let w = load_workspace "bloom" in
+  let view, _ = scope_view w "flower" in
+  let view, _ = scope_step view (frame ()) in
+  let empty = 990, 690 in
+  let held = { (frame ~mouse:empty ~events:[ mouse_move empty; mouse_press (Input.RightButton, empty) ] ()) with
+    mouse_buttons = [ Input.RightButton ] } in
+  let panning, _ = scope_step view held in
+  check (Scope.Private.grabbed panning) "a right-button press on the canvas did not begin a pan";
+  let naming, _ = Scope.run_command (Scope.select [ [ "flower"; "heart" ] ] panning) Scope.Edit_name in
+  check (Scope.editing naming && Scope.Private.grabbed naming) "the name field did not open during the pan";
+  let idle = Scope.suspend naming in
+  check (not (Scope.Private.grabbed idle) && not (Scope.editing idle)) "suspend left the grab or the field";
+  check (Scope.suspend idle == idle) "suspending an idle pane made a new value";
+  (* drawn again as the button comes up: no grab, no field, no edit *)
+  let after, changes = scope_step idle (frame ~mouse:empty ~events:[ mouse_release (Input.RightButton, empty) ] ()) in
+  let after, later = scope_step after (frame ~mouse:empty ()) in
+  let changes = changes @ later in
+  check (not (Scope.Private.grabbed after) && not (Scope.editing after)
+         && not (List.exists (function Scope.Syntax_edit _ | Scope.Moved _ -> true | _ -> false) changes))
+    "the pane woke with a grab, a field or an edit"
+
 (* A trackpad pinch zooms the graph where the wheel does: at the pointer, the
    frame's pinch factors multiplied, clamped like the wheel. *)
 let scope_pinch () =
@@ -908,6 +931,7 @@ let run_scope () =
   scope_levels ();
   scope_zoom_geometry ();
   scope_pinch ();
+  scope_suspend ();
   scope_idle_frame ();
   print_endline "pxui graph scope pane tests passed"
 
