@@ -386,6 +386,9 @@ let lisp_text () =
       || Pxui.Ui.fuzzy_match ~query:"sop/tra" l) (labels (doc ^ "sop/tra"))) "every head completion matches";
   check (List.mem "let*" (labels (doc ^ "le")) && List.mem "sop/merge" (labels (doc ^ "me")))
     "forms and kinds complete at a head";
+  (* an operator's own name being typed has no argument place yet (E1: it raised) *)
+  check (List.mem "max" (labels (doc ^ "max")) && List.mem "+" (labels (doc ^ "+")))
+    "an operator's head completes";
   (* the empty head lists the kinds the text uses first *)
   check (first doc = "sop/box") ("the used kind ranks first: " ^ first doc);
   (* a keyword: the kind's parameters, a vec3 group before its components, present ones left out *)

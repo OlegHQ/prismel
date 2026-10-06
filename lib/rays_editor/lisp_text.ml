@@ -473,7 +473,7 @@ let complete ?(names = no_names) vocab text caret =
       | Some h ->
           let argument = match after_kw with
             | Some kw -> Some (String.sub kw 1 (String.length kw - 1))
-            | None when present = [] ->
+            | None when present = [] && prior <> [] ->
                 Option.bind (Flow.Workspace.op_signature (ws_context context) h) (fun s ->
                   Option.map fst (List.nth_opt s.pos (List.length prior - 1)))
             | None -> None in

@@ -1709,7 +1709,42 @@ let run_panel_chain () =
     ("a split after a retype did nothing: " ^ dump_line !e "panels");
   E3.close !e
 
-let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ()
+(* E2: a graph panel that is not the one in use is inside an object; an undo from the other panel
+   removes that object.  The panel goes back to the scene instead of reading a network that is gone. *)
+let run_undo_under_pane () =
+  let text = {|(workspace two
+  (graph g :context sop (sop/box))
+  (graph h :context sop (sop/box :size [2 2 2]))
+  (graph scene :context scene (let* [a (scene/geometry (ref g))] (scene/merge a)))
+  (graph editor :context editor
+    (ui/workspace (ui/split "horizontal" (ui/graph :focus true) (ui/graph)))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  let step ?(keys = []) mouse events = incr count;
+    e := E3.update !e (Test_editor_input.frame ~keys mouse events !count) in
+  let click point = step point [ Event.MouseMoved point ];
+    step point [ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ];
+    step point [] in
+  for _ = 1 to 4 do step (200., 500.) [] done;
+  let expr = match S.parse "(scene/geometry (ref h))" with Ok [ v ] -> v | _ -> fail "bad form" in
+  e := (match E3.edit !e (E.Add_node { scope = [ "scene" ]; name = "b"; expr }) with
+    | Ok e -> e | Error m -> fail m);
+  step (200., 500.) [];
+  (* the second panel lists the scene: enter the object made from h, its second row *)
+  count := !count + 30;
+  let row = 700., float (24 + 24 + 12 + 24) in
+  click row; step row [ Event.KeyPressed (Input.KeyChar 'i') ]; step row [];
+  check (has (dump_line !e "graph panels") "h") ("the second graph panel did not enter the object: " ^ dump_line !e "graph panels");
+  (* the first panel takes the focus and undoes the object *)
+  count := !count + 30;
+  click (200., 500.);
+  step ~keys:[ Input.Meta ] (200., 500.) [ Event.KeyPressed (Input.KeyChar 'z') ];
+  step (200., 500.) []; step (200., 500.) [];
+  check (not (has (source !e) "(ref h)") && not (has (dump_line !e "graph panels") "h"))
+    ("undo left the other panel inside a removed object: " ^ dump_line !e "graph panels");
+  E3.close !e
+
+let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
+  run_undo_under_pane ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
    camera. Moving the camera rebuilds the lowering while preserving an unchanged object network. *)

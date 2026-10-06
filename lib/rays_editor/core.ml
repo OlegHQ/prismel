@@ -432,16 +432,19 @@ let start_views (doc : Document.t) level path =
 let stash value = { view = value.scope_view; laid = value.scope_key; shown = value.pane_graph;
                     route = value.back; views = value.projections; at = value.level; picked = value.selection }
 
-(* The editor as the graph panel [key] at [path] has it: its own pane when it is not the one in use. *)
+(* The editor as the graph panel [key] at [path] has it: its own pane when it is not the one in use.
+   The document may have changed under a pane that waited (an undo from another panel): its level
+   is resolved again, and a level that is gone takes its selection with it. *)
 let as_pane value (key, path) =
   if value.graph_pane = Some key then value else
   let pane = match List.assoc_opt key value.graph_panes with
     | Some pane -> pane
     | None -> { view = Pxui_graph.Scope.create (); laid = None; shown = None; route = [];
                 views = start_views value.doc value.level path; at = value.level; picked = Selection.empty } in
+  let level = Document.resolve_level value.doc pane.at in
   { value with graph_pane = Some key; graph_at = Some path; scope_view = pane.view; scope_key = pane.laid;
                pane_graph = pane.shown; back = pane.route; projections = pane.views;
-               level = pane.at; selection = pane.picked }
+               level; selection = if level = pane.at then pane.picked else Selection.empty }
 
 (* The graph leaf an inspector, list or lisp leaf is tied to by [:of]. *)
 let tied value path =
@@ -528,7 +531,9 @@ let catalog value = function
   | World -> Layers.catalog
   | _ -> value.factories
 
-let network value = Option.get (Document.network value.doc value.level)
+(* the open level's network; the scene's if the level is gone (every path resolves the level first) *)
+let network value =
+  Option.value ~default:value.doc.Document.scene (Document.network value.doc value.level)
 let document value = (network value).graph.geometry
 
 (* A named pane or Navigator can show a SOP graph while the scene list is open. Its
