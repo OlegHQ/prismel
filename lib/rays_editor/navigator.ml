@@ -24,7 +24,6 @@ type state = { query : string; typing : bool; rename : (string * bool) option;
 
 let initial = { query = ""; typing = false; rename = None; scene_closed = false; opened = [] }
 let open_graph graph s = if List.mem graph s.opened then s else { s with opened = graph :: s.opened }
-let editing s = s.typing || s.rename <> None
 let with_query query s = { s with query }
 let query s = s.query
 
@@ -139,10 +138,6 @@ let macro_name (form : S.t) = match form.node with
 let macro_uses (ws : W.t) name =
   List.fold_left (fun n (g : W.graph) -> n + count_where (fun f -> head f = Some name) g.form) 0
     (ws.graphs @ ws.defs)
-
-let pretty name =
-  let s = String.map (function '_' | '-' -> ' ' | c -> c) name in
-  String.capitalize_ascii s
 
 let plural n what = Printf.sprintf "%d %s%s" n what (if n = 1 then "" else "s")
 

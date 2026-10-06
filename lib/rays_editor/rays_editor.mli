@@ -290,8 +290,6 @@ module Private : sig
     val set_volatile : 'a t -> (int -> bool) -> unit
     (** Pass [Flow_sop.Lower.is_volatile lowered] after each lowering (W3). *)
     val stats : 'a t -> Procedural.Session.stats
-    val seconds : 'a t -> float option
-    (** The last completed cook, in seconds. *)
     val pieces : 'a t -> 'a piece list
     val applied : 'a t -> int -> Flow_sop.Value_lane.resolved option
     val force : 'a t -> 'a t

@@ -51,8 +51,6 @@ module Layout = struct
   type panes = { view : bounds; graph : bounds; inspector : bounds; status : bounds;
                  timeline : bounds }
 
-  let toggle panel hidden =
-    if List.mem panel hidden then List.filter (( <> ) panel) hidden else panel :: hidden
   let expand panel hidden = List.filter (( <> ) panel) hidden
 
   (* A hidden panel vanishes; a hidden viewport keeps a strip with its expand button. *)
@@ -731,19 +729,6 @@ module Chrome = struct
     let x = if collapsed then x +. 8. +. Pxui.Ui.text_width ui "collapsed" else x in
     x +. 25.
 
-  (* Empty: a crossed box with the reason as a label on the ground. *)
-  let note ui ~bounds:(x, y, width, height) text =
-    let theme = Pxui.Ui.theme ui in
-    Pxui.Ui.draw ui (floating ui (x, y, width, height) (Printf.sprintf "workspace-note-%d-%d" x y))
-      (fun paint (x, y, w, h) ->
-        let module P = Pxui.Ui.Paint in
-        if w > 48. && h > 48. then P.cross paint ~x:(x +. 12.) ~y:(y +. 12.) ~w:(w -. 24.) ~h:(h -. 24.)
-          (Pxui.Theme.edge theme);
-        let tw = P.cap_width paint text in
-        let tx = x +. Float.max 12. (Float.floor ((w -. tw) /. 2.)) and ty = y +. Float.floor (h /. 2.) -. 8. in
-        P.fill paint ~x:(tx -. 8.) ~y:ty ~w:(tw +. 16.) ~h:16. theme.panel;
-        P.cap paint ~at:(tx, ty +. 2.) text)
-
   let drop_targets ui ~dragging ~(geometry : geometry) ~state =
     match dragging with
     | None -> []
@@ -1176,9 +1161,9 @@ module Status_bar = struct
     end
 
   let guide ui ~bounds:(x, y, width, height) ?(file = "") ?(state = `Ok) ?(layout = "") ?(text = "") ?fps
-      ?(notes = []) ?(readout = "") ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context commands =
+      ?(notes = []) ?(readout = "") ?(accent = false) ?(extra = []) ?leader ?kind ?selection ~context () =
     let module Ui = Pxui.Ui in
-    if height <= 0 then false else
+    if height > 0 then
     match leader with
     | Some pending ->
         (* an open leader: the file and its state, a rule, the pending prefix in the accent and
@@ -1192,15 +1177,12 @@ module Status_bar = struct
           let after = lead ui paint (x, y, h) ~file ~state ~limit:(x +. Float.min 320. (w /. 4.)) text in
           ignore right;
           let tx = focus_labels ui paint (x, y, h) ~accent:true ~after ~kind:pending () in
-          Ui.Paint.text paint ~at:(tx, Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) "waiting for a key");
-        false
+          Ui.Paint.text paint ~at:(tx, Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) "waiting for a key")
     | None ->
     let bar = Ui.box ui ~flags:Ui.(clickable + clip)
         ~w:(Ui.Px (float width)) ~h:(Ui.Px (float height))
         ~at:(float x, float y) "workspace-guide" in
-    let keys = List.filter_map (fun (command : _ Editor_core.Command.t) ->
-        Option.map (fun trigger -> Editor_core.Keymap.label trigger, command.label) command.trigger) commands
-      @ extra in
+    let keys = extra in
     let title = Editor_core.Guide_context.name context in
     (* the kind and what is selected; a context that is no node's (the leader, a search) names itself *)
     let kind = Some (Option.value kind ~default:title) in
@@ -1208,8 +1190,6 @@ module Status_bar = struct
       | Editor_core.Guide_context.Canvas | Node | Multi | List | Text -> selection
       | _ -> Some title in
     let theme = Ui.theme ui in
-    (* the strip is laid out before it is painted, so the "toggle guide" pair, where a click hides
-       the strip, is known to the box built for it *)
     let fx = float x and fw = float width in
     let limit = trail_start ui ~x:fx ~w:fw ~notes ~readout ~layout ~fps () in
     let has_lead = not (file = "" && text = "") in
@@ -1221,8 +1201,6 @@ module Status_bar = struct
       let kw = Ui.text_width ui ~size:small key and lw = Ui.text_width ui label in
       if tx +. kw +. 8. +. lw > limit -. 8. then acc, infinity
       else (tx, key, label, kw, lw) :: acc, tx +. kw +. 8. +. lw +. 8.) ([], labels_end) keys) |> List.rev in
-    let hide_rect = List.find_map (fun (tx, _, label, kw, lw) ->
-      if label = "toggle guide" then Some (tx, kw +. 8. +. lw) else None) pairs in
     Ui.draw ui bar (fun paint bounds ->
       let x, y, w, h = ground ui paint bounds in
       let limit = trail ui paint (x, y, w, h) ~notes ~readout ~layout ~fps () in
@@ -1236,17 +1214,9 @@ module Status_bar = struct
       List.iter (fun (tx, key, label, kw, _) ->
         Ui.Paint.text paint ~size:small ~at:(tx, Kit.cap_y ui y h) ~color:(Pxui.Theme.ink_3 theme) key;
         Ui.Paint.text paint ~at:(tx +. kw +. 8., Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) label) pairs);
-    let hide = Ui.within ui bar (fun () ->
-      let hx, hw = Option.value hide_rect ~default:(0., 0.) in
-      Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px hw) ~h:(Ui.Px (float height))
-        ~at:(hx -. fx, 0.) "guide-hide") in
-    let hide_hovered = (Ui.signal ui hide).hovered in
-    if hide_hovered && hide_rect <> None then Ui.draw ui hide (fun paint (x, y, w, h) ->
-      Ui.Paint.fill paint ~x ~y:(y +. 1.) ~w ~h:(h -. 1.) (Pxui.Theme.faint_border theme));
     if (Ui.signal ui bar).hovered then
       Ui.tooltip ui ~key:"guide-strip" ~text:(title ^ " \xc2\xb7 "
-        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 Space ?: all keys");
-    hide_rect <> None && (Ui.signal ui hide).clicked
+        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 Space ?: all keys")
 
   (* Echo, the sheet's [08]: tips stacked 4 apart in the pane's bottom-left corner, the last at the
      bottom.  A tip is 24 high on the sheet fill with a line-2 edge and 13-point text 7 in; information
@@ -1925,12 +1895,10 @@ module Inspector = struct
     locked : bool;
     drive : string option;
     live : string option;
-    components : (string * string * string option) list;
-    split : bool option;
   }
 
   type flow_change = Edited of string * Param.value
-    | Pinned of string * bool | Split of string * bool | Reset of string
+    | Pinned of string * bool | Reset of string
     | Expression of string * string
 
   let rec insert path field items = match path with
@@ -1956,7 +1924,7 @@ module Inspector = struct
       | _ -> folder in
     match folder with first :: _ -> [ first ] | [] -> []
 
-  let flow_fields ui ?(expanded = []) ?width ?(actions = true) ?(pins = false) ?(pin_click = false) ?(chips = [])
+  let flow_fields ui ?(expanded = []) ?width ?(pins = false) ?(pin_click = false) ?(chips = [])
       ?kind_label ?(on_choice = fun _ _ -> ()) rows =
     (* the rows fill the panel they are built in *)
     let width = Option.value width ~default:(Ui.inspector_width ui) in
@@ -1964,9 +1932,9 @@ module Inspector = struct
     let ink_2 = Pxui.Theme.ink_2 theme and ink_3 = Pxui.Theme.ink_3 theme in
     let expression text = String.starts_with ~prefix:"=" text
       && String.length (String.trim text) > 1 in
-    (* the dot of a row is drawn by the row ([pins]); with [actions] a click on it pins the row *)
+    (* the dot of a row is drawn by the row ([pins]); with [pin_click] a click on it pins the row *)
     let pin_of shown = if pins then Some shown else None in
-    let pinnable = actions || pin_click in
+    let pinnable = pin_click in
     (* a click on the dot, or the s key over the row, asks to flip the row's pin *)
     let pin_change box path shown clicked edits =
       let key = pinnable && Ui.hovered_within ui box && not (Ui.text_input_focused ui)
@@ -2151,8 +2119,7 @@ module Inspector = struct
       let swatch_color = Color.rgb (clamp r) (clamp g) (clamp b) in
       let box, control_x, control_y, control_w = Ui.inspector_row ui
           ~width ?pin:(pin_of shown) ~key:("flow-row-" ^ path) ~label:title () in
-      let whole = Ui.within ui box (fun () ->
-        let split = Option.value ~default:false row.split in
+      Ui.within ui box (fun () ->
         let text = swatch_and_hex ~path ~control_x ~control_y ~control_w ~swatch_color ~hex_str in
         let hex_edits =
           if text = hex_str then [] else
@@ -2166,22 +2133,9 @@ module Inspector = struct
                      Edited (f2.name, Param.Float_value nb) ]
                | _ -> [])
           | Error _ -> [] in
-        let toggle = actions && action ui ("split-" ^ path) "rgb"
-            ~x:(width -. 32.) ~y:control_y
-            ~enabled:(not row.locked) () in
         let pin = pinnable && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y
             ~enabled:(not row.locked) () in
-        hex_edits
-        @ (if toggle then [ Split (path, not split) ] else [])
-        @ pin_change box path shown pin []) in
-      if row.split = Some true || row.components <> [] then
-        whole @ List.concat (List.mapi (fun index field ->
-          let axis = List.nth [ "r"; "g"; "b" ] index in
-          let path = path ^ "." ^ axis in
-          match List.find_opt (fun (name, _, _) -> name = path) row.components with
-          | Some (_, source, live) -> driven path field.Param.label source live shown
-          | None -> scalar path field.label field shown) fields)
-      else whole in
+        hex_edits @ pin_change box path shown pin []) in
     let color_row_1 path title field shown =
       let text_val = match field.Param.current with Param.Text_value t -> t | _ -> "#ffffff" in
       let c = Result.value (Color.hex text_val) ~default:Color.white in
@@ -2214,29 +2168,15 @@ module Inspector = struct
           (* a vector: three fields in the control column, 8 between, each with its axis letter *)
           let box, control_x, control_y, control_w = Ui.inspector_row ui
               ~width ?pin:(pin_of row.shown) ~key:("flow-row-" ^ row.path) ~label:title () in
-          let whole = Ui.within ui box (fun () ->
-            let split = Option.value ~default:false row.split in
-            let edits = if split || row.components <> [] then [] else
-              Kit.vector ui box ~at:(control_x, control_y) ~w:control_w
-                ~reserve:(if actions then 24. else 0.) (fun index ~x ~w ->
+          Ui.within ui box (fun () ->
+            let edits =
+              Kit.vector ui box ~at:(control_x, control_y) ~w:control_w (fun index ~x ~w ->
                   let field = List.nth fields index in
                   input ~ranged:false field (row.path ^ "." ^ List.nth ["x"; "y"; "z"] index)
                     ~edit:false ~x ~y:control_y ~w) in
-            let toggle = actions && action ui ("split-" ^ row.path) "xyz"
-                ~x:(width -. 32.) ~y:control_y
-                ~enabled:(not row.locked) () in
             let pin = pinnable && action ui ("pin-" ^ row.path) "pin" ~x:0. ~y:control_y
                 ~enabled:(not row.locked) () in
-            edits @ (if toggle then [Split (row.path, not split)] else [])
-            @ pin_change box row.path row.shown pin []) in
-          if row.split = Some true || row.components <> [] then
-            whole @ List.concat (List.mapi (fun index field ->
-              let axis = List.nth ["x"; "y"; "z"] index in
-              let path = row.path ^ "." ^ axis in
-              match List.find_opt (fun (name, _, _) -> name = path) row.components with
-              | Some (_, source, live) -> driven path field.Param.label source live row.shown
-              | None -> scalar path field.label field row.shown) fields)
-          else whole in
+            edits @ pin_change box row.path row.shown pin []) in
     let rec build path items = List.concat_map (function
       | Field row -> row_widget row
       | Folder (label, children) ->
@@ -2257,8 +2197,8 @@ module Inspector = struct
   let fields ui ?expanded ?width views =
     let rows = List.map (fun (field : Param.field_view) ->
       { path = field.name; fields = [field]; shown = false; locked = true;
-        drive = None; live = None; components = []; split = None }) views in
-    flow_fields ui ?expanded ?width ~actions:false rows
+        drive = None; live = None }) views in
+    flow_fields ui ?expanded ?width rows
     |> List.filter_map (function Edited (name, value) -> Some (name, value)
       | _ -> None)
 

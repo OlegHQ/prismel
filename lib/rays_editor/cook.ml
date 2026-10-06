@@ -128,7 +128,6 @@ let status value = Async_cook.status value.worker
 (* [Lower.is_volatile] of the current lowering: the nodes that recook per frame. *)
 let set_volatile value predicate = Async_cook.set_volatile value.worker predicate
 let stats value = Async_cook.stats value.worker
-let seconds value = value.seconds
 let pieces value = value.pieces
 (* the counts of a compiled node of an object, once a cook has reported them *)
 let geometry value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.summaries

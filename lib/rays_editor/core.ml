@@ -140,7 +140,6 @@ type 'panel frame_result = {
   text_intents : Text_pane.intent list;
   open_graph : int option;
   settings_changes : (string * Parameter.value) list;
-  hide_guide : bool;
   graph_panes : (string list * graph_pane) list;
   locals : (string list * local) list;
   other_texts : (string list * Text_pane.shown * Text_pane.intent list) list;
@@ -249,7 +248,6 @@ type 'prepared t = {
   framing : int option;  (* the object a framing cook is running for: its bounds come back in its own space *)
   carry : 'prepared carry option;
   carry_budget : float;  (* seconds a carry's preview may take to apply or cook before it is only described *)
-  captions : (string * string) list;
   traces : (string * trace) list;  (* what each traced viewport's readout says: the film, the samples, the bounces and the seconds the accumulation took *)
   file : string;  (* what the status strip calls the document: its source file, else its name *)
   gates : (string * (int * int * int * int)) list;  (* the render frame of each viewport that shows less than its pane *)
@@ -479,10 +477,6 @@ let follow_graph value ~focus ~focus_path =
       { value with graph_panes = List.filter (fun (key, _) -> List.mem_assoc key all
                                                               && Some key <> value.graph_pane) left }
 
-let pane_ui bounds =
-  let x, y, width, height = bounds in
-  x + 8, y + 8, max 1 (width - 16), max 40 (height - 16)
-
 (* The inspector column's kit panel. *)
 (* A window is the input sheet: its panes paint their ground with the theme's panel colour, so
    they are built with the sheet as that colour. *)
@@ -505,8 +499,7 @@ let inspector_panel ?window ui bounds build =
 let object_rows ?(locked = false) fields =
   Result.map (List.map (fun (parameter : Flow_sop.Port.parameter) ->
     { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = false;
-      locked; drive = None; live = None; components = [];
-      split = if parameter.ty = Some Flow.Port_type.Vec3 then Some false else None }))
+      locked; drive = None; live = None }))
     (Flow_sop.Port.parameters (Editor_document.Contexts.group_triples fields))
 
 (* ---- levels ---- *)
@@ -883,7 +876,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                current = Parameter.Choice_value current_val;
              } in
              Some (r, { Pxui_shell.Inspector.path = field_name; fields = [ field ]; shown = true; locked = false;
-                        drive = None; live = None; components = []; split = None }))
+                        drive = None; live = None }))
              n.rows in
            (* a switch's :active is a choice among its layouts, named from their panels *)
            let layout_names = match n.head, value.doc.Document.shell with
@@ -897,7 +890,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                folder = []; impact = Parameter.View; primary = true; unit = None; vec3 = None; kind = Parameter.Choice_view names;
                default = Parameter.Choice_value names.(0); current = Parameter.Choice_value names.(active) } in
              { Pxui_shell.Inspector.path = "@layout"; fields = [ field ]; shown = true; locked = false;
-               drive = None; live = None; components = []; split = None }) layout_names in
+               drive = None; live = None }) layout_names in
            (* a split is sized by ratio or with one side fixed: the choice converts it, keeping
               the sizes it shows (flow.md 11.11) *)
            let size_names = [| "By ratio"; "First side fixed"; "Second side fixed" |] in
@@ -908,7 +901,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                folder = []; impact = Parameter.View; primary = true; unit = None; vec3 = None; kind = Parameter.Choice_view size_names;
                default = Parameter.Choice_value size_names.(0); current = Parameter.Choice_value size_names.(now) } in
              Some { Pxui_shell.Inspector.path = "@size"; fields = [ field ]; shown = true; locked = false;
-                    drive = None; live = None; components = []; split = None }
+                    drive = None; live = None }
            end in
            let rows = Option.to_list layout_row @ Option.to_list size_row @ List.map snd ref_rows @ List.map (fun (parameter : Flow_sop.Port.parameter) ->
              let wired = match authored parameter with Some e -> not (literal e) | None -> false in
@@ -925,14 +918,13 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
                  | [ { Parameter.current = Parameter.Int_value i; _ } ] -> Some (string_of_int i)
                  | [ { current = Parameter.Float_value f; _ } ] -> Some (Printf.sprintf "%.6g" f)
                  | [ { current = Parameter.Bool_value b; _ } ] -> Some (string_of_bool b)
-                 | _ -> None);
-               components = []; split = None }) parameters in
+                 | _ -> None) }) parameters in
            let expanded = List.filter_map (fun (f : Parameter.field_view) ->
              match f.folder with [] -> None | first :: _ -> Some first) fields |> List.sort_uniq String.compare in
            let num f =
 S.make (S.Num (Flow.Lisp.float f)) in
            let edits = if rows = [] then [] else
-             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~actions:false ~pins:true ~pin_click:true ~on_choice
+             Pxui_shell.Inspector.flow_fields ui ~expanded ~width ~pins:true ~pin_click:true ~on_choice
                ~kind_label:(kind_label n.head)
                ~chips:(match value.scope_key with
                  | Some { evaluated = Some ev; _ } -> Navigator.chips ev
@@ -1004,8 +996,7 @@ S.make (S.Num (Flow.Lisp.float f)) in
                           { node = n.path; key = r.key; sub = []; value = S.make (S.Sym "nil") }))
                     | None ->
                         Some (Syntax_edit (Flow_sop.Flow_edit.Disconnect { node = n.path;
-                          key = Flow_sop.Flow_edit.Kw (List.hd (String.split_on_char '.' path)); fallback = None })))
-               | _ -> None) in
+                          key = Flow_sop.Flow_edit.Kw (List.hd (String.split_on_char '.' path)); fallback = None })))) in
            (* what the cook made of a geometry node: read-out rows, as the sheet's Output section *)
            (match geo with
             | Some (g : Flow_sop.Probe.geometry) ->
@@ -1102,8 +1093,12 @@ let texting value = value.focus = Lisp || (value.focus <> List && projection val
 
 let fresh_local () = { rows = Pxui_shell.Tree.create (); code = Text_pane.initial; nav = Navigator.initial }
 let local_of value key = match List.assoc_opt key value.locals with Some l -> l | None -> fresh_local ()
+(* The panels' own states are kept for the 64 panels last drawn or changed (the latest first): a
+   bound on what layouts that came and went leave behind. *)
+let locals_capacity = 64
 let put_local key f locals =
-  (key, f (match List.assoc_opt key locals with Some l -> l | None -> fresh_local ())) :: List.remove_assoc key locals
+  (key, f (match List.assoc_opt key locals with Some l -> l | None -> fresh_local ()))
+  :: List.filteri (fun i _ -> i < locals_capacity - 1) (List.remove_assoc key locals)
 
 (* The open panels that hold a list, a text pane or an outline: a graph panel holds the one its
    view shows. *)
@@ -1991,7 +1986,7 @@ let create ?settings ?(keymap = Leader.keymap)
         graph_at = None; graph_pane = None; graph_panes = [];
         list_at = None; text_at = None; outline_at = None; locals = [];
         started = { on = None; views = []; tabs = [] };
-        framing = None; carry = None; carry_budget; captions = []; traces = []; view_tools = None; gates = []; selected_box = None;
+        framing = None; carry = None; carry_budget; traces = []; view_tools = None; gates = []; selected_box = None;
         file = (fst doc.Document.workspace).checked.name ^ ".rays" } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       (* the panels open as their start keywords say; the first graph pane (the focused leaf, else
@@ -2154,30 +2149,28 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
                  "Space", "leader" ]
     | View _ -> [ "w", "move"; "e", "rotate"; "r", "scale"; "i", "enter object"; "\xe2\x8c\xa5 drag", "orbit" ]
     | _ -> [] in
-  if height <= 0 then false
+  if height <= 0 then ()
   else if (match value.leader with Leader.Pending _ -> true | Idle -> false) then begin
     (* an open leader: the pending prefix in the accent and what the strip waits for *)
     let prefix = match value.leader with Leader.Pending p when p <> "" -> "Space " ^ p | _ -> "Space" in
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~readout ~text:line
-      ?fps:status_fps ~notes ~leader:prefix ~context:Editor_core.Guide_context.Leader
-      ([] : Leader.command list)
+      ?fps:status_fps ~notes ~leader:prefix ~context:Editor_core.Guide_context.Leader ()
   end
   else if moving <> None then begin
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~readout ~text:line
       ?fps:status_fps ~notes ~accent:true ~kind:("moving " ^ Option.get moving)
       ~extra:[ "drag to an edge", "dock"; "Space o f", "float or dock"; "Space n", "new window" ]
-      ~context:Editor_core.Guide_context.Canvas ([] : Leader.command list)
+      ~context:Editor_core.Guide_context.Canvas ()
   end
   else if state <> `Error && value.carry = None && value.guide then begin
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~readout ~text:line
-      ?fps:status_fps ~notes ~extra ~kind ?selection ~context ([] : Leader.command list)
+      ?fps:status_fps ~notes ~extra ~kind ?selection ~context ()
   end
   else begin
     (* a refusal has the strip to itself: the whole message, up to the layout and frame rate *)
     let kind, selection = if state = `Error then None, None else Some kind, selection in
     Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height) ~file ~state ~layout ~notes ~readout ?kind ?selection
-      ~text:line ~fps:status_fps ();
-    false
+      ~text:line ~fps:status_fps ()
   end
 
 (* Leader actions owned by the workspace; the environment handles the rest
@@ -3884,7 +3877,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                     let expanded = fields |> List.filter_map (fun field ->
                       match field.Parameter.folder with [] -> None
                       | first :: _ -> Some first) |> List.sort_uniq String.compare in
-                    Pxui_shell.Inspector.flow_fields ui ~expanded ~actions:false
+                    Pxui_shell.Inspector.flow_fields ui ~expanded
                       ~kind_label:(kind_label kind) ~width:inspector_width rows in
               List.filter_map (function
                 | Pxui_shell.Inspector.Edited (path, value) ->
@@ -3905,7 +3898,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                      | Ok expr, Some (key, sub) -> Some (Object_arg { node = node_id; key; sub; expr })
                      | Error message, _ -> Some (Declined message)
                      | Ok _, None -> None)
-                | Pinned _ | Split _ | Reset _ -> None) edits))) in
+                | Pinned _ | Reset _ -> None) edits))) in
           None, changes, [], value.live_cook) in
     (* an inspector shows the pane in use, or the graph panel its [:of] names; one of another pane
        only shows (a press there makes that pane the one in use first) *)
@@ -3976,8 +3969,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | Idle -> (match (if scope_active then Pxui_graph.Scope.selected scope_view
                         else List.map (fun id -> [ string_of_int id ]) (Selection.selected_nodes selection)) with
           | [] -> Canvas | [_] -> Node | _ -> Multi) in
-    let hide_guide = status_box { value with workspace; status_fps; selection; guide; focus; leader }
-        ui frame ~render_status ~error_status ~context in
+    status_box { value with workspace; status_fps; selection; guide; focus; leader }
+      ui frame ~render_status ~error_status ~context;
     (* echo, the sheet's [08]: messages only (saved, undo and redo results, refusals), never a key
        press; the last one fades after 3 seconds.  It stands at the bottom-left of the focused pane,
        above the strip. *)
@@ -4035,7 +4028,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       opened = None; live_cook; label = "Edit";
       changes; tree_intents = list_intents; text_intents; open_graph;
       settings_changes; graph_panes; locals; other_texts;
-      handle_changes; hide_guide } in
+      handle_changes } in
   let leader_panel = match leader with
     | Leader.Pending prefix -> Some (fun ui ->
         Pxui_shell.Which_key.panel ui ~category:Leader.group ~describe:Leader.describe_prefix ~order:Leader.order keymap ~prefix
@@ -4146,7 +4139,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         opened = None; live_cook = value.live_cook; label = "Edit";
         changes = command_changes; tree_intents = list_intents;
         text_intents = []; open_graph;
-        settings_changes = []; handle_changes = None; hide_guide = false } in
+        settings_changes = []; handle_changes = None } in
   let result = match result.prompt_intent with
     | Some (Edit_source op) -> { result with changes = result.changes @ [ Syntax_edit op ] }
     | _ -> result in
@@ -4183,7 +4176,6 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         | Pxui_graph.Scope.Selected _ | Activated _ | Drop_over _ | Dropped _ | Notice _ -> true
         | _ -> false) result.scope_changes;
       prompt_intent = (match result.prompt_intent with Some (Go _ as intent) -> Some intent | _ -> None) } in
-  let guide = guide && not result.hide_guide in
   let guide_error = if guide = value.guide then None else
     match save_guide value.preferences guide with
     | Ok () -> None | Error message -> Some (Refusal, "Guide preference not saved: " ^ message) in
@@ -4858,14 +4850,6 @@ let placed_pieces ?(render = false) ?(view = `Primary) value =
         && (not render || Objects.flag "render" node) ->
         Some (Objects.world (scene value) piece.id, piece)
     | Some _ | None -> None) (pieces value)
-
-(* How a viewport over another scene instance renders: that instance's [scene/root] (its settings and
-   its camera), else the document's *)
-let view_root_opt value key = List.assoc_opt key value.doc.Document.view_roots
-
-let view_root value key =
-  Option.fold ~none:value.doc.Document.root ~some:(fun (r : Document.view_root) -> r.params)
-    (view_root_opt value key)
 
 let world_id value = match Objects.ids "world" (scene value) with
   | id :: _ -> Some id | [] -> None

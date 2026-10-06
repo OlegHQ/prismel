@@ -55,7 +55,6 @@ module Layout : sig
       strip (a hairline and a 24-point bar) spans the frame below both.  Every point of the frame
       is covered exactly once, floats aside; a leaf's [frame] is its margin, header and body. *)
 
-  val toggle : panel -> panel list -> panel list
   val expand : panel -> panel list -> panel list
 
   type panes = { view : bounds; graph : bounds; inspector : bounds; status : bounds;
@@ -163,8 +162,6 @@ module Chrome : sig
   (** Dock targets built after pane bodies, with PXUI hover feedback during a panel drag. *)
 
   val key : Layout.path -> string  (* a panel's path as text, to key its boxes *)
-  val note : Pxui.Ui.t -> bounds:Layout.bounds -> string -> unit
-  (* a panel body that has nothing to show: a crossed box and the reason as a label *)
 end
 
 module Which_key : sig
@@ -198,15 +195,13 @@ module Status_bar : sig
   val guide : Pxui.Ui.t -> bounds:Layout.bounds -> ?file:string -> ?state:state -> ?layout:string ->
     ?text:string -> ?fps:int -> ?notes:string list -> ?readout:string -> ?accent:bool -> ?extra:(string * string) list ->
     ?leader:string -> ?kind:string -> ?selection:string -> context:Editor_core.Guide_context.t ->
-    ('scope, 'action) Editor_core.Command.t list -> bool
+    unit -> unit
   (** The strip of the workspace sheet: a hairline over a 24-point bar of the file, its state dot
       and status line (a quarter of the strip at most), a rule, the focused pane's [kind] and the
       [selection] as labels (a context that is not a node's names itself in place of the
-      selection; a List or Text context shows the selection given), each applicable key in ink-3
-      before what it does in ink-2 ([extra] pairs follow the keymap's, for gestures that are no
-      command), then the [notes] (labels such as "3 graphs"), the layout in use and the frame rate
-      at the right ([readout], when given, is plain ink-2 text just before the notes); [accent] draws the kind in the accent (a panel being moved); true when the
-      "toggle guide" pair is clicked.  With [leader] (the pending prefix, [Space]) the strip is the
+      selection; a List or Text context shows the selection given), each [extra] pair's key in ink-3
+      before what it does in ink-2, then the [notes] (labels such as "3 graphs"), the layout in use and the frame rate
+      at the right ([readout], when given, is plain ink-2 text just before the notes); [accent] draws the kind in the accent (a panel being moved).  With [leader] (the pending prefix, [Space]) the strip is the
       sheet's [09] one: the file, a rule, the prefix in the accent and [waiting for a key]. *)
 
   val tips : Pxui.Ui.t -> bounds:Layout.bounds -> ?avoid:(float * float * float * float) list -> (string * [ `Info | `Refusal ]) list -> unit
@@ -331,19 +326,16 @@ module Inspector : sig
     locked : bool;
     drive : string option;
     live : string option;
-    components : (string * string * string option) list;
-    split : bool option;
   }
   type flow_change = Edited of string * Editor_core.Param.value
-    | Pinned of string * bool | Split of string * bool | Reset of string
+    | Pinned of string * bool | Reset of string
     | Expression of string * string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
-    ?actions:bool -> ?pins:bool -> ?pin_click:bool -> ?chips:(string * Rays.Color.t) list -> ?kind_label:string ->
+    ?pins:bool -> ?pin_click:bool -> ?chips:(string * Rays.Color.t) list -> ?kind_label:string ->
     ?on_choice:(string -> Pxui.Ui.box -> unit) -> flow_row list -> flow_change list
   (** Responsive rows shared by Flow, scene, World, and compound interface
-      inspectors, laid out as the kit's inspector sheet. [actions=false] hides card pin and split
-      controls; [pins] draws each row's pin dot ([shown]: filled when the row is on its card, a
-      ring when not), a click on it being [Pinned] under [actions] or [pin_click]; so is the s key over a row. A drive's cross shows on the
+      inspectors, laid out as the kit's inspector sheet. [pins] draws each row's pin dot ([shown]: filled when the row is on its card, a
+      ring when not), a click on it being [Pinned] under [pin_click]; so is the s key over a row. A drive's cross shows on the
       hovered row. A choice named in [chips]
       wears its colour as a small square, on the closed control and in its menu. [on_choice]
       is called with the field's name and the box of each choice control, built or not

@@ -787,8 +787,6 @@ let update_with value frame ~inspector =
       Option.bind (List.assoc_opt key bodies) (fun bounds ->
         Option.map (fun rect -> key, rect, name)
           (V.screen_box (camera_of rendering key) ~bounds:(V.film extra ~key:(look_key rendering key) bounds) ~world box))) } in
-  let core = { core with Core.captions = List.filter_map (fun (key, _) ->
-    Option.map (fun caption -> key, caption) (V.caption extra ~key:(look_key rendering key))) bodies } in
   (* the render clock: a restart of the samples starts it, reaching the cap stops it *)
   let core = { core with Core.traces = List.filter_map (fun (key, _) ->
     Option.map (fun (film, samples, cap, bounces) ->

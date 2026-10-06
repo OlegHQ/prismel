@@ -421,10 +421,6 @@ let render extra ~pixel_scale:(scale_x, scale_y) ~focus views =
 (* A traced viewport's header: the root's resolution, the film's step of it and the samples *)
 let header_tools extra =
   Some (look_through extra, match extra.renderer.mode with Renderer.Raster -> 0 | Wireframe -> 1 | Path_traced -> 2)
-let caption extra ~key =
-  let { settings; _ } = look extra key in
-  Option.map (Renderer.caption ~resolution:(settings.width, settings.height))
-    (Renderer.info extra.renderer ~key)
 (* a traced viewport's film in pixels, samples, cap and bounces *)
 let trace extra ~key =
   let { settings; _ } = look extra key in

@@ -520,13 +520,13 @@ let () =
       default = Editor_core.Param.Float_value 0.; current = Editor_core.Param.Float_value 1. } in
   let vector = [ { Pxui_shell.Inspector.path = "translate";
     fields = [ cell "translate_x" 0; cell "translate_y" 1; cell "translate_z" 2 ]; shown = false; locked = false;
-    drive = None; live = None; components = []; split = None } ] in
+    drive = None; live = None } ] in
   (* one press at each place per UI: a second one there would be a double-click, which types *)
   let pass gesture =
     let vector_ui = Pxui.Ui.create ~font_size:11 () in
     let cells ?(mouse = 0., 0.) events = Pxui.Ui.frame vector_ui { frame with events; mouse } (fun ui ->
       Pxui.Ui.panel ui ~x:0. ~y:0. ~width:260. "vector" (fun () ->
-        Pxui_shell.Inspector.flow_fields ui ~actions:false vector)) in
+        Pxui_shell.Inspector.flow_fields ui vector)) in
     ignore (cells []);
     let found = List.map (fun x ->
       let at = float x, 12. in

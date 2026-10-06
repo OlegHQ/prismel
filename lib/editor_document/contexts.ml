@@ -116,7 +116,17 @@ let descriptors : Flow_sop.Catalog.descriptor list =
         label = "Settings"; category = [ "Workspace" ]; slots = [];
         fields = window_fields } ]
 
-let catalog ~version factories = Flow_sop.Catalog.of_factories ~version ~extra:descriptors factories
+(* The catalog is a function of the factories alone, and every edit asks for it (0.18 ms and
+   0.6 MB to build): the last one is kept, by the identity of its factories.  Capacity 1. *)
+let last_catalog = Atomic.make None
+
+let catalog ~version factories =
+  match Atomic.get last_catalog with
+  | Some (v, f, result) when v = version && f == factories -> result
+  | _ ->
+      let result = Flow_sop.Catalog.of_factories ~version ~extra:descriptors factories in
+      Atomic.set last_catalog (Some (version, factories, result));
+      result
 
 let ports qualified =
   match List.find_opt (fun (d : Flow_sop.Catalog.descriptor) -> d.qualified = qualified) descriptors with
