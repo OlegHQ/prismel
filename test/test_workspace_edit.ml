@@ -322,6 +322,13 @@ let part11 () = (* atomic: a refused edit changes nothing; labels *)
   (match E.apply catalog (parse base) (E.Rename { node = node [ "b" ]; to_ = "a" }) with
    | Error _ -> () | Ok _ -> fail "expected a refusal");
   check (canon (parse base) = before) "source unchanged after a refusal";
+  (* an exception inside a rewrite (here [List.nth] on a [for] with no body) is a refusal too *)
+  let broken = parse (g "(let* [a (for)] a)") in
+  (match E.apply catalog broken (E.Set_arg { node = node [ "a" ]; key = Kw "skip"; sub = []; value = num "1" }) with
+   | Error d -> check (d.code = "E_EDIT" && has d.message "The edit failed") ("a raising rewrite: " ^ d.message)
+   | Ok _ -> fail "a raising rewrite was accepted"
+   | exception e -> fail ("a rewrite raised " ^ Printexc.to_string e));
+  check (canon broken = norm (g "(let* [a (for)] a)")) "source unchanged after a raising rewrite";
   List.iter (fun (op, label) -> check (E.label op = label) ("label " ^ label))
     [ E.Wrap { nodes = []; loop = For }, "Repeat"; E.Wrap { nodes = []; loop = Fold }, "Iterate";
       E.Unfold { node = []; key = Whole; sub = [] }, "Unfold";

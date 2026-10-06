@@ -1506,15 +1506,22 @@ let check catalog forms =
              | Some d -> d
              | None -> Flow.Diagnostic.error ~code:"E_EDIT" "The edit does not check."))
 
+(* the last resort: whatever a rewrite raises ([List.nth], [Option.get], [Failure]) is a refused
+   edit, never a dead editor *)
+let refusal = function
+  | Fail d -> d
+  | (Out_of_memory | Sys.Break) as e -> raise e
+  | e -> Flow.Diagnostic.error ~code:"E_EDIT" ("The edit failed: " ^ Printexc.to_string e)
+
 let apply_checked catalog src op =
   match rewrite src op with
-  | exception Fail d -> Error d
+  | exception e -> Error (refusal e)
   | candidates ->
       let rec first err = function
         | [] -> Error (Option.get err)
         | attempt :: rest ->
             (match attempt () with
-             | exception Fail d -> first (if err = None then Some d else err) rest
+             | exception e -> first (if err = None then Some (refusal e) else err) rest
              | forms -> (match check catalog forms with
                  | Ok _ as ok -> ok
                  | Error d -> first (if err = None then Some d else err) rest)) in
