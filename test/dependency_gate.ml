@@ -118,7 +118,8 @@ let rules =
       "pxui_shell", ["procedural"; "rdk"; "sop_catalog";
                      "pxui_graph"; "sketch_support"; "rays_editor"];
       "pxui_graph", ["pxui_shell"; "sketch_support"; "rays_editor"; "sop_catalog"];
-      "sop_catalog", ["pxui"; "pxui_shell"; "pxui_graph"; "sketch_support"; "rays_editor"];
+      "sop_catalog", "rays" :: "rays_execution" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sketch_support"
+                     :: "rays_editor" :: gpu;
       "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "rays_editor"] ]
 
 (* Known violations: (library, reached, plan item that removes it). *)
@@ -263,7 +264,8 @@ let run () =
      "ppx_rays", "procedural"; "ppx_rays", "pxui";
      "flow_sop", "pxui"; "flow_sop", "sop_catalog"; "flow_sop", "rays";
      "flow_sop", "editor_document"; "flow_sop", "ogpu"; "sdl3", "flow_sop";
-     "flow", "flow_sop"; "ppx_rays", "flow_sop"];
+     "flow", "flow_sop"; "ppx_rays", "flow_sop";
+     "sop_catalog", "rays"; "sop_catalog", "runtime"; "sop_catalog", "metal"];
   if violations graph ~scan:["lib/rays/injected.ml", "let x = Metal.Device.system_default"] = []
      || violations graph ~scan:["lib/rays/injected.ml", "open Ogpu_metal_native"] = []
      || violations graph ~scan:["lib/rays/injected.ml", "open Ogpu_metal"] = [] then

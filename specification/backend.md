@@ -99,6 +99,9 @@ the renderer or foundational libraries back into the editor.
 runtime, and the dependency gate keeps it so. The Rays-dependent glue
 (`Sketch_support.Bridge`: frame-to-context, bounded mesh cache,
 `cook_to_mesh`/`cook_to_scene3`) lives in `sketch_support`.
+`sop_catalog` depends only on `rays_math`, `rdk` and `procedural`: its node
+schemas name `Rays_math.Vec3`/`Mat4` directly, and the gate rejects any path
+from it to `rays`, the runtime or a GPU library.
 
 `runtime` owns process setup, initial-domain lifecycle, the SDL3 window, its
 Metal view, resize scheduling, and presentation. It depends on `sdl3` and the

@@ -5,11 +5,11 @@
 module Box : sig
   val create :
     ?label:string ->
-    ?size:Rays.Vec3.t ->
+    ?size:Rays_math.Vec3.t ->
     ?connectivity:Rdk.Box_generator.box_connectivity ->
     ?consolidate_points:bool ->
     ?normals:Rdk.Box_generator.box_normals ->
-    ?center:Rays.Vec3.t -> ?rotation:Rays.Vec3.t ->
+    ?center:Rays_math.Vec3.t -> ?rotation:Rays_math.Vec3.t ->
     ?rotation_order:Rdk.Box_generator.box_rotation_order -> ?uniform_scale:float ->
     ?x_divisions:int -> ?y_divisions:int -> ?z_divisions:int ->
     ?uv_attribute:string -> ?face_groups:string ->
@@ -22,7 +22,7 @@ module Platonic : sig
     ?kind:Rdk.Parametric_generators.platonic_kind ->
     ?normals:Rdk.Parametric_generators.platonic_normals ->
     ?orientation:Rdk.Parametric_generators.platonic_orientation ->
-    ?center:Rays.Vec3.t -> ?rotation:Rays.Vec3.t ->
+    ?center:Rays_math.Vec3.t -> ?rotation:Rays_math.Vec3.t ->
     ?rotation_order:Rdk.Parametric_generators.platonic_rotation_order ->
     ?face_groups:string ->
     radius:float -> unit -> Procedural.Node.t
@@ -41,7 +41,7 @@ module Grid : sig
     ?counts:Rdk.Plane_generators.grid_counts ->
     ?connectivity:Rdk.Plane_generators.grid_connectivity ->
     ?orientation:Rdk.Plane_generators.grid_orientation ->
-    ?center:Rays.Vec3.t -> ?width:float -> ?height:float ->
+    ?center:Rays_math.Vec3.t -> ?width:float -> ?height:float ->
     ?rotation:float -> ?uv_attribute:string ->
     columns:int -> rows:int -> size:float -> unit -> Procedural.Node.t
 end
@@ -67,7 +67,7 @@ module Mountain : sig
     ?mask_attribute:string ->
     ?height_attribute:string ->
     ?recompute_normals:bool ->
-    seed:int -> height:float -> frequency:Rays.Vec3.t ->
+    seed:int -> height:float -> frequency:Rays_math.Vec3.t ->
     octaves:int -> lacunarity:float -> roughness:float ->
     Procedural.Node.t -> Procedural.Node.t
 end
@@ -84,7 +84,7 @@ module Attribute_noise_quaternion : sig
     ?range:Rdk.Attribute_ops.noise_range ->
     owner:Rdk.Attribute.owner ->
     name:string ->
-    seed:int -> frequency:Rays.Vec3.t -> octaves:int ->
+    seed:int -> frequency:Rays_math.Vec3.t -> octaves:int ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
@@ -95,7 +95,7 @@ module Point_jitter : sig
     ?mask_attribute:string ->
     ?id_attribute:string ->
     seed:int -> scale:float ->
-    ?axis_scales:Rays.Vec3.t ->
+    ?axis_scales:Rays_math.Vec3.t ->
     Procedural.Node.t -> Procedural.Node.t
 end
 
@@ -113,7 +113,7 @@ end
 module Duplicate : sig
   val create :
     ?label:string -> ?copies:int -> ?cumulative:bool ->
-    ?transform:Rays.Mat4.t -> Procedural.Node.t -> Procedural.Node.t
+    ?transform:Rays_math.Mat4.t -> Procedural.Node.t -> Procedural.Node.t
   (** Append [copies] transformed copies (points included), each by
       [transform] to the power of its index when [cumulative]. *)
 end
@@ -127,8 +127,8 @@ end
 
 module Transform : sig
   val create :
-    ?label:string -> ?translate:Rays.Vec3.t -> ?rotate:Rays.Vec3.t ->
-    ?scale:Rays.Vec3.t -> ?uniform_scale:float ->
+    ?label:string -> ?translate:Rays_math.Vec3.t -> ?rotate:Rays_math.Vec3.t ->
+    ?scale:Rays_math.Vec3.t -> ?uniform_scale:float ->
     Procedural.Node.t -> Procedural.Node.t
   (** Translate, rotate (radians), scale, then uniform scale. *)
 end
@@ -183,7 +183,7 @@ end
 
 module Exploded_view : sig
   val create :
-    ?label:string -> ?amount:float -> ?scale:Rays.Vec3.t ->
+    ?label:string -> ?amount:float -> ?scale:Rays_math.Vec3.t ->
     ?piece_attribute:string -> ?noise_amount:float ->
     ?noise_frequency:float -> ?noise_seed:int ->
     Procedural.Node.t -> Procedural.Node.t
