@@ -181,6 +181,14 @@ let with_scale scale =
     match previous_clipboard with
     | Ok text -> ignore (Clipboard.set_text text)
     | Error _ -> ()) (fun () ->
+      (* a copied line comes with its break: a field of one line takes the line *)
+      (match Clipboard.set_text "12\n" with Ok () -> ()
+       | Error message -> fail message);
+      command_step ui 'v' build;
+      step ui [Event.KeyPressed Input.Enter] build;
+      if !count <> 12 then fail (label "numeric editor refused a pasted line for its break");
+      step ui [press (20, row 0); release (20, row 0)] build;
+      fast_step ui [press (20, row 0); release (20, row 0)] build;
       (match Clipboard.set_text "31" with Ok () -> ()
        | Error message -> fail message);
       command_step ui 'v' build;
@@ -275,13 +283,13 @@ let with_scale scale =
   (* A trackpad (Event.TrackpadScrolled, each motion with the wheel steps SDL makes of it): the
      fingers move the content point for point, a lift in motion coasts to rest, an edge is
      overshot and returned to, a stretch is held until the lift, and content that fits stays. *)
-  let pad ?(content = 2000.) ?(start = 0.) ~dt () =
+  let pad ?(content = 2000.) ?(start = 0.) ?(h = Ui.Px 80.) ~dt () =
     let ui = Ui.create ~font_size:11 () and clock = ref 100. in
     let step events =
       clock := !clock +. dt;
       Ui.frame ui (frame ~scale ~time:!clock events) (fun ui ->
         let parent = Ui.box ui ~flags:Ui.(scroll + clip) ~at:(0., 0.)
-            ~w:(Ui.Px 100.) ~h:(Ui.Px 80.) ~scroll_step:24. "pad" in
+            ~w:(Ui.Px 100.) ~h ~scroll_step:24. "pad" in
         Ui.within ui parent (fun () ->
           ignore (Ui.box ui ~w:(Ui.Px 100.) ~h:(Ui.Px content) "long"));
         parent) in
@@ -336,6 +344,11 @@ let with_scale scale =
   parent := flick lifted;
   for _ = 1 to 60 do parent := flick [] done;
   if Ui.scroll_position pad_ui !parent <> 0. then fail (label "trackpad stretch did not spring back");
+  (* a box whose height comes from its parent (a third of 240) stretches as a fixed one does *)
+  let pad_ui, flick = pad ~h:(Ui.Pct (1. /. 3.)) ~dt:(1. /. 60.) () in
+  ignore (flick (finger 5.016 200.));
+  if Ui.scroll_position pad_ui (flick []) >= -1. then
+    fail (label "a scroll box of relative height did not stretch");
   (* content shorter than the box neither scrolls, stretches nor coasts *)
   let pad_ui, flick = pad ~content:40. ~dt:(1. /. 60.) () in
   ignore (flick (finger 5.016 (-30.)));
@@ -524,6 +537,15 @@ let with_scale scale =
     fail (label "range did not drag its nearer handle");
   step ui [press (150, row 2); move (200, row 2 + 6); release (200, row 2 + 6)] build;
   if !point = (0., 0.) then fail (label "xy pad did not update");
+  Ui.destroy ui;
+  (* a label with an id of its own (###) opens its menu as any other *)
+  let mode = ref 0 in
+  let build ui = mode := Ui.choice ui "Mode###mode" ["dots"; "lines"] !mode in
+  let ui = Ui.create ~font_size:11 () in
+  settle ui build;
+  step ui [press (200, row 0); release (200, row 0)] build;
+  step ui [press (200, option 1); release (200, option 1)] build;
+  if !mode <> 1 then fail (label "a choice with a ### id did not pick from its menu");
   Ui.destroy ui
 
 let run () =
@@ -583,16 +605,6 @@ let run () =
   if not !hovered || not (Ui.wants_pointer ui) then fail "hover did not follow the pointer";
   Ui.frame ui (frame ~scale:2. ~time:0.2 [move (300, 200)]) build;
   if !hovered || Ui.wants_pointer ui then fail "hover outlived the pointer";
-  let divider ui =
-    let parent = Ui.box ui ~w:(Ui.Px 100.) ~h:(Ui.Px 100.)
-        ~axis:Ui.Row "divider parent" in
-    Ui.within ui parent (fun () -> ignore (Ui.splitter ui "divider")) in
-  Ui.frame ui (frame ~scale:1. ~time:0.3 []) divider;
-  Ui.frame ui (frame ~scale:1. ~time:0.4 [move (3, 12)]) divider;
-  if Ui.cursor ui <> Some `Horizontal_resize then
-    fail "splitter did not request a resize cursor on hover";
-  Ui.frame ui (frame ~scale:1. ~time:0.5 [move (300, 200)]) divider;
-  if Ui.cursor ui <> None then fail "splitter cursor outlived hover";
   (* text fields show the I-beam under the pointer, and only there *)
   let field_ui = Ui.create ~font_size:11 () in
   let title = ref "" in
@@ -634,27 +646,27 @@ let run () =
   Ui.frame ui (frame ~scale:1. ~time:0.2 [press (40, 47); release (40, 47)]) build;
   if not !clicked then fail "canvas child did not receive a transformed hit";
   Ui.destroy ui;
-  (* A cached subtree replays last frame's boxes while its stamp holds. *)
+  (* Keys that come and go (150,000 of them, 500 a frame) leave the retained state the size it was. *)
+  let ui = Ui.create ~font_size:11 () and next = ref 0 in
+  let churn () = Ui.frame ui (frame ~scale:1. ~time:0. []) (fun ui ->
+    for _ = 1 to 500 do
+      incr next; ignore (Ui.box ui ~w:(Ui.Px 1.) ~h:(Ui.Px 1.) (string_of_int !next))
+    done) in
+  churn (); churn ();
+  let words () = Obj.reachable_words (Obj.repr ui) in
+  let settled = words () in
+  for _ = 1 to 300 do churn () done;
+  if words () > 2 * settled then fail "churned keys grew the UI's retained tables";
+  Ui.destroy ui;
+  (* A box with no extent of its own (Fit, its one child placed with ~at) shows the child. *)
   let ui = Ui.create ~font_size:11 () in
-  let built = ref 0 in
-  let build stamp ui =
-    Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () ->
-      Ui.cached ui ~key:"static" ~stamp (fun () ->
-        incr built; Ui.label ui "One"; Ui.label ui "Two")) in
-  let instances () =
-    match Scene.Private.stage_native ~width:320 ~height:240 (Ui.scene ui) with
-    | Ok staged -> List.fold_left (fun total -> function
-        | Scene.Private.Ui_layer (batch, _) -> total + Scene_command.Ui_batch.count batch
-        | _ -> total) 0 staged.layers
-    | Error message -> fail message in
-  Ui.frame ui (frame ~scale:1. ~time:0. []) (build 1);
-  let painted = instances () in
-  Ui.frame ui (frame ~scale:1. ~time:0.1 []) (build 1);
-  Ui.frame ui (frame ~scale:1. ~time:0.2 []) (build 1);
-  if !built <> 1 || painted = 0 || instances () <> painted then
-    fail "cached subtree was rebuilt or lost";
-  Ui.frame ui (frame ~scale:1. ~time:0.3 []) (build 2);
-  if !built <> 2 then fail "a new stamp did not rebuild the cached subtree";
+  let placed events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    let group = Ui.box ui ~w:Ui.Fit ~h:Ui.Fit "group" in
+    let child = Ui.within ui group (fun () ->
+      Ui.box ui ~flags:Ui.clickable ~at:(40., 40.) ~w:(Ui.Px 20.) ~h:(Ui.Px 20.) "placed") in
+    (Ui.signal ui child).hovered) in
+  ignore (placed []);
+  if not (placed [move (50, 50)]) then fail "a Fit box of placed children culled them";
   Ui.destroy ui;
   (* One panel paints in a handful of batches, not one draw per label. *)
   let ui = Ui.create ~font_size:11 () in
@@ -685,13 +697,14 @@ let run () =
   let rows query = Array.of_list (List.filter
       (fun (label, _) -> Ui.fuzzy_match ~query label) (Array.to_list items)) in
   let ui = Ui.create ~font_size:11 () and query = ref "" and last = ref `None in
+  let off = ref (fun _ -> false) in
   let pick ?(command=false) ?(shift=false) events =
     Ui.frame ui
       { (frame ~scale:1. ~time:0. events) with
         keys = (if command then [Input.Meta]
           else if shift then [Input.Shift] else []) } (fun ui ->
       Ui.panel ui ~x:0. ~y:0. ~width:240. "p" (fun () ->
-        let edited, result = Ui.picker ui "Search" ~query:!query rows in
+        let edited, result = Ui.picker ui ~off:(fun index -> !off index) "Search" ~query:!query rows in
         query := edited; last := result)) in
   pick [];
   if not (Ui.text_input_focused ui) then fail "picker did not take keyboard focus";
@@ -738,7 +751,16 @@ let run () =
   if !last <> `Back then fail "picker Backspace on an empty query did not go back";
   pick [key Input.Escape];
   if !last <> `Cancel then fail "picker Escape did not cancel";
-  (* The second row sits at y = 3 + 24 + 24 (search row, first row). *)
+  (* The second row sits at y = 3 + 24 + 24 (search row, first row).  A row that cannot be
+     picked leaves the keyboard with the search field. *)
+  query := "";
+  pick [];
+  off := (fun index -> index = 1);
+  pick [];
+  pick [press (60, 3 + 48 + 12); release (60, 3 + 48 + 12)];
+  pick [Event.TextInput "a"];
+  if !last <> `None || !query <> "a" then fail "a click on an unavailable picker row took the keyboard";
+  off := (fun _ -> false);
   query := "";
   pick [];
   pick [press (60, 3 + 48 + 12)];
@@ -817,7 +839,17 @@ let run () =
     area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];
     area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
     if Clipboard.get_text () <> Ok "_abX\ncé" then fail "readonly text area cannot copy";
-    readonly := false);
+    readonly := false;
+    (* copy and cut with no selection take the caret's line: of an empty area, nothing *)
+    area := "";
+    area_step [press (150, 12); release (150, 12)];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'x')];
+    expect "copy and cut of an empty area" "";
+    area := "ab\ncd";
+    area_step [press (150, 12); release (150, 12)];
+    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'x')];
+    expect "cut with no selection takes the caret's line" "cd");
   (* Tab keeps the focus and inserts two spaces, Shift-Tab takes them off, Command-Enter is the
      host's apply *)
   area := "ab";
@@ -946,6 +978,8 @@ let run () =
   area_step [release (nx + 20, 12)];
   if List.hd !scrubs <> `Done then fail "a drag's end did not report on_scrub `Done";
   expect "the release keeps the value" "14 x";
+  area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  expect "Command-Z takes the whole drag back" "10 x";
   area := "0.5 y";
   area_step [];
   area_step [press (nx, 12)];
@@ -1019,6 +1053,13 @@ let run () =
   if Ui.ellipsis ~width:cp ~limit:200. "split side by side" <> "split side by side" then fail "a fitting label was cut";
   if Ui.ellipsis ~width:cp ~limit:70. "split side by side" <> "split sid…" then fail "a long label was not cut to the limit";
   if Ui.ellipsis ~width:cp ~limit:28. "ƒ petal" <> "ƒ p…" then fail "the cut split a multi-byte character";
+  if Ui.ellipsis ~width:cp ~limit:7. "petal" <> "…" || Ui.ellipsis ~width:cp ~limit:6. "petal" <> "" then
+    fail "a label with no room was not the ellipsis alone, then nothing";
+  (* the cut measures what it shows, not the whole label *)
+  let measured = ref 0 in
+  let counted s = measured := !measured + String.length s; cp s in
+  if Ui.ellipsis ~width:counted ~limit:70. (String.make 4000 'a') <> String.make 9 'a' ^ "…" || !measured > 100 then
+    fail "the cut of a long label measured all of it";
   Ui.destroy ui;
   (* Modal: centered, and Escape or a press outside dismisses it. *)
   let ui = Ui.create ~font_size:11 () and shown = ref None in
@@ -1074,12 +1115,35 @@ let run () =
    | Ok {layers = [Ui_layer _; Scene2_layer _; Ui_layer _]; _} -> ()
    | _ -> fail "native content was not between the background and floating controls");
   Ui.destroy ui;
+  (* Two text widgets share nothing: a double click's word in one and its undo stack do not
+     reach the numeric editor opened after it (a drag there stays inside its own text, and
+     Command-Z with nothing typed is the host's). *)
+  let ui = Ui.create ~font_size:11 () in
+  let words = ref "alpha beta gamma" and number = ref "240" and clock = ref 0. in
+  let tick ?(keys = []) ?(dt = 0.05) events =
+    clock := !clock +. dt;
+    ignore (Ui.frame ui { (frame ~scale:1. ~time:!clock events) with keys } (fun ui ->
+      words := fst (Ui.value_field ui ~at:(20., 20.) ~w:100. ~h:21. ~valid:(fun _ -> true) "words" !words);
+      number := fst (Ui.value_field ui ~at:(20., 60.) ~w:100. ~h:21. ~scrub:(fun origin _ _ -> origin)
+        ~valid:(fun text -> int_of_string_opt text <> None) "number" !number))) in
+  tick []; tick [press (100, 30); release (100, 30)];
+  tick ~dt:1. [press (100, 30); release (100, 30); press (100, 30)]; tick [release (100, 30)];
+  tick [Event.TextInput "X"];
+  tick ~dt:1. [press (60, 70); release (60, 70); press (60, 70)];
+  tick [move (61, 70)]; tick [release (61, 70)];
+  if not (Ui.text_input_focused ui) then fail "a double click did not open the numeric editor";
+  tick ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+  if Ui.passed_undo ui <> Some `Undo then fail "a numeric editor undid another widget's edit";
+  tick [Event.KeyPressed Input.Escape];
+  if !number <> "240" then fail ("a numeric editor took another widget's text: " ^ !number);
+  Ui.destroy ui;
   (* A carry: held once the pointer has left the 4-point dead zone of the press, seen as hover
      by a box that does not own the press, put once on release, and gone after a pointer
      cancellation or a focus loss.  A key starts one with no capture: a press is the put. *)
   let ui = Ui.create ~font_size:11 () in
-  let clicked = ref false in
+  let clicked = ref false and popup = ref false in
   let carried events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    if !popup then ignore (Ui.popup ui ~at:(200., 0.) ~width:100. ~height:40. "over" (fun () -> ()));
     let source = Ui.box ui ~flags:Ui.clickable ~at:(0., 0.) ~w:(Ui.Px 100.) ~h:(Ui.Px 40.) "source" in
     let target = Ui.box ui ~flags:Ui.clickable ~at:(0., 100.) ~w:(Ui.Px 100.) ~h:(Ui.Px 40.) "target" in
     if (Ui.signal ui source).held then
@@ -1117,6 +1181,11 @@ let run () =
   (match carried [ Event.WindowFocusLost ] with
    | None, None, _ -> () | _ -> fail "a focus loss left the payload held");
   ignore (carried [ release (10, 120) ]);
+  (* a popup that takes the capture takes the carry: the release after it puts nothing *)
+  ignore (carried [ press (10, 10) ]); ignore (carried [ move (10, 120) ]);
+  popup := true; ignore (carried []); popup := false;
+  (match carried [ release (10, 120) ] with
+   | None, None, _ -> () | _ -> fail "a carry outlived the capture a popup took");
   (* from a key: no capture, hover from the pointer, the next left press is the put *)
   Ui.carry ui ~kind:"sop" ~value:"(ref shards)" ();
   if Ui.carrying ui = None then fail "a key did not start a carry";

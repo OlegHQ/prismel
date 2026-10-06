@@ -99,7 +99,9 @@ val passed_undo : t -> [`Undo | `Redo] option
 
 val ellipsis : width:(string -> float) -> limit:float -> string -> string
 (** [label] cut to [limit] points (measured by [width], e.g. [Paint.text_width paint]) with an
-    ellipsis, on a character boundary: a row label that stops short of its right-hand detail. *)
+    ellipsis, on a character boundary: a row label that stops short of its right-hand detail.
+    [width] is the sum of a text's characters, each measured once up to the cut: the cost follows
+    what is shown, not the label's length. *)
 
 val unfocus : t -> unit
 
@@ -172,8 +174,6 @@ val key : box -> int
 
 val rect : t -> box -> float * float * float * float
 (** The box's screen rectangle from the previous frame. *)
-
-val hit_rect : t -> box -> float * float * float * float
 
 val hovered_within : t -> box -> bool
 (** The box or a hit descendant owns hover in the shared hit tree. *)
@@ -315,10 +315,6 @@ module Paint : sig
     ?width:float -> Rays.Color.t -> unit
   (** Cubic Bézier stroked on the GPU. *)
 
-  val arc :
-    t -> at:float * float -> radius:float -> from_:float -> to_:float ->
-    ?width:float -> Rays.Color.t -> unit
-
   val grid :
     t -> x:float -> y:float -> w:float -> h:float -> origin:float * float ->
     spacing:float -> ?dot:float -> Rays.Color.t -> unit
@@ -395,11 +391,6 @@ val to_front : t -> ?order:int -> box -> unit
 (** Raise a root box and its children above ordinary boxes, below modal popups.
     Higher [order] values paint later; equal values retain their order of calls. *)
 
-val cached : t -> key:string -> stamp:int -> (unit -> unit) -> unit
-(** Replay the boxes and painting this subtree produced for the same [stamp]
-    last frame instead of rebuilding it. Only for non-interactive content:
-    replayed boxes keep last frame's hover and pressed appearance. *)
-
 (** {1 Layout helpers} *)
 
 val row :
@@ -409,10 +400,6 @@ val row :
 val col :
   t -> ?w:size -> ?h:size -> ?gap:float -> ?padding:float -> string ->
   (unit -> 'a) -> 'a
-
-val splitter : t -> ?axis:axis -> ?thickness:float -> string -> float
-(** A draggable divider; returns this frame's drag along [axis] (default
-    [Row], a vertical divider moved horizontally). *)
 
 (** {1 Kit widgets}
 
@@ -743,5 +730,3 @@ val view_size : t -> float * float
 val text_line_height : t -> int
 (** The pitch of a line in {!text_area}: one and a half times the text size (17 points at 11,
     20 at 13), as code editors set it; a control's row is {!row_height}. *)
-
-val panel_padding : t -> int
