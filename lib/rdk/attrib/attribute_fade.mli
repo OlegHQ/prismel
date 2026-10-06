@@ -1,6 +1,5 @@
 type scalar = Constant of float | Floats of float array | Ints of int array
 type ramp = { positions : float array; values : float array; }
-val error_message : int -> int -> string
 val fade :
   ?cancel:Rdk_core.Cancel.t ->
   ?grain:int ->

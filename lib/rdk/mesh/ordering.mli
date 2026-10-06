@@ -14,7 +14,6 @@ type key =
   | Reverse
   | Shift of int
 exception Sort_error of string
-val get_ok : ('a, string) result -> 'a
 val apply_points :
   ?cancel:Rdk_core.Cancel.t ->
   ?grain:int -> int array -> Rdk_core.Geometry.t -> Rdk_core.Geometry.t

@@ -120,7 +120,6 @@ module Float3 = struct
       if count < 0 then invalid_arg "Packed.Float3.Builder.create: negative length";
       { x = Array.make count 0.; y = Array.make count 0.;
         z = Array.make count 0.; frozen = false }
-    let length value = Array.length value.x
     let set value index x y z =
       if value.frozen then invalid_arg "Packed.Float3.Builder.set: builder is frozen";
       value.x.(index) <- x; value.y.(index) <- y; value.z.(index) <- z

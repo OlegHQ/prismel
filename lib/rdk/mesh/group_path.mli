@@ -14,24 +14,6 @@ type scratch = {
   previous : int array;
   queue : int array;
 }
-val find :
-  ?cancel:Rdk_core.Cancel.t ->
-  scratch:scratch ->
-  graph:graph ->
-  lengths:float array ->
-  allowed:(int -> bool) ->
-  used:bytes option ->
-  blocked_elements:bytes option ->
-  blocked_edges:bytes option ->
-  start:int -> finish:int -> unit -> (int array, string) result
-val close :
-  ?cancel:Rdk_core.Cancel.t ->
-  scratch:scratch ->
-  index:Rdk_core.Topology_index.t ->
-  graph:graph ->
-  lengths:float array ->
-  allowed:(int -> bool) ->
-  used:bytes option -> int array -> (int array, string) result
 val run :
   ?cancel:Rdk_core.Cancel.t ->
   ?grain:int ->

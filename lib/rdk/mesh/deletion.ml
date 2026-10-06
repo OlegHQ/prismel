@@ -1,4 +1,3 @@
-open Rays_math
 
 type topology_policy = Destroy_touched_primitives | Heal_primitives
 
@@ -6,13 +5,6 @@ exception Delete_error of string
 
 let fail message = raise (Delete_error ("Rdk.Deletion.delete: " ^ message))
 let get_ok = function Ok value -> value | Error message -> fail message
-
-let run ?(grain = 16_384) ?cancel count operation =
-  if grain <= 0 then invalid_arg "Rdk.Deletion.delete: grain must be positive";
-  if count > 0 then
-    Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1) (fun index ->
-      if index land 4095 = 0 then Cancel.check_opt cancel;
-      operation index)
 
 let minimum_vertices = function
   | Topology.Polygon | Topology.Closed_polyline -> 3

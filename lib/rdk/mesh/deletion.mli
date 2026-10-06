@@ -1,8 +1,5 @@
 type topology_policy = Destroy_touched_primitives | Heal_primitives
 exception Delete_error of string
-val get_ok : ('a, string) result -> 'a
-val run :
-  ?grain:int -> ?cancel:Rdk_core.Cancel.t -> int -> (int -> unit) -> unit
 type plan = {
   point_map : int array;
   vertex_map : int array;

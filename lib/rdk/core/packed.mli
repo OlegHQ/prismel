@@ -64,7 +64,6 @@ module Float3 : sig
   module Builder : sig
     type t
     val create : int -> t
-    val length : t -> int
     val set : t -> int -> float -> float -> float -> unit
     val freeze : t -> buffer
   end

@@ -42,7 +42,6 @@ type profile = {
   radius_ramp : ramp option;
   uniform_scale : float;
 }
-val get_ok : ('a, string) result -> 'a
 
 val run :
   ?cancel:Rdk_core.Cancel.t ->
