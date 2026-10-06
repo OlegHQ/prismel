@@ -1,7 +1,7 @@
 # One description per SOP: migration strategy
 
 Date: 2026-10-06. Base: `audit-cleanup` plus the pilot branch `sop-one-declaration`.
-Status: design. Only the pilot is implemented.
+Status: decided, not started. Only the pilot is implemented.
 
 ## Goal
 
@@ -80,12 +80,16 @@ Plus, per commit: `flow_manifest.sexp` shows additions only; every checked-in `.
 `rays-lisp check`; no existing test is deleted, and test edits are the codemod's spelling
 changes only; `bench_rdk_ops` and `bench_workspace_lower` show no change at the end of each step.
 
-## Decisions for the owner
+## Decisions (owner, 2026-10-06)
 
-1. **May the OCaml signatures become flat (step 5)?** Recommended. Without it the work stops
-   at 97 nodes and two styles remain.
-2. **The Lisp default wins the 10 drifts?** Recommended: `.rays` files depend on it.
-3. **Invalid values are refused at construction for both doors?** Recommended; three tests change.
+Lisp is the first-class surface; OCaml is second-class, for tests and integrations
+(`AGENTS.md`, Direction). So:
+
+1. The OCaml signatures become flat, the Lisp shape (step 5 goes ahead).
+2. The Lisp default wins all 10 drifts.
+3. Invalid values are refused when a node is constructed, as the Lisp checker and the editor
+   already do; the three tests that pin the old OCaml behaviour change. This one follows from
+   the rule above and was not stated separately: say so if the cook-time diagnostic should stay.
 
 ## Skipped on purpose
 
