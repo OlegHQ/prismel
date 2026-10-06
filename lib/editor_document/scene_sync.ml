@@ -242,6 +242,28 @@ let refuse_preview (doc : Document.t) id =
   | Some key -> stop "Preview [%s] is derived; edit its viewport scene reference or source graph." key
   | None -> ()
 
+(* The deleted objects [(id, home)] leave the text: an inline call leaves its merge (the last one
+   first, so positions hold), then a binding goes whole. *)
+let delete_objects st (before : Document.t) gone =
+  let looped, rest = List.partition (fun (_, h) -> Document.loop_of h <> None) gone in
+  delete_loops st before looped;
+  let bound, inline = List.partition (function Document.Bound_at _ -> true | _ -> false) (List.map snd rest) in
+  let position = function Document.Inline_in (_, F.Pos i) -> i | _ -> -1 in
+  List.iter (function
+    | Document.Inline_in (parent, (F.Pos _ as key)) ->
+        apply st (F.Disconnect { node = bind st parent; key; fallback = None })
+    | home -> stop "Made by %s; edit the text." (Document.describe (fst before.workspace).source home))
+    (List.sort (fun x y -> compare (position y) (position x)) inline);
+  List.iter (function
+    | Document.Bound_at path -> apply st (F.Delete_nodes { nodes = [ path ] })
+    | _ -> ()) bound;
+  (* an object's graph goes with it unless another object or panel still references it *)
+  let orphans = List.sort_uniq compare (List.filter_map (fun (id, _) -> source_graph_of before id) gone) in
+  List.iter (fun name ->
+    if List.for_all (fun e -> refs name e = 0) st.workspace.source
+    && List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) st.workspace.checked.graphs
+    then apply st (F.Remove_graph { name })) orphans
+
 let objects st (before : Document.t) (after : Document.t) =
   let b = Document.scene_graph before and a = Document.scene_graph after in
   let refuse_preview = refuse_preview before in
@@ -257,26 +279,7 @@ let objects st (before : Document.t) (after : Document.t) =
         set ~before:(current_syntax nb) st home edits
     | Some _, None -> refuse_preview id; gone := (id, home) :: !gone
     | None, _ -> ()) before.homes.objects;
-  (* deletions: an inline call leaves its merge (the last one first, so positions hold), then a
-     binding goes whole *)
-  let looped, rest = List.partition (fun (_, h) -> Document.loop_of h <> None) !gone in
-  delete_loops st before looped;
-  let bound, inline = List.partition (function Document.Bound_at _ -> true | _ -> false) (List.map snd rest) in
-  let position = function Document.Inline_in (_, F.Pos i) -> i | _ -> -1 in
-  List.iter (function
-    | Document.Inline_in (parent, (F.Pos _ as key)) ->
-        apply st (F.Disconnect { node = bind st parent; key; fallback = None })
-    | home -> stop "Made by %s; edit the text." (Document.describe (fst before.workspace).source home))
-    (List.sort (fun x y -> compare (position y) (position x)) inline);
-  List.iter (function
-    | Document.Bound_at path -> apply st (F.Delete_nodes { nodes = [ path ] })
-    | _ -> ()) bound;
-  (* an object's graph goes with it unless another object or panel still references it *)
-  let orphans = List.sort_uniq compare (List.filter_map (fun (id, _) -> source_graph_of before id) !gone) in
-  List.iter (fun name ->
-    if List.for_all (fun e -> refs name e = 0) st.workspace.source
-    && List.exists (fun (g : Flow.Workspace.graph) -> g.name = name) st.workspace.checked.graphs
-    then apply st (F.Remove_graph { name })) orphans;
+  delete_objects st before !gone;
   let camera_of_root = before.homes.root in
   if camera_of_root <> None && before.active_camera <> after.active_camera then begin
     (* the root names the active camera; an old [:active] on the camera it replaces goes *)
@@ -403,13 +406,11 @@ let none_world = mk (S.List [ sym "world/none" ])
 
 (* the layers of a World as a world graph named [name]: bound bottom first, the top layer the
    result; [(world/none)] without layers *)
-let write_layers st (doc : Document.t) wid name =
-  let network = Document.Int_map.find wid doc.networks in
-  let g = network.graph.geometry in
+let write_stack st g bottom_first name =
   let used = ref (owned st.workspace) in
   let bindings = List.map (fun id ->
     let info = List.find (fun (i : Edit.node_info) -> i.id = id) (Edit.inspect g) in
-    id, F.fresh_among used info.label, info) (List.rev (order network)) in
+    id, F.fresh_among used info.label, info) bottom_first in
   let layers = List.mapi (fun i (_, name, (info : Edit.node_info)) ->
     let below = if i = 0 then [] else [ sym (let _, n, _ = List.nth bindings (i - 1) in n) ] in
     name, call_of ~kind:("world/" ^ info.operation) ~label:info.label
@@ -419,6 +420,53 @@ let write_layers st (doc : Document.t) wid name =
     | [] -> none_world
     | (top, _) :: _ -> let_star layers (sym top) in
   apply st (F.Set_graph { name; form = graph_form name "world" body })
+
+let write_layers st (doc : Document.t) wid name =
+  let network = Document.Int_map.find wid doc.networks in
+  write_stack st network.graph.geometry (List.rev (order network)) name
+
+(* The layers of the World [wid] the text has, with [removed] gone and the others stacked as [stack]
+   says (top down): a deleted or moved layer is one edit of its binding, so the graph's inputs,
+   expressions, comments and names stay.  [graph] has the layers as they are to be written when the
+   stack has to be written whole. *)
+let stack_layers st (before : Document.t) wid ~graph ~removed ~stack =
+  let member = List.mem_assoc wid before.homes.objects in
+  let known = List.map fst before.homes.layers in
+  let was = List.filter (fun id -> List.mem id stack) (order (Document.Int_map.find wid before.networks)) in
+  let reordered = was <> stack in
+  (* a World member whose top layer is its graph's result written in place has no name to
+     delete or rewire by *)
+  let unnamed = member && List.exists (fun (_, home) -> match home with
+    | Document.Bound_at path -> List.nth_opt (List.rev path) 0 = Some "@result" | _ -> false)
+    before.homes.layers in
+  if (removed <> [] || reordered) && unnamed then
+    (match before.homes.world_graph with
+     | Some name -> write_stack st graph (List.rev stack) name
+     | None -> stop "The World's graph is not named; edit the text.")
+  else if removed <> [] || reordered then begin
+    (* every layer is a binding of its own before the stack is rewired *)
+    let path id = bind st (List.assoc id before.homes.layers) in
+    let paths = List.map (fun id -> id, path id) known in
+    List.iter (fun id -> apply st (F.Delete_nodes { nodes = [ List.assoc id paths ] })) removed;
+    if reordered then begin
+      let bottom_first = List.rev stack in
+      let name id = List.nth (List.assoc id paths) (List.length (List.assoc id paths) - 1) in
+      ignore (List.fold_left (fun below id ->
+        (match below with
+         | Some b -> apply st (F.Connect { node = List.assoc id paths; key = F.Pos 0; src = name b; iter = false })
+         | None -> apply st (F.Disconnect { node = List.assoc id paths; key = F.Pos 0; fallback = None }));
+        Some id) None bottom_first);
+      match List.rev bottom_first, before.homes.world with
+      | top :: _, _ when member ->
+          (* a world graph's result is its top layer *)
+          (match before.homes.world_graph with
+           | Some graph -> apply st (F.Connect { node = [ graph; "@result" ]; key = F.Whole; src = name top; iter = false })
+           | None -> stop "The World's graph is not named; edit the text.")
+      | top :: _, Some home ->
+          apply st (F.Connect { node = bind st home; key = F.Pos 0; src = name top; iter = false })
+      | _ -> ()
+    end
+  end
 
 (* the World a document holds, written as the text has Worlds: its layers as the world graph
    [graph] and the object as a [scene/world] member of the scene (the scene graph is made first
@@ -463,13 +511,7 @@ let world st (before : Document.t) (after : Document.t) =
            let surviving = List.filter (fun id -> Edit.find (g an) ~node_id:id <> None) known in
            let removed = List.filter (fun id -> not (List.mem id surviving)) known in
            let stack n = List.filter (fun id -> List.mem id surviving) (order n) in
-           (* a World member whose top layer is its graph's result written in place has no name to
-              delete or rewire by *)
-           let unnamed = member && List.exists (fun (_, home) -> match home with
-             | Document.Bound_at path -> List.nth_opt (List.rev path) 0 = Some "@result" | _ -> false)
-             before.homes.layers in
-           let rewritten = unnamed && (removed <> [] || stack bn <> stack an) in
-           if List.exists (fun (i : Edit.node_info) -> not (List.mem i.id known)) (Edit.inspect (g an)) || rewritten then begin
+           if List.exists (fun (i : Edit.node_info) -> not (List.mem i.id known)) (Edit.inspect (g an)) then begin
              (* new layers (a preset): the graph is written out whole.  A deleted or moved layer is
                 one edit of its binding below, so the graph's inputs, expressions, comments and
                 names stay *)
@@ -488,31 +530,8 @@ let world st (before : Document.t) (after : Document.t) =
                    let name = if Node.label nb <> Node.label na then [ "name", Some (mk (S.Str (Node.label na))) ] else [] in
                    set st (List.assoc id before.homes.layers) (name @ differing ~before:nb na)
                | _ -> ()) surviving;
-             let reordered = stack bn <> stack an in
-             if removed <> [] || reordered then begin
-               (* every layer is a binding of its own before the stack is rewired *)
-               let path id = bind st (List.assoc id before.homes.layers) in
-               let paths = List.map (fun id -> id, path id) known in
-               List.iter (fun id -> apply st (F.Delete_nodes { nodes = [ List.assoc id paths ] })) removed;
-               if reordered then begin
-                 let bottom_first = List.rev (stack an) in
-                 let name id = List.nth (List.assoc id paths) (List.length (List.assoc id paths) - 1) in
-                 ignore (List.fold_left (fun below id ->
-                   (match below with
-                    | Some b -> apply st (F.Connect { node = List.assoc id paths; key = F.Pos 0; src = name b; iter = false })
-                    | None -> apply st (F.Disconnect { node = List.assoc id paths; key = F.Pos 0; fallback = None }));
-                   Some id) None bottom_first);
-                 match List.rev bottom_first with
-                 | top :: _ when member ->
-                     (* a world graph's result is its top layer *)
-                     (match before.homes.world_graph with
-                      | Some graph -> apply st (F.Connect { node = [ graph; "@result" ]; key = F.Whole; src = name top; iter = false })
-                      | None -> stop "The World's graph is not named; edit the text.")
-                 | top :: _ ->
-                     apply st (F.Connect { node = bind st home; key = F.Pos 0; src = name top; iter = false })
-                 | [] -> ()
-               end
-             end
+             ignore bn;
+             stack_layers st before wid ~graph:(g an) ~removed ~stack:(stack an)
            end
        | _ -> ())
   | _ -> ()
@@ -618,12 +637,21 @@ let set_fields ~factories (doc : Document.t) level ~node values =
 
 (* ---- derived edits, text first ---- *)
 
+(* The status line for an edit of a loop's copies (they are one template: every copy changes),
+   given the home the edit was written to. *)
+let template_note (doc : Document.t) home =
+  Option.map (fun loop -> Printf.sprintf "Edited the loop template (%s); %d copies change."
+                (Document.describe (fst doc.workspace).source loop) (Document.copies doc home)) (Document.loop_of home)
+
+let first notes = List.find_map Fun.id notes
+
 (* What a list, a key or a panel asks of the derived scene or World, written to the text with no
    edit of the derived document in between.  Ids are scene objects at the scene level and World
    layers inside the World. *)
 type edit =
   | Fields of (int * (string * Param.value) list) list  (* several objects' fields: a stroke of flags *)
   | Rename of int * string
+  | Delete of int list
 
 let graph_at (doc : Document.t) = function
   | Document.Scene -> Some (Document.scene_graph doc)
@@ -635,21 +663,23 @@ let graph_at (doc : Document.t) = function
 let writes (doc : Document.t) level = function
   | Fields edits -> List.for_all (fun (node, _) -> in_text doc level node) edits
   | Rename (node, _) -> in_text doc level node
+  | Delete ids -> List.for_all (in_text doc level) ids
 
 let node_at doc level id = match Option.bind (graph_at doc level) (fun g -> Edit.find g ~node_id:id) with
   | Some node -> node | None -> stop "That object is gone."
 
 let write_edit st (doc : Document.t) level = function
   | Fields edits ->
-      List.iter (fun (node, values) ->
+      List.map (fun (node, values) ->
         let was = node_at doc level node in
         match field_home doc level node, Node.apply_parameters was values with
         | _, Error message -> stop "%s" message
         | None, _ -> stop "That object is not in the text."
         | Some home, Ok (now, _) ->
             if level = Document.Scene then refuse_preview doc node;
-            set ~before:(current_syntax was) st home (differing ~before:was now)) edits
-  | Rename (id, name) when Node.label (node_at doc level id) = name -> ()
+            set ~before:(current_syntax was) st home (differing ~before:was now);
+            template_note doc home) edits |> first
+  | Rename (id, name) when Node.label (node_at doc level id) = name -> None
   | Rename (id, name) ->
       let value = Some (mk (S.Str name)) in
       if level = Document.Scene && List.mem_assoc id doc.homes.objects then begin
@@ -665,7 +695,38 @@ let write_edit st (doc : Document.t) level = function
           | Some key when homed doc o -> refuse_preview doc o; set st home [ key, value ]
           | _ -> ()) doc.homes.objects
       end
-      else Option.iter (fun home -> set st home [ "name", value ]) (field_home doc level id)
+      else Option.iter (fun home -> set st home [ "name", value ]) (field_home doc level id);
+      Option.bind (field_home doc level id) (template_note doc)
+  | Delete ids when level = Document.Scene ->
+      let graph = Document.scene_graph doc in
+      let gone = List.rev (List.filter (fun (id, _) -> List.mem id ids && homed doc id) doc.homes.objects) in
+      List.iter (fun (o, home) ->
+        if List.mem_assoc o gone then refuse_preview doc o
+        else if homed doc o && Option.fold ~none:false ~some:(fun p -> List.mem p ids) (Objects.parent graph o)
+        then begin refuse_preview doc o; set st home [ "parent", None ] end) doc.homes.objects;
+      delete_objects st doc gone;
+      (match doc.homes.root, doc.active_camera with
+       | Some root, Some camera when List.mem camera ids -> set st root [ "camera", None ]
+       | _ -> ());
+      (* an old file's World is its graph's [world/world] call: the graph says none (removing it
+         would let the host seed one) *)
+      (match world_id doc, doc.homes.world with
+       | Some wid, Some home when List.mem wid ids && not (List.mem_assoc wid doc.homes.objects) ->
+           if home = Document.Looped then stop "The World is made by a loop; edit the text.";
+           set_world st none_world
+       | _ -> ());
+      List.find_map (fun (_, home) -> Option.map (fun loop ->
+        Printf.sprintf "Removed a copy from the loop (%s)." (Document.describe (fst doc.workspace).source loop))
+        (Document.loop_of home)) (List.rev gone)
+  | Delete ids ->
+      (match level, world_id doc with
+       | Inside wid, Some w when w = wid ->
+           let network = Document.Int_map.find wid doc.networks in
+           let removed = List.filter (fun id -> List.mem id ids) (List.map fst doc.homes.layers) in
+           stack_layers st doc wid ~graph:network.graph.geometry ~removed
+             ~stack:(List.filter (fun id -> not (List.mem id ids)) (order network))
+       | _ -> ());
+      None
 
 (* [None] when {!writes} says the edit is not the text's to take. *)
 let write ~factories (doc : Document.t) level edit =
@@ -675,10 +736,10 @@ let write ~factories (doc : Document.t) level edit =
       (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
   let st = { catalog; workspace = fst doc.workspace; unfolded = []; adopted = false } in
   try
-    write_edit st doc level edit;
-    if st.workspace == fst doc.workspace then Ok (Some doc)
-    else Result.map Option.some (Contexts.of_workspace ~factories ~previous:doc st.workspace
-                                 |> Result.map_error Flow.Diagnostic.to_string)
+    let note = write_edit st doc level edit in
+    if st.workspace == fst doc.workspace then Ok (Some (doc, note))
+    else Result.map (fun doc -> Some (doc, note)) (Contexts.of_workspace ~factories ~previous:doc st.workspace
+                                                   |> Result.map_error Flow.Diagnostic.to_string)
   with Stop message -> Error message
 
 (* [after] is [before] edited in place (its scene, World networks, active camera or settings);
@@ -711,12 +772,6 @@ let run ~factories ~adopt (before : Document.t) (after : Document.t) =
 
 let reconcile ~factories ?(adopt = true) before after = run ~factories ~adopt before after
 
-
-(* The status line for an edit of a loop's copies (they are one template: every copy changes),
-   given the home the edit was written to. *)
-let template_note (doc : Document.t) home =
-  Option.map (fun loop -> Printf.sprintf "Edited the loop template (%s); %d copies change."
-                (Document.describe (fst doc.workspace).source loop) (Document.copies doc home)) (Document.loop_of home)
 
 (* What an edit of the derived objects did to the copies of a loop, for the status line. *)
 let note (before : Document.t) (after : Document.t) =

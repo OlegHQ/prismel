@@ -34,6 +34,7 @@ type edit =
   | Fields of (int * (string * Editor_core.Param.value) list) list
       (** field values of several objects (a stroke down a flag column) *)
   | Rename of int * string  (** an object's name; its children's [:parent] follows *)
+  | Delete of int list  (** objects (their children are unparented) or layers (the stack closes) *)
 (** A derived edit as its caller means it: scene objects at the scene level, World layers inside
     the World. *)
 
@@ -41,10 +42,11 @@ val writes : Document.t -> Document.level -> edit -> bool
 (** Every object the edit names has text of its own, so {!write} takes it. *)
 
 val write : factories:Procedural.Edit_graph.factory list -> Document.t -> Document.level -> edit ->
-  (Document.t option, string) result
-(** The edit written to the text and lowered again, the derived document never edited in between;
-    the same text as {!reconcile} writes for the same edit of the derived document.  [None] when
-    not {!writes}: the caller edits the derived document and {!reconcile} adopts it. *)
+  ((Document.t * string option) option, string) result
+(** The edit written to the text and lowered again, the derived document never edited in between,
+    with what it did to a loop's copies for the status line; the same text as {!reconcile} writes
+    for the same edit of the derived document.  [None] when not {!writes}: the caller edits the
+    derived document and {!reconcile} adopts it. *)
 
 val template_note : Document.t -> Document.home -> string option
 (** The status line for an edit written to a loop'"'"'s template: every copy changes. *)

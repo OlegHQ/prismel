@@ -97,6 +97,16 @@ let layer_id doc label =
   let _, n = world_network doc in
   (List.find (fun (i : Edit_graph.node_info) -> i.label = label) (Edit_graph.inspect n.graph.geometry)).id
 
+(* an edit the list, a key or a panel asks for, text first: the same text as the reconciled edit of
+   the derived document *)
+let text_first what doc level edit after =
+  match Sync.write ~factories doc level edit with
+  | Ok (Some (text_first, _)) ->
+      check (source text_first = source (ok (reconcile doc after)))
+        (what ^ ": the text-first edit and the reconciled one wrote different text:\n" ^ source text_first)
+  | Ok None -> failwith (what ^ ": the text did not take the edit")
+  | Error message -> failwith (what ^ ": " ^ message)
+
 let run () =
   let doc = open_text text in
   (* Following the viewport writes camera coordinates every frame. Rounding them
@@ -135,18 +145,9 @@ let run () =
     check (node_id written label = node_id doc label) ("fields written text first changed the id of " ^ label))
     [ "arm", [ float "translate_x" 4.; float "translate_y" 2. ]; "fill", [ float "intensity" 99. ];
       "cam", [ float "fov" 500. ] ];
-  (* the list's intents, text first: the same text as the reconciled edit of the derived scene *)
-  let written what doc level edit after =
-    match Sync.write ~factories doc level edit with
-    | Ok (Some text_first) ->
-        check (source text_first = source (ok (reconcile doc after)))
-          (what ^ ": the text-first edit and the reconciled one wrote different text:\n" ^ source text_first);
-        text_first
-    | Ok None -> failwith (what ^ ": the text did not take the edit")
-    | Error message -> failwith (what ^ ": " ^ message) in
   let hidden = [ "visible", Parameter.Bool_value false ] in
-  ignore (written "flags" doc Document.Scene (Sync.Fields [ arm, hidden; fill, hidden ])
-    (set (set doc "arm" hidden) "fill" hidden));
+  text_first "flags" doc Document.Scene (Sync.Fields [ arm, hidden; fill, hidden ])
+    (set (set doc "arm" hidden) "fill" hidden);
   (* an inline object is unfolded into a binding first *)
   let edited = ok (reconcile doc (set doc "fill" [ float "intensity" 99. ])) in
   check (contains (source edited) ":intensity 99.0") "an inline object's edit did not reach the text";
@@ -158,7 +159,7 @@ let run () =
   let renamed = with_scene doc (Edit_graph.replace_node
     (Node.relabel "forearm" (Option.get (Edit_graph.find (scene doc) ~node_id:arm))) (scene doc) |> Result.get_ok) in
   let edited = ok (reconcile doc renamed) in
-  ignore (written "rename" doc Document.Scene (Sync.Rename (arm, "forearm")) renamed);
+  text_first "rename" doc Document.Scene (Sync.Rename (arm, "forearm")) renamed;
   check (contains (source edited) ":name \"forearm\"" && node_id edited "forearm" = arm) "a rename did not keep the id";
   same_after_reload edited "rename";
   (* reparent keeping the world placement, rename the parent, then unparent *)
@@ -170,7 +171,7 @@ let run () =
   let torso = with_scene edited (Edit_graph.replace_node
     (Node.relabel "torso" (Option.get (Edit_graph.find (scene edited) ~node_id:body))) (scene edited) |> Result.get_ok) in
   let edited' = ok (reconcile edited torso) in
-  ignore (written "parent rename" edited Document.Scene (Sync.Rename (body, "torso")) torso);
+  text_first "parent rename" edited Document.Scene (Sync.Rename (body, "torso")) torso;
   (match Sync.write ~factories doc Document.Scene (Sync.Rename (arm, "body")) with
    | Error _ -> () | Ok _ -> failwith "a rename to a name another object has was written");
   check (contains (source edited') ":parent \"torso\"" && not (contains (source edited') ":parent \"body\""))
@@ -183,6 +184,7 @@ let run () =
   (* delete: a bound object leaves its binding and the merge; an inline one leaves the merge *)
   let gone = with_scene doc (Edit_graph.remove_nodes [ arm; fill ] (scene doc)) in
   let edited = ok (reconcile doc gone) in
+  text_first "delete" doc Document.Scene (Sync.Delete [ arm; fill ]) gone;
   check (not (contains (source edited) "\"arm\"") && not (contains (source edited) "\"fill\""))
     "a deleted object stayed in the text";
   check (contains (source edited) "scene/merge body cam side") "a deleted object stayed in the merge";
@@ -212,6 +214,7 @@ let run () =
   (* delete a layer: the stack closes over it *)
   let removed = with_world_network doc wid network (Edit_graph.remove_nodes [ sun ] network.graph.geometry) in
   let edited = ok (reconcile doc removed) in
+  text_first "layer delete" doc (Document.Inside wid) (Sync.Delete [ sun ]) removed;
   check (not (contains (source edited) "world/sun")) "a deleted World layer stayed in the text";
   same_after_reload edited "world layer delete";
   (* reorder the stack: sky above sun *)
@@ -238,6 +241,7 @@ let run () =
   (* deleting the World: its graph stays and says none (a removed graph would be seeded again) *)
   let worldless = Document.prune (with_scene doc (Edit_graph.remove_nodes [ wid ] (scene doc))) in
   let edited = ok (reconcile doc worldless) in
+  text_first "World delete" doc Document.Scene (Sync.Delete [ wid ]) worldless;
   check (contains (source edited) "world/none" && Objects.ids "world" (scene edited) = [])
     "a deleted World was not written as none";
   same_after_reload edited "world delete";
@@ -751,6 +755,7 @@ let run_root () =
   (* a deleted top layer hands the graph's result to the layer below; the stack reorders *)
   let removed = with_world_network doc wid network (Edit_graph.remove_nodes [ sun ] network.graph.geometry) in
   let edited = ok (reconcile doc removed) in
+  text_first "World member layer delete" doc (Document.Inside wid) (Sync.Delete [ sun ]) removed;
   check (not (contains (source edited) "world/sun") && contains (source edited) "world/sky"
          && Objects.ids "world" (scene edited) <> []) ("a deleted top layer: " ^ source edited);
   same_after_reload edited "World member layer delete";
@@ -766,6 +771,7 @@ let run_root () =
   (* deleting the World leaves its merge input, its binding and its graph (nothing else reads it) *)
   let worldless = Document.prune (with_scene doc (Edit_graph.remove_nodes [ wid ] (scene doc))) in
   let edited = ok (reconcile doc worldless) in
+  text_first "World member delete" doc Document.Scene (Sync.Delete [ wid ]) worldless;
   check (Objects.ids "world" (scene edited) = [] && not (contains (source edited) "scene/world")
          && not (contains (source edited) "graph sky") && contains (source edited) "scene/root")
     ("a deleted World: " ^ source edited);

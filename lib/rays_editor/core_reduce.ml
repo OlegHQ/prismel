@@ -206,7 +206,9 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     List.fold_left (fun ((next : Document.t), (result : _ frame_result)) edit ->
       if !refused <> None then next, result else
       match Editor_document.Scene_sync.write ~factories:value.factories next value.level edit with
-      | Ok (Some doc) -> doc, { result with edit_error = None }
+      | Ok (Some (doc, note)) ->
+          if !edit_note = None then edit_note := note;
+          doc, { result with edit_error = None }
       | Ok None -> next, result
       | Error message -> refused := Some message; next, result) (next, result) tree_edits in
   (* a viewport handle's values *)
