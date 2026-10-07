@@ -70,6 +70,27 @@ let equal_attribute left right =
   && String.equal (Attribute.kind_name left) (Attribute.kind_name right)
   && equal_storage left right
 
+(* Exact authored bytes, excluding allocation IDs and derived caches. *)
+let geometry_bytes geometry =
+  let encode value = Marshal.to_string value [Marshal.No_sharing] in
+  let attribute attribute =
+    let storage = match Attribute.storage attribute with
+      | Float values -> encode values | Int values -> encode values | Text values -> encode values
+      | Int_array values -> encode (Packed.Int_array.Private.view values)
+      | Float_array values -> encode (Packed.Float_array.Private.view values)
+      | Float2 values -> let v = Packed.Float2.Private.view values in encode (v.x, v.y)
+      | Float3 values -> let v = Packed.Float3.Private.view values in encode (v.x, v.y, v.z)
+      | Float4 values -> let v = Packed.Float4.Private.view values in encode (v.x, v.y, v.z, v.w) in
+    Attribute.owner attribute, Attribute.name attribute, Attribute.kind_name attribute, storage in
+  let group group = Group.owner group, Group.name group,
+    Array.init (Group.length group) (fun i -> Group.mem i group), Group.ordered_elements group in
+  let edge_group group = Edge_group.name group,
+    Array.init (Edge_group.length group) (fun i -> Edge_group.mem i group) in
+  let p = Packed.Float3.Private.view (Geometry.positions geometry) in
+  encode (p.x, p.y, p.z, Topology.Private.view (Geometry.topology geometry),
+    List.map attribute (Geometry.attributes geometry), List.map group (Geometry.groups geometry),
+    List.map edge_group (Geometry.edge_groups geometry))
+
 let equal_group left right =
   Group.owner left = Group.owner right
   && String.equal (Group.name left) (Group.name right)

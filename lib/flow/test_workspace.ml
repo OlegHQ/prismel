@@ -54,7 +54,7 @@ let () = (* structure and the typed IR *)
   let ws = good "; note\n(workspace w (defn f :context value [(x : float 2.0)] (* x 2)) (defmacro m [a] `(+ ~a ~a)) (graph g :context value [(n : int 3)] (let* [a (f :x n)] (+ a (m 1)))))" in
   assert (ws.name = "w" && List.length ws.graphs = 1 && List.length ws.defs = 1 && List.length ws.macros = 1);
   let g = List.hd ws.graphs in
-  assert (g.context = Workspace.Value && List.length g.inputs = 1);
+  assert (g.context = Context.value && List.length g.inputs = 1);
   (match g.body.node with
    | Workspace.Let ([ (Workspace.Name "a", { node = Workspace.Call_fn { fn = "f"; args = [ _ ] }; path = Some [ "g"; "a" ]; _ }) ], r) ->
        assert (r.path = Some [ "g"; "@result" ]);

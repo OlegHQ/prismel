@@ -585,21 +585,48 @@ let mountain ?cancel ?(grain = 16_384) ?selection ?direction_attribute
                   (Attribute.Float values)) (fun attribute ->
                 Geometry.with_attribute attribute geometry))))
 
-let noise_displace ?cancel ?grain ~amplitude ~frequency ~seed geometry =
+type noise_displace_mode = Height_2d | Normal_3d
+let noise_displace ?cancel ?(grain = 16_384) ?(mode = Height_2d) ~amplitude ~frequency ~seed geometry =
   Error.guard ~operation:"noise_displace" ~code:"invalid_parameter" @@ fun () ->
   if not (Float.is_finite amplitude && Float.is_finite frequency) then
     Error "Rdk_mesh.Deform.noise_displace: amplitude and frequency must be finite"
+  else if grain <= 0 then Error "Rdk_mesh.Deform.noise_displace: grain must be positive"
   else
+    let () = Cancel.check_opt cancel in
+    let direction = match mode with
+      | Height_2d -> Ok None
+      | Normal_3d -> Result.map Option.some (point_vector_attribute "Rdk_mesh.Deform.noise_displace" "N" geometry) in
+    Result.bind direction (fun direction ->
     let noise = Noise.create seed in
-    let samples = Array.make (Geometry.point_count geometry) 0. in
-    let displaced = Kernel.edit_point_ranges ?grain
+    let count = Geometry.point_count geometry in
+    let samples = Array.make count 0. in
+    let errors = Array.make (if count = 0 then 0 else (count - 1) / grain + 1) (-1) in
+    let displaced = Kernel.edit_point_ranges ~grain
         (fun ~first ~last ~x ~y ~z ->
           Cancel.check_opt cancel;
-          Noise.Private.sample2_into noise ~first ~last ~frequency
-            ~x ~y:z ~output:samples;
-          for index = first to last - 1 do
-            y.(index) <- y.(index) +. amplitude *. ((samples.(index) *. 2.) -. 1.)
-          done) geometry in
+          match direction with
+          | None ->
+              Noise.Private.sample2_into noise ~first ~last ~frequency
+                ~x ~y:z ~output:samples;
+              for index = first to last - 1 do
+                let value = y.(index) +. amplitude *. ((samples.(index) *. 2.) -. 1.) in
+                if Float.is_finite value then y.(index) <- value
+                else if errors.(first / grain) < 0 then errors.(first / grain) <- index
+              done
+          | Some direction ->
+              Noise.Private.sample3_into noise ~first ~last ~frequency ~x ~y ~z ~output:samples ();
+              for index = first to last - 1 do
+                let scale = amplitude *. samples.(index) in
+                let px = x.(index) +. direction.x.(index) *. scale
+                and py = y.(index) +. direction.y.(index) *. scale
+                and pz = z.(index) +. direction.z.(index) *. scale in
+                if Float.is_finite px && Float.is_finite py && Float.is_finite pz then begin
+                  x.(index) <- px; y.(index) <- py; z.(index) <- pz
+                end else if errors.(first / grain) < 0 then errors.(first / grain) <- index
+              done) geometry in
+    match Array.find_opt (fun index -> index >= 0) errors with
+    | Some index -> Error (Printf.sprintf "Rdk_mesh.Deform.noise_displace: non-finite noise, normal or output at point %d" index)
+    | None ->
     Ok (displaced
         |> Geometry.without_attribute ~owner:Attribute.Point "N"
-        |> Geometry.without_attribute ~owner:Attribute.Vertex "N")
+        |> Geometry.without_attribute ~owner:Attribute.Vertex "N"))

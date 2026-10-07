@@ -9,7 +9,7 @@
 (executable
  (name test_drawing)
  (modules test_drawing)
- (libraries rays flow flow_graph editor_document sketch_support rays_editor sop_catalog))
+ (libraries rays flow flow_graph editor_document sketch_support rays_editor sop_catalog unix))
 
 (rule
  (alias runtest)
@@ -25,6 +25,11 @@
 (copy_files# ../lib/flow_sop/test_workspace_cook.ml)
 (copy_files# ../lib/flow_sop/test_projection.ml)
 (copy_files# ../lib/pxui_graph/test_pxui_graph.ml)
+
+(test
+ (name test_open_domain)
+ (modules test_open_domain)
+ (libraries rays flow flow_graph pxui pxui_graph rays_editor editor_document scene_command))
 
 (test
  (name test_materials)
@@ -169,7 +174,8 @@
 
 (rule
  (alias test_workspace_doc)
- (deps (glob_files ../specification/workspace/cases/*.lisp))
+ (deps (glob_files ../specification/workspace/cases/*.lisp) (glob_files_rec ../sketches/*.rays)
+  (glob_files_rec ../examples/*.rays) ../specification/pxui-kit/kit.rays)
  (action (run %{exe:test_main.exe} test_workspace_doc)))
 
 (rule

@@ -17,11 +17,15 @@ type t = {
   arithmetic : arithmetic option;
 }
 val all : t list
-val find : string -> Context.t -> t option
+val find : ?extra:t list -> string -> Context.t -> t option
 (** Exact head, then bare value head, then a head qualified by the given context. *)
 
-val of_context : Context.t -> t list
+val of_context : ?extra:t list -> Context.t -> t list
 (** Context-specific operators followed by the value operators, in declaration order. *)
 
 val arith : string -> arithmetic option
+
+val validate : t list -> Diagnostic.t option
+(** Check an immutable extension list; declarations cannot shadow built-ins. *)
+
 val max_iterations : int

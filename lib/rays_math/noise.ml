@@ -126,4 +126,22 @@ module Private = struct
           ((raw3 noise ~x:(x.(index) *. frequency)
               ~y:(y.(index) *. frequency) ~z:0. +. 1.) *. 0.5)
     done
+
+  let sample3_into noise ~first ~last ?(x_offset = 0) ?(y_offset = 0)
+      ?(z_offset = 0) ?(output_offset = 0) ?(frequency = 1.) ~x ~y ~z ~output () =
+    let valid array offset = offset >= 0 && last <= Array.length array
+      && offset <= Array.length array - last in
+    let disjoint input offset = input != output || offset = output_offset
+      || offset + last <= output_offset + first || output_offset + last <= offset + first in
+    if first < 0 || last < first || not (valid x x_offset && valid y y_offset
+      && valid z z_offset && valid output output_offset)
+      || not (disjoint x x_offset && disjoint y y_offset && disjoint z z_offset)
+    then invalid_arg "Noise.Private.sample3_into: invalid or overlapping spans";
+    for index = first to last - 1 do
+      let sx = x.(x_offset + index) *. frequency and sy = y.(y_offset + index) *. frequency
+      and sz = z.(z_offset + index) *. frequency in
+      output.(output_offset + index) <-
+        if Float.is_finite sx && Float.is_finite sy && Float.is_finite sz
+        then clamp01 ((raw3 noise ~x:sx ~y:sy ~z:sz +. 1.) /. 2.) else Float.nan
+    done
 end

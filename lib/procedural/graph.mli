@@ -6,7 +6,7 @@ type info = {
   operation : string;
   version : int;
   parameters : string;
-  cook_mode : Node.cook_mode;
+  facts : Node.facts;
   dependencies : Context.Dependencies.t;
   input_ids : int list;
   has_parameters : bool;

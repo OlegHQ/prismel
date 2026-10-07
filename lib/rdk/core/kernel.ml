@@ -13,7 +13,7 @@ let run ?(grain = 16_384) count operation =
 
 let run_ranges ?(grain = 16_384) count operation =
   if grain <= 0 then invalid_arg "Kernel: grain must be positive";
-  let ranges = (count + grain - 1) / grain in
+  let ranges = if count = 0 then 0 else (count - 1) / grain + 1 in
   if ranges > 0 then
     Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(ranges - 1) (fun range ->
       let first = range * grain and last = min count ((range + 1) * grain) in

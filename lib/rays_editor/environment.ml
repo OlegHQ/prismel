@@ -395,6 +395,8 @@ let node_box value path =
   Option.map (fun (x, y, w, h) -> int_of_float x, int_of_float y, int_of_float w, int_of_float h)
     (Pxui_graph.Scope.Private.box_of value.core.Core.scope_view path)
 let edit value op = Result.map (fun core -> { value with core }) (Core.syntax_edit value.core op)
+
+let edit_phases value = value.core.Core.edit_phases
 let carrying value = Option.map (fun (c : _ Core.carry) -> c.payload.Carry.kind, c.payload.value) value.core.Core.carry
 let carry_line value = Option.map Core.carry_line value.core.Core.carry
 let level value = match value.core.Core.level with
@@ -927,7 +929,9 @@ let crash_dump value directory =
       (Option.value ~default:"-" core.edit_error)
       (Option.value ~default:"-" (V.render_status value.extra))
       (Option.value ~default:"-" value.context_error)
-      (Option.value ~default:"-" value.state_error) core.presets)
+      (Option.value ~default:"-" value.state_error) core.presets;
+    Printf.fprintf channel "last edit: %.3f ms\nphases: %s\n"
+      (core.edit_phases.total *. 1000.) (Flow.Phase_timer.summary core.edit_phases))
 
 let close value =
   let value = autosave ~force:true value ~now:value.state_checked in

@@ -127,6 +127,29 @@ let measure nodes =
   undo.(0) <- Unix.gettimeofday () -. started;
   report "rays_editor_undo_frame" nodes undo (Gc.allocated_bytes () -. before);
   if E.can_redo !environment |> not then failwith "undo did not step the history";
+  (* The same open graph and frame as the drag: change one literal parameter,
+     then run the entire next editor frame, with the pointer still held.  The edit row is the
+     frame without its cook phase: the recook the changed value requires is work a drag
+     never does, so it is the row compared with the drag. *)
+  let phases = List.map (fun phase -> phase, Array.make 200 0.) Flow.Phase_timer.phases in
+  let samples = Array.make 200 0. in
+  Gc.full_major ();
+  let before = Gc.allocated_bytes () in
+  Array.iteri (fun index _ ->
+    let started = Unix.gettimeofday () in
+    let (), edited = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+    environment := E.edit !environment (Flow_graph.Flow_edit.Set_arg {
+      node = ["g"; "s0"]; key = Flow_graph.Flow_edit.Kw "points"; sub = [];
+      value = Flow.Syntax.make (Flow.Syntax.Num (string_of_int (1 + index mod 2))) }) |> Result.get_ok;
+    step ~mouse:finish ~buttons:[Rays.Input.LeftButton] ()) in
+    samples.(index) <- Unix.gettimeofday () -. started;
+    List.iter (fun (phase, column) -> column.(index) <- Flow.Phase_timer.seconds edited phase) phases) samples;
+  let bytes = Gc.allocated_bytes () -. before in
+  report "rays_editor_scrub_frame" nodes samples bytes;
+  report "rays_editor_scrub_edit_frame" nodes
+    (Array.map2 (fun frame cook -> frame -. cook) samples (List.assoc Flow.Phase_timer.Cook phases)) bytes;
+  List.iter (fun (phase, samples) ->
+    Printf.printf "scrub_phase,%d,%s,%.9f\n%!" nodes (Flow.Phase_timer.name phase) (percentile samples 0.5)) phases;
   E.close !environment
 
 (* Idle frames of one graph under layouts that differ only in how many graph panels and

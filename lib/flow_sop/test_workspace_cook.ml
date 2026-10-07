@@ -275,6 +275,48 @@ let run () =
   let cooked = ref 0 in
   List.iter (fun name ->
     let lowered = lower name in
+    let catalog = Editor_document.Contexts.catalog ~version:Manifest.version factories |> Result.get_ok in
+    let forms = Flow.Syntax.parse (read (Filename.concat cases (name ^ ".lisp"))) |> Result.get_ok in
+    let checked = match Flow.Workspace.check catalog forms with
+      | Some checked, _ -> checked | _ -> fail (name ^ " did not check") in
+    let from_checked, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+      Lower.of_checked ~factories checked |> Result.get_ok) in
+    check (Flow.Phase_timer.calls phases Check = 0
+      && Flow.Phase_timer.calls phases Evaluate = 1 && Flow.Phase_timer.calls phases Lower = 1)
+      (name ^ ": checked lowering repeated a check or evaluation");
+    check (from_checked.plan == from_checked.evaluated.plan
+      && from_checked.states == from_checked.evaluated.states)
+      (name ^ ": lowering did not retain its evaluation");
+    let reference = Flow.Eval.static checked |> Result.get_ok in
+    let rec same (a : Flow.Eval.value) (b : Flow.Eval.value) = match a, b with
+      | Fn _, Fn _ -> true
+      | List a, List b -> Array.length a = Array.length b && Array.for_all2 same a b
+      | Record a, Record b | Struct (_, _, a), Struct (_, _, b) ->
+          List.length a = List.length b && List.for_all2 (fun (n, a) (m, b) -> n = m && same a b) a b
+      | _ -> Marshal.to_string a [Marshal.No_sharing] = Marshal.to_string b [Marshal.No_sharing] in
+    let left_state = Flow.Eval.create_state () and right_state = Flow.Eval.create_state () in
+    List.iteri (fun frame time ->
+      let live = {(Frame_input.at_time time) with frame} in
+      let same_value a b = match Flow.Eval.force ~state:left_state a ~live,
+          Flow.Eval.force ~state:right_state b ~live with
+        | Ok a, Ok b -> same a b | Error a, Error b -> a = b | _ -> false in
+      let pairs a b = List.length a = List.length b
+        && List.for_all2 (fun (n, a) (m, b) -> n = m && same_value a b) a b in
+      let a = lowered.evaluated and b = from_checked.evaluated in
+      let same_evaluation (a : Flow.Eval.t) (b : Flow.Eval.t) =
+        Array.length a.plan.nodes = Array.length b.plan.nodes
+          && Array.for_all2 (fun (a : Flow.Eval.node) (b : Flow.Eval.node) ->
+            a.id = b.id && a.inst = b.inst && a.kind = b.kind && a.ty = b.ty
+            && a.site = b.site && a.iter = b.iter && pairs a.args b.args) a.plan.nodes b.plan.nodes
+          && Array.length a.plan.instances = Array.length b.plan.instances
+          && Array.for_all2 (fun (a : Flow.Eval.instance) (b : Flow.Eval.instance) ->
+            a.graph = b.graph && a.default = b.default && pairs a.inputs b.inputs
+            && same_value a.result b.result) a.plan.instances b.plan.instances
+          && pairs a.results b.results in
+      check (same_evaluation a b && same_evaluation reference b
+        && List.length a.records = List.length b.records
+        && List.for_all2 (fun (p, a) (q, b) -> p = q && pairs a b) a.records b.records)
+        (Printf.sprintf "%s: checked/source lowering differ at %g" name time)) [0.; 0.125; 1.25; 7.];
     List.iter (fun (graph : Lower.graph) ->
       match (try cook ~domains:1 graph, cook ~domains:3 graph
              with Failure m -> fail (name ^ "/" ^ graph.name ^ ": " ^ m)) with

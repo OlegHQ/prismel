@@ -208,7 +208,7 @@ let object_edits ~before ~after id nb na =
   name @ under @ differing ~before:nb na
 
 let homed (doc : Document.t) id = match List.assoc_opt id doc.homes.objects with
-  | Some Document.Looped -> Contexts.graph_of (fst doc.workspace) Flow.Workspace.Scene <> None
+  | Some Document.Looped -> Contexts.graph_of (fst doc.workspace) Flow.Context.scene <> None
   | Some _ -> true
   | None -> false
 
@@ -375,12 +375,12 @@ let adopt_objects st (doc : Document.t) =
   let graph = Document.scene_graph doc in
   let unhomed = List.filter (fun (i : Edit.node_info) ->
     i.operation <> "world" && not (homed doc i.id)) (Edit.inspect graph) in
-  if unhomed = [] && Contexts.graph_of st.workspace Flow.Workspace.Scene = None then
+  if unhomed = [] && Contexts.graph_of st.workspace Flow.Context.scene = None then
     apply st (F.Set_graph { name = "scene"; form = graph_form "scene" "scene" (mk (S.List [ sym "scene/merge" ])) });
   if unhomed <> [] then begin
     let used = ref (owned st.workspace) in
     let bindings = List.map (fun (i : Edit.node_info) -> object_binding doc used i.id i) unhomed in
-    match Contexts.graph_of st.workspace Flow.Workspace.Scene with
+    match Contexts.graph_of st.workspace Flow.Context.scene with
     | None ->
         let names = List.map (fun (n, _) -> sym n) bindings in
         let body = let_star bindings (mk (S.List (sym "scene/merge" :: names))) in
@@ -394,7 +394,7 @@ let adopt_objects st (doc : Document.t) =
   end
 
 (* the workspace's world graph (written under its own name), else "world" *)
-let world_graph st = match Contexts.graph_of st.workspace Flow.Workspace.World with
+let world_graph st = match Contexts.graph_of st.workspace Flow.Context.world with
   | Some g -> g.name | None -> "world"
 
 let set_world st body =
@@ -467,11 +467,11 @@ let stack_layers st (before : Document.t) wid ~graph ~removed ~stack =
    [graph] and the object as a [scene/world] member of the scene (the scene graph is made first
    when there is none) *)
 let place_world ?(graph = "world") st (doc : Document.t) (network : Document.network) node =
-  if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then adopt_objects st doc;
+  if Contexts.graph_of st.workspace Flow.Context.scene = None then adopt_objects st doc;
   write_stack st network.graph.geometry (List.rev (order network)) graph;
   let expr = call_of ~kind:"scene/world" ~label:(Node.label node) ~default_label:"World"
       ~slots:[ mk (S.List [ sym "ref"; sym graph ]) ] node in
-  let scene = (Option.get (Contexts.graph_of st.workspace Flow.Workspace.Scene)).name in
+  let scene = (Option.get (Contexts.graph_of st.workspace Flow.Context.scene)).name in
   apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "sky"; expr })
 
 let adopt_world ?graph st (doc : Document.t) =
@@ -490,8 +490,8 @@ let root_edits ~before ~after =
 (* a scene with no [scene/root] writes one over its result on the first edit of a render setting
    (only what differs from the defaults), the scene graph made first when there is none *)
 let adopt_root st (doc : Document.t) root =
-  if Contexts.graph_of st.workspace Flow.Workspace.Scene = None then adopt_objects st doc;
-  let scene = (Option.get (Contexts.graph_of st.workspace Flow.Workspace.Scene)).name in
+  if Contexts.graph_of st.workspace Flow.Context.scene = None then adopt_objects st doc;
+  let scene = (Option.get (Contexts.graph_of st.workspace Flow.Context.scene)).name in
   let changed = root_edits ~before:Objects.Root.default ~after:root in
   let expr = mk (S.List (sym "scene/root" :: List.concat_map (fun (key, value) ->
     [ mk (S.Kw key); Option.get value ]) changed)) in
@@ -802,7 +802,7 @@ let bind_home ~factories (doc : Document.t) home =
 (* ---- composition: gestures on the scene's merge ---- *)
 
 let scene_name (workspace : Workspace_doc.t) =
-  match Contexts.graph_of workspace Flow.Workspace.Scene with Some g -> g.name | None -> "scene"
+  match Contexts.graph_of workspace Flow.Context.scene with Some g -> g.name | None -> "scene"
 
 (* A new geometry object: its own SOP graph (a box), a [scene/geometry] binding and one more merge
    input; [~existing] reuses a SOP graph (two objects share it and it cooks once).  The ops make

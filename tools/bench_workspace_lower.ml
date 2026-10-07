@@ -29,6 +29,29 @@ let cook_graph ~session (graph : Lower.graph) =
   | Ok output -> output
   | Error e -> failwith (Procedural.Diagnostic.error_to_string e)
 
+(* Fingerprint authored payloads, excluding allocation identities and derived caches. *)
+let cook_hash geometry =
+  let open Rdk in
+  let encode value = Marshal.to_string value [Marshal.No_sharing] in
+  let attribute attribute =
+    let storage = match Attribute.storage attribute with
+      | Float values -> encode values | Int values -> encode values | Text values -> encode values
+      | Int_array values -> encode (Packed.Int_array.Private.view values)
+      | Float_array values -> encode (Packed.Float_array.Private.view values)
+      | Float2 values -> let v = Packed.Float2.Private.view values in encode (v.x, v.y)
+      | Float3 values -> let v = Packed.Float3.Private.view values in encode (v.x, v.y, v.z)
+      | Float4 values -> let v = Packed.Float4.Private.view values in encode (v.x, v.y, v.z, v.w) in
+    Attribute.owner attribute, Attribute.name attribute, Attribute.kind_name attribute, storage in
+  let group group = Group.owner group, Group.name group,
+    Array.init (Group.length group) (fun i -> Group.mem i group), Group.ordered_elements group in
+  let edge_group group = Edge_group.name group,
+    Array.init (Edge_group.length group) (fun i -> Edge_group.mem i group) in
+  let p = Packed.Float3.Private.view (Geometry.positions geometry) in
+  Digest.to_hex (Digest.string (encode (p.x, p.y, p.z,
+    Topology.Private.view (Geometry.topology geometry),
+    List.map attribute (Geometry.attributes geometry), List.map group (Geometry.groups geometry),
+    List.map edge_group (Geometry.edge_groups geometry))))
+
 let () =
   let dir = if Array.length Sys.argv > 1 then Sys.argv.(1) else "_build/default/specification/workspace/cases" in
   let repeats = if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 21 in
@@ -40,7 +63,7 @@ let () =
   report_live "before workspace catalog";
   let catalog = ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
   report_live "after workspace catalog";
-  Printf.printf "%-11s %8s %8s %8s %8s %8s %6s %10s\n" "fixture" "check" "eval" "lower" "cook1" "l+cook" "nodes" "eval B";
+  Printf.printf "%-11s %8s %8s %8s %8s %8s %6s %10s %s\n" "fixture" "check" "eval" "lower" "cook1" "l+cook" "nodes" "eval B" "cook hash";
   let forms name = ok (Flow.Syntax.parse
     (In_channel.with_open_bin (Filename.concat dir (name ^ ".lisp")) In_channel.input_all)) in
   let all = List.filter_map (fun f ->
@@ -71,8 +94,15 @@ let () =
         ~max_payload_bytes:(256 * 1024 * 1024)) in
       ignore (cook_graph ~session g); Procedural.Session.close session in
     let t_both = median both (max 3 (repeats / 3)) in
-    Printf.printf "%-11s %8.3f %8.3f %8.3f %8.3f %8.3f %6d %10.0f\n%!" name t_check t_eval
-      (t_total -. t_check -. t_eval) t_cook t_both nodes eval_bytes) all;
+    let fingerprint () =
+      let session = Result.get_ok (Procedural.Session.create ~max_entries:512
+        ~max_payload_bytes:(256 * 1024 * 1024)) in
+      Fun.protect ~finally:(fun () -> Procedural.Session.close session)
+        (fun () -> cook_hash (cook_graph ~session graph).geometry) in
+    let hash = fingerprint () in
+    assert (hash = fingerprint ());
+    Printf.printf "%-11s %8.3f %8.3f %8.3f %8.3f %8.3f %6d %10.0f %s\n%!" name t_check t_eval
+      (t_total -. t_check -. t_eval) t_cook t_both nodes eval_bytes hash) all;
   print_endline "\nSession capacity: cold cook, then the same cook again (warm), per max_entries";
   Printf.printf "%-11s %8s %10s %10s %8s %8s %10s\n" "fixture" "entries" "cold ms" "warm ms" "retained" "evicted" "payload MB";
   List.iter (fun name ->

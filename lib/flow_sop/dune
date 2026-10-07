@@ -1,8 +1,13 @@
 (library
  (name flow_sop)
  (public_name rays.flow_sop)
- (modules port instance_path curve network value_lane catalog manifest lower)
- (libraries flow param procedural))
+ (modules port instance_path curve network value_lane catalog manifest operators lower)
+ (libraries flow flow_ir param procedural))
+
+(test
+ (name test_noise_kernel)
+ (modules test_noise_kernel)
+ (libraries flow flow_ir flow_sop rdk rdk_test_support))
 
 ; Tests that need no editor: they link the catalog and the document contexts,
 ; not rays_editor. They read their fixtures relative to test/, where they ran

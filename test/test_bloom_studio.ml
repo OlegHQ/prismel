@@ -112,13 +112,12 @@ let run () =
   step ~keys:[ Input.Shift ] ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
   step ~mouse:p [];
   check (dump_line !e "scope selected" = "flower/heart") ("heart stays selected: " ^ dump_line !e "scope selected");
+  let before = E3.workspace !e and label = E3.undo_label !e in
   step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
   step ~mouse:p []; step [];
-  check (E3.undo_label !e = Some "View node") ("v did not view heart: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  check (E3.workspace !e == before && E3.undo_label !e = label) "v changed the source or history";
   check (Procedural.Node.label (E3.displayed_node !e) = "uv_sphere")
     ("the viewport shows the viewed node at the scene level: " ^ Procedural.Node.label (E3.displayed_node !e));
-  step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'z') ]; step [];
-  check (Procedural.Node.label (E3.displayed_node !e) <> "uv_sphere") "undo restores the result";
   (* an input's slider writes the graph input's default: one history entry, the text follows *)
   let slider_y, slider_x, slider_w =
     let rects = N.row_rects (N.open_graph "flower" N.initial) (params scope) ~bounds:(outline ()) in

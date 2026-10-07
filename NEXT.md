@@ -6,6 +6,155 @@ compiled language" (Phases 0 to 2 and the canvas half of Phase 3 are done: 8ea57
 today, the owner's decisions, the order to build in, the gates, and the no-regression contract.
 Delete it when the item ships; the record goes into the commit message and `specification/`.
 
+Implementation checkpoint (2026-10-07): Step 0 is implemented and passes
+`_build/default/tools/check.exe --ship`, including native smoke. Baselines and
+commands are recorded in `specification/performance-log.md`, "Phase 4 edit and
+kernel baseline". Step 1's one-check/one-evaluation subtask is implemented:
+`Lower.of_checked` takes the document's check, bypasses catalog reconstruction,
+and retains recording data for `sync_scope`. Counts and value/plan/record parity
+are tested on the 12 fixtures. Its measured 2,000-node scrub is still 76.226 ms
+versus a 12.631 ms drag, so the literal fast path remains required. The rest of
+Step 1 remains required, except the view-state subtask is now implemented: `v`
+previews a lexical node at its loop selectors without changing source or history.
+Static, nested geometry, piece and live/fold previews, framing and picking are
+tested. It passes `--ship` and the native Shattered Cube VIEW regression. The
+remeasured 2,000-node scrub is 68.178 ms versus a 12.415 ms drag; the target is
+still unmet. A catalog-literal patch now avoids printing, parsing and checking;
+static SOP parameters also reuse lowering and update pane rows without projection
+or layout. It passes `--ship`, including source/plan/probe/cook comparisons,
+static loops, comment preservation, rejection, undo and spelling-only changes.
+The latest sequential run measures scrub versus drag at 1.963/2.163 ms (200),
+7.396/7.156 ms (1,000), and 12.664/12.354 ms (2,000). The strict target is still
+unmet at the larger sizes. Non-SOP values, geometry templates and frame folds
+still use full lowering; generic value literal edits, the full checked-in-file
+scrub sweep and the time budget remain required. Layout pruning now validates
+remapped authored keys without projection, and a pane reuses an unchanged
+graph's projection across structural edits elsewhere; dependency type changes
+invalidate that reuse. This addition passes `--ship`. Its sequential benchmark
+measures scrub versus drag at 1.977/2.060 ms (200), 7.183/7.190 ms (1,000), and
+12.313/12.354 ms (2,000), meeting the latency target in this run with a thin
+margin; the preceding run was slightly above it at the larger sizes.
+Text-pane number scrubs now use the printer's token IDs to emit `Set_arg` in
+all three tabs; active scrubs patch cached text/spans and release restores
+canonical printing. Pointer tests verify zero pipeline calls, slow-path saved
+bytes and one document undo entry for repeated static SOP scrubs. Unapplied
+drafts retain whole-text checking/merge. Width changes, hard-bound rejection
+without changing the document, and recovery from the retained draft are
+tested. This addition passes `--ship`. Generic literal and non-static/non-SOP lowering
+cases, file coverage and the budget are still required. Steps 2–4 and all
+whole-item gates remain required. Keep this file until the full item ships.
+
+Numeric vector component edits now preserve the fast path across Int/Float
+spellings, and invalid Boolean vectors use the checker's refusal. Evaluation
+retains an authored-form ID per plan node outside the semantic plan, allowing
+static SOP parameter patches in anonymous nested cards, thread steps, defn
+copies and graph overrides. Focused checks compare source bytes, plans and
+one-/three-domain cooked bytes with the full path and verify zero check,
+parse, evaluate and lower calls for these cases. Retained function records
+keep full lowering until their captured checked bodies can be rebound.
+This addition passes `--ship` with the evaluation metadata API promoted.
+The sequential benchmark measures scrub versus drag at 1.954/2.062 ms (200),
+7.078/7.191 ms (1,000), and 11.969/12.338 ms (2,000); the static SOP workload
+meets the median target in this run. Whole-item gates remain pending.
+
+Step 2's implementation and toy-domain gate are now in place. Domain types
+are `Ty.Named` values; context descriptors supply result types, groups, colors
+and catalog prefixes. An immutable workspace-owned `Op` list reaches checking,
+evaluation, edits, projection, completion, menus and preset/source reloads.
+`test/test_open_domain.ml` adds one type, one context and one operator list,
+then checks its colored card, menu insertion through the editor host, help,
+completion, reload and refused declarations. Constructor uses were migrated
+with `tools/codemod open-domains`; its typed-AST locations are checked against
+the current parsed constructors to refuse stale locations in strings/comments.
+The intended API manifest is reviewed and promoted. `@all` and `@runtest`
+pass window-free. The Step 2 `--ship` attempt fails native smoke because SDL
+cannot find a display in this restricted session; that gate is unverified.
+The sequential 2,000-node scrub/drag medians are 12.381/12.195 ms and the
+1,000-node medians are 7.705/7.305 ms, so Step 1's strict median target is
+again unmet. Measurements and remaining evidence gaps are recorded in
+`specification/performance-log.md`, "Phase 4 open names checkpoint".
+Steps 3–4, the remaining Step 1 work and whole-item gates remain required.
+
+Step 3's declaration and component-cache implementation is now in place.
+`Node.facts` subsumes the cook mode; the PPX derives parameter-sensitive
+reads/writes, and the default declaration is exported through the factory,
+Lisp manifest and `Flow.Check` metadata. Ten registered `Duplicate_input`
+nodes declare preserved topology; scatter explicitly remains irregular and
+topology-changing. Tests prove physical topology preservation and exact
+authored bytes at one/eight domains, skipped transform/normal recooks after
+color payload edits, fresh untouched attributes and diagnostics, proper
+invalidation, bounded payload accounting and traced refusal of false facts.
+Fallback normal reads and selected Mountain height reads are covered.
+Expanded-zone body diagnostics survive hits while ordinary input diagnostics
+refresh. The intended API, catalog and generated-ML digest changes are reviewed
+and promoted. Window-free `@all` and `@runtest` pass, and all twelve workspace
+cook hashes, node counts, retention and payload totals match Step 2.
+Measurements are in `specification/performance-log.md`, "Phase 4 kernel facts
+and component cache checkpoint". The strict scrub target is still unmet at
+1,000 and 2,000 nodes; warm cache traversal is slower in this measurement.
+Step 4, the remaining Step 1 cases and all whole-item gates remain required.
+Native presentation remains unverified in this restricted session. Keep this
+file until the complete item passes its gates.
+
+Step 4 is now partially implemented. `flow_ir` has a typed dataflow graph,
+specialized residual captures, cardinality origins, frame/event rates,
+precision, authored provenance and tested sharing/hoisting/pruning/fusion-group
+passes. Graph overrides have distinct instance identities; potentially failing
+unused bindings remain evaluation roots. Placement refuses approximate
+catalog/export/state/cache inputs unless explicitly read back. `(exact x)` is
+an ordinary editable operator card. The value lane prepares IR programs once
+per network, retains the existing scalar closures and runs supported packed
+arithmetic maps in 1,024-element blocks through the shared domain pool. Probes
+use the independent reference walker. Live packed maps/for/scan now defer
+correctly; their reference evaluation budgets blocks separately, admitting a
+million elements while still refusing expensive bodies. Tests compare all
+twelve fixtures' arguments, instance inputs/results, values and records at
+four times and one/eight domains, plus every element of a million-element
+arithmetic map. Window-free `@all`/`@runtest` and the intended API promotion
+pass. Measurements are in `specification/performance-log.md`, "Phase 4 IR and
+packed arithmetic checkpoint". All twelve cook hashes still match Step 3.
+`noise3` now has one canonical declaration, editor/CLI registration, an
+editable card and packed execution over the same raw 0..1 sample3 semantics.
+Native `noise_displace` now exposes an explicit `normal_3d` mode for the same
+normal-displacement formula; its default height_2d output is unchanged. The
+arithmetic body over supplied arrays matches native/reference/CPU at four
+times and one/eight domains through 16,385 points; the million-point benchmark
+also compares native and all execution modes byte for byte before timing.
+Scratch is reused over stable chunks of sixteen 1,024-element blocks. The
+noise measurements are in `specification/performance-log.md`, "Phase 4 noise
+arithmetic and scratch reuse checkpoint". The full SOP kernel connection is
+still required: `sop/attr`, `sop/with_attr`, SOP-fact-guided placement, CPU loops/reductions,
+cross-map fusion execution, group timing/tier badges, packed fold execution,
+the complete checked-in-file/pixel sweep and remaining Step 1 work are still
+required. The benchmark currently supplies packed arrays directly; it does
+not yet include attribute resolution and geometry writes, so the complete
+first-kernel gate remains open. The affected window-free suites and `@all`
+pass. The latest full `@runtest` attempt also reaches three existing offscreen
+rendering tests that cannot start because this session has no Metal device.
+The scrub target remains unmet at 1,000/2,000 nodes; native presentation is
+still unavailable in this restricted session. Keep this file until all gates pass.
+
+Step 1 is closed (2026-10-07) on a readjusted gate, at the owner's direction to rethink or
+readjust it. A scrub changes a value and must recook what depends on it; a layout drag never
+does, so the whole frames were never comparable and the old median target flipped with noise.
+The gate is now the scrub frame without its cook phase (`bench_rays_editor`'s new
+`rays_editor_scrub_edit_frame` row, computed per sample) against the drag frame, with the
+seven pipeline phases at zero. Measured alone: 1.910/2.057 ms (200), 6.808/7.200 ms (1,000),
+10.247/12.144 ms (2,000); every earlier run above meets it too. The file sweep the Tests
+paragraph asked for exists (`test_workspace_doc`, `part_files`): 338 literals in 20 checked-in
+`.rays` files take the literal path and the full path and must save the same bytes and refuse
+with the same code; the literal path must repeat no print, parse, check or projection and its
+patched lowering must have the full plan. It found and fixed two defects: a lowering-refused
+literal reported `E_TYPE` instead of the full path's `E_LOWER`, and `(ref cage)` counted as
+a read of the binding `cage`, so `Flow_edit.reorder` refused every full-path parameter edit in
+the cube_cage scene graph with a false `E_GRAPH_CYCLE`. The sweep also measured the generic
+(non-SOP) literal fallback: the edit itself is at most 0.8 ms in any file, and the rest is the
+evaluation the changed value requires (particles: 29.9 of 31.4 ms in `Eval.static` for
+10,000 points), which no literal fast path can avoid. The generic value-literal fast path and
+the per-frame budget (old subtask 6) are therefore dropped (§5) with that evidence. `--ship`
+passes from this console session, native smoke included. Numbers:
+`specification/performance-log.md`, "Phase 4 Step 1 closure".
+
 Owner decisions taken on 2026-10-07, in the owner's words: approximate geometry is allowed
 because the GPU tier is wanted; measure first and compile incrementally so edit latency stays
 fast; the closed variants must not stay closed. Everything below follows those three.
@@ -202,9 +351,11 @@ that need no edit in `lib/flow`).
 
 ### Step 1: the incremental edit loop
 
-Target: a scrub frame costs no more than a layout-drag frame at the same node count (today
-10.1 ms at 2,000 nodes for the drag; the scrub number comes from Step 0). Changes, smallest
-first:
+Target (readjusted 2026-10-07, see the closure paragraph above): a scrub frame without the
+recook its value requires costs no more than a layout-drag frame at the same node count, and
+its print, parse, check, evaluate, lower, project and layout phases are zero. Met. The
+original wording compared whole frames and was unmeetable by more than noise. Changes,
+smallest first:
 
 1. **Scrub fast path.** `Workspace_doc.edit` already special-cases `Set_arg`,
    `Set_input_default`, `Set_note`, `Toggle_bypass` and `Set_layout_size` to skip pruning
@@ -237,15 +388,14 @@ first:
    through `frame_request` and probes (cook.ml:261-268, :327-349). This also lifts the "cannot
    view a node inside a loop" refusal and leaves the document untouched, which the roadmap's
    "Keeping the graph" rules require before fusion.
-6. **A budget and a fallback.** `Schedule` (schedule.ml:19-36) gets one time budget per frame
-   for the edit pipeline: when the last edit's phases exceeded it, a scrub skips projection and
-   lowering until the pointer is released (the drag already defers cooks unless `live`,
-   core.ml:696-698). The interpreter path never skips: the value lane keeps running.
+6. **A budget and a fallback.** Dropped 2026-10-07 with the file sweep's evidence (§5): the
+   only scrub over a frame's worth of pipeline in any checked-in file is evaluation the changed
+   value requires, and skipping it would hide the scrub until release.
 
-Tests: an edit-frame regression in `test/test_rays_editor.ml` that asserts the scrub path
-does not call `Workspace.check` or `Lower.workspace` (count through `Phase_timer`), and that
-the document text after a scrub equals the text the slow path would have printed (run both,
-compare bytes) for every checked-in `.rays` with a scrubbable literal.
+Tests: done in `test/test_workspace_doc.ml` (`part_literals` for the focused cases,
+`part_files` for every checked-in `.rays` with a scrubbable literal: zero check, parse,
+print and projection calls through `Phase_timer`, same saved bytes, same refusal codes,
+same plan after the lowering patch).
 
 ### Step 2: open the names
 
@@ -358,7 +508,7 @@ reference interpreter and never depends on `flow_ir`.
   beyond what the operator registry gives for free.
 
 Gate for the whole item: Step 0's three benchmarks have before and after numbers; the scrub
-frame meets the Step 1 target; the toy-domain test of Step 2 passes with no edit in `lib/flow`;
+edit frame meets the Step 1 target (met, 2026-10-07); the toy-domain test of Step 2 passes with no edit in `lib/flow`;
 the regular element-wise SOP family declares facts and the component-keyed cache skips at
 least one recook in a fixture; particles and every `.rays` file evaluate to the same values and
 pixels on the IR as on the interpreter, at one and many domains.
@@ -384,8 +534,9 @@ pixels on the IR as on the interpreter, at one and many domains.
 
 ## 4. Decisions needed (owner)
 
-1. **Scrub target.** Recommended: a scrub frame costs no more than a layout-drag frame at the
-   same node count, measured by Step 0's new benchmark.
+1. **Scrub target.** Taken 2026-10-07 (owner: readjust the gate): the scrub frame without its
+   cook phase costs no more than a layout-drag frame at the same node count, with zero
+   pipeline phases, measured by `bench_rays_editor`'s `rays_editor_scrub_edit_frame` row.
 2. **Open names, shape.** Recommended: `Ty.Named of string` for the domain types and an
    abstract `Context.t` over a registry list; `Port_type`, `Panels.panel` and
    `pipeline_family` stay closed. Alternative: extensible variants, slightly larger diff, same
@@ -414,3 +565,11 @@ pixels on the IR as on the interpreter, at one and many domains.
 - Parallel cooking of independent SOP branches (session.ml:243): after facts and component keys
   exist, as its own measured change.
 - Reading `cook_mode` on its own: it is subsumed by Step 3's facts.
+- A fast path for non-SOP value literals, geometry templates, frame folds and retained
+  function records, and the per-frame edit budget (old Step 1 subtask 6). The file sweep
+  measured the fallback on every checked-in `.rays`: the edit (print, parse, check) costs at
+  most 0.8 ms; the rest is `Eval.static`/lowering that the changed value requires (particles
+  29.9 ms for 10,000 points, sunflower 12.6, wave 12.2, tiles 8.0). The saving available is
+  under a millisecond, and a budget that skips the evaluation hides the scrub. Making that
+  evaluation cheap is Step 4's job (packed execution, incremental re-evaluation), not an edit
+  fast path. Revisit only if a measured file shows the edit itself above a frame.

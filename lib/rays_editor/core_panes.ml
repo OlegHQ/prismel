@@ -146,10 +146,10 @@ let graph_name value = match value.doc.Document.workspace with
                 let name = Node.label node in if exists name then Some name else None))
        | _, Inside id when kind value id = Some "world" ->
            List.find_map (fun (g : Flow.Workspace.graph) ->
-             if g.context = Flow.Workspace.World then Some g.name else None) ws.checked.graphs
+             if g.context = Flow.Context.world then Some g.name else None) ws.checked.graphs
        | _, Document.Scene ->
            List.find_map (fun (g : Flow.Workspace.graph) ->
-             if g.context = Flow.Workspace.Scene then Some g.name else None) ws.checked.graphs
+             if g.context = Flow.Context.scene then Some g.name else None) ws.checked.graphs
        | _ -> None)
 
 (* For the crash report and tests: the graph of every graph panel, and the floating windows. *)
@@ -229,7 +229,7 @@ let viewport_target value =
       (match named with
        | Some _ -> named
        | None -> List.find_map (fun (g : Flow.Workspace.graph) ->
-           if g.context = Flow.Workspace.Scene then Some g.name else None) ws.checked.graphs)
+           if g.context = Flow.Context.scene then Some g.name else None) ws.checked.graphs)
   | _ -> None
 
 (* The route taken, as the graph header shows it: scene > shards > cobalt (the last three) *)

@@ -97,7 +97,7 @@ let reads_material (n : P.node) graph =
 let material_on_graph ~catalog doc graph expr material =
   match find_graph doc graph with
   | None -> Error ("There is no graph " ^ graph)
-  | Some g when g.context <> W.Sop -> Error (Printf.sprintf "A %s graph has no surface" (W.context_name g.context))
+  | Some g when g.context <> Flow.Context.sop -> Error (Printf.sprintf "A %s graph has no surface" (W.context_name g.context))
   | Some _ ->
       (match scope_of ~catalog doc graph with
        | None -> Error ("There is no graph " ^ graph)
@@ -150,8 +150,8 @@ let on_viewport ~factories ~catalog (doc : Document.t) payload expr name key =
   let shown = Option.bind (E.arg_text source node (E.Pos 0)) name_of in
   if payload.kind = "scene" then
     (match find_graph doc name with
-     | Some { context = W.Scene; _ } when shown = Some name -> Error ("That viewport already shows " ^ name)
-     | Some { context = W.Scene; _ } ->
+     | Some { context; _ } when context = Flow.Context.scene && shown = Some name -> Error ("That viewport already shows " ^ name)
+     | Some { context; _ } when context = Flow.Context.scene ->
          Ok (bound, [ E.Set_arg { node; key = E.Pos 0; sub = []; value = expr } ],
              Printf.sprintf "(ui/viewport (ref %s))" name)
      | Some g -> Error (Printf.sprintf "A %s graph is not a scene" (W.context_name g.context))
@@ -230,8 +230,8 @@ let plan ~factories ~catalog (doc : Document.t) payload place =
            ok [ op ] what)
   | Graph graph ->
       (match find_graph doc graph with
-       | Some g when g.context = W.Scene && not material -> geometry_in_scene name
-       | Some g when g.context = W.Sop && material ->
+       | Some g when g.context = Flow.Context.scene && not material -> geometry_in_scene name
+       | Some g when g.context = Flow.Context.sop && material ->
            Result.bind (material_on_graph ~catalog doc graph expr name) with_doc
        | Some g -> Error (Printf.sprintf "A %s graph takes no %s" (W.context_name g.context) payload.kind)
        | None -> Error ("There is no graph " ^ graph))
@@ -293,11 +293,11 @@ let targets ~factories ~catalog ?(limit = 9) (doc : Document.t) payload ~graph =
       List.mapi (fun i (key, _) -> Viewport key, Printf.sprintf "viewport %d" (i + 1)) (viewports doc)
     else
     (match Option.bind graph (find_graph doc) with
-     | Some { context = W.Sop; name; _ } when payload.kind = "material" -> [ Graph name, "this graph" ]
-     | Some { context = W.Scene; name; _ } when payload.kind = "sop" -> [ Graph name, "the scene" ]
+     | Some { context; name; _ } when context = Flow.Context.sop && payload.kind = "material" -> [ Graph name, "this graph" ]
+     | Some { context; name; _ } when context = Flow.Context.scene && payload.kind = "sop" -> [ Graph name, "the scene" ]
      | _ -> [])
     @ (match find_graph doc "scene" with
-       | Some { context = W.Scene; _ } when payload.kind = "sop" && graph <> Some "scene" ->
+       | Some { context; _ } when context = Flow.Context.scene && payload.kind = "sop" && graph <> Some "scene" ->
            [ Graph "scene", "the scene" ]
        | _ -> [])
     @ List.map (fun (id, label) -> Object id, label) (geometry_objects doc) in

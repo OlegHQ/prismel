@@ -561,6 +561,12 @@ let run ?(exhaustive = false) () =
   check (read_digest = digest
     && catalog_from_manifest.kinds = flow_catalog.kinds)
     "Flow manifest checker descriptor differs from the live catalog";
+  let transform = List.find (fun (kind : Flow.Check.kind) -> kind.qualified = "sop/transform")
+    catalog_from_manifest.kinds in
+  check (match transform.facts with Some facts -> facts.elementwise = Flow.Check.Points
+      && facts.reads = ["P"; "N"] && facts.writes = ["P"; "N"]
+      && facts.preserves_topology && not facts.exact | None -> false)
+    "Flow manifest omitted declared transform facts";
   let stale_manifest = Bytes.of_string manifest in
   let version_digit = String.index manifest '2' in
   Bytes.set stale_manifest version_digit '3';
@@ -599,6 +605,8 @@ let run ?(exhaustive = false) () =
     let slots = List.init (Edit_graph.factory_arity factory) (fun _ -> None) in
     match Edit_graph.instantiate_optional factory slots with
     | Ok node ->
+        check (Edit_graph.factory_facts factory = Node.facts node)
+          ("default factory facts differ from the instantiated node: " ^ Edit_graph.factory_key factory);
         vector_groups := !vector_groups + check_metadata factory node;
         if Edit_graph.factory_key factory = "box" then
           check (List.filter_map (fun (field : Parameter.field_view) ->

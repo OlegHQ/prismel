@@ -7,6 +7,13 @@ type entry = {
   off : string option;  (* why the kind cannot be placed in this graph, if it cannot *)
 }
 
+let of_ops ?extra context =
+  Flow.Op.of_context ?extra context |> List.filter_map (fun (op : Flow.Op.t) ->
+    if op.ctx <> context then None else
+    Some {key = "=" ^ op.name; label = op.name; category = [op.category];
+      arity = 0; context = Flow.Context.name context;
+      output = op.out (List.map snd op.signature.pos); off = None})
+
 type item = { entry : entry; lower_key : string; lower_label : string; lower_category : string }
 
 type t = {
@@ -95,13 +102,21 @@ let entry_label entry = match entry.off with
 
 (* the colour of a type's port: a kind's square here, the ports, squares and wires of the graph pane.
    A list is its elements' colour; what has no colour of its own is the output's *)
+let color theme (role : Flow.Ty.color) =
+  let ports = Pxui.Theme.ports theme in
+  match role with
+  | `Geometry -> ports.geometry | `Float -> ports.float | `Int -> ports.int
+  | `Bool -> ports.bool | `Vec3 -> ports.vec3 | `Text -> ports.text
+  | `Fn -> ports.fn | `Record -> ports.record | `Output -> ports.output | `Compound -> ports.compound
+
 let rec port_color theme (ty : Flow.Ty.t) =
   let ports = Pxui.Theme.ports theme in
   match ty with
-  | Geometry -> ports.geometry | Float -> ports.float | Int -> ports.int | Vec3 -> ports.vec3
+  | Named _ -> color theme (Flow.Ty.color ty)
+  | Float -> ports.float | Int -> ports.int | Vec3 -> ports.vec3
   | Bool -> ports.bool | Text | Color -> ports.text | Fn -> ports.fn | Record _ -> ports.record
   | List e | Array e -> port_color theme e
-  | Any | Drawing | Scene | World | Settings | Panel | Editor | Material -> ports.output
+  | Any -> ports.output
 
 let picker_rows menu query =
   rows { menu with query } |> Array.map (fun entry -> entry_label entry, entry_detail entry)

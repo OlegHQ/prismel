@@ -1024,7 +1024,7 @@ let run_instances () =
               && day.params.width = 800 && night.params.width = 1600)
          "the document holds each viewport's root and camera"
    | _ -> failwith "each viewport over a root has an entry in the document");
-  check (Contexts.instance_root (E.Struct ("scene/merge", Flow.Ty.Scene, [])) = None) "a part has no root of its own";
+  check (Contexts.instance_root (E.Struct ("scene/merge", Flow.Ty.scene, [])) = None) "a part has no root of its own";
   (* each viewport draws its own World: the document's scene (a part) has none, the two roots do *)
   check (Objects.ids "world" (scene doc) = []) "the part holds no World";
   (match doc.view_worlds with

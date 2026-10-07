@@ -31,6 +31,20 @@ let () =
   assert (List.assoc "g" (Result.get_ok (Eval.run ~live:{(Frame_input.at_time 0.) with frame = 10000} ~time:0. typed)).results = Eval.Int 10000)
 
 let () =
+  (* Packed live maps/for/scan defer instead of trying to store residual boxes. *)
+  assert (value "(array/sum (map (fn [x] (+ x t)) (array/float 10 2)))" = Eval.Float 20.);
+  let live_value body = List.assoc "g" (Result.get_ok (Eval.run ~time:1.25 (check body))).results in
+  assert (live_value "(array/sum (map (fn [x] (+ x t)) (array/float 10 2)))" = Eval.Float 32.5);
+  assert (live_value "(array/sum (for [x (array/float 10 2)] (+ x t)))" = Eval.Float 32.5);
+  assert (live_value "(array/sum (scan [s 0.0] [x (array/float 3 2)] (+ s (+ x t))))" = Eval.Float 19.5);
+  assert (live_value "(let* [p (array/nth (map (fn [p] (+ p [t 0 0])) (array/vec3 3 [1 2 3])) 2)] p.x)" = Eval.Float 2.25);
+  let bounded = check "(array/sum (map (fn [x] (sum [i (range 4096)] (+ x (+ i t)))) (array/float 1024)))" in
+  (match Eval.run ~time:1. bounded with
+   | Error d -> assert (d.Diagnostic.code = "E_EVAL_BUDGET")
+   | Ok _ -> failwith "packed block bypassed the evaluation budget");
+  assert (live_value "(array/sum (map (fn [x] (+ x t)) (array/float 100000 2)))" = Eval.Float 325000.);
+  assert (live_value "(sum [x (array/float 100000 2)] (+ x t))" = Eval.Float 325000.);
+  assert (live_value "(fold [s 0.0] [x (array/float 100000 2)] (+ s (+ x t)))" = Eval.Float 325000.);
   let forms = Result.get_ok (Syntax.parse
     "(workspace w (graph g :context value (map + (list 1 2) (array/float 2))))") in
   let _, ds = Workspace.check {Check.version = 1; kinds = []} forms in

@@ -1,6 +1,8 @@
 module S = Flow.Syntax
 module Param = Editor_core.Param
 
+type literal = { base : Flow.Workspace.t; edits : Literal_edit.change Layout_by_path.Path_map.t }
+
 type t = {
   source : S.t list;
   checked : Flow.Workspace.t;
@@ -8,12 +10,32 @@ type t = {
   settings : Settings.t;
   extra : S.t list;
   inputs : (string * (string * Flow.Eval.value) list) list;
+  literal : literal option;
 }
 
 let name t = t.checked.name
 
+let literal_changes ~previous next =
+  if previous.inputs != next.inputs then None else
+  if previous.checked == next.checked then Some [] else
+  Option.bind next.literal (fun literal ->
+    let before = if previous.checked == literal.base then Some Layout_by_path.Path_map.empty else
+      Option.bind previous.literal (fun old -> if old.base == literal.base then Some old.edits else None) in
+    Option.map (fun before ->
+      let edits = Layout_by_path.Path_map.merge (fun _ old candidate ->
+        match old, candidate with
+        | Some old, Some change when old.Literal_edit.after = change.Literal_edit.after
+            && old.expr.node = change.expr.node -> None
+        | old, Some change -> Some {change with before = Option.fold ~none:change.before
+            ~some:(fun old -> old.Literal_edit.after) old}
+        | Some old, None -> Option.map (fun expr ->
+            {old with before = old.after; after = old.before; expr})
+            (Flow_graph.Flow_edit.arg_text next.source old.path (Kw old.field))
+        | None, None -> None) before literal.edits in
+      List.map snd (Layout_by_path.Path_map.bindings edits)) before)
+
 let editor_graph t =
-  List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Editor
+  List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = Flow.Context.editor
     && Option.fold ~none:true ~some:(( = ) g.name) t.layout.editor) t.checked.graphs
 
 let head = S.head
@@ -97,13 +119,35 @@ let prune (checked : Flow.Workspace.t) catalog (layout : Layout_by_path.t) =
         Layout_by_path.remap (fun path -> if keep path then Some path else None) { layout with editor = None }
 
 let editor_known (checked : Flow.Workspace.t) name =
-  List.exists (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Editor && g.name = name) checked.graphs
+  List.exists (fun (g : Flow.Workspace.graph) -> g.context = Flow.Context.editor && g.name = name) checked.graphs
 
 let pruned checked catalog (layout : Layout_by_path.t) =
   let editor = Option.bind layout.editor (fun name -> if editor_known checked name then Some name else None) in
   { (prune checked catalog layout) with editor }
 
-let check_text ?(inputs = []) ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog text =
+(* An edit remaps the keys it moves. Validate only the remaining layout
+   keys against the authored paths, without projecting unrelated graphs. *)
+let prune_keys (checked : Flow.Workspace.t) (layout : Layout_by_path.t) =
+  let graph root = List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = root)
+      checked.graphs |> function
+    | Some _ as graph -> graph
+    | None -> List.find_opt (fun (g : Flow.Workspace.graph) ->
+        root = "def:" ^ g.name || root = g.name) checked.defs in
+  let exists = function
+    | [root] -> Option.is_some (graph root)
+    | [root; input] when String.starts_with ~prefix:":" input ->
+        Option.fold ~none:false ~some:(fun (g : Flow.Workspace.graph) ->
+          List.exists (fun (name, _, _) -> input = ":" ^ name) g.inputs) (graph root)
+    | path -> Flow_graph.Flow_edit.arg_text checked.source path Whole <> None in
+  let rec keep prefix = function
+    | [] -> exists (List.rev prefix)
+    | segment :: _ when String.starts_with ~prefix:"@" segment -> exists (List.rev prefix)
+    | segment :: rest -> keep (segment :: prefix) rest in
+  let editor = Option.bind layout.editor (fun name -> if editor_known checked name then Some name else None) in
+  { (Layout_by_path.remap (fun path -> if keep [] path then Some path else None)
+      {layout with editor = None}) with editor }
+
+let check_text ?(ops = Flow_sop.Operators.all) ?(inputs = []) ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog text =
   match S.parse text with
   | Error d -> Error [ d ]
   | Ok forms ->
@@ -111,7 +155,7 @@ let check_text ?(inputs = []) ?(settings = Settings.none) ?(layout = Layout_by_p
        | None -> Error [ diag "E_WORKSPACE" "Expected a (workspace ...) form." ]
        | Some ws ->
            Result.bind (check_forms forms) (fun () ->
-           (match Flow.Workspace.check catalog [ ws ] with
+           (match Flow.Workspace.check ~ops catalog [ ws ] with
             | None, ds -> Error ds
             | Some checked, warnings ->
                 let layout = match List.find_opt (fun f -> head f = Some "layout") forms with
@@ -122,16 +166,16 @@ let check_text ?(inputs = []) ?(settings = Settings.none) ?(layout = Layout_by_p
                     | None -> Ok settings
                     | Some f -> Result.map_error (fun m -> [ diag ~span:f.S.span "E_SETTINGS" m ]) (read_settings settings f) in
                   Result.map (fun settings ->
-                    { source = [ ws ]; checked; layout = pruned checked catalog layout; settings; inputs;
+                    { source = [ ws ]; checked; layout = pruned checked catalog layout; settings; inputs; literal = None;
                       extra = List.filter (fun f -> f != ws) forms }, warnings) settings))))
 
-let of_text ?inputs ?settings ?layout catalog text = Result.map fst (check_text ?inputs ?settings ?layout catalog text)
+let of_text ?ops ?inputs ?settings ?layout catalog text = Result.map fst (check_text ?ops ?inputs ?settings ?layout catalog text)
 
 (* The workspace, then the other root forms in the order they were written ([view] verbatim,
    [layout] and [settings] rewritten from the document), each under the comments written above
    the form it replaces.  Comments of a form that is no longer written move to the next one, or
    to the end of the text. *)
-let to_text t =
+let print t =
   let fresh = [ "layout", (if Layout_by_path.is_empty t.layout then None else Some (Layout_by_path.to_syntax t.layout));
                 "settings", settings_form t.settings ] in
   let written = List.filter_map head t.extra in
@@ -144,13 +188,36 @@ let to_text t =
     match (if name = "view" then old else Option.map (fun (f : S.t) -> { f with tail }) (List.assoc name fresh)) with
     | Some f -> carried := []; Some { f with S.notes }
     | None -> carried := notes @ tail; None) names in
-  let forms = t.source @ forms in
+  (* Root metadata is rebuilt, or kept from an earlier parse. Give it a
+     disjoint printed ID range so text gestures cannot alias source tokens. *)
+  let rec max_id (form : S.t) = List.fold_left (fun id child -> max id (max_id child)) form.id (S.children form) in
+  let forms = if forms = [] then t.source else
+    let first = 1 + List.fold_left (fun id form -> max id (max_id form)) 0 t.source in
+    let _, forms = List.fold_left (fun (next, forms) form ->
+      let form, next = S.renumber next form in next, form :: forms) (first, []) forms in
+    t.source @ List.rev forms in
   let forms = match List.rev forms with
     | last :: rest when !carried <> [] -> List.rev ({ last with tail = last.tail @ !carried } :: rest)
     | _ -> forms in
-  fst (Flow.Lisp.print forms)
+  Flow.Lisp.print forms
+
+let to_text t = fst (print t)
 
 let edit catalog t op =
+  let key (change : Literal_edit.change) = change.path @ ["#:" ^ change.field] in
+  match Literal_edit.patch catalog t.checked op with
+  | Some (Error diagnostic) -> Error diagnostic
+  | Some (Ok (checked, change)) when Option.fold ~none:0
+      ~some:(fun literal -> Layout_by_path.Path_map.cardinal literal.edits) t.literal < 4096 ->
+      let base, edits = match t.literal with
+        | None -> t.checked, Layout_by_path.Path_map.empty
+        | Some literal -> literal.base, literal.edits in
+      let change = match Layout_by_path.Path_map.find_opt (key change) edits with
+        | Some previous -> {change with before = previous.before}
+        | None -> change in
+      let literal = Some {base; edits = Layout_by_path.Path_map.add (key change) change edits} in
+      Ok {t with checked; source = checked.source; literal}
+  | _ ->
   Result.map (fun (source, checked) ->
     let layout = Layout_by_path.remap (Flow_graph.Flow_edit.remap op) t.layout in
     let layout = match op with
@@ -160,6 +227,6 @@ let edit catalog t op =
        projecting the graphs again for them costs 16 ms of a 44 ms edit at 2,001 nodes *)
     let layout = match op with
       | Flow_graph.Flow_edit.Set_arg _ | Set_input_default _ | Set_note _ | Toggle_bypass _ | Set_layout_size _ -> layout
-      | _ -> pruned checked catalog layout in
-    { t with source; checked; layout })
-    (Flow_graph.Flow_edit.apply_checked catalog t.source op)
+      | _ -> prune_keys checked layout in
+    { t with source; checked; layout; literal = None })
+    (Flow_graph.Flow_edit.apply_checked ~ops:t.checked.ops catalog t.source op)

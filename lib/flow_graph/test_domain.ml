@@ -11,7 +11,7 @@ let () =
   let state = Option.get (Projection.find scope ["g"; "elapsed"]) in
   assert ((Option.get state.zone).kind = Projection.State);
   let dot = Option.get (Projection.find scope ["g"; "dot"]) in
-  assert (dot.ty = Ty.Drawing && List.length dot.rows = 4);
+  assert (dot.ty = Flow.Ty.drawing && List.length dot.rows = 4);
   let evaluated = ok (Eval.static ~record:true workspace) in
   assert (Array.length evaluated.plan.nodes = 2);
   let session = Eval.create_state () in
@@ -20,3 +20,15 @@ let () =
   ignore (Probe.records probes ["g"; "elapsed"]);
   let record = List.assoc ["g"; "elapsed"] evaluated.records |> List.hd |> snd in
   assert (ok (Eval.force ~state:session record ~live) = Eval.Float 2.25)
+
+let () =
+  let source = ok (Syntax.parse "(workspace readback (graph g :context value (let* [x (exact (sin t))] x)))") in
+  let workspace = match Workspace.check catalog source with Some w, [] -> w | _ -> failwith "exact did not check" in
+  let scope = Projection.of_graph catalog workspace "g" in
+  let card = Option.get (Projection.find scope ["g"; "x"]) in
+  assert (card.ty = Ty.Float && List.length card.rows = 1);
+  let source, edited = ok (Flow_edit.apply_checked catalog source
+    (Set_arg {node = ["g"; "x"]; key = Pos 0; sub = []; value = Syntax.make (Num "2.5")})) in
+  ignore source;
+  let result = ok (Eval.run ~time:7. edited) in
+  assert (List.assoc "g" result.results = Eval.Float 2.5)

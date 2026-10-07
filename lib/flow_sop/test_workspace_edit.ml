@@ -66,6 +66,10 @@ let part2 () = (* connect, disconnect, input defaults *)
     (g "(let* [a (sop/uv_sphere) b (sop/transform a) c (sop/subdivide b)] c)");
   refused ~code:"E_GRAPH_CYCLE" "connect cycle" (g "(let* [a (sop/transform nil) b (sop/transform a)] b)")
     (E.Connect { node = node [ "a" ]; key = Pos 0; src = "b"; iter = false });
+  (* a binding named like the graph it [ref]s does not read itself: no cycle on reorder *)
+  let shared fov = "(workspace w\n  (graph cage :context sop (sop/box))\n  (graph scene :context scene\n    (let* [cage (scene/geometry (ref cage) :name \"cage\") camera (scene/camera :fov " ^ fov ^ ")]\n      (scene/merge cage camera))))" in
+  same "set arg beside a self-named graph ref" (shared "30")
+    (E.Set_arg { node = [ "scene"; "camera" ]; key = Kw "fov"; sub = []; value = num "40" }) (shared "40");
   same "connect to result" fwd (E.Connect { node = node [ "@result" ]; key = Whole; src = "b"; iter = false })
     (g "(let* [a (sop/uv_sphere) c (sop/subdivide a) b (sop/transform a)] b)");
   let loop = g "(let* [ring (for [i (range n)] (sop/uv_sphere :radius 0.5)) m (sop/merge ring)] m)" in
@@ -80,7 +84,7 @@ let part2 () = (* connect, disconnect, input defaults *)
     (E.Disconnect { node = node [ "a" ]; key = Kw "radius"; fallback = Some (num "1.0") })
     (g "(let* [k 0.4 a (sop/uv_sphere :radius 1.0)] a)");
   same "disconnect positional with fallback" base
-    (E.Disconnect { node = node [ "b" ]; key = Pos 0; fallback = E.default_for Flow.Ty.Geometry "geo" })
+    (E.Disconnect { node = node [ "b" ]; key = Pos 0; fallback = E.default_for Flow.Ty.geometry "geo" })
     (g "(let* [a (sop/uv_sphere :radius 0.5) b (sop/transform nil :translate [1 2 3]) c (sop/subdivide b :iterations 1)] c)");
   same "input default" base (E.Set_input_default { form = "g"; input = "n"; value = num "8" })
     (String.concat "" [ "(workspace w (graph g :context sop [(n : int 8)] (let* [a (sop/uv_sphere :radius 0.5) ";

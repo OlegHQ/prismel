@@ -80,6 +80,11 @@ type t = {
   volatile : unit Network.Int_map.t;  (** compiled ids, see {!is_volatile} *)
   plan : Flow.Eval.plan;
   states : Flow.Eval.value list;
+  evaluated : Flow.Eval.t;  (** recording evaluation shared with graph probes *)
+  preview : node:int -> probes:int list -> Network.t -> (Network.t * int) option;
+      (** Scratch viewport network for a plan node at its iteration tuple. A
+          geometry-loop template previews the selected element, with its captures,
+          live arguments and fold snapshot. The authored network is unchanged. *)
 }
 
 val origin : t -> int -> origin option
@@ -116,11 +121,22 @@ val changes : Port.parameter -> Flow.Eval.value -> ((string * Param.value) list,
 
 val workspace :
   factories:Procedural.Edit_graph.factory list -> ?extra:Catalog.descriptor list ->
+  ?ops:Flow.Op.t list ->
   ?compiled_ids:int Instance_path.Map.t -> ?sites:Flow.Workspace.path list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
   Flow.Syntax.t list -> (t, Flow.Diagnostic.t) result
-(** [factories] is the SOP catalog ([Sop_catalog.Editor.factories]).  Errors:
+(** [factories] is the SOP catalog ([Sop_catalog.Editor.factories]). [ops]
+    defaults to {!Operators.all}; an explicit list replaces those extensions.
+    Errors:
     the checker's first error, the evaluator's, or [E_LOWER]. *)
+
+val of_checked :
+  factories:Procedural.Edit_graph.factory list ->
+  ?compiled_ids:int Instance_path.Map.t -> ?sites:Flow.Workspace.path list ->
+  ?inputs:(string * (string * Flow.Eval.value) list) list ->
+  Flow.Workspace.t -> (t, Flow.Diagnostic.t) result
+(** Lower an already checked document, without rebuilding a catalog or checking
+    its source again. The retained evaluation includes probe records. *)
 
 val counts : t -> int * int
 (** (live, cached) node counts. *)

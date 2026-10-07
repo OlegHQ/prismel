@@ -56,6 +56,8 @@ let status_text ?(brief = false) value =
               | Some text -> text
               | None -> Printf.sprintf "checked · cooked %.3f s" seconds)
          | None, None, None -> "Waiting for first cook") in
+  let phases = Flow.Phase_timer.summary value.edit_phases in
+  let cook = cook ^ (if phases = "" then "" else " · " ^ phases) in
   (* What the open level's keys do, so the World and the menu are findable. *)
   let hint = match value.level with
     | Document.Scene -> "i/double-click enter · Space a add · Space e World"
@@ -168,4 +170,3 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
     Pxui_shell.Status_bar.draw ui ~bounds:(x, y, width, height) ~file ~state ~layout ~notes ~readout ?kind ?selection
       ~text:line ~fps:status_fps ()
   end
-

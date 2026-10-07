@@ -243,7 +243,12 @@
 (executable
  (name bench_rays_editor)
  (modules bench_rays_editor)
- (libraries rays procedural flow rays_editor unix))
+ (libraries rays procedural flow flow_graph rays_editor unix))
+
+(executable
+ (name bench_kernel)
+ (modules bench_kernel)
+ (libraries rdk rays_math flow flow_ir unix))
 
 (executable
  (name bench_workspace_live)
@@ -278,6 +283,7 @@
   bench_extract_point_curve.exe
   bench_graph_color.exe
   bench_instances.exe
+  bench_kernel.exe
   bench_laplacian.exe
   bench_live_lights.exe
   bench_material_assign.exe

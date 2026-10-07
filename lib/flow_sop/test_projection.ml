@@ -19,6 +19,24 @@ let workspace_of text = match S.parse text with
       | Some w, _ -> w
       | None, ds -> fail (String.concat "; " (List.map Flow.Diagnostic.to_string ds)))
 let load name = workspace_of (read (Filename.concat cases (name ^ ".lisp")))
+
+let () =
+  let text = "(workspace noise (graph g :context value (let* [field (noise3 [t 0.7 -0.2])] field)))" in
+  let document = Editor_document.Workspace_doc.of_text catalog text |> Result.get_ok in
+  let checked = document.checked in
+  let card = P.find (P.of_graph catalog checked "g") ["g"; "field"] |> Option.get in
+  check (card.ty = Flow.Ty.Float && List.length card.rows = 1) "noise3 is not an ordinary editable card";
+  let expr = S.parse "[0.3 0.7 -0.2]" |> Result.get_ok |> List.hd in
+  let edited = Editor_document.Workspace_doc.edit catalog document
+    (E.Set_arg {node = ["g"; "field"]; key = E.Pos 0; sub = []; value = expr}) |> Result.get_ok in
+  let value = Flow.Eval.run ~time:7. edited.checked |> Result.get_ok in
+  check (match List.assoc "g" value.results with Flow.Eval.Float x -> x >= 0. && x <= 1. | _ -> false)
+    "noise3 row edit did not evaluate";
+  ignore (Flow_sop.Lower.workspace ~factories:Sop_catalog.Editor.factories document.source |> Result.get_ok);
+  let reloaded = Editor_document.Workspace_doc.of_text catalog
+    (Editor_document.Workspace_doc.to_text edited) |> Result.get_ok in
+  check (Flow.Eval.run ~time:7. reloaded.checked = Ok value) "noise3 was lost on document reload"
+
 let scope w g = P.of_graph catalog w g
 let node w g path = match P.find (scope w g) (g :: path) with
   | Some n -> n | None -> fail (String.concat "/" (g :: path) ^ " is not projected")
@@ -38,7 +56,7 @@ let snapshot = [
   "facade", [ "facade", (14, 2, 89) ];
   "garland", [ "garland", (15, 3, 86); "ring", (1, 0, 4) ];
   "kit", [ "kit", (16, 2, 112); "window", (3, 0, 30) ];
-  "orrery", [ "orrery", (19, 1, 113) ];
+  "orrery", [ "orrery", (19, 1, 114) ]; (* noise displacement's mode row *)
   "rosette", [ "rosette", (4, 0, 32) ];
   "sunflower", [ "sunflower", (9, 1, 36) ];
   "tiles", [ "tiles", (9, 1, 67) ];
@@ -91,7 +109,7 @@ let rows () =
     "merge is one rest slot, an add row, then its parameters";
   (match bloom.rows with
    | a :: add :: _ ->
-       check (a.key = E.Pos 0 && a.chip = P.Name "ring" && a.ty = Some Flow.Ty.Geometry) "merge input wire";
+       check (a.key = E.Pos 0 && a.chip = P.Name "ring" && a.ty = Some Flow.Ty.geometry) "merge input wire";
        check (add.key = E.Pos 1 && add.chip = P.No_value) "the add row goes one past the last input"
    | _ -> fail "merge rows");
   let tint = node w "flower" [ "ring"; "tint" ] in

@@ -6,6 +6,7 @@ let max_steps = 600_000
 let max_iterations = W.max_iterations
 let max_concat = 4_096
 let max_depth = 64
+let packed_block_size = 1024
 let empty_live = Frame_input.at_time 0.
 
 exception Needs_t
@@ -52,6 +53,7 @@ and ctx = { st : st; inst : int; prefix : W.path; base : W.path; route : string 
 
 and st = {
   time : Frame_input.t option;  (* [None] while evaluating statically *)
+  compiled_residuals : bool;
   source : string Lazy.t;
   state : state option;
   mutable states : value list;
@@ -59,6 +61,7 @@ and st = {
   fn_calls : (int, int) Hashtbl.t;
   mutable steps : int;
   mutable nodes : node list;
+  mutable authored : int list;
   mutable nnodes : int;
   mutable cells : cell list;
   cache : (string, cell) Hashtbl.t;
@@ -70,6 +73,7 @@ and st = {
   graphs : (string, W.graph) Hashtbl.t;
   defs : (string, W.graph) Hashtbl.t;
   kind_fns : (string * (string * Context.t * Check.slot list)) list;
+  ops : Op.t list;
 }
 
 and node = { id : int; inst : int; site : W.path; iter : int list; kind : string; ty : Ty.t;
@@ -80,7 +84,7 @@ and cell = { cgraph : string; cdefault : bool; mutable cinputs : (string * value
 type live = Frame_input.t
 type instance = { graph : string; default : bool; inputs : (string * value) list; result : value }
 type plan = { instances : instance array; nodes : node array }
-type t = { plan : plan; results : (string * value) list; states : value list;
+type t = { plan : plan; authored : int array; results : (string * value) list; states : value list;
            records : (W.path * (int list * value) list) list }
 
 let create_state () = {source = ""; frame = None; before = Smap.empty; next = Smap.empty}
@@ -151,19 +155,20 @@ let note c path v =
     if n < max_iterations then Hashtbl.replace st.recs path (n + 1, (c.iter, v) :: l)
   end
 
-let mk_node c ?(ty = Ty.Geometry) kind args =
+let mk_node c ?(authored = 0) ?(ty = Ty.geometry) kind args =
   let st = c.st in
   if c.data then fail "E_ARRAY_TYPE" "Packed-array functions produce data, not graph nodes.";
   if st.time <> None then
     failf "E_LIVE_GEOMETRY" "%s makes geometry; geometry cannot be created while evaluating a live value." kind;
   let n = { id = st.nnodes; inst = c.inst; site = site c; iter = c.iter; kind; ty; args } in
   st.nodes <- n :: st.nodes;
+  st.authored <- authored :: st.authored;
   st.nnodes <- st.nnodes + 1;
   Deferred (ty, n.id)
 
-let catalog_call c kind ctx args =
-  if not (Context.supports_values ctx) || ctx = Context.Material
-  then Struct (kind, Ty.of_context ctx, args) else mk_node c ~ty:(Ty.of_context ctx) kind args
+let catalog_call c ?(authored = 0) kind ctx args =
+  if not (Context.supports_values ctx) || ctx = Context.material
+  then Struct (kind, Context.result ctx, args) else mk_node c ~authored ~ty:(Context.result ctx) kind args
 
 (* ---- the evaluator ---- *)
 
@@ -273,8 +278,8 @@ and compile ce (x : W.term) : cnode =
         | Const v -> Const (lookup_field b v f)
         | Dyn g -> Dyn (fun t -> lookup_field b (g t) f)) start fs
   | W.Op { op; args; _ } ->
-      let o = match Op.find op Context.Value with
-        | Some o when o.ctx = Context.Value && o.shape = Op.Scalar -> o
+      let o = match Op.find op Context.value with
+        | Some o when o.ctx = Context.value && o.shape = Op.Scalar -> o
         | _ -> raise Unsupported in
       let nodes = List.map (fun (_, a) -> compile ce a) args in
       (match Op.arith op, nodes with
@@ -331,7 +336,8 @@ and force_res c r =
           | W.State {init; zone; _} -> state_previous c r.renv zone init
           | _ -> assert false
         else ev c r.renv r.rterm in
-      let v = match c.st.time, fast_of r with
+      let compiled = if c.st.compiled_residuals then fast_of r else None in
+      let v = match c.st.time, compiled with
         | Some t, Some f ->
             (try f t with Fail _ | Needs_t | Not_found | Invalid_argument _ | Failure _ -> slow ())
         | _ -> slow () in
@@ -346,12 +352,12 @@ and ev c env (x : W.term) : value =
   let c = match x.path with Some p -> { c with base = p; route = [] } | None -> c in
   match st.time with
   | None ->
-      let saved = st.nodes and saved_n = st.nnodes in
+      let saved = st.nodes and saved_n = st.nnodes and saved_authored = st.authored in
       (match ev_raw c env x with
        | v -> (match x.path with Some p -> note c p v | None -> ()); v
        | exception Needs_t ->
            (* ponytail: nodes made by the abandoned attempt are dropped, its records are kept *)
-           st.nodes <- saved; st.nnodes <- saved_n;
+           st.nodes <- saved; st.nnodes <- saved_n; st.authored <- saved_authored;
            st.rids <- st.rids + 1;
            let r = Residual { rid = st.rids; rterm = x; renv = env; rc = c; previous = false; fast = Untried } in
            (match x.node with W.State _ -> st.states <- r :: st.states | _ -> ());
@@ -431,12 +437,12 @@ and ev_raw c env (x : W.term) : value =
             | v -> [ (n, v) ]) vals
           |> List.filter (fun (_, v) -> match v with No_geo -> false | _ -> true)
         else vals in
-      catalog_call c kind ctx vals
+      catalog_call c ~authored:x.form.id kind ctx vals
   | W.Op { op = "scene/merge"; args; skip = _ :: _ as skip } ->
       (* register L16: the arguments at skipped tuples are not evaluated *)
       let args = List.filteri (fun p _ -> not (List.mem (c.iter @ [ p ]) skip)) args in
-      apply_op c "scene/merge" (eval_named c env args)
-  | W.Op { op; args; _ } -> apply_op c op (eval_named c env args)
+      apply_op c ~authored:x.form.id "scene/merge" (eval_named c env args)
+  | W.Op { op; args; _ } -> apply_op c ~authored:x.form.id op (eval_named c env args)
   | W.Call_fn { fn; args } ->
       let vals = evs c env "a" args in
       (match Smap.find_opt fn env with
@@ -538,8 +544,8 @@ and state_previous c env zone init =
   match Smap.find_opt (state_key c zone) state.before with
   | Some v -> v | None -> ev c env init
 
-and apply_op c name (vals : (string * value) list) : value =
-  let o = match Op.find name Context.Value with
+and apply_op c ?(authored = 0) name (vals : (string * value) list) : value =
+  let o = match Op.find ~extra:c.st.ops name Context.value with
     | Some o -> o | None -> failf "E_UNKNOWN" "Unknown operator %s." name in
   let vals = match o.shape with
     | Op.Struct {splice = true} ->
@@ -548,14 +554,14 @@ and apply_op c name (vals : (string * value) list) : value =
           | v -> [ (n, v) ]) vals
     | _ -> vals in
   let vals = match o.shape with
-    | Op.Scalar when o.ctx = Context.Value -> List.map (fun (n, v) -> n, concrete c v) vals
+    | Op.Scalar when o.ctx = Context.value -> List.map (fun (n, v) -> n, concrete c v) vals
     | _ -> vals in
   o.check vals;
   let live = match c.st.time with
     | Some live -> live
     | None when o.live -> raise Needs_t
     | None -> empty_live in
-  o.body ~live ~node:(mk_node c ~ty:(o.out (List.map (fun (_, v) -> Value.ty_of v) vals))) vals
+  o.body ~live ~node:(mk_node c ~authored ~ty:(o.out (List.map (fun (_, v) -> Value.ty_of v) vals))) vals
 
 and apply_def c name (vals : value list) : value =
   let d = match Hashtbl.find_opt c.st.defs name with
@@ -593,7 +599,7 @@ and call_fn c f (vals : value list) : value =
       if Hashtbl.mem c.st.defs name then apply_def c' name vals
       else begin
         let named = List.mapi (fun i v -> ("$" ^ string_of_int i, v)) vals in
-        match Op.find name Context.Value with
+        match Op.find ~extra:c.st.ops name Context.value with
         | Some o -> apply_op c' o.name named
         | None ->
               (* a catalog kind: the checker resolved its name and which input each argument is *)
@@ -611,8 +617,13 @@ and call_fn c f (vals : value list) : value =
       end
 
 and hof c env ~out kind f rest =
-  let c = if List.exists (fun (t : W.term) -> match t.ty with Ty.Array _ -> true | _ -> false) rest
-    then {c with data = true} else c in
+  let packed = List.exists (fun (t : W.term) -> match t.ty with Ty.Array _ -> true | _ -> false) rest in
+  let c = if packed then {c with data = true} else c in
+  let saved_steps = c.st.steps and calls = ref 0 in
+  let call fv values =
+    if packed && !calls mod packed_block_size = 0 then c.st.steps <- saved_steps;
+    incr calls; call_fn c fv values in
+  let work () =
   let fv = match concrete c (ev (sub c "f") env f) with
     | Fn f -> f | _ -> fail "E_TYPE" "Expected a function." in
   let lists_of ts = List.mapi (fun i t ->
@@ -625,8 +636,8 @@ and hof c env ~out kind f rest =
       let ls = lists_of ls in
       let n = List.fold_left (fun n (length, _) -> min n length) max_int ls in
       let n = if ls = [] then 0 else n in
-      let item k = call_fn c fv (List.map (fun (_, get) -> get k) ls) in
-      (match out with Ty.Array e -> array_init e n item
+      let item k = call fv (List.map (fun (_, get) -> get k) ls) in
+      (match out with Ty.Array e -> array_init e n (fun k -> concrete c (item k))
        | _ -> List (join_values (Array.init n item)))
   | `Filter, [ l ] ->
       let count, get = List.hd (lists_of [ l ]) in
@@ -634,37 +645,39 @@ and hof c env ~out kind f rest =
        | Ty.Array e ->
            let indices = Array.make count 0 and kept = ref 0 in
            for i = 0 to count - 1 do
-             if truthy (concrete c (call_fn c fv [get i])) then begin
+             if truthy (concrete c (call fv [get i])) then begin
                indices.(!kept) <- i; incr kept end
            done;
            array_init e !kept (fun i -> get indices.(i))
        | _ ->
            let xs = Array.init count get in
-           List (Array.of_list (List.filter (fun x -> truthy (concrete c (call_fn c fv [x]))) (Array.to_list xs))))
+           List (Array.of_list (List.filter (fun x -> truthy (concrete c (call fv [x]))) (Array.to_list xs))))
   | `Sort_by, [ l ] ->
       let count, get = List.hd (lists_of [ l ]) in
       (match out with
        | Ty.Array e ->
-           let keys = Array.init count (fun i -> num (concrete c (call_fn c fv [get i]))) in
+           let keys = Array.init count (fun i -> num (concrete c (call fv [get i]))) in
            let indices = Array.init count Fun.id in
            Array.stable_sort (fun a b -> Float.compare keys.(a) keys.(b)) indices;
            array_init e count (fun i -> get indices.(i))
        | _ ->
            let xs = Array.init count get in
-           let keyed = Array.mapi (fun i x -> (num (concrete c (call_fn c fv [x])), i, x)) xs in
+           let keyed = Array.mapi (fun i x -> (num (concrete c (call fv [x])), i, x)) xs in
            let sorted = List.stable_sort (fun (a, _, _) (b, _, _) -> compare a b) (Array.to_list keyed) in
            List (Array.of_list (List.map (fun (_, _, x) -> x) sorted)))
   | `Reduce, [ init; l ] ->
       let init = ev (sub c "init") env init in
       let count, get = List.hd (lists_of [ l ]) in
       let acc = ref init in
-      for i = 0 to count - 1 do acc := widen_like !acc (call_fn c fv [!acc; get i]) done;
+      for i = 0 to count - 1 do acc := widen_like !acc (call fv [!acc; get i]) done;
       !acc
-  | _ -> fail "E_ARITY" "A higher-order form got the wrong number of arguments."
+  | _ -> fail "E_ARITY" "A higher-order form got the wrong number of arguments." in
+  if packed then Fun.protect ~finally:(fun () -> c.st.steps <- saved_steps) work else work ()
 
 and loop c env ~out kind accs clauses skip body zone =
   let packed = List.exists (fun (_, (e : W.term)) -> match e.ty with Ty.Array _ -> true | _ -> false) clauses in
   let c = if packed then {c with data = true} else c in
+  let saved_steps = c.st.steps in
   let cz = { c with base = zone; route = [] } in
   let init = match accs with
     | [ (_, e) ] -> Some (ev (sub cz "init") env e)
@@ -678,6 +691,7 @@ and loop c env ~out kind accs clauses skip body zone =
   let data = ref (if width = 0 then [||] else Array.make (32 * width) 0.) and used = ref 0 in
   let collect v =
     if width = 0 then outs := v :: !outs else begin
+      let v = concrete c v in
       if !used = Array.length !data / width then begin
         let next = Array.make (min Sys.max_floatarray_length (2 * Array.length !data)) 0. in
         if Array.length next / width <= !used then fail "E_ARRAY_RANGE" "Array exceeds native storage bounds.";
@@ -696,6 +710,7 @@ and loop c env ~out kind accs clauses skip body zone =
     add_values (concrete c a) (concrete c b) in
   let rec go ci env items =
     if ci = n then begin
+      if packed && !k mod packed_block_size = 0 then c.st.steps <- saved_steps;
       if not packed && !k >= max_iterations then
         failf "E_ITER_BOUND" "%s runs more than 4,096 iterations." (path_text zone);
       let ci' = { cz with iter = c.iter @ [ !k ] } in
@@ -733,6 +748,7 @@ and loop c env ~out kind accs clauses skip body zone =
              go (ci + 1) (bind_pat c ~mk:None ~whole:false p item env) (item :: items)
            done)
     end in
+  let work () =
   go 0 env [];
   match !over_geometry with Some v -> v | None ->
   match kind with
@@ -741,7 +757,8 @@ and loop c env ~out kind accs clauses skip body zone =
   | `For | `Scan ->
       if width = 0 then List (join_values (Array.of_list (List.rev !outs)))
       else let data = Array.sub !data 0 (!used * width) in
-        if width = 3 then Vec3_array data else Float_array data
+        if width = 3 then Vec3_array data else Float_array data in
+  if packed then Fun.protect ~finally:(fun () -> c.st.steps <- saved_steps) work else work ()
 
 
 (* W8: [(for [p (sop/point_list g)] body)].  The count is known only when [g] cooks, so
@@ -752,7 +769,7 @@ and loop c env ~out kind accs clauses skip body zone =
 and geometry_loop c cz env op fs p body zone =
   if c.st.time <> None then failf "E_LIVE_GEOMETRY" "%s iterates geometry while evaluating a live value." (path_text zone);
   let src = match List.assoc_opt "geometry" fs with
-    | Some (Deferred (Ty.Geometry, id)) -> id | _ -> failf "E_TYPE" "%s: %s needs geometry." (path_text zone) op in
+    | Some (Deferred ((Ty.Named "geometry"), id)) -> id | _ -> failf "E_TYPE" "%s: %s needs geometry." (path_text zone) op in
   let key = List.assoc_opt "key" fs in
   let points = op = "sop/point_list" in
   let ci = { cz with iter = c.iter @ [ 0 ]; geometry = true } in
@@ -765,18 +782,18 @@ and geometry_loop c cz env op fs p body zone =
       Residual { rid = c.st.rids; rterm = term; renv = Smap.empty; rc = ci; previous = false; fast = Untried }, Text ekey
     end else
       (match mk_node (sub ci "element") "zone/element" [] with
-       | Deferred (Ty.Geometry, id) as g -> g, Int id
+       | Deferred ((Ty.Named "geometry"), id) as g -> g, Int id
        | _ -> assert false) in
   let mk = Some (fun v -> zone @ [ ":" ^ v ]) in
   let env = bind_pat ci ~mk ~whole:true p elem env in
   let v = ev ci env body in
   let root = match v with
-    | Deferred (Ty.Geometry, id) -> id
+    | Deferred ((Ty.Named "geometry"), id) -> id
     | Residual _ -> failf "E_ZONE" "%s: what a loop over geometry builds cannot depend on the element; only arguments can." (path_text zone)
     | _ -> failf "E_TYPE" "%s: the body of a loop over geometry returns geometry." (path_text zone) in
   let hi = c.st.nnodes in
   mk_node c (if points then "zone/points" else "zone/pieces")
-    ((("geometry", Deferred (Ty.Geometry, src)) :: (match key with Some k -> [ ("key", k) ] | None -> []))
+    ((("geometry", Deferred (Ty.geometry, src)) :: (match key with Some k -> [ ("key", k) ] | None -> []))
      @ [ ("body", Int root); ("lo", Int lo); ("hi", Int hi); ("element", elem_arg) ])
 
 and graph_value ?(rec_ = true) c name over =
@@ -831,11 +848,12 @@ let new_state ~record ws =
   let graphs = Hashtbl.create 8 and defs = Hashtbl.create 8 in
   List.iter (fun (g : W.graph) -> Hashtbl.replace graphs g.name g) ws.W.graphs;
   List.iter (fun (g : W.graph) -> Hashtbl.replace defs g.name g) ws.W.defs;
-  { time = None; source = lazy (Digest.string (fst (Lisp.print ws.W.source))); state = None; states = [];
+  { time = None; compiled_residuals = true;
+    source = lazy (Digest.string (fst (Lisp.print ws.W.source))); state = None; states = [];
     nfns = 0; fn_calls = Hashtbl.create 1;
-    steps = 0; nodes = []; nnodes = 0; cells = []; cache = Hashtbl.create 8;
+    steps = 0; nodes = []; authored = []; nnodes = 0; cells = []; cache = Hashtbl.create 8;
     memo = Hashtbl.create 1; rids = 0; record; elems = Smap.empty; recs = Hashtbl.create 64; graphs; defs;
-    kind_fns = ws.W.kind_fns }
+    kind_fns = ws.W.kind_fns; ops = ws.ops }
 
 let live_state (st : st) ~state ?(elems = Smap.empty) (l : live) =
   { st with time = Some l; state = Some state; steps = 0; memo = Hashtbl.create 16;
@@ -851,6 +869,7 @@ let protect f =
   | Out_of_memory -> Error (diagnostic "E_ARRAY_MEMORY" "Frame data exceeds available memory." None)
 
 let static ?(record = false) ?(inputs = []) ws =
+  Phase_timer.measure Evaluate (fun () ->
   protect (fun () ->
     if List.length inputs <> List.length (List.sort_uniq String.compare (List.map fst inputs)) then
       fail "E_INPUT_DUPLICATE" "A graph receives more than one input override set.";
@@ -868,7 +887,8 @@ let static ?(record = false) ?(inputs = []) ws =
     let records = Hashtbl.fold (fun p (_, l) acc -> (p, List.rev l) :: acc) st.recs []
       |> List.sort (fun (a, _) (b, _) -> compare a b) in
     { plan = { instances; nodes = Array.of_list (List.rev st.nodes) }; results; records;
-      states = List.rev st.states })
+      authored = Array.of_list (List.rev st.authored);
+      states = List.rev st.states }))
 
 let rec is_live = function
   | Residual _ -> true
@@ -896,7 +916,7 @@ and term_dependent frame st env (term : W.term) =
   | W.Ref_binding (name, _) ->
       Option.fold ~none:false ~some:(dependent frame) (Smap.find_opt name env)
   | W.Op {op; args; _} ->
-      (frame && (Option.get (Op.find op Context.Value)).live) || fields args
+      (frame && (Option.get (Op.find ~extra:st.ops op Context.value)).live) || fields args
   | W.Call {args; _} | W.Record args -> fields args
   | W.Call_fn {fn; args} -> definition fn || any args
   | W.Fn_ref name -> definition name
@@ -919,7 +939,7 @@ let frame_dependent = dependent true
 let state_dependent = dependent false
 
 (* one live state per call, made from the first residual met *)
-let with_live ?state ?elems (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diagnostic.t) result =
+let with_live ?state ?elems ?(compiled = true) (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diagnostic.t) result =
   let state = Option.value ~default:(create_state ()) state in
   let saved = state.source, state.frame, state.before, state.next in
   let elems = Option.map Smap.of_list elems in
@@ -927,7 +947,8 @@ let with_live ?state ?elems (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diag
   let ctx_of r =
     let st = match !live with
       | Some s -> s
-      | None -> let s = live_state r.rc.st ~state ?elems l in live := Some s; s in
+      | None -> let s = { (live_state r.rc.st ~state ?elems l) with compiled_residuals = compiled } in
+          live := Some s; s in
     { r.rc with st } in
   match Frame_input.validate l with
   | Error message -> Error (Diagnostic.error ~code:"E_FRAME" message)
@@ -941,10 +962,10 @@ let with_live ?state ?elems (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diag
 let residual_eval ?state ?elems r ~live =
   with_live ?state ?elems live (fun ctx_of -> let c = ctx_of r in force_res c r)
 
-let force ?state ?elems v ~live =
+let force_with ?state ?elems ?compiled v ~live =
   if not (is_live v) then Ok v
   else
-    with_live ?state ?elems live (fun ctx_of ->
+    with_live ?state ?elems ?compiled live (fun ctx_of ->
       let rec go v = match v with
         | Residual r -> let c = ctx_of r in go (force_res c r)
         | List xs -> List (Array.map go xs)
@@ -952,6 +973,8 @@ let force ?state ?elems v ~live =
         | Struct (n, ty, fs) -> Struct (n, ty, List.map (fun (k, x) -> (k, go x)) fs)
         | v -> v in
       go v)
+
+let force ?state ?elems v ~live = force_with ?state ?elems v ~live
 
 let run ?record ?inputs ?state ?live ~time ws =
   let state = Option.value ~default:(create_state ()) state in
@@ -963,7 +986,7 @@ let run ?record ?inputs ?state ?live ~time ws =
       let f v = match force ~state v ~live with Ok v -> v | Error d -> raise (Stop d) in
       transaction state (fun () -> try
          let states = List.map f s.states in
-         Ok { states;
+         Ok { s with states;
               plan = { nodes = Array.map (fun n -> { n with args = List.map (fun (k, v) -> (k, f v)) n.args }) s.plan.nodes;
                        instances = Array.map (fun i -> { i with inputs = List.map (fun (k, v) -> (k, f v)) i.inputs;
                                                                 result = f i.result }) s.plan.instances };
@@ -974,6 +997,23 @@ let run ?record ?inputs ?state ?live ~time ws =
 let show v = show_with Fun.id v
 
 module Private = struct
+  type residual_view = {
+    term : W.term;
+    bindings : (string * value) list;
+    site : W.path;
+    iter : int list;
+    instance : int;
+    previous : bool;
+  }
+  let residual_view r = {term = r.rterm; bindings = Smap.bindings r.renv;
+    site = site r.rc; iter = r.rc.iter; instance = r.rc.inst; previous = r.previous}
+  let residual_id r = r.rid
+  let residual_ops r = r.rc.st.ops
+  let force_reference ?state ?elems v ~live = force_with ?state ?elems ~compiled:false v ~live
+  let closure_available r = Option.is_some (fast_of r)
+  let eval_term ?state ?elems r term ~live =
+    with_live ?state ?elems ~compiled:false live (fun ctx_of ->
+      let c = ctx_of r in concrete c (ev c r.renv term))
   let compile_residuals = compile_residuals
   let rec compiled = function
     | Residual { fast = Ready _; _ } -> 1

@@ -1,23 +1,43 @@
 type t =
-  | Geometry | Drawing | Float | Int | Bool | Vec3 | Text | Color
+  | Named of string | Float | Int | Bool | Vec3 | Text | Color
   | List of t | Array of t | Record of (string * t) list | Fn | Any
-  | Scene | World | Settings | Panel | Editor | Material
 
-let names = [ "geometry", Geometry; "drawing", Drawing; "float", Float; "int", Int; "bool", Bool;
-  "vec3", Vec3; "text", Text; "color", Color; "fn", Fn; "any", Any;
-  "scene", Scene; "world", World; "settings", Settings; "panel", Panel;
-  "editor", Editor; "material", Material ]
-
-let of_context = function
-  | Context.Draw -> Drawing | Context.Sop -> Geometry | Value -> Float | Scene -> Scene | World -> World
-  | Settings -> Settings | Editor -> Editor | Material -> Material
+type color = [ `Geometry | `Float | `Int | `Bool | `Vec3 | `Text | `Fn | `Record | `Output | `Compound ]
+type nominal = {name : string; shape : bool; color : color; default : Syntax.t option}
+let geometry = Named "geometry" and drawing = Named "drawing" and scene = Named "scene"
+and world = Named "world" and settings = Named "settings" and panel = Named "panel"
+and editor = Named "editor" and material = Named "material"
+let is_geometry ty = ty = geometry
+let nominal name ?(shape = true) ?(color = `Output) ?default () = {name; shape; color; default}
+let registry = ref [
+  nominal "geometry" ~color:`Geometry ~default:(Syntax.make (Sym "nil")) ();
+  nominal "drawing" ~default:(Syntax.make (List [Syntax.make (Sym "draw/merge")])) ();
+  nominal "scene" (); nominal "world" (); nominal "settings" ~shape:false ();
+  nominal "panel" (); nominal "editor" (); nominal "material" ~shape:false ()]
+let descriptor name = List.find_opt (fun entry -> entry.name = name) !registry
+let structural = ["float", Float; "int", Int; "bool", Bool; "vec3", Vec3;
+  "text", Text; "color", Color; "fn", Fn; "any", Any]
+let names () = structural @ List.map (fun entry -> entry.name, Named entry.name) !registry
+let register ?(shape = true) ?(color = `Output) ?default name =
+  let entry = {name; shape; color; default} in
+  if not (Symbol.valid_name name) || Symbol.reserved name || List.mem_assoc name structural then
+    Error (Diagnostic.error ~code:"E_TYPE_NAME" ("Invalid nominal type name " ^ name))
+  else match descriptor name with
+    | Some old when old.shape = entry.shape && old.color = entry.color
+        && Option.equal Syntax.equal old.default entry.default -> Ok (Named name)
+    | Some _ -> Error (Diagnostic.error ~code:"E_TYPE_DUPLICATE" ("Conflicting nominal type " ^ name))
+    | None -> registry := !registry @ [entry]; Ok (Named name)
+let shape = function Named name -> Option.fold ~none:true ~some:(fun entry -> entry.shape) (descriptor name) | _ -> false
+let color = function Named name -> Option.fold ~none:`Output ~some:(fun entry -> entry.color) (descriptor name) | _ -> `Output
+let default = function Named name -> Option.bind (descriptor name) (fun entry -> entry.default) | _ -> None
 
 let rec to_string = function
+  | Named name -> name
   | List e -> "list:" ^ to_string e
   | Array e -> "array:" ^ to_string e
   | Record fs -> "rec{" ^ String.concat ","
       (List.map (fun (n, t) -> n ^ ":" ^ to_string t) fs) ^ "}"
-  | t -> fst (List.find (fun (_, u) -> u = t) names)
+  | t -> fst (List.find (fun (_, u) -> u = t) (names ()))
 
 let of_string s =
   let n = String.length s in
@@ -34,7 +54,7 @@ let of_string s =
     else
       let j = ref i in
       while !j < n && s.[!j] <> ',' && s.[!j] <> '}' do incr j done;
-      let* t = List.assoc_opt (String.sub s i (!j - i)) names in
+      let* t = List.assoc_opt (String.sub s i (!j - i)) (names ()) in
       Some (t, !j)
   and fields i acc =
     if i < n && s.[i] = '}' then Some (Record (List.rev acc), i + 1)
@@ -52,7 +72,7 @@ let field_name = function
 
 let rec of_syntax (x : Syntax.t) = match x.node with
   | Sym name ->
-      (match List.assoc_opt name names with
+      (match List.assoc_opt name (names ()) with
        | Some (Any | Color) | None -> None
        | some -> some)
   | Map items ->

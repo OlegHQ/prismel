@@ -790,14 +790,16 @@ let run () =
   Ui.destroy ui;
   (* Text areas: the text_field edit and IME path over lines. *)
   let area = ref "" and readonly = ref false and errors = ref [] and wrapped = ref false
-  and submitted = ref false and language = ref None and context = ref None and scrubs = ref [] in
+  and submitted = ref false and language = ref None and context = ref None and scrubs = ref []
+  and scrub_edits = ref [] in
   let ui = Ui.create ~font_size:11 () and time = ref 0. in
   let area_step ?(keys = []) events =
     time := !time +. 0.5;
     ignore (Ui.frame ui { (frame ~scale:1. ~time:!time events) with keys } (fun ui ->
       let text, submit = Ui.text_area_submit ui ~at:(0., 0.) ~w:300. ~h:96. ~readonly:!readonly
         ~wrap:!wrapped ~errors:!errors ?language:!language ~on_context:(fun at -> context := Some at)
-        ~on_scrub:(fun p -> scrubs := p :: !scrubs) "area" !area in
+        ~on_scrub:(fun p -> scrubs := p :: !scrubs)
+        ~on_scrub_edit:(fun range value -> scrub_edits := (range, value) :: !scrub_edits) "area" !area in
       area := text; submitted := submit)) in
   let region () = match Scene.Private.text_regions (Ui.scene ui) with
     | [(_, y, _, _, true, cursor)] -> y, cursor
@@ -974,6 +976,7 @@ let run () =
   area_step [move (nx + 10, 12)];
   area_step [move (nx + 20, 12)];
   expect "a dragged integer moves one per five points" "14 x";
+  if List.hd !scrub_edits <> ((0, 2), "14") then fail "a numeric drag lost its pre-edit token span";
   if not (List.mem `Live !scrubs) then fail "a drag did not report on_scrub `Live";
   area_step [release (nx + 20, 12)];
   if List.hd !scrubs <> `Done then fail "a drag's end did not report on_scrub `Done";

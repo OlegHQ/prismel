@@ -14,6 +14,9 @@ type shown = {
   applied : string Lazy.t;  (** the whole document's text (the draft's dirty mark) *)
   body : (Flow.Syntax.t * (int * Flow.Diagnostic.span) list) option;
       (** the Graph tab's graph body and the spans of [text]: what the caret is looked up in *)
+  source : Flow.Syntax.t list;
+  spans : Flow.Lisp.spans;
+  applied_spans : Flow.Lisp.spans Lazy.t;
 }
 
 type state = {
@@ -32,6 +35,7 @@ type state = {
                         right-click menu toggles it; on by default) *)
   menu : (float * float) option;  (** the right-click menu while it is open *)
   picker : (int * int * bool) option;  (** the colour literal being edited: byte range, edited yet *)
+  scrubbing : bool;  (** a successfully applied token scrub; retain printed line breaks until release *)
   cache : ((Flow.Syntax.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
@@ -61,6 +65,10 @@ val make_shown : Flow.Syntax.t list -> string -> path option -> tab -> shown
     binding's top-level ancestor as a [let*] over the root bindings it reads
     (a note names the count and the graph inputs used) with the binding marked;
     Graph the whole graph form; Document the workspace form. *)
+
+val scrub_op : shown -> int * int -> string -> Flow_graph.Flow_edit.op option
+(** A numeric token reported by PXUI, looked up through printed spans and mapped
+    to its innermost source card's [Set_arg]. No parsing or textual search. *)
 
 val shown : ?workspace:Editor_document.Workspace_doc.t -> state -> source:Flow.Syntax.t list -> graph:string -> selected:path option ->
   state * shown
@@ -104,6 +112,10 @@ type intent =
           applied live, one history entry *)
   | Graph_scrub of string * string * bool
   | Binding_scrub of path * string * bool
+  | Literal_scrub of { source : Flow.Syntax.t list; op : Flow_graph.Flow_edit.op;
+      position : Flow.Diagnostic.position; fallback : intent }
+      (** A token edit against the source shown by the pane. A stale source or
+          unapplied draft takes the ordinary scrub/merge path. *)
   | Toggle_parinfer
   | Picker of (int * int * bool) option
       (** the colour literal (byte range with its quotes) whose control is open, and whether an edit was made *)

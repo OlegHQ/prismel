@@ -77,6 +77,50 @@ let run () =
       ~seed:17 normal_quad with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "Noise Displace accepted non-finite amplitude");
+  let count = 2051 in
+  let source = Kernel.generate_point_ranges count (fun ~first ~last ~x ~y ~z ->
+    for i = first to last - 1 do
+      x.(i) <- float i *. 0.137 -. 128.;
+      y.(i) <- sin (float i *. 0.31);
+      z.(i) <- float (i mod 23) *. (-0.2)
+    done) in
+  let nx = Array.init count (fun i -> cos (float i *. 0.23))
+  and ny = Array.make count 0.37 and nz = Array.make count (-1.2) in
+  let source = add_attribute (float3_attribute ~owner:Attribute.Point "N" nx ny nz) source in
+  let p = positions source in
+  let noise = Rays_math.Noise.create 0 in
+  let expected = Kernel.edit_point_ranges (fun ~first ~last ~x ~y ~z ->
+    for i = first to last - 1 do
+      let scale = 0.8 *. Rays_math.Noise.sample3 noise
+        ~x:(p.x.(i) *. 0.16) ~y:(p.y.(i) *. 0.16) ~z:(p.z.(i) *. 0.16) in
+      x.(i) <- p.x.(i) +. nx.(i) *. scale;
+      y.(i) <- p.y.(i) +. ny.(i) *. scale;
+      z.(i) <- p.z.(i) +. nz.(i) *. scale
+    done) source |> Geometry.without_attribute ~owner:Attribute.Point "N" in
+  let one = Parallel.run ~domains:1 (fun () -> Deform.noise_displace ~mode:Deform.Normal_3d
+    ~grain:257 ~amplitude:0.8 ~frequency:0.16 ~seed:0 source |> get_ok) in
+  let eight = Parallel.run ~domains:8 (fun () -> Deform.noise_displace ~mode:Deform.Normal_3d
+    ~grain:257 ~amplitude:0.8 ~frequency:0.16 ~seed:0 source |> get_ok) in
+  check (geometry_bytes one = geometry_bytes expected && geometry_bytes one = geometry_bytes eight)
+    "Normal 3D noise differs from scalar formula or across domains";
+  check (Geometry.topology one == Geometry.topology source) "Normal 3D noise replaced topology";
+  let oversized_grain = Deform.noise_displace ~mode:Deform.Normal_3d ~grain:max_int
+    ~amplitude:0.8 ~frequency:0.16 ~seed:0 source |> get_ok in
+  check (geometry_bytes oversized_grain = geometry_bytes one)
+    "Normal 3D noise overflowed the range count with an oversized grain";
+  expect_error "invalid_parameter" (Deform.noise_displace ~mode:Deform.Normal_3d
+    ~amplitude:0.8 ~frequency:0.16 ~seed:0
+    (Geometry.without_attribute ~owner:Attribute.Point "N" source));
+  let wrong = add_attribute (float_attribute "N" (Array.make count 0.)) source in
+  expect_error "invalid_parameter" (Deform.noise_displace ~mode:Deform.Normal_3d
+    ~amplitude:0.8 ~frequency:0.16 ~seed:0 wrong);
+  expect_error "invalid_parameter" (Deform.noise_displace ~mode:Deform.Normal_3d
+    ~amplitude:0.8 ~frequency:Float.max_float ~seed:0 source);
+  expect_error "invalid_parameter" (Deform.noise_displace ~grain:0
+    ~amplitude:0.8 ~frequency:0.16 ~seed:0 source);
+  let cancel = Cancel.create () in Cancel.cancel cancel;
+  expect_error "cancelled" (Deform.noise_displace ~cancel ~mode:Deform.Normal_3d
+    ~amplitude:0.8 ~frequency:0.16 ~seed:0 source);
   let before = positions normal_quad and after = positions peaked in
   for point = 0 to 3 do
     if not (near (after.x.(point) -. before.x.(point)) (normal.x.(point) *. 0.75)

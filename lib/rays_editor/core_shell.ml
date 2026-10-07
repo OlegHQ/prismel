@@ -12,7 +12,7 @@ let layouts value =
   | _ ->
       let doc = fst value.doc.Document.workspace in
       let current = Option.map (fun (g : Flow.Workspace.graph) -> g.name) (Workspace_doc.editor_graph doc) in
-      (match List.filter (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Editor) doc.checked.graphs with
+      (match List.filter (fun (g : Flow.Workspace.graph) -> g.context = Flow.Context.editor) doc.checked.graphs with
        | [] | [ _ ] -> []
        | gs -> List.map (fun (g : Flow.Workspace.graph) -> g.name, Some g.name = current) gs)
 
@@ -24,8 +24,8 @@ let completion_names value : Lisp_text.names =
   let named context = List.filter_map (fun (g : Flow.Workspace.graph) ->
     if g.context = context then Some g.name else None) graphs in
   { graphs = List.map (fun (g : Flow.Workspace.graph) -> g.name) graphs;
-    materials = named Flow.Workspace.Material;
-    cameras = (match named Flow.Workspace.Scene with
+    materials = named Flow.Context.material;
+    cameras = (match named Flow.Context.scene with
       | scene :: _ -> Text_pane.cameras ws.source scene | [] -> []);
     layouts = List.map fst (layouts value) }
 

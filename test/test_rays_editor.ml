@@ -657,6 +657,14 @@ let run () =
     | Ok environment -> environment | Error message -> fail message in
   check (Editor_document.Workspace_doc.to_text (Rays_editor.Editor3.workspace environment) <> original)
     "the rename did not change the document";
+  let phases = Rays_editor.Editor3.edit_phases environment in
+  check (Flow.Phase_timer.calls phases Check = 1
+      && Flow.Phase_timer.calls phases Evaluate = 1
+      && Flow.Phase_timer.calls phases Lower = 1
+      && List.for_all (fun (e : Flow.Phase_timer.entry) -> e.seconds >= 0.) phases.entries)
+    "the editor edit did not perform exactly one check/evaluation/lowering";
+  check (has (report_line Rays_editor.Editor3.crash_dump environment "phases") "check")
+    "the crash report omitted the last edit's phases";
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[key Input.Space; key (Input.KeyChar 'b')] 52) in
   let environment = Rays_editor.Editor3.update environment

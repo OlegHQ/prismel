@@ -25,7 +25,7 @@ let bounds () =
   let sunflower = T.load "sunflower" in
   let eval = Result.get_ok (Flow.Eval.static ~record:true sunflower) in
   let head = List.assoc [ "sunflower"; "head" ] eval.records in
-  check (match head with [ ([], Flow.Eval.Deferred (Flow.Ty.Geometry, _)) ] -> true | _ -> false) "geometry records a plan node id only"
+  check (match head with [ ([], Flow.Eval.Deferred ((Flow.Ty.Named "geometry"), _)) ] -> true | _ -> false) "geometry records a plan node id only"
 
 let sunflower () =
   let w = T.load "sunflower" in

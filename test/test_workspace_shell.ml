@@ -323,15 +323,14 @@ let run_values () =
     E3.close e) ["frame/dt"; "array/count"; "array/nth"; "array/sum"];
   let workspace = "(workspace w (graph g :context draw (draw/merge)) \
     (graph editor :context editor (ui/workspace (ui/graph \"g\" :focus true))))" in
-  List.iter (fun (op : Flow.Op.t) -> if op.ctx = Flow.Context.Draw then begin
+  List.iter (fun (op : Flow.Op.t) -> if op.ctx = Flow.Context.draw then begin
     let e = add ~workspace op.name in
     check (E3.undo_label e = Some "Add node" && has (source e) ("(" ^ op.name))
       ("a drawing operator is added through the menu: " ^ source e);
     E3.close e
   end) Flow.Op.all
 
-(* Command-D duplicates the selected nodes (fresh names, one history entry) and selects the copies; v
-   views a node in the viewport (a layout entry, one history entry) and again returns to the result *)
+(* Command-D duplicates the selected nodes; v changes only the viewport. *)
 let run_duplicate_and_view () =
   List.iter (fun text ->
   let e = ref (editor text) and count = ref 0 in
@@ -356,17 +355,22 @@ let run_duplicate_and_view () =
   step ~mouse:p [ Event.KeyPressed Input.ArrowRight ];
   check (selected () <> "-") "a walk key selected a node";
   let node = selected () in
+  let before = E3.workspace !e and label = E3.undo_label !e in
   step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
-  check (E3.undo_label !e = Some "View node")
-    ("v did not view the node: " ^ Option.value ~default:"-" (E3.undo_label !e));
+  check (E3.workspace !e == before && E3.undo_label !e = label)
+    "v changed the workspace or history";
   check (not (has (fst (Flow.Lisp.print [ Editor_document.Layout_by_path.to_syntax (E3.workspace !e).Doc.layout ])) "(display"))
     "the viewed node is not saved in the layout";
   step ~mouse:p [];
   check (Node.operation (E3.displayed_node !e) = "box" && centre () = Some 0.)
     ("v marked the node but did not show it in the viewport: " ^ node);
-  step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'z') ];
+  let x, y, w, _ = Option.get (E3.node_box !e ["g"; "b"]) in
+  let target = float (x + w / 2), float (y + 3) in
+  step ~mouse:target [Event.MouseMoved target];
+  step ~mouse:target [Event.MousePressed (Input.LeftButton, target); Event.MouseReleased (Input.LeftButton, target)];
+  step ~mouse:target [Event.KeyPressed (Input.KeyChar 'v')];
   step ~mouse:p [];
-  check (centre () = Some 20.) "undo did not restore the graph result";
+  check (centre () = Some 20.) "viewing the result did not restore its geometry";
   step ~mouse:p ~keys:[ Input.Meta ] [ Event.KeyPressed (Input.KeyChar 'd') ];
   check (E3.undo_label !e = Some "Duplicate" && has (source !e) "_2") ("Command-D made no copy: " ^ source !e);
   check (selected () <> node && selected () <> "-") "the copy is the selection";
@@ -379,8 +383,7 @@ let run_duplicate_and_view () =
 
 (* An inline result is a geometry node too: viewing and editing it must follow the current
    lowering, including when an edit inserts a new plan node before the viewed one. *)
-(* v on a node inside a loop is refused: the viewport shows the graph's result, and a loop's body
-   cannot be it.  Nothing is written, the result stays in view. *)
+(* A preview follows the loop's selector and never writes a result into the source. *)
 let run_loop_view () =
   let e = ref (editor {|(workspace loop_view
     (graph g :context sop
@@ -413,9 +416,13 @@ let run_loop_view () =
     check (dump_line !e "scope selected" = "g/rows/@result") "the node inside the loop could not be selected";
     let before = E3.workspace !e and label = E3.undo_label !e in
     key (Input.KeyChar 'v'); step [];
-    check (E3.workspace !e == before && E3.undo_label !e = label && has (dump_line !e "cook") "inside a loop")
-      ("v on a node inside a loop was not refused: " ^ dump_line !e "cook");
-    centre "the result still" 15.)
+    check (E3.workspace !e == before && E3.undo_label !e = label)
+      "viewing a loop body changed the document or history";
+    centre "iteration zero" 5.;
+    e := E3.set_probe !e ["g"; "rows"] 1; step [];
+    centre "iteration one" 15.;
+    e := E3.set_probe !e ["g"; "rows"] 2; step [];
+    centre "iteration two" 25.)
 
 let run_result_view () =
   let e = ref (editor {|(workspace result_view
@@ -471,6 +478,47 @@ let run_result_view () =
     click (float (gx + 40), float (gy + 40));
     key (Input.KeyChar 'i'); step [];
     select "result"; key (Input.KeyChar 'v'); step []; centre 41.)
+
+let run_geometry_view () =
+  let e = ref (editor {|(workspace geometry_view
+    (graph g :context sop
+      (let* [field (sop/curve (list [0 0 0] [10 0 0] [20 0 0]))
+             dots (for [p (sop/point_list field)]
+               (let* [moved (sop/transform (sop/box) :translate p)]
+                 (sop/transform moved :translate [0 2 0]))) ]
+        (sop/merge dots)))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g))
+        (scene/camera :eye [0 0 6] :follow_viewport true))))|}) in
+  Fun.protect ~finally:(fun () -> E3.close !e) (fun () ->
+    let count = ref 0 in
+    let step ?(mouse = (450., 300.)) events =
+      incr count; e := E3.update !e (frame mouse events !count) in
+    let click p = step ~mouse:p [Event.MouseMoved p];
+      step ~mouse:p [Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p)] in
+    let centre expected =
+      let x = Option.map (fun p -> p.Vec3.x) (Option.bind (E3.prepared !e) Mesh.centroid) in
+      check (x = Some expected) "the geometry template did not preview the selected element" in
+    step []; step []; centre 10.;
+    let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
+    click (float (gx + 40), float (gy + 40));
+    step [Event.KeyPressed Input.Home]; step [Event.KeyPressed (Input.KeyChar 'i')]; step [];
+    let x, y, w, _ = Option.get (E3.node_box !e ["g";"dots";"moved"]) in
+    click (float (x + w / 2), float (y + 3));
+    let before = E3.workspace !e and label = E3.undo_label !e in
+    step [Event.KeyPressed (Input.KeyChar 'v')]; step []; centre 0.;
+    e := E3.set_probe !e ["g";"dots"] 2; step []; centre 20.;
+    check (E3.workspace !e == before && E3.undo_label !e = label)
+      "geometry preview and its selector changed the source or history";
+    let vx, vy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).view in
+    click (float (vx + 10), float (vy + 10)); step [Event.KeyPressed (Input.KeyChar 'f')]; step [];
+    check (Float.abs ((Easy_camera.target (E3.camera !e)).Vec3.x -. 20.) < 1e-6)
+      "viewport F did not frame the geometry preview";
+    let panes = E3.panes !e (frame (0., 0.) [] 0) in
+    let point = Camera.world_to_screen ~viewport:panes.view (E3.view_camera !e) (Vec3.create 20. 0. 0.) |> Option.get in
+    click (point.x, point.y); step [];
+    check (dump_line !e "scope selected" = "g/dots/moved" && E3.probe !e ["g";"dots"] = Some 2)
+      "picking a preview selected the authored result or changed its iteration")
 
 (* the inspector moves a list item up (Move_item), as the row arrow does *)
 let run_movers () =
@@ -1931,7 +1979,7 @@ let run_undo_under_pane () =
     ("undo left the other panel inside a removed object: " ^ dump_line !e "graph panels");
   E3.close !e
 
-let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
+let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
   run_undo_under_pane (); run_atomic_frame (); run_undo_and_input (); run_carry_reaches_no_history ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
@@ -1972,15 +2020,13 @@ let run_view_native () =
         Scene3.create [drawing]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
       let e = if frame.count = 28 then
-          E3.edit e (E.Set_arg {node = ["shattered"; "exploded_view"]; key = E.Kw "amount";
+          E3.edit e (E.Set_arg {node = ["shattered"; "@result"]; key = E.Kw "amount";
             sub = []; value = S.make (S.Num "0.8")}) |> Result.get_ok
         else e in
       let gx, gy, gw, _ = (E3.panes e frame).graph in
       let graph = float (gx + 40), float (gy + 40) and view = 150., 300. in
       let mouse = if frame.count = 24 then
-          (* the first v (frame 14) made the box the result, binding the old
-             anonymous result under the name its head gives it *)
-          let x, y, w, h = Option.get (E3.node_box e ["shattered"; "exploded_view"]) in
+          let x, y, w, h = Option.get (E3.node_box e ["shattered"; "@result"]) in
           (* a wide graph in a narrow pane sits at the zoom floor, the last column on the pane's edge *)
           float (min (x + w / 2) (gx + gw - 6)), float (y + min 12 (max 1 (h / 2)))
         else if List.mem frame.count [3; 4; 18; 19; 20; 21; 22] then view else graph in
@@ -2008,7 +2054,7 @@ let run_view_native () =
         if frame.count = 26 then begin
           original := !vertices;
           check (Node.operation (E3.displayed_node e) = "exploded_view")
-            "native v did not set the result node"
+            "native v did not preview the result node"
         end;
         if frame.count = 30 then begin
           edited := !vertices;

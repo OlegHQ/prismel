@@ -107,16 +107,16 @@ let notes (ev : Flow.Eval.t) =
     | _ -> None) ev.results
 
 (* The outline's groups, in dependency order. *)
-let group_of : W.context -> string = function
-  | Draw -> "Drawing" | Scene -> "Scene" | Sop -> "Geometry" | Material -> "Materials" | World -> "World"
-  | Editor -> "Layout" | Settings -> "Settings" | Value -> "Values"
+let group_of context = (Flow.Context.descriptor context).group
 
-let group_order = [ "Scene"; "Geometry"; "Materials"; "World"; "Layout"; "Settings"; "Values" ]
+let group_order () = List.fold_left (fun groups context ->
+  let group = (Flow.Context.descriptor context).group in
+  if List.mem group groups then groups else groups @ [group]) [] (Flow.Context.all ())
 
 let grouped (ws : W.t) =
   List.filter_map (fun group ->
     match List.filter (fun (g : W.graph) -> group_of g.context = group) ws.graphs with
-    | [] -> None | graphs -> Some (group, graphs)) group_order
+    | [] -> None | graphs -> Some (group, graphs)) (group_order ())
 
 let jump_rows (ws : W.t) =
   List.concat_map (fun (group, graphs) -> List.map (fun (g : W.graph) -> g.name, group) graphs) (grouped ws)
@@ -174,15 +174,15 @@ let contains ~query text =
 let graph_row p (g : W.graph) detail =
   let used = readers p.workspace g.name in
   (* the scene's own reference counts: its World object reads the graph *)
-  let used = if g.context <> W.World then used else
+  let used = if g.context <> Flow.Context.world then used else
       max used (List.length (List.filter (fun o -> o.letter = "W" && o.detail = "ref " ^ g.name) p.objects)) in
-  let unused = used = 0 && (g.context = W.Material || g.context = W.Sop) in
+  let unused = used = 0 && (g.context = Flow.Context.material || g.context = Flow.Context.sop) in
   Graph_row { graph = g.name; label = g.name; context = Some g.context; active = p.active = Some g.name;
-              chip = (if g.context = W.Material then List.assoc_opt g.name p.chips else None);
+              chip = (if g.context = Flow.Context.material then List.assoc_opt g.name p.chips else None);
               dim = unused;
               (* how many graphs read it, in the section's right column *)
-              used = (if g.context = W.Material || g.context = W.Sop || g.context = W.World then Some used else None);
-              detail = (if unused then "unused" else if g.context = W.Material
+              used = (if g.context = Flow.Context.material || g.context = Flow.Context.sop || g.context = Flow.Context.world then Some used else None);
+              detail = (if unused then "unused" else if g.context = Flow.Context.material
                         then Option.value ~default:"" (List.assoc_opt g.name p.notes) else detail) }
 
 let search state p chains counts =
@@ -242,17 +242,17 @@ let rows ?(wide = true) state p =
       then List.filter_map (fun group ->
         match List.assoc_opt group groups with
         | Some graphs -> Some (group, graphs)
-        | None -> if group = "Geometry" then Some (group, []) else None) group_order
+        | None -> if group = "Geometry" then Some (group, []) else None) (group_order ())
       else groups in
     (* the scene's first graph is the root row; its objects are its tree *)
-    let root_graph = List.find_opt (fun (g : W.graph) -> g.context = W.Scene) ws.graphs in
+    let root_graph = List.find_opt (fun (g : W.graph) -> g.context = Flow.Context.scene) ws.graphs in
     List.iter (fun (group, graphs) ->
       add (Head (group, match group with
         | "Scene" -> "v  r" | "Geometry" | "Materials" -> "used" | "Layout" -> "Space [" | _ -> ""));
       let graph_rows graphs = List.iter (fun (g : W.graph) ->
         let n = loops g.form in
         add (graph_row p g (match g.context with
-          | W.Sop -> plural (nodes g.form) "node" ^ (if n > 0 then " \xc2\xb7 " ^ plural n "loop" else "")
+          | context when context = Flow.Context.sop -> plural (nodes g.form) "node" ^ (if n > 0 then " \xc2\xb7 " ^ plural n "loop" else "")
           | _ -> if n > 0 then plural n "loop" else W.context_name g.context));
         active_tree g.name) graphs in
       if group = "Scene" then begin
@@ -328,21 +328,17 @@ let describe = function
 
 (* a graph's square wears a port colour of the kit: geometry for a SOP graph, record for a World *)
 let context_color theme context =
-  let ports = Pxui.Theme.ports theme in
-  match context with
-  | Some W.Sop | None -> ports.geometry
-  | Some Draw | Some Scene -> ports.vec3
-  | Some World | Some Material -> ports.record
-  | Some Settings -> ports.bool
-  | Some Editor -> ports.int
-  | Some Value -> ports.float
+  let context = Option.value ~default:Flow.Context.sop context in
+  Pxui_graph.Node_menu.color theme (Flow.Context.descriptor context).color
 
 let type_color theme (ty : Flow.Ty.t) =
   let ports = Pxui.Theme.ports theme in
   match ty with
-  | Geometry -> ports.geometry | Float -> ports.float | Int -> ports.int | Bool -> ports.bool
+  | Named _ -> Pxui_graph.Node_menu.color theme
+      (match Flow.Ty.color ty with `Output -> `Compound | color -> color)
+  | Float -> ports.float | Int -> ports.int | Bool -> ports.bool
   | Vec3 -> ports.vec3 | Text -> ports.text | Fn -> ports.fn | Record _ -> ports.record
-  | List _ | Array _ | Color | Any | Drawing | Scene | World | Settings | Panel | Editor | Material -> ports.compound
+  | List _ | Array _ | Color | Any -> ports.compound
 
 let height_of ~rh = function
   | Head _ -> rh +. 16.
@@ -435,8 +431,8 @@ let view state ui ~bounds:(x, y, w, h) p =
     (match Option.map (fun k -> rows.(k)) (row_at signal.press_point) with
      | Some (Root_row { graph; _ }) ->
          Ui.carry ui ~from:box ~kind:"scene" ~value:("(ref " ^ graph ^ ")") ()
-     | Some (Graph_row { graph; context = Some ((W.Material | W.Sop | W.Scene) as context); _ }) ->
-         Ui.carry ui ~from:box ~kind:(match context with W.Material -> "material" | W.Scene -> "scene" | _ -> "sop")
+     | Some (Graph_row { graph; context = Some context; _ }) ->
+         Ui.carry ui ~from:box ~kind:(Flow.Context.name context)
            ~value:("(ref " ^ graph ^ ")") ()
      | _ -> ());
   let put = match Ui.drop_target ui box with Some (Ui.Dropped _) -> true | _ -> false in

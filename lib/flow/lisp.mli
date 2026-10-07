@@ -18,3 +18,9 @@ val float : float -> string
 
 val flat : Syntax.t -> string
 (** One-line spelling of a form, for messages. *)
+
+val patch_atoms : string * spans -> Syntax.t list -> (string * spans) option
+(** Replace printed numeric, text and boolean literals by authored IDs and repair spans, retaining line
+    breaks during a scrub. Comments stay outside the replaced spans. Missing IDs,
+    overlapping or invalid spans, containers and metadata return [None]. Run
+    {!print} when the gesture ends to restore canonical line breaks. *)

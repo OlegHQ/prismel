@@ -116,6 +116,13 @@ val with_scope :
     [ui/switch]'s layouts: its rows read as them, the active wire is solid and accented, the
     others dashed grey, and a click on a row is [Set_layout] on the graph [key]. *)
 
+val with_display : path option -> t -> t
+(** Change the viewport flag without laying out the scope. *)
+
+val with_arguments : (path * Flow_graph.Flow_edit.arg_key * Flow.Syntax.t) list -> t -> t
+(** Update same-type literal rows in the existing placement, retaining wire routes,
+    hit indices, selection and the active pointer gesture. *)
+
 val with_records : Flow_graph.Probe.t -> t -> t
 (** What a recording evaluation saw ({!Flow_graph.Probe}): footers show the
     value at each node's probe, a sparkline across the innermost zone and the

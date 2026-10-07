@@ -106,6 +106,7 @@ let tokenize source =
   read 0 []
 
 let parse source =
+  Phase_timer.measure Parse (fun () ->
   let ( let* ) = Result.bind in
   let* tokens = tokenize source in
   let tokens = Array.of_list tokens in
@@ -195,10 +196,17 @@ let parse source =
              Ok (List.rev ({last with tail = last.tail @ leading} :: rest))
          | _ -> Ok (List.rev reversed))
     | _ -> let* item = form leading 0 in all (item :: reversed) in
-  all []
+  all [])
 
 let make ?(notes = []) ?(meta = []) node =
   {id = 0; node; span = {start = 0; finish = 0}; notes; meta; tail = []}
+
+let rec equal a b = a == b || (a.notes = b.notes && a.meta = b.meta && a.tail = b.tail
+  && match a.node, b.node with
+  | Sym a, Sym b | Kw a, Kw b | Num a, Num b | Str a, Str b -> String.equal a b
+  | List a, List b | Vec a, Vec b | Map a, Map b -> List.equal equal a b
+  | Quote (a, x), Quote (b, y) -> a = b && equal x y
+  | _ -> false)
 
 let head x = match x.node with List ({node = Sym h; _} :: _) -> Some h | _ -> None
 

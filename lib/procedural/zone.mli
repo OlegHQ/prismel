@@ -32,7 +32,7 @@ val element_node : element -> Node.t
     nodes fed by it hit the session cache while it is unchanged. *)
 
 val node :
-  ?label:string -> ?report:(element array -> unit) -> ?live:bool -> ?stamp:string -> kind:kind -> ?key:string ->
+  ?label:string -> ?report:(element array -> unit) -> ?live:bool -> ?stamp:string -> kind:kind -> ?key:string -> ?select:int ->
   source_attribute:string -> source_base:int ->
   body:(inputs:Node.t array -> context:Context.t -> element -> Node.t) -> inputs:Node.t array -> unit ->
   Node.t
@@ -41,4 +41,6 @@ val node :
     with it and [body] gets the frame context of the cook. [stamp] identifies an
     immutable frame-fold snapshot captured by [body], invalidating cached cooks
     when the snapshot changes. [body] gets the node's current inputs (a rebuilt node keeps its closures, so it
-    must not capture the [inputs] it was made with) and must be pure. *)
+    must not capture the [inputs] it was made with) and must be pure. [select]
+    expands only that element for a viewport preview, keeping its original source
+    tag. [report] still receives every element. An absent index yields empty geometry. *)

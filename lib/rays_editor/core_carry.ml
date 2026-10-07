@@ -66,8 +66,8 @@ let carry_payload value =
     (List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = name) ws.checked.graphs) in
   let payload kind name = Ok { Carry.kind; value = "(ref " ^ name ^ ")" } in
   let referenced name = match context name with
-    | Some Flow.Workspace.Material -> Some (payload "material" name)
-    | Some Sop -> Some (payload "sop" name)
+    | Some context when context = Flow.Context.material -> Some (payload "material" name)
+    | Some context when context = Flow.Context.sop -> Some (payload "sop" name)
     | _ -> None in
   let opened = Option.bind (graph_name value) (fun name -> referenced name) in
   match opened with
@@ -101,7 +101,7 @@ let carry_payload value =
                  | Some result -> result
                  | None ->
                      (match Option.bind (graph_name value) (fun name ->
-                        if context name = Some Flow.Workspace.Scene then Some (payload "scene" name) else None) with
+                        if context name = Some Flow.Context.scene then Some (payload "scene" name) else None) with
                       | Some result -> result
                       | None -> Error "Nothing to pick up · open a material, SOP or scene graph, or select a geometry or camera object"))))
 
@@ -204,4 +204,3 @@ let carry_step value ~text_focus (frame : Frame.t) =
           end
         end
       end
-

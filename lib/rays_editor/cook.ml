@@ -163,6 +163,7 @@ let force value = { value with force = true }
 let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
+  Flow.Phase_timer.measure Cook (fun () ->
   if List.exists (function Sketch_support.Timeline.Reset_now | Stopped_now -> true | _ -> false)
       timeline_changes then reset_state value;
   let input = Sketch_support.Live_frame.of_frame ~time:(Sketch_support.Timeline.time timeline)
@@ -259,11 +260,10 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
      volatile slot); one that is not upstream of the display is cooked too, and either may fail
      without failing the display *)
   let node_of (object_id, node_id) =
-    Option.bind (List.assoc_opt object_id graphs) (fun graph ->
-      match Graph.find graph ~node_id with
-      | Some node -> Some node
-      | None -> Option.bind (Document.Int_map.find_opt object_id compiled) (fun (_, c) ->
-          Result.to_option (Edit_graph.compiled_node c ~node_id))) in
+    match Option.bind (Document.Int_map.find_opt object_id compiled) (fun (_, c) ->
+        Result.to_option (Edit_graph.compiled_node c ~node_id)) with
+    | Some _ as node -> node
+    | None -> Option.bind (List.assoc_opt object_id graphs) (fun graph -> Graph.find graph ~node_id) in
   let probed = if not submit then [] else List.filter_map (fun key ->
     Option.map (fun node -> key, node) (node_of key)) (List.filteri (fun i _ -> i < 64) probes) in
   let summary (key, node) (output : Session.output) =
@@ -351,7 +351,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
       framing; force = force_next; compiled;
       value_lanes; applied; graphs; displayed;
       probing = (if submit then probes else value.probing); summaries = !summaries };
-    edit_error; prepared_changed; framed }
+    edit_error; prepared_changed; framed })
 
 let close value = Async_cook.close value.worker
 

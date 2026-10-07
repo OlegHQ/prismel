@@ -9,9 +9,17 @@ not select an alternate renderer through environment variables or public API.
 
 `flow` depends only on dependency-free `param` and `frame_input`. Its value graphs, expressions,
 contexts and coercions have no geometry, editor, UI, renderer or GPU
-dependencies; the dependency gate rejects those transitive edges. `flow_sop` depends
-only on `flow`, `param` and `procedural`; its typed overlay and
+dependencies; the dependency gate rejects those transitive edges.
+`flow_ir` consumes specialized Flow plans and residual captures. It depends
+only on `flow`, `param` and `rays_math`; its dataflow passes and packed/scalar
+executor cannot reach geometry, presentation, editor or GPU libraries.
+`flow` never depends on `flow_ir` and retains an independently callable
+reference tree walker. `flow_sop` depends
+only on `flow`, `flow_ir`, `param` and `procedural`; its typed overlay and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.
+Math-backed value declarations such as `noise3` live in `flow_ir` and are
+included in the SOP/editor host's immutable `Flow_sop.Operators.all` list.
+Plain Flow checking remains independent of the math library.
 
 `flow_graph` depends only on `flow` and `param`. It owns `Projection`,
 `Flow_edit`, `Exposure` and `Probe` for every domain. `pxui_graph` consumes

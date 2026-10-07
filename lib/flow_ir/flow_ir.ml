@@ -1,0 +1,389 @@
+module Operators = Operators
+module Packed = Packed
+module E = Flow.Eval
+module W = Flow.Workspace
+module V = Flow.Value
+module Ty = Flow.Ty
+
+type id = W.path * int list
+module Count = struct
+  type t = Static of int | Data of id | Unknown
+end
+type rate = Static | Frame | Event
+type precision = Exact | Approx
+type tier = Interp | Closure | Cpu_kernel | Cooked
+type source = Constant of E.value | Frame_field of string | Input of string | State_previous of E.residual
+type body = Operation of string | Vector | Field of string | List_value
+  | Record_value of string list | Struct_value of string * Ty.t * string list
+  | Reference of E.residual | Packed_map of Packed.t | Readback
+type kernel = { body : body; elementwise : bool; requires_exact : bool }
+type sink = Display of string | Export | Sop_input | State_seed | Cache_key
+type kind = Source of source | Kernel of kernel
+  | Opaque of string * Flow.Check.kernel_facts option | Sink of sink
+type edge = { name : string; node : int }
+type node = { id : id; ty : Ty.t; count : Count.t; rate : rate; precision : precision;
+  kind : kind; args : edge list; scope : int list; invariant : bool;
+  provenance : id list; tier : tier }
+type t = { nodes : node array; roots : int array; groups : int array array }
+
+let rate_join a b = match a, b with
+  | Event, _ | _, Event -> Event | Frame, _ | _, Frame -> Frame | _ -> Static
+let singleton_groups nodes = Array.init (Array.length nodes) (fun i -> [|i|])
+let graph nodes roots = {nodes; roots; groups = singleton_groups nodes}
+
+(* Indices are topological; refuse corrupt direct IR before any pass follows edges. *)
+let validate ir =
+  let n = Array.length ir.nodes in
+  Array.iteri (fun i node ->
+    List.iter (fun e -> if e.node < 0 || e.node >= i then
+      invalid_arg "Flow_ir: arguments must reference earlier nodes") node.args;
+    match node.count with Count.Static n when n < 0 ->
+      invalid_arg "Flow_ir: negative count" | _ -> ()) ir.nodes;
+  Array.iter (fun i -> if i < 0 || i >= n then invalid_arg "Flow_ir: invalid root") ir.roots
+
+let rec plain = function
+  | E.Fn _ | Residual _ | Deferred _ -> false
+  | List xs -> Array.for_all plain xs
+  | Record fs | Struct (_, _, fs) -> List.for_all (fun (_, v) -> plain v) fs
+  | _ -> true
+
+let share_key node =
+  let kind = match node.kind with
+    | Source (Constant v) when plain v -> Some ("constant", Marshal.to_string v [Marshal.No_sharing])
+    | Source (Frame_field name) -> Some ("frame", name)
+    | Kernel {body = Operation name; _} -> Some ("op", name)
+    | Kernel {body = Vector; _} -> Some ("vector", "")
+    | Kernel {body = Field field; _} -> Some ("field", field)
+    | Kernel {body = Readback; _} -> Some ("exact", "")
+    | Kernel {body = List_value; _} -> Some ("list", "")
+    | Kernel {body = Record_value fields; _} -> Some ("record", Marshal.to_string fields [])
+    | Kernel {body = Struct_value (name, ty, fields); _} ->
+        Some ("struct", Marshal.to_string (name, ty, fields) [])
+    | _ -> None in
+  Option.map (fun kind ->
+    let requirements = match node.kind with Kernel k -> k.elementwise, k.requires_exact | _ -> false, false in
+    Marshal.to_string (kind, requirements, node.ty, node.count, node.rate,
+      node.precision, node.scope, node.args) [Marshal.No_sharing]) kind
+
+let share ir =
+  validate ir;
+  let n = Array.length ir.nodes in
+  let remap = Array.make n 0 and kept = Array.copy ir.nodes and count = ref 0 in
+  let seen = Hashtbl.create n in
+  Array.iteri (fun i node ->
+    let node = {node with args = List.map (fun e -> {e with node = remap.(e.node)}) node.args} in
+    let key = share_key node in
+    match Option.bind key (Hashtbl.find_opt seen) with
+    | Some existing ->
+        remap.(i) <- existing;
+        let old = kept.(existing) in
+        kept.(existing) <- {old with provenance = List.sort_uniq compare (old.provenance @ node.provenance)}
+    | None ->
+        let index = !count in incr count; remap.(i) <- index; kept.(index) <- node;
+        Option.iter (fun key -> Hashtbl.add seen key index) key) ir.nodes;
+  graph (Array.sub kept 0 !count) (Array.map (Array.get remap) ir.roots)
+
+let hoist ir =
+  validate ir;
+  let nodes = Array.copy ir.nodes in
+  Array.iteri (fun i node ->
+    match node.kind with
+    | Kernel {body = (Reference _ | Packed_map _); _} | Source _ | Opaque _ | Sink _ -> ()
+    | Kernel _ when node.invariant && node.rate = Static
+        && List.for_all (fun e -> nodes.(e.node).rate = Static && nodes.(e.node).scope = []) node.args ->
+        nodes.(i) <- {node with scope = []}
+    | _ -> ()) ir.nodes;
+  {ir with nodes; groups = singleton_groups nodes}
+
+let prune ir =
+  validate ir;
+  let keep = Array.make (Array.length ir.nodes) false in
+  Array.iter (fun i -> keep.(i) <- true) ir.roots;
+  for i = Array.length ir.nodes - 1 downto 0 do
+    if keep.(i) then List.iter (fun e -> keep.(e.node) <- true) ir.nodes.(i).args
+  done;
+  let remap = Array.make (Array.length ir.nodes) (-1) and count = ref 0 in
+  Array.iteri (fun i live -> if live then (remap.(i) <- !count; incr count)) keep;
+  let nodes = Array.copy ir.nodes in
+  Array.iteri (fun i node -> if keep.(i) then
+    nodes.(remap.(i)) <- {node with args = List.map (fun e -> {e with node = remap.(e.node)}) node.args}) ir.nodes;
+  graph (Array.sub nodes 0 !count) (Array.map (Array.get remap) ir.roots)
+
+let fusible = function Kernel {elementwise = true; body = (Operation _ | Vector | Field _); _} -> true | _ -> false
+let same_count a b = match a, b with
+  | Count.Static a, Count.Static b -> a = b
+  | Count.Data a, Count.Data b -> a = b
+  | _ -> false
+let fuse ir =
+  validate ir;
+  let n = Array.length ir.nodes in
+  let uses = Array.make n 0 and owner = Array.init n Fun.id and barriers = Array.make n 0 in
+  Array.iter (fun i -> uses.(i) <- uses.(i) + 1) ir.roots;
+  let barrier = ref 0 in
+  Array.iteri (fun i node ->
+    (match node.kind with Sink _ | Opaque _ -> incr barrier | _ -> ());
+    barriers.(i) <- !barrier;
+    List.iter (fun e -> uses.(e.node) <- uses.(e.node) + 1) node.args) ir.nodes;
+  Array.iteri (fun i node -> if fusible node.kind then
+    List.iter (fun e ->
+      let before = ir.nodes.(e.node) in
+      if uses.(e.node) = 1 && fusible before.kind && same_count before.count node.count
+          && before.rate = node.rate && before.precision = node.precision
+          && before.scope = node.scope && barriers.(e.node) = barriers.(i)
+      then owner.(e.node) <- i) node.args) ir.nodes;
+  for i = n - 1 downto 0 do if owner.(i) <> i then owner.(i) <- owner.(owner.(i)) done;
+  let groups = Array.make n [] in
+  for i = n - 1 downto 0 do groups.(owner.(i)) <- i :: groups.(owner.(i)) done;
+  {ir with groups = Array.of_list (Array.fold_right (fun g acc ->
+    if g = [] then acc else Array.of_list g :: acc) groups [])}
+
+let place ir =
+  validate ir;
+  let nodes = Array.copy ir.nodes in
+  let exception Refused of Flow.Diagnostic.t in
+  try
+    Array.iteri (fun i node ->
+      let approximate = List.exists (fun e -> nodes.(e.node).precision = Approx) node.args in
+      let readback = match node.kind with Kernel {body = Readback; _} -> true | _ -> false in
+      let forbidden = match node.kind with
+        | Opaque _ | Sink (Export | Sop_input | State_seed | Cache_key) | Source (State_previous _) -> true
+        | Kernel k -> k.requires_exact && not readback
+        | _ -> false in
+      if approximate && forbidden then
+        raise (Refused (Flow.Diagnostic.error ~code:"E_APPROX_SINK"
+          "Approximate values require (exact x) before catalog calls, exports, state or cache keys."));
+      let precision = if readback then Exact else if approximate then Approx else node.precision in
+      let tier = match node.kind with
+        | Opaque _ -> Cooked
+        | Kernel {body = Packed_map _; _} ->
+            (match node.count with Count.Static n when n < 1024 -> Interp | _ -> Cpu_kernel)
+        | Kernel {body = Reference r; _} -> if E.Private.closure_available r then Closure else Interp
+        | Kernel _ -> Closure
+        | _ -> Interp in
+      nodes.(i) <- {node with precision; tier}) ir.nodes;
+    Ok {ir with nodes}
+  with Refused d -> Error d
+
+let optimize ir = Result.map fuse (place (prune (share (hoist ir))))
+
+module Residuals = Hashtbl.Make (struct
+  type t = E.residual
+  let equal a b = a == b
+  let hash = E.Private.residual_id
+end)
+type builder = {
+  mutable rev : node list;
+  mutable count : int;
+  mutable checks : int list;
+  slots : (int, node) Hashtbl.t;
+  deferred : (int, int) Hashtbl.t;
+  residuals : int Residuals.t;
+  live : W.Paths.t;
+  invariant : W.Paths.t;
+}
+let builder live invariant = {rev = []; count = 0; checks = []; slots = Hashtbl.create 64;
+  deferred = Hashtbl.create 64; residuals = Residuals.create 64; live; invariant}
+let authored (path, iter) = match path with
+  | namespace :: path when String.starts_with ~prefix:"@instance:" namespace -> path, iter
+  | _ -> path, iter
+let identity instance (path, iter) =
+  if instance < 0 then path, iter else ("@instance:" ^ string_of_int instance) :: path, iter
+let at_path (path, iter) replacement = match path with
+  | namespace :: _ when String.starts_with ~prefix:"@instance:" namespace -> namespace :: replacement, iter
+  | _ -> replacement, iter
+let add b id ty count kind args rate =
+  let i = b.count in b.count <- i + 1;
+  let rate = List.fold_left (fun r e -> rate_join r (Hashtbl.find b.slots e.node).rate) rate args in
+  let origin = authored id in
+  let rate = if W.Paths.mem (fst origin) b.live then rate_join Frame rate else rate in
+  let scope = match kind, rate with Source (Constant _), Static -> [] | _ -> snd id in
+  let n = {id; ty; count; kind; args; rate; precision = Exact; scope;
+    invariant = W.Paths.mem (fst origin) b.invariant; provenance = [origin]; tier = Interp} in
+  b.rev <- n :: b.rev; Hashtbl.add b.slots i n; i
+let kernel body = Kernel {body; elementwise = true; requires_exact = false}
+let child (path, iter) name = path @ [name], iter
+let value_count = function
+  | E.Float_array xs -> Count.Static (Array.length xs)
+  | Vec3_array xs -> Count.Static (Array.length xs / 3)
+  | List xs -> Count.Static (Array.length xs)
+  | _ -> Count.Static 1
+let term_count id (term : W.term) = match term.ty with
+  | Ty.Array _ | Ty.List _ -> Count.Data id | _ -> Count.Static 1
+let rec value_ty = function
+  | E.Residual r -> (E.Private.residual_view r).term.ty
+  | List xs -> Ty.List (Array.fold_left (fun ty v ->
+      Option.value ~default:Ty.Any (Ty.join ty (value_ty v))) Ty.Any xs)
+  | Record fs -> Ty.Record (List.map (fun (name, v) -> name, value_ty v) fs)
+  | v -> V.ty_of v
+
+let rec value b id = function
+  | E.Deferred (_, old) as v ->
+      (match Hashtbl.find_opt b.deferred old with Some i -> i
+       | None -> add b id (V.ty_of v) (Count.Static 1) (Source (Constant v)) [] Static)
+  | Residual r -> residual b r
+  | List xs ->
+      let args = Array.mapi (fun i v -> {name = string_of_int i; node = value b (child id (string_of_int i)) v}) xs |> Array.to_list in
+      add b id (value_ty (E.List xs)) (Count.Static (Array.length xs)) (kernel List_value) args Static
+  | Record fs -> fields b id (value_ty (E.Record fs)) (Record_value (List.map fst fs)) fs
+  | Struct (name, ty, fs) -> fields b id ty (Struct_value (name, ty, List.map fst fs)) fs
+  | v -> add b id (V.ty_of v) (value_count v) (Source (Constant v)) [] Static
+and fields b id ty body fs =
+  let args = List.mapi (fun i (name, v) -> {name; node = value b (child id (name ^ "#" ^ string_of_int i)) v}) fs in
+  add b id ty (Count.Static 1) (kernel body) args Static
+and residual b r =
+  match Residuals.find_opt b.residuals r with
+  | Some i -> i
+  | None ->
+      let view = E.Private.residual_view r in
+      let id = identity view.instance (view.site, view.iter) in
+      let make_reference () =
+        let kind = if view.previous then Source (State_previous r)
+          else Kernel {body = Reference r; elementwise = false; requires_exact = true} in
+        let rate = if E.frame_dependent (E.Residual r) || E.state_dependent (E.Residual r) then Frame else Static in
+        add b id view.term.ty (term_count id view.term) kind [] rate in
+      let index = if view.previous || E.state_dependent (E.Residual r) then make_reference () else
+        let exception Unsupported in
+        let saved_checks = b.checks in
+        let rec term env id (t : W.term) =
+          let id = match t.path with Some p -> at_path id p | None -> id in
+          let count = term_count id t in
+          let args args = List.mapi (fun i (name, t) -> {name;
+            node = term env (child id (name ^ "#" ^ string_of_int i)) t}) args in
+          match t.node with
+          | W.Lit (Param.Int_value n) -> value b id (E.Int n)
+          | Lit (Param.Float_value n) -> value b id (E.Float n)
+          | Lit (Param.Bool_value n) -> value b id (E.Bool n)
+          | Text text -> value b id (E.Text text)
+          | Nil -> value b id E.No_geo
+          | Time -> add b id Ty.Float count (Source (Frame_field "t")) [] Frame
+          | Ref_binding (name, fs) ->
+              let input = match List.assoc_opt name env with
+                | Some (`Index i) -> i
+                | Some (`Value v) -> value b (child id ("@capture:" ^ name)) v
+                | None -> raise Unsupported in
+              List.fold_left (fun i field ->
+                let ty = match (Hashtbl.find b.slots i).ty with
+                  | Ty.Vec3 -> Ty.Float
+                  | Ty.Record fields -> Option.value ~default:Ty.Any (List.assoc_opt field fields)
+                  | _ -> Ty.Any in
+                add b (child id field) ty (Count.Static 1)
+                  (kernel (Field field)) [{name = "value"; node = i}] Static) input fs
+          | Vec ts when List.length ts = 3 -> add b id t.ty count (kernel Vector)
+              (args (List.mapi (fun i t -> string_of_int i, t) ts)) Static
+          | Op {op; args = ts; _} ->
+              let op = match Flow.Op.find ~extra:(E.Private.residual_ops r) op Flow.Context.value with
+                | Some op when op.ctx = Flow.Context.value && op.shape = Flow.Op.Scalar
+                    && (op == Operators.noise3 || Option.fold ~none:false ~some:((==) op)
+                      (Flow.Op.find op.name Flow.Context.value)) -> op
+                | _ -> raise Unsupported in
+              let kind, rate = if op.live then Source (Frame_field op.name),
+                  (if op.name = "frame/events" || op.name = "frame/input" then Event else Frame)
+                else if op.name = "exact" then kernel Readback, Static
+                else kernel (Operation op.name), Static in
+              add b id t.ty count kind (args ts) rate
+          | Let (bindings, result) ->
+              let env = List.fold_left (fun env (pattern, t) -> match pattern with
+                | W.Name name ->
+                    let index = term env (child id name) t in
+                    (* Unused evaluation can still fail. Only literal constants are total. *)
+                    (match (Hashtbl.find b.slots index).kind with
+                     | Source (Constant _) -> () | _ -> b.checks <- index :: b.checks);
+                    (name, `Index index) :: env
+                | _ -> raise Unsupported) env bindings in
+              term env (child id "@result") result
+          | Get (record, field) -> add b id t.ty count (kernel (Field field))
+              [{name = "value"; node = term env (child id "value") record}] Static
+          | Hof (`Map, _) ->
+              (match Packed.compile r t with
+               | None -> raise Unsupported
+               | Some program ->
+                   let count = match Packed.static_count program with
+                     | Some n -> Count.Static n | None -> Count.Data id in
+                   add b id t.ty count (kernel (Packed_map program)) [] Frame)
+          | Expanded {body; _} | Bypass body -> term env id body
+          | _ -> raise Unsupported in
+        try term (List.map (fun (name, v) -> name, `Value v) view.bindings) id view.term
+        with Unsupported -> b.checks <- saved_checks; make_reference () in
+      Residuals.add b.residuals r index; index
+
+let finish b roots = graph (Array.of_list (List.rev b.rev))
+  (Array.append roots (Array.of_list (List.rev b.checks)))
+let of_evaluation ws catalog evaluation =
+  let b = builder ws.W.live ws.W.invariant in
+  let facts = Hashtbl.create (List.length catalog.Flow.Check.kinds) in
+  List.iter (fun (kind : Flow.Check.kind) ->
+    Hashtbl.replace facts kind.qualified kind.facts;
+    List.iter (fun alias -> Hashtbl.replace facts alias kind.facts) kind.aliases) catalog.kinds;
+  Array.iter (fun (n : E.node) ->
+    let id = identity n.inst (n.site, n.iter) in
+    let args = List.mapi (fun i (name, v) -> {name; node = value b (child id (name ^ "#" ^ string_of_int i)) v}) n.args in
+    let kind = if n.ty = Ty.drawing then Sink (Display n.kind)
+      else Opaque (n.kind, Option.join (Hashtbl.find_opt facts n.kind)) in
+    let index = add b id n.ty (Count.Data id) kind args Static in
+    Hashtbl.replace b.deferred n.id index) evaluation.E.plan.nodes;
+  let roots = List.mapi (fun i (name, v) -> value b ([name; "@result"; string_of_int i], []) v) evaluation.results in
+  let states = List.mapi (fun i v -> value b (["@state"; string_of_int i], []) v) evaluation.states in
+  finish b (Array.of_list (roots @ states))
+
+module Executor = struct
+  type program = { ir : t; value : E.value; dataflow : bool }
+  let compile v =
+    let b = builder W.Paths.empty W.Paths.empty in
+    let root = value b (["@value"], []) v in
+    Result.map (fun ir ->
+      let dataflow = Array.exists (function
+        | {kind = Kernel {body = Packed_map _; _}; tier = Cpu_kernel; _} -> true
+        | _ -> false) ir.nodes in
+      {ir; value = v; dataflow}) (optimize (finish b [|root|]))
+  let graph p = p.ir
+  let force ?state ?elems ?(reference = false) program ~live =
+    let state = Option.value ~default:(E.create_state ()) state in
+    let fallback () = E.Private.force_reference ~state ?elems program.value ~live in
+    if reference then fallback () else if not program.dataflow then E.force ~state ?elems program.value ~live else
+    match Frame_input.validate live with
+    | Error _ -> fallback ()
+    | Ok () ->
+        let exception Refused of Flow.Diagnostic.t in
+        let get = function Ok v -> v | Error d -> raise (Refused d) in
+        let run () =
+          let values = Array.make (Array.length program.ir.nodes) E.No_geo in
+          Array.iteri (fun i node ->
+            let args = List.map (fun e -> e.name, values.(e.node)) node.args in
+            let arg () = snd (List.hd args) in
+            let apply op = match Flow.Op.find ~extra:Operators.all op Flow.Context.value with
+              | Some op -> op.body ~live ~node:(fun _ _ -> V.fail "E_IR" "Scalar IR cannot create catalog nodes.") args
+              | None -> V.fail "E_IR" "Unknown scalar operator." in
+            values.(i) <- match node.kind with
+              | Source (Constant v) -> v
+              | Source (Frame_field "t") -> E.Float live.t
+              | Source (Frame_field name) -> apply name
+              | Source (State_previous r) -> get (E.Private.force_reference ~state ?elems (E.Residual r) ~live)
+              | Kernel {body = Reference r; _} ->
+                  get ((if node.tier = Closure then E.force else E.Private.force_reference)
+                    ~state ?elems (E.Residual r) ~live)
+              | Kernel {body = Operation name; _} -> apply name
+              | Kernel {body = Packed_map program; _} ->
+                  get ((if node.tier = Cpu_kernel then Packed.force else Packed.reference)
+                    ~state ?elems program ~live)
+              | Kernel {body = Readback; _} -> arg ()
+              | Kernel {body = Vector; _} ->
+                  (match List.map (fun (_, v) -> V.num v) args with
+                   | [x; y; z] -> E.Vec3 (x, y, z) | _ -> V.fail "E_IR" "Invalid vector.")
+              | Kernel {body = Field field; _} ->
+                  (match arg (), field with
+                   | E.Vec3 (x, _, _), "x" | Vec3 (_, x, _), "y" | Vec3 (_, _, x), "z" -> E.Float x
+                   | Record fields, name -> List.assoc name fields
+                   | _ -> V.fail "E_FIELD" "Invalid field.")
+              | Kernel {body = List_value; _} -> E.List (Array.of_list (List.map snd args))
+              | Kernel {body = Record_value fields; _} -> E.Record (List.map2 (fun name (_, v) -> name, v) fields args)
+              | Kernel {body = Struct_value (name, ty, fields); _} ->
+                  E.Struct (name, ty, List.map2 (fun name (_, v) -> name, v) fields args)
+              | Source (Input _) | Opaque _ | Sink _ -> V.fail "E_IR" "This cone needs its environment.") program.ir.nodes;
+          values.(program.ir.roots.(0)) in
+        let result = E.transaction state (fun () ->
+          try Ok (run ()) with
+          | V.Fail (code, message, span) -> Error (Flow.Diagnostic.error ?span ~code message)
+          | Refused d -> Error d
+          | Not_found | Invalid_argument _ -> Error (Flow.Diagnostic.error ~code:"E_IR" "Unsupported IR value.")) in
+        match result with Ok _ -> result | Error _ -> fallback ()
+end

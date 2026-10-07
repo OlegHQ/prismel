@@ -377,5 +377,5 @@ let network_of_world world =
       Ok (Some graph, Some (Node.id node))) (Ok (None, None)) layers in
   match graph, top with
   | Some graph, Some top ->
-      Ok (Document.of_geometry ~context:Flow.Context.World graph (Some top))
-  | _ -> Ok (Document.of_geometry ~context:Flow.Context.World Edit_graph.empty None)
+      Ok (Document.of_geometry ~context:Flow.Context.world graph (Some top))
+  | _ -> Ok (Document.of_geometry ~context:Flow.Context.world Edit_graph.empty None)

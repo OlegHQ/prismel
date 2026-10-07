@@ -19,7 +19,7 @@ type implementation = { run : 'f 'r. name:string -> node:(string -> (string * ('
   (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t }
 type validation = { validate : 'f 'r. (string * string list) list -> (string * ('f, 'r) Value.t) list -> unit }
 let max_iterations = 4096
-let mk ?(ctx = Context.Value) ?(opt = []) ?rest ?(kw = []) ?(any_num = false)
+let mk ?(ctx = Context.value) ?(opt = []) ?rest ?(kw = []) ?(any_num = false)
     ?(choices = []) ?(shape = Scalar) ?(check = { validate = fun _ _ -> () })
     ?(category = "Math") ?arithmetic name pos out (body : implementation) =
   { name; ctx; signature = {pos; opt; rest; kw}; out; any_num; choices; shape; live = false;
@@ -73,13 +73,13 @@ let switch_check args =
   | Some v -> concrete (fun v -> let a = num v in
       if a < 0. || a >= float n then range_error "The active layout is 0 to the layout count minus one.") v
   | None -> ()
-let structure ?(ctx = Context.Editor) ?opt ?rest ?kw ?choices ?check ?(splice = false) name pos out =
+let structure ?(ctx = Context.editor) ?opt ?rest ?kw ?choices ?check ?(splice = false) name pos out =
   (* Deferred SOP element lists have no cooked element type during evaluation. *)
-  let ty = if ctx = Context.Sop then Ty.List Ty.Any else out [] in
+  let ty = if ctx = Context.sop then Ty.List Ty.Any else out [] in
   mk ~ctx ?opt ?rest ?kw ?choices ?check ~shape:(Struct {splice}) name pos out
     {run = fun ~name ~node:_ args -> Value.Struct (name, ty, args)}
 let panel ?opt ?rest ?kw ?choices ?check ?splice name pos =
-  structure ?opt ?rest ?kw ?choices ?check ?splice name pos (fun _ -> Ty.Panel)
+  structure ?opt ?rest ?kw ?choices ?check ?splice name pos (fun _ -> Ty.panel)
 let leaf ?opt ?(kw = []) ?choices ?check name pos =
   panel ?opt ~kw:(kw @ ["focus", Ty.Bool]) ?choices ?check name pos
 let hsv h s v =
@@ -194,7 +194,7 @@ let arrays = [
 ]
 
 let draw_op ?rest ?kw name pos =
-  mk ~ctx:Draw ?rest ?kw ~category:"Drawing" name pos (fun _ -> Ty.Drawing)
+  mk ~ctx:Context.draw ?rest ?kw ~category:"Drawing" name pos (fun _ -> Ty.drawing)
     {run = fun ~name ~node args -> node name args}
 
 let draw = [
@@ -205,11 +205,14 @@ let draw = [
   draw_op ~kw:["fill", Ty.Color; "stroke", Ty.Color] "draw/rect" ["at", Ty.Vec3; "size", Ty.Vec3];
   draw_op ~kw:["fill", Ty.Color; "stroke", Ty.Color] "draw/circle" ["at", Ty.Vec3; "radius", Ty.Int];
   draw_op ~kw:["color", Ty.Color; "size", Ty.Int] "draw/text" ["at", Ty.Vec3; "text", Ty.Text];
-  draw_op "draw/translate" ["offset", Ty.Vec3; "drawing", Ty.Drawing];
-  draw_op ~rest:("drawing", Ty.Drawing) "draw/merge" [];
+  draw_op "draw/translate" ["offset", Ty.Vec3; "drawing", Ty.drawing];
+  draw_op ~rest:("drawing", Ty.drawing) "draw/merge" [];
 ]
 
 let all = frame @ arrays @ draw @ [
+  mk ~category:"Convert" "exact" ["value", Ty.Any]
+    (function ty :: _ -> ty | _ -> Ty.Any)
+    {run = fun ~name:_ ~node:_ args -> List.assoc "value" args};
   binary "+" (( +. ));
   binary "-" (( -. ));
   binary "*" (( *. ));
@@ -363,32 +366,32 @@ let all = frame @ arrays @ draw @ [
     | [ n; l ] -> let xs = list_arg l in
       let n = min (max 0 (int_of n)) (Array.length xs) in List (Array.sub xs n (Array.length xs - n))
     | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
-  mk ~ctx:Sop ~kw:[ "closed", Ty.Bool ] "sop/curve" [ "points", Ty.List Ty.Vec3 ] (fun _ -> Ty.Geometry) { run = fun ~name ~node args -> node name args };
-  structure ~ctx:Sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Vec3);
-  structure ~ctx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
-  structure ~splice:true ~ctx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
-  structure ~ctx:Material ~kw:["name", Ty.Text; "color", Ty.Color;
-    "roughness", Ty.Float; "emission", Ty.Color] "material/standard" [] (fun _ -> Ty.Material);
-  structure ~ctx:World "world/none" [] (fun _ -> Ty.World);
-  structure ~ctx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
-  leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.Scene ];
-  leaf "ui/canvas" ["drawing", Ty.Drawing];
+  mk ~ctx:Context.sop ~kw:[ "closed", Ty.Bool ] "sop/curve" [ "points", Ty.List Ty.Vec3 ] (fun _ -> Ty.geometry) { run = fun ~name ~node args -> node name args };
+  structure ~ctx:Context.sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.geometry ] (fun _ -> Ty.List Ty.Vec3);
+  structure ~ctx:Context.sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.geometry ] (fun _ -> Ty.List Ty.geometry);
+  structure ~splice:true ~ctx:Context.scene ~rest:("scene", Ty.scene) "scene/merge" [] (fun _ -> Ty.scene);
+  structure ~ctx:Context.material ~kw:["name", Ty.Text; "color", Ty.Color;
+    "roughness", Ty.Float; "emission", Ty.Color] "material/standard" [] (fun _ -> Ty.material);
+  structure ~ctx:Context.world "world/none" [] (fun _ -> Ty.world);
+  structure ~ctx:Context.editor "ui/workspace" [ "root", Ty.panel ] (fun _ -> Ty.editor);
+  leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.scene ];
+  leaf "ui/canvas" ["drawing", Ty.drawing];
   leaf ~choices:["wires", ["rect"; "straight"]; "view", ["graph"; "list"; "text"]]
     ~check:{ validate = fun choices args -> one_of args "view" "A graph panel's view" (List.assoc "view" choices) }
     ~opt:["graph", Ty.Text] ~kw:["wires", Ty.Text; "view", Ty.Text] "ui/graph" [];
-  leaf ~kw:[ "of", Ty.Panel ] "ui/inspector" [];
+  leaf ~kw:[ "of", Ty.panel ] "ui/inspector" [];
   leaf "ui/outline" [];
-  leaf ~kw:[ "of", Ty.Panel ] "ui/list" [];
+  leaf ~kw:[ "of", Ty.panel ] "ui/list" [];
   leaf ~choices:["tab", ["selection"; "graph"; "document"]]
     ~check:{ validate = fun choices args -> one_of args "tab" "A lisp panel's tab" (List.assoc "tab" choices) }
-    ~kw:[ "tab", Ty.Text; "of", Ty.Panel ] "ui/lisp" [];
+    ~kw:[ "tab", Ty.Text; "of", Ty.panel ] "ui/lisp" [];
   leaf "ui/timeline" [];
   panel ~choices:["axis", ["horizontal"; "vertical"]] ~check:{ validate = split_check } ~kw:[ "first_size", Ty.Int; "second_size", Ty.Int ] "ui/split"
-    [ "axis", Ty.Text; "first", Ty.Panel; "second", Ty.Panel ];
-  panel ~choices:["axis", ["horizontal"; "vertical"]] ~check:{ validate = split_at_check } "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.Panel; "second", Ty.Panel ];
-  panel ~splice:true ~check:{ validate = fun _ args -> tile_check args } ~rest:("panel", Ty.Panel) "ui/tile" [];
-  panel "ui/floating" [ "panel", Ty.Panel ];
-  panel ~check:{ validate = fun _ args -> switch_check args } ~rest:("panel", Ty.Panel) ~kw:["active", Ty.Int] "ui/switch" []
+    [ "axis", Ty.Text; "first", Ty.panel; "second", Ty.panel ];
+  panel ~choices:["axis", ["horizontal"; "vertical"]] ~check:{ validate = split_at_check } "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.panel; "second", Ty.panel ];
+  panel ~splice:true ~check:{ validate = fun _ args -> tile_check args } ~rest:("panel", Ty.panel) "ui/tile" [];
+  panel "ui/floating" [ "panel", Ty.panel ];
+  panel ~check:{ validate = fun _ args -> switch_check args } ~rest:("panel", Ty.panel) ~kw:["active", Ty.Int] "ui/switch" []
 ]
 
 let table =
@@ -396,13 +399,29 @@ let table =
   List.iter (fun o -> if Hashtbl.mem h o.name then invalid_arg ("Duplicate operator: " ^ o.name);
     Hashtbl.add h o.name o) all;
   h
-let find name ctx =
-  match Hashtbl.find_opt table name with
+let lookup extra name = match extra with
+  | [] -> Hashtbl.find_opt table name
+  | _ -> (match List.find_opt (fun op -> op.name = name) extra with
+      | Some _ as op -> op | None -> Hashtbl.find_opt table name)
+let find ?(extra = []) name ctx =
+  match lookup extra name with
   | Some _ as o -> o
-  | None -> (match Hashtbl.find_opt table ("value/" ^ name) with
+  | None -> (match lookup extra ("value/" ^ name) with
       | Some _ as o -> o
-      | None -> Hashtbl.find_opt table (Context.name ctx ^ "/" ^ name))
-let of_context ctx =
-  (if ctx = Context.Value then [] else List.filter (fun o -> o.ctx = ctx) all)
-  @ List.filter (fun o -> o.ctx = Context.Value) all
+      | None -> lookup extra (Context.name ctx ^ "/" ^ name))
+let of_context ?(extra = []) ctx =
+  let all = all @ extra in
+  (if ctx = Context.value then [] else List.filter (fun o -> o.ctx = ctx) all)
+  @ List.filter (fun o -> o.ctx = Context.value) all
 let arith name = Option.bind (Hashtbl.find_opt table name) (fun o -> o.arithmetic)
+
+let validate extra =
+  let seen = Hashtbl.create 16 in
+  List.find_map (fun op ->
+    let valid = match String.split_on_char '/' op.name with
+      | [name] -> Symbol.valid_name name && not (Symbol.reserved name)
+      | [prefix; name] -> Symbol.valid_name prefix && Symbol.valid_name name
+      | _ -> false in
+    if not valid || Hashtbl.mem table op.name || Hashtbl.mem seen op.name then
+      Some (Diagnostic.error ~code:"E_OP_DECLARATION" ("Invalid or duplicate extra operator " ^ op.name))
+    else (Hashtbl.add seen op.name (); None)) extra

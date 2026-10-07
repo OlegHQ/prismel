@@ -35,6 +35,7 @@ let node_key_attribute = type_expression_attribute "sop.node_key"
 let node_operation_attribute = type_expression_attribute "sop.node_operation"
 let node_label_attribute = type_expression_attribute "sop.node_label"
 let node_category_attribute = type_expression_attribute "sop.node_category"
+let node_facts_attribute = type_expression_attribute "sop.node_facts"
 let node_inputs_attribute = type_expression_attribute "sop.node_inputs"
 let node_optional_attribute = type_expression_attribute "sop.node_optional"
 let node_rest_attribute = type_expression_attribute "sop.node_rest"
@@ -408,7 +409,7 @@ let node_metadata declaration =
    constructed node, evaluating the operator once per build.
    Optional slots rebuild from the physical input list using the presence
    captured when the node was built, so sparse connections keep their slot. *)
-let build_expression ~loc ~validate ~rest type_name label inputs optional =
+let build_expression ~loc ~validate ~facts ~rest type_name label inputs optional =
   let var name = evar ~loc name and pvar name = ppat_var ~loc { loc; txt = name } in
   let slot index = Printf.sprintf "input%d" index in
   let slots = List.init inputs Fun.id in
@@ -427,6 +428,24 @@ let build_expression ~loc ~validate ~rest type_name label inputs optional =
     | None -> operator_call
     | Some validate -> pexp_sequence ~loc
         (apply ~loc validate [Nolabel, var "parameters"]) operator_call in
+  let operator_call = match facts with
+    | None -> operator_call
+    | Some expression ->
+        let fields = match expression.pexp_desc with
+          | Pexp_record (fields, None) -> fields
+          | _ -> Location.raise_errorf ~loc:expression.pexp_loc
+              "sop.node_facts expects {elementwise; reads; writes; topology; exact}" in
+        let names = List.map (fun (name, _) -> match name.txt with
+          | Longident.Lident name | Ldot (_, name) -> name | Lapply _ -> "") fields in
+        if List.sort String.compare names <> ["elementwise"; "exact"; "reads"; "topology"; "writes"] then
+          Location.raise_errorf ~loc:expression.pexp_loc
+            "sop.node_facts requires elementwise, reads, writes, topology and exact exactly once";
+        let facts = pexp_record ~loc fields (Some (apply ~loc
+          (ident ~loc ["Procedural"; "Node"; "facts"]) [Nolabel, var "node"])) in
+        pexp_let ~loc Nonrecursive
+          [Ast_builder.Default.value_binding ~loc ~pat:(pvar "node") ~expr:operator_call]
+          (apply ~loc (ident ~loc ["Procedural"; "Node"; "Private"; "with_facts"])
+            [Nolabel, facts; Nolabel, var "node"]) in
   let parameterize dynamic_schema rebuild =
     let node = if dynamic_schema then var "node" else operator_call in
     let schema = if dynamic_schema then apply ~loc (var "schema")
@@ -730,7 +749,8 @@ let generate_node_type declaration =
      (pexp_fun ~loc Nolabel None
        (ppat_var ~loc { loc; txt = "build" }) factory);
    value_binding ~loc (declaration.ptype_name.txt ^ "_build")
-    (build_expression ~loc ~validate:(Attribute.get record_validate_attribute declaration) ~rest
+    (build_expression ~loc ~validate:(Attribute.get record_validate_attribute declaration)
+       ~facts:(Attribute.get node_facts_attribute declaration) ~rest
        declaration.ptype_name.txt label inputs optional)]
   @ typed
 
@@ -766,7 +786,7 @@ let attributes = List.map (fun attribute -> Attribute.T attribute)
   @ [Attribute.T ignore_attribute; Attribute.T primary_attribute]
 
 let node_attributes = List.map (fun attribute -> Attribute.T attribute)
-    [node_key_attribute; node_operation_attribute; node_label_attribute;
+    [node_key_attribute; node_operation_attribute; node_label_attribute; node_category_attribute; node_facts_attribute;
      node_inputs_attribute; node_optional_attribute; node_slots_attribute; node_rest_attribute]
   @ List.map (fun attribute -> Attribute.T attribute)
     [nonblank_attribute; validate_attribute; hard_min_attribute;

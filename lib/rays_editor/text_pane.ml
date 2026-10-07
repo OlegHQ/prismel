@@ -18,6 +18,9 @@ type shown = {
   key : path;  (* what the Selection tab shows: the selected binding's path, else [graph] *)
   applied : string Lazy.t;  (* the whole document's text, for the draft's dirty mark *)
   body : (S.t * (int * Flow.Diagnostic.span) list) option;  (* the graph's body and the spans of [text], for the caret *)
+  source : S.t list;
+  spans : Flow.Lisp.spans;
+  applied_spans : Flow.Lisp.spans Lazy.t;
 }
 
 type state = {
@@ -35,12 +38,13 @@ type state = {
   parinfer : bool;  (* closing brackets follow indentation (Lisp_text.parinfer_text) *)
   menu : (float * float) option;  (* the right-click menu, while open *)
   picker : (int * int * bool) option;  (* the colour literal (byte range with its quotes) being edited, and whether it changed *)
+  scrubbing : bool;
   cache : ((S.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
   doc_base = None; binding_base = None; graph_base = None;
-  doc_errors = []; binding_errors = []; graph_errors = []; wrap = false; parinfer = true; menu = None; picker = None; cache = None }
+  doc_errors = []; binding_errors = []; graph_errors = []; wrap = false; parinfer = true; menu = None; picker = None; scrubbing = false; cache = None }
 
 (* ---- reading the source ---- *)
 
@@ -65,7 +69,7 @@ let scope (e : S.t) = match e.node with
 (* the scope inside a binding's value: itself, or a loop's body *)
 let enter (v : S.t) = match scope v, S.head v with
   | Some _, _ -> v
-  | None, Some ("for" | "fold" | "scan" | "sum") -> Option.value ~default:v (last v)
+  | None, Some ("for" | "fold" | "scan" | "sum" | "state") -> Option.value ~default:v (last v)
   | None, _ -> v
 
 (* the binding a path names (pattern and expression) below a graph's body *)
@@ -272,14 +276,19 @@ let graph_op source ~graph ?selection text =
   | Ok _, Some _ -> error "Expected the shown (let* [...] name) closure, or the graph form."
   | Ok _, None -> error "Expected the one graph form"
 
-let make_shown source graph selected tab =
-  let applied = lazy (fst (Flow.Lisp.print source)) in
+let make_shown_with ?workspace source graph selected tab =
+  let printed = lazy (match workspace with None -> Flow.Lisp.print source
+    | Some workspace -> Editor_document.Workspace_doc.print workspace) in
+  let applied = lazy (fst (Lazy.force printed))
+  and applied_spans = lazy (snd (Lazy.force printed)) in
   let key = match selected with Some path -> path | None -> [ graph ] in
   match tab with
-  | Document -> { graph; text = Lazy.force applied; mark = None; key; applied; body = None }
+  | Document -> { graph; text = Lazy.force applied; mark = None; key; applied; body = None;
+      source; spans = Lazy.force applied_spans; applied_spans }
   | Selection | Graph ->
       (match root_form source graph with
-       | None -> { graph; text = ""; mark = None; key; applied; body = None }
+       | None -> { graph; text = ""; mark = None; key; applied; body = None;
+           source; spans = []; applied_spans }
        | Some root ->
            let names = match selected with Some (_ :: names) -> names | _ -> [] in
            let found = Option.bind (last root) (fun body -> find_binding body names) in
@@ -288,7 +297,50 @@ let make_shown source graph selected tab =
              | _ -> root in
            let text, spans = Flow.Lisp.print [ form ] in
            { graph; text; mark = mark spans found; key; applied;
-             body = (if tab = Graph then Option.map (fun body -> body, spans) (last root) else None) })
+             body = (if tab = Graph then Option.map (fun body -> body, spans) (last root) else None);
+             source; spans; applied_spans })
+
+let make_shown source graph selected tab = make_shown_with source graph selected tab
+
+let patched_shown previous workspace shown =
+  let module Doc = Editor_document.Workspace_doc in
+  if previous.Doc.layout != workspace.Doc.layout || previous.settings != workspace.settings
+    || previous.extra != workspace.extra then None else
+  Option.bind (Doc.literal_changes ~previous workspace) (fun changes ->
+    let rec atoms (old : S.t) (next : S.t) =
+      if S.equal old next then Some [] else
+      if old.id <> next.id || old.notes <> next.notes || old.meta <> next.meta || old.tail <> next.tail then None else
+      match old.node, next.node with
+      | Num _, Num _ | Str _, Str _ | Sym _, Sym _ -> Some [next]
+      | Vec old, Vec next when List.length old = List.length next ->
+          List.fold_left (fun result (old,next) -> Option.bind result (fun values ->
+            Option.map (fun more -> List.rev_append more values) (atoms old next)))
+            (Some []) (List.combine old next)
+      | _ -> None in
+    let values = List.fold_left (fun result (change : Editor_document.Literal_edit.change) ->
+      Option.bind result (fun values ->
+        Option.bind (Flow_graph.Flow_edit.arg_text previous.source change.path (Kw change.field)) (fun old ->
+          Option.map (fun more -> List.rev_append more values) (atoms old change.expr)))) (Some []) changes in
+    Option.bind values (fun values ->
+      (* Another graph may have changed; only forms printed in this tab are patched. *)
+      let present spans = let ids = Hashtbl.create (List.length spans) in
+        List.iter (fun (id, _) -> Hashtbl.replace ids id ()) spans;
+        List.filter (fun (f : S.t) -> Hashtbl.mem ids f.id) values in
+      Option.bind (Flow.Lisp.patch_atoms (shown.text, shown.spans) (present shown.spans)) (fun (text, spans) ->
+      let applied_spans = Lazy.force shown.applied_spans in
+      Option.map (fun (applied, applied_spans) ->
+        let body = Option.bind (root_form workspace.source shown.graph) last in
+        {shown with source = workspace.source; text; spans; applied = lazy applied;
+          applied_spans = lazy applied_spans;
+          body = (match shown.body, body with Some _, Some body -> Some (body, spans) | _ -> None);
+          mark = Option.map (fun (a,b) ->
+            (* Selection marks are form boundaries in the repaired span map. *)
+            let boundary old = List.find_map (fun (id, (span : Flow.Diagnostic.span)) ->
+              if span.start = old then Option.map (fun s -> s.Flow.Diagnostic.start) (List.assoc_opt id spans)
+              else if span.finish = old then Option.map (fun s -> s.Flow.Diagnostic.finish) (List.assoc_opt id spans)
+              else None) shown.spans in
+            Option.value ~default:a (boundary a), Option.value ~default:b (boundary b)) shown.mark})
+        (Flow.Lisp.patch_atoms (Lazy.force shown.applied, applied_spans) (present applied_spans)))))
 
 (* [shown] recomputed only when the source, the graph, the selection or the
    tab changed *)
@@ -300,14 +352,58 @@ let shown ?workspace state ~(source : S.t list) ~graph ~selected =
       && g = graph && p = selected && t = state.tab ->
       state, shown
   | _ ->
-      let shown = make_shown source graph selected state.tab in
-      let shown = match workspace with
-        | None -> shown
-        | Some workspace ->
-            let applied = lazy (Editor_document.Workspace_doc.to_text workspace) in
-            { shown with applied;
-              text = if state.tab = Document then Lazy.force applied else shown.text } in
+      let patched = match state.cache, workspace with
+        | Some ((_, Some previous, g, p, t), shown), Some workspace
+          when state.scrubbing && g = graph && p = selected && t = state.tab ->
+            patched_shown previous workspace shown
+        | _ -> None in
+      let shown = match patched with Some shown -> shown
+        | None -> make_shown_with ?workspace source graph selected state.tab in
       { state with cache = Some (key, shown) }, shown
+
+(* The printer's token ID names the source form. Prefer the innermost card,
+   then address its argument's child; no text is parsed or searched. *)
+let scrub_op (shown : shown) (start, finish) replacement =
+  let module F = Flow_graph.Flow_edit in
+  let id = List.find_map (fun (id, (span : Flow.Diagnostic.span)) ->
+    if id <> 0 && span.start = start && span.finish = finish then Some id else None) shown.spans in
+  Option.bind id (fun id ->
+  if not (S.number replacement) then None else
+  let value = S.make (S.Num replacement) in
+  let rec sub path (form : S.t) =
+    if form.id = id then match form.node with Num _ -> Some (List.rev path) | _ -> None
+    else List.find_map Fun.id (List.mapi (fun i child -> sub (i :: path) child) (S.children form)) in
+  let rec within path form = match scope form with
+    | Some (bindings, result) ->
+        (match List.find_map (fun (pattern, expr) -> card (path @ [F.pat_key pattern]) expr) bindings with
+         | Some _ as found -> found | None -> card (path @ ["@result"]) result)
+    | None -> card (path @ ["@result"]) form
+  and card path (form : S.t) =
+    let inner = if scope form <> None || List.mem (Option.value ~default:"" (S.head form)) ["for";"fold";"scan";"sum";"state"]
+      then within path (enter form) else None in
+    match inner with Some _ as found -> found | None ->
+    let nested = List.find_map (fun (key, expr) ->
+      let reverse = List.rev path in
+      card (List.rev (F.nested_leaf (List.hd reverse) key :: List.tl reverse)) expr) (F.nested_nodes form) in
+    match nested with Some _ as found -> found | None ->
+    let args = match form.node with
+      | List (_ :: args) ->
+          let rec keys position = function
+            | {S.node = Kw name; _} :: expr :: rest -> (F.Kw name, expr) :: keys position rest
+            | expr :: rest -> (F.Pos position, expr) :: keys (position + 1) rest | [] -> [] in
+          keys 0 args
+      | Map fields -> List.map (fun (key, expr) ->
+          F.Field (match key.S.node with Kw name -> name | _ -> ""), expr) (pairs fields)
+      | _ -> [F.Whole, form] in
+    List.find_map (fun (key, expr) -> if F.node_call expr then None else
+      Option.map (fun sub -> F.Set_arg {node = path; key; sub; value}) (sub [] expr)) args in
+  match shown.source with
+  | {S.node = List (_ :: _ :: roots); _} :: _ ->
+      List.find_map (fun (root : S.t) -> match root.node with
+        | List ({node = Sym ("graph" | "defn" as h); _} :: {node = Sym name; _} :: _) ->
+            Option.bind (last root) (within [if h = "defn" then "def:" ^ name else name])
+        | _ -> None) roots
+  | _ -> None)
 
 (* ---- a draft against a document that changed under it ---- *)
 
@@ -448,6 +544,8 @@ type intent =
   | Doc_scrub of string * bool
   | Graph_scrub of string * string * bool
   | Binding_scrub of path * string * bool
+  | Literal_scrub of { source : S.t list; op : Flow_graph.Flow_edit.op;
+      position : Flow.Diagnostic.position; fallback : intent }
   | Toggle_parinfer
   | Picker of (int * int * bool) option
   | Open_graph of string
@@ -543,7 +641,7 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
       ~apply ~discard ~can_apply ~message ~draft ~scrub () =
     let chips = Lisp_text.color_chips text in
     (* a dragged number applies live ([scrub], merged into one history entry); typing is a draft *)
-    let phase = ref None and caret = ref None in
+    let phase = ref None and caret = ref None and token = ref None in
     let text', submitted = Ui.text_area_submit ui ~at:(x, ey) ~w:width ~h:(Float.max row (eh -. footer))
         ~wrap:state.wrap ~errors:(List.filter_map (line_of text) errors)
         ~messages:(List.filter_map (fun (d : Flow.Diagnostic.t) ->
@@ -552,6 +650,7 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
             d.code ^ "  " ^ String.map (function '\n' -> ' ' | c -> c) d.message) (line_of text d)) errors)
         ~spans ?reveal ~language
         ~on_context:(fun at -> emit (Menu (Some at))) ~on_scrub:(fun p -> phase := Some p)
+        ~on_scrub_edit:(fun range replacement -> token := Some (range, replacement))
         ~chips
         ~on_drop:(fun byte drop -> emit (Carry_over (byte, (match drop with Ui.Dropped _ -> true | Hover _ -> false))))
         (* Command-click follows a (ref name); a click on a colour literal opens the colour control *)
@@ -569,7 +668,15 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
           | _ -> ())
         key text in
     (match !phase with
-     | Some `Live -> emit (scrub text' false)
+     | Some `Live ->
+         let fallback = scrub text' false in
+         let literal = Option.bind !token (fun ((start, finish) as range, replacement) ->
+           if text <> shown.text || start < 0 || finish > String.length text
+             || text' <> String.sub text 0 start ^ replacement
+                 ^ String.sub text finish (String.length text - finish) then None
+           else Option.map (fun op -> op, Flow.Diagnostic.position_of_offset text start) (scrub_op shown range replacement)) in
+         emit (match literal with Some (op, position) -> Literal_scrub {source = shown.source; op; position; fallback}
+           | None -> fallback)
      | Some `Done -> emit (scrub text' true)
      | None -> if text' <> text then emit (draft text'));
     (* the colour control: each edit applies live as one merged history entry, sealed on close *)

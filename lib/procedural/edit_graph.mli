@@ -28,7 +28,7 @@ type node_info = {
   operation : string;
   version : int;
   parameters : string;
-  cook_mode : Node.cook_mode;
+  facts : Node.facts;
   dependencies : Context.Dependencies.t;
   inputs : int option array;
   has_parameters : bool;
@@ -120,6 +120,9 @@ val factory_operation : factory -> string
 val factory_label : factory -> string
 val factory_category : factory -> string list
 val factory_fields : factory -> Parameter.field_view list
+val factory_facts : factory -> Node.facts
+(** Declaration at default parameters, computed once without cooking. Instance
+    facts are rebuilt with the node's parameters and may select other names. *)
 val factory_arity : factory -> int
 val factory_inputs : factory -> input_requirement list
 

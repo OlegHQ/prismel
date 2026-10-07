@@ -1,6 +1,6 @@
 (executable
  (name codemod)
- (modules codemod metal_registry result_bind)
+ (modules codemod metal_registry result_bind open_domains)
  (libraries compiler-libs.common str))
 
 (rule
@@ -14,3 +14,7 @@
 (rule
  (alias runtest)
  (action (run %{exe:codemod.exe} rename --self-test)))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:codemod.exe} open-domains --self-test)))

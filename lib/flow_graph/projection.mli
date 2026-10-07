@@ -125,6 +125,10 @@ val of_graph : Flow.Check.catalog -> Flow.Workspace.t -> string -> scope
 (** The root scope of a graph or, for ["def:name"] or a [defn] name, of a
     definition.  Raises [Invalid_argument] when there is none. *)
 
+val same_graph : Flow.Workspace.t -> Flow.Workspace.t -> string -> bool
+(** Whether the graph's authored content, checked types, live/invariant paths
+    and macro environment still describe the same projection. *)
+
 val anonymous : node -> bool
 (** A nested node: a call written in an input, with no binding. *)
 
@@ -134,6 +138,10 @@ val title : node -> string
 val sources : row -> string list
 (** The names a row is wired from: the nested node written in it, else every name its
     expression reads. *)
+
+val with_arguments : (path * Flow_edit.arg_key * Flow.Syntax.t) list -> scope -> scope
+(** Patch existing same-type literal rows. Node identities, port types, liveness,
+    row order and layout stay unchanged; structural edits use [of_graph]. *)
 
 val bypassable : node -> bool
 (** A call whose first input fits its result, or one already bypassed: it can carry the

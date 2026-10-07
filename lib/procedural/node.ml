@@ -6,6 +6,20 @@ type cook_mode =
   | Passthrough of int
   | Generic
 
+type elementwise = Points | Primitives | None
+type topology = Preserved | Changed
+type facts = {
+  cook_mode : cook_mode;
+  elementwise : elementwise;
+  reads : string list;
+  writes : string list;
+  topology : topology;
+  exact : bool;
+}
+
+let conservative cook_mode = {cook_mode; elementwise = None; reads = ["*"];
+  writes = ["*"]; topology = Changed; exact = true}
+
 module Private_types = struct
   type input_policy = All | Only of int
   type cooked = {
@@ -23,7 +37,8 @@ type t = {
   version : int;
   parameters : string;
   parameter_key : string;
-  cook_mode : cook_mode;
+  facts : facts;
+  facts_key : string;
   dependencies : Context.Dependencies.t;
   input_policy : Private_types.input_policy;
   inputs : t array;
@@ -48,7 +63,8 @@ let operation value = value.operation
 let version value = value.version
 let parameters value = value.parameters
 let parameter_key value = value.parameter_key
-let cook_mode value = value.cook_mode
+let facts value = value.facts
+let cook_mode value = value.facts.cook_mode
 let dependencies value = value.dependencies
 let inputs value = Array.to_list value.inputs
 let trace value = Diagnostic.{ node_id = value.id; label = value.label;
@@ -123,13 +139,23 @@ module Private = struct
      | All -> ()
      | Only index when index >= 0 && index < Array.length inputs -> ()
      | Only _ -> invalid_arg "Node.make: selected input is out of bounds");
+    let facts = conservative cook_mode in
     { id = fresh_id (); label; operation; version; parameters;
-      parameter_key = ""; cook_mode;
+      parameter_key = ""; facts; facts_key = Marshal.to_string facts [Marshal.No_sharing];
       dependencies; input_policy; inputs; cook; expand; parameterization = None }
 
   let cache_parameters value = match value.parameterization with
     | None -> value.parameters
     | Some (Parameters parameters) -> parameters.cache_parameters
+
+  let cache_facts value = value.facts_key
+
+  let with_facts facts value =
+    if facts.cook_mode <> value.facts.cook_mode then
+      invalid_arg "Node.with_facts: cook mode cannot change";
+    if List.exists (fun name -> String.trim name = "") (facts.reads @ facts.writes) then
+      invalid_arg "Node.with_facts: component names must not be blank";
+    {value with facts; facts_key = Marshal.to_string facts [Marshal.No_sharing]}
 
   let input_policy value = value.input_policy
   let input_array value = Array.copy value.inputs

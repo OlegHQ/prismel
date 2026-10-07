@@ -22,6 +22,8 @@ type notice_kind = Info | Refusal
 
 type projection = Graph_view | List_view | Text_view
 
+type preview = { path : Flow.Workspace.path; chain : Flow.Workspace.path list }
+
 (* What the workspace pane was last laid out from: the document, the probes and
    the graph, the recording evaluation of the checked source, and what its
    footers read (the cook's geometry counts, the time of a live document). *)
@@ -211,8 +213,12 @@ type 'prepared t = {
   menu : Pxui_graph.Node_menu.t option;  (* the node menu, while it is open *)
   scope_view : Pxui_graph.Scope.t;  (* the workspace document's graph pane *)
   probes : int Layout_by_path.Path_map.t;  (* the iteration each zone shows: view state, not history *)
+  previews : preview Document.Int_map.t;  (* viewport requests, outside the document and history *)
+  viewed : (Flow_sop.Network.t * int) Document.Int_map.t;
+  view_key : (Flow_sop.Lower.t * int Layout_by_path.Path_map.t * preview Document.Int_map.t) option;
   lit : lit_cache option;  (* the highlight of the selected node at the probes, see {!lit_tags} *)
   scope_key : scope_key option;
+  edit_phases : Flow.Phase_timer.t;
   select_later : Flow.Workspace.path list;  (* nodes to select once the pane shows their graph *)
   pane_graph : string option;  (* a scene, world or settings graph the pane shows instead of the level's own *)
   back : (Document.level * string option) list;  (* where [u] returns to: level and pane graph, latest first *)

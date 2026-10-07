@@ -13,16 +13,23 @@ let descriptor factory = {
   slots = List.combine (Edit.factory_slot_names factory) (Edit.factory_inputs factory);
   fields = Edit.factory_fields factory }
 
-let context_of qualified = List.find_map (fun context ->
-  if String.starts_with ~prefix:(Flow.Context.name context ^ "/") qualified
-  then Some context else None) Flow.Context.[Sop; Scene; World; Settings]
+let context_of = Flow.Context.of_qualified
 
 let of_factories ~version ?(extra = []) factories =
+  let declarations = Hashtbl.create (List.length factories) in
+  List.iter (fun factory ->
+    let facts = Edit.factory_facts factory in
+    Hashtbl.replace declarations ("sop/" ^ Edit.factory_key factory) Flow.Check.{
+      elementwise = (match facts.elementwise with Points -> Points | Primitives -> Primitives | None -> Irregular);
+      reads = facts.reads; writes = facts.writes;
+      preserves_topology = (facts.topology = Procedural.Node.Preserved); exact = facts.exact}) factories;
   let seen = Hashtbl.create 64 in
   let rec build reversed = function
     | [] -> Ok Flow.Check.{version; kinds = List.rev reversed}
     | (entry : descriptor) :: rest ->
-        if Hashtbl.mem seen entry.qualified then Error (Flow.Diagnostic.error
+        if context_of entry.qualified = None then Error (Flow.Diagnostic.error
+          ~code:"E_CATALOG" ("Unknown context prefix in " ^ entry.qualified))
+        else if Hashtbl.mem seen entry.qualified then Error (Flow.Diagnostic.error
           ~code:"E_CATALOG" ("Duplicate kind " ^ entry.qualified))
         else begin
           let slots = List.map (fun (name, requirement) ->
@@ -41,9 +48,10 @@ let of_factories ~version ?(extra = []) factories =
                 primary = (match port.Port.fields with (f : Param.field_view) :: _ -> f.primary | [] -> false);
                 unit = (match port.Port.fields with [(f : Param.field_view)] -> f.unit | _ -> None)}) ports in
             let context = Option.get (context_of entry.qualified) in
-            let outputs = if context = Flow.Context.Sop
+            let outputs = if context = Flow.Context.sop
               then ["geo", Flow.Port_type.Geometry] else [] in
             build (Flow.Check.{qualified = entry.qualified; aliases = [];
-              context; slots; parameters; outputs} :: reversed) rest)
+              context; slots; parameters; outputs;
+              facts = Hashtbl.find_opt declarations entry.qualified} :: reversed) rest)
         end in
   build [] (List.map descriptor factories @ extra)

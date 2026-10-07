@@ -150,7 +150,7 @@ let part_editor () =
   check (E3.undo_label e = None) "no edit yet";
   (* one gesture is one history entry, named by the op *)
   let scrub v = E.Set_arg { node = [ "g"; "a" ]; key = Kw "radius"; sub = []; value = S.make (S.Num v) } in
-  let e = E3.edit e (scrub "0.6") |> Result.get_ok in
+  let e = match E3.edit e (scrub "0.6") with Ok e -> e | Error m -> fail m in
   let e = E3.edit e (scrub "0.7") |> Result.get_ok in
   check (E3.undo_label e = Some "Edit value") "scrub label";
   check (has (Doc.to_text (E3.workspace e)) ":radius 0.7") "scrub rewrote the source";
@@ -426,4 +426,276 @@ let part_editor_contexts () =
     && (Option.get (Editor_document.Objects.geometry i.node)).scale_x = 1.) (Procedural.Edit_graph.inspect (E3.document e')))
     "the scene edit reached the object"
 
-let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_live; part_preset; part_pane_layout; part_contexts; part_editor_contexts ]
+let part_literals () =
+  let module L = Flow_sop.Lower in
+  let text = {|(workspace w
+    (defmacro identity [x] `(sop/transform ~x))
+    (graph g :context sop
+      (let* [a (sop/box :size [2 2 2] :consolidate_points true :normals "Point")
+             b (sop/transform a :translate [1 0 0])
+             c (sop/set_color b :color "#ff8800")]
+        c)))|} in
+  let doc = ref (of_text text) in
+  let lowered = ref (L.of_checked ~factories (!doc).checked |> Result.get_ok) in
+  let syntax text = Flow.Syntax.parse text |> Result.get_ok |> List.hd in
+  let op path field sub text = E.Set_arg {node = path; key = Kw field; sub; value = syntax text} in
+  List.iter (fun operation ->
+    let old = !doc in
+    let (source, checked) = E.apply_checked catalog old.source operation |> Result.get_ok in
+    let next, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+      Doc.edit catalog old operation |> Result.get_ok) in
+    List.iter (fun phase -> check (Flow.Phase_timer.calls phases phase = 0)
+      ("literal repeated " ^ Flow.Phase_timer.name phase)) [Print; Parse; Check; Project];
+    check (Doc.to_text next = Doc.to_text {next with source; checked}) "literal save differs from slow edit";
+    let changes = Doc.literal_changes ~previous:old next |> Option.get in
+    let patched, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+      List.fold_left (fun lowered change -> Editor_document.Literal_edit.lower lowered change
+        |> Option.get |> Result.get_ok) !lowered changes) in
+    check (Flow.Phase_timer.calls phases Lower = 0 && Flow.Phase_timer.calls phases Evaluate = 0)
+      "literal re-evaluated or re-lowered";
+    let reference = L.of_checked ~factories ~compiled_ids:patched.compiled_ids ~sites:patched.sites checked
+      |> Result.get_ok in
+    let same a b = Marshal.to_string a [Marshal.No_sharing] = Marshal.to_string b [Marshal.No_sharing] in
+    check (same patched.plan reference.plan && same patched.evaluated.records reference.evaluated.records)
+      "literal plan or probe records differ from full evaluation";
+    List.iter2 (fun (a : L.graph) (b : L.graph) ->
+      List.iter (fun domains ->
+        let a = Test_workspace_cook.cook ~domains a |> Option.get
+        and b = Test_workspace_cook.cook ~domains b |> Option.get in
+        check (Test_workspace_cook.geometry_bytes a = Test_workspace_cook.geometry_bytes b)
+          "literal cook differs from full evaluation") [1;3]) patched.graphs reference.graphs;
+    let scope = Projection.of_graph catalog old.checked "g" in
+    let arguments = List.map (fun (change : Editor_document.Literal_edit.change) ->
+      change.path, E.Kw change.field, change.expr) changes in
+    let patched_scope = Projection.with_arguments arguments scope in
+    let reference_scope = Projection.of_graph catalog checked "g" in
+    let row (r : Projection.row) = r.label, r.ty, r.chip, Option.map Flow.Lisp.flat r.expr in
+    check (List.map (fun (n : Projection.node) -> n.path, List.map row n.rows) patched_scope.nodes
+      = List.map (fun (n : Projection.node) -> n.path, List.map row n.rows) reference_scope.nodes)
+      "literal projected rows differ from a full projection";
+    let module Pane = Pxui_graph.Scope in
+    let pane = Pane.create () |> Pane.with_scope ~key:"g" scope |> Pane.select [["g";"b"]] in
+    let updated = Pane.with_arguments arguments pane in
+    check (Pane.selected updated = Pane.selected pane
+      && List.for_all (fun (node : Projection.node) ->
+        Pane.Private.box_of pane node.path = Pane.Private.box_of updated node.path
+        && Pane.Private.ports pane node.path = Pane.Private.ports updated node.path) scope.nodes
+      && Pane.Private.wire_count pane = Pane.Private.wire_count updated
+      && List.for_all (fun i -> Pane.Private.wire_points pane i = Pane.Private.wire_points updated i)
+        (List.init (Pane.Private.wire_count pane) Fun.id))
+      "literal pane update changed selection, boxes, ports or wire routes";
+    doc := next; lowered := patched)
+    [op ["g";"a"] "size" [] "[3 4 5]";
+     op ["g";"b"] "translate" [0] "17";
+     op ["g";"b"] "translate" [0] "17.5";
+     op ["g";"b"] "translate" [0] "17";
+     op ["g";"c"] "color" [] "\"#0088ff\"";
+     op ["g";"a"] "consolidate_points" [] "false";
+     op ["g";"a"] "normals" [] "\"Vertex\"";
+     op ["g";"b"] "translate" [0] "-9";
+     op ["g";"a"] "size" [] "[1 2 3]"];
+  List.iter (fun operation ->
+    let slow = E.apply_checked catalog (!doc).source operation
+    and fast = Doc.edit catalog !doc operation in
+    check (match slow, fast with Error a, Error b -> a.code = b.code | _ -> false)
+      "invalid literal did not refuse atomically with the checker's code")
+    [op ["g";"a"] "normals" [] "\"unknown\""; op ["g";"c"] "color" [] "\"bad\"";
+     op ["g";"a"] "size" [] "[true 2 3]";
+     op ["g";"a"] "size" [0] "true";
+     op ["g";"a"] "size" [] "\"bad\""];
+  (* Source identity survives width changes and separate edits before lowering. *)
+  let first = !doc in
+  let next = Doc.edit catalog first (op ["g";"b"] "translate" [1] "88") |> Result.get_ok in
+  let next = Doc.edit catalog next (op ["g";"a"] "size" [2] "27") |> Result.get_ok in
+  check (List.length (Option.get (Doc.literal_changes ~previous:first next)) = 2)
+    "two literals in one frame lost a change";
+  let base = of_text still in
+  let first = Doc.edit catalog base (op ["g";"a"] "radius" [] "0.6") |> Result.get_ok in
+  let second = Doc.edit catalog first (op ["g";"b"] "translate" [0] "7") |> Result.get_ok in
+  check (List.length (Option.get (Doc.literal_changes ~previous:second first)) = 1)
+    "undo of another field lost the reverse literal change";
+  let spelling = Doc.edit catalog first (op ["g";"a"] "radius" [] "0.60") |> Result.get_ok in
+  check (List.length (Option.get (Doc.literal_changes ~previous:first spelling)) = 1)
+    "a spelling-only edit left the pane's authored expression stale";
+  List.iter (fun (text, operation, fallback) ->
+    let old = of_text text in
+    let next, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+      Doc.edit catalog old operation |> Result.get_ok) in
+    check (Flow.Phase_timer.calls phases Check = 0 && Flow.Phase_timer.calls phases Parse = 0)
+      "literal with notes or in a loop repeated the workspace check";
+    let source, checked = E.apply_checked catalog old.source operation |> Result.get_ok in
+    check (Doc.to_text next = Doc.to_text {next with source; checked}) "loop/comment literal text differs";
+    let lowered = L.of_checked ~factories old.checked |> Result.get_ok in
+    let patched, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+      Editor_document.Literal_edit.lower lowered
+        (List.hd (Option.get (Doc.literal_changes ~previous:old next)))) in
+    if fallback then check (patched = None) "geometry template or retained function did not use the full lowering fallback"
+    else begin
+      check (Flow.Phase_timer.calls phases Lower = 0 && Flow.Phase_timer.calls phases Evaluate = 0)
+        ("literal lowered or evaluated: " ^ text);
+      let patched = patched |> Option.get |> Result.get_ok in
+      let full = L.of_checked ~factories ~compiled_ids:patched.compiled_ids ~sites:patched.sites checked |> Result.get_ok in
+      check (Marshal.to_string patched.plan [Marshal.No_sharing] = Marshal.to_string full.plan [Marshal.No_sharing])
+        ("literal plan differs: " ^ text);
+      List.iter2 (fun (a : L.graph) (b : L.graph) ->
+        let a = Test_workspace_cook.cook ~domains:1 a |> Option.get
+        and b = Test_workspace_cook.cook ~domains:3 b |> Option.get in
+        check (Test_workspace_cook.geometry_bytes a = Test_workspace_cook.geometry_bytes b)
+          "static loop literal cook differs") patched.graphs full.graphs
+    end)
+    ["(workspace w (graph g :context sop (let* [a (sop/uv_sphere :radius ; radius note\n0.5)] a)))",
+      op ["g";"a"] "radius" [] "0.7", false;
+     "(workspace w (graph g :context sop (let* [a (sop/box :size [2 ; child note\n2 2]) b (sop/transform a :translate [1 0 0])] b)))",
+      op ["g";"a"] "size" [] "[3 4 5]", false;
+     "(workspace w (graph g :context sop (let* [copies (for [n (range 3)] (let* [a (sop/box :size [1 1 1])] a))] (sop/merge copies))))",
+      op ["g";"copies";"a"] "size" [0] "2", false;
+     "(workspace w (graph g :context sop (let* [a (sop/transform (sop/box :size [1 1 1])) b (sop/box :size [1 1 1])] (sop/merge a b))))",
+      op ["g";"a#0"] "size" [0] "2.5", false;
+     "(workspace w (graph g :context sop (sop/transform (sop/transform (sop/box :size [1 1 1])))))",
+      op ["g";"@result#0#0"] "size" [] "[2 3 4]", false;
+     "(workspace w (graph g :context sop (-> (sop/box :size [1 1 1]) (sop/transform) (sop/transform))))",
+      op ["g";"@result#0#0"] "size" [] "[2 3 4]", false;
+     "(workspace w (defn unit_box :context sop [] (sop/box :size [1 1 1])) (graph g :context sop (sop/merge (unit_box) (unit_box))))",
+      op ["def:unit_box";"@result"] "size" [0] "2.5", false;
+     "(workspace w (graph g :context sop [(count : int 2)] (sop/box :size [1 1 1])) (graph copies :context sop (sop/merge (ref g) (ref g :count 3))))",
+      op ["g";"@result"] "size" [0] "2.5", false;
+     "(workspace w (graph g :context sop (let* [a (sop/box :size [1 1 1]) make_box (fn [n] (sop/box)) copies (map make_box (range 3))] (sop/merge a copies))))",
+      op ["g";"a"] "size" [0] "2.5", true;
+     "(workspace w (graph g :context sop (let* [dots (sop/points :points 2) copies (for [p (sop/point_list dots)] (let* [a (sop/box :size [1 1 1])] a))] (sop/merge copies))))",
+      op ["g";"copies";"a"] "size" [0] "2", true];
+  let module E3 = Rays_editor.Editor3 in
+  let e = editor still in
+  Fun.protect ~finally:(fun () -> E3.close e) (fun () ->
+    let e = E3.update e (frame [] 0) in
+    let operation = op ["g";"a"] "radius" [] "0.7" in
+    let e, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+      let e = E3.edit e operation |> Result.get_ok in E3.update e (frame [] 1)) in
+    List.iter (fun phase -> check (Flow.Phase_timer.calls phases phase = 0)
+      ("editor literal repeated " ^ Flow.Phase_timer.name phase)) [Print; Parse; Check; Evaluate; Lower; Project; Layout];
+    let source, checked = E.apply_checked catalog (of_text still).source operation |> Result.get_ok in
+    let ws = E3.workspace e in
+    check (Doc.to_text ws = Doc.to_text {ws with source; checked}) "editor literal save differs");
+  print_endline "workspace literal edits: source, checked terms, plans, records, projected rows and cooked bytes match the full path"
+
+(* Every checked-in [.rays] with a scrubbable literal (Step 1's file coverage): a literal
+   edit writes the bytes the full path prints and refuses with its code; one that takes the
+   literal path repeats no print, parse or check, and its patched lowering has the full
+   lowering's plan.  Prints the coverage and the full path's cost per file. *)
+let part_files () =
+  let module L = Flow_sop.Lower in
+  let catalog = Rays_editor.workspace_catalog () |> Result.get_ok in
+  let rec rays dir = Array.to_list (Sys.readdir dir) |> List.concat_map (fun name ->
+    let path = Filename.concat dir name in
+    if Sys.is_directory path then rays path
+    else if Filename.check_suffix name ".rays" then [path] else []) in
+  let files = List.sort compare (rays "../sketches" @ rays "../examples") @ ["../specification/pxui-kit/kit.rays"] in
+  let literal (form : S.t) = match form.node with
+    | Num text -> (match int_of_string_opt text with
+        | Some n -> Some (S.make (S.Num (string_of_int (n + 1))))
+        | None -> Option.map (fun x -> S.make (S.Num (Flow.Lisp.float (x +. 0.5)))) (float_of_string_opt text))
+    | Sym "true" -> Some (S.make (S.Sym "false")) | Sym "false" -> Some (S.make (S.Sym "true"))
+    | _ -> None in
+  let rec sites (scope : Projection.scope) = List.concat_map (fun (node : Projection.node) ->
+    List.filter_map (fun (row : Projection.row) -> match row.kind, row.expr with
+      | Arg, Some ({ node = Vec (first :: _); _ } as expr) ->
+          Option.map (fun value -> node.path, row.key, [0], expr, value) (literal first)
+      | Arg, Some expr -> Option.map (fun value -> node.path, row.key, [], expr, value) (literal expr)
+      | _ -> None) node.rows
+    @ Option.fold ~none:[] ~some:(fun (zone : Projection.zone) -> sites zone.scope) node.zone) scope.nodes in
+  let covered = ref 0 in
+  List.iter (fun file ->
+    let text = In_channel.with_open_bin file In_channel.input_all in
+    match Rays_editor.Workspace.load text with
+    | Error ds when List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_UNKNOWN_KIND") ds -> ()
+    | Error ds -> fail (file ^ ": " ^ show ds)
+    | Ok doc ->
+    let lowered = L.of_checked ~factories ~inputs:doc.inputs doc.checked |> Result.get_ok in
+    let scopes = List.map (fun (g : Flow.Workspace.graph) -> Projection.of_graph catalog doc.checked g.name) doc.checked.graphs
+      @ List.map (fun (g : Flow.Workspace.graph) -> Projection.of_graph catalog doc.checked ("def:" ^ g.name)) doc.checked.defs in
+    let fast = ref 0 and patched = ref 0 and refused = ref 0 and slow = ref [] in
+    let edits = List.concat_map sites scopes in
+    List.iter (fun (path, key, sub, _, value) ->
+      let op = E.Set_arg { node = path; key; sub; value } in
+      let where = Printf.sprintf "%s %s" file (String.concat "/" path) in
+      let full = E.apply_checked ~ops:doc.checked.ops catalog doc.source op in
+      let next, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () -> Doc.edit catalog doc op) in
+      match full, next with
+      | Error a, Error b -> check (a.code = b.code) (where ^ ": the literal path refused with another code"); incr refused
+      | Ok _, Error d -> fail (where ^ ": the literal path refused an edit the full path accepts: " ^ Flow.Diagnostic.to_string d)
+      | Error d, Ok _ -> fail (where ^ ": the literal path accepted an edit the full path refuses: " ^ Flow.Diagnostic.to_string d)
+      | Ok (source, checked), Ok next ->
+          check (Doc.to_text next = Doc.to_text { next with source; checked }) (where ^ ": saved bytes differ from the full path");
+          if next.literal = None then begin
+            (* the full path's cost: the edit again, then its lowering, each timed twice, the warm one kept *)
+            let seconds run = let _, first = Flow.Phase_timer.sample ~clock:Unix.gettimeofday run in
+              let _, second = Flow.Phase_timer.sample ~clock:Unix.gettimeofday run in min first.total second.total in
+            let edit = seconds (fun () -> Doc.edit catalog doc op) and lower = seconds (fun () ->
+              L.of_checked ~factories ~compiled_ids:lowered.compiled_ids ~sites:lowered.sites ~inputs:doc.inputs checked) in
+            slow := (edit +. lower) :: !slow
+          end else begin
+            incr fast;
+            List.iter (fun phase -> check (Flow.Phase_timer.calls phases phase = 0)
+              (where ^ ": the literal path repeated " ^ Flow.Phase_timer.name phase)) [Print; Parse; Check; Project];
+            match Editor_document.Literal_edit.lower lowered (List.hd (Option.get (Doc.literal_changes ~previous:doc next))) with
+            | None -> ()
+            | Some (Error d) ->
+                (* the checker accepts it and lowering refuses it (a cook-level parameter rule): so must the full path *)
+                (match L.of_checked ~factories ~compiled_ids:lowered.compiled_ids ~sites:lowered.sites ~inputs:doc.inputs checked with
+                 | Error e -> check (e.code = d.code) (Printf.sprintf "%s: the lowering patch refused with another code: %s versus %s"
+                     where (Flow.Diagnostic.to_string d) (Flow.Diagnostic.to_string e)); incr refused
+                 | Ok _ -> fail (where ^ ": the lowering patch refused an edit the full lowering accepts: " ^ Flow.Diagnostic.to_string d))
+            | Some (Ok patched_lowering) ->
+                incr patched;
+                let reference = L.of_checked ~factories ~compiled_ids:patched_lowering.compiled_ids
+                    ~sites:patched_lowering.sites ~inputs:doc.inputs checked |> Result.get_ok in
+                let shape (plan : Flow.Eval.plan) = Array.map (fun (n : Flow.Eval.node) ->
+                  n.id, n.inst, n.site, n.iter, n.kind, n.ty, List.map fst n.args) plan.nodes in
+                let same = try Marshal.to_string patched_lowering.plan [Marshal.No_sharing]
+                    = Marshal.to_string reference.plan [Marshal.No_sharing]
+                  with Invalid_argument _ -> shape patched_lowering.plan = shape reference.plan in
+                check same (where ^ ": the patched plan differs from the full lowering")
+          end) edits;
+    if edits <> [] then begin
+      covered := !covered + 1;
+      let slow_ms = List.fold_left max 0. !slow *. 1000. in
+      Printf.printf "  %-44s literals %3d  literal path %3d  lowering patched %3d  refused %2d  full path %3d (max %.1f ms)\n"
+        (String.sub file 3 (String.length file - 3)) (List.length edits) !fast !patched !refused (List.length !slow) slow_ms
+    end) files;
+  check (!covered >= 15) (Printf.sprintf "only %d checked-in files have a scrubbable literal" !covered);
+  print_endline "workspace literal edits: every checked-in .rays saves the full path's bytes with the full path's refusals"
+
+let part_projection_reuse () =
+  let text = {|(workspace w
+    (graph g :context sop [(count : int 3)] (let* [a (sop/box)] a))
+    (graph other :context sop (let* [b (sop/points :points 1)] b)))
+    (layout (node ["g" "a"] :at [120 48])
+            (node ["g" ":count"] :at [0 0])
+            (node ["other" "b"] :at [240 96]))|} in
+  let ws = of_text text in
+  let renamed, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+    Doc.edit catalog ws (E.Rename {node = ["other";"b"]; to_ = "moved"}) |> Result.get_ok) in
+  check (Flow.Phase_timer.calls phases Project = 0) "a rename projected every graph to prune layout";
+  check (Projection.same_graph ws.checked renamed.checked "g"
+    && not (Projection.same_graph ws.checked renamed.checked "other")) "projection invalidation ignored lexical graph content";
+  check (Layout.Path_map.find ["g";"a"] renamed.layout.at = (120.,48.)
+    && Layout.Path_map.mem ["g";":count"] renamed.layout.at
+    && Layout.Path_map.find ["other";"moved"] renamed.layout.at = (240.,96.)
+    && not (Layout.Path_map.mem ["other";"b"] renamed.layout.at)) "path pruning lost a surviving key or kept the renamed one";
+  let removed, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+    Doc.edit catalog renamed (E.Remove_graph {name = "other"}) |> Result.get_ok) in
+  check (Flow.Phase_timer.calls phases Project = 0
+    && not (Layout.Path_map.mem ["other";"moved"] removed.layout.at)) "removing a graph projected or retained its layout";
+  let typed = of_text "(workspace w (defn a :context value [] 1) (graph b :context value (let* [result (a)] 1)))" in
+  let changed = of_text "(workspace w (defn a :context value [] [1 2 3]) (graph b :context value (let* [result (a)] 1)))" in
+  check (not (Projection.same_graph typed.checked changed.checked "b")) "projection reuse hid a changed dependency type";
+  let module E3 = Rays_editor.Editor3 in
+  let e = editor text in
+  Fun.protect ~finally:(fun () -> E3.close e) (fun () ->
+    let e = E3.update e (frame [] 0) in
+    let _, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+      E3.edit e (E.Rename {node = ["other";"b"]; to_ = "moved"}) |> Result.get_ok
+      |> fun e -> E3.update e (frame [] 1)) in
+    check (Flow.Phase_timer.calls phases Project = 0) "editing another graph re-projected the pane");
+  print_endline "workspace projection: path pruning, unchanged graph reuse and dependency type invalidation passed"
+
+let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_live; part_preset; part_pane_layout; part_contexts; part_editor_contexts; part_literals; part_files; part_projection_reuse ]

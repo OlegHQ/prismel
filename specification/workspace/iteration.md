@@ -229,7 +229,11 @@ float storage. Constructors are `(array/range count)`, `(array/float count
 uses `array/count`, `array/nth` and `array/sum`. Negative counts, native
 storage overflow, non-finite values and out-of-range indices are typed
 errors. There is no 4,096-element cap for packed arrays. The evaluation
-budget and native storage bounds still apply.
+budget and native storage bounds still apply. Packed higher-order operations
+and zones apply the 600,000-step budget independently to each 1,024-element
+block, then restore the enclosing evaluation's counter. This admits large
+arrays while refusing an expensive body within a block. The order of element
+evaluation and floating-point operations is unchanged.
 
 `map` (one to three arrays), `filter`, `sort-by`, `reduce`, `for`, `fold`,
 `scan` and `sum` operate directly on packed data. A packed map/collection

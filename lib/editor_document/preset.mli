@@ -44,3 +44,8 @@ val load :
 (** Parse, check and lower the file; [settings] is the sketch's settings
     value the saved fields apply to.  An unreadable, unchecked or unlowerable
     file is an [Error] carrying the diagnostic text; nothing else is touched. *)
+
+val load_with_ops :
+  ops:Flow.Op.t list -> path:string -> factories:Procedural.Edit_graph.factory list ->
+  settings:Settings.t -> (loaded, string) result
+(** {!load} with the host's immutable operator extensions. *)

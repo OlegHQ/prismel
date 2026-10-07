@@ -186,11 +186,15 @@ module Private : sig
       key : string list;
       applied : string Lazy.t;
       body : (Flow.Syntax.t * (int * Flow.Diagnostic.span) list) option;
+      source : Flow.Syntax.t list;
+      spans : Flow.Lisp.spans;
+      applied_spans : Flow.Lisp.spans Lazy.t;
     }
     val binding_at : shown -> int -> string list option
     (** The path of the innermost node of the Graph tab whose text holds a byte: a binding,
         the result, or a call nested in one of their inputs. *)
     val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown
+    val scrub_op : shown -> int * int -> string -> Flow_graph.Flow_edit.op option
     val line_of : string -> Flow.Diagnostic.t -> int option
     val binding : Flow.Syntax.t list -> string list -> (Flow.Syntax.t option * Flow.Syntax.t) option
     val paste_ops : Flow.Syntax.t list -> graph:string -> scope:string list -> string ->
@@ -201,7 +205,7 @@ module Private : sig
   (** The editor's Lisp as the text area's language (tests of its indentation and lexing). *)
   module Lisp_text : sig
     type vocab
-    val vocab : Flow_sop.Catalog.descriptor list -> vocab
+    val vocab : ?ops:Flow.Op.t list -> Flow_sop.Catalog.descriptor list -> vocab
     val indent : string -> int -> string
     val brackets : string -> (int * int) list
     type names = { graphs : string list; materials : string list; cameras : string list; layouts : string list }
@@ -431,6 +435,9 @@ module Editor3 : sig
       the scene's objects, recook, and record one history entry named by the
       op. An error changes nothing. *)
 
+  val edit_phases : 'prepared t -> Flow.Phase_timer.t
+  (** Phase durations and invocation counts of the last document edit. *)
+
   val carrying : 'prepared t -> (string * string) option
   (** The payload in flight (kind and value, [("material", "(ref cobalt)")]), picked up by a
       press on a Navigator row or by [y]: every document change waits for the put, one history
@@ -615,7 +622,7 @@ module Workspace : sig
   (** Where a workspace came from: [path] relative to the project root, [digest]
       the SHA-256 of its text. *)
 
-  val load : ?factories:Procedural.Edit_graph.factory list -> string ->
+  val load : ?ops:Flow.Op.t list -> ?factories:Procedural.Edit_graph.factory list -> string ->
     (Workspace_doc.t, Flow.Diagnostic.t list) result
   (** Parse and check a [.rays] text against {!workspace_catalog}. *)
 

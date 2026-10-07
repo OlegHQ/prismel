@@ -7,6 +7,7 @@ include Core_carry
    become the next model.  Nothing here builds UI: the panes have finished constructing their
    boxes, and a test can run it on a frame result it made itself. *)
 let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~leader ~frame ~hud ~actions ~guide ~copied ~steady ~status_fps ~status_fps_at ~timeline ~timeline_changes ~graph_shown ~text ~text_shown ~row_sets ~rows value (result : _ frame_result) =
+  Flow.Phase_timer.measure Reduce (fun () ->
   let result = match result.prompt_intent with
     | Some (Edit_source op) -> { result with changes = result.changes @ [ Syntax_edit op ] }
     | _ -> result in
@@ -120,7 +121,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           | Load_preset_file name -> Preset.path ~directory:value.presets ~name, "Loaded preset " ^ name
           | _ -> state_file value, "Restored last edited state" in
         let rejected = if intent = Load_last_state then "Last edited state rejected: " else "Preset rejected: " in
-        (match Preset.load ~path
+        (match Preset.load_with_ops ~ops:(fst value.doc.workspace).checked.ops ~path
             ~factories:value.factories ~settings:value.doc.settings with
          | Ok preset -> result.prompt, Some (Info, restored), Some preset
          | Error message -> result.prompt, Some (Refusal, rejected ^ message), None)
@@ -349,21 +350,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
             if frames = [] then M.remove scope l.frames
             else M.add scope (List.map (fun (title, at, size) -> { Layout_by_path.title; at; size }) frames) l.frames }),
           { result with label = "Frame" }, probes
-      | Display_set path ->
-          (match path with
-           | [ graph; name ] when name <> "@result" ->
-               let op = Flow_graph.Flow_edit.Connect { node = [ graph; "@result" ]; key = Whole; src = name; iter = false } in
-               (match Doc.syntax_edit ~factories:value.factories next op with
-                | Ok doc ->
-                    doc, { (result : _ frame_result) with label = "View node"; edit_error = None;
-                      effects = Parameter.union_effects result.effects Doc.cook_effects }, probes
-                | Error message ->
-                    next, { (result : _ frame_result) with edit_error = Some message }, probes)
-           | [ _; _ ] | [] -> next, result, probes  (* the result is what is viewed already *)
-           | _ ->
-               (* what the viewport shows is the graph's result, and a node inside a loop cannot be it *)
-               next, { (result : _ frame_result) with edit_error =
-                 Some "A node inside a loop cannot be viewed alone: view the loop, or move the node out of it." }, probes)
+      | Display_set _ -> next, result, probes
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ | Defn_requested _
       | Copy_requested _ | Paste_requested | Menu_requested _ | Activated _ | Drop_over _ | Dropped _ ->
           next, result, probes)
@@ -570,12 +557,19 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   (* each other text pane's intents fold into its own state *)
   let value' = List.fold_left (fun v (key, _, intents) -> apply_text_at v key intents)
     value' result.other_texts |> sync_scope in
+  let value' = List.fold_left (fun v -> function
+    | Pxui_graph.Scope.Display_set path -> view_node v path
+    | _ -> v) value' scope_changes |> sync_scope in
   let doc = value'.doc in
   let frame_request = match result.frame_request, value'.level with
     | Some node, Inside id when kind value' id = Some "geometry" -> Some (id, node)
     | _ -> None in
-  if doc.workspace != value.doc.workspace then
-    Cook.set_volatile value.cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
+  if doc.workspace != value.doc.workspace || value'.viewed != value.viewed then begin
+    let roots = Document.Int_map.fold (fun _ (_, root) roots ->
+      Flow_sop.Network.Int_map.add root () roots) value'.viewed Flow_sop.Network.Int_map.empty in
+    Cook.set_volatile value.cook (fun id -> Flow_sop.Lower.is_volatile (snd doc.workspace) id
+      || Flow_sop.Network.Int_map.mem id roots)
+  end;
   let probes = match value'.scope_key with Some k when scope_name value' <> None -> k.targets | _ -> [] in
   let lit, lit_cache = lit_tags value' in
   let cooked = Cook.update ~live:result.live_cook ~probes ~lit
@@ -642,7 +636,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     loaded_view = Option.map (fun (preset : Preset.loaded) -> preset.view) loaded;
     actions = (if Option.is_some entered_camera && entered_camera = doc.active_camera
       then actions @ [Leader.Look_through_camera] else actions); panel = result.panel;
-    input }
+    input })
 
 (* One frame of the editor.  A carry takes its turn first (its keys, the ends of the gesture, the
    preview document the panels then read) and the frame the rest of the editor sees has the keys

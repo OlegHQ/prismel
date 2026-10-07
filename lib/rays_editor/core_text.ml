@@ -58,7 +58,13 @@ let scrub_merge = Editor_core.History.Gesture "text-scrub"
 
 let apply_text value intents =
   List.fold_left (fun value intent ->
-    let text = value.text in
+    let intent, literal = match intent with
+      | Text_pane.Literal_scrub {source; op; position; fallback} -> fallback, Some (source, op, position)
+      | intent -> intent, None in
+    let text = match intent with
+      | Text_pane.Doc_scrub _ | Graph_scrub _ | Binding_scrub _ -> value.text
+      | _ -> {value.text with scrubbing = false;
+          cache = (if value.text.scrubbing then None else value.text.cache)} in
     let with_text text = { value with text } in
     let workspace = fst value.doc.Document.workspace in
     let base old = Some (Option.value ~default:workspace old) in
@@ -79,6 +85,14 @@ let apply_text value intents =
       (Text_pane.make_shown ws.source graph None Text_pane.Graph).text in
     let of_binding path (ws : Editor_document.Workspace_doc.t) =
       (Text_pane.make_shown ws.source (List.hd path) (Some path) Text_pane.Selection).text in
+    let scrub apply draft = match literal with
+      | Some (source, op, position) when source == workspace.source ->
+          Doc.syntax_edit_result ~factories:value.factories value.doc op
+          |> Result.map (fun doc -> install value doc ~label:"Edit text" ~merge:scrub_merge)
+          |> Result.map_error (fun d -> [{d with Flow.Diagnostic.position = Some position; span = None}])
+      | _ -> apply draft in
+    let finished done_ draft previous current = done_ && current = Some draft
+      && Option.fold ~none:false ~some:(fun previous -> previous == workspace) previous in
     match intent with
     | Text_pane.Tab tab -> with_text { text with tab }
     | Menu menu -> with_text { text with menu }
@@ -89,7 +103,7 @@ let apply_text value intents =
     | Select_binding path ->
         { value with scope_view = Pxui_graph.Scope.select [ path ] value.scope_view }
     | Carry_over _ -> value  (* read by the carry's report, not an edit *)
-    | Doc_draft draft -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors = [] }
+    | Doc_draft draft -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors = []; scrubbing = false }
     | Doc_discard -> with_text { text with draft = None; doc_base = None; doc_errors = [] }
     | Doc_apply draft ->
         (match checked ~metadata:true ~shown:whole ~draft text.doc_base (text_edit value) with
@@ -114,17 +128,21 @@ let apply_text value intents =
        (the gesture seals on release); the draft stays until the drag ends so the editor keeps
        the text it is dragging in *)
     | Doc_scrub (draft, done_) ->
-        (match checked ~metadata:true ~shown:whole ~draft text.doc_base (text_edit ~merge:scrub_merge value) with
-         | Ok value -> { value with text = { text with draft = (if done_ then None else Some draft); doc_base = (if done_ then None else Some (fst value.doc.workspace)); doc_errors = [] } }
-         | Error doc_errors -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors })
+        (match (if finished done_ draft text.doc_base text.draft then Ok value else
+          checked ~metadata:true ~shown:whole ~draft text.doc_base (scrub (text_edit ~merge:scrub_merge value))) with
+         | Ok value -> { value with text = { text with draft = (if done_ then None else Some draft); doc_base = (if done_ then None else Some (fst value.doc.workspace)); doc_errors = []; scrubbing = not done_ && Option.is_some literal; cache = (if done_ then None else text.cache) } }
+         | Error doc_errors -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors; scrubbing = false })
     | Graph_scrub (graph, draft, done_) ->
-        (match checked ~shown:(of_graph graph) ~draft text.graph_base (graph_edit ~merge:scrub_merge value graph) with
-         | Ok value -> { value with text = { text with graph_draft = (if done_ then None else Some (graph, draft)); graph_base = (if done_ then None else Some (fst value.doc.workspace)); graph_errors = [] } }
-         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors })
+        (match (if finished done_ draft text.graph_base (Option.bind text.graph_draft (fun (g,d) -> if g = graph then Some d else None)) then Ok value else
+          checked ~shown:(of_graph graph) ~draft text.graph_base (scrub (graph_edit ~merge:scrub_merge value graph))) with
+         | Ok value -> { value with text = { text with graph_draft = (if done_ then None else Some (graph, draft)); graph_base = (if done_ then None else Some (fst value.doc.workspace)); graph_errors = []; scrubbing = not done_ && Option.is_some literal; cache = (if done_ then None else text.cache) } }
+         | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors; scrubbing = false })
     | Binding_scrub (path, draft, done_) ->
-        (match checked ~shown:(of_binding path) ~draft text.binding_base (binding_edit ~merge:scrub_merge value path) with
-         | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_base = (if done_ then None else Some (fst value.doc.workspace)); binding_errors = [] } }
-         | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors })) value intents
+        (match (if finished done_ draft text.binding_base (Option.bind text.binding_draft (fun (p,d) -> if p = path then Some d else None)) then Ok value else
+          checked ~shown:(of_binding path) ~draft text.binding_base (scrub (binding_edit ~merge:scrub_merge value path))) with
+         | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_base = (if done_ then None else Some (fst value.doc.workspace)); binding_errors = []; scrubbing = not done_ && Option.is_some literal; cache = (if done_ then None else text.cache) } }
+         | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors; scrubbing = false })
+    | Literal_scrub _ -> value) value intents
 
 (* The intents of a text pane that is not the one in use fold into its own state. *)
 let apply_text_at value key intents =
@@ -162,5 +180,3 @@ let apply_drafts ?except value =
   let value = List.fold_left (fun v (key, (l : local)) -> apply_text_at v key (draft_applies ?except l.code))
     value value.locals in
   if has_draft ?except value then Error value else Ok value
-
-

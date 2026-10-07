@@ -19,6 +19,7 @@ type factory = {
   requirements : input_requirement array;
   slots : string array;
   build : Node.t option list -> Node.t;
+  facts : Node.facts Lazy.t;
 }
 
 type entry = {
@@ -41,7 +42,7 @@ type node_info = {
   operation : string;
   version : int;
   parameters : string;
-  cook_mode : Node.cook_mode;
+  facts : Node.facts;
   dependencies : Context.Dependencies.t;
   inputs : int option array;
   has_parameters : bool;
@@ -90,7 +91,7 @@ let info (entry : entry) : node_info =
   let node = entry.node in
   { node; id = Node.id node; label = Node.label node;
     operation = Node.operation node; version = Node.version node;
-    parameters = Node.parameters node; cook_mode = Node.cook_mode node;
+    parameters = Node.parameters node; facts = Node.facts node;
     dependencies = Node.dependencies node; inputs = Array.copy entry.inputs;
     has_parameters = Node.has_parameters node; bypass = entry.bypass }
 
@@ -401,6 +402,12 @@ let share_default_values fields =
     if field.default == field.current || not equal then field
     else { field with current = field.default }) fields
 
+let default_facts requirements build = lazy (
+  let inputs = Array.to_list (Array.map (function
+    | Required | Rest -> Some (Lazy.force empty_geometry)
+    | Optional | Optional_rest -> None) requirements) in
+  Node.facts (build inputs))
+
 let factory ?operation ?slots ?(fields = []) ?output_fields:_
     ~key ~label ~category ~arity build =
   let operation = Option.value ~default:key operation in
@@ -410,10 +417,12 @@ let factory ?operation ?slots ?(fields = []) ?output_fields:_
       || List.exists (fun item -> String.trim item = "") category then
     invalid_arg "Edit_graph.factory names must not be blank";
   if arity < 0 then invalid_arg "Edit_graph.factory arity must be non-negative";
+  let requirements = Array.make arity Required in
+  let build inputs = build (List.map Option.get inputs) in
   { key; operation; label; category; fields = share_default_values fields;
-    requirements = Array.make arity Required;
+    requirements;
     slots = slot_names arity slots;
-    build = (fun inputs -> build (List.map Option.get inputs)) }
+    build; facts = default_facts requirements build }
 
 let factory_slots ?operation ?slots ?(fields = []) ?output_fields:_
     ~key ~label ~category ~inputs build =
@@ -427,15 +436,18 @@ let factory_slots ?operation ?slots ?(fields = []) ?output_fields:_
       "Edit_graph.factory_slots requires at least one input slot";
   if List.exists repeating (List.filteri (fun i _ -> i < List.length inputs - 1) inputs)
   then invalid_arg "Edit_graph.factory_slots: only the last input may be Rest";
+  let requirements = Array.of_list inputs in
   { key; operation; label; category; fields = share_default_values fields;
-    requirements = Array.of_list inputs;
-    slots = slot_names (List.length inputs) slots; build }
+    requirements;
+    slots = slot_names (List.length inputs) slots; build;
+    facts = default_facts requirements build }
 
 let factory_key (value : factory) = value.key
 let factory_operation (value : factory) = value.operation
 let factory_label (value : factory) = value.label
 let factory_category (value : factory) = value.category
 let factory_fields (value : factory) = value.fields
+let factory_facts (value : factory) = Lazy.force value.facts
 let factory_arity (value : factory) = Array.length value.requirements
 let factory_inputs (value : factory) = Array.to_list value.requirements
 let factory_slot_names (value : factory) = Array.to_list value.slots

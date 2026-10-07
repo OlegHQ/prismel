@@ -6,7 +6,7 @@ type info = {
   operation : string;
   version : int;
   parameters : string;
-  cook_mode : Node.cook_mode;
+  facts : Node.facts;
   dependencies : Context.Dependencies.t;
   input_ids : int list;
   has_parameters : bool;
@@ -24,7 +24,7 @@ let inspect root =
         operation = Node.operation node;
         version = Node.version node;
         parameters = Node.parameters node;
-        cook_mode = Node.cook_mode node;
+        facts = Node.facts node;
         dependencies = Node.dependencies node;
         input_ids = List.map Node.id (Node.inputs node);
         has_parameters = Node.has_parameters node;

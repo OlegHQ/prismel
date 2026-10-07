@@ -170,7 +170,13 @@ module Match_axis = struct
 end
 
 module Noise_displace = struct
+  let mode_parameter = Parameter.choice ~equal:( = ) [
+    "height_2d", Rdk.Deform.Height_2d;
+    "normal_3d", Rdk.Deform.Normal_3d;
+  ]
   type parameters = {
+    mode : Rdk.Deform.noise_displace_mode [@sop.default Rdk.Deform.Height_2d]
+      [@sop.label "Mode"] [@sop.kind mode_parameter];
     context_seed : bool [@sop.default false] [@sop.label "Use context seed"];
     seed : int [@sop.default 0] [@sop.label "Seed"] [@sop.min 0]
       [@sop.max 9999];
@@ -179,6 +185,10 @@ module Noise_displace = struct
     frequency : float [@sop.default 1.] [@sop.label "Frequency"]
       [@sop.min 0.] [@sop.max 20.] [@sop.hard_min 0.];
   } [@@sop.node_key "noise_displace"] [@@sop.node_label "Noise Displace"]
+    [@@sop.node_facts {elementwise = Node.Points;
+      reads = (match parameters.mode with Rdk.Deform.Height_2d -> ["P"] | Normal_3d -> ["P"; "N"]);
+      writes = ["P"; "N"];
+      topology = Node.Preserved; exact = false}]
     [@@sop.node_category "Deform/Noise"] [@@sop.node_inputs 1]
 
     [@@deriving sop_params, sop_node]
@@ -187,6 +197,7 @@ module Noise_displace = struct
     let seed = if parameters.context_seed then None else Some parameters.seed in
     let amplitude = parameters.amplitude in
     let frequency = parameters.frequency in
+    let mode = parameters.mode in
     let dependencies = match seed with
       | Some _ -> Context.Dependencies.static
       | None -> Context.Dependencies.one Context.Dependencies.Seed
@@ -200,7 +211,7 @@ module Noise_displace = struct
         let seed = Option.value ~default:(mixed_seed context identity) seed in
         match Rdk.Deform.noise_displace ~grain:(Context.grain context)
             ~cancel:(Context.cancel_token context)
-            ~amplitude ~frequency ~seed inputs.(0) with
+            ~mode ~amplitude ~frequency ~seed inputs.(0) with
         | Ok geometry -> cooked geometry
         | Error error -> structured_rdk_error error)
   )
@@ -646,6 +657,12 @@ module Peak = struct
     recompute_normals : bool [@sop.default false]
       [@sop.label "Recompute normals"];
   } [@@sop.node_key "peak"] [@@sop.node_label "Peak"]
+    [@@sop.node_facts {elementwise = Node.Points;
+      reads = List.filter (fun name -> String.trim name <> "")
+        ["P"; (if String.trim parameters.direction_attribute = "" then "N" else parameters.direction_attribute);
+          parameters.mask_attribute];
+      writes = ["P"; "N"];
+      topology = Node.Preserved; exact = false}]
     [@@sop.validate fun parameters ->
       if not (Float.is_finite parameters.distance) then invalid_arg "Sop.peak: distance must be finite"]
     [@@sop.node_category "Deform"] [@@sop.node_inputs 1]
@@ -722,6 +739,11 @@ module Bend = struct
     recompute_normals : bool [@sop.default false]
       [@sop.label "Recompute normals"];
   } [@@sop.node_key "bend"] [@@sop.node_label "Bend"]
+    [@@sop.node_facts {elementwise = Node.Points;
+      reads = List.filter (fun name -> String.trim name <> "") ["P"; parameters.mask_attribute];
+      writes = List.filter (fun name -> String.trim name <> "")
+        ["P"; "N"; parameters.capture_attribute];
+      topology = Node.Preserved; exact = false}]
     [@@sop.validate fun parameters ->
       if not (List.for_all Float.is_finite [parameters.origin_x; parameters.origin_y; parameters.origin_z;
           parameters.direction_x; parameters.direction_y; parameters.direction_z;
@@ -2909,6 +2931,13 @@ module Mountain = struct
     recompute_normals : bool [@sop.default false]
       [@sop.label "Recompute normals"];
   } [@@sop.node_key "mountain"] [@@sop.node_label "Mountain"]
+    [@@sop.node_facts {elementwise = Node.Points;
+      reads = List.filter (fun name -> String.trim name <> "")
+        ["P"; (if String.trim parameters.direction_attribute = "" then "N" else parameters.direction_attribute);
+          parameters.mask_attribute; parameters.height_attribute];
+      writes = List.filter (fun name -> String.trim name <> "")
+        ["P"; "N"; parameters.height_attribute];
+      topology = Node.Preserved; exact = false}]
 
     [@@sop.validate fun parameters ->
       let refuse message = invalid_arg ("Sop.mountain: " ^ message) in
@@ -3271,6 +3300,10 @@ module Soft_transform = struct
     recompute_normals : bool [@sop.default true]
       [@sop.label "Recompute normals"] [@sop.folder "Output"];
   } [@@sop.node_key "soft_transform"] [@@sop.node_label "Soft Transform"]
+    [@@sop.node_facts {elementwise = Node.Points;
+      reads = List.filter (fun name -> String.trim name <> "") ["P"; "N"; parameters.metric_attribute];
+      writes = List.filter (fun name -> String.trim name <> "") ["P"; "N"; parameters.falloff_attribute];
+      topology = Node.Preserved; exact = false}]
 
     [@@sop.validate fun parameters ->
       let refuse message = invalid_arg ("Sop.soft_transform_trs: " ^ message) in
@@ -3384,6 +3417,8 @@ module Scatter = struct
     source_vertex_weights_attribute : string [@sop.default ""]
       [@sop.label "Source vertex weights"] [@sop.folder "Provenance"];
   } [@@sop.node_key "scatter"] [@@sop.node_label "Scatter"]
+    [@@sop.node_facts {elementwise = Node.None; reads = ["*"]; writes = ["*"];
+      topology = Node.Changed; exact = true}]
 
     [@@sop.validate fun parameters ->
       let refuse message = invalid_arg ("Sop.scatter: " ^ message) in
@@ -4090,6 +4125,8 @@ module Transform = struct
     recompute_normals : bool [@sop.default false]
       [@sop.label "Recompute normals"] [@sop.folder "Normals"];
   } [@@sop.node_key "transform"] [@@sop.node_label "Transform"]
+    [@@sop.node_facts {elementwise = Node.Points; reads = ["P"; "N"]; writes = ["P"; "N"];
+      topology = Node.Preserved; exact = false}]
     [@@sop.node_category "Modify"] [@@sop.node_inputs 1]
 
     [@@sop.validate fun parameters ->

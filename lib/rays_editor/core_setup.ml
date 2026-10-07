@@ -14,7 +14,7 @@ let workspace_doc ~factories ~seed_scene workspace =
   let declared = doc.scene.graph.geometry in
   (* the host's camera and lights are defaults of a workspace with no scene graph; a scene
      graph is authoritative (it may say there are none) *)
-  let has_scene = Editor_document.Contexts.graph_of workspace Flow.Workspace.Scene <> None in
+  let has_scene = Editor_document.Contexts.graph_of workspace Flow.Context.scene <> None in
   let scene = if has_scene then declared else seed_scene declared in
   let* graph = flow (Flow_sop.Network.with_geometry scene doc.scene.graph) in
   let doc = { doc with scene = { doc.scene with graph };
@@ -70,7 +70,7 @@ let create ?settings ?(keymap = Leader.keymap)
   let opened = workspace_doc ~factories ~seed_scene:(seed_scene factories)
       { workspace with Workspace_doc.settings } in
   Result.bind opened (fun doc ->
-  let has_world = Editor_document.Contexts.graph_of workspace Flow.Workspace.World <> None in
+  let has_world = Editor_document.Contexts.graph_of workspace Flow.Context.world <> None in
   let doc = match (if Objects.ids "world" doc.scene.graph.geometry = [] && not has_world
                    then Option.map (add_world doc) world else None) with
     | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
@@ -95,10 +95,11 @@ let create ?settings ?(keymap = Leader.keymap)
         factories;
         selection = Selection.empty; menu = None;
         scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty; lit = None;
-        scope_key = None; select_later = []; pane_graph = None; back = [];
+        previews = Document.Int_map.empty; viewed = Document.Int_map.empty; view_key = None;
+        scope_key = None; edit_phases = Flow.Phase_timer.empty; select_later = []; pane_graph = None; back = [];
         flow_catalog = lazy (Result.to_option (Editor_document.Contexts.catalog
           ~version:Flow_sop.Manifest.version factories));
-        lisp_vocab = lazy (Lisp_text.vocab
+        lisp_vocab = lazy (Lisp_text.vocab ~ops:(fst doc.workspace).checked.ops
           (List.map Flow_sop.Catalog.descriptor factories @ Editor_document.Contexts.descriptors));
         tree = Pxui_shell.Tree.create (); outline = Navigator.initial; held_keys = [];
         ui = (let ui = Pxui.Ui.create () in Pxui.Ui.set_font_size ui (default_text_size ()); ui); workspace;

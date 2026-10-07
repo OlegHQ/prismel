@@ -5,10 +5,19 @@ type parameter = {
   unit : string option;
 }
 type slot = { name : string; required : bool; rest : bool }
+type kernel_elements = Points | Primitives | Irregular
+type kernel_facts = {
+  elementwise : kernel_elements;
+  reads : string list;
+  writes : string list;
+  preserves_topology : bool;
+  exact : bool;
+}
 type kind = {
   qualified : string; aliases : string list; context : Context.t;
   slots : slot list; parameters : parameter list;
   outputs : (string * Port_type.t) list;
+  facts : kernel_facts option;
 }
 type catalog = { version : int; kinds : kind list }
 type term = { node : term_node; ty : Port_type.t option }
@@ -154,6 +163,34 @@ let catalog_of_manifest source =
             ignore (string (one "label" (get "label")));
             ignore (strings "category" (get "category"));
             let aliases = strings "aliases" (get "aliases") in
+            let facts = match List.filter (fun form -> match list form with
+                | Some (head :: _) -> symbol head = Some "facts" | _ -> false) properties with
+              | [] -> None
+              | [form] ->
+                  let fields = tagged "facts" form in
+                  let names = List.map (fun form -> match list form with
+                    | Some (head :: _) -> word head | _ -> bad form "Malformed kernel facts") fields in
+                  if List.sort String.compare names <>
+                      ["cook-mode"; "elementwise"; "exact"; "reads"; "topology"; "writes"] then
+                    bad form "Kernel facts require cook-mode, elementwise, exact, reads, topology and writes exactly once";
+                  let get tag = property tag fields form in
+                  (match tagged "cook-mode" (get "cook-mode") with
+                   | [mode] when List.mem (word mode) ["generator"; "generic"] -> ()
+                   | [mode; index] when List.mem (word mode)
+                       ["duplicate-input"; "in-place"; "instance-input"; "passthrough"]
+                       && integer index >= 0 -> ()
+                   | _ -> bad form "Invalid cook mode in kernel facts");
+                  let elementwise = match word (one "elementwise" (get "elementwise")) with
+                    | "points" -> Points | "primitives" -> Primitives | "none" -> Irregular
+                    | _ -> bad form "Invalid elementwise class in kernel facts" in
+                  let preserves_topology = match word (one "topology" (get "topology")) with
+                    | "preserved" -> true | "changed" -> false
+                    | _ -> bad form "Invalid topology class in kernel facts" in
+                  let reads = strings "reads" (get "reads") and writes = strings "writes" (get "writes") in
+                  if List.exists (fun name -> String.trim name = "") (reads @ writes) then
+                    bad form "Blank component name in kernel facts";
+                  Some {elementwise; reads; writes; preserves_topology; exact = bool (one "exact" (get "exact"))}
+              | _ -> bad form "Duplicate kernel facts" in
             let slots = tagged "slots" (get "slots") |> List.map (fun slot ->
               match tagged "slot" slot with
               | [name; required] ->
@@ -169,15 +206,13 @@ let catalog_of_manifest source =
               match tagged "output" output with
               | [name; ty] -> string name, port_type ty
               | _ -> bad output "Malformed output in Flow manifest") in
-            let context = match List.find_opt (fun context ->
-                  String.starts_with ~prefix:(Context.name context ^ "/") qualified)
-                  Context.[Sop; Scene; World; Settings] with
+            let context = match Context.of_qualified qualified with
                 | Some context -> Some context
                 | None -> bad form "Unknown kind namespace in Flow manifest" in
             if not (String.ends_with ~suffix:("/" ^ key) qualified)
               then bad form "Kind key differs from its qualified name";
             Option.map (fun context -> {qualified; aliases; context; slots;
-              parameters = parameters_of_fields fields; outputs}) context
+              parameters = parameters_of_fields fields; outputs; facts}) context
         | _ -> bad form "Malformed kind in Flow manifest" in
       try match forms with
       | [root] ->
@@ -208,10 +243,11 @@ let catalog_of_manifest source =
       | _ -> Error (Diagnostic.error ~code:"E_CATALOG"
           "Flow manifest needs one top-level form")
       with Invalid_manifest diagnostic -> Error diagnostic
-let known_prefix catalog name = (name = "user" || List.exists (fun ctx -> Context.name ctx = name) Context.all) ||
+let known_prefix catalog name = (name = "user" || List.exists (fun ctx ->
+  Context.name ctx = name || (Context.descriptor ctx).catalog_prefix = Some name) (Context.all ())) ||
   List.exists (fun kind -> String.starts_with ~prefix:(name ^ "/") kind.qualified) catalog.kinds
 let allowed context (kind : kind) =
-  kind.context = Context.Value || kind.context = context
+  kind.context = Context.value || kind.context = context
 let resolve_report catalog context report head =
   let all = catalog.kinds in
   let matches name = List.filter (fun kind ->
@@ -236,7 +272,7 @@ let resolve_report catalog context report head =
       (match String.split_on_char '/' head with
        | prefix :: _ :: _ when not (known_prefix catalog prefix) ->
            report "E_NAMESPACE"
-             (Printf.sprintf "Unknown namespace %s. This file knows sop, value and user" prefix)
+             (Printf.sprintf "Unknown namespace %s." prefix)
        | _ ->
            let names = List.map (fun kind -> short kind.qualified) all in
            report "E_UNKNOWN_KIND"

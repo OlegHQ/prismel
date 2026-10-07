@@ -23,4 +23,8 @@ val validate : t -> (unit, Flow.Diagnostic.t) result
 val parameter : t -> Port.t -> (Port.parameter, Flow.Diagnostic.t) result
 val relabel : node_id:int -> string -> t -> (t, Flow.Diagnostic.t) result
 val with_geometry : Procedural.Edit_graph.t -> t -> (t, Flow.Diagnostic.t) result
+
+val apply_parameters : node_id:int -> (string * Param.value) list -> t -> (t, Flow.Diagnostic.t) result
+(** Apply validated node fields without changing slots or drive targets. *)
+
 val remove_nodes : int list -> t -> (t, Flow.Diagnostic.t) result

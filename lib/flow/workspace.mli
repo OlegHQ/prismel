@@ -26,7 +26,7 @@ type path = string list
 
 module Paths : Set.S with type elt = path
 
-type context = Context.t = Sop | Value | Draw | Scene | World | Settings | Editor | Material
+type context = Context.t
 
 val context_name : context -> string
 
@@ -102,12 +102,13 @@ type t = {
   kind_fns : (string * (string * Context.t * Check.slot list)) list;
       (** A catalog kind used as a function value: its qualified name, context and
           complete ordered slot signature, including a repeated final slot. *)
+  ops : Op.t list;  (** immutable extra operators retained by this checked workspace *)
 }
 
 val max_iterations : int
 (** Iterations per zone: 4,096. *)
 
-val check : Check.catalog -> Syntax.t list -> t option * Diagnostic.t list
+val check : ?ops:Op.t list -> Check.catalog -> Syntax.t list -> t option * Diagnostic.t list
 (** Check one [(workspace name ...)] form.  The workspace is returned only
     without errors; warnings never block it. *)
 
@@ -132,12 +133,12 @@ type op_signature = Op.signature = {
 (** Positional inputs, optional positional inputs, the repeating input and
     keyword inputs of a built-in operator. *)
 
-val op_signature : context -> string -> op_signature option
+val op_signature : ?ops:Op.t list -> context -> string -> op_signature option
 (** The built-in operator a call head names in a graph of this context
     ([sin], [value/rand], [scene/object], ...); [None] for kinds and
     definitions. *)
 
-val op_choices : string -> string -> string list
+val op_choices : ?ops:Op.t list -> string -> string -> string list
 (** The texts an operator's argument takes ([ui/graph]'s [view], a split's [axis]); empty when it
     takes any. *)
 
@@ -152,3 +153,8 @@ val group_reader : Check.parameter -> bool
 val group_writer : Check.kind -> Check.parameter -> bool
 (** Which catalog parameters read or write a primitive group (inferred:
     the manifest has no markers). *)
+
+val validate_parameter :
+  ?ty:Ty.t -> (Diagnostic.severity -> string -> string -> unit) -> Check.parameter -> term -> unit
+(** Validate one already typed keyword argument using the workspace's coercion,
+    colour, choice and range rules. *)

@@ -17,6 +17,9 @@ type entry = {
 
 type t
 
+val of_ops : ?extra:Flow.Op.t list -> Flow.Context.t -> entry list
+(** Entries for the context's immutable operator declarations. *)
+
 val create : ?after:string -> x:int -> y:int -> entry list -> t
 (** A menu open at a screen point (clamped inside the bounds it is drawn in); [after] is the node
     the new one goes after, which the title says.  Entries with an
@@ -25,6 +28,9 @@ val create : ?after:string -> x:int -> y:int -> entry list -> t
 val port_color : Pxui.theme -> Flow.Ty.t -> Rays.Color.t
 (** The colour of a type's port: the square of a kind in the menu, and the ports, type squares and
     wires of the graph pane (a list is its elements' colour). *)
+
+val color : Pxui.theme -> Flow.Ty.color -> Rays.Color.t
+(** Resolve a declaration's color role through the current kit palette. *)
 
 val position : t -> int * int
 (** The screen point the menu was opened at (where the host places what it adds). *)

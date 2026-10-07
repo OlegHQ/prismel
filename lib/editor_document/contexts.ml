@@ -166,7 +166,7 @@ let check_context_time (workspace : Workspace_doc.t) (plan : E.plan) =
     | _ -> None in
   match Array.to_list plan.instances |> List.find_map (fun (instance : E.instance) ->
     Option.bind (List.find_opt (fun (g : W.graph) -> g.name = instance.graph
-      && g.context <> W.Sop && g.context <> W.Value) workspace.checked.graphs) (fun graph ->
+      && g.context <> Flow.Context.sop && g.context <> Flow.Context.value) workspace.checked.graphs) (fun graph ->
       Option.map (fun field -> Flow.Diagnostic.error ~code:"E_CONTEXT_TIME" ~span:graph.body.form.span
         (Printf.sprintf "Graph %s: %s depends on t, but %s fields are static. Use a literal or a SOP/value drive."
           graph.name field (W.context_name graph.context))) (live_field "result" instance.result))) with
@@ -174,7 +174,7 @@ let check_context_time (workspace : Workspace_doc.t) (plan : E.plan) =
 
 (* Non-SOP fields are checked before their static context is materialized. *)
 let result ?(force = true) (workspace : Workspace_doc.t) (plan : E.plan) context =
-  match (if context = Flow.Workspace.Editor then Workspace_doc.editor_graph workspace
+  match (if context = Flow.Context.editor then Workspace_doc.editor_graph workspace
     else List.find_opt (fun (g : Flow.Workspace.graph) -> g.context = context) workspace.checked.graphs) with
   | None -> Ok None
   | Some graph ->
@@ -186,7 +186,7 @@ let result ?(force = true) (workspace : Workspace_doc.t) (plan : E.plan) context
            else Ok (Some instance.result))
 
 let has_settings (workspace : Workspace_doc.t) =
-  List.exists (fun (g : Flow.Workspace.graph) -> g.context = Flow.Workspace.Settings)
+  List.exists (fun (g : Flow.Workspace.graph) -> g.context = Flow.Context.settings)
     workspace.checked.graphs
 
 let settings_of = function
@@ -201,7 +201,7 @@ let settings_of = function
 let window (workspace : Workspace_doc.t) =
   let* evaluated = E.static ~inputs:workspace.inputs workspace.checked in
   let* () = check_context_time workspace evaluated.plan in
-  let* value = result workspace evaluated.plan Flow.Workspace.Settings in
+  let* value = result workspace evaluated.plan Flow.Context.settings in
   match value with
   | None -> Ok (Param.default window_schema)
   | Some value -> Result.map (Settings.get window_schema) (settings_of value)
@@ -329,7 +329,7 @@ let graph_of (workspace : Workspace_doc.t) context =
   List.find_opt (fun (g : W.graph) -> g.context = context) workspace.checked.graphs
 
 let graph_of_name (workspace : Workspace_doc.t) name =
-  List.find_opt (fun (g : W.graph) -> g.name = name && g.context = W.World) workspace.checked.graphs
+  List.find_opt (fun (g : W.graph) -> g.name = name && g.context = Flow.Context.world) workspace.checked.graphs
 
 (* Scene calls retain their light residuals beside their homes; other contexts
    are materialized at zero after unsupported live fields have been refused. *)
@@ -338,7 +338,7 @@ let graph_calls ~want ~below (plan : E.plan) context (graph : W.graph) =
           (Array.to_list plan.instances) with
   | None -> Ok []
   | Some instance ->
-      let* value = if context = W.Scene then Ok instance.result
+      let* value = if context = Flow.Context.scene then Ok instance.result
         else E.force instance.result ~live:(Frame_input.at_time (0. )) in
       Ok (walk ~want ~below ~iter:[] [] None graph.body value)
 
@@ -367,12 +367,12 @@ let item_of (lowered : Flow_sop.Lower.t) { kind; args; home; via } =
     let* parameter = Flow_sop.Port.find_parameter (ports kind) key in
     Ok ((parameter, value) :: rest)) dynamic (Ok []) in
   let drives = if dynamic = [] then None else Some (kind, dynamic) in
-  let* forced = E.force (E.Struct (kind, Flow.Ty.Scene, args)) ~live:(Frame_input.at_time (0.)) in
+  let* forced = E.force (E.Struct (kind, Flow.Ty.scene, args)) ~live:(Frame_input.at_time (0.)) in
   let args = match forced with E.Struct (_, _, args) -> args | _ -> assert false in
   let factory = List.assoc kind scene_kinds in
   let* values = changes kind args in
   let* geometry = match List.assoc_opt "geometry" args with
-    | Some (E.Deferred (Flow.Ty.Geometry, id)) ->
+    | Some (E.Deferred ((Flow.Ty.Named "geometry"), id)) ->
         let inst = lowered.plan.nodes.(id).inst in
         (match List.find_opt (fun (g : Flow_sop.Lower.graph) -> g.instance = inst) lowered.graphs with
          | Some g -> Ok (Some g)
@@ -409,7 +409,7 @@ let root_of calls =
   | None -> Ok { params = Objects.Root.default; root_home = None; camera = None }
   | Some call ->
       let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) call.args in
-      let* forced = E.force (E.Struct ("scene/root", Flow.Ty.Scene, own)) ~live:(Frame_input.at_time (0. )) in
+      let* forced = E.force (E.Struct ("scene/root", Flow.Ty.scene, own)) ~live:(Frame_input.at_time (0. )) in
       let* values = changes "scene/root" (match forced with E.Struct (_, _, args) -> args | _ -> []) in
       let* params = root_params values in
       let others = List.filter (fun (c : call) -> c.kind <> "scene/root") calls in
@@ -419,9 +419,9 @@ let root_of calls =
 (* The objects of a workspace: its scene graph's calls, else one geometry object
    per sop graph; and its root. *)
 let items workspace (lowered : Flow_sop.Lower.t) =
-  match graph_of workspace Flow.Workspace.Scene with
+  match graph_of workspace Flow.Context.scene with
   | Some _ ->
-      let* scene = calls ~want:is_scene_kind ~below:scene_below workspace lowered.plan Flow.Workspace.Scene in
+      let* scene = calls ~want:is_scene_kind ~below:scene_below workspace lowered.plan Flow.Context.scene in
       let* objects = List.fold_right (fun call rest ->
         let* rest = rest in
         if call.kind = "scene/root" then Ok rest
@@ -465,14 +465,14 @@ let check_scene (workspace : Workspace_doc.t) (plan : E.plan) =
   List.fold_left (fun checked (g : W.graph) ->
     let* () = checked in
     match List.find_opt (fun (i : E.instance) -> i.default && i.graph = g.name) (Array.to_list plan.instances) with
-    | Some instance when g.context = W.Scene ->
+    | Some instance when g.context = Flow.Context.scene ->
         let refuse code message = Error (Flow.Diagnostic.error ~code ~span:g.body.form.span message) in
         let value = instance.result in
         if nested_root ~under:false value then
           refuse "E_SCENE_ROOT" (Printf.sprintf
             "Graph %s: a scene/root is wired into a merge or another root. A root renders the scene, so it is always last." g.name)
         else
-          let* worlds = graph_calls ~want:(fun k -> k = "scene/world" || k = "scene/root") ~below:scene_below plan W.Scene g in
+          let* worlds = graph_calls ~want:(fun k -> k = "scene/world" || k = "scene/root") ~below:scene_below plan Flow.Context.scene g in
           let worlds = List.filter (fun (c : call) -> c.kind = "scene/world") worlds in
           let name (c : call) = Document.describe workspace.source c.home in
           (match worlds with
@@ -555,7 +555,7 @@ let instance_camera = function
 let instance_root = function
   | E.Struct ("scene/root", _, args) ->
       let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) args in
-      (match E.force (E.Struct ("scene/root", Flow.Ty.Scene, own)) ~live:(Frame_input.at_time (0. )) with
+      (match E.force (E.Struct ("scene/root", Flow.Ty.scene, own)) ~live:(Frame_input.at_time (0. )) with
        | Ok (E.Struct (_, _, forced)) ->
            (match changes "scene/root" forced with
             | Ok values ->
@@ -619,7 +619,7 @@ let layer_network ?previous ~homes layers =
     let* graph = apply factory graph (Node.id node) values in
     Ok (graph, Node.id node :: used, Some (Node.id node), (Node.id node, call.home) :: made))
     (Ok (Edit.empty, [], None, [])) layers in
-  Ok (Document.of_geometry ~context:Flow.Context.World graph below, List.rev made)
+  Ok (Document.of_geometry ~context:Flow.Context.world graph below, List.rev made)
 
 (* ---- the editor ---- *)
 
@@ -783,7 +783,7 @@ let origins (graph : W.graph) value =
   !found, List.rev !ofs
 
 let editor (workspace : Workspace_doc.t) (plan : E.plan) =
-  let* value = result ~force:false workspace plan Flow.Workspace.Editor in
+  let* value = result ~force:false workspace plan Flow.Context.editor in
   match value with
   | None -> Ok None
   | Some (E.Struct ("ui/workspace", _, [ _, root ]) as whole) ->
@@ -846,14 +846,16 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
    gesture that moves a scene object does not look like an edit of its geometry, so nothing
    re-prepares or recooks. *)
 let same_network (a : Document.network) (b : Document.network) =
-  let summary (n : Document.network) = List.map (fun (i : Edit.node_info) ->
-    i.id, i.operation, i.label, i.bypass, i.inputs,
-    List.map (fun (f : Param.field_view) -> f.name, f.current) (Node.parameter_fields i.node))
-    (Edit.inspect n.graph.geometry) in
+  let same (a : Edit.node_info) (b : Edit.node_info) =
+    a.id = b.id && a.operation = b.operation && a.label = b.label
+    && a.bypass = b.bypass && a.inputs = b.inputs
+    && (a.node == b.node || List.map (fun (f : Param.field_view) -> f.name, f.current) (Node.parameter_fields a.node)
+      = List.map (fun (f : Param.field_view) -> f.name, f.current) (Node.parameter_fields b.node)) in
   a.context = b.context && a.displayed = b.displayed
   && (a.graph.drives == b.graph.drives || Flow_sop.Port.Map.is_empty a.graph.drives && Flow_sop.Port.Map.is_empty b.graph.drives)
   && Edit.root a.graph.geometry = Edit.root b.graph.geometry
-  && summary a = summary b
+  && (a.graph.geometry == b.graph.geometry
+    || List.equal same (Edit.inspect a.graph.geometry) (Edit.inspect b.graph.geometry))
 
 let same_settings a b =
   let values s = List.map (fun (f : Param.field_view) -> f.name, f.current) (Settings.fields s) in
@@ -873,15 +875,22 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
         Some lowered.compiled_ids, Some lowered.sites
     | None -> None, None in
   let old_homes = match previous with Some doc -> doc.Document.homes | None -> Document.no_homes in
-  let* lowered = Flow_sop.Lower.workspace ~factories ~extra:descriptors ?compiled_ids ?sites
-      ~inputs:workspace.inputs
-      workspace.source in
+  let previous_literal = Option.bind previous (fun (doc : Document.t) ->
+    let old, lowered = doc.workspace in
+    Option.bind (Workspace_doc.literal_changes ~previous:old workspace) (fun changes ->
+      List.fold_left (fun result change -> Option.bind result (fun result ->
+          match result with Error _ -> Some result | Ok lowered -> Literal_edit.lower lowered change))
+          (Some (Ok lowered)) changes)) in
+  let* lowered = match previous_literal with
+    | Some result -> result
+    | None -> Flow_sop.Lower.of_checked ~factories ?compiled_ids ?sites
+        ~inputs:workspace.inputs workspace.checked in
   let* () = check_context_time workspace lowered.plan in
   let* () = check_scene workspace lowered.plan in
   let* items, root = items workspace lowered in
   (* a viewport over another instance of the scene draws objects of its own *)
   let* editor = editor workspace lowered.plan in
-  let* default_scene = result ~force:false workspace lowered.plan Flow.Workspace.Scene in
+  let* default_scene = result ~force:false workspace lowered.plan Flow.Context.scene in
   (* a viewport's own scene draws its objects; its root and World are not the document's *)
   let objects_only calls = List.filter (fun (c : call) -> c.kind <> "scene/root" && c.kind <> "scene/world") calls in
   let default_calls = objects_only (Option.fold ~none:[] ~some:scene_calls default_scene) in
@@ -933,18 +942,18 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let items = items @ List.concat_map snd aux in
   let scene = match previous with
     | Some (doc : Document.t) -> doc.scene
-    | None -> Document.of_geometry ~context:Flow.Context.Scene Edit.empty None in
+    | None -> Document.of_geometry ~context:Flow.Context.scene Edit.empty None in
   (* a scene graph is authoritative for every object kind: what it does not say is not there
      (no camera, no lights), and the host seeds nothing *)
-  let has_scene = graph_of workspace Flow.Workspace.Scene <> None in
-  let has_world = graph_of workspace Flow.Workspace.World <> None in
+  let has_scene = graph_of workspace Flow.Context.scene <> None in
+  let has_world = graph_of workspace Flow.Context.world <> None in
   (* the World is a merge member ([scene/world]); an old file's world graph returning a
      [world/world] call is read as the scene's World, written where it is *)
   let scene_world = List.find_opt (fun item -> item.group = None && Edit.factory_operation item.factory = "world") items in
   let owned operation = operation = "geometry"
     || (has_scene && (operation <> "world" || scene_world <> None)) in
   let* world, layers, orphan = if scene_world <> None then Ok (None, [], false) else
-    let* stack = calls ~want:is_world_kind ~below:world_below workspace lowered.plan Flow.Workspace.World in
+    let* stack = calls ~want:is_world_kind ~below:world_below workspace lowered.plan Flow.Context.world in
     match List.rev stack with
     | [] -> Ok (None, [], false)
     | { kind = "world/world"; _ } as world :: layers -> Ok (Some world, List.rev layers, false)
@@ -984,7 +993,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
           | Some name -> Ok name
           | None -> Error (diag "E_LOWER" "A scene/world references a world graph: (scene/world (ref sky)).") in
         let* stack = match graph_of_name workspace named with
-          | Some g -> graph_calls ~want:is_world_kind ~below:world_below lowered.plan W.World g
+          | Some g -> graph_calls ~want:is_world_kind ~below:world_below lowered.plan Flow.Context.world g
           | None -> Error (diag "E_LOWER" (Printf.sprintf "scene/world references %s, which is not a world graph." named)) in
         let previous_network = Option.bind previous (fun (doc : Document.t) ->
           Document.Int_map.find_opt id doc.networks) in
@@ -1037,8 +1046,8 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     if Edit.factory_operation item.factory <> "geometry" then networks
     else
       let network = match item.geometry with
-        | Some g -> { Document.context = Flow.Context.Sop; graph = g.network; displayed = g.root }
-        | None -> { Document.context = Flow.Context.Sop;
+        | Some g -> { Document.context = Flow.Context.sop; graph = g.network; displayed = g.root }
+        | None -> { Document.context = Flow.Context.sop;
                     graph = Flow_sop.Network.of_geometry Edit.empty; displayed = None } in
       Document.Int_map.add id network networks) carried objects in
   let networks = match world_id, world_network with
@@ -1051,9 +1060,9 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
         | Some old when same_network old network -> old
         | _ -> network) networks in
   let* settings_calls = calls ~want:(fun k -> k = "settings/config") ~below:no_below workspace
-      lowered.plan Flow.Workspace.Settings in
+      lowered.plan Flow.Context.settings in
   let* settings = match settings_calls with
-    | { kind; args; _ } :: _ -> settings_of (E.Struct (kind, Flow.Ty.Settings, args))
+    | { kind; args; _ } :: _ -> settings_of (E.Struct (kind, Flow.Ty.settings, args))
     | [] -> Ok workspace.settings in
   (* settings the previous document already has are kept physically, like a network: the cook
      and every prepared piece are keyed by them, so a camera move must not look like an edit *)

@@ -57,11 +57,13 @@ let set_root value root =
    entry): the same reduction as a [Syntax_edit] intent, committed as one
    history entry named by the op ([Gesture] merge for a scrub). *)
 let syntax_edit value op =
+  let result, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
   Result.map (fun doc -> install value doc ~label:(Flow_graph.Flow_edit.label op)
     ~merge:(Option.fold ~none:Editor_core.History.Step
       ~some:(fun key -> Editor_core.History.Gesture key) (Flow_graph.Flow_edit.gesture op)))
     (Doc.syntax_edit_result ~factories:value.factories value.doc op)
-  |> Result.map_error Flow.Diagnostic.to_string
+  |> Result.map_error Flow.Diagnostic.to_string) in
+  Result.map (fun value -> { value with edit_phases = phases }) result
 
 (* The scene's World at timeline [time] (the day cycle advances with it). *)
 let world ?(view = `Primary) value ~time =
@@ -140,7 +142,7 @@ let edit_node value level node_id values ~label =
 let material_graph value path =
   let ws, _ = value.doc.Document.workspace in
   let materials = List.filter_map (fun (g : Flow.Workspace.graph) ->
-    if g.context = Flow.Workspace.Material then Some g.name else None) ws.checked.graphs in
+    if g.context = Flow.Context.material then Some g.name else None) ws.checked.graphs in
   if List.mem path materials then Some path
   else match value.scope_key with
     | Some { evaluated = Some ev; _ } ->
@@ -161,22 +163,30 @@ let pick ?view ?(alt = false) value ~origin ~direction =
     | Some inverse ->
         match pick piece ~origin:(Mat4.transform_point inverse origin)
             ~direction:(Mat4.transform_direction inverse direction), best with
-        | Some (distance, _), Some (nearer, _) when distance >= nearer -> best
-        | Some hit, _ -> Some hit
+        | Some (distance, _), Some (nearer, _, _) when distance >= nearer -> best
+        | Some (distance, hit), _ -> Some (distance, hit, piece.Cook.id)
         | None, _ -> best) None (placed_pieces ~view value) in
   match value.doc.Document.workspace, value.scope_key with
   | _ when alt ->
       (* Alt-click: the material on that primitive *)
       (match nearest_by Cook.pick_material with
-       | Some (_, Some path) ->
+       | Some (_, Some path, _) ->
            (match material_graph value path with
             | Some graph -> go value graph
             | None -> { value with notice = Some (Refusal, "No material graph for " ^ path) })
        | _ -> value)
   | (ws, lowered), Some { scope; _ } when scope_name value <> None ->
       let nearest = nearest_by Cook.pick in
-      let hit = Option.bind nearest (fun (_, tag) ->
-        Flow_sop.Lower.origin lowered tag) in
+      let hit = Option.bind nearest (fun (_, tag, owner) ->
+        let original = Flow_sop.Lower.origin lowered tag in
+        match Document.Int_map.find_opt owner value.previews with
+        | Some preview when original = None || List.exists (fun path ->
+            List.exists (fun (zone : Flow_sop.Lower.zone) -> zone.site = path) lowered.zones) preview.chain ->
+            let root = snd (Document.Int_map.find owner value.viewed) in
+            Some Flow_sop.Lower.{merge = root; input = 0; source = root; site = preview.path;
+              iter = List.map (fun path -> Option.value ~default:0
+                (Layout_by_path.Path_map.find_opt path value.probes)) preview.chain}
+        | _ -> original) in
       (match hit with
        | Some o ->
            (* geometry of another graph (a viewport over another scene instance draws its own
@@ -253,7 +263,7 @@ let carry_over_surface ?view value ~origin ~direction =
         | None ->
             (* nothing under the pointer: a SOP graph goes to the scene, a material has no place *)
             (match List.find_map (fun (g : Flow.Workspace.graph) ->
-               if g.context = Flow.Workspace.Scene then Some g.name else None)
+               if g.context = Flow.Context.scene then Some g.name else None)
                (fst value.doc.Document.workspace).checked.graphs with
              | Some graph when c.payload.kind = "sop" -> Carry.Graph graph
              | _ -> Carry.Viewport "") in

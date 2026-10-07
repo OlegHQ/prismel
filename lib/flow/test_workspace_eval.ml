@@ -101,6 +101,12 @@ let () = (* the 12 fixtures run, deterministically, with unique plan keys, at an
     let ws = check source in
     let a = run ws and b = run ws in
     if a <> b then failwith "two runs differ";
+    assert (Array.length a.authored = Array.length a.plan.nodes);
+    let forms = Hashtbl.create 128 in
+    let rec remember (form : Syntax.t) = Hashtbl.replace forms form.id (); List.iter remember (Syntax.children form) in
+    List.iter remember ws.source;
+    assert (Array.for_all (fun id -> id = 0 || Hashtbl.mem forms id) a.authored);
+    assert (a.authored = (static ws).authored);
     let keys = Array.to_list a.plan.nodes |> List.map (fun (n : Eval.node) -> (n.inst, n.site, n.iter)) in
     if List.length (List.sort_uniq compare keys) <> List.length keys then failwith "plan keys collide";
     (* structure never depends on t: only argument values change *)
@@ -294,7 +300,7 @@ let () = (* 5. macros *)
 let () = (* 6. bypass, notes *)
   t "bypass passes the first input through" (fun () ->
     let r = run (check (sop "(let* [a (sop/box) b ^:bypass (sop/transform a :translate [5 0 0])] b)")) in
-    assert (Array.length r.plan.nodes = 1 && result r "g" = Eval.Deferred (Ty.Geometry, 0));
+    assert (Array.length r.plan.nodes = 1 && result r "g" = Eval.Deferred (Ty.geometry, 0));
     (* a bypassed value call passes its first input, coerced *)
     is (value "(let* [a 2 b ^:bypass (+ a 3)] b)") (Eval.Int 2));
   t "notes survive print and the workspace still runs" (fun () ->
@@ -527,7 +533,7 @@ let () = (* L6, L14, F3: accumulators, ref overrides, sum types *)
     let merge = List.hd (nodes_of r "sop/merge") in
     (* the two refs with the same tuple wire the same node *)
     match merge.args with
-    | [ (_, Eval.Deferred (Ty.Geometry, a)); (_, Deferred (Ty.Geometry, b)); (_, Deferred (Ty.Geometry, c)); (_, Deferred (Ty.Geometry, d)) ] -> assert (a = d && b = c && a <> b)
+    | [ (_, Eval.Deferred (Ty.Named "geometry", a)); (_, Deferred (Ty.Named "geometry", b)); (_, Deferred (Ty.Named "geometry", c)); (_, Deferred (Ty.Named "geometry", d)) ] -> assert (a = d && b = c && a <> b)
     | _ -> failwith "merge inputs");
   t "L14: inputs override from OCaml and are coerced" (fun () ->
     let ws = check "(workspace w (graph g :context value [(n : float 2)] (* n 3)))" in
@@ -543,7 +549,7 @@ let () = (* W5: records are bounded, per path and iteration tuple *)
     let inner = List.find (fun (p, l) -> List.length l = 4096 && List.mem "x" p) rs in
     assert (List.length (snd inner) = 4096);
     let rs = records (sop "(let* [a (sop/box)] a)") in
-    assert (first_at rs [ "g"; "a" ] = Eval.Deferred (Ty.Geometry, 0));
+    assert (first_at rs [ "g"; "a" ] = Eval.Deferred (Ty.geometry, 0));
     (* nothing is recorded unless asked *)
     assert ((run (check (value "(sum [i (range 3)] i)"))).records = []))
 

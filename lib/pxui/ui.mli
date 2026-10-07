@@ -603,6 +603,7 @@ val text_area_submit :
   t -> at:float * float -> w:float -> h:float -> ?readonly:bool -> ?wrap:bool ->
   ?errors:int list -> ?messages:(int * (int * int) option * string) list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
   ?on_context:(float * float -> unit) -> ?on_scrub:([ `Live | `Done ] -> unit) ->
+  ?on_scrub_edit:(int * int -> string -> unit) ->
   ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) -> ?on_drop:(int -> drop -> unit) ->
   ?chips:(int * int * Rays.Color.t) list ->
   string -> string -> string * bool
@@ -618,7 +619,9 @@ val text_area_submit :
     pointer (a float by a tenth of its last decimal place per point, an integer by one per five
     points, Shift ten times faster): [on_scrub `Live] is called on each frame the returned text
     changed that way and [on_scrub `Done] when the drag ends, so a host can apply the text live
-    and merge the drag into one history entry.  [on_click byte command] is called when the area is
+    and merge the drag into one history entry. [on_scrub_edit (start, finish) replacement]
+    reports the token's byte range before replacement on each live scrub, so a host can
+    edit its syntax without reparsing the whole text. [on_click byte command] is called when the area is
     left-clicked at byte offset [byte] without a drag, [command] being true when Command or Ctrl is
     held; [on_caret] receives the caret offset each frame the area has focus;
     [on_drop byte drop] is called while a payload ({!val-carry}) is held over the area, with the byte

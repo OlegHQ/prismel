@@ -1,0 +1,17 @@
+(library
+ (name flow_ir)
+ (public_name rays.flow_ir)
+ (modules operators packed flow_ir)
+ (libraries flow param rays_math))
+
+(test
+ (name test_ir)
+ (modules test_ir)
+ (deps ../sop_catalog/flow_manifest.sexp
+  (glob_files ../../specification/workspace/cases/*.lisp))
+ (libraries flow_ir flow rays_math))
+
+(test
+ (name test_noise)
+ (modules test_noise)
+ (libraries flow_ir flow rays_math))

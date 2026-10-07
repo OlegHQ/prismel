@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "72afcb284d6b079944677a0d7ec832c4")
+  (digest "ecd0871bb522b20c29cf015e56f54fa0")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -29,7 +29,8 @@
         (field "uniform_scale" "Uniform scale" (folder "Transform") (float (soft 0.01 10) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "") (primary false) (vec3))
         (field "face_groups" "Face group prefix" (folder "Attributes") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/platonic"
       (key "platonic")
       (aliases)
@@ -53,7 +54,8 @@
         (field "rotation_z" "Rotate Z" (folder "Transform" "Rotate") (float (soft -3.14159 3.14159) (hard nil nil)) (float 0) (primary false) (vec3 "rotation" 2))
         (field "rotation_order" "Rotation order" (folder "Transform" "Rotate") (choice "XYZ" "XZY" "YXZ" "YZX" "ZXY" "ZYX") (choice "XYZ") (primary false) (vec3))
         (field "face_groups" "Face group prefix" (folder "Attributes") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/spiral"
       (key "spiral")
       (aliases)
@@ -98,7 +100,8 @@
         (field "tangent_attribute" "Tangent" (folder "Attributes") (text) (text "") (primary false) (vec3))
         (field "orient_attribute" "Orient" (folder "Attributes") (text) (text "") (primary false) (vec3))
         (field "distance_attribute" "Distance" (folder "Attributes") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/switch"
       (key "switch")
       (aliases)
@@ -108,7 +111,8 @@
       (slots (slot "a" required) (slot "b" required) (slot "inputs" optional-rest))
       (fields
         (field "input" "Source" (folder) (int (soft 0 9999) (hard 0 nil)) (int 0) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode passthrough 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/line"
       (key "line")
       (aliases)
@@ -126,7 +130,8 @@
         (field "direction_y" "Direction Y" (folder "Direction") (float (soft -1 1) (hard nil nil)) (float 1) (primary false) (vec3 "direction" 1))
         (field "direction_z" "Direction Z" (folder "Direction") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "direction" 2))
         (field "length" "Length" (folder) (float (soft 0 10) (hard 0 nil)) (float 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/circle"
       (key "circle")
       (aliases)
@@ -157,7 +162,8 @@
         (field "rotation" "Rotation" (folder "Transform") (float (soft -3.14159 3.14159) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "uniform_scale" "Uniform scale" (folder "Size") (float (soft 0.01 10) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "segments" "Segments" (folder) (int (soft 3 256) (hard 3 nil)) (int 48) (primary true) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/grid"
       (key "grid")
       (aliases)
@@ -187,7 +193,8 @@
         (field "center_z" "Center Z" (folder "Transform" "Center") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3 "center" 2))
         (field "rotation" "Rotation" (folder "Transform") (float (soft -3.14159 3.14159) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/uv_sphere"
       (key "uv_sphere")
       (aliases)
@@ -223,7 +230,8 @@
         (field "segments" "Segments" (folder "Resolution") (int (soft 3 256) (hard 3 nil)) (int 48) (primary true) (vec3))
         (field "rings" "Rings" (folder "Resolution") (int (soft 2 128) (hard 2 nil)) (int 24) (primary true) (vec3))
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "uv") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/torus"
       (key "torus")
       (aliases)
@@ -260,7 +268,8 @@
         (field "rows" "Rows" (folder "Resolution") (int (soft 3 256) (hard 2 nil)) (int 48) (primary true) (vec3))
         (field "columns" "Columns" (folder "Resolution") (int (soft 3 256) (hard 2 nil)) (int 24) (primary true) (vec3))
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "uv") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/tube"
       (key "tube")
       (aliases)
@@ -293,7 +302,8 @@
         (field "columns" "Columns" (folder "Resolution") (int (soft 3 256) (hard 3 nil)) (int 32) (primary false) (vec3))
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "uv") (primary false) (vec3))
         (field "cap_group" "Cap group" (folder "Attributes") (text) (text "caps") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/transform"
       (key "transform")
       (aliases)
@@ -345,7 +355,8 @@
         (field "uniform_scale" "Uniform scale" (folder "Scale") (float (soft 0.01 10) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "preserve_normal_length" "Preserve normal length" (folder "Normals") (bool) (bool false) (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder "Normals") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P" "N") (writes "P" "N") (topology preserved) (exact false)))
     (kind "sop/match_size"
       (key "match_size")
       (aliases)
@@ -384,7 +395,8 @@
         (field "target_size_x" "Size X" (folder "Numeric target" "Size") (float (soft 0 10) (hard 0 nil)) (float 1) (primary false) (vec3 "target_size" 0))
         (field "target_size_y" "Size Y" (folder "Numeric target" "Size") (float (soft 0 10) (hard 0 nil)) (float 1) (primary false) (vec3 "target_size" 1))
         (field "target_size_z" "Size Z" (folder "Numeric target" "Size") (float (soft 0 10) (hard 0 nil)) (float 1) (primary false) (vec3 "target_size" 2)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/mirror"
       (key "mirror")
       (aliases)
@@ -400,7 +412,8 @@
         (field "normal_x" "Normal X" (folder "Plane" "Normal") (float (soft -1 1) (hard nil nil)) (float 1) (primary false) (vec3 "normal" 0))
         (field "normal_y" "Normal Y" (folder "Plane" "Normal") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "normal" 1))
         (field "normal_z" "Normal Z" (folder "Plane" "Normal") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "normal" 2)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/clip"
       (key "clip")
       (aliases)
@@ -429,7 +442,8 @@
         (field "above_group" "Above" (folder "Output groups") (text) (text "") (primary false) (vec3))
         (field "below_group" "Below" (folder "Output groups") (text) (text "") (primary false) (vec3))
         (field "replace_existing_groups" "Replace existing groups" (folder "Output groups") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/crease"
       (key "crease")
       (aliases)
@@ -442,7 +456,8 @@
         (field "operation" "Operation" (folder) (choice "Add" "Set" "Delete") (choice "Add") (primary false) (vec3))
         (field "weight" "Weight" (folder) (float (soft 0 10) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "add_vertex_color" "Visualize with vertex color" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/subdivide"
       (key "subdivide")
       (aliases)
@@ -470,7 +485,8 @@
         (field "creasing_method" "Creasing method" (folder "Creases") (choice "Uniform" "Chaikin") (choice "Uniform") (primary false) (vec3))
         (field "treat_curves_as_independent" "Treat curves independently" (folder) (bool) (bool false) (primary false) (vec3))
         (field "recompute_point_normals" "Recompute point normals" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_divide"
       (key "edge_divide")
       (aliases)
@@ -482,7 +498,8 @@
         (field "group" "Edge group" (folder) (text) (text "") (primary false) (vec3))
         (field "divisions" "Divisions" (folder) (int (soft 1 64) (hard 1 nil)) (int 2) (primary false) (vec3))
         (field "share_points" "Share points" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_collapse"
       (key "edge_collapse")
       (aliases)
@@ -496,7 +513,8 @@
         (field "position" "Position" (folder) (choice "First" "Least point" "Greatest point" "Average" "Minimum" "Maximum" "Mode" "Median" "Sum" "Sum squares" "Root mean square" "Weighted average" "Weighted sum" "Minimum weight" "Maximum weight") (choice "Average") (primary false) (vec3))
         (field "remove_degenerate_primitives" "Remove degenerate primitives" (folder "Cleanup") (bool) (bool true) (primary false) (vec3))
         (field "recompute_point_normals" "Recompute point normals" (folder "Cleanup") (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/dissolve"
       (key "dissolve")
       (aliases)
@@ -513,7 +531,8 @@
         (field "remove_unused_points" "Remove unused points" (folder "Cleanup") (bool) (bool true) (primary false) (vec3))
         (field "create_boundary_curves" "Create boundary curves" (folder) (bool) (bool false) (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder "Cleanup") (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_bevel"
       (key "poly_bevel")
       (aliases)
@@ -534,7 +553,8 @@
         (field "corner_group" "Corner group" (folder "Output groups") (text) (text "") (primary false) (vec3))
         (field "offset_group" "Offset group" (folder "Output groups") (text) (text "") (primary false) (vec3))
         (field "recompute_point_normals" "Recompute point normals" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/triangulate"
       (key "triangulate")
       (aliases)
@@ -544,7 +564,8 @@
       (slots (slot "in0" required))
       (fields
         (field "group" "Primitive group" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/copy_to_points"
       (key "copy_to_points")
       (aliases)
@@ -558,7 +579,8 @@
         (field "piece_attribute" "Piece attribute" (folder "Matching") (text) (text "") (primary false) (vec3))
         (field "pack" "Pack and instance" (folder) (bool) (bool false) (primary false) (vec3))
         (field "target_attributes" "Target attribute rules" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/mountain"
       (key "mountain")
       (aliases)
@@ -585,7 +607,8 @@
         (field "lacunarity" "Lacunarity" (folder "Fractal") (float (soft 1 4) (hard 0 nil)) (float 2) (primary false) (vec3))
         (field "roughness" "Roughness" (folder "Fractal") (float (soft 0 1) (hard 0 nil)) (float 0.5) (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P" "N") (writes "P" "N") (topology preserved) (exact false)))
     (kind "sop/peak"
       (key "peak")
       (aliases)
@@ -601,7 +624,8 @@
         (field "mask_attribute" "Mask attribute" (folder) (text) (text "") (primary false) (vec3))
         (field "distance" "Distance" (folder) (float (soft -10 10) (hard nil nil)) (float 0.1) (primary true) (vec3))
         (field "recompute_normals" "Recompute normals" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P" "N") (writes "P" "N") (topology preserved) (exact false)))
     (kind "sop/bend"
       (key "bend")
       (aliases)
@@ -630,7 +654,8 @@
         (field "continuous_twist" "Continuous twist" (folder) (bool) (bool false) (primary false) (vec3))
         (field "capture_attribute" "Capture attribute" (folder "Attributes") (text) (text "") (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P") (writes "P" "N") (topology preserved) (exact false)))
     (kind "sop/smooth"
       (key "smooth")
       (aliases)
@@ -654,7 +679,8 @@
         (field "original_blend" "Original blend" (folder "Blend") (float (soft 0 1) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "smoothed_blend" "Smoothed blend" (folder "Blend") (float (soft 0 1) (hard nil nil)) (float 1) (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/reverse"
       (key "reverse")
       (aliases)
@@ -666,7 +692,8 @@
         (field "group" "Primitive group" (folder) (text) (text "") (primary false) (vec3))
         (field "operation" "Operation" (folder) (choice "Reverse vertices" "Shift vertices") (choice "Reverse vertices") (primary false) (vec3))
         (field "shift" "Shift" (folder) (int (soft -32 32) (hard nil nil)) (int 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/clean"
       (key "clean")
       (aliases)
@@ -693,7 +720,8 @@
         (field "vertex_groups" "Vertex groups" (folder "Delete groups") (text) (text "") (primary false) (vec3))
         (field "primitive_groups" "Primitive groups" (folder "Delete groups") (text) (text "") (primary false) (vec3))
         (field "edge_groups" "Edge groups" (folder "Delete groups") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/facet"
       (key "facet")
       (aliases)
@@ -719,7 +747,8 @@
         (field "make_planar" "Make planar" (folder) (bool) (bool false) (primary false) (vec3))
         (field "post_compute_normals" "Post-compute normals" (folder "Normals") (bool) (bool false) (primary false) (vec3))
         (field "reverse_normals" "Reverse normals" (folder "Normals") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/separate_pieces"
       (key "separate_pieces")
       (aliases)
@@ -736,7 +765,8 @@
         (field "axis_z" "Axis Z" (folder "Axis") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "axis" 2))
         (field "gap" "Gap" (folder) (float (soft 0 1) (hard 0 nil)) (float 0.001) (primary false) (vec3))
         (field "mode" "Mode" (folder) (choice "Separate" "Move back") (choice "Separate") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_flip"
       (key "edge_flip")
       (aliases)
@@ -749,7 +779,8 @@
         (field "cycles" "Cycles" (folder) (int (soft 0 16) (hard 0 nil)) (int 1) (primary false) (vec3))
         (field "cycle_vertex_attributes" "Cycle vertex attributes" (folder) (bool) (bool true) (primary false) (vec3))
         (field "recompute_point_normals" "Recompute point normals" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_cusp"
       (key "edge_cusp")
       (aliases)
@@ -760,7 +791,8 @@
       (fields
         (field "group" "Edge group" (folder) (text) (text "") (primary false) (vec3))
         (field "update_point_normals" "Update point normals" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_straighten"
       (key "edge_straighten")
       (aliases)
@@ -771,7 +803,8 @@
       (fields
         (field "group" "Edge group" (folder) (text) (text "") (primary false) (vec3))
         (field "output_group" "Output group" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/circle_from_edges"
       (key "circle_from_edges")
       (aliases)
@@ -787,7 +820,8 @@
         (field "scale_y" "Scale Y" (folder "Scale") (float (soft -4 4) (hard nil nil)) (float 1) (primary false) (vec3 "scale" 1))
         (field "scale_z" "Scale Z" (folder "Scale") (float (soft -4 4) (hard nil nil)) (float 1) (primary false) (vec3 "scale" 2))
         (field "output_group" "Output group" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_equalize"
       (key "edge_equalize")
       (aliases)
@@ -801,7 +835,8 @@
         (field "iterations" "Iterations" (folder) (int (soft 1 256) (hard 1 nil)) (int 64) (primary false) (vec3))
         (field "tolerance" "Tolerance" (folder) (float (soft 0.000000001 0.01) (hard 0 nil)) (float 0.000001) (primary false) (vec3))
         (field "output_group" "Output group" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/snap_to_grid"
       (key "snap_to_grid")
       (aliases)
@@ -827,7 +862,8 @@
         (field "snapped_group" "Snapped group" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "attribute_rules" "Attribute rules" (folder "Fuse") (text) (text "") (primary false) (vec3))
         (field "group_rules" "Group rules" (folder "Fuse") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/remesh"
       (key "remesh")
       (aliases)
@@ -850,7 +886,8 @@
         (field "output_mesh_size" "Output mesh size" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "output_quality" "Output quality" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "recompute_point_normals" "Recompute point normals" (folder "Output") (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_extrude"
       (key "poly_extrude")
       (aliases)
@@ -872,7 +909,8 @@
         (field "side_group" "Side group" (folder "Groups") (text) (text "") (primary false) (vec3))
         (field "front_boundary_group" "Front boundary group" (folder "Groups") (text) (text "") (primary false) (vec3))
         (field "back_boundary_group" "Back boundary group" (folder "Groups") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_fill"
       (key "poly_fill")
       (aliases)
@@ -887,7 +925,8 @@
         (field "unique_points" "Unique points" (folder) (bool) (bool false) (primary false) (vec3))
         (field "update_point_normals" "Update point normals" (folder) (bool) (bool false) (primary false) (vec3))
         (field "patch_group" "Patch group" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/convert_line"
       (key "convert_line")
       (aliases)
@@ -903,7 +942,8 @@
         (field "make_isolated_loops_closed" "Close isolated loops" (folder) (bool) (bool false) (primary false) (vec3))
         (field "remove_unused_points" "Remove unused points" (folder) (bool) (bool false) (primary false) (vec3))
         (field "length_attribute" "Length attribute" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/resample"
       (key "resample")
       (aliases)
@@ -924,7 +964,8 @@
         (field "curve_number_attribute" "Curve number" (folder "Output attributes") (text) (text "") (primary false) (vec3))
         (field "distance_attribute" "Distance" (folder "Output attributes") (text) (text "") (primary false) (vec3))
         (field "tangent_attribute" "Tangent" (folder "Output attributes") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/carve"
       (key "carve")
       (aliases)
@@ -946,7 +987,8 @@
         (field "extract_points" "Extract points" (folder) (bool) (bool false) (primary false) (vec3))
         (field "divisions" "Divisions" (folder) (int (soft 1 256) (hard 1 nil)) (int 1) (primary false) (vec3))
         (field "keep_original" "Keep original" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/ends"
       (key "ends")
       (aliases)
@@ -957,7 +999,8 @@
       (fields
         (field "group" "Primitive group" (folder) (text) (text "") (primary false) (vec3))
         (field "mode" "U end" (folder) (choice "Open" "Close straight" "Unroll shared point" "Unroll new point") (choice "Open") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/join_curves"
       (key "join_curves")
       (aliases)
@@ -976,7 +1019,8 @@
         (field "keep_originals" "Keep originals" (folder) (bool) (bool false) (primary false) (vec3))
         (field "tolerance" "Tolerance" (folder) (float (soft 0 1) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "wrap" "Wrap" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_path"
       (key "poly_path")
       (aliases)
@@ -989,7 +1033,8 @@
         (field "maximum_distance" "Maximum distance" (folder) (float (soft 0 10) (hard 0 nil)) (float 0.001) (primary false) (vec3))
         (field "connect_only_to_other_end_points" "Only other endpoints" (folder) (bool) (bool false) (primary false) (vec3))
         (field "make_isolated_loops_closed" "Close isolated loops" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/points"
       (key "points")
       (aliases)
@@ -1002,7 +1047,8 @@
         (field "generated_group" "Generated group" (folder) (text) (text "") (primary false) (vec3))
         (field "source_point_attribute" "Source point attribute" (folder) (text) (text "sourcepoint") (primary false) (vec3))
         (field "source_index_attribute" "Source index attribute" (folder) (text) (text "sourceindex") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_noise_quaternion"
       (key "attribute_noise_quaternion")
       (aliases)
@@ -1021,7 +1067,8 @@
         (field "frequency_y" "Frequency Y" (folder "Frequency") (float (soft 0.01 4) (hard 0 nil)) (float 1) (primary false) (vec3 "frequency" 1))
         (field "frequency_z" "Frequency Z" (folder "Frequency") (float (soft 0.01 4) (hard 0 nil)) (float 1) (primary false) (vec3 "frequency" 2))
         (field "octaves" "Octaves" (folder) (int (soft 1 8) (hard 1 nil)) (int 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P" "orient") (writes "orient") (topology preserved) (exact false)))
     (kind "sop/point_jitter"
       (key "point_jitter")
       (aliases)
@@ -1040,7 +1087,8 @@
         (field "axis_x" "Axis X" (folder "Axis scales") (float (soft 0 2) (hard 0 nil)) (float 1) (primary false) (vec3 "axis" 0))
         (field "axis_y" "Axis Y" (folder "Axis scales") (float (soft 0 2) (hard 0 nil)) (float 1) (primary false) (vec3 "axis" 1))
         (field "axis_z" "Axis Z" (folder "Axis scales") (float (soft 0 2) (hard 0 nil)) (float 1) (primary false) (vec3 "axis" 2)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/boolean_fracture"
       (key "boolean_fracture")
       (aliases)
@@ -1059,7 +1107,8 @@
         (field "tiny_seam_threshold" "Tiny seam threshold" (folder "Robustness") (float (soft 0 0.001) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "cleanup_max_batches" "Cleanup batches" (folder "Robustness") (int (soft 1 32) (hard 1 nil)) (int 8) (primary false) (vec3))
         (field "strict_cleanup" "Strict cleanup" (folder "Robustness") (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/boolean"
       (key "boolean")
       (aliases)
@@ -1086,7 +1135,8 @@
         (field "left_piece_group" "A-only group" (folder "Shatter groups") (text) (text "boolean_left") (primary false) (vec3))
         (field "overlap_piece_group" "Overlap group" (folder "Shatter groups") (text) (text "boolean_overlap") (primary false) (vec3))
         (field "right_piece_group" "B-only group" (folder "Shatter groups") (text) (text "boolean_right") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/boolean_seam"
       (key "boolean_seam")
       (aliases)
@@ -1104,7 +1154,8 @@
         (field "between_group" "Between group" (folder "Groups") (text) (text "boolean_seam") (primary false) (vec3))
         (field "right_self_group" "B self group" (folder "Groups") (text) (text "boolean_right_self_seam") (primary false) (vec3))
         (field "coincident_group" "Coincident group" (folder "Groups") (text) (text "boolean_coincident") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/boolean_detect"
       (key "boolean_detect")
       (aliases)
@@ -1123,7 +1174,8 @@
         (field "self_intersecting_group" "Self-intersecting group" (folder "Self outputs") (text) (text "boolean_self_intersections") (primary false) (vec3))
         (field "self_intersections_attribute" "Self intersections attribute" (folder "Self outputs") (text) (text "") (primary false) (vec3))
         (field "self_count_attribute" "Self count attribute" (folder "Self outputs") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/intersection_analysis"
       (key "intersection_analysis")
       (aliases)
@@ -1140,7 +1192,8 @@
         (field "primitive_attribute" "Primitive attribute" (folder "Output attributes") (text) (text "sourceprim") (primary false) (vec3))
         (field "primitive_uvw_attribute" "Primitive UVW attribute" (folder "Output attributes") (text) (text "sourceprimuv") (primary false) (vec3))
         (field "point_attribute" "Point attribute" (folder "Output attributes") (text) (text "sourcepoint") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_reduce"
       (key "poly_reduce")
       (aliases)
@@ -1162,7 +1215,8 @@
         (field "max_normal_deviation" "Maximum normal deviation" (folder) (float (soft 0 3.141592653589793) (hard 0 nil)) (float 0.5) (primary false) (vec3))
         (field "output_group" "Output group" (folder) (text) (text "") (primary false) (vec3))
         (field "recompute_point_normals" "Recompute point normals" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/measure_curvature"
       (key "measure_curvature")
       (aliases)
@@ -1181,7 +1235,8 @@
         (field "maximum" "Maximum" (folder "Outputs") (text) (text "") (primary false) (vec3))
         (field "curvedness" "Curvedness" (folder "Outputs") (text) (text "") (primary false) (vec3))
         (field "shape_index" "Shape index" (folder "Outputs") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_laplacian"
       (key "attribute_laplacian")
       (aliases)
@@ -1195,7 +1250,8 @@
         (field "normalize" "Normalize" (folder) (bool) (bool true) (primary false) (vec3))
         (field "source" "Source attribute" (folder) (text) (text "P") (primary false) (vec3))
         (field "output" "Output attribute" (folder) (text) (text "laplacian") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/polyframe"
       (key "polyframe")
       (aliases)
@@ -1213,7 +1269,8 @@
         (field "normal_attribute" "Normal" (folder "Output attributes") (text) (text "N") (primary false) (vec3))
         (field "tangent_attribute" "Tangent" (folder "Output attributes") (text) (text "tangentu") (primary false) (vec3))
         (field "bitangent_attribute" "Bitangent" (folder "Output attributes") (text) (text "tangentv") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/duplicate"
       (key "duplicate")
       (aliases)
@@ -1243,7 +1300,8 @@
         (field "group" "Primitive group" (folder) (text) (text "") (primary false) (vec3))
         (field "copy_group_prefix" "Copy group prefix" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "preserve_groups" "Preserve groups" (folder "Output") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/match_axis"
       (key "match_axis")
       (aliases)
@@ -1258,7 +1316,8 @@
         (field "into_x" "Into X" (folder "Into") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "into" 0))
         (field "into_y" "Into Y" (folder "Into") (float (soft -1 1) (hard nil nil)) (float 1) (primary false) (vec3 "into" 1))
         (field "into_z" "Into Z" (folder "Into") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "into" 2)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/convex_hull"
       (key "convex_hull")
       (aliases)
@@ -1272,7 +1331,8 @@
         (field "preserve_point_payload" "Preserve point payload" (folder) (bool) (bool true) (primary false) (vec3))
         (field "source_point_attribute" "Source point attribute" (folder "Output") (text) (text "sourcepoint") (primary false) (vec3))
         (field "hull_group" "Hull group" (folder "Output") (text) (text "hull") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/extract_centroid"
       (key "extract_centroid")
       (aliases)
@@ -1286,7 +1346,8 @@
         (field "method_" "Method" (folder) (choice "Point mass" "Bounding box" "Convex hull") (choice "Point mass") (primary false) (vec3))
         (field "source_primitive_attribute" "Source primitive attribute" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "piece_output_attribute" "Piece output attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/bound"
       (key "bound")
       (aliases)
@@ -1313,7 +1374,8 @@
         (field "bounds_group" "Bounds group" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "center_attribute" "Center attribute" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "radii_attribute" "Radii attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/fuse"
       (key "fuse")
       (aliases)
@@ -1348,7 +1410,8 @@
         (field "remove_degenerate_primitives" "Remove degenerate primitives" (folder "Cleanup") (bool) (bool true) (primary false) (vec3))
         (field "remove_unused_points_from_degenerate_primitives" "Remove newly unused points" (folder "Cleanup") (bool) (bool true) (primary false) (vec3))
         (field "remove_all_unused_points" "Remove all unused points" (folder "Cleanup") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/ray"
       (key "ray")
       (aliases)
@@ -1389,7 +1452,8 @@
         (field "primitive_pattern" "Primitive attributes" (folder "Transfer") (text) (text "") (primary false) (vec3))
         (field "detail_pattern" "Detail attributes" (folder "Transfer") (text) (text "") (primary false) (vec3))
         (field "match_groups" "Match groups" (folder "Transfer") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/distance_along_geometry"
       (key "distance_along_geometry")
       (aliases)
@@ -1407,7 +1471,8 @@
         (field "radius" "Fixed radius" (folder) (float (soft 0.0001 1000) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "distance_attribute" "Distance attribute" (folder "Output") (text) (text "distance") (primary false) (vec3))
         (field "mask_attribute" "Mask attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/distance_from_geometry"
       (key "distance_from_geometry")
       (aliases)
@@ -1426,7 +1491,8 @@
         (field "radius" "Fixed radius" (folder) (float (soft 0.0001 1000) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "distance_attribute" "Distance attribute" (folder "Output") (text) (text "distance") (primary false) (vec3))
         (field "mask_attribute" "Mask attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/distance_from_target"
       (key "distance_from_target")
       (aliases)
@@ -1450,7 +1516,8 @@
         (field "radius" "Fixed radius" (folder) (float (soft 0.0001 1000) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "distance_attribute" "Distance attribute" (folder "Output") (text) (text "distance") (primary false) (vec3))
         (field "mask_attribute" "Mask attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/point_split"
       (key "point_split")
       (aliases)
@@ -1464,7 +1531,8 @@
         (field "attributes" "Attributes" (folder) (text) (text "*") (primary false) (vec3))
         (field "tolerance" "Tolerance" (folder) (float (soft 0 1) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "promote_attributes" "Promote attributes" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_bridge"
       (key "poly_bridge")
       (aliases)
@@ -1486,7 +1554,8 @@
         (field "output_group" "Output group" (folder) (text) (text "bridge") (primary false) (vec3))
         (field "collinearity_tolerance" "Collinearity tolerance" (folder) (float (soft 0 1) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/graph_color"
       (key "graph_color")
       (aliases)
@@ -1503,7 +1572,8 @@
         (field "output_worksets" "Output worksets" (folder) (bool) (bool false) (primary false) (vec3))
         (field "workset_begin_attribute" "Begin attribute" (folder "Worksets") (text) (text "workset_begin") (primary false) (vec3))
         (field "workset_length_attribute" "Length attribute" (folder "Worksets") (text) (text "workset_length") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_relax"
       (key "edge_relax")
       (aliases)
@@ -1520,7 +1590,8 @@
         (field "target_mode" "Target mode" (folder) (choice "Individual lengths" "Scale-independent distribution") (choice "Individual lengths") (primary false) (vec3))
         (field "only_shorten" "Only shorten" (folder) (bool) (bool false) (primary false) (vec3))
         (field "tolerance" "Tolerance" (folder) (float (soft 0 0.1) (hard 0 nil)) (float 0.000001) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_loft"
       (key "poly_loft")
       (aliases)
@@ -1538,7 +1609,8 @@
         (field "output_group" "Output group" (folder) (text) (text "loft") (primary false) (vec3))
         (field "collinearity_tolerance" "Collinearity tolerance" (folder) (float (soft 0 1) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/skin"
       (key "skin")
       (aliases)
@@ -1556,7 +1628,8 @@
         (field "output_group" "Output group" (folder) (text) (text "skin") (primary false) (vec3))
         (field "collinearity_tolerance" "Collinearity tolerance" (folder) (float (soft 0 1) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/revolve"
       (key "revolve")
       (aliases)
@@ -1581,7 +1654,8 @@
         (field "axis_x" "Axis X" (folder "Axis" "Direction") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "axis" 0))
         (field "axis_y" "Axis Y" (folder "Axis" "Direction") (float (soft -1 1) (hard nil nil)) (float 1) (primary false) (vec3 "axis" 1))
         (field "axis_z" "Axis Z" (folder "Axis" "Direction") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3 "axis" 2)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/sweep"
       (key "sweep")
       (aliases)
@@ -1604,7 +1678,8 @@
         (field "cap_group" "Cap group" (folder) (text) (text "caps") (primary false) (vec3))
         (field "uv_attribute" "UV attribute" (folder) (text) (text "uv") (primary false) (vec3))
         (field "cross_section_prefix" "Cross-section attribute prefix" (folder) (text) (text "cross_section_") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/polywire"
       (key "polywire")
       (aliases)
@@ -1647,7 +1722,8 @@
         (field "uv_range_attribute" "UV range attribute" (folder "Overrides") (text) (text "") (primary false) (vec3))
         (field "caps" "End caps" (folder) (bool) (bool false) (primary false) (vec3))
         (field "cap_group" "Cap group" (folder) (text) (text "caps") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/uv_project"
       (key "uv_project")
       (aliases)
@@ -1681,7 +1757,8 @@
         (field "v_max" "V maximum" (folder "Range" "V") (float (soft -10 10) (hard nil nil)) (float 1) (primary false) (vec3))
         (field "fix_seams" "Fix seams" (folder) (bool) (bool true) (primary false) (vec3))
         (field "fix_poles" "Fix poles" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/uv_transform"
       (key "uv_transform")
       (aliases)
@@ -1700,7 +1777,8 @@
         (field "angle" "Angle" (folder "Transform") (float (soft -3.141592653589793 3.141592653589793) (hard nil nil)) (float 0) (primary true) (vec3))
         (field "pivot_u" "Pivot U" (folder "Transform" "Pivot") (float (soft -10 10) (hard nil nil)) (float 0.5) (primary false) (vec3))
         (field "pivot_v" "Pivot V" (folder "Transform" "Pivot") (float (soft -10 10) (hard nil nil)) (float 0.5) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/uv_auto_seam"
       (key "uv_auto_seam")
       (aliases)
@@ -1718,7 +1796,8 @@
         (field "existing_uv" "Existing UV" (folder "Cuts") (text) (text "") (primary false) (vec3))
         (field "uv_tolerance" "UV tolerance" (folder "Cuts") (float (soft 0 0.01) (hard 0 nil)) (float 0.000000001) (primary false) (vec3))
         (field "island_attribute" "Island attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/uv_unitize"
       (key "uv_unitize")
       (aliases)
@@ -1733,7 +1812,8 @@
         (field "seams" "Seam group" (folder) (text) (text "") (primary false) (vec3))
         (field "tolerance" "Tolerance" (folder) (float (soft 0 0.01) (hard 0 nil)) (float 0.000000001) (primary false) (vec3))
         (field "uniform" "Uniform scale" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/uv_flatten"
       (key "uv_flatten")
       (aliases)
@@ -1746,7 +1826,8 @@
         (field "seams" "Seam group" (folder) (text) (text "") (primary false) (vec3))
         (field "iterations" "Iterations" (folder) (int (soft 1 2000) (hard 1 nil)) (int 500) (primary false) (vec3))
         (field "tolerance" "Tolerance" (folder) (float (soft 0 0.01) (hard 0 nil)) (float 0.0000001) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/uv_relax"
       (key "uv_relax")
       (aliases)
@@ -1760,7 +1841,8 @@
         (field "uv_tolerance" "UV tolerance" (folder) (float (soft 0 0.01) (hard 0 nil)) (float 0.000000001) (primary false) (vec3))
         (field "iterations" "Iterations" (folder) (int (soft 1 2000) (hard 1 nil)) (int 500) (primary false) (vec3))
         (field "tolerance" "Tolerance" (folder) (float (soft 0 0.01) (hard 0 nil)) (float 0.0000001) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_edges"
       (key "group_edges")
       (aliases)
@@ -1781,7 +1863,8 @@
         (field "min_angle" "Minimum" (folder "Angle") (float (soft 0 3.141592653589793) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "use_max_angle" "Maximum angle" (folder "Angle") (bool) (bool false) (primary false) (vec3))
         (field "max_angle" "Maximum" (folder "Angle") (float (soft 0 3.141592653589793) (hard nil nil)) (float 3.141592653589793) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_random"
       (key "group_random")
       (aliases)
@@ -1798,7 +1881,8 @@
         (field "seed_attribute" "Seed attribute" (folder "Random") (text) (text "") (primary false) (vec3))
         (field "base" "Base group" (folder "Combine") (text) (text "") (primary false) (vec3))
         (field "merge" "Operation" (folder "Combine") (choice "Replace" "Union" "Intersection" "Subtract" "Exclusive or") (choice "Replace") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_bounds"
       (key "group_bounds")
       (aliases)
@@ -1820,7 +1904,8 @@
         (field "base" "Base group" (folder "Combine") (text) (text "") (primary false) (vec3))
         (field "containment" "Containment" (folder "Combine") (choice "Fully contained" "Partially contained") (choice "Fully contained") (primary false) (vec3))
         (field "merge" "Operation" (folder "Combine") (choice "Replace" "Union" "Intersection" "Subtract" "Exclusive or") (choice "Replace") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_normal"
       (key "group_normal")
       (aliases)
@@ -1840,7 +1925,8 @@
         (field "include_opposite" "Include opposite" (folder "Normals") (bool) (bool false) (primary false) (vec3))
         (field "base" "Base group" (folder "Combine") (text) (text "") (primary false) (vec3))
         (field "merge" "Operation" (folder "Combine") (choice "Replace" "Union" "Intersection" "Subtract" "Exclusive or") (choice "Replace") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_non_planar"
       (key "group_non_planar")
       (aliases)
@@ -1853,7 +1939,8 @@
         (field "tolerance" "Tolerance" (folder) (float (soft 0 0.1) (hard 0 nil)) (float 0.000001) (primary false) (vec3))
         (field "base" "Base group" (folder "Combine") (text) (text "") (primary false) (vec3))
         (field "merge" "Operation" (folder "Combine") (choice "Replace" "Union" "Intersection" "Subtract" "Exclusive or") (choice "Replace") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_backface"
       (key "group_backface")
       (aliases)
@@ -1868,7 +1955,8 @@
         (field "viewpoint_z" "Viewpoint Z" (folder "Viewpoint") (float (soft -100 100) (hard nil nil)) (float 10) (primary false) (vec3 "viewpoint" 2))
         (field "base" "Base group" (folder "Combine") (text) (text "") (primary false) (vec3))
         (field "merge" "Operation" (folder "Combine") (choice "Replace" "Union" "Intersection" "Subtract" "Exclusive or") (choice "Replace") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_edge_depth"
       (key "group_edge_depth")
       (aliases)
@@ -1881,7 +1969,8 @@
         (field "name" "Output group" (folder) (text) (text "depth") (primary false) (vec3))
         (field "depth" "Depth" (folder) (int (soft 0 100) (hard 0 nil)) (int 1) (primary false) (vec3))
         (field "merge" "Operation" (folder) (choice "Replace" "Union" "Intersection" "Subtract" "Exclusive or") (choice "Replace") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_unshared"
       (key "group_unshared")
       (aliases)
@@ -1893,7 +1982,8 @@
         (field "owner" "Group type" (folder) (choice "Points" "Vertices" "Primitives" "Edges") (choice "Edges") (primary false) (vec3))
         (field "name" "Group name" (folder) (text) (text "unshared") (primary false) (vec3))
         (field "merge" "Operation" (folder) (choice "Replace" "Union" "Intersection" "Subtract" "Exclusive or") (choice "Replace") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_boundary_components"
       (key "group_boundary_components")
       (aliases)
@@ -1906,7 +1996,8 @@
         (field "conflict" "Conflict" (folder) (choice "Replace" "Union") (choice "Replace") (primary false) (vec3))
         (field "max_groups" "Maximum groups" (folder "Limits") (int (soft 1 16384) (hard 1 nil)) (int 4096) (primary false) (vec3))
         (field "max_payload_bytes" "Maximum payload bytes" (folder "Limits") (int (soft 1048576 1073741824) (hard 1 nil)) (int 268435456) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_from_attribute_boundary"
       (key "group_from_attribute_boundary")
       (aliases)
@@ -1922,7 +2013,8 @@
         (field "include_unshared_edges" "Include unshared edges" (folder) (bool) (bool false) (primary false) (vec3))
         (field "include_all_unshared_curve_edges" "Include all unshared curve edges" (folder) (bool) (bool false) (primary false) (vec3))
         (field "include_all_primitives_sharing_boundary_points" "Include primitives sharing boundary points" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/groups_from_name"
       (key "groups_from_name")
       (aliases)
@@ -1938,7 +2030,8 @@
         (field "invalid_names" "Invalid names" (folder) (choice "Ignore invalid" "Force valid") (choice "Ignore invalid") (primary false) (vec3))
         (field "max_groups" "Maximum groups" (folder "Limits") (int (soft 1 16384) (hard 1 nil)) (int 4096) (primary false) (vec3))
         (field "max_payload_bytes" "Maximum payload bytes" (folder "Limits") (int (soft 1048576 1073741824) (hard 1 nil)) (int 268435456) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/name_from_groups"
       (key "name_from_groups")
       (aliases)
@@ -1953,7 +2046,8 @@
         (field "default" "Default value" (folder) (text) (text "") (primary false) (vec3))
         (field "overlap" "Overlapping groups" (folder) (choice "First group" "Last group" "Error on overlap") (choice "First group") (primary false) (vec3))
         (field "delete_groups" "Delete source groups" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_promote_boundary"
       (key "group_promote_boundary")
       (aliases)
@@ -1973,7 +2067,8 @@
         (field "include_unshared_edges" "Include unshared edges" (folder) (bool) (bool false) (primary false) (vec3))
         (field "include_all_unshared_curve_edges" "Include all unshared curve edges" (folder) (bool) (bool false) (primary false) (vec3))
         (field "include_all_primitives_sharing_boundary_points" "Include primitives sharing boundary points" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_promotions"
       (key "group_promotions")
       (aliases)
@@ -1985,7 +2080,8 @@
         (field "rules" "Rules (source, destination, pattern, new name, keep, attribute, operation...)" (folder) (text) (text "point	primitive	*		false	false	any	0	false	false	false	") (primary false) (vec3))
         (field "max_outputs" "Maximum outputs" (folder "Limits") (int (soft 1 16384) (hard 1 nil)) (int 4096) (primary false) (vec3))
         (field "max_payload_bytes" "Maximum payload bytes" (folder "Limits") (int (soft 1048576 1073741824) (hard 1 nil)) (int 268435456) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_invert"
       (key "group_invert")
       (aliases)
@@ -1998,7 +2094,8 @@
         (field "pattern" "Group pattern" (folder) (text) (text "*") (primary false) (vec3))
         (field "new_name" "New name pattern" (folder) (text) (text "") (primary false) (vec3))
         (field "conflict" "Conflict" (folder) (choice "Skip" "Error" "Overwrite" "Union") (choice "Overwrite") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_delete"
       (key "group_delete")
       (aliases)
@@ -2009,7 +2106,8 @@
       (fields
         (field "rules" "Rules (owner, pattern)" (folder) (text) (text "") (primary false) (vec3))
         (field "delete_unused" "Delete unused groups" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_rename"
       (key "group_rename")
       (aliases)
@@ -2019,7 +2117,8 @@
       (slots (slot "in0" required))
       (fields
         (field "rules" "Rules (owner, pattern, replacement, conflict)" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_copy"
       (key "group_copy")
       (aliases)
@@ -2032,7 +2131,8 @@
         (field "rules" "Rules (owner, pattern, prefix, match attribute)" (folder) (text) (text "") (primary false) (vec3))
         (field "conflict" "Conflict" (folder) (choice "Skip" "Overwrite" "Add suffix") (choice "Overwrite") (primary false) (vec3))
         (field "copy_empty" "Copy empty groups" (folder) (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_transfer"
       (key "group_transfer")
       (aliases)
@@ -2046,7 +2146,8 @@
         (field "conflict" "Conflict" (folder) (choice "Skip" "Overwrite" "Add suffix") (choice "Overwrite") (primary false) (vec3))
         (field "create_empty" "Create empty groups" (folder) (bool) (bool false) (primary false) (vec3))
         (field "distance" "Maximum distance" (folder) (float (soft 0 10) (hard 0 nil)) (float 0.001) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_combine"
       (key "group_combine")
       (aliases)
@@ -2060,7 +2161,8 @@
         (field "base_pattern" "Base pattern" (folder) (text) (text "*") (primary false) (vec3))
         (field "base_inverted" "Invert base" (folder) (bool) (bool false) (primary false) (vec3))
         (field "steps" "Steps (operation, pattern, invert)" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_expand"
       (key "group_expand")
       (aliases)
@@ -2087,7 +2189,8 @@
         (field "collision_group" "Collision group" (folder "Collision") (text) (text "collision") (primary false) (vec3))
         (field "collision_contain" "Contain region" (folder "Collision") (bool) (bool false) (primary false) (vec3))
         (field "collision_allow_boundary" "Allow boundary" (folder "Collision") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_range"
       (key "group_range")
       (aliases)
@@ -2122,7 +2225,8 @@
         (field "collision_pattern" "Collision pattern" (folder "Connectivity" "Collision") (text) (text "collision") (primary false) (vec3))
         (field "keep_boundary" "Keep boundary" (folder "Connectivity" "Collision") (bool) (bool false) (primary false) (vec3))
         (field "remove_other_regions" "Remove other regions" (folder "Connectivity") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_ranges"
       (key "group_ranges")
       (aliases)
@@ -2132,7 +2236,8 @@
       (slots (slot "in0" required))
       (fields
         (field "rules" "Range rules" (folder) (text) (text "point	range		false	replace	start_end	0	-1	none	0	1	0	none			0	false	edge		false	false") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/ordered_group"
       (key "ordered_group")
       (aliases)
@@ -2144,7 +2249,8 @@
         (field "owner" "Group type" (folder) (choice "Points" "Vertices" "Primitives") (choice "Points") (primary false) (vec3))
         (field "name" "Output group" (folder) (text) (text "ordered") (primary false) (vec3))
         (field "elements" "Elements in order" (folder) (text) (text "0") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/group_find_path"
       (key "group_find_path")
       (aliases)
@@ -2161,7 +2267,8 @@
         (field "avoid_self_intersection" "Avoid self-intersection" (folder) (bool) (bool true) (primary false) (vec3))
         (field "collision_group" "Collision group" (folder "Collision") (text) (text "") (primary false) (vec3))
         (field "contain" "Contain path" (folder "Collision") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/poly_cut"
       (key "poly_cut")
       (aliases)
@@ -2179,7 +2286,8 @@
         (field "value" "Crossing value" (folder "Detection") (float (soft -10 10) (hard nil nil)) (float 0.5) (primary false) (vec3))
         (field "threshold" "Change threshold" (folder "Detection") (float (soft 0 10) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "keep_closed" "Keep closed" (folder) (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/sort"
       (key "sort")
       (aliases)
@@ -2201,7 +2309,8 @@
         (field "shift" "Shift" (folder "Key") (int (soft -100 100) (hard nil nil)) (int 1) (primary false) (vec3))
         (field "output_indices" "Output indices" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "combine_indices" "Combine indices" (folder "Output") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/noise_displace"
       (key "noise_displace")
       (aliases)
@@ -2210,11 +2319,13 @@
       (category "Deform" "Noise")
       (slots (slot "in0" required))
       (fields
+        (field "mode" "Mode" (folder) (choice "height_2d" "normal_3d") (choice "height_2d") (primary false) (vec3))
         (field "context_seed" "Use context seed" (folder) (bool) (bool false) (primary false) (vec3))
         (field "seed" "Seed" (folder) (int (soft 0 9999) (hard nil nil)) (int 0) (primary false) (vec3))
         (field "amplitude" "Amplitude" (folder) (float (soft -10 10) (hard nil nil)) (float 0.1) (primary false) (vec3))
         (field "frequency" "Frequency" (folder) (float (soft 0 20) (hard 0 nil)) (float 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P") (writes "P" "N") (topology preserved) (exact false)))
     (kind "sop/color_by_height"
       (key "color_by_height")
       (aliases)
@@ -2231,7 +2342,8 @@
         (field "high_green" "Green" (folder "High color") (int (soft 0 255) (hard 0 255)) (int 160) (primary false) (vec3))
         (field "high_blue" "Blue" (folder "High color") (int (soft 0 255) (hard 0 255)) (int 32) (primary false) (vec3))
         (field "high_alpha" "Alpha" (folder "High color") (int (soft 0 255) (hard 0 255)) (int 255) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P") (writes "Cd") (topology preserved) (exact false)))
     (kind "sop/scatter"
       (key "scatter")
       (aliases)
@@ -2255,7 +2367,8 @@
         (field "source_primitive_attribute" "Source primitive" (folder "Provenance") (text) (text "") (primary false) (vec3))
         (field "source_vertex_numbers_attribute" "Source vertex numbers" (folder "Provenance") (text) (text "") (primary false) (vec3))
         (field "source_vertex_weights_attribute" "Source vertex weights" (folder "Provenance") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_noise"
       (key "attribute_noise")
       (aliases)
@@ -2292,7 +2405,8 @@
         (field "octaves" "Octaves" (folder "Noise" "Fractal") (int (soft 1 12) (hard 1 nil)) (int 1) (primary false) (vec3))
         (field "lacunarity" "Lacunarity" (folder "Noise" "Fractal") (float (soft 0 8) (hard nil nil)) (float 2) (primary false) (vec3))
         (field "roughness" "Roughness" (folder "Noise" "Fractal") (float (soft 0 1) (hard nil nil)) (float 0.5) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P" "noise" "P") (writes "noise") (topology preserved) (exact false)))
     (kind "sop/attribute_remap"
       (key "attribute_remap")
       (aliases)
@@ -2325,7 +2439,8 @@
         (field "output_max_w" "Maximum W" (folder "Output" "Maximum") (float (soft -10 10) (hard nil nil)) (float 1) (primary false) (vec3))
         (field "policy" "Outside range" (folder) (choice "Clamp" "Cycle" "Extrapolate") (choice "Clamp") (primary false) (vec3))
         (field "ramp" "Ramp" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_randomize"
       (key "attribute_randomize")
       (aliases)
@@ -2379,7 +2494,8 @@
         (field "direction_bias" "Direction bias" (folder "Output") (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "operation" "Operation" (folder "Output") (choice "Set" "Add" "Minimum" "Maximum" "Multiply") (choice "Set") (primary false) (vec3))
         (field "scale" "Global scale" (folder "Output") (float (soft -10 10) (hard nil nil)) (float 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_mirror"
       (key "attribute_mirror")
       (aliases)
@@ -2414,7 +2530,8 @@
         (field "output_mapping" "Output mapping" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "source_group" "Source group" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "destination_group" "Destination group" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/rewire_vertices"
       (key "rewire_vertices")
       (aliases)
@@ -2431,7 +2548,8 @@
         (field "delete_target_attribute" "Delete target attribute" (folder) (bool) (bool true) (primary false) (vec3))
         (field "keep_unused_points" "Keep unused points" (folder) (bool) (bool false) (primary false) (vec3))
         (field "original_point_attribute" "Original point attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_transport"
       (key "edge_transport")
       (aliases)
@@ -2452,7 +2570,8 @@
         (field "split" "Branch split" (folder) (choice "Copy" "Split") (choice "Copy") (primary false) (vec3))
         (field "merge" "Branch merge" (folder) (choice "Add" "Maximum" "Minimum") (choice "Add") (primary false) (vec3))
         (field "normalization" "Normalization" (folder) (choice "None" "Per component" "Global") (choice "None") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_transport_curves"
       (key "edge_transport_curves")
       (aliases)
@@ -2470,7 +2589,8 @@
         (field "integrate_constant" "Integrate constant" (folder) (bool) (bool false) (primary false) (vec3))
         (field "scale_by_edge_length" "Scale by edge length" (folder) (bool) (bool false) (primary false) (vec3))
         (field "normalization" "Normalization" (folder) (choice "None" "Per component" "Global") (choice "None") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/edge_transport_parent"
       (key "edge_transport_parent")
       (aliases)
@@ -2490,7 +2610,8 @@
         (field "split" "Branch split" (folder) (choice "Copy" "Split") (choice "Copy") (primary false) (vec3))
         (field "merge" "Branch merge" (folder) (choice "Add" "Maximum" "Minimum") (choice "Add") (primary false) (vec3))
         (field "normalization" "Normalization" (folder) (choice "None" "Per component" "Global") (choice "None") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/blast_by_attribute"
       (key "blast_by_attribute")
       (aliases)
@@ -2512,7 +2633,8 @@
         (field "output" "Output" (folder) (choice "Delete elements" "Create group") (choice "Delete elements") (primary false) (vec3))
         (field "output_group" "Output group" (folder "Output") (text) (text "selected") (primary false) (vec3))
         (field "remove_unused_points" "Remove unused points" (folder "Output") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/blast"
       (key "blast")
       (aliases)
@@ -2526,7 +2648,8 @@
         (field "selected" "Delete selected" (folder) (bool) (bool true) (primary false) (vec3))
         (field "compact_points" "Remove unused points" (folder) (bool) (bool false) (primary false) (vec3))
         (field "policy" "Point deletion policy" (folder) (choice "Destroy touched primitives" "Heal primitives") (choice "Destroy touched primitives") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/merge"
       (key "merge")
       (aliases)
@@ -2537,7 +2660,8 @@
       (fields
         (field "source_attribute" "Source attribute" (folder) (text) (text "") (primary false) (vec3))
         (field "source_base" "Source base" (folder) (int (soft -1000 1000) (hard nil nil)) (int 0) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/compact_points"
       (key "compact_points")
       (aliases)
@@ -2546,7 +2670,8 @@
       (category "Topology" "Cleanup")
       (slots (slot "in0" required))
       (fields)
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/delete_edge_group"
       (key "delete_edge_group")
       (aliases)
@@ -2556,7 +2681,8 @@
       (slots (slot "in0" required))
       (fields
         (field "name" "Edge group" (folder) (text) (text "edges") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/rename_edge_group"
       (key "rename_edge_group")
       (aliases)
@@ -2567,7 +2693,8 @@
       (fields
         (field "from" "From" (folder) (text) (text "edges") (primary false) (vec3))
         (field "into" "To" (folder) (text) (text "renamed") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/delete_attributes"
       (key "delete_attributes")
       (aliases)
@@ -2581,7 +2708,8 @@
         (field "vertex_pattern" "Vertex attributes" (folder "Patterns") (text) (text "") (primary false) (vec3))
         (field "primitive_pattern" "Primitive attributes" (folder "Patterns") (text) (text "") (primary false) (vec3))
         (field "detail_pattern" "Detail attributes" (folder "Patterns") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/rename_attributes"
       (key "rename_attributes")
       (aliases)
@@ -2591,7 +2719,8 @@
       (slots (slot "in0" required))
       (fields
         (field "rules" "Rules (owner, pattern, replacement, conflict)" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/swap_attributes"
       (key "swap_attributes")
       (aliases)
@@ -2601,7 +2730,8 @@
       (slots (slot "in0" required))
       (fields
         (field "rules" "Rules (owner, source, destination, method)" (folder) (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/triangulate_2d"
       (key "triangulate_2d")
       (aliases)
@@ -2649,7 +2779,8 @@
         (field "refinement_point_group" "Refinement point group" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "triangle_group" "Triangle group" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "constraint_group" "Constraint group" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/extract_point_from_curve"
       (key "extract_point_from_curve")
       (aliases)
@@ -2669,7 +2800,8 @@
         (field "curve_u_attribute" "Curve U" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "number_cuts_attribute" "Number of cuts" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "curve_number_attribute" "Curve number" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/soft_transform"
       (key "soft_transform")
       (aliases)
@@ -2709,7 +2841,8 @@
         (field "radius" "Radius" (folder "Soft selection") (float (soft 0 100) (hard 0 nil)) (float 1) (primary false) (vec3))
         (field "falloff_attribute" "Falloff output attribute" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "recompute_normals" "Recompute normals" (folder "Output") (bool) (bool true) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "P" "N" "mask") (writes "P" "N") (topology preserved) (exact false)))
     (kind "sop/point_generate"
       (key "point_generate")
       (aliases)
@@ -2732,7 +2865,8 @@
         (field "source_index_attribute" "Source index" (folder "Output") (text) (text "sourceindex") (primary false) (vec3))
         (field "copy_point_attributes" "Point attributes" (folder "Transfer") (text) (text "*") (primary false) (vec3))
         (field "copy_detail_attributes" "Detail attributes" (folder "Transfer") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/point_replicate"
       (key "point_replicate")
       (aliases)
@@ -2785,7 +2919,8 @@
         (field "transform_attributes" "Transform attributes" (folder "Transfer") (text) (text "P") (primary false) (vec3))
         (field "source_point_attribute" "Source point" (folder "Output") (text) (text "sourcepoint") (primary false) (vec3))
         (field "source_index_attribute" "Source index" (folder "Output") (text) (text "sourceindex") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/blend_shapes"
       (key "blend_shapes")
       (aliases)
@@ -2807,7 +2942,8 @@
         (field "point_id_attribute" "Point ID attribute" (folder "Matching") (text) (text "") (primary false) (vec3))
         (field "weights" "Additional shape weights" (folder "Weights") (text) (text "") (primary false) (vec3))
         (field "shape_masks" "Shape mask overrides" (folder "Mask") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_composite"
       (key "attribute_composite")
       (aliases)
@@ -2829,7 +2965,8 @@
         (field "weight3" "Weight 3" (folder "Layers") (float (soft 0 1) (hard nil nil)) (float 1) (primary false) (vec3))
         (field "weight4" "Weight 4" (folder "Layers") (float (soft 0 1) (hard nil nil)) (float 1) (primary false) (vec3))
         (field "weights" "Additional layer weights" (folder "Layers") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_fade"
       (key "attribute_fade")
       (aliases)
@@ -2851,7 +2988,8 @@
         (field "fade_in_ramp" "Fade in ramp" (folder) (text) (text "0:0,1:1") (primary false) (vec3))
         (field "fade_out_ramp" "Fade out ramp" (folder) (text) (text "0:1,1:0") (primary false) (vec3))
         (field "visualize" "Visualize fade" (folder "Output") (bool) (bool false) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/point_velocity"
       (key "point_velocity")
       (aliases)
@@ -2877,7 +3015,8 @@
         (field "add_z" "Add Z" (folder "Output" "Add velocity") (float (soft -100 100) (hard nil nil)) (float 0) (primary false) (vec3 "add" 2))
         (field "compute_acceleration" "Compute acceleration" (folder "Output") (bool) (bool false) (primary false) (vec3))
         (field "acceleration_attribute" "Acceleration attribute" (folder "Output") (text) (text "accel") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_copy"
       (key "attribute_copy")
       (aliases)
@@ -2897,7 +3036,8 @@
         (field "target_group" "Target group" (folder "Groups" "Target") (text) (text "") (primary false) (vec3))
         (field "target_group_pattern" "Target group pattern" (folder "Groups" "Target") (text) (text "") (primary false) (vec3))
         (field "rules" "Rules (owner, pattern, destination)" (folder "Attributes") (text) (text "point	*	") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_interpolate"
       (key "attribute_interpolate")
       (aliases)
@@ -2929,7 +3069,8 @@
         (field "threshold" "Threshold" (folder "Weights") (float (soft 0 1) (hard 0 nil)) (float 0) (primary false) (vec3))
         (field "blend" "Blend" (folder "Weights") (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3))
         (field "unmatched" "Unmatched" (folder) (choice "Keep target" "Default value") (choice "Keep target") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_transfer"
       (key "attribute_transfer")
       (aliases)
@@ -2959,7 +3100,8 @@
         (field "source_vertex_selection" "Vertex selection" (folder "Groups" "Source") (choice "All triangle vertices" "Any triangle vertex") (choice "All triangle vertices") (primary false) (vec3))
         (field "target_group" "Target group" (folder "Groups" "Target") (text) (text "") (primary false) (vec3))
         (field "target_group_pattern" "Target group pattern" (folder "Groups" "Target") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_transfer_surface"
       (key "attribute_transfer_surface")
       (aliases)
@@ -2984,7 +3126,8 @@
         (field "source_vertex_selection" "Vertex selection" (folder "Groups" "Source") (choice "All triangle vertices" "Any triangle vertex") (choice "All triangle vertices") (primary false) (vec3))
         (field "target_group" "Target group" (folder "Groups" "Target") (text) (text "") (primary false) (vec3))
         (field "target_group_pattern" "Target group pattern" (folder "Groups" "Target") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_transfer_all"
       (key "attribute_transfer_all")
       (aliases)
@@ -3007,7 +3150,8 @@
         (field "falloff" "Falloff" (folder "Distance") (choice "Linear" "Smoothstep" "Uniform") (choice "Linear") (primary false) (vec3))
         (field "uniform_bias" "Uniform bias" (folder "Distance") (float (soft 0 1) (hard 0 1)) (float 0.5) (primary false) (vec3))
         (field "unmatched" "Unmatched" (folder) (choice "Keep target" "Default value") (choice "Keep target") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode generic) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/promote_attributes"
       (key "promote_attributes")
       (aliases)
@@ -3024,7 +3168,8 @@
         (field "piece_attribute" "Piece attribute" (folder "Partition") (text) (text "") (primary false) (vec3))
         (field "into_pattern" "Rename pattern" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "index_pattern" "Index pattern" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/measure"
       (key "measure")
       (aliases)
@@ -3038,7 +3183,8 @@
         (field "accumulation" "Accumulation" (folder) (choice "Per element" "Throughout") (choice "Per element") (primary false) (vec3))
         (field "attribute" "Attribute" (folder "Output") (text) (text "") (primary false) (vec3))
         (field "total_attribute" "Total attribute" (folder "Output") (text) (text "") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/connectivity"
       (key "connectivity")
       (aliases)
@@ -3055,7 +3201,8 @@
         (field "name" "Attribute" (folder "Output") (text) (text "class") (primary false) (vec3))
         (field "output" "Storage" (folder "Output") (choice "Integer" "Text") (choice "Integer") (primary false) (vec3))
         (field "text_prefix" "Text prefix" (folder "Output") (text) (text "piece") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/set_float"
       (key "set_float")
       (aliases)
@@ -3067,7 +3214,8 @@
         (field "owner" "Owner" (folder) (choice "Point" "Vertex" "Primitive" "Detail") (choice "Point") (primary false) (vec3))
         (field "name" "Attribute" (folder) (text) (text "value") (primary false) (vec3))
         (field "value" "Value" (folder) (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/set_int"
       (key "set_int")
       (aliases)
@@ -3079,7 +3227,8 @@
         (field "owner" "Owner" (folder) (choice "Point" "Vertex" "Primitive" "Detail") (choice "Point") (primary false) (vec3))
         (field "name" "Attribute" (folder) (text) (text "value") (primary false) (vec3))
         (field "value" "Value" (folder) (int (soft -100 100) (hard nil nil)) (int 0) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/set_vector"
       (key "set_vector")
       (aliases)
@@ -3093,7 +3242,8 @@
         (field "x" "X" (folder "Value") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3 "value" 0))
         (field "y" "Y" (folder "Value") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3 "value" 1))
         (field "z" "Z" (folder "Value") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3 "value" 2)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/set_orient"
       (key "set_orient")
       (aliases)
@@ -3106,7 +3256,8 @@
         (field "y" "Y" (folder) (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "z" "Z" (folder) (float (soft -1 1) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "w" "W" (folder) (float (soft -1 1) (hard nil nil)) (float 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/set_transform"
       (key "set_transform")
       (aliases)
@@ -3131,7 +3282,8 @@
         (field "m31" "M31" (folder "Matrix" "Row 3") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "m32" "M32" (folder "Matrix" "Row 3") (float (soft -10 10) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "m33" "M33" (folder "Matrix" "Row 3") (float (soft -10 10) (hard nil nil)) (float 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/set_color"
       (key "set_color")
       (aliases)
@@ -3146,7 +3298,8 @@
         (field "color_g" "Green" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 1))
         (field "color_b" "Blue" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3 "color" 2))
         (field "alpha" "Alpha" (folder) (float (soft 0 1) (hard 0 1)) (float 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/rest_position"
       (key "rest_position")
       (aliases)
@@ -3160,7 +3313,8 @@
         (field "normals" "Rest normals" (folder) (choice "None" "If present" "Always") (choice "None") (primary false) (vec3))
         (field "normal_attribute" "Normal" (folder "Attributes") (text) (text "N") (primary false) (vec3))
         (field "rest_normal_attribute" "Rest normal" (folder "Attributes") (text) (text "restN") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/enumerate"
       (key "enumerate")
       (aliases)
@@ -3178,7 +3332,8 @@
         (field "prefix" "Text prefix" (folder "Output") (text) (text "piece") (primary false) (vec3))
         (field "piece_attribute" "Piece attribute" (folder "Pieces") (text) (text "") (primary false) (vec3))
         (field "mode" "Piece mode" (folder "Pieces") (choice "Elements within pieces" "Pieces") (choice "Elements within pieces") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/attribute_blur"
       (key "attribute_blur")
       (aliases)
@@ -3200,7 +3355,8 @@
         (field "pin_borders" "Pin borders" (folder) (bool) (bool false) (primary false) (vec3))
         (field "original_blend" "Original blend" (folder "Blend") (float (soft 0 1) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "blurred_blend" "Blurred blend" (folder "Blend") (float (soft 0 1) (hard nil nil)) (float 1) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/null"
       (key "null")
       (aliases)
@@ -3209,7 +3365,8 @@
       (category "Utility")
       (slots (slot "in0" required))
       (fields)
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode passthrough 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/normals"
       (key "normals")
       (aliases)
@@ -3226,7 +3383,8 @@
         (field "keep_original_zero" "Keep original zero normals" (folder) (bool) (bool false) (primary false) (vec3))
         (field "reverse" "Reverse normals" (folder) (bool) (bool false) (primary false) (vec3))
         (field "attribute" "Attribute" (folder "Attributes") (text) (text "N") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "P" "N") (writes "N") (topology preserved) (exact false)))
     (kind "sop/exploded_view"
       (key "exploded_view")
       (aliases)
@@ -3243,7 +3401,8 @@
         (field "noise_amount" "Noise amount" (folder "Noise") (float (soft 0 1) (hard nil nil)) (float 0) (primary false) (vec3))
         (field "noise_frequency" "Noise frequency" (folder "Noise") (float (soft 0.02 4) (hard 0 nil)) (float 0.8) (primary false) (vec3))
         (field "noise_seed" "Noise seed" (folder "Noise") (int (soft 0 9999) (hard nil nil)) (int 0) (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode passthrough 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/material"
       (key "material")
       (aliases)
@@ -3261,7 +3420,8 @@
         (field "emission_r" "Emission red" (folder) (float (soft 0 1) (hard 0 1)) (float 0) (primary false) (vec3 "emission" 0))
         (field "emission_g" "Emission green" (folder) (float (soft 0 1) (hard 0 1)) (float 0) (primary false) (vec3 "emission" 1))
         (field "emission_b" "Emission blue" (folder) (float (soft 0 1) (hard 0 1)) (float 0) (primary false) (vec3 "emission" 2)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "sop/sweep_circle"
       (key "sweep_circle")
       (aliases)
@@ -3304,7 +3464,8 @@
         (field "uv_range_attribute" "UV range attribute" (folder "Overrides") (text) (text "") (primary false) (vec3))
         (field "caps" "End caps" (folder) (bool) (bool false) (primary false) (vec3))
         (field "cap_group" "Cap group" (folder) (text) (text "caps") (primary false) (vec3)))
-      (outputs (output "geo" geometry)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
     (kind "scene/geometry"
       (key "geometry")
       (aliases)

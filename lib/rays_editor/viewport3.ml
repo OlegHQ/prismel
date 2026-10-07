@@ -106,7 +106,7 @@ let sync_cameras ~mode (core : _ Core.t) easy =
   let core = if camera_ids (Core.scene core) <> []
       || Edit_graph.inspect (Core.scene core) = []
       (* a scene graph is authoritative: no camera object is a camera it does not declare *)
-      || Contexts.graph_of (fst core.doc.workspace) Flow.Workspace.Scene <> None then core
+      || Contexts.graph_of (fst core.doc.workspace) Flow.Context.scene <> None then core
     else match add_default_camera ~factories:camera_factories (Core.scene core) easy with
       | Some scene -> Core.scene_edit core mode scene
       | None -> core in

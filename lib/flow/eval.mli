@@ -4,6 +4,8 @@
     Numbers, vec3, text, lists, records, functions, loops, [if]/[cond]/[case],
     higher-order forms, [str], list operations, [ref] with overrides and
     graph inputs run here, sequentially, on IEEE doubles, with a step budget.
+    Packed operations budget each 1,024-element block separately; native
+    storage bounds limit their counts, while expensive bodies remain bounded.
     Geometry is not built: a catalog call (and the workspace operator
     [sop/curve]) becomes a {e plan node}, and W2's lowering turns the plan
     into one network per graph instance.
@@ -23,7 +25,7 @@
     Two nodes of one graph instance never share a key.
 
     [args] holds the fully evaluated arguments in written order.  A geometry
-    input is [Deferred (Ty.Geometry, id)] (an earlier node, possibly in another instance) or
+    input is [Deferred (Ty.geometry, id)] (an earlier node, possibly in another instance) or
     [No_geo] (for [nil]); the inputs of [sop/merge] are spliced (lists
     flattened, [No_geo] dropped) and all named [input].  Numbers keep their
     dynamic [Int]/[Float] kind: lowering coerces them to the catalog
@@ -97,6 +99,11 @@ type plan = { instances : instance array; nodes : node array }
 
 type t = {
   plan : plan;
+  authored : int array;
+      (** Originating syntax form ID by plan node ID, shared by copies and
+          independent of the evaluation route. IDs belong to this checked
+          source and can change on reparse; they are not plan identities.
+          Zero denotes a synthetic node or a kind invoked as a function value. *)
   results : (string * value) list;  (** each graph, evaluated with its default (or given) inputs *)
   states : value list;  (** frame folds to advance, including unused bindings *)
   records : (Workspace.path * (int list * value) list) list;
@@ -168,6 +175,36 @@ val show : value -> string
 (** [str] formatting (register C2); a residual shows as [?]. *)
 
 module Private : sig
+  type residual_view = {
+    term : Workspace.term;
+    bindings : (string * value) list;
+    site : Workspace.path;
+    iter : int list;
+    instance : int;
+    previous : bool;
+  }
+  val residual_view : residual -> residual_view
+  (** Immutable specialized term and captured values for downstream IR construction. *)
+
+  val residual_id : residual -> int
+  (** Stable within one specialized evaluation; equality across evaluations is physical. *)
+
+  val residual_ops : residual -> Op.t list
+  (** The immutable operator extension list of the captured workspace. *)
+
+  val force_reference : ?state:state -> ?elems:(string * value) list -> value -> live:live ->
+    (value, Diagnostic.t) result
+  (** Force through the tree walker, including captured residuals, without changing
+      process-wide compilation settings. Suitable for probes and parity checks. *)
+
+  val closure_available : residual -> bool
+  (** Prepare the existing scalar closure once; false for unsupported terms. *)
+
+  val eval_term : ?state:state -> ?elems:(string * value) list -> residual -> Workspace.term ->
+    live:live -> (value, Diagnostic.t) result
+  (** Evaluate a checked subterm in the residual's captured scope, through the
+      reference walker. IR kernels use this once for their packed inputs. *)
+
   val compile_residuals : bool ref
   (** [true] (the default): a residual is forced through its compiled closure
       when its term is in the compilable subset.  Tests switch it off to compare the

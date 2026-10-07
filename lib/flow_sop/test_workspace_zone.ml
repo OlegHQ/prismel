@@ -42,6 +42,95 @@ let cook ?(domains = 1) session graph =
 
 let prims = Rdk.Geometry.primitive_count
 
+let previews () =
+  let verify source path iter choices expected_x expected_prims =
+    let lowered = lower source in
+    let graph = List.hd lowered.graphs in
+    let target = Array.find_opt (fun (node : Flow.Eval.node) -> node.site = path && node.iter = iter) lowered.plan.nodes
+      |> Option.get in
+    let s = session () in
+    Fun.protect ~finally:(fun () -> Session.close s) (fun () ->
+      let original = cook s graph in
+      let records = Flow_graph.Probe.make ~dynamic:(Lower.zone_count lowered) lowered.evaluated in
+      List.iter (fun (probes, expected_x) ->
+        check (Flow_graph.Probe.plan_node records path ~probes = Some target.id)
+          "a geometry preview resolves the template at the selected tuple";
+        let network, root = Option.get (lowered.preview ~node:target.id ~probes graph.network) in
+        let viewed = {graph with network; root = Some root} in
+        check (geometry_bytes original = geometry_bytes (cook s {graph with network}))
+          "the scratch preview disconnected the authored result's inputs";
+        let output = cook s viewed in
+        check (prims output = expected_prims) "a preview contains only the selected element";
+        let x = let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions output) in
+          Array.fold_left (+.) 0. positions.x /. float (Array.length positions.x) in
+        check (Float.abs (x -. expected_x) < 1e-6)
+          (Printf.sprintf "preview %s at %s: expected %.1f, got %.1f"
+            (String.concat "/" path) (String.concat "," (List.map string_of_int probes)) expected_x x);
+        check (geometry_bytes output = geometry_bytes (cook ~domains:3 s viewed))
+          "a preview is exact across domains") (List.map2 (fun probes x -> probes, x) choices expected_x);
+      check (geometry_bytes original = geometry_bytes (cook s graph))
+        "preview cache entries contaminated the authored result";
+      check (lowered.preview ~node:target.id ~probes:[] graph.network = None)
+        "a preview accepted an incomplete iteration tuple";
+      let network, root = Option.get (lowered.preview ~node:target.id
+        ~probes:(List.map (fun _ -> -1) iter) graph.network) in
+      check (prims (cook s {graph with network; root = Some root}) = 0)
+        "a missing geometry element did not produce an empty preview") in
+  verify {|(workspace preview (graph g :context sop
+    (let* [field (sop/curve (list [0 0 0] [10 0 0] [20 0 0]))
+           a (sop/box :center [2 0 0])
+           dots (for [p (sop/point_list field)]
+             (let* [unused (sop/transform a :translate p) shown (sop/box :center [100 0 0])] shown))]
+      (sop/merge dots))))|} ["g"; "dots"; "unused"] [0] [[0]; [2]; [1]; [0]] [2.; 22.; 12.; 2.] 6;
+  verify {|(workspace preview (graph g :context sop
+    (let* [field (sop/curve (list [0 0 0] [10 0 0] [20 0 0])) a (sop/box :center [2 0 0])
+           dots (for [p (sop/point_list field)]
+             (let* [inner (for [q (sop/point_list field)]
+                       (let* [moved (sop/transform a :translate (+ p q))] moved))]
+               (sop/merge inner)))] (sop/merge dots))))|}
+    ["g"; "dots"; "inner"; "moved"] [0;0] [[0;0];[2;1];[1;2]] [2.;32.;32.] 6;
+  verify {|(workspace preview (graph g :context sop
+    (let* [field (sop/curve (list [0 0 0] [10 0 0] [20 0 0]))
+           rows (for [i (range 2)]
+             (let* [dots (for [p (sop/point_list field)]
+                       (sop/transform (sop/box) :translate (+ p [(* i 100) 0 0])))]
+               (sop/merge dots)))] (sop/merge rows))))|}
+    ["g";"rows";"dots";"@result"] [1;0] [[1;0];[1;2];[1;1]] [100.;120.;110.] 6;
+  verify {|(workspace preview (graph g :context sop
+    (let* [a (sop/merge (sop/box) (sop/box :center [10 0 0]))
+           pieces (for [piece (sop/piece_list a)]
+             (let* [moved (sop/transform piece :translate [2 0 0])] moved))]
+      (sop/merge pieces))))|} ["g";"pieces";"moved"] [0] [[0];[6]] [2.5;12.5] 1;
+  (* Live arguments and folds use the same frame and environment as the authored
+     graph. Switching selectors cannot advance or reset the fold. *)
+  let lowered = lower {|(workspace live_preview (graph g :context sop
+    (let* [ticks (state [n 0.0] (+ n (frame/dt)))
+           field (sop/curve (list [0 0 0] [10 0 0]))
+           dots (for [p (sop/point_list field)]
+             (let* [moved (sop/transform (sop/box) :translate (+ p [ticks t 0]))] moved))]
+      (sop/merge dots))))|} in
+  let graph = List.hd lowered.graphs in
+  let target = Array.find_opt (fun (n : Flow.Eval.node) -> n.site = ["g";"dots";"moved"])
+    lowered.plan.nodes |> Option.get in
+  let play domains =
+    let lane = Value_lane.create () and s = session () in
+    Fun.protect ~finally:(fun () -> Session.close s) (fun () ->
+      Array.init 3 (fun index ->
+        let input = {(Frame_input.at_time (float (index + 1) *. 0.25)) with frame = index + 1; dt = 0.25} in
+        let probes = [index mod 2] in
+        let network, root = Option.get (lowered.preview ~node:target.id ~probes graph.network) in
+        let resolved = Result.get_ok (Value_lane.resolve lane ~live:input ~time:input.t network) in
+        let compiled = Result.get_ok (Edit.compile_node resolved.geometry ~node_id:root) in
+        let context = Result.get_ok (Procedural.Context.create ~domains ~grain:1 ~input ~time:input.t
+          ~frame:(Int64.of_int input.frame) ()) in
+        let output = Result.get_ok (Session.cook s ~context compiled) in
+        let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions output.geometry) in
+        let mean values = Array.fold_left (+.) 0. values /. float (Array.length values) in
+        check (mean positions.x = float (index mod 2 * 10) +. input.t && mean positions.y = input.t)
+          "preview selectors changed the live frame or fold's accumulated value";
+        geometry_bytes output.geometry)) in
+  check (play 1 = play 3) "live previews and frame folds differ across domains"
+
 (* the graph with its zero-input node [operation] replaced by a snapshot of its cook whose
    point [index] is lifted by [by] *)
 let move_point session (graph : Lower.graph) operation ~index ~by =
@@ -59,6 +148,7 @@ let move_point session (graph : Lower.graph) operation ~index ~by =
   base, Result.get_ok (Edit.replace_node replaced graph.network.geometry)
 
 let run () =
+  previews ();
   let source ticks = Printf.sprintf {|(workspace frames
     (graph g :context sop
       (let* [ticks %s

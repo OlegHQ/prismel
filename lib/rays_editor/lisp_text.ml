@@ -133,21 +133,23 @@ type entry = {
   fields : Param.field_view list;
 }
 
-type vocab = { kinds : entry list; by_name : (string, entry) Hashtbl.t }
+type vocab = { kinds : entry list; by_name : (string, entry) Hashtbl.t; ops : Flow.Op.t list }
 
-let vocab (descriptors : Flow_sop.Catalog.descriptor list) =
+let vocab ?(ops = []) (descriptors : Flow_sop.Catalog.descriptor list) =
   let by_name = Hashtbl.create 256 in
   let kinds = List.filter_map (fun (d : Flow_sop.Catalog.descriptor) ->
     if Hashtbl.mem by_name d.qualified then None else begin
       let entry = { qualified = d.qualified;
-        context = (match String.index_opt d.qualified '/' with
-          | Some i -> String.sub d.qualified 0 i | None -> "sop");
+        context = (match Flow.Context.of_qualified d.qualified with
+          | Some context -> Flow.Context.name context
+          | None -> (match String.index_opt d.qualified '/' with
+              | Some i -> String.sub d.qualified 0 i | None -> "sop"));
         title = d.label; category = d.category;
         slots = List.map (fun (n, r) -> n, r = Procedural.Edit_graph.Required) d.slots;
         fields = d.fields } in
       Hashtbl.add by_name d.qualified entry; Some entry
     end) descriptors in
-  { kinds; by_name }
+  { kinds; by_name; ops }
 
 let empty_vocab = vocab []
 
@@ -195,19 +197,20 @@ let constants = [
   "nil", "empty geometry · an unconnected slot";
 ]
 
-let special_keywords = [
-  ":context", "the graph's context: sop, value, scene, world, settings or editor";
+let contexts () = List.map Flow.Context.name (Flow.Context.all ())
+
+let special_keywords () = [
+  ":context", "the graph's context: " ^ String.concat ", " (contexts ());
   ":skip", ":skip [i ...] · iteration tuples a for or scene/merge leaves out";
   ":else", "the branch when no test holds";
   ":keys", "{:keys [a b]} · destructure a record's fields";
   ":bypass", "^:bypass (call ...) · the call passes its first input through";
 ]
 
-let contexts = List.map Flow.Context.name Flow.Context.all
 let ws_context name = match Flow.Context.of_string name with
-  | Ok ctx -> ctx | Error _ -> Flow.Context.Sop
-let ops_of context = List.map (fun (o : Flow.Op.t) -> o.name, o.signature)
-  (Flow.Op.of_context (ws_context context))
+  | Ok ctx -> ctx | Error _ -> Flow.Context.sop
+let ops_of vocab context = List.map (fun (o : Flow.Op.t) -> o.name, o.signature)
+  (Flow.Op.of_context ~extra:vocab.ops (ws_context context))
 
 let ty_name = Flow.Ty.to_string
 
@@ -463,11 +466,11 @@ let complete ?(names = no_names) vocab text caret =
           let argument = match after_kw with
             | Some kw -> Some (String.sub kw 1 (String.length kw - 1))
             | None when present = [] && prior <> [] ->
-                Option.bind (Flow.Workspace.op_signature (ws_context context) h) (fun s ->
+                Option.bind (Flow.Workspace.op_signature ~ops:vocab.ops (ws_context context) h) (fun s ->
                   Option.map fst (List.nth_opt s.pos (List.length prior - 1)))
             | None -> None in
           List.map (fun o -> mk ~group:0 ~insert:("\"" ^ o ^ "\"") o "choice" (h ^ " · " ^ o))
-            (Option.fold ~none:[] ~some:(Flow.Workspace.op_choices h) argument) in
+            (Option.fold ~none:[] ~some:(Flow.Workspace.op_choices ~ops:vocab.ops h) argument) in
     (* a new name in a binder's vector is the writer's to choose *)
     let naming = match open_stack, enclosing with
       | ('[', _) :: _, Some i ->
@@ -488,7 +491,7 @@ let complete ?(names = no_names) vocab text caret =
     let candidates = match current with
       | _ when naming -> []
       | _ when valued <> [] -> valued
-      | Some { kind = Meta; _ } -> [ mk "^:bypass" "meta" (List.assoc ":bypass" special_keywords) ]
+      | Some { kind = Meta; _ } -> [ mk "^:bypass" "meta" (List.assoc ":bypass" (special_keywords ())) ]
       (* a keyword: the kind's parameters and slots, an operator's keywords, a form's keywords *)
       | Some { kind = Kw; _ } ->
           let of_kind = match kind with
@@ -500,7 +503,7 @@ let complete ?(names = no_names) vocab text caret =
                     (s ^ " · " ^ (if required then "required" else "optional") ^ " input of " ^ k.qualified)) k.slots
             | None -> [] in
           let of_op = match enclosing_head with
-            | Some h -> (match Flow.Workspace.op_signature (ws_context context) h with
+            | Some h -> (match Flow.Workspace.op_signature ~ops:vocab.ops (ws_context context) h with
                 | Some s -> List.map (fun (k, t) -> mk ~group:0 (":" ^ k) (ty_name t) (op_doc h s)) s.kw
                 | None -> [])
             | None -> [] in
@@ -509,7 +512,7 @@ let complete ?(names = no_names) vocab text caret =
             | Some ("for" | "scene/merge") -> [ ":skip" ]
             | Some ("cond" | "case") -> [ ":else" ]
             | _ -> [] in
-          of_kind @ of_op @ List.map (fun k -> mk ~group:3 k "form" (List.assoc k special_keywords)) of_form
+          of_kind @ of_op @ List.map (fun k -> mk ~group:3 k "form" (List.assoc k (special_keywords ()))) of_form
       | Some { kind = Str; _ } -> choices
       | Some { kind = Num; _ } -> []
       (* the head of a call: this context's kinds, the defns, the special forms, the operators *)
@@ -522,12 +525,12 @@ let complete ?(names = no_names) vocab text caret =
                   (String.concat " / " k.category) (k.qualified ^ " · " ^ kind_doc k))
               else None) vocab.kinds
           @ List.map (fun (s, doc) -> mk ~group:1 ~uses:(usage text tokens s) s "form" doc) specials
-          @ List.map (fun (o, s) -> mk ~group:2 ~uses:(usage text tokens o) o "operator" (op_doc o s)) (ops_of context)
+          @ List.map (fun (o, s) -> mk ~group:2 ~uses:(usage text tokens o) o "operator" (op_doc o s)) (ops_of vocab context)
       (* an argument: a context after :context, a graph after ref, a choice after its keyword,
          else the bindings in scope, the constants and the defns *)
       | Some { kind = Sym; _ } ->
           (match after_kw, enclosing_head with
-           | Some ":context", _ -> List.map (fun c -> mk ~group:0 c "context" (c ^ " graph")) contexts
+           | Some ":context", _ -> List.map (fun c -> mk ~group:0 c "context" (c ^ " graph")) (contexts ())
            | _, Some "ref" when List.length prior <= 1 ->
                let _, _, graphs = bound text tokens caret in
                List.map (fun g -> mk ~group:0 g "graph" ("(ref " ^ g ^ ")"))
@@ -562,7 +565,7 @@ let describe vocab text byte =
       let context = context_of text tokens open_stack in
       let kind_of name = match Hashtbl.find_opt vocab.by_name name with
         | Some k -> Some k | None -> Hashtbl.find_opt vocab.by_name (context ^ "/" ^ name) in
-      let signature = Flow.Workspace.op_signature (ws_context context) in
+      let signature = Flow.Workspace.op_signature ~ops:vocab.ops (ws_context context) in
       let bare = if String.length w > 1 then String.sub w 1 (String.length w - 1) else "" in
       let doc = match t.kind with
         | Head ->
@@ -579,9 +582,9 @@ let describe vocab text byte =
                  (match List.find_opt (fun (name, _, _, _) -> name = bare) (keywords_of k) with
                   | Some (_, _, doc, _) -> Some doc
                   | None -> if List.mem_assoc bare k.slots then Some (bare ^ " · input of " ^ k.qualified)
-                      else List.assoc_opt w special_keywords)
+                      else List.assoc_opt w (special_keywords ()))
              | None, Some s when List.mem_assoc bare s.kw -> Some (w ^ " · " ^ ty_name (List.assoc bare s.kw))
-             | _ -> List.assoc_opt w special_keywords)
+             | _ -> List.assoc_opt w (special_keywords ()))
         | Sym ->
             (match List.assoc_opt w constants with
              | Some doc -> Some doc
@@ -593,7 +596,7 @@ let describe vocab text byte =
                       else if List.mem w graphs then Some (w ^ " · a graph of this workspace")
                       else None))
         | Num -> Some (w ^ " · drag sideways to change it, Shift for coarse steps")
-        | Meta -> List.assoc_opt bare special_keywords
+        | Meta -> List.assoc_opt bare (special_keywords ())
         | Str ->
             (match Option.bind enclosing_head kind_of with
              | Some k ->

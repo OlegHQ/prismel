@@ -38,4 +38,15 @@ module Private : sig
   (** Fill the half-open range in [output] from packed coordinate planes.
       Arrays are borrowed, ranges must be in bounds, and disjoint ranges may
       be called concurrently with the same immutable noise value. *)
+
+  val sample3_into :
+    t -> first:int -> last:int ->
+    ?x_offset:int -> ?y_offset:int -> ?z_offset:int -> ?output_offset:int ->
+    ?frequency:float ->
+    x:float array -> y:float array -> z:float array -> output:float array -> unit -> unit
+  (** Packed [sample3], exactly matching scalar samples. Offsets default to zero
+      and permit registers stored in one scratch array. Input/output spans must
+      be disjoint, or have identical per-index addresses. Non-finite coordinates
+      produce [nan]; callers retain their typed error boundary. [frequency]
+      defaults to 1 and multiplies each coordinate before sampling. *)
 end

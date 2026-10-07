@@ -73,7 +73,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["param"; "flow"; "flow_graph"; "flow_sop"; "rays"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
+let upper = ["param"; "flow"; "flow_ir"; "flow_graph"; "flow_sop"; "rays"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
              "sop_catalog"; "sketch_support"; "rays_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
@@ -88,6 +88,10 @@ let rules =
        :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog" :: "editor_document"
        :: "rays_editor" :: gpu) ["flow"; "ppx_rays"]
   @ ["flow_graph", ["procedural"; "rdk"; "rays"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
+       "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
+  @ ["flow_ir", ["rays"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural";
+       "rdk_core"; "rdk_exact"; "rdk_spatial"; "rdk_attrib"; "rdk_gen"; "rdk_curve";
+       "rdk_mesh"; "rdk_boolean"; "rdk"; "rdk_rays"; "sop_catalog";
        "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
   @ ["flow_sop", ["rays"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
        "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
@@ -143,6 +147,7 @@ let only =
   [ "param", []; "native_layer_token", []; "lru", [];
     "frame_input", [];
     "flow", ["param"; "frame_input"];
+    "flow_ir", ["flow"; "param"; "rays_math"];
     "flow_graph", ["flow"; "param"];
     "ogpu_core", ["native_layer_token"];
     "ogpu", ["ogpu_core"];
@@ -309,6 +314,9 @@ let run () =
      "editor_document", "pxui_graph"; "editor_document", "sketch_support";
      "editor_document", "rays_editor";
      "flow", "pxui"; "flow", "procedural"; "flow", "rays_math";
+     "flow", "flow_ir"; "flow_ir", "rays"; "flow_ir", "procedural";
+     "flow_ir", "rdk"; "flow_ir", "pxui"; "flow_ir", "editor_document";
+     "flow_ir", "sketch_support"; "flow_ir", "rays_editor"; "flow_ir", "ogpu";
      "flow", "rays"; "param", "flow"; "sdl3", "flow";
      "ppx_rays", "procedural"; "ppx_rays", "pxui";
      "flow_sop", "pxui"; "flow_sop", "sop_catalog"; "flow_sop", "rays";

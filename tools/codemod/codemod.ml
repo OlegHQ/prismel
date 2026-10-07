@@ -1321,6 +1321,9 @@ let () =
     | d :: r -> split ex target (d :: dirs) r
     | [] -> ex, target, List.rev dirs in
   match Array.to_list Sys.argv |> List.tl with
+  | [ "open-domains"; "--self-test" ] -> Open_domains.self_test ()
+  | [ "open-domains"; "--apply" ] -> Open_domains.migrate ~apply:true
+  | [ "open-domains" ] -> Open_domains.migrate ~apply:false
   | [ "result-bind"; "--self-test"; ppx ] -> Result_bind.self_test ppx
   | [ "result-bind"; "--self-test" ] ->
       Result_bind.self_test "_build/default/ppx/result_bind/result_bind_ppx.exe"

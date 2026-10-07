@@ -21,16 +21,31 @@ let level_key = function
   | Inside id -> "object:" ^ string_of_int id
 
 (* The kinds the node menu offers where the pane shows a graph of [context]. *)
-let catalog value = function
-  | Flow.Workspace.Scene -> Objects.catalog
-  | World -> Layers.catalog
-  | Draw -> []
-  | _ -> value.factories
+let catalog value context =
+  if context = Flow.Context.scene then Objects.catalog
+  else if context = Flow.Context.world then Layers.catalog
+  else if context = Flow.Context.sop then value.factories else []
 
 (* the open level's network; the scene's if the level is gone (every path resolves the level first) *)
 let network value =
   Option.value ~default:value.doc.Document.scene (Document.network value.doc value.level)
 let document value = (network value).graph.geometry
+
+let viewed_path value (scope : Flow_graph.Projection.scope) =
+  let valid (preview : preview) = match preview.path, scope.path with
+    | graph :: _, root :: _ when graph = root -> Some preview.path
+    | _ -> None in
+  let preview = match value.level with
+    | Inside id when Document.object_graph value.doc id = Some (List.hd scope.path) ->
+        Option.bind (Document.Int_map.find_opt id value.previews) valid
+    | _ -> Document.Int_map.fold (fun _ preview found ->
+        match found with Some _ -> found | None -> valid preview) value.previews None in
+  match preview with
+  | Some _ -> preview
+  | None -> match scope.result with
+    | Link target -> Some [ List.hd scope.path; target ]
+    | Node path -> Some path
+    | Literal _ -> None
 
 (* A named pane or Navigator can show a SOP graph while the scene list is open. Its
    compiled nodes belong to an object's network, independent of the list's level. *)
@@ -98,11 +113,9 @@ let kind_label head =
 let kind_fields value graph head authored =
   let module S = Flow.Syntax in
   let ws, _ = value.doc.Document.workspace in
-  let context = Option.bind (List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = graph)
-      (ws.checked.graphs @ ws.checked.defs)) (fun (g : Flow.Workspace.graph) -> match g.context with
-    | Flow.Workspace.Sop -> Some Flow.Context.Sop | Scene -> Some Flow.Context.Scene
-    | World -> Some Flow.Context.World | Settings -> Some Flow.Context.Settings
-    | Material -> Some Flow.Context.Material | _ -> None) in
+  let context = Option.map (fun (g : Flow.Workspace.graph) -> g.context)
+    (List.find_opt (fun (g : Flow.Workspace.graph) -> g.name = graph)
+      (ws.checked.graphs @ ws.checked.defs)) in
   match Lazy.force value.flow_catalog, context with
   | _ when head = "material/standard" ->
       (* a built-in of the workspace, not a catalog kind: its four keywords *)
@@ -245,11 +258,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
              | Some r -> P.row_shown ?pin:(pin_of r) r | None -> false in
            let geo = Option.bind node_id (fun id -> Option.bind (node_owner value id) (fun object_id ->
              Cook.geometry value.cook ~object_id ~node_id:id)) in
-           (* the node shown in the viewport: the graph's result *)
-           let displayed = match scope.result with
-             | P.Link target -> Some [ graph; target ]
-             | Node p -> Some p
-             | Literal _ -> None in
+           let displayed = viewed_path value scope in
            let readouts = Probe.readouts records n ~probes in
            (* the head: the kind, VIEW while displayed, the node's number; the name edited in
               place; what the probe and the cook know; the flags the card has as buttons *)
@@ -266,7 +275,7 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
              then None else Some (if active_camera then "active" else
                Option.value ~default:"cached" (List.assoc_opt "cook" readouts)) in
            let buttons =
-             (if n.ty = Flow.Ty.Geometry && List.length n.path = 2 && not n.synthetic then
+             (if n.ty = Flow.Ty.geometry then
                 [ { Pxui.Ui.caption = "View"; keycap = "V"; active = displayed = Some n.path; usable = true }, `View ]
               else [])
              @ (if P.bypassable n then
@@ -362,16 +371,16 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
              (match r.expr with
               | Some { S.node = S.List [ { S.node = S.Sym "ref"; _ }; { S.node = S.Sym _; _ } ]; _ } -> true
               | _ -> false)
-             || r.ty = Some Flow.Ty.Material
-             || (r.ty = Some Flow.Ty.Geometry && String.starts_with ~prefix:"scene/" n.head) in
+             || r.ty = Some Flow.Ty.material
+             || (r.ty = Some Flow.Ty.geometry && String.starts_with ~prefix:"scene/" n.head) in
            let doc, _ = value.doc.Document.workspace in
            let sop_graphs = List.filter_map (fun (g : Flow.Workspace.graph) ->
-             if g.context = Flow.Workspace.Sop then Some g.name else None) doc.checked.graphs in
+             if g.context = Flow.Context.sop then Some g.name else None) doc.checked.graphs in
            let material_graphs = List.filter_map (fun (g : Flow.Workspace.graph) ->
-             if g.context = Flow.Workspace.Material then Some g.name else None) doc.checked.graphs in
+             if g.context = Flow.Context.material then Some g.name else None) doc.checked.graphs in
            let ref_rows = List.filter_map (fun (r : P.row) ->
              if not (is_ref_slot r) then None else
-             let is_material = r.ty = Some Flow.Ty.Material in
+             let is_material = r.ty = Some Flow.Ty.material in
              let target = match r.expr with
                | Some { S.node = S.List [ { S.node = S.Sym "ref"; _ }; { S.node = S.Sym name; _ } ]; _ } -> name
                | _ -> "" in

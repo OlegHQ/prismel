@@ -74,11 +74,12 @@ let element_node element =
     ~inputs:[||] (fun ~node_id:_ _ _ ->
       Ok Node.Private.{ geometry; diagnostics = []; instances = None })
 
-let node ?label ?(report : element array -> unit = ignore) ?(live = false) ?(stamp = "") ~kind ?key ~source_attribute ~source_base ~body
+let node ?label ?(report : element array -> unit = ignore) ?(live = false) ?(stamp = "") ~kind ?key ?select ~source_attribute ~source_base ~body
     ~inputs () =
   let parameters = Printf.sprintf "kind=%s;key=%S;source=%S;base=%d;inputs=%d;live=%b"
       (match kind with Points -> "points" | Pieces -> "pieces")
       (Option.value key ~default:"") source_attribute source_base (Array.length inputs) live in
+  let parameters = parameters ^ Option.fold ~none:"" ~some:(fun i -> ";select=" ^ string_of_int i) select in
   let parameters = if stamp = "" then parameters else parameters ^ ";frame-state=" ^ stamp in
   Node.Private.make ?label ~operation:"zone" ~version:1 ~parameters
     ~cook_mode:Node.Generic
@@ -89,12 +90,17 @@ let node ?label ?(report : element array -> unit = ignore) ?(live = false) ?(sta
       | Error _ as error -> error
       | Ok elements ->
           report elements;
+          let elements = match select with
+            | None -> elements
+            | Some index when index >= 0 && index < Array.length elements -> [|elements.(index)|]
+            | Some _ -> [||] in
           (* the body is built once per cook: what does not read the element is shared *)
           let element = body ~inputs:nodes ~context in
           Ok (Array.map element elements))
     (fun ~node_id:_ context parts ->
       match Rdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
-          ~grain:(Context.grain context) ~source_attribute ~source_base
+          ~grain:(Context.grain context) ~source_attribute
+          ~source_base:(source_base + Option.value ~default:0 select)
           (Array.to_list parts) with
       | Ok geometry -> Ok Node.Private.{ geometry; diagnostics = []; instances = None }
       | Error e -> Error (Diagnostic.error ~code:(Rdk.Error.code e)

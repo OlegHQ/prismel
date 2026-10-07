@@ -3261,7 +3261,7 @@ let scrubbed literal dx ~coarse =
   | None, None -> literal
 
 let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(messages = []) ?(spans = [])
-    ?reveal ?language ?on_context ?on_scrub ?on_click ?on_caret ?on_drop ?(chips = []) label text =
+    ?reveal ?language ?on_context ?on_scrub ?on_scrub_edit ?on_click ?on_caret ?on_drop ?(chips = []) label text =
   (* a line of code is one and a half times its text, as code editors set it (17 points at 11,
      20 at 13): the 24-point row is a control's, twice the text *)
   let row = float (text_line_height ui) in
@@ -3526,6 +3526,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
         let coarse = match ui.input_frame with
           | Some (frame : Frame.t) -> List.mem Input.Shift frame.keys | None -> false in
         let next = scrubbed literal dx ~coarse in
+        Option.iter (fun f -> f (start, !stop) next) on_scrub_edit;
         edit.text <- String.sub edit.text 0 start ^ next
           ^ String.sub edit.text !stop (String.length edit.text - !stop);
         edit.caret <- start + String.length next; edit.anchor <- edit.caret;

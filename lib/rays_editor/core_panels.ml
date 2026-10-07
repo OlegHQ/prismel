@@ -14,7 +14,7 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
         (* the scene it shows and its render camera: "scene / camera" *)
         let scene_name =
           Option.value ~default:"" (List.find_map (fun (g : Flow.Workspace.graph) ->
-            if g.context = Flow.Workspace.Scene then Some g.name else None)
+            if g.context = Flow.Context.scene then Some g.name else None)
             (fst value.doc.Document.workspace).checked.graphs) in
         let camera = Option.bind value.doc.Document.active_camera (fun id ->
           Option.map Node.label (Edit_graph.find (scene value) ~node_id:id)) in
@@ -55,7 +55,7 @@ let defn_change value paths =
   let ws, _ = value.doc.Document.workspace in
   let scope = Option.map (fun (k : scope_key) -> k.scope) value.scope_key in
   let rec ty_text : Flow.Ty.t -> string option = function
-    | Geometry -> Some "geometry" | Float -> Some "float" | Int -> Some "int" | Bool -> Some "bool"
+    | (Flow.Ty.Named "geometry") -> Some "geometry" | Float -> Some "float" | Int -> Some "int" | Bool -> Some "bool"
     | Vec3 -> Some "vec3" | Text -> Some "text" | Fn -> Some "fn"
     | List t -> Option.map (fun s -> "(list " ^ s ^ ")") (ty_text t)
     | _ -> None in
@@ -76,7 +76,7 @@ let defn_change value paths =
            let result_ty = List.fold_left (fun acc path ->
              match Flow_graph.Projection.find scope path with Some n -> Some n.ty | None -> acc) None paths in
            Syntax_edit (Flow_graph.Flow_edit.Make_defn { nodes = paths; name = draft.name;
-             context = (if result_ty = Some Flow.Ty.Geometry then "sop" else "value");
+             context = (if result_ty = Some Flow.Ty.geometry then "sop" else "value");
              params = List.map (fun (n, t) -> n, Option.get t) typed }))
 
 (* The Navigator: what it shows of the document (see {!Navigator}). *)
@@ -198,7 +198,7 @@ let layout_actions value (workspace : shell) ~(leaf : Pxui_shell.Layout.leaf opt
     | Some graph -> [ Syntax_edit (make graph) ]
     | None ->
         let scene = Option.value ~default:"scene" (List.find_map (fun (g : Flow.Workspace.graph) ->
-          if g.context = Flow.Workspace.Scene then Some g.name else None)
+          if g.context = Flow.Context.scene then Some g.name else None)
           (fst value.doc.Document.workspace).checked.graphs) in
         let text, _ = Bars.tree_text ~name:"editor" ~scene (shell_tree value { workspace with live = None }) in
         (match Flow.Syntax.parse text with
@@ -254,7 +254,7 @@ let layout_intents value (workspace : shell) intents =
     | _ ->
         (* no editor graph: the layout shown is written as one first, then edited *)
         let scene = Option.value ~default:"scene" (List.find_map (fun (g : Flow.Workspace.graph) ->
-          if g.context = Flow.Workspace.Scene then Some g.name else None)
+          if g.context = Flow.Context.scene then Some g.name else None)
           (fst value.doc.Document.workspace).checked.graphs) in
         let text, name_of = Bars.tree_text ~name:"editor" ~scene base in
         (match Flow.Syntax.parse text, name_of path with
@@ -266,7 +266,7 @@ let layout_intents value (workspace : shell) intents =
   let save_state path state =
     let prefix = if editor <> None then [] else
       let scene = Option.value ~default:"scene" (List.find_map (fun (g : Flow.Workspace.graph) ->
-        if g.context = Flow.Workspace.Scene then Some g.name else None)
+        if g.context = Flow.Context.scene then Some g.name else None)
         (fst value.doc.Document.workspace).checked.graphs) in
       let text, _ = Bars.tree_text ~name:"editor" ~scene base in
       match Flow.Syntax.parse text with

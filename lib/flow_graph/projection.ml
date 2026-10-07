@@ -97,6 +97,27 @@ let rec collect tbl forms (t : W.term) =
   Hashtbl.replace forms t.form.id t;
   List.iter (collect tbl forms) (subterms t)
 
+let same_graph (a : W.t) (b : W.t) name =
+  if a == b then true else
+  let graph workspace =
+    match List.find_opt (fun (g : W.graph) -> g.name = name) workspace.W.graphs with
+    | Some _ as graph -> graph
+    | None -> List.find_opt (fun (g : W.graph) -> name = "def:" ^ g.name || name = g.name) workspace.defs in
+  match graph a, graph b with
+  | Some x, Some y when a.ops == b.ops && x.context = y.context && S.equal x.form y.form
+      && List.equal S.equal a.macros b.macros ->
+      let rec same (a : W.term) (b : W.term) = a.path = b.path && a.ty = b.ty
+        && List.equal same (subterms a) (subterms b) in
+      let root = if String.starts_with ~prefix:"def:" name then name
+        else if List.exists (fun (g : W.graph) -> g == x) a.defs then "def:" ^ name else name in
+      let under = function first :: _ -> first = root | [] -> false in
+      let same_paths a b = W.Paths.for_all (fun path -> not (under path) || W.Paths.mem path b) a
+        && W.Paths.for_all (fun path -> not (under path) || W.Paths.mem path a) b in
+      same x.body y.body
+      && List.equal (fun (n,a,x) (m,b,y) -> n = m && a = b && Option.equal same x y) x.inputs y.inputs
+      && same_paths a.live b.live && same_paths a.invariant b.invariant
+  | _ -> false
+
 (* ---- chips and rows ---- *)
 
 let chip c (e : S.t option) = match e with
@@ -125,7 +146,7 @@ let add c label key ?(socket = true) ty =
   row c ?ty ~socket ~kind:Add label key None
 
 let ty_of_port = function
-  | Flow.Port_type.Geometry -> Ty.Geometry | Float -> Ty.Float | Int -> Ty.Int
+  | Flow.Port_type.Geometry -> Flow.Ty.geometry | Float -> Ty.Float | Int -> Ty.Int
   | Bool -> Ty.Bool | Vec3 -> Ty.Vec3
 
 let show_value = function
@@ -178,7 +199,7 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
   let npos = List.length pos in
   let slot_ty = W.slot_ty k in
   (* the first geometry slot is the header's in-port, not a row of the body *)
-  let head_of i = i = 0 && slot_ty = Ty.Geometry in
+  let head_of i = i = 0 && slot_ty = Flow.Ty.geometry in
   let slot_rows = List.concat (List.mapi (fun i (s : Flow.Check.slot) ->
     if s.rest then
       List.filteri (fun j _ -> j >= i) pos |> List.mapi (fun j a ->
@@ -205,7 +226,7 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
   let param_rows = List.map (fun (p : Flow.Check.parameter) ->
     let kind = if W.group_reader p then Group_reader else if W.group_writer k p then Group_writer else Arg in
     let material = k.qualified = "sop/material" && p.name = "material" in
-    row c ~ty:(if material then Ty.Material else match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
+    row c ~ty:(if material then Flow.Ty.material else match p.ty with Some t -> ty_of_port t | None -> Ty.Text) ?default:(default_text p)
       ~control:(control_of p) ~socket:true ~kind
       ~folder:(if p.folder = [] then kind_section k else String.concat " / " p.folder)
       ~primary:(if any_primary then p.primary else p.folder = first_folder)
@@ -267,7 +288,7 @@ let call_rows c (e : S.t) h args =
            match List.assoc_opt h c.macros with
            | Some m -> macro_rows c m pos
            | None ->
-               match W.op_signature c.ctx h with
+               match W.op_signature ~ops:c.w.ops c.ctx h with
                | Some o ->
                    let np = List.length o.pos in
                    List.concat (List.mapi (fun i (l, ty) -> if i < np || i < npos then [ posrow ~ty l i ] else [])
@@ -457,6 +478,24 @@ let sources (r : row) = match r.chip, r.expr with
   | _, Some e -> E.free_names e
   | _, None -> []
 
+let with_arguments changes scope =
+  let edits = Hashtbl.create (List.length changes) in
+  List.iter (fun (path, key, expr) -> Hashtbl.replace edits path
+    ((key, expr) :: Option.value ~default:[] (Hashtbl.find_opt edits path))) changes;
+  let rec patch (scope : scope) =
+    let nodes = List.map (fun (node : node) ->
+      let zone = match node.zone with
+        | Some zone -> let scope = patch zone.scope in
+            if scope == zone.scope then node.zone else Some {zone with scope}
+        | None -> None in
+      let rows = match Hashtbl.find_opt edits node.path with
+        | None -> node.rows
+        | Some changes -> List.map (fun (row : row) -> match List.assoc_opt row.key changes with
+            | None -> row | Some expr -> {row with expr = Some expr}) node.rows in
+      if rows == node.rows && zone == node.zone then node else {node with rows; zone}) scope.nodes in
+    if List.for_all2 ( == ) nodes scope.nodes then scope else {scope with nodes} in
+  patch scope
+
 let bypassable (n : node) =
   n.zone = None && (not n.synthetic) && n.macro = None
   && not (List.mem n.head [ "record"; "number"; "text"; "link"; "vector"; "list"; "str"; "if"; "cond"; "case" ])
@@ -469,6 +508,7 @@ let reorderable (n : node) =
   n.zone = None && List.mem n.head [ "list"; "str"; "scene/merge" ]
 
 let of_graph catalog (w : W.t) name =
+  Flow.Phase_timer.measure Project (fun () ->
   let def = String.starts_with ~prefix:"def:" name in
   let bare = if def then String.sub name 4 (String.length name - 4) else name in
   let g = match List.find_opt (fun (g : W.graph) -> g.name = bare) (if def then w.defs else w.graphs @ w.defs) with
@@ -483,7 +523,7 @@ let of_graph catalog (w : W.t) name =
   let c = { w; catalog; ctx = g.context; macros; terms; forms } in
   let inputs = List.map (fun (n, ty, d) ->
     { path = root @ [ ":" ^ n ]; name = n; ty; default = Option.map (fun (t : W.term) -> t.form) d }) g.inputs in
-  scope_of c ~visible:(List.map (fun (i : input) -> i.name) inputs) ~inputs root (last g.form)
+  scope_of c ~visible:(List.map (fun (i : input) -> i.name) inputs) ~inputs root (last g.form))
 
 let rec zones (s : scope) = List.concat_map (fun (n : node) -> match n.zone with
   | Some z -> n :: zones z.scope | None -> []) s.nodes

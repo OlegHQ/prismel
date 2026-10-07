@@ -3,10 +3,10 @@ module Smap = Map.Make (String)
 module Paths = Set.Make (struct type t = string list let compare = compare end)
 
 type path = string list
-type context = Context.t = Sop | Value | Draw | Scene | World | Settings | Editor | Material
+type context = Context.t
 let context_name = Context.name
 let context_of_name s = Result.to_option (Context.of_string s)
-let context_ty = Ty.of_context
+let context_ty = Context.result
 
 type pattern = Name of string | Seq of pattern list | Keys of string list
 type term = { path : path option; ty : Ty.t; node : node; form : S.t }
@@ -44,7 +44,7 @@ type graph = { name : string; context : context;
   inputs : (string * Ty.t * term option) list; body : term; form : S.t }
 type t = { name : string; graphs : graph list; defs : graph list; macros : S.t list;
   source : S.t list; live : Paths.t; invariant : Paths.t;
-  kind_fns : (string * (string * Context.t * Check.slot list)) list }
+  kind_fns : (string * (string * Context.t * Check.slot list)) list; ops : Op.t list }
 
 let max_iterations = Op.max_iterations
 (* ponytail: a guard against exponential call-site typing, not a language limit. *)
@@ -59,8 +59,7 @@ let special = [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "ref"; "for"; 
   "unquote-splicing" ]
 let special_forms = special
 let reserved s = List.mem s special || List.mem s [ "t"; "pi"; "true"; "false"; "nil" ]
-let type_names = List.map fst Ty.names
-let find_op = Op.find
+let type_names () = List.map fst (Ty.names ())
 
 (* ---- helpers ---- *)
 
@@ -76,7 +75,7 @@ let replace_all ~sub ~by s =
 let show t = replace_all ~sub:"list:" ~by:"list of " (Ty.to_string t)
 let plural n = if n = 1 then "" else "s"
 let rec shape_ty = function
-  | Ty.Geometry | Drawing | Scene | World | Panel | Editor -> true
+  | Ty.Named _ as ty -> Ty.shape ty
   | List e -> shape_ty e
   | Record fs -> List.exists (fun (_, t) -> shape_ty t) fs
   | _ -> false
@@ -120,10 +119,10 @@ let poison = leaf Ty.Any
 
 let port_ty = function
   | Ty.Float -> Some Port_type.Float | Int -> Some Port_type.Int | Bool -> Some Port_type.Bool
-  | Vec3 -> Some Port_type.Vec3 | Geometry -> Some Port_type.Geometry | _ -> None
+  | Vec3 -> Some Port_type.Vec3 | (Ty.Named "geometry") -> Some Port_type.Geometry | _ -> None
 let ty_of_port = function
   | Port_type.Float -> Ty.Float | Int -> Ty.Int | Bool -> Ty.Bool | Vec3 -> Ty.Vec3
-  | Geometry -> Ty.Geometry
+  | Geometry -> Ty.geometry
 let is_color (p : Check.parameter) = p.ty = Some Port_type.Vec3 && (match p.fields with
   | [ (a, _, _); (b, _, _); (c, _, _) ] ->
       String.ends_with ~suffix:"_r" a && String.ends_with ~suffix:"_g" b
@@ -133,15 +132,16 @@ let param_ty (p : Check.parameter) = match p.ty with
   | Some Port_type.Vec3 when is_color p -> Ty.Color
   | Some t -> ty_of_port t
   | None -> Ty.Text
-let kind_out (k : Check.kind) = match k.context, k.outputs with
-  | Context.Draw, _ -> Ty.Drawing | Context.Scene, _ -> Ty.Scene | World, _ -> Ty.World | Settings, _ -> Ty.Settings | Material, _ -> Ty.Material
-  | _, [ (_, t) ] -> ty_of_port t
-  | _, [] -> Ty.Any
-  | _, outs -> Ty.Record (List.map (fun (n, t) -> (n, ty_of_port t)) outs)
+let kind_out (k : Check.kind) =
+  if k.context <> Context.sop && k.context <> Context.value then Context.result k.context
+  else match k.outputs with
+    | [ (_, t) ] -> ty_of_port t
+    | [] -> Ty.Any
+    | outs -> Ty.Record (List.map (fun (n, t) -> (n, ty_of_port t)) outs)
 (* the type of a kind's slots: geometry, a World layer's layer below, a scene/world's World, a root's scene *)
 let slot_ty (k : Check.kind) = match k.qualified with
-  | "scene/world" -> Ty.World | "scene/root" -> Ty.Scene
-  | _ -> if k.context = Context.World then Ty.World else Ty.Geometry
+  | "scene/world" -> Ty.world | "scene/root" -> Ty.scene
+  | _ -> if k.context = Context.scene then Ty.geometry else Context.result k.context
 (* ponytail: the catalog has no group markers yet; a `group` parameter reads a group and
    `name` on a `sop/group_*` kind writes one. *)
 let group_reader (p : Check.parameter) = p.name = "group"
@@ -163,6 +163,24 @@ let hex_colour s =
   n > 0 && s.[0] = '#' && (n = 4 || n = 7 || n = 9)
   && String.for_all (function '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' -> true | _ -> false)
        (String.sub s 1 (n - 1))
+let validate_parameter ?ty report (p : Check.parameter) (term : term) =
+  let want = param_ty p and have = Option.value ~default:term.ty ty in
+  if have <> Ty.Any then begin
+    if not (Ty.fits have want) then
+      report Diagnostic.Error "E_TYPE" (Printf.sprintf ":%s takes %s, but this is %s" p.name (show want) (show have))
+    else match want, term.node with
+      | Ty.Color, Text s ->
+          if not (hex_colour s) then
+            report Diagnostic.Error "E_TYPE" (Printf.sprintf ":%s is a colour: write \"#rrggbb\" or a vec3, not \"%s\"" p.name s)
+      | Ty.Color, _ ->
+          if have = Ty.Vec3 then
+            Check.validate_parameter report { p with ty = Some Port_type.Vec3 } (to_check term)
+      | Ty.Vec3, _ when have <> Ty.Vec3 -> ()
+      | Ty.Text, Text _ -> Check.validate_parameter report p (to_check term)
+      | Ty.Text, _ -> ()
+      | _ -> Check.validate_parameter report p (to_check term)
+  end
+
 let rec pairs = function a :: b :: rest -> (a, b) :: pairs rest | _ -> []
 let is_kw (x : S.t) = match x.node with S.Kw _ -> true | _ -> false
 let tm (x : S.t) ty node = { path = None; ty; node; form = x }
@@ -193,7 +211,10 @@ let skip_tuples (v : S.t) : int list list option =
       Some (List.map (fun t -> Option.get (tuple t)) items)
   | _ -> None
 
-let check catalog forms =
+let check ?(ops = []) catalog forms =
+  Phase_timer.measure Check (fun () ->
+  match Op.validate ops with Some error -> None, [error] | None ->
+  let find_op = Op.find ~extra:ops in
   let diags = ref [] in
   let live = ref Paths.empty and invariant = ref Paths.empty in
   let steps = ref 0 and zones = ref 0 in
@@ -239,10 +260,10 @@ let check catalog forms =
         | None -> (match find_op s cx.ctx with
             | Some o -> `Op o
             | None -> (match kind_of cx.ctx s with Ok k -> `Kind k | Error e -> `Missing e))) in
-  let known ~head s = reserved s || List.mem s type_names || s = "fn" || Hashtbl.mem names s
+  let known ~head s = reserved s || List.mem s (type_names ()) || s = "fn" || Hashtbl.mem names s
     || ((head || not (Macro.valid_name s))
-        && (List.exists (fun c -> find_op s c <> None) Context.all
-            || (match kind_of Sop s with
+        && (List.exists (fun c -> find_op s c <> None) (Context.all ())
+            || (match kind_of Context.sop s with
                 | Ok _ | Error (("E_WRONG_CONTEXT" | "E_AMBIGUOUS"), _) -> true
                 | Error _ -> false))) in
   let no_fn x (t : Ty.t) what =
@@ -372,7 +393,7 @@ let check catalog forms =
     | "t" -> (tm x Ty.Float Time, leaf ~live:true Ty.Float)
     | "pi" -> (tm x Ty.Float (Lit (Param.Float_value Float.pi)), leaf Ty.Float)
     | "true" | "false" -> (tm x Ty.Bool (Lit (Param.Bool_value (s = "true"))), leaf Ty.Bool)
-    | "nil" -> (tm x Ty.Geometry Nil, leaf Ty.Geometry)
+    | "nil" -> (tm x Ty.geometry Nil, leaf Ty.geometry)
     | _ ->
         let b, fs = match String.split_on_char '.' s with b :: fs -> (b, fs) | [] -> (s, []) in
         (match Smap.find_opt b cx.env with
@@ -813,7 +834,7 @@ let check catalog forms =
     | None -> (tm x Ty.Any Nil, { (derive Ty.Any (f :: List.map (fun a -> a.av) args)) with fn = None })
     | Some (Closure c) -> call_closure cx x c args
     | Some (Def_fn n) -> apply_def cx x (Hashtbl.find sigs n) args
-    | Some (Op_fn n) -> apply_op cx x (Option.get (Op.find n cx.ctx)) args
+    | Some (Op_fn n) -> apply_op cx x (Option.get (find_op n cx.ctx)) args
     | Some (Kind_fn k) -> apply_kind cx x k args
 
   and dummy x ty = tm x ty (Ref_binding ("_", []))
@@ -993,7 +1014,7 @@ let check catalog forms =
               | `Kind k -> apply_kind cx x k (args_of cx (fun _ _ -> false) args)))
 
   and apply_op ?(skip = []) cx x (o : Op.t) (args : arg list) : term * v =
-    if o.ctx <> Value && o.ctx <> cx.ctx then
+    if o.ctx <> Context.value && o.ctx <> cx.ctx then
       bad x "E_WRONG_CONTEXT" (Printf.sprintf "%s belongs to %s; it cannot run in %s. Pass data through a typed input or ref."
         o.name (context_name o.ctx) (context_name cx.ctx))
     else begin
@@ -1115,24 +1136,7 @@ let check catalog forms =
          | _ -> ())
     | _ -> ()
 
-  and validate (p : Check.parameter) (a : arg) =
-    let want = param_ty p and have = a.av.ty in
-    let report sev code msg = add sev a.aform code msg in
-    if have <> Ty.Any then begin
-      if not (Ty.fits have want) then
-        err a.aform "E_TYPE" (Printf.sprintf ":%s takes %s, but this is %s" p.name (show want) (show have))
-      else match want, a.aterm.node with
-        | Ty.Color, Text s ->
-            if not (hex_colour s) then
-              err a.aform "E_TYPE" (Printf.sprintf ":%s is a colour: write \"#rrggbb\" or a vec3, not \"%s\"" p.name s)
-        | Ty.Color, _ ->
-            if have = Ty.Vec3 then
-              Check.validate_parameter report { p with ty = Some Port_type.Vec3 } (to_check a.aterm)
-        | Ty.Vec3, _ when have <> Ty.Vec3 -> ()
-        | Ty.Text, Text _ -> Check.validate_parameter report p (to_check a.aterm)
-        | Ty.Text, _ -> ()
-        | _ -> Check.validate_parameter report p (to_check a.aterm)
-    end
+  and validate p a = validate_parameter ~ty:a.av.ty (fun sev code msg -> add sev a.aform code msg) p a.aterm
 
   and apply_kind _cx x (k : Check.kind) (args : arg list) : term * v =
     let rest_index = List.find_index (fun (s : Check.slot) -> s.rest) k.slots in
@@ -1144,7 +1148,7 @@ let check catalog forms =
     let slot_ty = slot_ty k in
     let slot_arg ?(repeated = false) a sname =
       if Ty.fits a.av.ty slot_ty then ()
-      else if repeated && (match a.av.ty with Ty.List e -> Ty.fits e Ty.Geometry | _ -> false) then begin
+      else if repeated && (match a.av.ty with Ty.List e -> Ty.fits e Ty.geometry | _ -> false) then begin
         if a.av.live_len then
           err a.aform "E_TIME_COUNT" (Printf.sprintf
             "The list passed to %s changes length with t. The network keeps its shape while playing; animate parameters instead, for example scale a piece to 0." k.qualified)
@@ -1178,7 +1182,7 @@ let check catalog forms =
                   List.find_opt (fun (p : Check.parameter) -> p.name = n) k.parameters with
             | Some slot, _ -> slot_arg ~repeated:slot.rest a n; out := (n, a.aterm) :: !out
             | None, Some p ->
-                if k.qualified = "sop/material" && n = "material" && a.av.ty = Ty.Material
+                if k.qualified = "sop/material" && n = "material" && a.av.ty = Ty.material
                 then () else validate p a;
                 (match a.aterm.node with
                  | Text s when group_reader p && s <> "" && not (List.mem s groups_in) ->
@@ -1194,8 +1198,8 @@ let check catalog forms =
           end) args;
     List.iter (fun (s : Check.slot) ->
         if s.required && not s.rest && not (Hashtbl.mem seen s.name) then
-          if slot_ty = Ty.Geometry then
-            out := (s.name, tm x Ty.Geometry Nil) :: !out
+          if slot_ty = Ty.geometry then
+            out := (s.name, tm x Ty.geometry Nil) :: !out
           else
             err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its %s input" short s.name)) k.slots;
     let ty = kind_out k in
@@ -1218,7 +1222,7 @@ let check catalog forms =
          | _ -> None)
 
   and apply_def cx x (d : signature) (args : arg list) : term * v =
-    if d.sctx <> Value && d.sctx <> cx.ctx then
+    if d.sctx <> Context.value && d.sctx <> cx.ctx then
       bad x "E_WRONG_CONTEXT" (Printf.sprintf "%s belongs to %s; it cannot run in %s." d.sname (context_name d.sctx) (context_name cx.ctx))
     else if List.mem d.sname cx.stack then
       bad x "E_RECURSION" (Printf.sprintf "Recursive call: %s. Use fold for repetition."
@@ -1386,7 +1390,7 @@ let check catalog forms =
     List.iter (fun (f : S.t) -> match f.node with
       | S.List ({ S.node = S.Sym (("graph" | "defn" | "defmacro") as head); _ } :: { S.node = S.Sym n; _ } :: _) ->
           if not (Macro.valid_name n) || reserved n || Hashtbl.mem names n
-             || (match Op.find n Value with Some o -> o.name = n | None -> false) then
+             || (match find_op n Context.value with Some o -> o.name = n | None -> false) then
             err f "E_NAME" (Printf.sprintf "Invalid, reserved or duplicate name: %s." n)
           else (Hashtbl.add names n (); items := (head, n, f) :: !items)
       | _ -> err f "E_FORM" "Workspace children are graph, defn and defmacro forms.") children;
@@ -1442,21 +1446,21 @@ let check catalog forms =
       let get tbl = List.filter_map (Hashtbl.find_opt tbl) in
       (Some { name = wname; graphs = get graph_terms go; defs = get def_terms dos;
               macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant;
-                kind_fns = !kind_fns },
+                kind_fns = !kind_fns; ops },
        diagnostics)
-  | _ -> (None, diagnostics)
+  | _ -> (None, diagnostics))
 
 let name_taken s =
-  reserved s || Symbol.reserved s || Op.find s Value <> None
-  || List.mem s type_names
+  reserved s || Symbol.reserved s || Op.find s Context.value <> None
+  || List.mem s (type_names ())
 
 type op_signature = Op.signature = {
   pos : (string * Ty.t) list; opt : (string * Ty.t) list;
   rest : (string * Ty.t) option; kw : (string * Ty.t) list }
 
-let value_ops = List.map (fun (o : Op.t) -> o.name) (Op.of_context Value)
-let op_choices name argument =
-  match Op.find name Value with
+let value_ops = List.map (fun (o : Op.t) -> o.name) (Op.of_context Context.value)
+let op_choices ?(ops = []) name argument =
+  match Op.find ~extra:ops name Context.value with
   | Some o -> Option.value (List.assoc_opt argument o.choices) ~default:[]
   | None -> []
-let op_signature ctx name = Option.map (fun (o : Op.t) -> o.signature) (Op.find name ctx)
+let op_signature ?(ops = []) ctx name = Option.map (fun (o : Op.t) -> o.signature) (Op.find ~extra:ops name ctx)

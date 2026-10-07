@@ -190,7 +190,7 @@ of a syntax edit is `Flow_edit.label` (`Edit value`, `Connect`, `Disconnect`, `U
 | Everything else (connect, delete, wrap, level, pin, frame, move) | `Step` |
 
 A layout edit made by a release (moved nodes, a resized frame, a docked panel) is one entry.
-`v` is one entry, "View node".
+`v` and the iteration selectors are view state and make no history entry.
 
 ### 4.4 Presets
 
@@ -354,7 +354,7 @@ selection, row keys on the row under the pointer.
 | `w` | `scope.hints` | connect by letter hints (§7.5) |
 | `o` / `p` | `scope.open` / `scope.point` | open the selection one level, pinned / point it, or back |
 | `⇧O` / `⇧P` | `scope.open-all` / `scope.point-all` | every node to a card / every node to a point, or back |
-| `v` | `scope.display` | view the selected geometry node: it becomes the graph's result (below) |
+| `v` | `scope.display` | preview the selected geometry node at the iteration selectors (below) |
 | `b` | `scope.bypass` | toggle `^:bypass`; on a node with a boolean `:visible` and no bypass, toggle that instead |
 | `x`, Delete, Backspace | `scope.delete` | the hovered wired row's wire or list item, else the selected wire, else the selected nodes |
 | `f` | `scope.frame-selection` | pan and zoom to the selection (all with none) |
@@ -385,10 +385,15 @@ retype the focused panel (graph, list, lisp, inspector, outline, timeline, viewp
 plus the same letters a floating window of that kind, `[` `0`..`9`/`n`/`x` the layouts
 (§11.11). `⌘S` saves the sketch, `⌘Z` / `⇧⌘Z` / `⌘Y` undo and redo.
 
-**`v`.** Only a geometry node can be viewed, and what the viewport shows is the graph's
-result. `v` on a binding at the root of the graph rewrites the result to that binding
-(`Connect` of `[graph; "@result"]`, one entry "View node"). `v` on the result itself does
-nothing. A node inside a loop cannot be viewed alone; the pane says so.
+**`v`.** The viewport initially shows each object's graph result. `v` previews the
+selected geometry node without changing source, layout or history. The request is a
+lexical path owned by the object; it survives leaving the graph and follows subsequent
+edits. A node inside a loop shows the tuple chosen by its enclosing iteration selectors.
+A geometry loop expands only the selected element in a scratch network, retaining its
+captures, live arguments and frame-fold snapshot. The authored network remains available
+for probes. Viewport framing follows the preview, and picking it keeps the selected
+template and tuple. Viewing the result restores the default picture. A request whose
+path no longer evaluates to geometry falls back to the graph result.
 
 ### 7.3 Add
 
@@ -648,12 +653,35 @@ kind, by its qualified name or its short name within the graph's context
 (`Flow.Check.resolve_kind`). An unknown head is `E_UNKNOWN_KIND` with a suggestion at edit
 distance 2 or less; a kind of another context is `E_WRONG_CONTEXT`.
 
-`Flow.Op` is the immutable resolution table for all 58 built-in operators. Each declaration
+`Flow.Op` is the immutable resolution table for built-in operators. Each declaration
 contains its context, signature, output type, choices, value shape, validation, evaluator body
 and menu category. The checker, evaluator (including compiled arithmetic) and editor read that
 record; adding an operator does not add a second name table. Lookup is a hash table built once
-from `Op.all`, independent of evaluator initialization. `Context.all` and `Ty.names` supply
+from `Op.all`, independent of evaluator initialization. `Context.all ()` and `Ty.names ()` supply
 the editor's context and type vocabulary.
+
+Domain types are nominal `Ty.Named name` values; the structural data types stay
+closed. `Ty.register` declares a nominal type's palette role, shape behavior
+and optional literal default. `Context.register` declares an abstract,
+marshalable context identity with a result type, value support, label, palette
+role, Outline group and optional catalog prefix. Register on the initial
+domain before checking. Repeating an identical declaration is idempotent;
+invalid or conflicting declarations leave the registry unchanged.
+
+`Workspace.check ~ops` accepts an immutable operator extension list and retains
+it in the checked workspace. Evaluation, checked edits, projection, completion
+and the add menu use that same list; it is not a mutable global operator
+registry. A new domain therefore needs a named type, a context descriptor and
+its operator list, without a new domain match in the checker or pane. The
+`test_open_domain` gate checks this through both the pane and the editor host,
+including insertion, colored painting and preset reload.
+
+`Port_type.t` stays closed because it is the SOP parameter bridge for the
+existing numeric, Boolean and vector field schemas, rather than the graph's
+type vocabulary. `Panels.panel` stays closed because its constructors select
+the editor's actual pane implementations; `View` and `Canvas` already carry
+string identities. `Scene_execution.pipeline_family` stays closed because its
+cases select renderer pipelines, not language domains.
 
 `Flow.Value` holds pure values parameterized by evaluator functions and residuals. Catalog
 calls retain their resolved context in the checked term; struct values retain the resolved type
@@ -887,6 +915,41 @@ edits, so session cache entries survive them.
   (`Flow_sop.Curve`).
 - A bypassed call makes no node: the evaluator passes its input through.
 
+The editor keeps the checked workspace and recording evaluation together. A
+same-type literal written in a catalog parameter patches its authored span and
+checked term and validates that parameter using the workspace's schema rules.
+An Int/Float change inside a numeric Vec3 keeps the argument's Vec3 type;
+Boolean components are rejected by the same full-check fallback.
+For a static SOP call outside a geometry template, lowering patches all of its
+instances' parameter values and retains the plan's identities and probe records.
+The recording evaluation associates plan node IDs with originating syntax IDs,
+so anonymous nested calls, thread steps, defn calls and graph overrides update
+every copy of that authored call. Syntax IDs belong to one checked source;
+they can change on reparse and are kept outside the semantic plan.
+The pane updates the existing literal rows and keeps its geometry and routes.
+The patch lineage is bounded to 4,096 distinct arguments; structural edits and
+unsupported literals use the full check. Geometry templates, frame folds,
+retained function records and non-SOP values use the full lowering after the
+source patch: measured over every checked-in file, the edit itself is under a
+millisecond there and the rest is the evaluation the changed value requires
+(`specification/performance-log.md`, "Phase 4 Step 1 closure").
+
+A text-pane number drag uses the numeric token's pre-edit byte range reported
+by PXUI and the printer's form IDs to address the innermost source card's
+`Set_arg`. Selection, Graph and Document tabs share that path. While an applied
+token scrub is held, cached text and spans are patched in place, preserving
+line breaks; release restores canonical printing. Unapplied drafts and stale
+sources take the existing whole-text merge/check path. Document metadata is
+printed with IDs disjoint from workspace source, so layout and view tokens
+cannot address a source card accidentally.
+
+Structural edits remap stored layout paths, then validate the surviving keys
+against authored paths and graph inputs without projecting every graph. A pane
+reuses its projection when its graph's authored content, checked types,
+live/invariant paths and macro environment are unchanged. Changes elsewhere
+still refresh evaluated records; a dependency that changes a checked type
+invalidates the projection.
+
 ### 13.2 The value lane
 
 A `Network.t` is the SOP `Edit_graph` plus `drives`: the arguments that depend on `t`, each
@@ -912,6 +975,28 @@ playing never evicts static entries. Structure cannot depend on `t` (`E_TIME_COU
 
 Evaluation and the lane are sequential IEEE double arithmetic with fixed operator semantics,
 so results are identical for one and many domains and across runs with `Sketch.Fixed dt`.
+
+The value lane prepares `Flow_ir.Executor` programs once per network. Scalar
+programs reuse the existing exact closures or reference walker. Supported packed
+maps run in 1,024-element blocks over float registers, distributed by the shared
+`Parallel` pool; they preserve each element's operation order. Unsupported bodies
+remain interpreted. Probe forcing uses the reference walker independently of
+compilation settings. The IR retains lexical provenance, cardinality origins,
+frame/event rates and exact/approximate precision. Its placement pass refuses
+approximate inputs to catalog calls, exports, state seeds and cache keys with
+`E_APPROX_SINK`; `(exact x)` is the explicit readback card. Current producers
+are exact, so its runtime value is unchanged. GPU readback is not implemented.
+
+`(noise3 position)` is an ordinary value card with one vec3 input. It uses
+seed 0 and raw 0..1 `Rays_math.Noise.sample3` values. The SOP/editor host owns
+its declaration through `Flow_sop.Operators.all`; `flow` has no math-layer
+dependency. Both the interpreter and packed executor use that declaration's
+semantics. Packed intrinsic selection verifies the declaration's identity,
+so an explicit custom operator with the same name keeps its custom behavior.
+`sop/noise_displace :mode "normal_3d"` computes
+`P + N * (amplitude * noise3(P * frequency))` at seed 0. The default
+`"height_2d"` mode adds signed X/Z noise to Y. Both preserve topology and
+invalidate point/vertex normals after displacement.
 
 ### Frame data and native 2D drawings
 
@@ -1009,7 +1094,7 @@ dropped from Finder (§7.12).
 | Edits | one variant (`Flow_edit.op`) and one `apply` that prints, re-parses and re-checks; a refused edit changes nothing |
 | Wire shape | straight segments with computed bends; no curves, no authored bends, no wireless wires |
 | Levels | explicit (`o`, `p`), never zoom-driven |
-| Viewing a node | `v` rewrites the graph's result; there is no display entry in the layout |
+| Viewing a node | `v` is a per-object lexical preview request outside the source, layout and history; loop selectors choose its tuple |
 | Vec3 | metadata grouping of three float fields; no new `Param.value` case |
 | Names in the language | stable keys and field names verbatim (`noise_displace`, `size_x`) |
 | Float spelling | one printer, shortest round-trip, always a `.`, never an exponent; the reader accepts exponents |
@@ -1024,4 +1109,7 @@ dropped from Finder (§7.12).
 | Following a graph panel (2026-10-05) | `:of binding` on `ui/inspector`, `ui/list`, `ui/lisp`: one keyword, a panel-typed wire in the graph; without it the panel follows the focus |
 | Layout forms in the printer (2026-10-05) | `ui/` calls are never threaded with `->` |
 | Guide | on by default, persisted off |
+| Edit timings (2026-10-07) | the status strip and crash report retain the last document edit's print, parse, check, evaluate, lower, project, layout, reduce and cook durations; `Flow.Phase_timer` also exposes invocation counts for regressions |
+| Checked lowering (2026-10-07) | document edits check once; `Lower.of_checked` evaluates once with recording and graph probes reuse that evaluation, including its plan and state folds |
+| Edit-frame gate (2026-10-07) | a scrub frame without the recook its value requires costs no more than a layout-drag frame at the same node count (`bench_rays_editor`'s `scrub_edit` row), with zero print/parse/check/evaluate/lower/project/layout; every checked-in `.rays` literal saves the full path's bytes and refuses with its code (`test_workspace_doc`); `(ref g)` is never a binding read |
 | Wheel and trackpad scroll | zoom at the pointer; right-drag and middle-drag pan |

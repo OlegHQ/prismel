@@ -40,7 +40,9 @@ val same_eval : t -> t -> bool
     differ), so their iteration counts are equal. *)
 
 val plan_node : t -> path -> probes:int list -> int option
-(** The plan node ({!Flow.Eval.node} id) of a geometry value at the probe. *)
+(** The plan node ({!Flow.Eval.node} id) of a geometry value at the probe.
+    A loop over geometry shares its template id across element indices; static
+    loop indices retain their exact match, including skipped iterations. *)
 
 val records : t -> path -> (int list * summary) array
 (** Every recorded value of a path in evaluation order, capped at 4,096

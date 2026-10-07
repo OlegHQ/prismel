@@ -338,6 +338,26 @@ let () =
   (* a hand-written exponent is read and kept *)
   assert (print "[1e-14 2E+06]" = "[1e-14 2E+06]\n")
 
+(* Active scrubs replace printed atoms by ID, keeping comments and repairing
+   every ancestor/following span, even with UTF-8 and a change of token width. *)
+let () =
+  let source = get (Syntax.parse "[1 ; a note\n \"é\" true -3]") in
+  let text, spans = Lisp.print source in
+  let root = List.hd source in
+  let kids = Syntax.children root in
+  let number = List.hd kids and string = List.nth kids 1 in
+  let a = {number with Syntax.node = Num "1234"}
+  and b = {string with Syntax.node = Str "λ\n\""} in
+  let patched, repaired = Option.get (Lisp.patch_atoms (text, spans) [b;a]) in
+  let expected = {root with Syntax.node = Vec (a :: b :: List.tl (List.tl kids))} in
+  let canonical, expected_spans = Lisp.print [expected] in
+  assert (patched = canonical && repaired = expected_spans);
+  assert (Lisp.patch_atoms (text, spans) [a;a] = None);
+  assert (Lisp.patch_atoms (text, spans) [Syntax.make (Num "2")] = None);
+  assert (Lisp.patch_atoms (text, spans) [{a with node = Num "1e999"}] = None);
+  assert (Lisp.patch_atoms (text, spans) [{a with meta = ["bypass"]}] = None);
+  assert (Lisp.patch_atoms (text, spans) [root] = None)
+
 (* Every checked-in workspace: printing is a fixed point and loses no comment. *)
 let () =
   let comments text = List.filter_map (fun line ->

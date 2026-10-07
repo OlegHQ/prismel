@@ -85,7 +85,7 @@ let rec ty_of = function
   | Vec3_array _ -> Ty.Array Ty.Vec3
   | Record fs -> Ty.Record (List.map (fun (n, v) -> (n, ty_of v)) fs)
   | Deferred (ty, _) -> ty
-  | No_geo -> Ty.Geometry
+  | No_geo -> Ty.geometry
   | Struct (_, ty, _) -> ty
   | Fn _ -> Ty.Fn
   | Residual _ -> Ty.Any
@@ -133,7 +133,7 @@ let rec key_of ~residual = function
   | Float_array xs -> "A" ^ Marshal.to_string xs []
   | Vec3_array xs -> "V" ^ Marshal.to_string xs []
   | Record fs -> "{" ^ String.concat "," (List.map (fun (n, v) -> n ^ "=" ^ key_of ~residual v) fs) ^ "}"
-  | Deferred (Ty.Geometry, n) -> "g" ^ string_of_int n
+  | Deferred ((Ty.Named "geometry"), n) -> "g" ^ string_of_int n
   | Deferred (ty, n) -> "node:" ^ Ty.to_string ty ^ ":" ^ string_of_int n
   | No_geo -> "G"
   | Struct (n, _, fs) -> "S" ^ n ^ key_of ~residual (Record fs)
@@ -156,7 +156,7 @@ let arith name f a b =
 
 let list_arg = function
   | List xs -> xs
-  | Deferred (Ty.Geometry, _) -> fail "E_TYPE" "A loop over geometry yields its merged geometry, not a list; give it to sop/merge."
+  | Deferred ((Ty.Named "geometry"), _) -> fail "E_TYPE" "A loop over geometry yields its merged geometry, not a list; give it to sop/merge."
   | _ -> fail "E_TYPE" "Expected a list."
 
 let array_length = function

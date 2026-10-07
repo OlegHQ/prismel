@@ -178,6 +178,7 @@ val gesture : op -> string option
     an argument), [None] for everything else. *)
 
 val apply_checked :
+  ?ops:Flow.Op.t list ->
   Flow.Check.catalog -> Flow.Syntax.t list -> op ->
   (Flow.Syntax.t list * Flow.Workspace.t, Flow.Diagnostic.t) result
 (** The rewritten source (printed and parsed again) and its check.  An op that
@@ -185,6 +186,7 @@ val apply_checked :
     diagnostic when none checks. *)
 
 val apply :
+  ?ops:Flow.Op.t list ->
   Flow.Check.catalog -> Flow.Syntax.t list -> op ->
   (Flow.Syntax.t list, Flow.Diagnostic.t) result
 

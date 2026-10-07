@@ -34,7 +34,7 @@ let menu_step menu (frame : Frame.t) =
   | Some menu, _ -> Pxui.Ui.frame menu_ui frame (fun ui -> Node_menu.update menu ui ~bounds)
 
 let menu_of entries = Node_menu.create ~x:400 ~y:250 entries
-let entry ?(arity = 0) ?(category = [ "Utility" ]) key label = { Node_menu.key; label; category; arity; context = "sop"; output = Flow.Ty.Geometry; off = None }
+let entry ?(arity = 0) ?(category = [ "Utility" ]) key label = { Node_menu.key; label; category; arity; context = "sop"; output = Flow.Ty.geometry; off = None }
 let picks menu events = snd (menu_step menu (frame ~mouse:(400, 250) ~events ()))
 let opened entries = match menu_step (menu_of entries) (frame ~mouse:(400, 250) ()) with
   | Some menu, _ -> menu | None, _ -> fail "the menu closed without input"
@@ -66,7 +66,7 @@ let run_menu () =
     "the menu did not list what fits after the node first";
   (* one colour per type, for the menu's squares and the pane's ports: a list is its elements' *)
   check (Node_menu.port_color Pxui.default_theme (Flow.Ty.List Flow.Ty.Float) = (Pxui.Theme.ports Pxui.default_theme).float
-         && Node_menu.port_color Pxui.default_theme Flow.Ty.Scene = (Pxui.Theme.ports Pxui.default_theme).output)
+         && Node_menu.port_color Pxui.default_theme Flow.Ty.scene = (Pxui.Theme.ports Pxui.default_theme).output)
     "a list or a scene is not coloured as the graph pane colours it";
   (* the visual row window never makes later nodes inaccessible *)
   let many = List.init 15 (fun index -> entry (Printf.sprintf "node_%02d" index) (Printf.sprintf "Node %02d" index)) in
@@ -86,7 +86,7 @@ let run_menu () =
     label = Procedural.Edit_graph.factory_label factory;
     category = Procedural.Edit_graph.factory_category factory;
     arity = Procedural.Edit_graph.factory_arity factory;
-    context = "sop"; output = Flow.Ty.Geometry; off = None }) Sop_catalog.Editor.factories in
+    context = "sop"; output = Flow.Ty.geometry; off = None }) Sop_catalog.Editor.factories in
   check (List.length entries = List.length Sop_catalog.Editor.factories)
     "the menu conversion dropped a generated SOP descriptor";
   List.iter (fun (e : Node_menu.entry) ->
@@ -789,7 +789,7 @@ let run_scope () =
     check (s.nodes = nodes && s.zones = zones && s.rows = rows)
       (Printf.sprintf "%s/%s: pane counts %d/%d/%d" name graph s.nodes s.zones s.rows);
     check (s.drawn_items > 0 && s.drawn_zones <= s.zones) (name ^ ": nothing drawn"))
-    [ "bloom", "flower", 12, 1, 84; "sunflower", "sunflower", 9, 1, 36; "orrery", "orrery", 19, 1, 113;
+    [ "bloom", "flower", 12, 1, 84; "sunflower", "sunflower", 9, 1, 36; "orrery", "orrery", 19, 1, 114;
       "facade", "facade", 14, 2, 89; "kit", "kit", 16, 2, 112; "tree", "tree", 9, 1, 184;
       "garland", "garland", 15, 3, 86; "wave", "wave", 7, 2, 45; "tiles", "tiles", 9, 1, 67 ];
   (* the iteration selector: buttons and track are hit-tested boxes *)

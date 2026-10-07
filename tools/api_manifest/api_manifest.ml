@@ -3,7 +3,7 @@ open Support
 module String_set = Set.Make (String)
 
 let stable_library_directories =
-  [ "rays"; "param"; "frame_input"; "flow"; "flow_graph"; "flow_sop"; "procedural"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"
+  [ "rays"; "param"; "frame_input"; "flow"; "flow_ir"; "flow_graph"; "flow_sop"; "procedural"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"
   ; "sop_catalog"; "sketch_support"; "rays_editor"
   ]
 

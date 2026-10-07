@@ -25,6 +25,8 @@ type t = {
   volatile : unit Network.Int_map.t;
   plan : E.plan;
   states : E.value list;
+  evaluated : E.t;
+  preview : node:int -> probes:int list -> Network.t -> (Network.t * int) option;
 }
 
 exception Fail of Diagnostic.t
@@ -42,7 +44,9 @@ type prepared = {
       (* a template node: arguments that read the element, forced for each one *)
   zone : zinfo option;
 }
-and zinfo = { root : int; order : int list; live : bool; stateful : bool;
+and zinfo = { plan_id : int; lo : int; hi : int;
+              preview : (int * int list) option;
+              root : int; order : int list; live : bool; stateful : bool;
               captures : int list; ekey : string option; kind : Zone.kind;
               key : string option; base : int; count : int Atomic.t;
               positions : (float * float * float) array Atomic.t }
@@ -75,7 +79,7 @@ let at_zero value =
   if E.is_live value then ok (E.force value ~live:(Frame_input.at_time (0.))) else value
 
 let is_zone kind = kind = "zone/points" || kind = "zone/pieces"
-let geo_of args = List.filter_map (function _, E.Deferred (Flow.Ty.Geometry, j) -> Some j | _ -> None) args
+let geo_of args = List.filter_map (function _, E.Deferred ((Flow.Ty.Named "geometry"), j) -> Some j | _ -> None) args
 
 let is_volatile lowered id = Network.Int_map.mem id lowered.volatile
 
@@ -83,18 +87,11 @@ let objects lowered = List.filter_map (fun (graph : graph) ->
   Option.map (fun root -> graph.instance, graph.network, root) graph.root)
   lowered.graphs
 
-let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
-    ?(sites = []) ?inputs source =
+let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
+    ?(sites = []) ?inputs checked =
+  Phase_timer.measure Lower (fun () ->
   try
-    let catalog = ok (Catalog.of_factories ~version:Manifest.version ?extra factories) in
-    let checked = match Workspace.check catalog source with
-      | Some checked, _ -> checked
-      | None, diagnostics ->
-          (match List.find_opt (fun (d : Diagnostic.t) ->
-              d.severity = Diagnostic.Error) diagnostics with
-           | Some d -> raise (Fail d)
-           | None -> fail "E_LOWER" "Workspace did not check") in
-    let evaluated = ok (E.static ?inputs checked) in
+    let evaluated = ok (E.static ~record:true ?inputs checked) in
     let plan = evaluated.plan in
     let ids = ref compiled_ids and site_table = Hashtbl.create 64
     and site_list = ref (List.rev sites) and site_count = ref (List.length sites) in
@@ -124,7 +121,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
     (* what a zone reads: its collection and the outside geometry of its template *)
     let zinfos = Hashtbl.create 8 in
     let rec deps (n : E.node) =
-      if is_zone n.kind then (match n.args with (_, E.Deferred (Flow.Ty.Geometry, src)) :: _ -> src | _ -> fail "E_LOWER" "Zone without geometry")
+      if is_zone n.kind then (match n.args with (_, E.Deferred ((Flow.Ty.Named "geometry"), src)) :: _ -> src | _ -> fail "E_LOWER" "Zone without geometry")
         :: (zinfo n).captures
       else geo_of n.args
     and zinfo (n : E.node) = match Hashtbl.find_opt zinfos n.id with
@@ -145,7 +142,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           let stateful = let rec any id = id < hi
               && (List.exists (fun (_, v) -> E.state_dependent v) plan.nodes.(id).args || any (id + 1)) in
             any lo in
-          let z = { root; live; stateful;
+          let z = { plan_id = n.id; lo; hi; preview = None; root; live; stateful;
             order = Hashtbl.fold (fun id () l -> id :: l) seen [] |> List.sort Int.compare;
             captures = List.rev !caps; ekey;
             kind = if n.kind = "zone/points" then Zone.Points else Zone.Pieces;
@@ -252,7 +249,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
                 let slots = ref [] and changes = ref [] in
                 let rec add_rest = function
                   | E.No_geo -> ()
-                  | E.Deferred (Flow.Ty.Geometry, id) ->
+                  | E.Deferred ((Flow.Ty.Named "geometry"), id) ->
                       slots := (!next_rest,id) :: !slots;
                       incr next_rest; arity := max !arity !next_rest
                   | E.List values -> Array.iter add_rest values
@@ -261,7 +258,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
                   match List.find_index (( = ) name) names, value with
                   | Some index, value when Some index = rest -> add_rest value
                   | Some _, E.No_geo -> ()
-                  | Some index, E.Deferred (Flow.Ty.Geometry, id) -> slots := (index, id) :: !slots
+                  | Some index, E.Deferred ((Flow.Ty.Named "geometry"), id) -> slots := (index, id) :: !slots
                   | Some _, _ -> fail "E_LOWER" ("Slot " ^ name ^ " needs geometry")
                   | None, value ->
                       let parameter = ok (Port.find_parameter parameters name) in
@@ -275,12 +272,49 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           Hashtbl.add prepared node.id p; p
     (* the zone node of a lowered graph: it cooks [z.root] once per element *)
     and make_zone ?state ~outer z inputs =
+      let stamp = Option.fold ~none:"" ~some:E.state_stamp state in
+      let stamp = match z.preview with
+        | None -> stamp
+        | Some choice -> stamp ^ ";preview=" ^ Digest.to_hex (Digest.string (Marshal.to_string choice [])) in
+      let select = Option.bind z.preview (fun (_, probes) ->
+        List.nth_opt probes (List.length plan.nodes.(z.plan_id).iter)) in
       Zone.node ~report:(fun elements ->
           Atomic.set z.count (Array.length elements);
           Atomic.set z.positions (Array.map (fun (e : Zone.element) -> e.position) elements))
-        ~live:z.live ?stamp:(Option.map E.state_stamp state) ~kind:z.kind ?key:z.key ~source_attribute
+        ~live:z.live ~stamp ~kind:z.kind ?key:z.key ?select ~source_attribute
         ~source_base:z.base ~inputs ~body:(fun ~inputs ~context ->
           instantiate ?state ~outer ~live:(Procedural.Context.input context) z ~inputs) ()
+    (* Re-root a geometry-loop template at the selected node. Unused bindings
+       may have different captures from the authored result, so follow its cone. *)
+    and focus z target probes =
+      let contains z = target >= z.lo && target < z.hi in
+      let inner = ref None in
+      for id = z.lo to z.hi - 1 do
+        if is_zone plan.nodes.(id).kind then begin
+          let candidate = Option.get (prepare plan.nodes.(id)).zone in
+          if contains candidate then match !inner with
+            | Some old when old.hi - old.lo >= candidate.hi - candidate.lo -> ()
+            | _ -> inner := Some candidate
+        end
+      done;
+      let root = match !inner with Some inner -> inner.plan_id | None -> target in
+      let seen = Hashtbl.create 16 and captures = ref [] in
+      let rec visit id =
+        if id >= z.lo && id < z.hi then begin
+          if not (Hashtbl.mem seen id) then begin
+            Hashtbl.add seen id ();
+            let node = plan.nodes.(id) in
+            let sources = if id = root && is_zone node.kind then
+              let inner = focus (Option.get (prepare node).zone) target probes in
+              int_geo node :: inner.captures else deps node in
+            List.iter visit sources
+          end
+        end else if not (List.mem id !captures) then captures := id :: !captures in
+      visit root;
+      { z with root; preview = Some (target, probes); captures = List.rev !captures;
+        order = Hashtbl.fold (fun id () order -> id :: order) seen [] |> List.sort Int.compare }
+    and int_geo node = match geo_of (List.filter (fun (key, _) -> key = "geometry") node.E.args) with
+      | [id] -> id | _ -> fail "E_LOWER" "Zone without geometry"
     (* one element's copy of the template, over the zone's own inputs *)
     and instantiate ?state ~outer ~live z ~inputs =
       let build ~outer bound id =
@@ -290,6 +324,11 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           Option.bind (List.assoc_opt i p.slots) (Hashtbl.find_opt bound)) in
         let node = match p.zone with
           | Some inner ->
+              let inner = match z.preview with
+                | Some (target, probes) when target >= inner.lo && target < inner.hi -> focus inner target probes
+                | _ -> inner in
+              let options = int_geo n :: inner.captures
+                |> List.map (Hashtbl.find_opt bound) in
               make_zone ?state ~outer inner (Array.of_list (List.filter_map Fun.id options))
           | None -> edit (Edit.instantiate_optional p.factory options) in
         let node = edit (Procedural.Node.Private.restore_id p.cid node) in
@@ -322,7 +361,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
     let contexts = List.map (fun (g : Workspace.graph) -> g.name, g.context)
       checked.graphs in
     let sop_instance (i : E.instance) =
-      List.assoc_opt i.graph contexts = Some Workspace.Sop in
+      List.assoc_opt i.graph contexts = Some Flow.Context.sop in
     (* every plan node gets its id up front, in plan order, so ids do not
        depend on which network asks first *)
     Array.iter (fun (node : E.node) ->
@@ -366,7 +405,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
         end in
       Array.iter (fun (node : E.node) ->
         if node.inst = index && not templ.(node.id) then reach node.id) plan.nodes;
-      (match instance.result with E.Deferred (Flow.Ty.Geometry, j) -> reach j | _ -> ());
+      (match instance.result with E.Deferred ((Flow.Ty.Named "geometry"), j) -> reach j | _ -> ());
       let order = Hashtbl.fold (fun id () l -> id :: l) seen []
         |> List.sort Int.compare in
       let graph = List.fold_left (fun graph id ->
@@ -384,7 +423,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
         else fst (edit (Edit.apply_parameters graph ~node_id:p.cid p.changes)))
         Edit.empty order in
       let root = match instance.result with
-        | E.Deferred (Flow.Ty.Geometry, id) -> Some compiled.(id)
+        | E.Deferred ((Flow.Ty.Named "geometry"), id) -> Some compiled.(id)
         | No_geo -> None
         | _ -> fail "E_LOWER" ("Graph " ^ instance.graph ^ " does not return geometry") in
       let graph = match root with
@@ -394,6 +433,37 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
     let graphs = List.concat (List.mapi (fun index instance ->
       if sop_instance instance then [build index instance] else [])
       (Array.to_list plan.instances)) in
+    (* Previewing an unused template must not allocate provenance or zones after
+       this immutable lowering has been handed to the document. *)
+    Array.iter (fun (node : E.node) -> if compiled.(node.id) <> 0 && node.kind <> "zone/element"
+      then ignore (prepare node)) plan.nodes;
+    let preview ~node:target ~probes network =
+      if target < 0 || target >= Array.length compiled || compiled.(target) = 0
+        || List.compare_lengths probes plan.nodes.(target).iter <> 0 then None
+      else if not templ.(target) then
+        if Edit.find network.Network.geometry ~node_id:compiled.(target) = None then None
+        else Some (network, compiled.(target))
+      else
+        let outer = Array.find_opt (fun (node : E.node) -> is_zone node.kind && not templ.(node.id)
+          && target >= int_arg node "lo" && target < int_arg node "hi"
+          && Edit.find network.geometry ~node_id:compiled.(node.id) <> None) plan.nodes in
+        Option.map (fun (node : E.node) ->
+          let original = Option.get (prepare node).zone in
+          let z = focus original target probes in
+          let sources = int_geo node :: z.captures in
+          let inputs = Array.of_list (List.map (fun id ->
+            match Edit.find network.geometry ~node_id:compiled.(id) with
+            | Some node -> node | None -> fail "E_LOWER" "Preview capture is not in the owning network") sources) in
+          let viewed = make_zone ~outer:[] z inputs in
+          let root = Procedural.Node.id viewed in
+          let geometry = edit (Edit.add_node viewed network.geometry) in
+          let network = ok (Network.with_geometry geometry network) in
+          let frames = if not z.stateful then network.frame_nodes else
+            Network.Int_map.add root (fun state node ->
+              Procedural.Node.Private.adopt_identity ~source:node
+                (make_zone ~state:(E.fork_state state) ~outer:[] z (Procedural.Node.Private.input_array node)))
+              network.frame_nodes in
+          Network.with_frame_nodes frames network, root) outer in
     Ok {graphs; compiled_ids = !ids; sites = List.rev !site_list;
         compiled = Array.to_list compiled
           |> List.mapi (fun i id -> i, id)
@@ -401,8 +471,17 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m)
                Network.Int_map.empty;
         pending = List.rev !pending; provenance = !provenance; zones = List.rev !zones;
-        volatile = !volatile_nodes; plan; states = evaluated.states}
-  with Fail diagnostic -> Error diagnostic
+        volatile = !volatile_nodes; plan; states = evaluated.states; evaluated; preview}
+  with Fail diagnostic -> Error diagnostic)
+
+let workspace ~factories ?extra ?(ops = Operators.all) ?compiled_ids ?sites ?inputs source =
+  Result.bind (Catalog.of_factories ~version:Manifest.version ?extra factories) (fun catalog ->
+    match Workspace.check ~ops catalog source with
+    | Some checked, _ -> of_checked ~factories ?compiled_ids ?sites ?inputs checked
+    | None, diagnostics -> Error (match List.find_opt (fun (d : Diagnostic.t) ->
+        d.severity = Diagnostic.Error) diagnostics with
+      | Some d -> d
+      | None -> Diagnostic.error ~code:"E_LOWER" "Workspace did not check"))
 
 let counts lowered =
   let live = Network.Int_map.fold (fun _ id n ->

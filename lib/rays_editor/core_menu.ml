@@ -5,20 +5,20 @@ include Core_panels
    geometry of each SOP graph (a second object over a graph that already exists) *)
 let scene_entries value =
   let entry key label category =
-    { Pxui_graph.Node_menu.key; label; category; arity = 0; context = "scene"; output = Flow.Ty.Geometry;
+    { Pxui_graph.Node_menu.key; label; category; arity = 0; context = "scene"; output = Flow.Ty.geometry;
       off = None } in
   entry "world" "World" [ "Object" ] :: entry "merge" "Merge" [ "Object" ]
   :: entry "material" "Material" [ "Material" ]
   :: List.filter_map (fun (g : Flow.Workspace.graph) ->
-       if g.context = Flow.Workspace.Sop then Some (entry ("of:" ^ g.name) g.name [ "Object"; "Geometry of..." ])
+       if g.context = Flow.Context.sop then Some (entry ("of:" ^ g.name) g.name [ "Object"; "Geometry of..." ])
        else None) (fst value.doc.Document.workspace).checked.graphs
 
 (* In a SOP graph: a sop/material of each material graph, after the selection *)
 let material_entries value =
   List.filter_map (fun (g : Flow.Workspace.graph) ->
-    if g.context = Flow.Workspace.Material then
+    if g.context = Flow.Context.material then
       Some { Pxui_graph.Node_menu.key = "of-material:" ^ g.name; label = g.name;
-             category = [ "Material of..." ]; arity = 1; context = "sop"; output = Flow.Ty.Geometry;
+             category = [ "Material of..." ]; arity = 1; context = "sop"; output = Flow.Ty.geometry;
              off = None }
     else None) (fst value.doc.Document.workspace).checked.graphs
 
@@ -32,18 +32,19 @@ let open_menu value (x, y) =
   match add_target value with
   | Some (_, context) ->
       let module M = Pxui_graph.Node_menu in
+      let extra = (fst value.doc.workspace).checked.ops in
       let factories context = List.map (fun factory -> M.{
         key = Procedural.Edit_graph.factory_key factory;
         label = Procedural.Edit_graph.factory_label factory;
         category = Procedural.Edit_graph.factory_category factory;
         arity = Procedural.Edit_graph.factory_arity factory;
-        context = context_name context; output = Flow.Ty.Geometry; off = None }) (catalog value context) in
+        context = context_name context; output = Flow.Ty.geometry; off = None }) (catalog value context) in
       let not_here entries =
         List.map (fun (e : M.entry) -> { e with off = Some ("not in " ^ context_name context) }) entries in
       let elsewhere =
-        (if context = Flow.Workspace.Scene then [] else not_here (scene_entries value))
+        (if context = Flow.Context.scene then [] else not_here (scene_entries value))
         @ List.concat_map (fun other -> if other = context then [] else not_here (factories other))
-            [ Flow.Workspace.Scene; World; Sop ] in
+            [ Flow.Context.scene; Flow.Context.world; Flow.Context.sop ] in
       let after = match Pxui_graph.Scope.selected value.scope_view with
         | [ path ] when List.length path >= 2 ->
             let last = List.nth path (List.length path - 1) in
@@ -51,13 +52,10 @@ let open_menu value (x, y) =
         | _ -> None in
       Some (M.create ?after ~x ~y
         (factories context
-         @ (if context = Flow.Workspace.Draw then
-              List.filter_map (fun (op : Flow.Op.t) -> if op.ctx <> context then None else
-                Some M.{key = "=" ^ op.name; label = op.name; category = [op.category];
-                  arity = 0; context = context_name context;
-                  output = op.out (List.map snd op.signature.pos); off = None})
-                (Flow.Op.of_context context) else [])
-         @ (if context = Flow.Workspace.Scene then scene_entries value else [])
-         @ (if context = Flow.Workspace.Sop then material_entries value else []) @ value_entries
+         @ (if context = Flow.Context.value then value_entries else [])
+         @ M.of_ops ~extra context
+         @ (if context = Flow.Context.scene then scene_entries value else [])
+         @ (if context = Flow.Context.sop then material_entries value else []) @ value_entries
+         @ M.of_ops ~extra Flow.Context.value
          @ elsewhere))
   | None -> None

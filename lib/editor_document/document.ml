@@ -161,7 +161,7 @@ let validate value =
       && finite_fields (Node.parameter_fields info.node)) nodes)
     then Error (name ^ " has invalid inputs or nonfinite parameters")
     else Ok () in
-  let* () = if value.scene.context = Flow.Context.Scene then Ok () else Error "scene has the wrong context" in
+  let* () = if value.scene.context = Flow.Context.scene then Ok () else Error "scene has the wrong context" in
   let* () = validate_network "scene" value.scene in
   let* () = List.fold_left (fun state (info : Edit_graph.node_info) ->
     let* () = state in
@@ -178,7 +178,7 @@ let validate value =
     match Edit_graph.find value.scene.graph.geometry ~node_id:id with
     | None -> Error (Printf.sprintf "network has missing owner #%d" id)
     | Some node ->
-        let context = if Node.operation node = "world" then Flow.Context.World else Flow.Context.Sop in
+        let context = if Node.operation node = "world" then Flow.Context.world else Flow.Context.sop in
         if network.context <> context then Error (Printf.sprintf "network #%d has the wrong context" id)
         else validate_network (Printf.sprintf "network of object #%d" id) network)
       value.networks (Ok ()) in

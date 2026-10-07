@@ -81,13 +81,18 @@ sketch at 2 Hz and on close, never over an earlier session's file while the docu
 one opened, and never a carry preview.
 
 **Viewports.** Each viewport keeps its own orbit; handles, picks and the sketch overlay follow the
-focused one. The viewport shows each object's graph result. Viewports asking for the same picture
+focused one. The viewport shows each object's graph result, or its transient lexical preview
+request at the loop selectors. A preview never reaches the document or history. Viewports asking for the same picture
 share a tracer; a traced slot at its cap with nothing changed does not render. Relative mouse and
 fly mode end through `Viewport3.release` on every path that stops navigating.
 
 **Text.** The printed text and its span map (`Flow.Lisp.print`) are the only readers of the text:
 never match strings. `Lisp_text` offers the checker's forms (`Flow.Workspace.special_forms`).
 Text entry is `Ui.text_area` with `Lisp_text.language`.
+Number drags use PXUI's pre-edit token range and the printed span map to emit
+the card's `Set_arg`; an unapplied draft or stale source uses the existing
+whole-text merge. Active token scrubs patch cached text and spans without
+printing and restore canonical line breaks on release.
 
 **Resources.** Every editor a test creates is closed (`Editor3.close`): each holds worker domains.
 Tests pass `~await:true` and count frames; they never wait on the clock for a cook. Caches have

@@ -74,6 +74,9 @@ let map_children f (e : S.t) : S.t =
 let root_of s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
 let rec syms (e : S.t) acc = match e.node with
   | S.Sym s -> root_of s :: acc
+  | S.List ({ S.node = S.Sym "ref"; _ } :: { S.node = S.Sym _; _ } :: rest) ->
+      (* [(ref graph ...)] names a graph, never a binding, so a binding of that name is not read *)
+      List.fold_left (fun a c -> syms c a) acc rest
   | _ -> List.fold_left (fun a c -> syms c a) acc (S.children e)
 let sym_list e = List.rev (syms e [])
 let dedup l = List.fold_left (fun acc x -> if List.mem x acc then acc else acc @ [ x ]) [] l
@@ -459,8 +462,7 @@ let default_for (ty : Flow.Ty.t) label = match ty with
   | Text -> Some (mk (S.Str (if label = "color" then "#285f77" else "text")))
   | Array (Float | Any) -> Some (call "array/float" [mk (S.Num "4")])
   | Array Vec3 -> Some (call "array/vec3" [mk (S.Num "4")])
-  | Drawing -> Some (call "draw/merge" [])
-  | Geometry -> Some (sym "nil")
+  | Named _ -> Flow.Ty.default ty
   | _ -> None
 
 let rec literals ?(path = []) (e : S.t) = match e.node with
@@ -1534,12 +1536,12 @@ let macro_op draft ~nodes ~name choices =
     |> List.mapi (fun i (path, _) -> path, choices.(i))
     |> List.filter_map (fun (path, (on, hole)) -> if on then Some (path, hole) else None) }
 
-let check catalog forms =
+let check ?ops catalog forms =
   let text, _ = Flow.Lisp.print forms in
   match S.parse text with
   | Error d -> Error d
   | Ok forms ->
-      (match W.check catalog forms with
+      (match W.check ?ops catalog forms with
        | Some ws, _ -> Ok (forms, ws)
        | None, ds ->
            Error (match List.find_opt (fun (d : Flow.Diagnostic.t) -> d.severity = Flow.Diagnostic.Error) ds with
@@ -1553,7 +1555,7 @@ let refusal = function
   | (Out_of_memory | Sys.Break) as e -> raise e
   | e -> Flow.Diagnostic.error ~code:"E_EDIT" ("The edit failed: " ^ Printexc.to_string e)
 
-let apply_checked catalog src op =
+let apply_checked ?ops catalog src op =
   match rewrite src op with
   | exception e -> Error (refusal e)
   | candidates ->
@@ -1562,12 +1564,12 @@ let apply_checked catalog src op =
         | attempt :: rest ->
             (match attempt () with
              | exception e -> first (if err = None then Some (refusal e) else err) rest
-             | forms -> (match check catalog forms with
+             | forms -> (match check ?ops catalog forms with
                  | Ok _ as ok -> ok
                  | Error d -> first (if err = None then Some d else err) rest)) in
       first None candidates
 
-let apply catalog src op = Result.map fst (apply_checked catalog src op)
+let apply ?ops catalog src op = Result.map fst (apply_checked ?ops catalog src op)
 
 let has_prefix ~prefix p =
   let n = List.length prefix in

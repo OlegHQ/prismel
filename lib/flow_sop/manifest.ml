@@ -51,33 +51,48 @@ let field (field : Param.field_view) =
 let outputs ports = group "outputs" (List.map (fun (name, ty) ->
   group "output" [quote name; String.lowercase_ascii (Flow.Port_type.name ty)]) ports)
 
-let entry ~qualified ~key ~operation ~label ~category ~slots ~fields ~result =
+let facts (facts : Procedural.Node.facts) =
+  let mode = match facts.cook_mode with
+    | Generator -> ["generator"] | Duplicate_input index -> ["duplicate-input"; string_of_int index]
+    | In_place index -> ["in-place"; string_of_int index]
+    | Instance_input index -> ["instance-input"; string_of_int index]
+    | Passthrough index -> ["passthrough"; string_of_int index] | Generic -> ["generic"] in
+  group "facts" [group "cook-mode" mode;
+    group "elementwise" [match facts.elementwise with Points -> "points" | Primitives -> "primitives" | None -> "none"];
+    strings "reads" facts.reads; strings "writes" facts.writes;
+    group "topology" [match facts.topology with Preserved -> "preserved" | Changed -> "changed"];
+    group "exact" [string_of_bool facts.exact]]
+
+let entry ?facts:declaration ~qualified ~key ~operation ~label ~category ~slots ~fields ~result () =
   let fields = match fields with
     | [] -> group "fields" []
     | fields -> "(fields\n        " ^
         String.concat "\n        " (List.map field fields) ^ ")" in
-  "(kind " ^ quote qualified ^ "\n      " ^ String.concat "\n      " [
+  let properties = [
     group "key" [quote key]; group "aliases" [];
     group "operation" [quote operation]; group "label" [quote label];
-    strings "category" category; group "slots" slots; fields; outputs result] ^ ")"
+    strings "category" category; group "slots" slots; fields; outputs result]
+    @ List.map facts (Option.to_list declaration) in
+  "(kind " ^ quote qualified ^ "\n      " ^ String.concat "\n      " properties ^ ")"
 
-let descriptor (d : Catalog.descriptor) =
+let descriptor ?facts (d : Catalog.descriptor) =
   let module Edit = Procedural.Edit_graph in
   let slots = List.map (fun (name, requirement) ->
     group "slot" [quote name; (match requirement with
       | Edit.Required -> "required" | Edit.Optional -> "optional"
       | Edit.Rest -> "rest"
       | Edit.Optional_rest -> "optional-rest")]) d.slots in
-  entry ~qualified:d.qualified ~key:d.key ~operation:d.operation ~label:d.label
+  entry ?facts ~qualified:d.qualified ~key:d.key ~operation:d.operation ~label:d.label
     ~category:d.category ~slots ~fields:d.fields
     ~result:(if String.starts_with ~prefix:"sop/" d.qualified
-             then ["geo", Flow.Port_type.Geometry] else [])
+             then ["geo", Flow.Port_type.Geometry] else []) ()
 
 (* The digest covers the sop kinds, the catalog the PPX links against; the
    generated scene, world and settings kinds ([extra]) follow them and are outside it. *)
 let generate ?extra factories =
   Result.map (fun _ ->
-    let kinds = List.map (fun f -> descriptor (Catalog.descriptor f)) factories in
+    let kinds = List.map (fun f -> descriptor ~facts:(Procedural.Edit_graph.factory_facts f)
+      (Catalog.descriptor f)) factories in
     let payload = group "version" [string_of_int version] ^ "\n" ^
       group "kinds" kinds in
     let digest = Digest.to_hex (Digest.string payload) in

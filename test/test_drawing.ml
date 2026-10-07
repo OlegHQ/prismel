@@ -33,7 +33,7 @@ let pure workspace =
   let kinds = Array.to_list all.plan.nodes |> List.map (fun (n : E.node) -> n.kind)
     |> List.sort_uniq String.compare in
   assert (kinds = (Flow.Op.all |> List.filter_map (fun (o : Flow.Op.t) ->
-    if o.ctx = Flow.Context.Draw then Some o.name else None) |> List.sort String.compare));
+    if o.ctx = Flow.Context.draw then Some o.name else None) |> List.sort String.compare));
   assert (ok (Sketch_support.Drawing.render all.plan (List.assoc "picture" all.results)
     ~live:(Frame_input.at_time 0.) ~size:(800, 600)) <> []);
   let invalid = ok (E.static (doc "(workspace invalid (graph g :context draw (draw/background \"invalid\")))").checked) in
@@ -42,16 +42,16 @@ let pure workspace =
     | Error d -> d.Flow.Diagnostic.code = "E_DRAW_COLOR" | Ok _ -> false);
   let evaluated = ok (E.static ~inputs:workspace.Editor_document.Workspace_doc.inputs workspace.checked) in
   assert (Array.length evaluated.plan.nodes = 3);
-  Array.iter (fun (n : E.node) -> assert (n.ty = Flow.Ty.Drawing)) evaluated.plan.nodes;
+  Array.iter (fun (n : E.node) -> assert (n.ty = Flow.Ty.drawing)) evaluated.plan.nodes;
   let drawing = List.assoc "picture" evaluated.results in
-  assert (match drawing with E.Deferred (Flow.Ty.Drawing, _) -> true | _ -> false);
+  assert (match drawing with E.Deferred ((Flow.Ty.Named "drawing"), _) -> true | _ -> false);
   let scope = P.of_graph catalog workspace.checked "picture" in
   let state_card = Option.get (P.find scope ["picture"; "particles"]) in
   let zone = Option.get state_card.zone in
   assert (zone.kind = P.State);
   assert (List.exists (fun (r : P.rail_row) -> r.role = P.Acc && r.name = "previous") zone.rail);
   assert (P.find scope ["picture"; "@result#drawing#2"] <> None ||
-    List.exists (fun (n : P.node) -> n.ty = Flow.Ty.Drawing) scope.nodes);
+    List.exists (fun (n : P.node) -> n.ty = Flow.Ty.drawing) scope.nodes);
   let state = E.create_state () in
   let points = Array.find_opt (fun (n : E.node) -> n.kind = "draw/points") evaluated.plan.nodes |> Option.get in
   let positions = List.assoc "positions" points.args in
@@ -146,6 +146,33 @@ let native workspace directory =
           read (Filename.concat (path "lisp-a") "frame-000003.png"));
   Printf.printf "Particles native exports match byte for byte: %s\n" directory
 
+let benchmark workspace =
+  let module Editor = Rays_editor.Editor3 in
+  let editor = ref (Result.get_ok (Editor.create ~workspace ~await:true ~domains:1
+    ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) ())) in
+  Fun.protect ~finally:(fun () -> Editor.close !editor) (fun () ->
+    let frame count : Rays.Frame.t = {width = 800; height = 600; size = 800, 600;
+      drawable_width = 800; drawable_height = 600; drawable_size = 800, 600;
+      pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.; fps = 60.; count;
+      mouse = -100., -100.; mouse_delta = 0., 0.; mouse_buttons = []; keys = []; events = []} in
+    editor := Editor.update !editor (frame 0);
+    editor := Rays_editor.Reduce.step !editor [Rays_editor.Private.Leader.Play_pause] (frame 0);
+    let step i = editor := Editor.update !editor (frame i) in
+    for i = 1 to 10 do step i done;
+    let times = Array.make 200 0. in
+    Gc.full_major ();
+    let before = Gc.allocated_bytes () in
+    Array.iteri (fun i _ ->
+      let started = Unix.gettimeofday () in
+      step (i + 11);
+      times.(i) <- Unix.gettimeofday () -. started) times;
+    let bytes = (Gc.allocated_bytes () -. before) /. float (Array.length times) in
+    Array.sort Float.compare times;
+    assert (Sketch_support.Timeline.frame (Editor.timeline !editor) > 100L);
+    Printf.printf "particles_dynamic_frame,10000,%.9f,%.9f,%.0f\n%!"
+      times.(100) times.(190) bytes)
+
 let () =
   let workspace = doc (read Sys.argv.(1)) in
-  if Array.length Sys.argv > 2 then native workspace Sys.argv.(2) else pure workspace
+  if Array.length Sys.argv > 2 && Sys.argv.(2) = "--bench" then benchmark workspace
+  else if Array.length Sys.argv > 2 then native workspace Sys.argv.(2) else pure workspace

@@ -2,6 +2,82 @@
 
 Append-only record of measurements taken for [performance.md](performance.md); it is not normative.
 
+## Phase 4 edit and kernel baseline (2026-10-07)
+
+Apple M1, Darwin arm64, eight available cores, OCaml 5.3.0, Dune 3.24.2,
+dev profile. Editor benchmarks use one cook domain and dummy SDL video/audio;
+each edit measurement includes a `Set_arg` on `g/s0 :points`, followed by a full
+editor update with the primary pointer held. There are 200 samples per size.
+Timings use `Unix.gettimeofday`, clamped against backward readings within an
+edit sample. Phase durations are exclusive of nested phases; total frame time
+also includes UI construction, document derivation and allocation/GC overhead.
+
+Commands (build with `_build/default/tools/check.exe` first):
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200 1000 2000
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/test/test_drawing.exe examples/particles/sketch.rays --bench
+_build/default/tools/bench_kernel.exe
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 7
+```
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.134 | 6.938 | 11.798 | 17,552,070 |
+| 1,000 | 7.290 | 35.982 | 63.743 | 74,892,992 |
+| 2,000 | 12.523 | 78.056 | 157.429 | 136,882,613 |
+
+| Exclusive phase median ms | 200 | 1,000 | 2,000 |
+| --- | ---: | ---: | ---: |
+| Print | 0.618 | 3.899 | 12.017 |
+| Parse | 0.183 | 0.938 | 2.538 |
+| Check | 1.145 | 5.234 | 10.676 |
+| Evaluate | 0.218 | 1.808 | 4.400 |
+| Lower | 0.934 | 3.921 | 7.910 |
+| Project | 0.536 | 3.128 | 6.292 |
+| Layout | 0.863 | 5.045 | 11.867 |
+| Reduce | 0.030 | 0.151 | 0.321 |
+| Cook scheduling/resolve/compile | 0.436 | 4.879 | 8.843 |
+
+The cook phase measures the editor-side cook boundary, including synchronous
+awaits when requested. Background cook durations remain the worker's own
+reported timings. Individual phase medians do not sum to the total median.
+
+The dynamic 10,000-particle editor frame, with its state fold advancing,
+has median 31.690 ms, p95 32.145 ms and 148,126,467 allocated bytes/frame
+(10 warm-up frames and 200 measured frames). This measures evaluation, canvas
+drawing and the host frame; no GPU presentation is included.
+
+The 1,000 × 1,000 point grid noise-displacement benchmark uses amplitude 0.8,
+frequency 0.16, seed 42, grain 16,384 and seven samples after one warm-up.
+RDK medians: one domain 55.700 ms / 32,064,368 allocated bytes; eight domains
+8.737 ms / 32,075,624 bytes. Both have position hash
+`1a9b19459a403094e2683996bd183a75` (MD5 of the marshaled xyz arrays, no sharing).
+Every sample checks the hash; the one/eight-domain results are also compared.
+The Lisp-kernel comparison remains a Step 4 gate.
+
+Workspace baseline, seven repeats, medians in ms (the tool subtracts standalone
+check/evaluation from total lowering for its `lower` column):
+
+| Fixture | Check | Eval | Lower | Cold cook | Lower + cook | Nodes | Eval bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| bloom | 0.091 | 0.115 | 3.579 | 0.599 | 5.107 | 84 | 514808 |
+| facade | 0.037 | 0.079 | 1.785 | 0.546 | 2.464 | 69 | 320176 |
+| garland | 0.071 | 0.077 | 2.146 | 0.899 | 2.962 | 40 | 347704 |
+| kit | 0.064 | 0.033 | 0.965 | 0.086 | 1.113 | 24 | 127096 |
+| orrery | 0.050 | 0.148 | 2.389 | 0.377 | 3.125 | 56 | 627288 |
+| rosette | 0.044 | 0.046 | 2.218 | 0.375 | 2.649 | 39 | 197640 |
+| sunflower | 0.020 | 1.146 | 11.797 | 3.246 | 14.186 | 241 | 4310640 |
+| tiles | 0.025 | 0.388 | 7.474 | 0.955 | 9.051 | 193 | 1215432 |
+| tree | 0.024 | 0.017 | 1.685 | 0.591 | 2.432 | 27 | 74376 |
+| tunnel | 0.023 | 0.022 | 1.617 | 4.375 | 5.688 | 37 | 101488 |
+| variations | 0.037 | 0.020 | 0.734 | 0.159 | 0.983 | 30 | 95840 |
+| wave | 0.027 | 4.670 | 5.792 | 0.744 | 11.612 | 13 | 16494536 |
+
+At capacity 512, retained entries/payload MB are bloom 52/1.22,
+sunflower 241/1.84, wave 13/0.66 and tree 27/0.87, with zero evictions.
+Their warm cook times are 0.035, 0.186, 0.031 and 0.021 ms respectively.
+
 ## Test validation baseline (2026-10-05)
 
 Apple M1 Mac mini (`Macmini9,1`), 8 cores, 16 GiB, OCaml 5.3.0,
@@ -4950,3 +5026,692 @@ the batch's quads for every card and wire, the wire segments, `Printf` for box k
 key hashing. Removing those means culling cards outside the pane before they are built and keeping
 a card's boxes and wire geometry between frames, which is a change to `Pxui_graph.Scope`'s frame
 model and was not started here.
+
+## Phase 4: one checked lowering and one recording evaluation (2026-10-07)
+
+Same machine, profile, commands and sample counts as the Phase 4 baseline
+above. `Contexts.of_workspace` now calls `Lower.of_checked`, without rebuilding
+the catalog or rechecking the source. Graph probes reuse the recording evaluation
+that lowering retains. A rename regression asserts exactly one check, evaluation
+and lowering; checked lowering on each of the 12 fixtures asserts zero checks,
+one evaluation and one lowering. Fixture plans, instances, results and records
+are compared at 0, 0.125, 1.25 and 7, including float bits and the non-recording
+reference evaluation.
+
+Function objects in recorded values are compared by their presence; their call
+results and numeric payloads are compared exactly. This focused regression does
+not replace the whole-item interpreter/IR value and pixel gates.
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.112 | 6.210 | 9.939 | 15,464,262 |
+| 1,000 | 7.318 | 31.925 | 57.937 | 66,493,208 |
+| 2,000 | 12.631 | 76.226 | 176.190 | 120,477,852 |
+
+The 2,000-node scrub still exceeds its 12.631 ms drag target. This completes
+Step 1's shared-check/evaluation subtask, not its literal fast path or the
+whole edit-loop gate. There is no claim of a statistically significant speed
+improvement at 2,000 nodes from these single benchmark runs.
+
+Exclusive scrub phase medians at 2,000 nodes, ms: print 12.576, parse 2.676,
+check 5.766, evaluate 2.803, lower 8.286, project 6.402, layout 12.789,
+reduce 0.322, cook boundary 8.864.
+
+Workspace remeasurement (same standalone convenience API, which still checks
+its source; its lowering now retains recording data), seven repeats:
+
+| Fixture | Check ms | Eval ms | Lower ms | Cold cook ms | Lower + cook ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| bloom | 0.090 | 0.116 | 3.616 | 1.066 | 5.576 |
+| facade | 0.041 | 0.081 | 1.942 | 0.588 | 2.577 |
+| garland | 0.072 | 0.077 | 2.488 | 1.025 | 3.211 |
+| kit | 0.065 | 0.033 | 0.886 | 0.089 | 1.054 |
+| orrery | 0.051 | 0.147 | 2.210 | 0.423 | 3.000 |
+| rosette | 0.046 | 0.045 | 2.122 | 0.467 | 3.056 |
+| sunflower | 0.021 | 1.159 | 10.796 | 2.276 | 14.689 |
+| tiles | 0.028 | 0.348 | 7.585 | 0.906 | 9.331 |
+| tree | 0.023 | 0.017 | 2.051 | 0.426 | 2.182 |
+| tunnel | 0.013 | 0.022 | 1.610 | 4.630 | 5.910 |
+| variations | 0.041 | 0.021 | 0.714 | 0.209 | 1.368 |
+| wave | 0.024 | 4.577 | 7.538 | 1.241 | 12.703 |
+
+Node counts, standalone non-recording evaluation bytes, retained entries and
+payload MB are unchanged from the baseline. At capacity 512, warm cook medians
+are bloom 0.035 ms, sunflower 0.189 ms, wave 0.031 ms and tree 0.020 ms.
+Recorded data increases retained evaluator memory (wave live heap after the
+capacity-512 cook: 4.73 MB versus 4.02 MB); it replaces a second recording
+evaluation in the editor.
+
+## Phase 4: viewport previews outside the document (2026-10-07)
+
+`v` now carries a per-object lexical preview into the cook. It leaves source,
+layout and undo history unchanged. Static loops use the selected plan node;
+geometry loops add a scratch zone that expands only the selected element.
+Nested zones retain their captures and the complete selector tuple. Live
+arguments and folds use the environment's frame and fold snapshot. The
+authored network stays connected for off-display probes. Preview roots occupy
+volatile session slots and are removed from that set when the request changes.
+The node flag changes without projection or layout.
+
+Checks cover unused bindings with different captures, nested point loops,
+geometry loops inside static loops, piece loops, missing elements, live folds,
+one/three-domain exactness, source/history identity, framing and picking. The
+full `--ship` check and native Shattered Cube VIEW regression pass. The native
+regression now edits the original anonymous result at `@result`; previewing
+the box no longer invents a binding for that result.
+
+Same machine, OCaml version, development profile and one-domain editor setup
+as above. Commands ran sequentially, with 200 edit samples per size:
+
+```sh
+_build/default/tools/bench_rays_editor.exe 200 1000 2000
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 7
+```
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.122 | 6.168 | 10.069 | 15,480,086 |
+| 1,000 | 7.333 | 33.508 | 62.024 | 66,553,832 |
+| 2,000 | 12.415 | 68.178 | 145.885 | 120,594,475 |
+
+The scrub target remains unmet. These single runs do not establish a speed
+improvement from the preview change. Exclusive 2,000-node phase medians, ms:
+print 10.496, parse 2.733, check 5.329, evaluate 2.766, lower 7.777,
+project 6.084, layout 11.763, reduce 0.322, cook boundary 8.535.
+
+| Fixture | Check ms | Eval ms | Lower ms | Cold cook ms | Lower + cook ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| bloom | 0.096 | 0.123 | 3.806 | 1.292 | 5.344 |
+| facade | 0.036 | 0.079 | 1.867 | 0.541 | 2.450 |
+| garland | 0.074 | 0.077 | 2.353 | 0.872 | 3.464 |
+| kit | 0.063 | 0.032 | 1.096 | 0.126 | 1.154 |
+| orrery | 0.050 | 0.147 | 2.262 | 0.936 | 2.839 |
+| rosette | 0.048 | 0.045 | 2.147 | 0.350 | 2.649 |
+| sunflower | 0.019 | 0.959 | 10.679 | 2.574 | 13.221 |
+| tiles | 0.024 | 0.325 | 7.859 | 0.932 | 9.376 |
+| tree | 0.023 | 0.017 | 1.644 | 0.588 | 2.098 |
+| tunnel | 0.013 | 0.022 | 1.645 | 4.802 | 5.598 |
+| variations | 0.037 | 0.019 | 0.742 | 0.171 | 0.973 |
+| wave | 0.024 | 4.351 | 7.976 | 1.315 | 13.621 |
+
+Node counts, standalone evaluation bytes, retained entries and payload MB
+remain unchanged. Capacity-512 warm cooks are bloom 0.035 ms, sunflower
+0.190 ms, wave 0.030 ms and tree 0.020 ms.
+
+### Phase 4 catalog literal patch checkpoint (2026-10-07)
+
+Same Apple M1, OCaml 5.3, development profile and one-domain editor setup.
+After `--ship`, with no concurrent validation, 200 samples per size:
+
+```sh
+_build/default/tools/bench_rays_editor.exe 200 1000 2000
+```
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.163 | 1.963 | 3.190 | 6,416,049 |
+| 1,000 | 7.156 | 7.396 | 12.870 | 16,819,904 |
+| 2,000 | 12.354 | 12.664 | 21.768 | 24,894,176 |
+
+The 2,000-node scrub was 68.178 ms and 120,594,475 bytes/frame at the preview
+checkpoint. The strict scrub-at-most-drag target remains unmet at 1,000 and
+2,000 nodes. These figures are a single sequential run; raw CSV is
+`/tmp/rays-step1-literal-verified-editor.csv`. Exclusive scrub phase medians
+for print, parse, check, evaluate, lower, project and layout are all zero;
+reduce/cook are 0.024/0.094 ms, 0.133/0.838 ms and 0.290/2.021 ms respectively.
+The full frame time includes uninstrumented source patching, document assembly
+and painting. Phase zeroes alone do not establish the latency gate.
+
+The source patch preserves authored IDs, repairs spans and patches typed
+catalog arguments, using the same parameter validator as the full workspace
+check. Static SOP arguments patch all compiled instances, retaining the plan's
+topology, records and liveness. The pane changes existing rows and retains
+boxes, ports, selection and routes. A bounded patch lineage handles several
+edits between frames, undo and changes to literal spelling. Geometry templates,
+folds and non-SOP values still use full lowering. The global source/term walks
+remain; the broader Step 1 work and its budget are still required.
+
+A temporary cook-boundary profile found 1.865 ms compiling and 3.721 ms after
+scheduling at 2,000 nodes. Probe lookup was walking the displayed graph for
+each of up to 64 nodes before consulting the compiled table. Looking up the
+compiled node first reduced the cook-boundary median from 5.606 to 2.021 ms.
+Document network equality now short-circuits at the first changed node and
+does not materialize field summaries for physically unchanged nodes.
+
+`test_workspace_doc` compares fast/slow saved bytes, plans, probe records,
+projection rows and cooked geometry at one and three domains; it also checks
+comments, vector components, static loops, template fallback, invalid choices
+and colours, merged edits, undo deltas, spelling-only changes and unchanged
+pane geometry. The editor regression checks zero print/parse/check/evaluation/
+lower/projection/layout calls. `--ship` passes with the intended API additions
+promoted. The full checked-in-file scrub sweep remains outstanding.
+
+### Phase 4 structural projection reuse checkpoint (2026-10-07)
+
+Structural edits now remap layout and validate surviving authored keys without
+projecting the whole workspace. The pane compares its graph's authored content,
+checked types, live/invariant paths and macro environment before invalidating
+its projection. `test_workspace_doc` checks a rename and removal in another
+graph, preservation of graph-input layout, and a changed function return type
+that invalidates an unchanged caller's projection. The editor test measures
+zero projection calls for the unrelated rename. Focused checks and `--ship`
+pass; the intended `Syntax.equal` and `Projection.same_graph` API additions are
+promoted.
+
+After `--ship`, the same sequential benchmark command and machine/profile as
+above, with no concurrent validation, gives:
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.060 | 1.977 | 3.185 | 6,416,049 |
+| 1,000 | 7.190 | 7.183 | 13.166 | 16,819,904 |
+| 2,000 | 12.354 | 12.313 | 22.199 | 24,894,176 |
+
+Raw CSV: `/tmp/rays-step1-projection-editor.csv`. Print, parse, check, evaluate,
+lower, project and layout phase medians remain zero. Reduce/cook medians are
+0.025/0.094 ms, 0.135/0.832 ms and 0.293/2.015 ms. This run meets the strict
+median target at all three sizes, by only 0.007 ms at 1,000 and 0.041 ms at
+2,000. The previous run was slightly above it; the change primarily concerns
+structural edits and does not establish a robust scrub latency improvement.
+Generic literals, template/fold/non-SOP lowering, text-pane scrubs, full file
+coverage and the budget remain to complete Step 1.
+
+### Phase 4 text-pane token scrub checkpoint (2026-10-07)
+
+PXUI now reports the numeric token's pre-edit byte range alongside its live
+scrub callback. The pane maps that range through the canonical printer's
+form IDs to the innermost source card's `Set_arg`. An applied scrub patches
+its cached text and span maps, keeping line breaks until release; release
+restores canonical printing. An unapplied draft or stale source retains the
+whole-text check/merge path. Saved layout and view metadata receive printed
+IDs disjoint from the source, including after structural edits.
+
+`test_text_pane` drives actual pointer gestures in Selection, Graph and
+Document tabs. Initial and repeated static SOP scrubs, including a growing
+token, have zero print, parse, check, evaluate, lower, project and layout
+calls. Saved bytes match the full syntax-edit path; values above the hard
+bound leave the document physically unchanged, recovery checks the retained
+draft, and one document undo restores the complete drag. Pure token-mapping
+checks cover vector components, loop bodies, value bindings, computed
+arguments and anonymous cards. The Lisp patch test compares repaired spans
+and bytes with the full printer, including UTF-8, comments, string escapes,
+multiple edits and rejected overlapping/invalid replacements. PXUI's
+interaction test checks the pre-edit token span at one and two pixel scales.
+
+Focused checks and `--ship` pass with the intended APIs promoted. These are
+pipeline-call and correctness checks; no new native text-pane latency figure
+is claimed. Broader literal/fold/template/non-SOP coverage and the frame
+budget remain required.
+
+### Phase 4 authored-call literal scrub checkpoint (2026-10-07)
+
+Numeric Vec3 component edits now retain the fast path across Int/Float
+spellings. Boolean vector replacements, including component edits, use
+the checker's rejection. Evaluation records the originating syntax ID by
+plan node ID, outside the semantic plan. Parameter edits can therefore
+patch anonymous nested SOP calls, thread steps, defn copies and graph
+overrides without changing plan identities or touching an unrelated call
+of the same kind. Recorded functions still use full lowering until their
+captured checked bodies can be rebound; this conservative fallback is tested.
+
+`test_workspace_doc` compares these cases with full-path saved bytes, plans
+and cooked geometry at one and three domains, with zero check/parse/evaluate/
+lower calls for the supported cases. The 12 evaluator fixtures check that
+authored IDs align with node IDs, reference their checked source and survive
+forcing. `--ship` passes with the intended evaluation metadata API promoted.
+
+After shipping checks, the same sequential command, machine and profile as
+the earlier baseline, with no concurrent validation, gives:
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.062 | 1.954 | 3.216 | 6,424,192 |
+| 1,000 | 7.191 | 7.078 | 13.069 | 16,860,047 |
+| 2,000 | 12.338 | 11.969 | 22.230 | 24,974,319 |
+
+Raw CSV: `/tmp/rays-step1-authored-editor.csv`, from
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200 1000 2000`.
+Print, parse, check, evaluate, lower, project and layout medians remain zero;
+reduce/cook medians are 0.024/0.093, 0.133/0.828 and 0.289/1.993 ms.
+The median target is met for this static SOP workload in this run. The
+small differences between runs do not establish a robust speed improvement;
+generic values, captures, geometry templates, folds, file coverage and the
+frame budget remain outstanding.
+
+### Phase 4 open names checkpoint (2026-10-07)
+
+Same Apple M1, OCaml 5.3, development profile, eight available domains and
+one-domain editor. These runs are sequential, with no concurrent validation.
+The before lowering executable predates the open-name migration; it was run
+before rebuilding it. Seven-trial fixture medians:
+
+| Fixture | Check before/after ms | Eval before/after ms | Lower before/after ms | Cold cook before/after ms | Total before/after ms | Nodes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| bloom | 0.103 / 0.092 | 0.133 / 0.123 | 3.984 / 3.562 | 1.202 / 1.201 | 5.817 / 5.656 | 84 |
+| facade | 0.038 / 0.037 | 0.090 / 0.085 | 1.926 / 1.778 | 0.628 / 0.584 | 2.533 / 2.445 | 69 |
+| garland | 0.077 / 0.074 | 0.087 / 0.084 | 2.312 / 2.167 | 0.846 / 0.825 | 3.139 / 2.881 | 40 |
+| kit | 0.071 / 0.065 | 0.034 / 0.033 | 0.936 / 0.907 | 0.089 / 0.084 | 1.176 / 1.153 | 24 |
+| orrery | 0.050 / 0.050 | 0.150 / 0.155 | 2.022 / 2.050 | 0.481 / 0.504 | 2.698 / 2.806 | 56 |
+| rosette | 0.046 / 0.046 | 0.047 / 0.047 | 2.051 / 2.165 | 0.481 / 0.484 | 2.441 / 2.522 | 39 |
+| sunflower | 0.020 / 0.020 | 1.003 / 1.047 | 10.289 / 10.110 | 2.057 / 2.184 | 13.341 / 13.523 | 241 |
+| tiles | 0.027 / 0.026 | 0.319 / 0.344 | 7.125 / 7.476 | 0.991 / 0.918 | 8.776 / 9.073 | 193 |
+| tree | 0.023 / 0.026 | 0.018 / 0.019 | 1.574 / 1.671 | 0.609 / 0.402 | 2.044 / 2.130 | 27 |
+| tunnel | 0.013 / 0.014 | 0.023 / 0.024 | 1.539 / 1.559 | 3.795 / 4.154 | 4.986 / 6.388 | 37 |
+| variations | 0.038 / 0.039 | 0.019 / 0.021 | 0.707 / 0.791 | 0.161 / 0.162 | 0.907 / 0.978 | 30 |
+| wave | 0.025 / 0.025 | 4.241 / 4.373 | 7.193 / 7.615 | 1.052 / 1.086 | 12.362 / 13.921 | 13 |
+
+Node counts, retained entries, evictions and payload MB match the before run.
+Capacity-512 retained entries/payload MB remain bloom 52/1.22, sunflower
+241/1.84, wave 13/0.66, tree 27/0.87. Evaluation allocations increase:
+bloom 527,736 to 536,896 bytes, sunflower 4,439,440 to 4,500,968, wave
+16,914,888 to 17,140,192. An intermediate version allocated more due to a
+per-call operator lookup closure; removing it reduced wave from 18,039,584
+bytes to the final count. Timing variation does not prove a speed improvement.
+
+The benchmark now also fingerprints cooked positions, topology, attributes,
+groups and edge groups, excluding allocation identities and derived caches.
+It compares two cold sessions per fixture to check independence from allocation
+identities. The before executable did not report cook hashes, so a historical
+before/after hash comparison for Step 2 is missing. Current hashes, for the
+following steps, are:
+
+| Fixture | Cook hash |
+| --- | --- |
+| bloom | `dad16cdd4d91e532756c1d0d0667d207` |
+| facade | `df9fdd4891bcaf471beeae7f34f26ab5` |
+| garland | `bf4f98a940ac9bfe37a0abd2c1100df4` |
+| kit | `23ea245dac862ed7b9dda2f8a7649322` |
+| orrery | `4e38b6104e25800d415c4d2291337f37` |
+| rosette | `18188829904e74c61fd34e367ae74150` |
+| sunflower | `59a7b71c83f1057dc32bf6e90babb99d` |
+| tiles | `9c7c72bc41d7365e6cd11fe394eb5120` |
+| tree | `23e6fdd7f6252e15e705529856f86949` |
+| tunnel | `6354bb27591a11d27519c20d0766a9b0` |
+| variations | `4c4dda18df1d2cc685970d4e2461ca92` |
+| wave | `70c3b661ce4166f563fd5c17329b821c` |
+
+Editor, 200 samples per size, same command as Step 0:
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.081 | 2.048 | 3.275 | 6,549,216 |
+| 1,000 | 7.305 | 7.705 | 13.755 | 17,095,263 |
+| 2,000 | 12.195 | 12.381 | 22.272 | 25,209,535 |
+
+The strict scrub target is unmet at 1,000 and 2,000 nodes. Print, parse,
+check, evaluate, lower, project and layout phase medians remain zero for
+this static SOP workload. Reduce/cook medians are 0.025/0.096,
+0.138/0.845 and 0.295/2.013 ms. Generic literal, captured function,
+non-SOP/template/fold lowering, checked-in-file coverage and budget work
+remain required.
+
+Dynamic 10,000-particle median/p95 are 33.344/34.023 ms and allocations are
+154,287,359 bytes/frame, versus Step 0's 31.690/32.145 ms and 148,126,467
+bytes. RDK 1M-point noise medians are 24.875 ms at one domain and 6.134 ms
+at eight domains, allocating 32,064,368 and 32,074,064 bytes. Its xyz hash
+remains `1a9b19459a403094e2683996bd183a75` at both domain counts. The RDK
+implementation is unchanged; the timings vary from Step 0's 55.700/8.737 ms.
+
+Raw outputs: `/tmp/rays-step2-lower-before.csv`,
+`/tmp/rays-step2-lower-after.csv`, `/tmp/rays-step2-editor.csv`,
+`/tmp/rays-step2-particles.csv`, `/tmp/rays-step2-kernel.csv`.
+`@all` and `@runtest` pass with dummy SDL video/audio; the toy-domain test
+checks the checker, evaluator, colored card/menu, editor insertion, help,
+completion and reload. The Step 2 `--ship` attempt fails native smoke:
+SDL reports that the video driver did not add any displays in this restricted
+session. Native presentation remains unverified; the portable run does not
+replace it. Existing test hosts also log refused autosave writes to `~/.rays`;
+those checks pass, and the new domain test uses a temporary preset directory.
+
+### Phase 4 kernel facts and component cache checkpoint (2026-10-07)
+
+Same Apple M1, OCaml 5.3, development profile, eight available domains and
+one-domain editor setup as Step 2. Benchmarks ran sequentially. The before
+columns below are the Step 2 checkpoint; the after columns use
+`_build/default/tools/bench_workspace_lower.exe
+_build/default/specification/workspace/cases 7` after Step 3.
+
+| Fixture | Check before/after ms | Eval before/after ms | Lower before/after ms | Cold cook before/after ms | Total before/after ms | Nodes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| bloom | 0.092 / 0.093 | 0.123 / 0.124 | 3.562 / 3.681 | 1.201 / 1.123 | 5.656 / 5.527 | 84 |
+| facade | 0.037 / 0.037 | 0.085 / 0.083 | 1.778 / 1.819 | 0.584 / 0.718 | 2.445 / 2.668 | 69 |
+| garland | 0.074 / 0.077 | 0.084 / 0.086 | 2.167 / 2.377 | 0.825 / 0.996 | 2.881 / 3.309 | 40 |
+| kit | 0.065 / 0.067 | 0.033 / 0.034 | 0.907 / 1.024 | 0.084 / 0.147 | 1.153 / 1.176 | 24 |
+| orrery | 0.050 / 0.051 | 0.155 / 0.155 | 2.050 / 2.262 | 0.504 / 0.525 | 2.806 / 3.004 | 56 |
+| rosette | 0.046 / 0.046 | 0.047 / 0.049 | 2.165 / 2.310 | 0.484 / 0.389 | 2.522 / 2.989 | 39 |
+| sunflower | 0.020 / 0.020 | 1.047 / 1.144 | 10.110 / 10.791 | 2.184 / 2.379 | 13.523 / 13.618 | 241 |
+| tiles | 0.026 / 0.025 | 0.344 / 0.430 | 7.476 / 7.371 | 0.918 / 1.020 | 9.073 / 8.848 | 193 |
+| tree | 0.026 / 0.023 | 0.019 / 0.019 | 1.671 / 1.642 | 0.402 / 0.564 | 2.130 / 2.202 | 27 |
+| tunnel | 0.014 / 0.014 | 0.024 / 0.024 | 1.559 / 1.590 | 4.154 / 3.605 | 6.388 / 5.464 | 37 |
+| variations | 0.039 / 0.038 | 0.021 / 0.020 | 0.791 / 0.773 | 0.162 / 0.158 | 0.978 / 1.021 | 30 |
+| wave | 0.025 / 0.026 | 4.373 / 4.285 | 7.615 / 7.624 | 1.086 / 1.120 | 13.921 / 13.276 | 13 |
+
+All twelve cook hashes match the Step 2 table above, as do evaluation
+allocations, node counts, retained entries, evictions and payload MB.
+Capacity-512 retained entries/payload remain bloom 52/1.22, sunflower
+241/1.84, wave 13/0.66 and tree 27/0.87. Their warm medians increase from
+0.035/0.182/0.030/0.021 ms to 0.048/0.296/0.036/0.032 ms. Metadata is now
+encoded once at node construction, but that does not establish a warm-path
+speed improvement. This overhead remains visible in the measurements.
+
+The focused component-cache test proves a color-only upstream edit skips
+the transform or normal computation while carrying the fresh color through.
+Reads include position/attribute component IDs; topology, groups and
+attribute owner/name order remain conservative dependencies. Additions,
+removals and reordering recook. Output refresh preserves computed payloads,
+untouched owners, output ordering and current inherited diagnostics, including
+expanded-zone body diagnostics. The ten annotated preserved-topology factories
+keep topology physically and produce identical authored bytes at one/eight
+domains. False topology, writes, group mutation and packed output are refused
+with traced `E_NODE_FACTS`. LRU payload reference counts are checked after
+refresh and eviction; volatile slots retain their existing separate accounting.
+
+Editor command:
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+_build/default/tools/bench_rays_editor.exe 200 1000 2000`, 200 samples per size.
+
+| Nodes | Drag median ms before/after | Scrub median ms before/after | Scrub p95 ms after | Scrub bytes/frame after |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.081 / 2.048 | 2.048 / 2.006 | 3.142 | 6,548,133 |
+| 1,000 | 7.305 / 7.159 | 7.705 / 7.825 | 12.922 | 17,111,231 |
+| 2,000 | 12.195 / 11.942 | 12.381 / 12.311 | 22.470 | 25,274,250 |
+
+The strict median target remains unmet at 1,000 and 2,000 nodes. The seven
+print/parse/check/evaluate/lower/project/layout phase medians remain zero for
+the static SOP scrub workload. Reduce/cook medians are 0.025/0.095,
+0.133/0.843 and 0.290/2.075 ms. Remaining Step 1 paths and the Step 4 IR
+are still required; this checkpoint does not satisfy the whole-item gate.
+
+Dynamic particles use
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+_build/default/test/test_drawing.exe examples/particles/sketch.rays --bench`.
+Median/p95 are 33.282/34.107 ms versus Step 2's 33.344/34.023, with unchanged
+154,287,359 bytes/frame. `tools/bench_kernel.exe` records RDK 1M-point noise
+at 25.009 ms on one domain and 5.831 ms on eight, allocating 32,064,368 and
+32,074,288 bytes. Both retain hash `1a9b19459a403094e2683996bd183a75`.
+The Lisp-kernel comparison is not implemented yet.
+
+Raw outputs: `/tmp/rays-step3-lower-verified.csv`,
+`/tmp/rays-step3-editor-encoded.csv`, `/tmp/rays-step3-particles.csv`,
+`/tmp/rays-step3-kernel.csv`. Earlier diagnostic measurements remain in
+`/tmp/rays-step3-lower-after.csv`, `/tmp/rays-step3-lower-encoded.csv` and
+`/tmp/rays-step3-editor.csv`. Window-free `@all` and `@runtest` pass; catalog,
+API and generated-ML digest changes are reviewed and promoted. The native
+smoke/display gate remains unavailable in this restricted session.
+
+### Phase 4 IR and packed arithmetic checkpoint (2026-10-07)
+
+Same Apple M1, OCaml 5.3 development profile and eight available domains.
+`flow_ir` depends only on `flow`, `param`, `rays_math`; the dependency gate
+now checks 50 libraries, 51 rules, 16 whitelists and no listed exceptions.
+It retains typed counts, frame/event rates, precision, authored provenance
+and specialized kernel bodies. Dynamic cardinality origins include instance
+identity; distinct overrides cannot fuse by a coincident lexical path.
+Sharing excludes catalog calls, state reads and reference closures. Hoisting,
+dead-node removal, scalar fusion-group discovery and precision placement have
+direct tests. Potentially failing unused bindings remain roots. Group timing,
+packed cross-map fusion and SOP-fact-driven placement remain unimplemented.
+
+The value lane prepares programs once per network; existing scalar closures
+remain its scalar tier. Supported arithmetic float/vec3 maps compile into
+float registers, with 1,024-element blocks distributed by the shared pool.
+The current scratch ceiling is 64 registers (512 KiB per block); unsupported
+bodies keep reference evaluation. Source and uniform values resolve outside
+worker blocks. Probes use the tree walker without a process-wide toggle.
+Live packed maps and collecting loops now defer instead of storing residual
+boxes as numbers. Reference packed operations budget each block independently
+and restore the enclosing counter. Tests admit large arrays and still refuse
+an expensive block with `E_EVAL_BUDGET`; element and arithmetic order are unchanged.
+`exact` is one identity/readback operator record with graph projection and
+`Set_arg` coverage. Direct IR tests reject approximate catalog/export/state/cache
+inputs with `E_APPROX_SINK`; there is no approximate Lisp producer.
+
+`_build/default/tools/bench_kernel.exe` reports seven-run medians:
+
+| Body / points | Tier | Domains | Median ms | Bytes, all domains | Hash |
+| --- | --- | ---: | ---: | ---: | --- |
+| native 2D noise / 1,000,000 | RDK | 1 | 25.003 | 32,064,480 | `1a9b19459a403094e2683996bd183a75` |
+| native 2D noise / 1,000,000 | RDK | 8 | 6.543 | 32,108,792 | `1a9b19459a403094e2683996bd183a75` |
+| arithmetic map / 1,024 | CPU | 1 | 0.021 | 60,176 | `e63ed5293fa431bf7804f8bfa1502a7e` |
+| arithmetic map / 1,024 | CPU | 8 | 0.018 | 60,832 | `e63ed5293fa431bf7804f8bfa1502a7e` |
+| arithmetic map / 1,024 | interpreter | 1 | 0.872 | 3,803,944 | `e63ed5293fa431bf7804f8bfa1502a7e` |
+| arithmetic map / 65,536 | CPU | 1 | 0.977 | 3,679,904 | `fdde32a21528baae6e80fff535ececcf` |
+| arithmetic map / 65,536 | CPU | 8 | 0.290 | 3,725,576 | `fdde32a21528baae6e80fff535ececcf` |
+| arithmetic map / 65,536 | interpreter | 1 | 56.503 | 243,272,488 | `fdde32a21528baae6e80fff535ececcf` |
+| arithmetic map / 1,000,000 | CPU | 1 | 14.829 | 56,133,648 | `c80bc2db40894ee77065598eb3a721f9` |
+| arithmetic map / 1,000,000 | CPU | 8 | 3.454 | 56,841,024 | `c80bc2db40894ee77065598eb3a721f9` |
+| arithmetic map / 1,000,000 | interpreter | 1 | 827.721 | 3,712,002,856 | `c80bc2db40894ee77065598eb3a721f9` |
+
+The arithmetic body is `(sin (+ (* x 0.25) t))` at `t=1.25`, over
+`array/range`; its hashes match the independent interpreter. Tests compare
+every million-element output at one/eight domains. This is not the required
+SOP/noise comparison: RDK's existing noise displace samples 2D x/z noise and
+moves y, while the planned Lisp example samples 3D positions along normals.
+That integration remains required. The new benchmark counts program-wide
+allocation with `Gc.stat` outside the timed interval. Earlier checkpoint
+`Gc.allocated_bytes` figures count the calling domain; eight-domain allocation
+columns are not directly comparable to those earlier figures. Worker scratch
+accounts for much of the map's allocation; no zero-allocation claim is made.
+
+Sequential 50-frame wave runs before/after the value-lane integration:
+resolve p50 1.259/1.129 ms, total p50 2.568/2.048 ms, total p99 7.431/53.003 ms.
+The new cold program preparation remains visible in p99. A contended diagnostic
+run was discarded; no broad playback speed claim follows from these short runs.
+
+Editor command is the same window-free `bench_rays_editor.exe 200 1000 2000`
+as Step 3, 200 samples per size:
+
+| Nodes | Drag median ms before/after | Scrub median ms before/after | Scrub p95 ms after | Scrub bytes/frame after |
+| ---: | ---: | ---: | ---: | ---: |
+| 200 | 2.048 / 2.132 | 2.006 / 2.050 | 3.217 | 6,548,077 |
+| 1,000 | 7.159 / 7.310 | 7.825 / 8.002 | 13.613 | 17,111,175 |
+| 2,000 | 11.942 / 12.080 | 12.311 / 12.542 | 22.779 | 25,274,194 |
+
+The strict target remains unmet at 1,000 and 2,000. Print, parse, check,
+evaluate, lower, project and layout phase medians remain zero. Reduce/cook
+medians are 0.026/0.099, 0.136/0.859 and 0.299/2.054 ms. Dynamic particles
+remain on their existing evaluator path: 33.334/34.123 ms median/p95 and
+154,288,351 bytes/frame versus Step 3's 33.282/34.107 and 154,287,359.
+Their IR execution/pixel gate remains required.
+
+All twelve static cook hashes and node counts match Step 3. The exact
+four-time, one-/eight-domain IR regression includes plan arguments, instance
+inputs/results, graph values and records for the twelve fixtures; it does not
+yet cover every checked-in `.rays` or exported pixels. The latest full
+window-free build/tests pass; intended API additions are reviewed and promoted.
+Native presentation remains unverified in this restricted session. Step 4,
+remaining Step 1 cases and the whole-item gates are still incomplete.
+
+Raw outputs: `/tmp/rays-step4-kernel-global.csv`,
+`/tmp/rays-step4-live-before.txt`, `/tmp/rays-step4-live-final.txt`,
+`/tmp/rays-step4-editor.csv`, `/tmp/rays-step4-particles.csv`,
+`/tmp/rays-step4-lower.csv`. Earlier calling-domain allocation measurements
+are in `/tmp/rays-step4-kernel.csv`; the contended playback diagnostic is
+`/tmp/rays-step4-live-after.txt`.
+
+### Phase 4 noise arithmetic and scratch reuse checkpoint (2026-10-07)
+
+Machine/profile: Apple M1, eight available domains, OCaml 5.3.0, Dune dev.
+Benchmarks ran serially, without overlapping validation. Seven repetitions
+per kernel row, medians; allocations use global `Gc.stat` outside the timed
+interval, `(minor_words + major_words - promoted_words) * word_size`.
+
+`noise3` is one immutable declaration in `Flow_ir.Operators`, included by the
+SOP/editor workspace host. It takes a finite vec3 and returns raw 0..1
+`Noise.sample3` with seed 0. The packed compiler recognizes that declaration
+by identity; a custom declaration named `noise3` remains on the interpreter.
+Tests cover scalar/packed bits, offsets/alias bounds, partial ranges,
+non-finite errors, editor row edits/reload and the CLI's default registration.
+
+The original native noise SOP remains `height_2d`. Its new explicit
+`normal_3d` mode evaluates `P + N * (amplitude * noise3(P * frequency))`
+without normalizing N. The Lisp schema owns the choice and refreshes facts
+from reads P to reads P/N. Both modes invalidate point/vertex N and preserve
+topology. Native checks cover missing/wrong-storage N, non-finite input
+parameters/results, cancellation and exact one/eight-domain geometry. An
+oversized-grain test caught overflowing range-ceiling arithmetic; the shared
+RDK point-range scheduler and the noise error buffer now use subtraction
+before division. Default range scheduling and valid output arithmetic stay
+the same.
+
+Command:
+
+```sh
+_build/default/tools/bench_kernel.exe
+```
+
+The noise comparison uses one million points, seed 0, amplitude 0.8 and
+frequency 0.16. Packed P/N inputs are supplied before timing. The map's
+amplitude is `(+ 0.8 (* t 0))` to retain the residual at specialization;
+the measured frame is t = 1.25. The warm output of each CPU/interpreter
+domain configuration is compared byte for byte with native positions, then
+all timed outputs retain the same position hash
+`3356f1ee95b997e05ed597b0d1b13d3a`.
+
+| Execution | Domains | Median ms | Allocated bytes, all domains |
+|---|---:|---:|---:|
+| Native normal_3d | 1 | 30.299902 | 32,072,824 |
+| Native normal_3d | 8 | 8.386850 | 32,118,712 |
+| Packed Flow CPU | 1 | 59.475183 | 35,952,312 |
+| Packed Flow CPU | 8 | 13.952017 | 35,998,240 |
+| Reference interpreter | 1 | 2,062.009811 | 9,272,003,224 |
+| Reference interpreter | 8 | 2,047.931910 | 9,272,003,224 |
+
+The reference walker remains sequential when run inside an eight-domain
+context; that row verifies its bytes, not a parallel interpreter. The CPU
+path is about 2.0x native time at one domain and 1.7x at eight for this body.
+This measures the arithmetic tier, not the complete SOP attribute pipeline:
+`sop/attr`, `sop/with_attr`, attribute conversion and geometry writes still
+need integration and their own end-to-end comparison.
+
+The first packed implementation allocated scratch per 1,024-element block:
+67.146063/14.512062 ms and 208,360,256/209,067,160 B at one/eight domains.
+It now allocates one scratch buffer per stable chunk of sixteen blocks and
+reuses it for those blocks. The buffer retains the existing 64-register,
+512 KiB ceiling. For this million-point body allocations fell about 83%;
+the same all-element tests pass across block/chunk tails. The focused kernel
+test uses varying positions and non-unit normals at counts 0, 1, 1,023,
+1,024, 2,051 and 16,385, four times and one/eight domains.
+
+The existing million-element sin map now measures 12.341976/3.742933 ms and
+11,152,264/11,197,016 B at one/eight domains, with unchanged hash
+`c80bc2db40894ee77065598eb3a721f9`. The old height displacement measures
+26.278019/7.821083 ms and 32,065,168/32,109,416 B, with unchanged hash
+`1a9b19459a403094e2683996bd183a75`. Its small error-buffer allocation is new;
+no general native throughput improvement is claimed.
+
+Workspace/editor commands:
+
+```sh
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 7
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200 1000 2000
+```
+
+All twelve fixture cook hashes, node counts and evaluation allocations match
+the prior arithmetic checkpoint. The catalog now has 160 factories and
+1,864 fields; the mode adds one row to Orrery's graph projection. Retained
+catalog bytes are 941,536 before / 1,255,528 after workspace catalog construction.
+
+| Nodes | Drag median ms | Scrub median ms | Scrub p95 ms | Scrub bytes/frame |
+|---|---:|---:|---:|---:|
+| 200 | 2.110958 | 2.115011 | 3.367901 | 6,548,077 |
+| 1,000 | 7.448912 | 7.874966 | 13.295889 | 17,111,175 |
+| 2,000 | 12.157917 | 12.481928 | 23.070097 | 25,274,194 |
+
+The seven print/parse/check/evaluate/lower/project/layout scrub phase medians
+remain zero. The strict scrub target is still unmet at 1,000/2,000 nodes.
+
+`@all` and the affected window-free suites pass: Flow, Flow IR, Flow SOP,
+Flow Graph, PXUI Graph, Procedural, RDK, SOP catalog, tools and test/. Intended
+API/manifest/CLI digest changes were reviewed and promoted. A full `@runtest`
+attempt also reaches three existing offscreen rendering tests (`test_ink`,
+`test_scene3_native_lowering`, `test_world_raster`) that cannot start because
+this session has no system-default Metal device. Native rendering/pixel
+verification remains required. No native test was skipped or relabelled.
+Step 4, remaining Step 1 work and the complete whole-item gates remain open.
+
+Raw outputs: `/tmp/rays-step4-noise-kernel.csv` (before scratch reuse),
+`/tmp/rays-step4-noise-kernel-reuse.csv` (first reuse run),
+`/tmp/rays-step4-noise-kernel-final.csv` (final run with byte comparisons),
+`/tmp/rays-step4-noise-lower.csv`, `/tmp/rays-step4-noise-editor.csv`,
+`/tmp/rays-step4-noise-validation.log` (full attempt),
+`/tmp/rays-step4-noise-focused-validation.log`,
+`/tmp/rays-step4-noise-final-validation.log` (affected suites).
+
+### Phase 4 Step 1 closure: the edit-frame gate and the checked-in file sweep (2026-10-07)
+
+Same Apple M1, OCaml 5.3.0, Dune dev profile, eight available domains and
+one-domain editor. The benchmark ran alone, before any validation. Command:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200 1000 2000
+```
+
+Step 1's target was readjusted today (owner, 2026-10-07: "readjust gates"):
+a scrub changes a value and the recook that value requires is work a layout
+drag never does, so the two frames were never comparable whole. The benchmark
+now also reports `rays_editor_scrub_edit_frame`, each scrub frame minus its
+cook phase, computed per sample. The gate is that row against the drag row,
+with the seven print/parse/check/evaluate/lower/project/layout phase medians
+at zero. All three sizes meet it in this run; the earlier runs recorded above
+met it too under this definition.
+
+| Nodes | Drag median ms | Scrub median ms | Scrub edit median ms | Scrub p95 ms | Cook median ms | Scrub bytes/frame |
+|---|---:|---:|---:|---:|---:|---:|
+| 200 | 2.057076 | 2.013922 | 1.910210 | 3.164053 | 0.097036 | 6,548,077 |
+| 1,000 | 7.200003 | 7.747889 | 6.808043 | 13.220072 | 0.853062 | 17,111,175 |
+| 2,000 | 12.143850 | 12.286186 | 10.247231 | 22.436857 | 2.057076 | 25,274,195 |
+
+Reduce medians are 0.024/0.134/0.288 ms. The seven pipeline phase medians
+are zero at every size. The undo frame measures 2.597/9.927/17.789 ms.
+
+The file sweep (`test_workspace_doc`, `part_files`) edits every scrubbable
+literal of every checked-in `.rays` (numbers by one or a half, Booleans
+flipped, the first component of a vector) through the literal path and the
+full path and compares saved bytes and refusal codes; literal-path edits must
+repeat no print, parse, check or projection, and a patched lowering must
+have the full lowering's plan. The "full path" column is the warm cost of
+the edit plus `Lower.of_checked` for the literals that fall back.
+
+| File | Literals | Literal path | Lowering patched | Refused by both | Full path | Full path max ms |
+|---|---:|---:|---:|---:|---:|---:|
+| examples/particles | 4 | 2 | 0 | 0 | 2 | 31.4 |
+| sketches/cube_cage | 59 | 57 | 37 | 3 | 2 | 1.6 |
+| sketches/flow_terrain | 15 | 14 | 7 | 0 | 1 | 0.2 |
+| sketches/shattered_cube | 31 | 30 | 23 | 1 | 0 | |
+| sketches/shattered_studio | 62 | 52 | 26 | 6 | 4 | 1.2 |
+| sketches/ws_bloom | 28 | 17 | 5 | 2 | 9 | 4.8 |
+| sketches/ws_facade | 8 | 8 | 8 | 0 | 0 | |
+| sketches/ws_garland | 9 | 1 | 0 | 6 | 2 | 2.7 |
+| sketches/ws_kit | 6 | 1 | 0 | 2 | 3 | 1.1 |
+| sketches/ws_layout | 22 | 14 | 7 | 1 | 7 | 0.7 |
+| sketches/ws_morph | 21 | 18 | 12 | 2 | 1 | 1.8 |
+| sketches/ws_orrery | 18 | 11 | 11 | 0 | 7 | 2.5 |
+| sketches/ws_rosette | 1 | 1 | 0 | 0 | 0 | |
+| sketches/ws_sunflower | 5 | 2 | 2 | 0 | 3 | 12.6 |
+| sketches/ws_tiles | 5 | 0 | 0 | 0 | 5 | 8.0 |
+| sketches/ws_tree | 7 | 5 | 5 | 0 | 2 | 1.7 |
+| sketches/ws_tunnel | 5 | 5 | 5 | 0 | 0 | |
+| sketches/ws_variations | 12 | 9 | 7 | 2 | 1 | 0.8 |
+| sketches/ws_wave | 4 | 2 | 2 | 0 | 2 | 12.2 |
+| specification/pxui-kit/kit | 16 | 7 | 2 | 0 | 9 | 0.5 |
+
+338 literals in 20 files (`sop_gallery` brings its own SOPs and is skipped,
+as in `test_scene_sync`). The full path's cost is evaluation and lowering,
+not the edit: particles spends 29.9 of its 31.4 ms in `Eval.static` of the
+10,000-point draw graph, which a change of `:count` requires whatever path
+applies it; the edit itself (print, parse, check) is 0.5 ms there and at
+most 0.8 ms in every file. This is why the generic value-literal fast path
+and the per-frame budget of Step 1 were dropped (NEXT.md §5): the saving
+available is under a millisecond, and skipping the evaluation would hide the
+scrub's effect until release.
+
+The sweep found two defects, both fixed with regressions: a same-type literal
+that lowering refuses (`attribute_randomize` bounds out of order) came back
+as `E_TYPE` on the literal path and `E_LOWER` on the full path, and a
+`(ref cage)` graph reference counted as a read of the binding named `cage`,
+so `Flow_edit.reorder` refused every full-path parameter edit in the
+cube_cage scene graph with a false `E_GRAPH_CYCLE`.
+
+Raw output: `/tmp/rays-step1-closure-editor.csv`; the sweep prints its
+table in `dune build @test/test_workspace_doc`.

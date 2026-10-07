@@ -533,12 +533,42 @@ feedback or unbounded per-frame state.
 Mutable evaluation state belongs to an explicit `Session.t`, never a global
 graph. Its cache has both an entry limit and a retained-byte budget. The key is
 the operator/version, canonical parameters, the schema-derived parameter key
-of a parameterized node, exact input snapshot IDs, declared context facts, and
+of a parameterized node, input identities, declared context facts, and
 explicit external-resource fingerprints. It is an opaque, length-prefixed
 binary string built without `Printf` on the per-node cook path. Whole geometry
 buffers are not rehashed on every frame.
 
-Cache hits return the same immutable snapshot. Results are inserted only after
+`Node.facts` owns the cook mode, element-wise class, attribute reads/writes,
+topology preservation and exactness. The optional `[@@sop.node_facts
+{elementwise; reads; writes; topology; exact}]` type attribute refines the
+conservative declaration and can refer to `parameters`; generated rebuilds
+refresh it after parameter changes. Unannotated nodes read/write `"*"`, are
+irregular, topology-changing and exact. The default declaration is exposed by
+the factory and included in the generated Lisp manifest; `Flow.Check` carries
+its domain-neutral kernel metadata.
+
+`sop/noise_displace` declares two modes in its parameter schema. The default
+`height_2d` reads P and adds signed X/Z noise to Y. `normal_3d` reads P and
+point N and computes `P + N * (amplitude * Noise.sample3(P * frequency))`,
+without normalizing N. At seed 0 this is the Flow `noise3` kernel's formula.
+Both modes preserve topology and invalidate point/vertex N; changing mode
+rebuilds the declared reads. Missing/wrong-storage point N, non-finite results
+and cancellation return typed RDK errors.
+
+A single-input `Duplicate_input 0` or `Passthrough 0` node with preserved
+topology and explicit reads/writes uses topology, group and edge-group IDs,
+the input attribute owner/name order, and IDs only for the payloads it reads.
+Canonical positions are `"P"`; other names select every matching owner.
+Changing an unread color payload can therefore reuse a normal or transform
+computation. Attribute addition/removal/reordering conservatively recooks.
+On reuse, the session combines the cached computed payloads with fresh untouched
+input attributes, preserves output ordering and refreshes inherited diagnostics.
+The result keeps its identity on subsequent unchanged hits. A node that replaces
+declared preserved topology, changes groups, writes an undeclared payload or
+returns packed instances fails with traced `E_NODE_FACTS`; no invalid entry is
+published. Ordinary opaque nodes retain whole-snapshot keys.
+
+Unchanged cache hits return the same immutable snapshot. Results are inserted only after
 a complete successful cook; cancellation cannot publish partial geometry.
 Eviction drops strong references, `Session.clear` releases all entries, and
 `Session.close` provides prompt lifetime control. Session statistics expose

@@ -25,7 +25,9 @@ let geometry_objects value =
         Document.Int_map.find_opt id value.doc.Document.networks with
     | Some node, Some network when Objects.visible node
         && not (Edit_graph.is_bypassed (scene value) ~node_id:id) ->
-        Option.map (fun displayed -> id, network.Document.graph, displayed) network.displayed
+        (match Document.Int_map.find_opt id value.viewed with
+         | Some (graph, displayed) -> Some (id, graph, displayed)
+         | None -> Option.map (fun displayed -> id, network.Document.graph, displayed) network.displayed)
     | _ -> None) (Objects.ids "geometry" (scene value))
 
 (* The object the sketch-facing single-object accessors describe: the open

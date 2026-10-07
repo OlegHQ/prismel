@@ -1,20 +1,75 @@
 open Editor_document
 include Core_panes
 
+let sync_views value =
+  let lowered = snd value.doc.Document.workspace in
+  match value.view_key with
+  | Some (previous, probes, previews) when previous == lowered && probes == value.probes
+      && previews == value.previews -> value
+  | _ when Document.Int_map.is_empty value.previews ->
+      { value with viewed = Document.Int_map.empty; view_key = Some (lowered, value.probes, value.previews) }
+  | _ ->
+      let records = Flow_graph.Probe.make ~dynamic:(Flow_sop.Lower.zone_count lowered) lowered.evaluated in
+      let previews, viewed = Document.Int_map.fold (fun object_id (preview : preview) (previews, viewed) ->
+        let probes = List.map (fun path -> Option.value ~default:0
+          (Layout_by_path.Path_map.find_opt path value.probes)) preview.chain in
+        let viewed_node = Option.bind (Flow_graph.Probe.plan_node records preview.path ~probes) (fun node ->
+          Option.bind (Document.Int_map.find_opt object_id value.doc.Document.networks)
+            (fun network -> lowered.preview ~node ~probes network.graph)) in
+        match viewed_node with
+        | Some viewed_node ->
+            Document.Int_map.add object_id preview previews,
+            Document.Int_map.add object_id viewed_node viewed
+        | None -> previews, viewed) value.previews (Document.Int_map.empty, Document.Int_map.empty) in
+      { value with previews; viewed; view_key = Some (lowered, value.probes, previews) }
+
+let view_node value path =
+  match value.scope_key with
+  | Some key ->
+      let chain = Option.value ~default:[] (Hashtbl.find_opt (Flow_graph.Probe.chains key.scope) path) in
+      let probes = List.map (fun path -> Option.value ~default:0
+        (Layout_by_path.Path_map.find_opt path value.probes)) chain in
+      let node = Option.bind key.records (fun records -> Flow_graph.Probe.plan_node records path ~probes) in
+      let owner = Option.bind node (fun node ->
+        let lowered = snd value.doc.workspace in
+        let owns id = Option.bind (Document.Int_map.find_opt id value.doc.networks)
+          (fun network -> lowered.preview ~node ~probes network.graph) <> None in
+        match value.level with
+        | Inside id when owns id -> Some id
+        | _ -> Document.Int_map.fold (fun id _ found ->
+            match found with Some _ -> found | None -> if owns id then Some id else None)
+            value.doc.networks None) in
+      (match owner with
+       | Some owner -> sync_views { value with previews = Document.Int_map.add owner { path; chain } value.previews }
+       | None -> value)
+  | None -> value
+
 (* Lay the workspace pane out again when the document, the probes or the
    graph changed; the footers are rebuilt when the recording evaluation, the
    cook's geometry counts or (a live document) the time changed.  The
-   evaluation runs once per checked source, never per move or per frame. *)
-let sync_scope value = match graph_name value, value.doc.Document.workspace, Lazy.force value.flow_catalog with
+   evaluation is retained by lowering, never repeated by a pane or a frame. *)
+let sync_scope value =
+  let value = sync_views value in
+  let value = match value.scope_key with
+    | Some key -> { value with scope_view = Pxui_graph.Scope.with_display (viewed_path value key.scope) value.scope_view }
+    | None -> value in
+  match graph_name value, value.doc.Document.workspace, Lazy.force value.flow_catalog with
   | Some name, (ws, lowered), Some catalog ->
       let module M = Layout_by_path.Path_map in
       let previous = value.scope_key in
-      let same k = k.ws == ws && k.graph = name in
+      let arguments = Option.bind previous (fun k -> if k.graph <> name then None else
+        match Workspace_doc.literal_changes ~previous:k.ws ws with
+        | Some _ as changes -> changes
+        | None when Flow_graph.Projection.same_graph k.ws.checked ws.checked name -> Some []
+        | None -> None) in
+      let edits = Option.value ~default:[] arguments |> List.map (fun (change : Literal_edit.change) ->
+        change.path, Flow_graph.Flow_edit.Kw change.field, change.expr) in
+      let same k = k.graph = name && k.ws.layout == ws.layout && Option.is_some arguments in
       let moved = match previous with
         | Some k -> not (same k && k.probe_map == value.probes) | None -> true in
       let evaluated = match previous with
-        | Some k when k.ws.checked == ws.checked -> k.evaluated
-        | _ -> Result.to_option (Flow.Eval.static ~record:true ~inputs:ws.inputs ws.checked) in
+        | Some k when Option.fold ~none:false ~some:(( == ) lowered.evaluated) k.evaluated -> k.evaluated
+        | _ -> Some lowered.evaluated in
       let time = if not (Flow.Workspace.Paths.is_empty ws.checked.live)
         then Some {value.live_frame with Frame_input.t = Sketch_support.Timeline.time value.timeline;
           frame = Int64.to_int (Sketch_support.Timeline.frame value.timeline)} else None in
@@ -25,22 +80,21 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
         | None -> true in
       if not moved && not fresh then value else begin
         let scope = match previous with
-          | Some k when not moved -> k.scope
+          | Some k when Option.is_some arguments ->
+              if edits = [] then k.scope else Flow_graph.Projection.with_arguments edits k.scope
           | _ -> Flow_graph.Projection.of_graph catalog ws.checked name in
         let wires = match Option.bind value.doc.Document.shell (fun s -> s.Document.wires) with
           | Some "rect" -> `Rect
           | _ -> `Straight in
-        let scope_view = if not moved then Pxui_graph.Scope.with_wires wires value.scope_view else begin
+        let scope_view = if not moved then
+          Pxui_graph.Scope.with_arguments edits value.scope_view |> Pxui_graph.Scope.with_wires wires else begin
           let layout = ws.layout in
-          let display = match scope.result with
-            | Link target -> Some [ name; target ]
-            | Node target_path -> Some target_path
-            | Literal _ -> None in
+          let display = viewed_path value scope in
           let layouts = match value.doc.Document.shell with
             | Some { switch = Some _; _ } when Option.map (fun (g : Flow.Workspace.graph) -> g.name)
                 (Workspace_doc.editor_graph (fst value.doc.Document.workspace)) = Some name -> List.map fst (layouts value)
             | _ -> [] in
-          Pxui_graph.Scope.with_scope ~wires ~layouts ~key:name scope value.scope_view
+          Flow.Phase_timer.measure Layout (fun () -> Pxui_graph.Scope.with_scope ~wires ~layouts ~key:name scope value.scope_view
             ~at:(fun path -> M.find_opt path layout.at)
             ~level:(fun path -> match M.find_opt path layout.level, M.find_opt path layout.pinned with
               | None, None -> None
@@ -51,7 +105,7 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
             ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes))
             ~frames:(fun path -> List.map (fun (f : Layout_by_path.frame) -> f.title, f.at, f.size)
               (Option.value ~default:[] (M.find_opt path layout.frames)))
-            ?display end in
+            ?display) end in
         let geometry id = Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled)
           (fun node_id -> Option.bind (node_owner value node_id) (fun object_id ->
             Cook.geometry value.cook ~object_id ~node_id)) in
@@ -67,7 +121,8 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
           | Some records when fresh || moved -> Pxui_graph.Scope.with_records records scope_view
           | _ -> scope_view in
         let targets = match records, previous with
-          | Some _, Some k when not moved && k.evaluated == evaluated -> k.targets
+          | Some _, Some k when not moved && (k.evaluated == evaluated ||
+              Option.fold ~none:false ~some:(fun ev -> ev.Flow.Eval.records == lowered.evaluated.records) k.evaluated) -> k.targets
           | Some records, _ ->
               List.filter_map (fun id ->
                 Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->

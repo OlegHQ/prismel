@@ -57,12 +57,12 @@ let list ~directory =
 let delete ~directory ~name =
   try Sys.remove (path ~directory ~name); Ok () with Sys_error message -> Error message
 
-let load ~path ~factories ~settings =
+let load_with_ops ~ops ~path ~factories ~settings =
   let* text = Editor_core.Store.read_text ~filename:path in
   let diagnostics ds = String.concat "\n" (List.map Flow.Diagnostic.to_string ds) in
   let* catalog = Result.map_error Flow.Diagnostic.to_string (flow_catalog factories) in
   let* workspace = Result.map_error diagnostics
-      (Workspace_doc.of_text ~settings:(Settings.defaults settings) catalog text) in
+      (Workspace_doc.of_text ~ops ~settings:(Settings.defaults settings) catalog text) in
   (* the view is the preset's own form, not the document's *)
   let workspace = { workspace with extra = [] } in
   let* view = match S.parse text with
@@ -76,3 +76,5 @@ let load ~path ~factories ~settings =
   let* doc = Result.map_error Flow.Diagnostic.to_string (Contexts.of_workspace ~factories workspace) in
   let* () = Document.validate doc in
   Ok { doc; view }
+
+let load ~path ~factories ~settings = load_with_ops ~ops:Flow_sop.Operators.all ~path ~factories ~settings

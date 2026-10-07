@@ -28,6 +28,49 @@ let replace text ~from ~by =
   let i = at 0 in
   String.sub text 0 i ^ by ^ String.sub text (i + n) (String.length text - i - n)
 
+let token_scrubs () =
+  let module S = Flow.Syntax in
+  let module F = Flow_graph.Flow_edit in
+  let source = S.parse {|(workspace tokens
+    (graph g :context sop
+      (let* [a (sop/box :size [11 22 33])
+             repeat (for [i (range 2)] (sop/uv_sphere :radius 0.5))
+             n 77
+             b (sop/transform a :uniform_scale (* 3 4))]
+        (sop/transform (sop/uv_sphere :radius 0.6) :uniform_scale 0.7))))|} |> Result.get_ok in
+  let rec child form = function [] -> form
+    | i :: rest -> child (List.nth (S.children form) i) rest in
+  List.iter (fun (path, key, sub) ->
+    let atom = child (F.arg_text source path key |> Option.get) sub in
+    List.iter (fun tab ->
+      let shown = T.make_shown source "g" (Some path) tab in
+      let span = List.assoc atom.id shown.spans in
+      let op, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+        T.scrub_op shown (span.start, span.finish) "1234" |> Option.get) in
+      check (List.for_all (fun phase -> Flow.Phase_timer.calls phases phase = 0) Flow.Phase_timer.phases)
+        "finding a numeric token ran the workspace pipeline";
+      check (match op with F.Set_arg {node; key = k; sub = s; value} ->
+        node = path && k = key && s = sub && value.node = S.Num "1234" | _ -> false)
+        "a printed numeric token targeted the wrong card or argument") [T.Selection; Graph; Document])
+    [ ["g";"a"], F.Kw "size", [1];
+      ["g";"repeat";"@result"], F.Kw "radius", [];
+      ["g";"n"], F.Whole, [];
+      ["g";"b"], F.Kw "uniform_scale", [1];
+      ["g";"@result#0"], F.Kw "radius", [] ];
+  let catalog = Editor_document.Contexts.catalog ~version:1 Sop_catalog.Editor.factories |> Result.get_ok in
+  let doc = Editor_document.Workspace_doc.of_text catalog
+    "(workspace w (graph g :context sop (sop/box))) (view :zoom 999)" |> Result.get_ok in
+  let form = S.parse "(graph g :context sop (let* [a (sop/box :size [2 3 4]) b (sop/transform a)] b))"
+    |> Result.get_ok |> List.hd in
+  let doc = Editor_document.Workspace_doc.edit catalog doc (F.Set_graph {name = "g"; form}) |> Result.get_ok in
+  let printed, spans = Editor_document.Workspace_doc.print doc in
+  check (List.length spans = List.length (List.sort_uniq Int.compare (List.map fst spans)))
+    "document metadata reused source IDs after a structural edit";
+  let shown = { (T.make_shown doc.source "g" None Document) with text = printed; spans } in
+  let last = List.find_map (fun (_, (span : Flow.Diagnostic.span)) ->
+    if String.sub printed span.start (span.finish - span.start) = "999" then Some span else None) spans |> Option.get in
+  check (T.scrub_op shown (last.start, last.finish) "1000" = None) "metadata token aliased a source literal"
+
 let selection_text () =
   let src = source "sunflower" in
   let sel path = T.make_shown src "sunflower" (Some path) T.Selection in
@@ -645,6 +688,87 @@ let editor_active_scrub () =
   check (E.workspace !env == before && E.undo_label !env = history) "one undo returns the whole drag";
   E.close !env
 
+let editor_literal_scrub () =
+  let open Rays in
+  let text = {|(workspace literal
+    (graph g :context sop (let* [a (sop/points :points 1)] a))
+    (graph scene :context scene (scene/merge (scene/geometry (ref g))))
+    (graph editor :context editor
+      (ui/workspace (ui/split-at "vertical" 0.12 (ui/graph "g") (ui/lisp)))))|} in
+  let catalog = Editor_document.Contexts.catalog ~version:1 Sop_catalog.Editor.factories |> Result.get_ok in
+  List.iter (fun (tab_index, tab) ->
+    let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
+    let presets = Filename.temp_dir "rays-token-presets" "" in
+    let env = ref (E.create ~presets ~await:true ~domains:1 ~workspace ~prepare:(fun _ _ -> Ok ())
+      ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) in
+    Fun.protect ~finally:(fun () -> E.close !env) (fun () ->
+      let count = ref 0 and mouse = ref (450.,320.) in
+      let step ?(buttons = []) ?(keys = []) events =
+        incr count; env := E.update !env { (frame ~mouse:!mouse ~keys !count events) with mouse_buttons = buttons } in
+      let at ?buttons point events = mouse := point; step ?buttons events in
+      for _ = 1 to 4 do step [] done;
+      let x,y,w,h = E.node_box !env ["g";"a"] |> Option.get in
+      let point = float (x + w / 2), float (y + min 12 (h / 2)) in
+      at point [Event.MouseMoved point];
+      at point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)]; step [];
+      let gx,gy,gw,gh = (E.panes !env (frame 0 [])).graph in
+      let top = gy + gh + 1 + 28 in
+      let tab_point = tab_at ~narrow:(gw < 400) ~right:(gx + gw - 36) ~top tab_index in
+      at tab_point [Event.MouseMoved tab_point];
+      at tab_point [Event.MousePressed (Input.LeftButton, tab_point); Event.MouseReleased (Input.LeftButton, tab_point)]; step [];
+      let shown = T.make_shown (E.workspace !env).source "g" (Some ["g";"a"]) tab in
+      let value = Flow_graph.Flow_edit.arg_text shown.source ["g";"a"] (Kw "points") |> Option.get in
+      let span = List.assoc value.id shown.spans in
+      let position = Flow.Diagnostic.position_of_offset shown.text span.start in
+      let number = float gx +. 36. +. float (position.col - 1) *. 6.95 +. 1.,
+        float top +. 8. +. float (position.line - 1) *. line_pitch in
+      let nx,ny = number in
+      let before = E.workspace !env and label = E.undo_label !env in
+      at number [Event.MouseMoved number];
+      at number ~buttons:[Input.LeftButton] [Event.MousePressed (Input.LeftButton, number)];
+      let drag dx = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
+        at (nx +. dx,ny) ~buttons:[Input.LeftButton] [Event.MouseMoved (nx +. dx,ny)]) |> snd in
+      let first = drag 10. in
+      List.iter (fun phase -> check (Flow.Phase_timer.calls first phase = 0)
+        ("text token scrub ran " ^ Flow.Phase_timer.name phase)) [Print; Parse; Check; Evaluate; Lower; Project; Layout];
+      let next = drag 20. in
+      List.iter (fun phase -> check (Flow.Phase_timer.calls next phase = 0)
+        ("repeated text token scrub ran " ^ Flow.Phase_timer.name phase)) [Print; Parse; Check; Evaluate; Lower; Project; Layout];
+      let wider = drag 220. in
+      List.iter (fun phase -> check (Flow.Phase_timer.calls wider phase = 0)
+        ("wider text token scrub ran " ^ Flow.Phase_timer.name phase)) [Print; Parse; Check; Evaluate; Lower; Project; Layout];
+      let valid = E.workspace !env in
+      check ((Flow_graph.Flow_edit.arg_text valid.source ["g";"a"] (Kw "points") |> Option.get).node = Flow.Syntax.Num "45")
+        "a growing token lost its repaired span";
+      let source, checked = Flow_graph.Flow_edit.apply_checked catalog before.source
+        (Set_arg {node = ["g";"a"]; key = Kw "points"; sub = []; value = Flow.Syntax.make (Num "45")}) |> Result.get_ok in
+      check (Rays_editor.Workspace_doc.to_text valid = Rays_editor.Workspace_doc.to_text {valid with source; checked})
+        "fast text token scrub differs from the full syntax edit";
+      ignore (drag 520.); (* 105 exceeds the field's hard maximum 50. *)
+      check (E.workspace !env == valid) "an invalid text token scrub changed the document";
+      ignore (drag 20.); (* Recovery goes through the retained draft's existing check path. *)
+      let ws = E.workspace !env in
+      let points = Flow_graph.Flow_edit.arg_text ws.source ["g";"a"] (Kw "points") |> Option.get in
+      check (points.node = Flow.Syntax.Num "5") (Printf.sprintf "text token scrub in tab %d did not apply its latest number: %s (at %.1f,%.1f; text %S)"
+        tab_index (Flow.Lisp.flat points) nx ny shown.text);
+      let source, checked = Flow_graph.Flow_edit.apply_checked catalog before.source
+        (Set_arg {node = ["g";"a"]; key = Kw "points"; sub = []; value = Flow.Syntax.make (Num "5")}) |> Result.get_ok in
+      check (Rays_editor.Workspace_doc.to_text ws = Rays_editor.Workspace_doc.to_text {ws with source; checked})
+        "text token scrub differs from the full syntax edit";
+      at (nx +. 20.,ny) [Event.MouseReleased (Input.LeftButton, (nx +. 20.,ny))]; step [];
+      check (E.undo_label !env = Some "Edit text") "text token scrub lost its history label";
+      (* Leave the text area's own edit-undo focus before the document undo. *)
+      let focus_graph = float (gx + gw - 12), float (gy + min 10 (gh - 1)) in
+      at focus_graph [Event.MouseMoved focus_graph];
+      at focus_graph [Event.MousePressed (Input.LeftButton, focus_graph); Event.MouseReleased (Input.LeftButton, focus_graph)]; step [];
+      step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')];
+      check (E.workspace !env == before && E.undo_label !env = label)
+        (Printf.sprintf "text token scrub in tab %d was not one undo entry: identity %b, label %s (was %s), redo %b, points %s"
+          tab_index (E.workspace !env == before) (Option.value ~default:"-" (E.undo_label !env))
+          (Option.value ~default:"-" label) (E.can_redo !env)
+          (Flow_graph.Flow_edit.arg_text (E.workspace !env).source ["g";"a"] (Kw "points") |> Option.get |> Flow.Lisp.flat))))
+    [0,T.Selection; 1,T.Graph; 2,T.Document]
+
 (* A graph held by [y] and put on the text pane: [(ref a)] is inserted at the byte under the pointer
    and the text must check (Graph tab: one Set_graph; Document tab: the whole text), else refused
    with the checker's words; an unapplied draft refuses it too. *)
@@ -752,5 +876,7 @@ let run () =
   editor_binding ();
   editor_w9 ();
   editor_active_scrub ();
+  token_scrubs ();
+  editor_literal_scrub ();
   editor_text_drop ();
   print_endline "text pane tests passed"

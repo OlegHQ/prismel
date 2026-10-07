@@ -306,8 +306,45 @@ let finish text =
   (Buffer.contents buf, List.sort (fun (a, _) (b, _) -> compare a b) !spans)
 
 let print forms =
+  Phase_timer.measure Print (fun () ->
   let text = String.concat "\n\n"
     (List.map (fun x -> note_at x 0 ^ pp x 0) forms) ^ "\n" in
-  finish text
+  finish text)
 
 let flat x = fst (finish (flat_ x))
+
+(* An active token scrub keeps the printer's line breaks until release. *)
+let patch_atoms (text, spans) values =
+  let by_id = Hashtbl.create (List.length spans) in
+  List.iter (fun (id, span) -> Hashtbl.replace by_id id span) spans;
+  let edits = List.map (fun (value : Syntax.t) ->
+    let atom = match value.node with
+      | Num n -> Syntax.number n && Option.fold ~none:false ~some:Float.is_finite (float_of_string_opt n)
+      | Str _ | Sym ("true" | "false") -> true | _ -> false in
+    match atom, value.meta, Hashtbl.find_opt by_id value.id with
+    | true, [], Some span when value.id <> 0 -> Some (span, flat value)
+    | _ -> None) values in
+  if List.exists Option.is_none edits then None else
+  let edits = Array.of_list (List.map Option.get edits) in
+  Array.sort (fun (a, _) (b, _) -> Int.compare a.Diagnostic.start b.start) edits;
+  let valid = ref true and at = ref 0 and delta = ref 0 in
+  let shifts = Array.map (fun ((span : Diagnostic.span), value) ->
+    if span.start < !at || span.finish <= span.start || span.finish > String.length text then valid := false;
+    at := span.finish; delta := !delta + String.length value - (span.finish - span.start);
+    span.finish, !delta) edits in
+  if not !valid then None else
+  let out = Buffer.create (max 0 (String.length text + !delta)) in
+  at := 0;
+  Array.iter (fun ((span : Diagnostic.span), value) ->
+    Buffer.add_substring out text !at (span.start - !at);
+    Buffer.add_string out value; at := span.finish) edits;
+  Buffer.add_substring out text !at (String.length text - !at);
+  let shift position =
+    let lo = ref 0 and hi = ref (Array.length shifts) in
+    while !lo < !hi do
+      let mid = (!lo + !hi) / 2 in
+      if fst shifts.(mid) <= position then lo := mid + 1 else hi := mid
+    done;
+    position + (if !lo = 0 then 0 else snd shifts.(!lo - 1)) in
+  Some (Buffer.contents out, List.map (fun (id, (span : Diagnostic.span)) ->
+    id, Diagnostic.{start = shift span.start; finish = shift span.finish}) spans)

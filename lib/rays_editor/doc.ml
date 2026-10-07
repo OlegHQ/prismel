@@ -59,7 +59,7 @@ let text_edit ~factories (doc : Editor_document.Document.t) text =
   let ( let* ) = Result.bind in
   let one result = Result.map_error (fun d -> [ d ]) result in
   let* catalog = one (Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
-  let* edited = Editor_document.Workspace_doc.of_text ~settings:workspace.settings
+  let* edited = Editor_document.Workspace_doc.of_text ~ops:workspace.checked.ops ~settings:workspace.settings
       ~layout:workspace.layout ~inputs:workspace.inputs catalog text in
   one (Editor_document.Contexts.of_workspace ~factories ~previous:doc edited)
 

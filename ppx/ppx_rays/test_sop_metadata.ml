@@ -124,4 +124,16 @@ let () =
     "[@@sop.node_rest 1] [@@sop.node_optional \"0,1\"]") in
   let _,_,_,_,_,optional,_,rest_slot=Ppx_rays.node_metadata optional_rest in
   assert (optional=[0;1] && rest_slot=Some 1);
-  ignore (Ppx_rays.generate_node_type optional_rest)
+  ignore (Ppx_rays.generate_node_type optional_rest);
+  let facts = "[@@sop.node_facts {elementwise = Procedural.Node.Points; reads = [\"P\"];\n\
+    writes = [\"P\"]; topology = Procedural.Node.Preserved; exact = false}]" in
+  ignore (Ppx_rays.generate_node_type (declaration vector (node "fixture" facts)));
+  List.iter (fun fields -> reject
+      "sop.node_facts requires elementwise, reads, writes, topology and exact exactly once"
+      (fun () -> Ppx_rays.generate_node_type (declaration vector
+        (node "fixture" ("[@@sop.node_facts {" ^ fields ^ "}]")))))
+    ["reads = [\"P\"]; writes = [\"P\"]";
+     "elementwise = Points; reads = []; writes = []; topology = Preserved; exact = true; cook_mode = Generator";
+     "elementwise = Points; reads = []; writes = []; topology = Preserved; exact = true; exact = false"];
+  reject "sop.node_facts expects {elementwise; reads; writes; topology; exact}" (fun () ->
+    Ppx_rays.generate_node_type (declaration vector (node "fixture" "[@@sop.node_facts make_facts]")))

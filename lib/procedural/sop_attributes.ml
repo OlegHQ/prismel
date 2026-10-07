@@ -885,6 +885,10 @@ module Normal = struct
     attribute : string [@sop.default "N"] [@sop.label "Attribute"]
       [@sop.folder "Attributes"] [@sop.nonblank "empty attribute name"];
   } [@@sop.node_key "normals"] [@@sop.node_label "Normal"]
+    [@@sop.node_facts {elementwise = (match parameters.owner with
+        | Rdk.Attribute.Point -> Node.Points | Primitive -> Node.Primitives | Vertex | Detail -> Node.None);
+      reads = ["P"; parameters.attribute]; writes = [parameters.attribute];
+      topology = Node.Preserved; exact = false}]
     [@@sop.validate fun parameters ->
       if not (Float.is_finite parameters.cusp_angle) || parameters.cusp_angle < 0.
           || parameters.cusp_angle > Float.pi then
@@ -1166,6 +1170,8 @@ module Color_by_height = struct
       [@sop.folder "High color"] [@sop.min 0] [@sop.max 255]
       [@sop.hard_min 0] [@sop.hard_max 255];
   } [@@sop.node_key "color_by_height"] [@@sop.node_label "Color by Height"]
+    [@@sop.node_facts {elementwise = Node.Points; reads = ["P"]; writes = ["Cd"];
+      topology = Node.Preserved; exact = false}]
     [@@sop.validate fun parameters ->
       if List.exists (fun value -> value < 0 || value > 255)
           [parameters.low_red; parameters.low_green; parameters.low_blue; parameters.low_alpha;
@@ -3295,6 +3301,11 @@ module Attribute_noise_quaternion = struct
   } [@@sop.node_key "attribute_noise_quaternion"]
     [@@sop.node_operation "attribute_noise"]
     [@@sop.node_label "Attribute Noise (Quaternion)"]
+    [@@sop.node_facts {elementwise = (match parameters.owner with
+        | Rdk.Attribute.Point -> Node.Points | Primitive -> Node.Primitives | Vertex | Detail -> Node.None);
+      reads = ["P"; parameters.name] @ (match Quaternion_noise_encoding.decode_location parameters.location with
+        | Ok (Rdk.Attribute_ops.Noise_attribute name) -> [name] | _ -> []);
+      writes = [parameters.name]; topology = Node.Preserved; exact = false}]
 
     [@@sop.validate fun parameters ->
       let refuse message = invalid_arg ("Sop.attribute_noise_quaternion: " ^ message) in
@@ -3437,6 +3448,12 @@ module Attribute_noise = struct
     roughness : float [@sop.default 0.5] [@sop.label "Roughness"]
       [@sop.folder "Noise/Fractal"] [@sop.min 0.] [@sop.max 1.];
   } [@@sop.node_key "attribute_noise"] [@@sop.node_label "Attribute Noise"]
+    [@@sop.node_facts {elementwise = (match parameters.owner with
+        | Rdk.Attribute.Point -> Node.Points | Primitive -> Node.Primitives | Vertex | Detail -> Node.None);
+      reads = List.filter (fun name -> String.trim name <> "")
+        ["P"; parameters.name; parameters.location_attribute];
+      writes = if parameters.name = "P" then ["P"; "N"] else [parameters.name];
+      topology = Node.Preserved; exact = false}]
     [@@sop.node_category "Attribute/Noise"] [@@sop.node_inputs 1]
 
     [@@sop.validate fun parameters ->

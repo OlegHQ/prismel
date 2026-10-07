@@ -1,8 +1,8 @@
 (* Live drives: the arguments of a lowered graph that depend on [t].  One cache retains the last
    plan and resolution; a static network reuses its result without recomputation. *)
-type target = { port : Port.t; parameter : Port.parameter; value : Flow.Eval.value }
+type target = { port : Port.t; parameter : Port.parameter; program : Flow_ir.Executor.program }
 type plan = { network : Network.t; targets : target array; texts : target array;
-  time_dependent : bool }
+  states : Flow_ir.Executor.program option; time_dependent : bool }
 type resolved = {
   geometry : Procedural.Edit_graph.t;
   applied : Flow.Port_type.value Port.Map.t;
@@ -15,17 +15,21 @@ let create ?state () = {previous = None; state = Option.value ~default:(Flow.Eva
 let reset t = t.previous <- None; Flow.Eval.reset_state t.state
 
 let prepare network =
+  let states = if network.Network.states = [] then Ok None else
+    Result.map Option.some (Flow_ir.Executor.compile (Flow.Eval.List (Array.of_list network.states))) in
+  Result.bind states (fun states ->
   if Port.Map.is_empty network.Network.drives then
-    Ok {network; targets = [||]; texts = [||]; time_dependent = network.states <> []}
+    Ok {network; targets = [||]; texts = [||]; states; time_dependent = network.states <> []}
   else Result.bind (Network.validate network) (fun () ->
     let targets = Port.Map.fold (fun port value targets -> Result.bind targets (fun targets ->
-      Result.map (fun parameter -> {port; parameter; value} :: targets) (Network.parameter network port)))
+      Result.bind (Network.parameter network port) (fun parameter ->
+        Result.map (fun program -> {port; parameter; program} :: targets) (Flow_ir.Executor.compile value))))
       network.drives (Ok []) in
     Result.map (fun targets ->
       let ordered = List.rev targets in
       let text target = target.parameter.ty = None in
       {network; targets = Array.of_list (List.filter (fun t -> not (text t)) ordered);
-       texts = Array.of_list (List.filter text ordered); time_dependent = true}) targets)
+       texts = Array.of_list (List.filter text ordered); states; time_dependent = true}) targets))
 
 let live_error message = Error (Flow.Diagnostic.error ~code:"E_LIVE" message)
 let live_port_value = function
@@ -45,15 +49,15 @@ let live_text (parameter : Port.parameter) = function
       else Ok (Curve.encode (Array.map Option.get points))
   | Text text -> Ok text
   | _ -> live_error ("Live value does not fit " ^ parameter.path)
-let force ~state ~live value = Flow.Eval.force ~state value ~live
+let force ~state ~live program = Flow_ir.Executor.force ~state program ~live
 let normalize_target ~state ~live target =
-  Result.bind (Result.bind (force ~state ~live target.value) live_port_value) (Port.normalize target.parameter)
+  Result.bind (Result.bind (force ~state ~live target.program) live_port_value) (Port.normalize target.parameter)
 let apply_geometry geometry target changes =
   Result.map fst (Result.map_error (Flow.Diagnostic.error ~code:"E_TYPE")
     (Procedural.Edit_graph.apply_parameters geometry ~node_id:target.Port.node changes))
 
 let compute ~state previous plan ~live =
-  Result.bind (force ~state ~live (Flow.Eval.List (Array.of_list plan.network.states))) (fun _ ->
+  Result.bind (match plan.states with None -> Ok Flow.Eval.No_geo | Some states -> force ~state ~live states) (fun _ ->
   if Array.length plan.targets = 0 && Array.length plan.texts = 0 && Network.Int_map.is_empty plan.network.frame_nodes then Ok {geometry = plan.network.geometry;
     applied = Port.Map.empty; applied_text = Port.Map.empty; time_dependent = plan.time_dependent} else
   let applied = ref Port.Map.empty in
@@ -79,7 +83,7 @@ let compute ~state previous plan ~live =
       else apply_geometry geometry target.port changes))) restored plan.targets in
   let applied_text = ref Port.Map.empty in
   let geometry = Array.fold_left (fun result target -> Result.bind result (fun geometry ->
-    Result.bind (force ~state ~live target.value) (fun value ->
+    Result.bind (force ~state ~live target.program) (fun value ->
       Result.bind (live_text target.parameter value) (fun text ->
         applied_text := Port.Map.add target.port text !applied_text;
         if Procedural.Edit_graph.find plan.network.geometry ~node_id:target.port.node = None then Ok geometry

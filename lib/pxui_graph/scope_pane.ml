@@ -31,7 +31,7 @@ type change =
   | Defn_requested of path list  (** the host types the outside names and writes the [defn] *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
       (** the frames of one scope after a gesture (create, resize, retitle, delete) *)
-  | Display_set of path  (** show this geometry node in the viewport (the shown one: its result) *)
+  | Display_set of path  (** preview this geometry node in the viewport at the zone selectors *)
   | Activated of path
   | Drop_over of { path : path; kind : string; value : string }
   | Dropped of { path : path; kind : string; value : string }
@@ -752,6 +752,44 @@ let relayout t = match t.scope with
       let layout = lay t scope ~at:t.at ~collapsed:t.collapsed in
       regeo { t with layout } scope layout ~shift:no_shift
 
+let with_display display t = if display = t.display then t else { t with display }
+
+let with_arguments changes t = match t.scope with
+  | None -> t
+  | Some scope ->
+      let changes = List.filter (fun (path, _, _) -> Paths.mem t.geo.slot path) changes in
+      if changes = [] then t else
+      let scope = P.with_arguments changes scope in
+      let nodes = Paths.create (Array.length t.geo.items) in
+      let rec index (scope : P.scope) = List.iter (fun (node : P.node) ->
+        Paths.replace nodes node.path node; Option.iter (fun zone -> index zone.P.scope) node.zone) scope.nodes in
+      index scope;
+      let places = Paths.create (Array.length t.geo.items) in
+      let rec patch_layout (layout : P.layout) =
+        let placed = List.map (fun (placed : P.placed) ->
+          let item = match placed.item with
+            | Item node -> let next = Option.value ~default:node (Paths.find_opt nodes node.path) in
+                if next == node then placed.item else P.Item next
+            | item -> item in
+          let lines = match placed.item, item with
+            | P.Item old, P.Item node when old.rows != node.rows ->
+                let rows = Array.of_list node.rows in Array.map (function
+                | P.Row (i, _) -> P.Row (i, rows.(i))
+                | line -> line) placed.lines
+            | _ -> placed.lines in
+          let inner = match placed.inner with
+            | Some layout -> let next = patch_layout layout in
+                if next == layout then placed.inner else Some next
+            | None -> None in
+          let placed = if item == placed.item && lines == placed.lines && inner == placed.inner then placed
+            else {placed with item; lines; inner} in
+          Paths.replace places placed.path placed; placed) layout.placed in
+        if List.for_all2 ( == ) placed layout.placed then layout else {layout with placed} in
+      let layout = patch_layout t.layout in
+      let items = Array.map (fun ((placed : P.placed), x, y) ->
+        Option.value ~default:placed (Paths.find_opt places placed.path), x, y) t.geo.items in
+      {t with scope = Some scope; layout; geo = {t.geo with items}}
+
 let with_records records t =
   match t.records with
   | Some previous when Flow_graph.Probe.same_eval previous records -> { t with records = Some records }
@@ -900,7 +938,7 @@ let action_changes t command =
       else Copy_requested paths :: edit (E.Delete_nodes { nodes = paths })
   | Paste -> [ Paste_requested ]
   | Display -> one (fun n ->
-      if n.ty <> Ty.Geometry then [ Notice "Only a geometry node can be viewed" ]
+      if n.ty <> Flow.Ty.geometry then [ Notice "Only a geometry node can be viewed" ]
       else [ Display_set n.path ])
   | Item_up | Item_down ->
       (match t.hovered_row with
@@ -1741,7 +1779,7 @@ let paint_point paint ui t ~z ~fs (p : P.placed) ?failed ~selected (x, y, _, _) 
   let ty, macro, bypass, title, viewed = match p.item with
     | P.Item n -> n.ty, n.macro <> None, n.bypass, P.title n, t.display = Some n.path
     | P.Input i -> i.ty, false, false, i.name, false
-    | P.Return -> Ty.Geometry, false, false, "return", false in
+    | P.Return -> Flow.Ty.geometry, false, false, "return", false in
   let color = if failed <> None then Pxui.Theme.invalid else ty_color t (Some ty) in
   if macro then begin
     Ui.Paint.circle paint ~at:c ~radius:(7. *. z) ~fill:theme.Pxui.panel ~stroke:color ();
@@ -2378,7 +2416,7 @@ let update t ui (frame : Frame.t) =
                       | key ->
                           (* a type with no literal (geometry, a list, a function, a scene) is wired *)
                           (match r.ty with
-                           | Some Ty.Geometry -> [ Notice "Wire a node onto this row" ]
+                           | Some (Flow.Ty.Named "geometry") -> [ Notice "Wire a node onto this row" ]
                            | Some ty ->
                                (match E.default_for ty r.label with
                                 | Some value -> [ Syntax_edit (E.Set_arg { node = n.path; key; sub = []; value }) ]

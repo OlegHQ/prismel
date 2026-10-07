@@ -144,7 +144,10 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | None -> value.menu, [ Declined "Open a graph to add a node to it" ]
     end else value.menu, [] in
   let document = document value in
-  let displayed = (network value).displayed in
+  let displayed = match value.level with
+    | Inside id -> (match Document.Int_map.find_opt id value.viewed with
+      | Some (_, displayed) -> Some displayed | None -> (network value).displayed)
+    | Scene -> (network value).displayed in
   (* the rows of a level's list, made once per network and kept while a list shows them *)
   let rows_of sets pane =
     let network = network pane in
@@ -1053,6 +1056,9 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~leader ~frame ~hud ~actions ~guide ~copied ~steady ~status_fps ~status_fps_at ~timeline ~timeline_changes ~graph_shown ~text ~text_shown ~row_sets ~rows value result
 let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render_status
     ~error_status ~view_state (frame : Frame.t) =
+  let update, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
   let value, frame, carry_changed = carry_step value ~text_focus frame in
   update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
-    ~render_status ~error_status ~view_state frame
+    ~render_status ~error_status ~view_state frame) in
+  if update.core.doc == value.doc then update
+  else { update with core = { update.core with edit_phases = phases } }

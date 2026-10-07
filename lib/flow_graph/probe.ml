@@ -18,6 +18,7 @@ type t = {
   live_frame : Frame_input.t option;
   state : E.state option;
   dynamic : path -> int option;
+  templates : (path, unit) Hashtbl.t;
   element : path -> int -> (string * E.value) list option;
       (* the element [k] of the loop over geometry at this path, by its name *)
   geometry : int -> geometry option;
@@ -31,9 +32,12 @@ let make ?state ?live ?time ?(geometry = fun _ -> None) ?(dynamic = fun _ -> Non
     ?(element = fun _ _ -> None) (eval : E.t) =
   let raw = Hashtbl.create 64 in
   List.iter (fun (p, l) -> Hashtbl.replace raw p l) eval.records;
+  let templates = Hashtbl.create 8 in
+  Array.iter (fun (node : E.node) -> if node.kind = "zone/points" || node.kind = "zone/pieces"
+    then Hashtbl.replace templates node.site ()) eval.plan.nodes;
   let live_frame = match live with Some _ -> live | None -> Option.map Frame_input.at_time time in
   let state = Option.map E.fork_state state in
-  { live_frame; state; dynamic; element; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
+  { live_frame; state; dynamic; templates; element; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
 
 let same_eval a b = a.raw == b.raw
 
@@ -46,15 +50,28 @@ let remember tbl key v =
 
 let summarize t v =
   let v = match t.live_frame with
-    | Some live when E.is_live v -> (match E.force ?state:t.state v ~live with Ok v -> v | Error _ -> v)
+    | Some live when E.is_live v -> (match E.Private.force_reference ?state:t.state v ~live with Ok v -> v | Error _ -> v)
     | _ -> v in
   match v with
-  | E.Deferred (Flow.Ty.Geometry, id) -> (match t.geometry id with Some g -> Geometry g | None -> Value v)
+  | E.Deferred ((Flow.Ty.Named "geometry"), id) -> (match t.geometry id with Some g -> Geometry g | None -> Value v)
   | v -> Value v
 
 let plan_node t path ~probes =
-  Option.bind (Hashtbl.find_opt t.raw path) (List.find_map (fun (it, v) ->
-    match v with E.Deferred (Flow.Ty.Geometry, id) when it = probes -> Some id | _ -> None))
+  let find probes = Option.bind (Hashtbl.find_opt t.raw path) (List.find_map (fun (it, v) ->
+    match v with E.Deferred ((Flow.Ty.Named "geometry"), id) when it = probes -> Some id | _ -> None)) in
+  match find probes with
+  | Some _ as found -> found
+  | None ->
+      let template = ref probes in
+      for length = 1 to List.length path - 1 do
+        let zone = List.filteri (fun i _ -> i < length) path in
+        if Hashtbl.mem t.templates zone then
+          List.iter (fun (it, _) ->
+            if it = List.filteri (fun i _ -> i < List.length it) !template then
+              template := List.mapi (fun i value -> if i = List.length it then 0 else value) !template)
+            (Option.value ~default:[] (Hashtbl.find_opt t.raw zone))
+      done;
+      find !template
 
 let records t path = match Hashtbl.find_opt t.forced path with
   | Some a -> a
@@ -90,7 +107,7 @@ let rec describe_value = function
           "[" ^ String.concat " " (List.init (min 4 n) (fun i -> describe_value xs.(i)))
           ^ (if n > 4 then " …]" else "]")
         else match xs.(0) with
-          | Deferred (Flow.Ty.Geometry, _) | No_geo -> "geometry" | Text _ -> "text" | Vec3 _ -> "vec3" | Bool _ -> "bool"
+          | Deferred ((Flow.Ty.Named "geometry"), _) | No_geo -> "geometry" | Text _ -> "text" | Vec3 _ -> "vec3" | Bool _ -> "bool"
           | List _ -> "list" | Record _ -> "record" | Fn _ -> "function" | _ -> "value" in
       if n = 0 then "0 items" else Printf.sprintf "%d × %s" n what
   | Float_array xs -> Printf.sprintf "%d × float" (Array.length xs)
@@ -134,7 +151,7 @@ let at_element t path zone k =
       (Option.value ~default:[] (Hashtbl.find_opt t.raw path)) in
   match raw, t.element zone k with
   | Some raw, Some elems when E.is_live raw ->
-      (match E.force ?state:t.state ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
+      (match E.Private.force_reference ?state:t.state ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
        | Ok v -> Some (summarize t v) | Error _ -> None)
   | _ -> None
 
@@ -157,7 +174,7 @@ let at t path ~probes =
         let elems = if probes = [] then None else t.element zone (List.nth probes (List.length probes - 1)) in
         match raw, elems with
         | Some raw, Some elems when E.is_live raw ->
-            (match E.force ?state:t.state ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
+            (match E.Private.force_reference ?state:t.state ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
              | Ok v -> Some (summarize t v)
              | Error _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs)
         | _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs
@@ -269,7 +286,7 @@ let geometry_targets t (s : P.scope) ~probe =
   let chain = chains s in
   let rec go (s : P.scope) = List.concat_map (fun (n : P.node) -> match n.zone with
     | Some z -> go z.scope
-    | None when n.ty = Flow.Ty.Geometry ->
+    | None when n.ty = Flow.Ty.geometry ->
         Option.to_list (plan_node t n.path ~probes:(List.map probe (Hashtbl.find chain n.path)))
     | None -> []) s.nodes in
   go s

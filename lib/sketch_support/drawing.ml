@@ -19,10 +19,10 @@ let render ?state ?(states = []) (plan : E.plan) value ~live ~size:(width, heigh
        static plan; repeated references retain painter order. *)
     let memo = Array.make (Array.length plan.nodes) None in
     let rec drawing = function
-      | E.Deferred (Flow.Ty.Drawing, id) when id >= 0 && id < Array.length memo ->
+      | E.Deferred ((Flow.Ty.Named "drawing"), id) when id >= 0 && id < Array.length memo ->
           (match memo.(id) with Some scene -> scene | None ->
             let node = plan.nodes.(id) in
-            if node.ty <> Flow.Ty.Drawing then V.fail "E_TYPE" "The canvas needs a Drawing node.";
+            if node.ty <> Flow.Ty.drawing then V.fail "E_TYPE" "The canvas needs a Drawing node.";
             let args = List.map (fun (k, v) -> k, force v) node.args in
             let arg k = match List.assoc_opt k args with Some v -> v
               | None -> V.failf "E_DRAW_INPUT" "%s needs %s." node.kind k in

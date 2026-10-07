@@ -45,6 +45,10 @@ val parse : string -> (t list, Diagnostic.t) result
 val make : ?notes:string list -> ?meta:string list -> node -> t
 (** A form with id 0 and an empty span, for macro expansion; [renumber] it. *)
 
+val equal : t -> t -> bool
+(** Equal authored content, including comments and metadata, ignoring form IDs
+    and byte spans. *)
+
 val head : t -> string option
 (** The symbol a list starts with: the name of a call or a special form. *)
 

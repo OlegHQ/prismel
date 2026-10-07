@@ -9,7 +9,24 @@ type cook_mode =
   | Passthrough of int
   | Generic
 
+type elementwise = Points | Primitives | None
+type topology = Preserved | Changed
+type facts = {
+  cook_mode : cook_mode;
+  elementwise : elementwise;
+  reads : string list;
+  writes : string list;
+  topology : topology;
+  exact : bool;
+}
+(** Kernel legality and component dependencies. ["P"] names canonical positions;
+    other names select all matching attribute owners. ["*"] means opaque access
+    to the whole input/output. Topology and groups remain cache dependencies.
+    Unannotated nodes are opaque, topology-changing and exact. *)
+
 type t
+
+val facts : t -> facts
 
 val id : t -> int
 val label : t -> string
@@ -63,6 +80,9 @@ val apply_parameters :
 module Private : sig
   val fresh_id : unit -> int
 
+  val with_facts : facts -> t -> t
+  (** Refine the conservative declaration without changing the cook mode. *)
+
   val restore_id : int -> t -> (t, string) result
   (** Restore a saved logical id and reserve it in the shared allocator. *)
 
@@ -90,6 +110,8 @@ module Private : sig
 
   val cache_parameters : t -> string
   (** Intrinsic operator identity before schema display text is attached. *)
+  val cache_facts : t -> string
+  (** Process-local binary declaration identity, encoded once at construction. *)
   val input_policy : t -> input_policy
   val input_array : t -> t array
   (* Rebuild a parameterized node against new inputs so input-dependent

@@ -25,9 +25,16 @@ type output = {
   instances : Rays_math.Mat4.t array option;
 }
 
+type delta = {
+  source : int;
+  positions : Rdk.Packed.Float3.t option;
+  attributes : (Rdk.Attribute.owner * string * Rdk.Attribute.t option) list;
+}
 type entry = {
   output : output;
   components : (int * int) list;
+  local_diagnostics : Diagnostic.t list;
+  delta : delta option;
 }
 
 module Entry_cache = Lru.Make (String)
@@ -58,7 +65,7 @@ type t = {
   mutable hits : int;
   mutable misses : int;
   mutable volatile : int -> bool;
-  slots : (int, string * output) Hashtbl.t;  (* volatile node id -> latest *)
+  slots : (int, string * entry) Hashtbl.t;  (* volatile node id -> latest *)
   mutable volatile_hits : int;
   mutable volatile_misses : int;
   mutable evictions : int;
@@ -120,8 +127,8 @@ let inspect session root =
           ({ root = weak; infos; bytes } :: session.inspection_cache);
       infos
 
-let insert session key output =
-  let components = Rdk.Geometry.payload_components output.geometry in
+let insert session key entry =
+  let components = Rdk.Geometry.payload_components entry.output.geometry in
   if session.max_entries > 0 then begin
     let payload = session.payload in
     List.iter (fun (id, bytes) ->
@@ -134,7 +141,7 @@ let insert session key output =
       components;
     let before = Entry_cache.length session.cache
     and replaced = Option.is_some (Entry_cache.peek session.cache key) in
-    Entry_cache.add session.cache key { output; components };
+    Entry_cache.add session.cache key { entry with components };
     while payload.bytes > session.max_payload_bytes
           && Entry_cache.drop_oldest session.cache do () done;
     session.evictions <- session.evictions + before
@@ -144,17 +151,17 @@ let insert session key output =
 let lookup session ~volatile node key =
   if not volatile then
     (match Entry_cache.find session.cache key with
-     | entry -> Some entry.output | exception Not_found -> None)
+     | entry -> Some entry | exception Not_found -> None)
   else match Hashtbl.find_opt session.slots (Node.id node) with
     | Some (latest, output) when String.equal latest key -> Some output
     | _ -> None
 
-let store_volatile session node key output =
+let store_volatile session node key entry =
   if session.max_entries > 0 then begin
     (* bounded: one slot per node id, dropped wholesale past max_entries *)
     if Hashtbl.length session.slots >= session.max_entries then
       Hashtbl.reset session.slots;
-    Hashtbl.replace session.slots (Node.id node) (key, output)
+    Hashtbl.replace session.slots (Node.id node) (key, entry)
   end
 
 let set_volatile session predicate =
@@ -166,11 +173,18 @@ let set_volatile session predicate =
    every variable-length string is length-prefixed, so no field boundary can
    shift. It avoids [Printf] and [string_of_int] on this per-node, per-cook
    path. *)
+let selective node inputs =
+  let facts = Node.facts node in
+  Array.length inputs = 1 && Node.Private.expand node = None
+  && facts.topology = Node.Preserved && not (List.mem "*" facts.reads || List.mem "*" facts.writes)
+  && (facts.cook_mode = Node.Duplicate_input 0 || facts.cook_mode = Node.Passthrough 0)
+
 let cache_key node context inputs =
   let parameters = Node.Private.cache_parameters node
-  and parameter_key = Node.parameter_key node in
+  and parameter_key = Node.parameter_key node
+  and facts_key = Node.Private.cache_facts node in
   let buffer = Buffer.create (64 + String.length parameters
-      + String.length parameter_key + (8 * Array.length inputs)) in
+      + String.length parameter_key + String.length facts_key + (8 * Array.length inputs)) in
   let add_int value = Buffer.add_int64_le buffer (Int64.of_int value) in
   let add_sized value =
     add_int (String.length value); Buffer.add_string buffer value in
@@ -180,10 +194,111 @@ let cache_key node context inputs =
   add_sized parameters;
   add_sized parameter_key;
   add_int (Array.length inputs);
-  Array.iter (fun geometry -> add_int (Rdk.Geometry.data_id geometry)) inputs;
+  let facts = Node.facts node in
+  add_sized facts_key;
+  if not (selective node inputs) then begin
+    add_int 0;
+    Array.iter (fun geometry -> add_int (Rdk.Geometry.data_id geometry)) inputs
+  end else begin
+    add_int 1;
+    let geometry = inputs.(0) in
+    add_int (Rdk.Topology.data_id (Rdk.Geometry.topology geometry));
+    add_int (if List.mem "P" facts.reads then Rdk.Packed.Float3.data_id (Rdk.Geometry.positions geometry) else 0);
+    let attributes = List.filter (fun attribute -> List.mem (Rdk.Attribute.name attribute) facts.reads)
+      (Rdk.Geometry.attributes geometry) in
+    add_int (List.length attributes);
+    List.iter (fun attribute -> add_int (Rdk.Attribute.data_id attribute)) attributes;
+    (* Presence and order affect set-initial, normal removal and output order.
+       Unread payload IDs remain absent from the key. *)
+    let layout = Rdk.Geometry.attributes geometry in
+    add_int (List.length layout);
+    List.iter (fun attribute ->
+      add_int (match Rdk.Attribute.owner attribute with Point -> 0 | Vertex -> 1 | Primitive -> 2 | Detail -> 3);
+      add_sized (Rdk.Attribute.name attribute)) layout;
+    let groups = Rdk.Geometry.groups geometry and edges = Rdk.Geometry.edge_groups geometry in
+    add_int (List.length groups); List.iter (fun group -> add_int (Rdk.Group.data_id group)) groups;
+    add_int (List.length edges); List.iter (fun group -> add_int (Rdk.Edge_group.data_id group)) edges
+  end;
   Buffer.add_string buffer
     (Context.cache_projection (Node.dependencies node) context);
   Buffer.contents buffer
+
+exception Invalid_facts of string
+
+let refuse_facts message = raise_notrace (Invalid_facts message)
+
+let node_result f =
+  try f () with
+  | Invalid_facts message -> Error (Diagnostic.error ~code:"E_NODE_FACTS" message)
+  | exn -> Error (Diagnostic.error ~code:"uncaught_node_exception"
+      ~cause:(Printexc.to_string exn)
+      "a procedural node raised an exception while cooking")
+
+let delta node inputs (cooked : Node.Private.cooked) =
+  if not (selective node inputs) then None else
+  let source = inputs.(0) in
+  let geometry = cooked.geometry in
+  if Option.is_some cooked.instances then
+    refuse_facts "component-cached nodes must return unpacked geometry";
+  if Rdk.Geometry.topology source != Rdk.Geometry.topology geometry then
+    refuse_facts "Preserved topology was replaced";
+  let module G = Rdk.Geometry in
+  let module A = Rdk.Attribute in
+  if List.map Rdk.Group.data_id (G.groups source) <> List.map Rdk.Group.data_id (G.groups geometry)
+    || List.map Rdk.Edge_group.data_id (G.edge_groups source) <>
+       List.map Rdk.Edge_group.data_id (G.edge_groups geometry) then
+    refuse_facts "component-cached nodes must preserve groups and edge groups";
+  let before = Hashtbl.create 8 and after = Hashtbl.create 8 in
+  let key attribute = A.owner attribute, A.name attribute in
+  List.iter (fun attribute -> Hashtbl.add before (key attribute) attribute) (G.attributes source);
+  List.iter (fun attribute -> Hashtbl.add after (key attribute) attribute) (G.attributes geometry);
+  let attributes = ref [] in
+  List.iter (fun attribute ->
+    let owner, name = key attribute in
+    let changed = match Hashtbl.find_opt before (owner, name) with
+      | Some previous -> A.data_id previous <> A.data_id attribute | None -> true in
+    if changed then begin
+      if not (List.mem name (Node.facts node).writes) then
+        refuse_facts ("undeclared write " ^ name);
+      attributes := (owner, name, Some attribute) :: !attributes
+    end) (G.attributes geometry);
+  List.iter (fun attribute ->
+    let owner, name = key attribute in
+    if not (Hashtbl.mem after (owner, name)) then begin
+      if not (List.mem name (Node.facts node).writes) then
+        refuse_facts ("undeclared deletion " ^ name);
+      attributes := (owner, name, None) :: !attributes
+    end) (G.attributes source);
+  let positions = if G.positions source == G.positions geometry then None else begin
+    if not (List.mem "P" (Node.facts node).writes) then refuse_facts "undeclared P write";
+    Some (G.positions geometry)
+  end in
+  Some {source = G.data_id source; positions; attributes = List.rev !attributes}
+
+let refresh inputs input_diagnostics entry =
+  let geometry, delta = match entry.delta with
+    | Some delta when delta.source <> Rdk.Geometry.data_id inputs.(0) ->
+        let source = inputs.(0) in
+        let module G = Rdk.Geometry in
+        let module A = Rdk.Attribute in
+        let values = Hashtbl.create 8 in
+        List.iter (fun attribute -> Hashtbl.add values (A.owner attribute, A.name attribute) attribute)
+          (G.attributes source);
+        List.iter (fun (owner, name, value) -> match value with
+          | Some attribute -> Hashtbl.replace values (owner, name) attribute
+          | None -> Hashtbl.remove values (owner, name)) delta.attributes;
+        let attributes = List.map (fun attribute ->
+          Hashtbl.find values (A.owner attribute, A.name attribute)) (G.attributes entry.output.geometry) in
+        let geometry = G.create ~positions:(Option.value ~default:(G.positions source) delta.positions)
+          ~topology:(G.topology source) ~attributes
+          ~groups:(G.groups source) ~edge_groups:(G.edge_groups source) ()
+          |> function Ok geometry -> geometry | Error error ->
+              refuse_facts ("cannot refresh cached components: " ^ error) in
+        geometry, Some {delta with source = G.data_id source}
+    | _ -> entry.output.geometry, entry.delta in
+  let diagnostics = List.concat (List.rev (entry.local_diagnostics :: input_diagnostics)) in
+  if geometry == entry.output.geometry && diagnostics = entry.output.diagnostics then entry
+  else {entry with output = {entry.output with geometry; diagnostics}; delta}
 
 let timing node ~seconds ~cache_hit = {
   node_id = Node.id node;
@@ -242,7 +357,7 @@ let rec evaluate memo session context node =
    session, so an unchanged element is a cache hit, then merges their outputs.
    ponytail: sequential over elements; parallelise with [Parallel.map_array]
    only after a byte-identical test and a bench show a win. *)
-and cook_node memo session context node geometries input_diagnostics =
+and cook_node memo session context node geometries =
   match Node.Private.expand node with
   | None -> Node.Private.cook node context geometries
   | Some expand ->
@@ -250,6 +365,7 @@ and cook_node memo session context node geometries input_diagnostics =
       | Error _ as error -> error
       | Ok roots ->
           let outputs = Array.make (Array.length roots) None in
+          let diagnostics = ref [] in
           let rec go index =
             if index = Array.length roots then Ok ()
             else match evaluate memo session context roots.(index) with
@@ -259,11 +375,13 @@ and cook_node memo session context node geometries input_diagnostics =
                    | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
                    | Ok geometry ->
                        outputs.(index) <- Some geometry;
-                       input_diagnostics := output.diagnostics :: !input_diagnostics;
+                       diagnostics := output.diagnostics :: !diagnostics;
                        go (index + 1)) in
           match go 0 with
           | Error _ as error -> error
-          | Ok () -> Node.Private.cook node context (Array.map Option.get outputs)
+          | Ok () -> Result.map (fun (cooked : Node.Private.cooked) ->
+              {cooked with diagnostics = List.concat (List.rev (cooked.diagnostics :: !diagnostics))})
+              (Node.Private.cook node context (Array.map Option.get outputs))
 
 and evaluate_uncached memo session context node =
   if Context.cancelled context then Error (cancellation_error node)
@@ -295,22 +413,26 @@ and evaluate_uncached memo session context node =
         let key = cache_key node context geometries in
         let volatile = session.volatile (Node.id node) in
         match lookup session ~volatile node key with
-        | Some output ->
+        | Some entry ->
+            (match node_result (fun () -> Ok (refresh geometries !input_diagnostics entry)) with
+            | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
+            | Ok refreshed ->
+            if refreshed != entry then
+              (if volatile then store_volatile session node key refreshed else insert session key refreshed);
             session.hits <- session.hits + 1;
             if volatile then session.volatile_hits <- session.volatile_hits + 1;
             session.last_node <- Some (timing node ~seconds:0. ~cache_hit:true);
-            Ok output
+            Ok refreshed.output)
         | None ->
             session.misses <- session.misses + 1;
             if volatile then session.volatile_misses <- session.volatile_misses + 1;
             session.cooks <- session.cooks + 1;
             let started = Unix.gettimeofday () in
             let cooked =
-              try cook_node memo session context node geometries input_diagnostics
-              with exn ->
-                Error (Diagnostic.error ~code:"uncaught_node_exception"
-                  ~cause:(Printexc.to_string exn)
-                  "a procedural node raised an exception while cooking")
+              node_result (fun () ->
+                match cook_node memo session context node geometries with
+                | Error _ as error -> error
+                | Ok cooked -> Ok (cooked, delta node geometries cooked))
             in
             let seconds = max 0. (Unix.gettimeofday () -. started) in
             session.last_node <- Some (timing node ~seconds ~cache_hit:false);
@@ -318,14 +440,16 @@ and evaluate_uncached memo session context node =
             match cooked with
             | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
             | Ok _ when Context.cancelled context -> Error (cancellation_error node)
-            | Ok cooked ->
+            | Ok (cooked, delta) ->
                 let diagnostics =
                   List.concat (List.rev (cooked.diagnostics :: !input_diagnostics))
                 in
                 let output = { geometry = cooked.geometry; diagnostics;
                   instances = cooked.instances } in
-                if volatile then store_volatile session node key output
-                else insert session key output;
+                let entry = {output; components = []; local_diagnostics = cooked.diagnostics;
+                  delta} in
+                if volatile then store_volatile session node key entry
+                else insert session key entry;
                 Ok output
 
 let deduplicate diagnostics =

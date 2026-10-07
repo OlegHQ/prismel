@@ -18,14 +18,15 @@ let parameter network (port : Port.t) = Result.bind (parameters network ~node_id
   (fun parameters -> Port.find_parameter parameters port.path)
 
 (* a slot and a parameter never share a name; every drive targets a parameter of a node *)
+let validate_node network node_id =
+  Result.bind (parameters network ~node_id) (fun parameters ->
+    let slots = Option.value (Procedural.Edit_graph.node_slot_names network.geometry
+      ~node_id) ~default:[] in
+    if List.exists (fun parameter -> List.mem parameter.Port.path slots) parameters then
+      error "E_PORT" "A slot and parameter have the same name" else Ok ())
 let validate network =
   let checked = List.fold_left (fun checked (node : Procedural.Edit_graph.node_info) ->
-    Result.bind checked (fun () ->
-      Result.bind (parameters network ~node_id:node.id) (fun parameters ->
-        let slots = Option.value (Procedural.Edit_graph.node_slot_names network.geometry
-          ~node_id:node.id) ~default:[] in
-        if List.exists (fun parameter -> List.mem parameter.Port.path slots) parameters then
-          error "E_PORT" "A slot and parameter have the same name" else Ok ())))
+    Result.bind checked (fun () -> validate_node network node.id))
     (Ok ()) (Procedural.Edit_graph.inspect network.geometry) in
   Result.bind checked (fun () ->
     Port.Map.fold (fun target _ checked -> Result.bind checked (fun () ->
@@ -37,6 +38,15 @@ let with_geometry geometry network =
   if geometry == network.geometry then Ok network else
     let next = {network with geometry} in
     Result.map (fun () -> next) (validate next)
+let apply_parameters ~node_id changes network =
+  Result.bind (Result.map_error (Flow.Diagnostic.error ~code:"E_TYPE")
+      (Procedural.Edit_graph.apply_parameters network.geometry ~node_id changes)) (fun (geometry, _) ->
+    if geometry == network.geometry then Ok network else
+    let next = {network with geometry} in
+    Result.bind (validate_node next node_id) (fun () ->
+      Port.Map.fold (fun (port : Port.t) _ result -> if port.node <> node_id then result else
+          Result.bind result (fun () -> Result.map (fun _ -> ()) (parameter next port)))
+        next.drives (Ok ()) |> Result.map (fun () -> next)))
 let relabel ~node_id label network =
   if String.trim label = "" then Ok network else
   match Procedural.Edit_graph.find network.geometry ~node_id with

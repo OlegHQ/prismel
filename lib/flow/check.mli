@@ -12,6 +12,17 @@ type parameter = {
 type slot = { name : string; required : bool; rest : bool }
 (** [rest]: the last slot repeats; extras are [name_2], [name_3], ... *)
 
+type kernel_elements = Points | Primitives | Irregular
+type kernel_facts = {
+  elementwise : kernel_elements;
+  reads : string list;
+  writes : string list;
+  preserves_topology : bool;
+  exact : bool;
+}
+(** Domain-neutral kernel metadata at a catalog kind's default parameters.
+    Runtime component dependencies come from the instantiated node. *)
+
 type kind = {
   qualified : string;
   aliases : string list;
@@ -19,6 +30,7 @@ type kind = {
   slots : slot list;
   parameters : parameter list;
   outputs : (string * Port_type.t) list;
+  facts : kernel_facts option;
 }
 
 type catalog = { version : int; kinds : kind list }

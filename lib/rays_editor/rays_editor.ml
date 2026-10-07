@@ -75,10 +75,10 @@ end
 module Workspace = struct
   type source = { path : string; digest : string }
 
-  let load ?factories text =
+  let load ?ops ?factories text =
     match workspace_catalog ?factories () with
     | Error d -> Error [ d ]
-    | Ok catalog -> Workspace_doc.of_text catalog text
+    | Ok catalog -> Workspace_doc.of_text ?ops catalog text
 
   (* A hand-written host: the checked document and its file, or the diagnostics and exit 1. *)
   let open_text ?factories ~path ~digest text =
@@ -138,7 +138,7 @@ module Workspace = struct
     let* window = workspace_window doc in
     let* evaluated = Flow.Eval.static ~inputs:doc.inputs doc.checked in
     let chosen = List.find_opt (fun (g : Flow.Workspace.graph) ->
-      g.context = Flow.Context.Draw && Option.fold ~none:true ~some:((=) g.name) graph) doc.checked.graphs in
+      g.context = Flow.Context.draw && Option.fold ~none:true ~some:((=) g.name) graph) doc.checked.graphs in
     match chosen with
     | None -> Error (Flow.Diagnostic.error ~code:"E_DRAW_GRAPH" "Export needs a draw graph.")
     | Some graph ->

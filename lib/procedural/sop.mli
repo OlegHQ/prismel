@@ -3052,6 +3052,7 @@ val custom :
 
 val noise_displace :
   ?label:string ->
+  ?mode:Rdk.Deform.noise_displace_mode ->
   ?context_seed:bool ->
   ?seed:int ->
   ?amplitude:float ->
@@ -3061,7 +3062,9 @@ val noise_displace :
 (** With [context_seed:true], the node derives a deterministic stream from the cook
     context seed and node identity, and therefore declares a seed dependency.
     An explicit [label] makes that identity stable across unrelated graph
-    construction edits. The default uses explicit seed 0. *)
+    construction edits. The default uses explicit seed 0. [Height_2d] adds
+    signed X/Z noise to Y. [Normal_3d] adds [N * (amplitude * noise3(P * frequency))]
+    with raw 0..1 noise and point [N], matching the Flow kernel at seed 0. *)
 
 val color_by_height :
   ?label:string ->
