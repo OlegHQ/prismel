@@ -3,7 +3,7 @@
 ; and the outline or the graph pane opens the others. The gallery_* sources
 ; are OCaml (main.ml): point clouds, curves and meshes that the catalog has
 ; no node for.
-(workspace sop_gallery
+^:allow-warnings (workspace sop_gallery
 
   (graph attribute_laplacian :context sop
     (sop/attribute_laplacian (sop/torus :rows 28 :columns 36 :major_radius 1.4 :minor_radius 0.45 :uv_attribute "")))

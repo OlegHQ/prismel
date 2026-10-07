@@ -55,7 +55,7 @@ and st = {
   recs : (W.path, int * (int list * value) list) Hashtbl.t;
   graphs : (string, W.graph) Hashtbl.t;
   defs : (string, W.graph) Hashtbl.t;
-  kind_fns : (string * (string * string list)) list;
+  kind_fns : (string * (string * Check.slot list)) list;
 }
 
 and node = { id : int; inst : int; site : W.path; iter : int list; kind : string;
@@ -805,8 +805,14 @@ and call_fn c f (vals : value list) : value =
             else
               (* a catalog kind: the checker resolved its name and which input each argument is *)
               let kind, slots = Option.value ~default:(name, []) (List.assoc_opt name c.st.kind_fns) in
+              let slots = Array.of_list slots in
+              let rest = if Array.length slots = 0 then None else
+                let slot = slots.(Array.length slots - 1) in
+                if slot.Check.rest then Some slot.name else None in
+              if List.length vals > Array.length slots && Option.is_none rest then
+                failf "E_ARITY" "%s takes at most %d inputs." kind (Array.length slots);
               mk_node c' kind (List.mapi (fun i v ->
-                (Option.value ~default:"input" (List.nth_opt slots i), v)) vals)
+                ((if i < Array.length slots then slots.(i).Check.name else Option.get rest), v)) vals)
       end
 
 and hof c env kind f rest =

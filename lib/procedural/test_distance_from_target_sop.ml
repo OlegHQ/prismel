@@ -33,17 +33,13 @@ let float_attribute name geometry =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.distance_from_target
-           ~affected:(Sop.Point_group "distance_affected")
+      |> Sop.distance_from_target ~affected_group:"distance_affected"
            ~projection:Rdk.Transform_ops.Distance_target_planar
-           ~origin:(Vec3.create 0.5 (-0.25) 1.)
-           ~direction:(Vec3.create 1. 2. (-1.))
-           ~metric:Rdk.Transform_ops.Distance_target_signed
-           ~falloff:Rdk.Transform_ops.Soft_quadratic
-           ~radius:(Rdk.Transform_ops.Distance_fixed 4.)
-           ~distance_attribute:(Some "target_distance") ~mask_attribute:"mask" in
+           ~origin:(Vec3.create 0.5 (-0.25) 1.) ~direction:(Vec3.create 1. 2. (-1.))
+           ~metric:Rdk.Transform_ops.Distance_target_signed ~falloff:Rdk.Transform_ops.Soft_quadratic
+           ~radius_mode:Sop.Radius_fixed ~radius:4. ~distance_attribute:"target_distance" ~mask_attribute:"mask" in
   let parameters = Node.parameters graph in
-  check (contains parameters "affected=point:distance_affected"
+  check (contains parameters "affected_owner=point;affected_group=distance_affected"
       && contains parameters "projection=planar"
       && contains parameters "metric=signed"
       && contains parameters "falloff=quadratic"
@@ -57,7 +53,7 @@ let run () =
            (float_attribute "mask" four))
     "Distance From Target SOP one/four-domain exactness";
   let missing = Sop.snapshot (source ())
-      |> Sop.distance_from_target ~affected:(Sop.Point_group "missing") in
+      |> Sop.distance_from_target ~affected_group:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:80_000_000 |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "missing_group")

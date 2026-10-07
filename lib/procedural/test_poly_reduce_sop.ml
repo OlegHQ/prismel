@@ -19,12 +19,12 @@ let cook graph =
   Session.close session; output
 
 let run () =
-  let graph = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+  let graph = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~counts:Rdk.Plane_generators.Grid_point_counts
       ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:32 ~rows:24 ~size:8. ()
-      |> Sop.poly_reduce ~target:(Rdk.Poly_reduce.Reduce_ratio 0.4)
+      |> Sop.poly_reduce ~ratio:0.4
            ~preserve_boundary:true ~equalize_lengths:1e-8
-           ~max_normal_deviation:0.5 ~output_group:"reduced" in
+           ~limit_normal_deviation:true ~max_normal_deviation:0.5 ~output_group:"reduced" in
   let output = cook graph in
   if Rdk.Geometry.primitive_count output >= (31 * 23 * 2) then
     fail "PolyReduce SOP did not reduce its input";
@@ -33,11 +33,11 @@ let run () =
        = Rdk.Geometry.primitive_count output -> ()
    | _ -> fail "PolyReduce SOP output group");
   if Node.operation graph <> "poly_reduce"
-     || not (contains (Node.parameters graph) "target=ratio:")
+     || not (contains (Node.parameters graph) "target_mode=percentage;ratio=")
      || not (contains (Node.parameters graph) "preserve_boundary=true")
      || not (contains (Node.parameters graph) "equalize_lengths=") then
     fail "PolyReduce cache identity";
-  let invalid = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
+  let invalid = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:4 ~rows:4 ~size:1. ()
       |> Sop.poly_reduce ~hard_edge_group:"missing" in
   let session = session () in

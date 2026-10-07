@@ -49,18 +49,13 @@ let equal left right =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.polywire ~label:"variable-wire" ~group:"first" ~sides:8
-           ~divisions_attribute:"div" ~segments:3 ~segments_attribute:"seg"
-           ~segment_scales:(0.15,0.85) ~u_range:(-1.,1.) ~v_range:(2.,4.)
-           ~prevent_joint_buckling:true ~maximum_joint_scale:2.5
-           ~max_valence:3
-           ~caps:true ~cap_group:"caps" ~radius:0.2 in
+      |> (Sop.polywire ~use_sides:true ~use_max_valence:true ~label:("variable-wire") ~group:("first") ~sides:(8) ~divisions_attribute:("div") ~segments:(3) ~segments_attribute:("seg") ~use_segment_scales:true ~first_segment_scale:(0.15) ~last_segment_scale:(0.85) ~use_u_range:true ~u_min:((-1.)) ~u_max:(1.) ~use_v_range:true ~v_min:(2.) ~v_max:(4.) ~prevent_joint_buckling:(true) ~maximum_joint_scale:(2.5) ~max_valence:(3) ~caps:(true) ~cap_group:("caps") ~radius:(0.2)) in
   let parameters = Node.parameters graph in
   if Node.operation graph <> "polywire"
-      || not (contains parameters "group=\"first\"")
-      || not (contains parameters "divisions_attribute=\"div\"")
+      || not (contains parameters "group=first")
+      || not (contains parameters "divisions_attribute=div")
       || not (contains parameters "segments=3")
-      || not (contains parameters "segments_attribute=\"seg\"")
+      || not (contains parameters "segments_attribute=seg")
       || not (contains parameters "segment_scales=")
       || not (contains parameters "prevent_joint_buckling=true")
       || not (contains parameters "maximum_joint_scale=")
@@ -94,7 +89,7 @@ let run () =
   if (Session.stats evaluator).misses <> misses then fail "stable graph missed cache";
   Session.close evaluator;
   let without_uv = Sop.snapshot (source ())
-      |> Sop.polywire ~segments:2 ~generate_uv:false ~radius:0.1 in
+      |> (Sop.polywire ~use_sides:false ~use_max_valence:false ~use_u_range:false ~use_v_range:false ~cap_group:"" ~segments:(2) ~generate_uv:(false) ~radius:(0.1)) in
   let evaluator = session () in
   let without_uv = cook evaluator 1 without_uv in
   if Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv" without_uv
@@ -102,35 +97,33 @@ let run () =
   Session.close evaluator;
   let rejected = try
       ignore (Sop.snapshot (source ())
-        |> Sop.polywire ~segment_scales:(0.9,0.1) ~radius:0.1);
+        |> (Sop.polywire ~use_sides:false ~use_max_valence:false ~use_u_range:false ~use_v_range:false ~cap_group:"" ~use_segment_scales:true ~first_segment_scale:(0.9) ~last_segment_scale:(0.1) ~radius:(0.1)));
       false
     with Invalid_argument _ -> true in
   if not rejected then fail "invalid SOP segment scales accepted";
   let rejected = try
       ignore (Sop.snapshot (source ())
-        |> Sop.polywire ~prevent_joint_buckling:true
-             ~maximum_joint_scale:0.5 ~radius:0.1);
+        |> (Sop.polywire ~use_sides:false ~use_max_valence:false ~use_u_range:false ~use_v_range:false ~cap_group:"" ~prevent_joint_buckling:(true) ~maximum_joint_scale:(0.5) ~radius:(0.1)));
       false
     with Invalid_argument _ -> true in
   if not rejected then fail "invalid SOP maximum joint scale accepted";
   let rejected = try
       ignore (Sop.snapshot (source ())
-        |> Sop.polywire ~maximum_joint_scale_attribute:"joint_limit"
-             ~radius:0.1);
+        |> (Sop.polywire ~use_sides:false ~use_max_valence:false ~use_u_range:false ~use_v_range:false ~cap_group:"" ~maximum_joint_scale_attribute:("joint_limit") ~radius:(0.1)));
       false
     with Invalid_argument _ -> true in
   if not rejected then
     fail "SOP maximum joint scale attribute accepted without prevention";
   let rejected = try
       ignore (Sop.snapshot (source ())
-        |> Sop.polywire ~max_valence:0 ~radius:0.1);
+        |> (Sop.polywire ~use_sides:false ~use_max_valence:true ~use_u_range:false ~use_v_range:false ~cap_group:"" ~max_valence:(0) ~radius:(0.1)));
       false
     with Invalid_argument _ -> true in
   if not rejected then fail "invalid SOP max valence accepted";
   let seam_graph = Sop.snapshot (source ())
-      |> Sop.polywire ~segment_seam_attribute:"edge_seam" ~radius:0.1 in
+      |> (Sop.polywire ~use_sides:false ~use_max_valence:false ~use_u_range:false ~use_v_range:false ~cap_group:"" ~segment_seam_attribute:("edge_seam") ~radius:(0.1)) in
   if not (contains (Node.parameters seam_graph)
-      "segment_seam_attribute=\"edge_seam\"") then
+      "segment_seam_attribute=edge_seam") then
     fail "segment seam missing from cache identity";
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context 1) seam_graph with
@@ -138,7 +131,7 @@ let run () =
    | Error error -> fail ("unexpected segment seam diagnostic " ^ error.Diagnostic.code)
    | Ok _ -> fail "missing segment seam attribute accepted");
   Session.close evaluator;
-  let missing = Sop.snapshot (source ()) |> Sop.polywire ~group:"absent" ~radius:0.1 in
+  let missing = Sop.snapshot (source ()) |> (Sop.polywire ~use_sides:false ~use_max_valence:false ~use_u_range:false ~use_v_range:false ~cap_group:"" ~group:("absent") ~radius:(0.1)) in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context 1) missing with
    | Error error when String.equal error.Diagnostic.code "missing_group" -> ()

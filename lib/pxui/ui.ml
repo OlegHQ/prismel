@@ -1030,15 +1030,18 @@ let input ?(owner = 0) ui =
   let frame = match ui.input_frame with Some frame -> frame
     | None -> invalid_arg "Ui.input: no frame has completed" in
   let accepts target = not ui.modal_in_frame && (target = 0 || target = owner) in
+  let accepts_pointer target = accepts target && (owner = 0 || target = owner) in
   let events, delta, complete = List.fold_left (fun (events, (dx, dy), complete)
       (target, event, (mx, my)) -> match event with
     | Event.WindowFocusLost | PointerCancelled _ -> event :: events, (dx, dy), complete
-    | _ when accepts target -> event :: events, (dx +. mx, dy +. my), complete
+    | _ when (match event with
+        | MousePressed _ | MouseReleased _ | MouseMoved _ | MouseScrolled _ -> accepts_pointer target
+        | _ -> accepts target) -> event :: events, (dx +. mx, dy +. my), complete
     | MouseReleased (button, _) ->
         Event.PointerCancelled button :: events, (dx, dy), false
     | _ -> events, (dx, dy), false) ([], (0., 0.), true) ui.routed_events in
-  let held = Option.fold ~none:false ~some:accepts ui.active in
-  let pointer = held || (ui.active = None && frame.mouse_buttons = [] && accepts ui.hot) in
+  let held = Option.fold ~none:false ~some:accepts_pointer ui.active in
+  let pointer = held || (ui.active = None && frame.mouse_buttons = [] && accepts_pointer ui.hot) in
   let cancelled = ui.cancelled @ (if ui.modal_in_frame then frame.mouse_buttons else []) in
   { frame with events = List.rev events @ List.map (fun button -> Event.PointerCancelled button) cancelled;
     keys = if ui.modal_in_frame || ui.focus <> 0 then [] else frame.keys;

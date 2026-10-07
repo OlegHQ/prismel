@@ -65,7 +65,9 @@ let run () =
       ignore (finish ~settings:a objects);
       let second = List.assoc 2 (List.map (fun (piece : _ Cook.piece) -> piece.id, piece)
         (Cook.pieces !current)) in
-      let changed = network 1 (Sop.transform (Mat4.translation (Vec3.create 2. 0. 0.)) source) in
+      let changed = network 1 (let migration_translation = Vec3.create 2. 0. 0. in
+Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
+  ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z source) in
       ignore (finish ~settings:a [changed; List.nth objects 1]);
       check (Atomic.get prepares = 3) "one changed object re-prepared its static sibling";
       check (List.find (fun (piece : _ Cook.piece) -> piece.id = 2)

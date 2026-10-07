@@ -58,7 +58,7 @@ let run () =
   check (contains parameters "owner=primitive"
       && contains parameters "piece_attribute=piece"
       && contains parameters "translation_attribute=separation"
-      && contains parameters "axis="
+      && contains parameters "axis_x="
       && contains parameters "gap="
       && contains parameters "mode=separate")
     "Separate Pieces SOP cache identity omits controls";

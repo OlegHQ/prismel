@@ -1,26 +1,20 @@
 # lib/sop_catalog rules
 
-A SOP node is declared once. The declaration is its `parameters` record with
-`[@@deriving sop_params, sop_node]`, which yields the inspector schema, the
-Lisp manifest entry, the editor factory and, with `[@@sop.fn "name"]
-[@@sop.args "..."]`, the typed `Procedural.Sop.name` constructor, next to the
-cook that reads the record. Such a declaration lives in `lib/procedural`
-(`sop_groups.ml`, `sop_topology.ml`, `sop_attributes.ml`, `sop_shapes.ml`;
-`Sop_support` holds their helpers, `Procedural.Nodes` exports the factories,
-`sop.ml` aliases the typed function) and is registered here as
-`module X = Procedural.Nodes.X [@@sop.register]`. A node whose typed
-constructor the record cannot express (a structured rdk argument the record
-flattens, a `Select.t`, a closure, an optional whose absence means the kernel
-default, a check that is not blank/finite/hard-range) keeps its typed
-function hand-written in `sop.ml` and its record in the matching private
-file here (`shapes.ml`, `topology.ml`, `attributes.ml`, or `groups.ml`) with
-`let build = parameters_build (fun ~label parameters input0 ... -> Sop.op ...)`
-and `let factory = parameters_factory build`; the generated build owns the
-input-arity match, optional-slot presence, `Node.parameterize` and the
-schema-derived cache key, so never hand-write that boilerplate, and
-`shared.ml` holds the common helpers. `tools/sop_merge` converts a hand-written
-pair into one declaration and prints why it cannot. Add a `create` (and its
-`.mli` entry) only for a node with callers outside this library. The
+A SOP node is declared once. Its `parameters` record with
+`[@@deriving sop_params, sop_node]` yields the inspector schema, Lisp manifest
+entry, editor factory and typed constructor, next to the cook that reads it.
+The constructor uses the node key for its identity, optional fields in record
+order (one `Vec3.t` per vector group), then positional input slots; a generator
+ends in `()`. Defaults come only from the record. Do not add a separate function
+name, argument list, typed default override or argument-presence toggle.
+Declarations live in `lib/procedural` (`sop_groups.ml`, `sop_topology.ml`,
+`sop_attributes.ml`, `sop_shapes.ml`; `Sop_support` holds shared helpers).
+`Procedural.Nodes` exports their factories, `sop.ml` aliases their typed
+functions, and this library registers them as
+`module X = Procedural.Nodes.X [@@sop.register]`.
+A parameter-free node uses `type parameters = unit` with the same derivation;
+do not invent a field. Structured kernel arguments are assembled in the cook.
+Add a `create` (and its `.mli` entry) only for callers outside the library. The
 PPX-generated deterministic manifest is the only node-menu registry. Do not add a parallel hand-written factory list,
 mutable registration initializer, or menu-only parameter defaults. Catalog
 tests must reject duplicate keys, instantiate every registered factory with
@@ -38,6 +32,19 @@ into a fixed required arity. Use `[@@sop.node_optional "..."]` for optional
 zero-based slots. An absent optional slot must compile as an omitted operator
 argument; connecting or disconnecting it must preserve the logical node ID,
 parameter values, graph position, and deterministic input order.
+Use `[@@sop.node_rest n]` for a final repeated slot. Its typed and cook
+arguments are `Node.t list`; the factory filters disconnected additional
+slots in order. A required Rest list is nonempty and follows required inputs.
+Include its index in `[@@sop.node_optional "..."]` for Optional_rest, whose
+list may be empty and whose prefix may contain fixed optional slots. Those
+fixed slots retain their positions when additional inputs are disconnected.
+
+For input-dependent presentation, use `parameters_build ~schema:(fun parameters
+node -> ...)` to derive the schema from the operator's actual `Node.inputs`.
+The builder evaluates the operator once and refreshes the schema after parameter
+edits or rewiring. Reuse the declared fields and defaults; an `Index_choice`'s
+labels remain integer values for cache keys and drives. Ordinary nodes omit this
+callback.
 
 For SOP-backed inspectors, declare typed templates beside each operator with
 `Procedural.Parameter` (or `[@@deriving sop_params]`) and attach them to that
@@ -49,17 +56,14 @@ PXUI.
 
 Workflow for a new node: the `add-sop` skill.
 
-Typed-function attributes (`[@@sop.fn]` nodes only): `[@@sop.args "?a ~b c ()"]`
-lists the arguments of `Sop.name` in order, each a field, a `sop.vec3` group
-(one `Vec3.t`), an input slot or a trailing `()`; `~x=field` names an
-argument differently from its field. A `?x` takes the editor default unless
-`[@sop.arg_default e]` overrides it (a listed drift between the editor and
-the typed API). `[@sop.nonblank "m"]` on a text and `[@sop.validate "m"]` on
-a number (finite and within the hard range) raise `Invalid_argument "Sop.name:
-m"` from the typed constructor only; the editor clamps. `[@sop.present
-"use_x"]` / `[@sop.absent "context_seed"]` set a toggle field from a `?x`'s
-presence. `Node.parameters` of such a node is `Parameter.cook_text` of its
-values (`name=value;...`).
+Typed boundary checks: `[@sop.nonblank "m"]` on a text and
+`[@sop.validate "m"]` on a number (finite and within the hard range) raise
+`Invalid_argument "Sop.<key>: m"` from the typed constructor; the editor clamps
+its numeric fields. `Node.parameters` uses `Parameter.cook_text` of the values.
+Use `[@@sop.validate fun parameters -> ...]` on the record for a pure check
+that involves several fields or encoded values. It runs before operator
+construction for typed calls and factory rebuilds; inspector writes return
+constructor validation failures as errors while keeping the existing node.
 
 ## Rays Flow (`specification/flow.md`)
 

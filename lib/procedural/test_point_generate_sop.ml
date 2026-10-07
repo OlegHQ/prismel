@@ -38,8 +38,7 @@ let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.point_generate ~label:"emit-test" ~group:"emit" ~keep_input:true
            ~seed:7 ~generated_group:"made" ~copy_point_attributes:"id"
-           ~mode:(Rdk.Point_generate.Generate_per_point {
-             points_per_point = 2.; scale_attribute = Some "density" }) in
+           ~mode:Sop.Point_generate_per_point ~points_per_point:2. ~scale_attribute:"density" in
   let evaluator = session () in
   let output = cook evaluator ~domains:4 graph in
   if Rdk.Geometry.point_count output <> 11 then fail "SOP cardinality";
@@ -58,8 +57,8 @@ let run () =
   if Rdk.Group.cardinality made <> 8 then fail "SOP generated group";
   if Node.operation graph <> "point_generate"
       || not (contains (Node.parameters graph) "group=emit")
-      || not (contains (Node.parameters graph) "per_point:")
-      || not (contains (Node.parameters graph) "copy_point=id") then
+      || not (contains (Node.parameters graph) "mode=per_point")
+      || not (contains (Node.parameters graph) "copy_point_attributes=id") then
     fail ("SOP cache identity: " ^ Node.parameters graph);
   let misses = (Session.stats evaluator).misses in
   ignore (cook evaluator ~domains:4 graph);
@@ -77,8 +76,7 @@ let run () =
 
   let missing = Sop.snapshot (source ())
       |> Sop.point_generate ~group:"absent"
-           ~mode:(Rdk.Point_generate.Generate_per_point {
-             points_per_point = 1.; scale_attribute = None }) in
+           ~context_seed:true ~mode:Sop.Point_generate_per_point ~points_per_point:1. ~scale_attribute:"" in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context 1) missing with
    | Error error when error.Diagnostic.code = "missing_group" -> ()

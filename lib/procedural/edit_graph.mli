@@ -6,11 +6,13 @@
     only; editor positions, selection, menus, and cooking belong to UI layers. *)
 
 type t
-type input_requirement = Required | Optional | Rest
+type input_requirement = Required | Optional | Rest | Optional_rest
 (** [Rest] is only valid last: the slot repeats, so a node holds any number of
     inputs at least the slot count.  The first rest input is required, the
     others optional; extras are named [name_2], [name_3], ... (see
-    {!node_slot_names}).  [connect] one past the last input appends one. *)
+    {!node_slot_names}). [Optional_rest] also repeats only at the end, but
+    permits zero connected elements. Fixed optional slots keep their positions
+    before it. [connect] one past the last input appends one. *)
 type factory
 
 type connection = {

@@ -92,7 +92,184 @@ let skips () =
   check (bytes some = geometry_bytes (Option.get (cook ~domains:3 (graph some)))) "a skipped loop cooks differently at 1 and 3 domains";
   check (bytes some <> bytes all) "a skipped loop cooked like the whole"
 
+let optional_rest () =
+  let module Edit=Procedural.Edit_graph in
+  let factory=Edit.factory_slots ~key:"rest_fixture" ~operation:"merge" ~label:"Rest fixture"
+    ~category:["Test"] ~slots:["base";"fixed";"extras"]
+    ~inputs:[Required;Optional;Optional_rest]
+    (fun inputs -> Procedural.Sop.merge (List.filter_map Fun.id inputs)) in
+  let factories=factory::factories in
+  let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
+  let manifest,_=Manifest.generate factories |> Result.get_ok in
+  let manifest_catalog=Flow.Check.catalog_of_manifest manifest |> Result.get_ok |> fst in
+  let fixture=List.find_opt (fun (kind : Flow.Check.kind) -> kind.qualified="sop/rest_fixture") manifest_catalog.kinds in
+  check (match fixture with Some kind -> List.exists (fun (slot : Flow.Check.slot) -> slot.rest && not slot.required) kind.slots | None -> false)
+    "optional rest survives manifest serialization";
+  let source result=Printf.sprintf
+    "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/box :center [2 0 0]) r %s] r)))" result in
+  let lower_text ?previous text=
+    let forms=Flow.Syntax.parse text |> Result.get_ok in
+    let compiled_ids,sites=match previous with None -> Instance_path.Map.empty,[]
+      | Some (lowered : Lower.t) -> lowered.compiled_ids,lowered.sites in
+    match Lower.workspace ~factories ~compiled_ids ~sites forms with
+      | Ok lowered -> lowered | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+  let a=Procedural.Sop.box () and b=Procedural.Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
+  let cook_node nodes=
+    let context=Procedural.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
+    let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
+    Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+      match Procedural.Session.cook session ~context (Procedural.Sop.merge nodes) with
+        | Ok output -> output.geometry | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
+  List.iter (fun (result,nodes) ->
+    let lowered=lower_text (source result) in
+    let graph=List.hd lowered.graphs in
+    let expected=geometry_bytes (cook_node nodes) in
+    List.iter (fun domains ->
+      let geometry=Option.get (cook ~domains graph) in
+      check (geometry_bytes geometry=expected) "fixed/optional/rest inputs retain order when lowered") [1;3])
+    ["(sop/rest_fixture a)",[a];
+     "(sop/rest_fixture a b)",[a;b];
+     "(sop/rest_fixture a nil b a)",[a;b;a];
+     "(sop/rest_fixture a :extras (list b a))",[a;b;a];
+     "(sop/rest_fixture :extras (list b a) :base a)",[a;b;a];
+     "(first (map sop/rest_fixture (list a) (list nil) (list (list b a))))",[a;b;a]];
+  let bad_function_call = "(workspace w (defn caller :context sop [(make : fn) (a : geometry) (b : geometry)] (first (map make (list a) (list b)))) (graph g :context sop (caller sop/null (sop/box) (sop/box))))" in
+  (match Lower.workspace ~factories (Flow.Syntax.parse bad_function_call |> Result.get_ok) with
+    | Error diagnostic -> check (diagnostic.code="E_EXTRA_POSITIONAL") ("kind functions retain their input bound: " ^ Flow.Diagnostic.to_string diagnostic)
+    | Ok _ -> fail "fixed kind function silently ignored an extra geometry input");
+  let text=source "(sop/rest_fixture a)" in
+  let forms=Flow.Syntax.parse text |> Result.get_ok in
+  let workspace=match Flow.Workspace.check catalog forms with
+    | Some workspace,_ -> workspace | _ -> fail "optional rest did not check" in
+  let projected=Projection.of_graph catalog workspace "g" in
+  let node=Projection.find projected ["g";"r"] |> Option.get in
+  check (List.exists (fun (row : Projection.row) -> row.kind=Projection.Add && row.key=Flow_edit.Pos 2) node.rows)
+    "optional rest projects an add row after the fixed prefix";
+  let before=lower_text text in
+  let edited=Flow_edit.apply catalog forms
+    (Flow_edit.Connect {node=["g";"r"];key=Flow_edit.Pos 2;src="b";iter=false}) |> Result.get_ok in
+  let after=lower_text ~previous:before (fst (Flow.Lisp.print edited)) in
+  check ((List.hd before.graphs).root=(List.hd after.graphs).root)
+    "connecting optional rest preserves compiled identity";
+  let geometry=Option.get (cook ~domains:1 (List.hd after.graphs)) in
+  check (geometry_bytes geometry=geometry_bytes (cook_node [a;b]))
+    "Flow_edit pads disconnected fixed slots before the rest connection";
+  let edited=Flow_edit.apply catalog edited
+    (Flow_edit.Disconnect {node=["g";"r"];key=Flow_edit.Pos 2;fallback=None}) |> Result.get_ok in
+  let disconnected=lower_text ~previous:after (fst (Flow.Lisp.print edited)) in
+  check (geometry_bytes (Option.get (cook ~domains:1 (List.hd disconnected.graphs)))=geometry_bytes (cook_node [a]))
+    "Flow_edit disconnect restores zero extras";
+  let workspace=match Flow.Workspace.check catalog (Flow.Syntax.parse (source "(sop/rest_fixture a :extras (list b a))") |> Result.get_ok) with
+    | Some workspace,_ -> workspace | _ -> fail "named rest did not check" in
+  let node=Projection.find (Projection.of_graph catalog workspace "g") ["g";"r"] |> Option.get in
+  check (List.exists (fun (row : Projection.row) -> row.key=Flow_edit.Kw "extras" && row.kind=Projection.Rest) node.rows)
+    "named rest lists project as editable rows"
+
+let attribute_composite () =
+  let source result=Printf.sprintf
+    "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/box :center [2 0 0]) r %s] r)))" result in
+  let a=Procedural.Sop.box () and b=Procedural.Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
+  let expected=Procedural.Sop.attribute_composite ~allow_position:true ~weight2:0.5 ~weights:"0.2\n0.3"
+    a None (Some b) None None [b;a] in
+  let context=Procedural.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
+  let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
+  let expected=Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+    match Procedural.Session.cook session ~context expected with
+    | Ok output -> geometry_bytes output.geometry
+    | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
+  let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
+  List.iter (fun result ->
+    let forms=Flow.Syntax.parse (source result) |> Result.get_ok in
+    let lowered=match Lower.workspace ~factories forms with
+      | Ok lowered -> lowered | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+    List.iter (fun domains ->
+      check (geometry_bytes (Option.get (cook ~domains (List.hd lowered.graphs)))=expected)
+        "Attribute Composite Lisp fixed and repeated layer parity") [1;4];
+    let workspace=match Flow.Workspace.check catalog forms with
+      | Some workspace,_ -> workspace | _ -> fail "Attribute Composite did not check" in
+    let node=Projection.find (Projection.of_graph catalog workspace "g") ["g";"r"] |> Option.get in
+    check (List.exists (fun (row : Projection.row) -> row.key=Flow_edit.Kw "weights") node.rows)
+      "Attribute Composite extra weights project as an editable field";
+    let edited=Flow_edit.apply catalog forms
+      (Flow_edit.Set_arg {node=["g";"r"];key=Flow_edit.Kw "weights";sub=[];
+        value=Flow.Syntax.parse "\"0.4\\n0.3\"" |> Result.get_ok |> List.hd}) |> Result.get_ok in
+    let after=match Lower.workspace ~factories ~compiled_ids:lowered.compiled_ids ~sites:lowered.sites edited with
+      | Ok lowered -> lowered | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+    check ((List.hd after.graphs).root=(List.hd lowered.graphs).root)
+      "Attribute Composite weight edit preserves node identity";
+    check (geometry_bytes (Option.get (cook ~domains:1 (List.hd after.graphs)))<>expected)
+      "Attribute Composite weight edit reaches the native cook") [
+    "(sop/attribute_composite a nil b nil nil b a :allow_position true :weight2 0.5 :weights \"0.2\\n0.3\")";
+    "(sop/attribute_composite a :layer2 b :layers (list b a) :allow_position true :weight2 0.5 :weights \"0.2\\n0.3\")"]
+
+let switch () =
+  let source result=Printf.sprintf
+    "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/box :center [2 0 0]) c (sop/box :center [4 0 0]) r %s] r)))" result in
+  let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
+  let cooked result=
+    let forms=Flow.Syntax.parse (source result) |> Result.get_ok in
+    let lowered=match Lower.workspace ~factories forms with
+      | Ok lowered -> lowered | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+    let workspace=match Flow.Workspace.check catalog forms with
+      | Some workspace,_ -> workspace | _ -> fail "Switch did not check" in
+    let node=Projection.find (Projection.of_graph catalog workspace "g") ["g";"r"] |> Option.get in
+    check (result.[0]<>'(' || List.exists (fun (row : Projection.row) -> row.kind=Projection.Add && row.label="+ inputs") node.rows)
+      "Switch offers a further branch as an add row";
+    List.map (fun domains -> geometry_bytes (Option.get (cook ~domains (List.hd lowered.graphs)))) [1;4] in
+  let third=cooked "c" in
+  List.iter (fun result -> check (cooked result=third) ("Switch did not cook its third branch: " ^ result))
+    ["(sop/switch a b c :input 2)"; "(sop/switch a b :inputs (list c) :input 2)"];
+  check (cooked "(sop/switch a b c :input 1)"=cooked "b") "Switch did not cook its second branch"
+
+let blend_shapes () =
+  let source result=Printf.sprintf
+    "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/box :center [2 0 0]) c (sop/box :center [4 0 0]) r %s] r)))" result in
+  let a=Procedural.Sop.box () and b=Procedural.Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) ()
+  and c=Procedural.Sop.box ~center:(Rays_math.Vec3.create 4. 0. 0.) () in
+  let expected=Procedural.Sop.blend_shapes ~weight2:0.5 ~weights:"0.2\n0.3" ~shape_masks:"5\tother_mask\tshape"
+    a None (Some b) None None [c;a] in
+  let context=Procedural.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
+  let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
+  let expected=Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+    match Procedural.Session.cook session ~context expected with
+    | Ok output -> geometry_bytes output.geometry
+    | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
+  let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
+  List.iter (fun result ->
+    let forms=Flow.Syntax.parse (source result) |> Result.get_ok in
+    let lowered=match Lower.workspace ~factories forms with
+      | Ok lowered -> lowered | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+    List.iter (fun domains -> check (geometry_bytes (Option.get (cook ~domains (List.hd lowered.graphs)))=expected)
+      "Blend Shapes positional/named rest Lisp parity") [1;4];
+    let workspace=match Flow.Workspace.check catalog forms with
+      | Some workspace,_ -> workspace | _ -> fail "Blend Shapes did not check" in
+    let projected=Projection.find (Projection.of_graph catalog workspace "g") ["g";"r"] |> Option.get in
+    List.iter (fun name -> check (List.exists (fun (row : Projection.row) -> row.key=Flow_edit.Kw name) projected.rows)
+      ("Blend Shapes projects " ^ name)) ["weights";"shape_masks"];
+    let edited=Flow_edit.apply catalog forms
+      (Flow_edit.Set_arg {node=["g";"r"];key=Flow_edit.Kw "weights";sub=[];
+        value=Flow.Syntax.parse "\"0.4\\n0.3\"" |> Result.get_ok |> List.hd}) |> Result.get_ok in
+    let edited=Flow_edit.apply catalog edited
+      (Flow_edit.Set_arg {node=["g";"r"];key=Flow_edit.Kw "shape_masks";sub=[];
+        value=Flow.Syntax.parse "\"5\\tmask\\tfirst\"" |> Result.get_ok |> List.hd}) |> Result.get_ok in
+    let after=match Lower.workspace ~factories ~compiled_ids:lowered.compiled_ids ~sites:lowered.sites edited with
+      | Ok lowered -> lowered | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
+    check ((List.hd after.graphs).root=(List.hd lowered.graphs).root) "Blend Shapes parameter edit preserves identity";
+    check (geometry_bytes (Option.get (cook ~domains:1 (List.hd after.graphs)))<>expected)
+      "Blend Shapes weight edit reaches the native cook";
+    let workspace=match Flow.Workspace.check catalog edited with
+      | Some workspace,_ -> workspace | _ -> fail "Blend Shapes mask table edit did not check" in
+    let projected=Projection.find (Projection.of_graph catalog workspace "g") ["g";"r"] |> Option.get in
+    check (List.exists (fun (row : Projection.row) -> row.key=Flow_edit.Kw "shape_masks" && row.expr<>None) projected.rows)
+      "Blend Shapes mask table edits remain projected") [
+      "(sop/blend_shapes a nil b nil nil c a :weight2 0.5 :weights \"0.2\\n0.3\" :shape_masks \"5\\tother_mask\\tshape\")";
+      "(sop/blend_shapes a :shape2 b :shapes (list c a) :weight2 0.5 :weights \"0.2\\n0.3\" :shape_masks \"5\\tother_mask\\tshape\")"]
+
 let run () =
+  blend_shapes ();
+  attribute_composite ();
+  switch ();
+  optional_rest ();
   skips ();
   let cooked = ref 0 in
   List.iter (fun name ->

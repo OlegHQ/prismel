@@ -70,7 +70,9 @@ val input : ?owner:int -> t -> Rays.Frame.t
     events captured by the exact [owner] box key (e.g. a viewport root).
     Children of [owner] retain their events. Held keys, buttons and motion
     follow the same ownership; release or disappearance cancels an excluded
-    gesture. Focus-loss and pointer cancellation always pass through. *)
+    gesture. An explicit nonzero [owner] excludes unowned pointer events;
+    omitting it retains unconsumed pointer events. Focus-loss and pointer
+    cancellation always pass through. *)
 
 val scene : ?under:(int -> Rays.Scene.t) -> t -> Rays.Scene.t
 (** The most recently completed frame, including text-input regions.

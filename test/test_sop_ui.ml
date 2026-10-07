@@ -25,13 +25,71 @@ let inspectable_node values =
   Custom.node ~label:"Selected shape" ~operation:"selected-shape"
     ~schema:parameters_schema ~values []
     (fun ~label ~inputs:_ ~parameters -> match parameters.mode with
-      | Cube -> Sop.box ~label ~x_divisions:parameters.count ()
-      | Sphere -> Sop.uv_sphere ~label ~segments:(max 3 parameters.count)
-          ~radius:1. ())
+      | Cube -> Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~label ~x_divisions:parameters.count ()
+      | Sphere -> Sop.uv_sphere ~radius_x_mode:Procedural.Sop.Kernel_auto ~radius_y_mode:Procedural.Sop.Kernel_auto ~radius_z_mode:Procedural.Sop.Kernel_auto ~normals_mode:Procedural.Sop.Kernel_auto ~uv_attribute:"" ~label ~segments:(max 3 parameters.count)
+          ~base_radius:1. ())
 
 open Test_support
 
+let dynamic_schema () =
+  let module Dynamic=Sop_params_fixture.Dynamic_schema_fixture in
+  let base=Sop.box ~label:"Base" ()
+  and extra=Sop.box ~label:"Extra" ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
+  let typed=Dynamic.fn ~input:1 [base;extra] in
+  (* Attaching the input-dependent schema evaluates the operator once. *)
+  assert (Node.id typed=max (Node.id base) (Node.id extra)+1);
+  let factory=Edit_graph.instantiate Dynamic.factory [base;extra] |> Result.get_ok in
+  let factory=fst (Node.apply_parameters factory ["input",Parameter.Int_value 1] |> Result.get_ok) in
+  assert (Node.parameter_key typed=Node.parameter_key factory);
+  let choices node=match Node.parameter_fields node with
+    | [{Parameter.name="input";kind=Parameter.Choice_view labels;current=Parameter.Int_value index;_}] -> labels,index
+    | _ -> fail "generated dynamic schema did not retain labelled integer choices" in
+  assert (choices typed=([|"0 · Base";"1 · Extra"|],1));
+  assert ((List.hd (Node.parameter_fields typed)).Parameter.default=Parameter.Int_value 0);
+  let current=Sop_catalog.Switch.create ~input:1 base extra [] in
+  assert ((List.hd (Node.parameter_fields current)).Parameter.default=Parameter.Int_value 0);
+  let port=Flow_sop.Port.parameters (Node.parameter_fields typed) |> Result.get_ok |> List.hd in
+  assert (port.Flow_sop.Port.ty=Some Flow.Port_type.Int);
+  let edited=fst (Node.apply_parameters typed ["input",Parameter.Int_value 0] |> Result.get_ok) in
+  assert (Node.id edited=Node.id typed);
+  assert (choices edited=([|"0 · Base";"1 · Extra"|],0));
+  let renamed=Node.Private.rebuild_with_inputs typed
+    [|base;Node.relabel "Renamed" extra|] in
+  assert (Node.id renamed=Node.id typed);
+  assert (choices renamed=([|"0 · Base";"1 · Renamed"|],1));
+  assert (Node.parameter_key renamed=Node.parameter_key typed);
+  let grown=Node.Private.rebuild_with_inputs edited [|base;extra;base|] in
+  assert (choices grown=([|"0 · Base";"1 · Extra";"2 · Base"|],0));
+  assert (Node.id grown=Node.id edited);
+  let grown_typed=Dynamic.fn [base;extra;base] in
+  assert (Node.parameter_key grown_typed=Node.parameter_key grown);
+  assert (Result.is_error (Node.apply_parameters typed ["input",Parameter.Int_value 2]));
+  List.iter (fun construct -> assert (match construct () with
+    | _ -> false | exception Invalid_argument _ -> true)) [
+    (fun () -> Dynamic.fn []);
+    (fun () -> Dynamic.fn ~input:(-1) [base;extra]);
+    (fun () -> Dynamic.fn ~input:2 [base;extra]);
+    (fun () -> Node.Private.rebuild_with_inputs typed [|base|])];
+  let bad=Sop.custom ~label:"Bad" ~operation:"test_error" []
+    (fun ~context:_ _ -> Error "unselected branch was cooked") in
+  let selected=Dynamic.fn ~input:1 [bad;extra] in
+  List.iter (fun domains ->
+    let context=Context.create ~domains ~grain:97 ~seed:42L () |> Result.get_ok in
+    let session=Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
+    Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
+      let cook node=match Session.cook session ~context node with
+        | Ok output -> Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions output.geometry)
+        | Error error -> fail (Diagnostic.error_to_string error) in
+      assert (cook typed=cook extra);
+      assert (cook factory=cook extra);
+      assert (cook edited=cook base);
+      assert (cook selected=cook extra);
+      let before=Session.stats session in
+      ignore (cook renamed);
+      assert ((Session.stats session).misses=before.misses))) [1;4]
+
 let run () =
+  dynamic_schema ();
   let wire = Rays_editor.Renderer.wire_color in
   assert (wire (Rays.Color.rgb 250 250 250) = Rays.Color.hex_exn "#285f77");
   assert (wire (Rays.Color.rgb 8 8 10) = Rays.Color.hex_exn "#bed7e1");
@@ -43,8 +101,25 @@ let run () =
        let fields = Node.parameter_fields node in
        assert (List.map (fun field -> field.Parameter.vec3) fields
            = [Some ("center", 0); Some ("center", 1); Some ("center", 2)]);
+       (match List.map (fun field -> field.Parameter.kind) fields with
+        | [Parameter.Floating_view x; Floating_view y; Floating_view z] ->
+            assert (x == y && y == z)
+        | _ -> fail "PPX vector fields lost their floating ranges");
        assert (List.map (fun field -> field.Parameter.primary) fields = [true; false; false])
    | _ -> fail "PPX module alias did not produce the single registry entry");
+  let module Rest=Sop_params_fixture.Optional_rest_fixture in
+  let base=Sop.box () and extra=Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
+  List.iter (fun (fixed,extras,slots) ->
+    let typed=Rest.fn base fixed extras in
+    let factory=Edit_graph.instantiate_optional Rest.factory slots |> Result.get_ok in
+    assert (Node.parameter_key typed=Node.parameter_key factory);
+    assert (List.map Node.id (Node.inputs typed)=List.map Node.id (Node.inputs factory));
+    let edited=fst (Node.apply_parameters typed ["tag",Parameter.Text_value "sources"] |> Result.get_ok) in
+    assert (Node.id edited=Node.id typed);
+    assert (List.map Node.id (Node.inputs edited)=List.map Node.id (Node.inputs typed)))
+    [None,[],[Some base;None];
+     None,[extra;base],[Some base;None;Some extra;None;Some base];
+     Some extra,[base;extra],[Some base;Some extra;Some base;Some extra]];
   if Sop_params_fixture.t_default.value <> 3
      || List.length (Parameter.fields Sop_params_fixture.t_schema) <> 1
   then fail "sop_params interface generation did not match implementation";

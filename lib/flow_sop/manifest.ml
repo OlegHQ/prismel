@@ -66,7 +66,8 @@ let descriptor (d : Catalog.descriptor) =
   let slots = List.map (fun (name, requirement) ->
     group "slot" [quote name; (match requirement with
       | Edit.Required -> "required" | Edit.Optional -> "optional"
-      | Edit.Rest -> "rest")]) d.slots in
+      | Edit.Rest -> "rest"
+      | Edit.Optional_rest -> "optional-rest")]) d.slots in
   entry ~qualified:d.qualified ~key:d.key ~operation:d.operation ~label:d.label
     ~category:d.category ~slots ~fields:d.fields
     ~result:(if String.starts_with ~prefix:"sop/" d.qualified

@@ -115,7 +115,7 @@ let test_bridge () =
   let bridge = Bridge.create ~max_entries:8 ~max_payload_bytes:(1 lsl 24) session
       |> string_ok in
   let context = Bridge.context_of_frame ~seed:3L (frame []) |> string_ok in
-  let cooked = match Session.cook session ~context (Sop.box ()) with
+  let cooked = match Session.cook session ~context (Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ()) with
     | Ok output -> output.geometry
     | Error error -> fail (Diagnostic.error_to_string error) in
   let first = Bridge.mesh bridge cooked |> Result.get_ok
@@ -124,7 +124,7 @@ let test_bridge () =
   let stats = Bridge.stats bridge in
   if stats.misses <> 1 || stats.hits <> 1 || stats.retained <> 1 then
     fail "Bridge mesh cache accounting";
-  let prototype = Sop.box ~label:"bridge-prototype" () in
+  let prototype = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~label:"bridge-prototype" () in
   let instances = Instances.create
       ~transforms:[|Mat4.scaling (Vec3.create 2. 1. 1.)|] prototype
     |> Instances.duplicate ~copies:2
@@ -181,11 +181,11 @@ let run () =
   then fail "Packed_pieces noise is not deterministic";
   let source = Sop.box ~size:(Vec3.create 2. 2. 2.)
       ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true
-      ~normals:Rdk.Box_generator.Box_no_normals () in
-  let cutter = Sop.grid ~counts:Rdk.Plane_generators.Grid_divisions
+      ~normals:(Some (Rdk.Box_generator.Box_no_normals)) () in
+  let cutter = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~counts:Rdk.Plane_generators.Grid_divisions
       ~connectivity:Rdk.Plane_generators.Grid_triangles ~columns:1 ~rows:1 ~size:3. () in
   let fractured = Sop.boolean_fracture ~require_closed:true
-      ~piece_attribute:"piece" ~cutters:cutter source in
+      ~piece_attribute:"piece" source cutter in
   let session = Session.create ~max_entries:16
       ~max_payload_bytes:(16 * 1024 * 1024) |> string_ok in
   let context = Context.create ~seed:0L () |> string_ok in

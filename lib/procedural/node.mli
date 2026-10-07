@@ -22,8 +22,9 @@ val parameters : t -> string
 
 (** [Parameter.cook_key] of the attached schema values, computed once when
     the node is parameterized, or [""] for an unparameterized node. Session
-    cache identity includes it next to [parameters], so every cook-impact
-    schema field participates in the key. *)
+    cache identity includes it next to intrinsic operator parameters, so every
+    cook-impact schema field participates in the key. Generated inspection text
+    does not add a second copy to that identity. *)
 val parameter_key : t -> string
 val cook_mode : t -> cook_mode
 val dependencies : t -> Context.Dependencies.t
@@ -52,7 +53,8 @@ val parameterize :
 
 (** Apply inspector writes to this node only. Cook-affecting changes rebuild
     its operator closure while preserving the logical node id; view/export
-    changes update metadata without invalidating cooked geometry. *)
+    changes update metadata without invalidating cooked geometry. Constructor
+    validation failures return [Error] and leave the existing node intact. *)
 val apply_parameters :
   t ->
   (string * Parameter.value) list ->
@@ -86,6 +88,8 @@ module Private : sig
      (cooked, Diagnostic.error) result) ->
     t
 
+  val cache_parameters : t -> string
+  (** Intrinsic operator identity before schema display text is attached. *)
   val input_policy : t -> input_policy
   val input_array : t -> t array
   (* Rebuild a parameterized node against new inputs so input-dependent

@@ -33,7 +33,7 @@ let run () =
   let node = graph () in
   check (Node.operation node = "convex_hull"
       && Node.cook_mode node = Node.Generic
-      && contains (Node.parameters node) "selection=all"
+      && contains (Node.parameters node) "group_owner=point;group=;"
       && contains (Node.parameters node) "preserve_point_payload=true"
       && contains (Node.parameters node) "source_point_attribute=source"
       && contains (Node.parameters node) "hull_group=hull")
@@ -52,13 +52,13 @@ let run () =
     "Convex Hull SOP cardinality";
   let selected = source ()
       |> Sop.group ~name:"bottom" (Select.point_indices [|0;1;2;3|])
-      |> Sop.convex_hull ~selection:(Sop.Point_group "bottom") in
+      |> Sop.convex_hull ~hull_group:("") ~source_point_attribute:("") ~group_owner:Sop.Element_point ~group:"bottom" in
   let plane = fresh 1 selected in
   check (Rdk.Geometry.point_count plane = 4
       && Rdk.Geometry.primitive_count plane = 1)
     "Convex Hull SOP typed selection";
   let invalid = try
-      ignore (Sop.convex_hull ~source_point_attribute:"P" (source ()));
+      ignore (Sop.convex_hull ~hull_group:("") ~source_point_attribute:"P" (source ()));
       false
     with Invalid_argument _ -> true in
   check invalid "Convex Hull SOP accepted P as an ancestry field";

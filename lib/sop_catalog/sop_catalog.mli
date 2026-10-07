@@ -21,16 +21,21 @@ module Platonic : sig
     ?label:string ->
     ?kind:Rdk.Parametric_generators.platonic_kind ->
     ?normals:Rdk.Parametric_generators.platonic_normals ->
-    ?orientation:Rdk.Parametric_generators.platonic_orientation ->
-    ?center:Rays_math.Vec3.t -> ?rotation:Rays_math.Vec3.t ->
+    ?radius:float ->
+    ?orientation:Procedural.Sop.axis_orientation ->
+    ?axis:Rays_math.Vec3.t ->
+    ?center:Rays_math.Vec3.t ->
+    ?rotation:Rays_math.Vec3.t ->
     ?rotation_order:Rdk.Parametric_generators.platonic_rotation_order ->
     ?face_groups:string ->
-    radius:float -> unit -> Procedural.Node.t
+    unit ->
+    Procedural.Node.t
 end
 
 module Switch : sig
   val create :
-    ?label:string -> ?index:int -> Procedural.Node.t list -> Procedural.Node.t
+    ?label:string -> ?input:int -> Procedural.Node.t -> Procedural.Node.t ->
+    Procedural.Node.t list -> Procedural.Node.t
   (** Inspectable standard SOP switch. The generated choice uses stable input
       order and node labels; only the selected input branch is cooked. *)
 end
@@ -40,10 +45,21 @@ module Grid : sig
     ?label:string ->
     ?counts:Rdk.Plane_generators.grid_counts ->
     ?connectivity:Rdk.Plane_generators.grid_connectivity ->
-    ?orientation:Rdk.Plane_generators.grid_orientation ->
-    ?center:Rays_math.Vec3.t -> ?width:float -> ?height:float ->
-    ?rotation:float -> ?uv_attribute:string ->
-    columns:int -> rows:int -> size:float -> unit -> Procedural.Node.t
+    ?orientation:Procedural.Sop.plane_orientation ->
+    ?horizontal:Rays_math.Vec3.t ->
+    ?vertical:Rays_math.Vec3.t ->
+    ?width_mode:Procedural.Sop.kernel_mode ->
+    ?height_mode:Procedural.Sop.kernel_mode ->
+    ?columns:int ->
+    ?rows:int ->
+    ?size:float ->
+    ?width:float ->
+    ?height:float ->
+    ?center:Rays_math.Vec3.t ->
+    ?rotation:float ->
+    ?uv_attribute:string ->
+    unit ->
+    Procedural.Node.t
 end
 
 module Copy_to_points : sig
@@ -53,23 +69,31 @@ module Copy_to_points : sig
     ?target_group:string ->
     ?piece_attribute:string ->
     ?pack:bool ->
-    source:Procedural.Node.t ->
-    targets:Procedural.Node.t ->
-    unit ->
+    ?target_attributes:string ->
+    Procedural.Node.t ->
+    Procedural.Node.t ->
     Procedural.Node.t
 end
 
 module Mountain : sig
-  val create :
-    ?label:string ->
+val create :
+  ?label:string ->
     ?group:string ->
     ?direction_attribute:string ->
     ?mask_attribute:string ->
     ?height_attribute:string ->
+    ?seed_mode:Procedural.Sop.kernel_mode ->
+    ?normalize_direction:bool ->
+    ?offset:Rays_math.Vec3.t ->
+    ?seed:int ->
+    ?height:float ->
+    ?frequency:Rays_math.Vec3.t ->
+    ?octaves:int ->
+    ?lacunarity:float ->
+    ?roughness:float ->
     ?recompute_normals:bool ->
-    seed:int -> height:float -> frequency:Rays_math.Vec3.t ->
-    octaves:int -> lacunarity:float -> roughness:float ->
-    Procedural.Node.t -> Procedural.Node.t
+    Procedural.Node.t ->
+    Procedural.Node.t
 end
 
 module Point_generate : sig
@@ -94,9 +118,13 @@ module Point_jitter : sig
     ?group:string ->
     ?mask_attribute:string ->
     ?id_attribute:string ->
-    seed:int -> scale:float ->
-    ?axis_scales:Rays_math.Vec3.t ->
-    Procedural.Node.t -> Procedural.Node.t
+    ?seed_mode:Procedural.Sop.kernel_mode ->
+    ?seed:int ->
+    ?scale:float ->
+    ?use_point_scale:bool ->
+    ?axis:Rays_math.Vec3.t ->
+    Procedural.Node.t ->
+    Procedural.Node.t
 end
 
 module Boolean : sig
@@ -142,9 +170,13 @@ module Attribute_randomize : sig
 end
 
 module Merge : sig
-  val create : ?label:string -> Procedural.Node.t list -> Procedural.Node.t
+  val create : ?label:string ->
+    ?source_attribute:string ->
+    ?source_base:int ->
+    Procedural.Node.t list ->
+    Procedural.Node.t
   (** Concatenate geometry in input order. The node menu offers one required
-      and two optional inputs. *)
+      input and any number of additional inputs. *)
 end
 
 module Group_random : sig

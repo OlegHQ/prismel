@@ -7,3 +7,7 @@
 (executable
  (name main)
  (libraries rays rays_pathtracer rdk rdk_rays procedural sop_catalog rays_editor unix))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:main.exe} --check-workspace)))

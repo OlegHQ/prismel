@@ -52,6 +52,7 @@ type _ kind =
   | Floating : float_range -> float kind
   | Text : string kind
   | Choice : 'a choice -> 'a kind
+  | Index_choice : string array -> int kind
   | Encoded : 'a encoding -> 'a kind
 
 type 'record field = Field : {
@@ -162,6 +163,11 @@ let choice ~equal values =
     done) options;
   Choice { options; equal }
 
+let index_choice labels =
+  match choice ~equal:Int.equal (List.mapi (fun index label -> label, index) labels) with
+  | Choice choice -> Index_choice (Array.map fst choice.options)
+  | _ -> assert false
+
 let encoded ~equal ~encode ~decode = Encoded { encode; decode; equal }
 
 let clamp_int (range : int_range) value =
@@ -181,6 +187,9 @@ let normalize_value : type value. value kind -> value -> (value, string) result 
   fun kind value -> match kind with
   | Toggle | Text | Encoded _ -> Ok value
   | Integer range -> Ok (clamp_int range value)
+  | Index_choice labels ->
+      if value >= 0 && value < Array.length labels then Ok value
+      else Error "choice parameter index is out of bounds"
   | Floating range -> clamp_float range value
   | Choice choice ->
       if Array.exists (fun (_, option) -> choice.equal option value)
@@ -189,9 +198,20 @@ let normalize_value : type value. value kind -> value -> (value, string) result 
 
 let equal_kind : type value. value kind -> value -> value -> bool =
   fun kind left right -> match kind with
-  | Toggle | Integer _ | Floating _ | Text -> left = right
+  | Toggle | Integer _ | Index_choice _ | Floating _ | Text -> left = right
   | Choice choice -> choice.equal left right
   | Encoded encoding -> encoding.equal left right
+
+let normalize_field record (Field field) =
+  let original = field.get record in
+  let unchanged : type value. value kind -> value -> value -> bool =
+    fun kind original value -> match kind with
+      | Floating _ -> original = value && (value <> 0.
+          || Int64.bits_of_float original = Int64.bits_of_float value)
+      | _ -> equal_kind kind original value in
+  Result.map (fun value ->
+    if unchanged field.kind original value then record else field.set value record)
+    (normalize_value field.kind original)
 
 let default_label name =
   let value = Bytes.of_string name in
@@ -236,10 +256,9 @@ let schema ~name ~default fields =
     Hashtbl.add by_name field.name packed) fields;
   let schema = { name; default; fields; by_name } in
   let default = match
-      List.fold_left (fun result (Field field) ->
+      List.fold_left (fun result field ->
         Result.bind result (fun record ->
-          Result.map (fun value -> field.set value record)
-            (normalize_value field.kind (field.get record)))) (Ok default) fields
+          normalize_field record field)) (Ok default) fields
     with
     | Ok value -> value
     | Error message -> invalid_arg ("Parameter.schema " ^ name ^ ": " ^ message)
@@ -266,6 +285,8 @@ let view_field : type record. record -> record field -> field_view =
           Float_value (field.get record)
       | Text -> Text_view, Text_value field.default,
           Text_value (field.get record)
+      | Index_choice labels -> Choice_view labels, Int_value field.default,
+          Int_value (field.get record)
       | Choice choice ->
           Choice_view (Array.map fst choice.options),
           Choice_value (choice_label choice field.default),
@@ -288,6 +309,7 @@ let append_field buffer record (Field field) =
   match field.kind with
   | Toggle -> Buffer.add_string buffer (if field.get record then "b1" else "b0")
   | Integer _ -> Printf.bprintf buffer "i%d;" (field.get record)
+  | Index_choice _ -> Printf.bprintf buffer "i%d;" (field.get record)
   | Floating _ -> Printf.bprintf buffer "f%.17g;" (field.get record)
   | Text -> Buffer.add_char buffer 's'; append_token buffer (field.get record)
   | Choice choice ->
@@ -318,7 +340,12 @@ let cook_text (schema : 'record schema) record =
     Some (field.name ^ "=" ^ (match field.kind with
       | Toggle -> string_of_bool (field.get record)
       | Integer _ -> string_of_int (field.get record)
-      | Floating _ -> Int64.to_string (Int64.bits_of_float (field.get record))
+      | Index_choice _ -> string_of_int (field.get record)
+      | Floating _ ->
+          (* shortest decimal that reads back to the same float *)
+          let value = field.get record in
+          let short = Printf.sprintf "%.15g" value in
+          if float_of_string short = value then short else Printf.sprintf "%.17g" value
       | Text -> field.get record
       | Choice choice -> token (choice_label choice (field.get record))
       | Encoded encoding -> encoding.encode (field.get record))))
@@ -339,6 +366,8 @@ let apply schema record ~name value =
         let old_value = field.get record in
         let result = match field.kind, value with
           | Toggle, Bool_value value ->
+              apply_field record field.kind old_value field.set field.impact value
+          | Index_choice _, Int_value value ->
               apply_field record field.kind old_value field.set field.impact value
           | Integer _, Int_value value ->
               apply_field record field.kind old_value field.set field.impact value
@@ -374,7 +403,6 @@ let apply_all schema record changes =
     (Ok (record, no_effects)) changes
 
 let normalize schema record =
-  List.fold_left (fun result (Field field) ->
+  List.fold_left (fun result field ->
     Result.bind result (fun record ->
-      Result.map (fun value -> field.set value record)
-        (normalize_value field.kind (field.get record)))) (Ok record) schema.fields
+      normalize_field record field)) (Ok record) schema.fields

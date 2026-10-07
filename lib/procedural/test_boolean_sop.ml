@@ -10,13 +10,12 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
+  let left = Sop.box ~normals:None ~size:(Vec3.create 2. 2. 2.)
       ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true ()
-  and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
+  and right = Sop.box ~normals:None ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
       ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true () in
-  Sop.boolean ~label:"exact-union" ~operation:Rdk.Boolean.Union
-    ~detriangulation:Rdk.Boolean.Unchanged_polygons ~right left
+  (Sop.boolean ~label:("exact-union") ~operation:(Rdk.Boolean.Union) ~detriangulation:(Rdk.Boolean.Unchanged_polygons) (left) (right))
 
 let signature geometry =
   let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry)
@@ -58,36 +57,30 @@ let test_identity_cache_and_parallel () =
     "Boolean SOP produced an empty overlapping-box union"
 
 let test_surface_policy_and_diagnostic () =
-  let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
+  let left = Sop.box ~normals:None ~size:(Vec3.create 2. 2. 2.)
       ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true () in
   let positions = Rdk.Packed.Float3.Private.of_owned_exn
       ~x:[|-2.;2.;-2.;2.|] ~y:[|0.;0.;0.;0.|] ~z:[|-0.5;-0.5;0.5;0.5|] in
   let topology = Rdk.Topology.polygons_owned ~point_count:4
       ~vertex_points:[|0;1;2;1;3;2|] ~primitive_offsets:[|0;3;6|] |> get in
   let sheet = Rdk.Geometry.create ~positions ~topology () |> get |> Sop.snapshot in
-  let graph = Sop.boolean ~operation:Rdk.Boolean.Difference
-      ~right_treatment:Rdk.Boolean.Surface ~right:sheet left in
+  let graph = (Sop.boolean ~operation:(Rdk.Boolean.Difference) ~right_treatment:(Rdk.Boolean.Surface) (left) (sheet)) in
   let output = fresh graph 1 in
   check (Rdk.Geometry.primitive_count output > 12)
     "Boolean SOP lost solid-minus-surface cut walls";
   let invalid = try
-      ignore (Sop.boolean ~point_tolerance:(0. /. 0.) ~right:sheet left);
+      ignore (Sop.boolean ~point_tolerance:(0. /. 0.) (left) (sheet));
       false
     with Invalid_argument _ -> true in
   check invalid "Boolean SOP accepted a non-finite point tolerance"
 
 let test_shatter_identity () =
-  let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
+  let left = Sop.box ~normals:None ~size:(Vec3.create 2. 2. 2.)
       ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true ()
-  and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
+  and right = Sop.box ~normals:None ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
       ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true () in
-  let graph = Sop.boolean ~operation:Rdk.Boolean.Shatter
-      ~tiny_seam_threshold:1e-9 ~cleanup_max_batches:6
-      ~strict_cleanup:false
-      ~left_piece_group:(Some "left_piece")
-      ~overlap_piece_group:(Some "overlap_piece")
-      ~right_piece_group:(Some "right_piece") ~right left in
+  let graph = (Sop.boolean ~operation:(Rdk.Boolean.Shatter) ~tiny_seam_threshold:(1e-9) ~cleanup_max_batches:(6) ~strict_cleanup:(false) ~left_piece_group:("left_piece") ~overlap_piece_group:("overlap_piece") ~right_piece_group:("right_piece") (left) (right)) in
   check (contains (Node.parameters graph) "operation=shatter"
       && contains (Node.parameters graph) "left_piece_group=left_piece"
       && contains (Node.parameters graph) "overlap_piece_group=overlap_piece"
@@ -101,25 +94,23 @@ let test_shatter_identity () =
       "Boolean SOP shatter lost a named piece group")
     ["left_piece"; "overlap_piece"; "right_piece"];
   let invalid = try
-      ignore (Sop.boolean ~operation:Rdk.Boolean.Shatter
-        ~left_piece_group:(Some "same") ~right_piece_group:(Some "same")
-        ~right left);
+      ignore (Sop.boolean ~operation:(Rdk.Boolean.Shatter) ~left_piece_group:("same") ~right_piece_group:("same") (left) (right));
       false
     with Invalid_argument _ -> true in
   check invalid "Boolean SOP accepted duplicate shatter group names"
 
 let test_seam_node () =
-  let left = Sop.box ~size:(Vec3.create 2. 2. 2.)
+  let left = Sop.box ~normals:None ~size:(Vec3.create 2. 2. 2.)
       ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true ()
-  and right = Sop.box ~size:(Vec3.create 2. 2. 2.)
+  and right = Sop.box ~normals:None ~size:(Vec3.create 2. 2. 2.)
       ~center:(Vec3.create 0.5 0.5 0.5)
       ~connectivity:Rdk.Box_generator.Box_triangles ~consolidate_points:true () in
-  let graph = Sop.boolean_seam ~between_group:(Some "cut_curves")
-      ~left_self_group:None ~right_self_group:None ~right left in
+  let graph = Sop.boolean_seam ~between_group:"cut_curves"
+      ~left_self_group:"" ~right_self_group:"" left right in
   check (Node.operation graph = "boolean_seam"
       && Node.cook_mode graph = Node.Generic
       && List.length (Node.inputs graph) = 2
-      && contains (Node.parameters graph) "output=curves"
+      && contains (Node.parameters graph) "output=seam_curves"
       && contains (Node.parameters graph) "between_group=cut_curves")
     "Boolean Seam SOP cache identity omits output policy";
   let one = fresh graph 1 and four = fresh graph 4 in

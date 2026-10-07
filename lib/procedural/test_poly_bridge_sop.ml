@@ -38,7 +38,7 @@ let cook graph =
 
 let run () =
   let graph = Sop.snapshot (bridge_source ())
-      |> Sop.poly_bridge ~source_group:"source" ~destination_group:"destination"
+      |> Sop.poly_bridge ~recompute_normals:(true) ~source_group:"source" ~destination_group:"destination"
            ~pairing:Rdk.Poly_bridge.Bridge_by_centroid ~reverse_destination:true
            ~divisions:3 ~output_group:"bridge" in
   let output = cook graph in
@@ -50,12 +50,12 @@ let run () =
    | Some group when Rdk.Group.cardinality group = 12 -> ()
    | _ -> fail "PolyBridge SOP output group");
   if Node.operation graph <> "poly_bridge"
-     || not (contains (Node.parameters graph) "pairing=centroid")
+     || not (contains (Node.parameters graph) "pairing=by_centroid")
      || not (contains (Node.parameters graph) "reverse_destination=true")
      || not (contains (Node.parameters graph) "divisions=3") then
     fail "PolyBridge cache identity";
   let invalid = Sop.snapshot (bridge_source ())
-      |> Sop.poly_bridge ~source_group:"missing" ~destination_group:"destination" in
+      |> Sop.poly_bridge ~recompute_normals:(true) ~output_group:("") ~source_group:"missing" ~destination_group:"destination" in
   let session = session () in
   (match Session.cook session ~context:(context ()) invalid with
    | Error error when error.Diagnostic.code = "missing_edge_group" -> ()

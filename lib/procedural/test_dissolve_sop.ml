@@ -14,7 +14,7 @@ let cook graph =
   Session.close session; output
 
 let run () =
-  let graph = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
+  let graph = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:8 ~rows:6 ~size:2. ()
       |> Sop.group_edges ~name:"interior" ~incidence:Rdk.Group_mesh.Manifold_edge
       |> Sop.dissolve ~group:"interior" ~remove_inline_points:true
@@ -24,8 +24,8 @@ let run () =
      || Rdk.Geometry.vertex_count output <> 4
      || Rdk.Geometry.primitive_count output <> 1 then
     fail "Dissolve SOP cardinality";
-  let invalid = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
-      ~columns:2 ~rows:2 ~size:1. () |> Sop.dissolve ~group:"missing" in
+  let invalid = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_quads
+      ~columns:2 ~rows:2 ~size:1. () |> Sop.dissolve ~collinearity_tolerance:(0.) ~remove_inline_points:(false) ~group:"missing" in
   let session = session () in
   (match Session.cook session ~context:(context ()) invalid with
    | Error error when error.Diagnostic.code = "missing_edge_group" -> ()

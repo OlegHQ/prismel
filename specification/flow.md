@@ -53,6 +53,13 @@ wires; per-element fields; zoom-driven detail; any Python or JavaScript in the b
 | level | `point`, `chip`, `card` or `full` (§6.4) |
 | probe | The iteration of a zone that footers and the viewport highlight show |
 
+Catalog inputs may have a fixed required/optional prefix and a final repeated
+slot. An optional repeated slot permits zero extras. Repeated geometry inputs
+accept individual nodes or a list with a fixed length, including through `map`.
+The graph draws each positional extra, a named list row when present, and an
+add row after the fixed prefix. Connecting that add row fills missing fixed
+positions with `nil`; disconnecting extras preserves the fixed slot identities.
+
 ## 3. Document model
 
 ### 3.1 Contexts

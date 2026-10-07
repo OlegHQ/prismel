@@ -33,6 +33,7 @@ type t = {
   parameterization : parameterization option;
 }
 and parameterization = Parameters : {
+  cache_parameters : string;
   schema : 'parameters Parameter.schema;
   values : 'parameters;
   rebuild : label:string -> inputs:t array -> 'parameters -> t;
@@ -75,14 +76,15 @@ let parameterize ~schema ~values ~rebuild value =
   let parameters = if value.parameters = "" then Parameter.cook_text schema values
     else value.parameters in
   { value with parameters; parameter_key = Parameter.cook_key schema values;
-               parameterization = Some (Parameters { schema; values; rebuild }) }
+               parameterization = Some (Parameters { cache_parameters = value.parameters; schema; values; rebuild }) }
 
 let apply_parameters value changes = match value.parameterization with
   | None when changes = [] -> Ok (value, Parameter.no_effects)
   | None -> Error (Printf.sprintf "node %S has no exposed parameters" value.label)
   | Some (Parameters parameterization) ->
-      Result.map (fun (values, effects) ->
-        if not (Parameter.has_effects effects) then value, effects
+      Result.bind (Parameter.apply_all parameterization.schema parameterization.values changes)
+        (fun (values, effects) ->
+        try Ok (if not (Parameter.has_effects effects) then value, effects
         else if effects.cook then
           let rebuilt = parameterization.rebuild ~label:value.label
               ~inputs:(Array.copy value.inputs) values in
@@ -90,7 +92,7 @@ let apply_parameters value changes = match value.parameterization with
         else
           { value with parameterization = Some (Parameters {
               parameterization with values }) }, effects)
-        (Parameter.apply_all parameterization.schema parameterization.values changes)
+        with Invalid_argument message -> Error message)
 
 module Private = struct
   include Private_types
@@ -124,6 +126,10 @@ module Private = struct
     { id = fresh_id (); label; operation; version; parameters;
       parameter_key = ""; cook_mode;
       dependencies; input_policy; inputs; cook; expand; parameterization = None }
+
+  let cache_parameters value = match value.parameterization with
+    | None -> value.parameters
+    | Some (Parameters parameters) -> parameters.cache_parameters
 
   let input_policy value = value.input_policy
   let input_array value = Array.copy value.inputs

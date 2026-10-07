@@ -11,6 +11,11 @@ let median f repeats =
   let times = Array.init repeats (fun _ -> let t = now () in ignore (f ()); now () -. t) in
   Array.sort Float.compare times; times.(repeats / 2) *. 1000.
 
+let report_live stage =
+  Gc.full_major ();
+  Printf.printf "%s: live %d bytes\n%!" stage
+    ((Gc.stat ()).live_words * (Sys.word_size / 8))
+
 let cook_graph ~session (graph : Lower.graph) =
   let compiled = Result.get_ok (Procedural.Edit_graph.compile_node
     graph.network.geometry ~node_id:(Option.get graph.root)) in
@@ -24,7 +29,12 @@ let () =
   let repeats = if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 21 in
   Printf.printf "domains available %d, repeats %d (medians, ms)\n"
     (Domain.recommended_domain_count ()) repeats;
+  Printf.printf "catalog: %d factories, %d fields\n%!" (List.length factories)
+    (List.fold_left (fun count factory -> count + List.length
+      (Procedural.Edit_graph.factory_fields factory)) 0 factories);
+  report_live "before workspace catalog";
   let catalog = ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
+  report_live "after workspace catalog";
   Printf.printf "%-11s %8s %8s %8s %8s %8s %6s\n" "fixture" "check" "eval" "lower" "cook1" "l+cook" "nodes";
   let forms name = ok (Flow.Syntax.parse
     (In_channel.with_open_bin (Filename.concat dir (name ^ ".lisp")) In_channel.input_all)) in
@@ -69,9 +79,13 @@ let () =
       let cold = (now () -. t) *. 1000. in
       let warm = median (fun () -> cook_graph ~session graph) 7 in
       let stats = Procedural.Session.stats session in
-      Printf.printf "%-11s %8d %10.3f %10.3f %8d %8d %10.2f  (heap %d MB)\n%!" name entries cold warm
+      Gc.full_major ();
+      let memory = Gc.stat () in
+      let megabytes words = float words *. float (Sys.word_size / 8) /. 1048576. in
+      Printf.printf "%-11s %8d %10.3f %10.3f %8d %8d %10.2f  (live %.2f MB, heap %.2f MB, peak %.2f MB)\n%!" name entries cold warm
         stats.retained_entries stats.evictions
         (float stats.retained_payload_bytes /. 1048576.)
-        ((Gc.quick_stat ()).top_heap_words * 8 / 1048576);
+        (megabytes memory.live_words) (megabytes memory.heap_words)
+        (megabytes memory.top_heap_words);
       Procedural.Session.close session) [32; 512])
     ["bloom"; "sunflower"; "wave"; "tree"]

@@ -176,11 +176,13 @@ let with_pos args i v =
      | None -> args
      | Some v ->
          (* after the last positional argument, else first *)
-         let rec go seen = function
-           | a :: b :: r when is_kw a -> a :: b :: go seen r
-           | x :: r -> if seen + 1 = n then x :: v :: r else x :: go (seen + 1) r
-           | [] -> [] in
-         if n = 0 then v :: args else go 0 args)
+         let additions=List.init (i-n) (fun _ -> sym "nil") @ [v] in
+         if n = 0 then additions @ args else
+           let rec insert seen = function
+             | a :: b :: r when is_kw a -> a :: b :: insert seen r
+             | x :: r -> if seen + 1 = n then x :: additions @ r else x :: insert (seen + 1) r
+             | [] -> [] in
+           insert 0 args)
   else
     let rec go k = function
       | a :: b :: r when is_kw a -> a :: b :: go k r

@@ -202,7 +202,7 @@ let run () =
   let generated_resample = Sop.polyline (Array.init 5_001 (fun point ->
       let t = float_of_int point *. 0.003 in
       t, sin (t *. 0.7), cos (t *. 0.43) *. 0.6))
-      |> Sop.resample ~maximum_segment_length:0.0009
+      |> Sop.resample ~use_segments:(false) ~use_maximum_segment_length:true ~maximum_segment_length:0.0009
            ~curve_u_attribute:"curveu" ~curve_number_attribute:"curvenum"
            ~distance_attribute:"distance" ~tangent_attribute:"tangent" in
   let one = cook 1 generated_resample and many = cook 4 generated_resample in
@@ -211,10 +211,9 @@ let run () =
   check (Geometry.point_count one > 5_001
       && Geometry.find_attribute ~owner:Attribute.Point "tangent" one <> None)
     "advanced Resample exactness fixture cardinality";
-  let generated_polyframe = Sop.grid ~columns:401 ~rows:301
+  let generated_polyframe = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:401 ~rows:301
       ~uv_attribute:"uv" ~size:20. ()
-      |> Sop.polyframe ~orthogonal:true
-           (Polyframe.Attribute_gradient "uv") in
+      |> Sop.polyframe ~orthogonal:true ~style:Sop.Style_attribute_gradient ~style_attribute:"uv" in
   let one = cook 1 generated_polyframe and many = cook 4 generated_polyframe in
   check (equal_geometry one many)
     "one-domain and four-domain PolyFrame geometry differ";
@@ -222,9 +221,9 @@ let run () =
       && Geometry.find_attribute ~owner:Attribute.Vertex "tangentu" one <> None
       && Geometry.find_attribute ~owner:Attribute.Vertex "tangentv" one <> None)
     "PolyFrame exactness fixture attributes";
-  let generated_facet = Sop.grid ~columns:401 ~rows:301
+  let generated_facet = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:401 ~rows:301
       ~uv_attribute:"uv" ~size:20. ()
-      |> Sop.facet ~pre_compute_normals:true ~make_normals_unit_length:true
+      |> Sop.facet ~cusp_mode:Procedural.Sop.Kernel_auto ~inline_distance:0. ~consolidation:Procedural.Sop.Consolidation_normals ~pre_compute_normals:true ~make_normals_unit_length:true
            ~unique_points:true ~consolidate_normals_distance:0.
            ~reverse_normals:true in
   let one = cook 1 generated_facet and many = cook 4 generated_facet in
@@ -233,19 +232,19 @@ let run () =
   check (Geometry.point_count one = Geometry.vertex_count one
       && Geometry.find_attribute ~owner:Attribute.Point "uv" one <> None)
     "Facet exactness fixture cardinality";
-  let generated_grouped_facet = Sop.grid ~columns:401 ~rows:301
+  let generated_grouped_facet = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:401 ~rows:301
       ~uv_attribute:"uv" ~size:20. ()
       |> Sop.group ~name:"facet_even"
            (Select.primitive_indices
              (Array.init (400 * 300) (fun primitive -> primitive * 2)))
-      |> Sop.facet ~group:"facet_even" ~pre_compute_normals:true
+      |> Sop.facet ~cusp_mode:Procedural.Sop.Kernel_auto ~inline_distance:0. ~group:"facet_even" ~pre_compute_normals:true
            ~unique_points:true ~reverse_normals:true in
   let one = cook 1 generated_grouped_facet
   and many = cook 4 generated_grouped_facet in
   check (equal_geometry one many)
     "one-domain and four-domain grouped Facet geometry differ";
   let generated_inline_facet = Sop.snapshot (inline_geometry 40_000)
-      |> Sop.facet ~remove_inline_points:true in
+      |> Sop.facet ~cusp_mode:Procedural.Sop.Kernel_auto ~inline_distance:0. ~remove_inline_points:true in
   let one = cook 1 generated_inline_facet
   and many = cook 4 generated_inline_facet in
   check (equal_geometry one many)
@@ -255,9 +254,7 @@ let run () =
     "Facet inline exactness fixture cardinality";
   let generated_grid = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
       ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
-      ~orientation:(Rdk.Plane_generators.Grid_axes {
-        horizontal = Vec3.create 1. 2. 0.5;
-        vertical = Vec3.create (-0.25) 0.75 2. })
+      ~orientation:Procedural.Sop.Plane_axes ~horizontal:(Vec3.create 1. 2. 0.5) ~vertical:(Vec3.create (-0.25) 0.75 2.)
       ~center:(Vec3.create 3. (-2.) 5.) ~width:40. ~height:25.
       ~rotation:0.37 ~uv_attribute:"uv" ~columns:701 ~rows:501 ~size:1. () in
   let one = cook 1 generated_grid and many = cook 4 generated_grid in
@@ -267,11 +264,8 @@ let run () =
       && Geometry.primitive_count one = 700_000)
     "advanced Grid exactness fixture cardinality";
   let generated_circle = Sop.circle
-      ~arc:(Rdk.Plane_generators.Circle_sliced_arc {
-        start_angle = -0.7; end_angle = 5.2 })
-      ~orientation:(Rdk.Plane_generators.Circle_axes {
-        horizontal = Vec3.create 1. 2. 0.5;
-        vertical = Vec3.create (-0.25) 0.75 2. })
+      ~arc:Sop.Circle_sliced ~start_angle:(-0.7) ~end_angle:5.2
+      ~orientation:Sop.Plane_axes ~horizontal:(Vec3.create 1. 2. 0.5) ~vertical:(Vec3.create (-0.25) 0.75 2.)
       ~reverse:true ~center:(Vec3.create 3. (-2.) 5.)
       ~radius_x:40. ~radius_y:25. ~rotation:0.37 ~uniform_scale:1.2
       ~segments:500_000 ~radius:1. () in
@@ -283,7 +277,7 @@ let run () =
          = Topology.Closed_polyline)
     "advanced Circle exactness fixture cardinality";
   let generated_box = Sop.box ~connectivity:Rdk.Box_generator.Box_quads
-      ~consolidate_points:true ~normals:Rdk.Box_generator.Box_vertex_normals
+      ~consolidate_points:true ~normals:(Some (Rdk.Box_generator.Box_vertex_normals))
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Rdk.Box_generator.Box_zxy
       ~uniform_scale:1.2 ~x_divisions:256 ~y_divisions:192 ~z_divisions:128
@@ -296,14 +290,14 @@ let run () =
       && Geometry.primitive_count one = 212_992
       && List.length (Geometry.groups one) = 6)
     "advanced Box exactness fixture cardinality";
-  let generated_sphere = Sop.uv_sphere
+  let generated_sphere = Sop.uv_sphere ~radius:(Rays_math.Vec3.create (3.) (2.) (1.))
       ~connectivity:Rdk.Uv_sphere.Sphere_alternating_triangles
       ~unique_points_per_pole:true ~normals:Rdk.Uv_sphere.Sphere_vertex_normals
-      ~orientation:(Rdk.Uv_sphere.Sphere_axis (Vec3.create 1. 2. 3.))
+      ~orientation:Procedural.Sop.Axis_custom ~axis:(Vec3.create 1. 2. 3.)
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Rdk.Uv_sphere.Sphere_yzx
-      ~radius_x:3. ~radius_y:2. ~radius_z:1. ~uv_attribute:"uv"
-      ~segments:256 ~rings:128 ~radius:1. () in
+         ~uv_attribute:"uv"
+      ~segments:256 ~rings:128 ~base_radius:1. () in
   let one = cook 1 generated_sphere and many = cook 4 generated_sphere in
   check (equal_geometry one many)
     "one-domain and four-domain advanced UV Sphere geometry differ";
@@ -314,7 +308,7 @@ let run () =
   let generated_torus = Sop.torus
       ~connectivity:Parametric_generators.Torus_alternating_triangles
       ~normals:Parametric_generators.Torus_vertex_normals ~uv_attribute:"uv"
-      ~orientation:(Parametric_generators.Torus_axis (Vec3.create 1. 2. 3.))
+      ~orientation:Procedural.Sop.Axis_custom ~axis:(Vec3.create 1. 2. 3.)
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Parametric_generators.Torus_yzx
       ~u_start:(-0.7) ~u_end:4.8 ~v_start:(-1.2) ~v_end:2.1
@@ -330,7 +324,7 @@ let run () =
   let generated_tube = Sop.tube
       ~connectivity:Parametric_generators.Tube_alternating_triangles ~end_caps:true
       ~consolidate_cap_points:false ~normals:Parametric_generators.Tube_vertex_normals
-      ~orientation:(Parametric_generators.Tube_axis (Vec3.create 1. 2. 3.))
+      ~orientation:Procedural.Sop.Axis_custom ~axis:(Vec3.create 1. 2. 3.)
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7) ~rotation_order:Parametric_generators.Tube_yzx
       ~radius_scale:1.2 ~uv_attribute:"uv" ~cap_group:"caps"
@@ -344,7 +338,7 @@ let run () =
     "advanced Tube exactness fixture cardinality";
   let generated_platonic = Sop.platonic
       ~kind:Parametric_generators.Platonic_soccer_ball ~normals:Parametric_generators.Platonic_vertex_normals
-      ~orientation:(Parametric_generators.Platonic_axis (Vec3.create 1. 2. 3.))
+      ~orientation:Sop.Axis_custom ~axis:(Vec3.create 1. 2. 3.)
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
       ~rotation_order:Parametric_generators.Platonic_yzx ~face_groups:"face" ~radius:4. () in
@@ -355,15 +349,14 @@ let run () =
       && Geometry.primitive_count one = 32)
     "advanced Platonic exactness fixture cardinality";
   let generated_spiral = Sop.spiral
-      ~extent:(Spiral.Spiral_height_pitch { height = -18.; pitch = -0.37 })
-      ~radius:(Spiral.Spiral_logarithmic_end {
-        start_radius = 0.35; end_radius = 8. })
-      ~height_ramp:[0., 0.8; 0.35, 1.2; 0.7, 0.55; 1., 1.]
-      ~radius_scale:1.3 ~radius_ramp:[0., 1.; 0.4, 0.6; 1., 1.15]
+      ~extent_mode:Sop.Spiral_height_pitch ~height:(-18.) ~pitch:(-0.37)
+      ~radius_mode:Sop.Spiral_logarithmic_end ~start_radius:0.35 ~end_radius:8.
+      ~height_ramp:"0:0.8,0.35:1.2,0.7:0.55,1:1"
+      ~radius_scale:1.3 ~radius_ramp:"0:1,0.4:0.6,1:1.15"
       ~direction:Spiral.Spiral_clockwise ~start_angle:(-0.7)
-      ~divisions:(Spiral.Spiral_divisions_per_curve 20_000)
+      ~divisions_mode:Sop.Spiral_per_curve ~divisions:20_000
       ~uniform_angle:false ~spiral_count:5
-      ~orientation:(Spiral.Spiral_axis (Vec3.create 1. 2. 3.))
+      ~orientation:Sop.Axis_custom ~axis:(Vec3.create 1. 2. 3.)
       ~center:(Vec3.create 3. (-2.) 5.)
       ~rotation:(Vec3.create 0.3 0.5 0.7)
       ~rotation_order:Spiral.Spiral_yzx ~uniform_scale:1.2
@@ -381,10 +374,10 @@ let run () =
       (Mat4.mul (Mat4.rotation ~axis:(Vec3.create 1. 2. 3.) 0.7)
          (Mat4.scaling (Vec3.create 1.25 0.75 1.5))) in
   let graph =
-    Sop.grid ~columns:320 ~rows:256 ~size:20. ()
-    |> Sop.transform matrix
-    |> Sop.color_by_height ~low:(Color.rgb 45 36 114)
-         ~high:(Color.rgb 244 124 42)
+    Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:320 ~rows:256 ~size:20. ()
+    |> (let migration_matrix = matrix in (fun migration_input -> Sop.transform ~mode:Sop.Transform_matrix ~m00:(Mat4.get migration_matrix ~row:0 ~column:0) ~m01:(Mat4.get migration_matrix ~row:0 ~column:1) ~m02:(Mat4.get migration_matrix ~row:0 ~column:2) ~m03:(Mat4.get migration_matrix ~row:0 ~column:3) ~m10:(Mat4.get migration_matrix ~row:1 ~column:0) ~m11:(Mat4.get migration_matrix ~row:1 ~column:1) ~m12:(Mat4.get migration_matrix ~row:1 ~column:2) ~m13:(Mat4.get migration_matrix ~row:1 ~column:3) ~m20:(Mat4.get migration_matrix ~row:2 ~column:0) ~m21:(Mat4.get migration_matrix ~row:2 ~column:1) ~m22:(Mat4.get migration_matrix ~row:2 ~column:2) ~m23:(Mat4.get migration_matrix ~row:2 ~column:3) ~m30:(Mat4.get migration_matrix ~row:3 ~column:0) ~m31:(Mat4.get migration_matrix ~row:3 ~column:1) ~m32:(Mat4.get migration_matrix ~row:3 ~column:2) ~m33:(Mat4.get migration_matrix ~row:3 ~column:3) migration_input))
+    |> Sop.color_by_height ~low_red:45 ~low_green:36 ~low_blue:114
+         ~high_red:244 ~high_green:124 ~high_blue:42
     |> Sop.group ~name:"middle"
          (Select.points_in_bounds ~min:(Vec3.create (-5.) (-100.) (-5.))
             ~max:(Vec3.create 5. 100. 5.))
@@ -394,22 +387,16 @@ let run () =
     |> Sop.group_boundary_components ~prefix:"boundary_loop"
     |> Sop.group ~name:"all_faces" Select.all_primitives
     |> Sop.group_range ~owner:Group_ops.Group_primitives ~name:"connected_faces"
-         ~connectivity:(Group_ops.Range_connected {
-           connectivity_attributes = None;
-           connectivity_tolerance = 1e-6;
-           collision = Some {
-             Group_ops.collision_owner = Group_ops.Group_points;
-             collision_pattern = "middle";
-             keep_boundary = true };
-           region = None;
-           remove_other_regions = true })
-         ~filter:{ select = 3; of_ = 11; offset = 2 }
-         (Group_ops.Range_start_end { start = 7; end_ = 40_000 })
-    |> Sop.group_promote_boundary ~keep_original:true
+         ~connectivity_mode:Sop.Connected ~connectivity_tolerance:1e-6
+         ~use_collision:true ~collision_owner:Group_ops.Group_points
+         ~collision_pattern:"middle" ~keep_boundary:true ~remove_other_regions:true
+         ~use_filter:true ~filter_select:3 ~filter_of:11 ~filter_offset:2
+         ~start:7 ~end_:40_000
+    |> Sop.group_promote_boundary ~tolerance:(1e-6) ~keep_original:true
          ~include_unshared_edges:true ~name:"connected_outline"
          ~source:Group_ops.Group_primitives ~destination:Group_ops.Group_edges
          ~group:"connected_faces"
-    |> Sop.group_edges ~name:"surface_edges"
+    |> Sop.group_edges ~use_max_angle:true ~use_min_angle:true ~name:"surface_edges"
          ~angle_basis:Group_mesh.Incident_edges ~min_angle:0.1 ~max_angle:2.9
     |> Sop.group_unshared ~owner:Group_ops.Group_edges ~name:"unshared_edges"
   in
@@ -424,18 +411,18 @@ let run () =
       = ["middle"; "middle_grown"; "surface_boundary"; "boundary_loop__0";
          "all_faces"; "connected_faces"])
     "group ordering changed";
-  let lifecycle_reference = Sop.grid ~columns:8 ~rows:4 ~size:2. ()
-      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_keep" 1.
-      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_drop" 2. in
-  let lifecycle = Sop.grid ~columns:8 ~rows:4 ~size:2. ()
-      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_keep" 1.
-      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_drop" 2.
-      |> Sop.set_float ~owner:Attribute.Point ~name:"temporary_point" 3.
-      |> Sop.set_float ~owner:Attribute.Vertex ~name:"temporary_vertex" 4.
-      |> Sop.set_float ~owner:Attribute.Primitive ~name:"temporary_primitive" 5.
-      |> Sop.set_int ~owner:Attribute.Detail ~name:"temporary_detail" 6
-      |> Sop.delete_attributes ~reference:lifecycle_reference
-           ~point_pattern:"^reference_keep"
+  let lifecycle_reference = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:8 ~rows:4 ~size:2. ()
+      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_keep" ~value:1.
+      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_drop" ~value:2. in
+  let lifecycle = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:8 ~rows:4 ~size:2. ()
+      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_keep" ~value:1.
+      |> Sop.set_float ~owner:Attribute.Point ~name:"reference_drop" ~value:2.
+      |> Sop.set_float ~owner:Attribute.Point ~name:"temporary_point" ~value:3.
+      |> Sop.set_float ~owner:Attribute.Vertex ~name:"temporary_vertex" ~value:4.
+      |> Sop.set_float ~owner:Attribute.Primitive ~name:"temporary_primitive" ~value:5.
+      |> Sop.set_int ~owner:Attribute.Detail ~name:"temporary_detail" ~value:6
+      |> (fun input -> Sop.delete_attributes ~point_pattern:"^reference_keep"
+           input (Some lifecycle_reference))
       |> Sop.rename_attributes ~rules:[{
           Attribute_ops.rename_attribute_owner = None;
           rename_attribute_pattern = "temporary_*";
@@ -476,16 +463,16 @@ let run () =
       && Geometry.find_attribute ~owner:Attribute.Point "rest" one
          <> None)
     "Attribute Delete/Rename/Swap exactness fixture outputs";
-  let blurred = Sop.grid ~columns:240 ~rows:160 ~size:14. ()
+  let blurred = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:240 ~rows:160 ~size:14. ()
       |> Sop.noise_displace ~seed:311 ~amplitude:0.9 ~frequency:0.45
-      |> Sop.color_by_height ~low:(Color.hex_exn "#1d4ed8")
-           ~high:(Color.hex_exn "#f97316")
-      |> Sop.set_float ~owner:Attribute.Point ~name:"blur_weight" 0.8
-      |> Sop.set_float ~owner:Attribute.Point ~name:"blur_alpha" 0.9
+      |> Sop.color_by_height ~low_red:29 ~low_green:78 ~low_blue:216
+           ~high_red:249 ~high_green:115 ~high_blue:22
+      |> Sop.set_float ~owner:Attribute.Point ~name:"blur_weight" ~value:0.8
+      |> Sop.set_float ~owner:Attribute.Point ~name:"blur_alpha" ~value:0.9
       |> Sop.group ~name:"blur_points" Select.all_points
       |> Sop.attribute_blur ~group:"blur_points" ~iterations:6
            ~method_:Attribute_ops.Edge_length
-           ~mode:(Attribute_ops.Custom_steps { odd = 0.42; even = -0.44 })
+           ~mode:Sop.Custom ~odd_step:0.42 ~even_step:(-0.44)
            ~weight_attribute:"blur_weight" ~alpha_attribute:"blur_alpha"
            ~pin_borders:true ~attributes:"P Cd" in
   let one = cook 1 blurred and many = cook 4 blurred in
@@ -493,18 +480,18 @@ let run () =
     "one-domain and four-domain Attribute Blur geometry differ";
   check (Geometry.find_attribute ~owner:Attribute.Point "Cd" one <> None)
     "Attribute Blur exactness fixture dropped color";
-  let smoothed = Sop.grid ~columns:300 ~rows:220 ~size:18. ()
+  let smoothed = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:300 ~rows:220 ~size:18. ()
       |> Sop.noise_displace ~seed:313 ~amplitude:1.1 ~frequency:0.52
-      |> Sop.color_by_height ~low:(Color.hex_exn "#0e7490")
-           ~high:(Color.hex_exn "#facc15")
-      |> Sop.set_float ~owner:Attribute.Point ~name:"smooth_weight" 0.82
+      |> Sop.color_by_height ~low_red:14 ~low_green:116 ~low_blue:144
+           ~high_red:250 ~high_green:204 ~high_blue:21
+      |> Sop.set_float ~owner:Attribute.Point ~name:"smooth_weight" ~value:0.82
       |> Sop.group_random ~seed:317 ~probability:0.72
            ~owner:Group_ops.Group_primitives ~name:"smooth_faces"
       |> Sop.group_unshared ~owner:Group_ops.Group_points ~name:"smooth_locks"
-      |> Sop.smooth ~group:"smooth_faces" ~constrained_points:"smooth_locks"
+      |> Sop.smooth ~recompute_normals:(true) ~group:"smooth_faces" ~constrained_points:"smooth_locks"
            ~boundary:Smooth.Smooth_group_boundary ~iterations:8
            ~method_:Attribute_ops.Edge_length
-           ~mode:(Attribute_ops.Custom_steps { odd = 0.43; even = -0.45 })
+           ~mode:Sop.Custom ~odd_step:0.43 ~even_step:(-0.45)
            ~weight_attribute:"smooth_weight" ~attributes:"P Cd" in
   let one = cook 1 smoothed and many = cook 4 smoothed in
   check (equal_geometry one many)
@@ -512,26 +499,24 @@ let run () =
   check (Geometry.find_attribute ~owner:Attribute.Point "Cd" one <> None
       && Geometry.point_count one = 301 * 221)
     "Smooth exactness fixture changed payload/cardinality";
-  let ray_collision = Sop.grid ~columns:320 ~rows:240 ~size:20. ()
+  let ray_collision = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:320 ~rows:240 ~size:20. ()
       |> Sop.noise_displace ~seed:319 ~amplitude:0.9 ~frequency:0.37
-      |> Sop.color_by_height ~low:(Color.hex_exn "#06b6d4")
-           ~high:(Color.hex_exn "#f43f5e") in
-  let projected = Sop.grid ~columns:320 ~rows:240 ~size:20. ()
-      |> Sop.transform (Mat4.translation (Vec3.create 0. 3. 0.))
-      |> Sop.ray ~collision:ray_collision
-           ~direction:(Ray.Ray_vector (Vec3.neg Vec3.unit_y))
-           ~tolerance:1e-9 ~distance_attribute:"ray_distance"
-           ~primitive_attribute:"source_primitive"
-           ~source_vertex_numbers_attribute:"source_vertices"
-           ~source_vertex_weights_attribute:"source_weights"
-           ~normal_attribute:"hit_N" ~point_pattern:"Cd" in
+      |> Sop.color_by_height ~low_red:6 ~low_green:182 ~low_blue:212
+           ~high_red:244 ~high_green:63 ~high_blue:94 in
+  let projected = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:320 ~rows:240 ~size:20. ()
+      |> (let migration_translation = Vec3.create 0. 3. 0. in
+fun migration_input ->
+  Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
+    ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z
+    migration_input)
+      |> (fun ray_source -> Sop.ray ~direction:Procedural.Sop.Direction_vector ~direction_vector:(Vec3.neg Vec3.unit_y) ~tolerance:(1e-9) ~distance_attribute:("ray_distance") ~primitive_attribute:("source_primitive") ~source_vertex_numbers_attribute:("source_vertices") ~source_vertex_weights_attribute:("source_weights") ~normal_attribute:("hit_N") ~point_pattern:("Cd") ray_source (ray_collision)) in
   let one = cook 1 projected and many = cook 4 projected in
   check (equal_geometry one many)
     "one-domain and four-domain Ray geometry differ";
   check (Geometry.point_count one = 321 * 241
       && Geometry.find_attribute ~owner:Attribute.Point "Cd" one <> None)
     "Ray exactness fixture changed payload/cardinality";
-  let grid_snapped = Sop.grid ~columns:500 ~rows:300 ~size:20. ()
+  let grid_snapped = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:500 ~rows:300 ~size:20. ()
       |> Sop.noise_displace ~seed:321 ~amplitude:0.37 ~frequency:0.29
       |> Sop.snap_to_grid ~spacing:(Vec3.create 0.03125 0.03125 0.03125)
            ~offset:(Vec3.create 0.25 0.5 0.75) ~snapped_group:"snapped" in
@@ -540,11 +525,11 @@ let run () =
     "one-domain and four-domain procedural grid snap differ";
   check (Geometry.find_group ~owner:Group.Point "snapped" one <> None)
     "procedural grid snap exactness fixture dropped output group";
-  let bounded = Sop.grid ~columns:500 ~rows:300 ~size:30. ()
+  let bounded = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:500 ~rows:300 ~size:30. ()
       |> Sop.noise_displace ~seed:323 ~amplitude:2. ~frequency:0.23
-      |> Sop.bound ~shape:(Bound.Bound_box { divisions = 256, 128, 64 })
-           ~lower_padding:(Vec3.create 0.25 0.5 0.75)
-           ~upper_padding:(Vec3.create 0.75 0.5 0.25)
+      |> Sop.bound ~shape:Sop.Box ~divisions_x:256 ~divisions_y:128 ~divisions_z:64
+           ~lower:(Vec3.create 0.25 0.5 0.75)
+           ~upper:(Vec3.create 0.75 0.5 0.25)
            ~bounds_group:"bounds" ~center_attribute:"bound_center"
            ~radii_attribute:"bound_radii" in
   let one = cook 1 bounded and many = cook 4 bounded in
@@ -553,20 +538,20 @@ let run () =
   check (Geometry.point_count one = 116_486
       && Geometry.primitive_count one = 229_376)
     "procedural Bound exactness cardinality";
-  let expanded_groups = Sop.grid ~columns:400 ~rows:300 ~size:20. ()
+  let expanded_groups = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:400 ~rows:300 ~size:20. ()
       |> Sop.group ~name:"seed"
            (Select.points_in_bounds ~min:(Vec3.create (-0.03) (-1.) (-20.))
               ~max:(Vec3.create 0.03 1. 20.))
-      |> Sop.group_expand ~steps:24 ~step_attribute:"grow_step"
+      |> Sop.group_expand ~connectivity_tolerance:(1e-6) ~steps:24 ~step_attribute:"grow_step"
            ~owner:Group_ops.Group_points ~group:"seed"
-      |> Sop.group_promotions [
+      |> Sop.group_promotions ~rules:[
            Group_ops.promotion_rule ~new_name:"grown_faces" ~keep_original:true
              ~mode:Group_ops.Include_shared_edge ~source:Group_ops.Group_points
              ~destination:Group_ops.Group_primitives ~pattern:"seed" ();
            Group_ops.promotion_rule ~new_name:"grown_edges" ~keep_original:true
              ~mode:Group_ops.Include_all ~source:Group_ops.Group_points
              ~destination:Group_ops.Group_edges ~pattern:"seed" ()]
-      |> Sop.group_expand ~steps:3 ~owner:Group_ops.Group_edges ~group:"grown_edges" in
+      |> Sop.group_expand ~connectivity_tolerance:(1e-6) ~steps:3 ~owner:Group_ops.Group_edges ~group:"grown_edges" in
   let one = cook 1 expanded_groups and many = cook 4 expanded_groups in
   check (equal_geometry one many)
     "one-domain and four-domain Group Expand/Promote geometry differ";
@@ -597,18 +582,15 @@ let run () =
       |> Geometry.with_group seed |> get_ok
       |> Geometry.with_group containment |> get_ok in
   let constrained_expand = Sop.snapshot constrained_source
-      |> Sop.group_expand ~flood:true ~step_attribute:"constraint_step"
+      |> Sop.group_expand ~connectivity_tolerance:(1e-6) ~flood:true ~step_attribute:"constraint_step"
            ~primitive_connectivity:Group_ops.Primitive_share_edges
            ~normal_spread:0.1
-           ~normal_attribute:{ Group_ops.expand_normal_owner = Attribute.Primitive;
-             expand_normal_name = "flow" }
+           ~use_normal_attribute:true ~normal_owner:Attribute.Primitive ~normal_name:"flow"
            ~connectivity_attributes:[{
              Group_ops.boundary_attribute_owner = Attribute.Primitive;
              boundary_attribute_pattern = "region" }]
-           ~collision:{ Group_ops.expand_collision_owner = Group_ops.Group_primitives;
-             expand_collision_group = "containment";
-             expand_collision_contain = true;
-             expand_collision_allow_boundary = true }
+           ~use_collision:true ~collision_owner:Group_ops.Group_primitives
+           ~collision_group:"containment" ~collision_contain:true ~collision_allow_boundary:true
            ~owner:Group_ops.Group_primitives ~group:"seed" in
   let one = cook 1 constrained_expand and many = cook 4 constrained_expand in
   check (equal_geometry one many)
@@ -620,27 +602,29 @@ let run () =
       && Geometry.find_attribute ~owner:Attribute.Primitive "constraint_step" one
          <> None)
     "constrained Group Expand exactness fixture ignored constraints";
-  let instances = Sop.copy_to_points
-      ~source:(Sop.box () |> Sop.group_edges ~name:"instance_edges")
-      ~targets:(Sop.grid ~columns:80 ~rows:60 ~size:12. ()
-        |> Sop.noise_displace ~seed:17 ~amplitude:0.8 ~frequency:0.3) () in
+  let instances = (Sop.copy_to_points
+  ((Sop.box ~normals:None ~connectivity:Rdk.Box_generator.Box_triangles ())
+     |> (Sop.group_edges ~name:"instance_edges"))
+  ((Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:80 ~rows:60 ~size:12. ()) |>
+     (Sop.noise_displace ~seed:17 ~amplitude:0.8 ~frequency:0.3))) in
   let one = cook 1 instances and many = cook 4 instances in
   check (equal_geometry one many)
     "one-domain and four-domain copy-to-points geometry differ";
   check (Geometry.point_count one = 81 * 61 * 24)
     "copy-to-points exactness fixture cardinality";
-  let mirrored = Sop.box ()
+  let mirrored = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ()
       |> Sop.group_edges ~name:"box_edges"
-      |> Sop.fuse ~tolerance:1e-9 ~attributes:Rdk.Fuse_reduce.Average_numeric
+      |> (fun fuse_source -> Sop.fuse ~remove_unused_points_from_degenerate_primitives:(false) ~remove_degenerate_primitives:(false) ~tolerance:(1e-9) ~attributes:(Rdk.Fuse_reduce.Average_numeric) fuse_source None)
       |> Sop.mirror ~origin:Vec3.zero ~normal:(Vec3.create 1. 1. 0.) in
   let one = cook 1 mirrored and many = cook 4 mirrored in
   check (equal_geometry one many)
     "one-domain and four-domain fuse/mirror geometry differ";
-  let clipped = Sop.uv_sphere ~segments:96 ~rings:64 ~radius:2. ()
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
+  let clipped = Sop.uv_sphere ~radius_x_mode:Procedural.Sop.Kernel_auto ~radius_y_mode:Procedural.Sop.Kernel_auto ~radius_z_mode:Procedural.Sop.Kernel_auto ~normals_mode:Procedural.Sop.Kernel_auto ~uv_attribute:"" ~segments:96 ~rings:64 ~base_radius:2. ()
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
       |> Sop.group_edges ~name:"sphere_edges"
-      |> Sop.clip ~keep:Plane_clip.All ~fill:true ~split_connectivity:true
-           ~selection:(Sop.Edge_group "sphere_edges")
+      |> Sop.clip ~replace_existing_groups:(true) ~keep:Plane_clip.All ~fill:true ~split_connectivity:true
+           ~group_owner:Sop.Element_edge ~group:"sphere_edges"
            ~distance:0.075 ~clipped_edge_group:"clip_edges"
            ~cap_group:"caps" ~above_group:"above" ~below_group:"below"
            ~origin:(Vec3.create 0. 0.15 0.)
@@ -656,35 +640,29 @@ let run () =
    | Some group -> check (Edge_group.cardinality group > 0)
        "filled keep-all clip edge count"
    | None -> fail "filled keep-all clip edge group missing");
-  let subdivided = Sop.box ~size:(Vec3.create 2. 1.5 1.) ()
-      |> Sop.fuse ~tolerance:0. ~attributes:Fuse_reduce.Average_numeric
-      |> Sop.set_color ~owner:Attribute.Point (Color.hex_exn "#38bdf8")
+  let subdivided = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 2. 1.5 1.) ()
+      |> (fun fuse_source -> Sop.fuse ~remove_unused_points_from_degenerate_primitives:(false) ~remove_degenerate_primitives:(false) ~tolerance:(0.) ~attributes:(Fuse_reduce.Average_numeric) fuse_source None)
+      |> Sop.set_color ~owner:Attribute.Point ~color:(Vec3.create (56. /. 255.) (189. /. 255.) (248. /. 255.))
       |> Sop.group_edges ~name:"subdivision_edges"
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:3
-      |> Sop.normals in
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~iterations:(3) subdivision_source None)
+      |> (Sop.normals ~weighting:(Rdk.Normal_ops.Face_area) ~owner:(Rdk.Attribute.Point)) in
   let one = cook 1 subdivided and many = cook 4 subdivided in
   check (equal_geometry one many)
     "one-domain and four-domain Catmull-Clark geometry differ";
   check (Geometry.primitive_count one = 576)
     (Printf.sprintf "Catmull-Clark procedural fixture cardinality: %d"
       (Geometry.primitive_count one));
-  let creased_subdivision = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.set_float ~owner:Attribute.Vertex ~name:"creaseweight" 1.5
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark in
+  let creased_subdivision = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:80 ~size:8. ()
+      |> Sop.set_float ~owner:Attribute.Vertex ~name:"creaseweight" ~value:1.5
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) subdivision_source None) in
   let one = cook 1 creased_subdivision and many = cook 4 creased_subdivision in
   check (equal_geometry one many)
     "one-domain and four-domain semi-sharp subdivision differ";
   check (Geometry.find_attribute ~owner:Attribute.Vertex "creaseweight" one
     <> None) "semi-sharp subdivision did not emit residual creases";
-  let chaikin_subdivision = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.attribute_randomize ~seed:8_191 ~owner:Attribute.Vertex
-           ~name:"creaseweight" (Attribute_ops.Random_uniform {
-             min = Attribute_ops.Scalar 0.;
-             max = Attribute_ops.Scalar 4.;
-           })
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2
-           ~creasing_method:Subdivide.Subdivide_creasing_chaikin
-           ~resulting_crease_group:"chaikin_creases" in
+  let chaikin_subdivision = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:80 ~size:8. ()
+      |> (fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_uniform ~kind:Sop.Numeric_scalar ~a:(Vec3.create (0.) (0.) (0.)) ~b:(Vec3.create (4.) (0.) (0.)) ~seed:(8_191) ~owner:(Attribute.Vertex) ~name:("creaseweight") migration_input)
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~iterations:(2) ~creasing_method:(Subdivide.Subdivide_creasing_chaikin) ~resulting_crease_group:("chaikin_creases") subdivision_source None) in
   let one = cook 1 chaikin_subdivision and many = cook 4 chaikin_subdivision in
   check (equal_geometry one many)
     "one-domain and four-domain Chaikin subdivision differ";
@@ -697,8 +675,7 @@ let run () =
       ((Topology_index.create (Geometry.topology all_edge_source)
         |> Topology_index.Private.view).edge_a) in
   let all_edge_subdivision = Sop.snapshot all_edge_source
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2
-           ~crease_weight:3. ~resulting_crease_group:"all_edge_creases" in
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_explicit ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~iterations:(2) ~crease_weight:(3.) ~resulting_crease_group:("all_edge_creases") subdivision_source None) in
   let one = cook 1 all_edge_subdivision and many = cook 4 all_edge_subdivision in
   check (equal_geometry one many)
     "one-domain and four-domain all-edge crease override differ";
@@ -708,7 +685,7 @@ let run () =
     "parallel all-edge crease override omitted source-edge descendants";
   let dense_curve_source = curve_chain_geometry 50_000 in
   let shared_curves = Sop.snapshot dense_curve_source
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2 in
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~iterations:(2) subdivision_source None) in
   let one = cook 1 shared_curves and many = cook 4 shared_curves in
   check (equal_geometry one many)
     "one-domain and four-domain shared polygon-curve subdivision differ";
@@ -716,19 +693,17 @@ let run () =
       && Geometry.vertex_count one = 250_000)
     "parallel shared polygon-curve subdivision cardinality";
   let independent_curves = Sop.snapshot dense_curve_source
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2
-           ~treat_curves_as_independent:true in
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~iterations:(2) ~treat_curves_as_independent:(true) subdivision_source None) in
   let one = cook 1 independent_curves and many = cook 4 independent_curves in
   check (equal_geometry one many)
     "one-domain and four-domain independent polygon-curve subdivision differ";
   check (Geometry.point_count one = 250_000
       && Geometry.vertex_count one = 250_000)
     "parallel independent polygon-curve subdivision cardinality";
-  let crease_topology = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.set_float ~owner:Attribute.Vertex ~name:"creaseweight" 2.5 in
-  let second_input_subdivision = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.subdivide ~creases:crease_topology
-           ~resulting_crease_group:"dense_creases" in
+  let crease_topology = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:80 ~size:8. ()
+      |> Sop.set_float ~owner:Attribute.Vertex ~name:"creaseweight" ~value:2.5 in
+  let second_input_subdivision = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:80 ~size:8. ()
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~resulting_crease_group:("dense_creases") subdivision_source (Some (crease_topology))) in
   let one = cook 1 second_input_subdivision
   and many = cook 4 second_input_subdivision in
   check (equal_geometry one many)
@@ -740,21 +715,20 @@ let run () =
       |> Array.to_list
       |> List.filter (fun primitive -> primitive < 120 * 80)
       |> Array.of_list in
-  let holed_subdivision = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
+  let holed_subdivision = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.group ~name:"subdivision_hole"
            (Select.primitive_indices hole_indices)
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark ~iterations:2 in
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~iterations:(2) subdivision_source None) in
   let one = cook 1 holed_subdivision and many = cook 4 holed_subdivision in
   check (equal_geometry one many)
     "one-domain and four-domain recursive hole subdivision differ";
   check (Geometry.primitive_count one = (120 * 80 - Array.length hole_indices) * 16)
     "parallel recursive hole subdivision cardinality";
-  let boundary_fixture policy = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
+  let boundary_fixture policy = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.set_float ~owner:Attribute.Point ~name:"boundary_sample" 2.5
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
-           ~boundary_interpolation:policy in
+      |> Sop.set_float ~owner:Attribute.Point ~name:"boundary_sample" ~value:2.5
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~boundary_interpolation:(policy) subdivision_source None) in
   List.iter (fun policy ->
     let one = cook 1 (boundary_fixture policy)
     and many = cook 4 (boundary_fixture policy) in
@@ -782,8 +756,7 @@ let run () =
       ~name:"fvar_uv" (Attribute.Float2 fvar_values) |> get_ok in
   let fvar_source = Geometry.with_attribute fvar_attribute fvar_source |> get_ok in
   let fvar_fixture policy = Sop.snapshot fvar_source
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
-           ~face_varying_interpolation:policy in
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~face_varying_interpolation:(policy) subdivision_source None) in
   List.iter (fun policy ->
     let one = cook 1 (fvar_fixture policy)
     and many = cook 4 (fvar_fixture policy) in
@@ -792,12 +765,10 @@ let run () =
     [Subdivide.Subdivide_fvar_none; Subdivide.Subdivide_fvar_corners_only;
      Subdivide.Subdivide_fvar_corners_plus1; Subdivide.Subdivide_fvar_corners_plus2;
      Subdivide.Subdivide_fvar_boundaries; Subdivide.Subdivide_fvar_all];
-  let smooth_triangles = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
+  let smooth_triangles = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.set_float ~owner:Attribute.Vertex ~name:"fvar_sample" 2.5
-      |> Sop.subdivide ~scheme:Subdivide.Catmull_clark
-           ~face_varying_interpolation:Subdivide.Subdivide_fvar_none
-           ~triangle_policy:Subdivide.Subdivide_triangles_smooth in
+      |> Sop.set_float ~owner:Attribute.Vertex ~name:"fvar_sample" ~value:2.5
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) ~face_varying_interpolation:(Subdivide.Subdivide_fvar_none) ~triangle_policy:(Subdivide.Subdivide_triangles_smooth) subdivision_source None) in
   let one = cook 1 smooth_triangles and many = cook 4 smooth_triangles in
   check (equal_geometry one many)
     "one-domain and four-domain Smooth Triangles subdivision differ";
@@ -823,12 +794,7 @@ let run () =
       |> with_detail "osd_creasingmethod" (Attribute.Int [|1|])
       |> with_detail "osd_trianglesubdiv" (Attribute.Int [|1|]) in
   let detail_overridden = Sop.snapshot detail_source
-      |> Sop.subdivide ~iterations:2 ~scheme:Subdivide.Bilinear
-           ~boundary_interpolation:Subdivide.Subdivide_boundary_none
-           ~face_varying_interpolation:Subdivide.Subdivide_fvar_all
-           ~creasing_method:Subdivide.Subdivide_creasing_uniform
-           ~triangle_policy:Subdivide.Subdivide_triangles_catmull_clark
-           ~resulting_crease_group:"detail_override_creases" in
+      |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~iterations:(2) ~scheme:(Subdivide.Bilinear) ~boundary_interpolation:(Subdivide.Subdivide_boundary_none) ~face_varying_interpolation:(Subdivide.Subdivide_fvar_all) ~creasing_method:(Subdivide.Subdivide_creasing_uniform) ~triangle_policy:(Subdivide.Subdivide_triangles_catmull_clark) ~resulting_crease_group:("detail_override_creases") subdivision_source None) in
   let one = cook 1 detail_overridden and many = cook 4 detail_overridden in
   check (equal_geometry one many)
     "one-domain and four-domain detail-overridden subdivision differ";
@@ -841,14 +807,15 @@ let run () =
   check (match Geometry.find_edge_group "detail_override_creases" one with
     | Some group -> Edge_group.cardinality group > 0 | None -> false)
     "parallel detail-overridden Chaikin subdivision dropped residual creases";
-  let promoted = Sop.grid ~columns:240 ~rows:160 ~size:12. ()
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
-      |> Sop.promote_attributes ~source:Attribute.Point
+  let promoted = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:240 ~rows:160 ~size:12. ()
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
+      |> Sop.promote_attributes ~delete_source:(true) ~source:Attribute.Point
            ~destination:Attribute.Primitive ~pattern:"Cd" in
   let one = cook 1 promoted and many = cook 4 promoted in
   check (equal_geometry one many)
     "one-domain and four-domain attribute promotion differ";
-  let promoted_arrays = Sop.grid ~columns:240 ~rows:160 ~size:12. ()
+  let promoted_arrays = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:240 ~rows:160 ~size:12. ()
       |> Sop.enumerate ~owner:Attribute.Point ~name:"point_number"
       |> Sop.promote_attributes ~method_:Attribute_ops.Array_all
            ~delete_source:false ~source:Attribute.Point
@@ -868,11 +835,12 @@ let run () =
               "procedural array promotion cardinality"
         | _ -> fail "procedural array promotion storage")
    | None -> fail "procedural array promotion output missing");
-  let promoted_patterns = Sop.grid ~columns:180 ~rows:120 ~size:10. ()
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
-      |> Sop.set_float ~owner:Attribute.Point ~name:"weight" 3.
-      |> Sop.set_float ~owner:Attribute.Point ~name:"temporary" 9.
-      |> Sop.promote_attributes ~source:Attribute.Point
+  let promoted_patterns = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:180 ~rows:120 ~size:10. ()
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
+      |> Sop.set_float ~owner:Attribute.Point ~name:"weight" ~value:3.
+      |> Sop.set_float ~owner:Attribute.Point ~name:"temporary" ~value:9.
+      |> Sop.promote_attributes ~delete_source:(true) ~source:Attribute.Point
            ~destination:Attribute.Primitive ~pattern:"* ^temporary" in
   let one = cook 1 promoted_patterns and many = cook 4 promoted_patterns in
   check (equal_geometry one many
@@ -880,10 +848,10 @@ let run () =
       && Geometry.find_attribute ~owner:Attribute.Primitive "weight" one <> None
       && Geometry.find_attribute ~owner:Attribute.Primitive "temporary" one = None)
     "one-domain and four-domain pattern promotion differ";
-  let renamed_patterns = Sop.grid ~columns:180 ~rows:120 ~size:10. ()
-      |> Sop.set_float ~owner:Attribute.Point ~name:"sample_a" 3.
-      |> Sop.set_float ~owner:Attribute.Point ~name:"sample_b" 9.
-      |> Sop.promote_attributes ~method_:Attribute_ops.First
+  let renamed_patterns = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:180 ~rows:120 ~size:10. ()
+      |> Sop.set_float ~owner:Attribute.Point ~name:"sample_a" ~value:3.
+      |> Sop.set_float ~owner:Attribute.Point ~name:"sample_b" ~value:9.
+      |> Sop.promote_attributes ~delete_source:(true) ~method_:Attribute_ops.First
            ~source:Attribute.Point
            ~destination:Attribute.Primitive ~pattern:"sample_*"
            ~into_pattern:"reduced_*" ~index_pattern:"source_*" in
@@ -919,36 +887,33 @@ let run () =
   let one = cook 1 piece_promoted and many = cook 4 piece_promoted in
   check (equal_geometry one many)
     "one-domain and four-domain piece median promotion differ";
-  let transfer_source = Sop.grid ~columns:180 ~rows:120 ~size:12. ()
+  let transfer_source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:180 ~rows:120 ~size:12. ()
       |> Sop.noise_displace ~seed:81 ~amplitude:0.3 ~frequency:0.4
-      |> Sop.normals
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
+      |> (Sop.normals ~weighting:(Rdk.Normal_ops.Face_area) ~owner:(Rdk.Attribute.Point))
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
       |> Sop.group ~name:"transfer_source" Select.all_points in
-  let transfer_target = Sop.grid ~columns:160 ~rows:100 ~size:11.5 ()
+  let transfer_target = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:160 ~rows:100 ~size:11.5 ()
       |> Sop.group ~name:"transfer_target" Select.all_points in
-  let transferred = Sop.attribute_transfer ~pattern:"C* N"
-      ~mode:(Attribute_ops.Inverse_distance { neighbors = 4; power = 2. })
+  let transferred = Sop.attribute_transfer ~falloff:Sop.Transfer_smoothstep ~pattern:"C* N"
+      ~mode:Sop.Transfer_inverse ~neighbors:4 ~power:2.
       ~max_distance:0.2 ~source_group:"transfer_source"
-      ~target_group:"transfer_target" ~source:transfer_source
-      ~target:transfer_target () in
+      ~target_group:"transfer_target" transfer_source
+      transfer_target in
   let one = cook 1 transferred and many = cook 4 transferred in
   check (equal_geometry one many)
     "one-domain and four-domain attribute transfer differ";
-  let owner_transfer_source = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
+  let owner_transfer_source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:80 ~size:8. ()
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
       |> Sop.enumerate ~owner:Attribute.Primitive ~name:"primitive_id"
       |> Sop.enumerate ~owner:Attribute.Vertex ~name:"corner_id"
       |> Sop.group ~name:"transfer_vertex_patch"
            (Select.vertex_indices (Array.init 1_000 Fun.id))
-      |> Sop.set_int ~owner:Attribute.Detail ~name:"revision" 17 in
-  let owner_transfer_target = Sop.grid ~columns:100 ~rows:64 ~size:7.5 () in
+      |> Sop.set_int ~owner:Attribute.Detail ~name:"revision" ~value:17 in
+  let owner_transfer_target = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:100 ~rows:64 ~size:7.5 () in
   let directly_copied = Sop.attribute_copy ~group_owner:Group.Primitive
-      ~rules:[
-        Attribute_ops.copy_rule ~owner:Attribute.Point "Cd";
-        Attribute_ops.copy_rule ~owner:Attribute.Vertex "corner_id";
-        Attribute_ops.copy_rule ~owner:Attribute.Primitive "primitive_id";
-        Attribute_ops.copy_rule ~owner:Attribute.Detail "revision";
-      ] ~source:owner_transfer_source ~target:owner_transfer_target () in
+      ~rules:"point\tCd\t\nvertex\tcorner_id\t\nprimitive\tprimitive_id\t\ndetail\trevision\t" owner_transfer_source owner_transfer_target in
   let one = cook 1 directly_copied and many = cook 4 directly_copied in
   check (equal_geometry one many
       && Geometry.find_attribute ~owner:Attribute.Point "Cd" one <> None
@@ -957,57 +922,56 @@ let run () =
          <> None
       && Geometry.find_attribute ~owner:Attribute.Detail "revision" one <> None)
     "one-domain and four-domain cross-owner Attribute Copy differ";
-  let interpolate_source = Sop.grid ~columns:2 ~rows:2 ~size:2. ()
-      |> Sop.normals
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
+  let interpolate_source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:2 ~size:2. ()
+      |> (Sop.normals ~weighting:(Rdk.Normal_ops.Face_area) ~owner:(Rdk.Attribute.Point))
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
       |> Sop.group ~name:"hot" Select.all_points in
-  let interpolate_target = Sop.grid ~columns:400 ~rows:250 ~size:8. ()
-      |> Sop.set_int ~owner:Attribute.Point ~name:"source_primitive" 0
+  let interpolate_target = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:400 ~rows:250 ~size:8. ()
+      |> Sop.set_int ~owner:Attribute.Point ~name:"source_primitive" ~value:0
       |> Sop.set_vector ~owner:Attribute.Point ~name:"source_uvw"
-           (Vec3.create 0.25 0.25 0.) in
-  let computed = Sop.attribute_interpolate ~target_owner:Attribute.Point
-      ~compute_weights:{
-        Attribute_ops.computed_owner=Attribute.Point;
-        computed_numbers_attribute="computed_points";
-        computed_weights_attribute="computed_weights" }
-      ~attributes:[] ~source:interpolate_source ~target:interpolate_target () in
-  let interpolated = Sop.attribute_interpolate ~target_owner:Attribute.Point
-      ~driver:(Attribute_ops.Point_weights {
-        numbers_attribute="computed_points";
-        weights_attribute="computed_weights" })
-      ~point_pattern:"P N Cd hot" ~match_groups:true ~attributes:[]
-      ~source:interpolate_source ~target:computed () in
+           ~value:(Vec3.create 0.25 0.25 0.) in
+  let computed = Sop.attribute_interpolate ~normalize_weights:false ~threshold:1e-6
+      ~primitive_attribute:"source_primitive" ~uvw_attribute:"source_uvw" ~target_owner:Attribute.Point
+      ~compute_weights:true ~computed_owner:Attribute.Point
+      ~computed_numbers_attribute:"computed_points" ~computed_weights_attribute:"computed_weights"
+      ~attributes:"" interpolate_source interpolate_target in
+  let interpolated = Sop.attribute_interpolate ~normalize_weights:false ~threshold:1e-6
+      ~primitive_attribute:"source_primitive" ~uvw_attribute:"source_uvw" ~target_owner:Attribute.Point
+      ~driver:Sop.Interpolate_point_weights
+      ~numbers_attribute:"computed_points" ~weights_attribute:"computed_weights"
+      ~point_pattern:"P N Cd hot" ~match_groups:true ~attributes:""
+      interpolate_source computed in
   let one = cook 1 interpolated and many = cook 4 interpolated in
   check (equal_geometry one many)
     "one-domain and four-domain Attribute Interpolate differ";
-  let primitive_transferred = Sop.attribute_transfer ~owner:Attribute.Primitive
-      ~names:["primitive_id"] ~max_distance:0.25
-      ~source:owner_transfer_source ~target:owner_transfer_target () in
+  let primitive_transferred = Sop.attribute_transfer ~falloff:Sop.Transfer_smoothstep ~owner:Attribute.Primitive
+      ~use_names:true ~names:"primitive_id" ~max_distance:0.25
+      owner_transfer_source owner_transfer_target in
   let one = cook 1 primitive_transferred and many = cook 4 primitive_transferred in
   check (equal_geometry one many
       && Geometry.find_attribute ~owner:Attribute.Primitive "primitive_id" one
          <> None)
     "one-domain and four-domain primitive-barycenter transfer differ";
-  let vertex_transferred = Sop.attribute_transfer ~owner:Attribute.Vertex
-      ~names:["corner_id"] ~max_distance:0.25
+  let vertex_transferred = Sop.attribute_transfer ~falloff:Sop.Transfer_smoothstep ~owner:Attribute.Vertex
+      ~use_names:true ~names:"corner_id" ~max_distance:0.25
       ~source_vertex_group_pattern:"transfer_vertex_*"
-      ~source:owner_transfer_source ~target:owner_transfer_target () in
+      owner_transfer_source owner_transfer_target in
   let one = cook 1 vertex_transferred and many = cook 4 vertex_transferred in
   check (equal_geometry one many
       && Geometry.find_attribute ~owner:Attribute.Vertex "corner_id" one <> None)
     "one-domain and four-domain vertex attribute transfer differ";
-  let detail_transferred = Sop.attribute_transfer ~owner:Attribute.Detail
-      ~names:["revision"] ~source:owner_transfer_source
-      ~target:owner_transfer_target () in
+  let detail_transferred = Sop.attribute_transfer ~falloff:Sop.Transfer_smoothstep ~distance_mode:Sop.Kernel_auto ~owner:Attribute.Detail
+      ~use_names:true ~names:"revision" owner_transfer_source
+      owner_transfer_target in
   let one = cook 1 detail_transferred and many = cook 4 detail_transferred in
   check (equal_geometry one many
       && Geometry.find_attribute ~owner:Attribute.Detail "revision" one <> None)
     "one-domain and four-domain detail attribute transfer differ";
-  let all_transferred = Sop.attribute_transfer_all ~point_pattern:"Cd"
-      ~vertex_pattern:"corner_*" ~primitive_pattern:"primitive_*"
-      ~detail_pattern:"revision" ~max_distance:0.1 ~blend_width:0.4
-      ~falloff:(Attribute_ops.Uniform 0.75)
-      ~source:owner_transfer_source ~target:owner_transfer_target () in
+  let all_transferred = (Sop.attribute_transfer_all ~point_pattern:"Cd" ~vertex_pattern:"corner_*"
+  ~primitive_pattern:"primitive_*" ~detail_pattern:"revision"
+  ~max_distance:0.1 ~blend_width:0.4 ~falloff:Sop.Transfer_uniform ~uniform_bias:0.75
+  owner_transfer_source owner_transfer_target) in
   let one = cook 1 all_transferred and many = cook 4 all_transferred in
   check (equal_geometry one many
       && Geometry.find_attribute ~owner:Attribute.Point "Cd" one <> None
@@ -1016,49 +980,47 @@ let run () =
          <> None
       && Geometry.find_attribute ~owner:Attribute.Detail "revision" one <> None)
     "one-domain and four-domain multi-owner attribute transfer differ";
-  let surface_source = Sop.grid ~columns:160 ~rows:100 ~size:10. ()
+  let surface_source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:160 ~rows:100 ~size:10. ()
       |> Sop.noise_displace ~seed:29 ~amplitude:0.4 ~frequency:0.5
-      |> Sop.normals
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
-      |> Sop.measure Rdk.Analysis.Area
+      |> (Sop.normals ~weighting:(Rdk.Normal_ops.Face_area) ~owner:(Rdk.Attribute.Point))
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
+      |> Sop.measure ~kind:Rdk.Analysis.Area
       |> Sop.group ~name:"surface_source" Select.all_primitives
       |> Sop.group ~name:"surface_vertex_patch"
            (Select.vertex_indices (Array.init 1_000 Fun.id)) in
-  let surface_target = Sop.grid ~columns:140 ~rows:90 ~size:9.5 ()
-      |> Sop.transform (Mat4.translation (Vec3.create 0. 0.35 0.))
+  let surface_target = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:140 ~rows:90 ~size:9.5 ()
+      |> (let migration_translation = Vec3.create 0. 0.35 0. in
+fun migration_input ->
+  Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
+    ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z
+    migration_input)
       |> Sop.group ~name:"surface_target" Select.all_points in
   let surface_transferred = Sop.attribute_transfer_surface
-      ~attributes:[
-        Attribute_ops.surface_attribute ~owner:Attribute.Point "Cd";
-        Attribute_ops.surface_attribute ~owner:Attribute.Point "N";
-        Attribute_ops.surface_attribute ~into:"source_area"
-          ~owner:Attribute.Primitive "area";
-      ] ~max_distance:0.2 ~blend_width:0.8
-      ~falloff:Attribute_ops.Smoothstep
+      ~attributes:"point\tCd\tCd\npoint\tN\tN\nprimitive\tarea\tsource_area" ~max_distance:0.2 ~blend_width:0.8
+      ~falloff:Sop.Transfer_smoothstep
       ~distance_attribute:"surface_distance" ~source_group:"surface_source"
       ~source_vertex_group_pattern:"surface_vertex_*"
       ~target_group:"surface_target"
-      ~source:surface_source ~target:surface_target () in
+      surface_source surface_target in
   let one = cook 1 surface_transferred and many = cook 4 surface_transferred in
   check (equal_geometry one many)
     "one-domain and four-domain surface attribute transfer differ";
   check (Geometry.find_attribute ~owner:Attribute.Point "surface_distance" one
     <> None) "surface transfer distance attribute missing";
-  let surface_vertex_target = Sop.grid ~columns:140 ~rows:90 ~size:9.5 ()
-      |> Sop.transform (Mat4.translation (Vec3.create 0. 0.35 0.))
+  let surface_vertex_target = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:140 ~rows:90 ~size:9.5 ()
+      |> (let migration_translation = Vec3.create 0. 0.35 0. in
+fun migration_input ->
+  Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
+    ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z
+    migration_input)
       |> Sop.group ~name:"surface_vertices" Select.all_vertices in
   let vertex_transferred = Sop.attribute_transfer_surface
       ~target_owner:Attribute.Vertex
-      ~attributes:[
-        Attribute_ops.surface_attribute ~owner:Attribute.Point "Cd";
-        Attribute_ops.surface_attribute ~owner:Attribute.Point "N";
-        Attribute_ops.surface_attribute ~into:"source_area"
-          ~owner:Attribute.Primitive "area";
-      ] ~max_distance:0.2 ~blend_width:0.8
+      ~attributes:"point\tCd\tCd\npoint\tN\tN\nprimitive\tarea\tsource_area" ~max_distance:0.2 ~blend_width:0.8
       ~distance_attribute:"surface_distance" ~source_group:"surface_source"
       ~source_vertex_group:"surface_vertex_patch"
-      ~target_group:"surface_vertices" ~source:surface_source
-      ~target:surface_vertex_target () in
+      ~target_group:"surface_vertices" ~falloff:Sop.Transfer_smoothstep surface_source surface_vertex_target in
   let one = cook 1 vertex_transferred and many = cook 4 vertex_transferred in
   check (equal_geometry one many)
     "one-domain and four-domain vertex surface transfer differ";
@@ -1081,46 +1043,30 @@ let run () =
            ~mode:Attribute_ops.Enumerate_piece_elements
            ~owner:Attribute.Point ~name:"selection_index"
       |> Sop.sort ~group:"middle" ~descending:true ~owner:Ordering.Points
-           ~key:(Ordering.Attribute_component { name = "selection_index"; component = 0 }) in
+           ~key:Sop.Sort_attribute ~attribute:"selection_index" ~component:0 in
   let one = cook 1 enumerated and many = cook 4 enumerated in
   check (equal_geometry one many)
     "one-domain and four-domain restricted piece enumeration/sort differ";
-  let generated_attributes = Sop.grid ~columns:500 ~rows:300 ~size:20. ()
-      |> Sop.attribute_randomize ~seed:31_337 ~owner:Attribute.Point
-           ~name:"sample" (Attribute_ops.Random_log_normal {
-             median = Attribute_ops.Vec4 (1., 2., 3., 4.);
-             stddev = Attribute_ops.Vec4 (0.2, 0.4, 0.6, 0.8);
-           })
+  let generated_attributes = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:500 ~rows:300 ~size:20. ()
+      |> (fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_log_normal ~kind:Sop.Numeric_vec4 ~a:(Vec3.create (1.) (2.) (3.)) ~a_w:(4.) ~b:(Vec3.create (0.2) (0.4) (0.6)) ~b_w:(0.8) ~seed:(31_337) ~owner:(Attribute.Point) ~name:("sample") migration_input)
       |> Sop.attribute_remap ~owner:Attribute.Point ~name:"sample"
-           ~into:"mapped" ~input:Attribute_ops.Remap_auto
-           ~output_min:(Attribute_ops.Vec4 (0., 0., 0., 0.))
-           ~output_max:(Attribute_ops.Vec4 (1., 1., 1., 1.))
-           ~ramp:[0., 0.; 0.35, 0.15; 0.7, 0.85; 1., 1.] in
+           ~into:"mapped" ~kind:Sop.Numeric_vec4 ~input_range:Sop.Remap_automatic
+           ~output_min:Vec3.zero ~output_min_w:0.
+           ~output_max:(Vec3.create 1. 1. 1.) ~output_max_w:1.
+           ~ramp:"0:0,0.35:0.15,0.7:0.85,1:1" in
   let one = cook 1 generated_attributes and many = cook 4 generated_attributes in
   check (equal_geometry one many)
     "one-domain and four-domain Attribute Randomize/Remap differ";
-  let extended_random = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
+  let extended_random = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:500 ~rows:300 ~size:20. ()
       |> Sop.group ~name:"randomize_vertices"
            (Select.vertex_indices [|0; 5; 11; 17; 23; 29|])
-      |> Sop.attribute_randomize
-           ~selection:(Sop.Vertex_group "randomize_vertices") ~seed:31_338
-           ~minimum:(Attribute_ops.Vec2 (Vec2.create (-12.) (-12.)))
-           ~maximum:(Attribute_ops.Vec2 (Vec2.create 12. 12.))
-           ~owner:Attribute.Point ~name:"cauchy2"
-           (Attribute_ops.Random_cauchy {
-             median = Attribute_ops.Vec2 Vec2.zero;
-             scale = Attribute_ops.Vec2 (Vec2.create 1. 1.);
-           })
-      |> Sop.attribute_randomize ~seed:31_339
-           ~owner:Attribute.Primitive ~name:"label"
-           (Attribute_ops.Random_custom_discrete_text [
-             "low", 1.; "high", 3.;
-           ]) in
+      |> (let migration_value_0 = Vec2.create 1. 1. in let migration_value_1 = Vec2.zero in let migration_value_2 = Vec2.create (-12.) (-12.) in let migration_value_3 = Vec2.create 12. 12. in fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_cauchy ~kind:Sop.Numeric_vec2 ~a:(Vec3.create (migration_value_1.Vec2.x) (migration_value_1.Vec2.y) (0.)) ~b:(Vec3.create (migration_value_0.Vec2.x) (migration_value_0.Vec2.y) (0.)) ~selection_owner:Sop.Element_vertex ~selection_group:("randomize_vertices") ~seed:(31_338) ~use_minimum:true ~use_vector_limits:true ~minimum_vector:(Vec3.create (migration_value_2.Vec2.x) (migration_value_2.Vec2.y) (0.)) ~use_maximum:true ~maximum_vector:(Vec3.create (migration_value_3.Vec2.x) (migration_value_3.Vec2.y) (0.)) ~owner:(Attribute.Point) ~name:("cauchy2") migration_input)
+      |> (fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_custom_discrete_text ~kind:Sop.Numeric_scalar ~text_entries:(String.concat "\n" [String.concat "\t" ["low";Printf.sprintf "%.17g" (1.)];String.concat "\t" ["high";Printf.sprintf "%.17g" (3.)]]) ~seed:(31_339) ~owner:(Attribute.Primitive) ~name:("label") migration_input) in
   let one = cook 1 extended_random and many = cook 4 extended_random in
   check (equal_geometry one many)
     "one-domain and four-domain extended Attribute Randomize differ";
-  let deformed = Sop.grid ~columns:500 ~rows:300 ~size:20. ()
+  let deformed = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:500 ~rows:300 ~size:20. ()
       |> Sop.group ~name:"deform_center"
            (Select.points_in_bounds ~min:(Vec3.create (-8.) (-1.) (-8.))
               ~max:(Vec3.create 8. 1. 8.))
@@ -1128,33 +1074,28 @@ let run () =
            ~frequency:(Vec3.create 0.31 0.67 0.43)
            ~offset:(Vec3.create 2. 3. 5.) ~octaves:6 ~lacunarity:2.05
            ~roughness:0.48 ~height_attribute:"mountain_height"
-      |> Sop.peak ~selection:(Sop.Point_group "deform_center") ~distance:0.05
+      |> Sop.peak ~direction_attribute:("") ~group_owner:Sop.Element_point ~group:"deform_center" ~distance:0.05
            ~recompute_normals:true in
   let one = cook 1 deformed and many = cook 4 deformed in
   check (equal_geometry one many)
     "one-domain and four-domain Peak/Mountain geometry differ";
-  let bent = Sop.grid ~columns:500 ~rows:300 ~size:20. ()
+  let bent = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:500 ~rows:300 ~size:20. ()
       |> Sop.group ~name:"bend_center"
            (Select.points_in_bounds ~min:(Vec3.create (-8.) (-1.) (-10.))
               ~max:(Vec3.create 8. 1. 10.))
-      |> Sop.bend ~selection:(Sop.Point_group "bend_center")
+      |> Sop.bend ~continuous_twist:(true) ~group_owner:Sop.Element_point ~group:"bend_center"
            ~origin:(Vec3.create 0. 0. (-10.)) ~direction:Vec3.unit_z
            ~up:Vec3.unit_y ~length:20. ~bend_angle:1.3 ~twist_angle:2.1
            ~capture_attribute:"bend_capture" ~recompute_normals:true in
   let one = cook 1 bent and many = cook 4 bent in
   check (equal_geometry one many)
     "one-domain and four-domain Bend geometry differ";
-  let scattered = Sop.grid ~columns:400 ~rows:250 ~size:20. ()
-      |> Sop.attribute_randomize ~seed:1_337 ~owner:Attribute.Point
-           ~name:"scatter_density" (Attribute_ops.Random_uniform {
-             min = Attribute_ops.Scalar 0.05;
-             max = Attribute_ops.Scalar 1.;
-           })
+  let scattered = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:400 ~rows:250 ~size:20. ()
+      |> (fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_uniform ~kind:Sop.Numeric_scalar ~a:(Vec3.create (0.05) (0.) (0.)) ~b:(Vec3.create (1.) (0.) (0.)) ~seed:(1_337) ~owner:(Attribute.Point) ~name:("scatter_density") migration_input)
       |> Sop.group_random ~seed:1_338 ~probability:0.73
            ~owner:Group_ops.Group_primitives ~name:"scatter_surface"
       |> Sop.scatter ~seed:1_339 ~group:"scatter_surface" ~count:100_000
-           ~density:(Scatter.density ~owner:Attribute.Point
-             "scatter_density")
+           ~use_density:true ~density_owner:Attribute.Point ~density_attribute:"scatter_density"
            ~point_pattern:"N scatter_density"
            ~source_primitive_attribute:"source_primitive"
            ~source_vertex_numbers_attribute:"source_vertices"
@@ -1162,36 +1103,34 @@ let run () =
   let one = cook 1 scattered and many = cook 4 scattered in
   check (equal_geometry one many)
     "one-domain and four-domain weighted Scatter geometry differ";
-  let duplicated = Sop.grid ~columns:120 ~rows:80 ~size:4. ()
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
+  let duplicated = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:80 ~size:4. ()
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
       |> Sop.group_edges ~name:"duplicate_edges"
       |> Sop.duplicate ~copies:5
-           ~transform:(Mat4.translation (Vec3.create 0. 0.4 0.)) in
+           ~m03:0. ~m13:0.4 ~m23:0. in
   let one = cook 1 duplicated and many = cook 4 duplicated in
   check (equal_geometry one many)
     "one-domain and four-domain materialized duplicate differ";
-  let match_target = Sop.box ~size:(Vec3.create 4. 3. 5.) ()
+  let match_target = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 4. 3. 5.) ()
       |> Sop.group ~name:"target_bounds" Select.all_points in
-  let utilities = Sop.grid ~columns:120 ~rows:80 ~size:8. ()
+  let utilities = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:80 ~size:8. ()
       |> Sop.group ~name:"doomed"
            (Select.primitive_indices (Array.init 1_000 (fun index -> index * 2)))
       |> Sop.blast ~compact_points:true ~owner:Group.Primitive ~group:"doomed"
       |> Sop.match_axis ~from:Vec3.unit_z ~into:(Vec3.create 1. 1. 0.)
       |> Sop.group ~name:"move" Select.all_points
       |> Sop.group ~name:"source_bounds" Select.all_points
-      |> Sop.match_size ~fit:Match_size.Match_z
-           ~selection:(Sop.Point_group "move")
-           ~source_selection:(Sop.Point_group "source_bounds")
-           ~target_selection:(Sop.Point_group "target_bounds")
-           ~translate_axes:(true, false, true)
-           ~justify:(Vec3.create (-1.) 0. 1.)
-           ~target_justify:(Vec3.create 1. 0. (-1.))
-           ~offset:(Vec3.create 0.25 0. (-0.5)) ~target:match_target in
+      |> (fun input -> Sop.match_size ~fit:Match_size.Match_z ~group:"move"
+           ~source_group:"source_bounds" ~target_group:"target_bounds" ~translate_y:false
+           ~justify:(Vec3.create (-1.) 0. 1.) ~target_justify:(Vec3.create 1. 0. (-1.))
+           ~offset:(Vec3.create 0.25 0. (-0.5)) input (Some match_target)) in
   let one = cook 1 utilities and many = cook 4 utilities in
   check (equal_geometry one many)
     "one-domain and four-domain compact/match-size geometry differ";
-  let blasted = Sop.grid ~columns:180 ~rows:120 ~size:12. ()
-      |> Sop.color_by_height ~low:Color.blue ~high:Color.red
+  let blasted = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:180 ~rows:120 ~size:12. ()
+      |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
+           ~high_red:255 ~high_green:0 ~high_blue:0
       |> Sop.group ~name:"left_half"
            (Select.points_in_bounds ~min:(Vec3.create (-6.) (-1.) (-6.))
              ~max:(Vec3.create 0. 1. 6.))
@@ -1220,15 +1159,15 @@ let run () =
   let carved_curve = Sop.polyline curve_samples
       |> Sop.group_edges ~name:"curve_edges"
       |> Sop.carve ~first:0.137 ~last:0.863
-      |> Sop.ends Curve_topology.Ends_close_straight in
+      |> Sop.ends ~mode:Curve_topology.Ends_close_straight in
   let one = cook 1 carved_curve and many = cook 4 carved_curve in
   check (equal_geometry one many)
     "one-domain and four-domain carve/curve-ends geometry differ";
   check (Geometry.point_count one > 10_000)
     "carve exactness fixture unexpectedly small";
   let grouped_carve = Sop.merge [
-      Sop.polyline curve_samples |> Sop.normals;
-      Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads ~columns:128 ~rows:96 ~size:8. ();
+      Sop.polyline curve_samples |> (Sop.normals ~weighting:(Rdk.Normal_ops.Face_area) ~owner:(Rdk.Attribute.Point));
+      Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_quads ~columns:128 ~rows:96 ~size:8. ();
     ] |> Sop.group ~name:"carve_curve" (Select.primitive_indices [|0|])
       |> Sop.carve ~group:"carve_curve" ~first:0.137 ~last:0.863 in
   let one = cook 1 grouped_carve and many = cook 4 grouped_carve in
@@ -1262,7 +1201,7 @@ let run () =
         x, sin (x *. 0.9), cos (x *. 0.37)) in
       Sop.polyline points |> Sop.group_edges ~name:"joined_edges") in
   let joined_curves = Sop.merge joined_curve_parts
-      |> Sop.join_curves ~connect_closest_ends:true ~group_size:9
+      |> Sop.join_curves ~use_group_size:true ~connect_closest_ends:true ~group_size:9
            ~keep_originals:true in
   let one = cook 1 joined_curves and many = cook 4 joined_curves in
   check (equal_geometry one many)
@@ -1280,14 +1219,14 @@ let run () =
         else Curve_topology.Join_curve_end;
     }) in
   let picked_curves = Sop.merge joined_curve_parts
-      |> Sop.join_curves ~picked_ends ~group_size:11 ~keep_originals:true in
+      |> Sop.join_curves ~use_group_size:true ~picked_ends:(Array.to_list picked_ends |> List.map (fun pick -> Printf.sprintf "%d:%s" pick.Rdk.Curve_topology.primitive (match pick.end_ with Rdk.Curve_topology.Join_curve_start -> "start" | Join_curve_end -> "end")) |> String.concat ",") ~group_size:11 ~keep_originals:true in
   let one = cook 1 picked_curves and many = cook 4 picked_curves in
   check (equal_geometry one many)
     "one-domain and four-domain picked-end Curve Join geometry differ";
   check (Geometry.primitive_count one = 70
       && Geometry.vertex_count one >= 16_400)
     "picked-end Curve Join subgroup/keep exactness fixture cardinality";
-  let converted_lines = Sop.grid ~columns:256 ~rows:192 ~size:16. ()
+  let converted_lines = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:256 ~rows:192 ~size:16. ()
       |> Sop.group_edges ~name:"converted_edges"
       |> Sop.convert_line ~length_attribute:"edge_length" in
   let one = cook 1 converted_lines and many = cook 4 converted_lines in
@@ -1300,7 +1239,7 @@ let run () =
    | Some group -> check (Edge_group.cardinality group = 147_904)
        "Convert Line lost native edge membership"
    | None -> fail "Convert Line dropped native edge group");
-  let connected_lines = Sop.grid ~columns:256 ~rows:192 ~size:16. ()
+  let connected_lines = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:256 ~rows:192 ~size:16. ()
       |> Sop.group_edges ~name:"connected_edges"
       |> Sop.convert_line ~connect_path:true ~maximum_distance:0.
            ~length_attribute:"path_length" in
@@ -1316,16 +1255,13 @@ let run () =
    | Some group -> check (Edge_group.cardinality group = 147_904)
        "connected Convert Line lost native edge membership"
    | None -> fail "connected Convert Line dropped native edge group");
-  let many_wires = Sop.grid ~columns:64 ~rows:48 ~size:10. ()
-      |> Sop.set_float ~owner:Attribute.Point ~name:"wire_scale" 0.75
-      |> Sop.set_float ~owner:Attribute.Point ~name:"wire_v" 0.25
-      |> Sop.set_int ~owner:Attribute.Point ~name:"wire_seam" 2
-      |> Sop.set_vector ~owner:Attribute.Point ~name:"wire_up" Vec3.unit_y
+  let many_wires = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:64 ~rows:48 ~size:10. ()
+      |> Sop.set_float ~owner:Attribute.Point ~name:"wire_scale" ~value:0.75
+      |> Sop.set_float ~owner:Attribute.Point ~name:"wire_v" ~value:0.25
+      |> Sop.set_int ~owner:Attribute.Point ~name:"wire_seam" ~value:2
+      |> Sop.set_vector ~owner:Attribute.Point ~name:"wire_up" ~value:Vec3.unit_y
       |> Sop.convert_line
-      |> Sop.sweep_circle ~sides:6 ~scale_attribute:"wire_scale"
-           ~seam_offset:(-1) ~seam_attribute:"wire_seam"
-           ~v_attribute:"wire_v" ~up_attribute:"wire_up" ~caps:true
-           ~cap_group:"wire_caps" ~radius:0.02 in
+      |> (Sop.sweep_circle ~use_sides:true ~use_max_valence:false ~use_u_range:false ~use_v_range:false ~sides:(6) ~scale_attribute:("wire_scale") ~seam_offset:((-1)) ~seam_attribute:("wire_seam") ~v_attribute:("wire_v") ~up_attribute:("wire_up") ~caps:(true) ~cap_group:("wire_caps") ~radius:(0.02)) in
   let one = cook 1 many_wires and many = cook 4 many_wires in
   check (equal_geometry one many)
     "one-domain and four-domain many-curve sweep geometry differ";
@@ -1338,17 +1274,16 @@ let run () =
   let general_backbone = Sop.polyline (Array.init 5_001 (fun point ->
       let t = float_of_int point *. 0.002 in
       0.3 *. sin (t *. 0.71), 0.2 *. cos (t *. 0.43), t))
-      |> Sop.set_float ~owner:Attribute.Point ~name:"pscale" 0.85
+      |> Sop.set_float ~owner:Attribute.Point ~name:"pscale" ~value:0.85
       |> Sop.group_edges ~name:"backbone_edges"
   and general_profile = Sop.polyline ~closed:true (Array.init 24 (fun point ->
       let angle = 2. *. Float.pi *. float_of_int point /. 24. in
       0.08 *. cos angle, 0.08 *. sin angle, 0.))
-      |> Sop.set_int ~owner:Attribute.Point ~name:"profile_id" 17
+      |> Sop.set_int ~owner:Attribute.Point ~name:"profile_id" ~value:17
       |> Sop.group_edges ~name:"profile_edges" in
   let general_sweep = Sop.sweep
       ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles ~twist:2.3 ~caps:true
-      ~cap_group:"sweep_caps" ~backbone:general_backbone
-      ~cross_section:general_profile () in
+      ~cap_group:"sweep_caps" general_backbone general_profile in
   let one = cook 1 general_sweep and many = cook 4 general_sweep in
   check (equal_geometry one many)
     "one-domain and four-domain general-profile Sweep geometry differ";
@@ -1357,7 +1292,7 @@ let run () =
       && Geometry.find_attribute ~owner:Attribute.Point
            "cross_section_profile_id" one <> None)
     "general-profile Sweep exactness fixture cardinality/payload";
-  let split_source = Sop.grid ~columns:20 ~rows:10 ~size:4. ()
+  let split_source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:20 ~rows:10 ~size:4. ()
       |> Sop.group_edges ~name:"split_edges" in
   let split_source = split_source
       |> Sop.group ~name:"split" (Select.primitive_indices (Array.init 100 Fun.id)) in
@@ -1373,20 +1308,25 @@ let run () =
   check (Geometry.primitive_count selected_one = 100
     && Geometry.primitive_count remainder_one = 300)
     "split selected/remainder cardinality";
-  let merged = Sop.merge [graph; Sop.transform
-      (Mat4.translation (Vec3.create 30. 0. 0.)) graph] in
+  let merged = Sop.merge [graph; (let migration_translation = Vec3.create 30. 0. 0. in
+Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
+  ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z graph)] in
   let one = cook 1 merged and many = cook 4 merged in
   check (equal_geometry one many)
     "one-domain and four-domain merge geometry differ";
-  let transfer_source = Sop.grid ~columns:40 ~rows:30 ~size:8. ()
+  let transfer_source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:40 ~rows:30 ~size:8. ()
       |> Sop.group ~name:"transfer_points"
            (Select.point_indices (Array.init 200 (fun index -> index * 6)))
       |> Sop.group ~name:"transfer_faces"
            (Select.primitive_indices (Array.init 300 (fun index -> index * 4)))
-      |> Sop.group_edges ~name:"transfer_edges" ~min_length:0.1 in
+      |> Sop.group_edges ~use_min_length:true ~name:"transfer_edges" ~min_length:0.1 in
   let transfer_target = transfer_source
-      |> Sop.transform (Mat4.translation (Vec3.create 0.001 0. 0.001)) in
-  let transferred = Sop.group_transfer ~distance:0.01
+      |> (let migration_translation = Vec3.create 0.001 0. 0.001 in
+fun migration_input ->
+  Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
+    ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z
+    migration_input) in
+  let transferred = Sop.group_transfer ~use_rules:true ~distance:0.01
       ~conflict:Rdk.Group_ops.Copy_overwrite
       ~rules:[
         { Rdk.Group_ops.transfer_owner = Rdk.Group_ops.Group_points;
@@ -1395,7 +1335,7 @@ let run () =
           transfer_pattern = "transfer_faces"; transfer_prefix = "mapped_" };
         { Rdk.Group_ops.transfer_owner = Rdk.Group_ops.Group_edges;
           transfer_pattern = "transfer_edges"; transfer_prefix = "mapped_" }]
-      ~source:transfer_source ~target:transfer_target () in
+      transfer_source transfer_target in
   let one = cook 1 transferred and many = cook 4 transferred in
   check (equal_geometry one many)
     "one-domain and four-domain Group Transfer geometry differ";
@@ -1404,8 +1344,8 @@ let run () =
     let pair = index / 2 in
     if index land 1 = 0 then (pair * 5) * columns
     else ((pair * 5) * columns) + 120) in
-  let paths = Sop.grid ~columns:120 ~rows:90 ~size:20. ()
-      |> Sop.ordered_group ~owner:Rdk.Group.Point ~name:"waypoints" base_elements
+  let paths = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:90 ~size:20. ()
+      |> Sop.ordered_group ~owner:Rdk.Group.Point ~name:"waypoints" ~elements:(Array.to_list base_elements)
       |> Sop.group_find_path ~mode:Rdk.Group_mesh.Start_end_pairs
            ~avoid_self_intersection:false ~base_group:"waypoints" ~name:"paths" in
   let one = cook 1 paths and many = cook 4 paths in
@@ -1415,18 +1355,18 @@ let run () =
     let row = (index / 2) * 10 in
     if index land 1 = 0 then (row * 120) * 2
     else (((row * 120) + 119) * 2) + 1) in
-  let primitive_paths = Sop.grid ~columns:120 ~rows:90 ~size:20. ()
+  let primitive_paths = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:90 ~size:20. ()
       |> Sop.ordered_group ~owner:Rdk.Group.Primitive
-           ~name:"face_waypoints" primitive_elements
+           ~name:"face_waypoints" ~elements:(Array.to_list primitive_elements)
       |> Sop.group_find_path ~owner:Rdk.Group.Primitive
            ~mode:Rdk.Group_mesh.Start_end_pairs ~avoid_self_intersection:false
            ~base_group:"face_waypoints" ~name:"face_paths" in
   let one = cook 1 primitive_paths and many = cook 4 primitive_paths in
   check (equal_geometry one many)
     "one-domain and four-domain primitive Group Find Path geometry differ";
-  let attribute_boundaries = Sop.grid ~columns:120 ~rows:90 ~size:20. ()
+  let attribute_boundaries = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:120 ~rows:90 ~size:20. ()
       |> Sop.enumerate ~owner:Rdk.Attribute.Primitive ~name:"face_id"
-      |> Sop.group_from_attribute_boundary ~owner:Rdk.Group_ops.Group_edges
+      |> Sop.group_from_attribute_boundary ~tolerance:(1e-6) ~owner:Rdk.Group_ops.Group_edges
            ~name:"attribute_seams" ~attributes:[{
              Rdk.Group_ops.boundary_attribute_owner = Rdk.Attribute.Primitive;
              boundary_attribute_pattern = "face_id" }] in
@@ -1448,12 +1388,12 @@ let run () =
   check (equal_geometry one many)
     "one-domain and four-domain Groups from Name geometry differ";
   let round_trip = named
-      |> Sop.name_from_groups ~attribute:"round_trip" ~delete_groups:true
+      |> Sop.name_from_groups ~overlap:(Rdk.Group_ops.Last_group) ~attribute:"round_trip" ~delete_groups:true
            ~owner:Attribute.Point in
   let one = cook 1 round_trip and many = cook 4 round_trip in
   check (equal_geometry one many)
     "one-domain and four-domain Name from Groups geometry differ";
-  let random_groups = Sop.grid ~columns:180 ~rows:120 ~size:20. ()
+  let random_groups = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:180 ~rows:120 ~size:20. ()
       |> Sop.group_random ~seed:917 ~probability:0.431
            ~owner:Group_ops.Group_points ~name:"random_points"
       |> Sop.group_random ~seed:918 ~probability:0.379
@@ -1467,23 +1407,21 @@ let run () =
     "one-domain and four-domain Group Random geometry differ";
   let bounded_groups = random_groups
       |> Sop.group_bounds ~containment:Group_ops.Partially_contained
-           (Group_ops.Bounds_sphere { center = Vec3.create 1. 0. (-2.); radius = 7.5 })
+           ~shape:Sop.Sphere ~center:(Vec3.create 1. 0. (-2.)) ~radius:7.5
            ~owner:Group_ops.Group_points ~name:"bounded_points"
       |> Sop.group_bounds ~containment:Group_ops.Partially_contained
-           (Group_ops.Bounds_box { minimum = Vec3.create (-6.) (-1.) (-5.);
-             maximum = Vec3.create 5. 1. 7. })
+           ~shape:Sop.Box ~center:(Vec3.create (-0.5) 0. 1.) ~size:(Vec3.create 11. 2. 12.)
            ~owner:Group_ops.Group_vertices ~name:"bounded_vertices"
       |> Sop.group_bounds ~containment:Group_ops.Partially_contained
-           (Group_ops.Bounds_sphere { center = Vec3.zero; radius = 8. })
+           ~shape:Sop.Sphere ~center:Vec3.zero ~radius:8.
            ~owner:Group_ops.Group_primitives ~name:"bounded_primitives"
       |> Sop.group_bounds ~containment:Group_ops.Partially_contained
-           (Group_ops.Bounds_box { minimum = Vec3.create (-4.) (-1.) (-4.);
-             maximum = Vec3.create 4. 1. 4. })
+           ~shape:Sop.Box ~center:Vec3.zero ~size:(Vec3.create 8. 2. 8.)
            ~owner:Group_ops.Group_edges ~name:"bounded_edges" in
   let one = cook 1 bounded_groups and many = cook 4 bounded_groups in
   check (equal_geometry one many)
     "one-domain and four-domain Group Bounds geometry differ";
-  let normal_groups = Sop.box ~size:(Vec3.create 5. 4. 3.) ()
+  let normal_groups = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 5. 4. 3.) ()
       |> Sop.mountain ~seed:929 ~height:0.21
            ~frequency:(Vec3.create 0.7 1.1 0.9) ~octaves:4
       |> Sop.group_normal ~direction:Vec3.unit_y
@@ -1501,7 +1439,7 @@ let run () =
   let one = cook 1 normal_groups and many = cook 4 normal_groups in
   check (equal_geometry one many)
     "one-domain and four-domain Group Normal/Non-Planar geometry differ";
-  let extruded = Sop.grid ~columns:40 ~rows:30 ~size:8. ()
+  let extruded = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:40 ~rows:30 ~size:8. ()
       |> Sop.group ~name:"all" Select.all_primitives
       |> Sop.group_edges ~name:"extruded_edges"
       |> Sop.poly_extrude ~group:"all"
@@ -1509,26 +1447,26 @@ let run () =
            ~front_group:"extrude_front" ~side_group:"extrude_side"
            ~front_boundary_group:"front_rim" ~back_boundary_group:"back_rim"
            ~distance:0.4
-      |> Sop.measure ~total_name:"surface_area" Analysis.Area
-      |> Sop.measure ~name:"boundary_length" ~total_name:"perimeter"
-           Analysis.Perimeter
+      |> Sop.measure ~total_attribute:"surface_area" ~kind:Analysis.Area
+      |> Sop.measure ~attribute:"boundary_length" ~total_attribute:"perimeter"
+           ~kind:Analysis.Perimeter
       |> Sop.connectivity in
   let one = cook 1 extruded and many = cook 4 extruded in
   check (equal_geometry one many)
     "one-domain and four-domain extrude/analysis geometry differ";
-  let cleaned = Sop.grid ~columns:320 ~rows:240 ~size:12. ()
-      |> Sop.set_float ~owner:Attribute.Point ~name:"temporary_weight" 1.
+  let cleaned = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:320 ~rows:240 ~size:12. ()
+      |> Sop.set_float ~owner:Attribute.Point ~name:"temporary_weight" ~value:1.
       |> Sop.group_random ~seed:77 ~probability:0.
            ~owner:Group_ops.Group_points ~name:"empty_points"
-      |> Sop.clean ~reverse_winding:true ~delete_unused_groups:true
+      |> Sop.clean ~consolidate_mode:(Sop.Kernel_auto) ~remove_unused_points:(false) ~remove_nan_points:(false) ~overlaps:(Sop.Clean_overlap_auto) ~epsilon_mode:(Sop.Kernel_auto) ~reverse_winding:true ~delete_unused_groups:true
            ~point_attributes:"temporary*" in
   let one = cook 1 cleaned and many = cook 4 cleaned in
   check (equal_geometry one many)
     "one-domain and four-domain Clean geometry differ";
-  let volume_graph = Sop.box ~size:(Vec3.create 2. 3. 4.) ()
+  let volume_graph = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 2. 3. 4.) ()
       |> Sop.duplicate ~copies:20_000
-           ~transform:(Mat4.translation (Vec3.create 3. 0. 0.))
-      |> Sop.measure ~total_name:"signed_volume" Analysis.Signed_volume in
+           ~m03:3. ~m13:0. ~m23:0.
+      |> Sop.measure ~total_attribute:"signed_volume" ~kind:Analysis.Signed_volume in
   let one = cook 1 volume_graph and many = cook 4 volume_graph in
   check (equal_geometry one many)
     "one-domain and four-domain signed-volume geometry differ";
@@ -1547,8 +1485,8 @@ let run () =
    | Some group -> check (Edge_group.cardinality group = 2)
        "point compaction did not preserve native edge membership"
    | None -> fail "point compaction dropped its native edge group");
-  let collapsed = Sop.grid ~columns:240 ~rows:180 ~size:12. ()
-      |> Sop.set_int ~owner:Attribute.Point ~name:"piece" 1
+  let collapsed = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:240 ~rows:180 ~size:12. ()
+      |> Sop.set_int ~owner:Attribute.Point ~name:"piece" ~value:1
       |> Sop.group_random ~seed:911 ~probability:0.045
            ~owner:Group_ops.Group_edges ~name:"collapse_edges"
       |> Sop.edge_collapse ~group:"collapse_edges"
@@ -1559,14 +1497,14 @@ let run () =
   check (Geometry.point_count one < 241 * 181
       && Geometry.primitive_count one > 0)
     "parallel Edge Collapse fixture did not retain useful output";
-  let reduced = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+  let reduced = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~counts:Rdk.Plane_generators.Grid_point_counts
       ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:120 ~rows:90 ~size:12. ()
-      |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" 17
+      |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" ~value:17
       |> Sop.group_edges ~name:"boundary" ~incidence:Group_mesh.Boundary_edge
-      |> Sop.poly_reduce ~target:(Poly_reduce.Reduce_ratio 0.37)
+      |> Sop.poly_reduce ~ratio:0.37
            ~preserve_boundary:true ~only_original_positions:false
-           ~equalize_lengths:1e-8 ~max_normal_deviation:0.4
+           ~equalize_lengths:1e-8 ~limit_normal_deviation:true ~max_normal_deviation:0.4
            ~output_group:"reduced" in
   let one = cook 1 reduced and many = cook 4 reduced in
   check (equal_geometry one many)
@@ -1576,13 +1514,13 @@ let run () =
       && Geometry.find_edge_group "boundary" one <> None)
     "parallel PolyReduce fixture lost cardinality or ancestry";
   let beveled = Sop.box ~connectivity:Rdk.Box_generator.Box_quads ~consolidate_points:true
-      ~normals:Rdk.Box_generator.Box_no_normals ~size:(Vec3.create 1. 1. 1.) ()
+      ~normals:(Some (Rdk.Box_generator.Box_no_normals)) ~size:(Vec3.create 1. 1. 1.) ()
       |> Sop.duplicate ~copies:2_000
-           ~transform:(Mat4.translation (Vec3.create 1.5 0. 0.))
-      |> Sop.set_float ~owner:Attribute.Point ~name:"pscale" 1.
+           ~m03:1.5 ~m13:0. ~m23:0.
+      |> Sop.set_float ~owner:Attribute.Point ~name:"pscale" ~value:1.
       |> Sop.group_edges ~name:"bevel_edges"
       |> Sop.poly_bevel ~group:"bevel_edges"
-           ~shape:(Poly_bevel.Bevel_round { convexity = 0.8 }) ~divisions:3
+           ~shape:Sop.Poly_round ~convexity:0.8 ~divisions:3
            ~point_scale_attribute:"pscale" ~distance:0.08
            ~edge_group:"edge_fillets" ~corner_group:"corner_fillets"
            ~offset_group:"offset_edges" in
@@ -1594,9 +1532,9 @@ let run () =
       && Geometry.find_group ~owner:Group.Primitive "edge_fillets" one <> None
       && Geometry.find_edge_group "offset_edges" one <> None)
     "parallel PolyBevel fixture lost cardinality or ancestry";
-  let point_split = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_quads
+  let point_split = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_quads
       ~columns:400 ~rows:300 ~size:12. ()
-      |> Sop.point_split in
+      |> Sop.point_split ~attributes:"" ~tolerance:1e-5 in
   let one = cook 1 point_split and many = cook 4 point_split in
   check (equal_geometry one many)
     "one-domain and four-domain Point Split geometry differ";
@@ -1608,12 +1546,11 @@ let run () =
       float_of_int (point / 1_000) *. 0.01,
       float_of_int (point mod 17) *. 0.001) in
   let point_generate = Sop.points emission_points
-      |> Sop.set_float ~owner:Attribute.Point ~name:"density" 6.
-      |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" 17
+      |> Sop.set_float ~owner:Attribute.Point ~name:"density" ~value:6.
+      |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" ~value:17
       |> Sop.point_generate ~label:"parallel-point-generate" ~seed:929
            ~generated_group:"emitted" ~copy_point_attributes:"density source_id"
-           ~mode:(Point_generate.Generate_per_point {
-             points_per_point = 1.; scale_attribute = Some "density" }) in
+           ~mode:Sop.Point_generate_per_point ~points_per_point:1. ~scale_attribute:"density" in
   let one = cook 1 point_generate and many = cook 4 point_generate in
   check (equal_geometry one many)
     "one-domain and four-domain Point Generate geometry differ";
@@ -1621,18 +1558,18 @@ let run () =
       && Geometry.find_group ~owner:Group.Point "emitted" one <> None)
     "parallel Point Generate fixture cardinality";
   let point_replicate = Sop.points emission_points
-      |> Sop.set_float ~owner:Attribute.Point ~name:"density" 6.
+      |> Sop.set_float ~owner:Attribute.Point ~name:"density" ~value:6.
       |> Sop.enumerate ~owner:Attribute.Point ~name:"id"
       |> Sop.set_vector ~owner:Attribute.Point ~name:"flow"
-           (Vec3.create 1. 2. 3.)
+           ~value:(Vec3.create 1. 2. 3.)
       |> Sop.set_vector ~owner:Attribute.Point ~name:"scale"
-           (Vec3.create 0.75 1.25 1.5)
-      |> Sop.point_replicate ~label:"parallel-point-replicate" ~seed:937
+           ~value:(Vec3.create 0.75 1.25 1.5)
+      |> (fun replication_source -> Sop.point_replicate ~label:"parallel-point-replicate" ~seed:937
            ~shape:Point_replication.Replicate_sphere ~quasi_stratified:true
            ~generated_group:"cloud"
            ~copy_point_attributes:"density id flow scale"
            ~transform_attributes:"flow"
-           ~points_per_point:1. ~scale_attribute:"density" in
+           ~points_per_point:1. ~scale_attribute:"density" replication_source None) in
   let one = cook 1 point_replicate and many = cook 4 point_replicate in
   check (equal_geometry one many)
     "one-domain and four-domain Point Replicate geometry differ";
@@ -1648,9 +1585,9 @@ let run () =
       && Geometry.vertex_count one = 120_000
       && Geometry.primitive_count one = 40_000)
     "parallel Edge Flip fixture cardinality";
-  let cusped = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
+  let cusped = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:320 ~rows:240 ~size:12. ()
-      |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" 17
+      |> Sop.set_int ~owner:Attribute.Point ~name:"source_id" ~value:17
       |> Sop.group_edges ~name:"cusp_edges"
       |> Sop.edge_cusp ~group:"cusp_edges" in
   let one = cook 1 cusped and many = cook 4 cusped in
@@ -1686,32 +1623,30 @@ let run () =
     "parallel Edge Equalize fixture cardinality";
   let relax_source = edge_equalize_geometry 50_000 in
   let relaxed = Sop.snapshot relax_source
-      |> Sop.edge_relax ~reference:(Sop.snapshot
-           (edge_relax_reference relax_source)) in
+      |> (fun input -> Sop.edge_relax ~iterations:20 input (Sop.snapshot
+           (edge_relax_reference relax_source))) in
   let one = cook 1 relaxed and many = cook 4 relaxed in
   check (equal_geometry one many)
     "one-domain and four-domain Edge Relax geometry differ";
   check (Geometry.point_count one = 100_000
       && Geometry.primitive_count one = 50_000)
     "parallel Edge Relax fixture cardinality";
-  let uv_mapped = Sop.uv_sphere ~segments:192 ~rings:96 ~radius:2. ()
+  let uv_mapped = Sop.uv_sphere ~radius_x_mode:Procedural.Sop.Kernel_auto ~radius_y_mode:Procedural.Sop.Kernel_auto ~radius_z_mode:Procedural.Sop.Kernel_auto ~normals_mode:Procedural.Sop.Kernel_auto ~uv_attribute:"" ~segments:192 ~rings:96 ~base_radius:2. ()
       |> Sop.group ~name:"uv_faces" Select.all_primitives
       |> Sop.group_edges ~name:"boundary_edges" ~incidence:Group_mesh.Boundary_edge
-      |> Sop.uv_project ~group:"uv_faces" ~u_range:(0.1, 0.9)
-           ~v_range:(0.2, 0.8)
-           (Uv_ops.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
-             seam = Vec3.unit_x })
-      |> Sop.uv_transform ~scale:(Vec2.create 3. 2.)
-           ~angle:0.17 ~pivot:(Vec2.create 0.5 0.5)
+      |> Sop.uv_project ~group:"uv_faces" ~u_min:0.1 ~u_max:0.9
+           ~v_min:0.2 ~v_max:0.8 ~projection:Sop.Spherical
+      |> Sop.uv_transform ~scale_u:3. ~scale_v:2.
+           ~angle:0.17 ~pivot_u:0.5 ~pivot_v:0.5
       |> Sop.uv_auto_seam ~angle:(Float.pi /. 3.) ~existing_uv:"uv"
            ~island_attribute:"uv_island"
-      |> Sop.uv_unitize ~seams:"uv_seams" Uv_ops.Islands in
+      |> Sop.uv_unitize ~seams:"uv_seams" ~mode:Uv_ops.Islands in
   let one = cook 1 uv_mapped and many = cook 4 uv_mapped in
   check (equal_geometry one many)
     "one-domain and four-domain UV projection/transform/seam/unitize differ";
   check (Geometry.find_attribute ~owner:Attribute.Vertex "uv" one <> None)
     "parallel UV fixture missing vertex coordinates";
-  let parameterized = Sop.grid ~columns:96 ~rows:64 ~size:8. ()
+  let parameterized = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:96 ~rows:64 ~size:8. ()
       |> Sop.uv_flatten ~iterations:400 ~tolerance:1e-10
       |> Sop.uv_relax ~iterations:50 ~tolerance:1e-12 in
   let one = cook 1 parameterized and many = cook 4 parameterized in

@@ -14,7 +14,7 @@ module Edge_divide = struct
     share_points : bool [@sop.default true] [@sop.label "Share points"];
   } [@@sop.node_key "edge_divide"] [@@sop.node_label "Edge Divide"]
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@sop.fn "edge_divide"] [@@sop.args "?group ?divisions ?share_points in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -48,7 +48,6 @@ module Edge_divide = struct
   let fn = parameters_fn build
 end
 
-
 module Edge_collapse = struct
   let position_parameter = Parameter.choice ~equal:( = ) [
       "First", Rdk.Fuse_reduce.First_position;
@@ -81,7 +80,7 @@ module Edge_collapse = struct
       [@sop.label "Recompute point normals"] [@sop.folder "Cleanup"];
   } [@@sop.node_key "edge_collapse"] [@@sop.node_label "Edge Collapse"]
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@sop.fn "edge_collapse"] [@@sop.args "?group ?connectivity_attribute ?position ?remove_degenerate_primitives ?recompute_point_normals in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -120,7 +119,6 @@ module Edge_collapse = struct
   let fn = parameters_fn build
 end
 
-
 module Dissolve = struct
   let operation_parameter = Parameter.choice ~equal:( = ) [
       "Selected", Rdk.Dissolve.Dissolve_selected;
@@ -142,10 +140,10 @@ module Dissolve = struct
       [@sop.default Rdk.Dissolve.Create_bridged_polygons]
       [@sop.label "Bridge loops"] [@sop.kind bridge_parameter];
     remove_inline_points : bool [@sop.default true]
-      [@sop.label "Remove inline points"] [@sop.folder "Cleanup"] [@sop.arg_default (false)];
+      [@sop.label "Remove inline points"] [@sop.folder "Cleanup"] ;
     collinearity_tolerance : float [@sop.default 1e-6]
       [@sop.label "Collinearity tolerance"] [@sop.folder "Cleanup"]
-      [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.] [@sop.arg_default (0.)];
+      [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.] ;
     remove_unused_points : bool [@sop.default true]
       [@sop.label "Remove unused points"] [@sop.folder "Cleanup"];
     create_boundary_curves : bool [@sop.default false]
@@ -154,7 +152,7 @@ module Dissolve = struct
       [@sop.label "Recompute normals"] [@sop.folder "Cleanup"];
   } [@@sop.node_key "dissolve"] [@@sop.node_label "Dissolve"]
     [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
-    [@@sop.fn "dissolve"] [@@sop.args "?group ?operation ?bridge_policy ?remove_inline_points ?collinearity_tolerance ?remove_unused_points ?create_boundary_curves ?recompute_normals in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -195,13 +193,12 @@ module Dissolve = struct
   let fn = parameters_fn build
 end
 
-
 module Triangulate = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Primitive group"] [@sop.nonblank "empty primitive group name"];
   } [@@sop.node_key "triangulate"] [@@sop.node_label "Triangulate"]
     [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
-    [@@sop.fn "triangulate"] [@@sop.args "?group in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -234,7 +231,6 @@ module Triangulate = struct
 
 end
 
-
 module Edge_flip = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"] [@sop.nonblank "empty edge group name"];
@@ -246,7 +242,7 @@ module Edge_flip = struct
       [@sop.label "Recompute point normals"];
   } [@@sop.node_key "edge_flip"] [@@sop.node_label "Edge Flip"]
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@sop.fn "edge_flip"] [@@sop.args "?group ?cycles ?cycle_vertex_attributes ?recompute_point_normals in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -282,7 +278,6 @@ module Edge_flip = struct
   let fn = parameters_fn build
 end
 
-
 module Edge_cusp = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"] [@sop.nonblank "empty edge group name"];
@@ -290,7 +285,7 @@ module Edge_cusp = struct
       [@sop.label "Update point normals"];
   } [@@sop.node_key "edge_cusp"] [@@sop.node_label "Edge Cusp"]
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@sop.fn "edge_cusp"] [@@sop.args "?group ?update_point_normals in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -324,14 +319,13 @@ module Edge_cusp = struct
   let fn = parameters_fn build
 end
 
-
 module Edge_straighten = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"] [@sop.nonblank "empty edge group name"];
     output_group : string [@sop.default ""] [@sop.label "Output group"] [@sop.nonblank "empty output edge group name"];
   } [@@sop.node_key "edge_straighten"] [@@sop.node_label "Edge Straighten"]
     [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
-    [@@sop.fn "edge_straighten"] [@@sop.args "?group ?output_group in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -363,7 +357,6 @@ module Edge_straighten = struct
   let factory = parameters_factory build
   let fn = parameters_fn build
 end
-
 
 module Poly_extrude = struct
   let divide_parameter = Parameter.choice ~equal:( = ) [
@@ -399,7 +392,7 @@ module Poly_extrude = struct
       [@sop.label "Back boundary group"] [@sop.folder "Groups"] [@sop.nonblank "empty back boundary group name"];
   } [@@sop.node_key "poly_extrude"] [@@sop.node_label "Poly Extrude"]
     [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
-    [@@sop.fn "poly_extrude"] [@@sop.args "?group ?split_edges ?divide ?divisions ?output_front ?output_back ?output_side ?front_group ?back_group ?side_group ?front_boundary_group ?back_boundary_group ~distance in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -455,7 +448,6 @@ module Poly_extrude = struct
   let fn = parameters_fn build
 end
 
-
 module Poly_fill = struct
   let mode_parameter = Parameter.choice ~equal:( = ) [
       "Single polygon", Rdk.Poly_fill.Fill_single_polygon;
@@ -475,7 +467,7 @@ module Poly_fill = struct
     patch_group : string [@sop.default ""] [@sop.label "Patch group"] [@sop.nonblank "empty patch group name"];
   } [@@sop.node_key "poly_fill"] [@@sop.node_label "Poly Fill"]
     [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
-    [@@sop.fn "poly_fill"] [@@sop.args "?boundary_group ?mode ?reverse_patches ?unique_points ?update_point_normals ?patch_group in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -514,7 +506,6 @@ module Poly_fill = struct
   let fn = parameters_fn build
 end
 
-
 module Convert_line = struct
   type parameters = {
     group : string [@sop.default ""] [@sop.label "Edge group"] [@sop.nonblank "empty edge group name"];
@@ -532,7 +523,7 @@ module Convert_line = struct
       [@sop.label "Length attribute"] [@sop.nonblank "empty length attribute name"];
   } [@@sop.node_key "convert_line"] [@@sop.node_label "Convert Line"]
     [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
-    [@@sop.fn "convert_line"] [@@sop.args "?group ?connect_path ?maximum_distance ?connect_only_to_other_end_points ?make_isolated_loops_closed ?remove_unused_points ?length_attribute in0"]
+
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters input ->
@@ -573,7 +564,6 @@ module Convert_line = struct
   let fn = parameters_fn build
 end
 
-
 module Blast = struct
   type parameters = {
     owner : Rdk.Group.owner [@sop.default Rdk.Group.Primitive]
@@ -588,7 +578,7 @@ module Blast = struct
       [@sop.kind delete_topology_policy_parameter];
   } [@@sop.node_key "blast"] [@@sop.node_label "Blast"]
     [@@sop.node_category "Topology/Delete"] [@@sop.node_inputs 1]
-    [@@sop.fn "blast"] [@@sop.args "?selected ?compact_points ?policy ~owner ~group in0"]
+
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label parameters input ->
     let label = Some label in
@@ -623,3 +613,3230 @@ module Blast = struct
   let fn = parameters_fn build
 end
 
+module Crease = struct
+  let operation_parameter = Parameter.choice ~equal:( = ) [
+      "Add", Rdk.Crease.Crease_add;
+      "Set", Rdk.Crease.Crease_set;
+      "Delete", Rdk.Crease.Crease_delete;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Edge group"] [@sop.nonblank "empty edge group name"];
+    operation : Rdk.Crease.operation [@sop.default Rdk.Crease.Crease_add]
+      [@sop.label "Operation"] [@sop.kind operation_parameter];
+    weight : float [@sop.default 1.] [@sop.label "Weight"]
+      [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.]
+      [@sop.validate "weight must be finite and non-negative"];
+    add_vertex_color : bool [@sop.default false]
+      [@sop.label "Visualize with vertex color"];
+  } [@@sop.node_key "crease"] [@@sop.node_label "Crease"]
+    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let operation = parameters.operation in
+    let weight = parameters.weight in
+    let add_vertex_color = parameters.add_vertex_color in
+    Node.Private.make ?label ~operation:"crease" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let edges = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_edge_group name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                     "crease could not find native edge group %S" name))) in
+        Result.bind edges (fun edges ->
+          match Rdk.Crease.crease ~cancel:(Context.cancel_token context)
+              ~grain:(Context.grain context) ?edges ~operation ~weight
+              ~add_vertex_color geometry with
+          | Ok geometry -> cooked geometry
+          | Error error -> structured_rdk_error error))
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Poly_path = struct
+  type parameters = {
+    connect_end_points : bool [@sop.default false]
+      [@sop.label "Connect endpoints"];
+    maximum_distance : float [@sop.default 0.001]
+      [@sop.label "Maximum distance"] [@sop.min 0.] [@sop.max 10.]
+      [@sop.hard_min 0.] [@sop.validate "maximum distance must be finite and non-negative"];
+    connect_only_to_other_end_points : bool [@sop.default false]
+      [@sop.label "Only other endpoints"];
+    make_isolated_loops_closed : bool [@sop.default false]
+      [@sop.label "Close isolated loops"];
+  } [@@sop.node_key "poly_path"] [@@sop.node_label "PolyPath"]
+    [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let connect_end_points = parameters.connect_end_points in
+    let maximum_distance = parameters.maximum_distance in
+    let connect_only_to_other_end_points = parameters.connect_only_to_other_end_points in
+    let make_isolated_loops_closed = parameters.make_isolated_loops_closed in
+    Node.Private.make ?label ~operation:"poly_path" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        match Rdk.Curve_topology.poly_path ~cancel:(Context.cancel_token context)
+            ~grain:(Context.grain context) ~connect_end_points ~maximum_distance
+            ~connect_only_to_other_end_points ~make_isolated_loops_closed
+            inputs.(0) with
+        | Ok geometry -> cooked geometry
+        | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Ends = struct
+  let mode_key = function
+    | Rdk.Curve_topology.Ends_open -> "open"
+    | Rdk.Curve_topology.Ends_close_straight -> "close_straight"
+    | Rdk.Curve_topology.Ends_unroll_shared -> "unroll_shared"
+    | Rdk.Curve_topology.Ends_unroll_new -> "unroll_new"
+  let mode_parameter = Parameter.choice ~equal:( = ) [
+      "Open", Rdk.Curve_topology.Ends_open;
+      "Close straight", Rdk.Curve_topology.Ends_close_straight;
+      "Unroll shared point", Rdk.Curve_topology.Ends_unroll_shared;
+      "Unroll new point", Rdk.Curve_topology.Ends_unroll_new;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"] [@sop.nonblank "empty primitive group name"];
+    mode : Rdk.Curve_topology.ends_mode [@sop.default Rdk.Curve_topology.Ends_open]
+      [@sop.label "U end"] [@sop.kind mode_parameter];
+  } [@@sop.node_key "ends"] [@@sop.node_label "Ends"]
+    [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let mode = parameters.mode in
+    Node.Private.make ?label ~operation:"ends" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
+                  name inputs.(0) with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   ~hints:["Create the primitive group before Ends"]
+                   (Printf.sprintf "ends could not find primitive group %S" name))) in
+        match primitives with
+        | Error _ as error -> error
+        | Ok primitives ->
+            match Rdk.Curve_topology.ends ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives mode inputs.(0) with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Reverse = struct
+  type operation = Sop_support.reverse_operation = Reverse | Shift
+  let operation_parameter = Parameter.choice ~equal:( = ) [
+      "Reverse vertices", Reverse; "Shift vertices", Shift;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"] [@sop.nonblank "empty primitive group name"];
+    operation : operation [@sop.default Reverse] [@sop.label "Operation"]
+      [@sop.kind operation_parameter];
+    shift : int [@sop.default 1] [@sop.label "Shift"]
+      [@sop.min (-32)] [@sop.max 32];
+  } [@@sop.node_key "reverse"] [@@sop.node_label "Reverse"]
+    [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let operation = parameters.operation in
+    let shift = parameters.shift in
+    let operation = match operation with
+      | Reverse -> Rdk.Reverse_faces.Reverse_vertices
+      | Shift -> Rdk.Reverse_faces.Shift_vertices shift in
+    Node.Private.make ?label ~operation:"reverse" ~version:2
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "reverse could not find primitive group %S" name))) in
+        match primitives with
+        | Error error -> Error error
+        | Ok primitives ->
+            match Rdk.Reverse_faces.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ~operation geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Compact_points = struct
+  type parameters = unit
+    [@@sop.node_key "compact_points"] [@@sop.node_label "Compact Points"]
+    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+  let build = parameters_build (fun ~label _parameters input ->
+    let label = Some label in
+    Node.Private.make ?label ~operation:"compact_points" ~version:1 ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        match Rdk.Compact_points.run ~cancel:(Context.cancel_token context)
+            ~grain:(Context.grain context) inputs.(0) with
+        | Ok geometry -> cooked geometry
+        | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Edge_equalize = struct
+  let method_parameter = Parameter.choice ~equal:( = ) [
+      "Average", Rdk.Edge_ops.Equalize_average;
+      "Longest", Rdk.Edge_ops.Equalize_longest;
+      "Shortest", Rdk.Edge_ops.Equalize_shortest;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Edge group"] [@sop.nonblank "empty edge group name"];
+    method_ : Rdk.Edge_ops.equalize_method
+      [@sop.default Rdk.Edge_ops.Equalize_average]
+      [@sop.label "Method"] [@sop.kind method_parameter];
+    iterations : int [@sop.default 64] [@sop.label "Iterations"]
+      [@sop.min 1] [@sop.max 256] [@sop.hard_min 1] [@sop.validate "iterations must be positive"];
+    tolerance : float [@sop.default 0.000001] [@sop.label "Tolerance"]
+      [@sop.min 0.000000001] [@sop.max 0.01] [@sop.hard_min 0.] [@sop.validate "tolerance must be finite and positive"];
+    output_group : string [@sop.default ""] [@sop.label "Output group"] [@sop.nonblank "empty output edge group name"];
+  } [@@sop.node_key "edge_equalize"] [@@sop.node_label "Edge Equalize"]
+    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
+    [@@sop.validate fun parameters ->
+      if parameters.tolerance <= 0. then
+        invalid_arg "Sop.edge_equalize: tolerance must be finite and positive"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let method_ = parameters.method_ in
+    let iterations = parameters.iterations in
+    let tolerance = parameters.tolerance in
+    let output_group = optional_text parameters.output_group in
+    Node.Private.make ?label ~operation:"edge_equalize" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let edges = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_edge_group name geometry with
+               | Some edges -> Ok (Some edges)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                      "edge_equalize could not find native edge group %S" name))) in
+        match edges with
+        | Error error -> Error error
+        | Ok edges ->
+            match Rdk.Edge_ops.equalize ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?edges ~method_ ~iterations
+                ~tolerance ?output_group geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Remesh = struct
+  type parameters = {
+    target_length : float [@sop.default 0.1] [@sop.label "Target length"]
+      [@sop.min 0.0001] [@sop.max 10.] [@sop.hard_min 0.]
+      [@sop.validate "target length must be finite and positive"];
+    iterations : int [@sop.default 3] [@sop.label "Iterations"]
+      [@sop.min 1] [@sop.max 32] [@sop.hard_min 0]
+      [@sop.validate "iterations must be non-negative"];
+    smoothing : float [@sop.default 0.5] [@sop.label "Smoothing"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.validate "smoothing must be finite and within [0,1]"];
+    project : bool [@sop.default true] [@sop.label "Project to surface"];
+    use_input_points_only : bool [@sop.default false]
+      [@sop.label "Use input points only"];
+    hard_point_group : string [@sop.default ""] [@sop.label "Hard points"]
+      [@sop.folder "Constraints"] [@sop.nonblank "empty hard point group name"];
+    hard_edge_group : string [@sop.default ""] [@sop.label "Hard edges"]
+      [@sop.folder "Constraints"] [@sop.nonblank "empty hard edge group name"];
+    target_size_attribute : string [@sop.default ""]
+      [@sop.label "Target size attribute"] [@sop.folder "Adaptivity"] [@sop.nonblank "empty target-size attribute name"];
+    preserve_uv_seams : bool [@sop.default true]
+      [@sop.label "Preserve UV seams"] [@sop.folder "UV"];
+    uv_attribute : string [@sop.default "uv"] [@sop.label "UV attribute"]
+      [@sop.folder "UV"];
+    output_hard_edges : string [@sop.default ""]
+      [@sop.label "Output hard edges"] [@sop.folder "Output"] [@sop.nonblank "empty output hard-edge group name"];
+    output_mesh_size : string [@sop.default ""]
+      [@sop.label "Output mesh size"] [@sop.folder "Output"] [@sop.nonblank "empty output mesh-size attribute name"];
+    output_quality : string [@sop.default ""]
+      [@sop.label "Output quality"] [@sop.folder "Output"] [@sop.nonblank "empty output quality attribute name"];
+    recompute_point_normals : bool [@sop.default true]
+      [@sop.label "Recompute point normals"] [@sop.folder "Output"];
+  } [@@sop.node_key "remesh"] [@@sop.node_label "Remesh"]
+    [@@sop.node_category "Topology/Remesh"] [@@sop.node_inputs 1]
+    [@@sop.validate fun parameters ->
+      if parameters.target_length <= 0. then
+        invalid_arg "Sop.remesh: target length must be finite and positive";
+      if parameters.smoothing < 0. || parameters.smoothing > 1. then
+        invalid_arg "Sop.remesh: smoothing must be finite and within [0,1]";
+      if parameters.preserve_uv_seams && String.trim parameters.uv_attribute = "" then
+        invalid_arg "Sop.remesh: empty UV attribute name"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let iterations = parameters.iterations in
+    let smoothing = parameters.smoothing in
+    let project = parameters.project in
+    let use_input_points_only = parameters.use_input_points_only in
+    let hard_point_group = optional_text parameters.hard_point_group in
+    let hard_edge_group = optional_text parameters.hard_edge_group in
+    let target_size_attribute = optional_text parameters.target_size_attribute in
+    let preserve_uv_seams = parameters.preserve_uv_seams in
+    let uv_attribute = parameters.uv_attribute in
+    let output_hard_edges = optional_text parameters.output_hard_edges in
+    let output_mesh_size = optional_text parameters.output_mesh_size in
+    let output_quality = optional_text parameters.output_quality in
+    let recompute_point_normals = parameters.recompute_point_normals in
+    let target_length = parameters.target_length in
+    Node.Private.make ?label ~operation:"remesh" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        match resolve_optional_point_group "remesh" hard_point_group geometry with
+        | Error error -> Error error
+        | Ok hard_points ->
+            (match resolve_optional_edge_group "remesh" hard_edge_group geometry with
+             | Error error -> Error error
+             | Ok hard_edges ->
+                 match Rdk.Remesh.run ~cancel:(Context.cancel_token context)
+                     ~grain:(Context.grain context) ~iterations ~smoothing ~project
+                     ~use_input_points_only ?hard_points ?hard_edges
+                     ?target_size_attribute ~preserve_uv_seams ~uv_attribute
+                     ?output_hard_edges ?output_mesh_size ?output_quality
+                     ~recompute_point_normals ~target_length geometry with
+                 | Ok geometry -> cooked geometry
+                 | Error error -> structured_rdk_error error))
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Resample = struct
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    use_segments : bool [@sop.default true] [@sop.label "Use segments"];
+    segments : int [@sop.default 10] [@sop.label "Segments"]
+      [@sop.min 1] [@sop.max 1024] [@sop.hard_min 1]
+      [@sop.validate "segments must be positive"];
+    use_maximum_segment_length : bool [@sop.default false]
+      [@sop.label "Use maximum segment length"];
+    maximum_segment_length : float [@sop.default 0.1]
+      [@sop.label "Maximum segment length"] [@sop.min 0.0001]
+      [@sop.max 10.] [@sop.hard_min 0.]
+      [@sop.validate "maximum segment length must be finite and non-negative"];
+    segment_length_attribute : string [@sop.default ""]
+      [@sop.label "Segment length attribute"] [@sop.folder "Overrides"];
+    segments_attribute : string [@sop.default ""]
+      [@sop.label "Segments attribute"] [@sop.folder "Overrides"];
+    even_last_segment : bool [@sop.default true]
+      [@sop.label "Even last segment"];
+    curve_u_attribute : string [@sop.default ""] [@sop.label "Curve U"]
+      [@sop.folder "Output attributes"];
+    curve_number_attribute : string [@sop.default ""]
+      [@sop.label "Curve number"] [@sop.folder "Output attributes"];
+    distance_attribute : string [@sop.default ""] [@sop.label "Distance"]
+      [@sop.folder "Output attributes"];
+    tangent_attribute : string [@sop.default ""] [@sop.label "Tangent"]
+      [@sop.folder "Output attributes"];
+  } [@@sop.node_key "resample"] [@@sop.node_label "Resample"]
+    [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
+    [@@sop.validate fun parameters ->
+      if parameters.use_maximum_segment_length && parameters.maximum_segment_length <= 0.
+      then invalid_arg "Sop.resample: maximum segment length must be positive";
+      if not parameters.use_segments && not parameters.use_maximum_segment_length
+          && String.trim parameters.segment_length_attribute = ""
+          && String.trim parameters.segments_attribute = ""
+      then invalid_arg "Sop.resample: a segment count, length, or override attribute is required";
+      let names = [parameters.curve_u_attribute; parameters.curve_number_attribute;
+        parameters.distance_attribute; parameters.tangent_attribute]
+        |> List.filter (fun name -> String.trim name <> "") in
+      if List.mem "P" names then
+        invalid_arg "Sop.resample: generated attributes cannot replace canonical P";
+      if List.length (List.sort_uniq String.compare names) <> List.length names then
+        invalid_arg "Sop.resample: generated attribute names must be distinct"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let use_segments = parameters.use_segments in
+    let segments = parameters.segments in
+    let use_maximum_segment_length = parameters.use_maximum_segment_length in
+    let maximum_segment_length = parameters.maximum_segment_length in
+    let segment_length_attribute = optional_text parameters.segment_length_attribute in
+    let segments_attribute = optional_text parameters.segments_attribute in
+    let even_last_segment = parameters.even_last_segment in
+    let curve_u_attribute = optional_text parameters.curve_u_attribute in
+    let curve_number_attribute = optional_text parameters.curve_number_attribute in
+    let distance_attribute = optional_text parameters.distance_attribute in
+    let tangent_attribute = optional_text parameters.tangent_attribute in
+    let segments = if use_segments then Some segments else None in
+    let maximum_segment_length = if use_maximum_segment_length
+      then Some maximum_segment_length else None in
+    Node.Private.make ?label ~operation:"resample" ~version:2 ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
+                  inputs.(0) with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "resample could not find primitive group %S"
+                     name))) in
+        match primitives with
+        | Error _ as error -> error
+        | Ok primitives ->
+            match Rdk.Resample_curves.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ?segments
+                ?maximum_segment_length ?segment_length_attribute
+                ?segments_attribute ~even_last_segment ?curve_u_attribute
+                ?curve_number_attribute ?distance_attribute ?tangent_attribute
+                inputs.(0) with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Carve = struct
+  let attribute_mode_parameter = Parameter.choice ~equal:( = ) [
+      "Replace", Rdk.Curve_ops.Replace;
+      "Scale", Rdk.Curve_ops.Scale;
+    ]
+  let keep_parameter = Parameter.choice ~equal:( = ) [
+      "Inside", Rdk.Curve_ops.Inside;
+      "Outside", Rdk.Curve_ops.Outside;
+      "Inside and outside", Rdk.Curve_ops.Inside_and_outside;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    relative_arc_length : bool [@sop.default true]
+      [@sop.label "Relative arc length"];
+    first : float [@sop.default 0.] [@sop.label "First U"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.validate "first must be finite"];
+    last : float [@sop.default 1.] [@sop.label "Second U"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.validate "last must be finite"];
+    first_attribute : string [@sop.default ""]
+      [@sop.label "First attribute"] [@sop.folder "Attributes"];
+    last_attribute : string [@sop.default ""]
+      [@sop.label "Second attribute"] [@sop.folder "Attributes"];
+    attribute_mode : Rdk.Curve_ops.parameter_attribute_mode
+      [@sop.default Rdk.Curve_ops.Replace]
+      [@sop.label "Attribute mode"] [@sop.folder "Attributes"]
+      [@sop.kind attribute_mode_parameter];
+    only_at_breakpoints : bool [@sop.default false]
+      [@sop.label "Only at breakpoints"];
+    cut_at_all_internal_breakpoints : bool [@sop.default false]
+      [@sop.label "Cut at internal breakpoints"];
+    keep : Rdk.Curve_ops.cut_mode [@sop.default Rdk.Curve_ops.Inside]
+      [@sop.label "Keep"] [@sop.kind keep_parameter];
+    extract_points : bool [@sop.default false] [@sop.label "Extract points"];
+    divisions : int [@sop.default 1] [@sop.label "Divisions"]
+      [@sop.min 1] [@sop.max 256] [@sop.hard_min 1] [@sop.validate "divisions must be positive"];
+    keep_original : bool [@sop.default false] [@sop.label "Keep original"];
+  } [@@sop.node_key "carve"] [@@sop.node_label "Carve"]
+    [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
+    [@@sop.validate fun parameters ->
+      if parameters.first < 0. || parameters.last > 1.
+          || (if parameters.extract_points then parameters.first > parameters.last
+              else parameters.first >= parameters.last)
+      then invalid_arg "Sop.carve: parameters require 0 <= first < last <= 1 (equality allowed for extraction)"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let relative_arc_length = parameters.relative_arc_length in
+    let first = parameters.first in
+    let last = parameters.last in
+    let first_attribute = optional_text parameters.first_attribute in
+    let last_attribute = optional_text parameters.last_attribute in
+    let attribute_mode = parameters.attribute_mode in
+    let only_at_breakpoints = parameters.only_at_breakpoints in
+    let cut_at_all_internal_breakpoints = parameters.cut_at_all_internal_breakpoints in
+    let keep = parameters.keep in
+    let extract_points = parameters.extract_points in
+    let divisions = parameters.divisions in
+    let keep_original = parameters.keep_original in
+    Node.Private.make ?label ~operation:"carve" ~version:7
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
+                  inputs.(0) with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "carve could not find primitive group %S" name))) in
+        match primitives with
+        | Error _ as error -> error
+        | Ok primitives ->
+            match Rdk.Curve_ops.carve_curves ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ~relative_arc_length
+                ~first ~last ?first_attribute ?last_attribute ~attribute_mode
+                ~only_at_breakpoints ~cut_at_all_internal_breakpoints
+                ~keep ~extract_points ~divisions ~keep_original
+                inputs.(0) with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Poly_loft = struct
+  let minimize_parameter = Parameter.choice ~equal:( = ) [
+      "Two point distance", Rdk.Poly_loft.Two_point_distance;
+      "Three point distance", Rdk.Poly_loft.Three_point_distance;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    connect_closest_ends : bool [@sop.default true]
+      [@sop.label "Connect closest ends"];
+    minimize : Rdk.Poly_loft.minimize
+      [@sop.default Rdk.Poly_loft.Two_point_distance]
+      [@sop.label "Minimize"] [@sop.kind minimize_parameter];
+    u_wrap : bool [@sop.default false] [@sop.label "Wrap U"];
+    v_wrap : bool [@sop.default false] [@sop.label "Wrap V"];
+    keep_primitives : bool [@sop.default false]
+      [@sop.label "Keep source primitives"];
+    output_group : string [@sop.default "loft"] [@sop.label "Output group"];
+    collinearity_tolerance : float [@sop.default 0.]
+      [@sop.label "Collinearity tolerance"] [@sop.min 0.] [@sop.max 1.]
+      [@sop.hard_min 0.] [@sop.validate "collinearity tolerance must be finite and between zero and one"];
+    recompute_normals : bool [@sop.default true]
+      [@sop.label "Recompute normals"];
+  } [@@sop.node_key "poly_loft"] [@@sop.node_label "PolyLoft"]
+    [@@sop.validate fun parameters ->
+      if parameters.collinearity_tolerance > 1. then
+        invalid_arg "Sop.poly_loft: collinearity tolerance must be between zero and one"]
+    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 2] [@@sop.node_slots "input, rest"]
+    [@@sop.node_optional "1"]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input rest ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let connect_closest_ends = parameters.connect_closest_ends in
+    let minimize = parameters.minimize in
+    let u_wrap = parameters.u_wrap in
+    let v_wrap = parameters.v_wrap in
+    let keep_primitives = parameters.keep_primitives in
+    let output_group = parameters.output_group in
+    let collinearity_tolerance = parameters.collinearity_tolerance in
+    let recompute_normals = parameters.recompute_normals in
+    let output_group = optional_text output_group in
+    let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
+    Node.Private.make ?label ~operation:"poly_loft" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs
+      (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some value -> Ok (Some value)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                      "poly_loft could not find primitive group %S" name))) in
+        match primitives with
+        | Error error -> Error error
+        | Ok primitives ->
+            let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
+            match Rdk.Poly_loft.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ?rest
+                ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
+                ?output_group ~collinearity_tolerance ~recompute_normals geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Skin = struct
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    connect_closest_ends : bool [@sop.default true]
+      [@sop.label "Connect closest ends"];
+    minimize : Rdk.Poly_loft.minimize
+      [@sop.default Rdk.Poly_loft.Two_point_distance]
+      [@sop.label "Minimize"] [@sop.kind Poly_loft.minimize_parameter];
+    u_wrap : bool [@sop.default false] [@sop.label "Wrap U"];
+    v_wrap : bool [@sop.default false] [@sop.label "Wrap V"];
+    keep_primitives : bool [@sop.default false]
+      [@sop.label "Keep source primitives"];
+    output_group : string [@sop.default "skin"] [@sop.label "Output group"];
+    collinearity_tolerance : float [@sop.default 0.]
+      [@sop.label "Collinearity tolerance"] [@sop.min 0.] [@sop.max 1.]
+      [@sop.hard_min 0.] [@sop.validate "collinearity tolerance must be finite and between zero and one"];
+    recompute_normals : bool [@sop.default true]
+      [@sop.label "Recompute normals"];
+  } [@@sop.node_key "skin"] [@@sop.node_label "Skin"]
+    [@@sop.validate fun parameters ->
+      if parameters.collinearity_tolerance > 1. then
+        invalid_arg "Sop.skin: collinearity tolerance must be between zero and one"]
+    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 2] [@@sop.node_slots "input, rest"]
+    [@@sop.node_optional "1"]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input rest ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let connect_closest_ends = parameters.connect_closest_ends in
+    let minimize = parameters.minimize in
+    let u_wrap = parameters.u_wrap in
+    let v_wrap = parameters.v_wrap in
+    let keep_primitives = parameters.keep_primitives in
+    let output_group = parameters.output_group in
+    let collinearity_tolerance = parameters.collinearity_tolerance in
+    let recompute_normals = parameters.recompute_normals in
+    let output_group = optional_text output_group in
+    let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
+    Node.Private.make ?label ~operation:"skin" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs
+      (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some value -> Ok (Some value)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "skin could not find primitive group %S" name))) in
+        match primitives with
+        | Error error -> Error error
+        | Ok primitives ->
+            let rest = if Array.length inputs = 2 then Some inputs.(1) else None in
+            match Rdk.Poly_loft.run ~output:Rdk.Poly_loft.Polygons ~operation:"skin" ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ?rest
+                ~connect_closest_ends ~minimize ~u_wrap ~v_wrap ~keep_primitives
+                ?output_group ~collinearity_tolerance ~recompute_normals geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Poly_bridge = struct
+  let pairing_parameter = Parameter.choice ~equal:( = ) [
+      "By order", Rdk.Poly_bridge.Bridge_by_order;
+      "By centroid", Rdk.Poly_bridge.Bridge_by_centroid;
+    ]
+  let minimize_parameter = Parameter.choice ~equal:( = ) [
+      "Two point distance", Rdk.Poly_loft.Two_point_distance;
+      "Three point distance", Rdk.Poly_loft.Three_point_distance;
+    ]
+
+  type parameters = {
+    source_group : string [@sop.default "source"]
+      [@sop.label "Source edge group"];
+    destination_group : string [@sop.default "destination"]
+      [@sop.label "Destination edge group"];
+    pairing : Rdk.Poly_bridge.pairing
+      [@sop.default Rdk.Poly_bridge.Bridge_by_order]
+      [@sop.label "Pairing"] [@sop.kind pairing_parameter];
+    connect_closest_ends : bool [@sop.default true]
+      [@sop.label "Connect closest ends"];
+    minimize : Rdk.Poly_loft.minimize
+      [@sop.default Rdk.Poly_loft.Two_point_distance]
+      [@sop.label "Minimize"] [@sop.kind minimize_parameter];
+    reverse_source : bool [@sop.default false] [@sop.label "Reverse source"];
+    reverse_destination : bool [@sop.default false]
+      [@sop.label "Reverse destination"];
+    pairing_shift : int [@sop.default 0] [@sop.label "Pairing shift"]
+      [@sop.min (-128)] [@sop.max 128];
+    divisions : int [@sop.default 1] [@sop.label "Divisions"]
+      [@sop.min 1] [@sop.max 256] [@sop.hard_min 1];
+    keep_input : bool [@sop.default true] [@sop.label "Keep input"];
+    output_group : string [@sop.default "bridge"] [@sop.label "Output group"];
+    collinearity_tolerance : float [@sop.default 0.]
+      [@sop.label "Collinearity tolerance"] [@sop.min 0.] [@sop.max 1.]
+      [@sop.hard_min 0.] [@sop.validate "collinearity tolerance must be finite and between zero and one"];
+    recompute_normals : bool [@sop.default false]
+      [@sop.label "Recompute normals"];
+  } [@@sop.node_key "poly_bridge"] [@@sop.node_label "PolyBridge"]
+    [@@sop.validate fun parameters ->
+      if parameters.divisions <= 0 then invalid_arg "Sop.poly_bridge: divisions must be positive";
+      if parameters.collinearity_tolerance > 1. then
+        invalid_arg "Sop.poly_bridge: collinearity tolerance must be between zero and one"]
+    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let source_group = parameters.source_group in
+    let destination_group = parameters.destination_group in
+    let pairing = parameters.pairing in
+    let connect_closest_ends = parameters.connect_closest_ends in
+    let minimize = parameters.minimize in
+    let reverse_source = parameters.reverse_source in
+    let reverse_destination = parameters.reverse_destination in
+    let pairing_shift = parameters.pairing_shift in
+    let divisions = parameters.divisions in
+    let keep_input = parameters.keep_input in
+    let output_group = parameters.output_group in
+    let collinearity_tolerance = parameters.collinearity_tolerance in
+    let recompute_normals = parameters.recompute_normals in
+    let output_group = optional_text output_group in
+    if String.trim source_group = "" then
+      invalid_arg "Sop.poly_bridge: empty source edge group name";
+    if String.trim destination_group = "" then
+      invalid_arg "Sop.poly_bridge: empty destination edge group name";
+    Node.Private.make ?label ~operation:"poly_bridge" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+      (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        match Rdk.Geometry.find_edge_group source_group geometry,
+            Rdk.Geometry.find_edge_group destination_group geometry with
+        | None, _ -> Error (Diagnostic.error ~code:"missing_edge_group"
+            (Printf.sprintf "poly_bridge could not find source edge group %S"
+               source_group))
+        | _, None -> Error (Diagnostic.error ~code:"missing_edge_group"
+            (Printf.sprintf "poly_bridge could not find destination edge group %S"
+               destination_group))
+        | Some source, Some destination ->
+            match Rdk.Poly_bridge.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ~source ~destination ~pairing
+                ~connect_closest_ends ~minimize ~reverse_source
+                ~reverse_destination ~pairing_shift ~divisions ~keep_input ?output_group
+                ~collinearity_tolerance ~recompute_normals geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Circle_from_edges = struct
+  open Rays_math
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Edge group"]
+      [@sop.nonblank "empty edge group name"];
+    use_radius : bool [@sop.default false] [@sop.label "Override radius"];
+    radius : float [@sop.default 1.] [@sop.label "Radius"]
+      [@sop.min 0.01] [@sop.max 10.] [@sop.hard_min 0.]
+      [@sop.validate "radius must be finite and non-negative"];
+    scale_x : float [@sop.default 1.] [@sop.label "Scale X"]
+      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.]; [@sop.vec3 "scale"]
+    scale_y : float [@sop.default 1.] [@sop.label "Scale Y"]
+      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.]; [@sop.vec3 "scale"]
+    scale_z : float [@sop.default 1.] [@sop.label "Scale Z"]
+      [@sop.folder "Scale"] [@sop.min (-4.)] [@sop.max 4.]; [@sop.vec3 "scale"]
+    output_group : string [@sop.default ""] [@sop.label "Output group"]
+      [@sop.nonblank "empty output edge group name"];
+  } [@@sop.node_key "circle_from_edges"]
+    [@@sop.validate fun parameters ->
+      if parameters.use_radius && parameters.radius <= 0. then
+        invalid_arg "Sop.circle_from_edges: radius must be finite and positive";
+      if not (Float.is_finite parameters.scale_x && Float.is_finite parameters.scale_y
+          && Float.is_finite parameters.scale_z) then
+        invalid_arg "Sop.circle_from_edges: scale must be finite"]
+    [@@sop.node_label "Circle from Edges"]
+    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let use_radius = parameters.use_radius in
+    let radius = parameters.radius in
+    let scale = Vec3.create parameters.scale_x parameters.scale_y
+          parameters.scale_z in
+    let output_group = optional_text parameters.output_group in
+    let radius = if use_radius then Some radius else None in
+    let scale = vec3_copy scale in
+    Node.Private.make ?label ~operation:"circle_from_edges" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let edges = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_edge_group name geometry with
+               | Some edges -> Ok (Some edges)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                      "circle_from_edges could not find native edge group %S"
+                      name))) in
+        match edges with
+        | Error error -> Error error
+        | Ok edges ->
+            match Rdk.Circle_from_edges.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?edges ?radius ~scale ?output_group
+                geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Convex_hull = struct
+  type parameters = {
+    group_owner : element_owner [@sop.default Element_point]
+      [@sop.label "Group type"] [@sop.kind element_owner_parameter];
+    group : string [@sop.default ""] [@sop.label "Group"];
+    preserve_point_payload : bool [@sop.default true]
+      [@sop.label "Preserve point payload"];
+    source_point_attribute : string [@sop.default "sourcepoint"]
+      [@sop.label "Source point attribute"] [@sop.folder "Output"];
+    hull_group : string [@sop.default "hull"] [@sop.label "Hull group"]
+      [@sop.folder "Output"];
+  } [@@sop.node_key "convex_hull"] [@@sop.node_label "Convex Hull"]
+    [@@sop.validate fun parameters ->
+      if String.trim parameters.source_point_attribute = "P" then
+        invalid_arg "Sop.convex_hull: source point attribute must not be P"]
+    [@@sop.node_category "Topology"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group_owner = parameters.group_owner in
+    let group = parameters.group in
+    let preserve_point_payload = parameters.preserve_point_payload in
+    let source_point_attribute = parameters.source_point_attribute in
+    let hull_group = parameters.hull_group in
+    let selection = optional_element_group group_owner group in
+    let source_point_attribute = optional_text source_point_attribute in
+    let hull_group = optional_text hull_group in
+    Node.Private.make ?label ~operation:"convex_hull" ~version:1 ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        match resolve_element_group ~operation:"convex_hull" selection inputs.(0) with
+        | Error error -> Error error
+        | Ok selection ->
+            match Rdk.Convex_hull.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?selection ~preserve_point_payload
+                ?source_point_attribute ?hull_group inputs.(0) with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Edge_relax = struct
+  let target_parameter = Parameter.choice ~equal:( = ) [
+      "Individual lengths", Rdk.Edge_relax.Individual_lengths;
+      "Scale-independent distribution", Rdk.Edge_relax.Scale_independent_distribution;
+    ]
+
+  type parameters = {
+    group_owner : element_owner [@sop.default Element_edge]
+      [@sop.label "Group type"] [@sop.kind element_owner_parameter];
+    group : string [@sop.default ""] [@sop.label "Group"];
+    pin_group : string [@sop.default ""] [@sop.label "Pin point group"];
+    iterations : int [@sop.default 32] [@sop.label "Iterations"]
+      [@sop.min 1] [@sop.max 1024] [@sop.hard_min 1];
+    step_size : float [@sop.default 0.5] [@sop.label "Step size"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
+    target_mode : Rdk.Edge_relax.target_mode
+      [@sop.default Rdk.Edge_relax.Individual_lengths]
+      [@sop.label "Target mode"] [@sop.kind target_parameter];
+    only_shorten : bool [@sop.default false] [@sop.label "Only shorten"];
+    tolerance : float [@sop.default 0.000001] [@sop.label "Tolerance"]
+      [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
+  } [@@sop.node_key "edge_relax"] [@@sop.node_label "Edge Relax"]
+    [@@sop.validate fun parameters ->
+      if String.trim parameters.group <> ""
+          && (parameters.group_owner = Element_vertex || parameters.group_owner = Element_edge)
+      then invalid_arg "Sop.edge_relax: group must own points or primitives";
+      if parameters.iterations <= 0 then invalid_arg "Sop.edge_relax: iterations must be positive";
+      if not (Float.is_finite parameters.step_size) || parameters.step_size <= 0.
+          || parameters.step_size > 1. then
+        invalid_arg "Sop.edge_relax: step size must be finite and within (0, 1]";
+      if not (Float.is_finite parameters.tolerance) || parameters.tolerance <= 0. then
+        invalid_arg "Sop.edge_relax: tolerance must be finite and positive"]
+    [@@sop.node_category "Topology/Edge"] [@@sop.node_inputs 2] [@@sop.node_slots "source, reference"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters source reference ->
+    let label = Some label in
+    let group_owner = parameters.group_owner in
+    let group = parameters.group in
+    let pin_group = optional_text parameters.pin_group in
+    let iterations = parameters.iterations in
+    let step_size = parameters.step_size in
+    let target_mode = parameters.target_mode in
+    let only_shorten = parameters.only_shorten in
+    let tolerance = parameters.tolerance in
+    let input = source in
+    let group = optional_element_group group_owner group in
+    Node.Private.make ?label ~operation:"edge_relax" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input;reference|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) and reference = inputs.(1) in
+        let selection = match group with
+          | None -> Ok None
+          | Some (Point_group name) ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+               | Some group -> Ok (Some (Rdk.Edge_relax.Relax_points group))
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "edge_relax could not find point group %S" name)))
+          | Some (Primitive_group name) ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some (Rdk.Edge_relax.Relax_primitives group))
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "edge_relax could not find primitive group %S" name)))
+          | Some (Vertex_group _ | Edge_group _) -> assert false in
+        let pins = match pin_group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "edge_relax could not find pin point group %S"
+                      name))) in
+        match selection, pins with
+        | Error error, _ | _, Error error -> Error error
+        | Ok selection, Ok pin_points ->
+            match Rdk.Edge_relax.relax ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?selection ?pin_points ~iterations
+                ~step_size ~target_mode ~only_shorten ~tolerance ~reference
+                geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Point_split = struct
+  type parameters = {
+    group_owner : element_owner [@sop.default Element_point]
+      [@sop.label "Group type"] [@sop.kind element_owner_parameter];
+    group : string [@sop.default ""] [@sop.label "Group"];
+    attributes : string [@sop.default "*"] [@sop.label "Attributes"];
+    tolerance : float [@sop.default 0.] [@sop.label "Tolerance"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
+    promote_attributes : bool [@sop.default false]
+      [@sop.label "Promote attributes"];
+  } [@@sop.node_key "point_split"] [@@sop.node_label "Point Split"]
+    [@@sop.validate fun parameters ->
+      if String.trim parameters.group <> "" && parameters.group_owner = Element_edge then
+        invalid_arg "Sop.point_split: selection must own points, vertices, or primitives";
+      if not (Float.is_finite parameters.tolerance) || parameters.tolerance < 0. then
+        invalid_arg "Sop.point_split: tolerance must be finite and non-negative"]
+    [@@sop.node_category "Topology/Point"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group_owner = parameters.group_owner in
+    let group = parameters.group in
+    let attributes = parameters.attributes in
+    let tolerance = parameters.tolerance in
+    let promote_attributes = parameters.promote_attributes in
+    let selection = optional_element_group group_owner group in
+    Node.Private.make ?label ~operation:"point_split" ~version:2
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+      (fun ~node_id:_ context inputs ->
+        match resolve_element_group ~operation:"point_split" selection inputs.(0) with
+        | Error error -> Error error
+        | Ok selection -> match Rdk.Point_split.run
+            ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
+            ?selection ~attributes ~tolerance ~promote_attributes inputs.(0) with
+          | Ok geometry -> cooked geometry
+          | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Rewire_vertices = struct
+  type parameters = {
+    selection_owner : element_owner [@sop.default Element_vertex]
+      [@sop.label "Selection owner"] [@sop.kind element_owner_parameter];
+    selection : string [@sop.default ""] [@sop.label "Selection group"];
+    owner : Rdk.Attribute.owner [@sop.default Rdk.Attribute.Vertex]
+      [@sop.label "Target attribute owner"]
+      [@sop.kind element_attribute_owner_parameter];
+    target_attribute : string [@sop.default "target"]
+      [@sop.label "Target attribute"] [@sop.nonblank "empty target attribute"];
+    recursive : bool [@sop.default false] [@sop.label "Resolve recursively"];
+    delete_target_attribute : bool [@sop.default true]
+      [@sop.label "Delete target attribute"];
+    keep_unused_points : bool [@sop.default false]
+      [@sop.label "Keep unused points"];
+    original_point_attribute : string [@sop.default ""]
+      [@sop.label "Original point attribute"] [@sop.folder "Output"];
+  } [@@sop.node_key "rewire_vertices"] [@@sop.node_label "Rewire Vertices"]
+    [@@sop.validate fun parameters ->
+      if parameters.owner = Rdk.Attribute.Detail then invalid_arg "Sop.rewire_vertices: target owner cannot be detail";
+      if parameters.recursive && parameters.owner <> Rdk.Attribute.Point then
+        invalid_arg "Sop.rewire_vertices: recursive mode requires point ownership";
+      if String.trim parameters.target_attribute = "" then invalid_arg "Sop.rewire_vertices: target attribute must be nonblank";
+      if optional_text parameters.original_point_attribute = Some "N" then
+        invalid_arg "Sop.rewire_vertices: original point attribute cannot be N"]
+    [@@sop.node_category "Topology/Edit"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let selection_owner = parameters.selection_owner in
+    let selection = parameters.selection in
+    let recursive = parameters.recursive in
+    let delete_target_attribute = parameters.delete_target_attribute in
+    let keep_unused_points = parameters.keep_unused_points in
+    let original_point_attribute = optional_text parameters.original_point_attribute in
+    let owner = parameters.owner in
+    let target_attribute = parameters.target_attribute in
+    let selection = optional_element_group selection_owner selection in
+    Node.Private.make ?label ~operation:"rewire_vertices" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+      (fun ~node_id:_ context inputs ->
+        match resolve_element_group ~operation:"rewire_vertices" selection inputs.(0) with
+        | Error error -> Error error
+        | Ok selection ->
+            match Rdk.Rewire_vertices.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?selection ~recursive
+                ~delete_target_attribute ~keep_unused_points
+                ?original_point_attribute ~owner ~target_attribute inputs.(0) with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Revolve = struct
+  open Rays_math
+  let type_parameter = Parameter.choice ~equal:( = ) [
+      "Closed", Rdk.Sweep_modeling.Revolve_closed;
+      "Open arc", Rdk.Sweep_modeling.Revolve_open_arc;
+    ]
+  let connectivity_parameter = Parameter.choice ~equal:( = ) [
+      "Points", Rdk.Plane_generators.Grid_points;
+      "Rows", Rdk.Plane_generators.Grid_rows;
+      "Columns", Rdk.Plane_generators.Grid_columns;
+      "Rows and columns", Rdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Rdk.Plane_generators.Grid_quads;
+      "Triangles", Rdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Rdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Rdk.Plane_generators.Grid_reverse_triangles;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    revolve_type : Rdk.Sweep_modeling.revolve_type [@sop.default Rdk.Sweep_modeling.Revolve_closed]
+      [@sop.label "Revolve type"] [@sop.kind type_parameter];
+    connectivity : Rdk.Plane_generators.grid_connectivity [@sop.default Rdk.Plane_generators.Grid_quads]
+      [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
+    start_angle : float [@sop.default 0.] [@sop.label "Start angle"]
+      [@sop.min (-6.283185307179586)] [@sop.max 6.283185307179586];
+    end_angle : float [@sop.default 6.283185307179586]
+      [@sop.label "End angle"] [@sop.min (-6.283185307179586)]
+      [@sop.max 6.283185307179586];
+    reverse_cross_sections : bool [@sop.default false]
+      [@sop.label "Reverse cross sections"];
+    caps : bool [@sop.default false] [@sop.label "End caps"];
+    cap_group : string [@sop.default "caps"] [@sop.label "Cap group"];
+    uv_attribute : string [@sop.default "uv"] [@sop.label "UV attribute"];
+    divisions : int [@sop.default 32] [@sop.label "Divisions"]
+      [@sop.min 2] [@sop.max 512] [@sop.hard_min 1];
+    origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
+      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
+    origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
+      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
+    origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
+      [@sop.folder "Axis/Origin"] [@sop.min (-100.)] [@sop.max 100.]; [@sop.vec3 "origin"]
+    axis_x : float [@sop.default 0.] [@sop.label "Axis X"]
+      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
+    axis_y : float [@sop.default 1.] [@sop.label "Axis Y"]
+      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
+    axis_z : float [@sop.default 0.] [@sop.label "Axis Z"]
+      [@sop.folder "Axis/Direction"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "axis"]
+  } [@@sop.node_key "revolve"] [@@sop.node_label "Revolve"]
+    [@@sop.validate fun parameters ->
+      if parameters.divisions < (match parameters.revolve_type with
+          Rdk.Sweep_modeling.Revolve_closed -> 3 | Revolve_open_arc -> 1) then
+        invalid_arg "Sop.revolve: divisions are too small for the revolve type";
+      if not (List.for_all Float.is_finite [parameters.origin_x; parameters.origin_y; parameters.origin_z;
+          parameters.axis_x; parameters.axis_y; parameters.axis_z; parameters.start_angle; parameters.end_angle]) then
+        invalid_arg "Sop.revolve: origin, axis and angles must be finite";
+      if parameters.axis_x = 0. && parameters.axis_y = 0. && parameters.axis_z = 0. then
+        invalid_arg "Sop.revolve: axis must be nonzero";
+      if parameters.revolve_type = Rdk.Sweep_modeling.Revolve_open_arc
+          && (parameters.start_angle = parameters.end_angle || not (Float.is_finite (parameters.end_angle -. parameters.start_angle))) then
+        invalid_arg "Sop.revolve: open arc must have a finite nonzero span";
+      if parameters.caps && (parameters.revolve_type <> Rdk.Sweep_modeling.Revolve_closed
+          || not (List.mem parameters.connectivity Rdk.Plane_generators.[Grid_quads; Grid_triangles;
+            Grid_alternating_triangles; Grid_reverse_triangles])) then
+        invalid_arg "Sop.revolve: caps require a closed polygon surface";
+      if List.mem (optional_text parameters.uv_attribute) [Some "P"; Some "N"] then
+        invalid_arg "Sop.revolve: UV attribute cannot be P or N"]
+    [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = optional_text parameters.group in
+    let revolve_type = parameters.revolve_type in
+    let connectivity = parameters.connectivity in
+    let start_angle = parameters.start_angle in
+    let end_angle = parameters.end_angle in
+    let reverse_cross_sections = parameters.reverse_cross_sections in
+    let caps = parameters.caps in
+    let cap_group = parameters.cap_group in
+    let uv_attribute = parameters.uv_attribute in
+    let divisions = parameters.divisions in
+    let origin = Vec3.create parameters.origin_x parameters.origin_y
+          parameters.origin_z in
+    let axis = Vec3.create parameters.axis_x parameters.axis_y
+          parameters.axis_z in
+    let cap_group = if caps then optional_text cap_group else None
+    and uv_attribute = optional_text uv_attribute in
+    let origin = vec3_copy origin and axis = vec3_copy axis in
+    Node.Private.make ?label ~operation:"revolve" ~version:1 ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "revolve could not find primitive group %S" name))) in
+        match primitives with
+        | Error error -> Error error
+        | Ok primitives ->
+            match Rdk.Sweep_modeling.revolve ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ~revolve_type
+                ~connectivity ~start_angle ~end_angle ~reverse_cross_sections
+                ~caps ?cap_group ~uv_attribute ~divisions ~origin ~axis geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Clean = struct
+  let overlaps_parameter = Parameter.choice ~equal:( = ) [
+      "Keep first", Clean_keep_first;
+      "Delete pairs", Clean_delete_pairs;
+      "Auto", Clean_overlap_auto;
+    ]
+
+  type parameters = {
+    epsilon_mode : Sop_support.kernel_mode [@sop.default Kernel_explicit]
+      [@sop.label "Epsilon mode"] [@sop.folder "Robustness"] [@sop.kind kernel_mode_parameter];
+    epsilon : float [@sop.default 1e-9] [@sop.label "Epsilon"]
+      [@sop.folder "Robustness"] [@sop.min 0.] [@sop.max 0.001]
+      [@sop.hard_min 0.] [@sop.validate "epsilon must be finite and nonnegative"];
+    remove_degenerate : bool [@sop.default true]
+      [@sop.label "Remove degenerate primitives"];
+    consolidate_mode : Sop_support.kernel_mode [@sop.default Kernel_explicit]
+      [@sop.label "Consolidate mode"] [@sop.kind kernel_mode_parameter];
+    consolidate_distance : float [@sop.default 0.]
+      [@sop.label "Consolidate distance"] [@sop.min 0.] [@sop.max 0.1]
+      [@sop.hard_min 0.] [@sop.validate "consolidate distance must be finite and nonnegative"];
+    overlaps : Sop_support.clean_overlap
+      [@sop.default Clean_keep_first]
+      [@sop.label "Overlaps"] [@sop.kind overlaps_parameter];
+    reverse_winding : bool [@sop.default false]
+      [@sop.label "Reverse winding"];
+    remove_nan_points : bool [@sop.default true]
+      [@sop.label "Remove non-finite points"];
+    remove_unused_points : bool [@sop.default true]
+      [@sop.label "Remove unused points"];
+    delete_unused_groups : bool [@sop.default true]
+      [@sop.label "Delete unused groups"];
+    point_attributes : string [@sop.default ""]
+      [@sop.label "Point attributes"] [@sop.folder "Delete attributes"];
+    vertex_attributes : string [@sop.default ""]
+      [@sop.label "Vertex attributes"] [@sop.folder "Delete attributes"];
+    primitive_attributes : string [@sop.default ""]
+      [@sop.label "Primitive attributes"] [@sop.folder "Delete attributes"];
+    detail_attributes : string [@sop.default ""]
+      [@sop.label "Detail attributes"] [@sop.folder "Delete attributes"];
+    point_groups : string [@sop.default ""] [@sop.label "Point groups"]
+      [@sop.folder "Delete groups"];
+    vertex_groups : string [@sop.default ""] [@sop.label "Vertex groups"]
+      [@sop.folder "Delete groups"];
+    primitive_groups : string [@sop.default ""] [@sop.label "Primitive groups"]
+      [@sop.folder "Delete groups"];
+    edge_groups : string [@sop.default ""] [@sop.label "Edge groups"]
+      [@sop.folder "Delete groups"];
+  } [@@sop.node_key "clean"] [@@sop.node_label "Clean"]
+    [@@sop.validate fun parameters ->
+      if not (Float.is_finite parameters.epsilon) || parameters.epsilon < 0.
+          || not (Float.is_finite parameters.consolidate_distance)
+          || parameters.consolidate_distance < 0. then
+        invalid_arg "Sop.clean: epsilon and consolidate distance must be finite and nonnegative";
+      List.iter (fun pattern -> if String.trim pattern <> "" then
+        match Rdk.Attribute_pattern.compile pattern with
+        | Ok _ -> () | Error message -> invalid_arg ("Sop.clean: " ^ message))
+        [parameters.point_attributes; parameters.vertex_attributes;
+         parameters.primitive_attributes; parameters.detail_attributes;
+         parameters.point_groups; parameters.vertex_groups;
+         parameters.primitive_groups; parameters.edge_groups]]
+    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let epsilon_mode = parameters.epsilon_mode in
+    let epsilon = parameters.epsilon in
+    let remove_degenerate = parameters.remove_degenerate in
+    let consolidate_mode = parameters.consolidate_mode in
+    let consolidate_distance = parameters.consolidate_distance in
+    let overlaps = parameters.overlaps in
+    let reverse_winding = parameters.reverse_winding in
+    let remove_nan_points = parameters.remove_nan_points in
+    let remove_unused_points = parameters.remove_unused_points in
+    let delete_unused_groups = parameters.delete_unused_groups in
+    let point_attributes = optional_text parameters.point_attributes in
+    let vertex_attributes = optional_text parameters.vertex_attributes in
+    let primitive_attributes = optional_text parameters.primitive_attributes in
+    let detail_attributes = optional_text parameters.detail_attributes in
+    let point_groups = optional_text parameters.point_groups in
+    let vertex_groups = optional_text parameters.vertex_groups in
+    let primitive_groups = optional_text parameters.primitive_groups in
+    let edge_groups = optional_text parameters.edge_groups in
+    let epsilon = if epsilon_mode = Kernel_auto then None else Some epsilon in
+    let consolidate_distance = if consolidate_mode = Kernel_auto then None else Some consolidate_distance in
+    let overlaps = match overlaps with
+      | Clean_overlap_auto -> None
+      | Clean_keep_first -> Some Rdk.Clean.Keep_first_overlap
+      | Clean_delete_pairs -> Some Rdk.Clean.Delete_overlap_pairs in
+    Node.Private.make ?label ~operation:"clean" ~version:2
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+      (fun ~node_id:_ context inputs ->
+        match Rdk.Clean.run ~cancel:(Context.cancel_token context)
+            ~grain:(Context.grain context) ?epsilon ~remove_degenerate
+            ?consolidate_distance ?overlaps ~reverse_winding ~remove_nan_points
+            ~remove_unused_points ~delete_unused_groups ?point_attributes
+            ?vertex_attributes ?primitive_attributes ?detail_attributes
+            ?point_groups ?vertex_groups ?primitive_groups ?edge_groups inputs.(0) with
+        | Ok geometry -> cooked geometry
+        | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Join_curves = struct
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    picked_ends : string [@sop.default ""] [@sop.label "Picked ends"]
+    [@sop.description "Comma-separated primitive:start or primitive:end pairs, in traversal order; [] selects no curves."];
+    orient_closest : bool [@sop.default true]
+      [@sop.label "Orient closest ends"];
+    connect_closest_ends : bool [@sop.default false]
+      [@sop.label "Connect closest ends"];
+    only_connected : bool [@sop.default false]
+      [@sop.label "Only connected"];
+    use_group_size : bool [@sop.default false] [@sop.label "Use group size"];
+    group_size : int [@sop.default 2] [@sop.label "Group size"]
+      [@sop.min 1] [@sop.max 1024] [@sop.hard_min 1];
+    keep_originals : bool [@sop.default false]
+      [@sop.label "Keep originals"];
+    tolerance : float [@sop.default 0.] [@sop.label "Tolerance"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.];
+    wrap : bool [@sop.default false] [@sop.label "Wrap"];
+  } [@@sop.node_key "join_curves"] [@@sop.node_label "Join Curves"]
+    [@@sop.validate fun parameters ->
+      if parameters.group_size < 1 then invalid_arg "Sop.join_curves: group size must be positive";
+      if not (Float.is_finite parameters.tolerance) || parameters.tolerance < 0. then
+        invalid_arg "Sop.join_curves: tolerance must be finite and nonnegative";
+      match decode_curve_join_picks parameters.picked_ends with
+      | None -> ()
+      | Some _ ->
+          if String.trim parameters.group <> "" || parameters.connect_closest_ends then
+            invalid_arg "Sop.join_curves: picked ends are mutually exclusive with group and closest ordering"]
+    [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = parameters.group in
+    let picked_ends = parameters.picked_ends in
+    let orient_closest = parameters.orient_closest in
+    let connect_closest_ends = parameters.connect_closest_ends in
+    let only_connected = parameters.only_connected in
+    let use_group_size = parameters.use_group_size in
+    let group_size = parameters.group_size in
+    let keep_originals = parameters.keep_originals in
+    let tolerance = parameters.tolerance in
+    let wrap = parameters.wrap in
+    let group = optional_text group in
+    let picked_ends = decode_curve_join_picks picked_ends in
+    let group_size = if use_group_size then Some group_size else None in
+    Node.Private.make ?label ~operation:"join_curves" ~version:4
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive
+                  name inputs.(0) with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   ~hints:["Create the primitive group before Curve Join"]
+                   (Printf.sprintf "join_curves could not find primitive group %S"
+                     name))) in
+        match primitives with
+        | Error _ as error -> error
+        | Ok primitives ->
+            match Rdk.Curve_topology.join_curves ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ?picked_ends ~orient_closest
+                ~connect_closest_ends ~only_connected ?group_size ~keep_originals
+                ~tolerance ~wrap inputs.(0) with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Blast_by_attribute = struct
+  let owner_parameter = Parameter.choice ~equal:( = ) [
+      "Points", Rdk.Blast_by_attribute.Blast_points;
+      "Primitives", Rdk.Blast_by_attribute.Blast_primitives;
+    ]
+  let mode_parameter = Parameter.choice ~equal:( = ) [
+      "Below threshold", Blast_below; "Range", Blast_range; "Center and width", Blast_width;
+    ]
+  let output_parameter = Parameter.choice ~equal:( = ) [
+      "Delete elements", Blast_delete; "Create group", Blast_group;
+    ]
+  type parameters = {
+    owner : Rdk.Blast_by_attribute.owner [@sop.default Rdk.Blast_by_attribute.Blast_points]
+      [@sop.label "Owner"] [@sop.kind owner_parameter];
+    attribute : string [@sop.default "mask"] [@sop.label "Attribute"];
+    mode : Sop_support.blast_attribute_mode [@sop.default Blast_below] [@sop.label "Comparison"]
+      [@sop.kind mode_parameter];
+    threshold : float [@sop.default 0.5] [@sop.label "Threshold"]
+      [@sop.folder "Comparison/Below"] [@sop.min (-10.)] [@sop.max 10.];
+    minimum : float [@sop.default 0.] [@sop.label "Minimum"]
+      [@sop.folder "Comparison/Range"] [@sop.min (-10.)] [@sop.max 10.];
+    maximum : float [@sop.default 1.] [@sop.label "Maximum"]
+      [@sop.folder "Comparison/Range"] [@sop.min (-10.)] [@sop.max 10.];
+    center : float [@sop.default 0.5] [@sop.label "Center"]
+      [@sop.folder "Comparison/Width"] [@sop.min (-10.)] [@sop.max 10.];
+    width : float [@sop.default 0.5] [@sop.label "Width"]
+      [@sop.folder "Comparison/Width"] [@sop.min 0.] [@sop.max 10.]
+      [@sop.hard_min 0.];
+    group : string [@sop.default ""] [@sop.label "Base group"];
+    invert : bool [@sop.default false] [@sop.label "Invert selection"];
+    output : Sop_support.blast_attribute_output [@sop.default Blast_delete] [@sop.label "Output"]
+      [@sop.kind output_parameter];
+    output_group : string [@sop.default "selected"]
+      [@sop.label "Output group"] [@sop.folder "Output"];
+    remove_unused_points : bool [@sop.default false]
+      [@sop.label "Remove unused points"] [@sop.folder "Output"];
+  } [@@sop.node_key "blast_by_attribute"]
+    [@@sop.node_label "Blast by Attribute"]
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.blast_by_attribute: " ^ message) in
+      if String.trim parameters.attribute = "" then refuse "empty attribute name";
+      if parameters.output = Blast_group && String.trim parameters.output_group = "" then refuse "empty output group name";
+      if parameters.remove_unused_points &&
+          (parameters.owner <> Rdk.Blast_by_attribute.Blast_primitives || parameters.output <> Blast_delete) then
+        refuse "remove_unused_points is only valid for primitive deletion";
+      if not (List.for_all Float.is_finite [parameters.threshold;parameters.minimum;parameters.maximum;
+          parameters.center;parameters.width]) then refuse "comparison controls must be finite";
+      if parameters.width < 0. then refuse "width must be nonnegative";
+      if parameters.mode = Blast_range && parameters.minimum > parameters.maximum then refuse "reversed comparison range";
+      if parameters.mode = Blast_width then begin
+        let half = parameters.width *. 0.5 in
+        if not (Float.is_finite (parameters.center -. half) && Float.is_finite (parameters.center +. half)) then
+          refuse "width interval must be finite"
+      end]
+    [@@sop.node_category "Topology/Delete"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = parameters.group in
+    let invert = parameters.invert in
+    let remove_unused_points = parameters.remove_unused_points in
+    let owner = parameters.owner in
+    let attribute = parameters.attribute in
+    let mode = parameters.mode in
+    let threshold = parameters.threshold in
+    let minimum = parameters.minimum in
+    let maximum = parameters.maximum in
+    let center = parameters.center in
+    let width = parameters.width in
+    let output = parameters.output in
+    let output_group = parameters.output_group in
+    let group = optional_text group in
+    let mode = match mode with
+      | Blast_below -> Rdk.Blast_by_attribute.Blast_below threshold
+      | Blast_range -> Rdk.Blast_by_attribute.Blast_range {minimum;maximum}
+      | Blast_width -> Rdk.Blast_by_attribute.Blast_width {center;width} in
+    let output = match output with
+      | Blast_delete -> Rdk.Blast_by_attribute.Blast_delete
+      | Blast_group -> Rdk.Blast_by_attribute.Blast_group output_group in
+    Node.Private.make ?label ~operation:"blast_by_attribute" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let group_owner = match owner with
+          | Rdk.Blast_by_attribute.Blast_points -> Rdk.Group.Point
+          | Rdk.Blast_by_attribute.Blast_primitives -> Rdk.Group.Primitive in
+        let base = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:group_owner name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                     "blast_by_attribute could not find %s group %S"
+                     (blast_attribute_owner_key owner) name))) in
+        Result.bind base (fun base ->
+          match Rdk.Blast_by_attribute.blast
+              ~cancel:(Context.cancel_token context)
+              ~grain:(Context.grain context) ?base ~invert ~remove_unused_points
+              ~owner ~attribute ~mode ~output geometry with
+          | Ok geometry -> cooked geometry
+          | Error error -> structured_rdk_error error))
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Facet = struct
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    group_owner : Sop_support.element_owner [@sop.default Element_primitive]
+      [@sop.label "Group owner"] [@sop.kind element_owner_parameter];
+    consolidation : Sop_support.facet_consolidation [@sop.default Consolidation_none]
+      [@sop.label "Consolidation"] [@sop.folder "Consolidate"] [@sop.kind facet_consolidation_parameter];
+    pre_compute_normals : bool [@sop.default false]
+      [@sop.label "Pre-compute normals"] [@sop.folder "Normals"];
+    make_normals_unit_length : bool [@sop.default false]
+      [@sop.label "Make normals unit length"] [@sop.folder "Normals"];
+    unique_points : bool [@sop.default false] [@sop.label "Unique points"];
+    consolidate_distance : float [@sop.default 0.]
+      [@sop.label "Consolidate distance"] [@sop.folder "Consolidate"]
+      [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
+    consolidate_normals_distance : float [@sop.default 0.]
+      [@sop.label "Normal distance"] [@sop.folder "Consolidate"]
+      [@sop.min 0.] [@sop.max 0.1] [@sop.hard_min 0.];
+    remove_inline_points : bool [@sop.default false]
+      [@sop.label "Remove inline points"];
+    inline_distance : float [@sop.default 1e-6]
+      [@sop.label "Inline distance"] [@sop.min 0.] [@sop.max 0.1]
+      [@sop.hard_min 0.];
+    orient_polygons : bool [@sop.default false]
+      [@sop.label "Orient polygons"];
+    cusp_mode : Sop_support.kernel_mode [@sop.default Kernel_explicit]
+      [@sop.label "Cusp mode"] [@sop.folder "Normals"] [@sop.kind kernel_mode_parameter];
+    cusp_angle : float [@sop.default 3.141592653589793]
+      [@sop.label "Cusp angle"] [@sop.folder "Normals"]
+      [@sop.min 0.] [@sop.max 3.141592653589793]
+      [@sop.hard_min 0.] [@sop.hard_max 3.141592653589793];
+    remove_degenerate : bool [@sop.default false]
+      [@sop.label "Remove degenerate primitives"];
+    make_planar : bool [@sop.default false] [@sop.label "Make planar"];
+    post_compute_normals : bool [@sop.default false]
+      [@sop.label "Post-compute normals"] [@sop.folder "Normals"];
+    reverse_normals : bool [@sop.default false]
+      [@sop.label "Reverse normals"] [@sop.folder "Normals"];
+  } [@@sop.node_key "facet"] [@@sop.node_label "Facet"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.facet: " ^ message) in
+      if not (List.for_all Float.is_finite [parameters.consolidate_distance;
+          parameters.consolidate_normals_distance;parameters.inline_distance;parameters.cusp_angle]) then
+        refuse "distance and angle controls must be finite";
+      if parameters.consolidate_distance < 0. || parameters.consolidate_normals_distance < 0.
+          || parameters.inline_distance < 0. then refuse "distances must be nonnegative";
+      if parameters.cusp_angle < 0. || parameters.cusp_angle > Float.pi then refuse "cusp angle must be within [0, pi]"]
+    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = parameters.group in
+    let group_owner = parameters.group_owner in
+    let pre_compute_normals = parameters.pre_compute_normals in
+    let make_normals_unit_length = parameters.make_normals_unit_length in
+    let unique_points = parameters.unique_points in
+    let consolidation = parameters.consolidation in
+    let consolidate_distance = parameters.consolidate_distance in
+    let consolidate_normals_distance = parameters.consolidate_normals_distance in
+    let remove_inline_points = parameters.remove_inline_points in
+    let inline_distance = parameters.inline_distance in
+    let orient_polygons = parameters.orient_polygons in
+    let cusp_mode = parameters.cusp_mode in
+    let cusp_angle = parameters.cusp_angle in
+    let remove_degenerate = parameters.remove_degenerate in
+    let make_planar = parameters.make_planar in
+    let post_compute_normals = parameters.post_compute_normals in
+    let reverse_normals = parameters.reverse_normals in
+    let selection = optional_element_group group_owner group in
+    let consolidate_distance = match consolidation with Consolidation_points -> Some consolidate_distance | _ -> None in
+    let consolidate_normals_distance = match consolidation with Consolidation_normals -> Some consolidate_normals_distance | _ -> None in
+    let cusp_angle = match cusp_mode with Kernel_explicit -> Some cusp_angle | Kernel_auto -> None in
+    Node.Private.make ?label ~operation:"facet" ~version:4
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        match resolve_element_group ~operation:"facet" selection geometry with
+        | Error error -> Error error
+        | Ok selection ->
+            match Rdk.Facet.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?selection ~pre_compute_normals
+                ~make_normals_unit_length ~unique_points ?consolidate_distance
+                ?consolidate_normals_distance ~remove_inline_points
+                ~inline_distance ~orient_polygons ?cusp_angle ~remove_degenerate
+                ~make_planar ~post_compute_normals ~reverse_normals geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Poly_cut = struct
+  let element_parameter = Parameter.choice ~equal:( = ) [
+      "Points", Rdk.Poly_cut.Poly_cut_points; "Edges", Rdk.Poly_cut.Poly_cut_edges;
+    ]
+  let strategy_parameter = Parameter.choice ~equal:( = ) [
+      "Remove", Rdk.Poly_cut.Poly_cut_remove; "Cut", Rdk.Poly_cut.Poly_cut_cut;
+    ]
+  let detection_parameter = Parameter.choice ~equal:( = ) [
+      "All selected", Cut_all; "Attribute crossing", Cut_crossing;
+      "Attribute change", Cut_change;
+    ]
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    cut_group : string [@sop.default ""] [@sop.label "Cut group"];
+    element : Rdk.Poly_cut.element [@sop.default Rdk.Poly_cut.Poly_cut_points]
+      [@sop.label "Cut elements"] [@sop.kind element_parameter];
+    strategy : Rdk.Poly_cut.strategy
+      [@sop.default Rdk.Poly_cut.Poly_cut_remove]
+      [@sop.label "Strategy"] [@sop.kind strategy_parameter];
+    detection : Sop_support.poly_cut_detection [@sop.default Cut_all] [@sop.label "Detection"]
+      [@sop.folder "Detection"] [@sop.kind detection_parameter];
+    attribute : string [@sop.default "cut"] [@sop.label "Attribute"]
+      [@sop.folder "Detection"];
+    value : float [@sop.default 0.5] [@sop.label "Crossing value"]
+      [@sop.folder "Detection"] [@sop.min (-10.)] [@sop.max 10.];
+    threshold : float [@sop.default 0.] [@sop.label "Change threshold"]
+      [@sop.folder "Detection"] [@sop.min 0.] [@sop.max 10.]
+      [@sop.hard_min 0.];
+    keep_closed : bool [@sop.default true] [@sop.label "Keep closed"];
+  } [@@sop.node_key "poly_cut"] [@@sop.node_label "Poly Cut"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.poly_cut: " ^ message) in
+      if not (Float.is_finite parameters.value && Float.is_finite parameters.threshold) then refuse "detection controls must be finite";
+      if parameters.threshold < 0. then refuse "threshold must be nonnegative";
+      if parameters.detection <> Cut_all && String.trim parameters.attribute = "" then refuse "attribute must be nonblank";
+      if parameters.detection = Cut_crossing && parameters.attribute = "P" then refuse "crossing requires scalar storage";
+      if parameters.detection = Cut_change && parameters.strategy = Rdk.Poly_cut.Poly_cut_cut && parameters.threshold = 0. then
+        refuse "cut-at-change requires a positive threshold"]
+    [@@sop.node_category "Topology/Curve"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = parameters.group in
+    let cut_group = parameters.cut_group in
+    let element = parameters.element in
+    let strategy = parameters.strategy in
+    let detection = parameters.detection in
+    let attribute = parameters.attribute in
+    let value = parameters.value in
+    let threshold = parameters.threshold in
+    let keep_closed = parameters.keep_closed in
+    let group = optional_text group and cut_group = optional_text cut_group in
+    let detection = match detection with
+      | Cut_all -> Rdk.Poly_cut.Poly_cut_all
+      | Cut_crossing -> Rdk.Poly_cut.Poly_cut_crossing {attribute;value}
+      | Cut_change -> Rdk.Poly_cut.Poly_cut_change {attribute;threshold} in
+    Node.Private.make ?label ~operation:"poly_cut" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+      (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        match resolve_optional_primitive_group "poly_cut" group geometry with
+        | Error error -> Error error
+        | Ok primitives ->
+            let cut_selection = match element with
+              | Rdk.Poly_cut.Poly_cut_points ->
+                  Result.map (fun value -> `Points value)
+                    (resolve_optional_point_group "poly_cut" cut_group geometry)
+              | Rdk.Poly_cut.Poly_cut_edges ->
+                  Result.map (fun value -> `Edges value)
+                    (resolve_optional_edge_group "poly_cut" cut_group geometry) in
+            match cut_selection with
+            | Error error -> Error error
+            | Ok (`Points cut_points) ->
+                (match Rdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
+                    ~grain:(Context.grain context) ?primitives ?cut_points
+                    ~element ~strategy ~detection ~keep_closed geometry with
+                 | Ok geometry -> cooked geometry
+                 | Error error -> structured_rdk_error error)
+            | Ok (`Edges cut_edges) ->
+                (match Rdk.Poly_cut.cut ~cancel:(Context.cancel_token context)
+                    ~grain:(Context.grain context) ?primitives ?cut_edges
+                    ~element ~strategy ~detection ~keep_closed geometry with
+                 | Ok geometry -> cooked geometry
+                 | Error error -> structured_rdk_error error))
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Poly_reduce = struct
+  let target_parameter = Parameter.choice ~equal:( = ) [
+      "Percentage", Reduce_ratio; "Primitive count", Reduce_primitive_count;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    hard_point_group : string [@sop.default ""]
+      [@sop.label "Hard point group"] [@sop.folder "Constraints"];
+    hard_edge_group : string [@sop.default ""]
+      [@sop.label "Hard edge group"] [@sop.folder "Constraints"];
+    target_mode : Sop_support.poly_reduce_target [@sop.default Reduce_ratio]
+      [@sop.label "Target"] [@sop.kind target_parameter];
+    ratio : float [@sop.default 0.5] [@sop.label "Percentage"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    primitive_count : int [@sop.default 100] [@sop.label "Primitive count"]
+      [@sop.min 0] [@sop.max 1000000] [@sop.hard_min 0];
+    preserve_boundary : bool [@sop.default true]
+      [@sop.label "Preserve boundary"];
+    only_original_positions : bool [@sop.default false]
+      [@sop.label "Only original positions"];
+    equalize_lengths : float [@sop.default 0.0000000001]
+      [@sop.label "Equalize edge lengths"] [@sop.min 0.] [@sop.max 1.]
+      [@sop.hard_min 0.];
+    limit_normal_deviation : bool [@sop.default false]
+      [@sop.label "Limit normal deviation"];
+    max_normal_deviation : float [@sop.default 0.5]
+      [@sop.label "Maximum normal deviation"] [@sop.min 0.]
+      [@sop.max 3.141592653589793] [@sop.hard_min 0.];
+    output_group : string [@sop.default ""] [@sop.label "Output group"];
+    recompute_point_normals : bool [@sop.default true]
+      [@sop.label "Recompute point normals"];
+  } [@@sop.node_key "poly_reduce"] [@@sop.node_label "PolyReduce"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.poly_reduce: " ^ message) in
+      if not (Float.is_finite parameters.ratio && Float.is_finite parameters.equalize_lengths
+          && Float.is_finite parameters.max_normal_deviation) then refuse "controls must be finite";
+      if parameters.ratio < 0. || parameters.ratio > 1. then refuse "ratio must be in [0, 1]";
+      if parameters.primitive_count < 0 then refuse "primitive count must be nonnegative";
+      if parameters.equalize_lengths < 0. then refuse "equalize lengths must be nonnegative";
+      if parameters.max_normal_deviation < 0. || parameters.max_normal_deviation > Float.pi then
+        refuse "normal deviation must be in [0, pi]"]
+    [@@sop.node_category "Topology/Remesh"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = parameters.group in
+    let hard_point_group = parameters.hard_point_group in
+    let hard_edge_group = parameters.hard_edge_group in
+    let target_mode = parameters.target_mode in
+    let ratio = parameters.ratio in
+    let primitive_count = parameters.primitive_count in
+    let preserve_boundary = parameters.preserve_boundary in
+    let only_original_positions = parameters.only_original_positions in
+    let equalize_lengths = parameters.equalize_lengths in
+    let limit_normal_deviation = parameters.limit_normal_deviation in
+    let max_normal_deviation = parameters.max_normal_deviation in
+    let output_group = parameters.output_group in
+    let recompute_point_normals = parameters.recompute_point_normals in
+    let group = optional_text group and hard_point_group = optional_text hard_point_group
+    and hard_edge_group = optional_text hard_edge_group and output_group = optional_text output_group in
+    let target = match target_mode with
+      | Reduce_ratio -> Rdk.Poly_reduce.Reduce_ratio ratio
+      | Reduce_primitive_count -> Rdk.Poly_reduce.Reduce_primitive_count primitive_count in
+    let max_normal_deviation = if limit_normal_deviation then Some max_normal_deviation else None in
+    Node.Private.make ?label ~operation:"poly_reduce" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                     "poly_reduce could not find primitive group %S" name))) in
+        let hard_points = match hard_point_group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                     "poly_reduce could not find hard point group %S" name))) in
+        let hard_edges = match hard_edge_group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_edge_group name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                     "poly_reduce could not find hard edge group %S" name))) in
+        match primitives, hard_points, hard_edges with
+        | Error error, _, _ | _, Error error, _ | _, _, Error error -> Error error
+        | Ok primitives, Ok hard_points, Ok hard_edges ->
+            match Rdk.Poly_reduce.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ~target ?primitives ?hard_points
+                ?hard_edges ~preserve_boundary ~only_original_positions
+                ~equalize_lengths ?max_normal_deviation ?output_group
+                ~recompute_point_normals geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Sweep = struct
+  let connectivity_parameter = Parameter.choice ~equal:( = ) [
+      "Points", Rdk.Plane_generators.Grid_points; "Rows", Rdk.Plane_generators.Grid_rows;
+      "Columns", Rdk.Plane_generators.Grid_columns;
+      "Rows and columns", Rdk.Plane_generators.Grid_rows_and_columns;
+      "Quads", Rdk.Plane_generators.Grid_quads; "Triangles", Rdk.Plane_generators.Grid_triangles;
+      "Alternating triangles", Rdk.Plane_generators.Grid_alternating_triangles;
+      "Reverse triangles", Rdk.Plane_generators.Grid_reverse_triangles;
+    ]
+  let tangent_parameter = Parameter.choice ~equal:( = ) [
+      "Average edges", Rdk.Sweep_modeling.Sweep_average_edges;
+      "Central difference", Rdk.Sweep_modeling.Sweep_central_difference;
+      "Previous edge", Rdk.Sweep_modeling.Sweep_previous_edge;
+      "Next edge", Rdk.Sweep_modeling.Sweep_next_edge;
+      "Z axis", Rdk.Sweep_modeling.Sweep_z_axis;
+    ]
+
+  type parameters = {
+    backbone_group : string [@sop.default ""]
+      [@sop.label "Backbone primitive group"];
+    cross_section_group : string [@sop.default ""]
+      [@sop.label "Cross-section primitive group"];
+    connectivity : Rdk.Plane_generators.grid_connectivity [@sop.default Rdk.Plane_generators.Grid_quads]
+      [@sop.label "Connectivity"] [@sop.kind connectivity_parameter];
+    tangent : Rdk.Sweep_modeling.sweep_tangent
+      [@sop.default Rdk.Sweep_modeling.Sweep_average_edges]
+      [@sop.label "Tangent"] [@sop.kind tangent_parameter];
+    continuous_closed : bool [@sop.default true]
+      [@sop.label "Continuous closed backbone"];
+    transform_attributes : bool [@sop.default true]
+      [@sop.label "Transform attributes"];
+    reverse_cross_sections : bool [@sop.default false]
+      [@sop.label "Reverse cross sections"];
+    scale : float [@sop.default 1.] [@sop.label "Scale"]
+      [@sop.folder "Transform"] [@sop.min (-10.)] [@sop.max 10.];
+    roll : float [@sop.default 0.] [@sop.label "Roll"]
+      [@sop.folder "Transform"] [@sop.min (-6.283185307179586)]
+      [@sop.max 6.283185307179586];
+    twist : float [@sop.default 0.] [@sop.label "Twist"]
+      [@sop.folder "Transform"] [@sop.min (-12.566370614359172)]
+      [@sop.max 12.566370614359172];
+    caps : bool [@sop.default false] [@sop.label "End caps"];
+    cap_group : string [@sop.default "caps"] [@sop.label "Cap group"];
+    uv_attribute : string [@sop.default "uv"] [@sop.label "UV attribute"];
+    cross_section_prefix : string [@sop.default "cross_section_"]
+      [@sop.label "Cross-section attribute prefix"];
+  } [@@sop.node_key "sweep"] [@@sop.node_label "Sweep"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.sweep: " ^ message) in
+      if not (Float.is_finite parameters.scale && Float.is_finite parameters.roll && Float.is_finite parameters.twist) then
+        refuse "transform controls must be finite";
+      if parameters.caps && (match parameters.connectivity with
+          | Rdk.Plane_generators.Grid_quads | Grid_triangles | Grid_alternating_triangles | Grid_reverse_triangles -> false
+          | Grid_points | Grid_rows | Grid_columns | Grid_rows_and_columns -> true) then
+        refuse "caps require polygon surface connectivity";
+      if String.contains parameters.cross_section_prefix '\000' then refuse "cross-section prefix contains NUL";
+      if parameters.uv_attribute = "P" then refuse "UV output must not replace P"]
+    [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 2] [@@sop.node_slots "backbone, cross_section"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters backbone cross_section ->
+    let label = Some label in
+    let backbone_group = parameters.backbone_group in
+    let cross_section_group = parameters.cross_section_group in
+    let connectivity = parameters.connectivity in
+    let tangent = parameters.tangent in
+    let continuous_closed = parameters.continuous_closed in
+    let transform_attributes = parameters.transform_attributes in
+    let reverse_cross_sections = parameters.reverse_cross_sections in
+    let scale = parameters.scale in
+    let roll = parameters.roll in
+    let twist = parameters.twist in
+    let caps = parameters.caps in
+    let cap_group = parameters.cap_group in
+    let uv_attribute = parameters.uv_attribute in
+    let cross_section_prefix = parameters.cross_section_prefix in
+    let backbone_group = optional_text backbone_group and cross_section_group = optional_text cross_section_group
+    and cap_group = if caps then optional_text cap_group else None
+    and uv_attribute = optional_text uv_attribute in
+    Node.Private.make ?label ~operation:"sweep" ~version:1 ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
+      ~inputs:[|backbone; cross_section|] (fun ~node_id:_ context inputs ->
+        let resolve input_index description name = match name with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name
+                  inputs.(input_index) with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "sweep could not find %s primitive group %S"
+                      description name))) in
+        match resolve 0 "backbone" backbone_group with
+        | Error error -> Error error
+        | Ok backbones ->
+            (match resolve 1 "cross-section" cross_section_group with
+             | Error error -> Error error
+             | Ok cross_sections ->
+                 match Rdk.Sweep_modeling.sweep ~cancel:(Context.cancel_token context)
+                     ~grain:(Context.grain context) ?backbones ?cross_sections
+                     ~connectivity ~tangent ~continuous_closed
+                     ~transform_attributes ~reverse_cross_sections ~scale ~roll
+                     ~twist ~caps ?cap_group ~uv_attribute ~cross_section_prefix
+                     ~backbone:inputs.(0) ~cross_section:inputs.(1) () with
+                 | Ok geometry -> cooked geometry
+                 | Error error -> structured_rdk_error error))
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Boolean_seam = struct
+  let output_parameter = Parameter.choice ~equal:( = ) [
+      "Seam curves", Rdk.Boolean.Seam_curves;
+      "Coincident patches", Rdk.Boolean.Coincident_patches;
+    ]
+  let treatment_parameter = Parameter.choice ~equal:( = ) [
+      "Solid", Rdk.Boolean.Solid; "Surface", Rdk.Boolean.Surface;
+    ]
+
+  type parameters = {
+    output : Rdk.Boolean.seam_output [@sop.default Rdk.Boolean.Seam_curves]
+      [@sop.label "Output"] [@sop.kind output_parameter];
+    left_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
+      [@sop.label "A treatment"] [@sop.folder "Operands"]
+      [@sop.kind treatment_parameter];
+    right_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
+      [@sop.label "B treatment"] [@sop.folder "Operands"]
+      [@sop.kind treatment_parameter];
+    resolve_left_self_intersections : bool [@sop.default false]
+      [@sop.label "Resolve A self-intersections"] [@sop.folder "Operands"];
+    resolve_right_self_intersections : bool [@sop.default false]
+      [@sop.label "Resolve B self-intersections"] [@sop.folder "Operands"];
+    left_self_group : string [@sop.default "boolean_left_self_seam"]
+      [@sop.label "A self group"] [@sop.folder "Groups"];
+    between_group : string [@sop.default "boolean_seam"]
+      [@sop.label "Between group"] [@sop.folder "Groups"];
+    right_self_group : string [@sop.default "boolean_right_self_seam"]
+      [@sop.label "B self group"] [@sop.folder "Groups"];
+    coincident_group : string [@sop.default "boolean_coincident"]
+      [@sop.label "Coincident group"] [@sop.folder "Groups"];
+  } [@@sop.node_key "boolean_seam"] [@@sop.node_label "Boolean Seam"]
+
+    [@@sop.validate fun parameters ->
+      let names = match parameters.output with
+        | Rdk.Boolean.Seam_curves -> [parameters.left_self_group;parameters.between_group;parameters.right_self_group]
+        | Coincident_patches -> [parameters.coincident_group] in
+      let names = List.filter_map optional_text names in
+      if List.length names <> List.length (List.sort_uniq String.compare names) then
+        invalid_arg "Sop.boolean_seam: output group names must be distinct"]
+    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2] [@@sop.node_slots "left, right"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters left right ->
+    let label = Some label in
+    let output = parameters.output in
+    let left_treatment = parameters.left_treatment in
+    let right_treatment = parameters.right_treatment in
+    let resolve_left_self_intersections = parameters.resolve_left_self_intersections in
+    let resolve_right_self_intersections = parameters.resolve_right_self_intersections in
+    let left_self_group = parameters.left_self_group in
+    let between_group = parameters.between_group in
+    let right_self_group = parameters.right_self_group in
+    let coincident_group = parameters.coincident_group in
+    let left_self_group = optional_text left_self_group and between_group = optional_text between_group
+    and right_self_group = optional_text right_self_group and coincident_group = optional_text coincident_group in
+    Node.Private.make ?label ~operation:"boolean_seam" ~version:1
+      ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
+      ~inputs:[|left;right|] (fun ~node_id:_ context inputs ->
+        match Rdk.Boolean.seam ~cancel:(Context.cancel_token context)
+            ~grain:(Context.grain context) ~output ~left_treatment
+            ~right_treatment ~resolve_left_self_intersections
+            ~resolve_right_self_intersections ~left_self_group ~between_group
+            ~right_self_group ~coincident_group ~right:inputs.(1) inputs.(0) with
+        | Ok geometry -> cooked geometry
+        | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Poly_bevel = struct
+
+  let shape_parameter = Parameter.choice ~equal:( = ) [
+      "Chamfer", Poly_chamfer; "Round", Poly_round;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Edge group"];
+    shape : Sop_support.poly_bevel_shape [@sop.default Poly_chamfer] [@sop.label "Shape"]
+      [@sop.kind shape_parameter];
+    convexity : float [@sop.default 0.5] [@sop.label "Convexity"]
+      [@sop.folder "Round"] [@sop.min 0.] [@sop.max 1.];
+    distance : float [@sop.default 0.1] [@sop.label "Distance"]
+      [@sop.min 0.] [@sop.max 2.] [@sop.hard_min 0.];
+    divisions : int [@sop.default 1] [@sop.label "Divisions"]
+      [@sop.min 1] [@sop.max 32] [@sop.hard_min 1];
+    point_scale_attribute : string [@sop.default ""]
+      [@sop.label "Point scale attribute"] [@sop.folder "Attributes"];
+    ignore_flat_angle : float [@sop.default 0.]
+      [@sop.label "Ignore flat angle (0: bevel every edge)"] [@sop.folder "Robustness"]
+      [@sop.min 0.] [@sop.max 3.14159] [@sop.hard_min 0.];
+    clamp_overlap : bool [@sop.default true]
+      [@sop.label "Clamp overlap"] [@sop.folder "Robustness"];
+    edge_group : string [@sop.default ""] [@sop.label "Edge group"]
+      [@sop.folder "Output groups"];
+    corner_group : string [@sop.default ""] [@sop.label "Corner group"]
+      [@sop.folder "Output groups"];
+    offset_group : string [@sop.default ""] [@sop.label "Offset group"]
+      [@sop.folder "Output groups"];
+    recompute_point_normals : bool [@sop.default true]
+      [@sop.label "Recompute point normals"];
+  } [@@sop.node_key "poly_bevel"] [@@sop.node_label "Poly Bevel"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.poly_bevel: " ^ message) in
+      if not (List.for_all Float.is_finite [parameters.convexity;parameters.distance;parameters.ignore_flat_angle]) then
+        refuse "numeric controls must be finite";
+      if parameters.distance < 0. then refuse "distance must be nonnegative";
+      if parameters.divisions < 1 then refuse "divisions must be positive";
+      if parameters.convexity < -1. || parameters.convexity > 1. then refuse "convexity must be in [-1, 1]";
+      if parameters.ignore_flat_angle < 0. || parameters.ignore_flat_angle > Float.pi then refuse "flatness angle must be in [0, pi]"]
+    [@@sop.node_category "Topology/Polygon"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let group = parameters.group in
+    let shape = parameters.shape in
+    let convexity = parameters.convexity in
+    let distance = parameters.distance in
+    let divisions = parameters.divisions in
+    let point_scale_attribute = parameters.point_scale_attribute in
+    let ignore_flat_angle = parameters.ignore_flat_angle in
+    let clamp_overlap = parameters.clamp_overlap in
+    let edge_group = parameters.edge_group in
+    let corner_group = parameters.corner_group in
+    let offset_group = parameters.offset_group in
+    let recompute_point_normals = parameters.recompute_point_normals in
+    let shape = match shape with Poly_chamfer -> Rdk.Poly_bevel.Bevel_chamfer
+      | Poly_round -> Rdk.Poly_bevel.Bevel_round {convexity} in
+    let group = optional_text group and point_scale_attribute = optional_text point_scale_attribute
+    and edge_group = optional_text edge_group and corner_group = optional_text corner_group
+    and offset_group = optional_text offset_group in
+    let ignore_flat_angle = if ignore_flat_angle > 0. then Some ignore_flat_angle else None in
+    Node.Private.make ?label ~operation:"poly_bevel" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+      (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let edges = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_edge_group name geometry with
+               | Some value -> Ok (Some value)
+               | None -> Error (Diagnostic.error ~code:"missing_edge_group"
+                   (Printf.sprintf "poly_bevel could not find edge group %S" name))) in
+        match edges with
+        | Error error -> Error error
+        | Ok edges ->
+            match Rdk.Poly_bevel.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?edges ~shape ~divisions
+                ?point_scale_attribute ?ignore_flat_angle ~clamp_overlap
+                ?edge_group ?corner_group ?offset_group ~recompute_point_normals
+                ~distance geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+  type shape = Chamfer | Round
+  let create ?label:node_label ?(shape = Chamfer) ?(divisions = parameters_default.divisions) ~distance input =
+    build ~label:(label "poly-bevel" node_label) ~inputs:[input]
+      {parameters_default with shape = (match shape with Chamfer -> Poly_chamfer | Round -> Poly_round); divisions; distance}
+
+end
+
+module Boolean_fracture = struct
+  let detriangulation_parameter = Parameter.choice ~equal:( = ) [
+      "Triangles", Rdk.Boolean.Triangles;
+      "Unchanged polygons", Rdk.Boolean.Unchanged_polygons;
+      "All polygons", Rdk.Boolean.All_polygons;
+    ]
+
+  let conflict_parameter = Parameter.choice ~equal:( = ) [
+    "Reject conflict", Rdk.Boolean.Reject; "Promote to vertex", Rdk.Boolean.Promote_to_vertex;
+  ]
+  type parameters = {
+    point_conflict : Rdk.Boolean.point_conflict [@sop.default Rdk.Boolean.Promote_to_vertex]
+      [@sop.label "Point attribute conflicts"] [@sop.folder "Attributes"] [@sop.kind conflict_parameter];
+    assume_flat : bool [@sop.default false] [@sop.label "Assume flat"] [@sop.folder "Output"];
+    resolve_cutter_self_intersections : bool [@sop.default false]
+      [@sop.label "Resolve cutter self-intersections"];
+    detriangulation : Rdk.Boolean.detriangulation
+      [@sop.default Rdk.Boolean.Triangles]
+      [@sop.label "Polygons"] [@sop.kind detriangulation_parameter];
+    require_closed : bool [@sop.default true] [@sop.label "Require closed"];
+    piece_attribute : string [@sop.default "piece"]
+      [@sop.label "Piece attribute"];
+    point_tolerance : float [@sop.default 0.] [@sop.label "Point tolerance"]
+      [@sop.folder "Robustness"] [@sop.min 0.] [@sop.max 0.001]
+      [@sop.hard_min 0.];
+    tiny_seam_threshold : float [@sop.default 0.]
+      [@sop.label "Tiny seam threshold"] [@sop.folder "Robustness"]
+      [@sop.min 0.] [@sop.max 0.001] [@sop.hard_min 0.];
+    cleanup_max_batches : int [@sop.default 8]
+      [@sop.label "Cleanup batches"] [@sop.folder "Robustness"]
+      [@sop.min 1] [@sop.max 32] [@sop.hard_min 1];
+    strict_cleanup : bool [@sop.default true] [@sop.label "Strict cleanup"]
+      [@sop.folder "Robustness"];
+  } [@@sop.node_key "boolean_fracture"] [@@sop.node_label "Boolean Fracture"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.boolean_fracture: " ^ message) in
+      if not (Float.is_finite parameters.point_tolerance && Float.is_finite parameters.tiny_seam_threshold)
+          || parameters.point_tolerance < 0. || parameters.tiny_seam_threshold < 0. then refuse "tolerances must be finite and nonnegative";
+      if parameters.cleanup_max_batches < 1 then refuse "cleanup batches must be positive";
+      if String.trim parameters.piece_attribute = "" then refuse "piece attribute must be nonblank"]
+    [@@sop.node_operation "boolean"]
+    [@@sop.node_category "Boolean"] [@@sop.node_inputs 2] [@@sop.node_slots "source, cutters"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters source cutters ->
+    let label = Some label in
+    let resolve_cutter_self_intersections = parameters.resolve_cutter_self_intersections in
+    let point_conflict = parameters.point_conflict in
+    let point_tolerance = parameters.point_tolerance in
+    let tiny_seam_threshold = parameters.tiny_seam_threshold in
+    let cleanup_max_batches = parameters.cleanup_max_batches in
+    let strict_cleanup = parameters.strict_cleanup in
+    let detriangulation = parameters.detriangulation in
+    let assume_flat = parameters.assume_flat in
+    let require_closed = parameters.require_closed in
+    let piece_attribute = parameters.piece_attribute in
+    Node.Private.make ?label ~operation:"boolean" ~version:1 ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs:[|source;cutters|]
+      (fun ~node_id:_ context inputs ->
+        match Rdk.Boolean.run ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
+            ~operation:Rdk.Boolean.Difference ~left_treatment:Rdk.Boolean.Solid ~right_treatment:Rdk.Boolean.Surface
+            ~resolve_right_self_intersections:resolve_cutter_self_intersections ~point_conflict ~point_tolerance ~tiny_seam_threshold
+            ~cleanup_max_batches ~strict_cleanup ~seam_points:Rdk.Boolean.Shared_seam_points ~detriangulation ~assume_flat
+            ~require_closed ~piece_attribute ~right:inputs.(1) inputs.(0) with
+        | Ok geometry -> cooked geometry | Error error -> structured_rdk_error error)
+  )
+
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+  let create ?label:node_label
+      ?(resolve_cutter_self_intersections = parameters_default.resolve_cutter_self_intersections)
+      ?(detriangulation = parameters_default.detriangulation)
+      ?(require_closed = parameters_default.require_closed)
+      ?(piece_attribute = parameters_default.piece_attribute) ~cutters source =
+    build ~label:(label "boolean-fracture" node_label) ~inputs:[source;cutters]
+      {parameters_default with resolve_cutter_self_intersections;detriangulation;require_closed;piece_attribute}
+
+end
+
+module Intersection_analysis = struct
+  type parameters = {
+    source_group : string [@sop.default ""] [@sop.label "Source group"]
+      [@sop.folder "Inputs"];
+    collision_group : string [@sop.default ""] [@sop.label "Collision group"]
+      [@sop.folder "Inputs"];
+    tolerance : float [@sop.default 0.] [@sop.label "Tolerance"]
+      [@sop.min 0.] [@sop.max 0.001] [@sop.hard_min 0.];
+    include_coplanar : bool [@sop.default true]
+      [@sop.label "Include coplanar overlap"];
+    input_attribute : string [@sop.default "sourceinput"]
+      [@sop.label "Input attribute"] [@sop.folder "Output attributes"];
+    primitive_attribute : string [@sop.default "sourceprim"]
+      [@sop.label "Primitive attribute"] [@sop.folder "Output attributes"];
+    primitive_uvw_attribute : string [@sop.default "sourceprimuv"]
+      [@sop.label "Primitive UVW attribute"] [@sop.folder "Output attributes"];
+    point_attribute : string [@sop.default "sourcepoint"]
+      [@sop.label "Point attribute"] [@sop.folder "Output attributes"];
+  } [@@sop.node_key "intersection_analysis"]
+    [@@sop.node_label "Intersection Analysis"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.intersection_analysis: " ^ message) in
+      if not (Float.is_finite parameters.tolerance) || parameters.tolerance < 0. then refuse "tolerance must be finite and nonnegative";
+      let names = List.filter_map optional_text [parameters.input_attribute;parameters.primitive_attribute;
+        parameters.primitive_uvw_attribute;parameters.point_attribute] in
+      if List.mem "P" names then refuse "output attributes must not replace P";
+      if List.length names <> List.length (List.sort_uniq String.compare names) then refuse "output attribute names must be distinct"]
+    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2] [@@sop.node_slots "input, collision"]
+    [@@sop.node_optional "1"]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input collision ->
+    let label = Some label in
+    let source_group = parameters.source_group in
+    let collision_group = parameters.collision_group in
+    let tolerance = parameters.tolerance in
+    let include_coplanar = parameters.include_coplanar in
+    let input_attribute = parameters.input_attribute in
+    let primitive_attribute = parameters.primitive_attribute in
+    let primitive_uvw_attribute = parameters.primitive_uvw_attribute in
+    let point_attribute = parameters.point_attribute in
+    let source_group = optional_text source_group in
+    let collision_group = if Option.is_some collision then optional_text collision_group else None in
+    let input_attribute = optional_text input_attribute and primitive_attribute = optional_text primitive_attribute
+    and primitive_uvw_attribute = optional_text primitive_uvw_attribute and point_attribute = optional_text point_attribute in
+    let inputs = match collision with None -> [|input|]
+      | Some collision -> [|input; collision|] in
+    Node.Private.make ?label ~operation:"intersection_analysis" ~version:1
+      ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs
+      (fun ~node_id:_ context inputs ->
+        match resolve_optional_primitive_group "intersection_analysis"
+            source_group inputs.(0) with
+        | Error error -> Error error
+        | Ok source_primitives ->
+            let collision_geometry = if Array.length inputs = 1 then None
+              else Some inputs.(1) in
+            let group_geometry = match collision_geometry with
+              | None -> inputs.(0) | Some geometry -> geometry in
+            (match resolve_optional_primitive_group "intersection_analysis collision"
+                collision_group group_geometry with
+             | Error error -> Error error
+             | Ok collision_primitives ->
+                 match Rdk.Intersection_analysis.run
+                     ~cancel:(Context.cancel_token context)
+                     ~grain:(Context.grain context) ?source_primitives
+                     ?collision_primitives ~tolerance ~include_coplanar
+                     ~input_attribute ~primitive_attribute
+                     ~primitive_uvw_attribute ~point_attribute
+                     ?collision:collision_geometry inputs.(0) with
+                 | Ok geometry -> cooked geometry
+                 | Error error -> structured_rdk_error error))
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Fuse = struct
+  let targeting_parameter = Parameter.choice ~equal:( = ) [
+      "Near points", Fuse_near_points; "Specified points", Fuse_specified_points;
+    ]
+  let using_parameter = Parameter.choice ~equal:( = ) [
+      "Least target point", Rdk.Fuse_grid.Least_target_point;
+      "Closest target point", Rdk.Fuse_grid.Closest_target_point;
+    ]
+  let position_parameter = Parameter.choice ~equal:( = ) [
+      "First", Rdk.Fuse_reduce.First_position;
+      "Least point", Rdk.Fuse_reduce.Least_point_position;
+      "Greatest point", Rdk.Fuse_reduce.Greatest_point_position;
+      "Average", Rdk.Fuse_reduce.Average_position;
+      "Minimum", Rdk.Fuse_reduce.Minimum_position;
+      "Maximum", Rdk.Fuse_reduce.Maximum_position;
+      "Mode", Rdk.Fuse_reduce.Mode_position;
+      "Median", Rdk.Fuse_reduce.Median_position;
+      "Sum", Rdk.Fuse_reduce.Sum_position;
+      "Sum squares", Rdk.Fuse_reduce.Sum_squares_position;
+      "Root mean square", Rdk.Fuse_reduce.Root_mean_square_position;
+      "Weighted average", Rdk.Fuse_reduce.Weighted_average_position;
+      "Weighted sum", Rdk.Fuse_reduce.Weighted_sum_position;
+      "Minimum weight", Rdk.Fuse_reduce.Minimum_weight_position;
+      "Maximum weight", Rdk.Fuse_reduce.Maximum_weight_position;
+    ]
+  let attributes_parameter = Parameter.choice ~equal:( = ) [
+      "Keep first", Rdk.Fuse_reduce.Keep_first;
+      "Average numeric", Rdk.Fuse_reduce.Average_numeric;
+    ]
+  let metric_parameter = Parameter.choice ~equal:( = ) [
+      "Euclidean", Rdk.Fuse_grid.Euclidean;
+      "Componentwise", Rdk.Fuse_grid.Componentwise;
+    ]
+  let condition_parameter = Parameter.choice ~equal:( = ) [
+      "Equal", Rdk.Fuse_grid.Equal_attribute_values;
+      "Unequal", Rdk.Fuse_grid.Unequal_attribute_values;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Point group"];
+    target_group : string [@sop.default ""] [@sop.label "Target group"];
+    targeting : Sop_support.fuse_targeting [@sop.default Fuse_near_points]
+      [@sop.label "Targeting"] [@sop.kind targeting_parameter];
+    target_attribute : string [@sop.default "targetpoint"]
+      [@sop.label "Target point attribute"];
+    using : Rdk.Fuse_grid.fuse_using [@sop.default Rdk.Fuse_grid.Least_target_point]
+      [@sop.label "Use target"] [@sop.kind using_parameter];
+    tolerance : float [@sop.default 0.001] [@sop.label "Snap distance"]
+      [@sop.min 0.] [@sop.max 10.] [@sop.hard_min 0.];
+    position : Rdk.Fuse_reduce.position [@sop.default Rdk.Fuse_reduce.Average_position]
+      [@sop.label "Position"] [@sop.folder "Fuse"]
+      [@sop.kind position_parameter];
+    weight_attribute : string [@sop.default ""]
+      [@sop.label "Weight attribute"] [@sop.folder "Fuse"];
+    attributes : Rdk.Fuse_reduce.attributes [@sop.default Rdk.Fuse_reduce.Keep_first]
+      [@sop.label "Attributes"] [@sop.folder "Fuse"]
+      [@sop.kind attributes_parameter];
+
+    attribute_rules : string [@sop.default ""] [@sop.label "Attribute rules"] [@sop.folder "Fuse"]
+      [@sop.description "Escaped tab-separated rows: pattern, reduction method, weight attribute. Weighted methods require a weight name."];
+    group_rules : string [@sop.default ""] [@sop.label "Group rules"] [@sop.folder "Fuse"]
+      [@sop.description "Escaped tab-separated rows: group pattern, reduction method."];
+    metric : Rdk.Fuse_grid.fuse_metric [@sop.default Rdk.Fuse_grid.Euclidean]
+      [@sop.label "Metric"] [@sop.folder "Matching"]
+      [@sop.kind metric_parameter];
+    inclusive : bool [@sop.default true] [@sop.label "Inclusive distance"]
+      [@sop.folder "Matching"];
+    match_attributes : bool [@sop.default false]
+      [@sop.label "Match attributes"] [@sop.folder "Matching"];
+    radius_attribute : string [@sop.default ""]
+      [@sop.label "Radius attribute"] [@sop.folder "Matching"];
+    match_attribute : string [@sop.default ""]
+      [@sop.label "Match attribute"] [@sop.folder "Matching"];
+    match_condition : Rdk.Fuse_grid.fuse_match_condition
+      [@sop.default Rdk.Fuse_grid.Equal_attribute_values]
+      [@sop.label "Match condition"] [@sop.folder "Matching"]
+      [@sop.kind condition_parameter];
+    match_tolerance : float [@sop.default 0.] [@sop.label "Match tolerance"]
+      [@sop.folder "Matching"] [@sop.min 0.] [@sop.max 1.]
+      [@sop.hard_min 0.];
+    modify_target : bool [@sop.default false] [@sop.label "Modify target"];
+    fuse_points : bool [@sop.default true] [@sop.label "Fuse points"];
+    keep_fused_points : bool [@sop.default false]
+      [@sop.label "Keep fused points"];
+    snapped_group : string [@sop.default ""] [@sop.label "Snapped group"]
+      [@sop.folder "Output"];
+    snapped_destination_attribute : string [@sop.default ""]
+      [@sop.label "Destination attribute"] [@sop.folder "Output"];
+    remove_degenerate_primitives : bool [@sop.default true]
+      [@sop.label "Remove degenerate primitives"] [@sop.folder "Cleanup"];
+    remove_unused_points_from_degenerate_primitives : bool [@sop.default true]
+      [@sop.label "Remove newly unused points"] [@sop.folder "Cleanup"];
+    remove_all_unused_points : bool [@sop.default false]
+      [@sop.label "Remove all unused points"] [@sop.folder "Cleanup"];
+  } [@@sop.node_key "fuse"] [@@sop.node_label "Fuse"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.fuse: " ^ message) in
+      if not (Float.is_finite parameters.tolerance && Float.is_finite parameters.match_tolerance)
+          || parameters.tolerance < 0. || parameters.match_tolerance < 0. then refuse "tolerances must be finite and nonnegative";
+      if parameters.targeting = Fuse_specified_points && String.trim parameters.target_attribute = "" then refuse "specified targets require an attribute name";
+      if String.trim parameters.match_attribute = "" && (parameters.match_condition <> Rdk.Fuse_grid.Equal_attribute_values
+          || parameters.match_tolerance <> 0.) then refuse "match condition and tolerance require a match attribute";
+      if parameters.targeting = Fuse_specified_points && (String.trim parameters.radius_attribute <> ""
+          || String.trim parameters.match_attribute <> "") then refuse "specified targets do not accept radius or match attributes";
+      if parameters.keep_fused_points && not parameters.fuse_points then refuse "keeping fused points requires fusing points";
+      (match parameters.position with
+        | Rdk.Fuse_reduce.Weighted_average_position | Weighted_sum_position | Minimum_weight_position | Maximum_weight_position
+          when String.trim parameters.weight_attribute = "" -> refuse "weighted position reduction requires a weight attribute"
+        | _ -> ());
+      ignore (decode_fuse_attribute_rules "Sop.fuse" parameters.attribute_rules);
+      ignore (decode_fuse_group_rules "Sop.fuse" parameters.group_rules)]
+    [@@sop.node_category "Topology/Cleanup"] [@@sop.node_inputs 2] [@@sop.node_slots "input, target"]
+    [@@sop.node_optional "1"]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input target ->
+    if parameters.modify_target && Option.is_some target then
+      invalid_arg "Sop.fuse: modify target requires a disconnected target input";
+    let label = Some label in
+    let group = parameters.group in
+    let target_group = parameters.target_group in
+    let targeting = parameters.targeting in
+    let target_attribute = parameters.target_attribute in
+    let using = parameters.using in
+    let tolerance = parameters.tolerance in
+    let position = parameters.position in
+    let weight_attribute = parameters.weight_attribute in
+    let attributes = parameters.attributes in
+    let attribute_rules = parameters.attribute_rules in
+    let group_rules = parameters.group_rules in
+    let metric = parameters.metric in
+    let inclusive = parameters.inclusive in
+    let match_attributes = parameters.match_attributes in
+    let radius_attribute = parameters.radius_attribute in
+    let match_attribute = parameters.match_attribute in
+    let match_condition = parameters.match_condition in
+    let match_tolerance = parameters.match_tolerance in
+    let modify_target = parameters.modify_target in
+    let fuse_points = parameters.fuse_points in
+    let keep_fused_points = parameters.keep_fused_points in
+    let snapped_group = parameters.snapped_group in
+    let snapped_destination_attribute = parameters.snapped_destination_attribute in
+    let remove_degenerate_primitives = parameters.remove_degenerate_primitives in
+    let remove_unused_points_from_degenerate_primitives = parameters.remove_unused_points_from_degenerate_primitives in
+    let remove_all_unused_points = parameters.remove_all_unused_points in
+    let targeting = match targeting with Fuse_near_points -> Rdk.Fuse_grid.Near_points
+      | Fuse_specified_points -> Rdk.Fuse_grid.Specified_points target_attribute in
+    let group = optional_text group and target_group = optional_text target_group
+    and weight_attribute = optional_text weight_attribute and radius_attribute = optional_text radius_attribute
+    and match_attribute = optional_text match_attribute and snapped_group = optional_text snapped_group
+    and snapped_destination_attribute = optional_text snapped_destination_attribute in
+    let attribute_rules = decode_fuse_attribute_rules "Sop.fuse" attribute_rules
+    and group_rules = decode_fuse_group_rules "Sop.fuse" group_rules in
+    let inputs = match target with None -> [|input|] | Some node -> [|input;node|] in
+    Node.Private.make ?label ~operation:"fuse" ~version:6
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0)
+      ~dependencies:Context.Dependencies.static ~inputs
+      (fun ~node_id:_ context inputs ->
+        match resolve_optional_point_group "fuse" group inputs.(0) with
+        | Error error -> Error error
+        | Ok selection ->
+            let target_geometry = if Array.length inputs = 2
+                then inputs.(1) else inputs.(0) in
+            (match resolve_optional_point_group "fuse target" target_group
+                target_geometry with
+             | Error error -> Error error
+             | Ok target_selection ->
+                let target = if Array.length inputs = 2
+                    then Some target_geometry else None in
+                (match Rdk.Fuse_grid.fuse ~cancel:(Context.cancel_token context)
+                    ~grain:(Context.grain context) ?selection ?target_selection
+                    ~targeting ~using ~tolerance ~position ?weight_attribute
+                    ~attributes ~attribute_rules ~group_rules ~metric
+                    ~inclusive ~match_attributes ?radius_attribute
+                    ?match_attribute ~match_condition ~match_tolerance
+                    ~modify_target ~fuse_points ~keep_fused_points
+                    ?snapped_group ?snapped_destination_attribute
+                    ~remove_degenerate_primitives
+                    ~remove_unused_points_from_degenerate_primitives
+                    ~remove_all_unused_points
+                    ?target inputs.(0) with
+                 | Ok geometry -> cooked geometry
+                 | Error error -> structured_rdk_error error)))
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Subdivide = struct
+  let scheme_parameter = Parameter.choice ~equal:( = ) [
+      "Catmull-Clark", Rdk.Subdivide.Catmull_clark;
+      "Loop", Rdk.Subdivide.Loop;
+      "Bilinear", Rdk.Subdivide.Bilinear;
+    ]
+
+  let cracks_parameter = Parameter.choice ~equal:( = ) [
+      "Do not close", Cracks_do_not_close;
+      "Pull, no edge division", Cracks_pull_no_division;
+      "Pull, divide edges", Cracks_pull_divide;
+      "Pull, triangulate", Cracks_pull_triangulate;
+      "Stitch, no edge division", Cracks_stitch_no_division;
+      "Stitch, divide edges", Cracks_stitch_divide;
+      "Stitch, triangulate", Cracks_stitch_triangulate;
+    ]
+
+  let boundary_parameter = Parameter.choice ~equal:( = ) [
+      "None", Rdk.Subdivide.Subdivide_boundary_none;
+      "Edge only", Rdk.Subdivide.Subdivide_boundary_edge_only;
+      "Edge and corner", Rdk.Subdivide.Subdivide_boundary_edge_and_corner;
+    ]
+
+  let fvar_parameter = Parameter.choice ~equal:( = ) [
+      "None", Rdk.Subdivide.Subdivide_fvar_none;
+      "Corners only", Rdk.Subdivide.Subdivide_fvar_corners_only;
+      "Corners plus 1", Rdk.Subdivide.Subdivide_fvar_corners_plus1;
+      "Corners plus 2", Rdk.Subdivide.Subdivide_fvar_corners_plus2;
+      "Boundaries", Rdk.Subdivide.Subdivide_fvar_boundaries;
+      "All", Rdk.Subdivide.Subdivide_fvar_all;
+    ]
+
+  let triangle_parameter = Parameter.choice ~equal:( = ) [
+      "Catmull-Clark", Rdk.Subdivide.Subdivide_triangles_catmull_clark;
+      "Smooth", Rdk.Subdivide.Subdivide_triangles_smooth;
+    ]
+
+  let creasing_parameter = Parameter.choice ~equal:( = ) [
+      "Uniform", Rdk.Subdivide.Subdivide_creasing_uniform;
+      "Chaikin", Rdk.Subdivide.Subdivide_creasing_chaikin;
+    ]
+
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    scheme : Rdk.Subdivide.scheme
+      [@sop.default Rdk.Subdivide.Catmull_clark]
+      [@sop.label "Scheme"] [@sop.kind scheme_parameter];
+    iterations : int [@sop.default 1] [@sop.label "Depth"]
+      [@sop.min 1] [@sop.max 6] [@sop.hard_min 1];
+    cracks : Sop_support.subdivision_cracks [@sop.default Cracks_do_not_close]
+      [@sop.label "Close cracks"] [@sop.kind cracks_parameter];
+    crack_bias : float [@sop.default 0.5] [@sop.label "Pull bias"]
+      [@sop.folder "Cracks"] [@sop.min 0.] [@sop.max 1.];
+    consistent_topology : bool [@sop.default false]
+      [@sop.label "Consistent topology"] [@sop.folder "Cracks"];
+    crease_group : string [@sop.default ""] [@sop.label "Crease group"]
+      [@sop.folder "Creases"];
+
+    crease_weight_mode : Sop_support.kernel_mode [@sop.default Kernel_explicit] [@sop.label "Crease weight mode"]
+      [@sop.folder "Creases"] [@sop.kind kernel_mode_parameter];
+    crease_weight : float [@sop.default 1.] [@sop.label "Crease weight"]
+      [@sop.folder "Creases"] [@sop.min 0.] [@sop.max 10.]
+      [@sop.hard_min 0.];
+    generate_resulting_creases : bool [@sop.default false]
+      [@sop.label "Generate resulting creases"] [@sop.folder "Creases"];
+    resulting_crease_group : string [@sop.default ""]
+      [@sop.label "Resulting crease group"] [@sop.folder "Creases"];
+    hole_group : string [@sop.default "subdivision_hole"]
+      [@sop.label "Hole group"] [@sop.folder "Holes"];
+    remove_holes : bool [@sop.default false] [@sop.label "Remove holes"]
+      [@sop.folder "Holes"];
+    boundary_interpolation : Rdk.Subdivide.boundary_interpolation
+      [@sop.default Rdk.Subdivide.Subdivide_boundary_edge_and_corner]
+      [@sop.label "Point boundaries"] [@sop.folder "Interpolation"]
+      [@sop.kind boundary_parameter];
+    face_varying_interpolation :
+      Rdk.Subdivide.face_varying_interpolation
+      [@sop.default Rdk.Subdivide.Subdivide_fvar_boundaries]
+      [@sop.label "Vertex boundaries"] [@sop.folder "Interpolation"]
+      [@sop.kind fvar_parameter];
+    triangle_policy : Rdk.Subdivide.triangle_policy
+      [@sop.default Rdk.Subdivide.Subdivide_triangles_catmull_clark]
+      [@sop.label "Triangles"] [@sop.folder "Interpolation"]
+      [@sop.kind triangle_parameter];
+    creasing_method : Rdk.Subdivide.creasing_method
+      [@sop.default Rdk.Subdivide.Subdivide_creasing_uniform]
+      [@sop.label "Creasing method"] [@sop.folder "Creases"]
+      [@sop.kind creasing_parameter];
+    treat_curves_as_independent : bool [@sop.default false]
+      [@sop.label "Treat curves independently"];
+    recompute_point_normals : bool [@sop.default false]
+      [@sop.label "Recompute point normals"];
+  } [@@sop.node_key "subdivide"] [@@sop.node_label "Subdivide"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.subdivide: " ^ message) in
+      if parameters.iterations < 1 then refuse "iterations must be positive";
+      if not (Float.is_finite parameters.crack_bias) || parameters.crack_bias < 0. || parameters.crack_bias > 1. then refuse "crack bias must be finite and in [0, 1]";
+      if not (Float.is_finite parameters.crease_weight) || parameters.crease_weight < 0. then refuse "crease weight must be finite and nonnegative";
+      if not parameters.generate_resulting_creases && String.trim parameters.resulting_crease_group <> "" then
+        refuse "resulting crease group requires generated creases"]
+    [@@sop.node_category "Topology"] [@@sop.node_inputs 2] [@@sop.node_slots "input, creases"]
+    [@@sop.node_optional "1"]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input creases ->
+    if Option.is_none creases && String.trim parameters.crease_group <> "" then
+      invalid_arg "Sop.subdivide: crease group requires a crease input";
+    let label = Some label in
+    let group = parameters.group in
+    let scheme = parameters.scheme in
+    let iterations = parameters.iterations in
+    let cracks = parameters.cracks in
+    let crack_bias = parameters.crack_bias in
+    let consistent_topology = parameters.consistent_topology in
+    let crease_group = parameters.crease_group in
+    let crease_weight_mode = parameters.crease_weight_mode in
+    let crease_weight = parameters.crease_weight in
+    let generate_resulting_creases = parameters.generate_resulting_creases in
+    let resulting_crease_group = parameters.resulting_crease_group in
+    let hole_group = parameters.hole_group in
+    let remove_holes = parameters.remove_holes in
+    let boundary_interpolation = parameters.boundary_interpolation in
+    let face_varying_interpolation = parameters.face_varying_interpolation in
+    let triangle_policy = parameters.triangle_policy in
+    let creasing_method = parameters.creasing_method in
+    let treat_curves_as_independent = parameters.treat_curves_as_independent in
+    let recompute_point_normals = parameters.recompute_point_normals in
+    let cracks = match cracks with
+      | Cracks_do_not_close -> Rdk.Subdivide.Subdivide_do_not_close
+      | Cracks_pull_no_division -> Rdk.Subdivide.Subdivide_pull_no_edge_division
+      | Cracks_pull_divide -> Rdk.Subdivide.Subdivide_pull_divide_edges crack_bias
+      | Cracks_pull_triangulate -> Rdk.Subdivide.Subdivide_pull_triangulate crack_bias
+      | Cracks_stitch_no_division -> Rdk.Subdivide.Subdivide_stitch_no_edge_division
+      | Cracks_stitch_divide -> Rdk.Subdivide.Subdivide_stitch_divide_edges
+      | Cracks_stitch_triangulate -> Rdk.Subdivide.Subdivide_stitch_triangulate in
+    let group = optional_text group and crease_group = optional_text crease_group
+    and resulting_crease_group = optional_text resulting_crease_group and hole_group = optional_text hole_group in
+    let crease_weight = match crease_weight_mode with Kernel_auto -> None | Kernel_explicit -> Some crease_weight in
+    let inputs = match creases with None -> [|input|] | Some creases -> [|input; creases|] in
+    Node.Private.make ?label ~operation:"subdivide" ~version:13
+      ~parameters:""
+      ~cook_mode:(match creases with None -> Node.Duplicate_input 0 | Some _ -> Node.Generic)
+      ~dependencies:Context.Dependencies.static ~inputs
+      (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let selection = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "subdivide could not find primitive group %S" name))) in
+        let crease_selection = match creases, crease_group with
+          | None, _ | Some _, None -> Ok None
+          | Some _, Some name ->
+              let creases = inputs.(1) in
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name creases with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                     "subdivide could not find crease primitive group %S" name))) in
+        let hole_selection = match hole_group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf "subdivide could not find hole primitive group %S"
+                     name))) in
+        match selection, crease_selection, hole_selection with
+        | Error error, _, _ -> Error error
+        | _, Error error, _ -> Error error
+        | _, _, Error error -> Error error
+        | Ok primitives, Ok crease_primitives, Ok hole_primitives ->
+            match Rdk.Subdivide.subdivide ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ~scheme ~iterations ?primitives
+                ~cracks ~consistent_topology
+                ?creases:(Option.map (fun _ -> inputs.(1)) creases)
+                ?crease_primitives ?crease_weight ~generate_resulting_creases
+                ?resulting_crease_group ?hole_primitives ~remove_holes
+                ~boundary_interpolation ~face_varying_interpolation
+                ~triangle_policy ~creasing_method ~treat_curves_as_independent
+                ~recompute_point_normals
+                geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Boolean = struct
+
+  let operation_parameter = Parameter.choice ~equal:( = ) [
+      "Union", Rdk.Boolean.Union;
+      "Intersection", Rdk.Boolean.Intersection;
+      "Subtract B from A", Rdk.Boolean.Difference;
+      "Subtract A from B", Rdk.Boolean.Reverse_difference;
+      "Exclusive or", Rdk.Boolean.Xor;
+      "Shatter", Rdk.Boolean.Shatter;
+    ]
+  let treatment_parameter = Parameter.choice ~equal:( = ) [
+      "Solid", Rdk.Boolean.Solid; "Surface", Rdk.Boolean.Surface;
+    ]
+  let conflict_parameter = Parameter.choice ~equal:( = ) [
+      "Reject conflict", Rdk.Boolean.Reject;
+      "Promote to vertex", Rdk.Boolean.Promote_to_vertex;
+    ]
+  let seam_points_parameter = Parameter.choice ~equal:( = ) [
+      "Shared", Rdk.Boolean.Shared_seam_points;
+      "Split", Rdk.Boolean.Split_seam_points;
+    ]
+  let detriangulation_parameter = Parameter.choice ~equal:( = ) [
+      "Triangles", Rdk.Boolean.Triangles;
+      "Unchanged polygons", Rdk.Boolean.Unchanged_polygons;
+      "All polygons", Rdk.Boolean.All_polygons;
+    ]
+  let closed_parameter = Parameter.choice ~equal:( = ) [
+      "Operation default", Closed_default;
+      "Require closed", Closed_required;
+      "Allow open", Closed_not_required;
+    ]
+
+  type parameters = {
+    operation : Rdk.Boolean.operation [@sop.default Rdk.Boolean.Union]
+      [@sop.label "Operation"] [@sop.kind operation_parameter];
+    left_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
+      [@sop.label "A treatment"] [@sop.folder "Operands"]
+      [@sop.kind treatment_parameter];
+    right_treatment : Rdk.Boolean.treatment [@sop.default Rdk.Boolean.Solid]
+      [@sop.label "B treatment"] [@sop.folder "Operands"]
+      [@sop.kind treatment_parameter];
+    resolve_left_self_intersections : bool [@sop.default false]
+      [@sop.label "Resolve A self-intersections"] [@sop.folder "Operands"];
+    resolve_right_self_intersections : bool [@sop.default false]
+      [@sop.label "Resolve B self-intersections"] [@sop.folder "Operands"];
+    point_conflict : Rdk.Boolean.point_conflict
+      [@sop.default Rdk.Boolean.Promote_to_vertex]
+      [@sop.label "Point attribute conflicts"] [@sop.folder "Attributes"]
+      [@sop.kind conflict_parameter];
+    point_tolerance : float [@sop.default 0.] [@sop.label "Point tolerance"]
+      [@sop.folder "Robustness"] [@sop.min 0.] [@sop.max 0.001]
+      [@sop.hard_min 0.];
+    tiny_seam_threshold : float [@sop.default 0.]
+      [@sop.label "Tiny seam threshold"] [@sop.folder "Robustness"]
+      [@sop.min 0.] [@sop.max 0.001] [@sop.hard_min 0.];
+    cleanup_max_batches : int [@sop.default 8]
+      [@sop.label "Cleanup batches"] [@sop.folder "Robustness"]
+      [@sop.min 1] [@sop.max 32] [@sop.hard_min 1];
+    strict_cleanup : bool [@sop.default true] [@sop.label "Strict cleanup"]
+      [@sop.folder "Robustness"];
+    seam_points : Rdk.Boolean.seam_points
+      [@sop.default Rdk.Boolean.Shared_seam_points]
+      [@sop.label "Seam points"] [@sop.folder "Output"]
+      [@sop.kind seam_points_parameter];
+    detriangulation : Rdk.Boolean.detriangulation
+      [@sop.default Rdk.Boolean.Triangles]
+      [@sop.label "Polygons"] [@sop.folder "Output"]
+      [@sop.kind detriangulation_parameter];
+    assume_flat : bool [@sop.default false] [@sop.label "Assume flat"]
+      [@sop.folder "Output"];
+    require_closed : Sop_support.boolean_closed_policy [@sop.default Closed_default]
+      [@sop.label "Closed output"] [@sop.folder "Output"]
+      [@sop.kind closed_parameter];
+    piece_attribute : string [@sop.default ""] [@sop.label "Piece attribute"]
+      [@sop.folder "Output"];
+    left_piece_group : string [@sop.default "boolean_left"]
+      [@sop.label "A-only group"] [@sop.folder "Shatter groups"];
+    overlap_piece_group : string [@sop.default "boolean_overlap"]
+      [@sop.label "Overlap group"] [@sop.folder "Shatter groups"];
+    right_piece_group : string [@sop.default "boolean_right"]
+      [@sop.label "B-only group"] [@sop.folder "Shatter groups"];
+  } [@@sop.node_key "boolean"] [@@sop.node_label "Boolean"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.boolean: " ^ message) in
+      if not (Float.is_finite parameters.point_tolerance && Float.is_finite parameters.tiny_seam_threshold)
+          || parameters.point_tolerance < 0. || parameters.tiny_seam_threshold < 0. then refuse "tolerances must be finite and nonnegative";
+      if parameters.cleanup_max_batches < 1 then refuse "cleanup batches must be positive";
+      if parameters.operation = Rdk.Boolean.Shatter then (
+        if parameters.left_treatment <> Rdk.Boolean.Solid || parameters.right_treatment <> Rdk.Boolean.Solid then
+          refuse "shatter requires two solid operands";
+        let names = List.filter_map optional_text [parameters.left_piece_group;parameters.overlap_piece_group;parameters.right_piece_group] in
+        if List.length names <> List.length (List.sort_uniq String.compare names) then refuse "shatter group names must be distinct")]
+    [@@sop.node_category "Boolean"] [@@sop.node_inputs 2] [@@sop.node_slots "left, right"]
+
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters left right ->
+    let label = Some label in
+    let operation = parameters.operation in
+    let left_treatment = parameters.left_treatment in
+    let right_treatment = parameters.right_treatment in
+    let resolve_left_self_intersections = parameters.resolve_left_self_intersections in
+    let resolve_right_self_intersections = parameters.resolve_right_self_intersections in
+    let point_conflict = parameters.point_conflict in
+    let point_tolerance = parameters.point_tolerance in
+    let tiny_seam_threshold = parameters.tiny_seam_threshold in
+    let cleanup_max_batches = parameters.cleanup_max_batches in
+    let strict_cleanup = parameters.strict_cleanup in
+    let seam_points = parameters.seam_points in
+    let detriangulation = parameters.detriangulation in
+    let assume_flat = parameters.assume_flat in
+    let require_closed = parameters.require_closed in
+    let piece_attribute = parameters.piece_attribute in
+    let left_piece_group = parameters.left_piece_group in
+    let overlap_piece_group = parameters.overlap_piece_group in
+    let right_piece_group = parameters.right_piece_group in
+    let require_closed = match require_closed with Closed_default -> None | Closed_required -> Some true | Closed_not_required -> Some false in
+    let piece_attribute = optional_text piece_attribute and left_piece_group = optional_text left_piece_group
+    and overlap_piece_group = optional_text overlap_piece_group and right_piece_group = optional_text right_piece_group in
+    Node.Private.make ?label ~operation:"boolean" ~version:1
+      ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
+      ~inputs:[|left; right|] (fun ~node_id:_ context inputs ->
+        match Rdk.Boolean.run ~cancel:(Context.cancel_token context)
+            ~grain:(Context.grain context) ~operation ~left_treatment
+            ~right_treatment ~resolve_left_self_intersections
+            ~resolve_right_self_intersections ~point_conflict ~point_tolerance
+            ~tiny_seam_threshold ~cleanup_max_batches ~strict_cleanup
+            ~seam_points ~detriangulation ~assume_flat ?require_closed
+            ?piece_attribute
+            ~left_piece_group ~overlap_piece_group ~right_piece_group
+            ~right:inputs.(1) inputs.(0) with
+        | Ok geometry -> cooked geometry
+        | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+  let create ?label:node_label ?(operation = parameters_default.operation)
+      ?(resolve_right_self_intersections = parameters_default.resolve_right_self_intersections)
+      ?(detriangulation = parameters_default.detriangulation) ~right left =
+    build ~label:(label "boolean" node_label) ~inputs:[left;right]
+      {parameters_default with operation;resolve_right_self_intersections;detriangulation}
+
+end
+
+module Boolean_detect = struct
+  type parameters = {
+    source_group : string [@sop.default ""] [@sop.label "Source group"]
+      [@sop.folder "Inputs"];
+    collision_group : string [@sop.default ""] [@sop.label "Collision group"]
+      [@sop.folder "Inputs"];
+    tolerance : float [@sop.default 0.] [@sop.label "Tolerance"]
+      [@sop.min 0.] [@sop.max 0.001] [@sop.hard_min 0.];
+    include_coplanar : bool [@sop.default true]
+      [@sop.label "Include coplanar overlap"];
+    intersecting_group : string [@sop.default "boolean_intersections"]
+      [@sop.label "Intersecting group"] [@sop.folder "A/B outputs"];
+    intersections_attribute : string [@sop.default ""]
+      [@sop.label "Intersections attribute"] [@sop.folder "A/B outputs"];
+    count_attribute : string [@sop.default ""]
+      [@sop.label "Count attribute"] [@sop.folder "A/B outputs"];
+    self_intersecting_group : string
+      [@sop.default "boolean_self_intersections"]
+      [@sop.label "Self-intersecting group"] [@sop.folder "Self outputs"];
+    self_intersections_attribute : string [@sop.default ""]
+      [@sop.label "Self intersections attribute"] [@sop.folder "Self outputs"];
+    self_count_attribute : string [@sop.default ""]
+      [@sop.label "Self count attribute"] [@sop.folder "Self outputs"];
+  } [@@sop.node_key "boolean_detect"] [@@sop.node_label "Boolean Detect"]
+
+    [@@sop.validate fun parameters ->
+      if not (Float.is_finite parameters.tolerance) || parameters.tolerance < 0. then
+        invalid_arg "Sop.boolean_detect: tolerance must be finite and nonnegative"]
+    [@@sop.node_category "Boolean/Analysis"] [@@sop.node_inputs 2] [@@sop.node_slots "input, collision"]
+    [@@sop.node_optional "1"]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters input collision ->
+    let label = Some label in
+    let source_group = parameters.source_group in
+    let collision_group = parameters.collision_group in
+    let tolerance = parameters.tolerance in
+    let include_coplanar = parameters.include_coplanar in
+    let intersecting_group = parameters.intersecting_group in
+    let intersections_attribute = parameters.intersections_attribute in
+    let count_attribute = parameters.count_attribute in
+    let self_intersecting_group = parameters.self_intersecting_group in
+    let self_intersections_attribute = parameters.self_intersections_attribute in
+    let self_count_attribute = parameters.self_count_attribute in
+    let source_group = optional_text source_group in
+    let cross_name name = if Option.is_some collision then optional_text name else None in
+    let collision_group = cross_name collision_group and intersecting_group = cross_name intersecting_group
+    and intersections_attribute = cross_name intersections_attribute and count_attribute = cross_name count_attribute in
+    let self_intersecting_group = optional_text self_intersecting_group
+    and self_intersections_attribute = optional_text self_intersections_attribute and self_count_attribute = optional_text self_count_attribute in
+
+    let refuse message = invalid_arg ("Sop.boolean_detect: " ^ message) in
+    let attributes = List.filter_map Fun.id [intersections_attribute;count_attribute;self_intersections_attribute;self_count_attribute]
+    and groups = List.filter_map Fun.id [intersecting_group;self_intersecting_group] in
+    if attributes = [] && groups = [] then refuse "at least one output must be requested";
+    if List.length attributes <> List.length (List.sort_uniq String.compare attributes) then refuse "attribute outputs must have distinct names";
+    if List.length groups <> List.length (List.sort_uniq String.compare groups) then refuse "group outputs must have distinct names";
+    let inputs = match collision with None -> [|input|]
+      | Some collision -> [|input; collision|] in
+    Node.Private.make ?label ~operation:"boolean_detect" ~version:1
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs (fun ~node_id:_ context inputs ->
+        match resolve_optional_primitive_group "boolean_detect" source_group
+            inputs.(0) with
+        | Error error -> Error error
+        | Ok source_primitives ->
+            let collision_geometry = if Array.length inputs = 1 then inputs.(0)
+              else inputs.(1) in
+            (match resolve_optional_primitive_group "boolean_detect collision"
+                collision_group collision_geometry with
+             | Error error -> Error error
+             | Ok collision_primitives ->
+                 match Rdk.Boolean_detect.run_checked
+                     ~cancel:(Context.cancel_token context)
+                     ~grain:(Context.grain context) ?source_primitives
+                     ?collision_primitives ~tolerance ~include_coplanar
+                     ~intersecting_group ?intersections_attribute
+                     ?count_attribute ?self_intersecting_group
+                     ?self_intersections_attribute ?self_count_attribute
+                     ~collision:collision_geometry inputs.(0) with
+                 | Ok geometry -> cooked geometry
+                 | Error error -> structured_rdk_error error))
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Triangulate_2d = struct
+  let projection_parameter = Parameter.choice ~equal:( = ) [
+      "Best fit", Triangulate_best_fit; "XY", Triangulate_xy; "YZ", Triangulate_yz; "ZX", Triangulate_zx;
+      "Custom plane", Triangulate_plane; "Point attribute", Triangulate_attribute;
+    ]
+  type parameters = {
+    point_group : string [@sop.default ""] [@sop.label "Point group"]
+      [@sop.folder "Input"];
+    constraint_edge_group : string [@sop.default ""]
+      [@sop.label "Constraint edge group"] [@sop.folder "Input"];
+    constraint_primitive_group : string [@sop.default ""]
+      [@sop.label "Constraint primitive group"] [@sop.folder "Input"];
+    projection : Sop_support.triangulate_2d_projection [@sop.default Triangulate_best_fit] [@sop.label "Projection"]
+      [@sop.folder "Projection"] [@sop.kind projection_parameter];
+    plane_origin_x : float [@sop.default 0.] [@sop.label "Origin X"]
+      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "plane_origin"]
+    plane_origin_y : float [@sop.default 0.] [@sop.label "Origin Y"]
+      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "plane_origin"]
+    plane_origin_z : float [@sop.default 0.] [@sop.label "Origin Z"]
+      [@sop.folder "Projection/Plane"] [@sop.min (-10.)] [@sop.max 10.]; [@sop.vec3 "plane_origin"]
+    plane_normal_x : float [@sop.default 0.] [@sop.label "Normal X"]
+      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "plane_normal"]
+    plane_normal_y : float [@sop.default 0.] [@sop.label "Normal Y"]
+      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "plane_normal"]
+    plane_normal_z : float [@sop.default 1.] [@sop.label "Normal Z"]
+      [@sop.folder "Projection/Plane"] [@sop.min (-1.)] [@sop.max 1.]; [@sop.vec3 "plane_normal"]
+    point_attribute : string [@sop.default "uv"] [@sop.label "Point attribute"]
+      [@sop.folder "Projection"];
+    seed : int [@sop.default 0] [@sop.label "Seed"]
+      [@sop.folder "Triangulation"] [@sop.min 0] [@sop.max 9999];
+    split_crossing_constraints : bool [@sop.default false]
+      [@sop.label "Split crossing constraints"] [@sop.folder "Constraints"];
+    flood_from_hull_boundary : bool [@sop.default false]
+      [@sop.label "Flood from hull boundary"] [@sop.folder "Constraints"];
+    remove_outside_constraint_polygons : bool [@sop.default false]
+      [@sop.label "Remove outside constraints"] [@sop.folder "Constraints"];
+    silhouette_constraints : bool [@sop.default false]
+      [@sop.label "Silhouette constraints"] [@sop.folder "Constraints"];
+    remove_outside_silhouette : bool [@sop.default false]
+      [@sop.label "Remove outside silhouette"] [@sop.folder "Constraints"];
+    ignore_non_constraint_points : bool [@sop.default false]
+      [@sop.label "Ignore non-constraint points"] [@sop.folder "Constraints"];
+    remove_duplicate_points : bool [@sop.default false]
+      [@sop.label "Remove duplicate points"] [@sop.folder "Cleanup"];
+    refine : bool [@sop.default false] [@sop.label "Refine"]
+      [@sop.folder "Refinement"];
+    allow_constraint_splitting : bool [@sop.default true]
+      [@sop.label "Allow constraint splitting"] [@sop.folder "Refinement"];
+    minimum_angle : float [@sop.default 0.3490658503988659]
+      [@sop.label "Minimum angle"] [@sop.folder "Refinement"] [@sop.min 0.]
+      [@sop.max 1.0471975511965976] [@sop.hard_min 0.];
+    use_maximum_area : bool [@sop.default false] [@sop.label "Maximum area"]
+      [@sop.folder "Refinement"];
+    maximum_area : float [@sop.default 1.] [@sop.label "Area"]
+      [@sop.folder "Refinement"] [@sop.min 0.] [@sop.max 100.]
+      [@sop.hard_min 0.];
+    use_target_edge_length : bool [@sop.default false]
+      [@sop.label "Target edge length"] [@sop.folder "Refinement"];
+    target_edge_length : float [@sop.default 1.] [@sop.label "Edge length"]
+      [@sop.folder "Refinement"] [@sop.min 0.] [@sop.max 100.]
+      [@sop.hard_min 0.];
+    minimum_edge_length : float [@sop.default 0.]
+      [@sop.label "Minimum edge length"] [@sop.folder "Refinement"]
+      [@sop.min 0.] [@sop.max 100.] [@sop.hard_min 0.];
+    maximum_new_points : int [@sop.default 100000]
+      [@sop.label "Maximum new points"] [@sop.folder "Refinement/Limits"]
+      [@sop.min 0] [@sop.max 1000000] [@sop.hard_min 0];
+    regularization_steps : int [@sop.default 0]
+      [@sop.label "Regularization steps"] [@sop.folder "Refinement"]
+      [@sop.min 0] [@sop.max 100] [@sop.hard_min 0];
+    allow_movement_of_interior_input_points : bool [@sop.default false]
+      [@sop.label "Move interior input points"] [@sop.folder "Refinement"];
+    preserve_point_payload : bool [@sop.default true]
+      [@sop.label "Preserve point payload"] [@sop.folder "Payload"];
+    restore_original_point_positions : bool [@sop.default true]
+      [@sop.label "Restore original positions"] [@sop.folder "Payload"];
+    keep_primitives : bool [@sop.default false] [@sop.label "Keep primitives"]
+      [@sop.folder "Output"];
+    remove_unused_points : bool [@sop.default false]
+      [@sop.label "Remove unused points"] [@sop.folder "Cleanup"];
+    recompute_point_normals : bool [@sop.default false]
+      [@sop.label "Recompute point normals"] [@sop.folder "Output"];
+    split_point_group : string [@sop.default ""]
+      [@sop.label "Split point group"] [@sop.folder "Output"];
+    refinement_point_group : string [@sop.default ""]
+      [@sop.label "Refinement point group"] [@sop.folder "Output"];
+    triangle_group : string [@sop.default ""] [@sop.label "Triangle group"]
+      [@sop.folder "Output"];
+    constraint_group : string [@sop.default ""]
+      [@sop.label "Constraint group"] [@sop.folder "Output"];
+  } [@@sop.node_key "triangulate_2d"] [@@sop.node_label "Triangulate 2D"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.triangulate_2d: " ^ message) in
+      if not (List.for_all Float.is_finite [parameters.plane_origin_x;parameters.plane_origin_y;parameters.plane_origin_z;
+        parameters.plane_normal_x;parameters.plane_normal_y;parameters.plane_normal_z;parameters.minimum_angle;parameters.maximum_area;
+        parameters.target_edge_length;parameters.minimum_edge_length]) then refuse "numeric values must be finite";
+      if parameters.minimum_angle < 0. || parameters.minimum_edge_length < 0. || parameters.maximum_area < 0. || parameters.target_edge_length < 0.
+        || parameters.maximum_new_points < 0 || parameters.maximum_new_points >= Sys.max_array_length || parameters.regularization_steps < 0 then refuse "refinement bounds must be nonnegative";
+      if parameters.refine && (parameters.minimum_angle <= 0. || parameters.minimum_angle >= Float.pi /. 3.) then refuse "minimum angle must lie between zero and pi/3";
+      if parameters.use_maximum_area && parameters.maximum_area <= 0. then refuse "maximum area must be positive";
+      if parameters.use_target_edge_length && parameters.target_edge_length <= 0. then refuse "target edge length must be positive";
+      if parameters.projection = Triangulate_plane && parameters.plane_normal_x = 0. && parameters.plane_normal_y = 0. && parameters.plane_normal_z = 0. then refuse "plane normal must be nonzero";
+      if parameters.projection = Triangulate_attribute && String.trim parameters.point_attribute = "" then refuse "point attribute must be nonblank"]
+    [@@sop.node_category "Topology/Triangulate"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+  let build = parameters_build (fun ~label parameters input ->
+    let label = Some label in
+    let point_group = parameters.point_group in
+    let constraint_edge_group = parameters.constraint_edge_group in
+    let constraint_primitive_group = parameters.constraint_primitive_group in
+    let projection = parameters.projection in
+    let plane_origin = Rays_math.Vec3.create parameters.plane_origin_x parameters.plane_origin_y parameters.plane_origin_z in
+    let plane_normal = Rays_math.Vec3.create parameters.plane_normal_x parameters.plane_normal_y parameters.plane_normal_z in
+    let point_attribute = parameters.point_attribute in
+    let seed = parameters.seed in
+    let split_crossing_constraints = parameters.split_crossing_constraints in
+    let flood_from_hull_boundary = parameters.flood_from_hull_boundary in
+    let remove_outside_constraint_polygons = parameters.remove_outside_constraint_polygons in
+    let silhouette_constraints = parameters.silhouette_constraints in
+    let remove_outside_silhouette = parameters.remove_outside_silhouette in
+    let ignore_non_constraint_points = parameters.ignore_non_constraint_points in
+    let remove_duplicate_points = parameters.remove_duplicate_points in
+    let refine = parameters.refine in
+    let allow_constraint_splitting = parameters.allow_constraint_splitting in
+    let minimum_angle = parameters.minimum_angle in
+    let use_maximum_area = parameters.use_maximum_area in
+    let maximum_area = parameters.maximum_area in
+    let use_target_edge_length = parameters.use_target_edge_length in
+    let target_edge_length = parameters.target_edge_length in
+    let minimum_edge_length = parameters.minimum_edge_length in
+    let maximum_new_points = parameters.maximum_new_points in
+    let regularization_steps = parameters.regularization_steps in
+    let allow_movement_of_interior_input_points = parameters.allow_movement_of_interior_input_points in
+    let preserve_point_payload = parameters.preserve_point_payload in
+    let restore_original_point_positions = parameters.restore_original_point_positions in
+    let keep_primitives = parameters.keep_primitives in
+    let remove_unused_points = parameters.remove_unused_points in
+    let recompute_point_normals = parameters.recompute_point_normals in
+    let split_point_group = parameters.split_point_group in
+    let refinement_point_group = parameters.refinement_point_group in
+    let triangle_group = parameters.triangle_group in
+    let constraint_group = parameters.constraint_group in
+    let projection = match projection with
+      | Triangulate_best_fit -> Rdk.Triangulate2d.Best_fit | Triangulate_xy -> Rdk.Triangulate2d.Plane_xy
+      | Triangulate_yz -> Rdk.Triangulate2d.Plane_yz | Triangulate_zx -> Rdk.Triangulate2d.Plane_zx
+      | Triangulate_plane -> Rdk.Triangulate2d.Plane {origin=plane_origin;normal=plane_normal}
+      | Triangulate_attribute -> Rdk.Triangulate2d.Point_attribute point_attribute in
+    let seed = Int64.of_int seed in
+    let maximum_area = if use_maximum_area then Some maximum_area else None
+    and target_edge_length = if use_target_edge_length then Some target_edge_length else None in
+    let point_group = optional_text point_group and constraint_edge_group = optional_text constraint_edge_group
+    and constraint_primitive_group = optional_text constraint_primitive_group and split_point_group = optional_text split_point_group
+    and refinement_point_group = optional_text refinement_point_group and triangle_group = optional_text triangle_group
+    and constraint_group = optional_text constraint_group in
+    Node.Private.make ?label ~operation:"triangulate_2d" ~version:12
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let selection = match point_group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point name geometry with
+               | Some group -> Ok (Some (Rdk.Transform_ops.Selected_points group))
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                      "triangulate_2d could not find point group %S" name))) in
+        let constraint_edges = match constraint_edge_group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_edge_group name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                      "triangulate_2d could not find native edge group %S" name))) in
+        let constraint_primitives = match constraint_primitive_group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   (Printf.sprintf
+                      "triangulate_2d could not find primitive group %S" name))) in
+        match selection,constraint_edges,constraint_primitives with
+        | Error error,_,_ -> Error error
+        | _,Error error,_ | _,_,Error error -> Error error
+        | Ok selection,Ok constraint_edges,Ok constraint_primitives ->
+            match Rdk.Triangulate2d.run
+                ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
+                ?selection ?constraint_edges ?constraint_primitives ~projection
+                ~seed ~split_crossing_constraints ~flood_from_hull_boundary
+                ~remove_outside_constraint_polygons
+                ~silhouette_constraints ~remove_outside_silhouette
+                ~ignore_non_constraint_points
+                ~remove_duplicate_points
+                ~refine ~allow_constraint_splitting ~minimum_angle ?maximum_area
+                ?target_edge_length ~minimum_edge_length ~maximum_new_points
+                ~regularization_steps ~allow_movement_of_interior_input_points
+                ~preserve_point_payload ~restore_original_point_positions
+                ~keep_primitives
+                ~remove_unused_points ~recompute_point_normals
+                ?split_point_group ?refinement_point_group ?triangle_group
+                ?constraint_group geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  )
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
+module Polywire = struct
+  type parameters = {
+    group : string [@sop.default ""] [@sop.label "Primitive group"];
+    radius : float [@sop.default 0.1] [@sop.label "Radius"]
+      [@sop.min 0.0001] [@sop.max 10.] [@sop.hard_min 0.];
+    use_sides : bool [@sop.default true] [@sop.label "Set divisions"];
+    sides : int [@sop.default 8] [@sop.label "Divisions"]
+      [@sop.min 3] [@sop.max 256] [@sop.hard_min 3];
+    divisions_attribute : string [@sop.default ""]
+      [@sop.label "Divisions attribute"] [@sop.folder "Overrides"];
+    segments : int [@sop.default 1] [@sop.label "Segments"]
+      [@sop.min 1] [@sop.max 256] [@sop.hard_min 1];
+    segments_attribute : string [@sop.default ""]
+      [@sop.label "Segments attribute"] [@sop.folder "Overrides"];
+    use_segment_scales : bool [@sop.default false]
+      [@sop.label "Scale segment endpoints"];
+    first_segment_scale : float [@sop.default 0.]
+      [@sop.label "First segment scale"] [@sop.folder "Segments"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    last_segment_scale : float [@sop.default 1.]
+      [@sop.label "Last segment scale"] [@sop.folder "Segments"]
+      [@sop.min 0.] [@sop.max 1.] [@sop.hard_min 0.] [@sop.hard_max 1.];
+    segment_scales_attribute : string [@sop.default ""]
+      [@sop.label "Segment scales attribute"] [@sop.folder "Overrides"];
+    prevent_joint_buckling : bool [@sop.default false]
+      [@sop.label "Prevent joint buckling"] [@sop.folder "Joints"];
+    maximum_joint_scale : float [@sop.default 10.]
+      [@sop.label "Maximum joint scale"] [@sop.folder "Joints"]
+      [@sop.min 1.] [@sop.max 100.] [@sop.hard_min 1.];
+    maximum_joint_scale_attribute : string [@sop.default ""]
+      [@sop.label "Maximum scale attribute"] [@sop.folder "Overrides"];
+    smooth_point : bool [@sop.default true] [@sop.label "Smooth points"]
+      [@sop.folder "Joints"];
+    smooth_attribute : string [@sop.default ""]
+      [@sop.label "Smooth attribute"] [@sop.folder "Overrides"];
+    use_max_valence : bool [@sop.default false]
+      [@sop.label "Limit smooth valence"] [@sop.folder "Joints"];
+    max_valence : int [@sop.default 4] [@sop.label "Maximum valence"]
+      [@sop.folder "Joints"] [@sop.min 1] [@sop.max 128]
+      [@sop.hard_min 1];
+    scale_attribute : string [@sop.default ""] [@sop.label "Scale attribute"]
+      [@sop.folder "Overrides"];
+    seam_offset : int [@sop.default 0] [@sop.label "Seam offset"]
+      [@sop.folder "Seams"] [@sop.min (-256)] [@sop.max 256];
+    seam_attribute : string [@sop.default ""] [@sop.label "Seam attribute"]
+      [@sop.folder "Overrides"];
+    segment_seam_attribute : string [@sop.default ""]
+      [@sop.label "Segment seam attribute"] [@sop.folder "Overrides"];
+    v_attribute : string [@sop.default ""] [@sop.label "V attribute"]
+      [@sop.folder "Overrides"];
+    up_attribute : string [@sop.default ""] [@sop.label "Up attribute"]
+      [@sop.folder "Overrides"];
+    generate_uv : bool [@sop.default true] [@sop.label "Generate UV"]
+      [@sop.folder "UV"];
+    use_u_range : bool [@sop.default true] [@sop.label "Set U range"] [@sop.folder "UV/U range"];
+    u_min : float [@sop.default 0.] [@sop.label "U minimum"]
+      [@sop.folder "UV/U range"] [@sop.min (-10.)] [@sop.max 10.];
+    u_max : float [@sop.default 1.] [@sop.label "U maximum"]
+      [@sop.folder "UV/U range"] [@sop.min (-10.)] [@sop.max 10.];
+    use_v_range : bool [@sop.default true] [@sop.label "Set V range"] [@sop.folder "UV/V range"];
+    v_min : float [@sop.default 0.] [@sop.label "V minimum"]
+      [@sop.folder "UV/V range"] [@sop.min (-10.)] [@sop.max 10.];
+    v_max : float [@sop.default 1.] [@sop.label "V maximum"]
+      [@sop.folder "UV/V range"] [@sop.min (-10.)] [@sop.max 10.];
+    uv_range_attribute : string [@sop.default ""]
+      [@sop.label "UV range attribute"] [@sop.folder "Overrides"];
+    caps : bool [@sop.default false] [@sop.label "End caps"];
+    cap_group : string [@sop.default "caps"] [@sop.label "Cap group"];
+  } [@@sop.node_key "polywire"] [@@sop.node_label "PolyWire"]
+
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.polywire: " ^ message) in
+      if not (List.for_all Float.is_finite [parameters.radius;parameters.first_segment_scale;parameters.last_segment_scale;
+        parameters.maximum_joint_scale;parameters.u_min;parameters.u_max;parameters.v_min;parameters.v_max]) then refuse "numeric values must be finite";
+      if parameters.radius <= 0. then refuse "radius must be positive";
+      if parameters.sides < 3 || parameters.segments < 1 || parameters.max_valence < 1 then refuse "divisions and valence must be positive";
+      if parameters.first_segment_scale < 0. || parameters.first_segment_scale > 1. || parameters.last_segment_scale < 0. || parameters.last_segment_scale > 1.
+        || (parameters.use_segment_scales && parameters.first_segment_scale > parameters.last_segment_scale) then refuse "segment scales require 0 <= first <= last <= 1";
+      if parameters.maximum_joint_scale < 1. then refuse "maximum joint scale must be at least one";
+      if optional_text parameters.maximum_joint_scale_attribute <> None && not parameters.prevent_joint_buckling then refuse "maximum joint scale attribute requires buckling prevention"]
+    [@@sop.node_category "Topology/Surface"] [@@sop.node_inputs 1]
+
+    [@@deriving sop_params, sop_node]
+
+  let cook ~operation ~label parameters input =
+    let label = Some label in
+    let group = parameters.group in
+    let radius = parameters.radius in
+    let use_sides = parameters.use_sides in
+    let sides = parameters.sides in
+    let divisions_attribute = parameters.divisions_attribute in
+    let segments = parameters.segments in
+    let segments_attribute = parameters.segments_attribute in
+    let use_segment_scales = parameters.use_segment_scales in
+    let first_segment_scale = parameters.first_segment_scale in
+    let last_segment_scale = parameters.last_segment_scale in
+    let segment_scales_attribute = parameters.segment_scales_attribute in
+    let prevent_joint_buckling = parameters.prevent_joint_buckling in
+    let maximum_joint_scale = parameters.maximum_joint_scale in
+    let maximum_joint_scale_attribute = parameters.maximum_joint_scale_attribute in
+    let smooth_point = parameters.smooth_point in
+    let smooth_attribute = parameters.smooth_attribute in
+    let use_max_valence = parameters.use_max_valence in
+    let max_valence = parameters.max_valence in
+    let scale_attribute = parameters.scale_attribute in
+    let seam_offset = parameters.seam_offset in
+    let seam_attribute = parameters.seam_attribute in
+    let segment_seam_attribute = parameters.segment_seam_attribute in
+    let v_attribute = parameters.v_attribute in
+    let up_attribute = parameters.up_attribute in
+    let generate_uv = parameters.generate_uv in
+    let u_min = parameters.u_min in
+    let u_max = parameters.u_max in
+    let v_min = parameters.v_min in
+    let v_max = parameters.v_max in
+    let uv_range_attribute = parameters.uv_range_attribute in
+    let caps = parameters.caps in
+    let cap_group = parameters.cap_group in
+    let sides = if use_sides then Some sides else None
+    and segment_scales = if use_segment_scales then Some (first_segment_scale,last_segment_scale) else None
+    and max_valence = if use_max_valence then Some max_valence else None in
+    let u_range = if parameters.use_u_range then Some (u_min,u_max) else None
+    and v_range = if parameters.use_v_range then Some (v_min,v_max) else None in
+    let group = optional_text group and divisions_attribute = optional_text divisions_attribute
+    and segments_attribute = optional_text segments_attribute and segment_scales_attribute = optional_text segment_scales_attribute
+    and maximum_joint_scale_attribute = optional_text maximum_joint_scale_attribute and smooth_attribute = optional_text smooth_attribute
+    and scale_attribute = optional_text scale_attribute and seam_attribute = optional_text seam_attribute
+    and segment_seam_attribute = optional_text segment_seam_attribute and v_attribute = optional_text v_attribute
+    and up_attribute = optional_text up_attribute and uv_range_attribute = optional_text uv_range_attribute in
+    let cap_group = if caps then optional_text cap_group else None in
+    Node.Private.make ?label ~operation ~version:7
+      ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|input|] (fun ~node_id:_ context inputs ->
+        let geometry = inputs.(0) in
+        let primitives = match group with
+          | None -> Ok None
+          | Some name ->
+              (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name geometry with
+               | Some group -> Ok (Some group)
+               | None -> Error (Diagnostic.error ~code:"missing_group"
+                   ~hints:["Create the primitive group before PolyWire"]
+                   (Printf.sprintf "%s could not find primitive group %S"
+                     operation name))) in
+        match primitives with
+        | Error _ as error -> error
+        | Ok primitives ->
+            match Rdk.Sweep_circle.run ~cancel:(Context.cancel_token context)
+                ~grain:(Context.grain context) ?primitives ?sides
+                ?divisions_attribute ~segments ?segments_attribute ?segment_scales
+                ?segment_scales_attribute ~prevent_joint_buckling
+                ~maximum_joint_scale ?maximum_joint_scale_attribute
+                ~smooth_point ?smooth_attribute ?max_valence ?scale_attribute
+                ~seam_offset
+                ?seam_attribute ?segment_seam_attribute ?v_attribute ?up_attribute
+                ~generate_uv ?u_range
+                ?v_range ?uv_range_attribute ~caps ?cap_group ~radius geometry with
+            | Ok geometry -> cooked geometry
+            | Error error -> structured_rdk_error error)
+  let build = parameters_build (cook ~operation:"polywire")
+  let sweep_build = parameters_build (cook ~operation:"sweep_circle")
+  let factory = parameters_factory build
+
+  let fn = parameters_fn build
+  let sweep_fn ?label = parameters_fn sweep_build ~label:(Option.value ~default:"sweep_circle" label)
+  let sweep_factory = Edit_graph.factory ~key:"sweep_circle" ~label:"Sweep Circle"
+      ~category:(Edit_graph.factory_category factory) ~arity:1
+      ~slots:(Edit_graph.factory_slot_names factory) ~fields:(Edit_graph.factory_fields factory)
+      (fun inputs -> sweep_build ~label:"sweep_circle" ~inputs parameters_default)
+end

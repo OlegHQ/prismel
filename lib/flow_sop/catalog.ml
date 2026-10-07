@@ -26,8 +26,8 @@ let of_factories ~version ?(extra = []) factories =
           ~code:"E_CATALOG" ("Duplicate kind " ^ entry.qualified))
         else begin
           let slots = List.map (fun (name, requirement) ->
-            Flow.Check.{name; required = requirement <> Edit.Optional;
-              rest = requirement = Edit.Rest}) entry.slots in
+            Flow.Check.{name; required = (requirement = Edit.Required || requirement = Edit.Rest);
+              rest = (requirement = Edit.Rest || requirement = Edit.Optional_rest)}) entry.slots in
           Hashtbl.add seen entry.qualified ();
           Result.bind (Port.parameters entry.fields) (fun ports ->
             let parameters = List.map (fun port ->

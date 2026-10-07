@@ -40,15 +40,15 @@ let same_int_array left right =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.sort ~owner:Rdk.Ordering.Points ~key:(Rdk.Ordering.Random 73421L)
-      |> Sop.sort ~owner:Rdk.Ordering.Points ~key:Rdk.Ordering.X
+      |> Sop.sort ~owner:Rdk.Ordering.Points ~key:Sop.Sort_random ~seed:73421
+      |> Sop.sort ~owner:Rdk.Ordering.Points ~key:Sop.Sort_x
            ~output_indices:"rank" in
   let parameters = Node.parameters graph in
   let input_parameters = match Node.inputs graph with
     | [input] -> Node.parameters input
     | _ -> fail "extended Sort SOP input graph shape" in
   check (contains parameters "key=x" && contains parameters "output_indices=rank"
-      && contains input_parameters "random:73421")
+      && contains input_parameters "seed=73421")
     "extended Sort SOP cache identity";
   let one = cook 1 graph and four = cook 4 graph in
   check (same_int_array (int_attribute "id" one) (int_attribute "id" four)
@@ -57,7 +57,7 @@ let run () =
     "extended Sort SOP one/four-domain exactness";
   let missing = Sop.snapshot (source ())
       |> Sop.sort ~owner:Rdk.Ordering.Points
-           ~key:(Rdk.Ordering.Index_attribute "missing") in
+           ~key:Sop.Sort_index_attribute ~attribute:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:80_000_000 |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "invalid_sort")

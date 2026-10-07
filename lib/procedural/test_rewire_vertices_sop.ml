@@ -44,7 +44,7 @@ let int_attribute name geometry =
 let run () =
   let graph = Sop.snapshot (source 300_000)
       |> Sop.rewire_vertices ~label:"rewire-selected"
-           ~selection:(Sop.Point_group "selected") ~recursive:false
+           ~selection_owner:Sop.Element_point ~selection:"selected" ~recursive:false
            ~delete_target_attribute:true ~keep_unused_points:true
            ~original_point_attribute:"origpt" ~owner:Attribute.Point
            ~target_attribute:"target" in
@@ -52,7 +52,7 @@ let run () =
   check (Node.operation graph = "rewire_vertices"
       && Node.cook_mode graph = Node.Duplicate_input 0
       && contains parameters "owner=point"
-      && contains parameters "selection=point:selected"
+      && contains parameters "selection_owner=point;selection=selected"
       && contains parameters "delete_target_attribute=true"
       && contains parameters "keep_unused_points=true"
       && contains parameters "original_point_attribute=origpt")
@@ -77,10 +77,10 @@ let run () =
   check (Geometry.find_attribute ~owner:Attribute.Point "target" one = None)
     "Rewire Vertices SOP did not delete its target field";
   let missing_group = Sop.snapshot (source 12)
-      |> Sop.rewire_vertices ~selection:(Sop.Point_group "missing")
+      |> Sop.rewire_vertices ~delete_target_attribute:(false) ~selection_owner:Sop.Element_point ~selection:"missing"
            ~owner:Attribute.Point ~target_attribute:"target" in
   let missing_attribute = Sop.snapshot (source 12)
-      |> Sop.rewire_vertices ~owner:Attribute.Point
+      |> Sop.rewire_vertices ~delete_target_attribute:(false) ~owner:Attribute.Point
            ~target_attribute:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000
       |> get in

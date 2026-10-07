@@ -7,7 +7,7 @@ type connection = {
   input_index : int;
 }
 
-type input_requirement = Required | Optional | Rest
+type input_requirement = Required | Optional | Rest | Optional_rest
 
 type factory = {
   key : string;
@@ -51,14 +51,17 @@ type node_info = {
 (* ponytail: a trailing [Rest] slot repeats.  An entry holds any number of inputs
    at least the slot count; the first rest input is required, the others optional,
    and extras are named [name_2], [name_3], ... *)
+let repeating = function Rest | Optional_rest -> true | Required | Optional -> false
 let last_requirement (f : factory) = f.requirements.(Array.length f.requirements - 1)
 let arity_ok (f : factory) n =
   let len = Array.length f.requirements in
-  n = len || (n > len && last_requirement f = Rest)
+  n = len || (len > 0 && repeating (last_requirement f)
+    && n >= len - (if last_requirement f = Optional_rest then 1 else 0))
 let requirement (f : factory) index =
   let last = Array.length f.requirements - 1 in
   match f.requirements.(min index last) with
   | Rest -> if index = last then Required else Optional
+  | Optional_rest -> Optional
   | r -> r
 let has_optional (f : factory) = Array.exists (( <> ) Required) f.requirements
 let slot_names_of (f : factory) n =
@@ -157,13 +160,14 @@ let wired_to (node : Node.t) inputs =
 
 let rebuild (entry : entry) compiled_inputs =
   match entry.factory with
+  | _ when Array.for_all Option.is_some entry.inputs
+      && wired_to entry.node compiled_inputs -> Ok entry.node
   | Some factory when has_optional factory ->
       let node = factory.build (Array.to_list compiled_inputs) in
       let changes = Node.parameter_fields entry.node
           |> List.map (fun field -> field.Parameter.name, field.current) in
       Result.map (fun (node, _) -> Node.Private.adopt_identity ~source:entry.node node)
         (Node.apply_parameters node changes)
-  | _ when wired_to entry.node compiled_inputs -> Ok entry.node
   | _ -> Ok (Node.Private.rebuild_with_inputs entry.node
                (Array.map Option.get compiled_inputs))
 
@@ -352,7 +356,7 @@ let connect ~source ~consumer ~input_index value =
         || input_index > Array.length entry.inputs
         || input_index = Array.length entry.inputs
            && not (match entry.factory with
-               | Some f -> last_requirement f = Rest | None -> false) ->
+               | Some f -> Array.length f.requirements > 0 && repeating (last_requirement f) | None -> false) ->
         Error (Printf.sprintf "node %S has no input %d"
           (Node.label entry.node) input_index)
     | Some _ when depends_on value ~node_id:source ~candidate:consumer ->
@@ -388,6 +392,15 @@ let slot_names arity = function
         invalid_arg "Edit_graph factory slots must have one distinct name per input";
       Array.of_list names
 
+let share_default_values fields =
+  List.map (fun (field : Parameter.field_view) ->
+    let equal = match field.default, field.current with
+      | Parameter.Float_value left, Parameter.Float_value right ->
+          Int64.bits_of_float left = Int64.bits_of_float right
+      | _ -> field.default = field.current in
+    if field.default == field.current || not equal then field
+    else { field with current = field.default }) fields
+
 let factory ?operation ?slots ?(fields = []) ?output_fields:_
     ~key ~label ~category ~arity build =
   let operation = Option.value ~default:key operation in
@@ -397,7 +410,7 @@ let factory ?operation ?slots ?(fields = []) ?output_fields:_
       || List.exists (fun item -> String.trim item = "") category then
     invalid_arg "Edit_graph.factory names must not be blank";
   if arity < 0 then invalid_arg "Edit_graph.factory arity must be non-negative";
-  { key; operation; label; category; fields;
+  { key; operation; label; category; fields = share_default_values fields;
     requirements = Array.make arity Required;
     slots = slot_names arity slots;
     build = (fun inputs -> build (List.map Option.get inputs)) }
@@ -412,9 +425,9 @@ let factory_slots ?operation ?slots ?(fields = []) ?output_fields:_
     invalid_arg "Edit_graph.factory_slots names must not be blank";
   if inputs = [] then invalid_arg
       "Edit_graph.factory_slots requires at least one input slot";
-  if List.exists (( = ) Rest) (List.filteri (fun i _ -> i < List.length inputs - 1) inputs)
+  if List.exists repeating (List.filteri (fun i _ -> i < List.length inputs - 1) inputs)
   then invalid_arg "Edit_graph.factory_slots: only the last input may be Rest";
-  { key; operation; label; category; fields;
+  { key; operation; label; category; fields = share_default_values fields;
     requirements = Array.of_list inputs;
     slots = slot_names (List.length inputs) slots; build }
 
@@ -452,7 +465,7 @@ let instantiate_optional (value : factory) inputs =
     let placeholder = lazy (disconnected_placeholder ()) in
     let inputs = List.mapi (fun index input -> match requirement value index, input with
       | _, Some node -> Some node
-      | (Optional | Rest), None -> None
+      | (Optional | Rest | Optional_rest), None -> None
       | Required, None -> Some (Lazy.force placeholder)) inputs in
     try Ok (value.build inputs) with
     | Invalid_argument message -> Error message

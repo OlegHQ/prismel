@@ -51,8 +51,7 @@ let make_graph geometry =
   Sop.snapshot geometry
   |> Sop.attribute_mirror ~label:"mirror-values"
        ~owner:Rdk.Attribute_mirror.Mirror_point_attributes
-       ~method_:(Sop.Attribute_mirror_mapping {
-         mapping_attribute = "map"; destination_group = "destination" })
+       ~method_:Sop.Mirror_mapping ~mapping_attribute:"map" ~mapping_destination_group:"destination"
        ~attributes:"value" ~output_mapping:"pair"
        ~source_group:"mirror_source" ~destination_group:"mirror_destination"
 
@@ -61,8 +60,8 @@ let run () =
   check (Node.operation graph = "attribute_mirror"
       && Node.cook_mode graph = Node.Duplicate_input 0
       && contains (Node.parameters graph) "owner=point"
-      && contains (Node.parameters graph) "mapping:map:destination"
-      && contains (Node.parameters graph) "attributes=\"value\""
+      && contains (Node.parameters graph) "method_=mapping_attribute"
+      && contains (Node.parameters graph) "attributes=value"
       && contains (Node.parameters graph) "output_mapping=pair")
     "Attribute Mirror SOP cache identity omits controls";
   let session = Session.create ~max_entries:8 ~max_payload_bytes:96_000_000
@@ -87,8 +86,7 @@ let run () =
     "Attribute Mirror SOP changed cardinality or topology";
   let missing = Sop.snapshot (source 10)
       |> Sop.attribute_mirror ~owner:Rdk.Attribute_mirror.Mirror_point_attributes
-           ~method_:(Sop.Attribute_mirror_mapping {
-             mapping_attribute = "map"; destination_group = "missing" }) in
+           ~method_:Sop.Mirror_mapping ~mapping_attribute:"map" ~mapping_destination_group:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000
       |> get in
   (match Session.cook session ~context:(context 1) missing with
@@ -98,8 +96,7 @@ let run () =
   Session.close session;
   check (try ignore (Sop.snapshot (source 10)
       |> Sop.attribute_mirror ~owner:Rdk.Attribute_mirror.Mirror_point_attributes
-           ~method_:(Sop.Attribute_mirror_mapping {
-             mapping_attribute = ""; destination_group = "destination" })); false
+           ~method_:Sop.Mirror_mapping ~mapping_attribute:"" ~mapping_destination_group:"destination"); false
     with Invalid_argument _ -> true)
     "Attribute Mirror SOP accepted an empty mapping attribute";
   print_endline "attribute mirror SOP tests passed"

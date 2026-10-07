@@ -14,8 +14,7 @@ let source_geometry () =
 
 let graph () = Sop.snapshot (source_geometry ())
     |> Sop.extract_centroid ~label:"centers"
-      ~run_over:(Rdk.Curve_topology.Centroid_pieces {
-        owner=Rdk.Curve_topology.Centroid_piece_primitives; attribute="piece"})
+      ~run_over:Sop.Primitive_pieces ~piece_attribute:"piece"
       ~method_:Rdk.Curve_topology.Centroid_bounding_box
       ~piece_output_attribute:"island"
 
@@ -43,8 +42,8 @@ let run () =
   let node = graph () in
   check (Node.operation node = "extract_centroid"
       && Node.cook_mode node = Node.Generic
-      && contains (Node.parameters node) "run_over=pieces:primitives:piece"
-      && contains (Node.parameters node) "method=bounding_box"
+      && contains (Node.parameters node) "run_over=primitive_pieces;piece_attribute=piece"
+      && contains (Node.parameters node) "method_=bounding_box"
       && contains (Node.parameters node) "piece_output_attribute=island")
     "Extract Centroid SOP identity omits a behavior parameter";
   let session = Session.create ~max_entries:8 ~max_payload_bytes:8_000_000 |> get in
@@ -58,8 +57,7 @@ let run () =
   check (Rdk.Geometry.point_count one = 2) "Extract Centroid SOP cardinality";
   let invalid = try
       ignore (Sop.extract_centroid
-        ~run_over:(Rdk.Curve_topology.Centroid_pieces {
-          owner=Rdk.Curve_topology.Centroid_piece_points; attribute="P"})
+        ~run_over:Sop.Point_pieces ~piece_attribute:"P"
         (Sop.points [|0.,0.,0.|])); false
     with Invalid_argument _ -> true in
   check invalid "Extract Centroid SOP accepted P as piece identity";

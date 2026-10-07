@@ -24,8 +24,8 @@ let sections () = Sop.merge [
 ]
 
 let run () =
-  let graph = sections () |> Sop.poly_loft
-      ~minimize:Rdk.Poly_loft.Three_point_distance ~output_group:"loft" in
+  let graph = sections () |> (fun input -> Sop.poly_loft
+      ~minimize:Rdk.Poly_loft.Three_point_distance ~output_group:"loft" input None) in
   let output = cook graph in
   if Rdk.Geometry.point_count output <> 7
      || Rdk.Geometry.vertex_count output <> 15
@@ -36,7 +36,7 @@ let run () =
    | _ -> fail "PolyLoft SOP output group");
   if not (contains (Node.parameters graph) "minimize=three_point") then
     fail "PolyLoft cache identity omits minimize policy";
-  let invalid = sections () |> Sop.poly_loft ~group:"missing" in
+  let invalid = sections () |> (fun input -> Sop.poly_loft ~output_group:("") ~group:"missing" input None) in
   let session = session () in
   (match Session.cook session ~context:(context ()) invalid with
    | Error error when error.Diagnostic.code = "missing_group" -> ()

@@ -40,16 +40,13 @@ let float_attribute name geometry =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.distance_from_geometry ~reference:(Sop.snapshot (reference ()))
-           ~affected:(Sop.Point_group "distance_affected")
-           ~reference_selection:(Sop.Primitive_group "reference_surface")
-           ~reference_kind:Rdk.Transform_ops.Distance_reference_primitives
-           ~falloff:Rdk.Transform_ops.Soft_cubic
-           ~radius:(Rdk.Transform_ops.Distance_fixed 3.5)
-           ~distance_attribute:(Some "surface_distance") ~mask_attribute:"mask" in
+      |> (fun source -> Sop.distance_from_geometry ~affected_group:"distance_affected" ~reference_group:"reference_surface"
+           ~reference_kind:Rdk.Transform_ops.Distance_reference_primitives ~falloff:Rdk.Transform_ops.Soft_cubic
+           ~radius_mode:Sop.Radius_fixed ~radius:3.5 ~distance_attribute:"surface_distance" ~mask_attribute:"mask"
+           source (Sop.snapshot (reference ()))) in
   let parameters = Node.parameters graph in
-  check (contains parameters "affected=point:distance_affected"
-      && contains parameters "reference_selection=primitive:reference_surface"
+  check (contains parameters "affected_owner=point;affected_group=distance_affected"
+      && contains parameters "reference_owner=primitive;reference_group=reference_surface"
       && contains parameters "reference_kind=primitives"
       && contains parameters "falloff=cubic"
       && contains parameters "distance_attribute=surface_distance"
@@ -62,8 +59,7 @@ let run () =
            (float_attribute "mask" four))
     "Distance From Geometry SOP one/four-domain exactness";
   let missing = Sop.snapshot (source ())
-      |> Sop.distance_from_geometry ~reference:(Sop.snapshot (reference ()))
-           ~reference_selection:(Sop.Primitive_group "missing") in
+      |> (fun source -> Sop.distance_from_geometry ~reference_group:"missing" source (Sop.snapshot (reference ()))) in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:80_000_000 |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "missing_group")

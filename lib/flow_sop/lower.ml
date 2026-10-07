@@ -246,9 +246,21 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
                 let factory = find_factory key in
                 let names = Edit.factory_slot_names factory
                 and parameters = parameters factory in
+                let rest = List.find_index (function Edit.Rest | Optional_rest -> true | _ -> false)
+                  (Edit.factory_inputs factory) in
+                let arity = ref (List.length names) in
+                let next_rest = ref (Option.value ~default:0 rest) in
                 let slots = ref [] and changes = ref [] in
+                let rec add_rest = function
+                  | E.No_geo -> ()
+                  | E.Geo id ->
+                      slots := (!next_rest,id) :: !slots;
+                      incr next_rest; arity := max !arity !next_rest
+                  | E.List values -> Array.iter add_rest values
+                  | _ -> fail "E_LOWER" "Repeated inputs need geometry" in
                 List.iter (fun (name, value) ->
                   match List.find_index (( = ) name) names, value with
+                  | Some index, value when Some index = rest -> add_rest value
                   | Some _, E.No_geo -> ()
                   | Some index, E.Geo id -> slots := (index, id) :: !slots
                   | Some _, _ -> fail "E_LOWER" ("Slot " ^ name ^ " needs geometry")
@@ -258,7 +270,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
                         dynamic := (value, changes_of parameter) :: !dynamic
                       else changes := List.rev_append (changes_of parameter value)
                         !changes) args;
-                {cid; factory; arity = List.length names; dynamic = []; zone = None;
+                {cid; factory; arity = !arity; dynamic = []; zone = None;
                  slots = List.rev !slots; changes = List.rev !changes} in
           let p = { p with dynamic = List.rev !dynamic } in
           Hashtbl.add prepared node.id p; p

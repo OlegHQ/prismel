@@ -26,7 +26,7 @@ let ring y radius = Sop.polyline ~closed:true
 let sections () = Sop.merge [ring 0. 1.; ring 0.5 0.8; ring 1. 1.1]
 
 let run () =
-  let graph = sections () |> Sop.skin ~output_group:"skin" ~v_wrap:true in
+  let graph = sections () |> (fun input -> Sop.skin ~output_group:"skin" ~v_wrap:true input None) in
   let output = cook graph in
   if Rdk.Geometry.point_count output <> 24
      || Rdk.Geometry.vertex_count output <> 96
@@ -37,7 +37,7 @@ let run () =
    | _ -> fail "Skin SOP output group");
   if Node.operation graph <> "skin" || not (contains (Node.parameters graph)
       "minimize=two_point") then fail "Skin cache identity";
-  let invalid = sections () |> Sop.skin ~group:"missing" in
+  let invalid = sections () |> (fun input -> Sop.skin ~output_group:("") ~group:"missing" input None) in
   let session = session () in
   (match Session.cook session ~context:(context ()) invalid with
    | Error error when error.Diagnostic.code = "missing_group" -> ()

@@ -46,7 +46,7 @@ let graph () =
   |> Sop.poly_cut ~label:"crossing-cuts" ~group:"selected_curves"
        ~cut_group:"cuttable" ~element:Poly_cut.Poly_cut_edges
        ~strategy:Poly_cut.Poly_cut_cut
-       ~detection:(Poly_cut.Poly_cut_crossing {attribute="signal"; value=0.})
+       ~detection:Sop.Cut_crossing ~attribute:"signal" ~value:0.
        ~keep_closed:false
 
 let equal_geometry left right =
@@ -71,7 +71,7 @@ let run () =
       && contains parameters "cut_group=cuttable"
       && contains parameters "element=edges"
       && contains parameters "strategy=cut"
-      && contains parameters "crossing:signal"
+      && contains parameters "detection=attribute_crossing;attribute=signal"
       && contains parameters "keep_closed=false")
     "PolyCut SOP cache identity omits controls";
   check (Context.Dependencies.to_list (Node.dependencies graph) = [])
@@ -104,9 +104,7 @@ let run () =
       |> Sop.poly_cut ~group:"missing"
   and missing_edge = Sop.snapshot (source ())
       |> Sop.poly_cut ~element:Poly_cut.Poly_cut_edges ~cut_group:"missing"
-  and invalid = Sop.snapshot (source ())
-      |> Sop.poly_cut
-           ~detection:(Poly_cut.Poly_cut_crossing {attribute="P"; value=0.}) in
+  in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:220_000_000
       |> get in
   List.iter (fun graph -> match Session.cook session ~context:(context 1) graph with
@@ -114,9 +112,8 @@ let run () =
         "PolyCut SOP missing-group diagnostic"
     | Ok _ -> fail "PolyCut SOP accepted a missing group")
     [missing_primitive; missing_edge];
-  (match Session.cook session ~context:(context 1) invalid with
-   | Error error -> check (error.code = "invalid_poly_cut")
-       "PolyCut SOP structured RDK diagnostic"
-   | Ok _ -> fail "PolyCut SOP accepted invalid crossing storage");
+
+  check (try ignore (Sop.poly_cut ~detection:Sop.Cut_crossing ~attribute:"P" (Sop.snapshot (source ())));
+      false with Invalid_argument _ -> true) "PolyCut SOP refuses invalid crossing storage at construction";
   Session.close session;
   print_endline "PolyCut SOP tests passed"

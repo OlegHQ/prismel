@@ -3,7 +3,32 @@ open Procedural
 open Rdk_test_support
 
 let run () =
-  let source = Sop.box ~label:"source" ~size:(Vec3.create 1. 1. 1.) () in
+  let source = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~label:"source" ~size:(Vec3.create 1. 1. 1.) () in
+  let metadata_schema = Parameter.schema ~name:"metadata_sharing" ~default:0.
+      [Parameter.field ~name:"value" ~kind:(Parameter.floating ~min:(-1.) ~max:1. ())
+        ~default:0. ~get:Fun.id ~set:(fun value _ -> value) ()] in
+  let metadata = List.hd (Parameter.view metadata_schema 0.) in
+  let signed = { metadata with name="signed"; current=Parameter.Float_value (-0.) }
+  and text = { metadata with name="text"; kind=Parameter.Text_view;
+    default=Parameter.Text_value (String.make 256 'a');
+    current=Parameter.Text_value (String.make 256 'a') } in
+  let fields = [metadata; signed; text] in
+  let factories = [
+    Edit_graph.factory ~fields ~key:"metadata" ~label:"Metadata"
+      ~category:["Test"] ~arity:0 (fun _ -> source);
+    Edit_graph.factory_slots ~fields ~key:"metadata_slots" ~label:"Metadata slots"
+      ~category:["Test"] ~inputs:[Edit_graph.Required] (fun _ -> source);
+  ] in
+  List.iter (fun factory -> match Edit_graph.factory_fields factory with
+    | [value; signed; text] ->
+        check (value.default == value.current && text.default == text.current)
+          "factory metadata retained duplicate immutable default values";
+        (match signed.current with
+         | Parameter.Float_value current ->
+             check (Int64.bits_of_float current = Int64.bits_of_float (-0.))
+               "factory metadata sharing changed signed-zero bits"
+         | _ -> fail "factory metadata sharing changed the value kind")
+    | _ -> fail "factory metadata sharing changed fields") factories;
   let middle = Sop.null ~label:"middle" source in
   let output = Sop.null ~label:"output" middle in
   let document = Edit_graph.of_graph output in
@@ -54,7 +79,7 @@ let run () =
     "editable graph node deletion did not leave an explicit disconnected slot";
   let box_factory = Edit_graph.factory ~key:"box" ~label:"Box"
       ~category:["Create"] ~arity:0 (function
-        | [] -> Sop.box ~size:(Vec3.create 1. 1. 1.) ()
+        | [] -> Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 1. 1. 1.) ()
         | _ -> assert false) in
   check (Edit_graph.factory_arity box_factory = 0
       && Result.is_ok (Edit_graph.instantiate box_factory []))
@@ -74,7 +99,7 @@ let run () =
       ~slots:["input"; "target"]
       ~label:"Match Size" ~category:["Modify"]
       ~inputs:[Edit_graph.Required; Optional] (function
-        | [Some input; target] -> Sop.match_size ?target input
+        | [Some input; target] -> Sop.match_size input target
         | _ -> invalid_arg "Match Size requires its geometry input") in
   check (Edit_graph.factory_slot_names match_size_factory = ["input"; "target"])
     "optional factory did not retain named input slots";
@@ -135,9 +160,38 @@ let run () =
       && List.length (Node.inputs (Edit_graph.compile_node rest_document
            ~node_id:(Node.id rest_node) |> get)) = 3)
     "rest slot did not grow, name its extras or rebuild through the factory";
+  let stored_rest = Edit_graph.find rest_document ~node_id:(Node.id rest_node) |> Option.get in
+  check (Edit_graph.compile_node rest_document ~node_id:(Node.id rest_node) |> get == stored_rest)
+    "compiling unchanged connected rest inputs rebuilt the stored node";
   let rest_document = Edit_graph.disconnect ~consumer:(Node.id rest_node)
       ~input_index:1 rest_document |> get in
   check (List.length (Node.inputs (Edit_graph.compile_node rest_document
       ~node_id:(Node.id rest_node) |> get)) = 2)
     "a disconnected rest input was not skipped";
+  let optional_rest_factory = Edit_graph.factory_slots ~key:"optional_rest" ~label:"Optional rest"
+    ~slots:["base";"fixed";"extras"] ~category:["Test"]
+    ~inputs:[Required;Optional;Optional_rest]
+    (fun inputs -> Sop.merge (List.filter_map Fun.id inputs)) in
+  check (Result.is_error (Edit_graph.instantiate_optional optional_rest_factory [Some source])
+    && Result.is_ok (Edit_graph.instantiate_optional optional_rest_factory [Some source;None])
+    && Result.is_ok (Edit_graph.instantiate_optional optional_rest_factory [Some source;None;None]))
+    "optional rest validates the fixed prefix and permits zero extras";
+  let optional_rest_node=Edit_graph.instantiate_optional optional_rest_factory [Some source;None] |> get in
+  let optional_rest_doc=Edit_graph.add_node ~factory:optional_rest_factory ~inputs:[|Some (Node.id source);None|]
+    optional_rest_node document |> get in
+  let optional_rest_doc=Edit_graph.connect ~source:(Node.id middle) ~consumer:(Node.id optional_rest_node)
+    ~input_index:2 optional_rest_doc |> get in
+  let optional_rest_doc=Edit_graph.connect ~source:(Node.id source) ~consumer:(Node.id optional_rest_node)
+    ~input_index:3 optional_rest_doc |> get in
+  check (Edit_graph.node_slot_names optional_rest_doc ~node_id:(Node.id optional_rest_node)
+      = Some ["base";"fixed";"extras";"extras_2"]
+    && List.length (Node.inputs (Edit_graph.compile_node optional_rest_doc
+      ~node_id:(Node.id optional_rest_node) |> get))=3)
+    "optional rest grows after a disconnected fixed slot";
+  let optional_rest_doc=Edit_graph.disconnect ~consumer:(Node.id optional_rest_node)
+    ~input_index:2 optional_rest_doc |> get
+    |> Edit_graph.disconnect ~consumer:(Node.id optional_rest_node) ~input_index:3 |> get in
+  let compiled_optional_rest=Edit_graph.compile_node optional_rest_doc ~node_id:(Node.id optional_rest_node) |> get in
+  check (Node.id compiled_optional_rest=Node.id optional_rest_node && List.length (Node.inputs compiled_optional_rest)=1)
+    "optional rest disconnect preserves identity and the fixed prefix";
   print_endline "editable graph tests passed"

@@ -269,6 +269,33 @@ let update m (frame : Frame.t) =
 let view m (frame : Frame.t) = Rays_editor.Editor3.scene m.env frame
 
 let () =
+  if Array.exists (( = ) "--check-workspace") Sys.argv then begin
+    let document = match Rays_editor.Workspace.load ~factories Sketch_source.text with
+      | Ok document -> document
+      | Error diagnostics ->
+          List.iter (fun diagnostic -> prerr_endline
+            (Flow.Diagnostic.report ~file:Sketch_source.path
+              ~source:Sketch_source.text diagnostic)) diagnostics;
+          exit 1 in
+    let graphs = match Rays_editor.Workspace.sop_graphs ~factories document with
+      | Ok graphs -> graphs
+      | Error message -> failwith message in
+    if graphs = [] then failwith "voxel_wall: no SOP graphs";
+    let context = Context.create ~seed:7L ~domains:1 () |> Result.get_ok in
+    let session = Session.create ~max_entries:24
+        ~max_payload_bytes:(256 * 1024 * 1024) |> Result.get_ok in
+    Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
+      List.iter (fun (name, graph) ->
+        match Session.cook session ~context graph with
+        | Error error -> failwith (name ^ ": " ^ Diagnostic.error_to_string error)
+        | Ok output ->
+            if Rdk.Geometry.point_count output.geometry = 0 then
+              failwith (name ^ ": empty geometry");
+            Printf.printf "%s: %d points, %d instances\n%!" name
+              (Rdk.Geometry.point_count output.geometry)
+              (Option.fold ~none:0 ~some:Array.length output.instances)) graphs);
+    exit 0
+  end;
   ignore (Sketch.run_state
     ~config:{ Sketch.default_config with width = 1280; height = 820; title = "Rays voxel wall"
             ; domains = Some 1 }

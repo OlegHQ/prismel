@@ -97,9 +97,9 @@ type t = {
       (** bindings directly in a zone body that do not depend on the loop
           variables or the accumulator (register L7, the "same each time"
           mark) *)
-  kind_fns : (string * (string * string list)) list;
-      (** a catalog kind used as a function value, as written: its qualified name and the
-          names of its inputs in order (empty for a kind that takes any number) *)
+  kind_fns : (string * (string * Check.slot list)) list;
+      (** A catalog kind used as a function value: its qualified name and
+          complete ordered slot signature, including a repeated final slot. *)
 }
 
 val max_iterations : int

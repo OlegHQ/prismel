@@ -161,6 +161,7 @@ let catalog_of_manifest source =
                     | "required" -> {name = string name; required = true; rest = false}
                     | "optional" -> {name = string name; required = false; rest = false}
                     | "rest" -> {name = string name; required = true; rest = true}
+                    | "optional-rest" -> {name = string name; required = false; rest = true}
                     | _ -> bad required "Unknown slot requirement")
               | _ -> bad slot "Malformed slot in Flow manifest") in
             let fields = List.map field (tagged "fields" (get "fields")) in

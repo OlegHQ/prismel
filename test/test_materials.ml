@@ -37,16 +37,20 @@ let signature geometry =
     | _ -> failwith "unexpected material attribute")
 
 let face_materials_preserve_explosion () =
-  let piece x id = Sop.box ~size:(Vec3.create 1. 1. 1.) ()
-      |> Sop.transform (Mat4.translation (Vec3.create x 0. 0.))
-      |> Sop.set_int ~owner:Rdk.Attribute.Primitive ~name:"piece" id in
+  let piece x id = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 1. 1. 1.) ()
+      |> (let migration_translation = Vec3.create x 0. 0. in
+fun migration_input ->
+  Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
+    ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z
+    migration_input)
+      |> Sop.set_int ~owner:Rdk.Attribute.Primitive ~name:"piece" ~value:id in
   let geometry = (cook 1 (Sop.merge [piece (-2.) 0; piece 2. 1])).geometry in
   let group = Rdk.Group.init ~owner:Rdk.Group.Primitive ~name:"one_face"
       (Rdk.Geometry.primitive_count geometry) (( = ) 0) in
   let node = Rdk.Geometry.with_group group geometry |> get |> Sop.snapshot
-      |> Sop.material ~name:"blue" ~color:(Vec3.create 0.15 0.43 0.96)
+      |> Sop.material ~material:"blue" ~color:(Vec3.create 0.15 0.43 0.96)
           ~roughness:0.3 ~emission:Vec3.zero
-      |> Sop.material ~group:"one_face" ~name:"white" ~color:(Vec3.create 1. 1. 1.)
+      |> Sop.material ~group:"one_face" ~material:"white" ~color:(Vec3.create 1. 1. 1.)
           ~roughness:0.8 ~emission:Vec3.zero
       |> Sop_catalog.Exploded_view.create ~amount:1. in
   let surface = cook 1 node |> Sketch_support.Surface.of_output |> get in

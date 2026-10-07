@@ -13,7 +13,9 @@ let parameters fields =
     | (field : Param.field_view) :: rest ->
         (match field.vec3 with
          | None -> group seen ({path = field.name; fields = [field];
-             ty = Flow.Port_type.of_field_kind field.kind} :: result) rest
+             ty = (match field.kind, field.current with
+               | Param.Choice_view _, Param.Int_value _ -> Some Flow.Port_type.Int
+               | _ -> Flow.Port_type.of_field_kind field.kind)} :: result) rest
          | Some (name, 0) when not (List.mem name names || List.mem name seen) ->
              (match rest with
               | y :: z :: rest when y.vec3 = Some (name,1) && z.vec3 = Some (name,2)
@@ -65,6 +67,11 @@ let normalize parameter value =
            | Param.Integer_view range -> Result.map (fun value ->
                Flow.Port_type.Int_value value, [field.name, Param.Int_value value])
                (Result.map_error (Flow.Diagnostic.error ~code:"E_TYPE") (Param.normalize_value (Param.Integer range) value))
+           | Param.Choice_view labels when (match field.current with Param.Int_value _ -> true | _ -> false) ->
+               Result.map (fun value ->
+                 Flow.Port_type.Int_value value, [field.name, Param.Int_value value])
+                 (Result.map_error (Flow.Diagnostic.error ~code:"E_TYPE")
+                   (Param.normalize_value (Param.Index_choice labels) value))
            | _ -> error "E_TYPE" ("Not an integer field: " ^ field.name))
       | [field], Flow.Port_type.Bool_value value -> Ok (Flow.Port_type.Bool_value value, [field.name, Param.Bool_value value])
       | [x;y;z], Flow.Port_type.Vec3_value (a,b,c) ->

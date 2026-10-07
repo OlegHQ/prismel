@@ -36,7 +36,7 @@ let cook evaluator graph =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.point_split ~selection:(Sop.Point_group "split_points")
+      |> Sop.point_split ~group_owner:Sop.Element_point ~group:"split_points"
            ~attributes:"uv" ~tolerance:1e-6 ~promote_attributes:true in
   let evaluator = session () in
   let output = cook evaluator graph in
@@ -45,9 +45,9 @@ let run () =
       || Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv" output <> None
   then fail "SOP promotion";
   if Node.operation graph <> "point_split"
-      || not (contains (Node.parameters graph) "selection=point:split_points")
+      || not (contains (Node.parameters graph) "group_owner=point;group=split_points")
       || not (contains (Node.parameters graph) "attributes=uv")
-      || not (contains (Node.parameters graph) "promote=true") then
+      || not (contains (Node.parameters graph) "promote_attributes=true") then
     fail "SOP cache identity";
   let misses = (Session.stats evaluator).misses in
   ignore (cook evaluator graph);
@@ -55,7 +55,7 @@ let run () =
     fail "stable SOP graph missed cache";
   Session.close evaluator;
   let group_graph = Sop.snapshot (source ())
-      |> Sop.point_split ~attributes:"seam_*" in
+      |> Sop.point_split ~tolerance:(1e-5) ~attributes:"seam_*" in
   let evaluator = session () in
   let group_output = cook evaluator group_graph in
   if Rdk.Geometry.point_count group_output <> 6 then
@@ -64,7 +64,7 @@ let run () =
     fail "SOP group-seam cache identity";
   Session.close evaluator;
   let missing = Sop.snapshot (source ())
-      |> Sop.point_split ~selection:(Sop.Vertex_group "missing") in
+      |> Sop.point_split ~tolerance:(1e-5) ~attributes:("") ~group_owner:Sop.Element_vertex ~group:"missing" in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context ()) missing with
    | Error error when error.Diagnostic.code = "missing_group" -> ()
@@ -72,7 +72,7 @@ let run () =
    | Ok _ -> fail "missing selection group accepted");
   Session.close evaluator;
   let missing_attribute = Sop.snapshot (source ())
-      |> Sop.point_split ~attributes:"missing" in
+      |> Sop.point_split ~tolerance:(1e-5) ~attributes:"missing" in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context ()) missing_attribute with
    | Error error when error.Diagnostic.code = "invalid_geometry" -> ()

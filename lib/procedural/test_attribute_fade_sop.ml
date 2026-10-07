@@ -52,23 +52,20 @@ let cook session context graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  Sop.snapshot (source ())
-  |> Sop.attribute_fade ~label:"timed-fade" ~group:"fade_points"
-       ~start_source:(Sop.snapshot (source ()))
-       ~hold_source:(Sop.snapshot (source ()))
-       ~start_attribute:"start" ~start_retime:(3., 0.75)
-       ~hold_scale_attribute:"hold" ~frame_offset:2.
-       ~fade_in:8. ~fade_hold:6. ~fade_out:16.
-       ~fade_in_ramp:[0.,0.;0.3,0.08;0.72,0.9;1.,1.]
-       ~fade_out_ramp:[0.,1.;0.25,0.96;0.65,0.18;1.,0.]
-       ~visualize:true
+  (Sop.attribute_fade ~label:"timed-fade" ~group:"fade_points"
+  ~start_attribute:"start" ~start_retime_offset:3. ~start_retime_scale:0.75
+  ~hold_scale_attribute:"hold" ~frame_offset:2. ~fade_in:8. ~fade_hold:6.
+  ~fade_out:16. ~fade_in_ramp:"0:0,0.3:0.08,0.72:0.9,1:1"
+  ~fade_out_ramp:"0:1,0.25:0.96,0.65:0.18,1:0" ~visualize:true
+  (Sop.snapshot (source ())) (Some (Sop.snapshot (source ())))
+  (Some (Sop.snapshot (source ()))))
 
 let run () =
   let graph = graph () in
   let parameters = Node.parameters graph in
   check (contains parameters "group=fade_points"
-      && contains parameters "start_source=true"
-      && contains parameters "hold_source=true"
+      && contains parameters "start_attribute=start"
+      && contains parameters "hold_scale_attribute=hold"
       && contains parameters "fade_in_ramp="
       && contains parameters "visualize=true")
     "Attribute Fade SOP cache identity omits controls";
@@ -104,13 +101,12 @@ let run () =
   check (one_color.x = four_color.x && one_color.y = four_color.y
       && one_color.z = four_color.z && one_color.w = four_color.w)
     "Attribute Fade SOP one/four-domain visualization differs";
-  let hold_only = Sop.snapshot (source ())
-      |> Sop.attribute_fade ~hold_source:(Sop.snapshot (source ()))
-           ~hold_scale_attribute:"hold" ~fade_in:0. ~fade_hold:1.
-           ~fade_out:1. in
+  let hold_only = (Sop.attribute_fade ~hold_scale_attribute:"hold" ~fade_in:0. ~fade_hold:1.
+  ~fade_out:1. (Sop.snapshot (source ())) None
+  (Some (Sop.snapshot (source ())))) in
   check (List.length (Node.inputs hold_only) = 2
-      && contains (Node.parameters hold_only) "start_source=false"
-      && contains (Node.parameters hold_only) "hold_source=true")
+      && contains (Node.parameters hold_only) "start_attribute=;"
+      && contains (Node.parameters hold_only) "hold_scale_attribute=hold")
     "Attribute Fade SOP hold-only input role identity is incorrect";
   let hold_only_session = Session.create ~max_entries:4
       ~max_payload_bytes:220_000_000 |> get in
@@ -122,13 +118,12 @@ let run () =
     | Ok value -> value | Error error -> fail (Error.to_string error) in
   check (Mesh.Private.packed_view one_mesh = Mesh.Private.packed_view four_mesh)
     "Attribute Fade SOP one/four-domain render mesh differs";
-  let missing = Sop.snapshot (source ())
-      |> Sop.attribute_fade ~group:"missing" in
-  let invalid = Sop.snapshot (source ())
-      |> Sop.attribute_fade ~fade_in:(-1.) in
-  let bad_reference = Sop.snapshot (source ())
-      |> Sop.attribute_fade ~start_source:(Sop.points [|(0.,0.,0.)|])
-           ~start_attribute:"start" in
+  let missing = (Sop.attribute_fade ~group:"missing" (Sop.snapshot (source ())) None None) in
+  check (try ignore (Sop.attribute_fade ~fade_in:(-1.) (Sop.snapshot (source ())) None None); false
+      with Invalid_argument _ -> true)
+    "Attribute Fade SOP refuses negative duration at construction";
+  let bad_reference = (Sop.attribute_fade ~start_attribute:"start" (Sop.snapshot (source ()))
+  (Some (Sop.points [|(0., 0., 0.)|])) None) in
   let session = Session.create ~max_entries:6 ~max_payload_bytes:220_000_000
       |> get in
   (match Session.cook session ~context:(context 1) missing with
@@ -139,6 +134,6 @@ let run () =
     | Error error -> check (error.code = "invalid_attribute_fade")
         "Attribute Fade SOP structured RDK diagnostic"
     | Ok _ -> fail "Attribute Fade SOP accepted invalid controls")
-    [invalid; bad_reference];
+    [bad_reference];
   Session.close session;
   print_endline "attribute fade SOP tests passed"

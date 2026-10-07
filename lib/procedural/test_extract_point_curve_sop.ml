@@ -65,7 +65,7 @@ let signature geometry =
 
 let static_node () = Sop.snapshot (source_geometry ())
     |> Sop.extract_point_from_curve ~label:"cuts"
-      ~cut:(Sop.Extract_point_primitive_attribute "cut")
+      ~cut:Sop.Extract_point_primitive_attribute ~primitive_attribute:"cut"
       ~distance_attribute:"distance" ~point_attributes:"weight"
       ~copy_primitive_attributes:true ~primitive_attributes:"material"
       ~curve_u_attribute:"u" ~number_cuts_attribute:"cuts"
@@ -123,7 +123,7 @@ let test_errors () =
     let rejected = try work (); false with Invalid_argument _ -> true in
     check rejected message in
   invalid (fun () -> ignore (Sop.extract_point_from_curve
-      ~cut:(Sop.Extract_point_constant Float.nan)
+      ~cut:Sop.Extract_point_constant ~constant:Float.nan
       ~distance_attribute:"distance" (Sop.snapshot (source_geometry ()))))
     "non-finite constant accepted";
   invalid (fun () -> ignore (Sop.extract_point_from_curve

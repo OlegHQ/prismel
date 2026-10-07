@@ -146,7 +146,7 @@ let test_morph_sketch () =
   (* an unwired Blend Shapes passes its input through *)
   let session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
       |> Result.get_ok in
-  let grid = Sop.grid ~rows:2 ~columns:2 ~size:1. () in
+  let grid = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~rows:2 ~columns:2 ~size:1. () in
   let idle = catalog_node "blend_shapes" [Some grid; None; None; None; None] [] in
   check (Node.operation idle = "blend_shapes"
       && positions (cook session idle) = positions (cook session grid))
@@ -321,8 +321,8 @@ let run ?(exhaustive = false) () =
   List.iter (fun node -> check (Node.has_parameters node)
       ("catalog node has no parameters: " ^ Node.label node))
     [ordinary_chain; List.hd (Node.inputs ordinary_chain)];
-  let plane = Sop_catalog.Grid.create ~label:"grid" ~columns:2 ~rows:2
-      ~size:3. ()
+  let plane = (Sop_catalog.Grid.create ~width:3. ~height:3. ~label:"grid" ~columns:2 ~rows:2
+  ~size:3. ())
     |> Sop_catalog.Mountain.create ~label:"mountain" ~seed:3 ~height:0.2
          ~frequency:(Vec3.create 0.2 1. 0.2) ~octaves:2 ~lacunarity:2.
          ~roughness:0.5 in
@@ -332,11 +332,10 @@ let run ?(exhaustive = false) () =
          ~location:Rdk.Attribute_ops.Noise_element_number
          ~frequency:(Vec3.create 0.2 0.2 0.2) ~octaves:2
     |> Sop_catalog.Point_jitter.create ~label:"jitter" ~seed:5 ~scale:0.1 in
-  let cutters = Sop_catalog.Copy_to_points.create ~label:"copy" ~source:plane
-      ~targets () in
+  let cutters = (Sop_catalog.Copy_to_points.create ~label:"copy" plane targets) in
   let graph = Sop_catalog.Boolean_fracture.create ~label:"fracture"
       ~cutters source
-    |> Sop_catalog.Exploded_view.create in
+    |> Sop_catalog.Exploded_view.create ~label:"exploded-view" in
   let fracture = List.hd (Node.inputs graph) in
   let orient = List.hd (Node.inputs targets) in
   let custom_noise = Sop_catalog.Attribute_noise_quaternion.create
@@ -405,21 +404,21 @@ let run ?(exhaustive = false) () =
   check (effects.cook && value.current = Parameter.Int_value 50)
     "catalog point count did not enforce its PPX hard maximum";
   let cube = Sop_catalog.Box.create ~label:"cube" ()
-  and dodecahedron = Sop_catalog.Platonic.create ~label:"dodecahedron"
+  and dodecahedron = Sop_catalog.Platonic.create ~normals:Rdk.Parametric_generators.Platonic_no_normals ~label:"dodecahedron"
       ~kind:Rdk.Parametric_generators.Platonic_dodecahedron ~radius:1. () in
   let switched = Sop_catalog.Switch.create ~label:"source-switch"
-      [cube; dodecahedron] in
+      cube dodecahedron [] in
   check (Node.operation switched = "switch" && Node.has_parameters switched)
     "catalog Switch is not the standard parameterized SOP switch";
   let switched, switch_effects = edit_parameters switched
       ~node_id:(Node.id switched)
-      ["input", Parameter.Choice_value "1 · dodecahedron"]
+      ["input", Parameter.Int_value 1]
       |> Result.get_ok in
   let switch_value = Node.parameter_fields switched
       |> List.find (fun field -> field.Parameter.name = "input") in
   check (switch_effects.cook
       && switch_value.current
-         = Parameter.Choice_value "1 · dodecahedron")
+         = Parameter.Int_value 1)
     "catalog Switch did not retain its selected labeled input";
   let session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
       |> Result.get_ok in
@@ -430,8 +429,8 @@ let run ?(exhaustive = false) () =
   check (Rdk.Geometry.primitive_count (cook session switched)
       = Rdk.Geometry.primitive_count (cook session dodecahedron))
     "catalog Switch did not cook the selected dodecahedron branch";
-  let replacement = Sop_catalog.Grid.create ~label:"replacement-grid"
-      ~columns:2 ~rows:2 ~size:1. () in
+  let replacement = (Sop_catalog.Grid.create ~width:1. ~height:1. ~label:"replacement-grid"
+  ~columns:2 ~rows:2 ~size:1. ()) in
   let document = Edit_graph.of_graph switched
       |> Edit_graph.add_node replacement |> Result.get_ok
       |> Edit_graph.connect ~source:(Node.id replacement)
@@ -444,11 +443,14 @@ let run ?(exhaustive = false) () =
         (String.equal "1 · replacement-grid") options
     | _ -> false)
     "rewiring a Switch did not rebuild its input-dependent parameter labels";
+  check (switch_field.current = Parameter.Int_value 1
+      && Node.parameter_key switched = Node.parameter_key rebuilt_switch)
+    "rewiring Switch labels must retain its integer selection and parameter key";
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 159
-      && List.length (List.sort_uniq String.compare factory_keys) = 159)
+  check (List.length factory_keys = 160
+      && List.length (List.sort_uniq String.compare factory_keys) = 160)
     "PPX SOP manifest has a missing or duplicate factory key";
   check (List.mem "material" factory_keys) "SOP editor catalog is missing material";
   check (not (List.mem "delete_attribute" factory_keys))
@@ -612,7 +614,7 @@ let run ?(exhaustive = false) () =
         "registered SOP %s could not be constructed: %s"
         (Edit_graph.factory_key factory) message))
     Sop_catalog.Editor.factories;
-  check (!vector_groups = 89) "catalog vector inventory changed";
+  check (!vector_groups = 101) "catalog vector inventory changed";
   (* Every cook-impact schema field of every registered SOP participates in
      the cache identity: perturbing any single field changes the node's
      parameter key, so a field forgotten by an operator's own key string can

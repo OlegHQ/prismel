@@ -23,8 +23,8 @@ let signature geometry =
 let run () =
   let source = Sop.snapshot (input ()) in
   let node = Sop.triangulate_2d ~label:"planar"
-      ~point_group:"square" ~projection:Rdk.Triangulate2d.Best_fit
-      ~seed:37L ~triangle_group:"triangles" source in
+      ~point_group:"square" ~projection:Sop.Triangulate_best_fit
+      ~seed:(Int64.to_int (37L)) ~triangle_group:"triangles" source in
   check (Node.operation node = "triangulate_2d" && Node.version node = 12
       && contains (Node.parameters node) "point_group=square"
       && contains (Node.parameters node) "constraint_edge_group="
@@ -42,8 +42,8 @@ let run () =
       && contains (Node.parameters node) "refine=false"
       && contains (Node.parameters node) "allow_constraint_splitting=true"
       && contains (Node.parameters node) "minimum_angle="
-      && contains (Node.parameters node) "maximum_area=none"
-      && contains (Node.parameters node) "target_edge_length=none"
+      && contains (Node.parameters node) "use_maximum_area=false"
+      && contains (Node.parameters node) "use_target_edge_length=false"
       && contains (Node.parameters node) "minimum_edge_length="
       && contains (Node.parameters node) "maximum_new_points=100000"
       && contains (Node.parameters node) "regularization_steps=0"
@@ -70,7 +70,7 @@ let run () =
         |> Result.get_ok in
     Rdk.Geometry.create ~positions ~topology () |> Result.get_ok in
   let kept_node = Sop.snapshot kept_source |> Sop.triangulate_2d
-      ~projection:Rdk.Triangulate2d.Plane_xy ~keep_primitives:true
+      ~projection:Sop.Triangulate_xy ~keep_primitives:true
       ~triangle_group:"generated" in
   check (contains (Node.parameters kept_node) "keep_primitives=true")
     "Triangulate 2D Keep Primitives is absent from identity";
@@ -84,7 +84,7 @@ let run () =
        "Triangulate 2D SOP Keep Primitives output group"
    | None -> fail "Triangulate 2D SOP Keep Primitives output group is missing");
   let projected_node = Sop.snapshot (input ()) |> Sop.triangulate_2d
-      ~point_group:"square" ~projection:Rdk.Triangulate2d.Plane_xy
+      ~point_group:"square" ~projection:Sop.Triangulate_xy
       ~restore_original_point_positions:false in
   check (contains (Node.parameters projected_node)
       "restore_original_point_positions=false")
@@ -98,8 +98,8 @@ let run () =
   let refinement_node = Rdk.Line_geometry.points
       [|0.,0.,0.;2.,0.,0.;2.,2.,0.;0.,2.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d
-          ~projection:Rdk.Triangulate2d.Plane_xy ~refine:true
-          ~maximum_area:0.3 ~maximum_new_points:64
+          ~projection:Sop.Triangulate_xy ~refine:true
+          ~maximum_area:0.3 ~use_maximum_area:true ~maximum_new_points:64
           ~regularization_steps:2
           ~refinement_point_group:"refined" in
   check (contains (Node.parameters refinement_node) "refine=true"
@@ -128,7 +128,7 @@ let run () =
       (fun _ -> true) in
   let constrained = Rdk.Geometry.with_group group constrained |> Result.get_ok in
   let constrained_node = Sop.snapshot constrained |> Sop.triangulate_2d
-      ~projection:Rdk.Triangulate2d.Plane_xy
+      ~projection:Sop.Triangulate_xy
       ~constraint_primitive_group:"constraint" ~constraint_group:"constraints" in
   let constrained_output = cook 1 constrained_node in
   let output_index = Rdk.Topology_index.create
@@ -150,7 +150,7 @@ let run () =
       ~name:"crossing_constraints" 2 (fun _ -> true) in
   let crossing = Rdk.Geometry.with_group crossing_group crossing |> Result.get_ok in
   let crossing_node = Sop.snapshot crossing |> Sop.triangulate_2d
-      ~projection:Rdk.Triangulate2d.Plane_xy
+      ~projection:Sop.Triangulate_xy
       ~constraint_primitive_group:"crossing_constraints"
       ~split_crossing_constraints:true ~split_point_group:"split"
       ~constraint_group:"constraints" in
@@ -168,7 +168,7 @@ let run () =
    | None -> fail "Triangulate 2D SOP split group is missing");
   let flood_node = Rdk.Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d
-          ~projection:Rdk.Triangulate2d.Plane_xy
+          ~projection:Sop.Triangulate_xy
           ~flood_from_hull_boundary:true in
   check (contains (Node.parameters flood_node) "flood_from_hull_boundary=true")
     "Triangulate 2D hull-flood policy is absent from identity";
@@ -176,7 +176,7 @@ let run () =
     "Triangulate 2D SOP did not apply hull flooding";
   let polygon_node = Rdk.Line_geometry.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d
-          ~projection:Rdk.Triangulate2d.Plane_xy
+          ~projection:Sop.Triangulate_xy
           ~remove_outside_constraint_polygons:true in
   check (contains (Node.parameters polygon_node)
       "remove_outside_constraint_polygons=true")
@@ -192,7 +192,7 @@ let run () =
         |> Result.get_ok in
     Rdk.Geometry.create ~positions ~topology () |> Result.get_ok in
   let silhouette_node = Sop.snapshot silhouette_geometry |> Sop.triangulate_2d
-      ~projection:Rdk.Triangulate2d.Plane_xy
+      ~projection:Sop.Triangulate_xy
       ~silhouette_constraints:true ~remove_outside_silhouette:true in
   check (contains (Node.parameters silhouette_node) "silhouette_constraints=true"
       && contains (Node.parameters silhouette_node)
@@ -201,7 +201,7 @@ let run () =
   check (Rdk.Geometry.primitive_count (cook 4 silhouette_node) = 4)
     "Triangulate 2D SOP silhouette removal cardinality";
   let ignored_node = Sop.snapshot silhouette_geometry |> Sop.triangulate_2d
-      ~projection:Rdk.Triangulate2d.Plane_xy ~silhouette_constraints:true
+      ~projection:Sop.Triangulate_xy ~silhouette_constraints:true
       ~ignore_non_constraint_points:true ~remove_unused_points:true in
   check (contains (Node.parameters ignored_node)
       "ignore_non_constraint_points=true"
@@ -220,7 +220,7 @@ let run () =
       duplicate_geometry |> Result.get_ok in
   let duplicate_node = Sop.snapshot duplicate_geometry |> Sop.triangulate_2d
       ~point_group:"selected_with_duplicate"
-      ~projection:Rdk.Triangulate2d.Plane_xy ~remove_duplicate_points:true in
+      ~projection:Sop.Triangulate_xy ~remove_duplicate_points:true in
   check (contains (Node.parameters duplicate_node) "remove_duplicate_points=true")
     "Triangulate 2D duplicate policy is absent from identity";
   let deduplicated = cook 4 duplicate_node in
@@ -241,6 +241,7 @@ let run () =
        "Triangulate 2D missing group diagnostic"
    | Ok _ -> fail "Triangulate 2D accepted missing group");
   Session.close session;
-  check (try ignore (Sop.triangulate_2d ~point_group:" " source); false
-    with Invalid_argument _ -> true) "Triangulate 2D accepted empty group";
+  (* Lisp contract: a blank group is no group *)
+  check (try ignore (Sop.triangulate_2d ~point_group:" " source); true
+    with Invalid_argument _ -> false) "Triangulate 2D refused a blank group";
   print_endline "triangulate 2d SOP tests passed"

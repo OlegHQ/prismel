@@ -184,7 +184,10 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
         row c ~ty:slot_ty ~kind:Rest ~head:(head_of i && j = 0)
           (if j = 0 then s.name else Printf.sprintf "%s %d" s.name (j + 1))
           (E.Pos (i + j)) (Some a))
-      |> fun rows -> rows @ [ add c ("+ " ^ s.name) (E.Pos (max npos i)) (Some slot_ty) ]
+      |> fun rows -> rows @ (match List.assoc_opt s.name kws with
+          | None -> []
+          | Some value -> [row c ~ty:slot_ty ~kind:Rest s.name (E.Kw s.name) (Some value)])
+          @ [ add c ("+ " ^ s.name) (E.Pos (max npos i)) (Some slot_ty) ]
     else match List.nth_opt pos i, List.assoc_opt s.name kws with
       | Some a, _ -> [ row c ~ty:slot_ty ~head:(head_of i) s.name (E.Pos i) (Some a) ]
       | None, Some a -> [ row c ~ty:slot_ty ~head:(head_of i) s.name (E.Kw s.name) (Some a) ]

@@ -1992,10 +1992,14 @@ module Inspector = struct
           let text, _ = Ui.value_field ui ~at:(x, y) ~w ~h:20. ?placeholder
               ~left:true ~valid:(fun _ -> true) key value in
           if text = value then [] else [Edited (field.name, Param.Text_value text)]
-      | Param.Choice_view choices, Param.Choice_value value ->
+      | Param.Choice_view choices, (Param.Choice_value _ | Param.Int_value _ as value) ->
           let box = Ui.box ui ~flags:Ui.(clickable + tab_stop + clip)
               ~at:(x, y) ~w:(Ui.Px w) ~h:(Ui.Px 20.) key in
-          let index = Option.value ~default:0 (Array.find_index (( = ) value) choices) in
+          let index = match value with
+            | Param.Int_value index -> index
+            | Param.Choice_value label ->
+                Option.value ~default:0 (Array.find_index (( = ) label) choices)
+            | _ -> assert false in
           on_choice field.Param.name box;
           let just_opened = (Ui.signal ui box).clicked in
           let open_ = just_opened || Ui.state ui box ~default:0 = 1 in
@@ -2023,7 +2027,9 @@ module Inspector = struct
              | `Pick selected ->
                  Ui.set_state ui box 0;
                  if selected = index then [] else
-                   [Edited (field.name, Param.Choice_value choices.(selected))])
+                   [Edited (field.name, match value with
+                     | Param.Int_value _ -> Param.Int_value selected
+                     | _ -> Param.Choice_value choices.(selected))])
       | Param.Toggle_view, Param.Bool_value value ->
           let edited = Ui.inspector_toggle_value ui ~key ~at:(x, y) value in
           if edited = value then [] else

@@ -38,15 +38,8 @@ let same_positions left right =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.transform_trs ~order:Transform_ops.Transform_str
-           ~rotation_order:Transform_ops.Transform_yzx
-           ~translate:(Vec3.create 1. 2. 3.)
-           ~rotate:(Vec3.create 0.2 (-0.3) 0.4)
-           ~scale:(Vec3.create 1.2 0.7 1.1)
-           ~shear:(Vec3.create 0.1 (-0.2) 0.3)
-           ~pivot:(Vec3.create 0.5 0.2 (-0.1))
-           ~selection:(Sop.Point_group "checker") in
-  check (contains (Node.parameters graph) "selection=point:checker"
+      |> (let migration_shear = Vec3.create 0.1 (-0.2) 0.3 in (fun migration_input -> Sop.transform_trs ~order:(Transform_ops.Transform_str) ~rotation_order:(Transform_ops.Transform_yzx) ~translate:(Vec3.create 1. 2. 3.) ~rotate:(Vec3.create 0.2 (-0.3) 0.4) ~scale:(Vec3.create 1.2 0.7 1.1) ~shear_xy:migration_shear.Vec3.x ~shear_xz:migration_shear.Vec3.y ~shear_yz:migration_shear.Vec3.z ~pivot:(Vec3.create 0.5 0.2 (-0.1)) ~group_owner:Sop.Element_point ~group:("checker") migration_input)) in
+  check (contains (Node.parameters graph) "group_owner=point;group=checker"
       && contains (Node.parameters graph) "preserve_normal_length=false"
       && contains (Node.parameters graph) "recompute_normals=false")
     "Transform graph omitted cache parameters";
@@ -59,8 +52,7 @@ let run () =
       && Int64.bits_of_float moved.z.(1) = Int64.bits_of_float original.z.(1))
     "Transform SOP moved an unselected point";
   let missing = Sop.snapshot (source ())
-      |> Sop.transform_trs ~translate:Vec3.unit_x
-           ~selection:(Sop.Point_group "missing") in
+      |> (fun migration_input -> (Sop.transform_trs ~translate:(Vec3.unit_x) ~group_owner:Sop.Element_point ~group:("missing")) migration_input) in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:64_000_000 |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "missing_group")

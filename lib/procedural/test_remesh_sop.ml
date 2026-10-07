@@ -9,7 +9,7 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+  Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~counts:Rdk.Plane_generators.Grid_point_counts
     ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
     ~columns:28 ~rows:22 ~size:8. ()
   |> Sop.remesh ~label:"isotropic-remesh" ~target_length:0.28 ~iterations:1
@@ -61,7 +61,7 @@ let run () =
   check (Rdk.Edge_group.cardinality hard
       = Rdk.Topology_index.boundary_edge_count index)
     "Remesh SOP hard-edge diagnostic is incomplete";
-  let missing = Sop.grid ~connectivity:Rdk.Plane_generators.Grid_triangles
+  let missing = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_triangles
       ~columns:4 ~rows:4 ~size:1. ()
       |> Sop.remesh ~target_length:0.2 ~hard_edge_group:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000
@@ -71,7 +71,7 @@ let run () =
        "Remesh SOP missing-group diagnostic"
    | Ok _ -> fail "Remesh SOP accepted a missing hard-edge group");
   Session.close session;
-  check (try ignore (Sop.grid ~columns:2 ~rows:2 ~size:1. ()
+  check (try ignore (Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:2 ~size:1. ()
       |> Sop.remesh ~target_length:0.2 ~output_quality:""); false
     with Invalid_argument _ -> true)
     "Remesh SOP accepted an empty output name";

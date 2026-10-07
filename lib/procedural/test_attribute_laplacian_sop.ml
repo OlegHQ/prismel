@@ -62,7 +62,7 @@ let run () =
       && Rdk.Geometry.positions one == Rdk.Geometry.positions geometry)
     "Attribute Laplacian SOP did not share source geometry";
   let missing = Sop.snapshot geometry
-      |> Sop.attribute_laplacian ~point_group:"missing" ~source:"P" in
+      |> Sop.attribute_laplacian ~output:("") ~point_group:"missing" ~source:"P" in
   let session = Session.create ~max_entries:2 ~max_payload_bytes:1_000_000
       |> get in
   let context = Context.create ~domains:1 () |> get in
@@ -72,16 +72,16 @@ let run () =
    | Ok _ -> fail "Attribute Laplacian accepted a missing point group");
   let curve = Rdk.Line_geometry.polyline ~closed:true
       [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] |> Result.get_ok |> Sop.snapshot
-      |> Sop.attribute_laplacian ~source:"P" in
+      |> Sop.attribute_laplacian ~output:("") ~source:"P" in
   (match Session.cook session ~context curve with
    | Error error -> check (error.code = "invalid_laplacian")
        "Attribute Laplacian malformed-surface diagnostic"
    | Ok _ -> fail "Attribute Laplacian accepted curve topology");
   Session.close session;
-  check (try ignore (Sop.attribute_laplacian ~point_group:" " ~source:"P"
+  check (try ignore (Sop.attribute_laplacian ~output:("") ~point_group:" " ~source:"P"
       (Sop.snapshot geometry)); false with Invalid_argument _ -> true)
     "Attribute Laplacian accepted an empty point group";
-  check (try ignore (Sop.attribute_laplacian ~source:" "
+  check (try ignore (Sop.attribute_laplacian ~output:("") ~source:" "
       (Sop.snapshot geometry)); false with Invalid_argument _ -> true)
     "Attribute Laplacian accepted an empty source";
   check (try ignore (Sop.attribute_laplacian ~source:"P" ~output:"P"

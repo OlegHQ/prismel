@@ -42,13 +42,13 @@ let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.blast_by_attribute ~group:"base" ~invert:true
            ~owner:Rdk.Blast_by_attribute.Blast_primitives ~attribute:"class"
-           ~mode:(Rdk.Blast_by_attribute.Blast_range { minimum = 250.; maximum = 750. })
-           ~output:(Rdk.Blast_by_attribute.Blast_group "picked") in
+           ~mode:Sop.Blast_range ~minimum:250. ~maximum:750.
+           ~output:Sop.Blast_group ~output_group:"picked" in
   let parameters = Node.parameters graph in
   check (contains parameters "owner=primitives"
       && contains parameters "attribute=class"
       && contains parameters "mode=range"
-      && contains parameters "output=group:picked"
+      && contains parameters "output=create_group;output_group=picked"
       && contains parameters "group=base"
       && contains parameters "invert=true")
     "Blast by Attribute SOP cache identity";
@@ -59,7 +59,7 @@ let run () =
   let deleted = Sop.snapshot (source ())
       |> Sop.blast_by_attribute ~remove_unused_points:true
            ~owner:Rdk.Blast_by_attribute.Blast_primitives ~attribute:"class"
-           ~mode:(Rdk.Blast_by_attribute.Blast_below 400.) ~output:Rdk.Blast_by_attribute.Blast_delete in
+           ~mode:Sop.Blast_below ~threshold:400. ~output:Sop.Blast_delete in
   let one = cook 1 deleted and four = cook 4 deleted in
   check (Geometry.point_count one = Geometry.point_count four
       && Geometry.vertex_count one = Geometry.vertex_count four
@@ -68,7 +68,7 @@ let run () =
   let missing = Sop.snapshot (source ())
       |> Sop.blast_by_attribute ~group:"missing"
            ~owner:Rdk.Blast_by_attribute.Blast_primitives ~attribute:"class"
-           ~mode:(Rdk.Blast_by_attribute.Blast_below 400.) ~output:Rdk.Blast_by_attribute.Blast_delete in
+           ~mode:Sop.Blast_below ~threshold:400. ~output:Sop.Blast_delete in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:90_000_000
       |> get in
   (match Session.cook session ~context:(context 1) missing with
@@ -77,8 +77,8 @@ let run () =
    | Ok _ -> fail "Blast by Attribute SOP accepted missing base group");
   let missing_attribute = Sop.snapshot (source ())
       |> Sop.blast_by_attribute ~owner:Rdk.Blast_by_attribute.Blast_points
-           ~attribute:"missing" ~mode:(Rdk.Blast_by_attribute.Blast_below 0.)
-           ~output:Rdk.Blast_by_attribute.Blast_delete in
+           ~attribute:"missing" ~mode:Sop.Blast_below ~threshold:0.
+           ~output:Sop.Blast_delete in
   (match Session.cook session ~context:(context 1) missing_attribute with
    | Error error -> check (error.code = "invalid_blast")
        "Blast by Attribute SOP missing-attribute diagnostic"

@@ -10,25 +10,29 @@ let cook session domains graph =
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =
-  let source = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+  let source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~counts:Rdk.Plane_generators.Grid_point_counts
       ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:64 ~rows:48 ~size:12. () in
-  let collision = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
-  Sop.boolean_detect ~label:"surface-crossings" ~collision
-    ~tolerance:1e-9 ~include_coplanar:false
-    ~intersecting_group:(Some "intersections")
-    ~intersections_attribute:"collision_primitives"
-    ~count_attribute:"intersection_count" source
+  let collision = (let migration_matrix = Mat4.rotation_x (Float.pi /. 2.) in
+Sop.transform ~mode:Sop.Transform_matrix
+  ~m11:(Mat4.get migration_matrix ~row:1 ~column:1)
+  ~m12:(Mat4.get migration_matrix ~row:1 ~column:2)
+  ~m21:(Mat4.get migration_matrix ~row:2 ~column:1)
+  ~m22:(Mat4.get migration_matrix ~row:2 ~column:2) source) in
+  (Sop.boolean_detect ~label:("surface-crossings") ~tolerance:(1e-9) ~include_coplanar:(false) ~intersecting_group:("intersections") ~intersections_attribute:("collision_primitives") ~count_attribute:("intersection_count") ~self_intersecting_group:"" (source) (Some (collision)))
 
 let self_graph () =
-  let source = Sop.grid ~counts:Rdk.Plane_generators.Grid_point_counts
+  let source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~counts:Rdk.Plane_generators.Grid_point_counts
       ~connectivity:Rdk.Plane_generators.Grid_alternating_triangles
       ~columns:48 ~rows:36 ~size:10. () in
-  let crossing = Sop.transform (Mat4.rotation_x (Float.pi /. 2.)) source in
+  let crossing = (let migration_matrix = Mat4.rotation_x (Float.pi /. 2.) in
+Sop.transform ~mode:Sop.Transform_matrix
+  ~m11:(Mat4.get migration_matrix ~row:1 ~column:1)
+  ~m12:(Mat4.get migration_matrix ~row:1 ~column:2)
+  ~m21:(Mat4.get migration_matrix ~row:2 ~column:1)
+  ~m22:(Mat4.get migration_matrix ~row:2 ~column:2) source) in
   Sop.merge [source; crossing]
-  |> Sop.boolean_detect ~label:"self-crossings" ~include_coplanar:false
-       ~self_intersections_attribute:"self_primitives"
-       ~self_count_attribute:"self_count"
+  |> (fun detect_source -> Sop.boolean_detect ~label:("self-crossings") ~include_coplanar:(false) ~self_intersections_attribute:("self_primitives") ~self_count_attribute:("self_count") detect_source None)
 
 let signature geometry =
   let rows = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
@@ -106,7 +110,7 @@ let test_identity_cache_and_parallel () =
   let self_graph = self_graph () in
   check (Node.operation self_graph = "boolean_detect"
       && List.length (Node.inputs self_graph) = 1
-      && contains (Node.parameters self_graph) "collision_input=false"
+      && contains (Node.parameters self_graph) "collision_group="
       && contains (Node.parameters self_graph)
            "self_intersecting_group=boolean_self_intersections")
     "Boolean Detect SOP one-input AxA identity";
@@ -118,9 +122,9 @@ let test_identity_cache_and_parallel () =
     "Boolean Detect SOP AxA scale fixture found no intersections"
 
 let test_diagnostics_and_constructor_validation () =
-  let source = Sop.grid ~columns:4 ~rows:4 ~size:2. ()
-  and collision = Sop.grid ~columns:4 ~rows:4 ~size:2. () in
-  let missing = Sop.boolean_detect ~source_group:"missing" ~collision source in
+  let source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:4 ~rows:4 ~size:2. ()
+  and collision = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:4 ~rows:4 ~size:2. () in
+  let missing = (Sop.boolean_detect ~source_group:("missing") ~self_intersecting_group:"" (source) (Some (collision))) in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:8_000_000
       |> get in
   (match Session.cook session ~context:(context 1) missing with
@@ -129,19 +133,16 @@ let test_diagnostics_and_constructor_validation () =
    | Ok _ -> fail "Boolean Detect SOP accepted a missing source group");
   Session.close session;
   let invalid thunk = try ignore (thunk ()); false with Invalid_argument _ -> true in
-  check (invalid (fun () -> Sop.boolean_detect ~collision
-      ~intersecting_group:None source))
+  check (invalid (fun () -> (Sop.boolean_detect ~intersecting_group:("") ~self_intersecting_group:"" (source) (Some (collision)))))
     "Boolean Detect SOP accepted no outputs";
-  check (invalid (fun () -> Sop.boolean_detect ~collision
-      ~intersections_attribute:"same" ~count_attribute:"same" source))
+  check (invalid (fun () -> (Sop.boolean_detect ~intersections_attribute:("same") ~count_attribute:("same") ~self_intersecting_group:"" (source) (Some (collision)))))
     "Boolean Detect SOP accepted conflicting output attributes";
-  check (invalid (fun () -> Sop.boolean_detect ~collision
-      ~intersecting_group:(Some "") source))
+  check (invalid (fun () -> (Sop.boolean_detect ~intersecting_group:("") ~self_intersecting_group:"" (source) (Some (collision)))))
     "Boolean Detect SOP accepted an empty output name";
-  check (invalid (fun () -> Sop.boolean_detect ~collision_group:"faces" source))
-    "Boolean Detect SOP accepted a collision group without collision input";
-  check (invalid (fun () -> Sop.boolean_detect ~collision
-      ~self_intersecting_group:(Some "boolean_intersections") source))
+  (* Lisp contract: the collision group is ignored with no collision input *)
+  check (not (invalid (fun () -> (Sop.boolean_detect ~collision_group:("faces") (source) None))))
+    "Boolean Detect SOP refused an ignored collision group";
+  check (invalid (fun () -> (Sop.boolean_detect ~self_intersecting_group:("boolean_intersections") (source) (Some (collision)))))
     "Boolean Detect SOP accepted colliding AxA/AxB group names"
 
 let run () =

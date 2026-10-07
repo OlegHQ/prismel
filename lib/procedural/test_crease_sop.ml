@@ -68,7 +68,7 @@ let run () =
   check (one_color.x = four_color.x && one_color.y = four_color.y
       && one_color.z = four_color.z && one_color.w = four_color.w)
     "Crease SOP one/four-domain colors differ";
-  let subdivided = graph |> Sop.subdivide ~scheme:Subdivide.Catmull_clark in
+  let subdivided = graph |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~scheme:(Subdivide.Catmull_clark) subdivision_source None) in
   let one_subdivided = cook_fresh subdivided 1
   and four_subdivided = cook_fresh subdivided 4 in
   let one_mesh = Rdk_rays.Rays_mesh.to_mesh one_subdivided |> function
@@ -79,24 +79,19 @@ let run () =
       = Rays.Mesh.Private.packed_view four_mesh)
     "Crease/Subdivide SOP one/four-domain render mesh differs";
   let missing = Sop.snapshot (source ()) |> Sop.crease ~group:"missing" in
-  let invalid = Sop.snapshot (source ())
-      |> Sop.crease ~group:"crease_edges" ~operation:Crease.Crease_set ~weight:(-1.) in
+  check (match Sop.crease ~group:"crease_edges" ~operation:Crease.Crease_set
+      ~weight:(-1.) (Sop.snapshot (source ())) with
+    | _ -> false | exception Invalid_argument _ -> true)
+    "Crease SOP refuses a negative weight at construction";
   let session = Session.create ~max_entries:4 ~max_payload_bytes:90_000_000
       |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "missing_group")
        "Crease SOP missing-group diagnostic"
    | Ok _ -> fail "Crease SOP accepted a missing edge group");
-  (match Session.cook session ~context:(context 1) invalid with
-   | Error error -> check (error.code = "invalid_crease")
-       "Crease SOP invalid-weight diagnostic"
-   | Ok _ -> fail "Crease SOP accepted a negative weight");
   Session.close session;
-  let delete_a = Sop.snapshot (source ())
-      |> Sop.crease ~operation:Crease.Crease_delete ~weight:1.
-  and delete_b = Sop.snapshot (source ())
-      |> Sop.crease ~operation:Crease.Crease_delete ~weight:Float.nan in
-  check (Node.parameters delete_a = Node.parameters delete_b
-      && contains (Node.parameters delete_a) "weight=ignored")
-    "Crease Delete retained an irrelevant weight in cache identity";
+  check (match Sop.crease ~operation:Crease.Crease_delete ~weight:Float.nan
+      (Sop.snapshot (source ())) with
+    | _ -> false | exception Invalid_argument _ -> true)
+    "Crease Delete refuses a non-finite weight at construction";
   print_endline "crease SOP tests passed"

@@ -46,12 +46,12 @@ let signature geometry =
 let run () =
   let source = Sop.snapshot (colored_source 20_000) in
   let graph = source |> Sop.graph_color ~label:"schedule-points"
-      ~selection:(Sop.Primitive_group "selected")
+      ~group_owner:Sop.Element_primitive ~group:"selected"
       ~connectivity:Rdk.Graph_color.Graph_points_by_primitive
       ~color_attribute:"schedule" in
   check (Node.operation graph = "graph_color" && Node.version graph = 1
       && Node.cook_mode graph = Node.Duplicate_input 0
-      && contains (Node.parameters graph) "selection=primitive:selected"
+      && contains (Node.parameters graph) "group_owner=primitive;group=selected"
       && contains (Node.parameters graph) "connectivity=points_by_primitive"
       && contains (Node.parameters graph) "color_attribute=schedule"
       && contains (Node.parameters graph) "sort_output=false")
@@ -70,7 +70,7 @@ let run () =
     "Graph Color SOP scale cardinality";
 
   let missing = Sop.snapshot (colored_source 1)
-      |> Sop.graph_color ~selection:(Sop.Point_group "missing") in
+      |> Sop.graph_color ~group_owner:Sop.Element_point ~group:"missing" in
   let session = Session.create ~max_entries:2 ~max_payload_bytes:1_000_000
       |> get in
   let context = Context.create ~domains:1 () |> get in
@@ -83,11 +83,11 @@ let run () =
     with Invalid_argument _ -> true)
     "Graph Color SOP accepted P as output";
   check (try ignore (Sop.graph_color
-      ~selection:(Sop.Point_group " ") source); false
+      ~group_owner:Sop.Element_point ~group:" " source); false
     with Invalid_argument _ -> true)
     "Graph Color SOP accepted an empty selection group";
   check (try ignore (Sop.graph_color
-      ~worksets:{Rdk.Graph_color.begin_attribute="begin";length_attribute="length"}
+      ~output_worksets:true ~workset_begin_attribute:"begin" ~workset_length_attribute:"length"
       source); false with Invalid_argument _ -> true)
     "Graph Color SOP accepted unsorted worksets";
   print_endline "graph color SOP tests passed"

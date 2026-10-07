@@ -23,7 +23,7 @@ One-input modifiers pipe naturally. Multi-input nodes use descriptive labels,
 for example `Sop.copy_to_points ~source:tree ~targets:points ()`. Familiar words
 are preferred in this layer (`attribute`, `primitive`, `geometry`); abbreviated
 HDK vocabulary remains available in the expert RDK namespace.
-Use `Sop.delete_attributes ~point_pattern:"tint"` to delete one point
+Use `Sop.delete_attributes ~point_pattern:"tint" input None` to delete one point
 attribute, or set patterns for several owners in one node. The editor uses the
 same `Delete Attributes` node; the old single-name node is removed.
 `Sop.rename_attributes ~rules:[...]` handles exact names and wildcard
@@ -68,7 +68,10 @@ hard bounds. Soft bounds never truncate typed, programmatic, initial, or
 persisted values; hard bounds normalize every write.
 
 `Node.parameterize` couples one schema, one immutable record, and the pure
-rebuild function to the concrete SOP node that owns them. `Node.parameter_fields`
+rebuild function to the concrete SOP node that owns them. Sessions hash the
+schema cook key plus any intrinsic operator identity, such as a snapshot's
+data id. Schema text used for inspection is excluded from that intrinsic key;
+custom wrappers retain their wrapped operator's identity. `Node.parameter_fields`
 is the narrow type-erasure boundary used by inspectors. `Edit_graph.apply_parameters`
 edits a selected node in the immutable document; compiling it preserves logical
 node IDs and shared DAG identity. A `Cook` field
@@ -139,27 +142,81 @@ independent canvas-wide shadow record.
 
 A SOP node is one declaration: its `parameters` record. With
 `[@@deriving sop_params, sop_node]` it yields the inspector schema, the Lisp
-manifest entry and the editor factory; with `[@@sop.fn "name"]` and
-`[@@sop.args "..."]` (the typed arguments in the `.mli`'s order, each a field,
-a `sop.vec3` group or an input slot) it also yields the typed
-`Procedural.Sop.name` constructor, so defaults, validation and cache identity
+manifest entry, editor factory and typed `Procedural.Sop.<key>` constructor.
+The typed arguments follow record order: optional fields, one `Vec3.t` per
+`sop.vec3` group, then positional input ports (or `()` for a generator).
+There is no separate function name, argument list or typed default override.
+Defaults, validation and cache identity therefore
 cannot drift between the API and the editor. Such declarations live in
 `lib/procedural` (`sop_groups.ml`, `sop_topology.ml`, `sop_attributes.ml`,
 `sop_shapes.ml`) next to their cooks; `Procedural.Nodes` exports their
 factories and `sop.ml` aliases their typed functions. A typed optional takes
-the editor default unless `[@sop.arg_default e]` says otherwise (every such
-override is a recorded drift); `[@sop.nonblank]` / `[@sop.validate]` make the
+the editor default. Parameter-free nodes declare `type parameters = unit`;
+the same derivation supplies an empty schema and the typed input-only
+constructor. Null and Compact Points use this path, with no artificial fields.
+An input-dependent inspector can supply `parameters_build ~schema`, deriving
+presentation from the constructed node while retaining the record's fields and
+defaults. The builder evaluates the operator once and refreshes that schema on
+edits and rewiring. Labeled index choices retain integer values and port types.
+Group Random and Noise Displace expose their existing `context_seed` switch:
+both default to explicit seed 0, while `context_seed:true` selects the cook
+context independently of whether a seed argument was supplied. Point Jitter's
+vector argument is `axis`; Point Velocity uses `set` and `add`; UV Sphere uses
+one `radius` vector alongside its three radius-mode choices, matching Lisp.
+PolyWire and Sweep Circle share one parameter record and cook, exposed as
+`sop/polywire` and `sop/sweep_circle` with distinct runtime identities. Their
+U/V range toggles preserve the kernel's meaningful omitted-range path; the
+Lisp defaults keep both ranges explicit. The typed APIs flatten endpoint and
+UV ranges and use the same defaults and validation as their factories.
+The ten recorded default drifts are settled; existing
+OCaml callers explicitly pass their former defaults. Box defaults to quads;
+Tube defaults to triangles with end caps. Box's normals choice includes Auto
+(`~normals:None`), which lets the kernel decide; the default remains Vertex.
+Bound exposes separate box/sphere resolution and grouped lower/upper padding;
+its numeric and output-name checks run before construction. Match Size exposes
+independent move/source/target selection owner and name fields, separate axis
+toggles and a positional optional target. Target justification defaults to
+Explicit zero; Auto inherits the source justification as the kernel does.
+Origin Point Generate exposes its generated group and source metadata names.
+Rewire Vertices defaults to deleting the target attribute, as in Lisp, and
+exposes selection owner/name fields. Distance Along Geometry and Distance from
+Target expose owner/name selections and a radius mode plus fixed radius.
+Distance from Geometry uses the same fields for source/reference selections
+and takes both nodes positionally.
+Revolve derives optional divisions, origin and axis, with blank UV names
+disabling output. Its resolution, axis, arc-span and cap-mode constraints
+run at construction for both typed and factory paths.
+Platonic exposes orientation choice and custom axis separately, defaulting to
+Dodecahedron and Vertex normals as in Lisp. Its catalog create entry aliases
+the derived typed constructor. Edge Transport takes the First/Last/Group root
+choice and defaults to Zero root value; constant integration or edge-length
+scaling requires Total mode for network, curve and parent transport alike.
+Blank distance output names disable that plane; at least one distance or mask
+output must remain. Their numeric, name and mode constraints run at construction.
+Material uses optional `material`, `color`, `roughness`, and `emission` fields
+with the Lisp defaults and rejects non-finite or out-of-range channels at
+construction. `[@sop.nonblank]` / `[@sop.validate]` make the
 typed constructor raise where the editor clamps; `[@sop.present]` /
 `[@sop.absent]` tie a toggle field to a typed optional's presence. The node's
 cache identity is the schema's `Parameter.cook_key`, and `Node.parameters`
-reads as `Parameter.cook_text` (`name=value;...`). A typed function the record
-cannot express (structured rdk arguments the record flattens, `Select.t`,
-closures, an optional whose absence means the kernel default) stays
-hand-written in `sop.ml` with its record in `rays.sop_catalog`;
-`tools/sop_merge` converts a pair and prints why it cannot.
+reads as `Parameter.cook_text` (`name=value;...`) unless the cook retains
+legacy diagnostic text; that text does not replace the schema cache key.
+Checks involving several fields or encoded values use
+`[@@sop.validate fun parameters -> ...]` on the record. The generated builder
+runs that pure check before constructing the operator, for both typed calls
+and factory rebuilds. Invalid editor writes return an error and retain the
+existing node. Extract Centroid, Ordered Group and Group by Normal use this
+for reserved names, negative indices and non-zero directions respectively.
+Delete Attributes takes its input and optional reference positionally. Curves
+and Parent edge transport default the root value to Zero, as in Lisp; callers
+that need the former OCaml default pass `Transport_root_hold` explicitly.
+Every node with a Lisp kind is declared this way; only helpers without one
+(`snapshot`, `points`, `polyline`, `group`, custom cooks) stay hand-written in
+`sop.ml`. A node writes no parameter text of its own: its inspection text and
+cache key are derived from the record. Switch keeps its `a` and `b` ports and
+takes further branches through the optional repeated `inputs` port.
 
-`rays.sop_catalog` registers every node and holds the records of the
-hand-written ones. A parameter type
+`rays.sop_catalog` registers every node and declares none. A parameter type
 uses `[@@deriving sop_params, sop_node]` together with stable key, runtime
 operation identity, label, category-path, and input-arity attributes. The
 operation defaults to the key; `sop.node_operation` records deliberate aliases.
@@ -321,13 +378,19 @@ Triangulate accepts an optional named primitive group, passes unselected
 polygon/curve primitives through exactly, and rejects a selected curve.
 Reverse accepts an optional named
 primitive group and either reverses winding or applies a signed cyclic corner
-shift. Missing groups become traced node diagnostics; group resolution,
+shift (`~operation:Sop.Shift ~shift:offset`, matching the two Lisp fields).
+Missing groups become traced node diagnostics; group resolution,
 validation, cancellation, normal policy, exact payload remapping, and
 parallelism remain owned by RDK rather than being reimplemented by the graph
 layer.
 
-`Sop.normals` exposes the same owner, weighting, cusp, typed component
-selection, zero-preservation, reversal, and override-name contract as RDK.
+`Sop.normals` exposes owner, weighting, cusp, zero-preservation, reversal,
+and override-name fields. Its Lisp defaults are Vertex output and Vertex-angle
+weighting; Point, Vertex, Primitive and Detail output are available. Normal,
+Peak, Bend and Clip select components with the same optional `group_owner`
+and `group` fields in Lisp and OCaml, with a blank name selecting the full
+input. Bend defaults to a Y capture direction, Z up vector, unit length and
+non-continuous twist. Clip defaults to preserving existing group membership.
 Its cache identity includes every control, and missing groups become traced
 diagnostics before the kernel is called. Procedural does not compute or cache a
 second set of normals.
@@ -400,8 +463,16 @@ source while a stable design shape supplies rest edge lengths, with all
 temporary constraint buffers confined to one cook.
 
 `Sop.blend_shapes` is a static multi-input morph node. Input zero remains the
-topology and payload owner; subsequent immutable `Sop.blend_shape` descriptors
-carry finite weights and optional source/shape mask overrides. The cook builds
+topology and payload owner. The shared declaration has four fixed optional shape
+ports and a repeated `shapes` port for unlimited additional targets. The extra
+`weights` table has one finite signed weight per row; missing rows use zero.
+The `shape_masks` table has three columns: one-based slot index, mask attribute,
+and mask source (`first` or `shape`). Blank cells inherit the global mask settings.
+Fixed slots keep indices 1–4 when disconnected; connected extras start at 5.
+Unused table rows remain available for later connections. Blank global names
+disable their optional controls. Tables, patterns and weights are validated at
+construction and every field participates in the schema/cache identity. Empty
+targets retain the node's own identity and unchanged cooked geometry. The cook builds
 integer/text point-ID maps only when requested, allocates every blended plane
 once, and applies targets in descriptor order while point ranges execute in
 parallel. No delta, ID, mask, or weight plane survives outside the completed
@@ -409,11 +480,16 @@ snapshot/session entry, so an iterative sketch can animate weights by building
 a new acyclic node without hidden history growth.
 
 `Sop.attribute_composite` is the general static multi-input attribute fold.
-Input zero owns topology and unselected payload; additional
-`Sop.attribute_composite_input` descriptors retain node role, stable order, and
-finite global weight. Independent owner patterns, first-input weight,
+Input zero owns topology and unselected payload. Four fixed optional layer
+ports retain their independent weights, followed by an optional repeated
+`layers` port for unlimited additional inputs. Its `weights` field is an
+escaped one-column table of finite signed weights in connected-input order;
+missing rows use 1 and unused rows remain available for later connections.
+The typed constructor and Lisp share that flat declaration. Independent owner patterns, first-input weight,
 Mean/Maximum/Minimum/Over/Under mode, optional alpha name, and explicit `P`
-eligibility all participate in node identity. Attribute discovery, packed
+eligibility all participate in the schema-derived node identity. Blank alpha
+names disable masking. Patterns and weights are validated at construction;
+attribute discovery, packed
 planes, alpha distribution, finite/cardinality validation, and normal
 invalidation live exclusively in RDK. No intermediate composite or denominator
 plane survives outside the completed immutable snapshot/session entry, making
@@ -604,7 +680,8 @@ The first coherent set includes:
   and output edge groups,
   Graph Color over typed promoted selections with point-clique, primitive-
   shared-point, or primitive-shared-polygon-edge connectivity, optional stable
-  color sorting and packed detail workset ranges,
+  color sorting and packed detail workset ranges (selection owner/name and
+  workset output/names are separate optional fields),
   Triangulate 2D over exact-predicate packed Delaunay topology with named point
   groups, native-edge and primitive-perimeter constraints, opt-in exact
   crossing construction/atomization, exact authored-point-on-constraint
@@ -706,7 +783,8 @@ The first coherent set includes:
   explicitly seeded point/vertex/primitive/native-edge chance selection with
   base restriction and packed merge algebra; Group Bounds provides inclusive
   box/sphere selection with full/partial primitive and geometric native-edge
-  containment; Group Normal provides geometric or explicit-attribute
+  containment, using separate shape, center, size, and radius fields with
+  finite/non-negative bounds checked at construction; Group Normal provides geometric or explicit-attribute
   direction/spread selection for points, primitives, and native edges with an
   optional opposite cap, while Group Non-Planar provides stable
   tolerance-based polygon selection and additive union composition; Group
@@ -745,7 +823,19 @@ The first coherent set includes:
   primitive-dual paths through contiguous ordered bases or start/end pairs,
   with stop/close endings, same-owner shared-element avoidance and collision
   exclusion/containment, and parallel independent routes;
-- attributes/groups: typed constant float/int/vector/quaternion/color creation,
+- attributes/groups: constant float/int/vector/quaternion/color creation;
+  float/int values, grouped Vec3 values and four quaternion channels take the
+  same optional defaults in Lisp and OCaml, with finite values checked at construction;
+  constant point transform matrices take 16 optional scalar entries, validated
+  as finite and affine; constant color takes a grouped Vec3 plus alpha;
+  Rest Position stores/extracts/swaps positions and optional normals, with a
+  positional optional reference input; Enumerate separates integer/text storage
+  from the text prefix;
+  Attribute Blur and Smooth take a mode plus separate Laplacian/custom step
+  sizes, with pattern/finite checks at construction. Smooth defaults to 10
+  iterations without normal recomputation. Attribute promotion keeps sources
+  by default. PolyFrame takes separate style/attribute and selection fields;
+  blank tangent/bitangent names disable those outputs;
   exact-name delete/rename plus atomic owner-pattern Attribute Delete with
   reference-name prepend and keep mode, ordered capture-pattern Attribute
   Rename with skip/error/overwrite conflicts, ordered owner-specific Attribute
@@ -754,7 +844,9 @@ The first coherent set includes:
   enumeration within typed groups with integer/text piece-element or stable
   piece-ID modes,
   planar/cylindrical/spherical vertex UV projection with primitive-group,
-  seam, pole, and range controls, point/vertex UV transforms, automatic native
+  seam, pole, and separate U/V range controls (the default planar axes are X/Z),
+  point/vertex UV transforms with separate U/V translation, scale and pivot fields,
+  height colors with separate RGBA channels at each endpoint, automatic native
   angle/partition/existing-UV seam groups with stable island IDs, and
   per-face/per-island UV unit fitting, seam-aware harmonic UV flattening, and
   boundary-preserving UV relaxation,
@@ -1242,3 +1334,38 @@ boundary), memoized per packed output so downstream cache keys keep hitting.
 Renderers draw packed results as instances (`Scene3.instances_array`, the
 path tracer's instance structures), so editing target attributes re-uploads
 transforms, never multiplied topology.
+
+Switch selection is the integer `:input` parameter. Its inspector presents
+input-dependent branch labels, while the parameter value, drive type and cook
+key retain the integer index when those labels change.
+
+Transform uses one declaration for TRS and Matrix modes. TRS remains the Lisp
+default; orders, shear, pivot, inversion and group selection are editable fields.
+Matrix mode exposes all sixteen matrix coefficients, with identity defaults.
+Both typed Transform entry points share this declaration and its defaults.
+
+Attribute Noise derives its typed arguments from its Lisp fields. Explicit
+seed zero is the default; context-seed mode retains its stable label stream
+and declares the Seed dependency. Sampling and range choices use flat enums,
+with grouped Vec3 bounds plus separate fourth components for quaternion ranges.
+
+Attribute Randomize's custom ramp, weighted numeric and weighted text
+distributions are Lisp choices. Ramps use comma-separated position:value knots;
+weighted tables use escaped tab-separated columns and newline-separated rows.
+Explicit selections use owner/name fields alongside the owner-matched group
+shorthand, and per-component limits supplement the existing scalar limits.
+Fraction sampling ignores seed controls, matching the Lisp factory.
+
+Attribute Interpolate shares Lisp's flat driver fields and defaults. Attribute
+rules are an escaped owner/source/target table; blank rules allow pattern-only
+transfer. Group patterns take precedence over exact names. Explicit weight
+drivers require a positive threshold, and computed arrays require the
+primitive/UVW driver with point or vertex numbers. Invalid controls fail at
+construction and inspector edits return the validation error.
+
+Attribute Transfer uses flat sampling and falloff controls with positional
+source/target inputs. `use_names` selects an escaped one-column name table;
+otherwise the existing attribute pattern applies. Explicit distance remains
+the Lisp default, while Auto enables unbounded transfer and detail ownership.
+Group patterns take precedence over exact names. Source vertex groups retain
+their all/any triangle-corner selection controls.

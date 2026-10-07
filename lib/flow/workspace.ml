@@ -49,7 +49,7 @@ type graph = { name : string; context : context;
   inputs : (string * Ty.t * term option) list; body : term; form : S.t }
 type t = { name : string; graphs : graph list; defs : graph list; macros : S.t list;
   source : S.t list; live : Paths.t; invariant : Paths.t;
-  kind_fns : (string * (string * string list)) list }
+  kind_fns : (string * (string * Check.slot list)) list }
 
 let max_iterations = 4096
 (* ponytail: a guard against exponential call-site typing, not a language limit. *)
@@ -834,8 +834,7 @@ let check catalog forms =
            | `Def _ -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Def_fn s) })
            | `Op o -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Op_fn o.oname) })
            | `Kind k ->
-               let slots = if List.exists (fun (s : Check.slot) -> s.rest) k.slots then []
-                 else List.map (fun (s : Check.slot) -> s.name) k.slots in
+               let slots = k.slots in
                if not (List.mem_assoc s !kind_fns) then kind_fns := (s, (k.qualified, slots)) :: !kind_fns;
                (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Kind_fn k) })
            | `Macro _ -> bad x "E_MACRO_AS_VALUE" (Printf.sprintf "%s is a macro; a macro is not a function value. Wrap it: (fn [a] (%s a))." s s)
@@ -1162,16 +1161,16 @@ let check catalog forms =
     end
 
   and apply_kind _cx x (k : Check.kind) (args : arg list) : term * v =
-    let rest_kind = List.exists (fun (s : Check.slot) -> s.rest) k.slots in
+    let rest_index = List.find_index (fun (s : Check.slot) -> s.rest) k.slots in
     let short = Check.short k.qualified in
     let nslots = List.length k.slots in
     let seen = Hashtbl.create 8 in
     let out = ref [] and npos = ref 0 and writes = ref [] in
     let groups_in = List.fold_left (fun g a -> union g a.av.groups) [] args in
     let slot_ty = slot_ty k in
-    let slot_arg a sname =
+    let slot_arg ?(repeated = false) a sname =
       if Ty.fits a.av.ty slot_ty then ()
-      else if rest_kind && (match a.av.ty with Ty.List e -> Ty.fits e Ty.Geometry | _ -> false) then begin
+      else if repeated && (match a.av.ty with Ty.List e -> Ty.fits e Ty.Geometry | _ -> false) then begin
         if a.av.live_len then
           err a.aform "E_TIME_COUNT" (Printf.sprintf
             "The list passed to %s changes length with t. The network keeps its shape while playing; animate parameters instead, for example scale a piece to 0." k.qualified)
@@ -1181,7 +1180,11 @@ let check catalog forms =
       | None ->
           let idx = !npos in
           incr npos;
-          if rest_kind then (slot_arg a "input"; out := ("input", a.aterm) :: !out)
+          if Option.fold ~none:false ~some:(fun first -> idx >= first) rest_index then begin
+            let slot = List.nth k.slots (Option.get rest_index) in
+            slot_arg ~repeated:true a slot.name;
+            out := (slot.name, a.aterm) :: !out
+          end
           else if idx >= nslots then
             err a.aform "E_EXTRA_POSITIONAL" (Printf.sprintf "%s takes %d geometry input%s; this one is extra" short nslots (plural nslots))
           else begin
@@ -1199,7 +1202,7 @@ let check catalog forms =
             Hashtbl.add seen n ();
             match List.find_opt (fun (s : Check.slot) -> s.name = n) k.slots,
                   List.find_opt (fun (p : Check.parameter) -> p.name = n) k.parameters with
-            | Some _, _ -> slot_arg a n; out := (n, a.aterm) :: !out
+            | Some slot, _ -> slot_arg ~repeated:slot.rest a n; out := (n, a.aterm) :: !out
             | None, Some p ->
                 if k.qualified = "sop/material" && n = "material" && a.av.ty = Ty.Material
                 then () else validate p a;
@@ -1215,9 +1218,8 @@ let check catalog forms =
                   @ List.map (fun (p : Check.parameter) -> p.name) k.parameters in
                 err a.aform "E_UNKNOWN_PARAM" (Printf.sprintf "%s has no parameter :%s.%s" short n (Check.suggestion n names))
           end) args;
-    if not rest_kind then
-      List.iter (fun (s : Check.slot) ->
-        if s.required && not (Hashtbl.mem seen s.name) then
+    List.iter (fun (s : Check.slot) ->
+        if s.required && not s.rest && not (Hashtbl.mem seen s.name) then
           if slot_ty = Ty.Geometry then
             out := (s.name, tm x Ty.Geometry Nil) :: !out
           else

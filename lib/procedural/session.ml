@@ -167,7 +167,7 @@ let set_volatile session predicate =
    shift. It avoids [Printf] and [string_of_int] on this per-node, per-cook
    path. *)
 let cache_key node context inputs =
-  let parameters = Node.parameters node
+  let parameters = Node.Private.cache_parameters node
   and parameter_key = Node.parameter_key node in
   let buffer = Buffer.create (64 + String.length parameters
       + String.length parameter_key + (8 * Array.length inputs)) in

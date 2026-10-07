@@ -1,7 +1,7 @@
 ; Voxel wall: a grid of points, each given a depth by the sketch's own Wall
 ; Depth SOP (fBm noise, defined in main.ml), a packed cube copied onto every
 ; point. The renderers and the Wall Depth node are OCaml; this is the document.
-(workspace voxel_wall
+^:allow-warnings (workspace voxel_wall
 
   (graph wall :context sop
     (let* [grid (sop/grid :orientation "XY" :connectivity "Triangles"

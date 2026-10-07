@@ -48,6 +48,7 @@ type _ kind =
   | Floating : float_range -> float kind
   | Text : string kind
   | Choice : 'a choice -> 'a kind
+  | Index_choice : string array -> int kind
   | Encoded : 'a encoding -> 'a kind
 
 type 'record field = Field : {
@@ -75,7 +76,7 @@ type value =
   | Choice_value of string
 
 (** Renderer-independent, type-erased metadata for one concrete parameter
-    instance. Choice values are represented by their public labels. *)
+    instance. Ordinary choices use public labels; index choices use [Int_value]. *)
 type kind_view =
   | Toggle_view
   | Integer_view of int_range
@@ -105,6 +106,10 @@ val floating :
   min:float -> max:float -> unit -> float kind
 
 val choice : equal:('a -> 'a -> bool) -> (string * 'a) list -> 'a kind
+
+val index_choice : string list -> int kind
+(** Labelled integer indices. Labels affect presentation; values and cache keys
+    retain the integer index. Empty or duplicate labels are rejected. *)
 
 val encoded :
   equal:('a -> 'a -> bool) ->
@@ -157,7 +162,7 @@ val key : 'record schema -> 'record -> string
 val cook_key : 'record schema -> 'record -> string
 
 (** The [Cook] fields as readable [name=value] pairs joined by [;]: a bool as
-    [true]/[false], an int as itself, a float as its IEEE bits, a text or
+    [true]/[false], an int as itself, a float as the shortest decimal that reads back exactly, a text or
     encoded value verbatim, a choice as its label lowercased with every other
     character [_]. [Node.parameters] of a parameterized node is this text. *)
 val cook_text : 'record schema -> 'record -> string
@@ -180,5 +185,6 @@ val apply_all :
   (string * value) list ->
   ('record * effects, string) result
 
-(** Validate and normalize every field in a record. *)
+(** Validate and normalize every field in a record, reusing the record when
+    normalization leaves its values (including float bits) unchanged. *)
 val normalize : 'record schema -> 'record -> ('record, string) result

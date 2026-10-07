@@ -59,6 +59,16 @@ let run () =
   let input, _, _ = step (frame [Event.WindowFocusLost; Event.PointerCancelled Input.RightButton]) in
   check (input.events = [Event.WindowFocusLost; Event.PointerCancelled Input.RightButton])
     "cancellation events were consumed";
+  let only_view ui = Ui.key (Ui.box ui ~flags:Ui.clickable ~at:(0., 0.)
+      ~w:(Ui.Px 160.) ~h:(Ui.Px 240.) "only-view") in
+  ignore (Ui.frame ui (frame []) only_view);
+  let unowned_click = [Event.MousePressed (Input.LeftButton, (200., 10.));
+      Event.MouseReleased (Input.LeftButton, (200., 10.))] in
+  let owner = Ui.frame ui (frame unowned_click) only_view in
+  check ((Ui.input ~owner ui).events = [Event.PointerCancelled Input.LeftButton])
+    "unowned pointer events escaped to an explicit viewport owner";
+  check ((Ui.input ui).events = unowned_click)
+    "default input lost unowned pointer events";
   let modal_y key =
     let row = Ui.frame ui (frame []) (fun ui -> Ui.modal ui key (fun () ->
       Ui.box ui ~h:(Ui.Px 24.) "row")) |> Option.get in

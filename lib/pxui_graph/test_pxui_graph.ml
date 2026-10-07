@@ -784,9 +784,9 @@ let run_scope () =
     check (s.nodes = nodes && s.zones = zones && s.rows = rows)
       (Printf.sprintf "%s/%s: pane counts %d/%d/%d" name graph s.nodes s.zones s.rows);
     check (s.drawn_items > 0 && s.drawn_zones <= s.zones) (name ^ ": nothing drawn"))
-    [ "bloom", "flower", 12, 1, 46; "sunflower", "sunflower", 9, 1, 27; "orrery", "orrery", 19, 1, 90;
-      "facade", "facade", 14, 2, 85; "kit", "kit", 16, 2, 56; "tree", "tree", 9, 1, 72;
-      "garland", "garland", 15, 3, 61; "wave", "wave", 7, 2, 41; "tiles", "tiles", 9, 1, 38 ];
+    [ "bloom", "flower", 12, 1, 84; "sunflower", "sunflower", 9, 1, 36; "orrery", "orrery", 19, 1, 113;
+      "facade", "facade", 14, 2, 89; "kit", "kit", 16, 2, 112; "tree", "tree", 9, 1, 184;
+      "garland", "garland", 15, 3, 86; "wave", "wave", 7, 2, 45; "tiles", "tiles", 9, 1, 67 ];
   (* the iteration selector: buttons and track are hit-tested boxes *)
   let w = load_workspace "sunflower" in
   let zone = [ "sunflower"; "seeds_each" ] in

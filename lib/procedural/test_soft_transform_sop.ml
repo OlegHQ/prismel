@@ -37,32 +37,29 @@ let same_output left right =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.soft_transform_trs ~metric:Rdk.Transform_ops.Soft_edge
+      |> Sop.soft_transform_trs ~metric:Sop.Soft_edge
            ~falloff:Rdk.Transform_ops.Soft_quadratic ~radius:3.5
            ~falloff_attribute:"soft_weight"
            ~translate:(Vec3.create 0. 1.2 0.)
            ~rotate:(Vec3.create 0. 0.25 0.)
-           ~selection:(Sop.Point_group "soft_seed") in
+           ~group:"soft_seed" in
   let parameters = Node.parameters graph in
   check (contains parameters "metric=edge" && contains parameters "falloff=quadratic"
-      && contains parameters "selection=point:soft_seed"
+      && contains parameters "group_owner=point;group=soft_seed"
       && contains parameters "falloff_attribute=soft_weight")
     "Soft Transform cache identity";
   let one = cook 1 graph and four = cook 4 graph in
   check (same_output one four) "Soft Transform SOP one/four-domain exactness";
   let missing = Sop.snapshot (source ())
       |> Sop.soft_transform_trs ~radius:2. ~translate:Vec3.unit_y
-           ~selection:(Sop.Point_group "missing") in
+           ~group:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:80_000_000 |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "missing_group")
        "Soft Transform missing-group diagnostic"
    | Ok _ -> fail "Soft Transform accepted missing group");
-  let invalid = Sop.snapshot (source ())
-      |> Sop.soft_transform_trs ~translate:(Vec3.create Float.nan 0. 0.) in
-  (match Session.cook session ~context:(context 1) invalid with
-   | Error error -> check (error.code = "invalid_transform")
-       "Soft Transform invalid-transform diagnostic"
-   | Ok _ -> fail "Soft Transform accepted a non-finite transform");
+
+  check (try ignore (Sop.soft_transform_trs ~translate:(Vec3.create Float.nan 0. 0.) (Sop.snapshot (source ())));
+      false with Invalid_argument _ -> true) "Soft Transform refuses non-finite transform at construction";
   Session.close session;
   print_endline "soft transform SOP tests passed"

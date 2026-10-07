@@ -1,4 +1,3 @@
-open Rays
 open Procedural
 
 let fail message = prerr_endline ("test_duplicate_sop: " ^ message); exit 1
@@ -51,7 +50,7 @@ let run () =
   let graph = Sop.snapshot (source ())
       |> Sop.duplicate ~label:"duplicate-test" ~copies:2 ~group:"right"
            ~copy_group_prefix:"copy_"
-           ~transform:(Mat4.translation (Vec3.create 10. 0. 0.)) in
+           ~m03:10. ~m13:0. ~m23:0. in
   if Node.operation graph <> "duplicate"
       || not (contains (Node.parameters graph) "group=right")
       || not (contains (Node.parameters graph) "copy_group_prefix=copy_")

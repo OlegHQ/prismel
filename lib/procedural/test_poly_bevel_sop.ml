@@ -27,7 +27,7 @@ let with_edges geometry =
 let run () =
   let graph = Sop.snapshot (with_edges (source ()))
       |> Sop.poly_bevel ~group:"bevel_edges"
-           ~shape:(Rdk.Poly_bevel.Bevel_round { convexity = 0.75 }) ~divisions:3
+           ~shape:Sop.Poly_round ~convexity:0.75 ~divisions:3
            ~distance:0.2 ~edge_group:"edge_fillets"
            ~corner_group:"corner_fillets" ~offset_group:"offset_edges" in
   let evaluator = session () in
@@ -49,7 +49,7 @@ let run () =
           | None -> true) then
     fail "PolyBevel SOP output groups";
   if Node.operation graph <> "poly_bevel"
-      || not (contains (Node.parameters graph) "shape=round:")
+      || not (contains (Node.parameters graph) "shape=round;")
       || not (contains (Node.parameters graph) "divisions=3")
       || not (contains (Node.parameters graph) "distance=") then
     fail "PolyBevel SOP cache identity";

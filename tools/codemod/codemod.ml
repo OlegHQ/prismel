@@ -1275,15 +1275,20 @@ let rename_text old fresh =
   let pairs = List.map2 (fun o n -> Str.regexp_string o, n) (cases old) (cases fresh) in
   fun s -> List.fold_left (fun s (o, n) -> Str.global_substitute o (fun _ -> n) s) s pairs
 
+let replace_text old fresh = Str.global_substitute (Str.regexp_string old) (fun _ -> fresh)
+
 let rename_self_test () =
   assert (rename_text "foo" "bar" "Foo_x FOO_Y lib/foo/foo.ml food" = "Bar_x BAR_Y lib/bar/bar.ml bard");
+  assert (replace_text "Sop.f ~x:Rdk.X" "Sop.f ~x:(Sop.Owner Rdk.X)"
+    "Sop.f ~x:Rdk.X; sop.f ~x:rdk.x"
+    = "Sop.f ~x:(Sop.Owner Rdk.X); sop.f ~x:rdk.x");
   print_endline "rename: ok"
 
 (* Rewrites the contents and the path of every text file git tracks or would
    track; binary files only move. Nothing is staged, so [git status] reviews
    it and [git add -A] accepts it. *)
-let rename ~dry old fresh =
-  let sub = rename_text old fresh in
+let rename ?(exact = false) ~dry old fresh =
+  let sub = if exact then replace_text old fresh else rename_text old fresh in
   let listing = Filename.temp_file "codemod" ".files" in
   if Sys.command ("git ls-files -z --cached --others --exclude-standard > " ^ Filename.quote listing) <> 0 then exit 1;
   let files = String.split_on_char '\000' (read_file listing)
@@ -1360,6 +1365,8 @@ let () =
   | [ "drop-unused" ] ->
       Printf.printf "%d removed\n" (drop_unused (In_channel.input_all stdin))
   | [ "rename"; "--self-test" ] -> rename_self_test ()
+  | [ "rename"; "--exact"; "--dry-run"; old; fresh ] -> rename ~exact:true ~dry:true old fresh
+  | [ "rename"; "--exact"; old; fresh ] -> rename ~exact:true ~dry:false old fresh
   | [ "rename"; "--dry-run"; old; fresh ] -> rename ~dry:true old fresh
   | [ "rename"; old; fresh ] -> rename ~dry:false old fresh
   | _ ->

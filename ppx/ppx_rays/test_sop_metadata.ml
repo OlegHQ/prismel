@@ -29,9 +29,43 @@ let node key slots = Printf.sprintf
     "[@@sop.node_key %S] [@@sop.node_label \"Fixture\"]\n\
      [@@sop.node_category \"Test\"] [@@sop.node_inputs 2] %s" key slots
 
+let floating_calls declaration =
+  let count = ref 0 in
+  let visitor = object
+    inherit Ast_traverse.iter as super
+    method! expression expression =
+      (match expression.pexp_desc with
+       | Pexp_apply ({pexp_desc=Pexp_ident {txt=Longident.Ldot
+           (Longident.Ldot (Longident.Lident "Procedural", "Parameter"), "floating"); _}; _}, _) ->
+           incr count
+       | _ -> ());
+      super#expression expression
+  end in
+  List.iter visitor#structure_item (Ppx_rays.generate_type declaration);
+  !count
+
 let () =
+  let lexbuf = Lexing.from_string
+      "type parameters = unit [@@sop.node_key \"empty\"] [@@sop.node_label \"Empty\"]
+       [@@sop.node_category \"Test\"] [@@sop.node_inputs 1]
+" in
+  let unit_declaration = match Parse.implementation lexbuf with
+    | [{ pstr_desc = Pstr_type (_, [declaration]); _ }] -> declaration
+    | _ -> assert false in
+  assert (List.length (Ppx_rays.generate_type unit_declaration) = 2);
+  ignore (Ppx_rays.generate_node_type unit_declaration);
+  assert (Ppx_rays.node_arguments unit_declaration ["in0"] =
+    [Ppx_rays.Arg_positional "in0"]);
   let valid = declaration vector "" in
   assert (List.length (Ppx_rays.generate_type valid) = 2);
+  assert (floating_calls valid = 1);
+  let pair minimum_a minimum_b = declaration
+      (Printf.sprintf
+        "a : float [@sop.default 0.] [@sop.min %s] [@sop.max 1.];\n\
+         b : float [@sop.default 0.] [@sop.min %s] [@sop.max 1.];"
+        minimum_a minimum_b) "" in
+  assert (floating_calls (pair "(-0.)" "0.") = 2);
+  assert (floating_calls (pair "(computed_min ())" "(computed_min ())") = 2);
   let bad_vector = "sop.vec3 \"center\" requires exactly three consecutive float fields in one folder" in
   List.iter (fun fields -> reject bad_vector (fun () ->
       Ppx_rays.generate_type (declaration fields "")))
@@ -66,9 +100,28 @@ let () =
       (node "fixture" "[@@sop.node_slots \"center, target\"]")));
   reject "sop.node_slots name \"in0\" clashes with a parameter name" (fun () ->
     Ppx_rays.node_metadata (declaration (float "in0" "" "") (node "fixture" "")));
-  let _, _, _, _, _, _, slots = Ppx_rays.node_metadata
+  let _, _, _, _, _, _, slots, _ = Ppx_rays.node_metadata
       (declaration vector (node "fixture" "")) in
   assert (slots = ["in0"; "in1"]);
-  let _, _, _, _, _, _, slots = Ppx_rays.node_metadata
+  let _, _, _, _, _, _, slots, _ = Ppx_rays.node_metadata
       (declaration vector (node "fixture" "[@@sop.node_slots \"input, target\"]")) in
-  assert (slots = ["input"; "target"])
+  assert (slots = ["input"; "target"]);
+  List.iter (fun attributes -> reject
+      "sop.node_rest must name the final slot after required inputs" (fun () ->
+        Ppx_rays.node_metadata (declaration vector (node "fixture" attributes))))
+    ["[@@sop.node_rest 0]"; "[@@sop.node_rest 2]";
+     "[@@sop.node_rest 1] [@@sop.node_optional \"0\"]"];
+  let rest = declaration vector (node "fixture"
+      "[@@sop.node_rest 1]") in
+  let _, _, _, _, _, _, _, rest_slot = Ppx_rays.node_metadata rest in
+  assert (rest_slot = Some 1);
+  assert (Ppx_rays.node_arguments rest ["in0";"in1"] =
+    [Ppx_rays.Arg_optional "center";Arg_positional "in0";Arg_positional "in1"]);
+  assert (Ppx_rays.node_arguments rest [] = [Ppx_rays.Arg_optional "center";Arg_unit]);
+  ignore (Ppx_rays.generate_node_type rest)
+;
+  let optional_rest=declaration vector (node "fixture"
+    "[@@sop.node_rest 1] [@@sop.node_optional \"0,1\"]") in
+  let _,_,_,_,_,optional,_,rest_slot=Ppx_rays.node_metadata optional_rest in
+  assert (optional=[0;1] && rest_slot=Some 1);
+  ignore (Ppx_rays.generate_node_type optional_rest)

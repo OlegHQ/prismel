@@ -54,14 +54,14 @@ let signature geometry =
 
 let run () =
   let source = Sop.snapshot (loop_geometry 2_000 16) in
-  let graph = source |> Sop.circle_from_edges ~label:"fit-loops"
+  let graph = source |> Sop.circle_from_edges ~use_radius:true ~label:"fit-loops"
       ~group:"loops" ~radius:1.5 ~scale:(Vec3.create 1. 0.75 1.)
       ~output_group:"fitted" in
   check (Node.operation graph = "circle_from_edges" && Node.version graph = 1
       && Node.cook_mode graph = Node.Duplicate_input 0
       && contains (Node.parameters graph) "group=loops"
-      && contains (Node.parameters graph) "radius=some:"
-      && contains (Node.parameters graph) "scale="
+      && contains (Node.parameters graph) "use_radius=true;radius="
+      && contains (Node.parameters graph) "scale_x="
       && contains (Node.parameters graph) "output_group=fitted")
     "Circle from Edges SOP identity omits behavior parameters";
   let session = Session.create ~max_entries:8 ~max_payload_bytes:80_000_000
@@ -92,7 +92,7 @@ let run () =
   check (try ignore (Sop.circle_from_edges ~group:" " source); false
     with Invalid_argument _ -> true)
     "Circle from Edges SOP accepted an empty group";
-  check (try ignore (Sop.circle_from_edges ~radius:0. source); false
+  check (try ignore (Sop.circle_from_edges ~use_radius:true ~radius:0. source); false
     with Invalid_argument _ -> true)
     "Circle from Edges SOP accepted a zero radius";
   check (try ignore (Sop.circle_from_edges

@@ -36,14 +36,14 @@ let cook evaluator domains graph =
 let run () =
   let custom = Sop.points [|(0.,0.,0.); (0.,0.,1.)|] in
   let graph = Sop.snapshot (source ())
-      |> Sop.point_replicate ~label:"replicate-test" ~group:"emit" ~seed:71
-           ~shape:Rdk.Point_replication.Replicate_custom ~custom_shape:custom
+      |> (fun replication_source -> Sop.point_replicate ~label:"replicate-test" ~group:"emit" ~seed:71
+           ~shape:Rdk.Point_replication.Replicate_custom
            ~generated_group:"cloud" ~keep_source_attributes:true
            ~transform_attributes:"flow"
            ~quasi_stratified:true ~noise_seed:72
-           ~noise_amplitude:(Rays.Vec3.create 0.1 0.15 0.2)
+           ~use_noise:true ~noise_amplitude:(Rays.Vec3.create 0.1 0.15 0.2)
            ~noise_turbulence:2 ~points_per_point:2.
-           ~scale_attribute:"density" in
+           ~scale_attribute:"density" replication_source (Some custom)) in
   let evaluator = session () in
   let output = cook evaluator 4 graph in
   if Rdk.Geometry.point_count output <> 4
@@ -62,9 +62,9 @@ let run () =
   if Node.operation graph <> "point_replicate"
       || not (contains (Node.parameters graph) "group=emit")
       || not (contains (Node.parameters graph) "shape=custom")
-      || not (contains (Node.parameters graph) "custom_shape=true")
+      || not (contains (Node.parameters graph) "shape=custom")
       || not (contains (Node.parameters graph) "transform_attributes=flow")
-      || not (contains (Node.parameters graph) "quasi=true")
+      || not (contains (Node.parameters graph) "quasi_stratified=true")
       || not (contains (Node.parameters graph) "noise_turbulence=2") then
     fail ("cache identity: " ^ Node.parameters graph);
   let misses = (Session.stats evaluator).misses in
@@ -73,7 +73,7 @@ let run () =
   Session.close evaluator;
 
   let missing_group = Sop.snapshot (source ())
-      |> Sop.point_replicate ~group:"absent" ~points_per_point:1. in
+      |> (fun replication_source -> Sop.point_replicate ~group:"absent" ~points_per_point:1. replication_source None) in
   let evaluator = session () in
   (match Session.cook evaluator ~context:(context 1) missing_group with
    | Error error when error.Diagnostic.code = "missing_group" -> ()

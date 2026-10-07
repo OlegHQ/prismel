@@ -59,6 +59,7 @@ let cancel_token value = value.cancel
 let cancelled value = Cancel.is_cancelled value.cancel
 
 let cache_projection dependencies value =
+  if dependencies = Dependencies.static then "" else
   let buffer = Buffer.create 80 in
   let add tag data =
     Buffer.add_char buffer tag;

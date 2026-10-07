@@ -34,17 +34,14 @@ let float_attribute name geometry =
 
 let run () =
   let graph = Sop.snapshot (source ())
-      |> Sop.distance_along_geometry
-           ~start:(Sop.Point_group "distance_start")
-           ~affected:(Sop.Point_group "distance_affected")
-           ~falloff:Rdk.Transform_ops.Soft_cubic
-           ~radius:(Rdk.Transform_ops.Distance_fixed 3.5)
-           ~distance_attribute:(Some "edge_distance") ~mask_attribute:"mask" in
+      |> Sop.distance_along_geometry ~start_group:"distance_start" ~affected_group:"distance_affected"
+           ~falloff:Rdk.Transform_ops.Soft_cubic ~radius_mode:Sop.Radius_fixed ~radius:3.5
+           ~distance_attribute:"edge_distance" ~mask_attribute:"mask" in
   let parameters = Node.parameters graph in
-  check (contains parameters "start=point:distance_start"
-      && contains parameters "affected=point:distance_affected"
+  check (contains parameters "start_owner=point;start_group=distance_start"
+      && contains parameters "affected_owner=point;affected_group=distance_affected"
       && contains parameters "falloff=cubic"
-      && contains parameters "radius=fixed:"
+      && contains parameters "radius_mode=fixed;radius="
       && contains parameters "distance_attribute=edge_distance"
       && contains parameters "mask_attribute=mask")
     "Distance Along Geometry cache identity";
@@ -55,7 +52,7 @@ let run () =
            (float_attribute "mask" four))
     "Distance Along Geometry SOP one/four-domain exactness";
   let missing = Sop.snapshot (source ())
-      |> Sop.distance_along_geometry ~start:(Sop.Point_group "missing") in
+      |> Sop.distance_along_geometry ~start_group:"missing" in
   let session = Session.create ~max_entries:4 ~max_payload_bytes:80_000_000 |> get in
   (match Session.cook session ~context:(context 1) missing with
    | Error error -> check (error.code = "missing_group")

@@ -33,19 +33,19 @@ let rec counts (s : P.scope) =
     (0, 0, 0) s.nodes
 
 let snapshot = [
-  "bloom", [ "flower", (12, 1, 46); "scene", (5, 0, 44); "world", (3, 0, 24); "settings", (2, 0, 6);
-             "editor", (10, 0, 29); "half", (1, 0, 2); "petal", (2, 0, 19) ];
-  "facade", [ "facade", (14, 2, 85) ];
-  "garland", [ "garland", (15, 3, 61); "ring", (1, 0, 2) ];
-  "kit", [ "kit", (16, 2, 56); "window", (3, 0, 30) ];
-  "orrery", [ "orrery", (19, 1, 90) ];
-  "rosette", [ "rosette", (4, 0, 29) ];
-  "sunflower", [ "sunflower", (9, 1, 27) ];
-  "tiles", [ "tiles", (9, 1, 38) ];
-  "tree", [ "tree", (9, 1, 72) ];
-  "tunnel", [ "rings", (4, 1, 29) ];
-  "variations", [ "garden", (6, 0, 57); "scene", (1, 0, 8); "editor", (8, 0, 22) ];
-  "wave", [ "wave", (7, 2, 41) ];
+  "bloom", [ "flower", (12, 1, 84); "scene", (5, 0, 44); "world", (3, 0, 24); "settings", (2, 0, 6);
+             "editor", (10, 0, 29); "half", (1, 0, 2); "petal", (2, 0, 53) ];
+  "facade", [ "facade", (14, 2, 89) ];
+  "garland", [ "garland", (15, 3, 86); "ring", (1, 0, 4) ];
+  "kit", [ "kit", (16, 2, 112); "window", (3, 0, 30) ];
+  "orrery", [ "orrery", (19, 1, 113) ];
+  "rosette", [ "rosette", (4, 0, 32) ];
+  "sunflower", [ "sunflower", (9, 1, 36) ];
+  "tiles", [ "tiles", (9, 1, 67) ];
+  "tree", [ "tree", (9, 1, 184) ];
+  "tunnel", [ "rings", (4, 1, 61) ];
+  "variations", [ "garden", (6, 0, 70); "scene", (1, 0, 8); "editor", (8, 0, 22) ];
+  "wave", [ "wave", (7, 2, 45) ];
 ]
 
 let snapshots () =
@@ -87,9 +87,10 @@ let rows () =
     "a nested node is titled by its kind";
   (* a call: a rest slot with its add row, chips *)
   let bloom = node w "flower" [ "bloom" ] in
-  check (kinds bloom = [ "input", P.Rest; "+ input", P.Add ]) "merge is one rest slot and an add row";
+  check (kinds bloom = [ "input", P.Rest; "+ input", P.Add; "source_attribute", P.Arg; "source_base", P.Arg ])
+    "merge is one rest slot, an add row, then its parameters";
   (match bloom.rows with
-   | [ a; add ] ->
+   | a :: add :: _ ->
        check (a.key = E.Pos 0 && a.chip = P.Name "ring" && a.ty = Some Flow.Ty.Geometry) "merge input wire";
        check (add.key = E.Pos 1 && add.chip = P.No_value) "the add row goes one past the last input"
    | _ -> fail "merge rows");
@@ -298,6 +299,76 @@ let pins () =
   check (not (P.row_shown bare) && P.row_shown written) "a written default is not on the card"
 
 let run () =
+  let schema = Param.schema ~name:"switch" ~default:0
+      [Param.field ~name:"input" ~kind:(Param.index_choice ["a"; "b"])
+        ~default:0 ~get:Fun.id ~set:(fun value _ -> value) ()] in
+  let ports = Flow_sop.Port.parameters (Param.view schema 0) |> Result.get_ok in
+  let port = Flow_sop.Port.find_parameter ports "input" |> Result.get_ok in
+  check (port.ty = Some Flow.Port_type.Int) "index choice must expose an integer port";
+  check (Flow_sop.Port.normalize port (Flow.Port_type.Int_value 1)
+      = Ok (Flow.Port_type.Int_value 1, ["input", Param.Int_value 1]))
+    "index choice must accept an integer drive";
+  check (Result.is_error (Flow_sop.Port.normalize port (Flow.Port_type.Int_value 2)))
+    "index choice must refuse out-of-range drives";
+  let source = "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/grid) s (sop/switch a b :input 1)] s)))" in
+  let selected = node (workspace_of source) "g" ["s"] in
+  let row = List.find (fun (r : P.row) -> r.key = E.Kw "input") selected.rows in
+  check (row.ty = Some Flow.Ty.Int && row.socket && flat row.expr = "1")
+    "Switch selection must project as an editable integer row";
+  let forms = S.parse source |> Result.get_ok in
+  let zero = S.parse "0" |> Result.get_ok |> List.hd in
+  let edited = E.apply catalog forms
+      (E.Set_arg {node = ["g"; "s"]; key = E.Kw "input"; sub = []; value = zero})
+      |> Result.get_ok in
+  let workspace = match Flow.Workspace.check catalog edited with
+    | Some workspace, _ -> workspace | _ -> fail "Switch selection edit failed to check" in
+  let selected = node workspace "g" ["s"] in
+  check (List.exists (fun (r : P.row) -> r.key = E.Kw "input" && flat r.expr = "0") selected.rows)
+    "Switch selection must edit through Flow_edit";
+  let transform_source = "(workspace w (graph g :context sop (let* [a (sop/box) transformed (sop/transform a :mode \"Matrix\" :m03 2 :shear_xy 0.1 :pivot [1 2 3])] transformed)))" in
+  let transformed = node (workspace_of transform_source) "g" ["transformed"] in
+  List.iter (fun keyword -> check (List.exists (fun (r : P.row) -> r.key = E.Kw keyword) transformed.rows)
+      ("Transform projects " ^ keyword)) ["mode";"m03";"shear_xy";"pivot"];
+  let edited = E.apply catalog (S.parse transform_source |> Result.get_ok)
+      (E.Set_arg {node = ["g";"transformed"];key = E.Kw "m03";sub = [];value = S.parse "4" |> Result.get_ok |> List.hd})
+      |> Result.get_ok in
+  let workspace = match Flow.Workspace.check catalog edited with
+    | Some workspace, _ -> workspace | _ -> fail "Transform matrix field edit failed to check" in
+  check (List.exists (fun (r : P.row) -> r.key = E.Kw "m03" && flat r.expr = "4") (node workspace "g" ["transformed"]).rows)
+    "Transform matrix fields edit through Flow_edit";
+  let randomize_source = "(workspace w (graph g :context sop (let* [source (sop/box) random (sop/attribute_randomize source :distribution \"Custom discrete\" :entries \"0\\t1\\n1\\t2\" :selection_owner \"Vertex\" :minimum_vector [0 0 0])] random)))" in
+  let random = node (workspace_of randomize_source) "g" ["random"] in
+  List.iter (fun keyword -> check (List.exists (fun (r : P.row) -> r.key = E.Kw keyword) random.rows)
+      ("Randomize projects " ^ keyword)) ["entries";"selection_owner";"selection_group";"minimum_vector"];
+  let text = S.parse "\"2\\t1\"" |> Result.get_ok |> List.hd in
+  let edited = E.apply catalog (S.parse randomize_source |> Result.get_ok)
+      (E.Set_arg {node=["g";"random"];key=E.Kw "entries";sub=[];value=text}) |> Result.get_ok in
+  let workspace = match Flow.Workspace.check catalog edited with
+    | Some workspace, _ -> workspace | _ -> fail "Randomize table edit failed to check" in
+  check (List.exists (fun (r : P.row) -> r.key = E.Kw "entries" && r.expr <> None) (node workspace "g" ["random"]).rows)
+    "Randomize tables edit through Flow_edit";
+  let interpolate_source = "(workspace w (graph g :context sop (let* [source (sop/box) target (sop/box) interpolated (sop/attribute_interpolate source target :attributes \"point\\tCd\\tcolor\" :driver \"Point weights\" :threshold 0.01)] interpolated)))" in
+  let interpolated = node (workspace_of interpolate_source) "g" ["interpolated"] in
+  List.iter (fun keyword -> check (List.exists (fun (r : P.row) -> r.key = E.Kw keyword) interpolated.rows)
+    ("Interpolate projects " ^ keyword)) ["attributes";"driver";"numbers_attribute";"computed_owner"];
+  let edited = E.apply catalog (S.parse interpolate_source |> Result.get_ok)
+    (E.Set_arg {node=["g";"interpolated"];key=E.Kw "attributes";sub=[];
+      value=S.parse "\"vertex\\tN\\tnormal\"" |> Result.get_ok |> List.hd}) |> Result.get_ok in
+  let workspace = match Flow.Workspace.check catalog edited with
+    | Some workspace,_ -> workspace | _ -> fail "Interpolate table edit failed to check" in
+  check (List.exists (fun (r : P.row) -> r.key=E.Kw "attributes" && r.expr <> None)
+    (node workspace "g" ["interpolated"]).rows) "Interpolate table edits through Flow_edit";
+  let transfer_source = "(workspace w (graph g :context sop (let* [source (sop/box) target (sop/box) transferred (sop/attribute_transfer source target :use_names true :names \"Cd\\nN\" :distance_mode \"Auto\")] transferred)))" in
+  let transferred=node (workspace_of transfer_source) "g" ["transferred"] in
+  List.iter (fun keyword -> check (List.exists (fun (r : P.row) -> r.key=E.Kw keyword) transferred.rows)
+    ("Transfer projects " ^ keyword)) ["use_names";"names";"distance_mode"];
+  let edited=E.apply catalog (S.parse transfer_source |> Result.get_ok)
+    (E.Set_arg {node=["g";"transferred"];key=E.Kw "names";sub=[];
+      value=S.parse "\"Cd\"" |> Result.get_ok |> List.hd}) |> Result.get_ok in
+  let workspace=match Flow.Workspace.check catalog edited with
+    | Some workspace,_ -> workspace | _ -> fail "Transfer exact names edit failed to check" in
+  check (List.exists (fun (r : P.row) -> r.key=E.Kw "names" && flat r.expr="\"Cd\"")
+    (node workspace "g" ["transferred"]).rows) "Transfer exact names edit through Flow_edit";
   pins ();
   zone_order ();
   snapshots ();

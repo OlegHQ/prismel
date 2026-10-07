@@ -4922,9 +4922,11 @@ let () =
   Printf.printf
     "benchmark,points,domains,grain,repeats,median_seconds,allocated_bytes,promoted_bytes,major_bytes,cardinality,hash\n%!";
   if session_only then begin
-    let graph = Sop.grid ~columns ~rows ~size:100. ()
+    let graph = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns ~rows ~size:100. ()
         |> Sop.noise_displace ~seed:42 ~amplitude:0.8 ~frequency:0.16
-        |> Sop.color_by_height ~low:low_color ~high:high_color in
+        |> Sop.color_by_height ~low_red:low_color.r ~low_green:low_color.g ~low_blue:low_color.b
+           ~low_alpha:low_color.a ~high_red:high_color.r ~high_green:high_color.g
+           ~high_blue:high_color.b ~high_alpha:high_color.a in
     measure "session_first_cook" (fun () ->
       let session = make_session () in
       let geometry = match Session.cook session ~context:(make_context ()) graph with
@@ -5523,16 +5525,17 @@ let () =
       u_axis = Vec3.create 20. 0. 0.;
       v_axis = Vec3.create 0. 0. 20.;
     } in
-  measure "uv_project_planar" (fun () ->
+  let uv_grid_points = Geometry.point_count modeling_grid in
+  measure ~input_points:uv_grid_points "uv_project_planar" (fun () ->
     Uv_ops.project ~grain planar_projection modeling_grid |> get_ok)
     geometry_output;
   let projected_grid = Uv_ops.project ~grain planar_projection modeling_grid
       |> get_ok in
-  measure "uv_transform_vertex" (fun () ->
+  measure ~input_points:uv_grid_points "uv_transform_vertex" (fun () ->
     Uv_ops.transform ~grain ~owner:Attribute.Vertex
       ~scale:(Vec2.create 4. 3.) ~angle:0.13 projected_grid |> get_ok)
     geometry_output;
-  measure "uv_auto_seam_grid" (fun () ->
+  measure ~input_points:uv_grid_points "uv_auto_seam_grid" (fun () ->
     Uv_ops.auto_seam ~grain ~angle:(Float.pi /. 4.) ~existing_uv:"uv"
       ~island_attribute:"uv_island" projected_grid |> get_ok)
     geometry_output;
@@ -5540,22 +5543,22 @@ let () =
       ~existing_uv:"uv" ~island_attribute:"uv_island" projected_grid |> get_ok in
   let grid_seams = Geometry.find_edge_group "uv_seams" seamed_grid
       |> Option.get in
-  measure "uv_unitize_islands" (fun () ->
+  measure ~input_points:uv_grid_points "uv_unitize_islands" (fun () ->
     Uv_ops.unitize ~grain ~edge_seams:grid_seams Uv_ops.Islands seamed_grid |> get_ok)
     geometry_output;
-  measure "uv_flatten_grid" (fun () ->
+  measure ~input_points:uv_grid_points "uv_flatten_grid" (fun () ->
     Uv_ops.flatten ~grain ~iterations:uv_iterations ~tolerance:1e-7 modeling_grid
-    |> get_ok) geometry_output;
+    |> Result.fold ~ok:Fun.id ~error:(fun error -> failwith (Error.to_string error))) geometry_output;
   let flattened_grid = Uv_ops.flatten ~grain ~iterations:uv_iterations ~tolerance:1e-7
       modeling_grid |> get_ok in
-  measure "uv_relax_grid" (fun () ->
+  measure ~input_points:uv_grid_points "uv_relax_grid" (fun () ->
     Uv_ops.relax ~grain ~iterations:uv_iterations ~tolerance:1e-7 flattened_grid
     |> get_ok) geometry_output;
   if benchmark_filter = Some "uv_flatten" || benchmark_filter = Some "uv_relax"
   then exit 0;
   let uv_sphere = Uv_sphere.run ~segments:512 ~rings:256 ~radius:2. ()
       |> get_ok in
-  measure "uv_project_spherical_seams" (fun () ->
+  measure ~input_points:(Geometry.point_count uv_sphere) "uv_project_spherical_seams" (fun () ->
     Uv_ops.project ~grain
       (Uv_ops.Spherical { origin = Vec3.zero; axis = Vec3.unit_y;
         seam = Vec3.unit_x }) uv_sphere |> get_ok)
@@ -6304,9 +6307,11 @@ let () =
       ~last_attribute:"second_u" attributed_curves |> get_ok) geometry_output;
   measure "curve_join_ordered" (fun () ->
     Curve_topology.join_curves ~grain join_source |> get_ok) geometry_output;
-  let graph = Sop.grid ~columns ~rows ~size:100. ()
+  let graph = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns ~rows ~size:100. ()
       |> Sop.noise_displace ~seed:42 ~amplitude:0.8 ~frequency:0.16
-      |> Sop.color_by_height ~low:low_color ~high:high_color in
+      |> Sop.color_by_height ~low_red:low_color.r ~low_green:low_color.g ~low_blue:low_color.b
+           ~low_alpha:low_color.a ~high_red:high_color.r ~high_green:high_color.g
+           ~high_blue:high_color.b ~high_alpha:high_color.a in
   measure "session_first_cook" (fun () ->
     let session = make_session () in
     let geometry = match Session.cook session ~context:(make_context ()) graph with
