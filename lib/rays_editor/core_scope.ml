@@ -74,8 +74,9 @@ let sync_scope value =
         then Some {value.live_frame with Frame_input.t = Sketch_support.Timeline.time value.timeline;
           frame = Int64.to_int (Sketch_support.Timeline.frame value.timeline)} else None in
       let summaries = value.cook.Cook.summaries in
+      let executions = Flow_ir.Profile.executions lowered.profile in
       let fresh = match previous with
-        | Some k -> not (k.evaluated == evaluated && k.summaries == summaries
+        | Some k -> not (k.evaluated == evaluated && k.summaries == summaries && k.executions == executions
             && Option.equal Frame_input.equal k.time time)
         | None -> true in
       if not moved && not fresh then value else begin
@@ -115,7 +116,32 @@ let sync_scope value =
           then Pxui_graph.Scope.select value.select_later scope_view, [] else scope_view, value.select_later in
         let element zone k = Option.map (fun (name, (x, y, z)) -> [ name, Flow.Eval.Vec3 (x, y, z) ])
           (Flow_sop.Lower.zone_element lowered zone k) in
-        let records = Option.map (Flow_graph.Probe.make ~state:value.cook.state ?live:time ~geometry
+        let resolve = Flow_sop.Attribute_kernel.resolve ~geometry:(fun id ->
+          Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
+            Option.bind (node_owner value node_id) (fun object_id ->
+              Cook.source value.cook ~object_id ~node_id))) in
+        let rec covers site path = match site, path with
+          | [a], b :: _ -> a = b || String.starts_with ~prefix:(a ^ "#") b
+          | a :: rest, b :: tail when a = b -> covers rest tail
+          | _ -> false in
+        let rec prefix xs ys = match xs, ys with
+          | [], _ -> true | x :: xs, y :: ys -> x = y && prefix xs ys | _ -> false in
+        let execution path ~probes =
+          let instance = Array.find_index (fun (i : Flow.Eval.instance) -> i.graph = name && i.default)
+            lowered.plan.instances in
+          let found = List.fold_left (fun best (report : Flow_ir.execution) ->
+            List.fold_left (fun best (origin, site, iter) ->
+              if not ((origin < 0 || instance = Some origin) && covers site path && prefix iter probes) then best else
+              let score = List.fold_left (fun n s -> n + String.length s + 1) 0 site in
+              match best with Some (previous, _) when previous >= score -> best
+                | _ -> Some (score, report)) best report.sites) None executions in
+          match found with
+          | Some (_, report) -> Some Flow_graph.Probe.{
+              tier = (match report.tier with Interp -> "Interp" | Closure -> "Closure" | Cpu_kernel -> "CPU" | Cooked -> "Cooked");
+              group = fst report.owner;
+              seconds = if fst report.owner = path then Some report.seconds else None}
+          | None -> None in
+        let records = Option.map (Flow_graph.Probe.make ~state:value.cook.state ?live:time ~geometry ~resolve ~execution
           ~dynamic:(Flow_sop.Lower.zone_count lowered) ~element) evaluated in
         let scope_view = match records with
           | Some records when fresh || moved -> Pxui_graph.Scope.with_records records scope_view
@@ -131,6 +157,6 @@ let sync_scope value =
                    ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes)))
           | None, _ -> [] in
         { value with scope_view; select_later; scope_key = Some { ws; probe_map = value.probes; graph = name;
-            evaluated; summaries; time; records; scope; targets } }
+            evaluated; summaries; executions; time; records; scope; targets } }
       end
   | _ -> value

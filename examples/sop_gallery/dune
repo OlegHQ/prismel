@@ -6,8 +6,18 @@
 
 (executable
  (name main)
- (libraries rays rdk_rays procedural flow sop_catalog rays_editor))
+ (libraries rays rdk_rays procedural flow sop_catalog rays_editor workspace_parity))
 
 (rule
  (alias runtest)
  (action (run %{exe:main.exe} --check-all)))
+
+(rule
+ (alias test_workspace_pixels)
+ (locks smoke_window)
+ (action (setenv RAYS_WORKSPACE_PIXELS /tmp/rays-workspace-pixels-sop-gallery
+  (run %{exe:main.exe} --check-all))))
+
+(alias
+ (name qualification)
+ (deps (alias test_workspace_pixels)))

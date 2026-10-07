@@ -81,6 +81,7 @@ type t = {
   plan : Flow.Eval.plan;
   states : Flow.Eval.value list;
   evaluated : Flow.Eval.t;  (** recording evaluation shared with graph probes *)
+  profile : Flow_ir.Profile.t;  (** bounded execution timings shared by value lanes, kernels and drawing *)
   preview : node:int -> probes:int list -> Network.t -> (Network.t * int) option;
       (** Scratch viewport network for a plan node at its iteration tuple. A
           geometry-loop template previews the selected element, with its captures,
@@ -122,6 +123,7 @@ val changes : Port.parameter -> Flow.Eval.value -> ((string * Param.value) list,
 val workspace :
   factories:Procedural.Edit_graph.factory list -> ?extra:Catalog.descriptor list ->
   ?ops:Flow.Op.t list ->
+  ?reference:bool ->
   ?compiled_ids:int Instance_path.Map.t -> ?sites:Flow.Workspace.path list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
   Flow.Syntax.t list -> (t, Flow.Diagnostic.t) result
@@ -132,11 +134,14 @@ val workspace :
 
 val of_checked :
   factories:Procedural.Edit_graph.factory list ->
+  ?reference:bool ->
   ?compiled_ids:int Instance_path.Map.t -> ?sites:Flow.Workspace.path list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
   Flow.Workspace.t -> (t, Flow.Diagnostic.t) result
 (** Lower an already checked document, without rebuilding a catalog or checking
-    its source again. The retained evaluation includes probe records. *)
+    its source again. The retained evaluation includes probe records.
+    [reference:true] retains native catalog cooking but independently interprets
+    value drives and attribute writes for full-workspace parity checks. *)
 
 val counts : t -> int * int
 (** (live, cached) node counts. *)

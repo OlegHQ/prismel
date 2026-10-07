@@ -20,6 +20,12 @@ The high-level API is functional:
 New sketches start with `Sketch`; finite direct-render experiments can use
 `Sketch.export`.
 
+Lisp geometry sketches can read `(sop/attr g :P)` / `(sop/attr g :N)` as
+packed vec3 arrays, transform them with `map`, and write them with
+`(sop/with_attr g :P values)`. Count mismatches are `E_ATTR_COUNT`.
+`sketches/flow_kernel/sketch.rays` demonstrates normal displacement with
+`noise3`, live amplitude and explicit shading-normal recomputation.
+
 ## Design evidence
 
 Productive creative-coding systems converge on a few ideas:
@@ -778,6 +784,15 @@ Native 2D Lisp sketches use `:context draw`, typed `Drawing` values and
 `?graph` selects one, with a fresh state fold, `?fps` (default 60) and all
 frame input pinned. See `examples/particles/sketch.rays` and
 `test/test_drawing.ml` for the native byte-identical export gate.
+Canvas playback and export prepare drawing arguments through `flow_ir`, so
+numeric particle maps inside frame folds use cached register templates while
+the evaluator retains cell identity, reset and rollback semantics. The native
+export gate compares CPU and independent reference evaluation at one/eight
+domains with the OCaml rendering, pixel for pixel.
+Prepared programs may share an environment-owned `Flow_ir.Profile` for bounded
+group timings and tier reports. The host supplies its clock; reference probes
+do not record runs. `Flow_sop.Attribute_kernel.prepare` supplies count-origin
+proofs from instantiated SOP facts for dynamic multi-input fusion.
 
 `Flow_sop.Lower.workspace` turns a checked workspace into one `Flow_sop.Network` per
 evaluated `sop` graph: the SOP `Edit_graph` plus arguments that depend on frame facts or folds. The
@@ -1177,3 +1192,9 @@ one finite vec3 position, a float in 0..1 with `Rays_math.Noise.sample3`
 semantics. Explicit `~ops` replaces the default extension list; a custom
 host can pass `Flow_sop.Operators.all @ custom_ops`. Plain `Flow.Workspace`
 has no math dependency and receives that list explicitly.
+
+`Flow_sop.Lower.of_checked ~reference:true` (also available on `workspace`)
+retains native catalog cooking and independently interprets value drives and
+attribute writes. `Network.with_reference true` selects reference drive forcing
+for an existing network. These switches support comparison with the normal IR
+path without changing the Lisp surface or supplying substitute SOP factories.

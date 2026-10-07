@@ -215,7 +215,8 @@ let arg_get (e : S.t) key = match key, e.node with
   | Whole, _ -> Some e
   | Bv (i, j), _ -> Option.bind (nth_child e i) (fun c -> nth_child c j)
   | Field k, S.Map l -> List.find_map (fun (a, b) -> if kw_name a = k then Some b else None) (pairs l)
-  | Pos i, S.List (_ :: args) -> List.nth_opt (positional args) i
+  | Pos i, S.List (_ :: args) -> List.nth_opt
+      (positional (S.attribute_args (Option.value ~default:"" (S.head e)) args)) i
   | Kw k, S.List (_ :: args) -> kw_get args k
   | _ -> None
 
@@ -237,7 +238,12 @@ let root_order args =
   let kws, pos = split args in
   pos @ flat_pairs (List.stable_sort (fun (a, _) (b, _) -> compare (rank (kw_name a)) (rank (kw_name b))) kws)
 
-let arg_set (e : S.t) key (v : S.t option) : S.t = match key, e.node, v with
+let arg_set (e : S.t) key (v : S.t option) : S.t =
+  let e = match e.node with
+    | S.List (({node = S.Sym h; _} as head) :: args) ->
+        {e with node = S.List (head :: S.attribute_args h args)}
+    | _ -> e in
+  match key, e.node, v with
   | Whole, _, Some v -> keep_notes e v
   | Whole, _, None -> fail "A whole binding cannot be removed."
   | Bv (i, j), _, Some v ->
@@ -276,6 +282,7 @@ let collapse s ps res = if ps = [] then res else rebuild s ps res  (* an empty l
    leaf of the binding (or [@result]) that holds it, then [#] and each argument on the way down
    ([result#0#:cutters]: the [:cutters] input of the first input of [result]) *)
 let node_call (e : S.t) = match head_sym e with
+  | Some ("fn" | "map" | "filter" | "reduce" | "sort-by") -> true
   | Some h -> String.length h > 1 && String.contains h '/'
   | None -> false
 let nested leaf = String.contains leaf '#'
@@ -297,7 +304,7 @@ let holder leaf =
 let find_pair s leaf = let leaf = fst (split_leaf leaf) in List.find_index (fun (p, _) -> pat_key p = leaf) s.ps
 
 let is_zone (e : S.t) = e.meta = [] && (match head_sym e with
-  | Some ("for" | "fold" | "scan" | "sum" | "state") -> true | _ -> false)
+  | Some ("for" | "fold" | "scan" | "sum" | "state" | "fn") -> true | _ -> false)
 
 let last_child (e : S.t) = match List.rev (S.children e) with c :: _ -> c | [] -> fail "Empty form."
 let set_last (e : S.t) v : S.t =
@@ -313,18 +320,27 @@ let enter (e : S.t) : S.t * (S.t -> S.t) =
 let rec descend (cur : S.t) names (f : S.t -> S.t) : S.t = match names with
   | [] -> f cur
   | name :: rest ->
+      let base, keys = split_leaf name in
       let child, back = match scope_of cur with
-        | Some s when name = "@result" -> s.res, (fun r -> rebuild s s.ps r)
+        | Some s when base = "@result" -> s.res, (fun r -> rebuild s s.ps r)
         | Some s ->
             (match find_pair s name with
              | Some j ->
                  let p, v = List.nth s.ps j in
                  v, (fun v' -> rebuild s (List.mapi (fun k q -> if k = j then p, v' else q) s.ps) s.res)
              | None -> fail "Binding %s no longer exists." name)
-        | None when name = "@result" -> cur, Fun.id
+        | None when base = "@result" -> cur, Fun.id
         | None -> fail "Scope no longer exists." in
+      let rec inside child = function
+        | [] -> child, Fun.id
+        | key :: keys ->
+            let argument = match arg_get child key with Some a -> a
+              | None -> fail "Node %s no longer exists." name in
+            let inner, restore = inside argument keys in
+            inner, (fun v -> arg_set child key (Some (restore v))) in
+      let child, restore = inside child keys in
       let entered, out = enter child in
-      back (out (descend entered rest f))
+      back (restore (out (descend entered rest f)))
 
 let workspace_parts (src : S.t list) = match src with
   | ({ S.node = S.List ({ S.node = S.Sym "workspace"; _ } :: _ :: items); _ } as ws) :: _ -> ws, items
@@ -1610,6 +1626,7 @@ let arg_of = arg_get
 
 let nested_nodes (e : S.t) = match e.node with
   | S.List (_ :: args) when e.meta <> [] || not (is_zone e) ->
+      let args = S.attribute_args (Option.value ~default:"" (S.head e)) args in
       List.filter (fun (_, a) -> node_call a)
         (List.mapi (fun i a -> Pos i, a) (positional args) @ List.map (fun (k, v) -> Kw k, v) (keywords args))
   | _ -> []

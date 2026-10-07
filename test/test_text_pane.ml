@@ -36,6 +36,7 @@ let token_scrubs () =
       (let* [a (sop/box :size [11 22 33])
              repeat (for [i (range 2)] (sop/uv_sphere :radius 0.5))
              n 77
+             ys (map (fn [(x : float)] (let* [shift (+ x 0.25)] (* shift 2.0))) (array/float 3 0.5))
              b (sop/transform a :uniform_scale (* 3 4))]
         (sop/transform (sop/uv_sphere :radius 0.6) :uniform_scale 0.7))))|} |> Result.get_ok in
   let rec child form = function [] -> form
@@ -55,8 +56,17 @@ let token_scrubs () =
     [ ["g";"a"], F.Kw "size", [1];
       ["g";"repeat";"@result"], F.Kw "radius", [];
       ["g";"n"], F.Whole, [];
+      ["g";"ys#0";"shift"], F.Pos 1, [];
+      ["g";"ys#0";"@result"], F.Pos 1, [];
       ["g";"b"], F.Kw "uniform_scale", [1];
       ["g";"@result#0"], F.Kw "radius", [] ];
+  let shown = T.make_shown source "g" (Some ["g";"ys#0";"shift"]) T.Graph in
+  let atom = F.arg_text source ["g";"ys#0";"shift"] (Pos 1) |> Option.get in
+  let span = List.assoc atom.id shown.spans in
+  check (T.binding_at shown span.start = Some ["g";"ys#0";"shift"])
+    "the caret in an inline function's body did not select its card";
+  check (T.binding source ["g";"ys#0";"shift"] <> None)
+    "an inline function body path did not find its source binding";
   let catalog = Editor_document.Contexts.catalog ~version:1 Sop_catalog.Editor.factories |> Result.get_ok in
   let doc = Editor_document.Workspace_doc.of_text catalog
     "(workspace w (graph g :context sop (sop/box))) (view :zoom 999)" |> Result.get_ok in

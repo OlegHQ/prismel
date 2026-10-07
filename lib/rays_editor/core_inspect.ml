@@ -347,6 +347,10 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
            if zone_text <> None then
              List.iter (fun (label, text) ->
                Pxui.Ui.inspector_readout ui ~width ~key:("ws-" ^ label) ~label text) readouts;
+           if zone_text = None && Option.fold ~none:false ~some:(fun (e : Probe.execution) -> e.tier <> "Cooked") footer.execution then
+             List.iter (fun (label, text) ->
+               Pxui.Ui.inspector_readout ui ~width ~key:("ws-" ^ label) ~label text)
+               (List.filter (fun (label, _) -> List.mem label ["tier"; "execution group"; "group time"]) readouts);
            let hoist = if footer.invariant && Pxui.Ui.inspector_button ui ~key:"ws-hoist" "Move out of the loop"
              then [ Syntax_edit (Flow_graph.Flow_edit.Hoist { node = n.path }) ] else [] in
            (* a macro call: what it is, and the request the pane's lens button makes *)

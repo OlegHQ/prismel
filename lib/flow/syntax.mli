@@ -55,6 +55,10 @@ val head : t -> string option
 val children : t -> t list
 (** Direct sub-forms in reading order. *)
 
+val attribute_args : string -> t list -> t list
+(** Normalize the positional [:name] selector of [sop/attr] and
+    [sop/with_attr] to text, retaining its source identity and notes. *)
+
 val renumber : int -> t -> t * int
 (** [renumber first form] copies [form] numbering every form from [first] in
     reading order (spans, notes and meta kept); returns the next free id. *)

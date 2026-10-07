@@ -1,0 +1,31 @@
+let rec files directory = Array.to_list (Sys.readdir directory) |> List.sort String.compare
+  |> List.concat_map (fun name -> let path = Filename.concat directory name in
+    if Sys.is_directory path then files path else if Filename.check_suffix name ".rays" then [path] else [])
+let () =
+  let root = if Array.length Sys.argv > 1 then Sys.argv.(1) else ".." in
+  let directory = Sys.getenv_opt "RAYS_WORKSPACE_PIXELS" in
+  let paths = files (Filename.concat root "examples") @ files (Filename.concat root "sketches")
+    @ [Filename.concat root "specification/pxui-kit/kit.rays"] in
+  let fixtures = Filename.concat root "specification/workspace/cases" in
+  let fixtures = Array.to_list (Sys.readdir fixtures) |> List.sort String.compare
+    |> List.filter (fun name -> Filename.check_suffix name ".lisp")
+    |> List.map (Filename.concat fixtures) in
+  if List.length fixtures <> 12 then failwith "expected twelve generated workspace fixtures";
+  let custom = ["examples/sop_gallery/gallery.rays"; "sketches/voxel_wall/sketch.rays"] in
+  let count = ref 0 in
+  List.iter (fun path ->
+    let name = String.sub path (String.length root + 1) (String.length path - String.length root - 1) in
+    if List.mem name custom then Printf.printf "%s: checked with its executable's actual SOP catalog\n%!" name
+    else begin
+      let text = In_channel.with_open_bin path In_channel.input_all in
+      let workspace = match Rays_editor.Workspace.load text with Ok w -> w
+        | Error ds -> failwith (name ^ ": " ^ String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
+      let directory = Option.map (fun parent ->
+        if not (Sys.file_exists parent) then Unix.mkdir parent 0o755;
+        Filename.concat parent (String.map (function '/' -> '-' | c -> c) name)) directory in
+      Workspace_parity.check ?directory ~factories:Sop_catalog.Editor.factories ~name workspace;
+      incr count
+    end) (paths @ fixtures);
+  if !count <> List.length paths + List.length fixtures - List.length custom then failwith "incomplete workspace coverage";
+  Printf.printf "Workspace IR sweep: %d standard files, %d custom-catalog executables, %d fixtures\n%!"
+    (List.length paths - List.length custom) (List.length custom) (List.length fixtures)

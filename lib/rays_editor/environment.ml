@@ -19,7 +19,8 @@ type ('rendered, 'camera) hidden_scene_cache = {
   scene : Scene.t;
 }
 
-type canvas_picture = {size : int * int; dynamic : bool; scene : Scene.t}
+type canvas_picture = {size : int * int; dynamic : bool; scene : Scene.t;
+  prepared : Sketch_support.Drawing.prepared option}
 
 (* A World bake for this frame: the preview size while a gesture or the
    day cycle is live, the final size when idle. *)
@@ -806,10 +807,13 @@ let update_with value frame ~inspector =
              ~some:(fun picture -> picture.size = (w, h)) previous ->
              (key, Option.get previous) :: pictures, error
          | Some drawing ->
-             (match Sketch_support.Drawing.render ~state:core.cook.state ~states:lowered.states
-                 lowered.plan drawing ~live:frame_input ~size:(w, h) with
-              | Ok scene -> (key, {size = (w, h); dynamic; scene}) :: pictures, error
-              | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []} previous) :: pictures,
+             let prepared = match previous with
+               | Some {prepared = Some p; _} when same_plan -> Ok p
+               | _ -> Sketch_support.Drawing.prepare ~profile:lowered.profile ~states:lowered.states lowered.plan drawing in
+             (match Result.bind prepared (fun p -> Result.map (fun scene -> p, scene)
+                 (Sketch_support.Drawing.render_prepared ~state:core.cook.state p ~live:frame_input ~size:(w, h))) with
+              | Ok (prepared, scene) -> (key, {size = (w, h); dynamic; scene; prepared = Some prepared}) :: pictures, error
+              | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []; prepared = None} previous) :: pictures,
                   Some (Flow.Diagnostic.to_string d)))
     | _ -> pictures, error) ([], context_error) (Core.geometry core core.workspace raw_frame).leaves in
   let rendered, views, drawn = compose { value with core } { update with core } ~baked ~baked_views ~scene in

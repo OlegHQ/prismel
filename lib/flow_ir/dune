@@ -15,3 +15,14 @@
  (name test_noise)
  (modules test_noise)
  (libraries flow_ir flow rays_math))
+
+(test
+ (name test_packed)
+ (modules test_packed)
+ (libraries flow_ir flow rays_math))
+
+(test
+ (name test_frame_kernel)
+ (modules test_frame_kernel)
+ (deps ../../examples/particles/sketch.rays)
+ (libraries flow_ir flow rays_math))

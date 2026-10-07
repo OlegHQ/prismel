@@ -26,6 +26,7 @@ type t = {
   plan : E.plan;
   states : E.value list;
   evaluated : E.t;
+  profile : Flow_ir.Profile.t;
   preview : node:int -> probes:int list -> Network.t -> (Network.t * int) option;
 }
 
@@ -87,11 +88,17 @@ let objects lowered = List.filter_map (fun (graph : graph) ->
   Option.map (fun root -> graph.instance, graph.network, root) graph.root)
   lowered.graphs
 
-let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
+let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Map.empty)
     ?(sites = []) ?inputs checked =
   Phase_timer.measure Lower (fun () ->
   try
     let evaluated = ok (E.static ~record:true ?inputs checked) in
+    let profile = Flow_ir.Profile.create ~clock:Unix.gettimeofday in
+    (* Kernel bodies are cache inputs as well as their captures. The digest is
+       lazy so ordinary catalog edits retain their existing pipeline counts.
+       ponytail: the whole source invalidates kernels; narrow to body/defn cones
+       if unrelated structural edits measurably recook them. *)
+    let kernel_source = lazy (Digest.string (fst (Lisp.print checked.source))) in
     let plan = evaluated.plan in
     let ids = ref compiled_ids and site_table = Hashtbl.create 64
     and site_list = ref (List.rev sites) and site_count = ref (List.length sites) in
@@ -123,6 +130,12 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
     let rec deps (n : E.node) =
       if is_zone n.kind then (match n.args with (_, E.Deferred ((Flow.Ty.Named "geometry"), src)) :: _ -> src | _ -> fail "E_LOWER" "Zone without geometry")
         :: (zinfo n).captures
+      else if n.kind = "sop/with_attr" then
+        let geometry = List.assoc "geometry" n.args in
+        let root = match geometry with E.Deferred (_, id) -> Some id | E.No_geo -> None
+          | _ -> fail "E_LOWER" "Attribute write without geometry" in
+        Option.to_list root @ List.filter (fun id -> Some id <> root)
+          (Attribute_kernel.sources (List.assoc "values" n.args))
       else geo_of n.args
     and zinfo (n : E.node) = match Hashtbl.find_opt zinfos n.id with
       | Some z -> z
@@ -176,11 +189,11 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
           let template = templ.(node.id) in
           let cid = compiled.(node.id) in
           let live = List.filter (fun (_, v) -> E.is_live v) node.args in
-          if not template then
+          if not template && node.kind <> "sop/with_attr" then
             pending := List.rev_append (List.map (fun (field, value) ->
               {node = cid; field; value}) live) !pending;
           (* a template node keeps its live arguments: each element forces them *)
-          let args = if template then node.args
+          let args = if template || node.kind = "sop/with_attr" then node.args
             else List.map (fun (n, v) -> n, at_zero v) node.args in
           let args = if node.kind <> "sop/material" then args else
             List.concat_map (function
@@ -193,6 +206,18 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
               | arg -> [arg]) args in
           let dynamic = ref [] in
           let p = match node.kind with
+            | "sop/with_attr" ->
+                let name = match List.assoc "attribute" args with
+                  | E.Text name -> name | _ -> fail "E_LOWER" "Attribute name must be static text" in
+                let values = List.assoc "values" args in
+                let sources = match List.assoc "geometry" args with
+                  | E.No_geo -> -1 :: deps node | _ -> deps node in
+                let factory = Edit.factory ~key:"flow.with_attr" ~label:"Write attribute"
+                  ~category:["Flow"] ~arity:(List.length sources)
+                  (Attribute_kernel.node ~reference ~profile ~source:(Lazy.force kernel_source) ~name ~values ~sources) in
+                {cid; factory; arity = List.length sources; changes = []; dynamic = []; zone = None;
+                  slots = List.filter_map (fun (i, source) -> if source < 0 then None else Some (i, source))
+                    (List.mapi (fun i source -> i, source) sources)}
             | "sop/merge" ->
                 let sources = geo_of args in
                 let base = !tags in
@@ -330,6 +355,12 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
               let options = int_geo n :: inner.captures
                 |> List.map (Hashtbl.find_opt bound) in
               make_zone ?state ~outer inner (Array.of_list (List.filter_map Fun.id options))
+          | None when n.kind = "sop/with_attr" && List.assoc "geometry" n.args <> E.No_geo ->
+              let name = match List.assoc "attribute" n.args with
+                | E.Text name -> name | _ -> fail "E_LOWER" "Attribute name must be static text" in
+              Attribute_kernel.node ?state ~reference ~profile ~elems:outer ~source:(Lazy.force kernel_source) ~name
+                ~values:(List.assoc "values" n.args) ~sources:(deps n)
+                (List.filter_map Fun.id options)
           | None -> edit (Edit.instantiate_optional p.factory options) in
         let node = edit (Procedural.Node.Private.restore_id p.cid node) in
         let changes = p.changes @ List.concat_map (fun (v, changes) ->
@@ -344,6 +375,7 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
       List.iter (fun id ->
         let n = plan.nodes.(id) in
         if n.kind = "zone/element" || is_zone n.kind || (prepare n).dynamic <> []
+           || (n.kind = "sop/with_attr" && E.is_live (List.assoc "values" n.args))
            || List.exists (Hashtbl.mem varies) (deps n)
         then Hashtbl.replace varies id ()
         else build ~outer:[] shared id) z.order;
@@ -377,12 +409,14 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
          && (List.exists (fun j -> volatile.(j)) (deps node)
               || (is_zone node.kind && (zinfo node).live)
               || (not (is_zone node.kind)
-                  && List.exists (fun (_, v) -> if templ.(node.id) then reads_t v else E.is_live v) node.args)) then begin
+                  && List.exists (fun (_, v) -> if templ.(node.id) || node.kind = "sop/with_attr"
+                      then reads_t v || E.state_dependent v else E.is_live v) node.args)) then begin
         volatile.(node.id) <- true;
         volatile_nodes := Network.Int_map.add compiled.(node.id) () !volatile_nodes
       end) plan.nodes;
     let live_network network graph =
-      let network = Network.with_states evaluated.states network in
+      let network = Network.with_states evaluated.states network |> Network.with_profile profile
+        |> Network.with_reference reference in
       let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes -> match p.zone with
         | Some z when z.stateful && Edit.find graph ~node_id:p.cid <> None ->
             Network.Int_map.add p.cid (fun state node ->
@@ -390,6 +424,16 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
               Procedural.Node.Private.adopt_identity ~source:node
                 (make_zone ~state:snapshot ~outer:[] z (Procedural.Node.Private.input_array node))) nodes
         | _ -> nodes) prepared Network.Int_map.empty in
+      let frame_nodes = Array.fold_left (fun nodes (n : E.node) ->
+        let values = List.assoc_opt "values" n.args in
+        if n.kind <> "sop/with_attr" || not (Option.fold ~none:false ~some:E.state_dependent values)
+          || Edit.find graph ~node_id:compiled.(n.id) = None then nodes
+        else Network.Int_map.add compiled.(n.id) (fun state node ->
+          let name = match List.assoc "attribute" n.args with E.Text name -> name | _ -> assert false in
+          Procedural.Node.Private.adopt_identity ~source:node
+            (Attribute_kernel.node ~reference ~profile ~state:(E.fork_state state) ~source:(Lazy.force kernel_source) ~name
+              ~values:(Option.get values) ~sources:(deps n) (Procedural.Node.inputs node))) nodes)
+        frame_nodes plan.nodes in
       let network = Network.with_frame_nodes frame_nodes network in
       let drives = List.fold_left (fun drives (p : pending) ->
         if Edit.find graph ~node_id:p.node = None then drives
@@ -471,13 +515,13 @@ let of_checked ~factories ?(compiled_ids = Instance_path.Map.empty)
           |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m)
                Network.Int_map.empty;
         pending = List.rev !pending; provenance = !provenance; zones = List.rev !zones;
-        volatile = !volatile_nodes; plan; states = evaluated.states; evaluated; preview}
+        volatile = !volatile_nodes; plan; states = evaluated.states; evaluated; profile; preview}
   with Fail diagnostic -> Error diagnostic)
 
-let workspace ~factories ?extra ?(ops = Operators.all) ?compiled_ids ?sites ?inputs source =
+let workspace ~factories ?extra ?(ops = Operators.all) ?reference ?compiled_ids ?sites ?inputs source =
   Result.bind (Catalog.of_factories ~version:Manifest.version ?extra factories) (fun catalog ->
     match Workspace.check ~ops catalog source with
-    | Some checked, _ -> of_checked ~factories ?compiled_ids ?sites ?inputs checked
+    | Some checked, _ -> of_checked ~factories ?reference ?compiled_ids ?sites ?inputs checked
     | None, diagnostics -> Error (match List.find_opt (fun (d : Diagnostic.t) ->
         d.severity = Diagnostic.Error) diagnostics with
       | Some d -> d

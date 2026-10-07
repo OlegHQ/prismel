@@ -184,16 +184,20 @@ let () = (* 1. function values *)
     assert (List.nth (at [ "g"; "f"; "s" ]) 3 = ([ 2; 3 ], Eval.Int 4));
     (* the IR types a fn body with its declared types, or Any: call-site refinement (int) is not kept *)
     assert (ty_at ws [ "g"; "f"; "s" ] = "float" && ty_at ws [ "g"; "f" ] = "fn"));
-  t "fn: inline functions are recorded at path~fn" (fun () ->
+  t "fn: inline functions are recorded at their nested card path" (fun () ->
     let rs = records (value "(let* [xs (map (fn [x] (* x 2)) (list 1 2))] (count xs))") in
-    assert (List.map snd (recs rs [ "g"; "xs"; "~fn"; ":x" ]) = [ Eval.Int 1; Int 2 ]));
+    assert (List.map snd (recs rs [ "g"; "xs#0"; ":x" ]) = [ Eval.Int 1; Int 2 ]));
   t "fn: map is typed statically through the function body" (fun () ->
     let ws = check (sop "(let* [cs (map (fn [x] (sop/box :size x)) (list 1 2))] (sop/merge cs))") in
-    assert (ty_at ws [ "g"; "cs" ] = "list:geometry" && ty_at ws [ "g"; "cs"; "~fn"; "@result" ] = "geometry"));
+    assert (ty_at ws [ "g"; "cs" ] = "list:geometry" && ty_at ws [ "g"; "cs#0"; "@result" ] = "geometry"));
   t "fn: map over a let-bound fn tags shapes with the call index" (fun () ->
     let r = run (check (sop "(let* [mk (fn [r] (sop/box :size r)) cs (map mk (list 0.1 0.2 0.3))] (sop/merge cs))")) in
     assert (List.map (fun (n : Eval.node) -> (n.site, n.iter)) (nodes_of r "sop/box")
             = List.map (fun k -> ([ "g"; "mk"; "@result" ], [ k ])) [ 0; 1; 2 ]));
+  t "fn: maps inside opaque expressions keep distinct sites" (fun () ->
+    let r = run (check (sop "(let* [unused (list (count (map (fn [x] (sop/box :size x)) (list 0.1))) (count (map (fn [x] (sop/box :size x)) (list 0.2))))] (sop/box))")) in
+    let sites = List.map (fun (n : Eval.node) -> n.site, n.iter) (nodes_of r "sop/box") in
+    assert (List.length sites = 3 && List.length (List.sort_uniq compare sites) = 3));
   t "fn: defn and operator names are function values" (fun () ->
     is "(workspace w (defn twice :context value [(x : float)] (* x 2)) (graph g :context value (+ (reduce + 0 (map twice (list 1 2 3))) (first (map sin (list 0))))))" (Eval.Int 12));
   t "reduce: an int seed keeps a float sum" (fun () ->
@@ -631,6 +635,21 @@ let () = (* register L16: :skip leaves iterations out; the others keep their tup
      | _ -> failwith "the merge of merges"))
 
 let () =
+  t "live packed accumulators defer the complete iteration" (fun () ->
+    List.iter (fun body ->
+      let workspace = check (value body) in
+      let v = result (static workspace) "g" in
+      (match v with
+       | Eval.Residual r -> (match (Eval.Private.residual_view r).term.node with
+           | Workspace.Loop {kind = `Fold; _} | Workspace.Hof (`Reduce, _) -> ()
+           | _ -> failwith "accumulator was unrolled into per-element residuals")
+       | _ -> failwith "live accumulator did not defer");
+      assert (Eval.force v ~live:(Frame_input.at_time 0.5) = Ok (Eval.Float 1025.5)))
+      ["(fold [a 0] [x (array/range 2051)] (+ a t))";
+       "(reduce (fn [a x] (+ a t)) 0.0 (array/range 2051))"]);
+  t "operator function values use declaration argument names" (fun () ->
+    is (value "(let* [lengths (map array/count (list (array/float 2) (array/float 4)))] (+ (first lengths) (last lengths)))")
+      (Eval.Int 6));
   if !failed <> [] then begin
     List.iter (fun (n, e) -> prerr_endline ("FAIL " ^ n ^ ": " ^ e)) (List.rev !failed);
     exit 1

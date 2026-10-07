@@ -148,6 +148,7 @@ let only =
     "frame_input", [];
     "flow", ["param"; "frame_input"];
     "flow_ir", ["flow"; "param"; "rays_math"];
+    "sketch_support", ["rays"; "frame_input"; "flow"; "flow_ir"; "rdk"; "rdk_rays"; "procedural"; "lru"];
     "flow_graph", ["flow"; "param"];
     "ogpu_core", ["native_layer_token"];
     "ogpu", ["ogpu_core"];

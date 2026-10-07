@@ -31,6 +31,7 @@ type scope_key = {
   ws : Workspace_doc.t; probe_map : int Layout_by_path.Path_map.t; graph : string;
   evaluated : Flow.Eval.t option;
   summaries : Cook.summary list; time : Frame_input.t option;
+  executions : Flow_ir.execution list;
   records : Flow_graph.Probe.t option;
   scope : Flow_graph.Projection.scope;
   targets : (int * int) list;  (* (object, compiled node) the cook is asked to count *)

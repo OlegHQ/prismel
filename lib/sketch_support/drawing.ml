@@ -1,12 +1,24 @@
 open Rays
 module E = Flow.Eval
 module V = Flow.Value
+module I = Flow_ir.Executor
 
-let render ?state ?(states = []) (plan : E.plan) value ~live ~size:(width, height) =
+type prepared = {plan : E.plan; value : I.program; states : I.program; args : I.program array}
+let prepare ?profile ?(states = []) plan value =
+  let ( let* ) = Result.bind in
+  let* value = I.compile ?profile value in
+  let* states = I.compile ?profile (E.List (Array.of_list states)) in
+  let args = Array.map (fun (node : E.node) -> I.compile ?profile (E.Record node.args)) plan.E.nodes in
+  match Array.find_opt Result.is_error args with
+  | Some (Error d) -> Error d
+  | _ -> Ok {plan; value; states; args = Array.map Result.get_ok args}
+
+let render_prepared ?state ?(reference = false) prepared ~live ~size:(width, height) =
+  let plan = prepared.plan in
   let state = Option.value ~default:(E.create_state ()) state in
   E.transaction state (fun () ->
     let exception Stop of Flow.Diagnostic.t in
-    let force v = match E.force ~state v ~live with Ok v -> v | Error d -> raise (Stop d) in
+    let force program = match I.force ~state ~reference program ~live with Ok v -> v | Error d -> raise (Stop d) in
     let color = function
       | E.Text s -> (match Color.hex s with Ok c -> c | Error message -> V.fail "E_DRAW_COLOR" message)
       | Vec3 (r, g, b) -> Color.of_floats r g b 1.
@@ -23,7 +35,7 @@ let render ?state ?(states = []) (plan : E.plan) value ~live ~size:(width, heigh
           (match memo.(id) with Some scene -> scene | None ->
             let node = plan.nodes.(id) in
             if node.ty <> Flow.Ty.drawing then V.fail "E_TYPE" "The canvas needs a Drawing node.";
-            let args = List.map (fun (k, v) -> k, force v) node.args in
+            let args = match force prepared.args.(id) with E.Record fs -> fs | _ -> assert false in
             let arg k = match List.assoc_opt k args with Some v -> v
               | None -> V.failf "E_DRAW_INPUT" "%s needs %s." node.kind k in
             let optional k f = Option.map f (List.assoc_opt k args) in
@@ -54,7 +66,10 @@ let render ?state ?(states = []) (plan : E.plan) value ~live ~size:(width, heigh
             memo.(id) <- Some scene; scene)
       | _ -> V.fail "E_TYPE" "The canvas needs a Drawing value." in
     try
-      ignore (force (E.List (Array.of_list states)));
-      Ok (drawing (force value))
+      ignore (force prepared.states);
+      Ok (drawing (force prepared.value))
     with Stop d -> Error d
        | V.Fail (code, message, _) -> Error (Flow.Diagnostic.error ~code message))
+
+let render ?state ?states plan value ~live ~size =
+  Result.bind (prepare ?states plan value) (fun prepared -> render_prepared ?state prepared ~live ~size)

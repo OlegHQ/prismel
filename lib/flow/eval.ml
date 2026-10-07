@@ -53,6 +53,8 @@ and ctx = { st : st; inst : int; prefix : W.path; base : W.path; route : string 
 
 and st = {
   time : Frame_input.t option;  (* [None] while evaluating statically *)
+  resolve : (value -> (value, Diagnostic.t) result) option;
+  execute : (residual -> Frame_input.t -> (value, Diagnostic.t) result option) option;
   compiled_residuals : bool;
   source : string Lazy.t;
   state : state option;
@@ -324,6 +326,12 @@ and compile ce (x : W.term) : cnode =
 let rec concrete c v =
   match v with
   | Residual r -> (match c.st.time with None -> raise Needs_t | Some _ -> force_res c r)
+  | Struct (_, Ty.Array _, _) ->
+      (match c.st.time, c.st.resolve with
+       | None, _ -> raise Needs_t
+       | Some _, Some resolve -> (match resolve v with Ok v -> v
+           | Error d -> raise (Fail (d.code, d.message, d.span)))
+       | Some _, None -> fail "E_DATA_SOURCE" "This packed source needs its host's cooked data.")
   | v -> v
 
 and force_res c r =
@@ -364,10 +372,19 @@ and ev c env (x : W.term) : value =
            (* the record is the residual: a probe forces it at the time it shows *)
            (match x.path with Some p -> note c p r | None -> ()); r
        | exception Fail (code, msg, None) -> raise (Fail (code, msg, span_of x)))
-  | Some _ ->
-      (match concrete c (ev_raw c env x) with
+  | Some live ->
+      let evaluate () = match st.execute, x.node with
+        | Some execute, (W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = "array/sum"; _}) ->
+            st.rids <- st.rids + 1;
+            let r = {rid = st.rids; rterm = x; renv = env; rc = c; previous = false; fast = Untried} in
+            (match execute r live with
+             | Some (Ok v) -> v
+             | Some (Error d) -> raise (Fail (d.code, d.message, d.span))
+             | None -> ev_raw c env x)
+        | _ -> ev_raw c env x in
+      (match concrete c (evaluate ()) with
        | exception Fail (code, msg, None) -> raise (Fail (code, msg, span_of x))
-       | v -> v)
+       | v -> if st.record && c.rec_ then Option.iter (fun p -> note c p v) x.path; v)
 
 and evs c env prefix ts = List.mapi (fun i t -> ev (sub c (prefix ^ string_of_int i)) env t) ts
 
@@ -499,7 +516,7 @@ and ev_raw c env (x : W.term) : value =
       go 0 arms
   | W.Fn { params; body; zone } ->
       Fn (Closure { params; body; env; zone; calls = ref 0; fid = fn_id c.st; at = c })
-  | W.Hof (kind, f :: rest) -> hof c env ~out:x.ty kind f rest
+  | W.Hof (kind, f :: rest) -> hof c env x kind f rest
   | W.Hof (_, []) -> fail "E_ARITY" "A higher-order form takes a function."
   | W.List_lit ts -> List (join_values (Array.of_list (evs c env "" ts)))
   | W.Record fs -> Record (List.map (fun (n, t) -> (n, ev (sub c n) env t)) fs)
@@ -598,9 +615,14 @@ and call_fn c f (vals : value list) : value =
       let c' = { c with iter = c.iter @ [ k ] } in
       if Hashtbl.mem c.st.defs name then apply_def c' name vals
       else begin
-        let named = List.mapi (fun i v -> ("$" ^ string_of_int i, v)) vals in
         match Op.find ~extra:c.st.ops name Context.value with
-        | Some o -> apply_op c' o.name named
+        | Some o ->
+            let names = Array.of_list (List.map fst (o.signature.pos @ o.signature.opt)) in
+            let named = List.mapi (fun i v ->
+              (if i < Array.length names then names.(i)
+               else match o.signature.rest with Some (name, _) -> name
+                 | None -> "$" ^ string_of_int i), v) vals in
+            apply_op c' o.name named
         | None ->
               (* a catalog kind: the checker resolved its name and which input each argument is *)
               let kind, ctx, slots = match List.assoc_opt name c.st.kind_fns with
@@ -616,7 +638,8 @@ and call_fn c f (vals : value list) : value =
               catalog_call c' kind ctx args
       end
 
-and hof c env ~out kind f rest =
+and hof c env term kind f rest =
+  let out = term.W.ty in
   let packed = List.exists (fun (t : W.term) -> match t.ty with Ty.Array _ -> true | _ -> false) rest in
   let c = if packed then {c with data = true} else c in
   let saved_steps = c.st.steps and calls = ref 0 in
@@ -626,6 +649,13 @@ and hof c env ~out kind f rest =
   let work () =
   let fv = match concrete c (ev (sub c "f") env f) with
     | Fn f -> f | _ -> fail "E_TYPE" "Expected a function." in
+  (match kind, fv with
+   | `Map, Closure cl when c.st.record && c.rec_ && (match out with Ty.Array _ -> true | _ -> false) ->
+       c.st.rids <- c.st.rids + 1;
+       let call = Residual {rid = c.st.rids; rterm = term; renv = env; rc = c;
+         previous = false; fast = Untried} in
+       note c (cl.zone @ ["~calls"]) (Record ["offset", Int !(cl.calls); "call", call])
+   | _ -> ());
   let lists_of ts = List.mapi (fun i t ->
     let v = concrete c (ev (sub c ("l" ^ string_of_int i)) env t) in
     match v with List xs -> Array.length xs, (fun k -> xs.(k))
@@ -669,7 +699,10 @@ and hof c env ~out kind f rest =
       let init = ev (sub c "init") env init in
       let count, get = List.hd (lists_of [ l ]) in
       let acc = ref init in
-      for i = 0 to count - 1 do acc := widen_like !acc (call fv [!acc; get i]) done;
+      for i = 0 to count - 1 do
+        let value = call fv [!acc; get i] in
+        acc := widen_like !acc (if packed then concrete c value else value)
+      done;
       !acc
   | _ -> fail "E_ARITY" "A higher-order form got the wrong number of arguments." in
   if packed then Fun.protect ~finally:(fun () -> c.st.steps <- saved_steps) work else work ()
@@ -723,6 +756,7 @@ and loop c env ~out kind accs clauses skip body zone =
        | _ -> ());
       if List.mem ci'.iter skip then incr k else begin
       let v = ev ci' !env body in
+      let v = if packed then concrete c v else v in
       (match kind, !acc with
        | (`Fold | `Scan), Some a ->
            let a' = widen_like a v in
@@ -848,7 +882,7 @@ let new_state ~record ws =
   let graphs = Hashtbl.create 8 and defs = Hashtbl.create 8 in
   List.iter (fun (g : W.graph) -> Hashtbl.replace graphs g.name g) ws.W.graphs;
   List.iter (fun (g : W.graph) -> Hashtbl.replace defs g.name g) ws.W.defs;
-  { time = None; compiled_residuals = true;
+  { time = None; resolve = None; execute = None; compiled_residuals = true;
     source = lazy (Digest.string (fst (Lisp.print ws.W.source))); state = None; states = [];
     nfns = 0; fn_calls = Hashtbl.create 1;
     steps = 0; nodes = []; authored = []; nnodes = 0; cells = []; cache = Hashtbl.create 8;
@@ -892,6 +926,7 @@ let static ?(record = false) ?(inputs = []) ws =
 
 let rec is_live = function
   | Residual _ -> true
+  | Struct (_, Ty.Array _, _) -> true
   | List xs -> Array.exists is_live xs
   | Record fs | Struct (_, _, fs) -> List.exists (fun (_, v) -> is_live v) fs
   | _ -> false
@@ -939,7 +974,7 @@ let frame_dependent = dependent true
 let state_dependent = dependent false
 
 (* one live state per call, made from the first residual met *)
-let with_live ?state ?elems ?(compiled = true) (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diagnostic.t) result =
+let with_live ?state ?elems ?resolve ?execute ?(compiled = true) (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diagnostic.t) result =
   let state = Option.value ~default:(create_state ()) state in
   let saved = state.source, state.frame, state.before, state.next in
   let elems = Option.map Smap.of_list elems in
@@ -947,7 +982,7 @@ let with_live ?state ?elems ?(compiled = true) (l : live) (f : (residual -> ctx)
   let ctx_of r =
     let st = match !live with
       | Some s -> s
-      | None -> let s = { (live_state r.rc.st ~state ?elems l) with compiled_residuals = compiled } in
+      | None -> let s = { (live_state r.rc.st ~state ?elems l) with compiled_residuals = compiled; resolve; execute } in
           live := Some s; s in
     { r.rc with st } in
   match Frame_input.validate l with
@@ -962,19 +997,23 @@ let with_live ?state ?elems ?(compiled = true) (l : live) (f : (residual -> ctx)
 let residual_eval ?state ?elems r ~live =
   with_live ?state ?elems live (fun ctx_of -> let c = ctx_of r in force_res c r)
 
-let force_with ?state ?elems ?compiled v ~live =
+let force_with ?state ?elems ?resolve ?execute ?compiled v ~live =
   if not (is_live v) then Ok v
   else
-    with_live ?state ?elems ?compiled live (fun ctx_of ->
+    with_live ?state ?elems ?resolve ?execute ?compiled live (fun ctx_of ->
       let rec go v = match v with
         | Residual r -> let c = ctx_of r in go (force_res c r)
+        | Struct (_, Ty.Array _, _) -> (match resolve with
+            | Some resolve -> (match resolve v with Ok v -> v
+                | Error d -> raise (Fail (d.code, d.message, d.span)))
+            | None -> fail "E_DATA_SOURCE" "This packed source needs its host's cooked data.")
         | List xs -> List (Array.map go xs)
         | Record fs -> Record (List.map (fun (n, x) -> (n, go x)) fs)
         | Struct (n, ty, fs) -> Struct (n, ty, List.map (fun (k, x) -> (k, go x)) fs)
         | v -> v in
       go v)
 
-let force ?state ?elems v ~live = force_with ?state ?elems v ~live
+let force ?state ?elems ?resolve v ~live = force_with ?state ?elems ?resolve v ~live
 
 let run ?record ?inputs ?state ?live ~time ws =
   let state = Option.value ~default:(create_state ()) state in
@@ -997,6 +1036,10 @@ let run ?record ?inputs ?state ?live ~time ws =
 let show v = show_with Fun.id v
 
 module Private = struct
+  let force_with_executor ?state ?elems ?resolve ~execute v ~live =
+    force_with ?state ?elems ?resolve ~execute v ~live
+  let function_bindings = function Closure cl -> Smap.bindings cl.env | Named _ -> []
+  let function_body = function Closure cl -> Some (cl.params, cl.body) | Named _ -> None
   type residual_view = {
     term : W.term;
     bindings : (string * value) list;
@@ -1009,11 +1052,34 @@ module Private = struct
     site = site r.rc; iter = r.rc.iter; instance = r.rc.inst; previous = r.previous}
   let residual_id r = r.rid
   let residual_ops r = r.rc.st.ops
-  let force_reference ?state ?elems v ~live = force_with ?state ?elems ~compiled:false v ~live
+  let force_reference ?state ?elems ?resolve v ~live = force_with ?state ?elems ?resolve ~compiled:false v ~live
   let closure_available r = Option.is_some (fast_of r)
-  let eval_term ?state ?elems r term ~live =
-    with_live ?state ?elems ~compiled:false live (fun ctx_of ->
+  let eval_term ?state ?elems ?resolve r term ~live =
+    with_live ?state ?elems ?resolve ~compiled:false live (fun ctx_of ->
       let c = ctx_of r in concrete c (ev c r.renv term))
+  let map_probe ?state ?resolve ?(offset = 0) r ~live =
+    with_live ?state ?resolve ~compiled:false live (fun ctx_of ->
+      let c = {(ctx_of r) with rec_ = false} in
+      match r.rterm.node with
+      | W.Hof (`Map, f :: sources) ->
+          let fn = match concrete c (ev c r.renv f) with
+            | Fn fn -> fn | _ -> fail "E_TYPE" "Expected a function." in
+          let arrays = List.map (fun source -> concrete c (ev c r.renv source)) sources in
+          let size = function List xs -> Array.length xs | v -> array_length v in
+          let count = List.fold_left (fun n v -> min n (size v)) max_int arrays in
+          let count = if arrays = [] then 0 else count in
+          let get v k = match v with List xs -> xs.(k) | v -> array_get v k in
+          let at k = protect (fun () ->
+            if k < 0 || k >= count then fail "E_LIST_RANGE" "Probe index is outside this map.";
+            let st = {c.st with record = true; recs = Hashtbl.create 16;
+              fn_calls = Hashtbl.create 1; memo = Hashtbl.create 16; steps = 0} in
+            let fid = match fn with Closure cl -> cl.fid | Named n -> n.fid in
+            Hashtbl.add st.fn_calls fid (offset + k);
+            ignore (concrete {c with st; rec_ = true}
+              (call_fn {c with st; rec_ = true} fn (List.map (fun v -> get v k) arrays)));
+            Hashtbl.fold (fun path (_, values) all -> (path, List.rev values) :: all) st.recs []) in
+          count, at
+      | _ -> fail "E_TYPE" "A map probe needs a checked map.")
   let compile_residuals = compile_residuals
   let rec compiled = function
     | Residual { fast = Ready _; _ } -> 1

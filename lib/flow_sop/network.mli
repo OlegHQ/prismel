@@ -13,9 +13,15 @@ type t = private {
   frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t;
       (** Static-plan-bounded geometry zones rebuilt with an immutable fold
           snapshot on the initial domain, before worker submission. *)
+  profile : Flow_ir.Profile.t option;
+  reference : bool;
 }
 
 val of_geometry : Procedural.Edit_graph.t -> t
+val with_profile : Flow_ir.Profile.t -> t -> t
+val with_reference : bool -> t -> t
+(** Independent reference execution for parity checks and inspected cones. *)
+
 val with_states : Flow.Eval.value list -> t -> t
 val with_frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t -> t -> t
 val with_drives : Flow.Eval.value Port.Map.t -> t -> (t, Flow.Diagnostic.t) result

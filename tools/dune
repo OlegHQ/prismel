@@ -1,3 +1,8 @@
+(library
+ (name workspace_parity)
+ (modules workspace_parity)
+ (libraries rays flow_ir flow_sop editor_document sketch_support rdk_rays rdk_test_support unix))
+
 (executable
  (name check)
  (modules check)
@@ -248,7 +253,7 @@
 (executable
  (name bench_kernel)
  (modules bench_kernel)
- (libraries rdk rays_math flow flow_ir unix))
+ (libraries rdk rays_math flow flow_ir flow_sop sop_catalog unix))
 
 (executable
  (name bench_workspace_live)

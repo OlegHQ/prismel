@@ -277,6 +277,8 @@ let () =
             (Flow.Diagnostic.report ~file:Sketch_source.path
               ~source:Sketch_source.text diagnostic)) diagnostics;
           exit 1 in
+    Workspace_parity.check ?directory:(Sys.getenv_opt "RAYS_WORKSPACE_PIXELS") ~factories
+      ~name:"sketches/voxel_wall/sketch.rays" document;
     let graphs = match Rays_editor.Workspace.sop_graphs ~factories document with
       | Ok graphs -> graphs
       | Error message -> failwith message in

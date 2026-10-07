@@ -15,11 +15,23 @@ only on `flow`, `param` and `rays_math`; its dataflow passes and packed/scalar
 executor cannot reach geometry, presentation, editor or GPU libraries.
 `flow` never depends on `flow_ir` and retains an independently callable
 reference tree walker. `flow_sop` depends
-only on `flow`, `flow_ir`, `param` and `procedural`; its typed overlay and
+only on `flow`, `flow_ir`, `param`, `procedural` and the standard-library `unix`
+clock; its typed overlay and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.
 Math-backed value declarations such as `noise3` live in `flow_ir` and are
 included in the SOP/editor host's immutable `Flow_sop.Operators.all` list.
 Plain Flow checking remains independent of the math library.
+Cook-time `sop/attr` and `sop/with_attr` declarations live in `flow_sop`.
+Its attribute kernel resolves immutable packed Flow sources against cooked
+RDK inputs and writes through `Rdk.Kernel.edit_point_ranges` or point
+attributes. The executor receives a resolver callback; neither `flow` nor
+`flow_ir` imports geometry. Environment fold snapshots are passed through
+the existing frame-node rebuild boundary.
+Instantiated SOP topology/elementwise facts supply neutral count-origin proofs
+to `flow_ir` for dynamic attribute-map fusion. No geometry types cross that
+callback. The workspace owns a bounded atomic execution profile; hosts supply
+the clock, and `flow_graph.Probe` receives only neutral tier/group/time metadata.
+Neither `flow_ir` nor `flow_graph` gains a platform-clock dependency.
 
 `flow_graph` depends only on `flow` and `param`. It owns `Projection`,
 `Flow_edit`, `Exposure` and `Probe` for every domain. `pxui_graph` consumes
@@ -31,6 +43,12 @@ Geometry nodes lower through `flow_sop`; Drawing nodes lower through
 `Sketch_support.Drawing` into existing native `Rays.Scene` commands. Canvas
 panels use the same PXUI composition and renderer as every other panel.
 There is one evaluator, one UI engine and one native Metal renderer.
+`sketch_support` may reach `flow_ir` to prepare drawing argument programs;
+the editor retains that preparation while the plan is unchanged, and exports
+prepare once before playback. Numeric maps inside frame folds dispatch through
+the packed tier with current immutable bindings. `flow` owns fold identity and
+transactions and receives only a private execution callback; it never imports
+`flow_ir`. Reference drawing evaluation remains available for parity checks.
 
 `frame_input` owns immutable logical frame facts (time, step, index, size,
 pointer, held keys/buttons and ordered events), with no dependencies. The host

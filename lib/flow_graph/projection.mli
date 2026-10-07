@@ -15,9 +15,10 @@
     [->], a call inside a call) is a node like a bound one, placed before the node that
     holds it and wired to its row; its path ends in {!Flow_edit.nested_leaf} and it has
     no binding until it is renamed.
-    ponytail: only bound loops, [let*] scopes and [fn]s are zones; an inline
-    one is a chip until it is unfolded ({!Flow_edit.Unfold}), as are expressions, [ref]s
-    and calls of functions and macros. *)
+    Inline higher-order calls are cards and their [fn] inputs are zones with
+    parameter rails, call selectors and editable body cards. Inline loops and
+    [let*] scopes remain chips until unfolded ({!Flow_edit.Unfold}), as do
+    expressions, [ref]s and calls of functions and macros. *)
 
 type path = Flow.Workspace.path
 

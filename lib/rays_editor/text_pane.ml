@@ -69,7 +69,7 @@ let scope (e : S.t) = match e.node with
 (* the scope inside a binding's value: itself, or a loop's body *)
 let enter (v : S.t) = match scope v, S.head v with
   | Some _, _ -> v
-  | None, Some ("for" | "fold" | "scan" | "sum" | "state") -> Option.value ~default:v (last v)
+  | None, Some ("for" | "fold" | "scan" | "sum" | "state" | "fn") -> Option.value ~default:v (last v)
   | None, _ -> v
 
 (* the binding a path names (pattern and expression) below a graph's body *)
@@ -157,21 +157,26 @@ let binding_at (shown : shown) byte = match shown.body with
         | Some s -> s.Flow.Diagnostic.start <= byte && byte <= s.finish | None -> false in
       (* the nested node the byte is in, innermost: a step of a ->, a call inside a call *)
       let rec nested prefix leaf (v : S.t) =
-        match List.find_opt (fun (_, a) -> holds a) (Flow_graph.Flow_edit.nested_nodes v) with
-        | Some (key, a) -> nested prefix (Flow_graph.Flow_edit.nested_leaf leaf key) a
-        | None -> prefix @ [ leaf ] in
-      let rec within prefix cur = match scope cur with
-        | None -> None
+        let body = enter v in
+        let inner = if body != v || scope v <> None then within (prefix @ [leaf]) body else None in
+        match inner with Some path -> path | None ->
+          match List.find_opt (fun (_, a) -> holds a) (Flow_graph.Flow_edit.nested_nodes v) with
+          | Some (key, a) -> nested prefix (Flow_graph.Flow_edit.nested_leaf leaf key) a
+          | None -> prefix @ [ leaf ]
+      and within prefix cur = match scope cur with
+        | None -> (match cur.node with
+            | S.List _ | S.Map _ when holds cur -> Some (nested prefix "@result" cur)
+            | _ -> None)
         | Some (bindings, res) ->
-            let inside leaf v = match within (prefix @ [ leaf ]) (enter v) with
-              | Some _ as deeper -> deeper | None -> Some (nested prefix leaf v) in
+            let inside leaf v = Some (nested prefix leaf v) in
             (match List.find_map (fun ((p : S.t), v) ->
               match span_of spans p, span_of spans v with
               | Some a, Some b when a.Flow.Diagnostic.start <= byte && byte <= b.Flow.Diagnostic.finish ->
                   inside (Flow_graph.Flow_edit.pat_key p) v
               | _ -> None) bindings with
              | Some _ as found -> found
-             | None -> if holds res && Flow_graph.Flow_edit.node_call res then inside "@result" res else None) in
+             | None -> if holds res && (match res.node with S.List _ | S.Map _ -> true | _ -> false)
+                 then inside "@result" res else None) in
       let found = match within [] body with
         | Some _ as found -> found
         | None -> if scope body = None && holds body && Flow_graph.Flow_edit.node_call body
@@ -379,7 +384,7 @@ let scrub_op (shown : shown) (start, finish) replacement =
          | Some _ as found -> found | None -> card (path @ ["@result"]) result)
     | None -> card (path @ ["@result"]) form
   and card path (form : S.t) =
-    let inner = if scope form <> None || List.mem (Option.value ~default:"" (S.head form)) ["for";"fold";"scan";"sum";"state"]
+    let inner = if scope form <> None || List.mem (Option.value ~default:"" (S.head form)) ["for";"fold";"scan";"sum";"state";"fn"]
       then within path (enter form) else None in
     match inner with Some _ as found -> found | None ->
     let nested = List.find_map (fun (key, expr) ->

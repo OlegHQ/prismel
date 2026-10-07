@@ -102,6 +102,24 @@ let same_result a b = match a, b with
   | _ -> false
 
 let () =
+  let array = E.Struct ("sop/attr", Flow.Ty.Array Flow.Ty.Vec3, []) in
+  let array = (Executor.graph (ok (Executor.compile array))).nodes.(0) in
+  assert (match array.count with Count.Data _ -> true | _ -> false);
+  let record = value "(let* [r {:a (map (fn [x] (+ x t)) (array/range 2048))}] (array/sum r.a))" in
+  let record = Executor.graph (ok (Executor.compile record)) in
+  assert (Array.for_all (fun (n : node) -> match n.ty, n.count with
+    | Flow.Ty.Array _, Count.Static 1 -> false | _ -> true) record.nodes);
+  let profile = Profile.create ~clock:(fun () -> 1.) in
+  for i = 0 to 512 do
+    let ws = check (Printf.sprintf "(workspace w (graph g%d :context value (+ t 1)))" i) in
+    let evaluated = ok (E.static ws) in
+    let program = ok (Executor.compile ~profile (snd (List.hd evaluated.results))) in
+    ignore (ok (Executor.force program ~live:(Frame_input.at_time 0.)))
+  done;
+  let reports = Profile.executions profile in
+  assert (List.length reports = 512);
+  assert (List.for_all (fun report -> List.for_all (fun (instance,_,_) -> instance = 0) report.sites) reports);
+  assert ((List.hd reports).seconds = 0. && (List.hd reports).tier = Closure);
   List.iter (fun body ->
     let v = value body in
     let p = ok (Executor.compile v) in
@@ -123,7 +141,7 @@ let () =
      "(let* [f (fn [x] (* x t))] (sum [x (map f (list 1 2 3))] x))";
      "(sqrt (pow t 1000000))"];
   let scalar = ok (Executor.compile (value "(+ (* t 2) (sin t))")) |> Executor.graph in
-  assert (Array.exists (fun n -> n.tier = Closure) scalar.nodes);
+  assert (Array.exists (fun (n : node) -> n.tier = Closure) scalar.nodes);
   let conditional = ok (Executor.compile (value "(if (> t 0) (/ t 0) (sin t))")) |> Executor.graph in
   assert (Array.exists (function {kind = Kernel {body = Reference _; _}; _} -> true | _ -> false) conditional.nodes);
   let bad_live = {(Frame_input.at_time 0.) with dt = nan} in
@@ -143,7 +161,7 @@ let () =
   List.iter (fun body ->
     let v = value body in
     let program = ok (Executor.compile v) in
-    assert (Array.exists (fun n -> n.tier = Cpu_kernel) (Executor.graph program).nodes);
+    assert (Array.exists (fun (n : node) -> n.tier = Cpu_kernel) (Executor.graph program).nodes);
     List.iter (fun time ->
       let live = Frame_input.at_time time in
       let reference = E.Private.force_reference v ~live in
@@ -180,7 +198,7 @@ let () =
   let body = "(map (fn [p] (exact (noise3 (+ p [t 0 0])))) (array/vec3 2051 [0.3 0.7 -0.2]))" in
   let v = mapped ~ops body in
   let program = ok (Executor.compile v) in
-  assert (Array.exists (fun n -> n.tier = Cpu_kernel) (Executor.graph program).nodes);
+  assert (Array.exists (fun (n : node) -> n.tier = Cpu_kernel) (Executor.graph program).nodes);
   List.iter (fun time ->
     let live = Frame_input.at_time time in
     let reference = ok (E.Private.force_reference v ~live) in
@@ -201,7 +219,7 @@ let () =
   let custom = {Flow_ir.Operators.noise3 with body = (fun ~live:_ ~node:_ _ -> E.Float 0.125)} in
   let v = mapped ~ops:[custom] body in
   let program = ok (Executor.compile v) in
-  assert (Array.for_all (fun n -> n.tier <> Cpu_kernel) (Executor.graph program).nodes);
+  assert (Array.for_all (fun (n : node) -> n.tier <> Cpu_kernel) (Executor.graph program).nodes);
   assert (same_result (Executor.force program ~live) (E.Private.force_reference v ~live));
   match ok (Executor.force program ~live) with
   | E.Float_array xs -> assert (Array.for_all (( = ) 0.125) xs)

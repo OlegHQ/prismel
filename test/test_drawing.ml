@@ -136,11 +136,27 @@ let native workspace directory =
       Array.to_list (Array.map (fun p -> Rays.Scene.point ~at:(int_of_float p.x, int_of_float p.y)
         ~color:Rays.Color.cyan ()) particles)) ());
   List.iter (fun name -> ignore (ok (Rays_editor.Workspace.export ~directory:(path name) ~frames workspace))) ["lisp-a"; "lisp-b"];
+  let evaluated = ok (E.static ~inputs:workspace.Editor_document.Workspace_doc.inputs workspace.checked) in
+  let prepared = ok (Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan
+    (List.assoc "picture" evaluated.results)) in
+  List.iter (fun (reference, domains) -> Rays.Parallel.run ~domains (fun () ->
+    let state = E.create_state () in
+    let name = (if reference then "reference-" else "cpu-") ^ string_of_int domains in
+    ignore (Rays.Sketch.export_state ~config ~directory:(path name) ~frames
+      ~init:(fun _ -> ()) ~update:(fun () _ -> ())
+      ~view:(fun () frame ->
+        let live = {(Frame_input.at_time frame.Rays.Frame.time) with dt = 1. /. 60.; frame = frame.count; size = 800, 600} in
+        ok (Sketch_support.Drawing.render_prepared ~state ~reference prepared ~live ~size:live.size)) ())))
+    [false, 1; false, 8; true, 1; true, 8];
   for i = 0 to frames - 1 do
     let file name = Filename.concat (path name) (Printf.sprintf "frame-%06d.png" i) in
     let baseline = read (file "ocaml") in
     assert (baseline = read (file "lisp-a"));
-    assert (baseline = read (file "lisp-b"))
+    assert (baseline = read (file "lisp-b"));
+    assert (baseline = read (file "cpu-1"));
+    assert (baseline = read (file "cpu-8"));
+    assert (baseline = read (file "reference-1"));
+    assert (baseline = read (file "reference-8"))
   done;
   assert (read (Filename.concat (path "lisp-a") "frame-000000.png") <>
           read (Filename.concat (path "lisp-a") "frame-000003.png"));

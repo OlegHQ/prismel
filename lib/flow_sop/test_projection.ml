@@ -54,7 +54,7 @@ let snapshot = [
   "bloom", [ "flower", (12, 1, 84); "scene", (5, 0, 44); "world", (3, 0, 24); "settings", (2, 0, 6);
              "editor", (10, 0, 29); "half", (1, 0, 2); "petal", (2, 0, 53) ];
   "facade", [ "facade", (14, 2, 89) ];
-  "garland", [ "garland", (15, 3, 86); "ring", (1, 0, 4) ];
+  "garland", [ "garland", (19, 5, 90); "ring", (6, 1, 45) ]; (* inline functions and nested maps *)
   "kit", [ "kit", (16, 2, 112); "window", (3, 0, 30) ];
   "orrery", [ "orrery", (19, 1, 114) ]; (* noise displacement's mode row *)
   "rosette", [ "rosette", (4, 0, 32) ];
@@ -179,8 +179,8 @@ let rec invariant_names (s : P.scope) = List.concat_map (fun (n : P.node) ->
 let flags () =
   let w = load "orrery" in
   let s = scope w "orrery" in
-  check (live_names s = [ "spin"; "pulse"; "sun"; "glow"; "moons_each"; "a"; "bob"; "moon"; "@result"; "orbit"; "system" ])
-    "Orrery: what depends on t is live, base, plinth and the static moon values are not";
+  check (live_names s = [ "spin"; "pulse"; "sun"; "glow#:color"; "glow"; "moons_each"; "a"; "bob"; "moon#:center"; "moon"; "@result"; "orbit"; "system" ])
+    ("Orrery: live paths changed: " ^ String.concat ", " (live_names s));
   let base = node w "orrery" [ "base" ] and moons = node w "orrery" [ "moons_each" ] in
   check ((not base.live) && moons.live && (zone moons).scope.nodes <> []) "a live zone";
   List.iter (fun name ->

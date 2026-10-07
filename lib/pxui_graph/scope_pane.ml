@@ -1300,8 +1300,9 @@ let note_colors theme =
   else Color.hex_exn "#f3e6a8", Color.hex_exn "#4a3f10"
 
 (* the marks a node or zone carries: live time, loop-invariant, macro, loop order *)
-let marks (n : P.node) =
+let marks ?execution (n : P.node) =
   (if n.live then [ "t" ] else [])
+  @ Option.fold ~none:[] ~some:(fun (e : Flow_graph.Probe.execution) -> [e.tier]) execution
   @ (if n.macro <> None then [ "◊" ] else [])
   @ (match n.zone with Some { order = Some o; _ } -> [ o ] | _ -> [])
 
@@ -1570,12 +1571,13 @@ let zone_binder (n : P.node) (zn : P.zone) =
   | Some { name; _ } -> name, None
   | None -> P.title n, None
 
-let paint_zone_label paint ui t ~z ~fs ~x ~y ~w (n : P.node) (zn : P.zone) =
+let paint_zone_label paint ui t ~z ~fs ~x ~y ~w ?execution (n : P.node) (zn : P.zone) =
   let theme = t.theme in
   let ls = max 4 (fs - 2) in
   let hh = P.head_height *. z in
   let gap = 8. *. z in
-  let cw = cap_in paint ui ~size:ls ~color:theme.accent ~x ~y ~h:hh (kind_label zn.kind) in
+  let label = kind_label zn.kind ^ Option.fold ~none:"" ~some:(fun (e : Flow_graph.Probe.execution) -> " · " ^ e.tier) execution in
+  let cw = cap_in paint ui ~size:ls ~color:theme.accent ~x ~y ~h:hh label in
   let name, in_ = zone_binder n zn in
   let nx = x +. cw +. gap in
   let room = Float.max 0. (x +. w -. 9. *. z -. nx) in
@@ -1610,7 +1612,7 @@ let paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w) =
 
 (* the card's header: the in-port of the first geometry slot, the type square, the name, and at
    the right the view flag, the marks and the kind (a failed node says its code instead) *)
-let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?lens_open ?failed ?head ?(shown = P.Card) () =
+let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?execution ?lens_open ?failed ?head ?(shown = P.Card) () =
   let theme = t.theme in
   let ls = max 4 (fs - 2) in
   let hh = P.head_height *. z in
@@ -1640,7 +1642,7 @@ let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?lens_open ?failed ?hea
       Ui.Paint.fill paint ~x:(fx +. 3. *. z) ~y:(fy +. 3. *. z) ~w:(6. *. z) ~h:(6. *. z) theme.accent;
       fx -. 6. *. z
     end else right in
-  let m = marks n in
+  let m = marks ?execution n in
   let gap = 5. *. z in
   paint_marks paint ui theme ~size:ls ~gap ~right ~y ~h:hh m;
   let right = right -. marks_width paint ~size:ls ~gap m -. (if m = [] then 0. else 1. *. z) in
@@ -1687,7 +1689,9 @@ let paint_footer paint ui t ~z ~fs (f : Flow_graph.Probe.footer) (ty : Ty.t) ~pa
     text_in paint ui ~size:ls ~color ~x:(!right -. tw) ~y:ty0 ~h:th s;
     right := !right -. tw -. 6. *. z in
   if f.live then put_right theme.accent "t";
-  let tags = String.concat " · " (List.filter_map Fun.id [ f.branch; f.kept; Option.map (Printf.sprintf "×%d") f.runs ]) in
+  Option.iter (fun (e : Flow_graph.Probe.execution) -> put_right ink_2 e.tier) f.execution;
+  let tags = String.concat " · " (List.filter_map Fun.id [ f.branch; f.kept; Option.map (Printf.sprintf "×%d") f.runs;
+    Option.bind f.execution (fun e -> Option.map (fun seconds -> Printf.sprintf "%.3f ms" (seconds *. 1000.)) e.seconds) ]) in
   if tags <> "" then
     put_right ink_2 (fitted paint ls (Float.max 0. (!right -. x) *. 0.5) tags);
   let left = x +. label_x *. z in
@@ -1801,6 +1805,10 @@ let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(carry =
   if shown = P.Point then paint_point paint ui t ~z ~fs p ?failed ~selected (x, y, w, h) else
   let theme = t.theme in
   let z_ = n.zone in
+  let execution = Option.bind t.records (fun records ->
+    let chain = Option.value ~default:[] (Hashtbl.find_opt t.chains n.path) in
+    Flow_graph.Probe.execution records n.path ~probes:(List.map t.probe chain)) in
+  let execution = match execution with Some _ -> execution | None -> Option.bind footer (fun f -> f.Flow_graph.Probe.execution) in
   let ls = max 4 (fs - 2) in
   let stacked = match z_ with Some _ -> p.collapsed | None -> false in
   if stacked then
@@ -1820,9 +1828,9 @@ let paint_node paint ui t ~z ~fs ?footer ?lens_step ?(hovered = false) ?(carry =
   (match z_ with
    | Some zn ->
        (* a collapsed zone: its kind as a label, the card's name, the toggle chevron *)
-       paint_zone_label paint ui t ~z ~fs ~x:(x +. head_pad *. z) ~y ~w:(w -. head_pad *. z) n zn
+       paint_zone_label paint ui t ~z ~fs ~x:(x +. head_pad *. z) ~y ~w:(w -. head_pad *. z) ?execution n zn
    | None ->
-       paint_header paint ui t ~z ~fs ~x ~y ~w n ~shown ?failed ?head
+       paint_header paint ui t ~z ~fs ~x ~y ~w n ~shown ?failed ?head ?execution
          ?lens_open:(if n.lens <> None && shown <> P.Chip then Some (lens <> None) else None) ());
   (* the displayed result at the end of its chain has no out-port: the view flag takes the place *)
   if out_wired || t.display <> Some n.path then
@@ -1878,6 +1886,9 @@ let zone_uses (zn : P.zone) names =
    are wired directly across its edge *)
 let paint_zone_frame paint ui t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selected ~out_wired (x, y, w, h) ~probe ~count =
   let theme = t.theme in
+  let execution = Option.bind t.records (fun records ->
+    let chain = Option.value ~default:[] (Hashtbl.find_opt t.chains n.path) in
+    Flow_graph.Probe.execution records n.path ~probes:(List.map t.probe chain)) in
   (* the zone's own footer under its body *)
   let h = match footer with
     | Some f -> paint_footer paint ui t ~z ~fs f n.ty ~pad:0. (x, y, w, h); h -. P.foot_height *. z
@@ -1887,7 +1898,7 @@ let paint_zone_frame paint ui t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selec
   let in_wired = not plain && (match P.label_row zn with
     | Some { key = Some _; expr = Some e; _ } -> E.free_names e <> [] | _ -> false) in
   let ind = if in_wired then 8. *. z else 0. in
-  paint_zone_label paint ui t ~z ~fs ~x:(x +. ind) ~y ~w:(w -. ind) n zn;
+  paint_zone_label paint ui t ~z ~fs ~x:(x +. ind) ~y ~w:(w -. ind) ?execution n zn;
   (* a plain [for] has no ports of its own on its edge: the label reads as the sheet's, and the
      yielded card wires straight to its consumer *)
   if not plain then
@@ -2184,7 +2195,7 @@ let update t ui (frame : Frame.t) =
      costs one clip; a diagonal is then a run of 16-point boxes. *)
   let wire_hits = Cells.create 16 in
   let hits i = Option.value ~default:[] (Cells.find_opt wire_hits i) in
-  let wire_boxes name (cx, cy, cw, ch) i =
+  let wire_boxes ?(origin = (0., 0.)) name (cx, cy, cw, ch) i =
     let w = t.geo.wires.(i) in
     let count = ref 0 in
     let rec segments j = function
@@ -2199,7 +2210,8 @@ let update t ui (frame : Frame.t) =
                  let x0 = ax +. (bx -. ax) *. u0 and y0 = ay +. (by -. ay) *. u0
                  and x1 = ax +. (bx -. ax) *. u1 and y1 = ay +. (by -. ay) *. u1 in
                  incr count;
-                 Cells.replace wire_hits i (Ui.box ui ~flags:Ui.clickable ~at:(Float.min x0 x1 -. 4., Float.min y0 y1 -. 4.)
+                 Cells.replace wire_hits i (Ui.box ui ~flags:Ui.clickable
+                     ~at:(Float.min x0 x1 -. 4. -. fst origin, Float.min y0 y1 -. 4. -. snd origin)
                      ~w:(Ui.Px (abs_float (x1 -. x0) +. 8.)) ~h:(Ui.Px (abs_float (y1 -. y0) +. 8.))
                      (Printf.sprintf "%s:%d:%d-%d" name i j !count) :: hits i)
                done);
@@ -2239,7 +2251,9 @@ let update t ui (frame : Frame.t) =
            let lx, ly = local (bx, by) in
            let x0 = Float.max 0. lx and y0 = Float.max 0. ly in
            let clip = x0, y0, Float.min (float t.width) (lx +. w) -. x0, Float.min (float t.height) (ly +. h) -. y0 in
-           List.iter (wire_boxes "zwire" clip) (Option.value ~default:[] (Hashtbl.find_opt t.geo.inside p.path))
+           Ui.within ui tile (fun () ->
+             List.iter (wire_boxes ~origin:(lx, ly) "zwire" clip)
+               (Option.value ~default:[] (Hashtbl.find_opt t.geo.inside p.path)))
        | _ -> ());
       (* the live editors of a row: a number, a vector of numbers, a flag *)
       let row_fields (n : P.node) (r : P.row) ~name ~ry ~size =

@@ -241,6 +241,7 @@ let input_rows c (inputs : (string * Ty.t * W.term option) list) pos kws =
     | None -> row c ~ty ?default n (E.Kw n) (List.assoc_opt n kws)) inputs
 
 let call_rows c (e : S.t) h args =
+  let args = S.attribute_args h args in
   let pos = E.positional args and kws = E.keywords args in
   let npos = List.length pos in
   let at i = List.nth_opt pos i in
@@ -265,12 +266,16 @@ let call_rows c (e : S.t) h args =
            (List.filter (fun i -> i mod 2 = 1) (List.init npos Fun.id))
       @ [ kwrow "else" ]
   | "map" | "filter" | "reduce" | "sort-by" ->
+      let input_ty i fallback = match Hashtbl.find_opt c.forms e.id with
+        | Some {W.node = Hof (_, inputs); _} ->
+            Option.fold ~none:fallback ~some:(fun (t : W.term) -> Some t.ty) (List.nth_opt inputs i)
+        | _ -> fallback in
       let labels = match h with
         | "map" -> [ "f"; "list"; "list 2"; "list 3" ] | "filter" -> [ "keep if"; "list" ]
         | "reduce" -> [ "f"; "start"; "list" ] | _ -> [ "key"; "list" ] in
       List.concat (List.mapi (fun i l ->
         if i < 2 || at i <> None || h = "reduce" then
-          [ posrow ?ty:(if i = 0 then Some Ty.Fn else if String.starts_with ~prefix:"list" l then list_ty else None) l i ]
+          [ posrow ?ty:(input_ty i (if i = 0 then Some Ty.Fn else if String.starts_with ~prefix:"list" l then list_ty else None)) l i ]
         else []) labels)
       @ (if h = "map" && npos < 4 then [ add c "+ list" (E.Pos npos) list_ty ] else [])
   | "get" -> [ posrow "record" 0; posrow ~socket:false "field" 1 ]
@@ -332,7 +337,7 @@ let zone_kind (pat : S.t option) (e : S.t) =
     | Some "sum", _ -> Some Sum
     | Some "state", _ -> Some State
     | Some "let*", _ when scope_form e <> None -> Some Let
-    | Some "fn", Some { S.node = S.Sym _; _ } -> Some Fn
+    | Some "fn", _ -> Some Fn
     | _ -> None
 
 let outputs (pat : S.t option) ty = match pat with
@@ -381,7 +386,21 @@ let rail_of c (kind : zone_kind) (e : S.t) (t : W.term option) ~visible =
                let pat = match p.node with S.List [ pat; { S.node = S.Sym ":"; _ }; _ ] -> pat | _ -> p in
                bound := E.pat_names pat @ !bound;
                let ty = match t with
-                 | Some { W.node = Fn { params; _ }; _ } -> Option.bind (List.nth_opt params k) snd
+                 | Some ({ W.node = Fn { params; _ }; path = Some path; _ } as fn) ->
+                     (match Option.bind (List.nth_opt params k) snd with
+                      | Some _ as ty -> ty
+                      | None ->
+                          let parent = match List.rev path with
+                            | leaf :: scope -> Option.map (fun i -> List.rev scope @ [String.sub leaf 0 i])
+                                (String.rindex_opt leaf '#')
+                            | [] -> None in
+                          Option.bind parent (fun parent ->
+                            match Hashtbl.find_opt c.terms parent with
+                            | Some {W.node = Hof (`Reduce, f :: init :: source :: _); _} when f.form.id = fn.form.id ->
+                                if k = 0 then Some init.ty else Ty.elem source.ty
+                            | Some {W.node = Hof (_, f :: sources); _} when f.form.id = fn.form.id ->
+                                Option.bind (List.nth_opt sources k) (fun (source : W.term) -> Ty.elem source.ty)
+                            | _ -> None))
                  | _ -> None in
                { name = E.pat_key pat; names = E.pat_names pat; role = Param; ty; expr = None; key = None }) ps
          | _ -> [])

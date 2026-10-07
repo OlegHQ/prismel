@@ -165,6 +165,8 @@ let graphs () = match Rays_editor.Workspace.sop_graphs ~factories (load ()) with
   | Error message -> failwith message
 
 let check_all () =
+  Workspace_parity.check ?directory:(Sys.getenv_opt "RAYS_WORKSPACE_PIXELS") ~factories
+    ~name:"examples/sop_gallery/gallery.rays" (load ());
   let context = Context.create ~seed:2026L ~domains:1 () |> Result.get_ok in
   List.iter (fun (name, graph) ->
       let session = Session.create ~max_entries:24

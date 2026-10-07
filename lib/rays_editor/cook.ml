@@ -22,7 +22,7 @@ type 'prepared piece = {
 type summary = (int * int) * Flow_graph.Probe.geometry
 
 type 'prepared cooked =
-  | Displayed of 'prepared piece list * summary list
+  | Displayed of 'prepared piece list * summary list * ((int * int) * Rdk.Geometry.t) list
   | Framed of bounds option
 
 type 'prepared t = {
@@ -52,6 +52,7 @@ type 'prepared t = {
   displayed : (int * int) list;  (* the display node each graph compiles *)
   probing : (int * int) list;  (* the (object, node) pairs the last submission asked to summarise *)
   summaries : summary list;
+  sources : ((int * int) * Rdk.Geometry.t) list; (* same bounded optional cook targets as summaries *)
 }
 
 type 'prepared update = {
@@ -125,7 +126,7 @@ let create ~prepare ~seed ~grain ?domains ?await ~max_entries ~max_payload_bytes
       pieces = []; settings = None; error = None; failure = ref None; seconds = None;
       framing = None; force = false; compiled = Document.Int_map.empty; graphs = [];
       value_lanes = Document.Int_map.empty; state = Flow.Eval.create_state (); applied = Document.Int_map.empty;
-      displayed = []; probing = []; summaries = [] })
+      displayed = []; probing = []; summaries = []; sources = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
 
 (* the failing node of a cook error: the innermost entry of its trace *)
@@ -144,6 +145,7 @@ let stats value = Async_cook.stats value.worker
 let pieces value = value.pieces
 (* the counts of a compiled node of an object, once a cook has reported them *)
 let geometry value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.summaries
+let source value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.sources
 let applied value id = Document.Int_map.find_opt id value.applied
 let reset_state value =
   Flow.Eval.reset_state value.state;
@@ -222,12 +224,14 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
   let completion = Async_cook.poll value.worker in
   let resume = value.framing = Some true in
   let summaries = ref value.summaries in
+  let sources = ref value.sources in
   let pieces, error, seconds, prepared_changed, framed, framing,
       force_next = match completion with
     | None -> value.pieces, value.error, value.seconds, false,
         None, value.framing, false
-    | Some { Async_cook.result = Ok (Displayed (pieces, found)); seconds; _ } ->
+    | Some { Async_cook.result = Ok (Displayed (pieces, found, data)); seconds; _ } ->
         summaries := found;
+        sources := data;
         pieces, None, Some seconds, true, None, None, false
     | Some { result = Ok (Framed bounds); _ } ->
         value.pieces, value.error, value.seconds, false,
@@ -276,8 +280,10 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
   let prepare context outputs optional =
     let found = List.filter_map Fun.id (List.map2 (fun target output ->
       Option.map (summary target) output) probed optional) in
+    let data = List.filter_map Fun.id (List.map2 (fun (key, _) output ->
+      Option.map (fun (output : Session.output) -> key, output.geometry) output) probed optional) in
     let rec loop reversed graphs outputs = match graphs, outputs with
-      | [], [] -> Ok (Displayed (List.rev reversed, found))
+      | [], [] -> Ok (Displayed (List.rev reversed, found, data))
       | (id, graph) :: graphs, (output : Session.output) :: outputs ->
           let projection = Context.cache_projection (Graph.dependencies graph) context in
           let reused = List.find_opt (fun piece -> piece.id = id && piece.graph == graph
@@ -305,8 +311,9 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     if submit && Option.is_none error && value.await then
       let awaited = Async_cook.await value.worker in
       match awaited.result with
-      | Ok (Displayed (pieces, found)) ->
+      | Ok (Displayed (pieces, found, data)) ->
           summaries := found;
+          sources := data;
           List.filter (fun piece -> Document.Int_map.mem piece.id compiled) pieces,
           None, Some awaited.seconds, true
       | Ok (Framed _) -> pieces, error, seconds, prepared_changed
@@ -350,7 +357,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
   { cook = { value with schedule; pieces; settings = Some settings; error; seconds;
       framing; force = force_next; compiled;
       value_lanes; applied; graphs; displayed;
-      probing = (if submit then probes else value.probing); summaries = !summaries };
+      probing = (if submit then probes else value.probing); summaries = !summaries; sources = !sources };
     edit_error; prepared_changed; framed })
 
 let close value = Async_cook.close value.worker

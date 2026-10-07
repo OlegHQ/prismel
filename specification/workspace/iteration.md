@@ -235,6 +235,15 @@ block, then restore the enclosing evaluation's counter. This admits large
 arrays while refusing an expensive body within a block. The order of element
 evaluation and floating-point operations is unchanged.
 
+The CPU register tier supports numeric packed maps, Cartesian `for`, `sum`,
+`fold`, `scan`, `reduce` and `array/sum`. Live packed accumulators defer the
+complete iteration during static evaluation, so specialization does not build
+a residual for every element. Independent elements may run in parallel;
+accumulator steps keep their original order. Equal-count map stages may fuse
+without intermediate arrays. Correlated clauses and unsupported bodies keep
+reference evaluation. Placement and reduction order are specified in
+[`flow.md` §13.3](../flow.md#133-determinism).
+
 `map` (one to three arrays), `filter`, `sort-by`, `reduce`, `for`, `fold`,
 `scan` and `sum` operate directly on packed data. A packed map/collection
 body returns float or vec3 data and cannot construct deferred nodes. Array

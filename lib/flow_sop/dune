@@ -1,8 +1,13 @@
 (library
  (name flow_sop)
  (public_name rays.flow_sop)
- (modules port instance_path curve network value_lane catalog manifest operators lower)
- (libraries flow flow_ir param procedural))
+ (modules port instance_path curve network value_lane catalog manifest operators attribute_kernel lower)
+ (libraries flow flow_ir param procedural unix))
+
+(test
+ (name test_attribute_kernel)
+ (modules test_attribute_kernel)
+ (libraries flow flow_ir flow_graph flow_sop sop_catalog rdk rdk_test_support))
 
 (test
  (name test_noise_kernel)

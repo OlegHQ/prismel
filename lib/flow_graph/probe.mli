@@ -20,10 +20,17 @@ type geometry = {
 
 type summary = Value of Flow.Eval.value | Geometry of geometry
 
+type execution = {tier : string; group : path; seconds : float option}
+(** Renderer-neutral host report. Only the owning card has a group duration;
+    other fused cards name the same group and tier. *)
+
 type t
 
 val make :
-  ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?time:float -> ?geometry:(int -> geometry option) -> ?dynamic:(path -> int option) ->
+  ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?time:float ->
+  ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
+  ?execution:(path -> probes:int list -> execution option) ->
+  ?geometry:(int -> geometry option) -> ?dynamic:(path -> int option) ->
   ?element:(path -> int -> (string * Flow.Eval.value) list option) -> Flow.Eval.t -> t
 (** [live] forces residual values using the complete frame; [time] supplies a
     time-only frame when [live] is absent. [state] is copied when the probe is
@@ -33,11 +40,18 @@ val make :
     geometry ran over in the last cook: {!counts} reports it, and a
     node inside such a loop reads its one template record at every element.  [element zone k]
     names element [k] of that loop and gives its value (a point's position): the template's
-    element-dependent values are then forced for it (without it they read [?]). *)
+    element-dependent values are then forced for it (without it they read [?]).
+    [resolve] supplies cooked packed sources. Map selectors materialize their
+    inputs once and reference-evaluate just the selected call, beyond the 4,096
+    recording cap. The selected call and all its body records share one bounded memo.
+    Packed function sparklines sample at most 64 calls across the complete input. *)
 
 val same_eval : t -> t -> bool
 (** Both come from one evaluation (only the time or the geometry counts may
     differ), so their iteration counts are equal. *)
+
+val execution : t -> path -> probes:int list -> execution option
+(** Host execution metadata without forcing a probe value. *)
 
 val plan_node : t -> path -> probes:int list -> int option
 (** The plan node ({!Flow.Eval.node} id) of a geometry value at the probe.
@@ -47,6 +61,10 @@ val plan_node : t -> path -> probes:int list -> int option
 val records : t -> path -> (int list * summary) array
 (** Every recorded value of a path in evaluation order, capped at 4,096
     previews even when a packed array evaluates more elements. *)
+
+val at : t -> path -> probes:int list -> summary option
+(** Reference value at the selected iteration tuple, including packed function
+    calls outside the recording cap. Cooked inputs and call records are memoized. *)
 
 val chains : Projection.scope -> (path, path list) Hashtbl.t
 (** The enclosing iterating zones of every node below the scope, outermost
@@ -65,6 +83,7 @@ type footer = {
   runs : int option;  (** [×n], in a zone, when the value changes *)
   invariant : bool;  (** [↥ same each time]: the checker says it can leave the loop *)
   live : bool;  (** depends on frame facts or a frame fold *)
+  execution : execution option;
 }
 
 val footer : t -> Projection.node -> probes:int list -> footer

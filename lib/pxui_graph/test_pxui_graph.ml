@@ -791,7 +791,7 @@ let run_scope () =
     check (s.drawn_items > 0 && s.drawn_zones <= s.zones) (name ^ ": nothing drawn"))
     [ "bloom", "flower", 12, 1, 84; "sunflower", "sunflower", 9, 1, 36; "orrery", "orrery", 19, 1, 114;
       "facade", "facade", 14, 2, 89; "kit", "kit", 16, 2, 112; "tree", "tree", 9, 1, 184;
-      "garland", "garland", 15, 3, 86; "wave", "wave", 7, 2, 45; "tiles", "tiles", 9, 1, 67 ];
+      "garland", "garland", 19, 5, 90; "wave", "wave", 7, 2, 45; "tiles", "tiles", 9, 1, 67 ];
   (* the iteration selector: buttons and track are hit-tested boxes *)
   let w = load_workspace "sunflower" in
   let zone = [ "sunflower"; "seeds_each" ] in
@@ -802,6 +802,28 @@ let run_scope () =
   check (List.mem (Scope.Probe_set { zone; index = 6 }) changes) "the next button did not step the probe";
   let _, changes = scope_click view (rect_center prev) in
   check (List.mem (Scope.Probe_set { zone; index = 4 }) changes) "the previous button did not step the probe";
+  let inline = (Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace w (graph g :context value (let* [ys (map (fn [(x : float)] (+ x 2.0)) (array/float 10003 1.0))] (array/count ys))))"
+    |> Result.get_ok).checked in
+  let inline_view, _ = scope_view ~probe:(fun _ -> 9999) inline "g" in
+  let inline_view, _ = scope_step inline_view (frame ()) in
+  let inline_zone = ["g"; "ys#0"] in
+  let _, inline_keys = Scope.run_command (Scope.select [inline_zone] inline_view) (Scope.Probe_step 1) in
+  check (List.mem (Scope.Probe_set {zone = inline_zone; index = 10000}) inline_keys)
+    "inline function keyboard selector did not step beyond the recording cap";
+  let _, _, inline_next = Option.get (Scope.Private.selector inline_view inline_zone) in
+  let ix, iy, iw, ih = inline_next in
+  check (ix >= 0. && iy >= 0. && ix +. iw <= 1000. && iy +. ih <= 700.)
+    (Printf.sprintf "inline selector outside viewport: %.1f %.1f %.1f %.1f" ix iy iw ih);
+  let _, changes = scope_click inline_view (rect_center inline_next) in
+  check (List.mem (Scope.Probe_set {zone = inline_zone; index = 10000}) changes)
+    ("an inline function's selector did not step beyond the recording cap: " ^
+      Printf.sprintf "%.1f %.1f %.1f %.1f " ix iy iw ih ^
+      String.concat ", " (List.filter_map (function Scope.Probe_set {zone; index} ->
+        Some (String.concat "/" zone ^ "=" ^ string_of_int index)
+        | Scope.Selected paths -> Some ("selected " ^ String.concat "," (List.map (String.concat "/") paths))
+        | Scope.Zone_collapsed {zone; _} -> Some ("collapsed " ^ String.concat "/" zone)
+        | _ -> None) changes));
   let x, y, tw, th = track in
   let _, changes = scope_click view (int_of_float (x +. tw *. 0.75), int_of_float (y +. th /. 2.)) in
   (* a click at 75 % of the 57.5-point track reads 180 of 240; the one slack is the test's whole-point
@@ -824,6 +846,26 @@ let run_scope () =
   check (items3 = items1000) "iterations changed how many tiles are built";
   (* what grows is the sparklines: at most 16 segments each, whatever the count *)
   check (paint1000 < paint3 + 30 * items3) "a 1,000-iteration zone painted much more than a 3-iteration one";
+  let base, scope = scope_view ~inputs:["sunflower", ["seeds", Flow.Eval.Int 3]] w "sunflower" in
+  let evaluated = Result.get_ok (Flow.Eval.static ~record:true
+    ~inputs:["sunflower", ["seeds", Flow.Eval.Int 3]] w) in
+  let execution path ~probes:_ = Some Flow_graph.Probe.{tier = "CPU"; group = zone;
+    seconds = if path = zone then Some 0.002 else None} in
+  let reports = Flow_graph.Probe.make ~execution evaluated in
+  let zone_node = Option.get (P.find scope zone) in
+  let footer = Flow_graph.Probe.footer reports zone_node ~probes:[] in
+  check (footer.execution = execution zone ~probes:[]) "the footer lost its execution report";
+  check (List.mem ("tier", "CPU") (Flow_graph.Probe.readouts reports zone_node ~probes:[]))
+    "the inspector lost its execution tier";
+  let paint_hash view =
+    ignore (scope_step view (frame ()));
+    match Scene.Private.stage_native ~width:1000 ~height:700 (Pxui.Ui.scene scope_ui) with
+    | Error message -> fail message
+    | Ok staged -> staged.layers |> List.filter_map (function
+        | Scene.Private.Ui_layer (batch, _) -> Some (Scene_command.Ui_batch.instances batch) | _ -> None)
+      |> fun batches -> Digest.string (Marshal.to_string batches [Marshal.No_sharing]) in
+  check (paint_hash base <> paint_hash (Scope.with_records reports base))
+    "execution badges did not change the graph's paint";
   let collapsed_view, _ = scope_view ~collapsed:(fun p -> p = zone) w "sunflower" in
   let collapsed_view, _ = scope_step collapsed_view (frame ()) in
   check ((Scope.stats collapsed_view).drawn_zones = 0) "a collapsed zone drew its body";

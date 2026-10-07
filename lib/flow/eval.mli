@@ -111,7 +111,9 @@ type t = {
           in evaluation order, at most 4,096 per path (bindings, results,
           zone variables [":x"], [fn] parameters, graph inputs).  Geometry is a
           [Deferred (Geometry, id)] reference (its counts come from the cook, {!Flow_graph.Probe}); a
-          live value is a [Residual] until forced ({!run}, {!Flow_graph.Probe}). *)
+          live value is a [Residual] until forced ({!run}, {!Flow_graph.Probe}).
+          Packed local maps retain [fn-path/~calls] templates for reference
+          inspection beyond the recording cap. *)
 }
 
 val static :
@@ -141,10 +143,13 @@ val transaction : state -> (unit -> ('a, Diagnostic.t) result) -> ('a, Diagnosti
 val residual_eval : ?state:state -> ?elems:(string * value) list -> residual -> live:live -> (value, Diagnostic.t) result
 (** A live term's value at a time (never a [Residual] at the top). *)
 
-val force : ?state:state -> ?elems:(string * value) list -> value -> live:live -> (value, Diagnostic.t) result
+val force : ?state:state -> ?elems:(string * value) list ->
+  ?resolve:(value -> (value, Diagnostic.t) result) -> value -> live:live -> (value, Diagnostic.t) result
 (** Every residual inside a value replaced by its value at the time.  [elems] binds
     the element of each geometry zone ({!element_key}) to its value (a point
-    is a [Vec3]); a residual that reads an unbound element is an error. *)
+    is a [Vec3]); a residual that reads an unbound element is an error.
+    [resolve] materializes host-owned packed [Struct] sources at the cook
+    boundary. Without a resolver these report [E_DATA_SOURCE]. *)
 
 val element_key : Workspace.path -> string
 (** The name under which {!force} binds the element of the zone at this path. *)
@@ -175,6 +180,21 @@ val show : value -> string
 (** [str] formatting (register C2); a residual shows as [?]. *)
 
 module Private : sig
+  val force_with_executor : ?state:state -> ?elems:(string * value) list ->
+    ?resolve:(value -> (value, Diagnostic.t) result) ->
+    execute:(residual -> live -> (value, Diagnostic.t) result option) ->
+    value -> live:live -> (value, Diagnostic.t) result
+  (** Dispatch supported packed subterms inside an evaluator-owned frame fold.
+      None retains the interpreter. The callback receives the current immutable
+      bindings; the evaluator still owns cell identity and the frame transaction.
+      Reference forcing never invokes this callback. *)
+
+  val function_bindings : fn -> (string * value) list
+  (** Captured immutable inputs of a function value, for host data dependencies. *)
+
+  val function_body : fn -> ((Workspace.pattern * Ty.t option) list * Workspace.term) option
+  (** Checked body of a local function; named definitions remain interpreted. *)
+
   type residual_view = {
     term : Workspace.term;
     bindings : (string * value) list;
@@ -192,7 +212,8 @@ module Private : sig
   val residual_ops : residual -> Op.t list
   (** The immutable operator extension list of the captured workspace. *)
 
-  val force_reference : ?state:state -> ?elems:(string * value) list -> value -> live:live ->
+  val force_reference : ?state:state -> ?elems:(string * value) list ->
+    ?resolve:(value -> (value, Diagnostic.t) result) -> value -> live:live ->
     (value, Diagnostic.t) result
   (** Force through the tree walker, including captured residuals, without changing
       process-wide compilation settings. Suitable for probes and parity checks. *)
@@ -200,10 +221,18 @@ module Private : sig
   val closure_available : residual -> bool
   (** Prepare the existing scalar closure once; false for unsupported terms. *)
 
-  val eval_term : ?state:state -> ?elems:(string * value) list -> residual -> Workspace.term ->
+  val eval_term : ?state:state -> ?elems:(string * value) list ->
+    ?resolve:(value -> (value, Diagnostic.t) result) -> residual -> Workspace.term ->
     live:live -> (value, Diagnostic.t) result
   (** Evaluate a checked subterm in the residual's captured scope, through the
       reference walker. IR kernels use this once for their packed inputs. *)
+
+  val map_probe : ?state:state -> ?resolve:(value -> (value, Diagnostic.t) result) ->
+    ?offset:int -> residual -> live:live ->
+    (int * (int -> ((Workspace.path * (int list * value) list) list, Diagnostic.t) result), Diagnostic.t) result
+  (** Materialize map inputs once with the reference walker, then record only
+      the selected function call. This admits indices beyond the preview cap;
+      [offset] preserves call numbering when a function serves several maps. *)
 
   val compile_residuals : bool ref
   (** [true] (the default): a residual is forced through its compiled closure

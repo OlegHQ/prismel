@@ -106,11 +106,121 @@ let flow_map count =
   assert (one = eight);
   let reference = measure "flow_map_sin_interp" 1 (fun () -> Flow.Eval.Private.force_reference value ~live) in
   assert (one = reference)
+let flow_loops ?(fusion_only = false) count =
+  let flow_ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d) in
+  List.iter (fun (label, body) ->
+    let source = Printf.sprintf "(workspace kernel (graph g :context value (let* [tested %s] 0.0)))" body in
+    let forms = flow_ok (Flow.Syntax.parse source) in
+    let workspace = match Flow.Workspace.check {Flow.Check.version = 1; kinds = []} forms with
+      | Some w, [] -> w | _, ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+    let evaluation = flow_ok (Flow.Eval.static ~record:true workspace) in
+    let value = List.assoc ["g"; "tested"] evaluation.records |> List.hd |> snd in
+    let program = flow_ok (Flow_ir.Executor.compile value) in
+    assert (Array.exists (fun (n : Flow_ir.node) -> n.tier = Cpu_kernel) (Flow_ir.Executor.graph program).nodes);
+    let live = Frame_input.at_time 1.25 in
+    let hash value = Digest.to_hex (Digest.string (Marshal.to_string value [Marshal.No_sharing])) in
+    let reference = Flow.Eval.Private.force_reference value ~live |> flow_ok |> hash in
+    let unfused = if label <> "map_chain" then [] else match value with
+      | Flow.Eval.Residual r ->
+          let program = Flow_ir.Packed.compile ~fusion:false r
+            (Flow.Eval.Private.residual_view r).term |> Option.get in
+          ["unfused_cpu", (fun () -> Flow_ir.Packed.force program ~live)]
+      | _ -> assert false in
+    List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+      List.iter (fun (tier, force) ->
+        assert (hash (flow_ok (force ())) = reference);
+        let times = Array.make 7 0. and allocations = Array.make 7 0. in
+        Array.iteri (fun i _ ->
+          let bytes = allocated_bytes () and started = Unix.gettimeofday () in
+          let output = flow_ok (force ()) in
+          times.(i) <- Unix.gettimeofday () -. started;
+          allocations.(i) <- allocated_bytes () -. bytes;
+          assert (hash output = reference)) times;
+        Printf.printf "flow_%s_%s,%d,%d,%.9f,%.0f,%s\n%!" label tier count domains
+          (median times) (median allocations) reference)
+        (["cpu", (fun () -> Flow_ir.Executor.force program ~live)] @ unfused @
+         ["interp", (fun () -> Flow.Eval.Private.force_reference value ~live)]))) [1;8])
+    (let xs = Printf.sprintf "(array/range %d)" count in
+     ["for_sin", "(for [x " ^ xs ^ "] (sin (+ x t)))";
+      "sum_sin", "(sum [x " ^ xs ^ "] (sin (+ x t)))";
+      "fold", "(fold [a 0.0] [x " ^ xs ^ "] (- (* a 0.99) (* (+ x t) 0.0001)))";
+      "scan", "(scan [a 0.0] [x " ^ xs ^ "] (- (* a 0.99) (* (+ x t) 0.0001)))";
+      "reduce", "(reduce (fn [a x] (- (* a 0.99) (* (+ x t) 0.0001))) 0.0 " ^ xs ^ ")";
+      "map_chain", "(map (fn [y] (+ (* y y) (* t 0))) (map (fn [x] (sin (+ x t))) " ^ xs ^ "))"]
+      |> List.filter (fun (name, _) -> not fusion_only || name = "map_chain"))
+let flow_attributes grid =
+  let flow_ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d) in
+  let string_ok = function Ok x -> x | Error e -> failwith e in
+  let text = "(workspace kernel (graph g :context sop (let* [g (sop/grid) amp 0.8 freq 0.16 result (sop/with_attr g :P (map (fn [p n] (+ p (* n (* amp (noise3 (* p freq)))))) (sop/attr g :P) (sop/attr g :N)))] result)))" in
+  let lowered = Flow_sop.Lower.workspace ~factories:Sop_catalog.Editor.factories
+    (Flow.Syntax.parse text |> flow_ok) |> flow_ok in
+  let graph = List.hd lowered.graphs in
+  let cpu = Procedural.Edit_graph.compile_node graph.network.geometry
+    ~node_id:(Option.get graph.root) |> string_ok in
+  let call = Array.find_opt (fun (n : Flow.Eval.node) -> n.kind = "sop/with_attr") lowered.plan.nodes |> Option.get in
+  let values = List.assoc "values" call.args in
+  let source = match List.assoc "geometry" call.args with Flow.Eval.Deferred (_, id) -> id | _ -> assert false in
+  let reference = Flow_sop.Attribute_kernel.node ~reference:true ~source:"benchmark"
+    ~name:"P" ~values ~sources:[source] (Procedural.Node.inputs cpu) in
+  let expected = ok (Deform.noise_displace ~mode:Deform.Normal_3d ~amplitude:0.8
+    ~frequency:0.16 ~seed:0 grid) |> fingerprint in
+  let measure label domains node = Rays_math.Parallel.run ~domains (fun () ->
+    let context = Procedural.Context.create ~domains ~grain:16_384 ~time:1.25 () |> string_ok in
+    let cook () = match Procedural.Node.Private.cook node context [|grid|] with
+      | Ok output -> output.geometry
+      | Error d -> failwith (Procedural.Diagnostic.error_to_string d) in
+    assert (fingerprint (cook ()) = expected);
+    let times = Array.make 7 0. and allocations = Array.make 7 0. in
+    Array.iteri (fun i _ ->
+      let bytes = allocated_bytes () and started = Unix.gettimeofday () in
+      let output = cook () in
+      times.(i) <- Unix.gettimeofday () -. started;
+      allocations.(i) <- allocated_bytes () -. bytes;
+      assert (fingerprint output = expected)) times;
+    Printf.printf "%s,%d,%d,%.9f,%.0f,%s\n%!" label (Geometry.point_count grid) domains
+      (median times) (median allocations) expected) in
+  List.iter (fun domains -> measure "flow_attr_noise_cpu" domains cpu;
+    measure "flow_attr_noise_interp" domains reference) [1;8]
+let flow_attribute_fusion grid =
+  let flow_ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d) in
+  let string_ok = function Ok x -> x | Error e -> failwith e in
+  let text = "(workspace kernel (graph g :context sop (let* [g (sop/grid) other (sop/transform g) a (map (fn [p] (+ p [t 0 0])) (sop/attr g :P)) b (map (fn [p] (* p (+ t 1))) (sop/attr other :P)) result (sop/with_attr g :P (map (fn [left right] (+ left right)) a b))] result)))" in
+  let lowered = Flow_sop.Lower.workspace ~factories:Sop_catalog.Editor.factories
+    (Flow.Syntax.parse text |> flow_ok) |> flow_ok in
+  let graph = List.hd lowered.graphs in
+  let node = Procedural.Edit_graph.compile_node graph.network.geometry
+    ~node_id:(Option.get graph.root) |> string_ok in
+  let call = Array.find_opt (fun (n : Flow.Eval.node) -> n.kind = "sop/with_attr") lowered.plan.nodes |> Option.get in
+  let values = List.assoc "values" call.args in
+  let main = match List.assoc "geometry" call.args with Flow.Eval.Deferred (_, id) -> id | _ -> assert false in
+  let sources = main :: List.filter ((<>) main) (Flow_sop.Attribute_kernel.sources values) in
+  let fused = Flow_sop.Attribute_kernel.prepare ~sources (Procedural.Node.inputs node) values |> flow_ok in
+  let materialized = Flow_ir.Executor.compile values |> flow_ok in
+  let resolve = Flow_sop.Attribute_kernel.resolve ~geometry:(fun id -> if List.mem id sources then Some grid else None) in
+  let live = Frame_input.at_time 1.25 in
+  let hash value = Digest.to_hex (Digest.string (Marshal.to_string value [Marshal.No_sharing])) in
+  let expected = Flow.Eval.Private.force_reference ~resolve values ~live |> flow_ok |> hash in
+  List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+    List.iter (fun (label, force) ->
+      let times = Array.make 7 0. and allocations = Array.make 7 0. in
+      assert (hash (flow_ok (force ())) = expected);
+      Array.iteri (fun i _ ->
+        let bytes = allocated_bytes () and started = Unix.gettimeofday () in
+        let output = flow_ok (force ()) in
+        times.(i) <- Unix.gettimeofday () -. started;
+        allocations.(i) <- allocated_bytes () -. bytes;
+        assert (hash output = expected)) times;
+      Printf.printf "%s,%d,%d,%.9f,%.0f,%s\n%!" label (Geometry.point_count grid) domains
+        (median times) (median allocations) expected)
+      ["flow_attr_fused_cpu", (fun () -> Flow_ir.Executor.force ~resolve fused ~live);
+       "flow_attr_materialized_cpu", (fun () -> Flow_ir.Executor.force ~resolve materialized ~live);
+       "flow_attr_fused_interp", (fun () -> Flow.Eval.Private.force_reference ~resolve values ~live)])) [1;8]
 let () =
   let grid = ok (Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
     ~connectivity:Plane_generators.Grid_points ~columns:1000 ~rows:1000 ~size:100. ()) in
   assert (Geometry.point_count grid = 1_000_000);
   print_endline "name,points,domains,median_s,bytes_all_domains,hash";
+  if Array.length Sys.argv = 1 then begin
   let one = run 1 grid in
   let eight = run 8 grid in
   assert (one = eight);
@@ -119,4 +229,16 @@ let () =
   flow_map 1_000_000;
   let native = run ~mode:Deform.Normal_3d ~seed:0 1 grid in
   assert (native = run ~mode:Deform.Normal_3d ~seed:0 8 grid);
-  assert (native = flow_noise grid)
+  assert (native = flow_noise grid);
+  flow_attributes grid
+  end else if Array.to_list Sys.argv = [Sys.argv.(0); "--attributes"] then begin
+    let native = run ~mode:Deform.Normal_3d ~seed:0 1 grid in
+    assert (native = run ~mode:Deform.Normal_3d ~seed:0 8 grid);
+    flow_attributes grid
+  end else if Array.to_list Sys.argv = [Sys.argv.(0); "--loops"] then
+    flow_loops 1_000_000
+  else if Array.to_list Sys.argv = [Sys.argv.(0); "--fusion"] then
+    flow_loops ~fusion_only:true 1_000_000
+  else if Array.to_list Sys.argv = [Sys.argv.(0); "--attribute-fusion"] then
+    flow_attribute_fusion grid
+  else invalid_arg "bench_kernel [--attributes|--loops|--fusion|--attribute-fusion]"

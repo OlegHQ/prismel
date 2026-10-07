@@ -1,10 +1,13 @@
 module Int_map = Map.Make (Int)
 module Int_set = Set.Make (Int)
 type t = { geometry : Procedural.Edit_graph.t; drives : Flow.Eval.value Port.Map.t; states : Flow.Eval.value list;
-  frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t }
+  frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t;
+  profile : Flow_ir.Profile.t option; reference : bool }
 let error code message = Error (Flow.Diagnostic.error ~code message)
 let geometry_error result = Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY") result
-let of_geometry geometry = {geometry; drives = Port.Map.empty; states = []; frame_nodes = Int_map.empty}
+let of_geometry geometry = {geometry; drives = Port.Map.empty; states = []; frame_nodes = Int_map.empty; profile = None; reference = false}
+let with_profile profile network = {network with profile = Some profile}
+let with_reference reference network = {network with reference}
 let with_states states network = {network with states}
 let with_frame_nodes frame_nodes network = {network with frame_nodes}
 let fields network ~node_id = match Procedural.Edit_graph.find network.geometry ~node_id with

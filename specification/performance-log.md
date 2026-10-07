@@ -5715,3 +5715,464 @@ cube_cage scene graph with a false `E_GRAPH_CYCLE`.
 
 Raw output: `/tmp/rays-step1-closure-editor.csv`; the sweep prints its
 table in `dune build @test/test_workspace_doc`.
+
+### Phase 4 cooked attribute kernel checkpoint (2026-10-07)
+
+Apple M1, macOS arm64, OCaml 5.3.0, Dune dev profile, eight available domains.
+Seven repetitions per kernel row, median wall time. Allocations use global
+`Gc.stat` across domains, outside the timed interval. The final kernel run
+had no concurrent repository validation. Other host workloads were active;
+editor measurements below show substantial timing variation.
+
+The actual Lisp `sop/with_attr` node now runs the normal-displacement body
+through cooked `sop/attr` P/N reads and an RDK position write. The benchmark
+prepares it through normal checking/lowering and invokes its cook with the
+million-point input, avoiding session cache hits. The reference mode runs
+that same node through the independent tree walker. Every warm/timed output
+is checked against native positions before reporting; all four Lisp rows
+and the native rows share hash `3356f1ee95b997e05ed597b0d1b13d3a`.
+
+```sh
+_build/default/tools/bench_kernel.exe --attributes
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 7
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200 1000 2000
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/test/test_drawing.exe examples/particles/sketch.rays --bench
+```
+
+| Path, 1M points | Domains | Median ms | Allocated bytes, all domains |
+|---|---:|---:|---:|
+| Native normal3 noise | 1 | 30.788 | 32,072,824 |
+| Native normal3 noise | 8 | 9.586 | 32,117,208 |
+| Complete Lisp CPU kernel | 1 | 67.584 | 105,908,272 |
+| Complete Lisp CPU kernel | 8 | 26.118 | 105,998,792 |
+| Complete Lisp reference | 1 | 1535.832 | 7,264,006,384 |
+| Complete Lisp reference | 8 | 1555.345 | 7,264,050,656 |
+
+The first full connection used `Array.init` to convert attributes, then
+`Array.for_all` to validate output. It measured 92.487 / 90.219 ms and
+249,908,384 / 249,999,912 bytes at one/eight domains; that initial run
+also overlapped some validation. Replacing those callbacks with direct
+float-array loops reduced measured allocation by about 144 MB per cook.
+This comparison establishes the allocation reduction; timing is diagnostic.
+The earlier arithmetic-only benchmark remains above and excluded attribute
+resolution and geometry writes. Native displacement removes normals;
+`with_attr :P` preserves untouched attributes, including N. Tests compare
+all native position bits and complete interpreter/CPU geometry bytes.
+
+| Workspace | Check ms | Eval ms | Lower ms | Cook ms | Nodes | Cook hash |
+|---|---:|---:|---:|---:|---:|---|
+| bloom | 0.093 | 0.125 | 3.788 | 1.058 | 84 | dad16cdd4d91e532756c1d0d0667d207 |
+| facade | 0.037 | 0.085 | 1.912 | 0.545 | 69 | df9fdd4891bcaf471beeae7f34f26ab5 |
+| garland | 0.078 | 0.095 | 2.483 | 0.786 | 40 | bf4f98a940ac9bfe37a0abd2c1100df4 |
+| kit | 0.068 | 0.034 | 1.056 | 0.131 | 24 | 23ea245dac862ed7b9dda2f8a7649322 |
+| orrery | 0.051 | 0.155 | 2.295 | 0.386 | 56 | 4e38b6104e25800d415c4d2291337f37 |
+| rosette | 0.047 | 0.049 | 2.277 | 0.520 | 39 | 18188829904e74c61fd34e367ae74150 |
+| sunflower | 0.020 | 1.138 | 10.764 | 2.668 | 241 | 59a7b71c83f1057dc32bf6e90babb99d |
+| tiles | 0.025 | 0.342 | 9.428 | 1.287 | 193 | 9c7c72bc41d7365e6cd11fe394eb5120 |
+| tree | 0.025 | 0.019 | 1.976 | 1.218 | 27 | 23e6fdd7f6252e15e705529856f86949 |
+| tunnel | 0.015 | 0.025 | 2.096 | 7.371 | 37 | 6354bb27591a11d27519c20d0766a9b0 |
+| variations | 0.040 | 0.023 | 0.945 | 0.200 | 30 | 4c4dda18df1d2cc685970d4e2461ca92 |
+| wave | 0.026 | 5.373 | 10.351 | 1.415 | 13 | 70c3b661ce4166f563fd5c17329b821c |
+
+All twelve node counts and cook hashes match the preceding checkpoint.
+At capacity 512, retained entries / payload MB remain bloom 52/1.22,
+sunflower 241/1.84, wave 13/0.66 and tree 27/0.87; none evicts.
+
+| Nodes | First drag / scrub edit ms | Repeat drag / scrub edit ms |
+|---|---:|---:|
+| 200 | 2.120 / 2.014 | 2.057 / 1.942 |
+| 1,000 | 7.379 / 7.554 | 22.286 / 27.587 |
+| 2,000 | 12.577 / 22.345 | 24.586 / 19.200 |
+
+Every print/parse/check/evaluate/lower/project/layout phase median is zero.
+These runs do not establish the scrub latency gate. Process inspection
+found active VM and macOS update processes consuming several CPU cores;
+no unrelated process was stopped. The dynamic 10,000-particle frame
+measures 75.395 ms median / 107.126 ms p95 and 157,808,506 bytes per frame.
+This code does not yet move particle folds to packed CPU execution.
+
+Focused Flow/IR/SOP tests, window-free `@all`/`@runtest`, the promoted API
+and sketch list, `--ship`, and a finite native `flow_kernel` run pass.
+An offscreen editor capture is `/tmp/rays-flow-kernel.png`.
+Remaining whole-item requirements are explicitly listed in `NEXT.md`.
+
+Raw outputs: `/tmp/rays-step4-attributes-kernel.csv` (initial connection),
+`/tmp/rays-step4-attributes-kernel-final.csv`,
+`/tmp/rays-step4-attributes-lower.csv`,
+`/tmp/rays-step4-attributes-editor.csv`,
+`/tmp/rays-step4-attributes-editor-repeat.csv`,
+`/tmp/rays-step4-attributes-particles.csv`,
+`/tmp/rays-step4-attributes-final-validation.log`,
+`/tmp/rays-step4-attributes-ship.log`,
+`/tmp/rays-step4-attributes-sketch.log`.
+
+## Phase 4 packed iteration and execution fusion checkpoint
+
+2026-10-07, Apple M1 arm64, OCaml 5.3.0, development profile. Seven repetitions,
+median wall time and `Gc.stat` allocation across all domains, one million float
+elements, `t = 1.25`. Each warm result and timed result is hashed over all value
+bytes with sharing removed; the CPU/reference and one/eight-domain hashes agree.
+The reference path is the independent walker. Measurements ran without repository
+validation alongside them; unrelated host workloads remain outside our control.
+
+```sh
+dune build tools/bench_kernel.exe
+_build/default/tools/bench_kernel.exe --loops
+_build/default/tools/bench_kernel.exe --fusion
+```
+
+The loop benchmark's bodies are visible in `tools/bench_kernel.ml`: a sine `for`
+and `sum`, and the same ordered recurrence in `fold`, `scan` and `reduce`.
+This measures source-array creation and output writing as well as the body.
+The reference interpreter allocates boxed values and environments per element.
+CPU accumulator instructions run in element order; independent instructions
+run once per block. The fixed chunk tree carries the left-fold accumulator,
+preserving reference rounding instead of reassociating partial sums.
+
+| Form | CPU 1 / 8 domains, ms | Reference 1 / 8 domains, ms | CPU bytes, 1 domain | Reference bytes, 1 domain | Hash |
+|---|---:|---:|---:|---:|---|
+| `for` sine | 22.191 / 9.203 | 538.768 / 537.593 | 50,671,016 | 2,552,780,680 | `3cbed96293ed2c595465f725e01b02c8` |
+| `sum` sine | 22.282 / 22.452 | 538.635 / 537.879 | 42,671,064 | 2,576,003,536 | `4af8ad6d99a211f41961ef06615e372b` |
+| `fold` | 47.461 / 47.424 | 1107.390 / 1105.377 | 61,213,296 | 5,384,003,728 | `296520f8bb9281a5c12d9663ef7eaf91` |
+| `scan` | 49.333 / 49.046 | 1116.721 / 1140.210 | 69,213,288 | 5,408,780,840 | `02d85a044c70d0da415949ddf377757a` |
+| `reduce` | 44.840 / 45.214 | 1137.930 / 1140.463 | 61,213,328 | 5,448,003,552 | `296520f8bb9281a5c12d9663ef7eaf91` |
+
+The initial register recurrence used an iterator closure per element. Replacing
+that with a plain instruction-index loop changes the one-domain `fold` median
+from 71.698 to 47.461 ms and allocation from 197,346,168 to 61,213,296 bytes;
+`scan` changes from 71.791 to 49.333 ms and 205,346,160 to 69,213,288 bytes.
+This does not parallelize the dependent recurrence. The `for` eight-domain
+allocation is 50,715,232 bytes; the other loop allocations are unchanged at eight.
+
+Fusion benchmark: `(map square (map sine xs))`, with explicit live frame reads
+in both functions, prepared once. The unfused CPU program is prepared with
+`Packed.compile ~fusion:false`, retaining its intermediate array. All three
+modes hash to `9e563defd6580a2d454cb40a4648d85f`.
+
+| Mode | 1 domain, ms | 8 domains, ms | Bytes, 1 / 8 domains |
+|---|---:|---:|---:|
+| Fused CPU | 25.943 | 9.910 | 52,704,744 / 52,749,264 |
+| Unfused CPU | 33.625 | 12.167 | 62,361,712 / 62,448,912 |
+| Reference | 1406.481 | 1403.846 | 6,752,004,568 / 6,752,004,568 |
+
+Fusion proves equal counts before removing materialization: single-input dynamic
+chains are safe, multi-input zips require equal static counts. It retains skipped
+and shortened consumers' boundaries, so a failing unused producer tail still
+reports the reference diagnostic. A group exceeding 64 registers retains its
+separate stages. Stages carry authored provenance; group timing/UI reporting is
+still required. Static live packed fold/reduce now defers the whole iteration,
+preventing per-element residual chains before compilation.
+
+Focused Flow, IR and SOP validation passes. The new runnable regression covers
+all numeric packed forms at counts 0, 1, 1023, 1024, 1025, 2051 and 16385,
+four times and one/eight domains, including skips, Cartesian order, vector/scalar
+accumulators, signed zero, nonfinite errors, correlated-clause fallback, dynamic
+counts and fused/unfused parity. The intended packed metadata/profiling API is
+reviewed and promoted. `_build/default/tools/check.exe --ship` passes after
+the final code review, including native smoke. Packed frame-fold execution,
+SOP-fact-guided placement, group timing/tier UI, cooked reference probes, inline
+map/function editing and whole-file pixel parity remain required in `NEXT.md`.
+
+Raw outputs: `/tmp/rays-packed-loops.csv`, `/tmp/rays-packed-loops-final.csv`,
+`/tmp/rays-packed-fusion.csv`, `/tmp/rays-packed-loops-validation.log`,
+`/tmp/rays-packed-fusion-validation.log`,
+`/tmp/rays-packed-loops-fusion-ship-final.log`.
+
+## Phase 4 packed frame folds and native drawing checkpoint
+
+2026-10-07, Apple M1 arm64, OCaml 5.3.0, development profile. The complete
+10,000-particle editor benchmark follows the same 10 warm frames / 200 measured
+frames at 60 Hz and one domain as the earlier cooked-attribute checkpoint.
+It ran after validation completed, without another repository workload alongside it.
+
+```sh
+dune build test/test_drawing.exe
+_build/default/test/test_drawing.exe examples/particles/sketch.rays --bench
+_build/default/test/test_drawing.exe examples/particles/sketch.rays /tmp/rays-frame-kernel-native
+_build/default/tools/check.exe @lib/flow_ir/runtest @lib/flow/runtest @test/dependency_gate
+_build/default/tools/check.exe --ship
+```
+
+| Complete editor particle frame | Previous checkpoint | Packed frame folds |
+|---|---:|---:|
+| Median | 75.395 ms | 2.747 ms |
+| p95 | 107.126 ms | 3.205 ms |
+| Allocated bytes/frame | 157,808,506 | 9,199,924 |
+
+The interpreter continues to own state cells, source/frame reset, repeated reads
+and transaction rollback. Its private packed callback receives current immutable
+bindings. Each prepared IR program caches at most 32 register templates in an
+atomic immutable list. Supported maps/loops rebind their current sources and
+scalar/record uniforms; a changed function body or fused lexical scope needs
+fresh specialization. The particle test proves exactly two template compilations
+and ten rebindings over six steps. Numeric comparisons, Boolean operations and
+`if` cover bounce arithmetic. Eager pure branches that produce an error rerun
+the independent reference walker, retaining lazy-branch diagnostics.
+
+Native canvas playback now prepares drawing argument IR once per plan, and
+exports prepare once before playback. The drawing path previously called
+`Eval.force` directly, so the IR value lane alone could not optimize particles.
+The added `sketch_support -> flow_ir` edge is documented in `backend.md` and
+enforced by the dependency gate. Static canvas allocation remains 201,007 bytes
+per editor frame at both 4 and 10,000 unchanged points in the broad suite.
+
+Frame-fold tests compare every float bit and the complete state stamp at
+one/eight domains, including particle position/velocity records, repeated reads,
+backward seeks, changing array lengths, scalar/record uniform changes, ordered
+scans, Boolean branches, nonfinite diagnostics and rollback after a later failure.
+The native gate exports four frames in seven modes: OCaml, the workspace export
+twice, prepared CPU at one/eight domains, and independent reference at one/eight
+domains. Every PNG matches byte for byte, and the first and fourth frames differ.
+Artifacts are under `/tmp/rays-frame-kernel-native`.
+
+Focused Flow/IR/SOP suites, broad editor/drawing tests, the dependency gate and
+`--ship` pass, including native smoke. The intended API manifest was reviewed and
+promoted. Whole-file pixel coverage, SOP-fact-guided placement, group timing/tier
+UI, cooked reference probes and inline map/function editing remain required.
+
+Raw outputs: `/tmp/rays-frame-kernel-integration.log`,
+`/tmp/rays-frame-kernel-broad.log` (the reviewed API diff preceded promotion),
+`/tmp/rays-frame-kernel-particles.csv`, `/tmp/rays-frame-kernel-native.log`,
+`/tmp/rays-frame-kernel-ship.log`.
+
+## Phase 4 inline function and cooked probe checkpoint
+
+2026-10-08, same machine and isolated particle workload as the preceding
+checkpoint (10 warm-up frames, 200 measured frames, 10,000 points, one domain).
+
+```sh
+_build/default/test/test_drawing.exe examples/particles/sketch.rays --bench
+_build/default/tools/check.exe --ship
+_build/default/tools/ui_shot.exe sketches/flow_kernel/sketch.rays /tmp/rays-inline-probe-kernel.png 1200 760 4
+```
+
+The complete particle editor frame is 2.748013 ms median, 3.402948 ms p95 and
+9,199,932 allocated bytes/frame. The preceding frame-fold checkpoint was
+2.746820 / 3.205061 ms and 9,199,924 bytes/frame; this measurement retains the
+same median performance. It does not replace the pending whole-item benchmarks.
+
+Inline higher-order calls and function zones now share authored paths with
+checked terms, edits, the text caret and token scrubs. Ordinary SOP sites retain
+their previous identities, and a focused regression distinguishes maps inside
+opaque expressions. Tests inspect element 9,999 of a 10,003-element map and
+element 16,001 of a cooked 16,386-point attribute map. The latter is exactly
+equal to native noise displacement at t=1.25, materializes P/N only twice across
+the selector and body footers, keeps source bytes unchanged and changes after a
+body edit. Both keyboard and pointer selectors reach indices beyond the capped
+records. Packed sparklines sample at most 64 shared reference calls. Probes use
+forked fold state and immutable geometry snapshots from the editor's existing
+64-target optional cook request.
+
+The pointer regression found zone wire hit boxes above controls: making those
+boxes children of the zone keeps them below its controls in the existing PXUI
+tree. Projection, probe, text, editor, scene synchronization, cooked attribute
+and IR suites pass; `--ship` passes after the reviewed API promotion, including
+native smoke. An offscreen editor capture of `flow_kernel` also passes.
+SOP-fact-guided placement, group timing/tier UI, the complete checked-in-file
+IR/value/pixel sweep and fresh whole-item benchmark/shipping gates remain open.
+
+Raw outputs: `/tmp/rays-inline-probe-focused.log`,
+`/tmp/rays-inline-probe-ship.log`, `/tmp/rays-inline-probe-particles.csv`,
+`/tmp/rays-inline-probe-shot.log`. Capture: `/tmp/rays-inline-probe-kernel.png`.
+
+## Phase 4 SOP count placement and group reports checkpoint
+
+2026-10-08, same Apple-Silicon machine, OCaml 5.3 development profile and
+shared one/eight-domain pool as the preceding checkpoints. The new workload
+has one million points, two attribute maps over a grid and a preserving
+transform, followed by a two-input map. Each mode includes both attribute
+reads; seven measured repetitions follow a warm-up. A host count proof lets
+the three stages execute as one register program. The comparison program
+retains the previous dynamic-source materialization boundaries.
+
+```sh
+_build/default/tools/bench_kernel.exe --attribute-fusion
+_build/default/test/test_drawing.exe examples/particles/sketch.rays --bench
+_build/default/tools/check.exe --ship
+_build/default/tools/ui_shot.exe sketches/flow_kernel/sketch.rays /tmp/rays-profile-kernel.png 1200 760 8
+UI_SHOT_DO='click:651,650 key:o key:f' _build/default/tools/ui_shot.exe sketches/flow_kernel/sketch.rays /tmp/rays-profile-group.png 1200 760 8
+```
+
+| Mode | Domains | Median ms | Allocated bytes, all domains |
+|---|---:|---:|---:|
+| Fact-guided fusion | 1 | 53.588867 | 82,296,152 |
+| Materialized CPU | 1 | 77.987909 | 135,633,720 |
+| Independent interpreter | 1 | 1814.150095 | 8,456,008,448 |
+| Fact-guided fusion | 8 | 15.752077 | 82,341,736 |
+| Materialized CPU | 8 | 22.717953 | 135,768,008 |
+| Independent interpreter | 8 | 1810.534000 | 8,456,008,448 |
+
+All six modes have hash `9b4c8c16c19aaf16097e3ebeb453124e`. These numbers
+measure attribute reads and array computation; the preceding complete noise
+benchmark remains the evidence for geometry writes and native displacement.
+
+With execution reports enabled, the 10,000-particle editor frame is
+2.769947 ms median, 3.505230 ms p95 and 9,204,612 allocated bytes/frame
+(10 warm-up, 200 measured frames). The preceding checkpoint was
+2.748013 / 3.402948 ms and 9,199,932 bytes/frame. Reports retain at most 512
+groups per workspace, use the host clock and atomic snapshots, and do no
+per-element instrumentation. Packed durations exclude input materialization
+and separately timed nested groups; only the consuming card displays one.
+
+Tests prove actual three-stage fusion across a preserving transform, refusal
+across independent/changed/undeclared sources, instantiated point/primitive
+facts, typed source-list refusal and exact outputs at four times/one/eight
+domains. Profile tests verify replacement, a 512-group capacity, fused timing
+and reference-tier reporting. Graph checks preserve host reports/readouts and
+verify changed native paint (426 checks). Native captures show CPU badges on
+the named function's body cards and a single timing on the consuming map;
+the example now includes that graph and its viewport/inspector.
+The intended API manifest is reviewed/promoted and `--ship` passes with native
+smoke. Whole-file IR/value/pixel coverage and final whole-item benchmark gates
+remain open.
+
+Raw outputs: `/tmp/rays-fact-fusion-bench.csv`,
+`/tmp/rays-fact-fusion-focused.log`, `/tmp/rays-profile-focused.log`,
+`/tmp/rays-profile-particles.csv`, `/tmp/rays-profile-ship.log`,
+`/tmp/rays-profile-shot.log`, `/tmp/rays-profile-group-shot.log`.
+
+## Phase 4 whole-item verification (2026-10-08)
+
+Apple M1, Darwin arm64, eight available cores, OCaml 5.3.0, Dune 3.24.2,
+development profile. Each benchmark ran alone, after validation/builds ended.
+Editor measurements use one domain and dummy SDL video/audio, 200 samples per
+size; particles use 10 warm-up and 200 measured frames. Kernel measurements
+use one million points, one/eight domains and seven repetitions after warm-up.
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/bench_rays_editor.exe 200 1000 2000
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/test/test_drawing.exe examples/particles/sketch.rays --bench
+_build/default/tools/bench_kernel.exe
+_build/default/tools/bench_kernel.exe --attributes
+_build/default/tools/bench_kernel.exe --attribute-fusion
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 7
+```
+
+| Nodes | Step 0 scrub ms | Final drag ms | Final scrub ms | Final scrub edit ms | Final scrub p95 ms | Final scrub bytes/frame |
+|---:|---:|---:|---:|---:|---:|---:|
+| 200 | 6.938 | 2.027988 | 2.022982 | 1.915693 | 3.192902 | 6,572,693 |
+| 1,000 | 35.982 | 7.241964 | 7.369995 | 6.508827 | 13.134956 | 17,160,599 |
+| 2,000 | 78.056 | 12.105942 | 12.300968 | 10.289192 | 22.664070 | 25,323,618 |
+
+Every print/parse/check/evaluate/lower/project/layout phase median is zero.
+Cook medians are 0.097036/0.849009/2.042055 ms; reduce medians are
+0.024080/0.133991/0.285864 ms. The owner's readjusted gate compares each
+sample's scrub frame minus its cook with the drag frame, and passes at all
+three sizes. It does not claim that changing geometry costs the same as a drag.
+
+The 10,000-particle complete editor frame is 2.711058 ms median, 3.304958 ms
+p95 and 9,204,964 bytes/frame, against Step 0's 31.690/32.145 ms and
+148,126,467 bytes/frame. This includes the advancing fold, drawing and host
+frame; GPU presentation is outside this benchmark.
+
+| Complete noise path | Domains | Median ms | Bytes, all domains |
+|---|---:|---:|---:|
+| Native normal3 | 1 | 29.849052 | 32,072,824 |
+| Native normal3 | 8 | 8.059978 | 32,118,104 |
+| Lisp CPU, reads and writes included | 1 | 85.706949 | 106,450,760 |
+| Lisp CPU, reads and writes included | 8 | 25.467157 | 106,541,840 |
+| Independent interpreter, reads and writes included | 1 | 1,442.040920 | 7,216,006,944 |
+| Independent interpreter, reads and writes included | 8 | 1,446.156979 | 7,216,052,344 |
+
+Every warm/timed output matches native position bytes, hash
+`3356f1ee95b997e05ed597b0d1b13d3a`. A second complete run in the default
+benchmark gives CPU 85.757017/25.326014 ms and interpreter
+1,449.026823/1,447.520018 ms. The CPU tier remains slower than native;
+the original gate requires the measurement and exact parity, not near-native
+speed. Step 0's unchanged height-2D native workload is 25.174856/6.001949 ms
+now, versus 55.700/8.737 ms then, with the same
+`1a9b19459a403094e2683996bd183a75` hash. That timing difference is not an
+algorithm change. Arithmetic-only noise excludes attribute reads/writes and
+measures 79.137087/16.911030 ms in this run.
+
+Fact-guided attribute fusion measures 53.303957/15.810013 ms versus
+materialized CPU 78.006983/22.730112 ms and interpreter
+1,810.596943/1,822.005987 ms, at one/eight domains. Allocations are
+82,296,376/82,342,104 B fused and 135,634,664/135,767,624 B materialized.
+All modes retain `9b4c8c16c19aaf16097e3ebeb453124e`.
+
+| Fixture | Check ms | Eval ms | Lower ms | Cook ms | Nodes | Eval bytes |
+|---|---:|---:|---:|---:|---:|---:|
+| bloom | 0.099 | 0.124 | 3.699 | 1.131 | 84 | 537,208 |
+| facade | 0.041 | 0.085 | 1.853 | 0.540 | 69 | 335,808 |
+| garland | 0.088 | 0.079 | 2.138 | 0.604 | 40 | 364,664 |
+| kit | 0.072 | 0.033 | 0.989 | 0.122 | 24 | 132,176 |
+| orrery | 0.059 | 0.161 | 2.117 | 0.460 | 56 | 653,768 |
+| rosette | 0.052 | 0.048 | 2.081 | 0.334 | 39 | 207,808 |
+| sunflower | 0.022 | 1.047 | 10.523 | 2.395 | 241 | 4,501,136 |
+| tiles | 0.028 | 0.404 | 7.431 | 1.020 | 193 | 1,271,648 |
+| tree | 0.026 | 0.018 | 1.773 | 0.767 | 27 | 77,912 |
+| tunnel | 0.015 | 0.025 | 1.552 | 4.111 | 37 | 107,232 |
+| variations | 0.041 | 0.021 | 0.780 | 0.156 | 30 | 100,952 |
+| wave | 0.030 | 4.300 | 7.797 | 1.048 | 13 | 17,218,984 |
+
+All twelve cook hashes match the Step 2 table above. Node counts and
+capacity-512 retained entries/payload MB remain unchanged: bloom 52/1.22,
+sunflower 241/1.84, wave 13/0.66, tree 27/0.87, no evictions. Warm cooks
+are 0.048/0.256/0.033/0.030 ms respectively.
+
+The whole-file gate checks all 23 `.rays` workspaces (including the added
+kernel sketch) and all twelve generated fixtures. A shared private OCaml
+check compares independently evaluated static plans, instance identities,
+arguments, results, state seeds and every retained record, then all forced
+values and complete fold stamps at `0`, `0.125`, `1.25`, `7`, at one/eight
+domains. Anonymous function bodies/captures are included in value keys.
+Reference lowering interprets actual value drives and attribute writes;
+opaque SOPs retain their real native implementation. The gallery and voxel
+wall checks run inside their own executables with their actual custom
+factories, without replacement catalog declarations.
+
+Native comparisons cover complete cooked geometry/topology/attribute/group
+payloads, instance transforms and pixels of every SOP/drawing result at all
+four times/domain counts. SOP images use a common bounds-framed camera and
+unlit material; authored scene/material/settings values are compared in the
+value sweep. Drawing images cover the complete particle 800×600 canvas.
+These are program-output comparisons; editor tier/timing decorations are
+tested separately and are not expected to match reference-mode UI pixels.
+
+```sh
+_build/default/tools/check.exe @test/test_workspace_ir @examples/sop_gallery/runtest @sketches/voxel_wall/runtest
+_build/default/tools/check.exe @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels
+_build/default/tools/check.exe @check @lib/flow_ir/runtest @test/test_rays_editor @test/test_probe @test/test_workspace_shell
+_build/default/tools/check.exe --ship
+```
+
+| Requirement | Runnable evidence |
+|---|---|
+| Timers, status/crash phases and three before/after workloads | `test_phase_timer`, editor/drawing/kernel benchmarks above |
+| Same-type literal patch, one check/evaluation, projection reuse, text scrubs | `test_workspace_doc`, `test_text_pane`, editor phase counters |
+| Lexical node viewing without source/history edits | `test_workspace_view_native`, loop/piece/live preview regressions |
+| Open nominal types/contexts and immutable operator extensions | `test_open_domain`, including painted card, menu insertion and reload |
+| Declared regular SOP facts, physical topology and component-cache reuse | `lib/procedural/test_facts`, PPX/catalog manifest checks |
+| Typed IR, sharing/hoisting/pruning/fusion, precision legality and placement | `lib/flow_ir/test_ir`, including exact readback and every forbidden sink |
+| Packed maps/loops/reductions, ordered accumulators, errors and fusion | `lib/flow_ir/test_packed`, million-element benchmark hashes |
+| Actual SOP attribute resolution/writes and fact-guided dynamic fusion | `lib/flow_sop/test_attribute_kernel`, native/CPU/reference noise hashes |
+| Packed state folds, template reuse, transactions and particle parity | `test_frame_kernel`, `test_drawing` seven-mode native export |
+| Inline function cards/zones, body edits, reference cones beyond record cap | `test_domain`, attribute/probe/text/graph pointer regressions |
+| Group timings, tier badges, bounded profiles and instance provenance | IR/packed/PXUI checks and native kernel captures |
+| Every workspace/fixture, all values and native output pixels, domains 1/8 | `test_workspace_ir`, the three `test_workspace_pixels` aliases |
+| Stable fixture cooks, payload retention, Rand/residual/operator sweeps | workspace benchmark, Flow and SOP/IR extension tests |
+| Intended APIs/manifests and native shipping | reviewed API promotion, `--ship` and the native host checks |
+
+The Step 1 exclusions remain the owner's recorded decision: per-graph
+checking was unnecessary once the target passed; generic literal/template/fold
+fast paths and a frame budget were dropped after the full-file edit sweep.
+GPU compilation, approximate producers/readback, machine-code JIT and the
+other explicitly deferred roadmap items remain outside Phase 4.
+
+The reviewed reference-execution API is promoted. Final `--ship` passes
+(`@all`, `@runtest`, native `@smoke`, `git diff --check`), and the focused native
+workspace/host comparisons above pass. This closes the Phase 4 handoff; its
+completed `NEXT.md` is removed. The optional full qualification suite is not a
+shipping gate: an earlier overly broad alias invocation reached its existing
+exhaustive catalog fixture and failed with `switch.input has no perturbable
+value`. The focused pixel aliases use separate alias dependencies so they
+do not trigger that unrelated qualification sweep.
+
+Raw measurements: `/tmp/rays-final-editor.csv`, `/tmp/rays-final-particles.csv`,
+`/tmp/rays-final-kernel.csv`, `/tmp/rays-final-kernel-attributes.csv`,
+`/tmp/rays-final-attribute-fusion.csv`, `/tmp/rays-final-lower.csv`.
+Checks: `/tmp/rays-final-pixels.log`, `/tmp/rays-final-audit.log`,
+`/tmp/rays-final-ship.log`. Native images: `/tmp/rays-workspace-pixels`,
+`/tmp/rays-workspace-pixels-sop-gallery`, `/tmp/rays-workspace-pixels-voxel-wall`;
+seven-mode particle exports: `/tmp/rays-drawing-export`.

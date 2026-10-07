@@ -11,13 +11,15 @@
     (notes) travel with the binding name they precede, so reordering,
     rewiring, renaming, folding and wrapping keep them.
 
-    A call of a node kind written in an argument ({!node_call}) is a node too, with no
+    A call of a node kind or a higher-order call/function written in an argument
+    ({!node_call}) is a node too, with no
     binding: its leaf is the leaf of the node that holds it, then [#] and the input
     ({!nested_leaf}: [["g"; "result#0#:cutters"]]).  Every op that edits an input takes
     such a path; [Rename] binds the node under the new name, [Delete_nodes] hands its
     place to its first input, and a wire that leaves it or lands where it is written
     ([Connect]) binds it first, so a new wire never deletes a node.  [Disconnect] removes
     what is written, a nested node included: [Unfold] it first to keep it.
+    A nested [fn] is a scope: body edits use its nested leaf as a scope segment.
 
     Child indices ([sub], [Bv]) count {!Flow.Syntax.children}: for a list the
     head is child 0. *)

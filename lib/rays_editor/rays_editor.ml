@@ -144,10 +144,11 @@ module Workspace = struct
     | Some graph ->
         let state = Flow.Eval.create_state () in
         let value = List.assoc graph.name evaluated.results in
+        let* prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value in
         let view () frame =
           let live = {(Frame_input.at_time frame.Rays.Frame.time) with
             dt = 1. /. float fps; frame = frame.count; size = (window.width, window.height)} in
-          match Sketch_support.Drawing.render ~state ~states:evaluated.states evaluated.plan value
+          match Sketch_support.Drawing.render_prepared ~state prepared
             ~live ~size:live.size with
           | Ok scene -> scene
           | Error d -> raise (Flow.Value.Fail (d.code, d.message, d.span)) in

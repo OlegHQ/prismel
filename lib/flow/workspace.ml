@@ -235,6 +235,7 @@ let check ?(ops = []) catalog forms =
      so two of them in one expression never share compiled ids *)
   let kind_fns = ref [] in
   let inline_seen = Hashtbl.create 16 in
+  let input_paths = Hashtbl.create 16 in
   let inline cx segment =
     let key = cx.path @ [ segment ] in
     let n = Option.value ~default:0 (Hashtbl.find_opt inline_seen key) in
@@ -609,15 +610,39 @@ let check ?(ops = []) catalog forms =
     (t, v)
 
   and binding cx (x : S.t) id : term * v =
+    let cx = {cx with path = id} in
     let (t, v) =
       if x.meta <> [] then infer cx x
       else match x.node with
         | S.List ({ S.node = S.Sym ("for" | "fold" | "scan" | "sum"); _ } :: _) -> zone cx x id
         | S.List ({ S.node = S.Sym "let*"; _ } :: _) -> scope cx x id
         | S.List ({ S.node = S.Sym "state"; _ } :: _) -> state cx x id
+        | S.List ({ S.node = S.Sym "fn"; _ } :: _) -> mk_fn cx x id "fn"
         | _ -> infer cx x in
     mark id v;
     ({ t with path = Some id }, v)
+
+  and input cx key (x : S.t) =
+    match S.head x with
+    | Some h when String.contains h '/' || List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"] ->
+        let memo = cx.path, key, x.id in
+        let id = match Hashtbl.find_opt input_paths memo with
+          | Some id -> id
+          | None ->
+              let stem = match List.rev cx.path with
+                | name :: scope -> List.rev scope @ [name ^ "#" ^ key]
+                | [] -> ["@result#" ^ key] in
+              (* Distinct maps in opaque expressions still need distinct function
+                 sites; rechecking one closure body keeps its authored path. *)
+              let n = Option.value ~default:0 (Hashtbl.find_opt inline_seen stem) in
+              Hashtbl.replace inline_seen stem (n + 1);
+              let id = if n = 0 then stem else match List.rev stem with
+                | leaf :: scope -> List.rev scope @ [Printf.sprintf "%s~%d" leaf n]
+                | [] -> assert false in
+              Hashtbl.add input_paths memo id; id in
+        if List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"] then binding cx x id
+        else let t, v = infer {cx with path = id} x in mark id v; t, v
+    | _ -> infer cx x
 
   and state cx (x : S.t) id : term * v =
     match x.node with
@@ -851,12 +876,14 @@ let check ?(ops = []) catalog forms =
         | _ -> "sort-by is (sort-by key list).")
     else begin
       let f_form = List.hd args in
-      let (ft, fv) = fn_value cx f_form h in
-      let init = if h = "reduce" then Some (infer cx (List.nth args 1)) else None in
+      let (ft, fv) = match S.head f_form with
+        | Some "fn" -> input cx "0" f_form
+        | _ -> fn_value cx f_form h in
+      let init = if h = "reduce" then Some (input cx "1" (List.nth args 1)) else None in
       (match init with Some (_, iv) -> no_fn x iv.ty "The reduce accumulator" | None -> ());
       let list_forms = List.filteri (fun i _ -> i >= (if h = "reduce" then 2 else 1)) args in
-      let lists = List.map (fun (a : S.t) ->
-        let (t, v) = infer cx a in
+      let lists = List.mapi (fun i (a : S.t) ->
+        let (t, v) = input cx (string_of_int (i + if h = "reduce" then 2 else 1)) a in
         if Ty.elem v.ty = None && v.ty <> Ty.Any then
           err a "E_TYPE" (Printf.sprintf "%s iterates a list; got %s." h (show v.ty));
         (a, t, v)) list_forms in
@@ -937,12 +964,12 @@ let check ?(ops = []) catalog forms =
     let rec go i acc = function
       | [] -> List.rev acc
       | ({ S.node = S.Kw k; _ } as kf) :: value :: rest ->
-          let (t, v) = if fn_slot None (Some k) then fn_arg cx value else infer cx value in
+          let (t, v) = if fn_slot None (Some k) then fn_arg cx value else input cx (":" ^ k) value in
           go i ({ key = Some k; aform = kf; aterm = t; av = v } :: acc) rest
       | ({ S.node = S.Kw k; _ } as kf) :: [] ->
           err kf "E_MISSING_VALUE" (Printf.sprintf ":%s has no value" k); List.rev acc
       | y :: rest ->
-          let (t, v) = if fn_slot (Some i) None then fn_arg cx y else infer cx y in
+          let (t, v) = if fn_slot (Some i) None then fn_arg cx y else input cx (string_of_int i) y in
           go (i + 1) ({ key = None; aform = y; aterm = t; av = v } :: acc) rest in
     go 0 [] forms
 
@@ -1010,7 +1037,7 @@ let check ?(ops = []) catalog forms =
                     | [] -> [], [] in
                   let skip, args = split args in
                   apply_op ~skip cx x o (args_of cx (fun _ _ -> false) args)
-              | `Op o -> apply_op cx x o (args_of cx (fun _ _ -> false) args)
+              | `Op o -> apply_op cx x o (args_of cx (fun _ _ -> false) (S.attribute_args o.name args))
               | `Kind k -> apply_kind cx x k (args_of cx (fun _ _ -> false) args)))
 
   and apply_op ?(skip = []) cx x (o : Op.t) (args : arg list) : term * v =

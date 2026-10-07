@@ -8,15 +8,21 @@ type geometry = {
   seconds : float option;
 }
 type summary = Value of E.value | Geometry of geometry
+type execution = {tier : string; group : path; seconds : float option}
 
 type footer = {
   value : string; spark : (float array * int) option; branch : string option;
   kept : string option; runs : int option; invariant : bool; live : bool;
+  execution : execution option;
 }
 
 type t = {
+  execution : path -> probes:int list -> execution option;
   live_frame : Frame_input.t option;
   state : E.state option;
+  resolve : (E.value -> (E.value, Flow.Diagnostic.t) result) option;
+  maps : (path * int list, (int * int * (int -> ((path * (int list * E.value) list) list, Flow.Diagnostic.t) result)) list) Hashtbl.t;
+  calls : (path * int list, (path * (int list * E.value) list) list) Hashtbl.t;
   dynamic : path -> int option;
   templates : (path, unit) Hashtbl.t;
   element : path -> int -> (string * E.value) list option;
@@ -28,7 +34,8 @@ type t = {
   feet : (path * int list, footer) Hashtbl.t;  (* memo of [footer]: the pane asks every frame *)
 }
 
-let make ?state ?live ?time ?(geometry = fun _ -> None) ?(dynamic = fun _ -> None)
+let make ?state ?live ?time ?resolve ?(execution = fun _ ~probes:_ -> None)
+    ?(geometry = fun _ -> None) ?(dynamic = fun _ -> None)
     ?(element = fun _ _ -> None) (eval : E.t) =
   let raw = Hashtbl.create 64 in
   List.iter (fun (p, l) -> Hashtbl.replace raw p l) eval.records;
@@ -37,9 +44,11 @@ let make ?state ?live ?time ?(geometry = fun _ -> None) ?(dynamic = fun _ -> Non
     then Hashtbl.replace templates node.site ()) eval.plan.nodes;
   let live_frame = match live with Some _ -> live | None -> Option.map Frame_input.at_time time in
   let state = Option.map E.fork_state state in
-  { live_frame; state; dynamic; templates; element; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
+  { live_frame; state; resolve; execution; maps = Hashtbl.create 16; calls = Hashtbl.create 16;
+    dynamic; templates; element; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
 
 let same_eval a b = a.raw == b.raw
+let execution t path ~probes = t.execution path ~probes
 
 (* the memos have a capacity: [forced] holds one entry per recorded path, [across] and [feet] one per
    path and probe tuple asked, so a full one starts over (its entries are computed again on demand) *)
@@ -49,8 +58,10 @@ let remember tbl key v =
   Hashtbl.replace tbl key v
 
 let summarize t v =
-  let v = match t.live_frame with
-    | Some live when E.is_live v -> (match E.Private.force_reference ?state:t.state v ~live with Ok v -> v | Error _ -> v)
+  let v = match t.live_frame, t.resolve with
+    | (Some _ | None), _ when E.is_live v && (t.live_frame <> None || Option.is_some t.resolve) ->
+        (match E.Private.force_reference ?state:t.state ?resolve:t.resolve v
+          ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with Ok v -> v | Error _ -> v)
     | _ -> v in
   match v with
   | E.Deferred ((Flow.Ty.Named "geometry"), id) -> (match t.geometry id with Some g -> Geometry g | None -> Value v)
@@ -145,13 +156,49 @@ let chains (s : P.scope) =
 
 let rec drop_last = function [] | [ _ ] -> [] | x :: r -> x :: drop_last r
 
+let map_calls t zone outer =
+  match Hashtbl.find_opt t.maps (zone, outer) with
+  | Some calls -> calls
+  | None ->
+      let calls = List.filter_map (fun (it, value) -> if it <> outer then None else
+        match value with
+        | E.Record ["offset", E.Int offset; "call", E.Residual call] ->
+            (match E.Private.map_probe ?state:t.state ?resolve:t.resolve ~offset call
+              ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
+             | Ok (count, at) -> Some (offset, count, at)
+             | Error _ -> None)
+        | _ -> None) (Option.value ~default:[] (Hashtbl.find_opt t.raw (zone @ ["~calls"]))) in
+      remember t.maps (zone, outer) calls; calls
+
+let map_scope t path probes =
+  if probes = [] then None else
+  let rec find zone = match zone with
+    | [] -> None
+    | _ when Hashtbl.mem t.raw (zone @ ["~calls"]) ->
+        Some (zone, map_calls t zone (drop_last probes))
+    | _ -> find (drop_last zone) in
+  find (drop_last path)
+
+let map_at t path probes =
+  Option.bind (map_scope t path probes) (fun (zone, calls) ->
+    let k = List.hd (List.rev probes) in
+    let records = match Hashtbl.find_opt t.calls (zone, probes) with
+      | Some records -> records
+      | None ->
+          let records = List.find_map (fun (offset, count, at) ->
+            if k < offset || k - offset >= count then None else Result.to_option (at (k - offset))) calls
+            |> Option.value ~default:[] in
+          remember t.calls (zone, probes) records; records in
+    Option.bind (List.assoc_opt path records) (List.find_map (fun (it, value) ->
+      if it = probes then Some (summarize t value) else None)))
+
 (* the template record of [path] forced for element [k] of the loop over geometry at [zone] *)
 let at_element t path zone k =
   let raw = List.find_map (fun (it, v) -> if List.for_all (( = ) 0) it then Some v else None)
       (Option.value ~default:[] (Hashtbl.find_opt t.raw path)) in
   match raw, t.element zone k with
   | Some raw, Some elems when E.is_live raw ->
-      (match E.Private.force_reference ?state:t.state ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
+      (match E.Private.force_reference ?state:t.state ?resolve:t.resolve ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
        | Ok v -> Some (summarize t v) | Error _ -> None)
   | _ -> None
 
@@ -160,7 +207,9 @@ let at_element t path zone k =
    zone cooked) the value is forced for it, else it reads [?] *)
 let at t path ~probes =
   let rs = records t path in
-  match Array.find_map (fun (it, s) -> if it = probes then Some s else None) rs with
+  match map_at t path probes with
+  | Some _ as found -> found
+  | None -> match Array.find_map (fun (it, s) -> if it = probes then Some s else None) rs with
   | Some _ as found -> found
   | None ->
       let zones = List.filter (fun i -> t.dynamic (List.filteri (fun j _ -> j < i) path) <> None)
@@ -174,7 +223,7 @@ let at t path ~probes =
         let elems = if probes = [] then None else t.element zone (List.nth probes (List.length probes - 1)) in
         match raw, elems with
         | Some raw, Some elems when E.is_live raw ->
-            (match E.Private.force_reference ?state:t.state ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
+            (match E.Private.force_reference ?state:t.state ?resolve:t.resolve ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
              | Ok v -> Some (summarize t v)
              | Error _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs)
         | _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs
@@ -204,6 +253,18 @@ let across t path ~outer =
                  let forced = Array.init count (fun k -> at_element t path zone k) in
                  if Array.for_all Option.is_some forced then Array.map Option.get forced else a
              | _ -> a) in
+      let a = match map_scope t path (outer @ [0]) with
+        | Some (_, calls) when calls <> [] ->
+            let count = List.fold_left (fun n (offset, count, _) -> max n (offset + count)) 0 calls in
+            (* ponytail: at most 64 reference samples per packed function, shared
+               across its body cards; an explicit full-array inspector can page later. *)
+            let samples = min 64 count in
+            let sampled = Array.init samples (fun i ->
+              let k = if samples < 2 then 0 else
+                int_of_float (Float.round (float i *. float (count - 1) /. float (samples - 1))) in
+              map_at t path (outer @ [k])) in
+            if Array.for_all Option.is_some sampled then Array.map Option.get sampled else a
+        | _ -> a in
       remember t.across (path, outer) a; a
 
 let series t path ~probes = if probes = [] then [||] else across t path ~outer:(drop_last probes)
@@ -213,6 +274,12 @@ let series t path ~probes = if probes = [] then [||] else across t path ~outer:(
 let position t path ~probes ~len =
   let n = List.length probes - 1 in
   let outer = drop_last probes and p = List.nth probes n in
+  match map_scope t path probes with
+  | Some (_, calls) when calls <> [] ->
+      let count = List.fold_left (fun n (offset, count, _) -> max n (offset + count)) 0 calls in
+      if count < 2 then 0 else min (len - 1)
+        (int_of_float (Float.round (float p *. float (len - 1) /. float (count - 1))))
+  | _ ->
   let mine = List.filter (fun (it, _) ->
     List.compare_length_with it (n + 1) = 0 && List.filteri (fun i _ -> i < n) it = outer)
     (Array.to_list (records t path)) in
@@ -225,6 +292,9 @@ let counts t (s : P.scope) ~probe =
   List.filter_map (fun (n : P.node) ->
     let z = Option.get n.zone in
     let outer = List.map probe (Option.value ~default:[] (Hashtbl.find_opt chain n.path)) in
+    let calls = map_calls t n.path outer in
+    if calls <> [] then Some (n.path, List.fold_left (fun n (offset, count, _) -> max n (offset + count)) 0 calls)
+    else
     match t.dynamic n.path with Some count -> Some (n.path, count) | None ->
     List.find_map (fun (r : P.rail_row) ->
       if r.role = P.Capture then None
@@ -268,7 +338,14 @@ let compute_footer t (n : P.node) ~probes =
     | _ -> None in
   let invariant = probes <> [] && n.invariant in
   { value; spark; branch; kept; invariant; live = n.live;
-    runs = if probes <> [] && not n.invariant then Some (Array.length (records t n.path)) else None }
+    execution = (match t.execution n.path ~probes, here with
+      | None, Some (Geometry _) -> Some {tier = "Cooked"; group = n.path; seconds = None}
+      | execution, _ -> execution);
+    runs = if probes <> [] && not n.invariant then
+      Some (match map_scope t n.path probes with
+        | Some (_, calls) when calls <> [] ->
+            List.fold_left (fun n (offset, count, _) -> max n (offset + count)) 0 calls
+        | _ -> Array.length (records t n.path)) else None }
 
 let footer t (n : P.node) ~probes =
   match Hashtbl.find_opt t.feet (n.path, probes) with
@@ -278,7 +355,8 @@ let footer t (n : P.node) ~probes =
 let text f =
   String.concat " · " (List.filter_map Fun.id
     [ Some f.value; f.branch; f.kept; Option.map (Printf.sprintf "×%d") f.runs;
-      (if f.invariant then Some "↑ same each time" else None); (if f.live then Some "t" else None) ])
+      (if f.invariant then Some "↑ same each time" else None); (if f.live then Some "t" else None);
+      Option.map (fun e -> e.tier ^ Option.fold ~none:"" ~some:(fun seconds -> Printf.sprintf " · %.3f ms" (seconds *. 1000.)) e.seconds) f.execution ])
 
 let iterations t (n : P.node) ~probes = Array.map describe (series t n.path ~probes)
 
@@ -292,5 +370,9 @@ let geometry_targets t (s : P.scope) ~probe =
   go s
 
 let readouts t (n : P.node) ~probes =
-  [ (if probes = [] then "value" else "value at probe"), (footer t n ~probes).value;
-    "cook", (if n.live then "live, recooks every frame" else "cached") ]
+  let footer = footer t n ~probes in
+  [ (if probes = [] then "value" else "value at probe"), footer.value;
+    "cook", (if n.live then "live, recooks every frame" else "cached") ] @
+  Option.fold ~none:[] ~some:(fun e ->
+    ["tier", e.tier; "execution group", String.concat "/" e.group] @
+    Option.fold ~none:[] ~some:(fun seconds -> ["group time", Printf.sprintf "%.3f ms" (seconds *. 1000.)]) e.seconds) footer.execution

@@ -357,7 +357,7 @@ let () = (* IR shapes, notes and reporting *)
                            body = { node = Workspace.Call_fn { fn = "f"; args = [ _; _ ] }; _ }; _ } -> ()
         | _ -> failwith "sum is not a Loop");
        (match l.node with
-        | Workspace.Hof (`Map, [ { node = Workspace.Fn { zone = [ "g"; "l"; "~fn" ]; params = [ (Workspace.Name "k", None) ]; _ }; _ }; _ ]) -> ()
+        | Workspace.Hof (`Map, [ { node = Workspace.Fn { zone = [ "g"; "l#0" ]; params = [ (Workspace.Name "k", None) ]; _ }; _ }; _ ]) -> ()
         | _ -> failwith "map is not a Hof");
        (match c.node with Workspace.Cond ([ _ ], _) -> () | _ -> failwith "cond");
        (match k.node with Workspace.Case (_, [ _ ], _) -> () | _ -> failwith "case");

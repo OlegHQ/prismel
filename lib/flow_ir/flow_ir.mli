@@ -54,6 +54,16 @@ type node = {
 }
 type t = { nodes : node array; roots : int array; groups : int array array }
 
+type execution = { owner : id; sites : (int * Flow.Workspace.path * int list) list;
+  tier : tier; seconds : float }
+module Profile : sig
+  type t
+  val create : clock:(unit -> float) -> t
+  val executions : t -> execution list
+  (** Immutable snapshot of at most 512 recent groups. Each packed group has
+      one timing, excluding input materialization and nested groups. *)
+end
+
 val of_evaluation : Flow.Workspace.t -> Flow.Check.catalog -> Flow.Eval.t -> t
 (** Build from the specialized plan, residual captures, graph results and folds. *)
 
@@ -67,9 +77,10 @@ val optimize : t -> (t, Flow.Diagnostic.t) result
 
 module Executor : sig
   type program
-  val compile : Flow.Eval.value -> (program, Flow.Diagnostic.t) result
+  val compile : ?profile:Profile.t -> ?count_source:Packed.count_source -> Flow.Eval.value -> (program, Flow.Diagnostic.t) result
   val graph : program -> t
   val force : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list ->
+    ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
     ?reference:bool -> program -> live:Flow.Eval.live ->
     (Flow.Eval.value, Flow.Diagnostic.t) result
   (** Selected/probed cones use [reference:true]. Unsupported terms keep the

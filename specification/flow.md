@@ -64,7 +64,8 @@ positions with `nil`; disconnecting extras preserves the fixed slot identities.
 
 ### 3.1 Contexts
 
-`Flow.Context.t = Sop | Value | Scene | World | Settings | Editor | Material`. A graph
+`Flow.Context.t` is an abstract registered ID. Descriptors supply each context's
+result type, value support, label, color, group and catalog prefix. A graph
 declares its context; a kind belongs to one (the namespace of its qualified name) and a call
 of a kind from another context is `E_WRONG_CONTEXT`. No kind is an `Editor` kind: an editor
 graph sees the value operators and its own `ui/` operators (§11.11). `(ref name ...)` reads
@@ -72,9 +73,10 @@ another graph, with input overrides.
 
 ### 3.2 Port types and coercions
 
-The language's types are `Flow.Ty.t`: `Geometry`, `Float`, `Int`, `Bool`, `Vec3`, `Text`,
-`Color` (text or vec3; only catalog parameters ask for it), `List`, `Record`, `Fn`, `Any` and
-the context types `Scene`, `World`, `Settings`, `Panel`, `Editor`, `Material`. `Ty.fits`
+The structural types of `Flow.Ty.t` are `Float`, `Int`, `Bool`, `Vec3`, `Text`,
+`Color` (text or vec3; only catalog parameters ask for it), `List`, `Array`, `Record`, `Fn`
+and `Any`. Domain types use `Named of string`; registered names include geometry,
+drawing, scene, world, settings, panel, editor and material. `Ty.fits`
 decides whether a value may be used where a type is expected: numbers and Bool interconvert,
 numbers widen to Vec3, a record fits when it has every wanted field.
 
@@ -117,7 +119,9 @@ down to it, then the binding name. Reserved segments: `:x` a loop variable or pa
 `@result` a body result, `~for` / `~let` / `~fn` an unbound inline form (a second one under
 the same binding is `~for~1`, then `~for~2`). A nested node has no binding: its leaf is the
 holder's leaf, `#`, and the input (`result#0`, `result#0#:cutters`;
-`Flow_edit.nested_leaf`). Selection, probes and layout are keyed by path, so they survive
+`Flow_edit.nested_leaf`). Inline higher-order calls and their function inputs use
+these same leaves: `result#2#0` is the function in input 0 of the map in input 2,
+and `result#2#0/shift` is a binding in its body. Selection, probes and layout are keyed by path, so they survive
 every edit that keeps the path; `Flow_edit.remap` says where a key goes after a rename or a
 hoist.
 
@@ -639,7 +643,11 @@ edit in place (`Set_arg`, `Connect`, `Disconnect`, `Toggle_bypass` take the path
 (`Rename`, the name field) binds it under that name; deleting it hands its place to its first input;
 dragging its output to a second input, viewing it, or dropping a wire where it is written binds it
 first, so a wire never deletes a node. The caret in its text selects it and selecting it marks its
-text. Expressions, `ref`s, loops, and calls of functions and macros written in an input stay chips
+text. Inline `map`, `filter`, `reduce` and `sort-by` are cards too; their `fn` inputs
+are zones with typed parameter rails, call selectors and editable body cards. Array
+inputs show their checked array type. The selector is view state; scrubbing or wiring
+a body row edits the same authored text, including from the text pane. Expressions,
+`ref`s, loops, and calls of named functions and macros written in an input stay chips
 (`Unfold` binds them); a macro's arguments are pieces of its template and stay chips too.
 
 Rule: no syntax is text-only. New syntax or sugar ships with its graph projection, its
@@ -977,15 +985,84 @@ Evaluation and the lane are sequential IEEE double arithmetic with fixed operato
 so results are identical for one and many domains and across runs with `Sketch.Fixed dt`.
 
 The value lane prepares `Flow_ir.Executor` programs once per network. Scalar
-programs reuse the existing exact closures or reference walker. Supported packed
-maps run in 1,024-element blocks over float registers, distributed by the shared
-`Parallel` pool; they preserve each element's operation order. Unsupported bodies
+programs reuse the existing exact closures or reference walker. Supported numeric
+packed `map`, `for`, `sum`, `fold`, `scan`, `reduce` and `array/sum` use
+1,024-element blocks over float registers. Independent elements run through the
+shared `Parallel` pool. Cartesian clauses retain last-clause-fastest order and
+`:skip` retains authored iteration indices. Accumulator-dependent instructions
+run in element order; invariant instructions run once per block. A fixed binary
+tree visits chunk spans left to right, carrying the accumulator across spans.
+It preserves the interpreter's left fold rather than reassociating partial sums,
+so cancellation, rounding and signed zero are byte-identical across domain counts.
+Empty `sum` returns integer zero; empty `fold`/`reduce` retains its seed;
+`array/sum` retains its typed zero.
+
+Numeric packed work inside `state` steps uses the same tier. The evaluator owns
+the fold cell and frame transaction; a private callback dispatches a checked map
+or loop with the step's current immutable bindings. Each prepared IR program
+retains at most 32 register templates, shared through an atomic immutable list.
+A template rebinds arrays, scalar/record uniforms and cardinality on the next
+step; a changed function body or fused lexical captures need new specialization.
+Stateful element bodies remain interpreted. Numeric comparisons, Boolean
+operators and `if` select register values; an error from eager evaluation of an
+untaken pure arm reruns the independent reference walker, preserving branch
+diagnostics. Probes and reference drawing never invoke packed dispatch.
+
+Native canvas playback retains prepared drawing argument programs while its
+plan is unchanged. Exports prepare them once before the first frame. All maps
+read the same frame snapshot and environment-owned fold; repeated views/readers
+return the already computed next value. Static canvases retain their Scene
+without work proportional to unchanged point count.
+
+Equal-count adjacent maps fuse into one register program, including maps feeding
+a numeric reduction. Fusion carries the stages' authored provenance and avoids
+intermediate arrays. A single-input chain proves equal length even with dynamic
+counts; a multi-input zip requires proven equal static counts. Skipped consumers,
+shortened zips, accumulator producers and correlated Cartesian sources retain
+their materialization/evaluation boundaries. This preserves errors in a producer's
+unused tail. Scratch remains capped at 64 registers per block; a larger group
+retains its separate stages. `Packed.compile ~fusion:false` retains intermediate
+arrays for parity checks and profiling. Unsupported bodies
 remain interpreted. Probe forcing uses the reference walker independently of
 compilation settings. The IR retains lexical provenance, cardinality origins,
 frame/event rates and exact/approximate precision. Its placement pass refuses
 approximate inputs to catalog calls, exports, state seeds and cache keys with
 `E_APPROX_SINK`; `(exact x)` is the explicit readback card. Current producers
 are exact, so its runtime value is unchanged. GPU readback is not implemented.
+
+Cook-time specialization uses the instantiated SOP facts, including parameter
+overrides, rather than a catalog's default declaration. A regular node with
+preserved topology carries its designated input's point-count origin; changed
+or undeclared topology starts another origin. Attribute arrays with the same
+origin may fuse dynamic multi-input maps. Independent sources retain their
+materialization boundaries even when their current lengths happen to agree.
+Opaque native algorithms stay `Cooked`, and every CPU attribute program remains
+exact; a native declaration's `exact = false` does not invent an approximate
+Lisp producer or relax the exact-only catalog boundary.
+
+The host owns an optional `Flow_ir.Profile` with its clock and at most 512
+recent execution groups. Packed timings exclude source materialization and
+nested groups. Their provenance includes function body cards and the consuming
+stage; only that stage displays the duration. Fused members share the `CPU`
+badge, beside `t` in card headers, and name the group in the inspector. Reference
+fallback reports `Interp`; scalar programs retain `Closure` or `Interp` and
+cooked geometry reports `Cooked`. Probe reads never add execution timings.
+Value lanes, cooked attribute kernels and prepared drawing share the workspace's
+profile; atomic snapshots cross the cook-worker boundary, and a new snapshot
+refreshes graph reports without projecting or laying the graph out again.
+Reports retain graph-instance identities; the authored pane reads its default
+instance, so an override's execution cannot replace its badge or duration.
+
+Full-workspace parity checks lower the same checked document twice with its
+actual SOP factories. `Lower.of_checked ~reference:true` independently
+interprets value drives and attribute writes while retaining native opaque
+catalog cooking. It does not substitute a second catalog. The shared check
+compares static plans, instances, arguments, results, states and every recorded
+value, then forces all of them at `0`, `0.125`, `1.25` and `7`, at one/eight
+domains. Native checks also compare complete cooked payloads, instance
+transforms and pixels of every SOP/drawing result. Particle canvases use their
+complete 800×600 extent. The two custom-catalog workspaces run this check through
+their own executables; the twelve generated fixtures run through it too.
 
 `(noise3 position)` is an ordinary value card with one vec3 input. It uses
 seed 0 and raw 0..1 `Rays_math.Noise.sample3` values. The SOP/editor host owns
@@ -997,6 +1074,33 @@ so an explicit custom operator with the same name keeps its custom behavior.
 `P + N * (amplitude * noise3(P * frequency))` at seed 0. The default
 `"height_2d"` mode adds signed X/Z noise to Y. Both preserve topology and
 invalidate point/vertex normals after displacement.
+
+`(sop/attr geometry :P)` reads positions as `(array vec3)`. Other selectors
+read point-owned vec3 attributes, including `:N`; a selector may also be text.
+Missing or non-vec3 storage is `E_ATTR_TYPE`. Reads are deferred until the
+host has cooked the source geometry. The reference evaluator and packed
+executor receive the same immutable attribute resolver; Flow itself has no
+geometry dependency.
+
+`(sop/with_attr geometry :P values)` writes exactly one vec3 per point.
+`E_ATTR_COUNT` refuses a different count, and nonfinite components are
+`E_NONFINITE`. A position write uses RDK's copy-on-write point ranges; other
+selectors create or replace a point vec3 attribute. Topology, groups and
+untouched attributes are preserved, including existing normals. Authors use
+`sop/normals` after a position edit when shading normals need recomputation.
+The operator becomes one cook node, whose packed map program is prepared
+once. Live inputs read the cook's frame, and fold inputs receive a snapshot
+from the environment-owned value lane. Inline and locally bound `fn` map
+bodies can use the CPU tier. See `sketches/flow_kernel/sketch.rays`.
+
+Probes read the immutable geometries returned for the editor's bounded optional
+cook targets through that same attribute resolver. A packed map retains a call
+template alongside its capped preview records. Selecting an element materializes
+the inputs once with the reference walker and records just that function call;
+indices beyond 4,096 remain inspectable. Parameter and body cards share the call
+memo, and sparklines sample at most 64 calls across the full input. Probe state is
+forked from the environment, so inspection does not advance a frame fold. Zone
+wire hit boxes are children of the zone, below its controls in PXUI's hit order.
 
 ### Frame data and native 2D drawings
 

@@ -25,6 +25,23 @@ type node = { id : id; ty : Ty.t; count : Count.t; rate : rate; precision : prec
   kind : kind; args : edge list; scope : int list; invariant : bool;
   provenance : id list; tier : tier }
 type t = { nodes : node array; roots : int array; groups : int array array }
+type execution = { owner : id; sites : (int * W.path * int list) list;
+  tier : tier; seconds : float }
+module Profile = struct
+  type t = {clock : unit -> float; executions : execution list Atomic.t}
+  let create ~clock = {clock; executions = Atomic.make []}
+  let executions profile = Atomic.get profile.executions
+  let rec record profile execution =
+    let previous = executions profile in
+    let rec keep n = function
+      | [] -> [] | _ when n = 0 -> []
+      | old :: rest when old.sites = execution.sites -> keep n rest
+      | old :: rest -> old :: keep (n - 1) rest in
+    (* ponytail: 512 recent groups, a linear scan once per group; index if
+       profiling many small groups measurably costs a frame. *)
+    let next = execution :: keep 511 previous in
+    if not (Atomic.compare_and_set profile.executions previous next) then record profile execution
+end
 
 let rate_join a b = match a, b with
   | Event, _ | _, Event -> Event | Frame, _ | _, Frame -> Frame | _ -> Static
@@ -180,9 +197,10 @@ type builder = {
   residuals : int Residuals.t;
   live : W.Paths.t;
   invariant : W.Paths.t;
+  count_source : Packed.count_source;
 }
-let builder live invariant = {rev = []; count = 0; checks = []; slots = Hashtbl.create 64;
-  deferred = Hashtbl.create 64; residuals = Residuals.create 64; live; invariant}
+let builder ?(count_source = fun _ _ -> None) live invariant = {rev = []; count = 0; checks = []; slots = Hashtbl.create 64;
+  deferred = Hashtbl.create 64; residuals = Residuals.create 64; live; invariant; count_source}
 let authored (path, iter) = match path with
   | namespace :: path when String.starts_with ~prefix:"@instance:" namespace -> path, iter
   | _ -> path, iter
@@ -191,14 +209,15 @@ let identity instance (path, iter) =
 let at_path (path, iter) replacement = match path with
   | namespace :: _ when String.starts_with ~prefix:"@instance:" namespace -> namespace :: replacement, iter
   | _ -> replacement, iter
-let add b id ty count kind args rate =
+let add ?(provenance = []) b id ty count kind args rate =
   let i = b.count in b.count <- i + 1;
   let rate = List.fold_left (fun r e -> rate_join r (Hashtbl.find b.slots e.node).rate) rate args in
   let origin = authored id in
   let rate = if W.Paths.mem (fst origin) b.live then rate_join Frame rate else rate in
   let scope = match kind, rate with Source (Constant _), Static -> [] | _ -> snd id in
+  let provenance = List.sort_uniq compare (origin :: List.map authored provenance) in
   let n = {id; ty; count; kind; args; rate; precision = Exact; scope;
-    invariant = W.Paths.mem (fst origin) b.invariant; provenance = [origin]; tier = Interp} in
+    invariant = W.Paths.mem (fst origin) b.invariant; provenance; tier = Interp} in
   b.rev <- n :: b.rev; Hashtbl.add b.slots i n; i
 let kernel body = Kernel {body; elementwise = true; requires_exact = false}
 let child (path, iter) name = path @ [name], iter
@@ -207,8 +226,9 @@ let value_count = function
   | Vec3_array xs -> Count.Static (Array.length xs / 3)
   | List xs -> Count.Static (Array.length xs)
   | _ -> Count.Static 1
-let term_count id (term : W.term) = match term.ty with
+let type_count id = function
   | Ty.Array _ | Ty.List _ -> Count.Data id | _ -> Count.Static 1
+let term_count id (term : W.term) = type_count id term.ty
 let rec value_ty = function
   | E.Residual r -> (E.Private.residual_view r).term.ty
   | List xs -> Ty.List (Array.fold_left (fun ty v ->
@@ -229,7 +249,7 @@ let rec value b id = function
   | v -> add b id (V.ty_of v) (value_count v) (Source (Constant v)) [] Static
 and fields b id ty body fs =
   let args = List.mapi (fun i (name, v) -> {name; node = value b (child id (name ^ "#" ^ string_of_int i)) v}) fs in
-  add b id ty (Count.Static 1) (kernel body) args Static
+  add b id ty (type_count id ty) (kernel body) args Static
 and residual b r =
   match Residuals.find_opt b.residuals r with
   | Some i -> i
@@ -266,10 +286,22 @@ and residual b r =
                   | Ty.Vec3 -> Ty.Float
                   | Ty.Record fields -> Option.value ~default:Ty.Any (List.assoc_opt field fields)
                   | _ -> Ty.Any in
-                add b (child id field) ty (Count.Static 1)
+                add b (child id field) ty (type_count (child id field) ty)
                   (kernel (Field field)) [{name = "value"; node = i}] Static) input fs
           | Vec ts when List.length ts = 3 -> add b id t.ty count (kernel Vector)
               (args (List.mapi (fun i t -> string_of_int i, t) ts)) Static
+          | (Hof ((`Map | `Reduce), _) | Loop _ | Op {op = "array/sum"; _}) ->
+              (match Packed.compile ~count_source:b.count_source r t with
+               | None -> raise Unsupported
+               | Some program ->
+                   let count = match Packed.static_count program with
+                     | Some n -> Count.Static n | None -> Count.Data (Option.value ~default:id (Packed.count_origin program)) in
+                   let rate = if E.frame_dependent (E.Residual r) then Frame else Static in
+                   let kind = Kernel {body = Packed_map program;
+                     elementwise = Packed.elementwise program; requires_exact = true} in
+                   let provenance = List.map (fun (instance, site, iter) -> identity instance (site, iter))
+                     (Packed.provenance program) in
+                   add ~provenance b id t.ty count kind [] rate)
           | Op {op; args = ts; _} ->
               let op = match Flow.Op.find ~extra:(E.Private.residual_ops r) op Flow.Context.value with
                 | Some op when op.ctx = Flow.Context.value && op.shape = Flow.Op.Scalar
@@ -293,13 +325,6 @@ and residual b r =
               term env (child id "@result") result
           | Get (record, field) -> add b id t.ty count (kernel (Field field))
               [{name = "value"; node = term env (child id "value") record}] Static
-          | Hof (`Map, _) ->
-              (match Packed.compile r t with
-               | None -> raise Unsupported
-               | Some program ->
-                   let count = match Packed.static_count program with
-                     | Some n -> Count.Static n | None -> Count.Data id in
-                   add b id t.ty count (kernel (Packed_map program)) [] Frame)
           | Expanded {body; _} | Bypass body -> term env id body
           | _ -> raise Unsupported in
         try term (List.map (fun (name, v) -> name, `Value v) view.bindings) id view.term
@@ -326,20 +351,46 @@ let of_evaluation ws catalog evaluation =
   finish b (Array.of_list (roots @ states))
 
 module Executor = struct
-  type program = { ir : t; value : E.value; dataflow : bool }
-  let compile v =
-    let b = builder W.Paths.empty W.Paths.empty in
+  type program = { ir : t; value : E.value; dataflow : bool; templates : Packed.t list Atomic.t;
+    count_source : Packed.count_source; profile : Profile.t option }
+  let compile ?profile ?(count_source = fun _ _ -> None) v =
+    let b = builder ~count_source W.Paths.empty W.Paths.empty in
     let root = value b (["@value"], []) v in
     Result.map (fun ir ->
       let dataflow = Array.exists (function
         | {kind = Kernel {body = Packed_map _; _}; tier = Cpu_kernel; _} -> true
         | _ -> false) ir.nodes in
-      {ir; value = v; dataflow}) (optimize (finish b [|root|]))
+      {ir; value = v; dataflow; templates = Atomic.make []; count_source; profile}) (optimize (finish b [|root|]))
   let graph p = p.ir
-  let force ?state ?elems ?(reference = false) program ~live =
+  let force ?state ?elems ?resolve ?(reference = false) program ~live =
+    let packed_ran = ref false in
+    let measure = Option.map (fun profile -> profile.Profile.clock,
+      (fun packed ~seconds ~reference ->
+        packed_ran := true;
+        let sites = Packed.provenance packed in
+        let _, path, iter = Packed.site packed in
+        let owner = path, iter in
+        Profile.record profile {owner; sites; seconds; tier = if reference then Interp else Cpu_kernel})) program.profile in
     let state = Option.value ~default:(E.create_state ()) state in
-    let fallback () = E.Private.force_reference ~state ?elems program.value ~live in
-    if reference then fallback () else if not program.dataflow then E.force ~state ?elems program.value ~live else
+    let fell_back = ref reference in
+    let fallback () = fell_back := true; E.Private.force_reference ~state ?elems ?resolve program.value ~live in
+    let force_with_packed value ~live =
+      let execute r live =
+        let cached = Atomic.get program.templates in
+        let prepared = match List.find_map (fun p -> Packed.rebind p r) cached with
+          | Some p -> Some p
+          | None ->
+              let prepared = Packed.compile_template ~count_source:program.count_source r (E.Private.residual_view r).term in
+              Option.iter (fun p ->
+                let rec take n = function [] -> [] | _ when n = 0 -> [] | p :: rest -> p :: take (n - 1) rest in
+                ignore (Atomic.compare_and_set program.templates cached (p :: take 31 cached))) prepared;
+              prepared in
+        match prepared with
+        | Some p when not (Option.fold ~none:false ~some:(fun n -> n < 1024) (Packed.static_count p)) ->
+            Some (Packed.force ~state ?elems ?resolve ?measure p ~live)
+        | _ -> None in
+      E.Private.force_with_executor ~state ?elems ?resolve ~execute value ~live in
+    let run () = if reference then fallback () else if not program.dataflow then force_with_packed program.value ~live else
     match Frame_input.validate live with
     | Error _ -> fallback ()
     | Ok () ->
@@ -357,14 +408,13 @@ module Executor = struct
               | Source (Constant v) -> v
               | Source (Frame_field "t") -> E.Float live.t
               | Source (Frame_field name) -> apply name
-              | Source (State_previous r) -> get (E.Private.force_reference ~state ?elems (E.Residual r) ~live)
+              | Source (State_previous r) -> get (E.Private.force_reference ~state ?elems ?resolve (E.Residual r) ~live)
               | Kernel {body = Reference r; _} ->
-                  get ((if node.tier = Closure then E.force else E.Private.force_reference)
-                    ~state ?elems (E.Residual r) ~live)
+                  get (force_with_packed (E.Residual r) ~live)
               | Kernel {body = Operation name; _} -> apply name
               | Kernel {body = Packed_map program; _} ->
-                  get ((if node.tier = Cpu_kernel then Packed.force else Packed.reference)
-                    ~state ?elems program ~live)
+                  get (if node.tier = Cpu_kernel then Packed.force ~state ?elems ?resolve ?measure program ~live
+                    else Packed.reference ~state ?elems ?resolve program ~live)
               | Kernel {body = Readback; _} -> arg ()
               | Kernel {body = Vector; _} ->
                   (match List.map (fun (_, v) -> V.num v) args with
@@ -385,5 +435,21 @@ module Executor = struct
           | V.Fail (code, message, span) -> Error (Flow.Diagnostic.error ?span ~code message)
           | Refused d -> Error d
           | Not_found | Invalid_argument _ -> Error (Flow.Diagnostic.error ~code:"E_IR" "Unsupported IR value.")) in
-        match result with Ok _ -> result | Error _ -> fallback ()
+        match result with Ok _ -> result | Error _ -> fallback () in
+    let started = Option.map (fun profile -> profile.Profile.clock ()) program.profile in
+    let result = run () in
+    Option.iter (fun profile -> if not !packed_ran then begin
+      let root = program.ir.nodes.(program.ir.roots.(0)) in
+      let tier = if !fell_back then Interp else root.tier in
+      let instance = match fst root.id with
+        | namespace :: _ when String.starts_with ~prefix:"@instance:" namespace ->
+            int_of_string (String.sub namespace 10 (String.length namespace - 10))
+        | _ -> -1 in
+      let sites = match root.kind with
+        | Kernel {body = Packed_map packed; _} -> Packed.provenance packed
+        | _ -> List.map (fun (path, iter) -> instance, path, iter) root.provenance in
+      Profile.record profile {owner = authored root.id; sites; tier;
+        seconds = max 0. (profile.clock () -. Option.get started)}
+    end) program.profile;
+    result
 end

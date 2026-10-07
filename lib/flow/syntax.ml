@@ -227,3 +227,8 @@ let renumber first x =
       | Quote (k, y) -> Quote (k, go y) in
     {x with id; node} in
   let x = go x in (x, !next)
+(* Attribute selectors are positional text, including their keyword spelling. *)
+let attribute_args head args = match head, args with
+  | ("sop/attr" | "sop/with_attr" | "attr" | "with_attr"), g :: ({node = Kw name; _} as selector) :: rest ->
+      g :: {selector with node = Str name} :: rest
+  | _ -> args
