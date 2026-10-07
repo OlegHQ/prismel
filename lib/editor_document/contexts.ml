@@ -159,7 +159,7 @@ let live_light_field kind key = kind = "scene/light" && List.mem key ["intensity
 let check_context_time (workspace : Workspace_doc.t) (plan : E.plan) =
   let rec live_field path = function
     | E.Residual _ -> Some path
-    | E.Struct (kind, args) -> List.find_map (fun (key, value) ->
+    | E.Struct (kind, _, args) -> List.find_map (fun (key, value) ->
         if live_light_field kind key then None else live_field (kind ^ "." ^ key) value) args
     | E.Record args -> List.find_map (fun (key, value) -> live_field (path ^ "." ^ key) value) args
     | E.List values -> Array.to_list values |> List.find_map (live_field path)
@@ -190,7 +190,7 @@ let has_settings (workspace : Workspace_doc.t) =
     workspace.checked.graphs
 
 let settings_of = function
-  | E.Struct ("settings/config", args) ->
+  | E.Struct ("settings/config", _, args) ->
       let* changes = changes "settings/config" args in
       let* settings, _ = Result.map_error (diag "E_RANGE")
           (Settings.apply (Settings.make window_schema (Param.default window_schema)) changes) in
@@ -226,8 +226,8 @@ let arg_key args i =
 
 (* Calls with no term to read (graph inputs, loops, macro expansions): reachable but unwritable. *)
 let rec loose ~want ~below = function
-  | E.Struct ("scene/merge", args) -> List.concat_map (fun (_, v) -> loose ~want ~below v) args
-  | E.Struct (kind, args) when want kind ->
+  | E.Struct ("scene/merge", _, args) -> List.concat_map (fun (_, v) -> loose ~want ~below v) args
+  | E.Struct (kind, _, args) when want kind ->
       (match Option.bind (below kind) (fun slot -> List.assoc_opt slot args) with
        | Some under -> loose ~want ~below under | None -> [])
       @ [ { kind; args; home = Document.Looped; via = None } ]
@@ -292,7 +292,7 @@ let rec walk ~want ~below ~iter env place (t : W.term) (v : E.value) =
       (match List.assoc_opt n env with
        | Some bound -> walk ~want ~below ~iter env None bound v
        | None -> loose ~want ~below v)
-  | W.Call { kind; args = targs }, E.Struct (k, vargs) when k = kind && want kind ->
+  | W.Call { kind; args = targs; _ }, E.Struct (k, _, vargs) when k = kind && want kind ->
       let here = home () in
       let under = match Option.bind (below kind) (fun slot ->
           Option.map (fun i -> i, List.assoc slot vargs) (List.find_index (fun (n, _) -> n = slot) targs)) with
@@ -302,7 +302,7 @@ let rec walk ~want ~below ~iter env place (t : W.term) (v : E.value) =
       let via = if kind <> "scene/world" then None
         else Option.bind (List.assoc_opt "world" targs) (referenced env) in
       under @ [ { kind; args = vargs; home = here; via } ]
-  | W.Op { op = "scene/merge"; args = all; skip }, E.Struct ("scene/merge", vargs)
+  | W.Op { op = "scene/merge"; args = all; skip }, E.Struct ("scene/merge", _, vargs)
     when merge_fits env (List.map snd (kept ~iter skip all)) vargs ->
       let targs = List.map snd (kept ~iter skip all) in
       let here = home () in
@@ -367,8 +367,8 @@ let item_of (lowered : Flow_sop.Lower.t) { kind; args; home; via } =
     let* parameter = Flow_sop.Port.find_parameter (ports kind) key in
     Ok ((parameter, value) :: rest)) dynamic (Ok []) in
   let drives = if dynamic = [] then None else Some (kind, dynamic) in
-  let* forced = E.force (E.Struct (kind, args)) ~live:{E.t = 0.} in
-  let args = match forced with E.Struct (_, args) -> args | _ -> assert false in
+  let* forced = E.force (E.Struct (kind, Flow.Ty.Scene, args)) ~live:{E.t = 0.} in
+  let args = match forced with E.Struct (_, _, args) -> args | _ -> assert false in
   let factory = List.assoc kind scene_kinds in
   let* values = changes kind args in
   let* geometry = match List.assoc_opt "geometry" args with
@@ -399,7 +399,7 @@ let root_params values =
 
 (* the item a camera value is: the call whose arguments it carries *)
 let find_call calls = function
-  | E.Struct (_, cargs) ->
+  | E.Struct (_, _, cargs) ->
       List.find_index (fun (c : call) ->
         c.args == cargs || (try c.args = cargs with Invalid_argument _ -> false)) calls
   | _ -> None
@@ -409,8 +409,8 @@ let root_of calls =
   | None -> Ok { params = Objects.Root.default; root_home = None; camera = None }
   | Some call ->
       let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) call.args in
-      let* forced = E.force (E.Struct ("scene/root", own)) ~live:{ E.t = 0. } in
-      let* values = changes "scene/root" (match forced with E.Struct (_, args) -> args | _ -> []) in
+      let* forced = E.force (E.Struct ("scene/root", Flow.Ty.Scene, own)) ~live:{ E.t = 0. } in
+      let* values = changes "scene/root" (match forced with E.Struct (_, _, args) -> args | _ -> []) in
       let* params = root_params values in
       let others = List.filter (fun (c : call) -> c.kind <> "scene/root") calls in
       Ok { params; root_home = Some call.home;
@@ -445,8 +445,8 @@ let scene_calls value = loose ~want:is_scene_kind ~below:scene_below value
 
 (* everything a scene value holds, through merges, roots and parts *)
 let rec members = function
-  | E.Struct ("scene/merge", args) -> List.concat_map (fun (_, v) -> members v) args
-  | E.Struct ("scene/root", args) ->
+  | E.Struct ("scene/merge", _, args) -> List.concat_map (fun (_, v) -> members v) args
+  | E.Struct ("scene/root", _, args) ->
       (match List.assoc_opt "scene" args with Some v -> members v | None -> [])
   | E.List xs -> List.concat_map members (Array.to_list xs)
   | E.Struct _ as v -> [ v ]
@@ -454,9 +454,9 @@ let rec members = function
 
 (* a root wired into a merge or another root: it renders, so it is always last *)
 let rec nested_root ~under = function
-  | E.Struct ("scene/root", args) ->
+  | E.Struct ("scene/root", _, args) ->
       under || (match List.assoc_opt "scene" args with Some v -> nested_root ~under:true v | None -> false)
-  | E.Struct ("scene/merge", args) -> List.exists (fun (_, v) -> nested_root ~under:true v) args
+  | E.Struct ("scene/merge", _, args) -> List.exists (fun (_, v) -> nested_root ~under:true v) args
   | E.List xs -> Array.exists (nested_root ~under) xs
   | _ -> false
 
@@ -482,9 +482,9 @@ let check_scene (workspace : Workspace_doc.t) (plan : E.plan) =
                  (name first) (name second))
            | _ ->
                (match value with
-                | E.Struct ("scene/root", args) ->
+                | E.Struct ("scene/root", _, args) ->
                     (match List.assoc_opt "camera" args with
-                     | Some (E.Struct ("scene/camera", _) as camera)
+                     | Some (E.Struct ("scene/camera", _, _) as camera)
                        when List.exists (fun m -> m == camera || (try m = camera with Invalid_argument _ -> false))
                               (members value) -> Ok ()
                      | Some _ -> refuse "E_SCENE_CAMERA" (Printf.sprintf
@@ -539,10 +539,10 @@ let add_node graph factory label =
 (* The view of the camera object a scene instance's [scene/root] names in its [:camera] slot: the
    object is built like any scene object, from the fields its call writes *)
 let instance_camera = function
-  | Some (E.Struct ("scene/camera", _) as value) ->
+  | Some (E.Struct ("scene/camera", _, _) as value) ->
       let built =
         let* forced = E.force value ~live:{ E.t = 0. } in
-        let* values = changes "scene/camera" (match forced with E.Struct (_, args) -> args | _ -> []) in
+        let* values = changes "scene/camera" (match forced with E.Struct (_, _, args) -> args | _ -> []) in
         let factory = List.assoc "scene/camera" scene_kinds in
         let* graph, id = add_node Edit.empty factory "camera" in
         let* graph = apply factory graph id values in
@@ -553,10 +553,10 @@ let instance_camera = function
 (* How a viewport's own scene instance renders: its [scene/root]'s settings and camera, none for
    a part *)
 let instance_root = function
-  | E.Struct ("scene/root", args) ->
+  | E.Struct ("scene/root", _, args) ->
       let own = List.filter (fun (key, _) -> not (List.mem key slot_names)) args in
-      (match E.force (E.Struct ("scene/root", own)) ~live:{ E.t = 0. } with
-       | Ok (E.Struct (_, forced)) ->
+      (match E.force (E.Struct ("scene/root", Flow.Ty.Scene, own)) ~live:{ E.t = 0. } with
+       | Ok (E.Struct (_, _, forced)) ->
            (match changes "scene/root" forced with
             | Ok values ->
                 Option.map (fun params -> { Document.params; camera = instance_camera (List.assoc_opt "camera" args) })
@@ -648,27 +648,27 @@ let panel_tree root =
     | Some v -> Ok v | None -> Error (diag "E_LOWER" ("A panel is missing its " ^ name ^ ".")) in
   let axis = function E.Text "vertical" -> `V | _ -> `H in
   let rec go path = function
-    | E.Struct ("ui/viewport", args) ->
+    | E.Struct ("ui/viewport", _, args) ->
         let key = viewport_key (List.rev path) in
         let* scene = arg "scene" args in
         viewports := (key, scene) :: !viewports;
         if flag "look_through" args then start := { !start with looking = key :: !start.looking };
         leaf path args (Panels.View key)
-    | E.Struct ("ui/graph", args) ->
+    | E.Struct ("ui/graph", _, args) ->
         let here = List.rev path in
         Option.iter (fun name -> named := (here, name) :: !named) (text "graph" args);
         Option.iter (fun view -> start := { !start with graph_views = (here, view) :: !start.graph_views })
           (text "view" args);
         if !wires = None then wires := text "wires" args;
         leaf path args Graph
-    | E.Struct ("ui/inspector", args) -> leaf path args Inspector
-    | E.Struct ("ui/outline", args) -> leaf path args Outline
-    | E.Struct ("ui/list", args) -> leaf path args List
-    | E.Struct ("ui/lisp", args) ->
+    | E.Struct ("ui/inspector", _, args) -> leaf path args Inspector
+    | E.Struct ("ui/outline", _, args) -> leaf path args Outline
+    | E.Struct ("ui/list", _, args) -> leaf path args List
+    | E.Struct ("ui/lisp", _, args) ->
         Option.iter (fun tab -> start := { !start with tabs = (List.rev path, tab) :: !start.tabs }) (text "tab" args);
         leaf path args Lisp
-    | E.Struct ("ui/timeline", args) -> leaf path args Timeline
-    | E.Struct (("ui/split" | "ui/split-at"), args) ->
+    | E.Struct ("ui/timeline", _, args) -> leaf path args Timeline
+    | E.Struct (("ui/split" | "ui/split-at"), _, args) ->
         let* first = arg "first" args in
         let* second = arg "second" args in
         let* a = go (0 :: path) first in
@@ -683,17 +683,17 @@ let panel_tree root =
           | _ -> `Ratio 0.5 in
         Ok (Panels.Split { axis = axis (Option.value (List.assoc_opt "axis" args) ~default:(E.Text "horizontal"));
                            size; a; b })
-    | E.Struct ("ui/tile", args) ->
+    | E.Struct ("ui/tile", _, args) ->
         let* cells = List.fold_left (fun acc (i, (_, v)) ->
           let* acc = acc in let* c = go (i :: path) v in Ok (c :: acc)) (Ok [])
           (List.mapi (fun i a -> i, a) args) in
         Ok (Panels.Tile (List.rev cells))
-    | E.Struct ("ui/floating", args) ->
+    | E.Struct ("ui/floating", _, args) ->
         let* p = arg "panel" args in
         let* t = go (0 :: path) p in Ok (Panels.Float t)
     (* a switch is transparent: its active layout sits at the switch's own place in the tree, and
        a layout that is not showing registers nothing but its shape *)
-    | E.Struct ("ui/switch", args) ->
+    | E.Struct ("ui/switch", _, args) ->
         let active = match List.assoc_opt "active" args with Some (E.Int n) -> n | _ -> 0 in
         let first = !switch = None in
         if first then switch := Some { Document.layouts = []; active };
@@ -735,11 +735,11 @@ let origins (graph : W.graph) value =
         Option.iter (fun t' -> walk None path t' v) (List.assoc_opt n env)
     | W.Op { op = "ui/inspector" | "ui/list" | "ui/lisp"; args; _ }, _ ->
         Option.iter (fun (a : W.term) -> ofs := (List.rev path, a) :: !ofs) (List.assoc_opt "of" args)
-    | W.Op { op = "ui/workspace"; args = (_, r) :: _; _ }, E.Struct (_, (_, rv) :: _) ->
+    | W.Op { op = "ui/workspace"; args = (_, r) :: _; _ }, E.Struct (_, _, (_, rv) :: _) ->
         let h = here () in
         inline h path (pos 0) r;
         walk (Some (h, pos 0)) path r rv
-    | W.Op { op = "ui/split" | "ui/split-at"; args; _ }, E.Struct (_, vargs) ->
+    | W.Op { op = "ui/split" | "ui/split-at"; args; _ }, E.Struct (_, _, vargs) ->
         let h = here () in
         List.iteri (fun i key -> match List.assoc_opt key args, List.assoc_opt key vargs with
           | Some a, Some va ->
@@ -747,7 +747,7 @@ let origins (graph : W.graph) value =
               inline h (i :: path) k a;
               walk (Some (h, k)) (i :: path) a va
           | _ -> ()) [ "first"; "second" ]
-    | W.Op { op = "ui/switch"; args; _ }, E.Struct (_, vargs) ->
+    | W.Op { op = "ui/switch"; args; _ }, E.Struct (_, _, vargs) ->
         (* transparent: the active layout is found at the switch's own path *)
         let h = here () in
         let layouts l = List.filter (fun (n, _) -> n <> "active") l in
@@ -757,11 +757,11 @@ let origins (graph : W.graph) value =
              inline h path (pos active) a;
              walk (Some (h, pos active)) path a va
          | _ -> ())
-    | W.Op { op = "ui/floating"; args = (_, a) :: _; _ }, E.Struct (_, (_, va) :: _) ->
+    | W.Op { op = "ui/floating"; args = (_, a) :: _; _ }, E.Struct (_, _, (_, va) :: _) ->
         let h = here () in
         inline h (0 :: path) (pos 0) a;
         walk (Some (h, pos 0)) (0 :: path) a va
-    | W.Op { op = "ui/tile"; args; _ }, E.Struct (_, vargs) ->
+    | W.Op { op = "ui/tile"; args; _ }, E.Struct (_, _, vargs) ->
         let h = here () in
         if List.exists (fun (_, (a : W.term)) -> match a.node with W.Loop _ -> true | _ -> false) args
         then begin
@@ -780,7 +780,7 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
   let* value = result ~force:false workspace plan Flow.Workspace.Editor in
   match value with
   | None -> Ok None
-  | Some (E.Struct ("ui/workspace", [ _, root ]) as whole) ->
+  | Some (E.Struct ("ui/workspace", _, [ _, root ]) as whole) ->
       let* tree, named, start, wires, viewports, switch = panel_tree root in
       let g = Option.get (Workspace_doc.editor_graph workspace) in
       let origins, ofs = origins g whole in
@@ -1044,7 +1044,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let* settings_calls = calls ~want:(fun k -> k = "settings/config") ~below:no_below workspace
       lowered.plan Flow.Workspace.Settings in
   let* settings = match settings_calls with
-    | { kind; args; _ } :: _ -> settings_of (E.Struct (kind, args))
+    | { kind; args; _ } :: _ -> settings_of (E.Struct (kind, Flow.Ty.Settings, args))
     | [] -> Ok workspace.settings in
   (* settings the previous document already has are kept physically, like a network: the cook
      and every prepared piece are keyed by them, so a camera move must not look like an edit *)

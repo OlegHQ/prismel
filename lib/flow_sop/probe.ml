@@ -93,7 +93,7 @@ let rec describe_value = function
   | Record fs -> "{" ^ String.concat " · " (List.map (fun (f, v) -> f ^ " " ^ describe_value v) fs) ^ "}"
   | Geo _ -> "geometry"
   | No_geo -> "nil"
-  | Struct (op, _) -> op
+  | Struct (op, _, _) -> op
   | Fn _ -> "function"
   | Residual _ -> "?"
 

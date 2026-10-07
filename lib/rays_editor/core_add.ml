@@ -27,12 +27,7 @@ let value_entries =
       | None, "Convert" when key = "=int" -> Int | None, _ -> Float in
     { Pxui_graph.Node_menu.key; label; category = [ "Value"; sub ]; arity = 0; context = "value"; output;
       off = None } in
-  let categorize = function
-    | "int" | "float" | "floor" | "round" | "ceil" -> "Convert"
-    | "<" | ">" | "<=" | ">=" | "=" | "and" | "or" | "not" -> "Compare"
-    | "str" -> "Text"
-    | "range" | "linspace" | "count" | "first" | "last" | "rest" | "nth" | "reverse" | "take" | "drop" -> "List"
-    | _ -> "Math" in
+  let categorize name = (Option.get (Flow.Op.find name Flow.Context.Value)).category in
   [ entry "Math" "=number" "Number"; entry "Math" "=t" "Time (t)"; entry ~output:Flow.Ty.Vec3 "Math" "=vec3" "Vector";
     entry "Text" "=text" "Text"; entry "Text" "=str" "str" ]
   @ List.map (fun op -> entry (categorize op) ("=" ^ op) op) Flow.Workspace.value_ops

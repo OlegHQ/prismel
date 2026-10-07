@@ -5,14 +5,8 @@ module Paths = Set.Make (struct type t = string list let compare = compare end)
 type path = string list
 type context = Context.t = Sop | Value | Scene | World | Settings | Editor | Material
 let context_name = Context.name
-let context_of_name = function
-  | "sop" -> Some Sop | "value" -> Some Value | "scene" -> Some Scene
-  | "world" -> Some World | "settings" -> Some Settings | "editor" -> Some Editor
-  | "material" -> Some Material
-  | _ -> None
-let context_ty = function
-  | Sop -> Ty.Geometry | Value -> Ty.Float | Scene -> Ty.Scene | World -> Ty.World
-  | Settings -> Ty.Settings | Editor -> Ty.Editor | Material -> Ty.Material
+let context_of_name s = Result.to_option (Context.of_string s)
+let context_ty = Ty.of_context
 
 type pattern = Name of string | Seq of pattern list | Keys of string list
 type term = { path : path option; ty : Ty.t; node : node; form : S.t }
@@ -23,7 +17,7 @@ and node =
   | Time
   | Vec of term list
   | Ref_binding of string * string list
-  | Call of { kind : string; args : (string * term) list }
+  | Call of { kind : string; ctx : Context.t; args : (string * term) list }
   | Op of { op : string; args : (string * term) list; skip : int list list }
   | Call_fn of { fn : string; args : term list }
   | Fn_ref of string
@@ -49,9 +43,9 @@ type graph = { name : string; context : context;
   inputs : (string * Ty.t * term option) list; body : term; form : S.t }
 type t = { name : string; graphs : graph list; defs : graph list; macros : S.t list;
   source : S.t list; live : Paths.t; invariant : Paths.t;
-  kind_fns : (string * (string * Check.slot list)) list }
+  kind_fns : (string * (string * Context.t * Check.slot list)) list }
 
-let max_iterations = 4096
+let max_iterations = Op.max_iterations
 (* ponytail: a guard against exponential call-site typing, not a language limit. *)
 let max_steps = 400_000
 let max_call_depth = 64
@@ -64,87 +58,8 @@ let special = [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "ref"; "for"; 
   "unquote-splicing" ]
 let special_forms = special
 let reserved s = List.mem s special || List.mem s [ "t"; "pi"; "true"; "false"; "nil" ]
-let type_names = [ "float"; "int"; "bool"; "text"; "vec3"; "geometry"; "scene"; "world";
-  "settings"; "panel"; "editor"; "material" ]
-
-(* ---- built-in operators (the study's value, scene, world, settings and ui ops) ---- *)
-
-type op = { oname : string; octx : context; pos : (string * Ty.t) list;
-  opt : (string * Ty.t) list; rest : (string * Ty.t) option;
-  kw : (string * Ty.t) list; out : Ty.t list -> Ty.t; any_num : bool }
-
-let lst j ts = match List.nth_opt ts j with Some (Ty.List _ as t) -> t | _ -> Ty.List Ty.Any
-let elm j ts = match lst j ts with Ty.List e -> e | _ -> Ty.Any
-let mk ?(octx = Value) ?(opt = []) ?rest ?(kw = []) ?(any_num = false) name pos out =
-  { oname = name; octx; pos; opt; rest; kw; out; any_num }
-let fl = Ty.Float
-let num2 name = mk ~any_num:true name [ "a", fl; "b", fl ] (fun ts ->
-  if List.mem Ty.Vec3 ts then Ty.Vec3
-  else if name <> "/" && List.for_all (( = ) Ty.Int) ts then Ty.Int else Ty.Float)
-let unary name out = mk name [ "x", fl ] out
-let compare_op name = mk name [ "a", fl; "b", fl ] (fun _ -> Ty.Bool)
-let bool_op name pos = mk name pos (fun _ -> Ty.Bool)
-let panel ?(kw = []) name pos = mk ~octx:Editor ~kw name pos (fun _ -> Ty.Panel)
-(* a panel leaf: [:focus true] gives it the keyboard focus when the editor opens *)
-let leaf ?(kw = []) name pos = panel ~kw:(kw @ [ "focus", Ty.Bool ]) name pos
-let ops = [
-  num2 "+"; num2 "-"; num2 "*"; num2 "/"; num2 "mod";
-  mk ~any_num:true "pow" [ "a", fl; "b", fl ] (fun ts -> if List.mem Ty.Vec3 ts then Ty.Vec3 else Ty.Float);
-  num2 "min"; num2 "max";
-  unary "sin" (fun _ -> fl); unary "cos" (fun _ -> fl); unary "sqrt" (fun _ -> fl);
-  unary "floor" (fun _ -> Ty.Int); unary "ceil" (fun _ -> Ty.Int); unary "round" (fun _ -> Ty.Int);
-  unary "int" (fun _ -> Ty.Int); unary "float" (fun _ -> fl);
-  unary "abs" (function Ty.Int :: _ -> Ty.Int | _ -> fl);
-  compare_op "<"; compare_op ">"; compare_op "<="; compare_op ">="; compare_op "=";
-  bool_op "and" [ "a", Ty.Bool; "b", Ty.Bool ]; bool_op "or" [ "a", Ty.Bool; "b", Ty.Bool ];
-  bool_op "not" [ "a", Ty.Bool ];
-  mk ~rest:("key", fl) "value/rand" [] (fun _ -> fl);
-  mk "value/hsv" [ "h", fl; "s", fl; "v", fl ] (fun _ -> Ty.Vec3);
-  mk ~any_num:true "value/lerp" [ "a", fl; "b", fl; "u", fl ] (fun ts ->
-    match ts with a :: b :: _ when a = Ty.Vec3 || b = Ty.Vec3 -> Ty.Vec3 | _ -> fl);
-  mk ~opt:[ "height", fl ] "value/polar" [ "radius", fl; "angle", fl ] (fun _ -> Ty.Vec3);
-  mk ~opt:[ "end", Ty.Int ] "range" [ "count", Ty.Int ] (fun _ -> Ty.List Ty.Int);
-  mk "linspace" [ "from", fl; "to", fl; "count", Ty.Int ] (fun _ -> Ty.List fl);
-  mk "count" [ "list", Ty.List Ty.Any ] (fun _ -> Ty.Int);
-  mk "first" [ "list", Ty.List Ty.Any ] (elm 0); mk "last" [ "list", Ty.List Ty.Any ] (elm 0);
-  mk "rest" [ "list", Ty.List Ty.Any ] (lst 0);
-  mk "nth" [ "list", Ty.List Ty.Any; "index", Ty.Int ] (elm 0);
-  mk "reverse" [ "list", Ty.List Ty.Any ] (lst 0);
-  mk "take" [ "n", Ty.Int; "list", Ty.List Ty.Any ] (lst 1);
-  mk "drop" [ "n", Ty.Int; "list", Ty.List Ty.Any ] (lst 1);
-  (* ponytail: the catalog has no "curve from a list of points" kind (its sop/poly_path takes
-     geometry); the workspace names one and W2 lowering must supply the native node. *)
-  mk ~octx:Sop ~kw:[ "closed", Ty.Bool ] "sop/curve" [ "points", Ty.List Ty.Vec3 ] (fun _ -> Ty.Geometry);
-  (* W8: lists whose length is known only when the geometry cooks; only a [for] over one
-     runs (Eval makes a zone node), see [Eval] *)
-  mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Vec3);
-  mk ~octx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
-  mk ~octx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
-  mk ~octx:Material ~kw:["name", Ty.Text; "color", Ty.Color;
-    "roughness", Ty.Float; "emission", Ty.Color] "material/standard" [] (fun _ -> Ty.Material);
-  (* a world graph is authoritative: this is how its text says there is no World *)
-  mk ~octx:World "world/none" [] (fun _ -> Ty.World);
-  mk ~octx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
-  leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.Scene ];
-  { (leaf ~kw:[ "wires", Ty.Text; "view", Ty.Text ] "ui/graph" []) with opt = [ "graph", Ty.Text ] };
-  (* [:of] ties an inspector, a list or a text pane to a graph panel: its binding *)
-  leaf ~kw:[ "of", Ty.Panel ] "ui/inspector" []; leaf "ui/outline" []; leaf ~kw:[ "of", Ty.Panel ] "ui/list" [];
-  leaf ~kw:[ "tab", Ty.Text; "of", Ty.Panel ] "ui/lisp" []; leaf "ui/timeline" [];
-  panel ~kw:[ "first_size", Ty.Int; "second_size", Ty.Int ] "ui/split"
-    [ "axis", Ty.Text; "first", Ty.Panel; "second", Ty.Panel ];
-  panel "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.Panel; "second", Ty.Panel ];
-  { (panel "ui/tile" []) with rest = Some ("panel", Ty.Panel) };
-  panel "ui/floating" [ "panel", Ty.Panel ];
-  { (panel "ui/switch" []) with rest = Some ("panel", Ty.Panel); kw = [ "active", Ty.Int ] };
-]
-let op_table = let h = Hashtbl.create 64 in List.iter (fun o -> Hashtbl.replace h o.oname o) ops; h
-let find_op name ctx =
-  let try_ n = Hashtbl.find_opt op_table n in
-  match try_ name with
-  | Some _ as o -> o
-  | None -> (match try_ ("value/" ^ name) with
-      | Some _ as o -> o
-      | None -> try_ (context_name ctx ^ "/" ^ name))
+let type_names = List.map fst Ty.names
+let find_op = Op.find
 
 (* ---- helpers ---- *)
 
@@ -320,7 +235,7 @@ let check catalog forms =
             | None -> (match kind_of cx.ctx s with Ok k -> `Kind k | Error e -> `Missing e))) in
   let known ~head s = reserved s || List.mem s type_names || s = "fn" || Hashtbl.mem names s
     || ((head || not (Macro.valid_name s))
-        && (List.exists (fun c -> find_op s c <> None) [ Value; Sop; Scene; World; Settings; Editor ]
+        && (List.exists (fun c -> find_op s c <> None) Context.all
             || (match kind_of Sop s with
                 | Ok _ | Error (("E_WRONG_CONTEXT" | "E_AMBIGUOUS"), _) -> true
                 | Error _ -> false))) in
@@ -832,10 +747,10 @@ let check catalog forms =
       | S.Sym s when x.meta = [] && (not (String.contains s '.')) && (not (Smap.mem s cx.env)) && not (reserved s) ->
           (match resolve_head cx s with
            | `Def _ -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Def_fn s) })
-           | `Op o -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Op_fn o.oname) })
+           | `Op o -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Op_fn o.name) })
            | `Kind k ->
                let slots = k.slots in
-               if not (List.mem_assoc s !kind_fns) then kind_fns := (s, (k.qualified, slots)) :: !kind_fns;
+               if not (List.mem_assoc s !kind_fns) then kind_fns := (s, (k.qualified, k.context, slots)) :: !kind_fns;
                (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Kind_fn k) })
            | `Macro _ -> bad x "E_MACRO_AS_VALUE" (Printf.sprintf "%s is a macro; a macro is not a function value. Wrap it: (fn [a] (%s a))." s s)
            | `Missing _ -> infer cx x)
@@ -853,7 +768,7 @@ let check catalog forms =
     | None -> (tm x Ty.Any Nil, { (derive Ty.Any (f :: List.map (fun a -> a.av) args)) with fn = None })
     | Some (Closure c) -> call_closure cx x c args
     | Some (Def_fn n) -> apply_def cx x (Hashtbl.find sigs n) args
-    | Some (Op_fn n) -> apply_op cx x (Hashtbl.find op_table n) args
+    | Some (Op_fn n) -> apply_op cx x (Option.get (Op.find n cx.ctx)) args
     | Some (Kind_fn k) -> apply_kind cx x k args
 
   and dummy x ty = tm x ty (Ref_binding ("_", []))
@@ -1008,7 +923,7 @@ let check catalog forms =
                       | _ -> None in
                     (match p with Some (_, Ty.Fn, _) -> true | _ -> false) in
                   apply_def cx x d (args_of cx fn_slot args)
-              | `Op o when o.oname = "scene/merge" ->
+              | `Op o when o.name = "scene/merge" ->
                   (* [:skip] is read here: its value is a list of tuples, not an argument *)
                   let rec split = function
                     | { S.node = S.Kw "skip"; _ } :: v :: rest -> let s, r = split rest in skip_of v @ s, r
@@ -1019,80 +934,80 @@ let check catalog forms =
               | `Op o -> apply_op cx x o (args_of cx (fun _ _ -> false) args)
               | `Kind k -> apply_kind cx x k (args_of cx (fun _ _ -> false) args)))
 
-  and apply_op ?(skip = []) cx x (o : op) (args : arg list) : term * v =
-    if o.octx <> Value && o.octx <> cx.ctx then
+  and apply_op ?(skip = []) cx x (o : Op.t) (args : arg list) : term * v =
+    if o.ctx <> Value && o.ctx <> cx.ctx then
       bad x "E_WRONG_CONTEXT" (Printf.sprintf "%s belongs to %s; it cannot run in %s. Pass data through a typed input or ref."
-        o.oname (context_name o.octx) (context_name cx.ctx))
+        o.name (context_name o.ctx) (context_name cx.ctx))
     else begin
       let pos = List.filter (fun a -> a.key = None) args in
       let kws = List.filter (fun a -> a.key <> None) args in
-      let slots = o.pos @ o.opt in
+      let slots = o.signature.pos @ o.signature.opt in
       let np = List.length pos in
-      if o.rest = None && (np < List.length o.pos || np > List.length slots) then
-        bad x "E_ARITY" (Printf.sprintf "%s takes %d%s positional input%s%s; got %d." o.oname (List.length o.pos)
-          (if o.opt <> [] then "–" ^ string_of_int (List.length slots) else "")
+      if o.signature.rest = None && (np < List.length o.signature.pos || np > List.length slots) then
+        bad x "E_ARITY" (Printf.sprintf "%s takes %d%s positional input%s%s; got %d." o.name (List.length o.signature.pos)
+          (if o.signature.opt <> [] then "–" ^ string_of_int (List.length slots) else "")
           (plural (List.length slots))
-          (if o.pos <> [] then " (" ^ String.concat ", " (List.map fst o.pos) ^ ")" else "") np)
+          (if o.signature.pos <> [] then " (" ^ String.concat ", " (List.map fst o.signature.pos) ^ ")" else "") np)
       else begin
-        let nfix = if o.rest <> None then List.length o.pos else List.length slots in
+        let nfix = if o.signature.rest <> None then List.length o.signature.pos else List.length slots in
         let named = ref [] and ts = ref [] in
         List.iteri (fun i a ->
           if i < nfix then begin
             let sname, sty = List.nth slots i in
             ts := a.av.ty :: !ts;
             if not (o.any_num && (a.av.ty = Ty.Vec3 || a.av.ty = Ty.Int || a.av.ty = Ty.Float)) then
-              ignore (need a (Printf.sprintf "%s %s" o.oname sname) sty);
+              ignore (need a (Printf.sprintf "%s %s" o.name sname) sty);
             named := (sname, a.aterm) :: !named
           end else begin
-            let rname, rty = Option.get o.rest in
+            let rname, rty = Option.get o.signature.rest in
             (match Ty.elem a.av.ty with
              | Some e when Ty.fits e rty ->
                  if a.av.live_len && shape_ty rty then
                    err a.aform "E_TIME_COUNT" (Printf.sprintf
-                     "The list passed to %s changes length with t. The network keeps its shape while playing; animate parameters instead, for example scale a piece to 0." o.oname)
-             | _ -> ignore (need a (Printf.sprintf "%s %s" o.oname rname) rty));
+                     "The list passed to %s changes length with t. The network keeps its shape while playing; animate parameters instead, for example scale a piece to 0." o.name)
+             | _ -> ignore (need a (Printf.sprintf "%s %s" o.name rname) rty));
             named := (rname, a.aterm) :: !named
           end) pos;
         let seen = Hashtbl.create 4 in
         List.iter (fun a ->
           let k = Option.get a.key in
-          match List.assoc_opt k o.kw with
+          match List.assoc_opt k o.signature.kw with
           | None ->
-              err a.aform "E_UNKNOWN_PARAM" (Printf.sprintf "%s has no parameter :%s.%s" o.oname k
-                (if o.kw = [] then "" else " Parameters: " ^ String.concat " " (List.map (fun (n, _) -> ":" ^ n) o.kw) ^ "."))
+              err a.aform "E_UNKNOWN_PARAM" (Printf.sprintf "%s has no parameter :%s.%s" o.name k
+                (if o.signature.kw = [] then "" else " Parameters: " ^ String.concat " " (List.map (fun (n, _) -> ":" ^ n) o.signature.kw) ^ "."))
           | Some want ->
               if Hashtbl.mem seen k then err a.aform "E_DUPLICATE_PARAM" (Printf.sprintf ":%s is given twice" k)
               else begin
                 Hashtbl.add seen k ();
-                ignore (need a (Printf.sprintf "%s :%s" o.oname k) want);
+                ignore (need a (Printf.sprintf "%s :%s" o.name k) want);
                 named := (k, a.aterm) :: !named
               end) kws;
         literal_checks x o args;
         let ty = o.out (List.rev !ts) in
         let avs = List.map (fun a -> a.av) args in
         let nth_live_len i = match List.nth_opt pos i with Some a -> a.av.live_len | None -> false in
-        let live_len = match o.oname with
+        let live_len = match o.name with
           | "range" | "linspace" -> List.exists (fun (v : v) -> v.live) avs
           | "take" | "drop" -> (match List.nth_opt pos 0 with Some a -> a.av.live | None -> false) || nth_live_len 1
           | "rest" | "reverse" -> nth_live_len 0
           | _ -> false in
         let int_of a = match a.aterm.node with Lit (Param.Int_value n) -> Some n | _ -> None in
-        let len = match o.oname, List.map int_of pos with
+        let len = match o.name, List.map int_of pos with
           | "range", [ Some n ] -> Some (max 0 n)
           | "range", [ Some a; Some b ] -> Some (max 0 (b - a))
           | "linspace", [ _; _; Some n ] -> Some (max 0 n)
           | _ -> None in
         let v = { (derive ty avs) with live_len; len } in
-        (tm x ty (Op { op = o.oname; args = List.rev !named; skip }), v)
+        (tm x ty (Op { op = o.name; args = List.rev !named; skip }), v)
       end
     end
 
-  and literal_checks x (o : op) (args : arg list) =
+  and literal_checks x (o : Op.t) (args : arg list) =
     let pos = List.filter (fun a -> a.key = None) args in
     let int_of a = match a.aterm.node with Lit (Param.Int_value n) -> Some n | _ -> None in
     let num_of a = match a.aterm.node with
       | Lit (Param.Int_value n) -> Some (float_of_int n) | Lit (Param.Float_value f) -> Some f | _ -> None in
-    match o.oname with
+    match o.name with
     | "material/standard" ->
         List.iter (fun a -> match a.key, a.aterm.node with
           | Some ("color" | "emission"), Text s when not (hex_colour s) ->
@@ -1113,10 +1028,10 @@ let check catalog forms =
          | _ -> ())
     | "ui/split" | "ui/split-at" ->
         (match pos with
-         | { aterm = { node = Text axis; _ }; _ } :: _ when axis <> "horizontal" && axis <> "vertical" ->
+         | { aterm = { node = Text axis; _ }; _ } :: _ when not (List.mem axis (List.assoc "axis" o.choices)) ->
              err x "E_RANGE" "Split axis is horizontal or vertical."
          | _ -> ());
-        (match o.oname, pos with
+        (match o.name, pos with
          | "ui/split-at", _ :: r :: _ ->
              (match num_of r with Some n when n < 0.1 || n > 0.9 -> err x "E_RANGE" "Split ratio is 0.1–0.9." | _ -> ())
          | _ -> ());
@@ -1129,7 +1044,7 @@ let check catalog forms =
           err x "E_RANGE" "A split fixes one side: :first_size or :second_size."
     | "ui/graph" ->
         (match List.find_opt (fun (a : arg) -> a.key = Some "wires") args with
-         | Some { aterm = { node = Text w; _ }; _ } when w <> "rect" && w <> "straight" ->
+         | Some { aterm = { node = Text w; _ }; _ } when not (List.mem w (List.assoc "wires" o.choices)) ->
              err x "E_RANGE" "Graph wires style is rect or straight."
          | _ -> ());
         (* the graph the panel pins: a graph of the workspace, or [def:name] for a function *)
@@ -1226,7 +1141,7 @@ let check catalog forms =
             err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its %s input" short s.name)) k.slots;
     let ty = kind_out k in
     let v = { (derive ty (List.map (fun a -> a.av) args)) with groups = union groups_in !writes } in
-    (tm x ty (Call { kind = k.qualified; args = List.rev !out }), v)
+    (tm x ty (Call { kind = k.qualified; ctx = k.context; args = List.rev !out }), v)
 
   and def_default (d : signature) pname : (term * v) option =
     match Hashtbl.find_opt def_defaults (d.sname, pname) with
@@ -1411,7 +1326,8 @@ let check catalog forms =
     List.iter (fun f -> unknown_meta f []) children;
     List.iter (fun (f : S.t) -> match f.node with
       | S.List ({ S.node = S.Sym (("graph" | "defn" | "defmacro") as head); _ } :: { S.node = S.Sym n; _ } :: _) ->
-          if not (Macro.valid_name n) || reserved n || Hashtbl.mem names n || Hashtbl.mem op_table n then
+          if not (Macro.valid_name n) || reserved n || Hashtbl.mem names n
+             || (match Op.find n Value with Some o -> o.name = n | None -> false) then
             err f "E_NAME" (Printf.sprintf "Invalid, reserved or duplicate name: %s." n)
           else (Hashtbl.add names n (); items := (head, n, f) :: !items)
       | _ -> err f "E_FORM" "Workspace children are graph, defn and defmacro forms.") children;
@@ -1472,22 +1388,16 @@ let check catalog forms =
   | _ -> (None, diagnostics)
 
 let name_taken s =
-  reserved s || Symbol.reserved s || Hashtbl.mem op_table s || Hashtbl.mem op_table ("value/" ^ s)
+  reserved s || Symbol.reserved s || Op.find s Value <> None
   || List.mem s type_names
 
-type op_signature = {
+type op_signature = Op.signature = {
   pos : (string * Ty.t) list; opt : (string * Ty.t) list;
   rest : (string * Ty.t) option; kw : (string * Ty.t) list }
 
-let value_ops = List.filter_map (fun (o : op) -> if o.octx = Value then Some o.oname else None) ops
-
-(* The texts an operator's argument takes: what the checks accept and the text pane completes. *)
-let op_choices op argument = match op, argument with
-  | ("ui/split" | "ui/split-at"), "axis" -> [ "horizontal"; "vertical" ]
-  | "ui/graph", "wires" -> [ "rect"; "straight" ]
-  | "ui/graph", "view" -> [ "graph"; "list"; "text" ]
-  | "ui/lisp", "tab" -> [ "selection"; "graph"; "document" ]
-  | _ -> []
-
-let op_signature ctx name = Option.map (fun (o : op) ->
-  ({ pos = o.pos; opt = o.opt; rest = o.rest; kw = o.kw } : op_signature)) (find_op name ctx)
+let value_ops = List.map (fun (o : Op.t) -> o.name) (Op.of_context Value)
+let op_choices name argument =
+  match Op.find name Value with
+  | Some o -> Option.value (List.assoc_opt argument o.choices) ~default:[]
+  | None -> []
+let op_signature ctx name = Option.map (fun (o : Op.t) -> o.signature) (Op.find name ctx)

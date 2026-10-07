@@ -11,6 +11,11 @@ let median f repeats =
   let times = Array.init repeats (fun _ -> let t = now () in ignore (f ()); now () -. t) in
   Array.sort Float.compare times; times.(repeats / 2) *. 1000.
 
+let median_alloc f repeats =
+  let bytes = Array.init repeats (fun _ ->
+    let before = Gc.allocated_bytes () in ignore (f ()); Gc.allocated_bytes () -. before) in
+  Array.sort Float.compare bytes; bytes.(repeats / 2)
+
 let report_live stage =
   Gc.full_major ();
   Printf.printf "%s: live %d bytes\n%!" stage
@@ -35,7 +40,7 @@ let () =
   report_live "before workspace catalog";
   let catalog = ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
   report_live "after workspace catalog";
-  Printf.printf "%-11s %8s %8s %8s %8s %8s %6s\n" "fixture" "check" "eval" "lower" "cook1" "l+cook" "nodes";
+  Printf.printf "%-11s %8s %8s %8s %8s %8s %6s %10s\n" "fixture" "check" "eval" "lower" "cook1" "l+cook" "nodes" "eval B";
   let forms name = ok (Flow.Syntax.parse
     (In_channel.with_open_bin (Filename.concat dir (name ^ ".lisp")) In_channel.input_all)) in
   let all = List.filter_map (fun f ->
@@ -48,6 +53,7 @@ let () =
     let ws = check () in
     let t_check = median check repeats in
     let t_eval = median (fun () -> ok (Flow.Eval.static ws)) repeats in
+    let eval_bytes = median_alloc (fun () -> ok (Flow.Eval.static ws)) repeats in
     let lower () = ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories forms) in
     let t_total = median lower repeats in
     let lowered = lower () in
@@ -65,8 +71,8 @@ let () =
         ~max_payload_bytes:(256 * 1024 * 1024)) in
       ignore (cook_graph ~session g); Procedural.Session.close session in
     let t_both = median both (max 3 (repeats / 3)) in
-    Printf.printf "%-11s %8.3f %8.3f %8.3f %8.3f %8.3f %6d\n%!" name t_check t_eval
-      (t_total -. t_check -. t_eval) t_cook t_both nodes) all;
+    Printf.printf "%-11s %8.3f %8.3f %8.3f %8.3f %8.3f %6d %10.0f\n%!" name t_check t_eval
+      (t_total -. t_check -. t_eval) t_cook t_both nodes eval_bytes) all;
   print_endline "\nSession capacity: cold cook, then the same cook again (warm), per max_entries";
   Printf.printf "%-11s %8s %10s %10s %8s %8s %10s\n" "fixture" "entries" "cold ms" "warm ms" "retained" "evicted" "payload MB";
   List.iter (fun name ->

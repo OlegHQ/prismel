@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 156,
+  "module_count": 158,
   "modules": [
     {
       "api": [
@@ -129,11 +129,12 @@
     {
       "api": [
         "type t = Sop | Value | Scene | World | Settings | Editor | Material",
+        "val all : t list",
         "val name : t -> string",
         "val of_string : string -> ( t , Diagnostic.t ) result",
         "val supports_values : t -> bool"
       ],
-      "api_sha256": "4faeb3e19853635a69c041bbbb8cb96d8677046e7952283cb9cc3bcf0e9d81fc",
+      "api_sha256": "4128a99b33d1cb0de67157827d95bb068bbf9b2ea59b049640d1286cac2ab979",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Context",
@@ -159,7 +160,8 @@
     },
     {
       "api": [
-        "type value = | Int of int | Float of float | Bool of bool | Text of string | Vec3 of float * float * float | List of value array | Record of ( string * value ) list | Geo of int | No_geo | Struct of string * ( string * value ) list | Fn of fn | Residual of residual and fn and residual and node = { id : int ; inst : int ; site : Workspace.path ; iter : int list ; kind : string ; args : ( string * value ) list ; }",
+        "type ( 'f , 'r ) payload = ( 'f , 'r ) Value.t = | Int of int | Float of float | Bool of bool | Text of string | Vec3 of float * float * float | List of ( 'f , 'r ) payload array | Record of ( string * ( 'f , 'r ) payload ) list | Geo of int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) payload ) list | Fn of 'f | Residual of 'r",
+        "type value = ( fn , residual ) payload and fn and residual and node = { id : int ; inst : int ; site : Workspace.path ; iter : int list ; kind : string ; args : ( string * value ) list ; }",
         "type live = { t : float }",
         "type instance = { graph : string ; default : bool ; inputs : ( string * value ) list ; result : value ; }",
         "type plan = { instances : instance array ; nodes : node array }",
@@ -177,7 +179,7 @@
         "val compiled : value -> int",
         "end"
       ],
-      "api_sha256": "2dfe6648a0bc4522fafcdebc0cc78f0e2207b148aa1a475df52a08c55d6cdb1d",
+      "api_sha256": "eaa4410a446dbc5e803ff4cfdb6023d28d5038259ba6f24de664fb0d0e4c80e9",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Eval",
@@ -213,6 +215,24 @@
       "library": "flow",
       "module": "Macro",
       "source": "lib/flow/macro.mli"
+    },
+    {
+      "api": [
+        "type signature = { pos : ( string * Ty.t ) list ; opt : ( string * Ty.t ) list ; rest : ( string * Ty.t ) option ; kw : ( string * Ty.t ) list ; }",
+        "type shape = Scalar | Struct of { splice : bool }",
+        "type arithmetic = { apply : 'f 'r . ( 'f , 'r ) Value.t -> ( 'f , 'r ) Value.t -> ( 'f , 'r ) Value.t }",
+        "type t = { name : string ; ctx : Context.t ; signature : signature ; out : Ty.t list -> Ty.t ; any_num : bool ; choices : ( string * string list ) list ; shape : shape ; check : 'f 'r . ( string * ( 'f , 'r ) Value.t ) list -> unit ; body : 'f 'r . node : ( string -> ( string * ( 'f , 'r ) Value.t ) list -> ( 'f , 'r ) Value.t ) -> ( string * ( 'f , 'r ) Value.t ) list -> ( 'f , 'r ) Value.t ; category : string ; arithmetic : arithmetic option ; }",
+        "val all : t list",
+        "val find : string -> Context.t -> t option",
+        "val of_context : Context.t -> t list",
+        "val arith : string -> arithmetic option",
+        "val max_iterations : int"
+      ],
+      "api_sha256": "b797da30bfa94ec20e2017c82e065d063247a201e88c7cf384a17a29680d4c0e",
+      "excluded_legacy_symbols": [],
+      "library": "flow",
+      "module": "Op",
+      "source": "lib/flow/op.mli"
     },
     {
       "api": [
@@ -266,6 +286,8 @@
       "api": [
         "type t = | Geometry | Float | Int | Bool | Vec3 | Text | Color | List of t | Record of ( string * t ) list | Fn | Any | Scene | World | Settings | Panel | Editor | Material",
         "val of_syntax : Syntax.t -> t option",
+        "val names : ( string * t ) list",
+        "val of_context : Context.t -> t",
         "val to_string : t -> string",
         "val of_string : string -> t option",
         "val has_fn : t -> bool",
@@ -275,11 +297,39 @@
         "val unify : t -> t -> t option",
         "val elem : t -> t option"
       ],
-      "api_sha256": "00693e8fc58f595486ca5f85c9a47d18ccb3dade0f4ac05e6d754b83a187a63e",
+      "api_sha256": "de929552b4c3ceb8966551917694e8e3b7a73a687b323f3c945c0a7c2f8687d3",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Ty",
       "source": "lib/flow/ty.mli"
+    },
+    {
+      "api": [
+        "type ( 'f , 'r ) t = | Int of int | Float of float | Bool of bool | Text of string | Vec3 of float * float * float | List of ( 'f , 'r ) t array | Record of ( string * ( 'f , 'r ) t ) list | Geo of int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) t ) list | Fn of 'f | Residual of 'r",
+        "exception Fail of string * string * Diagnostic.span option",
+        "val fail : string -> string -> 'a",
+        "val failf : string -> ( 'a , unit , string , 'b ) format4 -> 'a",
+        "val hash : float list -> float",
+        "val to_int : string -> float -> int",
+        "val fin : string -> float -> float",
+        "val num : ( 'f , 'r ) t -> float",
+        "val truthy : ( 'f , 'r ) t -> bool",
+        "val int_of : ( 'f , 'r ) t -> int",
+        "val ty_of : ( 'f , 'r ) t -> Ty.t",
+        "val elem_ty : ( 'f , 'r ) t array -> Ty.t",
+        "val coerce_to : Ty.t -> ( 'f , 'r ) t -> ( 'f , 'r ) t",
+        "val show_with : ( ( 'f , 'r ) t -> ( 'f , 'r ) t ) -> ( 'f , 'r ) t -> string",
+        "val key_of : residual : ( 'r -> int ) -> ( 'f , 'r ) t -> string",
+        "val comps : ( 'f , 'r ) t -> float * float * float",
+        "val is_vec : ( 'f , 'r ) t -> bool",
+        "val arith : string -> ( float -> float -> float ) -> ( 'f , 'r ) t -> ( 'f , 'r ) t -> ( 'f , 'r ) t",
+        "val list_arg : ( 'f , 'r ) t -> ( 'f , 'r ) t array"
+      ],
+      "api_sha256": "3527851f95fc6388a52b96a657572e05503718a86ce105a881fdfc06fb4cacd6",
+      "excluded_legacy_symbols": [],
+      "library": "flow",
+      "module": "Value",
+      "source": "lib/flow/value.mli"
     },
     {
       "api": [
@@ -289,15 +339,15 @@
         "type context = Context.t = Sop | Value | Scene | World | Settings | Editor | Material",
         "val context_name : context -> string",
         "type pattern = Name of string | Seq of pattern list | Keys of string list",
-        "type term = { path : path option ; ty : Ty.t ; node : node ; form : Syntax.t } and node = | Lit of Param.value | Text of string | Nil | Time | Vec of term list | Ref_binding of string * string list | Call of { kind : string ; args : ( string * term ) list } | Op of { op : string ; args : ( string * term ) list ; skip : int list list } | Call_fn of { fn : string ; args : term list } | Fn_ref of string | Graph_ref of { graph : string ; inputs : ( string * term ) list } | Let of ( pattern * term ) list * term | Loop of { kind : [ `For | `Fold | `Scan | `Sum ] ; accs : ( pattern * term ) list ; clauses : ( pattern * term ) list ; skip : int list list ; body : term ; zone : path } | If of term * term * term | Cond of ( term * term ) list * term | Case of term * ( Syntax.t * term ) list * term | Fn of { params : ( pattern * Ty.t option ) list ; body : term ; zone : path } | Hof of [ `Map | `Filter | `Reduce | `Sort_by ] * term list | List_lit of term list | Record of ( string * term ) list | Get of term * string | Assoc of term * ( string * term ) list | Str of term list | List_op of string * term list | Bypass of term | Expanded of { macro : string ; body : term }",
+        "type term = { path : path option ; ty : Ty.t ; node : node ; form : Syntax.t } and node = | Lit of Param.value | Text of string | Nil | Time | Vec of term list | Ref_binding of string * string list | Call of { kind : string ; ctx : Context.t ; args : ( string * term ) list } | Op of { op : string ; args : ( string * term ) list ; skip : int list list } | Call_fn of { fn : string ; args : term list } | Fn_ref of string | Graph_ref of { graph : string ; inputs : ( string * term ) list } | Let of ( pattern * term ) list * term | Loop of { kind : [ `For | `Fold | `Scan | `Sum ] ; accs : ( pattern * term ) list ; clauses : ( pattern * term ) list ; skip : int list list ; body : term ; zone : path } | If of term * term * term | Cond of ( term * term ) list * term | Case of term * ( Syntax.t * term ) list * term | Fn of { params : ( pattern * Ty.t option ) list ; body : term ; zone : path } | Hof of [ `Map | `Filter | `Reduce | `Sort_by ] * term list | List_lit of term list | Record of ( string * term ) list | Get of term * string | Assoc of term * ( string * term ) list | Str of term list | List_op of string * term list | Bypass of term | Expanded of { macro : string ; body : term }",
         "type graph = { name : string ; context : context ; inputs : ( string * Ty.t * term option ) list ; body : term ; form : Syntax.t ; }",
-        "type t = { name : string ; graphs : graph list ; defs : graph list ; macros : Syntax.t list ; source : Syntax.t list ; live : Paths.t ; invariant : Paths.t ; kind_fns : ( string * ( string * Check.slot list ) ) list ; }",
+        "type t = { name : string ; graphs : graph list ; defs : graph list ; macros : Syntax.t list ; source : Syntax.t list ; live : Paths.t ; invariant : Paths.t ; kind_fns : ( string * ( string * Context.t * Check.slot list ) ) list ; }",
         "val max_iterations : int",
         "val check : Check.catalog -> Syntax.t list -> t option * Diagnostic.t list",
         "val skip_tuples : Syntax.t -> int list list option",
         "val special_forms : string list",
         "val name_taken : string -> bool",
-        "type op_signature = { pos : ( string * Ty.t ) list ; opt : ( string * Ty.t ) list ; rest : ( string * Ty.t ) option ; kw : ( string * Ty.t ) list ; }",
+        "type op_signature = Op.signature = { pos : ( string * Ty.t ) list ; opt : ( string * Ty.t ) list ; rest : ( string * Ty.t ) option ; kw : ( string * Ty.t ) list ; }",
         "val op_signature : context -> string -> op_signature option",
         "val op_choices : string -> string -> string list",
         "val value_ops : string list",
@@ -305,7 +355,7 @@
         "val group_reader : Check.parameter -> bool",
         "val group_writer : Check.kind -> Check.parameter -> bool"
       ],
-      "api_sha256": "1e2cafb2b4f9e0db5beab676bb73b91b5875696de814374a1ff6da8b33e743c2",
+      "api_sha256": "3199b08cab4502dec1308ce6a999378ec5a3f1d3c603c3dc0b271b4d65b6e718",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Workspace",
@@ -2744,7 +2794,6 @@
         "module Workspace_doc = Editor_document.Workspace_doc",
         "val workspace_catalog : ? factories : Procedural.Edit_graph.factory list -> unit -> ( Flow.Check.catalog , Flow.Diagnostic.t ) result",
         "type window = Editor_document.Contexts.window = { title : string ; width : int ; height : int ; fps : int ; seed : int }",
-        "val workspace_window : Workspace_doc.t -> ( window , Flow.Diagnostic.t ) result",
         "module Source : sig",
         "type t",
         "val at : file : string -> digest : string -> t",
@@ -2869,7 +2918,6 @@
         "module Editor3 : sig",
         "type 'prepared t",
         "type nonrec layout = layout",
-        "val default_layout : layout",
         "val create : ? layout : layout -> ? name : string -> ? presets : string -> ? timeline_frames : int -> ? factories : Procedural.Edit_graph.factory list -> ? settings : Settings.t -> ? commands : ( Pxui_shell.Layout.panel , 'prepared t -> 'prepared t ) Editor_core.Command.t list -> ? lights : Rays.Light.t list -> ? world : Rays.World.t -> ? camera : Rays.Easy_camera.t -> ? lens : Rays.Camera.lens -> ? background : Rays.Color.t -> ? seed : int64 -> ? grain : int -> ? domains : int -> ? max_entries : int -> ? max_payload_bytes : int -> ? await : bool -> ? carry_budget : float -> workspace : Workspace_doc.t -> ? source : Source.t -> prepare : ( Settings.t -> Procedural.Session.output -> ( 'prepared , string ) result ) -> scene3 : ( Procedural.Graph.t -> 'prepared -> Rays.Scene3.t ) -> ? overlay : ( Procedural.Graph.t -> 'prepared option -> Rays.Frame.t -> Rays.Scene.t ) -> ? status : ( 'prepared option -> string option ) -> unit -> ( 'prepared t , string ) result",
         "val update : 'prepared t -> Rays.Frame.t -> 'prepared t",
         "val update_with : 'prepared t -> Rays.Frame.t -> inspector : ( Pxui.Ui.t -> 'a ) -> 'prepared t * 'a option",
@@ -2890,7 +2938,6 @@
         "val scene : 'prepared t -> Rays.Frame.t -> Rays.Scene.t",
         "val close : 'prepared t -> unit",
         "val crash_dump : 'prepared t -> string -> unit",
-        "val graph : 'prepared t -> Procedural.Graph.t",
         "val document : 'prepared t -> Procedural.Edit_graph.t",
         "val selected_node : 'prepared t -> Procedural.Node.t option",
         "val displayed_node : 'prepared t -> Procedural.Node.t",
@@ -2928,11 +2975,10 @@
         "val open_text : ? factories : Procedural.Edit_graph.factory list -> path : string -> digest : string -> string -> Workspace_doc.t * Source.t option",
         "val sop_graphs : ? factories : Procedural.Edit_graph.factory list -> Workspace_doc.t -> ( ( string * Procedural.Graph.t ) list , string ) result",
         "val declared_camera : ? factories : Procedural.Edit_graph.factory list -> Workspace_doc.t -> Rays.Easy_camera.t -> Rays.Easy_camera.t",
-        "val run : ? factories : Procedural.Edit_graph.factory list -> ? source : source -> Workspace_doc.t -> ( unit , Flow.Diagnostic.t ) result",
         "val main : ? factories : Procedural.Edit_graph.factory list -> path : string -> digest : string -> catalog : string -> string -> unit",
         "end"
       ],
-      "api_sha256": "23f956d4a3a11e37917e9753b62ad2a375e202b4c99ed4a1899ecaf360d440af",
+      "api_sha256": "a9e6d118576223ce530f6c2e55c94ea198e096d5facb8a6520ea816b98d5abcd",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",

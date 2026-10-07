@@ -1,4 +1,5 @@
 type t = Sop | Value | Scene | World | Settings | Editor | Material
+let all = [Sop; Value; Scene; World; Settings; Editor; Material]
 
 let name = function
   | Sop -> "sop" | Value -> "value" | Scene -> "scene" | World -> "world" | Settings -> "settings" | Editor -> "editor" | Material -> "material"

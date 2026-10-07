@@ -44,8 +44,8 @@ and node =
   | Time  (** [t] *)
   | Vec of term list  (** vec3 literal *)
   | Ref_binding of string * string list  (** [name.field.field] *)
-  | Call of { kind : string; args : (string * term) list }
-      (** catalog kind, qualified; slots and keyword parameters in written
+  | Call of { kind : string; ctx : Context.t; args : (string * term) list }
+      (** catalog kind, qualified, with its resolved context; slots and keyword parameters in written
           order.  [sop/merge] names every input [input]. *)
   | Op of { op : string; args : (string * term) list; skip : int list list }
       (** built-in operator ([+], [range], [value/rand], [scene/object],
@@ -97,8 +97,8 @@ type t = {
       (** bindings directly in a zone body that do not depend on the loop
           variables or the accumulator (register L7, the "same each time"
           mark) *)
-  kind_fns : (string * (string * Check.slot list)) list;
-      (** A catalog kind used as a function value: its qualified name and
+  kind_fns : (string * (string * Context.t * Check.slot list)) list;
+      (** A catalog kind used as a function value: its qualified name, context and
           complete ordered slot signature, including a repeated final slot. *)
 }
 
@@ -121,7 +121,7 @@ val name_taken : string -> bool
 (** A name a binding may not take: a special form, built-in operator or type
     name.  Editors use it to pick fresh names. *)
 
-type op_signature = {
+type op_signature = Op.signature = {
   pos : (string * Ty.t) list;
   opt : (string * Ty.t) list;
   rest : (string * Ty.t) option;

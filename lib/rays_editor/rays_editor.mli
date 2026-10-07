@@ -18,9 +18,6 @@ val workspace_catalog : ?factories:Procedural.Edit_graph.factory list -> unit ->
 type window = Editor_document.Contexts.window =
   { title : string; width : int; height : int; fps : int; seed : int }
 
-val workspace_window : Workspace_doc.t -> (window, Flow.Diagnostic.t) result
-(** The window a workspace's settings graph asks for (defaults without one). *)
-
 (** Sketch-owned settings in the editor document. *)
 (** The [.rays] file a running sketch came from: polled for edits, saved over. *)
 module Source : sig
@@ -333,7 +330,6 @@ end
 module Editor3 : sig
   type 'prepared t
   type nonrec layout = layout
-  val default_layout : layout
 
   val create :
     ?layout:layout ->
@@ -447,10 +443,6 @@ module Editor3 : sig
   val scene : 'prepared t -> Rays.Frame.t -> Rays.Scene.t
   val close : 'prepared t -> unit
   val crash_dump : 'prepared t -> string -> unit
-  (** Write the document (a preset) and editor state into a crash report
-      folder; pass it as [Sketch.run_state ~crash_dump] when driving the
-      editor from your own [run_state]. [run] does this itself. *)
-  val graph : 'prepared t -> Procedural.Graph.t
   val document : 'prepared t -> Procedural.Edit_graph.t
   val selected_node : 'prepared t -> Procedural.Node.t option
   val displayed_node : 'prepared t -> Procedural.Node.t
@@ -641,15 +633,8 @@ module Workspace : sig
     Rays.Easy_camera.t -> Rays.Easy_camera.t
   (** The camera of the scene's first camera node, or the default base camera. *)
 
-  val run : ?factories:Procedural.Edit_graph.factory list -> ?source:source -> Workspace_doc.t ->
-    (unit, Flow.Diagnostic.t) result
-  (** Open {!Editor3} on the document, with the window title, size, frame rate
-      and seed of its settings graph, saving and reloading through [source] (found
-      from the executable, then the working directory; without the file the sketch
-      runs unwired).  [Error]: the settings graph asks for a window that cannot be made. *)
-
   val main : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string -> catalog:string -> string -> unit
-  (** Entry point of a generated [main.ml]: [load] then [run]; on failure prints
+  (** Entry point of a generated [main.ml]: load and open the document; on failure prints
       the diagnostics in the OCaml format and exits 1. [catalog] is
       {!Editor_document.Contexts.catalog_digest} at build time; a different
       running catalog is reported and the source checked again. *)

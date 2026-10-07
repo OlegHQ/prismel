@@ -648,6 +648,19 @@ kind, by its qualified name or its short name within the graph's context
 (`Flow.Check.resolve_kind`). An unknown head is `E_UNKNOWN_KIND` with a suggestion at edit
 distance 2 or less; a kind of another context is `E_WRONG_CONTEXT`.
 
+`Flow.Op` is the immutable resolution table for all 58 built-in operators. Each declaration
+contains its context, signature, output type, choices, value shape, validation, evaluator body
+and menu category. The checker, evaluator (including compiled arithmetic) and editor read that
+record; adding an operator does not add a second name table. Lookup is a hash table built once
+from `Op.all`, independent of evaluator initialization. `Context.all` and `Ty.names` supply
+the editor's context and type vocabulary.
+
+`Flow.Value` holds pure values parameterized by evaluator functions and residuals. Catalog
+calls retain their resolved context in the checked term; struct values retain the resolved type
+with their head and arguments. Neither dispatch nor dynamic typing infers a context from a name
+prefix. An operator body can ask the evaluator to create a plan node (`sop/curve`); `Value` and
+`Op` themselves have no evaluator state or geometry dependencies.
+
 Parameter keywords need no namespace: `:amp` is resolved against the schema of the kind it
 is passed to (a field name, or a vec3 group name). Slot keywords use slot names. An invalid
 or reserved binding name is `E_BINDING`; editors pick fresh names with

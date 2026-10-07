@@ -1,0 +1,293 @@
+open Value
+type signature = {
+  pos : (string * Ty.t) list; opt : (string * Ty.t) list;
+  rest : (string * Ty.t) option; kw : (string * Ty.t) list;
+}
+type shape = Scalar | Struct of { splice : bool }
+type arithmetic = { apply : 'f 'r. ('f, 'r) Value.t -> ('f, 'r) Value.t -> ('f, 'r) Value.t }
+type t = {
+  name : string; ctx : Context.t; signature : signature;
+  out : Ty.t list -> Ty.t; any_num : bool;
+  choices : (string * string list) list; shape : shape;
+  check : 'f 'r. (string * ('f, 'r) Value.t) list -> unit;
+  body : 'f 'r. node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
+    (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t;
+  category : string; arithmetic : arithmetic option;
+}
+type implementation = { run : 'f 'r. name:string -> node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
+  (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t }
+type validation = { validate : 'f 'r. (string * string list) list -> (string * ('f, 'r) Value.t) list -> unit }
+let max_iterations = 4096
+let mk ?(ctx = Context.Value) ?(opt = []) ?rest ?(kw = []) ?(any_num = false)
+    ?(choices = []) ?(shape = Scalar) ?(check = { validate = fun _ _ -> () })
+    ?(category = "Math") ?arithmetic name pos out (body : implementation) =
+  { name; ctx; signature = {pos; opt; rest; kw}; out; any_num; choices; shape;
+    check = (fun args -> check.validate choices args);
+    body = (fun ~node args -> body.run ~name ~node args); category; arithmetic }
+let fl = Ty.Float
+let lst j ts = match List.nth_opt ts j with Some (Ty.List _ as t) -> t | _ -> Ty.List Ty.Any
+let elm j ts = match lst j ts with Ty.List e -> e | _ -> Ty.Any
+let binary name f =
+  let arithmetic = { apply = fun a b -> Value.arith name f a b } in
+  mk ~any_num:true ~arithmetic name ["a", fl; "b", fl] (fun ts ->
+    if List.mem Ty.Vec3 ts then Ty.Vec3
+    else if name <> "/" && name <> "pow" && List.for_all ((=) Ty.Int) ts then Ty.Int else fl)
+    {run = fun ~name ~node:_ args -> match List.map snd args with
+      | [a;b] -> arithmetic.apply a b
+      | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name}
+let unary ~category name out = mk ~category name ["x", fl] out
+let compare_op ~category name = mk ~category name ["a", fl; "b", fl] (fun _ -> Ty.Bool)
+let bool_op ~category name pos = mk ~category name pos (fun _ -> Ty.Bool)
+let concrete f = function Residual _ -> () | v -> f v
+let range_error msg = fail "E_RANGE" msg
+let axis choices args = match List.assoc_opt "axis" args with
+  | Some v -> concrete (function Text t when List.mem t (List.assoc "axis" choices) -> ()
+      | _ -> range_error "Split axis is horizontal or vertical.") v
+  | None -> ()
+let one_of args key what choices = match List.assoc_opt key args with
+  | Some v -> concrete (function Text t when List.mem t choices -> ()
+      | _ -> range_error (Printf.sprintf "%s is %s." what (String.concat ", " choices))) v
+  | None -> ()
+let split_check choices args =
+  axis choices args;
+  let points key = match List.assoc_opt key args with
+    | Some v -> concrete (fun v -> if num v < 1. then range_error "A fixed split size is 1 point or more.") v
+    | None -> () in
+  points "first_size"; points "second_size";
+  if List.mem_assoc "first_size" args && List.mem_assoc "second_size" args then
+    range_error "A split fixes one side: :first_size or :second_size."
+let split_at_check choices args =
+  axis choices args;
+  match List.assoc_opt "ratio" args with
+  | Some v -> concrete (fun v -> let r = num v in
+      if r < 0.1 || r > 0.9 then range_error "Split ratio is 0.1–0.9.") v
+  | None -> ()
+let tile_check args =
+  let n = List.length args in
+  if n < 1 || n > 16 then range_error "A tile holds 1–16 panels."
+let switch_check args =
+  let n = List.length (List.filter (fun (k, _) -> k <> "active") args) in
+  if n < 1 || n > 16 then range_error "A switch holds 1–16 layouts.";
+  match List.assoc_opt "active" args with
+  | Some v -> concrete (fun v -> let a = num v in
+      if a < 0. || a >= float n then range_error "The active layout is 0 to the layout count minus one.") v
+  | None -> ()
+let structure ?(ctx = Context.Editor) ?opt ?rest ?kw ?choices ?check ?(splice = false) name pos out =
+  (* Deferred SOP element lists have no cooked element type during evaluation. *)
+  let ty = if ctx = Context.Sop then Ty.List Ty.Any else out [] in
+  mk ~ctx ?opt ?rest ?kw ?choices ?check ~shape:(Struct {splice}) name pos out
+    {run = fun ~name ~node:_ args -> Value.Struct (name, ty, args)}
+let panel ?opt ?rest ?kw ?choices ?check ?splice name pos =
+  structure ?opt ?rest ?kw ?choices ?check ?splice name pos (fun _ -> Ty.Panel)
+let leaf ?opt ?(kw = []) ?choices ?check name pos =
+  panel ?opt ~kw:(kw @ ["focus", Ty.Bool]) ?choices ?check name pos
+let hsv h s v =
+  let h = Float.rem (Float.rem h 1. +. 1.) 1. in
+  let i = int_of_float (Float.floor (h *. 6.)) in
+  let f = h *. 6. -. float_of_int i in
+  let p = v *. (1. -. s) and q = v *. (1. -. f *. s) and t = v *. (1. -. (1. -. f) *. s) in
+  match i mod 6 with
+  | 0 -> (v, t, p) | 1 -> (q, v, p) | 2 -> (p, v, t) | 3 -> (p, q, v) | 4 -> (t, p, v)
+  | _ -> (v, p, q)
+
+let range lo hi =
+  if hi - lo > max_iterations then
+    failf "E_ITER_BOUND" "range %d‥%d exceeds 4,096 iterations." lo hi;
+  List (Array.init (max 0 (hi - lo)) (fun i -> Int (lo + i)))
+
+let all = [
+  binary "+" (( +. ));
+  binary "-" (( -. ));
+  binary "*" (( *. ));
+  binary "/" ((fun x y -> if y = 0. then 0. else x /. y));
+  binary "mod" ((fun x y -> if y = 0. then 0. else Float.rem (Float.rem x y +. y) y));
+  binary "pow" ((fun x y -> Float.pow (Float.abs x) y));
+  binary "min" (Float.min);
+  binary "max" (Float.max);
+  unary ~category:"Math" "sin" (fun _ -> fl) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Float (fin name (sin (num x)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Math" "cos" (fun _ -> fl) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Float (fin name (cos (num x)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Math" "sqrt" (fun _ -> fl) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Float (sqrt (Float.abs (num x)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Convert" "floor" (fun _ -> Ty.Int) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Int (to_int name (Float.floor (num x)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Convert" "ceil" (fun _ -> Ty.Int) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Int (to_int name (Float.ceil (num x)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Convert" "round" (fun _ -> Ty.Int) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Int (to_int name (Float.round (num x)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Convert" "int" (fun _ -> Ty.Int) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Int (to_int name (Float.trunc (num x)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Convert" "float" (fun _ -> fl) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ x ] -> Float (num x)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  unary ~category:"Math" "abs" (function Ty.Int :: _ -> Ty.Int | _ -> fl) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ Int n ] -> Int (abs n)
+    | [ x ] -> Float (Float.abs (num x))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  compare_op ~category:"Compare" "<" { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b ] -> Bool (num a < num b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  compare_op ~category:"Compare" ">" { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b ] -> Bool (num a > num b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  compare_op ~category:"Compare" "<=" { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b ] -> Bool (num a <= num b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  compare_op ~category:"Compare" ">=" { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b ] -> Bool (num a >= num b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  compare_op ~category:"Compare" "=" { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b ] -> Bool (num a = num b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  bool_op ~category:"Compare" "and" [ "a", Ty.Bool; "b", Ty.Bool ] { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b ] -> Bool (truthy a && truthy b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  bool_op ~category:"Compare" "or" [ "a", Ty.Bool; "b", Ty.Bool ] { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b ] -> Bool (truthy a || truthy b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  bool_op ~category:"Compare" "not" [ "a", Ty.Bool ] { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a ] -> Bool (not (truthy a))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"Math" ~rest:("key", fl) "value/rand" [] (fun _ -> fl)
+    { run = fun ~name:_ ~node:_ args -> Float (hash (List.map (fun (_,v) -> num v) args)) };
+  mk ~category:"Math" "value/hsv" [ "h", fl; "s", fl; "v", fl ] (fun _ -> Ty.Vec3) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ h; s; v ] -> let r, g, b = hsv (num h) (num s) (num v) in Vec3 (fin name r, fin name g, fin name b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"Math" ~any_num:true "value/lerp" [ "a", fl; "b", fl; "u", fl ] (fun ts ->
+    match ts with a :: b :: _ when a = Ty.Vec3 || b = Ty.Vec3 -> Ty.Vec3 | _ -> fl) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b; u ] -> let u = num u in
+      if is_vec a || is_vec b then begin
+        let ax, ay, az = comps a and bx, by, bz = comps b in
+        let l x y = x *. (1. -. u) +. y *. u in
+        Vec3 (fin name (l ax bx), fin name (l ay by), fin name (l az bz))
+      end else Float (fin name (num a *. (1. -. u) +. num b *. u))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"Math" ~opt:[ "height", fl ] "value/polar" [ "radius", fl; "angle", fl ] (fun _ -> Ty.Vec3) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | (r :: a :: h) -> let r = num r and a = num a in
+      Vec3 (fin name (r *. cos a), (match h with [ h ] -> num h | _ -> 0.), fin name (r *. sin a))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" ~opt:[ "end", Ty.Int ] "range" [ "count", Ty.Int ] (fun _ -> Ty.List Ty.Int) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ n ] -> range 0 (int_of n)
+    | [ a; b ] -> range (int_of a) (int_of b)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "linspace" [ "from", fl; "to", fl; "count", Ty.Int ] (fun _ -> Ty.List fl) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ a; b; n ] -> let a = num a and b = num b and n = int_of n in
+      if n > max_iterations then fail "E_ITER_BOUND" "linspace exceeds 4,096 values.";
+      List (Array.init (max 0 n) (fun k ->
+        Float (if n = 1 then a else a +. (b -. a) *. float_of_int k /. float_of_int (n - 1))))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "count" [ "list", Ty.List Ty.Any ] (fun _ -> Ty.Int) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ l ] -> Int (Array.length (list_arg l))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "first" [ "list", Ty.List Ty.Any ] (elm 0) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ l ] -> let xs = list_arg l in
+      if xs = [||] then fail "E_LIST_RANGE" "first of an empty list." else xs.(0)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "last" [ "list", Ty.List Ty.Any ] (elm 0) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ l ] -> let xs = list_arg l in
+      if xs = [||] then fail "E_LIST_RANGE" "last of an empty list." else xs.(Array.length xs - 1)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "rest" [ "list", Ty.List Ty.Any ] (lst 0) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ l ] -> let xs = list_arg l in
+      List (if xs = [||] then xs else Array.sub xs 1 (Array.length xs - 1))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "nth" [ "list", Ty.List Ty.Any; "index", Ty.Int ] (elm 0) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ l; i ] -> (match i with
+       | Float f when not (Float.is_integer f) -> failf "E_LIST_RANGE" "nth index %g is not a whole number." f
+       | _ -> ());
+      let xs = list_arg l and i = int_of i in
+      if i < 0 || i >= Array.length xs then
+        failf "E_LIST_RANGE" "nth index %d is out of range for a list of length %d." i (Array.length xs)
+      else xs.(i)
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "reverse" [ "list", Ty.List Ty.Any ] (lst 0) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ l ] -> let xs = list_arg l in
+      let n = Array.length xs in List (Array.init n (fun i -> xs.(n - 1 - i)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "take" [ "n", Ty.Int; "list", Ty.List Ty.Any ] (lst 1) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ n; l ] -> let xs = list_arg l and n = max 0 (int_of n) in List (Array.sub xs 0 (min n (Array.length xs)))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~category:"List" "drop" [ "n", Ty.Int; "list", Ty.List Ty.Any ] (lst 1) { run = fun ~name ~node:_ args ->
+    match List.map snd args with
+    | [ n; l ] -> let xs = list_arg l in
+      let n = min (max 0 (int_of n)) (Array.length xs) in List (Array.sub xs n (Array.length xs - n))
+    | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name };
+  mk ~ctx:Sop ~kw:[ "closed", Ty.Bool ] "sop/curve" [ "points", Ty.List Ty.Vec3 ] (fun _ -> Ty.Geometry) { run = fun ~name ~node args -> node name args };
+  structure ~ctx:Sop ~kw:[ "key", Ty.Text ] "sop/point_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Vec3);
+  structure ~ctx:Sop ~kw:[ "key", Ty.Text ] "sop/piece_list" [ "geometry", Ty.Geometry ] (fun _ -> Ty.List Ty.Geometry);
+  structure ~splice:true ~ctx:Scene ~rest:("scene", Ty.Scene) "scene/merge" [] (fun _ -> Ty.Scene);
+  structure ~ctx:Material ~kw:["name", Ty.Text; "color", Ty.Color;
+    "roughness", Ty.Float; "emission", Ty.Color] "material/standard" [] (fun _ -> Ty.Material);
+  structure ~ctx:World "world/none" [] (fun _ -> Ty.World);
+  structure ~ctx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
+  leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.Scene ];
+  leaf ~choices:["wires", ["rect"; "straight"]; "view", ["graph"; "list"; "text"]]
+    ~check:{ validate = fun choices args -> one_of args "view" "A graph panel's view" (List.assoc "view" choices) }
+    ~opt:["graph", Ty.Text] ~kw:["wires", Ty.Text; "view", Ty.Text] "ui/graph" [];
+  leaf ~kw:[ "of", Ty.Panel ] "ui/inspector" [];
+  leaf "ui/outline" [];
+  leaf ~kw:[ "of", Ty.Panel ] "ui/list" [];
+  leaf ~choices:["tab", ["selection"; "graph"; "document"]]
+    ~check:{ validate = fun choices args -> one_of args "tab" "A lisp panel's tab" (List.assoc "tab" choices) }
+    ~kw:[ "tab", Ty.Text; "of", Ty.Panel ] "ui/lisp" [];
+  leaf "ui/timeline" [];
+  panel ~choices:["axis", ["horizontal"; "vertical"]] ~check:{ validate = split_check } ~kw:[ "first_size", Ty.Int; "second_size", Ty.Int ] "ui/split"
+    [ "axis", Ty.Text; "first", Ty.Panel; "second", Ty.Panel ];
+  panel ~choices:["axis", ["horizontal"; "vertical"]] ~check:{ validate = split_at_check } "ui/split-at" [ "axis", Ty.Text; "ratio", fl; "first", Ty.Panel; "second", Ty.Panel ];
+  panel ~splice:true ~check:{ validate = fun _ args -> tile_check args } ~rest:("panel", Ty.Panel) "ui/tile" [];
+  panel "ui/floating" [ "panel", Ty.Panel ];
+  panel ~check:{ validate = fun _ args -> switch_check args } ~rest:("panel", Ty.Panel) ~kw:["active", Ty.Int] "ui/switch" []
+]
+
+let table =
+  let h = Hashtbl.create 64 in
+  List.iter (fun o -> if Hashtbl.mem h o.name then invalid_arg ("Duplicate operator: " ^ o.name);
+    Hashtbl.add h o.name o) all;
+  h
+let find name ctx =
+  match Hashtbl.find_opt table name with
+  | Some _ as o -> o
+  | None -> (match Hashtbl.find_opt table ("value/" ^ name) with
+      | Some _ as o -> o
+      | None -> Hashtbl.find_opt table (Context.name ctx ^ "/" ^ name))
+let of_context ctx =
+  (if ctx = Context.Value then [] else List.filter (fun o -> o.ctx = ctx) all)
+  @ List.filter (fun o -> o.ctx = Context.Value) all
+let arith name = Option.bind (Hashtbl.find_opt table name) (fun o -> o.arithmetic)

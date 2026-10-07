@@ -49,21 +49,23 @@
     [residual] environments hold the whole scope of the term, not only its free
     variables (ponytail: no free-variable pruning yet; measure in W2b). *)
 
-type value =
+type ('f, 'r) payload = ('f, 'r) Value.t =
   | Int of int
   | Float of float
   | Bool of bool
   | Text of string
   | Vec3 of float * float * float
-  | List of value array
-  | Record of (string * value) list  (** fields in written order *)
+  | List of ('f, 'r) payload array
+  | Record of (string * ('f, 'r) payload) list  (** fields in written order *)
   | Geo of int  (** a plan node *)
   | No_geo  (** [nil] *)
-  | Struct of string * (string * value) list
-      (** a scene, world, settings or panel value: the operator and its
+  | Struct of string * Ty.t * (string * ('f, 'r) payload) list
+      (** a scene, world, settings or panel value: the head, its resolved type and its
           arguments; [scene/merge] and [ui/tile] splice their lists *)
-  | Fn of fn
-  | Residual of residual
+  | Fn of 'f
+  | Residual of 'r
+
+type value = (fn, residual) payload
 
 and fn
 and residual

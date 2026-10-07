@@ -8,6 +8,10 @@ let names = [ "geometry", Geometry; "float", Float; "int", Int; "bool", Bool;
   "scene", Scene; "world", World; "settings", Settings; "panel", Panel;
   "editor", Editor; "material", Material ]
 
+let of_context = function
+  | Context.Sop -> Geometry | Value -> Float | Scene -> Scene | World -> World
+  | Settings -> Settings | Editor -> Editor | Material -> Material
+
 let rec to_string = function
   | List e -> "list:" ^ to_string e
   | Record fs -> "rec{" ^ String.concat ","

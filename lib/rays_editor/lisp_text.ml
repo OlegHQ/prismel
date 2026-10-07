@@ -202,29 +202,11 @@ let special_keywords = [
   ":bypass", "^:bypass (call ...) · the call passes its first input through";
 ]
 
-let contexts = [ "sop"; "value"; "scene"; "world"; "settings"; "editor"; "material" ]
-
-let ws_context = function
-  | "scene" -> Flow.Workspace.Scene | "world" -> Flow.Workspace.World
-  | "settings" -> Flow.Workspace.Settings | "editor" -> Flow.Workspace.Editor
-  | "material" -> Flow.Workspace.Material
-  | "value" -> Flow.Workspace.Value | _ -> Flow.Workspace.Sop
-
-(* the built-in operators a graph of each context may call: the value ones everywhere, the
-   context's own on top (ponytail: the context lists are spelled here; [op_signature] drops a
-   name the checker does not know) *)
-let ops_of context =
-  let own = match context with
-    | "sop" -> [ "sop/curve"; "sop/point_list"; "sop/piece_list" ]
-    | "scene" -> [ "scene/merge" ]
-    | "world" -> [ "world/none" ]
-    | "material" -> [ "material/standard" ]
-    | "editor" -> [ "ui/workspace"; "ui/viewport"; "ui/graph"; "ui/inspector"; "ui/outline"; "ui/list";
-                    "ui/lisp"; "ui/timeline"; "ui/split"; "ui/split-at"; "ui/tile"; "ui/floating"; "ui/switch" ]
-    | _ -> [] in
-  List.filter_map (fun name ->
-    Option.map (fun s -> name, s) (Flow.Workspace.op_signature (ws_context context) name))
-    (own @ Flow.Workspace.value_ops)
+let contexts = List.map Flow.Context.name Flow.Context.all
+let ws_context name = match Flow.Context.of_string name with
+  | Ok ctx -> ctx | Error _ -> Flow.Context.Sop
+let ops_of context = List.map (fun (o : Flow.Op.t) -> o.name, o.signature)
+  (Flow.Op.of_context (ws_context context))
 
 let ty_name = Flow.Ty.to_string
 

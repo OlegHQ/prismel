@@ -208,7 +208,7 @@ let catalog_of_manifest source =
       | _ -> Error (Diagnostic.error ~code:"E_CATALOG"
           "Flow manifest needs one top-level form")
       with Invalid_manifest diagnostic -> Error diagnostic
-let known_prefix catalog name = List.mem name ["sop"; "value"; "user"] ||
+let known_prefix catalog name = (name = "user" || List.exists (fun ctx -> Context.name ctx = name) Context.all) ||
   List.exists (fun kind -> String.starts_with ~prefix:(name ^ "/") kind.qualified) catalog.kinds
 let allowed context (kind : kind) =
   kind.context = Context.Value || kind.context = context

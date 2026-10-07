@@ -15,6 +15,8 @@ val of_syntax : Syntax.t -> t option
     [(list T)] or [{:field T ...}] (unique lowercase field names).  [Any] and
     [Color] are not writable. *)
 
+val names : (string * t) list
+val of_context : Context.t -> t
 val to_string : t -> string
 (** Diagnostic spelling: [float], [list:int], [rec{a:int,b:float}]. *)
 

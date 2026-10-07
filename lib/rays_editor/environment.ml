@@ -220,7 +220,6 @@ let compose_view ?map ~ui_visible ~background ~rendered ~focused ~views ~camera 
 (* The one environment: [Core] plus the 3D viewport. *)
 module V = Viewport3
 type layout = Pxui_shell.Layout.t
-let default_layout = Pxui_shell.Layout.default
 
 type 'prepared t = {
   core : 'prepared Core.t;
@@ -356,7 +355,6 @@ let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames
       ~layout ~name ~state_key ?presets ?timeline_frames ?factories ?seed ?grain ?domains
       ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ~prepare ()))
 
-let graph value = Core.graph value.core
 let document value = Core.document value.core
 let prepared value = Core.prepared value.core
 let camera value = value.camera

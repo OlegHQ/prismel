@@ -87,7 +87,7 @@ let reads (form : S.t) =
 let chips (ev : Flow.Eval.t) =
   let byte f = int_of_float (Float.round (255. *. Float.min 1. (Float.max 0. f))) in
   List.filter_map (fun (name, v) -> match v with
-    | Flow.Eval.Struct ("material/standard", fields) ->
+    | Flow.Eval.Struct ("material/standard", _, fields) ->
         let colour = match List.assoc_opt "color" fields with
           | Some (Flow.Eval.Vec3 (r, g, b)) -> Some (Rays.Color.rgb (byte r) (byte g) (byte b))
           | Some (Flow.Eval.Text hex) -> Result.to_option (Rays.Color.hex hex)
@@ -99,7 +99,7 @@ let chips (ev : Flow.Eval.t) =
 (* what a material graph says of itself beside its swatch: its roughness *)
 let notes (ev : Flow.Eval.t) =
   List.filter_map (fun (name, v) -> match v with
-    | Flow.Eval.Struct ("material/standard", fields) ->
+    | Flow.Eval.Struct ("material/standard", _, fields) ->
         (match List.assoc_opt "roughness" fields with
          | Some (Flow.Eval.Float r) -> Some (name, Printf.sprintf "rough %.2g" r)
          | Some (Flow.Eval.Int r) -> Some (name, Printf.sprintf "rough %d" r)

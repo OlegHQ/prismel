@@ -188,7 +188,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
             else List.map (fun (n, v) -> n, at_zero v) node.args in
           let args = if node.kind <> "sop/material" then args else
             List.concat_map (function
-              | "material", E.Struct ("material/standard", fields) ->
+              | "material", E.Struct ("material/standard", _, fields) ->
                   let get name default = Option.value ~default (List.assoc_opt name fields) in
                   ["material", get "name" (E.Text "");
                    "color", get "color" (E.Vec3 (1.,1.,1.));

@@ -145,7 +145,7 @@ let material_graph value path =
   else match value.scope_key with
     | Some { evaluated = Some ev; _ } ->
         List.find_map (fun (graph, v) -> match v with
-          | Flow.Eval.Struct ("material/standard", fields)
+          | Flow.Eval.Struct ("material/standard", _, fields)
             when List.mem graph materials && List.assoc_opt "name" fields = Some (Flow.Eval.Text path) -> Some graph
           | _ -> None) ev.results
     | _ -> None

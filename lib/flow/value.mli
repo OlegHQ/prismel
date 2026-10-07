@@ -1,0 +1,28 @@
+(** Pure workspace values, parameterized by the evaluator's functions and residuals. *)
+type ('f, 'r) t =
+  | Int of int | Float of float | Bool of bool | Text of string
+  | Vec3 of float * float * float
+  | List of ('f, 'r) t array
+  | Record of (string * ('f, 'r) t) list
+  | Geo of int | No_geo
+  | Struct of string * Ty.t * (string * ('f, 'r) t) list
+  | Fn of 'f | Residual of 'r
+
+exception Fail of string * string * Diagnostic.span option
+val fail : string -> string -> 'a
+val failf : string -> ('a, unit, string, 'b) format4 -> 'a
+val hash : float list -> float
+val to_int : string -> float -> int
+val fin : string -> float -> float
+val num : ('f, 'r) t -> float
+val truthy : ('f, 'r) t -> bool
+val int_of : ('f, 'r) t -> int
+val ty_of : ('f, 'r) t -> Ty.t
+val elem_ty : ('f, 'r) t array -> Ty.t
+val coerce_to : Ty.t -> ('f, 'r) t -> ('f, 'r) t
+val show_with : (('f, 'r) t -> ('f, 'r) t) -> ('f, 'r) t -> string
+val key_of : residual:('r -> int) -> ('f, 'r) t -> string
+val comps : ('f, 'r) t -> float * float * float
+val is_vec : ('f, 'r) t -> bool
+val arith : string -> (float -> float -> float) -> ('f, 'r) t -> ('f, 'r) t -> ('f, 'r) t
+val list_arg : ('f, 'r) t -> ('f, 'r) t array

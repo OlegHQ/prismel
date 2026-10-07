@@ -7,25 +7,27 @@ let max_iterations = W.max_iterations
 let max_concat = 4_096
 let max_depth = 64
 
-exception Fail of string * string * Diagnostic.span option
 exception Needs_t
 
-let fail code msg = raise (Fail (code, msg, None))
-let failf code fmt = Printf.ksprintf (fail code) fmt
+open Value
+let hash = Value.hash
+let element_key zone = "$elem:" ^ String.concat "/" zone
 
-type value =
+type ('f, 'r) payload = ('f, 'r) Value.t =
   | Int of int
   | Float of float
   | Bool of bool
   | Text of string
   | Vec3 of float * float * float
-  | List of value array
-  | Record of (string * value) list
+  | List of ('f, 'r) payload array
+  | Record of (string * ('f, 'r) payload) list
   | Geo of int
   | No_geo
-  | Struct of string * (string * value) list
-  | Fn of fn
-  | Residual of residual
+  | Struct of string * Ty.t * (string * ('f, 'r) payload) list
+  | Fn of 'f
+  | Residual of 'r
+
+type value = (fn, residual) payload
 
 and fn =
   | Closure of { params : (W.pattern * Ty.t option) list; body : W.term; env : value Smap.t;
@@ -55,7 +57,7 @@ and st = {
   recs : (W.path, int * (int list * value) list) Hashtbl.t;
   graphs : (string, W.graph) Hashtbl.t;
   defs : (string, W.graph) Hashtbl.t;
-  kind_fns : (string * (string * Check.slot list)) list;
+  kind_fns : (string * (string * Context.t * Check.slot list)) list;
 }
 
 and node = { id : int; inst : int; site : W.path; iter : int list; kind : string;
@@ -69,103 +71,7 @@ type plan = { instances : instance array; nodes : node array }
 type t = { plan : plan; results : (string * value) list;
            records : (W.path * (int list * value) list) list }
 
-(* ---- hash: bit-exact port of the study's [hash] (iteration.md 2.2) ---- *)
-
-let to_uint32 x =
-  if not (Float.is_finite x) then 0
-  else
-    let m = Float.rem (Float.trunc x) 4294967296. in
-    int_of_float (if m < 0. then m +. 4294967296. else m)
-
-let imul a b = a * b land 0xFFFFFFFF
-
-let hash xs =
-  let h = ref 0x9e3779b9 in
-  List.iter (fun x ->
-    let k = to_uint32 (Float.floor (x *. 1000003.)) in
-    h := imul (!h lxor k) 0x85ebca6b;
-    h := !h lxor (!h lsr 13);
-    h := imul !h 0xc2b2ae35;
-    h := !h lxor (!h lsr 16)) xs;
-  float_of_int (!h mod 1_000_000) /. 1_000_000.
-
-(* ---- numbers ---- *)
-
-(* ponytail: [Int] is an OCaml int but int arithmetic runs on doubles and comes back through
-   [to_int], so results beyond 2^62 are an E_NONFINITE error where the study would go inexact. *)
-let round x = Float.floor (x +. 0.5)
-let to_int name x =
-  if Float.is_finite x && Float.abs x < 4e18 then int_of_float x
-  else failf "E_NONFINITE" "%s produced a nonfinite value." name
-let fin name r =
-  if Float.is_finite r then r else failf "E_NONFINITE" "%s produced a nonfinite value." name
-let num = function
-  | Int n -> float_of_int n | Float f -> f | Bool b -> if b then 1. else 0.
-  | _ -> fail "E_TYPE" "Expected a number."
-let truthy = function
-  | Bool b -> b | Int n -> n <> 0 | Float f -> f <> 0.
-  | _ -> fail "E_TYPE" "Expected a bool."
-let int_of v = to_int "int" (round (num v))
-
-(* JS [(+x).toFixed(4)] then [String]: up to 4 decimals, trailing zeros removed;
-   an exact tie rounds away from zero, as [toFixed] does (printf would round to even). *)
-let fmt4 x =
-  if Float.is_nan x then "NaN"
-  else if not (Float.is_finite x) then (if x > 0. then "Infinity" else "-Infinity")
-  else begin
-    let ax = Float.abs x in
-    let s40 = Printf.sprintf "%.40f" ax in
-    let dot = String.index s40 '.' in
-    let tail = String.sub s40 (dot + 1) 40 in
-    let tie = tail.[4] = '5' && String.for_all (( = ) '0') (String.sub tail 5 35) in
-    let s = Printf.sprintf "%.4f" (if tie then ax +. 1e-6 else ax) in
-    let n = ref (String.length s) in
-    while s.[!n - 1] = '0' do decr n done;
-    if s.[!n - 1] = '.' then decr n;
-    let s = String.sub s 0 !n in
-    if x < 0. && s <> "0" then "-" ^ s else s
-  end
-
-(* ---- typing values dynamically ---- *)
-
-let is_element_list n = n = "sop/point_list" || n = "sop/piece_list"
-let element_key zone = "$elem:" ^ String.concat "/" zone
-
-let struct_ty n =
-  let p x = String.starts_with ~prefix:x n in
-  if p "scene/" then Ty.Scene else if p "world/" then Ty.World
-  else if p "settings/" then Ty.Settings else if p "material/" then Ty.Material
-  else if n = "ui/workspace" then Ty.Editor
-  else if is_element_list n then Ty.List Ty.Any else Ty.Panel
-
-let rec ty_of = function
-  | Int _ -> Ty.Int | Float _ -> Ty.Float | Bool _ -> Ty.Bool | Text _ -> Ty.Text
-  | Vec3 _ -> Ty.Vec3
-  | List xs -> Ty.List (elem_ty xs)
-  | Record fs -> Ty.Record (List.map (fun (n, v) -> (n, ty_of v)) fs)
-  | Geo _ | No_geo -> Ty.Geometry
-  | Struct (n, _) -> struct_ty n
-  | Fn _ -> Ty.Fn
-  | Residual _ -> Ty.Any
-and elem_ty xs =
-  Array.fold_left (fun t x -> match Ty.join t (ty_of x) with Some j -> j | None -> t) Ty.Any xs
-
-(* [need]: convert a value to a wanted static type (a residual is left for its own evaluation) *)
-let rec coerce_to want v =
-  match want, v with
-  | Ty.Any, _ | _, Residual _ -> v
-  | Ty.Int, Float f -> Int (to_int "int" (round f))
-  | Ty.Int, Bool b -> Int (if b then 1 else 0)
-  | Ty.Float, Int n -> Float (float_of_int n)
-  | Ty.Float, Bool b -> Float (if b then 1. else 0.)
-  | Ty.Bool, (Int _ | Float _) -> Bool (truthy v)
-  | Ty.Vec3, (Int _ | Float _) -> let f = num v in Vec3 (f, f, f)
-  | Ty.List e, List xs -> List (Array.map (coerce_to e) xs)
-  | Ty.Record wf, Record fs ->
-      Record (List.map (fun (n, x) -> match List.assoc_opt n wf with
-        | Some w -> (n, coerce_to w x) | None -> (n, x)) fs)
-  | _ -> v
-
+let key_of v = Value.key_of ~residual:(fun r -> r.rid) v
 (* [coerce v to the type of w]: fold accumulators, reduce, assoc *)
 let rec coerce_like w v =
   match w, v with
@@ -194,33 +100,6 @@ let path_text p = String.concat "/" p
 
 (* ---- str formatting (register C2) ---- *)
 
-let rec show_with conc v =
-  match conc v with
-  | Int n -> string_of_int n
-  | Float f -> fmt4 f
-  | Bool b -> if b then "true" else "false"
-  | Text s -> s
-  | Vec3 (x, y, z) -> "[" ^ String.concat " " [ fmt4 x; fmt4 y; fmt4 z ] ^ "]"
-  | List xs -> "[" ^ String.concat " " (List.map (show_with conc) (Array.to_list xs)) ^ "]"
-  | Record fs ->
-      "{" ^ String.concat " " (List.map (fun (k, x) -> ":" ^ k ^ " " ^ show_with conc x) fs) ^ "}"
-  | Residual _ -> "?"
-  | v -> Ty.to_string (ty_of v)
-
-let rec key_of = function
-  | Int n -> "i" ^ string_of_int n
-  | Float f -> Printf.sprintf "f%h" f
-  | Bool b -> if b then "T" else "F"
-  | Text s -> Printf.sprintf "s%d:%s" (String.length s) s
-  | Vec3 (a, b, c) -> Printf.sprintf "v%h,%h,%h" a b c
-  | List xs -> "[" ^ String.concat "," (List.map key_of (Array.to_list xs)) ^ "]"
-  | Record fs -> "{" ^ String.concat "," (List.map (fun (n, v) -> n ^ "=" ^ key_of v) fs) ^ "}"
-  | Geo n -> "g" ^ string_of_int n
-  | No_geo -> "G"
-  | Struct (n, fs) -> "S" ^ n ^ key_of (Record fs)
-  | Fn _ -> "fn"
-  | Residual r -> "r" ^ string_of_int r.rid
-
 (* ---- context helpers ---- *)
 
 let site c = c.prefix @ c.base @ List.rev c.route
@@ -244,122 +123,9 @@ let mk_node c kind args =
   st.nnodes <- st.nnodes + 1;
   Geo n.id
 
-(* ---- built-in value operators ---- *)
-
-let value_ops = W.value_ops
-let value_op_name n =
-  if List.mem n value_ops then Some n
-  else if List.mem ("value/" ^ n) value_ops then Some ("value/" ^ n) else None
-let is_struct_op n = List.exists (fun p -> String.starts_with ~prefix:p n)
-  [ "scene/"; "world/"; "settings/"; "ui/" ]
-
-let comps = function Vec3 (x, y, z) -> (x, y, z) | v -> let s = num v in (s, s, s)
-let is_vec = function Vec3 _ -> true | _ -> false
-
-let arith name f a b =
-  if is_vec a || is_vec b then begin
-    let ax, ay, az = comps a and bx, by, bz = comps b in
-    Vec3 (fin name (f ax bx), fin name (f ay by), fin name (f az bz))
-  end else begin
-    let r = fin name (f (num a) (num b)) in
-    match a, b with
-    | Int _, Int _ when name <> "/" && name <> "pow" -> Int (to_int name (round r))
-    | _ -> Float r
-  end
-
-let hsv h s v =
-  let h = Float.rem (Float.rem h 1. +. 1.) 1. in
-  let i = int_of_float (Float.floor (h *. 6.)) in
-  let f = h *. 6. -. float_of_int i in
-  let p = v *. (1. -. s) and q = v *. (1. -. f *. s) and t = v *. (1. -. (1. -. f) *. s) in
-  match i mod 6 with
-  | 0 -> (v, t, p) | 1 -> (q, v, p) | 2 -> (p, v, t) | 3 -> (p, q, v) | 4 -> (t, p, v)
-  | _ -> (v, p, q)
-
-let range lo hi =
-  if hi - lo > max_iterations then
-    failf "E_ITER_BOUND" "range %d‥%d exceeds 4,096 iterations." lo hi;
-  List (Array.init (max 0 (hi - lo)) (fun i -> Int (lo + i)))
-
-let list_arg = function
-  | List xs -> xs
-  | Geo _ -> fail "E_TYPE" "A loop over geometry yields its merged geometry, not a list; give it to sop/merge."
-  | _ -> fail "E_TYPE" "Expected a list."
-
-let arith_fns = [ "+", ( +. ); "-", ( -. ); "*", ( *. );
-  "/", (fun x y -> if y = 0. then 0. else x /. y);
-  "mod", (fun x y -> if y = 0. then 0. else Float.rem (Float.rem x y +. y) y);
-  "pow", (fun x y -> Float.pow (Float.abs x) y); "min", Float.min; "max", Float.max ]
-
-let value_op name (vs : value list) : value =
-  let arity () = failf "E_ARITY" "%s got the wrong number of inputs." name in
-  match name, vs with
-  | _, [ a; b ] when List.mem_assoc name arith_fns -> arith name (List.assoc name arith_fns) a b
-  | "sin", [ x ] -> Float (fin name (sin (num x)))
-  | "cos", [ x ] -> Float (fin name (cos (num x)))
-  | "sqrt", [ x ] -> Float (sqrt (Float.abs (num x)))
-  | "floor", [ x ] -> Int (to_int name (Float.floor (num x)))
-  | "ceil", [ x ] -> Int (to_int name (Float.ceil (num x)))
-  | "round", [ x ] -> Int (to_int name (Float.round (num x)))  (* half away from zero, as a port *)
-  | "int", [ x ] -> Int (to_int name (Float.trunc (num x)))
-  | "float", [ x ] -> Float (num x)
-  | "abs", [ Int n ] -> Int (abs n)
-  | "abs", [ x ] -> Float (Float.abs (num x))
-  | "<", [ a; b ] -> Bool (num a < num b)
-  | ">", [ a; b ] -> Bool (num a > num b)
-  | "<=", [ a; b ] -> Bool (num a <= num b)
-  | ">=", [ a; b ] -> Bool (num a >= num b)
-  | "=", [ a; b ] -> Bool (num a = num b)
-  | "and", [ a; b ] -> Bool (truthy a && truthy b)
-  | "or", [ a; b ] -> Bool (truthy a || truthy b)
-  | "not", [ a ] -> Bool (not (truthy a))
-  | "value/rand", ks -> Float (hash (List.map num ks))
-  | "value/hsv", [ h; s; v ] ->
-      let r, g, b = hsv (num h) (num s) (num v) in Vec3 (fin name r, fin name g, fin name b)
-  | "value/lerp", [ a; b; u ] ->
-      let u = num u in
-      if is_vec a || is_vec b then begin
-        let ax, ay, az = comps a and bx, by, bz = comps b in
-        let l x y = x *. (1. -. u) +. y *. u in
-        Vec3 (fin name (l ax bx), fin name (l ay by), fin name (l az bz))
-      end else Float (fin name (num a *. (1. -. u) +. num b *. u))
-  | "value/polar", (r :: a :: h) ->
-      let r = num r and a = num a in
-      Vec3 (fin name (r *. cos a), (match h with [ h ] -> num h | _ -> 0.), fin name (r *. sin a))
-  | "range", [ n ] -> range 0 (int_of n)
-  | "range", [ a; b ] -> range (int_of a) (int_of b)
-  | "linspace", [ a; b; n ] ->
-      let a = num a and b = num b and n = int_of n in
-      if n > max_iterations then fail "E_ITER_BOUND" "linspace exceeds 4,096 values.";
-      List (Array.init (max 0 n) (fun k ->
-        Float (if n = 1 then a else a +. (b -. a) *. float_of_int k /. float_of_int (n - 1))))
-  | "count", [ l ] -> Int (Array.length (list_arg l))
-  | "first", [ l ] ->
-      let xs = list_arg l in
-      if xs = [||] then fail "E_LIST_RANGE" "first of an empty list." else xs.(0)
-  | "last", [ l ] ->
-      let xs = list_arg l in
-      if xs = [||] then fail "E_LIST_RANGE" "last of an empty list." else xs.(Array.length xs - 1)
-  | "rest", [ l ] ->
-      let xs = list_arg l in
-      List (if xs = [||] then xs else Array.sub xs 1 (Array.length xs - 1))
-  | "nth", [ l; i ] ->
-      (match i with
-       | Float f when not (Float.is_integer f) -> failf "E_LIST_RANGE" "nth index %g is not a whole number." f
-       | _ -> ());
-      let xs = list_arg l and i = int_of i in
-      if i < 0 || i >= Array.length xs then
-        failf "E_LIST_RANGE" "nth index %d is out of range for a list of length %d." i (Array.length xs)
-      else xs.(i)
-  | "reverse", [ l ] ->
-      let xs = list_arg l in
-      let n = Array.length xs in List (Array.init n (fun i -> xs.(n - 1 - i)))
-  | "take", [ n; l ] ->
-      let xs = list_arg l and n = max 0 (int_of n) in List (Array.sub xs 0 (min n (Array.length xs)))
-  | "drop", [ n; l ] ->
-      let xs = list_arg l in
-      let n = min (max 0 (int_of n)) (Array.length xs) in List (Array.sub xs n (Array.length xs - n))
-  | _ -> arity ()
+let catalog_call c kind ctx args =
+  if not (Context.supports_values ctx) || ctx = Context.Material
+  then Struct (kind, Ty.of_context ctx, args) else mk_node c kind args
 
 (* ---- the evaluator ---- *)
 
@@ -391,49 +157,6 @@ let case_matches sv lv =
   | Text a, Text b -> a = b
   | (Int _ | Float _), (Int _ | Float _) -> num sv = num lv
   | _ -> false
-
-let check_struct name args =
-  let conc f v = match v with Residual _ -> () | v -> f v in
-  let get k = List.assoc_opt k args in
-  let range_error msg = fail "E_RANGE" msg in
-  let axis () = match get "axis" with
-    | Some v -> conc (function
-        | Text ("horizontal" | "vertical") -> ()
-        | _ -> range_error "Split axis is horizontal or vertical.") v
-    | None -> () in
-  let one_of key what choices = match get key with
-    | Some v -> conc (function
-        | Text t when List.mem t choices -> ()
-        | _ -> range_error (Printf.sprintf "%s is %s." what (String.concat ", " choices))) v
-    | None -> () in
-  match name with
-  | "ui/split" ->
-      axis ();
-      let points key = match get key with
-        | Some v -> conc (fun v -> if num v < 1. then range_error "A fixed split size is 1 point or more.") v
-        | None -> () in
-      points "first_size"; points "second_size";
-      if get "first_size" <> None && get "second_size" <> None then
-        range_error "A split fixes one side: :first_size or :second_size."
-  | "ui/graph" -> one_of "view" "A graph panel's view" (Workspace.op_choices name "view")
-  | "ui/lisp" -> one_of "tab" "A lisp panel's tab" (Workspace.op_choices name "tab")
-  | "ui/split-at" ->
-      axis ();
-      (match get "ratio" with
-       | Some v -> conc (fun v -> let r = num v in
-                          if r < 0.1 || r > 0.9 then range_error "Split ratio is 0.1–0.9.") v
-       | None -> ())
-  | "ui/tile" ->
-      let n = List.length args in
-      if n < 1 || n > 16 then range_error "A tile holds 1–16 panels."
-  | "ui/switch" ->
-      let n = List.length (List.filter (fun (k, _) -> k <> "active") args) in
-      if n < 1 || n > 16 then range_error "A switch holds 1–16 layouts.";
-      (match get "active" with
-       | Some v -> conc (fun v -> let a = num v in
-                          if a < 0. || a >= float n then range_error "The active layout is 0 to the layout count minus one.") v
-       | None -> ())
-  | _ -> ()
 
 (* ---- compiled residuals ----
    A residual is forced every frame while a live value plays, and most of its term does not
@@ -514,18 +237,22 @@ and compile ce (x : W.term) : cnode =
       List.fold_left (fun n f -> match n with
         | Const v -> Const (lookup_field b v f)
         | Dyn g -> Dyn (fun t -> lookup_field b (g t) f)) start fs
-  | W.Op { op; args; _ } when not (op = "sop/curve" || is_element_list op || is_struct_op op) ->
+  | W.Op { op; args; _ } ->
+      let o = match Op.find op Context.Value with
+        | Some o when o.ctx = Context.Value && o.shape = Op.Scalar -> o
+        | _ -> raise Unsupported in
       let nodes = List.map (fun (_, a) -> compile ce a) args in
-      (match nodes with
-       | [ Const a; Const b ] when List.mem_assoc op arith_fns -> Const (arith op (List.assoc op arith_fns) a b)
-       | [ a; b ] when List.mem_assoc op arith_fns ->
-           let f = arith op (List.assoc op arith_fns) in
+      (match Op.arith op, nodes with
+       | Some f, [ Const a; Const b ] -> Const (f.apply a b)
+       | Some binary, [ a; b ] ->
+           let f = binary.apply in
            (match a, b with
             | Dyn g, Dyn h -> Dyn (fun t -> let x = g t in f x (h t))
             | Dyn g, Const y -> Dyn (fun t -> f (g t) y)
             | Const x, Dyn h -> Dyn (fun t -> f x (h t))
             | Const _, Const _ -> assert false)
-       | _ -> map_nodes (value_op op) nodes)
+       | _ -> map_nodes (fun vals -> o.body ~node:(fun _ _ -> raise Unsupported)
+           (List.map2 (fun (n, _) v -> n, v) args vals)) nodes)
   | W.Let (binds, res) ->
       let over = List.fold_left (fun over ((pat : W.pattern), t) -> match pat, compile { ce with over } t with
         | W.Name n, (Const _ as node) -> Smap.add n node over
@@ -651,7 +378,7 @@ and ev_raw c env (x : W.term) : value =
       (match Smap.find_opt b env with
        | None -> failf "E_UNBOUND" "%s is not bound." b
        | Some v -> fst (List.fold_left (fun (v, p) f -> (field c v f p, p ^ "." ^ f)) (v, b) fs))
-  | W.Call { kind; args } ->
+  | W.Call { kind; ctx; args } ->
       let vals = eval_named c env args in
       let vals =
         if kind = "sop/merge" then
@@ -660,8 +387,7 @@ and ev_raw c env (x : W.term) : value =
             | v -> [ (n, v) ]) vals
           |> List.filter (fun (_, v) -> match v with No_geo -> false | _ -> true)
         else vals in
-      if List.exists (fun p -> String.starts_with ~prefix:p kind) [ "scene/"; "world/"; "settings/" ]
-      then Struct (kind, vals) else mk_node c kind vals
+      catalog_call c kind ctx vals
   | W.Op { op = "scene/merge"; args; skip = _ :: _ as skip } ->
       (* register L16: the arguments at skipped tuples are not evaluated *)
       let args = List.filteri (fun p _ -> not (List.mem (c.iter @ [ p ]) skip)) args in
@@ -744,21 +470,19 @@ and ev_raw c env (x : W.term) : value =
   | W.Expanded { body; _ } -> ev c env body
 
 and apply_op c name (vals : (string * value) list) : value =
-  if name = "material/standard" then Struct (name, vals)
-  else if name = "sop/curve" then mk_node c name vals
-  else if is_element_list name then Struct (name, vals)
-  else if is_struct_op name then begin
-    let splice = name = "scene/merge" || name = "ui/tile" in
-    let vals =
-      if splice then
+  let o = match Op.find name Context.Value with
+    | Some o -> o | None -> failf "E_UNKNOWN" "Unknown operator %s." name in
+  let vals = match o.shape with
+    | Op.Struct {splice = true} ->
         List.concat_map (fun (n, v) -> match concrete c v with
           | List xs -> List.map (fun x -> (n, x)) (Array.to_list xs)
           | v -> [ (n, v) ]) vals
-      else vals in
-    check_struct name vals;
-    Struct (name, vals)
-  end else
-    value_op name (List.map (fun (_, v) -> concrete c v) vals)
+    | _ -> vals in
+  let vals = match o.shape with
+    | Op.Scalar when o.ctx = Context.Value -> List.map (fun (n, v) -> n, concrete c v) vals
+    | _ -> vals in
+  o.check vals;
+  o.body ~node:(mk_node c) vals
 
 and apply_def c name (vals : value list) : value =
   let d = match Hashtbl.find_opt c.st.defs name with
@@ -798,21 +522,21 @@ and call_fn c f (vals : value list) : value =
       if Hashtbl.mem c.st.defs name then apply_def c' name vals
       else begin
         let named = List.mapi (fun i v -> ("$" ^ string_of_int i, v)) vals in
-        match value_op_name name with
-        | Some n -> apply_op c' n named
+        match Op.find name Context.Value with
+        | Some o -> apply_op c' o.name named
         | None ->
-            if is_struct_op name || name = "sop/curve" then apply_op c' name named
-            else
               (* a catalog kind: the checker resolved its name and which input each argument is *)
-              let kind, slots = Option.value ~default:(name, []) (List.assoc_opt name c.st.kind_fns) in
+              let kind, ctx, slots = match List.assoc_opt name c.st.kind_fns with
+                | Some k -> k | None -> failf "E_UNKNOWN" "Unknown function %s." name in
               let slots = Array.of_list slots in
               let rest = if Array.length slots = 0 then None else
                 let slot = slots.(Array.length slots - 1) in
                 if slot.Check.rest then Some slot.name else None in
               if List.length vals > Array.length slots && Option.is_none rest then
                 failf "E_ARITY" "%s takes at most %d inputs." kind (Array.length slots);
-              mk_node c' kind (List.mapi (fun i v ->
-                ((if i < Array.length slots then slots.(i).Check.name else Option.get rest), v)) vals)
+              let args = List.mapi (fun i v ->
+                ((if i < Array.length slots then slots.(i).Check.name else Option.get rest), v)) vals in
+              catalog_call c' kind ctx args
       end
 
 and hof c env kind f rest =
@@ -883,7 +607,7 @@ and loop c env kind accs clauses skip body zone =
     end else begin
       let p, e = clauses.(ci) in
       (match concrete c (ev (sub cz ("in" ^ string_of_int ci)) env e) with
-       | Struct (op, fs) when is_element_list op ->
+       | Struct (op, Ty.List _, fs) ->
            if kind <> `For || n <> 1 || skip <> [] then
              failf "E_ZONE" "%s: only a for with one clause and no :skip can iterate the elements of geometry." (path_text zone);
            over_geometry := Some (geometry_loop c cz env op fs p body zone)
@@ -1011,7 +735,7 @@ let static ?(record = false) ?(inputs = []) ws =
 let rec is_live = function
   | Residual _ -> true
   | List xs -> Array.exists is_live xs
-  | Record fs | Struct (_, fs) -> List.exists (fun (_, v) -> is_live v) fs
+  | Record fs | Struct (_, _, fs) -> List.exists (fun (_, v) -> is_live v) fs
   | _ -> false
 
 (* one live state per call, made from the first residual met *)
@@ -1036,7 +760,7 @@ let force ?elems v ~live =
         | Residual r -> let c = ctx_of r in go (force_res c r)
         | List xs -> List (Array.map go xs)
         | Record fs -> Record (List.map (fun (n, x) -> (n, go x)) fs)
-        | Struct (n, fs) -> Struct (n, List.map (fun (k, x) -> (k, go x)) fs)
+        | Struct (n, ty, fs) -> Struct (n, ty, List.map (fun (k, x) -> (k, go x)) fs)
         | v -> v in
       go v)
 
@@ -1063,6 +787,6 @@ module Private = struct
   let rec compiled = function
     | Residual { fast = Ready _; _ } -> 1
     | List xs -> Array.fold_left (fun n x -> n + compiled x) 0 xs
-    | Record fs | Struct (_, fs) -> List.fold_left (fun n (_, x) -> n + compiled x) 0 fs
+    | Record fs | Struct (_, _, fs) -> List.fold_left (fun n (_, x) -> n + compiled x) 0 fs
     | _ -> 0
 end

@@ -605,7 +605,7 @@ let named_handles () =
     check (after != before && binding after <> binding before)
       "named SOP handle did not write its owning graph argument";
     let scene_value = List.assoc "scene" (Flow.Eval.run ~time:0. after.checked |> Result.get_ok).results in
-    check (match scene_value with Flow.Eval.Struct (_, args) ->
+    check (match scene_value with Flow.Eval.Struct (_, _, args) ->
       List.assoc_opt "translate" args = Some (Flow.Eval.Vec3 (1., 0., 0.)) | _ -> false)
       "SOP handle accidentally edited the scene object's placement")
 

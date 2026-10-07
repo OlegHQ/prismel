@@ -755,7 +755,7 @@ names. Generated factories also expose field views.
 
 The `flow` library depends only on `param`. It owns the workspace language: the reader
 (`Syntax`), the canonical printer (`Lisp`), macros (`Macro`), the checker (`Workspace`),
-the evaluator (`Eval`), the static types (`Ty`), contexts, and the catalog descriptors
+the evaluator (`Eval`), pure values (`Value`), the operator declarations (`Op`), static types (`Ty`), contexts, and the catalog descriptors
 the checker reads (`Check`). The PPX uses its shared name validation. Geometry cannot
 connect to value ports, and vectors cannot drive scalars. Float-to-int coercion rounds and
 saturates the machine range before the caller applies the parameter's hard bounds.
@@ -943,9 +943,16 @@ represent empty networks.
 `dune build` at the `.rays` line), generates `main.ml` (the text embedded, its SHA-256 as `digest`) and
 the stanzas of `sketches/dune.rays.inc` (checked in: `dune build @runtest; dune promote` after adding a
 sketch; `dune exec tools/new_example.exe -- --lisp <name>` scaffolds one). The generated program is
-`Rays_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` (parse and
-check) and `Workspace.run ?source doc` (the window from the `settings` graph, the viewport starting at the
-scene's first camera, a scene graph is authoritative: it replaces the host's camera and lights, and an empty one means none).
+`Rays_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` to parse
+and check, then compose `Editor3` with the resulting document. The generated entry point opens the
+window from the `settings` graph, with the viewport starting at the scene's first camera. A scene
+graph is authoritative: it replaces the host's camera and lights, and an empty one means none.
+
+`Flow.Op.all` declares the built-in operators once for checking, evaluation and editor menus.
+`Flow.Value.t` carries pure values with evaluator-specific function and residual type parameters;
+`Flow.Eval.value` specializes it and re-exports its constructors. `Struct` holds the head, resolved
+`Flow.Ty.t` and arguments; checked catalog calls retain their `Flow.Context.t`. Contexts and types
+are read from `Flow.Context.all` and `Flow.Ty.names`, with no name-prefix dispatch.
 
 Scene light intensity and color accept expressions of timeline `t`; they are
 resolved during composition without recooking static SOPs or rewriting saved

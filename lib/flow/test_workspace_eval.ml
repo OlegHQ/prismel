@@ -363,7 +363,7 @@ let () =
     | Vec3 (a, b, c), Vec3 (x, y, z) ->
         List.for_all2 (fun p q -> Int64.equal (Int64.bits_of_float p) (Int64.bits_of_float q)) [ a; b; c ] [ x; y; z ]
     | List xs, List ys -> Array.length xs = Array.length ys && Array.for_all2 same_bits xs ys
-    | Record fs, Record gs | Struct (_, fs), Struct (_, gs) ->
+    | Record fs, Record gs | Struct (_, _, fs), Struct (_, _, gs) ->
         List.length fs = List.length gs && List.for_all2 (fun (n, x) (m, y) -> n = m && same_bits x y) fs gs
     | Fn _, Fn _ -> true
     | a, b -> a = b in
@@ -614,13 +614,13 @@ let () = (* register L16: :skip leaves iterations out; the others keep their tup
   t "skip: a scene/merge leaves out the arguments at the listed tuples" (fun () ->
     let scene body = "(workspace w (graph s :context scene " ^ body ^ "))" in
     let r body = List.assoc "s" (run (check (scene body))).results in
-    let args = function Eval.Struct (_, a) -> List.length a | _ -> -1 in
+    let args = function Eval.Struct (_, _, a) -> List.length a | _ -> -1 in
     assert (args (r "(scene/merge (scene/light) (scene/light) (scene/light))") = 3);
     assert (args (r "(scene/merge (scene/light) (scene/light) (scene/light) :skip [1])") = 2);
     assert (args (r "(scene/merge (scene/light) (scene/light) :skip [[0] [1]])") = 0);
     (* inside a loop the tuple starts with the loop's iteration *)
     (match r "(scene/merge (for [i (range 2)] (scene/merge (scene/light) (scene/light) :skip [[1 0]])))" with
-     | Eval.Struct (_, [ (_, a); (_, b) ]) -> assert (args a = 2 && args b = 1)
+     | Eval.Struct (_, _, [ (_, a); (_, b) ]) -> assert (args a = 2 && args b = 1)
      | _ -> failwith "the merge of merges"))
 
 let () =
