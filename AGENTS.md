@@ -30,8 +30,8 @@ in a browser, never product code and never a web fallback.
 Lisp is the first-class surface of Rays; the OCaml API is second-class, used by tests and
 integrations. When the two could differ, Lisp decides: its names, defaults, ranges and errors
 are the contract, and the OCaml function is derived to match (`specification/procedural.md`,
-"one declaration", for SOPs). A new
-capability ships in Lisp first; do not add an OCaml-only parameter or behaviour.
+"one declaration", for SOPs). A new capability ships in Lisp first; do not add an OCaml-only
+parameter or behaviour.
 
 Roadmap, not yet built, so do not code against it: Lisp becomes the main language for all of
 Rays, 2D sketches included, with an optimizer underneath that decides what to compile and
