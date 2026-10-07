@@ -2,7 +2,7 @@
 open Rays
 module D = Editor_document
 module E = Rays_editor.Editor3
-module F = Flow_sop.Flow_edit
+module F = Flow_graph.Flow_edit
 module S = Flow.Syntax
 
 let check condition message = if not condition then failwith message

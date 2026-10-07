@@ -3,8 +3,10 @@ type ('f, 'r) t =
   | Int of int | Float of float | Bool of bool | Text of string
   | Vec3 of float * float * float
   | List of ('f, 'r) t array
+  | Float_array of float array
+  | Vec3_array of float array  (** interleaved xyz coordinates *)
   | Record of (string * ('f, 'r) t) list
-  | Geo of int | No_geo
+  | Deferred of Ty.t * int | No_geo
   | Struct of string * Ty.t * (string * ('f, 'r) t) list
   | Fn of 'f | Residual of 'r
 
@@ -26,3 +28,7 @@ val comps : ('f, 'r) t -> float * float * float
 val is_vec : ('f, 'r) t -> bool
 val arith : string -> (float -> float -> float) -> ('f, 'r) t -> ('f, 'r) t -> ('f, 'r) t
 val list_arg : ('f, 'r) t -> ('f, 'r) t array
+val array_length : ('f, 'r) t -> int
+val array_get : ('f, 'r) t -> int -> ('f, 'r) t
+val array_init : Ty.t -> int -> (int -> ('f, 'r) t) -> ('f, 'r) t
+val validate : ('f, 'r) t -> unit

@@ -22,9 +22,9 @@ let step ?(live = false) value ~graphs ~effects ~context_changed ~force ~busy ~f
     else List.fold_left (fun union graph ->
       Context.Dependencies.union union (Graph.dependencies graph))
       Context.Dependencies.static graphs in
-  let dynamic = context_changed
-      && (Context.Dependencies.mem Context.Dependencies.Time dependencies
-          || Context.Dependencies.mem Context.Dependencies.Frame dependencies) in
+  let dynamic = Context.Dependencies.mem Context.Dependencies.Input dependencies
+      || (context_changed && (Context.Dependencies.mem Context.Dependencies.Time dependencies
+          || Context.Dependencies.mem Context.Dependencies.Frame dependencies)) in
   let held = Frame.mouse_down Input.LeftButton frame in
   let desired = not value.initialized || dirty || dynamic in
   let urgent = not value.initialized || effects.Parameter.cook || force in

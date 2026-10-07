@@ -25,7 +25,7 @@ let of_geometry ~context graph displayed =
    copy is an edit of the template, so every copy changes. *)
 type home =
   | Bound_at of Flow.Workspace.path
-  | Inline_in of home * Flow_sop.Flow_edit.arg_key
+  | Inline_in of home * Flow_graph.Flow_edit.arg_key
   | Copy of { loop : home; rel : string list; index : int }
   | Looped
 
@@ -43,9 +43,9 @@ let no_homes = { objects = []; world = None; layers = []; settings = None; root 
 (* Where a panel of the shell tree came from in the editor graph. *)
 type origin =
   | Bound of string  (* its binding *)
-  | Loop of home * Flow_sop.Flow_edit.arg_key
+  | Loop of home * Flow_graph.Flow_edit.arg_key
       (* the tile call a loop makes panels for, and the loop's argument in it *)
-  | Inline of home * Flow_sop.Flow_edit.arg_key  (* written in place: an argument of this call *)
+  | Inline of home * Flow_graph.Flow_edit.arg_key  (* written in place: an argument of this call *)
 
 type preview_source = {
   editor_graph : string;
@@ -86,6 +86,7 @@ type shell = {
   start : start;
   wires : string option;
   views : (string * int list) list;
+  canvases : (string * Flow.Eval.value) list;
   preview_sources : (string * preview_source) list;
   switch : switch option;  (* the first [ui/switch]: every layout it holds, and the active one *)
 }
@@ -262,9 +263,9 @@ module S = Flow.Syntax
 (* the form a home is written as, when the source can be walked to it: a loop's body is its last
    child, and a copy's [rel] walks the body's [let*] bindings to the template *)
 let rec syntax_of (source : S.t list) = function
-  | Bound_at path -> Flow_sop.Flow_edit.arg_text source path Flow_sop.Flow_edit.Whole
+  | Bound_at path -> Flow_graph.Flow_edit.arg_text source path Flow_graph.Flow_edit.Whole
   | Inline_in (parent, key) ->
-      Option.bind (syntax_of source parent) (fun e -> Flow_sop.Flow_edit.arg_of e key)
+      Option.bind (syntax_of source parent) (fun e -> Flow_graph.Flow_edit.arg_of e key)
   | Copy { loop; rel; _ } ->
       let rec last = function [] -> None | [ x ] -> Some x | _ :: r -> last r in
       let rec walk (e : S.t) = function

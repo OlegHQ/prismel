@@ -2,7 +2,7 @@ open Rays
 
 module Layout = struct
   type panel = Editor_core.Panels.panel =
-    | View of string | Graph | List | Lisp | Inspector | Outline | Timeline
+    | View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline
   type axis = Editor_core.Panels.axis
   type t = Editor_core.Panels.t =
     | Leaf of panel
@@ -440,7 +440,7 @@ module Chrome = struct
     List.map String.trim (go 0 0 [])
   let has_crumbs sub = List.length (split_crumbs sub) > 1
   let retypes = [ "Graph", Graph; "List", List; "Lisp", Lisp; "Inspector", Inspector;
-                  "Outline", Outline; "Timeline", Timeline; "Viewport", View "" ]
+                  "Outline", Outline; "Timeline", Timeline; "Viewport", View ""; "Canvas", Canvas "" ]
 
   let drag_origin ui box bounds signal =
     if signal.Pxui.Ui.pressed then begin
@@ -480,7 +480,7 @@ module Chrome = struct
     List.iteri (fun order l -> match l.panel with
       (* a view paints its own picture; a window over one still has its line-3 edge and the
          sheet fill of its title row's margin *)
-      | View _ | Timeline when l.floating ->
+      | View _ | Canvas _ | Timeline when l.floating ->
           let box = floating ui l.frame ("workspace-window-edge" ^ key l.path) in
           Ui.to_front ui ~order box;
           Ui.draw_over ui box (fun paint (x, y, w, h) ->
@@ -501,7 +501,7 @@ module Chrome = struct
             Ui.Paint.fill paint ~x ~y ~w ~h:1. line;
             Ui.Paint.fill paint ~x ~y ~w:1. ~h line; Ui.Paint.fill paint ~x:(x +. w -. 1.) ~y ~w:1. ~h line;
             Ui.Paint.fill paint ~x ~y:(y +. h -. 1.) ~w ~h:1. line)
-      | View _ | Timeline -> ()
+      | View _ | Canvas _ | Timeline -> ()
       | p ->
           let box = floating ui l.frame ("workspace-" ^ String.lowercase_ascii (Editor_core.Panels.name p)
                                         ^ key l.path) in
@@ -602,12 +602,12 @@ module Chrome = struct
           @ List.map (fun (_, panel) -> last (key_of (match panel with
               | Graph -> "panel.graph" | List -> "panel.list" | Lisp -> "panel.lisp"
               | Inspector -> "panel.inspector" | Outline -> "panel.outline"
-              | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
+              | Canvas _ -> "panel.canvas" | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
         let current = let rec find i = function
           | [] -> 5
           | (_, panel) :: rest ->
               (* every viewport is the Viewport row, whatever its key *)
-              if (match panel, l.panel with View _, View _ -> true | a, b -> a = b) then 5 + i
+              if (match panel, l.panel with View _, View _ | Canvas _, Canvas _ -> true | a, b -> a = b) then 5 + i
               else find (i + 1) rest in
           find 0 retypes in
         match Ui.context_menu ui ~at:(float x, float (y + h)) ~width:232. ~keys ~selected:current ~lead_from:5

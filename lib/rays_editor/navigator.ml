@@ -2,7 +2,7 @@
    prototype/src/e4.js ([fillOutline]). *)
 module Ui = Pxui.Ui
 module W = Flow.Workspace
-module P = Flow_sop.Projection
+module P = Flow_graph.Projection
 module S = Flow.Syntax
 
 type path = W.path
@@ -37,7 +37,7 @@ type params = {
   workspace : W.t;
   active : string option;
   scope : P.scope option;
-  records : Flow_sop.Probe.t option;
+  records : Flow_graph.Probe.t option;
   probes : path -> int;
   selected : path list;
   chips : (string * Rays.Color.t) list;  (** the evaluated colour of each material graph *)
@@ -108,7 +108,7 @@ let notes (ev : Flow.Eval.t) =
 
 (* The outline's groups, in dependency order. *)
 let group_of : W.context -> string = function
-  | Scene -> "Scene" | Sop -> "Geometry" | Material -> "Materials" | World -> "World"
+  | Draw -> "Drawing" | Scene -> "Scene" | Sop -> "Geometry" | Material -> "Materials" | World -> "World"
   | Editor -> "Layout" | Settings -> "Settings" | Value -> "Values"
 
 let group_order = [ "Scene"; "Geometry"; "Materials"; "World"; "Layout"; "Settings"; "Values" ]
@@ -140,7 +140,7 @@ let macro_uses (ws : W.t) name =
 let plural n what = Printf.sprintf "%d %s%s" n what (if n = 1 then "" else "s")
 
 let zone_glyph : P.zone_kind -> string = function
-  | For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let*" | Fn -> "λ"
+  | For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let*" | Fn -> "λ" | State -> "state"
 
 let number (form : S.t) = match form.node with
   | S.Num text -> float_of_string_opt text
@@ -156,7 +156,7 @@ let rec node_rows ~graph ~depth p (scope : P.scope) chains counts acc =
       | Some _, _ ->
           (match List.assoc_opt n.path counts with Some c -> string_of_int c ^ "×" | None -> "")
       | None, Some records ->
-          (Flow_sop.Probe.footer records n ~probes:(List.map p.probes chain)).value
+          (Flow_graph.Probe.footer records n ~probes:(List.map p.probes chain)).value
       | None, None -> "" in
     acc := Node_row { graph; path = n.path; depth; detail; ty = n.ty; result = n.synthetic;
                       label = P.title n;
@@ -211,9 +211,9 @@ let search state p chains counts =
 
 let rows ?(wide = true) state p =
   let ws = p.workspace in
-  let chains = match p.scope with Some s -> Flow_sop.Probe.chains s | None -> Hashtbl.create 1 in
+  let chains = match p.scope with Some s -> Flow_graph.Probe.chains s | None -> Hashtbl.create 1 in
   let counts = match p.scope, p.records with
-    | Some scope, Some records -> Flow_sop.Probe.counts records scope ~probe:p.probes
+    | Some scope, Some records -> Flow_graph.Probe.counts records scope ~probe:p.probes
     | _ -> [] in
   if String.trim state.query <> "" then Array.of_list (search state p chains counts) else begin
     let acc = ref [] in
@@ -331,7 +331,7 @@ let context_color theme context =
   let ports = Pxui.Theme.ports theme in
   match context with
   | Some W.Sop | None -> ports.geometry
-  | Some Scene -> ports.vec3
+  | Some Draw | Some Scene -> ports.vec3
   | Some World | Some Material -> ports.record
   | Some Settings -> ports.bool
   | Some Editor -> ports.int
@@ -342,7 +342,7 @@ let type_color theme (ty : Flow.Ty.t) =
   match ty with
   | Geometry -> ports.geometry | Float -> ports.float | Int -> ports.int | Bool -> ports.bool
   | Vec3 -> ports.vec3 | Text -> ports.text | Fn -> ports.fn | Record _ -> ports.record
-  | List _ | Color | Any | Scene | World | Settings | Panel | Editor | Material -> ports.compound
+  | List _ | Array _ | Color | Any | Drawing | Scene | World | Settings | Panel | Editor | Material -> ports.compound
 
 let height_of ~rh = function
   | Head _ -> rh +. 16.

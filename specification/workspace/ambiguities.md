@@ -5,7 +5,7 @@
 two ways, with the rule that was chosen. The language rules (L, G, T, I, F, D, C, M, N)
 are what `lib/flow` checks and evaluates (`lib/flow/test_workspace*.ml` and
 `test_macro.ml` cover them; code comments cite the ids); the graph, editor and sketch
-rules (V, E, O) are what `Flow_sop.Projection`, `Pxui_graph.Scope`, `Rays_editor` and
+rules (V, E, O) are what `Flow_graph.Projection`, `Pxui_graph.Scope`, `Rays_editor` and
 `tools/lisp` do. It extends Flow’s own ambiguity table (`flow.md` §11.10) and does not
 replace it. The list began as `prototype/register.js`, which the study shows with
 filters; where the two differ this file is the current one (L6, L9, L10, L13, L15, M1,
@@ -363,6 +363,11 @@ N2, O2 and O3 were corrected after the study).
 
 *Rule.* No: E_TIME_COUNT. Loop collections and counts, range arguments, fold step counts, and any list whose length depends on t and reaches geometry are static. Animate parameters instead, for example scale a piece to 0 to hide it. Value-only lists may have live lengths, as in (sum (filter …)).
 
+*Packed-data amendment (2026-10-07).* All frame facts and frame folds are live.
+Float/vec3 packed-array lengths are data and may be live or exceed 4,096;
+their loops cannot construct deferred graph nodes. Structural lists and
+geometry zones retain the rule. See iteration.md §2.5.
+
 *In the study.* Change (range moons) in Orrery to (range (+ moons (floor (* 2 (sin t))))) and apply: E_TIME_COUNT names moons_each.
 
 ## T3
@@ -372,6 +377,11 @@ N2, O2 and O3 were corrected after the study).
 *Why it is ambiguous.* (if (> (sin t) 0) (sop/box) (sop/uv_sphere)) is natural to write, but it swaps sub-networks frame by frame.
 
 *Rule.* No: E_TIME_BRANCH. An if, cond or case with a live test must not choose between geometry arms. A live choice between values (a size, a colour, a group name) is a parameter and is fine. A later sop/switch with a driven selector can lift this rule when a case needs it.
+
+*Drawing amendment (2026-10-07).* Drawing is a typed deferred node, so live
+choices between Drawing arms are also structural and refused. Packed-array
+arms select data and are allowed; frame input and folds obey the same rule
+as time.
 
 *In the study.* Orrery colours each moon with (if (> bob 0) …): a live value branch, accepted.
 

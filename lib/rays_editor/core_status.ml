@@ -70,19 +70,19 @@ let status_text ?(brief = false) value =
 let probe_caption value = match value.scope_key, Pxui_graph.Scope.selected value.scope_view with
   | Some { scope; records = Some records; graph; _ }, [ path ] when graph_name value = Some graph ->
       let probe p = Option.value ~default:0 (Layout_by_path.Path_map.find_opt p value.probes) in
-      let zones = List.filter (fun (n : Flow_sop.Projection.node) ->
-        match n.zone with Some z -> z.kind <> Flow_sop.Projection.Let | None -> false)
-        (Flow_sop.Projection.zones scope) in
-      let own = List.find_opt (fun (n : Flow_sop.Projection.node) -> n.path = path) zones in
+      let zones = List.filter (fun (n : Flow_graph.Projection.node) ->
+        match n.zone with Some z -> z.kind <> Flow_graph.Projection.Let | None -> false)
+        (Flow_graph.Projection.zones scope) in
+      let own = List.find_opt (fun (n : Flow_graph.Projection.node) -> n.path = path) zones in
       let zone = match own with
         | Some n -> Some n.path
-        | None -> (match Hashtbl.find_opt (Flow_sop.Probe.chains scope) path with
+        | None -> (match Hashtbl.find_opt (Flow_graph.Probe.chains scope) path with
             | Some (_ :: _ as chain) -> Some (List.nth chain (List.length chain - 1))
             | _ -> None) in
       Option.bind zone (fun zone ->
         Option.map (fun count ->
           Printf.sprintf "%s · iteration %d of %d" (List.nth zone (List.length zone - 1)) (probe zone + 1) count)
-          (List.assoc_opt zone (Flow_sop.Probe.counts records scope ~probe)))
+          (List.assoc_opt zone (Flow_graph.Probe.counts records scope ~probe)))
   | _ -> None
 
 (* The status strip under the view: kit text on the ground, under a hairline. *)

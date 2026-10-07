@@ -653,7 +653,7 @@ let run () =
                 In_channel.input_all) original)
     "the preset file is not the workspace text";
   let environment = match Rays_editor.Editor3.edit environment
-      (Flow_sop.Flow_edit.Rename { node = [ "geo1"; "output" ]; to_ = "moved" }) with
+      (Flow_graph.Flow_edit.Rename { node = [ "geo1"; "output" ]; to_ = "moved" }) with
     | Ok environment -> environment | Error message -> fail message in
   check (Editor_document.Workspace_doc.to_text (Rays_editor.Editor3.workspace environment) <> original)
     "the rename did not change the document";

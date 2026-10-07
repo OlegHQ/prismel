@@ -9,8 +9,9 @@ type t = {
   name : string; ctx : Context.t; signature : signature;
   out : Ty.t list -> Ty.t; any_num : bool;
   choices : (string * string list) list; shape : shape;
+  live : bool;
   check : 'f 'r. (string * ('f, 'r) Value.t) list -> unit;
-  body : 'f 'r. node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
+  body : 'f 'r. live:Frame_input.t -> node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
     (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t;
   category : string;
   arithmetic : arithmetic option;

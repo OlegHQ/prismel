@@ -44,7 +44,7 @@ let panel_hosts value =
       | Graph ->
           (match projection (as_pane value (key, path)) with
            | List_view -> Some `List | Text_view -> Some `Text | Graph_view -> None)
-      | View _ | Inspector | Timeline -> None in
+      | View _ | Canvas _ | Inspector | Timeline -> None in
     Option.map (fun kind -> key, path, panel, kind) kind)
     (Editor_core.Panels.leaves (shell_tree value value.workspace))
 
@@ -197,11 +197,11 @@ let follow_target ?path value =
     | _ -> None in
   match (match path with Some p -> [ p ] | None -> Pxui_graph.Scope.selected value.scope_view) with
   | [ path ] when graph_name value <> None ->
-      let arg key = Option.bind (Flow_sop.Flow_edit.arg_text ws.source path key) reference in
+      let arg key = Option.bind (Flow_graph.Flow_edit.arg_text ws.source path key) reference in
       (match arg (Kw "material") with
        | Some _ as found -> found
        | None ->
-           (match Flow_sop.Flow_edit.arg_text ws.source path Whole with
+           (match Flow_graph.Flow_edit.arg_text ws.source path Whole with
             | Some { node = S.List (_ :: args); _ } -> List.find_map reference args
             | _ -> None))
   | _ -> None
@@ -246,8 +246,8 @@ let scope_name value = if projection value = Graph_view then graph_name value el
 let scope_node value =
   match value.scope_key, value.doc.Document.workspace, Pxui_graph.Scope.selected value.scope_view with
   | Some { scope; records = Some records; _ }, _, [ path ] when scope_name value <> None ->
-      Option.bind (Flow_sop.Projection.find scope path) (fun (n : Flow_sop.Projection.node) ->
-        Option.bind (compiled_at value (Flow_sop.Probe.chains scope) records n.path) (fun node_id ->
+      Option.bind (Flow_graph.Projection.find scope path) (fun (n : Flow_graph.Projection.node) ->
+        Option.bind (compiled_at value (Flow_graph.Probe.chains scope) records n.path) (fun node_id ->
           Option.map (fun node -> n.path, node) (compiled_node value node_id)))
   | _ -> None
 
@@ -260,7 +260,7 @@ let lit_tags value =
        | Some c when c.site = site && c.at == value.probes && c.lowered == lowered
            && c.scope == scope -> c.tags, value.lit
        | _ ->
-           let iter = probes_of value (Flow_sop.Probe.chains scope) site in
+           let iter = probes_of value (Flow_graph.Probe.chains scope) site in
            let tags = Pick.Set.of_list (Flow_sop.Lower.tags lowered ~site ~iter) in
            tags, Some { site; at = value.probes; lowered; scope; tags })
   | _ -> Pick.Set.empty, None
@@ -271,10 +271,10 @@ let failed_nodes value =
   match Cook.failed_node value.cook, value.scope_key, value.doc.Document.workspace with
   | Some (code, node_id), Some { scope; records = Some records; _ }, _
     when scope_name value <> None ->
-      let rec nodes (s : Flow_sop.Projection.scope) = List.concat_map (fun (n : Flow_sop.Projection.node) ->
+      let rec nodes (s : Flow_graph.Projection.scope) = List.concat_map (fun (n : Flow_graph.Projection.node) ->
         n :: (match n.zone with Some z -> nodes z.scope | None -> [])) s.nodes in
-      let chains = Flow_sop.Probe.chains scope in
-      List.filter_map (fun (n : Flow_sop.Projection.node) ->
+      let chains = Flow_graph.Probe.chains scope in
+      List.filter_map (fun (n : Flow_graph.Projection.node) ->
         if compiled_at value chains records n.path = Some node_id then Some (n.path, code) else None) (nodes scope)
   | _ -> []
 

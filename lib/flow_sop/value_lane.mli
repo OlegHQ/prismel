@@ -11,8 +11,11 @@ type resolved = private {
   time_dependent : bool;
 }
 
-val create : unit -> t
-val resolve : t -> time:float -> Network.t -> (resolved, Flow.Diagnostic.t) result
+val create : ?state:Flow.Eval.state -> unit -> t
+val reset : t -> unit
+(** Clear cached resolution and fold values for a fresh playback. *)
+
+val resolve : ?live:Frame_input.t -> t -> time:float -> Network.t -> (resolved, Flow.Diagnostic.t) result
 (** Evaluate the live drives at [time]; only changed SOP
     ports are applied while the literal graph is unchanged. Static networks
     reuse their successful or failed result without recomputation. *)

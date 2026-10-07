@@ -5,8 +5,10 @@ type ('f, 'r) t =
   | Text of string
   | Vec3 of float * float * float
   | List of ('f, 'r) t array
+  | Float_array of float array
+  | Vec3_array of float array
   | Record of (string * ('f, 'r) t) list
-  | Geo of int
+  | Deferred of Ty.t * int
   | No_geo
   | Struct of string * Ty.t * (string * ('f, 'r) t) list
   | Fn of 'f
@@ -79,8 +81,11 @@ let rec ty_of = function
   | Int _ -> Ty.Int | Float _ -> Ty.Float | Bool _ -> Ty.Bool | Text _ -> Ty.Text
   | Vec3 _ -> Ty.Vec3
   | List xs -> Ty.List (elem_ty xs)
+  | Float_array _ -> Ty.Array Ty.Float
+  | Vec3_array _ -> Ty.Array Ty.Vec3
   | Record fs -> Ty.Record (List.map (fun (n, v) -> (n, ty_of v)) fs)
-  | Geo _ | No_geo -> Ty.Geometry
+  | Deferred (ty, _) -> ty
+  | No_geo -> Ty.Geometry
   | Struct (_, ty, _) -> ty
   | Fn _ -> Ty.Fn
   | Residual _ -> Ty.Any
@@ -111,6 +116,8 @@ let rec show_with conc v =
   | Text s -> s
   | Vec3 (x, y, z) -> "[" ^ String.concat " " [ fmt4 x; fmt4 y; fmt4 z ] ^ "]"
   | List xs -> "[" ^ String.concat " " (List.map (show_with conc) (Array.to_list xs)) ^ "]"
+  | Float_array xs -> Printf.sprintf "%d × float" (Array.length xs)
+  | Vec3_array xs -> Printf.sprintf "%d × vec3" (Array.length xs / 3)
   | Record fs ->
       "{" ^ String.concat " " (List.map (fun (k, x) -> ":" ^ k ^ " " ^ show_with conc x) fs) ^ "}"
   | Residual _ -> "?"
@@ -123,8 +130,11 @@ let rec key_of ~residual = function
   | Text s -> Printf.sprintf "s%d:%s" (String.length s) s
   | Vec3 (a, b, c) -> Printf.sprintf "v%h,%h,%h" a b c
   | List xs -> "[" ^ String.concat "," (List.map (key_of ~residual) (Array.to_list xs)) ^ "]"
+  | Float_array xs -> "A" ^ Marshal.to_string xs []
+  | Vec3_array xs -> "V" ^ Marshal.to_string xs []
   | Record fs -> "{" ^ String.concat "," (List.map (fun (n, v) -> n ^ "=" ^ key_of ~residual v) fs) ^ "}"
-  | Geo n -> "g" ^ string_of_int n
+  | Deferred (Ty.Geometry, n) -> "g" ^ string_of_int n
+  | Deferred (ty, n) -> "node:" ^ Ty.to_string ty ^ ":" ^ string_of_int n
   | No_geo -> "G"
   | Struct (n, _, fs) -> "S" ^ n ^ key_of ~residual (Record fs)
   | Fn _ -> "fn"
@@ -146,6 +156,39 @@ let arith name f a b =
 
 let list_arg = function
   | List xs -> xs
-  | Geo _ -> fail "E_TYPE" "A loop over geometry yields its merged geometry, not a list; give it to sop/merge."
+  | Deferred (Ty.Geometry, _) -> fail "E_TYPE" "A loop over geometry yields its merged geometry, not a list; give it to sop/merge."
   | _ -> fail "E_TYPE" "Expected a list."
 
+let array_length = function
+  | Float_array xs -> Array.length xs
+  | Vec3_array xs when Array.length xs mod 3 = 0 -> Array.length xs / 3
+  | Vec3_array _ -> fail "E_ARRAY_TYPE" "Packed vec3 storage has three coordinates per element."
+  | _ -> fail "E_ARRAY_TYPE" "Expected a packed array."
+let array_get xs index =
+  if index < 0 || index >= array_length xs then fail "E_ARRAY_RANGE" "Array index is outside its length.";
+  match xs with
+  | Float_array xs -> Float xs.(index)
+  | Vec3_array xs -> let i = index * 3 in Vec3 (xs.(i), xs.(i + 1), xs.(i + 2))
+  | _ -> assert false
+let array_init ty count f =
+  if ty <> Ty.Float && ty <> Ty.Vec3 && ty <> Ty.Any then
+    fail "E_ARRAY_TYPE" "Packed arrays contain float or vec3 values.";
+  let width = if ty = Ty.Vec3 then 3 else 1 in
+  if count < 0 || count > Sys.max_floatarray_length / width then
+    fail "E_ARRAY_RANGE" "Array length is outside native storage bounds.";
+  let data = Array.make (count * width) 0. in
+  for i = 0 to count - 1 do
+    let v = f i in
+    if width = 1 then data.(i) <- fin "array" (num v) else
+      let x, y, z = comps v in
+      data.(3 * i) <- fin "array" x; data.(3 * i + 1) <- fin "array" y; data.(3 * i + 2) <- fin "array" z
+  done;
+  if width = 3 then Vec3_array data else Float_array data
+let rec validate = function
+  | Float f -> ignore (fin "input" f)
+  | Vec3 (x, y, z) -> List.iter (fun x -> ignore (fin "input" x)) [x; y; z]
+  | Float_array xs | Vec3_array xs as v ->
+      ignore (array_length v); Array.iter (fun x -> ignore (fin "array input" x)) xs
+  | List xs -> Array.iter validate xs
+  | Record fs | Struct (_, _, fs) -> List.iter (fun (_, v) -> validate v) fs
+  | _ -> ()

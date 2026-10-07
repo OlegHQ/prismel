@@ -8,9 +8,16 @@ type t = private {
       (** a workspace argument that depends on [t] ({!Flow.Eval.is_live}), evaluated by
           {!Value_lane.resolve} for each time (a scalar, a vec3, a colour text, or a list of vec3
           for a text-encoded list parameter), keyed (node, argument name).  Compare with [==]. *)
+  states : Flow.Eval.value list;
+      (** Frame folds of this workspace, advanced before its live parameters. *)
+  frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t;
+      (** Static-plan-bounded geometry zones rebuilt with an immutable fold
+          snapshot on the initial domain, before worker submission. *)
 }
 
 val of_geometry : Procedural.Edit_graph.t -> t
+val with_states : Flow.Eval.value list -> t -> t
+val with_frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t -> t -> t
 val with_drives : Flow.Eval.value Port.Map.t -> t -> (t, Flow.Diagnostic.t) result
 val validate : t -> (unit, Flow.Diagnostic.t) result
 val parameter : t -> Port.t -> (Port.parameter, Flow.Diagnostic.t) result

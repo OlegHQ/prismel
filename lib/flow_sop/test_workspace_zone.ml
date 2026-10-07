@@ -59,6 +59,46 @@ let move_point session (graph : Lower.graph) operation ~index ~by =
   base, Result.get_ok (Edit.replace_node replaced graph.network.geometry)
 
 let run () =
+  let source ticks = Printf.sprintf {|(workspace frames
+    (graph g :context sop
+      (let* [ticks %s
+             bed (sop/curve (list [0 0 0] [1 0 0]))
+             dots (for [p (sop/point_list bed)]
+                    (sop/transform (sop/uv_sphere :radius 0.1 :segments 8 :rings 4)
+                      :translate (+ p [ticks 0 0])))] (sop/merge dots))))|} ticks in
+  let live = lower (source "(state [n 0.0] (+ n (frame/dt)))") in
+  let graph = List.hd live.graphs in
+  check (Network.Int_map.cardinal graph.network.frame_nodes = 1) "zone captures the fold snapshot";
+  let playback domains =
+    let lane = Value_lane.create () and s = session () in
+    Fun.protect ~finally:(fun () -> Session.close s) (fun () ->
+      let frame i =
+        let input = {(Frame_input.at_time (float i *. 0.25)) with frame = i; dt = 0.25} in
+        let resolved = Result.get_ok (Value_lane.resolve lane ~live:input ~time:input.t graph.network) in
+        let compiled = Result.get_ok (Edit.compile_node resolved.geometry ~node_id:(Option.get graph.root)) in
+        let context = Result.get_ok (Procedural.Context.create ~domains ~grain:1
+          ~input ~time:input.t ~frame:(Int64.of_int i) ()) in
+        let output = Result.get_ok (Session.cook s ~context compiled) in
+        geometry_bytes output.geometry in
+      let values = Array.init 3 (fun i -> frame (i + 1)) in
+      Array.iteri (fun i bytes ->
+        let oracle = List.hd (lower (source (Printf.sprintf "%.17g" (float (i + 1) *. 0.25)))).graphs in
+        let oracle_session = session () in
+        Fun.protect ~finally:(fun () -> Session.close oracle_session) (fun () ->
+          check (bytes = geometry_bytes (cook oracle_session oracle)) "captured fold accumulates in the zone")) values;
+      Value_lane.reset lane;
+      check (frame 3 = values.(0)) "fold reset invalidates the same-frame zone cache";
+      values) in
+  check (playback 1 = playback 3) "captured fold is byte-exact across domains";
+  let nested = {|(workspace invalid (graph g :context sop
+    (let* [bed (sop/curve (list [0 0 0]))]
+      (sop/merge (for [p (sop/point_list bed)]
+        (let* [ticks (state [n 0.0] (+ n 1))]
+          (sop/transform (sop/box) :translate (+ p [ticks 0 0]))))))))|} in
+  (match Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories
+     (Result.get_ok (Flow.Syntax.parse nested)) with
+   | Error d -> check (d.Flow.Diagnostic.code = "E_STATE_ELEMENT") "per-element fold diagnostic"
+   | Ok _ -> fail "a cooked-geometry worker cannot own a frame fold");
   let lowered = lower (garden ~count:12 ()) in
   let graph = List.hd lowered.graphs in
   check (Lower.zone_count lowered ["garden"; "dots"] = None) "no count before a cook";

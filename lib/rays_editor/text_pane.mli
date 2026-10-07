@@ -41,12 +41,12 @@ val binding : Flow.Syntax.t list -> path -> (Flow.Syntax.t option * Flow.Syntax.
 (** The binding a path names in the source: its pattern (none for a [@result]) and expression. *)
 
 val graph_op : Flow.Syntax.t list -> graph:string -> ?selection:path -> string ->
-  (Flow_sop.Flow_edit.op, Flow.Diagnostic.t) result
+  (Flow_graph.Flow_edit.op, Flow.Diagnostic.t) result
 (** The [Set_graph] of the graph form a Graph tab holds, or (with [selection], the shown binding's
     path) of the Selection closure patched into the graph; the error of text that is neither. *)
 
 val paste_ops : Flow.Syntax.t list -> graph:string -> scope:path -> string ->
-  (Flow_sop.Flow_edit.op list, string) result
+  (Flow_graph.Flow_edit.op list, string) result
 (** Pasted text as [Add_node]s of [scope]: [name expr] pairs, or bare expressions named by their
     head.  Names pair by position and are made free of the graph's and of each other; a pasted
     binding that reads an earlier pasted one reads its new name (all renames at once). *)
@@ -92,10 +92,10 @@ type intent =
       (** Check & apply of Selection: patch the shown closure's named bindings
           into one candidate graph, preserving omitted bindings and refusing
           changed results or duplicate names. Check and lower once via
-          {!Flow_sop.Flow_edit.Set_graph}. *)
+          {!Flow_graph.Flow_edit.Set_graph}. *)
   | Binding_discard
   | Graph_draft of string * string  (** the graph's name and its draft text *)
-  | Graph_apply of string * string  (** Check & apply: the graph's form is replaced ({!Flow_sop.Flow_edit.Set_graph}) *)
+  | Graph_apply of string * string  (** Check & apply: the graph's form is replaced ({!Flow_graph.Flow_edit.Set_graph}) *)
   | Graph_discard
   | Menu of (float * float) option  (** the right-click menu opened here, or closed *)
   | Toggle_wrap

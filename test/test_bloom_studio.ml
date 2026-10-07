@@ -64,7 +64,7 @@ let run () =
     objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
         lead = false; inert = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
     root_detail = ""; layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch; notes = [] } in
-  let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked "flower") in
+  let scope = Some (Flow_graph.Projection.of_graph catalog ws.checked "flower") in
   let lines = Array.to_list (Array.map N.describe (N.rows (N.open_graph "flower" N.initial) (params scope))) in
   let listed text = List.exists (fun l -> has l text) lines in
   check (listed "input petals = 12" && listed "input seed = 7") ("the inputs of flower: " ^ String.concat " | " lines);
@@ -76,7 +76,7 @@ let run () =
   (* a click on a row of the Navigator opens that graph in the pane *)
   let row_centre text =
     let active = dump_line !e "pane graph" in
-    let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked active) in
+    let scope = Some (Flow_graph.Projection.of_graph catalog ws.checked active) in
     let rects = N.row_rects (N.open_graph "flower" N.initial) (params ~active scope) ~bounds:(outline ()) in
     let row, (x, y, w, h) = match List.find_opt (fun (r, _) -> has (N.describe r) text) (Array.to_list rects) with
       | Some found -> found | None -> fail ("no Navigator row " ^ text) in
@@ -84,7 +84,7 @@ let run () =
     x +. 20. +. (w /. 8.), y +. h /. 2. in
   (* the open graph's chevron unfolds its node rows *)
   (let active = dump_line !e "pane graph" in
-   let scope = Some (Flow_sop.Projection.of_graph catalog ws.checked active) in
+   let scope = Some (Flow_graph.Projection.of_graph catalog ws.checked active) in
    let rects = N.row_rects (N.open_graph "flower" N.initial) (params ~active scope) ~bounds:(outline ()) in
    match List.find_opt (fun (r, _) -> has (N.describe r) "flower · ") (Array.to_list rects) with
    | Some (_, (x, y, _, h)) -> click (x +. 5., y +. h /. 2.)

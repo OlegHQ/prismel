@@ -1,13 +1,13 @@
 (* The graph pane of a workspace document: draws one
-   [Flow_sop.Projection.scope] with its zones, rails, iteration selectors,
+   [Flow_graph.Projection.scope] with its zones, rails, iteration selectors,
    chips and output rows on the shared PXUI handle, and returns typed
    requests.  It never edits: a gesture is a [Flow_edit.op] the host reduces.
    Every interactive element is a [Ui.box]; a tile's row under the pointer is
    found from the pointer and the tile's rectangle, not from a second hit
    tree. *)
 open Rays
-module P = Flow_sop.Projection
-module E = Flow_sop.Flow_edit
+module P = Flow_graph.Projection
+module E = Flow_graph.Flow_edit
 module S = Flow.Syntax
 module Ty = Flow.Ty
 module Ui = Pxui.Ui
@@ -556,7 +556,7 @@ type t = {
   collapsed : path -> bool;
   lens : (path * int) list;  (* macro calls whose expansion panel is open, and its step *)
   probe : path -> int;
-  records : Flow_sop.Probe.t option;
+  records : Flow_graph.Probe.t option;
   chains : (path, path list) Hashtbl.t;  (* the iterating zones around each node *)
   folds : (path * int, path) Hashtbl.t;  (* a wired row (node, row index) whose one source can fold into it: that node *)
   counts : (path, int) Hashtbl.t;  (* iterations each zone ran, under the probes *)
@@ -661,7 +661,7 @@ let count_of t path = Option.value ~default:0 (Hashtbl.find_opt t.counts path)
 let refresh t = match t.scope, t.records with
   | Some scope, Some records ->
       let counts = Hashtbl.create 16 in
-      List.iter (fun (p, c) -> Hashtbl.replace counts p c) (Flow_sop.Probe.counts records scope ~probe:t.probe);
+      List.iter (fun (p, c) -> Hashtbl.replace counts p c) (Flow_graph.Probe.counts records scope ~probe:t.probe);
       { t with counts }
   | _ -> { t with counts = Hashtbl.create 1 }
 
@@ -728,7 +728,7 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
   let layout = lay t scope ~at ~collapsed in
   let n, z, r = count_scope scope in
   let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
-    chains = Flow_sop.Probe.chains scope; folds = fold_sources scope; wires;
+    chains = Flow_graph.Probe.chains scope; folds = fold_sources scope; wires;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   let t = regeo t scope layout ~shift:no_shift in
   (* an edit that removed or moved a node drops it from the selection *)
@@ -754,7 +754,7 @@ let relayout t = match t.scope with
 
 let with_records records t =
   match t.records with
-  | Some previous when Flow_sop.Probe.same_eval previous records -> { t with records = Some records }
+  | Some previous when Flow_graph.Probe.same_eval previous records -> { t with records = Some records }
   | Some _ -> refresh { t with records = Some records }
   | None -> relayout (refresh { t with records = Some records })
 
@@ -1193,7 +1193,7 @@ let draw_chevron paint ~z ~at:(cx, cy) direction color =
   Ui.Paint.line paint ~from_:(p a) ~to_:(p tip) color; Ui.Paint.line paint ~from_:(p tip) ~to_:(p b) color
 
 let zone_style theme = function
-  | P.For -> Pxui.Theme.zone_for theme | Fold | Scan -> Pxui.Theme.zone_fold theme
+  | P.For -> Pxui.Theme.zone_for theme | Fold | Scan | State -> Pxui.Theme.zone_fold theme
   | Sum -> Pxui.Theme.zone_sum theme | Fn -> Pxui.Theme.zone_fn theme | Let -> Pxui.Theme.zone_let theme
 
 (* the tinted rectangle of an expanded zone: fill and a 1-point edge inside the box; the brackets
@@ -1255,7 +1255,7 @@ let cap_in paint ui ~size ~color ~x ~y ~h label =
   Ui.Paint.text_width paint ~size label +. float (String.length label) *. tracking
 
 let kind_label = function
-  | P.For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let" | Fn -> "fn"
+  | P.For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let" | Fn -> "fn" | State -> "state"
 
 let note_colors theme =
   if Pxui.Theme.dark theme then Color.hex_exn "#4a4220", Color.hex_exn "#f3e6a8"
@@ -1635,7 +1635,7 @@ let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?lens_open ?failed ?hea
 (* The footer row of a node card or a collapsed zone: the value at the probe, a sparkline across
    the innermost zone, the tags; label-size ink-2 over a line-1 hairline.
    The tags use ↑ for the study's ↥ and t for ◷ (DepartureMono lacks both). *)
-let paint_footer paint ui t ~z ~fs (f : Flow_sop.Probe.footer) (ty : Ty.t) ~pad (x, y, w, h) =
+let paint_footer paint ui t ~z ~fs (f : Flow_graph.Probe.footer) (ty : Ty.t) ~pad (x, y, w, h) =
   let theme = t.theme in
   let ls = max 4 (fs - 2) in
   let fh = P.foot_height *. z in
@@ -1864,7 +1864,7 @@ let paint_zone_frame paint ui t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selec
        if zone_uses zn r.names then
          paint_socket paint theme r.ty ~connected:true ~z (x +. 12. *. z, y +. 36. *. z)
    | None -> ());
-  if zn.kind <> P.Let then paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w);
+  if zn.kind <> P.Let && zn.kind <> P.State then paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w);
   paint_rail paint ui t ~z ~fs ~x ~y:(y +. P.head_height *. z) ~w ~expanded:true (P.extra_rails zn);
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
 
@@ -2177,7 +2177,7 @@ let update t ui (frame : Frame.t) =
        List.iter (fun ((p : P.placed), _, _) -> match p.item with
          | P.Item n when (match n.zone with Some _ -> p.collapsed | None -> true) ->
              let chain = Option.value ~default:[] (Hashtbl.find_opt t.chains n.path) in
-             Hashtbl.replace footers n.path (Flow_sop.Probe.footer records n ~probes:(List.map t.probe chain))
+             Hashtbl.replace footers n.path (Flow_graph.Probe.footer records n ~probes:(List.map t.probe chain))
          | _ -> ()) visible
    | _ -> ());
   let finished = ref false and opened = ref None in
@@ -2282,7 +2282,7 @@ let update t ui (frame : Frame.t) =
                          dels := (sink,
                                   [ E.Disconnect { node = n.path; key; fallback = None } ]) :: !dels
                      | _ -> ())) (P.extra_rails zn);
-                  if zn.kind <> P.Let then begin
+                  if zn.kind <> P.Let && zn.kind <> P.State then begin
                     (* the selector of the label row: a button each side of the reading *)
                     let sx, sy, sw, sh, _ = selector_geo ~measure:t.measure ~z ~fs ~w:(p.w *. z) ~count:(count_of t n.path) ~probe:(t.probe n.path) in
                     let sx = sx /. z and sy = sy /. z and sw = sw /. z and sh = sh /. z in

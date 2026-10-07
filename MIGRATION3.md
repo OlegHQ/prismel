@@ -1,10 +1,96 @@
-# Phase 1 close-out and Phase 2 entry: handoff
+# Phase 1 close-out and Phase 2 entry: implementation record
+
+## Completion (2026-10-07)
+
+The implementation follows the four recommended decisions below: closed
+types/contexts and a second immutable operator list; packed lengths are data;
+all frame fields are live; kernel facts remain deferred to Phase 4. The
+historical handoff follows this record.
+
+| Requirement | Implementation and runnable evidence |
+|---|---|
+| Complete live frame | Dependency-free `Frame_input`; `Eval.live` aliases it. `Sketch_support.Live_frame` captures every host event and held key/button before routing. Probes, value lanes, context drives and zone workers receive the same full snapshot. `lib/flow/test_frame.ml` covers accessors, resize/pointer/key changes, events, invalid input, exact float equality and compiled/interpreted agreement. |
+| Frame fold | `(state [previous init] step)`, environment-owned `Eval.state`, atomic failure rollback, stable call/iteration identity, idempotence within a frame, backward-seek/reset/stop/reload/export reset. `test_state.ml`, `test_array.ml` and `test/test_probe.ml` cover accumulation, independent exports and read-only probes. A fold outside a geometry loop is captured for pure worker reads; `flow_sop/test_workspace_zone.ml` checks one/three-domain bytes and same-frame reset invalidation. Worker-local folds are explicitly refused as `E_STATE_ELEMENT`. |
+| State graph and gestures | `Flow_graph.Projection.State` has seed/previous rails, step cards and next-value feedback; no iteration selector. Existing add-node and `Set_arg (Bv (1, 1))` gestures add it and edit its seed. `flow_graph/test_domain.ml` and `test/test_drawing.ml` exercise both routes. |
+| Packed arrays and T2/T3 | Packed finite float/vec3 arrays, constructors, strict access, count/sum, direct packed map/filter/sort/reduce/for/fold/scan/sum. Length is data and can be live or exceed 4,096; graph construction inside packed loops is refused. Structural lists retain the cap and live-count/shape restrictions, including record fields. `lib/flow/test_array.ml` exercises 10,000 elements and deterministic folds. Probe previews retain their separate 4,096-record bound. |
+| Phase 2 gate | `examples/particles/sketch.rays` replaces its OCaml program: 10,000 particles, three deferred Drawing nodes. `test/test_drawing.ml` compares positions/bounces to the original model and exports four fixed frames from OCaml and two fresh Lisp sessions; all three PNG sets are byte-identical. The native test runs under `@runtest-native`. |
+| Typed deferred nodes and Draw domain | `Value.Deferred (Ty.t, id)`, `Eval.node.ty`, `Ty.Drawing`, `Context.Draw`, nine `draw/*` records in a second `Op` list. Native lowering is `Sketch_support.Drawing`, using existing `Scene`/`Ink` commands. `test_op` sweeps all 83 operators; `flow_graph/test_domain.ml` links no geometry library. |
+| Neutral graph boundary | `Projection`, `Flow_edit`, `Exposure` and `Probe` moved from `flow_sop` to `flow_graph` (only `flow`/`param`). `pxui_graph` has no transitive `procedural`/`rdk` dependency; menu entries come from the host. The dependency gate passes with 49 libraries, 50 rules, 15 direct-dependency whitelists and no exceptions. |
+| OCaml workspace inputs | `Workspace.run`/`export` and `Editor3.create`/`run` accept `?inputs`; unknown/duplicate/incompatible overrides are typed errors. Inputs survive source edits/reloads and remain host configuration. `test/test_drawing.ml` and context lowering checks cover preservation and rejection. |
+| Canvas panels | `(ui/canvas drawing)` with stable leaf identity, pane clipping/translation, docked/floating composition and full-window drawing when UI is hidden. Header retype plus `Space l c`/`Space n c` use checked layout edits. Static pictures are cached once per visible pane/plan/size; frame work does not rebuild unchanged point arrays. `test/test_drawing.ml` checks retype, drawing through `Editor3.scene` and 4-vs-10,000-point frame allocations (both 198,263 bytes/frame); `tools/ui_shot.exe` confirms visible and hidden editor pictures. |
+| Architecture/API documentation | `flow.md`, `workspace/iteration.md`, `workspace/ambiguities.md`, `api.md`, `backend.md` and subsystem guides updated. `api_stable.json` accepts the intended API migration and now tracks `frame_input` and `flow_graph`; SOP metadata and `flow_manifest.sexp` are unchanged. |
+
+### Regression and native evidence
+
+Canonical plans, instances, values and records for all 21 existing `.rays`
+files and 12 generated workspace fixtures match their baseline at static
+evaluation and `0`, `0.125`, `1.25`, `7`. The three custom-catalog files
+(gallery, voxel wall and PXUI kit) were compared with their host factories.
+Fixture cooks at capacities 32/512, cold plus seven warm cooks, preserve
+every geometry hash, retained entry count, eviction count and payload byte.
+Completion vocabulary grows; the existing 48-result display cap changes the
+first visible page for an empty query without removing older operators.
+
+Evidence from this run lives under `/tmp/rays-migration3-`: `before.snapshot`,
+`after.snapshot`, `before-values.snapshot`, `after-values.snapshot`,
+`hosts-before.snapshot`, `hosts-after.snapshot`, `before-bench.txt`,
+`after-bench.txt`, `ship.log`, `native-check.log`, `doc.log`,
+`particles-ui.png` and `particles-hidden.png`. The particle export comparison
+also writes `/tmp/rays-drawing-export/{ocaml,lisp-a,lisp-b}`. Frame SHA-256s:
+
+```text
+000000 1b1210c53b9e1ba2e776942a61c85516915f31e9a2ccd9978fdf91b0022f72ec
+000001 cce3b76eb26ef8d341fa939ba92b593b4d8804e16e0f42f6a6a6e0d555b7ef16
+000002 b357b31c3b522dcfdef880c2944d33ee3cc37ad73aaba1a2150104059959b1e5
+000003 8c4b773fb0c5d5360b7ce86da20f52eb12010e158ee674dd37f540d980e73073
+```
+
+Required shipping command `_build/default/tools/check.exe --ship` passes
+(`@all`, `@runtest`, native `@smoke`, `git diff --check`). Focused Flow,
+neutral graph, SOP, graph pane and editor tests pass. Native particle exports,
+23 SOP one/four-domain PNG comparisons and editor rendering pass. The broader
+native run reports a failure in the existing optional runtime teardown
+qualification: physical footprint did not plateau. Runtime, scene execution
+and Metal source files are unchanged by this migration; that memory
+qualification is separate from the required shipping gate.
+
+### Before/after performance
+
+Apple M1, OCaml 5.3.0, Dune dev profile, eight domains available, seven-repeat
+medians; fixture cold cook uses one domain. Command:
+
+```sh
+_build/default/tools/check.exe tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 7
+```
+
+| Fixture | Nodes (unchanged) | Eval ms before → after | Allocated bytes before → after | Lower ms before → after |
+|---|---:|---:|---:|---:|
+| bloom | 84 | 0.106 → 0.117 | 470760 → 514760 | 3.617 → 3.535 |
+| facade | 69 | 0.072 → 0.079 | 291216 → 320128 | 1.701 → 1.737 |
+| garland | 40 | 0.070 → 0.075 | 315488 → 347656 | 2.085 → 2.087 |
+| kit | 24 | 0.031 → 0.032 | 117880 → 127048 | 0.801 → 0.891 |
+| orrery | 56 | 0.137 → 0.147 | 579896 → 627240 | 2.010 → 2.025 |
+| rosette | 39 | 0.044 → 0.046 | 179640 → 197592 | 2.398 → 2.027 |
+| sunflower | 241 | 0.971 → 0.960 | 3887248 → 4310592 | 10.115 → 10.073 |
+| tiles | 193 | 0.318 → 0.360 | 1105008 → 1215384 | 7.263 → 7.177 |
+| tree | 27 | 0.018 → 0.019 | 70168 → 74328 | 1.557 → 1.548 |
+| tunnel | 37 | 0.021 → 0.022 | 94384 → 101440 | 1.467 → 1.464 |
+| variations | 30 | 0.018 → 0.019 | 88064 → 95792 | 0.711 → 0.724 |
+| wave | 13 | 3.663 → 4.120 | 15035576 → 16494488 | 5.702 → 5.891 |
+
+The new frame/fold context carries a measurable allocation cost (about
+6–11% in these evaluator fixtures); this is recorded rather than described
+as an allocation-free change. Geometry retention, evictions, payload and
+hashes remain exact. Compilation/IR kernel optimization remains Phase 4.
+
+## Historical handoff
 
 Date: 2026-10-07. Base: `dev` at `629178d1` (one operator registry, done; `MIGRATION2.md`).
 Roadmap: "Rays Lisp as a compiled language" (the owner's doc). Phase 0 (`MIGRATION.md`) and
 Phase 1 item 1 (`MIGRATION2.md`) are on `dev`. This file is the plan for whoever picks the
 roadmap up next: what the two migrations left for later, measured against the code, and the
-recommended order. Nothing here is built.
+recommended order. The baseline below predates the implementation recorded above.
 
 ## Where the roadmap stands (measured, `dev` 629178d1)
 

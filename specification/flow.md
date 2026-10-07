@@ -12,7 +12,7 @@ What is normative, and where:
 |---|---|---|
 | The language's forms, types, loops, functions, macros, time rules | `workspace/iteration.md` §2 and §7, with the rule register `workspace/ambiguities.md` | `Flow.Syntax`, `Flow.Macro`, `Flow.Workspace`, `Flow.Eval` |
 | The reader, the printer, argument rules, metadata, the editor graph's layout forms | this file, §11 | `Flow.Syntax`, `Flow.Lisp`, `Flow.Workspace`, `Editor_document.Contexts` |
-| The document, layout, exposure, the graph pane, its gestures and keys, carry, the views | this file, §3 to §10 | `Editor_document`, `Flow_sop.Flow_edit`, `Flow_sop.Projection`, `Pxui_graph.Scope`, `Rays_editor` |
+| The document, layout, exposure, the graph pane, its gestures and keys, carry, the views | this file, §3 to §10 | `Editor_document`, `Flow_graph.Flow_edit`, `Flow_graph.Projection`, `Pxui_graph.Scope`, `Rays_editor` |
 | Lowering and live values | this file, §13 | `Flow_sop.Lower`, `Flow_sop.Value_lane` |
 | Materials | `workspace/materials.md` | |
 | The kit the pane is drawn with | `pxui.md` | `Pxui.Theme`, `Pxui.Ui` |
@@ -123,7 +123,7 @@ hoist.
 
 ### 3.5 Edits
 
-Every gesture is one `Flow_sop.Flow_edit.op`. `Flow_edit.apply` rewrites the syntax tree,
+Every gesture is one `Flow_graph.Flow_edit.op`. `Flow_edit.apply` rewrites the syntax tree,
 prints it canonically, parses it again and checks it with `Flow.Workspace.check`; an edit
 that does not check is refused whole and nothing changes. `Editor_document.Workspace_doc.edit`
 does this for a document and moves layout keys in the same transaction. Comments travel
@@ -207,7 +207,7 @@ settings form that does not read is `E_LAYOUT` or `E_SETTINGS`.
 
 ### 5.1 The rule
 
-`Flow_sop.Exposure.shown` is the one place the rule lives. For one row, in order:
+`Flow_graph.Exposure.shown` is the one place the rule lives. For one row, in order:
 
 1. A geometry slot shows. The first slot of a node kind is the header's in-port, not a row.
 2. A driven row (a wire, an expression or a nested node is written there) shows. A pin
@@ -628,7 +628,7 @@ comment or `^:bypass` is still threaded and keeps them on its own line. Shorter 
 prints and re-reads every checked-in workspace).
 
 Every step of a `->`, and every call of a node kind written inside another call, is a node of the
-graph (`Flow_sop.Projection`): a card before the card that holds it, wired to the row it is written
+graph (`Flow_graph.Projection`): a card before the card that holds it, wired to the row it is written
 in. It has no binding, so its path leaf is the holder's leaf, `#`, and the input (§3.4). Its rows
 edit in place (`Set_arg`, `Connect`, `Disconnect`, `Toggle_bypass` take the path); naming it
 (`Rename`, the name field) binds it under that name; deleting it hands its place to its first input;
@@ -761,6 +761,7 @@ places it. All sizes are logical points.
 | `(ui/floating panel)` | a window over the layout (bounds in `(layout (panel ...))`) |
 | `(ui/switch panel... :active n)` | the layouts of the graph; the active one is the tree |
 | `(ui/viewport scene :look_through b)` | a viewport of a scene |
+| `(ui/canvas drawing :focus b)` | a native 2D Canvas over a Drawing value |
 | `(ui/graph ["name"] :wires w :view v)` | the graph pane; `name` pins a graph of the workspace (`def:name` a function), `:wires` is `"rect"` or `"straight"`, `:view` is `"graph"`, `"list"` or `"text"` |
 | `(ui/list :of g)` `(ui/inspector :of g)` | a list view, an inspector; `:of` names the graph panel it shows |
 | `(ui/lisp :tab t :of g)` | a text pane; `:tab` is `"selection"`, `"graph"` or `"document"` |
@@ -912,13 +913,52 @@ playing never evicts static entries. Structure cannot depend on `t` (`E_TIME_COU
 Evaluation and the lane are sequential IEEE double arithmetic with fixed operator semantics,
 so results are identical for one and many domains and across runs with `Sketch.Fixed dt`.
 
+### Frame data and native 2D drawings
+
+The full frame record, `(state [previous init] step)` and packed float/vec3
+arrays follow [iteration.md §2.5](workspace/iteration.md#25-frames-frame-folds-and-packed-arrays).
+All frame fields are live; array lengths are data, while structural lists
+retain T2/T3. A state form has a zone, editable seed rail, step body and
+next-value feedback. New drawing calls, including calls nested in arguments,
+are ordinary typed cards with editable rows.
+
+A graph with `:context draw` returns `Drawing`. Its operators are
+`draw/background`, `draw/point`, `draw/points`, `draw/line`, `draw/rect`,
+`draw/circle`, `draw/text`, `draw/translate` and `draw/merge`. Positions,
+offsets and rectangle sizes are vec3 data (x/y in logical points, z ignored).
+Colors are hex text or RGB vec3s; defaults and keyword types are declared
+in `Flow.Op`. `draw/points` consumes a packed vec3 array; it makes one
+deferred card regardless of particle count. `draw/merge` preserves painter
+order and `draw/translate` scopes a Drawing.
+
+`(ui/canvas (ref picture))` presents that value through native `Scene`
+composition inside the panel's clip and translation. Background fills only
+that Canvas; it does not clear other panes. Docked, floating, repeated and
+bound Canvas leaves keep their own identity. Hiding the UI draws the focused
+Canvas over the whole window. The header menu and `Space l c` retype a pane;
+`Space n c` opens a floating Canvas. These edits use `Flow_edit` and need a
+draw graph to reference (`E_DRAW_GRAPH` when absent).
+
+The add menu lists every Draw operator directly from `Flow.Op`; frame and
+array operators use typed defaults. A static Canvas retains one picture per
+visible pane, invalidated by a new plan or pane size, so unchanged packed
+point arrays are not rebuilt each frame.
+
+`Rays_editor.Workspace.export` uses the same evaluator and Drawing lowering
+with a fresh fold and a fixed clock. It pins logical size, step, frame index,
+pointer, held keys/buttons and events; `examples/particles/sketch.rays` is
+the 10,000-particle reference and its native fixed exports are byte-identical
+to the original OCaml example.
+
 ## 14. Libraries
 
 | Library | Owns, for Flow |
 |---|---|
 | `param` | field schemas, with `primary` and `vec3` |
 | `flow` | `Syntax` (reader), `Lisp` (printer), `Macro`, `Workspace` (checker), `Eval`, `Ty`, `Port_type`, `Context`, `Check` (catalog descriptors and the manifest reader), `Diagnostic` |
-| `flow_sop` | `Catalog`, `Manifest`, `Flow_edit`, `Projection`, `Exposure`, `Probe`, `Lower`, `Network`, `Port`, `Value_lane`, `Curve` |
+| `frame_input` | immutable logical frame facts, validation and exact cache equality |
+| `flow_graph` | `Flow_edit`, `Projection`, `Exposure`, `Probe`, independent of geometry |
+| `flow_sop` | `Catalog`, `Manifest`, `Lower`, `Network`, `Port`, `Value_lane`, `Curve` |
 | `editor_document` | `Workspace_doc`, `Layout_by_path`, `Contexts` (scene, World, settings and editor lowering), `Scene_sync`, `Preset` |
 | `pxui_graph` | `Scope` (the pane) and `Node_menu` |
 | `pxui_shell` | the inspector, the list (`Tree`), the status strip and guide |

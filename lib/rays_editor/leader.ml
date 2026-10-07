@@ -98,6 +98,7 @@ let keymap = [
   command ~id:"window.outline" ~label:"window: outline" ~trigger:(Leader "nu") (Window_new Outline);
   command ~id:"window.timeline" ~label:"window: timeline" ~trigger:(Leader "nm") (Window_new Timeline);
   command ~id:"window.viewport" ~label:"window: viewport" ~trigger:(Leader "nw") (Window_new (View ""));
+  command ~id:"window.canvas" ~label:"window: canvas" ~trigger:(Leader "nc") (Window_new (Canvas ""));
   (* Space l: the focused panel becomes one of the kinds (a document without an editor graph
      gets one written from its layout first) *)
   command ~id:"panel.graph" ~label:"panel: graph" ~trigger:(Leader "lg") (Panel_retype Graph);
@@ -111,6 +112,8 @@ let keymap = [
     (Panel_retype Timeline);
   command ~id:"panel.viewport" ~label:"panel: viewport" ~trigger:(Leader "lw")
     (Panel_retype (View ""));
+  command ~id:"panel.canvas" ~label:"panel: canvas" ~trigger:(Leader "lc")
+    (Panel_retype (Canvas ""));
   command ~id:"scene.world" ~label:"World" ~trigger:(Leader "e") Go_world;
   command ~id:"graph.add-node" ~label:"add (menu)" ~trigger:(Leader "a") Add_node;
   (* the graph's own key for the same menu: with a node selected the pick is wired after it *)
@@ -223,5 +226,5 @@ let describe_prefix = function
   | _ -> None
 
 let pane_name = function
-  | Pxui_shell.Layout.View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
+  | Pxui_shell.Layout.Canvas _ -> "Canvas" | Pxui_shell.Layout.View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
   | Inspector -> "Inspector" | Outline -> "Outline" | Timeline -> "Timeline"

@@ -1,4 +1,4 @@
-type t = Sop | Value | Scene | World | Settings | Editor | Material
+type t = Sop | Value | Draw | Scene | World | Settings | Editor | Material
 (** The context of a graph or a catalog kind.  No kind is an [Editor] kind: an editor graph sees
     the value kinds and its own operators. *)
 

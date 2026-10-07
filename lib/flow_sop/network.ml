@@ -1,9 +1,12 @@
 module Int_map = Map.Make (Int)
 module Int_set = Set.Make (Int)
-type t = { geometry : Procedural.Edit_graph.t; drives : Flow.Eval.value Port.Map.t }
+type t = { geometry : Procedural.Edit_graph.t; drives : Flow.Eval.value Port.Map.t; states : Flow.Eval.value list;
+  frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t }
 let error code message = Error (Flow.Diagnostic.error ~code message)
 let geometry_error result = Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY") result
-let of_geometry geometry = {geometry; drives = Port.Map.empty}
+let of_geometry geometry = {geometry; drives = Port.Map.empty; states = []; frame_nodes = Int_map.empty}
+let with_states states network = {network with states}
+let with_frame_nodes frame_nodes network = {network with frame_nodes}
 let fields network ~node_id = match Procedural.Edit_graph.find network.geometry ~node_id with
   | Some node ->
       let fields = Procedural.Node.parameter_fields node in
@@ -46,5 +49,6 @@ let remove_nodes ids network =
   let removed = Int_set.of_list ids in
   let geometry_ids = List.filter (fun id -> Procedural.Edit_graph.find network.geometry ~node_id:id <> None) ids in
   if geometry_ids = [] then Ok network else
-    Ok {geometry = Procedural.Edit_graph.remove_nodes geometry_ids network.geometry;
+    Ok {network with geometry = Procedural.Edit_graph.remove_nodes geometry_ids network.geometry;
+        frame_nodes = Int_map.filter (fun id _ -> not (Int_set.mem id removed)) network.frame_nodes;
         drives = Port.Map.filter (fun (target : Port.t) _ -> not (Int_set.mem target.node removed)) network.drives}

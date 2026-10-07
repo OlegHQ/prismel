@@ -1,19 +1,20 @@
 type t =
-  | Geometry | Float | Int | Bool | Vec3 | Text | Color
-  | List of t | Record of (string * t) list | Fn | Any
+  | Geometry | Drawing | Float | Int | Bool | Vec3 | Text | Color
+  | List of t | Array of t | Record of (string * t) list | Fn | Any
   | Scene | World | Settings | Panel | Editor | Material
 
-let names = [ "geometry", Geometry; "float", Float; "int", Int; "bool", Bool;
+let names = [ "geometry", Geometry; "drawing", Drawing; "float", Float; "int", Int; "bool", Bool;
   "vec3", Vec3; "text", Text; "color", Color; "fn", Fn; "any", Any;
   "scene", Scene; "world", World; "settings", Settings; "panel", Panel;
   "editor", Editor; "material", Material ]
 
 let of_context = function
-  | Context.Sop -> Geometry | Value -> Float | Scene -> Scene | World -> World
+  | Context.Draw -> Drawing | Context.Sop -> Geometry | Value -> Float | Scene -> Scene | World -> World
   | Settings -> Settings | Editor -> Editor | Material -> Material
 
 let rec to_string = function
   | List e -> "list:" ^ to_string e
+  | Array e -> "array:" ^ to_string e
   | Record fs -> "rec{" ^ String.concat ","
       (List.map (fun (n, t) -> n ^ ":" ^ to_string t) fs) ^ "}"
   | t -> fst (List.find (fun (_, u) -> u = t) names)
@@ -26,6 +27,9 @@ let of_string s =
   let rec ty i =
     if starts i "list:" then
       let* e, j = ty (i + 5) in Some (List e, j)
+    else if starts i "array:" then
+      let* e, j = ty (i + 6) in
+      if e = Float || e = Vec3 || e = Any then Some (Array e, j) else None
     else if starts i "rec{" then fields (i + 4) []
     else
       let j = ref i in
@@ -61,13 +65,15 @@ let rec of_syntax (x : Syntax.t) = match x.node with
         | _ -> None in
       Option.map (fun fs -> Record fs) (go [] items)
   | List [{node = Sym "list"; _}; inner] -> Option.map (fun t -> List t) (of_syntax inner)
+  | List [{node = Sym "array"; _}; inner] ->
+      (match of_syntax inner with Some (Float | Vec3 as t) -> Some (Array t) | _ -> None)
   | _ -> None
 
-let elem = function List e -> Some e | _ -> None
+let elem = function List e | Array e -> Some e | _ -> None
 
 let rec has_fn = function
   | Fn -> true
-  | List e -> has_fn e
+  | List e | Array e -> has_fn e
   | Record fs -> List.exists (fun (_, t) -> has_fn t) fs
   | _ -> false
 
@@ -81,6 +87,7 @@ let rec fits have want =
   || (want = Vec3 && num have)
   || (match have, want with
       | List h, List w -> fits h w
+      | Array h, Array w -> h = w || h = Any || w = Any
       | Record hs, Record ws ->
           List.for_all (fun (n, w) -> match List.assoc_opt n hs with
             | Some h -> fits h w | None -> false) ws
@@ -90,6 +97,7 @@ let rec coerce have want =
   if want = Any || have = Any || have = want then have
   else match have, want with
     | List h, List w -> List (coerce h w)
+    | Array h, Array w -> Array (if w = Any then h else w)
     | Record hs, Record ws ->
         Record (List.map (fun (n, h) -> match List.assoc_opt n ws with
           | Some w -> (n, coerce h w) | None -> (n, h)) hs)
@@ -104,6 +112,7 @@ let rec join a b =
   else match a, b with
     | (Int | Float), (Int | Float) -> Some Float
     | List x, List y -> Option.map (fun t -> List t) (join x y)
+    | Array x, Array y -> Option.map (fun t -> Array t) (join x y)
     | Record xs, Record ys
       when List.length xs = List.length ys
         && List.for_all (fun (n, _) -> List.mem_assoc n ys) xs ->

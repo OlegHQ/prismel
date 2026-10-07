@@ -77,6 +77,7 @@ let rec walk f (x : Workspace.term) =
   | Vec ts | List_lit ts | Str ts | List_op (_, ts) | Hof (_, ts) | Call_fn { args = ts; _ } -> all ts
   | Call { args; _ } | Op { args; _ } | Graph_ref { inputs = args; _ } | Record args -> named args
   | Let (bs, r) -> named bs; walk f r
+  | State {init; step; _} -> all [init; step]
   | Loop { accs; clauses; body; _ } -> named accs; named clauses; walk f body
   | If (a, b, c) -> all [ a; b; c ]
   | Cond (arms, d) -> List.iter (fun (a, b) -> all [ a; b ]) arms; walk f d
@@ -293,7 +294,7 @@ let () = (* 5. macros *)
 let () = (* 6. bypass, notes *)
   t "bypass passes the first input through" (fun () ->
     let r = run (check (sop "(let* [a (sop/box) b ^:bypass (sop/transform a :translate [5 0 0])] b)")) in
-    assert (Array.length r.plan.nodes = 1 && result r "g" = Eval.Geo 0);
+    assert (Array.length r.plan.nodes = 1 && result r "g" = Eval.Deferred (Ty.Geometry, 0));
     (* a bypassed value call passes its first input, coerced *)
     is (value "(let* [a 2 b ^:bypass (+ a 3)] b)") (Eval.Int 2));
   t "notes survive print and the workspace still runs" (fun () ->
@@ -332,11 +333,11 @@ let () = (* t: live values and the split evaluation *)
     (match arg n "translate", arg n "uniform_scale" with
      | Eval.Residual res, Eval.Int 2 ->
          assert (Eval.is_live (arg n "translate"));
-         assert (Eval.residual_eval res ~live:{ t = 3. } = Ok (Eval.Vec3 (6., 0., 0.)));
-         assert (Eval.residual_eval res ~live:{ t = 0.5 } = Ok (Eval.Vec3 (1., 0., 0.)))
+         assert (Eval.residual_eval res ~live:(Frame_input.at_time (3. )) = Ok (Eval.Vec3 (6., 0., 0.)));
+         assert (Eval.residual_eval res ~live:(Frame_input.at_time (0.5 )) = Ok (Eval.Vec3 (1., 0., 0.)))
      | _ -> failwith "translate is not a residual");
-    assert (Eval.force (arg n "translate") ~live:{ t = 1. } = Ok (Eval.Vec3 (2., 0., 0.)));
-    assert (Eval.force (Eval.Int 4) ~live:{ t = 1. } = Ok (Eval.Int 4)));
+    assert (Eval.force (arg n "translate") ~live:(Frame_input.at_time (1. )) = Ok (Eval.Vec3 (2., 0., 0.)));
+    assert (Eval.force (Eval.Int 4) ~live:(Frame_input.at_time (1. )) = Ok (Eval.Int 4)));
   t "residuals: values, if on values, fold, fn, ref and shared chains" (fun () ->
     let at src time = match Eval.run ~time (check src) with
       | Ok r -> result r "g" | Error d -> failwith (Diagnostic.to_string d) in
@@ -385,7 +386,7 @@ let () =
     let wave = check (read (Filename.concat cases "wave.lisp")) in
     let s = static wave in
     let forced = List.fold_left (fun n (node : Eval.node) ->
-      List.fold_left (fun n (_, v) -> ignore (Eval.force v ~live:{ t = 1.5 }); n + Eval.Private.compiled v) n node.args)
+      List.fold_left (fun n (_, v) -> ignore (Eval.force v ~live:(Frame_input.at_time (1.5 ))); n + Eval.Private.compiled v) n node.args)
       0 (Array.to_list s.plan.nodes) in
     assert (forced > 0));
   t "compiled residuals: loops, ifs, lets, vectors and shared chains" (fun () ->
@@ -526,7 +527,7 @@ let () = (* L6, L14, F3: accumulators, ref overrides, sum types *)
     let merge = List.hd (nodes_of r "sop/merge") in
     (* the two refs with the same tuple wire the same node *)
     match merge.args with
-    | [ (_, Eval.Geo a); (_, Geo b); (_, Geo c); (_, Geo d) ] -> assert (a = d && b = c && a <> b)
+    | [ (_, Eval.Deferred (Ty.Geometry, a)); (_, Deferred (Ty.Geometry, b)); (_, Deferred (Ty.Geometry, c)); (_, Deferred (Ty.Geometry, d)) ] -> assert (a = d && b = c && a <> b)
     | _ -> failwith "merge inputs");
   t "L14: inputs override from OCaml and are coerced" (fun () ->
     let ws = check "(workspace w (graph g :context value [(n : float 2)] (* n 3)))" in
@@ -542,7 +543,7 @@ let () = (* W5: records are bounded, per path and iteration tuple *)
     let inner = List.find (fun (p, l) -> List.length l = 4096 && List.mem "x" p) rs in
     assert (List.length (snd inner) = 4096);
     let rs = records (sop "(let* [a (sop/box)] a)") in
-    assert (first_at rs [ "g"; "a" ] = Eval.Geo 0);
+    assert (first_at rs [ "g"; "a" ] = Eval.Deferred (Ty.Geometry, 0));
     (* nothing is recorded unless asked *)
     assert ((run (check (value "(sum [i (range 3)] i)"))).records = []))
 
@@ -574,10 +575,10 @@ let () = (* W8: a loop over geometry is one zone node with a template body *)
     let p = arg tr "translate" in
     assert (Eval.is_live p);
     let key = Eval.element_key [ "g"; "dots" ] in
-    (match Eval.force ~elems:[ (key, Eval.Vec3 (1., 2., 3.)) ] p ~live:{ Eval.t = 0. } with
+    (match Eval.force ~elems:[ (key, Eval.Vec3 (1., 2., 3.)) ] p ~live:(Frame_input.at_time (0. )) with
      | Ok (Eval.Vec3 (1., 2., 3.)) -> ()
      | _ -> failwith "element not bound");
-    assert (Result.is_error (Eval.force p ~live:{ Eval.t = 0. }));
+    assert (Result.is_error (Eval.force p ~live:(Frame_input.at_time (0. ))));
     (* not a list: only sop/merge takes it, and the structure cannot read the element *)
     err (sop "(let* [g (sop/grid) n (count (for [p (sop/point_list g)] (sop/box)))] g)") "E_TYPE";
     err (sop "(let* [g (sop/grid)] (sop/merge (for [p (sop/point_list g)] (if (> p.x 0) (sop/box) (sop/grid)))))") "E_ZONE";

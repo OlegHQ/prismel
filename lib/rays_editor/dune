@@ -5,5 +5,5 @@
   core_model core_shell core_inspect core_panes core_scope core_add core_list core_setup core_status core_actions
   core_text core_panels core_menu core_carry core_reduce core_host core environment
   viewport3 renderer)
- (libraries editor_document rays rays_pathtracer procedural flow flow_sop editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support unix)
+ (libraries editor_document rays rays_pathtracer procedural flow flow_sop flow_graph editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support unix)
  (preprocess (pps rays.ppx)))

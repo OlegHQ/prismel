@@ -1,3 +1,8 @@
-(executable
- (name main)
- (libraries rays))
+(rule
+ (target main.ml)
+ (deps sketch.rays)
+ (action
+  (chdir %{workspace_root}
+   (with-stdout-to %{target} (run %{bin:rays-lisp} ml %{dep:sketch.rays})))))
+
+(executable (name main) (libraries rays_editor))

@@ -1,6 +1,7 @@
 (* W2: every workspace fixture lowers and cooks, byte for byte the same at 1
    and 3 domains; node counts; provenance. *)
 open Flow_sop
+open Flow_graph
 
 let fail message = failwith ("test_workspace_cook: " ^ message)
 let check condition message = if not condition then fail message

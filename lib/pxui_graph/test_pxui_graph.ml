@@ -81,7 +81,12 @@ let run_menu () =
   check (picks (opened nested) [ Event.TextInput "prmtv"; Event.KeyPressed Input.Enter ] = Some "box")
     "node search did not use the shared fuzzy matching rule";
   (* every generated SOP can be reached by typing its key *)
-  let entries = Node_menu.entries_of_factories Sop_catalog.Editor.factories in
+  let entries = List.map (fun factory -> Node_menu.{
+    key = Procedural.Edit_graph.factory_key factory;
+    label = Procedural.Edit_graph.factory_label factory;
+    category = Procedural.Edit_graph.factory_category factory;
+    arity = Procedural.Edit_graph.factory_arity factory;
+    context = "sop"; output = Flow.Ty.Geometry; off = None }) Sop_catalog.Editor.factories in
   check (List.length entries = List.length Sop_catalog.Editor.factories)
     "the menu conversion dropped a generated SOP descriptor";
   List.iter (fun (e : Node_menu.entry) ->
@@ -97,7 +102,7 @@ let run_menu () =
 (* ------------------------------------------------- the workspace pane (W4) *)
 
 module Scope = Pxui_graph.Scope
-module P = Flow_sop.Projection
+module P = Flow_graph.Projection
 
 let cases = "../specification/workspace/cases"
 let scope_catalog = Editor_document.Contexts.catalog ~version:1 Sop_catalog.Editor.factories |> Result.get_ok
@@ -114,7 +119,7 @@ let scope_step view (frame : Frame.t) =
   let view, _ = Pxui.Ui.frame scope_ui settle (fun ui -> Scope.update view ui settle) in
   Pxui.Ui.frame scope_ui frame (fun ui -> Scope.update view ui frame)
 let recorded ?inputs workspace =
-  Flow_sop.Probe.make (Result.get_ok (Flow.Eval.static ~record:true ?inputs workspace))
+  Flow_graph.Probe.make (Result.get_ok (Flow.Eval.static ~record:true ?inputs workspace))
 let scope_view ?inputs ?probe ?at ?level ?collapsed workspace graph =
   let scope = P.of_graph scope_catalog workspace graph in
   Scope.create ~width:1000 ~height:700 ()
@@ -191,7 +196,7 @@ let scope_levels () =
   check (List.exists (fun (r : P.row) -> r.head) node_c.rows) "the first geometry slot is not the header's";
   (* a wire that would pass under a card bends clear of it: a -> c crosses b *)
   let wires = List.init (Scope.Private.wire_count view) Fun.id in
-  let crossing = List.find (fun i -> Scope.Private.wire_target view i = Some (c, Flow_sop.Flow_edit.Pos 0)) wires in
+  let crossing = List.find (fun i -> Scope.Private.wire_target view i = Some (c, Flow_graph.Flow_edit.Pos 0)) wires in
   let pts = Scope.Private.wire_points view crossing in
   check (List.length pts >= 3) "a wire under a card was not bent";
   let bx, by, bw, bh = Option.get (Scope.Private.box_of view b) in
@@ -226,7 +231,7 @@ let scope_levels () =
   let v, _ = scope_step v (frame ~mouse:stop ~events:[ mouse_move stop ] ()) in
   let _, changes = scope_step v (frame ~mouse:stop ~events:[ mouse_release (Input.LeftButton, stop) ] ()) in
   check (List.exists (function
-    | Scope.Syntax_edit (Flow_sop.Flow_edit.Connect { node; key = Flow_sop.Flow_edit.Pos 0; src = "b"; _ }) -> node = c
+    | Scope.Syntax_edit (Flow_graph.Flow_edit.Connect { node; key = Flow_graph.Flow_edit.Pos 0; src = "b"; _ }) -> node = c
     | _ -> false) changes) "a wire dropped on the header did not connect the first slot";
   (* f: letter hints; a letter connects the selected output *)
   let hint_view, notices = Scope.run_command (Scope.select [ b ] view) Scope.Show_hints in
@@ -237,7 +242,7 @@ let scope_levels () =
     let f = frame ~keys:[ key ] () in
     Pxui.Ui.frame scope_ui f (fun ui -> Scope.update v ui f) in
   let v, changes = one_frame (Input.KeyChar 'a') hint_view in
-  let connects = List.filter (function Scope.Syntax_edit (Flow_sop.Flow_edit.Connect { src = "b"; _ }) -> true | _ -> false)
+  let connects = List.filter (function Scope.Syntax_edit (Flow_graph.Flow_edit.Connect { src = "b"; _ }) -> true | _ -> false)
     changes in
   check (connects <> [] && not (Scope.editing v)) "a hint letter did not connect and end the hints";
   let esc, _ = one_frame Input.Escape hint_view in
@@ -280,7 +285,7 @@ let scope_levels () =
   let fx, fy = match Scope.Private.fold_button lview sphere (row "radius") with
     | Some at -> at | None -> fail "a row wired from a single-use node has no fold button" in
   let _, changes = scope_click lview (int_of_float fx, int_of_float fy) in
-  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Fold_into { node = [ "g"; "k" ] })) changes)
+  check (List.mem (Scope.Syntax_edit (Flow_graph.Flow_edit.Fold_into { node = [ "g"; "k" ] })) changes)
     "a click on the fold button did not fold the source into the row";
   (* taking the wire off a named argument writes its schema default: the row stays on the card *)
   let rx, ry = Option.get (Scope.Private.row_center lview sphere (row "radius")) in
@@ -288,7 +293,7 @@ let scope_levels () =
   let hovered, _ = scope_step lview (frame ~mouse:at ~events:[ mouse_move at ] ()) in
   let default = Option.get (List.nth rows (row "radius")).default in
   (match snd (Scope.run_command hovered Scope.Delete) with
-   | [ Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect { node; key = Flow_sop.Flow_edit.Kw "radius"; fallback = Some f }) ] ->
+   | [ Scope.Syntax_edit (Flow_graph.Flow_edit.Disconnect { node; key = Flow_graph.Flow_edit.Kw "radius"; fallback = Some f }) ] ->
        check (node = sphere && Flow.Lisp.flat f = default) "the wire taken off radius did not fall back to its default"
    | _ -> fail "Delete over a wired row is not a Disconnect with the default")
 
@@ -460,7 +465,7 @@ let scope_carry () =
   ignore (scope_step marked (frame ()))
 
 let scope_gestures () =
-  let module E = Flow_sop.Flow_edit in
+  let module E = Flow_graph.Flow_edit in
   let module S = Flow.Syntax in
   let syntax op = Scope.Syntax_edit op in
   (* a large window keeps the zoom at 1, where every field is built *)
@@ -843,13 +848,13 @@ let run_scope () =
   let view, _ = scope_step view (frame ~mouse:stop ~events:[mouse_move stop] ()) in
   let _, changes = scope_step view (frame ~mouse:stop ~events:[mouse_release (Input.LeftButton, stop)] ()) in
   check (List.exists (function
-      | Scope.Syntax_edit (Flow_sop.Flow_edit.Connect { node; src = "bloom"; iter = false; _ }) -> node = target
+      | Scope.Syntax_edit (Flow_graph.Flow_edit.Connect { node; src = "bloom"; iter = false; _ }) -> node = target
       | _ -> false) changes) "a wire dropped on a row did not become Connect";
   (* delete: the selected node *)
   let view, _ = scope_click view start in
   let view = Scope.select [ heart ] view in
   let _, changes = Scope.run_command view Scope.Delete in
-  check (changes = [ Scope.Syntax_edit (Flow_sop.Flow_edit.Delete_nodes { nodes = [ heart ] }) ])
+  check (changes = [ Scope.Syntax_edit (Flow_graph.Flow_edit.Delete_nodes { nodes = [ heart ] }) ])
     "Delete did not become Delete_nodes";
   (* wire selection and deletion *)
   check (Scope.Private.wire_count view > 0) "there are wires in the graph";
@@ -867,7 +872,7 @@ let run_scope () =
   check (Scope.Private.selected_wire view <> None) "clicking wire selected it";
   check (Scope.selected view = []) "clicking wire cleared node selection";
   let _, changes = Scope.run_command view Scope.Delete in
-  check (match changes with [ Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect _) ] -> true | _ -> false)
+  check (match changes with [ Scope.Syntax_edit (Flow_graph.Flow_edit.Disconnect _) ] -> true | _ -> false)
     "Delete on selected wire emitted Disconnect";
   (* a right-click on a node makes the nodes the selection again: Delete then removes the node *)
   let hx, hy, _, _ = Option.get (Scope.Private.box_of view heart) in
@@ -875,7 +880,7 @@ let run_scope () =
   let menu, changes = scope_step view (frame ~mouse:at ~events:[ mouse_move at; mouse_press (Input.RightButton, at);
     mouse_release (Input.RightButton, at) ] ()) in
   check (List.mem (Scope.Selected [ heart ]) changes) "a right-click on a node did not emit Selected";
-  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Delete_nodes { nodes = [ heart ] })) (snd (Scope.run_command menu Scope.Delete)))
+  check (List.mem (Scope.Syntax_edit (Flow_graph.Flow_edit.Delete_nodes { nodes = [ heart ] })) (snd (Scope.run_command menu Scope.Delete)))
     "Delete after a right-click on a node removed the wire selected before";
   (* a wire inside a loop's body is hovered and selected like any other: its boxes lie over the zone's tile *)
   let lw = Editor_document.Workspace_doc.of_text scope_catalog
@@ -893,7 +898,7 @@ let run_scope () =
   check (List.length (Scope.Private.highlighted_connections hovered) = 1) "a wire inside a loop is not hovered";
   let picked, _ = scope_click lview mid in
   check (match snd (Scope.run_command picked Scope.Delete) with
-    | Scope.Syntax_edit (Flow_sop.Flow_edit.Disconnect { node; _ }) :: _ -> node = inner | _ -> false)
+    | Scope.Syntax_edit (Flow_graph.Flow_edit.Disconnect { node; _ }) :: _ -> node = inner | _ -> false)
     "a wire inside a loop is not selected by a click";
   (* keys and menu: every key command maps to a request *)
   let some name = check (List.exists (fun (c : (_, Scope.command) Editor_core.Command.t) -> c.id = "scope." ^ name)
@@ -901,7 +906,7 @@ let run_scope () =
   List.iter some [ "delete"; "fold"; "unfold"; "hoist"; "bypass"; "repeat"; "iterate"; "function"; "collapse";
                    "probe-prev"; "probe-next"; "frame-all"; "walk.left" ];
   let _, changes = Scope.run_command (Scope.select [ heart ] view) Scope.Bypass in
-  check (changes = [ Scope.Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = heart }) ]) "Bypass";
+  check (changes = [ Scope.Syntax_edit (Flow_graph.Flow_edit.Toggle_bypass { node = heart }) ]) "Bypass";
   (* W9: the macro lens, the bypass flag, the make-macro key *)
   let w = load_workspace "rosette" in
   let view, scope = scope_view w "rosette" in
@@ -934,11 +939,11 @@ let run_scope () =
   let view, _ = scope_step view (frame ()) in
   let bx, by, bw, bh = Option.get (Scope.Private.box_of view outer) in
   check (bh > (let _, _, _, h0 = Option.get (Scope.Private.box_of (fst (scope_view w "rosette")) outer) in h0)
-         && bw >= Flow_sop.Projection.lens_width *. Scope.zoom view -. 1.) "an open panel grows its card";
+         && bw >= Flow_graph.Projection.lens_width *. Scope.zoom view -. 1.) "an open panel grows its card";
   ignore (bx, by);
   let rx, ry = Option.get (Scope.Private.lens_replace view outer) in
   let _, changes = scope_click view (int_of_float rx, int_of_float ry) in
-  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Inline_macro { node = outer })) changes)
+  check (List.mem (Scope.Syntax_edit (Flow_graph.Flow_edit.Inline_macro { node = outer })) changes)
     "the replace button did not become Inline_macro";
   let tx, ty = Option.get (Scope.Private.lens_toggle view outer) in
   let view, _ = scope_click view (int_of_float tx, int_of_float ty) in
@@ -946,7 +951,7 @@ let run_scope () =
   (* bypass is the b key (and the context menu): the same request, and a card with nothing to pass
      through has none *)
   let _, changes = Scope.run_command (Scope.select [ soft ] view) Scope.Bypass in
-  check (List.mem (Scope.Syntax_edit (Flow_sop.Flow_edit.Toggle_bypass { node = soft })) changes)
+  check (List.mem (Scope.Syntax_edit (Flow_graph.Flow_edit.Toggle_bypass { node = soft })) changes)
     "the b key did not become Toggle_bypass";
   check ((Option.get (P.find scope soft)).bypass) "soft is authored bypassed";
   (* m asks the host for the make-macro dialog over the selection *)
@@ -1008,12 +1013,12 @@ let bench_scope_pane () =
     Scope.create ~width:1000 ~height:700 ()
     |> Scope.with_scope ~key:"orrery" scope
     |> fun view -> match records with
-      | None -> view | Some t -> Scope.with_records (Flow_sop.Probe.make ~time:t evaluated) view in
+      | None -> view | Some t -> Scope.with_records (Flow_graph.Probe.make ~time:t evaluated) view in
   time "orrery pane, no records" (live_view None) (fun view ui f -> Scope.update view ui f);
   let t = ref 0. in
   time "orrery pane, live records" (live_view (Some 0.)) (fun view ui f ->
     t := !t +. 0.016;
-    Scope.update (Scope.with_records (Flow_sop.Probe.make ~time:!t evaluated) view) ui f)
+    Scope.update (Scope.with_records (Flow_graph.Probe.make ~time:!t evaluated) view) ui f)
 
 (* 2,001 nodes in one scope: laying it out and painting a frame.  Command:
    dune exec test/test_main.exe -- bench_scope_big *)
@@ -1043,5 +1048,5 @@ let bench_scope_big () =
   (* one tick of a scrub: the rewrite, the print, the parse and the check *)
   let forms = Flow.Syntax.parse (big_text 2001) |> Result.get_ok in
   time "2001 nodes: Set_arg edit" 5 (fun () ->
-    Flow_sop.Flow_edit.apply_checked scope_catalog forms (Flow_sop.Flow_edit.Set_arg { node = [ "g"; "n5" ];
+    Flow_graph.Flow_edit.apply_checked scope_catalog forms (Flow_graph.Flow_edit.Set_arg { node = [ "g"; "n5" ];
       key = Kw "translate"; sub = [ 0 ]; value = Flow.Syntax.make (Flow.Syntax.Num "3") }))

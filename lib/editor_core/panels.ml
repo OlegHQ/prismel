@@ -1,4 +1,4 @@
-type panel = View of string | Graph | List | Lisp | Inspector | Outline | Timeline
+type panel = View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline
 type axis = [ `H | `V ]
 type size = [ `Ratio of float | `First of int | `Second of int ]
 type t =
@@ -17,7 +17,7 @@ let default = Split { axis = `H; size = `Ratio 0.45; a = Leaf main;
   b = Split { axis = `H; size = `Ratio (0.35 /. 0.55); a = Leaf Graph; b = Leaf Inspector } }
 
 let name = function
-  | View _ -> "VIEW" | Graph -> "GRAPH" | List -> "LIST" | Lisp -> "LISP"
+  | Canvas _ -> "CANVAS" | View _ -> "VIEW" | Graph -> "GRAPH" | List -> "LIST" | Lisp -> "LISP"
   | Inspector -> "INSPECTOR" | Outline -> "OUTLINE" | Timeline -> "TIMELINE"
 
 let leaves tree =
@@ -78,7 +78,7 @@ let rec to_string = function
 (* ---- layout names: a pure reading of the tree ---- *)
 
 let word = function
-  | View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
+  | Canvas _ -> "Canvas" | View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
   | Inspector -> "Inspector" | Outline -> "Outline" | Timeline -> "Timeline"
 
 (* the tree without its floats; [None] when nothing is docked *)

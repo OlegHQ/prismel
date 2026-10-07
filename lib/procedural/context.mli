@@ -3,7 +3,7 @@
 module Cancel = Rdk.Cancel
 
 module Dependencies : sig
-  type fact = Frame | Time | Seed | Domains | Grain
+  type fact = Frame | Time | Seed | Domains | Grain | Input
   type t
 
   val static : t
@@ -19,6 +19,7 @@ type t
 val create :
   ?frame:int64 ->
   ?time:float ->
+  ?input:Frame_input.t ->
   ?seed:int64 ->
   ?domains:int ->
   ?grain:int ->
@@ -28,6 +29,9 @@ val create :
 
 val frame : t -> int64
 val time : t -> float
+val input : t -> Frame_input.t
+(** Full logical frame. Its time and index follow this context's clock. *)
+
 val seed : t -> int64
 val domains : t -> int
 val grain : t -> int

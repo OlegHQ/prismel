@@ -1,7 +1,7 @@
 (** Canvas layout keyed by {!type:Flow.Workspace.path}: the fields of
     the workspace's active layout.  Scope consumes positions, detail levels with their pins,
     collapsed zones and frames.  A path is the lexical identity of a binding, so a key
-    survives every text edit that keeps the path; {!Flow_sop.Flow_edit.remap}
+    survives every text edit that keeps the path; {!Flow_graph.Flow_edit.remap}
     rewrites keys in the same transaction as a rename or a hoist.
 
     Persisted as one [(layout ...)] s-expression after the workspace:
@@ -27,7 +27,7 @@ type t = {
       (** Saved panel disclosure and floating window bounds, keyed by editor graph and binding. *)
   at : (float * float) Path_map.t;
   pinned : bool Path_map.t;  (** opened explicitly: the node ignores the zoom caps *)
-  level : Flow_sop.Projection.level Path_map.t;
+  level : Flow_graph.Projection.level Path_map.t;
       (** the detail level of a node (absent: a card), by path like [at] *)
   rows : bool String_map.t Path_map.t;
   collapsed : bool Path_map.t;

@@ -2,7 +2,7 @@
    s-expressions, and the editor opened on a workspace: history labels, one
    entry per gesture, live `t` recooked and static nodes cached. *)
 open Rays
-open Flow_sop
+open Flow_graph
 module E = Flow_edit
 module S = Flow.Syntax
 module Doc = Editor_document.Workspace_doc
@@ -57,7 +57,7 @@ let part_text () =
   let doc = of_text ~settings:(settings (0., "a")) text in
   check (Doc.name doc = "study") "name";
   check (Layout.Path_map.find [ "g"; "a" ] doc.layout.at = (120., 48.)) "layout at";
-  check (Layout.Path_map.find [ "g"; "a" ] doc.layout.level = Flow_sop.Projection.Full
+  check (Layout.Path_map.find [ "g"; "a" ] doc.layout.level = Flow_graph.Projection.Full
          && Layout.Path_map.find [ "g"; "a" ] doc.layout.pinned) "layout level and pin";
   check (Layout.Path_map.find [ "g"; "b" ] doc.layout.at = (300.5, 40.)) "layout float";
   check ((List.hd (Layout.Path_map.find [ "g" ] doc.layout.frames)).title = "Legs") "frames";
@@ -259,7 +259,7 @@ let part_pane_layout () =
   let ws = fst (opened.workspace) in
   let ws = { ws with layout = { ws.layout with at = M.add [ "g"; "a" ] (40., 60.) ws.layout.at;
                                                collapsed = M.add [ "g"; "b" ] true ws.layout.collapsed;
-                                               level = M.add [ "g"; "gone" ] Flow_sop.Projection.Full ws.layout.level;
+                                               level = M.add [ "g"; "gone" ] Flow_graph.Projection.Full ws.layout.level;
                                                pinned = M.add [ "nograph"; "a" ] true ws.layout.pinned } } in
   let again = of_text (Doc.to_text ws) in
   check (M.find [ "g"; "a" ] again.layout.at = (40., 60.) && M.mem [ "g"; "b" ] again.layout.collapsed)

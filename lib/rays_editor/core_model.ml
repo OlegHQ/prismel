@@ -28,9 +28,9 @@ type projection = Graph_view | List_view | Text_view
 type scope_key = {
   ws : Workspace_doc.t; probe_map : int Layout_by_path.Path_map.t; graph : string;
   evaluated : Flow.Eval.t option;
-  summaries : Cook.summary list; time : float option;
-  records : Flow_sop.Probe.t option;
-  scope : Flow_sop.Projection.scope;
+  summaries : Cook.summary list; time : Frame_input.t option;
+  records : Flow_graph.Probe.t option;
+  scope : Flow_graph.Projection.scope;
   targets : (int * int) list;  (* (object, compiled node) the cook is asked to count *)
 }
 
@@ -55,11 +55,11 @@ type prompt =
   | Palette of string  (* command search query *)
   | Jumping of string  (* Space j: graph search query *)
   | Browsing of { query : string; presets : (string * float) list; last_state : float option }
-  | Making_macro of { nodes : Flow.Workspace.path list; draft : Flow_sop.Flow_edit.macro_draft;
+  | Making_macro of { nodes : Flow.Workspace.path list; draft : Flow_graph.Flow_edit.macro_draft;
                       state : Pxui_shell.Prompt.macro }  (* the make-macro dialog *)
 
 type prompt_intent = Save_preset_file of string | Load_preset_file of string | Load_last_state
-  | Edit_source of Flow_sop.Flow_edit.op  (* the dialog's answer: one workspace gesture *)
+  | Edit_source of Flow_graph.Flow_edit.op  (* the dialog's answer: one workspace gesture *)
   | Delete_preset_file of { name : string; query : string }
   | Delete_last_state of string
   | Run_action of Leader.action
@@ -90,12 +90,12 @@ type change =
   | Dock_panels of Pxui_shell.Layout.path * Pxui_shell.Layout.path * [ `Left | `Right | `Top | `Bottom ]
   | Panel_state of Pxui_shell.Layout.path * Editor_core.Panels.state
   | Select_layout of string
-  | Syntax_edit of Flow_sop.Flow_edit.op
-  | Syntax_batch of string * Flow_sop.Flow_edit.op list
+  | Syntax_edit of Flow_graph.Flow_edit.op
+  | Syntax_batch of string * Flow_graph.Flow_edit.op list
       (** several rewrites that make one gesture (a new SOP graph and its object): all or none,
           one history entry with this label *)
-  | Syntax_inline of { home : Document.home; key : Flow_sop.Flow_edit.arg_key;
-                       make : Flow.Workspace.path -> Flow_sop.Flow_edit.op }
+  | Syntax_inline of { home : Document.home; key : Flow_graph.Flow_edit.arg_key;
+                       make : Flow.Workspace.path -> Flow_graph.Flow_edit.op }
       (** the expression at [key] of the call at [home] is written in place: the call is bound to
           a name first, then the expression, and [make] gives the gesture on that name (several
           rewrites, one history entry) *)
@@ -155,7 +155,7 @@ type 'panel frame_result = {
    node at the current probes.  Cached by what it was computed from. *)
 type lit_cache = {
   site : Flow.Workspace.path; at : int Layout_by_path.Path_map.t;
-  lowered : Flow_sop.Lower.t; scope : Flow_sop.Projection.scope; tags : Pick.Set.t;
+  lowered : Flow_sop.Lower.t; scope : Flow_graph.Projection.scope; tags : Pick.Set.t;
 }
 
 (* A carry in flight (carry.ml, flow.md "Carry"): the payload, how it was picked up, the document
@@ -223,6 +223,7 @@ type 'prepared t = {
   ui : Pxui.Ui.t;
   workspace : shell;
   timeline : Sketch_support.Timeline.t;
+  live_frame : Frame_input.t;
   cook : 'prepared Cook.t;
   edit_error : string option;
   status_fps : int option;
@@ -276,4 +277,3 @@ type ('prepared, 'panel) update = {
      input handling. *)
   input : Frame.t;
 }
-

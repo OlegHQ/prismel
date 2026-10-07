@@ -32,11 +32,13 @@ val element_node : element -> Node.t
     nodes fed by it hit the session cache while it is unchanged. *)
 
 val node :
-  ?label:string -> ?report:(element array -> unit) -> ?live:bool -> kind:kind -> ?key:string ->
+  ?label:string -> ?report:(element array -> unit) -> ?live:bool -> ?stamp:string -> kind:kind -> ?key:string ->
   source_attribute:string -> source_base:int ->
-  body:(inputs:Node.t array -> time:float -> element -> Node.t) -> inputs:Node.t array -> unit ->
+  body:(inputs:Node.t array -> context:Context.t -> element -> Node.t) -> inputs:Node.t array -> unit ->
   Node.t
 (** [report] receives the elements of each cook that runs (not of a cache
     hit).  A [live] zone (its body reads [t]) depends on the context's time, so its key changes
-    with it and [body] gets the time of the cook.  [body] gets the node's current inputs (a rebuilt node keeps its closures, so it
+    with it and [body] gets the frame context of the cook. [stamp] identifies an
+    immutable frame-fold snapshot captured by [body], invalidating cached cooks
+    when the snapshot changes. [body] gets the node's current inputs (a rebuilt node keeps its closures, so it
     must not capture the [inputs] it was made with) and must be pure. *)

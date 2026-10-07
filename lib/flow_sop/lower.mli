@@ -79,6 +79,7 @@ type t = {
   zones : zone list;
   volatile : unit Network.Int_map.t;  (** compiled ids, see {!is_volatile} *)
   plan : Flow.Eval.plan;
+  states : Flow.Eval.value list;
 }
 
 val origin : t -> int -> origin option

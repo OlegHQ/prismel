@@ -1,7 +1,7 @@
 (library
  (name procedural)
  (public_name rays.procedural)
- (libraries param rays_math rdk lru unix)
+ (libraries param frame_input rays_math rdk lru unix)
  (preprocess (pps rays.ppx))
  (modules context diagnostic parameter node session async_cook select instances
   sop_support sop_groups sop_topology sop_attributes sop_shapes nodes sop zone custom graph edit_graph)

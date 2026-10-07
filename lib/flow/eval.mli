@@ -12,7 +12,7 @@
 
     A node is keyed by [(site, iter)]:
     - [site] is the lexical path of the call: the enclosing binding, result,
-      zone or [fn] path (as in {!Workspace.path}) extended by the route down
+      zone or [fn] path (as in [Workspace.path]) extended by the route down
       through argument names ([#n] when a name repeats, as in [sop/merge]),
       list/record/[if]/[cond] positions.  A [defn] body is prefixed by the
       site of its call, so every call site of a [defn] is a distinct subtree;
@@ -23,7 +23,7 @@
     Two nodes of one graph instance never share a key.
 
     [args] holds the fully evaluated arguments in written order.  A geometry
-    input is [Geo id] (an earlier node, possibly in another instance) or
+    input is [Deferred (Ty.Geometry, id)] (an earlier node, possibly in another instance) or
     [No_geo] (for [nil]); the inputs of [sop/merge] are spliced (lists
     flattened, [No_geo] dropped) and all named [input].  Numbers keep their
     dynamic [Int]/[Float] kind: lowering coerces them to the catalog
@@ -32,16 +32,16 @@
     named as written.  Scene, world, settings and panel values ([scene/object],
     [ui/split], ...) are [Struct] values, not nodes: their arguments are
     checked here ([ui/tile] holds 1-16 panels, split axis and ratio, settings
-    ranges) and geometry inside them is a [Geo] reference.
+    ranges) and geometry inside them is a [Deferred (Geometry, id)] reference.
 
     {2 Split evaluation (W2b)}
 
-    {!static} evaluates every term that does not depend on [t].  A term that
+    {!static} evaluates every term that does not depend on frame facts or a fold. A term that
     does becomes a {!residual}: the term with the environment it was
     evaluated in, so every static capture is folded in.  A plan node whose
-    argument depends on [t] carries a [Residual] there (a [Vec3] with a live
+    argument depends on the frame carries a [Residual] there (a [Vec3] with a live
     component is one residual for the whole vector); {!residual_eval} and
-    {!force} evaluate it for a time without touching the plan, and never
+    {!force} evaluate it for a complete frame without touching the plan, and never
     create geometry.  Structure cannot depend on [t] (the checker rejects
     it), so one static pass serves every frame.  {!run} is the convenience
     that does both for a given time.
@@ -56,8 +56,10 @@ type ('f, 'r) payload = ('f, 'r) Value.t =
   | Text of string
   | Vec3 of float * float * float
   | List of ('f, 'r) payload array
+  | Float_array of float array
+  | Vec3_array of float array
   | Record of (string * ('f, 'r) payload) list  (** fields in written order *)
-  | Geo of int  (** a plan node *)
+  | Deferred of Ty.t * int  (** a plan node *)
   | No_geo  (** [nil] *)
   | Struct of string * Ty.t * (string * ('f, 'r) payload) list
       (** a scene, world, settings or panel value: the head, its resolved type and its
@@ -69,16 +71,18 @@ type value = (fn, residual) payload
 
 and fn
 and residual
+and state
 and node = {
   id : int;  (** index in [plan.nodes] *)
   inst : int;  (** index in [plan.instances] *)
   site : Workspace.path;
   iter : int list;
-  kind : string;  (** catalog kind, or [sop/curve] *)
+  kind : string;  (** catalog kind or deferred operator, including [sop/curve] and [draw/*] *)
+  ty : Ty.t;  (** the declared result type of the deferred node *)
   args : (string * value) list;
 }
 
-type live = { t : float }
+type live = Frame_input.t
 
 type instance = {
   graph : string;
@@ -94,12 +98,13 @@ type plan = { instances : instance array; nodes : node array }
 type t = {
   plan : plan;
   results : (string * value) list;  (** each graph, evaluated with its default (or given) inputs *)
+  states : value list;  (** frame folds to advance, including unused bindings *)
   records : (Workspace.path * (int list * value) list) list;
       (** with [~record:true]: the values seen at each path, per iteration tuple,
           in evaluation order, at most 4,096 per path (bindings, results,
           zone variables [":x"], [fn] parameters, graph inputs).  Geometry is a
-          [Geo] reference (its counts come from the cook, {!Flow_sop.Probe}); a
-          live value is a [Residual] until forced ({!run}, {!Flow_sop.Probe}). *)
+          [Deferred (Geometry, id)] reference (its counts come from the cook, {!Flow_graph.Probe}); a
+          live value is a [Residual] until forced ({!run}, {!Flow_graph.Probe}). *)
 }
 
 val static :
@@ -113,10 +118,23 @@ val static :
     driven list), [E_NONFINITE], [E_RANGE] ([ui/tile], [ui/split],
     [settings/config] with computed arguments), [E_DEPTH], [E_LIVE_GEOMETRY]. *)
 
-val residual_eval : ?elems:(string * value) list -> residual -> live:live -> (value, Diagnostic.t) result
+val create_state : unit -> state
+val reset_state : state -> unit
+(** An environment owns this fold state. Reset on reload or a new export. *)
+
+val fork_state : state -> state
+(** Copy the fold snapshot for pure worker reads; data is shared immutably. *)
+
+val state_stamp : state -> string
+(** Exact content fingerprint for a prepared frame's captured fold snapshot. *)
+
+val transaction : state -> (unit -> ('a, Diagnostic.t) result) -> ('a, Diagnostic.t) result
+(** Keep the previous fold snapshot when a group of evaluations fails. *)
+
+val residual_eval : ?state:state -> ?elems:(string * value) list -> residual -> live:live -> (value, Diagnostic.t) result
 (** A live term's value at a time (never a [Residual] at the top). *)
 
-val force : ?elems:(string * value) list -> value -> live:live -> (value, Diagnostic.t) result
+val force : ?state:state -> ?elems:(string * value) list -> value -> live:live -> (value, Diagnostic.t) result
 (** Every residual inside a value replaced by its value at the time.  [elems] binds
     the element of each geometry zone ({!element_key}) to its value (a point
     is a [Vec3]); a residual that reads an unbound element is an error. *)
@@ -127,8 +145,14 @@ val element_key : Workspace.path -> string
 val is_live : value -> bool
 (** A residual anywhere inside. *)
 
+val frame_dependent : value -> bool
+(** Reads a frame fact; element-only residuals return false. *)
+
+val state_dependent : value -> bool
+(** Reads an environment-owned frame fold. *)
+
 val run :
-  ?record:bool -> ?inputs:(string * (string * value) list) list -> time:float -> Workspace.t ->
+  ?record:bool -> ?inputs:(string * (string * value) list) list -> ?state:state -> ?live:live -> time:float -> Workspace.t ->
   (t, Diagnostic.t) result
 (** {!static} then {!force} of every argument, input, result and record at
     [time]: no [Residual] is left. *)
@@ -138,7 +162,7 @@ val hash : float list -> float
     [k = int32(floor(x * 1000003))]; from [h = 0x9e3779b9] each key does
     [h = imul(h xor k, 0x85ebca6b); h = h xor (h >>> 13); h = imul(h, 0xc2b2ae35);
     h = h xor (h >>> 16)] (32-bit unsigned), and the result is
-    [(h mod 1000000) / 1000000] in [[0, 1)]. *)
+    [(h mod 1000000) / 1000000], greater than or equal to zero and less than one. *)
 
 val show : value -> string
 (** [str] formatting (register C2); a residual shows as [?]. *)

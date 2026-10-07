@@ -24,6 +24,7 @@ type t = {
   zones : zone list;
   volatile : unit Network.Int_map.t;
   plan : E.plan;
+  states : E.value list;
 }
 
 exception Fail of Diagnostic.t
@@ -41,7 +42,7 @@ type prepared = {
       (* a template node: arguments that read the element, forced for each one *)
   zone : zinfo option;
 }
-and zinfo = { root : int; order : int list; live : bool;
+and zinfo = { root : int; order : int list; live : bool; stateful : bool;
               captures : int list; ekey : string option; kind : Zone.kind;
               key : string option; base : int; count : int Atomic.t;
               positions : (float * float * float) array Atomic.t }
@@ -71,10 +72,10 @@ let changes_of (parameter : Port.parameter) value =
 let changes parameter value = try Ok (changes_of parameter value) with Fail d -> Error d
 
 let at_zero value =
-  if E.is_live value then ok (E.force value ~live:{E.t = 0.}) else value
+  if E.is_live value then ok (E.force value ~live:(Frame_input.at_time (0.))) else value
 
 let is_zone kind = kind = "zone/points" || kind = "zone/pieces"
-let geo_of args = List.filter_map (function _, E.Geo j -> Some j | _ -> None) args
+let geo_of args = List.filter_map (function _, E.Deferred (Flow.Ty.Geometry, j) -> Some j | _ -> None) args
 
 let is_volatile lowered id = Network.Int_map.mem id lowered.volatile
 
@@ -116,19 +117,14 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
     let int_arg (n : E.node) k = match List.assoc_opt k n.args with
       | Some (E.Int i) -> i | _ -> fail "E_LOWER" ("Zone node without " ^ k) in
     (* does an argument of a template node read [t] (not only its element)? *)
-    let dummy = List.filter_map (fun (n : E.node) -> match n.kind, List.assoc_opt "element" n.args with
-      | "zone/points", Some (E.Text k) -> Some (k, E.Vec3 (0.3, 0.7, 0.1)) | _ -> None)
-      (Array.to_list plan.nodes) in
-    let reads_t v = E.is_live v && (try
-        let at t = ok (E.force ~elems:dummy v ~live:{E.t}) in at 0. <> at 1.
-      with Fail _ -> true) in
+    let reads_t = E.frame_dependent in
     let templ = Array.make (Array.length plan.nodes) false in
     Array.iter (fun (n : E.node) -> if is_zone n.kind then
       for id = int_arg n "lo" to int_arg n "hi" - 1 do templ.(id) <- true done) plan.nodes;
     (* what a zone reads: its collection and the outside geometry of its template *)
     let zinfos = Hashtbl.create 8 in
     let rec deps (n : E.node) =
-      if is_zone n.kind then (match n.args with (_, E.Geo src) :: _ -> src | _ -> fail "E_LOWER" "Zone without geometry")
+      if is_zone n.kind then (match n.args with (_, E.Deferred (Flow.Ty.Geometry, src)) :: _ -> src | _ -> fail "E_LOWER" "Zone without geometry")
         :: (zinfo n).captures
       else geo_of n.args
     and zinfo (n : E.node) = match Hashtbl.find_opt zinfos n.id with
@@ -146,7 +142,10 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           let live = let rec any id = id < hi
               && (List.exists (fun (_, v) -> reads_t v) plan.nodes.(id).args || any (id + 1)) in
             any lo in
-          let z = { root; live;
+          let stateful = let rec any id = id < hi
+              && (List.exists (fun (_, v) -> E.state_dependent v) plan.nodes.(id).args || any (id + 1)) in
+            any lo in
+          let z = { root; live; stateful;
             order = Hashtbl.fold (fun id () l -> id :: l) seen [] |> List.sort Int.compare;
             captures = List.rev !caps; ekey;
             kind = if n.kind = "zone/points" then Zone.Points else Zone.Pieces;
@@ -253,7 +252,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
                 let slots = ref [] and changes = ref [] in
                 let rec add_rest = function
                   | E.No_geo -> ()
-                  | E.Geo id ->
+                  | E.Deferred (Flow.Ty.Geometry, id) ->
                       slots := (!next_rest,id) :: !slots;
                       incr next_rest; arity := max !arity !next_rest
                   | E.List values -> Array.iter add_rest values
@@ -262,7 +261,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
                   match List.find_index (( = ) name) names, value with
                   | Some index, value when Some index = rest -> add_rest value
                   | Some _, E.No_geo -> ()
-                  | Some index, E.Geo id -> slots := (index, id) :: !slots
+                  | Some index, E.Deferred (Flow.Ty.Geometry, id) -> slots := (index, id) :: !slots
                   | Some _, _ -> fail "E_LOWER" ("Slot " ^ name ^ " needs geometry")
                   | None, value ->
                       let parameter = ok (Port.find_parameter parameters name) in
@@ -275,14 +274,15 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           let p = { p with dynamic = List.rev !dynamic } in
           Hashtbl.add prepared node.id p; p
     (* the zone node of a lowered graph: it cooks [z.root] once per element *)
-    and make_zone ~outer z inputs =
+    and make_zone ?state ~outer z inputs =
       Zone.node ~report:(fun elements ->
           Atomic.set z.count (Array.length elements);
           Atomic.set z.positions (Array.map (fun (e : Zone.element) -> e.position) elements))
-        ~live:z.live ~kind:z.kind ?key:z.key ~source_attribute
-        ~source_base:z.base ~inputs ~body:(fun ~inputs ~time -> instantiate ~outer ~time z ~inputs) ()
+        ~live:z.live ?stamp:(Option.map E.state_stamp state) ~kind:z.kind ?key:z.key ~source_attribute
+        ~source_base:z.base ~inputs ~body:(fun ~inputs ~context ->
+          instantiate ?state ~outer ~live:(Procedural.Context.input context) z ~inputs) ()
     (* one element's copy of the template, over the zone's own inputs *)
-    and instantiate ~outer ~time z ~inputs =
+    and instantiate ?state ~outer ~live z ~inputs =
       let build ~outer bound id =
         let n = plan.nodes.(id) in
         let p = prepare n in
@@ -290,11 +290,11 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           Option.bind (List.assoc_opt i p.slots) (Hashtbl.find_opt bound)) in
         let node = match p.zone with
           | Some inner ->
-              make_zone ~outer inner (Array.of_list (List.filter_map Fun.id options))
+              make_zone ?state ~outer inner (Array.of_list (List.filter_map Fun.id options))
           | None -> edit (Edit.instantiate_optional p.factory options) in
         let node = edit (Procedural.Node.Private.restore_id p.cid node) in
         let changes = p.changes @ List.concat_map (fun (v, changes) ->
-          changes (match E.force ~elems:outer v ~live:{E.t = time} with
+          changes (match E.force ?state:(Option.map E.fork_state state) ~elems:outer v ~live with
             | Ok v -> v | Error d -> failwith (Diagnostic.to_string d))) p.dynamic in
         let node = if changes = [] then node
           else fst (edit (Procedural.Node.apply_parameters node changes)) in
@@ -343,6 +343,15 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
         volatile_nodes := Network.Int_map.add compiled.(node.id) () !volatile_nodes
       end) plan.nodes;
     let live_network network graph =
+      let network = Network.with_states evaluated.states network in
+      let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes -> match p.zone with
+        | Some z when z.stateful && Edit.find graph ~node_id:p.cid <> None ->
+            Network.Int_map.add p.cid (fun state node ->
+              let snapshot = E.fork_state state in
+              Procedural.Node.Private.adopt_identity ~source:node
+                (make_zone ~state:snapshot ~outer:[] z (Procedural.Node.Private.input_array node))) nodes
+        | _ -> nodes) prepared Network.Int_map.empty in
+      let network = Network.with_frame_nodes frame_nodes network in
       let drives = List.fold_left (fun drives (p : pending) ->
         if Edit.find graph ~node_id:p.node = None then drives
         else Port.Map.add Port.{node = p.node; path = p.field}
@@ -357,7 +366,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
         end in
       Array.iter (fun (node : E.node) ->
         if node.inst = index && not templ.(node.id) then reach node.id) plan.nodes;
-      (match instance.result with E.Geo j -> reach j | _ -> ());
+      (match instance.result with E.Deferred (Flow.Ty.Geometry, j) -> reach j | _ -> ());
       let order = Hashtbl.fold (fun id () l -> id :: l) seen []
         |> List.sort Int.compare in
       let graph = List.fold_left (fun graph id ->
@@ -375,7 +384,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
         else fst (edit (Edit.apply_parameters graph ~node_id:p.cid p.changes)))
         Edit.empty order in
       let root = match instance.result with
-        | E.Geo id -> Some compiled.(id)
+        | E.Deferred (Flow.Ty.Geometry, id) -> Some compiled.(id)
         | No_geo -> None
         | _ -> fail "E_LOWER" ("Graph " ^ instance.graph ^ " does not return geometry") in
       let graph = match root with
@@ -392,7 +401,7 @@ let workspace ~factories ?extra ?(compiled_ids = Instance_path.Map.empty)
           |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m)
                Network.Int_map.empty;
         pending = List.rev !pending; provenance = !provenance; zones = List.rev !zones;
-        volatile = !volatile_nodes; plan}
+        volatile = !volatile_nodes; plan; states = evaluated.states}
   with Fail diagnostic -> Error diagnostic
 
 let counts lowered =

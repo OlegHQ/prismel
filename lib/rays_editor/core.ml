@@ -6,6 +6,7 @@ include Core_host
 let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state (frame : Frame.t) =
   let carrying = value.carry <> None in
+  let value = {value with live_frame = Sketch_support.Live_frame.of_frame frame} in
   let value = { value with workspace = { value.workspace with hidden = shell_hidden value value.workspace } } in
   let value = follow_start value in
   let focus, focus_path = if all_ui_visible then
@@ -16,12 +17,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
       | None -> value.focus, value.focus_path
     else value.focus, value.focus_path in
   (* a press in another graph panel makes it the pane in use before anything reads the pane *)
-  let value = sync_scope (follow_graph value ~focus ~focus_path) in
-  (* the other graph panels, laid out from the same document *)
-  let other_panes = if not all_ui_visible then [] else
-    List.filter_map (fun (key, path) ->
-      if value.graph_pane = Some key then None else Some (key, path, sync_scope (as_pane value (key, path))))
-      (List.sort_uniq (fun (a, _) (b, _) -> compare a b) (graph_leaves value)) in
+  let value = follow_graph value ~focus ~focus_path in
   (* the lists, text panes and outlines open, and the ones the focus makes the ones in use *)
   let hosts = if all_ui_visible then panel_hosts value else [] in
   let value = follow_hosts value ~focus_path hosts in
@@ -86,6 +82,11 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
   let workspace, selection, tree, timeline, timeline_changes = List.fold_left
       (apply_action value)
       (value.workspace, value.selection, value.tree, timeline, timeline_changes) actions in
+  let value = sync_scope {value with timeline} in
+  let other_panes = if not all_ui_visible then [] else
+    List.filter_map (fun (key, path) ->
+      if value.graph_pane = Some key then None else Some (key, path, sync_scope (as_pane value (key, path))))
+      (List.sort_uniq (fun (a, _) (b, _) -> compare a b) (graph_leaves value)) in
   let vw = { value with workspace; focus; selection } in
   let graph_shown = all_ui_visible && graph_family vw in
   let listing = listing vw in
@@ -594,12 +595,12 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         | Navigator.Set_default { graph; input; value; integer } ->
             let text = if integer then string_of_int (int_of_float (Float.round value))
               else Flow.Lisp.float value in
-            Some (Syntax_edit (Flow_sop.Flow_edit.Set_input_default { form = graph; input;
+            Some (Syntax_edit (Flow_graph.Flow_edit.Set_input_default { form = graph; input;
               value = Flow.Syntax.make (Flow.Syntax.Num text) }))
-        | Rename { graph; to_ } -> Some (Syntax_edit (Flow_sop.Flow_edit.Rename_graph { name = graph; to_ }))
-        | Remove graph -> Some (Syntax_edit (Flow_sop.Flow_edit.Remove_graph { name = graph }))
+        | Rename { graph; to_ } -> Some (Syntax_edit (Flow_graph.Flow_edit.Rename_graph { name = graph; to_ }))
+        | Remove graph -> Some (Syntax_edit (Flow_graph.Flow_edit.Remove_graph { name = graph }))
         | Flag { node; name; value } ->
-            Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg { node; key = Flow_sop.Flow_edit.Kw name; sub = [];
+            Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node; key = Flow_graph.Flow_edit.Kw name; sub = [];
               value = Flow.Syntax.make (Flow.Syntax.Sym (if value then "true" else "false")) }))
         | Open _ | Macro _ | Layout _ | Add -> None) outline_intents in
     (* a layout row and the add button are commands: they run like a toolbar click *)
@@ -681,11 +682,11 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
                 (Edit_graph.find document ~node_id:id)) open_network.displayed in
             let title, detail = match value.scope_key with
               | Some k when scope_active && Some k.graph = graph_name value ->
-                  let rec count (s : Flow_sop.Projection.scope) = List.fold_left
-                    (fun n (x : Flow_sop.Projection.node) ->
-                      n + 1 + Option.fold ~none:0 ~some:(fun (z : Flow_sop.Projection.zone) -> count z.scope) x.zone)
+                  let rec count (s : Flow_graph.Projection.scope) = List.fold_left
+                    (fun n (x : Flow_graph.Projection.node) ->
+                      n + 1 + Option.fold ~none:0 ~some:(fun (z : Flow_graph.Projection.zone) -> count z.scope) x.zone)
                     0 s.nodes in
-                  let zones = List.length (Flow_sop.Projection.zones k.scope) in
+                  let zones = List.length (Flow_graph.Projection.zones k.scope) in
                   k.graph, Printf.sprintf "%d node%s · %d loop%s · select a node to edit it" (count k.scope)
                     (if count k.scope = 1 then "" else "s") zones (if zones = 1 then "" else "s")
               | _ -> level_name value, Printf.sprintf "%d node%s · display %s" node_count (if node_count = 1 then "" else "s") display in
@@ -861,8 +862,8 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           let parameters = Result.value ~default:[] (Flow_sop.Port.parameters (Node.parameter_fields node)) in
           List.filter_map (fun (p : Flow_sop.Port.parameter) ->
             if List.exists (fun (f : Parameter.field_view) -> List.mem_assoc f.name handle_edits) p.fields
-            then Some (Syntax_edit (Flow_sop.Flow_edit.Set_arg { node = path;
-              key = Flow_sop.Flow_edit.Kw p.path; sub = [];
+            then Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = path;
+              key = Flow_graph.Flow_edit.Kw p.path; sub = [];
               value = Editor_document.Scene_sync.value_syntax (List.map (fun (f : Parameter.field_view) ->
                 match List.assoc_opt f.name handle_edits with
                 | Some current -> { f with current } | None -> f) p.fields) }))
@@ -887,7 +888,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
      | Some (kind, text) when frame.time -. value.notice_at < 3. ->
          let bounds = match List.find_opt (fun ((l : Pxui_shell.Layout.leaf), _) -> Some l.path = header_focus) roots with
            | Some (l, _) -> l.body | None -> graph_body in
-         let rec cards (s : Flow_sop.Projection.scope) = List.concat_map (fun (n : Flow_sop.Projection.node) ->
+         let rec cards (s : Flow_graph.Projection.scope) = List.concat_map (fun (n : Flow_graph.Projection.node) ->
            Option.to_list (Pxui_graph.Scope.Private.box_of scope_view n.path)
            @ (match n.zone with Some z -> cards z.scope | None -> [])) s.nodes in
          let avoid = match value.scope_key with
@@ -976,7 +977,7 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
             ~free:m.draft.free m.state with
          | None -> None, None
          | Some (state, `Submit) ->
-             None, Some (Edit_source (Flow_sop.Flow_edit.macro_op m.draft ~nodes:m.nodes
+             None, Some (Edit_source (Flow_graph.Flow_edit.macro_op m.draft ~nodes:m.nodes
                ~name:state.name state.holes))
          | Some (state, `None) -> Some (Making_macro { m with state }), None)
     | Some (Browsing { query; presets; last_state }) ->
@@ -1055,4 +1056,3 @@ let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render
   let value, frame, carry_changed = carry_step value ~text_focus frame in
   update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state frame
-

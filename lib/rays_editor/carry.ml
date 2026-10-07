@@ -10,8 +10,8 @@ open Editor_document
 
 module W = Flow.Workspace
 module S = Flow.Syntax
-module E = Flow_sop.Flow_edit
-module P = Flow_sop.Projection
+module E = Flow_graph.Flow_edit
+module P = Flow_graph.Projection
 
 type payload = Pxui.Ui.payload = { kind : string; value : string }
 

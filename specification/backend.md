@@ -7,11 +7,29 @@ not select an alternate renderer through environment variables or public API.
 
 ## Ownership and dependency direction
 
-`flow` depends only on dependency-free `param`. Its value graphs, expressions,
+`flow` depends only on dependency-free `param` and `frame_input`. Its value graphs, expressions,
 contexts and coercions have no geometry, editor, UI, renderer or GPU
 dependencies; the dependency gate rejects those transitive edges. `flow_sop` depends
-only on `flow`, `param` and `procedural`; its typed overlay, exposure rule and
+only on `flow`, `param` and `procedural`; its typed overlay and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.
+
+`flow_graph` depends only on `flow` and `param`. It owns `Projection`,
+`Flow_edit`, `Exposure` and `Probe` for every domain. `pxui_graph` consumes
+that neutral layer and menu entries supplied by the host; it never reaches
+`procedural` or `rdk`, even transitively. The gate checks both boundaries.
+
+`Value.Deferred (ty, id)` identifies a typed node in the evaluator plan.
+Geometry nodes lower through `flow_sop`; Drawing nodes lower through
+`Sketch_support.Drawing` into existing native `Rays.Scene` commands. Canvas
+panels use the same PXUI composition and renderer as every other panel.
+There is one evaluator, one UI engine and one native Metal renderer.
+
+`frame_input` owns immutable logical frame facts (time, step, index, size,
+pointer, held keys/buttons and ordered events), with no dependencies. The host
+captures these once from `Rays.Frame` through `Sketch_support.Live_frame`.
+`procedural.Context` carries the same snapshot for geometry-zone bodies;
+its `Input` dependency projects every field into the cook cache key. No SDL,
+runtime or renderer value crosses either pure boundary.
 
 Material graph values lower into primitive surface attributes through
 `procedural` and `rdk_attrib`. `sketch_support` converts these into shared
@@ -143,7 +161,7 @@ declaration checks only.
 lane, lowering, edits, projection and probes. The editor runs
 the value lane on its initial domain before cook submissions and retains
 applied values for the graph and inspector. The gate forbids
-`flow` from reaching anything but `param`, and `flow_sop` from reaching UI,
+`flow` from reaching anything but `param` and `frame_input`, and `flow_sop` from reaching UI,
 the SOP catalog, editor or GPU libraries.
 `editor_document` owns the UI-free saved overlay, while `pxui_graph` and
 `pxui_shell` are presentation adapters over it. `rays_editor` applies their
@@ -300,7 +318,7 @@ backend, mock, geometry graph, catalog, UI or editor library), `rdk_rays`
 Boolean stack, `procedural` or anything above) and `scene_execution_fixtures`
 (only `scene_execution` and `ogpu`) have theirs. "Depends only on" whitelists
 check every direct dependency, external ones included: `param`,
-`native_layer_token` and `lru` list none, `flow` only `param`, `ogpu_core`
+`native_layer_token`, `frame_input` and `lru` list none, `flow` only `param` and `frame_input`, `ogpu_core`
 only `native_layer_token`, `ogpu` and `ogpu_mock` only `ogpu_core`, `metal`
 only `threads` and `native_layer_token`, `ogpu_metal_native` only `ogpu_core`,
 `metal` and `lru`, `ogpu_metal` only `ogpu_metal_native` and `metal`,

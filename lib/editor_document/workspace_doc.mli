@@ -15,6 +15,9 @@ type t = {
   extra : Flow.Syntax.t list;
       (** the other root forms as they were written, for {!to_text}: a [(view ...)] is kept
           verbatim; [layout] and [settings] are kept for the comments above and inside them *)
+  inputs : (string * (string * Flow.Eval.value) list) list;
+      (** Host-supplied graph inputs; retained across edits and reloads,
+          validated by lowering, never written into the source. *)
 }
 
 val name : t -> string
@@ -23,6 +26,7 @@ val editor_graph : t -> Flow.Workspace.graph option
 (** The selected named editor layout, or the first editor graph when none is selected. *)
 
 val of_text :
+  ?inputs:(string * (string * Flow.Eval.value) list) list ->
   ?settings:Settings.t -> ?layout:Layout_by_path.t -> Flow.Check.catalog -> string -> (t, Flow.Diagnostic.t list) result
 (** Parse and check. Absent settings and layout forms retain the supplied values.
     An explicit settings form starts from its schema defaults; an explicit empty layout clears it.
@@ -32,6 +36,7 @@ val of_text :
     checked workspace is dropped, and so is a selected editor layout that names no editor graph. *)
 
 val check_text :
+  ?inputs:(string * (string * Flow.Eval.value) list) list ->
   ?settings:Settings.t -> ?layout:Layout_by_path.t -> Flow.Check.catalog -> string ->
   (t * Flow.Diagnostic.t list, Flow.Diagnostic.t list) result
 (** {!of_text} with the checker's warnings. *)
@@ -41,7 +46,7 @@ val to_text : t -> string
     recover the complete saved document.  Comments between and after the root forms and a
     [(view ...)] form are kept. *)
 
-val edit : Flow.Check.catalog -> t -> Flow_sop.Flow_edit.op -> (t, Flow.Diagnostic.t) result
+val edit : Flow.Check.catalog -> t -> Flow_graph.Flow_edit.op -> (t, Flow.Diagnostic.t) result
 (** One gesture, atomically: the source is rewritten and re-checked, layout
-    keys follow {!Flow_sop.Flow_edit.remap} and are pruned as in {!of_text}, and on an error
+    keys follow {!Flow_graph.Flow_edit.remap} and are pruned as in {!of_text}, and on an error
     nothing changes. *)

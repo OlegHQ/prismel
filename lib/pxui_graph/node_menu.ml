@@ -1,4 +1,3 @@
-open Procedural
 module Ui = Pxui.Ui
 
 type entry = {
@@ -7,14 +6,6 @@ type entry = {
   output : Flow.Ty.t;  (* what the node makes: the colour of its square *)
   off : string option;  (* why the kind cannot be placed in this graph, if it cannot *)
 }
-
-(* a SOP kind makes geometry *)
-let entries_of_factories ?(context = "sop") factories = List.map (fun factory -> {
-    key = Edit_graph.factory_key factory;
-    label = Edit_graph.factory_label factory;
-    category = Edit_graph.factory_category factory;
-    arity = Edit_graph.factory_arity factory;
-    context; output = Flow.Ty.Geometry; off = None }) factories
 
 type item = { entry : entry; lower_key : string; lower_label : string; lower_category : string }
 
@@ -109,8 +100,8 @@ let rec port_color theme (ty : Flow.Ty.t) =
   match ty with
   | Geometry -> ports.geometry | Float -> ports.float | Int -> ports.int | Vec3 -> ports.vec3
   | Bool -> ports.bool | Text | Color -> ports.text | Fn -> ports.fn | Record _ -> ports.record
-  | List e -> port_color theme e
-  | Any | Scene | World | Settings | Panel | Editor | Material -> ports.output
+  | List e | Array e -> port_color theme e
+  | Any | Drawing | Scene | World | Settings | Panel | Editor | Material -> ports.output
 
 let picker_rows menu query =
   rows { menu with query } |> Array.map (fun entry -> entry_label entry, entry_detail entry)

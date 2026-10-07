@@ -315,7 +315,7 @@ unchanged effective values retain their graph and cook keys. A `^:bypass` call m
 node: the evaluator passes its first input through.
 
 `rays.pxui_graph` presents the text as a graph (`Pxui_graph.Scope` over
-`Flow_sop.Projection`): a left-to-right layout on a 24-point lattice, straight wires bent
+`Flow_graph.Projection`): a left-to-right layout on a 24-point lattice, straight wires bent
 clear of cards, explicit point/chip/card/full levels, zones for loops and functions.
 Its gestures and keys are `specification/flow.md` §6 and §7. The canvas never mutates
 the document or cooks geometry; it returns typed requests, and

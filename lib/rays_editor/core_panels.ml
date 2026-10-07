@@ -9,6 +9,7 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
   let value = shown_as value (panel_key value.doc leaf.path, leaf.path, leaf.panel) in
   let graph = Option.value ~default:"" (graph_name value) in
   let name, sub = match leaf.panel with
+    | Canvas _ -> "Canvas", ""
     | View _ -> "Viewport",
         (* the scene it shows and its render camera: "scene / camera" *)
         let scene_name =
@@ -31,8 +32,8 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
     | Inspector -> "Inspector", (match (if value.scope_key = None then [] else Pxui_graph.Scope.selected value.scope_view) with
         | [ path ] when graph <> "" ->
             (* the node's title (a result is `result`, not `@result`); the narrow column has the node alone *)
-            let title = match Option.bind value.scope_key (fun (k : scope_key) -> Flow_sop.Projection.find k.scope path) with
-              | Some n -> Flow_sop.Projection.title n
+            let title = match Option.bind value.scope_key (fun (k : scope_key) -> Flow_graph.Projection.find k.scope path) with
+              | Some n -> Flow_graph.Projection.title n
               | None -> List.nth path (List.length path - 1) in
             if (let _, _, w, _ = leaf.frame in w < 340) then title else graph ^ " / " ^ title
         | _ -> graph)
@@ -58,13 +59,13 @@ let defn_change value paths =
     | Vec3 -> Some "vec3" | Text -> Some "text" | Fn -> Some "fn"
     | List t -> Option.map (fun s -> "(list " ^ s ^ ")") (ty_text t)
     | _ -> None in
-  let rec find_ty name (s : Flow_sop.Projection.scope) =
-    match List.find_opt (fun (i : Flow_sop.Projection.input) -> i.name = name) s.inputs with
+  let rec find_ty name (s : Flow_graph.Projection.scope) =
+    match List.find_opt (fun (i : Flow_graph.Projection.input) -> i.name = name) s.inputs with
     | Some i -> Some i.ty
-    | None -> List.find_map (fun (n : Flow_sop.Projection.node) ->
+    | None -> List.find_map (fun (n : Flow_graph.Projection.node) ->
         if List.mem name n.binds then Some n.ty
-        else Option.bind n.zone (fun (z : Flow_sop.Projection.zone) -> find_ty name z.scope)) s.nodes in
-  match Flow_sop.Flow_edit.defn_draft ws.source paths, scope with
+        else Option.bind n.zone (fun (z : Flow_graph.Projection.zone) -> find_ty name z.scope)) s.nodes in
+  match Flow_graph.Flow_edit.defn_draft ws.source paths, scope with
   | Error d, _ -> Declined d.Flow.Diagnostic.message
   | Ok _, None -> Declined "Open a graph to make a function from its nodes"
   | Ok draft, Some scope ->
@@ -73,8 +74,8 @@ let defn_change value paths =
        | Some (n, _) -> Declined (Printf.sprintf "The function reads %s, whose type a function cannot take." n)
        | None ->
            let result_ty = List.fold_left (fun acc path ->
-             match Flow_sop.Projection.find scope path with Some n -> Some n.ty | None -> acc) None paths in
-           Syntax_edit (Flow_sop.Flow_edit.Make_defn { nodes = paths; name = draft.name;
+             match Flow_graph.Projection.find scope path with Some n -> Some n.ty | None -> acc) None paths in
+           Syntax_edit (Flow_graph.Flow_edit.Make_defn { nodes = paths; name = draft.name;
              context = (if result_ty = Some Flow.Ty.Geometry then "sop" else "value");
              params = List.map (fun (n, t) -> n, Option.get t) typed }))
 
@@ -183,7 +184,7 @@ let focused_leaf (g : Pxui_shell.Layout.geometry) focus path =
           | _ -> Some l) None g.leaves))
 
 let panel_kind : Pxui_shell.Layout.panel -> string = function
-  | View _ -> "viewport" | Graph -> "graph" | List -> "list" | Lisp -> "lisp"
+  | Canvas _ -> "canvas" | View _ -> "viewport" | Graph -> "graph" | List -> "list" | Lisp -> "lisp"
   | Inspector -> "inspector" | Outline -> "outline" | Timeline -> "timeline"
 
 (* Space [ and Space n: the layouts of the switch and the floating windows, each one edit of the
@@ -201,31 +202,31 @@ let layout_actions value (workspace : shell) ~(leaf : Pxui_shell.Layout.leaf opt
           (fst value.doc.Document.workspace).checked.graphs) in
         let text, _ = Bars.tree_text ~name:"editor" ~scene (shell_tree value { workspace with live = None }) in
         (match Flow.Syntax.parse text with
-         | Ok [ form ] -> [ Syntax_batch (Flow_sop.Flow_edit.label (make "editor"),
-             [ Flow_sop.Flow_edit.Set_graph { name = "editor"; form }; make "editor" ]) ]
+         | Ok [ form ] -> [ Syntax_batch (Flow_graph.Flow_edit.label (make "editor"),
+             [ Flow_graph.Flow_edit.Set_graph { name = "editor"; form }; make "editor" ]) ]
          | _ -> [ Declined "The layout could not be written as an editor graph." ]) in
   List.concat_map (function
     | Leader.Layout_switch index when Option.is_some (Option.bind value.doc.Document.shell (fun s -> s.switch)) ->
-        edit (fun graph -> Flow_sop.Flow_edit.Set_layout { graph; index })
+        edit (fun graph -> Flow_graph.Flow_edit.Set_layout { graph; index })
     | Layout_switch index -> (* an older file: several editor graphs *)
         (match List.nth_opt (layouts value) index with Some (name, _) -> [ Select_layout name ] | None -> [])
     | Layout_new when Option.is_none (Option.bind value.doc.Document.shell (fun s -> s.switch))
                       && layouts value <> [] ->
         (* an older file with several editor graphs: they become the layouts of one switch first *)
         (match graph with
-         | Some graph -> [ Syntax_batch ("Merge layouts", [ Flow_sop.Flow_edit.Merge_layouts { graph };
-                                                            Flow_sop.Flow_edit.Layout_new { graph } ]) ]
+         | Some graph -> [ Syntax_batch ("Merge layouts", [ Flow_graph.Flow_edit.Merge_layouts { graph };
+                                                            Flow_graph.Flow_edit.Layout_new { graph } ]) ]
          | None -> [])
-    | Layout_new -> edit (fun graph -> Flow_sop.Flow_edit.Layout_new { graph })
-    | Layout_remove -> edit (fun graph -> Flow_sop.Flow_edit.Layout_remove { graph })
-    | Window_new panel -> edit (fun graph -> Flow_sop.Flow_edit.Layout_window { graph; kind = panel_kind panel })
+    | Layout_new -> edit (fun graph -> Flow_graph.Flow_edit.Layout_new { graph })
+    | Layout_remove -> edit (fun graph -> Flow_graph.Flow_edit.Layout_remove { graph })
+    | Window_new panel -> edit (fun graph -> Flow_graph.Flow_edit.Layout_window { graph; kind = panel_kind panel })
     | Peek ->
         (match peek_target value with
-         | Some target -> edit (fun graph -> Flow_sop.Flow_edit.Layout_window { graph; kind = "graph:" ^ target })
+         | Some target -> edit (fun graph -> Flow_graph.Flow_edit.Layout_window { graph; kind = "graph:" ^ target })
          | None -> [ Declined "Nothing selected to peek at" ])
     | Float_toggle ->
         (match leaf with
-         | Some leaf -> edit (fun graph -> Flow_sop.Flow_edit.Layout_float { graph; at = leaf.path })
+         | Some leaf -> edit (fun graph -> Flow_graph.Flow_edit.Layout_float { graph; at = leaf.path })
          | None -> [])
     | _ -> []) actions
 
@@ -242,9 +243,9 @@ let layout_intents value (workspace : shell) intents =
          | Some (Loop (home, key)) ->
              (* a loop's panels are copies of its one template: retyping edits the template *)
              (match make [] with
-              | Flow_sop.Flow_edit.Set_panel_kind { kind; _ } ->
+              | Flow_graph.Flow_edit.Set_panel_kind { kind; _ } ->
                   [ Syntax_inline { home; key; make = (fun p ->
-                      Flow_sop.Flow_edit.Set_panel_kind { node = p @ [ "@result" ]; kind }) } ]
+                      Flow_graph.Flow_edit.Set_panel_kind { node = p @ [ "@result" ]; kind }) } ]
               | _ -> [ Declined ("These panels are copies made by a loop in " ^ Document.describe (fst value.doc.Document.workspace).source home
                   ^ ": retype them (Space o), or edit the loop in the editor graph.") ])
          | None -> [ Declined "This panel is not part of the editor graph's tree." ])
@@ -258,7 +259,7 @@ let layout_intents value (workspace : shell) intents =
         let text, name_of = Bars.tree_text ~name:"editor" ~scene base in
         (match Flow.Syntax.parse text, name_of path with
          | Ok [ form ], Some leaf ->
-             [ Syntax_edit (Flow_sop.Flow_edit.Set_graph { name = "editor"; form });
+             [ Syntax_edit (Flow_graph.Flow_edit.Set_graph { name = "editor"; form });
                Syntax_edit (make [ "editor"; leaf ]) ]
          | _ -> [ Declined "This panel is not part of the layout." ]) in
   let kind = panel_kind in
@@ -269,7 +270,7 @@ let layout_intents value (workspace : shell) intents =
         (fst value.doc.Document.workspace).checked.graphs) in
       let text, _ = Bars.tree_text ~name:"editor" ~scene base in
       match Flow.Syntax.parse text with
-      | Ok [form] -> [Syntax_edit (Flow_sop.Flow_edit.Set_graph {name = "editor"; form})]
+      | Ok [form] -> [Syntax_edit (Flow_graph.Flow_edit.Set_graph {name = "editor"; form})]
       | _ -> [] in
     prefix @ [Panel_state (path, state)] in
   List.fold_left (fun ((w : shell), changes) -> function
@@ -290,14 +291,14 @@ let layout_intents value (workspace : shell) intents =
          | None -> w, changes
          | Some (node, size) ->
              let w = { w with live = None } in
-             w, changes @ edit node (fun node -> Flow_sop.Flow_edit.Set_layout_size { node; size }))
+             w, changes @ edit node (fun node -> Flow_graph.Flow_edit.Set_layout_size { node; size }))
     | Split_panel (path, axis) ->
-        w, changes @ edit path (fun node -> Flow_sop.Flow_edit.Split_panel { node; axis })
+        w, changes @ edit path (fun node -> Flow_graph.Flow_edit.Split_panel { node; axis })
     | Close_panel path ->
-        w, changes @ edit path (fun node -> Flow_sop.Flow_edit.Close_panel { node })
+        w, changes @ edit path (fun node -> Flow_graph.Flow_edit.Close_panel { node })
     | Retype_panel (path, panel) ->
         w, changes @ edit path (fun node ->
-          Flow_sop.Flow_edit.Set_panel_kind { node; kind = kind panel }))
+          Flow_graph.Flow_edit.Set_panel_kind { node; kind = kind panel }))
     (workspace, []) intents
 
 let dock_panels ~factories (doc : Document.t) source target side =
@@ -309,9 +310,9 @@ let dock_panels ~factories (doc : Document.t) source target side =
     ~loop_message:"These panels are copies made by a loop: move their tile in the editor graph." doc path in
   let* doc, node = bind doc source in
   let* doc, target = bind doc target in
-  let* doc = Doc.syntax_edit ~factories doc (Flow_sop.Flow_edit.Dock_panel {node; target; side}) in
+  let* doc = Doc.syntax_edit ~factories doc (Flow_graph.Flow_edit.Dock_panel {node; target; side}) in
   let copy_pos = if side = `Left || side = `Top then 3 else 2 in
-  let copy = match Flow_sop.Flow_edit.arg_text (fst doc.workspace).source target (Pos copy_pos) with
+  let copy = match Flow_graph.Flow_edit.arg_text (fst doc.workspace).source target (Pos copy_pos) with
     | Some {Flow.Syntax.node = Sym name; _} -> List.rev (name :: List.tl (List.rev target))
     | _ -> target in
   Ok (Doc.layout_edit doc (fun layout ->

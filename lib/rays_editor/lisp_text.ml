@@ -94,7 +94,7 @@ let brackets text = let _, pairs, _ = lex text in pairs
 
 (* forms whose body is indented two in from the paren rather than under the first argument *)
 let body_forms = List.filter (fun form -> List.mem form Flow.Workspace.special_forms)
-    [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "for"; "fold"; "scan"; "sum"; "if"; "fn";
+    [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "for"; "fold"; "scan"; "sum"; "state"; "if"; "fn";
       "cond"; "case" ]
 
 let indent text caret =
@@ -161,6 +161,7 @@ let special_docs = [
   "let*", "(let* [name expr ...] result) · sequential bindings: the graph's nodes";
   "for", "(for [i (range n)] body) · repeat over lists; geometry merges, numbers are summed";
   "fold", "(fold [acc init] [i xs] body) · feed the result back: acc is the previous value";
+  "state", "(state [s init] step) · fold frames; s is the previous frame's value";
   "scan", "(scan [acc init] [i xs] body) · like fold, keeping every step as a list";
   "sum", "(sum [i xs] body) · add the body over the list";
   "if", "(if test then else) · a branch; both arms have the same type";
@@ -300,7 +301,7 @@ let head_before text tokens i =
       | _ -> back (k - 1) depth in
   back (i - 1) 0
 
-let binders = [ "let*"; "for"; "fold"; "scan"; "sum"; "fn" ]
+let binders = [ "let*"; "for"; "fold"; "scan"; "sum"; "state"; "fn" ]
 
 (* the names bound before [limit] by let*, loops, fn and graph inputs, each with a snippet of
    what it is; the defn names; the graph names (ponytail: a lexical scan, not scoping: every

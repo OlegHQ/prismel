@@ -365,35 +365,35 @@ let run () =
     "a deleted host World came back on reload";
   (* adding by key: an object joins the scene's merge, a layer goes on top of the stack; a document
      with no scene graph (or World graph) gets one, its host objects written first *)
-  let add doc name expr = Result.get_ok (Flow_sop.Flow_edit.apply_checked
+  let add doc name expr = Result.get_ok (Flow_graph.Flow_edit.apply_checked
     (Result.get_ok (Contexts.catalog ~version:Flow_sop.Manifest.version factories)) (fst (doc : Workspace_doc.t * _)).source
-    (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name; expr })) in
+    (Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; name; expr })) in
   ignore add;
   let call head args = Flow.Syntax.make (Flow.Syntax.List (Flow.Syntax.make (Flow.Syntax.Sym head) :: args)) in
   let catalog = Result.get_ok (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
   let edit (doc : Document.t) op = lower ~previous:doc
     (Result.get_ok (Workspace_doc.edit catalog (fst doc.workspace) op)) in
-  let added = edit doc (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
+  let added = edit doc (Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
     expr = call "scene/light" [ Flow.Syntax.make (Flow.Syntax.Kw "name"); Flow.Syntax.make (Flow.Syntax.Str "lamp") ] }) in
   check (contains (source added) "scene/merge body arm cam side (scene/light :name \"fill\") lamp"
          || contains (source added) "lamp)") "a new object did not join the scene's merge";
   check (List.exists (fun (i : Edit_graph.node_info) -> i.label = "lamp") (Edit_graph.inspect (scene added)))
     "a new object is not in the scene";
-  let layered = edit doc (Flow_sop.Flow_edit.Add_node { scope = [ "world" ]; name = "haze";
+  let layered = edit doc (Flow_graph.Flow_edit.Add_node { scope = [ "world" ]; name = "haze";
     expr = call "world/gradient" [] }) in
   check (List.map (fun (l, _, _) -> l) (let _, layers, _, _ = snapshot layered in layers) = [ "Gradient"; "sun"; "sky" ])
     "a new World layer is not on top of the stack";
   same_after_reload layered "added layer";
-  let twice = edit added (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "lamp" ] ] }) in
+  let twice = edit added (Flow_graph.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "lamp" ] ] }) in
   check (snapshot twice = snapshot doc) "deleting what was added did not give the scene back";
-  check (Result.is_ok (Workspace_doc.edit catalog (fst layered.workspace) (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "world"; "haze" ] ] })))
+  check (Result.is_ok (Workspace_doc.edit catalog (fst layered.workspace) (Flow_graph.Flow_edit.Delete_nodes { nodes = [ [ "world"; "haze" ] ] })))
     "a World layer could not be deleted by its binding";
   (* through the editor: a workspace with no scene graph gets one when an object is added *)
   let env = Rays_editor.Editor3.create ~workspace:(Ws_fixture.of_text "(workspace bare (graph g :context sop (sop/box)))")
       ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok in
-  let env = match Rays_editor.Editor3.edit env (Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
+  let env = match Rays_editor.Editor3.edit env (Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
     expr = call "scene/light" [] }) with Ok env -> env | Error m -> failwith m in
   let saved = Workspace_doc.to_text (Rays_editor.Editor3.workspace env) in
   check (contains saved "graph scene" && contains saved "scene/geometry (ref g)" && contains saved "scene/camera"
@@ -591,9 +591,9 @@ let run_loops () =
       (scene/merge a b c d :skip [1 3]))))|} in
   check (List.length (lamps renum) = 2) "a merge :skip did not leave two lamps";
   let edit_text doc op = Workspace_doc.to_text (Result.get_ok (Workspace_doc.edit catalog (fst doc.Document.workspace) op)) in
-  let after = edit_text renum (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "b" ] ] }) in
+  let after = edit_text renum (Flow_graph.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "b" ] ] }) in
   check (contains after ":skip [2]") ("deleting an argument did not renumber the skip: " ^ after);
-  let after = edit_text renum (Flow_sop.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "a" ] ] }) in
+  let after = edit_text renum (Flow_graph.Flow_edit.Delete_nodes { nodes = [ [ "scene"; "a" ] ] }) in
   check (contains after ":skip [0 2]") ("deleting an earlier argument did not shift the skip: " ^ after);
   print_endline "scene sync: loop copies are one template: edit, computed refusal, rename, exact delete, pairs ok"
 
@@ -865,7 +865,7 @@ let run_compose () =
     ("add geometry of an existing graph: " ^ source again);
   (* a failing step leaves nothing behind *)
   check (Result.is_error (apply_ops doc [ List.hd (Sync.add_geometry doc ~existing:None);
-    Flow_sop.Flow_edit.Remove_graph { name = "nope" } ])) "a failed gesture was applied";
+    Flow_graph.Flow_edit.Remove_graph { name = "nope" } ])) "a failed gesture was applied";
   (* one World only *)
   check (Result.is_error (Sync.add_world doc)) "a second World was offered";
   let bare = open_text {|(workspace a (graph g :context sop (sop/box))
@@ -876,7 +876,7 @@ let run_compose () =
   same_after_reload worlded "add World";
   let call head args = Flow.Syntax.make (Flow.Syntax.List (Flow.Syntax.make (Flow.Syntax.Sym head) :: args)) in
   let sym name = Flow.Syntax.make (Flow.Syntax.Sym name) in
-  (match apply_ops worlded [ Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; name = "again";
+  (match apply_ops worlded [ Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; name = "again";
       expr = call "scene/world" [ call "ref" [ sym "sky" ] ] } ] with
    | Error message -> check (contains message "E_SCENE_WORLD" || contains message "World") ("one-World add: " ^ message)
    | Ok _ -> failwith "a second World was added to one root");
@@ -890,12 +890,12 @@ let run_compose () =
              pebbles (scene/geometry (ref scatter))
              all (scene/merge left right pebbles)]
         (scene/root all))))|} in
-  let out = okx (apply_ops rock [ Flow_sop.Flow_edit.Disconnect
-    { node = [ "scene"; "all" ]; key = Flow_sop.Flow_edit.Pos 2; fallback = None } ]) in
+  let out = okx (apply_ops rock [ Flow_graph.Flow_edit.Disconnect
+    { node = [ "scene"; "all" ]; key = Flow_graph.Flow_edit.Pos 2; fallback = None } ]) in
   check (geometries out = 2 && contains (flat (source out)) "pebbles (scene/geometry (ref scatter))"
          && contains (flat (source out)) "(scene/merge left right)") ("take out of the scene: " ^ source out);
-  let back = okx (apply_ops out [ Flow_sop.Flow_edit.Connect
-    { node = [ "scene"; "all" ]; key = Flow_sop.Flow_edit.Pos 2; src = "pebbles"; iter = false } ]) in
+  let back = okx (apply_ops out [ Flow_graph.Flow_edit.Connect
+    { node = [ "scene"; "all" ]; key = Flow_graph.Flow_edit.Pos 2; src = "pebbles"; iter = false } ]) in
   check (geometries back = 3) "a wire taken out did not wire back";
   (* delete an object: its SOP graph goes only when nothing else references it *)
   let remove (doc : Document.t) label = ok (write doc (Sync.Delete [ node_id doc label ])) in
@@ -910,7 +910,7 @@ let run_compose () =
   check (not (List.mem "rock" (graph_names no_right)) && List.mem "scatter" (graph_names no_right))
     ("deleting the last object of a graph kept it: " ^ source no_right);
   (* group into a new merge: between the selection and the old one *)
-  let grouped = okx (apply_ops rock [ Flow_sop.Flow_edit.Group_merge
+  let grouped = okx (apply_ops rock [ Flow_graph.Flow_edit.Group_merge
     { nodes = [ [ "scene"; "left" ]; [ "scene"; "right" ] ]; name = "pair" } ]) in
   check (contains (flat (source grouped)) "pair (scene/merge left right)"
          && contains (flat (source grouped)) "all (scene/merge pair pebbles)" && geometries grouped = 3)
@@ -968,8 +968,8 @@ let run_compose () =
    | Ok _ -> failwith "a rename to another object's name was written");
   (* an object the host made is still its graph's after another graph's edit lowered the text again *)
   let pair = open_text "(workspace pair (graph g :context sop (sop/box)) (graph h :context sop (sop/box)))" in
-  let relowered = okx (apply_ops pair [ Flow_sop.Flow_edit.Set_arg { node = [ "h"; "@result" ];
-    key = Flow_sop.Flow_edit.Kw "uniform_scale"; sub = []; value = Flow.Syntax.make (Flow.Syntax.Num "2.0") } ]) in
+  let relowered = okx (apply_ops pair [ Flow_graph.Flow_edit.Set_arg { node = [ "h"; "@result" ];
+    key = Flow_graph.Flow_edit.Kw "uniform_scale"; sub = []; value = Flow.Syntax.make (Flow.Syntax.Num "2.0") } ]) in
   let moved = ok (reconcile relowered (set relowered "g" [ float "translate_x" 1. ])) in
   check (contains (flat (source moved)) "(scene/geometry (ref g) :translate [1.0 0.0 0.0])"
          && contains (source moved) "(scene/geometry (ref h))")

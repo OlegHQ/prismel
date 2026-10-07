@@ -40,7 +40,7 @@ what to cook. Until that lands, `Sketch`/`Frame`/`Scene` stay the way to write a
 
 | Library | Owns |
 |---|---|
-| `native_layer_token`, `lru`, `param`, `rays_math` | Leaves with no dependencies: the opaque presentation-layer handle, a bounded LRU, typed parameter schemas (`Procedural.Parameter`, `Editor_core.Param`), and the pure `Vec2`/`Vec3`/`Mat4`/`Quat`/`Color` math that `rays` re-exports |
+| `native_layer_token`, `lru`, `param`, `frame_input`, `rays_math` | Leaves with no dependencies: the opaque presentation-layer handle, a bounded LRU, typed parameter schemas (`Procedural.Parameter`, `Editor_core.Param`), immutable logical frame facts, and the pure `Vec2`/`Vec3`/`Mat4`/`Quat`/`Color` math that `rays` re-exports |
 | `sdl3`, `sdl3_image/ttf/mixer` | SDL3 bindings (foundational) |
 | `metal` | Metal bindings: safe layer over a handwritten bridge (foundational) |
 | `ogpu_core`, `ogpu` | Portable GPU core and virtual public API |
@@ -53,7 +53,8 @@ what to cook. Until that lands, `Sketch`/`Frame`/`Scene` stay the way to write a
 | `rdk` | The single packed geometry/topology compute core, built from `rdk_core` → `rdk_exact` → `rdk_spatial` → `rdk_attrib` → `rdk_gen`/`rdk_curve` → `rdk_mesh` → `rdk_boolean`; `rdk_rays` is its glue to `rays` meshes |
 | `procedural` | Immutable SOP graphs over `rdk` operations |
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
-| `flow` | UI-free workspace language over `param`: reader, printer, macros, checker and evaluator |
+| `flow` | UI-free workspace language over `param` and `frame_input`: reader, printer, macros, checker, evaluator, frame folds, packed arrays and typed deferred nodes |
+| `flow_graph` | Domain-neutral graph projection, checked text gestures, exposure and probes over `flow` and `param` |
 | `flow_sop` | Typed SOP/value overlay, drives, exposure and environment-owned value lane |
 | `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, the shell's panel tree (`Panels`), plus atomic file writes and s-expression user preferences (`Store`, printed by `Flow.Lisp`) |
 | `editor_document` | Package-private scene/network/settings model, workspace document (`Workspace_doc`, `Layout_by_path`), validation, object/layer schemas and s-expression presets; no presentation dependencies |
@@ -94,7 +95,8 @@ exception.
   SOP, graph, geometry, or sketch libraries.
 - `rdk` never reaches `procedural`; `procedural` never reaches UI
   libraries; `pxui` never reaches `procedural`; `param` depends on nothing;
-  `pxui_graph` never imports `sketch_*`; nothing below imports `rays_editor`.
+  `pxui_graph` never reaches `procedural` or `rdk` and never imports `sketch_*`;
+  `flow_graph` depends only on `flow` and `param`; nothing below imports `rays_editor`.
 - A boundary change updates the gate, adds focused tests at each affected
   boundary, and updates `specification/backend.md`. Do not expose raw SDL,
   Metal, or runtime values in `Scene` or public sketch code.

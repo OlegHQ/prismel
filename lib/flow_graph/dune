@@ -1,0 +1,10 @@
+(library
+ (name flow_graph)
+ (public_name rays.flow_graph)
+ (modules exposure flow_edit projection probe)
+ (libraries flow param))
+
+(test
+ (name test_domain)
+ (modules test_domain)
+ (libraries flow_graph))

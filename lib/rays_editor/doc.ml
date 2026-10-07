@@ -44,7 +44,7 @@ let syntax_edit ~factories (doc : Editor_document.Document.t) op =
    when the batch adds to a scene graph the document does not have yet. *)
 let syntax_batch ~factories (doc : Editor_document.Document.t) ops =
   let adds_to_scene = List.exists (function
-    | Flow_sop.Flow_edit.Add_node { scope = [ "scene" ]; _ } -> true | _ -> false) ops in
+    | Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; _ } -> true | _ -> false) ops in
   let missing = not (List.exists (fun (g : Flow.Workspace.graph) -> g.name = "scene")
     (fst doc.workspace).checked.graphs) in
   let first = if adds_to_scene && missing then Editor_document.Scene_sync.adopt ~factories ~world:false doc
@@ -60,7 +60,7 @@ let text_edit ~factories (doc : Editor_document.Document.t) text =
   let one result = Result.map_error (fun d -> [ d ]) result in
   let* catalog = one (Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
   let* edited = Editor_document.Workspace_doc.of_text ~settings:workspace.settings
-      ~layout:workspace.layout catalog text in
+      ~layout:workspace.layout ~inputs:workspace.inputs catalog text in
   one (Editor_document.Contexts.of_workspace ~factories ~previous:doc edited)
 
 (* A change to the workspace's layout keys (a moved item, a collapsed zone):
@@ -92,8 +92,8 @@ let panel_node ~factories ?(loop_message = "These panels are copies made by a lo
   | Some graph, Some (Editor_document.Document.Bound name) -> Ok (doc, [ graph; name ])
   | _, Some (Inline (home, key)) ->
       let* doc, node = Editor_document.Scene_sync.bind_home ~factories doc home in
-      let* doc = syntax_edit ~factories doc (Flow_sop.Flow_edit.Unfold { node; key; sub = [] }) in
-      (match Flow_sop.Flow_edit.arg_text (fst doc.workspace).source node key with
+      let* doc = syntax_edit ~factories doc (Flow_graph.Flow_edit.Unfold { node; key; sub = [] }) in
+      (match Flow_graph.Flow_edit.arg_text (fst doc.workspace).source node key with
        | Some { Flow.Syntax.node = Sym name; _ } -> Ok (doc, List.rev (name :: List.tl (List.rev node)))
        | _ -> Error "The panel could not be named.")
   | _, Some (Loop _) -> Error loop_message

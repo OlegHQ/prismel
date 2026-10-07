@@ -4,7 +4,7 @@
 (`Flow.Syntax`, `Flow.Lisp`, `Flow.Macro`, `Flow.Workspace` and `Flow.Eval` implement
 them; the study's `prototype/check.cjs` is ported to `lib/flow/test_workspace*.ml`).
 §3 to §5a are the design the graph pane, the editor graph and `.rays` sketches were built
-from (`Flow_sop.Projection`, `Pxui_graph.Scope`, `Rays_editor`, `tools/lisp`); §6 says which
+from (`Flow_graph.Projection`, `Pxui_graph.Scope`, `Rays_editor`, `tools/lisp`); §6 says which
 module implements what. [`flow.md`](../flow.md) has the reader, the printer, argument
 rules, the pane's gestures and keys and the layout forms, and is the current statement
 where it is more specific than §3.
@@ -30,9 +30,9 @@ otherwise make two ways.
    workspace with no OCaml wrapper. `dune build` checks it, reports errors at
    lines in the file, and links a native program. The running editor saves
    back to the file and reloads it when it changes on disk.
-5. **Time is live, structure is not.** `t` drives parameters and recooks only
-   the nodes that depend on it. Loop counts and shape choices never depend
-   on `t`.
+5. **Frame facts are live, structure is not.** Time, input and size drive values
+   and recook their dependents. Structural list counts and shape choices never
+   depend on them. Packed-array lengths are data (§2.5).
 
 ## 2. Language additions
 
@@ -179,11 +179,64 @@ it with its default inputs as a window opens it.
 
 ### 2.4 Bounds
 
-The limits are 4,096 iterations per zone (`Flow.Workspace.max_iterations`), 600,000
+The limits are 4,096 iterations per structural list or geometry zone
+(`Flow.Workspace.max_iterations`), 600,000
 evaluation steps and 64 nested calls (`Flow.Eval`), each named in its diagnostic
 (register L3). The study's cap of 20,000 primitives is not part of the evaluator, which
 builds no geometry. A literal count is checked at compile time; a count that depends on
 an input, `t` or geometry is checked when the program runs.
+
+### 2.5 Frames, frame folds and packed arrays
+
+`Flow.Eval.live` is `Frame_input.t`: `{ t; dt; frame; size; pointer;
+buttons; keys; events }`. Size and pointer coordinates are logical points;
+events retain host order. Every field is live. The host captures one snapshot
+before routing editor keys and passes it to probes, value lanes, context
+lowering and drawing. Geometry workers receive the same snapshot through
+`Procedural.Context.input`. Cache equality includes all fields and floating
+point bits, including signed zero.
+
+`frame/dt`, `frame/index`, `frame/width`, `frame/height`, `pointer/x`,
+`pointer/y`, `(pointer/down [button])` and `(key/down key)` read these facts.
+The pointer button defaults to `"left"`; other names are `"middle"`,
+`"right"`, `"x1"`, `"x2"`. `(frame/input)` returns the complete typed
+record, including ordered event records; their fields and spelling are
+declared in `Flow.Op` and `Frame_input`.
+
+`(state [previous init] step)` folds over frames. The seed is static data;
+the step reads the previous value and current frame, and returns the next
+value. Int/float results use the wider type. A cell is identified by source,
+graph instance, lexical path and iteration tuple. Repeated reads in one
+frame return the same next value. Advancing commits the previous frame;
+failed evaluation rolls the transaction back. Backward seeks, explicit reset,
+stop, source reload and a new export reset the fold. Packed data and records
+may be stored; functions, deferred nodes and layouts may not.
+
+The environment owns fold state; probes inspect a copy. A fold outside a
+geometry loop is captured as an immutable snapshot for every worker;
+one and many domains produce identical geometry. A fold declared inside a
+cooked-geometry element body is `E_STATE_ELEMENT`: bind it outside that
+zone. Packed-array iteration may contain folds, keyed by element index.
+
+The graph draws `state` as a zone: the editable seed and previous-value rail
+on the left, step cards inside, and a next-value yield/feedback wire. The
+ordinary add-node gesture adds it; `Flow_edit.Set_arg` with `Bv (1, 1)` edits
+the seed. It has no iteration selector.
+
+`(array float)` and `(array vec3)` are packed data types, with finite native
+float storage. Constructors are `(array/range count)`, `(array/float count
+[value])` and `(array/vec3 count [value])`; omitted values are zero. Access
+uses `array/count`, `array/nth` and `array/sum`. Negative counts, native
+storage overflow, non-finite values and out-of-range indices are typed
+errors. There is no 4,096-element cap for packed arrays. The evaluation
+budget and native storage bounds still apply.
+
+`map` (one to three arrays), `filter`, `sort-by`, `reduce`, `for`, `fold`,
+`scan` and `sum` operate directly on packed data. A packed map/collection
+body returns float or vec3 data and cannot construct deferred nodes. Array
+length may depend on frame input or a fold; structural lists retain T2's
+`E_TIME_COUNT` and T3's prohibition on live shape choices. Packed-array
+branches select data, so they are allowed without changing the plan.
 
 ## 3. Graph representation
 
@@ -506,9 +559,9 @@ per-view render-camera/World controllers would require an explicit API extension
 | Run pass: values, the geometry plan, residuals | `Flow.Eval` |
 | Lowering to SOP networks, compiled ids by iteration tuple (register I1) | `Flow_sop.Lower`, `Flow_sop.Instance_path` |
 | Live values | `Flow_sop.Value_lane` |
-| Gestures as rewrites of the text | `Flow_sop.Flow_edit` |
-| Zones, rails, rows and chips, without drawing | `Flow_sop.Projection` |
-| Footers, sparklines, iteration lists | `Flow_sop.Probe` |
+| Gestures as rewrites of the text | `Flow_graph.Flow_edit` |
+| Zones, rails, rows and chips, without drawing | `Flow_graph.Projection` |
+| Footers, sparklines, iteration lists | `Flow_graph.Probe` |
 | The pane: zones, selectors, typed requests | `Pxui_graph.Scope` |
 | Scene, World, settings and editor graphs | `Editor_document.Contexts`, `Scene_sync` |
 | `.rays` build and check | `tools/lisp` (`rays-lisp`), `sketches/dune.rays.inc` |

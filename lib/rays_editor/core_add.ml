@@ -29,7 +29,7 @@ let value_entries =
       off = None } in
   let categorize name = (Option.get (Flow.Op.find name Flow.Context.Value)).category in
   [ entry "Math" "=number" "Number"; entry "Math" "=t" "Time (t)"; entry ~output:Flow.Ty.Vec3 "Math" "=vec3" "Vector";
-    entry "Text" "=text" "Text"; entry "Text" "=str" "str" ]
+    entry "Text" "=text" "Text"; entry "Text" "=str" "str"; entry "Frame" "=state" "State" ]
   @ List.map (fun op -> entry (categorize op) ("=" ^ op) op) Flow.Workspace.value_ops
 
 (* the expression and the name a "Value" entry makes *)
@@ -44,9 +44,12 @@ let value_expression context key =
   | "vec3" -> mk (S.Vec [ num "0.0"; num "0.0"; num "0.0" ]), "vector"
   | "text" -> mk (S.Str "text"), "text"
   | "str" -> mk (S.List [ mk (S.Sym "str"); mk (S.Str "text") ]), "text"
+  | "state" ->
+      let expr = Result.get_ok (S.parse "(state [previous 0.0] (+ previous (frame/dt)))") in
+      List.hd expr, "state"
   | op ->
       let signature = Flow.Workspace.op_signature context op in
-      let argument (label, ty) = match Flow_sop.Flow_edit.default_for ty label with
+      let argument (label, ty) = match Flow_graph.Flow_edit.default_for ty label with
         | Some d -> d
         | None -> (match ty with
             | Flow.Ty.List _ -> mk (S.List [ mk (S.Sym "range"); num "4" ])
@@ -81,12 +84,12 @@ let scope_add value key =
       (match Pxui_graph.Scope.selected value.scope_view with
        | _ :: _ :: _ as nodes ->
            let ws, _ = value.doc.Document.workspace in
-           [ Syntax_edit (Flow_sop.Flow_edit.Group_merge { nodes;
-               name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph "group" }) ]
+           [ Syntax_edit (Flow_graph.Flow_edit.Group_merge { nodes;
+               name = Flow_graph.Flow_edit.fresh_name ws.source ~root:graph "group" }) ]
        | _ ->
            let ws, _ = value.doc.Document.workspace in
-           [ Syntax_edit (Flow_sop.Flow_edit.Add_node { scope = [ graph ];
-               name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph "group";
+           [ Syntax_edit (Flow_graph.Flow_edit.Add_node { scope = [ graph ];
+               name = Flow_graph.Flow_edit.fresh_name ws.source ~root:graph "group";
                expr = Flow.Syntax.make (Flow.Syntax.List [ Flow.Syntax.make (Flow.Syntax.Sym "scene/merge") ]) }) ])
   | Some (graph, context) ->
       let ws, _ = value.doc.Document.workspace in
@@ -109,7 +112,7 @@ let scope_add value key =
             (* nothing selected: a kind with an input reads the graph's result, so the text
                still checks (a required input is never left open) *)
             let result = match value.scope_key with
-              | Some { scope = { Flow_sop.Projection.result = Link name; _ }; _ } -> Some name
+              | Some { scope = { Flow_graph.Projection.result = Link name; _ }; _ } -> Some name
               | _ -> None in
             [ graph ], (if arity > 0 then result else None) in
       let expr, base =
@@ -131,7 +134,6 @@ let scope_add value key =
                   Flow.Syntax.make (Flow.Syntax.Sym (String.sub key 12 (String.length key - 12))) ]) ] else []))),
           (if material_of then "material" else key)
         end in
-      let name = Flow_sop.Flow_edit.fresh_name ws.source ~root:graph base in
-      [ Syntax_edit (Flow_sop.Flow_edit.Add_node { scope; name; expr }) ]
+      let name = Flow_graph.Flow_edit.fresh_name ws.source ~root:graph base in
+      [ Syntax_edit (Flow_graph.Flow_edit.Add_node { scope; name; expr }) ]
   | None -> [ Declined "Open a graph to add a node to it" ]
-

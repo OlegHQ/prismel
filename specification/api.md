@@ -650,7 +650,7 @@ In Rays Editor, `Inspector.flow_fields` renders the rows of the selected node of
 workspace text (`flow_row`: its fields, whether it is on the card, what drives it, its
 live value). It shows every parameter under its top folder, a pin dot per row and grouped
 vec3 controls. It returns typed `flow_change` requests (`Edited`, `Pinned`, `Reset`,
-`Expression`) that the host turns into `Flow_sop.Flow_edit` ops and layout edits after
+`Expression`) that the host turns into `Flow_graph.Flow_edit` ops and layout edits after
 `Ui.frame`; an expression that does not check is refused without changing the document.
 
 `effects.cook` requests a deferred/asynchronous graph cook;
@@ -753,21 +753,35 @@ also expose geometry input names through `Edit_graph.factory_slot_names`:
 use `in0`, `in1`, and so on. Slot names must be distinct from parameter
 names. Generated factories also expose field views.
 
-The `flow` library depends only on `param`. It owns the workspace language: the reader
+The `flow` library depends only on `param` and `frame_input`. It owns the workspace language: the reader
 (`Syntax`), the canonical printer (`Lisp`), macros (`Macro`), the checker (`Workspace`),
 the evaluator (`Eval`), pure values (`Value`), the operator declarations (`Op`), static types (`Ty`), contexts, and the catalog descriptors
 the checker reads (`Check`). The PPX uses its shared name validation. Geometry cannot
 connect to value ports, and vectors cannot drive scalars. Float-to-int coercion rounds and
 saturates the machine range before the caller applies the parameter's hard bounds.
 
+`Rays_editor.Workspace.run`, `Workspace.export` and `Editor3.create`/`run`
+accept `?inputs`, a list of graph names and named `Flow.Eval.value`
+overrides. Unknown graphs/inputs, duplicate overrides and incompatible values
+produce typed errors before evaluation. Overrides survive source edits and
+reloads as host configuration; the printer does not write them into `.rays`.
+
+Native 2D Lisp sketches use `:context draw`, typed `Drawing` values and
+`(ui/canvas (ref picture))`; frame folds and packed arrays are specified in
+`workspace/iteration.md` §2.5 and the drawing/panel contract in `flow.md`.
+`Workspace.export ~directory ~frames` exports the first draw graph, or
+`?graph` selects one, with a fresh state fold, `?fps` (default 60) and all
+frame input pinned. See `examples/particles/sketch.rays` and
+`test/test_drawing.ml` for the native byte-identical export gate.
+
 `Flow_sop.Lower.workspace` turns a checked workspace into one `Flow_sop.Network` per
-evaluated `sop` graph: the SOP `Edit_graph` plus the arguments that depend on `t`. The
+evaluated `sop` graph: the SOP `Edit_graph` plus arguments that depend on frame facts or folds. The
 environment-owned `Value_lane` forces those live arguments before each cook,
 normalizes hard bounds with the same `Param.normalize_value` kernel as
 `Param.apply`, and applies only the ones that changed; unchanged values keep
 the resolved geometry and cook keys. `Exposure.shown` is the shared card visibility
-rule. `Flow_sop.Flow_edit` is every gesture as a checked rewrite of the text, and
-`Flow_sop.Projection` the pane's view of it (`flow.md` §3 to §7, §13).
+rule. `Flow_graph.Flow_edit` is every gesture as a checked rewrite of the text, and
+`Flow_graph.Projection` the pane's view of it (`flow.md` §3 to §7, §13).
 
 | Key | Scope | Action |
 |---|---|---|
@@ -778,7 +792,7 @@ rule. `Flow_sop.Flow_edit` is every gesture as a checked rewrite of the text, an
 | `a` | global | add menu of the open graph (type to search) |
 | `j` / `e` / `m` | global | jump to a graph / open the World / 3D or map view in the World |
 | `o` + `v` `h` `x` `f` | global | split the focused panel side by side or stacked, close it, float or dock it |
-| `l` + `g` `l` `t` `i` `u` `m` `w` | global | retype the focused panel: graph, list, lisp, inspector, outline, timeline, viewport |
+| `l` + `g` `l` `t` `i` `u` `m` `w` `c` | global | retype the focused panel: graph, list, lisp, inspector, outline, timeline, viewport, canvas |
 | `n` + the same letters | global | a floating window of that kind |
 | `[` + `0`..`9` `n` `x` | global | switch layout, new layout from this one, remove this one |
 | `z` | global | restore layout |
@@ -926,7 +940,7 @@ optional `(layout ...)` by path, `(settings ...)` and `(view ...)` forms
 (`specification/flow.md` §4.4). Loading checks and lowers the source into one
 geometry object per `sop` graph and is one undo entry; there is no older
 format. Every document is a workspace (`~workspace` of
-`Editor3.create`); `Editor3.edit` applies a `Flow_sop.Flow_edit.op` as one
+`Editor3.create`); `Editor3.edit` applies a `Flow_graph.Flow_edit.op` as one
 history entry named by the op). Scene and World edits made through the list, the inspector, the handles or the
 World keys are written back to the text in the same frame (`Editor_document.Scene_sync`), so Save round-trips them;
 `create ?await` makes each frame block on the cook it submits (a fixed-step run, a test); the crash report writes `document.txt` (a text

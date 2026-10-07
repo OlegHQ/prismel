@@ -1,7 +1,7 @@
 (* Gesture echo: what an edit wrote, in the words of the text (the status strip prints it, as the
    carry's preview line does for a put).  An op with no short words has none, and the history
    label stands. *)
-module E = Flow_sop.Flow_edit
+module E = Flow_graph.Flow_edit
 
 let path node = String.concat "/" node
 

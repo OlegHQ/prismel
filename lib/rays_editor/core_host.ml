@@ -57,9 +57,9 @@ let set_root value root =
    entry): the same reduction as a [Syntax_edit] intent, committed as one
    history entry named by the op ([Gesture] merge for a scrub). *)
 let syntax_edit value op =
-  Result.map (fun doc -> install value doc ~label:(Flow_sop.Flow_edit.label op)
+  Result.map (fun doc -> install value doc ~label:(Flow_graph.Flow_edit.label op)
     ~merge:(Option.fold ~none:Editor_core.History.Step
-      ~some:(fun key -> Editor_core.History.Gesture key) (Flow_sop.Flow_edit.gesture op)))
+      ~some:(fun key -> Editor_core.History.Gesture key) (Flow_graph.Flow_edit.gesture op)))
     (Doc.syntax_edit_result ~factories:value.factories value.doc op)
   |> Result.map_error Flow.Diagnostic.to_string
 
@@ -186,9 +186,9 @@ let pick ?view ?(alt = false) value ~origin ~direction =
              then value, scope
              else match Lazy.force value.flow_catalog with
                | Some catalog -> { value with pane_graph = Some root },
-                   Flow_sop.Projection.of_graph catalog ws.checked root
+                   Flow_graph.Projection.of_graph catalog ws.checked root
                | None -> value, scope in
-           (match Hashtbl.find_opt (Flow_sop.Probe.chains scope) o.site with
+           (match Hashtbl.find_opt (Flow_graph.Probe.chains scope) o.site with
             | Some chain ->
                 (* the outermost collapsed loop stands for what is inside it *)
                 let collapsed zone = Layout_by_path.Path_map.find_opt zone ws.layout.collapsed = Some true in
@@ -212,6 +212,7 @@ let pick ?view ?(alt = false) value ~origin ~direction =
    with the diagnostics, and the status says the last good document is kept. *)
 let reload value ~name text =
   Result.map (fun value ->
+    Cook.reset_state value.cook;
     let clean (text : Text_pane.state) =
       { text with draft = None; doc_base = None; binding_base = None; graph_base = None; doc_errors = []; binding_draft = None; binding_errors = [];
         graph_draft = None; graph_errors = [] } in

@@ -7,6 +7,7 @@ type t = {
   layout : Layout_by_path.t;
   settings : Settings.t;
   extra : S.t list;
+  inputs : (string * (string * Flow.Eval.value) list) list;
 }
 
 let name t = t.checked.name
@@ -73,7 +74,7 @@ let check_forms forms =
 let prune (checked : Flow.Workspace.t) catalog (layout : Layout_by_path.t) =
   if Layout_by_path.is_empty layout then layout
   else
-    let module P = Flow_sop.Projection in
+    let module P = Flow_graph.Projection in
     let known = Hashtbl.create 256 in
     let rec scope (s : P.scope) =
       Hashtbl.replace known s.path ();
@@ -102,7 +103,7 @@ let pruned checked catalog (layout : Layout_by_path.t) =
   let editor = Option.bind layout.editor (fun name -> if editor_known checked name then Some name else None) in
   { (prune checked catalog layout) with editor }
 
-let check_text ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog text =
+let check_text ?(inputs = []) ?(settings = Settings.none) ?(layout = Layout_by_path.empty) catalog text =
   match S.parse text with
   | Error d -> Error [ d ]
   | Ok forms ->
@@ -121,10 +122,10 @@ let check_text ?(settings = Settings.none) ?(layout = Layout_by_path.empty) cata
                     | None -> Ok settings
                     | Some f -> Result.map_error (fun m -> [ diag ~span:f.S.span "E_SETTINGS" m ]) (read_settings settings f) in
                   Result.map (fun settings ->
-                    { source = [ ws ]; checked; layout = pruned checked catalog layout; settings;
+                    { source = [ ws ]; checked; layout = pruned checked catalog layout; settings; inputs;
                       extra = List.filter (fun f -> f != ws) forms }, warnings) settings))))
 
-let of_text ?settings ?layout catalog text = Result.map fst (check_text ?settings ?layout catalog text)
+let of_text ?inputs ?settings ?layout catalog text = Result.map fst (check_text ?inputs ?settings ?layout catalog text)
 
 (* The workspace, then the other root forms in the order they were written ([view] verbatim,
    [layout] and [settings] rewritten from the document), each under the comments written above
@@ -151,14 +152,14 @@ let to_text t =
 
 let edit catalog t op =
   Result.map (fun (source, checked) ->
-    let layout = Layout_by_path.remap (Flow_sop.Flow_edit.remap op) t.layout in
+    let layout = Layout_by_path.remap (Flow_graph.Flow_edit.remap op) t.layout in
     let layout = match op with
-      | Flow_sop.Flow_edit.Merge_layouts _ -> { layout with editor = None }  (* the other editor graphs are gone *)
+      | Flow_graph.Flow_edit.Merge_layouts _ -> { layout with editor = None }  (* the other editor graphs are gone *)
       | _ -> layout in
     (* the edits a scrub repeats every frame change a value, never which nodes there are:
        projecting the graphs again for them costs 16 ms of a 44 ms edit at 2,001 nodes *)
     let layout = match op with
-      | Flow_sop.Flow_edit.Set_arg _ | Set_input_default _ | Set_note _ | Toggle_bypass _ | Set_layout_size _ -> layout
+      | Flow_graph.Flow_edit.Set_arg _ | Set_input_default _ | Set_note _ | Toggle_bypass _ | Set_layout_size _ -> layout
       | _ -> pruned checked catalog layout in
     { t with source; checked; layout })
-    (Flow_sop.Flow_edit.apply_checked catalog t.source op)
+    (Flow_graph.Flow_edit.apply_checked catalog t.source op)

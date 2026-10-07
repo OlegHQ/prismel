@@ -236,7 +236,7 @@ let editor_text () =
   click tab_document;
   type_text (replace (Rays_editor.Workspace_doc.to_text (ws ()))
     ~from:"(seeds : int 240)" ~by:"(seeds : int 99)");
-  env := E.edit !env (Flow_sop.Flow_edit.Set_input_default {form = "sunflower";
+  env := E.edit !env (Flow_graph.Flow_edit.Set_input_default {form = "sunflower";
     input = "seeds"; value = Flow.Syntax.make (Flow.Syntax.Num "125")}) |> Result.get_ok;
   let host_edited = ws () and host_label = E.undo_label !env in
   click apply;
@@ -248,7 +248,7 @@ let editor_text () =
   click discard;
   type_text (replace (Rays_editor.Workspace_doc.to_text (ws ()))
     ~from:"(spread : float 0.062)" ~by:"(spread : float 0.07)");
-  env := E.edit !env (Flow_sop.Flow_edit.Set_input_default {form = "sunflower";
+  env := E.edit !env (Flow_graph.Flow_edit.Set_input_default {form = "sunflower";
     input = "seeds"; value = Flow.Syntax.make (Flow.Syntax.Num "300")}) |> Result.get_ok;
   click apply;
   let merged = Rays_editor.Workspace_doc.to_text (ws ()) in
@@ -257,7 +257,7 @@ let editor_text () =
     ("a draft and a host edit of different values did not merge: " ^ dump () ^ merged);
   (* the host adds a keyword argument to a call the draft edits: arguments pair by name *)
   type_text (replace merged ~from:":segments 6" ~by:":segments 8");
-  env := E.edit !env (Flow_sop.Flow_edit.Set_arg { node = [ "sunflower"; "seeds_each"; "@result" ]; key = Kw "uniform_scale";
+  env := E.edit !env (Flow_graph.Flow_edit.Set_arg { node = [ "sunflower"; "seeds_each"; "@result" ]; key = Kw "uniform_scale";
     sub = []; value = Flow.Syntax.make (Flow.Syntax.Num "0.5") }) |> (function Ok e -> e | Error m -> failwith m);
   click apply;
   let merged = Rays_editor.Workspace_doc.to_text (ws ()) in
@@ -355,7 +355,7 @@ let editor_binding () =
   step [key Input.Escape]; step ~keys:[Input.Meta] [char 'z'];
   check (ws () == before) "Selection's related edits were not one undo entry";
   type_closure "(let* [head (sop/merge seeds_each)] seeds_each)";
-  env := E.edit !env (Flow_sop.Flow_edit.Set_arg {node = ["sunflower"; "head"];
+  env := E.edit !env (Flow_graph.Flow_edit.Set_arg {node = ["sunflower"; "head"];
     key = Whole; sub = []; value = (match Flow.Syntax.parse "(sop/merge seeds_each seeds_each seeds_each)" with
       | Ok [form] -> form | _ -> fail "test expression")}) |> Result.get_ok;
   let host_edited = ws () and host_label = E.undo_label !env in

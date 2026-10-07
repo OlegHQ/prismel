@@ -1,5 +1,6 @@
 (* W5: recorded values, footers, iteration counts, inspector rows and the
    viewport header text. *)
+open Flow_graph
 open Flow_sop
 module P = Projection
 module T = Test_projection
@@ -24,7 +25,7 @@ let bounds () =
   let sunflower = T.load "sunflower" in
   let eval = Result.get_ok (Flow.Eval.static ~record:true sunflower) in
   let head = List.assoc [ "sunflower"; "head" ] eval.records in
-  check (match head with [ ([], Flow.Eval.Geo _) ] -> true | _ -> false) "geometry records a plan node id only"
+  check (match head with [ ([], Flow.Eval.Deferred (Flow.Ty.Geometry, _)) ] -> true | _ -> false) "geometry records a plan node id only"
 
 let sunflower () =
   let w = T.load "sunflower" in
@@ -246,5 +247,14 @@ let skips () =
     | None -> fail "an iteration that ran has no plan node") [ 0; 2; 3 ]
 
 let run () =
+  let w = T.workspace_of "(workspace w (graph g :context value (let* [tick (state [n 0] (+ n 1))] tick)))" in
+  let evaluated = Result.get_ok (Flow.Eval.static ~record:true w) in
+  let state = Flow.Eval.create_state () in
+  let preview = Probe.make ~state ~live:(Frame_input.at_time 0.) evaluated in
+  check (Array.exists (fun (_, v) -> v = Probe.Value (Flow.Eval.Int 1))
+      (Probe.records preview ["g"; "tick"]))
+    "the probe reads a fold snapshot";
+  let result = Result.get_ok (Flow.Eval.run ~state ~live:{(Frame_input.at_time 1.) with frame = 1} ~time:1. w) in
+  check (List.assoc "g" result.results = Flow.Eval.Int 1) "a probe never advances the environment fold";
   skips (); off_display (); geometry_zone (); bounds (); sunflower (); tree (); branches (); live (); nested (); hoist (); selection ();
   print_endline "probe tests passed"

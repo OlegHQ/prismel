@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 158,
+  "module_count": 161,
   "modules": [
     {
       "api": [
@@ -57,7 +57,7 @@
     },
     {
       "api": [
-        "type panel = View of string | Graph | List | Lisp | Inspector | Outline | Timeline",
+        "type panel = View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline",
         "type axis = [ `H | `V ]",
         "type size = [ `Ratio of float | `First of int | `Second of int ]",
         "type t = | Leaf of panel | Split of { axis : axis ; size : size ; a : t ; b : t } | Tile of t list | Float of t",
@@ -77,7 +77,7 @@
         "val summary : t -> string",
         "val labels : t list -> string list"
       ],
-      "api_sha256": "2906ab2699a91b7b74ad6e9760a140e5d491edc4a48f8fa13a875df98b510c94",
+      "api_sha256": "8741d2df3f06999b2d27cc296fb7799827ed8b8493323ecce0bac53a27612e67",
       "excluded_legacy_symbols": [],
       "library": "editor_core",
       "module": "Panels",
@@ -128,13 +128,13 @@
     },
     {
       "api": [
-        "type t = Sop | Value | Scene | World | Settings | Editor | Material",
+        "type t = Sop | Value | Draw | Scene | World | Settings | Editor | Material",
         "val all : t list",
         "val name : t -> string",
         "val of_string : string -> ( t , Diagnostic.t ) result",
         "val supports_values : t -> bool"
       ],
-      "api_sha256": "4128a99b33d1cb0de67157827d95bb068bbf9b2ea59b049640d1286cac2ab979",
+      "api_sha256": "385e7304357031a753d818cfe032f8460a77feb783fd6469d6049f0c8fb93441",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Context",
@@ -160,18 +160,25 @@
     },
     {
       "api": [
-        "type ( 'f , 'r ) payload = ( 'f , 'r ) Value.t = | Int of int | Float of float | Bool of bool | Text of string | Vec3 of float * float * float | List of ( 'f , 'r ) payload array | Record of ( string * ( 'f , 'r ) payload ) list | Geo of int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) payload ) list | Fn of 'f | Residual of 'r",
-        "type value = ( fn , residual ) payload and fn and residual and node = { id : int ; inst : int ; site : Workspace.path ; iter : int list ; kind : string ; args : ( string * value ) list ; }",
-        "type live = { t : float }",
+        "type ( 'f , 'r ) payload = ( 'f , 'r ) Value.t = | Int of int | Float of float | Bool of bool | Text of string | Vec3 of float * float * float | List of ( 'f , 'r ) payload array | Float_array of float array | Vec3_array of float array | Record of ( string * ( 'f , 'r ) payload ) list | Deferred of Ty.t * int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) payload ) list | Fn of 'f | Residual of 'r",
+        "type value = ( fn , residual ) payload and fn and residual and state and node = { id : int ; inst : int ; site : Workspace.path ; iter : int list ; kind : string ; ty : Ty.t ; args : ( string * value ) list ; }",
+        "type live = Frame_input.t",
         "type instance = { graph : string ; default : bool ; inputs : ( string * value ) list ; result : value ; }",
         "type plan = { instances : instance array ; nodes : node array }",
-        "type t = { plan : plan ; results : ( string * value ) list ; records : ( Workspace.path * ( int list * value ) list ) list ; }",
+        "type t = { plan : plan ; results : ( string * value ) list ; states : value list ; records : ( Workspace.path * ( int list * value ) list ) list ; }",
         "val static : ? record : bool -> ? inputs : ( string * ( string * value ) list ) list -> Workspace.t -> ( t , Diagnostic.t ) result",
-        "val residual_eval : ? elems : ( string * value ) list -> residual -> live : live -> ( value , Diagnostic.t ) result",
-        "val force : ? elems : ( string * value ) list -> value -> live : live -> ( value , Diagnostic.t ) result",
+        "val create_state : unit -> state",
+        "val reset_state : state -> unit",
+        "val fork_state : state -> state",
+        "val state_stamp : state -> string",
+        "val transaction : state -> ( unit -> ( 'a , Diagnostic.t ) result ) -> ( 'a , Diagnostic.t ) result",
+        "val residual_eval : ? state : state -> ? elems : ( string * value ) list -> residual -> live : live -> ( value , Diagnostic.t ) result",
+        "val force : ? state : state -> ? elems : ( string * value ) list -> value -> live : live -> ( value , Diagnostic.t ) result",
         "val element_key : Workspace.path -> string",
         "val is_live : value -> bool",
-        "val run : ? record : bool -> ? inputs : ( string * ( string * value ) list ) list -> time : float -> Workspace.t -> ( t , Diagnostic.t ) result",
+        "val frame_dependent : value -> bool",
+        "val state_dependent : value -> bool",
+        "val run : ? record : bool -> ? inputs : ( string * ( string * value ) list ) list -> ? state : state -> ? live : live -> time : float -> Workspace.t -> ( t , Diagnostic.t ) result",
         "val hash : float list -> float",
         "val show : value -> string",
         "module Private : sig",
@@ -179,7 +186,7 @@
         "val compiled : value -> int",
         "end"
       ],
-      "api_sha256": "eaa4410a446dbc5e803ff4cfdb6023d28d5038259ba6f24de664fb0d0e4c80e9",
+      "api_sha256": "3871caae0cf699c4335d1cbfaa9eddbf52e820f6ddb07a8bf44452d7a4da18b5",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Eval",
@@ -221,14 +228,14 @@
         "type signature = { pos : ( string * Ty.t ) list ; opt : ( string * Ty.t ) list ; rest : ( string * Ty.t ) option ; kw : ( string * Ty.t ) list ; }",
         "type shape = Scalar | Struct of { splice : bool }",
         "type arithmetic = { apply : 'f 'r . ( 'f , 'r ) Value.t -> ( 'f , 'r ) Value.t -> ( 'f , 'r ) Value.t }",
-        "type t = { name : string ; ctx : Context.t ; signature : signature ; out : Ty.t list -> Ty.t ; any_num : bool ; choices : ( string * string list ) list ; shape : shape ; check : 'f 'r . ( string * ( 'f , 'r ) Value.t ) list -> unit ; body : 'f 'r . node : ( string -> ( string * ( 'f , 'r ) Value.t ) list -> ( 'f , 'r ) Value.t ) -> ( string * ( 'f , 'r ) Value.t ) list -> ( 'f , 'r ) Value.t ; category : string ; arithmetic : arithmetic option ; }",
+        "type t = { name : string ; ctx : Context.t ; signature : signature ; out : Ty.t list -> Ty.t ; any_num : bool ; choices : ( string * string list ) list ; shape : shape ; live : bool ; check : 'f 'r . ( string * ( 'f , 'r ) Value.t ) list -> unit ; body : 'f 'r . live : Frame_input.t -> node : ( string -> ( string * ( 'f , 'r ) Value.t ) list -> ( 'f , 'r ) Value.t ) -> ( string * ( 'f , 'r ) Value.t ) list -> ( 'f , 'r ) Value.t ; category : string ; arithmetic : arithmetic option ; }",
         "val all : t list",
         "val find : string -> Context.t -> t option",
         "val of_context : Context.t -> t list",
         "val arith : string -> arithmetic option",
         "val max_iterations : int"
       ],
-      "api_sha256": "b797da30bfa94ec20e2017c82e065d063247a201e88c7cf384a17a29680d4c0e",
+      "api_sha256": "f95078b5134435377dbfdc60344cb91951df673e760b41f4f8461ae38e84cad1",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Op",
@@ -284,7 +291,7 @@
     },
     {
       "api": [
-        "type t = | Geometry | Float | Int | Bool | Vec3 | Text | Color | List of t | Record of ( string * t ) list | Fn | Any | Scene | World | Settings | Panel | Editor | Material",
+        "type t = | Geometry | Drawing | Float | Int | Bool | Vec3 | Text | Color | List of t | Array of t | Record of ( string * t ) list | Fn | Any | Scene | World | Settings | Panel | Editor | Material",
         "val of_syntax : Syntax.t -> t option",
         "val names : ( string * t ) list",
         "val of_context : Context.t -> t",
@@ -297,7 +304,7 @@
         "val unify : t -> t -> t option",
         "val elem : t -> t option"
       ],
-      "api_sha256": "de929552b4c3ceb8966551917694e8e3b7a73a687b323f3c945c0a7c2f8687d3",
+      "api_sha256": "ec736c682ce532b43d8a9e99df774182982bf4934848c3ed6581a7bc583a90b3",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Ty",
@@ -305,7 +312,7 @@
     },
     {
       "api": [
-        "type ( 'f , 'r ) t = | Int of int | Float of float | Bool of bool | Text of string | Vec3 of float * float * float | List of ( 'f , 'r ) t array | Record of ( string * ( 'f , 'r ) t ) list | Geo of int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) t ) list | Fn of 'f | Residual of 'r",
+        "type ( 'f , 'r ) t = | Int of int | Float of float | Bool of bool | Text of string | Vec3 of float * float * float | List of ( 'f , 'r ) t array | Float_array of float array | Vec3_array of float array | Record of ( string * ( 'f , 'r ) t ) list | Deferred of Ty.t * int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) t ) list | Fn of 'f | Residual of 'r",
         "exception Fail of string * string * Diagnostic.span option",
         "val fail : string -> string -> 'a",
         "val failf : string -> ( 'a , unit , string , 'b ) format4 -> 'a",
@@ -323,9 +330,13 @@
         "val comps : ( 'f , 'r ) t -> float * float * float",
         "val is_vec : ( 'f , 'r ) t -> bool",
         "val arith : string -> ( float -> float -> float ) -> ( 'f , 'r ) t -> ( 'f , 'r ) t -> ( 'f , 'r ) t",
-        "val list_arg : ( 'f , 'r ) t -> ( 'f , 'r ) t array"
+        "val list_arg : ( 'f , 'r ) t -> ( 'f , 'r ) t array",
+        "val array_length : ( 'f , 'r ) t -> int",
+        "val array_get : ( 'f , 'r ) t -> int -> ( 'f , 'r ) t",
+        "val array_init : Ty.t -> int -> ( int -> ( 'f , 'r ) t ) -> ( 'f , 'r ) t",
+        "val validate : ( 'f , 'r ) t -> unit"
       ],
-      "api_sha256": "3527851f95fc6388a52b96a657572e05503718a86ce105a881fdfc06fb4cacd6",
+      "api_sha256": "b62fb6930f5aa057595426ec4573ecc8c35fbbbcddb40cfe46ecbdde8d8e0fc7",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Value",
@@ -336,10 +347,10 @@
         "type path = string list",
         "module Paths : Set.S with",
         "type elt = path",
-        "type context = Context.t = Sop | Value | Scene | World | Settings | Editor | Material",
+        "type context = Context.t = Sop | Value | Draw | Scene | World | Settings | Editor | Material",
         "val context_name : context -> string",
         "type pattern = Name of string | Seq of pattern list | Keys of string list",
-        "type term = { path : path option ; ty : Ty.t ; node : node ; form : Syntax.t } and node = | Lit of Param.value | Text of string | Nil | Time | Vec of term list | Ref_binding of string * string list | Call of { kind : string ; ctx : Context.t ; args : ( string * term ) list } | Op of { op : string ; args : ( string * term ) list ; skip : int list list } | Call_fn of { fn : string ; args : term list } | Fn_ref of string | Graph_ref of { graph : string ; inputs : ( string * term ) list } | Let of ( pattern * term ) list * term | Loop of { kind : [ `For | `Fold | `Scan | `Sum ] ; accs : ( pattern * term ) list ; clauses : ( pattern * term ) list ; skip : int list list ; body : term ; zone : path } | If of term * term * term | Cond of ( term * term ) list * term | Case of term * ( Syntax.t * term ) list * term | Fn of { params : ( pattern * Ty.t option ) list ; body : term ; zone : path } | Hof of [ `Map | `Filter | `Reduce | `Sort_by ] * term list | List_lit of term list | Record of ( string * term ) list | Get of term * string | Assoc of term * ( string * term ) list | Str of term list | List_op of string * term list | Bypass of term | Expanded of { macro : string ; body : term }",
+        "type term = { path : path option ; ty : Ty.t ; node : node ; form : Syntax.t } and node = | Lit of Param.value | Text of string | Nil | Time | Vec of term list | Ref_binding of string * string list | Call of { kind : string ; ctx : Context.t ; args : ( string * term ) list } | Op of { op : string ; args : ( string * term ) list ; skip : int list list } | Call_fn of { fn : string ; args : term list } | Fn_ref of string | Graph_ref of { graph : string ; inputs : ( string * term ) list } | Let of ( pattern * term ) list * term | State of { binder : pattern ; init : term ; step : term ; zone : path } | Loop of { kind : [ `For | `Fold | `Scan | `Sum ] ; accs : ( pattern * term ) list ; clauses : ( pattern * term ) list ; skip : int list list ; body : term ; zone : path } | If of term * term * term | Cond of ( term * term ) list * term | Case of term * ( Syntax.t * term ) list * term | Fn of { params : ( pattern * Ty.t option ) list ; body : term ; zone : path } | Hof of [ `Map | `Filter | `Reduce | `Sort_by ] * term list | List_lit of term list | Record of ( string * term ) list | Get of term * string | Assoc of term * ( string * term ) list | Str of term list | List_op of string * term list | Bypass of term | Expanded of { macro : string ; body : term }",
         "type graph = { name : string ; context : context ; inputs : ( string * Ty.t * term option ) list ; body : term ; form : Syntax.t ; }",
         "type t = { name : string ; graphs : graph list ; defs : graph list ; macros : Syntax.t list ; source : Syntax.t list ; live : Paths.t ; invariant : Paths.t ; kind_fns : ( string * ( string * Context.t * Check.slot list ) ) list ; }",
         "val max_iterations : int",
@@ -355,35 +366,11 @@
         "val group_reader : Check.parameter -> bool",
         "val group_writer : Check.kind -> Check.parameter -> bool"
       ],
-      "api_sha256": "3199b08cab4502dec1308ce6a999378ec5a3f1d3c603c3dc0b271b4d65b6e718",
+      "api_sha256": "f5b0e1c3ea681ca83f78f9942e4673aaa3e3cadb76ee5874c3bd80519009c32e",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Workspace",
       "source": "lib/flow/workspace.mli"
-    },
-    {
-      "api": [
-        "type descriptor = { qualified : string ; key : string ; operation : string ; label : string ; category : string list ; slots : ( string * Procedural.Edit_graph.input_requirement ) list ; fields : Param.field_view list ; }",
-        "val descriptor : Procedural.Edit_graph.factory -> descriptor",
-        "val of_factories : version : int -> ? extra : descriptor list -> Procedural.Edit_graph.factory list -> ( Flow.Check.catalog , Flow.Diagnostic.t ) result"
-      ],
-      "api_sha256": "78bbe72f043e4e97bc9049af934b19cf8b4efc20c466cf70f701db591cebac1e",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Catalog",
-      "source": "lib/flow_sop/catalog.mli"
-    },
-    {
-      "api": [
-        "val parameter : string",
-        "val encode : ( float * float * float ) array -> string",
-        "val factory : Procedural.Edit_graph.factory"
-      ],
-      "api_sha256": "dcbfd6e8045926b3c8a6958d5b6f0c6073af832d3298b39425d38d501297b117",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Curve",
-      "source": "lib/flow_sop/curve.mli"
     },
     {
       "api": [
@@ -392,9 +379,9 @@
       ],
       "api_sha256": "d7cca58c8e736a1572af049c8002bba92df1473800c289397cc2063f8255638f",
       "excluded_legacy_symbols": [],
-      "library": "flow_sop",
+      "library": "flow_graph",
       "module": "Exposure",
-      "source": "lib/flow_sop/exposure.mli"
+      "source": "lib/flow_graph/exposure.mli"
     },
     {
       "api": [
@@ -434,97 +421,9 @@
       ],
       "api_sha256": "7731992a06064a50c5dff04fbf80de40990bc8751200fa352cf8c0afd7a483e7",
       "excluded_legacy_symbols": [],
-      "library": "flow_sop",
+      "library": "flow_graph",
       "module": "Flow_edit",
-      "source": "lib/flow_sop/flow_edit.mli"
-    },
-    {
-      "api": [
-        "type t = int list",
-        "module Map : Map.S with",
-        "type key = t"
-      ],
-      "api_sha256": "13e51ba6fd0803c83783ae21d917160a0fe5e18e8c21e193343df21b33411666",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Instance_path",
-      "source": "lib/flow_sop/instance_path.mli"
-    },
-    {
-      "api": [
-        "val source_attribute : string",
-        "type pending = { node : int ; field : string ; value : Flow.Eval.value }",
-        "type origin = { merge : int ; input : int ; source : int ; site : Flow.Workspace.path ; iter : int list }",
-        "type zone = { cid : int ; site : Flow.Workspace.path ; iter : int list ; body_site : Flow.Workspace.path ; base : int ; count : int Atomic.t ; ekey : string option ; positions : ( float * float * float ) array Atomic.t }",
-        "type graph = { name : string ; instance : int ; default : bool ; inputs : ( string * Flow.Eval.value ) list ; network : Network.t ; root : int option ; }",
-        "type t = { graphs : graph list ; compiled_ids : int Instance_path.Map.t ; sites : Flow.Workspace.path list ; compiled : int Network.Int_map.t ; pending : pending list ; provenance : origin Network.Int_map.t ; zones : zone list ; volatile : unit Network.Int_map.t ; plan : Flow.Eval.plan ; }",
-        "val origin : t -> int -> origin option",
-        "val tags : t -> site : Flow.Workspace.path -> iter : int list -> int list",
-        "val zone_element : t -> Flow.Workspace.path -> int -> ( string * ( float * float * float ) ) option",
-        "val zone_count : t -> Flow.Workspace.path -> int option",
-        "val is_volatile : t -> int -> bool",
-        "val objects : t -> ( int * Network.t * int ) list",
-        "val changes : Port.parameter -> Flow.Eval.value -> ( ( string * Param.value ) list , Flow.Diagnostic.t ) result",
-        "val workspace : factories : Procedural.Edit_graph.factory list -> ? extra : Catalog.descriptor list -> ? compiled_ids : int Instance_path.Map.t -> ? sites : Flow.Workspace.path list -> ? inputs : ( string * ( string * Flow.Eval.value ) list ) list -> Flow.Syntax.t list -> ( t , Flow.Diagnostic.t ) result",
-        "val counts : t -> int * int",
-        "val status : t -> seconds : float -> string option"
-      ],
-      "api_sha256": "d60d85293e26e5354514f501bc8e125fc66b9cbcddd96afe64653176c09c6823",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Lower",
-      "source": "lib/flow_sop/lower.mli"
-    },
-    {
-      "api": [
-        "val version : int",
-        "val generate : ? extra : Catalog.descriptor list -> Procedural.Edit_graph.factory list -> ( string * string , Flow.Diagnostic.t ) result"
-      ],
-      "api_sha256": "253cd6de37b205422a6539743fd906a844ed6d69a838281f56b348e666b617df",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Manifest",
-      "source": "lib/flow_sop/manifest.mli"
-    },
-    {
-      "api": [
-        "module Int_map : Map.S with",
-        "type key = int",
-        "type t = private { geometry : Procedural.Edit_graph.t ; drives : Flow.Eval.value Port.Map.t ; }",
-        "val of_geometry : Procedural.Edit_graph.t -> t",
-        "val with_drives : Flow.Eval.value Port.Map.t -> t -> ( t , Flow.Diagnostic.t ) result",
-        "val validate : t -> ( unit , Flow.Diagnostic.t ) result",
-        "val parameter : t -> Port.t -> ( Port.parameter , Flow.Diagnostic.t ) result",
-        "val relabel : node_id : int -> string -> t -> ( t , Flow.Diagnostic.t ) result",
-        "val with_geometry : Procedural.Edit_graph.t -> t -> ( t , Flow.Diagnostic.t ) result",
-        "val remove_nodes : int list -> t -> ( t , Flow.Diagnostic.t ) result"
-      ],
-      "api_sha256": "9a24b647254a5abe66a877344a633327103a17e832a60d7fa918e71fcf5a0be7",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Network",
-      "source": "lib/flow_sop/network.mli"
-    },
-    {
-      "api": [
-        "type t = { node : int ; path : string }",
-        "val compare : t -> t -> int",
-        "module Map : Map.S with",
-        "type key = t",
-        "type literal = Scalar of Param.value | Vector of float * float * float",
-        "type parameter = private { path : string ; fields : Param.field_view list ; ty : Flow.Port_type.t option ; }",
-        "val parameters : Param.field_view list -> ( parameter list , Flow.Diagnostic.t ) result",
-        "val find_parameter : parameter list -> string -> ( parameter , Flow.Diagnostic.t ) result",
-        "val literal : parameter -> literal",
-        "val literal_changes : parameter -> literal -> ( ( string * Param.value ) list , Flow.Diagnostic.t ) result",
-        "val normalize : parameter -> Flow.Port_type.value -> ( Flow.Port_type.value * ( string * Param.value ) list , Flow.Diagnostic.t ) result",
-        "val color_of_text : string -> ( float * float * float ) option"
-      ],
-      "api_sha256": "da9048b2e1207e085936b409ea2feea061b374422d30de8ad39b1c565e48c899",
-      "excluded_legacy_symbols": [],
-      "library": "flow_sop",
-      "module": "Port",
-      "source": "lib/flow_sop/port.mli"
+      "source": "lib/flow_graph/flow_edit.mli"
     },
     {
       "api": [
@@ -532,7 +431,7 @@
         "type geometry = { points : int ; prims : int ; groups : string list ; data_id : int ; extent : ( float * float * float ) option ; seconds : float option ; }",
         "type summary = Value of Flow.Eval.value | Geometry of geometry",
         "type t",
-        "val make : ? time : float -> ? geometry : ( int -> geometry option ) -> ? dynamic : ( path -> int option ) -> ? element : ( path -> int -> ( string * Flow.Eval.value ) list option ) -> Flow.Eval.t -> t",
+        "val make : ? state : Flow.Eval.state -> ? live : Frame_input.t -> ? time : float -> ? geometry : ( int -> geometry option ) -> ? dynamic : ( path -> int option ) -> ? element : ( path -> int -> ( string * Flow.Eval.value ) list option ) -> Flow.Eval.t -> t",
         "val same_eval : t -> t -> bool",
         "val plan_node : t -> path -> probes : int list -> int option",
         "val records : t -> path -> ( int list * summary ) array",
@@ -545,11 +444,11 @@
         "val iterations : t -> Projection.node -> probes : int list -> string array",
         "val geometry_targets : t -> Projection.scope -> probe : ( path -> int ) -> int list"
       ],
-      "api_sha256": "b40004c50bd77d8e26a37e76a9c295fc1ac6d8a5129e4ecae58fca219cd411c0",
+      "api_sha256": "8377cc4d6ed2d5009c39610ef996e7bcfde2e1536a277afc18a0995689bed774",
       "excluded_legacy_symbols": [],
-      "library": "flow_sop",
+      "library": "flow_graph",
       "module": "Probe",
-      "source": "lib/flow_sop/probe.mli"
+      "source": "lib/flow_graph/probe.mli"
     },
     {
       "api": [
@@ -558,7 +457,7 @@
         "type row_kind = | Arg | Rest | Add | Hole | Binder | Group_reader | Group_writer",
         "type control = | Plain | Range of float * float | Choice",
         "type row = { label : string ; key : Flow_edit.arg_key ; ty : Flow.Ty.t option ; expr : Flow.Syntax.t option ; chip : chip ; default : string option ; socket : bool ; kind : row_kind ; control : control ; folder : string ; primary : bool ; head : bool ; }",
-        "type zone_kind = For | Fold | Scan | Sum | Let | Fn",
+        "type zone_kind = For | Fold | Scan | Sum | Let | Fn | State",
         "type role = Var | Acc | Param | Capture",
         "type rail_row = { name : string ; names : string list ; role : role ; ty : Flow.Ty.t option ; expr : Flow.Syntax.t option ; key : Flow_edit.arg_key option ; }",
         "type input = { path : path ; name : string ; ty : Flow.Ty.t ; default : Flow.Syntax.t option }",
@@ -601,24 +500,154 @@
         "val card_height : rows : float -> extra : float -> float",
         "val node_width : float"
       ],
-      "api_sha256": "41db5d29c84f0ff8817ce17f7d0fe4bc04f9976df5c5cc9bb6ffd12a87d39669",
+      "api_sha256": "20b26578dfbb2e5442a9fd39ff8cf4e1bf09b502d4b9aed9b6104844d8ba0f2a",
+      "excluded_legacy_symbols": [],
+      "library": "flow_graph",
+      "module": "Projection",
+      "source": "lib/flow_graph/projection.mli"
+    },
+    {
+      "api": [
+        "type descriptor = { qualified : string ; key : string ; operation : string ; label : string ; category : string list ; slots : ( string * Procedural.Edit_graph.input_requirement ) list ; fields : Param.field_view list ; }",
+        "val descriptor : Procedural.Edit_graph.factory -> descriptor",
+        "val of_factories : version : int -> ? extra : descriptor list -> Procedural.Edit_graph.factory list -> ( Flow.Check.catalog , Flow.Diagnostic.t ) result"
+      ],
+      "api_sha256": "78bbe72f043e4e97bc9049af934b19cf8b4efc20c466cf70f701db591cebac1e",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
-      "module": "Projection",
-      "source": "lib/flow_sop/projection.mli"
+      "module": "Catalog",
+      "source": "lib/flow_sop/catalog.mli"
+    },
+    {
+      "api": [
+        "val parameter : string",
+        "val encode : ( float * float * float ) array -> string",
+        "val factory : Procedural.Edit_graph.factory"
+      ],
+      "api_sha256": "dcbfd6e8045926b3c8a6958d5b6f0c6073af832d3298b39425d38d501297b117",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Curve",
+      "source": "lib/flow_sop/curve.mli"
+    },
+    {
+      "api": [
+        "type t = int list",
+        "module Map : Map.S with",
+        "type key = t"
+      ],
+      "api_sha256": "13e51ba6fd0803c83783ae21d917160a0fe5e18e8c21e193343df21b33411666",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Instance_path",
+      "source": "lib/flow_sop/instance_path.mli"
+    },
+    {
+      "api": [
+        "val source_attribute : string",
+        "type pending = { node : int ; field : string ; value : Flow.Eval.value }",
+        "type origin = { merge : int ; input : int ; source : int ; site : Flow.Workspace.path ; iter : int list }",
+        "type zone = { cid : int ; site : Flow.Workspace.path ; iter : int list ; body_site : Flow.Workspace.path ; base : int ; count : int Atomic.t ; ekey : string option ; positions : ( float * float * float ) array Atomic.t }",
+        "type graph = { name : string ; instance : int ; default : bool ; inputs : ( string * Flow.Eval.value ) list ; network : Network.t ; root : int option ; }",
+        "type t = { graphs : graph list ; compiled_ids : int Instance_path.Map.t ; sites : Flow.Workspace.path list ; compiled : int Network.Int_map.t ; pending : pending list ; provenance : origin Network.Int_map.t ; zones : zone list ; volatile : unit Network.Int_map.t ; plan : Flow.Eval.plan ; states : Flow.Eval.value list ; }",
+        "val origin : t -> int -> origin option",
+        "val tags : t -> site : Flow.Workspace.path -> iter : int list -> int list",
+        "val zone_element : t -> Flow.Workspace.path -> int -> ( string * ( float * float * float ) ) option",
+        "val zone_count : t -> Flow.Workspace.path -> int option",
+        "val is_volatile : t -> int -> bool",
+        "val objects : t -> ( int * Network.t * int ) list",
+        "val changes : Port.parameter -> Flow.Eval.value -> ( ( string * Param.value ) list , Flow.Diagnostic.t ) result",
+        "val workspace : factories : Procedural.Edit_graph.factory list -> ? extra : Catalog.descriptor list -> ? compiled_ids : int Instance_path.Map.t -> ? sites : Flow.Workspace.path list -> ? inputs : ( string * ( string * Flow.Eval.value ) list ) list -> Flow.Syntax.t list -> ( t , Flow.Diagnostic.t ) result",
+        "val counts : t -> int * int",
+        "val status : t -> seconds : float -> string option"
+      ],
+      "api_sha256": "34c8bf54abab3a1de3cf267a6a1af19dc0432587b5e24ecf0f34e61462c41b07",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Lower",
+      "source": "lib/flow_sop/lower.mli"
+    },
+    {
+      "api": [
+        "val version : int",
+        "val generate : ? extra : Catalog.descriptor list -> Procedural.Edit_graph.factory list -> ( string * string , Flow.Diagnostic.t ) result"
+      ],
+      "api_sha256": "253cd6de37b205422a6539743fd906a844ed6d69a838281f56b348e666b617df",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Manifest",
+      "source": "lib/flow_sop/manifest.mli"
+    },
+    {
+      "api": [
+        "module Int_map : Map.S with",
+        "type key = int",
+        "type t = private { geometry : Procedural.Edit_graph.t ; drives : Flow.Eval.value Port.Map.t ; states : Flow.Eval.value list ; frame_nodes : ( Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t ) Int_map.t ; }",
+        "val of_geometry : Procedural.Edit_graph.t -> t",
+        "val with_states : Flow.Eval.value list -> t -> t",
+        "val with_frame_nodes : ( Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t ) Int_map.t -> t -> t",
+        "val with_drives : Flow.Eval.value Port.Map.t -> t -> ( t , Flow.Diagnostic.t ) result",
+        "val validate : t -> ( unit , Flow.Diagnostic.t ) result",
+        "val parameter : t -> Port.t -> ( Port.parameter , Flow.Diagnostic.t ) result",
+        "val relabel : node_id : int -> string -> t -> ( t , Flow.Diagnostic.t ) result",
+        "val with_geometry : Procedural.Edit_graph.t -> t -> ( t , Flow.Diagnostic.t ) result",
+        "val remove_nodes : int list -> t -> ( t , Flow.Diagnostic.t ) result"
+      ],
+      "api_sha256": "434af32ad11b5d96712b6a3ad03bc54d5d1ff05281b891e2df243ef0c9423be5",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Network",
+      "source": "lib/flow_sop/network.mli"
+    },
+    {
+      "api": [
+        "type t = { node : int ; path : string }",
+        "val compare : t -> t -> int",
+        "module Map : Map.S with",
+        "type key = t",
+        "type literal = Scalar of Param.value | Vector of float * float * float",
+        "type parameter = private { path : string ; fields : Param.field_view list ; ty : Flow.Port_type.t option ; }",
+        "val parameters : Param.field_view list -> ( parameter list , Flow.Diagnostic.t ) result",
+        "val find_parameter : parameter list -> string -> ( parameter , Flow.Diagnostic.t ) result",
+        "val literal : parameter -> literal",
+        "val literal_changes : parameter -> literal -> ( ( string * Param.value ) list , Flow.Diagnostic.t ) result",
+        "val normalize : parameter -> Flow.Port_type.value -> ( Flow.Port_type.value * ( string * Param.value ) list , Flow.Diagnostic.t ) result",
+        "val color_of_text : string -> ( float * float * float ) option"
+      ],
+      "api_sha256": "da9048b2e1207e085936b409ea2feea061b374422d30de8ad39b1c565e48c899",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Port",
+      "source": "lib/flow_sop/port.mli"
     },
     {
       "api": [
         "type t",
         "type resolved = private { geometry : Procedural.Edit_graph.t ; applied : Flow.Port_type.value Port.Map.t ; applied_text : string Port.Map.t ; time_dependent : bool ; }",
-        "val create : unit -> t",
-        "val resolve : t -> time : float -> Network.t -> ( resolved , Flow.Diagnostic.t ) result"
+        "val create : ? state : Flow.Eval.state -> unit -> t",
+        "val reset : t -> unit",
+        "val resolve : ? live : Frame_input.t -> t -> time : float -> Network.t -> ( resolved , Flow.Diagnostic.t ) result"
       ],
-      "api_sha256": "34e222cfbacc256f00dada326228441213b4d92a5fd2ae68f9b3bb9c1bcf98a3",
+      "api_sha256": "d4077c99a72647f8cd896521175527030e9842bc1570e785f2297f44e067c5d8",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Value_lane",
       "source": "lib/flow_sop/value_lane.mli"
+    },
+    {
+      "api": [
+        "type event = | Key_pressed of string | Key_released of string | Pointer_moved of float * float | Pointer_pressed of string * ( float * float ) | Pointer_released of string * ( float * float ) | Pointer_cancelled of string | Scrolled of float * float | Text_input of string | Text_editing of { text : string ; start : int ; length : int } | File_dropped of string | File_drag_moved of float * float | File_drag_ended | Pinched of float | File_dialog of { id : int ; result : ( string list , string ) result } | Resized of int * int | Focus_lost | Closed | Trackpad_scrolled of { delta : float * float ; phase : string ; time : float }",
+        "type t = { t : float ; dt : float ; frame : int ; size : int * int ; pointer : float * float ; buttons : string list ; keys : string list ; events : event list ; }",
+        "val at_time : float -> t",
+        "val validate : t -> ( unit , string ) result",
+        "val key : t -> string",
+        "val equal : t -> t -> bool"
+      ],
+      "api_sha256": "cb1f0c27f999ee4eaf9cad6f99fa73e0fb3bcc58af71ea9786f460452e1fa986",
+      "excluded_legacy_symbols": [],
+      "library": "frame_input",
+      "module": "Frame_input",
+      "source": "lib/frame_input/frame_input.mli"
     },
     {
       "api": [
@@ -692,7 +721,7 @@
       "api": [
         "module Cancel = Rdk.Cancel",
         "module Dependencies : sig",
-        "type fact = Frame | Time | Seed | Domains | Grain",
+        "type fact = Frame | Time | Seed | Domains | Grain | Input",
         "type t",
         "val static : t",
         "val one : fact -> t",
@@ -702,9 +731,10 @@
         "val to_string : t -> string",
         "end",
         "type t",
-        "val create : ? frame : int64 -> ? time : float -> ? seed : int64 -> ? domains : int -> ? grain : int -> ? cancel : Cancel.t -> unit -> ( t , string ) result",
+        "val create : ? frame : int64 -> ? time : float -> ? input : Frame_input.t -> ? seed : int64 -> ? domains : int -> ? grain : int -> ? cancel : Cancel.t -> unit -> ( t , string ) result",
         "val frame : t -> int64",
         "val time : t -> float",
+        "val input : t -> Frame_input.t",
         "val seed : t -> int64",
         "val domains : t -> int",
         "val grain : t -> int",
@@ -712,7 +742,7 @@
         "val cancelled : t -> bool",
         "val cache_projection : Dependencies.t -> t -> string"
       ],
-      "api_sha256": "78e940ea7ddce1630efe4519a9d44698e6006cb964d32a427d92f5dc945fd13c",
+      "api_sha256": "bc8fde1df50d0a0e6045358cc2e959201cc39fb56ead8f153dc0cd11eea328af",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Context",
@@ -1660,9 +1690,9 @@
         "val max_elements : int",
         "val elements : kind -> ? key : string -> Rdk.Geometry.t -> ( element array , Diagnostic.error ) result",
         "val element_node : element -> Node.t",
-        "val node : ? label : string -> ? report : ( element array -> unit ) -> ? live : bool -> kind : kind -> ? key : string -> source_attribute : string -> source_base : int -> body : ( inputs : Node.t array -> time : float -> element -> Node.t ) -> inputs : Node.t array -> unit -> Node.t"
+        "val node : ? label : string -> ? report : ( element array -> unit ) -> ? live : bool -> ? stamp : string -> kind : kind -> ? key : string -> source_attribute : string -> source_base : int -> body : ( inputs : Node.t array -> context : Context.t -> element -> Node.t ) -> inputs : Node.t array -> unit -> Node.t"
       ],
-      "api_sha256": "e8cfbdc201f1a00f494eb33861a847ec8bdc5d0faadb39614af9a872290ba229",
+      "api_sha256": "9d4c0722315f4472b082e84e1b11846ec251922e70f4af8694b72b7d09ab6c27",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Zone",
@@ -1888,7 +1918,6 @@
     {
       "api": [
         "type entry = { key : string ; label : string ; category : string list ; arity : int ; context : string ; output : Flow.Ty.t ; off : string option ; }",
-        "val entries_of_factories : ? context : string -> Procedural.Edit_graph.factory list -> entry list",
         "type t",
         "val create : ? after : string -> x : int -> y : int -> entry list -> t",
         "val port_color : Pxui.theme -> Flow.Ty.t -> Rays.Color.t",
@@ -1898,7 +1927,7 @@
         "val keys : t -> query : string -> string list",
         "end"
       ],
-      "api_sha256": "aa207e22e28c8d21a21f0f7e32f872b695deed26f54f5d7cfb32e47bc34ef84b",
+      "api_sha256": "3a8bed4405e5325a66c6e227b181950e199ea590004769222a308b9b85a50aa2",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Node_menu",
@@ -1919,7 +1948,7 @@
       "api": [
         "type t",
         "type path = Flow.Workspace.path",
-        "type change = | Syntax_edit of Flow_sop.Flow_edit.op | Probe_set of { zone : path ; index : int } | Zone_collapsed of { zone : path ; collapsed : bool } | Selected of path list | Moved of ( path * float * float ) list | Level_set of ( path * Flow_sop.Projection.level option * bool ) list | Copy_requested of path list | Paste_requested | Menu_requested of float * float | Macro_requested of path list | Defn_requested of path list | Frames_set of { scope : path ; frames : ( string * ( float * float ) * ( float * float ) ) list } | Display_set of path | Activated of path | Drop_over of { path : path ; kind : string ; value : string } | Dropped of { path : path ; kind : string ; value : string } | Notice of string",
+        "type change = | Syntax_edit of Flow_graph.Flow_edit.op | Probe_set of { zone : path ; index : int } | Zone_collapsed of { zone : path ; collapsed : bool } | Selected of path list | Moved of ( path * float * float ) list | Level_set of ( path * Flow_graph.Projection.level option * bool ) list | Copy_requested of path list | Paste_requested | Menu_requested of float * float | Macro_requested of path list | Defn_requested of path list | Frames_set of { scope : path ; frames : ( string * ( float * float ) * ( float * float ) ) list } | Display_set of path | Activated of path | Drop_over of { path : path ; kind : string ; value : string } | Dropped of { path : path ; kind : string ; value : string } | Notice of string",
         "type direction = Left | Down | Up | Right",
         "type command = | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro | Make_defn | Collapse | Probe_step of int | Frame_all | Walk of direction | Edit_name | Item_up | Item_down | Make_frame | Duplicate | Display | Copy | Cut | Paste | Frame_selection | Open_level | Point_level | Open_all | Point_all | Show_hints",
         "type stats = { nodes : int ; zones : int ; rows : int ; drawn_items : int ; drawn_zones : int ; drawn_rows : int ; }",
@@ -1930,8 +1959,8 @@
         "val with_theme : Pxui.theme -> t -> t",
         "val with_failed : ( path * string ) list -> t -> t",
         "val with_carry : lit : ( path * string ) list -> hot : ( path * bool ) option -> t -> t",
-        "val with_scope : ? at : ( path -> ( float * float ) option ) -> ? level : ( path -> ( Flow_sop.Projection.level * bool ) option ) -> ? pin : ( path -> string -> bool option ) -> ? collapsed : ( path -> bool ) -> ? probe : ( path -> int ) -> ? frames : ( path -> ( string * ( float * float ) * ( float * float ) ) list ) -> ? display : path -> ? wires : [ `Rect | `Straight ] -> ? layouts : string list -> key : string -> Flow_sop.Projection.scope -> t -> t",
-        "val with_records : Flow_sop.Probe.t -> t -> t",
+        "val with_scope : ? at : ( path -> ( float * float ) option ) -> ? level : ( path -> ( Flow_graph.Projection.level * bool ) option ) -> ? pin : ( path -> string -> bool option ) -> ? collapsed : ( path -> bool ) -> ? probe : ( path -> int ) -> ? frames : ( path -> ( string * ( float * float ) * ( float * float ) ) list ) -> ? display : path -> ? wires : [ `Rect | `Straight ] -> ? layouts : string list -> key : string -> Flow_graph.Projection.scope -> t -> t",
+        "val with_records : Flow_graph.Probe.t -> t -> t",
         "val editing : t -> bool",
         "val selected : t -> path list",
         "val select : path list -> t -> t",
@@ -1947,7 +1976,7 @@
         "module Private : sig",
         "val grabbed : t -> bool",
         "val macro_step : t -> path -> int option",
-        "val selected_wire : t -> ( path * Flow_sop.Flow_edit.arg_key ) option",
+        "val selected_wire : t -> ( path * Flow_graph.Flow_edit.arg_key ) option",
         "val highlighted_connections : t -> ( ( float * float ) * ( float * float ) ) list",
         "val box_of : t -> path -> ( float * float * float * float ) option",
         "val selector : t -> path -> ( ( float * float * float * float ) * ( float * float * float * float ) * ( float * float * float * float ) ) option",
@@ -1960,11 +1989,11 @@
         "val ports : t -> path -> ( float * float ) list",
         "val wire_count : t -> int",
         "val wire_points : t -> int -> ( float * float ) list",
-        "val wire_target : t -> int -> ( path * Flow_sop.Flow_edit.arg_key ) option",
+        "val wire_target : t -> int -> ( path * Flow_graph.Flow_edit.arg_key ) option",
         "val wire_midpoint : t -> int -> ( float * float ) option",
         "end"
       ],
-      "api_sha256": "ee9b0a91f8c178adce142c4ea57830b2d0e35f1fda3bfb1ec800a7ceb23afcf1",
+      "api_sha256": "7466651cd40009698dbbd95f6e24b7feaf49944f1ec9d92f3b628525324f45df",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
@@ -1973,7 +2002,7 @@
     {
       "api": [
         "module Layout : sig",
-        "type panel = Editor_core.Panels.panel = | View of string | Graph | List | Lisp | Inspector | Outline | Timeline",
+        "type panel = Editor_core.Panels.panel = | View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline",
         "type axis = Editor_core.Panels.axis",
         "type t = Editor_core.Panels.t = | Leaf of panel | Split of { axis : axis ; size : Editor_core.Panels.size ; a : t ; b : t } | Tile of t list | Float of t",
         "type path = int list",
@@ -2061,7 +2090,7 @@
         "val record : Pxui.Ui.t -> ? expanded : string list -> 'record Editor_core.Param.schema -> 'record -> ( 'record * Editor_core.Param.effects , string ) result",
         "end"
       ],
-      "api_sha256": "bc8e8c313b68e6f89c86e6ced17be009b7f419f1c241c31d3fa34ac11707b761",
+      "api_sha256": "b0da3e796f9c86ec5e16eef68a3d194060bcb5f43459b1641521bac0d74d6a24",
       "excluded_legacy_symbols": [],
       "library": "pxui_shell",
       "module": "Pxui_shell",
@@ -2856,7 +2885,7 @@
         "val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown",
         "val line_of : string -> Flow.Diagnostic.t -> int option",
         "val binding : Flow.Syntax.t list -> string list -> ( Flow.Syntax.t option * Flow.Syntax.t ) option",
-        "val paste_ops : Flow.Syntax.t list -> graph : string -> scope : string list -> string -> ( Flow_sop.Flow_edit.op list , string ) result",
+        "val paste_ops : Flow.Syntax.t list -> graph : string -> scope : string list -> string -> ( Flow_graph.Flow_edit.op list , string ) result",
         "end",
         "module Lisp_text : sig",
         "type vocab",
@@ -2883,7 +2912,7 @@
         "val with_query : string -> state -> state",
         "val open_graph : string -> state -> state",
         "type obj = { depth : int ; letter : string ; name : string ; detail : string ; visible : bool option ; render : bool option ; lead : bool ; inert : bool ; chosen : bool ; home : string list option }",
-        "type params = { workspace : Flow.Workspace.t ; active : string option ; scope : Flow_sop.Projection.scope option ; records : Flow_sop.Probe.t option ; probes : string list -> int ; selected : string list list ; chips : ( string * Rays.Color.t ) list ; objects : obj list ; root_detail : string ; layouts : ( string list * int ) option ; notes : ( string * string ) list ; }",
+        "type params = { workspace : Flow.Workspace.t ; active : string option ; scope : Flow_graph.Projection.scope option ; records : Flow_graph.Probe.t option ; probes : string list -> int ; selected : string list list ; chips : ( string * Rays.Color.t ) list ; objects : obj list ; root_detail : string ; layouts : ( string list * int ) option ; notes : ( string * string ) list ; }",
         "type row",
         "val chips : Flow.Eval.t -> ( string * Rays.Color.t ) list",
         "val rows : ? wide : bool -> state -> params -> row array",
@@ -2902,7 +2931,7 @@
         "val pieces : 'a t -> 'a piece list",
         "val applied : 'a t -> int -> Flow_sop.Value_lane.resolved option",
         "val force : 'a t -> 'a t",
-        "val geometry : 'a t -> object_id : int -> node_id : int -> Flow_sop.Probe.geometry option",
+        "val geometry : 'a t -> object_id : int -> node_id : int -> Flow_graph.Probe.geometry option",
         "val pick : 'a piece -> origin : Rays.Vec3.t -> direction : Rays.Vec3.t -> ( float * int ) option",
         "val update : ? live : bool -> ? probes : ( int * int ) list -> ? lit : Pick.Set.t -> 'a t -> settings : Settings.t -> objects : ( int * Flow_sop.Network.t * int ) list -> edit_error : string option -> effects : Procedural.Parameter.effects -> timeline_changes : Sketch_support.Timeline.change list -> timeline : Sketch_support.Timeline.t -> frame : Rays.Frame.t -> frame_request : ( int * int ) option -> 'a update",
         "val close : 'a t -> unit",
@@ -2918,7 +2947,7 @@
         "module Editor3 : sig",
         "type 'prepared t",
         "type nonrec layout = layout",
-        "val create : ? layout : layout -> ? name : string -> ? presets : string -> ? timeline_frames : int -> ? factories : Procedural.Edit_graph.factory list -> ? settings : Settings.t -> ? commands : ( Pxui_shell.Layout.panel , 'prepared t -> 'prepared t ) Editor_core.Command.t list -> ? lights : Rays.Light.t list -> ? world : Rays.World.t -> ? camera : Rays.Easy_camera.t -> ? lens : Rays.Camera.lens -> ? background : Rays.Color.t -> ? seed : int64 -> ? grain : int -> ? domains : int -> ? max_entries : int -> ? max_payload_bytes : int -> ? await : bool -> ? carry_budget : float -> workspace : Workspace_doc.t -> ? source : Source.t -> prepare : ( Settings.t -> Procedural.Session.output -> ( 'prepared , string ) result ) -> scene3 : ( Procedural.Graph.t -> 'prepared -> Rays.Scene3.t ) -> ? overlay : ( Procedural.Graph.t -> 'prepared option -> Rays.Frame.t -> Rays.Scene.t ) -> ? status : ( 'prepared option -> string option ) -> unit -> ( 'prepared t , string ) result",
+        "val create : ? inputs : ( string * ( string * Flow.Eval.value ) list ) list -> ? layout : layout -> ? name : string -> ? presets : string -> ? timeline_frames : int -> ? factories : Procedural.Edit_graph.factory list -> ? settings : Settings.t -> ? commands : ( Pxui_shell.Layout.panel , 'prepared t -> 'prepared t ) Editor_core.Command.t list -> ? lights : Rays.Light.t list -> ? world : Rays.World.t -> ? camera : Rays.Easy_camera.t -> ? lens : Rays.Camera.lens -> ? background : Rays.Color.t -> ? seed : int64 -> ? grain : int -> ? domains : int -> ? max_entries : int -> ? max_payload_bytes : int -> ? await : bool -> ? carry_budget : float -> workspace : Workspace_doc.t -> ? source : Source.t -> prepare : ( Settings.t -> Procedural.Session.output -> ( 'prepared , string ) result ) -> scene3 : ( Procedural.Graph.t -> 'prepared -> Rays.Scene3.t ) -> ? overlay : ( Procedural.Graph.t -> 'prepared option -> Rays.Frame.t -> Rays.Scene.t ) -> ? status : ( 'prepared option -> string option ) -> unit -> ( 'prepared t , string ) result",
         "val update : 'prepared t -> Rays.Frame.t -> 'prepared t",
         "val update_with : 'prepared t -> Rays.Frame.t -> inspector : ( Pxui.Ui.t -> 'a ) -> 'prepared t * 'a option",
         "val after_present : 'prepared t -> Rays.Frame.t -> 'prepared t",
@@ -2932,7 +2961,7 @@
         "val probe : 'prepared t -> Flow.Workspace.path -> int option",
         "val set_probe : 'prepared t -> Flow.Workspace.path -> int -> 'prepared t",
         "val node_box : 'prepared t -> Flow.Workspace.path -> ( int * int * int * int ) option",
-        "val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ( 'prepared t , string ) result",
+        "val edit : 'prepared t -> Flow_graph.Flow_edit.op -> ( 'prepared t , string ) result",
         "val carrying : 'prepared t -> ( string * string ) option",
         "val carry_line : 'prepared t -> string option",
         "val scene : 'prepared t -> Rays.Frame.t -> Rays.Scene.t",
@@ -2964,21 +2993,23 @@
         "val objects : 'prepared t -> ( Rays.Mat4.t * 'prepared ) list",
         "val lights : 'prepared t -> Rays.Light.t list",
         "val world : 'prepared t -> Rays.World.baked option",
-        "val run : ? layout : layout -> ? name : string -> ? presets : string -> ? timeline_frames : int -> ? factories : Procedural.Edit_graph.factory list -> ? settings : Settings.t -> ? commands : ( Pxui_shell.Layout.panel , 'prepared t -> 'prepared t ) Editor_core.Command.t list -> ? lights : Rays.Light.t list -> ? world : Rays.World.t -> ? camera : Rays.Easy_camera.t -> ? lens : Rays.Camera.lens -> ? background : Rays.Color.t -> ? seed : int64 -> ? grain : int -> ? domains : int -> ? max_entries : int -> ? max_payload_bytes : int -> config : Rays.Sketch.config -> workspace : Workspace_doc.t -> ? source : Source.t -> prepare : ( Settings.t -> Procedural.Session.output -> ( 'prepared , string ) result ) -> scene3 : ( Procedural.Graph.t -> 'prepared -> Rays.Scene3.t ) -> ? overlay : ( Procedural.Graph.t -> 'prepared option -> Rays.Frame.t -> Rays.Scene.t ) -> ? status : ( 'prepared option -> string option ) -> unit -> unit",
+        "val run : ? inputs : ( string * ( string * Flow.Eval.value ) list ) list -> ? layout : layout -> ? name : string -> ? presets : string -> ? timeline_frames : int -> ? factories : Procedural.Edit_graph.factory list -> ? settings : Settings.t -> ? commands : ( Pxui_shell.Layout.panel , 'prepared t -> 'prepared t ) Editor_core.Command.t list -> ? lights : Rays.Light.t list -> ? world : Rays.World.t -> ? camera : Rays.Easy_camera.t -> ? lens : Rays.Camera.lens -> ? background : Rays.Color.t -> ? seed : int64 -> ? grain : int -> ? domains : int -> ? max_entries : int -> ? max_payload_bytes : int -> config : Rays.Sketch.config -> workspace : Workspace_doc.t -> ? source : Source.t -> prepare : ( Settings.t -> Procedural.Session.output -> ( 'prepared , string ) result ) -> scene3 : ( Procedural.Graph.t -> 'prepared -> Rays.Scene3.t ) -> ? overlay : ( Procedural.Graph.t -> 'prepared option -> Rays.Frame.t -> Rays.Scene.t ) -> ? status : ( 'prepared option -> string option ) -> unit -> unit",
         "end",
         "module Reduce : sig",
-        "val step : 'prepared Editor3.t -> ? select : int list -> ? preview : Flow_sop.Flow_edit.op -> Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t",
+        "val step : 'prepared Editor3.t -> ? select : int list -> ? preview : Flow_graph.Flow_edit.op -> Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t",
         "end",
         "module Workspace : sig",
         "type source = { path : string ; digest : string }",
         "val load : ? factories : Procedural.Edit_graph.factory list -> string -> ( Workspace_doc.t , Flow.Diagnostic.t list ) result",
+        "val run : ? inputs : ( string * ( string * Flow.Eval.value ) list ) list -> ? factories : Procedural.Edit_graph.factory list -> ? source : source -> Workspace_doc.t -> ( unit , Flow.Diagnostic.t ) result",
+        "val export : ? inputs : ( string * ( string * Flow.Eval.value ) list ) list -> ? graph : string -> ? fps : int -> ? prefix : string -> directory : string -> frames : int -> Workspace_doc.t -> ( unit , Flow.Diagnostic.t ) result",
         "val open_text : ? factories : Procedural.Edit_graph.factory list -> path : string -> digest : string -> string -> Workspace_doc.t * Source.t option",
         "val sop_graphs : ? factories : Procedural.Edit_graph.factory list -> Workspace_doc.t -> ( ( string * Procedural.Graph.t ) list , string ) result",
         "val declared_camera : ? factories : Procedural.Edit_graph.factory list -> Workspace_doc.t -> Rays.Easy_camera.t -> Rays.Easy_camera.t",
         "val main : ? factories : Procedural.Edit_graph.factory list -> path : string -> digest : string -> catalog : string -> string -> unit",
         "end"
       ],
-      "api_sha256": "a9e6d118576223ce530f6c2e55c94ea198e096d5facb8a6520ea816b98d5abcd",
+      "api_sha256": "ae769a5a1200999553f3272d3989df61fe0c2391cddf406fe0c64ba075ef519b",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",
@@ -4447,6 +4478,26 @@
       "library": "sketch_support",
       "module": "Bridge",
       "source": "lib/sketch_support/bridge.mli"
+    },
+    {
+      "api": [
+        "val render : ? state : Flow.Eval.state -> ? states : Flow.Eval.value list -> Flow.Eval.plan -> Flow.Eval.value -> live : Frame_input.t -> size : int * int -> ( Rays.Scene.t , Flow.Diagnostic.t ) result"
+      ],
+      "api_sha256": "749aa25bef972732cfae9e783c7e7d25d0b91be21fd02e26ab4fa0f09f341d3b",
+      "excluded_legacy_symbols": [],
+      "library": "sketch_support",
+      "module": "Drawing",
+      "source": "lib/sketch_support/drawing.mli"
+    },
+    {
+      "api": [
+        "val of_frame : ? time : float -> ? index : int -> Rays.Frame.t -> Frame_input.t"
+      ],
+      "api_sha256": "4650e27c3da6b31f8d219f0c97a1ff4a4975b363751afe8f8a4d4e0035c6e349",
+      "excluded_legacy_symbols": [],
+      "library": "sketch_support",
+      "module": "Live_frame",
+      "source": "lib/sketch_support/live_frame.mli"
     },
     {
       "api": [

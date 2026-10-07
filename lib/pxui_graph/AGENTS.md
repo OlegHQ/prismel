@@ -1,7 +1,7 @@
 # lib/pxui_graph rules
 
-`pxui_graph` exports two modules, `Scope` (the graph pane over one `Flow_sop.Projection.scope` of workspace text) and
-`Node_menu` (the categorised add menu, `Node_menu.entries_of_factories`; no second catalog). `Scope` is the only graph
+`pxui_graph` exports two modules, `Scope` (the graph pane over one `Flow_graph.Projection.scope` of workspace text) and
+`Node_menu` (the categorised add menu, entries supplied by the host; no second catalog). `Scope` is the only graph
 pane. It shares the PXUI handle and returns typed `change` requests. It never mutates the document, cooks, or
 interprets operation names. Keys are exported as `Editor_core.Command` entries through `Scope.bindings`; the host
 scopes and dispatches them. Every interactive element is a `Ui.box` keyed by stable ids; the pane's bucket indices
@@ -41,13 +41,13 @@ Rules that hold throughout:
   `Doc.layout_edit`) is the only reducer, and each gesture is one history entry (`flow.md` §4.3).
 - Layout (positions, levels, pins, collapsed zones, frames) is document data the host stores
   (`Editor_document.Layout_by_path`); selection, hover, pan and zoom stay in this library's immutable view value.
-- The exposure rule comes from `Flow_sop.Exposure.shown`; do not reimplement it here.
+- The exposure rule comes from `Flow_graph.Exposure.shown`; do not reimplement it here.
 - Pan is a right or middle drag, zoom the wheel, two-finger scroll or pinch (`signal.pinch`) at the pointer;
   a left drag on empty canvas is the marquee. Numbers are set through `Ui.value_field`.
 
 ## Workspace pane (`Scope`)
 
-`Pxui_graph.Scope` (`scope_pane.ml`) presents one `Flow_sop.Projection.scope`
+`Pxui_graph.Scope` (`scope_pane.ml`) presents one `Flow_graph.Projection.scope`
 for workspace documents: zones are painted in the canvas pass under the
 tiles (`Pxui.Theme.zone_*`), each item is a `Ui.box` tile, and the iteration
 selector, socket, field and toggle boxes are its children. The host maps
@@ -58,7 +58,7 @@ items (a zone body is drawn once, whatever its iteration count); a row under
 the pointer comes from the pointer and the tile's rectangle, never a second
 hit tree; the pane draws ↵ ◊ t ↑ ► ▼ for ⟲ ◆ ◷ ↥ ▸ ▾ (see `scope_pane.ml`).
 
-Footers: `with_records` takes a `Flow_sop.Probe.t`; footers are built
+Footers: `with_records` takes a `Flow_graph.Probe.t`; footers are built
 only for visible cards at zoom >= 0.4, and a sparkline draws at most 16 segments
 whatever the count (the paint test bounds it). Hoisting a loop-invariant node is the `⇧H` key and the
 context menu's "Hoist out" (`Syntax_edit (Hoist ...)`). `with_scope` drops
@@ -120,7 +120,7 @@ The pane's structure is `graph.html`'s, not only its card internals:
 - **Levels.** `Projection.level` Point / Chip / Card / Full is layout data stored by path (`Layout_by_path.level`,
   `pinned`) and travels as `Level_set` through `Doc.layout_edit`, one history entry per gesture. `o` opens the
   selection one level and pins it, `p` points it or goes back, `⇧O` / `⇧P` do it for every node. The layout reserves the requested level's size and the pane draws that level at every zoom. A card's body is `P.placed.lines` (`Projection.lines`): the rows
-  `Flow_sop.Exposure.shown` lets through (wired or written, a written default included, so a row whose wire is taken off stays: `fallback` writes the
+  `Flow_graph.Exposure.shown` lets through (wired or written, a written default included, so a row whose wire is taken off stays: `fallback` writes the
   schema default; the schema's primary rows are not applied on the card, see
   flow.md 5.1); Full lists every row under its folder label rows. Index rows through `lines`
   (`line_of_row`), never through `n.rows`.

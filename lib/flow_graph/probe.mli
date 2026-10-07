@@ -7,7 +7,7 @@
     ([for], [fold], [scan], [sum], [fn]; not [let*]) has a tuple of length
     [c].  [probes] below is the probed index of each enclosing zone, outermost
     first, so the value at the probe is the record with exactly that tuple.
-    Geometry is never stored: a [Geo] value shows the counts the cook reported
+    Geometry is never stored: a [Deferred (Geometry, id)] value shows the counts the cook reported
     for its plan node ({!make} [~geometry]). *)
 
 type path = Flow.Workspace.path
@@ -23,9 +23,12 @@ type summary = Value of Flow.Eval.value | Geometry of geometry
 type t
 
 val make :
-  ?time:float -> ?geometry:(int -> geometry option) -> ?dynamic:(path -> int option) ->
+  ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?time:float -> ?geometry:(int -> geometry option) -> ?dynamic:(path -> int option) ->
   ?element:(path -> int -> (string * Flow.Eval.value) list option) -> Flow.Eval.t -> t
-(** [time] forces live (residual) values on lookup; [geometry] maps a plan
+(** [live] forces residual values using the complete frame; [time] supplies a
+    time-only frame when [live] is absent. [state] is copied when the probe is
+    created, so inspecting a fold never advances the environment's state.
+    [geometry] maps a plan
     node id to its cooked counts; [dynamic] gives the element count a loop over
     geometry ran over in the last cook: {!counts} reports it, and a
     node inside such a loop reads its one template record at every element.  [element zone k]
@@ -40,7 +43,8 @@ val plan_node : t -> path -> probes:int list -> int option
 (** The plan node ({!Flow.Eval.node} id) of a geometry value at the probe. *)
 
 val records : t -> path -> (int list * summary) array
-(** Every record of a path in evaluation order (at most 4,096). *)
+(** Every recorded value of a path in evaluation order, capped at 4,096
+    previews even when a packed array evaluates more elements. *)
 
 val chains : Projection.scope -> (path, path list) Hashtbl.t
 (** The enclosing iterating zones of every node below the scope, outermost
@@ -58,7 +62,7 @@ type footer = {
   kept : string option;  (** [kept a of b] for a [filter] *)
   runs : int option;  (** [×n], in a zone, when the value changes *)
   invariant : bool;  (** [↥ same each time]: the checker says it can leave the loop *)
-  live : bool;  (** depends on [t] *)
+  live : bool;  (** depends on frame facts or a frame fold *)
 }
 
 val footer : t -> Projection.node -> probes:int list -> footer
@@ -72,7 +76,7 @@ val readouts : t -> Projection.node -> probes:int list -> (string * string) list
     [cook] ([live, recooks every frame] or [cached]). *)
 
 val iterations : t -> Projection.node -> probes:int list -> string array
-(** {!describe} of {!series}: the inspector's list of every iteration. *)
+(** The inspector's textual summary of each recorded iteration. *)
 
 val geometry_targets : t -> Projection.scope -> probe:(path -> int) -> int list
 (** The plan nodes of every geometry node of the scope at its probes: what a

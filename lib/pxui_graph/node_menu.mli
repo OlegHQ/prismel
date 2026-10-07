@@ -15,10 +15,6 @@ type entry = {
           kind is listed after the others when searching, whole row in ink-3, and cannot be picked *)
 }
 
-val entries_of_factories : ?context:string -> Procedural.Edit_graph.factory list -> entry list
-(** One entry per factory, its category path searchable; a SOP kind makes geometry.  No
-    second catalog. *)
-
 type t
 
 val create : ?after:string -> x:int -> y:int -> entry list -> t

@@ -73,16 +73,16 @@ let rec find_binding (cur : S.t) = function
   | [] -> None
   | name :: rest ->
       (* a nested node: the binding that holds it, then the inputs down to it *)
-      let name, keys = Option.value (Flow_sop.Flow_edit.leaf_keys name) ~default:(name, []) in
+      let name, keys = Option.value (Flow_graph.Flow_edit.leaf_keys name) ~default:(name, []) in
       let found = match scope cur with
         | Some (_, res) when name = "@result" -> Some (None, res)
         | Some (ps, _) -> List.find_map (fun ((p : S.t), v) ->
-            if Flow_sop.Flow_edit.pat_key p = name then Some (Some p, v) else None) ps
+            if Flow_graph.Flow_edit.pat_key p = name then Some (Some p, v) else None) ps
         | None when name = "@result" -> Some (None, cur)
         | None -> None in
       let found = if keys = [] then found else
         Option.bind found (fun (_, v) ->
-          List.fold_left (fun e key -> Option.bind e (fun e -> Flow_sop.Flow_edit.arg_of e key)) (Some v) keys
+          List.fold_left (fun e key -> Option.bind e (fun e -> Flow_graph.Flow_edit.arg_of e key)) (Some v) keys
           |> Option.map (fun e -> None, e)) in
       match found with
       | Some (p, v) when rest = [] -> Some (p, v)
@@ -101,7 +101,7 @@ let binding source = function
    earlier pasted one reads its new name.  The renames are substituted at once, through
    placeholders, so a new name that is another pasted binding's old name is not renamed again. *)
 let paste_ops source ~graph ~scope text =
-  let module F = Flow_sop.Flow_edit in
+  let module F = Flow_graph.Flow_edit in
   let rec named = function
     | { S.node = S.Sym n; _ } :: v :: rest -> Option.map (fun r -> (n, v) :: r) (named rest)
     | [] -> Some [] | _ -> None in
@@ -153,8 +153,8 @@ let binding_at (shown : shown) byte = match shown.body with
         | Some s -> s.Flow.Diagnostic.start <= byte && byte <= s.finish | None -> false in
       (* the nested node the byte is in, innermost: a step of a ->, a call inside a call *)
       let rec nested prefix leaf (v : S.t) =
-        match List.find_opt (fun (_, a) -> holds a) (Flow_sop.Flow_edit.nested_nodes v) with
-        | Some (key, a) -> nested prefix (Flow_sop.Flow_edit.nested_leaf leaf key) a
+        match List.find_opt (fun (_, a) -> holds a) (Flow_graph.Flow_edit.nested_nodes v) with
+        | Some (key, a) -> nested prefix (Flow_graph.Flow_edit.nested_leaf leaf key) a
         | None -> prefix @ [ leaf ] in
       let rec within prefix cur = match scope cur with
         | None -> None
@@ -164,13 +164,13 @@ let binding_at (shown : shown) byte = match shown.body with
             (match List.find_map (fun ((p : S.t), v) ->
               match span_of spans p, span_of spans v with
               | Some a, Some b when a.Flow.Diagnostic.start <= byte && byte <= b.Flow.Diagnostic.finish ->
-                  inside (Flow_sop.Flow_edit.pat_key p) v
+                  inside (Flow_graph.Flow_edit.pat_key p) v
               | _ -> None) bindings with
              | Some _ as found -> found
-             | None -> if holds res && Flow_sop.Flow_edit.node_call res then inside "@result" res else None) in
+             | None -> if holds res && Flow_graph.Flow_edit.node_call res then inside "@result" res else None) in
       let found = match within [] body with
         | Some _ as found -> found
-        | None -> if scope body = None && holds body && Flow_sop.Flow_edit.node_call body
+        | None -> if scope body = None && holds body && Flow_graph.Flow_edit.node_call body
             then Some (nested [] "@result" body) else None in
       Option.map (fun names -> shown.graph :: names) found
 
@@ -192,10 +192,10 @@ let closure (root : S.t) top =
   | None -> None
   | Some (bindings, _) ->
       let declares = List.concat_map (fun ((p, _) as binding) ->
-        List.map (fun n -> n, binding) (Flow_sop.Flow_edit.pat_names p)) bindings in
+        List.map (fun n -> n, binding) (Flow_graph.Flow_edit.pat_names p)) bindings in
       let rec need acc name = match List.assoc_opt name declares with
         | Some ((_, v) as binding) when not (List.memq binding acc) ->
-            List.fold_left need (binding :: acc) (Flow_sop.Flow_edit.free_names v)
+            List.fold_left need (binding :: acc) (Flow_graph.Flow_edit.free_names v)
         | _ -> acc in
       let needed = need [] top in
       let sub = List.filter (fun b -> List.memq b needed) bindings in
@@ -205,7 +205,7 @@ let closure (root : S.t) top =
           | None -> []
           | Some inputs -> List.filter_map (fun (i : S.t) -> match i.node with
               | S.List ({ S.node = S.Sym n; _ } :: _)
-                when List.exists (fun (_, v) -> List.mem n (Flow_sop.Flow_edit.free_names v)) sub -> Some n
+                when List.exists (fun (_, v) -> List.mem n (Flow_graph.Flow_edit.free_names v)) sub -> Some n
               | _ -> None) inputs in
         let base = max_id root + 1 in
         let form id node = { (S.make node) with id } in
@@ -263,7 +263,7 @@ let selection_form source path form =
    that are not the reader's carry no position. *)
 let graph_op source ~graph ?selection text =
   let error message = Error (Flow.Diagnostic.error ~code:"E_EDIT" message) in
-  let set form = Flow_sop.Flow_edit.Set_graph { name = graph; form } in
+  let set form = Flow_graph.Flow_edit.Set_graph { name = graph; form } in
   match S.parse text, selection with
   | Error d, _ -> Error d
   | Ok [ ({ node = S.List ({ node = S.Sym ("graph" | "defn"); _ } :: _); _ } as form) ], _ -> Ok (set form)

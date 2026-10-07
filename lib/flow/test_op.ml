@@ -5,30 +5,31 @@ let rec sample name = function
   | Ty.Int -> Int (if name = "index" || name = "active" then 0 else 2)
   | Float -> Float (if name = "ratio" then 0.5 else 1.5)
   | Bool -> Bool true | Vec3 -> Vec3 (1., 2., 3.)
-  | Text | Color -> Text (if name = "axis" then "horizontal" else "a")
+  | Text | Color -> Text (if name = "axis" then "horizontal" else if name = "button" then "left" else "a")
   | List e -> List [|sample "" e; sample "" e|]
+  | Array e -> Value.array_init e 2 (fun _ -> sample "" e)
   | Panel -> Struct ("ui/outline", Ty.Panel, [])
   | Scene -> Struct ("scene/merge", Ty.Scene, [])
   | World -> Struct ("world/none", Ty.World, [])
   | Settings -> Struct ("settings/config", Ty.Settings, [])
   | Editor -> Struct ("ui/workspace", Ty.Editor, [])
   | Material -> Struct ("material/standard", Ty.Material, [])
-  | Geometry -> No_geo | Any -> Float 1.5
+  | Drawing -> Deferred (Ty.Drawing, 0) | Geometry -> No_geo | Any -> Float 1.5
   | Record fs -> Record (List.map (fun (n,t) -> n, sample n t) fs)
   | Fn -> Fn ()
 
 let check (o : Op.t) args =
   try
     let made = ref [] in
-    let node name args = let id = List.length !made in made := (name,args) :: !made; Geo id in
-    let result = o.body ~node args in
+    let node name args = let id = List.length !made in made := (name,args) :: !made; Deferred (o.out (List.map (fun (_,v) -> Value.ty_of v) args), id) in
+    let result = o.body ~live:(Frame_input.at_time 0.) ~node args in
     assert (Ty.fits (Value.ty_of result) (o.out (List.map (fun (_,v) -> Value.ty_of v) args)));
     (match o.shape with Op.Struct _ -> assert (match result with Struct _ -> true | _ -> false) | Scalar -> ());
     result
   with Value.Fail (code, msg, _) -> failwith (o.name ^ ": " ^ code ^ ": " ^ msg)
 
 let () =
-  assert (List.length Op.all = 58);
+  assert (List.length Op.all = 83);
   List.iter (fun (o : Op.t) ->
     assert (Option.get (Op.find o.name o.ctx) == o);
     let s = o.signature in

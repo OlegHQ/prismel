@@ -1,7 +1,7 @@
 (* W3: every graph gesture of the study as a pure rewrite of the workspace
    text: apply the op, compare the printed text.  A refused edit changes
    nothing. *)
-open Flow_sop
+open Flow_graph
 module S = Flow.Syntax
 module E = Flow_edit
 

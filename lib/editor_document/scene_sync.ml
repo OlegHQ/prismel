@@ -10,7 +10,7 @@
    also writes the fields of a camera that follows the viewport. *)
 open Procedural
 module S = Flow.Syntax
-module F = Flow_sop.Flow_edit
+module F = Flow_graph.Flow_edit
 module Param = Editor_core.Param
 module Edit = Edit_graph
 

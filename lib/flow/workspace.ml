@@ -3,7 +3,7 @@ module Smap = Map.Make (String)
 module Paths = Set.Make (struct type t = string list let compare = compare end)
 
 type path = string list
-type context = Context.t = Sop | Value | Scene | World | Settings | Editor | Material
+type context = Context.t = Sop | Value | Draw | Scene | World | Settings | Editor | Material
 let context_name = Context.name
 let context_of_name s = Result.to_option (Context.of_string s)
 let context_ty = Ty.of_context
@@ -23,6 +23,7 @@ and node =
   | Fn_ref of string
   | Graph_ref of { graph : string; inputs : (string * term) list }
   | Let of (pattern * term) list * term
+  | State of { binder : pattern; init : term; step : term; zone : path }
   | Loop of { kind : [ `For | `Fold | `Scan | `Sum ]; accs : (pattern * term) list;
               clauses : (pattern * term) list; skip : int list list; body : term; zone : path }
   | If of term * term * term
@@ -53,7 +54,7 @@ let max_call_depth = 64
 (* ---- names ---- *)
 
 let special = [ "workspace"; "graph"; "defn"; "defmacro"; "let*"; "ref"; "for"; "fold";
-  "scan"; "sum"; "if"; "values"; "fn"; "cond"; "case"; "list"; "concat"; "str"; "get";
+  "scan"; "sum"; "state"; "if"; "values"; "fn"; "cond"; "case"; "list"; "concat"; "str"; "get";
   "assoc"; "map"; "filter"; "reduce"; "sort-by"; "quote"; "quasiquote"; "unquote";
   "unquote-splicing" ]
 let special_forms = special
@@ -75,7 +76,7 @@ let replace_all ~sub ~by s =
 let show t = replace_all ~sub:"list:" ~by:"list of " (Ty.to_string t)
 let plural n = if n = 1 then "" else "s"
 let rec shape_ty = function
-  | Ty.Geometry | Scene | World | Panel | Editor -> true
+  | Ty.Geometry | Drawing | Scene | World | Panel | Editor -> true
   | List e -> shape_ty e
   | Record fs -> List.exists (fun (_, t) -> shape_ty t) fs
   | _ -> false
@@ -88,7 +89,7 @@ let map_seq f xs = List.rev (List.fold_left (fun acc x -> f x :: acc) [] xs)
 (* ---- checker state ---- *)
 
 type v = { ty : Ty.t; live : bool; live_len : bool; vary : int list; len : int option;
-  fn : callee option; groups : string list }
+  fn : callee option; groups : string list; list_fields : string list list }
 and callee =
   | Closure of closure
   | Def_fn of string
@@ -105,11 +106,16 @@ type signature = { sname : string; sctx : context; sparams : (string * Ty.t * S.
 exception Budget
 
 let leaf ?(live = false) ?(vary = []) ?(groups = []) ?len ty =
-  { ty; live; live_len = false; vary; len; fn = None; groups }
+  { ty; live; live_len = false; vary; len; fn = None; groups; list_fields = [] }
 let union a b = List.sort_uniq compare (a @ b)
 let derive ty vs = { ty; live = List.exists (fun v -> v.live) vs; live_len = false;
   vary = List.fold_left (fun a v -> union a v.vary) [] vs; len = None; fn = None;
-  groups = List.fold_left (fun a v -> union a v.groups) [] vs }
+  groups = List.fold_left (fun a v -> union a v.groups) [] vs;
+  list_fields = List.fold_left (fun a v -> union a v.list_fields) [] vs }
+let rec list_fields = function
+  | Ty.List _ -> [[]]
+  | Record fields -> List.concat_map (fun (n, ty) -> List.map (fun path -> n :: path) (list_fields ty)) fields
+  | _ -> []
 let poison = leaf Ty.Any
 
 let port_ty = function
@@ -128,7 +134,7 @@ let param_ty (p : Check.parameter) = match p.ty with
   | Some t -> ty_of_port t
   | None -> Ty.Text
 let kind_out (k : Check.kind) = match k.context, k.outputs with
-  | Context.Scene, _ -> Ty.Scene | World, _ -> Ty.World | Settings, _ -> Ty.Settings | Material, _ -> Ty.Material
+  | Context.Draw, _ -> Ty.Drawing | Context.Scene, _ -> Ty.Scene | World, _ -> Ty.World | Settings, _ -> Ty.Settings | Material, _ -> Ty.Material
   | _, [ (_, t) ] -> ty_of_port t
   | _, [] -> Ty.Any
   | _, outs -> Ty.Record (List.map (fun (n, t) -> (n, ty_of_port t)) outs)
@@ -246,7 +252,9 @@ let check catalog forms =
     if Ty.fits a.av.ty want then true
     else (err a.aform "E_TYPE" (Printf.sprintf "%s: expected %s, got %s." what (show want) (show a.av.ty)); false) in
   let field x (v : v) f name =
-    let derived ty = { v with ty; live_len = false; len = None; fn = None } in
+    let derived ty =
+      let fields = List.filter_map (function n :: path when n = f -> Some path | _ -> None) v.list_fields in
+      { v with ty; live_len = List.mem [] fields; list_fields = fields; len = None; fn = None } in
     match v.ty with
     | Ty.Any -> derived Ty.Any
     | Ty.Vec3 when f = "x" || f = "y" || f = "z" -> derived Ty.Float
@@ -265,7 +273,7 @@ let check catalog forms =
       else Printf.sprintf "Invalid binding name %s. Bind a name, [a b] or {:keys [a b]}." (pattern_key p) in
     let ok = ref true in
     let name_ok (at : S.t) n =
-      if not (Macro.valid_name n) || reserved n then begin
+      if not (Macro.valid_name n) || (reserved n && n <> "state") then begin
         ok := false;
         err at "E_BINDING" (if zone then Printf.sprintf "%s binds names; %s is not a valid one." what n
           else Printf.sprintf "Invalid binding name %s%s." n (if n = "t" then ": t is the context time" else ""))
@@ -390,7 +398,7 @@ let check catalog forms =
     if List.length items mod 2 <> 0 then
       bad x "E_RECORD" (Printf.sprintf "%s is :key value pairs; a key has no value." what)
     else begin
-      let fields = ref [] and vs = ref [] and terms = ref [] and ok = ref true in
+      let fields = ref [] and vs = ref [] and terms = ref [] and lengths = ref [] and ok = ref true in
       List.iter (fun ((k : S.t), value) ->
         match k.node with
         | S.Kw n when Macro.valid_name n ->
@@ -400,13 +408,14 @@ let check catalog forms =
               let (t, v) = infer cx value in
               no_fn value v.ty (Printf.sprintf "Record field :%s" n);
               fields := (n, v.ty) :: !fields; vs := v :: !vs; terms := (n, t) :: !terms
+              ; lengths := List.map (fun p -> n :: p) (if v.live_len then [] :: v.list_fields else v.list_fields) @ !lengths
             end
         | _ -> ok := false;
             err k "E_RECORD" (Printf.sprintf "%s keys are keywords like :size; got %s." what (pattern_key k)))
         (pairs items);
       if not !ok then (tm x Ty.Any Nil, poison)
       else let ty = Ty.Record (List.rev !fields) in
-        (tm x ty (Record (List.rev !terms)), derive ty !vs)
+        (tm x ty (Record (List.rev !terms)), {(derive ty !vs) with list_fields = !lengths})
     end
 
   and list_ cx (x : S.t) (args : S.t list) =
@@ -453,6 +462,7 @@ let check catalog forms =
          | Ty.Any -> (tm x Ty.Any (Assoc (rt, [])), { poison with live = rv.live })
          | Ty.Record fs0 ->
              let fs = ref fs0 and vs = ref [ rv ] and updates = ref [] in
+             let lengths = ref rv.list_fields in
              List.iter (fun ((k : S.t), value) -> match k.node with
                | S.Kw n ->
                    let (t, v) = infer cx value in
@@ -463,10 +473,12 @@ let check catalog forms =
                           err value "E_TYPE" (Printf.sprintf "assoc :%s is %s; got %s." n (show want) (show v.ty))
                     | None -> fs := !fs @ [ (n, v.ty) ]);
                    vs := v :: !vs; updates := (n, t) :: !updates
+                   ; lengths := List.filter (function name :: _ -> name <> n | _ -> true) !lengths
+                     @ List.map (fun p -> n :: p) (if v.live_len then [] :: v.list_fields else v.list_fields)
                | _ -> err k "E_ARGS" (Printf.sprintf "assoc keys are keywords; got %s." (pattern_key k)))
                (pairs rest);
              let ty = Ty.Record !fs in
-             (tm x ty (Assoc (rt, List.rev !updates)), derive ty !vs)
+             (tm x ty (Assoc (rt, List.rev !updates)), {(derive ty !vs) with list_fields = !lengths})
          | t -> bad x "E_TYPE" (Printf.sprintf "assoc updates a record; got %s." (show t)))
     | _ -> bad x "E_ARGS" "assoc is (assoc record :field value …)."
 
@@ -495,7 +507,10 @@ let check catalog forms =
           | Some t -> t
           | None -> if Ty.fits av.ty bv.ty then bv.ty else av.ty in
         time_branch cx x cv.live ty;
-        (tm x ty (If (ct, at, bt)), derive ty [ cv; av; bv ])
+        let v = derive ty [cv; av; bv] in
+        let lengths = if cv.live then union v.list_fields (list_fields ty) else v.list_fields in
+        (tm x ty (If (ct, at, bt)), {v with list_fields = lengths;
+          live_len = av.live_len || bv.live_len || List.mem [] lengths})
     | _ -> bad x "E_NO_ELSE" "if takes a condition, a then and an else."
 
   and cond cx (x : S.t) h (args : S.t list) =
@@ -549,6 +564,9 @@ let check catalog forms =
         let ty = Option.value !ty ~default:Ty.Any in
         time_branch cx x !test_live ty;
         let v = derive ty (!vs @ (match sv with Some (_, s) -> [ s ] | None -> [])) in
+        let lengths = if !test_live then union v.list_fields (list_fields ty) else v.list_fields in
+        let v = {v with list_fields = lengths;
+          live_len = List.exists (fun v -> v.live_len) !vs || List.mem [] lengths} in
         let default = match List.rev terms with (_, _, d) :: _ -> d | [] -> assert false in
         let node = match sv with
           | Some (st, _) -> Case (st, List.filter_map (fun ((c : S.t), t, e) ->
@@ -575,9 +593,31 @@ let check catalog forms =
       else match x.node with
         | S.List ({ S.node = S.Sym ("for" | "fold" | "scan" | "sum"); _ } :: _) -> zone cx x id
         | S.List ({ S.node = S.Sym "let*"; _ } :: _) -> scope cx x id
+        | S.List ({ S.node = S.Sym "state"; _ } :: _) -> state cx x id
         | _ -> infer cx x in
     mark id v;
     ({ t with path = Some id }, v)
+
+  and state cx (x : S.t) id : term * v =
+    match x.node with
+    | S.List [_; {S.node = S.Vec [({S.node = S.Sym _; _} as p); initial]; _}; step] ->
+        let seen = Hashtbl.create 1 in
+        if not (check_pat cx p seen "state" true) then (tm x Ty.Any Nil, poison) else
+        let init, iv = infer cx initial in
+        no_fn initial iv.ty "A state seed";
+        if iv.live then err initial "E_STATE_INIT" "A state seed is static; read the frame in the step.";
+        if shape_ty iv.ty then err initial "E_STATE_TYPE" "State stores data, not deferred nodes or layouts.";
+        let lengths = list_fields iv.ty in
+        let env = bind_pat p {iv with live = true; live_len = List.mem [] lengths; list_fields = lengths} cx.env id ":" in
+        let step, sv = body {cx with env; path = id; zbody = false} step in
+        no_fn x sv.ty "A state step";
+        let ty = Option.value ~default:iv.ty (Ty.unify iv.ty sv.ty) in
+        if not (Ty.fits sv.ty ty) || shape_ty sv.ty then
+          err x "E_STATE_TYPE" "A state step returns the seed's data type.";
+        let v = {sv with ty; live = true; fn = None; list_fields = union sv.list_fields lengths;
+          live_len = sv.live_len || List.mem [] lengths} in
+        (tm x ty (State {binder = pat_ir p; init; step; zone = id}), v)
+    | _ -> bad x "E_STATE" "state is (state [s init] step)."
 
   and scope cx (x : S.t) path : term * v =
     match x.node with
@@ -653,7 +693,7 @@ let check catalog forms =
                 err e "E_TYPE" (Printf.sprintf "%s in %s iterates a list (range, linspace, point_list …); got %s."
                   (pattern_key p) h (show cv.ty));
               Ty.Any in
-        if cv.live_len && kind <> `Sum then
+        if cv.live_len && kind <> `Sum && (match cv.ty with Ty.Array _ -> false | _ -> true) then
           err e "E_TIME_COUNT" (Printf.sprintf
             "The number of iterations of %s depends on t. Loop counts are fixed while playing; animate parameters instead, for example scale a piece to 0." name);
         envs := bind_pat p { cv with ty = et; live_len = false; len = None; fn = None;
@@ -681,11 +721,16 @@ let check catalog forms =
      | _ -> ());
     (* an int seed does not round a float body: the accumulator is the wider of the two *)
     let acc_ty = Option.map (fun at -> Option.value ~default:at (Ty.join at bt.ty)) acc_ty in
+    let packed = List.exists (fun (_, (t : term)) -> match t.ty with Ty.Array _ -> true | _ -> false) clauses in
+    if packed && shape_ty bt.ty then
+      err x "E_ARRAY_TYPE" "Packed-array loops produce data; their length cannot create graph nodes.";
+    let array_elem ty = match ty with Ty.Vec3 -> Ty.Vec3 | Float | Int | Bool | Any -> Ty.Float
+      | _ -> err x "E_ARRAY_TYPE" "Packed arrays hold floats or vec3 values."; Ty.Float in
     if kind = `Sum && not (match bt.ty with Ty.Int | Ty.Float | Ty.Vec3 | Ty.Any -> true | _ -> false) then
       err x "E_TYPE" (Printf.sprintf "sum adds numbers or vec3; the body returns %s." (show bt.ty));
     let ty = match kind, acc_ty with
-      | `Scan, Some at -> Ty.List at
-      | (`For | `Scan), _ -> Ty.List bt.ty
+      | `Scan, Some at -> if packed then Ty.Array (array_elem at) else Ty.List at
+      | (`For | `Scan), _ -> if packed then Ty.Array (array_elem bt.ty) else Ty.List bt.ty
       | `Sum, _ -> (match bt.ty with Ty.Int -> Ty.Int | Ty.Vec3 -> Ty.Vec3 | _ -> Ty.Float)
       | `Fold, Some at -> at
       | `Fold, None -> Ty.Any in
@@ -801,12 +846,24 @@ let check catalog forms =
         | _ -> List.map (fun l -> value_arg x (elem l)) lists in
       let (_, rv) = call_value cx x fv call_args in
       let l0 = match lists with (_, _, v) :: _ -> v | [] -> poison in
+      let packed = List.exists (fun (_, _, (v : v)) -> match v.ty with Ty.Array _ -> true | _ -> false) lists in
+      if packed then begin
+        List.iter (fun (a, _, (v : v)) -> match v.ty with Ty.Array _ -> ()
+          | _ -> err a "E_ARRAY_TYPE" "A packed map combines packed arrays.") lists;
+        if shape_ty rv.ty then err x "E_ARRAY_TYPE" "Packed-array functions produce data, not graph nodes."
+      end;
       let list_vs = List.map (fun (_, _, v) -> v) lists in
       let any_len = List.exists (fun (v : v) -> v.live_len) list_vs in
       let terms = ft :: (match init with Some (t, _) -> [ t ] | None -> []) @ List.map (fun (_, t, _) -> t) lists in
       let kind, ty, live_len =
         match h with
-        | "map" -> no_fn x rv.ty "The map result"; (`Map, Ty.List rv.ty, any_len)
+        | "map" ->
+            no_fn x rv.ty "The map result";
+            let ty = if packed then
+              Ty.Array (match rv.ty with Ty.Vec3 -> Ty.Vec3 | Float | Int | Bool | Any -> Ty.Float
+                | _ -> err x "E_ARRAY_TYPE" "Packed arrays hold floats or vec3 values."; Ty.Float)
+              else Ty.List rv.ty in
+            (`Map, ty, any_len)
         | "filter" ->
             if not (Ty.fits rv.ty Ty.Bool) then
               err x "E_TYPE" (Printf.sprintf "filter's predicate returns bool; it returns %s." (show rv.ty));
@@ -871,6 +928,7 @@ let check catalog forms =
   and call cx (x : S.t) name args : term * v =
     match name with
     | "let*" -> scope cx x (inline cx "~let")
+    | "state" -> state cx x (inline cx "~state")
     | "for" | "fold" | "scan" | "sum" -> zone cx x (inline cx ("~" ^ name))
     | "fn" -> mk_fn cx x (inline cx "~fn") "fn"
     | "if" -> if_ cx x args
@@ -997,7 +1055,8 @@ let check catalog forms =
           | "range", [ Some a; Some b ] -> Some (max 0 (b - a))
           | "linspace", [ _; _; Some n ] -> Some (max 0 n)
           | _ -> None in
-        let v = { (derive ty avs) with live_len; len } in
+        let v = { (derive ty avs) with live = o.live || List.exists (fun (v : v) -> v.live) avs; live_len; len;
+          list_fields = (if o.live then list_fields ty else []) } in
         (tm x ty (Op { op = o.name; args = List.rev !named; skip }), v)
       end
     end

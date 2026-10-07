@@ -73,7 +73,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["param"; "flow"; "flow_sop"; "rays"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
+let upper = ["param"; "flow"; "flow_graph"; "flow_sop"; "rays"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
              "sop_catalog"; "sketch_support"; "rays_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
@@ -83,9 +83,12 @@ let rules =
   List.map (fun lib -> lib, "runtime" :: "runtime_resources"
                             :: "rays_execution" :: upper) foundational
   @ [ "param", "flow" :: "rays" :: "rays_math" :: "rdk" :: "procedural" :: "editor_core" :: "pxui" :: gpu ]
+  @ [ "frame_input", upper @ gpu ]
   @ List.map (fun library -> library, "rays" :: "rays_math" :: "rdk" :: "procedural" :: "editor_core"
        :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sop_catalog" :: "editor_document"
        :: "rays_editor" :: gpu) ["flow"; "ppx_rays"]
+  @ ["flow_graph", ["procedural"; "rdk"; "rays"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
+       "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
   @ ["flow_sop", ["rays"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
        "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
   @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
@@ -120,7 +123,7 @@ let rules =
                "sketch_support"; "rays_editor"];
       "pxui_shell", ["procedural"; "rdk"; "sop_catalog";
                      "pxui_graph"; "sketch_support"; "rays_editor"];
-      "pxui_graph", ["pxui_shell"; "sketch_support"; "rays_editor"; "sop_catalog"];
+      "pxui_graph", ["procedural"; "rdk"; "pxui_shell"; "sketch_support"; "rays_editor"; "sop_catalog"];
       "sop_catalog", "rays" :: "rays_execution" :: "pxui" :: "pxui_shell" :: "pxui_graph" :: "sketch_support"
                      :: "rays_editor" :: gpu;
       "sketch_support", ["pxui"; "pxui_shell"; "pxui_graph"; "rays_editor"];
@@ -138,7 +141,9 @@ let rules =
    in specification/backend.md and with a test at the boundary. *)
 let only =
   [ "param", []; "native_layer_token", []; "lru", [];
-    "flow", ["param"];
+    "frame_input", [];
+    "flow", ["param"; "frame_input"];
+    "flow_graph", ["flow"; "param"];
     "ogpu_core", ["native_layer_token"];
     "ogpu", ["ogpu_core"];
     "ogpu_mock", ["ogpu_core"];

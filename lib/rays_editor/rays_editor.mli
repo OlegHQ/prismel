@@ -194,7 +194,7 @@ module Private : sig
     val line_of : string -> Flow.Diagnostic.t -> int option
     val binding : Flow.Syntax.t list -> string list -> (Flow.Syntax.t option * Flow.Syntax.t) option
     val paste_ops : Flow.Syntax.t list -> graph:string -> scope:string list -> string ->
-      (Flow_sop.Flow_edit.op list, string) result
+      (Flow_graph.Flow_edit.op list, string) result
     (** Pasted text as [Add_node]s with fresh names, paired by position, renamed at once. *)
   end
 
@@ -240,8 +240,8 @@ module Private : sig
     type params = {
       workspace : Flow.Workspace.t;
       active : string option;
-      scope : Flow_sop.Projection.scope option;
-      records : Flow_sop.Probe.t option;
+      scope : Flow_graph.Projection.scope option;
+      records : Flow_graph.Probe.t option;
       probes : string list -> int;
       selected : string list list;
       chips : (string * Rays.Color.t) list;
@@ -290,7 +290,7 @@ module Private : sig
     val pieces : 'a t -> 'a piece list
     val applied : 'a t -> int -> Flow_sop.Value_lane.resolved option
     val force : 'a t -> 'a t
-    val geometry : 'a t -> object_id:int -> node_id:int -> Flow_sop.Probe.geometry option
+    val geometry : 'a t -> object_id:int -> node_id:int -> Flow_graph.Probe.geometry option
     (** The counts of a compiled node an object's last [~probes] asked for. *)
     val pick : 'a piece -> origin:Rays.Vec3.t -> direction:Rays.Vec3.t ->
       (float * int) option
@@ -332,6 +332,7 @@ module Editor3 : sig
   type nonrec layout = layout
 
   val create :
+    ?inputs:(string * (string * Flow.Eval.value) list) list ->
     ?layout:layout ->
     ?name:string ->
     ?presets:string ->
@@ -425,7 +426,7 @@ module Editor3 : sig
   (** The rectangle, in window points, of the node at a path in the graph pane as last laid out
       (tests and tools that click on a node). *)
 
-  val edit : 'prepared t -> Flow_sop.Flow_edit.op -> ('prepared t, string) result
+  val edit : 'prepared t -> Flow_graph.Flow_edit.op -> ('prepared t, string) result
   (** One gesture on the workspace: rewrite the source, re-check, lower into
       the scene's objects, recook, and record one history entry named by the
       op. An error changes nothing. *)
@@ -565,6 +566,7 @@ module Editor3 : sig
       or [None] without a World. *)
 
   val run :
+    ?inputs:(string * (string * Flow.Eval.value) list) list ->
     ?layout:layout ->
     ?name:string ->
     ?presets:string ->
@@ -599,7 +601,7 @@ end
     the list's selection is [select] (scene object ids), and [preview] puts a payload in flight
     whose hot target shows that edit on a scratch document, as a carry does. *)
 module Reduce : sig
-  val step : 'prepared Editor3.t -> ?select:int list -> ?preview:Flow_sop.Flow_edit.op ->
+  val step : 'prepared Editor3.t -> ?select:int list -> ?preview:Flow_graph.Flow_edit.op ->
     Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t
 end
 
@@ -616,6 +618,17 @@ module Workspace : sig
   val load : ?factories:Procedural.Edit_graph.factory list -> string ->
     (Workspace_doc.t, Flow.Diagnostic.t list) result
   (** Parse and check a [.rays] text against {!workspace_catalog}. *)
+
+  val run : ?inputs:(string * (string * Flow.Eval.value) list) list ->
+    ?factories:Procedural.Edit_graph.factory list -> ?source:source -> Workspace_doc.t ->
+    (unit, Flow.Diagnostic.t) result
+  (** Open the native workspace. Host inputs persist across edits and source reloads. *)
+
+  val export : ?inputs:(string * (string * Flow.Eval.value) list) list ->
+    ?graph:string -> ?fps:int -> ?prefix:string -> directory:string -> frames:int ->
+    Workspace_doc.t -> (unit, Flow.Diagnostic.t) result
+  (** Export a draw graph (the first by default) through [Sketch.export_state].
+      Each invocation starts a fresh fold and pins every frame fact. *)
 
   val open_text : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string ->
     string -> Workspace_doc.t * Source.t option

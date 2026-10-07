@@ -1,5 +1,5 @@
 (** The graph pane of a workspace document.  It draws one
-    {!Flow_sop.Projection.scope} (nodes, zones with their rails, iteration
+    {!Flow_graph.Projection.scope} (nodes, zones with their rails, iteration
     selectors and yields, chips, output rows, typed sockets) and returns typed
     requests; the host reduces them.  Selection, pan, zoom and a drag in
     progress are the pane's own immutable state; positions, collapsed zones
@@ -9,7 +9,7 @@ type t
 type path = Flow.Workspace.path
 
 type change =
-  | Syntax_edit of Flow_sop.Flow_edit.op
+  | Syntax_edit of Flow_graph.Flow_edit.op
       (** a gesture: a wire dropped on a row is [Connect], a scrub is
           [Set_arg], deleting a wired row is [Disconnect], the [+] row is
           [Add_item] / [Add_field] / [Set_arg], the context menu and keys
@@ -19,7 +19,7 @@ type change =
   | Selected of path list
   | Moved of (path * float * float) list
       (** dragged items, at their new position inside their scope *)
-  | Level_set of (path * Flow_sop.Projection.level option * bool) list
+  | Level_set of (path * Flow_graph.Projection.level option * bool) list
       (** [o], [p] and their [⇧] forms: these nodes' new level ([None]:
           back to the default, a card) and whether it is pinned.
           The host stores it by path ([Layout_by_path.level] / [pinned]), one history entry. *)
@@ -61,7 +61,7 @@ type command =
           ([Rename]) or, on a graph input, over its default ([Set_input_default]) *)
   | Item_up | Item_down  (** Alt-Up / Alt-Down on the hovered list row: [Move_item]; each row has an [↑] button *)
   | Make_frame  (** Shift-G *)
-  | Duplicate  (** Command-D: copy the selected nodes with fresh names ({!Flow_sop.Flow_edit.Duplicate}) *)
+  | Duplicate  (** Command-D: copy the selected nodes with fresh names ({!Flow_graph.Flow_edit.Duplicate}) *)
   | Display  (** [v]: {!Display_set} for the selected geometry node *)
   | Copy | Cut | Paste  (** Command-C / X / V: {!Copy_requested} (a cut deletes too), {!Paste_requested} *)
   | Frame_selection  (** [f]: pan and zoom to the selected nodes (all of them with none selected) *)
@@ -103,21 +103,21 @@ val with_carry : lit:(path * string) list -> hot:(path * bool) option -> t -> t
 
 val with_scope :
   ?at:(path -> (float * float) option) ->
-  ?level:(path -> (Flow_sop.Projection.level * bool) option) -> ?pin:(path -> string -> bool option) ->
+  ?level:(path -> (Flow_graph.Projection.level * bool) option) -> ?pin:(path -> string -> bool option) ->
   ?collapsed:(path -> bool) ->
   ?probe:(path -> int) ->
   ?frames:(path -> (string * (float * float) * (float * float)) list) -> ?display:path ->
   ?wires:[ `Rect | `Straight ] -> ?layouts:string list ->
   key:string ->
-  Flow_sop.Projection.scope -> t -> t
+  Flow_graph.Projection.scope -> t -> t
 (** Lay a scope out.  A new [key] (the graph's name) frames it and clears the
     selection; the same key keeps pan, zoom and selection.  [pin] says whether a node's row (by label) is
-    pinned onto its card or off it ({!Flow_sop.Projection.lines}).  [layouts] are the names of a
+    pinned onto its card or off it ({!Flow_graph.Projection.lines}).  [layouts] are the names of a
     [ui/switch]'s layouts: its rows read as them, the active wire is solid and accented, the
     others dashed grey, and a click on a row is [Set_layout] on the graph [key]. *)
 
-val with_records : Flow_sop.Probe.t -> t -> t
-(** What a recording evaluation saw ({!Flow_sop.Probe}): footers show the
+val with_records : Flow_graph.Probe.t -> t -> t
+(** What a recording evaluation saw ({!Flow_graph.Probe}): footers show the
     value at each node's probe, a sparkline across the innermost zone and the
     tags, and the selectors read their iteration counts from it.  Call it
     when the evaluation, the cooked geometry counts or the time (a live
@@ -162,7 +162,7 @@ module Private : sig
   (* the step shown by the open expansion panel of a macro call ([0] is the call as written, one
      past the expansions the template); [None] while the panel is closed.  View state: the toggle
      at the right of the card's title opens it and its step buttons choose the step *)
-  val selected_wire : t -> (path * Flow_sop.Flow_edit.arg_key) option
+  val selected_wire : t -> (path * Flow_graph.Flow_edit.arg_key) option
   val highlighted_connections : t -> ((float * float) * (float * float)) list
   val box_of : t -> path -> (float * float * float * float) option
   (* previous button, track, next button, in screen points *)
@@ -180,6 +180,6 @@ module Private : sig
   val ports : t -> path -> (float * float) list
   val wire_count : t -> int
   val wire_points : t -> int -> (float * float) list
-  val wire_target : t -> int -> (path * Flow_sop.Flow_edit.arg_key) option
+  val wire_target : t -> int -> (path * Flow_graph.Flow_edit.arg_key) option
   val wire_midpoint : t -> int -> (float * float) option
 end

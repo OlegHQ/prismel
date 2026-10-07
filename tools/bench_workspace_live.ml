@@ -56,7 +56,7 @@ let run ~frames ~domains name source =
   (* the evaluator share of resolve: force every live argument once *)
   let force_ms = let t0 = now () in
     for n = 0 to 49 do List.iter (fun (p : Lower.pending) ->
-      ignore (ok (Flow.Eval.force p.value ~live:{Flow.Eval.t = float n /. 60.}))) lowered.pending done;
+      ignore (ok (Flow.Eval.force p.value ~live:(Frame_input.at_time (float n /. 60.))))) lowered.pending done;
     (now () -. t0) *. 1000. /. 50. in
   let stats = Procedural.Async_cook.stats worker in
   Procedural.Async_cook.close worker;

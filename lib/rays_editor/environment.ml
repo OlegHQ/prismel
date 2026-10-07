@@ -19,6 +19,8 @@ type ('rendered, 'camera) hidden_scene_cache = {
   scene : Scene.t;
 }
 
+type canvas_picture = {size : int * int; dynamic : bool; scene : Scene.t}
+
 (* A World bake for this frame: the preview size while a gesture or the
    day cycle is live, the final size when idle. *)
 let bake_world ?view ~previous core ~live =
@@ -168,7 +170,7 @@ let move_world core drag point =
               "sun_elevation", Parameter.Float_value (Float.max (-10.) elevation)]
        | Rotate_world _ -> assert false)
 
-let compose_view ?map ~ui_visible ~background ~rendered ~focused ~views ~camera ~camera_of ~paint_view ~film
+let compose_view ?map ~canvases ~ui_visible ~background ~rendered ~focused ~views ~camera ~camera_of ~paint_view ~film
     ~overlay ~guides ~cache core (frame : Frame.t) =
   let view_visible = Core.view_visible core in
   let paint_world = match map with
@@ -179,7 +181,11 @@ let compose_view ?map ~ui_visible ~background ~rendered ~focused ~views ~camera 
     | _ -> world ~paint_view ~key:(match core.Core.focus with View key -> key | _ -> "main")
         ~camera ~rendered:focused ~view_visible in
   (* each viewport is drawn from its own orbit *)
-  if hidden_only ~ui_visible core then
+  if not ui_visible && (match core.Core.focus with Canvas _ -> true | _ -> false) then
+    let key = match core.Core.focus with Canvas key -> key | _ -> assert false in
+    Scene.clear background :: Option.fold ~none:[] ~some:(fun picture -> picture.scene) (List.assoc_opt key canvases)
+    @ Core.machinery core ~all_ui_visible:false
+  else if hidden_only ~ui_visible core then
     (hidden_entry ~background ~rendered:focused ~camera ~paint_view ~cache core frame).scene
   else if not ui_visible then
     Scene.clear background :: (world ~paint_view ~key:"@hidden" ~camera ~rendered:focused ~view_visible
@@ -212,8 +218,18 @@ let compose_view ?map ~ui_visible ~background ~rendered ~focused ~views ~camera 
           let image = Scene.rect ~at:(x + 1, y + 1) ~w:(w - 2) ~h:(h - 2) ~fill:Color.white () :: image
             @ (if bounds = viewport then overlay else []) in
           painted, (root, image) :: windows) ([], []) (Core.view_bodies core frame) in
-    let under key = Option.value ~default:[] (List.assoc_opt (Some key) windows) in
-    Scene.clear background :: List.concat (List.rev painted)
+    let canvas_painted, canvas_windows = List.fold_left (fun (painted, windows) (leaf : Pxui_shell.Layout.leaf) -> match leaf.panel with
+      | Canvas key ->
+          let x, y, w, h = leaf.body in
+          let scene = Option.fold ~none:[] ~some:(fun picture -> picture.scene) (List.assoc_opt key canvases) in
+          let root = List.find_map (fun (root, (panel, p)) ->
+            if panel = Pxui_shell.Layout.Canvas key && p = Some leaf.path then Some root else None) core.Core.pane_keys in
+          let picture = [Scene.clip ~at:(x, y) ~w ~h [Scene.translate x y scene]] in
+          if leaf.floating then painted, (root, picture) :: windows
+          else picture :: painted, windows
+      | _ -> painted, windows) ([], []) (Core.geometry core core.Core.workspace frame).leaves in
+    let under key = Option.value ~default:[] (List.assoc_opt (Some key) (canvas_windows @ windows)) in
+    Scene.clear background :: List.concat (List.rev (canvas_painted @ painted))
     @ (if List.exists (fun (_, _, bounds) -> bounds = viewport) floating then [] else overlay)
     @ Core.machinery ~under core ~all_ui_visible:true
 
@@ -234,7 +250,7 @@ type 'prepared t = {
   views : (string * V.rendered) list;  (* viewports over another scene instance *)
   drawn : (Graph.t * 'prepared * V.rendered) Document.Int_map.t;  (* per object *)
   composed : (Edit_graph.t * Document.level * (string * int list) list) option;
-  resolved : (Document.t * float * Edit_graph.t) option;
+  resolved : (Document.t * Frame_input.t * Edit_graph.t) option;
   context_error : string option;
   (* The scene, open level (ghosts), and viewport membership used by the picture. *)
   baked : World.baked option;
@@ -258,6 +274,7 @@ type 'prepared t = {
   saved_doc : Document.t;
   saved_view : Flow.Syntax.t;
   state_error : string option;
+  canvases : (string * canvas_picture) list;
 }
 
 (* Scene objects a sketch starts with: its lights as light objects. *)
@@ -273,11 +290,13 @@ let seed_lights lights scene =
     (match added with Ok scene -> scene | Error _ -> scene), index + 1)
     (scene, 1) lights |> fst
 
-let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
+let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
     ?settings ?(commands = []) ?(lights = []) ?world
     ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
     ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare ~draw
     ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
+  let workspace = match inputs with None -> workspace
+    | Some inputs -> {workspace with Workspace_doc.inputs} in
   let name = Option.value name ~default:(Workspace_doc.name workspace) in
   let state_key = match source with
     | None -> "workspace:" ^ Workspace_doc.name workspace
@@ -343,7 +362,7 @@ let create ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames
       | None -> core in
     { core; camera; control = V.create_control (); draw; overlay; status;
       rendered = None; views = []; drawn = Document.Int_map.empty; composed = None;
-      resolved = None; context_error = None; baked = None; baked_from = None; baked_views = []; map = None;
+      resolved = None; context_error = None; canvases = []; baked = None; baked_from = None; baked_views = []; map = None;
       render_status = None; pending_render = None;
       background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; held = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
       state_checked = neg_infinity; saved_doc = core.doc; saved_view = V.section camera extra; state_error = None })
@@ -754,15 +773,43 @@ let update_with value frame ~inspector =
       && List.for_all2 (fun (k, (_, b)) (k', (_, b')) -> k = k' && b == b') baked_views value.baked_views
     then value.baked_views else baked_views in
   let time = Sketch_support.Timeline.time (Core.timeline core) in
+  let frame_input = {core.live_frame with Frame_input.t = time;
+    frame = Int64.to_int (Sketch_support.Timeline.frame (Core.timeline core))} in
   let scene, context_error = match value.resolved with
-    | Some (doc, at, scene) when same_context doc core.Core.doc && at = time -> scene, value.context_error
+    | Some (doc, at, scene) when same_context doc core.Core.doc && Frame_input.equal at frame_input -> scene, value.context_error
     | _ ->
         let previous = match value.resolved with
           | Some (doc, _, scene) when same_context doc core.doc -> Some scene
           | _ -> None in
-        let scene, errors = Contexts.resolve_scene ?previous core.doc ~time in
+        let scene, errors = Contexts.resolve_scene ?previous ~state:core.cook.state ~live:frame_input
+          core.doc ~time in
         scene, (if errors = [] then None else Some (String.concat "; "
           (List.map Flow.Diagnostic.to_string errors))) in
+  let canvases, context_error = List.fold_left (fun (pictures, error) (leaf : Pxui_shell.Layout.leaf) ->
+    match leaf.panel with
+    | Canvas key ->
+        let _, _, w, h = if not (V.ui_visible control) && core.focus = Canvas key
+          then (0, 0, raw_frame.width, raw_frame.height) else leaf.body in
+        let drawing = Option.bind core.doc.Document.shell (fun shell -> List.assoc_opt key shell.canvases) in
+        let _, lowered = core.doc.workspace in
+        let same_plan = (snd value.core.doc.workspace).plan == lowered.plan in
+        let previous = List.assoc_opt key value.canvases in
+        let dynamic = match previous with
+          | Some picture when same_plan -> picture.dynamic
+          | _ -> lowered.states <> [] || Array.exists (fun (n : Flow.Eval.node) ->
+              List.exists (fun (_, v) -> Flow.Eval.is_live v) n.args) lowered.plan.nodes in
+        (match drawing with
+         | None -> pictures, error
+         | Some _ when same_plan && not dynamic && Option.fold ~none:false
+             ~some:(fun picture -> picture.size = (w, h)) previous ->
+             (key, Option.get previous) :: pictures, error
+         | Some drawing ->
+             (match Sketch_support.Drawing.render ~state:core.cook.state ~states:lowered.states
+                 lowered.plan drawing ~live:frame_input ~size:(w, h) with
+              | Ok scene -> (key, {size = (w, h); dynamic; scene}) :: pictures, error
+              | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []} previous) :: pictures,
+                  Some (Flow.Diagnostic.to_string d)))
+    | _ -> pictures, error) ([], context_error) (Core.geometry core core.workspace raw_frame).leaves in
   let rendered, views, drawn = compose { value with core } { update with core } ~baked ~baked_views ~scene in
   let rendering = {focused with core; extra; camera; rendered; views} in
   let bodies = if V.ui_visible control then Core.view_bodies core raw_frame
@@ -810,8 +857,8 @@ let update_with value frame ~inspector =
       Some "Render unavailable until the first cook completes" else render_status in
   let value = refresh_hidden { value with core; camera; cameras = focused.cameras; viewing = focused.viewing;
     control; rendered; views; drawn;
-    composed = Some (composition_key core scene); resolved = Some (core.doc, time, scene);
-    context_error; baked; baked_from; baked_views; map; world_drag; pick_press;
+    composed = Some (composition_key core scene); resolved = Some (core.doc, frame_input, scene);
+    context_error; canvases; baked; baked_from; baked_views; map; world_drag; pick_press;
     pending_render; render_status; extra; source } raw_frame in
   (* Sketch commands run last, on the finished frame's model. *)
   let value = List.fold_left (fun value -> function
@@ -831,6 +878,7 @@ let after_present value frame =
 
 let scene value frame =
   compose_view ?map:(Option.map snd value.map) ~ui_visible:(V.ui_visible value.control)
+    ~canvases:value.canvases
     ~background:value.background ~rendered:value.rendered ~views:value.views
     ~focused:(focused_image value)
     ~camera:(view_camera value) ~camera_of:(camera_of value) ~paint_view:(paint_view value)
@@ -888,11 +936,11 @@ let close value =
   V.close value.extra;
   Core.close value.core
 
-let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
+let run ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
     ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
     ~config ~workspace ?source ~prepare ~draw ?overlay ?status () =
   let name = Option.value name ~default:(Workspace_doc.name workspace) in
-  let init _frame = create ?layout ~name ?presets ?timeline_frames ?factories ?settings
+  let init _frame = create ?inputs ?layout ~name ?presets ?timeline_frames ?factories ?settings
       ?commands ?lights ?world
       ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
       ~workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in

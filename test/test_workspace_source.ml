@@ -237,7 +237,7 @@ let run_external_over_dirty () =
     incr count; e := E3.update !e (Test_editor_input.frame ?keys (450., 300.) events !count) in
   let run_for seconds = for _ = 1 to int_of_float (seconds *. 60.) do step [] done in
   step []; step [];
-  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+  e := Result.get_ok (E3.edit !e (Flow_graph.Flow_edit.Set_arg {
     node = ["g"; "@result"]; key = Kw "segments"; sub = []; value = Flow.Syntax.make (Num "12") }));
   let label = E3.undo_label !e in
   write file text1;
@@ -264,7 +264,7 @@ let run_autosave () =
   let state = Editor_document.Preset.path ~directory:(Filename.concat presets "state")
     ~name:(sha ("file:" ^ Unix.realpath file)) in
   check (not (Sys.file_exists state)) "opening a sketch wrote over its recovery state";
-  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+  e := Result.get_ok (E3.edit !e (Flow_graph.Flow_edit.Set_arg {
     node = ["g"; "@result"]; key = Kw "radius"; sub = []; value = Flow.Syntax.make (Num "1.25") }));
   e := E3.set_renderer !e Rays_editor.Renderer.Wireframe;
   step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
@@ -312,7 +312,7 @@ let run_autosave () =
   write (Filename.dirname state) "blocked";
   e := create (); count := 0;
   step [];
-  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+  e := Result.get_ok (E3.edit !e (Flow_graph.Flow_edit.Set_arg {
     node = ["g"; "@result"]; key = Kw "radius"; sub = []; value = Flow.Syntax.make (Num "2") }));
   for _ = 1 to 35 do step [] done;
   check (has (Test_workspace_shell.dump_line !e "autosave") "Autosave failed"
@@ -369,7 +369,7 @@ let run_start_keywords () =
   step [ Event.KeyPressed Input.Enter ]; step [];
   let name = match Editor_document.Preset.list ~directory:presets with
     | [ (name, _) ] -> name | _ -> fail "Space s did not save one preset" in
-  e := Result.get_ok (E3.edit !e (Flow_sop.Flow_edit.Set_arg {
+  e := Result.get_ok (E3.edit !e (Flow_graph.Flow_edit.Set_arg {
     node = [ "editor"; "net" ]; key = Kw "view"; sub = []; value = Flow.Syntax.make (Str "list") }));
   step []; step [];
   check (line !e "projection" = "list") "an edit of :view was not followed";

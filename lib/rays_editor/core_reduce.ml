@@ -139,7 +139,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   let prompt, notice = match List.find_map (function
       | Pxui_graph.Scope.Macro_requested nodes -> Some nodes | _ -> None) result.scope_changes with
     | Some nodes ->
-        (match Flow_sop.Flow_edit.macro_draft (fst value.doc.Document.workspace).source nodes with
+        (match Flow_graph.Flow_edit.macro_draft (fst value.doc.Document.workspace).source nodes with
          | Ok draft ->
              Some (Making_macro { nodes; draft; state = { name = draft.name;
                holes = Array.of_list (List.mapi (fun i _ -> i < 2, "p" ^ string_of_int (i + 1)) draft.literals) } }),
@@ -240,21 +240,21 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           (match Doc.syntax_edit ~factories:value.factories next op with
            | Ok doc ->
                (match op with
-                | Flow_sop.Flow_edit.Add_node { scope; name; _ } -> added := [ scope @ [ name ] ]
+                | Flow_graph.Flow_edit.Add_node { scope; name; _ } -> added := [ scope @ [ name ] ]
                 | Rename_graph { name; to_ } -> renamed := Some (name, to_)
                 | Duplicate { nodes } ->
-                    added := Flow_sop.Flow_edit.duplicated (fst next.workspace).source nodes
+                    added := Flow_graph.Flow_edit.duplicated (fst next.workspace).source nodes
                 | _ -> ());
                if !edit_note = None then
                  edit_note := Option.map (fun words -> "Wrote " ^ words) (Echo.words op);
-               doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op; edit_error = None;
+               doc, { (result : _ frame_result) with label = Flow_graph.Flow_edit.label op; edit_error = None;
                effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> refuse message)
       | Syntax_batch (label, ops) ->
           (match Doc.syntax_batch ~factories:value.factories next ops with
            | Ok doc ->
                List.iter (function
-                 | Flow_sop.Flow_edit.Add_node { scope; name; _ } -> added := [ scope @ [ name ] ]
+                 | Flow_graph.Flow_edit.Add_node { scope; name; _ } -> added := [ scope @ [ name ] ]
                  | Set_graph { name; _ } when label = "New material" -> created := Some name
                  | _ -> ()) ops;
                if !edit_note = None then
@@ -281,7 +281,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           (match home with
            | None -> refuse "That object is not in the text yet: change one of its values, which writes it."
            | Some home ->
-               let op path = Flow_sop.Flow_edit.Set_arg { node = path; key = Kw key; sub; value = expr } in
+               let op path = Flow_graph.Flow_edit.Set_arg { node = path; key = Kw key; sub; value = expr } in
                (match (let* doc, path = Editor_document.Scene_sync.bind_home ~factories:value.factories next home in
                        Doc.syntax_edit ~factories:value.factories doc (op path)) with
                 | Ok doc ->
@@ -296,8 +296,8 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           let bound =
             let* doc, node = Editor_document.Scene_sync.bind_home ~factories:value.factories next home in
             let* doc = Doc.syntax_edit ~factories:value.factories doc
-              (Flow_sop.Flow_edit.Unfold { node; key; sub = [] }) in
-            (match Flow_sop.Flow_edit.arg_text (fst doc.workspace).source node key with
+              (Flow_graph.Flow_edit.Unfold { node; key; sub = [] }) in
+            (match Flow_graph.Flow_edit.arg_text (fst doc.workspace).source node key with
              | Some { Flow.Syntax.node = Sym name; _ } ->
                  let path = List.rev (name :: List.tl (List.rev node)) in
                  let* doc = Doc.syntax_edit ~factories:value.factories doc (make path) in
@@ -305,7 +305,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
              | _ -> Error "The panel could not be named.") in
           (match bound with
            | Ok (doc, op) ->
-               doc, { (result : _ frame_result) with label = Flow_sop.Flow_edit.label op;
+               doc, { (result : _ frame_result) with label = Flow_graph.Flow_edit.label op;
                  effects = Parameter.union_effects result.effects Doc.cook_effects }
            | Error message -> refuse message)
       | _ -> next, result) (next, result) result.changes in
@@ -352,7 +352,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
       | Display_set path ->
           (match path with
            | [ graph; name ] when name <> "@result" ->
-               let op = Flow_sop.Flow_edit.Connect { node = [ graph; "@result" ]; key = Whole; src = name; iter = false } in
+               let op = Flow_graph.Flow_edit.Connect { node = [ graph; "@result" ]; key = Whole; src = name; iter = false } in
                (match Doc.syntax_edit ~factories:value.factories next op with
                 | Ok doc ->
                     doc, { (result : _ frame_result) with label = "View node"; edit_error = None;
@@ -400,7 +400,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     match List.find_map (function
       | Set_parameter { node; path; _ } ->
           Some (Printf.sprintf "graph.scrub:%s:%d:%s" (level_key value.level) node path)
-      | Syntax_edit op -> Flow_sop.Flow_edit.gesture op
+      | Syntax_edit op -> Flow_graph.Flow_edit.gesture op
       | Panel_state (path, _) -> Some ("panel:" ^ String.concat "/" (panel_key value.doc path))
       | Dock_panels (path, _, _) -> Some ("panel:" ^ String.concat "/" (panel_key value.doc path))
       | _ -> None) result.changes with
@@ -427,7 +427,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           else if world_added then "Add World"
           else if world_label <> None then Option.get world_label
           else result.label)
-        ~merge:(if List.exists (function Syntax_edit (Flow_sop.Flow_edit.Set_layout _) -> true | _ -> false) result.changes
+        ~merge:(if List.exists (function Syntax_edit (Flow_graph.Flow_edit.Set_layout _) -> true | _ -> false) result.changes
           then Editor_core.History.Burst { key = "layout"; at = frame.Frame.time; window = 1.5 }  (* keys: no drag seals it *)
           else Option.fold ~none:Editor_core.History.Step
             ~some:(fun key -> Editor_core.History.Gesture key) gesture) next value.history in
@@ -652,6 +652,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
    selection is [select], and [preview] puts a payload in flight whose hot target shows that edit
    on a scratch document (as {!carry_step} leaves the model while a target is hot). *)
 let reduce_idle ?select ?preview value actions (frame : Frame.t) =
+  let value = {value with live_frame = Sketch_support.Live_frame.of_frame frame} in
   let value = match preview with
     | None -> value
     | Some op ->
@@ -681,4 +682,3 @@ let reduce_idle ?select ?preview value actions (frame : Frame.t) =
       ~row_sets:[] ~rows:[||]
       value result in
   update.core
-

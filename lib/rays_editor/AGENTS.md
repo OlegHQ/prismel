@@ -41,7 +41,7 @@ turns the result and the frame's actions into the next model. Never set a ref or
 `Ui.frame`. The gutters' drag targets are built last (`Chrome.splitters`), over the panes.
 
 **Edits.**
-- A gesture on the text is a `Flow_sop.Flow_edit.op`: `Syntax_edit` (one op) or `Syntax_batch`
+- A gesture on the text is a `Flow_graph.Flow_edit.op`: `Syntax_edit` (one op) or `Syntax_batch`
   (several, all or none). `Doc.syntax_edit` rewrites, checks and lowers atomically. Add syntax
   edits to `Flow_edit`, never to `Core`.
 - A frame's gestures land together: the first one refused leaves none applied.

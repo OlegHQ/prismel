@@ -9,7 +9,7 @@ module Document = Editor_document.Document
 module Contexts = Editor_document.Contexts
 module Panels = Editor_core.Panels
 module Layout = Pxui_shell.Layout
-module E = Flow_sop.Flow_edit
+module E = Flow_graph.Flow_edit
 module S = Flow.Syntax
 module E3 = Rays_editor.Editor3
 
@@ -69,7 +69,7 @@ let run_lowering () =
   check (origin [ 0 ] = Some (Document.Bound "outline") && origin [ 1; 0; 0 ] = Some (Document.Bound "network")
          && origin [ 1; 0 ] = Some (Document.Bound "left") && origin [] = Some (Document.Bound "panels"))
     "named panels keep their binding";
-  check (origin [ 1; 1; 2 ] = Some (Document.Loop (Document.Bound_at [ "editor"; "sheet" ], Flow_sop.Flow_edit.Pos 0)) && origin [ 1; 1 ] = Some (Document.Bound "sheet"))
+  check (origin [ 1; 1; 2 ] = Some (Document.Loop (Document.Bound_at [ "editor"; "sheet" ], Flow_graph.Flow_edit.Pos 0)) && origin [ 1; 1 ] = Some (Document.Bound "sheet"))
     "a panel made by a loop names the loop";
   (* a count change keeps the first panels' keys *)
   let more = build_ok (of_text (replace (case "variations") "(range 4)" "(range 6)")) in
@@ -282,8 +282,10 @@ let run_unbound_panels () =
 (* Value nodes are bindings: the add menu offers a number, the time, a vector and every operator, and
    each becomes one [Add_node] with the expression written *)
 let run_values () =
-  let started () =
-    let e = ref (editor "(workspace w (graph g :context sop (sop/box)))") and count = ref 0 in
+  let started ?text () =
+    let opening = Option.is_none text in
+    let text = Option.value ~default:"(workspace w (graph g :context sop (sop/box)))" text in
+    let e = ref (editor text) and count = ref 0 in
     let step ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
     step []; step [];
     let gx, gy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).graph in
@@ -291,14 +293,16 @@ let run_values () =
     step ~mouse:p [ Event.MouseMoved p ];
     step ~mouse:p [ Event.MousePressed (Input.LeftButton, p) ];
     step ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
-    step ~mouse:p [ Event.KeyPressed Input.Home ];
-    step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'i') ];
+    if opening then begin
+      step ~mouse:p [ Event.KeyPressed Input.Home ];
+      step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'i') ]
+    end;
     step ~mouse:p [];
     e, (fun events -> step ~mouse:p events) in
   let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
-  let add text =
-    let e, step = started () in
-    check (E3.level !e = Some "g") "the box graph is open";
+  let add ?workspace text =
+    let e, step = started ?text:workspace () in
+    if workspace = None then check (E3.level !e = Some "g") "the box graph is open";
     step [ key Input.Space; ch 'a' ]; step [ Event.TextInput text ]; step [ key Input.Enter ]; step [];
     !e in
   let e = add "number" in
@@ -312,7 +316,19 @@ let run_values () =
   E3.close e;
   let e = add "str" in
   check (has (source e) "(str \"text\")") ("a str binding: " ^ source e);
-  E3.close e
+  E3.close e;
+  List.iter (fun op -> let e = add op in
+    check (E3.undo_label e = Some "Add node" && has (source e) ("(" ^ op))
+      ("a frame/array operator has checked menu defaults: " ^ source e);
+    E3.close e) ["frame/dt"; "array/count"; "array/nth"; "array/sum"];
+  let workspace = "(workspace w (graph g :context draw (draw/merge)) \
+    (graph editor :context editor (ui/workspace (ui/graph \"g\" :focus true))))" in
+  List.iter (fun (op : Flow.Op.t) -> if op.ctx = Flow.Context.Draw then begin
+    let e = add ~workspace op.name in
+    check (E3.undo_label e = Some "Add node" && has (source e) ("(" ^ op.name))
+      ("a drawing operator is added through the menu: " ^ source e);
+    E3.close e
+  end) Flow.Op.all
 
 (* Command-D duplicates the selected nodes (fresh names, one history entry) and selects the copies; v
    views a node in the viewport (a layout entry, one history entry) and again returns to the result *)
@@ -1405,8 +1421,8 @@ let run_studio () =
   refused "two fixed sides" ws (E.Set_arg { node = [ "editor"; "studio" ]; key = E.Kw "second_size"; sub = [];
                                             value = S.make (S.Num "100") }) "one side";
   (* the keyword rows of the cards are the graph's view of it *)
-  let rows name = match Flow_sop.Projection.find (Flow_sop.Projection.of_graph catalog ws.checked "editor") [ "editor"; name ] with
-    | Some (n : Flow_sop.Projection.node) -> List.map (fun (r : Flow_sop.Projection.row) -> r.label) n.rows
+  let rows name = match Flow_graph.Projection.find (Flow_graph.Projection.of_graph catalog ws.checked "editor") [ "editor"; name ] with
+    | Some (n : Flow_graph.Projection.node) -> List.map (fun (r : Flow_graph.Projection.row) -> r.label) n.rows
     | None -> fail ("no card " ^ name) in
   check (List.mem "first_size" (rows "studio") && List.mem "second_size" (rows "studio")
          && List.mem "look_through" (rows "preview") && List.mem "focus" (rows "network")
@@ -1592,8 +1608,8 @@ let run_panels () =
     (with_editor "    (ui/workspace (ui/split \"vertical\" (ui/graph) (ui/list :of (ui/graph))))") "E_PANEL_OF";
   expect_error "an :of outside the layout shown"
     (with_editor "    (let* [g (ui/graph) h (ui/graph)] (ui/workspace (ui/split \"vertical\" h (ui/lisp :of g))))") "E_PANEL_OF";
-  let rows = match Flow_sop.Projection.find (Flow_sop.Projection.of_graph catalog (of_text (with_editor tied)).checked "editor") [ "editor"; "ia" ] with
-    | Some (n : Flow_sop.Projection.node) -> List.map (fun (r : Flow_sop.Projection.row) -> r.label) n.rows
+  let rows = match Flow_graph.Projection.find (Flow_graph.Projection.of_graph catalog (of_text (with_editor tied)).checked "editor") [ "editor"; "ia" ] with
+    | Some (n : Flow_graph.Projection.node) -> List.map (fun (r : Flow_graph.Projection.row) -> r.label) n.rows
     | None -> fail "no card ia" in
   check (List.mem "of" rows) "the :of keyword is not a row of the inspector's card";
   let retied = match Doc.edit catalog (of_text (with_editor tied))
@@ -1683,7 +1699,7 @@ let run_panels () =
 let run_host_scene_edit () =
   let e = editor "(workspace studio (graph g :context sop (sop/box)))" in
   let value = match S.parse "false" with Ok [ v ] -> v | _ -> fail "bad literal" in
-  (match E3.edit e (Flow_sop.Flow_edit.Set_arg { node = [ "scene"; "camera1" ]; key = Kw "follow_viewport"; sub = []; value }) with
+  (match E3.edit e (Flow_graph.Flow_edit.Set_arg { node = [ "scene"; "camera1" ]; key = Kw "follow_viewport"; sub = []; value }) with
    | Ok e -> check (has (source e) "(graph scene" && not (has (source e) ":follow_viewport true"))
        ("the host camera's edit did not reach the text: " ^ source e)
    | Error m -> fail ("an edit of the host's camera was refused: " ^ m));

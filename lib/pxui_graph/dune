@@ -2,14 +2,14 @@
  (name pxui_graph)
  (public_name rays.pxui_graph)
  (modules :standard \ test_main test_pxui_graph)
- (libraries rays procedural flow flow_sop pxui editor_core))
+ (libraries rays flow flow_graph pxui editor_core))
 
 ; The pane's own tests: no rays_editor. Fixtures are read relative to test/,
 ; where they ran before. test/ compiles this file too, for test_probe.
 (executable
  (name test_main)
  (modules test_main test_pxui_graph)
- (libraries rays pxui pxui_graph editor_core editor_document flow flow_sop
+ (libraries rays pxui pxui_graph editor_core editor_document flow flow_sop flow_graph
   sop_catalog scene_command unix))
 
 (rule

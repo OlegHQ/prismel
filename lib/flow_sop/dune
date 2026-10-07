@@ -1,7 +1,7 @@
 (library
  (name flow_sop)
  (public_name rays.flow_sop)
- (modules port instance_path curve network value_lane catalog manifest lower flow_edit exposure projection probe)
+ (modules port instance_path curve network value_lane catalog manifest lower)
  (libraries flow param procedural))
 
 ; Tests that need no editor: they link the catalog and the document contexts,
@@ -11,7 +11,7 @@
 (executable
  (name test_main)
  (modules test_main test_projection test_workspace_edit test_workspace_cook test_workspace_zone)
- (libraries flow flow_sop editor_document sop_catalog procedural rdk unix))
+ (libraries flow flow_sop flow_graph editor_document sop_catalog procedural rdk unix))
 
 (rule
  (alias test_projection)

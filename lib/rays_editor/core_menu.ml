@@ -23,8 +23,7 @@ let material_entries value =
     else None) (fst value.doc.Document.workspace).checked.graphs
 
 (* The graph a menu entry is for, as the entries name it *)
-let context_name = function
-  | Flow.Workspace.Scene -> "scene" | World -> "world" | Material -> "material" | _ -> "sop"
+let context_name = Flow.Workspace.context_name
 
 (* The kinds the node menu offers where the pane shows [graph], at a screen point; the kinds of the
    other graphs follow in the search, in ink-3, saying that they are not placed here.  The title says
@@ -33,7 +32,12 @@ let open_menu value (x, y) =
   match add_target value with
   | Some (_, context) ->
       let module M = Pxui_graph.Node_menu in
-      let factories context = M.entries_of_factories ~context:(context_name context) (catalog value context) in
+      let factories context = List.map (fun factory -> M.{
+        key = Procedural.Edit_graph.factory_key factory;
+        label = Procedural.Edit_graph.factory_label factory;
+        category = Procedural.Edit_graph.factory_category factory;
+        arity = Procedural.Edit_graph.factory_arity factory;
+        context = context_name context; output = Flow.Ty.Geometry; off = None }) (catalog value context) in
       let not_here entries =
         List.map (fun (e : M.entry) -> { e with off = Some ("not in " ^ context_name context) }) entries in
       let elsewhere =
@@ -47,8 +51,13 @@ let open_menu value (x, y) =
         | _ -> None in
       Some (M.create ?after ~x ~y
         (factories context
+         @ (if context = Flow.Workspace.Draw then
+              List.filter_map (fun (op : Flow.Op.t) -> if op.ctx <> context then None else
+                Some M.{key = "=" ^ op.name; label = op.name; category = [op.category];
+                  arity = 0; context = context_name context;
+                  output = op.out (List.map snd op.signature.pos); off = None})
+                (Flow.Op.of_context context) else [])
          @ (if context = Flow.Workspace.Scene then scene_entries value else [])
          @ (if context = Flow.Workspace.Sop then material_entries value else []) @ value_entries
          @ elsewhere))
   | None -> None
-

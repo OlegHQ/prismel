@@ -49,7 +49,7 @@ val of_workspace : factories:Procedural.Edit_graph.factory list -> ?previous:Doc
 val group_triples : Editor_core.Param.field_view list -> Editor_core.Param.field_view list
 (** Three consecutive [_x _y _z] (or [_r _g _b]) floats of one folder as one vec3 field. *)
 
-val resolve_scene : ?previous:Procedural.Edit_graph.t -> Document.t -> time:float ->
+val resolve_scene : ?previous:Procedural.Edit_graph.t -> ?state:Flow.Eval.state -> ?live:Frame_input.t -> Document.t -> time:float ->
   Procedural.Edit_graph.t * Flow.Diagnostic.t list
 (** Resolve recorded live light intensity/color fields for composition, without
     changing source, networks, identities or history. A failed light retains

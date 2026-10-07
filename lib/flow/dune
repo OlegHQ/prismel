@@ -2,7 +2,22 @@
  (name flow)
  (public_name rays.flow)
  (modules diagnostic context symbol port_type check syntax ty value op lisp macro workspace eval)
- (libraries param))
+ (libraries param frame_input))
+
+(test
+ (name test_array)
+ (modules test_array)
+ (libraries flow))
+
+(test
+ (name test_state)
+ (modules test_state)
+ (libraries flow))
+
+(test
+ (name test_frame)
+ (modules test_frame)
+ (libraries flow))
 
 (test
  (name test_value_core)

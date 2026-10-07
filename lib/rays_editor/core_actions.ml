@@ -43,9 +43,9 @@ let intent_label = function
   | Dock_panels _ -> Some "Dock panel"
   | Panel_state (_, state) -> Some (if state.Editor_core.Panels.collapsed then "Collapse panel" else "Arrange panel")
   | Select_layout _ -> Some "Switch layout"
-  | Syntax_edit op -> Some (Flow_sop.Flow_edit.label op)
+  | Syntax_edit op -> Some (Flow_graph.Flow_edit.label op)
   | Syntax_batch (label, _) -> Some label
-  | Syntax_inline { make; _ } -> Some (Flow_sop.Flow_edit.label (make []))
+  | Syntax_inline { make; _ } -> Some (Flow_graph.Flow_edit.label (make []))
   | Set_parameter { path; _ } -> Some ("Set " ^ path)
   | Object_arg _ -> Some "Edit expression"
   | Rename _ -> Some "Rename node"

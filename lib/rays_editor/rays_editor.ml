@@ -40,17 +40,17 @@ module Editor3 = struct
   let set_renderer value mode =
     {value with extra = {value.extra with Viewport3.renderer_request = Some mode}}
 
-  let create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
+  let create ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
       ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare ~scene3
       ?overlay ?status () =
-    create ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
+    create ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
       ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
 
-  let run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
+  let run ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
       ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~workspace ?source ~prepare
       ~scene3 ?overlay ?status () =
-    run ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
+    run ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
       ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
 end
@@ -95,7 +95,7 @@ module Workspace = struct
   let sop_graphs ?(factories = Sop_catalog.Editor.factories) (doc : Workspace_doc.t) =
     let ( let* ) = Result.bind in
     let* lowered = Result.map_error Flow.Diagnostic.to_string
-        (Flow_sop.Lower.workspace ~extra:Contexts.descriptors ~factories doc.source) in
+        (Flow_sop.Lower.workspace ~extra:Contexts.descriptors ~inputs:doc.inputs ~factories doc.source) in
     List.fold_right (fun (g : Flow_sop.Lower.graph) rest ->
       let* rest = rest in
       match g.root with
@@ -115,7 +115,8 @@ module Workspace = struct
              ~target:(Rays.Camera.target view) base
          | None -> base)
 
-  let run ?factories ?source doc =
+  let run ?inputs ?factories ?source doc =
+    let doc = match inputs with None -> doc | Some inputs -> {doc with Workspace_doc.inputs} in
     let source = Option.bind source (fun { path; digest } -> Source.find ~path ~digest) in
     Result.map (fun window ->
     let config = { Rays.Sketch.default_config with width = window.width; height = window.height;
@@ -126,8 +127,35 @@ module Workspace = struct
                      ~diffuse:Rays.Color.white () ] in
     let camera = declared_camera ?factories doc (Rays.Easy_camera.create ~target:Rays.Vec3.zero ~distance:3.6
         ~azimuth:0.4 ~elevation:0.6 ()) in
-    Editor3.run ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ())
+    Editor3.run ?inputs ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ())
       (workspace_window doc)
+
+  let export ?inputs ?graph ?(fps = 60) ?prefix ~directory ~frames doc =
+    let ( let* ) = Result.bind in
+    let* () = if fps > 0 && frames > 0 then Ok () else
+      Error (Flow.Diagnostic.error ~code:"E_EXPORT_RANGE" "Export frame count and fps must be positive.") in
+    let doc = match inputs with None -> doc | Some inputs -> {doc with Workspace_doc.inputs} in
+    let* window = workspace_window doc in
+    let* evaluated = Flow.Eval.static ~inputs:doc.inputs doc.checked in
+    let chosen = List.find_opt (fun (g : Flow.Workspace.graph) ->
+      g.context = Flow.Context.Draw && Option.fold ~none:true ~some:((=) g.name) graph) doc.checked.graphs in
+    match chosen with
+    | None -> Error (Flow.Diagnostic.error ~code:"E_DRAW_GRAPH" "Export needs a draw graph.")
+    | Some graph ->
+        let state = Flow.Eval.create_state () in
+        let value = List.assoc graph.name evaluated.results in
+        let view () frame =
+          let live = {(Frame_input.at_time frame.Rays.Frame.time) with
+            dt = 1. /. float fps; frame = frame.count; size = (window.width, window.height)} in
+          match Sketch_support.Drawing.render ~state ~states:evaluated.states evaluated.plan value
+            ~live ~size:live.size with
+          | Ok scene -> scene
+          | Error d -> raise (Flow.Value.Fail (d.code, d.message, d.span)) in
+        let config = {Rays.Sketch.default_config with width = window.width; height = window.height;
+          title = window.title; resizable = false; clock = Rays.Sketch.Fixed (1. /. float fps)} in
+        (try ignore (Rays.Sketch.export_state ~config ~fps ?prefix ~directory ~frames
+           ~init:(fun _ -> ()) ~update:(fun () _ -> ()) ~view ()); Ok ()
+         with Flow.Value.Fail (code, message, span) -> Error (Flow.Diagnostic.error ?span ~code message))
 
   let main ?factories ~path ~digest ~catalog text =
     let expected = Contexts.catalog_digest (Option.value ~default:Sop_catalog.Editor.factories factories) in

@@ -26,7 +26,7 @@ type path = string list
 
 module Paths : Set.S with type elt = path
 
-type context = Context.t = Sop | Value | Scene | World | Settings | Editor | Material
+type context = Context.t = Sop | Value | Draw | Scene | World | Settings | Editor | Material
 
 val context_name : context -> string
 
@@ -57,6 +57,8 @@ and node =
   | Fn_ref of string  (** a defn, operator or kind name used as a function value *)
   | Graph_ref of { graph : string; inputs : (string * term) list }
   | Let of (pattern * term) list * term
+  | State of { binder : pattern; init : term; step : term; zone : path }
+      (** [(state [s init] step)]: one fold step per logical frame. *)
   | Loop of { kind : [ `For | `Fold | `Scan | `Sum ]; accs : (pattern * term) list;
               clauses : (pattern * term) list; skip : int list list; body : term; zone : path }
       (** [skip]: the iteration tuples a [for] leaves out (register L16); [[]] for other kinds *)

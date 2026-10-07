@@ -69,7 +69,7 @@ fun migration_input ->
 (* ---- the editor around materials: outline, follow and back, rename, assign, pick ---- *)
 module E3 = Rays_editor.Editor3
 module N = Rays_editor.Private.Navigator
-module Edit = Flow_sop.Flow_edit
+module Edit = Flow_graph.Flow_edit
 
 let fail message = failwith ("test_materials: " ^ message)
 let check condition message = if not condition then fail message
@@ -267,7 +267,7 @@ let carry_tests () =
     let doc = (E3.workspace !e).Editor_document.Workspace_doc.checked in
     let chips = match Flow.Eval.static doc with Ok ev -> N.chips ev | Error d -> fail (Flow.Diagnostic.to_string d) in
     let active = pane () in
-    let scope = try Some (Flow_sop.Projection.of_graph catalog doc active) with Invalid_argument _ -> None in
+    let scope = try Some (Flow_graph.Projection.of_graph catalog doc active) with Invalid_argument _ -> None in
     let params : N.params = { workspace = doc; active = Some active; scope;
       records = None; probes = (fun _ -> 0); selected = []; chips;
       (* as many object rows as the panel draws: a row's place depends on them *)

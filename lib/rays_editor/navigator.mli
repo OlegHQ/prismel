@@ -44,8 +44,8 @@ type obj = { depth : int; letter : string; name : string; detail : string;
 type params = {
   workspace : Flow.Workspace.t;
   active : string option;  (** the graph the pane shows *)
-  scope : Flow_sop.Projection.scope option;  (** the projection of [active] *)
-  records : Flow_sop.Probe.t option;
+  scope : Flow_graph.Projection.scope option;  (** the projection of [active] *)
+  records : Flow_graph.Probe.t option;
   probes : path -> int;  (** the iteration each zone shows *)
   selected : path list;
   chips : (string * Rays.Color.t) list;  (** the evaluated colour of each material graph *)

@@ -62,6 +62,7 @@ let tree_text ~name ~scene tree =
   and node path : Editor_core.Panels.t -> string = function
     | Leaf p ->
         let base, form = match p with
+          | Canvas key -> "canvas", Printf.sprintf "(ui/canvas (ref %s))" key
           | View _ -> "preview", Printf.sprintf "(ui/viewport (ref %s))" scene
           | Graph -> "network", "(ui/graph)" | List -> "list", "(ui/list)" | Lisp -> "code", "(ui/lisp)"
           | Inspector -> "inspector", "(ui/inspector)" | Outline -> "outline", "(ui/outline)"

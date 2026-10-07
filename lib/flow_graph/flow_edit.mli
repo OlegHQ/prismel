@@ -60,10 +60,10 @@ type op =
   | Make_defn of { nodes : path list; name : string; context : string; params : (string * string) list }
       (** the selected bindings (one scope, one result leaving) become a new top-level
           [(defn name :context context [(p : type) ...] body)]; [params] types every name the
-          selection reads from outside ({!defn_draft}), and a call replaces the bindings *)
+          selection reads from outside ([defn_draft]), and a call replaces the bindings *)
   | Make_macro of { nodes : path list; name : string; holes : (int list * string) list }
       (** [holes] are child paths into the template (the binding expression, or
-          [let*] over several bindings, see {!literals}) *)
+          [let*] over several bindings, see [literals]) *)
   | Inline_macro of { node : path }
   | Toggle_bypass of { node : path }
   | Set_note of { node : path; text : string }
@@ -154,7 +154,7 @@ val label : op -> string
 (** The history label: "Repeat", "Iterate", "Unfold", "Make macro", ... *)
 
 type macro_draft = {
-  literals : (int list * Flow.Syntax.t) list;  (** the candidate holes of the template ({!literals}) *)
+  literals : (int list * Flow.Syntax.t) list;  (** the candidate holes of the template ([literals]) *)
   free : string list;  (** outside names the template reads: they always become holes *)
   name : string;  (** a suggested macro name *)
 }

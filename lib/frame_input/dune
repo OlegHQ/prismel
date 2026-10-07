@@ -1,0 +1,3 @@
+(library
+ (name frame_input)
+ (public_name rays.frame_input))

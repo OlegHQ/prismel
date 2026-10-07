@@ -1,6 +1,6 @@
 (* W4 part A: the graph pane's projection of every fixture (nodes, zones,
    rows, chips), liveness and invariance flags, and the layout. *)
-open Flow_sop
+open Flow_graph
 module P = Projection
 module S = Flow.Syntax
 module E = Flow_edit

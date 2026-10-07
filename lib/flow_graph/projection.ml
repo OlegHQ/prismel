@@ -15,7 +15,7 @@ type row = {
   folder : string; primary : bool; head : bool;
 }
 
-type zone_kind = For | Fold | Scan | Sum | Let | Fn
+type zone_kind = For | Fold | Scan | Sum | Let | Fn | State
 type role = Var | Acc | Param | Capture
 
 type rail_row = {
@@ -71,7 +71,7 @@ let rec pairs = function a :: b :: r -> (a, b) :: pairs r | _ -> []
 let head_sym = S.head
 let last (e : S.t) = List.nth (S.children e) (List.length (S.children e) - 1)
 let root_of s = match String.index_opt s '.' with Some i -> String.sub s 0 i | None -> s
-let is_zone_head = function "for" | "fold" | "scan" | "sum" -> true | _ -> false
+let is_zone_head = function "for" | "fold" | "scan" | "sum" | "state" -> true | _ -> false
 
 let subterms (t : W.term) = match t.node with
   | Lit _ | Text _ | Nil | Time | Ref_binding _ | Fn_ref _ -> []
@@ -80,6 +80,7 @@ let subterms (t : W.term) = match t.node with
   | Call_fn { args; _ } -> args
   | Graph_ref { inputs; _ } -> List.map snd inputs
   | Let (bs, r) -> List.map snd bs @ [ r ]
+  | State {init; step; _} -> [init; step]
   | Loop { accs; clauses; body; _ } -> List.map snd accs @ List.map snd clauses @ [ body ]
   | If (a, b, c) -> [ a; b; c ]
   | Cond (arms, d) -> List.concat_map (fun (a, b) -> [ a; b ]) arms @ [ d ]
@@ -308,6 +309,7 @@ let zone_kind (pat : S.t option) (e : S.t) =
   else match head_sym e, pat with
     | Some "for", _ -> Some For | Some "fold", _ -> Some Fold | Some "scan", _ -> Some Scan
     | Some "sum", _ -> Some Sum
+    | Some "state", _ -> Some State
     | Some "let*", _ when scope_form e <> None -> Some Let
     | Some "fn", Some { S.node = S.Sym _; _ } -> Some Fn
     | _ -> None
@@ -339,16 +341,18 @@ let rail_of c (kind : zone_kind) (e : S.t) (t : W.term option) ~visible =
     | _ -> [] in
   let rows = match kind with
     | For | Sum -> vars 1
-    | Fold | Scan ->
+    | Fold | Scan | State ->
         let acc = match List.nth_opt (S.children e) 1 with
           | Some { S.node = S.Vec [ p; init ]; _ } ->
               bound := E.pat_names p @ !bound;
               let ty = match t with
-                | Some { W.node = Loop { accs = (_, (a : W.term)) :: _; _ }; _ } -> Some a.ty | _ -> None in
+                | Some { W.node = Loop { accs = (_, (a : W.term)) :: _; _ }; _ } -> Some a.ty
+                | Some { W.node = State {init; _}; _} -> Some init.ty
+                | _ -> None in
               [ { name = E.pat_key p; names = E.pat_names p; role = Acc; ty; expr = Some init;
                   key = Some (E.Bv (1, 1)) } ]
           | _ -> [] in
-        acc @ vars 2
+        acc @ (if kind = State then [] else vars 2)
     | Fn ->
         (match List.nth_opt (S.children e) 1 with
          | Some { S.node = S.Vec ps; _ } ->
@@ -368,7 +372,7 @@ let rail_of c (kind : zone_kind) (e : S.t) (t : W.term option) ~visible =
     { name = n; names = [ n ]; role = Capture; ty = None; expr = None; key = None }) captures
 
 let yield_label = function
-  | For | Scan -> "collect" | Fold -> "next" | Sum -> "add" | Let -> "result" | Fn -> "return"
+  | For | Scan -> "collect" | Fold | State -> "next" | Sum -> "add" | Let -> "result" | Fn -> "return"
 
 let rec scope_of c ~visible ~inputs (path : path) (body : S.t) : scope =
   let binds, res = match scope_form body with

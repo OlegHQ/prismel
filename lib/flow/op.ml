@@ -9,8 +9,9 @@ type t = {
   name : string; ctx : Context.t; signature : signature;
   out : Ty.t list -> Ty.t; any_num : bool;
   choices : (string * string list) list; shape : shape;
+  live : bool;
   check : 'f 'r. (string * ('f, 'r) Value.t) list -> unit;
-  body : 'f 'r. node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
+  body : 'f 'r. live:Frame_input.t -> node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
     (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t;
   category : string; arithmetic : arithmetic option;
 }
@@ -21,9 +22,9 @@ let max_iterations = 4096
 let mk ?(ctx = Context.Value) ?(opt = []) ?rest ?(kw = []) ?(any_num = false)
     ?(choices = []) ?(shape = Scalar) ?(check = { validate = fun _ _ -> () })
     ?(category = "Math") ?arithmetic name pos out (body : implementation) =
-  { name; ctx; signature = {pos; opt; rest; kw}; out; any_num; choices; shape;
+  { name; ctx; signature = {pos; opt; rest; kw}; out; any_num; choices; shape; live = false;
     check = (fun args -> check.validate choices args);
-    body = (fun ~node args -> body.run ~name ~node args); category; arithmetic }
+    body = (fun ~live:_ ~node args -> body.run ~name ~node args); category; arithmetic }
 let fl = Ty.Float
 let lst j ts = match List.nth_opt ts j with Some (Ty.List _ as t) -> t | _ -> Ty.List Ty.Any
 let elm j ts = match lst j ts with Ty.List e -> e | _ -> Ty.Any
@@ -95,7 +96,120 @@ let range lo hi =
     failf "E_ITER_BOUND" "range %d‥%d exceeds 4,096 iterations." lo hi;
   List (Array.init (max 0 (hi - lo)) (fun i -> Int (lo + i)))
 
-let all = [
+type frame_read = { read : 'f 'r. Frame_input.t -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t }
+let frame_op ?opt name pos out read =
+  let o = mk ?opt ~category:"Frame" name pos (fun _ -> out)
+    {run = fun ~name:_ ~node:_ args -> read.read (Frame_input.at_time 0.) args} in
+  {o with live = true; body = (fun ~live ~node:_ args -> read.read live args)}
+
+let event_fields = ["kind", Ty.Text; "key", Ty.Text; "button", Ty.Text;
+  "position", Ty.Vec3; "delta", Ty.Vec3; "text", Ty.Text; "start", Ty.Int;
+  "length", Ty.Int; "paths", Ty.List Ty.Text; "error", Ty.Text; "id", Ty.Int;
+  "width", Ty.Int; "height", Ty.Int; "phase", Ty.Text; "time", Ty.Float; "scale", Ty.Float]
+let frame_ty = Ty.Record ["t", fl; "dt", fl; "index", Ty.Int;
+  "width", Ty.Int; "height", Ty.Int; "pointer", Ty.Vec3;
+  "buttons", Ty.List Ty.Text; "keys", Ty.List Ty.Text; "events", Ty.List (Ty.Record event_fields)]
+let text_list xs = List (Array.of_list (List.map (fun s -> Text s) xs))
+let event_value event =
+  let point (x, y) = Vec3 (x, y, 0.) in
+  let kind, fields = match event with
+    | Frame_input.Key_pressed key -> "key-pressed", ["key", Text key]
+    | Key_released key -> "key-released", ["key", Text key]
+    | Pointer_moved (x, y) -> "pointer-moved", ["position", point (x, y)]
+    | Pointer_pressed (b, p) -> "pointer-pressed", ["button", Text b; "position", point p]
+    | Pointer_released (b, p) -> "pointer-released", ["button", Text b; "position", point p]
+    | Pointer_cancelled b -> "pointer-cancelled", ["button", Text b]
+    | Scrolled (x, y) -> "scrolled", ["delta", point (x, y)]
+    | Text_input s -> "text-input", ["text", Text s]
+    | Text_editing {text; start; length} -> "text-editing", ["text", Text text; "start", Int start; "length", Int length]
+    | File_dropped s -> "file-dropped", ["text", Text s]
+    | File_drag_moved (x, y) -> "file-drag-moved", ["position", point (x, y)]
+    | File_drag_ended -> "file-drag-ended", []
+    | Pinched x -> "pinched", ["scale", Float x]
+    | File_dialog {id; result} -> "file-dialog", ("id", Int id) ::
+        (match result with Ok xs -> ["paths", text_list xs] | Error s -> ["error", Text s])
+    | Resized (w, h) -> "resized", ["width", Int w; "height", Int h]
+    | Focus_lost -> "focus-lost", [] | Closed -> "closed", []
+    | Trackpad_scrolled {delta; phase; time} -> "trackpad-scrolled", ["delta", point delta; "phase", Text phase; "time", Float time] in
+  Record (List.map (fun (name, ty) -> name, if name = "kind" then Text kind else
+    match List.assoc_opt name fields with Some v -> v | None ->
+      match ty with Ty.Int -> Int 0 | Float -> Float 0. | Vec3 -> Vec3 (0., 0., 0.)
+      | List _ -> List [||] | _ -> Text "") event_fields)
+
+let frame_value (f : Frame_input.t) = Record ["t", Float f.t; "dt", Float f.dt;
+  "index", Int f.frame; "width", Int (fst f.size); "height", Int (snd f.size);
+  "pointer", Vec3 (fst f.pointer, snd f.pointer, 0.); "buttons", text_list f.buttons;
+  "keys", text_list f.keys; "events", List (Array.of_list (List.map event_value f.events))]
+
+let frame = [
+  frame_op "frame/input" [] frame_ty {read = fun f _ -> frame_value f};
+  frame_op "frame/dt" [] fl {read = fun f _ -> Float f.dt};
+  frame_op "frame/index" [] Ty.Int {read = fun f _ -> Int f.frame};
+  frame_op "frame/width" [] Ty.Int {read = fun f _ -> Int (fst f.size)};
+  frame_op "frame/height" [] Ty.Int {read = fun f _ -> Int (snd f.size)};
+  frame_op "pointer/x" [] fl {read = fun f _ -> Float (fst f.pointer)};
+  frame_op "pointer/y" [] fl {read = fun f _ -> Float (snd f.pointer)};
+  frame_op ~opt:["button", Ty.Text] "pointer/down" [] Ty.Bool {read = fun f args ->
+    match args with [] -> Bool (List.mem "left" f.buttons)
+    | [_, Text button] ->
+        if not (List.mem button ["left"; "right"; "middle"; "x1"; "x2"]) then
+          fail "E_RANGE" "Pointer button is left, right, middle, x1 or x2.";
+        Bool (List.mem button f.buttons)
+    | _ -> fail "E_TYPE" "pointer/down takes a button name."};
+  frame_op "key/down" ["key", Ty.Text] Ty.Bool {read = fun f args ->
+    match args with [_, Text key] -> Bool (List.mem key f.keys)
+    | _ -> fail "E_TYPE" "key/down takes a key name."};
+]
+
+let array_count name v =
+  let n = num v in
+  if n < 0. || n <> Float.floor n || n > float Sys.max_floatarray_length then
+    failf "E_ARRAY_RANGE" "%s needs a non-negative whole length." name;
+  int_of_float n
+let arrays = [
+  mk ~category:"Array" "array/range" ["count", Ty.Int] (fun _ -> Ty.Array fl)
+    {run = fun ~name ~node:_ args ->
+      array_init fl (array_count name (List.assoc "count" args)) (fun i -> Float (float i))};
+  mk ~category:"Array" ~opt:["value", fl] "array/float" ["count", Ty.Int] (fun _ -> Ty.Array fl)
+    {run = fun ~name ~node:_ args ->
+      let value = Option.value ~default:(Float 0.) (List.assoc_opt "value" args) in
+      array_init fl (array_count name (List.assoc "count" args)) (fun _ -> value)};
+  mk ~category:"Array" ~opt:["value", Ty.Vec3] "array/vec3" ["count", Ty.Int] (fun _ -> Ty.Array Ty.Vec3)
+    {run = fun ~name ~node:_ args ->
+      let value = Option.value ~default:(Vec3 (0., 0., 0.)) (List.assoc_opt "value" args) in
+      array_init Ty.Vec3 (array_count name (List.assoc "count" args)) (fun _ -> value)};
+  mk ~category:"Array" "array/count" ["array", Ty.Array Ty.Any] (fun _ -> Ty.Int)
+    {run = fun ~name:_ ~node:_ args -> Int (array_length (List.assoc "array" args))};
+  mk ~category:"Array" "array/nth" ["array", Ty.Array Ty.Any; "index", Ty.Int]
+    (function Ty.Array e :: _ -> e | _ -> Ty.Any)
+    {run = fun ~name ~node:_ args -> array_get (List.assoc "array" args)
+      (array_count name (List.assoc "index" args))};
+  mk ~category:"Array" "array/sum" ["array", Ty.Array Ty.Any]
+    (function Ty.Array e :: _ -> e | _ -> Ty.Any)
+    {run = fun ~name:_ ~node:_ args ->
+      let xs = List.assoc "array" args in
+      let sum = ref (match xs with Vec3_array _ -> Vec3 (0., 0., 0.) | _ -> Float 0.) in
+      for i = 0 to array_length xs - 1 do sum := Value.arith "array/sum" ( +. ) !sum (array_get xs i) done;
+      !sum};
+]
+
+let draw_op ?rest ?kw name pos =
+  mk ~ctx:Draw ?rest ?kw ~category:"Drawing" name pos (fun _ -> Ty.Drawing)
+    {run = fun ~name ~node args -> node name args}
+
+let draw = [
+  draw_op "draw/background" ["color", Ty.Color];
+  draw_op ~kw:["color", Ty.Color] "draw/point" ["at", Ty.Vec3];
+  draw_op ~kw:["color", Ty.Color] "draw/points" ["positions", Ty.Array Ty.Vec3];
+  draw_op ~kw:["color", Ty.Color; "width", Ty.Int] "draw/line" ["from", Ty.Vec3; "to", Ty.Vec3];
+  draw_op ~kw:["fill", Ty.Color; "stroke", Ty.Color] "draw/rect" ["at", Ty.Vec3; "size", Ty.Vec3];
+  draw_op ~kw:["fill", Ty.Color; "stroke", Ty.Color] "draw/circle" ["at", Ty.Vec3; "radius", Ty.Int];
+  draw_op ~kw:["color", Ty.Color; "size", Ty.Int] "draw/text" ["at", Ty.Vec3; "text", Ty.Text];
+  draw_op "draw/translate" ["offset", Ty.Vec3; "drawing", Ty.Drawing];
+  draw_op ~rest:("drawing", Ty.Drawing) "draw/merge" [];
+]
+
+let all = frame @ arrays @ draw @ [
   binary "+" (( +. ));
   binary "-" (( -. ));
   binary "*" (( *. ));
@@ -258,6 +372,7 @@ let all = [
   structure ~ctx:World "world/none" [] (fun _ -> Ty.World);
   structure ~ctx:Editor "ui/workspace" [ "root", Ty.Panel ] (fun _ -> Ty.Editor);
   leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.Scene ];
+  leaf "ui/canvas" ["drawing", Ty.Drawing];
   leaf ~choices:["wires", ["rect"; "straight"]; "view", ["graph"; "list"; "text"]]
     ~check:{ validate = fun choices args -> one_of args "view" "A graph panel's view" (List.assoc "view" choices) }
     ~opt:["graph", Ty.Text] ~kw:["wires", Ty.Text; "view", Ty.Text] "ui/graph" [];

@@ -19,7 +19,7 @@ type 'prepared piece = {
 }
 
 (* What a footer shows of a geometry value: its object and compiled node. *)
-type summary = (int * int) * Flow_sop.Probe.geometry
+type summary = (int * int) * Flow_graph.Probe.geometry
 
 type 'prepared cooked =
   | Displayed of 'prepared piece list * summary list
@@ -46,6 +46,7 @@ type 'prepared t = {
      edit, and this frame's displayed graphs. *)
   compiled : (Edit_graph.t * Edit_graph.compiled) Document.Int_map.t;
   value_lanes : Flow_sop.Value_lane.t Document.Int_map.t;
+  state : Flow.Eval.state;
   applied : Flow_sop.Value_lane.resolved Document.Int_map.t;
   graphs : (int * Graph.t) list;
   displayed : (int * int) list;  (* the display node each graph compiles *)
@@ -123,7 +124,7 @@ let create ~prepare ~seed ~grain ?domains ?await ~max_entries ~max_payload_bytes
     { worker; seed; grain; domains; await; prepare; schedule = Schedule.initial;
       pieces = []; settings = None; error = None; failure = ref None; seconds = None;
       framing = None; force = false; compiled = Document.Int_map.empty; graphs = [];
-      value_lanes = Document.Int_map.empty; applied = Document.Int_map.empty;
+      value_lanes = Document.Int_map.empty; state = Flow.Eval.create_state (); applied = Document.Int_map.empty;
       displayed = []; probing = []; summaries = [] })
     (Async_cook.create ~max_entries ~max_payload_bytes)
 
@@ -144,9 +145,14 @@ let pieces value = value.pieces
 (* the counts of a compiled node of an object, once a cook has reported them *)
 let geometry value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.summaries
 let applied value id = Document.Int_map.find_opt id value.applied
+let reset_state value =
+  Flow.Eval.reset_state value.state;
+  Document.Int_map.iter (fun _ lane -> Flow_sop.Value_lane.reset lane) value.value_lanes
 
-let context value timeline = Sketch_support.Timeline.context ~seed:value.seed
-    ~grain:value.grain ~domains:value.domains timeline
+let context value timeline frame = Context.create ~seed:value.seed
+    ~grain:value.grain ~domains:value.domains
+    ~frame:(Sketch_support.Timeline.frame timeline) ~time:(Sketch_support.Timeline.time timeline)
+    ~input:(Sketch_support.Live_frame.of_frame frame) ()
 
 let busy value = match status value with
   | Async_cook.Idle -> false | Cooking _ -> true
@@ -157,13 +163,18 @@ let force value = { value with force = true }
 let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
+  if List.exists (function Sketch_support.Timeline.Reset_now | Stopped_now -> true | _ -> false)
+      timeline_changes then reset_state value;
+  let input = Sketch_support.Live_frame.of_frame ~time:(Sketch_support.Timeline.time timeline)
+    ~index:(Int64.to_int (Sketch_support.Timeline.frame timeline)) frame in
   let objects, value_lanes, applied, resolve_error =
     List.fold_left (fun (objects, lanes, applied, error)
         (id, (network : Flow_sop.Network.t), displayed) ->
       let lane = match Document.Int_map.find_opt id value.value_lanes with
-        | Some lane -> lane | None -> Flow_sop.Value_lane.create () in
+        | Some lane -> lane | None -> Flow_sop.Value_lane.create ~state:value.state () in
       let lanes = Document.Int_map.add id lane lanes in
       match Flow_sop.Value_lane.resolve lane
+          ~live:input
           ~time:(Sketch_support.Timeline.time timeline) network with
       | Ok resolved -> (id, resolved.geometry, displayed) :: objects,
           lanes, Document.Int_map.add id resolved applied, error
@@ -257,7 +268,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     Option.map (fun node -> key, node) (node_of key)) (List.filteri (fun i _ -> i < 64) probes) in
   let summary (key, node) (output : Session.output) =
     let g = output.geometry in
-    key, { Flow_sop.Probe.seconds = Async_cook.node_seconds value.worker (Node.id node); points = Rdk.Packed.Float3.length (Rdk.Geometry.positions g);
+    key, { Flow_graph.Probe.seconds = Async_cook.node_seconds value.worker (Node.id node); points = Rdk.Packed.Float3.length (Rdk.Geometry.positions g);
            prims = Rdk.Geometry.primitive_count g; data_id = Rdk.Geometry.data_id g;
            extent = Option.map (fun (lo, hi) ->
              hi.Vec3.x -. lo.Vec3.x, hi.y -. lo.y, hi.z -. lo.z) (geometry_bounds g);
@@ -283,7 +294,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
       | _ -> Error "cook returned a different number of outputs" in
     loop [] graphs outputs in
   let error, framing = if submit then match
-      Result.bind (context value timeline) (fun context ->
+      Result.bind (context value timeline frame) (fun context ->
         Async_cook.submit_some value.worker ~context
           ~nodes:(List.map snd graphs) ~optional:(List.map snd probed) ~prepare:(prepare context)) with
     | Ok _ -> None, None
@@ -321,7 +332,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
         | Some piece, Some graph when Node.id graph = node_id && piece.graph == graph
             && Result.fold ~ok:(fun context -> piece.context =
                 Context.cache_projection (Graph.dependencies graph) context)
-              ~error:(fun _ -> false) (context value timeline) ->
+              ~error:(fun _ -> false) (context value timeline frame) ->
             Some piece.bounds, framing
         | _ ->
             (match Option.map (fun (_, compiled) ->
@@ -330,7 +341,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
              | None | Some (Error _) -> Some None, framing
              | Some (Ok node) ->
                  let was_busy = busy value && framing = None in
-                 match Result.bind (context value timeline) (fun context ->
+                 match Result.bind (context value timeline frame) (fun context ->
                      Async_cook.submit value.worker ~context ~node
                        ~prepare:(fun output ->
                          Ok (Framed (output_bounds output)))) with

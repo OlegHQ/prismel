@@ -14,17 +14,19 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
         | Some k -> not (same k && k.probe_map == value.probes) | None -> true in
       let evaluated = match previous with
         | Some k when k.ws.checked == ws.checked -> k.evaluated
-        | _ -> Result.to_option (Flow.Eval.static ~record:true ws.checked) in
-      let time = if fst (Flow_sop.Lower.counts lowered) > 0
-        then Some (Sketch_support.Timeline.time value.timeline) else None in
+        | _ -> Result.to_option (Flow.Eval.static ~record:true ~inputs:ws.inputs ws.checked) in
+      let time = if not (Flow.Workspace.Paths.is_empty ws.checked.live)
+        then Some {value.live_frame with Frame_input.t = Sketch_support.Timeline.time value.timeline;
+          frame = Int64.to_int (Sketch_support.Timeline.frame value.timeline)} else None in
       let summaries = value.cook.Cook.summaries in
       let fresh = match previous with
-        | Some k -> not (k.evaluated == evaluated && k.summaries == summaries && k.time = time)
+        | Some k -> not (k.evaluated == evaluated && k.summaries == summaries
+            && Option.equal Frame_input.equal k.time time)
         | None -> true in
       if not moved && not fresh then value else begin
         let scope = match previous with
           | Some k when not moved -> k.scope
-          | _ -> Flow_sop.Projection.of_graph catalog ws.checked name in
+          | _ -> Flow_graph.Projection.of_graph catalog ws.checked name in
         let wires = match Option.bind value.doc.Document.shell (fun s -> s.Document.wires) with
           | Some "rect" -> `Rect
           | _ -> `Straight in
@@ -42,7 +44,7 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
             ~at:(fun path -> M.find_opt path layout.at)
             ~level:(fun path -> match M.find_opt path layout.level, M.find_opt path layout.pinned with
               | None, None -> None
-              | level, pinned -> Some (Option.value ~default:Flow_sop.Projection.Card level,
+              | level, pinned -> Some (Option.value ~default:Flow_graph.Projection.Card level,
                                        Option.value ~default:false pinned))
             ~pin:(fun path label -> Option.bind (M.find_opt path layout.rows) (Layout_by_path.String_map.find_opt label))
             ~collapsed:(fun path -> Option.value ~default:false (M.find_opt path layout.collapsed))
@@ -59,7 +61,7 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
           then Pxui_graph.Scope.select value.select_later scope_view, [] else scope_view, value.select_later in
         let element zone k = Option.map (fun (name, (x, y, z)) -> [ name, Flow.Eval.Vec3 (x, y, z) ])
           (Flow_sop.Lower.zone_element lowered zone k) in
-        let records = Option.map (Flow_sop.Probe.make ?time ~geometry
+        let records = Option.map (Flow_graph.Probe.make ~state:value.cook.state ?live:time ~geometry
           ~dynamic:(Flow_sop.Lower.zone_count lowered) ~element) evaluated in
         let scope_view = match records with
           | Some records when fresh || moved -> Pxui_graph.Scope.with_records records scope_view
@@ -70,11 +72,10 @@ let sync_scope value = match graph_name value, value.doc.Document.workspace, Laz
               List.filter_map (fun id ->
                 Option.bind (Flow_sop.Network.Int_map.find_opt id lowered.compiled) (fun node_id ->
                   Option.map (fun object_id -> object_id, node_id) (node_owner value node_id)))
-                (Flow_sop.Probe.geometry_targets records scope
+                (Flow_graph.Probe.geometry_targets records scope
                    ~probe:(fun path -> Option.value ~default:0 (M.find_opt path value.probes)))
           | None, _ -> [] in
         { value with scope_view; select_later; scope_key = Some { ws; probe_map = value.probes; graph = name;
             evaluated; summaries; time; records; scope; targets } }
       end
   | _ -> value
-

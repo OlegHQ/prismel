@@ -10,7 +10,7 @@ type t = {
   panels : Editor_core.Panels.state Path_map.t;
   at : (float * float) Path_map.t;
   pinned : bool Path_map.t;
-  level : Flow_sop.Projection.level Path_map.t;  (* a node's detail level, when it is not the default card *)
+  level : Flow_graph.Projection.level Path_map.t;  (* a node's detail level, when it is not the default card *)
   rows : bool String_map.t Path_map.t;
   collapsed : bool Path_map.t;
   frames : frame list Path_map.t;
@@ -45,7 +45,7 @@ let path_form p = vec (List.map str p)
 let to_syntax t =
   let nodes = Path_map.empty
     |> Path_map.fold (fun p v -> Path_map.add p [ kw "at", pair v ]) t.at
-    |> fun m -> Path_map.fold (fun p v m -> Path_map.add p (Option.value ~default:[] (Path_map.find_opt p m) @ [ kw "level", str (Flow_sop.Projection.level_name v) ]) m) t.level m
+    |> fun m -> Path_map.fold (fun p v m -> Path_map.add p (Option.value ~default:[] (Path_map.find_opt p m) @ [ kw "level", str (Flow_graph.Projection.level_name v) ]) m) t.level m
     |> fun m -> Path_map.fold (fun p v m -> Path_map.add p (Option.value ~default:[] (Path_map.find_opt p m) @ [ kw "pinned", bool v ]) m) t.pinned m
     |> fun m -> Path_map.fold (fun p v m -> Path_map.add p (Option.value ~default:[] (Path_map.find_opt p m) @ [ kw "collapsed", bool v ]) m) t.collapsed m
     |> fun m -> Path_map.fold (fun p rows m ->
@@ -112,7 +112,7 @@ let of_syntax (form : S.t) = match form.node with
               | { S.node = S.Kw "at"; _ } :: v :: r -> let* v = read_pair v in go { t with at = Path_map.add p v t.at } r
               | { S.node = S.Kw "level"; _ } :: v :: r ->
                   let* name = read_str v in
-                  (match Flow_sop.Projection.level_of_name name with
+                  (match Flow_graph.Projection.level_of_name name with
                    | Some l -> go { t with level = Path_map.add p l t.level } r
                    | None -> fail "unknown level %s" name)
               | { S.node = S.Kw "pinned"; _ } :: v :: r -> let* v = read_bool v in go { t with pinned = Path_map.add p v t.pinned } r

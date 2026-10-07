@@ -3,7 +3,7 @@
     [buildView] / [buildScope] / [mkNode] / [argRows] (e1.js) and
     [layoutScope] / [nodeSize] / [place] (e2.js).
 
-    Identity is the {!Flow.Workspace.path} of a binding, so a selection, a
+    Identity is the [Flow.Workspace.path] of a binding, so a selection, a
     probe or a layout position survives every edit that keeps the path.  Every
     row carries the {!Flow_edit.arg_key} of the input it shows: a wire dropped
     on a row is [Flow_edit.Connect { node; key; ... }], a scrubbed number is
@@ -60,7 +60,7 @@ type row = {
   head : bool;  (** the first geometry slot of a node kind: the header's in-port, not a row of the body *)
 }
 
-type zone_kind = For | Fold | Scan | Sum | Let | Fn
+type zone_kind = For | Fold | Scan | Sum | Let | Fn | State
 type role = Var | Acc | Param | Capture
 
 type rail_row = {
@@ -149,7 +149,8 @@ val find : scope -> path -> node option
 val zones : scope -> node list
 (** Every zone below the scope, outer first. *)
 
-(** {2 Levels} flow.md 6.4 *)
+(** {2 Levels}
+    See flow.md 6.4. *)
 
 type level = Point | Chip | Card | Full
 (** Point: a 14-point disc and the name; Chip: the header with a [+N] count; Card: the rows the
@@ -178,7 +179,8 @@ val set_count : node -> int
 
 val point_title : node -> string
 
-(** {2 Layout}  logical points on the 24-point dot lattice *)
+(** {2 Layout}
+    Logical points on the 24-point dot lattice. *)
 
 type item = Input of input | Item of node | Return
 

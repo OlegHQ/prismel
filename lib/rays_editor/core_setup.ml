@@ -102,7 +102,7 @@ let create ?settings ?(keymap = Leader.keymap)
           (List.map Flow_sop.Catalog.descriptor factories @ Editor_document.Contexts.descriptors));
         tree = Pxui_shell.Tree.create (); outline = Navigator.initial; held_keys = [];
         ui = (let ui = Pxui.Ui.create () in Pxui.Ui.set_font_size ui (default_text_size ()); ui); workspace;
-        timeline = Sketch_support.Timeline.create (); cook;
+        timeline = Sketch_support.Timeline.create (); live_frame = Frame_input.at_time 0.; cook;
         edit_error = None; status_fps = None;
         status_fps_at = Float.neg_infinity; last_dt = 0.; steady = 0;
         history = Editor_core.History.create doc;
@@ -124,4 +124,3 @@ let create ?settings ?(keymap = Leader.keymap)
       follow_start value)
     (Cook.create ~prepare ~seed ~grain ?domains ?await ~max_entries
       ~max_payload_bytes ()))
-

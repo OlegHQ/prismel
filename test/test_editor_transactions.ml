@@ -54,7 +54,7 @@ let run () =
       | Some (x, y, w, h) -> x, y, w, h | None -> failwith "the node has no box in the graph pane" in
     let header path = let x, y, w, _ = box path in float (x + w / 2), float (y + 10) in
     let undo () = step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')] in
-    let set path n = match E.edit !current (Flow_sop.Flow_edit.Set_arg { node = path; key = Kw "value";
+    let set path n = match E.edit !current (Flow_graph.Flow_edit.Set_arg { node = path; key = Kw "value";
         sub = []; value = S.make (S.Num (string_of_int n)) }) with
       | Ok env -> current := env | Error message -> failwith message in
     (* select the second source with a click, then edit it: the selection follows the stable node *)

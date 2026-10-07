@@ -112,6 +112,7 @@ let rec declared (e : S.t) acc =
     | S.List ({ S.node = S.Sym "let*"; _ } :: v :: _) -> bound v acc
     | S.List ({ S.node = S.Sym ("for" | "scan" | "sum"); _ } :: v :: _) -> bound v acc
     | S.List ({ S.node = S.Sym "fold"; _ } :: a :: b :: _) -> bound b (bound a acc)
+    | S.List ({ S.node = S.Sym "state"; _ } :: a :: _) -> bound a acc
     | S.List ({ S.node = S.Sym "fn"; _ } :: { S.node = S.Vec ps; _ } :: _) ->
         List.fold_left (fun a (p : S.t) -> match p.node with
           | S.List ({ S.node = S.Sym n; _ } :: _) -> n :: a
@@ -293,7 +294,7 @@ let holder leaf =
 let find_pair s leaf = let leaf = fst (split_leaf leaf) in List.find_index (fun (p, _) -> pat_key p = leaf) s.ps
 
 let is_zone (e : S.t) = e.meta = [] && (match head_sym e with
-  | Some ("for" | "fold" | "scan" | "sum") -> true | _ -> false)
+  | Some ("for" | "fold" | "scan" | "sum" | "state") -> true | _ -> false)
 
 let last_child (e : S.t) = match List.rev (S.children e) with c :: _ -> c | [] -> fail "Empty form."
 let set_last (e : S.t) v : S.t =
@@ -454,7 +455,11 @@ let default_for (ty : Flow.Ty.t) label = match ty with
   | Int -> Some (mk (S.Num "1"))
   | Bool -> Some (sym "false")
   | Vec3 -> Some (vec [ mk (S.Num "0"); mk (S.Num "0"); mk (S.Num "0") ])
-  | Text | Color -> Some (mk (S.Str (if label = "color" then "#285f77" else "text")))
+  | Color -> Some (mk (S.Str "#285f77"))
+  | Text -> Some (mk (S.Str (if label = "color" then "#285f77" else "text")))
+  | Array (Float | Any) -> Some (call "array/float" [mk (S.Num "4")])
+  | Array Vec3 -> Some (call "array/vec3" [mk (S.Num "4")])
+  | Drawing -> Some (call "draw/merge" [])
   | Geometry -> Some (sym "nil")
   | _ -> None
 
@@ -655,6 +660,13 @@ let panel_expr src kind =
       (match scene with
        | Some n -> call "ui/viewport" [ call "ref" [ sym n ] ]
        | None -> fail "A viewport needs a scene graph.")
+  | "canvas" ->
+      (match List.find_map (fun (item : S.t) -> match item.node with
+        | S.List ({S.node = S.Sym "graph"; _} :: {S.node = S.Sym n; _} :: rest)
+          when context rest = Some "draw" -> Some n
+        | _ -> None) (snd (workspace_parts src)) with
+       | Some n -> call "ui/canvas" [call "ref" [sym n]]
+       | None -> fail "A canvas needs a draw graph.")
   | _ when String.starts_with ~prefix:"graph:" kind ->
       call "ui/graph" [ mk (S.Str (String.sub kind 6 (String.length kind - 6))) ]
   | _ -> fail "Unknown panel type %s." kind

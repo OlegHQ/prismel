@@ -2,9 +2,10 @@
     {!Port_type} is the smaller set a driven parameter port carries at run time. *)
 
 type t =
-  | Geometry | Float | Int | Bool | Vec3 | Text
+  | Geometry | Drawing | Float | Int | Bool | Vec3 | Text
   | Color  (** text or vec3; only catalog parameters ask for it *)
   | List of t
+  | Array of t  (** packed float or vec3 data; its length is not graph structure *)
   | Record of (string * t) list  (** fields in written order *)
   | Fn
   | Any  (** unknown or unconstrained: unannotated fn parameters, empty lists *)
