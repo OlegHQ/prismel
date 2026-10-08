@@ -7237,3 +7237,26 @@ remains **unmet**. All six benchmark commands exit zero. Evidence:
 `/private/tmp/p3-camera-navigate-before-{1,2,3}.csv`,
 `/private/tmp/p3-camera-navigate-after-{1,2,3}.csv` and
 `/private/tmp/p3-camera-navigate-check.log`.
+
+The bottom-up intrinsic-size pass has the same captured-float-reference pattern
+as arrangement. First, an `inline always` annotation on the existing child-walk
+helper was tested and reverted: all three old and new full-editor trials
+allocated exactly 162,876 bytes/frame. No allocation win was observed.
+
+Replacing only the intrinsic-size child callback with the existing linked-child
+while loop does save allocation. Its accumulation order and sizing arithmetic
+are unchanged; the existing 1x/2x UI interaction, scroll and transformed-canvas
+checks exit zero. Three alternating old/new trials, same protocol and exclusive
+execution holds, all commands exit zero:
+
+| Full static editor, 100k circles | Median trials (ms) | p95 trials (ms) | Bytes/frame in every trial |
+|---|---|---|---:|
+| Before intrinsic linked-child loop | .034094 / .034809 / .034094 | .065088 / .055790 / .061989 | 162,876 |
+| After intrinsic linked-child loop | .034094 / .034094 / .033855 | .063896 / .052929 / .055075 | 161,740 |
+
+The allocation saving is 1,136 bytes/frame (0.7%). The full 32,768-byte gate
+remains **unmet**. Evidence:
+`/private/tmp/p3-ui-intrinsic-before-{1,2,3}.csv`,
+`/private/tmp/p3-ui-intrinsic-after-{1,2,3}.csv`,
+`/private/tmp/p3-ui-intrinsic-check.log` and
+`/private/tmp/p3-ui-children-inline-{before,after}-{1,2,3}.csv`.

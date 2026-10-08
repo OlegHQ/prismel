@@ -1324,13 +1324,17 @@ let intrinsic ui =
     let padding = ui.b_padding.(index) and gap = ui.b_gap.(index)
     and row = ui.b_row.(index) in
     let along = ref 0. and across = ref 0. and flow_count = ref 0 in
-    children ui index (fun child ->
+    let next = ref ui.b_first.(index) in
+    while !next >= 0 do
+      let child = !next in
       if flow ui child then begin
         incr flow_count;
         let cw = ui.l_w.(child) and ch = ui.l_h.(child) in
         if row then (along := !along +. cw; across := Float.max !across ch)
         else (along := !along +. ch; across := Float.max !across cw)
-      end);
+      end;
+      next := ui.b_next.(child)
+    done;
     let gaps = gap *. float (max 0 (!flow_count - 1)) in
     let content_w = (if row then !along +. gaps else !across) +. (2. *. padding)
     and content_h = (if row then !across else !along +. gaps) +. (2. *. padding) in
