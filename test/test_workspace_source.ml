@@ -118,8 +118,8 @@ let run_find () =
 
 (* ---- through the editor ---- *)
 
-let editor ?presets ~source text =
-  E3.create ~await:true ~workspace:(Result.get_ok (Doc.of_text catalog text)) ?presets ~source
+let editor ?presets ?(imports = []) ~source text =
+  E3.create ~await:true ~workspace:(Result.get_ok (Doc.of_text ~imports catalog text)) ?presets ~source
     ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
@@ -387,5 +387,55 @@ let run_start_keywords () =
   E3.close !e;
   remove_tree dir
 
-let run () = run_files (); run_find (); run_editor (); run_external_over_dirty (); run_autosave (); run_start_keywords ();
+let run_imports () =
+  let dir = directory () in
+  let file = Filename.concat dir "sketch.rays" and lib = Filename.concat dir "lib.rays" in
+  let library radius = "(workspace library (graph shared :context sop (sop/uv_sphere :radius " ^ radius ^ " :segments 8 :rings 4)))\n" in
+  let text = "(workspace main (graph local :context sop (ref shared)))\n(import \"lib.rays\")\n" in
+  write file text; write lib (library "0.5");
+  let e = ref (editor ~imports:["lib.rays", library "0.5"]
+      ~source:(Source.at ~file ~digest:(sha text)) text) and count = ref 0 in
+  Fun.protect ~finally:(fun () -> E3.close !e; remove_tree dir) (fun () ->
+    let step ?keys events = incr count; e := E3.update !e
+        (Test_editor_input.frame ?keys (450., 300.) events !count) in
+    let poll () = for _ = 1 to 65 do step [] done in
+    poll ();
+    check (E3.undo_label !e = None) "unchanged imported text reloaded at startup";
+    write lib (library "0.7"); poll ();
+    check (has (source_text !e) "0.7" && E3.undo_label !e = Some "Reload sketch.rays") "changed import did not reload";
+    let document = E3.workspace !e in
+    poll ();
+    check (E3.workspace !e == document) "import reloaded repeatedly (normalized digest)";
+    let unchanged = read lib in
+    step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 's')];
+    check (read lib = unchanged && not (has (read file) "(graph shared")) "save wrote imported forms or file";
+    e := Result.get_ok (E3.edit !e (Flow_graph.Flow_edit.Set_note {node = ["local"; "@result"]; text = "local edit"}));
+    write lib (library "0.9"); poll ();
+    check (has (source_text !e) "0.7" && has (cook_line !e) "changed on disk") "import replaced unsaved work";
+    step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'z')]; poll ();
+    check (has (source_text !e) "0.9") "held imported change did not load after undo";
+    Sys.remove lib; poll ();
+    check (has (cook_line !e) "E_IMPORT" || has (cook_line !e) "not reloaded") "missing import was silent";
+    write lib (library "0.9"); poll ();
+    check (E3.workspace !e != document) "recreated import did not recover")
+
+let run_library () =
+  let dir = directory () in
+  let file = Filename.concat dir "sketch.rays" and lib = Filename.concat dir "lib.rays" in
+  let library n = "; editable library\n(defn twice :context value [(x : float)] (* x " ^ n ^ "))\n" in
+  let text = "(workspace main (graph local :context value (twice 3)))\n(import \"lib.rays\")\n" in
+  write file text; write lib (library "2");
+  let e = ref (editor ~imports:["lib.rays", library "2"] ~source:(Source.at ~file ~digest:(sha text)) text) in
+  Fun.protect ~finally:(fun () -> E3.close !e; remove_tree dir) (fun () ->
+    e := E3.update (Rays_editor.Reduce.open_import !e "lib.rays") (Test_editor_input.frame (450., 300.) [] 0);
+    check ((E3.workspace !e).fragment && (E3.workspace !e).imports = []) "open library did not switch to editable definitions";
+    e := E3.edit !e (Flow_graph.Flow_edit.Set_arg {node = ["def:twice"; "@result"]; key = Pos 1; sub = []; value = Flow.Syntax.make (Num "4")}) |> Result.get_ok;
+    e := E3.update !e (Test_editor_input.frame ~keys:[Input.Meta] (450., 300.) [Event.KeyPressed (Input.KeyChar 's')] 1);
+    check (has (read lib) "(* x 4)" && has (read lib) "editable library" && not (has (read lib) "workspace")) "library save added a wrapper or lost edit/comment";
+    check (read file = text) "open library saved over importer";
+    write lib (library "5");
+    for count = 2 to 70 do e := E3.update !e (Test_editor_input.frame (450., 300.) [] count) done;
+    check (has (Doc.to_text (E3.workspace !e)) "(* x 5)") "bare definition library did not reload")
+
+let run () = run_files (); run_find (); run_editor (); run_external_over_dirty (); run_autosave (); run_start_keywords (); run_imports (); run_library ();
   print_endline "workspace source tests passed"

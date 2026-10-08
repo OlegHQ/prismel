@@ -81,3 +81,6 @@ let zone_fn theme = zone theme ~dashed:true
   ~light:(163, 64, 122, 9, 140) ~dark:(232, 138, 192, 10, 128)
 let zone_let theme = zone theme ~dashed:true
   ~light:(34, 43, 43, 0, 87) ~dark:(225, 231, 227, 0, 77)
+let zone_branch theme ~taken = zone theme ~dashed:false
+  ~light:(176, 104, 15, (if taken then 26 else 5), (if taken then 140 else 70))
+  ~dark:(240, 175, 80, (if taken then 30 else 6), (if taken then 150 else 80))

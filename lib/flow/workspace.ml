@@ -211,7 +211,7 @@ let skip_tuples (v : S.t) : int list list option =
       Some (List.map (fun t -> Option.get (tuple t)) items)
   | _ -> None
 
-let check ?(ops = []) catalog forms =
+let check ?(ops = []) ?(library = false) catalog forms =
   Phase_timer.measure Check (fun () ->
   match Op.validate ops with Some error -> None, [error] | None ->
   let find_op = Op.find ~extra:ops in
@@ -517,10 +517,10 @@ let check ?(ops = []) catalog forms =
   and if_ cx (x : S.t) (args : S.t list) =
     match args with
     | [ c; a; b ] ->
-        let (ct, cv) = infer cx c in
+        let (ct, cv) = branch_test cx "test" c in
         if not (Ty.fits cv.ty Ty.Bool) then
           err c "E_TYPE" (Printf.sprintf "if needs a bool condition, got %s." (show cv.ty));
-        let (at, av) = infer cx a and (bt, bv) = infer cx b in
+        let (at, av) = branch cx "then" a and (bt, bv) = branch cx "else" b in
         if not (Ty.fits av.ty bv.ty || Ty.fits bv.ty av.ty) then
           err x "E_TYPE" (Printf.sprintf "Both branches of if must have one type: %s and %s." (show av.ty) (show bv.ty));
         no_fn a av.ty "An if branch"; no_fn b bv.ty "An if branch";
@@ -550,7 +550,7 @@ let check ?(ops = []) catalog forms =
       if (match last_test.node with S.Kw "else" -> false | _ -> true) then
         bad x "E_NO_ELSE" (Printf.sprintf "%s needs a final :else arm, so it always has a value." h)
       else begin
-        let sv = Option.map (infer cx) scrut in
+        let sv = Option.map (branch_test cx "of") scrut in
         let vs = ref [] and ty = ref None in
         let test_live = ref (match sv with Some (_, v) -> v.live | None -> false) in
         let n = List.length arms in
@@ -561,7 +561,7 @@ let check ?(ops = []) catalog forms =
             if is_else then None
             else match sv with
               | None ->
-                  let (t, v) = infer cx c in
+                  let (t, v) = branch_test cx ("test" ^ string_of_int i) c in
                   if not (Ty.fits v.ty Ty.Bool) then
                     err c "E_TYPE" (Printf.sprintf "cond tests are bool; got %s." (show v.ty));
                   if v.live then test_live := true;
@@ -574,7 +574,8 @@ let check ?(ops = []) catalog forms =
                          err c "E_TYPE" (Printf.sprintf "case compares %s with the %s literal %s." (show s.ty) (show lv.ty) (pattern_key c));
                        Some t
                    | _ -> err c "E_CASE" (Printf.sprintf "case matches literal numbers, text or booleans; got %s." (pattern_key c)); None) in
-          let (et, ev) = infer cx e in
+          let key = if is_else then "else" else if i = 0 then "then" else "then~" ^ string_of_int (i + 1) in
+          let (et, ev) = branch cx key e in
           no_fn e ev.ty (Printf.sprintf "A %s arm" h);
           vs := ev :: !vs;
           (match !ty with
@@ -597,6 +598,20 @@ let check ?(ops = []) catalog forms =
         (tm x ty node, v)
       end
     end
+
+  and branch_test cx key x =
+    let path = match List.rev cx.path with leaf :: outer -> List.rev outer @ [leaf ^ "#" ^ key]
+      | [] -> ["@result#" ^ key] in
+    binding cx x path
+
+  and branch cx key (x : S.t) =
+    let path = match List.rev cx.path with
+      | leaf :: outer -> List.rev outer @ [leaf ^ "#" ^ key]
+      | [] -> ["@result#" ^ key] in
+    let t, v = body {cx with path} x in
+    let t = if S.head x = Some "let*" then t else tm x v.ty (Let ([], t)) in
+    mark path v;
+    {t with path = Some path}, v
 
   and body cx (b : S.t) : term * v =
     match b.node, b.meta with
@@ -624,7 +639,7 @@ let check ?(ops = []) catalog forms =
 
   and input cx key (x : S.t) =
     match S.head x with
-    | Some h when String.contains h '/' || List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"] ->
+    | Some h when String.contains h '/' || List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"] ->
         let memo = cx.path, key, x.id in
         let id = match Hashtbl.find_opt input_paths memo with
           | Some id -> id
@@ -640,7 +655,7 @@ let check ?(ops = []) catalog forms =
                 | leaf :: scope -> List.rev scope @ [Printf.sprintf "%s~%d" leaf n]
                 | [] -> assert false in
               Hashtbl.add input_paths memo id; id in
-        if List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"] then binding cx x id
+        if List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"] then binding cx x id
         else let t, v = infer {cx with path = id} x in mark id v; t, v
     | _ -> infer cx x
 
@@ -1304,6 +1319,10 @@ let check ?(ops = []) catalog forms =
     | [] ->
         let bare = { x with meta = [] } in
         (match x.node with
+         | S.List [{S.node = S.Sym "if"; _}; _; a; _] ->
+             let _, checked = plain cx bare in
+             let t, v = branch cx "then" a in
+             {t with ty = checked.ty; form = x}, {v with ty = checked.ty}
          | S.List ({ S.node = S.Sym h; _ } :: args)
            when (not (List.mem h special)) && not (Hashtbl.mem macro_tbl h) ->
              let rec first i = function
@@ -1371,7 +1390,8 @@ let check ?(ops = []) catalog forms =
     | S.List (_ :: _ :: { S.node = S.Kw "context"; _ } :: { S.node = S.Sym cname; _ } :: rest) ->
         (match context_of_name cname with
          | None ->
-             err f "E_CONTEXT_UNKNOWN" (Printf.sprintf "Unknown context %s. Known contexts: sop, value, scene, world, settings, editor." cname);
+             err f "E_CONTEXT_UNKNOWN" (Printf.sprintf "Unknown context %s. Known contexts: %s." cname
+               (String.concat ", " (List.map Context.name (Context.all ()))));
              None
          | Some ctx ->
              let shape = match rest with
@@ -1450,7 +1470,7 @@ let check ?(ops = []) catalog forms =
       let (bt, _) = body cx d.sbody in
       Hashtbl.replace def_terms n { name = n; context = d.sctx; inputs; body = bt; form = d.sform }) def_order;
     List.iter (fun n -> ignore (graph_info (Hashtbl.find gsigs n).sform n)) graph_order;
-    if graph_order = [] && not (List.exists (fun (h, _, _) -> h = "graph") items) then
+    if not library && graph_order = [] && not (List.exists (fun (h, _, _) -> h = "graph") items) then
       err ws "E_NO_GRAPH" "A workspace needs at least one graph.";
     (graph_order, def_order) in
   let outcome =

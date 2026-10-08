@@ -1979,7 +1979,53 @@ let run_undo_under_pane () =
     ("undo left the other panel inside a removed object: " ^ dump_line !e "graph panels");
   E3.close !e
 
-let run () = run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
+let run_spreadsheet () =
+  let module Sheet = Rays_editor.Private.Spreadsheet in
+  let text = {|(workspace sheet
+    (graph g :context sop (sop/grid :counts "Point counts" :rows 2 :columns 3))
+    (graph h :context sop (sop/box))
+    (graph editor :context editor (let* [a (ui/graph "g" :focus true) b (ui/graph "h")
+      sa (ui/spreadsheet :of a) sb (ui/spreadsheet :of b)]
+      (ui/workspace (ui/split "vertical" (ui/split "horizontal" a b) (ui/split "horizontal" sa sb))))))|} in
+  let doc = of_text text in
+  check (Doc.to_text (of_text (Doc.to_text doc)) = Doc.to_text doc) "spreadsheet layout did not round trip";
+  let shell = shell_of (build_ok doc) in
+  check (shell.follows = [[1;1],[0;1]; [1;0],[0;0]]) "spreadsheet :of did not follow its graph panel";
+  let e = ref (editor text) and count = ref 0 in
+  Fun.protect ~finally:(fun () -> E3.close !e) (fun () ->
+    let step ?(events = []) mouse = incr count; e := E3.update !e (frame mouse events !count) in
+    e := Rays_editor.Reduce.select_path !e ["g"; "@result"];
+    step (0.,0.); step (0.,0.);
+    let owner, geometry = Rays_editor.Reduce.spreadsheet !e [1;0] in
+    let geometry = match geometry with Some g -> g | None -> fail "selected cooked node absent from spreadsheet" in
+    let counts = List.map (fun owner -> Sheet.count owner geometry) [Rdk.Attribute.Point; Vertex; Primitive; Detail] in
+    check (owner = 0 && counts = [6;12;4;1]) ("spreadsheet owner row counts: " ^ String.concat "," (List.map string_of_int counts) ^ "; owner=" ^ string_of_int owner);
+    check (snd (Rays_editor.Reduce.spreadsheet !e [1;1]) = None) "spreadsheet followed the other graph selection";
+    let layouts = Layout.geometry shell.tree (frame (0.,0.) [] !count) in
+    let leaf = List.find (fun (leaf : Layout.leaf) -> leaf.path = [1;0]) layouts.leaves in
+    let x,y,w,_ = leaf.body in
+    let ui = Pxui.Ui.create () in
+    let detail_width = Pxui.Ui.text_width ui "Detail" in Pxui.Ui.destroy ui;
+    let point = float (x+w) -. 8. -. detail_width /. 2., float y +. 12. in
+    step point; step ~events:[Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)] point;
+    check (fst (Rays_editor.Reduce.spreadsheet !e [1;0]) = 3) "spreadsheet Detail tab did not route shared input";
+    check (fst (Rays_editor.Reduce.spreadsheet !e [1;1]) = 0) "spreadsheet owner state leaked to another pane";
+    e := E3.edit !e (E.Set_arg {node = ["g"; "@result"]; key = Kw "columns"; sub = []; value = S.make (Num "4")}) |> Result.get_ok;
+    step (0.,0.); step (0.,0.);
+    let geometry = snd (Rays_editor.Reduce.spreadsheet !e [1;0]) |> Option.get in
+    check (Rdk.Geometry.point_count geometry = 8 && fst (Rays_editor.Reduce.spreadsheet !e [1;0]) = 3) "spreadsheet recook kept stale geometry or reset owner";
+    let columns = Sheet.columns Rdk.Attribute.Point geometry in
+    check (Array.length columns >= 4 && List.init 4 (fun i -> fst columns.(i)) = ["index";"P.x";"P.y";"P.z"]) "canonical position tuple columns";
+    let attr = Rdk.Attribute.create_owned ~name:"label" ~owner:Point (Text (Array.make 8 "sample")) |> Result.get_ok in
+    let geometry = Rdk.Geometry.with_attribute attr geometry |> Result.get_ok in
+    let group = Rdk.Group.init ~owner:Point ~name:"odd" 8 (fun i -> i mod 2 = 1) in
+    let geometry = Rdk.Geometry.with_group group geometry |> Result.get_ok in
+    let columns = Sheet.columns Rdk.Attribute.Point geometry |> Array.to_list in
+    check ((List.assoc "label" columns) 7 = "sample" && (List.assoc "group:odd" columns) 0 = "0"
+      && (List.assoc "group:odd" columns) 7 = "1") "text values/group membership columns";
+    print_endline "workspace spreadsheet: owner counts, tied selections, pane-local tabs, recooks and layout roundtrip passed")
+
+let run () = run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
   run_undo_under_pane (); run_atomic_frame (); run_undo_and_input (); run_carry_reaches_no_history ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following

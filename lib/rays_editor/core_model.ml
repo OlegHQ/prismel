@@ -46,7 +46,7 @@ type graph_pane = {
 
 (* What a panel keeps of its own besides its PXUI state while another panel of its kind is the
    one in use: its list, its text pane, its outline (flow.md 11.11). *)
-type local = { rows : Pxui_shell.Tree.t; code : Text_pane.state; nav : Navigator.state }
+type local = { rows : Pxui_shell.Tree.t; code : Text_pane.state; nav : Navigator.state; sheet_owner : int }
 
 (* The start keywords the editor last followed, by panel key. *)
 type started = { on : string list option; views : (string list * string) list;
@@ -221,6 +221,7 @@ type 'prepared t = {
   scope_key : scope_key option;
   edit_phases : Flow.Phase_timer.t;
   select_later : Flow.Workspace.path list;  (* nodes to select once the pane shows their graph *)
+  open_import : string option;
   pane_graph : string option;  (* a scene, world or settings graph the pane shows instead of the level's own *)
   back : (Document.level * string option) list;  (* where [u] returns to: level and pane graph, latest first *)
   flow_catalog : Flow.Check.catalog option Lazy.t;

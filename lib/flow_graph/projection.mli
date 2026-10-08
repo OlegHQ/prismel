@@ -61,7 +61,7 @@ type row = {
   head : bool;  (** the first geometry slot of a node kind: the header's in-port, not a row of the body *)
 }
 
-type zone_kind = For | Fold | Scan | Sum | Let | Fn | State
+type zone_kind = For | Fold | Scan | Sum | Let | Fn | State | Branch
 type role = Var | Acc | Param | Capture
 
 type rail_row = {

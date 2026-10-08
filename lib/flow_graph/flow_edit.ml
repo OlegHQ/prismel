@@ -2,8 +2,8 @@ module S = Flow.Syntax
 module W = Flow.Workspace
 
 type path = W.path
-type arg_key = Whole | Pos of int | Kw of string | Field of string | Bv of int * int
-type loop = For | Fold
+type arg_key = Whole | Pos of int | Kw of string | Field of string | Bv of int * int | Arm of int
+type loop = For | Fold | If
 
 type op =
   | Set_arg of { node : path; key : arg_key; sub : int list; value : S.t }
@@ -12,6 +12,8 @@ type op =
   | Set_input_default of { form : string; input : string; value : S.t }
   | Unfold of { node : path; key : arg_key; sub : int list }
   | Fold_into of { node : path }
+  | Add_arm of {node : path; after : int}
+  | Delete_arm of {node : path; index : int}
   | Wrap of { nodes : path list; loop : loop }
   | Hoist of { node : path }
   | Rename of { node : path; to_ : string }
@@ -211,7 +213,14 @@ let skip_after_removal args gone =
     | _ -> None) (skip_of_args args) in
   with_kw args "skip" (if moved = [] then None else Some (skip_value moved))
 
-let arg_get (e : S.t) key = match key, e.node with
+let arm_key e index =
+  if index < 0 then (if S.head e = Some "if" then Pos 2 else Kw "else")
+  else Pos (match S.head e with Some "case" -> 2 * index + 2
+    | Some "cond" -> 2 * index + 1 | _ -> 1)
+
+let arg_get (e : S.t) key =
+  let key = match key with Arm i -> arm_key e i | _ -> key in
+  match key, e.node with
   | Whole, _ -> Some e
   | Bv (i, j), _ -> Option.bind (nth_child e i) (fun c -> nth_child c j)
   | Field k, S.Map l -> List.find_map (fun (a, b) -> if kw_name a = k then Some b else None) (pairs l)
@@ -239,6 +248,7 @@ let root_order args =
   pos @ flat_pairs (List.stable_sort (fun (a, _) (b, _) -> compare (rank (kw_name a)) (rank (kw_name b))) kws)
 
 let arg_set (e : S.t) key (v : S.t option) : S.t =
+  let key = match key with Arm i -> arm_key e i | _ -> key in
   let e = match e.node with
     | S.List (({node = S.Sym h; _} as head) :: args) ->
         {e with node = S.List (head :: S.attribute_args h args)}
@@ -282,18 +292,21 @@ let collapse s ps res = if ps = [] then res else rebuild s ps res  (* an empty l
    leaf of the binding (or [@result]) that holds it, then [#] and each argument on the way down
    ([result#0#:cutters]: the [:cutters] input of the first input of [result]) *)
 let node_call (e : S.t) = match head_sym e with
-  | Some ("fn" | "map" | "filter" | "reduce" | "sort-by") -> true
+  | Some ("fn" | "map" | "filter" | "reduce" | "sort-by" | "if" | "cond" | "case") -> true
   | Some h -> String.length h > 1 && String.contains h '/'
   | None -> false
 let nested leaf = String.contains leaf '#'
 let key_segment = function
   | Pos i -> string_of_int i
   | Kw k -> ":" ^ k
+  | Arm i -> if i < 0 then "else" else if i = 0 then "then" else "then~" ^ string_of_int (i + 1)
   | Whole | Field _ | Bv _ -> fail "Only an input of a call holds a nested node."
 let nested_leaf leaf key = leaf ^ "#" ^ key_segment key
 let split_leaf leaf = match String.split_on_char '#' leaf with
   | base :: keys -> base, List.map (fun k ->
-      if String.length k > 0 && k.[0] = ':' then Kw (String.sub k 1 (String.length k - 1))
+      if k = "else" then Arm (-1) else if k = "then" then Arm 0
+      else if String.starts_with ~prefix:"then~" k then Arm (int_of_string (String.sub k 5 (String.length k - 5)) - 1)
+      else if String.length k > 0 && k.[0] = ':' then Kw (String.sub k 1 (String.length k - 1))
       else match int_of_string_opt k with Some i -> Pos i | None -> fail "Node %s no longer exists." leaf) keys
   | [] -> leaf, []
 (* the node that holds a nested one, and the input it is written in *)
@@ -339,7 +352,8 @@ let rec descend (cur : S.t) names (f : S.t -> S.t) : S.t = match names with
             let inner, restore = inside argument keys in
             inner, (fun v -> arg_set child key (Some (restore v))) in
       let child, restore = inside child keys in
-      let entered, out = enter child in
+      let entered, out = if List.exists (function Arm _ -> true | _ -> false) keys
+        then child, Fun.id else enter child in
       back (restore (out (descend entered rest f)))
 
 let workspace_parts (src : S.t list) = match src with
@@ -480,6 +494,13 @@ let default_for (ty : Flow.Ty.t) label = match ty with
   | Array Vec3 -> Some (call "array/vec3" [mk (S.Num "4")])
   | Named _ -> Flow.Ty.default ty
   | _ -> None
+
+let rec branch_default (ty : Flow.Ty.t) = match ty with
+  | List _ -> Some (call "list" [])
+  | Record fields ->
+      let fields = List.map (fun (name, ty) -> Option.map (fun value -> [kwf name; value]) (branch_default ty)) fields in
+      if List.exists Option.is_none fields then None else Some (mk (S.Map (List.concat_map Option.get fields)))
+  | _ -> default_for ty "value"
 
 let rec literals ?(path = []) (e : S.t) = match e.node with
   | S.Num _ | S.Str _ -> [ List.rev path, e ]
@@ -673,7 +694,7 @@ let panel_expr src kind =
       when context rest = Some "scene" -> Some n
     | _ -> None) (snd (workspace_parts src)) in
   match kind with
-  | "outline" | "graph" | "list" | "lisp" | "inspector" | "timeline" -> call ("ui/" ^ kind) []
+  | "outline" | "graph" | "list" | "lisp" | "inspector" | "spreadsheet" | "timeline" -> call ("ui/" ^ kind) []
   | "viewport" ->
       (match scene with
        | Some n -> call "ui/viewport" [ call "ref" [ sym n ] ]
@@ -845,15 +866,45 @@ let unfold_in ~used ?name s leaf key sub =
 
 (* a wire never deletes a node: the nested node an input held stays, as a binding nothing reads *)
 let keep_nested ~used s leaf key = match key with
-  | Pos _ | Kw _ ->
+  | Pos _ | Kw _ | Arm _ ->
       (match arg_get (get_node s leaf) key with
        | Some a when node_call a -> fst (unfold_in ~used s leaf key [])
        | _ -> s)
   | _ -> s
 
-let rewrite src op : (unit -> S.t list) list =
+let rewrite ?fallback src op : (unit -> S.t list) list =
   let one f = [ f ] in
   match op with
+  | Add_arm {node; after} -> one (fun () ->
+      let sp, leaf = split_node node in
+      edit_scope src sp (fun scope ->
+        let e = get_node scope leaf in
+        let h = Option.value ~default:"" (head_sym e) in
+        if h <> "cond" && h <> "case" then fail "Only cond and case have editable arms.";
+        let args = List.tl (S.children e) in
+        let prefix, args = if h = "case" then [List.hd args], List.tl args else [], args in
+        let arms = pairs args in
+        let count = List.length arms - 1 in
+        if after < -1 || after >= count then fail "That arm no longer exists.";
+        let test = if h = "cond" then sym "false" else
+          match arms with
+          | ({S.node = S.Num value; _}, _) :: _ -> mk (S.Num (Flow.Lisp.float (float_of_string value +. 1.)))
+          | ({S.node = S.Str value; _}, _) :: _ -> mk (S.Str (value ^ "1"))
+          | ({S.node = S.Sym "true"; _}, _) :: _ -> sym "false"
+          | _ -> sym "true" in
+        let fallback = Option.value ~default:(snd (List.hd (List.rev arms))) fallback in
+        set_node scope leaf {e with node = S.List (sym h :: prefix @ flat_pairs (insert_at arms (after + 1) [test, fallback]))}))
+  | Delete_arm {node; index} -> one (fun () ->
+      let sp, leaf = split_node node in
+      edit_scope src sp (fun scope ->
+        let e = get_node scope leaf in
+        let h = Option.value ~default:"" (head_sym e) in
+        if h <> "cond" && h <> "case" then fail "Only cond and case have editable arms.";
+        let args = List.tl (S.children e) in
+        let prefix, args = if h = "case" then [List.hd args], List.tl args else [], args in
+        let arms = pairs args in
+        if index < 0 || index >= List.length arms - 1 then fail "The final else arm stays.";
+        set_node scope leaf {e with node = S.List (sym h :: prefix @ flat_pairs (List.filteri (fun i _ -> i <> index) arms))}))
   | Set_arg { node; key; sub; value } -> one (fun () ->
       let sp, leaf = split_node node in
       edit_scope src sp (fun s ->
@@ -1034,6 +1085,10 @@ let rewrite src op : (unit -> S.t list) list =
       let zone_clause iv n = vec [ sym iv; call "range" [ num n ] ] in
       let zone h iv n body = call h [ zone_clause iv n; body ] in
       (match loop with
+       | If -> List.map (fun fallback -> attempt (fun x _ _ ->
+           [fst x.out, call "if" [sym "true"; body_of x; fallback]]))
+           (match fallback with Some fallback -> [fallback] | None ->
+             [sym "nil"; num 0; sym "false"; vec [num 0; num 0; num 0]; mk (S.Str ""); call "list" []])
        | For ->
            (* ponytail: the checker is the type oracle, so try the geometry
               shape (collect and merge) and then the number shape (sum) *)
@@ -1487,6 +1542,7 @@ let label = function
   | Set_arg _ -> "Edit value" | Connect _ -> "Connect" | Disconnect _ -> "Disconnect"
   | Set_input_default _ -> "Input default" | Unfold _ -> "Unfold" | Fold_into _ -> "Fold"
   | Wrap { loop = For; _ } -> "Repeat" | Wrap { loop = Fold; _ } -> "Iterate"
+  | Wrap {loop = If; _} -> "Wrap conditional" | Add_arm _ -> "Add arm" | Delete_arm _ -> "Delete arm"
   | Hoist _ -> "Move out" | Rename _ -> "Rename" | Make_local_fn _ -> "Make function"
   | Make_defn _ -> "Make reusable function"
   | Make_macro _ -> "Make macro" | Inline_macro _ -> "Inline macro"
@@ -1506,6 +1562,7 @@ let label = function
 
 let key_text = function
   | Whole -> "" | Pos i -> string_of_int i | Kw k | Field k -> k | Bv (i, j) -> Printf.sprintf "%d.%d" i j
+  | Arm i -> if i < 0 then "else" else Printf.sprintf "then%d" i
 
 let gesture = function
   | Set_arg { node; key; sub; _ } ->
@@ -1552,12 +1609,12 @@ let macro_op draft ~nodes ~name choices =
     |> List.mapi (fun i (path, _) -> path, choices.(i))
     |> List.filter_map (fun (path, (on, hole)) -> if on then Some (path, hole) else None) }
 
-let check ?ops catalog forms =
+let check ?ops ?library catalog forms =
   let text, _ = Flow.Lisp.print forms in
   match S.parse text with
   | Error d -> Error d
   | Ok forms ->
-      (match W.check ?ops catalog forms with
+      (match W.check ?ops ?library catalog forms with
        | Some ws, _ -> Ok (forms, ws)
        | None, ds ->
            Error (match List.find_opt (fun (d : Flow.Diagnostic.t) -> d.severity = Flow.Diagnostic.Error) ds with
@@ -1571,8 +1628,36 @@ let refusal = function
   | (Out_of_memory | Sys.Break) as e -> raise e
   | e -> Flow.Diagnostic.error ~code:"E_EDIT" ("The edit failed: " ^ Printexc.to_string e)
 
-let apply_checked ?ops catalog src op =
-  match rewrite src op with
+let apply_checked ?ops ?library catalog src op =
+  let candidates () =
+  let path = match op with
+    | Wrap {nodes; loop = If} ->
+        let path = ref None and scope = scope_path_of nodes in
+        (try ignore (edit_scope src scope (fun s ->
+          let selection = select s nodes "Wrap conditional" in
+          path := Some (scope @ [selection.out_name]); s)) with Fail _ -> ());
+        !path
+    | Add_arm {node; _} -> Some node | _ -> None in
+  let fallback = Option.bind path (fun path ->
+    let rec find (term : W.term) =
+      if term.path = Some path then Some term.ty else
+      let children = match term.node with
+        | Vec xs | List_lit xs | Str xs | List_op (_,xs) | Hof (_,xs) -> xs
+        | Call {args;_} | Op {args;_} -> List.map snd args
+        | Call_fn {args;_} -> args | Graph_ref {inputs;_} -> List.map snd inputs
+        | Let (bs,r) -> List.map snd bs @ [r] | State {init;step;_} -> [init;step]
+        | Loop {accs;clauses;body;_} -> List.map snd accs @ List.map snd clauses @ [body]
+        | If (a,b,c) -> [a;b;c] | Cond (arms,d) -> List.concat_map (fun (a,b) -> [a;b]) arms @ [d]
+        | Case (s,arms,d) -> s :: List.map snd arms @ [d] | Fn {body;_} -> [body]
+        | Record fs -> List.map snd fs | Assoc (r,fs) -> r :: List.map snd fs
+        | Get (r,_) | Bypass r | Expanded {body = r; _} -> [r]
+        | _ -> [] in List.find_map find children in
+    match W.check ?ops ?library catalog src with
+    | Some ws, _ -> Option.bind (List.find_map (fun (g : W.graph) -> find g.body) (ws.graphs @ ws.defs))
+        branch_default
+    | _ -> None) in
+  rewrite ?fallback src op in
+  match candidates () with
   | exception e -> Error (refusal e)
   | candidates ->
       let rec first err = function
@@ -1580,12 +1665,12 @@ let apply_checked ?ops catalog src op =
         | attempt :: rest ->
             (match attempt () with
              | exception e -> first (if err = None then Some (refusal e) else err) rest
-             | forms -> (match check ?ops catalog forms with
+             | forms -> (match check ?ops ?library catalog forms with
                  | Ok _ as ok -> ok
                  | Error d -> first (if err = None then Some d else err) rest)) in
       first None candidates
 
-let apply ?ops catalog src op = Result.map fst (apply_checked ?ops catalog src op)
+let apply ?ops ?library catalog src op = Result.map fst (apply_checked ?ops ?library catalog src op)
 
 let has_prefix ~prefix p =
   let n = List.length prefix in
@@ -1604,6 +1689,20 @@ let under node p =
 let relabel k leaf p = List.mapi (fun i s -> if i = k then leaf else s) p
 
 let remap op p = match op with
+  | Add_arm {node; after} | Delete_arm {node; index = after} ->
+      let removed = match op with Delete_arm _ -> true | _ -> false in
+      (match under node p with
+       | Some (depth, suffix) when String.starts_with ~prefix:"#then" suffix ->
+           let tail = String.sub suffix 5 (String.length suffix - 5) in
+           let digits, rest = match String.index_opt tail '#' with
+             | Some i -> String.sub tail 0 i, String.sub tail i (String.length tail - i)
+             | None -> tail, "" in
+           let arm = if digits = "" then 0 else int_of_string (String.sub digits 1 (String.length digits - 1)) - 1 in
+           if removed && arm = after then None else
+           let arm = if removed && arm > after then arm - 1 else if not removed && arm > after then arm + 1 else arm in
+           let key = if arm = 0 then "#then" else "#then~" ^ string_of_int (arm + 1) in
+           Some (relabel depth (List.nth node depth ^ key ^ rest) p)
+       | _ -> Some p)
   | Rename { node; to_ } when under node p <> None ->
       let k, rest = Option.get (under node p) in
       Some (relabel k (to_ ^ rest) p)

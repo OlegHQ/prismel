@@ -671,6 +671,7 @@ let panel_tree root =
         if !wires = None then wires := text "wires" args;
         leaf path args Graph
     | E.Struct ("ui/inspector", _, args) -> leaf path args Inspector
+    | E.Struct ("ui/spreadsheet", _, args) -> leaf path args Spreadsheet
     | E.Struct ("ui/outline", _, args) -> leaf path args Outline
     | E.Struct ("ui/list", _, args) -> leaf path args List
     | E.Struct ("ui/lisp", _, args) ->
@@ -742,7 +743,7 @@ let origins (graph : W.graph) value =
     | W.Ref_binding (n, []), _ ->
         add path (Document.Bound n);
         Option.iter (fun t' -> walk None path t' v) (List.assoc_opt n env)
-    | W.Op { op = "ui/inspector" | "ui/list" | "ui/lisp"; args; _ }, _ ->
+    | W.Op { op = "ui/inspector" | "ui/spreadsheet" | "ui/list" | "ui/lisp"; args; _ }, _ ->
         Option.iter (fun (a : W.term) -> ofs := (List.rev path, a) :: !ofs) (List.assoc_opt "of" args)
     | W.Op { op = "ui/workspace"; args = (_, r) :: _; _ }, E.Struct (_, _, (_, rv) :: _) ->
         let h = here () in

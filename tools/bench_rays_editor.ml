@@ -188,6 +188,27 @@ let measure_panels nodes =
     [ "panels_1_graph_1_inspector", 1, 1; "panels_3_graphs_1_inspector", 3, 1;
       "panels_1_graph_2_inspectors", 1, 2; "panels_3_graphs_2_inspectors", 3, 2 ]
 
+let measure_spreadsheet () =
+  let module E = Rays_editor.Editor3 in
+  let workspace = load {|(workspace sheet
+    (graph g :context sop (sop/grid :counts "Point counts" :connectivity "Points" :rows 1000 :columns 1000))
+    (graph editor :context editor (let* [gpanel (ui/graph "g" :focus true)]
+      (ui/workspace (ui/split "horizontal" gpanel (ui/spreadsheet :of gpanel))))))|} in
+  let environment = ref (E.create ~workspace ~await:true ~domains:1
+    ~presets:(Filename.temp_dir "rays-sheet-bench" "")
+    ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) () |> Result.get_ok) in
+  Fun.protect ~finally:(fun () -> E.close !environment) (fun () ->
+    environment := Rays_editor.Reduce.select_path !environment ["g"; "@result"];
+    let step count = environment := E.update !environment (frame ~mouse:(900,300) count) in
+    for i = 0 to 19 do step i done;
+    let geometry = snd (Rays_editor.Reduce.spreadsheet !environment [1]) |> Option.get in
+    assert (Rdk.Geometry.point_count geometry = 1_000_000);
+    Gc.full_major ();
+    let before = Gc.allocated_bytes () and samples = Array.make 300 0. in
+    Array.iteri (fun index _ -> let started = Unix.gettimeofday () in step (index+20);
+      samples.(index) <- Unix.gettimeofday () -. started) samples;
+    report "panels_spreadsheet" 1_000_000 samples (Gc.allocated_bytes () -. before))
+
 let measure_world () =
   let open Rays in
   let module E = Rays_editor.Editor3 in
@@ -237,7 +258,8 @@ let () =
   end else if Array.length Sys.argv > 1 && Sys.argv.(1) = "--panels" then begin
     print_endline "name,nodes,median_s,p95_s,bytes_per_frame";
     List.iter measure_panels (match Array.to_list Sys.argv with
-      | _ :: _ :: (_ :: _ as sizes) -> List.map int_of_string sizes | _ -> [ 200; 800; 2_000 ])
+      | _ :: _ :: (_ :: _ as sizes) -> List.map int_of_string sizes | _ -> [ 200; 800; 2_000 ]);
+    measure_spreadsheet ()
   end else begin
   let sizes = match Array.to_list Sys.argv with
     | _ :: (_ :: _ as sizes) -> List.map int_of_string sizes

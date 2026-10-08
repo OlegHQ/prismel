@@ -92,6 +92,10 @@ let part2 () = (* connect, disconnect, input defaults *)
   refused "missing input" base (E.Set_input_default { form = "g"; input = "zz"; value = num "8" })
 
 let part3 () = (* unfold and fold round trip *)
+  let conditional = g "(let* [b (if true (sop/uv_sphere :radius 0.5) (sop/box))] b)" in
+  let unfolded_conditional = g "(let* [uv_sphere (sop/uv_sphere :radius 0.5) b (if true uv_sphere (sop/box))] b)" in
+  same "unfold conditional arm" conditional (E.Unfold {node = node ["b"]; key = Arm 0; sub = []}) unfolded_conditional;
+  same "fold into conditional arm" unfolded_conditional (E.Fold_into {node = node ["uv_sphere"]}) conditional;
   let nested = g "(let* [b (sop/transform (sop/uv_sphere :radius 0.5) :translate [1 2 3])] b)" in
   let unfolded = g "(let* [uv_sphere (sop/uv_sphere :radius 0.5) b (sop/transform uv_sphere :translate [1 2 3])] b)" in
   same "unfold" nested (E.Unfold { node = node [ "b" ]; key = Pos 0; sub = [] }) unfolded;

@@ -27,6 +27,7 @@ type change =
   | Copy_requested of path list  (** the host puts these bindings' text on the clipboard *)
   | Paste_requested  (** the host adds the clipboard's bindings here *)
   | Menu_requested of float * float  (** a right-click on empty canvas: the host opens its add menu there *)
+  | Open_import of string
   | Macro_requested of path list  (** the host opens the make-macro dialog over these nodes *)
   | Defn_requested of path list  (** the host types the outside names and writes the [defn] *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
@@ -39,7 +40,7 @@ type change =
 
 type direction = Left | Down | Up | Right
 type command =
-  | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro | Make_defn
+  | Delete | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Wrap_if | Add_arm | Delete_arm | Make_fn | Make_macro | Make_defn
   | Collapse | Probe_step of int | Frame_all | Walk of direction
   | Edit_name  (** rename the selected node, or edit the default of a selected graph input *)
   | Item_up | Item_down  (** move the hovered list item *)
@@ -550,6 +551,7 @@ type t = {
   theme : Pxui.theme; guide : bool;
   key : string;
   scope : P.scope option;
+  imported : path -> string option;
   at : path -> (float * float) option;
   level_at : path -> (P.level * bool) option;  (* a node's saved level and whether it is pinned *)
   pin_at : path -> string -> bool option;  (* a node's row pinned onto (or off) its card, by label *)
@@ -596,7 +598,7 @@ let regeo t scope layout ~shift =
 
 let no_stats = { nodes = 0; zones = 0; rows = 0; drawn_items = 0; drawn_zones = 0; drawn_rows = 0 }
 let create ?(x = 0) ?(y = 0) ?(width = 640) ?(height = 360) ?(theme = Pxui.default_theme) () = {
-  x; y; width; height; theme; guide = false; key = ""; scope = None;
+  x; y; width; height; theme; guide = false; key = ""; scope = None; imported = (fun _ -> None);
   at = (fun _ -> None); level_at = (fun _ -> None); pin_at = (fun _ _ -> None); collapsed = (fun _ -> false); lens = []; probe = (fun _ -> 0); records = None;
   chains = Hashtbl.create 1; folds = Hashtbl.create 1; counts = Hashtbl.create 1;
   frames = (fun _ -> []); display = None; framed = true;
@@ -712,7 +714,7 @@ let switch_nodes (scope : P.scope) = List.filter_map (fun (n : P.node) ->
     | _ -> 0)) scope.nodes
 
 let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ -> None) ?(collapsed = fun _ -> false) ?(probe = fun _ -> 0)
-    ?(frames = fun _ -> []) ?display ?wires ?(layouts = []) ~key scope t =
+    ?(frames = fun _ -> []) ?(imported = fun _ -> None) ?display ?wires ?(layouts = []) ~key scope t =
   let wires = Option.value wires ~default:t.wires in
   let scope = if layouts = [] then scope else
     { scope with P.nodes = List.map (fun (n : P.node) ->
@@ -727,7 +729,7 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
     | _ -> { t with hinting = None; context = None; highlighted = [] } in
   let layout = lay t scope ~at ~collapsed in
   let n, z, r = count_scope scope in
-  let t = { t with scope = Some scope; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
+  let t = { t with scope = Some scope; imported; at; collapsed; probe; frames; display; layout; switches = switch_nodes scope;
     chains = Flow_graph.Probe.chains scope; folds = fold_sources scope; wires;
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   let t = regeo t scope layout ~shift:no_shift in
@@ -875,6 +877,12 @@ let hide_row (n : P.node) =
         Some (match r.expr with Some { S.node = S.Sym "false"; _ } -> true | _ -> false)
     | _ -> None) n.rows
 
+let conditional_target (n : P.node) = match List.rev n.path with
+  | leaf :: outer -> (match E.leaf_keys leaf with
+      | Some (holder, [E.Arm index]) -> List.rev outer @ [holder], index
+      | _ -> n.path, -1)
+  | [] -> n.path, -1
+
 let action_changes t command =
   let nodes = selected_nodes t in
   let paths = List.map (fun (n : P.node) -> n.path) (List.filter (fun (n : P.node) -> not n.synthetic) nodes) in
@@ -898,6 +906,8 @@ let action_changes t command =
            | None -> if paths = [] then [] else edit (E.Delete_nodes { nodes = paths })))
   | Fold_into -> one (fun n -> edit (E.Fold_into { node = n.path }))
   | Unfold -> one (fun n ->
+      let parent, arm = conditional_target n in
+      if parent <> n.path then edit (E.Unfold {node = parent; key = E.Arm arm; sub = []}) else
       match t.hovered_row, first_inline n with
       | Some (p, key), _ when p = n.path -> edit (E.Unfold { node = n.path; key; sub = [] })
       | _, Some r -> edit (E.Unfold { node = n.path; key = r.key; sub = [] })
@@ -915,6 +925,10 @@ let action_changes t command =
       | None -> edit (E.Toggle_bypass { node = n.path }))
   | Wrap_repeat -> if paths = [] then [ Notice "Select nodes to repeat" ] else edit (E.Wrap { nodes = paths; loop = E.For })
   | Wrap_iterate -> if paths = [] then [ Notice "Select nodes to iterate" ] else edit (E.Wrap { nodes = paths; loop = E.Fold })
+  | Wrap_if -> if paths = [] then [Notice "Select nodes to wrap"] else edit (E.Wrap {nodes = paths; loop = E.If})
+  | Add_arm -> one (fun n -> let node, after = conditional_target n in edit (E.Add_arm {node; after}))
+  | Delete_arm -> one (fun n -> let node, index = conditional_target n in
+      edit (E.Delete_arm {node; index = if node = n.path then 0 else index}))
   | Make_fn -> if paths = [] then [ Notice "Select nodes to make a function" ] else edit (E.Make_local_fn { nodes = paths })
   | Make_macro -> if paths = [] then [ Notice "Select nodes to make a macro" ] else [ Macro_requested paths ]
   | Make_defn -> if paths = [] then [ Notice "Select nodes to make a reusable function" ] else [ Defn_requested paths ]
@@ -1162,6 +1176,9 @@ let bindings =
     make ~guide:some "macro" "make macro" Make_macro (ch 'm') [];
     make ~guide:some "repeat" "repeat (loop)" Wrap_repeat (ch 'r') [];
     make ~guide:some "iterate" "iterate (feed back)" Wrap_iterate (ch 'r') [ Input.Shift ];
+    make ~guide:some "conditional" "wrap conditional" Wrap_if (ch 'i') [Input.Shift];
+    make ~guide:one "add-arm" "add conditional arm" Add_arm (ch 'a') [Input.Alt];
+    make ~guide:one "delete-arm" "delete first arm" Delete_arm Input.Delete [Input.Alt];
     make ~guide:some "function" "make function" Make_fn (ch 'l') [];
     make ~guide:some "defn" "make reusable function (defn)" Make_defn (ch 'd') [];
     make ~guide:some "collapse" "collapse or expand zone" Collapse (ch 'c') [];
@@ -1233,11 +1250,12 @@ let draw_chevron paint ~z ~at:(cx, cy) direction color =
 let zone_style theme = function
   | P.For -> Pxui.Theme.zone_for theme | Fold | Scan | State -> Pxui.Theme.zone_fold theme
   | Sum -> Pxui.Theme.zone_sum theme | Fn -> Pxui.Theme.zone_fn theme | Let -> Pxui.Theme.zone_let theme
+  | Branch -> Pxui.Theme.zone_branch theme ~taken:false
 
 (* the tinted rectangle of an expanded zone: fill and a 1-point edge inside the box; the brackets
    of a selected zone are the frame pass's, one set *)
-let paint_zone paint theme kind (x, y, w, h) =
-  let s = zone_style theme kind in
+let paint_zone ?(taken = false) paint theme kind (x, y, w, h) =
+  let s = if kind = P.Branch then Pxui.Theme.zone_branch theme ~taken else zone_style theme kind in
   Ui.Paint.fill paint ~x ~y ~w ~h s.fill;
   if s.dashed then dashed_frame_in paint ~x ~y ~w ~h s.edge
   else Ui.Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:(w -. 1.) ~h:(h -. 1.) s.edge
@@ -1293,7 +1311,7 @@ let cap_in paint ui ~size ~color ~x ~y ~h label =
   Ui.Paint.text_width paint ~size label +. float (String.length label) *. tracking
 
 let kind_label = function
-  | P.For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let" | Fn -> "fn" | State -> "state"
+  | P.For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let" | Fn -> "fn" | State -> "state" | Branch -> "branch"
 
 let note_colors theme =
   if Pxui.Theme.dark theme then Color.hex_exn "#4a4220", Color.hex_exn "#f3e6a8"
@@ -1663,7 +1681,8 @@ let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?execution ?lens_open ?
       name_end +. 9. *. z +. Ui.Paint.text_width paint ~size:ls (Printf.sprintf "+%d" (P.set_count n)) else name_end in
   (* where the name and the kind meet, the kind yields *)
   let kind_text = match failed with Some code -> Some code | None ->
-    if n.zone = None && n.head <> n.name then Some n.head else None in
+    match t.imported n.path with Some file -> Some file
+    | None -> if n.zone = None && n.head <> n.name then Some n.head else None in
   Option.iter (fun text ->
     let room = right -. (name_end +. 6. *. z) in
     if room >= 3. *. Ui.Paint.text_width paint ~size:ls "m" then begin
@@ -1913,7 +1932,7 @@ let paint_zone_frame paint ui t ~z ~fs ?footer (n : P.node) (zn : P.zone) ~selec
        if zone_uses zn r.names then
          paint_socket paint theme r.ty ~connected:true ~z (x +. 12. *. z, y +. 36. *. z)
    | None -> ());
-  if zn.kind <> P.Let && zn.kind <> P.State then paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w);
+  if zn.kind <> P.Let && zn.kind <> P.State && zn.kind <> P.Branch then paint_selector paint ui t ~z ~fs ~count ~probe (x, y, w);
   paint_rail paint ui t ~z ~fs ~x ~y:(y +. P.head_height *. z) ~w ~expanded:true (P.extra_rails zn);
   if selected then Ui.Paint.brackets paint ~x ~y ~w ~h ~offset:3. theme.accent
 
@@ -2022,8 +2041,25 @@ let paint_background paint t ~viewport ~wires (zones : (P.node * P.zone * P.plac
       cx := !cx +. px
     done
   end;
-  List.iter (fun ((_ : P.node), (zn : P.zone), (p : P.placed), ax, ay) ->
-    paint_zone paint theme zn.kind (sx t ax, sy t ay, p.w *. z, p.h *. z)) zones;
+  List.iter (fun ((node : P.node), (zn : P.zone), (p : P.placed), ax, ay) ->
+    let taken = if zn.kind <> P.Branch then false else
+      match t.records, List.rev node.path with
+      | Some records, leaf :: outer ->
+          (match String.rindex_opt leaf '#' with
+           | None -> false
+           | Some split ->
+               let parent = List.rev outer @ [String.sub leaf 0 split] in
+               let arm = String.sub leaf (split + 1) (String.length leaf - split - 1) in
+               (match node_of t parent with
+                | None -> false
+                | Some parent ->
+                    let index = if arm = "else" then List.length (List.filter (fun (r : P.row) ->
+                      match r.key with E.Arm i -> i >= 0 | _ -> false) parent.rows)
+                      else if arm = "then" then 0 else int_of_string (String.sub arm 5 (String.length arm - 5)) - 1 in
+                    let chain = Option.value ~default:[] (Hashtbl.find_opt t.chains parent.path) in
+                    Flow_graph.Probe.taken_arm records parent ~probes:(List.map t.probe chain) = Some index))
+      | _ -> false in
+    paint_zone ~taken paint theme zn.kind (sx t ax, sy t ay, p.w *. z, p.h *. z)) zones;
   (* titled frames sit under the wires *)
   List.iter (fun (scope_path, (ox, oy)) ->
     List.iter (fun (title, (fx, fy), (fw, fh)) ->
@@ -2115,19 +2151,25 @@ let valid_name s =
 let single_form text = match Flow.Syntax.parse text with Ok [ form ] -> Some form | _ -> None
 
 let context_items t path =
-  match node_of t path with
-  | None -> []
-  | Some n ->
+  match t.imported path, node_of t path with
+  | Some file, _ -> ["Open " ^ file, true]
+  | None, None -> []
+  | None, Some n ->
+      let parent, arm = conditional_target n in
+      let conditional = Option.fold ~none:false ~some:(fun (n : P.node) -> List.mem n.head ["cond"; "case"]) (node_of t parent) in
       let zone = match n.zone with Some { kind = P.Let; _ } | None -> None | Some _ -> Some n in
       [ "Fold into its use", true; "Unfold a call", true; "Hoist out", n.invariant;
         (match zone with Some n -> if t.collapsed n.path then "Expand zone" else "Collapse zone"
                        | None -> "Collapse zone"), zone <> None;
         "Toggle bypass", true; "Repeat (loop)", true; "Iterate (feed back)", true;
-        "Make function", true; "Make macro", true; "Make defn", true; "Delete", true ]
+        "Make function", true; "Make macro", true; "Make defn", true; "Delete", true;
+        "Wrap conditional", true; "Add arm", conditional;
+        (if parent = n.path then "Delete first arm" else "Delete arm"), conditional && (parent = n.path || arm >= 0) ]
 
 let context_command = function
   | 0 -> Fold_into | 1 -> Unfold | 2 -> Hoist | 3 -> Collapse | 4 -> Bypass
-  | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | 9 -> Make_defn | _ -> Delete
+  | 5 -> Wrap_repeat | 6 -> Wrap_iterate | 7 -> Make_fn | 8 -> Make_macro | 9 -> Make_defn
+  | 11 -> Wrap_if | 12 -> Add_arm | 13 -> Delete_arm | _ -> Delete
 
 let update t ui (frame : Frame.t) =
   (* the first view shows the whole graph, at zoom 1 when it fits (Home frames everything) *)
@@ -2334,7 +2376,7 @@ let update t ui (frame : Frame.t) =
                          dels := (sink,
                                   [ E.Disconnect { node = n.path; key; fallback = None } ]) :: !dels
                      | _ -> ())) (P.extra_rails zn);
-                  if zn.kind <> P.Let && zn.kind <> P.State then begin
+                  if zn.kind <> P.Let && zn.kind <> P.State && zn.kind <> P.Branch then begin
                     (* the selector of the label row: a button each side of the reading *)
                     let sx, sy, sw, sh, _ = selector_geo ~measure:t.measure ~z ~fs ~w:(p.w *. z) ~count:(count_of t n.path) ~probe:(t.probe n.path) in
                     let sx = sx /. z and sy = sy /. z and sw = sw /. z and sh = sh /. z in
@@ -2800,7 +2842,8 @@ let update t ui (frame : Frame.t) =
          | `Open -> t
          | `Dismiss -> { t with context = None }
          | `Pick i ->
-             List.iter emit (action_changes t (context_command i));
+             (match t.imported path with Some file -> emit (Open_import file)
+              | None -> List.iter emit (action_changes t (context_command i)));
              { t with context = None }) in
   (* the frame's paint *)
   let selected = t.selected in
@@ -2956,7 +2999,11 @@ module Private = struct
     (sx t (fst w.a), sy t (snd w.a)), (sx t (fst w.b), sy t (snd w.b))) t.highlighted
   let box_of t path = box_at t path
     |> Option.map (fun (x, y, w, h) -> sx t x, sy t y, w *. t.zoom, h *. t.zoom)
-  let selector t path = Option.map (fun (x, y, w, _) ->
+  let selector t path =
+    let visible = match node_of t path with
+      | Some {zone = Some {kind = (P.Branch | Let | State); _}; _} | Some {zone = None; _} | None -> false
+      | Some _ -> not (t.collapsed path) in
+    if not visible then None else Option.map (fun (x, y, w, _) ->
     let z = t.zoom in
     let fs = font_of z in
     let sx, sy, sw, sh, _ = selector_geo ~measure:t.measure ~z ~fs ~w ~count:(count_of t path) ~probe:(t.probe path) in

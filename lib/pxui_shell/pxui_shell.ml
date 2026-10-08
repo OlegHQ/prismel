@@ -2,7 +2,7 @@ open Rays
 
 module Layout = struct
   type panel = Editor_core.Panels.panel =
-    | View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline
+    | View of string | Canvas of string | Graph | List | Lisp | Inspector | Spreadsheet | Outline | Timeline
   type axis = Editor_core.Panels.axis
   type t = Editor_core.Panels.t =
     | Leaf of panel
@@ -439,7 +439,7 @@ module Chrome = struct
       else go from (i + 1) acc in
     List.map String.trim (go 0 0 [])
   let has_crumbs sub = List.length (split_crumbs sub) > 1
-  let retypes = [ "Graph", Graph; "List", List; "Lisp", Lisp; "Inspector", Inspector;
+  let retypes = [ "Graph", Graph; "List", List; "Lisp", Lisp; "Inspector", Inspector; "Spreadsheet", Spreadsheet;
                   "Outline", Outline; "Timeline", Timeline; "Viewport", View ""; "Canvas", Canvas "" ]
 
   let drag_origin ui box bounds signal =
@@ -601,7 +601,7 @@ module Chrome = struct
                      key_of "panel.close"; "" ]
           @ List.map (fun (_, panel) -> last (key_of (match panel with
               | Graph -> "panel.graph" | List -> "panel.list" | Lisp -> "panel.lisp"
-              | Inspector -> "panel.inspector" | Outline -> "panel.outline"
+              | Inspector -> "panel.inspector" | Spreadsheet -> "panel.spreadsheet" | Outline -> "panel.outline"
               | Canvas _ -> "panel.canvas" | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
         let current = let rec find i = function
           | [] -> 5

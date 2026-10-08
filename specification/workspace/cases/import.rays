@@ -1,0 +1,3 @@
+(workspace imports
+  (graph local :context value (+ (ref shared) (double 4))))
+(import "import_library.rays")

@@ -3,6 +3,7 @@ let tests = [
   "test_ui", Test_ui.run;
   "test_input", Test_input.run;
   "test_keyboard", Test_keyboard.run;
+  "test_table", Test_table.run;
 ]
 
 let () =

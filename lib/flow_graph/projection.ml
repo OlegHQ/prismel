@@ -15,7 +15,7 @@ type row = {
   folder : string; primary : bool; head : bool;
 }
 
-type zone_kind = For | Fold | Scan | Sum | Let | Fn | State
+type zone_kind = For | Fold | Scan | Sum | Let | Fn | State | Branch
 type role = Var | Acc | Param | Capture
 
 type rail_row = {
@@ -135,6 +135,7 @@ let chip c (e : S.t option) = match e with
             | Some "sum" -> inline "Σ"
             | Some ("fold" | "scan") -> inline "⟲"
             | Some "fn" -> inline "λ"
+            | Some ("if" | "cond" | "case") -> inline "?"
             | Some h when List.mem_assoc h c.macros -> inline "◆"
             | _ -> inline "ƒ"))
 
@@ -252,19 +253,19 @@ let call_rows c (e : S.t) h args =
     @ [ add c prefix (E.Pos npos) ty ] in
   let list_ty = Some (Ty.List Ty.Any) in
   match h with
-  | "if" -> [ posrow ~ty:Ty.Bool "if" 0; posrow "then" 1; posrow "else" 2 ]
+  | "if" -> [ posrow ~ty:Ty.Bool "if" 0; row c "then" (E.Arm 0) (at 1); row c "else" (E.Arm (-1)) (at 2) ]
   | "list" -> items string_of_int "+ item" None
   | "str" -> items (fun _ -> "part") "+ part" None
   | "concat" -> items (fun i -> Printf.sprintf "list %d" (i + 1)) "+ list" list_ty
   | "cond" ->
-      List.concat_map (fun i -> [ posrow ~ty:Ty.Bool "when" i; posrow "then" (i + 1) ])
+      List.concat_map (fun i -> [ posrow ~ty:Ty.Bool "when" i; row c "then" (E.Arm (i / 2)) (at (i + 1)) ])
         (List.filter (fun i -> i mod 2 = 0) (List.init npos Fun.id))
-      @ [ kwrow "else" ]
+      @ [ row c "else" (E.Arm (-1)) (List.assoc_opt "else" kws) ]
   | "case" ->
       posrow "of" 0
-      :: List.concat_map (fun i -> [ posrow "is" i; posrow "then" (i + 1) ])
+      :: List.concat_map (fun i -> [ posrow "is" i; row c "then" (E.Arm ((i - 1) / 2)) (at (i + 1)) ])
            (List.filter (fun i -> i mod 2 = 1) (List.init npos Fun.id))
-      @ [ kwrow "else" ]
+      @ [ row c "else" (E.Arm (-1)) (List.assoc_opt "else" kws) ]
   | "map" | "filter" | "reduce" | "sort-by" ->
       let input_ty i fallback = match Hashtbl.find_opt c.forms e.id with
         | Some {W.node = Hof (_, inputs); _} ->
@@ -404,7 +405,7 @@ let rail_of c (kind : zone_kind) (e : S.t) (t : W.term option) ~visible =
                  | _ -> None in
                { name = E.pat_key pat; names = E.pat_names pat; role = Param; ty; expr = None; key = None }) ps
          | _ -> [])
-    | Let -> [] in
+    | Let | Branch -> [] in
   let body = if kind = Let then e else last e in
   let captures = List.filter (fun n -> List.mem n visible && not (List.mem n !bound)) (E.free_names body) in
   ignore c;
@@ -413,6 +414,7 @@ let rail_of c (kind : zone_kind) (e : S.t) (t : W.term option) ~visible =
 
 let yield_label = function
   | For | Scan -> "collect" | Fold | State -> "next" | Sum -> "add" | Let -> "result" | Fn -> "return"
+  | Branch -> "then"
 
 let rec scope_of c ~visible ~inputs (path : path) (body : S.t) : scope =
   let binds, res = match scope_form body with
@@ -468,6 +470,20 @@ and node_of c ~visible ?nested (scope_path : path) (pat : S.t option) (e : S.t) 
   (* a node call written in an input is a node of its own, wired to the row by its leaf *)
   let rows, inner = if kind <> None then [], [] else
     List.fold_left (fun (rows, inner) (r : row) -> match r.expr, r.key with
+      | Some body, E.Arm index ->
+          let leaf = E.nested_leaf name r.key in
+          let path = scope_path @ [leaf] in
+          let ty = match Hashtbl.find_opt c.terms path with Some term -> term.ty | None -> ty in
+          let test = if index < 0 then None else E.arg_of e
+              (E.Pos (match head_sym e with Some "case" -> 2 * index + 1 | Some "cond" -> 2 * index | _ -> 0)) in
+          let label = if index < 0 then "else" else if head_sym e = Some "case" then "is" else "when" in
+          let rail = [{name = label; names = []; role = Capture; ty = None; expr = test; key = None}] in
+          let branch = {path; name = leaf; binds = [leaf]; head = label; rows = []; outputs = []; ty;
+            note = None; bypass = false; macro = None; lens = None;
+            live = W.Paths.mem path c.w.live; invariant = W.Paths.mem path c.w.invariant; synthetic = false;
+            zone = Some {kind = Branch; rail; order = None; yield_label = "then";
+              scope = scope_of c ~visible ~inputs:[] path body}} in
+          {r with chip = Name leaf} :: rows, inner @ [branch]
       (* not a macro's argument: that is a piece of its template, which may read the macro's names *)
       | Some a, (E.Pos _ | E.Kw _) when (r.kind = Arg || r.kind = Rest) && macro = None && E.node_call a ->
           let leaf = E.nested_leaf name r.key in
@@ -517,9 +533,9 @@ let with_arguments changes scope =
 
 let bypassable (n : node) =
   n.zone = None && (not n.synthetic) && n.macro = None
-  && not (List.mem n.head [ "record"; "number"; "text"; "link"; "vector"; "list"; "str"; "if"; "cond"; "case" ])
+  && not (List.mem n.head [ "record"; "number"; "text"; "link"; "vector"; "list"; "str"; "cond"; "case" ])
   && (n.bypass
-      || (match List.find_opt (fun (r : row) -> r.kind = Arg) n.rows with
+      || n.head = "if" || (match List.find_opt (fun (r : row) -> r.kind = Arg) n.rows with
           | Some { ty = Some ty; _ } -> Ty.fits ty n.ty
           | _ -> false))
 

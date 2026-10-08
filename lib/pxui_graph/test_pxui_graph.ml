@@ -780,6 +780,38 @@ let scope_gestures () =
   check (not (List.mem heart (Scope.selected view))) "a plain marquee kept the old selection"
 
 let run_scope () =
+  let module E = Flow_graph.Flow_edit in
+  let conditional = Editor_document.Workspace_doc.of_text scope_catalog
+      "(workspace branches (graph g :context value (let* [x (cond false (+ 1 2) true (* 3 4) :else 5)] x)))"
+      |> Result.get_ok |> fun doc -> doc.checked in
+  let view, _ = scope_view conditional "g" in
+  let view, _ = scope_step view (frame ()) in
+  let arm = ["g"; "x#then~2"] in
+  check (Scope.Private.selector view arm = None) "conditional arm incorrectly has an iteration selector";
+  let x, y, _, _ = Option.get (Scope.Private.box_of view arm) in
+  let _, changes = scope_click view (int_of_float x + 10, int_of_float y + 10) in
+  check (List.mem (Scope.Zone_collapsed {zone = arm; collapsed = true}) changes) "arm header tap did not collapse zone";
+  let _, changes = Scope.run_command (Scope.select [arm] view) Scope.Add_arm in
+  check (List.mem (Scope.Syntax_edit (E.Add_arm {node = ["g"; "x"]; after = 1})) changes) "arm Add uses wrong holder/index";
+  let _, changes = Scope.run_command (Scope.select [arm] view) Scope.Delete_arm in
+  check (List.mem (Scope.Syntax_edit (E.Delete_arm {node = ["g"; "x"]; index = 1})) changes) "arm Delete uses wrong index";
+  let _, changes = Scope.run_command (Scope.select [arm] view) Scope.Unfold in
+  check (List.mem (Scope.Syntax_edit (E.Unfold {node = ["g"; "x"]; key = Arm 1; sub = []})) changes) "arm unfold did not address conditional body";
+  let path = ["g"; "x"] in
+  let x, y, _, _ = Option.get (Scope.Private.box_of view path) in
+  let at = int_of_float x + 20, int_of_float y + 8 in
+  let menu, _ = scope_step view (frame ~mouse:at ~events:[mouse_move at; mouse_press (Input.RightButton, at); mouse_release (Input.RightButton, at)] ()) in
+  let menu, _ = scope_step menu (frame ~mouse:at ()) in
+  let point = fst at + 30, snd at + 3 + 24 * 12 + 12 in
+  let _, changes = scope_step menu (frame ~mouse:point ~events:(click point) ()) in
+  check (List.mem (Scope.Syntax_edit (E.Add_arm {node = path; after = -1})) changes) "conditional right-click Add arm did not emit edit";
+  let imported = Scope.with_scope ~imported:(fun _ -> Some "lib.rays") ~key:"import" (P.of_graph scope_catalog conditional "g") view in
+  let imported, _ = scope_step imported (frame ()) in
+  let menu, _ = scope_step imported (frame ~mouse:at ~events:[mouse_move at; mouse_press (Input.RightButton, at); mouse_release (Input.RightButton, at)] ()) in
+  let menu, _ = scope_step menu (frame ~mouse:at ()) in
+  let point = fst at + 30, snd at + 15 in
+  let _, changes = scope_step menu (frame ~mouse:point ~events:(click point) ()) in
+  check (List.mem (Scope.Open_import "lib.rays") changes) "import context menu did not emit Open file";
   (* every fixture's graphs draw: the pane's counts are the projection's *)
   List.iter (fun (name, graph, nodes, zones, rows) ->
     let w = load_workspace name in
@@ -789,9 +821,9 @@ let run_scope () =
     check (s.nodes = nodes && s.zones = zones && s.rows = rows)
       (Printf.sprintf "%s/%s: pane counts %d/%d/%d" name graph s.nodes s.zones s.rows);
     check (s.drawn_items > 0 && s.drawn_zones <= s.zones) (name ^ ": nothing drawn"))
-    [ "bloom", "flower", 12, 1, 84; "sunflower", "sunflower", 9, 1, 36; "orrery", "orrery", 19, 1, 114;
-      "facade", "facade", 14, 2, 89; "kit", "kit", 16, 2, 112; "tree", "tree", 9, 1, 184;
-      "garland", "garland", 19, 5, 90; "wave", "wave", 7, 2, 45; "tiles", "tiles", 9, 1, 67 ];
+    [ "bloom", "flower", 12, 1, 84; "sunflower", "sunflower", 9, 1, 36; "orrery", "orrery", 22, 3, 117;
+      "facade", "facade", 14, 2, 89; "kit", "kit", 22, 8, 112; "tree", "tree", 9, 1, 184;
+      "garland", "garland", 19, 5, 90; "wave", "wave", 7, 2, 45; "tiles", "tiles", 14, 5, 70 ];
   (* the iteration selector: buttons and track are hit-tested boxes *)
   let w = load_workspace "sunflower" in
   let zone = [ "sunflower"; "seeds_each" ] in

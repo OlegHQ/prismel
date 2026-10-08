@@ -277,7 +277,12 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
            prims = Rdk.Geometry.primitive_count g; data_id = Rdk.Geometry.data_id g;
            extent = Option.map (fun (lo, hi) ->
              hi.Vec3.x -. lo.Vec3.x, hi.y -. lo.y, hi.z -. lo.z) (geometry_bounds g);
-           groups = List.sort_uniq compare (List.map Rdk.Group.name (Rdk.Geometry.groups g)) } in
+           groups = List.sort_uniq compare (List.map Rdk.Group.name (Rdk.Geometry.groups g));
+           attributes = List.map (fun a ->
+             let owner = match Rdk.Attribute.owner a with Point -> "point" | Vertex -> "vertex"
+               | Primitive -> "primitive" | Detail -> "detail" in
+             owner, Rdk.Attribute.name a, Rdk.Attribute.kind_name a, Rdk.Attribute.length a)
+             (Rdk.Geometry.attributes g) } in
   let prepare context outputs optional =
     let found = List.filter_map Fun.id (List.map2 (fun target output ->
       Option.bind output (fun (output : Session.output) -> match output.payload with

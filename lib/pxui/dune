@@ -6,7 +6,7 @@
 
 (executable
  (name test_main)
- (modules test_main test_ui_parity test_ui test_input test_keyboard)
+ (modules test_main test_ui_parity test_ui test_input test_keyboard test_table)
  (libraries rays pxui scene_command sdl3))
 
 (rule
@@ -33,3 +33,8 @@
  (aliases runtest test_keyboard)
  (action (setenv SDL_VIDEODRIVER dummy
   (run %{exe:test_main.exe} test_keyboard))))
+
+(rule
+ (aliases runtest test_table)
+ (action (setenv SDL_VIDEODRIVER dummy
+  (run %{exe:test_main.exe} test_table))))

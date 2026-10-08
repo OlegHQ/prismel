@@ -6,14 +6,14 @@
 (rule
  (alias test_workspace_ir)
  (deps (source_tree ../examples) (source_tree ../sketches) ../specification/pxui-kit/kit.rays
-  (glob_files ../specification/workspace/cases/*.lisp))
+  (glob_files ../specification/workspace/cases/*.lisp) (glob_files ../specification/workspace/cases/*.rays))
  (action (run %{exe:test_workspace_ir.exe} ..)))
 
 (rule
  (alias test_workspace_pixels)
  (locks smoke_window)
  (deps (source_tree ../examples) (source_tree ../sketches) ../specification/pxui-kit/kit.rays
-  (glob_files ../specification/workspace/cases/*.lisp))
+  (glob_files ../specification/workspace/cases/*.lisp) (glob_files ../specification/workspace/cases/*.rays))
  (action (setenv RAYS_WORKSPACE_PIXELS /tmp/rays-workspace-pixels
   (run %{exe:test_workspace_ir.exe} ..))))
 

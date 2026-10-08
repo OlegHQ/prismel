@@ -28,6 +28,7 @@ type change =
           also deletes them) *)
   | Paste_requested  (** Command-V: the host adds the clipboard's bindings to the selected scope *)
   | Menu_requested of float * float
+  | Open_import of string
       (** a right-click on empty canvas: the host opens its add menu at this point *)
   | Macro_requested of path list
   | Defn_requested of path list
@@ -54,7 +55,7 @@ type command =
   | Delete
       (** the hovered wired row's wire or the hovered item of a variadic input (a list's, a merge's: the
           item goes), else the selected wire, else the selected nodes *)
-  | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Make_fn | Make_macro | Make_defn
+  | Fold_into | Unfold | Hoist | Bypass | Wrap_repeat | Wrap_iterate | Wrap_if | Add_arm | Delete_arm | Make_fn | Make_macro | Make_defn
   | Collapse | Probe_step of int | Frame_all | Walk of direction
   | Edit_name
       (** F2, or a double-click on a title: a text field over the selected node's name
@@ -106,7 +107,8 @@ val with_scope :
   ?level:(path -> (Flow_graph.Projection.level * bool) option) -> ?pin:(path -> string -> bool option) ->
   ?collapsed:(path -> bool) ->
   ?probe:(path -> int) ->
-  ?frames:(path -> (string * (float * float) * (float * float)) list) -> ?display:path ->
+  ?frames:(path -> (string * (float * float) * (float * float)) list) ->
+  ?imported:(path -> string option) -> ?display:path ->
   ?wires:[ `Rect | `Straight ] -> ?layouts:string list ->
   key:string ->
   Flow_graph.Projection.scope -> t -> t

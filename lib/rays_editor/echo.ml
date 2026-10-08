@@ -10,7 +10,7 @@ let shorten text = if String.length text <= 40 then text else String.sub text 0 
 let key = function
   | E.Kw k | E.Field k -> Some (":" ^ k)
   | Pos i -> Some (Printf.sprintf "input %d" i)
-  | Bv _ | Whole -> None
+  | Bv _ | Whole | Arm _ -> None
 
 let words (op : E.op) = match op with
   | Set_arg { node; key = k; sub = []; value } ->

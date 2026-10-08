@@ -1,4 +1,4 @@
-type panel = View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline
+type panel = View of string | Canvas of string | Graph | List | Lisp | Inspector | Spreadsheet | Outline | Timeline
 type axis = [ `H | `V ]
 type size = [ `Ratio of float | `First of int | `Second of int ]
 type t =
@@ -18,7 +18,7 @@ let default = Split { axis = `H; size = `Ratio 0.45; a = Leaf main;
 
 let name = function
   | Canvas _ -> "CANVAS" | View _ -> "VIEW" | Graph -> "GRAPH" | List -> "LIST" | Lisp -> "LISP"
-  | Inspector -> "INSPECTOR" | Outline -> "OUTLINE" | Timeline -> "TIMELINE"
+  | Inspector -> "INSPECTOR" | Spreadsheet -> "SPREADSHEET" | Outline -> "OUTLINE" | Timeline -> "TIMELINE"
 
 let leaves tree =
   (* ponytail: a plain recursive walk; floats are collected after the rest *)
@@ -79,7 +79,7 @@ let rec to_string = function
 
 let word = function
   | Canvas _ -> "Canvas" | View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
-  | Inspector -> "Inspector" | Outline -> "Outline" | Timeline -> "Timeline"
+  | Inspector -> "Inspector" | Spreadsheet -> "Spreadsheet" | Outline -> "Outline" | Timeline -> "Timeline"
 
 (* the tree without its floats; [None] when nothing is docked *)
 let rec docked = function

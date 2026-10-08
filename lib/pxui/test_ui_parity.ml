@@ -32,7 +32,7 @@ let config = { Sketch.default_config with width = 320; height = 300;
   title = "PXUI parity" }
 let background = Color.rgb 228 139 161
 
-let capture prefix ~init ~update ~view =
+let capture ?(config = config) prefix ~init ~update ~view =
   let directory = Filename.temp_dir "pxui-parity" "" in
   (* A static golden must not depend on the hardware pointer over its window. *)
   let update state (frame : Frame.t) = update state
@@ -74,7 +74,7 @@ let check_overlays () =
    zone and a let scope, with the socket colours of lists and functions. *)
 let zones ui =
   let theme = Pxui.Ui.theme ui in
-  let box = Pxui.Ui.box ui ~w:(Pxui.Ui.Px 320.) ~h:(Pxui.Ui.Px 300.) ~at:(0., 0.) "zones" in
+  let box = Pxui.Ui.box ui ~w:(Pxui.Ui.Px 320.) ~h:(Pxui.Ui.Px 390.) ~at:(0., 0.) "zones" in
   Pxui.Ui.draw ui box (fun paint _ ->
     let module P = Pxui.Ui.Paint in
     List.iteri (fun i (zone : Pxui.Theme.zone) ->
@@ -83,14 +83,15 @@ let zones ui =
       if zone.dashed then P.dashed_rect paint ~x ~y ~w:142. ~h:80. zone.edge
       else P.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:141. ~h:79. zone.edge)
       [ Pxui.Theme.zone_for theme; Pxui.Theme.zone_fold theme; Pxui.Theme.zone_sum theme;
-        Pxui.Theme.zone_fn theme; Pxui.Theme.zone_let theme ];
+        Pxui.Theme.zone_fn theme; Pxui.Theme.zone_let theme;
+        Pxui.Theme.zone_branch theme ~taken:false; Pxui.Theme.zone_branch theme ~taken:true ];
     let ports = Pxui.Theme.ports theme in
     List.iteri (fun i color -> P.rect paint ~x:(170. +. float i *. 20.) ~y:(200. +. 0.) ~w:10. ~h:10.
       ~fill:color ()) [ ports.text; ports.fn; ports.record ])
 
 let check_zones () =
   let width, height, actual, directory =
-    capture "zones" ~init:(fun _ -> Pxui.Ui.create ())
+    capture ~config:{config with height = 390} "zones" ~init:(fun _ -> Pxui.Ui.create ())
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame zones; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
   (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
@@ -99,14 +100,31 @@ let check_zones () =
    | None -> ());
   let golden = Image.load_exn "fixtures/kit_zones_1x.png" in
   if Image.get_size golden <> (width, height) then
-    print_endline "PXUI zone parity: skipped (golden is not 1x)"
+    failwith "PXUI zone golden requires refresh for conditional tokens at 1x"
   else if Result.get_ok (Image.Private.pixels golden) <> actual then
     failwith "PXUI zone tokens drifted from fixtures/kit_zones_1x.png"
   else print_endline "PXUI zone parity: exact"
 
+let check_table () =
+  let width, height, actual, directory = capture "table" ~init:(fun _ -> Pxui.Ui.create ())
+    ~update:(fun ui frame -> ignore (Pxui.Ui.frame ui frame (fun ui ->
+      Pxui.Ui.table ui ~at:(8., 8.) ~w:304. ~h:280. ~headers:[|"index"; "P.x"; "weight"; "group"|]
+        ~rows:1000000 ~cell:(fun row column -> if column = 0 then string_of_int row
+          else if column = 3 then if row mod 2 = 0 then "1" else "0"
+          else Printf.sprintf "%g" (float (row + column) *. 0.125)) "table")); ui)
+    ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
+  (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
+   | Some target -> Sys.rename (Filename.concat directory "table-000001.png") (Filename.concat target "kit_table_1x.png")
+   | None -> ());
+  let golden = Image.load_exn "fixtures/kit_table_1x.png" in
+  if Image.get_size golden <> (width, height) then failwith "table golden requires 1x"
+  else if Result.get_ok (Image.Private.pixels golden) <> actual then failwith "PXUI table golden drifted"
+  else print_endline "PXUI table parity: exact"
+
 let run () =
   check_overlays ();
   check_zones ();
+  check_table ();
   let golden = Image.load_exn "fixtures/kit_panel_2x.png" in
   let old_width, old_height = Image.get_size golden in
   let expected = Result.get_ok (Image.Private.pixels golden) in

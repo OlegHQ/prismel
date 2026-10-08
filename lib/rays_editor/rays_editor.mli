@@ -30,6 +30,8 @@ module Source : sig
       executable and then the working directory; [None] when there is no such file. *)
 
   val file : t -> string
+  val read_imports : file:string -> string -> ((string * string) list, Flow.Diagnostic.t list) result
+  (** Resolve document-level relative imports beside [file]. No transitive imports. *)
   val poll : now:float -> t -> t * string option
   (** Read content/digest at most once per half second of [now], including
       preserved-mtime and inode replacements. Return changed text once;
@@ -62,6 +64,11 @@ val default_layout : layout
 (** Editor internals exposed for tests and diagnostics.
     Layout and chrome live in [Pxui_shell]; sketches use [Editor3]. *)
 module Private : sig
+  module Spreadsheet : sig
+    val count : Rdk.Attribute.owner -> Rdk.Geometry.t -> int
+    val columns : Rdk.Attribute.owner -> Rdk.Geometry.t -> (string * (int -> string)) array
+    val view : Pxui.Ui.t -> bounds:int * int * int * int -> owner:int -> Rdk.Geometry.t option -> int option
+  end
   (** Unstable test and diagnostic hooks. These are outside the supported
       sketch API and may change without compatibility shims. *)
   (** Helix-style leader keys. Space (while no text field is focused) opens a
@@ -213,7 +220,7 @@ module Private : sig
     (** What the document knows beyond the text shown: every graph, the material graphs, the
         cameras of the scene, the layout names (the values of [:material], [:camera], [:active]). *)
     val no_names : names
-    val complete : ?names:names -> vocab -> string -> int -> Pxui.Ui.completion list
+    val complete : ?names:names -> ?imports:(string * string) list -> vocab -> string -> int -> Pxui.Ui.completion list
     (** The ranked completions for the token ending at the caret. *)
     val ref_at : string -> int -> string option
     (** The graph named by the [(ref name)] form at a byte. *)
@@ -224,7 +231,7 @@ module Private : sig
     val parinfer_text : string -> int -> string * int
     (** Parinfer's indent mode: the text with its closing brackets inferred from indentation,
         and where the caret lands. *)
-    val language : ?vocab:vocab -> ?names:names -> ?parinfer:bool -> Pxui.Theme.t -> Pxui.Ui.language
+    val language : ?vocab:vocab -> ?names:names -> ?imports:(string * string) list -> ?parinfer:bool -> Pxui.Theme.t -> Pxui.Ui.language
   end
 
   (** The host bars: where their buttons sit. *)
@@ -613,6 +620,10 @@ end
     the list's selection is [select] (scene object ids), and [preview] puts a payload in flight
     whose hot target shows that edit on a scratch document, as a carry does. *)
 module Reduce : sig
+  val open_import : 'a Editor3.t -> string -> 'a Editor3.t
+  val spreadsheet : 'a Editor3.t -> int list -> int * Rdk.Geometry.t option
+  val select_path : 'a Editor3.t -> string list -> 'a Editor3.t
+  (** Select the checked lexical path; unstable test/diagnostic hook. *)
   val step : 'prepared Editor3.t -> ?select:int list -> ?preview:Flow_graph.Flow_edit.op ->
     Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t
 end
@@ -627,7 +638,7 @@ module Workspace : sig
   (** Where a workspace came from: [path] relative to the project root, [digest]
       the SHA-256 of its text. *)
 
-  val load : ?ops:Flow.Op.t list -> ?factories:Procedural.Edit_graph.factory list -> string ->
+  val load : ?ops:Flow.Op.t list -> ?imports:(string * string) list -> ?factories:Procedural.Edit_graph.factory list -> string ->
     (Workspace_doc.t, Flow.Diagnostic.t list) result
   (** Parse and check a [.rays] text against {!workspace_catalog}. *)
 
@@ -642,7 +653,7 @@ module Workspace : sig
   (** Export a draw graph (the first by default) through [Sketch.export_state].
       Each invocation starts a fresh fold and pins every frame fact. *)
 
-  val open_text : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string ->
+  val open_text : ?factories:Procedural.Edit_graph.factory list -> ?imports:(string * string) list -> path:string -> digest:string ->
     string -> Workspace_doc.t * Source.t option
   (** For a sketch that has its own [main.ml] (custom renderer, settings, SOPs): [load] the text
       of [path] (its SHA-256 [digest], both from the generated [Sketch_source] module) and find
@@ -658,7 +669,7 @@ module Workspace : sig
     Rays.Easy_camera.t -> Rays.Easy_camera.t
   (** The camera of the scene's first camera node, or the default base camera. *)
 
-  val main : ?factories:Procedural.Edit_graph.factory list -> path:string -> digest:string -> catalog:string -> string -> unit
+  val main : ?factories:Procedural.Edit_graph.factory list -> ?imports:(string * string) list -> path:string -> digest:string -> catalog:string -> string -> unit
   (** Entry point of a generated [main.ml]: load and open the document; on failure prints
       the diagnostics in the OCaml format and exits 1. [catalog] is
       {!Editor_document.Contexts.catalog_digest} at build time; a different

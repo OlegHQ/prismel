@@ -148,6 +148,13 @@ let selection_text () =
   check (labels "(scene/root m :camera " = [ "cam", "cam" ]) "completion: :camera lists the cameras";
   check (labels "(ui/switch a b :active " = [ "0 View | Graph", "0"; "1 Lisp", "1" ]) "completion: :active lists the layouts";
   check (List.mem ("shards", "shards") (labels "(sop/material geo :material (ref sh")) "completion: ref offers every graph";
+  let imports = ["twice", "lib.rays"; "shards", "lib.rays"] in
+  let imported text = L.complete ~names ~imports (L.vocab []) text (String.length text) in
+  let detail label text = List.find_map (fun (c : Pxui.Ui.completion) ->
+    if c.label = label then Some c.detail else None) (imported text) in
+  check (detail "twice" "(twi" = Some "import · lib.rays") "completion: imported function lost its file";
+  check (detail "shards" "(ref sha" = Some "graph · lib.rays") "completion: imported graph lost its file";
+  check (detail "shards" "(sha" = None) "completion: a graph was offered as a function head";
   (* an error's line: a position, else the span *)
   let d = Flow.Diagnostic.error ~position:{ line = 4; col = 2 } ~code:"E_X" "x" in
   check (T.line_of "a\nb\nc\nd" d = Some 4) "line from position";

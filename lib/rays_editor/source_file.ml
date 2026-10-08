@@ -4,7 +4,7 @@
    or saved), so an edit from any other writer differs from it. *)
 
 type t = { file : string; digest : string; observed : string option; polled : float;
-           error : string option }
+           error : string option; imports : (string * t) list }
 
 let sha = Editor_document.Contexts.sha256
 let stat file = try Some (Unix.stat file) with Unix.Unix_error _ -> None
@@ -14,7 +14,7 @@ let interval = 0.5
 
 (* the file as it is now, whose text has [digest] *)
 let synced ~file ~digest =
-  { file; digest; observed = Some digest; polled = neg_infinity; error = None }
+  { file; digest; observed = Some digest; polled = neg_infinity; error = None; imports = [] }
 
 (* The first poll reads the file, so a file that already differs from
    the text the sketch was built from (edited since the build) reloads at once. *)
@@ -37,9 +37,19 @@ let find ~path ~digest =
 
 let file t = t.file
 
+let read_imports ~file text =
+  Result.bind (Editor_document.Workspace_doc.import_paths text) (fun paths ->
+    List.fold_left (fun result path -> Result.bind result (fun imports ->
+      match read (Filename.concat (Filename.dirname file) path) with
+      | Ok text -> Ok (imports @ [path, text])
+      | Error message -> Error [Flow.Diagnostic.error ~code:"E_IMPORT" (path ^ ": " ^ message)])) (Ok []) paths)
+
+let with_imports t imports = {t with imports = List.map (fun (path, text) -> path,
+  at ~file:(Filename.concat (Filename.dirname t.file) path) ~digest:(sha text)) imports}
+
 (* One content read per interval, independent of mtime/inode. [observed]
    suppresses repeated attempts to reload the same refused text. *)
-let poll ~now t =
+let rec poll ~now t =
   if now -. t.polled < interval then t, None
   else
     let t = { t with polled = now } in
@@ -48,7 +58,12 @@ let poll ~now t =
     | Ok text ->
         let digest = sha text in
         let changed = t.observed <> Some digest && (t.observed <> None || digest <> t.digest) in
-        { t with observed = Some digest; error = None }, (if changed then Some text else None)
+        let imports, imported_change = List.fold_left (fun (imports, changed) (path, source) ->
+          let old_error = source.error in
+          let source, fresh = poll ~now source in
+          (path, source) :: imports, changed || fresh <> None || source.error <> old_error) ([], false) t.imports in
+        let imports = List.rev imports in
+        { t with observed = Some digest; error = None; imports }, (if changed || imported_change then Some text else None)
 
 let accepted t text = { t with digest = sha text }
 
@@ -63,7 +78,7 @@ let save t text =
       let perm = Option.fold ~none:0o644 ~some:(fun s -> s.Unix.st_perm) (stat t.file) in
       Result.map (fun () ->
         (try Unix.chmod t.file perm with Unix.Unix_error _ -> ());
-        { (synced ~file:t.file ~digest:(sha text)) with polled = t.polled })
+        { (synced ~file:t.file ~digest:(sha text)) with polled = t.polled; imports = t.imports })
         (Editor_core.Store.write_text ~filename:t.file text)
       |> Result.map_error (fun m -> `Failed m)
   | Ok _ -> Error `Changed

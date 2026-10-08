@@ -16,6 +16,8 @@ type geometry = {
   points : int; prims : int; groups : string list; data_id : int;
   extent : (float * float * float) option;  (** the size of the bounding box, when there are points *)
   seconds : float option;  (** what the node itself took the last time it was really cooked (a cache hit keeps it) *)
+  attributes : (string * string * string * int) list;
+  (** Owner, name, storage kind and length, in geometry order. *)
 }
 
 type summary = Value of Flow.Eval.value | Geometry of geometry
@@ -63,8 +65,11 @@ val records : t -> path -> (int list * summary) array
     previews even when a packed array evaluates more elements. *)
 
 val at : t -> path -> probes:int list -> summary option
-(** Reference value at the selected iteration tuple, including packed function
-    calls outside the recording cap. Cooked inputs and call records are memoized. *)
+(* Reference value at the selected iteration tuple, including packed function
+   calls outside the recording cap. Cooked inputs and call records are memoized. *)
+
+val taken_arm : t -> Projection.node -> probes:int list -> int option
+(** Selected conditional arm, zero based; the final else follows the tested arms. *)
 
 val chains : Projection.scope -> (path, path list) Hashtbl.t
 (** The enclosing iterating zones of every node below the scope, outermost

@@ -140,7 +140,7 @@ let macro_uses (ws : W.t) name =
 let plural n what = Printf.sprintf "%d %s%s" n what (if n = 1 then "" else "s")
 
 let zone_glyph : P.zone_kind -> string = function
-  | For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let*" | Fn -> "λ" | State -> "state"
+  | For -> "for" | Fold -> "fold" | Scan -> "scan" | Sum -> "sum" | Let -> "let*" | Fn -> "λ" | State -> "state" | Branch -> "?"
 
 let number (form : S.t) = match form.node with
   | S.Num text -> float_of_string_opt text

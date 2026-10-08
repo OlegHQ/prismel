@@ -2,7 +2,7 @@
     evaluates to one; [Pxui_shell.Layout] gives it geometry.  Pure and
     presentation-free, so the document library can lower into it. *)
 
-type panel = View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline
+type panel = View of string | Canvas of string | Graph | List | Lisp | Inspector | Spreadsheet | Outline | Timeline
 (** [View key] identifies a viewport by its unique named binding; inline,
     looped and repeated panels use a tree path. The default layout uses [main].
     [Graph] shows the

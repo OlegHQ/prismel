@@ -220,7 +220,7 @@ let pick ?view ?(alt = false) value ~origin ~direction =
    history entry; layout, settings, probes and the selection (all keyed by path)
    stay.  A refused text changes nothing but the pane: it shows the file's text
    with the diagnostics, and the status says the last good document is kept. *)
-let reload value ~name text =
+let reload ?imports value ~name text =
   Result.map (fun value ->
     Cook.reset_state value.cook;
     let clean (text : Text_pane.state) =
@@ -228,7 +228,7 @@ let reload value ~name text =
         graph_draft = None; graph_errors = [] } in
     { value with notice = Some (Info, "Reloaded " ^ name); text = clean value.text; filed = value.doc;
       locals = List.map (fun (key, l) -> key, { l with code = clean l.code }) value.locals })
-    (text_edit ~label:("Reload " ^ name) value text)
+    (text_edit ?imports ~label:("Reload " ^ name) value text)
 
 let reload_failed value ~name text diagnostics =
   let first = match diagnostics with

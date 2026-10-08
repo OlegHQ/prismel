@@ -66,6 +66,7 @@ let tree_text ~name ~scene tree =
           | View _ -> "preview", Printf.sprintf "(ui/viewport (ref %s))" scene
           | Graph -> "network", "(ui/graph)" | List -> "list", "(ui/list)" | Lisp -> "code", "(ui/lisp)"
           | Inspector -> "inspector", "(ui/inspector)" | Outline -> "outline", "(ui/outline)"
+          | Spreadsheet -> "spreadsheet", "(ui/spreadsheet)"
           | Timeline -> "timeline", "(ui/timeline)" in
         bind base form
     | Split { axis; size; a; b } ->

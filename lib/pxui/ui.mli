@@ -390,8 +390,14 @@ val draw_over :
 (** Paint after the box's children, outside its content clip. *)
 
 val to_front : t -> ?order:int -> box -> unit
-(** Raise a root box and its children above ordinary boxes, below modal popups.
-    Higher [order] values paint later; equal values retain their order of calls. *)
+(* Raise a root box and its children above ordinary boxes, below modal popups.
+   Higher [order] values paint later; equal values retain their order of calls. *)
+
+val table : t -> at:float * float -> w:float -> h:float -> headers:string array ->
+  rows:int -> cell:(int -> int -> string) -> string -> int option * signal
+(** Read-only table with a fixed 24-point header and rows, hairlines and
+    right-aligned values. Only visible rows request cells or build hit boxes.
+    Returns a clicked row index and the body's shared scroll signal. *)
 
 (** {1 Layout helpers} *)
 

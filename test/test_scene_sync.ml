@@ -724,7 +724,8 @@ let run_root () =
     if not (Sys.file_exists file) then n else begin
       let text = In_channel.with_open_bin file In_channel.input_all in
       (* a sketch that brings its own SOPs is not loaded here *)
-      match Rays_editor.Workspace.load text with
+      match Result.bind (Rays_editor.Source.read_imports ~file text)
+        (fun imports -> Rays_editor.Workspace.load ~imports text) with
       | Error ds when List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_UNKNOWN_KIND") ds -> n
       | Error ds -> failwith (file ^ ": " ^ String.concat "; " (List.map Flow.Diagnostic.to_string ds))
       | Ok workspace ->

@@ -55,11 +55,11 @@ let snapshot = [
              "editor", (10, 0, 30); "half", (1, 0, 2); "petal", (2, 0, 53) ];
   "facade", [ "facade", (14, 2, 89) ];
   "garland", [ "garland", (19, 5, 90); "ring", (6, 1, 45) ]; (* inline functions and nested maps *)
-  "kit", [ "kit", (16, 2, 112); "window", (3, 0, 30) ];
-  "orrery", [ "orrery", (19, 1, 114) ]; (* noise displacement's mode row *)
+  "kit", [ "kit", (22, 8, 112); "window", (3, 0, 30) ];
+  "orrery", [ "orrery", (22, 3, 117) ]; (* conditional branch scopes *)
   "rosette", [ "rosette", (4, 0, 32) ];
   "sunflower", [ "sunflower", (9, 1, 36) ];
-  "tiles", [ "tiles", (9, 1, 67) ];
+  "tiles", [ "tiles", (14, 5, 70) ];
   "tree", [ "tree", (9, 1, 184) ];
   "tunnel", [ "rings", (4, 1, 61) ];
   "variations", [ "garden", (6, 0, 70); "scene", (1, 0, 8); "editor", (8, 0, 23) ];
@@ -150,6 +150,10 @@ let rows () =
          && List.exists (fun (r : P.row) -> r.key = E.Field "shape") result.rows) "record rows are fields plus an add row";
   let part = node k "kit" [ "tower"; "part" ] in
   check (part.head = "cond" && List.mem ("else", P.Arg) (kinds part)) "cond rows";
+  List.iter (fun leaf ->
+    let arm = zone (node k "kit" ["tower"; leaf]) in
+    check (arm.kind = P.Branch && arm.scope.path = ["kit"; "tower"; leaf] && arm.rail <> []) "kit cond arm projection")
+    ["part#then"; "part#then~2"; "part#else"];
   let style = zone (node k "kit" [ "style" ]) in
   check (style.kind = P.Fn && style.yield_label = "return"
          && (List.hd style.rail).role = P.Param) "a bound fn is a zone with a param rail";
@@ -179,7 +183,7 @@ let rec invariant_names (s : P.scope) = List.concat_map (fun (n : P.node) ->
 let flags () =
   let w = load "orrery" in
   let s = scope w "orrery" in
-  check (live_names s = [ "spin"; "pulse"; "sun"; "glow#:color"; "glow"; "moons_each"; "a"; "bob"; "moon#:center"; "moon"; "@result"; "orbit"; "system" ])
+  check (live_names s = [ "spin"; "pulse"; "sun"; "glow#:color"; "glow"; "moons_each"; "a"; "bob"; "moon#:center"; "moon"; "@result#:color"; "@result"; "orbit"; "system" ])
     ("Orrery: live paths changed: " ^ String.concat ", " (live_names s));
   let base = node w "orrery" [ "base" ] and moons = node w "orrery" [ "moons_each" ] in
   check ((not base.live) && moons.live && (zone moons).scope.nodes <> []) "a live zone";

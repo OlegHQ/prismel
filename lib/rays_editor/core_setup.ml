@@ -96,7 +96,7 @@ let create ?settings ?(keymap = Leader.keymap)
         selection = Selection.empty; menu = None;
         scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty; lit = None;
         previews = Document.Int_map.empty; viewed = Document.Int_map.empty; view_key = None;
-        scope_key = None; edit_phases = Flow.Phase_timer.empty; select_later = []; pane_graph = None; back = [];
+        scope_key = None; edit_phases = Flow.Phase_timer.empty; select_later = []; open_import = None; pane_graph = None; back = [];
         flow_catalog = lazy (Result.to_option (Editor_document.Contexts.catalog
           ~version:Flow_sop.Manifest.version factories));
         lisp_vocab = lazy (Lisp_text.vocab ~ops:(fst doc.workspace).checked.ops

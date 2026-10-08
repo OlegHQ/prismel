@@ -157,6 +157,7 @@ let empty_vocab = vocab []
    with theirs, so a form the language does not have is never offered *)
 let special_docs = [
   "workspace", "(workspace name graphs...) · the document: graphs, defns, macros";
+  "import", "(import \"relative/path.rays\") · shared definitions and graphs beside the workspace";
   "graph", "(graph name :context sop [inputs] body) · a network; the body is a let* or an expression";
   "defn", "(defn name :context value [(p : type) ...] body) · a function called as (name args)";
   "defmacro", "(defmacro name [params] `template) · a syntax template; ~p fills a hole";
@@ -188,7 +189,7 @@ let special_docs = [
 ]
 
 let specials = List.filter_map (fun form ->
-  Option.map (fun doc -> form, doc) (List.assoc_opt form special_docs)) Flow.Workspace.special_forms
+  Option.map (fun doc -> form, doc) (List.assoc_opt form special_docs)) ("import" :: Flow.Workspace.special_forms)
 
 let constants = [
   "t", "time in seconds · a binding reading t recooks every frame";
@@ -401,7 +402,7 @@ let no_names = { graphs = []; materials = []; cameras = []; layouts = [] }
 
 let value_keywords = [ ":material"; ":camera"; ":active" ]
 
-let complete ?(names = no_names) vocab text caret =
+let complete ?(names = no_names) ?(imports = []) vocab text caret =
   let caret = max 0 (min caret (String.length text)) in
   (* the token being typed ends at the caret: the text before it says what it is *)
   let before, _, open_stack = lex (String.sub text 0 caret) in
@@ -519,6 +520,9 @@ let complete ?(names = no_names) vocab text caret =
       | _ when head_position ->
           let _, defns, _ = bound text tokens caret in
           List.map (fun d -> mk ~group:0 ~uses:(usage text tokens d) d "defn" (d ^ " · a function of this workspace")) defns
+          @ List.filter_map (fun (name, file) ->
+              if List.mem name names.graphs then None else Some (mk ~group:0 name ("import · " ^ file)
+                (name ^ " · imported from " ^ file))) imports
           @ List.filter_map (fun (k : entry) ->
               if k.context = context then
                 Some (mk ~group:0 ~uses:(usage text tokens k.qualified) k.qualified
@@ -533,7 +537,8 @@ let complete ?(names = no_names) vocab text caret =
            | Some ":context", _ -> List.map (fun c -> mk ~group:0 c "context" (c ^ " graph")) (contexts ())
            | _, Some "ref" when List.length prior <= 1 ->
                let _, _, graphs = bound text tokens caret in
-               List.map (fun g -> mk ~group:0 g "graph" ("(ref " ^ g ^ ")"))
+               List.map (fun g -> mk ~group:0 g
+                   (match List.assoc_opt g imports with Some file -> "graph · " ^ file | None -> "graph") ("(ref " ^ g ^ ")"))
                  (graphs @ List.filter (fun g -> not (List.mem g graphs)) names.graphs)
            | _ when choices <> [] -> choices
            | _ ->
@@ -735,9 +740,9 @@ let color_chips text =
       | Ok color -> (t.start, t.stop, color) :: acc
       | Error _ -> acc) tokens []
 
-let language ?(vocab = empty_vocab) ?(names = no_names) ?(parinfer = false) theme : Pxui.Ui.language =
+let language ?(vocab = empty_vocab) ?(names = no_names) ?(imports = []) ?(parinfer = false) theme : Pxui.Ui.language =
   let infer = parinfer in
   { colorize = colorize theme; brackets; indent;
     pairs = [ '(', ')'; '[', ']'; '{', '}'; '"', '"' ];
-    complete = complete ~names vocab; describe = describe vocab; number_at;
+    complete = complete ~names ~imports vocab; describe = describe vocab; number_at;
     rewrite = (if infer then Some parinfer_text else None) }

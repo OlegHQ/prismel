@@ -25,7 +25,18 @@ type t = {
       (** Host-supplied graph inputs; retained across edits and reloads,
           validated by lowering, never written into the source. *)
   literal : literal option;
+  imports : (string * Flow.Syntax.t list) list;
+      (** Read-only children spliced from each relative imported file. *)
+  import_sources : (string * string) list;
+      (** Original imported texts, retained for reload digests and rechecking. *)
+  fragment : bool;
+      (** A library of bare graph, definition or macro forms, printed without a workspace wrapper. *)
 }
+
+val import_paths : string -> (string list, Flow.Diagnostic.t list) result
+val import_texts : t -> (string * string) list
+val imported_file : t -> Flow.Workspace.path -> string option
+val authored_source : t -> Flow.Syntax.t list
 
 val name : t -> string
 
@@ -38,10 +49,13 @@ val editor_graph : t -> Flow.Workspace.graph option
 
 val of_text :
   ?ops:Flow.Op.t list ->
+  ?imports:(string * string) list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
   ?settings:Settings.t -> ?layout:Layout_by_path.t -> Flow.Check.catalog -> string -> (t, Flow.Diagnostic.t list) result
 (** Parse and check. [ops] defaults to [Flow_sop.Operators.all]; an explicit
     list replaces those extensions. Absent settings and layout forms retain the supplied values.
+    Bare graph, definition and macro forms load as a library fragment; its
+    save writes those forms only, leaving editor layout and settings outside the library.
     An explicit settings form starts from its schema defaults; an explicit empty layout clears it.
     Errors are the checker's diagnostics, a parse error, or a layout or
     settings form that does not read ([E_LAYOUT], [E_SETTINGS], with the form's span). Unknown or
@@ -50,6 +64,7 @@ val of_text :
 
 val check_text :
   ?ops:Flow.Op.t list ->
+  ?imports:(string * string) list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
   ?settings:Settings.t -> ?layout:Layout_by_path.t -> Flow.Check.catalog -> string ->
   (t * Flow.Diagnostic.t list, Flow.Diagnostic.t list) result

@@ -300,6 +300,8 @@ let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timelin
     ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
   let workspace = match inputs with None -> workspace
     | Some inputs -> {workspace with Workspace_doc.inputs} in
+  let source = Option.map (fun source -> Source_file.with_imports source
+      (Workspace_doc.import_texts workspace)) source in
   let name = Option.value name ~default:(Workspace_doc.name workspace) in
   let state_key = match source with
     | None -> "workspace:" ^ Workspace_doc.name workspace
@@ -559,6 +561,26 @@ let compose value (update : (_, _) Core.update) ~baked ~baked_views ~scene =
    draft, the file's new text waits ([held]) and the strip says how to choose.  It loads once the
    edits are undone, or at once by "Reload sketch from its file" (the palette).  Nothing is polled
    while a payload is carried: the document shown is a preview then. *)
+let open_import value (update : (_, _) Core.update) = match update.core.Core.open_import, value.source with
+  | Some path, Some source ->
+      let core = {update.core with Core.open_import = None} in
+      if Core.unsaved core then
+        value, {update with core = {core with Core.notice = Some (Core.Refusal,
+          "Save or undo your changes before opening " ^ path ^ ".")}}
+      else
+        let file = Filename.concat (Filename.dirname (Source_file.file source)) path in
+        (match Source_file.read file with
+         | Error message -> value, {update with core = {core with Core.notice = Some (Core.Refusal, message)}}
+         | Ok original ->
+             let text = original in
+             (match Core.reload ~imports:[] core ~name:(Filename.basename file) text with
+              | Error ds -> value, {update with core = Core.reload_failed core ~name:path text ds}
+              | Ok core ->
+                  let core = {core with Core.file = Filename.basename file} in
+                  {value with source = Some (Source_file.at ~file ~digest:(Source_file.sha original));
+                    held = None; refused = None}, {update with core; scene_changed = true}))
+  | _ -> value, update
+
 let reload_source value (update : (_, _) Core.update) ~now = match value.source with
   | Some previous when not (Core.carrying update.core) ->
       let file, read = Source_file.poll ~now previous in
@@ -581,9 +603,11 @@ let reload_source value (update : (_, _) Core.update) ~now = match value.source 
              { core with Core.notice = Some (Core.Info, name ^ " changed on disk · your unsaved edits are kept · \
                undo them or run \"Reload sketch from its file\" to take the file; Command-S saves yours as a preset") } }
        | Some text ->
-           (match Core.reload core ~name text with
+           (match Result.bind (Source_file.read_imports ~file:(Source_file.file file) text)
+              (fun imports -> Core.reload ~imports core ~name text) with
             | Ok core ->
-                { value with source = Some (Source_file.accepted file text); held = None; refused = None },
+                { value with source = Some (Source_file.with_imports (Source_file.accepted file text)
+                    (Editor_document.Workspace_doc.import_texts (fst core.Core.doc.workspace))); held = None; refused = None },
                 { update with core; scene_changed = true }
             | Error diagnostics ->
                 { value with held = None; refused = Some text },
@@ -650,6 +674,7 @@ let update_with value frame ~inspector =
       ~view_state:(function
         | Some (_, camera, _, extra, _) -> V.section camera extra
         | None -> V.section value.camera extra) frame in
+  let value, update = open_import value update in
   let value, update = reload_source value update ~now:frame.Frame.time in
   let focused = follow_focus { value with core = update.core } frame in
   let core = update.core and panes = Core.panes update.core frame in

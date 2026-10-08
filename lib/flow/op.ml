@@ -432,6 +432,7 @@ let all = frame @ arrays @ draw @ host @ integers @ [
     ~check:{ validate = fun choices args -> one_of args "view" "A graph panel's view" (List.assoc "view" choices) }
     ~opt:["graph", Ty.Text] ~kw:["wires", Ty.Text; "view", Ty.Text] "ui/graph" [];
   leaf ~kw:[ "of", Ty.panel ] "ui/inspector" [];
+  leaf ~kw:[ "of", Ty.panel ] "ui/spreadsheet" [];
   leaf "ui/outline" [];
   leaf ~kw:[ "of", Ty.panel ] "ui/list" [];
   leaf ~choices:["tab", ["selection"; "graph"; "document"]]

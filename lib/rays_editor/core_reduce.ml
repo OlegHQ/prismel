@@ -352,7 +352,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
           { result with label = "Frame" }, probes
       | Display_set _ -> next, result, probes
       | Syntax_edit _ | Selected _ | Notice _ | Macro_requested _ | Defn_requested _
-      | Copy_requested _ | Paste_requested | Menu_requested _ | Activated _ | Drop_over _ | Dropped _ ->
+      | Copy_requested _ | Paste_requested | Menu_requested _ | Open_import _ | Activated _ | Drop_over _ | Dropped _ ->
           next, result, probes)
       (next, result, value.probes) scope_changes in
   let before_world = next in
@@ -479,6 +479,8 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
         Selection.select id selection
     | _ -> selection in
   let value' = { value' with selection; menu = result.menu; tree = result.tree; probes;
+    open_import = (match List.find_map (function Pxui_graph.Scope.Open_import file -> Some file | _ -> None) scope_changes with
+      | Some _ as file -> file | None -> value.open_import);
     (* a node added from the menu is the selection *)
     scope_view = (match !added with
       | [] ->

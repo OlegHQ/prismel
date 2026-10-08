@@ -8,9 +8,9 @@ let () =
     @ [Filename.concat root "specification/pxui-kit/kit.rays"] in
   let fixtures = Filename.concat root "specification/workspace/cases" in
   let fixtures = Array.to_list (Sys.readdir fixtures) |> List.sort String.compare
-    |> List.filter (fun name -> Filename.check_suffix name ".lisp")
+    |> List.filter (fun name -> Filename.check_suffix name ".lisp" || name = "import.rays")
     |> List.map (Filename.concat fixtures) in
-  if List.length fixtures <> 12 then failwith "expected twelve generated workspace fixtures";
+  if List.length fixtures < 12 then failwith "missing generated workspace fixtures";
   let custom = ["examples/sop_gallery/gallery.rays"; "sketches/voxel_wall/sketch.rays"] in
   let count = ref 0 in
   List.iter (fun path ->
@@ -18,7 +18,8 @@ let () =
     if List.mem name custom then Printf.printf "%s: checked with its executable's actual SOP catalog\n%!" name
     else begin
       let text = In_channel.with_open_bin path In_channel.input_all in
-      let workspace = match Rays_editor.Workspace.load text with Ok w -> w
+      let workspace = match Result.bind (Rays_editor.Source.read_imports ~file:path text)
+          (fun imports -> Rays_editor.Workspace.load ~imports text) with Ok w -> w
         | Error ds -> failwith (name ^ ": " ^ String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
       let directory = Option.map (fun parent ->
         if not (Sys.file_exists parent) then Unix.mkdir parent 0o755;

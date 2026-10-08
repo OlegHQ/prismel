@@ -60,6 +60,7 @@ val zone_fold : t -> zone
 val zone_sum : t -> zone
 val zone_fn : t -> zone
 val zone_let : t -> zone
+val zone_branch : t -> taken:bool -> zone
 
 val dark : t -> bool
 (** The panel is a dark colour. *)

@@ -60,11 +60,21 @@ module Editor3 = struct
 end
 
 module Reduce = struct
+  let open_import (editor : _ Editor3.t) file =
+    {editor with Environment.core = {editor.core with Core.open_import = Some file}}
+  let spreadsheet (editor : _ Editor3.t) path =
+    let key = Core.panel_key editor.core.doc path in
+    let pane = Core.shown_as editor.core (key, path, Pxui_shell.Layout.Spreadsheet) in
+    (Core.local_of editor.core key).sheet_owner, Core.spreadsheet_source pane
+  let select_path (editor : _ Editor3.t) path = match path with
+    | graph :: _ -> {editor with Environment.core = { (Core.go editor.core graph) with Core.select_later = [path] }}
+    | [] -> editor
   let step (e : _ Editor3.t) ?select ?preview actions frame =
     { e with Environment.core = Core.reduce_idle ?select ?preview e.Environment.core actions frame }
 end
 
 module Private = struct
+  module Spreadsheet = Spreadsheet
   module Render_budget = struct let film = Renderer.film let next_turn = Renderer.next_turn end
   module Leader = Leader module Schedule = Schedule
   module Document = Document module Preset = Preset
@@ -79,18 +89,23 @@ end
 module Workspace = struct
   type source = { path : string; digest : string }
 
-  let load ?ops ?factories text =
+  let load ?ops ?imports ?factories text =
     match workspace_catalog ?factories () with
     | Error d -> Error [ d ]
-    | Ok catalog -> Workspace_doc.of_text ?ops catalog text
+    | Ok catalog -> Workspace_doc.of_text ?ops ?imports catalog text
 
   (* A hand-written host: the checked document and its file, or the diagnostics and exit 1. *)
-  let open_text ?factories ~path ~digest text =
-    match load ?factories text with
+  let open_text ?factories ?imports ~path ~digest text =
+    let source = Source.find ~path ~digest in
+    let imports = match imports, source with
+      | Some imports, _ -> Ok imports
+      | None, Some source -> Source_file.read_imports ~file:(Source.file source) text
+      | None, None -> Ok [] in
+    match Result.bind imports (fun imports -> load ?factories ~imports text) with
     | Error ds ->
         List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d)) ds;
         exit 1
-    | Ok doc -> doc, Source.find ~path ~digest
+    | Ok doc -> doc, Option.map (fun source -> Source_file.with_imports source (Workspace_doc.import_texts doc)) source
 
   (* The viewport starts where the scene's first camera is (else the default orbit); the host's
      light below is a default of a workspace with no scene graph (Contexts.of_workspace).
@@ -121,7 +136,8 @@ module Workspace = struct
 
   let run ?inputs ?factories ?source doc =
     let doc = match inputs with None -> doc | Some inputs -> {doc with Workspace_doc.inputs} in
-    let source = Option.bind source (fun { path; digest } -> Source.find ~path ~digest) in
+    let source = Option.bind source (fun { path; digest } -> Source.find ~path ~digest)
+      |> Option.map (fun source -> Source_file.with_imports source (Workspace_doc.import_texts doc)) in
     Result.map (fun window ->
     let config = { Rays.Sketch.default_config with width = window.width; height = window.height;
                    title = window.title; fps = Some window.fps } in
@@ -168,11 +184,11 @@ module Workspace = struct
            ~on_stop:(fun()->Workspace_host.close host) ()); Ok ()
          with Flow.Value.Fail (code, message, span) -> Error (Flow.Diagnostic.error ?span ~code message))
 
-  let main ?factories ~path ~digest ~catalog text =
+  let main ?factories ?imports ~path ~digest ~catalog text =
     let expected = Contexts.catalog_digest (Option.value ~default:Sop_catalog.Editor.factories factories) in
     if catalog <> expected then
       prerr_endline (path ^ ": built against another catalog; checking the source again");
-    match load ?factories text with
+    match load ?factories ?imports text with
     | Error ds ->
         List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d)) ds;
         exit 1

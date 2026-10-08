@@ -96,6 +96,7 @@ let sync_scope value =
                 (Workspace_doc.editor_graph (fst value.doc.Document.workspace)) = Some name -> List.map fst (layouts value)
             | _ -> [] in
           Flow.Phase_timer.measure Layout (fun () -> Pxui_graph.Scope.with_scope ~wires ~layouts ~key:name scope value.scope_view
+            ~imported:(Workspace_doc.imported_file ws)
             ~at:(fun path -> M.find_opt path layout.at)
             ~level:(fun path -> match M.find_opt path layout.level, M.find_opt path layout.pinned with
               | None, None -> None

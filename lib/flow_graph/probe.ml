@@ -6,6 +6,7 @@ type geometry = {
   points : int; prims : int; groups : string list; data_id : int;
   extent : (float * float * float) option;
   seconds : float option;
+  attributes : (string * string * string * int) list;
 }
 type summary = Value of E.value | Geometry of geometry
 type execution = {tier : string; group : path; seconds : float option}
@@ -140,7 +141,9 @@ let describe = function
       (if g.prims = 0 && g.points > 0 then Printf.sprintf "%s pt%s" (spaced g.points) (if g.points = 1 then "" else "s")
        else Printf.sprintf "%d prim%s" g.prims (if g.prims = 1 then "" else "s"))
       ^ (if g.groups = [] then "" else " · groups " ^ String.concat ", " g.groups)
-      ^ (match g.seconds with Some s -> Printf.sprintf " · %.3f s" s | None -> "")
+      ^ (match g.seconds with Some s ->
+           (if g.prims > 0 then Printf.sprintf " · %s pts" (spaced g.points) else "")
+           ^ Printf.sprintf " · %.3f s" s | None -> "")
 
 (* ---- chains, series ---- *)
 
@@ -149,7 +152,7 @@ let chains (s : P.scope) =
   let rec go chain (s : P.scope) = List.iter (fun (n : P.node) ->
     Hashtbl.replace tbl n.path chain;
     match n.zone with
-    | Some z -> go (if z.kind = P.Let || z.kind = P.State then chain else chain @ [ n.path ]) z.scope
+    | Some z -> go (if z.kind = P.Let || z.kind = P.State || z.kind = P.Branch then chain else chain @ [ n.path ]) z.scope
     | None -> ()) s.nodes in
   go [] s;
   tbl
@@ -227,6 +230,52 @@ let at t path ~probes =
              | Ok v -> Some (summarize t v)
              | Error _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs)
         | _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs
+
+let taken_arm t (node : P.node) ~probes =
+  let missing key = Option.bind t.live_frame (fun live ->
+    Option.bind (Hashtbl.find_opt t.raw node.path) (fun records ->
+      List.find_map (fun (tuple, value) -> match value with
+        | E.Residual residual when tuple = probes ->
+            let view = E.Private.residual_view residual in
+            let term = match view.term.node, key with
+              | Flow.Workspace.If (test,_,_), "test" | Case (test,_,_), "of" -> Some test
+              | Cond (arms,_), key when String.starts_with ~prefix:"test" key ->
+                  Option.bind (int_of_string_opt (String.sub key 4 (String.length key - 4)))
+                    (fun i -> Option.map fst (List.nth_opt arms i))
+              | _ -> None in
+            Option.bind term (fun term -> Result.to_option (E.Private.eval_term ?state:t.state ?resolve:t.resolve residual term ~live)
+              |> Option.map (fun value -> Value value))
+        | _ -> None) records)) in
+  let at_key key = match List.rev node.path with
+    | leaf :: outer -> (match at t (List.rev outer @ [leaf ^ "#" ^ key]) ~probes with
+        | None -> missing key | some -> some)
+    | [] -> None in
+  let tests = List.filter_map (fun (row : P.row) -> match row.key with
+    | Flow_edit.Arm i when i >= 0 -> Some i | _ -> None) node.rows in
+  let count = List.length tests in
+  match node.head with
+  | "if" -> (match at_key "test" with Some (Value (E.Bool _ | Int _ | Float _ as value)) ->
+      Some (if Flow.Value.truthy value then 0 else 1) | _ -> None)
+  | "cond" ->
+      let rec find = function
+        | [] -> Some count
+        | i :: rest -> (match at_key ("test" ^ string_of_int i) with
+            | Some (Value (E.Bool _ | Int _ | Float _ as value)) ->
+                if Flow.Value.truthy value then Some i else find rest | _ -> None) in
+      find tests
+  | "case" ->
+      let equal value (literal : Flow.Syntax.t) = match value, literal.node with
+        | E.Text a, Str b -> a = b
+        | (Bool _ | Int _ | Float _), Sym "true" -> Flow.Value.truthy value
+        | (Bool _ | Int _ | Float _), Sym "false" -> not (Flow.Value.truthy value)
+        | Bool a, Num b -> a = (float_of_string b <> 0.)
+        | Int a, Num b -> float a = float_of_string b | Float a, Num b -> a = float_of_string b | _ -> false in
+      (match at_key "of" with
+       | Some (Value value) -> Some (Option.value ~default:count (List.find_opt (fun i ->
+           let key = Flow_edit.Pos (2 * i + 1) in
+           List.exists (fun (row : P.row) -> row.key = key && Option.fold ~none:false ~some:(equal value) row.expr) node.rows) tests))
+       | _ -> None)
+  | _ -> None
 
 (* the records whose tuple is [outer] followed by one more index, in order; in a loop over
    geometry the body has one template record, which is forced for each element once the zone
@@ -323,7 +372,8 @@ let compute_footer t (n : P.node) ~probes =
     let a = Array.map number (across_probes n.path ~probes) in
     if Array.length a < 2 || Array.exists Option.is_none a then None
     else Some (Array.map Option.get a, position t n.path ~probes ~len:(Array.length a)) in
-  let branch =
+  let branch = if List.mem n.head ["cond"; "case"] then
+    Option.map (fun i -> Printf.sprintf "arm %d" (i + 1)) (taken_arm t n ~probes) else
     if probes = [] || n.head <> "if" then None else
     Option.bind (arg n 0) (fun c ->
       let cs = across_probes (parent @ [ c ]) ~probes in

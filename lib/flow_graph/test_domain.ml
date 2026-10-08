@@ -3,6 +3,50 @@ open Flow_graph
 let catalog = {Check.version = 1; kinds = []}
 let ok = function Ok x -> x | Error d -> failwith (Diagnostic.to_string d)
 let () =
+  let text = "(workspace live (graph g :context value (let* [x (if (< t 1) 1 2) y (cond (< t 0) 1 (< t 1) 2 :else 3) z (case (< t 1) 0 4 true 5 :else 6)] (+ x (+ y z)))))" in
+  let source = ok (Syntax.parse text) in
+  let workspace = match Workspace.check catalog source with Some w, [] -> w | _ -> assert false in
+  let scope = Projection.of_graph catalog workspace "g" in
+  let evaluated = ok (Eval.static ~record:true workspace) in
+  List.iter (fun (time, expected) ->
+    let probe = Probe.make ~time evaluated in
+    List.iter2 (fun name expected ->
+      let node = Option.get (Projection.find scope ["g";name]) in
+      let actual = Probe.taken_arm probe node ~probes:[] in
+      if actual <> Some expected then failwith (Printf.sprintf "taken %s at %g: expected %d got %s"
+        name time expected (Option.fold ~none:"none" ~some:string_of_int actual))) ["x";"y";"z"] expected)
+    [0.,[0;1;1]; 2.,[1;2;0]];
+  List.iter (fun (expression, result) ->
+    let source = ok (Syntax.parse ("(workspace wrap (graph g :context value (let* [x " ^ expression ^ "] " ^ result ^ ")))")) in
+    let before = match Workspace.check catalog source with Some w, _ -> ok (Eval.run ~time:0. w)
+      | _, ds -> failwith (expression ^ ": " ^ String.concat "; " (List.map Diagnostic.to_string ds)) in
+    let _, workspace = ok (Flow_edit.apply_checked catalog source (Wrap {nodes = [["g";"x"]]; loop = If})) in
+    assert ((ok (Eval.run ~time:0. workspace)).results = before.results))
+    ["{:weight 2 :name \"point\"}", "x.weight"; "(array/float 6 3.0)", "(array/count x)";
+      "[1 2 3]", "x.x"; "(list 1 2)", "(count x)"];
+  let source = ok (Syntax.parse "(workspace bypass (graph g :context value (let* [x (if false 3 9)] x)))") in
+  let _, workspace = ok (Flow_edit.apply_checked catalog source (Toggle_bypass {node = ["g";"x"]})) in
+  assert (List.assoc "g" (ok (Eval.run ~time:0. workspace)).results = Eval.Int 3)
+
+let () =
+  let source = ok (Syntax.parse "(workspace branches (graph g :context value (let* [x (if true (+ 1 2) (* 3 4)) y (cond false 1 true 2 :else 3) z (case 1 0 4 1 5 :else 6)] (+ x (+ y z)))))") in
+  let workspace = match Workspace.check catalog source with Some w, [] -> w | _ -> assert false in
+  let scope = Projection.of_graph catalog workspace "g" in
+  List.iter (fun path ->
+    let zone = Option.get (Projection.find scope path) |> fun node -> Option.get node.zone in
+    assert (zone.kind = Projection.Branch && zone.rail <> []))
+    [["g"; "x#then"]; ["g"; "x#else"]; ["g"; "y#then~2"]; ["g"; "z#else"]];
+  let source, workspace = ok (Flow_edit.apply_checked catalog source (Set_arg {
+    node = ["g"; "x#then"; "@result"]; key = Pos 0; sub = []; value = Syntax.make (Num "8")})) in
+  let probe = Probe.make (ok (Eval.static ~record:true workspace)) in
+  let scope = Projection.of_graph catalog workspace "g" in
+  let node = Option.get (Projection.find scope ["g"; "x#then"; "@result"]) in
+  assert ((Probe.footer probe node ~probes:[]).value = "10");
+  let source, _ = ok (Flow_edit.apply_checked catalog source (Add_arm {node = ["g"; "y"]; after = 0})) in
+  assert (Flow_edit.remap (Add_arm {node = ["g"; "y"]; after = 0}) ["g"; "y#then~2"; "@result"] = Some ["g"; "y#then~3"; "@result"]);
+  let _, _ = ok (Flow_edit.apply_checked catalog source (Delete_arm {node = ["g"; "y"]; index = 0})) in
+  assert (Flow_edit.remap (Delete_arm {node = ["g"; "y"]; index = 0}) ["g"; "y#then"; "@result"] = None)
+let () =
   let source = ok (Syntax.parse "(workspace toy (graph g :context draw (let* [elapsed (state [s 0.0] (+ s (frame/dt))) dot (draw/circle [12 20 0] (+ 1 elapsed) :fill \"#00ffff\")] (draw/merge dot))))") in
   let source, workspace = ok (Flow_edit.apply_checked catalog source
     (Set_arg {node = ["g"; "elapsed"]; key = Bv (1, 1); sub = []; value = Syntax.make (Num "2.0")})) in

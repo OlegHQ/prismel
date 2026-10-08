@@ -24,7 +24,7 @@ let texting value = value.focus = Lisp || (value.focus <> List && projection val
 
 (* ---- panel instances: every leaf draws, with its own list, text pane or outline ---- *)
 
-let fresh_local () = { rows = Pxui_shell.Tree.create (); code = Text_pane.initial; nav = Navigator.initial }
+let fresh_local () = { rows = Pxui_shell.Tree.create (); code = Text_pane.initial; nav = Navigator.initial; sheet_owner = 0 }
 let local_of value key = match List.assoc_opt key value.locals with Some l -> l | None -> fresh_local ()
 (* The panels' own states are kept for the 64 panels last drawn or changed (the latest first): a
    bound on what layouts that came and went leave behind. *)
@@ -44,7 +44,7 @@ let panel_hosts value =
       | Graph ->
           (match projection (as_pane value (key, path)) with
            | List_view -> Some `List | Text_view -> Some `Text | Graph_view -> None)
-      | View _ | Canvas _ | Inspector | Timeline -> None in
+      | View _ | Canvas _ | Inspector | Spreadsheet | Timeline -> None in
     Option.map (fun kind -> key, path, panel, kind) kind)
     (Editor_core.Panels.leaves (shell_tree value value.workspace))
 
@@ -277,4 +277,3 @@ let failed_nodes value =
       List.filter_map (fun (n : Flow_graph.Projection.node) ->
         if compiled_at value chains records n.path = Some node_id then Some (n.path, code) else None) (nodes scope)
   | _ -> []
-

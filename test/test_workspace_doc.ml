@@ -178,6 +178,31 @@ let part_editor () =
   check (E3.undo_label e = Some "Edit value") "redo";
   E3.close e
 
+let part_conditional_history () =
+  let module E3 = Rays_editor.Editor3 in
+  let e = editor {|(workspace history
+    (graph g :context value
+      (let* [a (+ 1 2)
+             b (if true (let* [u (+ a 1)] u) (+ a 2))
+             c (cond true (+ a 3) false (+ a 4) :else (+ a 5))]
+        (+ b c))))|} in
+  let before = Doc.to_text (E3.workspace e) in
+  let e, _ = List.fold_left (fun (e, count) op ->
+    let changed = E3.edit e op |> Result.get_ok in
+    check (E3.undo_label changed = Some (E.label op)) "conditional gesture history label";
+    let undone = E3.update changed (frame ~keys:[Input.Meta] [char 'z'] count) in
+    check (Doc.to_text (E3.workspace undone) = before && E3.undo_label undone = None
+      && E3.redo_label undone = Some (E.label op)) ("conditional gesture was not one undo step: " ^ E.label op);
+    undone, count + 1) (e, 1)
+    [ E.Wrap {nodes = [["g"; "a"]]; loop = If};
+      Set_arg {node = ["g"; "c"]; key = Pos 0; sub = []; value = S.make (Sym "false")};
+      Add_arm {node = ["g"; "c"]; after = 0};
+      Delete_arm {node = ["g"; "c"]; index = 0};
+      Unfold {node = ["g"; "b"]; key = Arm (-1); sub = []};
+      Fold_into {node = ["g"; "b#then"; "u"]};
+      Toggle_bypass {node = ["g"; "b"]} ] in
+  E3.close e
+
 let part_live () =
   let module E3 = Rays_editor.Editor3 in
   let e = editor moving in
@@ -605,7 +630,8 @@ let part_files () =
   let covered = ref 0 in
   List.iter (fun file ->
     let text = In_channel.with_open_bin file In_channel.input_all in
-    match Rays_editor.Workspace.load text with
+    match Result.bind (Rays_editor.Source.read_imports ~file text)
+      (fun imports -> Rays_editor.Workspace.load ~imports text) with
     | Error ds when List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_UNKNOWN_KIND") ds -> ()
     | Error ds -> fail (file ^ ": " ^ show ds)
     | Ok doc ->
@@ -613,7 +639,7 @@ let part_files () =
     let scopes = List.map (fun (g : Flow.Workspace.graph) -> Projection.of_graph catalog doc.checked g.name) doc.checked.graphs
       @ List.map (fun (g : Flow.Workspace.graph) -> Projection.of_graph catalog doc.checked ("def:" ^ g.name)) doc.checked.defs in
     let fast = ref 0 and patched = ref 0 and refused = ref 0 and slow = ref [] in
-    let edits = List.concat_map sites scopes in
+    let edits = List.concat_map sites scopes |> List.filter (fun (path, _, _, _, _) -> Doc.imported_file doc path = None) in
     List.iter (fun (path, key, sub, _, value) ->
       let op = E.Set_arg { node = path; key; sub; value } in
       let where = Printf.sprintf "%s %s" file (String.concat "/" path) in
@@ -698,4 +724,48 @@ let part_projection_reuse () =
     check (Flow.Phase_timer.calls phases Project = 0) "editing another graph re-projected the pane");
   print_endline "workspace projection: path pruning, unchanged graph reuse and dependency type invalidation passed"
 
-let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_live; part_preset; part_pane_layout; part_contexts; part_editor_contexts; part_literals; part_files; part_projection_reuse ]
+let part_imports () =
+  let library = ";; shared definitions\n(workspace library (defn twice :context value [(x : float)] (* x 2)) (graph shared :context value (twice 3)))\n" in
+  let text = "(workspace local (graph result :context value (+ (ref shared) (twice 2))))\n;; library stays separate\n(import \"lib.rays\")\n" in
+  let imports = ["lib.rays", library] in
+  let doc = Doc.of_text ~imports catalog text |> Result.get_ok in
+  check (List.length doc.checked.graphs = 2 && List.length doc.checked.defs = 1) "import children were not checked together";
+  check (Doc.import_texts doc = imports) "raw import text was lost (reload digest)";
+  check (Doc.imported_file doc ["shared"; "@result"] = Some "lib.rays"
+    && Doc.imported_file doc ["def:twice"] = Some "lib.rays") "import provenance was lost";
+  let printed = Doc.to_text doc in
+  check (has printed "(import \"lib.rays\")" && has printed "library stays separate"
+    && not (has printed "(defn twice") && not (has printed "(graph shared")) "save inlined imported definitions";
+  check (Doc.to_text (Doc.of_text ~imports catalog printed |> Result.get_ok) = printed) "imports did not round trip";
+  let edit = E.Set_arg {node = ["shared"; "@result"]; key = Pos 0; sub = []; value = S.make (Num "4")} in
+  check (match Doc.edit catalog doc edit with Error d -> d.code = "E_IMPORTED" && has d.message "lib.rays" | _ -> false)
+    "imported expression remained writable";
+  check (match Doc.edit catalog doc (E.Remove_graph {name = "shared"}) with Error d -> d.code = "E_IMPORTED" | _ -> false)
+    "imported graph remained removable";
+  List.iter (fun op -> check (match Doc.edit catalog doc op with
+    | Error d -> d.code = "E_IMPORTED" | _ -> false) ("imported gesture remained writable: " ^ E.label op))
+    [ E.Rename_graph {name = "shared"; to_ = "renamed"};
+      Set_note {node = ["shared"]; text = "changed"};
+      Wrap {nodes = [["shared"; "@result"]]; loop = If};
+      Add_node {scope = ["shared"]; name = "extra"; expr = S.make (Num "1")};
+      Set_input_default {form = "def:twice"; input = "x"; value = S.make (Num "1")};
+      Set_graph {name = "shared"; form = S.parse "(graph shared :context value 1)" |> Result.get_ok |> List.hd} ];
+  let dependent = Doc.of_text ~imports:["lib.rays", "(graph shared :context value (ref local))"] catalog
+    "(workspace w (graph local :context value 1)) (import \"lib.rays\")" |> Result.get_ok in
+  check (match Doc.edit catalog dependent (E.Rename_graph {name = "local"; to_ = "moved"}) with
+    | Error d -> d.code = "E_IMPORTED" | _ -> false) "local rename rewrote an imported reference";
+  let fragment = Doc.of_text catalog "(defn twice :context value [(x : float)] (* x 2))" |> Result.get_ok in
+  let fragment = {fragment with layout = {fragment.layout with at = Layout.Path_map.singleton ["def:twice"; "@result"] (20., 40.)}} in
+  check (not (has (Doc.to_text fragment) "(workspace") && not (has (Doc.to_text fragment) "(layout"))
+    "editing a library fragment appended workspace metadata";
+  let error imports text code = check (match Doc.of_text ~imports catalog text with
+    | Error ds -> List.exists (fun (d : Flow.Diagnostic.t) -> d.code = code) ds | _ -> false) ("missing " ^ code) in
+  error [] text "E_IMPORT";
+  error ["lib.rays", "(import \"other.rays\")\n" ^ library] text "E_IMPORT";
+  error imports "(workspace local (graph shared :context value 1)) (import \"lib.rays\")" "E_NAME";
+  error [] "(workspace local (graph g :context value 1)) (import \"/absolute.rays\")" "E_IMPORT";
+  let local = Doc.edit catalog doc (E.Set_graph {name = "result"; form = S.parse "(graph result :context value (twice 9))" |> Result.get_ok |> List.hd}) |> Result.get_ok in
+  check (Doc.import_texts local = imports && not (has (Doc.to_text local) "(graph shared")) "local edit changed imported source";
+  print_endline "workspace imports: splice, provenance, saves, edit refusal and diagnostics passed"
+
+let run () = List.iter (fun f -> f ()) [ part_text; part_edit; part_view; part_editor; part_conditional_history; part_live; part_preset; part_pane_layout; part_contexts; part_editor_contexts; part_literals; part_files; part_projection_reuse; part_imports ]

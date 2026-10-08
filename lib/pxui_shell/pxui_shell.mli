@@ -5,7 +5,7 @@
     divide the width once: 45/35/20 of what the two one-point splitters leave. *)
 module Layout : sig
   type panel = Editor_core.Panels.panel =
-    | View of string | Canvas of string | Graph | List | Lisp | Inspector | Outline | Timeline
+    | View of string | Canvas of string | Graph | List | Lisp | Inspector | Spreadsheet | Outline | Timeline
   type axis = Editor_core.Panels.axis
   type t = Editor_core.Panels.t =
     | Leaf of panel

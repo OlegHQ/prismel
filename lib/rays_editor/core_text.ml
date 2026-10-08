@@ -23,9 +23,9 @@ let install value doc ~label ~merge =
 
 (* The text pane's applies: the whole workspace text, or one
    binding's expression; atomic, one history entry "Edit text". *)
-let text_edit ?(label = "Edit text") ?(merge = Editor_core.History.Step) value text =
+let text_edit ?imports ?(label = "Edit text") ?(merge = Editor_core.History.Step) value text =
   Result.map (fun doc -> install value doc ~label ~merge)
-    (Doc.text_edit ~factories:value.factories value.doc text)
+    (Doc.text_edit ?imports ~factories:value.factories value.doc text)
 
 (* Selection patches root bindings into one candidate graph, checked and
    installed once. Omitted bindings stay and the shown result cannot change.

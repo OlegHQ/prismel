@@ -20,7 +20,8 @@ let frame count : Rays.Frame.t = {
 let () =
   let module E = Rays_editor.Editor3 in
   let text = In_channel.with_open_bin Sys.argv.(1) In_channel.input_all in
-  let workspace = match Rays_editor.Workspace.load text with
+  let workspace = match Result.bind (Rays_editor.Source.read_imports ~file:Sys.argv.(1) text)
+      (fun imports -> Rays_editor.Workspace.load ~imports text) with
     | Ok workspace -> workspace
     | Error diagnostics -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string diagnostics)) in
   let canvas = Rays.Canvas.create_exn ~width:(width * scale) ~height:(height * scale) in
@@ -32,6 +33,7 @@ let () =
   for count = 0 to frames - 1 do editor := E.update !editor (frame count) done;
   (* UI_SHOT_DO is a script run after the settle frames, one step a frame, in order:
        key:NAME        a key press (a letter, a digit or a sign is itself; space tab enter esc)
+       select:G/NODE   select a checked lexical path for an inspection artifact
        click:X,Y       move there, press and release the left button
        rclick:X,Y      the same with the right button (a context menu)
        type:TEXT       typed text (no spaces: _ is a space)
@@ -56,6 +58,9 @@ let () =
     | Some colon ->
         let argument = String.sub word (colon + 1) (String.length word - colon - 1) in
         (match String.sub word 0 colon with
+         | "select" ->
+             editor := Rays_editor.Reduce.select_path !editor (String.split_on_char '/' argument);
+             step []
          | "key" ->
              let parts = String.split_on_char '+' argument in
              let name = List.nth parts (List.length parts - 1) in

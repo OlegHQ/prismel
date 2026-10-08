@@ -2025,6 +2025,42 @@ let side = 12
    in a 24-point row has its ascenders at 7 and its descenders at 18. *)
 let text_top ui ?size y h =
   y +. Float.floor ((h -. float (Option.value size ~default:ui.font_size)) /. 2.)
+
+let table ui ~at ~w ~h ~headers ~rows ~cell label =
+  if rows < 0 then invalid_arg "Ui.table: negative row count";
+  let row_h = 24. in
+  let widths = Array.map (fun header -> Float.max 72. (text_width ui header +. 24.)) headers in
+  let stops = Array.make (Array.length headers + 1) 0. in
+  Array.iteri (fun i width -> stops.(i + 1) <- stops.(i) +. width) widths;
+  let root = box ui ~flags:clip ~at ~w:(Px w) ~h:(Px h) label in
+  within ui root (fun () ->
+    let header = box ui ~w:(Px w) ~h:(Px row_h) (label ^ "-header") in
+    draw ui header (fun paint (x, y, _, _) ->
+      Array.iteri (fun i title ->
+        Paint.text paint ~color:(Theme.ink_2 ui.theme) ~at:(x +. stops.(i) +. 8., text_top ui y row_h) title) headers;
+      Paint.line paint ~from_:(x, y +. row_h -. 0.5) ~to_:(x +. w, y +. row_h -. 0.5) (Theme.border ui.theme));
+    let body_h = Float.max 0. (h -. row_h) in
+    let body = box ui ~flags:(scroll + clip) ~w:(Px w) ~h:(Px body_h)
+        ~scroll_step:row_h (label ^ "-body") in
+    let first = min rows (max 0 (int_of_float (Float.floor (scroll_offset ui body /. row_h)))) in
+    let last = min rows (first + int_of_float (Float.ceil (body_h /. row_h)) + 2) in
+    let clicked = ref None in
+    within ui body (fun () ->
+      ignore (box ui ~w:(Px w) ~h:(Px (float rows *. row_h)) (label ^ "-extent"));
+      for index = first to last - 1 do
+        let row = box ui ~flags:clickable ~at:(0., float index *. row_h)
+            ~w:(Px w) ~h:(Px row_h) (label ^ "-row-" ^ string_of_int index) in
+        if (signal ui row).clicked then clicked := Some index;
+        draw ui row (fun paint (x, y, _, _) ->
+          Array.iteri (fun column _ ->
+            let value = cell index column in
+            let right = x +. stops.(column + 1) -. 8. in
+            Paint.text paint ~color:ui.theme.foreground
+              ~at:(right -. Paint.text_width paint value, text_top ui y row_h) value) headers;
+          Paint.line paint ~from_:(x, y +. row_h -. 0.5) ~to_:(x +. w, y +. row_h -. 0.5) (Theme.faint_border ui.theme))
+      done);
+    !clicked, signal ui body)
+
 let label_y ui y h = y + ((h - ui.font_size) / 2)
 let value_column w = min 112 (max 0 ((w - (2 * side) - 8) / 2))
 let value_control (x, y, w, h) =

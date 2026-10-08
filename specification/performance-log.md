@@ -6571,3 +6571,48 @@ require exact equality. The legacy comparison records the accepted display
 precision difference; it does not manufacture a tolerance from unavailable
 GPU measurements. This oracle is written but its native result remains
 outstanding.
+
+## Conditional scopes, imports and spreadsheet checkpoint (2026-10-08)
+
+On this arm64 macOS 27.0.1 host, the complete editor's new spreadsheet pane
+over 1,000,000 points took 0.489950 ms median, 0.505924 ms p95 and
+1,559,198 allocated bytes/frame over 300 idle frames at one domain.
+This includes editor reduction, selected-node geometry lookup, owner tabs,
+table layout and visible-cell painting; GPU presentation is outside this
+headless benchmark. The UI table regression checks that a million-row table
+requests at most 20 cells for a 168-point viewport, including after a large
+scroll, and that its shared hit list returns the clicked row.
+
+```sh
+_build/default/tools/bench_rays_editor.exe --panels 200
+```
+
+| Complete idle editor | Nodes | Median ms | p95 ms | Bytes/frame |
+|---|---:|---:|---:|---:|
+| 1 graph, 1 inspector | 200 | 1.385212 | 1.652002 | 5,387,549 |
+| 3 graphs, 1 inspector | 200 | 2.295017 | 2.696037 | 8,077,181 |
+| 1 graph, 2 inspectors | 200 | 1.621008 | 1.866102 | 5,791,373 |
+| 3 graphs, 2 inspectors | 200 | 2.488136 | 2.816200 | 8,481,341 |
+| Spreadsheet | 1,000,000 points | 0.489950 | 0.505924 | 1,559,198 |
+
+Focused checks pass for conditional arm paths, rails, probes over time,
+collapse/menu/keyboard gestures and one-step history; imported-file polling,
+held reloads, missing/recreated files, read-only refusals, library Open/edit/save,
+completion, CLI embedding/dependencies and exact authored-source saves; owner
+counts, pane following, tab changes, recooks, table virtualization and layout
+round trips. The full `.rays` literal/save sweep and full workspace IR oracle
+at four times and one/eight domains pass, including the shared-library pair,
+the import fixture and the spreadsheet sketch.
+
+Native verification is still open. `--ship` exits 1 on native Metal/SDL/audio
+availability errors and the intended API manifest diff pending integration
+promotion. The screenshot commands for `ws_kit` and `ws_spreadsheet` fail with
+`Ogpu_metal.Device.system_default: Metal has no system default device` in the
+managed sandbox. The conditional token golden refresh and new
+`kit_table_1x.png` capture/comparison paths are implemented, but no new native
+pixels or goldens were produced. Existing 2x kit goldens are untouched.
+
+Evidence: `/private/tmp/pl-final-ship.log`, `/private/tmp/pl-native-kit.log`,
+`/private/tmp/pl-native-spreadsheet.log`, `/private/tmp/pl-native-goldens.log`.
+These native gates must pass on a session with an available display/Metal
+adapter before the PL item can be marked shipped.

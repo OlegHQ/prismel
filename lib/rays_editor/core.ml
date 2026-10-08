@@ -569,6 +569,15 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
             let state, emitted = draw (local_of value key).nav in
             outline, intents @ emitted, put_local key (fun l -> { l with nav = state }) locals)
       (value.outline, [], locals) (hosted `Outline) in
+    let locals = List.fold_left (fun locals ((leaf : Pxui_shell.Layout.leaf), root) ->
+          let key = panel_key value.doc leaf.path in
+          let pane = shown_as value (key, leaf.path, leaf.panel) in
+          let owner = (local_of {value with locals} key).sheet_owner in
+          let changed = Pxui.Ui.within ui root (fun () ->
+            Spreadsheet.view ui ~bounds:leaf.body ~owner (spreadsheet_source pane)) in
+          match changed with None -> locals
+          | Some sheet_owner -> put_local key (fun local -> {local with sheet_owner}) locals)
+      locals (of_kind Pxui_shell.Layout.Spreadsheet) in
     (* every other graph panel draws its own canvas; a press gives a panel the focus before the
        frame builds, so the pane a gesture starts in is the one in use *)
     let graph_panes = List.filter_map (fun (key, path, (pane : _ t)) ->

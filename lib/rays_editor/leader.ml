@@ -227,4 +227,4 @@ let describe_prefix = function
 
 let pane_name = function
   | Pxui_shell.Layout.Canvas _ -> "Canvas" | Pxui_shell.Layout.View _ -> "View" | Graph -> "Graph" | List -> "List" | Lisp -> "Lisp"
-  | Inspector -> "Inspector" | Outline -> "Outline" | Timeline -> "Timeline"
+  | Inspector -> "Inspector" | Spreadsheet -> "Spreadsheet" | Outline -> "Outline" | Timeline -> "Timeline"

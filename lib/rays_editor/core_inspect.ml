@@ -176,6 +176,14 @@ let compiled_at value chains records path =
    the lowered node at that iteration.  An edit is a [Set_arg] on the authored
    argument; an argument that is not a literal shows its expression and is
    locked.  Returns the graph requests and the probe moves. *)
+let spreadsheet_source value =
+  match value.scope_key, Pxui_graph.Scope.selected value.scope_view with
+  | Some {scope; records = Some records; _}, path :: _ ->
+      let chains = Flow_graph.Probe.chains scope in
+      Option.bind (compiled_at value chains records path) (fun node_id ->
+        Option.bind (node_owner value node_id) (fun object_id -> Cook.source value.cook ~object_id ~node_id))
+  | _ -> None
+
 let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None) ?(follows = fun _ -> None) value ui ~width path =
   let module P = Flow_graph.Projection in
   let module Probe = Flow_graph.Probe in
@@ -228,7 +236,8 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
              | Sum -> "sum · add up", Printf.sprintf "Runs its body for every %s and adds the results."
              | Let -> "scope · names for its result", (fun _ -> "Names shared by its result; it runs once.")
              | State -> "state · fold frames", (fun _ -> "Reads the previous frame's value and stores this frame's result.")
-             | Fn -> "function · runs per call", (fun _ -> "A function: its body runs each time it is called.")) n.zone in
+             | Fn -> "function · runs per call", (fun _ -> "A function: its body runs each time it is called.")
+             | Branch -> "conditional arm", (fun _ -> "Runs when its condition is selected.")) n.zone in
            (* a bypassed node passes its input through: the plan node is the upstream one, so it
               has no number, cook or arguments of its own to show here *)
            let node_id = if n.bypass then None else compiled_at value chains records n.path in
@@ -543,7 +552,10 @@ S.make (S.Num (Flow.Lisp.float f)) in
                       (Printf.sprintf "%.1f \xc3\x97 %.1f \xc3\x97 %.1f" x y z)) g.extent;
                   if g.groups <> [] then
                     Pxui.Ui.inspector_readout ui ~width ~key:"ws-output-groups" ~label:"groups"
-                      (String.concat ", " g.groups)))
+                      (String.concat ", " g.groups);
+                  List.iteri (fun i (owner, name, kind, length) ->
+                    Pxui.Ui.inspector_readout ui ~width ~key:("ws-output-attr-" ^ string_of_int i)
+                      ~label:(owner ^ " " ^ name) (Printf.sprintf "%s · %s" kind (group_digits length))) g.attributes))
             | None -> ());
            (* the note above the binding in the Lisp: one line here, typing is one history entry;
               the last section, closed *)

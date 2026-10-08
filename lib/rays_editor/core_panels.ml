@@ -39,6 +39,7 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
         | _ -> graph)
     | Outline -> "Outline", if (let _, _, w, _ = leaf.frame in w < 300) then ""  (* the narrow sheet has the kind alone *)
         else value.file
+    | Spreadsheet -> "Spreadsheet", graph
     | Timeline -> "Timeline",
         (* the real step of the sketch: the same step every frame is a fixed one *)
         if value.steady >= 3 && value.last_dt > 0. then Printf.sprintf "fixed dt 1/%d" (int_of_float (Float.round (1. /. value.last_dt)))
@@ -185,7 +186,7 @@ let focused_leaf (g : Pxui_shell.Layout.geometry) focus path =
 
 let panel_kind : Pxui_shell.Layout.panel -> string = function
   | Canvas _ -> "canvas" | View _ -> "viewport" | Graph -> "graph" | List -> "list" | Lisp -> "lisp"
-  | Inspector -> "inspector" | Outline -> "outline" | Timeline -> "timeline"
+  | Inspector -> "inspector" | Outline -> "outline" | Timeline -> "timeline" | Spreadsheet -> "spreadsheet"
 
 (* Space [ and Space n: the layouts of the switch and the floating windows, each one edit of the
    editor graph (written from the layout shown first, when the document has none). *)
@@ -371,4 +372,3 @@ let paste_bindings value =
        | Error message -> [ Declined message ]
        | Ok [ op ] -> [ Syntax_edit op ]
        | Ok ops -> [ Syntax_batch ("Paste", ops) ])
-

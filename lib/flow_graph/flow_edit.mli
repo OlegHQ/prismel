@@ -32,9 +32,10 @@ type arg_key =
   | Kw of string  (** [:keyword] argument of a call *)
   | Field of string  (** field of a [{...}] record *)
   | Bv of int * int  (** child [j] of child [i], for a zone's binding vectors *)
+  | Arm of int  (** Conditional arm: zero-based then arm, [-1] for else. *)
 (** The input a row of the graph edits. *)
 
-type loop = For | Fold  (** Repeat (merge or sum) and Iterate (feed back) *)
+type loop = For | Fold | If  (** Repeat, Iterate, or a conditional. *)
 
 type op =
   | Set_arg of { node : path; key : arg_key; sub : int list; value : Flow.Syntax.t }
@@ -52,6 +53,8 @@ type op =
       (** a nested call, loop or scope becomes its own binding, named by
           {!fresh_name} *)
   | Fold_into of { node : path }  (** a binding used once is inlined into its use *)
+  | Add_arm of {node : path; after : int}
+  | Delete_arm of {node : path; index : int}
   | Wrap of { nodes : path list; loop : loop }
       (** the selected bindings (one scope, at most one result leaving)
           become a loop body; geometry is merged, numbers summed, and [Fold]
@@ -90,7 +93,7 @@ type op =
   | Dock_panel of { node : path; target : path; side : [ `Left | `Right | `Top | `Bottom ] }
       (** Move a panel beside another in the same scope; collapse the split/tile it leaves. *)
   | Set_panel_kind of { node : path; kind : string }
-      (** [outline], [graph], [list], [lisp], [inspector], [timeline] or [viewport] (over the first
+      (** [outline], [graph], [list], [lisp], [inspector], [spreadsheet], [timeline] or [viewport] (over the first
           scene graph) *)
   | Set_graph of { name : string; form : Flow.Syntax.t }
       (** the whole [(graph name ...)] form, replacing the graph or appended; the scene and World
@@ -181,6 +184,7 @@ val gesture : op -> string option
 
 val apply_checked :
   ?ops:Flow.Op.t list ->
+  ?library:bool ->
   Flow.Check.catalog -> Flow.Syntax.t list -> op ->
   (Flow.Syntax.t list * Flow.Workspace.t, Flow.Diagnostic.t) result
 (** The rewritten source (printed and parsed again) and its check.  An op that
@@ -189,6 +193,7 @@ val apply_checked :
 
 val apply :
   ?ops:Flow.Op.t list ->
+  ?library:bool ->
   Flow.Check.catalog -> Flow.Syntax.t list -> op ->
   (Flow.Syntax.t list, Flow.Diagnostic.t) result
 

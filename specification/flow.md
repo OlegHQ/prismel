@@ -278,6 +278,19 @@ footer row only when the host has probe records (`Projection.layout ~foot`). Por
 
 ### 6.3 Wires
 
+Conditionals keep their test rows on the card and draw a `Branch` zone per
+arm. `x#then` and `x#else` identify the two arms of `if`; tested arms of
+`cond` and `case` continue as `x#then~2`, `x#then~3`. Their contents are ordinary
+scope nodes, with a `when`, `is` or `else` rail and a `then` yield. They have
+no iteration selector and the probe tints the selected arm. Collapse and body
+edits use the same paths, boxes and history as other zones.
+
+The card menu and keymap expose Wrap conditional (`Shift-I`), Add arm
+(`Alt-A`) and Delete first arm (`Alt-Delete`). An inserted cond arm starts
+with `false`; case starts with a literal of the existing test's kind.
+The final else stays. Arm insertion/deletion remaps the remaining arm paths.
+Bypass on `if` selects its then arm; `cond` and `case` cannot be bypassed.
+
 - A wire is one straight segment from port to port, 1.5 points in the port colour, drawn
   with `Ui.line`. No curves.
 - When a card is in the way it gets one bend (a 5-point square): horizontal out of the
@@ -880,6 +893,37 @@ printer never threads a `ui/` call (§11.3): a layout is a tree of containers, n
 Named layouts, the `Space [` keys and the migration of an older file with several editor graphs are
 in `workspace/iteration.md` §4.
 
+### Import
+
+A document may place `(import "relative/path.rays")` beside its workspace and
+metadata forms. Paths resolve beside the document file. The imported file's
+`graph`, `defn` and `defmacro` forms (or the children of its workspace) are
+spliced before the local children and checked together. Names remain lexical;
+duplicate names are `E_NAME`. Imports are one level: an imported `import` is
+`E_IMPORT`, as is an unavailable file or an absolute path.
+
+Imported graph cards wear their source file name. Their context menu opens
+the source document; a library containing only bare definitions is editable
+and saves those forms without adding a workspace wrapper. Edits to imported
+forms are refused with `E_IMPORTED`.
+Completion includes imported names and their file. Saving preserves the
+import form and local comments and writes only the importing file. Imported
+files are polled with the main source; changes reload as one history entry
+and wait while the document has unsaved work. Generated programs embed the
+original imported texts, and generated Dune rules depend on imported files.
+
+### Spreadsheet
+
+`(ui/spreadsheet :of network)` follows the selected cooked geometry of its
+graph panel, like an inspector. With no `:of`, it follows the focus. Point,
+vertex, primitive and detail tabs select ownership, with an index column,
+one column per scalar attribute, component columns for tuples, text and
+array cells, and membership columns for groups. Point position `P` has its
+three canonical columns. Optional cook targets provide the same immutable
+geometry as probes; only visible values are formatted. Owner choice and
+scroll belong to the panel instance. Row picking in the viewport is deferred;
+the table remains read-only.
+
 ## 12. Catalog manifest and `rays-lisp`
 
 `tools/flow_manifest.exe` writes `lib/sop_catalog/flow_manifest.sexp`
@@ -1193,10 +1237,10 @@ Benchmarks: `tools/bench_rays_editor.exe`, `tools/bench_workspace_lower.exe`,
 Window-free logic tests in `runtest`: the reader, printer, macros, checker and evaluator
 (`lib/flow/test_*.ml`), threading round trips over every checked-in workspace
 (`test/test_threading.ml`), edits (`test/test_workspace_edit.ml`), projection and probes
-(`test/test_projection.ml`, `test/test_probe.ml`), the pane's gestures
-(`test/test_pxui_graph.ml`), the document and its layout (`test/test_workspace_doc.ml`),
-lowering, zones and live values (`test/test_workspace_cook.ml`, `test_workspace_zone.ml`,
-`test_workspace_live.ml`), the shell and its layout forms (`test/test_workspace_shell.ml`),
+(`lib/flow_sop/test_projection.ml`, `test/test_probe.ml`), the pane's gestures
+(`lib/pxui_graph/test_pxui_graph.ml`), the document and its layout (`test/test_workspace_doc.ml`),
+lowering, zones and live values (`lib/flow_sop/test_workspace_cook.ml`, `lib/flow_sop/test_workspace_zone.ml`,
+`lib/flow_sop/test_workspace_live.ml`), the shell and its layout forms (`test/test_workspace_shell.ml`),
 the text pane (`test/test_text_pane.ml`), the carry (`lib/pxui/test_ui.ml`,
 `test/test_pxui_graph.ml`, `test/test_materials.ml`), and the gate. Visual checks are in
 `@runtest-native`.

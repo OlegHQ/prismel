@@ -108,9 +108,10 @@ type t = {
 val max_iterations : int
 (** Iterations per zone: 4,096. *)
 
-val check : ?ops:Op.t list -> Check.catalog -> Syntax.t list -> t option * Diagnostic.t list
+val check : ?ops:Op.t list -> ?library:bool -> Check.catalog -> Syntax.t list -> t option * Diagnostic.t list
 (** Check one [(workspace name ...)] form.  The workspace is returned only
-    without errors; warnings never block it. *)
+    without errors; warnings never block it. [library] allows definitions and
+    macros without a runnable graph, for editing imported source libraries. *)
 
 val skip_tuples : Syntax.t -> int list list option
 (** The tuples of a [:skip] value (register L16): a list of tuples of non-negative integers, a bare

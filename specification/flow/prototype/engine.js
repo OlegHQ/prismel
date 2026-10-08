@@ -2021,6 +2021,29 @@ function helpHtml() {
 function loop(now) { for (const ed of EDITORS) if (ed.visible) ed.tick(now / 1000); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 
+// Conditional-zone reference: arms are scopes; selection changes the tint,
+// and each disclosure preserves its own body. Design artifact only.
+const conditionalReference = document.createElement('section');
+conditionalReference.style.cssText = 'margin:32px;padding:24px;border-top:1px solid #c8cdca;font:13px monospace';
+conditionalReference.innerHTML = `<h3>Conditional arms</h3>
+  <label>if <input type="checkbox" checked> condition</label>
+  <div style="display:flex;gap:24px;margin-top:24px">
+    <details open data-arm="then" style="width:240px;padding:12px;border:1px solid #b0680f">
+      <summary>when condition · x#then</summary><p>draw/circle → then</p>
+    </details>
+    <details open data-arm="else" style="width:240px;padding:12px;border:1px solid #b0680f">
+      <summary>else · x#else</summary><p>draw/rect → then</p>
+    </details>
+  </div>`;
+const conditionalTest = conditionalReference.querySelector('input');
+const tintConditional = () => conditionalReference.querySelectorAll('[data-arm]').forEach(arm => {
+  const taken = (arm.dataset.arm === 'then') === conditionalTest.checked;
+  arm.style.background = taken ? 'rgba(176,104,15,.10)' : 'rgba(176,104,15,.02)';
+});
+conditionalTest.addEventListener('change', tintConditional);
+tintConditional();
+document.body.appendChild(conditionalReference);
+
 /* ---------- presets ---------- */
 function heroGraph() {
   const grid = mkNode('grid', 0, 0, 'card', { size: 4.4, rows: 22 }),

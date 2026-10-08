@@ -10,7 +10,9 @@ let () = if Array.length Sys.argv < 3 || Array.length Sys.argv > 5 then
 let path = Sys.argv.(1)
 let output = Sys.argv.(2)
 let text = In_channel.with_open_bin path In_channel.input_all
-let workspace = match Rays_editor.Workspace.load text with
+let imports = match Rays_editor.Source.read_imports ~file:path text with
+  | Ok imports -> imports | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds))
+let workspace = match Rays_editor.Workspace.load ~imports text with
   | Ok w -> w | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds))
 let document = Contexts.of_workspace ~factories:Sop_catalog.Editor.factories workspace
   |> Result.map_error Flow.Diagnostic.to_string |> get

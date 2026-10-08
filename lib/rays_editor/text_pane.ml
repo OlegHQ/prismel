@@ -639,7 +639,13 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
   let footer = if narrow then bar +. 1. else bar +. row +. 2. in
   let body_y = y in
   let body_h = Float.max row height in
-  let language = Lisp_text.language ~vocab ~names ~parinfer:state.parinfer theme in
+  let imports = match state.cache with
+    | Some ((_, Some workspace, _, _, _), _) ->
+        List.concat_map (fun (file, forms) -> List.filter_map (fun form ->
+          match S.children form with _ :: {S.node = S.Sym name; _} :: _ -> Some (name, file)
+          | _ -> None) forms) workspace.Editor_document.Workspace_doc.imports
+    | _ -> [] in
+  let language = Lisp_text.language ~vocab ~names ~imports ~parinfer:state.parinfer theme in
   (* the toolbar and the message row under an editable area; a right-click menu offers the same
      buttons and the wrap toggle *)
   let editor key ~at:(ey, eh) ~text ~errors ~spans ?reveal ?(caret_select = fun _ -> None)
