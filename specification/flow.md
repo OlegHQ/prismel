@@ -1116,7 +1116,8 @@ from an executed value's precision. Packed float/vec3 maps and one-clause
 collect loops qualify when their bodies use the shared `Flow.Packed_ops`
 operations, numeric literals, vec3 fields, `let*`, `if`, `cond` and numeric/bool
 `case`. `(length vec3)` returns its Euclidean norm as a float, using
-`sqrt ((x*x + y*y) + z*z)` with that association. Concrete scalar inputs are
+`sqrt ((x*x + y*y) + z*z)` with that association and separately rounded
+float64 multiplications and additions (no contraction). Concrete scalar inputs are
 type errors; unannotated Fn inputs are checked again at the call site.
 The packed compiler derives it from existing multiplication/addition/square-root
 instructions and preserves the reference's nonfinite diagnostic and lazy branches.
@@ -1192,7 +1193,9 @@ geometry dependency.
 `(sop/iso_surface :field (fn [p] (- (length p) 1)) :resolution [64 64 64])`
 samples an exact float field on a static 65³ XYZ lattice, x fastest. Resolutions
 count integral cells; min/max default to `[-2 -2 -2]`/`[2 2 2]`, iso to zero,
-and smooth normals to true. Its generated Fn port and typed parameter rails
+and smooth normals to true. Each lattice coordinate uses fused multiply-add,
+`Float.fma index ((max-min)/cells) min`, matching native RDK sampling.
+Its generated Fn port and typed parameter rails
 project through the ordinary function zone. A field-body probe selects one
 lattice tuple and reference-evaluates only that call, using the existing bounded
 call/body memos and at most 64 sparkline samples. Function call selectors also

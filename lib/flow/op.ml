@@ -281,7 +281,12 @@ let images = [
 let all = frame @ arrays @ draw @ host @ integers @ images @ [
   mk ~category:"Vector" "length" ["vector", Ty.Vec3] (fun _ -> fl)
     {run = fun ~name ~node:_ args -> match List.assoc "vector" args with
-      | Vec3 (x,y,z) -> Float (fin name (sqrt ((x *. x +. y *. y) +. z *. z)))
+      | Vec3 (x,y,z) ->
+          (* Match the separately rounded Mul/Add instructions of packed kernels. *)
+          let xx = Sys.opaque_identity (x *. x)
+          and yy = Sys.opaque_identity (y *. y)
+          and zz = Sys.opaque_identity (z *. z) in
+          Float (fin name (sqrt ((xx +. yy) +. zz)))
       | _ -> fail "E_TYPE" "length needs a vec3."};
   mk ~category:"Compare" "equal?" ["a",Ty.Any;"b",Ty.Any] (fun _->Ty.Bool)
     {run=fun ~name:_ ~node:_ args->try Bool(List.assoc "a" args=List.assoc "b" args)

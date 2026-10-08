@@ -75,9 +75,9 @@ module Iso_surface = struct
               for y = 0 to ry do
                 for x = 0 to rx do
                   let i = 3 * (x + nx * (y + ny * z)) in
-                  positions.(i) <- min.x +. float_of_int x *. dx;
-                  positions.(i + 1) <- min.y +. float_of_int y *. dy;
-                  positions.(i + 2) <- min.z +. float_of_int z *. dz
+                  positions.(i) <- Float.fma (float_of_int x) dx min.x;
+                  positions.(i + 1) <- Float.fma (float_of_int y) dy min.y;
+                  positions.(i + 2) <- Float.fma (float_of_int z) dz min.z
                 done
               done
           done;

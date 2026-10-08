@@ -72,29 +72,40 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
         | _ -> invalid_arg "Iso3.extract_sampled: sample count must match the point lattice")
    | _ -> ());
   let exception Non_finite_field in
+  let slabs_per_chunk = match evaluator with
+    | Sampled _ -> 1 + (grain - 1) / slab_cell_count
+    | _ -> z_cells in
+  let chunk_count = 1 + (z_cells - 1) / slabs_per_chunk in
+  let split_slabs = chunk_count >= 2 in
+  let iter_slabs body =
+    if split_slabs then Parallel.for_ ~chunk_size:1
+      ~start:0 ~finish:(chunk_count - 1) (fun chunk ->
+        let first = chunk * slabs_per_chunk in
+        body first (first + Int.min slabs_per_chunk (z_cells - first)))
+    else body 0 z_cells in
   let iter_plane body =
-    if plane_stride / grain < 2 then
+    if split_slabs || plane_stride / grain < 2 then
       for flat = 0 to plane_stride - 1 do body flat done
     else
       Parallel.for_ ~chunk_size:grain
         ~start:0 ~finish:(plane_stride - 1) body in
   let sample_values_into values z =
     Cancel.check_opt cancel;
-    let pz = min.z +. (float_of_int z *. z_step) in
+    let pz = Float.fma (float_of_int z) z_step min.z in
     (match evaluator with
      | Sampled samples -> Array.blit samples (z * plane_stride) values 0 plane_stride
      | Boxed field ->
          iter_plane (fun flat ->
            let x = flat mod x_points and y = flat / x_points in
            values.(flat) <- field (Vec3.create
-             (min.x +. (float_of_int x *. x_step))
-             (min.y +. (float_of_int y *. y_step)) pz))
+             (Float.fma (float_of_int x) x_step min.x)
+             (Float.fma (float_of_int y) y_step min.y) pz))
 
      | Dense (Gyroid scale) ->
          iter_plane (fun flat ->
            let xi = flat mod x_points and yi = flat / x_points in
-           let x = (min.x +. (float_of_int xi *. x_step)) *. scale
-           and y = (min.y +. (float_of_int yi *. y_step)) *. scale
+           let x = Float.fma (float_of_int xi) x_step min.x *. scale
+           and y = Float.fma (float_of_int yi) y_step min.y *. scale
            and z = pz *. scale in
            values.(flat) <-
              (sin x *. cos y) +. (sin y *. cos z) +. (sin z *. cos x))
@@ -102,8 +113,8 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
          iter_plane (fun flat ->
            let x = flat mod x_points and y = flat / x_points in
            let point = Domain.DLS.get sample_scratch in
-           point.(0) <- min.x +. (float_of_int x *. x_step);
-           point.(1) <- min.y +. (float_of_int y *. y_step);
+           point.(0) <- Float.fma (float_of_int x) x_step min.x;
+           point.(1) <- Float.fma (float_of_int y) y_step min.y;
            point.(2) <- pz;
            values.(flat) <- field point));
     let flat = ref 0 in
@@ -163,19 +174,20 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
             lor (b3 lsl 3) lor (b4 lsl 4) lor (b5 lsl 5)
             lor (b6 lsl 6) lor (b7 lsl 7))
     in
-    if slab_cell_count / grain < 2 then
+    if split_slabs || slab_cell_count / grain < 2 then
       for cell = 0 to slab_cell_count - 1 do count_cell cell done
     else
       Parallel.for_ ~chunk_size:grain ~start:0
         ~finish:(slab_cell_count - 1) count_cell
   in
   try
-    let slab_triangles = Array.make z_cells 0
-    and counts = Array.make slab_cell_count 0 in
+    let slab_triangles = Array.make z_cells 0 in
+    let count_range first last =
+    let counts = Array.make slab_cell_count 0 in
     let lower = ref (Array.make plane_stride 0.)
     and upper = ref (Array.make plane_stride 0.) in
-    sample_values_into !lower 0;
-    for z = 0 to z_cells - 1 do
+    sample_values_into !lower first;
+    for z = first to last - 1 do
       Cancel.check_opt cancel;
       sample_values_into !upper (z + 1);
       count_slab !lower !upper counts;
@@ -185,7 +197,8 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
       let previous = !lower in
       lower := !upper;
       upper := previous
-    done;
+    done in
+    iter_slabs count_range;
     let slab_offsets = Array.make (z_cells + 1) 0 in
     for z = 0 to z_cells - 1 do
       if slab_offsets.(z) > max_int - slab_triangles.(z) then
@@ -225,19 +238,23 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
               and next, _, _ = Option.get next in
               (next.(flat) -. previous.(flat)) /. (2. *. z_step))
         in
-        let lower = ref (create_plane 0) in
-        let upper = ref (create_plane 1) in
+        let emit_range first last =
+        let counts = Array.make slab_cell_count 0 in
+        let lower = ref (create_plane first) in
+        let upper = ref (create_plane (first + 1)) in
         let next = ref
-            (if z_cells > 1 then
-               Some (create_plane 2) else None) in
+            (if first + 2 <= z_cells then
+               Some (create_plane (first + 2)) else None) in
         let lower_z = ref (Array.make plane_stride 0.)
         and upper_z_buffer = ref (Array.make plane_stride 0.) in
-        fill_z_gradient !lower_z 0
-          (let values, _, _ = !lower in values) None (Some !upper);
+        (* A chunk seam retains the global central derivative, using its halo. *)
+        let previous = if first > 0 then Some (create_plane (first - 1)) else None in
+        fill_z_gradient !lower_z first
+          (let values, _, _ = !lower in values) previous (Some !upper);
         let local_offsets = Array.make (slab_cell_count + 1) 0 in
         let corner_x = [|0;1;1;0;0;1;1;0|]
         and corner_y = [|0;0;1;1;0;0;1;1|] in
-        for z = 0 to z_cells - 1 do
+        for z = first to last - 1 do
           Cancel.check_opt cancel;
           let lower_values, lower_gx, lower_gy = !lower
           and upper_values, upper_gx, upper_gy = !upper in
@@ -368,12 +385,12 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
               (slab_offsets.(z) + local_offsets.(cell + 1)) * 3)
             end
           in
-          if slab_cell_count / grain < 2 then
+          if split_slabs || slab_cell_count / grain < 2 then
             for cell = 0 to slab_cell_count - 1 do fill_cell cell done
           else
             Parallel.for_ ~chunk_size:grain ~start:0
               ~finish:(slab_cell_count - 1) fill_cell;
-          if z < z_cells - 1 then begin
+          if z < last - 1 then begin
             let spare_plane = !lower in
             lower := !upper;
             upper := Option.get !next;
@@ -386,7 +403,8 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
                 Some spare_plane
               end else None
           end
-        done;
+        done in
+        iter_slabs emit_range;
         let positions = Packed.Float3.Private.of_owned_exn
             ~x:vertices.x ~y:vertices.y ~z:vertices.z in
         let normals = Packed.Float3.Private.of_owned_exn

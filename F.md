@@ -115,12 +115,26 @@ saying what the table establishes and what it does not, the raw file paths.
 
 ## 1. Where the tree is
 
-**Current checkpoint (2026-10-08, `e36a0ac4`).** F1.1, F1.2, F1.4 and the F6 canvas-image
+**Committed milestone (2026-10-08, `e36a0ac4`).** F1.1, F1.2, F1.4 and the F6 canvas-image
 coercion are implemented and verified. The field SOP, selected-tuple probes,
 sampled extractor, empty-cell guard and cube-count lookup are implemented;
 F2.1 remains open because its eight-domain whole-cook median is 20.167 ms
 against the unchanged <10 ms gate. F1.3 and F2.2–F2.3 remain open. F2.4 and F4
 are conditional, and F3 requires the owner's request to move its numbers.
+**Current continuation (2026-10-09).** Packed Vec2/Vec4 groundwork is committed
+in `46984986`; `image/map` and resident-image consumers remain unimplemented.
+Deterministic sampled slab chunks now preserve complete geometry and seam
+normals, improving the eight-domain whole cook from 20.954 to 12.937 ms in
+their paired trial. The subsequent explicit-rounding checkpoint measures
+13.569 ms: the unchanged <10 ms gate remains open. Scalar `length` now matches
+primitive/packed multiply-add rounding on every off-centre asymmetric sample;
+SOP/RDK sampling coordinates explicitly use fused multiply-add. Corrected
+asymmetric benchmark samples match the dense hash. Astra says keep these
+changes and next measure grid/preparation/kernel/extraction within each cook.
+F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
+This checkpoint's focused checks and `--ship` passed (exit 0). Its full F5
+native/pixel validation is running on the confirmed M1; that result is pending.
+
 Earlier status paragraphs below are the implementation history; this
 checkpoint supersedes their temporary native-access and commit restrictions.
 The current Apple M1 host passed `@all @runtest`, the native aliases listed
@@ -648,6 +662,32 @@ fixture hashes and cardinalities. Eight-domain whole-cook median falls from
 not met. Gradient-phase attribution is complete with temporary instrumentation
 restored byte-for-byte; XY/Z medians are 1.444/1.090 ms of a 14.522 ms
 instrumented extraction. No gradient rewrite is approved or implemented.
+
+**Slab scheduling and exact rounding (2026-10-09).** Consecutive sampled slab
+chunks now own rotating planes and global derivative halos, with deterministic
+prefixes and disjoint output ranges. Smooth/flat nonlinear seam comparisons,
+tail chunks, malformed values, cancellation and source ownership pass at
+one/eight domains. Initial paired seven-trial M1 medians are sampled sphere
+16.889→6.873 ms and whole cook 20.954→12.937 ms at eight domains; whole-cook
+allocation increases about 9.65 MB and one-domain time increases 2.3%.
+Astra's review discovered compiler contraction hidden by the dyadic sphere:
+scalar `length` fused sum-of-squares, whereas packed primitives round each
+multiply/add separately. Opaque squared components now enforce the Lisp
+primitive contract; the new 100,230-sample off-centre regression fails before
+and passes after, against independently written multiply/add/sqrt Lisp at
+two times and domains 1/8. SOP/RDK sampling and the benchmark explicitly use
+`Float.fma index step min`; the SOP test checks every actual grid coordinate.
+The four original asymmetric sampled CSVs are preserved as a different-field
+diagnostic. Corrected comparable samples retain the dense asymmetric hash;
+one/eight medians change 9.788→10.661 / 12.850→8.227 ms. The corrected
+uninstrumented whole cook is 28.312 / 13.569 ms and retains the existing sphere
+hash. Focused Flow/IR/SOP/RDK/Procedural checks pass. Astra's verdict is
+“not met, try same-cook SOP phase attribution.” No additional algorithm is
+approved: instrument disjoint grid construction, complete `Kernel.prepare`,
+runner execution and complete extraction, buffering rows outside the cook
+and joining each phase to its own whole-cook trial. Seven isolated trials plus
+one warm-up at domains 1/8, and a same-slot uninstrumented comparison, are
+required; archive the patch and restore production files byte-for-byte.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value

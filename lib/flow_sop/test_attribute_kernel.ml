@@ -125,6 +125,45 @@ let () =
   print_endline "field SOP: complete grid kernel/reference/domain/mesh parity and graph gestures pass"
 
 let () =
+  (* Non-dyadic, off-centre samples expose accidental multiply/add contraction. *)
+  let positions = Array.init (130 * 257 * 3 * 3) (fun j ->
+    let i = j / 3 in
+    match j mod 3 with
+    | 0 -> Float.fma (float_of_int (i mod 130)) (5. /. 129.) (-2.)
+    | 1 -> Float.fma (float_of_int ((i / 130) mod 257)) (3.5 /. 256.) (-1.5)
+    | _ -> Float.fma (float_of_int (i / (130 * 257))) (2.7 /. 2.) (-1.)) in
+  let prepare expression =
+    let lowered = lower ("(workspace rounding (graph g :context sop
+      (sop/iso_surface :field (fn [p] " ^ expression ^ ") :resolution [129 256 2]
+        :min [-2 -1.5 -1] :max [3 2 1.7])))") in
+    let call = Array.find_opt (fun (n : E.node) -> n.kind = "sop/iso_surface")
+      lowered.plan.nodes |> Option.get in
+    let fn = match List.assoc "field" call.args with E.Fn fn -> fn | _ -> assert false in
+    let values = E.Private.map_function ~signature:Flow.Ty.{params = [Vec3]; result = Float}
+      fn [E.Vec3_array positions] |> flow_ok in
+    Flow_sop.Attribute_kernel.prepare ~sources:[] [] values |> flow_ok in
+  let derived = prepare "(- (length (- p [0.2 -0.3 0.1])) (+ 0.8 t))"
+  and primitives = prepare "(let* [q (- p [0.2 -0.3 0.1])]
+    (- (sqrt (+ (+ (* q.x q.x) (* q.y q.y)) (* q.z q.z))) (+ 0.8 t)))" in
+  let same_bits actual expected = match actual, expected with
+    | E.Float_array actual, E.Float_array expected ->
+        assert (Array.length actual = Array.length expected);
+        Array.iteri (fun i value ->
+          if Int64.bits_of_float value <> Int64.bits_of_float expected.(i) then
+            failwith (Printf.sprintf "field length rounding differs at sample %d: %.17g / %.17g"
+              i value expected.(i))) actual
+    | _ -> assert false in
+  List.iter (fun time ->
+    let live = Frame_input.at_time time in
+    let expected = Flow_ir.Executor.force ~reference:true primitives ~live |> flow_ok in
+    same_bits (Flow_ir.Executor.force ~reference:true derived ~live |> flow_ok) expected;
+    List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+      List.iter (fun program ->
+        same_bits (Flow_ir.Executor.force program ~live |> flow_ok) expected)
+        [derived; primitives])) [1;8]) [0.;0.25];
+  print_endline "field length: asymmetric lattice matches primitive/scalar/packed float64 bits"
+
+let () =
   let text = "(workspace probe (graph g :context sop
     (let* [field (fn [p] p.x)
            preview (map field (array/vec3 2 [1 0 0]))

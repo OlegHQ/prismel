@@ -28,31 +28,53 @@ let () =
   and domains = integer_env "RAYS_BENCH_DOMAINS" 1
   and repeats = integer_env "RAYS_BENCH_REPEATS" 7 in
   let mode = match Array.to_list Sys.argv with
-    | [_] -> "median" | [_; ("--raw" | "--sphere" | "--sampled-sphere" | "--asymmetric" as mode)] -> mode
-    | _ -> invalid_arg "bench_rdk_iso [--raw | --sphere | --sampled-sphere | --asymmetric]" in
+    | [_] -> "median"
+    | [_; ("--raw" | "--sphere" | "--sampled-sphere" | "--asymmetric"
+      | "--sampled-gyroid" | "--sampled-asymmetric" as mode)] -> mode
+    | _ -> invalid_arg "bench_rdk_iso [--raw | --sphere | --sampled-sphere | --asymmetric | --sampled-gyroid | --sampled-asymmetric]" in
   let sphere center radius = Iso_surface.Field.custom (fun p ->
     let x = p.(0) -. center.Vec3.x and y = p.(1) -. center.y and z = p.(2) -. center.z in
     sqrt ((x *. x +. y *. y) +. z *. z) -. radius) in
   let fixture, resolution, min, max, field = match mode with
     | "--sphere" | "--sampled-sphere" -> "sphere", (size,size,size), Vec3.create (-2.) (-2.) (-2.),
         Vec3.create 2. 2. 2., sphere Vec3.zero 1.
-    | "--asymmetric" -> "asymmetric", (129,256,2), Vec3.create (-2.) (-1.5) (-1.),
+    | "--asymmetric" | "--sampled-asymmetric" -> "asymmetric", (129,256,2), Vec3.create (-2.) (-1.5) (-1.),
         Vec3.create 3. 2. 1.7, sphere (Vec3.create 0.2 (-0.3) 0.1) 0.8
     | _ -> "gyroid", (size,size,size), Vec3.create (-3.) (-3.) (-3.),
         Vec3.create 3. 3. 3., Iso_surface.Field.gyroid ~scale:1.25 () in
-  let samples = if mode <> "--sampled-sphere" then [||] else
-    let n = size + 1 in
-    Array.init (n*n*n) (fun i ->
-      let coord index = -2. +. float_of_int index *. (4. /. float_of_int size) in
-      let x = coord (i mod n) and y = coord ((i / n) mod n) and z = coord (i / (n*n)) in
-      sqrt ((x *. x +. y *. y) +. z *. z) -. 1.) in
+  let sampled = String.starts_with ~prefix:"--sampled-" mode in
+  let samples = if not sampled then [||] else
+    let rx, ry, rz = resolution in
+    let nx = rx + 1 and ny = ry + 1 in
+    let sx = (max.x -. min.x) /. float rx
+    and sy = (max.y -. min.y) /. float ry
+    and sz = (max.z -. min.z) /. float rz in
+    Array.init (nx * ny * (rz + 1)) (fun i ->
+      let x = Float.fma (float (i mod nx)) sx min.x
+      and y = Float.fma (float ((i / nx) mod ny)) sy min.y
+      and z = Float.fma (float (i / (nx * ny))) sz min.z in
+      match mode with
+      | "--sampled-gyroid" ->
+          let x = x *. 1.25 and y = y *. 1.25 and z = z *. 1.25 in
+          (sin x *. cos y) +. (sin y *. cos z) +. (sin z *. cos x)
+      | "--sampled-asymmetric" ->
+          let x = x -. 0.2 and y = y -. (-0.3) and z = z -. 0.1 in
+          sqrt ((x *. x +. y *. y) +. z *. z) -. 0.8
+      | _ -> sqrt ((x *. x +. y *. y) +. z *. z) -. 1.) in
   let extract () = Parallel.run ~domains (fun () ->
-    (if mode = "--sampled-sphere" then
+    (if sampled then
        Iso_surface.extract_sampled ~resolution ~min ~max ~iso:0. ~samples ()
      else Iso_surface.extract_dense ~resolution ~min ~max ~iso:0. ~field ())
     |> function Ok value -> value
       | Error error -> failwith (Error.to_string error)) in
   let expected = extract () |> digest in
+  if sampled then begin
+    let dense = Parallel.run ~domains (fun () ->
+      Iso_surface.extract_dense ~resolution ~min ~max ~iso:0. ~field ())
+      |> function Ok geometry -> digest geometry
+        | Error error -> failwith (Error.to_string error) in
+    if expected <> dense then failwith "sampled/dense warm-up geometry differs"
+  end;
   let seconds = Array.make repeats 0.
   and allocated = Array.make repeats 0. in
   let rx, ry, rz = resolution in

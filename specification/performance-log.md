@@ -7857,3 +7857,142 @@ ranges, and owns rotating planes per active worker. Global halo samples must
 preserve central Z derivatives at internal chunk seams. Callback extractors
 retain their existing scheduling. This algorithm change is approved for a
 measured trial, but is not implemented in this checkpoint.
+
+## F2.1 field kernel — deterministic sampled slab chunks (2026-10-09)
+
+Confirmed Macmini9,1, Apple M1, eight logical CPUs, OCaml 5.3.0, Dune dev
+profile, grain 16,384. Each file has seven isolated trials after one excluded
+warm-up; no builds, tests or other benchmarks ran concurrently. Whole cooks
+use zero-capacity sessions and include grid construction, preparation, field
+execution, validation, extraction and geometry materialization. Saved before
+executables contain the extractor from `46984986`:
+`/private/tmp/f-iso-slabs-before.exe` and
+`/private/tmp/f-workspace-slabs-before.exe`.
+
+Sampled extraction now partitions consecutive Z slabs into deterministic
+chunks containing at least one grain of cells. Every chunk owns counting and
+rotating emission scratch; global slab prefixes determine disjoint output
+ranges and unchanged output order. Global previous/next halo planes retain
+the original central derivatives at chunk seams. The partition is identical
+at one/eight domains. Callback extractors retain their existing scheduling.
+
+Repeat the following at domains 1 and 8, using saved executables for before
+and rebuilt executables for after; redirect each command to its matching raw
+file. GC policy is unchanged.
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sampled-sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_workspace_lower.exe --fields
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sampled-gyroid
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --raw
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_rdk_iso.exe --asymmetric
+```
+
+| Fixture | Domains | Before median ms | After median ms | Before allocated bytes | After allocated bytes |
+|---|---:|---:|---:|---:|---:|
+| Sampled sphere | 1 | 16.000 | 16.388 | 22563024 | 32194008 |
+| Sampled sphere | 8 | 16.889 | 6.873 | 22563256 | 32218192 |
+| Whole cook | 1 | 26.424 | 27.030 | 46271440 | 55902424 |
+| Whole cook | 8 | 20.954 | 12.937 | 46285640 | 55938640 |
+| Sampled gyroid | 1 | 31.154 | 31.020 | 105282768 | 114913752 |
+| Sampled gyroid | 8 | 34.515 | 21.538 | 105283000 | 114938488 |
+| Dense sphere | 1 | 22.188 | 20.336 | 31363488 | 31393656 |
+| Dense sphere | 8 | 23.420 | 21.517 | 31363720 | 31393888 |
+| Dense gyroid | 1 | 45.843 | 41.870 | 105295232 | 105325400 |
+| Dense gyroid | 8 | 46.943 | 44.757 | 105295464 | 105325632 |
+| Dense asymmetric | 1 | 13.123 | 11.876 | 49654320 | 49918888 |
+| Dense asymmetric | 8 | 12.972 | 14.452 | 49701248 | 49968224 |
+
+Raw: `specification/performance/f-field-slabs-{marcher,cook,sampled-gyroid,dense,gyroid,asymmetric}-{before,after}-{1,8}.csv`.
+All trial/domain/before/after complete hashes and cardinalities match within
+each fixture: sampled/dense sphere `2d4641814f8cf4ce991726eb3af5c030`, whole
+cook `8a9c2d382ab7564328783e84a132cef1`, sampled/dense gyroid
+`0bc0e77f0591fa47988639b877f4c600`, dense asymmetric
+`4b19f871788ea3bd06f717eb75e68faf`. The nonlinear seam regression compares
+complete geometry, smooth/flat normals and ordering against the unchanged
+dense oracle at grains 35, 70, 315 and max_int, one/eight domains; it also
+checks nonfinite samples, cancellation and unchanged input storage.
+
+Astra's verdict: “not met, try explicit floating-point parity correction
+before further optimization.” Keep slab scheduling: sampled extraction
+improves 59.3% and whole cook 38.3% at eight domains. Whole-cook allocation
+increases about 9.65 MB and one-domain time increases 2.3%; those costs are
+recorded rather than hidden. The dense asymmetric eight-domain control
+regresses 11.4% in this matrix. The unchanged strict <10 ms whole-cook gate
+remains unmet.
+
+The initial independently sampled asymmetric fixture has a different field:
+its lattice arithmetic compiled to separate multiply/add, while RDK compiled
+to ARM64 fused multiply-add. Its four original
+`f-field-slabs-sampled-asymmetric-{before,after}-{1,8}.csv` files are preserved
+as diagnostic evidence, with hash `e94785096d7eaa35e4adbd8b784b9c0b` and
+167,352 points/vertices, 55,784 triangles. Their before/after/domain identity
+is valid, but they do not establish parity with the dense asymmetric field.
+Corrected comparable rows are recorded separately below.
+
+## F2.1 field kernel — explicit rounding parity (2026-10-09)
+
+Same confirmed M1/dev-profile/OCaml 5.3.0/grain 16,384 protocol, seven isolated
+trials after one excluded warm-up at each domain count. The original
+asymmetric sampled rows remain unchanged. The corrected benchmark explicitly
+uses fused multiply-add for lattice coordinates and asserts complete
+sampled/dense geometry hash equality during untimed warm-up. Its before
+executable was rebuilt with the extractor from `46984986` and the corrected
+benchmark; production source was restored byte-for-byte after that build.
+
+The separate production defect is corrected in scalar `length`: opaque
+squared components prevent compiler contraction, matching the existing packed
+Mul/Add/Sqrt sequence. A new 100,230-sample asymmetric off-centre comparison
+against independent Lisp multiply/add/sqrt fails before at sample 0
+(`1.9367864366808016` versus `1.9367864366808021`), then passes every float64
+bit at t=0/0.25 in reference and packed execution, domains 1/8. Existing
+overflow, underflow and untaken-branch checks stay green. SOP and RDK sampling
+now spell their existing native fused-coordinate rule explicitly with
+`Float.fma`; a separate integration check inspects every coordinate actually
+supplied by the SOP at one/eight domains. Interpolation and emitted-position
+arithmetic are unchanged. The rounding contract is documented in Flow.
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-iso-rounding-before.exe --sampled-asymmetric
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-iso-rounding-after.exe --sampled-asymmetric
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-rounding-after.exe --fields
+```
+
+Repeat at domains 1; redirect to the six corresponding raw files:
+`specification/performance/f-field-rounding-sampled-asymmetric-{before,after}-{1,8}.csv`
+and `specification/performance/f-field-rounding-cook-after-{1,8}.csv`.
+
+| Fixture | Domains | Before median ms | After median ms | Before allocated bytes | After allocated bytes |
+|---|---:|---:|---:|---:|---:|
+| Corrected sampled asymmetric | 1 | 9.788 | 10.661 | 46446304 | 50978832 |
+| Corrected sampled asymmetric | 8 | 12.850 | 8.227 | 46481904 | 50982280 |
+| Current whole cook | 1 | — | 28.312 | — | 55902424 |
+| Current whole cook | 8 | — | 13.569 | — | 55939960 |
+
+Every corrected asymmetric trial has dense hash
+`4b19f871788ea3bd06f717eb75e68faf`, 167,352 points/vertices and 55,784 triangles.
+Whole-cook rows retain `8a9c2d382ab7564328783e84a132cef1`, 85,680 points/vertices
+and 28,560 triangles. Corrected asymmetric eight-domain extraction improves
+36.0%; one-domain time increases 8.9% and allocation about 4.5 MB. Current
+whole-cook rows are fresh measurements, not a paired performance claim for
+the rounding correction.
+
+Astra's verdict: “not met, try same-cook SOP phase attribution.” Keep the
+rounding corrections and slab scheduling. The strict uninstrumented
+eight-domain whole-cook <10.000 ms gate remains unmet. Next approved diagnostic:
+four disjoint intervals for grid allocation/filling, complete Kernel.prepare,
+runner invocation and complete extraction including final geometry. Coarse
+wall/aggregate-GC snapshots only, buffered output outside the cook, trial IDs
+joining each phase to its own whole row. Seven trials plus warm-up at both
+domain counts, with an isolated uninstrumented comparison; archive the patch
+and restore production files byte-for-byte. Independent median subtraction
+does not establish where the remaining cost lies. No further algorithm is
+approved at this checkpoint.
+
+Validation: focused `@check`, Flow, Flow IR, Flow SOP, RDK generator and
+Procedural tests pass (exit 0). `_build/default/tools/check.exe --ship` passes
+(exit 0), including dependency/API gates and the 37-standard-file,
+two-custom-catalog, 13-fixture workspace sweep at four times and domains 1/8.
+The full F5 native/pixel suite is running on the confirmed M1; its result is
+pending and is not claimed as a pass by this checkpoint.

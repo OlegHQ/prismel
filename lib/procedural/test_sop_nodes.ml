@@ -102,6 +102,27 @@ let run () =
     ~catalog:(from_factory Nodes.Iso_surface.factory
       ["resolution_x", Parameter.Float_value 8.; "resolution_y", Float_value 9.;
        "resolution_z", Float_value 7.] [field]);
+  let checked_lattice = Node.Private.make ~operation:"test.field-lattice" ~version:1 ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs:[||]
+      (fun ~node_id:_ _ _ ->
+        let kernel = Kernel.create ~payload_bytes:0 (function
+          | [Kernel.Vec3s positions] ->
+              assert (Array.length positions = 3 * 130 * 257 * 3);
+              Array.iteri (fun j coordinate ->
+                let i = j / 3 in
+                let expected = match j mod 3 with
+                  | 0 -> Float.fma (float_of_int (i mod 130)) (5. /. 129.) (-2.)
+                  | 1 -> Float.fma (float_of_int ((i / 130) mod 257)) (3.5 /. 256.) (-1.5)
+                  | _ -> Float.fma (float_of_int (i / (130 * 257))) (2.7 /. 2.) (-1.) in
+                assert (Int64.bits_of_float coordinate = Int64.bits_of_float expected)) positions;
+              Ok (fun _ -> Ok (Kernel.Floats
+                (Array.init (Array.length positions / 3) (fun i -> positions.(3*i)))))
+          | _ -> assert false) in
+        Ok Node.Private.{payload = Payload.Kernel kernel; diagnostics = []; instances = None}) in
+  let asymmetric = Sop.iso_surface ~field:checked_lattice ~resolution:(Vec3.create 129. 256. 2.)
+      ~min:(Vec3.create (-2.) (-1.5) (-1.)) ~max:(Vec3.create 3. 2. 1.7) () in
+  check (geometry_bytes (cook 1 asymmetric) = geometry_bytes (cook 8 asymmetric))
+    "iso_surface: actual asymmetric SOP lattice uses fused coordinates at one/eight domains";
   let facts = Node.facts (Sop.iso_surface ~resolution ~field ()) in
   check (facts.elementwise = Node.None && facts.topology = Changed && facts.exact)
     "iso_surface: irregular, topology-changing, exact";

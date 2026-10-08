@@ -1,9 +1,13 @@
 (** Streaming deterministic isosurface extraction into packed RDK geometry.
     O(lattice cells + emitted vertices) time; O(x*y + z + emitted vertices)
-    auxiliary storage, excluding the caller's sampled volume. Sampling and cell
+    auxiliary storage for callback fields, excluding the caller's sampled
+    volume. Sampled extraction owns O(workers*x*y + z + emitted vertices)
+    scratch with rotating planes per active worker. Sampling and cell
     work use the shared Parallel pool, with stable disjoint ranges and exact
     one-domain/multi-domain ordering. Grain defaults to 16,384; fewer than two
-    chunks per plane/slab stay sequential. Cancellation is checked per plane
+    chunks per plane/slab stay sequential for callbacks. Sampled volumes use
+    stable consecutive slab chunks containing at least one grain of cells;
+    fewer than two chunks retain plane/slab scheduling. Cancellation is checked per plane
     and slab; invalid parameters, nonfinite samples and cancellation are typed
     errors. *)
 
@@ -41,7 +45,7 @@ val extract_sampled : ?cancel:Cancel.t -> ?grain:int -> ?smooth:bool ->
 (** Resolutions count cells. [samples] contains exactly
     [(rx + 1) * (ry + 1) * (rz + 1)] finite values, x fastest, then y, then z:
     [samples.(x + (rx + 1) * (y + (ry + 1) * z))]. Lattice coordinates are
-    [min + float_of_int index * ((max - min) / float_of_int cells)].
+    [Float.fma (float_of_int index) ((max - min) / float_of_int cells) min].
     The array is borrowed read-only for this call and is never retained.
     Marching, normals and output order are shared with [extract_dense]. *)
 
