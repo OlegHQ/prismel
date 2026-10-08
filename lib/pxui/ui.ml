@@ -396,7 +396,7 @@ let reserve atlas width height =
 let glyph atlas font ~id ~density code =
   let key = ((id * 32 + density) lsl 21) lor code in
   match Int_table.find_opt atlas.glyphs key with
-  | Some glyph -> Some glyph
+  | Some _ as found -> found
   | None ->
       match Font.Private.glyph ~density font code with
       | Error _ -> None
