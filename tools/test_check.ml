@@ -40,13 +40,13 @@ let () =
         let two = launch [] in
         success one; success two;
         let lines () = In_channel.with_open_text log In_channel.input_lines in
-        assert (lines () = ["dune start build @runtest"; "dune end build @runtest";
-          "dune start build @runtest"; "dune end build @runtest"]);
+        assert (lines () = ["dune start build --root . @runtest"; "dune end build --root . @runtest";
+          "dune start build --root . @runtest"; "dune end build --root . @runtest"]);
         let failure = launch ["@check"; "--fail"] in
         assert (snd (Unix.waitpid [] failure) = Unix.WEXITED 23);
         success (launch ["--ship"]);
         assert (List.rev (lines ()) |> List.take 4
           = ["git end diff --check"; "git start diff --check";
-             "dune end build @all @runtest @smoke";
-             "dune start build @all @runtest @smoke"]);
+             "dune end build --root . @all @runtest @smoke";
+             "dune start build --root . @all @runtest @smoke"]);
         print_endline "check: concurrent requests queue; arguments and failures propagate; shipping checks run")
