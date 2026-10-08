@@ -123,17 +123,23 @@ against the unchanged <10 ms gate. F1.3 and F2.2–F2.3 remain open. F2.4 and F4
 are conditional, and F3 requires the owner's request to move its numbers.
 **Current continuation (2026-10-09).** Packed Vec2/Vec4 groundwork is committed
 in `46984986`; `image/map` and resident-image consumers remain unimplemented.
-Deterministic sampled slab chunks now preserve complete geometry and seam
+Deterministic sampled slab chunks (`8f1f4789`) now preserve complete geometry and seam
 normals, improving the eight-domain whole cook from 20.954 to 12.937 ms in
 their paired trial. The subsequent explicit-rounding checkpoint measures
 13.569 ms: the unchanged <10 ms gate remains open. Scalar `length` now matches
 primitive/packed multiply-add rounding on every off-centre asymmetric sample;
 SOP/RDK sampling coordinates explicitly use fused multiply-add. Corrected
 asymmetric benchmark samples match the dense hash. Astra says keep these
-changes and next measure grid/preparation/kernel/extraction within each cook.
+changes. Same-cook time-only attribution now measures about 1.55/2.58/2.23/5.68 ms
+for grid/preparation/kernel/extraction at eight domains, with an uninstrumented
+whole-cook median of 11.755 ms. GC snapshots inside the first diagnostic caused
+large pauses; that intrusive evidence is kept separately. Both temporary patches
+are archived and production source restored byte-for-byte. Astra next approves
+an indexed finite-value check at the shared packed-array validation boundary;
+the allocation regression and measured trial remain to be implemented.
 F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
-This checkpoint's focused checks and `--ship` passed (exit 0). Its full F5
-native/pixel validation is running on the confirmed M1; that result is pending.
+This checkpoint's focused checks, `--ship` and full F5 native/pixel validation
+passed (exit 0) on the confirmed M1, including the 37-file pixel sweep.
 
 Earlier status paragraphs below are the implementation history; this
 checkpoint supersedes their temporary native-access and commit restrictions.
@@ -688,6 +694,26 @@ runner execution and complete extraction, buffering rows outside the cook
 and joining each phase to its own whole-cook trial. Seven isolated trials plus
 one warm-up at domains 1/8, and a same-slot uninstrumented comparison, are
 required; archive the patch and restore production files byte-for-byte.
+
+**Same-cook attribution (2026-10-09).** The first four-phase diagnostic's
+in-cook GC snapshots perturb whole cooking (40.884/50.928 ms), so those totals
+cannot select an optimization. Raw allocation evidence is retained separately.
+Astra's verdict is “not met, try time-only SOP phase attribution.” That revision
+is measured and archived too: seven trials plus warm-up at domains 1/8,
+uninstrumented medians 27.619/11.755 ms, instrumented 28.467/12.085 ms.
+Joined per-trial whole-minus-phase time is only 0.013–0.047 ms. Eight-domain
+phase medians are grid 1.555, preparation 2.585, kernel 2.235, extraction
+5.677 ms. Every hash/cardinality is unchanged and both temporary sources are
+restored byte-for-byte; field/lattice focused checks pass.
+Astra's next verdict is “not met, try allocation-free packed-input validation.”
+Replace the shared Value.validate packed-array callback with an indexed
+finite check, preserving width validation first and the exact fin diagnostic
+on failure. A large finite Vec3 validation allocation regression (<4 KB
+increase over a small array), complete malformed/nonfinite/source checks,
+saved-before seven-trial whole-cook matrix at domains 1/8 and paired time-only
+preparation attribution at eight domains are required. No bridge bypass,
+cache or scheduling change is approved. This trial remains pending; the
+strict eight-domain whole-cook <10 ms gate remains open.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value

@@ -7994,5 +7994,130 @@ Validation: focused `@check`, Flow, Flow IR, Flow SOP, RDK generator and
 Procedural tests pass (exit 0). `_build/default/tools/check.exe --ship` passes
 (exit 0), including dependency/API gates and the 37-standard-file,
 two-custom-catalog, 13-fixture workspace sweep at four times and domains 1/8.
-The full F5 native/pixel suite is running on the confirmed M1; its result is
-pending and is not claimed as a pass by this checkpoint.
+The full F5 native/pixel suite subsequently passed (exit 0) on the confirmed
+M1, qualifying `8f1f4789`: all three workspace pixel aliases, GPU numerics,
+shape-batch/Scene3/canvas checks, editor native checks, gallery float32 parity,
+runtime native qualification and UI parity. The workspace sweep verifies
+native geometry/image/texture/drawing pixels at four times and domains 1/8.
+No golden, tolerance or gate was relaxed.
+
+## F2.1 field kernel — same-cook intrusive GC attribution (2026-10-09)
+
+Confirmed Apple M1/Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev
+profile, grain 16,384. Seven isolated trials plus an excluded warm-up at
+domains 1/8. Each cook uses a fresh zero-capacity session; parsing, checking
+and lowering stay outside it. Temporary instrumentation wraps four disjoint
+SOP intervals: packed grid allocation/filling, complete Kernel.prepare,
+complete runner invocation and complete sampled extraction/geometry creation.
+GC snapshots surround each interval, outside its timer. Rows are buffered and
+printed at exit; warm-up has ID -1 and timed phases join to whole-cook IDs 0–6.
+The source is restored byte-for-byte after profiling. Reproduction patch:
+`specification/performance/f-field-sop-instrumentation.patch`.
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-sop-before.exe --fields > specification/performance/f-field-sop-before-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-sop-profile.exe --fields > specification/performance/f-field-sop-extract-8.csv 2> specification/performance/f-field-sop-phase-8.csv
+```
+
+Repeat at domains 1. No builds, tests or other benchmarks run during these
+commands. Existing benchmark GC/warm-up policy is unchanged. Every whole row
+retains `8a9c2d382ab7564328783e84a132cef1`, 85,680 points/vertices and 28,560
+triangles; each process produces 32 phase rows, four warm-up rows excluded.
+
+| Interval | Domains | Median ms | Median allocated bytes |
+|---|---:|---:|---:|
+| Uninstrumented whole cook | 1 | 27.587 | 55902424 |
+| Instrumented whole cook | 1 | 40.884 | 55904888 |
+| Grid | 1 | 1.569 | 6591224 |
+| Prepare | 1 | 2.075 | 13201520 |
+| Kernel | 1 | 6.884 | 3910088 |
+| Extract | 1 | 16.250 | 32193936 |
+| Uninstrumented whole cook | 8 | 11.136 | 55938336 |
+| Instrumented whole cook | 8 | 50.928 | 55940856 |
+| Grid | 8 | 1.447 | 6591224 |
+| Prepare | 8 | 2.465 | 13201520 |
+| Kernel | 8 | 2.183 | 3923352 |
+| Extract | 8 | 4.773 | 32216272 |
+
+Intrusive profiling creates substantial pauses outside phase timers. Joining
+each whole row to its own four phase rows leaves 13.976–14.230 ms at one
+domain and 34.403–152.314 ms at eight domains. All outliers are retained.
+These instrumented totals cannot identify expensive session work or choose
+the next optimization. Allocation evidence is retained separately as coarse
+intrusive profiling; snapshots and reporting allocations add overhead inside
+the whole cook. The valid uninstrumented eight-domain median is 11.136 ms,
+still above the strict <10 ms gate. Astra's verdict: “not met, try time-only
+SOP phase attribution.” Remove all in-cook GC snapshots, keep timestamps,
+buffered output and trial IDs, and repeat the paired protocol. Production
+algorithms remain unchanged; restored typecheck and field/lattice tests pass.
+
+## F2.1 field kernel — time-only same-cook attribution (2026-10-09)
+
+Same confirmed M1/dev/OCaml/grain/session/warm-up protocol. The revised
+temporary patch `specification/performance/f-field-sop-time-instrumentation.patch`
+keeps the four intervals and deferred rows, with no GC snapshots inside the
+cook. Only the existing benchmark captures whole-cook GC counters outside its
+timer. Raw timestamps remain joined by domain/trial; ID -1 is excluded.
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-sop-before.exe --fields > specification/performance/f-field-sop-time-before-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-sop-time-profile.exe --fields > specification/performance/f-field-sop-time-extract-8.csv 2> specification/performance/f-field-sop-time-phase-8.csv
+```
+
+Repeat at domains 1; seven isolated trials each, no concurrent builds/tests/
+benchmarks. Every whole hash/cardinality remains exact and every phase CSV
+has 32 rows including the four excluded warm-up rows.
+
+| Interval | Domains | Median ms | Median whole-cook allocated bytes |
+|---|---:|---:|---:|
+| Uninstrumented whole cook | 1 | 27.619 | 55902424 |
+| Instrumented whole cook | 1 | 28.467 | 55903064 |
+| Grid | 1 | 1.551 | — |
+| Prepare | 1 | 2.083 | — |
+| Kernel | 1 | 6.990 | — |
+| Extract | 1 | 17.832 | — |
+| Uninstrumented whole cook | 8 | 11.755 | 55938528 |
+| Instrumented whole cook | 8 | 12.085 | 55940120 |
+| Grid | 8 | 1.555 | — |
+| Prepare | 8 | 2.585 | — |
+| Kernel | 8 | 2.235 | — |
+| Extract | 8 | 5.677 | — |
+
+Actual paired trial totals, rather than subtraction of independent medians:
+
+| Domains | Trial | Whole ms | Sum of its four phases ms | Outside phases ms |
+|---|---:|---:|---:|---:|
+| 1 | 0 | 29.201984 | 29.185057 | 0.016927 |
+| 1 | 1 | 29.408932 | 29.393912 | 0.015020 |
+| 1 | 2 | 28.947115 | 28.934001 | 0.013114 |
+| 1 | 3 | 28.467178 | 28.452873 | 0.014305 |
+| 1 | 4 | 28.312922 | 28.300047 | 0.012875 |
+| 1 | 5 | 28.259993 | 28.245211 | 0.014782 |
+| 1 | 6 | 28.270960 | 28.256893 | 0.014067 |
+| 8 | 0 | 12.673140 | 12.650013 | 0.023127 |
+| 8 | 1 | 11.703968 | 11.682987 | 0.020981 |
+| 8 | 2 | 12.084961 | 12.063980 | 0.020981 |
+| 8 | 3 | 11.903048 | 11.883020 | 0.020028 |
+| 8 | 4 | 13.472795 | 13.454199 | 0.018596 |
+| 8 | 5 | 11.610031 | 11.563064 | 0.046967 |
+| 8 | 6 | 16.283989 | 16.263962 | 0.020027 |
+
+Removing snapshots removes the previous large outside-phase pauses. This is
+phase attribution, not a performance change or gate success: the valid
+uninstrumented eight-domain median remains 11.755 ms. Preparation and grid
+construction are measurable costs alongside kernel execution and extraction.
+Raw timing/whole/allocation evidence is retained without truncating outliers.
+Production source is restored byte-for-byte; no instrumentation ships.
+
+Astra's verdict: “not met, try allocation-free packed-input validation.”
+Preparation's intrusive allocation evidence (13,201,520 bytes) is consistent
+with 823,875 coordinate boxes at 16 bytes each (13,182,000 bytes). The approved
+trial replaces only Value.validate's packed-array callback with an indexed
+finite check, retaining width validation and the existing exact error path.
+Add a preconstructed small/large finite Vec3 validation allocation regression
+with <4 KB growth, source-byte identity and malformed/nonfinite/final-element
+checks. Save the current uninstrumented benchmark; collect seven isolated
+whole cooks at domains 1/8 before/after, plus the same time-only attribution
+at eight domains. No bypass, cache or scheduling change is approved. The
+strict gate remains uninstrumented whole-cook median <10.000 ms, subject to
+exactness and Astra's final raw-number verdict.
