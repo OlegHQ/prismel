@@ -109,7 +109,7 @@ let run () =
       node ~run:rendezvous "barrier_b" geometry|] "barrier_join" geometry));
   Session.close parallel;
 
-  let broken label=Node.Private.make ~label ~operation:"broken" ~version:1
+  let broken label=Node.Private.make_geometry ~label ~operation:"broken" ~version:1
     ~parameters:label ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _ _ -> Error(Diagnostic.error ~code:label label)) in
   let errors=node ~inputs:[|broken "first";broken "second"|] "errors" geometry in
@@ -134,7 +134,7 @@ let run () =
   Session.close cancelled_session;
 
   let cancel=Context.Cancel.create () and entered=Atomic.make false in
-  let first=Node.Private.make ~operation:"first_error" ~version:1 ~parameters:""
+  let first=Node.Private.make_geometry ~operation:"first_error" ~version:1 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static ~inputs:[||]
       (fun ~node_id:_ _ _ -> Atomic.set entered true;
         Error(Diagnostic.error ~code:"first_error" "first error")) in
@@ -165,12 +165,12 @@ let run () =
   check (counters one=counters eight) "two-chain cache accounting differs";
   Session.close one;Session.close eight;
 
-  let packed=Node.Private.make ~operation:"packed_source" ~version:1 ~parameters:""
+  let packed=Node.Private.make_geometry ~operation:"packed_source" ~version:1 ~parameters:""
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static ~inputs:[||]
     (fun ~node_id:_ _ _ -> Ok Node.Private.{geometry;diagnostics=[];
       instances=Some[|Rays_math.Mat4.identity;
         Rays_math.Mat4.translation(Rays_math.Vec3.create 2. 0. 0.)|]}) in
-  let consume label=Node.Private.make ~label ~operation:"consume_packed" ~version:1
+  let consume label=Node.Private.make_geometry ~label ~operation:"consume_packed" ~version:1
     ~parameters:label ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~inputs:[|packed|] (fun ~node_id:_ _ inputs ->
       Ok Node.Private.{geometry=inputs.(0);diagnostics=[];instances=None}) in
