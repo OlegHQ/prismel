@@ -136,7 +136,11 @@ whole-cook median of 11.755 ms. GC snapshots inside the first diagnostic caused
 large pauses; that intrusive evidence is kept separately. Both temporary patches
 are archived and production source restored byte-for-byte. Astra next approves
 an indexed finite-value check at the shared packed-array validation boundary;
-the allocation regression and measured trial remain to be implemented.
+the indexed validation trial is now implemented and measured: eight-domain
+whole cook 12.350→11.300 ms, one-domain time flat, allocation reduced by
+13.18 MB. The strict <10 ms gate remains open. Astra next approves only
+deterministic row chunks for SOP grid filling through the shared pool;
+that scheduling trial is pending.
 F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
 This checkpoint's focused checks, `--ship` and full F5 native/pixel validation
 passed (exit 0) on the confirmed M1, including the 37-file pixel sweep.
@@ -712,8 +716,30 @@ on failure. A large finite Vec3 validation allocation regression (<4 KB
 increase over a small array), complete malformed/nonfinite/source checks,
 saved-before seven-trial whole-cook matrix at domains 1/8 and paired time-only
 preparation attribution at eight domains are required. No bridge bypass,
-cache or scheduling change is approved. This trial remains pending; the
-strict eight-domain whole-cook <10 ms gate remains open.
+cache or scheduling change is approved for that validation trial.
+
+**Indexed validation (2026-10-09).** The shared packed branch now checks
+finite values by index, preserving width-first validation and the exact
+failure diagnostic. The allocation regression fails before with 786,384 bytes
+and passes after; large Float/Vec2/Vec3/Vec4 storage stays byte-identical and
+every-coordinate NaN/±infinity, final-coordinate and malformed-width error
+checks pass. Focused Flow/IR/SOP/Procedural checks pass. Seven isolated
+uninstrumented M1 trials preserve all hashes/cardinalities; medians change
+27.556→27.564 ms at one domain and 12.350→11.300 ms at eight, with exactly
+13,182,000 fewer allocated bytes at one domain. Same-cook time-only
+preparation falls 2.569→1.859 ms at eight domains. No instrumentation ships.
+Astra says keep validation; its verdict is “not met, try deterministic row
+chunks for SOP grid filling through the shared Parallel pool.” The next
+approved trial chunks complete rows by `1 + (grain-1)/nx`, decodes y/z once
+per row, retains the existing three explicit FMA expressions and stable
+x-fast disjoint output, and uses the shared pool only at the existing
+two-grain cutoff. Cancellation state is chunk-local and checked again after
+joining. No grid work moves outside timed cooking. Non-dyadic `(7,5,9)`
+actual-coordinate/geometry checks at grains 97, 240 and max_int plus
+precancellation must pass; save-before seven-trial one/eight whole cooks
+and paired eight-domain time-only attribution are required. That trial is
+pending; the strict eight-domain whole-cook <10 ms gate remains open.
+The validation checkpoint passes `--ship` and native GPU numerics (exit 0).
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value

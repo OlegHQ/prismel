@@ -6,6 +6,42 @@ let check ?(context = "value") body =
   | _, ds -> failwith (String.concat "; " (List.map Diagnostic.to_string ds))
 let value ?context body = List.assoc "g" (Result.get_ok (Eval.run ~time:0. (check ?context body))).results
 let () =
+  let rejects packed code message =
+    let before = Marshal.to_string packed [Marshal.No_sharing] in
+    (try Value.validate packed; failwith "invalid packed input accepted"
+     with Value.Fail (actual_code, actual_message, span) ->
+       assert (actual_code = code && actual_message = message && span = None));
+    assert (Marshal.to_string packed [Marshal.No_sharing] = before) in
+  List.iter (fun (width, wrap) ->
+    let values = Array.init (width * 16384) (fun i -> if i mod 2 = 0 then -0. else float i *. 0.125) in
+    let before = Marshal.to_string values [Marshal.No_sharing] in
+    Value.validate (wrap values);
+    assert (Marshal.to_string values [Marshal.No_sharing] = before);
+    List.iter (fun invalid ->
+      let values = Array.make (3 * width) 0.25 in
+      (* Every coordinate, including the final one, must be checked. *)
+      for i = 0 to Array.length values - 1 do
+        values.(i) <- invalid;
+        rejects (wrap values) "E_NONFINITE" "array input produced a nonfinite value.";
+        values.(i) <- 0.25
+      done) [nan; infinity; neg_infinity])
+    [1, (fun xs -> Value.Float_array xs); 2, (fun xs -> Value.Vec2_array xs);
+     3, (fun xs -> Value.Vec3_array xs); 4, (fun xs -> Value.Vec4_array xs)];
+  List.iter (fun (packed, message) -> rejects packed "E_ARRAY_TYPE" message)
+    [Value.Vec2_array [|nan|], "Packed vec2 storage has two coordinates per element.";
+     Value.Vec3_array [|infinity;0.|], "Packed vec3 storage has three coordinates per element.";
+     Value.Vec4_array [|neg_infinity;0.;0.|], "Packed vec4 storage has four coordinates per element."];
+  let small = Value.Vec3_array (Array.make 3 0.25)
+  and large = Value.Vec3_array (Array.make (3 * 16384) 0.25) in
+  let allocation packed =
+    let before = Gc.allocated_bytes () in
+    Value.validate packed;
+    Gc.allocated_bytes () -. before in
+  let growth = allocation large -. allocation small in
+  if growth >= 4096. then
+    failwith (Printf.sprintf "packed validation allocation grows with input: %.0f bytes" growth)
+
+let () =
   List.iter (fun (ty, value, count) ->
     let packed = Value.array_init ty count (fun _ -> value) in
     assert (Value.ty_of packed = Ty.Array ty);

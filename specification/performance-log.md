@@ -8121,3 +8121,79 @@ whole cooks at domains 1/8 before/after, plus the same time-only attribution
 at eight domains. No bypass, cache or scheduling change is approved. The
 strict gate remains uninstrumented whole-cook median <10.000 ms, subject to
 exactness and Astra's final raw-number verdict.
+
+## F2.1 field kernel — indexed packed-input validation (2026-10-09)
+
+Only the shared packed-array branch of Flow.Value.validate changes: validate
+width first, inspect each stored coordinate with an indexed finite check,
+and call the original `fin "array input"` only on failure. No bridge bypass,
+cache, numerical arithmetic or scheduling change. The regression constructs
+all inputs before measuring: small versus 49,152-coordinate finite Vec3
+validation must increase allocation by <4 KB. It fails before with 786,384
+bytes and passes after. Large Float/Vec2/Vec3/Vec4 inputs retain identical
+bytes; NaN and both infinities at every coordinate, including the final one,
+retain exact diagnostics. Malformed width still precedes nonfinite failure.
+Focused Flow/IR/SOP/Procedural checks pass after the production-source restore.
+
+Confirmed M1/Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev profile,
+grain 16,384, seven isolated trials after one excluded warm-up, fresh
+zero-capacity sessions, existing GC policy. Before executables contain the
+callback validator; after executables contain the indexed validator. Timed
+whole cooks include grid/preparation/kernel/extraction/geometry. No builds,
+tests or other benchmarks run concurrently. Repeat at domains 1 and 8:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-validate-before.exe --fields > specification/performance/f-field-validate-cook-before-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-validate-after.exe --fields > specification/performance/f-field-validate-cook-after-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-sop-time-profile.exe --fields > specification/performance/f-field-validate-time-extract-before-8.csv 2> specification/performance/f-field-validate-time-phase-before-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-validate-time-profile.exe --fields > specification/performance/f-field-validate-time-extract-after-8.csv 2> specification/performance/f-field-validate-time-phase-after-8.csv
+```
+
+The phase runs use the archived time-only patch, no in-cook GC snapshots,
+deferred output and warm-up ID -1. Production SOP source is restored
+byte-for-byte afterward; no instrumentation ships.
+
+| Uninstrumented whole cook | Before median ms | After median ms | Before allocated bytes | After allocated bytes |
+|---|---:|---:|---:|---:|
+| One domain | 27.556 | 27.564 | 55902424 | 42720424 |
+| Eight domains | 12.350 | 11.300 | 55938896 | 42756616 |
+
+| Eight-domain time-only interval | Before median ms | After median ms |
+|---|---:|---:|
+| Grid | 1.585 | 1.555 |
+| Preparation | 2.569 | 1.859 |
+| Kernel | 2.164 | 2.224 |
+| Extraction | 5.524 | 5.509 |
+| Instrumented whole cook | 11.657 | 11.384 |
+
+Instrumented whole allocations are 55,939,912→42,757,672 bytes. Preparation
+time falls about 0.710 ms; numerical/scheduling work is unchanged. The
+uninstrumented one-domain time is flat; the eight-domain median falls 8.5%.
+One-domain allocation falls exactly 13,182,000 bytes, matching 823,875
+eliminated 16-byte float boxes. Every trial retains full hash
+`8a9c2d382ab7564328783e84a132cef1`, 85,680 points/vertices and 28,560 triangles;
+all raw allocation/promoted/major rows and outliers remain available. Phase
+timings are attribution, not gate measurements. The strict uninstrumented
+eight-domain <10.000 ms gate remains unmet.
+
+Astra's verdict: “not met, try deterministic row chunks for SOP grid filling
+through the shared Parallel pool.” Keep indexed validation: measured
+allocation and preparation improve with exact behavior. The next approved
+trial partitions complete rows using `rows_per_chunk = 1 + (grain-1)/nx`,
+keeps the plain x loop and all three FMA expressions, and schedules chunk
+indices through the existing pool when samples/grain >=2. Chunk-local
+cancellation state avoids sharing the old mutable stopped ref; join and check
+cancellation before preparing the field. Add complete actual-coordinate/mesh
+checks on the non-dyadic `(7,5,9)` lattice at grains 97, 240 and max_int,
+domains 1/8, with precancellation preventing preparation. Keep all grid work
+inside the timed cook. Save-before seven-trial whole cooks at domains 1/8 and
+paired time-only attribution at eight domains determine retention; no cache,
+dependency or public API change is approved. This grid trial is not yet
+implemented at the validation checkpoint.
+
+Validation checkpoint: restored `@check`, focused Flow/IR/SOP/Procedural
+tests, `--ship` and `@lib/flow_gpu/runtest-native` all pass (exit 0) on the
+confirmed M1. Shipping includes every workspace at four times/domains 1/8;
+native GPU numerics retain the existing tolerances. The preceding full F5
+pixel/native qualification belongs to `8f1f4789`; this checkpoint changes
+only finite-input validation, with complete error/source/field-byte coverage.
