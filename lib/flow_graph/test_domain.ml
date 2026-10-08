@@ -48,6 +48,10 @@ let () =
     Some (Probe.Value (Eval.Deferred (Ty.geometry, id)))) in
   at [0] 1; at [0] 1;
   assert (!forced = [1]);
+  let geometry = {node with path; head="geometry"; ty=Ty.geometry; invariant=false} in
+  let footer = Probe.footer probe geometry ~probes:[0] in
+  assert (footer.runs=Some 2 && footer.spark=None && !forced=[1]);
+  assert ((Probe.footer probe geometry ~probes:[2]).value="not run here" && !forced=[1]);
   at [1] 2;
   assert (!forced = [2; 1]);
   assert (Array.length (Probe.records probe path) = 2)

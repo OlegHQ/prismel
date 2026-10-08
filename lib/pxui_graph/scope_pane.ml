@@ -2240,6 +2240,7 @@ let update t ui (frame : Frame.t) =
   let wire_boxes ?(origin = (0., 0.)) name (cx, cy, cw, ch) i =
     let w = t.geo.wires.(i) in
     let count = ref 0 in
+    let prefix = name ^ ":" ^ string_of_int i ^ ":" in
     let rec segments j = function
       | (ax, ay) :: ((bx, by) :: _ as rest) ->
           (match clip_segment (sx t ax -. float t.x, sy t ay -. float t.y) (sx t bx -. float t.x, sy t by -. float t.y)
@@ -2247,6 +2248,7 @@ let update t ui (frame : Frame.t) =
            | None -> ()
            | Some ((ax, ay), (bx, by)) ->
                let steps = if ax = bx || ay = by then 1 else max 1 (int_of_float (Float.hypot (bx -. ax) (by -. ay) /. 16.)) in
+               let prefix = prefix ^ string_of_int j ^ "-" in
                for s = 0 to steps - 1 do
                  let u0 = float s /. float steps and u1 = float (s + 1) /. float steps in
                  let x0 = ax +. (bx -. ax) *. u0 and y0 = ay +. (by -. ay) *. u0
@@ -2255,7 +2257,7 @@ let update t ui (frame : Frame.t) =
                  Cells.replace wire_hits i (Ui.box ui ~flags:Ui.clickable
                      ~at:(Float.min x0 x1 -. 4. -. fst origin, Float.min y0 y1 -. 4. -. snd origin)
                      ~w:(Ui.Px (abs_float (x1 -. x0) +. 8.)) ~h:(Ui.Px (abs_float (y1 -. y0) +. 8.))
-                     (Printf.sprintf "%s:%d:%d-%d" name i j !count) :: hits i)
+                     (prefix ^ string_of_int !count) :: hits i)
                done);
           segments (j + 1) rest
       | _ -> () in
@@ -2671,7 +2673,8 @@ let update t ui (frame : Frame.t) =
     end in
   let tile_pressed = List.exists (fun (_, _, _, _, (s : Ui.signal), _, _) -> s.pressed) tiles in
   let wire_pressed =
-    if t.context <> None || tile_pressed then None
+    if t.context <> None || tile_pressed || not (List.exists (function
+      | Rays.Event.MousePressed (Input.LeftButton, _) -> true | _ -> false) frame.events) then None
     else List.find_map (fun i ->
       if List.exists (fun b -> let s = Ui.signal ui b in s.pressed && left s) (hits i)
       then Some i else None) wires_in_view in

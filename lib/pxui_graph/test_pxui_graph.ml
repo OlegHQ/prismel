@@ -325,6 +325,11 @@ let scope_connection_hover () =
       (String.concat "; " (List.map (fun ((a,b),(c,d)) -> Printf.sprintf "%.1f,%.1f -> %.1f,%.1f" a b c d) fanout)));
   check (List.length (highlight (bx, by)) = 1) "an input hover did not isolate its connection";
   check (highlight (999., 699.) = []) "connections stayed highlighted after leaving them";
+  let midpoint = int_of_float ((ax +. bx) /. 2.), int_of_float ((ay +. by) /. 2.) in
+  let selected, _ = scope_click view midpoint in
+  check (match snd (Scope.run_command selected Scope.Delete) with
+    | [Scope.Syntax_edit (Flow_graph.Flow_edit.Disconnect {node=["g";"c"]; key=Pos 0; _})] -> true
+    | _ -> false) "a press on the wire did not preserve its disconnect target";
   let ws = Editor_document.Workspace_doc.of_text scope_catalog
     "(workspace capture (graph g :context sop (let* [a (sop/box) copies (for [i (range 2)] (sop/transform a :translate [i 0 0]))] (sop/merge copies))))"
     |> Result.get_ok in
@@ -1050,7 +1055,9 @@ let run () =
   Printf.printf "test_pxui_graph: %d checks\n" !checks
 
 (* Frame cost of the graph pane on Sunflower (240 iterations), expanded and
-   collapsed.  Command: dune exec test/test_main.exe -- bench_scope_pane *)
+   collapsed. From [_build/default/test]:
+   ../lib/pxui_graph/test_main.exe bench_scope_pane
+   Set RAYS_SCOPE_PROFILE=1 for allocation stacks; its timings include the profiler. *)
 let bench_scope_pane () =
   let w = load_workspace "sunflower" in
   let ui = Pxui.Ui.create ~font_size:11 () in
@@ -1058,11 +1065,25 @@ let bench_scope_pane () =
   let time label build step =
     let view = ref build in
     for _ = 1 to 20 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> step !view ui (frame ()))) done;
+    let profile = Sys.getenv_opt "RAYS_SCOPE_PROFILE" <> None in
+    let samples = Hashtbl.create 64 in
+    let sample allocation =
+      let stack = Printexc.raw_backtrace_to_string allocation.Gc.Memprof.callstack in
+      Hashtbl.replace samples stack
+        (allocation.n_samples + Option.value ~default:0 (Hashtbl.find_opt samples stack)); None in
+    if profile then ignore (Gc.Memprof.start ~sampling_rate:0.001 ~callstack_size:20
+      {Gc.Memprof.null_tracker with alloc_minor = sample; alloc_major = sample});
     let started = Unix.gettimeofday () and allocated = Gc.allocated_bytes () in
     for _ = 1 to frames do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> step !view ui (frame ()))) done;
     Printf.printf "%-28s %.3f ms/frame, %.0f bytes/frame\n%!" label
       ((Unix.gettimeofday () -. started) *. 1000. /. float frames)
-      ((Gc.allocated_bytes () -. allocated) /. float frames) in
+      ((Gc.allocated_bytes () -. allocated) /. float frames);
+    if profile then begin
+      Gc.Memprof.stop ();
+      Hashtbl.to_seq samples |> List.of_seq |> List.sort (fun (_, a) (_, b) -> Int.compare b a)
+      |> List.filteri (fun i _ -> i < 8) |> List.iter (fun (stack, count) ->
+          Printf.printf "PROFILE %s: %d sampled words\n%s\n%!" label count stack)
+    end in
   let zone = [ "sunflower"; "seeds_each" ] in
   let scoped ?(records = true) collapsed =
     let view = Scope.create ~width:1000 ~height:700 ()

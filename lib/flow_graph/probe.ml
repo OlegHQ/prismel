@@ -114,6 +114,8 @@ let records t path = match Hashtbl.find_opt t.forced path with
         | Some l -> Array.of_list (List.map (fun (it, v) -> it, summarize t v) l) in
       remember t.forced path a; a
 
+let record_count t path = Option.fold ~none:0 ~some:List.length (Hashtbl.find_opt t.raw path)
+
 (* ---- describe ---- *)
 
 let num x =
@@ -407,10 +409,11 @@ let compute_footer t (n : P.node) ~probes =
   let here = at t n.path ~probes in
   let value = match here with
     | Some s -> describe s
-    | None -> if probes <> [] && Array.length (records t n.path) > 0 then "not run here" else Flow.Ty.to_string n.ty in
+    | None -> if probes <> [] && record_count t n.path > 0 then "not run here" else Flow.Ty.to_string n.ty in
   let across_probes = series t in
   let spark =
-    if probes = [] || n.invariant then None else
+    if probes = [] || n.invariant ||
+      (match n.ty with Flow.Ty.Float | Int | Bool | Any -> false | _ -> true) then None else
     let a = Array.map number (across_probes n.path ~probes) in
     if Array.length a < 2 || Array.exists Option.is_none a then None
     else Some (Array.map Option.get a, position t n.path ~probes ~len:(Array.length a)) in
@@ -437,7 +440,7 @@ let compute_footer t (n : P.node) ~probes =
       Some (match map_scope t n.path probes with
         | Some (_, calls) when calls <> [] ->
             List.fold_left (fun n (offset, count, _) -> max n (offset + count)) 0 calls
-        | _ -> Array.length (records t n.path)) else None }
+        | _ -> record_count t n.path) else None }
 
 let footer t (n : P.node) ~probes =
   if n.ty=Flow.Ty.image then compute_footer t n ~probes else

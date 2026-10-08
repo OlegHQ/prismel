@@ -6887,3 +6887,50 @@ locks now refer to the existing root smoke lock, so the added programs run seque
 Every port's `ui_shot` was attempted separately; all eight exit 2 with no system default Metal
 device and produce no PNG. Logs: `/private/tmp/p3-final-native.log`,
 `/private/tmp/p3-final-smoke-all-serial.log`, `/private/tmp/p3-ui-<name>.log`.
+
+## PL scope cost correction (2026-10-08)
+
+Same Apple M1, macOS 27.0.1, OCaml 5.3.0 and development profile as the
+original-checkout comparison above. Three alternating original `06508899`/PL
+runs used the same generated fixtures, 20 warmup frames and 300 measured
+frames per mode. All agents' build, test and compiler processes were stopped
+for the complete timing slot. From each checkout's `_build/default/test`:
+
+```sh
+../lib/pxui_graph/test_main.exe bench_scope_pane
+```
+
+| Scope | Before median ms/frame | PL median ms/frame | Before/PL bytes/frame |
+|---|---:|---:|---:|
+| Sunflower, no records | 0.212 | 0.187 | 851,608 / 744,712 |
+| Sunflower expanded, records | 0.214 | 0.188 | 853,872 / 746,976 |
+| Sunflower collapsed, records | 0.035 | 0.033 | 152,184 / 147,168 |
+| Orrery, no records | 0.456 | 0.456 | 1,720,640 / 1,691,432 |
+| Orrery, live records | 0.579 | 0.561 | 2,207,192 / 2,127,696 |
+
+The paired Orrery samples were, in before/PL ms/frame order:
+no-record `0.460/0.455`, `0.456/0.456`, `0.443/0.475`; live-record
+`0.569/0.561`, `0.579/0.555`, `0.586/0.589`. The no-record median matches
+baseline and the live-record median falls by 3.1%; individual runs remain
+noisy. Both modes allocate less than baseline. These isolated samples close
+the scope's within-noise no-regression gate that remained open in the earlier
+measurement; they do not qualify native pixels or other shipping gates.
+
+The opt-in `RAYS_SCOPE_PROFILE=1` benchmark uses the standard-library allocation
+profiler and prints its eight largest sampled stacks per mode. Its callback
+allocations distort its timing, so the acceptance runs above leave it unset.
+The profile identified per-wire-hit `Printf.sprintf` and idle-frame `Ui.signal`
+allocation. Shared wire key generation now builds identical IDs from per-wire
+and per-segment prefixes; the press scan runs only on an actual left-button
+press. The same boxes, ordering, clipping and shared UI capture remain in use.
+Probe footers count raw records without summarizing every tuple and attempt
+sparklines only for numeric, boolean or dynamically typed results. Public full
+record/series inspection and numeric sparklines retain their existing behavior.
+No cache, dependency or reduced conditional-arm presentation was added.
+
+Focused Flow_graph, Probe and graph-pane checks pass, including all 435 pane
+checks, a wire-select/disconnect check and counted deferred geometry summaries
+showing that a footer and a missing probe do not force unrelated tuples.
+Evidence: `/private/tmp/pl-scope-allocation-profile.log`,
+`/private/tmp/pl-scope-probe-count-check.log`, and the six paired files
+`/private/tmp/pl-scope-{old,new}-final-{0,1,2}.log`.
