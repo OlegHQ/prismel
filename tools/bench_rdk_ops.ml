@@ -4921,6 +4921,23 @@ let run_curve_join_benchmarks () =
 let () =
   Printf.printf
     "benchmark,points,domains,grain,repeats,median_seconds,allocated_bytes,promoted_bytes,major_bytes,cardinality,hash\n%!";
+  if Array.length Sys.argv > 1 && Sys.argv.(1) = "--grain" then begin
+    (* Run just the five P4 workloads; the ordinary filter path also sets up
+       unrelated million-element fixtures before reaching these operations. *)
+    let source = make_grid () in
+    let input_points = Geometry.point_count source in
+    let matrix = Mat4.mul (Mat4.translation (Vec3.create 2. 3. 4.))
+        (Mat4.rotation ~axis:(Vec3.create 1. 2. 3.) 0.7) in
+    measure ~input_points "transform" (fun () -> Transform_ops.transform ~grain matrix source) geometry_output;
+    measure ~input_points "noise_displace" (fun () ->
+      Deform.noise_displace ~grain ~amplitude:0.8 ~frequency:0.16 ~seed:42 source |> get_ok) geometry_output;
+    measure ~input_points "normals" (fun () -> Normal_ops.run ~grain source |> get_ok) geometry_output;
+    measure ~input_points "scatter" (fun () -> Scatter.run ~grain ~count:input_points ~seed:73 source |> get_ok) geometry_output;
+    measure ~input_points "mountain" (fun () -> Deform.mountain ~grain ~seed:73 ~height:1.25
+      ~frequency:(Vec3.create 0.17 0.31 0.23) ~offset:(Vec3.create 1. 2. 3.)
+      ~octaves:6 ~lacunarity:2.05 ~roughness:0.47 source |> get_ok) geometry_output;
+    exit 0
+  end;
   if session_only then begin
     let graph = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns ~rows ~size:100. ()
         |> Sop.noise_displace ~seed:42 ~amplitude:0.8 ~frequency:0.16

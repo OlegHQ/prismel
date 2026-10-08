@@ -8,6 +8,8 @@ type node_timing = {
   node_id : int;
   label : string;
   operation : string;
+  input_points : int;
+  points : int;
   seconds : float;
   cache_hit : bool;
 }
@@ -56,6 +58,9 @@ val cook : t -> context:Context.t -> Node.t -> (output, Diagnostic.error) result
 val node_seconds : t -> int -> float option
 (** The seconds node [id] took the last time it was really cooked (its own work, not its inputs';
     a cache hit leaves it).  Safe to read from another domain; at most 4,096 nodes are kept. *)
+
+val node_timings : t -> node_timing list
+(** Last real cook per node, sorted by node id; bounded and safe across domains. *)
 
 val stats : t -> stats
 val clear : t -> unit

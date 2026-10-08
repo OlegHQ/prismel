@@ -2,6 +2,8 @@ type node_timing = {
   node_id : int;
   label : string;
   operation : string;
+  input_points : int;
+  points : int;
   seconds : float;
   cache_hit : bool;
 }
@@ -70,7 +72,7 @@ type t = {
   mutable volatile_misses : int;
   mutable evictions : int;
   mutable last_node : node_timing option;
-  times : (int, float) Hashtbl.t;  (* node id -> its own seconds the last time it was really cooked *)
+  times : (int, node_timing) Hashtbl.t;
   times_lock : Mutex.t;
   mutable closed : bool;
   mutable materialized : (output * Rdk.Geometry.t) list;  (* see [input_geometry] *)
@@ -300,23 +302,31 @@ let refresh inputs input_diagnostics entry =
   if geometry == entry.output.geometry && diagnostics = entry.output.diagnostics then entry
   else {entry with output = {entry.output with geometry; diagnostics}; delta}
 
-let timing node ~seconds ~cache_hit = {
+let timing node ~geometries ~points ~seconds ~cache_hit = {
   node_id = Node.id node;
   label = Node.label node;
   operation = Node.operation node;
+  input_points = Array.fold_left (fun n g -> n + Rdk.Geometry.point_count g) 0 geometries;
+  points;
   seconds;
   cache_hit;
 }
 
 (* a cache hit keeps the node's last real cook time; bounded: a full table starts over *)
 let times_capacity = 4096
-let record_time session id seconds =
+let record_time session sample =
   Mutex.protect session.times_lock (fun () ->
     if Hashtbl.length session.times >= times_capacity then Hashtbl.reset session.times;
-    Hashtbl.replace session.times id seconds)
+    Hashtbl.replace session.times sample.node_id sample)
 
 let node_seconds session id =
-  Mutex.protect session.times_lock (fun () -> Hashtbl.find_opt session.times id)
+  Mutex.protect session.times_lock (fun () ->
+    Option.map (fun sample -> sample.seconds) (Hashtbl.find_opt session.times id))
+
+let node_timings session =
+  Mutex.protect session.times_lock (fun () ->
+    Hashtbl.fold (fun _ sample samples -> sample :: samples) session.times []
+    |> List.sort (fun a b -> Int.compare a.node_id b.node_id))
 
 let cancellation_error node =
   Diagnostic.error ~code:"cancelled" "procedural cook was cancelled"
@@ -421,7 +431,8 @@ and evaluate_uncached memo session context node =
               (if volatile then store_volatile session node key refreshed else insert session key refreshed);
             session.hits <- session.hits + 1;
             if volatile then session.volatile_hits <- session.volatile_hits + 1;
-            session.last_node <- Some (timing node ~seconds:0. ~cache_hit:true);
+            session.last_node <- Some (timing node ~geometries
+              ~points:(Rdk.Geometry.point_count refreshed.output.geometry) ~seconds:0. ~cache_hit:true);
             Ok refreshed.output)
         | None ->
             session.misses <- session.misses + 1;
@@ -435,8 +446,10 @@ and evaluate_uncached memo session context node =
                 | Ok cooked -> Ok (cooked, delta node geometries cooked))
             in
             let seconds = max 0. (Unix.gettimeofday () -. started) in
-            session.last_node <- Some (timing node ~seconds ~cache_hit:false);
-            record_time session (Node.id node) seconds;
+            let points = match cooked with Ok (output, _) -> Rdk.Geometry.point_count output.geometry | Error _ -> 0 in
+            let sample = timing node ~geometries ~points ~seconds ~cache_hit:false in
+            session.last_node <- Some sample;
+            record_time session sample;
             match cooked with
             | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
             | Ok _ when Context.cancelled context -> Error (cancellation_error node)

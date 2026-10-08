@@ -52,6 +52,111 @@ let cook_hash geometry =
     List.map attribute (Geometry.attributes geometry), List.map group (Geometry.groups geometry),
     List.map edge_group (Geometry.edge_groups geometry))))
 
+let residual_stats (eval : Flow.Eval.t) =
+  let seen = Hashtbl.create 64 in
+  let bindings = ref 0 and read = ref 0 and views = ref [] in
+  let rec visit = function
+    | Flow.Eval.Residual residual ->
+        let id = Flow.Eval.Private.residual_id residual in
+        if not (Hashtbl.mem seen id) then begin
+          Hashtbl.add seen id ();
+          let view = Flow.Eval.Private.residual_view residual in
+          views := view :: !views;
+          let names = Flow.Eval.Private.free_names view.term in
+          bindings := !bindings + List.length view.bindings;
+          read := !read + List.fold_left (fun n (name, _) -> n + if List.mem name names then 1 else 0) 0 view.bindings;
+          List.iter (fun (_, value) -> visit value) view.bindings
+        end
+    | List values -> Array.iter visit values
+    | Record fields | Struct (_, _, fields) -> List.iter (fun (_, value) -> visit value) fields
+    | Fn fn -> List.iter (fun (_, value) -> visit value) (Flow.Eval.Private.function_bindings fn)
+    | _ -> () in
+  List.iter (fun (_, value) -> visit value) eval.results;
+  Array.iter (fun (node : Flow.Eval.node) -> List.iter (fun (_, value) -> visit value) node.args) eval.plan.nodes;
+  List.iter (fun (_, records) -> List.iter (fun (_, value) -> visit value) records) eval.records;
+  (* One serialization preserves shared captures and includes nested residuals
+     and function closures. These bytes are measured, never loaded or exported. *)
+  let bytes = if !views = [] then 0 else String.length (Marshal.to_string !views [Marshal.Closures]) in
+  Hashtbl.length seen, !bindings, !read, bytes
+
+let inspect_mode mode dir =
+  let catalog = ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
+  print_endline (if mode = "--nodes" then
+    "fixture,node_id,operation,input_points,output_points,seconds,cache_hit" else
+    "fixture,residuals,captured_bindings,read_bindings,view_bytes");
+  Sys.readdir dir |> Array.to_list |> List.sort String.compare |> List.iter (fun file ->
+    if Filename.check_suffix file ".lisp" then begin
+      let name = Filename.chop_suffix file ".lisp" in
+      let forms = ok (Flow.Syntax.parse (In_channel.with_open_bin (Filename.concat dir file) In_channel.input_all)) in
+      if mode = "--residuals" then begin
+        let workspace = match Flow.Workspace.check catalog forms with Some ws, _ -> ws | _ -> failwith "check" in
+        let count, captured, read, bytes = residual_stats (ok (Flow.Eval.static ~record:true workspace)) in
+        Printf.printf "%s,%d,%d,%d,%d\n%!" name count captured read bytes
+      end else begin
+        let graph = List.hd (ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories forms)).graphs in
+        let session = Result.get_ok (Procedural.Session.create ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024)) in
+        Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+          ignore (cook_graph ~session graph);
+          Procedural.Session.node_timings session |> List.iter (fun (sample : Procedural.Session.node_timing) ->
+            Printf.printf "%s,%d,%s,%d,%d,%.9f,%b\n%!" name sample.node_id sample.operation
+              sample.input_points sample.points sample.seconds sample.cache_hit))
+      end
+    end)
+
+let branch_mode mode repeats =
+  let text = if mode = "--branches" then {|(workspace branches
+    (graph g :context sop
+      (let* [a (-> (sop/grid :columns 999 :rows 999 :size 100.0)
+                   (sop/noise_displace :seed 1 :amplitude 0.8 :frequency 0.16)
+                   (sop/noise_displace :seed 2 :amplitude 0.8 :frequency 0.16))
+             b (-> (sop/grid :columns 999 :rows 999 :size 100.0)
+                   (sop/noise_displace :seed 3 :amplitude 0.8 :frequency 0.16)
+                   (sop/noise_displace :seed 4 :amplitude 0.8 :frequency 0.16))]
+        (sop/merge a b))))|} else {|(workspace loops
+    (graph g :context sop
+      (let* [source (sop/merge (for [i (range 64)]
+                      (sop/curve (list [(* i 2.0) 0.0 0.0] [(+ (* i 2.0) 1.0) 0.0 0.0]))))
+             elements (for [piece (sop/piece_list source)]
+               (-> (sop/copy_to_points (sop/grid :columns 124 :rows 199 :size 1.0) piece)
+                   (sop/noise_displace :seed 42 :amplitude 0.8 :frequency 0.16)))]
+        (sop/merge elements))))|} in
+  let forms = ok (Flow.Syntax.parse text) in
+  let graph = List.hd (ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories forms)).graphs in
+  let root = Result.get_ok (Procedural.Edit_graph.compile_node graph.network.geometry ~node_id:(Option.get graph.root)) in
+  print_endline "fixture,domains,repeats,points,median_s,allocated_bytes,hash";
+  let expected = ref None in
+  List.iter (fun domains ->
+    let context = Result.get_ok (Procedural.Context.create ~domains ()) in
+    Rays_math.Parallel.run ~domains (fun () -> ());
+    let seconds = Array.make repeats 0. and allocated = Array.make repeats 0. in
+    let points = ref 0 and hash = ref "" in
+    for repeat = 0 to repeats - 1 do
+      let session = Result.get_ok (Procedural.Session.create ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024)) in
+      Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+        Gc.full_major ();
+        let before = Gc.allocated_bytes () and start = now () in
+        let output = match Procedural.Session.cook session ~context root with
+          | Ok output -> output | Error error -> failwith (Procedural.Diagnostic.error_to_string error) in
+        seconds.(repeat) <- now () -. start;
+        allocated.(repeat) <- Gc.allocated_bytes () -. before;
+        points := Rdk.Geometry.point_count output.geometry;
+        hash := cook_hash output.geometry;
+        match !expected with None -> expected := Some !hash | Some prior -> assert (prior = !hash))
+    done;
+    Array.sort Float.compare seconds; Array.sort Float.compare allocated;
+    Printf.printf "%s,%d,%d,%d,%.9f,%.0f,%s\n%!" (String.sub mode 2 (String.length mode - 2))
+      domains repeats !points seconds.(repeats / 2) allocated.(repeats / 2) !hash) [1; 8]
+
+let () =
+  if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--branches"; "--loops"] then begin
+    branch_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 3);
+    exit 0
+  end;
+  if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--nodes"; "--residuals"] then begin
+    inspect_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then Sys.argv.(2) else "_build/default/specification/workspace/cases");
+    exit 0
+  end
+
 let () =
   let dir = if Array.length Sys.argv > 1 then Sys.argv.(1) else "_build/default/specification/workspace/cases" in
   let repeats = if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 21 in

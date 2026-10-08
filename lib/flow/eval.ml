@@ -1,6 +1,58 @@
 module W = Workspace
 module S = Syntax
 module Smap = Map.Make (String)
+module Names = Set.Make (String)
+
+let rec pattern_names names = function
+  | Workspace.Name name -> Names.add name names
+  | Seq patterns -> List.fold_left pattern_names names patterns
+  | Keys names' -> List.fold_left (fun names name -> Names.add name names) names names'
+
+module Free_cache = Ephemeron.K1.Make (struct
+  type t = Workspace.term
+  let equal a b = a == b
+  let hash (term : t) = Hashtbl.hash term.form.id
+end)
+
+let free_cache = Free_cache.create 256
+let free_cache_lock = Mutex.create ()
+let free_walks = ref 0
+
+let free_names term = Mutex.protect free_cache_lock (fun () ->
+  match Free_cache.find_opt free_cache term with
+  | Some names -> names
+  | None ->
+      incr free_walks;
+      let rec walk bound names (term : Workspace.term) =
+        let all bound names terms = List.fold_left (walk bound) names terms in
+        let fields bound names fields = List.fold_left (fun names (_, term) -> walk bound names term) names fields in
+        let reference name = if Names.mem name bound then names else Names.add name names in
+        let bindings bound names bindings = List.fold_left (fun (bound, names) (pattern, term) ->
+          pattern_names bound pattern, walk bound names term) (bound, names) bindings in
+        match term.node with
+        | Ref_binding (name, _) | Fn_ref name -> reference name
+        | Call_fn {fn; args} -> all bound (reference fn) args
+        | Call {args; _} | Op {args; _} | Record args -> fields bound names args
+        | Graph_ref {inputs; _} -> fields bound names inputs
+        | Vec terms | List_lit terms | Str terms | List_op (_, terms) | Hof (_, terms) -> all bound names terms
+        | Let (steps, body) -> let bound, names = bindings bound names steps in walk bound names body
+        | Loop {accs; clauses; body; _} ->
+            let bound, names = bindings bound names accs in
+            let bound, names = bindings bound names clauses in walk bound names body
+        | State {binder; init; step; _} -> walk (pattern_names bound binder) (walk bound names init) step
+        | Fn {params; body; _} -> walk (List.fold_left (fun bound (pattern, _) -> pattern_names bound pattern) bound params) names body
+        | If (condition, yes, no) -> all bound names [condition; yes; no]
+        | Cond (arms, default) -> List.fold_left (fun names (test, body) -> walk bound (walk bound names test) body) (walk bound names default) arms
+        | Case (subject, arms, default) -> fields bound (all bound names [subject; default]) arms
+        | Assoc (record, updates) -> fields bound (walk bound names record) updates
+        | Get (body, _) | Bypass body | Expanded {body; _} -> walk bound names body
+        | Lit _ | Text _ | Nil | Time -> names in
+      let names = walk Names.empty Names.empty term in
+      (* ponytail: bound weak memo; workloads above 16k distinct live terms recompute.
+         An owner-scoped checked-workspace cache removes that ceiling if measured. *)
+      if Free_cache.length free_cache >= 16_384 then Free_cache.clear free_cache;
+      Free_cache.replace free_cache term names;
+      names)
 
 let max_steps = 600_000
 let max_iterations = W.max_iterations
@@ -1036,6 +1088,8 @@ let run ?record ?inputs ?state ?live ~time ws =
 let show v = show_with Fun.id v
 
 module Private = struct
+  let free_names term = Names.elements (free_names term)
+  let free_name_walks () = Mutex.protect free_cache_lock (fun () -> !free_walks)
   let force_with_executor ?state ?elems ?resolve ~execute v ~live =
     force_with ?state ?elems ?resolve ~execute v ~live
   let function_bindings = function Closure cl -> Smap.bindings cl.env | Named _ -> []

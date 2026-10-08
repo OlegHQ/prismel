@@ -367,6 +367,20 @@ let () = (* t: live values and the split evaluation *)
     let shape time = Array.map (fun (n : Eval.node) -> (n.kind, n.site, n.iter)) (run ~time ws).plan.nodes in
     assert (shape 0. = shape 5.3 && shape 0. = shape 100.))
 
+let () =
+  t "free-name walk respects sequential bindings and nested captures" (fun () ->
+    let ws = check (value "(let* [outside 7.0 unused 8.0] (let* [local (+ outside t) f (fn [x] (+ x local outside))] (map f (list 1.0 2.0))))") in
+    let body = (List.hd ws.graphs).body in
+    let term = match body.node with Workspace.Let (_, term) -> term | _ -> assert false in
+    assert (Eval.Private.free_names term = ["outside"]);
+    let walks = Eval.Private.free_name_walks () in
+    ignore (Eval.Private.free_names term);
+    assert (Eval.Private.free_name_walks () = walks));
+  t "free-name walk includes destructured sources and state initial values" (fun () ->
+    let ws = check (value "(let* [source (list 3.0 4.0) initial 2.0] (let* [[x y] source total (state [s initial] (+ s t))] (+ x y total)))") in
+    let term = match (List.hd ws.graphs).body.node with Workspace.Let (_, term) -> term | _ -> assert false in
+    assert (Eval.Private.free_names term = ["initial"; "source"]))
+
 (* the compiled residuals against the interpreter: same bits at every time *)
 let () =
   let rec same_bits (a : Eval.value) (b : Eval.value) = match a, b with

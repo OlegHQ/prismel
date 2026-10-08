@@ -180,6 +180,12 @@ val show : value -> string
 (** [str] formatting (register C2); a residual shows as [?]. *)
 
 module Private : sig
+  val free_names : Workspace.term -> string list
+  (** Lexically free binding names, including nested function captures. *)
+
+  val free_name_walks : unit -> int
+  (** Number of memo misses, for the checked-term reuse regression. *)
+
   val force_with_executor : ?state:state -> ?elems:(string * value) list ->
     ?resolve:(value -> (value, Diagnostic.t) result) ->
     execute:(residual -> live -> (value, Diagnostic.t) result option) ->

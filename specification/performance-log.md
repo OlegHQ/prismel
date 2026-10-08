@@ -6176,3 +6176,127 @@ Checks: `/tmp/rays-final-pixels.log`, `/tmp/rays-final-audit.log`,
 `/tmp/rays-final-ship.log`. Native images: `/tmp/rays-workspace-pixels`,
 `/tmp/rays-workspace-pixels-sop-gallery`, `/tmp/rays-workspace-pixels-voxel-wall`;
 seven-mode particle exports: `/tmp/rays-drawing-export`.
+## P4 baseline (2026-10-08)
+
+Apple M1 (arm64 T8103), macOS 27.0.1 (26A434), OCaml 5.3.0,
+Dune 3.24.2, development profile, eight available domains. All timed binaries
+ran serially after builds completed; five repetitions per grain workload,
+seven per workspace evaluation, three per cold branch/zone cook. The
+parallel pool is reused. Allocated bytes in the RDK rows are the calling
+domain's GC counter; kernel rows report all domains. Raw outputs, including
+allocations, promotions, cardinalities and hashes, are retained in
+[`performance/p4-baseline-grain.csv`](performance/p4-baseline-grain.csv),
+[`performance/p4-baseline-nodes.csv`](performance/p4-baseline-nodes.csv) and
+[`performance/p4-baseline-kernel.csv`](performance/p4-baseline-kernel.csv).
+
+```sh
+_build/default/tools/bench_workspace_lower.exe --nodes
+_build/default/tools/bench_workspace_lower.exe --residuals
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 7
+_build/default/tools/bench_workspace_lower.exe --branches 3
+_build/default/tools/bench_workspace_lower.exe --loops 3
+_build/default/tools/bench_kernel.exe
+# Each row below uses --grain, RAYS_RDK_OPS_REPEATS=5,
+# RAYS_RDK_BENCH_GRAIN=<grain>, RAYS_BENCH_DOMAINS=<domains>.
+# RAYS_RDK_OPS_COLUMNS/ROWS: 99/99, 499/199, 999/999.
+_build/default/tools/bench_rdk_ops.exe --grain
+```
+
+Per-node rows include summed selected-input points, output points and the
+node's own cook seconds (not its upstream dependencies). The bounded timing
+table preserves the last actual cook on a cache hit; `stats.last_node`
+separately records the latest hit. All 797 cooked-node rows are in the CSV
+linked above.
+
+| Fixture | Check ms | Eval ms | Lower ms | Cook ms | Nodes | Eval bytes | Cook hash |
+|---|---:|---:|---:|---:|---:|---:|---|
+| bloom | 0.095 | 0.119 | 3.883 | 1.171 | 84 | 537208 | dad16cdd4d91e532756c1d0d0667d207 |
+| facade | 0.038 | 0.083 | 1.982 | 0.559 | 69 | 335808 | df9fdd4891bcaf471beeae7f34f26ab5 |
+| garland | 0.084 | 0.086 | 2.308 | 0.700 | 40 | 364664 | bf4f98a940ac9bfe37a0abd2c1100df4 |
+| kit | 0.072 | 0.035 | 1.043 | 0.124 | 24 | 132176 | 23ea245dac862ed7b9dda2f8a7649322 |
+| orrery | 0.057 | 0.148 | 2.205 | 0.506 | 56 | 653768 | 4e38b6104e25800d415c4d2291337f37 |
+| rosette | 0.050 | 0.048 | 2.386 | 0.350 | 39 | 207808 | 18188829904e74c61fd34e367ae74150 |
+| sunflower | 0.022 | 1.098 | 11.028 | 3.343 | 241 | 4501136 | 59a7b71c83f1057dc32bf6e90babb99d |
+| tiles | 0.030 | 0.399 | 8.428 | 1.097 | 193 | 1271648 | 9c7c72bc41d7365e6cd11fe394eb5120 |
+| tree | 0.024 | 0.019 | 1.736 | 0.640 | 27 | 77912 | 23e6fdd7f6252e15e705529856f86949 |
+| tunnel | 0.014 | 0.022 | 1.689 | 4.084 | 37 | 107232 | 6354bb27591a11d27519c20d0766a9b0 |
+| variations | 0.039 | 0.019 | 0.808 | 0.200 | 30 | 100952 | 4c4dda18df1d2cc685970d4e2461ca92 |
+| wave | 0.029 | 4.639 | 8.483 | 1.187 | 13 | 17218984 | 70c3b661ce4166f563fd5c17329b821c |
+
+Residual views are traversed from results, plan arguments and records, deduplicated
+by residual id; nested captures are included. The byte column marshals all
+actual immutable views together with `Marshal.Closures`, preserving sharing.
+It is an in-process measurement only, never deserialized or used as a cache key.
+
+| Fixture | Residuals | Captured bindings | Read bindings | Marshal view bytes |
+|---|---:|---:|---:|---:|
+| bloom | 0 | 0 | 0 | 0 |
+| facade | 0 | 0 | 0 | 0 |
+| garland | 0 | 0 | 0 | 0 |
+| kit | 0 | 0 | 0 | 0 |
+| orrery | 99 | 1411 | 240 | 35186 |
+| rosette | 0 | 0 | 0 | 0 |
+| sunflower | 0 | 0 | 0 | 0 |
+| tiles | 0 | 0 | 0 | 0 |
+| tree | 0 | 0 | 0 | 0 |
+| tunnel | 0 | 0 | 0 | 0 |
+| variations | 0 | 0 | 0 | 0 |
+| wave | 2160 | 14580 | 6480 | 413206 |
+
+| Points | Domains | Grain | Transform ms | Noise ms | Normals ms | Scatter ms | Mountain ms |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 10000 | 1 | 256 | 0.184 | 0.364 | 0.530 | 1.415 | 5.674 |
+| 10000 | 1 | 1024 | 0.173 | 0.359 | 0.533 | 1.494 | 5.550 |
+| 10000 | 1 | 4096 | 0.166 | 0.373 | 0.526 | 1.425 | 5.551 |
+| 10000 | 1 | 16384 | 0.182 | 0.363 | 0.553 | 1.420 | 5.408 |
+| 10000 | 1 | 65536 | 0.168 | 0.374 | 0.535 | 1.427 | 5.470 |
+| 10000 | 8 | 256 | 0.162 | 0.134 | 0.403 | 0.829 | 1.503 |
+| 10000 | 8 | 1024 | 0.118 | 0.174 | 0.416 | 0.732 | 1.287 |
+| 10000 | 8 | 4096 | 0.183 | 0.201 | 0.589 | 1.544 | 2.430 |
+| 10000 | 8 | 16384 | 0.176 | 0.366 | 0.597 | 1.510 | 5.538 |
+| 10000 | 8 | 65536 | 0.178 | 0.393 | 0.571 | 1.470 | 5.507 |
+| 100000 | 1 | 256 | 1.503 | 2.556 | 5.429 | 20.029 | 40.595 |
+| 100000 | 1 | 1024 | 1.581 | 2.577 | 6.079 | 22.586 | 40.130 |
+| 100000 | 1 | 4096 | 1.823 | 2.569 | 7.226 | 20.825 | 40.099 |
+| 100000 | 1 | 16384 | 1.652 | 2.848 | 5.727 | 21.981 | 40.207 |
+| 100000 | 1 | 65536 | 1.590 | 2.609 | 5.640 | 19.258 | 39.419 |
+| 100000 | 8 | 256 | 0.651 | 0.750 | 4.029 | 6.768 | 7.445 |
+| 100000 | 8 | 1024 | 0.567 | 0.772 | 3.762 | 7.064 | 7.850 |
+| 100000 | 8 | 4096 | 0.693 | 0.933 | 3.800 | 7.482 | 8.867 |
+| 100000 | 8 | 16384 | 1.292 | 1.309 | 4.261 | 8.621 | 11.819 |
+| 100000 | 8 | 65536 | 1.313 | 1.885 | 4.014 | 15.000 | 27.859 |
+| 1000000 | 1 | 256 | 14.988 | 24.690 | 54.658 | 365.863 | 334.069 |
+| 1000000 | 1 | 1024 | 14.829 | 24.431 | 55.607 | 356.657 | 327.791 |
+| 1000000 | 1 | 4096 | 14.376 | 24.568 | 54.624 | 380.119 | 329.281 |
+| 1000000 | 1 | 16384 | 14.589 | 24.056 | 53.402 | 351.079 | 332.263 |
+| 1000000 | 1 | 65536 | 14.918 | 24.666 | 56.082 | 377.247 | 328.370 |
+| 1000000 | 8 | 256 | 5.323 | 6.962 | 35.472 | 101.923 | 64.105 |
+| 1000000 | 8 | 1024 | 4.486 | 5.989 | 34.061 | 99.020 | 63.328 |
+| 1000000 | 8 | 4096 | 5.941 | 6.069 | 34.695 | 99.529 | 64.103 |
+| 1000000 | 8 | 16384 | 5.099 | 6.375 | 33.741 | 99.081 | 67.720 |
+| 1000000 | 8 | 65536 | 4.923 | 6.940 | 35.150 | 105.214 | 77.575 |
+
+Each operation retains one hash across all grains/domain counts at each size.
+Transform at grain 1,024 wins 56.1%/12.0% over 16,384 at 100k/1M; noise,
+normals, scatter and mountain have no grain clearing 10% at both sizes.
+These are the measured inputs to the Step 2 decision, not a claim that one
+grain improves every family.
+
+| Cold workload | Points | Domains | Median ms | Calling-domain bytes | Hash |
+|---|---:|---:|---:|---:|---|
+| Two independent noise chains | 2,000,000 | 1 | 206.397 | 599,645,592 | 67c129ecc130f8881a2eaf92c053b64c |
+| Two independent noise chains | 2,000,000 | 8 | 75.943 | 599,976,952 | 67c129ecc130f8881a2eaf92c053b64c |
+| 64 piece-list branches | 3,200,000 | 1 | 1156.556 | 1,197,148,680 | 8ef295fbdea12b586200fd1ffcdcb58f |
+| 64 piece-list branches | 3,200,000 | 8 | 989.480 | 1,197,989,600 | 8ef295fbdea12b586200fd1ffcdcb58f |
+
+The branch workload has two separately authored 1M-point grids, each with
+two noise operations, merged at the root. The zone has 64 two-point curve
+pieces; each copies a 25k-point grid to its two points then displaces the
+result, yielding exactly 50k points per element. Element roots depend on
+their actual cooked piece, so lowering cannot hoist the whole branch away.
+
+The current baseline already parallelizes each RDK operation internally;
+these times precede parallel fan-out across input branches and zone elements.
+Fixture node counts, eval bytes and cook hashes match Phase 4. Capacity-512
+retention remains bloom 52/1.22 MiB, sunflower 241/1.84 MiB, wave 13/0.66 MiB,
+tree 27/0.87 MiB, no evictions. Focused Flow and Procedural checks pass.
