@@ -142,8 +142,14 @@ whole cook 12.350→11.300 ms, one-domain time flat, allocation reduced by
 deterministic row chunks for SOP grid filling through the shared pool.
 That trial regressed whole cooking at both domain counts and is reverted (`2c7cd365`);
 its exactness/cancellation tests and raw measurements are retained. Astra
-next approves time-only attribution of preparation into map construction
-and IR compilation. The strict <10 ms whole-cook gate remains open.
+next approved time-only attribution of preparation into map construction
+and IR compilation (`31a4cb1e`). That attribution identified the finite
+scan; moving its error call outside the successful loop reduces preparation
+to about 0.59 ms and improves whole cooking to 10.417 ms in the first paired
+eight-domain batch (11.280 ms in the reverse-order batch). Astra says keep
+the scan and next approves only sequential y/z FMA hoisting in the SOP grid.
+The strict <10 ms whole-cook gate remains open. F1.3 now has an approved
+two-stage candidate/qualification design; implementation remains pending.
 F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
 This checkpoint's focused checks, `--ship` and full F5 native/pixel validation
 passed (exit 0) on the confirmed M1, including the 37-file pixel sweep.
@@ -442,6 +448,56 @@ a new error.
 **Astra brief.** Not needed.
 
 #### F1.3 One eligibility set: the checker marks exactly what the emitter compiles
+
+**Astra design (2026-10-09; implementation pending).** The current compiler
+and emitter support Vec2/Vec4; the older audit below predates that groundwork.
+One-source `for` still compiles Product and fails emission. Name-only noise
+recognition also accepts a counterfeit declaration the compiler refuses.
+The complete contract needs static candidates with reasons, followed by
+qualification of actual captures at the existing `Lower.of_checked`
+evaluation boundary. A term-only predicate cannot know captured constants,
+folding, concrete record/function bindings or exact register demand. Do not
+narrow the supported language to avoid those facts.
+
+The accepted implementation order is:
+
+1. Share width/register/octave/float32 facts in `Packed_ops`, declaration
+   capabilities in `Op`, diagnostic `Packed.compile_result`, and the exact
+   pure GPU form checks in `Packed.gpu_refusals`. Both `Emit.kernel` and
+   execution/placement consume that predicate; hand-built `E_GPU_FORM`
+   remains. Explicit noise capability replaces name-only recognition.
+2. Checker output records `packed` candidates/refusals and candidate→producer
+   provenance for aliases, conditionals and body paths. Preserve precision
+   taint independently, propagate state dependence, align Vec2/Vec4, and
+   use Zip for one-source loops while retaining Product for multiple sources.
+3. `Eval.Private.static_with_kernels` observes each actual packed-form
+   residual before static materialization, including empty maps. Its live
+   state clears the observer. `Flow_ir.qualify_workspace` uses production
+   fusion/compiler plus shared GPU refusals, aggregates all observed
+   instances conservatively, and publishes definitive `approx`/reasons.
+   Unobserved producers remain explicitly pending. Rebuild from immutable
+   candidates after every capture/input change; never reuse old conclusions
+   or retain residual/program proof caches. No per-frame compilation.
+4. `Lower.of_checked` qualifies in place of `Eval.static`; lowering publishes
+   derived approximation/reason fields. `Contexts` copies only that metadata
+   into the current checked document, preserving edited source. Inspector
+   displays qualified status or reasons. Attribute count-source kernels stay
+   CPU-only. No new dependency edge is needed.
+5. Extend `Workspace_parity`'s existing actual-catalog/file routes: every
+   definitive path must map to observed authored producers accepted by
+   Packed and Emit, with fused/unfused coverage. Report every pending/missing
+   instance explicitly. Focused cases cover counterfeit/real noise, vectors,
+   one-source loops, capture overflow/requalification, state, registers and
+   fused-source restrictions. Ordinary evaluation results must be identical.
+
+Raw `Workspace.check` will publish candidates and pending/refusal reasons;
+its definitive `approx` starts empty until qualification above Flow. Update
+all checker/IR/tool consumers intentionally, document this two-stage API and
+promote its public manifest changes. The promised invariant is every
+published approximable path's actual observed specializations compile and
+pass the shared emitter form check. Device availability, runtime nonfinite
+values and placement profitability remain separate execution checks. This
+is an approved design, not evidence of a completed F1.3 gate.
 
 **Source audit (2026-10-08; predicate/test implementation pending).**
 The current 39-file `--approx` audit (including the actual custom catalogs)
@@ -783,6 +839,25 @@ whole cooks and repeat the eight-domain pair in reverse order, retain every
 row, and repeat the parent/child diagnostic before/after. Keep only with
 repeatable preparation improvement and no whole-cook regression; otherwise
 revert. No scheduling, grid, compiler or cache change is approved.
+
+**Sequential validation scan (2026-10-09).** Implemented and checked:
+empty/boundary-value coverage and the existing every-coordinate error,
+width precedence, byte-identity and allocation regressions pass. Native
+assembly confirms successful-loop state stays in registers. Seven isolated
+whole-cook medians improve 27.539→26.272 ms at one domain and
+11.948→10.417 ms at eight. Reverse-order eight-domain medians are
+15.840→11.280 ms; every row is retained. Precise time-only attribution
+reduces preparation 1.868→0.597 ms at eight domains, and all children fit
+their parent. Earlier rounded/mixed-format diagnostic batches remain
+separate. No instrumentation ships. Astra says keep the scan; the strict
+<10 ms gate remains open. Its next verdict is “not met, try hoisting the
+SOP grid's y-coordinate calculation per row and z-coordinate calculation
+per plane.” Retain sequential loops/cancellation, unchanged explicit FMA
+expressions and x-fast indexing. Reuse complete lattice/mesh/cancellation
+checks, inspect assembly/allocation, and measure seven-trial one/eight whole
+cooks plus a reversed eight-domain pair and four-phase attribution.
+Keep only with exactness and repeatable whole-cook benefit without material
+allocation or one-domain regression. No scheduling or cache change.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value

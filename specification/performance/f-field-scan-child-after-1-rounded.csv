@@ -1,0 +1,17 @@
+domains,repetition,phase,seconds
+1,-1,prepare/map,0.000678778
+1,-1,prepare/ir,0.000076056
+1,0,prepare/map,0.000700951
+1,0,prepare/ir,0.000022173
+1,1,prepare/map,0.000626087
+1,1,prepare/ir,0.000014067
+1,2,prepare/map,0.000580072
+1,2,prepare/ir,0.000014067
+1,3,prepare/map,0.000624895
+1,3,prepare/ir,0.000015020
+1,4,prepare/map,0.000624895
+1,4,prepare/ir,0.000015020
+1,5,prepare/map,0.000582933
+1,5,prepare/ir,0.000012875
+1,6,prepare/map,0.000624895
+1,6,prepare/ir,0.000014067

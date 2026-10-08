@@ -8331,3 +8331,104 @@ scheduling, grid, IR, cache, dependency or gate change is approved.
 
 Preparation attribution checkpoint: `--ship` passes (exit 0) after production
 restoration. No profiler ships and no native GPU arithmetic changes.
+
+## F2.1 field kernel — packed finite scan trial (2026-10-09)
+
+The shared packed Value.validate branch retains width-first validation and
+ascending first-invalid behavior, but moves the original `fin "array input"`
+error call outside the successful sequential scan. No scheduling, grid,
+IR, cache, dependency or public API changes. Existing every-coordinate NaN/
+±infinity, malformed-width precedence, unchanged storage and bounded
+allocation checks remain green. Empty arrays and ±0/±maximum finite/
+±smallest subnormal for Float/Vec2/Vec3/Vec4 now also pass before/after.
+
+Confirmed M1/Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev profile,
+grain 16,384, seven isolated trials after one excluded warm-up, fresh
+zero-capacity sessions and unchanged GC policy. No builds, tests, benchmarks
+or other agent work overlap trials. Repeat the first pair at domains 1/8,
+then the eight-domain pair in reverse executable order:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-scan-before.exe --fields > specification/performance/f-field-scan-cook-before-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-scan-after.exe --fields > specification/performance/f-field-scan-cook-after-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-scan-after.exe --fields > specification/performance/f-field-scan-cook-reverse-after-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-scan-before.exe --fields > specification/performance/f-field-scan-cook-reverse-before-8.csv
+```
+
+| Uninstrumented whole cook | Before median ms | After median ms | Before allocated bytes | After allocated bytes |
+|---|---:|---:|---:|---:|
+| One domain | 27.539 | 26.272 | 42720424 | 42720424 |
+| Eight domains, before then after | 11.948 | 10.417 | 42757464 | 42757168 |
+| Eight domains, after then before | 15.840 | 11.280 | 42757872 | 42758120 |
+
+Both eight-domain run orders improve whole cooking, but the unchanged strict
+<10.000 ms gate remains unmet. The differing baseline medians limit the
+precision of a whole-cook speedup claim; all outliers are retained.
+
+Repeat parent/child attribution with the archived
+`f-field-scan-time-instrumentation.patch`, restoring both production sources
+byte-for-byte after saving executables. Phase CSVs print 17 significant
+digits, sufficient to round-trip the original binary clock durations. Repeat
+at domains 1/8:
+
+```sh
+RAYS_F_FIELD_PROFILE=1 RAYS_F_PREPARE_PHASE_CSV=specification/performance/f-field-scan-child-before-8.csv RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-scan-profile-before.exe --fields > specification/performance/f-field-scan-time-cook-before-8.csv 2> specification/performance/f-field-scan-parent-before-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_F_PREPARE_PHASE_CSV=specification/performance/f-field-scan-child-after-8.csv RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-scan-profile-precise-after.exe --fields > specification/performance/f-field-scan-time-cook-after-8.csv 2> specification/performance/f-field-scan-parent-after-8.csv
+```
+
+| Time-only interval | One domain before ms | One domain after ms | Eight domains before ms | Eight domains after ms |
+|---|---:|---:|---:|---:|
+| Grid | 1.610 | 1.427 | 1.498 | 1.582 |
+| Preparation parent | 1.856 | 0.578 | 1.868 | 0.597 |
+| Map construction child | 1.842 | 0.562 | 1.850 | 0.574 |
+| IR preparation child | 0.013 | 0.014 | 0.018 | 0.017 |
+| Kernel | 7.026 | 7.105 | 2.236 | 2.377 |
+| Extraction | 17.194 | 17.149 | 8.018 | 7.359 |
+| Instrumented whole cook | 27.760 | 26.450 | 13.881 | 11.974 |
+
+Instrumented allocation medians are unchanged at 42,721,344 bytes at one
+domain and 42,758,728→42,758,960 at eight. Preparation improves by about
+1.27 ms across both domain counts. Every cook has one child pair within the
+parent, using exact rational arithmetic on round-tripped binary durations;
+32 parent/16 child rows include warm-up -1 and timed trials 0..6. Children
+are never added twice to phase totals. All hashes remain
+`8a9c2d382ab7564328783e84a132cef1`, with 85,680 points/vertices and 28,560
+triangles. No algorithm or GC changes in diagnostic intervals.
+
+All raw rows are under `specification/performance/f-field-scan-*.csv`.
+The initial nine-decimal diagnostic batch is retained as `*-rounded.csv`:
+independent decimal rounding produced two one-nanosecond child-sum artifacts.
+An attempted overwrite of a read-only saved executable failed, so the next
+batch mixed old/new timer formats; those rows are preserved separately as
+`*-mixed-precision.csv`. Neither batch is used for the final containment or
+attribution table. A fresh uniquely named executable and four complete
+17-digit runs provide the table above; no old evidence is overwritten.
+
+`otool -tvV _build/default/lib/flow/.flow.objs/native/flow__Value.o` before/
+after shows the successful candidate loop keeps index/array/length in
+registers and branches to the error call only after leaving the loop. The
+old loop spills/reloads its index around the possible call. Function assembly
+excerpts are archived as `f-field-scan-assembly-{before,after}.txt`. This
+supports the proposed compiler mechanism; it does not explain unrelated
+whole-cook variation. Restored `@check`, Flow/SOP/procedural tests and the
+benchmark build pass (exit 0). No profiler ships. Astra's verdict follows.
+
+Astra's verdict: “Keep the sequential validation scan.” Exact input/error/
+mesh checks and bounded allocations pass; both whole-cook run orders favor
+it, and preparation improves consistently. The <10 ms gate is still unmet.
+Next: “not met, try hoisting the SOP grid's y-coordinate calculation per row
+and z-coordinate calculation per plane.” Preserve original sequential loops
+and cancellation checks, all FMA expressions and inner x indexing. Compute
+z once per uncancelled plane and y once per row, with all work inside the
+cook. Reuse complete non-dyadic/asymmetric lattice/mesh/cancellation tests,
+inspect assembly and allocation for boxing, save-before seven-trial whole
+cooks at domains 1/8 and a reverse-order eight-domain pair, and use only
+four-phase time attribution (child preparation timers unnecessary). Keep
+only with repeatable whole-cook benefit, exactness and no material allocation
+or one-domain regression; otherwise revert. No scheduling, cache or API
+change is approved.
+
+Sequential scan checkpoint: `--ship` and native GPU numerics
+(`@lib/flow_gpu/runtest-native`) pass (exit 0) on the confirmed M1. Shipping
+includes full workspace parity at four times/domains 1/8. No tolerances,
+goldens or gates were changed.

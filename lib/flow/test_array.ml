@@ -13,6 +13,13 @@ let () =
        assert (actual_code = code && actual_message = message && span = None));
     assert (Marshal.to_string packed [Marshal.No_sharing] = before) in
   List.iter (fun (width, wrap) ->
+    List.iter (fun values ->
+      let before = Marshal.to_string values [Marshal.No_sharing] in
+      Value.validate (wrap values);
+      assert (Marshal.to_string values [Marshal.No_sharing] = before))
+      [ [||]; Array.init (6 * width) (fun i ->
+          [|0.; -0.; Float.max_float; -.Float.max_float;
+            Int64.float_of_bits 1L; -.Int64.float_of_bits 1L|].(i mod 6)) ];
     let values = Array.init (width * 16384) (fun i -> if i mod 2 = 0 then -0. else float i *. 0.125) in
     let before = Marshal.to_string values [Marshal.No_sharing] in
     Value.validate (wrap values);

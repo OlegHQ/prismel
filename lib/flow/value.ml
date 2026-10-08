@@ -231,9 +231,12 @@ let rec validate = function
   | Vec4 (x, y, z, w) -> List.iter (fun x -> ignore (fin "input" x)) [x; y; z; w]
   | Float_array xs | Vec2_array xs | Vec3_array xs | Vec4_array xs as v ->
       ignore (array_length v);
-      for i = 0 to Array.length xs - 1 do
-        if not (Float.is_finite xs.(i)) then ignore (fin "array input" xs.(i))
-      done
+      let length = Array.length xs in
+      let i = ref 0 in
+      while !i < length && Float.is_finite xs.(!i) do
+        incr i
+      done;
+      if !i < length then ignore (fin "array input" xs.(!i))
   | List xs -> Array.iter validate xs
   | Record fs | Struct (_, _, fs) -> List.iter (fun (_, v) -> validate v) fs
   | _ -> ()
