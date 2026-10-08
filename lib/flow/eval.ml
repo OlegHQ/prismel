@@ -14,15 +14,15 @@ module Free_cache = Ephemeron.K1.Make (struct
   let hash (term : t) = Hashtbl.hash term.form.id
 end)
 
-let free_cache = Free_cache.create 256
-let free_cache_lock = Mutex.create ()
-let free_walks = ref 0
+let free_caches = Domain.DLS.new_key (fun () -> Free_cache.create 256)
+let free_walks = Atomic.make 0
 
-let free_names term = Mutex.protect free_cache_lock (fun () ->
+let free_names term =
+  let free_cache = Domain.DLS.get free_caches in
   match Free_cache.find_opt free_cache term with
   | Some names -> names
   | None ->
-      incr free_walks;
+      ignore (Atomic.fetch_and_add free_walks 1);
       let rec walk bound names (term : Workspace.term) =
         let all bound names terms = List.fold_left (walk bound) names terms in
         let fields bound names fields = List.fold_left (fun names (_, term) -> walk bound names term) names fields in
@@ -52,7 +52,12 @@ let free_names term = Mutex.protect free_cache_lock (fun () ->
          An owner-scoped checked-workspace cache removes that ceiling if measured. *)
       if Free_cache.length free_cache >= 16_384 then Free_cache.clear free_cache;
       Free_cache.replace free_cache term names;
-      names)
+      names
+
+let capture term env =
+  Names.fold (fun name captured -> match Smap.find_opt name env with
+    | None -> captured | Some value -> Smap.add name value captured)
+    (free_names term) Smap.empty
 
 let max_steps = 600_000
 let max_iterations = W.max_iterations
@@ -90,8 +95,7 @@ and fn =
                  zone : W.path; calls : int ref; fid : int; at : ctx }
   | Named of { name : string; ncalls : int ref; fid : int }
 
-(* ponytail: [renv] is the whole scope of the term, not only its free variables; the
-   compiled form ({!fast_of}) only reads the names the term uses. *)
+(* Captures contain the term's lexically free names, including nested bodies. *)
 and residual = { rid : int; rterm : W.term; renv : value Smap.t; rc : ctx;
   previous : bool; mutable fast : fast }
 
@@ -419,7 +423,7 @@ and ev c env (x : W.term) : value =
            (* ponytail: nodes made by the abandoned attempt are dropped, its records are kept *)
            st.nodes <- saved; st.nnodes <- saved_n; st.authored <- saved_authored;
            st.rids <- st.rids + 1;
-           let r = Residual { rid = st.rids; rterm = x; renv = env; rc = c; previous = false; fast = Untried } in
+           let r = Residual { rid = st.rids; rterm = x; renv = capture x env; rc = c; previous = false; fast = Untried } in
            (match x.node with W.State _ -> st.states <- r :: st.states | _ -> ());
            (* the record is the residual: a probe forces it at the time it shows *)
            (match x.path with Some p -> note c p r | None -> ()); r
@@ -428,7 +432,7 @@ and ev c env (x : W.term) : value =
       let evaluate () = match st.execute, x.node with
         | Some execute, (W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = "array/sum"; _}) ->
             st.rids <- st.rids + 1;
-            let r = {rid = st.rids; rterm = x; renv = env; rc = c; previous = false; fast = Untried} in
+            let r = {rid = st.rids; rterm = x; renv = capture x env; rc = c; previous = false; fast = Untried} in
             (match execute r live with
              | Some (Ok v) -> v
              | Some (Error d) -> raise (Fail (d.code, d.message, d.span))
@@ -441,6 +445,15 @@ and ev c env (x : W.term) : value =
 and evs c env prefix ts = List.mapi (fun i t -> ev (sub c (prefix ^ string_of_int i)) env t) ts
 
 and eval_named c env args =
+  (* ponytail: O(n²) uniqueness scan bounded to 16 slots; wider/repeated
+     signatures retain the hash path. Use declaration metadata if this
+     small scan becomes measurable. *)
+  let rec distinct = function
+    | [] -> true
+    | (name, _) :: rest -> not (List.mem_assoc name rest) && distinct rest in
+  if List.compare_length_with args 16 <= 0 && distinct args then List.map (fun (name, term) ->
+    name, ev (sub c name) env term) args
+  else
   let counts = Hashtbl.create 4 in
   List.map (fun (name, t) ->
     let n = Option.value (Hashtbl.find_opt counts name) ~default:0 in
@@ -537,7 +550,7 @@ and ev_raw c env (x : W.term) : value =
       let previous = match st.time with
         | None ->
             st.rids <- st.rids + 1;
-            Residual {rid = st.rids; rterm = x; renv = env; rc = c; previous = true; fast = Failed}
+            Residual {rid = st.rids; rterm = x; renv = capture x env; rc = c; previous = true; fast = Failed}
         | Some _ -> state_previous c env zone init in
       let env = bind_pat c ~mk:(Some (fun n -> zone @ [":" ^ n])) ~whole:true binder previous env in
       (match st.time with
@@ -704,7 +717,7 @@ and hof c env term kind f rest =
   (match kind, fv with
    | `Map, Closure cl when c.st.record && c.rec_ && (match out with Ty.Array _ -> true | _ -> false) ->
        c.st.rids <- c.st.rids + 1;
-       let call = Residual {rid = c.st.rids; rterm = term; renv = env; rc = c;
+       let call = Residual {rid = c.st.rids; rterm = term; renv = capture term env; rc = c;
          previous = false; fast = Untried} in
        note c (cl.zone @ ["~calls"]) (Record ["offset", Int !(cl.calls); "call", call])
    | _ -> ());
@@ -1089,7 +1102,7 @@ let show v = show_with Fun.id v
 
 module Private = struct
   let free_names term = Names.elements (free_names term)
-  let free_name_walks () = Mutex.protect free_cache_lock (fun () -> !free_walks)
+  let free_name_walks () = Atomic.get free_walks
   let force_with_executor ?state ?elems ?resolve ~execute v ~live =
     force_with ?state ?elems ?resolve ~execute v ~live
   let function_bindings = function Closure cl -> Smap.bindings cl.env | Named _ -> []

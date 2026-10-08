@@ -12,8 +12,7 @@ let sources value =
         let id = E.Private.residual_id r in
         if not (Hashtbl.mem seen id) then begin
           Hashtbl.add seen id ();
-          (* ponytail: conservative captured-scope dependencies; trim to free
-             bindings if attribute-kernel input traversal becomes measurable. *)
+          (* Evaluator captures are already trimmed to lexically free bindings. *)
           List.iter (fun (_, v) -> visit v) (E.Private.residual_view r).bindings
         end
     | List vs -> Array.iter visit vs

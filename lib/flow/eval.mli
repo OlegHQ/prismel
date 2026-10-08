@@ -48,8 +48,9 @@
     it), so one static pass serves every frame.  {!run} is the convenience
     that does both for a given time.
 
-    [residual] environments hold the whole scope of the term, not only its free
-    variables (ponytail: no free-variable pruning yet; measure in W2b). *)
+    [residual] environments hold only lexically free bindings, including names
+    captured by nested function and zone bodies. The checked-term walk is
+    memoized with a bounded weak cache. *)
 
 type ('f, 'r) payload = ('f, 'r) Value.t =
   | Int of int

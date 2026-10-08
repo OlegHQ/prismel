@@ -960,6 +960,13 @@ invalidates the projection.
 
 ### 13.2 The value lane
 
+Residuals retain only lexically free bindings, including names read by nested
+functions and zone bodies. Sequential and destructured bindings shadow outer
+names; a state's initializer is read in the outer scope. A bounded weak cache
+per domain memoizes the checked-term walk. Function closures keep their existing
+captures: measured retained closure bytes are below 10% of evaluation allocation.
+Residual identities and template rebinding by name remain unchanged.
+
 A `Network.t` is the SOP `Edit_graph` plus `drives`: the arguments that depend on `t`, each
 a `Flow.Eval.value` holding residuals, keyed (compiled node id, argument name). In the
 literal network such a parameter holds its `t = 0` value. Before each cook submission, and

@@ -6300,3 +6300,66 @@ these times precede parallel fan-out across input branches and zone elements.
 Fixture node counts, eval bytes and cook hashes match Phase 4. Capacity-512
 retention remains bloom 52/1.22 MiB, sunflower 241/1.84 MiB, wave 13/0.66 MiB,
 tree 27/0.87 MiB, no evictions. Focused Flow and Procedural checks pass.
+
+## P4 residual pruning and costs (2026-10-08)
+
+Same machine, OCaml 5.3.0 and dev profile as the P4 baseline. Static evaluation
+is measured alone, without lowering/cooking, with 31 wall-time repetitions and
+seven allocation repetitions per fixture. Build first, then run
+`_build/default/tools/bench_workspace_lower.exe --eval`. Original and selected
+executables use the same harness and checked fixture sources.
+
+The selected residual capture constructs a map by folding its free-name set
+and finding each existing lexical binding. The domain-local weak memo avoids
+sharing an ephemeron table across domains. The alternative whole-environment
+filter was measured before choosing the fold: wave 4.857 ms / 15,339,400 B
+versus fold 4.477 ms / 16,259,560 B. The fold is faster but allocates more than
+the filter. No cross-evaluation capture cache was added.
+
+| Fixture | Original eval ms | Pruned eval ms | Original bytes | Pruned bytes |
+|---|---:|---:|---:|---:|
+| bloom | 0.134 | 0.119 | 537208 | 466816 |
+| facade | 0.086 | 0.081 | 335808 | 286520 |
+| garland | 0.080 | 0.069 | 364664 | 315336 |
+| kit | 0.034 | 0.031 | 132176 | 119064 |
+| orrery | 0.183 | 0.181 | 653768 | 597832 |
+| rosette | 0.050 | 0.042 | 207808 | 176032 |
+| sunflower | 1.061 | 0.821 | 4501136 | 3711584 |
+| tiles | 0.333 | 0.279 | 1271648 | 1094648 |
+| tree | 0.018 | 0.017 | 77912 | 71760 |
+| tunnel | 0.023 | 0.021 | 107232 | 97200 |
+| variations | 0.020 | 0.017 | 100952 | 87096 |
+| wave | 4.065 | 4.477 | 17218984 | 16259560 |
+
+The table records the first isolated original/selected round. Three later
+alternating rounds, each still 31 evaluations, confirm the preparation tradeoff:
+wave original 4.043/4.116/3.982 ms, selected 4.859/4.585/4.482 ms, with stable
+17,218,984/16,259,560 B. Median of round medians is 4.043 -> 4.585 ms (+13.4%).
+Sunflower is 0.973/1.107/0.973 -> 0.849/0.823/0.793 ms with the same stable byte
+counts above. Raw CSVs are checked in under `specification/performance/` as
+`p4-capture-{original,selected}-{1,2,3}.csv`.
+
+Wave static preparation costs about 0.54 ms more for smaller retained captures;
+this is not a faster-evaluation claim. Its allocation gate passes, as does
+sunflower's. Sunflower has no residuals: a bounded 16-slot distinct-name fast
+path in the shared named-argument evaluator removes its temporary count table.
+Repeated names and wider signatures retain the existing counted routing path,
+including distinct nested call identities. Boundaries 16/17 and repeated
+17-slot calls have regressions.
+
+| Fixture | Residuals | Bindings before | Kept/read after | Views before B | Views after B |
+|---|---:|---:|---:|---:|---:|
+| orrery | 99 | 1411 | 240 | 35186 | 21725 |
+| wave | 2160 | 14580 | 6480 | 413206 | 289874 |
+
+All other fixtures have zero residuals. Function captures are left unchanged:
+garland has six captured functions / 30 bindings / 12,921 marshalled bytes;
+kit has one / seven / 198 B. Neither reaches 10% of its static evaluation
+bytes. Marshal is only a measurement of actual views, never a loaded artifact
+or semantic key.
+
+Focused Flow, Flow_sop, Flow_ir and workspace IR checks exit 0: all 23 standard
+and custom-catalog workspaces, all 12 fixtures, static plans/instances/records
+and four live times at one/eight domains preserve exact values and cook hashes.
+Native pixel and shipping gates remain subject to actual Metal access; this
+section does not mark the full P4 plan shipped.

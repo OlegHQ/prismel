@@ -52,8 +52,15 @@ let cook_hash geometry =
     List.map attribute (Geometry.attributes geometry), List.map group (Geometry.groups geometry),
     List.map edge_group (Geometry.edge_groups geometry))))
 
+module Functions = Hashtbl.Make (struct
+  type t = Flow.Eval.fn
+  let equal a b = a == b
+  let hash = Hashtbl.hash
+end)
+
 let residual_stats (eval : Flow.Eval.t) =
   let seen = Hashtbl.create 64 in
+  let functions = Functions.create 16 and captures = ref [] in
   let bindings = ref 0 and read = ref 0 and views = ref [] in
   let rec visit = function
     | Flow.Eval.Residual residual ->
@@ -69,7 +76,11 @@ let residual_stats (eval : Flow.Eval.t) =
         end
     | List values -> Array.iter visit values
     | Record fields | Struct (_, _, fields) -> List.iter (fun (_, value) -> visit value) fields
-    | Fn fn -> List.iter (fun (_, value) -> visit value) (Flow.Eval.Private.function_bindings fn)
+    | Fn fn when not (Functions.mem functions fn) ->
+        Functions.add functions fn ();
+        let bindings = Flow.Eval.Private.function_bindings fn in
+        if bindings <> [] then captures := bindings :: !captures;
+        List.iter (fun (_, value) -> visit value) bindings
     | _ -> () in
   List.iter (fun (_, value) -> visit value) eval.results;
   Array.iter (fun (node : Flow.Eval.node) -> List.iter (fun (_, value) -> visit value) node.args) eval.plan.nodes;
@@ -77,21 +88,30 @@ let residual_stats (eval : Flow.Eval.t) =
   (* One serialization preserves shared captures and includes nested residuals
      and function closures. These bytes are measured, never loaded or exported. *)
   let bytes = if !views = [] then 0 else String.length (Marshal.to_string !views [Marshal.Closures]) in
-  Hashtbl.length seen, !bindings, !read, bytes
+  let closure_bindings = List.fold_left (fun count bindings -> count + List.length bindings) 0 !captures in
+  let closure_bytes = if !captures = [] then 0 else String.length (Marshal.to_string !captures [Marshal.Closures]) in
+  Hashtbl.length seen, !bindings, !read, bytes, Functions.length functions, closure_bindings, closure_bytes
 
 let inspect_mode mode dir =
   let catalog = ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
-  print_endline (if mode = "--nodes" then
+  print_endline (if mode = "--eval" then "fixture,eval_ms,eval_bytes" else if mode = "--nodes" then
     "fixture,node_id,operation,input_points,output_points,seconds,cache_hit" else
-    "fixture,residuals,captured_bindings,read_bindings,view_bytes");
+    "fixture,residuals,captured_bindings,read_bindings,view_bytes,functions,closure_bindings,closure_bytes");
   Sys.readdir dir |> Array.to_list |> List.sort String.compare |> List.iter (fun file ->
     if Filename.check_suffix file ".lisp" then begin
       let name = Filename.chop_suffix file ".lisp" in
       let forms = ok (Flow.Syntax.parse (In_channel.with_open_bin (Filename.concat dir file) In_channel.input_all)) in
-      if mode = "--residuals" then begin
+      if mode = "--eval" then begin
         let workspace = match Flow.Workspace.check catalog forms with Some ws, _ -> ws | _ -> failwith "check" in
-        let count, captured, read, bytes = residual_stats (ok (Flow.Eval.static ~record:true workspace)) in
-        Printf.printf "%s,%d,%d,%d,%d\n%!" name count captured read bytes
+        ignore (ok (Flow.Eval.static workspace));
+        Printf.printf "%s,%.6f,%.0f\n%!" name
+          (median (fun () -> ok (Flow.Eval.static workspace)) 31)
+          (median_alloc (fun () -> ok (Flow.Eval.static workspace)) 7)
+      end else if mode = "--residuals" then begin
+        let workspace = match Flow.Workspace.check catalog forms with Some ws, _ -> ws | _ -> failwith "check" in
+        let count, captured, read, bytes, functions, closure_bindings, closure_bytes =
+          residual_stats (ok (Flow.Eval.static ~record:true workspace)) in
+        Printf.printf "%s,%d,%d,%d,%d,%d,%d,%d\n%!" name count captured read bytes functions closure_bindings closure_bytes
       end else begin
         let graph = List.hd (ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories forms)).graphs in
         let session = Result.get_ok (Procedural.Session.create ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024)) in
@@ -152,7 +172,7 @@ let () =
     branch_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 3);
     exit 0
   end;
-  if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--nodes"; "--residuals"] then begin
+  if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--nodes"; "--residuals"; "--eval"] then begin
     inspect_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then Sys.argv.(2) else "_build/default/specification/workspace/cases");
     exit 0
   end

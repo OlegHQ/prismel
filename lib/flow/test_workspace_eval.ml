@@ -368,8 +368,41 @@ let () = (* t: live values and the split evaluation *)
     assert (shape 0. = shape 5.3 && shape 0. = shape 100.))
 
 let () =
+  t "named argument routing preserves 16 and 17 distinct slots" (fun () ->
+    List.iter (fun count ->
+      let fields = List.init count (fun index -> "slot" ^ string_of_int index, Ty.Float) in
+      let operator = { (Option.get (Op.find "sin" Context.value)) with
+        name = "test/slots"; signature = {pos=fields;opt=[];rest=None;kw=[]};
+        out = (fun _ -> Ty.Float); any_num = false; arithmetic = None;
+        body = (fun ~live:_ ~node:_ args ->
+          assert (List.map fst args = List.map fst fields);
+          Value.Float (List.fold_left (fun sum (_, value) -> sum +. Value.num value) 0. args)) } in
+      let source = value ("(test/slots " ^ String.concat " " (List.init count (fun index -> string_of_int index ^ ".0")) ^ ")") in
+      let workspace = match Workspace.check ~ops:[operator] catalog (parse source) with
+        | Some workspace, [] -> workspace | _, ds -> failwith (show_ds ds) in
+      assert (result (static workspace) "g" = Eval.Float (float (count * (count - 1) / 2)))) [16;17]);
+  t "repeated named inputs preserve separate nested plan identities" (fun () ->
+    let source = sop ("(sop/merge " ^ String.concat " " (List.init 17 (fun index ->
+      Printf.sprintf "(sop/box :center [%d 0 0])" index)) ^ ")") in
+    let evaluation = static (check source) in
+    let nodes = nodes_of evaluation "sop/box" in
+    assert (List.length nodes = 17);
+    let keys = List.map (fun (node : Eval.node) -> node.inst, node.site, node.iter) nodes in
+    assert (List.length (List.sort_uniq compare keys) = 17));
+  t "residual capture retains two used bindings out of twenty" (fun () ->
+    let bindings = String.concat " " (List.init 20 (fun i -> Printf.sprintf "b%d %d.0" i i)) in
+    let ws = check (value ("(let* [" ^ bindings ^ "] (+ (+ b3 b17) t))")) in
+    let residual = match result (static ws) "g" with Eval.Residual r -> r | _ -> assert false in
+    assert (List.map fst (Eval.Private.residual_view residual).bindings = ["b17"; "b3"]);
+    assert (Eval.residual_eval residual ~live:(Frame_input.at_time 2.) = Ok (Eval.Float 22.)));
+  t "residual capture retains a nested function's outer binding" (fun () ->
+    let ws = check (value "(let* [outer 7.0 unused 99.0 mapped (map (fn [x] (+ x (+ outer t))) (array/range 2))] 0.0)") in
+    let residual = match List.hd (List.assoc ["g"; "mapped"] (static ~record:true ws).records) |> snd with
+      | Eval.Residual r -> r | _ -> assert false in
+    assert (List.map fst (Eval.Private.residual_view residual).bindings = ["outer"]);
+    assert (Eval.residual_eval residual ~live:(Frame_input.at_time 2.) = Ok (Eval.Float_array [|9.; 10.|])));
   t "free-name walk respects sequential bindings and nested captures" (fun () ->
-    let ws = check (value "(let* [outside 7.0 unused 8.0] (let* [local (+ outside t) f (fn [x] (+ x local outside))] (map f (list 1.0 2.0))))") in
+    let ws = check (value "(let* [outside 7.0 unused 8.0] (let* [local (+ outside t) f (fn [x] (+ x (+ local outside))) mapped (map f (list 1.0 2.0))] 0.0))") in
     let body = (List.hd ws.graphs).body in
     let term = match body.node with Workspace.Let (_, term) -> term | _ -> assert false in
     assert (Eval.Private.free_names term = ["outside"]);
@@ -377,7 +410,7 @@ let () =
     ignore (Eval.Private.free_names term);
     assert (Eval.Private.free_name_walks () = walks));
   t "free-name walk includes destructured sources and state initial values" (fun () ->
-    let ws = check (value "(let* [source (list 3.0 4.0) initial 2.0] (let* [[x y] source total (state [s initial] (+ s t))] (+ x y total)))") in
+    let ws = check (value "(let* [source (list 3.0 4.0) initial 2.0] (let* [[x y] source total (state [s initial] (+ s t))] (+ x (+ y total))))") in
     let term = match (List.hd ws.graphs).body.node with Workspace.Let (_, term) -> term | _ -> assert false in
     assert (Eval.Private.free_names term = ["initial"; "source"]))
 
