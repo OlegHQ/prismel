@@ -3,7 +3,7 @@ module P = Flow_ir.Packed
 type slot = {mutable buffer : B.buffer option; mutable capacity : int; mutable bytes : bytes}
 type t = {device:B.device; queue:B.queue; pipelines : Pipelines.t; msl : Emit.msl; inputs : slot array;
   output : slot; table : slot; status:slot; uniforms : bytes; mutable closed : bool; mutable creations : int;
-  mutable generation : int; domain : Domain.id}
+  mutable generation : int; mutable table_ready:bool; domain : Domain.id}
 type output = {owner : t; count : int; width : int; gpu_seconds : float option; generation : int}
 exception Failed of Flow.Diagnostic.t
 let diagnostic error = Flow.Diagnostic.error ~code:"E_GPU" (Ogpu.Error.to_string error)
@@ -18,7 +18,7 @@ let create_owned device queue pipelines (msl : Emit.msl) =
   if not(Domain.is_main_domain())then invalid_arg "Run.create: initial domain required";
   {device;queue;pipelines;msl;inputs=Array.map (fun _ -> slot ()) msl.input_widths;
     output=slot ();table=slot ();status=slot();uniforms=Bytes.create msl.uniform_bytes;
-    closed=false;creations=0;generation=0;domain=Domain.self ()}
+    closed=false;creations=0;generation=0;table_ready=false;domain=Domain.self ()}
 let create gpu=create_owned(Rays_execution.gpu_device gpu)(Rays_execution.gpu_queue gpu)
 let ensure t slot length =
   if length>slot.capacity then begin
@@ -26,10 +26,11 @@ let ensure t slot length =
     while !capacity<length do
       if !capacity>Sys.max_string_length/2 then capacity:=length else capacity:= !capacity*2
     done;
+    let bytes=Bytes.create !capacity in
     let fresh = get (B.create_buffer t.device
       {label=Some "Flow packed compute";size=Int64.of_int !capacity;usage=[Storage;Copy_src;Copy_dst]}) in
     Option.iter (fun buffer -> ignore (B.destroy_buffer buffer)) slot.buffer;
-    slot.buffer<-Some fresh;slot.capacity<- !capacity;slot.bytes<-Bytes.create !capacity;
+    slot.buffer<-Some fresh;slot.capacity<- !capacity;slot.bytes<-bytes;
     t.creations<-t.creations+1
   end;
   Option.get slot.buffer
@@ -79,14 +80,15 @@ let dispatch t (values : P.Private.inputs) =
     get(B.write_buffer status ~offset:0L t.status.bytes);
     let table = if msl.table_seeds=[||] then None else begin
       let length=Array.length msl.table_seeds*512*4 in
-      let fresh=t.table.capacity=0 in
+      let fresh=not t.table_ready in
       let buffer=ensure t t.table length in
       if fresh then begin
         Array.iteri (fun index seed ->
           let permutation=Rays_math.Noise.Private.permutation (Rays_math.Noise.create seed) in
           Array.iteri (fun entry value -> Bytes.set_int32_le t.table.bytes ((index*512+entry)*4)
             (Int32.of_int value)) permutation) msl.table_seeds;
-        get (B.write_buffer buffer ~offset:0L t.table.bytes)
+        get (B.write_buffer buffer ~offset:0L t.table.bytes);
+        t.table_ready<-true
       end;Some buffer
     end in
     let queue=t.queue in

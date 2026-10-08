@@ -1,6 +1,6 @@
 ; The display producer is eligible for the measured GPU tier. Without a native
 ; cost model it uses the CPU kernel. The exact SOP variant always cooks on CPU.
-(workspace flow_gpu
+(workspace flow_particles_gpu
   (graph picture :context draw
     (let* [indices (array/range 1000000)
            positions (map (fn [i]
@@ -12,7 +12,7 @@
         (draw/circles positions :radius 0.3 :fill "#76baca"))))
 
   (graph exact_surface :context sop
-    (let* [side 1000
+    (let* [side 999
            extent [800 600 0]
            grid (sop/grid :columns side :rows side :width extent.x :height extent.y)
            indices (array/range 1000000)

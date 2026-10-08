@@ -5,12 +5,19 @@ let wrong_domain f=Domain.join(Domain.spawn(fun()->try f();false with Invalid_ar
 let ()=
   let base,live=Ogpu.Impl.create_driver() in
   let fail=ref false and pipelines=ref 0 and submitted=ref 0 and invalid_output=ref false in
+  let fail_table=ref false and table_writes=ref 0 in
   (* This driver checks ownership and failed-command lifetimes only. It does
      not execute a shader or stand in for native numerical qualification. *)
   let driver=B.{create_device=(fun()->Result.map(fun raw->{raw with
     capabilities={raw.capabilities with compute_pipeline=true};
     create_buffer=(fun memory descriptor->Result.map(fun(resource:B.driver_resource)->
-      {resource with read=(fun offset length->if !invalid_output && length=4 then
+      {resource with write=(fun offset bytes->
+        if descriptor.Ogpu.Types.size=2048L then begin
+          incr table_writes;
+          if !fail_table then Error(Ogpu.Error.make "test" Invalid_state "injected table upload")
+          else resource.write offset bytes
+        end else resource.write offset bytes);
+        read=(fun offset length->if !invalid_output && length=4 then
         let flags=Bytes.make 4 '\000'in Bytes.set_int32_le flags 0 1l;Ok flags
         else resource.read offset length)})(raw.create_buffer memory descriptor));
     create_library=(fun shader->Result.map(fun library->{library with
@@ -61,6 +68,18 @@ let ()=
     assert(Result.is_error(R.dispatch run invalid));
     assert(R.buffer fresh=None);
     R.close run;R.close run;
-    assert(R.buffer fresh=None));
+    assert(R.buffer fresh=None);
+    let packed=List.assoc "noise"(Test_program.fixtures 1024)in
+    let noise=R.Private.create_owned device queue cache (Test_program.ok(Flow_gpu.Emit.kernel packed))in
+    Fun.protect ~finally:(fun()->R.close noise)(fun()->
+      let values=Test_program.ok(Flow_ir.Packed.Private.prepare packed ~live:(Frame_input.at_time 1.))in
+      fail_table:=true;
+      assert(Result.is_error(R.dispatch noise values));
+      assert(!table_writes=1);
+      fail_table:=false;
+      ignore(Test_program.ok(R.dispatch noise values));
+      assert(!table_writes=2);
+      ignore(Test_program.ok(R.dispatch noise values));
+      assert(!table_writes=2)));
   assert(live()=0 && !pipelines=0);
   print_endline "GPU output lifetimes: failed completion/reallocation invalidation, float32 input bounds and creating-domain close passed"
