@@ -6672,3 +6672,63 @@ Evidence: `/private/tmp/pl-final-ship.log`, `/private/tmp/pl-native-kit.log`,
 `/private/tmp/pl-native-spreadsheet.log`, `/private/tmp/pl-native-goldens.log`.
 These native gates must pass on a session with an available display/Metal
 adapter before the PL item can be marked shipped.
+## P4 branch fanout and placement calibration (2026-10-08)
+
+Same Apple M1/macOS/OCaml 5.3.0/Dune 3.24.2 development setup as the P4
+baseline. Seven repetitions, pools warm, one or eight domains, grain 16,384;
+all builds and other timed runs held. One initial OFF run overlapped a port
+build and was discarded. Cache capacity is 512 entries/256 MiB. `learned`
+first cooks without timing, then clears payload/cache metadata while retaining
+node durations. Completely fresh sessions intentionally stay sequential.
+
+```sh
+_build/default/tools/bench_workspace_lower.exe --branches 7 off
+_build/default/tools/bench_workspace_lower.exe --branches 7 learned
+_build/default/tools/bench_workspace_lower.exe --loops 7 off
+_build/default/tools/bench_workspace_lower.exe --loops 7 learned
+```
+
+| Workload | Placement | Domains | Median ms | Caller bytes | Program bytes | Fanouts |
+|---|---|---:|---:|---:|---:|---:|
+| Two chains, 2M points | off | 1 | 203.448 | 599,647,000 | 599,647,288 | 0 |
+| Two chains, 2M points | learned | 1 | 208.250 | 599,646,552 | 599,646,840 | 0 |
+| Two chains, 2M points | off | 8 | 84.972 | 599,971,944 | 601,315,904 | 0 |
+| Two chains, 2M points | learned | 8 | 74.798 | 422,030,096 | 601,439,440 | 1 |
+| 64 pieces, 3.2M points | off | 1 | 1318.181 | 1,197,214,904 | 1,197,215,192 | 0 |
+| 64 pieces, 3.2M points | learned | 1 | 1360.161 | 1,197,202,152 | 1,197,202,440 | 0 |
+| 64 pieces, 3.2M points | off | 8 | 1225.773 | 1,198,075,576 | 1,200,097,624 | 0 |
+| 64 pieces, 3.2M points | learned | 8 | 258.914 | 795,290,520 | 1,208,525,328 | 1 |
+
+Both full authored geometry hashes are unchanged from Step 0:
+`67c129ecc130f8881a2eaf92c053b64c` (chains) and
+`8ef295fbdea12b586200fd1ffcdcb58f` (pieces). Four complete CSVs, including
+the hashes, are in `specification/performance/p4-fanout-*.csv`. Program bytes
+come from whole-program `quick_stat` counters after an excluded minor
+collection; caller bytes alone decrease because work moves to other domains,
+not because allocation vanished. The loop's total allocation rises 0.7%.
+
+The first placement implementation gated only the final node's own seconds.
+That left the loop entirely sequential (1248.622 ms, zero fanouts): its noise
+suffix takes less than 2 ms while its Copy to Points ancestor is expensive.
+Placement now sums measured own durations of the uncached physical-node
+subtree, stopping at shared memo results and cache hits. The named 2 ms
+threshold remains; the source grid is prefetched once in original DFS order.
+Read-only cache predictions are memoized within each placement pass. Component
+cache refreshes and their unresolved consumers stay inline until their real
+output identities are available.
+
+The loop is 4.73x faster than the current eight-domain OFF path and 3.82x
+faster than Step 0's eight-domain row. The chains improve 1.14x against the
+current OFF path and are close to Step 0 (75.943 ms); their additional 1.5x
+target is **not met**. No small-fixture speed or native shipping gate is
+claimed by this table.
+
+Focused Procedural and Lru checks pass. Permanent branch checks cover actual
+two-worker overlap, one/eight-domain allocating geometry and zone byte
+identity, shared ancestors cooked once, exact immutable-plane cache keys and
+counters, CLOCK eviction invalidation, volatile/zero-capacity caches, packed
+materialization, reused IDs, warm/refresh hits staying inline, learned cheap
+suffix placement, diagnostics order and cancellation. Cache keys containing
+fresh runtime data IDs are deliberately not compared across separate allocating
+runs; immutable shared-plane fixtures exercise exact key equality directly.
+Native GPU and shipping checks remain pending in this restricted session.

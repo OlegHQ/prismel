@@ -87,13 +87,33 @@ let run () =
 
   let learned=session () in
   let slow label=node ~run:(fun _ -> Unix.sleepf 0.004) label geometry in
-  let costly_graph=node ~inputs:[|slow "cost_a";slow "cost_b"|] "cost_join" geometry in
+  let suffix label=node ~inputs:[|slow(label^"_source")|] label geometry in
+  let costly_graph=node ~inputs:[|suffix "cost_a";suffix "cost_b"|] "cost_join" geometry in
   ignore(cook learned 8 costly_graph);
   check (Session.Private.fanouts learned=0) "cold unknown costs bypassed the automatic gate";
   Session.Private.clear_cache_keep_timings learned;
   ignore(cook learned 8 costly_graph);
-  check (Session.Private.fanouts learned=1) "measured heavy branches stayed sequential";
+  check (Session.Private.fanouts learned=1) "cheap final operators hid measured heavy subtrees";
   Session.close learned;
+
+  let with_color value =
+    let color=Rdk.Attribute.create_owned ~owner:Rdk.Attribute.Point ~name:"Cd"
+        (Rdk.Attribute.Float(Array.make(Rdk.Geometry.point_count geometry)value)) |> ok in
+    Rdk.Geometry.with_attribute color geometry |> ok in
+  let source=Sop.snapshot(with_color 1.) in
+  let a=Sop.noise_displace ~seed:1 source and b=Sop.noise_displace ~seed:2 source in
+  let refreshing=session () in
+  Session.Private.set_parallel_override refreshing (Some true);
+  ignore(cook refreshing 8 (Sop.merge[a;b]));
+  let source=Sop.snapshot(with_color 2.) in
+  ignore(cook refreshing 8 source);
+  let a=Node.Private.rebuild_with_inputs a [|source|]
+  and b=Node.Private.rebuild_with_inputs b [|source|] in
+  let before=Session.Private.fanouts refreshing in
+  ignore(cook refreshing 8 (Sop.merge[a;b]));
+  check (Session.Private.fanouts refreshing=before)
+    "component cache refreshes were forked as cold cooks";
+  Session.close refreshing;
 
   (* This barrier fails if the first branch runs synchronously before the
      remaining branches are scheduled (Parallel.map_array's first element). *)

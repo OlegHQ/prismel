@@ -422,35 +422,60 @@ let selected_inputs node =
 let branch_min_seconds = 0.002
 let branch_min_points = 10_000
 
-let costly session node = match session.parallel_override with
-  | Some true -> true | Some false -> false
-  | None -> (match node_seconds session (Node.id node) with
-      | Some seconds -> seconds >= branch_min_seconds
-      | None -> Option.fold ~none:false ~some:(fun entry ->
-          Payload.element_count entry.output.payload >= branch_min_points)
-          (Entry_cache.find_first session.cache (fun key _ -> String.length key>=8 &&
-            String.get_int64_le key 0=Int64.of_int(Node.id node))))
+type cached_prediction = Known of output | Deferred_refresh | Missing
 
-let rec cached_output memo session context node =
-  match memo_find memo node with
-  | Some (_,Ok output) -> Some output | Some (_,Error _) -> None
+let rec cached_output predictions memo session context node =
+  match memo_find predictions node with
+  | Some(_,output) -> output
+  | None ->
+  let output=match memo_find memo node with
+  | Some (_,Ok output) -> Known output | Some (_,Error _) -> Missing
   | None ->
       let inputs=selected_inputs node in
-      let values=Array.map(fun input -> Option.bind (cached_output memo session context input)
-        (fun (output : output) -> match output.payload, output.instances with
-          | Payload.Image _, _ | _, None -> Some output.payload
-          | Geometry _, Some _ -> Option.map (fun geometry -> Payload.Geometry geometry)
-              (List.assq_opt output session.materialized))) inputs in
-      if Array.exists Option.is_none values then None else
+      let input_predictions=Array.map(cached_output predictions memo session context) inputs in
+      let values=Array.map(function Known output ->
+          (match output.payload,output.instances with
+           | Payload.Image _,_ | _,None -> Some output.payload
+           | Geometry _,Some _ -> Option.map(fun geometry -> Payload.Geometry geometry)
+               (List.assq_opt output session.materialized))
+        | Deferred_refresh | Missing -> None) input_predictions in
+      if Array.exists ((=) Deferred_refresh) input_predictions then Deferred_refresh
+      else if Array.exists Option.is_none values then Missing else
       let geometries=Array.map Option.get values in
       let key=cache_key node context geometries in
       let found=if session.volatile(Node.id node) then
         (match Hashtbl.find_opt session.slots(Node.id node) with
          |Some(stored,entry) when stored=key -> Some entry |_->None)
         else Entry_cache.peek session.cache key in
-      Option.bind found (fun entry -> match entry.delta with
-        |Some delta when delta.source<>Payload.data_id geometries.(0) -> None
-        |_->Some entry.output)
+      (match found with
+       | None -> Missing
+       | Some entry -> match entry.delta with
+           |Some delta when delta.source<>Payload.data_id geometries.(0) -> Deferred_refresh
+           |_->Known entry.output) in
+  Hashtbl.add predictions (Node.id node) (node,output);
+  output
+
+(* The root's own time excludes its inputs. Placement budgets the uncached
+   subtree, otherwise a cheap final operator hides an expensive branch. *)
+let costly predictions memo session context node = match session.parallel_override with
+  | Some true -> true | Some false -> false
+  | None ->
+      let visited=Hashtbl.create 16 and seconds=ref 0. and large=ref false in
+      let enough () = !seconds>=branch_min_seconds || !large in
+      let rec visit node =
+        if not(enough()) && Option.is_none(memo_find visited node)
+          && Option.is_none(memo_find memo node)
+          && cached_output predictions memo session context node=Missing then begin
+          Hashtbl.add visited (Node.id node) (node,());
+          (match node_seconds session (Node.id node) with
+           | Some elapsed -> seconds:= !seconds+.elapsed
+           | None -> large:=Option.fold ~none:false ~some:(fun entry ->
+               Payload.element_count entry.output.payload>=branch_min_points)
+               (Entry_cache.find_first session.cache(fun key _ -> String.length key>=8 &&
+                 String.get_int64_le key 0=Int64.of_int(Node.id node))));
+          Array.iter visit (selected_inputs node)
+        end in
+      visit node;enough()
 
 let rec evaluate memo session context node =
   match memo_find memo node with
@@ -510,10 +535,13 @@ and shared_prefix memo session context roots =
    CLOCK order, retention and counters identical to input-order execution. *)
 and evaluate_many memo session context roots =
   let count=Array.length roots in
-  let candidate node = Option.is_none (memo_find memo node) && costly session node
-    && Option.is_none (cached_output memo session context node) in
-  let candidates () = Array.to_list (Array.mapi (fun i node ->
-      if candidate node then Some i else None) roots) |> List.filter_map Fun.id in
+  let candidates () =
+    let predictions=Hashtbl.create 16 in
+    Array.to_list (Array.mapi (fun i node ->
+      if Option.is_none(memo_find memo node)
+        && costly predictions memo session context node
+        && cached_output predictions memo session context node=Missing
+      then Some i else None) roots) |> List.filter_map Fun.id in
   let sequential () =
     let outputs=Array.make count None in
     let rec go i =

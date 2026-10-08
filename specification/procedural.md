@@ -105,8 +105,10 @@ immutable schedule state, so an unchanged graph needs no traversal per frame.
 A session remains single-caller. Independent input branches and concrete zone
 elements may cook on the shared `Parallel` pool, with one coarse branch per
 chunk. The automatic gate requires at least two uncached branches and multiple
-domains; a branch qualifies after a real cook of at least 2 ms, or, when its
-timing has expired, a retained output of at least 10,000 points. A new session
+domains; a branch qualifies when the measured own times of its uncached
+subtree sum to at least 2 ms, or, when a timing has expired, a retained output
+has at least 10,000 points. Shared or cached ancestors contribute no work.
+A new session
 without these measurements runs sequentially. Cache hits remain inline.
 
 Shared ancestors are evaluated once on the caller in the original DFS prefix
