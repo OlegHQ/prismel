@@ -45,7 +45,10 @@ kernel void noise_map(device const float* positions [[buffer(0)]],
 let interface = List.init 5 (fun binding -> S.{group=0; binding;
   kind=(if binding=3 then Uniform_buffer else Storage_buffer); visibility=[Compute]})
 
-let compile device =
+(* A distinct trailing comment per compile defeats the system shader cache, so
+   the median is a cold source compile rather than a cache lookup. *)
+let compile ?(salt=0) device =
+  let source = if salt=0 then source else Printf.sprintf "%s// %d\n" source salt in
   let shader = get (S.of_source {backend="metal";label=Some "P5-baseline";
     bytes=Bytes.of_string source;entry_points=[{name="noise_map";stage=Compute}];bindings=interface}) in
   let library = get (B.create_library device shader) in
@@ -60,8 +63,15 @@ let with_buffer device length f =
     size=Int64.of_int length;usage=[Storage;Copy_src;Copy_dst]}) in
   Fun.protect ~finally:(fun () -> get (B.destroy_buffer buffer)) (fun () -> f buffer)
 
-let pack into values = Array.iteri (fun index value ->
-  Bytes.set_int32_le into (index*4) (Int32.bits_of_float value)) values
+(* Loops rather than closures: a per-element closure call boxes every float. *)
+let pack into (values : float array) =
+  for index=0 to Array.length values-1 do
+    Bytes.set_int32_le into (index*4) (Int32.bits_of_float (Array.unsafe_get values index)) done
+let unpack bytes width =
+  let values = Array.make width 0. in
+  for index=0 to width-1 do
+    Array.unsafe_set values index (Int32.float_of_bits (Bytes.get_int32_le bytes (index*4))) done;
+  values
 
 let permutation () =
   let shuffled, _ = Rays_math.Rand.shuffle (List.init 256 Fun.id) (Rays_math.Rand.seed 0) in
@@ -82,15 +92,16 @@ let measure gpu compile_s (_, pipeline) count =
     with_buffer device length (fun output -> with_buffer device (Bytes.length table) (fun noise ->
       get (B.write_buffer noise ~offset:0L table);
       List.iter (fun readback ->
-        let uploads = Array.make 7 0. and dispatches = Array.make 7 0.
+        let packs = Array.make 7 0. and writes = Array.make 7 0. and dispatches = Array.make 7 0.
         and gpu_seconds = Array.make 7 0. and reads = Array.make 7 0. and totals = Array.make 7 0. in
         for repeat=0 to 6 do
           let started = now () in
-          let (), upload = timed (fun () ->
-            pack packed_positions positions; pack packed_normals normals;
+          let (), packing = timed (fun () -> pack packed_positions positions; pack packed_normals normals) in
+          packs.(repeat) <- packing;
+          let (), write = timed (fun () ->
             get (B.write_buffer input_a ~offset:0L packed_positions);
             get (B.write_buffer input_b ~offset:0L packed_normals)) in
-          uploads.(repeat) <- upload;
+          writes.(repeat) <- write;
           let receipt, dispatch = timed (fun () ->
             let commands = get (B.begin_commands queue) in
             let encoder = get (B.compute_encoder commands) in
@@ -106,16 +117,15 @@ let measure gpu compile_s (_, pipeline) count =
           gpu_seconds.(repeat) <- Option.value (B.gpu_duration queue receipt) ~default:nan;
           if readback then begin
             let (), read = timed (fun () ->
-              let bytes = get (B.read_buffer output ~offset:0L ~length) in
-              let values = Array.init width (fun index -> Int32.float_of_bits (Bytes.get_int32_le bytes (index*4))) in
+              let values = unpack (get (B.read_buffer output ~offset:0L ~length)) width in
               assert (Array.for_all Float.is_finite values)) in
             reads.(repeat) <- read
           end;
           totals.(repeat) <- now () -. started
         done;
-        Printf.printf "%s,%d,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f\n%!"
-          (if readback then "noise_readback" else "noise_display") count compile_s
-          (median uploads) (median dispatches) (median gpu_seconds) (median reads) (median totals)) [true;false]))))
+        Printf.printf "%s,%d,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f\n%!"
+          (if readback then "noise_readback" else "noise_display") count compile_s (median packs) (median writes)
+          (median dispatches) (median gpu_seconds) (median reads) (median totals)) [true;false]))))
 
 let () =
   if Array.to_list Sys.argv = [Sys.argv.(0); "--msl"] then begin
@@ -128,11 +138,11 @@ let () =
         print_endline "SKIP: backend lacks Compute_pipeline"
       else begin
         let device = Rays_execution.gpu_device gpu in
-        let compiles = Array.init 10 (fun _ ->
-          let pipeline, seconds = timed (fun () -> compile device) in destroy pipeline; seconds) in
+        let compiles = Array.init 10 (fun salt ->
+          let pipeline, seconds = timed (fun () -> compile ~salt:(salt+1) device) in destroy pipeline; seconds) in
         let compile_s = median compiles in
         let pipeline = compile device in
         Fun.protect ~finally:(fun () -> destroy pipeline) (fun () ->
-          print_endline "name,count,compile_s,upload_s,dispatch_s,gpu_s,readback_s,total_s";
+          print_endline "name,count,compile_s,pack_s,write_s,dispatch_s,gpu_s,readback_s,total_s";
           List.iter (measure gpu compile_s pipeline) [1024;65536;1_000_000])
       end)

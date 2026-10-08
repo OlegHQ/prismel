@@ -391,4 +391,11 @@ let ()=
   assert(List.exists(fun report->report.tier=Gpu)(Profile.executions profile));
   assert(match ok(Executor.force_display ~policy:Gpu.Qualification program ~live:(Frame_input.at_time 1.))with
     Executor.Cpu _->true|_->false);
+  (* Measured policy: a finite GPU estimate plus its display sink competes with
+     the CPU kernel plus instance building; an expensive estimate keeps CPU. *)
+  List.iter(fun(seconds,expect_gpu)->
+    Gpu.with_backend {backend with cost=(fun _ ~count:_->Some seconds)}(fun()->
+      assert(match ok(Executor.force_display program ~live:(Frame_input.at_time 1.))with
+        |Executor.Gpu _->expect_gpu|Executor.Cpu _->not expect_gpu)))
+    [0.,true;Cost.estimate Cpu_kernel ~count:1024,true;1.,false];
   print_endline "GPU neutral callbacks: measured placement, illegal exact sinks, qualification scope and phase profiles passed"

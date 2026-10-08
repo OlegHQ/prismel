@@ -9,11 +9,28 @@ exception Failed of Flow.Diagnostic.t
 let diagnostic error = Flow.Diagnostic.error ~code:"E_GPU" (Ogpu.Error.to_string error)
 let get = function Ok value -> value | Error error -> raise (Failed (diagnostic error))
 let slot () = {buffer=None;capacity=0;bytes=Bytes.empty}
+let nonfinite () =
+  Failed(Flow.Diagnostic.error ~code:"E_KERNEL" "GPU inputs must remain finite when represented as float32.")
 let pack bytes offset value =
   let bits=Int32.bits_of_float value in
-  if not(Float.is_finite(Int32.float_of_bits bits))then
-    raise(Failed(Flow.Diagnostic.error ~code:"E_KERNEL" "GPU inputs must remain finite when represented as float32."));
+  if not(Float.is_finite(Int32.float_of_bits bits))then raise(nonfinite());
   Bytes.set_int32_le bytes offset bits
+(* One loop body keeps the float and its int32 bits unboxed; calling [pack]
+   per element boxed both (96 MB/frame at one million vec3 inputs). *)
+let pack_array bytes (values : float array) length =
+  for index=0 to length-1 do
+    let bits=Int32.bits_of_float(Array.unsafe_get values index) in
+    if not(Float.is_finite(Int32.float_of_bits bits))then raise(nonfinite());
+    Bytes.set_int32_le bytes (index*4) bits
+  done
+let unpack_array bytes length =
+  let values=Array.make length 0. and finite=ref true in
+  for index=0 to length-1 do
+    let value=Int32.float_of_bits(Bytes.get_int32_le bytes (index*4)) in
+    if not(Float.is_finite value) then finite:=false;
+    Array.unsafe_set values index value
+  done;
+  values, !finite
 let create_owned device queue pipelines (msl : Emit.msl) =
   if not(Domain.is_main_domain())then invalid_arg "Run.create: initial domain required";
   {device;queue;pipelines;msl;inputs=Array.map (fun _ -> slot ()) msl.input_widths;
@@ -71,8 +88,7 @@ let dispatch t (values : P.Private.inputs) =
     let buffers=Array.mapi (fun index slot ->
       let length=values.count*msl.input_widths.(index)*4 in
       let buffer=ensure t slot length in
-      for component=0 to length/4-1 do pack slot.bytes (component*4)
-        values.arrays.(index).(component) done;
+      pack_array slot.bytes values.arrays.(index) (length/4);
       get (B.write_buffer buffer ~offset:0L slot.bytes);buffer) t.inputs in
     let output=ensure t t.output (values.count*msl.output_width*4) in
     let status=ensure t t.status 4 in
@@ -120,10 +136,9 @@ let readback output =
     Error (Flow.Diagnostic.error ~code:"E_GPU" "GPU output was closed or superseded.")
   else try
     let length=output.count*output.width in
-    let values=if length=0 then [||] else
-      let bytes=get (B.read_buffer (Option.get output.owner.output.buffer) ~offset:0L ~length:(length*4)) in
-      Array.init length (fun index -> Int32.float_of_bits (Bytes.get_int32_le bytes (index*4))) in
-    if not (Array.for_all Float.is_finite values) then
+    let values,finite=if length=0 then [||],true else
+      unpack_array (get (B.read_buffer (Option.get output.owner.output.buffer) ~offset:0L ~length:(length*4))) length in
+    if not finite then
       Error (Flow.Diagnostic.error ~code:"E_KERNEL" "GPU output contains a nonfinite value.")
     else Ok (if output.width=3 then Flow.Eval.Vec3_array values else Float_array values)
   with Failed error -> Error error

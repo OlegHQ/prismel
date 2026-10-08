@@ -1395,8 +1395,10 @@ sinks, close sinks before their GPU lease, and reject stale generations. A
 four-byte status read validates finite shader intermediates and outputs without
 reading back the packed array. Compile, GPU execution and explicit readback have separate tier
 reports. The GPU badge's group time is the completed device dispatch duration
-when timestamps are supported, otherwise wall time. An absent native cost
-model keeps production on CPU. For an input-independent packed producer,
+when timestamps are supported, otherwise wall time. Production placement compares
+the measured native GPU row of the Flow IR cost table (pack, upload and dispatch, plus the
+resident circle conversion for a display sink or the readback row for `(exact x)`) with the
+CPU kernel tier plus CPU instance building; an unmeasured backend keeps CPU. For an input-independent packed producer,
 `sop/with_attr` with `(exact x)` materializes selected GPU output on the initial
 domain before submitting CPU geometry work. The cook worker receives an owned
 CPU array. Attribute-reading cones retain their cooked-input CPU route.

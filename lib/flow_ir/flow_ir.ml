@@ -25,10 +25,28 @@ module Cost = struct
     | Cpu_kernel ->
         let per_element = (0.016522884 -. 0.000040054) /. (1_000_000. -. 1024.) in
         {fixed=0.000040054 -. per_element *. 1024.;per_element}
-    | Gpu | Gpu_compile | Gpu_readback | Cooked -> {fixed=infinity;per_element=0.}
+    (* P5 native rows, performance-log "P5 native calibration" (Apple M1,
+       `bench_kernel --gpu` and `bench_gpu`): pack, upload and synchronized
+       dispatch at 1,024 and 1M elements, explicit readback, cold compile. *)
+    | Gpu ->
+        let per_element = (0.020215034 -. 0.000437975) /. (1_000_000. -. 1024.) in
+        {fixed=0.000437975 -. per_element *. 1024.;per_element}
+    | Gpu_readback ->
+        let per_element = (0.007947922 -. 0.000010014) /. (1_000_000. -. 1024.) in
+        {fixed=0.000010014 -. per_element *. 1024.;per_element}
+    | Gpu_compile -> {fixed=0.008223057;per_element=0.}
+    | Cooked -> {fixed=infinity;per_element=0.}
   let estimate tier ~count =
     if count < 0 then invalid_arg "Flow_ir.Cost.estimate: negative count";
     let cost = table tier in cost.fixed +. cost.per_element *. float count
+  (* Per element beyond the producer, from the same log's editor rows at
+     10,000 and 1M circles: CPU instance building and upload against the
+     resident GPU circle conversion. A display sink competes route by route. *)
+  let display_sink tier ~count =
+    if count < 0 then invalid_arg "Flow_ir.Cost.display_sink: negative count";
+    float count *. (match tier with
+      | Gpu -> (0.028567791 -. 0.001480103) /. 990_000. -. (table Gpu).per_element
+      | _ -> (0.903350830 -. 0.010123968) /. 990_000. -. (table Cpu_kernel).per_element)
   let cheapest ~legal ~count = match legal with
     | [] -> invalid_arg "Flow_ir.Cost.cheapest: no legal tier"
     | first :: rest -> List.fold_left (fun best tier ->
@@ -525,7 +543,9 @@ module Executor = struct
         then cpu()else
       let cheaper count= count>=1024 && (policy=Gpu.Qualification ||
         Option.fold ~none:false ~some:(fun seconds->Float.is_finite seconds && seconds>=0.
-          && seconds<Cost.estimate(Cost.packed ~count) ~count)(backend.cost packed ~count))in
+          && seconds+.(if readback then Cost.estimate Gpu_readback ~count else Cost.display_sink Gpu ~count)
+            <Cost.estimate(Cost.packed ~count) ~count
+             +.(if readback then 0. else Cost.display_sink Cpu_kernel ~count))(backend.cost packed ~count))in
       (* Static cardinality lets unmeasured placement decline before allocating
          producer inputs, especially the million-element exact SOP value lane. *)
       if Option.fold ~none:false ~some:(fun count->not(cheaper count))(Packed.static_count packed)

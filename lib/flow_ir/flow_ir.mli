@@ -23,6 +23,10 @@ module Cost : sig
   val cheapest : legal:tier list -> count:int -> tier
   val packed : count:int -> tier
   (** The same measured CPU decision used at placement and force time. *)
+
+  val display_sink : tier -> count:int -> float
+  (** Measured seconds a display sink adds beyond the producer: CPU instance
+      building and upload, or the resident GPU circle conversion. *)
 end
 module Gpu : sig
   type value={identity:int;count:int;width:int;stamp:int64;gpu_seconds:float option}
