@@ -6483,3 +6483,29 @@ Particle control: `_build/default/test/test_drawing.exe examples/particles/sketc
 lowering after retention: 100,000 circles, 1353 bytes/frame, the same Scene identity for 100
 repeated frames; this excludes editor chrome. Native upload/draw/pixel gates are implemented
 but not verified while OGPU returns `Metal has no system default device`.
+
+P3 after rows, same command and input protocol (core commit 63939edd):
+
+| Kind | N | Moving median / p95 (ms) | Moving bytes/frame | Static median / p95 (ms) | Static bytes/frame | Commands |
+|---|---:|---:|---:|---:|---:|---:|
+| circle | 1000 | 1.790 / 1.951 | 6,895,076 | .038 / .070 | 203,340 | 1 |
+| rect | 1000 | 1.746 / 1.900 | 6,847,124 | .037 / .069 | 203,340 | 1 |
+| line | 1000 | 2.078 / 2.311 | 9,158,364 | .039 / .085 | 203,340 | 1 |
+| points | 1000 | 1.634 / 1.774 | 6,872,500 | .037 / .070 | 203,340 | 1 |
+| circle | 10000 | 4.154 / 4.804 | 7,827,948 | .042 / .158 | 203,340 | 1 |
+| rect | 10000 | 4.253 / 5.061 | 7,347,996 | .037 / .125 | 203,340 | 1 |
+| line | 10000 | 2.240 / 2.592 | 4,841,484 | .037 / .128 | 203,340 | 1 |
+| points | 10000 | 2.515 / 3.682 | 9,085,836 | .039 / .111 | 203,340 | 1 |
+| circle | 100000 | 38.897 / 42.091 | 75,529,817 | .038 / .131 | 203,340 | 1 |
+| rect | 100000 | 38.620 / 41.912 | 70,724,743 | .037 / .098 | 203,340 | 1 |
+| line | 100000 | 14.905 / 17.092 | 44,478,027 | .038 / .119 | 203,340 | 1 |
+| points | 100000 | 15.955 / 21.007 | 80,877,878 | .037 / .105 | 203,340 | 1 |
+
+10k circles meet the 16 ms CPU editor-update gate. The 100k-circle row uses 755.3 allocated
+bytes/instance, below the particle control's 920.5. All plural shapes emit one command; actual
+GPU draw count remains a native qualification gate. Particle after: median 2.831 ms, p95
+12.062 ms, 9,204,524 bytes/frame. Its median and allocations improve slightly; its p95 has an
+outlier and is recorded without calling it an improvement. `bench_kernel --loops` completed
+with every one/eight-domain CPU and interpreter digest equal through one million elements;
+raw rows `/private/tmp/p3-kernel-after.txt`. A brief failed compiler lookup overlapped that
+long control run, so its timings are not an isolated before/after performance claim.

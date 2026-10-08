@@ -184,6 +184,21 @@ let arrays = [
     (function Ty.Array e :: _ -> e | _ -> Ty.Any)
     {run = fun ~name ~node:_ args -> array_get (List.assoc "array" args)
       (array_count name (List.assoc "index" args))};
+  mk ~category:"Array" "array/slice" ["array",Ty.Array Ty.Any;"first",Ty.Int;"count",Ty.Int]
+    (function (Ty.Array _ as ty)::_ ->ty|_->Ty.Array Ty.Any)
+    {run=fun ~name ~node:_ args->
+      let first=array_count name(List.assoc "first" args)and count=array_count name(List.assoc "count" args)in
+      let slice width values=if first>Array.length values/width || count>Array.length values/width-first
+        then fail "E_ARRAY_RANGE" "An array slice must be within its source.";
+        Array.sub values (first*width)(count*width)in
+      match List.assoc "array" args with Float_array xs->Float_array(slice 1 xs)
+        |Vec3_array xs->Vec3_array(slice 3 xs)|_->fail "E_TYPE" "Expected a packed array."};
+  mk ~category:"Array" "array/concat" ["first",Ty.Array Ty.Any;"second",Ty.Array Ty.Any]
+    (function (Ty.Array _ as ty)::_ ->ty|_->Ty.Array Ty.Any)
+    {run=fun ~name:_ ~node:_ args->match List.assoc "first" args,List.assoc "second" args with
+      |Float_array a,Float_array b->Float_array(Array.append a b)
+      |Vec3_array a,Vec3_array b->Vec3_array(Array.append a b)
+      |_->fail "E_ARRAY_TYPE" "Concatenated arrays must have the same element type."};
   mk ~category:"Array" "array/sum" ["array", Ty.Array Ty.Any]
     (function Ty.Array e :: _ -> e | _ -> Ty.Any)
     {run = fun ~name:_ ~node:_ args ->
@@ -233,7 +248,20 @@ let host = [
     ~choices:["waveform",["sine";"square";"triangle";"sawtooth"]] "audio/synth" [] "sample";
   host_op "audio/load" ["path",Ty.Text] "sample";
 ]
-let all = frame @ arrays @ draw @ host @ [
+let integers = List.map(fun(name,operation)->
+  mk ~category:"Integer" name ["a",Ty.Int;"b",Ty.Int] (fun _->Ty.Int)
+    {run=fun ~name:_ ~node:_ args->
+      let integer=function Int value->value|value->int_of value in
+      let a=integer(List.assoc "a" args)and b=integer(List.assoc "b" args)in
+      try Int(operation a b)with Division_by_zero->fail "E_RANGE" "Integer division by zero."})
+  ["int/mul",( * );"int/div",( / );"int/mod",( mod );"int/and",( land );"int/xor",( lxor )]
+
+let all = frame @ arrays @ draw @ host @ integers @ [
+  mk ~category:"Compare" "equal?" ["a",Ty.Any;"b",Ty.Any] (fun _->Ty.Bool)
+    {run=fun ~name:_ ~node:_ args->try Bool(List.assoc "a" args=List.assoc "b" args)
+      with Invalid_argument _->fail "E_TYPE" "Functions cannot be compared."};
+  unary ~category:"Math" "exp" (fun _->fl) {run=fun ~name ~node:_ args->
+    Float(fin name(exp(num(List.assoc "x" args))))};
   mk ~category:"Convert" "exact" ["value", Ty.Any]
     (function ty :: _ -> ty | _ -> Ty.Any)
     {run = fun ~name:_ ~node:_ args -> List.assoc "value" args};

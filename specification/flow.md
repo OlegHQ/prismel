@@ -1277,3 +1277,15 @@ Each workspace pins at most 64 distinct audio samples and 64 images, keyed by th
 arguments. Capacity and backend errors are typed `E_AUDIO`/`E_IMAGE`; a live resource is never
 evicted from a retained scene. Host close destroys owned resources before runtime close and
 shuts down audio only if it initialized it.
+
+The example ports also use `array/slice array first count` (a checked owned slice) and
+`array/concat first second` (matching packed element types), retaining packed stroke data.
+`int/mul`, `int/div`, `int/and` and `int/xor` preserve native OCaml integer bits, including
+wrapping multiplication. They support the recursive rectangle example's original palette hash
+without converting its large integer products through a float. Division by zero is `E_RANGE`.
+
+`equal? a b` compares data (including event text); numeric `=` keeps its numeric contract.
+`exp x` supplies native exponential damping. Pure-data folds/scans may follow a live list
+length, still with the 4096-iteration evaluator bound; geometry folds keep their fixed topology
+rule. A live `if` may select already-declared Drawing nodes without changing the plan topology.
+Dialog filters use records `(list {:label "Images" :extensions (list "png" "jpg")})`.

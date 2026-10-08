@@ -64,10 +64,9 @@ let native ()=
         let interior array=List.for_all(fun(dx,dy)->inside array(x+dx)(y+dy))
           [-1,-1;0,-1;1,-1;-1,0;0,0;1,0;-1,1;0,1;1,1]in
         if interior expected && interior actual then
-          for shift=0 to 3 do
-            let channel word=(word lsr (8*shift))land 255 in
-            require(abs(channel value-channel actual.(i))<=1)"reference interior RGBA drift"
-          done)expected in
+          List.iter(fun channel->
+            require(abs(channel value-channel actual.(i))<=1)"reference interior RGBA drift")
+            [(fun(c:Color.t)->c.r);(fun c->c.g);(fun c->c.b);(fun c->c.a)])expected in
     List.iter(fun alpha->let fill=Color.rgba 40 120 180 alpha
       and stroke=Color.rgba 230 80 20 alpha in
       let b=B.Builder.create ()in

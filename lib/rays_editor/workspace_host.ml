@@ -82,8 +82,11 @@ let perform host ~state ~live requests =
           |"save_file"->Save_file|"open_folder"->Open_folder
           |_->V.fail "E_EFFECT" "Unknown file dialog kind."in
         let filters=Option.map(function E.List entries->Array.to_list entries|>List.map(function
+          |E.Record fields->(match List.assoc_opt "label" fields,List.assoc_opt "extensions" fields with
+              |Some(E.Text label),Some(E.List extensions)->label,Array.to_list(Array.map text extensions)
+              |_->V.fail "E_EFFECT" "A filter has text :label and list :extensions.")
           |E.List[|E.Text label;E.List extensions|]->label,Array.to_list(Array.map text extensions)
-          |_->V.fail "E_EFFECT" "A filter is (list label (list extensions...)).")
+          |_->V.fail "E_EFFECT" "A filter has :label and :extensions.")
           |_->V.fail "E_EFFECT" "Dialog filters are a list.")(List.assoc_opt "filters" args)in
         Result.map ignore(Result.map_error(fun message->Flow.Diagnostic.error ~code:"E_EFFECT" message)
           (Sketch.show_file_dialog ?filters ?default_location:(Option.map text(List.assoc_opt "default" args))kind))
@@ -99,9 +102,15 @@ let close host=Workspace_resources.close host.resources
 let export_check workspace plan =
   match effects workspace plan with
   |None->Ok()
-  |Some _->
-      if Array.exists(fun(node:E.node)->(node.kind="host/quit" || node.kind="host/dialog") &&
-        List.assoc_opt "when" node.args=Some(E.Bool true))plan.E.nodes
+  |Some effects->
+      let rec unsafe=function
+        |E.List values->Array.exists unsafe values
+        |E.Deferred(Flow.Ty.Named "effect",id)when id>=0 && id<Array.length plan.E.nodes->
+            let node=plan.nodes.(id)in
+            (node.kind="host/quit" || node.kind="host/dialog") &&
+              List.assoc_opt "when" node.args=Some(E.Bool true)
+        |_->false in
+      if unsafe effects
       then Error(Flow.Diagnostic.error ~code:"E_EFFECT_EXPORT" "Quit and file dialogs are unavailable during export.")
       else Ok()
 let export_update host ~state ~live workspace plan =

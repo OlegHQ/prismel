@@ -169,7 +169,7 @@ let check_context_time (workspace : Workspace_doc.t) (plan : E.plan) =
     | _ -> None in
   match Array.to_list plan.instances |> List.find_map (fun (instance : E.instance) ->
     Option.bind (List.find_opt (fun (g : W.graph) -> g.name = instance.graph
-      && g.context <> Flow.Context.sop && g.context <> Flow.Context.value) workspace.checked.graphs) (fun graph ->
+      && not(Flow.Context.supports_values g.context)) workspace.checked.graphs) (fun graph ->
       Option.map (fun field -> Flow.Diagnostic.error ~code:"E_CONTEXT_TIME" ~span:graph.body.form.span
         (Printf.sprintf "Graph %s: %s depends on t, but %s fields are static. Use a literal or a SOP/value drive."
           graph.name field (W.context_name graph.context))) (live_field "result" instance.result))) with
