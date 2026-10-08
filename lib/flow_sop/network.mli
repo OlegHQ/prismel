@@ -16,12 +16,15 @@ type t = private {
           snapshot on the initial domain, before worker submission. *)
   profile : Flow_ir.Profile.t option;
   reference : bool;
+  approx : Flow.Workspace.Paths.t;
 }
 
 val of_geometry : Procedural.Edit_graph.t -> t
 val with_profile : Flow_ir.Profile.t -> t -> t
 val with_reference : bool -> t -> t
 (** Independent reference execution for parity checks and inspected cones. *)
+
+val with_approx : Flow.Workspace.Paths.t -> t -> t
 
 val with_states : Flow.Eval.value list -> t -> t
 val with_frame_nodes : (Flow.Eval.state -> Frame_input.t -> Procedural.Node.t ->

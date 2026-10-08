@@ -35,6 +35,52 @@ let stages program = Array.fold_left (fun count (node : Flow_ir.node) -> match n
   | Kernel {body = Packed_map p; _} -> max count (Flow_ir.Packed.stage_count p)
   | _ -> count) 0 (Flow_ir.Executor.graph program).nodes
 let () =
+  (* Real Lisp lowering, not a hand-built Readback IR: GPU callbacks run before
+     worker cooking, and workers receive only an owned exact CPU snapshot. *)
+  let count=2048 and calls=ref 0 and reads=ref 0 and time=ref 0. in
+  let backend:Flow_ir.Gpu.backend={cost=(fun _ ~count:_->Some 0.);
+    prepare=(fun _->assert(Domain.is_main_domain());Ok {
+      run=(fun inputs->assert(Domain.is_main_domain());assert(inputs.count=count);
+        incr calls;Ok {identity=1;count;width=3;stamp=Int64.of_int !calls;gpu_seconds=None});
+      readback=(fun _->assert(Domain.is_main_domain());incr reads;
+        Ok(E.Vec3_array(Array.init(count*3)(fun j->if j mod 3=0 then float(j/3)+. !time else 0.))))})} in
+  let body wrap="(sop/with_attr g :P ("^wrap^
+    "(map (fn [i] [(+ i t) 0 0]) (array/range 2048))))" in
+  let exact=lower(source ~columns:1024 (body "exact ")) in
+  let network=(List.hd exact.graphs).network in
+  let lane=Flow_sop.Value_lane.create() in
+  List.iter(fun t->time:=t;
+    let resolved=Flow_ir.Gpu.with_backend backend(fun()->
+      Flow_sop.Value_lane.resolve lane ~time:t network |> flow_ok) in
+    let node=Edit.compile_node resolved.geometry ~node_id:(Option.get(List.hd exact.graphs).root)
+      |>get_string_ok in
+    List.iter(fun domains->let session=session()in
+      Fun.protect ~finally:(fun()->Session.close session)(fun()->
+        let positions=cook session ~domains ~time:t node |> geometry |>Geometry.positions in
+        for i=0 to count-1 do assert(Packed.Float3.get positions i=(float i+.t,0.,0.))done)) [1;8]) [0.;0.5];
+  assert(!calls=2 && !reads=2);
+  let unmeasured={backend with cost=(fun _ ~count:_->None)}in
+  ignore(Flow_ir.Gpu.with_backend unmeasured(fun()->Flow_sop.Value_lane.resolve
+    (Flow_sop.Value_lane.create()) ~time:0.75 network)|>flow_ok);
+  assert(!calls=2);
+  time:=0.75;
+  ignore(Flow_ir.Gpu.with_backend ~policy:Flow_ir.Gpu.Qualification unmeasured(fun()->
+    Flow_sop.Value_lane.resolve (Flow_sop.Value_lane.create()) ~time:0.75 network)|>flow_ok);
+  assert(!calls=3 && !reads=3);
+  let baseline= !calls in
+  let cpu=Flow_sop.Value_lane.create()in
+  ignore(Flow_sop.Value_lane.resolve cpu ~time:1. network |>flow_ok);
+  let reference=L.workspace ~factories ~reference:true
+    (Flow.Syntax.parse(source ~columns:1024(body "exact "))|>flow_ok)|>flow_ok in
+  ignore(Flow_ir.Gpu.with_backend backend(fun()->Flow_sop.Value_lane.resolve
+    (Flow_sop.Value_lane.create()) ~time:1. (List.hd reference.graphs).network)|>flow_ok);
+  assert(!calls=baseline);
+  let unwrapped=lower(source ~columns:1024
+    "(sop/with_attr g :P (map (fn [i] [(+ i t) 0 0]) (array/range 2048)))")in
+  (match Flow_ir.Gpu.with_backend backend(fun()->Flow_sop.Value_lane.resolve
+    (Flow_sop.Value_lane.create()) ~time:0. (List.hd unwrapped.graphs).network) with
+    |Error d->assert(d.code="E_APPROX_SINK")|Ok _->assert false)
+let () =
   assert (Result.is_error (Flow_sop.Attribute_kernel.prepare ~sources:[0] [] E.No_geo));
   List.iter (fun (other, expected_stages) ->
     let body = "(let* [other " ^ other ^

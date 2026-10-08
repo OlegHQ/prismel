@@ -15,7 +15,8 @@ let create ?state () = {previous = None; state = Option.value ~default:(Flow.Eva
 let reset ?(host_state=true) t = t.previous <- None; Flow.Eval.reset_state ~host_state t.state
 
 let prepare network =
-  let compile = Flow_ir.Executor.compile ?profile:network.Network.profile in
+  let compile = Flow_ir.Executor.compile ?profile:network.Network.profile ~approx:network.approx
+    ~sink:Flow_ir.Sop_input in
   let states = if network.Network.states = [] then Ok None else
     Result.map Option.some (compile (Flow.Eval.List (Array.of_list network.states))) in
   Result.bind states (fun states ->
@@ -51,7 +52,10 @@ let live_text (parameter : Port.parameter) = function
       else Ok (Curve.encode (Array.map Option.get points))
   | Text text -> Ok text
   | _ -> live_error ("Live value does not fit " ^ parameter.path)
-let force ~reference ~state ~live program = Flow_ir.Executor.force ~reference ~state program ~live
+let force ~reference ~state ~live program =
+  Result.bind (Flow_ir.Executor.force_display ~reference ~state program ~live) (function
+    | Flow_ir.Executor.Cpu value->Ok value
+    | Gpu _->Error(Flow.Diagnostic.error ~code:"E_APPROX_SINK" "Live SOP values require (exact x)."))
 let normalize_target ~reference ~state ~live target =
   Result.bind (Result.bind (force ~reference ~state ~live target.program) live_port_value) (Port.normalize target.parameter)
 let apply_geometry geometry target changes =

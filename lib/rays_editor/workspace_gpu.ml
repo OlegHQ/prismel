@@ -26,7 +26,7 @@ let backend t = match t.backend with Some backend->backend|None->
   let backend:G.backend={cost=(fun _ ~count:_->None);
     prepare=(fun packed->Result.bind(owner t)(fun(_,host)->(H.backend host).prepare packed))}in
   t.backend<-Some backend;backend
-let with_backend t run=G.with_backend(backend t)run
+let with_backend t run=G.with_backend ~policy:t.policy (backend t)run
 let circles t (value:G.value) ~radius ~fill ~stroke ~stroke_width =
   Result.bind(owner t)(fun(gpu,host)->
     match H.output host value with

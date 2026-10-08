@@ -444,7 +444,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
       end) plan.nodes;
     let live_network network graph =
       let network = Network.with_states evaluated.states network |> Network.with_profile profile
-        |> Network.with_reference reference in
+        |> Network.with_reference reference |> Network.with_approx checked.approx in
       let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes -> match p.zone with
         | Some z when z.stateful && Edit.find graph ~node_id:p.cid <> None ->
             Network.Int_map.add p.cid (fun state _live node ->
@@ -454,13 +454,29 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         | _ -> nodes) prepared Network.Int_map.empty in
       let frame_nodes = Array.fold_left (fun nodes (n : E.node) ->
         let values = List.assoc_opt "values" n.args in
-        if n.kind <> "sop/with_attr" || not (Option.fold ~none:false ~some:E.state_dependent values)
-          || Edit.find graph ~node_id:compiled.(n.id) = None then nodes
-        else Network.Int_map.add compiled.(n.id) (fun state _live node ->
+        if n.kind <> "sop/with_attr" || Edit.find graph ~node_id:compiled.(n.id) = None then nodes
+        else let values=Option.get values in
+          let program=ok(Flow_ir.Executor.compile ~profile ~approx:checked.approx
+            ~sink:Flow_ir.Sop_input values) in
+          let ir=Flow_ir.Executor.graph program in
+          let eligible = Attribute_kernel.sources values=[] &&
+            (match ir.nodes.(ir.roots.(0)).kind with
+             |Flow_ir.Kernel {body=(Packed_map _ | Readback);_}->true |_->false) in
+          if not eligible && not(E.state_dependent values) then nodes else
+          Network.Int_map.add compiled.(n.id) (fun state live node ->
           let name = match List.assoc "attribute" n.args with E.Text name -> name | _ -> assert false in
+          (* Only input-independent producers can materialize before SOP cooking.
+             Attribute-reading cones keep their existing cooked-input CPU path. *)
+          Result.bind (if eligible then Flow_ir.Executor.try_display ~reference ~state program ~live
+            else Ok None) (fun selected ->
+          let values=match selected with
+            |Some(Flow_ir.Executor.Cpu value)->value
+            |None->values
+            |Some(Flow_ir.Executor.Gpu _)->assert false in
+          if selected=None && not(E.state_dependent values) then Ok node else
           Ok(Procedural.Node.Private.adopt_identity ~source:node
             (Attribute_kernel.node ~reference ~profile ~state:(E.fork_state state) ~source:(Lazy.force kernel_source) ~name
-              ~values:(Option.get values) ~sources:(deps n) (Procedural.Node.inputs node)))) nodes)
+              ~values ~sources:(deps n) (Procedural.Node.inputs node))))) nodes)
         frame_nodes plan.nodes in
       let frame_nodes=Array.fold_left(fun nodes (n:E.node)->
         if (n.kind<>"image/load" && n.kind<>"image/render") || Edit.find graph ~node_id:compiled.(n.id)=None

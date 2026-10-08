@@ -693,7 +693,7 @@ let update_with value frame ~inspector =
    |_->());
   let update = Flow_sop.Lower.with_images
     ~metadata:(fun plan id->Option.map Rays.Image.get_size(Workspace_images.peek value.host.images plan id))
-    (Workspace_images.payload value.host.images)(fun()->
+    (Workspace_images.payload value.host.images)(fun()->Workspace_gpu.with_backend value.host.gpu(fun()->
     Core.update ~image:(Workspace_images.peek value.host.images lowered.plan)
       ~host_events:(Workspace_host.take_events value.host) value.core ~all_ui_visible:visible
       ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel ~view_handles
@@ -708,7 +708,7 @@ let update_with value frame ~inspector =
           | None, None -> None)
       ~view_state:(function
         | Some (_, camera, _, extra, _) -> V.section camera extra
-        | None -> V.section value.camera extra) frame) in
+        | None -> V.section value.camera extra) frame)) in
   let value, update = open_import value update in
   let value, update = reload_source value update ~now:frame.Frame.time in
   let focused = follow_focus { value with core = update.core } frame in

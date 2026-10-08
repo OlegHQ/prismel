@@ -1,5 +1,6 @@
 ; The display producer is eligible for the measured GPU tier. Without a native
-; cost model it uses the CPU kernel. The exact SOP variant always cooks on CPU.
+; cost model it uses the CPU kernel. The exact SOP variant reads back a selected
+; GPU producer on the initial domain before CPU geometry cooking.
 (workspace flow_particles_gpu
   (graph picture :context draw
     (let* [indices (array/range 1000000)

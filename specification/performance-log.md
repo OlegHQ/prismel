@@ -6958,3 +6958,18 @@ to `No_adapter`; registry-query and other native failures retain `Device_lost`. 
 classification check passes every existing Metal error kind. The actual `--gpu` retry exits 2
 and prints `No_adapter: Ogpu_metal.Device.system_default: Metal has no system default device`
 before any row. Log: `/private/tmp/p5-kernel-gpu-no-adapter.log`. `--gpu-check` remains green.
+
+P5 explicit SOP readback now scopes the neutral backend around the initial-domain
+value lane, as well as drawing. Input-independent `(exact (map ...))` producers
+can materialize to owned CPU arrays before worker submission; an unwrapped
+selected producer is refused with `E_APPROX_SINK`. Attribute-reading cones retain
+their existing cooked-input CPU path. `Executor.try_display` leaves the normal
+worker path intact when placement is unmeasured or unsupported instead of doing
+an unnecessary CPU evaluation on the initial domain. References and exports keep
+the independent CPU path. Native cost/tolerance/readback timing remain unverified.
+The real-Lisp 2,048-element `test_attribute_kernel` regression passes callback
+and readback counts across two live frames, exact positions after one/eight-domain
+cooking, unknown-cost CPU placement, scoped qualification, reference/no-backend
+CPU behavior and refusal of the unwrapped selected SOP producer. These neutral
+callback checks do not execute native shader arithmetic. Focused `@check`,
+`@lib/flow_ir/runtest` and `@lib/flow_sop/runtest` pass.

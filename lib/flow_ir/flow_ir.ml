@@ -43,9 +43,13 @@ module Gpu = struct
     prepare:Packed.t -> (kernel,Flow.Diagnostic.t)result}
   type policy=Measured | Qualification
   let current : backend option Domain.DLS.key=Domain.DLS.new_key(fun()->None)
-  let with_backend backend run = let previous=Domain.DLS.get current in
+  let current_policy : policy Domain.DLS.key=Domain.DLS.new_key(fun()->Measured)
+  let with_backend ?(policy=Measured) backend run = let previous=Domain.DLS.get current
+    and previous_policy=Domain.DLS.get current_policy in
     Domain.DLS.set current(Some backend);
-    Fun.protect ~finally:(fun()->Domain.DLS.set current previous)run
+    Domain.DLS.set current_policy policy;
+    Fun.protect ~finally:(fun()->Domain.DLS.set current previous;
+      Domain.DLS.set current_policy previous_policy)run
 end
 type source = Constant of E.value | Frame_field of string | Input of string | State_previous of E.residual
 type body = Operation of string | Vector | Field of string | List_value
@@ -502,8 +506,9 @@ module Executor = struct
     end) program.profile;
     result
   type displayed=Cpu of E.value | Gpu of Gpu.value
-  let force_display ?state ?elems ?resolve ?(reference=false) ?(policy=Gpu.Measured) program ~live =
-    let cpu()=Result.map(fun value->Cpu value)(force ?state ?elems ?resolve ~reference program ~live)in
+  let try_display ?state ?elems ?resolve ?(reference=false) ?policy program ~live =
+    let policy=Option.value ~default:(Domain.DLS.get Gpu.current_policy) policy in
+    let cpu()=Ok None in
     if reference then cpu()else match Domain.DLS.get Gpu.current with None->cpu()|Some backend->
     let root=program.ir.nodes.(program.ir.roots.(0))in
     let packed,readback=match root.kind with
@@ -518,13 +523,16 @@ module Executor = struct
       let view=Packed.Private.view packed in
       if not(W.Paths.mem site program.approx) || not(view.collecting && view.zipped && view.skip=[||])
         then cpu()else
+      let cheaper count= count>=1024 && (policy=Gpu.Qualification ||
+        Option.fold ~none:false ~some:(fun seconds->Float.is_finite seconds && seconds>=0.
+          && seconds<Cost.estimate(Cost.packed ~count) ~count)(backend.cost packed ~count))in
+      (* Static cardinality lets unmeasured placement decline before allocating
+         producer inputs, especially the million-element exact SOP value lane. *)
+      if Option.fold ~none:false ~some:(fun count->not(cheaper count))(Packed.static_count packed)
+        then cpu()else
       let (let*)=Result.bind in
       let* inputs=Packed.Private.prepare ?state ?elems ?resolve packed ~live in
-      let selected=inputs.count>=1024 && (policy=Gpu.Qualification ||
-        Option.fold ~none:false ~some:(fun seconds->Float.is_finite seconds && seconds>=0.
-          && seconds<Cost.estimate(Cost.packed ~count:inputs.count) ~count:inputs.count)
-          (backend.cost packed ~count:inputs.count))in
-      if not selected then cpu()else
+      if not(cheaper inputs.count) then cpu()else
       let* ()=match program.sink,readback with
         |Some(Display _),_ |_,true->Ok()
         |_->Error(Flow.Diagnostic.error ~code:"E_APPROX_SINK"
@@ -542,6 +550,10 @@ module Executor = struct
         |_->profile Gpu_compile(fun()->Result.map(fun kernel->program.gpu_kernel<-Some(backend,packed,kernel);kernel)
             (backend.prepare packed))in
       let* output=profile ~seconds:(fun output->output.Gpu.gpu_seconds) Gpu(fun()->kernel.run inputs)in
-      if readback then profile Gpu_readback(fun()->Result.map(fun value->Cpu value)(kernel.readback output))
-      else Ok(Gpu output)
+      if readback then profile Gpu_readback(fun()->Result.map(fun value->Some(Cpu value))(kernel.readback output))
+      else Ok(Some(Gpu output))
+  let force_display ?state ?elems ?resolve ?(reference=false) ?policy program ~live =
+    Result.bind (try_display ?state ?elems ?resolve ~reference ?policy program ~live) (function
+      |Some value->Ok value
+      |None->Result.map(fun value->Cpu value)(force ?state ?elems ?resolve ~reference program ~live))
 end

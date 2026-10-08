@@ -34,7 +34,7 @@ module Gpu : sig
   type backend={cost:Packed.t -> count:int -> float option;
     prepare:Packed.t -> (kernel,Flow.Diagnostic.t)result}
   type policy=Measured | Qualification
-  val with_backend : backend -> (unit -> 'a) -> 'a
+  val with_backend : ?policy:policy -> backend -> (unit -> 'a) -> 'a
   (** Initial-domain host scope. [None] cost means unmeasured and keeps CPU placement.
       Qualification explicitly forces the native test path; it is not production calibration. *)
 end
@@ -112,6 +112,13 @@ module Executor : sig
       Failures rerun the reference for its precise diagnostic. *)
 
   type displayed=Cpu of Flow.Eval.value | Gpu of Gpu.value
+  val try_display : ?state:Flow.Eval.state -> ?elems:(string*Flow.Eval.value)list ->
+    ?resolve:(Flow.Eval.value -> (Flow.Eval.value,Flow.Diagnostic.t)result) ->
+    ?reference:bool -> ?policy:Gpu.policy -> program -> live:Frame_input.t ->
+    (displayed option,Flow.Diagnostic.t)result
+  (** Select a GPU producer without executing the CPU fallback. [None] leaves
+      ordinary worker cooking intact; explicit readbacks return owned CPU data. *)
+
   val force_display : ?state:Flow.Eval.state -> ?elems:(string*Flow.Eval.value)list ->
     ?resolve:(Flow.Eval.value -> (Flow.Eval.value,Flow.Diagnostic.t)result) ->
     ?reference:bool -> ?policy:Gpu.policy -> program -> live:Frame_input.t ->

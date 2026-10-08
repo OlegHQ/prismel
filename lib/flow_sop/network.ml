@@ -3,10 +3,11 @@ module Int_set = Set.Make (Int)
 type t = { geometry : Procedural.Edit_graph.t; drives : Flow.Eval.value Port.Map.t; states : Flow.Eval.value list;
   frame_nodes : (Flow.Eval.state -> Frame_input.t -> Procedural.Node.t ->
     (Procedural.Node.t, Flow.Diagnostic.t) result) Int_map.t;
-  profile : Flow_ir.Profile.t option; reference : bool }
+  profile : Flow_ir.Profile.t option; reference : bool; approx:Flow.Workspace.Paths.t }
 let error code message = Error (Flow.Diagnostic.error ~code message)
 let geometry_error result = Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY") result
-let of_geometry geometry = {geometry; drives = Port.Map.empty; states = []; frame_nodes = Int_map.empty; profile = None; reference = false}
+let of_geometry geometry = {geometry; drives = Port.Map.empty; states = []; frame_nodes = Int_map.empty; profile = None; reference = false; approx=Flow.Workspace.Paths.empty}
+let with_approx approx network = {network with approx}
 let with_profile profile network = {network with profile = Some profile}
 let with_reference reference network = {network with reference}
 let with_states states network = {network with states}
