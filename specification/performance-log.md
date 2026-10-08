@@ -7277,3 +7277,24 @@ painting/input work is introduced. The full 32,768-byte gate remains **unmet**.
 Evidence: `/private/tmp/p3-ui-paint-clip-before-{1,2,3}.csv`,
 `/private/tmp/p3-ui-paint-clip-after-{1,2,3}.csv` and
 `/private/tmp/p3-ui-paint-clip-check.log`.
+
+The next text hot-path change checks the atlas font identity/generation once per
+nonempty text run instead of per glyph, in the three existing internal runs
+(width, painting and caret placement). Their callbacks contain only internal
+glyph, byte-packing and arithmetic work; they do not call user code or mutate
+font style. `Font.Private.glyph` retains its runtime domain/lifetime/density
+checks on every raster miss. Font hinting changes are still observed by the
+next run, and empty width/caret runs do not register an atlas font id.
+The existing UTF-8, caret, IME, layout and 1x/2x UI interaction regressions exit
+zero. No public API, cache or new storage is added. Native pixel parity remains
+unavailable. Three alternating exclusive full-editor trials, all commands zero:
+
+| Full static editor, 100k circles | Median trials (ms) | p95 trials (ms) | Bytes/frame in every trial |
+|---|---|---|---:|
+| Before per-run font id lookup | .034094 / .033855 / .034094 | .056028 / .066996 / .068903 | 161,308 |
+| After per-run font id lookup | .033855 / .032902 / .033140 | .056982 / .064850 / .055075 | 155,620 |
+
+The allocation saving is 5,688 bytes/frame (3.5%). The full 32,768-byte gate
+remains **unmet**. Evidence: `/private/tmp/p3-ui-font-id-before-{1,2,3}.csv`,
+`/private/tmp/p3-ui-font-id-after-{1,2,3}.csv` and
+`/private/tmp/p3-ui-font-id-check.log`.

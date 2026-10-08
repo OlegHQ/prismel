@@ -393,8 +393,8 @@ let reserve atlas width height =
     Some (x, y)
   end
 
-let glyph atlas font ~density code =
-  let key = ((font_id atlas font * 32 + density) lsl 21) lor code in
+let glyph atlas font ~id ~density code =
+  let key = ((id * 32 + density) lsl 21) lor code in
   match Int_table.find_opt atlas.glyphs key with
   | Some glyph -> Some glyph
   | None ->
@@ -499,9 +499,10 @@ let text_width_px ui ?size text =
   match face ui size with
   | None -> 0
   | Some font ->
+      let id = if text = "" then 0 else font_id ui.atlas font in
       let total = ref 0 in
       iter_code_points text (fun code ->
-        match glyph ui.atlas font ~density:ui.density code with
+        match glyph ui.atlas font ~id ~density:ui.density code with
         | Some glyph -> total := add !total glyph.advance
         | None -> ());
       !total
@@ -1660,6 +1661,7 @@ module Paint = struct
       | None -> ()
       | Some font ->
           prepare paint;
+          let id = font_id ui.atlas font in
           let color = packed (Option.value color ~default:ui.theme.foreground) in
           let density = float ui.density and scale = paint.scale in
           (* Snap the run's origin to a physical pixel so each glyph texel
@@ -1672,7 +1674,7 @@ module Paint = struct
              each glyph is placed on a whole pixel *)
           let pen = ref 0. and tracking = tracking *. density in
           iter_code_points text (fun code ->
-            match glyph ui.atlas font ~density:ui.density code with
+            match glyph ui.atlas font ~id ~density:ui.density code with
             | None -> ()
             | Some glyph ->
                 if glyph.gw > 0 then begin
@@ -2554,11 +2556,12 @@ let text_caret_at ui ?size text x =
   | None -> String.length text
   | Some font ->
       let length = String.length text and density = float ui.density in
+      let id = if length = 0 then 0 else font_id ui.atlas font in
       let rec seek index width =
         if index >= length then length else
           let decoded = String.get_utf_8_uchar text index in
           let code = Uchar.to_int (Uchar.utf_decode_uchar decoded) in
-          let advance = match glyph ui.atlas font ~density:ui.density code with
+          let advance = match glyph ui.atlas font ~id ~density:ui.density code with
             | Some glyph -> float glyph.advance /. density
             | None -> 0. in
           if x < width +. (advance /. 2.) then index
