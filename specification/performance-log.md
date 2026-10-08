@@ -7451,3 +7451,25 @@ The repeated-teardown footprint check still fails here: floors 64,752 and
 74,720 KiB over the two 24-lifecycle windows, 9,968 KiB growth against the
 4,096 KiB bound (about 415 KiB per lifecycle). It failed on `dev` before this
 work; whether it is lazily returned GPU memory at 2x or a leak is open.
+
+## Runtime teardown footprint: SDL window baseline (2026-10-08)
+
+The repeated-teardown plateau failure is not a Rays leak. Probes in the same
+qualification executable, 120 lifecycles each, physical footprint floors per
+24-lifecycle window on this macOS 27 / SDL3 build:
+
+| Lifecycle | Growth per 24 lifecycles | Per lifecycle |
+|---|---:|---:|
+| Rays `Runtime.create`/`destroy` (2x2 hidden) | 9,968 KiB | ~415 KiB |
+| SDL init video, window + Metal view, quit video | 9,344 KiB | ~390 KiB |
+| SDL window + Metal view, video kept initialized | 7,000 KiB | ~290 KiB |
+| SDL window only, no Metal view | 6,500 KiB | ~270 KiB |
+| SDL window only, with an event pump after destroy | 9,300 KiB | ~390 KiB |
+
+The growth is linear over 240 lifecycles and belongs to SDL3's own window
+create/destroy on this system. The check now measures that baseline in the
+same process (72 lifecycles of SDL window plus Metal view, video cycled like
+the runtime) and fails only when Rays adds more than 4,096 KiB beyond it.
+Measured: runtime growth 10,016 KiB, baseline 9,552 KiB, Rays' share
+464 KiB over 24 lifecycles (about 19 KiB per lifecycle).
+`@lib/runtime/native_qualification/qualification` passes on this machine.

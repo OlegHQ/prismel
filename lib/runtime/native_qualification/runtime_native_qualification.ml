@@ -136,6 +136,23 @@ let run scenario =
     "checkpoint_hashes", `List (List.rev_map (fun (frame, hash) -> `List [ `Int frame; `String hash ]) !checkpoints);
     "resized_hash", `String resized_hash ]
 
+(* SDL3's own window lifecycle grows the physical footprint on this macOS
+   (about 270 KiB per hidden 2x2 window with the video subsystem kept
+   initialized, 390 KiB when it is cycled, with or without a Metal view, and
+   an event pump does not return it). Measure that baseline in the same
+   process so the plateau check charges Rays only for what Rays adds. *)
+let sdl_window_floor_growth lifecycles =
+  let ok = function Ok v -> v | Error (e : Sdl3.error) -> failwith e.message in
+  let footprints = Array.init lifecycles (fun _ ->
+    ok (Sdl3.Init.init [ Sdl3.Init.Video ]);
+    let w = ok (Sdl3.Window.create ~title:"baseline" ~width:2 ~height:2
+      ~flags:[ Metal; High_pixel_density; Hidden ] ()) in
+    let v = ok (Sdl3.Metal_view.create w) in
+    ok (Sdl3.Metal_view.destroy v); ok (Sdl3.Window.destroy w);
+    ok (Sdl3.Init.quit_subsystems [ Sdl3.Init.Video ]);
+    Gc.full_major (); footprint_kib ()) in
+  let floor_of first = Array.fold_left min max_int (Array.sub footprints first 24) in
+  floor_of 48 - floor_of 24
 let () =
   let synthetic:Runtime.frame_facts={logical_width=10;logical_height=10;drawable_width=15;drawable_height=15;pixel_scale_x=1.5;pixel_scale_y=1.5}in
   if Runtime.map_logical_rect synthetic(1,1,3,3)<>(1,1,5,5)then failwith"synthetic logical/drawable edge mapping drift";
@@ -171,7 +188,9 @@ let () =
          leak of even 100 KiB per lifecycle shows as more than 4 MiB over 24. *)
       let floor_of first = Array.fold_left min max_int (Array.sub teardown_footprint first 24) in
       let footprint_growth = floor_of 48 - floor_of 24 in
-      if footprint_growth > 4096 then failwith(Printf.sprintf "native repeated teardown physical footprint did not plateau: floors %d and %d KiB, growth %d KiB" (floor_of 24) (floor_of 48) footprint_growth);
+      let sdl_growth = sdl_window_floor_growth 72 in
+      Printf.printf "teardown footprint floors %d and %d KiB: growth %d KiB, SDL window baseline %d KiB\n%!" (floor_of 24) (floor_of 48) footprint_growth sdl_growth;
+      if footprint_growth - sdl_growth > 4096 then failwith(Printf.sprintf "native repeated teardown physical footprint did not plateau beyond the SDL window baseline: growth %d KiB, baseline %d KiB" footprint_growth sdl_growth);
       let after = live_handles () and rss_after = rss_kib () in
       if after <> before then failwith "native qualification live-handle delta";
       let report = `Assoc [ "schema", `Int 1; "host", `String "Apple M1";
