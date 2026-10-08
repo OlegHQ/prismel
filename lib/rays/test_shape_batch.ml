@@ -2,6 +2,20 @@ open Rays
 module B=Scene_command.Shape_batch
 let require condition message=if not condition then failwith message
 let rgba (c:Color.t)=Int32.of_int((c.r lsl 24)lor(c.g lsl 16)lor(c.b lsl 8)lor c.a)
+let segment_distance (x,y) (ax,ay) (bx,by) =
+  let dx=bx-.ax and dy=by-.ay in
+  let length2=dx*.dx+.dy*.dy in
+  let t=if length2=0. then 0. else Float.max 0.(Float.min 1.
+    (((x-.ax)*.dx+.(y-.ay)*.dy)/.length2))in
+  Float.hypot(x-.ax-.t*.dx)(y-.ay-.t*.dy)
+(* Scene.circle's reference is an integer 32-gon, not an ideal radius. *)
+let circle_boundary ~x ~y ~radius = Array.init 32(fun i->
+  let angle=2.*.Float.pi*.float i/.32. in
+  float(x+int_of_float(float radius*.cos angle)),
+  float(y+int_of_float(float radius*.sin angle)))
+let boundary_distance points sample =
+  Array.fold_left Float.min infinity(Array.mapi(fun i point->
+    segment_distance sample point points.((i+1)mod Array.length points))points)
 let batch count =
   let b=B.Builder.create ~capacity:count ()in
   for i=0 to count-1 do
@@ -9,6 +23,10 @@ let batch count =
       ~radius:3. ~fill:(rgba(Color.rgba 40 120 180 70)) ()
   done;B.Builder.publish b
 let pure ()=
+  require(segment_distance (0.5,1.) (0.,0.) (1.,0.)=1.)"sample-center boundary distance";
+  require(segment_distance (2.,0.) (0.,0.) (1.,0.)=1.)"boundary endpoint distance";
+  require(boundary_distance(circle_boundary ~x:32 ~y:32 ~radius:12)(32.,32.)>10.)
+    "circle boundary interior";
   List.iter(fun count->let b=batch count in
     require(B.count b=count)"shape count";
     require(Bytes.length(B.instances b)=64*count)"shape layout";
@@ -45,9 +63,11 @@ let native ()=
     let polygon=Canvas.pixels canvas in
     Canvas.render canvas [Scene.clear Color.black;packed];
     let sdf=Canvas.pixels canvas in
+    let boundary=circle_boundary ~x:32 ~y:32 ~radius:12 in
     Array.iteri(fun i expected->
-      let distance=Float.hypot(float(i mod 64)+.0.5-.32.)(float(i/64)+.0.5-.32.)in
-      if distance<10.5 || distance>13. then require(sdf.(i)=expected)"circle interior/rim tolerance")polygon;
+      if sdf.(i)<>expected then
+        require(boundary_distance boundary(float(i mod 64)+.0.5,float(i/64)+.0.5)<=1.)
+          "circle differs more than one pixel from the reference 32-gon rim")polygon;
     (* Compare against the independent polygon/path renderer. Differences are
        allowed only within one logical pixel of a boundary; interior RGBA must
        agree within one quantization unit, including alpha and stroke. *)
@@ -97,6 +117,22 @@ let native ()=
       Canvas.render canvas [Scene.clear Color.black;Scene.blend blend[wrap(Array.to_list single)]];
       require(Canvas.pixels canvas=expected)"packed/singular transform clip blend alpha parity") [63;64;65])
       [Scene.Alpha;Replace;Add;Multiply];
+    (* Independently construct legacy Scene geometry at all packer thresholds.
+       Integer axis-aligned opaque rectangles have identical rasterization, so
+       this checks exact pixels rather than comparing two uses of the SDF path.
+       The 247 repeated positions keep the 100k frame small enough to qualify. *)
+    List.iter(fun count->
+      let builder=B.Builder.create ~capacity:count ()in
+      let reference=List.init count(fun i->
+        let x=8+2*(i mod 19)and y=8+2*(i mod 13)in
+        B.Builder.rect builder ~x:(float x) ~y:(float y) ~width:2. ~height:2.
+          ~fill:(rgba Color.cyan) ();
+        Scene.rect ~at:(x,y) ~w:2 ~h:2 ~fill:Color.cyan ())in
+      Canvas.render canvas(Scene.clear Color.black::reference);
+      let expected=Canvas.pixels canvas in
+      Canvas.render canvas [Scene.clear Color.black;Scene.Private.shapes(B.Builder.publish builder)];
+      require(Canvas.pixels canvas=expected)
+        (Printf.sprintf "legacy/packed rectangle pixels at %d instances" count)) [63;64;65;100000];
     let dense=batch 100000 in
     Canvas.render canvas [Scene.clear Color.black;Scene.Private.shapes dense];
     let before=Canvas.Private.native_stats canvas in

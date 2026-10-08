@@ -1,6 +1,43 @@
 open Flow_ir
 module E = Flow.Eval
 
+(* External value declarations cannot be swept in Flow's tests: Flow does not
+   depend on Flow_ir. Exercise every declared argument and choice here. *)
+let () =
+  let rec sample = function
+    |Flow.Ty.Int->Flow.Value.Int 2
+    |Float->Float 0.25
+    |Vec3->Vec3(0.3,0.7,0.2)
+    |Color|Text->Text "#123456"
+    |List ty->List [|sample ty;sample ty|]
+    |_->assert false in
+  List.iter(fun (op:Flow.Op.t)->
+    assert(Flow.Op.validate [op]=None);
+    assert(Option.get(Flow.Op.find ~extra:Operators.all op.name op.ctx)==op);
+    let signature=op.signature in
+    let args entries=List.map(fun(name,ty)->name,sample ty)entries in
+    let run args=
+      op.check args;
+      let result=op.body ~live:(Frame_input.at_time 0.)
+        ~node:(fun _ _->failwith "value operator created a deferred node")args in
+      assert(Flow.Ty.fits(Flow.Value.ty_of result)
+        (op.out(List.map(fun(_,value)->Flow.Value.ty_of value)args)))in
+    let base=args signature.pos in
+    List.iter(fun base->
+      run base;
+      Option.iter(fun(name,ty)->run(base@[name,sample ty;name,sample ty]))signature.rest;
+      List.iter(fun(name,ty)->
+        let values=match List.assoc_opt name op.choices with
+          |Some choices->List.map(fun text->Flow.Value.Text text)choices
+          |None->[sample ty]in
+        List.iter(fun value->run(base@[name,value]))values)signature.kw;
+      run(base@args signature.kw)) [base;base@args signature.opt];
+    List.iter(fun(name,choices)->assert(choices<>[]);
+      assert(List.mem_assoc name(signature.pos@signature.opt@signature.kw));
+      List.iter(fun choice->run(List.map(fun(key,value)->
+        key,if key=name then Flow.Value.Text choice else value)
+        (base@args signature.opt@args signature.kw)))choices)op.choices)Operators.all
+
 let node ?(ty = Flow.Ty.Float) ?(count = Count.Static 1) ?(rate = Static)
     ?(precision = Exact) ?(args = []) ?(scope = []) ?(invariant = false) name kind =
   let id = [name], scope in

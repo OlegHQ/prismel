@@ -6973,3 +6973,31 @@ cooking, unknown-cost CPU placement, scoped qualification, reference/no-backend
 CPU behavior and refusal of the unwrapped selected SOP producer. These neutral
 callback checks do not execute native shader arithmetic. Focused `@check`,
 `@lib/flow_ir/runtest` and `@lib/flow_sop/runtest` pass.
+
+## P3 completion-audit checks (2026-10-08)
+
+The native shape suite now compares independently constructed legacy rectangles with
+packed rectangles at 63, 64, 65 and 100,000 instances, requiring exact pixels. The
+circle rim gate uses distance from pixel sample centers to the actual integer 32-gon
+edges and permits at most one logical pixel. Existing transformed/alpha/stroke/blend
+checks and the 100k one-draw/zero-retained-upload assertions remain. The port suite
+requires exact legacy pixels for the noise example's opaque integer filled rectangles;
+circle, rotated-rectangle and stroked examples retain their recorded edge tolerance.
+All eight ports also send Command-S through the editor and check atomic replacement
+with unchanged source bytes and comments. Flow IR sweeps every external color/noise
+operator's declared arguments and choices without adding a Flow dependency on IR.
+
+The three already-built focused executables (`lib/rays/test_shape_batch.exe`,
+`lib/flow_ir/test_ir.exe`, and `test/test_2d_ports.exe`, each from its build directory;
+ports use `SDL_AUDIODRIVER=dummy`) exit 0. Logs are
+`/private/tmp/p3-audit-shape-pure.log`, `/private/tmp/p3-audit-ir.log`, and
+`/private/tmp/p3-audit-ports.log`. The launcher request for
+`@lib/rays/test_shape_batch @lib/flow_ir/runtest @test_2d_ports` exits 1 because it also
+runs native-dependent Rays test siblings, which cannot acquire Metal; its complete log
+is `/private/tmp/p3-audit-focused.log`. No timing rows were produced by this check.
+
+`test_shape_batch.exe native` exits 2 with `Metal has no system default device`
+(`/private/tmp/p3-audit-shape-native.log`). The added native assertions are compiled,
+but their raster results are unverified. Existing native/export/smoke/layout-PNG gates
+and the recorded particle p95 regression remain open; no goldens or tolerances were
+relaxed to obtain a passing result.

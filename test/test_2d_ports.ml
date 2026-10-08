@@ -28,6 +28,31 @@ let load name=
     failwith(String.concat"\n"(List.map Flow.Diagnostic.to_string ds))in
   assert(Editor_document.Workspace_doc.to_text workspace=source);
   workspace
+let save_roundtrip name workspace =
+  let module Editor=Rays_editor.Editor3 in
+  let source=read("../examples/"^name^"/sketch.rays")in
+  let directory=Filename.temp_dir "rays-port-save-" ""in
+  let rec remove directory=Array.iter(fun entry->let path=Filename.concat directory entry in
+    if Sys.is_directory path then remove path else Sys.remove path)(Sys.readdir directory);
+    Unix.rmdir directory in
+  Fun.protect ~finally:(fun()->remove directory)(fun()->
+    let file=Filename.concat directory "sketch.rays"in
+    Out_channel.with_open_bin file(fun channel->output_string channel source);
+    let editor=ref(Result.get_ok(Editor.create ~workspace ~await:true ~domains:1
+      ~presets:(Filename.concat directory "presets")
+      ~source:(Rays_editor.Source.at ~file ~digest:(Editor_document.Contexts.sha256 source))
+      ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Scene3.empty)()))in
+    Fun.protect ~finally:(fun()->Editor.close !editor)(fun()->
+      editor:=Editor.update !editor(frame ~synthetic:false name 0);
+      let inode=(Unix.stat file).st_ino in
+      let save_frame={(frame ~synthetic:false name 1)with
+        keys=[Input.Meta];events=[Event.KeyPressed(Input.KeyChar 's')]}in
+      editor:=Editor.update !editor save_frame;
+      editor:=Editor.update !editor(frame ~synthetic:false name 2);
+      assert((Unix.stat file).st_ino<>inode);
+      assert(read file=source);
+      assert(Editor_document.Workspace_doc.to_text(Editor.workspace !editor)=source)));
+  Printf.printf "port %s: Command-S atomically saves the unchanged source and comments\n%!"name
 let modes=["lisp-a",false,1;"lisp-b",false,1;"cpu-1",false,1;"cpu-8",false,8;
   "reference-1",true,1;"reference-8",true,8]
 let pictures ?(synthetic=true) name workspace reference domains = Parallel.run ~domains(fun()->
@@ -108,6 +133,7 @@ let parameters ~size scene =
   commands(Scene.Private.commands scene)
 let pure ()=
   mode_parity();
+  List.iter(fun name->save_roundtrip name(load name))names;
   List.iter(fun(Oracle port)->
     let workspace=load port.name in
     let scenes=pictures port.name workspace false 1 in
@@ -188,17 +214,23 @@ let native directory=
       let expected=Canvas.pixels canvas in
       Canvas.render canvas scenes.(count);
       let actual=Canvas.pixels canvas in
-      (* Rectangles/text/points share native rasterization. Circle SDF and line
-         anti-aliasing can differ at a one-pixel edge. Require every changed
-         pixel to be adjacent to an edge in at least one image, and retain
+      (* Noise uses only opaque, integer axis-aligned filled rectangles, whose
+         pixel-center coverage is identical in both renderers. Other ports use
+         circles, rotated rectangles or strokes and retain the rim gate. *)
+      if name="noise" then assert(actual=expected)else begin
+      (* Text and points retain their native rasterization. Circle SDF,
+         transformed rectangles and strokes can differ at a one-pixel edge.
+         Require every changed pixel to be adjacent to an edge in both images, and retain
          exact interiors. No whole-image average hides a misplaced primitive. *)
       let edge image i=let x=i mod width and y=i/width in
         List.exists(fun(dx,dy)->let x=x+dx and y=y+dy in x>=0 && y>=0 && x<width && y<height &&
           image.(i)<>image.(y*width+x))[-1,0;1,0;0,-1;0,1]in
       Array.iteri(fun i value->if value<>actual.(i)then
         assert(edge expected i && edge actual i))expected
+      end
     done);
-  Printf.printf "port %s: six PNG modes byte-identical, OCaml interior parity with one-pixel edge tolerance\n%!"name)oracles
+  Printf.printf "port %s: six PNG modes byte-identical, OCaml %s\n%!"name
+    (if name="noise"then "exact pixels"else "interior parity with one-pixel edge tolerance"))oracles
 let ()=if Array.length Sys.argv>1 then native Sys.argv.(1)else begin
   pure();
   recursive_extremes();
