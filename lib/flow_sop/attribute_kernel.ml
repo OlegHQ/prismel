@@ -121,7 +121,7 @@ let node ?state ?(reference = false) ?elems ?profile ~source ~name ~values ~sour
     ^ Option.fold ~none:"" ~some:(fun bindings -> Flow.Value.key_of
         ~residual:E.Private.residual_id (E.Record bindings)) elems
     ^ Option.fold ~none:"" ~some:E.state_stamp state in
-  let node = N.Private.make ~label:("Write " ^ name) ~operation:"flow.with_attr" ~version:1
+  let node = N.Private.make_geometry ~label:("Write " ^ name) ~operation:"flow.with_attr" ~version:1
     ~parameters ~cook_mode:(N.Duplicate_input 0)
     ~dependencies:(if E.frame_dependent values then
         Procedural.Context.Dependencies.one Procedural.Context.Dependencies.Input

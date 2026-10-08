@@ -28,11 +28,11 @@ type stats = {
 }
 
 type output = {
-  geometry : Rdk.Geometry.t;
+  payload : Payload.t;
   diagnostics : Diagnostic.t list;
   instances : Rays_math.Mat4.t array option;
   (** A packed result (e.g. Copy to Points with Pack and instance): draw
-      [geometry] once per transform. A node that consumes it receives it
+      the [Geometry] payload once per transform. A node that consumes it receives it
       materialized. *)
 }
 

@@ -45,7 +45,8 @@ let run ~frames ~domains name source =
       List.take 64 (List.filter_map (fun (info : Procedural.Graph.info) ->
         if info.id = root then None else Procedural.Graph.find node ~node_id:info.id) (Procedural.Graph.inspect node)) in
     ignore (Result.get_ok (Procedural.Async_cook.submit_all worker ~context ~nodes:(node :: probes)
-      ~prepare:(fun outputs -> Ok (List.hd outputs).geometry)));
+      ~prepare:(fun outputs -> Procedural.Payload.geometry (List.hd outputs).payload
+        |> Result.map_error Procedural.Diagnostic.error_to_string)));
     let t3 = now () in
     (match (Procedural.Async_cook.await worker).result with
      | Ok _ -> () | Error e -> failwith (Procedural.Async_cook.error_to_string e));

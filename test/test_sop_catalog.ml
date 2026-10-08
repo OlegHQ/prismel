@@ -41,7 +41,7 @@ let edit_parameters graph ~node_id changes =
 
 let cook session node = match Session.cook session
     ~context:(Context.create () |> Result.get_ok) node with
-  | Ok output -> output.Session.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let catalog_node key inputs changes =
@@ -83,7 +83,7 @@ let test_morph_sketch () =
         ~max_payload_bytes:64_000_000 |> Result.get_ok in
     let context = Context.create ~domains ~grain:97 () |> Result.get_ok in
     let geometry = match Session.cook session ~context node with
-      | Ok output -> output.Session.geometry
+      | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
       | Error error -> fail (name ^ ": " ^ Diagnostic.error_to_string error) in
     Session.close session;
     geometry in
@@ -170,7 +170,7 @@ let test_node_inputs () =
         |> Result.get_ok in
     let context = Context.create ~domains ~grain:1 () |> Result.get_ok in
     let geometry = match Session.cook session ~context node with
-      | Ok output -> output.Session.geometry
+      | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
       | Error error -> fail (Diagnostic.error_to_string error) in
     Session.close session;
     geometry in

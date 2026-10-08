@@ -116,7 +116,7 @@ let test_bridge () =
       |> string_ok in
   let context = Bridge.context_of_frame ~seed:3L (frame []) |> string_ok in
   let cooked = match Session.cook session ~context (Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ()) with
-    | Ok output -> output.geometry
+    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
     | Error error -> fail (Diagnostic.error_to_string error) in
   let first = Bridge.mesh bridge cooked |> Result.get_ok
   and second = Bridge.mesh bridge cooked |> Result.get_ok in
@@ -194,7 +194,7 @@ let run () =
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session;
   let pieces = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-      "piece" output.geometry |> Option.get |> Rdk.Attribute.storage in
+      "piece" (Result.get_ok (Procedural.Payload.geometry output.payload)) |> Option.get |> Rdk.Attribute.storage in
   (match pieces with
    | Rdk.Attribute.Int values ->
        let maximum = Array.fold_left Int.max (-1) values in
@@ -205,7 +205,7 @@ let run () =
        if counts.(0) <= 1 || counts.(1) <= 1 then
          fail "Boolean fracture assigned individual polygons as pieces";
        let packed = Sketch_support.Packed_pieces.of_geometry
-           ~piece_attribute:"piece" output.geometry |> string_ok in
+           ~piece_attribute:"piece" (Result.get_ok (Procedural.Payload.geometry output.payload)) |> string_ok in
        if Sketch_support.Packed_pieces.piece_count packed <> 2 then
          fail "Boolean fracture piece attribute did not pack two rigid shards"
    | _ -> fail "Boolean fracture piece attribute is not integer-valued");

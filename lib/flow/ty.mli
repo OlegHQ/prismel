@@ -13,6 +13,7 @@ type t =
 type color = [ `Geometry | `Float | `Int | `Bool | `Vec3 | `Text | `Fn | `Record | `Output | `Compound ]
 type nominal = {name : string; shape : bool; color : color; default : Syntax.t option}
 val geometry : t
+val image : t
 val drawing : t
 val scene : t
 val world : t
@@ -21,6 +22,7 @@ val panel : t
 val editor : t
 val material : t
 val is_geometry : t -> bool
+val is_cooked : t -> bool
 
 val register : ?shape:bool -> ?color:color -> ?default:Syntax.t -> string -> (t, Diagnostic.t) result
 (** Declare on the initial domain before checking workspaces. Identical declarations

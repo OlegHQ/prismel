@@ -29,8 +29,8 @@ let signature (e : E.t) =
   List.map (fun (p, vs) -> p,List.map (fun (it,v) -> it,key v) vs) e.records
 
 let picture (output : S.output) =
-  let mesh = Rdk_rays.Rays_mesh.to_mesh output.geometry |> Result.map_error Rdk.Error.to_string |> string_ok in
-  let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions output.geometry) in
+  let mesh = Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload)) |> Result.map_error Rdk.Error.to_string |> string_ok in
+  let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
   let lo = Array.make 3 infinity and hi = Array.make 3 neg_infinity in
   Array.iteri (fun axis values -> Array.iter (fun v -> lo.(axis) <- min lo.(axis) v; hi.(axis) <- max hi.(axis) v) values)
     [|positions.x; positions.y; positions.z|];
@@ -83,7 +83,7 @@ let check ?directory ~factories ~name (workspace : Editor_document.Workspace_doc
         let geometry id = match Hashtbl.find_opt sources id with Some g -> Some g | None ->
           Option.bind (N.Int_map.find_opt id lowered.compiled) (fun cid ->
             Option.bind (List.find_opt (fun (_,network) -> Procedural.Edit_graph.find network ~node_id:cid <> None) networks)
-              (fun (_,network) -> let g = (cook network cid).geometry in Hashtbl.add sources id g; Some g)) in
+              (fun (_,network) -> let g = (Result.get_ok (Procedural.Payload.geometry (cook network cid).payload)) in Hashtbl.add sources id g; Some g)) in
         let resolve = Flow_sop.Attribute_kernel.resolve ~geometry in
         let results = List.mapi (fun index (value, program) ->
           let result = if reference then E.Private.force_reference ~state ~resolve value ~live
@@ -92,17 +92,22 @@ let check ?directory ~factories ~name (workspace : Editor_document.Workspace_doc
           let bytes = match result with Ok v -> "ok:" ^ key v | Error d -> "error:" ^ Flow.Diagnostic.to_string d in
           compare payloads id bytes;
           result) prepared in
+        let cooked = List.filter_map (fun ((g : L.graph), network) -> Option.map (fun cid ->
+          let output = cook network cid in
+          let id = Printf.sprintf "%s-%d-t%g" g.name g.instance time in
+          let bytes = match output.payload with
+            | Procedural.Payload.Geometry geometry -> Rdk_test_support.geometry_bytes geometry
+            | Image image -> Marshal.to_string (Procedural.Image.width image, Procedural.Image.height image,
+                Procedural.Image.Private.storage image) [Marshal.No_sharing] in
+          compare payloads ("geometry-" ^ id) (bytes ^ Marshal.to_string output.instances []);
+          id, output) g.root) networks in
         (match pixels, directory with Some canvas, Some directory ->
           let render id scene =
             Rays.Canvas.render canvas scene;
             let bytes = Marshal.to_string (Rays.Canvas.pixels canvas) [Marshal.No_sharing] in
             compare images id bytes;
             if not reference && domains = 1 then Rays.Canvas.save_png canvas (Filename.concat directory (id ^ ".png")) |> string_ok in
-          List.iter (fun ((g : L.graph), network) -> Option.iter (fun cid ->
-            let output = cook network cid in
-            let id = Printf.sprintf "%s-%d-t%g" g.name g.instance time in
-            compare payloads ("geometry-" ^ id) (Rdk_test_support.geometry_bytes output.geometry ^ Marshal.to_string output.instances []);
-            render id (picture output)) g.root) networks;
+          List.iter (fun (id, output) -> render id (picture output)) cooked;
           List.iter (fun (graph, value) -> if Flow.Value.ty_of value = Flow.Ty.drawing then begin
             let prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value |> ok in
             let scene = Sketch_support.Drawing.render_prepared ~state ~reference prepared ~live ~size:(800,600) |> ok in
@@ -114,4 +119,4 @@ let check ?directory ~factories ~name (workspace : Editor_document.Workspace_doc
       [0.;0.125;1.25;7.]))) [1;8]);
   Printf.printf "%s: %d nodes, %d instances, %d values, four times, domains 1/8%s\n%!" name
     (Array.length evaluated.plan.nodes) (Array.length evaluated.plan.instances) (List.length prepared)
-    (if directory = None then "" else ", native geometry/drawing pixels equal")
+    (if directory = None then ", cooked payloads equal" else ", cooked payloads and native geometry/drawing pixels equal")

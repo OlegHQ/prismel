@@ -14,7 +14,7 @@ let build ?previous ws = D.Contexts.of_workspace ~factories ?previous ws |> Resu
 let frame n = Test_editor_input.frame (450., 300.) [] n
 let step e n = E.update e (frame n)
 let create ?camera ?settings ?presets ?source ws = E.create ?camera ?settings ?presets ?source ~await:true ~workspace:ws
-  ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+  ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
     |> Result.map_error Rdk.Error.to_string)
   ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok
 
@@ -424,7 +424,7 @@ let live_light_determinism () =
     let prepares = ref 0 and drawings = ref 0 in
     let e = ref (E.create ~workspace:ws ~presets ~await:true ~domains ~seed:42L
       ~prepare:(fun _ output -> incr prepares;
-        Ok (Test_workspace_cook.geometry_bytes output.Procedural.Session.geometry))
+        Ok (Test_workspace_cook.geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))))
       ~scene3:(fun _ _ -> incr drawings; Scene3.empty) () |> Result.get_ok) in
     Fun.protect ~finally:(fun () -> E.close !e) (fun () ->
       let samples = List.mapi (fun i dt ->
@@ -696,7 +696,7 @@ let failed_renderer_modes () = with_dir (fun presets ->
     (graph editor :context editor (ui/workspace
       (ui/tile (ui/viewport (ref scene)) (ui/viewport (ref scene :size 2))))))|} in
   let e = ref (E.create ~await:true ~presets ~workspace:ws
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh (Mesh.with_mode Mesh.Lines mesh)]) () |> Result.get_ok) in
   let report () = E.crash_dump !e presets;
@@ -737,7 +737,7 @@ let run_native () = with_dir (fun directory ->
       title = "Preview failure isolation"}
     ~init:(fun _ -> E.create ~await:true ~workspace:ws
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh ->
         let size = abs_float (Option.get (Mesh.vertex 0 mesh)).Vec3.x *. 2. in

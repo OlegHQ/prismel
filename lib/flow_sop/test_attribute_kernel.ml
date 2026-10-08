@@ -22,7 +22,7 @@ let compiled (l : L.t) =
 let context ~domains time = Procedural.Context.create ~domains ~time ~grain:257 () |> get_string_ok
 let session () = Session.create ~max_entries:32 ~max_payload_bytes:(64 * 1024 * 1024) |> get_string_ok
 let cook session ~domains ~time node = Session.cook session ~context:(context ~domains time) node
-let geometry = function Ok (output : Session.output) -> output.geometry
+let geometry = function Ok (output : Session.output) -> (Result.get_ok (Procedural.Payload.geometry output.payload))
   | Error d -> failwith (Procedural.Diagnostic.error_to_string d)
 let reference (l : L.t) node =
   let n = Array.find_opt (fun (n : E.node) -> n.kind = "sop/with_attr") l.plan.nodes |> Option.get in
@@ -76,7 +76,7 @@ let () =
      "(sop/scatter (sop/grid) :count 2050 :seed 9)", 1]
 let () =
   let empty = Kernel.generate_point_ranges 0 (fun ~first:_ ~last:_ ~x:_ ~y:_ ~z:_ -> ()) in
-  let empty_input = Procedural.Node.Private.make ~operation:"empty_fixture" ~version:1
+  let empty_input = Procedural.Node.Private.make_geometry ~operation:"empty_fixture" ~version:1
     ~parameters:"" ~cook_mode:Procedural.Node.Generator
     ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
     (fun ~node_id:_ _ _ -> Ok Procedural.Node.Private.{geometry=empty; diagnostics=[]; instances=None}) in
@@ -84,13 +84,13 @@ let () =
     ~name:"P" ~values:(E.Struct ("sop/attr", Flow.Ty.Array Flow.Ty.Vec3,
       ["geometry", E.Deferred (Flow.Ty.geometry,0); "attribute", E.Text "P"]))
     ~sources:[0] [empty_input] in
-  let output = Procedural.Node.Private.cook empty_write (context ~domains:8 0.) [|empty|] in
-  (match output with Ok output -> assert (geometry_bytes output.geometry = geometry_bytes empty)
+  let output = Procedural.Node.Private.cook empty_write (context ~domains:8 0.) [|Procedural.Payload.Geometry empty|] in
+  (match output with Ok output -> assert (geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)) = geometry_bytes empty)
     | Error d -> failwith (Procedural.Diagnostic.error_to_string d));
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
   let cancelled = Procedural.Context.create ~cancel ~domains:1 () |> get_string_ok in
-  (match Procedural.Node.Private.cook empty_write cancelled [|empty|] with
+  (match Procedural.Node.Private.cook empty_write cancelled [|Procedural.Payload.Geometry empty|] with
    | Error d -> assert (d.code = "E_CANCELLED") | Ok _ -> assert false);
   List.iter (fun columns ->
     List.iter (fun amp ->

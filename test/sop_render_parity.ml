@@ -187,7 +187,7 @@ let cook domains graph =
     let context = Context.create ~seed:2026L ~frame:5L ~domains ~grain:17 ()
         |> Result.get_ok in
     match Session.cook session ~context graph with
-    | Ok output -> output.geometry
+    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
     | Error error -> failwith (Diagnostic.error_to_string error))
 
 let scene geometry =

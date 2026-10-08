@@ -1114,6 +1114,14 @@ wire hit boxes are children of the zone, below its controls in PXUI's hit order.
 
 ### Frame data and native 2D drawings
 
+An `image` graph returns a cooked `Image` alongside the existing geometry
+domain. `image/noise :width :height :frequency :seed` produces row-major,
+normalized RGBA samples on the cook worker. Its dimensions default to 256,
+frequency to 0.02 and seed to 0; each call is an editable typed card. Geometry
+operators refuse image payloads with `E_PAYLOAD`. Deferred image identity uses
+`image:<id>` in value keys, avoiding the `i<value>` spelling already used by
+integer values. Image and geometry data identities share one allocator.
+
 The full frame record, `(state [previous init] step)` and packed float/vec3
 arrays follow [iteration.md §2.5](workspace/iteration.md#25-frames-frame-folds-and-packed-arrays).
 All frame fields are live; array lengths are data, while structural lists

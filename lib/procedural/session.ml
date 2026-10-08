@@ -22,7 +22,7 @@ type stats = {
 }
 
 type output = {
-  geometry : Rdk.Geometry.t;
+  payload : Payload.t;
   diagnostics : Diagnostic.t list;
   instances : Rays_math.Mat4.t array option;
 }
@@ -130,7 +130,7 @@ let inspect session root =
       infos
 
 let insert session key entry =
-  let components = Rdk.Geometry.payload_components entry.output.geometry in
+  let components = Payload.payload_components entry.output.payload in
   if session.max_entries > 0 then begin
     let payload = session.payload in
     List.iter (fun (id, bytes) ->
@@ -177,7 +177,8 @@ let set_volatile session predicate =
    path. *)
 let selective node inputs =
   let facts = Node.facts node in
-  Array.length inputs = 1 && Node.Private.expand node = None
+  Array.length inputs = 1 && (match inputs.(0) with Payload.Geometry _ -> true | Image _ -> false)
+  && Node.Private.expand node = None
   && facts.topology = Node.Preserved && not (List.mem "*" facts.reads || List.mem "*" facts.writes)
   && (facts.cook_mode = Node.Duplicate_input 0 || facts.cook_mode = Node.Passthrough 0)
 
@@ -200,10 +201,10 @@ let cache_key node context inputs =
   add_sized facts_key;
   if not (selective node inputs) then begin
     add_int 0;
-    Array.iter (fun geometry -> add_int (Rdk.Geometry.data_id geometry)) inputs
+    Array.iter (fun payload -> add_int (Payload.data_id payload)) inputs
   end else begin
     add_int 1;
-    let geometry = inputs.(0) in
+    let geometry = Result.get_ok (Payload.geometry inputs.(0)) in
     add_int (Rdk.Topology.data_id (Rdk.Geometry.topology geometry));
     add_int (if List.mem "P" facts.reads then Rdk.Packed.Float3.data_id (Rdk.Geometry.positions geometry) else 0);
     let attributes = List.filter (fun attribute -> List.mem (Rdk.Attribute.name attribute) facts.reads)
@@ -238,8 +239,9 @@ let node_result f =
 
 let delta node inputs (cooked : Node.Private.cooked) =
   if not (selective node inputs) then None else
-  let source = inputs.(0) in
-  let geometry = cooked.geometry in
+  let source = Result.get_ok (Payload.geometry inputs.(0)) in
+  let geometry = match cooked.payload with Geometry geometry -> geometry
+    | Image _ -> refuse_facts "component-cached geometry nodes must return geometry" in
   if Option.is_some cooked.instances then
     refuse_facts "component-cached nodes must return unpacked geometry";
   if Rdk.Geometry.topology source != Rdk.Geometry.topology geometry then
@@ -278,9 +280,9 @@ let delta node inputs (cooked : Node.Private.cooked) =
   Some {source = G.data_id source; positions; attributes = List.rev !attributes}
 
 let refresh inputs input_diagnostics entry =
-  let geometry, delta = match entry.delta with
-    | Some delta when delta.source <> Rdk.Geometry.data_id inputs.(0) ->
-        let source = inputs.(0) in
+  let payload, delta = match entry.delta with
+    | Some delta when delta.source <> Payload.data_id inputs.(0) ->
+        let source = Result.get_ok (Payload.geometry inputs.(0)) in
         let module G = Rdk.Geometry in
         let module A = Rdk.Attribute in
         let values = Hashtbl.create 8 in
@@ -290,23 +292,24 @@ let refresh inputs input_diagnostics entry =
           | Some attribute -> Hashtbl.replace values (owner, name) attribute
           | None -> Hashtbl.remove values (owner, name)) delta.attributes;
         let attributes = List.map (fun attribute ->
-          Hashtbl.find values (A.owner attribute, A.name attribute)) (G.attributes entry.output.geometry) in
+          Hashtbl.find values (A.owner attribute, A.name attribute))
+            (G.attributes (Result.get_ok (Payload.geometry entry.output.payload))) in
         let geometry = G.create ~positions:(Option.value ~default:(G.positions source) delta.positions)
           ~topology:(G.topology source) ~attributes
           ~groups:(G.groups source) ~edge_groups:(G.edge_groups source) ()
           |> function Ok geometry -> geometry | Error error ->
               refuse_facts ("cannot refresh cached components: " ^ error) in
-        geometry, Some {delta with source = G.data_id source}
-    | _ -> entry.output.geometry, entry.delta in
+        Payload.Geometry geometry, Some {delta with source = G.data_id source}
+    | _ -> entry.output.payload, entry.delta in
   let diagnostics = List.concat (List.rev (entry.local_diagnostics :: input_diagnostics)) in
-  if geometry == entry.output.geometry && diagnostics = entry.output.diagnostics then entry
-  else {entry with output = {entry.output with geometry; diagnostics}; delta}
+  if payload == entry.output.payload && diagnostics = entry.output.diagnostics then entry
+  else {entry with output = {entry.output with payload; diagnostics}; delta}
 
 let timing node ~geometries ~points ~seconds ~cache_hit = {
   node_id = Node.id node;
   label = Node.label node;
   operation = Node.operation node;
-  input_points = Array.fold_left (fun n g -> n + Rdk.Geometry.point_count g) 0 geometries;
+  input_points = Array.fold_left (fun n payload -> n + Payload.element_count payload) 0 geometries;
   points;
   seconds;
   cache_hit;
@@ -338,19 +341,19 @@ exception Materialize of Diagnostic.error
    once per packed output: the copy keeps a stable data id, so downstream
    cache keys still hit. ponytail: the last 8 packed outputs are kept; an
    LRU keyed by output identity if graphs pack more than that. *)
-let input_geometry session output = match output.instances with
-  | None -> Ok output.geometry
-  | Some transforms ->
+let input_geometry session (output : output) = match output.payload, output.instances with
+  | Payload.Image _, _ | _, None -> Ok output.payload
+  | Payload.Geometry source, Some transforms ->
       match List.assq_opt output session.materialized with
-      | Some geometry -> Ok geometry
+      | Some geometry -> Ok (Payload.Geometry geometry)
       | None ->
-          match Rdk.Instance_copy.materialize_instances ~transforms output.geometry with
+          match Rdk.Instance_copy.materialize_instances ~transforms source with
           | Error error -> Error (Diagnostic.error ~code:(Rdk.Error.code error)
               ~cause:(Rdk.Error.to_string error) "packed instances could not be materialized")
           | Ok geometry ->
               session.materialized <- (output, geometry)
                 :: List.take 7 session.materialized;
-              Ok geometry
+              Ok (Payload.Geometry geometry)
 
 (* [memo] holds this cook's results by node id so a node reachable through
    several paths is evaluated once; the physical check guards reused ids. *)
@@ -432,7 +435,7 @@ and evaluate_uncached memo session context node =
             session.hits <- session.hits + 1;
             if volatile then session.volatile_hits <- session.volatile_hits + 1;
             session.last_node <- Some (timing node ~geometries
-              ~points:(Rdk.Geometry.point_count refreshed.output.geometry) ~seconds:0. ~cache_hit:true);
+              ~points:(Payload.element_count refreshed.output.payload) ~seconds:0. ~cache_hit:true);
             Ok refreshed.output)
         | None ->
             session.misses <- session.misses + 1;
@@ -446,7 +449,7 @@ and evaluate_uncached memo session context node =
                 | Ok cooked -> Ok (cooked, delta node geometries cooked))
             in
             let seconds = max 0. (Unix.gettimeofday () -. started) in
-            let points = match cooked with Ok (output, _) -> Rdk.Geometry.point_count output.geometry | Error _ -> 0 in
+            let points = match cooked with Ok (output, _) -> Payload.element_count output.payload | Error _ -> 0 in
             let sample = timing node ~geometries ~points ~seconds ~cache_hit:false in
             session.last_node <- Some sample;
             record_time session sample;
@@ -457,7 +460,7 @@ and evaluate_uncached memo session context node =
                 let diagnostics =
                   List.concat (List.rev (cooked.diagnostics :: !input_diagnostics))
                 in
-                let output = { geometry = cooked.geometry; diagnostics;
+                let output = { payload = cooked.payload; diagnostics;
                   instances = cooked.instances } in
                 let entry = {output; components = []; local_diagnostics = cooked.diagnostics;
                   delta} in

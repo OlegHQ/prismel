@@ -21,7 +21,7 @@ let signature geometry =
 let cook session domains node =
   let context = Context.create ~domains ~grain:2 ~seed:7L () |> get in
   match Session.cook session ~context node with
-  | Ok output -> output.Session.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let fresh domains node =

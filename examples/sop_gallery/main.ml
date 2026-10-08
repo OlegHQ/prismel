@@ -132,7 +132,7 @@ let material = Material.create ~diffuse:Color.white
     ~ambient:(color "#172554") ~specular:Color.white ~shininess:36. ()
 
 (* A packed cook (Copy to Points, Pack and instance) keeps its transforms. *)
-let prepare output = Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+let prepare output = Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
   |> Result.map (fun mesh -> mesh, output.Session.instances)
   |> Result.map_error Rdk.Error.to_string
 
@@ -176,15 +176,15 @@ let check_all () =
         | Error error -> failwith (name ^ ": " ^
             Diagnostic.error_to_string error)
         | Ok output ->
-            if Rdk.Geometry.point_count output.geometry = 0 then
+            if Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 0 then
               failwith (name ^ ": empty geometry");
             (match prepare output with
              | Ok (mesh, _) when Mesh.vertex_count mesh > 0 -> ()
              | Ok _ -> failwith (name ^ ": empty render mesh")
              | Error error -> failwith (name ^ ": " ^ error));
             Printf.printf "%s: %d points, %d primitives\n%!" name
-              (Rdk.Geometry.point_count output.geometry)
-              (Rdk.Geometry.primitive_count output.geometry))) (graphs ())
+              (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)))
+              (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload))))) (graphs ())
 
 let () =
   let entry = ref "boolean" and list = ref false and check = ref false in

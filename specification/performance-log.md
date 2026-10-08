@@ -6420,3 +6420,32 @@ Native benchmark startup exits 2: `Ogpu_metal.Device.system_default: Metal has
 no system default device`. No GPU timings, numeric tolerance or placement costs
 are claimed. The mesh-packing baseline and after rows are in the separate
 Scene3 float32 change; native GPU qualification remains outstanding.
+
+## P4 cooked payload boundary (2026-10-08)
+
+Same Apple M1 / OCaml 5.3.0 / dev profile as the baseline. `Session.output`
+now carries a `Payload.Geometry` or `Payload.Image`. Geometry operators use
+one typed adapter; selective component keys and refresh retain their existing
+geometry rules. Images use the same atomic identity allocator as geometry and
+contribute one RGBA component (32 bytes per pixel) to retained-byte accounting.
+Instance materialization passes image payloads through unchanged. Public image
+construction and pixel reads copy storage; the worker producer transfers its
+fresh array after validation.
+
+`image/noise` is declared as a cooked image kind with editable width, height,
+frequency and seed fields. Its catalog diff contains that one new kind. Value
+keys use `image:<id>` because the plan's suggested `i<id>` would collide with
+the existing integer key. This spelling change prevents false value parity.
+
+Focused Flow, Flow_sop, Procedural and catalog checks, `@check`, standard
+workspace parity and both custom-catalog workspace checks exit 0. The pure
+workspace harness now also cooks roots and compares actual payload bytes,
+instances, plans, values and records at four times and domains 1/8 across all
+23 workspaces and 12 fixtures; previously cooked comparisons ran only under
+the native pixel flag. The image regression checks immutable storage, exact
+one/eight-domain pixels, physical cache reuse, CLOCK eviction byte accounting,
+oversized-entry eviction and `E_PAYLOAD` at a geometry consumer.
+
+Native pixel qualification exits 1 at `Canvas.render`, with the typed
+`No_adapter` error. Pixel equivalence and final `--ship` remain unverified;
+the API manifest is intentionally left for promotion after branch integration.

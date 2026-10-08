@@ -26,7 +26,7 @@ module Group_non_planar = struct
     let merge = parameters.merge in
     let tolerance = parameters.tolerance in
     let name = parameters.name in
-    Node.Private.make ~label ~operation:"group_non_planar" ~version:1
+    Node.Private.make_geometry ~label ~operation:"group_non_planar" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -64,7 +64,7 @@ module Group_backface = struct
             parameters.viewpoint_z in
     let name = parameters.name in
     let viewpoint = vec3_copy viewpoint in
-    Node.Private.make ~label ~operation:"group_backface" ~version:1
+    Node.Private.make_geometry ~label ~operation:"group_backface" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -93,7 +93,7 @@ module Group_unshared = struct
     let merge = parameters.merge in
     let owner = parameters.owner in
     let name = parameters.name in
-    Node.Private.make ~label ~operation:"group_unshared" ~version:1
+    Node.Private.make_geometry ~label ~operation:"group_unshared" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -162,7 +162,7 @@ module Group_edges = struct
             else None in
     let max_angle = if parameters.use_max_angle then Some parameters.max_angle
             else None in
-    Node.Private.make ?label ~operation:"group_edges" ~version:2
+    Node.Private.make_geometry ?label ~operation:"group_edges" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -225,7 +225,7 @@ module Group_random = struct
       | None -> Context.Dependencies.one Context.Dependencies.Seed in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("group_random:" ^ label)) label in
-    Node.Private.make ?label ~operation:"group_random" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_random" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
       (fun ~node_id context inputs ->
@@ -266,7 +266,7 @@ module Group_edge_depth = struct
     let depth = parameters.depth in
     let point_group = parameters.point_group in
     let name = parameters.name in
-    Node.Private.make ?label ~operation:"group_edge_depth" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_edge_depth" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -305,7 +305,7 @@ module Group_boundary_components = struct
     let conflict = parameters.conflict in
     let max_groups = parameters.max_groups in
     let max_payload_bytes = parameters.max_payload_bytes in
-    Node.Private.make ?label ~operation:"group_boundary_components" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_boundary_components" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -353,7 +353,7 @@ module Group_from_attribute_boundary = struct
     let attributes = List.map (fun (rule : Rdk.Group_ops.boundary_attribute) ->
       { Rdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
         boundary_attribute_pattern = rule.boundary_attribute_pattern }) attributes in
-    Node.Private.make ?label ~operation:"group_from_attribute_boundary" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_from_attribute_boundary" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -407,7 +407,7 @@ module Groups_from_name = struct
     let max_payload_bytes = parameters.max_payload_bytes in
     let owner = parameters.owner in
     let attribute = parameters.attribute in
-    Node.Private.make ?label ~operation:"groups_from_name" ~version:1
+    Node.Private.make_geometry ?label ~operation:"groups_from_name" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -447,7 +447,7 @@ module Name_from_groups = struct
     let overlap = parameters.overlap in
     let delete_groups = parameters.delete_groups in
     let owner = parameters.owner in
-    Node.Private.make ?label ~operation:"name_from_groups" ~version:1
+    Node.Private.make_geometry ?label ~operation:"name_from_groups" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -505,7 +505,7 @@ module Group_promote_boundary = struct
     let attributes = List.map (fun (rule : Rdk.Group_ops.boundary_attribute) ->
       { Rdk.Group_ops.boundary_attribute_owner = rule.boundary_attribute_owner;
         boundary_attribute_pattern = rule.boundary_attribute_pattern }) attributes in
-    Node.Private.make ?label ~operation:"group_promote_boundary" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_promote_boundary" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -559,7 +559,7 @@ module Group_delete = struct
     let rules = List.map (fun (rule : Rdk.Group_ops.delete_rule) ->
       { Rdk.Group_ops.delete_owner = rule.delete_owner;
         delete_pattern = rule.delete_pattern }) rules in
-    Node.Private.make ?label ~operation:"group_delete" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_delete" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -624,7 +624,7 @@ module Group_rename = struct
         rename_pattern = rule.rename_pattern;
         rename_replacement = rule.rename_replacement;
         rename_conflict = rule.rename_conflict }) rules in
-    Node.Private.make ?label ~operation:"group_rename" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_rename" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -679,7 +679,7 @@ module Group_copy = struct
         copy_pattern = rule.copy_pattern;
         copy_prefix = rule.copy_prefix;
         match_attribute = rule.match_attribute })) rules in
-    Node.Private.make ?label ~operation:"group_copy" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_copy" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
@@ -738,7 +738,7 @@ module Group_transfer = struct
       { Rdk.Group_ops.transfer_owner = rule.transfer_owner;
         transfer_pattern = rule.transfer_pattern;
         transfer_prefix = rule.transfer_prefix })) rules in
-    Node.Private.make ?label ~operation:"group_transfer" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_transfer" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
@@ -788,7 +788,7 @@ module Group_find_path = struct
     let contain = parameters.contain in
     let base_group = parameters.base_group in
     let name = parameters.name in
-    Node.Private.make ?label ~operation:"group_find_path" ~version:2
+    Node.Private.make_geometry ?label ~operation:"group_find_path" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -829,7 +829,7 @@ module Delete_edge_group = struct
   let build = parameters_build (fun ~label parameters input ->
     let label = Some label in
     let name = parameters.name in
-    Node.Private.make ?label ~operation:"delete_edge_group" ~version:1
+    Node.Private.make_geometry ?label ~operation:"delete_edge_group" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -851,7 +851,7 @@ module Rename_edge_group = struct
     let label = Some label in
     let from = parameters.from in
     let into = parameters.into in
-    Node.Private.make ?label ~operation:"rename_edge_group" ~version:1
+    Node.Private.make_geometry ?label ~operation:"rename_edge_group" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -890,7 +890,7 @@ module Group_invert = struct
     let new_name = parameters.new_name in
     let owner = match owner with Any -> None | Owner owner -> Some owner in
     let new_name = optional_text new_name in
-    Node.Private.make ?label ~operation:"group_invert" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_invert" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -954,7 +954,7 @@ module Group_combine = struct
         operand = { Rdk.Group_ops.pattern = step.operand.pattern;
           inverted = step.operand.inverted } }) steps in
     let base = { Rdk.Group_ops.pattern = base_pattern; inverted = base_inverted } in
-    Node.Private.make ?label ~operation:"group_combine" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_combine" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1102,7 +1102,7 @@ module Group_promotions = struct
     let rules = parameters.rules in
     let rules = List.filter (fun (rule : Rdk.Group_ops.promotion_rule) ->
         String.trim rule.promotion_pattern <> "") rules in
-    Node.Private.make ?label ~operation:"group_promotions" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_promotions" ~version:1
           ~parameters:""
           ~cook_mode:(Node.Duplicate_input 0)
           ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -1255,7 +1255,7 @@ module Group_ranges = struct
     List.iter (fun (rule : Rdk.Group_ops.range_rule) ->
       Option.iter (fun pattern -> if String.trim pattern = "" then
         invalid_arg "Sop.group_ranges: empty base pattern") rule.range_base) rules;
-    Node.Private.make ?label ~operation:"group_ranges" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_ranges" ~version:1
           ~parameters:""
           ~cook_mode:(Node.Duplicate_input 0)
           ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -1330,7 +1330,7 @@ module Group_bounds = struct
       | Box -> let half = Vec3.scale size 0.5 in
           Rdk.Group_ops.Bounds_box { minimum = Vec3.sub center half;
             maximum = Vec3.add center half } in
-    Node.Private.make ?label ~operation:"group_bounds" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_bounds" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1464,7 +1464,7 @@ module Group_range = struct
               collision_pattern; keep_boundary } else None in
           Some (Rdk.Group_ops.Range_connected { connectivity_attributes;
             connectivity_tolerance; collision; region; remove_other_regions }) in
-    Node.Private.make ?label ~operation:"group_range" ~version:3
+    Node.Private.make_geometry ?label ~operation:"group_range" ~version:3
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1511,7 +1511,7 @@ module Ordered_group = struct
     let name = parameters.name in
     let elements = parameters.elements in
     let elements = Array.of_list elements in
-    Node.Private.make ?label ~operation:"ordered_group" ~version:1
+    Node.Private.make_geometry ?label ~operation:"ordered_group" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -1580,7 +1580,7 @@ module Group_normal = struct
     let owner = parameters.owner in
     let name = parameters.name in
     let direction = vec3_copy direction in
-    Node.Private.make ?label ~operation:"group_normal" ~version:1
+    Node.Private.make_geometry ?label ~operation:"group_normal" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1703,7 +1703,7 @@ module Group_expand = struct
       Rdk.Group_ops.expand_collision_owner = collision_owner;
       expand_collision_group = collision_group; expand_collision_contain = collision_contain;
       expand_collision_allow_boundary = collision_allow_boundary } else None in
-    Node.Private.make ?label ~operation:"group_expand" ~version:2
+    Node.Private.make_geometry ?label ~operation:"group_expand" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->

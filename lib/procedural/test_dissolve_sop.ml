@@ -9,7 +9,7 @@ let session () = Session.create ~max_entries:16 ~max_payload_bytes:8_000_000 |> 
 let cook graph =
   let session = session () in
   let output = match Session.cook session ~context:(context ()) graph with
-    | Ok output -> output.Session.geometry
+    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session; output
 

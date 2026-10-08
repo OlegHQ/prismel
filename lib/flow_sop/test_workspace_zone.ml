@@ -37,7 +37,7 @@ let cook ?(domains = 1) session graph =
   let root = Option.get (graph : Lower.graph).root in
   let compiled = Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:root) in
   match Session.cook session ~context:(context ~domains) compiled with
-  | Ok output -> output.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
   | Error error -> fail (Procedural.Diagnostic.error_to_string error)
 
 let prims = Rdk.Geometry.primitive_count
@@ -124,11 +124,11 @@ let previews () =
         let context = Result.get_ok (Procedural.Context.create ~domains ~grain:1 ~input ~time:input.t
           ~frame:(Int64.of_int input.frame) ()) in
         let output = Result.get_ok (Session.cook s ~context compiled) in
-        let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions output.geometry) in
+        let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
         let mean values = Array.fold_left (+.) 0. values /. float (Array.length values) in
         check (mean positions.x = float (index mod 2 * 10) +. input.t && mean positions.y = input.t)
           "preview selectors changed the live frame or fold's accumulated value";
-        geometry_bytes output.geometry)) in
+        geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)))) in
   check (play 1 = play 3) "live previews and frame folds differ across domains"
 
 (* the graph with its zero-input node [operation] replaced by a snapshot of its cook whose
@@ -136,8 +136,8 @@ let previews () =
 let move_point session (graph : Lower.graph) operation ~index ~by =
   let field = List.find (fun (n : Edit.node_info) -> n.operation = operation)
       (Edit.inspect graph.network.geometry) in
-  let base = (Result.get_ok (Session.cook session ~context:(context ~domains:1)
-    (Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:field.id)))).geometry in
+  let base = (Result.get_ok (Procedural.Payload.geometry (Result.get_ok (Session.cook session ~context:(context ~domains:1)
+    (Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:field.id)))).payload)) in
   let view = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions base) in
   let moved = Result.get_ok (Rdk.Geometry.with_positions
     (Rdk.Packed.Float3.of_owned ~x:(Array.copy view.x)
@@ -169,7 +169,7 @@ let run () =
         let context = Result.get_ok (Procedural.Context.create ~domains ~grain:1
           ~input ~time:input.t ~frame:(Int64.of_int i) ()) in
         let output = Result.get_ok (Session.cook s ~context compiled) in
-        geometry_bytes output.geometry in
+        geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)) in
       let values = Array.init 3 (fun i -> frame (i + 1)) in
       Array.iteri (fun i bytes ->
         let oracle = List.hd (lower (source (Printf.sprintf "%.17g" (float (i + 1) *. 0.25)))).graphs in
@@ -235,7 +235,7 @@ let run () =
   let compiled = Result.get_ok (Edit.compile_node graph' ~node_id:root) in
   let before = Session.stats s in
   let second = match Session.cook s ~context:(context ~domains:1) compiled with
-    | Ok output -> output.geometry | Error e -> fail (Procedural.Diagnostic.error_to_string e) in
+    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload)) | Error e -> fail (Procedural.Diagnostic.error_to_string e) in
   let after = Session.stats s in
   let n = Rdk.Geometry.point_count base in
   check (a.cooks > 0 && n > 4) "the collection has points";
@@ -266,7 +266,7 @@ let run () =
     let root = Option.get (graph : Lower.graph).root in
     let compiled = Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:root) in
     match Session.cook s ~context compiled with
-    | Ok output -> output.geometry, Session.stats s
+    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload)), Session.stats s
     | Error e -> fail (Procedural.Diagnostic.error_to_string e) in
   let g0, _ = at 0. live_graph live and g1, stats = at 1.25 live_graph live in
   check (geometry_bytes g0 <> geometry_bytes g1) "a loop body that reads t did not move with t";

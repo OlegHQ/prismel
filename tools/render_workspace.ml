@@ -45,7 +45,7 @@ let init _ =
         let cooked = Session.cook session ~context:(Context.create ~domains:1 ~grain:2 () |> get) node
             |> Result.map_error Diagnostic.error_to_string |> get in
         Printf.printf "%s: %d primitives, %d points\n%!" (Node.label object_node)
-          (Rdk.Geometry.primitive_count cooked.geometry) (Rdk.Geometry.point_count cooked.geometry);
+          (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry cooked.payload))) (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry cooked.payload)));
         let surface = Sketch_support.Surface.of_output cooked |> get in
         let drawing = Sketch_support.Surface.scene3 node surface in
         Scene3.Private.iter_batches (fun (d : Scene3.Private.drawing) transforms ->

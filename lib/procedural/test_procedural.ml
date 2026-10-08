@@ -142,7 +142,7 @@ let test_node_owned_parameters_and_graph_edit () =
   let output = cook_ok evaluator current translated in
   let after_edit = Session.stats evaluator in
   let positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions output.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
   check (positions.x = [|1.5; 1.5|])
     "edited node did not rebuild its cook closure";
   check (after_edit.hits > before_edit.hits)
@@ -193,7 +193,7 @@ let test_async_cook_latest_request () =
         Unix.sleepf 0.3;
         if Context.cancelled context then Error "cancelled"
         else Ok geometries.(0)) in
-  let prepare output = Ok (Rdk.Geometry.point_count output.Session.geometry) in
+  let prepare output = Ok (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.Session.payload))) in
   let first = Async_cook.submit worker ~context:(context ~domains:2 ())
       ~node:slow ~prepare |> get_ok in
   ignore (wait_until (fun () -> match Async_cook.status worker with
@@ -235,7 +235,7 @@ fun migration_input ->
   let after_second = Session.stats evaluator in
   check (after_second.cooks = 2 && after_second.hits = 2)
     "static graph was invalidated by unrelated context facts";
-  check (first.geometry == second.geometry) "static cache did not retain snapshot identity";
+  check ((Result.get_ok (Procedural.Payload.geometry first.payload)) == (Result.get_ok (Procedural.Payload.geometry second.payload))) "static cache did not retain snapshot identity";
   Session.close evaluator
 
 let test_grid_generator_contract () =
@@ -247,21 +247,21 @@ let test_grid_generator_contract () =
       ~width:6. ~height:2. ~rotation:0.25 ~uv_attribute:"st"
       ~columns:5 ~rows:3 ~size:1. () in
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 15
-      && Rdk.Geometry.vertex_count output.geometry = 48
-      && Rdk.Geometry.primitive_count output.geometry = 16)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 15
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 48
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 16)
     "procedural Grid advanced cardinality";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "st"
-      output.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Grid dropped normalized lattice coordinates";
   let rows_and_columns = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto
       ~counts:Rdk.Plane_generators.Grid_point_counts
       ~connectivity:Rdk.Plane_generators.Grid_rows_and_columns
       ~orientation:Procedural.Sop.Plane_yz ~columns:4 ~rows:3 ~size:2. ()
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count rows_and_columns.geometry = 12
-      && Rdk.Geometry.vertex_count rows_and_columns.geometry = 24
-      && Rdk.Geometry.primitive_count rows_and_columns.geometry = 7)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry rows_and_columns.payload)) = 12
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry rows_and_columns.payload)) = 24
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry rows_and_columns.payload)) = 7)
     "procedural Grid row-and-column topology";
   check (try ignore (Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~label:"bad-axes"
       ~orientation:Procedural.Sop.Plane_axes ~horizontal:(Vec3.unit_x) ~vertical:(Vec3.unit_x)
@@ -279,16 +279,16 @@ let test_circle_generator_contract () =
   check (contains (Node.parameters graph) "arc=sliced")
     "procedural Circle cache identity omitted arc mode";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 10
-      && Rdk.Geometry.vertex_count output.geometry = 10
-      && Rdk.Geometry.primitive_count output.geometry = 1
-      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology output.geometry) 0
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 10
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 10
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 1
+      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry output.payload))) 0
          = Rdk.Topology.Closed_polyline)
     "procedural sliced Circle topology";
   let open_arc = Sop.circle ~radius_x_mode:Sop.Kernel_auto ~radius_y_mode:Sop.Kernel_auto ~arc:Sop.Circle_open ~start_angle:0. ~end_angle:Float.pi
       ~orientation:Sop.Plane_yz ~segments:12 ~radius:2. ()
       |> cook_ok evaluator current in
-  (match Rdk_rays.Rays_mesh.to_mesh open_arc.geometry with
+  (match Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry open_arc.payload)) with
    | Ok mesh -> check (Mesh.mode mesh = Mesh.Lines
          && Mesh.index_count mesh = 24)
        "procedural open Circle bridge"
@@ -313,20 +313,20 @@ let test_box_generator_contract () =
       && contains (Node.parameters graph) "rotation_order=yzx")
     "procedural Box cache identity omitted advanced parameters";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 54
-      && Rdk.Geometry.vertex_count output.geometry = 208
-      && Rdk.Geometry.primitive_count output.geometry = 52
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 54
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 208
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 52
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "N"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv"
-         output.geometry <> None
-      && List.length (Rdk.Geometry.groups output.geometry) = 6)
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
+      && List.length (Rdk.Geometry.groups (Result.get_ok (Procedural.Payload.geometry output.payload))) = 6)
     "procedural divided Box output contract";
   let lattice = Sop.box ~normals:None ~connectivity:Rdk.Box_generator.Box_lattice_points
       ~x_divisions:2 ~y_divisions:3 ~z_divisions:4
       ~size:(Vec3.create 2. 3. 4.) () |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count lattice.geometry = 60
-      && Rdk.Geometry.vertex_count lattice.geometry = 0)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry lattice.payload)) = 60
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry lattice.payload)) = 0)
     "procedural Box volume lattice";
   let invalid = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~label:"bad-box-divisions" ~x_divisions:0 () in
   (match Session.cook evaluator ~context:current invalid with
@@ -354,21 +354,21 @@ let test_uv_sphere_generator_contract () =
       && contains (Node.parameters graph) "rotation_order=zxy")
     "procedural UV Sphere cache identity omitted advanced parameters";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 84
-      && Rdk.Geometry.vertex_count output.geometry = 288
-      && Rdk.Geometry.primitive_count output.geometry = 72
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 84
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 288
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 72
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "N"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv"
-         output.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural advanced UV Sphere output contract";
   let points = Sop.uv_sphere ~radius_x_mode:Procedural.Sop.Kernel_auto ~radius_y_mode:Procedural.Sop.Kernel_auto ~radius_z_mode:Procedural.Sop.Kernel_auto ~normals_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Uv_sphere.Sphere_points
       ~unique_points_per_pole:true ~uv_attribute:"uv"
       ~segments:12 ~rings:6 ~base_radius:1. () |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count points.geometry = 84
-      && Rdk.Geometry.vertex_count points.geometry = 0
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry points.payload)) = 84
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry points.payload)) = 0
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "uv"
-         points.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry points.payload)) <> None)
     "procedural UV Sphere point lattice";
   check (try ignore (Sop.uv_sphere ~label:"bad-sphere-axis" ~orientation:Sop.Axis_custom ~axis:Vec3.zero ());
       false with Invalid_argument _ -> true) "procedural UV Sphere refuses zero axis at construction";
@@ -392,21 +392,21 @@ let test_torus_generator_contract () =
       && contains (Node.parameters graph) "v_end_cap=true")
     "procedural Torus cache identity omitted advanced parameters";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 40
-      && Rdk.Geometry.vertex_count output.geometry = 220
-      && Rdk.Geometry.primitive_count output.geometry = 72
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 40
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 220
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 72
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "N"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv"
-         output.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural capped Torus output contract";
   let points = Sop.torus ~normals_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Parametric_generators.Torus_points
       ~uv_attribute:"uv" ~rows:8 ~columns:5
       ~major_radius:3. ~minor_radius:1. () |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count points.geometry = 40
-      && Rdk.Geometry.vertex_count points.geometry = 0
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry points.payload)) = 40
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry points.payload)) = 0
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "uv"
-         points.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry points.payload)) <> None)
     "procedural Torus point lattice";
   check (try ignore (Sop.torus ~label:"bad-torus-axis" ~orientation:Sop.Axis_custom ~axis:Vec3.zero ());
       false with Invalid_argument _ -> true) "procedural Torus refuses zero axis at construction";
@@ -428,24 +428,24 @@ let test_tube_generator_contract () =
       && contains (Node.parameters graph) "cap_group=caps")
     "procedural Tube cache identity omitted advanced parameters";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 41
-      && Rdk.Geometry.vertex_count output.geometry = 200
-      && Rdk.Geometry.primitive_count output.geometry = 66
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 41
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 200
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 66
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "N"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "caps"
-         output.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural capped Tube output contract";
   let points = Sop.tube ~normals_mode:Procedural.Sop.Kernel_auto ~cap_group:"" ~consolidate_cap_points:true ~end_caps:(false) ~connectivity:Rdk.Parametric_generators.Tube_points
       ~uv_attribute:"uv" ~rows:8 ~columns:5
       ~top_radius:0. ~bottom_radius:3. ~height:4. ()
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count points.geometry = 36
-      && Rdk.Geometry.vertex_count points.geometry = 0
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry points.payload)) = 36
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry points.payload)) = 0
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "uv"
-         points.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry points.payload)) <> None)
     "procedural Tube point lattice";
   check (try ignore (Sop.tube ~label:"bad-tube-axis" ~orientation:Sop.Axis_custom ~axis:Vec3.zero ());
       false with Invalid_argument _ -> true) "procedural Tube refuses zero axis at construction";
@@ -465,15 +465,15 @@ let test_platonic_generator_contract () =
       && contains (Node.parameters graph) "face_groups=face")
     "procedural Platonic cache identity omitted parameters";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 60
-      && Rdk.Geometry.vertex_count output.geometry = 180
-      && Rdk.Geometry.primitive_count output.geometry = 32
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 60
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 180
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 32
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "N"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "Cd"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "face_pentagons"
-         output.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Platonic output contract";
   check (try ignore (Sop.platonic ~normals:Rdk.Parametric_generators.Platonic_point_normals
       ~kind:Rdk.Parametric_generators.Platonic_tetrahedron ~label:"bad-platonic-axis"
@@ -506,21 +506,21 @@ let test_spiral_generator_contract () =
       && contains (Node.parameters graph) "orient_attribute=orient")
     "procedural Spiral cache identity omitted advanced parameters";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 123
-      && Rdk.Geometry.vertex_count output.geometry = 123
-      && Rdk.Geometry.primitive_count output.geometry = 3
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 123
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 123
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 3
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "angle"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "xaxis"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "yaxis"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "tangent"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "orient"
-         output.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "distance"
-         output.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Spiral output contract";
   check (try ignore (Sop.spiral ~label:"bad-spiral-axis"
       ~orientation:Sop.Axis_custom ~axis:Vec3.zero ()); false
@@ -536,7 +536,7 @@ let test_declared_seed_dependency () =
   let evaluator = session () in
   let first = cook_ok evaluator (context ~seed:10L ~domains:1 ()) graph in
   let second = cook_ok evaluator (context ~seed:11L ~domains:4 ~time:8. ()) graph in
-  check (not (equal_positions first.geometry second.geometry))
+  check (not (equal_positions (Result.get_ok (Procedural.Payload.geometry first.payload)) (Result.get_ok (Procedural.Payload.geometry second.payload))))
     "context seed did not change implicit noise";
   let stats = Session.stats evaluator in
   check (stats.cooks = 3 && stats.hits = 1)
@@ -546,7 +546,7 @@ let test_declared_seed_dependency () =
   let stats = Session.stats evaluator in
   check (stats.cooks = 3 && stats.hits = 3)
     "noise node depended on undeclared context facts";
-  check (second.geometry == third.geometry) "seed cache identity";
+  check ((Result.get_ok (Procedural.Payload.geometry second.payload)) == (Result.get_ok (Procedural.Payload.geometry third.payload))) "seed cache identity";
   Session.close evaluator
 
 let test_labeled_random_identity () =
@@ -561,7 +561,7 @@ let test_labeled_random_identity () =
     let evaluator = session () in
     let output = cook_ok evaluator (context ~seed:88L ()) graph in
     Session.close evaluator;
-    output.geometry in
+    (Result.get_ok (Procedural.Payload.geometry output.payload)) in
   check (equal_positions (cook first_graph) (cook second_graph))
     "explicit noise label did not stabilize random identity"
 
@@ -572,7 +572,7 @@ let test_switch_is_lazy () =
   let graph = Sop.switch ~input:1 bad good [] in
   let evaluator = session () in
   let output = cook_ok evaluator (context ()) graph in
-  check (Rdk.Geometry.point_count output.geometry = 1) "switch selected wrong input";
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 1) "switch selected wrong input";
   check ((Session.stats evaluator).cooks = 2) "switch eagerly cooked unselected input";
   Session.close evaluator
 
@@ -606,8 +606,8 @@ Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
   let evaluator = session () and current = context () in
   let source_output = cook_ok evaluator current source in
   let moved_output = cook_ok evaluator current moved in
-  let naive = Rdk.Geometry.payload_bytes source_output.geometry
-      + Rdk.Geometry.payload_bytes moved_output.geometry in
+  let naive = Rdk.Geometry.payload_bytes (Result.get_ok (Procedural.Payload.geometry source_output.payload))
+      + Rdk.Geometry.payload_bytes (Result.get_ok (Procedural.Payload.geometry moved_output.payload)) in
   let retained = (Session.stats evaluator).retained_payload_bytes in
   check (retained < naive) "session double-counted structurally shared RDK buffers";
   Session.clear evaluator;
@@ -647,16 +647,16 @@ let test_inspection_sharing_and_bridge () =
   check (Node.id shared > 0 && Node.label shared = "prototype") "node identity/label";
   let evaluator = session () in
   let output = cook_ok evaluator (context ()) graph in
-  check (Rdk.Geometry.point_count output.geometry = 48
-      && Rdk.Geometry.primitive_count output.geometry = 24)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 48
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 24)
     "real merge cardinality";
   let colored = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ()
       |> Sop.color_by_height ~low_red:0 ~low_green:0 ~low_blue:255
            ~high_red:255 ~high_green:0 ~high_blue:0 in
   let colored = cook_ok evaluator (context ()) colored in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "Cd"
-      colored.geometry <> None) "color_by_height did not create Cd";
-  (match Rdk_rays.Rays_mesh.to_mesh colored.geometry with
+      (Result.get_ok (Procedural.Payload.geometry colored.payload)) <> None) "color_by_height did not create Cd";
+  (match Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry colored.payload)) with
    | Error error -> fail (Rdk.Error.to_string error)
    | Ok mesh -> check (Mesh.index_count mesh = 36) "mesh bridge index count");
   Session.close evaluator
@@ -693,7 +693,7 @@ let test_packed_instances () =
 let test_snapshot_feedback_boundary () =
   let evaluator = session ~entries:4 () and current = context () in
   let initial = cook_ok evaluator current (Sop.points [|(1., 0., 0.)|]) in
-  let previous = Sop.snapshot ~label:"previous-frame" initial.geometry in
+  let previous = Sop.snapshot ~label:"previous-frame" (Result.get_ok (Procedural.Payload.geometry initial.payload)) in
   let step = Sop.custom ~label:"solver-step" ~operation:"translate_step"
       ~version:1 ~parameters:"dx=0.25" [previous]
       (fun ~context:_ inputs ->
@@ -703,12 +703,12 @@ let test_snapshot_feedback_boundary () =
         | _ -> Error "solver step requires one snapshot") in
   let output = cook_ok evaluator current step in
   let x, _, _ = Rdk.Packed.Float3.get
-      (Rdk.Geometry.positions output.geometry) 0 in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) 0 in
   check (x = 1.25) "snapshot feedback source/custom step";
   let source = List.hd (Node.inputs step) in
   check (Node.operation source = "snapshot"
       && contains (Node.parameters source)
-           (string_of_int (Rdk.Geometry.data_id initial.geometry)))
+           (string_of_int (Rdk.Geometry.data_id (Result.get_ok (Procedural.Payload.geometry initial.payload)))))
     "snapshot source inspection identity";
   Session.close evaluator
 
@@ -721,7 +721,7 @@ let test_parallel_geometry_exactness () =
     let evaluator = session () in
     let output = cook_ok evaluator (context ~domains ~grain:97 ()) graph in
     Session.close evaluator;
-    output.geometry
+    (Result.get_ok (Procedural.Payload.geometry output.payload))
   in
   let one = cook 1 and many = cook 4 in
   check (equal_positions one many) "one/multi-domain positions differ";
@@ -745,10 +745,10 @@ let test_generators_selections_and_delete () =
       |> Sop.group ~name:"alternating" selected
       |> Sop.blast ~selected:false ~owner:Rdk.Group.Primitive ~group:"alternating"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.primitive_count kept.geometry = 2)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry kept.payload)) = 2)
     "primitive selection/delete cardinality";
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "alternating"
-      kept.geometry with
+      (Result.get_ok (Procedural.Payload.geometry kept.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 2)
        "primitive group was not remapped through delete"
    | None -> fail "named primitive group was dropped");
@@ -758,21 +758,21 @@ let test_generators_selections_and_delete () =
   let grouped = Sop.points [|(-1.,0.,0.); (0.,0.,0.); (1.,0.,1.); (2.,0.,0.)|]
       |> Sop.group ~name:"inside" point_selection
       |> cook_ok evaluator current in
-  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "inside" grouped.geometry with
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "inside" (Result.get_ok (Procedural.Payload.geometry grouped.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 2) "point bounds selection"
    | None -> fail "point selection group missing");
   let compacted = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"doomed" (Select.primitive_indices [|0|])
       |> Sop.blast ~compact_points:true ~owner:Rdk.Group.Primitive ~group:"doomed"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.primitive_count compacted.geometry = 1
-      && Rdk.Geometry.point_count compacted.geometry = 3)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry compacted.payload)) = 1
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry compacted.payload)) = 3)
     "delete with orphan-point compaction";
   let bounded = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 2. 3. 4.) ()
       |> Sop.bound ~lower:(Vec3.create 0.5 0.5 0.5)
            ~upper:(Vec3.create 0.5 0.5 0.5)
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count bounded.geometry = 24)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry bounded.payload)) = 24)
     "procedural box Bound";
   let divided_bound = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 2. 3. 4.) ()
       |> Sop.group ~name:"bound_faces"
@@ -784,16 +784,16 @@ let test_generators_selections_and_delete () =
            ~bounds_group:"bounds" ~center_attribute:"bound_center"
            ~radii_attribute:"bound_radii"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count divided_bound.geometry = 94
-      && Rdk.Geometry.primitive_count divided_bound.geometry = 104
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry divided_bound.payload)) = 94
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry divided_bound.payload)) = 104
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail "bound_center"
-         divided_bound.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry divided_bound.payload)) <> None)
     "procedural divided Bound output/metadata";
   let bound_sphere = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 2. 3. 4.) ()
       |> Sop.bound ~shape:Sop.Sphere ~segments:16 ~rings:8 ~minimum_radius:0.
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count bound_sphere.geometry = 114
-      && Rdk.Geometry.primitive_count bound_sphere.geometry = 224)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry bound_sphere.payload)) = 114
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry bound_sphere.payload)) = 224)
     "procedural Bound sphere cardinality";
   let missing_bound_group = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ()
       |> Sop.bound ~group_owner:Sop.Element_point ~group:"missing" in
@@ -810,7 +810,7 @@ fun migration_input ->
   let matched = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 1. 2. 3.) ()
       |> (fun input -> Sop.match_size ~fit:Rdk.Match_size.Stretch input (Some target_bounds))
       |> cook_ok evaluator current in
-  let matched_bounds = Rdk.Analysis.bounds matched.geometry |> Option.get in
+  let matched_bounds = Rdk.Analysis.bounds (Result.get_ok (Procedural.Payload.geometry matched.payload)) |> Option.get in
   check (abs_float (matched_bounds.center.x -. 3.) < 1e-12
       && abs_float (matched_bounds.size.z -. 7.) < 1e-12)
     "procedural match size";
@@ -829,7 +829,7 @@ fun migration_input ->
            ~justify:(Vec3.create 1. 0. 0.) ~target_justify:(Vec3.create (-1.) 0. 0.)
            ~offset:(Vec3.create 0.25 0. 0.) input (Some advanced_target))
       |> cook_ok evaluator current |> fun cooked ->
-      Rdk.Analysis.bounds cooked.geometry |> Option.get in
+      Rdk.Analysis.bounds (Result.get_ok (Procedural.Payload.geometry cooked.payload)) |> Option.get in
   check (abs_float (advanced.size.x -. 3.) < 1e-12
       && abs_float (advanced.size.y -. 6.) < 1e-12
       && abs_float (advanced.max.x -. 6.25) < 1e-12)
@@ -838,7 +838,7 @@ fun migration_input ->
       |> (fun input -> Sop.match_size ~target_center:(Vec3.create (-3.) 2. 5.)
            ~target_size:(Vec3.create 1. 1. 1.) input None)
       |> cook_ok evaluator current |> fun cooked ->
-      Rdk.Analysis.bounds cooked.geometry |> Option.get in
+      Rdk.Analysis.bounds (Result.get_ok (Procedural.Payload.geometry cooked.payload)) |> Option.get in
   check (abs_float (numeric_match.center.x +. 3.) < 1e-12
       && abs_float (numeric_match.size.z -. 1.) < 1e-12)
     "procedural numeric/unit Match Size";
@@ -856,7 +856,7 @@ fun migration_input ->
        "Match Size missing target-group diagnostic"
    | Ok _ -> fail "Match Size accepted a missing target group");
   let circle = Sop.circle ~radius_x_mode:Sop.Kernel_auto ~radius_y_mode:Sop.Kernel_auto ~segments:20 ~radius:2. () |> cook_ok evaluator current in
-  (match Rdk_rays.Rays_mesh.to_mesh circle.geometry with
+  (match Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry circle.payload)) with
    | Ok mesh -> check (Mesh.mode mesh = Mesh.Lines && Mesh.index_count mesh = 40)
        "circle render bridge"
    | Error error -> fail (Rdk.Error.to_string error));
@@ -866,8 +866,8 @@ fun migration_input ->
     "Line node parameter identity";
   let line = cook_ok evaluator current line_node in
   let line_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions line.geometry) in
-  check (Rdk.Geometry.vertex_count line.geometry = 17
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry line.payload))) in
+  check (Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry line.payload)) = 17
       && line_positions.y.(0) = 2. && line_positions.y.(16) = 6.)
     "procedural Line source";
   let polyframe_node = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:4 ~rows:3 ~uv_attribute:"uv"
@@ -883,11 +883,11 @@ fun migration_input ->
     "PolyFrame node parameter identity";
   let polyframed = polyframe_node |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "frame_n"
-           polyframed.geometry <> None
+           (Result.get_ok (Procedural.Payload.geometry polyframed.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "frame_u"
-           polyframed.geometry <> None
+           (Result.get_ok (Procedural.Payload.geometry polyframed.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "frame_v"
-           polyframed.geometry <> None)
+           (Result.get_ok (Procedural.Payload.geometry polyframed.payload)) <> None)
     "procedural PolyFrame vertex outputs";
   let missing_polyframe = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.polyframe ~group_owner:Sop.Element_point ~group:"missing"
@@ -901,7 +901,7 @@ fun migration_input ->
   check (contains (Node.parameters resample_node) "segments=48")
     "resample node parameter identity";
   let resampled_circle = resample_node |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count resampled_circle.geometry = 48)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry resampled_circle.payload)) = 48)
     "procedural closed-curve resample";
   let length_resample = Sop.polyline
       [|(0., 0., 0.); (1., 0., 0.); (1., 2., 0.)|]
@@ -913,11 +913,11 @@ fun migration_input ->
       && contains (Node.parameters length_resample) "curve_u_attribute=curveu")
     "advanced Resample node parameter identity";
   let length_resampled = length_resample |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count length_resampled.geometry = 6
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry length_resampled.payload)) = 6
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "curveu"
-           length_resampled.geometry <> None
+           (Result.get_ok (Procedural.Payload.geometry length_resampled.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "tangent"
-           length_resampled.geometry <> None)
+           (Result.get_ok (Procedural.Payload.geometry length_resampled.payload)) <> None)
     "procedural length Resample diagnostics";
   let restricted_resample = Sop.merge [
       Sop.polyline [|(0., 0., 0.); (2., 0., 0.)|];
@@ -928,7 +928,7 @@ fun migration_input ->
   check (contains (Node.parameters restricted_resample) "group=first_curve")
     "group-restricted Resample cache identity";
   let restricted = restricted_resample |> cook_ok evaluator current in
-  let restricted_topology = Rdk.Geometry.topology restricted.geometry in
+  let restricted_topology = Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry restricted.payload)) in
   let a0, a1 = Rdk.Topology.primitive_vertex_range restricted_topology 0
   and b0, b1 = Rdk.Topology.primitive_vertex_range restricted_topology 1 in
   check (a1 - a0 = 5 && b1 - b0 = 3)
@@ -938,8 +938,8 @@ fun migration_input ->
   check (contains (Node.parameters sweep_node) "sides=8")
     "sweep node parameter identity";
   let tube = sweep_node |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count tube.geometry = 136
-      && Rdk.Geometry.primitive_count tube.geometry = 128)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry tube.payload)) = 136
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry tube.payload)) = 128)
     "procedural curve sweep";
   let polywire_node = Sop.polyline [|(0.,0.,0.); (0.,1.,0.); (0.,2.,0.)|]
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"width" ~value:0.5
@@ -953,11 +953,11 @@ fun migration_input ->
       && contains (Node.parameters polywire_node) "up_attribute=wire_up")
     "PolyWire node operation/cache identity";
   let scaled_tube = cook_ok evaluator current polywire_node in
-  check (Rdk.Geometry.point_count scaled_tube.geometry = 24
-      && Rdk.Geometry.primitive_count scaled_tube.geometry = 18)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry scaled_tube.payload)) = 24
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry scaled_tube.payload)) = 18)
     "procedural scaled curve sweep";
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "tube_caps"
-      scaled_tube.geometry with
+      (Result.get_ok (Procedural.Payload.geometry scaled_tube.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 2)
        "procedural sweep cap group"
    | None -> fail "procedural sweep cap group missing");
@@ -966,10 +966,10 @@ fun migration_input ->
       |> Sop.convert_line ~group:"all_grid_edges" ~remove_unused_points:true
            ~length_attribute:"edge_length"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.primitive_count converted_lines.geometry = 9
-      && Rdk.Geometry.vertex_count converted_lines.geometry = 18
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry converted_lines.payload)) = 9
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry converted_lines.payload)) = 18
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-           "edge_length" converted_lines.geometry <> None)
+           "edge_length" (Result.get_ok (Procedural.Payload.geometry converted_lines.payload)) <> None)
     "procedural Convert Line";
   let connected_path_node = Sop.polyline
       [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
@@ -986,20 +986,20 @@ fun migration_input ->
     "procedural Convert Line connected-path cache identity";
   let connected_path = cook_ok evaluator current connected_path_node in
   let connected_length = Rdk.Geometry.find_attribute
-      ~owner:Rdk.Attribute.Primitive "path_length" connected_path.geometry
+      ~owner:Rdk.Attribute.Primitive "path_length" (Result.get_ok (Procedural.Payload.geometry connected_path.payload))
       |> Option.get
       |> Rdk.Attribute.get (Rdk.Attribute.key ~name:"path_length"
            ~owner:Rdk.Attribute.Primitive Rdk.Attribute.float)
       |> Option.get in
-  check (Rdk.Geometry.primitive_count connected_path.geometry = 1
-      && Rdk.Geometry.vertex_count connected_path.geometry = 3
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry connected_path.payload)) = 1
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry connected_path.payload)) = 3
       && connected_length = [|3.|])
     "procedural Convert Line connected path/final length";
   let carved = Sop.polyline [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.);
       (6.,0.,0.)|] |> Sop.carve ~first:0.2 ~last:0.6
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count carved.geometry = 3
-      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology carved.geometry) 0
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry carved.payload)) = 3
+      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry carved.payload))) 0
          = Rdk.Topology.Open_polyline)
     "procedural curve carve";
   let grouped_carve_source = Sop.merge [
@@ -1018,8 +1018,8 @@ fun migration_input ->
       && contains (Node.parameters grouped_carve_node) "group=carve_curve")
     "procedural grouped Carve cache identity";
   let grouped_carve = cook_ok evaluator current grouped_carve_node in
-  check (Rdk.Geometry.primitive_count grouped_carve.geometry = 2
-      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology grouped_carve.geometry)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry grouped_carve.payload)) = 2
+      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry grouped_carve.payload)))
            1 = Rdk.Topology.Polygon)
     "procedural grouped Carve preserved unselected polygon";
   let divided_carve_node = grouped_carve_source
@@ -1028,8 +1028,8 @@ fun migration_input ->
   check (contains (Node.parameters divided_carve_node) "divisions=3")
     "procedural divided Carve cache identity";
   let divided_carve = cook_ok evaluator current divided_carve_node in
-  check (Rdk.Geometry.primitive_count divided_carve.geometry = 4
-      && Rdk.Geometry.vertex_count divided_carve.geometry = 12)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry divided_carve.payload)) = 4
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry divided_carve.payload)) = 12)
     "procedural divided Carve cook";
   (match
      try
@@ -1050,9 +1050,9 @@ fun migration_input ->
     "procedural attributed Carve cache identity";
   let attributed_carve = cook_ok evaluator current attributed_carve_node in
   let attributed_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions attributed_carve.geometry) in
-  check (Rdk.Geometry.point_count attributed_carve.geometry = 11
-      && Rdk.Geometry.vertex_count attributed_carve.geometry = 7
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry attributed_carve.payload))) in
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry attributed_carve.payload)) = 11
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry attributed_carve.payload)) = 7
       && attributed_positions.x.(8) = 0.75
       && attributed_positions.x.(10) = 1.5)
     "procedural attributed Carve replace behavior";
@@ -1065,8 +1065,8 @@ fun migration_input ->
     "procedural scaled Carve cache identity";
   let scaled_carve = cook_ok evaluator current scaled_carve_node in
   let scaled_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions scaled_carve.geometry) in
-  check (Rdk.Geometry.point_count scaled_carve.geometry = 11
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry scaled_carve.payload))) in
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry scaled_carve.payload)) = 11
       && scaled_positions.x.(8) = 0.375
       && scaled_positions.x.(10) = 1.5)
     "procedural attributed Carve scale behavior";
@@ -1085,8 +1085,8 @@ fun migration_input ->
            "cut_at_all_internal_breakpoints=true")
     "procedural breakpoint Carve cache identity";
   let breakpoint_cut = cook_ok evaluator current breakpoint_node in
-  check (Rdk.Geometry.primitive_count breakpoint_cut.geometry = 4
-      && Rdk.Geometry.vertex_count breakpoint_cut.geometry = 10)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry breakpoint_cut.payload)) = 4
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry breakpoint_cut.payload)) = 10)
     "procedural cut-at-all breakpoint Carve";
   let breakpoint_extract = grouped_carve_source
       |> Sop.carve ~group:"carve_curve" ~relative_arc_length:false
@@ -1094,9 +1094,9 @@ fun migration_input ->
            ~only_at_breakpoints:true ~extract_points:true
       |> cook_ok evaluator current in
   let breakpoint_extract_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions breakpoint_extract.geometry) in
-  check (Rdk.Geometry.primitive_count breakpoint_extract.geometry = 1
-      && Rdk.Geometry.point_count breakpoint_extract.geometry = 9
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry breakpoint_extract.payload))) in
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry breakpoint_extract.payload)) = 1
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry breakpoint_extract.payload)) = 9
       && breakpoint_extract_positions.x.(8) = 1.)
     "procedural attributed breakpoint extraction";
   let outside_node = grouped_carve_source
@@ -1105,8 +1105,8 @@ fun migration_input ->
   check (contains (Node.parameters outside_node) "keep=outside")
     "procedural Carve outside cache identity";
   let outside = cook_ok evaluator current outside_node in
-  check (Rdk.Geometry.primitive_count outside.geometry = 3
-      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology outside.geometry)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry outside.payload)) = 3
+      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry outside.payload)))
            2 = Rdk.Topology.Polygon)
     "procedural Carve outside pieces";
   let extracted_node = grouped_carve_source
@@ -1117,10 +1117,10 @@ fun migration_input ->
       && contains (Node.parameters extracted_node) "keep_original=false")
     "procedural Carve extraction cache identity";
   let extracted = cook_ok evaluator current extracted_node in
-  check (Rdk.Geometry.primitive_count extracted.geometry = 1
-      && Rdk.Geometry.vertex_count extracted.geometry = 4
-      && Rdk.Geometry.point_count extracted.geometry = 13
-      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology extracted.geometry)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry extracted.payload)) = 1
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry extracted.payload)) = 4
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry extracted.payload)) = 13
+      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry extracted.payload)))
            0 = Rdk.Topology.Polygon)
     "procedural Carve free-point extraction";
   let missing_carve_group = Sop.polyline [|(0.,0.,0.); (1.,0.,0.)|]
@@ -1131,16 +1131,16 @@ fun migration_input ->
    | Ok _ -> fail "Carve accepted a missing primitive group");
   let unrolled = Sop.circle ~radius_x_mode:Sop.Kernel_auto ~radius_y_mode:Sop.Kernel_auto ~segments:12 ~radius:1. ()
       |> Sop.ends ~mode:Rdk.Curve_topology.Ends_unroll_shared |> cook_ok evaluator current in
-  check (Rdk.Geometry.vertex_count unrolled.geometry = 13
-      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology unrolled.geometry) 0
+  check (Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry unrolled.payload)) = 13
+      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry unrolled.payload))) 0
          = Rdk.Topology.Open_polyline)
     "procedural curve ends";
   let joined = Sop.merge [
       Sop.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|];
       Sop.polyline [|(4.,0.,0.); (3.,0.,0.); (2.,0.,0.)|];
     ] |> Sop.join_curves |> cook_ok evaluator current in
-  check (Rdk.Geometry.primitive_count joined.geometry = 1
-      && Rdk.Geometry.vertex_count joined.geometry = 5)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry joined.payload)) = 1
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry joined.payload)) = 5)
     "procedural curve join/orientation/weld";
   let globally_joined_node = Sop.merge [
       Sop.polyline [|(0.,0.,0.); (1.,0.,0.)|];
@@ -1153,7 +1153,7 @@ fun migration_input ->
     "procedural global closest Curve Join cache identity";
   let globally_joined = cook_ok evaluator current globally_joined_node in
   let topology = Rdk.Topology.Private.view
-      (Rdk.Geometry.topology globally_joined.geometry) in
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry globally_joined.payload))) in
   check (topology.vertex_points = [|0;1;5;4;2;3|])
     "procedural global closest Curve Join order";
   let picked_source = Sop.merge [
@@ -1168,7 +1168,7 @@ fun migration_input ->
       |> Sop.join_curves ~group:"authored_order" ~orient_closest:false
       |> cook_ok evaluator current in
   let ordered_topology = Rdk.Topology.Private.view
-      (Rdk.Geometry.topology ordered_join.geometry) in
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry ordered_join.payload))) in
   check (ordered_topology.primitive_offsets = [|0;2;8|]
       && ordered_topology.vertex_points = [|2;3;4;5;0;1;6;7|])
     "procedural Curve Join ignored ordered primitive-group traversal";
@@ -1186,7 +1186,7 @@ fun migration_input ->
     "procedural picked-end Curve Join cache identity/ownership";
   let picked = cook_ok evaluator current picked_node in
   let picked_topology = Rdk.Topology.Private.view
-      (Rdk.Geometry.topology picked.geometry) in
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry picked.payload))) in
   check (picked_topology.primitive_offsets = [|0;2;8|]
       && picked_topology.vertex_points = [|2;3;5;4;0;1;7;6|])
     "procedural picked-end Curve Join order/orientation";
@@ -1212,8 +1212,8 @@ fun migration_input ->
            "keep_originals=true")
     "procedural Curve Join subgroup/keep cache identity";
   let retained_subgroups = cook_ok evaluator current retained_subgroups_node in
-  check (Rdk.Geometry.primitive_count retained_subgroups.geometry = 5
-      && Rdk.Geometry.vertex_count retained_subgroups.geometry = 12)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry retained_subgroups.payload)) = 5
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry retained_subgroups.payload)) = 12)
     "procedural Curve Join subgroup/keep topology";
   (match try Some (Sop.polyline [|(0.,0.,0.); (1.,0.,0.)|]
       |> Sop.join_curves ~use_group_size:true ~group_size:0) with Invalid_argument _ -> None with
@@ -1254,7 +1254,7 @@ fun migration_input ->
         "reverse_first" reverse_source |> Option.get) reverse_source
       |> Result.get_ok in
   let triangulated_topology = Rdk.Topology.Private.view
-      (Rdk.Geometry.topology triangulated.geometry)
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry triangulated.payload)))
   and expected_triangulated_topology = Rdk.Topology.Private.view
       (Rdk.Geometry.topology expected_triangulate) in
   check (triangulated_topology.vertex_points
@@ -1282,7 +1282,7 @@ fun migration_input ->
       ~operation:(Rdk.Reverse_faces.Shift_vertices (-1)) reverse_source
       |> Result.get_ok in
   let actual_topology = Rdk.Topology.Private.view
-      (Rdk.Geometry.topology reversed.geometry)
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry reversed.payload)))
   and expected_topology = Rdk.Topology.Private.view
       (Rdk.Geometry.topology expected_reverse) in
   check (actual_topology.vertex_points = expected_topology.vertex_points)
@@ -1315,7 +1315,7 @@ fun migration_input ->
       ~cusp_angle:(Float.pi /. 4.) ~keep_original_zero:true
       ~reverse:true ~attribute:"custom_n" reverse_source |> Result.get_ok in
   let actual_n = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex
-      "custom_n" normal_output.geometry |> Option.get
+      "custom_n" (Result.get_ok (Procedural.Payload.geometry normal_output.payload)) |> Option.get
   and expected_n = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex
       "custom_n" expected_normals |> Option.get in
   (match Rdk.Attribute.Private.storage actual_n,
@@ -1336,19 +1336,19 @@ fun migration_input ->
   let sphere = Sop.uv_sphere ~radius_x_mode:Procedural.Sop.Kernel_auto ~radius_y_mode:Procedural.Sop.Kernel_auto ~radius_z_mode:Procedural.Sop.Kernel_auto ~normals_mode:Procedural.Sop.Kernel_auto ~uv_attribute:"" ~segments:10 ~rings:5 ~base_radius:1. ()
       |> Sop.reverse |> (Sop.normals ~weighting:(Rdk.Normal_ops.Face_area) ~owner:(Rdk.Attribute.Point)) |> Sop.measure ~kind:Rdk.Analysis.Area |> Sop.connectivity
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.primitive_count sphere.geometry = 80)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry sphere.payload)) = 80)
     "sphere/reverse/normals pipeline";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "area"
-      sphere.geometry <> None) "measure area attribute";
+      (Result.get_ok (Procedural.Payload.geometry sphere.payload)) <> None) "measure area attribute";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "class"
-      sphere.geometry <> None) "connectivity attribute";
+      (Result.get_ok (Procedural.Payload.geometry sphere.payload)) <> None) "connectivity attribute";
   let point_connectivity = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:2 ~size:2. ()
       |> Sop.connectivity ~owner:Rdk.Analysis.Connectivity_points
            ~name:"point_island"
            ~output:Sop.Text ~text_prefix:"piece_"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "point_island"
-      point_connectivity.geometry with
+      (Result.get_ok (Procedural.Payload.geometry point_connectivity.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.storage attribute with
         | Rdk.Attribute.Text values ->
@@ -1361,7 +1361,7 @@ fun migration_input ->
       |> Sop.connectivity ~seam_group:"every_edge" ~name:"seam_island"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-      "seam_island" seam_connectivity.geometry with
+      "seam_island" (Result.get_ok (Procedural.Payload.geometry seam_connectivity.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.storage attribute with
         | Rdk.Attribute.Int values ->
@@ -1385,7 +1385,7 @@ fun migration_input ->
       |> cook_ok evaluator current in
   let detail_float name =
     match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail name
-        measured_box.geometry with
+        (Result.get_ok (Procedural.Payload.geometry measured_box.payload)) with
     | Some attribute ->
         (match Rdk.Attribute.storage attribute with
          | Rdk.Attribute.Float [|value|] -> value
@@ -1396,14 +1396,14 @@ fun migration_input ->
   check (abs_float (abs_float (detail_float "signed_volume") -. 48.) < 1e-12)
     "procedural total signed volume";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-      "edge_total" measured_box.geometry <> None)
+      "edge_total" (Result.get_ok (Procedural.Payload.geometry measured_box.payload)) <> None)
     "procedural perimeter attribute";
   let throughout = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:2. ()
       |> Sop.measure ~accumulation:Rdk.Analysis.Throughout ~attribute:"whole_area"
            ~kind:Rdk.Analysis.Area
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "whole_area"
-      throughout.geometry with
+      (Result.get_ok (Procedural.Payload.geometry throughout.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.storage attribute with
         | Rdk.Attribute.Float values ->
@@ -1430,18 +1430,18 @@ fun migration_input ->
            ~method_:Rdk.Attribute_ops.Edge_length
            ~mode:Sop.Laplacian ~laplacian_step:0.35
       |> cook_ok evaluator current in
-  check (not (equal_positions rough.geometry smooth.geometry))
+  check (not (equal_positions (Result.get_ok (Procedural.Payload.geometry rough.payload)) (Result.get_ok (Procedural.Payload.geometry smooth.payload))))
     "procedural Attribute Blur did not smooth P";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "N"
-      smooth.geometry = None) "procedural Attribute Blur retained stale normals";
+      (Result.get_ok (Procedural.Payload.geometry smooth.payload)) = None) "procedural Attribute Blur retained stale normals";
   let restricted_blur = rough_graph
       |> Sop.group ~name:"blur_center"
            (Select.points_in_bounds ~min:(Vec3.create (-1.) (-10.) (-1.))
               ~max:(Vec3.create 1. 10. 1.))
       |> Sop.attribute_blur ~group:"blur_center" ~iterations:2 ~attributes:"P"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count restricted_blur.geometry
-      = Rdk.Geometry.point_count rough.geometry)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry restricted_blur.payload))
+      = Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry rough.payload)))
     "procedural restricted Attribute Blur cardinality";
   let missing_blur_group = rough_graph
       |> Sop.attribute_blur ~group:"missing" ~attributes:"P" in
@@ -1464,10 +1464,10 @@ fun migration_input ->
            ~mode:Sop.Custom ~odd_step:0.42 ~even_step:(-0.44)
            ~attributes:"P"
       |> cook_ok evaluator current in
-  check (not (equal_positions rough.geometry modeled_smooth.geometry))
+  check (not (equal_positions (Result.get_ok (Procedural.Payload.geometry rough.payload)) (Result.get_ok (Procedural.Payload.geometry modeled_smooth.payload))))
     "procedural Smooth did not update selected interior points";
-  check (Rdk.Geometry.point_count modeled_smooth.geometry
-      = Rdk.Geometry.point_count rough.geometry)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry modeled_smooth.payload))
+      = Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry rough.payload)))
     "procedural Smooth changed topology cardinality";
   let missing_smooth_group = rough_graph
       |> Sop.smooth ~recompute_normals:(true) ~iterations:(1) ~group:"missing" ~attributes:"P" in
@@ -1506,7 +1506,7 @@ fun migration_input ->
   let ray_output = cook_ok evaluator current ray_graph in
   check (Array.for_all (fun distance -> distance >= 0.)
       (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-          "ray_distance" ray_output.geometry with
+          "ray_distance" (Result.get_ok (Procedural.Payload.geometry ray_output.payload)) with
        | Some attribute ->
            (match Rdk.Attribute.Private.storage attribute with
             | Rdk.Attribute.Float values -> values
@@ -1514,7 +1514,7 @@ fun migration_input ->
        | None -> fail "procedural Ray distance missing"))
     "procedural Ray unexpectedly missed";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "Cd"
-      ray_output.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry ray_output.payload)) <> None)
     "procedural Ray did not import collision color";
   let missing_ray_selection = rough_graph
       |> (fun ray_source -> Sop.ray ~group_owner:Procedural.Sop.Element_point ~group:("missing") ray_source (ray_collision)) in
@@ -1543,10 +1543,10 @@ fun migration_input ->
       |> Sop.peak ~direction_attribute:("") ~group_owner:Sop.Element_point ~group:"peak_center" ~distance:0.4
            ~recompute_normals:true
       |> cook_ok evaluator current in
-  check (not (equal_positions peak_input.geometry peaked.geometry))
+  check (not (equal_positions (Result.get_ok (Procedural.Payload.geometry peak_input.payload)) (Result.get_ok (Procedural.Payload.geometry peaked.payload))))
     "procedural Peak did not move its selected points";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "N"
-      peaked.geometry <> None) "procedural Peak did not recompute normals";
+      (Result.get_ok (Procedural.Payload.geometry peaked.payload)) <> None) "procedural Peak did not recompute normals";
   let missing_peak_group = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.peak ~direction_attribute:("") ~group_owner:Sop.Element_edge ~group:"missing" ~distance:1. in
   (match Session.cook evaluator ~context:current missing_peak_group with
@@ -1559,16 +1559,16 @@ fun migration_input ->
            ~height_attribute:"mountain_height" in
   let mountain_a = cook_ok evaluator (context ~seed:201L ()) mountain_graph
   and mountain_b = cook_ok evaluator (context ~seed:202L ()) mountain_graph in
-  check (not (equal_positions mountain_a.geometry mountain_b.geometry))
+  check (not (equal_positions (Result.get_ok (Procedural.Payload.geometry mountain_a.payload)) (Result.get_ok (Procedural.Payload.geometry mountain_b.payload))))
     "procedural Mountain ignored its context-seed dependency";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-      "mountain_height" mountain_a.geometry <> None)
+      "mountain_height" (Result.get_ok (Procedural.Payload.geometry mountain_a.payload)) <> None)
     "procedural Mountain did not publish its height attribute";
   let fixed_mountain = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:20 ~rows:16 ~size:5. ()
       |> Sop.mountain ~seed:19 ~height:0.7 ~octaves:5 in
   let fixed_a = cook_ok evaluator (context ~seed:1L ()) fixed_mountain
   and fixed_b = cook_ok evaluator (context ~seed:2L ()) fixed_mountain in
-  check (equal_positions fixed_a.geometry fixed_b.geometry)
+  check (equal_positions (Result.get_ok (Procedural.Payload.geometry fixed_a.payload)) (Result.get_ok (Procedural.Payload.geometry fixed_b.payload)))
     "explicit Mountain seed retained a context dependency";
   let jitter_source = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:4 ~rows:3 ~size:3. ()
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"jitter_mask" ~value:0.5
@@ -1588,12 +1588,12 @@ fun migration_input ->
   let jitter_input = cook_ok evaluator current jitter_source
   and jitter_a = cook_ok evaluator (context ~seed:301L ()) jitter_graph
   and jitter_b = cook_ok evaluator (context ~seed:302L ()) jitter_graph in
-  check (not (equal_positions jitter_a.geometry jitter_b.geometry))
+  check (not (equal_positions (Result.get_ok (Procedural.Payload.geometry jitter_a.payload)) (Result.get_ok (Procedural.Payload.geometry jitter_b.payload))))
     "procedural Point Jitter ignored its context-seed dependency";
   let source_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions jitter_input.geometry)
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry jitter_input.payload)))
   and jitter_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions jitter_a.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry jitter_a.payload))) in
   for point = 0 to Array.length source_positions.x - 1 do
     let changed = source_positions.x.(point) <> jitter_positions.x.(point)
         || source_positions.y.(point) <> jitter_positions.y.(point)
@@ -1605,7 +1605,7 @@ fun migration_input ->
       |> Sop.point_jitter ~label:"fixed-step" ~seed:19 ~scale:0.8 in
   let fixed_jitter_a = cook_ok evaluator (context ~seed:1L ()) fixed_jitter
   and fixed_jitter_b = cook_ok evaluator (context ~seed:2L ()) fixed_jitter in
-  check (equal_positions fixed_jitter_a.geometry fixed_jitter_b.geometry)
+  check (equal_positions (Result.get_ok (Procedural.Payload.geometry fixed_jitter_a.payload)) (Result.get_ok (Procedural.Payload.geometry fixed_jitter_b.payload)))
     "explicit Point Jitter seed retained a context dependency";
   let missing_jitter_group = jitter_source
       |> Sop.point_jitter ~group:"absent" ~seed:1 ~scale:1. in
@@ -1627,9 +1627,9 @@ fun migration_input ->
          | Rdk.Attribute.Float values -> values
          | _ -> fail ("procedural attribute has wrong storage: " ^ name))
     | None -> fail ("procedural attribute is missing: " ^ name) in
-  let values_a = float_attribute "value" random_a.geometry
-  and values_b = float_attribute "value" random_b.geometry
-  and mapped = float_attribute "mapped" random_a.geometry in
+  let values_a = float_attribute "value" (Result.get_ok (Procedural.Payload.geometry random_a.payload))
+  and values_b = float_attribute "value" (Result.get_ok (Procedural.Payload.geometry random_b.payload))
+  and mapped = float_attribute "mapped" (Result.get_ok (Procedural.Payload.geometry random_a.payload)) in
   check (values_a <> values_b)
     "procedural Attribute Randomize ignored its context-seed dependency";
   check (Array.for_all (fun value -> value >= 0. && value <= 1.) mapped)
@@ -1638,8 +1638,8 @@ fun migration_input ->
       |> (fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_normal ~kind:Sop.Numeric_scalar ~a:(Vec3.create (0.) (0.) (0.)) ~b:(Vec3.create (1.) (0.) (0.)) ~seed:(77) ~owner:(Rdk.Attribute.Point) ~name:("fixed") migration_input) in
   let fixed_a = cook_ok evaluator (context ~seed:1L ()) explicit_random
   and fixed_b = cook_ok evaluator (context ~seed:2L ()) explicit_random in
-  check (float_attribute "fixed" fixed_a.geometry
-      = float_attribute "fixed" fixed_b.geometry)
+  check (float_attribute "fixed" (Result.get_ok (Procedural.Payload.geometry fixed_a.payload))
+      = float_attribute "fixed" (Result.get_ok (Procedural.Payload.geometry fixed_b.payload)))
     "explicit Attribute Randomize seed retained a context dependency";
   let orient_graph = Sop.point_generate_origin ~points:32 ()
       |> Sop.attribute_noise ~label:"orient-noise" ~seed:91
@@ -1650,10 +1650,10 @@ fun migration_input ->
            ~kind:Rdk.Attribute_ops.Noise_quaternion in
   let orient_a = cook_ok evaluator (context ~seed:1L ()) orient_graph
   and orient_b = cook_ok evaluator (context ~seed:999L ()) orient_graph in
-  check (orient_a.geometry == orient_b.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry orient_a.payload)) == (Result.get_ok (Procedural.Payload.geometry orient_b.payload)))
     "explicit Attribute Noise seed retained a context dependency";
   let orient_values = match Rdk.Geometry.find_attribute
-      ~owner:Rdk.Attribute.Point "orient" orient_a.geometry with
+      ~owner:Rdk.Attribute.Point "orient" (Result.get_ok (Procedural.Payload.geometry orient_a.payload)) with
     | Some attribute ->
         (match Rdk.Attribute.storage attribute with
          | Rdk.Attribute.Float4 values -> Rdk.Packed.Float4.Private.view values
@@ -1675,9 +1675,9 @@ fun migration_input ->
       |> (fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_custom_ramp ~kind:Sop.Numeric_scalar ~context_seed:true ~a:(Vec3.create (10.) (0.) (0.)) ~b:(Vec3.create (20.) (0.) (0.)) ~ramp:(String.concat "," [Printf.sprintf "%.17g:%.17g" (0.) (0.);Printf.sprintf "%.17g:%.17g" (0.5) (0.2);Printf.sprintf "%.17g:%.17g" (1.) (1.)]) ~fraction_attribute:("fraction") ~owner:(Rdk.Attribute.Point) ~name:("quantile") migration_input) in
   let fraction_a = cook_ok evaluator (context ~seed:1L ()) fraction_graph
   and fraction_b = cook_ok evaluator (context ~seed:999L ()) fraction_graph in
-  check (fraction_a.geometry == fraction_b.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry fraction_a.payload)) == (Result.get_ok (Procedural.Payload.geometry fraction_b.payload)))
     "fraction Attribute Randomize retained a context-seed dependency";
-  check (float_attribute "quantile" fraction_a.geometry
+  check (float_attribute "quantile" (Result.get_ok (Procedural.Payload.geometry fraction_a.payload))
       = [|10.; 11.; 12.; 16.; 20.|])
     "procedural fraction Attribute Randomize quantiles";
   let limited_graph = Sop.snapshot fraction_geometry
@@ -1685,7 +1685,7 @@ fun migration_input ->
   check (Node.version limited_graph = 2)
     "Attribute Randomize node version did not include the extended contract";
   let limited = cook_ok evaluator current limited_graph
-      |> fun output -> float_attribute "limited" output.geometry in
+      |> fun output -> float_attribute "limited" (Result.get_ok (Procedural.Payload.geometry output.payload)) in
   check (limited.(0) = -2. && limited.(2) = 0. && limited.(4) = 2.)
     "procedural Attribute Randomize tail limits";
   let typed_text = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~connectivity:Rdk.Plane_generators.Grid_triangles
@@ -1694,7 +1694,7 @@ fun migration_input ->
       |> (fun migration_input -> Sop.attribute_randomize ~distribution:Sop.Random_custom_discrete_text ~kind:Sop.Numeric_scalar ~text_entries:(String.concat "\n" [String.concat "\t" ["marked";Printf.sprintf "%.17g" (1.)]]) ~selection_owner:Sop.Element_primitive ~selection_group:("first_face") ~seed:(71) ~owner:(Rdk.Attribute.Point) ~name:("region") migration_input) in
   let typed_text = cook_ok evaluator current typed_text in
   let regions = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-      "region" typed_text.geometry with
+      "region" (Result.get_ok (Procedural.Payload.geometry typed_text.payload)) with
     | Some attribute ->
         (match Rdk.Attribute.storage attribute with
          | Rdk.Attribute.Text values -> values
@@ -1736,13 +1736,13 @@ fun migration_input ->
            ~back_boundary_group:"back_rim" ~distance:0.3
       |> cook_ok evaluator current in
   let primitive_group_size name =
-    Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name extruded.geometry
+    Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive name (Result.get_ok (Procedural.Payload.geometry extruded.payload))
     |> Option.map Rdk.Group.cardinality |> Option.value ~default:(-1)
   and edge_group_size name =
-    Rdk.Geometry.find_edge_group name extruded.geometry
+    Rdk.Geometry.find_edge_group name (Result.get_ok (Procedural.Payload.geometry extruded.payload))
     |> Option.map Rdk.Edge_group.cardinality |> Option.value ~default:(-1) in
-  check (Rdk.Geometry.point_count extruded.geometry = 36
-      && Rdk.Geometry.primitive_count extruded.geometry = 44
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry extruded.payload)) = 36
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry extruded.payload)) = 44
       && primitive_group_size "extrude_front" = 12
       && primitive_group_size "extrude_back" = 12
       && primitive_group_size "extrude_side" = 20
@@ -1765,11 +1765,11 @@ fun migration_input ->
            ~consolidate_distance:0. ~delete_unused_groups:true
            ~point_attributes:"temporary"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count cleaned.geometry = 1
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry cleaned.payload)) = 1
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "temporary"
-         cleaned.geometry = None
+         (Result.get_ok (Procedural.Payload.geometry cleaned.payload)) = None
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Point "empty"
-         cleaned.geometry = None)
+         (Result.get_ok (Procedural.Payload.geometry cleaned.payload)) = None)
     "procedural Clean pipeline";
   let facet_node = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:1 ~uv_attribute:"uv" ~size:2. ()
       |> Sop.facet ~cusp_mode:Procedural.Sop.Kernel_auto ~inline_distance:0. ~pre_compute_normals:true ~make_normals_unit_length:true
@@ -1779,11 +1779,11 @@ fun migration_input ->
       && contains (Node.parameters facet_node) "reverse_normals=true")
     "Facet node parameter identity";
   let faceted = facet_node |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count faceted.geometry = 12
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry faceted.payload)) = 12
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "N"
-           faceted.geometry <> None
+           (Result.get_ok (Procedural.Payload.geometry faceted.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "uv"
-           faceted.geometry <> None)
+           (Result.get_ok (Procedural.Payload.geometry faceted.payload)) <> None)
     "procedural Facet Unique Points pipeline";
   let grouped_facet_input = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"facet_faces" (Select.primitive_indices [|0|]) in
@@ -1800,9 +1800,9 @@ fun migration_input ->
       = Node.parameters grouped_facet_node)
     "Facet primitive convenience and typed selection have different parameters";
   let grouped_facet = grouped_facet_node |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count grouped_facet.geometry = 8
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry grouped_facet.payload)) = 8
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "facet_faces"
-           grouped_facet.geometry <> None)
+           (Result.get_ok (Procedural.Payload.geometry grouped_facet.payload)) <> None)
     "procedural grouped Facet Unique Points";
   let missing_facet_group = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.facet ~cusp_mode:Procedural.Sop.Kernel_auto ~inline_distance:0. ~group:"missing_faces" ~unique_points:true in
@@ -1818,8 +1818,8 @@ fun migration_input ->
       "group=facet_points;group_owner=point")
     "point-selected Facet parameter identity";
   let point_faceted = point_facet_node |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count point_faceted.geometry > 6
-      && Rdk.Geometry.point_count point_faceted.geometry < 12)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry point_faceted.payload)) > 6
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry point_faceted.payload)) < 12)
     "procedural point-selected Facet promotion";
   let missing_point_group = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.facet ~cusp_mode:Procedural.Sop.Kernel_auto ~inline_distance:0. ~group_owner:Procedural.Sop.Element_point ~group:("missing_points")
@@ -1840,7 +1840,7 @@ fun migration_input ->
     "Facet Make Planar parameter identity";
   let planar = planar_node |> cook_ok evaluator current in
   let positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions planar.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry planar.payload))) in
   let ux = positions.x.(1) -. positions.x.(0)
   and uy = positions.y.(1) -. positions.y.(0)
   and uz = positions.z.(1) -. positions.z.(0)
@@ -1869,8 +1869,8 @@ fun migration_input ->
       && contains (Node.parameters inline_node) "inline_distance=0")
     "Facet inline parameter identity";
   let inline = inline_node |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count inline.geometry = 4
-      && Rdk.Geometry.vertex_count inline.geometry = 4)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry inline.payload)) = 4
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry inline.payload)) = 4)
     "procedural Facet Remove Inline Points";
   let normal_geometry = Rdk.Line_geometry.points [|(0.,0.,0.); (0.,0.,0.)|]
       |> Rdk.Geometry.with_attribute
@@ -1885,7 +1885,7 @@ fun migration_input ->
     "Facet normal consolidation parameter identity";
   let consolidated_normals = normal_node |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "N"
-      consolidated_normals.geometry with
+      (Result.get_ok (Procedural.Payload.geometry consolidated_normals.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.storage attribute with
         | Rdk.Attribute.Float3 values ->
@@ -1901,16 +1901,16 @@ fun migration_input ->
       "cusp_angle=1;")
     "Facet cusp parameter identity";
   let cusped = cusp_node |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count cusped.geometry = 24
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry cusped.payload)) = 24
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "N"
-           cusped.geometry <> None)
+           (Result.get_ok (Procedural.Payload.geometry cusped.payload)) <> None)
     "procedural Facet Cusp Polygons";
   let fused_mirror = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ()
       |> (fun fuse_source -> Sop.fuse ~remove_unused_points_from_degenerate_primitives:(false) ~remove_degenerate_primitives:(false) ~tolerance:(1e-9) fuse_source None)
       |> Sop.mirror ~origin:Vec3.zero ~normal:Vec3.unit_x
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count fused_mirror.geometry = 16
-      && Rdk.Geometry.primitive_count fused_mirror.geometry = 24)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry fused_mirror.payload)) = 16
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry fused_mirror.payload)) = 24)
     "procedural fuse/mirror cardinality";
   let fuse_target = Sop.points [|(0.,0.,0.); (1.,0.,0.); (3.,0.,0.)|]
       |> Sop.group ~name:"targets" (Select.point_indices [|0;1|]) in
@@ -1933,11 +1933,11 @@ fun migration_input ->
     "procedural Fuse rules are absent from node cache identity";
   let targeted = cook_ok evaluator current targeted_fuse in
   let targeted_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions targeted.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry targeted.payload))) in
   check (targeted_positions.x = [|0.;1.;1.;5.|])
     "procedural targeted Fuse positions";
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "destination"
-      targeted.geometry with
+      (Result.get_ok (Procedural.Payload.geometry targeted.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.storage attribute with
         | Rdk.Attribute.Int values ->
@@ -1956,10 +1956,10 @@ fun migration_input ->
       |> Sop.snap_to_grid ~group:"snap_points" ~fuse_points:true
            ~snapped_group:"snapped"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count grid_snapped.geometry = 2)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry grid_snapped.payload)) = 2)
     "procedural grid snap/fuse cardinality";
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "snapped"
-      grid_snapped.geometry with
+      (Result.get_ok (Procedural.Payload.geometry grid_snapped.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 1)
        "procedural grid snapped group"
    | None -> fail "procedural grid snapped group missing");
@@ -1983,16 +1983,16 @@ fun migration_input ->
       && contains (Node.parameters clip_node) "clipped_edge_group=clip_edges")
     "procedural Clip extended parameter identity";
   let clipped = cook_ok evaluator current clip_node in
-  let clipped_bounds = Rdk.Analysis.bounds clipped.geometry |> Option.get in
+  let clipped_bounds = Rdk.Analysis.bounds (Result.get_ok (Procedural.Payload.geometry clipped.payload)) |> Option.get in
   check (abs_float (clipped_bounds.min.y -. 0.25) < 1e-12
       && abs_float (clipped_bounds.max.y -. 1.) < 1e-12)
     "procedural filled clip bounds";
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "cap"
-      clipped.geometry with
+      (Result.get_ok (Procedural.Payload.geometry clipped.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 1)
        "procedural clip cap group"
    | None -> fail "procedural clip cap group missing");
-  (match Rdk.Geometry.find_edge_group "clip_edges" clipped.geometry with
+  (match Rdk.Geometry.find_edge_group "clip_edges" (Result.get_ok (Procedural.Payload.geometry clipped.payload)) with
    | Some group -> check (Rdk.Edge_group.cardinality group > 0)
        "procedural clipped edge group"
    | None -> fail "procedural clipped edge group missing");
@@ -2004,7 +2004,7 @@ fun migration_input ->
   check (contains (Node.parameters selected_clip) "group_owner=primitive;group=clip_all")
     "procedural Clip selection parameter identity";
   let selected_clip = cook_ok evaluator current selected_clip in
-  check (abs_float ((Rdk.Analysis.bounds selected_clip.geometry
+  check (abs_float ((Rdk.Analysis.bounds (Result.get_ok (Procedural.Payload.geometry selected_clip.payload))
       |> Option.get).min.y) < 1e-12)
     "procedural selected Clip result";
   let missing_clip = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 1. 1. 1.) ()
@@ -2020,9 +2020,9 @@ fun migration_input ->
            ~destination:Rdk.Attribute.Primitive ~pattern:"weight"
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "weight"
-      promoted.geometry = None
+      (Result.get_ok (Procedural.Payload.geometry promoted.payload)) = None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "weight"
-         promoted.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry promoted.payload)) <> None)
     "procedural attribute promotion ownership";
   let promoted_pattern = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"weight" ~value:3.
@@ -2032,9 +2032,9 @@ fun migration_input ->
            ~pattern:"* ^skip"
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "weight"
-      promoted_pattern.geometry <> None
+      (Result.get_ok (Procedural.Payload.geometry promoted_pattern.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "skip"
-         promoted_pattern.geometry = None)
+         (Result.get_ok (Procedural.Payload.geometry promoted_pattern.payload)) = None)
     "procedural pattern attribute promotion";
   let renamed_promotions = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"weight_a" ~value:3.
@@ -2045,15 +2045,15 @@ fun migration_input ->
            ~into_pattern:"reduced_*" ~index_pattern:"source_*"
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "weight_a"
-      renamed_promotions.geometry = None
+      (Result.get_ok (Procedural.Payload.geometry renamed_promotions.payload)) = None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "reduced_a"
-         renamed_promotions.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry renamed_promotions.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "reduced_b"
-         renamed_promotions.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry renamed_promotions.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "source_a"
-         renamed_promotions.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry renamed_promotions.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "source_b"
-         renamed_promotions.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry renamed_promotions.payload)) <> None)
     "procedural pattern promotion capture rename";
   let multi_promotion = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"a_weight" ~value:3.
@@ -2066,13 +2066,13 @@ fun migration_input ->
     "procedural multi-term promotion version";
   let multi_promotion = cook_ok evaluator current multi_promotion in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail "left_weight"
-      multi_promotion.geometry <> None
+      (Result.get_ok (Procedural.Payload.geometry multi_promotion.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail "right_weight"
-         multi_promotion.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry multi_promotion.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail
-           "left_source_weight" multi_promotion.geometry <> None
+           "left_source_weight" (Result.get_ok (Procedural.Payload.geometry multi_promotion.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail
-           "right_source_weight" multi_promotion.geometry <> None)
+           "right_source_weight" (Result.get_ok (Procedural.Payload.geometry multi_promotion.payload)) <> None)
     "procedural multi-term promotion capture rename";
   (match (try Some (Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
         |> Sop.promote_attributes ~delete_source:(true) ~source:Rdk.Attribute.Point
@@ -2097,11 +2097,11 @@ fun migration_input ->
            ~pattern:"value"
       |> cook_ok evaluator current in
   let piece_modes = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-      "piece_mode" piece_promoted.geometry |> Option.get
+      "piece_mode" (Result.get_ok (Procedural.Payload.geometry piece_promoted.payload)) |> Option.get
       |> Rdk.Attribute.get (Rdk.Attribute.key ~name:"piece_mode"
         ~owner:Rdk.Attribute.Point Rdk.Attribute.int) |> Option.get
   and piece_sources = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-      "piece_source" piece_promoted.geometry |> Option.get
+      "piece_source" (Result.get_ok (Procedural.Payload.geometry piece_promoted.payload)) |> Option.get
       |> Rdk.Attribute.get (Rdk.Attribute.key ~name:"piece_source"
         ~owner:Rdk.Attribute.Point Rdk.Attribute.int) |> Option.get in
   check (piece_modes = [|2; 2; 2; 2|]
@@ -2116,7 +2116,7 @@ fun migration_input ->
       (Sop.points [|(0., 0., 0.)|])
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "Cd"
-      transferred.geometry with
+      (Result.get_ok (Procedural.Payload.geometry transferred.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.storage attribute with
         | Rdk.Attribute.Float4 values ->
@@ -2135,7 +2135,7 @@ fun migration_input ->
     "procedural kernel transfer identity";
   let kernel_transferred = cook_ok evaluator current kernel_transfer in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "Cd"
-      kernel_transferred.geometry with
+      (Result.get_ok (Procedural.Payload.geometry kernel_transferred.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.storage attribute with
         | Rdk.Attribute.Float4 values ->
@@ -2175,7 +2175,7 @@ fun migration_input ->
       ~rules:"point\tweight\t" (Sop.snapshot grouped_source) (Sop.snapshot grouped_target)
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "weight"
-      directly_copied.geometry with
+      (Result.get_ok (Procedural.Payload.geometry directly_copied.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.Private.storage attribute with
         | Rdk.Attribute.Float values -> check (values = [|10.; 100.; 30.|])
@@ -2225,7 +2225,7 @@ fun migration_input ->
       (Sop.snapshot interpolation_target)
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "weight"
-      interpolated.geometry with
+      (Result.get_ok (Procedural.Payload.geometry interpolated.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.Private.storage attribute with
         | Rdk.Attribute.Float values -> check (values = [|0.;0.;20.|])
@@ -2239,17 +2239,17 @@ fun migration_input ->
       ~numbers_attribute:"computed_points" ~weights_attribute:"computed_weights"
       ~point_pattern:"weight hot" ~match_groups:true ~attributes:""
       (Sop.snapshot interpolation_source)
-      (Sop.snapshot interpolated.geometry)
+      (Sop.snapshot (Result.get_ok (Procedural.Payload.geometry interpolated.payload)))
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "weight"
-      weighted.geometry with
+      (Result.get_ok (Procedural.Payload.geometry weighted.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.Private.storage attribute with
         | Rdk.Attribute.Float values -> check (values = [|0.;0.;20.|])
             "procedural weighted Attribute Interpolate cook"
         | _ -> fail "procedural weighted Attribute Interpolate storage")
    | None -> fail "procedural weighted Attribute Interpolate missing output");
-  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "hot" weighted.geometry with
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "hot" (Result.get_ok (Procedural.Payload.geometry weighted.payload)) with
    | Some group -> check
        (Array.init 3 (fun point -> Rdk.Group.mem point group)
           = [|false;false;true|])
@@ -2271,7 +2271,7 @@ fun migration_input ->
       (Sop.snapshot grouped_source) (Sop.snapshot grouped_target)
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "weight"
-      patterned.geometry with
+      (Result.get_ok (Procedural.Payload.geometry patterned.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.Private.storage attribute with
         | Rdk.Attribute.Float values -> check (values = [|10.; 100.; 30.|])
@@ -2301,7 +2301,7 @@ fun migration_input ->
      ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:2. ()))
       |> cook_ok evaluator current in
   List.iter (fun (owner, name) ->
-    check (Rdk.Geometry.find_attribute ~owner name multi.geometry <> None)
+    check (Rdk.Geometry.find_attribute ~owner name (Result.get_ok (Procedural.Payload.geometry multi.payload)) <> None)
       ("procedural multi-owner transfer missing " ^ name))
     [Rdk.Attribute.Point, "point_value";
      Rdk.Attribute.Vertex, "vertex_value";
@@ -2316,7 +2316,7 @@ fun migration_input ->
         (Mat4.translation (Vec3.create 2. 0. 0.)) inputs.(0))) in
   let custom_output = cook_ok evaluator current custom in
   let custom_x, _, _ = Rdk.Packed.Float3.get
-      (Rdk.Geometry.positions custom_output.geometry) 0 in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry custom_output.payload))) 0 in
   check (custom_x = 2. && Node.version custom = 3
       && Node.parameters custom = "x=2")
     "inspectable custom RDK node";
@@ -2328,10 +2328,10 @@ fun migration_input ->
            rename_pattern = "old"; rename_replacement = "new";
            rename_conflict = Rdk.Group_ops.Rename_error }]
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.find_group ~owner:Rdk.Group.Point "old" renamed.geometry = None
-      && Rdk.Geometry.find_group ~owner:Rdk.Group.Point "new" renamed.geometry <> None
+  check (Rdk.Geometry.find_group ~owner:Rdk.Group.Point "old" (Result.get_ok (Procedural.Payload.geometry renamed.payload)) = None
+      && Rdk.Geometry.find_group ~owner:Rdk.Group.Point "new" (Result.get_ok (Procedural.Payload.geometry renamed.payload)) <> None
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "old"
-         renamed.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry renamed.payload)) <> None)
     "owner-scoped group rename";
   let expanded_groups = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:2 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"seed_face" (Select.primitive_indices [|0|])
@@ -2345,14 +2345,14 @@ fun migration_input ->
            ~destination:Rdk.Group_ops.Group_points ~pattern:"component" ()]
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "component"
-      expanded_groups.geometry,
+      (Result.get_ok (Procedural.Payload.geometry expanded_groups.payload)),
       Rdk.Geometry.find_group ~owner:Rdk.Group.Point "component_points"
-        expanded_groups.geometry with
+        (Result.get_ok (Procedural.Payload.geometry expanded_groups.payload)) with
    | Some primitives, Some points ->
        check (Rdk.Group.cardinality primitives = 4
            && Rdk.Group.cardinality points = 6
            && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-              "group_step" expanded_groups.geometry <> None)
+              "group_step" (Result.get_ok (Procedural.Payload.geometry expanded_groups.payload)) <> None)
          "procedural Group Expand/Promote topology component"
    | _ -> fail "procedural Group Expand/Promote dropped an output group");
   let constrained_geometry = Rdk.Plane_generators.grid ~connectivity:Rdk.Plane_generators.Grid_quads
@@ -2382,10 +2382,10 @@ fun migration_input ->
     "procedural constrained Group Expand cache identity";
   let constrained_output = cook_ok evaluator current constrained_node in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "seed_face"
-      constrained_output.geometry with
+      (Result.get_ok (Procedural.Payload.geometry constrained_output.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 2
          && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-              "constraint_step" constrained_output.geometry <> None)
+              "constraint_step" (Result.get_ok (Procedural.Payload.geometry constrained_output.payload)) <> None)
        "procedural constrained Group Expand behavior"
    | None -> fail "procedural constrained Group Expand dropped output");
   (match try Some (Sop.snapshot constrained_geometry
@@ -2414,9 +2414,9 @@ fun migration_input ->
            ~destination:Rdk.Group_ops.Group_primitives ~pattern:"seed" ()]
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-      "face_mask" promoted_mask.geometry <> None
+      "face_mask" (Result.get_ok (Procedural.Payload.geometry promoted_mask.payload)) <> None
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Point "seed"
-         promoted_mask.geometry = None)
+         (Result.get_ok (Procedural.Payload.geometry promoted_mask.payload)) = None)
     "procedural Group Promote integer-mask output";
   let promoted_boundary = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:2. ()
       |> Sop.group ~name:"first_face" (Select.primitive_indices [|0|])
@@ -2424,7 +2424,7 @@ fun migration_input ->
            ~source:Rdk.Group_ops.Group_primitives
            ~destination:Rdk.Group_ops.Group_edges ~group:"first_face"
       |> cook_ok evaluator current in
-  (match Rdk.Geometry.find_edge_group "outline" promoted_boundary.geometry with
+  (match Rdk.Geometry.find_edge_group "outline" (Result.get_ok (Procedural.Payload.geometry promoted_boundary.payload)) with
    | Some group -> check (Rdk.Edge_group.cardinality group = 1)
        "procedural Group Promote Boundary"
    | None -> fail "procedural Group Promote Boundary dropped output");
@@ -2451,16 +2451,16 @@ fun migration_input ->
         ~destination:Rdk.Group_ops.Group_edges ~pattern:" " ()] promotion_source in
   check (Node.operation disabled_promotions = "group_promotions"
       && Node.parameter_key disabled_promotions <> Node.parameter_key promotion_source
-      && equal_geometry (cook_ok evaluator current disabled_promotions).geometry
-        (cook_ok evaluator current promotion_source).geometry)
+      && equal_geometry (Result.get_ok (Procedural.Payload.geometry (cook_ok evaluator current disabled_promotions).payload))
+        (Result.get_ok (Procedural.Payload.geometry (cook_ok evaluator current promotion_source).payload)))
     "procedural Group Promotions disabled rules preserve geometry and own identity";
   let promotions = cook_ok evaluator current promotions_node in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "points_a"
-      promotions.geometry,
+      (Result.get_ok (Procedural.Payload.geometry promotions.payload)),
       Rdk.Geometry.find_group ~owner:Rdk.Group.Point "points_b"
-        promotions.geometry,
-      Rdk.Geometry.find_edge_group "outline_a" promotions.geometry,
-      Rdk.Geometry.find_edge_group "outline_b" promotions.geometry with
+        (Result.get_ok (Procedural.Payload.geometry promotions.payload)),
+      Rdk.Geometry.find_edge_group "outline_a" (Result.get_ok (Procedural.Payload.geometry promotions.payload)),
+      Rdk.Geometry.find_edge_group "outline_b" (Result.get_ok (Procedural.Payload.geometry promotions.payload)) with
    | Some points_a, Some points_b, Some outline_a, Some outline_b ->
        check (Rdk.Group.cardinality points_a > 0
            && Rdk.Group.cardinality points_b > 0
@@ -2473,8 +2473,8 @@ fun migration_input ->
       |> Sop.group_expand ~connectivity_tolerance:(1e-6) ~name:"edge_ring" ~steps:1
            ~owner:Rdk.Group_ops.Group_edges ~group:"boundary"
       |> cook_ok evaluator current in
-  (match Rdk.Geometry.find_edge_group "boundary" edge_expansion.geometry,
-      Rdk.Geometry.find_edge_group "edge_ring" edge_expansion.geometry with
+  (match Rdk.Geometry.find_edge_group "boundary" (Result.get_ok (Procedural.Payload.geometry edge_expansion.payload)),
+      Rdk.Geometry.find_edge_group "edge_ring" (Result.get_ok (Procedural.Payload.geometry edge_expansion.payload)) with
    | Some boundary, Some expanded ->
        check (Rdk.Edge_group.cardinality expanded
            > Rdk.Edge_group.cardinality boundary)
@@ -2486,9 +2486,9 @@ fun migration_input ->
            ~name:"depth_points"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "depth_seed"
-      edge_depth.geometry,
+      (Result.get_ok (Procedural.Payload.geometry edge_depth.payload)),
       Rdk.Geometry.find_group ~owner:Rdk.Group.Point "depth_points"
-        edge_depth.geometry with
+        (Result.get_ok (Procedural.Payload.geometry edge_depth.payload)) with
    | Some seed, Some grown ->
        check (Rdk.Group.cardinality seed = 1
            && Rdk.Group.cardinality grown > Rdk.Group.cardinality seed)
@@ -2499,11 +2499,11 @@ fun migration_input ->
       |> Sop.group_unshared ~owner:Rdk.Group_ops.Group_points ~name:"outer_points"
       |> Sop.group_boundary_components ~prefix:"border"
       |> cook_ok evaluator current in
-  (match Rdk.Geometry.find_edge_group "outer_edges" boundaries.geometry,
+  (match Rdk.Geometry.find_edge_group "outer_edges" (Result.get_ok (Procedural.Payload.geometry boundaries.payload)),
       Rdk.Geometry.find_group ~owner:Rdk.Group.Point "outer_points"
-        boundaries.geometry,
+        (Result.get_ok (Procedural.Payload.geometry boundaries.payload)),
       Rdk.Geometry.find_group ~owner:Rdk.Group.Point "border__0"
-        boundaries.geometry with
+        (Result.get_ok (Procedural.Payload.geometry boundaries.payload)) with
    | Some edges, Some points, Some component ->
        check (Rdk.Edge_group.cardinality edges = 10
            && Rdk.Group.cardinality points = 10
@@ -2516,7 +2516,7 @@ fun migration_input ->
            ~angle_basis:Rdk.Group_mesh.Incident_edges
            ~min_angle:(Float.pi /. 2.) ~max_angle:(Float.pi /. 2.)
       |> cook_ok evaluator current in
-  (match Rdk.Geometry.find_edge_group "right_angle" incident_edges.geometry with
+  (match Rdk.Geometry.find_edge_group "right_angle" (Result.get_ok (Procedural.Payload.geometry incident_edges.payload)) with
    | Some group -> check (Rdk.Edge_group.cardinality group = 2)
        "procedural incident-edge angle selection"
    | None -> fail "procedural incident-edge angle group missing");
@@ -2525,7 +2525,7 @@ fun migration_input ->
            ~source:Rdk.Group_ops.Group_points
            ~destination:Rdk.Group_ops.Group_primitives ~pattern:"missing" ()]
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.groups missing_group_promote.geometry = [])
+  check (Rdk.Geometry.groups (Result.get_ok (Procedural.Payload.geometry missing_group_promote.payload)) = [])
     "Group Promotions unmatched pattern changed groups";
   let group_catalog = Sop.points (Array.init 10 (fun point ->
       float_of_int point, 0., 0.))
@@ -2546,11 +2546,11 @@ fun migration_input ->
              delete_pattern = "ends middle" }]
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "kept"
-      group_catalog.geometry with
+      (Result.get_ok (Procedural.Payload.geometry group_catalog.payload)) with
    | Some group ->
        check (Rdk.Group.cardinality group = 2
            && Rdk.Group.mem 1 group && Rdk.Group.mem 8 group
-           && List.map Rdk.Group.name (Rdk.Geometry.groups group_catalog.geometry)
+           && List.map Rdk.Group.name (Rdk.Geometry.groups (Result.get_ok (Procedural.Payload.geometry group_catalog.payload)))
               = ["kept"])
          "procedural Group Range/Combine/Invert/Rename/Delete pipeline"
    | None -> fail "procedural group catalog pipeline dropped output");
@@ -2563,7 +2563,7 @@ fun migration_input ->
            ~connectivity_mode:Sop.Disconnected ~start:1 ~end_:1
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "local_second"
-      connected_range.geometry with
+      (Result.get_ok (Procedural.Payload.geometry connected_range.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 2
          && Rdk.Group.mem 1 group && Rdk.Group.mem 5 group)
        "procedural disconnected Group Range"
@@ -2592,7 +2592,7 @@ fun migration_input ->
            ~keep_boundary:true ~remove_other_regions:true ~start:0 ~end_:0 in
   (* Lisp contract: every field is identity, so fields this mode ignores no longer share a key; the cook is the same *)
   let range_members node = match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "piece_first"
-      (cook_ok evaluator current node).geometry with
+      (Result.get_ok (Procedural.Payload.geometry (cook_ok evaluator current node).payload)) with
     | Some group -> List.init 4 (fun point -> Rdk.Group.mem point group)
     | None -> fail "procedural Group Range dropped output" in
   check (range_members equivalent_range_node = range_members advanced_range_node)
@@ -2613,7 +2613,7 @@ fun migration_input ->
     "procedural Group Range omitted meaningful advanced cache parameters";
   let advanced_range = cook_ok evaluator current advanced_range_node in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "piece_first"
-      advanced_range.geometry with
+      (Result.get_ok (Procedural.Payload.geometry advanced_range.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 2
          && Rdk.Group.mem 0 group && Rdk.Group.mem 2 group)
        "procedural collision-connected Group Range"
@@ -2638,12 +2638,12 @@ fun migration_input ->
   let no_op_multi = Sop.group_ranges ~rules:[List.nth multi_rules 2] multi_source in
   check (Node.operation no_op_multi = "group_ranges"
       && Node.parameter_key no_op_multi <> Node.parameter_key multi_source
-      && equal_geometry (cook_ok evaluator current no_op_multi).geometry
-        (cook_ok evaluator current multi_source).geometry)
+      && equal_geometry (Result.get_ok (Procedural.Payload.geometry (cook_ok evaluator current no_op_multi).payload))
+        (Result.get_ok (Procedural.Payload.geometry (cook_ok evaluator current multi_source).payload)))
     "procedural Group Ranges all-disabled rules preserve geometry and own identity";
   let multi = cook_ok evaluator current multi_node in
-  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "first" multi.geometry,
-      Rdk.Geometry.find_group ~owner:Rdk.Group.Point "middle" multi.geometry with
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "first" (Result.get_ok (Procedural.Payload.geometry multi.payload)),
+      Rdk.Geometry.find_group ~owner:Rdk.Group.Point "middle" (Result.get_ok (Procedural.Payload.geometry multi.payload)) with
    | Some first, Some middle ->
        check (Rdk.Group.cardinality first = 5
            && Rdk.Group.cardinality middle = 2
@@ -2656,7 +2656,7 @@ fun migration_input ->
            ~owner:Rdk.Group_ops.Group_points ~name:"random"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "random"
-      random_points.geometry with
+      (Result.get_ok (Procedural.Payload.geometry random_points.payload)) with
    | Some group ->
        let seed = Rand.seed 73 in
        for point = 0 to 63 do
@@ -2679,7 +2679,7 @@ fun migration_input ->
            ~owner:Rdk.Group_ops.Group_points ~name:"bounded"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "bounded"
-      bounded_points.geometry with
+      (Result.get_ok (Procedural.Payload.geometry bounded_points.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 3
          && Rdk.Group.mem 1 group && Rdk.Group.mem 2 group
          && Rdk.Group.mem 3 group)
@@ -2690,9 +2690,9 @@ fun migration_input ->
            ~owner:Rdk.Group_ops.Group_primitives ~name:"upward"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "upward"
-      upward.geometry with
+      (Result.get_ok (Procedural.Payload.geometry upward.payload)) with
    | Some group -> check (Rdk.Group.cardinality group > 0
-         && Rdk.Group.cardinality group < Rdk.Geometry.primitive_count upward.geometry)
+         && Rdk.Group.cardinality group < Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry upward.payload)))
        "procedural Group Normal primitive selection"
    | None -> fail "Group Normal dropped its procedural output");
   let positions = Rdk.Packed.Float3.Builder.create 4 in
@@ -2709,7 +2709,7 @@ fun migration_input ->
       |> Sop.group_non_planar ~tolerance:0.01 ~name:"warped"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "warped"
-      non_planar.geometry with
+      (Result.get_ok (Procedural.Payload.geometry non_planar.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 1)
        "procedural Group Non-Planar selection"
    | None -> fail "Group Non-Planar dropped its procedural output");
@@ -2719,9 +2719,9 @@ fun migration_input ->
            ~viewpoint:(Vec3.create 0. 0. 5.) ~name:"visible"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "visible"
-      visible.geometry with
+      (Result.get_ok (Procedural.Payload.geometry visible.payload)) with
    | Some group -> check (Rdk.Group.cardinality group > 0
-         && Rdk.Group.cardinality group < Rdk.Geometry.primitive_count visible.geometry)
+         && Rdk.Group.cardinality group < Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry visible.payload)))
        "procedural Group Backface subtraction"
    | None -> fail "Group Backface dropped its procedural output");
   let copied_groups = Sop.group_copy ~use_rules:true ~conflict:(Rdk.Group_ops.Copy_skip)
@@ -2733,7 +2733,7 @@ fun migration_input ->
       (Sop.points [|(0.,1.,0.); (1.,1.,0.); (2.,1.,0.)|])
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "source_picked"
-      copied_groups.geometry with
+      (Result.get_ok (Procedural.Payload.geometry copied_groups.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 1
          && Rdk.Group.mem 1 group) "procedural Group Copy two-input mapping"
    | None -> fail "procedural Group Copy dropped output");
@@ -2745,7 +2745,7 @@ fun migration_input ->
       (Sop.points [|(0.1,0.,0.); (9.9,0.,0.)|])
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "near_picked"
-      transferred_groups.geometry with
+      (Result.get_ok (Procedural.Payload.geometry transferred_groups.payload)) with
    | Some group -> check (Rdk.Group.cardinality group = 1
          && Rdk.Group.mem 0 group) "procedural Group Transfer proximity"
    | None -> fail "procedural Group Transfer dropped output");
@@ -2763,7 +2763,7 @@ fun migration_input ->
       |> Sop.group_find_path ~base_group:"waypoints" ~name:"path"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "path"
-      path_output.geometry with
+      (Result.get_ok (Procedural.Payload.geometry path_output.payload)) with
    | Some group ->
        let order = Rdk.Group.ordered_elements group |> Option.get in
        check (Array.length order >= 2 && order.(0) = 0
@@ -2777,7 +2777,7 @@ fun migration_input ->
            ~base_group:"face_waypoints" ~name:"face_path"
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "face_path"
-      primitive_path.geometry with
+      (Result.get_ok (Procedural.Payload.geometry primitive_path.payload)) with
    | Some group ->
        let order = Rdk.Group.ordered_elements group |> Option.get in
        check (Array.length order >= 2 && order.(0) = 0
@@ -2819,13 +2819,13 @@ fun migration_input ->
       |> (fun input -> Sop.delete_attributes ~point_pattern:"tint" input None)
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "pscale"
-      attributes.geometry <> None
+      (Result.get_ok (Procedural.Payload.geometry attributes.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "scale"
-         attributes.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry attributes.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "orient"
-         attributes.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry attributes.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "tint"
-         attributes.geometry = None) "typed constant attribute SOPs";
+         (Result.get_ok (Procedural.Payload.geometry attributes.payload)) = None) "typed constant attribute SOPs";
   let lifecycle_reference = Sop.points [|(0.,0.,0.); (1.,0.,0.)|]
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"bar" ~value:1.
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"foo" ~value:2. in
@@ -2852,15 +2852,15 @@ fun migration_input ->
         }]
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "bar"
-      lifecycle.geometry <> None
+      (Result.get_ok (Procedural.Payload.geometry lifecycle.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "foo"
-         lifecycle.geometry = None
+         (Result.get_ok (Procedural.Payload.geometry lifecycle.payload)) = None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "score"
-         lifecycle.geometry = None
+         (Result.get_ok (Procedural.Payload.geometry lifecycle.payload)) = None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "final_width"
-         lifecycle.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry lifecycle.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail "info"
-         lifecycle.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry lifecycle.payload)) <> None)
     "pattern Attribute Delete/Rename SOPs";
   let swap_graph = Sop.points [|(1.,2.,3.); (4.,5.,6.)|]
       |> Sop.set_float ~owner:Rdk.Attribute.Point ~name:"left_weight" ~value:2.
@@ -2881,13 +2881,13 @@ fun migration_input ->
     "Attribute Swap node identity";
   let swap_result = cook_ok evaluator current swap_graph in
   let left = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-      "left_weight" swap_result.geometry |> Option.get
+      "left_weight" (Result.get_ok (Procedural.Payload.geometry swap_result.payload)) |> Option.get
   and right = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-      "right_weight" swap_result.geometry |> Option.get in
+      "right_weight" (Result.get_ok (Procedural.Payload.geometry swap_result.payload)) |> Option.get in
   (match Rdk.Attribute.Private.storage left,
       Rdk.Attribute.Private.storage right,
       Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "rest"
-        swap_result.geometry with
+        (Result.get_ok (Procedural.Payload.geometry swap_result.payload)) with
    | Rdk.Attribute.Float left, Rdk.Attribute.Float right, Some rest ->
        check (left = [|7.; 7.|] && right = [|2.; 2.|])
          "procedural Attribute Swap values";
@@ -2928,7 +2928,7 @@ fun migration_input ->
      (Sop.set_float ~owner:Rdk.Attribute.Point ~name:"pscale" ~value:0.5))) in
   let copies = cook_ok evaluator current copies_node in
   check (Node.version copies_node = 8
-      && Rdk.Geometry.point_count copies.geometry = 48)
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry copies.payload)) = 48)
     "copy-to-points graph with target attributes";
   let restricted_copy_node = (Sop.copy_to_points ~source_group:"second" ~target_group:"outer"
   ((Sop.merge
@@ -2941,8 +2941,8 @@ fun migration_input ->
       && contains (Node.parameters restricted_copy_node) "target_group=outer")
     "restricted Copy to Points cache identity";
   let restricted_copy = cook_ok evaluator current restricted_copy_node in
-  check (Rdk.Geometry.point_count restricted_copy.geometry = 4
-      && Rdk.Geometry.primitive_count restricted_copy.geometry = 2)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry restricted_copy.payload)) = 4
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry restricted_copy.payload)) = 2)
     "procedural restricted Copy to Points";
   let piece_copy_node = (Sop.copy_to_points ~piece_attribute:"variant"
   (Sop.merge
@@ -2959,10 +2959,10 @@ fun migration_input ->
     "piece-matched Copy to Points cache identity";
   let piece_copy = cook_ok evaluator current piece_copy_node in
   let piece_ids = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive
-      "variant" piece_copy.geometry |> Option.get
+      "variant" (Result.get_ok (Procedural.Payload.geometry piece_copy.payload)) |> Option.get
       |> Rdk.Attribute.get (Rdk.Attribute.key ~name:"variant"
            ~owner:Rdk.Attribute.Primitive Rdk.Attribute.int) |> Option.get in
-  check (Rdk.Geometry.point_count piece_copy.geometry = 6
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry piece_copy.payload)) = 6
       && piece_ids = [|20;20;10|])
     "procedural piece-matched Copy to Points";
   let transfer_copy_node = (Sop.copy_to_points
@@ -2976,7 +2976,7 @@ fun migration_input ->
     "Copy to Points target transfer cache identity";
   let transfer_copy = cook_ok evaluator current transfer_copy_node in
   let transfer_weights = Rdk.Geometry.find_attribute
-      ~owner:Rdk.Attribute.Point "weight" transfer_copy.geometry |> Option.get
+      ~owner:Rdk.Attribute.Point "weight" (Result.get_ok (Procedural.Payload.geometry transfer_copy.payload)) |> Option.get
       |> Rdk.Attribute.get (Rdk.Attribute.key ~name:"weight"
            ~owner:Rdk.Attribute.Point Rdk.Attribute.float) |> Option.get in
   check (transfer_weights = [|13.;13.|])
@@ -2997,7 +2997,7 @@ fun migration_input ->
           ~m11:(Mat4.get matrix ~row:1 ~column:1) input)))
       |> cook_ok evaluator current in
   let matrix_copy_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions matrix_copy.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry matrix_copy.payload))) in
   check (abs_float (matrix_copy_positions.x.(0) -. 2.) <= 1e-12
       && abs_float (matrix_copy_positions.y.(0) -. 1.) <= 1e-12
       && abs_float matrix_copy_positions.z.(0) <= 1e-12)
@@ -3013,19 +3013,19 @@ fun migration_input ->
       |> Sop.uv_unitize ~seams:"uv_seams" ~mode:Rdk.Uv_ops.Islands
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv"
-      uv_mapped.geometry <> None
+      (Result.get_ok (Procedural.Payload.geometry uv_mapped.payload)) <> None
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Vertex "uv_seams"
-         uv_mapped.geometry <> None
-      && Rdk.Geometry.find_edge_group "uv_seams" uv_mapped.geometry <> None
+         (Result.get_ok (Procedural.Payload.geometry uv_mapped.payload)) <> None
+      && Rdk.Geometry.find_edge_group "uv_seams" (Result.get_ok (Procedural.Payload.geometry uv_mapped.payload)) <> None
       && Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "uv_island"
-         uv_mapped.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry uv_mapped.payload)) <> None)
     "procedural UV projection/transform/seam/unitize";
   let flattened = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:4 ~rows:4 ~size:2. ()
       |> Sop.uv_flatten ~iterations:500 ~tolerance:1e-12
       |> Sop.uv_relax ~iterations:50 ~tolerance:1e-12
       |> cook_ok evaluator current in
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv"
-      flattened.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry flattened.payload)) <> None)
     "procedural UV flatten/relax";
   let missing_uv_group = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ()
       |> Sop.uv_project ~group:"missing" ~planar_v:Vec3.unit_y in
@@ -3049,7 +3049,7 @@ fun migration_input ->
   let boundary_edges = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.group_edges ~name:"boundary" ~incidence:Rdk.Group_mesh.Boundary_edge
       |> cook_ok evaluator current in
-  (match Rdk.Geometry.find_edge_group "boundary" boundary_edges.geometry with
+  (match Rdk.Geometry.find_edge_group "boundary" (Result.get_ok (Procedural.Payload.geometry boundary_edges.payload)) with
    | Some group -> check (Rdk.Edge_group.cardinality group = 4)
        "procedural native boundary edge group"
    | None -> fail "Edge Group node did not create its native group");
@@ -3061,7 +3061,7 @@ fun migration_input ->
              boundary_attribute_pattern = "face_id" }]
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_edge_group "attribute_seams"
-      attribute_boundary.geometry with
+      (Result.get_ok (Procedural.Payload.geometry attribute_boundary.payload)) with
    | Some group -> check (Rdk.Edge_group.cardinality group = 3)
        "procedural Group from Attribute Boundary cardinality"
    | None -> fail "Group from Attribute Boundary dropped its native group");
@@ -3086,9 +3086,9 @@ fun migration_input ->
     "piece Enumerate node identity";
   let piece_output = cook_ok evaluator current piece_graph in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "piece_index"
-      piece_output.geometry,
+      (Result.get_ok (Procedural.Payload.geometry piece_output.payload)),
       Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "piece_class"
-        piece_output.geometry with
+        (Result.get_ok (Procedural.Payload.geometry piece_output.payload)) with
    | Some indices, Some classes ->
        (match Rdk.Attribute.Private.storage indices,
            Rdk.Attribute.Private.storage classes with
@@ -3117,20 +3117,20 @@ fun migration_input ->
   let named = Sop.snapshot named_source
       |> Sop.groups_from_name ~owner:Rdk.Attribute.Point
            ~attribute:"piece_name" |> cook_ok evaluator current in
-  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "left" named.geometry,
-      Rdk.Geometry.find_group ~owner:Rdk.Group.Point "right" named.geometry with
+  (match Rdk.Geometry.find_group ~owner:Rdk.Group.Point "left" (Result.get_ok (Procedural.Payload.geometry named.payload)),
+      Rdk.Geometry.find_group ~owner:Rdk.Group.Point "right" (Result.get_ok (Procedural.Payload.geometry named.payload)) with
    | Some left, Some right ->
        check (Rdk.Group.cardinality left = 2
            && Rdk.Group.mem 0 left && Rdk.Group.mem 2 left
            && Rdk.Group.cardinality right = 1 && Rdk.Group.mem 1 right)
          "procedural Groups from Name membership"
    | _ -> fail "Groups from Name dropped a procedural output group");
-  let round_trip = Sop.snapshot named.geometry
+  let round_trip = Sop.snapshot (Result.get_ok (Procedural.Payload.geometry named.payload))
       |> Sop.name_from_groups ~overlap:(Rdk.Group_ops.Last_group) ~attribute:"round_trip" ~pattern:"left"
            ~delete_groups:true ~owner:Rdk.Attribute.Point
       |> cook_ok evaluator current in
   (match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "round_trip"
-      round_trip.geometry with
+      (Result.get_ok (Procedural.Payload.geometry round_trip.payload)) with
    | Some attribute ->
        (match Rdk.Attribute.Private.storage attribute with
         | Rdk.Attribute.Text values -> check
@@ -3139,9 +3139,9 @@ fun migration_input ->
         | _ -> fail "Name from Groups produced non-text storage")
    | None -> fail "Name from Groups dropped its procedural attribute");
   check (Rdk.Geometry.find_group ~owner:Rdk.Group.Point "left"
-      round_trip.geometry = None
+      (Result.get_ok (Procedural.Payload.geometry round_trip.payload)) = None
       && Rdk.Geometry.find_group ~owner:Rdk.Group.Point "right"
-         round_trip.geometry <> None)
+         (Result.get_ok (Procedural.Payload.geometry round_trip.payload)) <> None)
     "procedural Name from Groups selected deletion";
   let bounded_names = Sop.snapshot named_source
       |> Sop.groups_from_name ~max_groups:1 ~owner:Rdk.Attribute.Point
@@ -3163,13 +3163,13 @@ fun migration_input ->
       |> Sop.group_edges ~name:"boundary" ~incidence:Rdk.Group_mesh.Boundary_edge
       |> Sop.rename_edge_group ~from:"boundary" ~into:"rim"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.find_edge_group "boundary" renamed_edges.geometry = None
-      && Rdk.Geometry.find_edge_group "rim" renamed_edges.geometry <> None)
+  check (Rdk.Geometry.find_edge_group "boundary" (Result.get_ok (Procedural.Payload.geometry renamed_edges.payload)) = None
+      && Rdk.Geometry.find_edge_group "rim" (Result.get_ok (Procedural.Payload.geometry renamed_edges.payload)) <> None)
     "native edge group rename";
   let deleted_edges = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.group_edges ~name:"boundary" ~incidence:Rdk.Group_mesh.Boundary_edge
       |> Sop.delete_edge_group ~name:"boundary" |> cook_ok evaluator current in
-  check (Rdk.Geometry.find_edge_group "boundary" deleted_edges.geometry = None)
+  check (Rdk.Geometry.find_edge_group "boundary" (Result.get_ok (Procedural.Payload.geometry deleted_edges.payload)) = None)
     "native edge group delete";
   let missing_edge_selection = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.group_edges ~group:"missing" in
@@ -3181,7 +3181,7 @@ fun migration_input ->
       |> Sop.group ~name:"doomed" (Select.point_indices [|1|])
       |> Sop.blast ~owner:Rdk.Group.Point ~group:"doomed"
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count filtered_points.geometry = 2)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry filtered_points.payload)) = 2)
     "typed point-index Delete";
   let missing_blast = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~columns:1 ~rows:1 ~size:1. ()
       |> Sop.blast ~owner:Rdk.Group.Point ~group:"missing" in
@@ -3199,11 +3199,11 @@ let test_poly_fill_contract () =
            ~patch_group:"patch" in
   let first = cook_ok evaluator current graph in
   let patch = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "patch"
-      first.geometry |> Option.get in
+      (Result.get_ok (Procedural.Payload.geometry first.payload)) |> Option.get in
   check (Rdk.Group.cardinality patch = 16)
     "procedural Poly Fill patch cardinality";
   let topology_index = Rdk.Topology_index.create
-      (Rdk.Geometry.topology first.geometry) in
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry first.payload))) in
   check (Rdk.Topology_index.boundary_edge_count topology_index = 32)
     "procedural unique Poly Fill did not detach its two patches";
   let before = Session.stats evaluator in
@@ -3236,9 +3236,9 @@ let test_poly_path_contract () =
       && contains (Node.parameters graph) "make_isolated_loops_closed=true")
     "procedural PolyPath operation/cache identity";
   let first = cook_ok evaluator current graph in
-  check (Rdk.Geometry.primitive_count first.geometry = 2
-      && Rdk.Geometry.vertex_count first.geometry = 7
-      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology first.geometry) 1
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry first.payload)) = 2
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry first.payload)) = 7
+      && Rdk.Topology.primitive_kind (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry first.payload))) 1
          = Rdk.Topology.Polygon)
     "procedural PolyPath topology";
   let before = Session.stats evaluator in
@@ -3264,15 +3264,15 @@ let test_revolve_contract () =
       && contains (Node.parameters graph) "divisions=16")
     "procedural Revolve cache identity";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 18
-      && Rdk.Geometry.primitive_count output.geometry = 32
-      && Rdk.Geometry.vertex_count output.geometry = 96)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 18
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 32
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 96)
     "procedural Revolve pole topology";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "st"
-      output.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Revolve dropped generated UVs";
   let caps = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "caps"
-      output.geometry |> Option.get in
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) |> Option.get in
   check (Rdk.Group.cardinality caps = 0)
     "procedural Revolve emitted degenerate pole caps";
   let before = Session.stats evaluator in
@@ -3303,15 +3303,15 @@ let test_sweep_contract () =
       && contains (Node.parameters graph) "twist=")
     "procedural Sweep cache identity";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 8
-      && Rdk.Geometry.primitive_count output.geometry = 10
-      && Rdk.Geometry.vertex_count output.geometry = 32)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 8
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 10
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 32)
     "procedural Sweep topology";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "st"
-      output.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Sweep dropped generated UVs";
   let caps = Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "caps"
-      output.geometry |> Option.get in
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) |> Option.get in
   check (Rdk.Group.cardinality caps = 2) "procedural Sweep cap group";
   let before = Session.stats evaluator in
   ignore (cook_ok evaluator current graph);
@@ -3346,10 +3346,10 @@ let test_local_subdivide_contract () =
   let output = cook_ok evaluator current graph in
   let refined_primitives =
     Rdk.Topology.primitive_size (Rdk.Geometry.topology base) 0 * 4 in
-  let output_primitives = Rdk.Geometry.primitive_count output.geometry
+  let output_primitives = Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload))
   and selected_primitives = Rdk.Group.cardinality
       (Rdk.Geometry.find_group ~owner:Rdk.Group.Primitive "left"
-        output.geometry |> Option.get) in
+        (Result.get_ok (Procedural.Payload.geometry output.payload)) |> Option.get) in
   check (output_primitives = source_primitives - 1 + refined_primitives
       && selected_primitives = refined_primitives)
     (Printf.sprintf
@@ -3363,7 +3363,7 @@ let test_local_subdivide_contract () =
   check (contains (Node.parameters stitch_graph) "cracks=stitch__no_edge_division")
     "procedural Stitch cache identity";
   let stitched = cook_ok evaluator current stitch_graph in
-  check (Rdk.Geometry.primitive_count stitched.geometry
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry stitched.payload))
       > Rdk.Geometry.primitive_count source)
     "procedural Stitch did not append bridge primitives";
   let divided_pull_graph = Sop.snapshot source |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~group:("left") ~cracks:Procedural.Sop.Cracks_pull_divide ~crack_bias:(0.75) subdivision_source None) in
@@ -3371,23 +3371,23 @@ let test_local_subdivide_contract () =
       "cracks=pull__divide_edges")
     "procedural Pull Divide bias/cache identity";
   let divided_pull = cook_ok evaluator current divided_pull_graph in
-  check (Rdk.Geometry.vertex_count divided_pull.geometry
-      > Rdk.Geometry.vertex_count pulled.geometry)
+  check (Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry divided_pull.payload))
+      > Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry pulled.payload)))
     "procedural Pull Divide did not divide a surrounding edge";
   let divided_stitch_graph = Sop.snapshot source |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~group:("left") ~cracks:Procedural.Sop.Cracks_stitch_divide subdivision_source None) in
   check (contains (Node.parameters divided_stitch_graph)
       "cracks=stitch__divide_edges")
     "procedural Stitch Divide cache identity";
   let divided_stitch = cook_ok evaluator current divided_stitch_graph in
-  check (Rdk.Geometry.primitive_count divided_stitch.geometry
-      > Rdk.Geometry.primitive_count divided_pull.geometry)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry divided_stitch.payload))
+      > Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry divided_pull.payload)))
     "procedural Stitch Divide did not append regular bridge primitives";
   let pull_tri_graph = Sop.snapshot source |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~group:("left") ~cracks:Procedural.Sop.Cracks_pull_triangulate ~crack_bias:(0.75) subdivision_source None) in
   check (contains (Node.parameters pull_tri_graph) "cracks=pull__triangulate")
     "procedural Pull Triangulate cache identity";
   let pull_tri = cook_ok evaluator current pull_tri_graph in
-  check (Rdk.Geometry.primitive_count pull_tri.geometry
-      > Rdk.Geometry.primitive_count divided_pull.geometry)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry pull_tri.payload))
+      > Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry divided_pull.payload)))
     "procedural Pull Triangulate did not triangulate surrounding polygons";
   let stitch_tri_graph = Sop.snapshot source |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~group:("left") ~cracks:Procedural.Sop.Cracks_stitch_triangulate subdivision_source None) in
   check (contains (Node.parameters stitch_tri_graph)
@@ -3400,8 +3400,8 @@ let test_local_subdivide_contract () =
       && Node.id consistent_graph <> Node.id divided_stitch_graph)
     "procedural consistent Subdivide cache identity";
   let consistent = cook_ok evaluator current consistent_graph in
-  check (Rdk.Geometry.primitive_count consistent.geometry
-      >= Rdk.Geometry.primitive_count divided_stitch.geometry)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry consistent.payload))
+      >= Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry divided_stitch.payload)))
     "procedural consistent Subdivide omitted topology-prescribed faces";
   let crease_input = Sop.polyline [|(99., 4., 7.); (-20., 8., 3.)|]
       |> Sop.group ~name:"crease_edges" Select.all_primitives in
@@ -3414,7 +3414,7 @@ let test_local_subdivide_contract () =
       && contains (Node.parameters crease_graph) "generate_resulting_creases=true")
     "procedural second-input Subdivide cache identity";
   let creased = cook_ok evaluator current crease_graph in
-  check (match Rdk.Geometry.find_edge_group "remaining_creases" creased.geometry with
+  check (match Rdk.Geometry.find_edge_group "remaining_creases" (Result.get_ok (Procedural.Payload.geometry creased.payload)) with
     | Some group -> Rdk.Edge_group.cardinality group > 0 | None -> false)
     "procedural second-input Subdivide omitted resulting crease group";
   let all_edge_graph = Sop.snapshot base
@@ -3426,7 +3426,7 @@ let test_local_subdivide_contract () =
     "procedural all-edge crease override cache identity";
   let all_edge_output = cook_ok evaluator current all_edge_graph in
   let all_edge_cardinality = match Rdk.Geometry.find_edge_group
-      "all_edge_creases" all_edge_output.geometry with
+      "all_edge_creases" (Result.get_ok (Procedural.Payload.geometry all_edge_output.payload)) with
     | Some group -> Rdk.Edge_group.cardinality group
     | None -> -1 in
   let source_edge_count = Array.length
@@ -3473,13 +3473,13 @@ let test_local_subdivide_contract () =
       |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~creasing_method:(Rdk.Subdivide.Subdivide_creasing_uniform) ~resulting_crease_group:("chaikin_remaining") subdivision_source None)
       |> cook_ok evaluator current in
   let resulting_weights (output : Session.output) = match Rdk.Geometry.find_attribute
-      ~owner:Rdk.Attribute.Vertex "creaseweight" output.geometry
+      ~owner:Rdk.Attribute.Vertex "creaseweight" (Result.get_ok (Procedural.Payload.geometry output.payload))
       |> Option.get |> Rdk.Attribute.storage with
     | Rdk.Attribute.Float values -> values
     | _ -> fail "procedural resulting creaseweight storage changed" in
   check (resulting_weights chaikin_output <> resulting_weights uniform_output
       && match Rdk.Geometry.find_edge_group "chaikin_remaining"
-          chaikin_output.geometry with
+          (Result.get_ok (Procedural.Payload.geometry chaikin_output.payload)) with
         | Some group -> Rdk.Edge_group.cardinality group = 7
         | None -> false)
     "procedural Chaikin cook did not preserve endpoint-dependent child creases";
@@ -3499,14 +3499,14 @@ let test_local_subdivide_contract () =
       && contains (Node.parameters hole_graph) "remove_holes=true")
     "procedural hole Subdivide cache identity";
   let holed = cook_ok evaluator current hole_graph in
-  check (Rdk.Geometry.primitive_count holed.geometry
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry holed.payload))
       = (source_primitives - 1)
         * Rdk.Topology.primitive_size (Rdk.Geometry.topology base) 1 * 4)
     "procedural recursive hole descendants were not removed at final depth";
   let retained_holes = Sop.snapshot hole_source
       |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~generate_resulting_creases:(true) ~hole_group:("holes") ~remove_holes:(false) subdivision_source None)
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.primitive_count retained_holes.geometry
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry retained_holes.payload))
       = source_primitives
         * Rdk.Topology.primitive_size (Rdk.Geometry.topology base) 0)
     "procedural Remove Holes off removed descendants";
@@ -3522,7 +3522,7 @@ let test_local_subdivide_contract () =
   let source_positions = Rdk.Packed.Float3.Private.view
       (Rdk.Geometry.positions boundary_base)
   and boundary_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions boundary_output.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry boundary_output.payload))) in
   check (boundary_positions.x.(0) = source_positions.x.(0)
       && boundary_positions.y.(0) = source_positions.y.(0)
       && boundary_positions.z.(0) = source_positions.z.(0))
@@ -3530,7 +3530,7 @@ let test_local_subdivide_contract () =
   let no_boundary_surface = Sop.snapshot boundary_base
       |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_none) subdivision_source None)
       |> cook_ok evaluator current in
-  check (Rdk.Geometry.primitive_count no_boundary_surface.geometry = 0)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry no_boundary_surface.payload)) = 0)
     "procedural None did not remove the fully boundary-incident grid";
   let boundary_topology = Rdk.Topology.Private.view
       (Rdk.Geometry.topology boundary_base) in
@@ -3550,7 +3550,7 @@ let test_local_subdivide_contract () =
     "procedural face-varying interpolation cache identity";
   let fvar_output = cook_ok evaluator current fvar_graph in
   let output_values = match Rdk.Geometry.find_attribute
-      ~owner:Rdk.Attribute.Vertex "fvar" fvar_output.geometry
+      ~owner:Rdk.Attribute.Vertex "fvar" (Result.get_ok (Procedural.Payload.geometry fvar_output.payload))
       |> Option.get |> Rdk.Attribute.storage with
     | Rdk.Attribute.Float values -> values
     | _ -> fail "procedural face-varying storage changed" in
@@ -3567,9 +3567,9 @@ let test_local_subdivide_contract () =
   let triangle_standard = Sop.snapshot triangle_source |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_all) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_only) ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") subdivision_source None)
       |> cook_ok evaluator current in
   let smooth_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions triangle_smooth.geometry)
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry triangle_smooth.payload)))
   and standard_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions triangle_standard.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry triangle_standard.payload))) in
   check (smooth_positions.x <> standard_positions.x
       || smooth_positions.y <> standard_positions.y
       || smooth_positions.z <> standard_positions.z)
@@ -3592,11 +3592,11 @@ let test_local_subdivide_contract () =
   let detail_output = cook_ok evaluator current detail_graph in
   let expected_detail = Sop.snapshot triangle_source |> (fun subdivision_source -> Sop.subdivide ~crease_weight_mode:Procedural.Sop.Kernel_auto ~remove_holes:(true) ~generate_resulting_creases:(true) ~hole_group:("") ~iterations:(2) ~scheme:(Rdk.Subdivide.Catmull_clark) ~boundary_interpolation:(Rdk.Subdivide.Subdivide_boundary_edge_and_corner) ~face_varying_interpolation:(Rdk.Subdivide.Subdivide_fvar_none) ~creasing_method:(Rdk.Subdivide.Subdivide_creasing_chaikin) ~triangle_policy:(Rdk.Subdivide.Subdivide_triangles_smooth) subdivision_source None)
       |> cook_ok evaluator current in
-  check (equal_positions detail_output.geometry expected_detail.geometry)
+  check (equal_positions (Result.get_ok (Procedural.Payload.geometry detail_output.payload)) (Result.get_ok (Procedural.Payload.geometry expected_detail.payload)))
     "procedural Subdivide did not honor input detail overrides";
   check (List.for_all (fun name ->
       Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Detail name
-        detail_output.geometry <> None)
+        (Result.get_ok (Procedural.Payload.geometry detail_output.payload)) <> None)
       ["osd_scheme"; "osd_vtxboundaryinterpolation";
        "osd_fvarlinearinterpolation"; "osd_creasingmethod";
        "osd_trianglesubdiv"])
@@ -3647,12 +3647,12 @@ let test_local_subdivide_contract () =
     "procedural polygon-curve Subdivide cache identity";
   let shared_curves = cook_ok evaluator current shared_curve_graph
   and independent_curves = cook_ok evaluator current independent_curve_graph in
-  check (Rdk.Geometry.point_count shared_curves.geometry = 5
-      && Rdk.Geometry.point_count independent_curves.geometry = 6)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry shared_curves.payload)) = 5
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry independent_curves.payload)) = 6)
     "procedural independent curve subdivision did not split shared points";
   let recomputed_curves = cook_ok evaluator current recomputed_curve_graph in
   let recomputed_n = Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "N"
-      recomputed_curves.geometry |> Option.get |> Rdk.Attribute.storage in
+      (Result.get_ok (Procedural.Payload.geometry recomputed_curves.payload)) |> Option.get |> Rdk.Attribute.storage in
   check (match recomputed_n with
     | Rdk.Attribute.Float3 values ->
         let values = Rdk.Packed.Float3.Private.view values in
@@ -3697,19 +3697,19 @@ let test_edge_divide_contract () =
     "procedural Edge Divide cache identity";
   let shared = cook_ok evaluator current shared_graph
   and unique = cook_ok evaluator current unique_graph in
-  check (Rdk.Geometry.primitive_count shared.geometry
-         = Rdk.Geometry.primitive_count source_output.geometry
-      && Rdk.Geometry.vertex_count shared.geometry
-         = Rdk.Geometry.vertex_count unique.geometry
-      && Rdk.Geometry.point_count unique.geometry
-         > Rdk.Geometry.point_count shared.geometry)
+  check (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry shared.payload))
+         = Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry source_output.payload))
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry shared.payload))
+         = Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry unique.payload))
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry unique.payload))
+         > Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry shared.payload)))
     "procedural Edge Divide shared/unique topology";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "weight"
-      shared.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry shared.payload)) <> None)
     "procedural Edge Divide dropped point payload";
   let no_group = source |> Sop.edge_divide ~divisions:4
       |> cook_ok evaluator current in
-  check (no_group.geometry == source_output.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry no_group.payload)) == (Result.get_ok (Procedural.Payload.geometry source_output.payload)))
     "procedural Edge Divide empty group was not an identity";
   let missing = source |> Sop.edge_divide ~group:"absent" in
   (match Session.cook evaluator ~context:current missing with
@@ -3737,18 +3737,18 @@ let test_edge_collapse_contract () =
       && contains (Node.parameters graph) "recompute_point_normals=true")
     "procedural Edge Collapse cache identity";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry = 3
-      && Rdk.Geometry.vertex_count output.geometry = 3
-      && Rdk.Geometry.primitive_count output.geometry = 1
-      && Rdk.Geometry.point_count output.geometry
-         < Rdk.Geometry.point_count source_output.geometry)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 3
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 3
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 1
+      && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload))
+         < Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry source_output.payload)))
     "procedural Edge Collapse topology";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "piece"
-      output.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Edge Collapse dropped point payload";
   let whole = source |> Sop.edge_collapse |> cook_ok evaluator current in
-  check (Rdk.Geometry.point_count whole.geometry = 0
-      && Rdk.Geometry.primitive_count whole.geometry = 0)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry whole.payload)) = 0
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry whole.payload)) = 0)
     "procedural Edge Collapse omitted group did not select all edges";
   let missing = source |> Sop.edge_collapse ~group:"absent" in
   (match Session.cook evaluator ~context:current missing with
@@ -3789,20 +3789,20 @@ let test_edge_flip_contract () =
     "procedural Edge Flip cache identity";
   let output = cook_ok evaluator current graph in
   let source_topology = Rdk.Topology.Private.view
-      (Rdk.Geometry.topology source_output.geometry)
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry source_output.payload)))
   and output_topology = Rdk.Topology.Private.view
-      (Rdk.Geometry.topology output.geometry) in
-  check (Rdk.Geometry.point_count output.geometry = 4
-      && Rdk.Geometry.vertex_count output.geometry = 6
-      && Rdk.Geometry.primitive_count output.geometry = 2
+      (Rdk.Geometry.topology (Result.get_ok (Procedural.Payload.geometry output.payload))) in
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 4
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 6
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 2
       && source_topology.vertex_points <> output_topology.vertex_points)
     "procedural Edge Flip topology";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Vertex "uv_marker"
-      output.geometry <> None
-      && Rdk.Geometry.find_edge_group "interior" output.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
+      && Rdk.Geometry.find_edge_group "interior" (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Edge Flip payload ancestry";
   let no_group = source |> Sop.edge_flip |> cook_ok evaluator current in
-  check (no_group.geometry == source_output.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry no_group.payload)) == (Result.get_ok (Procedural.Payload.geometry source_output.payload)))
     "procedural Edge Flip omitted group was not an identity";
   let missing = source |> Sop.edge_flip ~group:"absent" in
   (match Session.cook evaluator ~context:current missing with
@@ -3831,19 +3831,19 @@ let test_edge_cusp_contract () =
       && contains (Node.parameters graph) "update_point_normals=true")
     "procedural Edge Cusp cache identity";
   let output = cook_ok evaluator current graph in
-  check (Rdk.Geometry.point_count output.geometry
-         > Rdk.Geometry.point_count source_output.geometry
-      && Rdk.Geometry.vertex_count output.geometry
-         = Rdk.Geometry.vertex_count source_output.geometry
-      && Rdk.Geometry.primitive_count output.geometry
-         = Rdk.Geometry.primitive_count source_output.geometry)
+  check (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload))
+         > Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry source_output.payload))
+      && Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry output.payload))
+         = Rdk.Geometry.vertex_count (Result.get_ok (Procedural.Payload.geometry source_output.payload))
+      && Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload))
+         = Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry source_output.payload)))
     "procedural Edge Cusp topology";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "source_id"
-      output.geometry <> None
-      && Rdk.Geometry.find_edge_group "cusp_path" output.geometry <> None)
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
+      && Rdk.Geometry.find_edge_group "cusp_path" (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None)
     "procedural Edge Cusp payload ancestry";
   let no_group = source |> Sop.edge_cusp |> cook_ok evaluator current in
-  check (no_group.geometry == source_output.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry no_group.payload)) == (Result.get_ok (Procedural.Payload.geometry source_output.payload)))
     "procedural Edge Cusp omitted group was not an identity";
   let missing = source |> Sop.edge_cusp ~group:"absent" in
   (match Session.cook evaluator ~context:current missing with
@@ -3869,7 +3869,7 @@ let test_edge_straighten_contract () =
     "procedural Edge Straighten cache identity";
   let output = cook_ok evaluator current graph in
   let positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions output.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
   let last = Array.length positions.x - 1 in
   let dx = positions.x.(last) -. positions.x.(0)
   and dy = positions.y.(last) -. positions.y.(0)
@@ -3883,13 +3883,13 @@ let test_edge_straighten_contract () =
       && abs_float ((px *. dy) -. (py *. dx)) < 1e-12)))
     "procedural Edge Straighten did not produce a line";
   check (Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point "source_id"
-      output.geometry <> None
-      && (Rdk.Geometry.find_edge_group "straightened" output.geometry
+      (Result.get_ok (Procedural.Payload.geometry output.payload)) <> None
+      && (Rdk.Geometry.find_edge_group "straightened" (Result.get_ok (Procedural.Payload.geometry output.payload))
           |> Option.get |> Rdk.Edge_group.cardinality) = 4)
     "procedural Edge Straighten payload/output group";
   let all = source |> Sop.edge_straighten |> cook_ok evaluator current in
   let all_positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions all.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry all.payload))) in
   check (all_positions.x = positions.x && all_positions.y = positions.y
       && all_positions.z = positions.z)
     "procedural Edge Straighten omitted group did not use all edges";
@@ -3921,16 +3921,16 @@ let test_edge_equalize_contract () =
     "procedural Edge Equalize cache identity";
   let output = cook_ok evaluator current graph in
   let p = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions output.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
   check (abs_float ((p.x.(1) -. p.x.(0)) -. 2.) < 1e-6
       && abs_float ((p.x.(2) -. p.x.(1)) -. 2.) < 1e-6
       && abs_float ((p.x.(3) -. p.x.(2)) -. 2.) < 1e-6)
     "procedural Edge Equalize lengths";
-  check ((Rdk.Geometry.find_edge_group "equalized" output.geometry
+  check ((Rdk.Geometry.find_edge_group "equalized" (Result.get_ok (Procedural.Payload.geometry output.payload))
           |> Option.get |> Rdk.Edge_group.cardinality) = 3)
     "procedural Edge Equalize output group";
   let cached = cook_ok evaluator current graph in
-  check (cached.geometry == output.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry cached.payload)) == (Result.get_ok (Procedural.Payload.geometry output.payload)))
     "procedural Edge Equalize static cook was not cached";
   let missing = source |> Sop.edge_equalize ~group:"absent" in
   (match Session.cook evaluator ~context:current missing with
@@ -3963,7 +3963,7 @@ let test_edge_relax_contract () =
     "procedural Edge Relax cache identity";
   let output = cook_ok evaluator current graph in
   let p = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions output.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
   check (abs_float ((p.x.(1) -. p.x.(0)) -. 2.) < 1e-6
       && abs_float ((p.x.(2) -. p.x.(1)) -. 1.) < 1e-6
       && abs_float ((p.x.(3) -. p.x.(2)) -. 4.) < 1e-6)
@@ -3971,7 +3971,7 @@ let test_edge_relax_contract () =
       (p.x.(1) -. p.x.(0)) (p.x.(2) -. p.x.(1))
       (p.x.(3) -. p.x.(2)));
   let cached = cook_ok evaluator current graph in
-  check (cached.geometry == output.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry cached.payload)) == (Result.get_ok (Procedural.Payload.geometry output.payload)))
     "procedural Edge Relax static cook was not cached";
   let missing = source |> (fun input -> Sop.edge_relax ~iterations:20 ~pin_group:"absent" input reference) in
   (match Session.cook evaluator ~context:current missing with
@@ -4003,15 +4003,15 @@ let test_blend_shapes_contract () =
     "procedural Blend Shapes cache identity";
   let cooked = cook_ok evaluator current graph in
   let position = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions cooked.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry cooked.payload))) in
   check (position.x = [|5.;6.;7.|])
     "procedural Blend Shapes differencing result";
   let cached = cook_ok evaluator current graph in
-  check (cached.geometry == cooked.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry cached.payload)) == (Result.get_ok (Procedural.Payload.geometry cooked.payload)))
     "procedural Blend Shapes static cook was not cached";
   (* Lisp contract: with no shape the node keeps its own identity and the geometry is unchanged *)
-  check ((cook_ok evaluator current (Sop.blend_shapes source None None None None [])).geometry
-      == (cook_ok evaluator current source).geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry (cook_ok evaluator current (Sop.blend_shapes source None None None None [])).payload))
+      == (Result.get_ok (Procedural.Payload.geometry (cook_ok evaluator current source).payload)))
     "procedural Blend Shapes empty shape list changed the geometry";
   let missing_group = Sop.blend_shapes ~group:"absent" ~weight1:1.
       ~mask_attribute:"" ~mask_source:Rdk.Blend_shapes.Blend_mask_shape
@@ -4041,7 +4041,7 @@ let test_blend_shapes_contract () =
     let evaluator = session () in
     let result = cook_ok evaluator (context ~domains ~grain:127 ()) exact in
     Session.close evaluator;
-    result.geometry in
+    (Result.get_ok (Procedural.Payload.geometry result.payload)) in
   let one = cook 1 and four = cook 4 in
   check (Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions one)
       = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions four))
@@ -4080,9 +4080,9 @@ let test_attribute_composite_contract () =
   let evaluator = session () and current = context ~domains:4 ~grain:2 () in
   let output = cook_ok evaluator current graph in
   let positions = Rdk.Packed.Float3.Private.view
-      (Rdk.Geometry.positions output.geometry) in
+      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
   let values = match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Point
-      "value" output.geometry with
+      "value" (Result.get_ok (Procedural.Payload.geometry output.payload)) with
     | Some attribute -> (match Rdk.Attribute.Private.storage attribute with
         | Rdk.Attribute.Float values -> values
         | _ -> fail "procedural Attribute Composite changed scalar storage")
@@ -4090,7 +4090,7 @@ let test_attribute_composite_contract () =
   check (positions.x = [|5.;1.;12.|] && values = [|6.;4.;30.|])
     "procedural Attribute Composite result";
   let cached = cook_ok evaluator current graph in
-  check (cached.geometry == output.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry cached.payload)) == (Result.get_ok (Procedural.Payload.geometry output.payload)))
     "procedural Attribute Composite static cook was not cached";
   let scaled = Sop.attribute_composite
       ~operation:Rdk.Attribute_composite.Composite_maximum ~weight:2.
@@ -4098,7 +4098,7 @@ let test_attribute_composite_contract () =
       ~primitive_attributes:"^*" ~vertex_attributes:"^*" first None None None None []
     |> cook_ok evaluator current in
   let scaled_values = match Rdk.Geometry.find_attribute
-      ~owner:Rdk.Attribute.Point "value" scaled.geometry with
+      ~owner:Rdk.Attribute.Point "value" (Result.get_ok (Procedural.Payload.geometry scaled.payload)) with
     | Some attribute -> (match Rdk.Attribute.Private.storage attribute with
         | Rdk.Attribute.Float values -> values | _ -> assert false)
     | None -> assert false in
@@ -4131,7 +4131,7 @@ let test_attribute_composite_contract () =
     let evaluator = session () in
     let output = cook_ok evaluator (context ~domains ~grain:127 ()) exact in
     Session.close evaluator;
-    output.geometry in
+    (Result.get_ok (Procedural.Payload.geometry output.payload)) in
   let one = cook 1 and four = cook 4 in
   check (Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions one)
       = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions four))
@@ -4165,10 +4165,10 @@ let test_edge_transport_contract () =
       && contains (Node.parameters network_graph) "scale_by_edge_length=true")
     "procedural Edge Transport network cache identity";
   let network_output = cook_ok evaluator current network_graph in
-  check (float_values Rdk.Attribute.Point "distance" network_output.geometry
+  check (float_values Rdk.Attribute.Point "distance" (Result.get_ok (Procedural.Payload.geometry network_output.payload))
       = [|3.;2.;0.|]) "procedural Edge Transport rooted network distance";
   let cached = cook_ok evaluator current network_graph in
-  check (cached.geometry == network_output.geometry)
+  check ((Result.get_ok (Procedural.Payload.geometry cached.payload)) == (Result.get_ok (Procedural.Payload.geometry network_output.payload)))
     "procedural Edge Transport static cook was not cached";
   let backward_network = network
       |> Sop.edge_transport ~root_value:(Rdk.Edge_transport.Transport_root_hold) ~label:"network-backward"
@@ -4179,7 +4179,7 @@ let test_edge_transport_contract () =
       && contains (Node.parameters backward_network) "merge=maximum")
     "procedural Edge Transport backward cache identity";
   let backward_output = cook_ok evaluator current backward_network in
-  check (float_values Rdk.Attribute.Point "depth" backward_output.geometry
+  check (float_values Rdk.Attribute.Point "depth" (Result.get_ok (Procedural.Payload.geometry backward_output.payload))
       = [|2.;1.;0.|]) "procedural Edge Transport backward network";
   let missing_root = network |> Sop.edge_transport ~root_value:(Rdk.Edge_transport.Transport_root_hold) ~roots:Sop.Transport_group ~root_group:"absent"
       ~attribute:"distance" in
@@ -4206,7 +4206,7 @@ let test_edge_transport_contract () =
       && contains (Node.parameters curve_graph) "normalization=per_component")
     "procedural Edge Transport Each Curve cache identity";
   let curve_output = cook_ok evaluator current curve_graph in
-  check (float_values Rdk.Attribute.Point "distance" curve_output.geometry
+  check (float_values Rdk.Attribute.Point "distance" (Result.get_ok (Procedural.Payload.geometry curve_output.payload))
       = [|0.;1. /. 3.;1.;0.;0.4;1.|])
     "procedural Edge Transport Each Curve normalized distance";
   let restricted = curves
@@ -4215,7 +4215,7 @@ let test_edge_transport_contract () =
            ~operation:Rdk.Edge_transport.Transport_total ~integrate_constant:true
            ~attribute:"depth"
       |> cook_ok evaluator current in
-  check (float_values Rdk.Attribute.Point "depth" restricted.geometry
+  check (float_values Rdk.Attribute.Point "depth" (Result.get_ok (Procedural.Payload.geometry restricted.payload))
       = [|0.;1.;2.;1.;1.;1.|])
     "procedural Edge Transport Each Curve primitive group";
   let missing_curve_group = curves
@@ -4248,7 +4248,7 @@ let test_edge_transport_contract () =
       && contains (Node.parameters parent_graph) "merge=add")
     "procedural Edge Transport Parent cache identity";
   let parent_output = cook_ok evaluator current parent_graph in
-  check (float_values Rdk.Attribute.Point "distance" parent_output.geometry
+  check (float_values Rdk.Attribute.Point "distance" (Result.get_ok (Procedural.Payload.geometry parent_output.payload))
       = [|0.;1.;2.;2.;4.;0.;4.|])
     "procedural Edge Transport Parent distance";
   let backward_parent = parent_source
@@ -4256,7 +4256,7 @@ let test_edge_transport_contract () =
            ~operation:Rdk.Edge_transport.Transport_total ~integrate_constant:true
            ~merge:Rdk.Edge_transport.Transport_merge_add ~attribute:"depth"
       |> cook_ok evaluator current in
-  check (float_values Rdk.Attribute.Point "depth" backward_parent.geometry
+  check (float_values Rdk.Attribute.Point "depth" (Result.get_ok (Procedural.Payload.geometry backward_parent.payload))
       = [|4.;2.;0.;0.;0.;1.;0.|])
     "procedural Edge Transport Parent backward merge";
   let missing_parent = Sop.points [|0.,0.,0.|]
@@ -4301,7 +4301,7 @@ let test_edge_transport_contract () =
     let evaluator = session () in
     let result = cook_ok evaluator (context ~domains ~grain:127 ()) graph in
     Session.close evaluator;
-    result.geometry in
+    (Result.get_ok (Procedural.Payload.geometry result.payload)) in
   let one = cook exact_graph 1 and four = cook exact_graph 4 in
   check (float_values Rdk.Attribute.Point "distance" one
       = float_values Rdk.Attribute.Point "distance" four)
@@ -4353,7 +4353,7 @@ let test_packed_copy_contract () =
   let targets = Sop.points [| 0., 0., 0.; 2., 0., 0.; 4., 0., 0. |] in
   let packed = (Sop.copy_to_points ~pack:true source targets) in
   let output = Session.cook session ~context packed |> Result.get_ok in
-  let box_points = Rdk.Geometry.point_count output.geometry in
+  let box_points = Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) in
   assert (match output.instances with
     | Some transforms -> Array.length transforms = 3
       && Vec3.nearly_equal (Mat4.transform_point transforms.(2) Vec3.zero)
@@ -4362,7 +4362,7 @@ let test_packed_copy_contract () =
   let consumer = Sop.null packed in
   let materialized = Session.cook session ~context consumer |> Result.get_ok in
   assert (materialized.instances = None
-    && Rdk.Geometry.point_count materialized.geometry = 3 * box_points);
+    && Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry materialized.payload)) = 3 * box_points);
   let hits = (Session.stats session).hits in
   ignore (Session.cook session ~context consumer |> Result.get_ok);
   assert ((Session.stats session).hits > hits);
@@ -4446,7 +4446,7 @@ let test_async_volatile_on_worker () =
 let test_async_await () =
   let worker = Async_cook.create ~max_entries:4 ~max_payload_bytes:4_000_000 |> get_ok in
   let node = Sop.points [|0., 0., 0.; 1., 0., 0.|] in
-  let prepare output = Ok (Rdk.Geometry.point_count output.Session.geometry) in
+  let prepare output = Ok (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.Session.payload))) in
   ignore (Async_cook.submit worker ~context:(context ()) ~node ~prepare |> get_ok);
   let completion = Async_cook.await worker in
   check (completion.result = Ok 2 && Async_cook.status worker = Idle

@@ -19,7 +19,8 @@ let with_cook domains f =
 
 let () = with_cook 1 (fun cook ->
   let one = cook fracture and four = with_cook 4 (fun cook -> cook fracture) in
-  let g = one.geometry and h = four.geometry in
+  let g = Result.get_ok (Payload.geometry one.payload)
+  and h = Result.get_ok (Payload.geometry four.payload) in
   assert (Rdk.Geometry.point_count g = Rdk.Geometry.point_count h);
   assert (Rdk.Geometry.primitive_count g = Rdk.Geometry.primitive_count h);
   for i = 0 to Rdk.Geometry.point_count g - 1 do
@@ -44,7 +45,7 @@ let () = with_cook 1 (fun cook ->
     assert (Rdk.Topology_index.boundary_edge_count index = 0);
     assert (Rdk.Topology_index.non_manifold_edge_count index = 0)) parts;
   let source = Node.inputs fracture |> List.hd |> cook in
-  let original_volume = Rdk.Analysis.signed_volume source.geometry |> get
+  let original_volume = Rdk.Analysis.signed_volume (Result.get_ok (Procedural.Payload.geometry source.payload)) |> get
   and fractured_volume = Rdk.Analysis.signed_volume g |> get in
   assert (abs_float (original_volume -. fractured_volume) < 1e-7 *. abs_float original_volume);
   let colored = cook graph in

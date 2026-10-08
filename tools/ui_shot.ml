@@ -25,7 +25,7 @@ let () =
     | Error diagnostics -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string diagnostics)) in
   let canvas = Rays.Canvas.create_exn ~width:(width * scale) ~height:(height * scale) in
   let editor = E.create ~workspace ~await:true ~presets:(Filename.temp_dir "ui-shot" "")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Rays.Scene3.create [Rays.Scene3.mesh mesh]) () |> Result.get_ok in
   let editor = ref editor in

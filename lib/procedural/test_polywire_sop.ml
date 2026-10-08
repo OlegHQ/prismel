@@ -28,7 +28,7 @@ let session () = Session.create ~max_entries:8 ~max_payload_bytes:8_000_000 |> g
 
 let cook evaluator domains graph =
   match Session.cook evaluator ~context:(context domains) graph with
-  | Ok output -> output.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let equal left right =

@@ -28,7 +28,7 @@ let context domains = Context.create ~domains ~grain:257 ~seed:991L () |> get
 
 let cook session domains graph =
   match Session.cook session ~context:(context domains) graph with
-  | Ok value -> value.geometry
+  | Ok value -> (Result.get_ok (Procedural.Payload.geometry value.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let color geometry =

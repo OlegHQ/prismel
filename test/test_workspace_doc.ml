@@ -117,7 +117,7 @@ let char c = key (Input.KeyChar c)
 let editor ?presets text =
   let workspace = of_text text in
   Rays_editor.Editor3.create ~await:true ~workspace ?presets
-    ~prepare:(fun _ output -> Ok output.Procedural.Session.geometry)
+    ~prepare:(fun _ output -> Ok (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload)))
     ~scene3:(fun _ _ -> Scene3.create []) () |> function
   | Ok e -> e | Error m -> fail m
 

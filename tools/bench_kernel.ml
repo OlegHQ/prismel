@@ -190,8 +190,8 @@ let flow_attributes grid =
     ~frequency:0.16 ~seed:0 grid) |> fingerprint in
   let measure label domains node = Rays_math.Parallel.run ~domains (fun () ->
     let context = Procedural.Context.create ~domains ~grain:16_384 ~time:1.25 () |> string_ok in
-    let cook () = match Procedural.Node.Private.cook node context [|grid|] with
-      | Ok output -> output.geometry
+    let cook () = match Procedural.Node.Private.cook node context [|Procedural.Payload.Geometry grid|] with
+      | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
       | Error d -> failwith (Procedural.Diagnostic.error_to_string d) in
     assert (fingerprint (cook ()) = expected);
     let times = Array.make 7 0. and allocations = Array.make 7 0. in

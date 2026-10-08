@@ -27,7 +27,7 @@ let source () =
 
 let cook evaluator domains graph =
   match Session.cook evaluator ~context:(context domains) graph with
-  | Ok output -> output.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let point_ids geometry =

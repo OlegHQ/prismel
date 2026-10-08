@@ -38,7 +38,7 @@ let context ?(frame = 1L) ?(time = 0.) ?(seed = 42L) domains =
 
 let cook session context graph =
   match Session.cook session ~context graph with
-  | Ok output -> output.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let graph () =

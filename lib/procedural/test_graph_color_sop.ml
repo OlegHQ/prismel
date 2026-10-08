@@ -22,7 +22,7 @@ let colored_source triangles =
 let cook session domains node =
   let context = Context.create ~domains ~grain:257 ~seed:19L () |> get in
   match Session.cook session ~context node with
-  | Ok output -> output.Session.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let fresh domains node =

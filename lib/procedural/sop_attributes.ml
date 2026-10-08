@@ -24,7 +24,7 @@ module Uv_flatten = struct
     let seams = optional_text parameters.seams in
     let iterations = parameters.iterations in
     let tolerance = parameters.tolerance in
-    Node.Private.make ?label ~operation:"uv_flatten" ~version:1
+    Node.Private.make_geometry ?label ~operation:"uv_flatten" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -76,7 +76,7 @@ module Rest_position = struct
     let inputs, cook_mode = match reference with
       | None -> [|input|], Node.Duplicate_input 0
       | Some reference -> [|input; reference|], Node.Generic in
-    Node.Private.make ~label ~operation:"rest_position" ~version:1 ~parameters:""
+    Node.Private.make_geometry ~label ~operation:"rest_position" ~version:1 ~parameters:""
       ~cook_mode ~dependencies:Context.Dependencies.static ~inputs
       (fun ~node_id:_ context inputs ->
         let reference = if Array.length inputs = 2 then Some inputs.(1) else None in
@@ -113,7 +113,7 @@ module Uv_relax = struct
     let uv_tolerance = parameters.uv_tolerance in
     let iterations = parameters.iterations in
     let tolerance = parameters.tolerance in
-    Node.Private.make ?label ~operation:"uv_relax" ~version:1
+    Node.Private.make_geometry ?label ~operation:"uv_relax" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -188,7 +188,7 @@ module Rename_attributes = struct
         | Ok _ -> rule
         | Error message -> invalid_arg ("Sop.rename_attributes: " ^ message))
         rules in
-    Node.Private.make ?label ~operation:"attribute_rename_pattern" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_rename_pattern" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -234,7 +234,7 @@ module Measure = struct
     let name = optional_text parameters.attribute in
     let total_name = optional_text parameters.total_attribute in
     let kind = parameters.kind in
-    Node.Private.make ?label ~operation:"measure" ~version:1
+    Node.Private.make_geometry ?label ~operation:"measure" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -284,7 +284,7 @@ module Uv_unitize = struct
     let tolerance = parameters.tolerance in
     let uniform = parameters.uniform in
     let mode = parameters.mode in
-    Node.Private.make ?label ~operation:"uv_unitize" ~version:1
+    Node.Private.make_geometry ?label ~operation:"uv_unitize" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -382,7 +382,7 @@ module Swap_attributes = struct
         validate rule.swap_attribute_source rule.swap_attribute_destination;
         validate rule.swap_attribute_destination rule.swap_attribute_source;
         rule) rules in
-    Node.Private.make ?label ~operation:"attribute_swap" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_swap" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -427,7 +427,7 @@ module Material = struct
     let color = Vec3.create parameters.color_r parameters.color_g parameters.color_b in
     let roughness = parameters.roughness in
     let emission = Vec3.create parameters.emission_r parameters.emission_g parameters.emission_b in
-    Node.Private.make ?label ~operation:"material" ~version:1
+    Node.Private.make_geometry ?label ~operation:"material" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -477,7 +477,7 @@ module Delete_attributes = struct
     let inputs, cook_mode = match reference with
       | None -> [|input|], Node.Duplicate_input 0
       | Some reference -> [|input; reference|], Node.Generic in
-    Node.Private.make ?label ~operation:"attribute_delete_pattern" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_delete_pattern" ~version:1
       ~parameters:""
       ~cook_mode ~dependencies:Context.Dependencies.static ~inputs
       (fun ~node_id:_ context inputs ->
@@ -538,7 +538,7 @@ module Edge_transport_curves = struct
     let scale_by_edge_length = parameters.scale_by_edge_length in
     let normalization = parameters.normalization in
     let attribute = parameters.attribute in
-    Node.Private.make ?label ~operation:"edge_transport_curves" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_transport_curves" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -611,7 +611,7 @@ module Edge_transport_parent = struct
     let merge = parameters.merge in
     let normalization = parameters.normalization in
     let attribute = parameters.attribute in
-    Node.Private.make ?label ~operation:"edge_transport_parent" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_transport_parent" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -674,7 +674,7 @@ module Uv_auto_seam = struct
     let existing_uv = optional_text parameters.existing_uv in
     let uv_tolerance = parameters.uv_tolerance in
     let island_attribute = optional_text parameters.island_attribute in
-    Node.Private.make ?label ~operation:"uv_auto_seam" ~version:1
+    Node.Private.make_geometry ?label ~operation:"uv_auto_seam" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -734,7 +734,7 @@ module Attribute_laplacian = struct
     let source = parameters.source in
     let output = parameters.output in
     let output = optional_text output in
-    Node.Private.make ?label ~operation:"attribute_laplacian" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_laplacian" ~version:1
       ~parameters:"" ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
@@ -825,7 +825,7 @@ module Measure_curvature = struct
       mean = optional_text mean; gaussian = optional_text gaussian;
       minimum = optional_text minimum; maximum = optional_text maximum;
       curvedness = optional_text curvedness; shape_index = optional_text shape_index } in
-    Node.Private.make ?label ~operation:"measure_curvature" ~version:1
+    Node.Private.make_geometry ?label ~operation:"measure_curvature" ~version:1
       ~parameters:"" ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
@@ -908,7 +908,7 @@ module Normal = struct
     let reverse = parameters.reverse in
     let attribute = parameters.attribute in
     let selection = optional_element_group group_owner group in
-    Node.Private.make ?label ~operation:"normals" ~version:2
+    Node.Private.make_geometry ?label ~operation:"normals" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -984,7 +984,7 @@ module Uv_transform = struct
           invalid_arg "Sop.uv_transform: owner must be Point or Vertex" in
     let translate = Vec2.create translate_u translate_v and scale = Vec2.create scale_u scale_v
     and pivot = Vec2.create pivot_u pivot_v in
-    Node.Private.make ?label ~operation:"uv_transform" ~version:1
+    Node.Private.make_geometry ?label ~operation:"uv_transform" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1115,7 +1115,7 @@ module Uv_project = struct
       | Spherical -> Rdk.Uv_ops.Spherical { origin; axis; seam } in
     let projection = uv_projection_copy projection in
     let u_range = u_min, u_max and v_range = v_min, v_max in
-    Node.Private.make ?label ~operation:"uv_project" ~version:1
+    Node.Private.make_geometry ?label ~operation:"uv_project" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1192,7 +1192,7 @@ module Color_by_height = struct
     let high_alpha = parameters.high_alpha in
     let low = Color.rgba low_red low_green low_blue low_alpha
     and high = Color.rgba high_red high_green high_blue high_alpha in
-    Node.Private.make ?label ~operation:"color_by_height" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"color_by_height" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
@@ -1262,7 +1262,7 @@ module Graph_color = struct
     let worksets = if output_worksets then Some {
       Rdk.Graph_color.begin_attribute = workset_begin_attribute;
       length_attribute = workset_length_attribute } else None in
-    Node.Private.make ?label ~operation:"graph_color" ~version:1
+    Node.Private.make_geometry ?label ~operation:"graph_color" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1300,7 +1300,7 @@ module Set_float = struct
     let owner = parameters.owner in
     let name = parameters.name in
     let value = parameters.value in
-    Node.Private.make ?label ~operation:"set_float" ~version:1
+    Node.Private.make_geometry ?label ~operation:"set_float" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -1331,7 +1331,7 @@ module Set_int = struct
     let owner = parameters.owner in
     let name = parameters.name in
     let value = parameters.value in
-    Node.Private.make ?label ~operation:"set_int" ~version:1
+    Node.Private.make_geometry ?label ~operation:"set_int" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -1370,7 +1370,7 @@ module Set_vector = struct
     let name = parameters.name in
     let value = Vec3.create parameters.x parameters.y parameters.z in
     let value = vec3_copy value in
-    Node.Private.make ?label ~operation:"set_vector" ~version:1
+    Node.Private.make_geometry ?label ~operation:"set_vector" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -1438,7 +1438,7 @@ module Connectivity = struct
     let attribute = match output with
       | Integer -> Rdk.Analysis.Connectivity_integer
       | Text -> Rdk.Analysis.Connectivity_text text_prefix in
-    Node.Private.make ?label ~operation:"connectivity" ~version:2
+    Node.Private.make_geometry ?label ~operation:"connectivity" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1501,7 +1501,7 @@ module Set_orient = struct
     let w = parameters.w in
     let value = Quat.create ~x ~y ~z ~w in
     let value = Quat.normalize value in
-    Node.Private.make ?label ~operation:"set_orient" ~version:1
+    Node.Private.make_geometry ?label ~operation:"set_orient" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -1584,7 +1584,7 @@ module Set_transform = struct
     let m33 = parameters.m33 in
     let value = Mat4.of_rows (m00, m01, m02, m03) (m10, m11, m12, m13)
         (m20, m21, m22, m23) (m30, m31, m32, m33) in
-    Node.Private.make ?label ~operation:"set_transform" ~version:1
+    Node.Private.make_geometry ?label ~operation:"set_transform" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -1640,7 +1640,7 @@ module Set_color = struct
     let color = Vec3.create parameters.color_r parameters.color_g parameters.color_b in
     let alpha = parameters.alpha in
     let r = color.Vec3.x and g = color.y and b = color.z and a = alpha in
-    Node.Private.make ?label ~operation:"set_color" ~version:1
+    Node.Private.make_geometry ?label ~operation:"set_color" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs ->
@@ -1748,7 +1748,7 @@ module Enumerate = struct
     let storage = match storage with
       | Enumerate_integer -> Rdk.Attribute_ops.Integer
       | Enumerate_text -> Rdk.Attribute_ops.Text { prefix } in
-    Node.Private.make ?label ~operation:"enumerate" ~version:2
+    Node.Private.make_geometry ?label ~operation:"enumerate" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1842,7 +1842,7 @@ module Attribute_blur = struct
     let mode = match mode with
       | Laplacian -> Rdk.Attribute_ops.Laplacian laplacian_step
       | Custom -> Rdk.Attribute_ops.Custom_steps { odd = odd_step; even = even_step } in
-    Node.Private.make ?label ~operation:"attribute_blur" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_blur" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1914,7 +1914,7 @@ module Promote_attributes = struct
     let source = parameters.source in
     let destination = parameters.destination in
     let pattern = parameters.pattern in
-    Node.Private.make ?label ~operation:"attribute_promote_pattern" ~version:5
+    Node.Private.make_geometry ?label ~operation:"attribute_promote_pattern" ~version:5
       ~parameters:"" ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
@@ -1990,7 +1990,7 @@ module Polyframe = struct
       | Style_texture_uv -> Rdk.Polyframe.Texture_uv style_attribute
       | Style_texture_uv_gradient -> Rdk.Polyframe.Texture_uv_gradient style_attribute
       | Style_attribute_gradient -> Rdk.Polyframe.Attribute_gradient style_attribute in
-    Node.Private.make ?label ~operation:"polyframe" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"polyframe" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         match resolve_element_group ~operation:"polyframe" selection inputs.(0) with
@@ -2058,7 +2058,7 @@ module Distance_along_geometry = struct
     and radius = match radius_mode with Radius_fixed -> Rdk.Transform_ops.Distance_fixed radius
       | Radius_maximum -> Rdk.Transform_ops.Distance_maximum in
     let distance_attribute = optional_text distance_attribute in
-    Node.Private.make ?label ~operation:"distance_along_geometry" ~version:1
+    Node.Private.make_geometry ?label ~operation:"distance_along_geometry" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -2173,7 +2173,7 @@ module Distance_from_target = struct
       | Radius_maximum -> Rdk.Transform_ops.Distance_maximum in
     let distance_attribute = optional_text distance_attribute in
     let origin = vec3_copy origin and direction = vec3_copy direction in
-    Node.Private.make ?label ~operation:"distance_from_target" ~version:1
+    Node.Private.make_geometry ?label ~operation:"distance_from_target" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -2256,7 +2256,7 @@ module Distance_from_geometry = struct
     and radius = match radius_mode with Radius_fixed -> Rdk.Transform_ops.Distance_fixed radius
       | Radius_maximum -> Rdk.Transform_ops.Distance_maximum in
     let distance_attribute = optional_text distance_attribute in
-    Node.Private.make ?label ~operation:"distance_from_geometry" ~version:1
+    Node.Private.make_geometry ?label ~operation:"distance_from_geometry" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|source; reference|]
@@ -2334,7 +2334,7 @@ module Edge_transport = struct
     let normalization = parameters.normalization in
     let attribute = parameters.attribute in
     let root_group, roots = transport_roots roots (Option.value ~default:"" root_group) in
-    Node.Private.make ?label ~operation:"edge_transport" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_transport" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -2476,7 +2476,7 @@ module Attribute_remap = struct
       | Remap_explicit -> Rdk.Attribute_ops.Remap_explicit {
           min = value input_min input_min_w; max = value input_max input_max_w } in
     let output_min = value output_min output_min_w and output_max = value output_max output_max_w in
-    Node.Private.make ?label ~operation:"attribute_remap" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"attribute_remap" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input_node|] (fun ~node_id:_ context inputs ->
         match resolve_attribute_group ~operation:"attribute_remap" ~owner group
@@ -2642,7 +2642,7 @@ module Attribute_mirror = struct
       | Mirror_vector -> Rdk.Attribute_mirror.Mirror_vector
       | Mirror_point -> Rdk.Attribute_mirror.Mirror_point in
     let string_replace = if replace_strings then Some (string_search, string_replacement) else None in
-    Node.Private.make ?label ~operation:"attribute_mirror" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_mirror" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -2763,7 +2763,7 @@ module Attribute_fade = struct
       | Some start, None -> [|input; start|], Some 1, None
       | None, Some hold -> [|input; hold|], None, Some 1
       | Some start, Some hold -> [|input; start; hold|], Some 1, Some 2 in
-    Node.Private.make ?label ~operation:"attribute_fade" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_fade" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:(Context.Dependencies.one Context.Dependencies.Frame)
@@ -2879,7 +2879,7 @@ module Point_velocity = struct
     let inputs = Array.of_list (input :: List.filter_map Fun.id [previous; next]) in
     let cook_mode = if Array.length inputs = 1 then Node.Duplicate_input 0
       else Node.Generic in
-    Node.Private.make ~label ~operation:"point_velocity" ~version:1 ~parameters:"" ~cook_mode
+    Node.Private.make_geometry ~label ~operation:"point_velocity" ~version:1 ~parameters:"" ~cook_mode
       ~dependencies:Context.Dependencies.static ~inputs
       (fun ~node_id:_ context inputs ->
         let slot = ref 1 in
@@ -3006,7 +3006,7 @@ module Attribute_transfer_all = struct
                "Sop.attribute_transfer_all: invalid %s pattern: %s" owner message)))
       ["point", point_pattern; "vertex", vertex_pattern;
        "primitive", primitive_pattern; "detail", detail_pattern];
-    Node.Private.make ?label ~operation:"attribute_transfer_all" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_transfer_all" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|source; target|]
@@ -3127,7 +3127,7 @@ module Attribute_transfer_surface = struct
         "attribute_transfer_surface" "target" target_group_pattern
     and source_vertex_group_pattern_compiled = compile_transfer_group_pattern
         "attribute_transfer_surface" "source vertex" source_vertex_group_pattern in
-    Node.Private.make ?label ~operation:"attribute_transfer_surface" ~version:5
+    Node.Private.make_geometry ?label ~operation:"attribute_transfer_surface" ~version:5
       ~parameters:"" ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|source; target|]
       (fun ~node_id:_ context inputs ->
@@ -3247,7 +3247,7 @@ module Attribute_copy = struct
       | Rdk.Group.Point -> "point"
       | Rdk.Group.Vertex -> "vertex"
       | Rdk.Group.Primitive -> "primitive" in
-    Node.Private.make ?label ~operation:"attribute_copy" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_copy" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|source; target|]
@@ -3342,7 +3342,7 @@ module Attribute_noise_quaternion = struct
     let group = optional_text group in
     let location = Quaternion_noise_encoding.decode_location location |> Result.get_ok
     and range = Quaternion_noise_encoding.decode_range range |> Result.get_ok in
-    Node.Private.make ?label ~operation:"attribute_noise" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_noise" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
@@ -3518,7 +3518,7 @@ module Attribute_noise = struct
       | None -> Context.Dependencies.one Context.Dependencies.Seed in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("attribute_noise:" ^ label)) label in
-    Node.Private.make ?label ~operation:"attribute_noise" ~version:1
+    Node.Private.make_geometry ?label ~operation:"attribute_noise" ~version:1
       ~parameters:"" ~cook_mode:(Node.Duplicate_input 0) ~dependencies
       ~inputs:[|input|] (fun ~node_id context inputs ->
         match resolve_attribute_group ~operation:"attribute_noise" ~owner group
@@ -3722,7 +3722,7 @@ module Attribute_randomize = struct
       | None, None -> Context.Dependencies.one Context.Dependencies.Seed in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("attribute_randomize:" ^ label)) label in
-    Node.Private.make ?label ~operation:"attribute_randomize" ~version:2
+    Node.Private.make_geometry ?label ~operation:"attribute_randomize" ~version:2
       ~parameters:"" ~cook_mode:(Node.Duplicate_input 0) ~dependencies
       ~inputs:[|input|] (fun ~node_id context inputs ->
         let selected = match selection with
@@ -3921,7 +3921,7 @@ module Attribute_interpolate = struct
       computed_numbers_attribute = parameters.computed_numbers_attribute;
       computed_weights_attribute = parameters.computed_weights_attribute }
       else None in
-    Node.Private.make ~label ~operation:"attribute_interpolate" ~version:3
+    Node.Private.make_geometry ~label ~operation:"attribute_interpolate" ~version:3
       ~parameters:"" ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|source; target|] (fun ~node_id:_ context inputs ->
         let cancel = Context.cancel_token context and grain = Context.grain context in
@@ -4064,7 +4064,7 @@ module Attribute_transfer = struct
     let source_group_pattern_compiled=compile_transfer_group_pattern "attribute_transfer" "source" source_group_pattern
     and source_vertex_group_pattern_compiled=compile_transfer_group_pattern "attribute_transfer" "source vertex" source_vertex_group_pattern
     and target_group_pattern_compiled=compile_transfer_group_pattern "attribute_transfer" "target" target_group_pattern in
-    Node.Private.make ~label ~operation:"attribute_transfer" ~version:6
+    Node.Private.make_geometry ~label ~operation:"attribute_transfer" ~version:6
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs:[|source;target|]
     (fun ~node_id:_ context inputs ->
@@ -4191,7 +4191,7 @@ module Attribute_composite = struct
     let weights = Array.of_list (List.map fst weighted)
     and nodes = Array.of_list (input :: List.map snd weighted) in
     let alpha_attribute = optional_text parameters.alpha_attribute in
-    Node.Private.make ~label ~operation:"attribute_composite" ~version:1
+    Node.Private.make_geometry ~label ~operation:"attribute_composite" ~version:1
       ~parameters:"" ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:nodes
       (fun ~node_id:_ context geometries ->
@@ -4295,7 +4295,7 @@ module Blend_shapes = struct
     and point_id_attribute = optional_text parameters.point_id_attribute in
     let mask_attribute = if parameters.masking = Rdk.Blend_shapes.Blend_no_mask then None
       else optional_text parameters.mask_attribute in
-    Node.Private.make ~label ~operation:"blend_shapes" ~version:1 ~parameters:""
+    Node.Private.make_geometry ~label ~operation:"blend_shapes" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static ~inputs:nodes
       (fun ~node_id:_ context inputs ->
         if Array.length settings = 0 then cooked inputs.(0)

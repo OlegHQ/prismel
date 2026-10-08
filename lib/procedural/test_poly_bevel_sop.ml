@@ -32,7 +32,7 @@ let run () =
            ~corner_group:"corner_fillets" ~offset_group:"offset_edges" in
   let evaluator = session () in
   let output = match Session.cook evaluator ~context:(context ()) graph with
-    | Ok output -> output.geometry
+    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
     | Error error -> fail (Diagnostic.error_to_string error) in
   if Rdk.Geometry.point_count output <> 72
       || Rdk.Geometry.primitive_count output <> 50

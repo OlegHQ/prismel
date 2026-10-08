@@ -13,7 +13,7 @@ let cook domains graph =
   let context = Context.create ~domains ~grain:97 ~seed:42L () |> get in
   let session = Session.create ~max_entries:8 ~max_payload_bytes:200_000_000 |> get in
   let output = match Session.cook session ~context graph with
-    | Ok value -> value.geometry
+    | Ok value -> (Result.get_ok (Procedural.Payload.geometry value.payload))
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session;
   output
@@ -189,10 +189,10 @@ let run () =
   let before = Session.stats intrinsic_session in
   let second = Session.cook intrinsic_session ~context:intrinsic_context intrinsic_second |> Result.get_ok in
   let after = Session.stats intrinsic_session in
-  check (after.misses > before.misses && not (equal_geometry first.geometry second.geometry))
+  check (after.misses > before.misses && not (equal_geometry (Result.get_ok (Procedural.Payload.geometry first.payload)) (Result.get_ok (Procedural.Payload.geometry second.payload))))
     "custom snapshot data changes miss despite equal logical and schema identity";
   let repeated = Session.cook intrinsic_session ~context:intrinsic_context intrinsic_second |> Result.get_ok in
-  check (repeated.geometry == second.geometry && (Session.stats intrinsic_session).hits > after.hits)
+  check ((Result.get_ok (Procedural.Payload.geometry repeated.payload)) == (Result.get_ok (Procedural.Payload.geometry second.payload)) && (Session.stats intrinsic_session).hits > after.hits)
     "custom snapshot repeated intrinsic identity hits";
   Session.close intrinsic_session;
   let schema_only = Sop.grid () in
@@ -392,7 +392,7 @@ let run () =
       ~fraction_attribute:(if mode = 2 then "fraction1" else "") ~seed_attribute:(if mode = 2 then "ignored" else "") random_input in
     let first = Session.cook session ~context:(context 42L) node |> Result.get_ok
     and second = Session.cook session ~context:(context 43L) node |> Result.get_ok in
-    check (if mode = 1 then not (equal_geometry first.geometry second.geometry) else first.geometry == second.geometry)
+    check (if mode = 1 then not (equal_geometry (Result.get_ok (Procedural.Payload.geometry first.payload)) (Result.get_ok (Procedural.Payload.geometry second.payload))) else (Result.get_ok (Procedural.Payload.geometry first.payload)) == (Result.get_ok (Procedural.Payload.geometry second.payload)))
       "randomize context invalidation follows the active sampling mode") [0;1;2];
   Session.close session;
   same_cook "randomize blank optional names" ~typed:(Sop.attribute_randomize ~group:" " ~selection_group:" " ~seed_attribute:" " ~fraction_attribute:" " random_input)
@@ -540,10 +540,10 @@ let run () =
   let context seed = Context.create ~domains:1 ~seed () |> Result.get_ok in
   let first = Session.cook session ~context:(context 42L) fixed |> Result.get_ok in
   let second = Session.cook session ~context:(context 43L) fixed |> Result.get_ok in
-  check (first.geometry == second.geometry) "explicit noise seed hits across context changes";
+  check ((Result.get_ok (Procedural.Payload.geometry first.payload)) == (Result.get_ok (Procedural.Payload.geometry second.payload))) "explicit noise seed hits across context changes";
   let first = Session.cook session ~context:(context 42L) seeded |> Result.get_ok in
   let second = Session.cook session ~context:(context 43L) seeded |> Result.get_ok in
-  check (not (equal_geometry first.geometry second.geometry)) "context noise seed changes the cooked output";
+  check (not (equal_geometry (Result.get_ok (Procedural.Payload.geometry first.payload)) (Result.get_ok (Procedural.Payload.geometry second.payload)))) "context noise seed changes the cooked output";
   Session.close session;
   List.iter (fun construct -> check (match construct () with _ -> false | exception Invalid_argument _ -> true)
       "attribute noise refuses invalid construction")

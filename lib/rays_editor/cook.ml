@@ -105,9 +105,10 @@ let transformed matrix bounds = transformed_all [| matrix |] bounds
 
 (* A packed output's bounds: the prototype's box at every instance. *)
 let output_bounds (output : Session.output) =
-  match geometry_bounds output.geometry, output.instances with
+  Result.map (fun geometry -> match geometry_bounds geometry, output.instances with
   | None, _ | _, (None | Some [||]) as bounds -> fst bounds
-  | Some box, Some transforms -> Some (transformed_all transforms box)
+  | Some box, Some transforms -> Some (transformed_all transforms box))
+    (Payload.geometry output.payload)
 
 (* [await]: a fixed-step run (export, RAYS_MAX_FRAMES, tests) must show the
    geometry of exactly frame n, so [update] waits for the cook it submitted;
@@ -271,7 +272,7 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
   let probed = if not submit then [] else List.filter_map (fun key ->
     Option.map (fun node -> key, node) (node_of key)) (List.filteri (fun i _ -> i < 64) probes) in
   let summary (key, node) (output : Session.output) =
-    let g = output.geometry in
+    let g = Result.get_ok (Payload.geometry output.payload) in
     key, { Flow_graph.Probe.seconds = Async_cook.node_seconds value.worker (Node.id node); points = Rdk.Packed.Float3.length (Rdk.Geometry.positions g);
            prims = Rdk.Geometry.primitive_count g; data_id = Rdk.Geometry.data_id g;
            extent = Option.map (fun (lo, hi) ->
@@ -279,9 +280,11 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
            groups = List.sort_uniq compare (List.map Rdk.Group.name (Rdk.Geometry.groups g)) } in
   let prepare context outputs optional =
     let found = List.filter_map Fun.id (List.map2 (fun target output ->
-      Option.map (summary target) output) probed optional) in
+      Option.bind output (fun (output : Session.output) -> match output.payload with
+        | Payload.Geometry _ -> Some (summary target output) | Image _ -> None)) probed optional) in
     let data = List.filter_map Fun.id (List.map2 (fun (key, _) output ->
-      Option.map (fun (output : Session.output) -> key, output.geometry) output) probed optional) in
+      Option.bind output (fun (output : Session.output) ->
+        Option.map (fun geometry -> key, geometry) (Result.to_option (Payload.geometry output.payload)))) probed optional) in
     let rec loop reversed graphs outputs = match graphs, outputs with
       | [], [] -> Ok (Displayed (List.rev reversed, found, data))
       | (id, graph) :: graphs, (output : Session.output) :: outputs ->
@@ -292,10 +295,14 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
           (match reused with
            | Some piece -> loop (piece :: reversed) graphs outputs
            | None ->
-               Result.bind (value.prepare settings (Pick.tint output lit)) (fun prepared ->
+               let ( let* ) = Result.bind in
+               let* geometry = Payload.geometry output.payload |> Result.map_error Diagnostic.error_to_string in
+               let* bounds = output_bounds output |> Result.map_error Diagnostic.error_to_string in
+               let* tinted = Pick.tint output lit |> Result.map_error Diagnostic.error_to_string in
+               Result.bind (value.prepare settings tinted) (fun prepared ->
                  loop ({ id; graph; prepared; output; lit;
-                         surface = lazy (Pick.surface output.geometry);
-                         bounds = output_bounds output; settings; context = projection } :: reversed)
+                         surface = lazy (Pick.surface geometry);
+                         bounds; settings; context = projection } :: reversed)
                    graphs outputs))
       | _ -> Error "cook returned a different number of outputs" in
     loop [] graphs outputs in
@@ -326,8 +333,11 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
   let retinted = ref false in
   let pieces = List.map (fun piece ->
     if Pick.same_set piece.lit lit then piece
-    else if Pick.tags piece.output.geometry = None then { piece with lit }
-    else match value.prepare piece.settings (Pick.tint piece.output lit) with
+    else match Payload.geometry piece.output.payload with
+    | Error _ -> piece
+    | Ok geometry when Pick.tags geometry = None -> { piece with lit }
+    | Ok _ -> match Result.bind (Pick.tint piece.output lit |> Result.map_error Diagnostic.error_to_string)
+        (value.prepare piece.settings) with
       | Ok prepared -> retinted := true; { piece with prepared; lit }
       | Error _ -> piece) pieces in
   let prepared_changed = prepared_changed || !retinted in
@@ -351,7 +361,8 @@ let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
                  match Result.bind (context value timeline frame) (fun context ->
                      Async_cook.submit value.worker ~context ~node
                        ~prepare:(fun output ->
-                         Ok (Framed (output_bounds output)))) with
+                         Result.map (fun bounds -> Framed bounds) (output_bounds output)
+                           |> Result.map_error Diagnostic.error_to_string)) with
                  | Ok _ -> framed, Some (was_busy || Option.value ~default:false framing)
                  | Error _ -> Some None, framing) in
   { cook = { value with schedule; pieces; settings = Some settings; error; seconds;
@@ -369,7 +380,9 @@ let close value = Async_cook.close value.worker
 let pick_by pick_hit piece ~origin ~direction =
   let cast ~origin ~direction =
     Option.map (fun (distance, found) -> distance /. Vec3.length direction, found)
-      (pick_hit (Lazy.force piece.surface) piece.output.geometry ~origin ~direction) in
+      (match piece.output.payload with
+       | Payload.Image _ -> None
+       | Geometry geometry -> pick_hit (Lazy.force piece.surface) geometry ~origin ~direction) in
   match piece.output.instances with
   | None | Some [||] -> cast ~origin ~direction
   | Some transforms ->

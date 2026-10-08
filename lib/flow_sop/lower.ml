@@ -80,7 +80,7 @@ let at_zero value =
   if E.is_live value then ok (E.force value ~live:(Frame_input.at_time (0.))) else value
 
 let is_zone kind = kind = "zone/points" || kind = "zone/pieces"
-let geo_of args = List.filter_map (function _, E.Deferred ((Flow.Ty.Named "geometry"), j) -> Some j | _ -> None) args
+let geo_of args = List.filter_map (function _, E.Deferred (ty, j) when Ty.is_cooked ty -> Some j | _ -> None) args
 
 let is_volatile lowered id = Network.Int_map.mem id lowered.volatile
 
@@ -263,8 +263,9 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
             | kind ->
                 let key = match String.split_on_char '/' kind with
                   | ["sop"; key] -> key
+                  | ["image"; "noise"] -> "image_noise"
                   | _ -> fail "E_LOWER" ("Cannot lower " ^ kind) in
-                let factory = find_factory key in
+                let factory = if key = "image_noise" then Procedural.Image_nodes.noise_factory else find_factory key in
                 let names = Edit.factory_slot_names factory
                 and parameters = parameters factory in
                 let rest = List.find_index (function Edit.Rest | Optional_rest -> true | _ -> false)
@@ -274,7 +275,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                 let slots = ref [] and changes = ref [] in
                 let rec add_rest = function
                   | E.No_geo -> ()
-                  | E.Deferred ((Flow.Ty.Named "geometry"), id) ->
+                  | E.Deferred (ty, id) when Ty.is_cooked ty ->
                       slots := (!next_rest,id) :: !slots;
                       incr next_rest; arity := max !arity !next_rest
                   | E.List values -> Array.iter add_rest values
@@ -283,7 +284,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                   match List.find_index (( = ) name) names, value with
                   | Some index, value when Some index = rest -> add_rest value
                   | Some _, E.No_geo -> ()
-                  | Some index, E.Deferred ((Flow.Ty.Named "geometry"), id) -> slots := (index, id) :: !slots
+                  | Some index, E.Deferred (ty, id) when Ty.is_cooked ty -> slots := (index, id) :: !slots
                   | Some _, _ -> fail "E_LOWER" ("Slot " ^ name ^ " needs geometry")
                   | None, value ->
                       let parameter = ok (Port.find_parameter parameters name) in
@@ -393,7 +394,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
     let contexts = List.map (fun (g : Workspace.graph) -> g.name, g.context)
       checked.graphs in
     let sop_instance (i : E.instance) =
-      List.assoc_opt i.graph contexts = Some Flow.Context.sop in
+      Option.fold ~none:false ~some:(fun context -> Ty.is_cooked (Flow.Context.result context))
+        (List.assoc_opt i.graph contexts) in
     (* every plan node gets its id up front, in plan order, so ids do not
        depend on which network asks first *)
     Array.iter (fun (node : E.node) ->
@@ -449,7 +451,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         end in
       Array.iter (fun (node : E.node) ->
         if node.inst = index && not templ.(node.id) then reach node.id) plan.nodes;
-      (match instance.result with E.Deferred ((Flow.Ty.Named "geometry"), j) -> reach j | _ -> ());
+      (match instance.result with E.Deferred (ty, j) when Ty.is_cooked ty -> reach j | _ -> ());
       let order = Hashtbl.fold (fun id () l -> id :: l) seen []
         |> List.sort Int.compare in
       let graph = List.fold_left (fun graph id ->
@@ -467,7 +469,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         else fst (edit (Edit.apply_parameters graph ~node_id:p.cid p.changes)))
         Edit.empty order in
       let root = match instance.result with
-        | E.Deferred ((Flow.Ty.Named "geometry"), id) -> Some compiled.(id)
+        | E.Deferred (ty, id) when Ty.is_cooked ty -> Some compiled.(id)
         | No_geo -> None
         | _ -> fail "E_LOWER" ("Graph " ^ instance.graph ^ " does not return geometry") in
       let graph = match root with

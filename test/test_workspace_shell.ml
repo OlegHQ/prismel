@@ -106,7 +106,7 @@ let frame ?(buttons = []) mouse events count = Test_editor_input.frame ~buttons 
    the worker *)
 let editor ?camera ?presets text =
   E3.create ?camera ?presets ~await:true ~workspace:(of_text text)
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
@@ -1998,12 +1998,12 @@ let run_view_native () =
       ~presets:(Filename.concat directory "presets") ~seed:7349L ~grain:2
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8 ~azimuth:0.72 ~elevation:0.42 ())
       ~prepare:(fun _ output ->
-        match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece" output.Session.geometry with
+        match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece" (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) with
         | Some attribute when (match Rdk.Attribute.Private.storage attribute with
             | Rdk.Attribute.Int _ | Text _ -> true | _ -> false) ->
-            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece" output.geometry
+            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece" (Result.get_ok (Procedural.Payload.geometry output.payload))
             |> Result.map (fun pieces -> `Pieces pieces)
-        | _ -> Rdk_rays.Rays_mesh.to_mesh output.geometry
+        | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
             |> Result.map (fun mesh -> `Mesh (mesh, output.instances))
             |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun node preview ->
@@ -2101,7 +2101,7 @@ let run_renderers_native ?(authored = false) () =
   ignore (Sketch.run_state ~max_frames:46
     ~config:{Sketch.default_config with width = 900; height = 640; title = "shared renderer"}
     ~init:(fun _ -> E3.create ~await:true ~workspace ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh
         ~material:(Material.unlit (Color.rgb 200 20 200)) mesh]) () |> Result.get_ok)
@@ -2122,9 +2122,9 @@ let run_renderers_native ?(authored = false) () =
       E3.after_present e frame)
     ~on_stop:E3.close ());
   let mesh_pixels path =
-    let image = Image.load_exn path in
-    let pixels = Image.Private.pixels image |> Result.get_ok in
-    let w = Image.get_width image and h = Image.get_height image in
+    let image = Rays.Image.load_exn path in
+    let pixels = Rays.Image.Private.pixels image |> Result.get_ok in
+    let w = Rays.Image.get_width image and h = Rays.Image.get_height image in
     let scale = float w /. 900. in
     let counts = Array.make 2 0 in
     Array.iteri (fun i (x, y, width, height) ->
@@ -2137,7 +2137,7 @@ let run_renderers_native ?(authored = false) () =
           if r > 110 && b > 110 && g < 100 && g + 40 < r then counts.(i) <- counts.(i) + 1
         done
       done) [|(0, 50, 440, 450); (450, 142, 320, 258)|];
-    Image.destroy image; counts in
+    Rays.Image.destroy image; counts in
   List.iter (fun frame ->
     let counts = mesh_pixels (Filename.concat directory (Printf.sprintf "%d.png" frame)) in
     check (counts.(0) > 30 && counts.(1) > 30)
@@ -2171,15 +2171,15 @@ let run_native () =
       end;
       E3.after_present e frame)
     ~on_stop:E3.close ());
-  let image = Image.load_exn path in
-  let pixels = Result.get_ok (Image.Private.pixels image) in
-  let scale = float (Image.get_width image) /. float (match !rects with (_, _, _, _, w) :: _ -> w | [] -> fail "no viewports") in
+  let image = Rays.Image.load_exn path in
+  let pixels = Result.get_ok (Rays.Image.Private.pixels image) in
+  let scale = float (Rays.Image.get_width image) /. float (match !rects with (_, _, _, _, w) :: _ -> w | [] -> fail "no viewports") in
   check (List.length !rects = 4) "four viewport panels";
   let drawn (x, y, w, h, _) =
     let count = ref 0 and bits = Buffer.create 64 in
     for py = int_of_float (float y *. scale) to int_of_float (float (y + h) *. scale) - 1 do
       for px = int_of_float (float x *. scale) to int_of_float (float (x + w) *. scale) - 1 do
-        let o = 4 * ((py * Image.get_width image) + px) in
+        let o = 4 * ((py * Rays.Image.get_width image) + px) in
         let r = Char.code (Bytes.get pixels o) and g = Char.code (Bytes.get pixels (o + 1))
         and b = Char.code (Bytes.get pixels (o + 2)) in
         let hit = r < 110 && g < 110 && b < 110 in  (* the unlit garden against the pale panel *)
@@ -2318,7 +2318,7 @@ let run_roots_native () =
     ~config:{ Sketch.default_config with width; height = 640; title = "two roots" }
     ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
@@ -2382,9 +2382,9 @@ let run_roots_native () =
     (Printf.sprintf "a drag across the second film's step disturbed the first: %s then %s"
        (describe day160) (describe day195));
   (* what the window shows: both panes drawn, the pictures differ, dusk is darker than noon *)
-  let image = Image.load_exn png in
-  let pixels = Result.get_ok (Image.Private.pixels image) in
-  let scale = float (Image.get_width image) /. float width in
+  let image = Rays.Image.load_exn png in
+  let pixels = Result.get_ok (Rays.Image.Private.pixels image) in
+  let scale = float (Rays.Image.get_width image) /. float width in
   let region (x, y, w, h) (resolution_w, resolution_h) =
     (* the inner part of the gate, which is centred in the pane *)
     let aspect = float resolution_w /. float resolution_h in
@@ -2395,7 +2395,7 @@ let run_roots_native () =
     let sum = ref 0. and count = ref 0 and differing = ref 0 and bits = Buffer.create 256 in
     for py = y0 to y1 - 1 do
       for px = x0 to x1 - 1 do
-        let o = 4 * (py * Image.get_width image + px) in
+        let o = 4 * (py * Rays.Image.get_width image + px) in
         let r = Char.code (Bytes.get pixels o) and g = Char.code (Bytes.get pixels (o + 1))
         and b = Char.code (Bytes.get pixels (o + 2)) in
         sum := !sum +. (0.2126 *. float r +. 0.7152 *. float g +. 0.0722 *. float b);
@@ -2446,7 +2446,7 @@ let run_budget_native () =
     ~config:{ Sketch.default_config with width = 900; height = 640; title = "budget" }
     ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->

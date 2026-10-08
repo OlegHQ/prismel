@@ -159,15 +159,46 @@ let branch_mode mode repeats =
           | Ok output -> output | Error error -> failwith (Procedural.Diagnostic.error_to_string error) in
         seconds.(repeat) <- now () -. start;
         allocated.(repeat) <- Gc.allocated_bytes () -. before;
-        points := Rdk.Geometry.point_count output.geometry;
-        hash := cook_hash output.geometry;
+        points := Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload));
+        hash := cook_hash (Result.get_ok (Procedural.Payload.geometry output.payload));
         match !expected with None -> expected := Some !hash | Some prior -> assert (prior = !hash))
     done;
     Array.sort Float.compare seconds; Array.sort Float.compare allocated;
     Printf.printf "%s,%d,%d,%d,%.9f,%.0f,%s\n%!" (String.sub mode 2 (String.length mode - 2))
       domains repeats !points seconds.(repeats / 2) allocated.(repeats / 2) !hash) [1; 8]
 
+let image_mode () =
+  print_endline "name,pixels,domains,median_s,bytes_all_domains,hash";
+  let allocated_bytes () = let stats = Gc.quick_stat () in
+    (stats.minor_words +. stats.major_words -. stats.promoted_words) *. float (Sys.word_size / 8) in
+  List.iter (fun size ->
+    let expected = ref None in
+    List.iter (fun domains ->
+      let node = Procedural.Image_nodes.noise ~width:size ~height:size ~frequency:0.12 ~seed:31 () in
+      let context = Procedural.Context.create ~domains () |> Result.get_ok in
+      Rays_math.Parallel.run ~domains (fun () -> ());
+      let times = Array.make 7 0. and allocations = Array.make 7 0. and hash = ref "" in
+      for sample = 0 to 6 do
+        let session = Procedural.Session.create ~max_entries:0 ~max_payload_bytes:0 |> Result.get_ok in
+        Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+          Gc.full_major ();
+          let bytes = allocated_bytes () and started = now () in
+          let output = Procedural.Session.cook session ~context node |> Result.get_ok in
+          times.(sample) <- now () -. started;
+          Gc.minor ();
+          allocations.(sample) <- allocated_bytes () -. bytes;
+          let image = Procedural.Payload.image output.payload |> Result.get_ok in
+          hash := Digest.to_hex (Digest.string (Marshal.to_string
+            (Procedural.Image.width image, Procedural.Image.height image, Procedural.Image.Private.storage image)
+            [Marshal.No_sharing]));
+          match !expected with None -> expected := Some !hash | Some prior -> assert (prior = !hash))
+      done;
+      Array.sort Float.compare times; Array.sort Float.compare allocations;
+      Printf.printf "image_noise,%d,%d,%.9f,%.0f,%s\n%!" (size*size) domains times.(3) allocations.(3) !hash) [1;8])
+    [128;512;1024]
+
 let () =
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--images"] then begin image_mode (); exit 0 end;
   if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--branches"; "--loops"] then begin
     branch_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 3);
     exit 0
@@ -223,7 +254,7 @@ let () =
       let session = Result.get_ok (Procedural.Session.create ~max_entries:512
         ~max_payload_bytes:(256 * 1024 * 1024)) in
       Fun.protect ~finally:(fun () -> Procedural.Session.close session)
-        (fun () -> cook_hash (cook_graph ~session graph).geometry) in
+        (fun () -> cook_hash (Result.get_ok (Procedural.Payload.geometry (cook_graph ~session graph).payload))) in
     let hash = fingerprint () in
     assert (hash = fingerprint ());
     Printf.printf "%-11s %8.3f %8.3f %8.3f %8.3f %8.3f %6d %10.0f %s\n%!" name t_check t_eval

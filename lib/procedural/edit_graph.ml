@@ -127,7 +127,7 @@ let empty_geometry = lazy (
   let geometry = Result.get_ok (Rdk.Geometry.create
     ~positions:(Rdk.Packed.Float3.Builder.freeze (Rdk.Packed.Float3.Builder.create 0))
     ~topology:(Rdk.Topology.empty ~point_count:0) ()) in
-  Node.Private.make ~operation:"snapshot" ~version:1
+  Node.Private.make_geometry ~operation:"snapshot" ~version:1
     ~parameters:(Printf.sprintf "data_id=%d;bytes=%d" (Rdk.Geometry.data_id geometry)
       (Rdk.Geometry.payload_bytes geometry))
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static ~inputs:[||]
@@ -462,7 +462,7 @@ let instantiate (value : factory) inputs =
     | Failure message -> Error message
 
 let disconnected_placeholder () =
-  Node.Private.make ~label:"disconnected input"
+  Node.Private.make_geometry ~label:"disconnected input"
     ~operation:"disconnected_input" ~version:1 ~parameters:""
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _ _ -> Error (Diagnostic.error

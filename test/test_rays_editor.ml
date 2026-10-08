@@ -130,7 +130,7 @@ let run () =
   let environment = Rays_editor.Editor3.create ~await:true ~workspace:(fixture ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
     |> Result.get_ok in
@@ -445,7 +445,7 @@ let run () =
       ~lens:{ aperture = 0.3; focus_distance = None }
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _graph mesh -> Scene3.create [Scene3.mesh mesh]) ()
     |> Result.get_ok in
@@ -632,7 +632,7 @@ let run () =
       ~camera:(Easy_camera.create ~distance:6. ~inertia:false ())
       ~factories:Sop_catalog.Editor.factories
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _graph mesh -> mesh_scene mesh) () |> Result.get_ok in
   let environment = wait 0 environment in

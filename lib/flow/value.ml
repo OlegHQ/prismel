@@ -134,6 +134,7 @@ let rec key_of ~residual = function
   | Vec3_array xs -> "V" ^ Marshal.to_string xs []
   | Record fs -> "{" ^ String.concat "," (List.map (fun (n, v) -> n ^ "=" ^ key_of ~residual v) fs) ^ "}"
   | Deferred ((Ty.Named "geometry"), n) -> "g" ^ string_of_int n
+  | Deferred ((Ty.Named "image"), n) -> "image:" ^ string_of_int n
   | Deferred (ty, n) -> "node:" ^ Ty.to_string ty ^ ":" ^ string_of_int n
   | No_geo -> "G"
   | Struct (n, _, fs) -> "S" ^ n ^ key_of ~residual (Record fs)

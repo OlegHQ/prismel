@@ -68,7 +68,7 @@ let elements kind ?key geometry =
 
 let element_node element =
   let geometry = Option.get element.piece in
-  Node.Private.make ~operation:"zone_element" ~version:1
+  Node.Private.make_geometry ~operation:"zone_element" ~version:1
     ~parameters:("content=" ^ Digest.to_hex element.digest)
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _ _ ->
@@ -81,7 +81,7 @@ let node ?label ?(report : element array -> unit = ignore) ?(live = false) ?(sta
       (Option.value key ~default:"") source_attribute source_base (Array.length inputs) live in
   let parameters = parameters ^ Option.fold ~none:"" ~some:(fun i -> ";select=" ^ string_of_int i) select in
   let parameters = if stamp = "" then parameters else parameters ^ ";frame-state=" ^ stamp in
-  Node.Private.make ?label ~operation:"zone" ~version:1 ~parameters
+  Node.Private.make_geometry ?label ~operation:"zone" ~version:1 ~parameters
     ~cook_mode:Node.Generic
     ~dependencies:(if live then Context.Dependencies.one Context.Dependencies.Input
                    else Context.Dependencies.static) ~inputs

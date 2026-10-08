@@ -114,7 +114,10 @@ let descriptors : Flow_sop.Catalog.descriptor list =
     (scene_kinds @ world_kinds)
   @ [ { Flow_sop.Catalog.qualified = "settings/config"; key = "config"; operation = "config";
         label = "Settings"; category = [ "Workspace" ]; slots = [];
-        fields = window_fields } ]
+        fields = window_fields };
+      { Flow_sop.Catalog.qualified="image/noise"; key="noise"; operation="image/noise";
+        label="Noise"; category=["Image"]; slots=[];
+        fields=Edit.factory_fields Image_nodes.noise_factory } ]
 
 (* The catalog is a function of the factories alone, and every edit asks for it (0.18 ms and
    0.6 MB to build): the last one is kept, by the identity of its factories.  Capacity 1. *)

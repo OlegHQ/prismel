@@ -2,6 +2,9 @@ open Flow
 open Port_type
 
 let () =
+  assert (Value.key_of ~residual:Fun.id (Value.Deferred (Ty.image, 3)) = "image:3");
+  assert (Value.key_of ~residual:Fun.id (Value.Deferred (Ty.image, 3)) <>
+    Value.key_of ~residual:Fun.id (Value.Int 3));
   List.iter (fun context ->
     assert (Context.of_string (Context.name context) = Ok context))
     [Context.sop; Context.value; Context.scene; Context.world; Context.settings];

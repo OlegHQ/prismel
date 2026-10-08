@@ -49,14 +49,15 @@ let cook_to_mesh bridge ~context node =
   match Session.cook bridge.session ~context node with
   | Error _ as error -> error
   | Ok output ->
-      (match mesh ~cancel:(Context.cancel_token context) bridge output.geometry with
+      Result.bind (Payload.geometry output.payload) (fun geometry ->
+      (match mesh ~cancel:(Context.cancel_token context) bridge geometry with
        | Ok mesh -> Ok (mesh, output.diagnostics)
        | Error cause ->
            Error (Diagnostic.error ~code:(Rdk.Error.code cause)
              ~cause:(Rdk.Error.to_string cause)
              ~hints:(Rdk.Error.hints cause)
              "cooked RDK geometry cannot be converted to a Rays mesh"
-             |> Diagnostic.prepend_trace (Node.trace node)))
+             |> Diagnostic.prepend_trace (Node.trace node))))
 
 let cook_to_instances bridge ~context instances =
   Result.map (fun (mesh, diagnostics) ->

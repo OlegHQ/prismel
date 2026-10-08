@@ -29,7 +29,7 @@ let context ?(time = 0.) domains =
 
 let cook session context node =
   match Session.cook session ~context node with
-  | Ok output -> output.Session.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let fresh context node =

@@ -18,7 +18,7 @@ let source () =
 let cook domains graph =
   let session = Session.create ~max_entries:8 ~max_payload_bytes:128_000_000 |> get in
   let output = match Session.cook session ~context:(context domains) graph with
-    | Ok value -> value.geometry
+    | Ok value -> (Result.get_ok (Procedural.Payload.geometry value.payload))
     | Error error -> fail (Diagnostic.error_to_string error) in
   Session.close session;
   output

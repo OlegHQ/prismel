@@ -4947,7 +4947,7 @@ let () =
     measure "session_first_cook" (fun () ->
       let session = make_session () in
       let geometry = match Session.cook session ~context:(make_context ()) graph with
-        | Ok output -> output.geometry
+        | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
         | Error error -> failwith (Diagnostic.error_to_string error) in
       Session.close session;
       geometry) geometry_output;
@@ -6332,7 +6332,7 @@ let () =
   measure "session_first_cook" (fun () ->
     let session = make_session () in
     let geometry = match Session.cook session ~context:(make_context ()) graph with
-      | Ok output -> output.geometry
+      | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
       | Error error -> failwith (Diagnostic.error_to_string error) in
     Session.close session;
     geometry) geometry_output;
@@ -6340,6 +6340,6 @@ let () =
   ignore (Session.cook session ~context:(make_context ()) graph);
   measure "session_cache_hit" (fun () ->
     match Session.cook session ~context:(make_context ()) graph with
-    | Ok output -> output.geometry
+    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
     | Error error -> failwith (Diagnostic.error_to_string error)) geometry_output;
   Session.close session

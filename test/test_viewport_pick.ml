@@ -26,7 +26,7 @@ let cooked ?(lit = Pick.Set.empty) ?cook lowered ~prepared =
     | Some cook -> cook
     | None ->
         let cook = Result.get_ok (Cook.create ~await:true
-          ~prepare:(fun _ output -> incr prepared; Ok output.Session.geometry)
+          ~prepare:(fun _ output -> incr prepared; Ok (Result.get_ok (Procedural.Payload.geometry output.Session.payload)))
           ~seed:42L ~grain:97 ~domains:1 ~max_entries:512
           ~max_payload_bytes:(256 * 1024 * 1024) ()) in
         Cook.set_volatile cook (Lower.is_volatile lowered); cook in
@@ -72,22 +72,22 @@ let pick_run () =
   let prepared = ref 0 in
   let cook = cooked sunflower ~prepared in
   let piece = List.hd (Cook.pieces cook) in
-  let tags = Option.get (Pick.tags piece.output.geometry) in
+  let tags = Option.get (Pick.tags (Result.get_ok (Procedural.Payload.geometry piece.output.payload))) in
   let of_iteration lowered i = Int_map.fold (fun tag (o : Lower.origin) found ->
     if o.iter = [ i ] then tag :: found else found) lowered.Lower.provenance [] in
   let tag83 = List.hd (of_iteration sunflower 83) in
   let origin = Int_map.find tag83 sunflower.provenance in
   check (origin.iter = [ 83 ] && origin.input = 83) "the provenance table names iteration 83";
-  check (Array.length tags = Geometry.primitive_count piece.output.geometry
+  check (Array.length tags = Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry piece.output.payload))
     && Int_map.cardinal sunflower.provenance = 240) "a tag per primitive, 240 origins";
-  (match Cook.pick piece ~origin:(above piece.output.geometry tag83) ~direction:down with
+  (match Cook.pick piece ~origin:(above (Result.get_ok (Procedural.Payload.geometry piece.output.payload)) tag83) ~direction:down with
    | Some (_, tag) -> check (tag = tag83) "the ray finds seed 83"
    | None -> fail "the ray missed seed 83");
   check (Cook.pick piece ~origin:(Rays.Vec3.create 0. 9. 9.) ~direction:down = None) "a miss";
   (* instanced pieces: the prototype is picked at every instance, hits compare in world units *)
   let module M = Rays.Mat4 in
   let module V = Rays.Vec3 in
-  let over = above piece.output.geometry tag83 in
+  let over = above (Result.get_ok (Procedural.Payload.geometry piece.output.payload)) tag83 in
   let instanced transforms = { piece with output = { piece.output with instances = Some transforms } } in
   let hit p origin = Cook.pick p ~origin ~direction:down in
   let d1 = match hit piece over with Some (d, _) -> d | None -> fail "no plain hit" in
@@ -124,7 +124,7 @@ let pick_run () =
   check (!prepared = before + 1) "an unchanged highlight prepares nothing";
   let cook = cooked ~cook sunflower ~prepared in
   check (!prepared = before + 2) "deselecting prepares once";
-  check ((List.hd (Cook.pieces cook)).prepared == piece.output.geometry) "deselect restores the geometry";
+  check ((List.hd (Cook.pieces cook)).prepared == (Result.get_ok (Procedural.Payload.geometry piece.output.payload))) "deselect restores the geometry";
   Cook.close cook;
   (* --- bloom: petals sit inside a merge of merges; the tag is the innermost --- *)
   let bloom = lower "bloom" in
@@ -133,14 +133,14 @@ let pick_run () =
   let petal = Int_map.filter (fun _ (o : Lower.origin) -> o.iter = [ 4 ]) bloom.provenance in
   check (Int_map.cardinal petal = 1 || Int_map.cardinal petal = 2) "petal 4 of the first flower";
   let tag, o = List.hd (List.filter (fun (t, (o : Lower.origin)) ->
-    present piece.output.geometry t && o.iter = [ 4 ]) (Int_map.bindings bloom.provenance)) in
-  (match Cook.pick piece ~origin:(above piece.output.geometry tag) ~direction:down with
+    present (Result.get_ok (Procedural.Payload.geometry piece.output.payload)) t && o.iter = [ 4 ]) (Int_map.bindings bloom.provenance)) in
+  (match Cook.pick piece ~origin:(above (Result.get_ok (Procedural.Payload.geometry piece.output.payload)) tag) ~direction:down with
    | Some (_, hit) ->
        let hit = Int_map.find hit bloom.provenance in
        check (hit.iter = [ 4 ] && hit.site = o.site) "a petal picks its iteration through two merges"
    | None -> fail "the ray missed petal 4");
   let heart = List.find (fun (t, (o : Lower.origin)) -> o.iter = [] && o.input = 1
-    && present piece.output.geometry t) (Int_map.bindings bloom.provenance) in
+    && present (Result.get_ok (Procedural.Payload.geometry piece.output.payload)) t) (Int_map.bindings bloom.provenance) in
   check ((snd heart).site <> o.site) "the heart is another site";
   Cook.close cook;
   print_endline "viewport pick tests passed"
@@ -153,7 +153,7 @@ let flat text clicks =
   let workspace = Ws_fixture.of_text text in
   (* the cook is awaited, not waited for: the editor blocks on the job each frame submits *)
   let env = ref (E3.create ~await:true ~workspace ~camera:(Easy_camera.create ~inertia:false ())
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ _ -> Scene3.empty) () |> Result.get_ok) in
   let count = ref 0 in
@@ -224,7 +224,7 @@ let bench () =
     let lowered = lower name and prepared = ref 0 in
     let cook = cooked lowered ~prepared in
     let piece = List.hd (Cook.pieces cook) in
-    let geometry = piece.output.geometry in
+    let geometry = (Result.get_ok (Procedural.Payload.geometry piece.output.payload)) in
     let tag, _ = List.find (fun (t, (o : Lower.origin)) -> o.iter = iteration
       && present geometry t) (Int_map.bindings lowered.provenance) in
     let origin = above geometry tag in
@@ -234,7 +234,8 @@ let bench () =
     let tint = time 200 (fun () -> Pick.tint piece.output lit) in
     let mesh = time 200 (fun () -> Rdk_rays.Rays_mesh.to_mesh geometry) in
     let lit_mesh = time 200 (fun () ->
-      Rdk_rays.Rays_mesh.to_mesh (Pick.tint piece.output lit).geometry) in
+      Rdk_rays.Rays_mesh.to_mesh
+        (Result.get_ok (Procedural.Payload.geometry (Result.get_ok (Pick.tint piece.output lit)).payload))) in
     let quiet = time 200 (fun () -> cooked ~cook lowered ~prepared) in
     let cook = cooked ~lit ~cook lowered ~prepared in
     let held = time 200 (fun () -> cooked ~lit ~cook lowered ~prepared) in

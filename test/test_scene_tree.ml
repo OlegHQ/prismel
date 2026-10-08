@@ -52,7 +52,7 @@ let run () =
       ~lens:{ aperture = 0.3; focus_distance = None }
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks;
-        Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+        Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   let count = ref 0 in
@@ -330,7 +330,7 @@ let run () =
   (* what was written opens as the same scene *)
   let reopened = E.create ~await:true ~workspace:(Ws_fixture.of_text (source env))
     ~lens:{ aperture = 0.3; focus_distance = None }
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   check (labelled reopened = labelled env) "the saved text does not open as the edited scene";
@@ -359,7 +359,7 @@ let run () =
     let env = E.create ~await:true ~workspace ~domains ~grain:16 ~max_entries:4
         ~max_payload_bytes:(16 * 1024 * 1024)
         ~prepare:(fun _ output ->
-          let points = Rdk.Geometry.positions output.Session.geometry in
+          let points = Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) in
           Ok (Digest.string (String.concat "," (List.init (Rdk.Packed.Float3.length points)
             (fun index -> let x, y, z = Rdk.Packed.Float3.get points index in
               Printf.sprintf "%h %h %h" x y z)))))
@@ -378,7 +378,7 @@ let run_host () =
   let lights = [ Light.directional ~direction:(Vec3.create (-1.) (-1.) (-1.)) ~diffuse:Color.white () ] in
   let open_text text =
     E.create ~await:true ~lights ~world:World.default ~workspace:(Ws_fixture.of_text text)
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   let count = ref 0 in

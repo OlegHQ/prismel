@@ -2,6 +2,7 @@ open Rays
 open Editor_document
 open Procedural
 open Common
+module Image = Rays.Image
 
 let set_ui_cursor ui visible =
   let shape = match if visible then Pxui.Ui.cursor ui else None with

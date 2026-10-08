@@ -95,10 +95,10 @@ type prepared = { mode : Renderer.t; traced : P.mesh option; raster : Scene3.nod
   wire : Scene3.node option; triangles : int; instances : int }
 
 let prepare mode (output : Session.output) =
-  let packed = Option.map (fun transforms -> output.geometry, transforms) output.instances in
+  let packed = Option.map (fun transforms -> (Result.get_ok (Procedural.Payload.geometry output.payload)), transforms) output.instances in
   let geometry, instances = match packed with
     | Some (prototype, transforms) -> prototype, Array.length transforms
-    | None -> output.geometry, 0 in
+    | None -> (Result.get_ok (Procedural.Payload.geometry output.payload)), 0 in
   let topology = Rdk.Geometry.topology geometry in
   let triangles = ref 0 in
   for primitive = 0 to Rdk.Topology.primitive_count topology - 1 do
@@ -291,10 +291,10 @@ let () =
         match Session.cook session ~context graph with
         | Error error -> failwith (name ^ ": " ^ Diagnostic.error_to_string error)
         | Ok output ->
-            if Rdk.Geometry.point_count output.geometry = 0 then
+            if Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 0 then
               failwith (name ^ ": empty geometry");
             Printf.printf "%s: %d points, %d instances\n%!" name
-              (Rdk.Geometry.point_count output.geometry)
+              (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)))
               (Option.fold ~none:0 ~some:Array.length output.instances)) graphs);
     exit 0
   end;

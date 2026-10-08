@@ -171,7 +171,8 @@ module Private : sig
     module Set : Set.S with type elt = int
     val tags : Rdk.Geometry.t -> int array option
     (** The [__flow_src] tag of every primitive, when the geometry has them. *)
-    val tint : Procedural.Session.output -> Set.t -> Procedural.Session.output
+    val tint : Procedural.Session.output -> Set.t ->
+      (Procedural.Session.output, Procedural.Diagnostic.error) result
     (** The primitives whose tag is in the set take the selection tint, the
         rest are dimmed (a vertex [Cd]); the empty set changes nothing. *)
   end

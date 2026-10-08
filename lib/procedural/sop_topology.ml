@@ -22,7 +22,7 @@ module Edge_divide = struct
     let group = optional_text parameters.group in
     let divisions = parameters.divisions in
     let share_points = parameters.share_points in
-    Node.Private.make ?label ~operation:"edge_divide" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_divide" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -91,7 +91,7 @@ module Edge_collapse = struct
     let position = parameters.position in
     let remove_degenerate_primitives = parameters.remove_degenerate_primitives in
     let recompute_point_normals = parameters.recompute_point_normals in
-    Node.Private.make ?label ~operation:"edge_collapse" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_collapse" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -165,7 +165,7 @@ module Dissolve = struct
     let remove_unused_points = parameters.remove_unused_points in
     let create_boundary_curves = parameters.create_boundary_curves in
     let recompute_normals = parameters.recompute_normals in
-    Node.Private.make ?label ~operation:"dissolve" ~version:1
+    Node.Private.make_geometry ?label ~operation:"dissolve" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -204,7 +204,7 @@ module Triangulate = struct
   let build = parameters_build (fun ~label parameters input ->
     let label = Some label in
     let group = optional_text parameters.group in
-    Node.Private.make ?label ~operation:"triangulate" ~version:2
+    Node.Private.make_geometry ?label ~operation:"triangulate" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -251,7 +251,7 @@ module Edge_flip = struct
     let cycles = parameters.cycles in
     let cycle_vertex_attributes = parameters.cycle_vertex_attributes in
     let recompute_point_normals = parameters.recompute_point_normals in
-    Node.Private.make ?label ~operation:"edge_flip" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_flip" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -292,7 +292,7 @@ module Edge_cusp = struct
     let label = Some label in
     let group = optional_text parameters.group in
     let update_point_normals = parameters.update_point_normals in
-    Node.Private.make ?label ~operation:"edge_cusp" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_cusp" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -332,7 +332,7 @@ module Edge_straighten = struct
     let label = Some label in
     let group = optional_text parameters.group in
     let output_group = optional_text parameters.output_group in
-    Node.Private.make ?label ~operation:"edge_straighten" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_straighten" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -410,7 +410,7 @@ module Poly_extrude = struct
     let front_boundary_group = optional_text parameters.front_boundary_group in
     let back_boundary_group = optional_text parameters.back_boundary_group in
     let distance = parameters.distance in
-    Node.Private.make ?label ~operation:"poly_extrude" ~version:2
+    Node.Private.make_geometry ?label ~operation:"poly_extrude" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -478,7 +478,7 @@ module Poly_fill = struct
     let unique_points = parameters.unique_points in
     let update_point_normals = parameters.update_point_normals in
     let patch_group = optional_text parameters.patch_group in
-    Node.Private.make ?label ~operation:"poly_fill" ~version:1
+    Node.Private.make_geometry ?label ~operation:"poly_fill" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -535,7 +535,7 @@ module Convert_line = struct
     let make_isolated_loops_closed = parameters.make_isolated_loops_closed in
     let remove_unused_points = parameters.remove_unused_points in
     let length_attribute = optional_text parameters.length_attribute in
-    Node.Private.make ?label ~operation:"convert_line" ~version:2
+    Node.Private.make_geometry ?label ~operation:"convert_line" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -587,7 +587,7 @@ module Blast = struct
     let policy = parameters.policy in
     let owner = parameters.owner in
     let group = parameters.group in
-    Node.Private.make ?label ~operation:"blast" ~version:1
+    Node.Private.make_geometry ?label ~operation:"blast" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -640,7 +640,7 @@ module Crease = struct
     let operation = parameters.operation in
     let weight = parameters.weight in
     let add_vertex_color = parameters.add_vertex_color in
-    Node.Private.make ?label ~operation:"crease" ~version:1
+    Node.Private.make_geometry ?label ~operation:"crease" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -687,7 +687,7 @@ module Poly_path = struct
     let maximum_distance = parameters.maximum_distance in
     let connect_only_to_other_end_points = parameters.connect_only_to_other_end_points in
     let make_isolated_loops_closed = parameters.make_isolated_loops_closed in
-    Node.Private.make ?label ~operation:"poly_path" ~version:1
+    Node.Private.make_geometry ?label ~operation:"poly_path" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -729,7 +729,7 @@ module Ends = struct
     let label = Some label in
     let group = optional_text parameters.group in
     let mode = parameters.mode in
-    Node.Private.make ?label ~operation:"ends" ~version:1
+    Node.Private.make_geometry ?label ~operation:"ends" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -780,7 +780,7 @@ module Reverse = struct
     let operation = match operation with
       | Reverse -> Rdk.Reverse_faces.Reverse_vertices
       | Shift -> Rdk.Reverse_faces.Shift_vertices shift in
-    Node.Private.make ?label ~operation:"reverse" ~version:2
+    Node.Private.make_geometry ?label ~operation:"reverse" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -813,7 +813,7 @@ module Compact_points = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label _parameters input ->
     let label = Some label in
-    Node.Private.make ?label ~operation:"compact_points" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"compact_points" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         match Rdk.Compact_points.run ~cancel:(Context.cancel_token context)
@@ -857,7 +857,7 @@ module Edge_equalize = struct
     let iterations = parameters.iterations in
     let tolerance = parameters.tolerance in
     let output_group = optional_text parameters.output_group in
-    Node.Private.make ?label ~operation:"edge_equalize" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_equalize" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -943,7 +943,7 @@ module Remesh = struct
     let output_quality = optional_text parameters.output_quality in
     let recompute_point_normals = parameters.recompute_point_normals in
     let target_length = parameters.target_length in
-    Node.Private.make ?label ~operation:"remesh" ~version:1
+    Node.Private.make_geometry ?label ~operation:"remesh" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1031,7 +1031,7 @@ module Resample = struct
     let segments = if use_segments then Some segments else None in
     let maximum_segment_length = if use_maximum_segment_length
       then Some maximum_segment_length else None in
-    Node.Private.make ?label ~operation:"resample" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"resample" ~version:2 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         let primitives = match group with
@@ -1122,7 +1122,7 @@ module Carve = struct
     let extract_points = parameters.extract_points in
     let divisions = parameters.divisions in
     let keep_original = parameters.keep_original in
-    Node.Private.make ?label ~operation:"carve" ~version:7
+    Node.Private.make_geometry ?label ~operation:"carve" ~version:7
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1195,7 +1195,7 @@ module Poly_loft = struct
     let recompute_normals = parameters.recompute_normals in
     let output_group = optional_text output_group in
     let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
-    Node.Private.make ?label ~operation:"poly_loft" ~version:1
+    Node.Private.make_geometry ?label ~operation:"poly_loft" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs
@@ -1264,7 +1264,7 @@ module Skin = struct
     let recompute_normals = parameters.recompute_normals in
     let output_group = optional_text output_group in
     let inputs = match rest with None -> [|input|] | Some rest -> [|input; rest|] in
-    Node.Private.make ?label ~operation:"skin" ~version:1
+    Node.Private.make_geometry ?label ~operation:"skin" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs
@@ -1359,7 +1359,7 @@ module Poly_bridge = struct
       invalid_arg "Sop.poly_bridge: empty source edge group name";
     if String.trim destination_group = "" then
       invalid_arg "Sop.poly_bridge: empty destination edge group name";
-    Node.Private.make ?label ~operation:"poly_bridge" ~version:1
+    Node.Private.make_geometry ?label ~operation:"poly_bridge" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -1425,7 +1425,7 @@ module Circle_from_edges = struct
     let output_group = optional_text parameters.output_group in
     let radius = if use_radius then Some radius else None in
     let scale = vec3_copy scale in
-    Node.Private.make ?label ~operation:"circle_from_edges" ~version:1
+    Node.Private.make_geometry ?label ~operation:"circle_from_edges" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1482,7 +1482,7 @@ module Convex_hull = struct
     let selection = optional_element_group group_owner group in
     let source_point_attribute = optional_text source_point_attribute in
     let hull_group = optional_text hull_group in
-    Node.Private.make ?label ~operation:"convex_hull" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"convex_hull" ~version:1 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         match resolve_element_group ~operation:"convex_hull" selection inputs.(0) with
@@ -1546,7 +1546,7 @@ module Edge_relax = struct
     let tolerance = parameters.tolerance in
     let input = source in
     let group = optional_element_group group_owner group in
-    Node.Private.make ?label ~operation:"edge_relax" ~version:1
+    Node.Private.make_geometry ?label ~operation:"edge_relax" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input;reference|] (fun ~node_id:_ context inputs ->
@@ -1614,7 +1614,7 @@ module Point_split = struct
     let tolerance = parameters.tolerance in
     let promote_attributes = parameters.promote_attributes in
     let selection = optional_element_group group_owner group in
-    Node.Private.make ?label ~operation:"point_split" ~version:2
+    Node.Private.make_geometry ?label ~operation:"point_split" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -1670,7 +1670,7 @@ module Rewire_vertices = struct
     let owner = parameters.owner in
     let target_attribute = parameters.target_attribute in
     let selection = optional_element_group selection_owner selection in
-    Node.Private.make ?label ~operation:"rewire_vertices" ~version:1
+    Node.Private.make_geometry ?label ~operation:"rewire_vertices" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -1778,7 +1778,7 @@ module Revolve = struct
     let cap_group = if caps then optional_text cap_group else None
     and uv_attribute = optional_text uv_attribute in
     let origin = vec3_copy origin and axis = vec3_copy axis in
-    Node.Private.make ?label ~operation:"revolve" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"revolve" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         let geometry = inputs.(0) in
@@ -1893,7 +1893,7 @@ module Clean = struct
       | Clean_overlap_auto -> None
       | Clean_keep_first -> Some Rdk.Clean.Keep_first_overlap
       | Clean_delete_pairs -> Some Rdk.Clean.Delete_overlap_pairs in
-    Node.Private.make ?label ~operation:"clean" ~version:2
+    Node.Private.make_geometry ?label ~operation:"clean" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -1960,7 +1960,7 @@ module Join_curves = struct
     let group = optional_text group in
     let picked_ends = decode_curve_join_picks picked_ends in
     let group_size = if use_group_size then Some group_size else None in
-    Node.Private.make ?label ~operation:"join_curves" ~version:4
+    Node.Private.make_geometry ?label ~operation:"join_curves" ~version:4
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -2070,7 +2070,7 @@ module Blast_by_attribute = struct
     let output = match output with
       | Blast_delete -> Rdk.Blast_by_attribute.Blast_delete
       | Blast_group -> Rdk.Blast_by_attribute.Blast_group output_group in
-    Node.Private.make ?label ~operation:"blast_by_attribute" ~version:1
+    Node.Private.make_geometry ?label ~operation:"blast_by_attribute" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -2174,7 +2174,7 @@ module Facet = struct
     let consolidate_distance = match consolidation with Consolidation_points -> Some consolidate_distance | _ -> None in
     let consolidate_normals_distance = match consolidation with Consolidation_normals -> Some consolidate_normals_distance | _ -> None in
     let cusp_angle = match cusp_mode with Kernel_explicit -> Some cusp_angle | Kernel_auto -> None in
-    Node.Private.make ?label ~operation:"facet" ~version:4
+    Node.Private.make_geometry ?label ~operation:"facet" ~version:4
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -2254,7 +2254,7 @@ module Poly_cut = struct
       | Cut_all -> Rdk.Poly_cut.Poly_cut_all
       | Cut_crossing -> Rdk.Poly_cut.Poly_cut_crossing {attribute;value}
       | Cut_change -> Rdk.Poly_cut.Poly_cut_change {attribute;threshold} in
-    Node.Private.make ?label ~operation:"poly_cut" ~version:1
+    Node.Private.make_geometry ?label ~operation:"poly_cut" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -2357,7 +2357,7 @@ module Poly_reduce = struct
       | Reduce_ratio -> Rdk.Poly_reduce.Reduce_ratio ratio
       | Reduce_primitive_count -> Rdk.Poly_reduce.Reduce_primitive_count primitive_count in
     let max_normal_deviation = if limit_normal_deviation then Some max_normal_deviation else None in
-    Node.Private.make ?label ~operation:"poly_reduce" ~version:1
+    Node.Private.make_geometry ?label ~operation:"poly_reduce" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -2482,7 +2482,7 @@ module Sweep = struct
     let backbone_group = optional_text backbone_group and cross_section_group = optional_text cross_section_group
     and cap_group = if caps then optional_text cap_group else None
     and uv_attribute = optional_text uv_attribute in
-    Node.Private.make ?label ~operation:"sweep" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"sweep" ~version:1 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|backbone; cross_section|] (fun ~node_id:_ context inputs ->
         let resolve input_index description name = match name with
@@ -2569,7 +2569,7 @@ module Boolean_seam = struct
     let coincident_group = parameters.coincident_group in
     let left_self_group = optional_text left_self_group and between_group = optional_text between_group
     and right_self_group = optional_text right_self_group and coincident_group = optional_text coincident_group in
-    Node.Private.make ?label ~operation:"boolean_seam" ~version:1
+    Node.Private.make_geometry ?label ~operation:"boolean_seam" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|left;right|] (fun ~node_id:_ context inputs ->
@@ -2650,7 +2650,7 @@ module Poly_bevel = struct
     and edge_group = optional_text edge_group and corner_group = optional_text corner_group
     and offset_group = optional_text offset_group in
     let ignore_flat_angle = if ignore_flat_angle > 0. then Some ignore_flat_angle else None in
-    Node.Private.make ?label ~operation:"poly_bevel" ~version:1
+    Node.Private.make_geometry ?label ~operation:"poly_bevel" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -2741,7 +2741,7 @@ module Boolean_fracture = struct
     let assume_flat = parameters.assume_flat in
     let require_closed = parameters.require_closed in
     let piece_attribute = parameters.piece_attribute in
-    Node.Private.make ?label ~operation:"boolean" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"boolean" ~version:1 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs:[|source;cutters|]
       (fun ~node_id:_ context inputs ->
         match Rdk.Boolean.run ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
@@ -2812,7 +2812,7 @@ module Intersection_analysis = struct
     and primitive_uvw_attribute = optional_text primitive_uvw_attribute and point_attribute = optional_text point_attribute in
     let inputs = match collision with None -> [|input|]
       | Some collision -> [|input; collision|] in
-    Node.Private.make ?label ~operation:"intersection_analysis" ~version:1
+    Node.Private.make_geometry ?label ~operation:"intersection_analysis" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs
       (fun ~node_id:_ context inputs ->
@@ -2997,7 +2997,7 @@ module Fuse = struct
     let attribute_rules = decode_fuse_attribute_rules "Sop.fuse" attribute_rules
     and group_rules = decode_fuse_group_rules "Sop.fuse" group_rules in
     let inputs = match target with None -> [|input|] | Some node -> [|input;node|] in
-    Node.Private.make ?label ~operation:"fuse" ~version:6
+    Node.Private.make_geometry ?label ~operation:"fuse" ~version:6
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs
@@ -3172,7 +3172,7 @@ module Subdivide = struct
     and resulting_crease_group = optional_text resulting_crease_group and hole_group = optional_text hole_group in
     let crease_weight = match crease_weight_mode with Kernel_auto -> None | Kernel_explicit -> Some crease_weight in
     let inputs = match creases with None -> [|input|] | Some creases -> [|input; creases|] in
-    Node.Private.make ?label ~operation:"subdivide" ~version:13
+    Node.Private.make_geometry ?label ~operation:"subdivide" ~version:13
       ~parameters:""
       ~cook_mode:(match creases with None -> Node.Duplicate_input 0 | Some _ -> Node.Generic)
       ~dependencies:Context.Dependencies.static ~inputs
@@ -3344,7 +3344,7 @@ module Boolean = struct
     let require_closed = match require_closed with Closed_default -> None | Closed_required -> Some true | Closed_not_required -> Some false in
     let piece_attribute = optional_text piece_attribute and left_piece_group = optional_text left_piece_group
     and overlap_piece_group = optional_text overlap_piece_group and right_piece_group = optional_text right_piece_group in
-    Node.Private.make ?label ~operation:"boolean" ~version:1
+    Node.Private.make_geometry ?label ~operation:"boolean" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|left; right|] (fun ~node_id:_ context inputs ->
@@ -3429,7 +3429,7 @@ module Boolean_detect = struct
     if List.length groups <> List.length (List.sort_uniq String.compare groups) then refuse "group outputs must have distinct names";
     let inputs = match collision with None -> [|input|]
       | Some collision -> [|input; collision|] in
-    Node.Private.make ?label ~operation:"boolean_detect" ~version:1
+    Node.Private.make_geometry ?label ~operation:"boolean_detect" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs (fun ~node_id:_ context inputs ->
@@ -3614,7 +3614,7 @@ module Triangulate_2d = struct
     and constraint_primitive_group = optional_text constraint_primitive_group and split_point_group = optional_text split_point_group
     and refinement_point_group = optional_text refinement_point_group and triangle_group = optional_text triangle_group
     and constraint_group = optional_text constraint_group in
-    Node.Private.make ?label ~operation:"triangulate_2d" ~version:12
+    Node.Private.make_geometry ?label ~operation:"triangulate_2d" ~version:12
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -3800,7 +3800,7 @@ module Polywire = struct
     and segment_seam_attribute = optional_text segment_seam_attribute and v_attribute = optional_text v_attribute
     and up_attribute = optional_text up_attribute and uv_range_attribute = optional_text uv_range_attribute in
     let cap_group = if caps then optional_text cap_group else None in
-    Node.Private.make ?label ~operation ~version:7
+    Node.Private.make_geometry ?label ~operation ~version:7
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->

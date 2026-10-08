@@ -197,17 +197,17 @@ let lights = [
 
 let prepare output =
   match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece"
-      output.Session.geometry with
+      (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) with
   | Some attribute ->
       (match Rdk.Attribute.Private.storage attribute with
        | Rdk.Attribute.Int _ | Text _ ->
            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece"
-             output.geometry
+             (Result.get_ok (Procedural.Payload.geometry output.payload))
            |> Result.map (fun pieces -> Pieces pieces)
-       | _ -> Rdk_rays.Rays_mesh.to_mesh output.geometry
+       | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
            |> Result.map (fun mesh -> Mesh mesh)
            |> Result.map_error Rdk.Error.to_string)
-  | None -> Rdk_rays.Rays_mesh.to_mesh output.geometry
+  | None -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
       |> Result.map (fun mesh -> Mesh mesh)
       |> Result.map_error Rdk.Error.to_string
 

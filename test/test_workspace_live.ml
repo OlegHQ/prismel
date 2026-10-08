@@ -56,7 +56,7 @@ let frame p ~time =
   let context = Procedural.Context.create ~domains:p.domains ~grain:97 ~seed:42L ()
     |> Result.get_ok in
   match Session.cook p.session ~context node with
-  | Ok output -> resolved, output.geometry
+  | Ok output -> resolved, (Result.get_ok (Procedural.Payload.geometry output.payload))
   | Error e -> fail (Procedural.Diagnostic.error_to_string e)
 
 let small = {|(workspace w
@@ -184,7 +184,7 @@ let run () =
   let objects = Lower.objects orrery in
   let digest geometry = Digest.string (geometry_bytes geometry) in
   let cook = ref (Result.get_ok (Cook.create ~await:true
-    ~prepare:(fun _ output -> Ok (digest output.Session.geometry))
+    ~prepare:(fun _ output -> Ok (digest (Result.get_ok (Procedural.Payload.geometry output.Session.payload))))
     ~seed:42L ~grain:97 ~domains:1 ~max_entries:512
     ~max_payload_bytes:(256 * 1024 * 1024) ())) in
   Cook.set_volatile !cook (Lower.is_volatile orrery);

@@ -93,7 +93,7 @@ let points_node mesh transforms =
 
 let prepare settings (output : Session.output) =
   let s = Settings.get settings_schema settings in
-  let geometry = output.geometry in
+  let geometry = (Result.get_ok (Procedural.Payload.geometry output.payload)) in
   let transforms = Option.value ~default:[| Mat4.identity |] output.instances in
   let topology = Rdk.Geometry.topology geometry in
   let triangles = ref 0 in

@@ -19,7 +19,7 @@ module Merge = struct
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label parameters inputs ->
-    Node.Private.make ~label ~operation:"merge" ~version:1 ~parameters:""
+    Node.Private.make_geometry ~label ~operation:"merge" ~version:1 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:(Array.of_list inputs) (fun ~node_id:_ context inputs ->
         match Rdk.Mesh_merge.run ~cancel:(Context.cancel_token context)
@@ -73,7 +73,7 @@ module Line = struct
           parameters.direction_z in
     let length = parameters.length in
     let origin = vec3_copy origin and direction = vec3_copy direction in
-    Node.Private.make ?label ~operation:"line" ~version:1
+    Node.Private.make_geometry ?label ~operation:"line" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
@@ -116,7 +116,7 @@ module Mirror = struct
     let normal = Vec3.create parameters.normal_x parameters.normal_y
           parameters.normal_z in
     let origin = vec3_copy origin and normal = vec3_copy normal in
-    Node.Private.make ?label ~operation:"mirror" ~version:1
+    Node.Private.make_geometry ?label ~operation:"mirror" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -157,7 +157,7 @@ module Match_axis = struct
     let into = Vec3.create parameters.into_x parameters.into_y
           parameters.into_z in
     let from = vec3_copy from and into = vec3_copy into in
-    Node.Private.make ?label ~operation:"match_axis" ~version:1
+    Node.Private.make_geometry ?label ~operation:"match_axis" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -204,7 +204,7 @@ module Noise_displace = struct
     in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("noise_displace:" ^ label)) label in
-    Node.Private.make ?label ~operation:"noise_displace" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"noise_displace" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
       (fun ~node_id context inputs ->
         let identity = Option.value ~default:(Int64.of_int node_id) stable_identity in
@@ -263,7 +263,7 @@ module Separate_pieces = struct
     let mode = parameters.mode in
     let piece_attribute = parameters.piece_attribute in
     let axis = vec3_copy axis in
-    Node.Private.make ?label ~operation:"separate_pieces" ~version:1
+    Node.Private.make_geometry ?label ~operation:"separate_pieces" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -371,7 +371,7 @@ module Box = struct
     let face_groups = optional_text parameters.face_groups in
     let size = vec3_copy size and center = vec3_copy center
     and rotation = vec3_copy rotation in
-    Node.Private.make ?label ~operation:"box" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"box" ~version:2 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
         match Rdk.Box_generator.box ~cancel:(Context.cancel_token context)
@@ -496,7 +496,7 @@ module Sort = struct
       | Sort_shift -> Rdk.Ordering.Shift shift in
     let owner_key = match owner with Rdk.Ordering.Points -> "points"
       | Rdk.Ordering.Primitives -> "primitives" in
-    Node.Private.make ?label ~operation:"sort" ~version:2
+    Node.Private.make_geometry ?label ~operation:"sort" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -530,7 +530,7 @@ module Null = struct
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label _parameters input ->
     let label = Some label in
-    Node.Private.make ?label ~operation:"null" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"null" ~version:1 ~parameters:""
       ~cook_mode:(Node.Passthrough 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs -> cooked inputs.(0))
   )
@@ -565,7 +565,7 @@ module Switch = struct
     let inputs = Array.of_list (a :: b :: inputs) and index = parameters.input in
     if index < 0 || index >= Array.length inputs then
       invalid_arg "Sop.switch: input is outside the connected branches";
-    Node.Private.make ~label ~operation:"switch" ~version:1 ~parameters:""
+    Node.Private.make_geometry ~label ~operation:"switch" ~version:1 ~parameters:""
       ~cook_mode:(Node.Passthrough index)
       ~dependencies:Context.Dependencies.static ~input_policy:(Node.Private.Only index)
       ~inputs (fun ~node_id:_ _context selected -> cooked selected.(0)))
@@ -629,7 +629,7 @@ module Extract_centroid = struct
           owner = Rdk.Curve_topology.Centroid_piece_points; attribute = piece_attribute }
       | Primitive_pieces -> Rdk.Curve_topology.Centroid_pieces {
           owner = Rdk.Curve_topology.Centroid_piece_primitives; attribute = piece_attribute } in
-    Node.Private.make ?label ~operation:"extract_centroid" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"extract_centroid" ~version:1 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         match Rdk.Curve_topology.extract_centroid ~cancel:(Context.cancel_token context)
@@ -680,7 +680,7 @@ module Peak = struct
     let recompute_normals = parameters.recompute_normals in
     let selection = optional_element_group group_owner group in
     let direction_attribute = optional_text direction_attribute in
-    Node.Private.make ?label ~operation:"peak" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"peak" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         match resolve_element_group ~operation:"peak" selection inputs.(0) with
@@ -788,7 +788,7 @@ module Bend = struct
     let selection = optional_element_group group_owner group in
     let origin = vec3_copy origin and direction = vec3_copy direction
     and up = vec3_copy up in
-    Node.Private.make ?label ~operation:"bend" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"bend" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         match resolve_element_group ~operation:"bend" selection inputs.(0) with
@@ -896,7 +896,7 @@ module Clip = struct
     let selection = optional_element_group group_owner group in
     let clip_attribute = Option.value ~default:"P" (optional_text clip_attribute) in
     let origin = vec3_copy origin and normal = vec3_copy normal in
-    Node.Private.make ?label ~operation:"clip" ~version:5
+    Node.Private.make_geometry ?label ~operation:"clip" ~version:5
       ~parameters:"" ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
@@ -998,7 +998,7 @@ module Smooth = struct
     let mode = match mode with
       | Laplacian -> Rdk.Attribute_ops.Laplacian step
       | Custom -> Rdk.Attribute_ops.Custom_steps { odd = odd_step; even = even_step } in
-    Node.Private.make ?label ~operation:"smooth" ~version:1
+    Node.Private.make_geometry ?label ~operation:"smooth" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -1116,7 +1116,7 @@ module Bound = struct
       | Box -> Rdk.Bound.Bound_box { divisions = divisions_x, divisions_y, divisions_z }
       | Sphere -> Rdk.Bound.Bound_sphere { segments; rings; minimum_radius } in
     let lower_padding = vec3_copy lower and upper_padding = vec3_copy upper in
-    Node.Private.make ?label ~operation:"bound" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"bound" ~version:1 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
         match resolve_element_group ~operation:"bound" selection inputs.(0) with
@@ -1277,7 +1277,7 @@ module Match_size = struct
       | None -> Some (vec3_copy target_center), Some (vec3_copy target_size) in
     let offset = vec3_copy offset in
     let inputs = match target with None -> [|input|] | Some target -> [|input; target|] in
-    Node.Private.make ?label ~operation:"match_size" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"match_size" ~version:2 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs
       (fun ~node_id:_ context inputs ->
         let source = inputs.(0)
@@ -1342,7 +1342,7 @@ module Point_generate = struct
     let source_index_attribute = parameters.source_index_attribute in
     let points = parameters.points in
     let mode = Rdk.Point_generate.Generate_total points in
-    Node.Private.make ?label ~operation:"point_generate" ~version:1
+    Node.Private.make_geometry ?label ~operation:"point_generate" ~version:1
       ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
@@ -1464,7 +1464,7 @@ module Platonic = struct
       | Axis_z -> Rdk.Parametric_generators.Platonic_z
       | Axis_custom -> Rdk.Parametric_generators.Platonic_axis (vec3_copy axis) in
     let center = vec3_copy center and rotation = vec3_copy rotation in
-    Node.Private.make ?label ~operation:"platonic" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"platonic" ~version:1 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
         match Rdk.Parametric_generators.platonic ~cancel:(Context.cancel_token context) ~kind
@@ -1591,7 +1591,7 @@ module Snap_to_grid = struct
     let attribute_rules = decode_fuse_attribute_rules "Sop.snap_to_grid" attribute_rules
     and group_rules = decode_fuse_group_rules "Sop.snap_to_grid" group_rules in
     let spacing = vec3_copy spacing and offset = vec3_copy offset in
-    Node.Private.make ?label ~operation:"snap_to_grid" ~version:3 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"snap_to_grid" ~version:3 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
@@ -1661,7 +1661,7 @@ module Point_jitter = struct
       | None -> Context.Dependencies.one Context.Dependencies.Seed in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("point_jitter:" ^ label)) label in
-    Node.Private.make ?label ~operation:"point_jitter" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"point_jitter" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
       (fun ~node_id context inputs ->
         let points = match group with
@@ -1731,7 +1731,7 @@ module Exploded_view = struct
 
   let build = parameters_build (fun ~label _parameters input ->
     let label = Some label in
-    Node.Private.make ?label ~operation:"exploded_view" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"exploded_view" ~version:1 ~parameters:""
       ~cook_mode:(Node.Passthrough 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ _context inputs -> cooked inputs.(0))
   )
@@ -1773,7 +1773,7 @@ module Copy_to_points = struct
     let source_group = optional_text source_group and target_group = optional_text target_group
     and piece_attribute = optional_text piece_attribute in
     let target_attributes = decode_copy_target_rules target_attributes in
-    Node.Private.make ?label ~operation:"copy_to_points" ~version:8
+    Node.Private.make_geometry ?label ~operation:"copy_to_points" ~version:8
       ~parameters:""
       ~cook_mode:Node.Generic
       ~dependencies:Context.Dependencies.static ~inputs:[|source; targets|]
@@ -2031,7 +2031,7 @@ module Spiral = struct
     let angle_attribute = optional_text angle_attribute and x_axis_attribute = optional_text x_axis_attribute
     and y_axis_attribute = optional_text y_axis_attribute and tangent_attribute = optional_text tangent_attribute
     and orient_attribute = optional_text orient_attribute and distance_attribute = optional_text distance_attribute in
-    Node.Private.make ?label ~operation:"spiral" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"spiral" ~version:1 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
         match Rdk.Spiral.run ~cancel:(Context.cancel_token context)
@@ -2162,7 +2162,7 @@ module Circle = struct
       | Plane_yz -> Rdk.Plane_generators.Circle_yz | Plane_axes -> Rdk.Plane_generators.Circle_axes {horizontal;vertical} in
     let radius_x = if radius_x_mode = Kernel_auto then None else Some radius_x
     and radius_y = if radius_y_mode = Kernel_auto then None else Some radius_y in
-    Node.Private.make ?label ~operation:"circle" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"circle" ~version:2 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
         match Rdk.Plane_generators.circle ~cancel:(Context.cancel_token context)
@@ -2301,7 +2301,7 @@ module Grid = struct
     let width = if width_mode = Kernel_auto then None else Some width
     and height = if height_mode = Kernel_auto then None else Some height in
     let uv_attribute = optional_text uv_attribute in
-    Node.Private.make ?label ~operation:"grid" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"grid" ~version:2 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ _context _inputs ->
         match Rdk.Plane_generators.grid ~cancel:(Context.cancel_token _context)
@@ -2491,7 +2491,7 @@ module Uv_sphere = struct
       | Axis_x -> Rdk.Uv_sphere.Sphere_x | Axis_y -> Rdk.Uv_sphere.Sphere_y
       | Axis_z -> Rdk.Uv_sphere.Sphere_z | Axis_custom -> Rdk.Uv_sphere.Sphere_axis (vec3_copy axis) in
     let center = vec3_copy center and rotation = vec3_copy rotation in
-    Node.Private.make ?label ~operation:"uv_sphere" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"uv_sphere" ~version:2 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
         match Rdk.Uv_sphere.run ~cancel:(Context.cancel_token context)
@@ -2691,7 +2691,7 @@ module Torus = struct
       | Axis_x -> Rdk.Parametric_generators.Torus_x | Axis_y -> Rdk.Parametric_generators.Torus_y
       | Axis_z -> Rdk.Parametric_generators.Torus_z | Axis_custom -> Rdk.Parametric_generators.Torus_axis (vec3_copy axis) in
     let center = vec3_copy center and rotation = vec3_copy rotation in
-    Node.Private.make ?label ~operation:"torus" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"torus" ~version:1 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
         match Rdk.Parametric_generators.torus ~cancel:(Context.cancel_token context)
@@ -2874,7 +2874,7 @@ module Tube = struct
       | Axis_x -> Rdk.Parametric_generators.Tube_x | Axis_y -> Rdk.Parametric_generators.Tube_y
       | Axis_z -> Rdk.Parametric_generators.Tube_z | Axis_custom -> Rdk.Parametric_generators.Tube_axis (vec3_copy axis) in
     let center = vec3_copy center and rotation = vec3_copy rotation in
-    Node.Private.make ?label ~operation:"tube" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"tube" ~version:1 ~parameters:""
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
       ~inputs:[||] (fun ~node_id:_ context _inputs ->
         match Rdk.Parametric_generators.tube ~cancel:(Context.cancel_token context)
@@ -2979,7 +2979,7 @@ module Mountain = struct
       | None -> Context.Dependencies.one Context.Dependencies.Seed in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("mountain:" ^ label)) label in
-    Node.Private.make ?label ~operation:"mountain" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"mountain" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
       (fun ~node_id context inputs ->
         let selection = match group with
@@ -3075,7 +3075,7 @@ module Extract_point_from_curve = struct
           Context.Dependencies.one Context.Dependencies.Time
       | Extract_point_constant | Extract_point_primitive_attribute ->
           Context.Dependencies.static in
-    Node.Private.make ?label ~operation:"extract_point_from_curve" ~version:1
+    Node.Private.make_geometry ?label ~operation:"extract_point_from_curve" ~version:1
       ~parameters:"" ~cook_mode:Node.Generic ~dependencies ~inputs:[|input|]
       (fun ~node_id:_ context inputs ->
         let geometry = inputs.(0) in
@@ -3182,7 +3182,7 @@ module Point_generate_from_input = struct
       | None -> Context.Dependencies.one Context.Dependencies.Seed in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("point_generate:" ^ label)) label in
-    Node.Private.make ?label ~operation:"point_generate" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"point_generate" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
       (fun ~node_id context inputs ->
         let geometry = inputs.(0) in
@@ -3366,7 +3366,7 @@ module Soft_transform = struct
     let matrix = Rdk.Transform_ops.compose_transform ~order ~rotation_order ~translate ~rotate ~scale
         ~shear:(Vec3.create shear_xy shear_xz shear_yz) ~uniform_scale ~pivot ~pivot_rotation ~invert ()
         |> Result.get_ok in
-    Node.Private.make ?label ~operation:"soft_transform" ~version:1
+    Node.Private.make_geometry ?label ~operation:"soft_transform" ~version:1
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]
@@ -3476,7 +3476,7 @@ module Scatter = struct
             (String.length value.density_attribute) }) density in
     let stable_identity = Option.map (fun label ->
       stable_string_hash ("scatter:" ^ label)) label in
-    Node.Private.make ?label ~operation:"scatter" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"scatter" ~version:2 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs:[|input|]
       (fun ~node_id context inputs ->
         let identity = Option.value ~default:(Int64.of_int node_id) stable_identity in
@@ -3678,7 +3678,7 @@ module Ray = struct
     and hit_group = optional_text hit_group and normal_attribute = optional_text normal_attribute
     and point_pattern = optional_text point_pattern and vertex_pattern = optional_text vertex_pattern
     and primitive_pattern = optional_text primitive_pattern and detail_pattern = optional_text detail_pattern in
-    Node.Private.make ?label ~operation:"ray" ~version:2 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"ray" ~version:2 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|source; collision|] (fun ~node_id:_ context inputs ->
         match resolve_element_group ~operation:"ray" selection inputs.(0) with
@@ -3897,7 +3897,7 @@ module Point_replicate = struct
         stable_string_hash ("point_replicate:" ^ label)) label in
     let inputs = match custom_shape with None -> [|input|]
       | Some custom_shape -> [|input;custom_shape|] in
-    Node.Private.make ?label ~operation:"point_replicate" ~version:1 ~parameters:""
+    Node.Private.make_geometry ?label ~operation:"point_replicate" ~version:1 ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies ~inputs
       (fun ~node_id context inputs ->
         let geometry = inputs.(0) in
@@ -4013,7 +4013,7 @@ module Duplicate = struct
     let preserve_groups = parameters.preserve_groups in
     let transform = Mat4.of_rows (m00,m01,m02,m03) (m10,m11,m12,m13) (m20,m21,m22,m23) (m30,m31,m32,m33) in
     let group = optional_text group and copy_group_prefix = optional_text copy_group_prefix in
-    Node.Private.make ?label ~operation:"duplicate" ~version:2
+    Node.Private.make_geometry ?label ~operation:"duplicate" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
       ~inputs:[|input|] (fun ~node_id:_ context inputs ->
@@ -4196,7 +4196,7 @@ module Transform = struct
       | Transform_trs -> Rdk.Transform_ops.compose_transform ~order ~rotation_order ~translate ~rotate ~scale
           ~shear:(Vec3.create shear_xy shear_xz shear_yz) ~uniform_scale ~pivot ~pivot_rotation ~invert () |> Result.get_ok in
     let selection = optional_element_group group_owner group in
-    Node.Private.make ?label ~operation:"transform" ~version:2
+    Node.Private.make_geometry ?label ~operation:"transform" ~version:2
       ~parameters:""
       ~cook_mode:(Node.Duplicate_input 0)
       ~dependencies:Context.Dependencies.static ~inputs:[|input|]

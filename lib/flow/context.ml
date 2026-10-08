@@ -2,7 +2,7 @@ type t = string
 type descriptor = {name : string; result : Ty.t; supports_values : bool;
   label : string; color : Ty.color; group : string; catalog_prefix : string option}
 let sop = "sop" and value = "value" and draw = "draw" and scene = "scene"
-and world = "world" and settings = "settings" and editor = "editor" and material = "material"
+and world = "world" and settings = "settings" and editor = "editor" and material = "material" and image = "image"
 let entry name result supports_values label color group catalog_prefix =
   {name; result; supports_values; label; color; group; catalog_prefix}
 let registry = ref [
@@ -13,7 +13,8 @@ let registry = ref [
   entry editor Ty.editor false "Editor" `Int "Layout" None;
   entry settings Ty.settings false "Settings" `Bool "Settings" (Some "settings");
   entry value Ty.Float true "Value" `Float "Values" None;
-  entry draw Ty.drawing true "Drawing" `Vec3 "Drawing" None]
+  entry draw Ty.drawing true "Drawing" `Vec3 "Drawing" None;
+  entry image Ty.image true "Image" `Output "Images" (Some "image")]
 let all () = List.map (fun descriptor -> descriptor.name) !registry
 let descriptor id = List.find (fun descriptor -> descriptor.name = id) !registry
 let name id = (descriptor id).name

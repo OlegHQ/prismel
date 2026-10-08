@@ -54,7 +54,7 @@ let cast_material surface geometry ~origin ~direction =
 let dim = 0.3 and mix = 0.6
 
 let tint (output : Procedural.Session.output) lit =
-  let geometry = output.geometry in
+  Result.map (fun geometry ->
   match tags geometry with
   | Some tags when not (Set.is_empty lit) ->
       let topology = Rdk.Geometry.topology geometry in
@@ -91,6 +91,6 @@ let tint (output : Procedural.Session.output) lit =
            match Result.bind (Rdk.Attribute.create_key_owned
                (Rdk.Attribute.color ~owner:Rdk.Attribute.Vertex) colors)
                (fun attribute -> Rdk.Geometry.with_attribute attribute geometry) with
-           | Ok geometry -> { output with geometry }
+           | Ok geometry -> { output with payload=Procedural.Payload.Geometry geometry }
            | Error _ -> output)
-  | _ -> output
+  | _ -> output) (Procedural.Payload.geometry output.payload)

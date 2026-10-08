@@ -9,6 +9,30 @@ let read path = In_channel.with_open_bin path In_channel.input_all
 let cases = "../specification/workspace/cases"
 let factories = Sop_catalog.Editor.factories
 
+let () =
+  let catalog = Result.get_ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
+  let forms = Result.get_ok (Flow.Syntax.parse
+    "(workspace pixels (graph g :context image [] (let* [img (image/noise :width 17 :height 9 :frequency 0.12 :seed 31)] img)))") in
+  let checked = match Flow.Workspace.check catalog forms with
+    | Some checked, [] -> checked
+    | _, diagnostics -> fail (String.concat "\n" (List.map Flow.Diagnostic.to_string diagnostics)) in
+  let card = Projection.find (Projection.of_graph catalog checked "g") ["g";"img"] |> Option.get in
+  List.iter (fun name -> check (List.exists (fun (row : Projection.row) -> row.key=Flow_edit.Kw name) card.rows)
+    ("image/noise projects " ^ name)) ["width";"height";"frequency";"seed"];
+  let lowered = Lower.of_checked ~factories checked |> Result.get_ok in
+  let graph = List.hd lowered.graphs in
+  let node = Procedural.Edit_graph.compile_node graph.network.geometry ~node_id:(Option.get graph.root) |> Result.get_ok in
+  let session = Procedural.Session.create ~max_entries:16 ~max_payload_bytes:65536 |> Result.get_ok in
+  Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+    let context = Procedural.Context.create ~domains:8 ~grain:17 () |> Result.get_ok in
+    let image = Procedural.Session.cook session ~context node |> Result.get_ok
+      |> fun output -> Procedural.Payload.image output.payload |> Result.get_ok in
+    check (Procedural.Image.width image = 17 && Procedural.Image.height image = 9) "Lisp image/noise cooked dimensions");
+  let changed = Flow_edit.apply catalog forms (Flow_edit.Set_arg {
+    node=["g";"img"];key=Flow_edit.Kw "width";sub=[];
+    value=Flow.Syntax.parse "19" |> Result.get_ok |> List.hd}) in
+  check (Result.is_ok changed) "image/noise width edits through the graph"
+
 let lower ?inputs name =
   match Flow.Syntax.parse (read (Filename.concat cases (name ^ ".lisp"))) with
   | Error d -> fail (Flow.Diagnostic.to_string d)
@@ -50,7 +74,7 @@ let cook ~domains (graph : Lower.graph) =
           ~max_payload_bytes:(256 * 1024 * 1024) |> Result.get_ok in
       Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
         match Procedural.Session.cook session ~context compiled with
-        | Ok output -> Some output.geometry
+        | Ok output -> Some (Result.get_ok (Procedural.Payload.geometry output.payload))
         | Error error -> fail (Procedural.Diagnostic.error_to_string error))
 
 let fixtures = ["bloom"; "facade"; "garland"; "kit"; "orrery"; "rosette";
@@ -120,7 +144,7 @@ let optional_rest () =
     let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
     Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
       match Procedural.Session.cook session ~context (Procedural.Sop.merge nodes) with
-        | Ok output -> output.geometry | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
+        | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload)) | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
   List.iter (fun (result,nodes) ->
     let lowered=lower_text (source result) in
     let graph=List.hd lowered.graphs in
@@ -176,7 +200,7 @@ let attribute_composite () =
   let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
   let expected=Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
     match Procedural.Session.cook session ~context expected with
-    | Ok output -> geometry_bytes output.geometry
+    | Ok output -> geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload))
     | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
   let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
   List.iter (fun result ->
@@ -233,7 +257,7 @@ let blend_shapes () =
   let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
   let expected=Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
     match Procedural.Session.cook session ~context expected with
-    | Ok output -> geometry_bytes output.geometry
+    | Ok output -> geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload))
     | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
   let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
   List.iter (fun result ->

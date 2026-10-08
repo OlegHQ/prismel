@@ -6,7 +6,8 @@ type t = { preview : preview; transforms : Mat4.t array option;
 
 let of_output (output : Procedural.Session.output) =
   let ( let* ) = Result.bind in
-  let geometry = output.geometry in
+  let* geometry = Procedural.Payload.geometry output.payload
+    |> Result.map_error Procedural.Diagnostic.error_to_string in
   let needs_triangles = List.exists (fun name ->
     Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive name geometry <> None)
     ["piece"; "material_color"; "material_roughness"; "material_emission"] in

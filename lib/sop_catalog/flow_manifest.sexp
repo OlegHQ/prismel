@@ -3737,4 +3737,17 @@
         (field "height" "Height (on restart)" (folder) (int (soft 240 2160) (hard 64 nil)) (int 800) (primary false) (vec3))
         (field "fps" "Frames per second (on restart)" (folder) (int (soft 1 120) (hard 1 240)) (int 60) (primary false) (vec3))
         (field "seed" "Seed (on restart)" (folder) (int (soft 0 9999) (hard 0 nil)) (int 1) (primary false) (vec3)))
+      (outputs))
+    (kind "image/noise"
+      (key "noise")
+      (aliases)
+      (operation "image/noise")
+      (label "Noise")
+      (category "Image")
+      (slots)
+      (fields
+        (field "width" "Width" (folder) (int (soft 1 2048) (hard 1 nil)) (int 256) (primary false) (vec3))
+        (field "height" "Height" (folder) (int (soft 1 2048) (hard 1 nil)) (int 256) (primary false) (vec3))
+        (field "frequency" "Frequency" (folder) (float (soft 0 1) (hard 0 nil)) (float 0.02) (primary false) (vec3))
+        (field "seed" "Seed" (folder) (int (soft 0 9999) (hard nil nil)) (int 0) (primary false) (vec3)))
       (outputs))))

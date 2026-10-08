@@ -29,7 +29,7 @@ let cook domains graph =
   let result = Session.cook session ~context:(context domains) graph in
   Session.close session;
   match result with
-  | Ok output -> output.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let group_bits owner name geometry =

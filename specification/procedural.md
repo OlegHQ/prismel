@@ -43,8 +43,23 @@ dependencies, validation, diagnostics, cooking, inspection, and bounded
 session caches. It may use RDK and public Rays value semantics. It
 does not import Runtime, SDL3, Metal, or platform policy.
 
-Cooking produces an immutable `Rdk.Geometry.t`. An explicit bridge converts it
-to `Rays.Mesh.t`, which `Scene3` lowers through the native OGPU/Metal path.
+Cooking produces `Payload.Geometry of Rdk.Geometry.t` or `Payload.Image of Image.t`.
+The image stores row-major RGBA float samples in [0,1], four per pixel. Its
+constructor copies public input; its public pixel reader returns a copy.
+Images and geometry share `Rdk.Data_id.fresh`, so session component accounting
+cannot confuse their identities. An image contributes one component of
+`width * height * 4 * 8` bytes. Cache keys use payload identity; selective
+attribute keys, geometry deltas and instance materialization apply to geometry.
+`Payload.geometry` and `Payload.image` return `E_PAYLOAD` for the other variant.
+Existing SOPs use the geometry adapter and refuse image inputs at that boundary.
+
+`image/noise :width :height :frequency :seed` in an `image` graph cooks seeded
+grayscale noise with opaque alpha on the shared worker pool. Width and height
+default to 256, frequency to 0.02 and seed to 0. Domain count does not enter its
+cache key: one and eight domains produce identical samples.
+
+An explicit bridge converts geometry to `Rays.Mesh.t`, which `Scene3` lowers
+through the native OGPU/Metal path.
 A cook context may copy scalar facts from `Rays.Frame.t`, but
 it must not retain a canvas, renderer, texture, or backend handle.
 

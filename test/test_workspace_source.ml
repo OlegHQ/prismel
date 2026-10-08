@@ -120,7 +120,7 @@ let run_find () =
 
 let editor ?presets ~source text =
   E3.create ~await:true ~workspace:(Result.get_ok (Doc.of_text catalog text)) ?presets ~source
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Procedural.Session.geometry
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m

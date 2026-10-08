@@ -385,11 +385,13 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
           (* the triangles the scene draws: a polygon of n corners fans into n - 2 (exact for polygons, a
              count of corners and faces, not a walk of every face, for a frame's cost) *)
           let tris = List.fold_left (fun n (piece : _ Cook.piece) ->
-            let g = piece.output.Procedural.Session.geometry in
-            n + max 0 (Rdk.Geometry.vertex_count g - (2 * Rdk.Geometry.primitive_count g))) 0 (pieces value) in
+            match piece.output.Procedural.Session.payload with
+            | Payload.Image _ -> n
+            | Geometry g -> n + max 0 (Rdk.Geometry.vertex_count g - (2 * Rdk.Geometry.primitive_count g))) 0 (pieces value) in
           let objects = List.length (pieces value) in
-          let points = Option.map (fun (piece : _ Cook.piece) ->
-            Rdk.Geometry.point_count piece.output.Procedural.Session.geometry) (piece value) in
+          let points = Option.bind (piece value) (fun (piece : _ Cook.piece) ->
+            Option.map Rdk.Geometry.point_count
+              (Result.to_option (Payload.geometry piece.output.Procedural.Session.payload))) in
           (* the traced readout: its samples are the caption's "n/cap spp" *)
           let traced = List.assoc_opt key value.traces in
           (* a body about as wide as the workspace sheet's follows that sheet: the narrow traced

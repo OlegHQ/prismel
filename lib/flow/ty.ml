@@ -4,13 +4,15 @@ type t =
 
 type color = [ `Geometry | `Float | `Int | `Bool | `Vec3 | `Text | `Fn | `Record | `Output | `Compound ]
 type nominal = {name : string; shape : bool; color : color; default : Syntax.t option}
-let geometry = Named "geometry" and drawing = Named "drawing" and scene = Named "scene"
+let geometry = Named "geometry" and image = Named "image" and drawing = Named "drawing" and scene = Named "scene"
 and world = Named "world" and settings = Named "settings" and panel = Named "panel"
 and editor = Named "editor" and material = Named "material"
 let is_geometry ty = ty = geometry
+let is_cooked ty = ty = geometry || ty = image
 let nominal name ?(shape = true) ?(color = `Output) ?default () = {name; shape; color; default}
 let registry = ref [
   nominal "geometry" ~color:`Geometry ~default:(Syntax.make (Sym "nil")) ();
+  nominal "image" ();
   nominal "drawing" ~default:(Syntax.make (List [Syntax.make (Sym "draw/merge")])) ();
   nominal "scene" (); nominal "world" (); nominal "settings" ~shape:false ();
   nominal "panel" (); nominal "editor" (); nominal "material" ~shape:false ()]

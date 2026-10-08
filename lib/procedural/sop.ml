@@ -21,14 +21,14 @@ type element_group = Sop_support.element_group =
 let snapshot ?label geometry =
   let parameters = Printf.sprintf "data_id=%d;bytes=%d"
       (Rdk.Geometry.data_id geometry) (Rdk.Geometry.payload_bytes geometry) in
-  Node.Private.make ?label ~operation:"snapshot" ~version:1 ~parameters
+  Node.Private.make_geometry ?label ~operation:"snapshot" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs -> cooked geometry)
 
 let points ?label values =
   let values = Array.copy values in
   let parameters = Printf.sprintf "count=%d" (Array.length values) in
-  Node.Private.make ?label ~operation:"points" ~version:1 ~parameters
+  Node.Private.make_geometry ?label ~operation:"points" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs ->
       if Array.exists (fun (x, y, z) -> not (finite x && finite y && finite z)) values
@@ -43,7 +43,7 @@ let line = Sop_shapes.Line.fn
 let polyline ?label ?(closed = false) values =
   let values = Array.copy values in
   let parameters = Printf.sprintf "count=%d;closed=%b" (Array.length values) closed in
-  Node.Private.make ?label ~operation:"polyline" ~version:1 ~parameters
+  Node.Private.make_geometry ?label ~operation:"polyline" ~version:1 ~parameters
     ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static
     ~inputs:[||] (fun ~node_id:_ _context _inputs ->
       match Rdk.Line_geometry.polyline ~closed values with
@@ -318,7 +318,7 @@ let rename_edge_group = Sop_groups.Rename_edge_group.fn
 
 let group ?label ~name selection input =
   if String.trim name = "" then invalid_arg "Sop.group: empty name";
-  Node.Private.make ?label ~operation:"group" ~version:1
+  Node.Private.make_geometry ?label ~operation:"group" ~version:1
     ~parameters:(Printf.sprintf "name=%S;selection=%s" name
       (Select.fingerprint selection))
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
@@ -385,7 +385,7 @@ let custom ?label ?(version = 1) ?(parameters = "")
     ?(cook_mode = Node.Generic) ?(dependencies = Context.Dependencies.static)
     ~operation inputs cook =
   let inputs = Array.of_list inputs in
-  Node.Private.make ?label ~operation ~version ~parameters ~cook_mode
+  Node.Private.make_geometry ?label ~operation ~version ~parameters ~cook_mode
     ~dependencies ~inputs (fun ~node_id:_ context geometries ->
       if Context.cancelled context then
         Error (Diagnostic.error ~code:"cancelled"

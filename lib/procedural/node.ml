@@ -23,10 +23,14 @@ let conservative cook_mode = {cook_mode; elementwise = None; reads = ["*"];
 module Private_types = struct
   type input_policy = All | Only of int
   type cooked = {
+    payload : Payload.t;
+    diagnostics : Diagnostic.t list;
+    instances : Rays_math.Mat4.t array option;
+  }
+  type geometry_cooked = {
     geometry : Rdk.Geometry.t;
     diagnostics : Diagnostic.t list;
     instances : Rays_math.Mat4.t array option;
-    (** Packed: [geometry] is a prototype drawn at these transforms. *)
   }
 end
 
@@ -42,9 +46,9 @@ type t = {
   dependencies : Context.Dependencies.t;
   input_policy : Private_types.input_policy;
   inputs : t array;
-  cook : node_id:int -> Context.t -> Rdk.Geometry.t array ->
+  cook : node_id:int -> Context.t -> Payload.t array ->
     (Private_types.cooked, Diagnostic.error) result;
-  expand : (Context.t -> t array -> Rdk.Geometry.t array -> (t array, Diagnostic.error) result) option;
+  expand : (Context.t -> t array -> Payload.t array -> (t array, Diagnostic.error) result) option;
   parameterization : parameterization option;
 }
 and parameterization = Parameters : {
@@ -143,6 +147,25 @@ module Private = struct
     { id = fresh_id (); label; operation; version; parameters;
       parameter_key = ""; facts; facts_key = Marshal.to_string facts [Marshal.No_sharing];
       dependencies; input_policy; inputs; cook; expand; parameterization = None }
+
+  let geometries inputs =
+    let values = Array.map Payload.geometry inputs in
+    match Array.find_opt Result.is_error values with
+    | Some (Error error) -> Error error
+    | Some (Ok _) -> assert false
+    | None -> Ok (Array.map Result.get_ok values)
+
+  (* Existing SOP kernels stay geometry-only behind one typed variant boundary. *)
+  let make_geometry ?label ~operation ~version ~parameters ~cook_mode ~dependencies
+      ?input_policy ?expand ~inputs cook =
+    let expand = Option.map (fun expand context nodes inputs ->
+      Result.bind (geometries inputs) (expand context nodes)) expand in
+    make ?label ~operation ~version ~parameters ~cook_mode ~dependencies
+      ?input_policy ?expand ~inputs (fun ~node_id context inputs ->
+        Result.bind (geometries inputs) (fun inputs ->
+          Result.map (fun (cooked : geometry_cooked) ->
+            {payload=Payload.Geometry cooked.geometry; diagnostics=cooked.diagnostics;
+             instances=cooked.instances}) (cook ~node_id context inputs)))
 
   let cache_parameters value = match value.parameterization with
     | None -> value.parameters

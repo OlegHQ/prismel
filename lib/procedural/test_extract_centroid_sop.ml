@@ -21,7 +21,7 @@ let graph () = Sop.snapshot (source_geometry ())
 let cook session domains node =
   let context = Context.create ~domains ~grain:1 ~seed:9L () |> get in
   match Session.cook session ~context node with
-  | Ok output -> output.Session.geometry
+  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let signature geometry =

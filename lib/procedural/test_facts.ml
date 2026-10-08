@@ -26,7 +26,7 @@ let facts node reads writes = Node.Private.with_facts
     exact = false; reads; writes} node
 
 let counted source calls reads writes transform =
-  Node.Private.make ~label:"counted" ~operation:"facts_test" ~version:1 ~parameters:""
+  Node.Private.make_geometry ~label:"counted" ~operation:"facts_test" ~version:1 ~parameters:""
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|source|] (fun ~node_id:_ _ inputs ->
       incr calls;
@@ -49,29 +49,29 @@ let test_reuse volatile =
   let stats = Session.stats evaluator in
   check (stats.cooks = first_stats.cooks + 1 && stats.hits = first_stats.hits + 1)
     "color edit recooked the transform";
-  check (Geometry.positions first.geometry == Geometry.positions second.geometry)
+  check (Geometry.positions (Result.get_ok (Procedural.Payload.geometry first.payload)) == Geometry.positions (Result.get_ok (Procedural.Payload.geometry second.payload)))
     "cache hit did not share computed positions";
-  check (Geometry.topology second.geometry == Geometry.topology original)
+  check (Geometry.topology (Result.get_ok (Procedural.Payload.geometry second.payload)) == Geometry.topology original)
     "cache hit replaced topology";
-  check (Geometry.find_attribute ~owner:Attribute.Point "Cd" second.geometry =
+  check (Geometry.find_attribute ~owner:Attribute.Point "Cd" (Result.get_ok (Procedural.Payload.geometry second.payload)) =
     Geometry.find_attribute ~owner:Attribute.Point "Cd" updated) "cache hit returned stale color";
   let cold = session () in
-  check (geometry_bytes second.geometry = geometry_bytes (cook cold 1 node).geometry)
+  check (geometry_bytes (Result.get_ok (Procedural.Payload.geometry second.payload)) = geometry_bytes (Result.get_ok (Procedural.Payload.geometry (cook cold 1 node).payload)))
     "refreshed output differs from a cold cook";
   Session.close cold;
   let again = cook evaluator 8 node in
-  check (again.geometry == second.geometry) "warm hit churned geometry identity";
+  check ((Result.get_ok (Procedural.Payload.geometry again.payload)) == (Result.get_ok (Procedural.Payload.geometry second.payload))) "warm hit churned geometry identity";
   let removed = Geometry.without_attribute ~owner:Attribute.Point "Cd" updated in
   let extra = scalar ~owner:Attribute.Detail "extra" 1 3. in
   let added = Geometry.with_attribute extra removed |> get in
   let output = cook evaluator 1 (rewire node added) in
-  check (Geometry.find_attribute ~owner:Attribute.Point "Cd" output.geometry = None
-      && Geometry.find_attribute ~owner:Attribute.Detail "extra" output.geometry = Some extra)
+  check (Geometry.find_attribute ~owner:Attribute.Point "Cd" (Result.get_ok (Procedural.Payload.geometry output.payload)) = None
+      && Geometry.find_attribute ~owner:Attribute.Detail "extra" (Result.get_ok (Procedural.Payload.geometry output.payload)) = Some extra)
     "cache hit did not carry an attribute addition/removal";
   let renamed = Geometry.rename_attribute ~owner:Attribute.Detail ~from:"extra" ~into:"renamed" added |> get in
   let output = cook evaluator 1 (rewire node renamed) in
-  check (Geometry.find_attribute ~owner:Attribute.Detail "extra" output.geometry = None
-      && Geometry.find_attribute ~owner:Attribute.Detail "renamed" output.geometry <>
+  check (Geometry.find_attribute ~owner:Attribute.Detail "extra" (Result.get_ok (Procedural.Payload.geometry output.payload)) = None
+      && Geometry.find_attribute ~owner:Attribute.Detail "renamed" (Result.get_ok (Procedural.Payload.geometry output.payload)) <>
          None) "cache hit did not carry a rename";
   Session.clear evaluator;
   check ((Session.stats evaluator).retained_payload_bytes = 0
@@ -109,7 +109,7 @@ let test_dependencies () =
     ~name:"edges" (fun _ -> true) in
   ignore (cook evaluator 1 (rewire node (Geometry.with_edge_group edges changed_group |> get)));
   check (!calls = 6) "edge group did not invalidate";
-  let opaque = Node.Private.make ~operation:"opaque" ~version:1 ~parameters:""
+  let opaque = Node.Private.make_geometry ~operation:"opaque" ~version:1 ~parameters:""
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|Sop.snapshot geometry|] (fun ~node_id:_ _ inputs ->
       incr calls; Ok Node.Private.{geometry = inputs.(0); diagnostics = []; instances = None}) in
@@ -123,8 +123,8 @@ let test_dependencies () =
   ignore (cook evaluator 1 identity);
   let changed = changed_p |> with_color 4. in
   let output = cook evaluator 1 (rewire identity changed) in
-  check (!identity_calls = 1 && Geometry.positions output.geometry == Geometry.positions changed
-      && equal_geometry output.geometry changed) "read-free cache hit did not carry fresh P/attributes";
+  check (!identity_calls = 1 && Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload)) == Geometry.positions changed
+      && equal_geometry (Result.get_ok (Procedural.Payload.geometry output.payload)) changed) "read-free cache hit did not carry fresh P/attributes";
   Session.close evaluator
 
 let test_write_footprint () =
@@ -136,7 +136,7 @@ let test_write_footprint () =
   let evaluator = session () in
   ignore (cook evaluator 1 node);
   let output = cook evaluator 1 (rewire node geometry) in
-  check (!calls = 2 && Geometry.find_attribute ~owner:Attribute.Point "N" output.geometry = None)
+  check (!calls = 2 && Geometry.find_attribute ~owner:Attribute.Point "N" (Result.get_ok (Procedural.Payload.geometry output.payload)) = None)
     "adding an unread written attribute reused an incomplete delta";
   let cd = counted (Sop.snapshot (with_color 1. geometry)) calls ["P"] ["Cd"]
     (with_color 4.) in
@@ -144,11 +144,11 @@ let test_write_footprint () =
   let changed = geometry |> with_color 2.
     |> Geometry.with_attribute (scalar ~owner:Attribute.Primitive "Cd" (Geometry.primitive_count geometry) 3.) |> get in
   let second = cook evaluator 1 (rewire cd changed) in
-  check (Geometry.find_attribute ~owner:Attribute.Primitive "Cd" second.geometry =
+  check (Geometry.find_attribute ~owner:Attribute.Primitive "Cd" (Result.get_ok (Procedural.Payload.geometry second.payload)) =
       Geometry.find_attribute ~owner:Attribute.Primitive "Cd" changed)
     "writer discarded a different owner's attribute";
-  check (equal_attribute (Geometry.find_attribute ~owner:Attribute.Point "Cd" first.geometry |> Option.get)
-      (Geometry.find_attribute ~owner:Attribute.Point "Cd" second.geometry |> Option.get))
+  check (equal_attribute (Geometry.find_attribute ~owner:Attribute.Point "Cd" (Result.get_ok (Procedural.Payload.geometry first.payload)) |> Option.get)
+      (Geometry.find_attribute ~owner:Attribute.Point "Cd" (Result.get_ok (Procedural.Payload.geometry second.payload)) |> Option.get))
     "writer did not preserve its computed attribute";
   Session.close evaluator
 
@@ -167,7 +167,7 @@ let test_refusals () =
   rejects (node (fun _ -> fixture ()));
   rejects (node (fun geometry -> Geometry.with_group
     (Group.init ~owner:Group.Point ~name:"added" (Geometry.point_count geometry) (fun _ -> true)) geometry |> get));
-  let packed = Node.Private.make ~operation:"packed" ~version:1 ~parameters:""
+  let packed = Node.Private.make_geometry ~operation:"packed" ~version:1 ~parameters:""
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|Sop.snapshot geometry|] (fun ~node_id:_ _ inputs ->
       Ok Node.Private.{geometry = inputs.(0); diagnostics = []; instances = Some [|Rays_math.Mat4.identity|]})
@@ -184,10 +184,10 @@ let test_declarations () =
       (List.init (Edit_graph.factory_arity factory) (fun _ -> Some source)) |> get in
     let declaration = Node.facts node in
     if declaration.topology = Node.Preserved && declaration.cook_mode = Node.Duplicate_input 0 then begin
-      let input = (cook evaluator 1 source).geometry in
-      let one = (cook evaluator 1 node).geometry in
+      let input = (Result.get_ok (Procedural.Payload.geometry (cook evaluator 1 source).payload)) in
+      let one = (Result.get_ok (Procedural.Payload.geometry (cook evaluator 1 node).payload)) in
       let cold = session () in
-      let eight = (cook cold 8 node).geometry in
+      let eight = (Result.get_ok (Procedural.Payload.geometry (cook cold 8 node).payload)) in
       Session.close cold;
       check (Geometry.topology one == Geometry.topology input)
         (Node.operation node ^ " replaced Preserved topology");
@@ -202,9 +202,9 @@ let test_declarations () =
   check ((Node.facts noise).reads = ["P"]) "Height 2D noise reads unexpected planes";
   let noise, _ = Node.apply_parameters noise ["mode", Parameter.Choice_value "normal_3d"] |> get in
   check ((Node.facts noise).reads = ["P"; "N"]) "Normal 3D noise facts omit N";
-  let one = (cook evaluator 1 noise).geometry in
+  let one = (Result.get_ok (Procedural.Payload.geometry (cook evaluator 1 noise).payload)) in
   let cold = session () in
-  let eight = (cook cold 8 noise).geometry in
+  let eight = (Result.get_ok (Procedural.Payload.geometry (cook cold 8 noise).payload)) in
   check (geometry_bytes one = geometry_bytes eight) "Normal 3D SOP differs across domains";
   Session.close cold;
   let updated, _ = Node.apply_parameters peak ["direction_attribute", Parameter.Text_value "direction"] |> get in
@@ -218,7 +218,7 @@ let test_normals_order_and_diagnostics () =
   let warning message node_id = Diagnostic.{severity = Warning; code = "input_warning";
     message; node = {node_id; label = "source"; operation = "source"}} in
   let source_node geometry message =
-    Node.Private.make ~operation:"source" ~version:1
+    Node.Private.make_geometry ~operation:"source" ~version:1
       ~parameters:(string_of_int (Geometry.data_id geometry))
       ~cook_mode:Node.Generator ~dependencies:Context.Dependencies.static ~inputs:[||]
       (fun ~node_id _ _ -> Ok Node.Private.{geometry; diagnostics = [warning message node_id]; instances = None}) in
@@ -234,12 +234,12 @@ let test_normals_order_and_diagnostics () =
   check (List.map (fun (diagnostic : Diagnostic.t) -> diagnostic.message) output.diagnostics = ["new"])
     "cache hit retained inherited diagnostics";
   let cold = session () in
-  check (geometry_bytes output.geometry = geometry_bytes (cook cold 8 node).geometry)
+  check (geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)) = geometry_bytes (Result.get_ok (Procedural.Payload.geometry (cook cold 8 node).payload)))
     "normal cache refresh changed attribute order";
   Session.close cold;
   Session.close evaluator;
   let roots = [|source_node geometry "root-a"; source_node geometry "root-b"|] in
-  let zone = Node.Private.make ~operation:"zone_test" ~version:1 ~parameters:""
+  let zone = Node.Private.make_geometry ~operation:"zone_test" ~version:1 ~parameters:""
     ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
     ~expand:(fun _ _ _ -> Ok roots) ~inputs:[|source_node geometry "old"|]
     (fun ~node_id _ inputs -> Ok Node.Private.{geometry = inputs.(0);
@@ -265,10 +265,10 @@ let test_payload_budget () =
   let fresh_source = Sop.snapshot fresh in
   let next = Node.Private.rebuild_with_inputs node [|fresh_source|] in
   let updated = cook evaluator 1 next in
-  check (Geometry.positions updated.geometry == Geometry.positions output.geometry) "budget test missed reuse";
+  check (Geometry.positions (Result.get_ok (Procedural.Payload.geometry updated.payload)) == Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) "budget test missed reuse";
   let components = Hashtbl.create 8 in
   List.iter (fun geometry -> List.iter (fun (id, bytes) -> Hashtbl.replace components id bytes)
-    (Geometry.payload_components geometry)) [fresh; updated.geometry];
+    (Geometry.payload_components geometry)) [fresh; (Result.get_ok (Procedural.Payload.geometry updated.payload))];
   let bytes = Hashtbl.fold (fun _ bytes total -> total + bytes) components 0 in
   check ((Session.stats evaluator).retained_payload_bytes = bytes)
     "refresh retained the previous unread payload or lost reference counts";
@@ -296,7 +296,7 @@ let test_parameter_reads () =
   check ((Session.stats evaluator).cooks = before.cooks + 2)
     "existing height edit reused stale unselected mountain values";
   let cold = session () in
-  check (geometry_bytes output.geometry = geometry_bytes (cook cold 8 mountain).geometry)
+  check (geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)) = geometry_bytes (Result.get_ok (Procedural.Payload.geometry (cook cold 8 mountain).payload)))
     "mountain selected height output differs from a cold cook";
   Session.close cold;
   Session.close evaluator;
@@ -312,10 +312,10 @@ let test_parameter_reads () =
   let defaults = rewire defaults changed in
   let output = cook evaluator 1 defaults in
   check ((Session.stats evaluator).cooks = before.cooks + 2
-      && not (equal_geometry first.geometry output.geometry))
+      && not (equal_geometry (Result.get_ok (Procedural.Payload.geometry first.payload)) (Result.get_ok (Procedural.Payload.geometry output.payload))))
     "default mountain reused stale fallback normals";
   let cold = session () in
-  check (geometry_bytes output.geometry = geometry_bytes (cook cold 8 defaults).geometry)
+  check (geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)) = geometry_bytes (Result.get_ok (Procedural.Payload.geometry (cook cold 8 defaults).payload)))
     "default mountain normal edit differs from a cold cook";
   Session.close cold;
   Session.close evaluator

@@ -44,7 +44,7 @@ fun migration_input ->
     ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z
     migration_input)
       |> Sop.set_int ~owner:Rdk.Attribute.Primitive ~name:"piece" ~value:id in
-  let geometry = (cook 1 (Sop.merge [piece (-2.) 0; piece 2. 1])).geometry in
+  let geometry = (Result.get_ok (Procedural.Payload.geometry (cook 1 (Sop.merge [piece (-2.) 0; piece 2. 1])).payload)) in
   let group = Rdk.Group.init ~owner:Rdk.Group.Primitive ~name:"one_face"
       (Rdk.Geometry.primitive_count geometry) (( = ) 0) in
   let node = Rdk.Geometry.with_group group geometry |> get |> Sop.snapshot
@@ -94,7 +94,7 @@ let frame ?(buttons = []) ?(keys = []) mouse events count : Frame.t = {
 
 let editor () =
   E3.create ~await:true ~workspace:(workspace follow_source)
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
@@ -240,7 +240,7 @@ let carry_tests () =
       b = L.Split { axis = `H; size = `Ratio 0.62; a = L.Leaf L.Graph; b = L.Leaf L.Inspector } } } in
   let make ?(source = carry_source) ?carry_budget () =
     E3.create ~await:true ?carry_budget ~layout ~workspace:(workspace source)
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
     |> function Ok e -> e | Error m -> fail m in
@@ -530,7 +530,7 @@ let viewport_source = {|(workspace views
 
 let viewport_carry_tests () =
   let e = ref (E3.create ~await:true ~workspace:(workspace viewport_source)
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh output.Session.geometry
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
     |> function Ok e -> e | Error m -> fail m) and count = ref 0 in
@@ -606,9 +606,9 @@ let () =
       |> List.assoc "geo" in
   let node = graph in
   let one = cook 1 node and four = cook 4 node in
-  assert (signature one.geometry = signature four.geometry);
-  assert (Rdk.Geometry.primitive_count one.geometry = 6);
-  (match attr "shop_materialpath" one.geometry, attr "material_roughness" one.geometry with
+  assert (signature (Result.get_ok (Procedural.Payload.geometry one.payload)) = signature (Result.get_ok (Procedural.Payload.geometry four.payload)));
+  assert (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry one.payload)) = 6);
+  (match attr "shop_materialpath" (Result.get_ok (Procedural.Payload.geometry one.payload)), attr "material_roughness" (Result.get_ok (Procedural.Payload.geometry one.payload)) with
    | Rdk.Attribute.Text names, Float rough ->
        assert (names.(0) = "white" && rough.(0) = 0.8);
        assert (Array.sub names 1 5 = Array.make 5 "blue");
@@ -622,12 +622,12 @@ let () =
   let assign ?cancel ?group ?(roughness = 0.2) geometry =
     Rdk.Material_assign.run ?cancel ?group ~name:"red" ~color:(1.,0.,0.)
       ~roughness ~emission:(0.,0.,0.) geometry in
-  assert (Result.is_error (assign ~group:"missing" one.geometry));
-  assert (Result.is_error (assign ~roughness:Float.nan one.geometry));
+  assert (Result.is_error (assign ~group:"missing" (Result.get_ok (Procedural.Payload.geometry one.payload))));
+  assert (Result.is_error (assign ~roughness:Float.nan (Result.get_ok (Procedural.Payload.geometry one.payload))));
   let cancelled = Rdk.Cancel.create () in Rdk.Cancel.cancel cancelled;
-  (match assign ~cancel:cancelled one.geometry with
+  (match assign ~cancel:cancelled (Result.get_ok (Procedural.Payload.geometry one.payload)) with
    | Error e -> assert (Rdk.Error.code e = "cancelled") | _ -> assert false);
-  assert (signature one.geometry = signature (cook 1 node).geometry);
+  assert (signature (Result.get_ok (Procedural.Payload.geometry one.payload)) = signature (Result.get_ok (Procedural.Payload.geometry (cook 1 node).payload)));
   List.iter (fun text -> assert (Result.is_error (Rays_editor.Workspace.load text)))
     ["(workspace x (graph m :context material (material/standard :roughness 2)))";
      "(workspace x (graph m :context material (material/standard :color \"invalid\")))";
