@@ -1082,7 +1082,9 @@ compilation settings. The IR retains lexical provenance, cardinality origins,
 frame/event rates and exact/approximate precision. Its placement pass refuses
 approximate inputs to catalog calls, exports, state seeds and cache keys with
 `E_APPROX_SINK`; `(exact x)` is the explicit readback card. Current producers
-are exact, so its runtime value is unchanged. GPU readback is not implemented.
+are exact, so its runtime value is unchanged. A host GPU backend may place a
+covered approximable packed producer at a display sink after measured costs
+justify it; `(exact x)` explicitly materializes a selected GPU producer.
 
 The checker's `Workspace.approx` paths are advisory GPU eligibility, separate
 from an executed value's precision. Packed float/vec3 maps and one-clause
@@ -1378,3 +1380,20 @@ resources, releases each once on close, and returns `E_IMAGE` on resource failur
 Live rendering replaces pixels in the same owned image. SOP consumers receive an immutable
 RGBA snapshot resolved on the initial domain before a worker starts. `image/render` uses
 the native offscreen Metal Canvas, including during fixed-step export.
+
+`scene/geometry geometry :texture image` applies the same image as a texture
+without changing its transform, material or render state. The image card footer
+shows dimensions, and its inspector borrows an owned thumbnail through the
+existing UI image batch. `sop/attr_from_image geometry image :attribute "image"
+:channel "r" :uv "uv"` samples Point UV coordinates with clamped bilinear
+interpolation. Channels are `r`, `g`, `b`, `a`, and `luminance`;
+`sop/grid :uv_attribute "uv"` creates the required Point Float2 coordinates.
+
+GPU display values remain opaque identity/count/generation tokens. Workspace
+owners retain at most 64 producer runners, 64 pipelines and 64 styled drawing
+sinks, close sinks before their GPU lease, and reject stale generations. A
+four-byte status read validates finite shader outputs without reading back the
+packed array. Compile, GPU execution and explicit readback have separate tier
+reports. An absent native cost model keeps production on CPU. Fixed-step runs,
+exports and reference comparisons continue to use CPU execution; the unstable
+qualification hook exists only to exercise and measure native display selection.

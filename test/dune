@@ -48,7 +48,17 @@
  (name test_workspace_images)
  (modules test_workspace_images)
  (deps sdl3_image_fixtures/sample.png)
- (libraries rays rays_editor editor_document sketch_support flow flow_sop scene_command procedural sop_catalog))
+ (libraries rays rays_editor editor_document sketch_support flow flow_sop scene_command procedural sop_catalog pxui))
+
+(executable
+ (name test_workspace_images_native)
+ (modules test_workspace_images_native)
+ (libraries rays rays_editor editor_document flow unix))
+
+(rule
+ (alias runtest-native)
+ (locks smoke_window)
+ (action (run %{exe:test_workspace_images_native.exe})))
 
 (rule
  (alias runtest)

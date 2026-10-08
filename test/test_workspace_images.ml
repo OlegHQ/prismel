@@ -17,6 +17,16 @@ let ()=
     assert(Rays.Image.get_size image=(2,2));
     assert(ok(Editor.Private.image owner value)==image);
     let oracle=Result.get_ok(Rays.Image.Private.pixels image)in
+    let ui=Pxui.Ui.create()in
+    Fun.protect ~finally:(fun()->Pxui.Ui.destroy ui)(fun()->
+      let frame:Rays.Frame.t={width=32;height=32;size=32,32;drawable_width=32;drawable_height=32;
+        drawable_size=32,32;pixel_scale=1.,1.;time=0.;dt=0.;fps=60.;count=0;
+        mouse=0.,0.;mouse_delta=0.,0.;keys=[];mouse_buttons=[];events=[]}in
+      Pxui.Ui.frame ui frame(fun ui->
+        let box=Pxui.Ui.box ui ~w:(Px 16.) ~h:(Px 16.) "image"in
+        Pxui.Ui.draw ui box(fun paint(x,y,w,h)->Pxui.Ui.Paint.image paint ~x ~y ~w ~h image));
+      assert(Pxui.Ui.scene ui<>[]));
+    assert(Result.get_ok(Rays.Image.Private.pixels image)=oracle);
     let prepared=ok(Sketch_support.Drawing.prepare evaluated.plan(List.assoc "picture" evaluated.results))in
     let commands=ref None in
     List.iter(fun(reference,domains)->Rays.Parallel.run ~domains(fun()->
@@ -76,3 +86,17 @@ let ()=
         assert(Result.get_ok(Procedural.Payload.image output.payload)==payload)) [1;8]));
   assert(!calls=1);
   print_endline "images: resources snapshot before worker submission, exact one/eight-domain payload identity passed"
+
+let ()=
+  let texture=Rays.Scene3.textured(Rays.Texture.init ~width:2 ~height:2(fun ~x:_ ~y:_->Rays.Color.white))in
+  let scene=Rays.Scene3.create ~samples:4 ~ambient:Rays.Color.red
+    [Rays.Scene3.translate (Rays.Vec3.create 2. 3. 4.)
+      [Rays.Scene3.with_blend Add [Rays.Scene3.with_depth(Rays.Scene3.depth_state ~write:false())
+        [Rays.Scene3.plane ~cull:Cull_front ~width:2. ~height:3.()]]]]in
+  let textured=Rays.Scene3.Private.with_texture texture scene in
+  List.iter2(fun original textured->
+    assert(textured.Rays.Scene3.Private.texture=Some texture);
+    assert({textured with texture=None}=original))
+    (Rays.Scene3.Private.drawings scene)(Rays.Scene3.Private.drawings textured);
+  assert(Rays.Scene3.Private.samples textured=4 && Rays.Scene3.Private.ambient textured=Rays.Color.red);
+  print_endline "Scene image textures preserve affine, cull, blend, depth and scene settings"
