@@ -42,7 +42,8 @@ val source_attribute : string
 
 type image_resolver = Flow.Eval.plan -> state:Flow.Eval.state -> live:Frame_input.t -> Flow.Eval.value ->
   (Procedural.Image.t, Flow.Diagnostic.t) result
-val with_images : image_resolver -> (unit -> 'a) -> 'a
+val with_images : ?metadata:(Flow.Eval.plan -> int -> (int * int) option) -> image_resolver -> (unit -> 'a) -> 'a
+val image_metadata : Flow.Eval.plan -> int -> (int * int) option
 (** Scope an initial-domain resource resolver around value-lane resolution.
     Loaded/rendered image nodes become immutable CPU snapshots before workers run. *)
 

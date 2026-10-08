@@ -37,11 +37,14 @@ let edit = function Ok value -> value | Error message -> fail "E_LOWER" message
 
 type image_resolver = E.plan -> state:E.state -> live:Frame_input.t -> E.value ->
   (Procedural.Image.t, Diagnostic.t) result
+type images = {resolve:image_resolver; metadata:E.plan -> int -> (int * int) option}
 let image_provider = Domain.DLS.new_key (fun () -> None)
-let with_images resolver run =
+let with_images ?(metadata=fun _ _->None) resolver run =
   let previous=Domain.DLS.get image_provider in
-  Domain.DLS.set image_provider (Some resolver);
+  Domain.DLS.set image_provider (Some {resolve=resolver;metadata});
   Fun.protect ~finally:(fun()->Domain.DLS.set image_provider previous) run
+let image_metadata plan = match Domain.DLS.get image_provider with
+  |None->(fun _->None)|Some images->images.metadata plan
 let resource_image operation result =
   Procedural.Node.Private.make ~operation ~version:1
     ~parameters:(match result with Ok image->string_of_int(Procedural.Image.data_id image)|Error _->"unbound")
@@ -464,8 +467,10 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           then nodes else Network.Int_map.add compiled.(n.id)(fun state live node->
             match Domain.DLS.get image_provider with
             |None->Error(Diagnostic.error ~code:"E_IMAGE" "Image resources need an initial-domain resolver.")
-            |Some resolve->Result.map(fun image->Procedural.Node.Private.adopt_identity ~source:node
-                (resource_image n.kind (Ok image)))(resolve plan ~state ~live (E.Deferred(Ty.image,n.id))))nodes)
+            |Some images->Result.map(fun image->
+                if Procedural.Node.parameters node=string_of_int(Procedural.Image.data_id image) then node else
+                Procedural.Node.Private.adopt_identity ~source:node (resource_image n.kind (Ok image)))
+              (images.resolve plan ~state ~live (E.Deferred(Ty.image,n.id))))nodes)
         frame_nodes plan.nodes in
       let network = Network.with_frame_nodes frame_nodes network in
       let drives = List.fold_left (fun drives (p : pending) ->

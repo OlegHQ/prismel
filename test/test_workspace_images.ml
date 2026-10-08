@@ -29,6 +29,16 @@ let ()=
       ())) [false,1;false,1;false,1;false,8;true,1;true,8];
     assert(Editor.Private.image_stats owner=(1,0)));
   assert(Editor.Private.image_stats owner=(1,1));
+  let doc=load "(workspace images (graph a :context image (image/load \"sdl3_image_fixtures/sample.png\")) \
+    (graph b :context image (image/load \"sdl3_image_fixtures/sample.png\")) \
+    (graph picture :context draw (draw/merge (draw/image (ref a)) (draw/image (ref b)))))"in
+  let owner=editor doc in
+  Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+    let evaluated=ok(E.static doc.checked)in
+    let a=ok(Editor.Private.image owner(List.assoc "a" evaluated.results))in
+    let b=ok(Editor.Private.image owner(List.assoc "b" evaluated.results))in
+    assert(a==b && Editor.Private.image_stats owner=(1,0)));
+  assert(Editor.Private.image_stats owner=(1,1));
   let doc=workspace "(image/load \"sdl3_image_fixtures/sample.png\")"in
   let owner=editor doc in
   let evaluated=ok(E.static doc.checked)in

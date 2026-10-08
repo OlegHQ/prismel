@@ -247,6 +247,16 @@ let skips () =
     | None -> fail "an iteration that ran has no plan node") [ 0; 2; 3 ]
 
 let run () =
+  let images=T.workspace_of "(workspace w (graph g :context value (let* [picture (image/noise :width 3 :height 2)] 0)))" in
+  let evaluated=Result.get_ok(Flow.Eval.static ~record:true images) in
+  let preview=Probe.make evaluated in
+  let node=T.node images "g" ["picture"] in
+  check ((Probe.footer preview node ~probes:[]).value="3 × 2 image") "image footer reports noise dimensions";
+  let dimensions=ref(Some(3,2))in
+  let borrowed=Probe.make ~image:(fun _-> !dimensions) evaluated in
+  ignore(Probe.footer borrowed node ~probes:[]);
+  dimensions:=Some(7,5);
+  check((Probe.footer borrowed node ~probes:[]).value="7 × 5 image") "borrowed image dimensions refresh without cooking in a probe";
   let w = T.workspace_of "(workspace w (graph g :context value (let* [tick (state [n 0] (+ n 1))] tick)))" in
   let evaluated = Result.get_ok (Flow.Eval.static ~record:true w) in
   let state = Flow.Eval.create_state () in

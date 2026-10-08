@@ -194,6 +194,8 @@ val with_world : World.baked -> t -> t
     material mapping and the light cap. *)
 
 module Private : sig
+  val with_texture : texture -> t -> t
+
   type drawing = {
     mesh : Mesh.t;
     material : Material.t;

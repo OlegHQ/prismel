@@ -184,7 +184,7 @@ let spreadsheet_source value =
         Option.bind (node_owner value node_id) (fun object_id -> Cook.source value.cook ~object_id ~node_id))
   | _ -> None
 
-let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None) ?(follows = fun _ -> None) value ui ~width path =
+let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized = fun _ _ -> None) ?(follows = fun _ -> None) value ui ~width path =
   let module P = Flow_graph.Projection in
   let module Probe = Flow_graph.Probe in
   let module S = Flow.Syntax in
@@ -227,6 +227,19 @@ let workspace_inspector ?(window = false) ?(on_choice = fun _ _ -> ()) ?(resized
            let chain = Option.value ~default:[] (Hashtbl.find_opt chains n.path) in
            let probes = probes_of value chains n.path in
            let footer = Probe.footer records n ~probes in
+           let preview=match Probe.at records n.path ~probes with
+             |Some(Probe.Value(Flow.Eval.Deferred(Flow.Ty.Named "image",id)))->image id
+             |Some(Probe.Image preview)->image preview.node
+             |_->None in
+           Option.iter(fun image->
+             let w,h=Rays.Image.get_size image in
+             Pxui.Ui.inspector_readout ui ~width ~key:"image-size" ~label:"image"
+               (Printf.sprintf "%d × %d" w h);
+             let height=min 160.(width *. float h /. float w)in
+             let box=Pxui.Ui.box ui ~w:(Px width) ~h:(Px height) "image-thumbnail"in
+             Pxui.Ui.draw ui box(fun paint(x,y,width,height)->
+               let scale=min(width /. float w)(height /. float h)in
+               Pxui.Ui.Paint.image paint ~x ~y ~w:(float w *. scale) ~h:(float h *. scale)image))preview;
            (* a loop or scope says what it is, then the rows of its rail (what it runs over, what it feeds back,
               what it only reads), as the study's inspector does *)
            let zone_text = Option.map (fun (z : P.zone) -> match z.kind with

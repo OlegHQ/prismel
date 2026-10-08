@@ -7,8 +7,9 @@ type entry={image:Image.t;mutable payload:CPU.t;mutable texture:(Texture.t,strin
   mutable frame:Frame_input.t option}
 type t={resources:Workspace_resources.t;mutable plan:E.plan option;mutable serial:int;
   mutable arguments:I.program option array;mutable drawings:Sketch_support.Drawing.prepared option array;
+  mutable resolved:entry option array;
   mutable entries:(string*entry)list}
-let create resources={resources;plan=None;serial=0;arguments=[||];drawings=[||];entries=[]}
+let create resources={resources;plan=None;serial=0;arguments=[||];drawings=[||];resolved=[||];entries=[]}
 let error message=Flow.Diagnostic.error ~code:"E_IMAGE" message
 let message result=Result.map_error error result
 let (let*)=Result.bind
@@ -32,7 +33,8 @@ let prepare t plan =
       Result.map Option.some (I.compile(E.Record n.args))else Ok None)plan.E.nodes in
     match Array.find_opt Result.is_error programs with Some(Error d)->Error d|_->
       t.plan<-Some plan;t.serial<-t.serial+1;t.arguments<-Array.map Result.get_ok programs;
-      t.drawings<-Array.make(Array.length plan.nodes)None;Ok()
+      t.drawings<-Array.make(Array.length plan.nodes)None;
+      t.resolved<-Array.make(Array.length plan.nodes)None;Ok()
 let rec resolve t ~state ~live plan value =
   if not(Domain.is_main_domain())then Error(error "Image resources must resolve on the initial domain.")else
   let* ()=prepare t plan in
@@ -53,7 +55,7 @@ let rec resolve t ~state ~live plan value =
         let dynamic=List.exists(fun(_,v)->E.is_live v)node.args || (node.kind="image/render"
           && Array.exists(fun(n:E.node)->List.exists(fun(_,v)->E.is_live v)n.args)plan.nodes)in
         let previous=List.assoc_opt key t.entries in
-        (match previous with Some entry when not dynamic || Option.fold ~none:false ~some:(Frame_input.equal live)entry.frame->Ok entry
+        let result=(match previous with Some entry when not dynamic || Option.fold ~none:false ~some:(Frame_input.equal live)entry.frame->Ok entry
         |_->
           let* ()=if previous=None && List.length t.entries>=64 then Error(error "A workspace owns at most 64 image snapshots.")else Ok()in
           let* image,payload=match node.kind with
@@ -93,10 +95,13 @@ let rec resolve t ~state ~live plan value =
           let entry=match previous with
             |Some entry->entry.payload<-payload;entry.texture<-texture payload;entry.frame<-Some live;entry
             |None->{image;payload;texture=texture payload;frame=Some live}in
-          if previous=None then t.entries<-(key,entry)::t.entries;Ok entry)
+          if previous=None then t.entries<-(key,entry)::t.entries;Ok entry)in
+        Result.map(fun entry->t.resolved.(id)<-Some entry;entry)result
     |_->Error(error "Expected an image value.")
     with V.Fail(code,message,span)->Error(Flow.Diagnostic.error ?span ~code message)
       |Invalid_argument message|Failure message->Error(error message))
 let image t ~state ~live plan value=Result.map(fun entry->entry.image)(resolve t ~state ~live plan value)
 let payload t plan ~state ~live value=Result.map(fun entry->entry.payload)(resolve t ~state ~live plan value)
 let texture t ~state ~live plan value=Result.bind(resolve t ~state ~live plan value)(fun entry->message(Lazy.force entry.texture))
+let peek t plan id=if t.resources.closed || not(Option.fold ~none:false ~some:((==)plan)t.plan)
+  || id<0 || id>=Array.length t.resolved then None else Option.map(fun entry->entry.image)t.resolved.(id)

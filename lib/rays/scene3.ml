@@ -194,6 +194,17 @@ let cone ?material ?texture ?mode ?cull ?shading
 let with_world baked scene = { scene with world = Some baked }
 
 module Private = struct
+  let with_texture texture scene =
+    let rec node=function
+      |Mesh(mesh,material,_,mode,cull,shading)->Mesh(mesh,material,Some texture,mode,cull,shading)
+      |Instances(mesh,material,_,mode,cull,shading,transforms)->Instances(mesh,material,Some texture,mode,cull,shading,transforms)
+      |Group children->Group(List.map node children)
+      |Transform(matrix,children)->Transform(matrix,List.map node children)
+      |Depth_state(state,children)->Depth_state(state,List.map node children)
+      |Stencil_state(state,children)->Stencil_state(state,List.map node children)
+      |Raster_state(state,children)->Raster_state(state,List.map node children)
+      |Blend_state(state,children)->Blend_state(state,List.map node children)in
+    {scene with nodes=List.map node scene.nodes}
   type drawing = {
     mesh : Mesh.t;
     material : Material.t;

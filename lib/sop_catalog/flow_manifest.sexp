@@ -3485,7 +3485,7 @@
       (operation "geometry")
       (label "Geometry")
       (category "Object")
-      (slots (slot "geometry" required))
+      (slots (slot "geometry" required) (slot "texture" optional image))
       (fields
         (field "name" "Name" (folder) (text) (text "") (primary false) (vec3))
         (field "parent" "Parent" (folder) (text) (text "") (primary false) (vec3))

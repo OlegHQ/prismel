@@ -280,6 +280,9 @@ val set_text_state : t -> box -> string option -> unit
 module Paint : sig
   type t
 
+  val image : t -> x:float -> y:float -> w:float -> h:float -> Rays.Image.t -> unit
+  (** Borrow a host-owned image for this frame through the normal UI texture batch. *)
+
   val fill :
     t -> x:float -> y:float -> w:float -> h:float -> ?radius:float ->
     Rays.Color.t -> unit

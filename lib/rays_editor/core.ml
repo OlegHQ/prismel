@@ -3,7 +3,7 @@ open Procedural
 open Editor_document
 include Core_host
 
-let update_frame ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
+let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state (frame : Frame.t) =
   let carrying = value.carry <> None in
   let live_frame=Sketch_support.Live_frame.of_frame frame in
@@ -679,7 +679,7 @@ let update_frame ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~
                    a carried payload can be put, gathered here and returned with the rows' requests *)
                 let drops = ref [] in
                 let requests, moves = inspector_panel ui bounds (fun () ->
-                  workspace_inspector ~window value ui ~width:(float (let _, _, w, _ = bounds in max 1 w)) path ~resized
+                  workspace_inspector ~image ~window value ui ~width:(float (let _, _, w, _ = bounds in max 1 w)) path ~resized
                     ~follows:(fun path -> follow_target ~path value)
                     ~on_choice:(fun name box -> if name = "@ref:material" then
                       Option.iter (fun d -> drops := (Carry.Node path, (match d with
@@ -1068,11 +1068,11 @@ let update_frame ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~
         text_intents = []; open_graph;
         settings_changes = []; handle_changes = None; bar_action = None; view_pick = None; drops = [] } in
   reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~leader ~frame ~hud ~actions ~guide ~copied ~steady ~status_fps ~status_fps_at ~timeline ~timeline_changes ~graph_shown ~text ~text_shown ~row_sets ~rows value result
-let update ?(host_events=[]) value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render_status
+let update ?(image=fun _->None) ?(host_events=[]) value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render_status
     ~error_status ~view_state (frame : Frame.t) =
   let update, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
   let value, frame, carry_changed = carry_step value ~text_focus frame in
-  update_frame ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
+  update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state frame) in
   if update.core.doc == value.doc then update
   else { update with core = { update.core with edit_phases = phases } }

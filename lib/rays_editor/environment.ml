@@ -250,7 +250,7 @@ type 'prepared t = {
   status : 'prepared option -> string option;  (* sketch text in the status bar *)
   rendered : V.rendered option;
   views : (string * V.rendered) list;  (* viewports over another scene instance *)
-  drawn : (Graph.t * 'prepared * V.rendered) Document.Int_map.t;  (* per object *)
+  drawn : (Graph.t * 'prepared * V.rendered * Texture.t option) Document.Int_map.t;  (* per object *)
   composed : (Edit_graph.t * Document.level * (string * int list) list) option;
   resolved : (Document.t * Frame_input.t * Edit_graph.t) option;
   context_error : string option;
@@ -411,6 +411,7 @@ let level value = match value.core.Core.level with
 let scene_document value = Core.scene value.core
 let same_context (a : Document.t) (b : Document.t) =
   a.scene.graph.geometry == b.scene.graph.geometry && a.scene_drives == b.scene_drives
+    && a.scene_textures == b.scene_textures
 let resolved_scene value = match value.resolved with
   | Some (doc, _, scene) when same_context doc value.core.Core.doc -> scene
   | _ -> Core.scene value.core
@@ -501,23 +502,36 @@ let composition_key core scene = scene, core.Core.level,
   (match core.Core.doc.Document.shell with Some shell -> shell.views | None -> [])
 
 let compose value (update : (_, _) Core.update) ~baked ~baked_views ~scene =
+  let live={update.core.live_frame with t=Sketch_support.Timeline.time(Core.timeline update.core);
+    frame=Int64.to_int(Sketch_support.Timeline.frame(Core.timeline update.core))}in
+  let plan=(snd update.core.doc.workspace).plan in
+  let textures,errors=Document.Int_map.fold(fun id source (textures,errors)->
+    match Workspace_images.texture value.host.images ~state:update.core.cook.state ~live plan source with
+    |Ok texture->Document.Int_map.add id texture textures,errors
+    |Error diagnostic->textures,Flow.Diagnostic.to_string diagnostic::errors)
+    update.core.doc.scene_textures (Document.Int_map.empty,[])in
+  let texture_changed=Document.Int_map.exists(fun id(_,_,_,previous)->
+    not(Option.equal (==) previous (Document.Int_map.find_opt id textures)))value.drawn in
   let scene, level, views = composition_key update.core scene in
   let same = match value.composed with
     | Some (s, l, v) -> s == scene && l = level && v = views
     | None -> false in
-  if not (update.prepared_changed || update.scene_changed || update.effects.view
+  if not (texture_changed || update.prepared_changed || update.scene_changed || update.effects.view
       || update.effects.export || not same || baked != value.baked || baked_views != value.baked_views
       || value.rendered = None)
-  then value.rendered, value.views, value.drawn
+  then value.rendered, value.views, value.drawn,errors
   else
     let placed = Core.placed_pieces ~view:`All update.core in
     let drawn = List.fold_left (fun drawn (_, (piece : _ Cook.piece)) ->
+        let texture=Document.Int_map.find_opt piece.id textures in
         match Document.Int_map.find_opt piece.id value.drawn with
-        | Some (graph, prepared, rendered) when graph == piece.graph && prepared == piece.prepared ->
-            Document.Int_map.add piece.id (graph, prepared, rendered) drawn
+        | Some (graph, prepared, rendered,previous) when graph == piece.graph && prepared == piece.prepared
+            && Option.equal (==) previous texture ->
+            Document.Int_map.add piece.id (graph, prepared, rendered,texture) drawn
         | Some _ | None ->
-            Document.Int_map.add piece.id
-              (piece.graph, piece.prepared, value.draw piece.graph piece.prepared) drawn)
+            let scene=value.draw piece.graph piece.prepared in
+            let scene=Option.fold ~none:scene ~some:(fun texture->Scene3.Private.with_texture(Scene3.textured texture)scene)texture in
+            Document.Int_map.add piece.id (piece.graph, piece.prepared, scene,texture) drawn)
         Document.Int_map.empty placed in
     let waiting = placed = [] && Core.geometry_objects update.core <> []
         && Core.pieces update.core = [] in
@@ -528,7 +542,7 @@ let compose value (update : (_, _) Core.update) ~baked ~baked_views ~scene =
     let compose_pieces ?(world = baked) view pieces = V.compose ~scene:(Core.scene_for_view ~scene ~view update.core)
       ~world
       (List.map (fun (matrix, (piece : _ Cook.piece)) ->
-         let _, _, rendered = Document.Int_map.find piece.id drawn in
+         let _, _, rendered,_ = Document.Int_map.find piece.id drawn in
          matrix, ghost piece.id, rendered) pieces) in
     (* a viewport over another scene instance: its own objects, its own World.  Viewports over
        the very same instance with the same World show one picture: it is composed once, so
@@ -554,7 +568,7 @@ let compose value (update : (_, _) Core.update) ~baked ~baked_views ~scene =
               compose_pieces ~world:world view (Core.placed_pieces ~view update.core) in
         (key, scene, instance, world) :: composed) [] (view_keys update.core)) in
     (if waiting then None else Some (compose_pieces `Primary (Core.placed_pieces update.core))),
-    views, drawn
+    views, drawn,errors
 
 (* The source file, at most every half second: a changed text reloads the document.  Unsaved work
    is never replaced: while the document differs from the file's last text or a text pane holds a
@@ -660,13 +674,33 @@ let update_with value frame ~inspector =
     (* a handle is where the picture shows its point: in the view's film, not its pane *)
     V.handles ui ~selected ~scene:(Core.scene value.core) ~space (view_camera value)
       extra ~bounds:(V.film extra ~key:(focus_key value) bounds) in
-  let update = Flow_sop.Lower.with_images (Workspace_images.payload value.host.images)(fun()->
-    Core.update ~host_events:(Workspace_host.take_events value.host) value.core ~all_ui_visible:visible
+  let _,lowered=value.core.doc.workspace in
+  let live={(Sketch_support.Live_frame.of_frame frame) with t=Sketch_support.Timeline.time(Core.timeline value.core)}in
+  let image_errors=ref [] in
+  let preview image=match Workspace_images.image value.host.images ~state:value.core.cook.state ~live lowered.plan image with
+    |Ok _->()|Error diagnostic->image_errors:=Flow.Diagnostic.to_string diagnostic:: !image_errors in
+  (match value.core.scope_key with
+   |Some{records=Some records;scope;_}->
+       List.iter(fun path->let chains=Flow_graph.Probe.chains scope in
+         let probes=List.map(fun zone->Option.value ~default:0(Layout_by_path.Path_map.find_opt zone value.core.probes))
+           (Option.value ~default:[](Hashtbl.find_opt chains path))in
+         match Flow_graph.Probe.at records path ~probes with
+         |Some(Flow_graph.Probe.Value(Flow.Eval.Deferred(Flow.Ty.Named "image",_)as image))->
+             preview image
+         |Some(Flow_graph.Probe.Image image)->
+             preview(Flow.Eval.Deferred(Flow.Ty.image,image.node))
+         |_->())(Pxui_graph.Scope.selected value.core.scope_view)
+   |_->());
+  let update = Flow_sop.Lower.with_images
+    ~metadata:(fun plan id->Option.map Rays.Image.get_size(Workspace_images.peek value.host.images plan id))
+    (Workspace_images.payload value.host.images)(fun()->
+    Core.update ~image:(Workspace_images.peek value.host.images lowered.plan)
+      ~host_events:(Workspace_host.take_events value.host) value.core ~all_ui_visible:visible
       ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel ~view_handles
       ~render_status:(match value.status (Core.prepared value.core), value.render_status with
         | Some sketch, Some render -> Some (sketch ^ " · " ^ render)
         | sketch, None -> sketch | None, render -> render)
-      ~error_status:(match value.state_error with
+      ~error_status:(if !image_errors<>[] then Some(String.concat "; "(List.rev !image_errors))else match value.state_error with
         | Some _ as error -> error
         | None -> match value.context_error, V.render_status value.extra with
           | Some live, Some renderer -> Some (live ^ "; " ^ renderer)
@@ -816,6 +850,7 @@ let update_with value frame ~inspector =
           core.doc ~time in
         scene, (if errors = [] then None else Some (String.concat "; "
           (List.map Flow.Diagnostic.to_string errors))) in
+  let context_error=if !image_errors=[] then context_error else Some(String.concat "; "(List.rev !image_errors)) in
   let canvases, context_error = List.fold_left (fun (pictures, error) (leaf : Pxui_shell.Layout.leaf) ->
     match leaf.panel with
     | Canvas key ->
@@ -846,7 +881,8 @@ let update_with value frame ~inspector =
               | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []; prepared = None} previous) :: pictures,
                   Some (Flow.Diagnostic.to_string d)))
     | _ -> pictures, error) ([], context_error) (Core.geometry core core.workspace raw_frame).leaves in
-  let rendered, views, drawn = compose { value with core } { update with core } ~baked ~baked_views ~scene in
+  let rendered, views, drawn,texture_errors = compose { value with core } { update with core } ~baked ~baked_views ~scene in
+  let context_error=if texture_errors=[] then context_error else Some(String.concat "; " texture_errors)in
   let rendering = {focused with core; extra; camera; rendered; views} in
   let bodies = if V.ui_visible control then Core.view_bodies core raw_frame
     else ["@hidden", (0, 0, raw_frame.width, raw_frame.height)] in

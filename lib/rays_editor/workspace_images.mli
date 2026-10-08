@@ -1,4 +1,5 @@
 type t
+val peek : t -> Flow.Eval.plan -> int -> Rays.Image.t option
 val create : Workspace_resources.t -> t
 val image : t -> state:Flow.Eval.state -> live:Frame_input.t -> Flow.Eval.plan -> Flow.Eval.value ->
   (Rays.Image.t,Flow.Diagnostic.t) result

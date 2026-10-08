@@ -93,7 +93,7 @@ let window_fields = Param.view window_schema (Param.default window_schema)
 
 (* slot of each kind: a geometry object takes its geometry, a World layer the layer below *)
 let kind_slots qualified = match qualified with
-  | "scene/geometry" -> [ "geometry", Edit.Required ]
+  | "scene/geometry" -> [ "geometry", Edit.Required; "texture", Edit.Optional ]
   | "scene/world" -> [ "world", Edit.Required ]
   | "scene/root" -> [ "scene", Edit.Required; "camera", Edit.Optional ]
   | "world/world" -> [ "layers", Edit.Optional ]
@@ -109,15 +109,13 @@ let descriptors : Flow_sop.Catalog.descriptor list =
   List.map (fun (qualified, factory) ->
     { Flow_sop.Catalog.qualified; key = Edit.factory_key factory;
       operation = Edit.factory_operation factory; label = Edit.factory_label factory;
-      category = Edit.factory_category factory; slots = kind_slots qualified; slot_types = [];
+      category = Edit.factory_category factory; slots = kind_slots qualified;
+      slot_types = (if qualified="scene/geometry" then ["geometry";"image"] else []);
       fields = name_field :: extra_fields qualified @ group_triples (Edit.factory_fields factory) })
     (scene_kinds @ world_kinds)
   @ [ { Flow_sop.Catalog.qualified = "settings/config"; key = "config"; operation = "config";
         label = "Settings"; category = [ "Workspace" ]; slots = []; slot_types = [];
-        fields = window_fields };
-      { Flow_sop.Catalog.qualified="image/noise"; key="noise"; operation="image/noise";
-        label="Noise"; category=["Image"]; slots=[]; slot_types=[];
-        fields=Edit.factory_fields Image_nodes.noise_factory } ]
+        fields = window_fields } ]
 
 (* The catalog is a function of the factories alone, and every edit asks for it (0.18 ms and
    0.6 MB to build): the last one is kept, by the identity of its factories.  Capacity 1. *)
@@ -138,7 +136,7 @@ let ports qualified =
 
 (* ---- lowering a struct ---- *)
 
-let slot_names = [ "geometry"; "layers"; "below"; "name"; "parent"; "active"; "world"; "scene"; "camera" ]
+let slot_names = [ "geometry"; "texture"; "layers"; "below"; "name"; "parent"; "active"; "world"; "scene"; "camera" ]
 
 (* The field changes a struct's keywords make, checked against the schema's bounds. *)
 let changes qualified args =
@@ -358,6 +356,7 @@ let scene_below = function "scene/root" -> Some "scene" | _ -> None
 (* ---- the scene ---- *)
 
 type item = { factory : Edit.factory; label : string; values : (string * Param.value) list;
+              texture : E.value option;
               geometry : Flow_sop.Lower.graph option; home : Document.home;
               parent : string option; active : bool; group : string option;
               drives : (string * (Flow_sop.Port.parameter * E.value) list) option;
@@ -387,7 +386,8 @@ let item_of (lowered : Flow_sop.Lower.t) { kind; args; home; via } =
     | None, None -> if kind = "scene/world" then "World" else String.lowercase_ascii (Edit.factory_label factory) in
   let parent = match List.assoc_opt "parent" args with Some (E.Text s) when s <> "" -> Some s | _ -> None in
   let active = List.assoc_opt "active" args = Some (E.Bool true) in
-  Ok { factory; label; values; geometry; home; parent; active; group = None; drives; via }
+  let texture=List.assoc_opt "texture" args in
+  Ok { factory; label; values; geometry; home; parent; active; group = None; drives; via;texture }
 
 let is_scene_kind kind = List.mem_assoc kind scene_kinds
 
@@ -437,7 +437,7 @@ let items workspace (lowered : Flow_sop.Lower.t) =
       let* params = root_params [] in
       Ok (List.filter_map (fun (g : Flow_sop.Lower.graph) ->
         if g.default then Some { factory = Objects.Geometry.factory; label = g.name; values = [];
-                                 geometry = Some g; home = Document.Looped; parent = None;
+                                 geometry = Some g; texture=None; home = Document.Looped; parent = None;
                                  active = false; group = None; drives = None; via = None }
         else None) lowered.graphs, { params; root_home = None; camera = None })
 
@@ -1095,7 +1095,9 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let scene_drives = List.fold_left (fun drives (id, item) -> match item.drives with
     | None -> drives | Some drive -> Document.Int_map.add id drive drives)
     Document.Int_map.empty objects in
-  Ok { Document.scene; networks; active_camera; root = root.params; settings; scene_drives;
+  let scene_textures=List.fold_left(fun textures(id,item)->match item.texture with
+    |None->textures|Some texture->Document.Int_map.add id texture textures)Document.Int_map.empty objects in
+  Ok { Document.scene; networks; active_camera; root = root.params; settings; scene_drives;scene_textures;
        shell = Option.map (fun e -> { Document.tree = e.tree; origins = e.origins;
                                       named = e.named; repeated = e.repeated; follows = e.follows; start = e.start; wires = e.wires; views; canvases = e.canvases; preview_sources = e.preview_sources;
                                       switch = e.switch }) editor;

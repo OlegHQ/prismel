@@ -14,7 +14,7 @@ let registry = ref [
   entry settings Ty.settings false "Settings" `Bool "Settings" (Some "settings");
   entry value Ty.Float true "Value" `Float "Values" None;
   entry draw Ty.drawing true "Drawing" `Vec3 "Drawing" None;
-  entry image Ty.image true "Image" `Output "Images" (Some "image");
+  entry image Ty.image true "Image" `Output "Images" None;
   entry "host" Ty.Any true "Host" `Bool "Effects" None]
 let all () = List.map (fun descriptor -> descriptor.name) !registry
 let descriptor id = List.find (fun descriptor -> descriptor.name = id) !registry

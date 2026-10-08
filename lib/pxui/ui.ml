@@ -283,6 +283,7 @@ and ui = {
   batch_builder : Batch.Builder.t;
   mutable regions : Scene.t;
   mutable scene_layers : (int * Scene.t) list;
+  mutable borrowed_images : (int*Image.t)list;
   mutable scene : Scene.t;
   atlas : atlas;
   mutable destroyed : bool;
@@ -569,7 +570,7 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     hit_count = 0; chain_key = 0; chain = []; hit_keys = [||]; hit_parent = [||]; hit_flags_of = [||];
     hit_x = [||]; hit_y = [||]; hit_w = [||]; hit_h = [||];
     batch_builder = Batch.Builder.create ~capacity:1024 ();
-    regions = []; scene_layers = []; scene = []; atlas = create_atlas (); destroyed = false }
+    regions = []; scene_layers = []; borrowed_images=[]; scene = []; atlas = create_atlas (); destroyed = false }
 
 let destroy ui =
   if not ui.destroyed then begin
@@ -579,6 +580,7 @@ let destroy ui =
     Int_table.iter (fun _ face -> Option.iter Font.destroy face) ui.faces;
     Int_table.reset ui.faces;
     ui.atlas.fonts <- [];
+    ui.borrowed_images <- [];
     ui.scene <- []
   end
 
@@ -1566,6 +1568,18 @@ module Paint = struct
     Batch.Builder.set_clip paint.builder
       (Some { Batch.x; y; width = w; height = h })
 
+  let image paint ~x ~y ~w ~h image =
+    let ui=paint.owner in
+    (* ponytail: at most 64 borrowed images per frame, linear identity lookup;
+       use the existing Int_table if a measured multi-image pane needs more. *)
+    let id=match List.find_opt(fun(_,other)->other==image)ui.borrowed_images with
+      |Some(id,_)->id
+      |None->if List.length ui.borrowed_images>=64 then invalid_arg "Ui.Paint.image: 64 images per frame";
+          let id=List.length ui.borrowed_images+2 in ui.borrowed_images<-(id,image)::ui.borrowed_images;id in
+    prepare paint;
+    Batch.Builder.textured paint.builder ~texture:id ~x ~y ~width:w ~height:h
+      ~u0:0. ~v0:0. ~u1:(float(Image.get_width image)) ~v1:(float(Image.get_height image)) ~color:0xffffffffl
+
   let fill paint ~x ~y ~w ~h ?(radius = 0.) color =
     prepare paint;
     Batch.Builder.rect paint.builder ~x ~y ~width:w ~height:h
@@ -1934,6 +1948,7 @@ let frame ui (frame : Frame.t) f =
   ui.overlays <- [];
   intrinsic ui;
   arrange ui frame.time;
+  ui.borrowed_images<-[];
   let layers = paint_all ui frame in
   ui.foreground <- [];
   prune ui;
@@ -1945,6 +1960,7 @@ let frame ui (frame : Frame.t) f =
     let images = match ui.atlas.image with
       | Some image when Batch.textures batch <> [] -> [1, image]
       | Some _ | None -> [] in
+    let images=images@List.filter(fun(id,_)->List.mem id(Batch.textures batch))ui.borrowed_images in
     let batch = if images = [] && Batch.textures batch <> [] then Batch.empty else batch in
     key, (if Batch.count batch = 0 then [] else [Scene.Private.ui ~images batch])) layers;
   ui.scene <- List.concat_map snd ui.scene_layers @ List.rev ui.regions;

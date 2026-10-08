@@ -107,6 +107,7 @@ type t = {
      or over the document's own scene) renders as [root] and [active_camera] say *)
   homes : homes;  (* where each derived object is written in the text *)
   scene_drives : (string * (Flow_sop.Port.parameter * Flow.Eval.value) list) Int_map.t;
+  scene_textures : Flow.Eval.value Int_map.t;
   (* Residual light fields, resolved for composition; never written into history. *)
   workspace : Workspace_doc.t * Flow_sop.Lower.t;
   (* the authored document and its lowering: [scene] and [networks] are that lowering, one

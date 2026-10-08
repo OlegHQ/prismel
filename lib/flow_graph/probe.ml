@@ -8,7 +8,8 @@ type geometry = {
   seconds : float option;
   attributes : (string * string * string * int) list;
 }
-type summary = Value of E.value | Geometry of geometry
+type image = {node:int; width:int; height:int}
+type summary = Value of E.value | Geometry of geometry | Image of image
 type execution = {tier : string; group : path; seconds : float option}
 
 type footer = {
@@ -29,6 +30,7 @@ type t = {
   element : path -> int -> (string * E.value) list option;
       (* the element [k] of the loop over geometry at this path, by its name *)
   geometry : int -> geometry option;
+  image : int -> image option;
   raw : (path, (int list * E.value) list) Hashtbl.t;
   forced : (path, (int list * summary) array) Hashtbl.t;  (* memo: forcing is per lookup, not per frame *)
   spots : (path * int list, summary option) Hashtbl.t;
@@ -38,7 +40,7 @@ type t = {
 }
 
 let make ?state ?live ?time ?resolve ?(execution = fun _ ~probes:_ -> None)
-    ?(geometry = fun _ -> None) ?(dynamic = fun _ -> None)
+    ?(geometry = fun _ -> None) ?(image=fun _->None) ?(dynamic = fun _ -> None)
     ?(element = fun _ _ -> None) (eval : E.t) =
   let raw = Hashtbl.create 64 in
   List.iter (fun (p, l) -> Hashtbl.replace raw p l) eval.records;
@@ -47,8 +49,22 @@ let make ?state ?live ?time ?resolve ?(execution = fun _ ~probes:_ -> None)
     then Hashtbl.replace templates node.site ()) eval.plan.nodes;
   let live_frame = match live with Some _ -> live | None -> Option.map Frame_input.at_time time in
   let state = Option.map E.fork_state state in
+  let image id =
+    let dimensions=match image id with Some _ as dimensions->dimensions|None->
+      if id<0 || id>=Array.length eval.plan.nodes then None else
+      let node=eval.plan.nodes.(id) in
+      if node.kind<>"image/noise" && node.kind<>"image/render" then None else
+      let live=Option.value ~default:(Frame_input.at_time 0.) live_frame in
+      let dimension name default = match List.assoc_opt name node.args with
+        |None->Some default
+        |Some value->(match E.Private.force_reference ?state ?resolve value ~live with
+          |Ok(E.Int n)when n>0->Some n|_->None) in
+      let w,h=if node.kind="image/noise" then 256,256 else live.size in
+      Option.bind(dimension "width" w)(fun width->
+        Option.map(fun height->width,height)(dimension "height" h)) in
+    Option.map(fun(width,height)->{node=id;width;height}) dimensions in
   { live_frame; state; resolve; execution; maps = Hashtbl.create 16; calls = Hashtbl.create 16;
-    dynamic; templates; element; geometry; raw; forced = Hashtbl.create 64; spots = Hashtbl.create 64;
+    dynamic; templates; element; geometry; image; raw; forced = Hashtbl.create 64; spots = Hashtbl.create 64;
     across = Hashtbl.create 64; feet = Hashtbl.create 64;
     arms = Hashtbl.create 8 }
 
@@ -70,6 +86,7 @@ let summarize t v =
     | _ -> v in
   match v with
   | E.Deferred ((Flow.Ty.Named "geometry"), id) -> (match t.geometry id with Some g -> Geometry g | None -> Value v)
+  | E.Deferred ((Flow.Ty.Named "image"), id) -> (match t.image id with Some image -> Image image | None -> Value v)
   | v -> Value v
 
 let plan_node t path ~probes =
@@ -137,6 +154,7 @@ let rec describe_value = function
 
 let describe = function
   | Value v -> describe_value v
+  | Image image -> Printf.sprintf "%d × %d image" image.width image.height
   | Geometry g ->
       (* point-only geometry (a scatter) reads in points, thousands apart as the sheet's [1 204 pts] *)
       let spaced n = let s = string_of_int n in
@@ -240,6 +258,8 @@ let compute_at t path ~probes =
 let at t path ~probes =
   let key = path, probes in
   match Hashtbl.find_opt t.spots key with
+  | Some (Some(Value(E.Deferred(Flow.Ty.Named "image",_)as value))) -> Some(summarize t value)
+  | Some (Some(Image image)) -> Option.map(fun image->Image image)(t.image image.node)
   | Some value -> value
   | None ->
       let value = compute_at t path ~probes in
@@ -420,6 +440,7 @@ let compute_footer t (n : P.node) ~probes =
         | _ -> Array.length (records t n.path)) else None }
 
 let footer t (n : P.node) ~probes =
+  if n.ty=Flow.Ty.image then compute_footer t n ~probes else
   match Hashtbl.find_opt t.feet (n.path, probes) with
   | Some f -> f
   | None -> let f = compute_footer t n ~probes in remember t.feet (n.path, probes) f; f

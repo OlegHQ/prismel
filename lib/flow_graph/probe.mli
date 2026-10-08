@@ -20,7 +20,8 @@ type geometry = {
   (** Owner, name, storage kind and length, in geometry order. *)
 }
 
-type summary = Value of Flow.Eval.value | Geometry of geometry
+type image = {node:int; width:int; height:int}
+type summary = Value of Flow.Eval.value | Geometry of geometry | Image of image
 
 type execution = {tier : string; group : path; seconds : float option}
 (** Renderer-neutral host report. Only the owning card has a group duration;
@@ -32,7 +33,7 @@ val make :
   ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?time:float ->
   ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
   ?execution:(path -> probes:int list -> execution option) ->
-  ?geometry:(int -> geometry option) -> ?dynamic:(path -> int option) ->
+  ?geometry:(int -> geometry option) -> ?image:(int -> (int * int) option) -> ?dynamic:(path -> int option) ->
   ?element:(path -> int -> (string * Flow.Eval.value) list option) -> Flow.Eval.t -> t
 (** [live] forces residual values using the complete frame; [time] supplies a
     time-only frame when [live] is absent. [state] is copied when the probe is
