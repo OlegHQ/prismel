@@ -7154,3 +7154,41 @@ Session evidence: `/private/tmp/p3-static-editor-baseline.csv`,
 `/private/tmp/p3-static-editor-profile-aggregate.log`,
 `/private/tmp/p3-static-camera-shell-alias.log` and
 `/private/tmp/p3-static-camera-logic.log`.
+## P4 two-dimensional noise plane (2026-10-08)
+
+Same machine, OCaml 5.3.0 development profile, grain 16,384 and bounded session
+protocol as the immediately preceding displacement-storage rows. Builds and
+focused checks completed before an isolated timing slot; all agents held other
+execution. Commands are `bench_workspace_lower.exe --branches 7 learned`,
+`--branches 7 off`, and `--loops 7 learned`, followed by a second learned-chain
+run. Raw outputs are `performance/p4-noise2d-after-*.csv`; the before rows are
+`performance/p4-height-after-*.csv`.
+
+`Noise.sample2` and its packed writer now evaluate only the four lower-plane
+corners of the existing three-dimensional Perlin function at Z=0, where the
+upper-plane interpolation weight is zero. The general 3D function is unchanged.
+The same fade, gradient and lower-plane interpolation operations are reused.
+An independent scalar regression compares output float64 bits with the
+unchanged `sample3 ~z:0.` over five seeds, signed-zero/integer boundaries,
+large coordinates and 100,000 packed samples. Existing scalar/deformation tests
+and exact one/eight-domain packed comparison pass.
+
+| Workload | Placement | Domains | Before ms | After ms | Repeat ms |
+|---|---|---:|---:|---:|---:|
+| Two chains, 2M points | learned | 1 | 203.938 | 162.658 | 162.043 |
+| Two chains, 2M points | learned | 8 | 64.264 | 56.753 | 63.550 |
+| Two chains, 2M points | off | 1 | 194.368 | 156.236 | — |
+| Two chains, 2M points | off | 8 | 76.692 | 66.448 | — |
+| 64 pieces, 3.2M points | learned | 1 | 1285.643 | 1366.437 | — |
+| 64 pieces, 3.2M points | learned | 8 | 286.322 | 286.067 | — |
+
+The one-domain chain median improves 20.2–20.5%. Eight-domain chain medians
+vary materially between the two after runs, so this slot does not establish
+a stable parallel speedup. The first after row is 1.34x faster than Step 0's
+75.943 ms, and the repeat is 1.20x: the required 1.5x chain gate remains unmet.
+The one-domain loop median increases 6.3%, while the eight-domain row is similar;
+no loop improvement is claimed. Whole-program allocated bytes remain unchanged
+at one domain; multi-domain differences are small scheduler allocations.
+Complete chain and loop hashes remain `67c129ecc130f8881a2eaf92c053b64c` and
+`8ef295fbdea12b586200fd1ffcdcb58f`. These observations do not close the separate
+small-fixture within-noise or native shipping gates.

@@ -52,10 +52,27 @@ let[@inline always] raw3 permutation ~x ~y ~z =
       (grad h111 (x -. 1.) (y -. 1.) (z -. 1.)) u in
   lerp (lerp x00 x10 v) (lerp x01 x11 v) w
 
+(* At z=0 the upper four corners have zero weight. Keep the lower-plane
+   interpolation order identical to raw3 so scalar and packed samples agree. *)
+let[@inline always] raw2 permutation ~x ~y =
+  let floor_x = Float.floor x and floor_y = Float.floor y in
+  let xi = int_of_float floor_x land 255
+  and yi = int_of_float floor_y land 255 in
+  let x = x -. floor_x and y = y -. floor_y in
+  let u = fade x and v = fade y in
+  let h000 = permutation.(permutation.(permutation.(xi) + yi))
+  and h100 = permutation.(permutation.(permutation.(xi + 1) + yi))
+  and h010 = permutation.(permutation.(permutation.(xi) + yi + 1))
+  and h110 = permutation.(permutation.(permutation.(xi + 1) + yi + 1)) in
+  let x00 = lerp (grad h000 x y 0.) (grad h100 (x -. 1.) y 0.) u in
+  let x10 = lerp (grad h010 x (y -. 1.) 0.)
+      (grad h110 (x -. 1.) (y -. 1.) 0.) u in
+  lerp x00 x10 v
+
 let[@inline always] clamp01 value =
   if value <= 0. then 0. else if value >= 1. then 1. else value
 let sample3 noise ~x ~y ~z = clamp01 ((raw3 noise ~x ~y ~z +. 1.) /. 2.)
-let sample2 noise ~x ~y = sample3 noise ~x ~y ~z:0.
+let sample2 noise ~x ~y = clamp01 ((raw2 noise ~x ~y +. 1.) /. 2.)
 let sample1 noise x = sample3 noise ~x ~y:0. ~z:0.
 
 let fractal ?(octaves = 4) ?(lacunarity = 2.) ?(gain = 0.5) sample =
@@ -124,8 +141,8 @@ module Private = struct
     then invalid_arg "Noise.Private.sample2_into: invalid packed range";
     for index = first to last - 1 do
       output.(index) <- clamp01
-          ((raw3 noise ~x:(x.(index) *. frequency)
-              ~y:(y.(index) *. frequency) ~z:0. +. 1.) *. 0.5)
+          ((raw2 noise ~x:(x.(index) *. frequency)
+              ~y:(y.(index) *. frequency) +. 1.) *. 0.5)
     done
 
   let sample3_into noise ~first ~last ?(x_offset = 0) ?(y_offset = 0)

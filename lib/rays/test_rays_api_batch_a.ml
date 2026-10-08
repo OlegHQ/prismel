@@ -20,5 +20,32 @@ let run () =
   Noise.Private.sample2_into noise~first:0~last:100_000~frequency:0.5~x:xs~y:ys~output:sequential;
   let workers=Array.init 4(fun domain->Domain.spawn(fun()->let first=domain*25_000 in Noise.Private.sample2_into noise~first~last:(first+25_000)~frequency:0.5~x:xs~y:ys~output:parallel))in
   Array.iter Domain.join workers;check(sequential=parallel&&Array.for_all finite parallel)"Noise one/four-domain 100k";
+  List.iter (fun seed ->
+    let noise = Noise.create seed in
+    let coordinates = [|0.; -0.; Float.epsilon; -.Float.epsilon; 1.; -1.;
+      Float.pred 1.; Float.succ 1.; 255.; -256.; 1e20; -1e20|] in
+    Array.iter (fun x -> Array.iter (fun y ->
+      check (Int64.bits_of_float (Noise.sample2 noise ~x ~y)
+        = Int64.bits_of_float (Noise.sample3 noise ~x ~y ~z:0.))
+        "Noise 2D boundary bits differ from original 3D plane") coordinates) coordinates;
+    for index = 0 to 19_999 do
+      let x = float (index - 10_000) *. 0.017
+      and y = float (index * 97 mod 30_011 - 15_000) *. 0.031 in
+      check (Int64.bits_of_float (Noise.sample2 noise ~x ~y)
+        = Int64.bits_of_float (Noise.sample3 noise ~x ~y ~z:0.))
+        "Noise 2D bits differ from original 3D plane"
+    done) [0; 1; 42; -1; 1999];
+  Parallel.run ~domains:8 (fun () ->
+    Parallel.for_ ~chunk_size:1 ~start:0 ~finish:7 (fun chunk ->
+      let first = chunk * 12_500 in
+      Noise.Private.sample2_into noise ~first ~last:(first + 12_500)
+        ~frequency:0.5 ~x:xs ~y:ys ~output:parallel));
+  check (sequential = parallel) "Noise one/eight-domain exact 2D plane";
+  for index = 0 to Array.length sequential - 1 do
+    check (Int64.bits_of_float sequential.(index)
+      = Int64.bits_of_float (Noise.sample3 noise
+          ~x:(xs.(index) *. 0.5) ~y:(ys.(index) *. 0.5) ~z:0.))
+      "packed 2D noise differs from original 3D plane"
+  done;
   check(Noise.sample3 noise~x:0.25~y:0.5~z:0.75=Noise.sample3(Noise.create 42)~x:0.25~y:0.5~z:0.75)"Noise seed";
   print_endline"Rays batch A exact deterministic API passed"
