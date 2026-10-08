@@ -606,7 +606,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
           write_affine ui_affine_scratch(render_transform(List.hd !transforms));
           if not(Bytes.equal slot.ui_affine ui_affine_scratch)then
             slot.ui_affine<-Bytes.copy ui_affine_scratch;
-          emit {family=Ui;blend=Alpha;texture=Some ui_white_texture;auxiliary=None;samples=1;
+          emit {family=Ui;blend=Alpha;texture=Some ui_white_texture;auxiliary=None;vertex_attributes=None;samples=1;
             value={Scene_execution.mesh={key="shapes:"^string_of_int slot_key;
               vertices=slot.ui_vertices;vertex_count=4*count;indices=slot.ui_indices;
               index_count=6*count;primitive=Triangle_list};
