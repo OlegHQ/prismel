@@ -1247,7 +1247,7 @@ The `host` context returns effect values or collections of them. `host/quit when
 `audio/synth :waveform :frequency :duration :volume` and `audio/load path` return `sample`
 nodes. Waveforms are `sine`, `square`, `triangle`, `sawtooth`; defaults are sine, 440 Hz,
 0.1 seconds, full volume. Dialog kinds are `open_file`, `open_files`, `save_file`, `open_folder`.
-Filters are `(list (list "Images" (list "png" "jpg")) (list "All" (list)))`.
+Filters are `(list {:label "Images" :extensions (list "png" "jpg")} {:label "All" :extensions (list)})`.
 The editor graph connects them with `(ui/workspace root :effects (ref actions))`. These remain
 ordinary graph cards with editable rows. Host effects execute on a false-to-true edge after value
 lane evaluation; screenshots are captured after presentation. File-dialog results return in the
@@ -1269,5 +1269,14 @@ without converting its large integer products through a float. Division by zero 
 `equal? a b` compares data (including event text); numeric `=` keeps its numeric contract.
 `exp x` supplies native exponential damping. Pure-data folds/scans may follow a live list
 length, still with the 4096-iteration evaluator bound; geometry folds keep their fixed topology
-rule. A live `if` may select already-declared Drawing nodes without changing the plan topology.
+rule. Drawing topology stays fixed; dynamic stroke data feeds statically declared batch nodes.
 Dialog filters use records `(list {:label "Images" :extensions (list "png" "jpg")})`.
+
+Host-context state folds advance once per logical host frame, including while the animation
+timeline is paused. Draw/value/SOP state continues to follow the timeline index, so seeking and
+fixed-step exports retain their existing deterministic playback semantics. The internal
+`Frame_input.tick` is the raw host frame count; exports set it equal to the timeline frame.
+A successful dialog request returns a `frame/input` event of kind `dialog-opened` with its real
+`:id` on the following frame; subsequent `file-dialog` events carry that same request ID.
+Fixed-step window runs use the export effect policy: active quit/dialog requests return
+`E_EFFECT_EXPORT`, audio does not initialize, and screenshot effects capture after presentation.

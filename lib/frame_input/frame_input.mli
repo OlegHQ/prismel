@@ -11,14 +11,18 @@ type event =
   | File_dropped of string | File_drag_moved of float * float | File_drag_ended
   | Pinched of float
   | File_dialog of { id : int; result : (string list, string) result }
+  | Dialog_opened of int
+      (** A workspace host started a native dialog; its actual returned identity. *)
   | Resized of int * int | Focus_lost | Closed
   | Trackpad_scrolled of { delta : float * float; phase : string; time : float }
 
 type t = {
-  t : float; dt : float; frame : int; size : int * int;
+  t : float; dt : float; frame : int; tick : int; size : int * int;
   pointer : float * float; buttons : string list; keys : string list;
   events : event list;
 }
+(** [frame] follows animation playback; [tick] counts logical host frames even
+    while playback is paused. Fixed-step exports set both to their frame count. *)
 
 val at_time : float -> t
 (** A deterministic frame with the given time and other fields zero or empty.

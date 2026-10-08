@@ -17,7 +17,9 @@ module Private = struct
           (kind=0l || kind=4l || kind=5l) &&
           Float.is_finite(float 0) && Float.is_finite(float 1) &&
           Float.is_finite(float 2) && Float.is_finite(float 3) &&
+          Float.is_finite(float 11) && float 11>=0. &&
           Float.is_finite(float 12) && float 12>=0. &&
+          Float.is_finite(float 13) && float 13>=0. &&
           (kind=5l || (float 2>=float 0 && float 3>=float 1)) && loop(i+1)
         in loop 0
   let gpu_token ~identity ~count ~stamp =

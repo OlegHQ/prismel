@@ -300,7 +300,7 @@ module Private : sig
       (float * int) option
     (** The nearest displayed primitive under a ray in the piece's own space:
         its distance and provenance tag. *)
-    val update : ?live:bool -> ?probes:(int * int) list -> ?lit:Pick.Set.t ->
+    val update : ?input:Frame_input.t -> ?live:bool -> ?probes:(int * int) list -> ?lit:Pick.Set.t ->
       'a t -> settings:Settings.t ->
       objects:(int * Flow_sop.Network.t * int) list -> edit_error:string option ->
       effects:Procedural.Parameter.effects -> timeline_changes:Sketch_support.Timeline.change list ->

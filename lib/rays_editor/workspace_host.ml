@@ -4,8 +4,11 @@ module V=Flow.Value
 module I=Flow_ir.Executor
 type prepared={plan:E.plan;effects:I.program;args:I.program option array;edges:bool array}
 type t={resources:Workspace_resources.t;mutable prepared:prepared option;mutable pending_saves:string list;
-  mutable quit_requested:bool;mutable fired:int}
-let create ()={resources=Workspace_resources.create();prepared=None;pending_saves=[];quit_requested=false;fired=0}
+  mutable quit_requested:bool;mutable fired:int;mutable deterministic:bool;
+  mutable pending_events:Frame_input.event list}
+let create ()={resources=Workspace_resources.create();prepared=None;pending_saves=[];quit_requested=false;fired=0;
+  deterministic=false;pending_events=[]}
+let take_events host=let events=List.rev host.pending_events in host.pending_events<-[];events
 let effects (workspace:Editor_document.Workspace_doc.t) (plan:E.plan)=
   Option.bind (Editor_document.Workspace_doc.editor_graph workspace)(fun graph->
     Option.bind (Array.find_opt(fun (i:E.instance)->i.default && i.graph=graph.name)plan.instances)
@@ -69,9 +72,12 @@ let perform host ~state ~live requests =
     host.fired<-host.fired+1;
     let arg name=List.assoc name args in
     let text value=match value with E.Text text->text|_->V.fail "E_TYPE" "Host paths and dialog kinds are text."in
+    if host.deterministic && (kind="host/quit" || kind="host/dialog")then
+      Error(Flow.Diagnostic.error ~code:"E_EFFECT_EXPORT" "Quit and file dialogs are unavailable in fixed-step runs.")else
     match kind with
     |"host/quit"->host.quit_requested<-true;Sketch.quit();Ok()
     |"host/save_png"->host.pending_saves<-host.pending_saves@[text(arg "path")];Ok()
+    |"host/play"when host.deterministic->Ok()
     |"host/play"->
         let* sample=sample host (Option.get host.prepared) ~state ~live (arg "sample")in
         Result.map ignore(Result.map_error(fun message->Flow.Diagnostic.error ~code:"E_AUDIO" message)
@@ -88,7 +94,8 @@ let perform host ~state ~live requests =
           |E.List[|E.Text label;E.List extensions|]->label,Array.to_list(Array.map text extensions)
           |_->V.fail "E_EFFECT" "A filter has :label and :extensions.")
           |_->V.fail "E_EFFECT" "Dialog filters are a list.")(List.assoc_opt "filters" args)in
-        Result.map ignore(Result.map_error(fun message->Flow.Diagnostic.error ~code:"E_EFFECT" message)
+        Result.map(fun id->host.pending_events<-Frame_input.Dialog_opened id::host.pending_events)
+          (Result.map_error(fun message->Flow.Diagnostic.error ~code:"E_EFFECT" message)
           (Sketch.show_file_dialog ?filters ?default_location:(Option.map text(List.assoc_opt "default" args))kind))
     |_->Error(Flow.Diagnostic.error ~code:"E_EFFECT" ("Unknown host effect "^kind))) (Ok())requests
 let update host ~state ~live workspace plan =

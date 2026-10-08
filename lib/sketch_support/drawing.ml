@@ -57,7 +57,8 @@ let render_prepared ?state ?(reference = false) prepared ~live ~size:(width, hei
             let arg k = match List.assoc_opt k args with Some v -> v
               | None -> V.failf "E_DRAW_INPUT" "%s needs %s." node.kind k in
             let optional k f = Option.map f (List.assoc_opt k args) in
-            let ink = Option.value (optional "color" color) ~default:Color.white in
+            let ink = match List.assoc_opt "color" args with
+              |Some(E.Vec3_array _)->Color.white|Some value->color value|None->Color.white in
             let at () = point (arg "at") in
             let rgba (c:Color.t) = Int32.of_int ((c.r lsl 24) lor (c.g lsl 16) lor (c.b lsl 8) lor c.a) in
             let current=ref 0 in
@@ -82,7 +83,9 @@ let render_prepared ?state ?(reference = false) prepared ~live ~size:(width, hei
             let rect b x y width height = Scene_command.Shape_batch.Builder.rect b ~x ~y
               ~width ~height ?fill:(style "fill") ?stroke:(style "stroke") () in
             let line b x0 y0 x1 y1 = Scene_command.Shape_batch.Builder.line b ~x0 ~y0 ~x1 ~y1
-              ~color:(rgba ink) ~width:(Option.value (optional "width" V.num) ~default:1.) in
+              ~color:(match List.assoc_opt "color" args with
+                |Some(E.Vec3_array _)->Option.get(style "color")|_->rgba ink)
+              ~width:(Option.value (optional "width" V.num) ~default:1.) in
             let scene = match node.kind with
               | "draw/background" -> [Scene.rect ~at:(0, 0) ~w:width ~h:height ~fill:(color (arg "color")) ()]
               | "draw/point" -> [Scene.point ~at:(at ()) ~color:ink ()]
@@ -120,8 +123,9 @@ let render_prepared ?state ?(reference = false) prepared ~live ~size:(width, hei
                   let n=V.array_length from in
                   if V.array_length dest<>n then V.fail "E_DRAW_LENGTH" "Line endpoints have different lengths.";
                   batch n(fun b i->let x0,y0=packed_point from i and x1,y1=packed_point dest i in line b x0 y0 x1 y1)
-              | "draw/text" -> [Scene.text ~at:(at ()) ~color:ink ?size:(optional "size" V.int_of)
-                  (match arg "text" with E.Text s -> s | _ -> V.fail "E_TYPE" "Drawing text is text.")]
+              | "draw/text" -> let text=match arg "text" with E.Text s->s
+                  |_->V.fail "E_TYPE" "Drawing text is text."in
+                  if text=""then []else [Scene.text ~at:(at ()) ~color:ink ?size:(optional "size" V.int_of) text]
               | "draw/translate" -> let x, y = point (arg "offset") in
                   [Scene.translate x y (drawing (arg "drawing"))]
               | "draw/rotate" -> [Scene.rotate (V.fin "angle" (V.num(arg "angle"))) (drawing(arg "drawing"))]

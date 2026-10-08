@@ -32,6 +32,10 @@ let () =
   let input = List.assoc "g" (Result.get_ok (Eval.static ~record:true
     (check "(let* [f (frame/input)] (count f.events))"))).results in
   assert (Eval.force input ~live = Ok (Eval.Int 2));
+  let input = List.assoc "g" (Result.get_ok (Eval.static
+    (check "(let* [event (nth (get (frame/input) :events) 0)] (if (equal? event.kind \"dialog-opened\") event.id 0))"))).results in
+  assert (Eval.force input ~live:{live with events=[Dialog_opened 27]} =
+    Ok(Eval.Int 27));
   let forms = Result.get_ok (Syntax.parse
     "(workspace w (graph g :context value (for [i (range (frame/index))] i)))") in
   let _, ds = Workspace.check {Check.version = 1; kinds = []} forms in

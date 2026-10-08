@@ -128,8 +128,9 @@ val static :
     [settings/config] with computed arguments), [E_DEPTH], [E_LIVE_GEOMETRY]. *)
 
 val create_state : unit -> state
-val reset_state : state -> unit
-(** An environment owns this fold state. Reset on reload or a new export. *)
+val reset_state : ?host_state:bool -> state -> unit
+(** Reset on reload or a new export. [host_state=false] resets animation
+    playback while retaining host interaction state. *)
 
 val fork_state : state -> state
 (** Copy the fold snapshot for pure worker reads; data is shared immutably. *)

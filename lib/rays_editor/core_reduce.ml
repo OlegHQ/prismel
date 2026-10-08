@@ -572,7 +572,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   end;
   let probes = match value'.scope_key with Some k when scope_name value' <> None -> k.targets | _ -> [] in
   let lit, lit_cache = lit_tags value' in
-  let cooked = Cook.update ~live:result.live_cook ~probes ~lit
+  let cooked = Cook.update ~input:value'.live_frame ~live:result.live_cook ~probes ~lit
       value.cook ~settings:doc.settings
       ~objects:(geometry_objects value')
       ~edit_error:result.edit_error ~effects

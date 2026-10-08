@@ -128,6 +128,7 @@ let event_value event =
     | Pinched x -> "pinched", ["scale", Float x]
     | File_dialog {id; result} -> "file-dialog", ("id", Int id) ::
         (match result with Ok xs -> ["paths", text_list xs] | Error s -> ["error", Text s])
+    | Dialog_opened id -> "dialog-opened", ["id",Int id]
     | Resized (w, h) -> "resized", ["width", Int w; "height", Int h]
     | Focus_lost -> "focus-lost", [] | Closed -> "closed", []
     | Trackpad_scrolled {delta; phase; time} -> "trackpad-scrolled", ["delta", point delta; "phase", Text phase; "time", Float time] in
