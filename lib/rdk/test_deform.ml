@@ -88,7 +88,26 @@ let run () =
   and ny = Array.make count 0.37 and nz = Array.make count (-1.2) in
   let source = add_attribute (float3_attribute ~owner:Attribute.Point "N" nx ny nz) source in
   let p = positions source in
+  let source_bytes = geometry_bytes source in
   let noise = Rays_math.Noise.create 0 in
+  let height_expected = Kernel.edit_point_ranges (fun ~first ~last ~x:_ ~y ~z:_ ->
+    for i = first to last - 1 do
+      y.(i) <- p.y.(i) +. 0.8 *. ((Rays_math.Noise.sample2 noise
+        ~x:(p.x.(i) *. 0.16) ~y:(p.z.(i) *. 0.16) *. 2.) -. 1.)
+    done) source |> Geometry.without_attribute ~owner:Attribute.Point "N" in
+  let height domains grain = Parallel.run ~domains (fun () ->
+    Deform.noise_displace ~grain ~amplitude:0.8 ~frequency:0.16 ~seed:0 source |> get_ok) in
+  let height_one = height 1 257 and height_eight = height 8 257 in
+  check (geometry_bytes height_one = geometry_bytes height_expected
+    && geometry_bytes height_one = geometry_bytes height_eight
+    && geometry_bytes height_one = geometry_bytes (height 1 max_int))
+    "Height noise differs from scalar formula or across domains/grains";
+  let height_positions = positions height_one in
+  check (height_positions.x == p.x && height_positions.z == p.z && height_positions.y != p.y)
+    "Height noise must borrow immutable X/Z and own Y";
+  check (Geometry.topology height_one == Geometry.topology source)
+    "Height noise replaced topology";
+  check (geometry_bytes source = source_bytes) "Height noise mutated its input";
   let expected = Kernel.edit_point_ranges (fun ~first ~last ~x ~y ~z ->
     for i = first to last - 1 do
       let scale = 0.8 *. Rays_math.Noise.sample3 noise
@@ -104,6 +123,7 @@ let run () =
   check (geometry_bytes one = geometry_bytes expected && geometry_bytes one = geometry_bytes eight)
     "Normal 3D noise differs from scalar formula or across domains";
   check (Geometry.topology one == Geometry.topology source) "Normal 3D noise replaced topology";
+  check (geometry_bytes source = source_bytes) "Normal 3D noise mutated its input";
   let oversized_grain = Deform.noise_displace ~mode:Deform.Normal_3d ~grain:max_int
     ~amplitude:0.8 ~frequency:0.16 ~seed:0 source |> get_ok in
   check (geometry_bytes oversized_grain = geometry_bytes one)

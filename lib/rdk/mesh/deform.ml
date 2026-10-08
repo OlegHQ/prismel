@@ -599,34 +599,42 @@ let noise_displace ?cancel ?(grain = 16_384) ?(mode = Height_2d) ~amplitude ~fre
     Result.bind direction (fun direction ->
     let noise = Noise.create seed in
     let count = Geometry.point_count geometry in
-    let samples = Array.make count 0. in
+    let source = Packed.Float3.Private.view (Geometry.positions geometry) in
+    let x, y, z = match direction with
+      | None -> source.x, Array.copy source.y, source.z
+      | Some _ -> Array.copy source.x, Array.copy source.y, Array.copy source.z in
     let errors = Array.make (if count = 0 then 0 else (count - 1) / grain + 1) (-1) in
-    let displaced = Kernel.edit_point_ranges ~grain
-        (fun ~first ~last ~x ~y ~z ->
+    if Array.length errors > 0 then Parallel.for_ ~chunk_size:1 ~start:0
+        ~finish:(Array.length errors - 1) (fun range ->
+          let first = range * grain in
+          let last = first + min grain (count - first) in
           Cancel.check_opt cancel;
           match direction with
           | None ->
               Noise.Private.sample2_into noise ~first ~last ~frequency
-                ~x ~y:z ~output:samples;
+                ~x:source.x ~y:source.z ~output:y;
               for index = first to last - 1 do
-                let value = y.(index) +. amplitude *. ((samples.(index) *. 2.) -. 1.) in
+                let value = source.y.(index) +. amplitude *. ((y.(index) *. 2.) -. 1.) in
                 if Float.is_finite value then y.(index) <- value
                 else if errors.(first / grain) < 0 then errors.(first / grain) <- index
               done
           | Some direction ->
-              Noise.Private.sample3_into noise ~first ~last ~frequency ~x ~y ~z ~output:samples ();
+              Noise.Private.sample3_into noise ~first ~last ~frequency
+                ~x:source.x ~y:source.y ~z:source.z ~output:z ();
               for index = first to last - 1 do
-                let scale = amplitude *. samples.(index) in
-                let px = x.(index) +. direction.x.(index) *. scale
-                and py = y.(index) +. direction.y.(index) *. scale
-                and pz = z.(index) +. direction.z.(index) *. scale in
+                let scale = amplitude *. z.(index) in
+                let px = source.x.(index) +. direction.x.(index) *. scale
+                and py = source.y.(index) +. direction.y.(index) *. scale
+                and pz = source.z.(index) +. direction.z.(index) *. scale in
                 if Float.is_finite px && Float.is_finite py && Float.is_finite pz then begin
                   x.(index) <- px; y.(index) <- py; z.(index) <- pz
                 end else if errors.(first / grain) < 0 then errors.(first / grain) <- index
-              done) geometry in
+              done);
     match Array.find_opt (fun index -> index >= 0) errors with
     | Some index -> Error (Printf.sprintf "Rdk_mesh.Deform.noise_displace: non-finite noise, normal or output at point %d" index)
     | None ->
+    let positions = Packed.Float3.Private.of_shared_exn ~x ~y ~z in
+    let displaced = Geometry.with_positions positions geometry |> Result.get_ok in
     Ok (displaced
         |> Geometry.without_attribute ~owner:Attribute.Point "N"
         |> Geometry.without_attribute ~owner:Attribute.Vertex "N"))

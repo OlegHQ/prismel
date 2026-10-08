@@ -7045,3 +7045,59 @@ device; command/resource checks do not qualify those gates.
 Evidence: `/private/tmp/pl-oracle-scroll-fixed-build.log`,
 `/private/tmp/pl-image-live-final-build.log`, `/private/tmp/pl-image-live-final-pure.log`,
 `/private/tmp/pl-spreadsheet-scroll-fixed-isolated.log`.
+
+## P4 noise displacement storage (2026-10-08)
+
+Same Apple M1/macOS/OCaml 5.3.0/Dune 3.24.2 development setup. Two isolated
+before/after slots; all agents held builds and other execution. Branch and zone
+rows are seven cold trials, one/eight domains, grain 16,384, with an excluded
+learning cook and payload clearing for `learned`. Session capacity remains
+512 entries/256 MiB. Commands:
+
+```sh
+_build/default/tools/bench_workspace_lower.exe --branches 7 off
+_build/default/tools/bench_workspace_lower.exe --branches 7 learned
+_build/default/tools/bench_workspace_lower.exe --loops 7 learned
+_build/default/tools/bench_workspace_lower.exe _build/default/specification/workspace/cases 21
+```
+
+Height displacement previously copied all three position planes and allocated
+a fourth samples plane. It now borrows immutable X/Z, owns Y, and temporarily
+stores samples in Y before applying the original arithmetic against source Y.
+Normal displacement keeps three owned outputs and uses Z as its samples plane,
+reading original positions from immutable source planes. No public parameter,
+topology, normal invalidation, grain, or cache accounting changes.
+
+| Workload | Placement | Domains | Before ms | After ms | Before program bytes | After program bytes |
+|---|---|---:|---:|---:|---:|---:|
+| Two chains, 2M points | off | 1 | 199.576 | 194.368 | 599,648,696 | 503,648,184 |
+| Two chains, 2M points | off | 8 | 76.219 | 76.692 | 601,319,072 | 505,317,696 |
+| Two chains, 2M points | learned | 1 | 203.073 | 203.938 | 599,648,472 | 503,647,960 |
+| Two chains, 2M points | learned | 8 | 73.731 | 64.264 | 601,441,872 | 505,439,480 |
+| 64 pieces, 3.2M points | learned | 1 | 1243.860 | 1285.643 | 1,197,273,136 | 1,120,464,944 |
+| 64 pieces, 3.2M points | learned | 8 | 273.888 | 286.322 | 1,208,601,248 | 1,131,795,424 |
+
+The learned eight-domain chain median drops 12.8%, with 16.0% less whole-program
+allocation. The loop allocation drops 76.8 MB, while its median rises 3.4% at one
+domain and 4.5% at eight; this pair establishes no loop runtime improvement.
+The chain remains only 1.19x faster than the current OFF path and 1.18x faster
+than Step 0's 75.943 ms: the required additional 1.5x gate is **still unmet**.
+The loop remains over 3x faster than Step 0. Both complete authored geometry
+hashes remain `67c129ecc130f8881a2eaf92c053b64c` and
+`8ef295fbdea12b586200fd1ffcdcb58f` respectively.
+
+The twelve-fixture run uses 21 check/eval/lower trials and seven cook trials,
+default eight-domain Context (the old tool heading `cook1` was misleading).
+All hashes, node counts, eval allocation, capacity retention/evictions and
+payload totals match before/after. Individual small cook medians vary in both
+directions, including fixtures without noise displacement, so this pair does
+not establish the separate within-noise performance gate. Raw full outputs:
+`performance/p4-height-{before,after}-{off,learned,loops}.csv` and
+`performance/p4-height-{before,after}-fixtures.txt`.
+
+`@lib/rdk/runtest`, `@lib/procedural/runtest` and `@check` pass. The regression
+compares independent scalar height/normal formulas and complete geometry bytes
+at one/eight domains, including oversized grain, source immutability,
+immutable X/Z sharing, owned Y, preserved topology and normal invalidation.
+Native rendering and shipping remain unverified; these CPU measurements do
+not establish GPU behavior or close the native gates.

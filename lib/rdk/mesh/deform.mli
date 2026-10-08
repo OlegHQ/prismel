@@ -63,4 +63,6 @@ val noise_displace :
 (** Default [Height_2d] adds signed X/Z noise to Y. [Normal_3d] adds point
     [N * (amplitude * Noise.sample3(P * frequency))], without normalizing N.
     Both preserve topology and invalidate point/vertex N. O(n) time and
-    O(n) output/scratch memory; stable ranges are identical across domains. *)
+    O(n) output/scratch memory; stable ranges are identical across domains.
+    Height displacement shares immutable X/Z planes and owns its Y output;
+    each mode uses an owned output plane for temporary noise samples. *)

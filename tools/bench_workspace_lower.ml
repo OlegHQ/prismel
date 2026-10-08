@@ -258,7 +258,7 @@ let () =
   report_live "before workspace catalog";
   let catalog = ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
   report_live "after workspace catalog";
-  Printf.printf "%-11s %8s %8s %8s %8s %8s %6s %10s %s\n" "fixture" "check" "eval" "lower" "cook1" "l+cook" "nodes" "eval B" "cook hash";
+  Printf.printf "%-11s %8s %8s %8s %8s %8s %6s %10s %s\n" "fixture" "check" "eval" "lower" "cook" "l+cook" "nodes" "eval B" "cook hash";
   let forms name = ok (Flow.Syntax.parse
     (In_channel.with_open_bin (Filename.concat dir (name ^ ".lisp")) In_channel.input_all)) in
   let all = List.filter_map (fun f ->
