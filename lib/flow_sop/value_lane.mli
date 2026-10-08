@@ -12,7 +12,7 @@ type resolved = private {
 }
 
 val create : ?state:Flow.Eval.state -> unit -> t
-val reset : t -> unit
+val reset : ?host_state:bool -> t -> unit
 (** Clear cached resolution and fold values for a fresh playback. *)
 
 val resolve : ?live:Frame_input.t -> t -> time:float -> Network.t -> (resolved, Flow.Diagnostic.t) result

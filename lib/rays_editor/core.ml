@@ -3,10 +3,13 @@ open Procedural
 open Editor_document
 include Core_host
 
-let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
+let update_frame ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state (frame : Frame.t) =
   let carrying = value.carry <> None in
-  let value = {value with live_frame = Sketch_support.Live_frame.of_frame frame} in
+  let live_frame=Sketch_support.Live_frame.of_frame frame in
+  let live_frame=if host_events=[]then live_frame else
+    {live_frame with events=host_events @ live_frame.events} in
+  let value = {value with live_frame} in
   let value = { value with workspace = { value.workspace with hidden = shell_hidden value value.workspace } } in
   let value = follow_start value in
   let focus, focus_path = if all_ui_visible then
@@ -1065,11 +1068,11 @@ let update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel 
         text_intents = []; open_graph;
         settings_changes = []; handle_changes = None; bar_action = None; view_pick = None; drops = [] } in
   reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~leader ~frame ~hud ~actions ~guide ~copied ~steady ~status_fps ~status_fps_at ~timeline ~timeline_changes ~graph_shown ~text ~text_shown ~row_sets ~rows value result
-let update value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render_status
+let update ?(host_events=[]) value ~all_ui_visible ~text_focus ~camera_panel ~view_handles ~render_status
     ~error_status ~view_state (frame : Frame.t) =
   let update, phases = Flow.Phase_timer.sample ~clock:Unix.gettimeofday (fun () ->
   let value, frame, carry_changed = carry_step value ~text_focus frame in
-  update_frame ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
+  update_frame ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state frame) in
   if update.core.doc == value.doc then update
   else { update with core = { update.core with edit_phases = phases } }

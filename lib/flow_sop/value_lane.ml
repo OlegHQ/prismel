@@ -12,7 +12,7 @@ type resolved = {
 type cache = { plan : plan; live : Frame_input.t; result : (resolved, Flow.Diagnostic.t) result }
 type t = { mutable previous : cache option; state : Flow.Eval.state }
 let create ?state () = {previous = None; state = Option.value ~default:(Flow.Eval.create_state ()) state}
-let reset t = t.previous <- None; Flow.Eval.reset_state t.state
+let reset ?(host_state=true) t = t.previous <- None; Flow.Eval.reset_state ~host_state t.state
 
 let prepare network =
   let compile = Flow_ir.Executor.compile ?profile:network.Network.profile in

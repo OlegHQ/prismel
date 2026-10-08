@@ -148,9 +148,9 @@ let pieces value = value.pieces
 let geometry value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.summaries
 let source value ~object_id ~node_id = List.assoc_opt (object_id, node_id) value.sources
 let applied value id = Document.Int_map.find_opt id value.applied
-let reset_state value =
-  Flow.Eval.reset_state value.state;
-  Document.Int_map.iter (fun _ lane -> Flow_sop.Value_lane.reset lane) value.value_lanes
+let reset_state ?(host_state=true) value =
+  Flow.Eval.reset_state ~host_state value.state;
+  Document.Int_map.iter (fun _ lane -> Flow_sop.Value_lane.reset ~host_state lane) value.value_lanes
 
 let context value timeline frame = Context.create ~seed:value.seed
     ~grain:value.grain ~domains:value.domains
@@ -163,14 +163,15 @@ let force value = { value with force = true }
 
 (* [objects] are the visible geometry objects as (id, network graph,
    display node); [frame_request] is (object, node) to frame. *)
-let update ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
+let update ?input ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~objects
     ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
   Flow.Phase_timer.measure Cook (fun () ->
   if List.exists (function Sketch_support.Timeline.Reset_now | Stopped_now -> true | _ -> false)
-      timeline_changes then reset_state value;
-  let input = Sketch_support.Live_frame.of_frame ~time:(Sketch_support.Timeline.time timeline)
-    ~index:(Int64.to_int (Sketch_support.Timeline.frame timeline)) frame in
+      timeline_changes then reset_state ~host_state:false value;
+  let input = match input with Some input->input|None->Sketch_support.Live_frame.of_frame frame in
+  let input={input with t=Sketch_support.Timeline.time timeline;
+    frame=Int64.to_int(Sketch_support.Timeline.frame timeline)} in
   let objects, value_lanes, applied, resolve_error =
     List.fold_left (fun (objects, lanes, applied, error)
         (id, (network : Flow_sop.Network.t), displayed) ->

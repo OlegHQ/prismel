@@ -169,7 +169,7 @@ module Workspace = struct
         let* prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value in
         let view () frame =
           let live = {(Frame_input.at_time frame.Rays.Frame.time) with
-            dt = 1. /. float fps; frame = frame.count; size = (window.width, window.height)} in
+            dt = 1. /. float fps; frame = frame.count; tick = frame.count; size = (window.width, window.height)} in
           match Sketch_support.Drawing.render_prepared ~state prepared
             ~live ~size:live.size with
           | Ok scene -> (match Workspace_host.export_update host ~state ~live doc evaluated.plan with

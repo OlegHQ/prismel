@@ -42,6 +42,17 @@ let pure workspace =
     if o.ctx = Flow.Context.draw then Some o.name else None) |> List.sort String.compare));
   assert (ok (Sketch_support.Drawing.render all.plan (List.assoc "picture" all.results)
     ~live:(Frame_input.at_time 0.) ~size:(800, 600)) <> []);
+  let colored=doc {|(workspace colored (graph picture :context draw
+    (draw/lines (array/vec3 2 [1 2 0]) (array/vec3 2 [3 4 0])
+      :color (array/vec3 2 [1 0 0]))))|}in
+  let evaluated=ok(E.static colored.checked)in
+  let scene=ok(Sketch_support.Drawing.render evaluated.plan(List.assoc "picture" evaluated.results)
+    ~live:(Frame_input.at_time 0.) ~size:(800,600))in
+  assert(match Rays.Scene.Private.commands scene with
+    |[|Scene_command.Render_ir.Shapes batch|]->
+      let bytes=Scene_command.Shape_batch.instances batch in
+      Bytes.get_int32_le bytes 32=0xff0000ffl && Bytes.get_int32_le bytes 96=0xff0000ffl
+    |_->false);
   List.iter(fun text->
     let ws=doc ("(workspace lengths (graph picture :context draw "^text^"))")in
     let evaluated=ok(E.static ws.checked)in

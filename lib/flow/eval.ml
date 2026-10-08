@@ -100,12 +100,12 @@ and residual = { rid : int; rterm : W.term; renv : value Smap.t; rc : ctx;
   previous : bool; mutable fast : fast }
 
 and state = { mutable source : string; mutable frame : int option;
-  mutable before : value Smap.t; mutable next : value Smap.t }
+  mutable before : value Smap.t; mutable next : value Smap.t; mutable host : state option }
 
 and fast = Untried | Failed | Ready of (Frame_input.t -> value)
 
 and ctx = { st : st; inst : int; prefix : W.path; base : W.path; route : string list;
-            iter : int list; depth : int; rec_ : bool; data : bool; geometry : bool }
+            iter : int list; depth : int; rec_ : bool; data : bool; geometry : bool; host : bool }
 
 and st = {
   time : Frame_input.t option;  (* [None] while evaluating statically *)
@@ -145,25 +145,34 @@ type plan = { instances : instance array; nodes : node array }
 type t = { plan : plan; authored : int array; results : (string * value) list; states : value list;
            records : (W.path * (int list * value) list) list }
 
-let create_state () = {source = ""; frame = None; before = Smap.empty; next = Smap.empty}
-let reset_state s = s.source <- ""; s.frame <- None; s.before <- Smap.empty; s.next <- Smap.empty
-let fork_state s = {source = s.source; frame = s.frame; before = s.before; next = s.next}
+let create_state () = {source = ""; frame = None; before = Smap.empty; next = Smap.empty;host=None}
+let reset_frame s = s.source <- ""; s.frame <- None; s.before <- Smap.empty; s.next <- Smap.empty
+let reset_state ?(host_state=true) s = reset_frame s;if host_state then s.host<-None
+let rec fork_state s = {source = s.source; frame = s.frame; before = s.before; next = s.next;
+  host=Option.map fork_state s.host}
+let restore_state s saved=s.source<-saved.source;s.frame<-saved.frame;
+  s.before<-saved.before;s.next<-saved.next;s.host<-saved.host
 let state_stamp s = Digest.to_hex (Digest.string (Marshal.to_string s []))
 let transaction s f =
-  let saved = s.source, s.frame, s.before, s.next in
+  let saved = fork_state s in
   let result = f () in
   (match result with Ok _ -> () | Error _ ->
-    let source, frame, before, next = saved in
-    s.source <- source; s.frame <- frame; s.before <- before; s.next <- next);
+    restore_state s saved);
   result
 let begin_frame s source frame =
-  if source <> s.source || Option.fold ~none:false ~some:(fun old -> frame < old) s.frame then reset_state s;
+  if source <> s.source || Option.fold ~none:false ~some:(fun old -> frame < old) s.frame then reset_frame s;
   s.source <- source;
   if s.frame <> Some frame then begin
     s.before <- Smap.union (fun _ _ newer -> Some newer) s.before s.next;
     s.next <- Smap.empty; s.frame <- Some frame
   end
 let state_key c zone = Marshal.to_string (c.inst, c.prefix @ zone, c.iter) []
+let state_plane c =
+  let state=Option.get c.st.state and live=Option.get c.st.time in
+  if not c.host then state,live.frame else
+    let plane=match state.host with Some plane->plane|None->let plane=create_state()in
+      state.host<-Some plane;plane in
+    plane,live.tick
 let fn_id st = let id = st.nfns in st.nfns <- id + 1; id
 let fn_call c fid count = match c.st.time with
   | None -> let k = !count in incr count; k
@@ -556,7 +565,7 @@ and ev_raw c env (x : W.term) : value =
       (match st.time with
        | None -> ignore (ev c env step); raise Needs_t
        | Some _ ->
-           let state = Option.get st.state and key = state_key c zone in
+           let state,_ = state_plane c in let key = state_key c zone in
            match Smap.find_opt key state.next with
            | Some v -> v
            | None -> let v = coerce_to x.ty (ev c env step) in
@@ -620,8 +629,7 @@ and ev_raw c env (x : W.term) : value =
   | W.Expanded { body; _ } -> ev c env body
 
 and state_previous c env zone init =
-  let state = Option.get c.st.state in
-  let frame = (Option.get c.st.time).frame in
+  let state,frame = state_plane c in
   begin_frame state (Lazy.force c.st.source) frame;
   match Smap.find_opt (state_key c zone) state.before with
   | Some v -> v | None -> ev c env init
@@ -913,7 +921,7 @@ and graph_value ?(rec_ = true) c name over =
     (List.map (fun (n, v) -> n ^ "=" ^ key_of v) over)) in
   let run inst =
     if c.depth > max_depth then fail "E_DEPTH" "Call depth exceeds 64.";
-    let c0 = { st; inst; prefix = []; base = [ name ]; route = []; iter = []; depth = c.depth + 1; rec_ = rec_; data = c.data; geometry = c.geometry } in
+    let c0 = { st; inst; prefix = []; base = [ name ]; route = []; iter = []; depth = c.depth + 1; rec_ = rec_; data = c.data; geometry = c.geometry; host=g.context=Context.host } in
     let env, ins = List.fold_left (fun (env, ins) (n, ty, default) ->
       let v = match List.assoc_opt n over with
         | Some v -> v
@@ -958,7 +966,7 @@ let live_state (st : st) ~state ?(elems = Smap.empty) (l : live) =
   { st with time = Some l; state = Some state; steps = 0; memo = Hashtbl.create 16;
     fn_calls = Hashtbl.create 16; record = false; elems }
 
-let root st = { st; inst = -1; prefix = []; base = []; route = []; iter = []; depth = 0; rec_ = true; data = false; geometry = false }
+let root st = { st; inst = -1; prefix = []; base = []; route = []; iter = []; depth = 0; rec_ = true; data = false; geometry = false; host=false }
 
 let protect f =
   try Ok (f ()) with
@@ -1041,7 +1049,7 @@ let state_dependent = dependent false
 (* one live state per call, made from the first residual met *)
 let with_live ?state ?elems ?resolve ?execute ?(compiled = true) (l : live) (f : (residual -> ctx) -> 'a) : ('a, Diagnostic.t) result =
   let state = Option.value ~default:(create_state ()) state in
-  let saved = state.source, state.frame, state.before, state.next in
+  let saved = fork_state state in
   let elems = Option.map Smap.of_list elems in
   let live = ref None in
   let ctx_of r =
@@ -1055,8 +1063,7 @@ let with_live ?state ?elems ?resolve ?execute ?(compiled = true) (l : live) (f :
   | Ok () ->
       let result = protect (fun () -> f ctx_of) in
       (match result with Ok _ -> () | Error _ ->
-        let source, frame, before, next = saved in
-        state.source <- source; state.frame <- frame; state.before <- before; state.next <- next);
+        restore_state state saved);
       result
 
 let residual_eval ?state ?elems r ~live =

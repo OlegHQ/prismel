@@ -22,6 +22,9 @@ let pure ()=
   require(Int32.float_of_bits(Bytes.get_int32_le bytes 0)=1.25)"fractional coordinates";
   let ir=Result.get_ok(Scene_command.Render_ir.create [|Shapes b|])in
   let original=Scene_command.Render_ir.serialize ir in
+  Bytes.set_int32_le bytes 52 (Int32.bits_of_float nan);
+  require(not(B.Private.valid b))"nonfinite anti-alias boundary";
+  Bytes.set_int32_le bytes 52 (Int32.bits_of_float 1.);
   Bytes.set_int32_le bytes 0 (Int32.bits_of_float nan);
   require(not(B.Private.valid b))"nonfinite boundary";
   require(Scene_command.Render_ir.create [|Shapes b|]=Error Invalid_cardinality)"invalid commands";
@@ -83,16 +86,17 @@ let native ()=
         (Scene.Private.shapes(B.Builder.publish b))) [70;255];
     let wrap nodes=Scene.clip ~at:(7,9) ~w:43 ~h:37 [Scene.translate 27 23
       [Scene.rotate 0.37 [Scene.scale 1.7 0.8 nodes]]]in
-    List.iter(fun count->
+    List.iter(fun (blend:Scene.blend)->List.iter(fun count->
       let b=batch count in
-      Canvas.render canvas [Scene.clear Color.black;wrap [Scene.Private.shapes b]];
+      Canvas.render canvas [Scene.clear Color.black;Scene.blend blend[wrap [Scene.Private.shapes b]]];
       let expected=Canvas.pixels canvas in
       let single=Array.init count(fun i->let one=B.Builder.create ~capacity:1 ()in
         B.Builder.circle one ~x:(8.+.float(i mod 19)*.2.) ~y:(8.+.float(i mod 13)*.2.)
           ~radius:3. ~fill:(rgba(Color.rgba 40 120 180 70)) ();
         Scene.Private.shapes(B.Builder.publish one))in
-      Canvas.render canvas [Scene.clear Color.black;wrap(Array.to_list single)];
-      require(Canvas.pixels canvas=expected)"packed/singular transform clip alpha parity") [63;64;65];
+      Canvas.render canvas [Scene.clear Color.black;Scene.blend blend[wrap(Array.to_list single)]];
+      require(Canvas.pixels canvas=expected)"packed/singular transform clip blend alpha parity") [63;64;65])
+      [Scene.Alpha;Replace;Add;Multiply];
     let dense=batch 100000 in
     Canvas.render canvas [Scene.clear Color.black;Scene.Private.shapes dense];
     let before=Canvas.Private.native_stats canvas in

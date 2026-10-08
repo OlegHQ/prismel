@@ -34,7 +34,7 @@ let event = function
 
 let of_frame ?time ?index (f : Frame.t) : Frame_input.t = {
   t = Option.value ~default:f.time time; dt = f.dt;
-  frame = Option.value ~default:f.count index; size = f.size; pointer = f.mouse;
+  frame = Option.value ~default:f.count index; tick = f.count; size = f.size; pointer = f.mouse;
   buttons = List.map button f.mouse_buttons; keys = List.map key f.keys;
   events = List.map event f.events;
 }

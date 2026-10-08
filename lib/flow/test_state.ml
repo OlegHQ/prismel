@@ -40,3 +40,24 @@ let () =
   let forms = Result.get_ok (Syntax.parse "(workspace w (graph g :context value (state [s t] s)))") in
   let _, ds = Workspace.check {Check.version = 1; kinds = []} forms in
   assert (List.exists (fun (d : Diagnostic.t) -> d.code = "E_STATE_INIT") ds)
+
+let () =
+  let forms=Result.get_ok(Syntax.parse "(workspace w (graph host :context host (state [n 0] (+ n 1))) (graph animated :context value (state [n 0] (+ n 1))))")in
+  let workspace=match Workspace.check {Check.version=1;kinds=[]} forms with
+    |Some workspace,[]->workspace|_,ds->failwith(String.concat "; " (List.map Diagnostic.to_string ds))in
+  let state=Eval.create_state()in
+  let run tick frame=Result.get_ok(Eval.run ~state ~live:{(Frame_input.at_time 0.)with tick;frame} ~time:0. workspace)in
+  let result=run 0 0 in
+  assert(List.assoc "host" result.results=Eval.Int 1 && List.assoc "animated" result.results=Eval.Int 1);
+  let result=run 1 0 in
+  assert(List.assoc "host" result.results=Eval.Int 2 && List.assoc "animated" result.results=Eval.Int 1);
+  assert(List.assoc "host" (run 1 0).results=Eval.Int 2);
+  let snapshot=Eval.fork_state state in
+  assert(List.assoc "host" (run 2 1).results=Eval.Int 3);
+  let result=Result.get_ok(Eval.run ~state:snapshot ~live:{(Frame_input.at_time 0.)with tick=2;frame=1} ~time:0. workspace)in
+  assert(List.assoc "host" result.results=Eval.Int 3 && List.assoc "animated" result.results=Eval.Int 2);
+  Eval.reset_state ~host_state:false state;
+  let result=run 3 0 in
+  assert(List.assoc "host" result.results=Eval.Int 4 && List.assoc "animated" result.results=Eval.Int 1);
+  Eval.reset_state state;
+  assert(List.assoc "host" (run 4 0).results=Eval.Int 1)

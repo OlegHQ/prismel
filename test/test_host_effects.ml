@@ -23,9 +23,10 @@ let ()=
     editor:=Editor.update !editor(frame 3);
     editor:=Editor.update !editor(frame ~keys:[Rays.Input.KeyChar 'q'] 4);
     assert(Editor.Private.host_stats !editor=(true,2,0,0)));
-  assert(match Rays_editor.Workspace.export ~directory:"/tmp/rays-effects-refused" ~frames:1
-    (workspace "(list (host/quit true))") with
-    |Error diagnostic->diagnostic.Flow.Diagnostic.code="E_EFFECT_EXPORT"|Ok()->false);
+  List.iter(fun effects->assert(match Rays_editor.Workspace.export
+    ~directory:"/tmp/rays-effects-refused" ~frames:1 (workspace effects)with
+    |Error diagnostic->diagnostic.Flow.Diagnostic.code="E_EFFECT_EXPORT"|Ok()->false))
+    ["(list (host/quit true))";"(list (host/dialog \"open_file\" true))"];
   let doc=workspace "(list (host/play (audio/synth :frequency 440.0 :duration 0.01) (key/down \"a\")) (host/play (audio/synth :frequency 440.0 :duration 0.01) (key/down \"a\")))"in
   let closed=with_editor doc(fun editor->
     editor:=Editor.update !editor(frame ~keys:[Rays.Input.KeyChar 'a'] 1);
@@ -35,3 +36,13 @@ let ()=
     !editor)in
   assert(Editor.Private.host_stats closed=(false,2,1,1));
   print_endline "host: synthetic key edge fires once, export rejects quit, two nodes share one sample, close releases once"
+
+let ()=if Array.length Sys.argv>1 then begin
+  let directory=Sys.argv.(1)in
+  let shot=directory^"/screenshot.png"in
+  let effects=Printf.sprintf "(host/save_png %S (= (frame/index) 1))"shot in
+  assert(Rays_editor.Workspace.export ~directory ~frames:3 (workspace effects)=Ok());
+  let read path=In_channel.with_open_bin path In_channel.input_all in
+  assert(read shot=read(directory^"/frame-000001.png"));
+  print_endline "host: fixed-step screenshot matches the requested presented export frame"
+end

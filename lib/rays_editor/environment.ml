@@ -660,7 +660,7 @@ let update_with value frame ~inspector =
     (* a handle is where the picture shows its point: in the view's film, not its pane *)
     V.handles ui ~selected ~scene:(Core.scene value.core) ~space (view_camera value)
       extra ~bounds:(V.film extra ~key:(focus_key value) bounds) in
-  let update = Core.update value.core ~all_ui_visible:visible
+  let update = Core.update ~host_events:(Workspace_host.take_events value.host) value.core ~all_ui_visible:visible
       ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel ~view_handles
       ~render_status:(match value.status (Core.prepared value.core), value.render_status with
         | Some sketch, Some render -> Some (sketch ^ " · " ^ render)
@@ -982,10 +982,11 @@ let run ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?co
     ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
     ~config ~workspace ?source ~prepare ~draw ?overlay ?status () =
   let name = Option.value name ~default:(Workspace_doc.name workspace) in
-  let init _frame = create ?inputs ?layout ~name ?presets ?timeline_frames ?factories ?settings
+  let init _frame = let value=create ?inputs ?layout ~name ?presets ?timeline_frames ?factories ?settings
       ?commands ?lights ?world
       ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
       ~workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
+    value.host.deterministic<-(match config.Sketch.clock with Fixed _->true|Realtime->false);value in
   let update value frame =
     let value = update value frame in
     (* a cursor the platform refuses is said in the strip; the editor runs on *)
