@@ -38,12 +38,16 @@ let mock () =
   (* Only command lifecycle and bindings are modeled; this driver executes no
      shader arithmetic. Native ABI verification is a separate invocation. *)
   let pipelines=ref 0 and abandoned=ref 0 and ended=ref 0 and reads=ref 0
+  and status_reads=ref 0 and status_resource=ref None and invalid=ref false
   and descriptors=ref [] and fail=ref false and uniforms=ref Bytes.empty in
   let driver=B.{create_device=(fun () -> Result.map (fun raw ->
     {raw with capabilities={raw.capabilities with compute_pipeline=true};
       create_buffer=(fun memory descriptor -> descriptors:=descriptor::!descriptors;
-        Result.map (fun (resource:B.driver_resource) -> {resource with
-          read=(fun offset count -> incr reads; resource.read offset count)}) (raw.create_buffer memory descriptor));
+        Result.map (fun (resource:B.driver_resource) ->
+          if descriptor.label=Some"GPU circle status"then status_resource:=Some resource;
+          {resource with read=(fun offset count ->
+            if descriptor.label=Some"GPU circle status"then(assert(count=4);incr status_reads)
+            else incr reads;resource.read offset count)}) (raw.create_buffer memory descriptor));
       create_library=(fun shader -> Result.map (fun library -> {library with
         create_compute_pipeline_in=(fun ~entry:_ ~constants:_ ~interface:_ ~linked:_ ->
           incr pipelines; Ok {pipeline_token=1L;
@@ -59,7 +63,9 @@ let mock () =
             set_table=(fun ~index:_ _ -> assert false); compute_use_accels=(fun _ -> assert false);
             dispatch_threads=(fun ~threads ~threadgroup -> assert (threadgroup=(256,1,1));
               assert (threads=(Int32.to_int (Bytes.get_int32_le !uniforms 0),1,1));
-              if !fail then Error (Ogpu.Error.make "test" Invalid_state "injected dispatch") else Ok ());
+              if !fail then Error (Ogpu.Error.make "test" Invalid_state "injected dispatch") else begin
+                if !invalid then begin let bytes=Bytes.make 4 '\000'in Bytes.set_int32_le bytes 0 1l;
+                  ignore(get((Option.get !status_resource).write 0L bytes))end;Ok()end);
             end_compute=(fun () -> incr ended; Ok ())})}) (queue.begin_commands ()))}) (raw.create_queue ()))})
     (base.create_device ()))} in
   let device=get (B.create_device driver) and other=get (B.create_device driver) in
@@ -85,6 +91,8 @@ let mock () =
     ignore (B.destroy_buffer foreign);
     let before= !ended in fail:=true; expect Invalid_state (run 1 1. 1.);
     assert (!ended=before+1 && !abandoned=2); fail:=false;
+    invalid:=true;expect Invalid_argument(run 1 1. 1.);invalid:=false;
+    ignore(get(run 1 1. 1.));
     expect Invalid_state (Domain.join (Domain.spawn (fun () -> run 1 1. 1.)));
     assert (Domain.join (Domain.spawn (fun () -> try C.close circles; false with Invalid_argument _ -> true)));
     expect Invalid_state (Domain.join (Domain.spawn (fun () -> C.create ~device ~queue)));
@@ -94,11 +102,12 @@ let mock () =
     assert (B.buffer_size largest=64_000_000L && get (run 1 1. 1.)==largest);
     ignore (B.destroy_buffer dense);
     C.close circles; C.close circles; expect Invalid_state (run 1 1. 1.);
-    assert (!reads=0 && !pipelines=0);
+    assert (!reads=0 && !status_reads>0 && !pipelines=0);
     assert (List.for_all (fun (descriptor:Ogpu.Types.buffer_descriptor) ->
-      descriptor.usage=[Storage] || descriptor.usage=[Vertex;Storage]) !descriptors));
+      descriptor.usage=[Storage] || descriptor.usage=[Vertex;Storage] ||
+      descriptor.usage=[Storage;Copy_src;Copy_dst]&&descriptor.size=4L) !descriptors));
   assert (live ()=0);
-  print_endline "GPU circles: mock ownership, bounded geometric reuse, style validation, abandonment and no readback pass"
+  print_endline "GPU circles: mock ownership, bounded reuse, finite-status guard, abandonment and no instance readback pass"
 let () =
   if Array.exists ((=) "--source") Sys.argv then print_string C.source
   else if Array.exists ((=) "--native") Sys.argv then native () else mock ()

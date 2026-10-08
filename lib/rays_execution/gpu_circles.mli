@@ -11,7 +11,8 @@ val dispatch : t -> source:Ogpu.Backend.buffer -> count:int -> radius:float ->
     radius-expanded bounds representable as float32. Source validity and
     generation belong to the caller. The completed output is borrowed until
     the next dispatch or close, uses Vertex/Storage, and grows geometrically.
-    No output readback occurs. Fill/stroke are packed RGBA words; use fill=-1l,
+    A four-byte validation status rejects nonfinite coordinates or expanded
+    bounds; instance data stays on the GPU. Fill/stroke are packed RGBA words; use fill=-1l,
     stroke=0l for the usual white fill. A zero stroke disables stroke width. *)
 
 val close : t -> unit

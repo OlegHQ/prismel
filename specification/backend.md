@@ -707,8 +707,9 @@ with creating-domain, device, producer-generation and closed-owner checks. Prepa
 automatic replay retain these lifetime guards; stale registrations return `Stale_handle`.
 Registrations never destroy producer buffers. Closing a sink releases its registrations and
 storage before its queue/device lease; releasing a GPU lease also closes its remaining sinks.
-Source coordinates and radius-expanded bounds must be finite float32 values, the private
-producer contract. The conversion shader is compiled offline; mock checks verify binding,
+The conversion kernel rejects nonfinite coordinates or radius-expanded bounds through a
+four-byte status read after completion; position and instance arrays remain resident.
+The conversion shader is compiled offline; mock checks verify binding,
 index-upload reuse, bounded allocation and ownership. Native exact instance bytes, transformed
 circle pixels at 1x/2x, all six blend modes and stale replay remain qualification checks, never
 inferred from mock output. Host resources pin a bounded table

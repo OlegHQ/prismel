@@ -35,7 +35,16 @@ let ()=
           ~x:points.(index*3)~y:points.(index*3+1)~radius:2.5
           ~fill:0x12345678l~stroke:0xff00ff80l~stroke_width:3.()done;
         assert(native_get(B.read_buffer converted~offset:0L~length:128)=
-          Scene_command.Shape_batch.instances(Scene_command.Shape_batch.Builder.publish expected)));
+          Scene_command.Shape_batch.instances(Scene_command.Shape_batch.Builder.publish expected));
+        List.iter(fun(x,radius)->
+          let bad=Bytes.copy bytes in Bytes.set_int32_le bad 0(Int32.bits_of_float x);
+          native_get(B.write_buffer positions~offset:0L bad);
+          match C.dispatch conversion~source:positions~count:2~radius
+            ~fill:(-1l)~stroke:0l~stroke_width:0. with
+          |Error{Ogpu.Error.kind=Invalid_argument;_}->()
+          |_->failwith"GPU circles accepted nonfinite coordinates or bounds")
+          [infinity,1.;3.0e38,3.0e38];
+        native_get(B.write_buffer positions~offset:0L bytes));
       List.iter(fun(fill,stroke,stroke_width)->
         let token=get(Rays_execution.Private.gpu_circles sink~source:(source !generation)
           ~count:2~radius:2.5~fill~stroke~stroke_width)in

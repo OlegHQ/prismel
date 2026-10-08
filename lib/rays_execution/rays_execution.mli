@@ -105,8 +105,8 @@ module Private : sig
       instance ABI. Each sink owns one reusable buffer; updating it invalidates
       the previous token. Close it before releasing its GPU lease. [source]
       must return [None] once the producer output is overwritten or closed.
-      Coordinates are logical points and must be finite float32 values whose
-      radius-expanded bounds remain finite. No readback occurs. *)
+      Coordinates are logical points. A four-byte validation status rejects
+      nonfinite bounds; position and instance arrays stay on the GPU. *)
   val create_gpu_circles : gpu -> (gpu_circles,error) result
   val gpu_circles : gpu_circles -> source:(unit -> Ogpu.Backend.buffer option) ->
     count:int -> radius:float -> fill:int32 -> stroke:int32 -> stroke_width:float ->
