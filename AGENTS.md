@@ -56,6 +56,7 @@ what to cook. Until that lands, `Sketch`/`Frame`/`Scene` stay the way to write a
 | `sop_catalog` | Inspectable SOP constructors registered by PPX |
 | `flow` | UI-free workspace language over `param` and `frame_input`: reader, printer, macros, checker, evaluator, frame folds, packed arrays and typed deferred nodes |
 | `flow_ir` | Typed dataflow IR over `flow` evaluations with sharing, hoisting, pruning, fusion and precision passes, and the block-at-a-time CPU kernel tier over `Parallel`; `flow` never depends on it |
+| `flow_gpu` | Metal emitter from `flow_ir` packed programs, a pipeline cache of 64 and owned runners; depends on `flow`, `flow_ir`, `ogpu`, `rays_execution`, `lru`; never reaches geometry or UI |
 | `flow_graph` | Domain-neutral graph projection, checked text gestures, exposure and probes over `flow` and `param` |
 | `flow_sop` | Typed SOP/value overlay, drives, exposure and environment-owned value lane |
 | `editor_core` | Editor state and routing: labelled `History`, `Command`, `Keymap`, `Router`, the shell's panel tree (`Panels`), plus atomic file writes and s-expression user preferences (`Store`, printed by `Flow.Lisp`) |
@@ -100,6 +101,9 @@ exception.
   `pxui_graph` never reaches `procedural` or `rdk` and never imports `sketch_*`;
   `flow_graph` depends only on `flow` and `param`; `flow_ir` depends only on `flow`, `param` and
   `rays_math` and never reaches `rays`, `pxui*`, `procedural`, `rdk`, `sketch_*` or `rays_editor`;
+  `flow_gpu` depends only on `flow`, `flow_ir`, `param`, `rays_math`,
+  `ogpu_core`, `ogpu`, `rays_execution` and `lru` and never reaches
+  `procedural`, `rdk`, `flow_sop`, `sketch_support` or any UI library;
   nothing below imports `rays_editor`.
 - A boundary change updates the gate, adds focused tests at each affected
   boundary, and updates `specification/backend.md`. Do not expose raw SDL,

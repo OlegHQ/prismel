@@ -161,6 +161,11 @@ small. F8 is the hand-off into the continuation.
 
 ### F0. Documentation drift (do first, one hour)
 
+**Done (2026-10-08).** The commit titled `Document flow_gpu ownership and
+dependency rules (F0)` adds the library row and dependency rule below.
+`dune build @check tools/check.exe`, `_build/default/tools/check.exe --ship`
+and `git diff --check` passed on the native Apple-Silicon worktree.
+
 `AGENTS.md`'s library table has no `flow_gpu` row. `specification/backend.md`
 describes it (section "Ownership and dependency direction"). Add the row:
 
