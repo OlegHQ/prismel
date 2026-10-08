@@ -6732,3 +6732,26 @@ suffix placement, diagnostics order and cancellation. Cache keys containing
 fresh runtime data IDs are deliberately not compared across separate allocating
 runs; immutable shared-plane fixtures exercise exact key equality directly.
 Native GPU and shipping checks remain pending in this restricted session.
+
+## Advisory GPU path audit (2026-10-08)
+
+`_build/default/tools/bench_workspace_lower.exe --approx` passes against all
+27 actual example/sketch/kit files, including the generated SOP gallery and
+voxel wall with their own custom catalogs. The particle workspace reports
+six paths: `picture/initial_velocity`, `picture/particles/position`,
+`picture/particles/bounced_velocity`, and that map's `#0/:p`, `#0/@result`
+and `#0/@result#test` body paths. `sketches/flow_kernel/sketch.rays`
+reports `terrain/updated`; every other file reports an empty set.
+
+This set is advisory: it describes supported typed float/Vec3 packed bodies
+and their propagated values, including frame uniforms. Actual GPU placement
+must also have a compiled packed producer and satisfy the precision passes.
+Exact forms, folds, list/filtered maps, unsupported operations, incompatible
+parameter annotations, multiple comprehension clauses, catalog-valued
+operations and dynamic noise seed/octave parameters are excluded by the
+checker regressions. The workspace reference oracle passes at four times
+and one/eight domains with this metadata enabled. No approximate GPU result
+is claimed by this checker audit.
+
+Evidence: `/private/tmp/p5-approx-paths-final.log`,
+`/private/tmp/p5-checker-final.log`, `/private/tmp/p5-checker-validation.log`.
