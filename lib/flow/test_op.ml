@@ -11,7 +11,7 @@ let nominal_samples = [
   Ty.geometry, No_geo]
 
 let rec sample name = function
-  | Ty.Int -> Int (if name = "index" || name = "active" then 0 else 2)
+  | Ty.Int -> Int (if name = "index" || name = "active" || name = "first" then 0 else 2)
   | Float -> Float (if name = "ratio" then 0.5 else 1.5)
   | Bool -> Bool true | Vec3 -> Vec3 (1., 2., 3.)
   | Text | Color -> Text (if name = "axis" then "horizontal" else if name = "button" then "left" else "a")
@@ -33,7 +33,7 @@ let check (o : Op.t) args =
   with Value.Fail (code, msg, _) -> failwith (o.name ^ ": " ^ code ^ ": " ^ msg)
 
 let () =
-  assert (List.length Op.all = 98);
+  assert (List.length Op.all = 107);
   List.iter (fun (o : Op.t) ->
     assert (Option.get (Op.find o.name o.ctx) == o);
     let s = o.signature in
@@ -95,3 +95,15 @@ let () =
   let evaluated = Result.get_ok (Eval.run ~time:0. (Option.get ws)) in
   assert (List.assoc "g" evaluated.results = Eval.Struct ("custom/root", Ty.scene, ["child",Eval.No_geo]));
   assert (Array.length evaluated.plan.nodes = 0)
+
+let () =
+  let apply name args=check(Option.get(Op.find name Context.value))args in
+  let product=131071*131071*19349663 in
+  assert(apply "int/mul" ["a",Int(131071*131071);"b",Int 19349663]=Int product);
+  assert(apply "int/mod" ["a",Int product;"b",Int 97]=Int(product mod 97));
+  assert(apply "int/and" ["a",Int product;"b",Int max_int]=Int product);
+  let values=Vec3_array[|1.;2.;3.;4.;5.;6.|]in
+  let tail=apply "array/slice" ["array",values;"first",Int 1;"count",Int 1]in
+  assert(tail=Vec3_array[|4.;5.;6.|]);
+  assert(apply "array/concat" ["first",tail;"second",tail]=Vec3_array[|4.;5.;6.;4.;5.;6.|]);
+  assert(apply "equal?" ["a",Text "key-pressed";"b",Text "key-pressed"]=Bool true)

@@ -739,7 +739,10 @@ let check ?(ops = []) catalog forms =
                 err e "E_TYPE" (Printf.sprintf "%s in %s iterates a list (range, linspace, point_list …); got %s."
                   (pattern_key p) h (show cv.ty));
               Ty.Any in
-        if cv.live_len && kind <> `Sum && (match cv.ty with Ty.Array _ -> false | _ -> true) then
+        if cv.live_len && kind <> `Sum &&
+           not ((kind = `Fold || kind = `Scan) &&
+             Option.fold ~none:false ~some:(fun (_,_,initial)->not(shape_ty initial.ty)) init) &&
+           (match cv.ty with Ty.Array _ -> false | _ -> true) then
           err e "E_TIME_COUNT" (Printf.sprintf
             "The number of iterations of %s depends on t. Loop counts are fixed while playing; animate parameters instead, for example scale a piece to 0." name);
         envs := bind_pat p { cv with ty = et; live_len = false; len = None; fn = None;

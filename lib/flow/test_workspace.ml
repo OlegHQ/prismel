@@ -236,6 +236,8 @@ let () = (* E_TIME_COUNT (T2) *)
   (* value-only lists may have a live length, and a live body is not a live count *)
   ignore (good (value "(sum [x (filter (fn [s] (> s t)) (list 1 2 3))] x)"));
   ignore (good (value "(count (range (floor t)))"));
+  ignore (good (value "(fold [total 0] [x (range (floor t))] (+ total x))"));
+  ignore (good (value "(count (scan [total 0] [x (range (floor t))] (+ total x)))"));
   ignore (good (sop "(sop/merge (for [i (range 3)] (sop/box :size (+ 1 (sin t)))))"));
   ignore (good (sop "(sop/merge (map (fn [i] (sop/box :size t)) (range 3)))"))
 
