@@ -23,29 +23,29 @@
  (libraries ogpu_metal_native metal))
 
 (rule
- (aliases runtest test_ogpu_metal_foundation)
+ (aliases runtest-native test_ogpu_metal_foundation)
  (action (run %{exe:test_main.exe} test_ogpu_metal_foundation)))
 
 (rule
- (aliases runtest test_ogpu_metal_texture)
+ (aliases runtest-native test_ogpu_metal_texture)
  (action (run %{exe:test_main.exe} test_ogpu_metal_texture)))
 
 (rule
- (aliases runtest test_ogpu_metal_pipeline)
+ (aliases runtest-native test_ogpu_metal_pipeline)
  (action (run %{exe:test_main.exe} test_ogpu_metal_pipeline)))
 
 (rule
- (aliases runtest test_ogpu_metal_acceleration)
+ (aliases runtest-native test_ogpu_metal_acceleration)
  (action (run %{exe:test_main.exe} test_ogpu_metal_acceleration)))
 
 (rule
- (aliases runtest test_ogpu_metal_capabilities)
+ (aliases runtest-native test_ogpu_metal_capabilities)
  (action (run %{exe:test_main.exe} test_ogpu_metal_capabilities)))
 
 (rule
- (aliases runtest test_ogpu_metal_sampler_pixels)
+ (aliases runtest-native test_ogpu_metal_sampler_pixels)
  (action (run %{exe:test_main.exe} test_ogpu_metal_sampler_pixels)))
 
 (rule
- (aliases runtest test_pipeline_argument_buffer)
+ (aliases runtest-native test_pipeline_argument_buffer)
  (action (run %{exe:test_main.exe} test_pipeline_argument_buffer)))

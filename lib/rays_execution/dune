@@ -26,11 +26,11 @@
  (libraries rays_execution scene_command ogpu unix))
 
 (rule
- (aliases runtest test_offscreen)
+ (aliases runtest-native test_offscreen)
  (action (run %{exe:test_main.exe} test_offscreen)))
 
 (rule
- (aliases runtest test_scene2_coordinates)
+ (aliases runtest-native test_scene2_coordinates)
  (action (run %{exe:test_main.exe} test_scene2_coordinates)))
 
 (rule
@@ -38,5 +38,5 @@
  (action (run %{exe:test_main.exe} test_dense_scene2)))
 
 (rule
- (aliases runtest test_ui_pipeline)
+ (aliases runtest-native test_ui_pipeline)
  (action (run %{exe:test_main.exe} test_ui_pipeline)))
