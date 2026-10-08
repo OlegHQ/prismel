@@ -6552,3 +6552,22 @@ The full native shipping gate remains outstanding.
 
 Raw isolated measurements: `/private/tmp/p5-mesh-baseline.csv` and
 `/private/tmp/p5-mesh-after.csv`.
+
+After installation of Metal Toolchain 27.1.266.1, Apple Metal compiler
+32023.921 compiles all five Scene3 variants (plain, textured, shadow, World,
+sun depth) and P3's Ui/shape shader successfully. The module cache is directed
+to `/private/tmp/rays-metal-module-cache`; the ordinary user cache is outside
+the sandbox's writable roots. Actual Metal device acquisition still returns
+`No_adapter` in this session.
+
+The gallery oracle is now runnable through
+`@examples/sop_gallery/test_scene3_float32_gallery`. It uses each cooked
+gallery mesh's original float64 coordinates, normals and UVs to reconstruct
+the old 68-byte vertex layout, renders that and the production mirror with
+identical transforms/material/uniforms, and prints the maximum channel
+difference and changed-pixel count for each graph at its first frame.
+The existing IR/reference and one/eight-domain native comparisons still
+require exact equality. The legacy comparison records the accepted display
+precision difference; it does not manufacture a tolerance from unavailable
+GPU measurements. This oracle is written but its native result remains
+outstanding.

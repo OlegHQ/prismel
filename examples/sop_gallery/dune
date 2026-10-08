@@ -18,6 +18,14 @@
  (action (setenv RAYS_WORKSPACE_PIXELS /tmp/rays-workspace-pixels-sop-gallery
   (run %{exe:main.exe} --check-all))))
 
+(rule
+ (aliases runtest-native test_scene3_float32_gallery)
+ (locks smoke_window)
+ (action
+  (setenv RAYS_SCENE3_FLOAT32_COMPARE 1
+   (setenv RAYS_WORKSPACE_PIXELS /tmp/rays-scene3-float32-gallery
+    (run %{exe:main.exe} --check-all)))))
+
 (alias
  (name qualification)
  (deps (alias test_workspace_pixels)))

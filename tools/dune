@@ -1,7 +1,7 @@
 (library
  (name workspace_parity)
  (modules workspace_parity)
- (libraries rays flow_ir flow_sop editor_document sketch_support rdk_rays rdk_test_support unix))
+ (libraries rays rays_execution runtime scene_execution ogpu flow_ir flow_sop editor_document sketch_support rdk_rays rdk_test_support unix))
 
 (executable
  (name check)
