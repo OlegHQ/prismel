@@ -258,12 +258,14 @@ let integers = List.map(fun(name,operation)->
       try Int(operation a b)with Division_by_zero->fail "E_RANGE" "Integer division by zero."})
   ["int/mul",( * );"int/div",( / );"int/mod",( mod );"int/and",( land );"int/xor",( lxor )]
 
+(* Constructor arguments remain typed values, including live fields; [node]
+   creates the deferred payload instead of residualizing the whole call. *)
 let images = [
-  mk ~category:"Image" "image/load" ["path",Ty.Text] (fun _->Ty.image)
+  mk ~category:"Image" ~shape:(Struct {splice=false}) "image/load" ["path",Ty.Text] (fun _->Ty.image)
     {run=fun ~name ~node args->node name args};
-  mk ~category:"Image" ~kw:["width",Ty.Int;"height",Ty.Int] "image/render"
+  mk ~category:"Image" ~shape:(Struct {splice=false}) ~kw:["width",Ty.Int;"height",Ty.Int] "image/render"
     ["drawing",Ty.drawing] (fun _->Ty.image) {run=fun ~name ~node args->node name args};
-  mk ~category:"Image" ~kw:["width",Ty.Int;"height",Ty.Int;"frequency",Ty.Float;"freq",Ty.Float;"seed",Ty.Int]
+  mk ~category:"Image" ~shape:(Struct {splice=false}) ~kw:["width",Ty.Int;"height",Ty.Int;"frequency",Ty.Float;"freq",Ty.Float;"seed",Ty.Int]
     "image/noise" [] (fun _->Ty.image) {run=fun ~name ~node args->node name args};
 ]
 

@@ -28,6 +28,16 @@ module Editor3 = struct
     let image value image = let core=value.Environment.core in
       Workspace_images.image value.host.images ~state:core.cook.state ~live:core.live_frame
         (snd core.doc.workspace).plan image
+    let with_images ?state ?live ?plan value run =
+      let core = value.Environment.core in
+      let state = Option.value ~default:core.cook.state state
+      and live = Option.value ~default:core.live_frame live
+      and plan = Option.value ~default:(snd core.doc.workspace).plan plan in
+      Flow_sop.Lower.with_images
+        ~metadata:(fun plan id -> Option.map Rays.Image.get_size (Workspace_images.peek value.host.images plan id))
+        (Workspace_images.payload value.host.images) (fun () ->
+          run ~image:(Workspace_images.image value.host.images ~state ~live plan)
+            ~texture:(Workspace_images.texture value.host.images ~state ~live plan))
   end
 
   type render_settings = Objects.Root.render = { width : int; height : int; max_spp : int }

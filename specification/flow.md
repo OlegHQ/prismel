@@ -1260,7 +1260,7 @@ Benchmarks: `tools/bench_rays_editor.exe`, `tools/bench_workspace_lower.exe`,
 
 Window-free logic tests in `runtest`: the reader, printer, macros, checker and evaluator
 (`lib/flow/test_*.ml`), threading round trips over every checked-in workspace
-(`test/test_threading.ml`), edits (`test/test_workspace_edit.ml`), projection and probes
+(`test/test_threading.ml`), edits (`lib/flow_sop/test_workspace_edit.ml`), projection and probes
 (`lib/flow_sop/test_projection.ml`, `test/test_probe.ml`), the pane's gestures
 (`lib/pxui_graph/test_pxui_graph.ml`), the document and its layout (`test/test_workspace_doc.ml`),
 lowering, zones and live values (`lib/flow_sop/test_workspace_cook.ml`, `lib/flow_sop/test_workspace_zone.ml`,

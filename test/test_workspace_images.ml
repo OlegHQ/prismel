@@ -100,3 +100,26 @@ let ()=
     (Rays.Scene3.Private.drawings scene)(Rays.Scene3.Private.drawings textured);
   assert(Rays.Scene3.Private.samples textured=4 && Rays.Scene3.Private.ambient textured=Rays.Color.red);
   print_endline "Scene image textures preserve affine, cull, blend, depth and scene settings"
+
+let () =
+  List.iter (fun producer ->
+  let document = load ("(workspace image_oracle (graph image :context image " ^ producer ^ ")" ^ {|
+    (graph grid :context sop
+      (sop/attr_from_image (sop/grid :rows 2 :columns 2 :uv_attribute "uv") (ref image)))
+    (graph picture :context draw (draw/image (ref image)))
+    (graph scene :context scene (scene/geometry (ref grid) :texture (ref image))))|}) in
+  Workspace_parity.check ~commands:true ~factories:Sop_catalog.Editor.factories
+    ~name:"image_oracle" document;
+  if String.starts_with ~prefix:"(image/noise" producer then begin
+    let owner = editor document in
+    Fun.protect ~finally:(fun () -> Editor.close owner) (fun () ->
+      let evaluated = ok (E.static document.checked) in
+      let pixels time = Editor.Private.with_images ~plan:evaluated.plan
+        ~live:(Frame_input.at_time time) owner (fun ~image ~texture:_ ->
+          Rays.Image.Private.pixels (ok (image (List.assoc "image" evaluated.results))) |> Result.get_ok) in
+      assert (pixels 0. <> pixels 10.));
+    let created, destroyed = Editor.Private.image_stats owner in
+    assert (created > 0 && created = destroyed)
+  end)
+    ["(image/noise :width 2 :height 2 :frequency (+ 0.3 (* 0.01 t)) :seed 31)";
+     "(image/load \"sdl3_image_fixtures/sample.png\")"]

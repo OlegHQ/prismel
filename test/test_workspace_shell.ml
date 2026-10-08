@@ -607,6 +607,10 @@ let run_ops () =
   check (Panels.to_string (tree c) = "(h outline (h lisp (tile view view view view)))") ("close: " ^ Panels.to_string (tree c));
   let t = ok "Retype panel" (E.Set_panel_kind { node = [ "editor"; "network" ]; kind = "list" }) in
   check (Panels.to_string (tree t) = "(h outline (h (v list lisp) (tile view view view view)))") ("retype: " ^ Panels.to_string (tree t));
+  let sheet = ok "Retype panel" (E.Set_panel_kind { node = [ "editor"; "network" ]; kind = "spreadsheet" }) in
+  check (Panels.to_string (tree sheet) = "(h outline (h (v spreadsheet lisp) (tile view view view view)))") "retype spreadsheet";
+  let saved = Doc.to_text (E3.workspace sheet) in
+  check (Doc.to_text (of_text saved) = saved) "retyped spreadsheet did not round trip";
   let v = ok "Retype panel" (E.Set_panel_kind { node = [ "editor"; "outline" ]; kind = "viewport" }) in
   check (has (source v) "outline (ui/viewport (ref scene))") "a viewport is over the first scene graph";
   let docked = ok "Dock panel" (E.Dock_panel {node = ["editor"; "network"]; target = ["editor"; "outline"]; side = `Right}) in

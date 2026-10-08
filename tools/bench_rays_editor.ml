@@ -199,7 +199,7 @@ let measure_spreadsheet () =
     ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) () |> Result.get_ok) in
   Fun.protect ~finally:(fun () -> E.close !environment) (fun () ->
     environment := Rays_editor.Reduce.select_path !environment ["g"; "@result"];
-    let step count = environment := E.update !environment (frame ~mouse:(900,300) count) in
+    let step ?(events = []) count = environment := E.update !environment (frame ~mouse:(900,300) ~events count) in
     for i = 0 to 19 do step i done;
     let geometry = snd (Rays_editor.Reduce.spreadsheet !environment [1]) |> Option.get in
     assert (Rdk.Geometry.point_count geometry = 1_000_000);
@@ -207,7 +207,16 @@ let measure_spreadsheet () =
     let before = Gc.allocated_bytes () and samples = Array.make 300 0. in
     Array.iteri (fun index _ -> let started = Unix.gettimeofday () in step (index+20);
       samples.(index) <- Unix.gettimeofday () -. started) samples;
-    report "panels_spreadsheet" 1_000_000 samples (Gc.allocated_bytes () -. before))
+    report "panels_spreadsheet" 1_000_000 samples (Gc.allocated_bytes () -. before);
+    let events = [Rays.Event.MouseMoved (900., 300.); Rays.Event.MouseScrolled (0., -3.)] in
+    for i = 320 to 339 do step ~events i done;
+    Gc.full_major ();
+    let before = Gc.allocated_bytes () in
+    Array.iteri (fun index _ -> let started = Unix.gettimeofday () in step ~events (index+340);
+      samples.(index) <- Unix.gettimeofday () -. started) samples;
+    let allocated = Gc.allocated_bytes () -. before in
+    assert (Rdk.Geometry.point_count (snd (Rays_editor.Reduce.spreadsheet !environment [1]) |> Option.get) = 1_000_000);
+    report "panels_spreadsheet_scroll" 1_000_000 samples allocated)
 
 let measure_world () =
   let open Rays in

@@ -346,6 +346,11 @@ module Editor3 : sig
     (** Explicit native benchmark selection. Production requires measured GPU costs. *)
     val image_stats : 'prepared t -> int * int
     val image : 'prepared t -> Flow.Eval.value -> (Rays.Image.t, Flow.Diagnostic.t) result
+    val with_images : ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?plan:Flow.Eval.plan ->
+      'prepared t ->
+      (image:(Flow.Eval.value -> (Rays.Image.t, Flow.Diagnostic.t) result) ->
+       texture:(Flow.Eval.value -> (Rays.Texture.t, Flow.Diagnostic.t) result) -> 'a) -> 'a
+    (** Scoped production image ownership and initial-domain SOP snapshots for qualification. *)
     val host_stats : 'prepared t -> bool * int * int * int
     (** Quit requested, effects fired, samples created and samples destroyed. *)
   end

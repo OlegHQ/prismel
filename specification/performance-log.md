@@ -7001,3 +7001,47 @@ is `/private/tmp/p3-audit-focused.log`. No timing rows were produced by this che
 but their raster results are unverified. Existing native/export/smoke/layout-PNG gates
 and the recorded particle p95 regression remain open; no goldens or tolerances were
 relaxed to obtain a passing result.
+
+## PL completion audit: actual scrolling and image ownership (2026-10-08)
+
+The stronger million-row table check exposed a scrolling bug: absolute rows
+were siblings of the scrolling extent, so their positions did not move with it.
+Rows now belong to that extent. The fixed-size virtual table applies the existing
+wheel/trackpad/coast state before choosing its visible range and consumes that
+input before layout. Its regression requires a full viewport at the expected
+row immediately after a 10,000-row jump, the exact clicked row, continued wheel
+motion, trackpad motion and coasting. The earlier temporary 0.194073 ms scroll
+row is discarded: it measured a table whose rows had not scrolled.
+
+All agents explicitly held builds/tests/compilers before the isolated run on the
+same Apple M1/macOS/OCaml setup. The existing `--panels 200` command now sends
+wheel events inside the complete editor's spreadsheet and verifies the selected
+source remains one million points. Each spreadsheet row measures 300 warmed
+frames at one domain, including reduction, cell formatting, layout and painting;
+native presentation is outside this window-free benchmark.
+
+| Full editor, 1,000,000 points | Median ms | p95 ms | Bytes/frame |
+|---|---:|---:|---:|
+| Idle spreadsheet | 0.513077 | 0.535965 | 1,561,798 |
+| Scrolling spreadsheet | 0.524044 | 0.544071 | 1,603,245 |
+
+The workspace oracle reuses production `Workspace_images` ownership and its
+scoped initial-domain payload resolver for image roots, drawing images and
+Scene3 image textures. Explicit plan/state/frame overrides keep the four-time
+IR/reference comparison independent of the owner's default frame. Pure checks
+cover live noise and loaded images feeding SOP attributes, drawing commands and
+textures at four times on one/eight domains; they verify changing frame overrides
+change image bytes and all owned images close exactly once.
+
+That check also found live image constructors becoming residual image roots.
+The three existing image declarations now preserve constructor arguments through
+their existing non-splicing shape. Real live noise/load/render roots remain typed
+deferred image nodes and their live fields force at the requested time. The Flow,
+PXUI and editor shell focused suites pass, including spreadsheet retyping and its
+save/load round trip. Native image/render/export pixels, screenshots and golden
+refreshes remain unverified because the sandbox has no system-default Metal
+device; command/resource checks do not qualify those gates.
+
+Evidence: `/private/tmp/pl-oracle-scroll-fixed-build.log`,
+`/private/tmp/pl-image-live-final-build.log`, `/private/tmp/pl-image-live-final-pure.log`,
+`/private/tmp/pl-spreadsheet-scroll-fixed-isolated.log`.

@@ -1377,7 +1377,7 @@ let scroll_travel overscroll height =
 
 (* One scroll box, once its height is laid out ([arrange]): a height that comes from the parent
    (Grow, Pct, Rel) stretches and bounces as a fixed one does. *)
-let apply_scroll ui time index =
+let apply_scroll ?(consume = false) ui time index =
   let slot = ui.b_slot.(index) in
   let height = ui.l_h.(index) in
   let max_scroll = Float.max 0. (ui.l_content.(index) -. height) in
@@ -1460,7 +1460,11 @@ let apply_scroll ui time index =
       ui.scroll_raw.(slot) <- scroll_travel ui.scroll_visual.(slot) height
     end
   end;
-  ui.scroll_frame_time.(slot) <- time
+  ui.scroll_frame_time.(slot) <- time;
+  if consume then Option.iter (fun value ->
+    value.scroll_wheel <- 0.; value.scroll_drag <- 0.;
+    value.scroll_touch <- false; value.scroll_lift <- false)
+    (Int_table.find_opt ui.signals ui.b_key.(index))
 
 (* Top-down: relative sizes, grow shares, scrolling, scroll gutters, and positions. *)
 let arrange ui time =
@@ -2058,11 +2062,17 @@ let table ui ~at ~w ~h ~headers ~rows ~cell label =
     let body_h = Float.max 0. (h -. row_h) in
     let body = box ui ~flags:(scroll + clip) ~w:(Px w) ~h:(Px body_h)
         ~scroll_step:row_h (label ^ "-body") in
+    (* Both sizes are explicit: use the shared wheel/trackpad/coast state before
+       choosing rows. Arrange then sees consumed input and a zero time delta. *)
+    ui.l_h.(body.index) <- body_h;
+    ui.l_content.(body.index) <- float rows *. row_h;
+    Option.iter (fun frame -> apply_scroll ~consume:true ui frame.Frame.time body.index) ui.input_frame;
     let first = min rows (max 0 (int_of_float (Float.floor (scroll_offset ui body /. row_h)))) in
     let last = min rows (first + int_of_float (Float.ceil (body_h /. row_h)) + 2) in
     let clicked = ref None in
     within ui body (fun () ->
-      ignore (box ui ~w:(Px w) ~h:(Px (float rows *. row_h)) (label ^ "-extent"));
+      let extent = box ui ~w:(Px w) ~h:(Px (float rows *. row_h)) (label ^ "-extent") in
+      within ui extent (fun () ->
       for index = first to last - 1 do
         let row = box ui ~flags:clickable ~at:(0., float index *. row_h)
             ~w:(Px w) ~h:(Px row_h) (label ^ "-row-" ^ string_of_int index) in
@@ -2074,7 +2084,7 @@ let table ui ~at ~w ~h ~headers ~rows ~cell label =
             Paint.text paint ~color:ui.theme.foreground
               ~at:(right -. Paint.text_width paint value, text_top ui y row_h) value) headers;
           Paint.line paint ~from_:(x, y +. row_h -. 0.5) ~to_:(x +. w, y +. row_h -. 0.5) (Theme.faint_border ui.theme))
-      done);
+      done));
     !clicked, signal ui body)
 
 let label_y ui y h = y + ((h - ui.font_size) / 2)

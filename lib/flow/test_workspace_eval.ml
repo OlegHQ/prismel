@@ -694,6 +694,19 @@ let () =
       assert (Eval.force v ~live:(Frame_input.at_time 0.5) = Ok (Eval.Float 1025.5)))
       ["(fold [a 0] [x (array/range 2051)] (+ a t))";
        "(reduce (fn [a x] (+ a t)) 0.0 (array/range 2051))"]);
+  t "image constructors preserve live arguments in deferred image nodes" (fun () ->
+    List.iter (fun (body, field, expected) ->
+      let evaluated = static (check ("(workspace w (graph drawing :context draw (draw/background \"#000000\"))" ^
+        " (graph g :context image " ^ body ^ "))")) in
+      let id = match result evaluated "g" with
+        | Eval.Deferred (ty, id) when ty = Ty.image -> id
+        | _ -> failwith "live image constructor did not create a deferred image node" in
+      let argument = List.assoc field evaluated.plan.nodes.(id).args in
+      assert (Eval.is_live argument);
+      assert (Eval.force argument ~live:(Frame_input.at_time 2.) = Ok expected))
+      ["(image/noise :width 2 :height 2 :frequency (+ 0.3 t))", "frequency", Eval.Float 2.3;
+       "(image/load (if (< t 1.0) \"before.png\" \"after.png\"))", "path", Eval.Text "after.png";
+       "(image/render (ref drawing) :width (if (< t 1.0) 2 3) :height 2)", "width", Eval.Int 3]);
   t "operator function values use declaration argument names" (fun () ->
     is (value "(let* [lengths (map array/count (list (array/float 2) (array/float 4)))] (+ (first lengths) (last lengths)))")
       (Eval.Int 6));

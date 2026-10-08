@@ -82,7 +82,7 @@ let compare_float32 runtime id mesh scene =
   Printf.printf "Scene3 f64/f32 %s: maximum channel difference %d, changed pixels %d/%d\n%!"
     id !maximum !changed (Bytes.length after / 4)
 
-let picture ?compare (output : S.output) =
+let picture ?compare ?texture (output : S.output) =
   let geometry = Result.get_ok (Procedural.Payload.geometry output.payload) in
   let mesh = Rdk_rays.Rays_mesh.to_mesh geometry |> Result.map_error Rdk.Error.to_string |> string_ok in
   let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry) in
@@ -97,11 +97,14 @@ let picture ?compare (output : S.output) =
   let material = Rays.Material.unlit Rays.Color.white in
   let node = match output.instances with None -> Rays.Scene3.mesh ~material ~cull:Rays.Scene3.Cull_none mesh
     | Some transforms -> Rays.Scene3.instances_array ~material ~cull:Rays.Scene3.Cull_none mesh transforms in
-  let scene = [Rays.Scene.clear Rays.Color.black; Rays.Scene.view3d ~camera (Rays.Scene3.create [node])] in
+  let rendered = Rays.Scene3.create [node] in
+  let rendered = Option.fold ~none:rendered
+    ~some:(fun texture -> Rays.Scene3.Private.with_texture (Rays.Scene3.textured texture) rendered) texture in
+  let scene = [Rays.Scene.clear Rays.Color.black; Rays.Scene.view3d ~camera rendered] in
   Option.iter (fun compare -> compare mesh scene) compare;
   scene
 
-let check ?directory ~factories ~name (workspace : Editor_document.Workspace_doc.t) =
+let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_document.Workspace_doc.t) =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories |> ok in
   let evaluated = E.static ~record:true ~inputs:workspace.inputs workspace.checked |> ok in
   let compiled = L.of_checked ~factories ~inputs:workspace.inputs workspace.checked |> ok
@@ -136,11 +139,23 @@ let check ?directory ~factories ~name (workspace : Editor_document.Workspace_doc
       let lanes = List.map (fun (g : L.graph) -> g, Flow_sop.Value_lane.create ~state ()) lowered.graphs in
       let session = S.create ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024) |> string_ok in
       S.set_volatile session (L.is_volatile lowered);
-      reference, lowered, state, lanes, session) in
-    Fun.protect ~finally:(fun () -> List.iter (fun (_,_,_,_,s) -> S.close s) modes) (fun () ->
+      let owner = if (commands || directory <> None) && Array.exists (fun (n : E.node) -> n.ty = Flow.Ty.image) evaluated.plan.nodes then
+        Some (Rays_editor.Editor3.create ~workspace ~factories ~domains ~await:true
+          ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) () |> string_ok)
+        else None in
+      reference, lowered, state, lanes, session, owner) in
+    Fun.protect ~finally:(fun () -> List.iter (fun (_,_,_,_,s,owner) ->
+      S.close s; Option.iter (fun owner -> Rays_editor.Editor3.close owner;
+        let created, destroyed = Rays_editor.Editor3.Private.image_stats owner in
+        if created <> destroyed then failwith (name ^ ": leaked image oracle resources")) owner) modes) (fun () ->
     List.iteri (fun frame time ->
       let live = {(Frame_input.at_time time) with frame; dt = (if frame = 0 then 0. else time -. [|0.;0.125;1.25;7.|].(frame-1)); size = (800,600)} in
-      let results = List.map (fun (reference, (lowered : L.t), state, lanes, session) ->
+      let results = List.map (fun (reference, (lowered : L.t), state, lanes, session, owner) ->
+        let scoped run = match owner with
+          | Some owner -> Rays_editor.Editor3.Private.with_images ~state ~live ~plan:evaluated.plan owner run
+          | None -> let unavailable _ = Error (Flow.Diagnostic.error ~code:"E_IMAGE" "Image qualification needs its workspace owner.") in
+              run ~image:unavailable ~texture:unavailable in
+        scoped (fun ~image ~texture ->
         let networks = List.map (fun ((g : L.graph), lane) -> g,
           (Flow_sop.Value_lane.resolve ~live lane ~time g.network |> ok).geometry) lanes in
         let context = Procedural.Context.create ~input:live ~time ~frame:(Int64.of_int frame) ~domains () |> string_ok in
@@ -169,29 +184,55 @@ let check ?directory ~factories ~name (workspace : Editor_document.Workspace_doc
             | Image image -> Marshal.to_string (Procedural.Image.width image, Procedural.Image.height image,
                 Procedural.Image.Private.storage image) [Marshal.No_sharing] in
           compare payloads ("geometry-" ^ id) (bytes ^ Marshal.to_string output.instances []);
-          id, output) g.root) networks in
-        (match pixels, directory with Some canvas, Some directory ->
+          id, cid, output) g.root) networks in
+        (if commands || directory <> None then begin
+          let image value =
+            let image = image value |> ok in
+            compare images ("image-" ^ key value ^ Printf.sprintf "-t%g" time)
+              (Marshal.to_string (Rays.Image.get_size image, Rays.Image.Private.pixels image |> string_ok) [Marshal.No_sharing]);
+            image in
           let render id scene =
-            Rays.Canvas.render canvas scene;
-            let bytes = Marshal.to_string (Rays.Canvas.pixels canvas) [Marshal.No_sharing] in
-            compare images id bytes;
-            if not reference && domains = 1 then Rays.Canvas.save_png canvas (Filename.concat directory (id ^ ".png")) |> string_ok in
-          List.iter (fun (id, output) ->
+            if Rays.Scene.Private.commands scene = [||] then failwith (name ^ ": empty image oracle commands");
+            match pixels, directory with
+            | Some canvas, Some directory ->
+                Rays.Canvas.render canvas scene;
+                let bytes = Marshal.to_string (Rays.Canvas.pixels canvas) [Marshal.No_sharing] in
+                compare images id bytes;
+                if not reference && domains = 1 then Rays.Canvas.save_png canvas (Filename.concat directory (id ^ ".png")) |> string_ok
+            | _ -> () in
+          let rec textures = function
+            | E.Struct ("scene/geometry", _, args) -> (match List.assoc_opt "geometry" args, List.assoc_opt "texture" args with
+                | Some (E.Deferred (ty, id)), Some image when ty = Flow.Ty.geometry ->
+                    Option.to_list (Option.map (fun cid -> cid, image) (N.Int_map.find_opt id lowered.compiled))
+                | _ -> [])
+            | E.Struct (_, _, args) | Record args -> List.concat_map (fun (_, value) -> textures value) args
+            | List values -> Array.to_list values |> List.concat_map textures
+            | _ -> [] in
+          let textures = List.concat_map (fun (_, value) -> textures value) evaluated.results in
+          List.iter (fun (id, cid, output) -> match output.S.payload with
+            | Procedural.Payload.Image _ ->
+                let node = Array.find_opt (fun (n : E.node) -> N.Int_map.find_opt n.id lowered.compiled = Some cid) evaluated.plan.nodes |> Option.get in
+                render id [Rays.Scene.image (image (E.Deferred (Flow.Ty.image, node.id))) ~at:(0,0) ()]
+            | Geometry _ ->
             let compare = if not reference && domains = 1 && frame = 0 then
               Option.map (fun (_, runtime) -> compare_float32 runtime id) mirror else None in
-            render id (picture ?compare output)) cooked;
+            render id (picture ?compare output);
+            List.iteri (fun index (target, source) -> if target = cid then
+              render (Printf.sprintf "%s-texture-%d" id index) (picture ~texture:(texture source |> ok) output)) textures) cooked;
           List.iter (fun (graph, value) -> if Flow.Value.ty_of value = Flow.Ty.drawing then begin
             let prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value |> ok in
-            let scene = Sketch_support.Drawing.render_prepared ~state ~reference prepared ~live ~size:(800,600) |> ok in
+            let scene = Sketch_support.Drawing.render_prepared ~state ~reference ~image:(fun value -> Ok (image value)) prepared ~live ~size:(800,600) |> ok in
             render (Printf.sprintf "%s-draw-t%g" graph time) scene
           end) evaluated.results
-        | _ -> ()); results) modes in
+        end); results)) modes in
       (match results with [a;b] -> if not (List.for_all2 equal a b) then failwith (name ^ ": IR/reference value mismatch") | _ -> assert false);
       if E.state_stamp ir_state <> E.state_stamp ref_state then failwith (name ^ ": fold state mismatch"))
       [0.;0.125;1.25;7.]))) [1;8]);
   Printf.printf "%s: %d nodes, %d instances, %d values, four times, domains 1/8%s\n%!" name
     (Array.length evaluated.plan.nodes) (Array.length evaluated.plan.instances) (List.length prepared)
-    (if directory = None then ", cooked payloads equal" else ", cooked payloads and native geometry/drawing pixels equal")
+    (if directory <> None then ", cooked payloads and native geometry/image/texture/drawing pixels equal"
+     else if commands then ", cooked payloads, owned image bytes and image/texture/drawing commands checked"
+     else ", cooked payloads equal")
 
 let report_approx ~name (document : Editor_document.Workspace_doc.t) =
   let paths = Flow.Workspace.Paths.elements document.checked.approx in

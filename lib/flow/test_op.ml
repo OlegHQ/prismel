@@ -28,7 +28,8 @@ let check (o : Op.t) args =
     let node name args = let id = List.length !made in made := (name,args) :: !made; Deferred (o.out (List.map (fun (_,v) -> Value.ty_of v) args), id) in
     let result = o.body ~live:(Frame_input.at_time 0.) ~node args in
     assert (Ty.fits (Value.ty_of result) (o.out (List.map (fun (_,v) -> Value.ty_of v) args)));
-    (match o.shape with Op.Struct _ -> assert (match result with Struct _ -> true | _ -> false) | Scalar -> ());
+    (match o.shape with Op.Struct _ -> assert (match result with
+      | Struct _ -> true | Deferred (ty, _) -> Ty.is_cooked ty | _ -> false) | Scalar -> ());
     result
   with Value.Fail (code, msg, _) -> failwith (o.name ^ ": " ^ code ^ ": " ^ msg)
 
