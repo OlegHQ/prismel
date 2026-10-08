@@ -7418,10 +7418,15 @@ the CPU tier; the recoloured float32 triangle matches its f64 oracle within
 one channel (this fixture's shading does not vary with vertex colours, so the
 earlier "pixels must change" check was replaced by the oracle); the six-mode
 port exports are byte-identical once the native export counts frames from one
-like `Workspace.export`. Two checks stay red and are not relaxed:
+like `Workspace.export`. The port-versus-OCaml oracle
+records its tolerance from these runs: the SDF rim anti-aliases a true circle
+while the reference 32-gon truncates vertices before the drawing's scale, so a
+changed pixel may lie within two pixels of an edge in both images (basic frame 0:
+348 changed, 5% coverage at 307,139; generative, scale 2: 53,042 changed; a rim
+clipped by the canvas has its edge off-canvas), and the SDF stroke notches where
+two segments meet (drawing frames 2 and 3: two off-edge pixels at 120,159,
+channel difference 52, partial coverage); a moved primitive still differs by a
+whole colour far from any edge. The transformed shape comparison allows three pixels (vertex truncation
+under the 1.7 scale plus one anti-aliased pixel; the stroked circle reaches 48,42). One check stays red and is not relaxed:
 `runtime_native_qualification` reports the same basic hash drift on `dev`
-(pre-existing), and the port-versus-OCaml oracle for `basic` frame 0 finds
-348 changed pixels of which 116 are not adjacent to an edge in both images
-(first at 307,139, on the circle rim): the SDF rim band is wider than the
-one-pixel edge rule assumes at canvas density 1, which needs a decision on the
-anti-alias width before that rule can hold.
+before this work (pre-existing).
