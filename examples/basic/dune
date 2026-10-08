@@ -11,5 +11,5 @@
 (executable (name lisp) (modules lisp) (libraries rays_editor))
 (rule
  (alias smoke-all)
- (locks smoke_window)
+ (locks ../../smoke_window)
  (action (setenv RAYS_MAX_FRAMES 30 (run %{exe:lisp.exe}))))
