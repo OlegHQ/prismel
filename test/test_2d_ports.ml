@@ -3,7 +3,6 @@ module E=Flow.Eval
 let ok=function Ok x->x|Error d->failwith(Flow.Diagnostic.to_string d)
 let read path=In_channel.with_open_bin path In_channel.input_all
 let names=["basic";"generative";"noise";"recursive_rectangles";"drawing";"audio";"file_dialog";"pxui"]
-  |>List.filter(fun name->Sys.file_exists("../examples/"^name^"/sketch.rays"))
 let dimensions=function "generative"->500,500|"noise"->800,450|"recursive_rectangles"->720,720
   |"drawing"->800,500|"file_dialog"->720,420|_->640,360
 let frame ?(synthetic=true) name count =
@@ -65,7 +64,6 @@ let oracles=[
   Oracle{name="pxui";init=Pxui_oracle.init;update=Pxui_oracle.update;
     view=(fun model frame->match Pxui_oracle.view model frame with a::b::c::_->[a;b;c]|_->assert false);
     stop=Pxui_oracle.on_stop}]
-let oracles=List.filter(fun(Oracle port)->List.mem port.name names)oracles
 (* Compare authored parameters with the original OCaml program without a GPU.
    Re-expand SDF instances through the legacy constructors; canonical triangle
    pairs ignore an equivalent rectangle's diagonal and packed command grouping.
@@ -203,7 +201,7 @@ let native directory=
   Printf.printf "port %s: six PNG modes byte-identical, OCaml interior parity with one-pixel edge tolerance\n%!"name)oracles
 let ()=if Array.length Sys.argv>1 then native Sys.argv.(1)else begin
   pure();
-  if List.mem "recursive_rectangles" names then recursive_extremes();
+  recursive_extremes();
   let workspace=moving_circles()in
   let expected=Array.map serialize(pictures "moving_circles" workspace false 1)in
   List.iter(fun(_,reference,domains)->
