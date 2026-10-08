@@ -12,6 +12,7 @@ float gradient(int h, float x, float y, float z) {
   return ((h&1)==0?u:-u)+((h&2)==0?v:-v);
 }
 float noise(float3 p, device const int* table) {
+  if(!all(isfinite(p))) return as_type<float>(0x7fc00000u);
   float3 base=floor(p), q=p-base, f=float3(fade(q.x),fade(q.y),fade(q.z));
   int x=int(fmod(base.x,256.0f))&255, y=int(fmod(base.y,256.0f))&255, z=int(fmod(base.z,256.0f))&255;
   int a=table[x]+y, b=table[x+1]+y;
@@ -61,11 +62,6 @@ let kernel program = try
   let uniforms = Array.mapi (fun index width -> uniform ("uniform:" ^ string_of_int index) width) view.uniform_widths in
   let frames = Array.mapi (fun index -> function
     | P.Frame name -> uniform (Printf.sprintf "frame:%d:%s" index name) 1 | _ -> 0) view.code in
-  let table_seeds = Array.to_list view.code |> List.filter_map (function
-    | P.Noise3 (_,_,_,seed,octaves) ->
-        if octaves<1 || octaves>32 then fail "GPU noise supports 1 to 32 octaves.";
-        Some seed | _ -> None) |> List.sort_uniq Int.compare |> Array.of_list in
-  let table seed = match Array.find_index ((=) seed) table_seeds with Some index -> index*512 | None -> assert false in
   let used=Array.make (Array.length view.code) false in
   let rec use slot = if not used.(slot) then begin
     used.(slot)<-true;
@@ -75,12 +71,19 @@ let kernel program = try
     | _ -> ()
   end in
   Array.iter use view.output;
+  let table_seeds = Array.to_list(Array.mapi(fun index instruction->index,instruction)view.code)
+    |> List.filter_map (function
+      | index,P.Noise3 (_,_,_,seed,octaves) when used.(index) ->
+          if octaves<1 || octaves>32 then fail "GPU noise supports 1 to 32 octaves.";
+          Some seed | _ -> None) |> List.sort_uniq Int.compare |> Array.of_list in
+  let table seed = match Array.find_index ((=) seed) table_seeds with Some index -> index*512 | None -> assert false in
   let body = Buffer.create 4096 in
   Array.iteri (fun slot instruction ->
     if used.(slot) then begin
     let expression = match instruction with
       | P.Const value ->
-          if not (Float.is_finite value) then fail "Nonfinite shader constants require reference evaluation.";
+          if not (Float.is_finite (Int32.float_of_bits(Int32.bits_of_float value))) then
+            fail "Nonfinite float32 shader constants require reference evaluation.";
           Printf.sprintf "as_type<float>(0x%lxu)" (Int32.bits_of_float value)
       | Input (input,width,component) -> Printf.sprintf "input%d[i*%d+%d]" input width component
       | Uniform (index,component) -> Printf.sprintf "as_type<float>(uniforms[%d])" (uniforms.(index)+component)
@@ -93,24 +96,30 @@ let kernel program = try
           (register x) (register y) (register z) octaves (table seed) in
     Printf.bprintf body "  float r%d=%s;\n" slot expression
     end) view.code;
-  Array.iteri (fun component slot -> Printf.bprintf body "  output[i*%d+%d]=r%d;\n"
-    (Array.length view.output) component slot) view.output;
+  Array.iteri (fun component slot ->
+    Printf.bprintf body "  if(!isfinite(r%d)) atomic_store_explicit(status,1u,memory_order_relaxed);\n" slot;
+    Printf.bprintf body "  output[i*%d+%d]=r%d;\n"
+      (Array.length view.output) component slot) view.output;
   let count = Array.length view.widths in
   let arguments = Array.to_list (Array.mapi (fun index _ -> Printf.sprintf
     "device const float* input%d [[buffer(%d)]]" index index) view.widths)
     @ [Printf.sprintf "device float* output [[buffer(%d)]]" count;
-       Printf.sprintf "constant uint* uniforms [[buffer(%d)]]" (count+1)]
-    @ (if table_seeds=[||] then [] else [Printf.sprintf "device const int* table [[buffer(%d)]]" (count+2)])
+       Printf.sprintf "constant uint* uniforms [[buffer(%d)]]" (count+1);
+       Printf.sprintf "device atomic_uint* status [[buffer(%d)]]" (count+2)]
+    @ (if table_seeds=[||] then [] else [Printf.sprintf "device const int* table [[buffer(%d)]]" (count+3)])
     @ ["uint i [[thread_position_in_grid]]"] in
   let prefix = "#include <metal_stdlib>\nusing namespace metal;\n" ^
     (if table_seeds=[||] then "" else perlin) in
   let signature = String.concat ",\n  " arguments in
-  let body = "  if(i>=uniforms[0]) return;\n" ^ Buffer.contents body in
+  let body = "  if(i>=uniforms[0]) return;\n  if(i==0) atomic_fetch_or_explicit(status,0u,memory_order_relaxed);\n" ^ Buffer.contents body in
   let digest = Digest.to_hex (Digest.string (prefix ^ signature ^ body)) in
   let entry = "kernel_" ^ digest in
   let source = prefix ^ "kernel void " ^ entry ^ "(\n  " ^ signature ^ ") {\n" ^ body ^ "}\n" in
-  let interface = List.init (count+2+(if table_seeds=[||] then 0 else 1)) (fun binding ->
-    S.{group=0;binding;kind=(if binding=count+1 then Uniform_buffer else Storage_buffer);visibility=[Compute]}) in
+  let input_used=Array.make count false in
+  Array.iteri(fun slot->function P.Input(input,_,_)when used.(slot)->input_used.(input)<-true|_->())view.code;
+  let interface = List.init (count+3+(if table_seeds=[||] then 0 else 1)) Fun.id
+    |>List.filter(fun binding->binding>=count || input_used.(binding))
+    |>List.map(fun binding->S.{group=0;binding;kind=(if binding=count+1 then Uniform_buffer else Storage_buffer);visibility=[Compute]})in
   Ok {source;entry;interface;uniform_layout=List.rev !uniform_layout;uniform_bytes= !offset;
     table_seeds;output_width=Array.length view.output;input_widths=view.widths}
 with Unsupported message -> Error (Flow.Diagnostic.error ~code:"E_GPU_FORM" message)

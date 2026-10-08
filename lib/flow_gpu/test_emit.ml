@@ -19,7 +19,7 @@ let () =
     let path="goldens/" ^ name ^ ".metal" in
     if writing then Out_channel.with_open_bin path (fun channel -> output_string channel msl.source)
     else assert (In_channel.with_open_bin path In_channel.input_all=msl.source);
-    assert (List.length msl.interface=Array.length msl.input_widths+2+
+    assert (List.length msl.interface=Array.length msl.input_widths+3+
       (if msl.table_seeds=[||] then 0 else 1));
     assert (Ogpu.Shader.validate_bindings msl.interface=Ok ());
     let inputs=Test_program.ok (Flow_ir.Packed.Private.prepare program ~live:(Frame_input.at_time 1.)) in
@@ -30,4 +30,6 @@ let () =
     ["(sum [x (array/range 1024)] (+ x t))";
      "(for [x (array/range 32) y (array/range 32)] (+ (+ x y) t))";
      "(for [x (array/range 1024)] :skip [0] (+ x t))"];
+  let uniform=Test_program.ok(Flow_gpu.Emit.kernel(Test_program.compile "(map (fn [x] t) (array/range 1024))"))in
+  assert(List.length uniform.interface=3 && not(List.exists(fun(binding:Ogpu.Shader.binding)->binding.binding=0)uniform.interface));
   print_endline "GPU emitter: shared operations, golden arithmetic/select/seeded fBm and typed ordered-loop refusals passed"

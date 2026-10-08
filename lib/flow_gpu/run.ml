@@ -2,7 +2,7 @@ module B = Ogpu.Backend
 module P = Flow_ir.Packed
 type slot = {mutable buffer : B.buffer option; mutable capacity : int; mutable bytes : bytes}
 type t = {device:B.device; queue:B.queue; pipelines : Pipelines.t; msl : Emit.msl; inputs : slot array;
-  output : slot; table : slot; uniforms : bytes; mutable closed : bool; mutable creations : int;
+  output : slot; table : slot; status:slot; uniforms : bytes; mutable closed : bool; mutable creations : int;
   mutable generation : int; domain : Domain.id}
 type output = {owner : t; count : int; width : int; gpu_seconds : float option; generation : int}
 exception Failed of Flow.Diagnostic.t
@@ -17,7 +17,7 @@ let pack bytes offset value =
 let create_owned device queue pipelines (msl : Emit.msl) =
   if not(Domain.is_main_domain())then invalid_arg "Run.create: initial domain required";
   {device;queue;pipelines;msl;inputs=Array.map (fun _ -> slot ()) msl.input_widths;
-    output=slot ();table=slot ();uniforms=Bytes.create msl.uniform_bytes;
+    output=slot ();table=slot ();status=slot();uniforms=Bytes.create msl.uniform_bytes;
     closed=false;creations=0;generation=0;domain=Domain.self ()}
 let create gpu=create_owned(Rays_execution.gpu_device gpu)(Rays_execution.gpu_queue gpu)
 let ensure t slot length =
@@ -74,6 +74,9 @@ let dispatch t (values : P.Private.inputs) =
         values.arrays.(index).(component) done;
       get (B.write_buffer buffer ~offset:0L slot.bytes);buffer) t.inputs in
     let output=ensure t t.output (values.count*msl.output_width*4) in
+    let status=ensure t t.status 4 in
+    Bytes.set_int32_le t.status.bytes 0 0l;
+    get(B.write_buffer status ~offset:0L t.status.bytes);
     let table = if msl.table_seeds=[||] then None else begin
       let length=Array.length msl.table_seeds*512*4 in
       let fresh=t.table.capacity=0 in
@@ -97,10 +100,14 @@ let dispatch t (values : P.Private.inputs) =
         let index=Array.length buffers in
         get (B.set_buffer encoder ~index output);
         get (B.set_bytes encoder ~index:(index+1) t.uniforms);
-        Option.iter (fun table -> get (B.set_buffer encoder ~index:(index+2) table)) table;
+        get(B.set_buffer encoder ~index:(index+2) status);
+        Option.iter (fun table -> get (B.set_buffer encoder ~index:(index+3) table)) table;
         get (B.dispatch_threads encoder ~threads:(values.count,1,1) ~threadgroup:(256,1,1)));
       let receipt=get (B.commit commands) in committed:=true;receipt) in
     get (B.complete_through queue receipt.epoch);
+    let flags=get(B.read_buffer status ~offset:0L ~length:4)in
+    if Bytes.get_int32_le flags 0<>0l then
+      raise(Failed(Flow.Diagnostic.error ~code:"E_KERNEL" "GPU output contains a nonfinite value."));
     Ok {owner=t;count=values.count;width=msl.output_width;gpu_seconds=B.gpu_duration queue receipt;
       generation=t.generation}
   with Failed error -> Error error
@@ -127,7 +134,7 @@ let close t =
   if Domain.self()<>t.domain then invalid_arg "Run.close: creating domain required";
   if not t.closed then begin
   Array.iter (fun slot -> Option.iter (fun buffer -> ignore (B.destroy_buffer buffer)) slot.buffer;
-    slot.buffer<-None;slot.bytes<-Bytes.empty;slot.capacity<-0) (Array.append t.inputs [|t.output;t.table|]);
+    slot.buffer<-None;slot.bytes<-Bytes.empty;slot.capacity<-0) (Array.append t.inputs [|t.output;t.table;t.status|]);
   t.closed<-true
 end
 module Private = struct

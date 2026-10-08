@@ -4,11 +4,15 @@ let get=function Ok value->value|Error error->failwith(Ogpu.Error.to_string erro
 let wrong_domain f=Domain.join(Domain.spawn(fun()->try f();false with Invalid_argument _->true))
 let ()=
   let base,live=Ogpu.Impl.create_driver() in
-  let fail=ref false and pipelines=ref 0 and submitted=ref 0 in
+  let fail=ref false and pipelines=ref 0 and submitted=ref 0 and invalid_output=ref false in
   (* This driver checks ownership and failed-command lifetimes only. It does
      not execute a shader or stand in for native numerical qualification. *)
   let driver=B.{create_device=(fun()->Result.map(fun raw->{raw with
     capabilities={raw.capabilities with compute_pipeline=true};
+    create_buffer=(fun memory descriptor->Result.map(fun(resource:B.driver_resource)->
+      {resource with read=(fun offset length->if !invalid_output && length=4 then
+        let flags=Bytes.make 4 '\000'in Bytes.set_int32_le flags 0 1l;Ok flags
+        else resource.read offset length)})(raw.create_buffer memory descriptor));
     create_library=(fun shader->Result.map(fun library->{library with
       create_compute_pipeline_in=(fun ~entry:_ ~constants:_ ~interface:_ ~linked:_->
         incr pipelines;Ok{pipeline_token=1L;
@@ -44,10 +48,14 @@ let ()=
     let values=Test_program.ok(Flow_ir.Packed.Private.prepare larger ~live:(Frame_input.at_time 1.))in
     assert(Result.is_error(R.dispatch run values));
     assert(R.buffer first=None && Result.is_error(R.readback first));
-    assert(R.Private.buffer_creations run=4 && !submitted=2);
+    assert(R.Private.buffer_creations run=5 && !submitted=2);
     fail:=false;
     let fresh=Test_program.ok(R.dispatch run values)in
     assert(R.buffer fresh<>None);
+    invalid_output:=true;
+    assert(match R.dispatch run values with Error d->d.Flow.Diagnostic.code="E_KERNEL"|Ok _->false);
+    assert(R.buffer fresh=None);
+    invalid_output:=false;
     let invalid={values with arrays=Array.map Array.copy values.arrays}in
     invalid.arrays.(0).(0)<-3.5e38;
     assert(Result.is_error(R.dispatch run invalid));

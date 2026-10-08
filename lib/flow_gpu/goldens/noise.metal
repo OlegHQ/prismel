@@ -8,6 +8,7 @@ float gradient(int h, float x, float y, float z) {
   return ((h&1)==0?u:-u)+((h&2)==0?v:-v);
 }
 float noise(float3 p, device const int* table) {
+  if(!all(isfinite(p))) return as_type<float>(0x7fc00000u);
   float3 base=floor(p), q=p-base, f=float3(fade(q.x),fade(q.y),fade(q.z));
   int x=int(fmod(base.x,256.0f))&255, y=int(fmod(base.y,256.0f))&255, z=int(fmod(base.z,256.0f))&255;
   int a=table[x]+y, b=table[x+1]+y;
@@ -26,18 +27,21 @@ float fbm(float3 p, int octaves, device const int* table) {
   }
   return weights==0.0f?0.0f:sum/weights;
 }
-kernel void kernel_6301c9f7123ec383859b402e77aed62b(
+kernel void kernel_c467f04e63ab3c92f70dfd617d54ed22(
   device const float* input0 [[buffer(0)]],
   device float* output [[buffer(1)]],
   constant uint* uniforms [[buffer(2)]],
-  device const int* table [[buffer(3)]],
+  device atomic_uint* status [[buffer(3)]],
+  device const int* table [[buffer(4)]],
   uint i [[thread_position_in_grid]]) {
   if(i>=uniforms[0]) return;
+  if(i==0) atomic_fetch_or_explicit(status,0u,memory_order_relaxed);
   float r0=input0[i*1+0];
   float r1=as_type<float>(0x3ca3d70au);
   float r2=(r0*r1);
   float r3=as_type<float>(uniforms[1]);
   float r4=as_type<float>(0x3e800000u);
   float r7=fbm(float3(r2,r3,r4),3,table+0);
+  if(!isfinite(r7)) atomic_store_explicit(status,1u,memory_order_relaxed);
   output[i*1+0]=r7;
 }

@@ -38,7 +38,9 @@ let circles t (value:G.value) ~radius ~fill ~stroke ~stroke_width =
       Result.bind sink(fun sink->native(P.gpu_circles sink
         ~source:(fun()->Option.bind(H.output host value)Flow_gpu.Run.buffer)
         ~count:value.count ~radius ~fill ~stroke ~stroke_width)))
-let close t=if not t.closed then begin
+let close t=
+  if not(Domain.is_main_domain())then invalid_arg "Workspace_gpu.close: initial domain required";
+  if not t.closed then begin
   Sinks.clear t.sinks;
   Option.iter(fun(gpu,host)->H.close host;X.release_gpu gpu)t.owner;
   t.owner<-None;t.closed<-true
