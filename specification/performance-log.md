@@ -7433,3 +7433,21 @@ whole colour far from any edge. The transformed shape comparison allows three pi
 under the 1.7 scale plus one anti-aliased pixel; the stroked circle reaches 48,42). One check stays red and is not relaxed:
 `runtime_native_qualification` reports the same basic hash drift on `dev`
 before this work (pre-existing).
+
+## Merge phases and runtime qualification at 2x (2026-10-08)
+
+Temporary timers inside `Mesh_merge.merge_plain` on the two-chain fixture
+(one domain, second cook): topology and position copy 55.6 ms, attribute
+concatenation 7.2 ms, `of_owned`, groups and `Geometry.create` under
+0.1 ms. The copy phase is the three position blits plus the vertex and
+primitive index rewrites; it is what a faster merge has to attack.
+
+`runtime_native_qualification` froze its captures for a 1x display: a
+4-point window is 4 pixels there and 8 on this 2x display, so its 8-pixel
+checkpoints matched the old "resized" constant exactly and the 16-pixel
+resize had no record. The frozen hashes are now keyed by drawable extent,
+with the 2x captures recorded for all four scenarios (no rendering drift).
+The repeated-teardown footprint check still fails here: floors 64,752 and
+74,720 KiB over the two 24-lifecycle windows, 9,968 KiB growth against the
+4,096 KiB bound (about 415 KiB per lifecycle). It failed on `dev` before this
+work; whether it is lazily returned GPU memory at 2x or a leak is open.

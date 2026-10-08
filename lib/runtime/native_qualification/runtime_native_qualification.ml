@@ -40,11 +40,19 @@ let name = function
 
 let draw_count = function Basic -> 1 | Pxui_like -> 8 | Canvas_offscreen -> 3 | Scene3_builtin -> 4
 
-let frozen_software_hash = function
-  | Basic -> "183be222f2a9499335f80e49bab17f24"
-  | Pxui_like -> "c28fb438cfaf0381adc6b8dddec9d6cf"
-  | Canvas_offscreen -> "6669327647bf796bcc136e62a62f7c95"
-  | Scene3_builtin -> "52462b7485ced3177c5f7bf2fda8a7ae"
+(* Frozen captures keyed by the drawable extent: the 4-point window is 4 pixels
+   on a 1x display and 8 on a 2x one; the 8-point resize is 8 or 16. *)
+let frozen_software_hash scenario ~extent = match scenario, extent with
+  | Basic, 4 -> Some "183be222f2a9499335f80e49bab17f24"
+  | Basic, 8 -> Some "a07e462221d8a87c5d83ad9a18411a44"
+  | Basic, 16 -> Some "832bb817e4b32fff17f7f2024339caac"
+  | Pxui_like, 4 -> Some "c28fb438cfaf0381adc6b8dddec9d6cf"
+  | Pxui_like, 8 -> Some "f9dc84a13290d920f46adc67e228d10e"
+  | Canvas_offscreen, 4 -> Some "6669327647bf796bcc136e62a62f7c95"
+  | Canvas_offscreen, 8 -> Some "38c2ee94260263451822ed73103813c9"
+  | Scene3_builtin, 4 -> Some "52462b7485ced3177c5f7bf2fda8a7ae"
+  | Scene3_builtin, 8 -> Some "be5af85c01ba3b5cff24d10ef28c4b3e"
+  | _ -> None
 
 let put_vertex bytes index (x,y) color =
   let offset=index*16 in
@@ -102,10 +110,15 @@ let run scenario =
   let live_stats=Runtime.stats runtime in
   get (Runtime.destroy runtime);
   let dead_stats=Runtime.stats runtime in
-  if List.exists (fun (_, hash) -> hash <> frozen_software_hash scenario) !checkpoints
-     || (scenario=Basic && resized_hash <> "a07e462221d8a87c5d83ad9a18411a44")
+  let expected extent = match frozen_software_hash scenario ~extent with
+    | Some hash -> hash
+    | None -> failwith (Printf.sprintf "native qualification %s: no frozen capture for %d pixels (measured %s resized=%s)"
+        (name scenario) extent (String.concat "," (List.map snd !checkpoints)) resized_hash) in
+  if List.exists (fun (_, hash) -> hash <> expected initial_facts.drawable_width) !checkpoints
+     || (scenario=Basic && resized_hash <> expected resized_facts.drawable_width)
   then failwith (Printf.sprintf "native qualification %s hash drift: %s resized=%s expected=%s"
-    (name scenario) (String.concat "," (List.map snd !checkpoints)) resized_hash (frozen_software_hash scenario));
+    (name scenario) (String.concat "," (List.map snd !checkpoints)) resized_hash
+    (expected initial_facts.drawable_width));
   let uploaded = draw_count scenario * 60 in
   let native_hash = snd (List.hd !checkpoints) in
   `Assoc [ "scenario", `String (name scenario); "frames", `Int 601;
@@ -118,8 +131,8 @@ let run scenario =
     "pipeline_cache_entries_after_destroy", `Int dead_stats.pipeline_cache_entries;
     "initial_logical_drawable", `List[`Int initial_facts.logical_width;`Int initial_facts.logical_height;`Int initial_facts.drawable_width;`Int initial_facts.drawable_height];
     "initial_pixel_scale", `List[`Float initial_facts.pixel_scale_x;`Float initial_facts.pixel_scale_y];
-    "frozen_software_hash", `String (frozen_software_hash scenario);
-    "native_matches_frozen_software", `Bool (native_hash = frozen_software_hash scenario);
+    "frozen_software_hash", `String (expected initial_facts.drawable_width);
+    "native_matches_frozen_software", `Bool (native_hash = expected initial_facts.drawable_width);
     "checkpoint_hashes", `List (List.rev_map (fun (frame, hash) -> `List [ `Int frame; `String hash ]) !checkpoints);
     "resized_hash", `String resized_hash ]
 
@@ -158,7 +171,7 @@ let () =
          leak of even 100 KiB per lifecycle shows as more than 4 MiB over 24. *)
       let floor_of first = Array.fold_left min max_int (Array.sub teardown_footprint first 24) in
       let footprint_growth = floor_of 48 - floor_of 24 in
-      if footprint_growth > 4096 then failwith"native repeated teardown physical footprint did not plateau";
+      if footprint_growth > 4096 then failwith(Printf.sprintf "native repeated teardown physical footprint did not plateau: floors %d and %d KiB, growth %d KiB" (floor_of 24) (floor_of 48) footprint_growth);
       let after = live_handles () and rss_after = rss_kib () in
       if after <> before then failwith "native qualification live-handle delta";
       let report = `Assoc [ "schema", `Int 1; "host", `String "Apple M1";
