@@ -1,6 +1,6 @@
 (* Tuple shorthand for the record-based [Scene_execution.render_sampled_resources]. *)
 let sampled ?texture ?auxiliary ?(samples=1) family blend draw : Scene_execution.sampled_draw =
-  {family;blend;texture;auxiliary;samples;draw}
+  {family;blend;texture;auxiliary;vertex_attributes=None;samples;draw}
 let render_resources ?clear r draws=Scene_execution.render_sampled_resources ?clear r
   (List.map(fun(family,blend,texture,auxiliary,draw)->sampled ?texture ?auxiliary family blend draw)draws)
 let render_textured ?clear r draws=Scene_execution.render_sampled_resources ?clear r
@@ -56,7 +56,7 @@ let run () =
     let layouts=List.map(fun(group,entries)->group,get(Ogpu.Binding.create_layout entries))groups in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)layouts)in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex;vertex_entry="scene_vertex";fragment=Some fragment;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=(match family with Scene_execution.Scene2|Scene2_textured|Ui->Ogpu.Pipeline.No_depth|Scene3|Scene3_points|Scene3_textured|Scene3_shadow|Scene3_world->Depth32_float|Scene3_stencil|Scene3_textured_stencil|Scene3_shadow_stencil->Depth32_float_stencil8);sample_count=samples}in Ogpu.Backend.create_render_pipeline~blend~topology:(if family=Scene3_points then Ogpu.Render_pass.Point_list else Triangle_list)~indirect:(family=Scene2||family=Scene2_textured)device descriptor))in
   let supported=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities(Scene_execution.device renderer)).Ogpu.Caps.limits.max_sample_count)[1;4;9;16]in
   let indices=Bytes.make 12 '\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;let plain=Bytes.make 48 '\000'in for index=0 to 2 do Bytes.set_int32_le plain(index*16+8)0xff0080ffl done;let mesh:Scene_execution.mesh={key="fullscreen";vertices=plain;vertex_count=3;indices;index_count=3; primitive=Ogpu.Render_pass.Triangle_list}and state:Scene_execution.state={viewport=(0,0,4,4);scissor=(0,0,4,4);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
-  let sampled samples draw:Scene_execution.sampled_draw={family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;samples;draw}in
+  let sampled samples draw:Scene_execution.sampled_draw={family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;vertex_attributes=None;samples;draw}in
   ignore(get(Scene_execution.render renderer[{mesh;state};{mesh;state}]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
   let r=Char.code(Bytes.get pixels 0)and g=Char.code(Bytes.get pixels 1)and b=Char.code(Bytes.get pixels 2)in if r<>255||g<>0||b<>128 then failwith(Printf.sprintf"scene execution Metal pixel mismatch %d,%d,%d"r g b);
   List.iter(fun(blend,expected)->List.iter(fun _frame->

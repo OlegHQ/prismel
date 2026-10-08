@@ -14,6 +14,7 @@ type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture;
   environment:sampled_texture option;sun_shadow:string option}
 type sampled_draw={family:pipeline_family;blend:Ogpu.Pipeline.blend;
   texture:sampled_texture option;auxiliary:auxiliary_resource option;
+  vertex_attributes:(string*bytes)option;
   samples:int;draw:draw}
 type scene3_entry=sampled_draw
 type prepared_scene3={clear:float*float*float*float;clear_depth:float;
@@ -40,6 +41,7 @@ type automatic_signature={signature_family:pipeline_family;
   signature_auxiliary:(int64*int64*Ogpu.Types.sampler_descriptor)option;
   signature_environment:(int64*Ogpu.Types.sampler_descriptor)option;
   signature_buffer:int64;signature_index_offset:int64;
+  signature_vertex_attributes:int64 option;
   signature_uniform_buffer:int64 option;signature_uniform_offset:int64 option;
   signature_vertex_count:int;
   signature_index_count:int}
@@ -69,7 +71,8 @@ type prepared_slot={mutable slot_family:pipeline_family;
   mutable slot_texture:(sampled_texture*cached_texture)option;
   mutable slot_auxiliary:(auxiliary_resource*cached_auxiliary*cached_texture)option;
   mutable slot_environment:(sampled_texture*cached_texture)option;
-  mutable slot_mesh:cached option;mutable slot_uniform:uniform_slice option}
+  mutable slot_mesh:cached option;mutable slot_uniform:uniform_slice option;
+  mutable slot_vertex_attributes:cached_auxiliary option}
 type prepared_scratch={mutable scratch_slots:prepared_slot array;
   mutable scratch_length:int}
 type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;
@@ -148,6 +151,19 @@ let device value=value.device
 let queue value=value.queue
 let target value=value.target
 let error op kind text=Error(Ogpu.Error.make op kind text)
+let valid_vertex_attributes(entry:sampled_draw)=
+  let packed=Option.fold~none:false~some:(fun bytes->
+    Bytes.length bytes>=83*4&&
+    Int32.float_of_bits(Bytes.get_int32_le bytes(82*4))>0.5)
+    entry.draw.state.transform_uniforms in
+  match entry.vertex_attributes with
+  |None->not packed
+  |Some(key,bytes)->
+      entry.family<>Scene2&&entry.family<>Scene2_textured&&entry.family<>Ui&&
+      packed&&key<>""&&entry.draw.mesh.vertex_count>=0&&
+      entry.draw.mesh.vertex_count<=Sys.max_string_length/24&&
+      Bytes.length entry.draw.mesh.vertices=entry.draw.mesh.vertex_count*24&&
+      Bytes.length bytes=entry.draw.mesh.vertex_count*12
 let prepare_scene3 ~clear ~clear_depth ~clear_stencil entries =
   let finite=Float.is_finite in
   let r,g,b,a=clear in
@@ -169,6 +185,7 @@ let prepare_scene3 ~clear ~clear_depth ~clear_stencil entries =
      |Triangle_list->entry.draw.mesh.index_count mod 3=0
      |Point_list|Triangle_strip->true)&&
     Bytes.length entry.draw.mesh.indices=entry.draw.mesh.index_count*4&&
+    valid_vertex_attributes entry&&
     valid_extent entry.draw.state.viewport&&valid_extent entry.draw.state.scissor&&
     finite entry.draw.state.depth_clear in
   if not(List.for_all finite[r;g;b;a;clear_depth])||clear_depth<0.||clear_depth>1.
@@ -575,19 +592,21 @@ let prepare_texture value ~defer(source:sampled_texture)=
       else upload~hash~reusable:None
   |exception Not_found->
       upload~hash:(if image_or_canvas_key source.key then""else levels_hash())~reusable:None
-let prepare_auxiliary value (source:auxiliary_resource)=
+let prepare_storage value ~key ~bytes =
   let upload()=
-    let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-auxiliary-"^source.key);size=Int64.of_int(Bytes.length source.buffer);usage=[Storage;Copy_dst]}in
+    let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-auxiliary-"^key);size=Int64.of_int(Bytes.length bytes);usage=[Storage;Copy_dst]}in
     match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
-    match Ogpu.Backend.write_buffer buffer~offset:0L source.buffer with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->
-    let item={auxiliary_copy=Bytes.copy source.buffer;auxiliary_buffer=buffer;auxiliary_source=source.buffer}in
-    String_table.add value.auxiliary_cache~bytes:(Bytes.length source.buffer)source.key item;
-    value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length source.buffer));Ok item in
-  match String_table.find value.auxiliary_cache source.key with
-  |item when item.auxiliary_source==source.buffer->Ok item
-  |item when Bytes.equal item.auxiliary_copy source.buffer->item.auxiliary_source<-source.buffer;Ok item
+    match Ogpu.Backend.write_buffer buffer~offset:0L bytes with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->
+    let item={auxiliary_copy=Bytes.copy bytes;auxiliary_buffer=buffer;auxiliary_source=bytes}in
+    String_table.add value.auxiliary_cache~bytes:(Bytes.length bytes)key item;
+    value.uploaded<-Int64.add value.uploaded(Int64.of_int(Bytes.length bytes));Ok item in
+  match String_table.find value.auxiliary_cache key with
+  |item when item.auxiliary_source==bytes->Ok item
+  |item when Bytes.equal item.auxiliary_copy bytes->item.auxiliary_source<-bytes;Ok item
   |_->upload()
   |exception Not_found->upload()
+let prepare_auxiliary value (source:auxiliary_resource)=
+  prepare_storage value ~key:source.key ~bytes:source.buffer
 let u32_le bytes offset =
   Int32.logor (Int32.of_int (Char.code (Bytes.get bytes offset)))
     (Int32.logor
@@ -656,12 +675,14 @@ let coalesce_draws draws =
     first.draw.mesh.primitive=next.draw.mesh.primitive&&
     stride first.draw.mesh=stride next.draw.mesh&&
     same_optional_resource first.texture next.texture&&
-    same_optional_resource first.auxiliary next.auxiliary
+    same_optional_resource first.auxiliary next.auxiliary&&
+    Option.is_some first.vertex_attributes=Option.is_some next.vertex_attributes
   in
   let rec take first packed_bytes entries = function
     | next :: rest when compatible first next ->
         let draw=next.draw in
-        let bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices in
+        let bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices+
+          Option.fold~none:0~some:(fun(_,bytes)->Bytes.length bytes)next.vertex_attributes in
         if packed_bytes <= cache_byte_capacity - bytes then
           take first (packed_bytes + bytes) (next :: entries) rest
         else List.rev entries, next :: rest
@@ -671,7 +692,8 @@ let coalesce_draws draws =
     | [] -> Ok (List.rev result)
     | (first:sampled_draw) :: rest ->
         let draw=first.draw in
-        let first_bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices in
+        let first_bytes=Bytes.length draw.mesh.vertices+Bytes.length draw.mesh.indices+
+          Option.fold~none:0~some:(fun(_,bytes)->Bytes.length bytes)first.vertex_attributes in
         if first_bytes > cache_byte_capacity then
           error "Scene_execution.coalesce" Ogpu.Error.Capacity "one mesh exceeds the batch byte capacity"
         else
@@ -685,11 +707,18 @@ let coalesce_draws draws =
         | _ when List.length entries<=64->loop(List.rev_append entries result)rest
         | _ -> let meshes=List.map(fun entry->entry.draw.mesh)entries in match combine_meshes meshes with
           | Error _ as result -> result
-          | Ok mesh -> loop ({first with draw={draw with mesh}} :: result) rest
+          | Ok mesh ->
+              let vertex_attributes=Option.map(fun _->
+                let attributes=List.map(fun entry->Option.get entry.vertex_attributes)entries in
+                let key="batch:attributes:"^Digest.to_hex(Digest.string
+                  (String.concat "|"(List.map fst attributes)))in
+                key,Bytes.concat Bytes.empty(List.map snd attributes))first.vertex_attributes in
+              loop ({first with vertex_attributes;draw={draw with mesh}} :: result) rest
   in
   loop [] draws
 let prepared_bytes draws=List.fold_left(fun total entry->
-  total+Bytes.length entry.draw.mesh.vertices+Bytes.length entry.draw.mesh.indices)0 draws
+  total+Bytes.length entry.draw.mesh.vertices+Bytes.length entry.draw.mesh.indices+
+    Option.fold~none:0~some:(fun(_,bytes)->Bytes.length bytes)entry.vertex_attributes)0 draws
 let resolve_prepared value prepared draws =
   match prepared with
   | Some(identity,_version) when identity=""->error"Scene_execution.prepare_run"Ogpu.Error.Invalid_argument"prepared identity is empty"
@@ -706,7 +735,7 @@ let intersect_extent ~bound_w ~bound_h (x,y,w,h)=
   if bound_w<=0||bound_h<=0||w<=0||h<=0 then(0,0,max 1 bound_w,max 1 bound_h)
   else(x,y,w,h)
 let automatic_signature
-    (family,blend,samples,state,texture,auxiliary,environment,item,uniform) =
+    (family,blend,samples,state,texture,auxiliary,environment,item,uniform,attributes) =
   (* Submission signatures own affine bytes.  Scene values are immutable by
      contract, but callers may reuse their input buffer after [render] returns;
      retaining it here would turn later mutation into a false cache hit. *)
@@ -724,6 +753,7 @@ let automatic_signature
    signature_environment=Option.map(fun((source:sampled_texture),cached)->
      Ogpu.Backend.texture_id cached.texture,source.sampler)environment;
    signature_buffer=Ogpu.Backend.buffer_id item.buffer;
+   signature_vertex_attributes=Option.map(fun item->Ogpu.Backend.buffer_id item.auxiliary_buffer)attributes;
    signature_index_offset=item.index_offset;
    signature_uniform_buffer=Option.map(fun item->Ogpu.Backend.buffer_id item.uniform_buffer)uniform;
    signature_uniform_offset=Option.map(fun item->item.uniform_offset)uniform;
@@ -731,7 +761,7 @@ let automatic_signature
 let prepared_scratch_capacity=65_536
 let make_prepared_slot()={slot_family=Scene2;slot_blend=Ogpu.Pipeline.Replace;
   slot_samples=1;slot_state=None;slot_texture=None;slot_auxiliary=None;
-  slot_environment=None;slot_mesh=None;slot_uniform=None}
+  slot_environment=None;slot_mesh=None;slot_uniform=None;slot_vertex_attributes=None}
 let ensure_prepared_scratch scratch needed=
   if needed>prepared_scratch_capacity then
     error"Scene_execution.render"Ogpu.Error.Capacity
@@ -751,7 +781,7 @@ let clear_prepared_scratch scratch=
     let slot=Array.unsafe_get scratch.scratch_slots index in
     slot.slot_state<-None;slot.slot_texture<-None;slot.slot_auxiliary<-None;
     slot.slot_environment<-None;
-    slot.slot_mesh<-None;slot.slot_uniform<-None
+    slot.slot_mesh<-None;slot.slot_uniform<-None;slot.slot_vertex_attributes<-None
   done;
   scratch.scratch_length<-0
 let scratch_mem_mesh scratch item=
@@ -793,6 +823,8 @@ let same_automatic_slot signature slot=
         Ogpu.Backend.texture_id cached.texture,source.sampler)slot.slot_environment&&
       same_state signature.signature_state state&&same_texture&&same_auxiliary&&
       signature.signature_buffer=Ogpu.Backend.buffer_id item.buffer&&
+      signature.signature_vertex_attributes=
+        Option.map(fun item->Ogpu.Backend.buffer_id item.auxiliary_buffer)slot.slot_vertex_attributes&&
       signature.signature_index_offset=item.index_offset&&
       signature.signature_uniform_buffer=
         Option.map(fun item->Ogpu.Backend.buffer_id item.uniform_buffer)slot.slot_uniform&&
@@ -828,6 +860,7 @@ let automatic_candidate_fingerprint scratch=
        Option.map(fun((source:sampled_texture),cached)->
          Ogpu.Backend.texture_id cached.texture,source.sampler)slot.slot_environment,
        Ogpu.Backend.buffer_id mesh.buffer,mesh.index_offset,
+       Option.map(fun item->Ogpu.Backend.buffer_id item.auxiliary_buffer)slot.slot_vertex_attributes,
        Option.map(fun uniform->Ogpu.Backend.buffer_id uniform.uniform_buffer,
          uniform.uniform_offset)
          slot.slot_uniform,mesh.vertex_count,mesh.index_count)
@@ -1106,6 +1139,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     Option.is_some(find_pipeline value entry.family entry.blend entry.samples))draws in
   let valid=List.for_all(fun(entry:sampled_draw)->List.mem entry.samples[1;4;9;16]&&
     valid_mesh entry.draw.mesh&&Option.fold~none:true~some:valid_texture entry.texture&&
+    valid_vertex_attributes entry&&
     Option.fold~none:true~some:(fun(source:auxiliary_resource)->
       source.key<>""&&Bytes.length source.buffer>0&&valid_texture source.texture)
       entry.auxiliary)draws in
@@ -1143,16 +1177,17 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     scene2,affine,scene3_transform,source)draws)in
   let sources=Array.map(fun(_,_,_,source)->source)modes in
   let uniform_slices=ref[||]in
-  let append ?environment family blend samples state texture auxiliary mesh uniform=
+  let append ?environment family blend samples state texture auxiliary mesh uniform attributes=
     let slot=Array.unsafe_get scratch.scratch_slots scratch.scratch_length in
     slot.slot_family<-family;slot.slot_blend<-blend;slot.slot_samples<-samples;
     slot.slot_state<-Some state;slot.slot_texture<-texture;
     slot.slot_auxiliary<-auxiliary;slot.slot_environment<-environment;slot.slot_mesh<-Some mesh;
-    slot.slot_uniform<-uniform;scratch.scratch_length<-scratch.scratch_length+1 in
+    slot.slot_uniform<-uniform;slot.slot_vertex_attributes<-attributes;
+    scratch.scratch_length<-scratch.scratch_length+1 in
   let rec prepare_all=function
   |[]->Ok()
   |(entry:sampled_draw)::rest->
-    let {family;blend;texture;auxiliary;samples;draw}=entry in
+    let {family;blend;texture;auxiliary;vertex_attributes;samples;draw}=entry in
     let scene2,affine,scene3_transform,_=modes.(scratch.scratch_length)in
     match prepare value~reserved:(scratch_mem_mesh scratch)
       ~uniforms:(if scene2||affine||scene3_transform then None
@@ -1161,19 +1196,23 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       ~nonindexed:scene2~canonical_plain:(family=Scene2)draw.mesh with
     |Error _ as result->result
     |Ok mesh->
+      let attributes=match vertex_attributes with
+        |None->Ok None
+        |Some(key,bytes)->Result.map Option.some(prepare_storage value ~key ~bytes)in
+      (match attributes with Error _ as result->result|Ok attributes->
       let uniform=(!uniform_slices).(scratch.scratch_length)in
       let texture=match family,texture with Scene2,None->
         Some scene2_white_texture|_->texture in
       match texture with
       |Some source->(match prepare_texture value~defer source with
         |Error _ as result->result
-        |Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform
+        |Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform attributes
           (Some(source,texture))rest)
-      |None->prepare_aux family blend auxiliary samples draw mesh uniform None
-        rest
-  and prepare_aux family blend auxiliary samples draw mesh uniform texture
+      |None->prepare_aux family blend auxiliary samples draw mesh uniform attributes None
+        rest)
+  and prepare_aux family blend auxiliary samples draw mesh uniform attributes texture
       rest=match auxiliary with
-    |None->append family blend samples draw.state texture None mesh uniform;
+    |None->append family blend samples draw.state texture None mesh uniform attributes;
       prepare_all rest
     |Some source->match prepare_auxiliary value source with
       |Error _ as result->result
@@ -1187,7 +1226,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           match environment with
           |Error _ as result->result
           |Ok environment->append ?environment family blend samples draw.state texture
-            (Some(source,buffer,texture2))mesh uniform;prepare_all rest in
+            (Some(source,buffer,texture2))mesh uniform attributes;prepare_all rest in
   match acquire value with Error _ as result->after_prepare();finish result
   |Ok`Skipped->after_prepare();finish(Ok false)
   |Ok(`Acquired frame)->match prepare_uniforms value~defer sources with
@@ -1263,6 +1302,10 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
             Ok((Ogpu.Backend.Fragment,8,sun)::(Ogpu.Backend.Fragment,9,cached.texture)::textures,
                (Ogpu.Backend.Fragment,10,sampler)::samplers)
         |_->Ok(textures,samplers)in
+      let buffers=if scene2||family=Ui then buffers else
+        (Ogpu.Backend.Vertex,11,
+          (match slot.slot_vertex_attributes with
+            |Some attributes->attributes.auxiliary_buffer|None->item.buffer),0L)::buffers in
       let buffers=match slot.slot_uniform,item.uniform_offset with
         |Some uniform,_->
             let binding stage=stage,6,uniform.uniform_buffer,uniform.uniform_offset in
@@ -1308,7 +1351,8 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
         |Ok draw->
           let signature=automatic_signature(slot.slot_family,slot.slot_blend,
             slot.slot_samples,slot_state slot,slot.slot_texture,
-            slot.slot_auxiliary,slot.slot_environment,slot_mesh slot,slot.slot_uniform)in
+            slot.slot_auxiliary,slot.slot_environment,slot_mesh slot,slot.slot_uniform,
+            slot.slot_vertex_attributes)in
           loop(index+1)((signature,draw)::reversed)in
       loop first[]in
     let rec batches first index reversed=
@@ -1386,7 +1430,7 @@ let replay_prepared_sampled_resources ?(clear=(0.,0.,0.,0.)) ~identity ~version 
       Result.map(fun presented->Some(presented,cached.submission_draw_count))
         (replay_plan value cached.submission_plan)
   |_->Ok None
-let render ?clear value draws=render_sampled_resources ?clear value(List.map(fun draw->{family=Scene2;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;samples=1;draw})draws)
+let render ?clear value draws=render_sampled_resources ?clear value(List.map(fun draw->{family=Scene2;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;vertex_attributes=None;samples=1;draw})draws)
 let resize value configuration=
   ignore(settle value);
   drop_plans value;

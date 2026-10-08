@@ -6509,3 +6509,46 @@ outlier and is recorded without calling it an improvement. `bench_kernel --loops
 with every one/eight-domain CPU and interpreter digest equal through one million elements;
 raw rows `/private/tmp/p3-kernel-after.txt`. A brief failed compiler lookup overlapped that
 long control run, so its timings are not an isolated before/after performance claim.
+
+## P5 Scene3 float32 display mirror (2026-10-08)
+
+Environment: the same arm64 macOS 27.0.1 workspace as the preceding rows,
+OCaml 5.3.0, Dune development profile, one initial domain. This sandbox denies
+hardware queries and Metal system-device acquisition, so no current Metal
+device or GPU timing is reported. These rows measure CPU packing only.
+
+Command after building: `_build/default/tools/bench_scene3_packing.exe 1000000 7`.
+Seven cold one-million-point meshes share immutable normal/index planes and
+have fresh coordinate planes. Mesh construction and the preceding full major
+collection are outside each sample. All other agents pause builds, tests and
+timed work for the measurement. Allocation is the median `Gc.allocated_bytes`
+delta; p95 is the greatest of seven samples.
+
+| Path | Median ms | p95 ms | Allocated bytes | Vertex payload bytes | Index bytes |
+|---|---:|---:|---:|---:|---:|
+| Original record view and 68-byte vertex | 80.918 | 91.994 | 296,014,912 | 68,000,000 | 4,000,000 |
+| Packed planes and 24+12-byte streams | 33.965 | 35.986 | 136,015,456 | 36,000,000 | 4,000,000 |
+
+The CPU display mirror is 2.38 times faster on this fixture, with 47.1 percent
+less vertex payload and 54.1 percent less allocation. It still allocates while
+narrowing; no zero-allocation claim is made. CPU mesh data remains float64.
+The bounded packing cache compares immutable position/normal/index planes,
+mode, and color/UV planes. A color or UV change reuses geometry bytes and its
+GPU key and gets a new attribute key. Both GPU streams use existing bounded
+resource caches; large compatible draw groups concatenate both streams.
+
+The mirror/component/finite-narrowing test and prepared-resource validation
+test pass, as does the dependency gate (50 libraries, 51 rules, no exceptions)
+and the public API manifest. Build the checks with
+`_build/default/tools/check.exe lib/rays/test_main.exe lib/scene_execution/test_main.exe`,
+then run `test_scene3_float32` and `test_prepared_scene3` on those executables.
+The new native `test_scene3_float32_native` alias compares the legacy f64
+triangle to the float32 triangle, checks color-only upload and pixel
+invalidation, and checks a 65-draw coalesced attribute stream. Its current
+attempt exits 2 with `Metal has no system default device`; these native checks
+and the required gallery pixel comparison are **not verified**. Existing
+device-dependent Rays/runtime tests fail at the same acquisition boundary.
+The full native shipping gate remains outstanding.
+
+Raw isolated measurements: `/private/tmp/p5-mesh-baseline.csv` and
+`/private/tmp/p5-mesh-after.csv`.

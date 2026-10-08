@@ -1,6 +1,6 @@
 (* Tuple shorthand for the record-based [Scene_execution.render_sampled_resources]. *)
 let sampled ?texture ?auxiliary ?(samples=1) family blend draw : Scene_execution.sampled_draw =
-  {family;blend;texture;auxiliary;samples;draw}
+  {family;blend;texture;auxiliary;vertex_attributes=None;samples;draw}
 let render_blended ?clear r draws=Scene_execution.render_sampled_resources ?clear r
   (List.map(fun(blend,draw)->sampled Scene_execution.Scene2 blend draw)draws)
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)

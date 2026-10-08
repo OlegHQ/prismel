@@ -26,7 +26,7 @@ type resource = Image of Runtime_resources.Image.t |
     retained as a distinct family and never misrouted through a Scene2 pipeline. *)
 val prepared_draw : family:family -> ?blend:blend ->
   ?texture:Scene_execution.sampled_texture ->
-  ?auxiliary:Scene_execution.auxiliary_resource -> ?samples:int ->
+  ?auxiliary:Scene_execution.auxiliary_resource -> ?vertex_attributes:(string * bytes) -> ?samples:int ->
   Scene_execution.draw -> draw
 
 type t

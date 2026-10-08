@@ -635,6 +635,7 @@ the release profile and are repeated with `RAYS_BENCH_DOMAINS=4`.
 | Extract Centroid | `RAYS_CENTROID_SIZE=1000000 RAYS_CENTROID_REPEATS=3 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_extract_centroid.exe` |
 | Extract Point from Curve | `RAYS_EXTRACT_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_extract_point_curve.exe` |
 | Instance traversal | `RAYS_INSTANCE_BENCH_COUNT=100000 dune exec tools/bench_instances.exe` |
+| Cold Scene3 display packing | `dune exec tools/bench_scene3_packing.exe -- 1000000 7` (mesh construction excluded; cold coordinate planes, median/p95 and allocated bytes) |
 | Material assignment | `dune exec tools/bench_material_assign.exe -- 100000 1` |
 | Editor held drag and undo | `dune exec tools/bench_rays_editor.exe -- 200 1000 2000` |
 | SOP graph scale smoke | `dune build test/test_main.exe`, then `_build/default/test/test_main.exe test_pxui_graph_smoke` |

@@ -76,6 +76,9 @@ type sampled_draw = {
   blend : Ogpu.Pipeline.blend;
   texture : sampled_texture option;
   auxiliary : auxiliary_resource option;
+  vertex_attributes : (string * bytes) option;
+  (** Independently retained Scene3 color/UV stream (12 bytes per vertex),
+      bound at vertex buffer 11. [None] retains the legacy packed ABI. *)
   samples : int;
   draw : draw;
 }

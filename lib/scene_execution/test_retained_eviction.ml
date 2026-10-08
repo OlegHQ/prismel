@@ -63,10 +63,10 @@ let run name count entry =
 let run () =
   run "plain-300" 300 (fun index ->
     {Scene_execution.family=Scene2; blend=Ogpu.Pipeline.Replace; texture=None;
-     auxiliary=None; samples=1;
+     auxiliary=None;vertex_attributes=None; samples=1;
      draw={mesh=mesh index; state={state with scissor=(index mod 2,0,63,64)}}});
   run "textured-300" 300 (fun index ->
     {Scene_execution.family=Scene2_textured; blend=Ogpu.Pipeline.Replace;
-     texture=Some (texture index); auxiliary=None; samples=1;
+     texture=Some (texture index); auxiliary=None;vertex_attributes=None; samples=1;
      draw={mesh=mesh index; state}});
   print_endline "retained eviction: prepared/automatic replays survive mesh and texture eviction, zero delta"

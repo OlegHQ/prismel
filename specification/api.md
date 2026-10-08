@@ -232,6 +232,9 @@ geometry.
 and scoped `Scene3` nodes compose hierarchical transforms. Scene3 renders
 through the fixed native material/light path; inputs it cannot honor (more than
 64 lights, malformed meshes, invalid viewports) are typed lowering errors.
+CPU mesh coordinates remain float64. Native display uses a cached float32
+mirror; coordinates or UVs that overflow float32 produce an invalid-mesh
+lowering error. Changing only colors or UVs reuses the geometry mirror.
 `specification/3d-parity.md` tracks the scoped states still partially lowered.
 
 The renderer uses native Metal color, depth, and stencil attachments, not

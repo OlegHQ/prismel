@@ -1,6 +1,6 @@
 (* Tuple shorthand for the record-based [Scene_execution.render_sampled_resources]. *)
 let sampled ?texture ?auxiliary ?(samples=1) family blend draw : Scene_execution.sampled_draw =
-  {family;blend;texture;auxiliary;samples;draw}
+  {family;blend;texture;auxiliary;vertex_attributes=None;samples;draw}
 let render_blended ?clear r draws=Scene_execution.render_sampled_resources ?clear r
   (List.map(fun(blend,draw)->sampled Scene_execution.Scene2 blend draw)draws)
 let get=function Ok value->value|Error error->failwith(Ogpu.Error.to_string error)
@@ -96,7 +96,7 @@ let run () =
   with_renderer driver"retained"(fun replay_renderer->
   let stable=draws 10 in
   let retained=stable|>List.map(fun(blend,draw)->
-    {Scene_execution.family=Scene2;blend;texture=None;auxiliary=None;
+    {Scene_execution.family=Scene2;blend;texture=None;auxiliary=None;vertex_attributes=None;
      samples=1;draw})in
   ignore(get(Scene_execution.render_prepared_sampled_resources
     ~identity:"scratch-retained"~version:7L replay_renderer retained));
@@ -124,9 +124,9 @@ let run () =
   and second={Scene_execution.mesh=mesh 70_001;
     state={state with depth_write=true}}in
   let stable=[{Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
-    texture=None;auxiliary=None;samples=1;draw=first};
+    texture=None;auxiliary=None;vertex_attributes=None;samples=1;draw=first};
     {Scene_execution.family=Scene3;blend=Ogpu.Pipeline.Replace;
-    texture=None;auxiliary=None;samples=1;draw=second}]in
+    texture=None;auxiliary=None;vertex_attributes=None;samples=1;draw=second}]in
   ignore(get(Scene_execution.render_sampled_resources renderer stable));
   ignore(get(Scene_execution.render_sampled_resources renderer stable));
   let stats=Scene_execution.retained_stats renderer in
@@ -153,13 +153,13 @@ let run () =
   ignore(get(Scene_execution.render_sampled_resources
     ~after_prepare:release renderer
     [{Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
-      texture=Some texture;auxiliary=None;samples=1;
+      texture=Some texture;auxiliary=None;vertex_attributes=None;samples=1;
       draw={mesh=mesh 0;state}}]));
   require(!releases=1)"post-upload release hook did not run exactly once";
   let malformed={texture with levels=[||]}in
   (match Scene_execution.render_sampled_resources ~after_prepare:release renderer
       [{Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
-        texture=Some malformed;auxiliary=None;samples=1;
+        texture=Some malformed;auxiliary=None;vertex_attributes=None;samples=1;
         draw={mesh=mesh 1;state}}]with
    |Error _->()|Ok _->failwith"malformed sampled texture unexpectedly rendered");
   require(!releases=2)"failed upload did not run release hook exactly once";

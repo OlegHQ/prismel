@@ -19,7 +19,7 @@ let pp_error formatter = function
 let draw_of_scene3_entry (entry : Scene_execution.scene3_entry) =
   Rays_execution.prepared_draw
     ~family:entry.family ~blend:entry.blend
-    ?texture:entry.texture ?auxiliary:entry.auxiliary ~samples:entry.samples
+    ?texture:entry.texture ?auxiliary:entry.auxiliary ?vertex_attributes:entry.vertex_attributes ~samples:entry.samples
     entry.draw
 
 type retained_draws={staged:Scene.Private.staged_native;

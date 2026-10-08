@@ -313,6 +313,7 @@
   bench_rdk_iso.exe
   bench_rdk_ops.exe
   bench_scene2_ir.exe
+  bench_scene3_packing.exe
   bench_sdl3.exe
   bench_shattered_renderer.exe
   bench_source_poll.exe
@@ -321,3 +322,7 @@
   bench_workspace_lower.exe
   bench_world.exe
   boolean_stress.exe))
+(executable
+ (name bench_scene3_packing)
+ (modules bench_scene3_packing)
+ (libraries rays unix))

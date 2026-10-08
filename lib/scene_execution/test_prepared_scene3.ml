@@ -10,7 +10,7 @@ let mesh : Scene_execution.mesh =
    indices=Bytes.make 12 '\000';index_count=3; primitive=Ogpu.Render_pass.Triangle_list}
 
 let entry : Scene_execution.scene3_entry =
-  {family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;
+  {family=Scene3;blend=Ogpu.Pipeline.Replace;texture=None;auxiliary=None;vertex_attributes=None;
    samples=1;draw={mesh;state}}
 
 let run () =
@@ -30,4 +30,17 @@ let run () =
   if Result.is_ok(Scene_execution.prepare_scene3~clear:(0.,0.,0.,1.)
     ~clear_depth:nan~clear_stencil:0[|entry|])then
     failwith"Scene3 accepted non-finite clear";
+  let uniforms=Bytes.make 5456 '\000'in
+  Bytes.set_int32_le uniforms(82*4)(Int32.bits_of_float 1.);
+  let packed={entry with vertex_attributes=Some("attributes",Bytes.make 36 '\000');
+    draw={mesh={mesh with vertices=Bytes.make 72 '\000'};
+      state={state with transform_uniforms=Some uniforms}}}in
+  let valid candidate=Result.is_ok(Scene_execution.prepare_scene3~clear:(0.,0.,0.,1.)
+    ~clear_depth:1.~clear_stencil:0[|candidate|])in
+  assert(valid packed);
+  assert(not(valid{packed with vertex_attributes=None}));
+  assert(not(valid{packed with vertex_attributes=Some("attributes",Bytes.make 35 '\000')}));
+  assert(not(valid{packed with vertex_attributes=Some("",Bytes.make 36 '\000')}));
+  assert(not(valid{packed with draw={packed.draw with mesh}}));
+  assert(not(valid{entry with vertex_attributes=packed.vertex_attributes}));
   print_endline"prepared Scene3: exact native validation"

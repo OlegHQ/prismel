@@ -9,6 +9,8 @@ let tests = [
   "test_automatic_text_cache", Test_automatic_text_cache.run;
   "test_rays_api_batch_e", Test_rays_api_batch_e.run;
   "test_scene3_native_lowering", Test_scene3_native_lowering.run;
+  "test_scene3_float32", Test_scene3_float32.run;
+  "test_scene3_float32_native", Test_scene3_float32.run_native;
   "test_scene_display_list", Test_scene_display_list.run;
   "test_ink", Test_ink.run;
   "test_core_interface_preservation", Test_core_interface_preservation.run;

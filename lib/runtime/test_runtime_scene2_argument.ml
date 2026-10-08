@@ -50,7 +50,7 @@ let run () =
           sampler; gpu=None }
       in
       let draw = {Scene_execution.family=Scene2_textured;blend=Ogpu.Pipeline.Replace;
-        texture=Some texture;auxiliary=None;samples=1;draw={mesh;state}} in
+        texture=Some texture;auxiliary=None;vertex_attributes=None;samples=1;draw={mesh;state}} in
       let first_uploaded = ref None in
       for frame = 1 to 20 do
         if not (get (Runtime.render_sampled_resources runtime [draw])) then

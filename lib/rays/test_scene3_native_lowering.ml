@@ -46,10 +46,12 @@ let run () =
   let prepared=prepare ~width:16 ~height:16 scene in
   if Array.length prepared.entries<>1 then failwith"native triangle draw count";
   let entry=prepared.entries.(0)and vertices=prepared.entries.(0).draw.mesh.vertices in
-  if Bytes.length vertices<>204||entry.draw.mesh.index_count<>3 then failwith"native Scene3 ABI cardinality";
+  if Bytes.length vertices<>72||entry.draw.mesh.index_count<>3 then failwith"native Scene3 ABI cardinality";
   (* blending an opaque draw keeps a tile-based GPU from dropping its hidden fragments *)
   if entry.blend<>Ogpu.Pipeline.Replace then failwith"an opaque default-blend draw kept blending";
-  if Int64.float_of_bits(Bytes.get_int64_le vertices 0)<>(-0.5)||Bytes.get_int32_le vertices 48<>0xff0000ffl then failwith"native Scene3 vertex ABI";
+  if Int32.float_of_bits(Bytes.get_int32_le vertices 0)<>(-0.5)||
+    (match entry.vertex_attributes with Some(_,bytes)->Bytes.get_int32_le bytes 0<>0xff0000ffl|None->true)
+  then failwith"native Scene3 vertex ABI";
   (match entry.draw.state.transform_uniforms with Some bytes when Bytes.length bytes=5456&&Int32.float_of_bits(Bytes.get_int32_le bytes(64*4))=1.->()|_->failwith"native Scene3 uniform ABI");
   let staged=Result.get_ok(Scene.Private.stage_native~width:16~height:16
     [Scene.view3d~camera scene])in

@@ -54,7 +54,7 @@ let run () =
          cache limit and must rebuild after completion-time eviction. *)
       let dense=List.init 257 (fun index ->
         {Scene_execution.family=Scene2;blend=Ogpu.Pipeline.Replace;
-         texture=None;auxiliary=None;samples=1;
+         texture=None;auxiliary=None;vertex_attributes=None;samples=1;
          draw={mesh={mesh with key=Printf.sprintf "dense-%d" index};
            state={state with scissor=(index mod 2,0,3,4)}}}) in
       let expected_dense=ref None in

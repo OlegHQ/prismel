@@ -41,7 +41,7 @@ let run () = match Runtime.create_offscreen ~logical_width:4 ~logical_height:4 (
           stencil_load = Load; stencil_clear = 0 } in
       let draw scissor uniform : Scene_execution.scene3_entry =
         { family = Scene3; blend = Ogpu.Pipeline.Replace; texture = None;
-          auxiliary = None; samples = 1;
+          auxiliary = None; vertex_attributes = None; samples = 1;
           draw = { mesh; state = state scissor uniform } } in
       let left = draw (0, 0, 4, 4) (uniform true)
       and right = draw (0, 0, 4, 4) (uniform false) in

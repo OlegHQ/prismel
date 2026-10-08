@@ -16,7 +16,8 @@ type family = Scene_execution.pipeline_family = Scene2 | Scene2_textured | Scene
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Scene3_world | Ui
 type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
-  auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
+  auxiliary:Scene_execution.auxiliary_resource option;vertex_attributes:(string*bytes)option;
+  samples:int;value:Scene_execution.draw }
 module Int_table=Lru.Make(Int)
 module Structural_key(T:sig type t end)=struct type t=T.t let equal=(=) let hash=Hashtbl.hash end
 (* texture (physical), destination, transform, clip, uv, framebuffer *)
@@ -39,8 +40,8 @@ type cached_scene2_plan={mutable plan_ir_id:int;plan_command_count:int;
   plan_source_bytes:int;plan_density:int;
   plan_extent:int*int*int*int;plan_resources:scene2_resource_stamp list;
   mutable plan_ir:Scene_command.Render_ir.t;plan_draws:draw list}
-let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
-  {family;blend;texture;auxiliary;samples;value}
+let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?vertex_attributes ?(samples=1) value =
+  {family;blend;texture;auxiliary;vertex_attributes;samples;value}
 
 let default_state viewport scissor = { Scene_execution.viewport; scissor;
   cull=Ogpu.Render_pass.Cull_none; depth_compare=Ogpu.Render_pass.Always;
@@ -80,7 +81,7 @@ let mesh_of_geometry number transform ~viewport clip (geometry:Command.geometry)
   let indices=Bytes.create(Array.length geometry.indices*4) in
   Array.iteri(fun index value->Bytes.set_int32_le indices(index*4)(Int32.of_int value))geometry.indices;
   let vx,vy,vw,vh=viewport and sx,sy,sw,sh=clip in
-  { family=Scene2;blend=Alpha;texture=None;auxiliary=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
+  { family=Scene2;blend=Alpha;texture=None;auxiliary=None;vertex_attributes=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
       vertices;vertex_count=count;indices;index_count=Array.length geometry.indices;primitive=Triangle_list};
       state={(default_state (vx,vy,vw,vh) (sx,sy,sw,sh))with
         transform_uniforms=(if identity_transform transform then None else Some(affine_uniforms transform))}} }
@@ -116,7 +117,7 @@ let mesh_of_geometry_run number transform ~viewport clip commands first stop =
         index_offset:= !index_offset+Array.length g.indices
     |_->assert false
   done;
-  {family=Scene2;blend=Alpha;texture=None;auxiliary=None;samples=1;
+  {family=Scene2;blend=Alpha;texture=None;auxiliary=None;vertex_attributes=None;samples=1;
    value={Scene_execution.mesh={key=Printf.sprintf "ir-run-%d" number;
      vertices;vertex_count= !vertex_count;indices;index_count= !index_count;primitive=Triangle_list};
      state={(default_state viewport clip) with
@@ -554,7 +555,7 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
     Quad_payload_table.add value.scene2_quad_payload_cache payload_key
       {payload_mesh_key=mesh_key;payload_vertices=vertices;payload_indices=indices};
     vertices,indices,mesh_key in
-    let draw={family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
+    let draw={family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;vertex_attributes=None;samples=1;
       value={Scene_execution.mesh={key=mesh_key;vertices;vertex_count=4;indices;index_count=6;primitive=Triangle_list};state=default_state framebuffer clip}}in
     if sampled_texture_bytes texture<=snapshot_cache_entry_byte_capacity then
       Quad_table.add value.scene2_quad_cache quad_key draw;
@@ -790,7 +791,7 @@ let step_core ?after_prepare ?clear ?identity ?version value draws=
           let draw=if viewport=state.viewport&&scissor=state.scissor then draw else
             {draw with Scene_execution.state={state with viewport;scissor}}in
           {Scene_execution.family=x.family;blend=x.blend;texture=x.texture;
-            auxiliary=x.auxiliary;samples=x.samples;draw})draws in
+            auxiliary=x.auxiliary;vertex_attributes=x.vertex_attributes;samples=x.samples;draw})draws in
         value.last_step_draws<-draws;value.last_step_prepared<-prepared;prepared in
     match identity,version with
     |None,None->Runtime.render_sampled_resources ~after_prepare ?clear runtime draws
@@ -920,7 +921,7 @@ let lower_ui submission ~density ~resource ui=
             and bottom=min facts.logical_height
                 (int_of_float(Float.ceil(clip.y+.clip.height)))in
             x,y,max 0(right-x),max 0(bottom-y)in
-      {family=Ui;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
+      {family=Ui;blend=Alpha;texture=Some texture;auxiliary=None;vertex_attributes=None;samples=1;
        value={Scene_execution.mesh={key="ui:"^string_of_int slot_key;
          vertices=slot.ui_vertices;vertex_count=4*batch.count;
          indices=slot.ui_indices;index_count=6*batch.count;

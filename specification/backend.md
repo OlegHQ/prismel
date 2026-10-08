@@ -421,8 +421,17 @@ Metal line draws; points use a point-topology pipeline with an explicit
 one-pixel point size. Line strips and loops become indexed line pairs once
 per immutable mesh. `Scene3.Wireframe` extracts unique edges from triangle
 meshes, while callers with polygon topology can pass RDK's unique topology
-edges as `Mesh.Lines` to avoid triangulation diagonals. Mesh packing is cached
-by mesh identity and render mode with a bounded cache. The catalog Box SOP
+edges as `Mesh.Lines` to avoid triangulation diagonals. Scene3 packs the immutable
+float64 CPU mesh directly from its coordinate planes into two GPU streams:
+24 bytes per vertex for float32 position and normal, and 12 bytes for packed
+RGBA and float32 UV. Narrowing rejects non-finite float32 results as an invalid
+mesh. Unchanged coordinate, normal and index planes reuse their packed bytes
+and GPU mesh even when color or UV planes change. Attributes use the existing
+bounded auxiliary buffer cache and binding 11. The raw prepared-draw interface
+still accepts its legacy 68-byte layout; uniform word 82 selects the layout.
+Both shader paths use the same material, transforms and lighting.
+Mesh packing is cached by immutable components and render mode, with at most
+16 entries and 256 MiB of packed payload. The catalog Box SOP
 defaults to quad faces, matching its inspector parameter default.
 
 The initial domain owns every window, event, layer, drawable, and resource
