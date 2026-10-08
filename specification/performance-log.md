@@ -7192,3 +7192,30 @@ at one domain; multi-domain differences are small scheduler allocations.
 Complete chain and loop hashes remain `67c129ecc130f8881a2eaf92c053b64c` and
 `8ef295fbdea12b586200fd1ffcdcb58f`. These observations do not close the separate
 small-fixture within-noise or native shipping gates.
+
+## P3 UI arrangement allocation follow-up
+
+`Ui.arrange` experiment, same machine/profile, command, input and
+ten-warm/200-timed protocol: three alternating saved-703a7113/current executable
+runs, all other agents explicitly terminal/held. All six commands exit zero.
+
+| Full static editor, 100k circles | Median trials (ms) | p95 trials (ms) | Bytes/frame in every trial |
+|---|---|---|---:|
+| Before linked-child loops | .035048 / .036001 / .036001 | .058889 / .071049 / .060081 | 176,868 |
+| After linked-child loops | .035048 / .035048 / .035048 | .066996 / .066996 / .062943 | 172,100 |
+
+The allocation saving is 4,768 bytes/frame (2.7%); these small wall-time samples
+do not establish a p95 improvement. The two arrangement passes now follow the
+existing `b_first`/`b_next` links directly, which lets their float references
+remain local rather than escape through per-box callbacks. Canvas transform
+scalars are bound individually rather than packed in a six-float tuple. Child
+order, float arithmetic, relative/grow sizing, placement and scrolling are
+unchanged. No new storage, API, cache or skipped UI/input work is introduced.
+The existing `@lib/pxui/test_ui` regression exits zero, covering interaction at
+1x/2x, scroll/trackpad behavior, and transformed canvas geometry, IME and hits.
+Native pixel parity remains unavailable. The literal 32,768-byte full-editor
+allocation gate remains **unmet** (172,100 bytes/frame).
+
+Evidence: `/private/tmp/p3-ui-arrange-before-{1,2,3}.csv`,
+`/private/tmp/p3-ui-arrange-after-{1,2,3}.csv` and
+`/private/tmp/p3-ui-arrange-check.log`.

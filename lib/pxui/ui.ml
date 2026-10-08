@@ -1483,14 +1483,15 @@ let arrange ui time =
     end;
     (* Children live in this box's space, or in its canvas. *)
     let canvas = ui.b_xform.(index) in
-    let child_scale, child_tx, child_ty, origin_x, origin_y, unit = match canvas with
-      | None -> ui.l_scale.(index), ui.l_tx.(index), ui.l_ty.(index),
-          ui.l_x.(index), ui.l_y.(index), 1.
-      | Some (scale, tx, ty) ->
-          ui.l_scale.(index) *. scale,
-          ui.l_tx.(index) +. (ui.l_scale.(index) *. (ui.l_x.(index) +. tx)),
-          ui.l_ty.(index) +. (ui.l_scale.(index) *. (ui.l_y.(index) +. ty)),
-          0., 0., scale in
+    let unit = match canvas with None -> 1. | Some (scale, _, _) -> scale in
+    let child_scale = match canvas with None -> ui.l_scale.(index)
+      | Some (scale, _, _) -> ui.l_scale.(index) *. scale in
+    let child_tx = match canvas with None -> ui.l_tx.(index)
+      | Some (_, tx, _) -> ui.l_tx.(index) +. (ui.l_scale.(index) *. (ui.l_x.(index) +. tx)) in
+    let child_ty = match canvas with None -> ui.l_ty.(index)
+      | Some (_, _, ty) -> ui.l_ty.(index) +. (ui.l_scale.(index) *. (ui.l_y.(index) +. ty)) in
+    let origin_x = match canvas with None -> ui.l_x.(index) | Some _ -> 0. in
+    let origin_y = match canvas with None -> ui.l_y.(index) | Some _ -> 0. in
     let inner_w = (ui.l_w.(index) -. (2. *. padding) -. gutter) /. unit
     and inner_h = (ui.l_h.(index) -. (2. *. padding)) /. unit in
     let relative kind inner current = match kind with
@@ -1498,7 +1499,9 @@ let arrange ui time =
       | Rel f -> f inner
       | Px _ | Fit | Text | Grow -> current in
     let fixed = ref 0. and grow_count = ref 0 and flow_count = ref 0 in
-    children ui index (fun child ->
+    let next = ref ui.b_first.(index) in
+    while !next >= 0 do
+      let child = !next in
       ui.l_scale.(child) <- child_scale;
       ui.l_tx.(child) <- child_tx; ui.l_ty.(child) <- child_ty;
       ui.l_w.(child) <- relative ui.b_w.(child) inner_w ui.l_w.(child);
@@ -1509,14 +1512,18 @@ let arrange ui time =
         let kind = if row then ui.b_w.(child) else ui.b_h.(child) in
         if kind = Grow then incr grow_count
         else fixed := !fixed +. (if row then ui.l_w.(child) else ui.l_h.(child))
-      end);
+      end;
+      next := ui.b_next.(child)
+    done;
     let gaps = ui.b_gap.(index) *. float (max 0 (!flow_count - 1)) in
     let share = if !grow_count = 0 then 0.
       else Float.max 0. (((if row then inner_w else inner_h) -. !fixed -. gaps)
         /. float !grow_count) in
     let cursor = ref (padding /. unit) in
     let scroll_offset = if scrolls then ui.scroll_y.(slot) +. ui.scroll_visual.(slot) else 0. in
-    children ui index (fun child ->
+    next := ui.b_first.(index);
+    while !next >= 0 do
+      let child = !next in
       if row then begin
         if ui.b_w.(child) = Grow && flow ui child then ui.l_w.(child) <- share;
         if ui.b_h.(child) = Grow then
@@ -1539,7 +1546,9 @@ let arrange ui time =
       end else begin
         ui.l_x.(child) <- origin_x +. ui.b_at_x.(child);
         ui.l_y.(child) <- origin_y +. ui.b_at_y.(child)
-      end)
+      end;
+      next := ui.b_next.(child)
+    done
   done
 
 let screen ui index =
