@@ -6450,6 +6450,25 @@ Native pixel qualification exits 1 at `Canvas.render`, with the typed
 `No_adapter` error. Pixel equivalence and final `--ship` remain unverified;
 the API manifest is intentionally left for promotion after branch integration.
 
+Cold producer measurements use seven cooks per row, zero-capacity sessions,
+warm shared pools and an excluded full major collection before each cook.
+Elapsed time ends before an explicit `Gc.minor`; aggregate allocation uses
+`Gc.quick_stat` minor + major - promoted words. Command:
+`_build/default/tools/bench_workspace_lower.exe --images`, exit 0; raw rows
+are `performance/p4-image-cold.csv`.
+
+| Pixels | 1 domain ms | 8 domains ms | Aggregate allocation 1 / 8 B |
+| ---: | ---: | ---: | ---: |
+| 16,384 | 0.810 | 0.827 | 2,425,928 / 2,426,920 |
+| 262,144 | 15.100 | 7.770 | 37,815,312 / 37,828,112 |
+| 1,048,576 | 61.879 | 28.351 | 151,061,592 / 151,109,008 |
+
+All seven repeats and both domain counts have identical pixel hashes. The
+largest RGBA component is 33,554,432 bytes; allocation includes the noise
+arithmetic and cook metadata, not only retained samples. There was no prior
+cooked-image producer, so these are first measurements rather than an
+invented before/after speedup.
+
 ### P3 drawing baseline (2026-10-08)
 
 Arm64 native macOS workspace, OCaml 5.3.0, Dune dev profile, one domain; same machine as the
