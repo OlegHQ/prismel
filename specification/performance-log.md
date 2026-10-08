@@ -6236,3 +6236,61 @@ outlier and is recorded without calling it an improvement. `bench_kernel --loops
 with every one/eight-domain CPU and interpreter digest equal through one million elements;
 raw rows `/private/tmp/p3-kernel-after.txt`. A brief failed compiler lookup overlapped that
 long control run, so its timings are not an isolated before/after performance claim.
+
+Final P3 core remeasurement (1a18b6ef, same 10 warm/200 timed frames, dev, one domain,
+800×600; all other agent builds/tests/timers held):
+
+| Kind | N | Moving median / p95 (ms) | Moving bytes/frame | Static median / p95 (ms) | Static bytes/frame | Commands |
+|---|---:|---:|---:|---:|---:|---:|
+| circle | 1000 | 1.897 / 2.162 | 6,999,260 | .040 / .065 | 203,388 | 1 |
+| rect | 1000 | 1.863 / 2.088 | 6,951,308 | .039 / .065 | 203,388 | 1 |
+| line | 1000 | 2.299 / 2.726 | 9,334,588 | .039 / .064 | 203,388 | 1 |
+| points | 1000 | 1.650 / 1.999 | 6,976,684 | .039 / .071 | 203,388 | 1 |
+| circle | 10000 | 4.735 / 5.824 | 7,828,108 | .040 / .123 | 203,388 | 1 |
+| rect | 10000 | 4.596 / 5.326 | 7,348,156 | .040 / .178 | 203,388 | 1 |
+| line | 10000 | 2.891 / 4.017 | 5,001,676 | .040 / .127 | 203,388 | 1 |
+| points | 10000 | 2.622 / 7.224 | 9,085,996 | .040 / .164 | 203,388 | 1 |
+| circle | 100000 | 43.336 / 50.904 | 75,558,320 | .040 / .122 | 203,388 | 1 |
+| rect | 100000 | 43.266 / 53.008 | 70,764,902 | .040 / .108 | 203,388 | 1 |
+| line | 100000 | 20.656 / 24.589 | 46,136,860 | .040 / .159 | 203,388 | 1 |
+| points | 100000 | 16.610 / 23.316 | 80,908,707 | .040 / .110 | 203,388 | 1 |
+
+Final particle control: 3.091 ms median, 7.265 ms p95, 9,204,988 bytes/frame. Against the
+original 2.991 ms / 4.268 ms / 9,204,964 bytes, its median is 3.3% slower and p95 is higher;
+the allocation delta is 24 bytes/frame. Do not call this control a speed improvement.
+The required circle gates still pass: 10k below 16 ms; 100k at 755.6 bytes/instance versus
+the control's 920.5. Separately, retained 100k Drawing lowering is 1393 bytes/frame after the
+clock split, below 32768 and independent of editor chrome. CSVs in this session:
+`/private/tmp/p3-final-after.csv`, `/private/tmp/p3-final-particles-after.txt`.
+
+All eight source ports (`basic`, `generative`, `noise`, `recursive_rectangles`, `drawing`,
+`audio`, `file_dialog`, `pxui`) pass source roundtrip, four synthetic frames, six interpreter/CPU
+modes at one/eight domains and an independent authored-parameter comparison with the original
+`main.ml` compiled by `tools/port_oracle`. Recursive minimum/maximum depth and large native
+integer hashes pass as well. A separate 10k moving-circle workspace passes six-mode command
+identity and is included in the native four-PNG export gate.
+
+Native qualification remains pending. `test_shape_batch native` and `ui_shot basic` exit 2
+with `Metal has no system default device`; native exports exit 2 at SDL startup with
+`The video driver did not add any displays` and macOS display-service XPC errors. The Ui MSL
+source compiles offline to AIR with the installed Metal compiler and an explicit writable
+module cache. This establishes shader syntax, not raster correctness. Native one-draw/static
+zero-upload counters, SDF/reference per-pixel tolerance, particle/port PNG identity, host PNG
+capture, all port smoke runs and eight editor layout PNGs must be run with a visible display
+and Metal device; no artifact or native passing result is substituted for those gates.
+
+Final validation after the packed-line color declaration correction: `@lib/flow/runtest`,
+`@lib/flow_ir/runtest`, `@test_2d_ports`, the pure particle/drawing executable and `@all`
+pass. `SDL_AUDIODRIVER=dummy _build/default/tools/check.exe --ship` exits 1: native tests
+cannot acquire Metal, smoke cannot initialize a display, and the intended public API diff
+awaits promotion after integration as required for worktree changes. The initial shipping
+attempt found and fixed `draw/lines :color` rejecting packed RGB arrays at the checker boundary;
+the existing colored-line test now passes. Logs: `/private/tmp/p3-final-focused.log`,
+`/private/tmp/p3-final-drawing.log`, `/private/tmp/p3-final-ship-fixed.log`.
+
+`@runtest-native` and `@smoke-all` were also attempted and exit 1 at the same native boundaries.
+All eight Lisp smoke entries ran and failed before the first frame with no display. Their
+locks now refer to the existing root smoke lock, so the added programs run sequentially.
+Every port's `ui_shot` was attempted separately; all eight exit 2 with no system default Metal
+device and produce no PNG. Logs: `/private/tmp/p3-final-native.log`,
+`/private/tmp/p3-final-smoke-all-serial.log`, `/private/tmp/p3-ui-<name>.log`.
