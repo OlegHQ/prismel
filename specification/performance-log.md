@@ -6399,3 +6399,24 @@ at both sizes for noise, normals, scatter or mountain. One Context grain
 serves this mixed workload, so applying transform's optimum globally is not
 supported by the sweep. The 174 RDK API defaults remain unchanged. The
 inspector count alongside node timing is covered by the PL probe integration.
+
+## P5 native baseline tool (2026-10-08)
+
+`tools/bench_gpu.exe` measures ten cold MSL library/pipeline compilations and
+seven repetitions at 1,024 / 65,536 / 1,000,000 elements, both with and without
+readback. It prints compilation, CPU upload/dispatch/readback/total seconds and
+the optional native GPU duration. Missing native GPU duration is NaN, never a
+substituted CPU timing. Inputs are float32 positions/normals and a seeded
+512-entry Perlin permutation; the scalar kernel mirrors the CPU displacement.
+
+The compiler-only boundary passes: `tools/bench_gpu.exe --msl` writes the actual
+benchmark source, and Metal 32023.921 (27.1.266.1 toolchain) compiles that source
+to AIR with `metal -fmodules-cache-path=/private/tmp/rays-metal-module-cache -c
+/private/tmp/p5-baseline-noise.metal -o /private/tmp/p5-baseline-noise.air`, exit 0.
+The direct compiler executable is needed here because this process's xcrun
+cache does not resolve the user-installed toolchain yet.
+
+Native benchmark startup exits 2: `Ogpu_metal.Device.system_default: Metal has
+no system default device`. No GPU timings, numeric tolerance or placement costs
+are claimed. The mesh-packing baseline and after rows are in the separate
+Scene3 float32 change; native GPU qualification remains outstanding.

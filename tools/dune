@@ -8,6 +8,11 @@
  (modules check)
  (libraries unix))
 
+(executable
+ (name bench_gpu)
+ (modules bench_gpu)
+ (libraries ogpu rays_execution rays_math unix))
+
 (test
  (name test_check)
  (modules test_check)
@@ -287,6 +292,7 @@
   bench_extract_centroid.exe
   bench_extract_point_curve.exe
   bench_graph_color.exe
+  bench_gpu.exe
   bench_instances.exe
   bench_kernel.exe
   bench_laplacian.exe
