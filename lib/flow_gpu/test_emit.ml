@@ -32,4 +32,11 @@ let () =
      "(for [x (array/range 1024)] :skip [0] (+ x t))"];
   let uniform=Test_program.ok(Flow_gpu.Emit.kernel(Test_program.compile "(map (fn [x] t) (array/range 1024))"))in
   assert(List.length uniform.interface=3 && not(List.exists(fun(binding:Ogpu.Shader.binding)->binding.binding=0)uniform.interface));
+  let hidden=Test_program.ok(Flow_gpu.Emit.kernel(Test_program.compile
+    "(map (fn [x] (if (> x t) 0.0 (* x x))) (array/range 1024))"))in
+  let lines=String.split_on_char '\n' hidden.source in
+  List.iteri(fun index line->if String.starts_with ~prefix:"  float r" line then
+    let slot=Scanf.sscanf line "  float r%d=" Fun.id in
+    assert(List.nth lines(index+1)=Printf.sprintf
+      "  if(!isfinite(r%d)) atomic_store_explicit(status,1u,memory_order_relaxed);" slot))lines;
   print_endline "GPU emitter: shared operations, golden arithmetic/select/seeded fBm and typed ordered-loop refusals passed"

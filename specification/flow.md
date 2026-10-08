@@ -1392,8 +1392,8 @@ interpolation. Channels are `r`, `g`, `b`, `a`, and `luminance`;
 GPU display values remain opaque identity/count/generation tokens. Workspace
 owners retain at most 64 producer runners, 64 pipelines and 64 styled drawing
 sinks, close sinks before their GPU lease, and reject stale generations. A
-four-byte status read validates finite shader outputs without reading back the
-packed array. Compile, GPU execution and explicit readback have separate tier
+four-byte status read validates finite shader intermediates and outputs without
+reading back the packed array. Compile, GPU execution and explicit readback have separate tier
 reports. The GPU badge's group time is the completed device dispatch duration
 when timestamps are supported, otherwise wall time. An absent native cost
 model keeps production on CPU. For an input-independent packed producer,

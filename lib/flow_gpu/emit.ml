@@ -94,10 +94,10 @@ let kernel program = try
       | Select (condition,yes,no) -> Printf.sprintf "(%s!=0.0f?%s:%s)" (register condition) (register yes) (register no)
       | Noise3 (x,y,z,seed,octaves) -> Printf.sprintf "fbm(float3(%s,%s,%s),%d,table+%d)"
           (register x) (register y) (register z) octaves (table seed) in
-    Printf.bprintf body "  float r%d=%s;\n" slot expression
+    Printf.bprintf body "  float r%d=%s;\n" slot expression;
+    Printf.bprintf body "  if(!isfinite(r%d)) atomic_store_explicit(status,1u,memory_order_relaxed);\n" slot
     end) view.code;
   Array.iteri (fun component slot ->
-    Printf.bprintf body "  if(!isfinite(r%d)) atomic_store_explicit(status,1u,memory_order_relaxed);\n" slot;
     Printf.bprintf body "  output[i*%d+%d]=r%d;\n"
       (Array.length view.output) component slot) view.output;
   let count = Array.length view.widths in
