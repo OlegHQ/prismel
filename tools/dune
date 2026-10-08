@@ -326,3 +326,5 @@
  (name bench_scene3_packing)
  (modules bench_scene3_packing)
  (libraries rays unix))
+
+(executable (name port_oracle) (modules port_oracle))
