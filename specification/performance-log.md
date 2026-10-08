@@ -7387,7 +7387,10 @@ chains out can at best hide one chain, 56 ms, which is the measured 57.9 ms.
 The loop zone stays 3.7× faster than Step 0's eight-domain row (its gate); the chain gate of 1.5× against
 Step 0's 75.943 ms (≤ 50.6 ms) is **not reachable by fan-out** on this
 fixture: it needs a parallel or cheaper 2M-point merge in `rdk`, which is
-outside P4 Step 3. Hashes are unchanged (`67c129ec…`, `8ef295fb…`).
+outside P4 Step 3. Hashes are unchanged (`67c129ec…`, `8ef295fb…`). A trial
+that replaced the merge's plane copies with one allocation and chunked
+parallel blits left the eight-domain merge at 45 ms (40 ms before, within
+noise) and was reverted: the merge's cost is not in copying its planes.
 
 ## P3 allocation gate reading (2026-10-08)
 
