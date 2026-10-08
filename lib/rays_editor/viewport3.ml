@@ -255,9 +255,9 @@ let on_doc ~previous core camera =
 
 let navigate ~area control camera extra core ~(raw_frame : Frame.t) ~(input : Frame.t) =
   let active = active_node core in
-  let following = Option.fold ~none:false ~some:follows active in
   (* A fixed render camera owns the view while look-through is enabled. *)
-  if look_through extra && active <> None && not following then camera, release extra
+  if look_through extra && active <> None
+      && not (Option.fold ~none:false ~some:follows active) then camera, release extra
   else match extra.fly with
     | Some speed ->
         let camera, speed = Easy_camera.fly ~speed camera

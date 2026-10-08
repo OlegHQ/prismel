@@ -7219,3 +7219,21 @@ allocation gate remains **unmet** (172,100 bytes/frame).
 Evidence: `/private/tmp/p3-ui-arrange-before-{1,2,3}.csv`,
 `/private/tmp/p3-ui-arrange-after-{1,2,3}.csv` and
 `/private/tmp/p3-ui-arrange-check.log`.
+
+The next isolated change moves `Viewport3.navigate`'s `follows` decode behind
+the existing look-through/active-camera condition. A normal orbit does not use
+that boolean; a look-through still evaluates it and releases relative/fly input
+for a fixed camera exactly as before. Existing window-free camera/lens and
+workspace-shell camera/multiview regressions exit zero. Three alternating
+old/new full static-editor trials (same protocol, all other agents held):
+
+| Full static editor, 100k circles | Median trials (ms) | p95 trials (ms) | Bytes/frame in every trial |
+|---|---|---|---:|
+| Before navigation short-circuit | .035048 / .035048 / .036001 | .066996 / .070095 / .058889 | 172,100 |
+| After navigation short-circuit | .034094 / .034094 / .034094 | .056982 / .061989 / .056028 | 162,876 |
+
+The allocation saving is 9,224 bytes/frame (5.4%). The full 32,768-byte gate
+remains **unmet**. All six benchmark commands exit zero. Evidence:
+`/private/tmp/p3-camera-navigate-before-{1,2,3}.csv`,
+`/private/tmp/p3-camera-navigate-after-{1,2,3}.csv` and
+`/private/tmp/p3-camera-navigate-check.log`.
