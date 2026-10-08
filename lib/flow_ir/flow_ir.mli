@@ -16,6 +16,14 @@ end
 type rate = Static | Frame | Event
 type precision = Exact | Approx
 type tier = Interp | Closure | Cpu_kernel | Cooked
+module Cost : sig
+  type tier_cost = {fixed : float; per_element : float}
+  val table : tier -> tier_cost
+  val estimate : tier -> count:int -> float
+  val cheapest : legal:tier list -> count:int -> tier
+  val packed : count:int -> tier
+  (** The same measured CPU decision used at placement and force time. *)
+end
 type source =
   | Constant of Flow.Eval.value
   | Frame_field of string

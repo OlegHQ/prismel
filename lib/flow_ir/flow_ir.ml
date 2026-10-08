@@ -12,6 +12,29 @@ end
 type rate = Static | Frame | Event
 type precision = Exact | Approx
 type tier = Interp | Closure | Cpu_kernel | Cooked
+module Cost = struct
+  type tier_cost = {fixed : float; per_element : float}
+  (* P4 measured CPU table, performance-log "P4 residual pruning and costs".
+     CPU packed-map endpoints are 1,024 and 1M elements at one domain; the
+     closure row is one compiled scalar expression. Only legal tiers compete.
+     ponytail: one affine model per tier, not an instruction-aware scheduler;
+     fit per-operation models only if placement mistakes are measured. *)
+  let table = function
+    | Interp -> {fixed=0.;per_element=0.710282087 /. 1_000_000.}
+    | Closure -> {fixed=0.000000170;per_element=0.}
+    | Cpu_kernel ->
+        let per_element = (0.016522884 -. 0.000040054) /. (1_000_000. -. 1024.) in
+        {fixed=0.000040054 -. per_element *. 1024.;per_element}
+    | Cooked -> {fixed=infinity;per_element=0.}
+  let estimate tier ~count =
+    if count < 0 then invalid_arg "Flow_ir.Cost.estimate: negative count";
+    let cost = table tier in cost.fixed +. cost.per_element *. float count
+  let cheapest ~legal ~count = match legal with
+    | [] -> invalid_arg "Flow_ir.Cost.cheapest: no legal tier"
+    | first :: rest -> List.fold_left (fun best tier ->
+        if estimate tier ~count < estimate best ~count then tier else best) first rest
+  let packed ~count = cheapest ~legal:[Interp;Cpu_kernel] ~count
+end
 type source = Constant of E.value | Frame_field of string | Input of string | State_previous of E.residual
 type body = Operation of string | Vector | Field of string | List_value
   | Record_value of string list | Struct_value of string * Ty.t * string list
@@ -173,8 +196,10 @@ let place ir =
       let tier = match node.kind with
         | Opaque _ -> Cooked
         | Kernel {body = Packed_map _; _} ->
-            (match node.count with Count.Static n when n < 1024 -> Interp | _ -> Cpu_kernel)
-        | Kernel {body = Reference r; _} -> if E.Private.closure_available r then Closure else Interp
+            (match node.count with Count.Static count -> Cost.packed ~count | _ -> Cpu_kernel)
+        | Kernel {body = Reference r; _} -> if E.Private.closure_available r then
+            Cost.cheapest ~legal:[Interp;Closure] ~count:(match node.count with Count.Static n -> n | _ -> 1)
+            else Interp
         | Kernel _ -> Closure
         | _ -> Interp in
       nodes.(i) <- {node with precision; tier}) ir.nodes;
@@ -386,7 +411,7 @@ module Executor = struct
                 ignore (Atomic.compare_and_set program.templates cached (p :: take 31 cached))) prepared;
               prepared in
         match prepared with
-        | Some p when not (Option.fold ~none:false ~some:(fun n -> n < 1024) (Packed.static_count p)) ->
+        | Some p when not (Option.fold ~none:false ~some:(fun count -> Cost.packed ~count <> Cpu_kernel) (Packed.static_count p)) ->
             Some (Packed.force ~state ?elems ?resolve ?measure p ~live)
         | _ -> None in
       E.Private.force_with_executor ~state ?elems ?resolve ~execute value ~live in

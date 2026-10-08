@@ -102,6 +102,22 @@ let same_result a b = match a, b with
   | _ -> false
 
 let () =
+  let mapped = value "(array/sum (map (fn [x] (sin (+ x t))) (array/range 2048)))" in
+  let compiled = Executor.graph (ok (Executor.compile mapped)) in
+  let packed = Array.find_opt (function {kind=Kernel {body=Packed_map _;_};_}->true | _->false) compiled.nodes |> Option.get in
+  List.iter (fun count ->
+    let placed = ok (place (ir [{packed with count=Count.Static count;args=[]}] [0])) in
+    assert (placed.nodes.(0).tier = Cost.cheapest ~legal:[Interp;Cpu_kernel] ~count);
+    assert (Cost.packed ~count = placed.nodes.(0).tier)) [0;16;512;1024;65_536];
+  let placed = ok (place (ir [{packed with count=Count.Data (["source"],[]);args=[]}] [0])) in
+  assert (placed.nodes.(0).tier = Cpu_kernel);
+  let live = Frame_input.at_time 0.125 in
+  List.iter (fun count ->
+    let value = value (Printf.sprintf "(array/sum (map (fn [x] (sin (+ x t))) (array/range %d)))" count) in
+    assert (same_result (Executor.force (ok (Executor.compile value)) ~live)
+      (E.Private.force_reference value ~live))) [0;16;33;34;512;1024]
+
+let () =
   let array = E.Struct ("sop/attr", Flow.Ty.Array Flow.Ty.Vec3, []) in
   let array = (Executor.graph (ok (Executor.compile array))).nodes.(0) in
   assert (match array.count with Count.Data _ -> true | _ -> false);

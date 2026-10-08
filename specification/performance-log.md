@@ -6363,3 +6363,39 @@ and custom-catalog workspaces, all 12 fixtures, static plans/instances/records
 and four live times at one/eight domains preserve exact values and cook hashes.
 Native pixel and shipping gates remain subject to actual Metal access; this
 section does not mark the full P4 plan shipped.
+
+### Measured CPU placement and grain decision
+
+Run `_build/default/tools/bench_kernel.exe --cost` alone after building.
+Seven medians per row; one/eight-domain hashes match exactly. Allocation is
+across all participating domains. Raw rows: `performance/p4-step2-cost.csv`.
+
+| Work / tier | Elements | Domains | Median ms | Bytes |
+|---|---:|---:|---:|---:|
+| Scalar closure | 1 | 1 | 0.000170 | 1328 |
+| Scalar interpreter | 1 | 1 | 0.000724 | 3784 |
+| Packed map CPU | 1024 | 1 | 0.040054 | 71520 |
+| Packed map CPU | 1024 | 8 | 0.043154 | 72176 |
+| Packed map interpreter | 1024 | 1 | 0.701904 | 3050448 |
+| Packed map CPU | 65536 | 1 | 1.098871 | 767760 |
+| Packed map CPU | 65536 | 8 | 0.346899 | 771008 |
+| Packed map interpreter | 65536 | 1 | 46.359062 | 195038160 |
+| Packed map CPU | 1000000 | 1 | 16.522884 | 11687216 |
+| Packed map CPU | 1000000 | 8 | 4.155159 | 11731848 |
+| Packed map interpreter | 1000000 | 1 | 710.282087 | 2976003024 |
+
+The one-domain packed endpoints fit CPU fixed cost 23.16 microseconds and
+16.50 ns/element. Interpreter cost is 710.28 ns/element; the scalar closure's
+fixed cost is 170 ns. Only legal tiers compete. The static packed/interpreter
+crossover is 34 elements, and placement and force-time dispatch read the same
+table. Counts 0,16,33,34,512,1024,65536 and dynamic Data have focused checks;
+small forced maps agree with the independent reference values. Cooked opaque
+work stays Cooked and is not compared against a numeric map model. The model
+is deliberately one affine row per tier; it does not infer instruction costs.
+
+Retain the existing grain 16,384. Only transform wins at both required sizes
+(56.1% at 100k, 12.0% at 1M for grain 1,024). No alternative meets the 10% gate
+at both sizes for noise, normals, scatter or mountain. One Context grain
+serves this mixed workload, so applying transform's optimum globally is not
+supported by the sweep. The 174 RDK API defaults remain unchanged. The
+inspector count alongside node timing is covered by the PL probe integration.

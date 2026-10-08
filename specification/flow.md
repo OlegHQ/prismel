@@ -995,7 +995,10 @@ The value lane prepares `Flow_ir.Executor` programs once per network. Scalar
 programs reuse the existing exact closures or reference walker. Supported numeric
 packed `map`, `for`, `sum`, `fold`, `scan`, `reduce` and `array/sum` use
 1,024-element blocks over float registers. Independent elements run through the
-shared `Parallel` pool. Cartesian clauses retain last-clause-fastest order and
+shared `Parallel` pool. Static packed counts choose between interpreter and CPU
+kernel using the measured fixed/per-element cost table; dynamic counts retain
+the CPU kernel. Placement and force-time dispatch use the same decision.
+Cartesian clauses retain last-clause-fastest order and
 `:skip` retains authored iteration indices. Accumulator-dependent instructions
 run in element order; invariant instructions run once per block. A fixed binary
 tree visits chunk spans left to right, carrying the accumulator across spans.

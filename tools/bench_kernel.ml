@@ -106,6 +106,30 @@ let flow_map count =
   assert (one = eight);
   let reference = measure "flow_map_sin_interp" 1 (fun () -> Flow.Eval.Private.force_reference value ~live) in
   assert (one = reference)
+let scalar_cost () =
+  let get = function Ok value -> value | Error d -> failwith (Flow.Diagnostic.to_string d) in
+  let forms = get (Flow.Syntax.parse "(workspace cost (graph g :context value (+ (* t 0.25) (sin t))))") in
+  let workspace = match Flow.Workspace.check {Flow.Check.version=1;kinds=[]} forms with
+    | Some workspace, [] -> workspace | _, ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+  let value = List.assoc "g" (get (Flow.Eval.static workspace)).results in
+  let residual = match value with Flow.Eval.Residual r -> r | _ -> assert false in
+  assert (Flow.Eval.Private.closure_available residual);
+  let live = Frame_input.at_time 1.25 and repeats = 10_000 in
+  let expected = get (Flow.Eval.Private.force_reference value ~live) in
+  List.iter (fun (label, force) ->
+    assert (get (force ()) = expected);
+    let times = Array.make 7 0. and allocations = Array.make 7 0. in
+    for sample = 0 to 6 do
+      let bytes = allocated_bytes () and started = Unix.gettimeofday () in
+      for _ = 1 to repeats do ignore (get (force ())) done;
+      times.(sample) <- (Unix.gettimeofday () -. started) /. float repeats;
+      allocations.(sample) <- (allocated_bytes () -. bytes) /. float repeats
+    done;
+    Printf.printf "%s,1,1,%.9f,%.0f,%s\n%!" label (median times) (median allocations)
+      (Digest.to_hex (Digest.string (Marshal.to_string expected [Marshal.No_sharing]))))
+    ["flow_scalar_closure", (fun () -> Flow.Eval.residual_eval residual ~live);
+     "flow_scalar_interp", (fun () -> Flow.Eval.Private.force_reference value ~live)]
+
 let flow_loops ?(fusion_only = false) count =
   let flow_ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d) in
   List.iter (fun (label, body) ->
@@ -235,10 +259,12 @@ let () =
     let native = run ~mode:Deform.Normal_3d ~seed:0 1 grid in
     assert (native = run ~mode:Deform.Normal_3d ~seed:0 8 grid);
     flow_attributes grid
+  end else if Array.to_list Sys.argv = [Sys.argv.(0); "--cost"] then begin
+    scalar_cost (); flow_map 1024; flow_map 65_536; flow_map 1_000_000
   end else if Array.to_list Sys.argv = [Sys.argv.(0); "--loops"] then
     flow_loops 1_000_000
   else if Array.to_list Sys.argv = [Sys.argv.(0); "--fusion"] then
     flow_loops ~fusion_only:true 1_000_000
   else if Array.to_list Sys.argv = [Sys.argv.(0); "--attribute-fusion"] then
     flow_attribute_fusion grid
-  else invalid_arg "bench_kernel [--attributes|--loops|--fusion|--attribute-fusion]"
+  else invalid_arg "bench_kernel [--cost|--attributes|--loops|--fusion|--attribute-fusion]"
