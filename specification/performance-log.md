@@ -8258,3 +8258,76 @@ nonfinite regressions. Run seven isolated restored uninstrumented and
 instrumented trials at domains 1/8, archive `f-field-prepare-*` CSVs and
 restore both sources byte-for-byte. The strict whole-cook <10 ms gate remains
 unmet; the diagnostic is not a performance claim.
+
+## F2.1 field kernel — preparation child attribution (2026-10-09)
+
+Confirmed M1/Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev profile,
+grain 16,384, seven isolated trials after one excluded warm-up, fresh
+zero-capacity sessions, existing GC policy. Sequential SOP grid filling and
+indexed finite validation are retained. No builds, tests, other benchmarks
+or agent work run during measurement. Save the uninstrumented executable,
+apply `f-field-prepare-time-instrumentation.patch`, build and save the timed
+executable, restore both production sources byte-for-byte, then run both
+saved executables. Repeat at domains 1/8:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-prepare-before.exe --fields > specification/performance/f-field-prepare-cook-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_F_PREPARE_PHASE_CSV=specification/performance/f-field-prepare-child-8.csv RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-prepare-profile.exe --fields > specification/performance/f-field-prepare-time-cook-8.csv 2> specification/performance/f-field-prepare-parent-8.csv
+```
+
+The temporary Function_kernel timer measures the complete existing
+`E.Private.map_function` and `Attribute_kernel.prepare` calls, including
+input validation and IR compilation respectively. These are children of the
+existing coarse preparation interval, never added again to phase totals.
+No GC snapshots, printing, caching or algorithm changes inside intervals;
+all output is buffered until process exit. Each domain has 32 parent rows
+and 16 child rows including warm-up -1 and trials 0..6. Exactly one child
+pair is contained in every preparation parent; containment checks use exact
+CSV decimal arithmetic to avoid binary float summation artifacts.
+
+| Whole cook | One domain median ms | Eight domains median ms | One domain allocated bytes | Eight domains allocated bytes |
+|---|---:|---:|---:|---:|
+| Uninstrumented | 29.789 | 16.353 | 42720424 | 42757728 |
+| Instrumented | 27.629 | 14.844 | 42721344 | 42757216 |
+
+| Time-only interval | One domain median ms | Eight domains median ms |
+|---|---:|---:|
+| Grid | 1.610 | 1.578 |
+| Preparation parent | 1.861 | 1.884 |
+| Map construction child | 1.846 | 1.863 |
+| IR preparation child | 0.015 | 0.021 |
+| Kernel | 7.244 | 2.291 |
+| Extraction | 17.110 | 7.845 |
+
+The complete cook hash is `8a9c2d382ab7564328783e84a132cef1` in every
+trial, with 85,680 points/vertices and 28,560 triangles. All allocation,
+promoted/major and timing rows, including high whole-cook outliers, are
+retained in `specification/performance/f-field-prepare-*.csv`. Map construction
+accounts for almost all preparation time; this does not identify the cause
+inside that call or explain higher whole-cook times in this batch. Phase
+measurements are diagnostic evidence, not a gate result. The unchanged
+uninstrumented eight-domain median <10.000 ms gate remains unmet.
+
+The temporary two-source patch is archived; production sources are restored
+byte-for-byte. Restored `@check`, Flow tests (including malformed/nonfinite
+packed input), Flow SOP tests, procedural SOP tests and the benchmark build
+pass (exit 0). Astra's review of these raw numbers determines the next step.
+
+Astra's verdict: “not met, try moving the packed-validation error call outside
+its sequential scan.” Source review identifies Value.validate as the map
+constructor's sample-sized work. The other constructor operations traverse
+the few parameters/bindings. Its native successful loop currently retains a
+possible `fin` call inside the body; approve only an ascending finite while
+scan followed by the original error helper outside the loop at the first
+invalid element. Inspect assembly; a speedup is not assumed. Preserve
+width-first checks, first-error behavior and existing allocation/error tests;
+add empty arrays and ±0/±maximum finite/±smallest subnormal for all four
+packed widths. Save-before seven-trial whole cooks at domains 1/8, then
+repeat the eight-domain pair in reverse executable order with separate raw
+files because whole timing varies. Repeat parent/child preparation attribution
+before/after and restore its source byte-for-byte. Keep only if preparation
+improves repeatably without whole-cook regression; otherwise revert. No
+scheduling, grid, IR, cache, dependency or gate change is approved.
+
+Preparation attribution checkpoint: `--ship` passes (exit 0) after production
+restoration. No profiler ships and no native GPU arithmetic changes.

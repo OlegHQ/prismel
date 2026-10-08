@@ -140,7 +140,7 @@ the indexed validation trial is now implemented and measured: eight-domain
 whole cook 12.350→11.300 ms, one-domain time flat, allocation reduced by
 13.18 MB. The strict <10 ms gate remains open. Astra next approves only
 deterministic row chunks for SOP grid filling through the shared pool.
-That trial regressed whole cooking at both domain counts and is reverted;
+That trial regressed whole cooking at both domain counts and is reverted (`2c7cd365`);
 its exactness/cancellation tests and raw measurements are retained. Astra
 next approves time-only attribution of preparation into map construction
 and IR compilation. The strict <10 ms whole-cook gate remains open.
@@ -760,6 +760,29 @@ retain warm-up ID -1 and timed IDs 0..6, verify one child pair per cook and
 containment in the parent, preserve complete hashes/cardinalities, and run
 seven isolated one/eight-domain uninstrumented and instrumented trials.
 Restore source byte-for-byte afterward. No algorithm change is approved.
+
+**Preparation attribution (2026-10-09).** This diagnostic is now complete:
+seven isolated warm-up/excluded one/eight-domain trials preserve every full
+hash and count. At eight domains, the parent preparation median is 1.884 ms,
+with map construction 1.863 ms and IR preparation 0.021 ms. At one domain,
+the respective medians are 1.861/1.846/0.015 ms. Every cook has exactly one
+child pair contained within its parent. Restored uninstrumented whole
+medians are 29.789/16.353 ms at one/eight domains; instrumented medians
+are 27.629/14.844 ms. All outliers remain in raw CSV, without claiming a
+performance improvement or diagnosing the higher whole-cook times.
+Both production sources are restored byte-for-byte; focused validation
+passes. The strict <10 ms gate remains unmet. Astra's raw-number verdict is
+“not met, try moving the packed-validation error call outside its sequential
+scan.” Source review identifies validation as map construction's sample-sized
+work. The approved trial scans ascending finite coordinates with a while
+loop, then calls the unchanged error helper once outside the loop on the
+first invalid value. Preserve width-first validation and allocation bounds;
+add empty arrays and ±0/±maximum-finite/±smallest-subnormal cases for all four
+packed widths. Inspect native assembly, run seven-trial one/eight-domain
+whole cooks and repeat the eight-domain pair in reverse order, retain every
+row, and repeat the parent/child diagnostic before/after. Keep only with
+repeatable preparation improvement and no whole-cook regression; otherwise
+revert. No scheduling, grid, compiler or cache change is approved.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value
