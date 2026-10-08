@@ -20,7 +20,8 @@ let prepare network =
     Result.map Option.some (compile (Flow.Eval.List (Array.of_list network.states))) in
   Result.bind states (fun states ->
   if Port.Map.is_empty network.Network.drives then
-    Ok {network; targets = [||]; texts = [||]; states; time_dependent = network.states <> []}
+    Ok {network; targets = [||]; texts = [||]; states;
+      time_dependent = network.states <> [] || not(Network.Int_map.is_empty network.frame_nodes)}
   else Result.bind (Network.validate network) (fun () ->
     let targets = Port.Map.fold (fun port value targets -> Result.bind targets (fun targets ->
       Result.bind (Network.parameter network port) (fun parameter ->
@@ -101,8 +102,9 @@ let compute ~state previous plan ~live =
   let geometry = Network.Int_map.fold (fun id rebuild result -> Result.bind result (fun geometry ->
     match Procedural.Edit_graph.find geometry ~node_id:id with
     | None -> Ok geometry
-    | Some node -> Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY")
-        (Procedural.Edit_graph.replace_node (rebuild state node) geometry))) plan.network.frame_nodes geometry in
+    | Some node -> Result.bind (rebuild state live node) (fun node ->
+        Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY")
+          (Procedural.Edit_graph.replace_node node geometry)))) plan.network.frame_nodes geometry in
   Result.map (fun geometry -> {geometry; applied = !applied; applied_text = !applied_text;
     time_dependent = plan.time_dependent}) geometry)
 

@@ -10,7 +10,8 @@ type t = private {
           for a text-encoded list parameter), keyed (node, argument name).  Compare with [==]. *)
   states : Flow.Eval.value list;
       (** Frame folds of this workspace, advanced before its live parameters. *)
-  frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t;
+  frame_nodes : (Flow.Eval.state -> Frame_input.t -> Procedural.Node.t ->
+    (Procedural.Node.t, Flow.Diagnostic.t) result) Int_map.t;
       (** Static-plan-bounded geometry zones rebuilt with an immutable fold
           snapshot on the initial domain, before worker submission. *)
   profile : Flow_ir.Profile.t option;
@@ -23,7 +24,8 @@ val with_reference : bool -> t -> t
 (** Independent reference execution for parity checks and inspected cones. *)
 
 val with_states : Flow.Eval.value list -> t -> t
-val with_frame_nodes : (Flow.Eval.state -> Procedural.Node.t -> Procedural.Node.t) Int_map.t -> t -> t
+val with_frame_nodes : (Flow.Eval.state -> Frame_input.t -> Procedural.Node.t ->
+  (Procedural.Node.t, Flow.Diagnostic.t) result) Int_map.t -> t -> t
 val with_drives : Flow.Eval.value Port.Map.t -> t -> (t, Flow.Diagnostic.t) result
 val validate : t -> (unit, Flow.Diagnostic.t) result
 val parameter : t -> Port.t -> (Port.parameter, Flow.Diagnostic.t) result

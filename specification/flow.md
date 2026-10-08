@@ -1355,3 +1355,17 @@ A successful dialog request returns a `frame/input` event of kind `dialog-opened
 `:id` on the following frame; subsequent `file-dialog` events carry that same request ID.
 Fixed-step window runs use the export effect policy: active quit/dialog requests return
 `E_EFFECT_EXPORT`, audio does not initialize, and screenshot effects capture after presentation.
+
+### Images
+
+`image/noise :width :height :frequency :seed`, `image/load path`, and
+`image/render drawing :width :height` return image values in every value-capable
+context. Noise defaults to 256×256, frequency 0.02 and seed 0. `:freq` remains an
+alias for frequency. Render dimensions default to the logical frame size.
+`draw/image image :at [0 0 0] :scale 1.0 :angle 0.0` uses the ordinary canvas pane.
+Loaded images share ownership by path; generated images share their static parameters;
+rendered images share their producer and plan. The workspace pins at most 64 image
+resources, releases each once on close, and returns `E_IMAGE` on resource failures.
+Live rendering replaces pixels in the same owned image. SOP consumers receive an immutable
+RGBA snapshot resolved on the initial domain before a worker starts. `image/render` uses
+the native offscreen Metal Canvas, including during fixed-step export.

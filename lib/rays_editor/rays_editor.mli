@@ -342,6 +342,8 @@ end
 module Editor3 : sig
   type 'prepared t
   module Private : sig
+    val image_stats : 'prepared t -> int * int
+    val image : 'prepared t -> Flow.Eval.value -> (Rays.Image.t, Flow.Diagnostic.t) result
     val host_stats : 'prepared t -> bool * int * int * int
     (** Quit requested, effects fired, samples created and samples destroyed. *)
   end

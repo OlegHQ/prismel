@@ -697,3 +697,10 @@ coordinates. Shape instance/index/affine payloads retain per-slot storage when e
 the backend's identity/version upload cache to reuse them. Packed GPU output remains an opaque
 identity/count/stamp until P5 registers its GPU drawing sink. Host resources pin a bounded table
 for a workspace lifetime and close before the runtime and SDL lifecycle ends.
+
+Loaded/rendered Flow image nodes resolve through `Flow_sop.Lower.with_images` on
+the initial domain. Value-lane reconstruction installs immutable CPU Image payload
+nodes before submitting a graph to a worker; resource decoding and Canvas rendering
+never happen in a cook callback. Drawing receives a typed image resolver from the
+same environment owner. Resource failures remain `E_IMAGE`, and no alternate raster
+backend is introduced.

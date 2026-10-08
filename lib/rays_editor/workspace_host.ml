@@ -3,11 +3,12 @@ module E=Flow.Eval
 module V=Flow.Value
 module I=Flow_ir.Executor
 type prepared={plan:E.plan;effects:I.program;args:I.program option array;edges:bool array}
-type t={resources:Workspace_resources.t;mutable prepared:prepared option;mutable pending_saves:string list;
+type t={resources:Workspace_resources.t;images:Workspace_images.t;mutable prepared:prepared option;mutable pending_saves:string list;
   mutable quit_requested:bool;mutable fired:int;mutable deterministic:bool;
   mutable pending_events:Frame_input.event list}
-let create ()={resources=Workspace_resources.create();prepared=None;pending_saves=[];quit_requested=false;fired=0;
-  deterministic=false;pending_events=[]}
+let create ()=let resources=Workspace_resources.create()in
+  {resources;images=Workspace_images.create resources;prepared=None;pending_saves=[];quit_requested=false;fired=0;
+    deterministic=false;pending_events=[]}
 let take_events host=let events=List.rev host.pending_events in host.pending_events<-[];events
 let effects (workspace:Editor_document.Workspace_doc.t) (plan:E.plan)=
   Option.bind (Editor_document.Workspace_doc.editor_graph workspace)(fun graph->

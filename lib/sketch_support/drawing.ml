@@ -29,7 +29,7 @@ let prepare ?profile ?(states = []) plan value =
         static=Array.init(Array.length plan.nodes)node;
         retained=Array.make(Array.length plan.nodes)None}
 
-let render_prepared ?state ?(reference = false) prepared ~live ~size:(width, height) =
+let render_prepared ?state ?image ?(reference = false) prepared ~live ~size:(width, height) =
   let plan = prepared.plan in
   let state = Option.value ~default:(E.create_state ()) state in
   E.transaction state (fun () ->
@@ -87,6 +87,12 @@ let render_prepared ?state ?(reference = false) prepared ~live ~size:(width, hei
                 |Some(E.Vec3_array _)->Option.get(style "color")|_->rgba ink)
               ~width:(Option.value (optional "width" V.num) ~default:1.) in
             let scene = match node.kind with
+              | "draw/image" ->
+                  let loaded=match image with Some resolve->(match resolve(arg "image")with
+                    |Ok image->image|Error diagnostic->raise(Stop diagnostic))
+                    |None->V.fail "E_IMAGE" "Drawing images need an environment-owned image resolver."in
+                  [Scene.image loaded ~at:(Option.value(optional "at" point)~default:(0,0))
+                    ?scale:(optional "scale" V.num) ?angle:(optional "angle" V.num) ()]
               | "draw/background" -> [Scene.rect ~at:(0, 0) ~w:width ~h:height ~fill:(color (arg "color")) ()]
               | "draw/point" -> [Scene.point ~at:(at ()) ~color:ink ()]
               | "draw/points" ->
@@ -154,5 +160,5 @@ let render_prepared ?state ?(reference = false) prepared ~live ~size:(width, hei
        | Invalid_argument message -> Error (Flow.Diagnostic.error ~code:"E_DRAW_RANGE" message)
        | V.Fail (code, message, _) -> Error (Flow.Diagnostic.error ~code message))
 
-let render ?state ?states plan value ~live ~size =
-  Result.bind (prepare ?states plan value) (fun prepared -> render_prepared ?state prepared ~live ~size)
+let render ?state ?states ?image plan value ~live ~size =
+  Result.bind (prepare ?states plan value) (fun prepared -> render_prepared ?state ?image prepared ~live ~size)

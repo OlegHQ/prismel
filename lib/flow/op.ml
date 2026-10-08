@@ -214,6 +214,7 @@ let draw_op ?rest ?kw name pos =
     {run = fun ~name ~node args -> node name args}
 
 let draw = [
+  draw_op ~kw:["at",Ty.Vec3;"scale",Ty.Float;"angle",Ty.Float] "draw/image" ["image",Ty.image];
   draw_op "draw/background" ["color", Ty.Color];
   draw_op ~kw:["color", Ty.Color] "draw/point" ["at", Ty.Vec3];
   draw_op ~kw:["color", Ty.Color] "draw/points" ["positions", Ty.Array Ty.Vec3];
@@ -258,6 +259,10 @@ let integers = List.map(fun(name,operation)->
   ["int/mul",( * );"int/div",( / );"int/mod",( mod );"int/and",( land );"int/xor",( lxor )]
 
 let images = [
+  mk ~category:"Image" "image/load" ["path",Ty.Text] (fun _->Ty.image)
+    {run=fun ~name ~node args->node name args};
+  mk ~category:"Image" ~kw:["width",Ty.Int;"height",Ty.Int] "image/render"
+    ["drawing",Ty.drawing] (fun _->Ty.image) {run=fun ~name ~node args->node name args};
   mk ~category:"Image" ~kw:["width",Ty.Int;"height",Ty.Int;"frequency",Ty.Float;"freq",Ty.Float;"seed",Ty.Int]
     "image/noise" [] (fun _->Ty.image) {run=fun ~name ~node args->node name args};
 ]

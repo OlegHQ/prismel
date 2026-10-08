@@ -40,6 +40,12 @@
 val source_attribute : string
 (** ["__flow_src"]: the primitive int attribute every collecting merge writes. *)
 
+type image_resolver = Flow.Eval.plan -> state:Flow.Eval.state -> live:Frame_input.t -> Flow.Eval.value ->
+  (Procedural.Image.t, Flow.Diagnostic.t) result
+val with_images : image_resolver -> (unit -> 'a) -> 'a
+(** Scope an initial-domain resource resolver around value-lane resolution.
+    Loaded/rendered image nodes become immutable CPU snapshots before workers run. *)
+
 type pending = { node : int; field : string; value : Flow.Eval.value }
 (** A live parameter: compiled node id, argument name, and the argument as
     evaluated (a residual, or a list/vec3 holding residuals). *)

@@ -660,7 +660,8 @@ let update_with value frame ~inspector =
     (* a handle is where the picture shows its point: in the view's film, not its pane *)
     V.handles ui ~selected ~scene:(Core.scene value.core) ~space (view_camera value)
       extra ~bounds:(V.film extra ~key:(focus_key value) bounds) in
-  let update = Core.update ~host_events:(Workspace_host.take_events value.host) value.core ~all_ui_visible:visible
+  let update = Flow_sop.Lower.with_images (Workspace_images.payload value.host.images)(fun()->
+    Core.update ~host_events:(Workspace_host.take_events value.host) value.core ~all_ui_visible:visible
       ~text_focus:(Pxui.Ui.text_input_focused ui) ~camera_panel ~view_handles
       ~render_status:(match value.status (Core.prepared value.core), value.render_status with
         | Some sketch, Some render -> Some (sketch ^ " · " ^ render)
@@ -673,7 +674,7 @@ let update_with value frame ~inspector =
           | None, None -> None)
       ~view_state:(function
         | Some (_, camera, _, extra, _) -> V.section camera extra
-        | None -> V.section value.camera extra) frame in
+        | None -> V.section value.camera extra) frame) in
   let value, update = open_import value update in
   let value, update = reload_source value update ~now:frame.Frame.time in
   let focused = follow_focus { value with core = update.core } frame in
@@ -838,7 +839,9 @@ let update_with value frame ~inspector =
                | Some {prepared = Some p; _} when same_plan -> Ok p
                | _ -> Sketch_support.Drawing.prepare ~profile:lowered.profile ~states:lowered.states lowered.plan drawing in
              (match Result.bind prepared (fun p -> Result.map (fun scene -> p, scene)
-                 (Sketch_support.Drawing.render_prepared ~state:core.cook.state p ~live:frame_input ~size:(w, h))) with
+                 (Sketch_support.Drawing.render_prepared ~state:core.cook.state
+                   ~image:(Workspace_images.image value.host.images ~state:core.cook.state ~live:frame_input lowered.plan)
+                   p ~live:frame_input ~size:(w, h))) with
               | Ok (prepared, scene) -> (key, {size = (w, h); dynamic; scene; prepared = Some prepared}) :: pictures, error
               | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []; prepared = None} previous) :: pictures,
                   Some (Flow.Diagnostic.to_string d)))

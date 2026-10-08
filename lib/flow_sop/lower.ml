@@ -35,6 +35,21 @@ let fail code message = raise (Fail (Diagnostic.error ~code message))
 let ok = function Ok value -> value | Error diagnostic -> raise (Fail diagnostic)
 let edit = function Ok value -> value | Error message -> fail "E_LOWER" message
 
+type image_resolver = E.plan -> state:E.state -> live:Frame_input.t -> E.value ->
+  (Procedural.Image.t, Diagnostic.t) result
+let image_provider = Domain.DLS.new_key (fun () -> None)
+let with_images resolver run =
+  let previous=Domain.DLS.get image_provider in
+  Domain.DLS.set image_provider (Some resolver);
+  Fun.protect ~finally:(fun()->Domain.DLS.set image_provider previous) run
+let resource_image operation result =
+  Procedural.Node.Private.make ~operation ~version:1
+    ~parameters:(match result with Ok image->string_of_int(Procedural.Image.data_id image)|Error _->"unbound")
+    ~cook_mode:Procedural.Node.Generator ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
+    (fun ~node_id:_ _ _->match result with
+      |Ok image->Ok Procedural.Node.Private.{payload=Procedural.Payload.Image image;instances=None;diagnostics=[]}
+      |Error diagnostic->Error(Procedural.Diagnostic.error ~code:diagnostic.Diagnostic.code diagnostic.message))
+
 type prepared = {
   cid : int;
   factory : Edit.factory;
@@ -189,11 +204,12 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           let template = templ.(node.id) in
           let cid = compiled.(node.id) in
           let live = List.filter (fun (_, v) -> E.is_live v) node.args in
-          if not template && node.kind <> "sop/with_attr" then
+          let resource = node.kind="image/load" || node.kind="image/render" in
+          if not template && node.kind <> "sop/with_attr" && not resource then
             pending := List.rev_append (List.map (fun (field, value) ->
               {node = cid; field; value}) live) !pending;
           (* a template node keeps its live arguments: each element forces them *)
-          let args = if template || node.kind = "sop/with_attr" then node.args
+          let args = if template || node.kind = "sop/with_attr" || resource then node.args
             else List.map (fun (n, v) -> n, at_zero v) node.args in
           let args = if node.kind <> "sop/material" then args else
             List.concat_map (function
@@ -206,6 +222,11 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
               | arg -> [arg]) args in
           let dynamic = ref [] in
           let p = match node.kind with
+            | "image/load" | "image/render" ->
+                let factory=Edit.factory ~key:node.kind ~label:node.kind ~category:["Image"] ~arity:0
+                  (fun _->resource_image node.kind (Error(Diagnostic.error ~code:"E_IMAGE"
+                    "A loaded or rendered image needs an initial-domain image resolver.")))in
+                {cid;factory;slots=[];arity=0;changes=[];dynamic=[];zone=None}
             | "sop/with_attr" ->
                 let name = match List.assoc "attribute" args with
                   | E.Text name -> name | _ -> fail "E_LOWER" "Attribute name must be static text" in
@@ -401,7 +422,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
     (* every plan node gets its id up front, in plan order, so ids do not
        depend on which network asks first *)
     Array.iter (fun (node : E.node) ->
-      if sop_instance plan.instances.(node.inst) then
+      if sop_instance plan.instances.(node.inst) && Ty.is_cooked node.ty then
         compiled.(node.id) <- compiled_id node) plan.nodes;
     (* volatile: live, or fed by a volatile node (plan order: inputs first).  A loop over geometry
        whose body reads [t] is live, and so are the template nodes its elements are copies of (a copy
@@ -423,20 +444,28 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         |> Network.with_reference reference in
       let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes -> match p.zone with
         | Some z when z.stateful && Edit.find graph ~node_id:p.cid <> None ->
-            Network.Int_map.add p.cid (fun state node ->
+            Network.Int_map.add p.cid (fun state _live node ->
               let snapshot = E.fork_state state in
-              Procedural.Node.Private.adopt_identity ~source:node
-                (make_zone ~state:snapshot ~outer:[] z (Procedural.Node.Private.input_array node))) nodes
+              Ok(Procedural.Node.Private.adopt_identity ~source:node
+                (make_zone ~state:snapshot ~outer:[] z (Procedural.Node.Private.input_array node)))) nodes
         | _ -> nodes) prepared Network.Int_map.empty in
       let frame_nodes = Array.fold_left (fun nodes (n : E.node) ->
         let values = List.assoc_opt "values" n.args in
         if n.kind <> "sop/with_attr" || not (Option.fold ~none:false ~some:E.state_dependent values)
           || Edit.find graph ~node_id:compiled.(n.id) = None then nodes
-        else Network.Int_map.add compiled.(n.id) (fun state node ->
+        else Network.Int_map.add compiled.(n.id) (fun state _live node ->
           let name = match List.assoc "attribute" n.args with E.Text name -> name | _ -> assert false in
-          Procedural.Node.Private.adopt_identity ~source:node
+          Ok(Procedural.Node.Private.adopt_identity ~source:node
             (Attribute_kernel.node ~reference ~profile ~state:(E.fork_state state) ~source:(Lazy.force kernel_source) ~name
-              ~values:(Option.get values) ~sources:(deps n) (Procedural.Node.inputs node))) nodes)
+              ~values:(Option.get values) ~sources:(deps n) (Procedural.Node.inputs node)))) nodes)
+        frame_nodes plan.nodes in
+      let frame_nodes=Array.fold_left(fun nodes (n:E.node)->
+        if (n.kind<>"image/load" && n.kind<>"image/render") || Edit.find graph ~node_id:compiled.(n.id)=None
+          then nodes else Network.Int_map.add compiled.(n.id)(fun state live node->
+            match Domain.DLS.get image_provider with
+            |None->Error(Diagnostic.error ~code:"E_IMAGE" "Image resources need an initial-domain resolver.")
+            |Some resolve->Result.map(fun image->Procedural.Node.Private.adopt_identity ~source:node
+                (resource_image n.kind (Ok image)))(resolve plan ~state ~live (E.Deferred(Ty.image,n.id))))nodes)
         frame_nodes plan.nodes in
       let network = Network.with_frame_nodes frame_nodes network in
       let drives = List.fold_left (fun drives (p : pending) ->
@@ -452,7 +481,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           List.iter reach (deps plan.nodes.(id))
         end in
       Array.iter (fun (node : E.node) ->
-        if node.inst = index && not templ.(node.id) then reach node.id) plan.nodes;
+        if node.inst = index && Ty.is_cooked node.ty && not templ.(node.id) then reach node.id) plan.nodes;
       (match instance.result with E.Deferred (ty, j) when Ty.is_cooked ty -> reach j | _ -> ());
       let order = Hashtbl.fold (fun id () l -> id :: l) seen []
         |> List.sort Int.compare in
@@ -484,7 +513,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
     (* Previewing an unused template must not allocate provenance or zones after
        this immutable lowering has been handed to the document. *)
     Array.iter (fun (node : E.node) -> if compiled.(node.id) <> 0 && node.kind <> "zone/element"
-      then ignore (prepare node)) plan.nodes;
+      && Ty.is_cooked node.ty then ignore (prepare node)) plan.nodes;
     let preview ~node:target ~probes network =
       if target < 0 || target >= Array.length compiled || compiled.(target) = 0
         || List.compare_lengths probes plan.nodes.(target).iter <> 0 then None
@@ -507,9 +536,9 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           let geometry = edit (Edit.add_node viewed network.geometry) in
           let network = ok (Network.with_geometry geometry network) in
           let frames = if not z.stateful then network.frame_nodes else
-            Network.Int_map.add root (fun state node ->
-              Procedural.Node.Private.adopt_identity ~source:node
-                (make_zone ~state:(E.fork_state state) ~outer:[] z (Procedural.Node.Private.input_array node)))
+            Network.Int_map.add root (fun state _live node ->
+              Ok(Procedural.Node.Private.adopt_identity ~source:node
+                (make_zone ~state:(E.fork_state state) ~outer:[] z (Procedural.Node.Private.input_array node))))
               network.frame_nodes in
           Network.with_frame_nodes frames network, root) outer in
     Ok {graphs; compiled_ids = !ids; sites = List.rev !site_list;

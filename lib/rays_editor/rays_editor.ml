@@ -20,8 +20,13 @@ module Renderer = Renderer
 module Editor3 = struct
   include Environment
   module Private = struct
+    let image_stats value = let resources=value.Environment.host.resources in
+      resources.images_created,resources.images_destroyed
     let host_stats value = let host=value.Environment.host in
       host.quit_requested,host.fired,host.resources.samples_created,host.resources.samples_destroyed
+    let image value image = let core=value.Environment.core in
+      Workspace_images.image value.host.images ~state:core.cook.state ~live:core.live_frame
+        (snd core.doc.workspace).plan image
   end
 
   type render_settings = Objects.Root.render = { width : int; height : int; max_spp : int }
@@ -171,7 +176,7 @@ module Workspace = struct
           let live = {(Frame_input.at_time frame.Rays.Frame.time) with
             dt = 1. /. float fps; frame = frame.count; tick = frame.count; size = (window.width, window.height)} in
           match Sketch_support.Drawing.render_prepared ~state prepared
-            ~live ~size:live.size with
+            ~image:(Workspace_images.image host.images ~state ~live evaluated.plan) ~live ~size:live.size with
           | Ok scene -> (match Workspace_host.export_update host ~state ~live doc evaluated.plan with
               |Ok()->scene|Error d->raise(Flow.Value.Fail(d.code,d.message,d.span)))
           | Error d -> raise (Flow.Value.Fail (d.code, d.message, d.span)) in

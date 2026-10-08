@@ -39,7 +39,7 @@ let pure workspace =
   let kinds = Array.to_list all.plan.nodes |> List.map (fun (n : E.node) -> n.kind)
     |> List.sort_uniq String.compare in
   assert (kinds = (Flow.Op.all |> List.filter_map (fun (o : Flow.Op.t) ->
-    if o.ctx = Flow.Context.draw then Some o.name else None) |> List.sort String.compare));
+    if o.ctx = Flow.Context.draw && o.name<>"draw/image" then Some o.name else None) |> List.sort String.compare));
   assert (ok (Sketch_support.Drawing.render all.plan (List.assoc "picture" all.results)
     ~live:(Frame_input.at_time 0.) ~size:(800, 600)) <> []);
   let colored=doc {|(workspace colored (graph picture :context draw

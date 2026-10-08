@@ -44,6 +44,12 @@
  (libraries rays rays_editor editor_document flow)
  (action (setenv SDL_AUDIODRIVER dummy (run %{test}))))
 
+(test
+ (name test_workspace_images)
+ (modules test_workspace_images)
+ (deps sdl3_image_fixtures/sample.png)
+ (libraries rays rays_editor editor_document sketch_support flow flow_sop scene_command procedural sop_catalog))
+
 (rule
  (alias runtest)
  (action (run %{exe:test_drawing.exe} %{dep:../examples/particles/sketch.rays})))
