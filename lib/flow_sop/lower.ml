@@ -261,6 +261,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                 {cid; factory; arity = List.length sources; changes = []; dynamic = [];
                  zone = Some z; slots = List.mapi (fun i s -> i, s) sources}
             | kind ->
+                let args = if kind="image/noise" then List.map(fun(name,value)->
+                  (if name="freq" then "frequency" else name),value)args else args in
                 let key = match String.split_on_char '/' kind with
                   | ["sop"; key] -> key
                   | ["image"; "noise"] -> "image_noise"

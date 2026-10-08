@@ -41,6 +41,13 @@ let quiet source = match run source with
 let live ws path = Workspace.Paths.mem path ws.Workspace.live
 let invariant ws path = Workspace.Paths.mem path ws.Workspace.invariant
 
+let () =
+  List.iter (fun context ->
+    ignore(good ("(workspace w (graph g :context "^context^
+      " (let* [img (image/noise :width 1 :height 1)] "^
+      (match context with "value"->"0"|"sop"->"(sop/box)"|"draw"->"(draw/background \"#000000\")"|_->"img")^
+      ")))"))) ["value";"sop";"draw";"image"]
+
 let () = (* the 12 fixtures check with no diagnostics at all against the real catalog *)
   let files = Sys.readdir cases |> Array.to_list
     |> List.filter (fun f -> Filename.check_suffix f ".lisp") |> List.sort compare in

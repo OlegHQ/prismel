@@ -257,7 +257,12 @@ let integers = List.map(fun(name,operation)->
       try Int(operation a b)with Division_by_zero->fail "E_RANGE" "Integer division by zero."})
   ["int/mul",( * );"int/div",( / );"int/mod",( mod );"int/and",( land );"int/xor",( lxor )]
 
-let all = frame @ arrays @ draw @ host @ integers @ [
+let images = [
+  mk ~category:"Image" ~kw:["width",Ty.Int;"height",Ty.Int;"frequency",Ty.Float;"freq",Ty.Float;"seed",Ty.Int]
+    "image/noise" [] (fun _->Ty.image) {run=fun ~name ~node args->node name args};
+]
+
+let all = frame @ arrays @ draw @ host @ integers @ images @ [
   mk ~category:"Compare" "equal?" ["a",Ty.Any;"b",Ty.Any] (fun _->Ty.Bool)
     {run=fun ~name:_ ~node:_ args->try Bool(List.assoc "a" args=List.assoc "b" args)
       with Invalid_argument _->fail "E_TYPE" "Functions cannot be compared."};
