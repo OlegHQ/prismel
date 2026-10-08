@@ -292,7 +292,9 @@ let kernel body = Kernel {body; elementwise = true; requires_exact = false}
 let child (path, iter) name = path @ [name], iter
 let value_count = function
   | E.Float_array xs -> Count.Static (Array.length xs)
+  | Vec2_array xs -> Count.Static (Array.length xs / 2)
   | Vec3_array xs -> Count.Static (Array.length xs / 3)
+  | Vec4_array xs -> Count.Static (Array.length xs / 4)
   | List xs -> Count.Static (Array.length xs)
   | _ -> Count.Static 1
 let type_count id = function
@@ -352,12 +354,12 @@ and residual b r =
                 | None -> raise Unsupported in
               List.fold_left (fun i field ->
                 let ty = match (Hashtbl.find b.slots i).ty with
-                  | Ty.Vec3 -> Ty.Float
+                  | Ty.Vec2 | Vec3 | Vec4 -> Ty.Float
                   | Ty.Record fields -> Option.value ~default:Ty.Any (List.assoc_opt field fields)
                   | _ -> Ty.Any in
                 add b (child id field) ty (type_count (child id field) ty)
                   (kernel (Field field)) [{name = "value"; node = i}] Static) input fs
-          | Vec ts when List.length ts = 3 -> add b id t.ty count (kernel Vector)
+          | Vec ts when List.mem (List.length ts) [2;3;4] -> add b id t.ty count (kernel Vector)
               (args (List.mapi (fun i t -> string_of_int i, t) ts)) Static
           | (Hof ((`Map | `Reduce), _) | Loop _ | Op {op = "array/sum"; _}) ->
               (match Packed.compile ~count_source:b.count_source r t with
@@ -489,10 +491,14 @@ module Executor = struct
               | Kernel {body = Readback; _} -> arg ()
               | Kernel {body = Vector; _} ->
                   (match List.map (fun (_, v) -> V.num v) args with
-                   | [x; y; z] -> E.Vec3 (x, y, z) | _ -> V.fail "E_IR" "Invalid vector.")
+                   | [x; y] -> E.Vec2 (x,y) | [x; y; z] -> E.Vec3 (x, y, z)
+                   | [x; y; z; w] -> E.Vec4 (x,y,z,w) | _ -> V.fail "E_IR" "Invalid vector.")
               | Kernel {body = Field field; _} ->
                   (match arg (), field with
                    | E.Vec3 (x, _, _), "x" | Vec3 (_, x, _), "y" | Vec3 (_, _, x), "z" -> E.Float x
+                   | E.Vec2 (x,_), "x" | Vec2 (_,x), "y" -> E.Float x
+                   | E.Vec4 (x,_,_,_), "x" | Vec4 (_,x,_,_), "y"
+                   | Vec4 (_,_,x,_), "z" | Vec4 (_,_,_,x), "w" -> E.Float x
                    | Record fields, name -> List.assoc name fields
                    | _ -> V.fail "E_FIELD" "Invalid field.")
               | Kernel {body = List_value; _} -> E.List (Array.of_list (List.map snd args))

@@ -1,11 +1,30 @@
 open Flow
-let check body =
-  let forms = Result.get_ok (Syntax.parse ("(workspace w (graph g :context value " ^ body ^ "))")) in
+let check ?(context = "value") body =
+  let forms = Result.get_ok (Syntax.parse ("(workspace w (graph g :context " ^ context ^ " " ^ body ^ "))")) in
   match Workspace.check {Check.version = 1; kinds = []} forms with
   | Some w, [] -> w
   | _, ds -> failwith (String.concat "; " (List.map Diagnostic.to_string ds))
-let value body = List.assoc "g" (Result.get_ok (Eval.run ~time:0. (check body))).results
+let value ?context body = List.assoc "g" (Result.get_ok (Eval.run ~time:0. (check ?context body))).results
 let () =
+  List.iter (fun (ty, value, count) ->
+    let packed = Value.array_init ty count (fun _ -> value) in
+    assert (Value.ty_of packed = Ty.Array ty);
+    assert (Value.array_length packed = count);
+    Value.validate packed;
+    if count > 0 then assert (Value.array_get packed (count - 1) = value))
+    [Ty.Vec2, Value.Vec2 (1.,-0.), 0; Ty.Vec2, Value.Vec2 (1.,-0.), 3;
+     Ty.Vec4, Value.Vec4 (1.,2.,3.,4.), 0; Ty.Vec4, Value.Vec4 (1.,2.,3.,4.), 3];
+  List.iter (fun packed ->
+    try Value.validate packed; assert false with Value.Fail (code,_,_) ->
+      assert (code = "E_ARRAY_TYPE" || code = "E_NONFINITE"))
+    [Value.Vec2_array [|1.|]; Value.Vec4_array [|1.;2.;3.|];
+     Value.Vec2_array [|nan;0.|]; Value.Vec4_array [|0.;0.;infinity;1.|]];
+  assert (value ~context:"host" "(array/nth (map (fn [x] [x (+ x 1)]) (array/range 3)) 2)" = Eval.Vec2 (2.,3.));
+  assert (value ~context:"host" "(let* [a (map (fn [x] [x 2 3 4]) (array/range 3))]
+    (array/nth (array/concat (array/slice a 2 1) (array/slice a 0 1)) 1))" = Eval.Vec4 (0.,2.,3.,4.));
+  assert (value ~context:"host" "(array/sum (map (fn [x] [x 1]) (array/range 3)))" = Eval.Vec2 (3.,3.));
+  assert (value ~context:"host" "(array/sum (map (fn [x] [x 1 2 3]) (array/range 3)))" = Eval.Vec4 (3.,3.,6.,9.));
+  assert (value ~context:"host" "(array/sum (map (fn [x] [x 1 2 3]) (array/range 0)))" = Eval.Vec4 (0.,0.,0.,0.));
   assert (value "(array/count (array/float 10000))" = Eval.Int 10000);
   assert (value "(array/sum (array/float 10000 2))" = Eval.Float 20000.);
   assert (value "(let* [p (array/nth (array/vec3 10000 [1 2 3]) 9999)] p.x)" = Eval.Float 1.);

@@ -151,7 +151,9 @@ let rec describe_value = function
           | List _ -> "list" | Record _ -> "record" | Fn _ -> "function" | _ -> "value" in
       if n = 0 then "0 items" else Printf.sprintf "%d × %s" n what
   | Float_array xs -> Printf.sprintf "%d × float" (Array.length xs)
+  | Vec2_array xs -> Printf.sprintf "%d × vec2" (Array.length xs / 2)
   | Vec3_array xs -> Printf.sprintf "%d × vec3" (Array.length xs / 3)
+  | Vec4_array xs -> Printf.sprintf "%d × vec4" (Array.length xs / 4)
   | Record fs -> "{" ^ String.concat " · " (List.map (fun (f, v) -> f ^ " " ^ describe_value v) fs) ^ "}"
   | Deferred (ty, _) -> Flow.Ty.to_string ty
   | No_geo -> "nil"

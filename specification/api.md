@@ -772,9 +772,9 @@ saturates the machine range before the caller applies the parameter's hard bound
 Lisp scalar vectors are `vec2`, `vec3` and `vec4`: numeric literals have two,
 three or four components, numbers broadcast in arithmetic, and mixed widths
 are `E_TYPE`. The graph edits each component in the existing grouped field.
-Packed kernels and array storage still execute float/vec3 only; `array:vec2`
-and `array:vec4` are checker types for future kernels. Catalog ports retain
-their existing types. `sketches/flow_vectors/sketch.rays` demonstrates Vec2
+Packed kernels and interleaved array storage execute float/vec2/vec3/vec4;
+maps and loops produce the new widths from existing array constructors.
+Catalog ports retain their existing types. `sketches/flow_vectors/sketch.rays` demonstrates Vec2
 motion and Vec4 color components through the current drawing ports.
 
 `Flow.Eval.t.authored` maps plan node IDs to the originating syntax form IDs.

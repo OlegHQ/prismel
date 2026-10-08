@@ -177,7 +177,7 @@
     },
     {
       "api": [
-        "type ( 'f , 'r ) payload = ( 'f , 'r ) Value.t = | Int of int | Float of float | Bool of bool | Text of string | Vec2 of float * float | Vec3 of float * float * float | Vec4 of float * float * float * float | List of ( 'f , 'r ) payload array | Float_array of float array | Vec3_array of float array | Record of ( string * ( 'f , 'r ) payload ) list | Deferred of Ty.t * int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) payload ) list | Fn of 'f | Residual of 'r",
+        "type ( 'f , 'r ) payload = ( 'f , 'r ) Value.t = | Int of int | Float of float | Bool of bool | Text of string | Vec2 of float * float | Vec3 of float * float * float | Vec4 of float * float * float * float | List of ( 'f , 'r ) payload array | Float_array of float array | Vec2_array of float array | Vec3_array of float array | Vec4_array of float array | Record of ( string * ( 'f , 'r ) payload ) list | Deferred of Ty.t * int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) payload ) list | Fn of 'f | Residual of 'r",
         "type value = ( fn , residual ) payload and fn and residual and state and node = { id : int ; inst : int ; site : Workspace.path ; iter : int list ; kind : string ; ty : Ty.t ; args : ( string * value ) list ; }",
         "type live = Frame_input.t",
         "type instance = { graph : string ; default : bool ; inputs : ( string * value ) list ; result : value ; }",
@@ -220,7 +220,7 @@
         "val compiled : value -> int",
         "end"
       ],
-      "api_sha256": "7098360c115435bd570d2cfac9f51338f6cfef2e48831e094f49a2e854fa5002",
+      "api_sha256": "f1a7d97b6819585e0d92db904fc1afa9098851cb99df598ac1d705085b1108e3",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Eval",
@@ -405,7 +405,7 @@
     },
     {
       "api": [
-        "type ( 'f , 'r ) t = | Int of int | Float of float | Bool of bool | Text of string | Vec2 of float * float | Vec3 of float * float * float | Vec4 of float * float * float * float | List of ( 'f , 'r ) t array | Float_array of float array | Vec3_array of float array | Record of ( string * ( 'f , 'r ) t ) list | Deferred of Ty.t * int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) t ) list | Fn of 'f | Residual of 'r",
+        "type ( 'f , 'r ) t = | Int of int | Float of float | Bool of bool | Text of string | Vec2 of float * float | Vec3 of float * float * float | Vec4 of float * float * float * float | List of ( 'f , 'r ) t array | Float_array of float array | Vec2_array of float array | Vec3_array of float array | Vec4_array of float array | Record of ( string * ( 'f , 'r ) t ) list | Deferred of Ty.t * int | No_geo | Struct of string * Ty.t * ( string * ( 'f , 'r ) t ) list | Fn of 'f | Residual of 'r",
         "exception Fail of string * string * Diagnostic.span option",
         "val fail : string -> string -> 'a",
         "val failf : string -> ( 'a , unit , string , 'b ) format4 -> 'a",
@@ -429,7 +429,7 @@
         "val array_init : Ty.t -> int -> ( int -> ( 'f , 'r ) t ) -> ( 'f , 'r ) t",
         "val validate : ( 'f , 'r ) t -> unit"
       ],
-      "api_sha256": "40d94a4a95f0f1f757814f102f0433f958814af5d0dadd2f6e10d0879ded794b",
+      "api_sha256": "d80d9427aa20d81650aec762456a673ba23dac166d58d67dae53a2b3af2eb69c",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Value",

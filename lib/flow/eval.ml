@@ -83,7 +83,9 @@ type ('f, 'r) payload = ('f, 'r) Value.t =
   | Vec4 of float * float * float * float
   | List of ('f, 'r) payload array
   | Float_array of float array
+  | Vec2_array of float array
   | Vec3_array of float array
+  | Vec4_array of float array
   | Record of (string * ('f, 'r) payload) list
   | Deferred of Ty.t * int
   | No_geo
@@ -757,7 +759,7 @@ and hof c env term kind f rest =
   let lists_of ts = List.mapi (fun i t ->
     let v = concrete c (ev (sub c ("l" ^ string_of_int i)) env t) in
     match v with List xs -> Array.length xs, (fun k -> xs.(k))
-    | Float_array _ | Vec3_array _ -> array_length v, array_get v
+    | Float_array _ | Vec2_array _ | Vec3_array _ | Vec4_array _ -> array_length v, array_get v
     | _ -> fail "E_TYPE" "Expected a list or packed array.") ts in
   match kind, rest with
   | `Map, ls ->
@@ -818,7 +820,8 @@ and loop c env ~out kind accs clauses skip body zone =
   let k = ref 0 and outs = ref [] and total = ref None and over_geometry = ref None in
   let clauses = Array.of_list clauses in
   let n = Array.length clauses in
-  let width = match out with Ty.Array Ty.Vec3 -> 3 | Ty.Array _ -> 1 | _ -> 0 in
+  let width = match out with Ty.Array Ty.Vec2 -> 2 | Ty.Array Ty.Vec3 -> 3
+    | Ty.Array Ty.Vec4 -> 4 | Ty.Array _ -> 1 | _ -> 0 in
   let data = ref (if width = 0 then [||] else Array.make (32 * width) 0.) and used = ref 0 in
   let collect v =
     if width = 0 then outs := v :: !outs else begin
@@ -828,12 +831,19 @@ and loop c env ~out kind accs clauses skip body zone =
         if Array.length next / width <= !used then fail "E_ARRAY_RANGE" "Array exceeds native storage bounds.";
         Array.blit !data 0 next 0 (Array.length !data); data := next
       end;
-      if width = 1 then (!data).(!used) <- fin "array loop" (num v) else begin
-        let x, y, z = comps v in
-        (!data).(3 * !used) <- fin "array loop" x;
-        (!data).(3 * !used + 1) <- fin "array loop" y;
-        (!data).(3 * !used + 2) <- fin "array loop" z
-      end;
+      let at = width * !used in
+      (match width, v with
+       | 1, v -> (!data).(at) <- fin "array loop" (num v)
+       | 2, Vec2 (x,y) -> (!data).(at) <- fin "array loop" x;
+           (!data).(at + 1) <- fin "array loop" y
+       | 3, Vec3 (x,y,z) -> (!data).(at) <- fin "array loop" x;
+           (!data).(at + 1) <- fin "array loop" y; (!data).(at + 2) <- fin "array loop" z
+       | 4, Vec4 (x,y,z,w) -> (!data).(at) <- fin "array loop" x;
+           (!data).(at + 1) <- fin "array loop" y; (!data).(at + 2) <- fin "array loop" z;
+           (!data).(at + 3) <- fin "array loop" w
+       | _, (Int _ | Float _ | Bool _) -> let x = fin "array loop" (num v) in
+           for j = 0 to width - 1 do (!data).(at + j) <- x done
+       | _ -> fail "E_ARRAY_TYPE" "Packed loop element has the wrong vector width.");
       incr used
     end in
   let mk = Some (fun v -> zone @ [ ":" ^ v ]) in
@@ -873,7 +883,7 @@ and loop c env ~out kind accs clauses skip body zone =
            over_geometry := Some (geometry_loop c cz env op fs p body zone)
        | v ->
            let count, get = match v with List xs -> Array.length xs, (fun i -> xs.(i))
-             | Float_array _ | Vec3_array _ -> array_length v, array_get v
+             | Float_array _ | Vec2_array _ | Vec3_array _ | Vec4_array _ -> array_length v, array_get v
              | _ -> fail "E_TYPE" "Expected a list or packed array." in
            for i = 0 to count - 1 do
              let item = get i in
@@ -889,7 +899,8 @@ and loop c env ~out kind accs clauses skip body zone =
   | `For | `Scan ->
       if width = 0 then List (join_values (Array.of_list (List.rev !outs)))
       else let data = Array.sub !data 0 (!used * width) in
-        if width = 3 then Vec3_array data else Float_array data in
+        (match width with 2 -> Vec2_array data | 3 -> Vec3_array data
+         | 4 -> Vec4_array data | _ -> Float_array data) in
   if packed then Fun.protect ~finally:(fun () -> c.st.steps <- saved_steps) work else work ()
 
 
@@ -1145,7 +1156,7 @@ module Private = struct
     if List.compare_lengths signature.params arrays <> 0
         || not (List.for_all2 (fun ty value -> Value.ty_of value = Ty.Array ty) signature.params arrays) then
       fail "E_ARRAY_TYPE" "Bulk function columns must match its declared parameter types.";
-    List.iter (function Float_array _ | Vec3_array _ -> ()
+    List.iter (function Float_array _ | Vec2_array _ | Vec3_array _ | Vec4_array _ -> ()
       | _ -> fail "E_ARRAY_TYPE" "Bulk function inputs must be packed arrays.") arrays;
     List.iter Value.validate arrays;
     let counts = List.map array_length arrays in
@@ -1154,8 +1165,8 @@ module Private = struct
     if not (Ty.fits cl.body.ty signature.result) then
       fail "E_KERNEL_FORM" "Bulk function body differs from its declared result type.";
     let result = match signature.result with
-      | Ty.Float -> Ty.Float | Vec3 -> Ty.Vec3
-      | _ -> fail "E_KERNEL_FORM" "Bulk functions must return float or vec3 data." in
+      | Ty.Float | Vec2 | Vec3 | Vec4 as ty -> ty
+      | _ -> fail "E_KERNEL_FORM" "Bulk functions must return float, vec2, vec3 or vec4 data." in
     let binding name ty = W.{path = None; ty; node = Ref_binding (name, []); form = cl.body.form} in
     let inputs = List.mapi (fun i value -> "$kernel-input:" ^ string_of_int i, value) arrays in
     let function_name = "$kernel-function" in

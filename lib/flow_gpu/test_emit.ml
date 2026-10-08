@@ -1,4 +1,17 @@
 let () =
+  List.iter (fun (width, body) ->
+    let program = Test_program.compile ~fusion:false body in
+    let msl = Test_program.ok (Flow_gpu.Emit.kernel program) in
+    assert (msl.output_width = width);
+    let prepared = Test_program.ok (Flow_ir.Packed.Private.prepare program ~live:(Frame_input.at_time 1.)) in
+    assert (prepared.count = 1024);
+    assert (Marshal.to_string (Flow_ir.Packed.force program ~live:(Frame_input.at_time 1.)) [Marshal.No_sharing]
+      = Marshal.to_string (Flow_ir.Packed.reference program ~live:(Frame_input.at_time 1.)) [Marshal.No_sharing]))
+    [2, "(map (fn [x] [x t]) (array/range 1024))";
+     4, "(map (fn [x] [x t (+ x t) 1]) (array/range 1024))";
+     4, "(map (fn [(uv : vec2)] [uv.x uv.y t 1]) (map (fn [x] [x 1]) (array/range 1024)))";
+     2, "(let* [offset [1 2 3 4]] (map (fn [(p : vec4)] [(+ p.x offset.w) (+ p.w t)])
+       (map (fn [x] [x 1 2 3]) (array/range 1024))))"];
   List.iter (fun name ->
     assert (Flow.Op.find ~extra:Flow_ir.Operators.all name Flow.Context.value<>None)) Flow_gpu.Emit.names;
   assert (Flow_gpu.Emit.names=Flow.Packed_ops.names);

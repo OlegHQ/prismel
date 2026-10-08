@@ -7813,3 +7813,47 @@ residual-phase attribution.” The next approved diagnostic uses the current
 guarded/table-based extractor, measuring coarse emission, sampling/finite
 validation, prefix sums and output allocation/final geometry construction,
 with disjoint intervals. No production algorithm change is approved.
+
+## F2.1 field kernel — current emission and residual attribution (2026-10-08)
+
+Confirmed `Macmini9,1`, Apple M1, eight logical CPUs (`sysctl -n hw.model
+machdep.cpu.brand_string hw.logicalcpu`), OCaml 5.3.0, Dune dev profile,
+grain 16,384. Seven isolated one-domain sampled 64³ sphere trials and one
+excluded warm-up. No builds, tests or other benchmarks ran concurrently.
+The temporary coarse phase patch is
+`specification/performance/f-field-current-instrumentation.patch`; phases are
+disjoint and outside element loops. Source and Dune dependencies were restored
+byte-for-byte, then `@check @lib/rdk/test_gen tools/bench_rdk_iso.exe` passed.
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-current-before.exe --sampled-sphere > specification/performance/f-field-current-before-1.csv
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-current-profile.exe --sampled-sphere > specification/performance/f-field-current-extract-1.csv 2> specification/performance/f-field-current-phase-1.csv
+```
+
+| Interval | Median ms | Median allocated bytes |
+|---|---:|---:|
+| Uninstrumented complete extraction | 14.329 | 22,563,024 |
+| Instrumented complete extraction | 15.210 | 22,836,624 |
+| Sampling and finite validation | 0.600 | 0 |
+| Initial counting | 2.626 | 0 |
+| Emission-pass recounting | 2.627 | 0 |
+| XY gradients | 1.449 | 0 |
+| Z gradients | 1.089 | 0 |
+| Prefix sums | 1.884 | 0 |
+| Output plane allocation | 0.096 | 4,213,080 |
+| Cell emission | 3.612 | 17,180,656 |
+| Packed wrappers | 0.001 | 0 |
+| Final geometry construction | 0.392 | 686,376 |
+
+The first ten phase rows are warm-up and excluded. Every complete result
+retains hash `2d4641814f8cf4ce991726eb3af5c030`, 85,680 points/vertices and
+28,560 triangles. Phase medians do not sum to a whole-run median; helper
+closures, GC snapshots and report writes also add instrumentation overhead.
+These rows establish attribution, not the eight-domain whole-cook gate.
+Astra's verdict is “not met, try deterministic slab chunks for sampled
+extraction.” Its next design partitions consecutive sampled slabs by at least
+16,384 cells per chunk, retains ordered global prefixes and disjoint output
+ranges, and owns rotating planes per active worker. Global halo samples must
+preserve central Z derivatives at internal chunk seams. Callback extractors
+retain their existing scheduling. This algorithm change is approved for a
+measured trial, but is not implemented in this checkpoint.

@@ -115,7 +115,7 @@ saying what the table establishes and what it does not, the raw file paths.
 
 ## 1. Where the tree is
 
-**Current checkpoint (2026-10-08).** F1.1, F1.2, F1.4 and the F6 canvas-image
+**Current checkpoint (2026-10-08, `e36a0ac4`).** F1.1, F1.2, F1.4 and the F6 canvas-image
 coercion are implemented and verified. The field SOP, selected-tuple probes,
 sampled extractor, empty-cell guard and cube-count lookup are implemented;
 F2.1 remains open because its eight-domain whole-cook median is 20.167 ms
@@ -229,7 +229,7 @@ function storage in a record. `Attribute_kernel.prepare` currently compiles
 evaluated values; it does not yet compile arbitrary function arguments.
 The actual Kernel argument and external-kind test remain completion gates.
 
-**Checker groundwork implemented (2026-10-08; uncommitted).** Function and
+**Done (2026-10-08, `e36a0ac4`).** Function and
 image port constructors, signature round trips, catalog-argument validation,
 and call-site function specialization are in the worktree. Each `Call_fn`
 retains its checked body; a specialized `Fn` retains the original callable's
@@ -256,7 +256,7 @@ executables, 13 fixtures, four times, one/eight domains). Its broad test run
 caught a factory type-name whitespace regression; the shared validator was
 fixed and the mixed-image SOP regression passes directly. The intended API
 changes were promoted. The final pure run (`@check @all @runtest`) passes.
-Still required: native shipping and a commit when `.git` is writable.
+Native shipping subsequently passed on the M1 before the checkpoint commit.
 
 **Boundary findings (GPT 6 Astra, 2026-10-08).** A literal
 `Flow_ir.Executor.program` in a Procedural factory would add the forbidden
@@ -348,7 +348,7 @@ dependency on `Ty` or `Ty` gains the port constructors; Astra decides).
 
 #### F1.2 Precision as a checker class, not only an IR refusal
 
-**Implementation status (2026-10-08; uncommitted, pure checks passed).**
+**Done (2026-10-08, `e36a0ac4`).**
 The checker now retains approximate producer paths separately from GPU
 eligibility, including aliases and nested containers, and checks catalog
 slots/parameters, state seeds, graph overrides and settings/scene arguments.
@@ -362,7 +362,7 @@ argument edits; the shared nested-call recognition fixes every graph gesture
 caller. The 37-file approximate-path audit passes with both actual custom
 catalogs. `@check @all @runtest` passes, and the intended `Op.is_display_kind`
 API addition was promoted. The subsequent skipped-tuple exclusion has focused
-Flow/graph/IR/GPU coverage. Remaining: native shipping and commit.
+Flow/graph/IR/GPU coverage. Native shipping passed before the checkpoint commit.
 
 **Today.** `Workspace.approx` is advisory: `workspace.ml:834` (a single-clause
 `for` over packed arrays with a covered body), `:995` (a `map` whose inputs
@@ -481,7 +481,7 @@ workspace (keep the code path; it is the backstop for hand-built programs).
 
 #### F1.4 Types the kernels do not have: Vec2, Vec4, Mat4, integers
 
-**Implementation checkpoint (2026-10-08; shipping verification in progress).**
+**Done (2026-10-08, `e36a0ac4`; checker/reference scope below).**
 `Ty.Vec2`/`Vec4`, array annotations, type/string round trips and same-width
 coercions are implemented. Two/four-component literals execute through the
 reference evaluator, including fields, destructuring, scalar broadcasting,
@@ -495,7 +495,8 @@ pass, and the intended API and generated sketch include are promoted.
 `sketches/flow_vectors/sketch.rays` demonstrates both widths through current
 drawing ports. Broad `@all @runtest` verification passes, including 37 standard
 workspaces, two custom-catalog executables and 13 fixtures at four times and
-domains 1/8. Native shipping and the commit checkpoint are pending.
+domains 1/8. Native shipping passed before the checkpoint commit. The F2.2
+packed-width extension is recorded separately below.
 
 **Today.** `Ty.t` has `Float | Int | Bool | Vec3 | Text | Color | List | Array |
 Record | Fn | Any | Named`. Packed arrays are `Float_array` and `Vec3_array`
@@ -627,8 +628,9 @@ retained. Astra says keep the guard, but the gate is still not met; next
 measure both counting passes separately. Details and all raw CSVs are in the
 performance log. Broad current `@all @runtest` verification passed, including
 36 standard files, two actual custom-catalog executables and 13 fixtures at
-four times and domains 1/8;
-native qualification and commits remain blocked by the documented sandbox.
+four times and domains 1/8. At that stage native qualification and commits
+were blocked by the managed sandbox; the later M1 checkpoint resolves that
+restriction.
 The counting-pass diagnostic is recorded with a reproducible temporary patch;
 all instrumentation/dependency changes are restored byte-for-byte. Initial
 counting and emission-pass recounting take medians 3.876/3.863 ms with no
@@ -706,6 +708,39 @@ eight domains. Say which sample ordering the existing code iterates, what
 the sequential cutoff should be, and what the one failing check is."
 
 #### F2.2 Image kernels: a per-pixel `map`
+
+**Astra design and groundwork (2026-10-09; image/map not yet implemented).**
+Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
+first, in immutable packed Vec2 storage; compile the Vec4 body with existing
+scalar registers. Packed Vec2/Vec4 storage, maps/loops, fields, uniforms, array
+operations and GPU readback reconstruction are implemented;
+focused CPU/reference/domain and pure-emitter checks pass. Native width2/width4
+and width4-input kernels have zero maximum error at 1,024 and 65,536 elements;
+reviewed-code `@check`, focused Flow/IR/GPU/graph/SOP tests, native GPU tests
+and `--ship` pass (exit 0), including result-type checks before flattening
+native output. Astra accepted the functional
+groundwork after restoring the original boolean-accumulator refusal; bool-seed
+fold/scan refusal and reference parity are pinned by a regression. No new instruction,
+array constructor or catalog port is added. Existing catalog Kernel columns
+stay float/vec3; the image bridge belongs in Flow_sop without a Procedural-to-IR
+edge. Preserve captures, live uniforms and the 64-image ownership bound.
+
+Astra's conversion design adds owned RGBA8 storage to Procedural.Image,
+retaining existing float-backed semantics. Clamp finite channels, multiply by
+255, and explicitly round ties to even; reject nonfinite channels. CPU cooks
+allocate one final image buffer, not one total allocation. GPU conversion
+writes reusable padded rows (`align_up(width*4,256)`), then uses the existing
+`Ogpu.Backend.buffer_to_texture`; no new OGPU operation or pipeline family is
+needed. Reuse immutable source uploads by array identity/covered length/backing
+buffer, with invalidation after replacements. Resident draw/image and texture
+consumers reuse existing image/texture plumbing; preserve an explicit deferred
+exact-image snapshot so display and frozen consumers cannot alias a mutable
+image. Odd-width 65×3 native parity/lifetime tests and an asymmetric >two-grain
+CPU rounding/domain fixture are required. Measure 512²/1024²/2048², seven
+isolated CPU trials at domains 1/8 and seven 200-frame GPU trials after ten
+warm-up frames, completed dispatch/conversion/copy included. Cold preparation,
+resize, full display-frame bytes, GPU resource creations and readbacks are
+separate rows. No F2.2 gate is established by this design or groundwork.
 
 **Lisp.**
 
@@ -948,7 +983,7 @@ Rules:
 
 ### F6. Small, known, bounded
 
-**Canvas image input implemented (2026-10-08; native shipping unavailable).**
+**Canvas image input done (2026-10-08, `e36a0ac4`).**
 `Workspace.apply_op` wraps an image passed to `ui/canvas` in the existing
 `draw/image` operation. The focused regression checks the typed argument,
 the evaluated drawing plan and scalar refusal. `@check` and
@@ -957,20 +992,22 @@ files, two custom-catalog executables and 13 fixtures, at four times and one/
 eight domains. `--ship` returned exit 1. An isolated `@check @smoke` run
 confirmed the native smoke startup failure: `SDL3.Init.init: The video driver
 did not add any displays` (`/tmp/rays-f-check.log`). This is not a native pass.
-Do not call this item done until shipping succeeds on a native host.
+That managed run did not qualify the change; the later native-host shipping
+run passed before `e36a0ac4`.
 
-**Native environment evidence (2026-10-08).** After the environment changed
+**Managed native environment evidence (2026-10-08).** After the environment changed
 to managed execution, `_build/default/tools/check.exe
 @lib/flow_gpu/runtest-native` failed with
 `Ogpu_metal.Device.system_default: Metal has no system default device`.
-Native gates are not verified in this environment. The earlier native-host
+Native gates were not verified in that environment. The earlier native-host
 F0 validation does not qualify later changes.
 
 **Commit restriction (2026-10-08).** The managed filesystem policy makes
 `.git` read-only: staging these changes failed with
 `Unable to create '.git/index.lock': Operation not permitted`.
-The F1.1 groundwork and F6 changes remain uncommitted. Resume regular commits
-when Git metadata is writable; do not describe them as committed meanwhile.
+At that point the F1.1 groundwork and F6 changes remained uncommitted.
+Filesystem access was subsequently restored and `e36a0ac4` committed them
+after native shipping passed.
 
 **Access restored (2026-10-08).** The environment now permits filesystem and
 native access. `sysctl` identifies `Macmini9,1`, Apple M1, eight logical CPUs.

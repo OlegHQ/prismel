@@ -8,7 +8,9 @@ type ('f, 'r) t =
   | Vec4 of float * float * float * float
   | List of ('f, 'r) t array
   | Float_array of float array
+  | Vec2_array of float array
   | Vec3_array of float array
+  | Vec4_array of float array
   | Record of (string * ('f, 'r) t) list
   | Deferred of Ty.t * int
   | No_geo
@@ -84,7 +86,9 @@ let rec ty_of = function
   | Vec2 _ -> Ty.Vec2 | Vec3 _ -> Ty.Vec3 | Vec4 _ -> Ty.Vec4
   | List xs -> Ty.List (elem_ty xs)
   | Float_array _ -> Ty.Array Ty.Float
+  | Vec2_array _ -> Ty.Array Ty.Vec2
   | Vec3_array _ -> Ty.Array Ty.Vec3
+  | Vec4_array _ -> Ty.Array Ty.Vec4
   | Record fs -> Ty.Record (List.map (fun (n, v) -> (n, ty_of v)) fs)
   | Deferred (ty, _) -> ty
   | No_geo -> Ty.geometry
@@ -123,7 +127,9 @@ let rec show_with conc v =
   | Vec4 (x, y, z, w) -> "[" ^ String.concat " " [fmt4 x; fmt4 y; fmt4 z; fmt4 w] ^ "]"
   | List xs -> "[" ^ String.concat " " (List.map (show_with conc) (Array.to_list xs)) ^ "]"
   | Float_array xs -> Printf.sprintf "%d × float" (Array.length xs)
+  | Vec2_array xs -> Printf.sprintf "%d × vec2" (Array.length xs / 2)
   | Vec3_array xs -> Printf.sprintf "%d × vec3" (Array.length xs / 3)
+  | Vec4_array xs -> Printf.sprintf "%d × vec4" (Array.length xs / 4)
   | Record fs ->
       "{" ^ String.concat " " (List.map (fun (k, x) -> ":" ^ k ^ " " ^ show_with conc x) fs) ^ "}"
   | Residual _ -> "?"
@@ -139,7 +145,9 @@ let rec key_of ~residual = function
   | Vec4 (a, b, c, d) -> Printf.sprintf "v4:%h,%h,%h,%h" a b c d
   | List xs -> "[" ^ String.concat "," (List.map (key_of ~residual) (Array.to_list xs)) ^ "]"
   | Float_array xs -> "A" ^ Marshal.to_string xs []
+  | Vec2_array xs -> "V2" ^ Marshal.to_string xs []
   | Vec3_array xs -> "V" ^ Marshal.to_string xs []
+  | Vec4_array xs -> "V4" ^ Marshal.to_string xs []
   | Record fs -> "{" ^ String.concat "," (List.map (fun (n, v) -> n ^ "=" ^ key_of ~residual v) fs) ^ "}"
   | Deferred ((Ty.Named "geometry"), n) -> "g" ^ string_of_int n
   | Deferred ((Ty.Named "image"), n) -> "image:" ^ string_of_int n
@@ -179,35 +187,49 @@ let list_arg = function
 
 let array_length = function
   | Float_array xs -> Array.length xs
+  | Vec2_array xs when Array.length xs mod 2 = 0 -> Array.length xs / 2
   | Vec3_array xs when Array.length xs mod 3 = 0 -> Array.length xs / 3
+  | Vec4_array xs when Array.length xs mod 4 = 0 -> Array.length xs / 4
+  | Vec2_array _ -> fail "E_ARRAY_TYPE" "Packed vec2 storage has two coordinates per element."
   | Vec3_array _ -> fail "E_ARRAY_TYPE" "Packed vec3 storage has three coordinates per element."
+  | Vec4_array _ -> fail "E_ARRAY_TYPE" "Packed vec4 storage has four coordinates per element."
   | _ -> fail "E_ARRAY_TYPE" "Expected a packed array."
 let array_get xs index =
   if index < 0 || index >= array_length xs then fail "E_ARRAY_RANGE" "Array index is outside its length.";
   match xs with
   | Float_array xs -> Float xs.(index)
+  | Vec2_array xs -> let i = index * 2 in Vec2 (xs.(i), xs.(i + 1))
   | Vec3_array xs -> let i = index * 3 in Vec3 (xs.(i), xs.(i + 1), xs.(i + 2))
+  | Vec4_array xs -> let i = index * 4 in Vec4 (xs.(i), xs.(i + 1), xs.(i + 2), xs.(i + 3))
   | _ -> assert false
 let array_init ty count f =
-  if ty <> Ty.Float && ty <> Ty.Vec3 && ty <> Ty.Any then
-    fail "E_ARRAY_TYPE" "Packed arrays contain float or vec3 values.";
-  let width = if ty = Ty.Vec3 then 3 else 1 in
+  let width = match ty with Ty.Vec2 -> 2 | Vec3 -> 3 | Vec4 -> 4 | Float | Any -> 1
+    | _ -> fail "E_ARRAY_TYPE" "Packed arrays contain float, vec2, vec3 or vec4 values." in
   if count < 0 || count > Sys.max_floatarray_length / width then
     fail "E_ARRAY_RANGE" "Array length is outside native storage bounds.";
   let data = Array.make (count * width) 0. in
   for i = 0 to count - 1 do
     let v = f i in
-    if width = 1 then data.(i) <- fin "array" (num v) else
-      let x, y, z = comps v in
-      data.(3 * i) <- fin "array" x; data.(3 * i + 1) <- fin "array" y; data.(3 * i + 2) <- fin "array" z
+    let at = width * i in
+    match width, v with
+    | 1, v -> data.(at) <- fin "array" (num v)
+    | 2, Vec2 (x,y) -> data.(at) <- fin "array" x; data.(at + 1) <- fin "array" y
+    | 3, Vec3 (x,y,z) -> data.(at) <- fin "array" x;
+        data.(at + 1) <- fin "array" y; data.(at + 2) <- fin "array" z
+    | 4, Vec4 (x,y,z,w) -> data.(at) <- fin "array" x;
+        data.(at + 1) <- fin "array" y; data.(at + 2) <- fin "array" z;
+        data.(at + 3) <- fin "array" w
+    | _, (Int _ | Float _ | Bool _) -> let x = fin "array" (num v) in
+        for j = 0 to width - 1 do data.(at + j) <- x done
+    | _ -> fail "E_ARRAY_TYPE" "Packed array element has the wrong vector width."
   done;
-  if width = 3 then Vec3_array data else Float_array data
+  match width with 2 -> Vec2_array data | 3 -> Vec3_array data | 4 -> Vec4_array data | _ -> Float_array data
 let rec validate = function
   | Float f -> ignore (fin "input" f)
   | Vec2 (x, y) -> List.iter (fun x -> ignore (fin "input" x)) [x; y]
   | Vec3 (x, y, z) -> List.iter (fun x -> ignore (fin "input" x)) [x; y; z]
   | Vec4 (x, y, z, w) -> List.iter (fun x -> ignore (fin "input" x)) [x; y; z; w]
-  | Float_array xs | Vec3_array xs as v ->
+  | Float_array xs | Vec2_array xs | Vec3_array xs | Vec4_array xs as v ->
       ignore (array_length v); Array.iter (fun x -> ignore (fin "array input" x)) xs
   | List xs -> Array.iter validate xs
   | Record fs | Struct (_, _, fs) -> List.iter (fun (_, v) -> validate v) fs

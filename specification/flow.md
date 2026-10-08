@@ -82,10 +82,12 @@ numbers widen to a vector, a record fits when it has every wanted field.
 Vector literals have two, three or four numeric components; widths remain
 distinct. Vector arithmetic broadcasts a scalar and rejects mixed widths with
 `E_TYPE`. Components are `.x`, `.y`, `.z`, `.w` up to the vector's width.
-The reference evaluator executes all three widths; packed CPU/GPU instructions
-and executable packed array storage still cover float and vec3 only. `(array
-vec2)` and `(array vec4)` annotations prepare the checker for future storage;
-they do not add array constructors or kernel instructions.
+The reference evaluator and packed CPU programs execute all three widths;
+packed arrays store interleaved xy, xyz or xyzw components. Maps and loops can
+produce these arrays from existing array sources, and `(array vec2)` / `(array
+vec4)` annotations accept them. The Metal emitter uses the same scalar register
+instructions for each component. There are no new array constructors or kernel
+instructions; GPU eligibility remains governed by the checker.
 
 A catalog parameter's port type is `Flow.Port_type.t` (`Geometry | Float | Int | Bool |
 Vec3 | Image | Fn of Ty.fn_signature`); text and choice fields have none and take literals only.

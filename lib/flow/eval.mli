@@ -62,7 +62,9 @@ type ('f, 'r) payload = ('f, 'r) Value.t =
   | Vec4 of float * float * float * float
   | List of ('f, 'r) payload array
   | Float_array of float array
+  | Vec2_array of float array
   | Vec3_array of float array
+  | Vec4_array of float array
   | Record of (string * ('f, 'r) payload) list  (** fields in written order *)
   | Deferred of Ty.t * int  (** a plan node *)
   | No_geo  (** [nil] *)

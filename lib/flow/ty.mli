@@ -5,7 +5,7 @@ type t =
   | Named of string | Float | Int | Bool | Vec2 | Vec3 | Vec4 | Text
   | Color  (** text or vec3; only catalog parameters ask for it *)
   | List of t
-  | Array of t  (** packed data; only float/vec3 storage is executable today *)
+  | Array of t  (** packed float, vec2, vec3 or vec4 data *)
   | Record of (string * t) list  (** fields in written order *)
   | Fn of fn_signature option
   | Any  (** unknown or unconstrained: unannotated fn parameters, empty lists *)

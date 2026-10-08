@@ -24,18 +24,28 @@ type t = { residual : E.residual; term : W.term; sources : (E.residual * W.term)
   sites : (int * W.path * int list) list }
 exception Unsupported
 
+let width_of = function
+  | Ty.Vec2 -> 2 | Vec3 -> 3 | Vec4 -> 4 | Float | Int | Bool -> 1
+  | _ -> raise Unsupported
+let components = function
+  | E.Vec2 (x,y) -> [|x;y|] | Vec3 (x,y,z) -> [|x;y;z|]
+  | Vec4 (x,y,z,w) -> [|x;y;z;w|] | value -> [|V.num value|]
+
 let captured_value bindings name fields =
   let value = match List.assoc_opt name bindings with Some v -> v | None -> raise Unsupported in
   List.fold_left (fun value field -> match value, field with
     | E.Record fs, field | Struct (_, _, fs), field ->
         (match List.assoc_opt field fs with Some v -> v | None -> raise Unsupported)
     | E.Vec3 (x, _, _), "x" | Vec3 (_, x, _), "y" | Vec3 (_, _, x), "z" -> E.Float x
+    | E.Vec2 (x,_), "x" | Vec2 (_,x), "y" -> E.Float x
+    | E.Vec4 (x,_,_,_), "x" | Vec4 (_,x,_,_), "y"
+    | Vec4 (_,_,x,_), "z" | Vec4 (_,_,_,x), "w" -> E.Float x
     | _ -> raise Unsupported) value fields
 
 let count_of residual (s : W.term) = match s.node with
   | W.Ref_binding (name, fields) ->
       (try match captured_value (E.Private.residual_view residual).bindings name fields with
-       | E.Float_array _ | Vec3_array _ as v -> Some (V.array_length v) | _ -> None
+       | E.Float_array _ | Vec2_array _ | Vec3_array _ | Vec4_array _ as v -> Some (V.array_length v) | _ -> None
        with Unsupported -> None)
   | Op {op = ("array/float" | "array/vec3" | "array/range"); args; _} ->
       (match List.assoc_opt "count" args with
@@ -127,7 +137,7 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
     (* ponytail: correlated clauses stay interpreted; lower their changing source counts before tiling them. *)
     if iteration = Product && Array.exists (reads_names names) sources then raise Unsupported;
     let widths = Array.map (fun (s : W.term) -> match s.ty with
-      | Ty.Array Ty.Float -> 1 | Ty.Array Ty.Vec3 -> 3 | _ -> raise Unsupported) sources in
+      | Ty.Array (Ty.Float | Vec2 | Vec3 | Vec4 as ty) -> width_of ty | _ -> raise Unsupported) sources in
     if Array.length sources <> List.length params then raise Unsupported;
     let code = ref [] and size = ref 0 and uniforms = ref [] and nuniforms = ref 0 and uniform_names = ref [] in
     let dependent = Array.make 64 false in
@@ -141,26 +151,28 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
         | _ -> false); id in
     let literal v =
       let data = match v with
-        | E.Int n -> [|float n|] | Float f -> [|f|] | Bool b -> [|if b then 1. else 0.|] | Vec3 (x, y, z) -> [|x; y; z|]
+        | E.Int _ | Float _ | Bool _ | Vec2 _ | Vec3 _ | Vec4 _ -> components v
         | _ -> raise Unsupported in
       {registers = Array.map (fun f -> emit (Const f)) data; constant = Some v} in
     let input i width = {registers = Array.init width (fun j -> emit (Input (i, width, j))); constant = None} in
     let uniform name v = match v with
-      | E.Residual _ | E.Int _ | Float _ | Bool _ | Vec3 _ when dynamic || E.is_live v ->
+      | E.Residual _ | E.Int _ | Float _ | Bool _ | Vec2 _ | Vec3 _ | Vec4 _ when dynamic || E.is_live v ->
           let ty = match v with E.Residual r -> (E.Private.residual_view r).term.ty | v -> V.ty_of v in
-          let width = if ty = Ty.Vec3 then 3 else if List.mem ty [Ty.Float; Ty.Int; Ty.Bool] then 1 else raise Unsupported in
+          let width = width_of ty in
           let i = !nuniforms in incr nuniforms; uniforms := v :: !uniforms;
           uniform_names := name :: !uniform_names;
           {registers = Array.init width (fun j -> emit (Uniform (i, j))); constant = None}
       | _ -> literal v in
     let env = List.mapi (fun i (pattern, annotation) ->
       match pattern with
-      | W.Name name when annotation = None || annotation = Some (if widths.(i) = 3 then Ty.Vec3 else Ty.Float) ->
+      | W.Name name when annotation = None || annotation = Some
+          (match widths.(i) with 2 -> Ty.Vec2 | 3 -> Ty.Vec3 | 4 -> Ty.Vec4 | _ -> Ty.Float) ->
           name, input i widths.(i)
       | _ -> raise Unsupported) params in
     let env = match accumulator, result with
       | Some (W.Name name, annotation), Accumulate (seed, _) ->
-          let width = match seed.ty with Ty.Vec3 -> 3 | Ty.Float | Ty.Int -> 1 | _ -> raise Unsupported in
+          if not (List.mem seed.ty [Ty.Float;Ty.Int;Ty.Vec2;Ty.Vec3;Ty.Vec4]) then raise Unsupported;
+          let width = width_of seed.ty in
           if annotation <> None && annotation <> Some seed.ty
               && not (seed.ty = Ty.Int && annotation = Some Ty.Float) then raise Unsupported;
           (name, {registers = Array.init width (fun i -> emit (Accumulator i)); constant = None}) :: env
@@ -172,9 +184,10 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
           let e = uniform (name, fields) (captured_value bindings name fields) in
           Hashtbl.add captures (name, fields) e; e in
     let field e = function
-      | "x" when Array.length e.registers = 3 -> {registers = [|e.registers.(0)|]; constant = None}
-      | "y" when Array.length e.registers = 3 -> {registers = [|e.registers.(1)|]; constant = None}
-      | "z" when Array.length e.registers = 3 -> {registers = [|e.registers.(2)|]; constant = None}
+      | "x" when Array.length e.registers >= 2 -> {registers = [|e.registers.(0)|]; constant = None}
+      | "y" when Array.length e.registers >= 2 -> {registers = [|e.registers.(1)|]; constant = None}
+      | "z" when Array.length e.registers >= 3 -> {registers = [|e.registers.(2)|]; constant = None}
+      | "w" when Array.length e.registers = 4 -> {registers = [|e.registers.(3)|]; constant = None}
       | _ -> raise Unsupported in
     let binary name = match Flow.Packed_ops.binary name with Some op -> op | None -> raise Unsupported in
     let unary name = match Flow.Packed_ops.unary name with Some op -> op | None -> raise Unsupported in
@@ -197,7 +210,7 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
                | component :: prefix -> field (captured name (List.rev prefix)) component
                | [] -> raise Unsupported)
       | Time -> {registers = [|emit (Frame "t")|]; constant = None}
-      | Vec ts when List.length ts = 3 ->
+      | Vec ts when List.mem (List.length ts) [2;3;4] ->
           let components = List.map (expression env) ts in
           if not (List.for_all (fun e -> Array.length e.registers = 1) components) then raise Unsupported;
           {registers = Array.of_list (List.map (fun e -> e.registers.(0)) components); constant = None}
@@ -280,13 +293,14 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       | Expanded {body; _} | Bypass body -> expression env body
       | _ -> raise Unsupported in
     let output = (expression env body).registers in
-    let width = match term.ty with Ty.Array Ty.Float | Ty.Float -> 1
-      | Ty.Array Ty.Vec3 | Ty.Vec3 -> 3 | _ -> raise Unsupported in
+    let result_ty = match term.ty with Ty.Array ty -> ty | ty -> ty in
+    if not (List.mem result_ty [Ty.Float;Ty.Vec2;Ty.Vec3;Ty.Vec4]) then raise Unsupported;
+    let width = width_of result_ty in
     (match result with
-     | Sum _ | Accumulate _ when body.ty <> Ty.Float && body.ty <> Ty.Vec3 -> raise Unsupported
+     | Sum _ | Accumulate _ when not (List.mem body.ty [Ty.Float;Ty.Vec2;Ty.Vec3;Ty.Vec4]) -> raise Unsupported
      | _ -> ());
-    (* array_init also broadcasts a scalar to vec3. *)
-    let output = if Array.length output = 1 && width = 3 then Array.make 3 output.(0) else output in
+    (* array_init also broadcasts a scalar to the requested vector width. *)
+    let output = if Array.length output = 1 && width > 1 then Array.make width output.(0) else output in
     if Array.length output <> width then raise Unsupported;
     let counts = Array.map (count_of residual) sources in
     let count = count_of_sources iteration counts in
@@ -450,7 +464,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let inputs = Array.mapi (fun i (residual, term) ->
       let value = get (evaluate residual term) in
       match value, t.widths.(i) with
-      | E.Float_array xs, 1 | Vec3_array xs, 3 -> xs
+      | E.Float_array xs, 1 | Vec2_array xs, 2 | Vec3_array xs, 3 | Vec4_array xs, 4 -> xs
       | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources in
     let lengths = Array.mapi (fun i a -> Array.length a / t.widths.(i)) inputs in
     let count = if t.iteration = Product && Array.exists ((=) 0) lengths then 0 else
@@ -464,7 +478,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
       for i = Array.length inputs - 2 downto 0 do strides.(i) <- strides.(i + 1) * lengths.(i + 1) done;
     let uniforms = Array.map (fun v ->
       let v = get (E.Private.force_reference ~state ?elems ?resolve v ~live) in
-      match v with E.Vec3 (x, y, z) -> [|x; y; z|] | _ -> [|V.num v|]) t.uniforms in
+      components v) t.uniforms in
     let frame = Array.map (function
       | Frame "t" -> live.Frame_input.t
       | Frame name ->
@@ -476,7 +490,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let width = Array.length t.output in
     List.iter (fun (_, (term : W.term)) -> match term.ty with
       | Ty.Array ty ->
-          let width = if ty = Ty.Vec3 then 3 else 1 in
+          let width = width_of ty in
           if count > Sys.max_floatarray_length / width then
             V.fail "E_ARRAY_RANGE" "Kernel intermediate exceeds native storage bounds."
       | _ -> ()) t.stages;
@@ -492,7 +506,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     if collecting && kept > Sys.max_floatarray_length / width then V.fail "E_ARRAY_RANGE" "Kernel output exceeds native storage bounds.";
     let output = Array.make (if collecting then kept * width else 0) 0. in
     let accumulator = match seed with
-      | Some (E.Vec3 (x, y, z)) -> [|x; y; z|]
+      | Some (E.Vec2 _ | Vec3 _ | Vec4 _ as value) -> components value
       | Some v -> Array.make width (V.num v) | None -> Array.make width 0. in
     let initialized = ref (match t.result with Sum zero -> zero | _ -> true) in
     let block_size = 1024 in
@@ -608,12 +622,16 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
              ordered first middle; ordered middle last
            end in
          ordered 0 chunks);
-    let value = if collecting then (if width = 3 then E.Vec3_array output else E.Float_array output)
+    let value = if collecting then (match width with 2 -> E.Vec2_array output
+      | 3 -> E.Vec3_array output | 4 -> E.Vec4_array output | _ -> E.Float_array output)
     else match t.result, seed with
       | Accumulate _, Some seed when kept = 0 -> seed
       | Sum false, _ when kept = 0 -> E.Int 0
-      | _ -> if width = 3 then E.Vec3 (accumulator.(0), accumulator.(1), accumulator.(2))
-          else E.Float accumulator.(0) in
+      | _ -> (match width with
+          | 2 -> E.Vec2 (accumulator.(0), accumulator.(1))
+          | 3 -> E.Vec3 (accumulator.(0), accumulator.(1), accumulator.(2))
+          | 4 -> E.Vec4 (accumulator.(0), accumulator.(1), accumulator.(2), accumulator.(3))
+          | _ -> E.Float accumulator.(0)) in
     Option.iter (fun (clock, report) -> report t ~seconds:(max 0. (clock () -. Option.get started)) ~reference:false) measure;
     value in
   let result = E.transaction state (fun () ->
@@ -656,13 +674,12 @@ module Private = struct
         | None -> get (E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
       let arrays = Array.mapi (fun index (residual, term) ->
         match evaluate residual term, t.widths.(index) with
-        | E.Float_array values, 1 | Vec3_array values, 3 -> values
+        | E.Float_array values, 1 | Vec2_array values, 2 | Vec3_array values, 3 | Vec4_array values, 4 -> values
         | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources in
       let count = if arrays=[||] then 0 else Array.fold_left min max_int
         (Array.mapi (fun index values -> Array.length values / t.widths.(index)) arrays) in
       let uniforms = Array.map (fun value ->
-        match get (E.Private.force_reference ~state ?elems ?resolve value ~live) with
-        | E.Vec3 (x,y,z) -> [|x;y;z|] | value -> [|V.num value|]) t.uniforms in
+        components (get (E.Private.force_reference ~state ?elems ?resolve value ~live))) t.uniforms in
       let frame = Array.map (function
         | Frame "t" -> live.Frame_input.t
         | Frame name -> (match Flow.Op.find name Flow.Context.value with

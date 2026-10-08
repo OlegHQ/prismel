@@ -194,18 +194,23 @@ let arrays = [
         then fail "E_ARRAY_RANGE" "An array slice must be within its source.";
         Array.sub values (first*width)(count*width)in
       match List.assoc "array" args with Float_array xs->Float_array(slice 1 xs)
-        |Vec3_array xs->Vec3_array(slice 3 xs)|_->fail "E_TYPE" "Expected a packed array."};
+        |Vec2_array xs->Vec2_array(slice 2 xs)
+        |Vec3_array xs->Vec3_array(slice 3 xs)|Vec4_array xs->Vec4_array(slice 4 xs)
+        |_->fail "E_TYPE" "Expected a packed array."};
   mk ~category:"Array" "array/concat" ["first",Ty.Array Ty.Any;"second",Ty.Array Ty.Any]
     (function (Ty.Array _ as ty)::_ ->ty|_->Ty.Array Ty.Any)
     {run=fun ~name:_ ~node:_ args->match List.assoc "first" args,List.assoc "second" args with
       |Float_array a,Float_array b->Float_array(Array.append a b)
+      |Vec2_array a,Vec2_array b->Vec2_array(Array.append a b)
       |Vec3_array a,Vec3_array b->Vec3_array(Array.append a b)
+      |Vec4_array a,Vec4_array b->Vec4_array(Array.append a b)
       |_->fail "E_ARRAY_TYPE" "Concatenated arrays must have the same element type."};
   mk ~category:"Array" "array/sum" ["array", Ty.Array Ty.Any]
     (function Ty.Array e :: _ -> e | _ -> Ty.Any)
     {run = fun ~name:_ ~node:_ args ->
       let xs = List.assoc "array" args in
-      let sum = ref (match xs with Vec3_array _ -> Vec3 (0., 0., 0.) | _ -> Float 0.) in
+      let sum = ref (match xs with Vec2_array _ -> Vec2 (0., 0.)
+        | Vec3_array _ -> Vec3 (0., 0., 0.) | Vec4_array _ -> Vec4 (0., 0., 0., 0.) | _ -> Float 0.) in
       for i = 0 to array_length xs - 1 do sum := Value.arith "array/sum" ( +. ) !sum (array_get xs i) done;
       !sum};
 ]

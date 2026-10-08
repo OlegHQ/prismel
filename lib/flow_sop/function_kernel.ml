@@ -20,7 +20,7 @@ end)
 let storage values =
   let functions = Functions.create 16 and residuals = Residuals.create 16 in
   let rec visit = function
-  | E.Float_array xs | Vec3_array xs -> Array.length xs * 8
+  | E.Float_array xs | Vec2_array xs | Vec3_array xs | Vec4_array xs -> Array.length xs * 8
   | Text s -> String.length s
   | List xs -> Array.fold_left (fun bytes x -> add_bytes bytes (visit x)) 0 xs
   | Record fs | Struct (_, _, fs) -> fields fs

@@ -140,7 +140,8 @@ let readback output =
       unpack_array (get (B.read_buffer (Option.get output.owner.output.buffer) ~offset:0L ~length:(length*4))) length in
     if not finite then
       Error (Flow.Diagnostic.error ~code:"E_KERNEL" "GPU output contains a nonfinite value.")
-    else Ok (if output.width=3 then Flow.Eval.Vec3_array values else Float_array values)
+    else Ok (match output.width with 2 -> Flow.Eval.Vec2_array values
+      | 3 -> Vec3_array values | 4 -> Vec4_array values | _ -> Float_array values)
   with Failed error -> Error error
 let buffer output = if output.owner.closed || Domain.self()<>output.owner.domain || output.generation<>output.owner.generation
   then None else output.owner.output.buffer

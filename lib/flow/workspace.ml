@@ -853,14 +853,14 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let packed = List.exists (fun (_, (t : term)) -> match t.ty with Ty.Array _ -> true | _ -> false) clauses in
     if packed && shape_ty bt.ty then
       err x "E_ARRAY_TYPE" "Packed-array loops produce data; their length cannot create graph nodes.";
-    let array_elem ty = match ty with Ty.Vec3 -> Ty.Vec3 | Float | Int | Bool | Any -> Ty.Float
-      | _ -> err x "E_ARRAY_TYPE" "Packed arrays hold floats or vec3 values."; Ty.Float in
-    if kind = `Sum && not (match bt.ty with Ty.Int | Ty.Float | Ty.Vec3 | Ty.Any -> true | _ -> false) then
-      err x "E_TYPE" (Printf.sprintf "sum adds numbers or vec3; the body returns %s." (show bt.ty));
+    let array_elem ty = match ty with Ty.Vec2 | Vec3 | Vec4 -> ty | Float | Int | Bool | Any -> Ty.Float
+      | _ -> err x "E_ARRAY_TYPE" "Packed arrays hold floats, vec2, vec3 or vec4 values."; Ty.Float in
+    if kind = `Sum && not (match bt.ty with Ty.Int | Ty.Float | Ty.Vec2 | Ty.Vec3 | Ty.Vec4 | Ty.Any -> true | _ -> false) then
+      err x "E_TYPE" (Printf.sprintf "sum adds numbers or matching-width vectors; the body returns %s." (show bt.ty));
     let ty = match kind, acc_ty with
       | `Scan, Some at -> if packed then Ty.Array (array_elem at) else Ty.List at
       | (`For | `Scan), _ -> if packed then Ty.Array (array_elem bt.ty) else Ty.List bt.ty
-      | `Sum, _ -> (match bt.ty with Ty.Int -> Ty.Int | Ty.Vec3 -> Ty.Vec3 | _ -> Ty.Float)
+      | `Sum, _ -> (match bt.ty with Ty.Int | Vec2 | Vec3 | Vec4 -> bt.ty | _ -> Ty.Float)
       | `Fold, Some at -> at
       | `Fold, None -> Ty.Any in
     let init_vs = match init with Some (_, _, iv) -> [ iv ] | None -> [] in
@@ -995,8 +995,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
         | "map" ->
             no_fn x rv.ty "The map result";
             let ty = if packed then
-              Ty.Array (match rv.ty with Ty.Vec3 -> Ty.Vec3 | Float | Int | Bool | Any -> Ty.Float
-                | _ -> err x "E_ARRAY_TYPE" "Packed arrays hold floats or vec3 values."; Ty.Float)
+              Ty.Array (match rv.ty with Ty.Vec2 | Vec3 | Vec4 -> rv.ty | Float | Int | Bool | Any -> Ty.Float
+                | _ -> err x "E_ARRAY_TYPE" "Packed arrays hold floats, vec2, vec3 or vec4 values."; Ty.Float)
               else Ty.List rv.ty in
             (`Map, ty, any_len)
         | "filter" ->

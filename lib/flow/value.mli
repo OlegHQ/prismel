@@ -6,7 +6,9 @@ type ('f, 'r) t =
   | Vec4 of float * float * float * float
   | List of ('f, 'r) t array
   | Float_array of float array
+  | Vec2_array of float array  (** interleaved xy coordinates *)
   | Vec3_array of float array  (** interleaved xyz coordinates *)
+  | Vec4_array of float array  (** interleaved xyzw coordinates *)
   | Record of (string * ('f, 'r) t) list
   | Deferred of Ty.t * int | No_geo
   | Struct of string * Ty.t * (string * ('f, 'r) t) list
