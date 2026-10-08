@@ -12,7 +12,9 @@ let is_cooked ty = ty = geometry || ty = image
 let nominal name ?(shape = true) ?(color = `Output) ?default () = {name; shape; color; default}
 let registry = ref [
   nominal "geometry" ~color:`Geometry ~default:(Syntax.make (Sym "nil")) ();
-  nominal "image" ();
+  nominal "image" ~default:(Syntax.make (List [Syntax.make (Sym "image/noise");
+    Syntax.make (Kw "width");Syntax.make (Num "1");
+    Syntax.make (Kw "height");Syntax.make (Num "1")])) ();
   nominal "drawing" ~default:(Syntax.make (List [Syntax.make (Sym "draw/merge")])) ();
   nominal "scene" (); nominal "world" (); nominal "settings" ~shape:false ();
   nominal "panel" (); nominal "editor" (); nominal "material" ~shape:false ();
