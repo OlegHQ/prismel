@@ -224,7 +224,7 @@ let draw = [
   (* Noise and generative sketches need packed RGB; stroke widths remain uniform. *)
   draw_op ~kw:["radius", Ty.Any; "fill", Ty.Any; "stroke", Ty.Any] "draw/circles" ["positions", Ty.Array Ty.Vec3];
   draw_op ~kw:["fill", Ty.Any; "stroke", Ty.Any] "draw/rects" ["positions", Ty.Array Ty.Vec3; "sizes", Ty.Any];
-  draw_op ~kw:["color", Ty.Color; "width", Ty.Float] "draw/lines" ["from", Ty.Array Ty.Vec3; "to", Ty.Array Ty.Vec3];
+  draw_op ~kw:["color", Ty.Any; "width", Ty.Float] "draw/lines" ["from", Ty.Array Ty.Vec3; "to", Ty.Array Ty.Vec3];
   draw_op ~kw:["color", Ty.Color; "size", Ty.Int] "draw/text" ["at", Ty.Vec3; "text", Ty.Text];
   draw_op "draw/translate" ["offset", Ty.Vec3; "drawing", Ty.drawing];
   draw_op "draw/rotate" ["angle", Ty.Float; "drawing", Ty.drawing];
