@@ -735,12 +735,14 @@ dependency edges are unchanged. Factory slot type names pass through the
 generated catalog to Flow checking and graph projection.
 
 Flow IR accepts an initial-domain GPU backend through scoped, renderer-neutral
-callbacks. GPU values carry only identity, count, width and generation. A
+callbacks. GPU values carry identity, count, width, generation and optional
+completed device dispatch duration; they carry no backend handle. A
 bounded `Flow_gpu.Host` owns pipelines and runners; the drawing boundary borrows
 the current generation or returns a typed stale-output error. Production
 placement requires a measured cost and an approximable packed producer; absent
 measurements keep the CPU tier. Explicit qualification can exercise the GPU
 route, while references and exports retain the CPU path. Compile, dispatch and
-readback appear separately in execution reports. Images use the existing UI
+readback appear separately in execution reports. GPU group time uses the
+completed device duration when available and wall time otherwise. Images use the existing UI
 image batch for borrowed inspector thumbnails; probing dimensions never loads
 resources or renders a Canvas inside a UI frame.

@@ -34,7 +34,8 @@ let backend t : G.backend =
           let runner=runner()in
           runner.output<-None;
           Result.map(fun output->runner.output<-Some output;runner.stamp<-Int64.succ runner.stamp;
-            G.{identity=runner.identity;count=Run.count output;width=Run.width output;stamp=runner.stamp})
+            G.{identity=runner.identity;count=Run.count output;width=Run.width output;stamp=runner.stamp;
+              gpu_seconds=Run.gpu_seconds output})
             (Run.dispatch runner.run inputs));
         readback=(fun value->match output t value with None->error "GPU output was closed or superseded."
           |Some output->Run.readback output)}) (Pipelines.get t.pipelines msl)))}

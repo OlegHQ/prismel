@@ -25,7 +25,10 @@ module Cost : sig
   (** The same measured CPU decision used at placement and force time. *)
 end
 module Gpu : sig
-  type value={identity:int;count:int;width:int;stamp:int64}
+  type value={identity:int;count:int;width:int;stamp:int64;gpu_seconds:float option}
+  (** Borrowed output metadata; [gpu_seconds] is the completed device dispatch
+      duration when the backend supports timestamps. *)
+
   type kernel={run:Packed.Private.inputs -> (value,Flow.Diagnostic.t)result;
     readback:value -> (Flow.Eval.value,Flow.Diagnostic.t)result}
   type backend={cost:Packed.t -> count:int -> float option;

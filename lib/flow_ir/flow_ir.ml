@@ -36,7 +36,7 @@ module Cost = struct
   let packed ~count = cheapest ~legal:[Interp;Cpu_kernel] ~count
 end
 module Gpu = struct
-  type value={identity:int;count:int;width:int;stamp:int64}
+  type value={identity:int;count:int;width:int;stamp:int64;gpu_seconds:float option}
   type kernel={run:Packed.Private.inputs -> (value,Flow.Diagnostic.t)result;
     readback:value -> (E.value,Flow.Diagnostic.t)result}
   type backend={cost:Packed.t -> count:int -> float option;
@@ -529,17 +529,19 @@ module Executor = struct
         |Some(Display _),_ |_,true->Ok()
         |_->Error(Flow.Diagnostic.error ~code:"E_APPROX_SINK"
           "GPU arrays require a display sink or (exact x) before CPU, SOP, state, export or cache use.")in
-      let profile tier run=
+      let profile ?(seconds=fun _->None) tier run=
         let start=Option.map(fun p->p.Profile.clock())program.profile in
         let result=run()in
+        let elapsed=match result with Ok value->seconds value|Error _->None in
         Option.iter(fun p->let _,path,iter=Packed.site packed in
           Profile.record p {owner=(path,iter);sites=Packed.provenance packed;tier;
-            seconds=max 0.(p.clock()-.Option.get start)})program.profile;result in
+            seconds=(match elapsed with Some value when Float.is_finite value && value>=0.->value
+              |_->max 0.(p.clock()-.Option.get start))})program.profile;result in
       let* kernel=match program.gpu_kernel with
         |Some(previous,p,kernel)when previous==backend && p==packed->Ok kernel
         |_->profile Gpu_compile(fun()->Result.map(fun kernel->program.gpu_kernel<-Some(backend,packed,kernel);kernel)
             (backend.prepare packed))in
-      let* output=profile Gpu(fun()->kernel.run inputs)in
+      let* output=profile ~seconds:(fun output->output.Gpu.gpu_seconds) Gpu(fun()->kernel.run inputs)in
       if readback then profile Gpu_readback(fun()->Result.map(fun value->Cpu value)(kernel.readback output))
       else Ok(Gpu output)
 end

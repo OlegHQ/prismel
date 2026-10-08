@@ -329,9 +329,10 @@ let ()=
   assert(placed.nodes.(1).precision=Exact && placed.nodes.(1).tier=Gpu_readback);
   (* This backend exercises callback ownership/selection only; it does not claim
      GPU execution or numerical conformance. Native tests run the emitted shader. *)
-  let prepared=ref 0 and dispatched=ref 0 in
+  let prepared=ref 0 and dispatched=ref 0 and gpu_seconds=ref(Some 0.002)in
   let backend:Gpu.backend={cost=(fun _ ~count:_->None);prepare=(fun _->incr prepared;
-    Ok{run=(fun inputs->incr dispatched;Ok Gpu.{identity=1;count=inputs.count;width=1;stamp=Int64.of_int !dispatched});
+    Ok{run=(fun inputs->incr dispatched;Ok Gpu.{identity=1;count=inputs.count;width=1;stamp=Int64.of_int !dispatched;
+      gpu_seconds= !gpu_seconds});
       readback=(fun _->Ok(E.Float_array[||]))})}in
   Gpu.with_backend backend(fun()->
     assert(match ok(Executor.force_display program ~live:(Frame_input.at_time 1.))with Executor.Cpu _->true|_->false);
@@ -339,6 +340,11 @@ let ()=
     for i=1 to 2 do assert(match ok(Executor.force_display ~policy:Gpu.Qualification program
       ~live:(Frame_input.at_time(float i)))with Executor.Gpu value->value.count=1024|_->false)done;
     assert(!prepared=1 && !dispatched=2);
+    assert(List.exists(fun report->report.tier=Gpu && report.seconds=0.002)(Profile.executions profile));
+    List.iter(fun seconds->gpu_seconds:=seconds;
+      ignore(ok(Executor.force_display ~policy:Gpu.Qualification program ~live:(Frame_input.at_time 3.)));
+      assert((List.find(fun report->report.tier=Gpu)(Profile.executions profile)).seconds=0.))
+      [None;Some nan;Some(-1.)];
     assert(match ok(Executor.force_display ~reference:true ~policy:Gpu.Qualification program
       ~live:(Frame_input.at_time 1.))with Executor.Cpu _->true|_->false);
     let illegal=ok(Executor.compile ~approx:ws.approx ~sink:Sop_input value)in
