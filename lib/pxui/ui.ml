@@ -1849,8 +1849,10 @@ let paint_all ui (frame : Frame.t) =
           hw *. scale, hh *. scale in
     let clipped_hit = intersect hit clip_rect in
     let _, _, hw, hh = clipped_hit in
-    let visible = let _, _, vw, vh = intersect screen_rect clip_rect in
-      vw > 0. && vh > 0. in
+    let visible = match ui.b_hit.(index) with
+      | None -> hw > 0. && hh > 0.
+      | Some _ -> let _, _, vw, vh = intersect screen_rect clip_rect in
+          vw > 0. && vh > 0. in
     let has_hit = ui.b_flags.(index) land hit_flags <> 0 && hw > 0. && hh > 0. in
     if has_hit then record_hit ui index parent_hit clipped_hit;
     (* a box with no extent of its own (a [Fit] box whose children are all placed with [~at]) is

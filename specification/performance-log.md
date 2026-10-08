@@ -7260,3 +7260,20 @@ remains **unmet**. Evidence:
 `/private/tmp/p3-ui-intrinsic-after-{1,2,3}.csv`,
 `/private/tmp/p3-ui-intrinsic-check.log` and
 `/private/tmp/p3-ui-children-inline-{before,after}-{1,2,3}.csv`.
+
+For boxes with default hit bounds, `paint_all` intersected the identical screen
+rectangle and clip twice. The visibility test now reuses its already-computed
+clipped-hit extent in that case; custom hit bounds retain the original separate
+screen intersection. Existing 1x/2x UI input/layout checks exit zero. Three
+alternating exclusive full-editor trials, all six commands exit zero:
+
+| Full static editor, 100k circles | Median trials (ms) | p95 trials (ms) | Bytes/frame in every trial |
+|---|---|---|---:|
+| Before clipped rectangle reuse | .034094 / .034094 / .034094 | .066996 / .067234 / .063896 | 161,740 |
+| After clipped rectangle reuse | .034094 / .034094 / .034094 | .061989 / .055075 / .066042 | 161,308 |
+
+The allocation saving is 432 bytes/frame. No new storage or skipped
+painting/input work is introduced. The full 32,768-byte gate remains **unmet**.
+Evidence: `/private/tmp/p3-ui-paint-clip-before-{1,2,3}.csv`,
+`/private/tmp/p3-ui-paint-clip-after-{1,2,3}.csv` and
+`/private/tmp/p3-ui-paint-clip-check.log`.
