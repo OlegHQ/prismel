@@ -229,3 +229,5 @@ end
 module Editor : sig
   val factories : Procedural.Edit_graph.factory list
 end
+(** Bilinear Point UV sampling of a cooked image into a float attribute. *)
+module Attr_from_image : sig val factory : Procedural.Edit_graph.factory end

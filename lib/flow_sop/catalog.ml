@@ -3,6 +3,7 @@ module Edit = Procedural.Edit_graph
 type descriptor = {
   qualified : string; key : string; operation : string; label : string;
   category : string list; slots : (string * Edit.input_requirement) list;
+  slot_types : string list;
   fields : Param.field_view list;
 }
 
@@ -11,6 +12,7 @@ let descriptor factory = {
   operation = Edit.factory_operation factory; label = Edit.factory_label factory;
   category = Edit.factory_category factory;
   slots = List.combine (Edit.factory_slot_names factory) (Edit.factory_inputs factory);
+  slot_types = Edit.factory_input_types factory;
   fields = Edit.factory_fields factory }
 
 let context_of = Flow.Context.of_qualified
@@ -27,14 +29,21 @@ let of_factories ~version ?(extra = []) factories =
   let rec build reversed = function
     | [] -> Ok Flow.Check.{version; kinds = List.rev reversed}
     | (entry : descriptor) :: rest ->
-        if context_of entry.qualified = None then Error (Flow.Diagnostic.error
+        if entry.slot_types <> [] && List.length entry.slot_types <> List.length entry.slots then
+          Error (Flow.Diagnostic.error ~code:"E_CATALOG" ("Input type count differs in " ^ entry.qualified))
+        else if not (List.for_all (fun name -> match Flow.Ty.of_string name with
+          | Some (Flow.Ty.Named _) -> true | _ -> false) entry.slot_types) then
+          Error (Flow.Diagnostic.error ~code:"E_CATALOG" ("Unknown nominal input type in " ^ entry.qualified))
+        else if context_of entry.qualified = None then Error (Flow.Diagnostic.error
           ~code:"E_CATALOG" ("Unknown context prefix in " ^ entry.qualified))
         else if Hashtbl.mem seen entry.qualified then Error (Flow.Diagnostic.error
           ~code:"E_CATALOG" ("Duplicate kind " ^ entry.qualified))
         else begin
-          let slots = List.map (fun (name, requirement) ->
+          let types = if entry.slot_types = [] then List.map (fun _ -> None) entry.slots else
+            List.map (fun name -> if name = "geometry" then None else Flow.Ty.of_string name) entry.slot_types in
+          let slots = List.map2 (fun (name, requirement) ty ->
             Flow.Check.{name; required = (requirement = Edit.Required || requirement = Edit.Rest);
-              rest = (requirement = Edit.Rest || requirement = Edit.Optional_rest)}) entry.slots in
+              rest = (requirement = Edit.Rest || requirement = Edit.Optional_rest); ty}) entry.slots types in
           Hashtbl.add seen entry.qualified ();
           Result.bind (Port.parameters entry.fields) (fun ports ->
             let parameters = List.map (fun port ->

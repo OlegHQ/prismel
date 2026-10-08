@@ -9,7 +9,7 @@ type parameter = {
   primary : bool;  (** a primary field: the card shows it unset ([Flow_graph.Exposure]) *)
   unit : string option;  (** the unit suffix of a scalar field *)
 }
-type slot = { name : string; required : bool; rest : bool }
+type slot = { name : string; required : bool; rest : bool; ty : Ty.t option }
 (** [rest]: the last slot repeats; extras are [name_2], [name_3], ... *)
 
 type kernel_elements = Points | Primitives | Irregular

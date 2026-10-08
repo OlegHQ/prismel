@@ -1179,6 +1179,15 @@ operators refuse image payloads with `E_PAYLOAD`. Deferred image identity uses
 `image:<id>` in value keys, avoiding the `i<value>` spelling already used by
 integer values. Image and geometry data identities share one allocator.
 
+`sop/attr_from_image geometry image :attribute "image" :channel "r" :uv "uv"`
+samples a cooked image at normalized Point UV coordinates into a float
+attribute. Its input ports are checked as geometry and image and drawn with
+those types; an image graph can supply `(ref image_graph)`. Point Float2/Float3
+UV is accepted, channels are `"r"`, `"g"`, `"b"`, `"a"`, and `"luminance"`;
+filtering is bilinear with clamped edges and v=0 at the first image row.
+Topology is preserved. The constructor/schema/catalog come from one SOP
+declaration, including mixed slot types, rather than a checker kind-name case.
+
 The full frame record, `(state [previous init] step)` and packed float/vec3
 arrays follow [iteration.md §2.5](workspace/iteration.md#25-frames-frame-folds-and-packed-arrays).
 All frame fields are live; array lengths are data, while structural lists

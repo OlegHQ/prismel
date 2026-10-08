@@ -198,10 +198,12 @@ let macro_rows c (m : S.t) pos =
 
 let kind_rows c (k : Flow.Check.kind) pos kws =
   let npos = List.length pos in
-  let slot_ty = W.slot_ty k in
-  (* the first geometry slot is the header's in-port, not a row of the body *)
-  let head_of i = i = 0 && slot_ty = Flow.Ty.geometry in
   let slot_rows = List.concat (List.mapi (fun i (s : Flow.Check.slot) ->
+    let slot_ty = W.slot_ty ~slot:s k in
+    let default = if slot_ty = Ty.geometry then None else
+      Option.map (fun form -> String.trim (fst (Flow.Lisp.print [form]))) (Ty.default slot_ty) in
+    (* the first geometry slot is the header's in-port, not a row of the body *)
+    let head_of i = i = 0 && slot_ty = Flow.Ty.geometry in
     if s.rest then
       List.filteri (fun j _ -> j >= i) pos |> List.mapi (fun j a ->
         row c ~ty:slot_ty ~kind:Rest ~head:(head_of i && j = 0)
@@ -212,10 +214,10 @@ let kind_rows c (k : Flow.Check.kind) pos kws =
           | Some value -> [row c ~ty:slot_ty ~kind:Rest s.name (E.Kw s.name) (Some value)])
           @ [ add c ("+ " ^ s.name) (E.Pos (max npos i)) (Some slot_ty) ]
     else match List.nth_opt pos i, List.assoc_opt s.name kws with
-      | Some a, _ -> [ row c ~ty:slot_ty ~head:(head_of i) s.name (E.Pos i) (Some a) ]
-      | None, Some a -> [ row c ~ty:slot_ty ~head:(head_of i) s.name (E.Kw s.name) (Some a) ]
+      | Some a, _ -> [ row c ~ty:slot_ty ?default ~head:(head_of i) s.name (E.Pos i) (Some a) ]
+      | None, Some a -> [ row c ~ty:slot_ty ?default ~head:(head_of i) s.name (E.Kw s.name) (Some a) ]
       | None, None ->
-          [ row c ~ty:slot_ty ~head:(head_of i) s.name (if s.required && i = npos then E.Pos i else E.Kw s.name) None ])
+          [ row c ~ty:slot_ty ?default ~head:(head_of i) s.name (if s.required && i = npos then E.Pos i else E.Kw s.name) None ])
     k.slots) in
   (* a schema with no primary field takes the fields of its first folder as primary *)
   let any_primary = List.exists (fun (p : Flow.Check.parameter) -> p.primary) k.parameters in

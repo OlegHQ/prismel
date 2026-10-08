@@ -275,7 +275,24 @@ Input metadata is a signature, not merely a port count. Fixed descriptors use
 required slots; `[@@sop.node_optional "1,2"]` marks zero-based optional slots
 and makes `sop_node` generate an `Edit_graph.factory_slots` descriptor.
 `[@@sop.node_slots "input, target"]` names the slots. Generated factories
-also carry field views, allowing the canvas to filter Tab results by
+default to geometry inputs; `[@@sop.node_types "geometry, image"]` declares
+mixed nominal inputs in the same order. The factory validates the names,
+and the Flow catalog validates them against the type registry. An optional
+type atom in a manifest slot preserves the existing untyped slot spelling
+for geometry; the checker and graph rows use the declared type.
+`sop/attr_from_image` uses this signature for geometry then image, with the
+same declaration generating its schema, factory and typed constructor.
+The exact CPU sampler writes a Point float attribute (`:attribute "image"`
+by default) from a normalized Point Float2 or Float3 `:uv "uv"` attribute.
+`:channel` accepts `"r"`, `"g"`, `"b"`, `"a"`, or `"luminance"` (Rec. 709
+weights); red is the default. Sampling is bilinear, clamps both coordinates
+to [0,1], and maps v=0 to the first image row. It preserves geometry/topology
+and errors on missing/wrong-owner UV, invalid storage or nonfinite values.
+It uses `Duplicate_input 0`, Point elementwise facts, reads the UV attribute
+and writes the named attribute. The RDK kernel owns sampling and fills
+disjoint point ranges through the shared Parallel pool.
+
+Generated factories also carry field views, allowing the canvas to filter Tab results by
 compatible value ports. Hand-built factories provide `~fields` to participate
 in that typed search.
 Disconnected optional references compile as absent operator arguments, while

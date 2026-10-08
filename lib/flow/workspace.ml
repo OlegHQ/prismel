@@ -164,7 +164,9 @@ let kind_out (k : Check.kind) =
     | [] -> Ty.Any
     | outs -> Ty.Record (List.map (fun (n, t) -> (n, ty_of_port t)) outs)
 (* the type of a kind's slots: geometry, a World layer's layer below, a scene/world's World, a root's scene *)
-let slot_ty (k : Check.kind) = match k.qualified with
+let slot_ty ?slot (k : Check.kind) = match Option.bind slot (fun (s : Check.slot) -> s.ty) with
+  | Some ty -> ty
+  | None -> match k.qualified with
   | "scene/world" -> Ty.world | "scene/root" -> Ty.scene
   | _ -> if k.context = Context.scene then Ty.geometry else Context.result k.context
 (* ponytail: the catalog has no group markers yet; a `group` parameter reads a group and
@@ -1237,14 +1239,14 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let seen = Hashtbl.create 8 in
     let out = ref [] and npos = ref 0 and writes = ref [] in
     let groups_in = List.fold_left (fun g a -> union g a.av.groups) [] args in
-    let slot_ty = slot_ty k in
-    let slot_arg ?(repeated = false) a sname =
-      if Ty.fits a.av.ty slot_ty then ()
-      else if repeated && (match a.av.ty with Ty.List e -> Ty.fits e Ty.geometry | _ -> false) then begin
+    let slot_arg ?(repeated = false) a (slot : Check.slot) =
+      let ty = slot_ty ~slot k in
+      if Ty.fits a.av.ty ty then ()
+      else if repeated && (match a.av.ty with Ty.List e -> Ty.fits e ty | _ -> false) then begin
         if a.av.live_len then
           err a.aform "E_TIME_COUNT" (Printf.sprintf
             "The list passed to %s changes length with t. The network keeps its shape while playing; animate parameters instead, for example scale a piece to 0." k.qualified)
-      end else err a.aform "E_TYPE" (Printf.sprintf "Input %s takes %s" sname (show slot_ty)) in
+      end else err a.aform "E_TYPE" (Printf.sprintf "Input %s takes %s" slot.name (show ty)) in
     List.iter (fun a ->
       match a.key with
       | None ->
@@ -1252,7 +1254,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
           incr npos;
           if Option.fold ~none:false ~some:(fun first -> idx >= first) rest_index then begin
             let slot = List.nth k.slots (Option.get rest_index) in
-            slot_arg ~repeated:true a slot.name;
+            slot_arg ~repeated:true a slot;
             out := (slot.name, a.aterm) :: !out
           end
           else if idx >= nslots then
@@ -1263,7 +1265,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
               err a.aform "E_DUPLICATE_PARAM" (Printf.sprintf "Input %s is given twice: by :%s and by position" s.name s.name)
             else begin
               Hashtbl.add seen s.name ();
-              slot_arg a s.name; out := (s.name, a.aterm) :: !out
+              slot_arg a s; out := (s.name, a.aterm) :: !out
             end
           end
       | Some n ->
@@ -1272,7 +1274,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
             Hashtbl.add seen n ();
             match List.find_opt (fun (s : Check.slot) -> s.name = n) k.slots,
                   List.find_opt (fun (p : Check.parameter) -> p.name = n) k.parameters with
-            | Some slot, _ -> slot_arg ~repeated:slot.rest a n; out := (n, a.aterm) :: !out
+            | Some slot, _ -> slot_arg ~repeated:slot.rest a slot; out := (n, a.aterm) :: !out
             | None, Some p ->
                 if k.qualified = "sop/material" && n = "material" && a.av.ty = Ty.material
                 then () else validate p a;
@@ -1290,7 +1292,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
           end) args;
     List.iter (fun (s : Check.slot) ->
         if s.required && not s.rest && not (Hashtbl.mem seen s.name) then
-          if slot_ty = Ty.geometry then
+          if slot_ty ~slot:s k = Ty.geometry then
             out := (s.name, tm x Ty.geometry Nil) :: !out
           else
             err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its %s input" short s.name)) k.slots;

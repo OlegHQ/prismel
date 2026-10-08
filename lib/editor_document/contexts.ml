@@ -109,14 +109,14 @@ let descriptors : Flow_sop.Catalog.descriptor list =
   List.map (fun (qualified, factory) ->
     { Flow_sop.Catalog.qualified; key = Edit.factory_key factory;
       operation = Edit.factory_operation factory; label = Edit.factory_label factory;
-      category = Edit.factory_category factory; slots = kind_slots qualified;
+      category = Edit.factory_category factory; slots = kind_slots qualified; slot_types = [];
       fields = name_field :: extra_fields qualified @ group_triples (Edit.factory_fields factory) })
     (scene_kinds @ world_kinds)
   @ [ { Flow_sop.Catalog.qualified = "settings/config"; key = "config"; operation = "config";
-        label = "Settings"; category = [ "Workspace" ]; slots = [];
+        label = "Settings"; category = [ "Workspace" ]; slots = []; slot_types = [];
         fields = window_fields };
       { Flow_sop.Catalog.qualified="image/noise"; key="noise"; operation="image/noise";
-        label="Noise"; category=["Image"]; slots=[];
+        label="Noise"; category=["Image"]; slots=[]; slot_types=[];
         fields=Edit.factory_fields Image_nodes.noise_factory } ]
 
 (* The catalog is a function of the factories alone, and every edit asks for it (0.18 ms and

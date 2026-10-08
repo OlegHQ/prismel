@@ -1,5 +1,8 @@
 open Rays_math
 
+type image_channel = Attribute_image.channel = Red | Green | Blue | Alpha | Luminance
+let from_image = Attribute_image.from_image
+
 type method_ = Attribute_promote.method_ =
   | First
   | Last

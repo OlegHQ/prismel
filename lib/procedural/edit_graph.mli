@@ -96,6 +96,7 @@ val disconnect : consumer:int -> input_index:int -> t -> (t, string) result
 val factory :
   ?operation:string ->
   ?slots:string list ->
+  ?input_types:string list ->
   ?fields:Parameter.field_view list ->
   ?output_fields:Parameter.field_view list ->
   key:string ->
@@ -107,6 +108,7 @@ val factory :
 val factory_slots :
   ?operation:string ->
   ?slots:string list ->
+  ?input_types:string list ->
   ?fields:Parameter.field_view list ->
   ?output_fields:Parameter.field_view list ->
   key:string ->
@@ -127,7 +129,11 @@ val factory_arity : factory -> int
 val factory_inputs : factory -> input_requirement list
 
 val factory_slot_names : factory -> string list
-(** Named geometry inputs, in slot order; defaults to [in0], [in1], … . *)
+(** Named inputs, in slot order; defaults to [in0], [in1], … . *)
+
+val factory_input_types : factory -> string list
+(** Nominal input type names, defaulting to [geometry]. The Flow catalog
+    validates them against the registered types. *)
 
 val instantiate : factory -> Node.t list -> (Node.t, string) result
 val instantiate_optional : factory -> Node.t option list -> (Node.t, string) result

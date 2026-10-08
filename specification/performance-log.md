@@ -6807,3 +6807,26 @@ Evidence: `/private/tmp/pl-editor-before.log`,
 `/private/tmp/pl-editor-after.log`, `/private/tmp/pl-scope-before-isolated.log`,
 `/private/tmp/pl-scope-after-isolated.log`, `/private/tmp/pl-probe-fix-check.log`.
 An earlier remeasure overlapped another agent's build and was discarded.
+## PL image attribute sampler (2026-10-08)
+
+Apple M1, arm64 macOS 27.0.1, OCaml 5.3.0, dev profile. Command from the
+isolated clone: `_build/default/lib/procedural/test_attr_from_image.exe --bench`.
+All agents confirmed their processes were terminal before the run. One million
+Point Float2 UVs sample a 2×2 RGBA image through the actual SOP and an uncached
+Session; each trial also copies the public float attribute for reading. After
+warmup, seven trials at grain 16,384 gave these wall-time medians:
+
+| Domains | Median | Caller-domain allocation per trial |
+|---:|---:|---:|
+| 1 | 52.543 ms | 112,015,560 bytes |
+| 8 | 14.498 ms | 29,111,616 bytes |
+
+Allocation uses `Gc.allocated_bytes` on the caller; worker allocation is
+excluded, so these rows do not demonstrate a reduction in total allocation.
+The new operation has no pre-change timing. Every trial compares its complete
+float attribute byte-for-byte with the one-domain result. Focused tests also
+check channels/luminance, bilinear corner and interior values, clamped UVs,
+Float3/custom UV names, single-row/column images, malformed input, cancellation,
+typed payload errors, and preservation of position/topology identities.
+The generated mixed input signature is checked, projected, connectable and
+disconnectable; the actual editor add gesture supplies a real image default.

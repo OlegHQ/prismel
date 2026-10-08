@@ -88,7 +88,7 @@ let () =
   let evaluated = Result.get_ok (Eval.run ~time:0. (Option.get ws)) in
   assert (List.assoc "g" evaluated.results = Eval.Struct ("custom/root", Ty.scene, []));
   assert (Array.length evaluated.plan.nodes = 0);
-  let k = {k with slots=[{Check.name="child"; required=true; rest=false}]} in
+  let k = {k with slots=[{Check.name="child"; required=true; rest=false; ty=None}]} in
   let ws, ds = Workspace.check {empty with kinds=[k]} (Result.get_ok (Syntax.parse
     "(workspace w (graph g :context scene (first (map root (list nil)))))")) in
   assert (ds = []);

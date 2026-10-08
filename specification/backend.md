@@ -704,3 +704,12 @@ nodes before submitting a graph to a worker; resource decoding and Canvas render
 never happen in a cook callback. Drawing receives a typed image resolver from the
 same environment owner. Resource failures remain `E_IMAGE`, and no alternate raster
 backend is introduced.
+## Mixed cooked SOP inputs
+
+The cooked-payload boundary also permits mixed nominal SOP inputs.
+`sop/attr_from_image` takes geometry and a renderer-independent image,
+borrows its immutable normalized RGBA plane for the exact RDK bilinear
+Point-UV sampler, and returns geometry with a float attribute. No renderer,
+resource handle or native image type reaches RDK; the existing library
+dependency edges are unchanged. Factory slot type names pass through the
+generated catalog to Flow checking and graph projection.

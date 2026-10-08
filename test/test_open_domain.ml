@@ -130,7 +130,7 @@ let () =
   check (List.assoc "g" (ok (Flow.Eval.static declared.checked)).results = Flow.Eval.Deferred (toy, 0))
     "custom catalog context ignored declared result type";
   let vocab = L.vocab [Flow_sop.Catalog.{qualified = "toynodes/item"; key = "item";
-    operation = "item"; label = "Item"; category = ["Toy"]; slots = []; fields = []}] in
+    operation = "item"; label = "Item"; category = ["Toy"]; slots = []; slot_types = []; fields = []}] in
   let prefix = "(workspace w (graph g :context toy (item" in
   check (List.exists (fun (entry : Pxui.Ui.completion) -> entry.insert = "toynodes/item")
     (L.complete vocab prefix (String.length prefix))) "catalog completion confused prefix with context identity";

@@ -106,6 +106,12 @@ let () =
   let _, _, _, _, _, _, slots, _ = Ppx_rays.node_metadata
       (declaration vector (node "fixture" "[@@sop.node_slots \"input, target\"]")) in
   assert (slots = ["input"; "target"]);
+  List.iter (fun types -> reject "sop.node_types requires 2 valid type names" (fun () ->
+    Ppx_rays.generate_node_type (declaration vector
+      (node "fixture" ("[@@sop.node_types " ^ types ^ "]")))))
+    ["\"geometry\""; "\"geometry, bad type\""; "\"geometry, Image\""];
+  ignore (Ppx_rays.generate_node_type (declaration vector
+    (node "fixture" "[@@sop.node_types \"geometry, image\"]")));
   List.iter (fun attributes -> reject
       "sop.node_rest must name the final slot after required inputs" (fun () ->
         Ppx_rays.node_metadata (declaration vector (node "fixture" attributes))))

@@ -40,6 +40,7 @@ let node_inputs_attribute = type_expression_attribute "sop.node_inputs"
 let node_optional_attribute = type_expression_attribute "sop.node_optional"
 let node_rest_attribute = type_expression_attribute "sop.node_rest"
 let node_slots_attribute = type_expression_attribute "sop.node_slots"
+let node_types_attribute = type_expression_attribute "sop.node_types"
 let record_validate_attribute = type_expression_attribute "sop.validate"
 let register_attribute =
   Attribute.declare_flag "sop.register" Attribute.Context.module_binding
@@ -709,6 +710,15 @@ let generate_node_type declaration =
   let loc = declaration.ptype_loc in
   let key, operation, label, category, inputs, optional, slots, rest =
     node_metadata declaration in
+  let input_types = match Attribute.get node_types_attribute declaration with
+    | None -> []
+    | Some expression ->
+        let names = string_constant expression "sop.node_types"
+          |> String.split_on_char ',' |> List.map String.trim in
+        if List.length names <> inputs || not (List.for_all Flow.Symbol.valid_name names) then
+          Location.raise_errorf ~loc:expression.pexp_loc
+            "sop.node_types requires %d valid type names" inputs;
+        [Labelled "input_types", elist ~loc (List.map (estring ~loc) names)] in
   let typed = [value_binding ~loc (declaration.ptype_name.txt ^ "_fn")
     (typed_function declaration ~key ~inputs ~optional ~slots ~rest
       ~arguments:(node_arguments declaration slots))] in
@@ -733,7 +743,7 @@ let generate_node_type declaration =
       (ident ~loc ["Procedural"; "Parameter"; "view"])
       [Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_schema");
        Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_default")];
-    Labelled "category", elist ~loc (List.map (estring ~loc) category) ] in
+    Labelled "category", elist ~loc (List.map (estring ~loc) category) ] @ input_types in
   let factory = if optional = [] && Option.is_none rest then
       apply ~loc (ident ~loc ["Procedural"; "Edit_graph"; "factory"])
         (common @ [Labelled "arity", eint ~loc inputs; Nolabel, constructor])
@@ -787,7 +797,7 @@ let attributes = List.map (fun attribute -> Attribute.T attribute)
 
 let node_attributes = List.map (fun attribute -> Attribute.T attribute)
     [node_key_attribute; node_operation_attribute; node_label_attribute; node_category_attribute; node_facts_attribute;
-     node_inputs_attribute; node_optional_attribute; node_slots_attribute; node_rest_attribute]
+     node_inputs_attribute; node_optional_attribute; node_slots_attribute; node_types_attribute; node_rest_attribute]
   @ List.map (fun attribute -> Attribute.T attribute)
     [nonblank_attribute; validate_attribute; hard_min_attribute;
      hard_max_attribute; vec3_attribute]

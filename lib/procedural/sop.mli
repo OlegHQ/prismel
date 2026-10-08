@@ -19,6 +19,12 @@ val snapshot : ?label:string -> Rdk.Geometry.t -> Node.t
 
 val points : ?label:string -> (float * float * float) array -> Node.t
 
+val attr_from_image :
+  ?label:string -> ?attribute:string -> ?channel:Rdk.Attribute_ops.image_channel ->
+  ?uv:string -> Node.t -> Node.t -> Node.t
+(** Geometry then image. Samples normalized Point UV with clamped bilinear
+    filtering into a float attribute; [v=0] is the first image row. *)
+
 (* Generate an origin point cloud without an input. The generated point and
     local-index metadata default to [sourcepoint] (always [-1]) and
     [sourceindex] (the stable generated point number). *)

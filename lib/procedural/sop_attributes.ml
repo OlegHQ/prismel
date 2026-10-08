@@ -6,6 +6,43 @@ open Sop_support
 (* ocamldep must see the PPX's [Procedural.X] resolve inside this library. *)
 module Procedural = Sop_support.Procedural
 
+module Attr_from_image = struct
+  let channel_parameter = Parameter.choice ~equal:( = ) [
+    "r", Rdk.Attribute_ops.Red; "g", Rdk.Attribute_ops.Green;
+    "b", Rdk.Attribute_ops.Blue; "a", Rdk.Attribute_ops.Alpha;
+    "luminance", Rdk.Attribute_ops.Luminance]
+  type parameters = {
+    attribute : string [@sop.default "image"] [@sop.label "Attribute"]
+      [@sop.primary] [@sop.nonblank "empty attribute name"];
+    channel : Rdk.Attribute_ops.image_channel [@sop.default Rdk.Attribute_ops.Red]
+      [@sop.label "Channel"] [@sop.primary] [@sop.kind channel_parameter];
+    uv : string [@sop.default "uv"] [@sop.label "UV attribute"]
+      [@sop.nonblank "empty UV attribute name"];
+  } [@@sop.node_key "attr_from_image"] [@@sop.node_label "Attribute from Image"]
+    [@@sop.node_category "Attribute/Image"] [@@sop.node_inputs 2]
+    [@@sop.node_slots "geometry, image"] [@@sop.node_types "geometry, image"]
+    [@@sop.node_facts {elementwise = Node.Points; reads = [parameters.uv];
+      writes = [parameters.attribute]; topology = Node.Preserved; exact = true}]
+    [@@sop.validate fun parameters -> if parameters.attribute = "P" then
+      invalid_arg "Sop.attr_from_image: attribute cannot be P"]
+    [@@deriving sop_params, sop_node]
+  let build = parameters_build (fun ~label parameters geometry image ->
+    Node.Private.make ~label ~operation:"attr_from_image" ~version:1 ~parameters:""
+      ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
+      ~inputs:[|geometry; image|] (fun ~node_id:_ context inputs ->
+        Result.bind (Payload.geometry inputs.(0)) (fun geometry ->
+          Result.bind (Payload.image inputs.(1)) (fun image ->
+            match Rdk.Attribute_ops.from_image ~cancel:(Context.cancel_token context)
+              ~grain:(Context.grain context) ~uv:parameters.uv ~attribute:parameters.attribute
+              ~channel:parameters.channel ~width:(Image.width image) ~height:(Image.height image)
+              ~rgba:(Image.Private.storage image) geometry with
+            | Error error -> structured_rdk_error error
+            | Ok geometry -> Ok Node.Private.{payload = Payload.Geometry geometry;
+                diagnostics = []; instances = None}))))
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
 module Uv_flatten = struct
   type parameters = {
     name : string [@sop.default "uv"] [@sop.label "UV attribute"] [@sop.nonblank "empty attribute name"];

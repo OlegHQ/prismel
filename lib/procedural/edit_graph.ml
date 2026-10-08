@@ -18,6 +18,7 @@ type factory = {
 
   requirements : input_requirement array;
   slots : string array;
+  input_types : string list;
   build : Node.t option list -> Node.t;
   facts : Node.facts Lazy.t;
 }
@@ -393,6 +394,15 @@ let slot_names arity = function
         invalid_arg "Edit_graph factory slots must have one distinct name per input";
       Array.of_list names
 
+let slot_types arity = function
+  | None -> List.init arity (fun _ -> "geometry")
+  | Some names ->
+      let valid name = String.length name > 0 && name.[0] >= 'a' && name.[0] <= 'z'
+        && String.for_all (function 'a' .. 'z' | '0' .. '9' | '_' -> true | _ -> false) name in
+      if List.length names <> arity || not (List.for_all valid names) then
+        invalid_arg "Edit_graph factory input_types must have one valid type name per input";
+      names
+
 let share_default_values fields =
   List.map (fun (field : Parameter.field_view) ->
     let equal = match field.default, field.current with
@@ -408,7 +418,7 @@ let default_facts requirements build = lazy (
     | Optional | Optional_rest -> None) requirements) in
   Node.facts (build inputs))
 
-let factory ?operation ?slots ?(fields = []) ?output_fields:_
+let factory ?operation ?slots ?input_types ?(fields = []) ?output_fields:_
     ~key ~label ~category ~arity build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
@@ -422,9 +432,10 @@ let factory ?operation ?slots ?(fields = []) ?output_fields:_
   { key; operation; label; category; fields = share_default_values fields;
     requirements;
     slots = slot_names arity slots;
+    input_types = slot_types arity input_types;
     build; facts = default_facts requirements build }
 
-let factory_slots ?operation ?slots ?(fields = []) ?output_fields:_
+let factory_slots ?operation ?slots ?input_types ?(fields = []) ?output_fields:_
     ~key ~label ~category ~inputs build =
   let operation = Option.value ~default:key operation in
   if String.trim key = "" || String.trim operation = ""
@@ -439,7 +450,8 @@ let factory_slots ?operation ?slots ?(fields = []) ?output_fields:_
   let requirements = Array.of_list inputs in
   { key; operation; label; category; fields = share_default_values fields;
     requirements;
-    slots = slot_names (List.length inputs) slots; build;
+    slots = slot_names (List.length inputs) slots;
+    input_types = slot_types (List.length inputs) input_types; build;
     facts = default_facts requirements build }
 
 let factory_key (value : factory) = value.key
@@ -451,6 +463,7 @@ let factory_facts (value : factory) = Lazy.force value.facts
 let factory_arity (value : factory) = Array.length value.requirements
 let factory_inputs (value : factory) = Array.to_list value.requirements
 let factory_slot_names (value : factory) = Array.to_list value.slots
+let factory_input_types (value : factory) = value.input_types
 
 let instantiate (value : factory) inputs =
   let arity = Array.length value.requirements in

@@ -14,7 +14,7 @@ let box = Check.{qualified = "sop/box"; aliases = [];
   context = Context.sop; slots = []; parameters = [size; rows; mode];
   outputs = ["geo", Port_type.Geometry]; facts = None}
 let transform = Check.{qualified = "sop/transform"; aliases = [];
-  context = Context.sop; slots = [{name = "in0"; required = true; rest = false}]; parameters = [];
+  context = Context.sop; slots = [{name = "in0"; required = true; rest = false; ty = None}]; parameters = [];
   outputs = ["geo", Port_type.Geometry]; facts = None}
 let catalog = Check.{version = 202609; kinds = [box; transform]}
 

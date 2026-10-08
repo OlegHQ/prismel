@@ -95,8 +95,8 @@ let scope_add value key =
       let ws, _ = value.doc.Document.workspace in
       let is_value = String.length key > 0 && key.[0] = '=' in
       let material_of = String.starts_with ~prefix:"of-material:" key in
-      let arity = match List.find_opt (fun f -> Edit_graph.factory_key f = key)
-          (catalog value context) with
+      let factory = List.find_opt (fun f -> Edit_graph.factory_key f = key) (catalog value context) in
+      let arity = match factory with
         | Some factory -> Edit_graph.factory_arity factory | None -> if material_of then 1 else 0 in
       let selected = Pxui_graph.Scope.selected value.scope_view in
       let scope, input = match selected with
@@ -125,10 +125,18 @@ let scope_add value key =
             | context, "geometry", Some g when context = Flow.Context.scene -> [ Flow.Syntax.make (Flow.Syntax.List
                 [ Flow.Syntax.make (Flow.Syntax.Sym "ref"); Flow.Syntax.make (Flow.Syntax.Sym g.name) ]) ]
             | _ -> [] in
-          Flow.Syntax.make (Flow.Syntax.List (head :: geometry
-            @ (match input with
+          let positional = geometry @ (match input with
                | Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ]
-               | None -> if arity > 0 && geometry = [] then [ Flow.Syntax.make (Flow.Syntax.Sym "nil") ] else [])
+               | None -> if arity > 0 && geometry = [] then [ Flow.Syntax.make (Flow.Syntax.Sym "nil") ] else []) in
+          let defaults = match factory with None -> [] | Some factory ->
+            List.combine (Edit_graph.factory_slot_names factory)
+              (List.combine (Edit_graph.factory_inputs factory) (Edit_graph.factory_input_types factory))
+            |> List.mapi (fun i (name, (required, ty)) ->
+              if i < List.length positional || ty = "geometry" || required <> Edit_graph.Required then [] else
+              match Option.bind (Flow.Ty.of_string ty) Flow.Ty.default with
+              | None -> []
+              | Some form -> [Flow.Syntax.make (Flow.Syntax.Kw name); form]) |> List.concat in
+          Flow.Syntax.make (Flow.Syntax.List (head :: positional @ defaults
             @ (if material_of then [ Flow.Syntax.make (Flow.Syntax.Kw "material");
                 Flow.Syntax.make (Flow.Syntax.List [ Flow.Syntax.make (Flow.Syntax.Sym "ref");
                   Flow.Syntax.make (Flow.Syntax.Sym (String.sub key 12 (String.length key - 12))) ]) ] else []))),

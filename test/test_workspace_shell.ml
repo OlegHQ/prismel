@@ -317,6 +317,11 @@ let run_values () =
   let e = add "str" in
   check (has (source e) "(str \"text\")") ("a str binding: " ^ source e);
   E3.close e;
+  let e = add "attr_from_image" in
+  check (E3.undo_label e = Some "Add node" && has (source e) "sop/attr_from_image"
+         && has (source e) ":image (image/noise :width 1 :height 1)")
+    ("a mixed SOP has a real image default through the add menu: " ^ source e);
+  E3.close e;
   List.iter (fun op -> let e = add op in
     check (E3.undo_label e = Some "Add node" && has (source e) ("(" ^ op))
       ("a frame/array operator has checked menu defaults: " ^ source e);

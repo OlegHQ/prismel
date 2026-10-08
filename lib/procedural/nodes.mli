@@ -43,6 +43,7 @@ module Blast : sig
     Node.t -> Node.t
 end
 module Uv_flatten : sig val factory : Edit_graph.factory end
+module Attr_from_image : sig val factory : Edit_graph.factory end
 module Uv_relax : sig val factory : Edit_graph.factory end
 module Rename_attributes : sig val factory : Edit_graph.factory end
 module Line : sig val factory : Edit_graph.factory end

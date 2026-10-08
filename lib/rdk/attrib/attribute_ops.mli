@@ -895,3 +895,14 @@ val transfer_all :
     use parallel disjoint fills internally, avoiding nested-pool
     oversubscription. Detail payloads are structurally shared last. Output is
     byte-identical to the corresponding sequence of owner-specific calls. *)
+
+type image_channel = Red | Green | Blue | Alpha | Luminance
+val from_image :
+  ?cancel:Rdk_core.Cancel.t -> ?grain:int -> ?uv:string -> attribute:string ->
+  channel:image_channel -> width:int -> height:int -> rgba:float array ->
+  Rdk_core.Geometry.t -> (Rdk_core.Geometry.t, Rdk_core.Error.t) result
+(** Bilinear normalized Point Float2/Float3 UV sampling into a Point float
+    attribute. Coordinates clamp to [0,1], and v=0 names the first image row.
+    Dimensions and finite [0,1] row-major RGBA are checked. The input storage
+    is borrowed only for this call. O(pixels + points) work, O(points) output
+    storage; disjoint point ranges preserve exact one/multi-domain values. *)

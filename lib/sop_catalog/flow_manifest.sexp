@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "ecd0871bb522b20c29cf015e56f54fa0")
+  (digest "c318ff1f1422ef5db2d49a692a90e968")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -232,6 +232,19 @@
         (field "uv_attribute" "UV attribute" (folder "Attributes") (text) (text "uv") (primary false) (vec3)))
       (outputs (output "geo" geometry))
       (facts (cook-mode generator) (elementwise none) (reads "*") (writes "*") (topology changed) (exact true)))
+    (kind "sop/attr_from_image"
+      (key "attr_from_image")
+      (aliases)
+      (operation "attr_from_image")
+      (label "Attribute from Image")
+      (category "Attribute" "Image")
+      (slots (slot "geometry" required) (slot "image" required image))
+      (fields
+        (field "attribute" "Attribute" (folder) (text) (text "image") (primary true) (vec3))
+        (field "channel" "Channel" (folder) (choice "r" "g" "b" "a" "luminance") (choice "r") (primary true) (vec3))
+        (field "uv" "UV attribute" (folder) (text) (text "uv") (primary false) (vec3)))
+      (outputs (output "geo" geometry))
+      (facts (cook-mode duplicate-input 0) (elementwise points) (reads "uv") (writes "image") (topology preserved) (exact true)))
     (kind "sop/torus"
       (key "torus")
       (aliases)

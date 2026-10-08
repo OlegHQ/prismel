@@ -77,11 +77,14 @@ let entry ?facts:declaration ~qualified ~key ~operation ~label ~category ~slots 
 
 let descriptor ?facts (d : Catalog.descriptor) =
   let module Edit = Procedural.Edit_graph in
-  let slots = List.map (fun (name, requirement) ->
+  let types = if d.slot_types = [] then List.map (fun _ -> "geometry") d.slots else d.slot_types in
+  let slots = List.map2 (fun (name, requirement) ty ->
     group "slot" [quote name; (match requirement with
       | Edit.Required -> "required" | Edit.Optional -> "optional"
       | Edit.Rest -> "rest"
-      | Edit.Optional_rest -> "optional-rest")]) d.slots in
+      | Edit.Optional_rest -> "optional-rest")]
+      |> fun slot -> if ty = "geometry" then slot else
+        String.sub slot 0 (String.length slot - 1) ^ " " ^ ty ^ ")") d.slots types in
   entry ?facts ~qualified:d.qualified ~key:d.key ~operation:d.operation ~label:d.label
     ~category:d.category ~slots ~fields:d.fields
     ~result:(if String.starts_with ~prefix:"sop/" d.qualified

@@ -21,6 +21,10 @@
  (name test_parallel_branches)
  (modules test_parallel_branches)
  (libraries procedural rdk rays_math rdk_test_support unix))
+(test
+ (name test_attr_from_image)
+ (modules test_attr_from_image)
+ (libraries procedural rdk unix))
 
 (executable
  (name test_main)

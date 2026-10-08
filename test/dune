@@ -295,3 +295,7 @@
   (alias test_viewport_pick)
   (alias test_workspace_source)
   (alias test_bloom_studio)))
+(test
+ (name test_image_sop)
+ (modules test_image_sop)
+ (libraries procedural rdk flow_graph flow_sop editor_document sop_catalog))

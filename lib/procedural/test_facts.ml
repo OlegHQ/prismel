@@ -176,12 +176,18 @@ let test_refusals () =
   Session.close evaluator
 
 let test_declarations () =
-  let source = Sop.snapshot (fixture ()) in
+  let geometry = fixture () in
+  let count = Geometry.point_count geometry in
+  let uv = Packed.Float2.of_owned ~x:(Array.make count 0.) ~y:(Array.make count 0.) |> get in
+  let uv = Attribute.create_owned ~name:"uv" ~owner:Attribute.Point (Float2 uv) |> get in
+  let source = Sop.snapshot (Geometry.with_attribute uv geometry |> get) in
+  let image = Image_nodes.noise ~width:1 ~height:1 () in
   let evaluator = session () in
   let preserved = ref [] in
   List.iter (fun factory ->
     let node = Edit_graph.instantiate_optional factory
-      (List.init (Edit_graph.factory_arity factory) (fun _ -> Some source)) |> get in
+      (List.map (function "image" -> Some image | _ -> Some source)
+        (Edit_graph.factory_input_types factory)) |> get in
     let declaration = Node.facts node in
     if declaration.topology = Node.Preserved && declaration.cook_mode = Node.Duplicate_input 0 then begin
       let input = (Result.get_ok (Procedural.Payload.geometry (cook evaluator 1 source).payload)) in

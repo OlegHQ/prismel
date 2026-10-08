@@ -37,6 +37,7 @@ let points ?label values =
       else cooked (Rdk.Line_geometry.points values))
 
 let point_generate_origin = Sop_shapes.Point_generate.fn
+let attr_from_image = Sop_attributes.Attr_from_image.fn
 
 let line = Sop_shapes.Line.fn
 

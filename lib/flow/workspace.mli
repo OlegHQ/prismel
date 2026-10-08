@@ -152,7 +152,7 @@ val value_ops : string list
 (** The built-in operators any graph may call ([+], [sin], [value/rand], [range], ...): the value
     part of the add menu. *)
 
-val slot_ty : Check.kind -> Ty.t
+val slot_ty : ?slot:Check.slot -> Check.kind -> Ty.t
 (** The type a catalog kind's slots take (geometry; a World layer; the World of [scene/world]; the scene of [scene/root]). *)
 
 val group_reader : Check.parameter -> bool

@@ -8,6 +8,8 @@ type descriptor = {
   label : string;
   category : string list;
   slots : (string * Procedural.Edit_graph.input_requirement) list;
+  slot_types : string list;
+  (** Optional nominal type names in slot order. Empty keeps the context defaults. *)
   fields : Param.field_view list;
 }
 (** One catalog kind: a SOP factory, or a scene, world or settings kind that

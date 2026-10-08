@@ -449,8 +449,8 @@ let run ?(exhaustive = false) () =
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 160
-      && List.length (List.sort_uniq String.compare factory_keys) = 160)
+  check (List.length factory_keys = 161
+      && List.length (List.sort_uniq String.compare factory_keys) = 161)
     "PPX SOP manifest has a missing or duplicate factory key";
   check (List.mem "material" factory_keys) "SOP editor catalog is missing material";
   check (not (List.mem "delete_attribute" factory_keys))
@@ -506,7 +506,7 @@ let run ?(exhaustive = false) () =
       ("SOP editor attribute catalog is missing " ^ key))
     ["measure"; "connectivity"; "set_float"; "set_int"; "set_vector";
      "set_orient"; "set_transform"; "set_color";
-     "rest_position"; "enumerate"; "attribute_blur"];
+     "rest_position"; "enumerate"; "attribute_blur"; "attr_from_image"];
   List.iter (fun key -> check (List.mem key factory_keys)
       ("SOP editor UV catalog is missing " ^ key))
     ["uv_project"; "uv_transform"; "uv_auto_seam"; "uv_unitize";

@@ -4,7 +4,7 @@ type parameter = {
   folder : string list; primary : bool;
   unit : string option;
 }
-type slot = { name : string; required : bool; rest : bool }
+type slot = { name : string; required : bool; rest : bool; ty : Ty.t option }
 type kernel_elements = Points | Primitives | Irregular
 type kernel_facts = {
   elementwise : kernel_elements;
@@ -193,12 +193,18 @@ let catalog_of_manifest source =
               | _ -> bad form "Duplicate kernel facts" in
             let slots = tagged "slots" (get "slots") |> List.map (fun slot ->
               match tagged "slot" slot with
-              | [name; required] ->
+              | name :: required :: types when List.length types <= 1 ->
+                  let ty = match types with
+                    | [] -> None
+                    | [type_] -> (match Ty.of_string (word type_) with
+                        | Some (Ty.Named _ as ty) -> Some ty
+                        | _ -> bad type_ "Unknown nominal slot type")
+                    | _ -> assert false in
                   (match word required with
-                    | "required" -> {name = string name; required = true; rest = false}
-                    | "optional" -> {name = string name; required = false; rest = false}
-                    | "rest" -> {name = string name; required = true; rest = true}
-                    | "optional-rest" -> {name = string name; required = false; rest = true}
+                    | "required" -> {name = string name; required = true; rest = false; ty}
+                    | "optional" -> {name = string name; required = false; rest = false; ty}
+                    | "rest" -> {name = string name; required = true; rest = true; ty}
+                    | "optional-rest" -> {name = string name; required = false; rest = true; ty}
                     | _ -> bad required "Unknown slot requirement")
               | _ -> bad slot "Malformed slot in Flow manifest") in
             let fields = List.map field (tagged "fields" (get "fields")) in
