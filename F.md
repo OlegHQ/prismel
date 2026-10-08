@@ -139,8 +139,11 @@ an indexed finite-value check at the shared packed-array validation boundary;
 the indexed validation trial is now implemented and measured: eight-domain
 whole cook 12.350→11.300 ms, one-domain time flat, allocation reduced by
 13.18 MB. The strict <10 ms gate remains open. Astra next approves only
-deterministic row chunks for SOP grid filling through the shared pool;
-that scheduling trial is pending.
+deterministic row chunks for SOP grid filling through the shared pool.
+That trial regressed whole cooking at both domain counts and is reverted;
+its exactness/cancellation tests and raw measurements are retained. Astra
+next approves time-only attribution of preparation into map construction
+and IR compilation. The strict <10 ms whole-cook gate remains open.
 F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
 This checkpoint's focused checks, `--ship` and full F5 native/pixel validation
 passed (exit 0) on the confirmed M1, including the 37-file pixel sweep.
@@ -738,8 +741,25 @@ joining. No grid work moves outside timed cooking. Non-dyadic `(7,5,9)`
 actual-coordinate/geometry checks at grains 97, 240 and max_int plus
 precancellation must pass; save-before seven-trial one/eight whole cooks
 and paired eight-domain time-only attribution are required. That trial is
-pending; the strict eight-domain whole-cook <10 ms gate remains open.
+now measured and rejected; the strict eight-domain whole-cook <10 ms gate remains open.
 The validation checkpoint passes `--ship` and native GPU numerics (exit 0).
+
+**Grid trial (2026-10-09).** Complete row chunks preserve all sample and mesh
+bytes, including non-dyadic bounds, tail chunks, sequential cutoffs and
+precancellation. However, seven isolated uninstrumented whole-cook trials
+regress 27.515→30.298 ms at one domain and 11.641→12.343 ms at eight.
+Time-only eight-domain grid attribution improves 1.449→0.566 ms, while
+extraction increases 5.983→10.919 ms in those instrumented runs. This locates
+elapsed time without establishing its cause. Astra says revert production
+scheduling and retain tests/evidence. Sequential grid filling is restored.
+Its next verdict is “not met, try time-only attribution of bulk preparation
+into map construction and IR compilation.” Temporarily measure the existing
+`E.Private.map_function` and `Attribute_kernel.prepare` calls as children of
+the coarse preparation interval; do not count them twice. Buffer output,
+retain warm-up ID -1 and timed IDs 0..6, verify one child pair per cook and
+containment in the parent, preserve complete hashes/cardinalities, and run
+seven isolated one/eight-domain uninstrumented and instrumented trials.
+Restore source byte-for-byte afterward. No algorithm change is approved.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value

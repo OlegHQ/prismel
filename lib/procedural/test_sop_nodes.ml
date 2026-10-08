@@ -9,8 +9,8 @@ open Rdk_test_support
 
 let get = function Ok value -> value | Error message -> fail message
 
-let cook domains graph =
-  let context = Context.create ~domains ~grain:97 ~seed:42L () |> get in
+let cook ?(grain = 97) domains graph =
+  let context = Context.create ~domains ~grain ~seed:42L () |> get in
   let session = Session.create ~max_entries:8 ~max_payload_bytes:200_000_000 |> get in
   let output = match Session.cook session ~context graph with
     | Ok value -> (Result.get_ok (Procedural.Payload.geometry value.payload))
@@ -102,27 +102,52 @@ let run () =
     ~catalog:(from_factory Nodes.Iso_surface.factory
       ["resolution_x", Parameter.Float_value 8.; "resolution_y", Float_value 9.;
        "resolution_z", Float_value 7.] [field]);
-  let checked_lattice = Node.Private.make ~operation:"test.field-lattice" ~version:1 ~parameters:""
+  let checked_lattice (rx, ry, rz) (min : Vec3.t) (max : Vec3.t) =
+    let nx = rx + 1 and ny = ry + 1 in
+    let prepared = ref 0 in
+    let field = Node.Private.make ~operation:"test.field-lattice" ~version:1 ~parameters:""
       ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs:[||]
       (fun ~node_id:_ _ _ ->
         let kernel = Kernel.create ~payload_bytes:0 (function
           | [Kernel.Vec3s positions] ->
-              assert (Array.length positions = 3 * 130 * 257 * 3);
+              incr prepared;
+              assert (Array.length positions = 3 * nx * ny * (rz + 1));
               Array.iteri (fun j coordinate ->
                 let i = j / 3 in
                 let expected = match j mod 3 with
-                  | 0 -> Float.fma (float_of_int (i mod 130)) (5. /. 129.) (-2.)
-                  | 1 -> Float.fma (float_of_int ((i / 130) mod 257)) (3.5 /. 256.) (-1.5)
-                  | _ -> Float.fma (float_of_int (i / (130 * 257))) (2.7 /. 2.) (-1.) in
+                  | 0 -> Float.fma (float_of_int (i mod nx)) ((max.x -. min.x) /. float rx) min.x
+                  | 1 -> Float.fma (float_of_int ((i / nx) mod ny)) ((max.y -. min.y) /. float ry) min.y
+                  | _ -> Float.fma (float_of_int (i / (nx * ny))) ((max.z -. min.z) /. float rz) min.z in
                 assert (Int64.bits_of_float coordinate = Int64.bits_of_float expected)) positions;
               Ok (fun _ -> Ok (Kernel.Floats
                 (Array.init (Array.length positions / 3) (fun i -> positions.(3*i)))))
           | _ -> assert false) in
         Ok Node.Private.{payload = Payload.Kernel kernel; diagnostics = []; instances = None}) in
-  let asymmetric = Sop.iso_surface ~field:checked_lattice ~resolution:(Vec3.create 129. 256. 2.)
-      ~min:(Vec3.create (-2.) (-1.5) (-1.)) ~max:(Vec3.create 3. 2. 1.7) () in
-  check (geometry_bytes (cook 1 asymmetric) = geometry_bytes (cook 8 asymmetric))
-    "iso_surface: actual asymmetric SOP lattice uses fused coordinates at one/eight domains";
+    field, prepared in
+  List.iter (fun (resolution, min, max, grains) ->
+    let field, prepared = checked_lattice resolution min max in
+    let rx, ry, rz = resolution in
+    let node = Sop.iso_surface ~field ~resolution:(Vec3.create (float rx) (float ry) (float rz))
+      ~min ~max () in
+    let expected = Rdk.Iso_surface.extract_dense ~resolution ~min ~max ~iso:0.
+      ~field:(Rdk.Iso_surface.Field.custom (fun p -> p.(0))) () |> get_ok |> geometry_bytes in
+    List.iter (fun grain -> List.iter (fun domains ->
+      check (geometry_bytes (cook ~grain domains node) = expected)
+        "iso_surface: actual row-chunk lattice and complete geometry match independent FMA samples")
+      [1;8]) grains;
+    List.iter (fun domains ->
+      let cancel = Context.Cancel.create () in
+      Context.Cancel.cancel cancel;
+      let context = Context.create ~domains ~grain:97 ~cancel () |> get in
+      let session = Session.create ~max_entries:0 ~max_payload_bytes:0 |> get in
+      let before = !prepared in
+      Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
+        (match Session.cook session ~context node with
+         | Error error -> assert (error.code = "cancelled")
+         | Ok _ -> fail "iso_surface: precancelled cook succeeded");
+        assert (!prepared = before))) [1;8])
+    [(129,256,2), Vec3.create (-2.) (-1.5) (-1.), Vec3.create 3. 2. 1.7, [97];
+     (7,5,9), Vec3.create (-2.) (-1.4) (-1.2), Vec3.create 2.5 1.7 2.1, [97;240;max_int]];
   let facts = Node.facts (Sop.iso_surface ~resolution ~field ()) in
   check (facts.elementwise = Node.None && facts.topology = Changed && facts.exact)
     "iso_surface: irregular, topology-changing, exact";

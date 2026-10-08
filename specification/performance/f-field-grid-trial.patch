@@ -1,0 +1,46 @@
+diff --git a/lib/procedural/sop_shapes.ml b/lib/procedural/sop_shapes.ml
+index 3e88fd4e..a48d3e28 100644
+--- a/lib/procedural/sop_shapes.ml
++++ b/lib/procedural/sop_shapes.ml
+@@ -67,21 +67,31 @@ module Iso_surface = struct
+           let cancelled () = Error (Diagnostic.error ~code:"cancelled"
+               "Iso surface sample grid cancelled") in
+           if Context.cancelled context then cancelled () else
+-          let positions = Array.make (3 * nx * ny * nz) 0. in
+-          let stopped = ref false in
+-          for z = 0 to rz do
+-            if Context.cancelled context then stopped := true;
+-            if not !stopped then
+-              for y = 0 to ry do
++          let rows = ny * nz in
++          let samples = nx * rows and grain = Context.grain context in
++          let positions = Array.make (3 * samples) 0. in
++          let fill_rows first last =
++            let stopped = ref false in
++            for row = first to last - 1 do
++              if Context.cancelled context then stopped := true;
++              if not !stopped then begin
++                let y = row mod ny and z = row / ny in
+                 for x = 0 to rx do
+-                  let i = 3 * (x + nx * (y + ny * z)) in
++                  let i = 3 * (x + nx * row) in
+                   positions.(i) <- Float.fma (float_of_int x) dx min.x;
+                   positions.(i + 1) <- Float.fma (float_of_int y) dy min.y;
+                   positions.(i + 2) <- Float.fma (float_of_int z) dz min.z
+                 done
+-              done
+-          done;
+-          if !stopped then cancelled () else
++              end
++            done in
++          if samples / grain < 2 then fill_rows 0 rows else begin
++            let rows_per_chunk = 1 + (grain - 1) / nx in
++            let chunks = 1 + (rows - 1) / rows_per_chunk in
++            Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(chunks - 1) (fun chunk ->
++              let first = chunk * rows_per_chunk in
++              fill_rows first (first + Int.min rows_per_chunk (rows - first)))
++          end;
++          if Context.cancelled context then cancelled () else
+           Result.bind (Kernel.prepare kernel [Vec3s positions]) (fun run ->
+           Result.bind (run context) (function
+             | Kernel.Vec3s _ -> Error (Diagnostic.error ~code:"field_type"

@@ -8197,3 +8197,64 @@ confirmed M1. Shipping includes every workspace at four times/domains 1/8;
 native GPU numerics retain the existing tolerances. The preceding full F5
 pixel/native qualification belongs to `8f1f4789`; this checkpoint changes
 only finite-input validation, with complete error/source/field-byte coverage.
+
+## F2.1 field kernel — rejected row-chunk grid trial (2026-10-09)
+
+Confirmed M1/Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev profile,
+grain 16,384, seven isolated trials after one excluded warm-up, fresh
+zero-capacity sessions and existing GC policy. The trial partitions complete
+x-fast rows, computes y/z once per row, preserves the three explicit FMA
+expressions, and uses the shared Parallel pool above the two-grain cutoff.
+Cancellation is chunk-local and checked after joining. Complete actual
+coordinate/mesh tests at domains 1/8, non-dyadic `(7,5,9)` bounds and grains
+97, 240 and max_int pass, including precancellation before preparation.
+
+No builds, tests or benchmarks overlap. Repeat whole cooks at domains 1/8:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-grid-before.exe --fields > specification/performance/f-field-grid-cook-before-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-grid-after.exe --fields > specification/performance/f-field-grid-cook-after-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-validate-time-profile.exe --fields > specification/performance/f-field-grid-time-extract-before-8.csv 2> specification/performance/f-field-grid-time-phase-before-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-grid-time-profile.exe --fields > specification/performance/f-field-grid-time-extract-after-8.csv 2> specification/performance/f-field-grid-time-phase-after-8.csv
+```
+
+| Uninstrumented whole cook | Before median ms | Trial median ms | Before allocated bytes | Trial allocated bytes |
+|---|---:|---:|---:|---:|
+| One domain | 27.515 | 30.298 | 42720424 | 42720576 |
+| Eight domains | 11.641 | 12.343 | 42756776 | 42770048 |
+
+| Eight-domain time-only interval | Before median ms | Trial median ms |
+|---|---:|---:|
+| Grid | 1.449 | 0.566 |
+| Preparation | 1.851 | 1.880 |
+| Kernel | 2.206 | 2.386 |
+| Extraction | 5.983 | 10.919 |
+| Instrumented whole cook | 11.589 | 15.767 |
+
+Instrumented allocation medians are 42,758,160→42,771,760 bytes. All trials
+retain hash `8a9c2d382ab7564328783e84a132cef1`, 85,680 points/vertices and
+28,560 triangles. Full raw timing/allocation/promoted/major rows and outliers
+are in `specification/performance/f-field-grid-*.csv`. The grid interval
+improves, but uninstrumented whole cooking regresses 10.1% at one domain and
+6.0% at eight. Slower instrumented extraction identifies an elapsed-time
+increase; it does not establish its cause. No gate or tolerance changes.
+
+Astra's verdict: “Revert the row-chunk production change; retain its
+regression coverage and raw evidence.” Production SOP source is restored
+byte-for-byte. The rejected algorithm is archived in
+`f-field-grid-trial.patch`; its time-only instrumentation is archived in
+`f-field-grid-time-instrumentation.patch`, applied after that trial patch.
+No profiler or rejected scheduling change ships. Restored `@check`,
+procedural SOP tests, Flow SOP tests and `--ship` pass (exit 0).
+
+Astra next says “not met, try time-only attribution of bulk preparation into
+map construction and IR compilation.” Measure the existing
+`E.Private.map_function` and `Attribute_kernel.prepare` calls as children of
+the coarse preparation interval, retaining full work inside timed cooking.
+No GC snapshots, printing, caching or algorithm changes inside intervals.
+Require one child pair per cook, warm-up ID -1 and timed IDs 0..6, child
+containment in the parent, exact hashes/counts and the existing malformed/
+nonfinite regressions. Run seven isolated restored uninstrumented and
+instrumented trials at domains 1/8, archive `f-field-prepare-*` CSVs and
+restore both sources byte-for-byte. The strict whole-cook <10 ms gate remains
+unmet; the diagnostic is not a performance claim.
