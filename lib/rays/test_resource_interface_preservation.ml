@@ -27,7 +27,9 @@ let run () =
   require (Image.get_size image = (1, 1)
            && Image.Private.identity image = identity) "stable image replacement";
   Image.destroy image;
+  print_endline "audio and image resource interface: ok"
 
+let run_native () =
   let canvas = Canvas.create_exn ~width:2 ~height:2 in
   Canvas.set_pixel canvas ~x:1 ~y:1 (Color.rgba 9 8 7 6);
   require (Canvas.pixel canvas ~x:1 ~y:1 = Some (Color.rgba 9 8 7 6))

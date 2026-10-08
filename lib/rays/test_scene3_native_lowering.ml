@@ -90,7 +90,9 @@ let run () =
   if first.entries.(0).draw.mesh.vertices != second.entries.(0).draw.mesh.vertices
     || first.entries.(0).draw.mesh.key <> second.entries.(0).draw.mesh.key then
     failwith"stable Scene3 mesh was repacked for a camera-only prepare";
-  ();
+  print_endline"Scene3 lowering: exact released View3d reuse, geometry, uniforms, texture mips, shadow, stable pack"
+
+let run_native () =
   let canvas=Canvas.create_exn~width:64~height:64 in
   Fun.protect~finally:(fun()->Canvas.destroy canvas)(fun()->
     let count=4096 in
@@ -112,4 +114,4 @@ let run () =
     if delta>32_768L then
       failwith(Printf.sprintf
         "camera orbit reuploaded Scene3 vertices (%Ld bytes)" delta));
-  print_endline"native Scene3 lowering: exact released View3d reuse, geometry, uniforms, texture mips, shadow, stable orbit pack"
+  print_endline"native Scene3 lowering: camera orbit preserves uploaded geometry"

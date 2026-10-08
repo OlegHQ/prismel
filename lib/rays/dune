@@ -80,11 +80,15 @@
  (action (run %{exe:test_main.exe} test_scene3_native_lowering)))
 
 (rule
+ (aliases runtest-native test_scene3_native_lowering_native)
+ (action (run %{exe:test_main.exe} test_scene3_native_lowering_native)))
+
+(rule
  (aliases runtest test_scene_display_list)
  (action (run %{exe:test_main.exe} test_scene_display_list)))
 
 (rule
- (aliases runtest test_ink)
+ (aliases runtest-native test_ink)
  (action (run %{exe:test_main.exe} test_ink)))
 
 (rule
@@ -96,11 +100,15 @@
  (action (run %{exe:test_main.exe} test_resource_interface_preservation)))
 
 (rule
+ (aliases runtest-native test_resource_interface_preservation_native)
+ (action (run %{exe:test_main.exe} test_resource_interface_preservation_native)))
+
+(rule
  (aliases runtest test_world)
  (action (run %{exe:test_main.exe} test_world)))
 
 (rule
- (aliases runtest test_world_raster)
+ (aliases runtest-native test_world_raster)
  (action (run %{exe:test_main.exe} test_world_raster)))
 
 (rule

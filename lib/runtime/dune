@@ -37,7 +37,7 @@
  (action (run %{exe:test_main.exe} test_runtime_scene3_lighting)))
 
 (rule
- (aliases runtest test_runtime_scene3_instances)
+ (aliases runtest-native test_runtime_scene3_instances)
  (action (run %{exe:test_main.exe} test_runtime_scene3_instances)))
 
 (rule
