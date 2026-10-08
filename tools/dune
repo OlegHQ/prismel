@@ -315,3 +315,5 @@
   bench_workspace_lower.exe
   bench_world.exe
   boolean_stress.exe))
+
+(executable (name port_oracle) (modules port_oracle))

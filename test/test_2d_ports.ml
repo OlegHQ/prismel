@@ -1,0 +1,213 @@
+open Rays
+module E=Flow.Eval
+let ok=function Ok x->x|Error d->failwith(Flow.Diagnostic.to_string d)
+let read path=In_channel.with_open_bin path In_channel.input_all
+let names=["basic";"generative";"noise";"recursive_rectangles";"drawing";"audio";"file_dialog";"pxui"]
+  |>List.filter(fun name->Sys.file_exists("../examples/"^name^"/sketch.rays"))
+let dimensions=function "generative"->500,500|"noise"->800,450|"recursive_rectangles"->720,720
+  |"drawing"->800,500|"file_dialog"->720,420|_->640,360
+let frame ?(synthetic=true) name count =
+  let width,height=dimensions name in
+  let events=if not synthetic then []else match name,count with
+    |"drawing",1->[Event.MousePressed(Input.LeftButton,(100.,140.));MouseMoved(120.,160.)]
+    |"drawing",2->[Event.MouseMoved(140.,180.)]
+    |"drawing",3->[Event.MouseReleased(Input.LeftButton,(160.,190.))]
+    |"recursive_rectangles",1->[Event.MousePressed(Input.LeftButton,(100.,140.))]
+    |"audio",1->[Event.KeyPressed(Input.KeyChar '3')]
+    |"audio",3->[Event.MousePressed(Input.LeftButton,(400.,180.))]
+    |"file_dialog",1->[Event.FileDropped "sample.png";FileDialog{id=1;result=Ok["a.png";"b.png"]}]
+    |"file_dialog",2->[Event.FileDragMoved(90.,140.);MousePinched 1.25]
+    |"file_dialog",3->[Event.FileDragEnded;FileDialog{id=2;result=Ok[]}]
+    |_->[]in
+  let mouse=if not synthetic then 0.,0. else if name="recursive_rectangles"then 100.,140. else -100.,-100. in
+  {Frame.width;height;size=width,height;drawable_width=width;drawable_height=height;
+   drawable_size=width,height;pixel_scale=1.,1.;time=float count/.60.;dt=1./.60.;fps=60.;count;
+   mouse;mouse_delta=0.,0.;mouse_buttons=[];keys=[];events}
+let load name=
+  let source=read("../examples/"^name^"/sketch.rays")in
+  let workspace=match Rays_editor.Workspace.load source with Ok w->w|Error ds->
+    failwith(String.concat"\n"(List.map Flow.Diagnostic.to_string ds))in
+  assert(Editor_document.Workspace_doc.to_text workspace=source);
+  workspace
+let modes=["lisp-a",false,1;"lisp-b",false,1;"cpu-1",false,1;"cpu-8",false,8;
+  "reference-1",true,1;"reference-8",true,8]
+let pictures ?(synthetic=true) name workspace reference domains = Parallel.run ~domains(fun()->
+  let evaluated=ok(E.static ~inputs:workspace.Editor_document.Workspace_doc.inputs workspace.checked)in
+  let prepared=ok(Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan
+    (List.assoc "picture" evaluated.results))in
+  let state=E.create_state()in
+  Array.init 4(fun count->let frame=frame ~synthetic name count in
+    let live=Sketch_support.Live_frame.of_frame frame in
+    ok(Sketch_support.Drawing.render_prepared ~state ~reference prepared ~live ~size:frame.size)))
+let serialize scene=Scene.Private.commands scene |> Scene_command.Render_ir.create |> Result.get_ok
+  |> Scene_command.Render_ir.serialize
+let mode_parity ()=List.iter(fun name->
+  let workspace=load name in
+  let expected=Array.map serialize(pictures name workspace false 1)in
+  List.iter(fun(_,reference,domains)->
+    let actual=Array.map serialize(pictures name workspace reference domains)in
+    assert(actual=expected))modes;
+  Printf.printf "port %s: source roundtrip, four synthetic frames, six-mode command parity\n%!"name)names
+
+(* The generator copies each original main.ml up to its application entry point. *)
+type oracle=Oracle : {name:string;init:Frame.t->'model;
+  update:'model->Frame.t->'model;view:'model->Frame.t->Scene.t;stop:'model->unit}->oracle
+let oracles=[
+  Oracle{name="basic";init=Basic_oracle.init;update=Basic_oracle.update;view=Basic_oracle.view;stop=ignore};
+  Oracle{name="generative";init=(fun _->0.);update=Generative_oracle.update;view=Generative_oracle.view;stop=ignore};
+  Oracle{name="noise";init=Noise_oracle.init;update=Noise_oracle.update;view=Noise_oracle.view;stop=ignore};
+  Oracle{name="recursive_rectangles";init=Recursive_rectangles_oracle.init;update=Recursive_rectangles_oracle.update;view=Recursive_rectangles_oracle.view;stop=ignore};
+  Oracle{name="drawing";init=Drawing_oracle.init;update=Drawing_oracle.update;view=Drawing_oracle.view;stop=ignore};
+  Oracle{name="audio";init=Audio_oracle.init;update=Audio_oracle.update;view=Audio_oracle.view;stop=Audio_oracle.stop};
+  Oracle{name="file_dialog";init=File_dialog_oracle.init;update=File_dialog_oracle.update;view=File_dialog_oracle.view;stop=ignore};
+  (* The inspector replaces the widget UI. Compare the drawing portion, and
+     qualify the editor layout separately with ui_shot. *)
+  Oracle{name="pxui";init=Pxui_oracle.init;update=Pxui_oracle.update;
+    view=(fun model frame->match Pxui_oracle.view model frame with a::b::c::_->[a;b;c]|_->assert false);
+    stop=Pxui_oracle.on_stop}]
+let oracles=List.filter(fun(Oracle port)->List.mem port.name names)oracles
+(* Compare authored parameters with the original OCaml program without a GPU.
+   Re-expand SDF instances through the legacy constructors; canonical triangle
+   pairs ignore an equivalent rectangle's diagonal and packed command grouping.
+   Native tests below still qualify the actual SDF rasterization. *)
+let parameters ~size scene =
+  let module R=Scene_command.Render_ir in
+  let color bits=let byte shift=Int32.(to_int(logand(shift_right_logical bits shift)255l))in
+    Color.rgba(byte 24)(byte 16)(byte 8)(byte 0)in
+  let optional bits=if Int32.logand bits 255l=0l then None else Some(color bits)in
+  let rec command = function
+    |R.Clear bits->let width,height=size in
+        commands(Scene.Private.commands[Scene.rect ~at:(0,0) ~w:width ~h:height ~fill:(color bits)()])
+    |R.Shapes batch->
+        let bytes=Scene_command.Shape_batch.instances batch in
+        List.init(Scene_command.Shape_batch.count batch)(fun index->
+          let word n=Bytes.get_int32_le bytes(index*64+n*4)in
+          let f n=Int32.float_of_bits(word n)in
+          let x0=f 0 and y0=f 1 and x1=f 2 and y1=f 3 in
+          let fill=optional(word 8)and stroke=optional(word 9)in
+          let node=if fill=None && stroke=None then Scene.empty else
+            match word 10 with
+            |0l->[Scene.rect ~at:(int_of_float x0,int_of_float y0)
+              ~w:(int_of_float(x1-.x0)) ~h:(int_of_float(y1-.y0)) ?fill ?stroke()]
+            |4l->[Scene.circle ~at:(int_of_float((x0+.x1)/.2.),int_of_float((y0+.y1)/.2.))
+              ~radius:(int_of_float((x1-.x0)/.2.)) ?fill ?stroke()]
+            |5l->[Scene.line ~from_:(int_of_float x0,int_of_float y0)
+              ~to_:(int_of_float x1,int_of_float y1) ?color:fill ~width:(int_of_float(f 12))()]
+            |_->assert false in
+          commands(Scene.Private.commands node))|>List.concat
+    |R.Geometry geometry when Int32.logand geometry.color 255l=0l->[]
+    |R.Geometry geometry->
+        let n=Array.length geometry.indices in
+        List.init((n+5)/6)(fun pair->
+          let first=pair*6 in
+          let points=List.init(min 6(n-first))(fun i->
+            let index=geometry.indices.(first+i)in geometry.vertices.(index*2),geometry.vertices.(index*2+1))
+            |>List.sort_uniq compare in
+          `Geometry(geometry.color,points))
+    |R.Image image when image.destination.width=0. || image.destination.height=0.->[]
+    |command->[`Command command]
+  and commands input=Array.to_list input|>List.concat_map command in
+  commands(Scene.Private.commands scene)
+let pure ()=
+  mode_parity();
+  List.iter(fun(Oracle port)->
+    let workspace=load port.name in
+    let scenes=pictures port.name workspace false 1 in
+    let model=ref(port.init(frame port.name 0))in
+    Fun.protect ~finally:(fun()->port.stop !model)(fun()->
+      Array.iteri(fun count scene->
+        let frame=frame port.name count in
+        model:=port.update !model frame;
+        let expected=parameters ~size:frame.size(port.view !model frame)in
+        let actual=parameters ~size:frame.size scene in
+        if expected<>actual then begin
+          let describe=function
+            |`Geometry(color,points)->Printf.sprintf "geometry %lx %s" color
+              (String.concat ","(List.map(fun(x,y)->Printf.sprintf "(%h,%h)" x y)points))
+            |`Command(Scene_command.Render_ir.Image image)->Printf.sprintf "image %d at %h,%h size %h,%h"
+              image.resource_id image.destination.x image.destination.y image.destination.width image.destination.height
+            |`Command _->"state command"in
+          let rec mismatch i expected actual=match expected,actual with
+            |x::xs,y::ys when x=y->mismatch(i+1)xs ys
+            |x::_,y::_->Printf.sprintf "at %d expected %s actual %s" i(describe x)(describe y)
+            |_->"length"in
+          failwith(Printf.sprintf "OCaml parameter parity: %s frame %d (%d/%d commands), %s"
+            port.name count(List.length expected)(List.length actual)(mismatch 0 expected actual))
+        end)scenes);
+    Printf.printf "port %s: independent OCaml parameter parity\n%!"port.name)oracles
+let recursive_extremes ()=
+  let workspace=load "recursive_rectangles"in
+  let evaluated=ok(E.static ~inputs:workspace.Editor_document.Workspace_doc.inputs workspace.checked)in
+  let prepared=ok(Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan
+    (List.assoc "picture" evaluated.results))in
+  List.iter(fun reference->
+    let state=E.create_state()and model=ref(Recursive_rectangles_oracle.init(frame "recursive_rectangles" 0))in
+    List.iteri(fun count mouse->
+      let frame={(frame "recursive_rectangles" count)with mouse;dt=0.125}in
+      model:=Recursive_rectangles_oracle.update !model frame;
+      let scene=ok(Sketch_support.Drawing.render_prepared ~state ~reference prepared
+        ~live:(Sketch_support.Live_frame.of_frame frame) ~size:frame.size)in
+      assert(parameters ~size:frame.size scene=
+        parameters ~size:frame.size(Recursive_rectangles_oracle.view !model frame)))
+      [0.,0.;720.,720.;720.,360.]) [false;true];
+  print_endline "recursive rectangles: minimum/maximum depth, damping and large exact palette hashes"
+let moving_circles ()=match Rays_editor.Workspace.load {|(workspace moving
+ (graph picture :context draw (let* [phase (state [p 0.0] (+ p (frame/dt)))
+  positions (map (fn [i] [(+ (mod i 640) (* 5 (sin phase))) (mod (int/div i 640) 360) 0]) (array/range 10000))]
+  (draw/merge (draw/background "#111827") (draw/circles positions :radius 2.0 :fill "#22d3ee"))))
+ (graph window :context settings (settings/config :width 640 :height 360)))|}with
+ |Ok workspace->workspace|Error ds->failwith(String.concat"\n"(List.map Flow.Diagnostic.to_string ds))
+let native_modes directory name workspace =
+  let width,height=dimensions name in
+  let config={Sketch.default_config with width;height;clock=Sketch.Fixed(1./.60.);fps=None}in
+  let all=List.map(fun(mode,reference,domains)->mode,pictures ~synthetic:false name workspace reference domains)modes in
+  List.iter(fun(mode,scenes)->
+    let directory=directory^"/"^name^"/"^mode in
+    if mode="lisp-a" || mode="lisp-b" then
+      ignore(ok(Rays_editor.Workspace.export ~directory ~frames:4 workspace))else
+    Parallel.run ~domains:(if String.ends_with ~suffix:"8" mode then 8 else 1)(fun()->
+      ignore(Sketch.export_state ~config ~directory ~frames:4 ~init:(fun _->())
+        ~update:(fun () _->()) ~view:(fun () frame->scenes.(frame.Frame.count))())))all;
+  for count=0 to 3 do
+    let path mode=Printf.sprintf "%s/%s/%s/frame-%06d.png" directory name mode count in
+    let expected=read(path"lisp-a")in
+    List.iter(fun(mode,_,_)->assert(read(path mode)=expected))modes
+  done
+let native directory=
+ native_modes directory "moving_circles" (moving_circles());
+ List.iter(fun(Oracle port)->
+  let name=port.name in let width,height=dimensions name in
+  let workspace=load name in
+  native_modes directory name workspace;
+  let model=ref(port.init(frame name 0))in
+  let canvas=Canvas.create_exn ~width ~height in
+  Fun.protect ~finally:(fun()->port.stop !model;Canvas.destroy canvas)(fun()->
+    let scenes=pictures name workspace false 1 in
+    for count=0 to 3 do
+      let frame=frame name count in
+      model:=port.update !model frame;
+      Canvas.render canvas(port.view !model frame);
+      let expected=Canvas.pixels canvas in
+      Canvas.render canvas scenes.(count);
+      let actual=Canvas.pixels canvas in
+      (* Rectangles/text/points share native rasterization. Circle SDF and line
+         anti-aliasing can differ at a one-pixel edge. Require every changed
+         pixel to be adjacent to an edge in at least one image, and retain
+         exact interiors. No whole-image average hides a misplaced primitive. *)
+      let edge image i=let x=i mod width and y=i/width in
+        List.exists(fun(dx,dy)->let x=x+dx and y=y+dy in x>=0 && y>=0 && x<width && y<height &&
+          image.(i)<>image.(y*width+x))[-1,0;1,0;0,-1;0,1]in
+      Array.iteri(fun i value->if value<>actual.(i)then
+        assert(edge expected i && edge actual i))expected
+    done);
+  Printf.printf "port %s: six PNG modes byte-identical, OCaml interior parity with one-pixel edge tolerance\n%!"name)oracles
+let ()=if Array.length Sys.argv>1 then native Sys.argv.(1)else begin
+  pure();
+  if List.mem "recursive_rectangles" names then recursive_extremes();
+  let workspace=moving_circles()in
+  let expected=Array.map serialize(pictures "moving_circles" workspace false 1)in
+  List.iter(fun(_,reference,domains)->
+    assert(Array.map serialize(pictures "moving_circles" workspace reference domains)=expected))modes;
+  assert(expected.(0)<>expected.(3));
+  print_endline "10000 moving circles: four synthetic frames, six-mode command parity"
+end

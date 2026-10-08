@@ -289,3 +289,41 @@
   (alias test_viewport_pick)
   (alias test_workspace_source)
   (alias test_bloom_studio)))
+
+(rule (target basic_oracle.ml) (deps ../examples/basic/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/basic/main.ml}))))
+
+(rule (target generative_oracle.ml) (deps ../examples/generative/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/generative/main.ml}))))
+
+(rule (target noise_oracle.ml) (deps ../examples/noise/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/noise/main.ml}))))
+
+(rule (target recursive_rectangles_oracle.ml) (deps ../examples/recursive_rectangles/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/recursive_rectangles/main.ml}))))
+
+(rule (target drawing_oracle.ml) (deps ../examples/drawing/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/drawing/main.ml}))))
+
+(rule (target audio_oracle.ml) (deps ../examples/audio/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/audio/main.ml}))))
+
+(rule (target file_dialog_oracle.ml) (deps ../examples/file_dialog/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/file_dialog/main.ml}))))
+
+(rule (target pxui_oracle.ml) (deps ../examples/pxui/main.ml)
+ (action (with-stdout-to %{target} (run %{exe:../tools/port_oracle.exe} %{dep:../examples/pxui/main.ml}))))
+
+(executable (name test_2d_ports) (modules test_2d_ports basic_oracle generative_oracle noise_oracle recursive_rectangles_oracle drawing_oracle audio_oracle file_dialog_oracle pxui_oracle)
+ (libraries rays pxui rays_editor flow editor_document sketch_support scene_command unix))
+
+(rule (alias test_2d_ports) (deps (source_tree ../examples))
+ (action (setenv SDL_AUDIODRIVER dummy (run %{exe:test_2d_ports.exe}))))
+(alias (name runtest) (deps (alias test_2d_ports)))
+
+(rule (alias runtest-native) (locks smoke_window) (deps (source_tree ../examples))
+ (action (setenv SDL_AUDIODRIVER dummy (run %{exe:test_2d_ports.exe} /tmp/rays-2d-ports))))
+
+(rule (alias runtest-native) (locks smoke_window)
+ (action (setenv SDL_AUDIODRIVER dummy
+  (run %{exe:test_host_effects.exe} /tmp/rays-host-effects-export))))
