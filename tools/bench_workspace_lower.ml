@@ -177,6 +177,11 @@ let branch_mode mode repeats =
         fanouts:=Procedural.Session.Private.fanouts session-before_fanouts;
         points := Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload));
         hash := cook_hash (Result.get_ok (Procedural.Payload.geometry output.payload));
+        if repeat=repeats-1 && Sys.getenv_opt "RAYS_BRANCH_NODE_TIMES"=Some "1" then
+          List.iter(fun(sample:Procedural.Session.node_timing) ->
+            Printf.eprintf "node,%s,%d,%d,%s,%d,%d,%.9f\n%!" placement domains sample.node_id
+              sample.operation sample.input_points sample.points sample.seconds)
+            (Procedural.Session.node_timings session);
         match !expected with None -> expected := Some !hash | Some prior -> assert (prior = !hash))
     done;
     Array.sort Float.compare seconds; Array.sort Float.compare allocated;
