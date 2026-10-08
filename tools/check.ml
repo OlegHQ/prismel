@@ -32,6 +32,6 @@ let () =
      | Unix.Unix_error ((Unix.EACCES | Unix.EAGAIN), _, _) ->
          prerr_endline "check: waiting for another agent's validation";
          Unix.lockf lock Unix.F_LOCK 0);
-    let code = run "dune" ("build" :: arguments) in
+    let code = run "dune" ("build" :: "--root" :: "." :: arguments) in
     if code = 0 && ship then run "git" ["diff"; "--check"] else code) in
   exit code
