@@ -22,9 +22,9 @@ let backend t : G.backend =
    prepare=(fun packed->if not(live t)then error "GPU host is closed or called from another domain."else
      Result.bind (Emit.kernel packed)(fun msl->
      Result.map(fun _compiled->
-       (* Seed tables and uniform-slot names are runtime binding data; source alone
-          is the pipeline key, while a runner also owns these immutable bindings. *)
-       let key=msl.Emit.entry^Marshal.to_string(msl.table_seeds,msl.uniform_layout)[Marshal.No_sharing]in
+       (* Each prepared producer owns an output generation. Sharing only its
+          shader source would overwrite an earlier drawing's borrowed output. *)
+       let key=string_of_int(Atomic.fetch_and_add next 1)in
        let runner ()=match Cache.find_opt t.runners key with Some runner->runner|None->
          let runner={identity=Atomic.fetch_and_add next 1;run=Run.create t.gpu t.pipelines msl;stamp=0L;output=None}in
          Cache.add t.runners key runner;runner in
