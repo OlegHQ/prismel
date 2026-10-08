@@ -269,7 +269,11 @@ let update m (frame : Frame.t) =
 let view m (frame : Frame.t) = Rays_editor.Editor3.scene m.env frame
 
 let () =
-  if Array.exists (( = ) "--check-workspace") Sys.argv then begin
+  if Array.exists (( = ) "--approx") Sys.argv then begin
+    let document = Rays_editor.Workspace.load ~factories Sketch_source.text |> Result.get_ok in
+    Workspace_parity.report_approx ~name:"sketches/voxel_wall/sketch.rays" document;
+    exit 0
+  end else if Array.exists (( = ) "--check-workspace") Sys.argv then begin
     let document = match Rays_editor.Workspace.load ~factories Sketch_source.text with
       | Ok document -> document
       | Error diagnostics ->

@@ -192,3 +192,8 @@ let check ?directory ~factories ~name (workspace : Editor_document.Workspace_doc
   Printf.printf "%s: %d nodes, %d instances, %d values, four times, domains 1/8%s\n%!" name
     (Array.length evaluated.plan.nodes) (Array.length evaluated.plan.instances) (List.length prepared)
     (if directory = None then ", cooked payloads equal" else ", cooked payloads and native geometry/drawing pixels equal")
+
+let report_approx ~name (document : Editor_document.Workspace_doc.t) =
+  let paths = Flow.Workspace.Paths.elements document.checked.approx in
+  Printf.printf "%s: %d approximable [%s]\n%!" name (List.length paths)
+    (String.concat "; " (List.map (String.concat "/") paths))

@@ -273,7 +273,7 @@
 (executable
  (name bench_workspace_lower)
  (modules bench_workspace_lower)
- (libraries flow_sop sop_catalog flow procedural rdk param unix editor_document))
+ (libraries flow_sop sop_catalog flow procedural rdk param unix editor_document rays_editor workspace_parity))
 
 (executable
  (name ui_shot)

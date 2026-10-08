@@ -187,13 +187,15 @@ let check_all () =
               (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry output.payload))))) (graphs ())
 
 let () =
-  let entry = ref "boolean" and list = ref false and check = ref false in
+  let entry = ref "boolean" and list = ref false and check = ref false and approx = ref false in
   Arg.parse ["--entry", Arg.Set_string entry, "Gallery entry";
              "--list", Arg.Set list, "List entries";
-             "--check-all", Arg.Set check, "Cook every entry without a window"]
+             "--check-all", Arg.Set check, "Cook every entry without a window";
+             "--approx", Arg.Set approx, "Print checked GPU eligibility paths"]
     (fun _ -> raise (Arg.Bad "unexpected argument"))
-    "sop_gallery [--list | --check-all | --entry NAME]";
-  if !list then List.iter (fun (name, _) -> print_endline name) (graphs ())
+    "sop_gallery [--list | --check-all | --approx | --entry NAME]";
+  if !approx then Workspace_parity.report_approx ~name:"examples/sop_gallery/gallery.rays" (load ())
+  else if !list then List.iter (fun (name, _) -> print_endline name) (graphs ())
   else if !check then check_all ()
   else begin
     if not (List.mem_assoc !entry (graphs ())) then failwith ("unknown gallery entry: " ^ !entry);

@@ -640,3 +640,40 @@ let () =
   bad (value "t.x") "E_FIELD" ~text:"t is a constant";
   bad (sop "(sop/material (sop/box) :color \"h\xc3\xa9\")") "E_TYPE" ~text:"\"h\xc3\xa9\"";
   bad (sop "(sop/merge (for [i (range 2)] :skip [[0 x]] (sop/box)))") "E_SKIP"
+
+let () =
+  let candidate source = value ("(let* [candidate " ^ source ^ "] 0)") in
+  let approximable source = Workspace.Paths.mem ["g"; "candidate"] (good (candidate source)).approx in
+  assert (approximable "(map (fn [(x : float)] (if (> x 0) (sin x) (cos x))) (array/float 4))");
+  assert (approximable "(for [x (array/float 4)] (* x 2.0))");
+  assert (approximable "(map (fn [x] (+ x (frame/dt))) (array/float 4))");
+  assert (not (approximable "(for [x (array/float 4) y (array/float 4)] (+ x y))"));
+  assert (not (approximable "(fold [a 0.0] [x (array/float 4)] (+ a x))"));
+  assert (not (approximable "(map (fn [x] (sin x)) (list 1 2 3))"));
+  assert (not (approximable "(filter (fn [x] (> x 0)) (array/float 4))"));
+  assert (not (approximable "(map (fn [x] (floor x)) (array/float 4))"));
+  assert (not (approximable "(map (fn [(x : int)] (+ x 1)) (array/float 4))"));
+  assert (approximable "(let* [f (fn [(x : float)] (sqrt (abs x))) xs (map f (array/float 4))] xs)");
+  assert (not (approximable "(let* [xs (map sin (array/float 4))] (exact xs))"));
+  let ws = good "(workspace w (defn wave :context value [(x : float)] (sin x))
+    (graph g :context value (let* [candidate (map wave (array/float 4))] 0)))" in
+  assert (Workspace.Paths.mem ["g"; "candidate"] ws.approx);
+  let noise = { (Op.find "sin" Context.value |> Option.get) with name = "noise3";
+    signature = {pos = ["position", Ty.Vec3]; opt = []; rest = None; kw = ["seed", Ty.Int; "octaves", Ty.Int]} } in
+  let opaque = Check.{qualified = "value/opaque"; aliases = []; context = Context.value; slots = [];
+    parameters = [{name = "value"; label = "Value"; ty = Some Port_type.Float;
+      fields = ["value", Param.Floating_view Param.{soft_min = 0.; soft_max = 1.; hard_min = None; hard_max = None}, Param.Float_value 0.];
+      folder = []; primary = false; unit = None}]; outputs = ["out", Port_type.Float]; facts = None} in
+  let catalog = {catalog with kinds = opaque :: catalog.kinds} in
+  let checked source = match Workspace.check ~ops:[noise] catalog (parse source) with
+    | Some ws, _ -> ws | None, ds -> failwith (show ds) in
+  let is source = Workspace.Paths.mem ["g"; "candidate"] (checked source).approx in
+  assert (is (candidate "(map (fn [(p : vec3)] (noise3 p :seed 7 :octaves 3)) (array/vec3 4))"));
+  assert (not (is "(workspace w (graph g :context value [(seed : int 7)]
+    (let* [candidate (map (fn [(p : vec3)] (noise3 p :seed seed)) (array/vec3 4))] 0)))"));
+  assert (not (is (candidate "(map (fn [(p : vec3)] (noise3 p :octaves 99)) (array/vec3 4))")));
+  assert (not (is (candidate "(map (fn [x] (value/opaque :value x)) (array/float 4))")));
+  List.iter (fun name -> assert (Option.is_some (Op.find name Context.value)
+    || List.mem name Packed_ops.noise_names)) Packed_ops.names;
+  assert (not (Packed_ops.supports "exact"));
+  print_endline "workspace approximability: packed maps/collect, aliases, exact, reductions, noise configuration and opaque calls passed"

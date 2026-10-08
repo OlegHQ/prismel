@@ -43,7 +43,7 @@ and node =
 type graph = { name : string; context : context;
   inputs : (string * Ty.t * term option) list; body : term; form : S.t }
 type t = { name : string; graphs : graph list; defs : graph list; macros : S.t list;
-  source : S.t list; live : Paths.t; invariant : Paths.t;
+  source : S.t list; live : Paths.t; invariant : Paths.t; approx : Paths.t;
   kind_fns : (string * (string * Context.t * Check.slot list)) list; ops : Op.t list }
 
 let max_iterations = Op.max_iterations
@@ -87,7 +87,7 @@ let map_seq f xs = List.rev (List.fold_left (fun acc x -> f x :: acc) [] xs)
 
 (* ---- checker state ---- *)
 
-type v = { ty : Ty.t; live : bool; live_len : bool; vary : int list; len : int option;
+type v = { ty : Ty.t; live : bool; live_len : bool; approx : bool; vary : int list; len : int option;
   fn : callee option; groups : string list; list_fields : string list list }
 and callee =
   | Closure of closure
@@ -105,12 +105,37 @@ type signature = { sname : string; sctx : context; sparams : (string * Ty.t * S.
 exception Budget
 
 let leaf ?(live = false) ?(vary = []) ?(groups = []) ?len ty =
-  { ty; live; live_len = false; vary; len; fn = None; groups; list_fields = [] }
+  { ty; live; live_len = false; approx = false; vary; len; fn = None; groups; list_fields = [] }
 let union a b = List.sort_uniq compare (a @ b)
-let derive ty vs = { ty; live = List.exists (fun v -> v.live) vs; live_len = false;
+let derive ty vs = { ty; live = List.exists (fun v -> v.live) vs; live_len = false; approx = false;
   vary = List.fold_left (fun a v -> union a v.vary) [] vs; len = None; fn = None;
   groups = List.fold_left (fun a v -> union a v.groups) [] vs;
   list_fields = List.fold_left (fun a v -> union a v.list_fields) [] vs }
+let approximate vs = List.exists (fun (v : v) -> v.approx) vs
+let packed_array = function Ty.Array (Ty.Float | Ty.Vec3) -> true | _ -> false
+let rec packed_body (term : term) = match term.node with
+  | Lit (Param.Int_value _ | Float_value _ | Bool_value _) | Time -> true
+  | Ref_binding _ -> List.mem term.ty [Ty.Float; Ty.Int; Ty.Bool; Ty.Vec3]
+  | Vec terms -> List.length terms = 3 && List.for_all packed_body terms
+  | Get (value, field) -> value.ty = Ty.Vec3 && List.mem field ["x"; "y"; "z"] && packed_body value
+  | Op {op; args = []; _} ->
+      Option.fold ~none:false ~some:(fun (o : Op.t) -> o.live && o.shape = Op.Scalar
+        && List.mem term.ty [Ty.Float; Ty.Int; Ty.Bool]) (Op.find op Context.value)
+  | Op {op; args; _} when List.mem op Packed_ops.noise_names ->
+      List.for_all (fun (key, t) -> match key, t.node with
+        | "position", _ -> packed_body t
+        | "seed", Lit (Param.Int_value _) -> true
+        | "octaves", Lit (Param.Int_value n) -> n >= 1 && n <= 32
+        | _ -> false) args
+  | Op {op; args; _} ->
+      (Option.is_some (Packed_ops.binary op) && List.length args = 2
+       || Option.is_some (Packed_ops.unary op) && List.length args = 1)
+      && List.for_all (fun (_, t) -> packed_body t) args
+  | Let (bindings, result) -> List.for_all (fun (p, t) -> match p with Name _ -> packed_body t | _ -> false) bindings
+      && packed_body result
+  | If (test, yes, no) -> packed_body test && packed_body yes && packed_body no
+  | Bypass body | Expanded {body; _} -> packed_body body
+  | _ -> false
 let rec list_fields = function
   | Ty.List _ -> [[]]
   | Record fields -> List.concat_map (fun (n, ty) -> List.map (fun path -> n :: path) (list_fields ty)) fields
@@ -216,7 +241,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
   match Op.validate ops with Some error -> None, [error] | None ->
   let find_op = Op.find ~extra:ops in
   let diags = ref [] in
-  let live = ref Paths.empty and invariant = ref Paths.empty in
+  let live = ref Paths.empty and invariant = ref Paths.empty and approx = ref Paths.empty in
   let steps = ref 0 and zones = ref 0 in
   let add sev (x : S.t) code msg =
     let span = if x.span.start = 0 && x.span.finish = 0 then None else Some x.span in
@@ -230,7 +255,9 @@ let check ?(ops = []) ?(library = false) catalog forms =
     | None ->
         err v "E_SKIP" ":skip is a list of iteration tuples of non-negative integers, for example :skip [[0 1] [2 0]].";
         [] in
-  let mark id (v : v) = if v.live then live := Paths.add id !live in
+  let mark id (v : v) =
+    if v.live then live := Paths.add id !live;
+    if v.approx then approx := Paths.add id !approx in
   (* the path of a let*, zone or fn written inline: [~for], then [~for~1], ... under one path,
      so two of them in one expression never share compiled ids *)
   let kind_fns = ref [] in
@@ -413,7 +440,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
       List.iter2 (fun c ((_, (v : v)) : term * v) -> match v.ty with
         | Ty.Int | Ty.Float | Ty.Any -> ()
         | t -> err c "E_TYPE" (Printf.sprintf "Vector components are numbers; got %s." (show t))) cs rs;
-      (tm x Ty.Vec3 (Vec (List.map fst rs)), derive Ty.Vec3 (List.map snd rs))
+      let vs = List.map snd rs in
+      (tm x Ty.Vec3 (Vec (List.map fst rs)), {(derive Ty.Vec3 vs) with approx = approximate vs})
     end
 
   and record cx (x : S.t) (items : S.t list) what =
@@ -531,7 +559,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
         time_branch cx x cv.live ty;
         let v = derive ty [cv; av; bv] in
         let lengths = if cv.live then union v.list_fields (list_fields ty) else v.list_fields in
-        (tm x ty (If (ct, at, bt)), {v with list_fields = lengths;
+        (tm x ty (If (ct, at, bt)), {v with list_fields = lengths; approx = approximate [cv; av; bv];
           live_len = av.live_len || bv.live_len || List.mem [] lengths})
     | _ -> bad x "E_NO_ELSE" "if takes a condition, a then and an else."
 
@@ -675,7 +703,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
         let ty = Option.value ~default:iv.ty (Ty.unify iv.ty sv.ty) in
         if not (Ty.fits sv.ty ty) || shape_ty sv.ty then
           err x "E_STATE_TYPE" "A state step returns the seed's data type.";
-        let v = {sv with ty; live = true; fn = None; list_fields = union sv.list_fields lengths;
+        let v = {sv with ty; live = true; approx = false; fn = None; list_fields = union sv.list_fields lengths;
           live_len = sv.live_len || List.mem [] lengths} in
         (tm x ty (State {binder = pat_ir p; init; step; zone = id}), v)
     | _ -> bad x "E_STATE" "state is (state [s init] step)."
@@ -801,6 +829,10 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let init_vs = match init with Some (_, _, iv) -> [ iv ] | None -> [] in
     let ins = outer @ init_vs in
     let v = { (derive ty (bv :: ins)) with
+              approx = kind = `For && packed_array ty && List.length clauses = 1
+                && List.for_all (fun (p, _) -> match p with Name _ -> true | _ -> false) clauses
+                && List.for_all (fun (_, (t : term)) -> packed_array t.ty) clauses
+                && packed_body bt;
               vary = union (List.filter (( <> ) zid) bv.vary)
                 (List.fold_left (fun a (v : v) -> union a v.vary) [] ins) } in
     (tm x ty (Loop { kind; accs = (match init with Some (p, t, _) -> [ (pat_ir p, t) ] | None -> []);
@@ -910,7 +942,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
       let call_args = match init, lists with
         | Some (_, iv), l :: _ -> [ value_arg x iv; value_arg x (elem l) ]
         | _ -> List.map (fun l -> value_arg x (elem l)) lists in
-      let (_, rv) = call_value cx x fv call_args in
+      let (result, rv) = call_value cx x fv call_args in
       let l0 = match lists with (_, _, v) :: _ -> v | [] -> poison in
       let packed = List.exists (fun (_, _, (v : v)) -> match v.ty with Ty.Array _ -> true | _ -> false) lists in
       if packed then begin
@@ -945,7 +977,21 @@ let check ?(ops = []) ?(library = false) catalog forms =
               err x "E_TYPE" (Printf.sprintf "reduce's function must return the accumulator type %s; it returns %s." (show it) (show rv.ty));
             (`Reduce, it, false) in
       let v = derive ty (fv :: rv :: list_vs @ (match init with Some (_, iv) -> [ iv ] | None -> [])) in
-      (tm x ty (Hof (kind, terms)), { v with live_len; live = v.live || live_len })
+      let eligible = match result.node with
+        | Call_fn {fn; _} -> Option.fold ~none:false ~some:(fun (g : graph) -> packed_body g.body) (Hashtbl.find_opt def_terms fn)
+        | _ -> packed_body result in
+      let params = match fv.fn with
+        | Some (Closure c) -> Some c.params
+        | Some (Def_fn name) -> Option.map (fun d -> List.map (fun (name, ty, _) -> S.make (S.Sym name), Some ty) d.sparams)
+            (Hashtbl.find_opt sigs name)
+        | _ -> None in
+      let inputs_fit = Option.fold ~none:true ~some:(fun params ->
+        List.length params = List.length lists && List.for_all2 (fun ((p : S.t), annotation) (_, _, (v : v)) ->
+          (match p.node with S.Sym _ -> true | _ -> false)
+          && (annotation = None || annotation = Ty.elem v.ty)) params lists) params in
+      (tm x ty (Hof (kind, terms)), { v with live_len; live = v.live || live_len;
+        approx = kind = `Map && packed_array ty && inputs_fit
+          && List.for_all (fun (_, _, (v : v)) -> packed_array v.ty) lists && eligible })
     end
 
   and ref_ cx (x : S.t) (args : S.t list) =
@@ -974,7 +1020,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
             | y :: _ -> err y "E_ARGS" "ref takes a graph name, then :input value pairs." in
           go rest;
           let ty = context_ty sg.sctx in
-          (tm x ty (Graph_ref { graph = g; inputs = List.rev !overrides }), { (derive ty !vs) with groups = [] })
+          (tm x ty (Graph_ref { graph = g; inputs = List.rev !overrides }), { (derive ty !vs) with groups = []; approx = gv.approx })
         end
     | _ -> bad x "E_ARGS" "ref takes a graph name, then :input value pairs."
 
@@ -1122,6 +1168,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
           | "linspace", [ _; _; Some n ] -> Some (max 0 n)
           | _ -> None in
         let v = { (derive ty avs) with live = o.live || List.exists (fun (v : v) -> v.live) avs; live_len; len;
+          approx = Packed_ops.supports o.name && approximate avs;
           list_fields = (if o.live then list_fields ty else []) } in
         (tm x ty (Op { op = o.name; args = List.rev !named; skip }), v)
       end
@@ -1378,7 +1425,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
             err sg.sbody "E_TYPE" (Printf.sprintf "%s must return %s, but its result is %s." name (show want) (show bv.ty));
           gstack := List.tl !gstack;
           Hashtbl.replace graph_terms name { name; context = sg.sctx; inputs = List.rev !inputs; body = bt; form = sg.sform };
-          let v = { (leaf ~live:bv.live want) with groups = [] } in
+          let v = { (leaf ~live:bv.live want) with groups = []; approx = bv.approx } in
           Hashtbl.replace ginfo name v;
           v
         end in
@@ -1495,7 +1542,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
   | Some (wname, _, go, dos) when not has_error ->
       let get tbl = List.filter_map (Hashtbl.find_opt tbl) in
       (Some { name = wname; graphs = get graph_terms go; defs = get def_terms dos;
-              macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant;
+              macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant; approx = !approx;
                 kind_fns = !kind_fns; ops },
        diagnostics)
   | _ -> (None, diagnostics))

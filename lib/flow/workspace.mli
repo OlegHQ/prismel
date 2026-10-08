@@ -99,6 +99,11 @@ type t = {
       (** bindings directly in a zone body that do not depend on the loop
           variables or the accumulator (register L7, the "same each time"
           mark) *)
+  approx : Paths.t;
+      (** Advisory GPU eligibility: packed maps/collect loops over floats or
+          vec3 values with covered bodies, and supported derivatives. [exact]
+          removes this class. The evaluator remains exact; placement and sink
+          legality belong to the IR. *)
   kind_fns : (string * (string * Context.t * Check.slot list)) list;
       (** A catalog kind used as a function value: its qualified name, context and
           complete ordered slot signature, including a repeated final slot. *)

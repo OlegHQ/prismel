@@ -225,8 +225,29 @@ let () =
     inspect_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then Sys.argv.(2) else "_build/default/specification/workspace/cases");
     exit 0
   end
+let report_approx () =
+  let rec files directory = Array.to_list (Sys.readdir directory) |> List.sort String.compare
+    |> List.concat_map (fun name -> let path = Filename.concat directory name in
+      if Sys.is_directory path then files path else if Filename.check_suffix name ".rays" then [path] else []) in
+  let custom = ["examples/sop_gallery/gallery.rays", "examples/sop_gallery/main.exe";
+    "sketches/voxel_wall/sketch.rays", "sketches/voxel_wall/main.exe"] in
+  let paths = files "examples" @ files "sketches" @ ["specification/pxui-kit/kit.rays"] in
+  List.iter (fun path -> if not (List.mem_assoc path custom) then begin
+    let text = In_channel.with_open_bin path In_channel.input_all in
+    let document = match Result.bind (Rays_editor.Source.read_imports ~file:path text)
+        (fun imports -> Rays_editor.Workspace.load ~imports text) with
+      | Ok document -> document
+      | Error ds -> failwith (path ^ ": " ^ String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
+    Workspace_parity.report_approx ~name:path document
+  end) paths;
+  List.iter (fun (_, executable) ->
+    let executable = Filename.concat "_build/default" executable in
+    let pid = Unix.create_process executable [|executable; "--approx"|] Unix.stdin Unix.stdout Unix.stderr in
+    if snd (Unix.waitpid [] pid) <> Unix.WEXITED 0 then failwith (executable ^ ": approximate path check failed")) custom;
+  Printf.printf "Approximate path audit: %d files, including actual custom catalogs\n%!" (List.length paths)
 
 let () =
+  if Array.length Sys.argv > 1 && Sys.argv.(1) = "--approx" then (report_approx (); exit 0);
   let dir = if Array.length Sys.argv > 1 then Sys.argv.(1) else "_build/default/specification/workspace/cases" in
   let repeats = if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 21 in
   Printf.printf "domains available %d, repeats %d (medians, ms)\n"

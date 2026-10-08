@@ -1084,6 +1084,19 @@ approximate inputs to catalog calls, exports, state seeds and cache keys with
 `E_APPROX_SINK`; `(exact x)` is the explicit readback card. Current producers
 are exact, so its runtime value is unchanged. GPU readback is not implemented.
 
+The checker's `Workspace.approx` paths are advisory GPU eligibility, separate
+from an executed value's precision. Packed float/vec3 maps and one-clause
+collect loops qualify when their bodies use the shared `Flow.Packed_ops`
+operations, numeric literals, vec3 fields, `let*` and `if`. Numeric nullary
+live built-ins and `t` are per-frame uniforms. Noise seed/octave
+arguments must be literal (octaves 1–32). Multi-clause products, reductions,
+filters, unsupported operations and catalog calls stay outside the set.
+Supported derivatives preserve eligibility; `(exact x)` removes it. Checking
+this class never changes CPU evaluation or permits an approximate sink.
+The inspector reports `approximable` for eligible paths; the graph's tier badge
+continues to describe execution. `bench_workspace_lower --approx` prints the
+complete sets, including workspaces checked by their own custom catalogs.
+
 Cook-time specialization uses the instantiated SOP facts, including parameter
 overrides, rather than a catalog's default declaration. A regular node with
 preserved topology carries its designated input's point-count origin; changed
