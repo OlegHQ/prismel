@@ -182,7 +182,8 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
           let bytes = match output.payload with
             | Procedural.Payload.Geometry geometry -> Rdk_test_support.geometry_bytes geometry
             | Image image -> Marshal.to_string (Procedural.Image.width image, Procedural.Image.height image,
-                Procedural.Image.Private.storage image) [Marshal.No_sharing] in
+                Procedural.Image.Private.storage image) [Marshal.No_sharing]
+            | Kernel _ -> failwith "Workspace results cannot contain function payloads" in
           compare payloads ("geometry-" ^ id) (bytes ^ Marshal.to_string output.instances []);
           id, cid, output) g.root) networks in
         (if commands || directory <> None then begin
@@ -213,6 +214,7 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
             | Procedural.Payload.Image _ ->
                 let node = Array.find_opt (fun (n : E.node) -> N.Int_map.find_opt n.id lowered.compiled = Some cid) evaluated.plan.nodes |> Option.get in
                 render id [Rays.Scene.image (image (E.Deferred (Flow.Ty.image, node.id))) ~at:(0,0) ()]
+            | Kernel _ -> failwith "Workspace results cannot display function payloads"
             | Geometry _ ->
             let compare = if not reference && domains = 1 && frame = 0 then
               Option.map (fun (_, runtime) -> compare_float32 runtime id) mirror else None in

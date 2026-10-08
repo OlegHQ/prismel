@@ -1,6 +1,6 @@
 (flow_manifest
   (version 202609)
-  (digest "c318ff1f1422ef5db2d49a692a90e968")
+  (digest "0535593a6c5ed90781b183492dcd22d7")
   (kinds
     (kind "sop/box"
       (key "box")
@@ -245,6 +245,28 @@
         (field "uv" "UV attribute" (folder) (text) (text "uv") (primary false) (vec3)))
       (outputs (output "geo" geometry))
       (facts (cook-mode duplicate-input 0) (elementwise points) (reads "uv") (writes "image") (topology preserved) (exact true)))
+    (kind "sop/iso_surface"
+      (key "iso_surface")
+      (aliases)
+      (operation "iso_surface")
+      (label "Iso surface")
+      (category "Create" "Field")
+      (slots (slot "field" required "fn(vec3)->float"))
+      (fields
+        (field "resolution_x" "Resolution x" (folder) (float (soft 1 128) (hard nil nil)) (float 64) (primary true) (vec3 "resolution" 0))
+        (field "resolution_y" "Resolution y" (folder) (float (soft 1 128) (hard nil nil)) (float 64) (primary false) (vec3 "resolution" 1))
+        (field "resolution_z" "Resolution z" (folder) (float (soft 1 128) (hard nil nil)) (float 64) (primary false) (vec3 "resolution" 2))
+        (field "min_x" "Min x" (folder) (float (soft -10 10) (hard nil nil)) (float -2) (primary false) (vec3 "min" 0))
+        (field "min_y" "Min y" (folder) (float (soft -10 10) (hard nil nil)) (float -2) (primary false) (vec3 "min" 1))
+        (field "min_z" "Min z" (folder) (float (soft -10 10) (hard nil nil)) (float -2) (primary false) (vec3 "min" 2))
+        (field "max_x" "Max x" (folder) (float (soft -10 10) (hard nil nil)) (float 2) (primary false) (vec3 "max" 0))
+        (field "max_y" "Max y" (folder) (float (soft -10 10) (hard nil nil)) (float 2) (primary false) (vec3 "max" 1))
+        (field "max_z" "Max z" (folder) (float (soft -10 10) (hard nil nil)) (float 2) (primary false) (vec3 "max" 2))
+        (field "iso" "Iso" (folder) (float (soft -10 10) (hard nil nil)) (float 0) (primary true) (vec3))
+        (field "smooth" "Smooth" (folder) (bool) (bool true) (primary false) (vec3)))
+      (outputs (output "geo" geometry))
+      (keyword-inputs "field")
+      (facts (cook-mode generic) (elementwise none) (reads) (writes "P" "N") (topology changed) (exact true)))
     (kind "sop/torus"
       (key "torus")
       (aliases)

@@ -150,10 +150,13 @@ let catalog_of_manifest source =
               impact = Param.Cook; primary = bool (one "primary" primary);
               unit; vec3; kind = kind_view kind; default; current = default}
         | _ -> bad form "Malformed field in Flow manifest" in
-      let port_type form = match word form with
+      let type_name form = match form.Syntax.node with Syntax.Str text -> text | _ -> word form in
+      let port_type form = match type_name form with
         | "geometry" -> Port_type.Geometry | "float" -> Float
-        | "int" -> Int | "bool" -> Bool | "vec3" -> Vec3
-        | _ -> bad form "Unknown output type in Flow manifest" in
+        | "int" -> Int | "bool" -> Bool | "vec3" -> Vec3 | "image" -> Image
+        | name -> (match Ty.of_string name with
+            | Some (Ty.Fn (Some signature)) -> Port_type.Fn signature
+            | _ -> bad form "Unknown port type in Flow manifest") in
       let kind form = match tagged "kind" form with
         | qualified :: properties ->
             let qualified = string qualified in
@@ -196,9 +199,9 @@ let catalog_of_manifest source =
               | name :: required :: types when List.length types <= 1 ->
                   let ty = match types with
                     | [] -> None
-                    | [type_] -> (match Ty.of_string (word type_) with
-                        | Some (Ty.Named _ as ty) -> Some ty
-                        | _ -> bad type_ "Unknown nominal slot type")
+                    | [type_] -> (match Ty.of_string (type_name type_) with
+                        | Some ((Ty.Named _ | Ty.Fn (Some _)) as ty) -> Some ty
+                        | _ -> bad type_ "Unknown slot type")
                     | _ -> assert false in
                   (match word required with
                     | "required" -> {name = string name; required = true; rest = false; ty}
@@ -208,6 +211,26 @@ let catalog_of_manifest source =
                     | _ -> bad required "Unknown slot requirement")
               | _ -> bad slot "Malformed slot in Flow manifest") in
             let fields = List.map field (tagged "fields" (get "fields")) in
+            let keywords = match List.filter (fun form -> match list form with
+                | Some (head :: _) -> symbol head = Some "keyword-inputs" | _ -> false) properties with
+              | [] -> []
+              | [form] -> strings "keyword-inputs" form
+              | _ -> bad form "Duplicate keyword inputs" in
+            if List.length (List.sort_uniq String.compare keywords) <> List.length keywords then
+              bad form "Duplicate keyword input name";
+            let keyword_parameters = List.map (fun name ->
+              match List.find_opt (fun (s : slot) -> s.name = name) slots with
+              | Some {required = true; rest = false; ty = Some ty; _} ->
+                  let ty = match ty with
+                    | Ty.Fn (Some signature) -> Port_type.Fn signature
+                    | ty when ty = Ty.image -> Port_type.Image
+                    | _ -> bad form "Keyword inputs must have fn/image types" in
+                  {name; label = name; ty = Some ty; fields = []; folder = []; primary = true; unit = None}
+              | _ -> bad form "Keyword inputs must name required slots") keywords in
+            let slots = List.filter (fun (s : slot) -> not (List.mem s.name keywords)) slots in
+            let parameters = parameters_of_fields fields in
+            if List.exists (fun (p : parameter) -> List.mem p.name keywords) parameters then
+              bad form "Keyword input clashes with a scalar parameter";
             let outputs = tagged "outputs" (get "outputs") |> List.map (fun output ->
               match tagged "output" output with
               | [name; ty] -> string name, port_type ty
@@ -218,7 +241,7 @@ let catalog_of_manifest source =
             if not (String.ends_with ~suffix:("/" ^ key) qualified)
               then bad form "Kind key differs from its qualified name";
             Option.map (fun context -> {qualified; aliases; context; slots;
-              parameters = parameters_of_fields fields; outputs; facts}) context
+              parameters = parameters @ keyword_parameters; outputs; facts}) context
         | _ -> bad form "Malformed kind in Flow manifest" in
       try match forms with
       | [root] ->

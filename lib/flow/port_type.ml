@@ -1,4 +1,4 @@
-type t = Geometry | Float | Int | Bool | Vec3
+type t = Geometry | Float | Int | Bool | Vec3 | Image | Fn of Ty.fn_signature
 type value =
   | Float_value of float
   | Int_value of int
@@ -7,13 +7,16 @@ type value =
 
 let name = function Geometry -> "Geometry" | Float -> "Float" | Int -> "Int"
   | Bool -> "Bool" | Vec3 -> "Vec3"
+  | Image -> "Image" | Fn signature -> Ty.to_string (Ty.Fn (Some signature))
 let of_field_kind = function
   | Param.Floating_view _ -> Some Float | Integer_view _ -> Some Int
   | Toggle_view -> Some Bool | Text_view | Choice_view _ -> None
 let value_type = function Float_value _ -> Float | Int_value _ -> Int
   | Bool_value _ -> Bool | Vec3_value _ -> Vec3
 let can_connect ~source ~target = match source, target with
-  | Geometry, Geometry | Vec3, Vec3 -> true
+  | Geometry, Geometry | Vec3, Vec3 | Image, Image -> true
+  | Fn source, Fn target -> source.params = target.params && Ty.fits source.result target.result
+  | (Image | Fn _), _ | _, (Image | Fn _) -> false
   | Geometry, _ | _, Geometry | Vec3, _ -> false
   | (Float | Int | Bool), (Float | Int | Bool | Vec3) -> true
 let coerce ~target value =
@@ -39,4 +42,4 @@ let coerce ~target value =
                 else if rounded <= float_of_int min_int then min_int
                 else int_of_float rounded in
               Ok (Int_value integer)
-        | Geometry -> mismatch ()
+        | Geometry | Image | Fn _ -> mismatch ()

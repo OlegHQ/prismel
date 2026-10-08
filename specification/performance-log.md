@@ -7479,3 +7479,337 @@ closure per chunk with a tight inner loop. With the context grain the SOP
 passes it was slower at both domain counts (one-domain merge 570 ms,
 eight-domain 51 ms against 59 and 40 ms) and was reverted; the two-chain
 gate stays where the per-node table puts it.
+
+## F2.1 field kernel — unchanged dense baseline (2026-10-08)
+
+The extractor and its scheduling are unchanged. `bench_rdk_iso` now records
+individual trials, program-wide `Gc.stat` allocation outside the timed interval,
+and a hash of all authored position/normal/topology planes. The executable is
+preserved at `/private/tmp/f-iso-before.exe`. Each process performs one excluded
+warm-up and seven timed extractions; builds, tests and other measurements were
+finished before these sequential runs. Profile: Dune dev, OCaml 5.3.0.
+Hardware: arm64 macOS, known M1 workspace; hardware identification unavailable
+in this session. Parsing/checking and hashing are outside the wall interval.
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-before.exe --sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-before.exe --sphere
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-before.exe --raw
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-before.exe --raw
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 /private/tmp/f-iso-before.exe --asymmetric
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-iso-before.exe --asymmetric
+```
+
+Raw trials are `specification/performance/f-field-{dense,gyroid,asymmetric}-before-{1,8}.csv`.
+Sphere: 64 cells per axis, bounds `[-2,2]`, radius 1, 274,625 samples.
+Gyroid preserves the prior scale 1.25, bounds `[-3,3]`, now at 64 cells.
+Asymmetric: `(129,256,2)` cells, bounds `[-2,-1.5,-1]`/`[3,2,1.7]`, radius
+0.8 centred at `[0.2,-0.3,0.1]`, 100,230 samples. All use smooth normals.
+
+| Fixture | Domains | Median ms | Allocated bytes, all domains | Points | Triangles |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Sphere | 1 | 27.842 | 95,195,368 | 85,680 | 28,560 |
+| Sphere | 8 | 30.690 | 95,195,600 | 85,680 | 28,560 |
+| Gyroid | 1 | 48.816 | 164,457,024 | 406,872 | 135,624 |
+| Gyroid | 8 | 53.258 | 164,457,256 | 406,872 | 135,624 |
+| Asymmetric | 1 | 13.574 | 64,262,824 | 167,352 | 55,784 |
+| Asymmetric | 8 | 15.438 | 64,263,056 | 167,352 | 55,784 |
+
+Every repetition and both domain counts have the same complete hash per fixture:
+sphere `2d4641814f8cf4ce991726eb3af5c030`, gyroid
+`0bc0e77f0591fa47988639b877f4c600`, asymmetric
+`4b19f871788ea3bd06f717eb75e68faf`.
+
+Astra's baseline review: “The baseline is usable: seven stable sphere trials,
+identical full hashes, and matching allocations across domains.” The sampled
+path alone is unlikely to reach the 10 ms whole-cook gate while its per-plane
+marcher stays sequential. After the first planned after run, Astra recommends
+profiling the per-cell closures/output reference in `fill_cell`, including
+cells emitting no triangles. This is a risk assessment, not a gate verdict.
+No field SOP existed for an end-to-end before row. The whole-cook after
+measurements, verified reference-hardware gate and final
+Astra verdict remain open; no speedup is established here.
+
+## F2.1 field kernel — dense scheduling comparison (2026-10-08)
+
+The sampled evaluator now shares the marcher, and the default plane/slab grain
+is 16,384 with a two-chunk sequential cutoff. These after trials still use
+the dense callback extractor; they measure scheduling regression, excluding
+grid construction and kernel execution. The profile, hardware qualification,
+warm-up, seven repetitions, complete hashes and aggregate GC protocol are the
+same as the preceding baseline. Run its six commands with
+`_build/default/tools/bench_rdk_iso.exe` in place of the preserved executable.
+Raw files: `specification/performance/f-field-{dense,gyroid,asymmetric}-after-{1,8}.csv`.
+
+| Fixture | Domains | Before median ms | After median ms | After allocated bytes, all domains |
+| --- | ---: | ---: | ---: | ---: |
+| Sphere | 1 | 27.842 | 27.863 | 95,195,360 |
+| Sphere | 8 | 30.690 | 30.776 | 95,195,592 |
+| Gyroid | 1 | 48.816 | 48.983 | 164,457,016 |
+| Gyroid | 8 | 53.258 | 53.230 | 164,457,248 |
+| Asymmetric | 1 | 13.574 | 13.640 | 64,263,152 |
+| Asymmetric | 8 | 15.438 | 13.121 | 64,311,320 |
+
+Every before/after/domain/trial complete hash matches. Astra's review finds
+no meaningful improvement or regression for the sequential sphere/gyroid
+planes (under 0.4% median changes). The asymmetric eight-domain median improves
+15.0%, with after trials spanning 11.60–17.15 ms and about 48 KB additional
+scheduler allocation; this does not establish stable latency. Astra approves
+keeping the grain and cutoff while proceeding with SOP/grid plumbing. This
+is not the whole-cook benchmark and establishes no F2.1 gate verdict.
+
+## F2.1 field kernel — first whole-cook measurements (2026-10-08)
+
+The new single-declaration `sop/iso_surface` invokes the exact packed field
+through the neutral bulk Kernel payload. These timings include packed XYZ
+grid construction, function preparation/evaluation, sample validation, shared
+marching and geometry construction in `Session.cook`. Check/eval/lower,
+session creation, `Gc.stat`, hashing and session teardown are outside the
+wall interval. Each trial has a fresh zero-capacity session; one excluded
+warm-up precedes a full major collection and seven sequential trials per
+process. Profile/machine qualification are as above. No build/test/other
+benchmark was running during either process.
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_workspace_lower.exe --fields
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_workspace_lower.exe --fields
+```
+
+| Fixture | Domains | Repetitions | Median whole-cook ms | Median allocated bytes, all domains | Median promoted bytes | Median major bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 64-cell sphere, 274,625 samples | 1 | 7 | 31.998 | 110,103,944 | 21,832 | 16,041,560 |
+| 64-cell sphere, 274,625 samples | 8 | 7 | 30.005 | 110,118,208 | 23,824 | 16,043,552 |
+
+Raw trials: `specification/performance/f-field-cook-after-{1,8}.csv`.
+All trials/domains return 85,680 points/vertices and 28,560 triangles with
+authored-payload hash `8a9c2d382ab7564328783e84a132cef1`. This uses the existing
+workspace `cook_hash` serialization (including all attribute/group kinds),
+which differs from the earlier extractor benchmark's hash serialization.
+Independent tests compare complete geometry bytes to the dense custom sphere,
+and all 274,625 compiled samples to the interpreter and independently computed
+norms at two times and both domain counts. The eight-domain measurement exceeds
+10 ms. Raw results have been sent to Astra for its gate verdict and next
+diagnostic protocol. Astra's verdict: “not met, try sampled-marcher phase
+profiling.” All seven eight-domain trials exceed 10 ms; reference-M1
+qualification is also unavailable. The next measurements isolate the sampled
+marcher and, in a temporary attribution build, the slab-wide `fill_cell`
+traversal. No marching optimization was approved at that review.
+
+## F2.1 field kernel — sampled marcher attribution (2026-10-08)
+
+Same qualified hardware description/dev profile/OCaml 5.3.0, seven isolated
+trials after one excluded warm-up. Scalar sphere samples are constructed
+before timing; the wall interval includes only sampled extraction and geometry
+construction. The unchanged complete dense sphere hash is required in every
+row, and is `2d4641814f8cf4ce991726eb3af5c030` in all trials/domains.
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sampled-sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sampled-sphere
+```
+
+| Domains | Samples | Median sampled-extract ms | Allocated bytes, all domains |
+| --- | ---: | ---: | ---: |
+| 1 | 274,625 | 22.114 | 86,394,912 |
+| 8 | 274,625 | 24.870 | 86,395,144 |
+
+Raw: `specification/performance/f-field-marcher-{1,8}.csv`.
+The executables are preserved as `/private/tmp/f-iso-sampled-before.exe`
+and, for attribution, `/private/tmp/f-iso-fill-cell-profile.exe`.
+The temporary instrumentation patch is
+`specification/performance/f-field-emission-instrumentation.patch`: it times
+the entire `fill_cell` traversal once per slab and reads coarse GC counters
+outside the cell loop, with no forced phase collections. Empty cells are
+counted outside that traversal. Its temporary Unix dependency and all counters
+are removed from the shipping source (restored byte-for-byte).
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-fill-cell-profile.exe --sampled-sphere > specification/performance/f-field-emission-extract-1.csv 2> specification/performance/f-field-emission-phase-1.csv
+```
+
+Phase CSV columns are phase, accumulated seconds, allocated bytes, empty cells,
+total cells; its first row is the excluded warm-up. Across seven timed trials,
+median instrumented total extraction is 22.751 ms and 86,420,432 allocated
+bytes; slab-wide emission totals 8.872 ms and 80,092,656 bytes. Every trial
+has 257,384 empty cells of 262,144, and the complete hash still matches.
+These counters attribute time/allocation; they are not shipping performance
+evidence, and independently collected medians do not establish exact kernel
+cost by subtraction. The uninstrumented marcher and whole-cook rows remain
+the performance evidence.
+
+Astra approves one next change: guard `fill_cell` with the already-computed
+`counts.(cell) <> 0` before constructing any emission closures. Empty cells
+are 98.2% of this lattice, and emission contributes about 92.7% of measured
+allocation. Preserve every triangle/normal/prefix-sum expression; first add an
+independent ordered plane golden with empty/crossing/empty slabs. Then compare
+saved-before/rebuilt-after sampled and whole-cook trials at both domain counts,
+plus dense sphere/gyroid/asymmetric regression trials. This design approval
+is not a performance or gate verdict.
+
+
+## F2.1 field kernel — skip empty emission cells (2026-10-08)
+
+The guard uses existing slab counts before constructing any emission closures.
+Counting, sampling, gradients, prefix sums, chunking, arithmetic and output
+ordering are unchanged. The independent ordered plane golden now checks
+empty/crossing/empty slabs against the fixed single-cell result; dense/sampled
+sphere/asymmetric smooth/flat parity at three grains and domains 1/8 passes.
+The focused typecheck, field, graph and API checks pass.
+
+Same qualified hardware description/dev profile/OCaml 5.3.0, one excluded
+warm-up and seven isolated trials per process, zero-capacity whole-cook sessions.
+Saved before executables: `/private/tmp/f-iso-empty-before.exe` and
+`/private/tmp/f-workspace-empty-before.exe`. Repeat the following for
+`RAYS_BENCH_DOMAINS=1`; the before commands use those saved executables in
+place of the rebuilt ones:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sampled-sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_workspace_lower.exe --fields
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --raw
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --asymmetric
+```
+
+| Fixture | Domains | Before median ms | After median ms | Before allocated bytes | After allocated bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Sampled marcher | 1 | 23.886 | 17.721 | 86,394,912 | 22,564,192 |
+| Whole cook | 1 | 33.808 | 27.603 | 110,103,328 | 46,272,608 |
+| Dense sphere | 1 | 28.548 | 23.015 | 95,195,376 | 31,364,656 |
+| Dense gyroid | 1 | 49.527 | 49.555 | 164,457,032 | 105,296,400 |
+| Dense asymmetric | 1 | 13.667 | 12.485 | 64,263,168 | 49,654,496 |
+| Sampled marcher | 8 | 26.074 | 17.529 | 86,395,144 | 22,564,424 |
+| Whole cook | 8 | 31.764 | 24.551 | 110,118,168 | 46,286,896 |
+| Dense sphere | 8 | 31.327 | 28.834 | 95,195,608 | 31,364,888 |
+| Dense gyroid | 8 | 53.975 | 51.720 | 164,457,264 | 105,296,632 |
+| Dense asymmetric | 8 | 16.248 | 12.295 | 64,311,208 | 49,703,760 |
+
+Raw: `specification/performance/f-field-empty-{marcher,cook,dense,gyroid,asymmetric}-{before,after}-{1,8}.csv`.
+Each file retains all seven wall/allocation/promoted/major/cardinality/hash
+rows. Before/after/domain/trial hashes and cardinalities match. The eight-domain
+after whole-cook 66.748 ms outlier and gyroid 82.683 ms outlier are retained;
+these data do not establish stable latency.
+
+Astra's verdict: “Keep the empty-cell guard. Not met, try counting-phase
+attribution.” It removes 63.83 MB per sphere extraction (about 74% of sampled
+allocation); the eight-domain sampled median improves 32.8% and whole-cook
+median 22.7%. Denser fixtures show no material median regression. The whole
+cook still exceeds 10 ms, and reference-M1 qualification remains unavailable.
+Next measure both complete `count_slab` passes separately in a temporary
+one-domain attribution build, preserving the guard. No counting rewrite,
+count volume retention or slab parallelization is approved yet.
+
+## F2.1 field kernel — counting-pass attribution (2026-10-08)
+
+Same hardware caveat/dev profile/OCaml 5.3.0, one domain, one excluded warm-up
+and seven isolated trials. The temporary patch
+`specification/performance/f-field-count-instrumentation.patch` wraps each
+complete `count_slab` call, including cancellation and scheduling, with elapsed
+time and coarse GC-counter snapshots. It keeps separate initial-counting and
+emission-pass recounting totals, with no callbacks or branches inside the cell
+loop and no forced phase collections. The empty-cell guard is retained.
+The shipping source and Dune dependencies are restored byte-for-byte afterward.
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-count-profile.exe --sampled-sphere > specification/performance/f-field-count-extract-1.csv 2> specification/performance/f-field-count-phase-1.csv
+```
+
+Phase rows are pass name, accumulated seconds, allocated bytes; the first pair
+is the excluded warm-up. Initial counting takes median 3.876 ms, emission-pass
+recounting 3.863 ms, both with zero measured phase allocation. Corresponding
+instrumented extraction median is 17.002 ms and 22,614,696 allocated bytes.
+Every row preserves 85,680 points/vertices, 28,560 triangles and the complete
+sphere hash `2d4641814f8cf4ce991726eb3af5c030`. These are attribution figures,
+not shipping timings or gate evidence. Restored typecheck, field/probe tests
+(including fold-state snapshot isolation) and API checks pass.
+
+Astra approves one next optimization: construct a fixed 256-entry cube-count
+table once from the existing tetrahedron table and the same six corner tuples;
+combine the unchanged eight classifications into one mask and perform one
+lookup. Keep both passes and all other phases unchanged. The independent
+regression must exhaust 256 cube masks with explicit corner-to-flat mapping,
+plus equality-at-iso values; expected counts come from the number of positive
+corners per tetrahedron, not the production table. Save uninstrumented before
+executables, collect the same seven-trial one/eight-domain fixture matrix and
+send raw rows to Astra. This design approval is not a gate verdict; the
+whole-cook median is still above 10 ms and reference-hardware qualification
+is still unavailable.
+
+## F2.1 field kernel — cube-count lookup (2026-10-08)
+
+The fixed 256-entry table is derived once from the same sixteen tetrahedron
+counts and six ordered corner tuples. Every cell retains its eight `>= iso`
+classifications and makes one lookup instead of six. Both counting passes,
+streaming planes, sampling, gradients, prefix sums, emission and scheduling
+are unchanged. The independent regression exhausts all 256 masks with explicit
+corner-to-flat ordering, both positive and exactly-on-iso inside values, and
+triangle counts derived from positive-corner cardinality rather than the
+production table. The specific empty-surface error, independent ordered plane
+goldens and complete smooth/flat normal/topology byte parity remain checked.
+`@check @lib/rdk/test_gen @lib/flow_sop/runtest` and benchmark builds pass.
+
+Machine: arm64 macOS, OCaml 5.3.0, dev profile; known M1 workspace but hardware
+identification and reference-M1 qualification unavailable in this session.
+Seven isolated trials per process, one excluded warm-up, grain 16,384, unchanged
+GC policy and zero-capacity whole-cook sessions. Before executables are
+`/private/tmp/f-iso-count-before.exe` and `/private/tmp/f-workspace-count-before.exe`.
+Repeat at domains 1 and 8; before commands use those saved executables:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sampled-sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_workspace_lower.exe --fields
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --sphere
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --raw
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 _build/default/tools/bench_rdk_iso.exe --asymmetric
+```
+
+| Fixture | Domains | Before median ms | After median ms | Before allocated bytes | After allocated bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Sampled marcher | 1 | 16.839 | 14.586 | 22564192 | 22563024 |
+| Sampled marcher | 8 | 17.555 | 15.543 | 22564424 | 22563256 |
+| Whole cook | 1 | 26.720 | 24.434 | 46272608 | 46271440 |
+| Whole cook | 8 | 23.019 | 20.167 | 46287144 | 46285544 |
+| Dense sphere | 1 | 22.598 | 20.464 | 31364656 | 31363488 |
+| Dense sphere | 8 | 23.645 | 21.328 | 31364888 | 31363720 |
+| Dense gyroid | 1 | 44.154 | 41.488 | 105296400 | 105295232 |
+| Dense gyroid | 8 | 46.925 | 44.541 | 105296632 | 105295464 |
+| Dense asymmetric | 1 | 12.370 | 11.904 | 49654496 | 49654320 |
+| Dense asymmetric | 8 | 13.101 | 12.641 | 49702064 | 49701856 |
+
+Raw: `specification/performance/f-field-count-{marcher,cook,dense,gyroid,asymmetric}-{before,after}-{1,8}.csv`.
+All seven trials per file retain promoted/major allocations, cardinalities and
+complete geometry hashes; before/after/domain/trial fingerprints match.
+Astra's verdict: “Keep the cube-count lookup. Not met, try gradient-phase
+attribution.” Eight-domain sampled extraction improves 11.5% and whole cook
+12.4%; every fixture median improves in this matrix. The allocation difference
+is incidental. Whole cook remains above 10 ms, and reference-hardware
+qualification is still unavailable.
+
+## F2.1 field kernel — gradient-phase attribution (2026-10-08)
+
+Same hardware caveat/dev profile/OCaml 5.3.0, one domain, grain 16,384, seven
+isolated trials and one excluded warm-up. The temporary patch
+`specification/performance/f-field-gradient-instrumentation.patch` wraps complete
+XY and Z gradient calls with elapsed time and coarse `Gc.quick_stat` snapshots,
+outside element loops and including existing scheduling. Arithmetic, buffer
+rotation and call order stay unchanged. The source/Dune dependencies are
+restored byte-for-byte; the instrumented executable is archived separately.
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-gradient-before.exe --sampled-sphere > specification/performance/f-field-gradient-before-1.csv
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-iso-gradient-profile.exe --sampled-sphere > specification/performance/f-field-gradient-extract-1.csv 2> specification/performance/f-field-gradient-phase-1.csv
+```
+
+The first pair of phase rows is the excluded warm-up. Median XY time is
+1.444 ms, Z 1.090 ms, both with zero measured phase allocation. Instrumented
+extraction median is 14.522 ms and 22,622,664 allocated bytes; the isolated
+uninstrumented baseline is 14.329 ms and 22,563,024 bytes. Every row retains
+the complete sphere hash, 85,680 points/vertices and 28,560 triangles.
+These figures attribute phases; they are not a whole-cook gate result. No
+gradient optimization has been implemented. Astra recommends leaving gradient
+evaluation unchanged: eliminating both phases would still not close the
+whole-cook gap. Its verdict remains “not met, try current emission and
+residual-phase attribution.” The next approved diagnostic uses the current
+guarded/table-based extractor, measuring coarse emission, sampling/finite
+validation, prefix sums and output allocation/final geometry construction,
+with disjoint intervals. No production algorithm change is approved.

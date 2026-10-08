@@ -112,6 +112,17 @@ let () =
     ["\"geometry\""; "\"geometry, bad type\""; "\"geometry, Image\""];
   ignore (Ppx_rays.generate_node_type (declaration vector
     (node "fixture" "[@@sop.node_types \"geometry, image\"]")));
+  let keyword = declaration vector (node "fixture"
+      "[@@sop.node_slots \"input, field\"] [@@sop.node_keywords \"field\"]
+       [@@sop.node_types [\"geometry\"; \"fn(vec3,float)->float\"]]") in
+  ignore (Ppx_rays.generate_node_type keyword);
+  assert (Ppx_rays.node_arguments keyword ["input"; "field"] =
+    [Ppx_rays.Arg_optional "center"; Arg_positional "input"; Arg_labelled "field"]);
+  List.iter (fun attrs -> reject "sop.node_keywords must name distinct required slots"
+      (fun () -> Ppx_rays.generate_node_type (declaration vector (node "fixture" attrs))))
+    ["[@@sop.node_keywords \"missing\"]";
+     "[@@sop.node_keywords \"in1, in1\"]";
+     "[@@sop.node_keywords \"in1\"] [@@sop.node_optional \"1\"]"];
   List.iter (fun attributes -> reject
       "sop.node_rest must name the final slot after required inputs" (fun () ->
         Ppx_rays.node_metadata (declaration vector (node "fixture" attributes))))

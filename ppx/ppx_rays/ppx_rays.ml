@@ -41,6 +41,7 @@ let node_optional_attribute = type_expression_attribute "sop.node_optional"
 let node_rest_attribute = type_expression_attribute "sop.node_rest"
 let node_slots_attribute = type_expression_attribute "sop.node_slots"
 let node_types_attribute = type_expression_attribute "sop.node_types"
+let node_keywords_attribute = type_expression_attribute "sop.node_keywords"
 let record_validate_attribute = type_expression_attribute "sop.validate"
 let register_attribute =
   Attribute.declare_flag "sop.register" Attribute.Context.module_binding
@@ -559,7 +560,12 @@ let build_expression ~loc ~validate ~facts ~rest type_name label inputs optional
 (* A node's typed signature follows its record: optional fields in declaration
    order, one argument per vec3 group, then positional ports (or generator unit).
    There is no second function name, argument list or default to maintain. *)
-type argument = Arg_optional of string | Arg_positional of string | Arg_unit
+type argument = Arg_optional of string | Arg_labelled of string | Arg_positional of string | Arg_unit
+
+let node_keywords declaration = match Attribute.get node_keywords_attribute declaration with
+  | None -> []
+  | Some expression -> string_constant expression "sop.node_keywords"
+      |> String.split_on_char ',' |> List.map String.trim
 
 let node_arguments declaration slots =
   let fields = match declaration.ptype_kind with Ptype_record fields -> fields | _ -> [] in
@@ -572,7 +578,10 @@ let node_arguments declaration slots =
     if List.mem name !seen then None else begin
       seen := name :: !seen; Some (Arg_optional name)
     end) fields in
-  arguments @ (if slots=[] then [Arg_unit] else List.map (fun slot -> Arg_positional slot) slots)
+  let keywords = node_keywords declaration in
+  arguments @ List.map (fun slot ->
+    if List.mem slot keywords then Arg_labelled slot else Arg_positional slot) slots
+    @ (if List.for_all (fun slot -> List.mem slot keywords) slots then [Arg_unit] else [])
 
 let typed_function declaration ~key ~inputs ~optional ~slots ~rest ~arguments =
   let loc = declaration.ptype_loc in
@@ -648,10 +657,12 @@ let typed_function declaration ~key ~inputs ~optional ~slots ~rest ~arguments =
     let name, optional_value = match argument with
       | Arg_unit -> "()", false
       | Arg_optional name -> name, true
+      | Arg_labelled name -> name, false
       | Arg_positional name -> name, false in
     let source = name in
     let label = match argument with
       | Arg_optional _ -> Optional name
+      | Arg_labelled _ -> Labelled name
       | Arg_positional _ | Arg_unit -> Nolabel in
     match argument with
     | Arg_unit -> params := (Nolabel, punit ~loc) :: !params
@@ -713,12 +724,30 @@ let generate_node_type declaration =
   let input_types = match Attribute.get node_types_attribute declaration with
     | None -> []
     | Some expression ->
-        let names = string_constant expression "sop.node_types"
-          |> String.split_on_char ',' |> List.map String.trim in
-        if List.length names <> inputs || not (List.for_all Flow.Symbol.valid_name names) then
+        let names = match expression.pexp_desc with
+          | Pexp_constant (Pconst_string _) -> string_constant expression "sop.node_types"
+              |> String.split_on_char ',' |> List.map String.trim
+          | _ ->
+              let rec names expression = match expression.pexp_desc with
+                | Pexp_construct ({txt = Longident.Lident "[]"; _}, None) -> []
+                | Pexp_construct ({txt = Longident.Lident "::"; _},
+                    Some {pexp_desc = Pexp_tuple [head; tail]; _}) ->
+                    string_constant head "sop.node_types" :: names tail
+                | _ -> Location.raise_errorf ~loc:expression.pexp_loc
+                    "sop.node_types expects a string or a list of strings" in
+              names expression in
+        if List.length names <> inputs || not (List.for_all (fun name ->
+            match Flow.Ty.of_string name with
+            | Some (Flow.Ty.Named _ | Flow.Ty.Fn (Some _)) -> true | _ -> false) names) then
           Location.raise_errorf ~loc:expression.pexp_loc
             "sop.node_types requires %d valid type names" inputs;
         [Labelled "input_types", elist ~loc (List.map (estring ~loc) names)] in
+  let keywords = node_keywords declaration in
+  if List.length (List.sort_uniq String.compare keywords) <> List.length keywords
+      || List.exists (fun name -> match List.find_index (( = ) name) slots with
+        | None -> true
+        | Some index -> List.mem index optional || rest = Some index) keywords then
+    Location.raise_errorf ~loc "sop.node_keywords must name distinct required slots";
   let typed = [value_binding ~loc (declaration.ptype_name.txt ^ "_fn")
     (typed_function declaration ~key ~inputs ~optional ~slots ~rest
       ~arguments:(node_arguments declaration slots))] in
@@ -743,7 +772,9 @@ let generate_node_type declaration =
       (ident ~loc ["Procedural"; "Parameter"; "view"])
       [Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_schema");
        Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_default")];
-    Labelled "category", elist ~loc (List.map (estring ~loc) category) ] @ input_types in
+    Labelled "category", elist ~loc (List.map (estring ~loc) category) ] @ input_types
+      @ (if keywords = [] then [] else
+          [Labelled "keyword_inputs", elist ~loc (List.map (estring ~loc) keywords)]) in
   let factory = if optional = [] && Option.is_none rest then
       apply ~loc (ident ~loc ["Procedural"; "Edit_graph"; "factory"])
         (common @ [Labelled "arity", eint ~loc inputs; Nolabel, constructor])
@@ -797,7 +828,7 @@ let attributes = List.map (fun attribute -> Attribute.T attribute)
 
 let node_attributes = List.map (fun attribute -> Attribute.T attribute)
     [node_key_attribute; node_operation_attribute; node_label_attribute; node_category_attribute; node_facts_attribute;
-     node_inputs_attribute; node_optional_attribute; node_slots_attribute; node_types_attribute; node_rest_attribute]
+     node_inputs_attribute; node_optional_attribute; node_slots_attribute; node_types_attribute; node_keywords_attribute; node_rest_attribute]
   @ List.map (fun attribute -> Attribute.T attribute)
     [nonblank_attribute; validate_attribute; hard_min_attribute;
      hard_max_attribute; vec3_attribute]

@@ -97,6 +97,7 @@ val factory :
   ?operation:string ->
   ?slots:string list ->
   ?input_types:string list ->
+  ?keyword_inputs:string list ->
   ?fields:Parameter.field_view list ->
   ?output_fields:Parameter.field_view list ->
   key:string ->
@@ -109,6 +110,7 @@ val factory_slots :
   ?operation:string ->
   ?slots:string list ->
   ?input_types:string list ->
+  ?keyword_inputs:string list ->
   ?fields:Parameter.field_view list ->
   ?output_fields:Parameter.field_view list ->
   key:string ->
@@ -132,8 +134,12 @@ val factory_slot_names : factory -> string list
 (** Named inputs, in slot order; defaults to [in0], [in1], … . *)
 
 val factory_input_types : factory -> string list
-(** Nominal input type names, defaulting to [geometry]. The Flow catalog
+(** Serialized input type names, defaulting to [geometry]. The Flow catalog
     validates them against the registered types. *)
+
+val factory_keyword_inputs : factory -> string list
+(** Required physical slots exposed as typed keyword parameters by Flow.
+    Names must be distinct and must not conflict with scalar schema fields. *)
 
 val instantiate : factory -> Node.t list -> (Node.t, string) result
 val instantiate_optional : factory -> Node.t option list -> (Node.t, string) result

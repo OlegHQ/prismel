@@ -24,6 +24,7 @@ type t = {
   state : E.state option;
   resolve : (E.value -> (E.value, Flow.Diagnostic.t) result) option;
   maps : (path * int list, (int * int * (int -> ((path * (int list * E.value) list) list, Flow.Diagnostic.t) result)) list) Hashtbl.t;
+  bulk_calls : path -> int list -> (int * int * (int -> ((path * (int list * E.value) list) list, Flow.Diagnostic.t) result)) list;
   calls : (path * int list, (path * (int list * E.value) list) list) Hashtbl.t;
   dynamic : path -> int option;
   templates : (path, unit) Hashtbl.t;
@@ -39,7 +40,8 @@ type t = {
   arms : (path * int list, int option) Hashtbl.t;
 }
 
-let make ?state ?live ?time ?resolve ?(execution = fun _ ~probes:_ -> None)
+let make ?state ?live ?time ?resolve ?(bulk_calls = fun _ _ -> [])
+    ?(execution = fun _ ~probes:_ -> None)
     ?(geometry = fun _ -> None) ?(image=fun _->None) ?(dynamic = fun _ -> None)
     ?(element = fun _ _ -> None) (eval : E.t) =
   let raw = Hashtbl.create 64 in
@@ -63,7 +65,7 @@ let make ?state ?live ?time ?resolve ?(execution = fun _ ~probes:_ -> None)
       Option.bind(dimension "width" w)(fun width->
         Option.map(fun height->width,height)(dimension "height" h)) in
     Option.map(fun(width,height)->{node=id;width;height}) dimensions in
-  { live_frame; state; resolve; execution; maps = Hashtbl.create 16; calls = Hashtbl.create 16;
+  { live_frame; state; resolve; execution; bulk_calls; maps = Hashtbl.create 16; calls = Hashtbl.create 16;
     dynamic; templates; element; geometry; image; raw; forced = Hashtbl.create 64; spots = Hashtbl.create 64;
     across = Hashtbl.create 64; feet = Hashtbl.create 64;
     arms = Hashtbl.create 8 }
@@ -132,7 +134,9 @@ let rec describe_value = function
   | Float f -> num f
   | Bool b -> string_of_bool b
   | Text s -> s
+  | Vec2 (x, y) -> Printf.sprintf "[%s %s]" (num x) (num y)
   | Vec3 (x, y, z) -> Printf.sprintf "[%s %s %s]" (num x) (num y) (num z)
+  | Vec4 (x, y, z, w) -> Printf.sprintf "[%s %s %s %s]" (num x) (num y) (num z) (num w)
   | List xs ->
       let n = Array.length xs in
       let numeric = function E.Int _ | Float _ -> true | _ -> false in
@@ -142,7 +146,8 @@ let rec describe_value = function
           "[" ^ String.concat " " (List.init (min 4 n) (fun i -> describe_value xs.(i)))
           ^ (if n > 4 then " …]" else "]")
         else match xs.(0) with
-          | Deferred ((Flow.Ty.Named "geometry"), _) | No_geo -> "geometry" | Text _ -> "text" | Vec3 _ -> "vec3" | Bool _ -> "bool"
+          | Deferred ((Flow.Ty.Named "geometry"), _) | No_geo -> "geometry" | Text _ -> "text"
+          | Vec2 _ -> "vec2" | Vec3 _ -> "vec3" | Vec4 _ -> "vec4" | Bool _ -> "bool"
           | List _ -> "list" | Record _ -> "record" | Fn _ -> "function" | _ -> "value" in
       if n = 0 then "0 items" else Printf.sprintf "%d × %s" n what
   | Float_array xs -> Printf.sprintf "%d × float" (Array.length xs)
@@ -195,15 +200,22 @@ let map_calls t zone outer =
              | Ok (count, at) -> Some (offset, count, at)
              | Error _ -> None)
         | _ -> None) (Option.value ~default:[] (Hashtbl.find_opt t.raw (zone @ ["~calls"]))) in
+      let base = List.fold_left (fun n (offset, count, _) -> max n (offset + count)) 0 calls in
+      let bulk = t.bulk_calls zone outer |> List.map (fun (offset, count, at) ->
+        let at k = Result.map (List.map (fun (path, values) -> path,
+          List.map (fun (iter, value) ->
+            List.mapi (fun i n -> if i = List.length outer then n + base else n) iter, value) values))
+          (at k) in
+        base + offset, count, at) in
+      let calls = calls @ bulk in
       remember t.maps (zone, outer) calls; calls
 
 let map_scope t path probes =
   if probes = [] then None else
   let rec find zone = match zone with
     | [] -> None
-    | _ when Hashtbl.mem t.raw (zone @ ["~calls"]) ->
-        Some (zone, map_calls t zone (drop_last probes))
-    | _ -> find (drop_last zone) in
+    | _ -> (match map_calls t zone (drop_last probes) with
+        | [] -> find (drop_last zone) | calls -> Some (zone, calls)) in
   find (drop_last path)
 
 let map_at t path probes =

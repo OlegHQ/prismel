@@ -149,6 +149,7 @@ let add c label key ?(socket = true) ty =
 let ty_of_port = function
   | Flow.Port_type.Geometry -> Flow.Ty.geometry | Float -> Ty.Float | Int -> Ty.Int
   | Bool -> Ty.Bool | Vec3 -> Ty.Vec3
+  | Image -> Ty.image | Fn signature -> Ty.Fn (Some signature)
 
 let show_value = function
   | Param.Bool_value b -> string_of_bool b
@@ -278,7 +279,7 @@ let call_rows c (e : S.t) h args =
         | "reduce" -> [ "f"; "start"; "list" ] | _ -> [ "key"; "list" ] in
       List.concat (List.mapi (fun i l ->
         if i < 2 || at i <> None || h = "reduce" then
-          [ posrow ?ty:(input_ty i (if i = 0 then Some Ty.Fn else if String.starts_with ~prefix:"list" l then list_ty else None)) l i ]
+          [ posrow ?ty:(input_ty i (if i = 0 then Some (Ty.Fn None) else if String.starts_with ~prefix:"list" l then list_ty else None)) l i ]
         else []) labels)
       @ (if h = "map" && npos < 4 then [ add c "+ list" (E.Pos npos) list_ty ] else [])
   | "get" -> [ posrow "record" 0; posrow ~socket:false "field" 1 ]
@@ -319,6 +320,9 @@ let rows_of c (e : S.t) = match e.node, head_sym e with
         | S.Kw k -> Some (row c k (E.Field k) (Some v)) | _ -> None) (pairs l)
       @ [ add c "+ field" (E.Field "") ~socket:false None ]
   | S.List (_ :: args), Some h -> call_rows c e h args
+  | S.Vec _, _ ->
+      let ty = Option.map (fun (term : W.term) -> term.ty) (Hashtbl.find_opt c.forms e.id) in
+      [row c ?ty "value" E.Whole (Some e)]
   | S.Sym s, _ when not (List.mem s [ "t"; "pi"; "true"; "false"; "nil" ]) -> [ row c "from" E.Whole (Some e) ]
   | _ -> [ row c "value" E.Whole (Some e) ]
 
@@ -350,7 +354,7 @@ let outputs (pat : S.t option) ty = match pat with
        | S.Sym _, Ty.Record fs -> fs
        | S.Sym _, _ -> []
        | S.Vec _, _ ->
-           let t = match ty with Ty.List e -> e | Ty.Vec3 -> Ty.Float | _ -> Ty.Any in
+           let t = match ty with Ty.List e -> e | Ty.Vec2 | Ty.Vec3 | Ty.Vec4 -> Ty.Float | _ -> Ty.Any in
            List.map (fun n -> n, t) (E.pat_names pat)
        | _ -> List.map (fun n -> n, (match ty with Ty.Record fs -> Option.value (List.assoc_opt n fs) ~default:Ty.Any
                                       | _ -> Ty.Any)) (E.pat_names pat))
@@ -389,9 +393,12 @@ let rail_of c (kind : zone_kind) (e : S.t) (t : W.term option) ~visible =
                let pat = match p.node with S.List [ pat; { S.node = S.Sym ":"; _ }; _ ] -> pat | _ -> p in
                bound := E.pat_names pat @ !bound;
                let ty = match t with
-                 | Some ({ W.node = Fn { params; _ }; path = Some path; _ } as fn) ->
+                 | Some ({ W.node = Fn { params; zone = path; _ }; _ } as fn) ->
                      (match Option.bind (List.nth_opt params k) snd with
                       | Some _ as ty -> ty
+                      | None when (match fn.ty with Ty.Fn (Some _) -> true | _ -> false) ->
+                          (match fn.ty with Ty.Fn (Some signature) -> List.nth_opt signature.params k
+                            | _ -> None)
                       | None ->
                           let parent = match List.rev path with
                             | leaf :: scope -> Option.map (fun i -> List.rev scope @ [String.sub leaf 0 i])

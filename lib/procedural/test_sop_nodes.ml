@@ -87,6 +87,31 @@ let transport_cache_companions =
    "operation", ["integrate_constant", Parameter.Bool_value false; "scale_by_edge_length", Bool_value false]]
 
 let run () =
+  let field = Node.Private.make ~operation:"test.field" ~version:1 ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static ~inputs:[||]
+      (fun ~node_id:_ _ _ ->
+        let kernel = Kernel.create ~payload_bytes:0 (function
+          | [Kernel.Vec3s positions] -> Ok (fun _ -> Ok (Kernel.Floats
+              (Array.init (Array.length positions / 3) (fun i ->
+                let x = positions.(3*i) and y = positions.(3*i+1) and z = positions.(3*i+2) in
+                sqrt ((x *. x +. y *. y) +. z *. z) -. 1.))))
+          | _ -> assert false) in
+        Ok Node.Private.{payload = Payload.Kernel kernel; diagnostics = []; instances = None}) in
+  let resolution = Vec3.create 8. 9. 7. in
+  same_node "iso_surface" ~typed:(Sop.iso_surface ~resolution ~field ())
+    ~catalog:(from_factory Nodes.Iso_surface.factory
+      ["resolution_x", Parameter.Float_value 8.; "resolution_y", Float_value 9.;
+       "resolution_z", Float_value 7.] [field]);
+  let facts = Node.facts (Sop.iso_surface ~resolution ~field ()) in
+  check (facts.elementwise = Node.None && facts.topology = Changed && facts.exact)
+    "iso_surface: irregular, topology-changing, exact";
+  List.iter (fun resolution ->
+    check (try ignore (Sop.iso_surface ~resolution ~field ()); false
+      with Invalid_argument _ -> true) "iso_surface: invalid resolution rejected")
+    [Vec3.create 0. 2. 2.; Vec3.create 1.5 2. 2.; Vec3.create nan 2. 2.;
+     Vec3.create 1e15 1e15 1e15];
+  check (try ignore (Sop.iso_surface ~min:(Vec3.create 2. 2. 2.) ~field ()); false
+    with Invalid_argument _ -> true) "iso_surface: invalid bounds rejected";
   let projection_context = Context.create ~frame:7L ~time:2.5 ~seed:11L
       ~domains:1 ~grain:3 () |> get in
   let projection_facts = Context.Dependencies.[

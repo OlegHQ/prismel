@@ -18,6 +18,27 @@ let stages p = Array.fold_left (fun count (n : I.node) -> match n.kind with
   | Kernel {body = Packed_map p; _} -> max count (I.Packed.stage_count p) | _ -> count)
   0 (I.Executor.graph p).nodes
 let () =
+  List.iter (fun (x,y,z) ->
+    let expression = Printf.sprintf "(length [%.17g %.17g %.17g])" x y z in
+    let expected = E.Float (sqrt ((x *. x +. y *. y) +. z *. z)) in
+    assert (Marshal.to_string (recorded expression) [Marshal.No_sharing]
+      = Marshal.to_string expected [Marshal.No_sharing]))
+    [(-3.,4.,-12.); (0.,0.,0.); (-0.,0.,-0.); (1e-200,-1e-200,1e-200)];
+  let value = recorded "(map (fn [p] (if (> t 0) (min (length p) 1.0) 0.0))
+    (array/vec3 16385 [1e200 0 0]))" in
+  let packed = match value with E.Residual residual ->
+    I.Packed.compile residual (E.Private.residual_view residual).term |> Option.get
+    | _ -> failwith "length kernel did not defer" in
+  List.iter (fun time ->
+    let live = Frame_input.at_time time in
+    let reference = E.Private.force_reference value ~live in
+    (match time, reference with
+     | 0., Ok (E.Float_array values) -> assert (Array.for_all ((=) 0.) values)
+     | 1., Error d -> assert (d.code = "E_NONFINITE")
+     | _ -> assert false);
+    List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+      assert (same (I.Packed.force packed ~live) reference))) [1;8]) [0.;1.]
+let () =
   List.iter (fun count ->
     let source = Printf.sprintf "(array/range %d)" count in
     let vectors = Printf.sprintf "(array/vec3 %d [0.25 -0.5 1])" count in

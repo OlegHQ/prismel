@@ -42,6 +42,97 @@ let live ws path = Workspace.Paths.mem path ws.Workspace.live
 let invariant ws path = Workspace.Paths.mem path ws.Workspace.invariant
 
 let () =
+  let ws = good "(workspace vectors
+    (defn shift :context value [(p : vec2) (q : vec4)] {:p (+ p 2) :q (* 2 q)})
+    (defn count2 :context value [(a : (array vec2))] (array/count a))
+    (defn count4 :context value [(a : (array vec4))] (array/count a))
+    (graph g :context host
+      (let* [pair [t 2] quad [1 2 3 t]
+             moved (shift pair quad) [px py] pair [qx qy qz qw] quad]
+        {:pair pair :quad quad :moved moved :fields (+ px (+ py qw))})))" in
+  let result = List.assoc "g" (Result.get_ok (Eval.static ws)).results in
+  List.iter (fun time ->
+    let live = Frame_input.at_time time in
+    let actual = Result.get_ok (Eval.force ~live result)
+    and reference = Result.get_ok (Eval.Private.force_reference ~live result) in
+    let expected = Eval.Record ["pair", Vec2 (time,2.); "quad", Vec4 (1.,2.,3.,time);
+      "moved", Record ["p", Vec2 (time+.2.,4.); "q", Vec4 (2.,4.,6.,2.*.time)];
+      "fields", Float (time+.2.+.time)] in
+    assert (actual = expected && reference = expected)) [0.;0.25;2.];
+  List.iter (fun expression -> bad (value expression) "E_TYPE" ~text:"matching vector widths")
+    ["(+ [1 2] [1 2 3])"; "(* [1 2 3 4] [1 2])"; "(- [1 2 3] [1 2 3 4])"];
+  bad (value "(let* [pair [1 2]] pair.z)") "E_FIELD";
+  bad (value "(let* [[a b c] [1 2]] a)") "E_PATTERN" ~text:"a vec2 has 2";
+  bad (value "[1 2 3 4 5]") "E_VECTOR";
+  List.iter (fun expression ->
+    let ws = good (value ("(let* [v " ^ expression ^ "] 0)")) in
+    assert (not (Workspace.Paths.mem ["g";"v"] ws.approx))) ["[t 2]";"[1 2 3 t]"];
+  List.iter (fun (source, expected) ->
+    let ws = good ("(workspace vectors (graph g :context host " ^ source ^ "))") in
+    assert (List.assoc "g" (Result.get_ok (Eval.run ~time:0. ws)).results = expected))
+    ["(+ [1 2] true)", Eval.Vec2 (2.,3.);
+     "(let* [f (fn [(p : vec4)] p)] (f 2))", Eval.Vec4 (2.,2.,2.,2.);
+     "(let* [f (fn [(p : vec2)] p)] (f 3))", Eval.Vec2 (3.,3.)]
+
+let () = (* Function ports instantiate bodies, and keep each caller's captures. *)
+  let field = Check.{name = "field"; label = "Field"; fields = []; folder = [];
+    primary = true; unit = None; ty = Some (Port_type.Fn Ty.{params = [Float]; result = Float})} in
+  let kind = Check.{qualified = "sop/test_field"; aliases = []; context = Context.sop;
+    slots = []; parameters = [field]; outputs = ["geo", Port_type.Geometry]; facts = None} in
+  let run_with signature source =
+    let parameter = {field with ty = Some (Port_type.Fn signature)} in
+    Workspace.check {catalog with kinds = {kind with parameters = [parameter]} :: catalog.kinds}
+      (parse source) in
+  let signature = Ty.{params = [Record ["p", Vec3]]; result = Float} in
+  let accepted signature source = match run_with signature source with
+    | Some ws, ds when errors ds = [] -> ws
+    | _, ds -> failwith (source ^ "\n" ^ show ds) in
+  let ws = accepted signature (sop "(sop/test_field :field (fn [r] r.p.x))") in
+  (match (List.hd ws.graphs).body.node with
+   | Workspace.Call {args = ["field", {ty = Ty.Fn (Some certified);
+       node = Workspace.Fn {params = [_, Some input]; body; _}; _}]; _} ->
+       assert (certified = signature && input = List.hd signature.params && body.ty = Ty.Float)
+   | _ -> failwith "function port did not retain its checked body");
+  List.iter (fun (source, code) -> match run_with signature (sop source) with
+    | None, ds when List.exists (fun (d : Diagnostic.t) -> d.code = code) ds -> ()
+    | _, ds -> failwith (source ^ ": expected " ^ code ^ ", got " ^ show ds))
+    ["(sop/test_field :field 1.0)", "E_TYPE";
+     "(sop/test_field :field (fn [r s] r.p.x))", "E_ARITY";
+     "(sop/test_field :field (fn [r] (image/noise :width 1 :height 1)))", "E_TYPE";
+     "(let* [stored {:f (fn [r] r.p.x)}] (sop/box))", "E_FN_ESCAPES"];
+  let ws = accepted Ty.{params = [Float]; result = Float}
+    "(workspace w (defn consume :context sop [(f : fn)] (sop/test_field :field f)) (graph g :context sop (let* [offset 7.0 f7 (fn [x] (+ x offset)) alias f7 f3 (fn [x] (* x 3.0))] (sop/merge (list (consume alias) (consume f3))))))" in
+  let evaluated = match Eval.static ws with Ok v -> v | Error d -> failwith (Diagnostic.to_string d) in
+  let functions = Array.to_list evaluated.plan.nodes |> List.filter_map (fun (n : Eval.node) ->
+    if n.kind = "sop/test_field" then match List.assoc "field" n.args with
+      | Eval.Fn fn -> Some fn | _ -> failwith "function port lost its callable"
+    else None) in
+  assert (List.length functions = 2);
+  List.iteri (fun i fn ->
+    let _, body = Option.get (Eval.Private.function_body fn) in
+    assert (body.ty = Ty.Float);
+    if i = 0 then assert (List.assoc "offset" (Eval.Private.function_bindings fn) = Eval.Float 7.)) functions
+
+let () = (* A canvas accepts an image through the ordinary drawing operator. *)
+  let ws = good "(workspace w (graph picture :context image (image/noise :width 2 :height 2)) (graph editor :context editor (ui/workspace (ui/canvas (ref picture)))))" in
+  let editor = List.find (fun (g : Workspace.graph) -> g.name = "editor") ws.graphs in
+  (match editor.body.node with
+   | Workspace.Op { op = "ui/workspace"; args = [_, {node = Workspace.Op {
+       op = "ui/canvas"; args = ["drawing", {ty; node = Workspace.Op {
+         op = "draw/image"; args = ["image", image]; _}; _}]; _}; _}]; _} ->
+       assert (ty = Ty.drawing && image.ty = Ty.image)
+   | _ -> failwith "canvas image did not lower to draw/image");
+  let evaluated = match Eval.static ws with Ok v -> v | Error d -> failwith (Diagnostic.to_string d) in
+  (match List.assoc "editor" evaluated.results with
+   | Eval.Struct ("ui/workspace", _, ["root", Eval.Struct ("ui/canvas", _,
+       ["drawing", Eval.Deferred (ty, id)])]) ->
+       let drawing = evaluated.plan.nodes.(id) in
+       assert (ty = Ty.drawing && drawing.kind = "draw/image");
+       assert (List.assoc "image" drawing.args = List.assoc "picture" evaluated.results)
+   | _ -> failwith "canvas image did not evaluate as a drawing");
+  bad "(workspace w (graph editor :context editor (ui/workspace (ui/canvas 1))))" "E_TYPE"
+
+let () =
   List.iter (fun context ->
     ignore(good ("(workspace w (graph g :context "^context^
       " (let* [img (image/noise :width 1 :height 1)] "^
@@ -63,7 +154,7 @@ let () = (* structure and the typed IR *)
   let g = List.hd ws.graphs in
   assert (g.context = Context.value && List.length g.inputs = 1);
   (match g.body.node with
-   | Workspace.Let ([ (Workspace.Name "a", { node = Workspace.Call_fn { fn = "f"; args = [ _ ] }; path = Some [ "g"; "a" ]; _ }) ], r) ->
+   | Workspace.Let ([ (Workspace.Name "a", { node = Workspace.Call_fn { fn = "f"; args = [ _ ]; _ }; path = Some [ "g"; "a" ]; _ }) ], r) ->
        assert (r.path = Some [ "g"; "@result" ]);
        (match r.node with
         | Workspace.Op { op = "+"; args = [ _; (_, { node = Workspace.Expanded { macro = "m"; _ }; _ }) ]; _ } -> ()
@@ -168,7 +259,7 @@ let () = (* other static diagnostics of the study *)
   bad (value "(let* [f (fn [a b] a)] (f 1))") "E_ARITY" ~text:"takes 2 arguments; got 1";
   bad (sop "(sop/box :sizes 1)") "E_UNKNOWN_PARAM" ~text:"Did you mean";
   bad (sop "(sop/box :size 1 :size 2)") "E_DUPLICATE_PARAM";
-  bad (sop "(sop/box :size [1 2])") "E_VECTOR";
+  bad (sop "(sop/box :size [1 2])") "E_TYPE" ~text:"takes vec3, but this is vec2";
   bad (sop "(sop/box :x_divisions \"a\")") "E_TYPE";
   bad (sop "(sop/box :x_divisions 0)") "E_HARD_RANGE";
   warns (sop "(sop/box :x_divisions 99)") "W_SOFT_RANGE";
@@ -363,7 +454,7 @@ let () = (* IR shapes, notes and reporting *)
    | Workspace.Let ([ (_, s); (_, l); (_, c); (_, k) ], _) ->
        (match s.node with
         | Workspace.Loop { kind = `Sum; accs = []; clauses = [ (Workspace.Name "i", _) ]; zone = [ "g"; "s" ];
-                           body = { node = Workspace.Call_fn { fn = "f"; args = [ _; _ ] }; _ }; _ } -> ()
+                           body = { node = Workspace.Call_fn { fn = "f"; args = [ _; _ ]; _ }; _ }; _ } -> ()
         | _ -> failwith "sum is not a Loop");
        (match l.node with
         | Workspace.Hof (`Map, [ { node = Workspace.Fn { zone = [ "g"; "l#0" ]; params = [ (Workspace.Name "k", None) ]; _ }; _ }; _ ]) -> ()
@@ -655,10 +746,13 @@ let () =
   assert (approximable "(for [x (array/float 4)] (* x 2.0))");
   assert (approximable "(map (fn [x] (+ x (frame/dt))) (array/float 4))");
   assert (not (approximable "(for [x (array/float 4) y (array/float 4)] (+ x y))"));
+  assert (not (approximable "(for [x (array/float 4)] :skip [0] (+ x 1.0))"));
   assert (not (approximable "(fold [a 0.0] [x (array/float 4)] (+ a x))"));
   assert (not (approximable "(map (fn [x] (sin x)) (list 1 2 3))"));
   assert (not (approximable "(filter (fn [x] (> x 0)) (array/float 4))"));
   assert (not (approximable "(map (fn [x] (floor x)) (array/float 4))"));
+  assert (approximable "(map (fn [p] (length p)) (array/vec3 4))");
+  bad (candidate "(map (fn [x] (length x)) (array/float 4))") "E_TYPE" ~text:"length needs a vec3";
   assert (not (approximable "(map (fn [(x : int)] (+ x 1)) (array/float 4))"));
   assert (approximable "(let* [f (fn [(x : float)] (sqrt (abs x))) xs (map f (array/float 4))] xs)");
   assert (not (approximable "(let* [xs (map sin (array/float 4))] (exact xs))"));
@@ -684,3 +778,40 @@ let () =
     || List.mem name Packed_ops.noise_names)) Packed_ops.names;
   assert (not (Packed_ops.supports "exact"));
   print_endline "workspace approximability: packed maps/collect, aliases, exact, reductions, noise configuration and opaque calls passed"
+
+let () =
+  let producer = "(map (fn [x] (+ x 1.0)) (array/float 4))" in
+  let checks body = "(let* [producer " ^ producer ^ " alias producer] " ^ body ^ ")" in
+  List.iter (fun source ->
+    bad ~text:"Producer: g/producer; sink: g/@result" source "E_APPROX_SINK")
+    [sop (checks "(sop/box :size (array/sum alias))");
+     value (checks "(state [s alias] s)");
+     "(workspace w (graph consumer :context value [(xs : float 0.0)] 0)
+       (graph g :context value " ^ checks "(ref consumer :xs (array/sum alias))" ^ "))"];
+  List.iter (fun (context, body) ->
+    bad ~text:"Producer: g/producer; sink: g/@result"
+      ("(workspace w (graph g :context " ^ context ^ " " ^ checks body ^ "))") "E_APPROX_SINK")
+    ["settings", "(settings/config :width (count alias))";
+     "scene", "(scene/camera :fov (array/sum alias))"];
+  ignore (good (sop (checks "(sop/box :size (array/sum (exact alias)))")));
+  let marked form = Workspace.Paths.mem ["g";"producer"]
+    (good ("(workspace w (graph g :context draw (let* [producer " ^ form ^
+      "] (draw/circles producer))))")).approx in
+  let vectors = "(map (fn [x] [x 0 0]) (array/float 4))" in
+  assert (marked ("(cond true " ^ vectors ^ " :else " ^ vectors ^ ")"));
+  assert (marked ("(case 2 1 " ^ vectors ^ " :else " ^ vectors ^ ")"));
+  assert (marked "(map (fn [x] (cond (> x 0) [x 0 0] :else [0 0 0])) (array/float 4))");
+  assert (marked "(map (fn [x] (case x 0 [0 0 0] :else [x 0 0])) (array/float 4))");
+  assert (Op.is_display_kind "draw/circles" && Op.is_display_kind "ui/canvas"
+    && not (Op.is_display_kind "scene/camera"));
+  let kind = Check.{qualified = "value/test_sink"; aliases = []; context = Context.value;
+    slots = [{name = "source"; required = true; rest = false; ty = Some (Ty.Array Ty.Float)}];
+    parameters = []; outputs = ["out", Port_type.Float]; facts = None} in
+  let checked body = Workspace.check {catalog with kinds = kind :: catalog.kinds}
+    (parse (value (checks body))) in
+  (match checked "(value/test_sink alias)" with
+   | None, ds -> assert (List.exists (fun (d : Diagnostic.t) -> d.code = "E_APPROX_SINK") ds)
+   | _ -> assert false);
+  (match checked "(value/test_sink (exact alias))" with
+   | Some _, ds -> assert (errors ds = []) | _ -> assert false);
+  print_endline "workspace precision: producer/sink paths, aliases, exact, cond/case and display consumers passed"

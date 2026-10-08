@@ -115,19 +115,35 @@ saying what the table establishes and what it does not, the raw file paths.
 
 ## 1. Where the tree is
 
+**Current checkpoint (2026-10-08).** F1.1, F1.2, F1.4 and the F6 canvas-image
+coercion are implemented and verified. The field SOP, selected-tuple probes,
+sampled extractor, empty-cell guard and cube-count lookup are implemented;
+F2.1 remains open because its eight-domain whole-cook median is 20.167 ms
+against the unchanged <10 ms gate. F1.3 and F2.2–F2.3 remain open. F2.4 and F4
+are conditional, and F3 requires the owner's request to move its numbers.
+Earlier status paragraphs below are the implementation history; this
+checkpoint supersedes their temporary native-access and commit restrictions.
+The current Apple M1 host passed `@all @runtest`, the native aliases listed
+under F5, all three workspace pixel aliases, and `--ship` (exit 0). Native
+workspace parity includes 37 standard files, two custom-catalog executables
+and 13 fixtures at four times and domains 1/8, including `flow_field` and
+`flow_vectors`. GPU arithmetic/select are exact at 1,024 and 65,536 elements;
+noise maximum errors are 8.82050105e-7 and 9.88528899e-5 within the existing
+tolerance. No golden, tolerance or performance gate was relaxed.
+
 Everything in the six phases of the first roadmap has landed. Read this table
 once so you know what exists before you add anything.
 
 | Area | Where | What it does today |
 |---|---|---|
-| Language | `lib/flow` (`syntax`, `lisp`, `macro`, `check`, `workspace`, `eval`, `op`, `packed_ops`, `ty`, `context`, `port_type`) | Reader, printer, hygienic macros, checker with liveness/invariance/approx sets, reference tree walker, one operator registry (`Flow.Op`), one packed operator declaration (`Flow.Packed_ops`, 21 names: 15 binary, 5 unary, noise). Depends only on `param` and `frame_input`. |
+| Language | `lib/flow` (`syntax`, `lisp`, `macro`, `check`, `workspace`, `eval`, `op`, `packed_ops`, `ty`, `context`, `port_type`) | Reader, printer, hygienic macros, checker with liveness/invariance/approx sets, reference tree walker, one operator registry (`Flow.Op`), one packed operator declaration (`Flow.Packed_ops`, 22 names: 15 binary, 5 unary, noise, derived vec3 length). Depends only on `param` and `frame_input`. |
 | IR | `lib/flow_ir` (`flow_ir.ml`, `packed.ml`, `operators.ml`) | Typed dataflow with `rate`, `precision`, `Count`, tiers `Interp | Closure | Cpu_kernel | Gpu | Gpu_compile | Gpu_readback | Cooked`; passes `share`, `hoist`, `fuse`, `prune`, `place`; `Cost` with measured affine rows; `Gpu.backend` callback; `Executor.try_display`. Packed register programs in 1,024-element blocks. |
 | GPU tier | `lib/flow_gpu` (`emit`, `pipelines`, `run`, `host`) | Metal source from a packed program (`Emit.kernel`), pipeline cache of 64 (`Pipelines`), owned runners and buffers (`Run`), the host that owns at most 64 runners and 64 pipelines and installs the backend (`Host`). Depends on `flow`, `flow_ir`, `ogpu`, `rays_execution`, `lru`, `rays_math`, `param`. |
 | SOP overlay | `lib/flow_sop` (`lower`, `attribute_kernel`, `value_lane`, `operators`) | Lowers a checked workspace to a `Procedural` network; `sop/attr` and `sop/with_attr` are the kernel boundary (`Attribute_kernel` over `Rdk.Kernel.edit_point_ranges`); image resolver callback (`Lower.with_images`). |
 | Graph layer | `lib/flow_graph` (`projection`, `flow_edit`, `exposure`, `probe`) | Domain-neutral projection and gestures; zones for map/filter/reduce/sort-by and if/cond/case arms; probes force one tuple. |
 | 2D | `lib/sketch_support/drawing.ml`, `lib/flow/op.ml` (`draw_op` lines ~200-240) | 18 `draw/*` kinds; plural kinds (`circles`, `rects`, `lines`, `points`, ...) lower to one instanced `Scene_command.Shape_batch`; GPU display sinks take a `gpu_token`. |
 | Images | `lib/flow/op.ml:264-269`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, `image/render` (offscreen `Rays.Canvas`), `image/noise` (cooked); `draw/image`; `scene/geometry :texture image`; `sop/attr_from_image`. The editor pins at most 64 images. |
-| Catalog | `lib/sop_catalog`, `ppx/ppx_rays`, `lib/procedural/node.ml` | 161 `sop/*` kinds, one declaration each, `Node.facts` (elementwise, reads, writes, topology, exact). |
+| Catalog | `lib/sop_catalog`, `ppx/ppx_rays`, `lib/procedural/node.ml` | 162 `sop/*` kinds, one declaration each, including the field SOP, `Node.facts` (elementwise, reads, writes, topology, exact). |
 | Cook | `lib/procedural/session.ml` | Component-keyed LRU; learned placement fans branches and zone elements across domains above a 2 ms measured subtree. |
 | Geometry | `lib/rdk/**` | Float64 structure-of-arrays planes; `Mesh_merge.merge_plain` is the serial merge (see F3). Scene3 packs planes into float32 24+12-byte streams (`lib/rays/scene3_native_lowering.ml`). |
 | Editor | `lib/rays_editor` (`workspace_gpu.ml`, `workspace_images.ml`, `spreadsheet.ml`, `viewport3.ml`) | GPU owner with `Measured | Qualification` policy; spreadsheet pane; `ui/viewport` is 3D only. |
@@ -161,7 +177,7 @@ small. F8 is the hand-off into the continuation.
 
 ### F0. Documentation drift (do first, one hour)
 
-**Done (2026-10-08).** The commit titled `Document flow_gpu ownership and
+**Done (2026-10-08, `89d11c97`).** The commit `Document flow_gpu ownership and
 dependency rules (F0)` adds the library row and dependency rule below.
 `dune build @check tools/check.exe`, `_build/default/tools/check.exe --ship`
 and `git diff --check` passed on the native Apple-Silicon worktree.
@@ -197,6 +213,64 @@ The checker scope below closes that.
 
 #### F1.1 Open `Port_type.t` for `fn` and `image` ports
 
+**Representation review (2026-10-08, GPT 6 Astra; implementation in progress).**
+`Ty` has no code dependency on `Port_type`, so `Port_type` may depend on
+`Ty` without a library edge. Use `Ty.Fn of fn_signature option` and
+`fn_signature = { params : Ty.t list; result : Ty.t }`, with
+`Port_type.Fn of Ty.fn_signature`: the recursive port-only signature below
+cannot represent record, list, array or text arguments. Bare `fn` stays
+uninstantiated (`None`); a checked port argument retains both the instantiated
+signature and the retyped body. `Check.term.ty` is a port type, so
+`Workspace.to_check` must pass the validated signature rather than a bare
+function marker. Preserve captures and named-function identity. The focused
+regression must accept an unannotated function taking `{:p vec3}` and returning
+float, inspect its retyped body, and reject wrong arity, image results and
+function storage in a record. `Attribute_kernel.prepare` currently compiles
+evaluated values; it does not yet compile arbitrary function arguments.
+The actual Kernel argument and external-kind test remain completion gates.
+
+**Checker groundwork implemented (2026-10-08; uncommitted).** Function and
+image port constructors, signature round trips, catalog-argument validation,
+and call-site function specialization are in the worktree. Each `Call_fn`
+retains its checked body; a specialized `Fn` retains the original callable's
+captures and call identity. The external `?ops` test accepts a vec3-to-float
+port, projects its function zone and edits it through `Flow_edit.Set_arg`.
+Focused Flow, graph, IR, SOP and PXUI-graph tests passed; the intended API
+manifest diff was reviewed and promoted. Required physical Fn/Image slots now
+have generated keyword-input metadata (`sop.node_keywords`, with list-valued
+`sop.node_types` for signatures containing commas). The new PPX and live/
+serialized-catalog regression passes. The compiled bulk bridge is implemented:
+`Procedural.Kernel`/`Payload.Kernel`, `Eval.Private.map_function`, hidden
+function resources and captured-geometry dependencies. Its generated-factory
+test checks `[9;6]` from distinct offsets, live captures through a `defn`, an
+unchanged cache hit, stable consumer IDs after an offset edit, and concurrent
+one/eight-domain compiled/reference equality with scalar-to-vec3 conversion.
+Nested record/geometry captures and per-point zone captures pass. Kernel
+preparation requires an actual `Packed_map` IR node and returns typed
+`E_KERNEL_FORM` for signatures/forms outside today's float/vec3 compiler.
+Astra reviewed the boundary, residual IDs, capture traversal and zone cache
+identity; the deferred-vec3 field projection follows its review. Graph insertion
+and parameter editing are covered through generated defaults and Fn zones.
+The full workspace sweep passes (35 standard files, two custom-catalog
+executables, 13 fixtures, four times, one/eight domains). Its broad test run
+caught a factory type-name whitespace regression; the shared validator was
+fixed and the mixed-image SOP regression passes directly. The intended API
+changes were promoted. The final pure run (`@check @all @runtest`) passes.
+Still required: native shipping and a commit when `.git` is writable.
+
+**Boundary findings (GPT 6 Astra, 2026-10-08).** A literal
+`Flow_ir.Executor.program` in a Procedural factory would add the forbidden
+dependency edge. The `flow_sop` bridge must own that compiled program and
+forward a backend-neutral bulk executable handle to the factory. That handle
+must execute the compiled CPU program, not interpret the function per sample.
+Function resources need conservative fresh identity per lowering and cooked
+payload IDs, with captured geometry as real dependencies; unchanged cache hits
+retain their payload IDs. `Flow.Value.key_of (Fn _)` currently returns only
+`"fn"` and is insufficient. Typed keywords are physical inputs, not new Param
+field kinds. A function alone cannot compile to a packed map: binding packed
+input columns constructs an evaluator-owned residual map, and then
+`Attribute_kernel.prepare` creates the program captured by the bulk runner.
+
 **Today.** `lib/flow/port_type.mli`:
 
 ```ocaml
@@ -225,7 +299,7 @@ raised for a `fn` passed to an `Fn` port. The IR sees that argument as a
 
 **Steps.**
 
-1. `lib/flow/port_type.mli`: add `Fn of { params : t list; result : t }` and
+1. `lib/flow/port_type.mli`: add `Fn of Ty.fn_signature` and
    `Image`. `name`, `can_connect`, `coerce` get arms; `coerce` of a function
    or an image is always `Error` (they are never driven by a scalar).
    `of_field_kind` returns `None` for both (no `Param` field view exists).
@@ -233,9 +307,10 @@ raised for a `fn` passed to an `Fn` port. The IR sees that argument as a
    constructors flow through `parameter.ty`. `validate_parameter` gets two
    arms: an `Fn` port accepts a term whose `ty` is `Ty.Fn` with a fitting
    signature, an `Image` port accepts `Ty.image`.
-3. `ppx/ppx_rays` and `lib/sop_catalog/flow_manifest.ml`: the single
-   declaration gains a field kind for `fn` and `image` so the manifest can
-   carry them. Read `specification/procedural.md`, "one declaration", and the
+3. `ppx/ppx_rays` and `lib/flow_sop/manifest.ml`: the single
+   declaration gains typed keyword-input metadata for `fn` and `image`,
+   preserving the existing physical mixed-slot mechanism. Read
+   `specification/procedural.md`, "one declaration", and the
    `add-sop` skill first. The manifest snapshot `flow_manifest.sexp` will
    diff; review it and `dune promote`.
 4. `lib/flow/workspace.ml`: in `call` (the `Call` arm), when the parameter's
@@ -247,7 +322,9 @@ raised for a `fn` passed to an `Fn` port. The IR sees that argument as a
    An `Image` port draws as an ordinary wire of the image colour (`Ty.color`
    of `Ty.image`).
 6. `lib/flow_sop/lower.ml`: an `Fn` argument reaches the node factory as a
-   compiled `Flow_ir.Executor.program` (reuse `Attribute_kernel.prepare`).
+   typed input whose bulk executable owns a compiled
+   `Flow_ir.Executor.program` in Flow_sop (reuse `Attribute_kernel.prepare`
+   after binding packed inputs; no Procedural-to-Flow_ir dependency).
    An `Image` argument reaches it through the existing image resolver.
 
 **Tests.** `lib/flow/test_check.ml`: `validate_parameter` on each new port
@@ -270,6 +347,22 @@ on it today; check the dependency order inside `lib/flow` with
 dependency on `Ty` or `Ty` gains the port constructors; Astra decides).
 
 #### F1.2 Precision as a checker class, not only an IR refusal
+
+**Implementation status (2026-10-08; uncommitted, pure checks passed).**
+The checker now retains approximate producer paths separately from GPU
+eligibility, including aliases and nested containers, and checks catalog
+slots/parameters, state seeds, graph overrides and settings/scene arguments.
+`Op.is_display_kind` is shared with IR sink classification. `cond` and numeric/
+boolean `case` have packed compiler support and emitter/reference parity at
+one/eight domains; eager pure branches use the existing `Select` instruction.
+The particles seed and Flow kernel geometry consumer now use explicit `exact`
+boundaries without removing their producer bindings from the eligible set.
+Inline `exact` cards now project their child maps/Fn zones and support checked
+argument edits; the shared nested-call recognition fixes every graph gesture
+caller. The 37-file approximate-path audit passes with both actual custom
+catalogs. `@check @all @runtest` passes, and the intended `Op.is_display_kind`
+API addition was promoted. The subsequent skipped-tuple exclusion has focused
+Flow/graph/IR/GPU coverage. Remaining: native shipping and commit.
 
 **Today.** `Workspace.approx` is advisory: `workspace.ml:834` (a single-clause
 `for` over packed arrays with a covered body), `:995` (a `map` whose inputs
@@ -323,6 +416,36 @@ a new error.
 
 #### F1.3 One eligibility set: the checker marks exactly what the emitter compiles
 
+**Source audit (2026-10-08; predicate/test implementation pending).**
+The current 39-file `--approx` audit (including the actual custom catalogs)
+prints nine paths: six in particles, one in Flow kernel, two in Flow particles
+GPU. Eligibility tests must cover authored producer/body paths, aliases and
+state captures rather than compile unrelated scalar records as kernels.
+The refusal union read from the current compiler/emitter is:
+
+- `Emit.kernel`: requires collecting Zip iteration, no skipped tuples and no
+  accumulator instructions; used noise instructions require 1–32 octaves;
+  used constants must remain finite after float32 conversion.
+- `Packed.compile`: refuses previous/state-dependent residuals; supports
+  map/reduce, selected loop shapes and array/sum, with only float/vec3 sources
+  and outputs. Correlated product sources, mismatched arity, destructuring
+  parameters and incompatible annotations fail.
+- Body compilation has a 64-register ceiling. Captures must resolve to
+  numeric/bool/vec3 values or compatible live uniforms; fields must resolve
+  through captures/records or a vec3 component. Unsupported scalar widths,
+  forms and non-name let patterns fail.
+- Operator declarations must be the canonical scalar declaration (or the
+  registered noise declaration). Dynamic integer arithmetic, unsupported
+  operator/arity pairs, nonconstant noise configuration, invalid octave
+  counts and unsupported conditional/case shapes fail. Constant folding can
+  introduce a float64 constant outside float32 range even when each literal
+  fits, so checking literal magnitude alone is insufficient.
+- A single-clause `for` still uses Product in the packed compiler while the
+  emitter demands Zip. State-fold inputs can also be marked by today's
+  syntactic body rule even though packed preparation refuses state-dependent
+  residuals. These discrepancies remain open; this audit does not establish
+  the F1.3 gate.
+
 **Today.** The emitter (`lib/flow_gpu/emit.ml`) refuses ordered
 accumulators, multi-source products and skipped elements with `E_GPU_FORM`
 after the checker marked the path approximable. `Packed.compile`
@@ -357,6 +480,22 @@ workspace (keep the code path; it is the backstop for hand-built programs).
 **Astra brief.** Not needed.
 
 #### F1.4 Types the kernels do not have: Vec2, Vec4, Mat4, integers
+
+**Implementation checkpoint (2026-10-08; shipping verification in progress).**
+`Ty.Vec2`/`Vec4`, array annotations, type/string round trips and same-width
+coercions are implemented. Two/four-component literals execute through the
+reference evaluator, including fields, destructuring, scalar broadcasting,
+typed function arguments and live values. Mixed-width arithmetic reports
+`E_TYPE`; existing Vec3 arithmetic is preserved. Projection supplies the
+literal's checked type to the existing two/three/four-cell numeric widget;
+component `Set_arg` edits, defaults and probe descriptions pass. Packed
+instructions, array constructors/storage and catalog port variants are
+unchanged; new widths do not enter `approx`. Focused Flow/graph/IR/GPU tests
+pass, and the intended API and generated sketch include are promoted.
+`sketches/flow_vectors/sketch.rays` demonstrates both widths through current
+drawing ports. Broad `@all @runtest` verification passes, including 37 standard
+workspaces, two custom-catalog executables and 13 fixtures at four times and
+domains 1/8. Native shipping and the commit checkpoint are pending.
 
 **Today.** `Ty.t` has `Float | Int | Bool | Vec3 | Text | Color | List | Array |
 Record | Fn | Any | Named`. Packed arrays are `Float_array` and `Vec3_array`
@@ -425,6 +564,89 @@ its projection and gestures, then its lowering.
 
 #### F2.1 Fields: a `fn` of position as data for geometry
 
+**Astra design review (2026-10-08; sampled extractor implemented, SOP in progress).** Use a private
+`Sampled of float array` evaluator and one `Array.blit` per plane into the
+existing two-pass streaming marcher. Layout is
+`x + (rx + 1) * (y + (ry + 1) * z)`; retain exact coordinate arithmetic,
+validate products/length/finiteness/cancellation, and borrow the array read-only.
+Thread a tunable grain (default 16,384), with the proposed sequential cutoff
+`length / grain < 2`; do not change packed register blocks. The required parity
+check includes both the 64-cell sphere and an asymmetric `(129,256,2)` lattice
+crossing the cutoff, with complete geometry bytes and smooth/flat normals.
+First instrument the unchanged dense extractor and preserve its executable;
+record at least seven isolated dev-profile sphere/gyroid/asymmetric trials at
+one/eight domains, complete geometry hashes and aggregate GC accounting.
+The new SOP's timed cook must include grid creation, kernel preparation and
+evaluation, validation, marching and geometry construction. There is no old
+field-SOP baseline. The principal risk is that 4,096 cells per sphere plane
+stay sequential: only the median **whole cook** below 10 ms at eight domains
+meets the gate. Send raw CSVs back to Astra for its verdict; no gate verdict
+or performance claim has been made. The required strict vec3 `length` Lisp
+operator is now implemented with the existing Mul/Add/Sqrt instructions;
+static bits, underflow/zero, masked overflow and lazy untaken-branch recovery
+pass at one/eight domains. No runtime register-validation pass was added: the
+existing intermediate Mul/Add guards already rerun the reference on overflow.
+Its shared derived-name metadata/API addition is promoted. Before measurements
+are recorded in `specification/performance-log.md` and six `f-field-*-before-*.csv`
+files; the untouched extractor executable is `/private/tmp/f-iso-before.exe`.
+The sphere's dense median is 27.842 ms at one domain and 30.690 ms at eight;
+these are baseline extraction timings, not whole-cook gate results.
+The sampled entry point and grain routing now pass complete geometry parity
+for smooth/flat sphere and asymmetric fixtures at one/eight domains and three
+grains, including malformed cardinality, overflow, nonfinite values and
+cancellation checks. Its API manifest is promoted. Seven-trial dense after
+measurements preserve all complete hashes: sphere/gyroid medians change by
+less than 0.4%; the asymmetric eight-domain median improves 15.0% with variable
+trials. Astra approves retaining the scheduling change for SOP plumbing;
+the whole-cook gate was still unmeasured at that review.
+The single-declaration SOP now passes complete 65³ compiled/reference sample
+parity at two times and one/eight domains, complete cooked mesh parity to the
+dense custom sphere, typed constructor/factory parity, malformed constructor
+checks and graph projection/argument gestures. The generated catalog/API
+manifests are promoted. `sketches/flow_field/sketch.rays` is added; its broad
+workspace sweep passed at four times and both domain counts; its generated
+include and the changed catalog digest in the Lisp compiler golden are promoted.
+Selected field-body probes are implemented and pass the large-grid selected
+tuple and bounded-memo tests.
+Shared-field/map numbering now passes: one function's ordinary map calls and
+two differently sized field lattices share stable selectors, including schema
+defaults, out-of-range refusal and bounded selected-call memos. An anonymous
+function argument also uses the checked nested input path, fixing field-body
+record/projection identity at the shared argument parser.
+First whole-cook medians are 31.998 ms
+at one domain and 30.005 ms at eight (seven isolated dev trials each,
+zero-capacity sessions, grid/preparation/evaluation/marching included).
+Astra's verdict is “not met, try sampled-marcher phase profiling”; no performance
+gate success or confirmed-reference-hardware qualification is claimed.
+The approved empty-cell emission guard passes the independent ordered plane
+golden with empty/crossing/empty slabs and the existing full parity matrix.
+Seven saved-before/rebuilt-after trials at each domain count preserve all
+hashes/cardinalities. The eight-domain whole-cook median improves from 31.764
+to 24.551 ms and allocated bytes from 110,118,168 to 46,286,896; outliers are
+retained. Astra says keep the guard, but the gate is still not met; next
+measure both counting passes separately. Details and all raw CSVs are in the
+performance log. Broad current `@all @runtest` verification passed, including
+36 standard files, two actual custom-catalog executables and 13 fixtures at
+four times and domains 1/8;
+native qualification and commits remain blocked by the documented sandbox.
+The counting-pass diagnostic is recorded with a reproducible temporary patch;
+all instrumentation/dependency changes are restored byte-for-byte. Initial
+counting and emission-pass recounting take medians 3.876/3.863 ms with no
+measured allocation, versus 17.002 ms instrumented sampled extraction.
+Astra approves replacing the six per-cell tetrahedron-count lookups with a
+fixed 256-entry cube-count table, preserving both passes, streaming storage,
+classification, cancellation and emission. Before editing, save both current
+uninstrumented benchmark executables and collect the same before/after fixture
+matrix. Add an independent exhaustive 256-mask single-cell count check using
+corner-to-flat order `[0;1;3;2;4;5;7;6]`, including equality at iso. This table
+change is now implemented: the independent exhaustive masks and full normal/
+topology parity matrix pass. Seven isolated before/after trials preserve all
+fixture hashes and cardinalities. Eight-domain whole-cook median falls from
+23.019 to 20.167 ms; Astra says keep the lookup, but the <10 ms gate remains
+not met. Gradient-phase attribution is complete with temporary instrumentation
+restored byte-for-byte; XY/Z medians are 1.444/1.090 ms of a 14.522 ms
+instrumented extraction. No gradient rewrite is approved or implemented.
+
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value
 type. The first consumer is a new SOP:
@@ -439,8 +661,10 @@ closure that runs the interpreter: 64³ = 262,144 samples at 710 ns each is
 186 ms per cook, and a million at 1M-sample resolutions. Instead:
 
 1. Build the sample positions as one packed `Vec3_array` of
-   `rx * ry * rz` elements (the grid is static; it is a `Source` in the IR
-   with `Count.Static`).
+   `(rx + 1) * (ry + 1) * (rz + 1)` elements: `Iso_surface` resolutions count
+   cells, so a 64-cell resolution uses 65³ samples (GPT 6 Astra's source
+   audit, 2026-10-08). The grid is static; it is a `Source` in the IR
+   with `Count.Static`.
 2. Run the field as a packed `map` over that array through
    `Attribute_kernel.prepare` and `Flow_ir.Executor.force` (CPU tier,
    byte-identical at one and eight domains). This gives a `Float_array` of
@@ -709,7 +933,8 @@ Rules:
 2. The native aliases that matter for this file: `@lib/flow_gpu/runtest-native`
    (`test_run.exe`: emitted-kernel numerics, 1,024 and 65,536 elements),
    `@lib/rays/test_shape_batch_native`, `@lib/rays/test_scene3_float32_native`,
-   `@lib/rays/test_canvas_native`, `@test/test_workspace_images_native`,
+   `@lib/rays/test_canvas_native`, `@test/runtest-native` (includes
+   `test_workspace_images_native`),
    the three `test_workspace_pixels` aliases, `@examples/sop_gallery/test_scene3_float32_gallery`,
    `@lib/runtime/native_qualification/qualification`, `@lib/pxui/test_ui_parity`
    (2x goldens; check display density first, refresh only with
@@ -722,6 +947,37 @@ Rules:
    make the mock compute.
 
 ### F6. Small, known, bounded
+
+**Canvas image input implemented (2026-10-08; native shipping unavailable).**
+`Workspace.apply_op` wraps an image passed to `ui/canvas` in the existing
+`draw/image` operation. The focused regression checks the typed argument,
+the evaluated drawing plan and scalar refusal. `@check` and
+`@lib/flow/runtest` passed. The complete workspace IR sweep passed 35 standard
+files, two custom-catalog executables and 13 fixtures, at four times and one/
+eight domains. `--ship` returned exit 1. An isolated `@check @smoke` run
+confirmed the native smoke startup failure: `SDL3.Init.init: The video driver
+did not add any displays` (`/tmp/rays-f-check.log`). This is not a native pass.
+Do not call this item done until shipping succeeds on a native host.
+
+**Native environment evidence (2026-10-08).** After the environment changed
+to managed execution, `_build/default/tools/check.exe
+@lib/flow_gpu/runtest-native` failed with
+`Ogpu_metal.Device.system_default: Metal has no system default device`.
+Native gates are not verified in this environment. The earlier native-host
+F0 validation does not qualify later changes.
+
+**Commit restriction (2026-10-08).** The managed filesystem policy makes
+`.git` read-only: staging these changes failed with
+`Unable to create '.git/index.lock': Operation not permitted`.
+The F1.1 groundwork and F6 changes remain uncommitted. Resume regular commits
+when Git metadata is writable; do not describe them as committed meanwhile.
+
+**Access restored (2026-10-08).** The environment now permits filesystem and
+native access. `sysctl` identifies `Macmini9,1`, Apple M1, eight logical CPUs.
+The earlier restrictions above describe the managed runs, not current access.
+Current `@all @runtest`, unrestricted `--ship` and the F5 native gates have
+passed (exit 0); see the current checkpoint above. The historical managed
+failures do not qualify or invalidate this later native-host run.
 
 - **`ui/viewport` takes the 3D scene only** (`lib/flow/op.ml:442`,
   `lib/editor_document/contexts.ml:660`). A drawing goes in `ui/canvas`

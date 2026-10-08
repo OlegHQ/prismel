@@ -2,6 +2,22 @@ open Flow
 open Flow_graph
 let catalog = {Check.version = 1; kinds = []}
 let ok = function Ok x -> x | Error d -> failwith (Diagnostic.to_string d)
+
+let () =
+  List.iter (fun (literal, ty, width, expected) ->
+    let source = ok (Syntax.parse ("(workspace vectors (graph g :context host (let* [v " ^ literal ^ "] v)))")) in
+    let workspace = match Workspace.check catalog source with Some w, [] -> w | _, ds ->
+      failwith (String.concat "; " (List.map Diagnostic.to_string ds)) in
+    let card = Option.get (Projection.find (Projection.of_graph catalog workspace "g") ["g";"v"]) in
+    assert (card.ty = ty && (List.hd card.rows).ty = Some ty);
+    let default = Option.get (Flow_edit.default_for ty "v") in
+    (match default.node with Syntax.Vec cs -> assert (List.length cs = width) | _ -> assert false);
+    let _, edited = ok (Flow_edit.apply_checked catalog source
+      (Set_arg {node = card.path; key = Whole; sub = [width-1]; value = Syntax.make (Num "9.5")})) in
+    let probe = Probe.make (ok (Eval.static ~record:true edited)) in
+    assert ((Probe.footer probe card ~probes:[]).value = expected))
+    ["[1 2]", Ty.Vec2, 2, "[1 9.5]"; "[1 2 3 4]", Ty.Vec4, 4, "[1 2 3 9.5]"]
+
 let () =
   let text = "(workspace live (graph g :context value (let* [x (if (< t 1) 1 2) y (cond (< t 0) 1 (< t 1) 2 :else 3) z (case (< t 1) 0 4 true 5 :else 6)] (+ x (+ y z)))))" in
   let source = ok (Syntax.parse text) in
@@ -106,12 +122,38 @@ let () =
   assert (List.assoc "g" result.results = Eval.Float 2.5)
 
 let () =
+  let source = ok (Syntax.parse "(workspace nested_exact (graph g :context draw
+    (let* [output (draw/circles (exact (map (fn [x] [(+ x t) 0 0]) (array/float 4))))] output)))") in
+  let workspace = match Workspace.check catalog source with Some w, [] -> w | _, ds ->
+    failwith (String.concat "; " (List.map Diagnostic.to_string ds)) in
+  let scope = Projection.of_graph catalog workspace "g" in
+  let exact = Option.get (Projection.find scope ["g";"output#0"]) in
+  assert (exact.head = "exact");
+  assert (Option.is_some (Projection.find scope ["g";"output#0#0#0"]));
+  let replacement = ok (Syntax.parse "(array/vec3 4)") |> List.hd in
+  let _, edited = ok (Flow_edit.apply_checked catalog source
+    (Set_arg {node = exact.path; key = Pos 0; sub = []; value = replacement})) in
+  assert (Option.is_none (Projection.find (Projection.of_graph catalog edited "g") ["g";"output#0#0#0"]))
+
+let () =
+  let source = ok (Syntax.parse "(workspace norm (graph g :context value
+    (let* [radius (length [3 4 0])] radius)))") in
+  let checked = match Workspace.check catalog source with Some w, [] -> w | _, ds ->
+    failwith (String.concat "; " (List.map Diagnostic.to_string ds)) in
+  let card = Projection.find (Projection.of_graph catalog checked "g") ["g";"radius"] |> Option.get in
+  assert (card.ty = Ty.Float && (List.hd card.rows).ty = Some Ty.Vec3);
+  let vector = ok (Syntax.parse "[0 0 12]") |> List.hd in
+  let _, edited = ok (Flow_edit.apply_checked catalog source
+    (Set_arg {node = card.path; key = Pos 0; sub = []; value = vector})) in
+  assert (List.assoc "g" (ok (Eval.run ~time:0. edited)).results = Eval.Float 12.)
+
+let () =
   let source = ok (Syntax.parse "(workspace maps (graph g :context value (let* [amp 2.0 out (map (fn [(x : float)] (let* [shift (+ x amp)] (* shift 3.0))) (array/float 10003 0.5))] (array/count out))))") in
   let workspace = match Workspace.check catalog source with Some w, [] -> w | _, ds ->
     failwith (String.concat "\n" (List.map Diagnostic.to_string ds)) in
   let scope = Projection.of_graph catalog workspace "g" in
   let fn = Option.get (Projection.find scope ["g"; "out#0"]) in
-  assert (fn.ty = Ty.Fn && (Option.get fn.zone).kind = Projection.Fn);
+  assert (fn.ty = (Ty.Fn None) && (Option.get fn.zone).kind = Projection.Fn);
   assert (List.exists (fun (rail : Projection.rail_row) -> rail.name = "x" && rail.ty = Some Ty.Float)
     (Option.get fn.zone).rail);
   let card = Option.get (Projection.find scope ["g"; "out"]) in

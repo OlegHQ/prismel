@@ -1,8 +1,15 @@
 (library
  (name flow_sop)
  (public_name rays.flow_sop)
- (modules port instance_path curve network value_lane catalog manifest operators attribute_kernel lower)
+ (modules port instance_path curve network value_lane catalog manifest operators attribute_kernel function_kernel lower)
+ (private_modules function_kernel)
  (libraries flow flow_ir param procedural unix))
+
+(test
+ (name test_keyword_ports)
+ (modules test_keyword_ports)
+ (libraries flow flow_ir flow_graph flow_sop procedural sop_catalog)
+ (preprocess (pps rays.ppx)))
 
 (test
  (name test_attribute_kernel)

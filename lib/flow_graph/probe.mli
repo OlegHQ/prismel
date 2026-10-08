@@ -32,6 +32,8 @@ type t
 val make :
   ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?time:float ->
   ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
+  ?bulk_calls:(path -> int list ->
+    (int * int * (int -> ((path * (int list * Flow.Eval.value) list) list, Flow.Diagnostic.t) result)) list) ->
   ?execution:(path -> probes:int list -> execution option) ->
   ?geometry:(int -> geometry option) -> ?image:(int -> (int * int) option) -> ?dynamic:(path -> int option) ->
   ?element:(path -> int -> (string * Flow.Eval.value) list option) -> Flow.Eval.t -> t
@@ -47,7 +49,12 @@ val make :
     [resolve] supplies cooked packed sources. Map selectors materialize their
     inputs once and reference-evaluate just the selected call, beyond the 4,096
     recording cap. The selected call and all its body records share one bounded memo.
-    Packed function sparklines sample at most 64 calls across the complete input. *)
+    Packed function sparklines sample at most 64 calls across the complete input.
+    [bulk_calls zone outer] adds host-owned domain selectors as
+    [(offset, count, at)], where [at k] reference-evaluates and records only
+    the selected call. These use the same bounded call/body memos and sparkline
+    sampling as ordinary maps. Host offsets begin at zero; when a function
+    also serves ordinary maps, host call numbers follow those recorded calls. *)
 
 val same_eval : t -> t -> bool
 (** Both come from one evaluation (only the time or the geometry counts may

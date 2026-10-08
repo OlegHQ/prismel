@@ -23,7 +23,7 @@ module Field = struct
   let custom field = Custom field
 end
 
-type evaluator = Boxed of (Vec3.t -> float) | Dense of Field.t
+type evaluator = Boxed of (Vec3.t -> float) | Dense of Field.t | Sampled of float array
 
 let sample_scratch = Domain.DLS.new_key (fun () -> Array.make 3 0.)
 
@@ -32,10 +32,21 @@ let finite_vec3 point =
   && Float.is_finite point.y
   && Float.is_finite point.z
 
-let extract_with evaluator ?cancel ?(smooth = true)
+let cell_triangle_counts =
+  let tetrahedron_counts = [|0;1;1;2;1;2;2;1;1;2;2;1;2;1;1;0|] in
+  Array.init 256 (fun mask ->
+    let bit corner = (mask lsr corner) land 1 in
+    let count a b c d =
+      tetrahedron_counts.(bit a lor (bit b lsl 1)
+        lor (bit c lsl 2) lor (bit d lsl 3)) in
+    count 0 1 2 6 + count 0 2 3 6 + count 0 3 7 6
+    + count 0 7 4 6 + count 0 4 5 6 + count 0 5 1 6)
+
+let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
     ~resolution:(x_cells, y_cells, z_cells) ~min ~max ~iso () =
   if x_cells <= 0 || y_cells <= 0 || z_cells <= 0 then
     invalid_arg "Iso3.extract: resolution counts must be positive";
+  if grain <= 0 then invalid_arg "Iso3.extract: grain must be positive";
   if x_cells >= Sys.max_array_length || y_cells >= Sys.max_array_length
      || z_cells >= Sys.max_array_length then
     invalid_arg "Iso3.extract: resolution is too large";
@@ -54,19 +65,24 @@ let extract_with evaluator ?cancel ?(smooth = true)
   match safe_product x_points y_points, safe_product x_cells y_cells with
   | None, _ | _, None -> Error "Iso3.extract: resolution is too large"
   | Some plane_stride, Some slab_cell_count ->
+  (match evaluator with
+   | Sampled samples ->
+       (match safe_product plane_stride (z_cells + 1) with
+        | Some count when count = Array.length samples -> ()
+        | _ -> invalid_arg "Iso3.extract_sampled: sample count must match the point lattice")
+   | _ -> ());
   let exception Non_finite_field in
-  let parallel_plane_threshold = 262_144
-  and parallel_chunk_size = 65_536 in
   let iter_plane body =
-    if plane_stride < parallel_plane_threshold then
+    if plane_stride / grain < 2 then
       for flat = 0 to plane_stride - 1 do body flat done
     else
-      Parallel.for_ ~chunk_size:parallel_chunk_size
+      Parallel.for_ ~chunk_size:grain
         ~start:0 ~finish:(plane_stride - 1) body in
   let sample_values_into values z =
     Cancel.check_opt cancel;
     let pz = min.z +. (float_of_int z *. z_step) in
     (match evaluator with
+     | Sampled samples -> Array.blit samples (z * plane_stride) values 0 plane_stride
      | Boxed field ->
          iter_plane (fun flat ->
            let x = flat mod x_points and y = flat / x_points in
@@ -127,7 +143,6 @@ let extract_with evaluator ?cancel ?(smooth = true)
     sample_values_into values z;
     fill_xy_gradients values gx gy
   in
-  let triangle_count = [|0;1;1;2;1;2;2;1;1;2;2;1;2;1;1;0|] in
   let count_slab lower upper counts =
     Cancel.check_opt cancel;
     let count_cell cell =
@@ -144,17 +159,14 @@ let extract_with evaluator ?cancel ?(smooth = true)
         and b6 = if upper.(i2) >= iso then 1 else 0
         and b7 = if upper.(i3) >= iso then 1 else 0 in
         counts.(cell) <-
-          triangle_count.(b0 lor (b1 lsl 1) lor (b2 lsl 2) lor (b6 lsl 3)) +
-          triangle_count.(b0 lor (b2 lsl 1) lor (b3 lsl 2) lor (b6 lsl 3)) +
-          triangle_count.(b0 lor (b3 lsl 1) lor (b7 lsl 2) lor (b6 lsl 3)) +
-          triangle_count.(b0 lor (b7 lsl 1) lor (b4 lsl 2) lor (b6 lsl 3)) +
-          triangle_count.(b0 lor (b4 lsl 1) lor (b5 lsl 2) lor (b6 lsl 3)) +
-          triangle_count.(b0 lor (b5 lsl 1) lor (b1 lsl 2) lor (b6 lsl 3))
+          cell_triangle_counts.(b0 lor (b1 lsl 1) lor (b2 lsl 2)
+            lor (b3 lsl 3) lor (b4 lsl 4) lor (b5 lsl 5)
+            lor (b6 lsl 6) lor (b7 lsl 7))
     in
-    if slab_cell_count < parallel_plane_threshold then
+    if slab_cell_count / grain < 2 then
       for cell = 0 to slab_cell_count - 1 do count_cell cell done
     else
-      Parallel.for_ ~chunk_size:parallel_chunk_size ~start:0
+      Parallel.for_ ~chunk_size:grain ~start:0
         ~finish:(slab_cell_count - 1) count_cell
   in
   try
@@ -284,6 +296,7 @@ let extract_with evaluator ?cancel ?(smooth = true)
               else Vec3.create (nx /. length) (ny /. length) (nz /. length) in
             point, normal in
           let fill_cell cell =
+            if counts.(cell) <> 0 then begin
             let cell_x = cell mod x_cells and cell_y = cell / x_cells in
             let i0 = (cell_y * x_points) + cell_x in
             let output = ref
@@ -353,11 +366,12 @@ let extract_with evaluator ?cancel ?(smooth = true)
             tetra (b0 lor (b5 lsl 1) lor (b1 lsl 2) lor (b6 lsl 3)) 0 5 1 6;
             assert (!output =
               (slab_offsets.(z) + local_offsets.(cell + 1)) * 3)
+            end
           in
-          if slab_cell_count < parallel_plane_threshold then
+          if slab_cell_count / grain < 2 then
             for cell = 0 to slab_cell_count - 1 do fill_cell cell done
           else
-            Parallel.for_ ~chunk_size:parallel_chunk_size ~start:0
+            Parallel.for_ ~chunk_size:grain ~start:0
               ~finish:(slab_cell_count - 1) fill_cell;
           if z < z_cells - 1 then begin
             let spare_plane = !lower in
@@ -396,19 +410,23 @@ let geometry_of_packed (positions, normals) =
        normals)
     (fun normal -> Geometry.create ~positions ~topology ~attributes:[normal] ())
 
-let protect ?cancel evaluator finish ?smooth ~resolution ~min ~max ~iso () =
+let protect ?cancel evaluator finish ?grain ?smooth ~resolution ~min ~max ~iso () =
   Error.guard ~operation:"iso_surface" ~code:"invalid_parameter" (fun () ->
     try Result.bind
-      (extract_with evaluator ?cancel ?smooth ~resolution ~min ~max ~iso ())
+      (extract_with evaluator ?cancel ?grain ?smooth ~resolution ~min ~max ~iso ())
       finish
     with Invalid_argument message -> Error message)
 
-let extract ?cancel ?smooth ~resolution ~min ~max ~iso ~field () =
-  protect ?cancel (Boxed field) geometry_of_packed ?smooth
+let extract ?cancel ?grain ?smooth ~resolution ~min ~max ~iso ~field () =
+  protect ?cancel (Boxed field) geometry_of_packed ?grain ?smooth
     ~resolution ~min ~max ~iso ()
 
-let extract_dense ?cancel ?smooth ~resolution ~min ~max ~iso ~field () =
-  protect ?cancel (Dense field) geometry_of_packed ?smooth
+let extract_dense ?cancel ?grain ?smooth ~resolution ~min ~max ~iso ~field () =
+  protect ?cancel (Dense field) geometry_of_packed ?grain ?smooth
+    ~resolution ~min ~max ~iso ()
+
+let extract_sampled ?cancel ?grain ?smooth ~resolution ~min ~max ~iso ~samples () =
+  protect ?cancel (Sampled samples) geometry_of_packed ?grain ?smooth
     ~resolution ~min ~max ~iso ()
 
 module Private = struct

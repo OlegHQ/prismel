@@ -1,7 +1,9 @@
 (** Pure workspace values, parameterized by the evaluator's functions and residuals. *)
 type ('f, 'r) t =
   | Int of int | Float of float | Bool of bool | Text of string
+  | Vec2 of float * float
   | Vec3 of float * float * float
+  | Vec4 of float * float * float * float
   | List of ('f, 'r) t array
   | Float_array of float array
   | Vec3_array of float array  (** interleaved xyz coordinates *)

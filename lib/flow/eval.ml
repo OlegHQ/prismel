@@ -31,7 +31,7 @@ let free_names term =
           pattern_names bound pattern, walk bound names term) (bound, names) bindings in
         match term.node with
         | Ref_binding (name, _) | Fn_ref name -> reference name
-        | Call_fn {fn; args} -> all bound (reference fn) args
+        | Call_fn {fn; args; _} -> all bound (reference fn) args
         | Call {args; _} | Op {args; _} | Record args -> fields bound names args
         | Graph_ref {inputs; _} -> fields bound names inputs
         | Vec terms | List_lit terms | Str terms | List_op (_, terms) | Hof (_, terms) -> all bound names terms
@@ -40,6 +40,7 @@ let free_names term =
             let bound, names = bindings bound names accs in
             let bound, names = bindings bound names clauses in walk bound names body
         | State {binder; init; step; _} -> walk (pattern_names bound binder) (walk bound names init) step
+        | Fn {capture = Some original; _} -> walk bound names original
         | Fn {params; body; _} -> walk (List.fold_left (fun bound (pattern, _) -> pattern_names bound pattern) bound params) names body
         | If (condition, yes, no) -> all bound names [condition; yes; no]
         | Cond (arms, default) -> List.fold_left (fun names (test, body) -> walk bound (walk bound names test) body) (walk bound names default) arms
@@ -77,7 +78,9 @@ type ('f, 'r) payload = ('f, 'r) Value.t =
   | Float of float
   | Bool of bool
   | Text of string
+  | Vec2 of float * float
   | Vec3 of float * float * float
+  | Vec4 of float * float * float * float
   | List of ('f, 'r) payload array
   | Float_array of float array
   | Vec3_array of float array
@@ -188,6 +191,8 @@ let rec coerce_like w v =
   | Float _, (Int _ | Bool _) -> coerce_to Ty.Float v
   | Bool _, (Int _ | Float _) -> coerce_to Ty.Bool v
   | Vec3 _, (Int _ | Float _) -> coerce_to Ty.Vec3 v
+  | Vec2 _, (Int _ | Float _) -> coerce_to Ty.Vec2 v
+  | Vec4 _, (Int _ | Float _) -> coerce_to Ty.Vec4 v
   | List a, List b when Array.length a > 0 -> List (Array.map (coerce_like a.(0)) b)
   | Record wf, Record fs ->
       Record (List.map (fun (n, x) -> match List.assoc_opt n wf with
@@ -241,9 +246,15 @@ let catalog_call c ?(authored = 0) kind ctx args =
 
 let lookup_field name v f =
   match v with
+  | Vec2 (x, _) when f = "x" -> Float x
+  | Vec2 (_, y) when f = "y" -> Float y
   | Vec3 (x, _, _) when f = "x" -> Float x
   | Vec3 (_, y, _) when f = "y" -> Float y
   | Vec3 (_, _, z) when f = "z" -> Float z
+  | Vec4 (x, _, _, _) when f = "x" -> Float x
+  | Vec4 (_, y, _, _) when f = "y" -> Float y
+  | Vec4 (_, _, z, _) when f = "z" -> Float z
+  | Vec4 (_, _, _, w) when f = "w" -> Float w
   | Record fs ->
       (match List.assoc_opt f fs with
        | Some v -> v
@@ -480,7 +491,9 @@ and bind_parts c ~mk pat v env =
   | W.Seq ps ->
       let xs = match concrete c v with
         | List xs -> xs
+        | Vec2 (a, b) -> [| Float a; Float b |]
         | Vec3 (a, b, d) -> [| Float a; Float b; Float d |]
+        | Vec4 (a, b, d, e) -> [| Float a; Float b; Float d; Float e |]
         | _ -> failf "E_PATTERN" "%s destructures a list or vec3." (pat_key pat) in
       if Array.length xs < List.length ps then
         failf "E_PATTERN" "%s needs %d elements; the list has %d." (pat_key pat) (List.length ps)
@@ -509,10 +522,16 @@ and ev_raw c env (x : W.term) : value =
   | W.Text s -> Text s
   | W.Nil -> No_geo
   | W.Time -> (match c.st.time with Some t -> Float t.t | None -> raise Needs_t)
+  | W.Vec [a; b] ->
+      let f i t = num (concrete c (ev (sub c (string_of_int i)) env t)) in
+      let a = f 0 a in let b = f 1 b in Vec2 (a, b)
   | W.Vec [ a; b; d ] ->
       let f i t = num (concrete c (ev (sub c (string_of_int i)) env t)) in
       let a = f 0 a in let b = f 1 b in let d = f 2 d in Vec3 (a, b, d)
-  | W.Vec cs -> failf "E_VECTOR" "A vector has 3 components [x y z]; this one has %d." (List.length cs)
+  | W.Vec [a; b; d; e] ->
+      let f i t = num (concrete c (ev (sub c (string_of_int i)) env t)) in
+      let a = f 0 a in let b = f 1 b in let d = f 2 d in let e = f 3 e in Vec4 (a, b, d, e)
+  | W.Vec cs -> failf "E_VECTOR" "A vector has 2, 3 or 4 components; this one has %d." (List.length cs)
   | W.Ref_binding (b, []) when String.starts_with ~prefix:"$elem:" b ->
       (match Smap.find_opt b c.st.elems with Some v -> v | None -> raise Needs_t)
   | W.Ref_binding (b, fs) ->
@@ -534,11 +553,11 @@ and ev_raw c env (x : W.term) : value =
       let args = List.filteri (fun p _ -> not (List.mem (c.iter @ [ p ]) skip)) args in
       apply_op c ~authored:x.form.id "scene/merge" (eval_named c env args)
   | W.Op { op; args; _ } -> apply_op c ~authored:x.form.id op (eval_named c env args)
-  | W.Call_fn { fn; args } ->
+  | W.Call_fn { fn; args; body } ->
       let vals = evs c env "a" args in
       (match Smap.find_opt fn env with
-       | Some (Fn f) -> call_fn c f vals
-       | _ -> apply_def c fn vals)
+       | Some (Fn f) -> call_fn ?body c f vals
+       | _ -> apply_def ?body c fn vals)
   (* ponytail: a catalog kind used as a function value keeps the name as written; lowering resolves it. *)
   | W.Fn_ref name -> Fn (Named { name; ncalls = ref 0; fid = fn_id c.st })
   | W.Graph_ref { graph; inputs } ->
@@ -588,8 +607,14 @@ and ev_raw c env (x : W.term) : value =
             if case_matches sv (case_literal lit) then ev (sub c ("arm" ^ string_of_int i)) env e
             else go (i + 1) rest in
       go 0 arms
-  | W.Fn { params; body; zone } ->
-      Fn (Closure { params; body; env; zone; calls = ref 0; fid = fn_id c.st; at = c })
+  | W.Fn { params; body; zone; capture = original } ->
+      (match original with
+       | None -> Fn (Closure { params; body; env = capture x env; zone; calls = ref 0; fid = fn_id c.st; at = c })
+       | Some original -> (match ev c env original with
+           | Fn (Closure cl) -> Fn (Closure { cl with params; body })
+           | Fn (Named n) -> Fn (Closure {params; body; zone; env = Smap.empty;
+               calls = n.ncalls; fid = n.fid; at = c})
+           | _ -> fail "E_TYPE" "A function port requires a function."))
   | W.Hof (kind, f :: rest) -> hof c env x kind f rest
   | W.Hof (_, []) -> fail "E_ARITY" "A higher-order form takes a function."
   | W.List_lit ts -> List (join_values (Array.of_list (evs c env "" ts)))
@@ -653,7 +678,7 @@ and apply_op c ?(authored = 0) name (vals : (string * value) list) : value =
     | None -> empty_live in
   o.body ~live ~node:(mk_node c ~authored ~ty:(o.out (List.map (fun (_, v) -> Value.ty_of v) vals))) vals
 
-and apply_def c name (vals : value list) : value =
+and apply_def ?body c name (vals : value list) : value =
   let d = match Hashtbl.find_opt c.st.defs name with
     | Some d -> d | None -> failf "E_UNKNOWN" "Unknown function %s." name in
   if c.depth > max_depth then fail "E_DEPTH" "Call depth exceeds 64.";
@@ -666,9 +691,9 @@ and apply_def c name (vals : value list) : value =
       | None, None -> failf "E_ARGS" "%s needs :%s." name pname in
     note c' (base @ [ ":" ^ pname ]) v;
     (Smap.add pname v env, i + 1)) (Smap.empty, 0) d.inputs in
-  ev c' env d.body
+  ev c' env (Option.value body ~default:d.body)
 
-and call_fn c f (vals : value list) : value =
+and call_fn ?body c f (vals : value list) : value =
   match f with
   | Closure cl ->
       if List.length vals <> List.length cl.params then
@@ -682,11 +707,11 @@ and call_fn c f (vals : value list) : value =
       let env = List.fold_left2 (fun env (pat, ty) v ->
         let v = match ty with Some t -> coerce_to t v | None -> v in
         bind_pat c' ~mk ~whole:true pat v env) cl.env cl.params vals in
-      ev c' env cl.body
+      ev c' env (Option.value body ~default:cl.body)
   | Named { name; ncalls; fid } ->
       let k = fn_call c fid ncalls in
       let c' = { c with iter = c.iter @ [ k ] } in
-      if Hashtbl.mem c.st.defs name then apply_def c' name vals
+      if Hashtbl.mem c.st.defs name then apply_def ?body c' name vals
       else begin
         match Op.find ~extra:c.st.ops name Context.value with
         | Some o ->
@@ -1026,7 +1051,8 @@ and term_dependent frame st env (term : W.term) =
   | W.Op {op; args; _} ->
       (frame && (Option.get (Op.find ~extra:st.ops op Context.value)).live) || fields args
   | W.Call {args; _} | W.Record args -> fields args
-  | W.Call_fn {fn; args} -> definition fn || any args
+  | W.Call_fn {fn; args; body} ->
+      definition fn || Option.fold ~none:false ~some:term_dep body || any args
   | W.Fn_ref name -> definition name
   | W.Graph_ref {graph; inputs} -> fields inputs ||
       (match Hashtbl.find_opt st.graphs graph with
@@ -1039,6 +1065,7 @@ and term_dependent frame st env (term : W.term) =
   | W.If (c, a, b) -> any [c; a; b]
   | W.Cond (arms, d) -> any (d :: List.concat_map (fun (a, b) -> [a; b]) arms)
   | W.Case (s, arms, d) -> any (s :: d :: List.map snd arms)
+  | W.Fn {capture = Some original; _} -> term_dep original
   | W.Fn {body; _} | W.Expanded {body; _} | W.Get (body, _) | W.Bypass body -> term_dep body
   | W.Assoc (r, args) -> term_dep r || fields args
   | W.Lit _ | W.Text _ | W.Nil -> false
@@ -1108,12 +1135,47 @@ let run ?record ?inputs ?state ?live ~time ws =
 let show v = show_with Fun.id v
 
 module Private = struct
+  let bulk_ids = Atomic.make (-1)
+  let map_function ~(signature : Ty.fn_signature) fn arrays = protect (fun () ->
+    match fn with
+    | Named _ -> fail "E_KERNEL_FORM" "A bulk function needs an instantiated local body."
+    | Closure cl ->
+    if List.compare_lengths cl.params arrays <> 0 then
+      fail "E_ARITY" "Bulk function inputs differ from its parameter count.";
+    if List.compare_lengths signature.params arrays <> 0
+        || not (List.for_all2 (fun ty value -> Value.ty_of value = Ty.Array ty) signature.params arrays) then
+      fail "E_ARRAY_TYPE" "Bulk function columns must match its declared parameter types.";
+    List.iter (function Float_array _ | Vec3_array _ -> ()
+      | _ -> fail "E_ARRAY_TYPE" "Bulk function inputs must be packed arrays.") arrays;
+    List.iter Value.validate arrays;
+    let counts = List.map array_length arrays in
+    if List.exists (( <> ) (Option.value ~default:0 (List.nth_opt counts 0))) counts then
+      fail "E_ARRAY_RANGE" "Bulk function inputs must have equal counts.";
+    if not (Ty.fits cl.body.ty signature.result) then
+      fail "E_KERNEL_FORM" "Bulk function body differs from its declared result type.";
+    let result = match signature.result with
+      | Ty.Float -> Ty.Float | Vec3 -> Ty.Vec3
+      | _ -> fail "E_KERNEL_FORM" "Bulk functions must return float or vec3 data." in
+    let binding name ty = W.{path = None; ty; node = Ref_binding (name, []); form = cl.body.form} in
+    let inputs = List.mapi (fun i value -> "$kernel-input:" ^ string_of_int i, value) arrays in
+    let function_name = "$kernel-function" in
+    let term = W.{path = None; ty = Ty.Array result; form = cl.body.form;
+      node = Hof (`Map, binding function_name (Ty.Fn None) ::
+        List.map (fun (name, value) -> binding name (Value.ty_of value)) inputs)} in
+    Residual {rid = Atomic.fetch_and_add bulk_ids (-1); rterm = term;
+      renv = List.fold_left (fun env (name, value) -> Smap.add name value env)
+        (Smap.singleton function_name (Fn fn)) inputs;
+      rc = {cl.at with data = true; rec_ = false}; previous = false; fast = Untried})
   let free_names term = Names.elements (free_names term)
   let free_name_walks () = Atomic.get free_walks
   let force_with_executor ?state ?elems ?resolve ~execute v ~live =
     force_with ?state ?elems ?resolve ~execute v ~live
   let function_bindings = function Closure cl -> Smap.bindings cl.env | Named _ -> []
+  let function_id = function Closure cl -> cl.fid | Named n -> n.fid
+  let state_values state = List.map snd (Smap.bindings state.before) @ List.map snd (Smap.bindings state.next)
   let function_body = function Closure cl -> Some (cl.params, cl.body) | Named _ -> None
+  let function_scope = function
+    | Closure cl -> Some (cl.at.prefix @ cl.zone, cl.at.iter) | Named _ -> None
   type residual_view = {
     term : W.term;
     bindings : (string * value) list;

@@ -1,6 +1,7 @@
 type t =
-  | Named of string | Float | Int | Bool | Vec3 | Text | Color
-  | List of t | Array of t | Record of (string * t) list | Fn | Any
+  | Named of string | Float | Int | Bool | Vec2 | Vec3 | Vec4 | Text | Color
+  | List of t | Array of t | Record of (string * t) list | Fn of fn_signature option | Any
+and fn_signature = { params : t list; result : t }
 
 type color = [ `Geometry | `Float | `Int | `Bool | `Vec3 | `Text | `Fn | `Record | `Output | `Compound ]
 type nominal = {name : string; shape : bool; color : color; default : Syntax.t option}
@@ -20,8 +21,8 @@ let registry = ref [
   nominal "panel" (); nominal "editor" (); nominal "material" ~shape:false ();
   nominal "effect" (); nominal "sample" ~shape:false ()]
 let descriptor name = List.find_opt (fun entry -> entry.name = name) !registry
-let structural = ["float", Float; "int", Int; "bool", Bool; "vec3", Vec3;
-  "text", Text; "color", Color; "fn", Fn; "any", Any]
+let structural = ["float", Float; "int", Int; "bool", Bool; "vec2", Vec2; "vec3", Vec3; "vec4", Vec4;
+  "text", Text; "color", Color; "fn", Fn None; "any", Any]
 let names () = structural @ List.map (fun entry -> entry.name, Named entry.name) !registry
 let register ?(shape = true) ?(color = `Output) ?default name =
   let entry = {name; shape; color; default} in
@@ -42,6 +43,8 @@ let rec to_string = function
   | Array e -> "array:" ^ to_string e
   | Record fs -> "rec{" ^ String.concat ","
       (List.map (fun (n, t) -> n ^ ":" ^ to_string t) fs) ^ "}"
+  | Fn (Some signature) -> "fn(" ^ String.concat "," (List.map to_string signature.params)
+      ^ ")->" ^ to_string signature.result
   | t -> fst (List.find (fun (_, u) -> u = t) (names ()))
 
 let of_string s =
@@ -54,11 +57,12 @@ let of_string s =
       let* e, j = ty (i + 5) in Some (List e, j)
     else if starts i "array:" then
       let* e, j = ty (i + 6) in
-      if e = Float || e = Vec3 || e = Any then Some (Array e, j) else None
+      if List.mem e [Float; Vec2; Vec3; Vec4; Any] then Some (Array e, j) else None
     else if starts i "rec{" then fields (i + 4) []
+    else if starts i "fn(" then parameters (i + 3) []
     else
       let j = ref i in
-      while !j < n && s.[!j] <> ',' && s.[!j] <> '}' do incr j done;
+      while !j < n && s.[!j] <> ',' && s.[!j] <> '}' && s.[!j] <> ')' do incr j done;
       let* t = List.assoc_opt (String.sub s i (!j - i)) (names ()) in
       Some (t, !j)
   and fields i acc =
@@ -67,7 +71,17 @@ let of_string s =
       let* c = String.index_from_opt s i ':' in
       let* t, j = ty (c + 1) in
       let field = (String.sub s i (c - i), t) in
-      fields (if j < n && s.[j] = ',' then j + 1 else j) (field :: acc) in
+      fields (if j < n && s.[j] = ',' then j + 1 else j) (field :: acc)
+  and parameters i acc =
+    if starts i ")->" then
+      let* result, j = ty (i + 3) in
+      Some (Fn (Some { params = List.rev acc; result }), j)
+    else
+      let* parameter, j = ty i in
+      if j < n && s.[j] = ',' && not (starts (j + 1) ")->") then
+        parameters (j + 1) (parameter :: acc)
+      else if starts j ")->" then parameters j (parameter :: acc)
+      else None in
   match ty 0 with Some (t, j) when j = n -> Some t | _ -> None
 
 let field_name = function
@@ -91,13 +105,13 @@ let rec of_syntax (x : Syntax.t) = match x.node with
       Option.map (fun fs -> Record fs) (go [] items)
   | List [{node = Sym "list"; _}; inner] -> Option.map (fun t -> List t) (of_syntax inner)
   | List [{node = Sym "array"; _}; inner] ->
-      (match of_syntax inner with Some (Float | Vec3 as t) -> Some (Array t) | _ -> None)
+      (match of_syntax inner with Some (Float | Vec2 | Vec3 | Vec4 as t) -> Some (Array t) | _ -> None)
   | _ -> None
 
 let elem = function List e | Array e -> Some e | _ -> None
 
 let rec has_fn = function
-  | Fn -> true
+  | Fn _ -> true
   | List e | Array e -> has_fn e
   | Record fs -> List.exists (fun (_, t) -> has_fn t) fs
   | _ -> false
@@ -109,13 +123,15 @@ let rec fits have want =
   || (num have && (num want || want = Bool))
   || (have = Bool && num want)
   || (want = Color && (have = Text || have = Vec3 || have = List Float || have = List Int))
-  || (want = Vec3 && num have)
+  || (List.mem want [Vec2; Vec3; Vec4] && num have)
   || (match have, want with
       | List h, List w -> fits h w
       | Array h, Array w -> h = w || h = Any || w = Any
       | Record hs, Record ws ->
           List.for_all (fun (n, w) -> match List.assoc_opt n hs with
             | Some h -> fits h w | None -> false) ws
+      | Fn _, Fn None -> true
+      | Fn (Some h), Fn (Some w) -> h.params = w.params && fits h.result w.result
       | _ -> false)
 
 let rec coerce have want =
@@ -127,7 +143,7 @@ let rec coerce have want =
         Record (List.map (fun (n, h) -> match List.assoc_opt n ws with
           | Some w -> (n, coerce h w) | None -> (n, h)) hs)
     | _ when (num have || have = Bool)
-        && (num want || want = Bool || (want = Vec3 && have <> Bool)) -> want
+        && (num want || want = Bool || (List.mem want [Vec2; Vec3; Vec4] && have <> Bool)) -> want
     | _ -> have
 
 let rec join a b =

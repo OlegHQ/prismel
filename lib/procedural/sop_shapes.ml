@@ -7,6 +7,96 @@ open Sop_support
 (* ocamldep must see the PPX's [Procedural.X] resolve inside this library. *)
 module Procedural = Sop_support.Procedural
 
+module Iso_surface = struct
+  type parameters = {
+    resolution_x : float [@sop.default 64.] [@sop.vec3 "resolution"]
+      [@sop.min 1.] [@sop.max 128.] [@sop.primary];
+    resolution_y : float [@sop.default 64.] [@sop.vec3 "resolution"]
+      [@sop.min 1.] [@sop.max 128.];
+    resolution_z : float [@sop.default 64.] [@sop.vec3 "resolution"]
+      [@sop.min 1.] [@sop.max 128.];
+    min_x : float [@sop.default (-2.)] [@sop.vec3 "min"] [@sop.min (-10.)] [@sop.max 10.];
+    min_y : float [@sop.default (-2.)] [@sop.vec3 "min"] [@sop.min (-10.)] [@sop.max 10.];
+    min_z : float [@sop.default (-2.)] [@sop.vec3 "min"] [@sop.min (-10.)] [@sop.max 10.];
+    max_x : float [@sop.default 2.] [@sop.vec3 "max"] [@sop.min (-10.)] [@sop.max 10.];
+    max_y : float [@sop.default 2.] [@sop.vec3 "max"] [@sop.min (-10.)] [@sop.max 10.];
+    max_z : float [@sop.default 2.] [@sop.vec3 "max"] [@sop.min (-10.)] [@sop.max 10.];
+    iso : float [@sop.default 0.] [@sop.min (-10.)] [@sop.max 10.] [@sop.primary];
+    smooth : bool [@sop.default true];
+  } [@@sop.node_key "iso_surface"] [@@sop.node_label "Iso surface"]
+    [@@sop.node_category "Create/Field"] [@@sop.node_inputs 1]
+    [@@sop.node_slots "field"] [@@sop.node_keywords "field"]
+    [@@sop.node_types ["fn(vec3)->float"]]
+    [@@sop.node_facts {elementwise = Node.None; reads = []; writes = ["P"; "N"];
+      topology = Node.Changed; exact = true}]
+    [@@sop.validate fun parameters ->
+      let refuse message = invalid_arg ("Sop.iso_surface: " ^ message) in
+      let limit = Sys.max_array_length / 3 in
+      let cells value =
+        if not (Float.is_finite value) || value < 1. || value <> Float.floor value
+            || value >= float_of_int limit then
+          refuse "resolution requires positive integral cell counts";
+        int_of_float value + 1 in
+      let product a b =
+        if a > limit / b then refuse "sample grid exceeds the packed array limit";
+        a * b in
+      ignore (product (product (cells parameters.resolution_x)
+        (cells parameters.resolution_y)) (cells parameters.resolution_z));
+      List.iter (fun (lo, hi) ->
+        if not (Float.is_finite lo && Float.is_finite hi && Float.is_finite (hi -. lo))
+            || hi <= lo then refuse "bounds require finite increasing extents")
+        [parameters.min_x, parameters.max_x; parameters.min_y, parameters.max_y;
+         parameters.min_z, parameters.max_z];
+      if not (Float.is_finite parameters.iso) then refuse "iso must be finite"]
+    [@@deriving sop_params, sop_node]
+
+  let build = parameters_build (fun ~label parameters field ->
+    let rx = int_of_float parameters.resolution_x
+    and ry = int_of_float parameters.resolution_y
+    and rz = int_of_float parameters.resolution_z in
+    let min = Vec3.create parameters.min_x parameters.min_y parameters.min_z
+    and max = Vec3.create parameters.max_x parameters.max_y parameters.max_z in
+    let dx = (max.x -. min.x) /. float_of_int rx
+    and dy = (max.y -. min.y) /. float_of_int ry
+    and dz = (max.z -. min.z) /. float_of_int rz in
+    let nx = rx + 1 and ny = ry + 1 and nz = rz + 1 in
+    Node.Private.make ~label ~operation:"iso_surface" ~version:1 ~parameters:""
+      ~cook_mode:Node.Generic ~dependencies:Context.Dependencies.static
+      ~inputs:[|field|] (fun ~node_id:_ context inputs ->
+        Result.bind (Payload.kernel inputs.(0)) (fun kernel ->
+          let cancelled () = Error (Diagnostic.error ~code:"cancelled"
+              "Iso surface sample grid cancelled") in
+          if Context.cancelled context then cancelled () else
+          let positions = Array.make (3 * nx * ny * nz) 0. in
+          let stopped = ref false in
+          for z = 0 to rz do
+            if Context.cancelled context then stopped := true;
+            if not !stopped then
+              for y = 0 to ry do
+                for x = 0 to rx do
+                  let i = 3 * (x + nx * (y + ny * z)) in
+                  positions.(i) <- min.x +. float_of_int x *. dx;
+                  positions.(i + 1) <- min.y +. float_of_int y *. dy;
+                  positions.(i + 2) <- min.z +. float_of_int z *. dz
+                done
+              done
+          done;
+          if !stopped then cancelled () else
+          Result.bind (Kernel.prepare kernel [Vec3s positions]) (fun run ->
+          Result.bind (run context) (function
+            | Kernel.Vec3s _ -> Error (Diagnostic.error ~code:"field_type"
+                "Iso surface field must return one float per sample")
+            | Kernel.Floats samples ->
+                match Rdk.Iso_surface.extract_sampled ~cancel:(Context.cancel_token context)
+                    ~grain:(Context.grain context) ~smooth:parameters.smooth
+                    ~resolution:(rx, ry, rz) ~min ~max ~iso:parameters.iso ~samples () with
+                | Error error -> structured_rdk_error error
+                | Ok geometry -> Ok Node.Private.{payload = Payload.Geometry geometry;
+                    diagnostics = []; instances = None})))))
+  let factory = parameters_factory build
+  let fn = parameters_fn build
+end
+
 module Merge = struct
   type parameters = {
     source_attribute : string [@sop.default ""] [@sop.label "Source attribute"];

@@ -144,6 +144,8 @@ let sync_scope value =
               seconds = if fst report.owner = path then Some report.seconds else None}
           | None -> None in
         let records = Option.map (Flow_graph.Probe.make ~state:value.cook.state ?live:time ~geometry ~resolve ~execution
+          ~bulk_calls:(Flow_sop.Lower.field_calls ~state:value.cook.state
+            ~live:(Option.value ~default:(Frame_input.at_time 0.) time) ~resolve lowered)
           ~image:(Flow_sop.Lower.image_metadata lowered.plan)
           ~dynamic:(Flow_sop.Lower.zone_count lowered) ~element) evaluated in
         let scope_view = match records with

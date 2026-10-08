@@ -389,7 +389,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
              count of corners and faces, not a walk of every face, for a frame's cost) *)
           let tris = List.fold_left (fun n (piece : _ Cook.piece) ->
             match piece.output.Procedural.Session.payload with
-            | Payload.Image _ -> n
+            | Payload.Image _ | Payload.Kernel _ -> n
             | Geometry g -> n + max 0 (Rdk.Geometry.vertex_count g - (2 * Rdk.Geometry.primitive_count g))) 0 (pieces value) in
           let objects = List.length (pieces value) in
           let points = Option.bind (piece value) (fun (piece : _ Cook.piece) ->

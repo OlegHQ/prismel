@@ -12,7 +12,7 @@
                              offset (* n (* amp sample))]
                         (+ p offset)))
            updated (map displace positions normals)
-           terrain (sop/with_attr grid :P updated)]
+           terrain (sop/with_attr grid :P (exact updated))]
       (sop/normals terrain)))
 
   (graph scene :context scene

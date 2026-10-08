@@ -120,7 +120,7 @@ module Private : sig
     inputs:t array ->
     (node_id:int -> Context.t -> Rdk.Geometry.t array ->
       (geometry_cooked, Diagnostic.error) result) -> t
-  (** Geometry SOP adapter. An Image input returns [E_PAYLOAD] before calling
+  (** Geometry SOP adapter. An Image or Kernel input returns [E_PAYLOAD] before calling
       either the expansion or cook callback. *)
 
   val cache_parameters : t -> string

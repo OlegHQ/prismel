@@ -3,20 +3,31 @@ module G = Rdk.Geometry
 module A = Rdk.Attribute
 module P = Rdk.Packed.Float3
 module N = Procedural.Node
+module Functions = Hashtbl.Make (struct
+  type t = E.fn
+  let equal = ( == )
+  let hash = E.Private.function_id
+end)
+module Residuals = Hashtbl.Make (struct
+  type t = E.residual
+  let equal = ( == )
+  let hash = E.Private.residual_id
+end)
 
 let sources value =
-  let seen = Hashtbl.create 16 and ids = ref [] in
+  let seen = Residuals.create 16 and functions = Functions.create 16 and ids = ref [] in
   let rec visit = function
     | E.Deferred (ty, id) when Flow.Ty.is_geometry ty -> ids := id :: !ids
     | Residual r ->
-        let id = E.Private.residual_id r in
-        if not (Hashtbl.mem seen id) then begin
-          Hashtbl.add seen id ();
+        if not (Residuals.mem seen r) then begin
+          Residuals.add seen r ();
           (* Evaluator captures are already trimmed to lexically free bindings. *)
           List.iter (fun (_, v) -> visit v) (E.Private.residual_view r).bindings
         end
     | List vs -> Array.iter visit vs
-    | Fn f -> List.iter (fun (_, v) -> visit v) (E.Private.function_bindings f)
+    | Fn f when not (Functions.mem functions f) ->
+        Functions.add functions f ();
+        List.iter (fun (_, v) -> visit v) (E.Private.function_bindings f)
     | Record fs | Struct (_, _, fs) -> List.iter (fun (_, v) -> visit v) fs
     | _ -> () in
   visit value; List.sort_uniq Int.compare !ids

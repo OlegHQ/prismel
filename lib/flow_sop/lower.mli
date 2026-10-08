@@ -112,6 +112,17 @@ val zone_count : t -> Flow.Workspace.path -> int option
 (** The elements the loop over geometry bound at this path ran over in its last
     cook, [None] before it cooked. *)
 
+val field_calls : ?state:Flow.Eval.state -> live:Frame_input.t ->
+  resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) -> t ->
+  Flow.Workspace.path -> int list ->
+  (int * int * (int -> ((Flow.Workspace.path * (int list * Flow.Eval.value) list) list,
+    Flow.Diagnostic.t) result)) list
+(** Exact selected-call probes for the sampled field domains. Compute one
+    lattice position and reference-evaluate one function call; never allocate
+    or force the complete grid. Defaults come from the generated SOP schema.
+    Calls sharing a function zone have stable cumulative offsets in plan order.
+    A supplied fold state is copied; probing never advances the host state. *)
+
 val is_volatile : t -> int -> bool
 (** A compiled node is volatile when it is live (an argument depends on [t])
     or fed by a volatile node: its cache key changes with the time.  Pass

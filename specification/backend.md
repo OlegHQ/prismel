@@ -734,6 +734,20 @@ resource handle or native image type reaches RDK; the existing library
 dependency edges are unchanged. Factory slot type names pass through the
 generated catalog to Flow checking and graph projection.
 
+Function keyword inputs use the same physical factory slots. A hidden
+`flow.function` resource cooks captured geometry before supplying a
+`Procedural.Payload.Kernel`. Flow_sop owns the specialized function and its
+compiled packed program; Procedural borrows packed columns through the neutral
+`Kernel.prepare` runner interface. It imports neither Flow nor Flow_ir.
+The runner supports current float/vec3 packed signatures and returns
+`E_KERNEL_FORM` for unsupported bodies. Reference execution remains available
+for parity checks. Fresh binding identity and cooked payload IDs prevent reuse
+across changed captures; cache hits retain their IDs. Zone element bindings and
+forked state snapshots participate in resource identity, and frame-dependent
+functions declare Input dependencies. Payload accounting includes retained
+packed captures and captured input storage conservatively. No native handle
+enters the function payload.
+
 Flow IR accepts an initial-domain GPU backend through scoped, renderer-neutral
 callbacks. GPU values carry identity, count, width, generation and optional
 completed device dispatch duration; they carry no backend handle. A

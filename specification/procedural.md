@@ -282,6 +282,28 @@ type atom in a manifest slot preserves the existing untyped slot spelling
 for geometry; the checker and graph rows use the declared type.
 `sop/attr_from_image` uses this signature for geometry then image, with the
 same declaration generating its schema, factory and typed constructor.
+`[@@sop.node_types ["fn(vec3,float)->float"; "image"]]` also accepts a list
+of serialized types, so commas inside function signatures stay unambiguous.
+`[@@sop.node_keywords "field, picture"]` exposes those required physical
+inputs as typed Lisp keywords and required labelled OCaml arguments. They
+have no scalar Param field, default or drive. A constructor with only keyword
+inputs ends in `()`, as a generator does. The manifest retains their physical
+input order and keyword names; the catalog validates their Fn/Image types.
+Function bodies and captures belong to the language host, which passes an
+owned `Procedural.Kernel` bulk runner through the ordinary payload boundary.
+Procedural never depends on Flow or Flow_ir.
+`sop/iso_surface` is the first bulk field consumer: required `:field` is
+`fn(vec3)->float`; `:resolution` defaults to `[64 64 64]` integral cell counts,
+`:min`/`:max` to `[-2 -2 -2]`/`[2 2 2]`, `:iso` to zero and `:smooth` to true.
+The cook builds `(rx+1)*(ry+1)*(rz+1)` packed XYZ positions, x fastest, with
+the extractor's exact lattice arithmetic. The host compiles the field as a
+static-count packed map and evaluates exact float64 samples; the shared
+`Rdk.Iso_surface.extract_sampled` marcher borrows those samples read-only.
+The node is irregular, topology-changing and exact. Constructor validation
+rejects fractional/nonpositive resolution, overflowing packed cardinality,
+nonfinite/unordered bounds and nonfinite iso; cook errors and cancellation
+remain typed. Its generated keyword port and function zone use the ordinary
+graph projection and checked argument gestures.
 The exact CPU sampler writes a Point float attribute (`:attribute "image"`
 by default) from a normalized Point Float2 or Float3 `:uv "uv"` attribute.
 `:channel` accepts `"r"`, `"g"`, `"b"`, `"a"`, or `"luminance"` (Rec. 709

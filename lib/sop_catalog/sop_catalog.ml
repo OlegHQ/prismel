@@ -16,6 +16,7 @@ module Grid = struct
 end [@@sop.register]
 module Uv_sphere = Procedural.Nodes.Uv_sphere [@@sop.register]
 module Attr_from_image = Procedural.Nodes.Attr_from_image [@@sop.register]
+module Iso_surface = Procedural.Nodes.Iso_surface [@@sop.register]
 module Torus = Procedural.Nodes.Torus [@@sop.register]
 module Tube = Procedural.Nodes.Tube [@@sop.register]
 module Transform = Procedural.Nodes.Transform [@@sop.register]

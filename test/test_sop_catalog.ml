@@ -449,8 +449,8 @@ let run ?(exhaustive = false) () =
   Session.close session;
   let factory_keys = List.map Edit_graph.factory_key
       Sop_catalog.Editor.factories in
-  check (List.length factory_keys = 161
-      && List.length (List.sort_uniq String.compare factory_keys) = 161)
+  check (List.length factory_keys = 162
+      && List.length (List.sort_uniq String.compare factory_keys) = 162)
     "PPX SOP manifest has a missing or duplicate factory key";
   check (List.mem "material" factory_keys) "SOP editor catalog is missing material";
   check (not (List.mem "delete_attribute" factory_keys))
@@ -622,7 +622,7 @@ let run ?(exhaustive = false) () =
         "registered SOP %s could not be constructed: %s"
         (Edit_graph.factory_key factory) message))
     Sop_catalog.Editor.factories;
-  check (!vector_groups = 101) "catalog vector inventory changed";
+  check (!vector_groups = 104) "catalog vector inventory changed";
   (* Every cook-impact schema field of every registered SOP participates in
      the cache identity: perturbing any single field changes the node's
      parameter key, so a field forgotten by an operator's own key string can

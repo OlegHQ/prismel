@@ -292,7 +292,7 @@ let collapse s ps res = if ps = [] then res else rebuild s ps res  (* an empty l
    leaf of the binding (or [@result]) that holds it, then [#] and each argument on the way down
    ([result#0#:cutters]: the [:cutters] input of the first input of [result]) *)
 let node_call (e : S.t) = match head_sym e with
-  | Some ("fn" | "map" | "filter" | "reduce" | "sort-by" | "if" | "cond" | "case") -> true
+  | Some ("fn" | "map" | "filter" | "reduce" | "sort-by" | "if" | "cond" | "case" | "exact") -> true
   | Some h -> String.length h > 1 && String.contains h '/'
   | None -> false
 let nested leaf = String.contains leaf '#'
@@ -483,19 +483,24 @@ let fresh_among = fresh
 
 let valid_name n = Flow.Symbol.valid_name n
 
-let default_for (ty : Flow.Ty.t) label = match ty with
+let rec default_for ?(fresh = Fun.id) (ty : Flow.Ty.t) label = match ty with
   | Flow.Ty.Float -> Some (mk (S.Num "0.5"))
   | Int -> Some (mk (S.Num "1"))
   | Bool -> Some (sym "false")
   | Vec3 -> Some (vec [ mk (S.Num "0"); mk (S.Num "0"); mk (S.Num "0") ])
+  | Vec2 -> Some (vec [mk (S.Num "0");mk (S.Num "0")])
+  | Vec4 -> Some (vec [mk (S.Num "0");mk (S.Num "0");mk (S.Num "0");mk (S.Num "0")])
   | Color -> Some (mk (S.Str "#285f77"))
   | Text -> Some (mk (S.Str (if label = "color" then "#285f77" else "text")))
   | Array (Float | Any) -> Some (call "array/float" [mk (S.Num "4")])
   | Array Vec3 -> Some (call "array/vec3" [mk (S.Num "4")])
   | Named _ -> Flow.Ty.default ty
+  | Fn (Some signature) -> Option.map (fun body ->
+      call "fn" [vec (List.mapi (fun i _ -> sym (fresh ("arg" ^ string_of_int i))) signature.params); body])
+      (branch_default signature.result)
   | _ -> None
 
-let rec branch_default (ty : Flow.Ty.t) = match ty with
+and branch_default (ty : Flow.Ty.t) = match ty with
   | List _ -> Some (call "list" [])
   | Record fields ->
       let fields = List.map (fun (name, ty) -> Option.map (fun value -> [kwf name; value]) (branch_default ty)) fields in

@@ -2,13 +2,16 @@
     {!Port_type} is the smaller set a driven parameter port carries at run time. *)
 
 type t =
-  | Named of string | Float | Int | Bool | Vec3 | Text
+  | Named of string | Float | Int | Bool | Vec2 | Vec3 | Vec4 | Text
   | Color  (** text or vec3; only catalog parameters ask for it *)
   | List of t
-  | Array of t  (** packed float or vec3 data; its length is not graph structure *)
+  | Array of t  (** packed data; only float/vec3 storage is executable today *)
   | Record of (string * t) list  (** fields in written order *)
-  | Fn
+  | Fn of fn_signature option
   | Any  (** unknown or unconstrained: unannotated fn parameters, empty lists *)
+and fn_signature = { params : t list; result : t }
+(** [Fn None] is an uninstantiated callable. A function port certifies the
+    input types and checked result in [Fn (Some signature)]. *)
 
 type color = [ `Geometry | `Float | `Int | `Bool | `Vec3 | `Text | `Fn | `Record | `Output | `Compound ]
 type nominal = {name : string; shape : bool; color : color; default : Syntax.t option}
@@ -40,7 +43,8 @@ val of_syntax : Syntax.t -> t option
 
 val names : unit -> (string * t) list
 val to_string : t -> string
-(** Diagnostic spelling: [float], [list:int], [rec{a:int,b:float}]. *)
+(** Diagnostic spelling: [float], [list:int], [rec{a:int,b:float}],
+    [fn(vec3)->float] for an instantiated function port. *)
 
 val of_string : string -> t option
 (** Inverse of [to_string]. *)
@@ -50,7 +54,8 @@ val has_fn : t -> bool
 
 val fits : t -> t -> bool
 (** [fits have want]: [have] may be used where [want] is expected, possibly
-    through {!coerce}.  Numbers and bool interconvert, numbers widen to vec3,
+    through {!coerce}. Numbers and bool interconvert; numbers widen to vectors
+    without changing a vector's width;
     records fit when they have every wanted field. *)
 
 val coerce : t -> t -> t

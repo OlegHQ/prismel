@@ -769,6 +769,14 @@ the checker reads (`Check`). The PPX uses its shared name validation. Geometry c
 connect to value ports, and vectors cannot drive scalars. Float-to-int coercion rounds and
 saturates the machine range before the caller applies the parameter's hard bounds.
 
+Lisp scalar vectors are `vec2`, `vec3` and `vec4`: numeric literals have two,
+three or four components, numbers broadcast in arithmetic, and mixed widths
+are `E_TYPE`. The graph edits each component in the existing grouped field.
+Packed kernels and array storage still execute float/vec3 only; `array:vec2`
+and `array:vec4` are checker types for future kernels. Catalog ports retain
+their existing types. `sketches/flow_vectors/sketch.rays` demonstrates Vec2
+motion and Vec4 color components through the current drawing ports.
+
 `Flow.Eval.t.authored` maps plan node IDs to the originating syntax form IDs.
 Copies of an authored call share that ID even when their evaluation sites differ.
 These IDs belong to the checked source and may change on reparse; they do not

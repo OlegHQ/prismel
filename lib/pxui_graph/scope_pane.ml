@@ -1291,7 +1291,7 @@ let paint_socket paint theme (ty : Ty.t option) ~connected ~z (cx, cy) =
       if hw > 0. then Ui.Paint.fill paint ~x:(cx -. hw) ~y:(cy +. float k) ~w:(2. *. hw) ~h:1. colour
     done in
   match ty with
-  | Some Ty.Fn ->
+  | Some (Ty.Fn _) ->
       let half = 4. *. Float.sqrt 2. *. z in
       diamond half color;
       if not connected then diamond (half -. Float.sqrt 2.) theme.input
@@ -2111,7 +2111,7 @@ let num_field ui ~at ~w ~h ?size ?kind ?range label text =
 
 (* what a row's field is: its type's kind (a vector's cells are floats) and its soft range *)
 let kind_of (r : P.row) = match r.ty with
-  | Some (Ty.Float | Ty.Vec3) -> Some Editor_core.Number.Float
+  | Some (Ty.Float | Ty.Vec2 | Ty.Vec3 | Ty.Vec4) -> Some Editor_core.Number.Float
   | Some Ty.Int -> Some Editor_core.Number.Int
   | _ -> None
 let range_of (r : P.row) = match r.control with P.Range (lo, hi) -> Some (lo, hi) | _ -> None

@@ -1,0 +1,54 @@
+--- a/lib/rdk/gen/iso_surface.ml
++++ b/lib/rdk/gen/iso_surface.ml
+@@ -231,6 +231,7 @@
+         let local_offsets = Array.make (slab_cell_count + 1) 0 in
+         let corner_x = [|0;1;1;0;0;1;1;0|]
+         and corner_y = [|0;0;1;1;0;0;1;1|] in
++        let profile_seconds = ref 0. and profile_bytes = ref 0. and profile_empty = ref 0 in
+         for z = 0 to z_cells - 1 do
+           Cancel.check_opt cancel;
+           let lower_values, lower_gx, lower_gy = !lower
+@@ -360,11 +361,22 @@
+             assert (!output =
+               (slab_offsets.(z) + local_offsets.(cell + 1)) * 3)
+           in
++          for cell = 0 to slab_cell_count - 1 do
++            if counts.(cell) = 0 then incr profile_empty
++          done;
++          let profile_before = Gc.quick_stat () in
++          let profile_started = Unix.gettimeofday () in
+           if slab_cell_count / grain < 2 then
+             for cell = 0 to slab_cell_count - 1 do fill_cell cell done
+           else
+             Parallel.for_ ~chunk_size:grain ~start:0
+               ~finish:(slab_cell_count - 1) fill_cell;
++          let profile_elapsed = Unix.gettimeofday () -. profile_started in
++          let profile_after = Gc.quick_stat () in
++          profile_seconds := !profile_seconds +. profile_elapsed;
++          profile_bytes := !profile_bytes +. (profile_after.minor_words -. profile_before.minor_words
++            +. profile_after.major_words -. profile_before.major_words
++            -. (profile_after.promoted_words -. profile_before.promoted_words)) *. float (Sys.word_size / 8);
+           if z < z_cells - 1 then begin
+             let spare_plane = !lower in
+             lower := !upper;
+@@ -381,6 +393,9 @@
+         done;
+         let positions = Packed.Float3.Private.of_owned_exn
+             ~x:vertices.x ~y:vertices.y ~z:vertices.z in
++        Printf.eprintf "fill_cell,%.9f,%.0f,%d,%d\n%!" !profile_seconds !profile_bytes
++          !profile_empty (slab_cell_count * z_cells);
++        let positions = positions in
+         let normals = Packed.Float3.Private.of_owned_exn
+             ~x:normals.x ~y:normals.y ~z:normals.z in
+         Ok (positions, normals)
+--- a/lib/rdk/gen/dune
++++ b/lib/rdk/gen/dune
+@@ -1,7 +1,7 @@
+ (library
+  (name rdk_gen)
+  (public_name rays.rdk.gen)
+- (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rays_math)
++ (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rays_math unix)
+  (flags (:standard -open Rdk_core -open Rdk_exact -open Rdk_spatial -open Rdk_attrib))
+  (private_modules )
+  (modules box_generator iso_surface line_geometry parametric_generators plane_generators point_generate point_jitter point_replicate scatter spiral uv_sphere))

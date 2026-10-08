@@ -287,7 +287,7 @@ let update ?input ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~
   let prepare context outputs optional =
     let found = List.filter_map Fun.id (List.map2 (fun target output ->
       Option.bind output (fun (output : Session.output) -> match output.payload with
-        | Payload.Geometry _ -> Some (summary target output) | Image _ -> None)) probed optional) in
+        | Payload.Geometry _ -> Some (summary target output) | Image _ | Kernel _ -> None)) probed optional) in
     let data = List.filter_map Fun.id (List.map2 (fun (key, _) output ->
       Option.bind output (fun (output : Session.output) ->
         Option.map (fun geometry -> key, geometry) (Result.to_option (Payload.geometry output.payload)))) probed optional) in
@@ -387,7 +387,7 @@ let pick_by pick_hit piece ~origin ~direction =
   let cast ~origin ~direction =
     Option.map (fun (distance, found) -> distance /. Vec3.length direction, found)
       (match piece.output.payload with
-       | Payload.Image _ -> None
+       | Payload.Image _ | Payload.Kernel _ -> None
        | Geometry geometry -> pick_hit (Lazy.force piece.surface) geometry ~origin ~direction) in
   match piece.output.instances with
   | None | Some [||] -> cast ~origin ~direction

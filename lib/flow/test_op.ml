@@ -14,13 +14,14 @@ let rec sample name = function
   | Ty.Int -> Int (if name = "index" || name = "active" || name = "first" then 0 else 2)
   | Float -> Float (if name = "ratio" then 0.5 else 1.5)
   | Bool -> Bool true | Vec3 -> Vec3 (1., 2., 3.)
+  | Vec2 -> Vec2 (1., 2.) | Vec4 -> Vec4 (1., 2., 3., 4.)
   | Text | Color -> Text (if name = "axis" then "horizontal" else if name = "button" then "left" else "a")
   | List e -> List [|sample "" e; sample "" e|]
   | Array e -> Value.array_init e 2 (fun _ -> sample "" e)
   | Named _ as ty -> Option.value ~default:(Deferred (ty, 0)) (List.assoc_opt ty nominal_samples)
   | Any -> Float 1.5
   | Record fs -> Record (List.map (fun (n,t) -> n, sample n t) fs)
-  | Fn -> Fn ()
+  | Fn _ -> Fn ()
 
 let check (o : Op.t) args =
   try
@@ -34,7 +35,7 @@ let check (o : Op.t) args =
   with Value.Fail (code, msg, _) -> failwith (o.name ^ ": " ^ code ^ ": " ^ msg)
 
 let () =
-  assert (List.length Op.all = 112);
+  assert (List.length Op.all = 113);
   List.iter (fun (o : Op.t) ->
     assert (Option.get (Op.find o.name o.ctx) == o);
     let s = o.signature in

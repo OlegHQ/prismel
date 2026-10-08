@@ -51,9 +51,9 @@ and node =
       (** built-in operator ([+], [range], [value/rand], [scene/object],
           [ui/split-at], ...) with its slot names; a rest slot repeats its
           name.  [skip] lists the argument tuples a [scene/merge] leaves out (register L16), [[]] otherwise. *)
-  | Call_fn of { fn : string; args : term list }
+  | Call_fn of { fn : string; args : term list; body : term option }
       (** a [defn] (arguments in parameter order, defaults filled in) or a
-          local [fn] *)
+          local [fn]. [body] retains this call site's checked specialization. *)
   | Fn_ref of string  (** a defn, operator or kind name used as a function value *)
   | Graph_ref of { graph : string; inputs : (string * term) list }
   | Let of (pattern * term) list * term
@@ -65,7 +65,9 @@ and node =
   | If of term * term * term
   | Cond of (term * term) list * term
   | Case of term * (Syntax.t * term) list * term
-  | Fn of { params : (pattern * Ty.t option) list; body : term; zone : path }
+  | Fn of { params : (pattern * Ty.t option) list; body : term; zone : path; capture : term option }
+      (** A function port specializes [body] while [capture] retains its
+          original callable's lexical environment and call identity. *)
   | Hof of [ `Map | `Filter | `Reduce | `Sort_by ] * term list
   | List_lit of term list
   | Record of (string * term) list
@@ -102,8 +104,9 @@ type t = {
   approx : Paths.t;
       (** Advisory GPU eligibility: packed maps/collect loops over floats or
           vec3 values with covered bodies, and supported derivatives. [exact]
-          removes this class. The evaluator remains exact; placement and sink
-          legality belong to the IR. *)
+          removes this class. The checker requires explicit exact boundaries
+          at statically visible exact-only sinks; execution placement and the
+          runtime precision backstop belong to the IR. *)
   kind_fns : (string * (string * Context.t * Check.slot list)) list;
       (** A catalog kind used as a function value: its qualified name, context and
           complete ordered slot signature, including a repeated final slot. *)

@@ -1,7 +1,7 @@
 (** The evaluator of the workspace language (port of the run pass of the
     study's [compile]): everything that is not geometry.
 
-    Numbers, vec3, text, lists, records, functions, loops, [if]/[cond]/[case],
+    Numbers, vectors, text, lists, records, functions, loops, [if]/[cond]/[case],
     higher-order forms, [str], list operations, [ref] with overrides and
     graph inputs run here, sequentially, on IEEE doubles, with a step budget.
     Packed operations budget each 1,024-element block separately; native
@@ -57,7 +57,9 @@ type ('f, 'r) payload = ('f, 'r) Value.t =
   | Float of float
   | Bool of bool
   | Text of string
+  | Vec2 of float * float
   | Vec3 of float * float * float
+  | Vec4 of float * float * float * float
   | List of ('f, 'r) payload array
   | Float_array of float array
   | Vec3_array of float array
@@ -182,6 +184,10 @@ val show : value -> string
 (** [str] formatting (register C2); a residual shows as [?]. *)
 
 module Private : sig
+  val map_function : signature:Ty.fn_signature -> fn -> value list -> (value, Diagnostic.t) result
+  (** Bind immutable packed columns to an instantiated function, retaining its
+      body and captures as a genuine residual map for downstream compilation. *)
+
   val free_names : Workspace.term -> string list
   (** Lexically free binding names, including nested function captures. *)
 
@@ -200,8 +206,18 @@ module Private : sig
   val function_bindings : fn -> (string * value) list
   (** Captured immutable inputs of a function value, for host data dependencies. *)
 
+  val function_id : fn -> int
+  (** Immutable hash hint, not equality: specialized closures may share this id. *)
+
+  val state_values : state -> value list
+  (** Values retained by a forked snapshot, for host payload accounting. *)
+
   val function_body : fn -> ((Workspace.pattern * Ty.t option) list * Workspace.term) option
   (** Checked body of a local function; named definitions remain interpreted. *)
+
+  val function_scope : fn -> (Workspace.path * int list) option
+  (** Authored zone and enclosing iteration tuple of an instantiated local
+      function, for a host supplying selected bulk-call probes. *)
 
   type residual_view = {
     term : Workspace.term;

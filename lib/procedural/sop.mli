@@ -19,6 +19,17 @@ val snapshot : ?label:string -> Rdk.Geometry.t -> Node.t
 
 val points : ?label:string -> (float * float * float) array -> Node.t
 
+val iso_surface : ?label:string -> ?resolution:Rays_math.Vec3.t ->
+  ?min:Rays_math.Vec3.t -> ?max:Rays_math.Vec3.t -> ?iso:float -> ?smooth:bool ->
+  field:Node.t -> unit -> Node.t
+(** Exact bulk float field over a static XYZ lattice, x fastest. Resolution
+    counts positive integral cells, defaults to [64,64,64]; bounds default to
+    [-2,-2,-2]/[2,2,2], iso to zero and smooth normals to true.
+    Invalid resolution, overflowing sample cardinality, nonfinite or unordered
+    bounds and nonfinite iso raise [Invalid_argument] at construction.
+    The field input must cook to a [Kernel] with one vec3 argument and float
+    result. Sampling and marching use the context's cancellation and domains. *)
+
 val attr_from_image :
   ?label:string -> ?attribute:string -> ?channel:Rdk.Attribute_ops.image_channel ->
   ?uv:string -> Node.t -> Node.t -> Node.t

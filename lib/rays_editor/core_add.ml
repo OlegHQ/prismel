@@ -97,7 +97,8 @@ let scope_add value key =
       let material_of = String.starts_with ~prefix:"of-material:" key in
       let factory = List.find_opt (fun f -> Edit_graph.factory_key f = key) (catalog value context) in
       let arity = match factory with
-        | Some factory -> Edit_graph.factory_arity factory | None -> if material_of then 1 else 0 in
+        | Some factory -> Edit_graph.factory_arity factory - List.length (Edit_graph.factory_keyword_inputs factory)
+        | None -> if material_of then 1 else 0 in
       let selected = Pxui_graph.Scope.selected value.scope_view in
       let scope, input = match selected with
         | _ when (context = Flow.Context.scene || context = Flow.Context.world) && not is_value ->
@@ -129,11 +130,16 @@ let scope_add value key =
                | Some n -> [ Flow.Syntax.make (Flow.Syntax.Sym n) ]
                | None -> if arity > 0 && geometry = [] then [ Flow.Syntax.make (Flow.Syntax.Sym "nil") ] else []) in
           let defaults = match factory with None -> [] | Some factory ->
+            let next_position = ref 0 in
+            let keywords = Edit_graph.factory_keyword_inputs factory in
             List.combine (Edit_graph.factory_slot_names factory)
               (List.combine (Edit_graph.factory_inputs factory) (Edit_graph.factory_input_types factory))
-            |> List.mapi (fun i (name, (required, ty)) ->
-              if i < List.length positional || ty = "geometry" || required <> Edit_graph.Required then [] else
-              match Option.bind (Flow.Ty.of_string ty) Flow.Ty.default with
+            |> List.map (fun (name, (required, ty)) ->
+              let supplied = if List.mem name keywords then false else begin
+                let i = !next_position in incr next_position; i < List.length positional end in
+              if supplied || ty = "geometry" || required <> Edit_graph.Required then [] else
+              match Option.bind (Flow.Ty.of_string ty) (fun ty -> Flow_graph.Flow_edit.default_for
+                ~fresh:(Flow_graph.Flow_edit.fresh_name ws.source ~root:graph) ty name) with
               | None -> []
               | Some form -> [Flow.Syntax.make (Flow.Syntax.Kw name); form]) |> List.concat in
           Flow.Syntax.make (Flow.Syntax.List (head :: positional @ defaults

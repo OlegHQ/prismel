@@ -8,7 +8,7 @@
                          (array/range count))
            particles
            (state [previous {:position (array/vec3 count [400 300 0])
-                             :velocity initial_velocity}]
+                             :velocity (exact initial_velocity)}]
              (let* [position (map (fn [p v] (+ p (* v (frame/dt))))
                                  previous.position previous.velocity)
                     bounced_velocity (map (fn [p v]

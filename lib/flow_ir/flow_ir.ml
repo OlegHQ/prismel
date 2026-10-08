@@ -411,7 +411,7 @@ let of_evaluation ws catalog evaluation =
   Array.iter (fun (n : E.node) ->
     let id = identity n.inst (n.site, n.iter) in
     let args = List.mapi (fun i (name, v) -> {name; node = value b (child id (name ^ "#" ^ string_of_int i)) v}) n.args in
-    let kind = if n.ty = Ty.drawing then Sink (Display n.kind)
+    let kind = if Flow.Op.is_display_kind n.kind then Sink (Display n.kind)
       else Opaque (n.kind, Option.join (Hashtbl.find_opt facts n.kind)) in
     let index = add b id n.ty (Count.Data id) kind args Static in
     Hashtbl.replace b.deferred n.id index) evaluation.E.plan.nodes;

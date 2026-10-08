@@ -73,15 +73,32 @@ another graph, with input overrides.
 
 ### 3.2 Port types and coercions
 
-The structural types of `Flow.Ty.t` are `Float`, `Int`, `Bool`, `Vec3`, `Text`,
+The structural types of `Flow.Ty.t` are `Float`, `Int`, `Bool`, `Vec2`, `Vec3`, `Vec4`, `Text`,
 `Color` (text or vec3; only catalog parameters ask for it), `List`, `Array`, `Record`, `Fn`
 and `Any`. Domain types use `Named of string`; registered names include geometry,
 drawing, scene, world, settings, panel, editor and material. `Ty.fits`
 decides whether a value may be used where a type is expected: numbers and Bool interconvert,
-numbers widen to Vec3, a record fits when it has every wanted field.
+numbers widen to a vector, a record fits when it has every wanted field.
+Vector literals have two, three or four numeric components; widths remain
+distinct. Vector arithmetic broadcasts a scalar and rejects mixed widths with
+`E_TYPE`. Components are `.x`, `.y`, `.z`, `.w` up to the vector's width.
+The reference evaluator executes all three widths; packed CPU/GPU instructions
+and executable packed array storage still cover float and vec3 only. `(array
+vec2)` and `(array vec4)` annotations prepare the checker for future storage;
+they do not add array constructors or kernel instructions.
 
 A catalog parameter's port type is `Flow.Port_type.t` (`Geometry | Float | Int | Bool |
-Vec3`); text and choice fields have none and take literals only. A value reaching a
+Vec3 | Image | Fn of Ty.fn_signature`); text and choice fields have none and take literals only.
+A function signature declares parameter and result types, including records and arrays.
+The checker retypes the function body for that port and retains each call's checked body
+with the original callable's lexical captures. A bare `fn` annotation stays uninstantiated;
+function values stored inside records or returned from functions still raise `E_FN_ESCAPES`.
+Generated Fn/Image keyword inputs remain physical SOP slots; they have no scalar
+Param fields or drives. Their default function body projects as an editable Fn
+zone. Function resources carry captured geometry dependencies and an owned bulk
+runner; packed float/vec3 arguments compile when the consumer supplies its columns.
+Unsupported packed signatures or bodies return `E_KERNEL_FORM` at preparation.
+Images and functions cannot be driven by scalar values. A scalar value reaching a
 parameter is coerced by `Port_type.coerce`, then normalised to the field's hard bounds
 (`Flow_sop.Port.normalize`):
 
@@ -235,6 +252,12 @@ list item, a macro hole and a binder always show; the `+` row is not a card line
 `Flow.Check.parameter.primary` carries it.
 
 ### 5.3 Vec3 grouping
+
+Literal Vec2/Vec3/Vec4 values use the same grouped numeric field, with two,
+three or four editable cells. `Flow_edit.Set_arg` addresses a component by
+its zero-based sub-index; editing preserves the literal's width. Vec2/Vec4
+ports use the kit's vector ink. Catalog parameters retain the declaration
+grouping below; Vec2/Vec4 do not expand `Port_type`.
 
 `[@sop.vec3 "center"]` on three float fields groups them into the vec3 parameter `center`
 with components x, y, z. The record keeps its three fields, so cook code does not change;
@@ -810,7 +833,7 @@ places it. All sizes are logical points.
 | `(ui/floating panel)` | a window over the layout (bounds in `(layout (panel ...))`) |
 | `(ui/switch panel... :active n)` | the layouts of the graph; the active one is the tree |
 | `(ui/viewport scene :look_through b)` | a viewport of a scene |
-| `(ui/canvas drawing :focus b)` | a native 2D Canvas over a Drawing value |
+| `(ui/canvas drawing :focus b)` | a native 2D Canvas over a Drawing value; an image input is wrapped in `draw/image` at the origin |
 | `(ui/graph ["name"] :wires w :view v)` | the graph pane; `name` pins a graph of the workspace (`def:name` a function), `:wires` is `"rect"` or `"straight"`, `:view` is `"graph"`, `"list"` or `"text"` |
 | `(ui/list :of g)` `(ui/inspector :of g)` | a list view, an inspector; `:of` names the graph panel it shows |
 | `(ui/lisp :tab t :of g)` | a text pane; `:tab` is `"selection"`, `"graph"` or `"document"` |
@@ -1089,12 +1112,25 @@ justify it; `(exact x)` explicitly materializes a selected GPU producer.
 The checker's `Workspace.approx` paths are advisory GPU eligibility, separate
 from an executed value's precision. Packed float/vec3 maps and one-clause
 collect loops qualify when their bodies use the shared `Flow.Packed_ops`
-operations, numeric literals, vec3 fields, `let*` and `if`. Numeric nullary
+operations, numeric literals, vec3 fields, `let*`, `if`, `cond` and numeric/bool
+`case`. `(length vec3)` returns its Euclidean norm as a float, using
+`sqrt ((x*x + y*y) + z*z)` with that association. Concrete scalar inputs are
+type errors; unannotated Fn inputs are checked again at the call site.
+The packed compiler derives it from existing multiplication/addition/square-root
+instructions and preserves the reference's nonfinite diagnostic and lazy branches.
+Numeric nullary
 live built-ins and `t` are per-frame uniforms. Noise seed/octave
 arguments must be literal (octaves 1–32). Multi-clause products, reductions,
 filters, unsupported operations and catalog calls stay outside the set.
-Supported derivatives preserve eligibility; `(exact x)` removes it. Checking
-this class never changes CPU evaluation or permits an approximate sink.
+Supported derivatives preserve eligibility; `(exact x)` removes it. The
+checker retains producer paths through aliases, arithmetic and containers and
+reports `E_APPROX_SINK` before an eligible value reaches a catalog slot or
+parameter, state seed, graph override, or `settings/*`/`scene/*` argument. Its
+message names the producer and consumer paths. `draw/*` and `ui/*` consumers
+may display these values; exact-only consumers require `(exact x)`, including
+when CPU execution currently supplies the producer. This conservative check
+does not change CPU values. An inline `exact` is a graph card with its input's
+cards and function zones projected and edited beneath it.
 The inspector reports `approximable` for eligible paths; the graph's tier badge
 continues to describe execution. `bench_workspace_lower --approx` prints the
 complete sets, including workspaces checked by their own custom catalogs.
@@ -1150,6 +1186,17 @@ Missing or non-vec3 storage is `E_ATTR_TYPE`. Reads are deferred until the
 host has cooked the source geometry. The reference evaluator and packed
 executor receive the same immutable attribute resolver; Flow itself has no
 geometry dependency.
+
+`(sop/iso_surface :field (fn [p] (- (length p) 1)) :resolution [64 64 64])`
+samples an exact float field on a static 65³ XYZ lattice, x fastest. Resolutions
+count integral cells; min/max default to `[-2 -2 -2]`/`[2 2 2]`, iso to zero,
+and smooth normals to true. Its generated Fn port and typed parameter rails
+project through the ordinary function zone. A field-body probe selects one
+lattice tuple and reference-evaluates only that call, using the existing bounded
+call/body memos and at most 64 sparkline samples. Function call selectors also
+cover shared fields and ordinary maps, with stable cumulative call numbers.
+Invalid grid/bounds fail at the typed constructor; sample/cook failures are
+typed. CPU packed and reference paths remain byte-identical across domains.
 
 `(sop/with_attr geometry :P values)` writes exactly one vec3 per point.
 `E_ATTR_COUNT` refuses a different count, and nonfinite components are

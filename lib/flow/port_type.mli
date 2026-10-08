@@ -1,4 +1,4 @@
-type t = Geometry | Float | Int | Bool | Vec3
+type t = Geometry | Float | Int | Bool | Vec3 | Image | Fn of Ty.fn_signature
 type value =
   | Float_value of float
   | Int_value of int

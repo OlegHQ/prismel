@@ -197,7 +197,7 @@ let set_volatile session predicate =
    path. *)
 let selective node inputs =
   let facts = Node.facts node in
-  Array.length inputs = 1 && (match inputs.(0) with Payload.Geometry _ -> true | Image _ -> false)
+  Array.length inputs = 1 && (match inputs.(0) with Payload.Geometry _ -> true | Image _ | Kernel _ -> false)
   && Node.Private.expand node = None
   && facts.topology = Node.Preserved && not (List.mem "*" facts.reads || List.mem "*" facts.writes)
   && (facts.cook_mode = Node.Duplicate_input 0 || facts.cook_mode = Node.Passthrough 0)
@@ -261,7 +261,7 @@ let delta node inputs (cooked : Node.Private.cooked) =
   if not (selective node inputs) then None else
   let source = Result.get_ok (Payload.geometry inputs.(0)) in
   let geometry = match cooked.payload with Geometry geometry -> geometry
-    | Image _ -> refuse_facts "component-cached geometry nodes must return geometry" in
+    | Image _ | Kernel _ -> refuse_facts "component-cached geometry nodes must return geometry" in
   if Option.is_some cooked.instances then
     refuse_facts "component-cached nodes must return unpacked geometry";
   if Rdk.Geometry.topology source != Rdk.Geometry.topology geometry then
@@ -362,7 +362,7 @@ let cancellation_error node =
    cache keys still hit. ponytail: the last 8 packed outputs are kept; an
    LRU keyed by output identity if graphs pack more than that. *)
 let input_geometry session (output : output) = match output.payload, output.instances with
-  | Payload.Image _, _ | _, None -> Ok output.payload
+  | (Payload.Image _ | Payload.Kernel _), _ | _, None -> Ok output.payload
   | Payload.Geometry source, Some transforms ->
       let existing = List.assq_opt output session.materialized in
       (match session.journal with None -> () | Some events ->
@@ -435,7 +435,7 @@ let rec cached_output predictions memo session context node =
       let input_predictions=Array.map(cached_output predictions memo session context) inputs in
       let values=Array.map(function Known output ->
           (match output.payload,output.instances with
-           | Payload.Image _,_ | _,None -> Some output.payload
+           | (Payload.Image _ | Payload.Kernel _),_ | _,None -> Some output.payload
            | Geometry _,Some _ -> Option.map(fun geometry -> Payload.Geometry geometry)
                (List.assq_opt output session.materialized))
         | Deferred_refresh | Missing -> None) input_predictions in

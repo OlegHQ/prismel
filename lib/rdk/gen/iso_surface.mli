@@ -1,4 +1,11 @@
-(** Streaming deterministic isosurface extraction into packed RDK geometry. *)
+(** Streaming deterministic isosurface extraction into packed RDK geometry.
+    O(lattice cells + emitted vertices) time; O(x*y + z + emitted vertices)
+    auxiliary storage, excluding the caller's sampled volume. Sampling and cell
+    work use the shared Parallel pool, with stable disjoint ranges and exact
+    one-domain/multi-domain ordering. Grain defaults to 16,384; fewer than two
+    chunks per plane/slab stay sequential. Cancellation is checked per plane
+    and slab; invalid parameters, nonfinite samples and cancellation are typed
+    errors. *)
 
 type metaball = private {
   center : Rays_math.Vec3.t;
@@ -13,17 +20,30 @@ module Field : sig
   type t
   val gyroid : ?scale:float -> unit -> t
   val custom : (sample -> float) -> t
+  (** Fields must be deterministic and concurrency-safe: sufficiently large
+      planes sample concurrently in disjoint chunks of the shared pool. *)
 end
 
-val extract : ?cancel:Cancel.t -> ?smooth:bool ->
+val extract : ?cancel:Cancel.t -> ?grain:int -> ?smooth:bool ->
   resolution:int * int * int -> min:Rays_math.Vec3.t ->
   max:Rays_math.Vec3.t -> iso:float ->
   field:(Rays_math.Vec3.t -> float) -> unit ->
   (Geometry.t, Error.t) result
-val extract_dense : ?cancel:Cancel.t -> ?smooth:bool ->
+val extract_dense : ?cancel:Cancel.t -> ?grain:int -> ?smooth:bool ->
   resolution:int * int * int -> min:Rays_math.Vec3.t ->
   max:Rays_math.Vec3.t -> iso:float -> field:Field.t -> unit ->
   (Geometry.t, Error.t) result
+
+val extract_sampled : ?cancel:Cancel.t -> ?grain:int -> ?smooth:bool ->
+  resolution:int * int * int -> min:Rays_math.Vec3.t ->
+  max:Rays_math.Vec3.t -> iso:float -> samples:float array -> unit ->
+  (Geometry.t, Error.t) result
+(** Resolutions count cells. [samples] contains exactly
+    [(rx + 1) * (ry + 1) * (rz + 1)] finite values, x fastest, then y, then z:
+    [samples.(x + (rx + 1) * (y + (ry + 1) * z))]. Lattice coordinates are
+    [min + float_of_int index * ((max - min) / float_of_int cells)].
+    The array is borrowed read-only for this call and is never retained.
+    Marching, normals and output order are shared with [extract_dense]. *)
 
 module Private : sig
 end

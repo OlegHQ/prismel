@@ -9,7 +9,9 @@ type descriptor = {
   category : string list;
   slots : (string * Procedural.Edit_graph.input_requirement) list;
   slot_types : string list;
-  (** Optional nominal type names in slot order. Empty keeps the context defaults. *)
+  (** Optional serialized types in physical input order. Empty keeps the context defaults. *)
+  keyword_inputs : string list;
+  (** Required fn/image inputs exposed as keyword parameters. *)
   fields : Param.field_view list;
 }
 (** One catalog kind: a SOP factory, or a scene, world or settings kind that

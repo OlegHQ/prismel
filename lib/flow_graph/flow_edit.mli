@@ -215,10 +215,11 @@ val fresh_among : string list ref -> string -> string
 val rename_ref : string -> string -> Flow.Syntax.t -> Flow.Syntax.t
 (** [rename_ref old new form]: every symbol [old] (or [old.field]) in [form] reads [new]. *)
 
-val default_for : Flow.Ty.t -> string -> Flow.Syntax.t option
+val default_for : ?fresh:(string -> string) -> Flow.Ty.t -> string -> Flow.Syntax.t option
 (** The value a disconnected input of this type falls back to (the study's
     [defaultFor]); [None] for types with none.  The label ["color"] makes text
-    a colour. *)
+    a colour. [fresh] chooses function parameter names against the destination
+    scope (use {!fresh_name}). *)
 
 val literals : Flow.Syntax.t -> (int list * Flow.Syntax.t) list
 (** Number and text leaves of an expression with their child paths, the

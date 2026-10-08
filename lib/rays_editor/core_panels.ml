@@ -57,7 +57,7 @@ let defn_change value paths =
   let scope = Option.map (fun (k : scope_key) -> k.scope) value.scope_key in
   let rec ty_text : Flow.Ty.t -> string option = function
     | (Flow.Ty.Named "geometry") -> Some "geometry" | Float -> Some "float" | Int -> Some "int" | Bool -> Some "bool"
-    | Vec3 -> Some "vec3" | Text -> Some "text" | Fn -> Some "fn"
+    | Vec3 -> Some "vec3" | Text -> Some "text" | Fn _ -> Some "fn"
     | List t -> Option.map (fun s -> "(list " ^ s ^ ")") (ty_text t)
     | _ -> None in
   let rec find_ty name (s : Flow_graph.Projection.scope) =

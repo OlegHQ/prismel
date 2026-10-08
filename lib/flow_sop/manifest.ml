@@ -49,7 +49,8 @@ let field (field : Param.field_view) =
     | Some unit -> String.sub text 0 (String.length text - 1) ^ " " ^ group "unit" [quote unit] ^ ")"
 
 let outputs ports = group "outputs" (List.map (fun (name, ty) ->
-  group "output" [quote name; String.lowercase_ascii (Flow.Port_type.name ty)]) ports)
+  let name_ty = String.lowercase_ascii (Flow.Port_type.name ty) in
+  group "output" [quote name; if Flow.Symbol.valid_name name_ty then name_ty else quote name_ty]) ports)
 
 let facts (facts : Procedural.Node.facts) =
   let mode = match facts.cook_mode with
@@ -63,7 +64,7 @@ let facts (facts : Procedural.Node.facts) =
     group "topology" [match facts.topology with Preserved -> "preserved" | Changed -> "changed"];
     group "exact" [string_of_bool facts.exact]]
 
-let entry ?facts:declaration ~qualified ~key ~operation ~label ~category ~slots ~fields ~result () =
+let entry ?facts:declaration ?(keyword_inputs = []) ~qualified ~key ~operation ~label ~category ~slots ~fields ~result () =
   let fields = match fields with
     | [] -> group "fields" []
     | fields -> "(fields\n        " ^
@@ -72,6 +73,7 @@ let entry ?facts:declaration ~qualified ~key ~operation ~label ~category ~slots 
     group "key" [quote key]; group "aliases" [];
     group "operation" [quote operation]; group "label" [quote label];
     strings "category" category; group "slots" slots; fields; outputs result]
+    @ (if keyword_inputs = [] then [] else [strings "keyword-inputs" keyword_inputs])
     @ List.map facts (Option.to_list declaration) in
   "(kind " ^ quote qualified ^ "\n      " ^ String.concat "\n      " properties ^ ")"
 
@@ -84,9 +86,10 @@ let descriptor ?facts (d : Catalog.descriptor) =
       | Edit.Rest -> "rest"
       | Edit.Optional_rest -> "optional-rest")]
       |> fun slot -> if ty = "geometry" then slot else
-        String.sub slot 0 (String.length slot - 1) ^ " " ^ ty ^ ")") d.slots types in
+        String.sub slot 0 (String.length slot - 1) ^ " " ^
+        (if Flow.Symbol.valid_name ty then ty else quote ty) ^ ")") d.slots types in
   entry ?facts ~qualified:d.qualified ~key:d.key ~operation:d.operation ~label:d.label
-    ~category:d.category ~slots ~fields:d.fields
+    ~category:d.category ~slots ~fields:d.fields ~keyword_inputs:d.keyword_inputs
     ~result:(if String.starts_with ~prefix:"sop/" d.qualified
              then ["geo", Flow.Port_type.Geometry] else []) ()
 

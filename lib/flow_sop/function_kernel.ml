@@ -1,0 +1,77 @@
+module E = Flow.Eval
+module K = Procedural.Kernel
+let host_error (d : Flow.Diagnostic.t) = Procedural.Diagnostic.error ~code:d.code d.message
+let value = function K.Floats xs -> E.Float_array xs | Vec3s xs -> E.Vec3_array xs
+let column = function
+  | E.Float_array xs -> Ok (K.Floats xs)
+  | E.Vec3_array xs -> Ok (K.Vec3s xs)
+  | _ -> Error (Flow.Diagnostic.error ~code:"E_KERNEL_FORM" "Bulk function did not produce a packed column.")
+let add_bytes a b = if b > max_int - a then max_int else a + b
+module Functions = Hashtbl.Make (struct
+  type t = E.fn
+  let equal = ( == )
+  let hash = E.Private.function_id
+end)
+module Residuals = Hashtbl.Make (struct
+  type t = E.residual
+  let equal = ( == )
+  let hash = E.Private.residual_id
+end)
+let storage values =
+  let functions = Functions.create 16 and residuals = Residuals.create 16 in
+  let rec visit = function
+  | E.Float_array xs | Vec3_array xs -> Array.length xs * 8
+  | Text s -> String.length s
+  | List xs -> Array.fold_left (fun bytes x -> add_bytes bytes (visit x)) 0 xs
+  | Record fs | Struct (_, _, fs) -> fields fs
+  | Fn fn when not (Functions.mem functions fn) ->
+      Functions.add functions fn (); fields (E.Private.function_bindings fn)
+  | Residual r when not (Residuals.mem residuals r) ->
+      Residuals.add residuals r (); fields (E.Private.residual_view r).bindings
+  | _ -> 0
+  and fields fs = List.fold_left (fun bytes (_, x) -> add_bytes bytes (visit x)) 0 fs in
+  List.fold_left (fun bytes x -> add_bytes bytes (visit x)) 0 values
+let node ?state ?(reference = false) ?elems ~identity ~signature ~fn ~sources inputs =
+  (* ponytail: fresh binding identity recooks after equivalent re-lowering;
+     structural body/capture keys can replace it if this becomes measurable. *)
+  Procedural.Node.Private.make ~operation:"flow.function" ~version:1
+    ~parameters:(string_of_int identity
+      ^ Option.fold ~none:"" ~some:(fun bindings -> Flow.Value.key_of
+          ~residual:E.Private.residual_id (E.Record bindings)) elems
+      ^ Option.fold ~none:"" ~some:E.state_stamp state) ~cook_mode:Procedural.Node.Generic
+    ~dependencies:(if E.frame_dependent (E.Fn fn) || E.state_dependent (E.Fn fn) then
+        Procedural.Context.Dependencies.one Procedural.Context.Dependencies.Input
+      else Procedural.Context.Dependencies.static)
+    ~inputs:(Array.of_list inputs) (fun ~node_id:_ _ payloads ->
+      let resolve = Attribute_kernel.resolve ~geometry:(fun id ->
+        Option.bind (List.find_index (( = ) id) sources)
+          (fun index -> Result.to_option (Procedural.Payload.geometry payloads.(index)))) in
+      let prepare columns = Result.map_error host_error (
+        Result.bind (E.Private.map_function ~signature fn (List.map value columns)) (fun values ->
+        Result.bind (Attribute_kernel.prepare ~sources inputs values) (fun program ->
+          let ir = Flow_ir.Executor.graph program in
+          match ir.nodes.(ir.roots.(0)).kind with
+          | Flow_ir.Kernel {body = Packed_map packed; _} ->
+              Ok (fun context -> Result.map_error host_error (
+                if Procedural.Context.cancelled context then
+                  Error (Flow.Diagnostic.error ~code:"E_CANCELLED" "Bulk function cancelled.")
+                else Result.bind (if reference then Flow_ir.Executor.force ?state ?elems ~reference:true ~resolve program
+                    ~live:(Procedural.Context.input context)
+                  else Flow_ir.Packed.force ?state ?elems ~resolve packed
+                    ~live:(Procedural.Context.input context)) (fun value ->
+                    if Procedural.Context.cancelled context then
+                      Error (Flow.Diagnostic.error ~code:"E_CANCELLED" "Bulk function cancelled.")
+                    else column value)))
+          | _ -> Error (Flow.Diagnostic.error ~code:"E_KERNEL_FORM"
+              "This function cannot compile to a packed kernel.")))) in
+      (* Captured payloads stay alive through the resolver even if their own
+         cache entries are evicted. Account conservatively for that storage. *)
+      let bytes = Array.fold_left (fun bytes payload ->
+        List.fold_left (fun bytes (_, size) -> add_bytes bytes size) bytes
+          (Procedural.Payload.payload_components payload))
+        (storage (E.Fn fn ::
+          (Option.fold ~none:[] ~some:(List.map snd) elems)
+          @ (Option.fold ~none:[] ~some:E.Private.state_values state))) payloads in
+      let kernel = K.create ~payload_bytes:bytes prepare in
+      Ok Procedural.Node.Private.{payload = Procedural.Payload.Kernel kernel;
+        diagnostics = []; instances = None})

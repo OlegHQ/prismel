@@ -1,0 +1,79 @@
+--- a/lib/rdk/gen/iso_surface.ml
++++ b/lib/rdk/gen/iso_surface.ml
+@@ -72,6 +72,19 @@
+         | _ -> invalid_arg "Iso3.extract_sampled: sample count must match the point lattice")
+    | _ -> ());
+   let exception Non_finite_field in
++  let profile_seconds = Array.make 2 0. and profile_bytes = Array.make 2 0. in
++  let profile phase body =
++    let before = Gc.quick_stat () in
++    let started = Unix.gettimeofday () in
++    let result = body () in
++    let elapsed = Unix.gettimeofday () -. started in
++    let after = Gc.quick_stat () in
++    profile_seconds.(phase) <- profile_seconds.(phase) +. elapsed;
++    profile_bytes.(phase) <- profile_bytes.(phase)
++      +. (after.minor_words -. before.minor_words +. after.major_words -. before.major_words
++        -. (after.promoted_words -. before.promoted_words)) *. float (Sys.word_size / 8);
++    result
++  in
+   let iter_plane body =
+     if plane_stride / grain < 2 then
+       for flat = 0 to plane_stride - 1 do body flat done
+@@ -136,12 +149,12 @@
+     and gx = Array.make plane_stride 0.
+     and gy = Array.make plane_stride 0. in
+     sample_values_into values z;
+-    fill_xy_gradients values gx gy;
++    profile 0 (fun () -> fill_xy_gradients values gx gy);
+     values, gx, gy
+   in
+   let refill_plane (values, gx, gy) z =
+     sample_values_into values z;
+-    fill_xy_gradients values gx gy
++    profile 0 (fun () -> fill_xy_gradients values gx gy)
+   in
+   let count_slab lower upper counts =
+     Cancel.check_opt cancel;
+@@ -232,8 +245,8 @@
+                Some (create_plane 2) else None) in
+         let lower_z = ref (Array.make plane_stride 0.)
+         and upper_z_buffer = ref (Array.make plane_stride 0.) in
+-        fill_z_gradient !lower_z 0
+-          (let values, _, _ = !lower in values) None (Some !upper);
++        profile 1 (fun () -> fill_z_gradient !lower_z 0
++          (let values, _, _ = !lower in values) None (Some !upper));
+         let local_offsets = Array.make (slab_cell_count + 1) 0 in
+         let corner_x = [|0;1;1;0;0;1;1;0|]
+         and corner_y = [|0;0;1;1;0;0;1;1|] in
+@@ -241,8 +254,8 @@
+           Cancel.check_opt cancel;
+           let lower_values, lower_gx, lower_gy = !lower
+           and upper_values, upper_gx, upper_gy = !upper in
+-          fill_z_gradient !upper_z_buffer (z + 1) upper_values
+-            (Some !lower) !next;
++          profile 1 (fun () -> fill_z_gradient !upper_z_buffer (z + 1) upper_values
++            (Some !lower) !next);
+           let upper_z = !upper_z_buffer in
+           count_slab lower_values upper_values counts;
+           local_offsets.(0) <- 0;
+@@ -389,6 +402,8 @@
+         done;
+         let positions = Packed.Float3.Private.of_owned_exn
+             ~x:vertices.x ~y:vertices.y ~z:vertices.z in
++        Printf.eprintf "gradient_xy,%.9f,%.0f\ngradient_z,%.9f,%.0f\n%!"
++          profile_seconds.(0) profile_bytes.(0) profile_seconds.(1) profile_bytes.(1);
+         let normals = Packed.Float3.Private.of_owned_exn
+             ~x:normals.x ~y:normals.y ~z:normals.z in
+         Ok (positions, normals)
+--- a/lib/rdk/gen/dune
++++ b/lib/rdk/gen/dune
+@@ -1,7 +1,7 @@
+ (library
+  (name rdk_gen)
+  (public_name rays.rdk.gen)
+- (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rays_math)
++ (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rays_math unix)
+  (flags (:standard -open Rdk_core -open Rdk_exact -open Rdk_spatial -open Rdk_attrib))
+  (private_modules )
+  (modules box_generator iso_surface line_geometry parametric_generators plane_generators point_generate point_jitter point_replicate scatter spiral uv_sphere))

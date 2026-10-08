@@ -68,6 +68,34 @@ let () =
     check = (fun _ -> ()); body = (fun ~live:_ ~node args -> node "toy/emit" args);
     category = "Toy"; arithmetic = None}] in
   let catalog = Flow.Check.{version = 1; kinds = []} in
+  let kernel = Flow.Op.{name = "toy/kernel"; ctx = context;
+    signature = {pos = []; opt = []; rest = None;
+      kw = ["field", T.Fn (Some {params = [T.Vec3]; result = T.Float})]};
+    out = (fun _ -> toy); any_num = false; choices = []; shape = Scalar; live = false;
+    check = (fun _ -> ()); body = (fun ~live:_ ~node args -> node "toy/kernel" args);
+    category = "Toy"; arithmetic = None} in
+  let kernel_ops = kernel :: ops in
+  let field_source = "(workspace w (graph g :context toy (let* [surface (toy/kernel :field (fn [p] p.x))] surface)))" in
+  let field_doc = doc (D.of_text ~ops:kernel_ops catalog field_source) in
+  let field_scope = P.of_graph catalog field_doc.checked "g" in
+  check (List.exists (fun (n : P.node) ->
+    Option.fold ~none:false ~some:(fun (z : P.zone) -> z.kind = P.Fn) n.zone) field_scope.nodes)
+    "external function port did not project as a zone";
+  let field_plan = ok (Flow.Eval.static field_doc.checked) in
+  (match List.assoc "field" field_plan.plan.nodes.(0).args with
+   | Flow.Eval.Fn fn ->
+       let params, body = Option.get (Flow.Eval.Private.function_body fn) in
+       check (params = [W.Name "p", Some T.Vec3] && body.ty = T.Float)
+         "external function port lost its specialization"
+   | _ -> failwith "external function port lost its callable");
+  List.iter (fun body -> check (Result.is_error (D.of_text ~ops:kernel_ops catalog
+    ("(workspace w (graph g :context toy (toy/kernel :field " ^ body ^ ")))")))
+      "external function port accepted an invalid function") ["1.0"; "(fn [a b] a.x)"];
+  let changed_field = ok (D.edit catalog field_doc (Flow_graph.Flow_edit.Set_arg {
+    node = ["g"; "surface"]; key = Kw "field"; sub = [];
+    value = List.hd (ok (Flow.Syntax.parse "(fn [p] (* p.x 2.0))"))})) in
+  check (contains (D.to_text changed_field) "(* p.x 2.0)")
+    "external function-port edit was not retained";
   let text = "(workspace w\n\
     (defn make :context toy [(n : float)] (toy/emit n :gain 2.0))\n\
     (graph g :context toy (let* [first (toy/emit 1.0 :gain 3.0) second (make 4.0)] second)))" in
@@ -130,7 +158,7 @@ let () =
   check (List.assoc "g" (ok (Flow.Eval.static declared.checked)).results = Flow.Eval.Deferred (toy, 0))
     "custom catalog context ignored declared result type";
   let vocab = L.vocab [Flow_sop.Catalog.{qualified = "toynodes/item"; key = "item";
-    operation = "item"; label = "Item"; category = ["Toy"]; slots = []; slot_types = []; fields = []}] in
+    operation = "item"; label = "Item"; category = ["Toy"]; slots = []; slot_types = []; keyword_inputs = []; fields = []}] in
   let prefix = "(workspace w (graph g :context toy (item" in
   check (List.exists (fun (entry : Pxui.Ui.completion) -> entry.insert = "toynodes/item")
     (L.complete vocab prefix (String.length prefix))) "catalog completion confused prefix with context identity";

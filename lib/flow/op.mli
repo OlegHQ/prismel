@@ -25,6 +25,9 @@ val of_context : ?extra:t list -> Context.t -> t list
 
 val arith : string -> arithmetic option
 
+val is_display_kind : string -> bool
+(** Drawing and UI consumers may display approximate values. *)
+
 val validate : t list -> Diagnostic.t option
 (** Check an immutable extension list; declarations cannot shadow built-ins. *)
 

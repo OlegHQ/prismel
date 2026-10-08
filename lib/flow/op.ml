@@ -31,8 +31,9 @@ let elm j ts = match lst j ts with Ty.List e -> e | _ -> Ty.Any
 let binary name f =
   let arithmetic = { apply = fun a b -> Value.arith name f a b } in
   mk ~any_num:true ~arithmetic name ["a", fl; "b", fl] (fun ts ->
-    if List.mem Ty.Vec3 ts then Ty.Vec3
-    else if name <> "/" && name <> "pow" && List.for_all ((=) Ty.Int) ts then Ty.Int else fl)
+    match List.find_opt (fun ty -> List.mem ty [Ty.Vec2;Ty.Vec3;Ty.Vec4]) ts with
+    | Some ty -> ty
+    | None -> if name <> "/" && name <> "pow" && List.for_all ((=) Ty.Int) ts then Ty.Int else fl)
     {run = fun ~name ~node:_ args -> match List.map snd args with
       | [a;b] -> arithmetic.apply a b
       | _ -> failf "E_ARITY" "%s got the wrong number of inputs." name}
@@ -209,6 +210,9 @@ let arrays = [
       !sum};
 ]
 
+let is_display_kind name = String.starts_with ~prefix:"draw/" name
+  || String.starts_with ~prefix:"ui/" name
+
 let draw_op ?rest ?kw name pos =
   mk ~ctx:Context.draw ?rest ?kw ~category:"Drawing" name pos (fun _ -> Ty.drawing)
     {run = fun ~name ~node args -> node name args}
@@ -270,6 +274,10 @@ let images = [
 ]
 
 let all = frame @ arrays @ draw @ host @ integers @ images @ [
+  mk ~category:"Vector" "length" ["vector", Ty.Vec3] (fun _ -> fl)
+    {run = fun ~name ~node:_ args -> match List.assoc "vector" args with
+      | Vec3 (x,y,z) -> Float (fin name (sqrt ((x *. x +. y *. y) +. z *. z)))
+      | _ -> fail "E_TYPE" "length needs a vec3."};
   mk ~category:"Compare" "equal?" ["a",Ty.Any;"b",Ty.Any] (fun _->Ty.Bool)
     {run=fun ~name:_ ~node:_ args->try Bool(List.assoc "a" args=List.assoc "b" args)
       with Invalid_argument _->fail "E_TYPE" "Functions cannot be compared."};

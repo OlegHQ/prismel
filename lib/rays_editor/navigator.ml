@@ -337,7 +337,7 @@ let type_color theme (ty : Flow.Ty.t) =
   | Named _ -> Pxui_graph.Node_menu.color theme
       (match Flow.Ty.color ty with `Output -> `Compound | color -> color)
   | Float -> ports.float | Int -> ports.int | Bool -> ports.bool
-  | Vec3 -> ports.vec3 | Text -> ports.text | Fn -> ports.fn | Record _ -> ports.record
+  | Vec2 | Vec3 | Vec4 -> ports.vec3 | Text -> ports.text | Fn _ -> ports.fn | Record _ -> ports.record
   | List _ | Array _ | Color | Any -> ports.compound
 
 let height_of ~rh = function

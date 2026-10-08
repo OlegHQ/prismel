@@ -10,12 +10,14 @@ let catalog = Flow_sop.Catalog.of_factories ~version:1 factories |> flow_ok
 let source ?(columns = 33) ?(amp = "0.8") body = Printf.sprintf
   "(workspace kernel (graph g :context sop (let* [g (sop/grid :counts \"Point counts\" :connectivity \"Points\" :columns %d :rows 2) amp %s freq 0.16 result %s] result)))"
   columns amp body
-let noise_body = "(sop/with_attr g :P (map (fn [p n] (+ p (* n (* amp (noise3 (* p freq)))))) (sop/attr g :P) (sop/attr g :N)))"
+let noise_body = "(sop/with_attr g :P (exact (map (fn [p n] (+ p (* n (* amp (noise3 (* p freq)))))) (sop/attr g :P) (sop/attr g :N))))"
 let lower ?previous text =
   let forms = Flow.Syntax.parse text |> flow_ok in
   let compiled_ids = Option.map (fun (l : L.t) -> l.compiled_ids) previous
   and sites = Option.map (fun (l : L.t) -> l.sites) previous in
-  L.workspace ~factories ?compiled_ids ?sites forms |> flow_ok
+  match L.workspace ~factories ?compiled_ids ?sites forms with
+  | Ok lowered -> lowered
+  | Error d -> failwith (text ^ "\n" ^ Flow.Diagnostic.to_string d)
 let compiled (l : L.t) =
   let graph = List.hd l.graphs in
   Edit.compile_node graph.network.geometry ~node_id:(Option.get graph.root) |> get_string_ok
@@ -34,6 +36,128 @@ let reference (l : L.t) node =
 let stages program = Array.fold_left (fun count (node : Flow_ir.node) -> match node.kind with
   | Kernel {body = Packed_map p; _} -> max count (Flow_ir.Packed.stage_count p)
   | _ -> count) 0 (Flow_ir.Executor.graph program).nodes
+
+let () =
+  let text = "(workspace field (graph g :context sop
+    (sop/iso_surface :field (fn [p] (- (length p) (+ 1 t)))
+      :resolution [64 64 64] :min [-2 -2 -2] :max [2 2 2] :iso 0)))" in
+  let lowered = lower text in
+  let call = Array.find_opt (fun (n : E.node) -> n.kind = "sop/iso_surface")
+      lowered.plan.nodes |> Option.get in
+  let fn = match List.assoc "field" call.args with E.Fn fn -> fn | _ -> assert false in
+  (* Independent index decomposition pins all 65^3 positions and x-fast order. *)
+  let positions = Array.init (65 * 65 * 65 * 3) (fun j ->
+    let i = j / 3 in
+    let index = match j mod 3 with 0 -> i mod 65 | 1 -> (i / 65) mod 65 | _ -> i / (65*65) in
+    -2. +. float_of_int index *. (4. /. 64.)) in
+  let values = E.Private.map_function ~signature:Flow.Ty.{params = [Vec3]; result = Float}
+      fn [E.Vec3_array positions] |> flow_ok in
+  let program = Flow_sop.Attribute_kernel.prepare ~sources:[] [] values |> flow_ok in
+  let ir = Flow_ir.Executor.graph program in
+  let packed = match ir.nodes.(ir.roots.(0)).kind with
+    | Flow_ir.Kernel {body = Packed_map packed; _} -> packed | _ -> assert false in
+  assert (Flow_ir.Packed.static_count packed = Some (65 * 65 * 65));
+  List.iter (fun time ->
+    let live = Frame_input.at_time time in
+    let expected = Array.init (65 * 65 * 65) (fun i ->
+      let x = positions.(3*i) and y = positions.(3*i+1) and z = positions.(3*i+2) in
+      sqrt ((x *. x +. y *. y) +. z *. z) -. (1. +. time)) in
+    let reference = Flow_ir.Executor.force ~reference:true program ~live |> flow_ok in
+    assert (reference = E.Float_array expected);
+    let dense = Iso_surface.extract_dense ~resolution:(64,64,64)
+        ~min:(Rays_math.Vec3.create (-2.) (-2.) (-2.)) ~max:(Rays_math.Vec3.create 2. 2. 2.)
+        ~iso:0. ~field:(Iso_surface.Field.custom (fun p ->
+          sqrt ((p.(0) *. p.(0) +. p.(1) *. p.(1)) +. p.(2) *. p.(2)) -. (1. +. time))) ()
+      |> get_ok |> geometry_bytes in
+    List.iter (fun domains ->
+      let actual = Rays_math.Parallel.run ~domains (fun () ->
+        Flow_ir.Packed.force packed ~live |> flow_ok) in
+      assert (actual = reference);
+      let cook_session = session () in
+      Fun.protect ~finally:(fun () -> Session.close cook_session) (fun () ->
+        assert (geometry_bytes (cook cook_session ~domains ~time (compiled lowered) |> geometry) = dense));
+      let reference_lowered = L.workspace ~factories ~reference:true
+          (Flow.Syntax.parse text |> flow_ok) |> flow_ok in
+      let cook_session = session () in
+      Fun.protect ~finally:(fun () -> Session.close cook_session) (fun () ->
+        assert (geometry_bytes (cook cook_session ~domains ~time (compiled reference_lowered) |> geometry) = dense)))
+      [1;8]) [0.;0.25];
+  let forms = Flow.Syntax.parse text |> flow_ok in
+  let checked, diagnostics = Flow.Workspace.check ~ops:Flow_sop.Operators.all catalog forms in
+  assert (diagnostics = []);
+  let pane = Flow_graph.Projection.of_graph catalog (Option.get checked) "g" in
+  let surface = List.find (fun (n : Flow_graph.Projection.node) -> n.head = "sop/iso_surface") pane.nodes in
+  assert (List.exists (fun (row : Flow_graph.Projection.row) -> row.label = "field") surface.rows);
+  let zone = List.find (fun (n : Flow_graph.Projection.node) ->
+    Option.fold ~none:false ~some:(fun (z : Flow_graph.Projection.zone) -> z.kind = Fn) n.zone) pane.nodes in
+  assert (List.exists (fun (r : Flow_graph.Projection.rail_row) -> r.name = "p" && r.ty = Some Flow.Ty.Vec3)
+    (Option.get zone.zone).rail);
+  let calls = L.field_calls ~live:(Frame_input.at_time 0.25)
+      ~resolve:(fun v -> Ok v) lowered in
+  let forced_calls = ref 0 in
+  let bulk_calls path outer = List.map (fun (offset, count, at) ->
+    offset, count, (fun k -> incr forced_calls; at k)) (calls path outer) in
+  let probe = Flow_graph.Probe.make ~live:(Frame_input.at_time 0.25) ~bulk_calls lowered.evaluated in
+  let counts = Flow_graph.Probe.counts probe pane ~probe:(fun _ -> 0) in
+  let count = match List.assoc_opt zone.path counts with
+    | Some count -> count
+    | None -> let scope, iter = E.Private.function_scope fn |> Option.get in
+        failwith (Printf.sprintf "field probe: projection %s, function %s/%s, counts %s"
+          (String.concat "/" zone.path) (String.concat "/" scope)
+          (String.concat "," (List.map string_of_int iter))
+          (String.concat ";" (List.map (fun (p,n) -> String.concat "/" p ^ ":" ^ string_of_int n) counts))) in
+  assert (count = 65*65*65);
+  let k = 16001 in
+  let x = positions.(3*k) and y = positions.(3*k+1) and z = positions.(3*k+2) in
+  let sample = sqrt ((x *. x +. y *. y) +. z *. z) -. 1.25 in
+  assert (Flow_graph.Probe.at probe (zone.path @ [":p"]) ~probes:[k] = Some (Value (E.Vec3 (x,y,z))));
+  assert (Flow_graph.Probe.at probe (zone.path @ ["@result"]) ~probes:[k] = Some (Value (E.Float sample)));
+  assert (!forced_calls = 1);
+  let body = Flow_graph.Projection.find pane (zone.path @ ["@result"]) |> Option.get in
+  ignore (Flow_graph.Probe.footer probe body ~probes:[k]);
+  assert (!forced_calls <= 65);
+  let forced = !forced_calls in
+  ignore (Flow_graph.Probe.footer probe body ~probes:[k]);
+  assert (!forced_calls = forced);
+  ignore (Flow_graph.Flow_edit.apply_checked ~ops:Flow_sop.Operators.all catalog forms
+    (Set_arg {node = surface.path; key = Kw "resolution"; sub = [];
+      value = Flow.Syntax.parse "[8 9 7]" |> flow_ok |> List.hd}) |> flow_ok);
+  print_endline "field SOP: complete grid kernel/reference/domain/mesh parity and graph gestures pass"
+
+let () =
+  let text = "(workspace probe (graph g :context sop
+    (let* [field (fn [p] p.x)
+           preview (map field (array/vec3 2 [1 0 0]))
+           a (sop/iso_surface :field field :resolution [1 1 1])
+           b (sop/iso_surface :field field :resolution [2 1 1])]
+      (sop/merge a b))))" in
+  let lowered = lower text in
+  let forms = Flow.Syntax.parse text |> flow_ok in
+  let workspace, ds = Flow.Workspace.check ~ops:Flow_sop.Operators.all catalog forms in
+  assert (ds = []);
+  let pane = Flow_graph.Projection.of_graph catalog (Option.get workspace) "g" in
+  let calls = L.field_calls ~live:(Frame_input.at_time 0.) ~resolve:(fun v -> Ok v) lowered in
+  let selectors = calls ["g";"field"] [] in
+  assert (List.map (fun (offset,count,_) -> offset,count) selectors = [0,8; 8,12]);
+  let probe = Flow_graph.Probe.make ~bulk_calls:calls lowered.evaluated in
+  assert (List.assoc ["g";"field"] (Flow_graph.Probe.counts probe pane ~probe:(fun _ -> 0)) = 22);
+  List.iter (fun (k,expected) ->
+    assert (Flow_graph.Probe.at probe ["g";"field";"@result"] ~probes:[k]
+      = Some (Value (E.Float expected)))) [0,1.; 1,1.; 2,(-2.); 9,2.; 10,(-2.); 21,2.];
+  assert (Flow_graph.Probe.at probe ["g";"field";"@result"] ~probes:[22] = None)
+
+let () =
+  let lowered = lower "(workspace probe_state (graph g :context sop
+    (let* [total (state [s 0.0] (+ s 1.0))
+           field (fn [p] (+ p.x total))]
+      (sop/iso_surface :field field :resolution [1 1 1]))))" in
+  let state = E.create_state () in
+  let before = E.state_stamp state in
+  let calls = L.field_calls ~state ~live:(Frame_input.at_time 1.) ~resolve:(fun v -> Ok v) lowered in
+  let probe = Flow_graph.Probe.make ~state ~live:(Frame_input.at_time 1.) ~bulk_calls:calls lowered.evaluated in
+  assert (Flow_graph.Probe.at probe ["g";"field";"@result"] ~probes:[0] = Some (Value (E.Float (-1.))));
+  assert (E.state_stamp state = before)
+
 let () =
   (* Real Lisp lowering, not a hand-built Readback IR: GPU callbacks run before
      worker cooking, and workers receive only an owned exact CPU snapshot. *)
@@ -75,18 +199,18 @@ let () =
   ignore(Flow_ir.Gpu.with_backend backend(fun()->Flow_sop.Value_lane.resolve
     (Flow_sop.Value_lane.create()) ~time:1. (List.hd reference.graphs).network)|>flow_ok);
   assert(!calls=baseline);
-  let unwrapped=lower(source ~columns:1024
-    "(sop/with_attr g :P (map (fn [i] [(+ i t) 0 0]) (array/range 2048)))")in
-  (match Flow_ir.Gpu.with_backend backend(fun()->Flow_sop.Value_lane.resolve
-    (Flow_sop.Value_lane.create()) ~time:0. (List.hd unwrapped.graphs).network) with
-    |Error d->assert(d.code="E_APPROX_SINK")|Ok _->assert false)
+  let unwrapped=Flow.Syntax.parse(source ~columns:1024
+    "(sop/with_attr g :P (map (fn [i] [(+ i t) 0 0]) (array/range 2048)))") |> flow_ok in
+  (match Flow.Workspace.check ~ops:Flow_sop.Operators.all catalog unwrapped with
+    |None, ds->assert(List.exists(fun(d:Flow.Diagnostic.t)->d.code="E_APPROX_SINK")ds)
+    |_->assert false)
 let () =
   assert (Result.is_error (Flow_sop.Attribute_kernel.prepare ~sources:[0] [] E.No_geo));
   List.iter (fun (other, expected_stages) ->
     let body = "(let* [other " ^ other ^
       " a (map (fn [p] (+ p [t 0 0])) (sop/attr g :P))" ^
       " b (map (fn [p] (* p (+ t 1))) (sop/attr other :P))]" ^
-      " (sop/with_attr g :P (map (fn [left right] (+ left right)) a b)))" in
+      " (sop/with_attr g :P (exact (map (fn [left right] (+ left right)) a b))))" in
     let l = lower (source ~columns:1025 body) in
     let node = compiled l in
     let call = Array.find_opt (fun (n : E.node) -> n.kind = "sop/with_attr") l.plan.nodes |> Option.get in
@@ -166,7 +290,7 @@ let () =
   let disconnected = lower "(workspace w (graph g :context sop (sop/with_attr nil :P (array/vec3 4))))" in
   let graph = List.hd disconnected.graphs in
   assert (Result.is_error (Edit.compile_node graph.network.geometry ~node_id:(Option.get graph.root)));
-  let named_body = "(let* [f (fn [p n] (+ p (* n (* amp (noise3 (* p freq))))))] (sop/with_attr g :P (map f (sop/attr g :P) (sop/attr g :N))))" in
+  let named_body = "(let* [f (fn [p n] (+ p (* n (* amp (noise3 (* p freq))))))] (sop/with_attr g :P (exact (map f (sop/attr g :P) (sop/attr g :N)))))" in
   let named = lower (source ~columns:1025 named_body) in
   let call = Array.find_opt (fun (n : E.node) -> n.kind = "sop/with_attr") named.plan.nodes |> Option.get in
   let program = Flow_ir.Executor.compile (List.assoc "values" call.args) |> flow_ok in
@@ -189,7 +313,7 @@ let () =
       | Ok _ -> failwith ("accepted " ^ code))
       ["(sop/with_attr g :P (array/vec3 1))", "E_ATTR_COUNT";
        "(sop/with_attr g :P (sop/attr g :missing))", "E_ATTR_TYPE"];
-    let l = lower (source "(sop/with_attr g :Cd (map (fn [p] (* p 0.5)) (sop/attr g :P)))") in
+    let l = lower (source "(sop/with_attr g :Cd (exact (map (fn [p] (* p 0.5)) (sop/attr g :P))))") in
     let output = cook session ~domains:8 ~time:0. (compiled l) |> geometry in
     let cd = Geometry.find_attribute ~owner:Attribute.Point "Cd" output |> Option.get in
     assert (Attribute.length cd = Geometry.point_count output);
@@ -226,7 +350,9 @@ let () =
   let pane = Flow_graph.Projection.of_graph catalog ws "g" in
   let result = Flow_graph.Projection.find pane ["g";"result"] |> Option.get in
   assert (List.map (fun (r : Flow_graph.Projection.row) -> r.label) result.rows = ["geometry";"attribute";"values"]);
-  let fn = Flow_graph.Projection.find pane ["g"; "result#2#0"] |> Option.get in
+  let fn = List.find (fun (node : Flow_graph.Projection.node) ->
+    Option.fold ~none:false ~some:(fun (zone : Flow_graph.Projection.zone) -> zone.kind = Fn) node.zone)
+      pane.nodes in
   let rails = (Option.get fn.zone).rail in
   assert (List.for_all (fun name -> List.exists (fun (rail : Flow_graph.Projection.rail_row) ->
     rail.name = name && rail.ty = Some Flow.Ty.Vec3) rails) ["p"; "n"]);
@@ -246,9 +372,9 @@ let () =
       | _, ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
     let pane = Flow_graph.Projection.of_graph catalog checked "g" in
     let probe = Flow_graph.Probe.make ~time:1.25 ~resolve large.evaluated in
-    assert (List.assoc ["g"; "result#2#0"]
+    assert (List.assoc fn.path
       (Flow_graph.Probe.counts probe pane ~probe:(fun _ -> 0)) = Geometry.point_count base);
-    let body = Flow_graph.Projection.find pane ["g"; "result#2#0"; "@result"] |> Option.get in
+    let body = Flow_graph.Projection.find pane (fn.path @ ["@result"]) |> Option.get in
     let before = geometry_bytes base in
     let footer = Flow_graph.Probe.footer probe body ~probes:[16001] in
     assert (footer.runs = Some (Geometry.point_count base));

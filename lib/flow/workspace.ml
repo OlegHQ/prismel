@@ -19,7 +19,7 @@ and node =
   | Ref_binding of string * string list
   | Call of { kind : string; ctx : Context.t; args : (string * term) list }
   | Op of { op : string; args : (string * term) list; skip : int list list }
-  | Call_fn of { fn : string; args : term list }
+  | Call_fn of { fn : string; args : term list; body : term option }
   | Fn_ref of string
   | Graph_ref of { graph : string; inputs : (string * term) list }
   | Let of (pattern * term) list * term
@@ -29,7 +29,7 @@ and node =
   | If of term * term * term
   | Cond of (term * term) list * term
   | Case of term * (S.t * term) list * term
-  | Fn of { params : (pattern * Ty.t option) list; body : term; zone : path }
+  | Fn of { params : (pattern * Ty.t option) list; body : term; zone : path; capture : term option }
   | Hof of [ `Map | `Filter | `Reduce | `Sort_by ] * term list
   | List_lit of term list
   | Record of (string * term) list
@@ -87,7 +87,8 @@ let map_seq f xs = List.rev (List.fold_left (fun acc x -> f x :: acc) [] xs)
 
 (* ---- checker state ---- *)
 
-type v = { ty : Ty.t; live : bool; live_len : bool; approx : bool; vary : int list; len : int option;
+type v = { ty : Ty.t; live : bool; live_len : bool; approx : bool; approx_sources : Paths.t;
+  vary : int list; len : int option;
   fn : callee option; groups : string list; list_fields : string list list }
 and callee =
   | Closure of closure
@@ -105,9 +106,11 @@ type signature = { sname : string; sctx : context; sparams : (string * Ty.t * S.
 exception Budget
 
 let leaf ?(live = false) ?(vary = []) ?(groups = []) ?len ty =
-  { ty; live; live_len = false; approx = false; vary; len; fn = None; groups; list_fields = [] }
+  { ty; live; live_len = false; approx = false; approx_sources = Paths.empty;
+    vary; len; fn = None; groups; list_fields = [] }
 let union a b = List.sort_uniq compare (a @ b)
 let derive ty vs = { ty; live = List.exists (fun v -> v.live) vs; live_len = false; approx = false;
+  approx_sources = List.fold_left (fun sources v -> Paths.union sources v.approx_sources) Paths.empty vs;
   vary = List.fold_left (fun a v -> union a v.vary) [] vs; len = None; fn = None;
   groups = List.fold_left (fun a v -> union a v.groups) [] vs;
   list_fields = List.fold_left (fun a v -> union a v.list_fields) [] vs }
@@ -127,6 +130,8 @@ let rec packed_body (term : term) = match term.node with
         | "seed", Lit (Param.Int_value _) -> true
         | "octaves", Lit (Param.Int_value n) -> n >= 1 && n <= 32
         | _ -> false) args
+  | Op {op; args = [_, vector]; _} when List.mem op Packed_ops.derived_names ->
+      vector.ty = Ty.Vec3 && packed_body vector
   | Op {op; args; _} ->
       (Option.is_some (Packed_ops.binary op) && List.length args = 2
        || Option.is_some (Packed_ops.unary op) && List.length args = 1)
@@ -134,6 +139,12 @@ let rec packed_body (term : term) = match term.node with
   | Let (bindings, result) -> List.for_all (fun (p, t) -> match p with Name _ -> packed_body t | _ -> false) bindings
       && packed_body result
   | If (test, yes, no) -> packed_body test && packed_body yes && packed_body no
+  | Cond (arms, default) -> packed_body default
+      && List.for_all (fun (test, value) -> packed_body test && packed_body value) arms
+  | Case (scrutinee, arms, default) -> packed_body scrutinee && packed_body default
+      && List.for_all (fun ((literal : S.t), value) ->
+        (match literal.node with S.Num _ | S.Sym ("true" | "false") -> true | _ -> false)
+        && packed_body value) arms
   | Bypass body | Expanded {body; _} -> packed_body body
   | _ -> false
 let rec list_fields = function
@@ -144,10 +155,12 @@ let poison = leaf Ty.Any
 
 let port_ty = function
   | Ty.Float -> Some Port_type.Float | Int -> Some Port_type.Int | Bool -> Some Port_type.Bool
-  | Vec3 -> Some Port_type.Vec3 | (Ty.Named "geometry") -> Some Port_type.Geometry | _ -> None
+  | Vec3 -> Some Port_type.Vec3 | (Ty.Named "geometry") -> Some Port_type.Geometry
+  | Named "image" -> Some Port_type.Image
+  | Fn (Some signature) -> Some (Port_type.Fn signature) | _ -> None
 let ty_of_port = function
   | Port_type.Float -> Ty.Float | Int -> Ty.Int | Bool -> Ty.Bool | Vec3 -> Ty.Vec3
-  | Geometry -> Ty.geometry
+  | Geometry -> Ty.geometry | Image -> Ty.image | Fn signature -> Ty.Fn (Some signature)
 let is_color (p : Check.parameter) = p.ty = Some Port_type.Vec3 && (match p.fields with
   | [ (a, _, _); (b, _, _); (c, _, _) ] ->
       String.ends_with ~suffix:"_r" a && String.ends_with ~suffix:"_g" b
@@ -251,6 +264,16 @@ let check ?(ops = []) ?(library = false) catalog forms =
       | Diagnostic.Error -> Diagnostic.error ?span ~code msg
       | Diagnostic.Warning -> Diagnostic.warning ?span ~code msg) :: !diags in
   let err x code msg = add Diagnostic.Error x code msg in
+  let precision path (v : v) =
+    if v.approx && Paths.is_empty v.approx_sources then
+      {v with approx_sources = Paths.singleton path} else v in
+  let exact_sink cx x sink (v : v) =
+    let v = precision cx.path v in
+    if not (Paths.is_empty v.approx_sources) then
+      err x "E_APPROX_SINK" (Printf.sprintf
+        "Approximate values require (exact x) before catalog calls, exports, state or cache keys. Producer: %s; sink: %s (%s)."
+        (String.concat ", " (List.map path_text (Paths.elements v.approx_sources)))
+        (path_text cx.path) sink) in
   let bad x code msg = err x code msg; (tm x Ty.Any Nil, poison) in
   let skip_of (v : S.t) : int list list = match skip_tuples v with
     | Some tuples -> tuples
@@ -300,7 +323,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
     if Ty.has_fn t then
       err x "E_FN_ESCAPES" (Printf.sprintf "%s is a function; a function value cannot be stored or returned (E_FN_ESCAPES). Call it where it is bound." what) in
   let need (a : arg) what want =
-    if Ty.fits a.av.ty want then true
+    if Ty.fits a.av.ty want || (a.av.ty = Ty.Fn None && a.av.fn = None &&
+      (match want with Ty.Fn _ -> true | _ -> false)) then true
     else (err a.aform "E_TYPE" (Printf.sprintf "%s: expected %s, got %s." what (show want) (show a.av.ty)); false) in
   let field x (v : v) f name =
     let derived ty =
@@ -308,7 +332,9 @@ let check ?(ops = []) ?(library = false) catalog forms =
       { v with ty; live_len = List.mem [] fields; list_fields = fields; len = None; fn = None } in
     match v.ty with
     | Ty.Any -> derived Ty.Any
+    | Ty.Vec2 when f = "x" || f = "y" -> derived Ty.Float
     | Ty.Vec3 when f = "x" || f = "y" || f = "z" -> derived Ty.Float
+    | Ty.Vec4 when List.mem f ["x";"y";"z";"w"] -> derived Ty.Float
     | Ty.Record fs ->
         (match List.assoc_opt f fs with
          | Some t -> derived t
@@ -351,9 +377,11 @@ let check ?(ops = []) ?(library = false) catalog forms =
     | S.Vec ps ->
         let pk = pattern_key pat in
         let et =
-          if v.ty = Ty.Vec3 then begin
-            if List.length ps > 3 then
-              err pat "E_PATTERN" (Printf.sprintf "%s needs %d elements; a vec3 has 3." pk (List.length ps));
+          if List.mem v.ty [Ty.Vec2;Ty.Vec3;Ty.Vec4] then begin
+            let width = match v.ty with Ty.Vec2 -> 2 | Ty.Vec4 -> 4 | _ -> 3 in
+            if List.length ps > width then
+              err pat "E_PATTERN" (Printf.sprintf "%s needs %d elements; a %s has %d."
+                pk (List.length ps) (show v.ty) width);
             Ty.Float
           end else match Ty.elem v.ty with
             | Some e -> e
@@ -362,7 +390,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
                   err pat "E_PATTERN" (Printf.sprintf "%s destructures a list or vec3; got %s." pk (show v.ty));
                 Ty.Any in
         (match v.len with
-         | Some n when v.ty <> Ty.Vec3 && n < List.length ps ->
+         | Some n when not (List.mem v.ty [Ty.Vec2;Ty.Vec3;Ty.Vec4]) && n < List.length ps ->
              err pat "E_PATTERN" (Printf.sprintf "%s needs %d elements; the list has %d." pk (List.length ps) n)
          | _ -> ());
         let part = { v with ty = et; live_len = false; len = None; fn = None } in
@@ -395,7 +423,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
   let rec infer cx (x : S.t) : term * v =
     incr steps;
     if !steps > max_steps then raise Budget;
-    if x.meta <> [] then bypass cx x else plain cx x
+    let t, v = if x.meta <> [] then bypass cx x else plain cx x in
+    t, precision cx.path v
 
   and plain cx (x : S.t) : term * v =
     match x.node with
@@ -435,15 +464,17 @@ let check ?(ops = []) ?(library = false) catalog forms =
              (tm x v.ty (Ref_binding (b, fs)), if fs = [] then v else { v with fn = None }))
 
   and vector cx (x : S.t) (cs : S.t list) =
-    if List.length cs <> 3 then
-      bad x "E_VECTOR" (Printf.sprintf "A vector has 3 components [x y z]; this one has %d." (List.length cs))
+    let ty = match List.length cs with 2 -> Some Ty.Vec2 | 3 -> Some Ty.Vec3 | 4 -> Some Ty.Vec4 | _ -> None in
+    if ty = None then
+      bad x "E_VECTOR" (Printf.sprintf "A vector has 2, 3 or 4 components; this one has %d." (List.length cs))
     else begin
+      let ty = Option.get ty in
       let rs = map_seq (infer cx) cs in
       List.iter2 (fun c ((_, (v : v)) : term * v) -> match v.ty with
         | Ty.Int | Ty.Float | Ty.Any -> ()
         | t -> err c "E_TYPE" (Printf.sprintf "Vector components are numbers; got %s." (show t))) cs rs;
       let vs = List.map snd rs in
-      (tm x Ty.Vec3 (Vec (List.map fst rs)), {(derive Ty.Vec3 vs) with approx = approximate vs})
+      (tm x ty (Vec (List.map fst rs)), {(derive ty vs) with approx = ty = Ty.Vec3 && approximate vs})
     end
 
   and record cx (x : S.t) (items : S.t list) what =
@@ -616,9 +647,10 @@ let check ?(ops = []) ?(library = false) catalog forms =
           (c, test, et)) arms in
         let ty = Option.value !ty ~default:Ty.Any in
         time_branch cx x !test_live ty;
-        let v = derive ty (!vs @ (match sv with Some (_, s) -> [ s ] | None -> [])) in
+        let values = !vs @ (match sv with Some (_, s) -> [ s ] | None -> []) in
+        let v = derive ty values in
         let lengths = if !test_live then union v.list_fields (list_fields ty) else v.list_fields in
-        let v = {v with list_fields = lengths;
+        let v = {v with list_fields = lengths; approx = approximate values;
           live_len = List.exists (fun v -> v.live_len) !vs || List.mem [] lengths} in
         let default = match List.rev terms with (_, _, d) :: _ -> d | [] -> assert false in
         let node = match sv with
@@ -664,12 +696,13 @@ let check ?(ops = []) ?(library = false) catalog forms =
         | S.List ({ S.node = S.Sym "state"; _ } :: _) -> state cx x id
         | S.List ({ S.node = S.Sym "fn"; _ } :: _) -> mk_fn cx x id "fn"
         | _ -> infer cx x in
+    let v = precision id v in
     mark id v;
     ({ t with path = Some id }, v)
 
   and input cx key (x : S.t) =
     match S.head x with
-    | Some h when String.contains h '/' || List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"] ->
+    | Some h when String.contains h '/' || List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"; "exact"] ->
         let memo = cx.path, key, x.id in
         let id = match Hashtbl.find_opt input_paths memo with
           | Some id -> id
@@ -685,7 +718,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
                 | leaf :: scope -> List.rev scope @ [Printf.sprintf "%s~%d" leaf n]
                 | [] -> assert false in
               Hashtbl.add input_paths memo id; id in
-        if List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"] then binding cx x id
+        if List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"; "exact"] then binding cx x id
         else let t, v = infer {cx with path = id} x in mark id v; t, v
     | _ -> infer cx x
 
@@ -695,6 +728,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
         let seen = Hashtbl.create 1 in
         if not (check_pat cx p seen "state" true) then (tm x Ty.Any Nil, poison) else
         let init, iv = infer cx initial in
+        exact_sink cx initial "state init" iv;
         no_fn initial iv.ty "A state seed";
         if iv.live then err initial "E_STATE_INIT" "A state seed is static; read the frame in the step.";
         if shape_ty iv.ty then err initial "E_STATE_TYPE" "State stores data, not deferred nodes or layouts.";
@@ -705,7 +739,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
         let ty = Option.value ~default:iv.ty (Ty.unify iv.ty sv.ty) in
         if not (Ty.fits sv.ty ty) || shape_ty sv.ty then
           err x "E_STATE_TYPE" "A state step returns the seed's data type.";
-        let v = {sv with ty; live = true; approx = false; fn = None; list_fields = union sv.list_fields lengths;
+        let v = {sv with ty; live = true; approx = false; approx_sources = Paths.empty;
+          fn = None; list_fields = union sv.list_fields lengths;
           live_len = sv.live_len || List.mem [] lengths} in
         (tm x ty (State {binder = pat_ir p; init; step; zone = id}), v)
     | _ -> bad x "E_STATE" "state is (state [s init] step)."
@@ -831,7 +866,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let init_vs = match init with Some (_, _, iv) -> [ iv ] | None -> [] in
     let ins = outer @ init_vs in
     let v = { (derive ty (bv :: ins)) with
-              approx = kind = `For && packed_array ty && List.length clauses = 1
+              approx = kind = `For && skip = [] && packed_array ty && List.length clauses = 1
                 && List.for_all (fun (p, _) -> match p with Name _ -> true | _ -> false) clauses
                 && List.for_all (fun (_, (t : term)) -> packed_array t.ty) clauses
                 && packed_body bt;
@@ -860,8 +895,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
             av = leaf (Option.value ty ~default:Ty.Any) }) params in
         let (bt, bv) = call_closure cx x c args in
         let ir_params = List.map (fun (p, ty) -> (pat_ir p, ty)) params in
-        (tm x Ty.Fn (Fn { params = ir_params; body = bt; zone = id }),
-         { (leaf ~live:bv.live Ty.Fn) with fn = Some (Closure c) })
+        (tm x (Ty.Fn None) (Fn { params = ir_params; body = bt; zone = id; capture = None }),
+         { (leaf ~live:bv.live (Ty.Fn None)) with fn = Some (Closure c) })
     | _ -> bad x "E_FN" "fn is (fn [params] body)."
 
   and call_closure cx x (c : closure) (args : arg list) : term * v =
@@ -889,12 +924,12 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let (t, v) = match x.node with
       | S.Sym s when x.meta = [] && (not (String.contains s '.')) && (not (Smap.mem s cx.env)) && not (reserved s) ->
           (match resolve_head cx s with
-           | `Def _ -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Def_fn s) })
-           | `Op o -> (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Op_fn o.name) })
+           | `Def _ -> (tm x (Ty.Fn None) (Fn_ref s), { (leaf (Ty.Fn None)) with fn = Some (Def_fn s) })
+           | `Op o -> (tm x (Ty.Fn None) (Fn_ref s), { (leaf (Ty.Fn None)) with fn = Some (Op_fn o.name) })
            | `Kind k ->
                let slots = k.slots in
                if not (List.mem_assoc s !kind_fns) then kind_fns := (s, (k.qualified, k.context, slots)) :: !kind_fns;
-               (tm x Ty.Fn (Fn_ref s), { (leaf Ty.Fn) with fn = Some (Kind_fn k) })
+               (tm x (Ty.Fn None) (Fn_ref s), { (leaf (Ty.Fn None)) with fn = Some (Kind_fn k) })
            | `Macro _ -> bad x "E_MACRO_AS_VALUE" (Printf.sprintf "%s is a macro; a macro is not a function value. Wrap it: (fn [a] (%s a))." s s)
            | `Missing _ -> infer cx x)
       | _ -> infer cx x in
@@ -902,7 +937,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
 
   and fn_value cx x what =
     let (t, v) = fn_arg cx x in
-    if v.ty <> Ty.Fn && v.ty <> Ty.Any then
+    if not (Ty.fits v.ty (Ty.Fn None)) then
       (err x "E_TYPE" (Printf.sprintf "%s expects a function (fn, a defn or an operator name); got %s." what (show v.ty)));
     (t, v)
 
@@ -1014,6 +1049,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
                        (if sg.sparams = [] then "none" else String.concat ", " (List.map (fun (n, _, _) -> n) sg.sparams)))
                  | Some (_, ty, _) ->
                      let (t, v) = infer cx value in
+                     exact_sink cx value ("ref " ^ g ^ " :" ^ k) v;
                      no_fn value v.ty (Printf.sprintf "Input :%s of %s" k g);
                      ignore (need (value_arg value v) (Printf.sprintf ":%s of %s" k g) ty);
                      overrides := (k, t) :: !overrides; vs := v :: !vs);
@@ -1030,12 +1066,14 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let rec go i acc = function
       | [] -> List.rev acc
       | ({ S.node = S.Kw k; _ } as kf) :: value :: rest ->
-          let (t, v) = if fn_slot None (Some k) then fn_arg cx value else input cx (":" ^ k) value in
+          let (t, v) = if fn_slot None (Some k) && S.head value <> Some "fn"
+            then fn_arg cx value else input cx (":" ^ k) value in
           go i ({ key = Some k; aform = kf; aterm = t; av = v } :: acc) rest
       | ({ S.node = S.Kw k; _ } as kf) :: [] ->
           err kf "E_MISSING_VALUE" (Printf.sprintf ":%s has no value" k); List.rev acc
       | y :: rest ->
-          let (t, v) = if fn_slot (Some i) None then fn_arg cx y else input cx (string_of_int i) y in
+          let (t, v) = if fn_slot (Some i) None && S.head y <> Some "fn"
+            then fn_arg cx y else input cx (string_of_int i) y in
           go (i + 1) ({ key = None; aform = y; aterm = t; av = v } :: acc) rest in
     go 0 [] forms
 
@@ -1062,13 +1100,17 @@ let check ?(ops = []) ?(library = false) catalog forms =
     | _ ->
         let local = Smap.find_opt name cx.env in
         (match local with
-         | Some lv when lv.ty = Ty.Fn || lv.ty = Ty.Any ->
+         | Some lv when Ty.fits lv.ty (Ty.Fn None) ->
              if List.exists is_kw args then
                bad x "E_ARGS" (Printf.sprintf "%s is a local function; it takes positional arguments only." name)
              else begin
                let a = args_of cx (fun _ _ -> false) args in
-               let (_, rv) = call_value cx x lv a in
-               (tm x rv.ty (Call_fn { fn = name; args = List.map (fun a -> a.aterm) a }), rv)
+               let (result, rv) = call_value cx x lv a in
+               let body = match lv.fn, result.node with
+                 | Some (Closure _), _ -> Some result
+                 | Some (Def_fn _), Call_fn {body; _} -> body
+                 | _ -> None in
+               (tm x rv.ty (Call_fn { fn = name; args = List.map (fun a -> a.aterm) a; body }), rv)
              end
          | _ ->
              (match resolve_head cx name with
@@ -1093,7 +1135,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
                       | Some i, _ -> List.nth_opt d.sparams i
                       | None, Some k -> List.find_opt (fun (n, _, _) -> n = k) d.sparams
                       | _ -> None in
-                    (match p with Some (_, Ty.Fn, _) -> true | _ -> false) in
+                    (match p with Some (_, (Ty.Fn None), _) -> true | _ -> false) in
                   apply_def cx x d (args_of cx fn_slot args)
               | `Op o when o.name = "scene/merge" ->
                   (* [:skip] is read here: its value is a list of tuples, not an argument *)
@@ -1103,10 +1145,37 @@ let check ?(ops = []) ?(library = false) catalog forms =
                     | [] -> [], [] in
                   let skip, args = split args in
                   apply_op ~skip cx x o (args_of cx (fun _ _ -> false) args)
-              | `Op o -> apply_op cx x o (args_of cx (fun _ _ -> false) (S.attribute_args o.name args))
-              | `Kind k -> apply_kind cx x k (args_of cx (fun _ _ -> false) args)))
+              | `Op o ->
+                  let fn_slot pos key =
+                    let ty = match pos, key with
+                      | Some i, _ -> Option.map snd (List.nth_opt (o.signature.pos @ o.signature.opt) i)
+                      | _, Some key -> List.assoc_opt key o.signature.kw
+                      | _ -> None in
+                    match ty with Some (Ty.Fn _) -> true | _ -> false in
+                  apply_op cx x o (args_of cx fn_slot (S.attribute_args o.name args))
+              | `Kind k ->
+                  let fn_slot _ key = Option.fold ~none:false ~some:(fun name ->
+                    List.exists (fun (p : Check.parameter) -> p.name = name &&
+                      (match p.ty with Some (Port_type.Fn _) -> true | _ -> false)) k.parameters) key in
+                  apply_kind cx x k (args_of cx fn_slot args)))
 
   and apply_op ?(skip = []) cx x (o : Op.t) (args : arg list) : term * v =
+    let position = ref 0 in
+    let args = List.map (fun a ->
+      let ty = match a.key with
+        | Some key -> List.assoc_opt key o.signature.kw
+        | None -> let i = !position in incr position;
+            Option.map snd (List.nth_opt (o.signature.pos @ o.signature.opt) i) in
+      match ty with Some (Ty.Fn (Some signature)) -> instantiate_fn cx a signature
+      | _ -> a) args in
+    if List.exists (fun prefix -> String.starts_with ~prefix o.name) ["sop/"; "settings/"; "scene/"] then
+      List.iter (fun a -> exact_sink cx a.aform o.name a.av) args;
+    let args = if o.name = "ui/canvas" then List.map (fun a ->
+      if a.key = None && a.av.ty = Ty.image then
+        { a with aterm = { a.aterm with ty = Ty.drawing;
+            node = Op { op = "draw/image"; args = ["image", a.aterm]; skip = [] } };
+          av = { a.av with ty = Ty.drawing } }
+      else a) args else args in
     if o.ctx <> Context.value && o.ctx <> cx.ctx then
       bad x "E_WRONG_CONTEXT" (Printf.sprintf "%s belongs to %s; it cannot run in %s. Pass data through a typed input or ref."
         o.name (context_name o.ctx) (context_name cx.ctx))
@@ -1127,7 +1196,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
           if i < nfix then begin
             let sname, sty = List.nth slots i in
             ts := a.av.ty :: !ts;
-            if not (o.any_num && (a.av.ty = Ty.Vec3 || a.av.ty = Ty.Int || a.av.ty = Ty.Float)) then
+            if not (o.any_num && (List.mem a.av.ty [Ty.Vec3;Ty.Int;Ty.Float]
+              || Option.is_some o.arithmetic && List.mem a.av.ty [Ty.Vec2;Ty.Vec4])) then
               ignore (need a (Printf.sprintf "%s %s" o.name sname) sty);
             named := (sname, a.aterm) :: !named
           end else begin
@@ -1154,6 +1224,14 @@ let check ?(ops = []) ?(library = false) catalog forms =
                 ignore (need a (Printf.sprintf "%s :%s" o.name k) want);
                 named := (k, a.aterm) :: !named
               end) kws;
+        if o.any_num then begin
+          let vectors = List.filter_map (fun a ->
+            if List.mem a.av.ty [Ty.Vec2;Ty.Vec3;Ty.Vec4] then Some a.av.ty else None) pos
+            |> List.sort_uniq compare in
+          if List.length vectors > 1 then err x "E_TYPE"
+            (Printf.sprintf "%s needs matching vector widths; got %s." o.name
+              (String.concat " and " (List.map show vectors)))
+        end;
         literal_checks x o args;
         let ty = o.out (List.rev !ts) in
         let avs = List.map (fun a -> a.av) args in
@@ -1169,8 +1247,11 @@ let check ?(ops = []) ?(library = false) catalog forms =
           | "range", [ Some a; Some b ] -> Some (max 0 (b - a))
           | "linspace", [ _; _; Some n ] -> Some (max 0 n)
           | _ -> None in
-        let v = { (derive ty avs) with live = o.live || List.exists (fun (v : v) -> v.live) avs; live_len; len;
+        let derived = derive ty avs in
+        let v = { derived with live = o.live || List.exists (fun (v : v) -> v.live) avs; live_len; len;
           approx = Packed_ops.supports o.name && approximate avs;
+          approx_sources = (if o.name = "exact" || shape_ty ty then Paths.empty else
+            derived.approx_sources);
           list_fields = (if o.live then list_fields ty else []) } in
         (tm x ty (Op { op = o.name; args = List.rev !named; skip }), v)
       end
@@ -1182,6 +1263,9 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let num_of a = match a.aterm.node with
       | Lit (Param.Int_value n) -> Some (float_of_int n) | Lit (Param.Float_value f) -> Some f | _ -> None in
     match o.name with
+    | "length" -> List.iter (fun a ->
+        if a.av.ty <> Ty.Vec3 && a.av.ty <> Ty.Any then
+          err a.aform "E_TYPE" "length needs a vec3.") pos
     | "material/standard" ->
         List.iter (fun a -> match a.key, a.aterm.node with
           | Some ("color" | "emission"), Text s when not (hex_colour s) ->
@@ -1232,7 +1316,45 @@ let check ?(ops = []) ?(library = false) catalog forms =
 
   and validate p a = validate_parameter ~ty:a.av.ty (fun sev code msg -> add sev a.aform code msg) p a.aterm
 
-  and apply_kind _cx x (k : Check.kind) (args : arg list) : term * v =
+  and instantiate_fn cx (a : arg) (signature : Ty.fn_signature) =
+    if a.av.fn = None then a else
+    let names = List.mapi (fun i _ -> "__flow_port_" ^ string_of_int i) signature.params in
+    let inputs = List.map2 (fun name ty ->
+      { key = None; aform = a.aform; aterm = tm a.aform ty (Ref_binding (name, [])); av = leaf ty })
+      names signature.params in
+    let closure = match a.av.fn with
+      | Some (Closure c) -> Some c
+      | Some (Def_fn name) ->
+          let d = Hashtbl.find sigs name in
+          Some { params = List.map (fun (name, ty, _) -> S.make (S.Sym name), Some ty) d.sparams;
+            body = d.sbody; ccx = {cx with env = Smap.empty; ctx = d.sctx; in_def = true;
+              stack = d.sname :: cx.stack; path = ["def:" ^ name]}; cname = name; cid = ["def:" ^ name] }
+      | _ -> None in
+    let result, rv = match closure with
+      | Some c -> call_closure cx a.aform c inputs
+      | None -> call_value cx a.aform a.av inputs in
+    if not (Ty.fits rv.ty signature.result) then
+      err a.aform "E_TYPE" (Printf.sprintf "Function port returns %s; expected %s."
+        (show rv.ty) (show signature.result));
+    let params, zone = match closure with
+      | Some c when List.length c.params = List.length signature.params ->
+          List.map2 (fun (p, annotation) ty -> pat_ir p,
+            Some (Option.fold ~none:ty ~some:(Ty.coerce ty) annotation)) c.params signature.params, c.cid
+      | _ -> List.map2 (fun name ty -> Name name, Some ty) names signature.params,
+          inline cx "~fn" in
+    let ty = Ty.Fn (Some {signature with result = rv.ty}) in
+    { a with aterm = {a.aterm with ty; node = Fn {params; body = result; zone; capture = Some a.aterm}};
+      av = {a.av with ty; live = a.av.live || rv.live;
+        approx_sources = Paths.union a.av.approx_sources rv.approx_sources} }
+
+  and apply_kind cx x (k : Check.kind) (args : arg list) : term * v =
+    let args = List.map (fun a -> match a.key with
+      | Some name -> (match List.find_opt (fun (p : Check.parameter) -> p.name = name) k.parameters with
+          | Some {ty = Some (Port_type.Fn signature); _} -> instantiate_fn cx a signature
+          | _ -> a)
+      | None -> a) args in
+    if not (Op.is_display_kind k.qualified) then
+      List.iter (fun a -> exact_sink cx a.aform k.qualified a.av) args;
     let rest_index = List.find_index (fun (s : Check.slot) -> s.rest) k.slots in
     let short = Check.short k.qualified in
     let nslots = List.length k.slots in
@@ -1277,7 +1399,9 @@ let check ?(ops = []) ?(library = false) catalog forms =
             | Some slot, _ -> slot_arg ~repeated:slot.rest a slot; out := (n, a.aterm) :: !out
             | None, Some p ->
                 if k.qualified = "sop/material" && n = "material" && a.av.ty = Ty.material
-                then () else validate p a;
+                then () else (match p.ty, a.av.ty, a.av.fn with
+                  | Some (Port_type.Fn _), Ty.Fn None, None -> ()
+                  | _ -> validate p a);
                 (match a.aterm.node with
                  | Text s when group_reader p && s <> "" && not (List.mem s groups_in) ->
                      add Diagnostic.Warning a.aform "W_UNKNOWN_GROUP"
@@ -1296,8 +1420,13 @@ let check ?(ops = []) ?(library = false) catalog forms =
             out := (s.name, tm x Ty.geometry Nil) :: !out
           else
             err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its %s input" short s.name)) k.slots;
+    List.iter (fun (p : Check.parameter) ->
+      if p.fields = [] && (match p.ty with Some (Port_type.Fn _ | Port_type.Image) -> true | _ -> false)
+          && not (Hashtbl.mem seen p.name) then
+        err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its :%s input" short p.name)) k.parameters;
     let ty = kind_out k in
-    let v = { (derive ty (List.map (fun a -> a.av) args)) with groups = union groups_in !writes } in
+    let v = { (derive ty (List.map (fun a -> a.av) args)) with groups = union groups_in !writes;
+      approx_sources = Paths.empty } in
     (tm x ty (Call { kind = k.qualified; ctx = k.context; args = List.rev !out }), v)
 
   and def_default (d : signature) pname : (term * v) option =
@@ -1357,8 +1486,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
           terms := t :: !terms) d.sparams;
         let inner = { env = !env; ctx = d.sctx; stack = d.sname :: cx.stack; scope = "ƒ " ^ d.sname;
                       path = [ "def:" ^ d.sname ]; in_def = true; depth = cx.depth + 1; zone = 0; zbody = false } in
-        let (_, bv) = body inner d.sbody in
-        (tm x bv.ty (Call_fn { fn = d.sname; args = List.rev !terms }), { bv with fn = None })
+        let (bt, bv) = body inner d.sbody in
+        (tm x bv.ty (Call_fn { fn = d.sname; args = List.rev !terms; body = Some bt }), { bv with fn = None })
       end
     end
 
@@ -1427,7 +1556,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
             err sg.sbody "E_TYPE" (Printf.sprintf "%s must return %s, but its result is %s." name (show want) (show bv.ty));
           gstack := List.tl !gstack;
           Hashtbl.replace graph_terms name { name; context = sg.sctx; inputs = List.rev !inputs; body = bt; form = sg.sform };
-          let v = { (leaf ~live:bv.live want) with groups = []; approx = bv.approx } in
+          let v = { (leaf ~live:bv.live want) with groups = []; approx = bv.approx;
+            approx_sources = bv.approx_sources } in
           Hashtbl.replace ginfo name v;
           v
         end in
@@ -1464,12 +1594,12 @@ let check ?(ops = []) ?(library = false) catalog forms =
                          | Some ty ->
                              Hashtbl.add used pn ();
                              let df = match dflt with [ d ] -> Some d | _ -> None in
-                             if Ty.has_fn ty && (ty <> Ty.Fn || head = "graph") then begin
+                             if Ty.has_fn ty && (ty <> (Ty.Fn None) || head = "graph") then begin
                                err p "E_FN_ESCAPES" (Printf.sprintf
                                  "%s input %s: a function value cannot be stored or returned (E_FN_ESCAPES); %s." n pn
                                  (if head = "graph" then "graph inputs are data" else "only a defn input may have type fn"));
                                None
-                             end else if ty = Ty.Fn && df <> None then begin
+                             end else if ty = (Ty.Fn None) && df <> None then begin
                                err p "E_PARAM" (Printf.sprintf "%s input %s: a fn input has no default; callers pass a function." n pn); None
                              end else if head = "graph" && df = None then begin
                                err p "E_INPUT_DEFAULT" (Printf.sprintf "Graph input %s of %s needs a default, so the graph runs on its own." pn n); None

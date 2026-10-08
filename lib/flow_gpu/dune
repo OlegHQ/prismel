@@ -8,7 +8,7 @@
  (name test_emit)
  (modules test_emit test_program)
  (deps (glob_files goldens/*.metal))
- (libraries flow_gpu flow flow_ir))
+ (libraries flow_gpu flow flow_ir rays_math))
 
 (executable
  (name test_run)

@@ -53,6 +53,9 @@ let resource_image operation result =
       |Ok image->Ok Procedural.Node.Private.{payload=Procedural.Payload.Image image;instances=None;diagnostics=[]}
       |Error diagnostic->Error(Procedural.Diagnostic.error ~code:diagnostic.Diagnostic.code diagnostic.message))
 
+type kernel_input = {index : int; cid : int; identity : int;
+  signature : Ty.fn_signature; fn : E.fn; sources : int list}
+
 type prepared = {
   cid : int;
   factory : Edit.factory;
@@ -62,6 +65,7 @@ type prepared = {
   dynamic : (E.value * (E.value -> (string * Param.value) list)) list;
       (* a template node: arguments that read the element, forced for each one *)
   zone : zinfo option;
+  kernels : kernel_input list;
 }
 and zinfo = { plan_id : int; lo : int; hi : int;
               preview : (int * int list) option;
@@ -154,7 +158,10 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           | _ -> fail "E_LOWER" "Attribute write without geometry" in
         Option.to_list root @ List.filter (fun id -> Some id <> root)
           (Attribute_kernel.sources (List.assoc "values" n.args))
-      else geo_of n.args
+      else let direct = geo_of n.args in
+        direct @ (List.concat_map (function
+          | _, (E.Fn _ as value) -> Attribute_kernel.sources value | _ -> []) n.args
+          |> List.sort_uniq Int.compare |> List.filter (fun id -> not (List.mem id direct)))
     and zinfo (n : E.node) = match Hashtbl.find_opt zinfos n.id with
       | Some z -> z
       | None ->
@@ -229,7 +236,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                 let factory=Edit.factory ~key:node.kind ~label:node.kind ~category:["Image"] ~arity:0
                   (fun _->resource_image node.kind (Error(Diagnostic.error ~code:"E_IMAGE"
                     "A loaded or rendered image needs an initial-domain image resolver.")))in
-                {cid;factory;slots=[];arity=0;changes=[];dynamic=[];zone=None}
+                {cid;factory;slots=[];arity=0;changes=[];dynamic=[];zone=None;kernels=[]}
             | "sop/with_attr" ->
                 let name = match List.assoc "attribute" args with
                   | E.Text name -> name | _ -> fail "E_LOWER" "Attribute name must be static text" in
@@ -239,7 +246,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                 let factory = Edit.factory ~key:"flow.with_attr" ~label:"Write attribute"
                   ~category:["Flow"] ~arity:(List.length sources)
                   (Attribute_kernel.node ~reference ~profile ~source:(Lazy.force kernel_source) ~name ~values ~sources) in
-                {cid; factory; arity = List.length sources; changes = []; dynamic = []; zone = None;
+                {cid; factory; arity = List.length sources; changes = []; dynamic = []; zone = None; kernels = [];
                   slots = List.filter_map (fun (i, source) -> if source < 0 then None else Some (i, source))
                     (List.mapi (fun i source -> i, source) sources)}
             | "sop/merge" ->
@@ -257,7 +264,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                   ~slots:["input"] ~category:["Copy"] ~inputs:[Edit.Rest]
                   (fun nodes -> Procedural.Sop.merge ~source_attribute ~source_base:base
                     (List.filter_map Fun.id nodes)) in
-                {cid; factory; arity; changes = []; dynamic = []; zone = None;
+                {cid; factory; arity; changes = []; dynamic = []; zone = None; kernels = [];
                  slots = List.mapi (fun i s -> i, s) sources}
             | "sop/curve" ->
                 let encode points = [Curve.parameter, Param.Text_value (Curve.encode (curve_points points))] in
@@ -266,7 +273,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                       dynamic := [ points, (fun v -> encode [ "points", v ]) ]; []
                   | _ -> encode args in
                 {cid; factory = Curve.factory; arity = 0; slots = []; changes;
-                 dynamic = []; zone = None}
+                 dynamic = []; zone = None; kernels = []}
             | "zone/points" | "zone/pieces" ->
                 let z = { (zinfo node) with base = !tags; count = Atomic.make (-1);
                                             positions = Atomic.make [||] } in
@@ -282,7 +289,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                 let factory = Edit.factory_slots ~key:"zone" ~label:"Loop over geometry"
                   ~slots:["input"] ~category:["Copy"] ~inputs:[Edit.Rest]
                   (fun nodes -> make_zone ~outer:[] z (Array.of_list (List.filter_map Fun.id nodes))) in
-                {cid; factory; arity = List.length sources; changes = []; dynamic = [];
+                {cid; factory; arity = List.length sources; changes = []; dynamic = []; kernels = [];
                  zone = Some z; slots = List.mapi (fun i s -> i, s) sources}
             | kind ->
                 let args = if kind="image/noise" then List.map(fun(name,value)->
@@ -298,7 +305,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                   (Edit.factory_inputs factory) in
                 let arity = ref (List.length names) in
                 let next_rest = ref (Option.value ~default:0 rest) in
-                let slots = ref [] and changes = ref [] in
+                let slots = ref [] and changes = ref [] and kernels = ref [] in
                 let rec add_rest = function
                   | E.No_geo -> ()
                   | E.Deferred (ty, id) when Ty.is_cooked ty ->
@@ -311,6 +318,14 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                   | Some index, value when Some index = rest -> add_rest value
                   | Some _, E.No_geo -> ()
                   | Some index, E.Deferred (ty, id) when Ty.is_cooked ty -> slots := (index, id) :: !slots
+                  | Some index, E.Fn fn ->
+                      let signature = match Ty.of_string (List.nth (Edit.factory_input_types factory) index) with
+                        | Some (Ty.Fn (Some signature)) -> signature
+                        | _ -> fail "E_LOWER" ("Input " ^ name ^ " does not declare a function signature") in
+                      let cid = compiled_id {node with site = node.site @ ["~kernel:" ^ name]} in
+                      kernels := {index; cid; signature; fn;
+                        identity = Procedural.Node.Private.fresh_id ();
+                        sources = Attribute_kernel.sources (E.Fn fn)} :: !kernels
                   | Some _, _ -> fail "E_LOWER" ("Slot " ^ name ^ " needs geometry")
                   | None, value ->
                       let parameter = ok (Port.find_parameter parameters name) in
@@ -319,10 +334,14 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                       else changes := List.rev_append (changes_of parameter value)
                         !changes) args;
                 {cid; factory; arity = !arity; dynamic = []; zone = None;
-                 slots = List.rev !slots; changes = List.rev !changes} in
+                 slots = List.rev !slots; changes = List.rev !changes; kernels = List.rev !kernels} in
           let p = { p with dynamic = List.rev !dynamic } in
           Hashtbl.add prepared node.id p; p
     (* the zone node of a lowered graph: it cooks [z.root] once per element *)
+    and kernel_node ?state ?elems (k : kernel_input) inputs =
+      Function_kernel.node ?state ~reference ?elems ~identity:k.identity
+        ~signature:k.signature ~fn:k.fn ~sources:k.sources inputs
+      |> Procedural.Node.Private.restore_id k.cid |> edit
     and make_zone ?state ~outer z inputs =
       let stamp = Option.fold ~none:"" ~some:E.state_stamp state in
       let stamp = match z.preview with
@@ -373,7 +392,10 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         let n = plan.nodes.(id) in
         let p = prepare n in
         let options = List.init p.arity (fun i ->
-          Option.bind (List.assoc_opt i p.slots) (Hashtbl.find_opt bound)) in
+          match List.find_opt (fun (k : kernel_input) -> k.index = i) p.kernels with
+          | Some k -> Some (kernel_node ?state ~elems:outer k
+              (List.map (Hashtbl.find bound) k.sources))
+          | None -> Option.bind (List.assoc_opt i p.slots) (Hashtbl.find_opt bound)) in
         let node = match p.zone with
           | Some inner ->
               let inner = match z.preview with
@@ -403,6 +425,9 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         let n = plan.nodes.(id) in
         if n.kind = "zone/element" || is_zone n.kind || (prepare n).dynamic <> []
            || (n.kind = "sop/with_attr" && E.is_live (List.assoc "values" n.args))
+           (* ponytail: all function inputs vary in a zone; narrow to actual
+              element captures if rebuilding constant functions becomes costly. *)
+           || (prepare n).kernels <> []
            || List.exists (Hashtbl.mem varies) (deps n)
         then Hashtbl.replace varies id ()
         else build ~outer:[] shared id) z.order;
@@ -438,7 +463,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
               || (is_zone node.kind && (zinfo node).live)
               || (not (is_zone node.kind)
                   && List.exists (fun (_, v) -> if templ.(node.id) || node.kind = "sop/with_attr"
-                      then reads_t v || E.state_dependent v else E.is_live v) node.args)) then begin
+                      then reads_t v || E.state_dependent v else E.is_live v ||
+                        (match v with E.Fn _ -> reads_t v || E.state_dependent v | _ -> false)) node.args)) then begin
         volatile.(node.id) <- true;
         volatile_nodes := Network.Int_map.add compiled.(node.id) () !volatile_nodes
       end) plan.nodes;
@@ -452,6 +478,12 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
               Ok(Procedural.Node.Private.adopt_identity ~source:node
                 (make_zone ~state:snapshot ~outer:[] z (Procedural.Node.Private.input_array node)))) nodes
         | _ -> nodes) prepared Network.Int_map.empty in
+      let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes ->
+        List.fold_left (fun nodes (k : kernel_input) ->
+          if not (E.state_dependent (E.Fn k.fn)) || Edit.find graph ~node_id:k.cid = None then nodes
+          else Network.Int_map.add k.cid (fun state _live node ->
+            Ok (kernel_node ~state:(E.fork_state state) k (Procedural.Node.inputs node))) nodes)
+          nodes p.kernels) prepared frame_nodes in
       let frame_nodes = Array.fold_left (fun nodes (n : E.node) ->
         let values = List.assoc_opt "values" n.args in
         if n.kind <> "sop/with_attr" || Edit.find graph ~node_id:compiled.(n.id) = None then nodes
@@ -508,8 +540,16 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         |> List.sort Int.compare in
       let graph = List.fold_left (fun graph id ->
         let p = prepare plan.nodes.(id) in
+        let resources = List.map (fun (k : kernel_input) ->
+          let inputs = List.map (fun source ->
+            match Edit.find graph ~node_id:compiled.(source) with
+            | Some node -> node | None -> fail "E_LOWER" "Function capture was not built before its consumer") k.sources in
+          k.index, kernel_node k inputs) p.kernels in
+        let graph = List.fold_left (fun graph (_, node) -> edit (Edit.add_node node graph)) graph resources in
         let options = List.init p.arity (fun index ->
-          match List.assoc_opt index p.slots with
+          match List.assoc_opt index resources with
+          | Some node -> Some node
+          | None -> match List.assoc_opt index p.slots with
           | Some source -> Edit.find graph ~node_id:compiled.(source)
           | None -> None) in
         let node = edit (Edit.instantiate_optional p.factory options) in
@@ -531,6 +571,10 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
     let graphs = List.concat (List.mapi (fun index instance ->
       if sop_instance instance then [build index instance] else [])
       (Array.to_list plan.instances)) in
+    Hashtbl.iter (fun _ (p : prepared) -> List.iter (fun (k : kernel_input) ->
+      if E.frame_dependent (E.Fn k.fn) || E.state_dependent (E.Fn k.fn)
+          || List.exists (fun id -> volatile.(id)) k.sources then
+        volatile_nodes := Network.Int_map.add k.cid () !volatile_nodes) p.kernels) prepared;
     (* Previewing an unused template must not allocate provenance or zones after
        this immutable lowering has been handed to the document. *)
     Array.iter (fun (node : E.node) -> if compiled.(node.id) <> 0 && node.kind <> "zone/element"
@@ -627,3 +671,49 @@ let zone_element lowered site k =
            if k >= 0 && k < Array.length positions then Some (key, positions.(k)) else None
        | None -> None)
     else None) lowered.zones
+
+let field_calls ?state ~live ~resolve lowered =
+  let state = Option.map E.fork_state state in
+  let defaults = Procedural.Edit_graph.factory_fields Procedural.Nodes.Iso_surface.factory in
+  let vector (node : E.node) name =
+    match List.assoc_opt name node.args with
+    | Some value -> (match E.Private.force_reference ?state ~resolve value ~live with
+        | Ok (E.Vec3 (x,y,z)) -> Some (x,y,z) | _ -> None)
+    | None ->
+        let component suffix = List.find_map (fun (f : Procedural.Parameter.field_view) ->
+          if f.name = name ^ suffix then match f.current with
+            | Float_value value -> Some value | _ -> None else None) defaults in
+        Option.bind (component "_x") (fun x -> Option.bind (component "_y")
+          (fun y -> Option.map (fun z -> x,y,z) (component "_z"))) in
+  fun zone outer ->
+    let offset = ref 0 in
+    Array.to_list lowered.plan.nodes |> List.filter_map (fun (node : E.node) ->
+      if node.kind <> "sop/iso_surface" then None else
+      match List.assoc_opt "field" node.args with
+      | Some (E.Fn fn) when E.Private.function_scope fn = Some (zone, outer) ->
+          (match vector node "resolution", vector node "min", vector node "max" with
+           | Some (rx,ry,rz), Some (lx,ly,lz), Some (hx,hy,hz) ->
+               let valid n = Float.is_finite n && n >= 1. && Float.floor n = n
+                   && n < float (Sys.max_array_length / 3) in
+               if not (valid rx && valid ry && valid rz) then None else
+               let nx = int_of_float rx + 1 and ny = int_of_float ry + 1 and nz = int_of_float rz + 1 in
+               let limit = Sys.max_array_length / 3 in
+               if nx > limit / ny || nx * ny > limit / nz then None else
+               let count = nx * ny * nz and start = !offset in
+               if count > max_int - start then None else begin
+                 offset := start + count;
+                 let at k =
+                   if k < 0 || k >= count then Error (Flow.Diagnostic.error ~code:"E_LIST_RANGE"
+                     "Probe index is outside the field grid.") else
+                   let p = [|lx +. float (k mod nx) *. ((hx -. lx) /. rx);
+                     ly +. float ((k / nx) mod ny) *. ((hy -. ly) /. ry);
+                     lz +. float (k / (nx * ny)) *. ((hz -. lz) /. rz)|] in
+                   Result.bind (E.Private.map_function ~signature:Flow.Ty.{params = [Vec3]; result = Float}
+                     fn [E.Vec3_array p]) (function
+                     | E.Residual residual -> Result.bind (E.Private.map_probe ?state ~resolve
+                         ~offset:(start + k) residual ~live) (fun (_, at) -> at 0)
+                     | _ -> assert false) in
+                 Some (start, count, at)
+               end
+           | _ -> None)
+      | _ -> None)

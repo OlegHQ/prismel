@@ -38,7 +38,7 @@ let rec map_term f (term : W.term) =
   let node : W.node = match term.node with
     | Call call -> Call {call with args = named call.args}
     | Op call -> Op {call with args = named call.args}
-    | Call_fn call -> Call_fn {call with args = List.map go call.args}
+    | Call_fn call -> Call_fn {call with args = List.map go call.args; body = Option.map go call.body}
     | Graph_ref call -> Graph_ref {call with inputs = named call.inputs}
     | Let (bindings, body) -> Let (List.map (fun (p,t) -> p, go t) bindings, go body)
     | State state -> State {state with init = go state.init; step = go state.step}
@@ -47,7 +47,7 @@ let rec map_term f (term : W.term) =
     | If (a,b,c) -> If (go a, go b, go c)
     | Cond (arms, last) -> Cond (List.map (fun (a,b) -> go a, go b) arms, go last)
     | Case (value, arms, last) -> Case (go value, List.map (fun (a,b) -> a, go b) arms, go last)
-    | Fn fn -> Fn {fn with body = go fn.body}
+    | Fn fn -> Fn {fn with body = go fn.body; capture = Option.map go fn.capture}
     | Hof (kind, args) -> Hof (kind, List.map go args)
     | Vec args -> Vec (List.map go args) | List_lit args -> List_lit (List.map go args)
     | Record args -> Record (named args) | Assoc (value,args) -> Assoc (go value, named args)

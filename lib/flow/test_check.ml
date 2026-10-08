@@ -22,6 +22,23 @@ let catalog = Check.{version = 202609; kinds = [box; transform]}
 let code = function Error (code, _) -> code | Ok _ -> "ok"
 
 let () =
+  let signature = Ty.{params = [Record ["p", Vec3]]; result = Float} in
+  let field = { size with ty = Some (Port_type.Fn signature); fields = [] } in
+  let check parameter ty =
+    let diagnostics = ref [] in
+    Check.validate_parameter (fun _ code _ -> diagnostics := code :: !diagnostics)
+      parameter Check.{node = Reference ("argument", ""); ty = Some ty};
+    !diagnostics in
+  assert (check field (Port_type.Fn signature) = []);
+  assert (check field Port_type.Float = ["E_TYPE"]);
+  assert (check field (Port_type.Fn {signature with params = []}) = ["E_TYPE"]);
+  assert (check {field with ty = Some Port_type.Image} Port_type.Image = []);
+  assert (check size Port_type.Image = ["E_TYPE"]);
+  List.iter (fun target -> assert (Result.is_error
+    (Port_type.coerce ~target (Port_type.Float_value 1.))))
+    [Port_type.Image; Port_type.Fn signature]
+
+let () =
   let resolve context name = Check.resolve_kind catalog context name in
   assert (resolve Context.sop "box" |> Result.map (fun (k : Check.kind) -> k.qualified) = Ok "sop/box");
   assert (resolve Context.sop "sop/transform" |> Result.is_ok);

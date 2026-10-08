@@ -3,7 +3,7 @@
  (public_name rays.procedural)
  (libraries param frame_input rays_math rdk lru unix)
  (preprocess (pps rays.ppx))
- (modules context diagnostic image payload parameter node session async_cook select instances image_nodes
+ (modules context diagnostic image kernel payload parameter node session async_cook select instances image_nodes
   sop_support sop_groups sop_topology sop_attributes sop_shapes nodes sop zone custom graph edit_graph)
  (private_modules sop_support sop_groups sop_topology sop_attributes sop_shapes))
 

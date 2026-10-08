@@ -220,7 +220,50 @@ let image_mode () =
       Printf.printf "image_noise,%d,%d,%.9f,%.0f,%s\n%!" (size*size) domains times.(3) allocations.(3) !hash) [1;8])
     [128;512;1024]
 
+let field_mode () =
+  let env name default = Option.fold ~none:default ~some:int_of_string (Sys.getenv_opt name) in
+  let domains = env "RAYS_BENCH_DOMAINS" 8 and repeats = env "RAYS_BENCH_REPEATS" 7 in
+  if repeats < 7 then invalid_arg "field benchmark requires at least seven repetitions";
+  let forms = Flow.Syntax.parse "(workspace field (graph g :context sop
+    (sop/iso_surface :field (fn [p] (- (length p) 1.0))
+      :resolution [64 64 64] :min [-2 -2 -2] :max [2 2 2] :iso 0.0)))" |> ok in
+  let lowered = Lower.workspace ~factories forms |> ok in
+  let graph = List.hd lowered.graphs in
+  let node = Procedural.Edit_graph.compile_node graph.network.geometry
+      ~node_id:(Option.get graph.root) |> Result.get_ok in
+  let context = Procedural.Context.create ~domains ~grain:16384 () |> Result.get_ok in
+  let cook () =
+    let session = Procedural.Session.create ~max_entries:0 ~max_payload_bytes:0 |> Result.get_ok in
+    Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+      let before = Gc.stat () in
+      let started = now () in
+      let output = match Procedural.Session.cook session ~context node with
+        | Ok output -> output | Error d -> failwith (Procedural.Diagnostic.error_to_string d) in
+      let seconds = now () -. started in
+      let after = Gc.stat () in
+      let geometry = Procedural.Payload.geometry output.payload |> Result.get_ok in
+      let bytes = float (Sys.word_size / 8) in
+      let promoted = (after.promoted_words -. before.promoted_words) *. bytes
+      and major = (after.major_words -. before.major_words) *. bytes in
+      geometry, seconds, (after.minor_words -. before.minor_words) *. bytes +. major -. promoted,
+      promoted, major) in
+  Rays_math.Parallel.run ~domains (fun () -> ());
+  let warm, _, _, _, _ = cook () in
+  let expected = cook_hash warm in
+  Gc.full_major ();
+  print_endline "fixture,domains,repetition,rx,ry,rz,cells,samples,seconds,allocated_bytes_all_domains,promoted_bytes,major_bytes,points,vertices,primitives,hash";
+  for repetition = 0 to repeats - 1 do
+    let geometry, seconds, allocated, promoted, major = cook () in
+    let hash = cook_hash geometry in
+    assert (hash = expected);
+    Printf.printf "field_sphere,%d,%d,64,64,64,262144,274625,%.9f,%.0f,%.0f,%.0f,%d,%d,%d,%s\n%!"
+      domains repetition seconds allocated promoted major
+      (Rdk.Geometry.point_count geometry) (Rdk.Geometry.vertex_count geometry)
+      (Rdk.Geometry.primitive_count geometry) hash
+  done
+
 let () =
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--fields"] then begin field_mode (); exit 0 end;
   if Array.to_list Sys.argv = [Sys.argv.(0); "--images"] then begin image_mode (); exit 0 end;
   if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--branches"; "--loops"] then begin
     branch_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 3);

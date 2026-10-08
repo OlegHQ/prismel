@@ -84,6 +84,12 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
   if view.previous || E.state_dependent (E.Residual residual) then None else
   try
     let function_body (f : W.term) = match f.node with
+      | W.Fn {capture = Some _; _} ->
+          (match E.Private.eval_term residual f ~live:(Frame_input.at_time 0.) with
+           | Ok (E.Fn fn) -> (match E.Private.function_body fn with
+               | Some (params, body) -> params, body, E.Private.function_bindings fn
+               | None -> raise Unsupported)
+           | _ -> raise Unsupported)
       | W.Fn {params; body; _} -> params, body, view.bindings
       | W.Ref_binding (name, []) ->
           (match List.assoc_opt name view.bindings with
@@ -180,13 +186,40 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       | Lit (Param.Bool_value b) -> literal (E.Bool b)
       | Ref_binding (name, fields) ->
           (match List.assoc_opt name env with
-           | Some e -> List.fold_left field e fields | None -> captured name fields)
+           | Some e -> List.fold_left field e fields
+           | None ->
+               (* A record may contain a deferred vec3. Bind that vector as a
+                  uniform before projecting its component. *)
+               let direct = try ignore (captured_value bindings name fields); true
+                 with Unsupported -> false in
+               if direct then captured name fields else
+               match List.rev fields with
+               | component :: prefix -> field (captured name (List.rev prefix)) component
+               | [] -> raise Unsupported)
       | Time -> {registers = [|emit (Frame "t")|]; constant = None}
       | Vec ts when List.length ts = 3 ->
           let components = List.map (expression env) ts in
           if not (List.for_all (fun e -> Array.length e.registers = 1) components) then raise Unsupported;
           {registers = Array.of_list (List.map (fun e -> e.registers.(0)) components); constant = None}
       | Get (t, f) -> field (expression env t) f
+      | Cond (arms, default) ->
+          expression env (List.fold_right (fun (condition, yes) no ->
+            {t with node = If (condition, yes, no)}) arms default)
+      | Case (scrutinee, arms, default) ->
+          let boolean (value : W.term) = {value with ty = Ty.Bool;
+            node = Op {op = "not"; args = ["x", {value with ty = Ty.Bool;
+              node = Op {op = "not"; args = ["x", value]; skip = []}}]; skip = []}} in
+          expression env (List.fold_right (fun ((literal : Flow.Syntax.t), yes) no ->
+            let value, ty = match literal.node with
+              | Num s -> (Param.Float_value (float_of_string s), Ty.Float)
+              | Sym ("true" | "false" as s) -> Param.Bool_value (s = "true"), Ty.Bool
+              | _ -> raise Unsupported in
+            let right : W.term = {path = None; ty; node = Lit value; form = literal} in
+            let left, right = if scrutinee.ty = Ty.Bool || ty = Ty.Bool then
+              boolean scrutinee, boolean right else scrutinee, right in
+            let condition = {t with ty = Ty.Bool;
+              node = Op {op = "="; args = ["a", left; "b", right]; skip = []}} in
+            {t with node = If (condition, yes, no)}) arms default)
       | If (condition, yes, no) ->
           (* ponytail: eager pure branches; nonfinite untaken arms rerun the reference.
              Add masked execution if such bodies appear in profiles. *)
@@ -226,6 +259,13 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
                   if octaves<1||octaves>32 then raise Unsupported;
                   [|emit (Noise3 (a.registers.(0), a.registers.(1), a.registers.(2), seed, octaves))|]
               | [a] when declaration.name = "exact" -> a.registers
+              | [a] when declaration.name = "length"
+                  && Array.length a.registers = 3 ->
+                  let square i = emit (Binary (Mul, a.registers.(i), a.registers.(i))) in
+                  let xx = square 0 and yy = square 1 and zz = square 2 in
+                  let xy = emit (Binary (Add, xx, yy)) in
+                  let sum = emit (Binary (Add, xy, zz)) in
+                  [|emit (Unary (Sqrt, sum))|]
               | [a; b] -> let op = binary declaration.name in
                   Array.init width (fun i -> emit (Binary (op, component a i, component b i)))
               | [a] when width = 1 -> let op = unary declaration.name in
@@ -255,6 +295,8 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       let children = match t.node with
         | W.Vec ts -> ts | Get (t, _) | Bypass t | Expanded {body = t; _} -> [t]
         | If (a, b, c) -> [a;b;c] | Op {args; _} -> List.map snd args
+        | Cond (arms, d) -> d :: List.concat_map (fun (a,b) -> [a;b]) arms
+        | Case (s, arms, d) -> s :: d :: List.map snd arms
         | Let (bindings, result) -> result :: List.map snd bindings | _ -> [] in
       List.fold_left paths sites children in
     let sites = paths [view.instance, Option.value ~default:view.site term.path, view.iter] body in

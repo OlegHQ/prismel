@@ -1,0 +1,59 @@
+--- a/lib/rdk/gen/iso_surface.ml
++++ b/lib/rdk/gen/iso_surface.ml
+@@ -164,6 +164,18 @@
+         ~finish:(slab_cell_count - 1) count_cell
+   in
+   try
++    let profile_seconds = Array.make 2 0. and profile_bytes = Array.make 2 0. in
++    let profile_count phase lower upper counts =
++      let before = Gc.quick_stat () in
++      let started = Unix.gettimeofday () in
++      count_slab lower upper counts;
++      let elapsed = Unix.gettimeofday () -. started in
++      let after = Gc.quick_stat () in
++      profile_seconds.(phase) <- profile_seconds.(phase) +. elapsed;
++      profile_bytes.(phase) <- profile_bytes.(phase)
++        +. (after.minor_words -. before.minor_words +. after.major_words -. before.major_words
++          -. (after.promoted_words -. before.promoted_words)) *. float (Sys.word_size / 8)
++    in
+     let slab_triangles = Array.make z_cells 0
+     and counts = Array.make slab_cell_count 0 in
+     let lower = ref (Array.make plane_stride 0.)
+@@ -172,7 +184,7 @@
+     for z = 0 to z_cells - 1 do
+       Cancel.check_opt cancel;
+       sample_values_into !upper (z + 1);
+-      count_slab !lower !upper counts;
++      profile_count 0 !lower !upper counts;
+       let total = ref 0 in
+       Array.iter (fun count -> total := !total + count) counts;
+       slab_triangles.(z) <- !total;
+@@ -238,7 +250,7 @@
+           fill_z_gradient !upper_z_buffer (z + 1) upper_values
+             (Some !lower) !next;
+           let upper_z = !upper_z_buffer in
+-          count_slab lower_values upper_values counts;
++          profile_count 1 lower_values upper_values counts;
+           local_offsets.(0) <- 0;
+           for cell = 0 to slab_cell_count - 1 do
+             local_offsets.(cell + 1) <- local_offsets.(cell) + counts.(cell)
+@@ -383,6 +395,8 @@
+         done;
+         let positions = Packed.Float3.Private.of_owned_exn
+             ~x:vertices.x ~y:vertices.y ~z:vertices.z in
++        Printf.eprintf "count_initial,%.9f,%.0f\ncount_emission,%.9f,%.0f\n%!"
++          profile_seconds.(0) profile_bytes.(0) profile_seconds.(1) profile_bytes.(1);
+         let normals = Packed.Float3.Private.of_owned_exn
+             ~x:normals.x ~y:normals.y ~z:normals.z in
+         Ok (positions, normals)
+--- a/lib/rdk/gen/dune
++++ b/lib/rdk/gen/dune
+@@ -1,7 +1,7 @@
+ (library
+  (name rdk_gen)
+  (public_name rays.rdk.gen)
+- (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rays_math)
++ (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rays_math unix)
+  (flags (:standard -open Rdk_core -open Rdk_exact -open Rdk_spatial -open Rdk_attrib))
+  (private_modules )
+  (modules box_generator iso_surface line_geometry parametric_generators plane_generators point_generate point_jitter point_replicate scatter spiral uv_sphere))

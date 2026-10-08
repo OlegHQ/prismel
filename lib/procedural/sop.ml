@@ -38,6 +38,7 @@ let points ?label values =
 
 let point_generate_origin = Sop_shapes.Point_generate.fn
 let attr_from_image = Sop_attributes.Attr_from_image.fn
+let iso_surface = Sop_shapes.Iso_surface.fn
 
 let line = Sop_shapes.Line.fn
 

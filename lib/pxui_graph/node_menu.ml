@@ -113,8 +113,8 @@ let rec port_color theme (ty : Flow.Ty.t) =
   let ports = Pxui.Theme.ports theme in
   match ty with
   | Named _ -> color theme (Flow.Ty.color ty)
-  | Float -> ports.float | Int -> ports.int | Vec3 -> ports.vec3
-  | Bool -> ports.bool | Text | Color -> ports.text | Fn -> ports.fn | Record _ -> ports.record
+  | Float -> ports.float | Int -> ports.int | Vec2 | Vec3 | Vec4 -> ports.vec3
+  | Bool -> ports.bool | Text | Color -> ports.text | Fn _ -> ports.fn | Record _ -> ports.record
   | List e | Array e -> port_color theme e
   | Any -> ports.output
 

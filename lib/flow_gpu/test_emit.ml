@@ -2,9 +2,23 @@ let () =
   List.iter (fun name ->
     assert (Flow.Op.find ~extra:Flow_ir.Operators.all name Flow.Context.value<>None)) Flow_gpu.Emit.names;
   assert (Flow_gpu.Emit.names=Flow.Packed_ops.names);
+  List.iter (fun body ->
+    let program = Test_program.compile ("(map (fn [x] " ^ body ^ ") (array/range 1024))") in
+    ignore (Test_program.ok (Flow_gpu.Emit.kernel program));
+    List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+      List.iter (fun time ->
+        let live = Frame_input.at_time time in
+        assert (Marshal.to_string (Flow_ir.Packed.force program ~live) [Marshal.No_sharing]
+          = Marshal.to_string (Flow_ir.Packed.reference program ~live) [Marshal.No_sharing]))
+        [0.; 0.125; 1.25; 7.])) [1;8])
+    ["(cond (< x t) (+ x 1) (> x 5) (- x 1) :else (* x t))";
+     "(case x 0 t 1 (+ t 1) :else (+ x t))";
+     "(case x false t true (+ x t) :else 0)";
+     "(case (> x t) 0 t 2 (+ x t) :else 0)"];
   List.iter (fun name ->
     let body=match name with
       | "noise3" -> "(noise3 [x t 0])"
+      | "length" -> "(length [x t 0])"
       | "and" | "or" -> "(if (" ^ name ^ " (> x t) (< x 8)) x t)"
       | "not" -> "(if (not (> x t)) x t)"
       | "<" | "<=" | ">" | ">=" | "=" -> "(if (" ^ name ^ " x t) x t)"

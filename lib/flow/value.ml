@@ -3,7 +3,9 @@ type ('f, 'r) t =
   | Float of float
   | Bool of bool
   | Text of string
+  | Vec2 of float * float
   | Vec3 of float * float * float
+  | Vec4 of float * float * float * float
   | List of ('f, 'r) t array
   | Float_array of float array
   | Vec3_array of float array
@@ -79,7 +81,7 @@ let fmt4 x =
 
 let rec ty_of = function
   | Int _ -> Ty.Int | Float _ -> Ty.Float | Bool _ -> Ty.Bool | Text _ -> Ty.Text
-  | Vec3 _ -> Ty.Vec3
+  | Vec2 _ -> Ty.Vec2 | Vec3 _ -> Ty.Vec3 | Vec4 _ -> Ty.Vec4
   | List xs -> Ty.List (elem_ty xs)
   | Float_array _ -> Ty.Array Ty.Float
   | Vec3_array _ -> Ty.Array Ty.Vec3
@@ -87,7 +89,7 @@ let rec ty_of = function
   | Deferred (ty, _) -> ty
   | No_geo -> Ty.geometry
   | Struct (_, ty, _) -> ty
-  | Fn _ -> Ty.Fn
+  | Fn _ -> (Ty.Fn None)
   | Residual _ -> Ty.Any
 and elem_ty xs =
   Array.fold_left (fun t x -> match Ty.join t (ty_of x) with Some j -> j | None -> t) Ty.Any xs
@@ -102,6 +104,8 @@ let rec coerce_to want v =
   | Ty.Float, Bool b -> Float (if b then 1. else 0.)
   | Ty.Bool, (Int _ | Float _) -> Bool (truthy v)
   | Ty.Vec3, (Int _ | Float _) -> let f = num v in Vec3 (f, f, f)
+  | Ty.Vec2, (Int _ | Float _) -> let f = num v in Vec2 (f, f)
+  | Ty.Vec4, (Int _ | Float _) -> let f = num v in Vec4 (f, f, f, f)
   | Ty.List e, List xs -> List (Array.map (coerce_to e) xs)
   | Ty.Record wf, Record fs ->
       Record (List.map (fun (n, x) -> match List.assoc_opt n wf with
@@ -114,7 +118,9 @@ let rec show_with conc v =
   | Float f -> fmt4 f
   | Bool b -> if b then "true" else "false"
   | Text s -> s
+  | Vec2 (x, y) -> "[" ^ String.concat " " [fmt4 x; fmt4 y] ^ "]"
   | Vec3 (x, y, z) -> "[" ^ String.concat " " [ fmt4 x; fmt4 y; fmt4 z ] ^ "]"
+  | Vec4 (x, y, z, w) -> "[" ^ String.concat " " [fmt4 x; fmt4 y; fmt4 z; fmt4 w] ^ "]"
   | List xs -> "[" ^ String.concat " " (List.map (show_with conc) (Array.to_list xs)) ^ "]"
   | Float_array xs -> Printf.sprintf "%d × float" (Array.length xs)
   | Vec3_array xs -> Printf.sprintf "%d × vec3" (Array.length xs / 3)
@@ -128,7 +134,9 @@ let rec key_of ~residual = function
   | Float f -> Printf.sprintf "f%h" f
   | Bool b -> if b then "T" else "F"
   | Text s -> Printf.sprintf "s%d:%s" (String.length s) s
+  | Vec2 (a, b) -> Printf.sprintf "v2:%h,%h" a b
   | Vec3 (a, b, c) -> Printf.sprintf "v%h,%h,%h" a b c
+  | Vec4 (a, b, c, d) -> Printf.sprintf "v4:%h,%h,%h,%h" a b c d
   | List xs -> "[" ^ String.concat "," (List.map (key_of ~residual) (Array.to_list xs)) ^ "]"
   | Float_array xs -> "A" ^ Marshal.to_string xs []
   | Vec3_array xs -> "V" ^ Marshal.to_string xs []
@@ -142,10 +150,19 @@ let rec key_of ~residual = function
   | Residual r -> "r" ^ string_of_int (residual r)
 
 let comps = function Vec3 (x, y, z) -> (x, y, z) | v -> let s = num v in (s, s, s)
-let is_vec = function Vec3 _ -> true | _ -> false
+let is_vec = function Vec2 _ | Vec3 _ | Vec4 _ -> true | _ -> false
 
 let arith name f a b =
-  if is_vec a || is_vec b then begin
+  match a, b with
+  | (Vec2 _ | Vec4 _), _ | _, (Vec2 _ | Vec4 _) ->
+    let ty = ty_of (if is_vec a then a else b) in
+    let apply a b = fin name (f a b) in
+    let promote v = if is_vec v then v else coerce_to ty (Float (num v)) in
+    (match promote a, promote b with
+    | Vec2 (ax,ay), Vec2 (bx,by) -> Vec2 (apply ax bx, apply ay by)
+    | Vec4 (ax,ay,az,aw), Vec4 (bx,by,bz,bw) -> Vec4 (apply ax bx, apply ay by, apply az bz, apply aw bw)
+    | _ -> fail "E_TYPE" "Vector arithmetic needs matching widths or a number.")
+  | _ -> if is_vec a || is_vec b then begin
     let ax, ay, az = comps a and bx, by, bz = comps b in
     Vec3 (fin name (f ax bx), fin name (f ay by), fin name (f az bz))
   end else begin
@@ -187,7 +204,9 @@ let array_init ty count f =
   if width = 3 then Vec3_array data else Float_array data
 let rec validate = function
   | Float f -> ignore (fin "input" f)
+  | Vec2 (x, y) -> List.iter (fun x -> ignore (fin "input" x)) [x; y]
   | Vec3 (x, y, z) -> List.iter (fun x -> ignore (fin "input" x)) [x; y; z]
+  | Vec4 (x, y, z, w) -> List.iter (fun x -> ignore (fin "input" x)) [x; y; z; w]
   | Float_array xs | Vec3_array xs as v ->
       ignore (array_length v); Array.iter (fun x -> ignore (fin "array input" x)) xs
   | List xs -> Array.iter validate xs

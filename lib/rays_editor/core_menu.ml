@@ -37,7 +37,8 @@ let open_menu value (x, y) =
         key = Procedural.Edit_graph.factory_key factory;
         label = Procedural.Edit_graph.factory_label factory;
         category = Procedural.Edit_graph.factory_category factory;
-        arity = Procedural.Edit_graph.factory_arity factory;
+        arity = Procedural.Edit_graph.factory_arity factory
+          - List.length (Procedural.Edit_graph.factory_keyword_inputs factory);
         context = context_name context; output = Flow.Ty.geometry; off = None }) (catalog value context) in
       let not_here entries =
         List.map (fun (e : M.entry) -> { e with off = Some ("not in " ^ context_name context) }) entries in

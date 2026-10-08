@@ -7,7 +7,7 @@ let ty source = match Syntax.parse source with
 
 let () =
   (* annotations *)
-  assert (ty "float" = Some Float && ty "fn" = Some Fn && ty "geometry" = Some Ty.geometry);
+  assert (ty "float" = Some Float && ty "fn" = Some (Fn None) && ty "geometry" = Some Ty.geometry);
   assert (ty "(list int)" = Some (List Int));
   assert (ty "(list (list vec3))" = Some (List (List Vec3)));
   assert (ty "{:shape geometry :y float}" = Some (Record ["shape", Ty.geometry; "y", Float]));
@@ -19,12 +19,22 @@ let () =
   let t = Record ["a", List (Record ["b", Int; "c", List Float]); "d", Text] in
   assert (to_string t = "rec{a:list:rec{b:int,c:list:float},d:text}");
   List.iter (fun t -> assert (of_string (to_string t) = Some t))
-    [Ty.geometry; Float; Int; Bool; Vec3; Text; Color; Fn; Any; Ty.scene; Ty.world; Ty.settings;
+    [Ty.geometry; Float; Int; Bool; Vec2; Vec3; Vec4; Array Vec2; Array Vec4; Text; Color; (Fn None); Any; Ty.scene; Ty.world; Ty.settings;
      Ty.panel; Ty.editor; List Int; t; Record []];
   List.iter (fun s -> assert (of_string s = None)) ["nope"; "list:"; "rec{a:int"; "int,"]
 
 let () =
-  assert (has_fn Fn && has_fn (List Fn) && has_fn (Record ["f", Fn])
+  let signature = { params = [Record ["p", Vec3]; List Text; Array Float]; result = Float } in
+  let typed = Fn (Some signature) in
+  List.iter (fun t -> assert (of_string (to_string t) = Some t))
+    [typed; Fn (Some {params = []; result = typed}); Record ["f", typed]; List typed];
+  assert (fits typed (Fn None) && not (fits (Fn None) typed));
+  assert (has_fn typed && not (fits typed (Fn (Some {signature with params = [Vec3]}))));
+  List.iter (fun s -> assert (of_string s = None))
+    ["fn("; "fn(float)"; "fn(float)->"; "fn(nope)->float"; "fn(float,)->float"]
+
+let () =
+  assert (has_fn (Fn None) && has_fn (List (Fn None)) && has_fn (Record ["f", (Fn None)])
     && not (has_fn (List Int)) && not (has_fn Any));
   (* fits *)
   assert (fits Int Float && fits Float Int && fits Int Bool && fits Bool Float);
@@ -54,3 +64,15 @@ let () =
   assert (join (Record ["a", Int]) (Record ["a", Text]) = None);
   assert (unify Int Bool = Some Int && unify Ty.geometry Text = None);
   assert (elem (List Int) = Some Int && elem Int = None)
+
+let () =
+  List.iter (fun vector ->
+    assert (of_string (to_string vector) = Some vector);
+    assert (ty ("(array " ^ to_string vector ^ ")") = Some (Array vector));
+    assert (fits Int vector && fits Float vector && not (fits Bool vector));
+    assert (coerce Int vector = vector && coerce Float vector = vector);
+    assert (join vector Any = Some vector && join vector vector = Some vector);
+    List.iter (fun other -> if vector <> other then begin
+      assert (not (fits vector other) && not (fits (Array vector) (Array other)));
+      assert (coerce vector other = vector && join vector other = None)
+    end) [Vec2;Vec3;Vec4]) [Vec2;Vec4]
