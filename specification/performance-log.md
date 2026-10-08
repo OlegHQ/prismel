@@ -6591,6 +6591,43 @@ precision difference; it does not manufacture a tolerance from unavailable
 GPU measurements. This oracle is written but its native result remains
 outstanding.
 
+## P5 emitter and owned execution checkpoint (2026-10-08)
+
+`flow_gpu` emits the packed register program as float32 Metal source with
+one shared operator-name declaration (`Flow.Packed_ops`) read by the checker,
+CPU compiler and emitter. Collect/Zip and single-source products are supported;
+ordered accumulators, multi-source products and skipped elements are typed
+`E_GPU_FORM` refusals. The emitter preserves zero division/modulus, absolute
+power/square root, numeric boolean tests and ternary selection. Seeded Perlin
+tables and 1–32-octave fBm share the existing CPU permutation.
+
+The checked-in arithmetic, select and seeded-fBm goldens each compile to AIR
+with Metal 32023.921, `-Werror` and an isolated module cache, exit 0. All 21
+shared operator names have a checked packed-program emission regression.
+`@check`, the emitter suite, the dependency gate and a mock ownership-only
+pipeline test exit 0. The mock test adds pipeline handles to the portable
+mock driver; it does not execute or validate shader numerics. It verifies
+same-source reuse across different counts, capacity 64, two evictions after
+66 compilations and idempotent release of every pipeline/library pair.
+
+Each runner owns shared buffers and reusable staging bytes, grows geometrically,
+writes frame/uniform bytes without dense allocations and uploads immutable
+noise tables once. It reacquires the pipeline from its owner on dispatch so
+cache eviction cannot leave a runner using a destroyed pipeline. Output handles
+are rejected after a later dispatch supersedes them or the owner closes.
+Readback explicitly checks finite output and returns fresh packed CPU arrays.
+Commands are abandoned on encoding failure. GPU/cache calls reject another
+domain. These are implementation properties, not measured zero-allocation or
+upload-cost claims; the native repeated-frame buffer gate remains unverified.
+
+`test_run.exe` exits 2 at `Rays_execution.acquire_gpu`, `No_adapter`. The native
+oracle is ready for exact small-integer arithmetic/select comparisons and
+noise error reporting at 1,024 and 65,536 elements. It deliberately requires
+a measured noise tolerance before acceptance. Native reflection, GPU execution,
+timings, compile placement below/above 20 ms, and the upload/zero-copy decision
+have no qualifying measurements yet. Display-token integration, precision
+placement/callbacks and the final million-particle gates are still outstanding.
+
 ## Conditional scopes, imports and spreadsheet checkpoint (2026-10-08)
 
 On this arm64 macOS 27.0.1 host, the complete editor's new spreadsheet pane

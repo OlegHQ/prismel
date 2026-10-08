@@ -73,7 +73,7 @@ let reach graph =
 
 let gpu = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu"; "ogpu_mock"; "ogpu_metal"; "ogpu_metal_native";
            "runtime"; "runtime_input"; "runtime_resources"; "scene_execution"]
-let upper = ["param"; "flow"; "flow_ir"; "flow_graph"; "flow_sop"; "rays"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
+let upper = ["param"; "flow"; "flow_ir"; "flow_gpu"; "flow_graph"; "flow_sop"; "rays"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural"; "rdk";
              "sop_catalog"; "sketch_support"; "rays_editor"]
 let foundational = ["sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu_core"; "ogpu";
                     "native_layer_token"; "scene_command"; "lru"]
@@ -89,12 +89,14 @@ let rules =
        :: "rays_editor" :: gpu) ["flow"; "ppx_rays"]
   @ ["flow_graph", ["procedural"; "rdk"; "rays"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
        "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
-  @ ["flow_ir", ["rays"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural";
+  @ ["flow_ir", ["flow_gpu"; "rays"; "pxui"; "pxui_shell"; "pxui_graph"; "procedural";
        "rdk_core"; "rdk_exact"; "rdk_spatial"; "rdk_attrib"; "rdk_gen"; "rdk_curve";
        "rdk_mesh"; "rdk_boolean"; "rdk"; "rdk_rays"; "sop_catalog";
        "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
   @ ["flow_sop", ["rays"; "pxui"; "pxui_shell"; "pxui_graph"; "sop_catalog";
        "sketch_support"; "editor_document"; "rays_editor"] @ gpu]
+  @ ["flow_gpu", ["procedural"; "rdk"; "rays_editor"; "pxui"; "pxui_shell"; "pxui_graph";
+       "flow_sop"; "editor_document"; "sketch_support"; "sop_catalog"]]
   @ [ "ogpu_core", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
       "ogpu_mock", ["sdl3"; "metal"; "ogpu_metal_native"; "ogpu_metal"];
@@ -158,7 +160,8 @@ let only =
     "ogpu_metal", ["ogpu_metal_native"; "metal"];
     "scene_execution_fixtures", ["scene_execution"; "ogpu"];
     "pxui_shell", ["rays"; "editor_core"; "pxui"];
-    "sop_catalog", ["rays_math"; "rdk"; "procedural"] ]
+    "sop_catalog", ["rays_math"; "rdk"; "procedural"];
+    "flow_gpu", ["flow"; "flow_ir"; "param"; "rays_math"; "ogpu_core"; "ogpu"; "rays_execution"; "lru"] ]
 
 (* Files outside the Metal backend that name Metal on purpose: the binding
    tooling, the binding benches and the Metal conformance driver. *)
@@ -318,6 +321,8 @@ let run () =
      "flow", "flow_ir"; "flow_ir", "rays"; "flow_ir", "procedural";
      "flow_ir", "rdk"; "flow_ir", "pxui"; "flow_ir", "editor_document";
      "flow_ir", "sketch_support"; "flow_ir", "rays_editor"; "flow_ir", "ogpu";
+     "flow_ir", "flow_gpu"; "flow_gpu", "procedural"; "flow_gpu", "rdk";
+     "flow_gpu", "rays_editor"; "flow_gpu", "pxui";
      "flow", "rays"; "param", "flow"; "sdl3", "flow";
      "ppx_rays", "procedural"; "ppx_rays", "pxui";
      "flow_sop", "pxui"; "flow_sop", "sop_catalog"; "flow_sop", "rays";

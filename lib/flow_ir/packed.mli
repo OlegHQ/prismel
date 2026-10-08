@@ -1,6 +1,12 @@
 (** Specialized numeric packed maps, loops and reductions with scalar registers
     in 1,024-element blocks. Accumulators retain reference evaluation order. *)
 type t
+type binary = Flow.Packed_ops.binary = Add | Sub | Mul | Div | Mod | Pow | Min | Max | Lt | Le | Gt | Ge | Eq | And | Or
+type unary = Flow.Packed_ops.unary = Sin | Cos | Sqrt | Abs | Not
+type instruction = Const of float | Input of int * int * int
+  | Uniform of int * int | Frame of string | Accumulator of int
+  | Binary of binary * int * int | Unary of unary * int
+  | Noise3 of int * int * int * int * int | Select of int * int * int
 type origin = Flow.Workspace.path * int list
 type count_source = Flow.Eval.residual -> Flow.Workspace.term -> origin option
 (** Hosts may prove equal source cardinality from instantiated domain facts.
@@ -38,3 +44,15 @@ val force : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list ->
 val reference : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list ->
   ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
   t -> live:Flow.Eval.live -> (Flow.Eval.value, Flow.Diagnostic.t) result
+
+module Private : sig
+  type view = {code : instruction array; widths : int array; output : int array;
+    uniform_widths : int array; collecting : bool; zipped : bool; skip : int array}
+  val view : t -> view
+  (* Borrowed immutable arrays for downstream compilation. *)
+  type inputs = {arrays : float array array; uniforms : float array array;
+    frame : float array; count : int}
+  val prepare : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list ->
+    ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
+    t -> live:Flow.Eval.live -> (inputs, Flow.Diagnostic.t) result
+end

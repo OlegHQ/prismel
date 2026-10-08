@@ -14,7 +14,17 @@ dependencies; the dependency gate rejects those transitive edges.
 only on `flow`, `param` and `rays_math`; its dataflow passes and packed/scalar
 executor cannot reach geometry, presentation, editor or GPU libraries.
 `flow` never depends on `flow_ir` and retains an independently callable
-reference tree walker. `flow_sop` depends
+reference tree walker. `flow_gpu` sits above the numeric IR and the public OGPU API:
+it emits Metal source from borrowed immutable register programs, caches at
+most 64 library/pipeline pairs per device owner, and owns geometrically grown
+upload/output buffers per program. It depends directly only on `flow`,
+`flow_ir`, `rays_math`, `ogpu`, `rays_execution` and `lru`; it cannot reach
+procedural geometry or editor/UI libraries. The dependency gate rejects an
+upward edge from `flow_ir` to `flow_gpu`. Native leases, pipeline compilation,
+uploads and dispatch remain initial-domain host work. Closing programs drops
+their buffers before closing the pipeline owner and releasing the lease.
+
+`flow_sop` depends
 only on `flow`, `flow_ir`, `param`, `procedural` and the standard-library `unix`
 clock; its typed overlay and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.

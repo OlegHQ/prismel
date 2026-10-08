@@ -1,0 +1,25 @@
+(library
+ (name flow_gpu)
+ (public_name rays.flow_gpu)
+ (modules emit pipelines run)
+ (libraries flow flow_ir ogpu rays_execution rays_math lru))
+
+(test
+ (name test_emit)
+ (modules test_emit test_program)
+ (deps (glob_files goldens/*.metal))
+ (libraries flow_gpu flow flow_ir))
+
+(executable
+ (name test_run)
+ (modules test_run test_program)
+ (libraries flow_gpu flow flow_ir rays_execution ogpu unix))
+
+(rule
+ (alias runtest-native)
+ (action (run %{exe:test_run.exe})))
+
+(test
+ (name test_pipelines)
+ (modules test_pipelines test_program)
+ (libraries flow_gpu flow flow_ir ogpu_mock unix))

@@ -3,8 +3,8 @@ module W = Flow.Workspace
 module V = Flow.Value
 module Ty = Flow.Ty
 
-type binary = Add | Sub | Mul | Div | Mod | Pow | Min | Max | Lt | Le | Gt | Ge | Eq | And | Or
-type unary = Sin | Cos | Sqrt | Abs | Not
+type binary = Flow.Packed_ops.binary = Add | Sub | Mul | Div | Mod | Pow | Min | Max | Lt | Le | Gt | Ge | Eq | And | Or
+type unary = Flow.Packed_ops.unary = Sin | Cos | Sqrt | Abs | Not
 type instruction = Const of float | Input of int * int * int
   | Uniform of int * int | Frame of string | Accumulator of int
   | Binary of binary * int * int | Unary of unary * int | Noise3 of int * int * int * int * int
@@ -170,11 +170,8 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       | "y" when Array.length e.registers = 3 -> {registers = [|e.registers.(1)|]; constant = None}
       | "z" when Array.length e.registers = 3 -> {registers = [|e.registers.(2)|]; constant = None}
       | _ -> raise Unsupported in
-    let binary = function "+" -> Add | "-" -> Sub | "*" -> Mul | "/" -> Div
-      | "mod" -> Mod | "pow" -> Pow | "min" -> Min | "max" -> Max
-      | "<" -> Lt | "<=" -> Le | ">" -> Gt | ">=" -> Ge | "=" -> Eq | "and" -> And | "or" -> Or
-      | _ -> raise Unsupported in
-    let unary = function "sin" -> Sin | "cos" -> Cos | "sqrt" -> Sqrt | "abs" -> Abs | "not" -> Not | _ -> raise Unsupported in
+    let binary name = match Flow.Packed_ops.binary name with Some op -> op | None -> raise Unsupported in
+    let unary name = match Flow.Packed_ops.unary name with Some op -> op | None -> raise Unsupported in
     let component e i = e.registers.(if Array.length e.registers = 1 then 0 else i) in
     let rec expression env (t : W.term) =
       match t.node with
@@ -588,3 +585,51 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let result = reference ~state ?elems ?resolve t ~live in
     Option.iter (fun (clock, report) -> report t ~seconds:(max 0. (clock () -. Option.get started)) ~reference:true) measure;
     result
+
+module Private = struct
+  type view = {code : instruction array; widths : int array; output : int array;
+    uniform_widths : int array; collecting : bool; zipped : bool; skip : int array}
+  let view (t : t) =
+    let uniform_widths = Array.make (Array.length t.uniforms) 1 in
+    Array.iter (function Uniform (index, component) ->
+      uniform_widths.(index) <- max uniform_widths.(index) (component+1) | _ -> ()) t.code;
+    {code=t.code; widths=t.widths; output=t.output; uniform_widths;
+      collecting=(match t.result with Collect -> true | _ -> false);
+      zipped=t.iteration=Zip || Array.length t.sources=1; skip=t.skip}
+  type inputs = {arrays : float array array; uniforms : float array array;
+    frame : float array; count : int}
+  let prepare ?state ?elems ?resolve (t : t) ~live =
+    let state = Option.value ~default:(E.create_state ()) state in
+    E.transaction state (fun () -> try
+      let rec evaluate residual term =
+        match term.W.node with
+        | W.Ref_binding (name, []) ->
+            (match List.assoc_opt name (E.Private.residual_view residual).bindings with
+             | Some (E.Residual residual) -> evaluate residual (E.Private.residual_view residual).term
+             | _ -> materialize residual term)
+        | _ -> materialize residual term
+      and materialize residual term =
+        match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source residual term with
+        | Some program -> get (force ~state ?elems ?resolve program ~live)
+        | None -> get (E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
+      let arrays = Array.mapi (fun index (residual, term) ->
+        match evaluate residual term, t.widths.(index) with
+        | E.Float_array values, 1 | Vec3_array values, 3 -> values
+        | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources in
+      let count = if arrays=[||] then 0 else Array.fold_left min max_int
+        (Array.mapi (fun index values -> Array.length values / t.widths.(index)) arrays) in
+      let uniforms = Array.map (fun value ->
+        match get (E.Private.force_reference ~state ?elems ?resolve value ~live) with
+        | E.Vec3 (x,y,z) -> [|x;y;z|] | value -> [|V.num value|]) t.uniforms in
+      let frame = Array.map (function
+        | Frame "t" -> live.Frame_input.t
+        | Frame name -> (match Flow.Op.find name Flow.Context.value with
+            | Some op -> V.num (op.body ~live ~node:(fun _ _ -> raise Unsupported) [])
+            | None -> raise Unsupported)
+        | _ -> 0.) t.code in
+      Ok {arrays; uniforms; frame; count}
+    with Failed error -> Error error
+      | Unsupported -> Error (Flow.Diagnostic.error ~code:"E_KERNEL" "Kernel inputs need reference evaluation.")
+      | V.Fail (code,message,span) -> Error (Flow.Diagnostic.error ?span ~code message)
+      | Out_of_memory -> Error (Flow.Diagnostic.error ~code:"E_ARRAY_MEMORY" "Frame data exceeds available memory."))
+end

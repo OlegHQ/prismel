@@ -1,0 +1,10 @@
+type t
+type compiled = {pipeline : Ogpu.Backend.pipeline; seconds : float}
+val create : clock:(unit -> float) -> Ogpu.Backend.device -> t
+val get : t -> Emit.msl -> (compiled, Flow.Diagnostic.t) result
+val close : t -> unit
+module Private : sig
+  val count : t -> int
+  val compilations : t -> int
+  val releases : t -> int
+end
