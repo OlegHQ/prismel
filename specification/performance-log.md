@@ -7473,3 +7473,9 @@ the runtime) and fails only when Rays adds more than 4,096 KiB beyond it.
 Measured: runtime growth 10,016 KiB, baseline 9,552 KiB, Rays' share
 464 KiB over 24 lifecycles (about 19 KiB per lifecycle).
 `@lib/runtime/native_qualification/qualification` passes on this machine.
+
+A second merge trial rewrote the vertex and primitive index loops as one
+closure per chunk with a tight inner loop. With the context grain the SOP
+passes it was slower at both domain counts (one-domain merge 570 ms,
+eight-domain 51 ms against 59 and 40 ms) and was reverted; the two-chain
+gate stays where the per-node table puts it.
