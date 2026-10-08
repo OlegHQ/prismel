@@ -229,6 +229,24 @@ compiler profile. Correctness tests additionally enforce deterministic output,
 expected cardinality, and bounded cache/resource behavior. Timing is diagnostic
 unless a stable dedicated benchmark runner is available.
 
+`tools/bench_gpu.exe` reports native fixed costs with separate upload, synchronized dispatch,
+GPU duration and readback columns at 1,024, 65,536 and 1,000,000 elements.
+`tools/bench_kernel.exe --gpu` reuses the emitted noise program and runner at those counts,
+including cold compilation, input preparation, combined upload/dispatch, GPU duration, optional
+array readback, wall time and allocations. Ten compilations and seven warm-run samples are used;
+the no-array-readback path still performs the runner's four-byte numeric-validation read.
+The reported maximum absolute error is measured against the exact CPU output, not a guessed
+tolerance. Existing CPU/native one/eight-domain rows precede the GPU rows.
+
+The same mode measures complete CPU/GPU editor updates, Scene construction and offscreen
+rendering for 10,000 and 1,000,000 live noise-driven circles (ten warm-up and 200 frames).
+`device_gpu_s` includes compute, circle conversion and render work on the shared device;
+the GPU variant explicitly selects qualification policy and asserts a real GPU shape token.
+Production placement retains its measured-cost policy. Run these tools alone after building.
+`tools/bench_kernel.exe --gpu-check` checks emitted benchmark fixtures and placement paths
+without a native device or timing them. Native startup failures print the actual backend
+rejection and exit 2 before any benchmark row; absent compute capability prints a skip reason.
+
 `tools/bench_shattered_renderer.exe` is the native frame benchmark: it cooks
 the shattered-cube graph, renders the packed result through the sketch runtime
 at 1200×760 logical points, and prints one JSON line with frame percentiles,

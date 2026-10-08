@@ -263,7 +263,7 @@
 (executable
  (name bench_kernel)
  (modules bench_kernel)
- (libraries rdk rays_math flow flow_ir flow_sop sop_catalog unix))
+ (libraries rdk rays_math flow flow_ir flow_gpu flow_sop sop_catalog rays_editor rays_execution scene_command ogpu unix))
 
 (executable
  (name bench_workspace_live)

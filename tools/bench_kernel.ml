@@ -25,10 +25,11 @@ let run ?(mode = Deform.Height_2d) ?(seed = 42) domains grid = Rays_math.Paralle
     (match mode with Deform.Height_2d -> "rdk_noise_displace" | Normal_3d -> "rdk_noise_normal3")
     (Geometry.point_count grid) domains (median times) (median allocations) reference;
   reference)
-let flow_noise grid =
+let packed_vec3 view = Flow.Eval.Vec3_array (Array.init (Array.length view.Packed.Float3.Private.x * 3)
+  (fun i -> match i mod 3 with 0 -> view.x.(i / 3) | 1 -> view.y.(i / 3) | _ -> view.z.(i / 3)))
+let flow_noise_program grid =
   let flow_ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d) in
-  let packed view = Flow.Eval.Vec3_array (Array.init (Array.length view.Packed.Float3.Private.x * 3)
-    (fun i -> match i mod 3 with 0 -> view.x.(i / 3) | 1 -> view.y.(i / 3) | _ -> view.z.(i / 3))) in
+  let packed = packed_vec3 in
   let positions = packed (Packed.Float3.Private.view (Geometry.positions grid)) in
   let normals = Geometry.find_attribute ~owner:Attribute.Point "N" grid |> Option.get
     |> Attribute.get (Attribute.normal ~owner:Attribute.Point) |> Option.get
@@ -42,6 +43,11 @@ let flow_noise grid =
   let value = List.assoc ["g"; "mapped"] evaluated.records |> List.hd |> snd in
   let program = flow_ok (Flow_ir.Executor.compile value) in
   assert (Array.exists (fun (n : Flow_ir.node) -> n.tier = Cpu_kernel) (Flow_ir.Executor.graph program).nodes);
+  workspace, value, program
+let flow_noise grid =
+  let flow_ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d) in
+  let packed = packed_vec3 in
+  let _, value, program = flow_noise_program grid in
   let expected = ok (Deform.noise_displace ~mode:Deform.Normal_3d ~amplitude:0.8
     ~frequency:0.16 ~seed:0 grid) |> Geometry.positions |> Packed.Float3.Private.view |> packed in
   let expected_bytes = Marshal.to_string expected [Marshal.No_sharing] in
@@ -239,7 +245,179 @@ let flow_attribute_fusion grid =
       ["flow_attr_fused_cpu", (fun () -> Flow_ir.Executor.force ~resolve fused ~live);
        "flow_attr_materialized_cpu", (fun () -> Flow_ir.Executor.force ~resolve materialized ~live);
        "flow_attr_fused_interp", (fun () -> Flow.Eval.Private.force_reference ~resolve values ~live)])) [1;8]
+let gpu_drawing count = Printf.sprintf {|(workspace gpu-frame
+  (graph picture :context draw
+    (let* [xs (array/range %d)
+           positions (map (fn [x]
+             (let* [n (noise3 [(* x 0.003) (* t 0.25) 0.25])]
+               [(+ (mod x 800) (* n 14)) (+ (mod (/ x 800) 600) (* n 14)) 0])) xs)]
+      (draw/merge (draw/background "#080a10")
+        (draw/circles positions :radius 1.0 :fill "#00ffffff"))))
+  (graph editor :context editor (ui/workspace (ui/canvas (ref picture) :focus true))))|} count
+
+let gpu_check () =
+  let get = function Ok value -> value | Error error -> failwith (Flow.Diagnostic.to_string error) in
+  let grid = ok (Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
+    ~connectivity:Plane_generators.Grid_points ~columns:32 ~rows:32 ~size:100. ()) in
+  let _, value, _ = flow_noise_program grid in
+  let packed = match value with Flow.Eval.Residual residual ->
+    Option.get (Flow_ir.Packed.compile residual (Flow.Eval.Private.residual_view residual).term)
+    | _ -> failwith "noise benchmark needs a packed residual" in
+  ignore (get (Flow_gpu.Emit.kernel packed));
+  assert ((get (Flow_ir.Packed.Private.prepare packed ~live:(Frame_input.at_time 1.25))).count = 1024);
+  let expected = ok (Deform.noise_displace ~mode:Deform.Normal_3d ~amplitude:0.8
+    ~frequency:0.16 ~seed:0 grid) |> Geometry.positions |> Packed.Float3.Private.view |> packed_vec3 in
+  List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+    assert (get (Flow_ir.Packed.force packed ~live:(Frame_input.at_time 1.25)) = expected))) [1;8];
+  List.iter (fun count ->
+    let doc = match Rays_editor.Workspace.load (gpu_drawing count) with Ok doc -> doc
+      | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
+    assert (not (Flow.Workspace.Paths.is_empty doc.Editor_document.Workspace_doc.checked.approx));
+    let evaluation = get (Flow.Eval.static doc.checked) in
+    let circles = Array.find_opt (fun (node : Flow.Eval.node) -> node.kind = "draw/circles")
+      evaluation.plan.nodes |> Option.get in
+    let value = List.assoc "positions" circles.args in
+    let packed = match value with Flow.Eval.Residual residual ->
+      Option.get (Flow_ir.Packed.compile residual (Flow.Eval.Private.residual_view residual).term)
+      | _ -> failwith "drawing benchmark needs a packed residual" in
+    ignore (get (Flow_gpu.Emit.kernel packed));
+    let _, site, _ = Flow_ir.Packed.site packed in
+    assert (Flow.Workspace.Paths.mem site doc.checked.approx);
+    assert (Flow_ir.Packed.static_count packed = Some count)) [10_000; 1_000_000];
+  print_endline "GPU benchmark fixtures: emitted noise and live display maps, exact counts, approximate paths"
+
+let benchmark_gpu () =
+  let module G = Flow_gpu in
+  let get = function Ok value -> value | Error error -> failwith (Flow.Diagnostic.to_string error) in
+  let array = function Flow.Eval.Vec3_array values | Float_array values -> values
+    | _ -> failwith "GPU benchmark expected packed numeric output" in
+  let gpu = match Rays_execution.acquire_gpu () with Ok gpu -> gpu | Error error ->
+    Format.eprintf "GPU startup rejected: %a@." Rays_execution.pp_error error;
+    (* Preserve the backend's typed rejection: the coordinator's public error
+       intentionally collapses backend kinds. Probe only after startup fails. *)
+    let driver, _ = Ogpu.Impl.create_driver () in
+    (match Ogpu.Backend.create_device driver with
+     | Error error ->
+         let kind = match error.Ogpu.Error.kind with
+           | Invalid_argument -> "Invalid_argument" | Invalid_state -> "Invalid_state"
+           | Unsupported -> "Unsupported" | No_adapter -> "No_adapter" | Capacity -> "Capacity"
+           | Device_lost -> "Device_lost" | Stale_handle -> "Stale_handle" | Cross_device -> "Cross_device" in
+         Printf.eprintf "%s: %s\n%!" kind (Ogpu.Error.to_string error)
+     | Ok device -> ignore (Ogpu.Backend.destroy_device device));
+    exit 2 in
+  Fun.protect ~finally:(fun () -> Rays_execution.release_gpu gpu) (fun () ->
+    if not (Ogpu.Caps.has (Ogpu.Backend.capabilities (Rays_execution.gpu_device gpu)) Compute_pipeline) then
+      print_endline "SKIP: backend lacks Compute_pipeline"
+    else begin
+      let grid columns = ok (Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
+        ~connectivity:Plane_generators.Grid_points ~columns ~rows:columns ~size:100. ()) in
+      let million = grid 1000 in
+      print_endline "name,points,domains,median_s,bytes_all_domains,hash";
+      let hash = run ~mode:Deform.Normal_3d ~seed:0 1 million in
+      assert (hash = run ~mode:Deform.Normal_3d ~seed:0 8 million);
+      assert (hash = flow_noise million);
+      flow_attributes million;
+      print_endline "name,count,compile_s,prepare_s,upload_dispatch_sync_s,gpu_s,readback_s,total_s,p95_s,bytes_per_frame,buffer_creations,max_abs_error";
+      List.iter (fun columns ->
+        let geometry = if columns=1000 then million else grid columns in
+        let _, value, _ = flow_noise_program geometry in
+        let packed = match value with Flow.Eval.Residual residual ->
+          Option.get (Flow_ir.Packed.compile residual (Flow.Eval.Private.residual_view residual).term)
+          | _ -> failwith "noise benchmark needs a packed residual" in
+        let msl = get (G.Emit.kernel packed) in
+        let compile_s = Array.init 10 (fun _ ->
+          let cache = G.Pipelines.create ~clock:Unix.gettimeofday (Rays_execution.gpu_device gpu) in
+          Fun.protect ~finally:(fun () -> G.Pipelines.close cache)
+            (fun () -> (get (G.Pipelines.get cache msl)).seconds)) |> median in
+        let cache = G.Pipelines.create ~clock:Unix.gettimeofday (Rays_execution.gpu_device gpu) in
+        Fun.protect ~finally:(fun () -> G.Pipelines.close cache) (fun () ->
+          ignore (get (G.Pipelines.get cache msl));
+          let runner = G.Run.create gpu cache msl in
+          Fun.protect ~finally:(fun () -> G.Run.close runner) (fun () ->
+            let live = Frame_input.at_time 1.25 in
+            let expected = array (get (Flow_ir.Packed.force packed ~live)) in
+            let prepare () = get (Flow_ir.Packed.Private.prepare packed ~live) in
+            ignore (get (G.Run.dispatch runner (prepare ())));
+            let creations = G.Run.Private.buffer_creations runner in
+            List.iter (fun readback ->
+              let prepares=Array.make 7 0. and dispatches=Array.make 7 0.
+              and gpu_seconds=Array.make 7 nan and reads=Array.make 7 0.
+              and totals=Array.make 7 0. and allocations=Array.make 7 0. in
+              let maximum=ref 0. in
+              for sample=0 to 6 do
+                let bytes=allocated_bytes () and started=Unix.gettimeofday () in
+                let inputs=prepare () in
+                let prepared=Unix.gettimeofday () in
+                prepares.(sample)<-prepared-.started;
+                let output=get (G.Run.dispatch runner inputs) in
+                let dispatched=Unix.gettimeofday () in
+                dispatches.(sample)<-dispatched-.prepared;
+                gpu_seconds.(sample)<-Option.value (G.Run.gpu_seconds output) ~default:nan;
+                let actual=if readback then Some (array (get (G.Run.readback output))) else None in
+                let finished=Unix.gettimeofday () in
+                reads.(sample)<-finished-.dispatched;
+                totals.(sample)<-finished-.started;
+                allocations.(sample)<-allocated_bytes ()-.bytes;
+                assert (G.Run.Private.buffer_creations runner=creations);
+                Option.iter (fun actual ->
+                  assert (Array.length actual=Array.length expected);
+                  Array.iteri (fun i value -> maximum:=max !maximum (abs_float(value-.expected.(i)))) actual) actual
+              done;
+              let sorted=Array.copy totals in Array.sort Float.compare sorted;
+              Printf.printf "%s,%d,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.0f,%d,%.9g\n%!"
+                (if readback then "flow_noise_gpu_readback" else "flow_noise_gpu_no_array_readback")
+                (Geometry.point_count geometry) compile_s (median prepares) (median dispatches)
+                (median gpu_seconds) (if readback then median reads else 0.) (median totals)
+                sorted.(6) (median allocations) creations (if readback then !maximum else nan)) [true;false])))
+        [32;256;1000];
+      print_endline "name,count,domains,median_s,p95_s,bytes_per_frame,device_gpu_s,draws_per_frame,uploaded_bytes_per_frame";
+      List.iter (fun count ->
+        let workspace = match Rays_editor.Workspace.load (gpu_drawing count) with Ok doc -> doc
+          | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
+        List.iter (fun gpu_selected ->
+          let module Editor=Rays_editor.Editor3 in
+          let editor=ref (Result.get_ok (Editor.create ~workspace ~await:true ~domains:1
+            ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) ())) in
+          Fun.protect ~finally:(fun () -> Editor.close !editor) (fun () ->
+            if gpu_selected then Editor.Private.gpu_qualification !editor;
+            let canvas=Rays.Canvas.create_exn ~width:800 ~height:600 in
+            Fun.protect ~finally:(fun () -> Rays.Canvas.destroy canvas) (fun () ->
+              let frame count : Rays.Frame.t = {width=800;height=600;size=800,600;
+                drawable_width=800;drawable_height=600;drawable_size=800,600;pixel_scale=1.,1.;
+                time=float count/.60.;dt=1./.60.;fps=60.;count;mouse=(-100.),(-100.);
+                mouse_delta=0.,0.;mouse_buttons=[];keys=[];events=[]} in
+              let step index =
+                let frame=frame index in editor:=Editor.update !editor frame;
+                let scene=Editor.scene !editor frame in
+                let instances=Array.fold_left (fun total -> function
+                  | Scene_command.Render_ir.Shapes batch when (Scene_command.Shape_batch.gpu batch<>None)=gpu_selected ->
+                      total+Scene_command.Shape_batch.count batch
+                  | _ -> total) 0 (Rays.Scene.Private.commands scene) in
+                assert (instances=count);
+                Rays.Canvas.render canvas scene in
+              for index=1 to 10 do step index done;
+              let before=Rays.Canvas.Private.native_stats canvas in
+              let times=Array.make 200 0. in
+              Gc.full_major ();
+              let bytes=allocated_bytes () in
+              Array.iteri (fun index _ -> let started=Unix.gettimeofday () in
+                step (index+11);times.(index)<-Unix.gettimeofday ()-.started) times;
+              let allocations=(allocated_bytes ()-.bytes)/.200. in
+              let after=Rays.Canvas.Private.native_stats canvas in
+              let gpu_seconds=if after.gpu_timing_supported then
+                  (after.gpu_duration_seconds-.before.gpu_duration_seconds)/.200. else nan in
+              let sorted=Array.copy times in Array.sort Float.compare sorted;
+              Printf.printf "%s,%d,1,%.9f,%.9f,%.0f,%.9f,%.3f,%.0f\n%!"
+                (if gpu_selected then "editor_noise_circles_gpu" else "editor_noise_circles_cpu")
+                count (median times) sorted.(190) allocations gpu_seconds
+                (Int64.to_float (Int64.sub after.logical_draws before.logical_draws)/.200.)
+                (Int64.to_float (Int64.sub after.uploaded_bytes before.uploaded_bytes)/.200.)))) [false;true])
+        [10_000;1_000_000]
+    end)
+
 let () =
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu"] then (benchmark_gpu (); exit 0);
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu-check"] then (gpu_check (); exit 0);
   let grid = ok (Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
     ~connectivity:Plane_generators.Grid_points ~columns:1000 ~rows:1000 ~size:100. ()) in
   assert (Geometry.point_count grid = 1_000_000);
@@ -267,4 +445,4 @@ let () =
     flow_loops ~fusion_only:true 1_000_000
   else if Array.to_list Sys.argv = [Sys.argv.(0); "--attribute-fusion"] then
     flow_attribute_fusion grid
-  else invalid_arg "bench_kernel [--cost|--attributes|--loops|--fusion|--attribute-fusion]"
+  else invalid_arg "bench_kernel [--cost|--attributes|--loops|--fusion|--attribute-fusion|--gpu|--gpu-check]"

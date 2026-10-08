@@ -6934,3 +6934,21 @@ showing that a footer and a missing probe do not force unrelated tuples.
 Evidence: `/private/tmp/pl-scope-allocation-profile.log`,
 `/private/tmp/pl-scope-probe-count-check.log`, and the six paired files
 `/private/tmp/pl-scope-{old,new}-final-{0,1,2}.log`.
+
+### P5 emitted-kernel benchmark instrumentation (2026-10-08)
+
+`tools/bench_kernel.exe --gpu` now measures the existing exact CPU/native noise rows,
+emitted GPU noise at 1,024/65,536/1,000,000 elements with and without array readback,
+and full CPU/GPU editor frames at 10,000/1,000,000 noise-driven circles. Runner upload and
+synchronized dispatch share one honest column; the fixed-cost `bench_gpu` tool separates them.
+Cold compile, input preparation, GPU duration, readback, allocation, buffer reuse and actual
+readback maximum error are reported. Editor GPU policy is explicitly qualification-only;
+device-duration deltas include compute, conversion and rendering on the shared device.
+
+Build and `--gpu-check` pass. The latter checks emitted fixtures, exact counts and target
+approximate paths, plus exact 1,024-element CPU/native noise equality at one/eight domains.
+An isolated `--gpu` attempt exits 2 before any measurement row: no system default Metal device.
+The actual backend kind at this point is `Device_lost`, not `No_adapter`; the tool reports the
+received kind instead of inventing a classification. Log: `/private/tmp/p5-kernel-gpu-startup.log`.
+No GPU compile/upload/dispatch/readback timings, tolerance, allocation gate or CPU/GPU editor
+speedup is established by this startup attempt. These measurement gates remain open.
