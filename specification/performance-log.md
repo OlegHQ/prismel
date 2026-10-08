@@ -8432,3 +8432,132 @@ Sequential scan checkpoint: `--ship` and native GPU numerics
 (`@lib/flow_gpu/runtest-native`) pass (exit 0) on the confirmed M1. Shipping
 includes full workspace parity at four times/domains 1/8. No tolerances,
 goldens or gates were changed.
+
+## F2.1 field kernel — rejected sequential coordinate hoist (2026-10-09)
+
+Astra's trial preserves original sequential loops/cancellation, computes the
+unchanged z FMA once per uncancelled plane and y FMA once per row, and stores
+those values in the unchanged x-fast inner loop. Existing complete actual
+coordinate-bit and mesh tests on large asymmetric/non-dyadic lattices at
+one/eight domains, grain cutoffs and precancellation pass. No new redundant
+fixture, scheduling, cache, numerical expression or API change. Relocated
+`objdump -dr` excerpts in `f-field-hoist-assembly-{before,after}.txt` show the
+three FMA call sites in their respective plane/row/x loops; repeated y/z
+calls fall from 549,250 to 4,290 on the 65³ grid. Whole allocation is
+unchanged at one domain, with no new area-sized boxing.
+
+Confirmed M1/Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev profile,
+grain 16,384, seven isolated trials per process after an excluded warm-up,
+fresh zero-capacity sessions, existing GC policy. No builds, tests, other
+benchmarks or agent work overlap. Repeat the first pair at domains 1/8,
+then the eight-domain pair in reverse executable order:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-hoist-before.exe --fields > specification/performance/f-field-hoist-cook-before-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-hoist-after.exe --fields > specification/performance/f-field-hoist-cook-after-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-hoist-after.exe --fields > specification/performance/f-field-hoist-cook-reverse-after-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-hoist-before.exe --fields > specification/performance/f-field-hoist-cook-reverse-before-8.csv
+```
+
+| Initial uninstrumented whole cook | Before median ms | Trial median ms | Before allocated bytes | Trial allocated bytes |
+|---|---:|---:|---:|---:|
+| One domain | 26.338 | 28.200 | 42720424 | 42720424 |
+| Eight domains, before then after | 11.572 | 10.791 | 42757352 | 42756784 |
+| Eight domains, after then before | 11.153 | 13.566 | 42756640 | 42756984 |
+
+The first eight-domain order improves, but one-domain time regresses 7.1%
+and reversed eight-domain time regresses 21.6%. The gate is unmet.
+
+Repeat four-phase attribution at domains 1/8 with buffered output, no GC
+snapshots or preparation children, then restore production source:
+
+```sh
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-hoist-time-before.exe --fields > specification/performance/f-field-hoist-time-cook-before-8.csv 2> specification/performance/f-field-hoist-time-phase-before-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-field-hoist-time-after.exe --fields > specification/performance/f-field-hoist-time-cook-after-8.csv 2> specification/performance/f-field-hoist-time-phase-after-8.csv
+```
+
+| Time-only interval | One domain before ms | One domain trial ms | Eight domains before ms | Eight domains trial ms |
+|---|---:|---:|---:|---:|
+| Grid | 1.582 | 0.760 | 1.628 | 0.857 |
+| Preparation | 0.595 | 0.591 | 0.596 | 0.648 |
+| Kernel | 7.132 | 7.003 | 2.235 | 2.236 |
+| Extraction | 18.565 | 17.185 | 10.851 | 7.199 |
+| Instrumented whole cook | 28.751 | 25.649 | 15.533 | 10.971 |
+
+Instrumented allocations are 42,721,064 bytes at one domain in both builds
+and 42,758,080→42,757,456 at eight. Each phase file retains 32 rows including
+warm-up -1 and trials 0..6. Grid attribution improves consistently, while
+whole-cook evidence contradicts a repeatable benefit. Attribution cannot
+establish why whole timing differs. The temporary patch is archived as
+`f-field-hoist-time-instrumentation.patch` (applied after the trial patch).
+
+Astra's first verdict: “Revert the hoist from shipping code for now; preserve
+its patch and executable for one controlled repeat.” Production is restored
+to `c69c79fd` byte-for-byte; `f-field-hoist-trial.patch` preserves the candidate.
+Restored focused checks pass (exit 0). No profiler or hoist ships.
+
+Astra next approved only “not met, try an order-balanced paired repeat of
+the unchanged y/z-hoist candidate.” Eight adjacent process pairs per domain
+alternate before→after and after→before. Each process preserves all seven
+cooks; each executable/domain therefore has 56 measured rows. Domains 1/8
+run sequentially with no concurrent work. Every process has its own raw CSV:
+`f-field-hoist-paired-{domains}-{pair}-{before,after}.csv`, pair IDs 0..7.
+`f-field-hoist-paired-runs.csv` records domains, pair ID, order, position,
+executable and raw path; `f-field-hoist-paired-summary.csv` records every
+pair, order aggregate and pooled result. No earlier batch is replaced or
+selectively combined. Even-count medians average the two middle values.
+Each invocation follows this example, varying pair ID/executable/domains:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-hoist-before.exe --fields > specification/performance/f-field-hoist-paired-8-0-before.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-hoist-after.exe --fields > specification/performance/f-field-hoist-paired-8-0-after.csv
+```
+
+| Balanced whole cook | Rows per executable | Before median ms | Trial median ms |
+|---|---:|---:|---:|
+| One domain, before→after groups | 28 | 27.323 | 26.816 |
+| One domain, after→before groups | 28 | 26.968 | 26.486 |
+| One domain, all rows | 56 | 26.988 | 26.640 |
+| Eight domains, before→after groups | 28 | 12.400 | 13.293 |
+| Eight domains, after→before groups | 28 | 11.697 | 12.207 |
+| Eight domains, all rows | 56 | 11.915 | 12.688 |
+
+Pair-median trial-minus-before deltas, milliseconds, pair order 0..7:
+one domain −1.288/−0.617/−0.634/+0.766/−0.833/−0.895/−0.860/−0.754;
+eight domains +1.889/+0.407/−1.868/+3.090/−2.118/−1.639/+7.915/−0.226.
+Pooled allocation medians are 42,720,424 bytes in both one-domain builds,
+and 42,757,536→42,757,552 at eight. Eight domains win four of eight pairs
+but lose both order aggregates and the pooled result (+6.49%). The full
+predeclared candidate median 12.688 ms misses the strict <10.000 ms gate;
+a fast individual pair/process is not the gate dataset.
+
+All initial, instrumented and balanced rows preserve hash
+`8a9c2d382ab7564328783e84a132cef1`, 85,680 points/vertices and 28,560
+triangles. Every wall/allocation/promotion/major row remains available.
+No tolerance, golden or gate is relaxed. Production remains reverted;
+Astra's final review determines the next different step.
+
+Astra's final verdict: “Leave the y/z hoist reverted; stop testing that
+candidate.” Its eight-domain pooled median regresses 6.49%, and both order
+aggregates regress with effectively unchanged allocation. No further repeat
+of this candidate is approved.
+
+Next: “not met, try time-only attribution of the sampled extractor's joined
+count and emission passes within the whole SOP cook.” On the retained scan
+checkpoint, temporarily time caller-side count through its join, prefix/
+output allocation/setup, emission through its join, and packed wrapping/
+geometry construction. These are children of the coarse extract interval,
+not overlapping worker-time sums. No GC snapshots, output inside intervals
+or algorithm change. Use round-trip timestamp precision, verify one phase
+set/cook with IDs -1,0..6, paired child containment, full hashes/counts and
+unchanged cancellation/error paths. Seven isolated retained uninstrumented
+and diagnostic cooks at domains 1/8 use the same M1/dev/grain/cache/warmup/GC
+settings; keep all raw rows under `f-field-extract-phases-*`, report paired
+parent-minus-child residuals and overhead, then restore source and any
+temporary Unix linkage in Dune byte-for-byte. No production dependency or
+public API change. F1.3/F2.2/F2.3 remain required work; their checks never
+overlap benchmark execution.
+
+Rejected-hoist checkpoint: restored focused checks and `--ship` pass
+(exit 0). Production source is identical to the native-qualified scan
+checkpoint `c69c79fd`; this commit adds only documentation and evidence.

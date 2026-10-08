@@ -1,0 +1,26 @@
+diff --git a/lib/procedural/sop_shapes.ml b/lib/procedural/sop_shapes.ml
+index 3e88fd4e..361bf79f 100644
+--- a/lib/procedural/sop_shapes.ml
++++ b/lib/procedural/sop_shapes.ml
+@@ -71,15 +71,18 @@ module Iso_surface = struct
+           let stopped = ref false in
+           for z = 0 to rz do
+             if Context.cancelled context then stopped := true;
+-            if not !stopped then
++            if not !stopped then begin
++              let pz = Float.fma (float_of_int z) dz min.z in
+               for y = 0 to ry do
++                let py = Float.fma (float_of_int y) dy min.y in
+                 for x = 0 to rx do
+                   let i = 3 * (x + nx * (y + ny * z)) in
+                   positions.(i) <- Float.fma (float_of_int x) dx min.x;
+-                  positions.(i + 1) <- Float.fma (float_of_int y) dy min.y;
+-                  positions.(i + 2) <- Float.fma (float_of_int z) dz min.z
++                  positions.(i + 1) <- py;
++                  positions.(i + 2) <- pz
+                 done
+               done
++            end
+           done;
+           if !stopped then cancelled () else
+           Result.bind (Kernel.prepare kernel [Vec3s positions]) (fun run ->

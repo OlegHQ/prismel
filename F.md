@@ -148,7 +148,9 @@ scan; moving its error call outside the successful loop reduces preparation
 to about 0.59 ms and improves whole cooking to 10.417 ms in the first paired
 eight-domain batch (11.280 ms in the reverse-order batch). Astra says keep
 the scan and next approves only sequential y/z FMA hoisting in the SOP grid.
-The strict <10 ms whole-cook gate remains open. F1.3 now has an approved
+The strict <10 ms whole-cook gate remains open. That hoist is now rejected
+after the balanced repeat; Astra next approves joined extractor count/
+emission time attribution inside the same complete cook. F1.3 has an approved
 two-stage candidate/qualification design; implementation remains pending.
 F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
 This checkpoint's focused checks, `--ship` and full F5 native/pixel validation
@@ -858,6 +860,33 @@ checks, inspect assembly/allocation, and measure seven-trial one/eight whole
 cooks plus a reversed eight-domain pair and four-phase attribution.
 Keep only with exactness and repeatable whole-cook benefit without material
 allocation or one-domain regression. No scheduling or cache change.
+
+**Rejected coordinate hoist (2026-10-09).** All coordinate-bit/mesh/cancel
+checks and allocation checks pass, and grid attribution improves about
+0.8 ms. Initial whole cooking is contradictory: one domain regresses 7.1%,
+and eight domains improve in the first order but regress 21.6% in reverse.
+Astra required reverting production and one balanced repeat of the unchanged
+saved executables. Eight adjacent pairs per domain alternate process order,
+with seven cooks per process (56 measured rows per executable/domain).
+Pooled one-domain medians are 26.988→26.640 ms; eight-domain medians
+11.915→12.688 ms. Both eight-domain order aggregates regress, and only
+four of eight pair medians favor the trial. Astra says leave it reverted and
+stop testing that candidate. Its patch and every prior/balanced row are
+retained; no gate, tolerance or golden changes.
+
+Astra's next verdict is “not met, try time-only attribution of the sampled
+extractor's joined count and emission passes within the whole SOP cook.”
+Temporarily measure caller-side count through its join; prefix/output
+allocation/setup; emission through its join; and packed wrapping/geometry
+construction. These are children of coarse extraction, never sums of
+overlapping worker times. Buffer all output and use round-trip timestamp
+precision; retain warm-up -1 and timed IDs 0..6, one child phase set per
+cook, full hashes/counts and child containment in the parent. Run seven
+isolated retained uninstrumented and diagnostic cooks at domains 1/8,
+report parent-minus-child residuals and overhead, preserve all outliers,
+and restore source/Dune byte-for-byte (temporary Unix linkage only if
+needed). No algorithm, production dependency or public API change is
+approved. The strict <10 ms whole-cook gate remains unmet.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value
