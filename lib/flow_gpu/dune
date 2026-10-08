@@ -23,3 +23,8 @@
  (name test_pipelines)
  (modules test_pipelines test_program)
  (libraries flow_gpu flow flow_ir ogpu_mock unix))
+
+(test
+ (name test_run_lifetime)
+ (modules test_run_lifetime test_program)
+ (libraries flow_gpu flow flow_ir ogpu_mock unix))

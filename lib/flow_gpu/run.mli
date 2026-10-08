@@ -10,4 +10,5 @@ val gpu_seconds : output -> float option
 val close : t -> unit
 module Private : sig
   val buffer_creations : t -> int
+  val create_owned : Ogpu.Backend.device -> Ogpu.Backend.queue -> Pipelines.t -> Emit.msl -> t
 end

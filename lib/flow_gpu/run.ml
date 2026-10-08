@@ -1,7 +1,7 @@
 module B = Ogpu.Backend
 module P = Flow_ir.Packed
 type slot = {mutable buffer : B.buffer option; mutable capacity : int; mutable bytes : bytes}
-type t = {gpu : Rays_execution.gpu; pipelines : Pipelines.t; msl : Emit.msl; inputs : slot array;
+type t = {device:B.device; queue:B.queue; pipelines : Pipelines.t; msl : Emit.msl; inputs : slot array;
   output : slot; table : slot; uniforms : bytes; mutable closed : bool; mutable creations : int;
   mutable generation : int; domain : Domain.id}
 type output = {owner : t; count : int; width : int; gpu_seconds : float option; generation : int}
@@ -9,17 +9,24 @@ exception Failed of Flow.Diagnostic.t
 let diagnostic error = Flow.Diagnostic.error ~code:"E_GPU" (Ogpu.Error.to_string error)
 let get = function Ok value -> value | Error error -> raise (Failed (diagnostic error))
 let slot () = {buffer=None;capacity=0;bytes=Bytes.empty}
-let create gpu pipelines (msl : Emit.msl) =
-  {gpu;pipelines;msl;inputs=Array.map (fun _ -> slot ()) msl.input_widths;
+let pack bytes offset value =
+  let bits=Int32.bits_of_float value in
+  if not(Float.is_finite(Int32.float_of_bits bits))then
+    raise(Failed(Flow.Diagnostic.error ~code:"E_KERNEL" "GPU inputs must remain finite when represented as float32."));
+  Bytes.set_int32_le bytes offset bits
+let create_owned device queue pipelines (msl : Emit.msl) =
+  if not(Domain.is_main_domain())then invalid_arg "Run.create: initial domain required";
+  {device;queue;pipelines;msl;inputs=Array.map (fun _ -> slot ()) msl.input_widths;
     output=slot ();table=slot ();uniforms=Bytes.create msl.uniform_bytes;
     closed=false;creations=0;generation=0;domain=Domain.self ()}
+let create gpu=create_owned(Rays_execution.gpu_device gpu)(Rays_execution.gpu_queue gpu)
 let ensure t slot length =
   if length>slot.capacity then begin
     let capacity = ref (max 256 slot.capacity) in
     while !capacity<length do
       if !capacity>Sys.max_string_length/2 then capacity:=length else capacity:= !capacity*2
     done;
-    let fresh = get (B.create_buffer (Rays_execution.gpu_device t.gpu)
+    let fresh = get (B.create_buffer t.device
       {label=Some "Flow packed compute";size=Int64.of_int !capacity;usage=[Storage;Copy_src;Copy_dst]}) in
     Option.iter (fun buffer -> ignore (B.destroy_buffer buffer)) slot.buffer;
     slot.buffer<-Some fresh;slot.capacity<- !capacity;slot.bytes<-Bytes.create !capacity;
@@ -34,8 +41,11 @@ let dispatch t (values : P.Private.inputs) =
   else if Array.length values.arrays<>Array.length t.inputs then error "GPU input arity changed."
   else if Array.exists (fun index -> Array.length values.arrays.(index)<values.count*t.msl.input_widths.(index))
       (Array.init (Array.length t.inputs) Fun.id) then error "GPU input count changed."
-  else if values.count=0 then begin
-    t.generation<-t.generation+1;
+  else begin
+  (* Invalidate borrowed output before reallocating or submitting any write,
+     including dispatches whose completion subsequently fails. *)
+  t.generation<-t.generation+1;
+  if values.count=0 then begin
     Ok {owner=t;count=0;width=t.msl.output_width;gpu_seconds=None;generation=t.generation}
   end
   else try
@@ -48,20 +58,20 @@ let dispatch t (values : P.Private.inputs) =
         let index=int_of_string (String.sub name 8 (String.length name-8)) in
         if index>=Array.length values.uniforms || Array.length values.uniforms.(index)<>width then
           raise (Failed (Flow.Diagnostic.error ~code:"E_KERNEL" "GPU uniform type changed."));
-        for component=0 to width-1 do Bytes.set_int32_le t.uniforms (offset+component*4)
-          (Int32.bits_of_float values.uniforms.(index).(component)) done
+        for component=0 to width-1 do pack t.uniforms (offset+component*4)
+          values.uniforms.(index).(component) done
       end else match String.split_on_char ':' name with
         | ["frame";index;_] ->
             let index=int_of_string index in
             if index>=Array.length values.frame then
               raise (Failed (Flow.Diagnostic.error ~code:"E_KERNEL" "GPU frame uniform changed."));
-            Bytes.set_int32_le t.uniforms offset (Int32.bits_of_float values.frame.(index))
+            pack t.uniforms offset values.frame.(index)
         | _ -> assert false) msl.uniform_layout;
     let buffers=Array.mapi (fun index slot ->
       let length=values.count*msl.input_widths.(index)*4 in
       let buffer=ensure t slot length in
-      for component=0 to length/4-1 do Bytes.set_int32_le slot.bytes (component*4)
-        (Int32.bits_of_float values.arrays.(index).(component)) done;
+      for component=0 to length/4-1 do pack slot.bytes (component*4)
+        values.arrays.(index).(component) done;
       get (B.write_buffer buffer ~offset:0L slot.bytes);buffer) t.inputs in
     let output=ensure t t.output (values.count*msl.output_width*4) in
     let table = if msl.table_seeds=[||] then None else begin
@@ -76,7 +86,7 @@ let dispatch t (values : P.Private.inputs) =
         get (B.write_buffer buffer ~offset:0L t.table.bytes)
       end;Some buffer
     end in
-    let queue=Rays_execution.gpu_queue t.gpu in
+    let queue=t.queue in
     let commands=get (B.begin_commands queue) in
     let committed=ref false in
     let receipt=Fun.protect ~finally:(fun () -> if not !committed then ignore (B.abandon commands)) (fun () ->
@@ -91,11 +101,11 @@ let dispatch t (values : P.Private.inputs) =
         get (B.dispatch_threads encoder ~threads:(values.count,1,1) ~threadgroup:(256,1,1)));
       let receipt=get (B.commit commands) in committed:=true;receipt) in
     get (B.complete_through queue receipt.epoch);
-    t.generation<-t.generation+1;
     Ok {owner=t;count=values.count;width=msl.output_width;gpu_seconds=B.gpu_duration queue receipt;
       generation=t.generation}
   with Failed error -> Error error
     | Out_of_memory -> error "GPU staging exceeds available memory."
+  end
 let readback output =
   if output.owner.closed || Domain.self ()<>output.owner.domain || output.generation<>output.owner.generation then
     Error (Flow.Diagnostic.error ~code:"E_GPU" "GPU output was closed or superseded.")
@@ -108,14 +118,19 @@ let readback output =
       Error (Flow.Diagnostic.error ~code:"E_KERNEL" "GPU output contains a nonfinite value.")
     else Ok (if output.width=3 then Flow.Eval.Vec3_array values else Float_array values)
   with Failed error -> Error error
-let buffer output = if output.owner.closed || output.generation<>output.owner.generation
+let buffer output = if output.owner.closed || Domain.self()<>output.owner.domain || output.generation<>output.owner.generation
   then None else output.owner.output.buffer
 let count output = output.count
 let width output = output.width
 let gpu_seconds output = output.gpu_seconds
-let close t = if not t.closed then begin
+let close t =
+  if Domain.self()<>t.domain then invalid_arg "Run.close: creating domain required";
+  if not t.closed then begin
   Array.iter (fun slot -> Option.iter (fun buffer -> ignore (B.destroy_buffer buffer)) slot.buffer;
     slot.buffer<-None;slot.bytes<-Bytes.empty;slot.capacity<-0) (Array.append t.inputs [|t.output;t.table|]);
   t.closed<-true
 end
-module Private = struct let buffer_creations t = t.creations end
+module Private = struct
+  let buffer_creations t = t.creations
+  let create_owned = create_owned
+end

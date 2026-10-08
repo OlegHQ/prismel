@@ -6,6 +6,7 @@ type t={gpu:Rays_execution.gpu;pipelines:Pipelines.t;runners:runner Cache.t;
   mutable closed:bool;domain:Domain.id;cost:Flow_ir.Packed.t -> count:int -> float option}
 let next=Atomic.make 1
 let create ?(cost=fun _ ~count:_->None) ~clock gpu =
+  if not(Domain.is_main_domain())then invalid_arg "Host.create: initial domain required";
   {gpu;pipelines=Pipelines.create ~clock(Rays_execution.gpu_device gpu);
     runners=Cache.create ~release:(fun _ runner->runner.output<-None;Run.close runner.run)64;
     closed=false;domain=Domain.self();cost}
@@ -31,9 +32,12 @@ let backend t : G.backend =
        ignore(runner());
        {G.run=(fun inputs->if not(live t)then error "GPU host is closed or called from another domain."else
           let runner=runner()in
+          runner.output<-None;
           Result.map(fun output->runner.output<-Some output;runner.stamp<-Int64.succ runner.stamp;
             G.{identity=runner.identity;count=Run.count output;width=Run.width output;stamp=runner.stamp})
             (Run.dispatch runner.run inputs));
         readback=(fun value->match output t value with None->error "GPU output was closed or superseded."
           |Some output->Run.readback output)}) (Pipelines.get t.pipelines msl)))}
-let close t=if not t.closed then begin Cache.clear t.runners;Pipelines.close t.pipelines;t.closed<-true end
+let close t=
+  if Domain.self()<>t.domain then invalid_arg "Host.close: creating domain required";
+  if not t.closed then begin Cache.clear t.runners;Pipelines.close t.pipelines;t.closed<-true end

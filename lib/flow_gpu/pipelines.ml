@@ -29,7 +29,9 @@ let get t (msl : Emit.msl) =
           t.compilations <- t.compilations+1;
           let compiled = {pipeline;seconds=max 0. (t.clock () -. started)} in
           Cache.add t.cache msl.entry {compiled;library}; Ok compiled
-let close t = if not t.closed then begin Cache.clear t.cache; t.closed <- true end
+let close t =
+  if Domain.self()<>t.domain then invalid_arg "Pipelines.close: creating domain required";
+  if not t.closed then begin Cache.clear t.cache; t.closed <- true end
 module Private = struct
   let count t = Cache.length t.cache
   let compilations t = t.compilations
