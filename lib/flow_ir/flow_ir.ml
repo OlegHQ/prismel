@@ -11,7 +11,7 @@ module Count = struct
 end
 type rate = Static | Frame | Event
 type precision = Exact | Approx
-type tier = Interp | Closure | Cpu_kernel | Cooked
+type tier = Interp | Closure | Cpu_kernel | Gpu | Gpu_compile | Gpu_readback | Cooked
 module Cost = struct
   type tier_cost = {fixed : float; per_element : float}
   (* P4 measured CPU table, performance-log "P4 residual pruning and costs".
@@ -25,7 +25,7 @@ module Cost = struct
     | Cpu_kernel ->
         let per_element = (0.016522884 -. 0.000040054) /. (1_000_000. -. 1024.) in
         {fixed=0.000040054 -. per_element *. 1024.;per_element}
-    | Cooked -> {fixed=infinity;per_element=0.}
+    | Gpu | Gpu_compile | Gpu_readback | Cooked -> {fixed=infinity;per_element=0.}
   let estimate tier ~count =
     if count < 0 then invalid_arg "Flow_ir.Cost.estimate: negative count";
     let cost = table tier in cost.fixed +. cost.per_element *. float count
@@ -34,6 +34,18 @@ module Cost = struct
     | first :: rest -> List.fold_left (fun best tier ->
         if estimate tier ~count < estimate best ~count then tier else best) first rest
   let packed ~count = cheapest ~legal:[Interp;Cpu_kernel] ~count
+end
+module Gpu = struct
+  type value={identity:int;count:int;width:int;stamp:int64}
+  type kernel={run:Packed.Private.inputs -> (value,Flow.Diagnostic.t)result;
+    readback:value -> (E.value,Flow.Diagnostic.t)result}
+  type backend={cost:Packed.t -> count:int -> float option;
+    prepare:Packed.t -> (kernel,Flow.Diagnostic.t)result}
+  type policy=Measured | Qualification
+  let current : backend option Domain.DLS.key=Domain.DLS.new_key(fun()->None)
+  let with_backend backend run = let previous=Domain.DLS.get current in
+    Domain.DLS.set current(Some backend);
+    Fun.protect ~finally:(fun()->Domain.DLS.set current previous)run
 end
 type source = Constant of E.value | Frame_field of string | Input of string | State_previous of E.residual
 type body = Operation of string | Vector | Field of string | List_value
@@ -58,7 +70,7 @@ module Profile = struct
     let previous = executions profile in
     let rec keep n = function
       | [] -> [] | _ when n = 0 -> []
-      | old :: rest when old.sites = execution.sites -> keep n rest
+      | old :: rest when old.sites = execution.sites && old.tier=execution.tier -> keep n rest
       | old :: rest -> old :: keep (n - 1) rest in
     (* ponytail: 512 recent groups, a linear scan once per group; index if
        profiling many small groups measurably costs a frame. *)
@@ -177,12 +189,20 @@ let fuse ir =
   {ir with groups = Array.of_list (Array.fold_right (fun g acc ->
     if g = [] then acc else Array.of_list g :: acc) groups [])}
 
-let place ir =
+let place ?(approx=W.Paths.empty) ?(gpu_cost=fun _ ~count:_ -> None) ir =
   validate ir;
   let nodes = Array.copy ir.nodes in
   let exception Refused of Flow.Diagnostic.t in
   try
     Array.iteri (fun i node ->
+      let gpu=match node.kind,node.count with
+        |Kernel{body=Packed_map packed;_},Count.Static count when count>=1024
+          && List.exists(fun(path,_)->W.Paths.mem path approx)node.provenance ->
+            let view=Packed.Private.view packed in
+            view.collecting && view.zipped && view.skip=[||] &&
+              Option.fold ~none:false ~some:(fun seconds->Float.is_finite seconds && seconds>=0.
+                && seconds<Cost.estimate (Cost.packed ~count) ~count)(gpu_cost packed ~count)
+        |_->false in
       let approximate = List.exists (fun e -> nodes.(e.node).precision = Approx) node.args in
       let readback = match node.kind with Kernel {body = Readback; _} -> true | _ -> false in
       let forbidden = match node.kind with
@@ -192,9 +212,11 @@ let place ir =
       if approximate && forbidden then
         raise (Refused (Flow.Diagnostic.error ~code:"E_APPROX_SINK"
           "Approximate values require (exact x) before catalog calls, exports, state or cache keys."));
-      let precision = if readback then Exact else if approximate then Approx else node.precision in
+      let precision = if readback then Exact else if approximate || gpu then Approx else node.precision in
       let tier = match node.kind with
         | Opaque _ -> Cooked
+        | Kernel {body = Packed_map _; _} when gpu -> Gpu
+        | Kernel {body = Readback; _} when approximate -> Gpu_readback
         | Kernel {body = Packed_map _; _} ->
             (match node.count with Count.Static count -> Cost.packed ~count | _ -> Cpu_kernel)
         | Kernel {body = Reference r; _} -> if E.Private.closure_available r then
@@ -377,15 +399,17 @@ let of_evaluation ws catalog evaluation =
 
 module Executor = struct
   type program = { ir : t; value : E.value; dataflow : bool; templates : Packed.t list Atomic.t;
-    count_source : Packed.count_source; profile : Profile.t option }
-  let compile ?profile ?(count_source = fun _ _ -> None) v =
+    count_source : Packed.count_source; profile : Profile.t option; approx:W.Paths.t;
+    sink:sink option;mutable gpu_kernel:(Gpu.backend*Packed.t*Gpu.kernel)option }
+  let compile ?profile ?(approx=W.Paths.empty) ?sink ?(count_source = fun _ _ -> None) v =
     let b = builder ~count_source W.Paths.empty W.Paths.empty in
     let root = value b (["@value"], []) v in
     Result.map (fun ir ->
       let dataflow = Array.exists (function
         | {kind = Kernel {body = Packed_map _; _}; tier = Cpu_kernel; _} -> true
         | _ -> false) ir.nodes in
-      {ir; value = v; dataflow; templates = Atomic.make []; count_source; profile}) (optimize (finish b [|root|]))
+      {ir; value = v; dataflow; templates = Atomic.make []; count_source; profile;
+        approx;sink;gpu_kernel=None}) (optimize (finish b [|root|]))
   let graph p = p.ir
   let force ?state ?elems ?resolve ?(reference = false) program ~live =
     let packed_ran = ref false in
@@ -477,4 +501,45 @@ module Executor = struct
         seconds = max 0. (profile.clock () -. Option.get started)}
     end) program.profile;
     result
+  type displayed=Cpu of E.value | Gpu of Gpu.value
+  let force_display ?state ?elems ?resolve ?(reference=false) ?(policy=Gpu.Measured) program ~live =
+    let cpu()=Result.map(fun value->Cpu value)(force ?state ?elems ?resolve ~reference program ~live)in
+    if reference then cpu()else match Domain.DLS.get Gpu.current with None->cpu()|Some backend->
+    let root=program.ir.nodes.(program.ir.roots.(0))in
+    let packed,readback=match root.kind with
+      |Kernel{body=Packed_map packed;_}->Some packed,false
+      |Kernel{body=Readback;_}->(match root.args with
+        |[{node;_}]->(match program.ir.nodes.(node).kind with
+          |Kernel{body=Packed_map packed;_}->Some packed,true|_->None,false)
+        |_->None,false)
+      |_->None,false in
+    match packed with None->cpu()|Some packed->
+      let _,site,_=Packed.site packed in
+      let view=Packed.Private.view packed in
+      if not(W.Paths.mem site program.approx) || not(view.collecting && view.zipped && view.skip=[||])
+        then cpu()else
+      let (let*)=Result.bind in
+      let* inputs=Packed.Private.prepare ?state ?elems ?resolve packed ~live in
+      let selected=inputs.count>=1024 && (policy=Gpu.Qualification ||
+        Option.fold ~none:false ~some:(fun seconds->Float.is_finite seconds && seconds>=0.
+          && seconds<Cost.estimate(Cost.packed ~count:inputs.count) ~count:inputs.count)
+          (backend.cost packed ~count:inputs.count))in
+      if not selected then cpu()else
+      let* ()=match program.sink,readback with
+        |Some(Display _),_ |_,true->Ok()
+        |_->Error(Flow.Diagnostic.error ~code:"E_APPROX_SINK"
+          "GPU arrays require a display sink or (exact x) before CPU, SOP, state, export or cache use.")in
+      let profile tier run=
+        let start=Option.map(fun p->p.Profile.clock())program.profile in
+        let result=run()in
+        Option.iter(fun p->let _,path,iter=Packed.site packed in
+          Profile.record p {owner=(path,iter);sites=Packed.provenance packed;tier;
+            seconds=max 0.(p.clock()-.Option.get start)})program.profile;result in
+      let* kernel=match program.gpu_kernel with
+        |Some(previous,p,kernel)when previous==backend && p==packed->Ok kernel
+        |_->profile Gpu_compile(fun()->Result.map(fun kernel->program.gpu_kernel<-Some(backend,packed,kernel);kernel)
+            (backend.prepare packed))in
+      let* output=profile Gpu(fun()->kernel.run inputs)in
+      if readback then profile Gpu_readback(fun()->Result.map(fun value->Cpu value)(kernel.readback output))
+      else Ok(Gpu output)
 end

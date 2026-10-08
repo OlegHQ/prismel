@@ -302,3 +302,50 @@ let () =
     ["bloom"; "facade"; "garland"; "kit"; "orrery"; "rosette";
      "sunflower"; "tiles"; "tree"; "tunnel"; "variations"; "wave"];
   print_endline "Flow IR passes, precision, scalar/fallback execution and twelve-fixture parity passed"
+
+let ()=
+  let ws=check "(workspace gpu (graph g :context value (let* [mapped (map (fn [x] (+ x t)) (array/range 1024))] 0.0)))"in
+  let evaluation=ok(E.static ~record:true ws)in
+  let value=List.assoc ["g";"mapped"] evaluation.records |>List.hd|>snd in
+  let profile=Profile.create ~clock:(fun()->0.)in
+  let program=ok(Executor.compile ~profile ~approx:ws.approx ~sink:(Display "circles") value)in
+  let packed=Array.find_map(function {kind=Kernel{body=Packed_map packed;_};_}->Some packed|_->None)
+    (Executor.graph program).nodes |>Option.get in
+  let root=node ~ty:(Flow.Ty.Array Flow.Ty.Float) ~count:(Count.Static 1024) "mapped"
+    (Kernel{body=Packed_map packed;elementwise=true;requires_exact=true})in
+  let approximable=Flow.Workspace.Paths.singleton ["mapped"]in
+  let placed=ok(place ~approx:approximable ~gpu_cost:(fun _ ~count:_->Some 0.)
+    (ir [root;node "display" ~args:[edge "positions" 0](Sink(Display "circles"))][1]))in
+  assert(placed.nodes.(0).tier=Gpu && placed.nodes.(0).precision=Approx);
+  List.iter(fun kind->assert(match place ~approx:approximable ~gpu_cost:(fun _ ~count:_->Some 0.)
+      (ir[root;node "sink" ~args:[edge "value" 0]kind][1])with
+    |Error d->d.Flow.Diagnostic.code="E_APPROX_SINK"|Ok _->false))
+    [Sink Sop_input;Sink State_seed;Sink Cache_key;Sink Export;Opaque("catalog",None)];
+  assert((ok(place ~approx:approximable (ir[root][0]))).nodes.(0).tier=Cpu_kernel);
+  assert((ok(place ~approx:approximable ~gpu_cost:(fun _ ~count:_->Some 1.) (ir[root][0]))).nodes.(0).tier=Cpu_kernel);
+  let exact=node "exact" ~args:[edge "value" 0](Kernel{body=Readback;elementwise=true;requires_exact=false})in
+  let placed=ok(place ~approx:approximable ~gpu_cost:(fun _ ~count:_->Some 0.)
+    (ir[root;exact;node "sop" ~args:[edge "value" 1](Sink Sop_input)][2]))in
+  assert(placed.nodes.(1).precision=Exact && placed.nodes.(1).tier=Gpu_readback);
+  (* This backend exercises callback ownership/selection only; it does not claim
+     GPU execution or numerical conformance. Native tests run the emitted shader. *)
+  let prepared=ref 0 and dispatched=ref 0 in
+  let backend:Gpu.backend={cost=(fun _ ~count:_->None);prepare=(fun _->incr prepared;
+    Ok{run=(fun inputs->incr dispatched;Ok Gpu.{identity=1;count=inputs.count;width=1;stamp=Int64.of_int !dispatched});
+      readback=(fun _->Ok(E.Float_array[||]))})}in
+  Gpu.with_backend backend(fun()->
+    assert(match ok(Executor.force_display program ~live:(Frame_input.at_time 1.))with Executor.Cpu _->true|_->false);
+    assert(!prepared=0 && !dispatched=0);
+    for i=1 to 2 do assert(match ok(Executor.force_display ~policy:Gpu.Qualification program
+      ~live:(Frame_input.at_time(float i)))with Executor.Gpu value->value.count=1024|_->false)done;
+    assert(!prepared=1 && !dispatched=2);
+    assert(match ok(Executor.force_display ~reference:true ~policy:Gpu.Qualification program
+      ~live:(Frame_input.at_time 1.))with Executor.Cpu _->true|_->false);
+    let illegal=ok(Executor.compile ~approx:ws.approx ~sink:Sop_input value)in
+    assert(match Executor.force_display ~policy:Gpu.Qualification illegal ~live:(Frame_input.at_time 1.)with
+      |Error d->d.Flow.Diagnostic.code="E_APPROX_SINK"|Ok _->false));
+  assert(List.exists(fun report->report.tier=Gpu_compile)(Profile.executions profile));
+  assert(List.exists(fun report->report.tier=Gpu)(Profile.executions profile));
+  assert(match ok(Executor.force_display ~policy:Gpu.Qualification program ~live:(Frame_input.at_time 1.))with
+    Executor.Cpu _->true|_->false);
+  print_endline "GPU neutral callbacks: measured placement, illegal exact sinks, qualification scope and phase profiles passed"

@@ -1,7 +1,7 @@
 (library
  (name flow_gpu)
  (public_name rays.flow_gpu)
- (modules emit pipelines run)
+ (modules emit pipelines run host)
  (libraries flow flow_ir ogpu rays_execution rays_math lru))
 
 (test

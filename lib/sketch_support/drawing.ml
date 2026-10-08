@@ -3,13 +3,16 @@ module E = Flow.Eval
 module V = Flow.Value
 module I = Flow_ir.Executor
 
-type prepared = {plan : E.plan; value : I.program; states : I.program; args : I.program array;
+type prepared = {plan : E.plan; value : I.program; states : I.program; args : (string*I.program)list array;
   static:bool array; retained:((int*int)*Scene.t) option array}
-let prepare ?profile ?(states = []) plan value =
+let prepare ?profile ?(approx=Flow.Workspace.Paths.empty) ?(states = []) plan value =
   let ( let* ) = Result.bind in
   let* value = I.compile ?profile value in
   let* states = I.compile ?profile (E.List (Array.of_list states)) in
-  let args = Array.map (fun (node : E.node) -> I.compile ?profile (E.Record node.args)) plan.E.nodes in
+  let args = Array.map (fun (node : E.node) ->
+    List.fold_right(fun(name,value)result->let* rest=result in
+      let* program=I.compile ?profile ~approx ~sink:(Flow_ir.Display node.kind) value in
+      Ok((name,program)::rest))node.args(Ok[])) plan.E.nodes in
   match Array.find_opt Result.is_error args with
   | Some (Error d) -> Error d
   | _ ->
@@ -29,7 +32,7 @@ let prepare ?profile ?(states = []) plan value =
         static=Array.init(Array.length plan.nodes)node;
         retained=Array.make(Array.length plan.nodes)None}
 
-let render_prepared ?state ?image ?(reference = false) prepared ~live ~size:(width, height) =
+let render_prepared ?state ?image ?gpu ?(gpu_policy=Flow_ir.Gpu.Measured) ?(reference = false) prepared ~live ~size:(width, height) =
   let plan = prepared.plan in
   let state = Option.value ~default:(E.create_state ()) state in
   E.transaction state (fun () ->
@@ -53,7 +56,20 @@ let render_prepared ?state ?image ?(reference = false) prepared ~live ~size:(wid
             |_->
             let node = plan.nodes.(id) in
             if node.ty <> Flow.Ty.drawing then V.fail "E_TYPE" "The canvas needs a Drawing node.";
-            let args = match force prepared.args.(id) with E.Record fs -> fs | _ -> assert false in
+            let positions=ref None in
+            let remaining=List.filter(fun(name,_)->name<>"positions")prepared.args.(id)
+              |>List.map(fun(name,program)->name,force program)in
+            let uniform key=match List.assoc_opt key remaining with
+              |Some(E.Float_array _|E.Vec3_array _|E.List _)->false|_->true in
+            let candidate=node.kind="draw/circles" && gpu<>None &&
+              List.for_all uniform ["radius";"fill";"stroke"]in
+            let args=match List.assoc_opt "positions" prepared.args.(id)with
+              |None->remaining
+              |Some program when candidate->(match I.force_display ~state ~reference ~policy:gpu_policy program ~live with
+                |Ok(I.Cpu value)->("positions",value)::remaining
+                |Ok(I.Gpu value)->positions:=Some value;remaining
+                |Error diagnostic->raise(Stop diagnostic))
+              |Some program->("positions",force program)::remaining in
             let arg k = match List.assoc_opt k args with Some v -> v
               | None -> V.failf "E_DRAW_INPUT" "%s needs %s." node.kind k in
             let optional k f = Option.map f (List.assoc_opt k args) in
@@ -108,6 +124,16 @@ let render_prepared ?state ?image ?(reference = false) prepared ~live ~size:(wid
                   batch 1 (fun b _->rect b x y w h)
               | "draw/circle" -> let x,y,_=V.comps(arg "at")in
                   batch 1 (fun b _->circle b x y (V.num(arg "radius")))
+              | "draw/circles" when !positions<>None ->
+                  let output=Option.get !positions in
+                  if output.Flow_ir.Gpu.width<>3 then V.fail "E_GPU" "Drawing circles need a width-three GPU array.";
+                  let radius=Option.value(optional "radius" V.num)~default:1. in
+                  let fill=Option.value(style "fill")~default:0l and stroke=Option.value(style "stroke")~default:0l in
+                  let fill,stroke=if not(List.mem_assoc "fill" args || List.mem_assoc "stroke" args)
+                    then 0xffffffffl,0l else fill,stroke in
+                  let token=match (Option.get gpu) output ~radius ~fill ~stroke ~stroke_width:(if stroke=0l then 0. else 1.)with
+                    |Ok token->token|Error diagnostic->raise(Stop diagnostic)in
+                  [Scene.Private.shapes(Scene_command.Shape_batch.Private.of_gpu token)]
               | "draw/circles" -> let positions=arg "positions" in
                   let n=V.array_length positions in
                   let radius=Option.value (List.assoc_opt "radius" args) ~default:(E.Float 1.)in
