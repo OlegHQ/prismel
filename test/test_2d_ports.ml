@@ -55,12 +55,12 @@ let save_roundtrip name workspace =
   Printf.printf "port %s: Command-S atomically saves the unchanged source and comments\n%!"name
 let modes=["lisp-a",false,1;"lisp-b",false,1;"cpu-1",false,1;"cpu-8",false,8;
   "reference-1",true,1;"reference-8",true,8]
-let pictures ?(synthetic=true) name workspace reference domains = Parallel.run ~domains(fun()->
+let pictures ?(synthetic=true) ?(first=0) name workspace reference domains = Parallel.run ~domains(fun()->
   let evaluated=ok(E.static ~inputs:workspace.Editor_document.Workspace_doc.inputs workspace.checked)in
   let prepared=ok(Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan
     (List.assoc "picture" evaluated.results))in
   let state=E.create_state()in
-  Array.init 4(fun count->let frame=frame ~synthetic name count in
+  Array.init 4(fun count->let frame=frame ~synthetic name (first+count) in
     let live=Sketch_support.Live_frame.of_frame frame in
     ok(Sketch_support.Drawing.render_prepared ~state ~reference prepared ~live ~size:frame.size)))
 let serialize scene=Scene.Private.commands scene |> Scene_command.Render_ir.create |> Result.get_ok
@@ -184,18 +184,20 @@ let moving_circles ()=match Rays_editor.Workspace.load {|(workspace moving
 let native_modes directory name workspace =
   let width,height=dimensions name in
   let config={Sketch.default_config with width;height;clock=Sketch.Fixed(1./.60.);fps=None}in
-  let all=List.map(fun(mode,reference,domains)->mode,pictures ~synthetic:false name workspace reference domains)modes in
+  let all=List.map(fun(mode,reference,domains)->mode,pictures ~synthetic:false ~first:1 name workspace reference domains)modes in
+  (* A native export counts frames from one, like Workspace.export. *)
   List.iter(fun(mode,scenes)->
     let directory=directory^"/"^name^"/"^mode in
     if mode="lisp-a" || mode="lisp-b" then
       ignore(ok(Rays_editor.Workspace.export ~directory ~frames:4 workspace))else
     Parallel.run ~domains:(if String.ends_with ~suffix:"8" mode then 8 else 1)(fun()->
       ignore(Sketch.export_state ~config ~directory ~frames:4 ~init:(fun _->())
-        ~update:(fun () _->()) ~view:(fun () frame->scenes.(frame.Frame.count))())))all;
+        ~update:(fun () _->()) ~view:(fun () frame->scenes.(frame.Frame.count-1))())))all;
   for count=0 to 3 do
     let path mode=Printf.sprintf "%s/%s/%s/frame-%06d.png" directory name mode count in
     let expected=read(path"lisp-a")in
-    List.iter(fun(mode,_,_)->assert(read(path mode)=expected))modes
+    List.iter(fun(mode,_,_)->if read(path mode)<>expected then
+      failwith(Printf.sprintf "%s frame %d: %s differs from lisp-a" name count mode))modes
   done
 let native directory=
  native_modes directory "moving_circles" (moving_circles());
@@ -225,8 +227,12 @@ let native directory=
       let edge image i=let x=i mod width and y=i/width in
         List.exists(fun(dx,dy)->let x=x+dx and y=y+dy in x>=0 && y>=0 && x<width && y<height &&
           image.(i)<>image.(y*width+x))[-1,0;1,0;0,-1;0,1]in
-      Array.iteri(fun i value->if value<>actual.(i)then
-        assert(edge expected i && edge actual i))expected
+      let bad=ref 0 and changed=ref 0 and first=ref(-1) in
+      Array.iteri(fun i value->if value<>actual.(i)then begin incr changed;
+        if not(edge expected i && edge actual i) then begin incr bad; if !first<0 then first:=i end end)expected;
+      Printf.printf "%s frame %d: %d changed pixels, %d off-edge (first at %d,%d)\n%!" name count !changed !bad
+        (!first mod width)(!first/width);
+      assert(!bad=0)
       end
     done);
   Printf.printf "port %s: six PNG modes byte-identical, OCaml %s\n%!"name

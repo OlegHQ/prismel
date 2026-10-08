@@ -7298,3 +7298,130 @@ The allocation saving is 5,688 bytes/frame (3.5%). The full 32,768-byte gate
 remains **unmet**. Evidence: `/private/tmp/p3-ui-font-id-before-{1,2,3}.csv`,
 `/private/tmp/p3-ui-font-id-after-{1,2,3}.csv` and
 `/private/tmp/p3-ui-font-id-check.log`.
+
+## P5 native calibration (2026-10-08)
+
+Apple M1 (Metal 4, 4K display at 2x), macOS 27.0, OCaml 5.3.0, Dune dev
+profile, one domain unless stated. This process sees the system default Metal
+device, so the native rows the earlier sandboxed sessions could not produce
+are measured here. Commands: `_build/default/tools/bench_gpu.exe` and
+`_build/default/tools/bench_kernel.exe --gpu`, each run alone after a build.
+
+`bench_gpu` now separates float64→float32 packing from the buffer write and
+salts each of its ten compile sources with a trailing comment, so the compile
+median is a cold Metal source compile rather than a system shader-cache hit
+(the unsalted median was 0.064 ms).
+
+| `bench_gpu` row | compile ms | pack ms | write ms | dispatch ms | gpu ms | readback ms | total ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| noise_display 1,024 | 8.223 | 0.013 | 0.001 | 0.155 | 0.006 | 0 | 0.169 |
+| noise_display 65,536 | 8.223 | 0.875 | 0.028 | 0.264 | 0.025 | 0 | 1.167 |
+| noise_display 1,000,000 | 8.223 | 13.172 | 0.750 | 1.221 | 0.669 | 0 | 15.131 |
+| noise_readback 1,000,000 | 8.223 | 13.142 | 0.776 | 1.230 | 0.682 | 16.788 | 31.923 |
+
+Decisions from these rows (P5 Steps 3 and 4): the cold compile median is
+under 20 ms, so kernels keep compiling synchronously at preparation time and
+no asynchronous library binding is added; the buffer write is 5% of the
+1M display total, under the 20% threshold, so the zero-copy `map_buffer`
+feature is not added. Packing dominates upload and is OCaml conversion work,
+not a copy a mapped view would remove.
+
+`Flow_gpu.Run.dispatch` packed each input float through a per-element call
+that boxed the float and its int32 bits. One loop body keeps both unboxed;
+readback unpacks the same way. `bench_kernel --gpu`, same machine, before
+and after, emitted noise map (two vec3 inputs):
+
+| Emitted GPU noise | Before total ms | After total ms | Before bytes/frame | After bytes/frame |
+|---|---:|---:|---:|---:|
+| display 1,024 | 0.460 | 0.438 | 118,128 | 19,824 |
+| display 65,536 | 2.556 | 1.749 | 6,311,376 | 19,920 |
+| display 1,000,000 | 32.261 | 20.215 | 96,019,920 | 19,920 |
+| readback 1,000,000 | 53.479 | 28.135 | 228,020,120 | 36,020,064 |
+
+Per-frame allocation no longer scales with the element count on the display
+route (Step 4 gate); the readback route allocates the returned float array.
+Maximum absolute readback error against the CPU kernel stays 1.9e-6.
+Full editor frames at 800×600, ten warm-up and 200 timed updates:
+
+| Editor, noise-driven circles | CPU median ms | GPU median ms | CPU bytes/frame | GPU bytes/frame | CPU upload bytes/frame |
+|---|---:|---:|---:|---:|---:|
+| 10,000 | 10.124 | 1.480 | 11,956,254 | 283,370 | 880,000 |
+| 1,000,000 | 903.351 | 28.568 | 1,163,793,792 | 283,311 | 88,000,000 |
+
+`Flow_ir.Cost` now carries the measured rows: `Gpu` is affine through the
+1,024 and 1M display totals (0.438 ms fixed, 19.8 ns/element), `Gpu_readback`
+through the readback columns (10 µs, 7.9 ns/element), `Gpu_compile` 8.2 ms.
+`Cost.display_sink` is the per-element cost each route adds beyond the
+producer, from the editor rows: 886 ns for CPU instance building and upload,
+7.6 ns for the resident GPU circle conversion. `Workspace_gpu` installs the
+measured backend in production: a display sink takes the GPU when producer
+plus sink is cheaper than the CPU kernel plus its sink, which on this device
+holds from the 1,024-element floor upward; `(exact x)` readback compares
+against the readback row and stays on the CPU kernel here (28 ms against
+16.5 ms at 1M). Exports, references and fixed-step runs are unchanged.
+
+## P4 two-chain fan-out: per-node evidence (2026-10-08)
+
+Same machine, idle, `bench_workspace_lower.exe --branches 7 {off,learned}`
+and `--loops 7 learned`, then `RAYS_BRANCH_NODE_TIMES=1 --branches 3 off`
+for the last cook's per-node durations.
+
+| Workload | Placement | Domains | Median ms |
+|---|---|---:|---:|
+| Two chains, 2M points | off | 1 | 154.588 |
+| Two chains, 2M points | off | 8 | 64.497 |
+| Two chains, 2M points | learned | 1 | 162.119 |
+| Two chains, 2M points | learned | 8 | 57.936 (repeat 64.061) |
+| 64 pieces, 3.2M points | learned | 1 | 1740.515 |
+| 64 pieces, 3.2M points | learned | 8 | 266.832 |
+
+| Node (two chains) | 1 domain ms | 8 domains ms |
+|---|---:|---:|
+| grid (×2) | 19.4 / 19.3 | 7.8 / 9.0 |
+| noise_displace (×4) | 14.0 / 13.9 / 14.2 / 13.9 | 4.5 / 3.9 / 4.1 / 4.2 |
+| merge 2M points | 58.8 | 40.0 |
+
+At eight domains the serial `merge` of the two million points takes 40 of
+the 73 ms cook; each chain's own nodes take 16–17 ms. Fanning the two
+chains out can at best hide one chain, 56 ms, which is the measured 57.9 ms.
+The loop zone stays 3.7× faster than Step 0's eight-domain row (its gate); the chain gate of 1.5× against
+Step 0's 75.943 ms (≤ 50.6 ms) is **not reachable by fan-out** on this
+fixture: it needs a parallel or cheaper 2M-point merge in `rdk`, which is
+outside P4 Step 3. Hashes are unchanged (`67c129ec…`, `8ef295fb…`).
+
+## P3 allocation gate reading (2026-10-08)
+
+`P3.md` Step 2 states the gate as "the static 100,000-shape row allocates
+under 32,768 bytes/frame like the particle static case
+(test_drawing.ml:110-124)", and that reference is the delta bound between the
+4-point and 10,000-point static canvases (201,007 bytes/frame absolute,
+`large <= small + 32768`). The retained 100,000-circle lowering allocates
+1,393 bytes/frame and the assertion is in `test_drawing`. The full static
+editor update (155,620 bytes/frame after the per-run font id lookup) is the
+whole PXUI editor frame and is recorded as information, not as that gate.
+
+## PXUI parity goldens at 2x (2026-10-08)
+
+This display is 2x, so `kit_zones` and `kit_table` are captured at 2x like
+the panel and overlay goldens; each check compares only at its golden
+density and a refresh never renames a capture over another density. The panel
+and overlay goldens are refreshed for the search prefix and return hint that
+dev added after kit rev 3. `@lib/pxui/test_ui_parity` prints four exact rows.
+
+## Native suite on the Apple M1 (2026-10-08)
+
+`dune build @runtest-native` on this machine, after the calibration above:
+the shape batch rim gate passes with differing pixels at most 1.414 px
+(one pixel per axis) from the reference 32-gon; the emitted noise kernel
+records 8.82e-7 (1,024) and 9.89e-5 (65,536) maximum absolute error against
+the CPU tier; the recoloured float32 triangle matches its f64 oracle within
+one channel (this fixture's shading does not vary with vertex colours, so the
+earlier "pixels must change" check was replaced by the oracle); the six-mode
+port exports are byte-identical once the native export counts frames from one
+like `Workspace.export`. Two checks stay red and are not relaxed:
+`runtime_native_qualification` reports the same basic hash drift on `dev`
+(pre-existing), and the port-versus-OCaml oracle for `basic` frame 0 finds
+348 changed pixels of which 116 are not adjacent to an edge in both images
+(first at 307,139, on the circle rim): the SDF rim band is wider than the
+one-pixel edge rule assumes at canvas density 1, which needs a decision on the
+anti-alias width before that rule can hold.

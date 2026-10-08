@@ -1,0 +1,12 @@
+fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash
+branches,off,1,7,2000000,0.154588223,503647896,503648184,0,67c129ecc130f8881a2eaf92c053b64c
+branches,off,8,7,2000000,0.064496994,503960576,505312560,0,67c129ecc130f8881a2eaf92c053b64c
+fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash
+branches,learned,1,7,2000000,0.162119150,503647672,503647960,0,67c129ecc130f8881a2eaf92c053b64c
+branches,learned,8,7,2000000,0.057935953,374071712,505439328,1,67c129ecc130f8881a2eaf92c053b64c
+fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash
+branches,learned,1,7,2000000,0.162406206,503647672,503647960,0,67c129ecc130f8881a2eaf92c053b64c
+branches,learned,8,7,2000000,0.064060926,374083784,505438080,1,67c129ecc130f8881a2eaf92c053b64c
+fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash
+loops,learned,1,7,3200000,1.740514994,1120464656,1120464944,0,8ef295fbdea12b586200fd1ffcdcb58f
+loops,learned,8,7,3200000,0.266831875,779621840,1131790608,1,8ef295fbdea12b586200fd1ffcdcb58f

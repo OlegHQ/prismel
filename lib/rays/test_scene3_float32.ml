@@ -51,7 +51,14 @@ let native source first second=
       let before=(Runtime.stats runtime).uploaded_bytes in
       let changed=render second in
       let uploaded=Int64.sub(Runtime.stats runtime).uploaded_bytes before in
-      if changed=current then failwith "new vertex colors rendered stale pixels";
+      (* The f64 oracle of the recoloured mesh decides, not a pixel change:
+         this fixture's shading does not vary with the vertex colours. *)
+      let oracle=render(legacy source second)in
+      let maximum=ref 0 in
+      for i=0 to Bytes.length changed-1 do
+        maximum:=max !maximum(abs(Char.code(Bytes.get oracle i)-Char.code(Bytes.get changed i)))
+      done;
+      if !maximum>1 then failwith "recoloured float32 triangle exceeds one-channel tolerance";
       if uploaded<>36L then failwith(Printf.sprintf "color edit reuploaded geometry (%Ld bytes)"uploaded);
       ignore(get(Runtime.render_sampled_resources ~clear:(0.,0.,0.,1.) runtime
         (List.init 65(fun _->second))));

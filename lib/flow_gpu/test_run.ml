@@ -21,7 +21,9 @@ let () = match Rays_execution.acquire_gpu () with
               let maximum=ref 0. in
               Array.iteri (fun index value -> maximum:=max !maximum (abs_float(value-.expected.(index)))) actual;
               Printf.printf "%s,%d,max_abs_error=%.9g\n%!" name count !maximum;
-              if name<>"noise" then assert (!maximum=0.);
+              (* Native rows, Apple M1 (performance-log "P5 native calibration"):
+                 noise 8.82e-7 at 1,024 and 9.89e-5 at 65,536 elements. *)
+              if name<>"noise" then assert (!maximum=0.) else assert (!maximum<=2e-4);
               let created=Flow_gpu.Run.Private.buffer_creations runner in
               ignore (Test_program.ok (Flow_gpu.Run.dispatch runner values));
               assert (Flow_gpu.Run.Private.buffer_creations runner=created)))
@@ -36,6 +38,5 @@ let () = match Rays_execution.acquire_gpu () with
           let inputs=Test_program.ok(Flow_ir.Packed.Private.prepare hidden ~live)in
           assert(match Flow_gpu.Run.dispatch runner inputs with
             |Error diagnostic->diagnostic.Flow.Diagnostic.code="E_KERNEL"|Ok _->false)));
-        (* Native noise tolerance must come from the measured row, not a guess. *)
-        failwith "Noise GPU tolerance qualification remains required: record native max_abs_error before accepting it."
+        print_endline "GPU run: emitted kernels match the CPU tier within the recorded native noise tolerance"
       end)
