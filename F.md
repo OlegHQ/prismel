@@ -1,0 +1,821 @@
+# F: the loose ends after Phase 5
+
+Handoff for the next agent. Read all of it before touching the tree. Written
+2026-10-08 against `dev` at ce133675, the day the P3, P4, P5 and PL branches
+were consolidated. The roadmap that got us here is the Claude Doc "Rays Lisp
+as a compiled language: where we are"; its continuation is "Rays Lisp: one
+language, two targets". This file is the repository's copy of what is left,
+with enough detail that you do not have to reconstruct any of it.
+
+There is no other plan file. `P3.md`, `P4.md`, `P5.md`, `PL.md`, `NEXT.md` and
+`MIGRATION*.md` are gone; their evidence is in `specification/performance-log.md`
+from the section "Phase 4 whole-item verification (2026-10-08)" to the end of
+the file, and in the commit messages between a7022bc6 and ce133675. If you
+find a file with one of those names, it is stale: delete it.
+
+---
+
+## 0. How to work on this file
+
+### 0.1 Who does what
+
+You are GPT 6.1 Sol. You are good at plumbing, tests, benchmark runs, reading
+code and recording results. You are not good at inventing fast algorithms or
+at judging whether a measured number is noise. So the rule is:
+
+**Every non-trivial optimization is designed and reviewed by a GPT 6 Astra
+sub-agent. You do not design it yourself.** This is not optional.
+
+"Non-trivial optimization" means any change that satisfies at least one of:
+
+- It has a measured gate (a number in this file or in `performance-log.md`
+  that must move).
+- It touches a hot loop in `lib/rdk/**`, `lib/flow_ir/packed.ml`,
+  `lib/flow_ir/flow_ir.ml` (the passes `share`, `hoist`, `fuse`, `prune`,
+  `place`), `lib/flow_gpu/emit.ml`, `lib/flow_gpu/run.ml`,
+  `lib/rays/scene3_native_lowering.ml`, `lib/scene_command/**`,
+  `lib/pxui/ui.ml` (arrangement, paint, hit), or `lib/procedural/session.ml`
+  (placement, cache keys).
+- It changes a data layout (a packed plane, a vertex stream, a cache key).
+- It changes what `Parallel` splits or how.
+- It adds or removes a tier, a pass, or a precision rule.
+
+For every such item below there is an "Astra brief" paragraph. Spawn Astra
+with that brief verbatim plus the file paths and the numbers in the item. Ask
+Astra for (a) the design, (b) the one check that fails if the design is wrong,
+(c) the before/after measurement protocol. Then **you** implement the plumbing,
+run the measurements exactly as Astra specified, and send the raw numbers back
+to Astra for the verdict. Astra decides whether the gate is met. You never
+write "gate met" on your own judgment.
+
+What you do alone: adding tests, wiring a new kind through `Flow.Op`, catalog
+and projection, documentation, running the shipping loop, writing the
+`performance-log.md` section, promoting manifests, deleting dead code with
+`tools/codemod` (the `prune-dead-code` skill).
+
+### 0.2 The loop
+
+```sh
+dune build @check                                  # after every edit
+dune build tools/check.exe                         # once per session
+_build/default/tools/check.exe @lib/flow/runtest   # focused aliases, see each item
+_build/default/tools/check.exe --ship              # before every commit
+dune build @runtest-native                         # on a machine with a Metal device
+```
+
+`tools/check.exe` queues behind other agents' validations; never run
+`dune build` with `--force` or clean between validations (Dune's cache is the
+reason a `--ship` takes minutes, not hours).
+
+Every public `.mli` change shows up as a diff of
+`tools/api_manifest/api_stable.json`; accept an intended one with
+`dune promote` (the `promote-manifests` skill). A SOP metadata change shows as
+a diff of `lib/sop_catalog/flow_manifest.sexp`; same thing.
+
+Warnings are errors. Python is not allowed anywhere in build, generation or
+validation glue. No new dependencies.
+
+### 0.3 Measuring
+
+Every number you write down has a command, a machine, a domain count and a
+repetition count next to it. The reference machine is the Apple M1 in
+`performance-log.md` (eight domains, OCaml 5.3.0, Dune dev profile). Run each
+benchmark alone: no builds, no other agents, no tests running. Take medians of
+at least seven repetitions. Keep the raw CSV under
+`specification/performance/` with a `f-` prefix (`f-merge-before.csv`,
+`f-merge-after.csv`). If the number did not move, write that it did not move.
+Never call a change an improvement because it "should" be one.
+
+A `performance-log.md` section looks like the existing ones: a heading with
+the date, the machine, the commands in a code block, a table, one paragraph
+saying what the table establishes and what it does not, the raw file paths.
+
+### 0.4 What you must never do
+
+- Add a CPU raster, browser, SDL2 or OpenGL fallback. Metal unavailability is
+  a typed startup error (`No_adapter`).
+- Reach `Metal.` or `Ogpu_metal_native.` from anything above the Metal
+  backend. `test/dependency_gate.ml` lists no exception.
+- Create a domain or thread per frame or per item. Use the shared `Parallel`
+  pool.
+- Use `Stdlib.Random`. Use immutable `Rand.t`.
+- Break byte-identity between one and eight domains on any CPU path.
+- Let an approximate (GPU float32) value reach an export, a catalog input, a
+  state seed or a cache key. `E_APPROX_SINK` exists for this.
+- Add an OCaml-only parameter or behaviour. Lisp is first; the OCaml function
+  is derived from the Lisp declaration (`specification/procedural.md`, "one
+  declaration").
+- Add a new Lisp form without its graph projection, its `Flow_edit` gestures
+  and a test (`specification/flow.md` is normative).
+- Add a second UI engine, hit-test path or text-entry path. `Pxui.Ui` only.
+- Relax a golden, a tolerance or a gate to make a check pass.
+- Claim a native result from a sandbox without a Metal device.
+
+---
+
+## 1. Where the tree is
+
+Everything in the six phases of the first roadmap has landed. Read this table
+once so you know what exists before you add anything.
+
+| Area | Where | What it does today |
+|---|---|---|
+| Language | `lib/flow` (`syntax`, `lisp`, `macro`, `check`, `workspace`, `eval`, `op`, `packed_ops`, `ty`, `context`, `port_type`) | Reader, printer, hygienic macros, checker with liveness/invariance/approx sets, reference tree walker, one operator registry (`Flow.Op`), one packed operator declaration (`Flow.Packed_ops`, 21 names: 15 binary, 5 unary, noise). Depends only on `param` and `frame_input`. |
+| IR | `lib/flow_ir` (`flow_ir.ml`, `packed.ml`, `operators.ml`) | Typed dataflow with `rate`, `precision`, `Count`, tiers `Interp | Closure | Cpu_kernel | Gpu | Gpu_compile | Gpu_readback | Cooked`; passes `share`, `hoist`, `fuse`, `prune`, `place`; `Cost` with measured affine rows; `Gpu.backend` callback; `Executor.try_display`. Packed register programs in 1,024-element blocks. |
+| GPU tier | `lib/flow_gpu` (`emit`, `pipelines`, `run`, `host`) | Metal source from a packed program (`Emit.kernel`), pipeline cache of 64 (`Pipelines`), owned runners and buffers (`Run`), the host that owns at most 64 runners and 64 pipelines and installs the backend (`Host`). Depends on `flow`, `flow_ir`, `ogpu`, `rays_execution`, `lru`, `rays_math`, `param`. |
+| SOP overlay | `lib/flow_sop` (`lower`, `attribute_kernel`, `value_lane`, `operators`) | Lowers a checked workspace to a `Procedural` network; `sop/attr` and `sop/with_attr` are the kernel boundary (`Attribute_kernel` over `Rdk.Kernel.edit_point_ranges`); image resolver callback (`Lower.with_images`). |
+| Graph layer | `lib/flow_graph` (`projection`, `flow_edit`, `exposure`, `probe`) | Domain-neutral projection and gestures; zones for map/filter/reduce/sort-by and if/cond/case arms; probes force one tuple. |
+| 2D | `lib/sketch_support/drawing.ml`, `lib/flow/op.ml` (`draw_op` lines ~200-240) | 18 `draw/*` kinds; plural kinds (`circles`, `rects`, `lines`, `points`, ...) lower to one instanced `Scene_command.Shape_batch`; GPU display sinks take a `gpu_token`. |
+| Images | `lib/flow/op.ml:264-269`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, `image/render` (offscreen `Rays.Canvas`), `image/noise` (cooked); `draw/image`; `scene/geometry :texture image`; `sop/attr_from_image`. The editor pins at most 64 images. |
+| Catalog | `lib/sop_catalog`, `ppx/ppx_rays`, `lib/procedural/node.ml` | 161 `sop/*` kinds, one declaration each, `Node.facts` (elementwise, reads, writes, topology, exact). |
+| Cook | `lib/procedural/session.ml` | Component-keyed LRU; learned placement fans branches and zone elements across domains above a 2 ms measured subtree. |
+| Geometry | `lib/rdk/**` | Float64 structure-of-arrays planes; `Mesh_merge.merge_plain` is the serial merge (see F3). Scene3 packs planes into float32 24+12-byte streams (`lib/rays/scene3_native_lowering.ml`). |
+| Editor | `lib/rays_editor` (`workspace_gpu.ml`, `workspace_images.ml`, `spreadsheet.ml`, `viewport3.ml`) | GPU owner with `Measured | Qualification` policy; spreadsheet pane; `ui/viewport` is 3D only. |
+| Benchmarks | `tools/bench_kernel.ml` (`--gpu`, `--gpu-check`, `--cost`, `--loops`, `--fusion`, `--attribute-fusion`, `--attributes`), `tools/bench_gpu.ml` (`--msl`), `tools/bench_workspace_lower.ml` (`--branches N off|learned`, `--loops N ...`, `--images`, `--approx`, `--nodes`, `--residuals`, `--eval`), `tools/bench_drawing.ml` (`[count] [--static] [--profile]`), `tools/bench_rays_editor.ml` (`200 1000 2000`, `--panels 200`), `tools/bench_scene3_packing.ml` | The numbers in `performance-log.md` come from these. |
+| Reference sketches | `sketches/flow_kernel/sketch.rays` (CPU attribute kernel), `sketches/flow_particles_gpu/sketch.rays` (1,000,000 circles on the GPU and the `(exact ...)` SOP variant), `sketches/flow_image/sketch.rays`, `sketches/ws_spreadsheet`, `sketches/ws_shared` + `ws_shared_other` (imports) | Copy these when you need a workspace that exercises a tier. |
+| Tests you will extend | `lib/flow/test_workspace.ml`, `test_check.ml`, `test_ty.ml`; `lib/flow_ir/test_ir.ml`, `test_packed.ml`, `test_noise.ml`, `test_frame_kernel.ml`; `lib/flow_gpu/test_emit.ml` (+ `goldens/*.metal`), `test_pipelines.ml`, `test_run_lifetime.ml`, `test_run.ml` (native); `lib/flow_sop/test_attribute_kernel.ml`; `test/test_workspace_ir.ml` (every `.rays` file at four times, one and eight domains), `test/test_open_domain.ml`, `test/test_2d_ports.ml`, `test/test_workspace_images*.ml` | Every item below names which of these it adds to. |
+
+Numbers you should know (Apple M1, from `performance-log.md`):
+
+| What | Number |
+|---|---|
+| Million-point noise kernel, CPU tier, 1 / 8 domains | 85.7 / 25.5 ms (native 29.8 / 8.1, interpreter 1,442) |
+| CPU tier cost row | 23.16 µs fixed + 16.50 ns per element; interpreter 710 ns per element; crossover 34 elements |
+| GPU cost rows | compile 8.2 ms cold; display 0.438 ms + 19.8 ns per element; readback 10 µs + 7.9 ns per element |
+| Editor frame, 1,000,000 noise-driven circles | CPU 903 ms, GPU 28.6 ms; 10,000: 10.1 ms vs 1.48 ms |
+| GPU readback error vs CPU tier | 1.9e-6 maximum absolute at 1M; 8.82e-7 at 1,024; 9.89e-5 at 65,536 (native suite) |
+| 2D plural shapes, moving, 100,000 | circles 43.3 ms, rects 43.3, lines 20.7, points 16.6; 10,000 circles 4.7 ms |
+| Two-chain fixture (2M points, two noise chains, one merge), 8 domains | 58-64 ms; its `merge` alone is 40 ms; Step 0 was 75.9 ms; the gate was 50.6 ms |
+| 64-piece zone (3.2M points), 8 domains | 259-286 ms learned vs 1,226 ms off |
+| Full static editor update, 100,000 circles | 155,620 bytes/frame; retained Drawing lowering alone 1,393 bytes/frame |
+| Spreadsheet pane, 1,000,000 points | 0.49 ms per frame |
+
+---
+
+## 2. The items
+
+Order of attack: F0, then F1 and F2 (they share the port-type work; do F1.1
+before anything in F2), then F5 as a continuous habit, then F3 and F4 only
+with Astra and only if the owner wants the numbers moved. F6 and F7 are
+small. F8 is the hand-off into the continuation.
+
+### F0. Documentation drift (do first, one hour)
+
+`AGENTS.md`'s library table has no `flow_gpu` row. `specification/backend.md`
+describes it (section "Ownership and dependency direction"). Add the row:
+
+```
+| `flow_gpu` | Metal emitter from `flow_ir` packed programs, a pipeline cache of 64 and owned runners; depends on `flow`, `flow_ir`, `ogpu`, `rays_execution`, `lru`; never reaches geometry or UI |
+```
+
+and extend the "Dependency rules" bullet that lists `flow_ir` with:
+`flow_gpu` depends only on `flow`, `flow_ir`, `param`, `rays_math`,
+`ogpu_core`, `ogpu`, `rays_execution` and `lru` and never reaches
+`procedural`, `rdk`, `flow_sop`, `sketch_support` or any UI library. That is
+what `test/dependency_gate.ml` lines 92-96 and 164 already enforce; the
+document just has to say it.
+
+Check: `dune build @check` and `git diff --check`. No Astra.
+
+### F1. The checker: full scope
+
+Today the checker (`lib/flow/workspace.ml`, 1,550 lines) types every term
+once, retypes `fn`/`defn` bodies per call site with unannotated parameters as
+`Ty.Any`, computes three path sets (`live`, `invariant`, `approx`), and
+validates catalog parameters through `Check.validate_parameter`. The IR
+(`lib/flow_ir/flow_ir.ml` lines 228-237 and 557-558) is where approximate
+values are refused at sinks (`E_APPROX_SINK`). The Metal emitter
+(`lib/flow_gpu/emit.ml`) is where unsupported forms are refused
+(`E_GPU_FORM`). This split works but it means three places decide what a
+kernel may be, and two of them run after the user has already pressed a key.
+The checker scope below closes that.
+
+#### F1.1 Open `Port_type.t` for `fn` and `image` ports
+
+**Today.** `lib/flow/port_type.mli`:
+
+```ocaml
+type t = Geometry | Float | Int | Bool | Vec3
+```
+
+`Check.parameter.ty : Port_type.t option` (`lib/flow/check.mli`) is what a
+catalog kind's keyword parameter carries; `None` means a literal-only text or
+choice field. `Ty.t` already has `Fn` and the registered nominal `image`
+(`Ty.image`). `Workspace.t.kind_fns` records a catalog kind used *as* a
+function value; nothing records a function value passed *to* a kind. A `fn`
+that flows into a call is `E_FN_ESCAPES` (`Ty.has_fn`). `sop/attr_from_image`
+takes an image: look at how, with `git show cb9c1c5b --stat` and
+`git show cb9c1c5b -- lib/flow_sop/lower.ml lib/sop_catalog`, before you
+design anything, because that commit already threaded one non-geometry slot
+type through the catalog. Generalize what it did; do not add a second
+mechanism.
+
+**Goal.** A catalog kind can declare a parameter of port type `Fn` (with a
+signature: parameter types and result type) and `Image`. The checker types
+the argument against that signature, retyping the `fn` body at the call
+site exactly as it does for `defn` calls (the `sigs` table and `inputs_fit`
+logic around `workspace.ml:985-1000` is the model). `E_FN_ESCAPES` is not
+raised for a `fn` passed to an `Fn` port. The IR sees that argument as a
+`Kernel` whose body is the compiled packed program (F2.1 consumes this).
+
+**Steps.**
+
+1. `lib/flow/port_type.mli`: add `Fn of { params : t list; result : t }` and
+   `Image`. `name`, `can_connect`, `coerce` get arms; `coerce` of a function
+   or an image is always `Error` (they are never driven by a scalar).
+   `of_field_kind` returns `None` for both (no `Param` field view exists).
+2. `lib/flow/check.mli`: nothing changes in the record shapes; the new
+   constructors flow through `parameter.ty`. `validate_parameter` gets two
+   arms: an `Fn` port accepts a term whose `ty` is `Ty.Fn` with a fitting
+   signature, an `Image` port accepts `Ty.image`.
+3. `ppx/ppx_rays` and `lib/sop_catalog/flow_manifest.ml`: the single
+   declaration gains a field kind for `fn` and `image` so the manifest can
+   carry them. Read `specification/procedural.md`, "one declaration", and the
+   `add-sop` skill first. The manifest snapshot `flow_manifest.sexp` will
+   diff; review it and `dune promote`.
+4. `lib/flow/workspace.ml`: in `call` (the `Call` arm), when the parameter's
+   port type is `Fn`, type the argument as a call-site instantiation and do
+   not add it to the escaping-fn check. Record the instantiated signature on
+   the term (the `Fn` node already has `params` and `zone`).
+5. `lib/flow_graph/projection.ml`: an `Fn` port draws as a zone input, the
+   way `map`'s `fn` input already does (look for `` `Map `` in `projection.ml`).
+   An `Image` port draws as an ordinary wire of the image colour (`Ty.color`
+   of `Ty.image`).
+6. `lib/flow_sop/lower.ml`: an `Fn` argument reaches the node factory as a
+   compiled `Flow_ir.Executor.program` (reuse `Attribute_kernel.prepare`).
+   An `Image` argument reaches it through the existing image resolver.
+
+**Tests.** `lib/flow/test_check.ml`: `validate_parameter` on each new port
+type, including the refusals (a float into an `Fn` port, a `fn` of the wrong
+arity, an image into a float port). `lib/flow/test_workspace.ml`: a workspace
+declaring a test kind with an `Fn` port through `?ops` and the `test_open_domain`
+pattern; the `fn` does not raise `E_FN_ESCAPES`; the same `fn` stored in a
+record still does. `lib/flow_ir/test_ir.ml`: the argument appears as a
+`Kernel` node. The dependency gate must still pass (no new edges).
+
+**Gate.** `test_open_domain` registers a kind with an `Fn` port without
+editing `lib/flow` beyond the port type itself. Every existing `.rays`
+workspace still passes `test/test_workspace_ir`.
+
+**Astra brief.** Not needed for the plumbing. Ask Astra only for the
+signature representation if you find `Port_type.Fn` needs to carry `Ty.t`
+(it does: `Ty.t` is defined in `ty.mli` and `port_type.mli` does not depend
+on it today; check the dependency order inside `lib/flow` with
+`grep -n "Ty\." lib/flow/port_type.ml` and decide whether `Port_type` gains a
+dependency on `Ty` or `Ty` gains the port constructors; Astra decides).
+
+#### F1.2 Precision as a checker class, not only an IR refusal
+
+**Today.** `Workspace.approx` is advisory: `workspace.ml:834` (a single-clause
+`for` over packed arrays with a covered body), `:995` (a `map` whose inputs
+fit and whose body is eligible), `:1173` (an operator in `Packed_ops.names`
+whose arguments are approximable), `:446` (a vec3 literal of approximable
+parts), `:564` (`if` of approximable arms), `:1025` (a graph reference
+carries its result's class). `(exact x)` (`op.ml:278`) clears it. The IR
+refuses at placement (`flow_ir.ml:228-237`): an `Approx` input into a
+`Kernel` with `requires_exact`, or into a `Sink` other than `Display`, is
+`E_APPROX_SINK` with the message "Approximate values require (exact x)
+before catalog calls, exports, state or cache keys." That diagnostic is
+raised when the IR is built, which is after check, and it is reported at the
+sink, not at the producer.
+
+**Goal.** The checker reports `E_APPROX_SINK` itself, with the producer's
+path and the sink's path, for every statically visible case: an approximable
+binding used as a catalog slot or keyword argument (other than a display
+kind), as a `state` init, as a graph input override, or as the value of a
+`settings/*` or `scene/*` form. The IR keeps its refusal as the backstop. The
+message is the same text so existing tests keep matching.
+
+**Steps.**
+
+1. In `workspace.ml`, the `v` record (line 90) already carries `approx :
+   bool`. At each sink site (the `Call` arm for catalog kinds, the `State`
+   arm for `init`, the `Graph_ref` arm for overrides), if the argument's `v.approx`
+   is true and the kind is not a `draw/*` or `ui/*` display kind, emit
+   `E_APPROX_SINK` through the existing diagnostic callback with both paths.
+2. Make the display-kind test one function (`is_display_kind : string ->
+   bool`) in `lib/flow/op.ml` next to `draw_op`, and use it from both the
+   checker and `flow_ir.ml:414` (which today tests `n.ty = Ty.drawing`).
+3. Add to the approx rules what the emitter already supports and the checker
+   does not mark: `cond` and `case` whose arms are all approximable (today
+   only `if`, line 564). Do not mark reductions, multi-clause products,
+   filtered maps or `skip` tuples: the emitter refuses them (`E_GPU_FORM`),
+   and F1.3 makes the two sets agree.
+
+**Tests.** `lib/flow/test_workspace.ml`: one workspace per sink kind, each
+expecting `E_APPROX_SINK` at check time with the producer path in the
+message; one with `(exact x)` in between expecting no diagnostic; one with a
+`cond` producer feeding `draw/circles` expecting the `cond` path in
+`approx`. `test/test_workspace_ir.ml` must still pass for every file
+(`sketches/flow_particles_gpu/sketch.rays` has both the display and the
+exact route; it is the reference).
+
+**Gate.** `bench_workspace_lower --approx` prints the same sets as before for
+all files plus the new `cond`/`case` paths where present, and no file reports
+a new error.
+
+**Astra brief.** Not needed.
+
+#### F1.3 One eligibility set: the checker marks exactly what the emitter compiles
+
+**Today.** The emitter (`lib/flow_gpu/emit.ml`) refuses ordered
+accumulators, multi-source products and skipped elements with `E_GPU_FORM`
+after the checker marked the path approximable. `Packed.compile`
+(`lib/flow_ir/packed.mli`) returns `None` for unsupported bodies and they stay
+on the interpreter, silently. So a path can be in `approx`, compile to a CPU
+packed program, and still be refused by the emitter; the user sees a GPU
+badge that never lights.
+
+**Goal.** `Workspace.approx` contains a path only if `Packed.compile` will
+succeed on it and `Emit.kernel` will accept the result. The three decide from
+one table.
+
+**Steps.**
+
+1. Enumerate the forms `Emit.kernel` refuses: grep `E_GPU_FORM` in
+   `lib/flow_gpu/emit.ml` and list each condition. Enumerate the bodies
+   `Packed.compile` rejects: grep `None` returns in `lib/flow_ir/packed.ml`'s
+   compile path.
+2. Write the union as a predicate on the checked term in `lib/flow`:
+   `Packed_ops.eligible_form : Workspace.term -> bool` is wrong because
+   `Packed_ops` is below `Workspace`; put it in `workspace.ml` as
+   `packed_body` (defined at `:116`, used at `:838`; extend it) and expose the
+   reasons as a list so the inspector can say why a path is not eligible.
+3. `lib/flow_gpu/test_emit.ml`: for every path `bench_workspace_lower
+   --approx` prints on every `.rays` file, `Emit.kernel` must succeed. This
+   is the test that pins the two sets together; it runs on the mock backend
+   (no device needed) because `Emit.kernel` is pure.
+
+**Gate.** That test passes; `E_GPU_FORM` becomes unreachable from a checked
+workspace (keep the code path; it is the backstop for hand-built programs).
+
+**Astra brief.** Not needed.
+
+#### F1.4 Types the kernels do not have: Vec2, Vec4, Mat4, integers
+
+**Today.** `Ty.t` has `Float | Int | Bool | Vec3 | Text | Color | List | Array |
+Record | Fn | Any | Named`. Packed arrays are `Float_array` and `Vec3_array`
+only; `Packed.instruction` has no integer arithmetic, no bitwise ops, no
+gather or scatter; bools in kernels are the floats 1 and 0. The continuation
+doc's Phase 7 ("Kernel forms": 32-bit integers, `:until`, `get`/`set` on
+owned arrays, several outputs, an adjacency table, the spatial intrinsic) is
+where these land. Do not start Phase 7 from this file. What belongs here is
+only the **checker's** side, so Phase 7 finds the types ready:
+
+1. `Ty.Vec2` and `Ty.Vec4` as scalars that fit the same coercion rules as
+   `Vec3` (`fits`, `coerce`, `join`), with `Ty.Array` of each. `Port_type`
+   does not need them until a catalog parameter does.
+2. The vec3 literal grouping in the projection (`specification/flow.md` §5.3)
+   generalized to 2 and 4 fields.
+3. `E_TYPE` messages for mixed-width arithmetic.
+
+No kernel instruction changes. Tests in `lib/flow/test_ty.ml` and
+`test_workspace.ml`. No Astra.
+
+#### F1.5 What stays closed on purpose
+
+`Port_type` beyond F1.1, `Editor_core.Panels.panel` (a new pane kind is an
+editor decision), `Scene_execution.pipeline_family` (see F2.4) and probe
+summaries stay closed. Do not open them because it "would be cleaner".
+
+### F2. Textures and fields: full scope
+
+**What exists.** Images are a value type (`Ty.image`) with three producers
+(`image/load`, `image/render`, `image/noise`) and three consumers
+(`draw/image`, `scene/geometry :texture`, `sop/attr_from_image`). An image is
+RGBA8 on the CPU (`Rays.Image.t`, `specification/image.md`); `image/render`
+draws a Drawing into an offscreen `Rays.Canvas` and reads it back with
+`Canvas.to_image`, then the texture consumer uploads it again. The editor
+owns at most 64 images (`Workspace_images`). GPU display values from a
+kernel are opaque tokens (`Shape_batch.gpu_token`) consumed only by
+`draw/circles`-style sinks through `Workspace_gpu.circles`.
+
+OGPU facts you need (`lib/ogpu_core/types.mli`): texture formats are
+`Rgba8_unorm | Rgba16_float | Rgba32_float`; all three are filterable and
+storage-capable on Apple7+; the float formats **reject `Render_attachment`**
+and multisampling with a typed `Unsupported`. `texture_usage` is
+`Texture_binding | Storage_binding | Render_attachment | Texture_copy_src |
+Texture_copy_dst`. So a per-pixel kernel writing floats cannot be a fragment
+shader into a float target; it can be a compute kernel writing a
+`Storage_binding` texture, or a buffer copied into a texture.
+
+`Scene_execution.pipeline_family` is a closed variant of eleven families
+(`Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured |
+Scene3_shadow | Scene3_stencil | Scene3_textured_stencil |
+Scene3_shadow_stencil | Scene3_world | Ui`) with
+`pipeline_variants_per_sample` as an invariant the pipeline cache capacity is
+sized from. Adding a family is a boundary change: `scene_execution.mli`,
+`rays_execution.mli`, `lib/rays/scene3_native_lowering.ml`, the cache sizing,
+`specification/backend.md`, and a conformance test on mock and Metal.
+
+`Rdk.Iso_surface` (`lib/rdk/gen/iso_surface.mli`): `extract` takes
+`field:(Vec3.t -> float)` and calls it per sample; `extract_dense` takes a
+`Field.t` which is `gyroid` or `custom (sample -> float)`, also per sample.
+Neither accepts a precomputed sample array. There is no `sop/iso_surface` in
+the catalog (grep `flow_manifest.sexp`: none). `Rdk.Kernel.map_points` and
+`Voronoi2` are OCaml-only too.
+
+The scope is four pieces, in this order. Each one is a Lisp kind first, with
+its projection and gestures, then its lowering.
+
+#### F2.1 Fields: a `fn` of position as data for geometry
+
+**Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
+float, passed to a catalog kind through an `Fn` port (F1.1). No new value
+type. The first consumer is a new SOP:
+
+```lisp
+(sop/iso_surface :field (fn [p] (- (length p) 1.0))
+                 :resolution [64 64 64] :min [-2 -2 -2] :max [2 2 2] :iso 0.0)
+```
+
+**Lowering.** Do **not** call `Iso_surface.extract` with a per-sample
+closure that runs the interpreter: 64³ = 262,144 samples at 710 ns each is
+186 ms per cook, and a million at 1M-sample resolutions. Instead:
+
+1. Build the sample positions as one packed `Vec3_array` of
+   `rx * ry * rz` elements (the grid is static; it is a `Source` in the IR
+   with `Count.Static`).
+2. Run the field as a packed `map` over that array through
+   `Attribute_kernel.prepare` and `Flow_ir.Executor.force` (CPU tier,
+   byte-identical at one and eight domains). This gives a `Float_array` of
+   samples.
+3. Add to `rdk` one entry point `Iso_surface.extract_sampled :
+   resolution:int*int*int -> min -> max -> iso -> samples:float array ->
+   (Geometry.t, Error.t) result` that consumes the array instead of calling a
+   field. Use the `add-rdk-op` skill (interface, tests, bench). The marching
+   step is the existing `extract_dense` code with the sample lookup replaced
+   by an array read; keep the sample order documented in the `.mli` (x
+   fastest, then y, then z, or whatever `extract_dense` iterates: read it,
+   do not guess).
+4. The SOP's `Node.facts`: irregular, topology-changing, exact (the samples
+   are exact floats from the CPU tier; a GPU-sampled field would be `Approx`
+   and the IR refuses it into a catalog input, which is right).
+
+**Projection.** The `:field` port draws as a zone with the body cards (F1.1
+step 5). `v` on the SOP shows the mesh; a probe on the field body shows the
+sample for the selected grid tuple (the probe machinery forces one tuple).
+
+**Tests.** `lib/rdk/test_iso_surface.ml`:
+`extract_sampled` on a sphere's samples equals `extract_dense` with the
+sphere `custom` field, byte for byte, one and eight domains.
+`lib/flow_sop/test_attribute_kernel.ml`: the field kernel over the grid
+equals the interpreter's per-sample values. `test/test_workspace_ir.ml`:
+a new `sketches/flow_field/sketch.rays` (copy `flow_kernel`) passes at four
+times and both domain counts.
+
+**Gate.** A 64³ sphere field cooks in under 10 ms at eight domains on the M1
+(the kernel row says 16.5 ns per element, so about 4 ms of samples; the
+marching step is the rest). Record before/after in `performance-log.md`
+under "F2.1 field kernel".
+
+**Astra brief.** "Design the sample-array entry point for
+`Rdk.Iso_surface` so that `extract_sampled` and `extract_dense` share the
+marching code with no per-sample closure, keep deterministic chunking under
+`Parallel` with the context grain 16,384, and stay byte-identical at one and
+eight domains. Say which sample ordering the existing code iterates, what
+the sequential cutoff should be, and what the one failing check is."
+
+#### F2.2 Image kernels: a per-pixel `map`
+
+**Lisp.**
+
+```lisp
+(image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 512 :height 512)
+```
+
+A `map` over the pixel grid whose body returns a vec4 colour (needs
+`Ty.Vec4` from F1.4; until then accept a vec3 and alpha 1). The producer is
+an image value like `image/noise`.
+
+**Lowering, CPU.** Same shape as F2.1: the uv grid is a static packed array,
+the body is a packed map, the result is a float array converted to RGBA8
+once (clamp, multiply by 255, round half to even; write the rounding down in
+the spec because exports depend on it). It becomes a cooked `Payload.Image`
+(`lib/procedural/session.ml` already carries images; `image/noise` is the
+model, `lib/flow/op.ml:269`).
+
+**Lowering, GPU (display only).** When the image feeds only `draw/image` or
+a `:texture`, placement may choose `Gpu` by the cost table exactly like
+`draw/circles`. The emitter output is the same packed program; the runner
+writes a buffer; the sink needs one new piece: a buffer-to-texture copy
+(`Texture_copy_dst` usage, `Rgba8_unorm`) producing a resident texture whose
+token the sink binds. Add that as an OGPU operation only if it does not exist
+(`grep -n "copy" lib/ogpu_core/backend.mli`); if it must be added, use the
+`add-ogpu-feature` skill: capability-gated, mock arm returns `Unsupported`,
+conformance case on both backends.
+
+**Tests.** Pure: `image/map` of a constant equals `image/noise`-style
+expectations pixel for pixel at one and eight domains; the RGBA8 conversion
+rounding has a table test. Native (`@runtest-native`): GPU `image/map` vs
+CPU `image/map` per-pixel difference recorded, maximum channel difference
+and count, in `performance-log.md` under "F2.2 image kernel".
+
+**Gate.** A 1024×1024 `image/map` on the CPU tier under 40 ms at eight
+domains (1,048,576 elements at 16.5 ns is 17 ms, plus conversion); on the
+GPU under 5 ms including the copy. Allocation per frame on the GPU route
+constant in the element count (the Step 4 gate from P5, already true for
+circles).
+
+**Astra brief.** "Design the RGBA8 conversion and the buffer-to-texture
+sink so that the CPU route allocates one output image per cook and the GPU
+route allocates nothing per frame; name the OGPU operation to use and the
+exact rounding. One failing check for each."
+
+#### F2.3 Drawing to texture without the readback
+
+**Today.** `image/render drawing :width :height` renders into an offscreen
+`Rays.Canvas`, `Canvas.to_image` reads the pixels back to a CPU `Image.t`,
+and a `:texture` consumer uploads them again. That is one GPU→CPU→GPU round
+trip per live frame.
+
+**Goal.** When the rendered image feeds only a `:texture` or `draw/image`
+sink, keep the canvas's texture resident and bind it directly. The CPU
+image is produced only when something exact asks for it (`sop/attr_from_image`
+or an export), through the same `(exact x)` discipline.
+
+**Steps.** Measure first: `tools/bench_workspace_lower.exe --images` gives
+the cooked-image producer rows; add a row for `image/render` at 512², 1024²
+and 2048² with the current round trip (time and bytes per frame). Then give
+`Workspace_images.texture` a path that returns the canvas's own texture
+token when the image is a live `image/render`, and only falls back to upload
+for loaded and cooked images. The canvas is owned by `Workspace_images`
+already (64-pin rule); the token must be invalidated on resize.
+
+**Tests.** `test/test_workspace_images.ml`: a live `image/render` consumed
+by `:texture` does not call `Canvas.to_image` (count it); one consumed by
+`sop/attr_from_image` does. Native: the rendered texture on a mesh is pixel
+identical to the round-trip version.
+
+**Gate.** Per-frame bytes for a live 1024² `image/render` feeding a texture
+drop from the measured round trip to a constant; record both.
+
+**Astra brief.** Only if the resident path needs a new OGPU usage
+combination; otherwise not needed.
+
+#### F2.4 Fragment kernels (last, and only if measured need)
+
+A fragment kernel is a per-pixel effect applied where the canvas is drawn,
+not into an image. It needs a new `pipeline_family` (closed variant, see
+above) and a fragment entry point generated by the emitter. Everything a
+fragment kernel can do for a static picture, F2.2 does with an `image/map`
+drawn through `draw/image`. The only thing it adds is a per-pixel effect on
+a live, moving drawing without an intermediate texture.
+
+Do not build this until F2.2 is in and someone has a workspace where the
+`image/map` + `draw/image` route is measured too slow. If that day comes:
+one new family `Scene2_shaded`, `pipeline_variants_per_sample` updated, cache
+capacity updated, `Emit.fragment : Packed.t -> msl` beside `Emit.kernel`,
+conformance on mock (Unsupported) and Metal, and the `Ui` family untouched.
+Astra designs the family and the uniform layout; you do the rest.
+
+### F3. The two-chain fan-out gate (Astra only)
+
+**Today.** The fixture is `bench_workspace_lower --branches` (its workspace
+text is at `tools/bench_workspace_lower.ml:130-138`: two separately authored
+1M-point grids, two `noise_displace` each, merged at the root). P4 Step 3's
+gate was 1.5× against Step 0's 75.943 ms at eight domains, i.e. 50.6 ms.
+Measured: 57.9 ms (learned), with the per-node table in `performance-log.md`
+"P4 two-chain fan-out: per-node evidence": grids 7.8/9.0 ms, noise 4 × about
+4 ms, **`merge` 40.0 ms serial** at eight domains, 58.8 ms at one. Fanning
+the two chains out hides at best one chain (16-17 ms), which is what
+happened. The gate cannot be reached without a faster merge.
+
+`Rdk.Mesh_merge.merge_plain` (`lib/rdk/mesh/mesh_merge.ml:79-199`): three
+`Array.blit`s of the position planes into fresh arrays, a `Parallel.for_`
+over vertices rewriting `vertex_points` with the point offset, a
+`Parallel.for_` over primitives rewriting `primitive_offsets` with the vertex
+offset, `Bytes.blit` of primitive kinds, then attribute concatenation
+(`concatenate_attribute`), group rebuilding and edge groups. Temporary
+timers (section "Merge phases and runtime qualification at 2x") say:
+topology and position copy 55.6 ms at one domain, attribute concatenation
+7.2 ms, the rest under 0.1 ms.
+
+Two trials are recorded and reverted, do not repeat them:
+
+- 0d16f178: one allocation plus chunked parallel blits of the planes; the
+  eight-domain merge stayed 45 ms vs 40 (within noise).
+- ce133675: the index-rewrite loops as one closure per chunk with a tight
+  inner loop; slower at both domain counts (one-domain 570 ms, eight-domain
+  51 ms against 59 and 40).
+
+The second number is suspicious (a tight loop should not be ten times
+slower); it probably measured something else (a boxed float, an allocation
+in the closure, a cold cache). Astra must look at the diff before deciding.
+
+**What a third attempt has to be.** The merge copies about 72 MB (48 MB of
+positions, 16 MB of vertex indices, 8 MB of offsets) for 2M points; memcpy
+at memory bandwidth is under 10 ms. 55 ms means the loops are not memcpy.
+The candidates, for Astra to rank:
+
+1. The per-element `index land 16383 = 0` cancel check and the closure call
+   per element in `Parallel.for_` (look at `lib/rays_math/parallel.ml` (the `Parallel` module `rdk` uses) and
+   what `for_` does per element); a chunk-level cancel check with a plain
+   `for` loop inside, written so the OCaml compiler keeps the ints unboxed.
+2. `Packed.Float3.Private.of_owned_exn` and
+   `Topology.Private.create_validated_owned`: "validated" may re-walk the
+   topology (grep what it validates); for a merge of validated inputs the
+   validation is redundant and could be skipped under a proof.
+3. A merge that does not copy: `Sketch_support.Packed_pieces`
+   (`lib/sketch_support/packed_pieces.mli`) already exists for display; if
+   the root of a workspace is only displayed, `sop/merge` could lower to a
+   list of pieces and never materialize. This changes semantics for
+   downstream catalog nodes, so it is only legal when the merge feeds a
+   display sink; the IR knows that (`Sink (Display _)`).
+4. Plane sharing in `Rdk.Geometry` (a rope of planes): the largest change,
+   touching 111 files; only if 1-3 fail.
+
+**Protocol.** `RAYS_BRANCH_NODE_TIMES=1 _build/default/tools/bench_workspace_lower.exe --branches 3 off`
+prints per-node durations; the `merge` row is the number. Seven cold runs,
+one and eight domains, hashes must stay `67c129ecc130f8881a2eaf92c053b64c`
+(chains) and `8ef295fbdea12b586200fd1ffcdcb58f` (pieces). Raw CSVs in
+`specification/performance/f-merge-*.csv`.
+
+**Gate.** Either the two-chain fixture at eight domains is at or under
+50.6 ms with unchanged hashes, or Astra writes the sentence that closes the
+gate as unreachable with the reason, and you put that sentence in
+`performance-log.md`. Both are acceptable outcomes. "Almost" is not.
+
+**Astra brief.** "Read `lib/rdk/mesh/mesh_merge.ml:79-199`,
+`lib/rays_math/parallel.ml`, `lib/rdk/core/packed.ml` and
+`lib/rdk/core/topology.ml`; read the two reverted trials (`git show
+0d16f178`, `git show ce133675`) and the measurements in
+`specification/performance-log.md` sections 'P4 two-chain fan-out: per-node
+evidence' and 'Merge phases and runtime qualification at 2x'. Explain why
+copying 72 MB takes 55 ms at one domain. Rank the four candidates above (or
+a fifth), give me the first one to implement with its one failing check, the
+exact measurement protocol, and the number that would make you say the gate
+is met."
+
+### F4. Full static editor allocation (information, optional, Astra only)
+
+**Today.** `tools/bench_drawing.exe 100000 --static` measures one full
+`Editor.update` of a static 100,000-circle canvas: 155,620 bytes per frame
+after five P3 follow-ups (camera decode reuse −27,752; linked-child
+arrangement loops −4,768; navigation short-circuit −9,224; intrinsic-size
+loop −1,136; clipped-rectangle reuse −432; per-run font id −5,688). The
+retained Drawing lowering alone is 1,393 bytes per frame and that is the
+gate `P3.md` actually stated (the delta bound in `test/test_drawing.ml`,
+which passes). The 32 KiB figure for the *whole* editor update is not a
+gate; it is recorded as information in "P3 allocation gate reading".
+
+`--static --profile` runs `Gc.Memprof` at sampling rate 0.001 with 20-frame
+stacks (`tools/bench_drawing.ml:41`). The last profile (section "P3 full
+static editor allocation investigation") grouped 5,142 sampled words as: UI
+building and other UI work 1,573; other editor work 1,316; camera decoding
+1,169 (now reused); UI painting 853; immutable batch snapshots 104; editor
+reduction 75; key routing 48; UI arrangement 4. Concrete sites named:
+`lib/pxui/ui.ml:1497` and `:1515` (arrangement closures, since replaced by
+the linked-child loops), `:1817-1848` (paint rectangle and clip tuples),
+`lib/rays_editor/core_actions.ml:123-151` (`layout_labels` and `routed`
+rebuild the command list with `List.filter`/`List.filter_map` every frame).
+
+**If the owner asks for this number to move.** Astra reads the profile,
+picks one site, you implement, you measure three alternating before/after
+trials with the same protocol (ten warm-up, 200 timed, one domain, all other
+work held), Astra judges. The obvious first site is `core_actions.ml:123-151`:
+the keymap filter runs per frame and allocates a new list; it only changes
+when the panel tree, the level or the text mode changes, so it can be
+rebuilt on those transitions and kept in the model. Do not add a cache
+without a capacity and an invalidation test.
+
+**Gate.** None. Record each step as the P3 follow-ups did. Stop when Astra
+says the remaining bytes are the UI batch snapshot copy that
+`Ui_batch.Builder.publish` must make (that copy is required behaviour).
+
+### F5. Native gates are part of shipping (a habit, not a task)
+
+The four branches were qualified in sandboxes with no Metal device. At
+consolidation every native alias had to be rerun on the M1, and two
+pre-existing failures surfaced that no sandbox could have seen: parity
+goldens captured at 1x on a 2x display (fixed in 870210be and b6bdd8c2,
+captures keyed by drawable extent) and SDL3's own per-window footprint
+growth counted as a Rays leak (fixed in 3ab96c82, the check now subtracts
+SDL's baseline measured in the same process).
+
+Rules:
+
+1. Before you write "passes" for anything under `@runtest-native` or
+   `@smoke`, you ran it on a machine where
+   `Ogpu_metal.Device.system_default` succeeds. The sandbox answer is
+   `No_adapter: Ogpu_metal.Device.system_default: Metal has no system
+   default device`; when you see it, write "not verified natively" and
+   stop claiming.
+2. The native aliases that matter for this file: `@lib/flow_gpu/runtest-native`
+   (`test_run.exe`: emitted-kernel numerics, 1,024 and 65,536 elements),
+   `@lib/rays/test_shape_batch_native`, `@lib/rays/test_scene3_float32_native`,
+   `@lib/rays/test_canvas_native`, `@test/test_workspace_images_native`,
+   the three `test_workspace_pixels` aliases, `@examples/sop_gallery/test_scene3_float32_gallery`,
+   `@lib/runtime/native_qualification/qualification`, `@lib/pxui/test_ui_parity`
+   (2x goldens; check display density first, refresh only with
+   `RAYS_UPDATE_FIXTURES=<dir>` and only for a design change).
+3. `tools/bench_kernel.exe --gpu-check` is the pure half of the GPU check
+   and runs anywhere; `--gpu` needs the device.
+4. The mock backend (`lib/ogpu_mock/backend_mock.ml:113, 131-133, 245-246`)
+   owns pipelines and buffers but does not execute compute or render. A
+   test that needs shader numerics is native by construction; do not try to
+   make the mock compute.
+
+### F6. Small, known, bounded
+
+- **`ui/viewport` takes the 3D scene only** (`lib/flow/op.ml:442`,
+  `lib/editor_document/contexts.ml:660`). A drawing goes in `ui/canvas`
+  (`op.ml:443`), an image in a canvas through `draw/image`, a table in
+  `ui/spreadsheet` (`op.ml:448`). This is by decision, not omission. The
+  one thing worth adding is `ui/canvas` accepting an image value directly
+  (`(ui/canvas (ref my_image))`), which is a checker coercion from
+  `Ty.image` to `Ty.drawing` by wrapping in `draw/image` at the origin;
+  projection unchanged. Test in `lib/flow/test_workspace.ml`. No Astra.
+- **Grain.** 16,384 everywhere (`lib/procedural/context.ml:45`), by
+  measurement ("Measured CPU placement and grain decision"). Do not change
+  it without the same five-grain, three-size, five-family sweep
+  (`bench_rdk_ops --grain`).
+- **`Iso_surface`, `Voronoi2`, `Kernel.map_points` reachable only from
+  OCaml.** F2.1 covers the first. `Voronoi2` becomes a SOP through the
+  `add-sop` skill when someone needs it; no Lisp-first reason to do it now.
+- **No 2D polygon offset or 2D Boolean in rdk.** Out of scope; note it when
+  a 2D port needs it.
+- **`examples/pathtracer`, `procedural_modeling`, `sop_gallery` and the
+  sketches `code_quadtree`, `chromatic_drift`, `pastel_flow` stay OCaml.**
+  The path tracer is the continuation's Phase 10; `sop_gallery` and
+  `voxel_wall` are the custom-catalog oracles and must keep running with
+  their own factories (`test_workspace_ir` runs them inside their own
+  executables).
+
+### F7. Checks that are red for a known reason
+
+None on `dev` at ce133675 on the M1. `dune build @runtest` is green on a
+clean checkout; `@runtest-native` and `@smoke` are green on the M1. If you
+find a red check, it is new: bisect it between ce133675 and your tree
+before touching anything.
+
+### F8. Hand-off into the continuation
+
+When F0 to F2 are in, the continuation doc's phases start. Their status
+against this tree, so you do not redo what exists:
+
+| Continuation phase | Already in the tree | Still to build |
+|---|---|---|
+| 5 Modules | `(import ...)` of a shared file (`sketches/ws_shared`), library editing (`Workspace.check ~library:true`) | `module`, `use`, a prelude, `defnode` with declared facts resolved through the manifest, signature cards |
+| 6 Collapse | fact-guided `with_attr` fusion, component cache keys, learned parallel branches | `with_attr` as a kernel kind (no materialization between kernels), attribute forwarding, the path-based fusion barrier, rate frontiers as the general `hoist` |
+| 7 Kernel forms | nothing (F1.4 readies the types) | 32-bit integers, `:until`, `get`/`set`, several outputs, adjacency, the spatial intrinsic |
+| 8 GPU tier | all of P5; asynchronous compile and zero-copy measured and declined (8.2 ms compile, write 5 percent of a frame) | the per-pixel difference record for the million-circle sketch (F2.2 gives the tool), a viewport-only `with_attr` placed on the GPU without annotation (today a SOP attribute from the GPU goes through `(exact x)` readback; the display route serves drawing sinks) |
+| 9 Precompiled modules | `rays-lisp ml` generates the sketch executable (`tools/lisp`, `sketches/dune`) | Lisp-to-OCaml for modules, native cooks as catalog entries, error positions mapped back |
+| 10 Path tracer | the image domain (F2 extends it) | materials as Lisp functions, the ray intrinsic, the image sink, the integrator |
+| 11 Panels | `ui/spreadsheet` in OCaml | the kit as ops, a panel as a function from model and input to a drawing and intents |
+
+Do Phase 5 (Modules) first; 6 and 7 both want the setters as Lisp modules.
+Phase 8 is paid. The GPU-tier gate items in the row above are the only Phase
+8 leftovers and they are small once F2.2 exists.
+
+---
+
+## 3. Astra brief template
+
+Copy this, fill the brackets, send it to the sub-agent, and wait for all
+three answers before writing code.
+
+```
+You are GPT 6 Astra, reviewing an optimization for the Rays repository
+(OCaml, Dune, Apple Silicon Metal through OGPU). The implementing agent is
+GPT 6.1 Sol; give it a design it can implement without inventing anything.
+
+Item: F[n] [title] from F.md.
+Files: [paths and line ranges from the item].
+Current numbers: [the table rows from the item], measured with [commands].
+Constraints (non-negotiable): byte-identical results at one and eight
+domains on every CPU path; shared Parallel pool with grain 16,384 and a
+sequential cutoff; no new dependency; no Metal access above the backend;
+approximate values never reach exports, catalog inputs, state seeds or
+cache keys; every cache has a capacity; no fallbacks.
+
+Answer with exactly:
+1. The design: what changes, in which function, and why it is faster or
+   smaller. Name the one thing most likely to make it not work.
+2. The one check that fails if the design is wrong (a test or an assert in
+   an existing test file; say which file).
+3. The measurement protocol: command, repetitions, domain counts, what to
+   hold still, and the single number that decides. Say what number means
+   "gate met" and what number means "revert".
+```
+
+When Sol sends the numbers back, Astra answers with one of: "met", "not
+met, revert", or "not met, try [one specific change]". Sol records the
+verdict verbatim in `performance-log.md`.
+
+---
+
+## 4. Checklist before you say an item is done
+
+- [ ] `dune build @check` clean, warnings are errors.
+- [ ] Focused alias for every file touched is green (`_build/default/tools/check.exe @lib/<name>/runtest`).
+- [ ] `test/test_workspace_ir` green (every `.rays` file, four times, one and eight domains).
+- [ ] `test/dependency_gate` green; a new edge is in the gate, in `specification/backend.md`, and has a test at the boundary.
+- [ ] A new Lisp form has its projection, gestures and test; `specification/flow.md` updated.
+- [ ] A new SOP has one declaration, `flow_manifest.sexp` promoted, `Node.facts` set.
+- [ ] Public `.mli` change: `api_stable.json` promoted on purpose.
+- [ ] Numbers: before and after, same protocol, raw CSV under `specification/performance/f-*.csv`, a `performance-log.md` section with the commands, the machine and what it does not establish.
+- [ ] Native: run on a machine with a device, or written down as not verified.
+- [ ] Astra's verdict quoted for every non-trivial optimization.
+- [ ] `_build/default/tools/check.exe --ship` exit 0.
+- [ ] This file updated: the item marked done with the commit hash, or its remaining part rewritten.
