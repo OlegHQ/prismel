@@ -437,7 +437,7 @@ let rec cached_output memo session context node =
   | None ->
       let inputs=selected_inputs node in
       let values=Array.map(fun input -> Option.bind (cached_output memo session context input)
-        (fun output -> match output.payload, output.instances with
+        (fun (output : output) -> match output.payload, output.instances with
           | Payload.Image _, _ | _, None -> Some output.payload
           | Geometry _, Some _ -> Option.map (fun geometry -> Payload.Geometry geometry)
               (List.assq_opt output session.materialized))) inputs in
