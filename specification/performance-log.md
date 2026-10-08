@@ -7101,3 +7101,56 @@ at one/eight domains, including oversized grain, source immutability,
 immutable X/Z sharing, owned Y, preserved topology and normal invalidation.
 Native rendering and shipping remain unverified; these CPU measurements do
 not establish GPU behavior or close the native gates.
+
+## P3 full static editor allocation investigation (2026-10-08)
+
+The absolute static `Editor.update` gate is **still unmet**. The earlier
+203,388-byte full-editor row and the 1,393-byte retained Drawing-only row measure
+different boundaries; the latter does not satisfy the 32,768-byte full-update
+limit.
+
+On the integrated `ae4bd1c3` checkpoint plus `e689a570` test changes, the existing
+`tools/bench_drawing.exe 100000 --static` isolates one row without changing the
+editor path: 800×600, one domain, ten warm-up and 200 timed updates, Dune dev,
+OCaml 5.3.0, the same arm64 macOS machine as the drawing rows above. Every other
+agent held builds, tests, compilers and timers during each measurement.
+
+| Static full editor, 100k circles | Median (ms) | p95 (ms) | Bytes/frame | Picture commands |
+|---|---:|---:|---:|---:|
+| Before camera decode reuse | .039101 | .062943 | 204,620 | 1 |
+| After camera decode reuse | .036001 | .059128 | 176,868 | 1 |
+
+The narrow change saves 27,752 bytes/frame (13.6%). `Viewport3.on_view` reuses its
+active-camera decode within the current update. It decodes again if viewport
+movement writes a replacement immutable camera node. It adds no persistent
+cache and preserves invalid/absent-camera and camera-follow behavior. Existing
+workspace-shell camera zoom/multiview tests and window-free editor camera/lens
+logic checks pass; the focused alias also supplies their generated fixtures.
+The sandbox still denies autosave writes to the user's preferences directory;
+these tests report that restriction and exit zero.
+
+`--static --profile` uses the existing standard-library Memprof sampling pattern
+at 0.001, with 20-frame call stacks. Its wall time and allocation row are
+discarded. Before the fix, 5,142 sampled words grouped by named stack callers
+were UI building/other UI work 1,573, other editor work 1,316, camera decoding
+1,169, UI painting 853, immutable batch snapshots 104, editor reduction 75,
+key routing 48 and UI arrangement 4. These are sampled stack categories, not
+exact byte accounting; allocations raised inside arrangement also occur in
+the broader categories. Largest concrete sites include the arrangement
+closures in `pxui/ui.ml:1497` and `:1515`, paint rectangle/clip tuples in
+`:1817–1848`, and layout-label/keymap list rebuilding in
+`rays_editor/core_actions.ml:123–151`.
+
+The UI already retains box/layout/hit arrays and reuses its batch builder.
+`Ui_batch.Builder.publish` copies the bytes once for the immutable returned
+Scene snapshot; `Scene.Private.ui` borrows that snapshot, so there is no second
+copy to delete. Removing this copy or skipping painting/input/layout work would
+change required behavior. Reaching 32 KiB needs broader allocation work across
+the UI and immutable editor update path; this investigation does not claim to
+close that gate. Native rendering qualification remains unavailable.
+
+Session evidence: `/private/tmp/p3-static-editor-baseline.csv`,
+`/private/tmp/p3-static-editor-camera-after.csv`,
+`/private/tmp/p3-static-editor-profile-aggregate.log`,
+`/private/tmp/p3-static-camera-shell-alias.log` and
+`/private/tmp/p3-static-camera-logic.log`.

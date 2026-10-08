@@ -22,7 +22,7 @@ let workspace kind count dynamic =
   match Rays_editor.Workspace.load text with Ok doc -> doc
   | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds))
 
-let benchmark kind count dynamic =
+let benchmark ?(profile=false) kind count dynamic =
   let workspace = workspace kind count dynamic in
   let editor = ref (Result.get_ok (Editor.create ~workspace ~await:true ~domains:1
     ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) ())) in
@@ -32,10 +32,42 @@ let benchmark kind count dynamic =
     let step i = editor := Editor.update !editor (frame i) in
     for i=1 to 10 do step i done;
     let times=Array.make 200 0. in
-    Gc.full_major (); let before=Gc.allocated_bytes () in
+    Gc.full_major ();
+    let samples=Hashtbl.create 64 in
+    let sample allocation=
+      let stack=Printexc.raw_backtrace_to_string allocation.Gc.Memprof.callstack in
+      Hashtbl.replace samples stack
+        (allocation.n_samples+Option.value ~default:0(Hashtbl.find_opt samples stack));None in
+    if profile then ignore(Gc.Memprof.start ~sampling_rate:0.001 ~callstack_size:20
+      {Gc.Memprof.null_tracker with alloc_minor=sample;alloc_major=sample});
+    let before=Gc.allocated_bytes () in
     Array.iteri (fun i _ -> let started=Unix.gettimeofday () in
       step (i+11); times.(i)<-Unix.gettimeofday () -. started) times;
     let bytes=(Gc.allocated_bytes () -. before) /. float (Array.length times) in
+    if profile then begin
+      Gc.Memprof.stop();
+      Printf.printf "PROFILE: allocation sampling distorts times and bytes/frame\n%!";
+      let categories=Hashtbl.create 16 in
+      Hashtbl.iter(fun stack count->
+        let calls=String.split_on_char '\n' stack in
+        let has prefix=List.exists(String.starts_with ~prefix)calls in
+        let category=List.find_opt(fun(_,prefix)->has prefix)
+          ["camera decoding","Called from Editor_document__Objects.Camera.of_node";
+           "UI batch snapshot","Called from Scene_command__Ui_batch.Builder.publish";
+           "UI arrange","Called from Pxui__Ui.arrange";
+           "UI paint","Called from Pxui__Ui.paint_all";
+           "UI other","Called from Pxui__Ui.";
+           "keymap routing","Called from Rays_editor__Core_actions.routed";
+           "editor reduction","Called from Rays_editor__Core_reduce.reduce"]in
+        let name=Option.fold ~none:"other editor work" ~some:fst category in
+        Hashtbl.replace categories name(count+Option.value ~default:0(Hashtbl.find_opt categories name)))samples;
+      Hashtbl.to_seq categories|>List.of_seq|>List.sort(fun(_,a)(_,b)->Int.compare b a)
+        |>List.iter(fun(name,count)->Printf.printf "PROFILE TOTAL %s: %d sampled words\n%!" name count);
+      Hashtbl.to_seq samples|>List.of_seq|>List.sort(fun(_,a)(_,b)->Int.compare b a)
+      |>List.filteri(fun i _->i<16)|>List.iter(fun(stack,count)->
+        Printf.printf "PROFILE %s_%s: %d sampled words\n%s\n%!" kind
+          (if dynamic then "moving"else "static") count stack)
+    end;
     let evaluated=Result.get_ok(Flow.Eval.static workspace.checked)in
     let scene=Result.get_ok(Sketch_support.Drawing.render evaluated.plan
       (List.assoc "picture" evaluated.results)
@@ -47,7 +79,12 @@ let benchmark kind count dynamic =
 
 let () =
   Printf.printf "name,count,median_s,p95_s,bytes_per_frame,commands\n%!";
-  let counts=if Array.length Sys.argv>1 then [int_of_string Sys.argv.(1)] else [1000;10000;100000] in
-  List.iter (fun count -> List.iter (fun kind ->
-    benchmark kind count true; benchmark kind count false)
-    ["circle";"rect";"line";"points"]) counts
+  let args=Array.to_list Sys.argv|>List.tl in
+  let static=List.mem "--static" args and profile=List.mem "--profile" args in
+  let args=List.filter(fun arg->arg<>"--static"&&arg<>"--profile")args in
+  let counts=match args with []->[1000;10000;100000]|[count]->[int_of_string count]
+    |_->invalid_arg "bench_drawing [count] [--static] [--profile]"in
+  if profile && not static then invalid_arg "allocation profiling requires --static";
+  List.iter(fun count->if static then benchmark ~profile "circle" count false else
+    List.iter (fun kind ->benchmark kind count true; benchmark kind count false)
+      ["circle";"rect";"line";"points"])counts

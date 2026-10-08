@@ -311,35 +311,42 @@ let on_view core ~previous ~key camera extra ~stepped =
           ["follow_viewport", Parameter.Bool_value value] ~label:"Follow viewport"
     | _ -> core in
   let written = ref extra.written in
-  let core, camera = match active_node core with
-    | Some node when follows node ->
+  let active = active_node core in
+  let decoded = Option.bind active Objects.Camera.of_node in
+  let core, camera = match active, decoded with
+    | Some node, Some (node_view, true) ->
         let moved = not stepped && not (same_view (Easy_camera.camera previous)
             (Easy_camera.camera camera)) in
-        (match node_camera node with
-         | Some node_view when moved || not (same_view node_view (Easy_camera.camera camera)) ->
-             if moved then
-               match Edit_graph.apply_parameters (Core.scene core) ~node_id:(Node.id node)
-                   (view_parameters camera) with
-               | Ok (scene, _) ->
-                   written := Some (Easy_camera.camera camera);
-                   Core.scene_edit core `Amend scene, camera
-               | Error _ -> core, camera
-             else if (match !written with Some w -> same_view w node_view | None -> false) then
-               (* the node shows what a viewport last wrote: another viewport took over, and
-                  keeps its own orbit *)
-               core, camera
-             else begin
-               written := Some node_view;
-               core,
-               (match Camera.projection node_view with
-                | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
-                | _ -> camera)
-               |> Easy_camera.of_view ~eye:(Camera.position node_view)
-                    ~target:(Camera.target node_view)
-             end
-         | Some _ | None -> core, camera)
-    | Some _ | None -> core, camera in
-  let extra = { extra with document_camera = render_camera_of core camera;
+        if moved || not (same_view node_view (Easy_camera.camera camera)) then
+          if moved then
+            match Edit_graph.apply_parameters (Core.scene core) ~node_id:(Node.id node)
+                (view_parameters camera) with
+            | Ok (scene, _) ->
+                written := Some (Easy_camera.camera camera);
+                Core.scene_edit core `Amend scene, camera
+            | Error _ -> core, camera
+          else if (match !written with Some w -> same_view w node_view | None -> false) then
+            (* the node shows what a viewport last wrote: another viewport took over, and
+               keeps its own orbit *)
+            core, camera
+          else begin
+            written := Some node_view;
+            core,
+            (match Camera.projection node_view with
+             | Perspective { fov_y; _ } -> Easy_camera.with_fov_y fov_y camera
+             | _ -> camera)
+            |> Easy_camera.of_view ~eye:(Camera.position node_view)
+                 ~target:(Camera.target node_view)
+          end
+        else core, camera
+    | _ -> core, camera in
+  (* Reuse this frame's decode. A following viewport can write a new immutable
+     node above; only that replacement needs another schema/camera conversion. *)
+  let current = active_node core in
+  let decoded = if Option.equal (==) current active then decoded
+    else Option.bind current Objects.Camera.of_node in
+  let extra = { extra with document_camera = Option.fold
+      ~none:(Easy_camera.camera camera) ~some:fst decoded;
     view_roots = core.Core.doc.view_roots } in
   (* the focused viewport's free view carries the lens of its own camera *)
   let free_camera = (look extra key).through in
@@ -351,7 +358,8 @@ let on_view core ~previous ~key camera extra ~stepped =
                 @ List.filter (fun k -> not (List.mem k extra.started) && not (List.mem k extra.looking)) said } in
   core, camera, { extra with key; free_camera;
     free_view = free_view_of ~render_camera:free_camera ~previous:(Some extra.free_view) camera;
-    viewing = camera; following = Option.map follows (active_node core);
+    viewing = camera; following = Option.map
+      (fun _ -> Option.fold ~none:false ~some:snd decoded) current;
     follow_request = None; written = !written }
 
 (* The view shows the render camera while looking through it and on the
