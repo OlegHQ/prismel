@@ -3,11 +3,11 @@ module E=Flow.Eval
 module V=Flow.Value
 module I=Flow_ir.Executor
 type prepared={plan:E.plan;effects:I.program;args:I.program option array;edges:bool array}
-type t={resources:Workspace_resources.t;images:Workspace_images.t;mutable prepared:prepared option;mutable pending_saves:string list;
+type t={resources:Workspace_resources.t;images:Workspace_images.t;gpu:Workspace_gpu.t;mutable prepared:prepared option;mutable pending_saves:string list;
   mutable quit_requested:bool;mutable fired:int;mutable deterministic:bool;
   mutable pending_events:Frame_input.event list}
 let create ()=let resources=Workspace_resources.create()in
-  {resources;images=Workspace_images.create resources;prepared=None;pending_saves=[];quit_requested=false;fired=0;
+  {resources;images=Workspace_images.create resources;gpu=Workspace_gpu.create();prepared=None;pending_saves=[];quit_requested=false;fired=0;
     deterministic=false;pending_events=[]}
 let take_events host=let events=List.rev host.pending_events in host.pending_events<-[];events
 let effects (workspace:Editor_document.Workspace_doc.t) (plan:E.plan)=
@@ -106,7 +106,7 @@ let save_pending host save =
   let paths=host.pending_saves in host.pending_saves<-[];
   List.fold_left(fun result path->Result.bind result(fun()->
     Result.map_error(fun message->Flow.Diagnostic.error ~code:"E_EFFECT" message)(save path)))(Ok())paths
-let close host=Workspace_resources.close host.resources
+let close host=Workspace_gpu.close host.gpu;Workspace_resources.close host.resources
 let export_check workspace plan =
   match effects workspace plan with
   |None->Ok()

@@ -342,6 +342,8 @@ end
 module Editor3 : sig
   type 'prepared t
   module Private : sig
+    val gpu_qualification : 'prepared t -> unit
+    (** Explicit native benchmark selection. Production requires measured GPU costs. *)
     val image_stats : 'prepared t -> int * int
     val image : 'prepared t -> Flow.Eval.value -> (Rays.Image.t, Flow.Diagnostic.t) result
     val host_stats : 'prepared t -> bool * int * int * int

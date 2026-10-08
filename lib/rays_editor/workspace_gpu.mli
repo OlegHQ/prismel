@@ -1,0 +1,8 @@
+type t
+val create : unit -> t
+val with_backend : t -> (unit -> 'a) -> 'a
+val qualification : t -> unit
+val policy : t -> Flow_ir.Gpu.policy
+val circles : t -> Flow_ir.Gpu.value -> radius:float -> fill:int32 -> stroke:int32 -> stroke_width:float ->
+  (Scene_command.Shape_batch.gpu_token,Flow.Diagnostic.t)result
+val close : t -> unit

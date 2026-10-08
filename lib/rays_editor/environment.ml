@@ -872,11 +872,14 @@ let update_with value frame ~inspector =
          | Some drawing ->
              let prepared = match previous with
                | Some {prepared = Some p; _} when same_plan -> Ok p
-               | _ -> Sketch_support.Drawing.prepare ~profile:lowered.profile ~states:lowered.states lowered.plan drawing in
+               | _ -> Sketch_support.Drawing.prepare ~profile:lowered.profile
+                   ~approx:(fst core.doc.workspace).checked.approx ~states:lowered.states lowered.plan drawing in
              (match Result.bind prepared (fun p -> Result.map (fun scene -> p, scene)
-                 (Sketch_support.Drawing.render_prepared ~state:core.cook.state
+                 (Workspace_gpu.with_backend value.host.gpu(fun()->Sketch_support.Drawing.render_prepared ~state:core.cook.state
+                   ~gpu:(Workspace_gpu.circles value.host.gpu)
+                   ~gpu_policy:(Workspace_gpu.policy value.host.gpu)
                    ~image:(Workspace_images.image value.host.images ~state:core.cook.state ~live:frame_input lowered.plan)
-                   p ~live:frame_input ~size:(w, h))) with
+                   p ~live:frame_input ~size:(w, h)))) with
               | Ok (prepared, scene) -> (key, {size = (w, h); dynamic; scene; prepared = Some prepared}) :: pictures, error
               | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []; prepared = None} previous) :: pictures,
                   Some (Flow.Diagnostic.to_string d)))

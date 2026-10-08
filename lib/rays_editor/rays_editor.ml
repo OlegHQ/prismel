@@ -20,6 +20,7 @@ module Renderer = Renderer
 module Editor3 = struct
   include Environment
   module Private = struct
+    let gpu_qualification value=Workspace_gpu.qualification value.Environment.host.gpu
     let image_stats value = let resources=value.Environment.host.resources in
       resources.images_created,resources.images_destroyed
     let host_stats value = let host=value.Environment.host in
