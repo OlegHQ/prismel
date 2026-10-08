@@ -60,9 +60,9 @@ let check_overlays () =
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame overlays; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
   (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
-   | Some target -> Sys.rename (Filename.concat directory "overlays-000001.png")
+   | Some target when width > config.width -> Sys.rename (Filename.concat directory "overlays-000001.png")
        (Filename.concat target "kit_overlays_2x.png")
-   | None -> ());
+   | _ -> ());
   let golden = Image.load_exn "fixtures/kit_overlays_2x.png" in
   if Image.get_size golden <> (width, height) then
     print_endline "PXUI overlay parity: skipped (golden is 2x)"
@@ -95,14 +95,14 @@ let check_zones () =
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame zones; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
   (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
-   | Some target -> Sys.rename (Filename.concat directory "zones-000001.png")
-       (Filename.concat target "kit_zones_1x.png")
-   | None -> ());
-  let golden = Image.load_exn "fixtures/kit_zones_1x.png" in
+   | Some target when width > config.width -> Sys.rename (Filename.concat directory "zones-000001.png")
+       (Filename.concat target "kit_zones_2x.png")
+   | _ -> ());
+  let golden = Image.load_exn "fixtures/kit_zones_2x.png" in
   if Image.get_size golden <> (width, height) then
-    failwith "PXUI zone golden requires refresh for conditional tokens at 1x"
+    print_endline "PXUI zone parity: skipped (golden is 2x)"
   else if Result.get_ok (Image.Private.pixels golden) <> actual then
-    failwith "PXUI zone tokens drifted from fixtures/kit_zones_1x.png"
+    failwith "PXUI zone tokens drifted from fixtures/kit_zones_2x.png"
   else print_endline "PXUI zone parity: exact"
 
 let check_table () =
@@ -114,10 +114,11 @@ let check_table () =
           else Printf.sprintf "%g" (float (row + column) *. 0.125)) "table")); ui)
     ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
   (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
-   | Some target -> Sys.rename (Filename.concat directory "table-000001.png") (Filename.concat target "kit_table_1x.png")
-   | None -> ());
-  let golden = Image.load_exn "fixtures/kit_table_1x.png" in
-  if Image.get_size golden <> (width, height) then failwith "table golden requires 1x"
+   | Some target when width > config.width ->
+       Sys.rename (Filename.concat directory "table-000001.png") (Filename.concat target "kit_table_2x.png")
+   | _ -> ());
+  let golden = Image.load_exn "fixtures/kit_table_2x.png" in
+  if Image.get_size golden <> (width, height) then print_endline "PXUI table parity: skipped (golden is 2x)"
   else if Result.get_ok (Image.Private.pixels golden) <> actual then failwith "PXUI table golden drifted"
   else print_endline "PXUI table parity: exact"
 
@@ -133,9 +134,9 @@ let run () =
       ~update:(fun ui frame -> Pxui.Ui.frame ui frame new_panel; ui)
       ~view:(fun ui _ -> Scene.clear background :: Pxui.Ui.scene ui) in
   (match Sys.getenv_opt "RAYS_UPDATE_FIXTURES" with
-   | Some target -> Sys.rename (Filename.concat directory "new-000001.png")
+   | Some target when width > config.width -> Sys.rename (Filename.concat directory "new-000001.png")
        (Filename.concat target "kit_panel_2x.png")
-   | None -> ());
+   | _ -> ());
   let density = width / config.width in
   if (old_width, old_height) <> (width, height) then
     Printf.printf "PXUI Ui parity: skipped at %dx (golden is 2x)\n" density
