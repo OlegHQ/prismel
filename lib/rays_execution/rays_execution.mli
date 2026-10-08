@@ -98,6 +98,20 @@ val gpu_queue : gpu -> Ogpu.Backend.queue
 val gpu_shared : gpu -> bool
 val release_gpu : gpu -> unit
 module Private : sig
+  module Gpu_circles : module type of Gpu_circles
+  type gpu_circles
+
+  (** Converts packed float32 xyz points on the GPU into the existing circle
+      instance ABI. Each sink owns one reusable buffer; updating it invalidates
+      the previous token. Close it before releasing its GPU lease. [source]
+      must return [None] once the producer output is overwritten or closed.
+      Coordinates are logical points and must be finite float32 values whose
+      radius-expanded bounds remain finite. No readback occurs. *)
+  val create_gpu_circles : gpu -> (gpu_circles,error) result
+  val gpu_circles : gpu_circles -> source:(unit -> Ogpu.Backend.buffer option) ->
+    count:int -> radius:float -> fill:int32 -> stroke:int32 -> stroke_width:float ->
+    (Scene_command.Shape_batch.gpu_token,error) result
+  val close_gpu_circles : gpu_circles -> unit
   val snapshot_count_for_test : t -> int
   type submission
   type batch

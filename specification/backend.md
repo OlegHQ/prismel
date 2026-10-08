@@ -694,8 +694,24 @@ new SDF circle/line tags in the shared shader. It does not add a pipeline family
 handles to Scene. The Scene command walker applies its full affine transform and clip/blend
 stack before preparing these draws; this path is separate from PXUI's self-contained batch
 coordinates. Shape instance/index/affine payloads retain per-slot storage when equal, allowing
-the backend's identity/version upload cache to reuse them. Packed GPU output remains an opaque
-identity/count/stamp until P5 registers its GPU drawing sink. Host resources pin a bounded table
+the backend's identity/version upload cache to reuse them. Packed GPU output carries an opaque
+identity/count/stamp. P5's private `Rays_execution` circle sink converts interleaved float32 xyz
+positions into this same instance ABI on the GPU, then `Scene_execution` borrows the completed
+vertex buffer. CPU uploads cover only retained quad indices and the existing affine uniforms;
+the drawing path never reads positions or instances back. The full affine, clip and blend
+stack still belongs to the normal command walker. One sink owns one geometrically grown buffer
+up to one million instances; at most 64 sinks and 128 borrowed registrations are live.
+Updating a sink invalidates its previous token, so independent draw inputs own independent
+sinks. A reserved `gpu:vertices:` mesh key resolves only through typed private registration,
+with creating-domain, device, producer-generation and closed-owner checks. Prepared and
+automatic replay retain these lifetime guards; stale registrations return `Stale_handle`.
+Registrations never destroy producer buffers. Closing a sink releases its registrations and
+storage before its queue/device lease; releasing a GPU lease also closes its remaining sinks.
+Source coordinates and radius-expanded bounds must be finite float32 values, the private
+producer contract. The conversion shader is compiled offline; mock checks verify binding,
+index-upload reuse, bounded allocation and ownership. Native exact instance bytes, transformed
+circle pixels at 1x/2x, all six blend modes and stale replay remain qualification checks, never
+inferred from mock output. Host resources pin a bounded table
 for a workspace lifetime and close before the runtime and SDL lifecycle ends.
 
 Loaded/rendered Flow image nodes resolve through `Flow_sop.Lower.with_images` on

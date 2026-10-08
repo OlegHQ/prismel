@@ -18,6 +18,32 @@ type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | S
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;vertex_attributes:(string*bytes)option;
   samples:int;value:Scene_execution.draw }
+type gpu={gpu_device:Ogpu.Backend.device;gpu_queue:Ogpu.Backend.queue;
+  gpu_shared:bool;mutable gpu_released:bool}
+type gpu_circles={circles_id:int;circles_gpu:gpu;circles_helper:Gpu_circles.t;
+  circles_domain:Domain.id;mutable circles_closed:bool;mutable circles_stamp:int64;
+  mutable circles_count:int;mutable circles_source:(unit->Ogpu.Backend.buffer option)option;
+  mutable circles_input:Ogpu.Backend.buffer option;
+  mutable circles_style:(float*int32*int32*float)option;
+  mutable circles_registration:Scene_execution.Private.gpu_vertices option}
+let gpu_circles_capacity=64
+let gpu_circles_registry:(int,gpu_circles)Hashtbl.t=Hashtbl.create 16
+let next_gpu_circles=ref 0
+let valid_gpu_circles value=not value.circles_closed&&not value.circles_gpu.gpu_released&&
+  value.circles_domain=Domain.self()&&match value.circles_source,value.circles_input with
+  |Some source,Some input->(match source()with Some current->current==input|None->false)
+  |_->false
+let gpu_circles_key value=Printf.sprintf"gpu:vertices:shapes:%d:%Ld"
+  value.circles_id value.circles_stamp
+let close_gpu_circles value=
+  if value.circles_domain<>Domain.self()then invalid_arg"GPU circles closed on another domain";
+  if not value.circles_closed then begin
+    value.circles_closed<-true;
+    Option.iter Scene_execution.Private.unregister_gpu_vertices value.circles_registration;
+    value.circles_registration<-None;value.circles_source<-None;value.circles_input<-None;
+    Hashtbl.remove gpu_circles_registry value.circles_id;
+    Gpu_circles.close value.circles_helper
+  end
 module Int_table=Lru.Make(Int)
 module Structural_key(T:sig type t end)=struct type t=T.t let equal=(=) let hash=Hashtbl.hash end
 (* texture (physical), destination, transform, clip, uv, framebuffer *)
@@ -587,9 +613,19 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
     |Shapes shapes->
-        if Scene_command.Shape_batch.gpu shapes<>None then
-          failure:=Some "GPU shapes require the registered GPU drawing sink"
-        else if clip_live() && Scene_command.Shape_batch.count shapes>0 then begin
+        let gpu_key=match Scene_command.Shape_batch.gpu shapes with
+          |None->None
+          |Some token->
+            (match Hashtbl.find_opt gpu_circles_registry(Scene_command.Shape_batch.Private.gpu_identity token)with
+            |Some source when valid_gpu_circles source&&
+              source.circles_stamp=Scene_command.Shape_batch.Private.gpu_stamp token&&
+              source.circles_count=Scene_command.Shape_batch.Private.gpu_count token->
+                let runtime=match value.runtime with Window r|Offscreen(r,_)->r in
+                (match Runtime.device runtime with
+                |Ok device when device==source.circles_gpu.gpu_device->Some(gpu_circles_key source)
+                |_->failure:=Some"GPU shapes belong to another device";None)
+            |_->failure:=Some"GPU shapes are stale or closed";None)in
+        if !failure=None&&clip_live() && Scene_command.Shape_batch.count shapes>0 then begin
           let count=Scene_command.Shape_batch.count shapes in
           let instances=Scene_command.Shape_batch.instances shapes in
           let slot_key=(-1)- !number in
@@ -607,8 +643,9 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
           if not(Bytes.equal slot.ui_affine ui_affine_scratch)then
             slot.ui_affine<-Bytes.copy ui_affine_scratch;
           emit {family=Ui;blend= !blend;texture=Some ui_white_texture;auxiliary=None;vertex_attributes=None;samples=1;
-            value={Scene_execution.mesh={key="shapes:"^string_of_int slot_key;
-              vertices=slot.ui_vertices;vertex_count=4*count;indices=slot.ui_indices;
+            value={Scene_execution.mesh={key=Option.value gpu_key~default:("shapes:"^string_of_int slot_key);
+              vertices=(match gpu_key with None->slot.ui_vertices|Some _->Bytes.empty);
+              vertex_count=4*count;indices=slot.ui_indices;
               index_count=6*count;primitive=Triangle_list};
               state={(default_state framebuffer(List.hd !clips))with
                 transform_uniforms=Some slot.ui_affine}}}
@@ -1074,8 +1111,6 @@ let adopt_retained_view submission ~density ~layer draws=
             target.target_ir
 (* GPU film leases own their own queue, so their frame pacing never couples
    with presentation. *)
-type gpu={gpu_device:Ogpu.Backend.device;gpu_queue:Ogpu.Backend.queue;
-  gpu_shared:bool;mutable gpu_released:bool}
 let acquire_gpu()=
   let operation="Rays_execution.acquire_gpu"in
   match acquire_device operation with
@@ -1088,11 +1123,59 @@ let gpu_device gpu=gpu.gpu_device
 let gpu_queue gpu=gpu.gpu_queue
 let gpu_shared gpu=gpu.gpu_shared
 let release_gpu gpu=if not gpu.gpu_released then begin
+  let circles=Hashtbl.fold(fun _ value all->if value.circles_gpu==gpu then value::all else all)
+    gpu_circles_registry[]in
+  List.iter close_gpu_circles circles;
   gpu.gpu_released<-true;
   ignore(Ogpu.Backend.destroy_queue gpu.gpu_queue);
   release_device gpu.gpu_shared
 end
 module Private=struct
+  module Gpu_circles=Gpu_circles
+  type nonrec gpu_circles=gpu_circles
+  let create_gpu_circles gpu=
+    let operation="Rays_execution.create_gpu_circles"in
+    if gpu.gpu_released then fail operation Destroyed"GPU lease is released"
+    else if Hashtbl.length gpu_circles_registry>=gpu_circles_capacity|| !next_gpu_circles=max_int then
+      fail operation Resource"GPU circles capacity reached"
+    else match Gpu_circles.create~device:gpu.gpu_device~queue:gpu.gpu_queue with
+    |Error error->backend operation error
+    |Ok helper->incr next_gpu_circles;
+      let value={circles_id= !next_gpu_circles;circles_gpu=gpu;circles_helper=helper;
+        circles_domain=Domain.self();circles_closed=false;circles_stamp=0L;circles_count=0;
+        circles_source=None;circles_input=None;circles_style=None;circles_registration=None}in
+      Hashtbl.add gpu_circles_registry value.circles_id value;Ok value
+  let gpu_circles value ~source ~count ~radius ~fill ~stroke ~stroke_width =
+    let operation="Rays_execution.gpu_circles"in
+    if value.circles_closed||value.circles_gpu.gpu_released then
+      fail operation Destroyed"GPU circles or lease is closed"
+    else if value.circles_domain<>Domain.self()then
+      fail operation Invalid_argument"GPU circles used on another domain"
+    else match source()with
+    |None->fail operation Resource"GPU display output is stale or closed"
+    |Some input->
+      let style=radius,fill,stroke,stroke_width in
+      let token()=Scene_command.Shape_batch.Private.gpu_token~identity:value.circles_id
+        ~count:value.circles_count~stamp:value.circles_stamp in
+      if valid_gpu_circles value&&Option.fold~none:false~some:((==)input)value.circles_input&&
+        value.circles_count=count&&value.circles_style=Some style then Ok(token())else begin
+        Option.iter Scene_execution.Private.unregister_gpu_vertices value.circles_registration;
+        value.circles_registration<-None;value.circles_source<-None;value.circles_input<-None;
+        match Gpu_circles.dispatch value.circles_helper~source:input~count~radius~fill~stroke~stroke_width with
+        |Error error->backend operation error
+        |Ok buffer->
+          value.circles_stamp<-Int64.succ value.circles_stamp;
+          value.circles_count<-count;value.circles_source<-Some source;
+          value.circles_input<-Some input;value.circles_style<-Some style;
+          let registration=if count=0 then Ok None else
+            Result.map Option.some(Scene_execution.Private.register_gpu_vertices
+              ~key:(gpu_circles_key value)~device:value.circles_gpu.gpu_device~buffer
+              ~vertex_count:(4*count)~valid:(fun()->valid_gpu_circles value))in
+          (match registration with
+          |Error error->value.circles_source<-None;value.circles_input<-None;backend operation error
+          |Ok registration->value.circles_registration<-registration;Ok(token()))
+      end
+  let close_gpu_circles=close_gpu_circles
   let snapshot_count_for_test value=Snapshot_table.length value.snapshots
   type nonrec submission=submission
   type nonrec batch=batch

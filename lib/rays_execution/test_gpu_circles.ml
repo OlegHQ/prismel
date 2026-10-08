@@ -1,5 +1,5 @@
 module B = Ogpu.Backend
-module C = Rays_execution__Gpu_circles
+module C = Rays_execution.Private.Gpu_circles
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
 let expect kind = function Error (error:Ogpu.Error.t) -> assert (error.kind=kind) | Ok _ -> assert false
 let buffer device count = get (B.create_buffer device {label=None; size=Int64.of_int (max 1 count*12); usage=[Storage]})

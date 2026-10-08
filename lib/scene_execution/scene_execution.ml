@@ -1,3 +1,26 @@
+(* GPU vertices are borrowed, never uploaded or destroyed by the renderer.
+   Registration owns only a bounded name and the producer's lifetime check. *)
+type gpu_vertices={gpu_key:string;gpu_device:Ogpu.Backend.device;
+  gpu_buffer:Ogpu.Backend.buffer;gpu_vertex_count:int;gpu_domain:Domain.id;
+  gpu_valid:unit->bool;mutable gpu_active:bool}
+let gpu_vertex_capacity=128
+let gpu_vertex_registry:(string,gpu_vertices)Hashtbl.t=Hashtbl.create 16
+let gpu_vertex_key key=String.starts_with~prefix:"gpu:vertices:" key
+let gpu_vertices_valid value=value.gpu_active&&value.gpu_domain=Domain.self()&&value.gpu_valid()
+let register_gpu_vertices ~key ~device ~buffer ~vertex_count ~valid =
+  let operation="Scene_execution.register_gpu_vertices" in
+  if not(gpu_vertex_key key)||vertex_count<=0||vertex_count>4_000_000||
+    Ogpu.Backend.buffer_size buffer<Int64.of_int(vertex_count*16)||
+    Hashtbl.mem gpu_vertex_registry key then
+    Error(Ogpu.Error.make operation Invalid_argument "invalid or duplicate borrowed vertex registration")
+  else if Hashtbl.length gpu_vertex_registry>=gpu_vertex_capacity then
+    Error(Ogpu.Error.make operation Capacity "borrowed vertex registration capacity reached")
+  else let value={gpu_key=key;gpu_device=device;gpu_buffer=buffer;gpu_vertex_count=vertex_count;
+    gpu_domain=Domain.self();gpu_valid=valid;gpu_active=true}in
+    Hashtbl.add gpu_vertex_registry key value;Ok value
+let unregister_gpu_vertices value=
+  if value.gpu_domain<>Domain.self()then invalid_arg"GPU vertices closed on another domain";
+  if value.gpu_active then(value.gpu_active<-false;Hashtbl.remove gpu_vertex_registry value.gpu_key)
 type mesh={key:string;vertices:bytes;vertex_count:int;indices:bytes;index_count:int;primitive:Ogpu.Render_pass.primitive}
 type state={viewport:int*int*int*int;scissor:int*int*int*int;cull:Ogpu.Render_pass.cull;depth_compare:Ogpu.Render_pass.comparison;depth_write:bool;depth_load:Ogpu.Render_pass.load;depth_clear:float;transform_uniforms:bytes option;stencil_state:Ogpu.Render_pass.stencil_state option;stencil_load:Ogpu.Render_pass.load;stencil_clear:int}
 type draw={mesh:mesh;state:state}
@@ -41,6 +64,7 @@ type automatic_signature={signature_family:pipeline_family;
   signature_auxiliary:(int64*int64*Ogpu.Types.sampler_descriptor)option;
   signature_environment:(int64*Ogpu.Types.sampler_descriptor)option;
   signature_buffer:int64;signature_index_offset:int64;
+  signature_gpu_vertices:(string*int64)option;
   signature_vertex_attributes:int64 option;
   signature_uniform_buffer:int64 option;signature_uniform_offset:int64 option;
   signature_vertex_count:int;
@@ -60,7 +84,8 @@ type batch_plan={batch_family:pipeline_family;batch_samples:int;batch_state:stat
   batch_resources:[`Buffer of Ogpu.Backend.buffer|`Texture of Ogpu.Backend.texture]list;
   batch_winding:bool;mutable batch_icb:Ogpu.Backend.icb option}
 type replay_plan={replay_clear:float*float*float*float;
-  replay_payloads:automatic_signature list;replay_batches:batch_plan list}
+  replay_payloads:automatic_signature list;replay_batches:batch_plan list;
+  replay_gpu_vertices:gpu_vertices list}
 type prepared_submission={submission_identity:string;submission_version:int64;
   submission_draw_count:int;submission_plan:replay_plan}
 type automatic_candidate={candidate_clear:float*float*float*float;
@@ -72,6 +97,7 @@ type prepared_slot={mutable slot_family:pipeline_family;
   mutable slot_auxiliary:(auxiliary_resource*cached_auxiliary*cached_texture)option;
   mutable slot_environment:(sampled_texture*cached_texture)option;
   mutable slot_mesh:cached option;mutable slot_uniform:uniform_slice option;
+  mutable slot_gpu_vertices:gpu_vertices option;
   mutable slot_vertex_attributes:cached_auxiliary option}
 type prepared_scratch={mutable scratch_slots:prepared_slot array;
   mutable scratch_length:int}
@@ -151,6 +177,19 @@ let device value=value.device
 let queue value=value.queue
 let target value=value.target
 let error op kind text=Error(Ogpu.Error.make op kind text)
+let resolve_gpu_vertices device (entry:sampled_draw)=
+  let mesh=entry.draw.mesh in
+  if not(gpu_vertex_key mesh.key)then Ok None else
+  match Hashtbl.find_opt gpu_vertex_registry mesh.key with
+  |Some source when gpu_vertices_valid source->
+      if source.gpu_device!=device then
+        error"Scene_execution.render"Ogpu.Error.Cross_device"GPU vertices belong to another device"
+      else if entry.family<>Ui||Bytes.length mesh.vertices<>0||
+        mesh.vertex_count<>source.gpu_vertex_count||mesh.vertex_count mod 4<>0||
+        mesh.index_count<>mesh.vertex_count/4*6 then
+        error"Scene_execution.render"Ogpu.Error.Invalid_argument"GPU shape layout is malformed"
+      else Ok(Some source)
+  |_->error"Scene_execution.render"Ogpu.Error.Stale_handle"GPU vertices are stale or closed"
 let valid_vertex_attributes(entry:sampled_draw)=
   let packed=Option.fold~none:false~some:(fun bytes->
     Bytes.length bytes>=83*4&&
@@ -670,6 +709,7 @@ let coalesce_draws draws =
     if mesh.vertex_count = 0 then 0 else Bytes.length mesh.vertices / mesh.vertex_count
   in
   let compatible (first:sampled_draw) (next:sampled_draw) =
+    not(gpu_vertex_key first.draw.mesh.key)&&not(gpu_vertex_key next.draw.mesh.key)&&
     first.family=next.family&&first.blend=next.blend&&
     first.samples=next.samples&&first.draw.state=next.draw.state&&
     first.draw.mesh.primitive=next.draw.mesh.primitive&&
@@ -735,7 +775,7 @@ let intersect_extent ~bound_w ~bound_h (x,y,w,h)=
   if bound_w<=0||bound_h<=0||w<=0||h<=0 then(0,0,max 1 bound_w,max 1 bound_h)
   else(x,y,w,h)
 let automatic_signature
-    (family,blend,samples,state,texture,auxiliary,environment,item,uniform,attributes) =
+    (family,blend,samples,state,texture,auxiliary,environment,item,uniform,attributes,gpu_vertices) =
   (* Submission signatures own affine bytes.  Scene values are immutable by
      contract, but callers may reuse their input buffer after [render] returns;
      retaining it here would turn later mutation into a false cache hit. *)
@@ -753,6 +793,8 @@ let automatic_signature
    signature_environment=Option.map(fun((source:sampled_texture),cached)->
      Ogpu.Backend.texture_id cached.texture,source.sampler)environment;
    signature_buffer=Ogpu.Backend.buffer_id item.buffer;
+   signature_gpu_vertices=Option.map(fun source->source.gpu_key,
+     Ogpu.Backend.buffer_id source.gpu_buffer)gpu_vertices;
    signature_vertex_attributes=Option.map(fun item->Ogpu.Backend.buffer_id item.auxiliary_buffer)attributes;
    signature_index_offset=item.index_offset;
    signature_uniform_buffer=Option.map(fun item->Ogpu.Backend.buffer_id item.uniform_buffer)uniform;
@@ -761,7 +803,7 @@ let automatic_signature
 let prepared_scratch_capacity=65_536
 let make_prepared_slot()={slot_family=Scene2;slot_blend=Ogpu.Pipeline.Replace;
   slot_samples=1;slot_state=None;slot_texture=None;slot_auxiliary=None;
-  slot_environment=None;slot_mesh=None;slot_uniform=None;slot_vertex_attributes=None}
+  slot_environment=None;slot_mesh=None;slot_uniform=None;slot_vertex_attributes=None;slot_gpu_vertices=None}
 let ensure_prepared_scratch scratch needed=
   if needed>prepared_scratch_capacity then
     error"Scene_execution.render"Ogpu.Error.Capacity
@@ -781,6 +823,7 @@ let clear_prepared_scratch scratch=
     let slot=Array.unsafe_get scratch.scratch_slots index in
     slot.slot_state<-None;slot.slot_texture<-None;slot.slot_auxiliary<-None;
     slot.slot_environment<-None;
+    slot.slot_gpu_vertices<-None;
     slot.slot_mesh<-None;slot.slot_uniform<-None;slot.slot_vertex_attributes<-None
   done;
   scratch.scratch_length<-0
@@ -823,6 +866,8 @@ let same_automatic_slot signature slot=
         Ogpu.Backend.texture_id cached.texture,source.sampler)slot.slot_environment&&
       same_state signature.signature_state state&&same_texture&&same_auxiliary&&
       signature.signature_buffer=Ogpu.Backend.buffer_id item.buffer&&
+      signature.signature_gpu_vertices=Option.map(fun source->source.gpu_key,
+        Ogpu.Backend.buffer_id source.gpu_buffer)slot.slot_gpu_vertices&&
       signature.signature_vertex_attributes=
         Option.map(fun item->Ogpu.Backend.buffer_id item.auxiliary_buffer)slot.slot_vertex_attributes&&
       signature.signature_index_offset=item.index_offset&&
@@ -860,6 +905,7 @@ let automatic_candidate_fingerprint scratch=
        Option.map(fun((source:sampled_texture),cached)->
          Ogpu.Backend.texture_id cached.texture,source.sampler)slot.slot_environment,
        Ogpu.Backend.buffer_id mesh.buffer,mesh.index_offset,
+       Option.map(fun source->source.gpu_key,Ogpu.Backend.buffer_id source.gpu_buffer)slot.slot_gpu_vertices,
        Option.map(fun item->Ogpu.Backend.buffer_id item.auxiliary_buffer)slot.slot_vertex_attributes,
        Option.map(fun uniform->Ogpu.Backend.buffer_id uniform.uniform_buffer,
          uniform.uniform_offset)
@@ -1120,7 +1166,9 @@ let render_sun value scratch=
       sun.sun_key<-key;value.sun_passes<-Int64.succ value.sun_passes;Ok()
 let sun_shadow_passes value=value.sun_passes
 let replay_plan value plan=
-  match acquire value with
+  if not(List.for_all gpu_vertices_valid plan.replay_gpu_vertices)then
+    error"Scene_execution.replay"Ogpu.Error.Stale_handle"GPU vertices are stale or closed"
+  else match acquire value with
   |Error _ as error->error|Ok`Skipped->Ok false
   |Ok(`Acquired frame)->Result.map(fun()->true)(encode_frame value frame~clear:plan.replay_clear plan.replay_batches)
 let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0.,0.,0.,0.)) value draws=if value.dead then(after_prepare();error"Scene_execution.render"Ogpu.Error.Stale_handle"renderer is destroyed")else if List.length draws>prepared_scratch_capacity then(after_prepare();error"Scene_execution.render"Ogpu.Error.Capacity"one submission exceeds the bounded prepared-draw capacity")else
@@ -1177,23 +1225,29 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     scene2,affine,scene3_transform,source)draws)in
   let sources=Array.map(fun(_,_,_,source)->source)modes in
   let uniform_slices=ref[||]in
-  let append ?environment family blend samples state texture auxiliary mesh uniform attributes=
+  let append ?environment family blend samples state texture auxiliary mesh uniform attributes gpu_vertices=
     let slot=Array.unsafe_get scratch.scratch_slots scratch.scratch_length in
     slot.slot_family<-family;slot.slot_blend<-blend;slot.slot_samples<-samples;
     slot.slot_state<-Some state;slot.slot_texture<-texture;
     slot.slot_auxiliary<-auxiliary;slot.slot_environment<-environment;slot.slot_mesh<-Some mesh;
     slot.slot_uniform<-uniform;slot.slot_vertex_attributes<-attributes;
+    slot.slot_gpu_vertices<-gpu_vertices;
     scratch.scratch_length<-scratch.scratch_length+1 in
   let rec prepare_all=function
   |[]->Ok()
   |(entry:sampled_draw)::rest->
     let {family;blend;texture;auxiliary;vertex_attributes;samples;draw}=entry in
     let scene2,affine,scene3_transform,_=modes.(scratch.scratch_length)in
+    match resolve_gpu_vertices value.device entry with
+    |Error _ as result->result
+    |Ok gpu_vertices->
+    let cpu_mesh=match gpu_vertices with None->draw.mesh|Some _->
+      {draw.mesh with key="gpu:indices:"^string_of_int draw.mesh.vertex_count}in
     match prepare value~reserved:(scratch_mem_mesh scratch)
       ~uniforms:(if scene2||affine||scene3_transform then None
         else draw.state.transform_uniforms)
       ~vertex_stable:scene3_transform
-      ~nonindexed:scene2~canonical_plain:(family=Scene2)draw.mesh with
+      ~nonindexed:scene2~canonical_plain:(family=Scene2)cpu_mesh with
     |Error _ as result->result
     |Ok mesh->
       let attributes=match vertex_attributes with
@@ -1206,13 +1260,13 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       match texture with
       |Some source->(match prepare_texture value~defer source with
         |Error _ as result->result
-        |Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform attributes
+        |Ok texture->prepare_aux family blend auxiliary samples draw mesh uniform attributes gpu_vertices
           (Some(source,texture))rest)
-      |None->prepare_aux family blend auxiliary samples draw mesh uniform attributes None
+      |None->prepare_aux family blend auxiliary samples draw mesh uniform attributes gpu_vertices None
         rest)
-  and prepare_aux family blend auxiliary samples draw mesh uniform attributes texture
+  and prepare_aux family blend auxiliary samples draw mesh uniform attributes gpu_vertices texture
       rest=match auxiliary with
-    |None->append family blend samples draw.state texture None mesh uniform attributes;
+    |None->append family blend samples draw.state texture None mesh uniform attributes gpu_vertices;
       prepare_all rest
     |Some source->match prepare_auxiliary value source with
       |Error _ as result->result
@@ -1226,7 +1280,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           match environment with
           |Error _ as result->result
           |Ok environment->append ?environment family blend samples draw.state texture
-            (Some(source,buffer,texture2))mesh uniform attributes;prepare_all rest in
+            (Some(source,buffer,texture2))mesh uniform attributes gpu_vertices;prepare_all rest in
   match acquire value with Error _ as result->after_prepare();finish result
   |Ok`Skipped->after_prepare();finish(Ok false)
   |Ok(`Acquired frame)->match prepare_uniforms value~defer sources with
@@ -1240,6 +1294,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       after_prepare();
       match value.automatic_submission with
       |Some plan when plan.replay_clear=clear&&
+        List.for_all gpu_vertices_valid plan.replay_gpu_vertices&&
         same_scratch_payloads(List.map(fun s->s,(),())plan.replay_payloads)scratch->
           value.automatic_candidate<-None;
           value.icb_stats.icb_hits<-Int64.succ value.icb_stats.icb_hits;
@@ -1272,6 +1327,10 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
       let ( let* )=Result.bind in
       let family=slot.slot_family and blend=slot.slot_blend
       and samples=slot.slot_samples and item=slot_mesh slot in
+      let* ()=match slot.slot_gpu_vertices with
+        |Some source when not(gpu_vertices_valid source)->
+          error"Scene_execution.render"Ogpu.Error.Stale_handle"GPU vertices are stale or closed"
+        |_->Ok()in
       let scene2=family=Scene2||family=Scene2_textured in
       let pipeline_family=if family=Scene2 then Scene2_textured else family in
       let variant=Option.get(find_pipeline value pipeline_family blend samples)in
@@ -1285,7 +1344,9 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
               let* sampler=sampler_for value source.sampler in
               Ok([],[Ogpu.Backend.Fragment,1,cached.texture],[Ogpu.Backend.Fragment,2,sampler],[])in
       let* buffers,textures,samplers=match slot.slot_auxiliary with
-        |None->Ok((Ogpu.Backend.Vertex,0,item.buffer,0L)::buffers,textures,samplers)
+        |None->let vertices=match slot.slot_gpu_vertices with
+            |None->item.buffer|Some source->source.gpu_buffer in
+            Ok((Ogpu.Backend.Vertex,0,vertices,0L)::buffers,textures,samplers)
         |Some(source,buffer,texture)->
             let* sampler=sampler_for value source.texture.sampler in
             Ok((Ogpu.Backend.Vertex,0,item.buffer,0L)::(Ogpu.Backend.Fragment,3,buffer.auxiliary_buffer,0L)::buffers,
@@ -1352,7 +1413,7 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
           let signature=automatic_signature(slot.slot_family,slot.slot_blend,
             slot.slot_samples,slot_state slot,slot.slot_texture,
             slot.slot_auxiliary,slot.slot_environment,slot_mesh slot,slot.slot_uniform,
-            slot.slot_vertex_attributes)in
+            slot.slot_vertex_attributes,slot.slot_gpu_vertices)in
           loop(index+1)((signature,draw)::reversed)in
       loop first[]in
     let rec batches first index reversed=
@@ -1386,12 +1447,18 @@ let render_sampled_resources_common ?prepared ?(after_prepare=Fun.id) ?(clear=(0
     |Ok planned->
         let plan_batches,payload_lists=List.split planned in
         let payloads=List.concat payload_lists in
+        let gpu_vertices=ref[]in
+        for index=0 to scratch.scratch_length-1 do
+          Option.iter(fun source->gpu_vertices:=source::!gpu_vertices)
+            scratch.scratch_slots.(index).slot_gpu_vertices
+        done;
         clear_prepared_scratch scratch;
         match encode_frame value frame~clear plan_batches with
         |Error _ as result->finish result
         |Ok()->
             value.previous_uniforms<- !uniform_slices;
-            let plan={replay_clear=clear;replay_payloads=payloads;replay_batches=plan_batches}in
+            let plan={replay_clear=clear;replay_payloads=payloads;replay_batches=plan_batches;
+              replay_gpu_vertices= !gpu_vertices}in
             let admit=match value.automatic_candidate with
               |Some candidate->candidate.candidate_clear=clear&&
                 candidate.candidate_length=List.length payloads&&
@@ -1444,6 +1511,10 @@ let resize value configuration=
   match configured with Error e->ignore(Ogpu.Backend.destroy_texture target);Scene_attachment_pool.destroy attachments;Error e|Ok()->let old=value.target and old_attachments=value.attachments in value.target<-target;value.configuration<-configuration;value.attachments<-attachments;Scene_attachment_pool.destroy old_attachments;Ogpu.Backend.destroy_texture old
 let upload_bytes value=value.uploaded
 module Private = struct
+  type nonrec gpu_vertices=gpu_vertices
+  let register_gpu_vertices=register_gpu_vertices
+  let unregister_gpu_vertices=unregister_gpu_vertices
+  let gpu_vertex_count_for_test()=Hashtbl.length gpu_vertex_registry
   let cache_count_for_report value=String_table.length value.cache
 end
 type retained_stats={plan_builds:int64;plan_hits:int64;plan_misses:int64;plan_evictions:int64;

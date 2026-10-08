@@ -17,6 +17,11 @@
  (modules scene_execution_fixtures)
  (libraries scene_execution ogpu))
 
+(test
+ (name test_gpu_vertices)
+ (modules test_gpu_vertices)
+ (libraries scene_execution scene_execution_fixtures ogpu_mock))
+
 (rule
  (aliases runtest test_prepared_scene3)
  (action (run %{exe:test_main.exe} test_prepared_scene3)))

@@ -146,6 +146,17 @@ val sun_shadow_passes : t -> int64
 (** Width and height of the sun map. *)
 val sun_map_size : int
 module Private : sig
+  type gpu_vertices
+
+  (** Borrow a producer-owned 64-byte UI instance stream under a reserved
+      [gpu:vertices:] mesh key. [vertex_count] is four per instance. The
+      producer must close registrations before destroying/reusing buffers;
+      [valid] also guards every retained replay. At most 128 are live. *)
+  val register_gpu_vertices : key:string -> device:Ogpu.Backend.device ->
+    buffer:Ogpu.Backend.buffer -> vertex_count:int -> valid:(unit -> bool) ->
+    (gpu_vertices,Ogpu.Error.t) result
+  val unregister_gpu_vertices : gpu_vertices -> unit
+  val gpu_vertex_count_for_test : unit -> int
   val cache_count_for_report : t -> int
 end
 
