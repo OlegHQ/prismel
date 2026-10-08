@@ -31,8 +31,10 @@ type t = {
   geometry : int -> geometry option;
   raw : (path, (int list * E.value) list) Hashtbl.t;
   forced : (path, (int list * summary) array) Hashtbl.t;  (* memo: forcing is per lookup, not per frame *)
+  spots : (path * int list, summary option) Hashtbl.t;
   across : (path * int list, summary array) Hashtbl.t;  (* memo of [series] *)
   feet : (path * int list, footer) Hashtbl.t;  (* memo of [footer]: the pane asks every frame *)
+  arms : (path * int list, int option) Hashtbl.t;
 }
 
 let make ?state ?live ?time ?resolve ?(execution = fun _ ~probes:_ -> None)
@@ -46,12 +48,14 @@ let make ?state ?live ?time ?resolve ?(execution = fun _ ~probes:_ -> None)
   let live_frame = match live with Some _ -> live | None -> Option.map Frame_input.at_time time in
   let state = Option.map E.fork_state state in
   { live_frame; state; resolve; execution; maps = Hashtbl.create 16; calls = Hashtbl.create 16;
-    dynamic; templates; element; geometry; raw; forced = Hashtbl.create 64; across = Hashtbl.create 64; feet = Hashtbl.create 64 }
+    dynamic; templates; element; geometry; raw; forced = Hashtbl.create 64; spots = Hashtbl.create 64;
+    across = Hashtbl.create 64; feet = Hashtbl.create 64;
+    arms = Hashtbl.create 8 }
 
 let same_eval a b = a.raw == b.raw
 let execution t path ~probes = t.execution path ~probes
 
-(* the memos have a capacity: [forced] holds one entry per recorded path, [across] and [feet] one per
+(* the memos have a capacity: [forced] holds one entry per recorded path, [spots], [across], [feet] and [arms] one per
    path and probe tuple asked, so a full one starts over (its entries are computed again on demand) *)
 let memo_capacity = 4096
 let remember tbl key v =
@@ -208,11 +212,11 @@ let at_element t path zone k =
 (* the record with exactly this tuple; inside a loop over geometry the body is one template
    record (its iteration is 0), which reads the element: with the element's position known (the
    zone cooked) the value is forced for it, else it reads [?] *)
-let at t path ~probes =
-  let rs = records t path in
+let compute_at t path ~probes =
   match map_at t path probes with
   | Some _ as found -> found
-  | None -> match Array.find_map (fun (it, s) -> if it = probes then Some s else None) rs with
+  | None -> match Option.bind (Hashtbl.find_opt t.raw path)
+      (List.find_map (fun (it, v) -> if it = probes then Some (summarize t v) else None)) with
   | Some _ as found -> found
   | None ->
       let zones = List.filter (fun i -> t.dynamic (List.filteri (fun j _ -> j < i) path) <> None)
@@ -228,10 +232,20 @@ let at t path ~probes =
         | Some raw, Some elems when E.is_live raw ->
             (match E.Private.force_reference ?state:t.state ?resolve:t.resolve ~elems raw ~live:(Option.value ~default:(Frame_input.at_time 0.) t.live_frame) with
              | Ok v -> Some (summarize t v)
-             | Error _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs)
-        | _ -> Array.find_map (fun (it, s) -> if template it then Some s else None) rs
+             | Error _ -> List.find_map (fun (it, v) -> if template it then Some (summarize t v) else None)
+                 (Option.value ~default:[] (Hashtbl.find_opt t.raw path)))
+        | _ -> List.find_map (fun (it, v) -> if template it then Some (summarize t v) else None)
+            (Option.value ~default:[] (Hashtbl.find_opt t.raw path))
 
-let taken_arm t (node : P.node) ~probes =
+let at t path ~probes =
+  let key = path, probes in
+  match Hashtbl.find_opt t.spots key with
+  | Some value -> value
+  | None ->
+      let value = compute_at t path ~probes in
+      remember t.spots key value; value
+
+let compute_taken_arm t (node : P.node) ~probes =
   let missing key = Option.bind t.live_frame (fun live ->
     Option.bind (Hashtbl.find_opt t.raw node.path) (fun records ->
       List.find_map (fun (tuple, value) -> match value with
@@ -276,6 +290,14 @@ let taken_arm t (node : P.node) ~probes =
            List.exists (fun (row : P.row) -> row.key = key && Option.fold ~none:false ~some:(equal value) row.expr) node.rows) tests))
        | _ -> None)
   | _ -> None
+
+let taken_arm t (node : P.node) ~probes =
+  let key = node.path, probes in
+  match Hashtbl.find_opt t.arms key with
+  | Some arm -> arm
+  | None ->
+      let arm = compute_taken_arm t node ~probes in
+      remember t.arms key arm; arm
 
 (* the records whose tuple is [outer] followed by one more index, in order; in a loop over
    geometry the body has one template record, which is forced for each element once the zone

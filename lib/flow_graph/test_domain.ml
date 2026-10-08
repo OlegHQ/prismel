@@ -29,6 +29,30 @@ let () =
   assert (List.assoc "g" (ok (Eval.run ~time:0. workspace)).results = Eval.Int 3)
 
 let () =
+  let source = ok (Syntax.parse "(workspace tuples (graph g :context value (sum [i (range 2)] (if (< i 1) 1 2))))") in
+  let workspace = match Workspace.check catalog source with Some w, [] -> w | _ -> assert false in
+  let scope = Projection.of_graph catalog workspace "g" in
+  let node = Option.get (Projection.find scope ["g"; "@result"; "@result"]) in
+  let probe = Probe.make (ok (Eval.static ~record:true workspace)) in
+  List.iter (fun (tuple, arm) -> assert (Probe.taken_arm probe node ~probes:tuple = Some arm))
+    [[0], 0; [1], 1; [0], 0; [1], 1];
+  let empty = Probe.make (ok (Eval.static workspace)) in
+  assert (Probe.taken_arm empty node ~probes:[0] = None);
+  assert (Probe.taken_arm empty node ~probes:[0] = None);
+  let path = ["g"; "pick"] in
+  let evaluated = {(ok (Eval.static workspace)) with records = [path,
+    [[0], Eval.Deferred (Ty.geometry, 1); [1], Eval.Deferred (Ty.geometry, 2)]]} in
+  let forced = ref [] in
+  let probe = Probe.make ~geometry:(fun id -> forced := id :: !forced; None) evaluated in
+  let at tuple id = assert (Probe.at probe path ~probes:tuple =
+    Some (Probe.Value (Eval.Deferred (Ty.geometry, id)))) in
+  at [0] 1; at [0] 1;
+  assert (!forced = [1]);
+  at [1] 2;
+  assert (!forced = [2; 1]);
+  assert (Array.length (Probe.records probe path) = 2)
+
+let () =
   let source = ok (Syntax.parse "(workspace branches (graph g :context value (let* [x (if true (+ 1 2) (* 3 4)) y (cond false 1 true 2 :else 3) z (case 1 0 4 1 5 :else 6)] (+ x (+ y z)))))") in
   let workspace = match Workspace.check catalog source with Some w, [] -> w | _ -> assert false in
   let scope = Projection.of_graph catalog workspace "g" in

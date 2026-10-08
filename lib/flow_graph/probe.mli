@@ -66,10 +66,12 @@ val records : t -> path -> (int list * summary) array
 
 val at : t -> path -> probes:int list -> summary option
 (* Reference value at the selected iteration tuple, including packed function
-   calls outside the recording cap. Cooked inputs and call records are memoized. *)
+   calls outside the recording cap. Only the selected tuple is forced;
+   cooked inputs, call records and selected values have bounded memos. *)
 
 val taken_arm : t -> Projection.node -> probes:int list -> int option
-(** Selected conditional arm, zero based; the final else follows the tested arms. *)
+(** Selected conditional arm, zero based; the final else follows the tested arms.
+    All arm zones and the footer share one bounded memo per path and probe tuple. *)
 
 val chains : Projection.scope -> (path, path list) Hashtbl.t
 (** The enclosing iterating zones of every node below the scope, outermost
