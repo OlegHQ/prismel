@@ -39,6 +39,13 @@ type entry = {
   delta : delta option;
 }
 
+type cache_event =
+  | Read of int option * string * entry option
+  | Write of int option * string * entry
+  | Materialized_read of output * Rdk.Geometry.t option
+  | Materialized_write of output * Rdk.Geometry.t
+  | Time of node_timing
+
 module Entry_cache = Lru.Make (String)
 
 (* Cook outputs share packed payload planes; the pool counts each plane once. *)
@@ -76,6 +83,9 @@ type t = {
   times_lock : Mutex.t;
   mutable closed : bool;
   mutable materialized : (output * Rdk.Geometry.t) list;  (* see [input_geometry] *)
+  mutable journal : cache_event list option;
+  mutable parallel_override : bool option;
+  mutable fanouts : int;
 }
 
 let release_components payload components =
@@ -104,6 +114,7 @@ let create ~max_entries ~max_payload_bytes =
     cooks = 0; hits = 0; misses = 0; evictions = 0;
     volatile = (fun _ -> false); slots = Hashtbl.create 16; volatile_hits = 0; volatile_misses = 0;
     last_node = None; times = Hashtbl.create 64; times_lock = Mutex.create (); closed = false; materialized = [];
+    journal = None; parallel_override = None; fanouts = 0;
   }
 
 let inspect session root =
@@ -130,6 +141,8 @@ let inspect session root =
       infos
 
 let insert session key entry =
+  (match session.journal with None -> () | Some events ->
+    session.journal <- Some (Write (None, key, entry) :: events));
   let components = Payload.payload_components entry.output.payload in
   if session.max_entries > 0 then begin
     let payload = session.payload in
@@ -151,20 +164,27 @@ let insert session key entry =
   end
 
 let lookup session ~volatile node key =
-  if not volatile then
+  let result = if not volatile then
     (match Entry_cache.find session.cache key with
      | entry -> Some entry | exception Not_found -> None)
   else match Hashtbl.find_opt session.slots (Node.id node) with
     | Some (latest, output) when String.equal latest key -> Some output
-    | _ -> None
+    | _ -> None in
+  (match session.journal with None -> () | Some events ->
+    session.journal <- Some (Read ((if volatile then Some (Node.id node) else None), key, result) :: events));
+  result
 
-let store_volatile session node key entry =
+let store_slot session id key entry =
+  (match session.journal with None -> () | Some events ->
+    session.journal <- Some (Write (Some id, key, entry) :: events));
   if session.max_entries > 0 then begin
     (* bounded: one slot per node id, dropped wholesale past max_entries *)
     if Hashtbl.length session.slots >= session.max_entries then
       Hashtbl.reset session.slots;
-    Hashtbl.replace session.slots (Node.id node) (key, entry)
+    Hashtbl.replace session.slots id (key, entry)
   end
+
+let store_volatile session node key entry = store_slot session (Node.id node) key entry
 
 let set_volatile session predicate =
   session.volatile <- predicate;
@@ -318,6 +338,8 @@ let timing node ~geometries ~points ~seconds ~cache_hit = {
 (* a cache hit keeps the node's last real cook time; bounded: a full table starts over *)
 let times_capacity = 4096
 let record_time session sample =
+  (match session.journal with None -> () | Some events ->
+    session.journal <- Some (Time sample :: events));
   Mutex.protect session.times_lock (fun () ->
     if Hashtbl.length session.times >= times_capacity then Hashtbl.reset session.times;
     Hashtbl.replace session.times sample.node_id sample)
@@ -335,8 +357,6 @@ let cancellation_error node =
   Diagnostic.error ~code:"cancelled" "procedural cook was cancelled"
   |> Diagnostic.prepend_trace (Node.trace node)
 
-exception Materialize of Diagnostic.error
-
 (* A packed input reaches its consumer materialized (the explicit boundary),
    once per packed output: the copy keeps a stable data id, so downstream
    cache keys still hit. ponytail: the last 8 packed outputs are kept; an
@@ -344,32 +364,222 @@ exception Materialize of Diagnostic.error
 let input_geometry session (output : output) = match output.payload, output.instances with
   | Payload.Image _, _ | _, None -> Ok output.payload
   | Payload.Geometry source, Some transforms ->
-      match List.assq_opt output session.materialized with
+      let existing = List.assq_opt output session.materialized in
+      (match session.journal with None -> () | Some events ->
+        session.journal <- Some (Materialized_read (output, existing) :: events));
+      match existing with
       | Some geometry -> Ok (Payload.Geometry geometry)
       | None ->
           match Rdk.Instance_copy.materialize_instances ~transforms source with
           | Error error -> Error (Diagnostic.error ~code:(Rdk.Error.code error)
               ~cause:(Rdk.Error.to_string error) "packed instances could not be materialized")
           | Ok geometry ->
+              (match session.journal with None -> () | Some events ->
+                session.journal <- Some (Materialized_write (output, geometry) :: events));
               session.materialized <- (output, geometry)
                 :: List.take 7 session.materialized;
               Ok (Payload.Geometry geometry)
 
 (* [memo] holds this cook's results by node id so a node reachable through
    several paths is evaluated once; the physical check guards reused ids. *)
+let memo_find memo node =
+  List.find_opt (fun (seen, _) -> seen == node) (Hashtbl.find_all memo (Node.id node))
+
+(* Snapshot metadata, not payload planes. Exact CLOCK touch bits matter when
+   an earlier branch evicts an entry a later branch initially found. *)
+let snapshot session =
+  let payload = {refs=Hashtbl.copy session.payload.refs; bytes=session.payload.bytes} in
+  {session with cache=Entry_cache.copy
+      ~release:(fun _ entry -> release_components payload entry.components) session.cache;
+    payload; slots=Hashtbl.copy session.slots; times=Hashtbl.create 16;
+    times_lock=Mutex.create (); cooks=0;hits=0;misses=0;evictions=0;
+    volatile_hits=0;volatile_misses=0;last_node=None;
+    journal=None;parallel_override=Some false;fanouts=0}
+
+let replay_event session = function
+  | Read (volatile, key, expected) ->
+      let observed = match volatile with
+        | None -> (try Some (Entry_cache.find session.cache key) with Not_found -> None)
+        | Some id -> (match Hashtbl.find_opt session.slots id with
+            | Some (stored, entry) when stored=key -> Some entry | _ -> None) in
+      (match observed, expected with
+       | None,None -> true
+       | Some a,Some b -> a.output==b.output && a.delta==b.delta
+       | _ -> false)
+  | Write (None,key,entry) -> insert session key entry; true
+  | Write (Some id,key,entry) -> store_slot session id key entry; true
+  | Materialized_read (output, expected) ->
+      (match List.assq_opt output session.materialized,expected with
+       | None,None -> true | Some a,Some b -> a==b | _ -> false)
+  | Materialized_write (output, geometry) ->
+      session.materialized <- (output,geometry) :: List.take 7 session.materialized; true
+  | Time sample -> record_time session sample; true
+
+let selected_inputs node =
+  let inputs=Node.Private.input_array node in
+  match Node.Private.input_policy node with All -> inputs | Only i -> [|inputs.(i)|]
+
+let branch_min_seconds = 0.002
+let branch_min_points = 10_000
+
+let costly session node = match session.parallel_override with
+  | Some true -> true | Some false -> false
+  | None -> (match node_seconds session (Node.id node) with
+      | Some seconds -> seconds >= branch_min_seconds
+      | None -> Option.fold ~none:false ~some:(fun entry ->
+          Payload.element_count entry.output.payload >= branch_min_points)
+          (Entry_cache.find_first session.cache (fun key _ -> String.length key>=8 &&
+            String.get_int64_le key 0=Int64.of_int(Node.id node))))
+
+let rec cached_output memo session context node =
+  match memo_find memo node with
+  | Some (_,Ok output) -> Some output | Some (_,Error _) -> None
+  | None ->
+      let inputs=selected_inputs node in
+      let values=Array.map(fun input -> Option.bind (cached_output memo session context input)
+        (fun output -> match output.payload, output.instances with
+          | Payload.Image _, _ | _, None -> Some output.payload
+          | Geometry _, Some _ -> Option.map (fun geometry -> Payload.Geometry geometry)
+              (List.assq_opt output session.materialized))) inputs in
+      if Array.exists Option.is_none values then None else
+      let geometries=Array.map Option.get values in
+      let key=cache_key node context geometries in
+      let found=if session.volatile(Node.id node) then
+        (match Hashtbl.find_opt session.slots(Node.id node) with
+         |Some(stored,entry) when stored=key -> Some entry |_->None)
+        else Entry_cache.peek session.cache key in
+      Option.bind found (fun entry -> match entry.delta with
+        |Some delta when delta.source<>Payload.data_id geometries.(0) -> None
+        |_->Some entry.output)
+
 let rec evaluate memo session context node =
-  match List.find_opt (fun (seen, _) -> seen == node)
-      (Hashtbl.find_all memo (Node.id node)) with
+  match memo_find memo node with
   | Some (_, result) -> result
   | None ->
       let result = evaluate_uncached memo session context node in
       Hashtbl.add memo (Node.id node) (node, result);
       result
 
-(* A zone node cooks the sub-graph of each element through this
-   session, so an unchanged element is a cache hit, then merges their outputs.
-   ponytail: sequential over elements; parallelise with [Parallel.map_array]
-   only after a byte-identical test and a bench show a win. *)
+(* Complete the same sequential DFS prefix that reaches every shared node.
+   Once it is memoized, the remaining branch DAGs have disjoint mutable state.
+   ponytail: opaque expansions stay sequential until their concrete roots
+   exist; broaden scheduling only if nested-zone measurements justify it. *)
+and shared_prefix memo session context roots =
+  let counts = Hashtbl.create 32 and opaque = ref false in
+  Array.iter (fun root ->
+    let visited = Hashtbl.create 16 in
+    let rec visit node =
+      if Option.is_none (memo_find memo node) && Option.is_none (memo_find visited node) then begin
+        Hashtbl.add visited (Node.id node) (node, ());
+        (match memo_find counts node with
+         | Some (_, count) -> incr count
+         | None -> Hashtbl.add counts (Node.id node) (node, ref 1));
+        if Option.is_some (Node.Private.expand node) then opaque := true;
+        Array.iter visit (selected_inputs node)
+      end in
+    visit root) roots;
+  if !opaque then None else
+  let pending = ref (Hashtbl.fold (fun _ (node,count) nodes ->
+    if !count > 1 then node :: nodes else nodes) counts []) in
+  (* ponytail: shared-node membership scans this coarse DAG frontier; use a
+     physical-node set if large shared frontiers dominate cook measurements. *)
+  let rec contains node =
+    Option.is_none (memo_find memo node) &&
+    (List.exists ((==) node) !pending || Array.exists contains (selected_inputs node)) in
+  let rec prefix node =
+    if !pending=[] || Option.is_some (memo_find memo node) then Ok ()
+    else if List.exists ((==) node) !pending || not (contains node) then
+      Result.map (fun _ -> pending := List.filter (fun shared ->
+        Option.is_none (memo_find memo shared)) !pending) (evaluate memo session context node)
+    else
+      let children=selected_inputs node in
+      let rec go i =
+        if !pending=[] || i=Array.length children then Ok ()
+        else match prefix children.(i) with
+          | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
+          | Ok () -> go (i+1) in
+      go 0 in
+  let rec go i =
+    if !pending=[] || i=Array.length roots then Ok ()
+    else Result.bind (prefix roots.(i)) (fun () -> go (i+1)) in
+  Some (go 0)
+
+(* Workers mutate only copied cache metadata and disjoint memo tables. Reads
+   are validated against the current parent before any journal is applied;
+   a prior branch's eviction may require a sequential recook. This keeps
+   CLOCK order, retention and counters identical to input-order execution. *)
+and evaluate_many memo session context roots =
+  let count=Array.length roots in
+  let candidate node = Option.is_none (memo_find memo node) && costly session node
+    && Option.is_none (cached_output memo session context node) in
+  let candidates () = Array.to_list (Array.mapi (fun i node ->
+      if candidate node then Some i else None) roots) |> List.filter_map Fun.id in
+  let sequential () =
+    let outputs=Array.make count None in
+    let rec go i =
+      if i=count then Ok (Array.map Option.get outputs)
+      else Result.bind (evaluate memo session context roots.(i)) (fun output ->
+        Result.bind (input_geometry session output) (fun geometry ->
+          outputs.(i)<-Some(output,geometry); go(i+1))) in
+    go 0 in
+  if count<2 || Context.domains context<2 || session.parallel_override=Some false
+    || List.length(candidates())<2 then sequential () else
+  match shared_prefix memo session context roots with
+  | None -> sequential ()
+  | Some (Error error) -> Error error
+  | Some (Ok ()) ->
+      let indices=Array.of_list(candidates()) in
+      if Array.length indices<2 then sequential () else begin
+        session.fanouts<-session.fanouts+1;
+        let transactions=Array.make count None in
+        let workers=Array.map(fun _ -> snapshot session,Hashtbl.copy memo) indices in
+        Rays_math.Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(Array.length indices-1)
+          (fun worker_index ->
+            let i=indices.(worker_index) in
+            let local,local_memo=workers.(worker_index) in
+            local.journal<-Some [];
+            let result=Result.bind (evaluate local_memo local context roots.(i)) (fun output ->
+              Result.map (fun geometry -> output,geometry) (input_geometry local output)) in
+            transactions.(i)<-Some(local,local_memo,result));
+        let outputs=Array.make count None in
+        let rec cancelled_error i =
+          if i=count then Error(cancellation_error roots.(0))
+          else match transactions.(i) with
+            | Some(_,_,Error error) -> Error error
+            | Some(_,_,Ok _) -> cancelled_error(i+1)
+            | None -> Error(cancellation_error roots.(i)) in
+        let rec join i =
+          if i=count then Ok (Array.map Option.get outputs)
+          else if Context.cancelled context then cancelled_error i else
+          let result=match transactions.(i) with
+            | None -> Result.bind(evaluate memo session context roots.(i)) (fun output ->
+                Result.map(fun geometry -> output,geometry)(input_geometry session output))
+            | Some(local,local_memo,result) ->
+                let events=List.rev(Option.get local.journal) in
+                let compatible=Hashtbl.fold(fun _ (node,worker_result) compatible ->
+                    compatible && match memo_find memo node with
+                    | None -> true | Some(_,parent_result) -> worker_result==parent_result)
+                    local_memo true in
+                let probe=snapshot session in
+                if compatible && List.for_all(replay_event probe) events then begin
+                  List.iter(fun event -> ignore(replay_event session event)) events;
+                  session.cooks<-session.cooks+local.cooks;
+                  session.hits<-session.hits+local.hits;
+                  session.misses<-session.misses+local.misses;
+                  session.volatile_hits<-session.volatile_hits+local.volatile_hits;
+                  session.volatile_misses<-session.volatile_misses+local.volatile_misses;
+                  (match local.last_node with None -> () | Some _ -> session.last_node<-local.last_node);
+                  Hashtbl.iter(fun id (node,value) ->
+                    if Option.is_none(memo_find memo node) then Hashtbl.add memo id (node,value)) local_memo;
+                  result
+                end else Result.bind(evaluate memo session context roots.(i)) (fun output ->
+                  Result.map(fun geometry -> output,geometry)(input_geometry session output)) in
+          Result.bind result (fun output -> outputs.(i)<-Some output;join(i+1)) in
+        join 0
+      end
+
+(* A zone expands on its caller; its concrete element roots use the same
+   input-order join as ordinary independent branches. *)
 and cook_node memo session context node geometries =
   match Node.Private.expand node with
   | None -> Node.Private.cook node context geometries
@@ -377,57 +587,28 @@ and cook_node memo session context node geometries =
       match expand context (Node.Private.input_array node) geometries with
       | Error _ as error -> error
       | Ok roots ->
-          let outputs = Array.make (Array.length roots) None in
-          let diagnostics = ref [] in
-          let rec go index =
-            if index = Array.length roots then Ok ()
-            else match evaluate memo session context roots.(index) with
-              | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
-              | Ok output ->
-                  (match input_geometry session output with
-                   | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
-                   | Ok geometry ->
-                       outputs.(index) <- Some geometry;
-                       diagnostics := output.diagnostics :: !diagnostics;
-                       go (index + 1)) in
-          match go 0 with
-          | Error _ as error -> error
-          | Ok () -> Result.map (fun (cooked : Node.Private.cooked) ->
-              {cooked with diagnostics = List.concat (List.rev (cooked.diagnostics :: !diagnostics))})
-              (Node.Private.cook node context (Array.map Option.get outputs))
+          (match evaluate_many memo session context roots with
+           | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
+           | Ok outputs -> Result.map (fun (cooked : Node.Private.cooked) ->
+               let diagnostics=Array.fold_left(fun values (output,_) ->
+                 output.diagnostics::values) [] outputs in
+               {cooked with diagnostics=List.concat(List.rev(cooked.diagnostics::diagnostics))})
+               (Node.Private.cook node context (Array.map snd outputs)))
 
 and evaluate_uncached memo session context node =
   if Context.cancelled context then Error (cancellation_error node)
   else
-    let all_inputs = Node.Private.input_array node in
-    let selected = match Node.Private.input_policy node with
-      | Node.Private.All -> all_inputs
-      | Node.Private.Only index -> [| all_inputs.(index) |]
-    in
-    let count = Array.length selected in
-    let geometries = Array.make count None in
-    let input_diagnostics = ref [] in
-    let rec cook_inputs index =
-      if index = count then Ok ()
-      else match evaluate memo session context selected.(index) with
-        | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
-        | Ok output ->
-            (match input_geometry session output with
-             | Error error -> raise_notrace (Materialize error)
-             | Ok geometry -> geometries.(index) <- Some geometry);
-            input_diagnostics := output.diagnostics :: !input_diagnostics;
-            cook_inputs (index + 1)
-    in
-    match (try cook_inputs 0 with Materialize error ->
-        Error (Diagnostic.prepend_trace (Node.trace node) error)) with
-    | Error _ as error -> error
-    | Ok () ->
-        let geometries = Array.map Option.get geometries in
+    match evaluate_many memo session context (selected_inputs node) with
+    | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
+    | Ok outputs ->
+        let geometries = Array.map snd outputs in
+        let input_diagnostics = Array.fold_left (fun diagnostics (output,_) ->
+          output.diagnostics::diagnostics) [] outputs in
         let key = cache_key node context geometries in
         let volatile = session.volatile (Node.id node) in
         match lookup session ~volatile node key with
         | Some entry ->
-            (match node_result (fun () -> Ok (refresh geometries !input_diagnostics entry)) with
+            (match node_result (fun () -> Ok (refresh geometries input_diagnostics entry)) with
             | Error error -> Error (Diagnostic.prepend_trace (Node.trace node) error)
             | Ok refreshed ->
             if refreshed != entry then
@@ -458,7 +639,7 @@ and evaluate_uncached memo session context node =
             | Ok _ when Context.cancelled context -> Error (cancellation_error node)
             | Ok (cooked, delta) ->
                 let diagnostics =
-                  List.concat (List.rev (cooked.diagnostics :: !input_diagnostics))
+                  List.concat (List.rev (cooked.diagnostics :: input_diagnostics))
                 in
                 let output = { payload = cooked.payload; diagnostics;
                   instances = cooked.instances } in
@@ -515,3 +696,18 @@ let close session =
   end
 
 let is_closed session = session.closed
+
+module Private = struct
+  let set_parallel_override session value = session.parallel_override <- value
+  let fanouts session = session.fanouts
+  let cache_keys session =
+    let keys=ref [] in
+    Entry_cache.iter session.cache(fun key _ -> keys:=key::!keys);
+    List.sort String.compare !keys
+  let clear_cache_keep_timings session =
+    Entry_cache.clear session.cache;
+    Hashtbl.reset session.slots;
+    Hashtbl.reset session.payload.refs;
+    session.payload.bytes<-0;
+    session.materialized<-[]
+end

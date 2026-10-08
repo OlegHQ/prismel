@@ -110,6 +110,21 @@ module Make (K : Hashtbl.HashedType) = struct
     end
 
   let length t = Table.length t.table
+  let copy ~release t =
+    let result = create ~byte_capacity:t.byte_capacity ~evictable:t.evictable
+      ~release t.capacity in
+    if Array.length t.oldest > 0 then begin
+      let oldest = t.oldest.(0) in
+      let rec go source =
+        let rec node = { key=source.key; value=source.value; size=source.size;
+          touched=source.touched; newer=node; older=node } in
+        Table.add result.table node.key node;
+        link_newest result node;
+        result.bytes <- result.bytes + node.size;
+        if source.newer != oldest then go source.newer in
+      go oldest
+    end;
+    result
   let bytes t = t.bytes
   let rec clear t =
     if Array.length t.oldest > 0 then begin drop t t.oldest.(0); clear t end

@@ -1,6 +1,7 @@
 (** Explicit, bounded graph-evaluation state. A session is single-caller: it
-    may run parallel RDK kernels internally, but concurrent calls to [cook] on
-    the same session are not supported. *)
+    may run independent branches and RDK kernels on the shared pool, but
+    concurrent calls to [cook] on the same session are not supported. Worker
+    cache metadata is local; parent mutation joins in input order. *)
 
 type t
 
@@ -66,3 +67,13 @@ val stats : t -> stats
 val clear : t -> unit
 val close : t -> unit
 val is_closed : t -> bool
+
+module Private : sig
+  val set_parallel_override : t -> bool option -> unit
+  (** Force or disable the coarse branch gate for exactness checks. [None]
+      restores measured placement. One-domain contexts remain sequential. *)
+  val fanouts : t -> int
+  val cache_keys : t -> string list
+  val clear_cache_keep_timings : t -> unit
+  (** Cache-cold benchmarks after learning branch costs; counters are kept. *)
+end

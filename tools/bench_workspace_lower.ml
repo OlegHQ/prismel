@@ -124,6 +124,9 @@ let inspect_mode mode dir =
     end)
 
 let branch_mode mode repeats =
+  let placement=if Array.length Sys.argv>3 then Sys.argv.(3) else "auto" in
+  if not(List.mem placement ["auto";"learned";"forced";"off"]) then
+    invalid_arg "branch placement must be auto, learned, forced or off";
   let text = if mode = "--branches" then {|(workspace branches
     (graph g :context sop
       (let* [a (-> (sop/grid :columns 999 :rows 999 :size 100.0)
@@ -143,29 +146,44 @@ let branch_mode mode repeats =
   let forms = ok (Flow.Syntax.parse text) in
   let graph = List.hd (ok (Lower.workspace ~extra:Editor_document.Contexts.descriptors ~factories forms)).graphs in
   let root = Result.get_ok (Procedural.Edit_graph.compile_node graph.network.geometry ~node_id:(Option.get graph.root)) in
-  print_endline "fixture,domains,repeats,points,median_s,allocated_bytes,hash";
+  print_endline "fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash";
   let expected = ref None in
   List.iter (fun domains ->
     let context = Result.get_ok (Procedural.Context.create ~domains ()) in
     Rays_math.Parallel.run ~domains (fun () -> ());
-    let seconds = Array.make repeats 0. and allocated = Array.make repeats 0. in
-    let points = ref 0 and hash = ref "" in
+    let seconds = Array.make repeats 0. and allocated = Array.make repeats 0.
+    and total_allocated=Array.make repeats 0. in
+    let points = ref 0 and hash = ref "" and fanouts=ref 0 in
     for repeat = 0 to repeats - 1 do
       let session = Result.get_ok (Procedural.Session.create ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024)) in
       Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+        Procedural.Session.Private.set_parallel_override session
+          (match placement with "forced" -> Some true | "off" -> Some false | _ -> None);
+        if placement="learned" then begin
+          ignore(Result.get_ok(Procedural.Session.cook session ~context root));
+          Procedural.Session.Private.clear_cache_keep_timings session
+        end;
+        let before_fanouts=Procedural.Session.Private.fanouts session in
         Gc.full_major ();
+        let words (s:Gc.stat)=s.minor_words+.s.major_words-.s.promoted_words in
+        let before_total=words(Gc.quick_stat()) in
         let before = Gc.allocated_bytes () and start = now () in
         let output = match Procedural.Session.cook session ~context root with
           | Ok output -> output | Error error -> failwith (Procedural.Diagnostic.error_to_string error) in
         seconds.(repeat) <- now () -. start;
         allocated.(repeat) <- Gc.allocated_bytes () -. before;
+        Gc.minor();
+        total_allocated.(repeat)<-(words(Gc.quick_stat())-.before_total)*.float(Sys.word_size/8);
+        fanouts:=Procedural.Session.Private.fanouts session-before_fanouts;
         points := Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload));
         hash := cook_hash (Result.get_ok (Procedural.Payload.geometry output.payload));
         match !expected with None -> expected := Some !hash | Some prior -> assert (prior = !hash))
     done;
     Array.sort Float.compare seconds; Array.sort Float.compare allocated;
-    Printf.printf "%s,%d,%d,%d,%.9f,%.0f,%s\n%!" (String.sub mode 2 (String.length mode - 2))
-      domains repeats !points seconds.(repeats / 2) allocated.(repeats / 2) !hash) [1; 8]
+    Array.sort Float.compare total_allocated;
+    Printf.printf "%s,%s,%d,%d,%d,%.9f,%.0f,%.0f,%d,%s\n%!" (String.sub mode 2 (String.length mode - 2))
+      placement domains repeats !points seconds.(repeats / 2) allocated.(repeats / 2)
+      total_allocated.(repeats/2) !fanouts !hash) [1; 8]
 
 let image_mode () =
   print_endline "name,pixels,domains,median_s,bytes_all_domains,hash";

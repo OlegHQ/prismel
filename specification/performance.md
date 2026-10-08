@@ -639,9 +639,19 @@ the release profile and are repeated with `RAYS_BENCH_DOMAINS=4`.
 | Editor held drag and undo | `dune exec tools/bench_rays_editor.exe -- 200 1000 2000` |
 | SOP graph scale smoke | `dune build test/test_main.exe`, then `_build/default/test/test_main.exe test_pxui_graph_smoke` |
 | Workspace lowering | `dune exec tools/bench_workspace_lower.exe` |
+| Independent cook branches | `dune exec tools/bench_workspace_lower.exe -- --branches 7 learned` |
+| Piece-list zone branches | `dune exec tools/bench_workspace_lower.exe -- --loops 7 learned` |
 | Workspace live frame | `dune exec tools/bench_workspace_live.exe -- 600 1` |
 | Source digest polling | `dune exec tools/bench_source_poll.exe -- examples/sop_gallery/gallery.rays` |
 | Named-pane owner lookup | `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune exec tools/bench_named_owner.exe` |
 | Live light contexts | `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune exec tools/bench_live_lights.exe` |
 | Shattered-cube native workflow | `RAYS_SHATTER_FRAMES=1001 /usr/bin/time -p dune exec sketches/shattered_cube/main.exe` |
 | Test selection timing | `/usr/bin/time -p env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy _build/default/tools/check.exe` |
+
+The branch tools accept `auto` (fresh session), `learned` (first cook excluded,
+then cache cleared while retaining measured node costs), `forced` (test gate)
+or `off` after the repeat count. Report the placement mode and actual fanout
+count with the timings: a completely cold session cannot use historical costs.
+`caller_allocated_bytes` retains the old calling-domain measurement for
+comparison; `program_allocated_bytes` samples whole-program GC counters after a
+minor collection outside the timed region, including allocations on workers.

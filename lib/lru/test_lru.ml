@@ -13,6 +13,12 @@ let () =
   check (Cache.find_opt cache 9 = None && (try ignore (Cache.find cache 9); false with Not_found -> true)) "miss";
   check (keys cache = [1; 2; 3]) "hit only marks the entry";
   check (Cache.peek cache 2 = Some "b" && keys cache = [1; 2; 3]) "peek keeps order";
+  let snapshot_released = ref [] in
+  let snapshot = Cache.copy ~release:(fun k v -> snapshot_released := (k,v) :: !snapshot_released) cache in
+  Cache.add snapshot 4 "d";
+  check (keys snapshot = [3;4;1] && !snapshot_released = [2,"b"])
+    "snapshot preserves touch bits and second-chance eviction";
+  check (keys cache = [1;2;3] && !released = []) "snapshot owns independent metadata and release";
   Cache.add cache 4 "d";
   check (keys cache = [3; 4; 1] && !released = [2, "b"]) "the found entry gets a second chance; the untouched oldest goes";
   Cache.add cache 3 "C";

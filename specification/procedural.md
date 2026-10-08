@@ -102,6 +102,23 @@ bounded `Session.inspect` cache, whose lifetime follows the owning session.
 The sketch cook scheduler retains one graph's dependency summary in its
 immutable schedule state, so an unchanged graph needs no traversal per frame.
 
+A session remains single-caller. Independent input branches and concrete zone
+elements may cook on the shared `Parallel` pool, with one coarse branch per
+chunk. The automatic gate requires at least two uncached branches and multiple
+domains; a branch qualifies after a real cook of at least 2 ms, or, when its
+timing has expired, a retained output of at least 10,000 points. A new session
+without these measurements runs sequentially. Cache hits remain inline.
+
+Shared ancestors are evaluated once on the caller in the original DFS prefix
+order. Each worker owns a copy of cache metadata (including CLOCK touch bits),
+volatile slots and the cook memo, while immutable payload planes are shared.
+The caller validates and applies read/write journals in input order. If an
+earlier branch evicted an entry observed by a later worker, that later branch
+is reevaluated against the current parent. Parent cache mutation, diagnostics,
+retention and counters therefore follow sequential execution. Opaque expansion
+stays on the caller until its concrete roots are known. Cancellation discards
+uncommitted branch outputs and reports errors in input order.
+
 SOPs and sketches attach schemas to individual nodes. There is no sketch-wide
 promoted record that shadows the graph; `Edit_graph` owns document edits.
 

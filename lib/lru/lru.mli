@@ -47,6 +47,10 @@ module Make (K : Hashtbl.HashedType) : sig
   val iter : 'v t -> (K.t -> 'v -> unit) -> unit
   (** Oldest inserted first. [f] must not add or remove entries. *)
 
+  val copy : release:(K.t -> 'v -> unit) -> 'v t -> 'v t
+  (** Independent cache metadata with the same ordering, touch bits, limits
+      and values. Values are shared; the caller supplies their release policy. *)
+
   val length : 'v t -> int
   val bytes : 'v t -> int
   val clear : 'v t -> unit
