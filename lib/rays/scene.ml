@@ -7,7 +7,7 @@ and display_list_node={segment:Scene_command.Display_list.t;
 and ui_node={ui:Scene_command.Ui_batch.t;
   ui_resources:(int*Rays_execution.resource)list}
 and node=Group of t|Clear of Color.t|Geometry of Scene_command.Render_ir.geometry|Text of text_node|Image of image_node
- |Display_list of display_list_node|Ui of ui_node
+ |Display_list of display_list_node|Ui of ui_node|Shapes of Scene_command.Shape_batch.t
  |View3d of view3d_node|Region of int*int*int*int*bool*int|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
@@ -162,6 +162,7 @@ let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)le
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
 module Private=struct
  let display_list=display_list
+ let shapes batch=Shapes batch
   module Ui_batch = Scene_command.Ui_batch
  let layer_break=Layer_break
  let ui ?(images=[]) batch=
@@ -234,6 +235,7 @@ module Private=struct
    |[]->()
    |Clear c::xs->emit builder(Scene_command.Render_ir.Clear(rgba c));nodes xs
    |Geometry g::xs->emit builder(Scene_command.Render_ir.Geometry g);nodes xs
+   |Shapes s::xs->emit builder(Scene_command.Render_ir.Shapes s);nodes xs
    |Display_list node::xs->
        Array.iter (emit builder) (Scene_command.Render_ir.Private.commands_readonly
          (Scene_command.Display_list.render_ir node.segment));
@@ -335,6 +337,7 @@ module Private=struct
    |Display_list left,Display_list right->
        left.segment==right.segment&&left.resources==right.resources
    |Ui left,Ui right->left.ui==right.ui&&left.ui_resources==right.ui_resources
+   |Shapes left,Shapes right->left==right
    |Image left,Image right->left.image==right.image&&left.x=right.x&&
        left.y=right.y&&left.scale=right.scale&&left.angle=right.angle&&
        left.center=right.center&&left.flip_x=right.flip_x
@@ -396,6 +399,7 @@ module Private=struct
    |Geometry geometry->Hashtbl.hash(1,Array.length geometry.vertices,Array.length geometry.indices,geometry.color)
    |Display_list _->3
    |Ui _->4
+   |Shapes _->16
    |Image node->Hashtbl.hash(5,node.x,node.y,node.scale,node.angle,node.center,node.flip_x)
    |Text node->Hashtbl.hash(6,node.x,node.y,node.value,node.color,node.size,node.wrap,node.align)
    |Group nodes->7 lxor hash_native_scene nodes
@@ -417,6 +421,7 @@ module Private=struct
  let scene2_layer_caches=Domain.DLS.new_key(fun()->
    Layer_table.create scene2_layer_cache_capacity~byte_capacity:scene2_layer_cache_byte_capacity)
  let scene2_layer_bytes ir=Array.fold_left(fun total->function
+   |Scene_command.Render_ir.Shapes s->total+Bytes.length(Scene_command.Shape_batch.instances s)
    |Scene_command.Render_ir.Geometry geometry->total+
        Array.length geometry.vertices*(Sys.word_size/8)+
        Array.length geometry.indices*(Sys.word_size/8)
@@ -472,7 +477,7 @@ module Private=struct
            |Scene_command.Render_ir.Clear color->
                if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
                else clear:=unpack_clear color
-           |Geometry _|Image _|Glyphs _->seen_draw:=true
+           |Geometry _|Shapes _|Image _|Glyphs _->seen_draw:=true
            |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
            (Scene_command.Render_ir.Private.commands_readonly
              (Scene_command.Display_list.render_ir segment))
@@ -480,7 +485,7 @@ module Private=struct
        |Scene_command.Render_ir.Clear color->
           if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
           else clear:=unpack_clear color
-       |Geometry _|Image _|Glyphs _->seen_draw:=true
+       |Geometry _|Shapes _|Image _|Glyphs _->seen_draw:=true
        |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
        (Scene_command.Render_ir.Private.commands_readonly ir))layers;
    match!failure with Some message->Error message|None->
@@ -508,7 +513,8 @@ module Private=struct
  let native_stage_bytes stage=List.fold_left(fun total->function
    |Scene2_segment(segment,_)->total+Scene_command.Display_list.source_bytes segment
    |Scene2_layer(ir,_)->total+Array.fold_left(fun total->function
-       |Scene_command.Render_ir.Geometry geometry->total+
+       |Scene_command.Render_ir.Shapes s->total+Bytes.length(Scene_command.Shape_batch.instances s)
+   |Scene_command.Render_ir.Geometry geometry->total+
            Array.length geometry.vertices*(Sys.word_size/8)+
            Array.length geometry.indices*(Sys.word_size/8)
        |_->total+32)0(Scene_command.Render_ir.Private.commands_readonly ir)
@@ -561,7 +567,7 @@ module Private=struct
     |Group nested::rest|Translate(_,_,nested)::rest|Rotate(_,nested)::rest
     |Scale(_,_,nested)::rest|Clip(_,_,_,_,nested)::rest|Blend(_,nested)::rest->
         nodes nested&&nodes rest
-    |Display_list _::rest|Ui _::rest|Region _::rest|Layer_break::rest|Clear _::rest
+    |Display_list _::rest|Ui _::rest|Shapes _::rest|Region _::rest|Layer_break::rest|Clear _::rest
     |Geometry _::rest|Text _::rest
     |Image _::rest->nodes rest in
    nodes scene
@@ -617,7 +623,7 @@ module Private=struct
        | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
            release nodes
        | Clear _ | Geometry _ | Image _
-       | Display_list _ | Ui _ | Region _
+       | Display_list _ | Ui _ | Shapes _ | Region _
        | Layer_break -> ())
      scene
 end

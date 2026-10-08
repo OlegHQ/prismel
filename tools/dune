@@ -251,6 +251,11 @@
  (libraries rays procedural flow flow_graph rays_editor unix))
 
 (executable
+ (name bench_drawing)
+ (modules bench_drawing)
+ (libraries rays rays_editor flow unix))
+
+(executable
  (name bench_kernel)
  (modules bench_kernel)
  (libraries rdk rays_math flow flow_ir flow_sop sop_catalog unix))

@@ -226,6 +226,23 @@ let () =
   | _ -> assert false
 
 let () =
+  let ops=Flow_ir.Operators.all in
+  List.iter(fun seed->List.iter(fun octaves->
+    let ws=check ~ops (Printf.sprintf "(workspace n (graph g :context value (let* [mapped (map (fn [p] (noise3 (+ p [t 0 0]) :seed %d :octaves %d)) (array/vec3 2051 [0.31 0.73 -0.29]))] (array/sum mapped))))" seed octaves)in
+    let evaluated=ok(E.static ~record:true ws)in
+    let value=List.assoc ["g";"mapped"] evaluated.records |> List.hd |> snd in
+    let program=ok(Executor.compile value)in
+    assert(Array.exists(fun(n:node)->n.tier=Cpu_kernel)(Executor.graph program).nodes);
+    List.iter(fun time->let live=Frame_input.at_time time in
+      let reference=ok(E.Private.force_reference value ~live)in
+      List.iter(fun domains->let actual=Rays_math.Parallel.run ~domains(fun()->ok(Executor.force program ~live))in
+        assert(same_bits actual reference)) [1;8]) [0.;0.125;1.25;7.]) [1;5;32]) [0;2026;-451];
+  List.iter(fun expression->let ws=check ~ops ("(workspace c (graph g :context value (let* [result "^expression^"] 0)))")in
+    let evaluated=ok(E.static ws)in
+    ignore(ok(Executor.force (ok(Executor.compile(List.assoc "g" evaluated.results))) ~live:(Frame_input.at_time 0.))))
+    ["(color/hsl 220 0.7 0.4)";"(color/hsla 451 0.5 0.6 0.25)";"(color/gradient (list \"#101426\" \"#f26444\") 0.3)"]
+
+let () =
   (* Compare all million elements with the independent tree walker. *)
   let ws = check "(workspace large (graph g :context value (let* [xs (array/range 1000000) mapped (map (fn [x] (sin (+ (* x 0.25) t))) xs)] (array/sum mapped))))" in
   let evaluated = ok (E.static ~record:true ws) in

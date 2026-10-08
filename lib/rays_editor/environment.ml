@@ -276,6 +276,7 @@ type 'prepared t = {
   saved_view : Flow.Syntax.t;
   state_error : string option;
   canvases : (string * canvas_picture) list;
+  host : Workspace_host.t;
 }
 
 (* Scene objects a sketch starts with: its lights as light objects. *)
@@ -363,7 +364,7 @@ let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timelin
       | None -> core in
     { core; camera; control = V.create_control (); draw; overlay; status;
       rendered = None; views = []; drawn = Document.Int_map.empty; composed = None;
-      resolved = None; context_error = None; canvases = []; baked = None; baked_from = None; baked_views = []; map = None;
+      resolved = None; context_error = None; canvases = []; host=Workspace_host.create(); baked = None; baked_from = None; baked_views = []; map = None;
       render_status = None; pending_render = None;
       background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; held = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
       state_checked = neg_infinity; saved_doc = core.doc; saved_view = V.section camera extra; state_error = None })
@@ -871,11 +872,17 @@ let update_with value frame ~inspector =
     | Leader.Sketch_command id -> (List.find (fun (c : _ Editor_core.Command.t) ->
         c.id = id) value.commands).action value
     | _ -> value) value update.actions in
+  let workspace,lowered=value.core.doc.workspace in
+  let value=match Workspace_host.update value.host ~state:value.core.cook.state
+      ~live:frame_input workspace lowered.plan with
+    |Ok()->value|Error diagnostic->{value with context_error=Some(Flow.Diagnostic.to_string diagnostic)}in
   autosave value ~now:frame.Frame.time, inspected
 
 let update value frame = fst (update_with value frame ~inspector:ignore)
 
 let after_present value frame =
+  let value=match Workspace_host.save_pending value.host Canvas.save_screen_png with
+    |Ok()->value|Error diagnostic->{value with context_error=Some(Flow.Diagnostic.to_string diagnostic)}in
   match save_status ~save:V.save ~filename:V.filename
       value.pending_render value.rendered with
   | Some status -> refresh_hidden
@@ -941,6 +948,7 @@ let close value =
   let value = autosave ~force:true value ~now:value.state_checked in
   Option.iter prerr_endline value.state_error;
   Option.iter (fun (_, image) -> Image.destroy image) value.map;
+  Workspace_host.close value.host;
   V.close value.extra;
   Core.close value.core
 

@@ -38,6 +38,12 @@
  (modules test_drawing)
  (libraries rays flow flow_graph editor_document sketch_support rays_editor sop_catalog unix))
 
+(test
+ (name test_host_effects)
+ (modules test_host_effects)
+ (libraries rays rays_editor editor_document flow)
+ (action (setenv SDL_AUDIODRIVER dummy (run %{test}))))
+
 (rule
  (alias runtest)
  (action (run %{exe:test_drawing.exe} %{dep:../examples/particles/sketch.rays})))

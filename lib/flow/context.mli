@@ -7,6 +7,7 @@ type descriptor = {name : string; result : Ty.t; supports_values : bool;
 val sop : t
 val value : t
 val draw : t
+val host : t
 val scene : t
 val world : t
 val settings : t

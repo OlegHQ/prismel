@@ -13,7 +13,8 @@ let registry = ref [
   nominal "geometry" ~color:`Geometry ~default:(Syntax.make (Sym "nil")) ();
   nominal "drawing" ~default:(Syntax.make (List [Syntax.make (Sym "draw/merge")])) ();
   nominal "scene" (); nominal "world" (); nominal "settings" ~shape:false ();
-  nominal "panel" (); nominal "editor" (); nominal "material" ~shape:false ()]
+  nominal "panel" (); nominal "editor" (); nominal "material" ~shape:false ();
+  nominal "effect" (); nominal "sample" ~shape:false ()]
 let descriptor name = List.find_opt (fun entry -> entry.name = name) !registry
 let structural = ["float", Float; "int", Int; "bool", Bool; "vec3", Vec3;
   "text", Text; "color", Color; "fn", Fn; "any", Any]
@@ -103,7 +104,7 @@ let rec fits have want =
   have = Any || want = Any || have = want
   || (num have && (num want || want = Bool))
   || (have = Bool && num want)
-  || (want = Color && (have = Text || have = Vec3))
+  || (want = Color && (have = Text || have = Vec3 || have = List Float || have = List Int))
   || (want = Vec3 && num have)
   || (match have, want with
       | List h, List w -> fits h w

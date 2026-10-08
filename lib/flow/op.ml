@@ -204,12 +204,36 @@ let draw = [
   draw_op ~kw:["color", Ty.Color; "width", Ty.Int] "draw/line" ["from", Ty.Vec3; "to", Ty.Vec3];
   draw_op ~kw:["fill", Ty.Color; "stroke", Ty.Color] "draw/rect" ["at", Ty.Vec3; "size", Ty.Vec3];
   draw_op ~kw:["fill", Ty.Color; "stroke", Ty.Color] "draw/circle" ["at", Ty.Vec3; "radius", Ty.Int];
+  (* Noise and generative sketches need packed RGB; stroke widths remain uniform. *)
+  draw_op ~kw:["radius", Ty.Any; "fill", Ty.Any; "stroke", Ty.Any] "draw/circles" ["positions", Ty.Array Ty.Vec3];
+  draw_op ~kw:["fill", Ty.Any; "stroke", Ty.Any] "draw/rects" ["positions", Ty.Array Ty.Vec3; "sizes", Ty.Any];
+  draw_op ~kw:["color", Ty.Color; "width", Ty.Float] "draw/lines" ["from", Ty.Array Ty.Vec3; "to", Ty.Array Ty.Vec3];
   draw_op ~kw:["color", Ty.Color; "size", Ty.Int] "draw/text" ["at", Ty.Vec3; "text", Ty.Text];
   draw_op "draw/translate" ["offset", Ty.Vec3; "drawing", Ty.drawing];
-  draw_op ~rest:("drawing", Ty.drawing) "draw/merge" [];
+  draw_op "draw/rotate" ["angle", Ty.Float; "drawing", Ty.drawing];
+  draw_op "draw/scale" ["factor", Ty.Any; "drawing", Ty.drawing];
+  draw_op ~kw:["radius", Ty.Int; "fill", Ty.Color; "stroke", Ty.Color] "draw/rounded_rect" ["at", Ty.Vec3; "size", Ty.Vec3];
+  draw_op ~kw:["fill", Ty.Color; "stroke", Ty.Color] "draw/polygon" ["points", Ty.Array Ty.Vec3];
+  draw_op ~kw:["color", Ty.Color] "draw/polyline" ["points", Ty.Array Ty.Vec3];
+  draw_op ~rest:("drawing", Ty.Any) "draw/merge" [];
 ]
 
-let all = frame @ arrays @ draw @ [
+let host_op ?kw ?choices name pos out =
+  mk ~ctx:Context.host ?kw ?choices ~category:"Host" name pos (fun _->Ty.Named out)
+    {run=fun ~name ~node args->node name args}
+let host = [
+  host_op "host/quit" ["when",Ty.Bool] "effect";
+  host_op "host/save_png" ["path",Ty.Text;"when",Ty.Bool] "effect";
+  host_op ~kw:["filters",Ty.Any;"default",Ty.Text]
+    ~choices:["kind",["open_file";"open_files";"save_file";"open_folder"]]
+    "host/dialog" ["kind",Ty.Text;"when",Ty.Bool] "effect";
+  host_op ~kw:["volume",Ty.Float;"loops",Ty.Int] "host/play"
+    ["sample",Ty.Named "sample";"when",Ty.Bool] "effect";
+  host_op ~kw:["waveform",Ty.Text;"frequency",Ty.Float;"duration",Ty.Float;"volume",Ty.Float]
+    ~choices:["waveform",["sine";"square";"triangle";"sawtooth"]] "audio/synth" [] "sample";
+  host_op "audio/load" ["path",Ty.Text] "sample";
+]
+let all = frame @ arrays @ draw @ host @ [
   mk ~category:"Convert" "exact" ["value", Ty.Any]
     (function ty :: _ -> ty | _ -> Ty.Any)
     {run = fun ~name:_ ~node:_ args -> List.assoc "value" args};
@@ -373,7 +397,7 @@ let all = frame @ arrays @ draw @ [
   structure ~ctx:Context.material ~kw:["name", Ty.Text; "color", Ty.Color;
     "roughness", Ty.Float; "emission", Ty.Color] "material/standard" [] (fun _ -> Ty.material);
   structure ~ctx:Context.world "world/none" [] (fun _ -> Ty.world);
-  structure ~ctx:Context.editor "ui/workspace" [ "root", Ty.panel ] (fun _ -> Ty.editor);
+  structure ~ctx:Context.editor ~kw:["effects",Ty.Any] "ui/workspace" [ "root", Ty.panel ] (fun _ -> Ty.editor);
   leaf ~kw:[ "look_through", Ty.Bool ] "ui/viewport" [ "scene", Ty.scene ];
   leaf "ui/canvas" ["drawing", Ty.drawing];
   leaf ~choices:["wires", ["rect"; "straight"]; "view", ["graph"; "list"; "text"]]

@@ -1198,3 +1198,11 @@ retains native catalog cooking and independently interprets value drives and
 attribute writes. `Network.with_reference true` selects reference drive forcing
 for an existing network. These switches support comparison with the normal IR
 path without changing the Lisp surface or supplying substitute SOP factories.
+
+P3's private Scene command boundary also accepts `Scene.Private.shapes` containing a
+`Scene_command.Shape_batch.t`. The batch owns 64-byte logical-coordinate circle, rectangle
+and line instances and publishes a snapshot; `Render_ir.create` validates and copies it. The
+serializer includes instance bytes and opaque GPU identity/count/stamp metadata, without native
+handles. The public polygon-based `Scene.circle` API retains its established appearance.
+`Sketch.export_state` accepts an `after_present` callback for deterministic host screenshot
+requests, executed while the offscreen canvas remains alive.

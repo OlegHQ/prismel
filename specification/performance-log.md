@@ -6176,3 +6176,37 @@ Checks: `/tmp/rays-final-pixels.log`, `/tmp/rays-final-audit.log`,
 `/tmp/rays-final-ship.log`. Native images: `/tmp/rays-workspace-pixels`,
 `/tmp/rays-workspace-pixels-sop-gallery`, `/tmp/rays-workspace-pixels-voxel-wall`;
 seven-mode particle exports: `/tmp/rays-drawing-export`.
+
+### P3 drawing baseline (2026-10-08)
+
+Arm64 native macOS workspace, OCaml 5.3.0, Dune dev profile, one domain; same machine as the
+preceding M1 measurements (sandbox denied a fresh hardware `sysctl` probe). Command:
+`_build/default/tools/bench_drawing.exe`; 800×600, ten warm-up and 200 timed editor updates,
+run alone. Input positions are packed vec3 arrays; static and moving rows differ only by `t`.
+The 06508899 baseline cannot construct graph nodes inside a packed array loop, and list loops
+stop at 4096. Its benchmark-only plural declarations therefore lower the same packed inputs
+through N original `Scene.circle`/`Scene.rect`/`Scene.line` calls. That instrumentation adds no
+batching or retention; `draw/points` is unchanged. Scene command counts below exclude editor
+chrome. Baseline snapshot and CSV: `/private/tmp/rays-p3-baseline` and
+`/private/tmp/p3-baseline.csv` during the measurement session. The shipping tool is identical.
+
+| Kind | N | Moving median / p95 (ms) | Moving bytes/frame | Static median / p95 (ms) | Static bytes/frame | Commands |
+|---|---:|---:|---:|---:|---:|---:|
+| circle | 1000 | 10.816 / 12.416 | 48,190,252 | .037 / .071 | 202,948 | 1000 |
+| rect | 1000 | 3.299 / 3.796 | 12,574,332 | .037 / .071 | 202,948 | 1000 |
+| line | 1000 | 3.017 / 3.252 | 12,837,555 | .037 / .068 | 202,948 | 1000 |
+| points | 1000 | 1.490 / 1.703 | 6,871,900 | .037 / .070 | 202,948 | 1 |
+| circle | 10000 | 107.897 / 115.986 | 420,786,836 | .036 / .108 | 202,948 | 10000 |
+| rect | 10000 | 22.142 / 25.927 | 64,626,916 | .040 / .126 | 202,948 | 10000 |
+| line | 10000 | 13.156 / 16.185 | 41,640,068 | .037 / .111 | 202,948 | 10000 |
+| points | 10000 | 2.432 / 3.291 | 9,084,948 | .038 / .147 | 202,948 | 1 |
+| circle | 100000 | 1079.915 / 1098.087 | 4,205,140,789 | .038 / .107 | 202,948 | 100000 |
+| rect | 100000 | 229.015 / 246.529 | 643,527,892 | .039 / .125 | 202,948 | 100000 |
+| line | 100000 | 129.002 / 143.717 | 412,495,661 | .038 / .122 | 202,948 | 100000 |
+| points | 100000 | 16.241 / 23.236 | 80,870,102 | .037 / .106 | 202,948 | 1 |
+
+Particle control: `_build/default/test/test_drawing.exe examples/particles/sketch.rays --bench`,
+10,000 particles, median 2.991 ms, p95 4.268 ms, 9,204,964 bytes/frame. Independent static Drawing
+lowering after retention: 100,000 circles, 1353 bytes/frame, the same Scene identity for 100
+repeated frames; this excludes editor chrome. Native upload/draw/pixel gates are implemented
+but not verified while OGPU returns `Metal has no system default device`.

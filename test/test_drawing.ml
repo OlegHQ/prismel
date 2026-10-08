@@ -28,6 +28,12 @@ let pure workspace =
       (draw/rect [5 5 0] [20 10 0] :fill "#ffffff")
       (draw/circle [15 15 0] 4 :stroke [0 1 1])
       (draw/text [30 10 0] "text" :size 16)
+      (draw/circles (array/vec3 4 [20 30 0]) :radius 2.0)
+      (draw/rects (array/vec3 4 [40 50 0]) [5 5 0])
+      (draw/lines (array/vec3 4 [20 30 0]) (array/vec3 4 [40 50 0]))
+      (draw/rotate 0.2 (draw/scale 2.0 (draw/rounded_rect [1 2 0] [20 20 0] :radius 4)))
+      (draw/polygon (array/vec3 3 [1 2 0]))
+      (draw/polyline (array/vec3 3 [1 2 0]))
       (draw/translate [10 20 0] (draw/point [1 2 0])))))|} in
   let all = ok (E.static all_draws.checked) in
   let kinds = Array.to_list all.plan.nodes |> List.map (fun (n : E.node) -> n.kind)
@@ -36,6 +42,27 @@ let pure workspace =
     if o.ctx = Flow.Context.draw then Some o.name else None) |> List.sort String.compare));
   assert (ok (Sketch_support.Drawing.render all.plan (List.assoc "picture" all.results)
     ~live:(Frame_input.at_time 0.) ~size:(800, 600)) <> []);
+  List.iter(fun text->
+    let ws=doc ("(workspace lengths (graph picture :context draw "^text^"))")in
+    let evaluated=ok(E.static ws.checked)in
+    assert(match Sketch_support.Drawing.render evaluated.plan (List.assoc "picture" evaluated.results)
+      ~live:(Frame_input.at_time 0.) ~size:(800,600)with
+      |Error diagnostic->diagnostic.Flow.Diagnostic.code="E_DRAW_LENGTH"|Ok _->false))
+    ["(draw/circles (array/vec3 3 [1 2 0]) :radius (array/float 2 1.0))";
+     "(draw/rects (array/vec3 3 [1 2 0]) (array/vec3 2 [3 4 0]))";
+     "(draw/lines (array/vec3 3 [1 2 0]) (array/vec3 2 [3 4 0]))"];
+  let static=doc "(workspace retained (graph picture :context draw (draw/circles (array/vec3 100000 [20 30 0]) :radius 3.0)))"in
+  let evaluated=ok(E.static static.checked)in
+  let prepared=ok(Sketch_support.Drawing.prepare evaluated.plan(List.assoc "picture" evaluated.results))in
+  let state=E.create_state()in
+  let render count=ok(Sketch_support.Drawing.render_prepared ~state prepared
+    ~live:(Frame_input.at_time(float count /. 60.)) ~size:(800,600))in
+  let first=render 0 in
+  Gc.full_major();let before=Gc.allocated_bytes()in
+  for i=1 to 100 do assert(render i==first)done;
+  let allocated=(Gc.allocated_bytes()-.before)/.100. in
+  assert(allocated<32768.);
+  Printf.printf "Retained 100000-circle lowering %.0f bytes/frame\n%!" allocated;
   let invalid = ok (E.static (doc "(workspace invalid (graph g :context draw (draw/background \"invalid\")))").checked) in
   assert (match Sketch_support.Drawing.render invalid.plan (List.assoc "g" invalid.results)
     ~live:(Frame_input.at_time 0.) ~size:(800, 600) with

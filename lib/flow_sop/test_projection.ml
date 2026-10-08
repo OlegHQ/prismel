@@ -25,7 +25,7 @@ let () =
   let document = Editor_document.Workspace_doc.of_text catalog text |> Result.get_ok in
   let checked = document.checked in
   let card = P.find (P.of_graph catalog checked "g") ["g"; "field"] |> Option.get in
-  check (card.ty = Flow.Ty.Float && List.length card.rows = 1) "noise3 is not an ordinary editable card";
+  check (card.ty = Flow.Ty.Float && List.length card.rows = 3) "noise3 position, seed and octaves must be editable rows";
   let expr = S.parse "[0.3 0.7 -0.2]" |> Result.get_ok |> List.hd in
   let edited = Editor_document.Workspace_doc.edit catalog document
     (E.Set_arg {node = ["g"; "field"]; key = E.Pos 0; sub = []; value = expr}) |> Result.get_ok in
@@ -52,7 +52,7 @@ let rec counts (s : P.scope) =
 
 let snapshot = [
   "bloom", [ "flower", (12, 1, 84); "scene", (5, 0, 44); "world", (3, 0, 24); "settings", (2, 0, 6);
-             "editor", (10, 0, 29); "half", (1, 0, 2); "petal", (2, 0, 53) ];
+             "editor", (10, 0, 30); "half", (1, 0, 2); "petal", (2, 0, 53) ];
   "facade", [ "facade", (14, 2, 89) ];
   "garland", [ "garland", (19, 5, 90); "ring", (6, 1, 45) ]; (* inline functions and nested maps *)
   "kit", [ "kit", (16, 2, 112); "window", (3, 0, 30) ];
@@ -62,7 +62,7 @@ let snapshot = [
   "tiles", [ "tiles", (9, 1, 67) ];
   "tree", [ "tree", (9, 1, 184) ];
   "tunnel", [ "rings", (4, 1, 61) ];
-  "variations", [ "garden", (6, 0, 70); "scene", (1, 0, 8); "editor", (8, 0, 22) ];
+  "variations", [ "garden", (6, 0, 70); "scene", (1, 0, 8); "editor", (8, 0, 23) ];
   "wave", [ "wave", (7, 2, 45) ];
 ]
 

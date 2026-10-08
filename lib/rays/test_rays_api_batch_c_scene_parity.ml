@@ -46,6 +46,7 @@ let run () =
         | Push_transform _ -> "push-transform"
         | Pop_transform -> "pop-transform"
         | Geometry _ -> "geometry"
+        | Shapes _ -> "shapes"
         | Image _ -> "image"
         | Glyphs _ -> "glyphs"
       in

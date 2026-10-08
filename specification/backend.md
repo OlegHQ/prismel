@@ -669,3 +669,12 @@ unchanged (`test/dependency_gate.ml`). Sketch UI fly mode is its only
 in-tree user.
 The SDL3 boundary exposes single-event polling and the coalescing poller;
 the runtime uses the latter to keep input floods bounded.
+
+P3 lowers renderer-neutral `Render_ir.Shapes` through the existing `Ui` pipeline family, with
+new SDF circle/line tags in the shared shader. It does not add a pipeline family or native
+handles to Scene. The Scene command walker applies its full affine transform and clip/blend
+stack before preparing these draws; this path is separate from PXUI's self-contained batch
+coordinates. Shape instance/index/affine payloads retain per-slot storage when equal, allowing
+the backend's identity/version upload cache to reuse them. Packed GPU output remains an opaque
+identity/count/stamp until P5 registers its GPU drawing sink. Host resources pin a bounded table
+for a workspace lifetime and close before the runtime and SDL lifecycle ends.
