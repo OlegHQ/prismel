@@ -17,6 +17,11 @@
  (modules test_main test_ogpu_metal_foundation test_ogpu_metal_texture test_ogpu_metal_pipeline test_ogpu_metal_acceleration test_ogpu_metal_capabilities test_ogpu_metal_sampler_pixels test_pipeline_argument_buffer)
  (libraries ogpu ogpu_metal_native metal unix))
 
+(test
+ (name test_device_error)
+ (modules test_device_error)
+ (libraries ogpu_metal_native metal))
+
 (rule
  (aliases runtest test_ogpu_metal_foundation)
  (action (run %{exe:test_main.exe} test_ogpu_metal_foundation)))

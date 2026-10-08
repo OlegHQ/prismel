@@ -749,7 +749,7 @@ let command_buffer_status raw =
 
 let make_device raw =
   let* registry_id =
-    native_result "Metal.Device.system_default" (Metal_raw.Registry.device_registry_id raw)
+    native_result "Metal.Device.registry_id" (Metal_raw.Registry.device_registry_id raw)
   in
   Ok ({ raw; lifetime = lifetime (); registry_id } : device)
 

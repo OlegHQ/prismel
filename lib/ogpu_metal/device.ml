@@ -8,15 +8,18 @@ type t =
 
 let error operation kind message = Error (Ogpu_core.Error.make operation kind message)
 
-let of_metal_error ~operation (value : Metal.error) =
-  let kind = match value.kind with
+let error_kind ~operation ~source = function
     | Metal.Invalid_argument -> Ogpu_core.Error.Invalid_argument
     | Metal.Invalid_state | Metal.Parent_has_dependents -> Ogpu_core.Error.Invalid_state
     | Metal.Destroyed -> Ogpu_core.Error.Stale_handle
     | Metal.Device_mismatch -> Ogpu_core.Error.Cross_device
     | Metal.Unsupported -> Ogpu_core.Error.Unsupported
+    | Metal.Native_error when operation = "Ogpu_metal.Device.system_default" &&
+        source = "Metal.Device.system_default" -> Ogpu_core.Error.No_adapter
     | Metal.Native_error | Metal.Wrong_domain ->
-        Ogpu_core.Error.Device_lost in
+        Ogpu_core.Error.Device_lost
+let of_metal_error ~operation (value : Metal.error) =
+  let kind = error_kind ~operation ~source:value.operation value.kind in
   Ogpu_core.Error.make operation kind value.message
 
 let system_default () =
@@ -74,6 +77,7 @@ let destroy value =
         Ok ()
 
 module Private = struct
+  let error_kind = error_kind
   let metal value = value.metal
   let handle value = value.handle
   let attach_resource value = value.live_resources <- value.live_resources + 1

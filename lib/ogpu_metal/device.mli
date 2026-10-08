@@ -8,6 +8,7 @@ val destroyed : t -> bool
 val destroy : t -> (unit, Ogpu_core.Error.t) result
 
 module Private : sig
+  val error_kind : operation:string -> source:string -> Metal.error_kind -> Ogpu_core.Error.kind
   val metal : t -> Metal.Device.t
   val handle : t -> Ogpu_core.Handle.device
   val attach_resource : t -> unit

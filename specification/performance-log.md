@@ -6952,3 +6952,9 @@ The actual backend kind at this point is `Device_lost`, not `No_adapter`; the to
 received kind instead of inventing a classification. Log: `/private/tmp/p5-kernel-gpu-startup.log`.
 No GPU compile/upload/dispatch/readback timings, tolerance, allocation gate or CPU/GPU editor
 speedup is established by this startup attempt. These measurement gates remain open.
+
+The subsequent adapter-boundary correction maps only the unavailable system-default device
+to `No_adapter`; registry-query and other native failures retain `Device_lost`. Its pure
+classification check passes every existing Metal error kind. The actual `--gpu` retry exits 2
+and prints `No_adapter: Ogpu_metal.Device.system_default: Metal has no system default device`
+before any row. Log: `/private/tmp/p5-kernel-gpu-no-adapter.log`. `--gpu-check` remains green.
