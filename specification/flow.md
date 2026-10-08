@@ -1235,3 +1235,45 @@ dropped from Finder (§7.12).
 | Checked lowering (2026-10-07) | document edits check once; `Lower.of_checked` evaluates once with recording and graph probes reuse that evaluation, including its plan and state folds |
 | Edit-frame gate (2026-10-07) | a scrub frame without the recook its value requires costs no more than a layout-drag frame at the same node count (`bench_rays_editor`'s `scrub_edit` row), with zero print/parse/check/evaluate/lower/project/layout; every checked-in `.rays` literal saves the full path's bytes and refuses with its code (`test_workspace_doc`); `(ref g)` is never a binding read |
 | Wheel and trackpad scroll | zoom at the pointer; right-drag and middle-drag pan |
+
+### Packed drawings and workspace effects (P3)
+
+`draw/circle`, `draw/rect` and `draw/line` preserve fractional logical coordinates and use the
+same 64-byte SDF instance layout as their plural forms. `draw/circles positions :radius` accepts
+a scalar radius or packed float radii; `draw/rects positions sizes` accepts one vec3 size or
+packed vec3 sizes; `draw/lines from to :color :width` accepts equal-length packed vec3 arrays.
+Lengths and finite float32 bounds are checked before publication. Circles and rectangles accept
+one `:fill`/`:stroke` color or a packed RGB array with exactly one entry per position. The latter
+is used by the generative and noise examples. Line width is shared by the batch. Every batch
+retains painter order and enclosing transforms, clip and blend state; unchanged instance bytes
+retain their upload. `draw/points` keeps the established `Ink` rasterization.
+
+`draw/rotate angle drawing` uses radians. `draw/scale factor drawing` accepts a scalar or vec3
+(x/y). `draw/rounded_rect at size :radius :fill :stroke`, `draw/polygon points :fill :stroke` and
+`draw/polyline points :color` use the existing Scene constructors. `draw/merge` also accepts
+lists of drawings, permitting a level fold to collect its output. Colors are hex text, normalized
+RGB vec3, or `(list r g b a)` with normalized alpha. `color/hsl h s l` uses hue in degrees and
+returns RGB; `color/hsla h s l a` returns that four-component list. `color/gradient stops x`
+uses the native gradient's clamped interpolation and quantization and returns packed-compatible
+RGB (its stops must be opaque). `noise3 p :seed :octaves` defaults to seed 0 and one octave;
+1–32 octaves use native fBm with lacunarity 2 and gain 0.5. Seeds retain their native immutable
+permutation table in a per-domain cache of 16 tables. `noise3 [x y 0]` is the 2D form.
+
+The `host` context returns effect values or collections of them. `host/quit when`,
+`host/save_png path when`, `host/dialog kind when :filters :default`, and
+`host/play sample when :volume :loops` return deferred `effect` nodes.
+`audio/synth :waveform :frequency :duration :volume` and `audio/load path` return `sample`
+nodes. Waveforms are `sine`, `square`, `triangle`, `sawtooth`; defaults are sine, 440 Hz,
+0.1 seconds, full volume. Dialog kinds are `open_file`, `open_files`, `save_file`, `open_folder`.
+Filters are `(list (list "Images" (list "png" "jpg")) (list "All" (list)))`.
+The editor graph connects them with `(ui/workspace root :effects (ref actions))`. These remain
+ordinary graph cards with editable rows. Host effects execute on a false-to-true edge after value
+lane evaluation; screenshots are captured after presentation. File-dialog results return in the
+existing `frame/input` events. Export rejects active quit/dialog effects with `E_EFFECT_EXPORT`
+and never initializes or plays audio; screenshot effects remain deterministic. Inactive quit or
+dialog declarations can therefore coexist with exportable drawings.
+
+Each workspace pins at most 64 distinct audio samples and 64 images, keyed by their evaluated
+arguments. Capacity and backend errors are typed `E_AUDIO`/`E_IMAGE`; a live resource is never
+evicted from a retained scene. Host close destroys owned resources before runtime close and
+shuts down audio only if it initialized it.

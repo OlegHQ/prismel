@@ -23,6 +23,8 @@ val fbm3 :
 (** Fractal Brownian motion composed from multiple noise frequencies. *)
 
 module Private : sig
+  val permutation : t -> int array
+  (* Owned snapshot of the seeded 512-entry table for the GPU noise ABI. *)
   type fbm3_scratch
   val create_fbm3_scratch : unit -> fbm3_scratch
   val fbm3_with_scratch :

@@ -334,6 +334,10 @@ end
 
 module Editor3 : sig
   type 'prepared t
+  module Private : sig
+    val host_stats : 'prepared t -> bool * int * int * int
+    (** Quit requested, effects fired, samples created and samples destroyed. *)
+  end
   type nonrec layout = layout
 
   val create :

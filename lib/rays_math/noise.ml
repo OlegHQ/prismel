@@ -113,6 +113,7 @@ let[@inline] fbm3_with_scratch scratch noise ~octaves ~lacunarity ~gain
   else Float.nan
 
 module Private = struct
+  let permutation noise = Array.copy noise
   type nonrec fbm3_scratch = fbm3_scratch
   let create_fbm3_scratch = create_fbm3_scratch
   let fbm3_with_scratch = fbm3_with_scratch

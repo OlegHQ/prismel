@@ -789,7 +789,7 @@ let editor (workspace : Workspace_doc.t) (plan : E.plan) =
   let* value = result ~force:false workspace plan Flow.Context.editor in
   match value with
   | None -> Ok None
-  | Some (E.Struct ("ui/workspace", _, [ _, root ]) as whole) ->
+  | Some (E.Struct ("ui/workspace", _, ("root", root)::_) as whole) ->
       let* tree, named, start, wires, viewports, canvases, switch = panel_tree root in
       let g = Option.get (Workspace_doc.editor_graph workspace) in
       let origins, ofs = origins g whole in

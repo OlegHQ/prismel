@@ -470,6 +470,37 @@ let snapshot value ~lease_policy ~density source =
       match Runtime_resources.Canvas.snapshot canvas with
        |Ok(width,height,generation,pixels)->finish~copy:false key generation width height pixels
        |Error e->resource operation e)
+(* PXUI instances: one [Ui] draw per Ui_batch batch. Glyphs sit on exact
+   physical texels, so every UI texture samples nearest. *)
+let ui_sampler:Ogpu.Types.sampler_descriptor={label=Some"ui";min_filter=Nearest;
+  mag_filter=Nearest;mip_filter=No_mip;address_u=Clamp_to_edge;
+  address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}
+let ui_white_texture={Scene_execution.key="ui-white";
+  levels=[|{width=1;height=1;bytes=Bytes.make 4 '\255'}|];sampler=ui_sampler;
+  gpu=None}
+let ui_indices=ref Bytes.empty
+let ui_index_bytes count=
+  let needed=count*24 in
+  if Bytes.length!ui_indices<needed then begin
+    let capacity=max needed(2*Bytes.length!ui_indices)in
+    let bytes=Bytes.create capacity in
+    for quad=0 to capacity/24-1 do
+      let base=quad*4 in
+      List.iteri(fun slot corner->
+        Bytes.set_int32_le bytes((quad*6+slot)*4)(Int32.of_int(base+corner)))
+        [0;1;2;0;2;3]
+    done;
+    ui_indices:=bytes
+  end;
+  Bytes.sub!ui_indices 0 needed
+let same_bytes_range source offset target=
+  let length=Bytes.length target in
+  let rec loop index=index>=length||
+    (Int64.equal(Bytes.get_int64_le source(offset+index))
+       (Bytes.get_int64_le target index)&&loop(index+8))in
+  length mod 8=0&&loop 0
+let ui_affine_scratch=Bytes.make 24 '\000'
+
 let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
   match ensure"Rays_execution.lower_scene2"value with Error _ as e->e|Ok()->
   let checkpoint=lease_checkpoint lease_policy in
@@ -554,6 +585,33 @@ let lower_scene2_uncached value ~lease_policy ~density ~resource:resolve ir =
       let right=min(px+pw)right and bottom=min(py+ph)bottom in
       clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
+    |Shapes shapes->
+        if Scene_command.Shape_batch.gpu shapes<>None then
+          failure:=Some "GPU shapes require the registered GPU drawing sink"
+        else if clip_live() && Scene_command.Shape_batch.count shapes>0 then begin
+          let count=Scene_command.Shape_batch.count shapes in
+          let instances=Scene_command.Shape_batch.instances shapes in
+          let slot_key=(-1)- !number in
+          let slot=match Int_table.find value.ui_slots slot_key with
+            |slot->slot
+            |exception Not_found->
+                let slot={ui_vertices=Bytes.empty;ui_indices=Bytes.empty;ui_affine=Bytes.empty}in
+                Int_table.add value.ui_slots slot_key slot;slot in
+          if Bytes.length slot.ui_vertices<>Bytes.length instances ||
+             not(Bytes.equal slot.ui_vertices instances)then
+            slot.ui_vertices<-Bytes.copy instances;
+          if Bytes.length slot.ui_indices<>count*24 then
+            slot.ui_indices<-ui_index_bytes count;
+          write_affine ui_affine_scratch(render_transform(List.hd !transforms));
+          if not(Bytes.equal slot.ui_affine ui_affine_scratch)then
+            slot.ui_affine<-Bytes.copy ui_affine_scratch;
+          emit {family=Ui;blend=Alpha;texture=Some ui_white_texture;auxiliary=None;samples=1;
+            value={Scene_execution.mesh={key="shapes:"^string_of_int slot_key;
+              vertices=slot.ui_vertices;vertex_count=4*count;indices=slot.ui_indices;
+              index_count=6*count;primitive=Triangle_list};
+              state={(default_state framebuffer(List.hd !clips))with
+                transform_uniforms=Some slot.ui_affine}}}
+        end
     |Geometry geometry->
         (* A run of more than 64 geometries shares transform, clip, and blend:
            pack it into one draw. Shorter runs keep one draw per geometry so a
@@ -594,6 +652,7 @@ let scene2_plan_source_bytes commands=
     |Scene_command.Render_ir.Geometry g->total+Array.length g.vertices*(Sys.word_size/8)+
       Array.length g.indices*(Sys.word_size/8)
     |Glyphs g->total+Array.length g.glyphs*24
+    |Shapes s->total+Bytes.length(Scene_command.Shape_batch.instances s)
     |_->total+32)0 commands
 let same_scene2_resource_stamps left right=
   let rec loop left right=match left,right with
@@ -807,36 +866,6 @@ let lower_scene2_segment submission ~identity ~version ~cacheable ~density
                 ~bytes:(retained_scene2_segment_bytes batch.batch_draws)identity entry
             end;
             Ok batch
-(* PXUI instances: one [Ui] draw per Ui_batch batch. Glyphs sit on exact
-   physical texels, so every UI texture samples nearest. *)
-let ui_sampler:Ogpu.Types.sampler_descriptor={label=Some"ui";min_filter=Nearest;
-  mag_filter=Nearest;mip_filter=No_mip;address_u=Clamp_to_edge;
-  address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}
-let ui_white_texture={Scene_execution.key="ui-white";
-  levels=[|{width=1;height=1;bytes=Bytes.make 4 '\255'}|];sampler=ui_sampler;
-  gpu=None}
-let ui_indices=ref Bytes.empty
-let ui_index_bytes count=
-  let needed=count*24 in
-  if Bytes.length!ui_indices<needed then begin
-    let capacity=max needed(2*Bytes.length!ui_indices)in
-    let bytes=Bytes.create capacity in
-    for quad=0 to capacity/24-1 do
-      let base=quad*4 in
-      List.iteri(fun slot corner->
-        Bytes.set_int32_le bytes((quad*6+slot)*4)(Int32.of_int(base+corner)))
-        [0;1;2;0;2;3]
-    done;
-    ui_indices:=bytes
-  end;
-  Bytes.sub!ui_indices 0 needed
-let same_bytes_range source offset target=
-  let length=Bytes.length target in
-  let rec loop index=index>=length||
-    (Int64.equal(Bytes.get_int64_le source(offset+index))
-       (Bytes.get_int64_le target index)&&loop(index+8))in
-  length mod 8=0&&loop 0
-let ui_affine_scratch=Bytes.make 24 '\000'
 let lower_ui submission ~density ~resource ui=
   let operation="Rays_execution.Private.lower_ui"in
   match ensure_submission operation submission with

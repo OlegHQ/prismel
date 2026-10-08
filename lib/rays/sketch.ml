@@ -245,12 +245,13 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
 let run_state ?config ?max_frames ~init~update~view ?after_present ?crash_dump ?on_stop()=
   Parallel.run ?domains:(Option.bind config(fun value->value.domains))(fun()->run_state_internal?config?max_frames?after_present?crash_dump~init~update~view?on_stop())
 let run ?config view=ignore(run_state?config~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())
-let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~frames~init~update~view ?(on_stop=fun _->())()=
+let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~frames~init~update~view ?(after_present=fun model _->model) ?(on_stop=fun _->())()=
   if frames<=0 then invalid_arg"Sketch.export_state: frames must be positive";
   if fps<=0 then invalid_arg"Sketch.export_state: fps must be positive";
   if prefix=""||prefix="."||prefix=".."||Filename.basename prefix<>prefix then invalid_arg"Sketch.export_state: invalid prefix";
   Canvas_runtime.ensure_directory directory;let index=ref 0 in
-  let after_present model _=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index;model|Error message->failwith("Frame export failed: "^message)in
+  let after_export=after_present in
+  let after_present model frame=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index;after_export model frame|Error message->failwith("Frame export failed: "^message)in
   let config={config with clock=Fixed(1./.float fps);fps=None}in
   Parallel.run ?domains:config.domains(fun()->run_state_internal~config~max_frames:frames~after_present~init~update~view~on_stop())
 let export ?config ?fps ?prefix ~directory ~frames view=ignore(export_state?config?fps?prefix~directory~frames~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())

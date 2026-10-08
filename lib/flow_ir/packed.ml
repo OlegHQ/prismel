@@ -7,7 +7,7 @@ type binary = Add | Sub | Mul | Div | Mod | Pow | Min | Max | Lt | Le | Gt | Ge 
 type unary = Sin | Cos | Sqrt | Abs | Not
 type instruction = Const of float | Input of int * int * int
   | Uniform of int * int | Frame of string | Accumulator of int
-  | Binary of binary * int * int | Unary of unary * int | Noise3 of int * int * int
+  | Binary of binary * int * int | Unary of unary * int | Noise3 of int * int * int * int * int
   | Select of int * int * int
 type expression = { registers : int array; constant : E.value option }
 type iteration = Zip | Product
@@ -131,7 +131,7 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       let id = !size in incr size; code := instruction :: !code;
       dependent.(id) <- (match instruction with
         | Accumulator _ -> true | Binary (_, a, b) -> dependent.(a) || dependent.(b)
-        | Unary (_, a) -> dependent.(a) | Noise3 (a, b, c) | Select (a, b, c) -> dependent.(a) || dependent.(b) || dependent.(c)
+        | Unary (_, a) -> dependent.(a) | Noise3 (a, b, c, _, _) | Select (a, b, c) -> dependent.(a) || dependent.(b) || dependent.(c)
         | _ -> false); id in
     let literal v =
       let data = match v with
@@ -219,8 +219,15 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
             let width = List.fold_left (fun n e -> max n (Array.length e.registers)) 1 expressions in
             if t.ty = Ty.Int then raise Unsupported;
             let registers = match expressions with
-              | [a] when declaration == Operators.noise3 && width = 3 ->
-                  [|emit (Noise3 (a.registers.(0), a.registers.(1), a.registers.(2)))|]
+              | a::rest when declaration == Operators.noise3 && Array.length a.registers=3 ->
+                  let configuration=List.map2(fun (name,_) expression ->
+                    name,match expression.constant with Some value->value|None->raise Unsupported)
+                    (List.tl args) rest in
+                  let integer name default=Option.fold ~none:default ~some:V.int_of
+                    (List.assoc_opt name configuration)in
+                  let seed=integer "seed" 0 and octaves=integer "octaves" 1 in
+                  if octaves<1||octaves>32 then raise Unsupported;
+                  [|emit (Noise3 (a.registers.(0), a.registers.(1), a.registers.(2), seed, octaves))|]
               | [a] when declaration.name = "exact" -> a.registers
               | [a; b] -> let op = binary declaration.name in
                   Array.init width (fun i -> emit (Binary (op, component a i, component b i)))
@@ -312,7 +319,7 @@ and fuse_maps t =
           let id = !ncode in incr ncode; code := instruction :: !code;
           dependent.(id) <- (match instruction with
             | Accumulator _ -> true | Binary (_, a, b) -> dependent.(a) || dependent.(b)
-            | Unary (_, a) -> dependent.(a) | Noise3 (a, b, c) | Select (a, b, c) -> dependent.(a) || dependent.(b) || dependent.(c)
+            | Unary (_, a) -> dependent.(a) | Noise3 (a, b, c, _, _) | Select (a, b, c) -> dependent.(a) || dependent.(b) || dependent.(c)
             | _ -> false);
           Hashtbl.add shared key id; id in
     let append_source source width =
@@ -329,7 +336,7 @@ and fuse_maps t =
           | Uniform (n, component) -> emit (Uniform (uniform + n, component))
           | Binary (op, a, b) -> emit (Binary (op, at a, at b))
           | Unary (op, a) -> emit (Unary (op, at a))
-          | Noise3 (a, b, c) -> emit (Noise3 (at a, at b, at c))
+          | Noise3 (a, b, c, seed, octaves) -> emit (Noise3 (at a, at b, at c, seed, octaves))
           | Select (a, b, c) -> emit (Select (at a, at b, at c))
           | instruction -> emit instruction) p.code;
       Array.map (Array.get registers) p.output in
@@ -378,7 +385,6 @@ let provenance t = List.sort_uniq compare t.sites
 let stage_count t = List.length t.stages
 let site t = let view = E.Private.residual_view t.residual in
   view.instance, Option.value ~default:view.site t.term.path, view.iter
-let noise = Rays_math.Noise.create 0
 let reference ?state ?elems ?resolve t ~live = E.Private.eval_term ?state ?elems ?resolve t.residual t.term ~live
 exception Failed of Flow.Diagnostic.t
 exception Nonfinite
@@ -456,6 +462,9 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let chunks = if blocks = 0 then 0 else (blocks - 1) / blocks_per_chunk + 1 in
     let chunk chunk =
       let scratch = Array.make (Array.length t.code * block_size) 0. in
+      let noise_scratch=Rays_math.Noise.Private.create_fbm3_scratch () in
+      let tables=Array.map(function Noise3(_,_,_,seed,_)->Some(Operators.noise_table seed)
+        |_->None)t.code in
       let indices = Array.make block_size 0 in
       for block = chunk * blocks_per_chunk to min blocks ((chunk + 1) * blocks_per_chunk) - 1 do
       let start = block * block_size and limit = min count ((block + 1) * block_size) in
@@ -487,10 +496,16 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
             for j = first to last - 1 do
               scratch.(at+j) <- scratch.((if scratch.(condition+j) <> 0. then yes else no) + j)
             done
-        | Noise3 (x, y, z) ->
-            Rays_math.Noise.Private.sample3_into noise ~first ~last
+        | Noise3 (x, y, z, _, octaves) ->
+            let noise=Option.get tables.(slot)in
+            if octaves=1 then Rays_math.Noise.Private.sample3_into noise ~first ~last
               ~x:scratch ~x_offset:(x * block_size) ~y:scratch ~y_offset:(y * block_size)
               ~z:scratch ~z_offset:(z * block_size) ~output:scratch ~output_offset:at ()
+            else for j=first to last-1 do
+              scratch.(at+j)<-Rays_math.Noise.Private.fbm3_with_scratch noise_scratch noise
+                ~octaves ~lacunarity:2. ~gain:0.5
+                ~x:scratch.(x*block_size+j) ~y:scratch.(y*block_size+j) ~z:scratch.(z*block_size+j)
+            done
         | Binary (operation, a, b) ->
             let a = a * block_size and b = b * block_size in
             (match operation with

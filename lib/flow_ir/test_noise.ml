@@ -57,5 +57,5 @@ let () =
     assert (Flow.Ty.fits (Flow.Value.ty_of result) (op.out [Flow.Ty.Vec3]));
     match result with
     | Flow.Value.Float n -> assert (bits n (N.sample3 (N.create 0) ~x:0.37 ~y:(-1.25) ~z:17.4))
-    | _ -> assert false) Flow_ir.Operators.all;
+    | _ -> assert false) [Flow_ir.Operators.noise3];
   print_endline "Packed noise spans, scalar bits and one/eight-domain parity passed"

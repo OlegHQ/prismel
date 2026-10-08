@@ -59,6 +59,7 @@ val export_state :
   init:(Frame.t -> 'model) ->
   update:('model -> Frame.t -> 'model) ->
   view:('model -> Frame.t -> Scene.t) ->
+  ?after_present:('model -> Frame.t -> 'model) ->
   ?on_stop:('model -> unit) ->
   unit -> 'model
 (** Stateful deterministic PNG-sequence export. *)

@@ -30,6 +30,8 @@ val clip : at:(int*int) -> w:int -> h:int -> t -> node
 val blend : blend -> t -> node
 val render : t -> unit
 module Private : sig
+  val shapes : Scene_command.Shape_batch.t -> node
+  (* Packed primitives share the enclosing Scene transform, clip and blend. *)
   module Ui_batch = Scene_command.Ui_batch
   val layer_break : node
 
@@ -64,6 +66,7 @@ module Private : sig
   val stage_native_render : ?density:int -> width:int -> height:int -> t ->
     (staged_native,string) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result
+  val commands : ?density:int -> t -> Scene_command.Render_ir.command array
   val stage : ?density:int -> width:int -> height:int -> t ->
     (Scene_command.Render_ir.t * (int * Rays_execution.resource) list, string) result
   val install_renderer : (t -> unit) -> unit

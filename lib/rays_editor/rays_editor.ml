@@ -19,6 +19,10 @@ module Renderer = Renderer
 
 module Editor3 = struct
   include Environment
+  module Private = struct
+    let host_stats value = let host=value.Environment.host in
+      host.quit_requested,host.fired,host.resources.samples_created,host.resources.samples_destroyed
+  end
 
   type render_settings = Objects.Root.render = { width : int; height : int; max_spp : int }
   let render_camera value = (extra value).Viewport3.document_camera
@@ -137,12 +141,14 @@ module Workspace = struct
     let doc = match inputs with None -> doc | Some inputs -> {doc with Workspace_doc.inputs} in
     let* window = workspace_window doc in
     let* evaluated = Flow.Eval.static ~inputs:doc.inputs doc.checked in
+    let* ()=Workspace_host.export_check doc evaluated.plan in
     let chosen = List.find_opt (fun (g : Flow.Workspace.graph) ->
       g.context = Flow.Context.draw && Option.fold ~none:true ~some:((=) g.name) graph) doc.checked.graphs in
     match chosen with
     | None -> Error (Flow.Diagnostic.error ~code:"E_DRAW_GRAPH" "Export needs a draw graph.")
     | Some graph ->
         let state = Flow.Eval.create_state () in
+        let host=Workspace_host.create()in
         let value = List.assoc graph.name evaluated.results in
         let* prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value in
         let view () frame =
@@ -150,12 +156,16 @@ module Workspace = struct
             dt = 1. /. float fps; frame = frame.count; size = (window.width, window.height)} in
           match Sketch_support.Drawing.render_prepared ~state prepared
             ~live ~size:live.size with
-          | Ok scene -> scene
+          | Ok scene -> (match Workspace_host.export_update host ~state ~live doc evaluated.plan with
+              |Ok()->scene|Error d->raise(Flow.Value.Fail(d.code,d.message,d.span)))
           | Error d -> raise (Flow.Value.Fail (d.code, d.message, d.span)) in
         let config = {Rays.Sketch.default_config with width = window.width; height = window.height;
           title = window.title; resizable = false; clock = Rays.Sketch.Fixed (1. /. float fps)} in
+        let after_present () _=match Workspace_host.save_pending host Rays.Canvas.save_screen_png with
+          |Ok()->()|Error d->raise(Flow.Value.Fail(d.code,d.message,d.span))in
         (try ignore (Rays.Sketch.export_state ~config ~fps ?prefix ~directory ~frames
-           ~init:(fun _ -> ()) ~update:(fun () _ -> ()) ~view ()); Ok ()
+           ~init:(fun _ -> ()) ~update:(fun () _ -> ()) ~view ~after_present
+           ~on_stop:(fun()->Workspace_host.close host) ()); Ok ()
          with Flow.Value.Fail (code, message, span) -> Error (Flow.Diagnostic.error ?span ~code message))
 
   let main ?factories ~path ~digest ~catalog text =

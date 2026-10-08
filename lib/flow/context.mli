@@ -8,6 +8,7 @@ val sop : t
 val value : t
 val draw : t
 val image : t
+val host : t
 val scene : t
 val world : t
 val settings : t
