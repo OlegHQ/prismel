@@ -686,6 +686,7 @@
         "val estimate : tier -> count : int -> float",
         "val cheapest : legal : tier list -> count : int -> tier",
         "val packed : count : int -> tier",
+        "val display_sink : tier -> count : int -> float",
         "end",
         "module Gpu : sig",
         "type value = { identity : int ; count : int ; width : int ; stamp : int64 ; gpu_seconds : float option }",
@@ -725,7 +726,7 @@
         "val force_display : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> ? resolve : ( Flow.Eval.value -> ( Flow.Eval.value , Flow.Diagnostic.t ) result ) -> ? reference : bool -> ? policy : Gpu.policy -> program -> live : Frame_input.t -> ( displayed , Flow.Diagnostic.t ) result",
         "end"
       ],
-      "api_sha256": "693e5ebf7e0bfd55b17be2c1a00d53af0fab6d4bd94f51b3df905291d90e8f19",
+      "api_sha256": "bfc5d33e86028d60eb0b5363c7e3c5a092579d29af2cacb1a18e12f79d485cfe",
       "excluded_legacy_symbols": [],
       "library": "flow_ir",
       "module": "Flow_ir",
