@@ -753,9 +753,9 @@ let field_calls ?state ~live ~resolve lowered =
                  let at k =
                    if k < 0 || k >= count then Error (Flow.Diagnostic.error ~code:"E_LIST_RANGE"
                      "Probe index is outside the field grid.") else
-                   let p = [|lx +. float (k mod nx) *. ((hx -. lx) /. rx);
-                     ly +. float ((k / nx) mod ny) *. ((hy -. ly) /. ry);
-                     lz +. float (k / (nx * ny)) *. ((hz -. lz) /. rz)|] in
+                   let p = [|Float.fma (float (k mod nx)) ((hx -. lx) /. rx) lx;
+                     Float.fma (float ((k / nx) mod ny)) ((hy -. ly) /. ry) ly;
+                     Float.fma (float (k / (nx * ny))) ((hz -. lz) /. rz) lz|] in
                    Result.bind (E.Private.map_function ~signature:Flow.Ty.{params = [Vec3]; result = Float}
                      fn [E.Vec3_array p]) (function
                      | E.Residual residual -> Result.bind (E.Private.map_probe ?state ~resolve

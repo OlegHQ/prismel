@@ -7,12 +7,7 @@ type output = {owner:t; texture:B.texture; generation:int}
 let source = {|#include <metal_stdlib>
 using namespace metal;
 struct ImageSize { uint count; uint width; uint row_words; };
-uint rgba8_channel(float c) {
-  float q=clamp(c,0.0f,1.0f)*255.0f;
-  float base=floor(q), fraction=q-base;
-  uint n=uint(base);
-  return n+uint(fraction>0.5f || (fraction==0.5f && (n&1u)!=0u));
-}
+uint rgba8_channel(float c) { return uint(rint(clamp(c,0.0f,1.0f)*255.0f)); }
 kernel void rays_flow_image_rgba8(device const float4 *colors [[buffer(0)]],
     device uint *pixels [[buffer(1)]], constant ImageSize &size [[buffer(2)]],
     uint i [[thread_position_in_grid]]) {

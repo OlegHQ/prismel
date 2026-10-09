@@ -1358,7 +1358,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
     match o.name with
     | "image/map" ->
         List.iter (fun a -> match a.av.ty with
-          | Ty.Fn (Some {params=[Ty.Vec2];result=Ty.Vec4}) -> ()
+          | Ty.Fn (Some {params=[Ty.Vec2];result=Ty.Vec4}) | Ty.Fn None | Ty.Any -> ()
           | _ -> err a.aform "E_TYPE" "image/map needs a vec2-to-vec4 pixel function.") pos;
         List.iter (fun a -> match a.key, int_of a with
           | Some ("width" | "height"), Some n when n <= 0 ->

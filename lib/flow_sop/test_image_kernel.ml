@@ -42,6 +42,8 @@ let () =
     let text = "(workspace w (graph img :context image (image/map "^body^")))" in
     if fst (Flow.Workspace.check catalog (parse text))<>None then failwith ("Unexpectedly accepted: "^body))
     ["(fn [uv] uv.x)";"(fn [(uv : vec3)] [uv.x uv.y 0 1])";"(fn [u v] [0 0 0 1])"];
+  (let text = "(workspace w (defn tex :context image [(f : fn)] (image/map f :width 8 :height 8)) (graph img :context image (tex (fn [uv] [uv.x uv.y 0 1]))))" in
+   if fst (Flow.Workspace.check catalog (parse text))=None then failwith "image/map through a defn fn parameter was refused");
   let kernel = prepare (fn text) in
   let ir = Flow_ir.Executor.graph (Flow_sop.Image_kernel.program kernel) in
   let packed = match ir.nodes.(ir.roots.(0)).kind with
