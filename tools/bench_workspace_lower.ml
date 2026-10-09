@@ -394,18 +394,33 @@ let image_map_mode () =
     ["gradient","(image/map (fn [uv] [uv.x uv.y 0.5 1]))";
      "live_capture","(let* [bias (* t 0.25)] (image/map (fn [uv] [(+ uv.x bias) uv.y 0.5 1])))"]
 
-let connected_image_mode () =
+let connected_image_mode ?(captures=false) ?(only_1024=false) () =
   let module Editor=Rays_editor.Editor3 in
   let module Image=Runtime_resources.Image in
   let frames=200 and repeats=7 and warmups=10 in
+  let gpu_domains=if captures then 8 else 1 in
   let allocation()=let s=Gc.stat()in
     (s.minor_words+.s.major_words-.s.promoted_words)*.float(Sys.word_size/8)in
   let hash bytes=Digest.to_hex(Digest.string(Bytes.to_string bytes))in
   let load text=match Rays_editor.Workspace.load text with Ok doc->doc|Error ds->
     failwith(String.concat "; "(List.map Flow.Diagnostic.to_string ds))in
-  let text width height body=Printf.sprintf "(workspace connected_image
+  let uncaptured body width height=Printf.sprintf "(workspace connected_image
     (graph img :context image (let* [bias (* t 0.25)]
       (image/map (fn [uv] %s) :width %d :height %d))))" body width height in
+  let captured points changing width height=Printf.sprintf "(workspace captured_image
+    (graph mesh :context sop
+      (let* [shift %s
+        base (sop/line :points %d :origin [shift 0 0] :direction [1 0 0] :length 0.125)
+        geo (sop/with_attr base :Cd
+          (exact (map (fn [p] [(+ 0.0625 shift) 0.125 0.25]) (sop/attr base :P))))
+        p (/ (reduce + [0 0 0] (sop/attr geo :P)) %d)
+        c (/ (reduce + [0 0 0] (sop/attr geo :Cd)) %d)
+        bias (* t 0.0625)
+        img (image/map (fn [uv] [(+ (* uv.x 0.5) p.x)
+          (+ (* uv.y 0.5) c.x) (+ 0.25 (+ bias (* c.y 0.25))) 1])
+          :width %d :height %d)] geo)))"
+    (if changing then "(+ 0.03125 (* t 0.015625))" else "0.03125")
+    points points points width height in
   let create ?source domains doc=Editor.create ?source ~workspace:doc ~await:true ~domains
     ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)() |> Result.get_ok in
   let value owner=let plan=Editor.Private.image_plan owner in
@@ -418,6 +433,14 @@ let connected_image_mode () =
       host.buffer_creations;host.input_uploads;host.input_uploaded_bytes;host.status_reads;
       host.readback_bytes;created;closed;buffers;textures|]in
   let delta before after=Array.mapi(fun i n->n-before.(i))after in
+  let capture_counters owner=let records,data,bytes,cooks,flattens=Editor.Private.image_capture_stats owner in
+    [|records;data;bytes;cooks;flattens|]in
+  let report_captures fixture points width height policy phase trial count before after=
+    if points>0 then begin
+      Printf.eprintf "image_capture_counters,%s,%d,%d,%d,%s,%s,%d,%d,%d,%d,%d,%d,%d\n%!"
+        fixture points width height policy phase trial count after.(0) after.(1) after.(2)
+        (after.(3)-before.(3)) (after.(4)-before.(4))
+    end in
   let report_counters fixture width height policy phase trial count before after=
     Printf.eprintf "connected_image_counters,%s,%d,%d,%s,%s,%d,%d" fixture width height policy phase trial count;
     Array.iter(fun n->Printf.eprintf ",%d" n)(delta before after);Printf.eprintf "\n%!"in
@@ -434,22 +457,46 @@ let connected_image_mode () =
     Procedural.Image.Private.rgba8 image |> Option.get in
   print_endline "fixture,width,height,domains,policy,phase,trial,frames,seconds_per_frame,bytes_per_frame,hash,max_channel_difference,differing_channels,differing_pixels,destination_uploaded_bytes_per_frame,source_image_readbacks";
   Printf.eprintf "connected_image_counters,fixture,width,height,policy,phase,trial,frames,runners_created,runners_released,pipeline_compilations,pipeline_releases,runner_buffers,input_uploads,input_uploaded_bytes,status_reads,output_readback_bytes,sinks_created,sinks_closed,sink_buffers,sink_textures\n%!";
-  List.iter(fun(fixture,body)->List.iter(fun size->
-    let source_text=text size size body in
+  if captures then Printf.eprintf "image_capture_counters,fixture,source_points,width,height,policy,phase,trial,frames,source_records,data_records,charged_bytes,materializer_cooks,attribute_flattens\n%!";
+  let fixtures=if captures then List.concat_map(fun points->List.map(fun changing->
+    Printf.sprintf "%s_P_Cd_%d" (if changing then "changing" else "static") points,
+    points,changing,captured points changing,(if points=1024 then [512;1024;2048] else [1024]))[false;true])
+      [1024;65536]
+    else List.map(fun(name,body)->name,0,name="live_capture",uncaptured body,
+      (if only_1024 then [1024] else [512;1024;2048]))
+      ["gradient_live_dependency","[uv.x uv.y (+ 0.5 (- bias bias)) 1]";
+       "live_capture","[(+ uv.x bias) uv.y 0.5 1]"]in
+  List.iter(fun(fixture,points,changing,text,sizes)->List.iter(fun size->
+    let source_text=text size size in
     let doc=load source_text in
+    if points>0 then begin
+      let lowered=Lower.workspace ~factories (Flow.Syntax.parse source_text |> ok) |> ok in
+      let graph=List.hd lowered.graphs in
+      let session=Procedural.Session.create ~max_entries:0 ~max_payload_bytes:0 |> Result.get_ok in
+      Fun.protect ~finally:(fun()->Procedural.Session.close session)(fun()->
+        let geometry=Procedural.Payload.geometry(cook_graph ~session graph).payload |> Result.get_ok in
+        assert(Rdk.Geometry.point_count geometry=points))
+    end;
     (* Production selection is a fresh-owner observation, separate from qualification. *)
-    let measured=create 1 doc in
+    let measured=create gpu_domains doc in
     Fun.protect ~finally:(fun()->Editor.close measured)(fun()->
-      Gc.full_major();let before=counters measured in
+      if points>0 then begin
+        let plan=Editor.Private.image_plan measured in
+        let id=match value measured with Flow.Eval.Deferred(_,id)->id|_->assert false in
+        let sources=Attribute_kernel.sources(Flow.Eval.List(Array.of_list(List.map snd plan.nodes.(id).args)))in
+        assert(List.length sources=1 && plan.nodes.(List.hd sources).kind="sop/with_attr")
+      end;
+      Gc.full_major();let before=counters measured and capture_before=capture_counters measured in
       let bytes=allocation()in let started=now()in
       let image=Editor.Private.with_images ~live:(live size size 0 0.) measured
         (fun ~image ~texture:_->ok(image(value measured)))in
       let elapsed=now()-.started in let allocated=allocation()-.bytes in
       let resource=Rays.Image.Private.resource image in
       let route=match Image.Private.gpu_snapshot resource |> Result.get_ok with None->"cpu"|Some _->"gpu"in
-      report fixture size size 1 "measured" ("route_probe_"^route) 0 1 elapsed allocated "" 0 0 0 0L
+      report fixture size size gpu_domains "measured" ("route_probe_"^route) 0 1 elapsed allocated "" 0 0 0 0L
         (Image.Private.readbacks resource);
-      report_counters fixture size size "measured" "route_probe" 0 1 before(counters measured));
+      report_counters fixture size size "measured" "route_probe" 0 1 before(counters measured);
+      report_captures fixture points size size "measured" "route_probe" 0 1 capture_before(capture_counters measured));
     let expected=Hashtbl.create 9 in
     List.iter(fun domains->
       let owner=create domains doc in
@@ -468,7 +515,7 @@ let connected_image_mode () =
     Out_channel.with_open_bin file(fun ch->output_string ch source_text);
     Gc.full_major();let cold_bytes=allocation()in let cold_started=now()in
     let owner=ref(create ~source:(Rays_editor.Source.at ~file
-      ~digest:(Editor_document.Contexts.sha256 source_text)) 1 doc)in
+      ~digest:(Editor_document.Contexts.sha256 source_text)) gpu_domains doc)in
     let closed=ref false and canvas=ref None in
     let close()=if not !closed then begin closed:=true;Option.iter Rays.Canvas.destroy !canvas;Editor.close !owner end in
     Fun.protect ~finally:(fun()->close();Sys.remove file)(fun()->
@@ -483,14 +530,17 @@ let connected_image_mode () =
       let resource=Rays.Image.Private.resource image and identity=Rays.Texture.Private.identity texture in
       let before=counters !owner in
       assert(before.(7)=1 && Option.is_some(Result.get_ok(Image.Private.gpu_snapshot resource)));
-      report fixture size size 1 "qualification" "cold_owner_publish" 0 1 elapsed allocated "" 0 0 0 0L 0;
+      report fixture size size gpu_domains "qualification" "cold_owner_publish" 0 1 elapsed allocated "" 0 0 0 0L 0;
       report_counters fixture size size "qualification" "cold_owner_publish" 0 1 (Array.make 13 0)before;
+      report_captures fixture points size size "qualification" "cold_owner_publish" 0 1
+        (Array.make 5 0)(capture_counters !owner);
       let publish time=let actual,view=step time in
         assert(actual==image && Rays.Texture.Private.identity view=identity)in
       for j=0 to warmups-1 do publish(float j/.float frames)done;
       let run phase render=
         for trial=0 to repeats-1 do
-          Gc.full_major();let before=counters !owner and generation=Image.generation resource
+          Gc.full_major();let before=counters !owner and capture_before=capture_counters !owner
+          and generation=Image.generation resource
           and reads=Image.Private.readbacks resource in
           let images=Editor.Private.image_stats !owner and targets=Editor.Private.image_render_stats !owner in
           let initial=Option.map Rays.Canvas.Private.native_stats !canvas in
@@ -503,9 +553,17 @@ let connected_image_mode () =
             assert(Int64.sub final.frames initial.frames=Int64.of_int frames);
             Int64.sub final.uploaded_bytes initial.uploaded_bytes|_->0L in
           let producer=phase<>"consumer_only"in
-          report fixture size size 1 "qualification" phase trial frames elapsed allocated "" 0 0 0 uploads
+          report fixture size size gpu_domains "qualification" phase trial frames elapsed allocated "" 0 0 0 uploads
             (Image.Private.readbacks resource-reads);
           report_counters fixture size size "qualification" phase trial frames before after;
+          let capture_after=capture_counters !owner in
+          report_captures fixture points size size "qualification" phase trial frames capture_before capture_after;
+          if points>0 then begin
+            assert(capture_after.(0)=1 && capture_after.(1)=1
+              && capture_after.(2)>=points*48 && capture_after.(2)<=64*1024*1024);
+            assert(capture_after.(3)-capture_before.(3)=(if producer && changing then frames else 0));
+            assert(capture_after.(4)-capture_before.(4)=(if producer && changing then frames*2 else 0))
+          end;
           assert_warm before after (if producer then frames else 0);
           assert(Image.generation resource-generation=(if producer then frames else 0));
           assert(Editor.Private.image_stats !owner=images && Editor.Private.image_render_stats !owner=targets);
@@ -525,12 +583,12 @@ let connected_image_mode () =
       let verify time=
         publish time;
         let generation=Image.generation resource and reads=Image.Private.readbacks resource
-        and before=counters !owner in
+        and before=counters !owner and capture_before=capture_counters !owner in
         Gc.full_major();let bytes=allocation()in let started=now()in
         let pixels=Rays.Image.Private.pixels image |> Result.get_ok in
         let elapsed=now()-.started in let allocated=allocation()-.bytes in
         assert(Image.generation resource=generation && Image.Private.cpu_storage_bytes resource=0);
-        let cpu=Array.of_list(List.map(fun domains->let exact=create domains(load(text !width !height body))in
+        let cpu=Array.of_list(List.map(fun domains->let exact=create domains(load(text !width !height))in
           Fun.protect ~finally:(fun()->Editor.close exact)(fun()->
             Bytes.copy(cpu_bytes exact !width !height 0 time))) [1;8])in
         assert(cpu.(0)=cpu.(1));
@@ -544,41 +602,55 @@ let connected_image_mode () =
           done;
           if !changed then incr differing
         done;
-        report fixture !width !height 1 "qualification" "verify_snapshot" (int_of_float(time*.100.)) 1
+        report fixture !width !height gpu_domains "qualification" "verify_snapshot" (int_of_float(time*.100.)) 1
           elapsed allocated (hash pixels) !maximum !channels !differing 0L (Image.Private.readbacks resource-reads);
         report_counters fixture !width !height "qualification" "verify_snapshot" 0 1 before(counters !owner);
+        report_captures fixture points !width !height "qualification" "verify_snapshot" 0 1
+          capture_before(capture_counters !owner);
         assert(!maximum<=1 && Image.generation resource=generation && before=counters !owner
           && Image.Private.readbacks resource=reads+1);
         pixels in
       let first=verify 0. in let later=verify 0.5 in
-      if fixture="live_capture"then assert(first<>later)else assert(first=later);
+      if changing || points>0 then assert(first<>later)else assert(first=later);
+      if points>0 then begin
+        let changed channel=let different=ref false in
+          for p=0 to Bytes.length first/4-1 do
+            if Bytes.get first(p*4+channel)<>Bytes.get later(p*4+channel)then different:=true
+          done;!different in
+        assert(changed 0=changing && changed 1=changing && changed 2)
+      end;
       consume 0.;
       let captured=Rays.Canvas.to_image destination |> Result.get_ok in
       Fun.protect ~finally:(fun()->Rays.Image.destroy captured)(fun()->
         assert(Rays.Image.Private.pixels captured |> Result.get_ok=later));
-      let resized=text (size+1)size body in
+      let resized=text (size+1)size in
       Out_channel.with_open_bin file(fun ch->output_string ch resized);
-      Gc.full_major();let before=counters !owner in let bytes=allocation()in let started=now()in
+      Gc.full_major();let before=counters !owner and capture_before=capture_counters !owner in
+      let bytes=allocation()in let started=now()in
       let reload:Rays.Frame.t={width=size;height=size;size=size,size;drawable_width=size;drawable_height=size;
         drawable_size=size,size;pixel_scale=1.,1.;time=10.;dt=0.;fps=60.;count=100000;
         mouse=0.,0.;mouse_delta=0.,0.;keys=[];mouse_buttons=[];events=[]}in
       owner:=Editor.update !owner reload;width:=size+1;publish 0.25;
       let elapsed=now()-.started in let allocated=allocation()-.bytes in
-      report fixture !width !height 1 "qualification" "resize_replan" 0 1 elapsed allocated "" 0 0 0 0L 0;
+      report fixture !width !height gpu_domains "qualification" "resize_replan" 0 1 elapsed allocated "" 0 0 0 0L 0;
       report_counters fixture !width !height "qualification" "resize_replan" 0 1 before(counters !owner);
+      report_captures fixture points !width !height "qualification" "resize_replan" 0 1
+        capture_before(capture_counters !owner);
       assert(Rays.Image.get_size image=(!width,!height));ignore(verify 0.25);
-      let before=counters !owner and reads=Image.Private.readbacks resource in
+      let before=counters !owner and capture_before=capture_counters !owner
+      and reads=Image.Private.readbacks resource in
       Gc.full_major();let bytes=allocation()in let started=now()in close();
       let elapsed=now()-.started in let allocated=allocation()-.bytes in
-      report fixture !width !height 1 "qualification" "teardown" 0 1 elapsed allocated "" 0 0 0 0L
+      report fixture !width !height gpu_domains "qualification" "teardown" 0 1 elapsed allocated "" 0 0 0 0L
         (Image.Private.readbacks resource-reads);
       let after=counters !owner in
       report_counters fixture !width !height "qualification" "teardown" 0 1 before after;
+      let capture_after=capture_counters !owner in
+      report_captures fixture points !width !height "qualification" "teardown" 0 1 capture_before capture_after;
+      assert(capture_after.(0)=0 && capture_after.(1)=0 && capture_after.(2)=0);
       assert(after.(0)=after.(1) && after.(9)=after.(10) && after.(7)=before.(7)
         && after.(8)=before.(8) && Image.Private.readbacks resource=reads);
-      let created,destroyed=Editor.Private.image_stats !owner in assert(created=destroyed))) [512;1024;2048])
-    ["gradient_live_dependency","[uv.x uv.y (+ 0.5 (- bias bias)) 1]";
-     "live_capture","[(+ uv.x bias) uv.y 0.5 1]"]
+      let created,destroyed=Editor.Private.image_stats !owner in assert(created=destroyed))) sizes)fixtures
 
 let field_mode () =
   let env name default = Option.fold ~none:default ~some:int_of_string (Sys.getenv_opt name) in
@@ -627,6 +699,8 @@ let () =
   if Array.to_list Sys.argv = [Sys.argv.(0); "--images"] then begin image_mode (); exit 0 end;
   if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map"] then begin image_map_mode (); exit 0 end;
   if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map-connected"] then begin connected_image_mode (); exit 0 end;
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map-connected-1024"] then begin connected_image_mode ~only_1024:true (); exit 0 end;
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map-captures"] then begin connected_image_mode ~captures:true (); exit 0 end;
   if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--branches"; "--loops"] then begin
     branch_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 3);
     exit 0

@@ -1471,6 +1471,33 @@ qualification, passes (exit 0; `/tmp/rays-f-image-capture-owner-full-final.log`)
 Pre-commit shipping passes (exit 0;
 `/tmp/rays-f-image-capture-owner-ship.log`); this is not an overall F2.2 verdict.
 
+**Captured-source measurement baseline (2026-10-09).** The actual-owner harness
+now covers static/changing P/Cd captures with 1,024 source points at
+512²/1024²/2048² and 65,536 points at 1024². Each cell has independent complete
+CPU cooks at domains 1/8, a fresh Measured-policy route probe and seven completed
+200-frame Qualification trials after ten warmups, including producer, consumer
+and combined timings. All 24 capture snapshot comparisons have maximum channel
+difference 0, with CPU 1/8 byte identity. Static source red/green remain unchanged
+while blue changes; changing source red/green and blue all change. Static warm
+trials perform no materializer cooks/flattens; changing ones perform 200 cooks
+and 400 P/Cd flattens. Bounds, no warm uploads/readbacks, resize/replan and close
+checks pass. Producer allocations stay identical across pixel sizes at fixed
+1,024-point count (2,500,473 B static; 2,830,587 B changing).
+
+At 1024², small-source CPU8/GPU medians are 16.782045/2.967625 ms static and
+17.330885/3.094635 ms changing. The 65,536-point cases are
+65.782070/45.126491 ms static and 66.111088/48.500581 ms changing: these exceed
+the 40 ms CPU and 5 ms GPU gates. They remain unfinished performance work;
+cache reuse alone does not close it. The separate uncaptured 1024² recheck
+has CPU8/GPU medians 13.716936/1.663125 ms for the gradient and
+12.020111/1.633930 ms for the live lexical capture, with six exact native parity
+comparisons. Both commands exit 0; raw capture/regression data and counters are
+in `specification/performance/f-image-map-captures*.csv` and
+`f-image-map-uncaptured-recheck*.csv`. Astra's verdict: both small-source 1024²
+capture cells and both uncaptured cells pass; both large-source cells fail.
+Allocation passes pixel-size independence at fixed source count. Separate
+attribution remains required; no overall captured-source acceptance is inferred.
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing

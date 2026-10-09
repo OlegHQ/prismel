@@ -10286,3 +10286,86 @@ Successful oversized run: `/tmp/rays-f-image-capture-owner-oversized.log`.
 Counterfactual failed assertion: `/tmp/rays-f-image-capture-owner-budget-without-guard.log`.
 Final focused/API run: `/tmp/rays-f-image-capture-owner-focused.log` (exit 0).
 The new unstable image_capture_stats hook is intentionally promoted too.
+
+## F2.2 captured workspace image measurement baseline (2026-10-09)
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. Builds, tests
+and all other agents were idle for both runs. The existing connected-image
+harness accepts eight capture cells: static/changing P/Cd over a 1,024-point
+line at 512²/1024²/2048², plus both cases over 65,536 points at 1024². The
+point count is independently cooked and checked outside timing; the actual
+owner's function captures one `sop/with_attr` source. Static/changing origin
+also changes Cd; the live pixel bias forces a completed producer every frame.
+P/Cd reduce to uniforms, so these fixtures require no warm captured-array upload.
+
+Each cell uses a fresh Measured-policy route probe, independent CPU whole cooks
+at domains 1/8 (seven warm trials), then an actual eight-domain owner under
+Qualification for seven 200-frame producer, consumer and combined trials after
+ten warmups. Each trial uses distinct frame IDs and identical `t=j/200` values.
+Completed producer timing includes owner resolution, source preflight, cook/
+flatten work when needed, uniform preparation, native dispatch/status checks,
+image conversion/copy and publication. Hashing and explicit readbacks are
+outside producer timing; snapshot rows record their own timing. No attribution
+interval is deducted. The uncaptured 1024² rerun retains the old one-domain GPU
+owners and independent CPU domains 1/8.
+
+```sh
+_build/default/tools/check.exe @check tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-captures.csv 2> specification/performance/f-image-map-captures-counters.csv
+_build/default/tools/bench_workspace_lower.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-recheck.csv 2> specification/performance/f-image-map-uncaptured-recheck-counters.csv
+```
+
+Both runs exit 0. Medians of seven trials, milliseconds and bytes/frame:
+
+| Source | Points | Image | CPU8 whole cook | GPU producer | Consumer | Combined | Producer bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Static P/Cd | 1,024 | 512² | 4.804134 | 1.387216 | 0.377904 | 2.329525 | 2,500,473 |
+| Static P/Cd | 1,024 | 1024² | 16.782045 | 2.967625 | 0.627635 | 4.177616 | 2,500,473 |
+| Static P/Cd | 1,024 | 2048² | 58.345079 | 6.911695 | 1.635680 | 9.134560 | 2,500,473 |
+| Changing P/Cd | 1,024 | 512² | 7.174015 | 1.623709 | 0.358710 | 1.963816 | 2,830,587 |
+| Changing P/Cd | 1,024 | 1024² | 17.330885 | 3.094635 | 0.646920 | 4.423985 | 2,830,587 |
+| Changing P/Cd | 1,024 | 2048² | 59.405088 | 7.262836 | 1.371676 | 9.441731 | 2,830,587 |
+| Static P/Cd | 65,536 | 1024² | 65.782070 | 45.126491 | 0.614245 | 46.771590 | 156,297,081 |
+| Changing P/Cd | 65,536 | 1024² | 66.111088 | 48.500581 | 0.610460 | 50.755105 | 169,767,276 |
+
+At 1024² the CPU1 medians are 73.004007/73.645115 ms for the small static/
+changing sources and 121.666908/119.116783 ms for the large ones. CPU1/8 hashes
+match at every trial. All 24 full capture snapshots (times 0/.5 and resized
+1025×1024 or corresponding size) have maximum channel difference 0 and no
+differing channels/pixels. Separate channel checks prove the geometry update:
+only blue changes with a static source, while red, green and blue change with
+a changing source.
+
+The 352 data rows retain cold owner/CPU/probe, all warm trials, explicit reads,
+resize/replan and teardown. The 448 counter rows keep Host and capture records
+separate. Every warm producer/combined trial executes 200 mandatory status
+reads and generations, with no runner/pipeline/sink/buffer/texture creation,
+input upload, output readback, source image readback or stored CPU image bytes.
+Consumer-only trials perform none of the producer work. Static sources perform
+zero new materializer cooks/flattens; changing sources perform 200/400 per
+200-frame producer trial. One metadata/data record remains within 64 MiB.
+Readback-only verification does not materialize or flatten again. Replan rebuilds
+the source, and teardown balances resources and clears capture occupancy.
+
+Allocation is independent of pixel size at fixed source count, while it scales
+substantially with source points. The 65,536-point static producer still costs
+45 ms with no source cook or flatten. This is evidence of unfinished producer
+work; it does not identify the expensive phase without attribution. Both large
+source cases exceed the explicit 40 ms CPU8 and 5 ms GPU limits. Astra reviewed
+all 440 result rows and 168 warm Host/capture rows of each kind. Verdict:
+**small-source 1024² capture cells pass; large-source cells fail**. Pixel-size
+allocation independence passes at fixed source count. Changing large-source
+allocations have small trial variation; the table records medians. Diagnostic
+attribution remains required; this baseline has no accepted optimization.
+
+The uncaptured regression has 88 data and 56 counter rows. CPU8/GPU medians are
+13.716936/1.663125 ms (gradient) and 12.020111/1.633930 ms (live lexical capture).
+Producer allocation is 33,561/32,433 B/frame; consumer allocation is 33,073.
+All six independent complete parity comparisons have maximum difference 0.
+Resource/upload/readback and close assertions pass. These reruns preserve the
+earlier uncaptured timing gates; Astra accepts both CPU/GPU gate checks without
+claiming a timing improvement from the small baseline differences.
+The baseline CSVs remain checked in before any subsequent producer change.
+Focused benchmark build and pre-commit shipping pass (exit 0;
+`/tmp/rays-f-image-map-captures-build.log`,
+`/tmp/rays-f-image-map-captures-baseline-ship.log`).
