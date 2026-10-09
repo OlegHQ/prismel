@@ -1,0 +1,3 @@
+fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash
+branches,off,1,1,2000000,0.911634922,503647976,503648264,0,67c129ecc130f8881a2eaf92c053b64c
+branches,off,8,1,2000000,0.063210964,503928624,505309840,0,67c129ecc130f8881a2eaf92c053b64c

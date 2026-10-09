@@ -115,6 +115,17 @@ saying what the table establishes and what it does not, the raw file paths.
 
 ## 1. Where the tree is
 
+**Current open work (2026-10-09).** The paragraphs below preserve checkpoint
+history; their earlier “open” statements are not the current task list. Known
+remaining work is the changing 65,536-point capture GPU producer gate
+(6.181384 ms against <5 ms), frozen `(exact image)`, expanded actual-owner
+packed-instance/state/replan/failure coverage, and F3 fan-out (latest retained
+production learned-eight median63.197136 ms against≤50.600 ms). The chunked
+vertex trial is rejected and restored; its evidence and boundary regression
+remain. A final requirement-by-requirement audit and final F5 qualification
+are still required. F2.4/F4 retain their conditional/optional scope; F8 is a
+handoff. Overall completion is not claimed.
+
 **Committed milestone (2026-10-08, `e36a0ac4`).** F1.1, F1.2, F1.4 and the F6 canvas-image
 coercion are implemented and verified. The field SOP, selected-tuple probes,
 sampled extractor, empty-cell guard and cube-count lookup are implemented;
@@ -2191,7 +2202,41 @@ generated assembly, repeat the seven-process learned/off/pieces and reverse
 matrix, then repeat temporary before/after phase attribution. Keep only for
 repeatable whole-cook improvement without material control regression. The
 unchanged gate is an uninstrumented learned-eight median ≤50.600 ms; no
-unreachable closure is supported. The new trial is not implemented yet.
+unreachable closure is supported.
+
+**Chunked vertex trial rejected (2026-10-09).** The new full-byte boundary,
+ownership and precancellation regression passes before/after and on restored
+production at all eight domain/grain combinations. Astra approves the diff
+and the preserved ARM64 inner loop: direct integer load/add/store, register-held
+index/end, no per-element callback/allocation/loop-state store; checked accesses,
+runtime polls, closure reloads and the assignment barrier remain. Preserve
+`f-merge-vertex-trial.patch` and `f-merge-vertex-inner-loop-arm64.txt`.
+
+All 56 production processes/112 whole rows retain hashes and fanouts. Learned
+whole medians at domains 1/8 regress from 152.101994/63.404799 to
+817.284822/59.296131 ms; reverse order gives 148.737907/63.197136 before
+versus 899.132013/69.355011 after. Placement-off and packed-piece controls
+regress too. The one-domain caller/program allocation increase is only 80 B.
+Astra: “not met, revert.” Production source/Dune are restored byte-for-byte;
+retain the independent regression and all failed evidence. No eight-domain-only
+variant is retained.
+
+Seven isolated before→after diagnostic pairs retain 28 whole and 392 phase
+rows, with every per-sample count/sum/containment check passing. At one domain,
+measured vertex rewriting grows from 29.999256 to 707.682371 ms (training
+31.332970 to 707.224846); allocation is 7.629871/7.917881 ms and attributes
+9.644032/9.572983 ms. Complete measured merge grows 59.088945 to737.746000 ms.
+At eight domains vertex rewriting grows7.277250 to14.573812 ms; complete merge
+31.002045 to38.609028 ms. This locates the slowdown inside vertex rewriting
+but does not establish its machine-level cause. Raw production/diagnostic CSVs,
+the candidate probe patch and executable hashes are recorded in the performance
+log. Restored @check/full RDK/procedural checks and shipping pass. Astra's final
+phase audit confirms “not met, revert.” Its next approved diagnostic is native
+stack sampling of preserved baseline/rejected candidate in seven alternating-
+order pairs. Retain initial-thread/worker counts, coverage and exit statuses;
+sampling aggregates training/measured and both domains and cannot decide the
+gate. No algorithm change is approved. F3 remains open above50.600 ms; this
+rejected design supplies no unreachable proof.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

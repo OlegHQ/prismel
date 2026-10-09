@@ -1,0 +1,36 @@
+diff --git a/lib/rdk/mesh/mesh_merge.ml b/lib/rdk/mesh/mesh_merge.ml
+index b5ecf32f..2723fda4 100644
+--- a/lib/rdk/mesh/mesh_merge.ml
++++ b/lib/rdk/mesh/mesh_merge.ml
+@@ -139,11 +139,26 @@ let merge_plain ?cancel ?(grain = 16_384) ?(pad_groups = true) geometries =
+           Array.blit positions.z 0 pz !point_at points_here;
+           let point_offset = !point_at and vertex_offset = !vertex_at
+           and primitive_offset = !primitive_at in
+-          if vertices_here > 0 then Parallel.for_ ~chunk_size:grain ~start:0
+-              ~finish:(vertices_here - 1) (fun index ->
+-                if index land 16383 = 0 then Cancel.check_opt cancel;
+-                vertex_points.(vertex_offset + index) <-
+-                  topology.vertex_points.(index) + point_offset);
++          if vertices_here > 0 then begin
++            let rewrite first last =
++              let next = ref first in
++              while !next < last do
++                Cancel.check_opt cancel;
++                let stop = !next + min 16_384 (last - !next) in
++                for index = !next to stop - 1 do
++                  vertex_points.(vertex_offset + index) <-
++                    topology.vertex_points.(index) + point_offset
++                done;
++                next := stop
++              done in
++            if vertices_here / grain < 2 then rewrite 0 vertices_here
++            else
++              let chunks = (vertices_here - 1) / grain + 1 in
++              Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(chunks - 1)
++                (fun chunk ->
++                  let first = chunk * grain in
++                  rewrite first (first + min grain (vertices_here - first)))
++          end;
+           if primitives_here > 0 then Parallel.for_ ~chunk_size:grain ~start:1
+               ~finish:primitives_here (fun index ->
+                 if index land 16383 = 0 then Cancel.check_opt cancel;

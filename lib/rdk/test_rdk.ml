@@ -4093,7 +4093,31 @@ let run () =
        [1;8])
      [[empty;triangle;free;empty;line],expected;
       [triangle;free_line],expected; [free;triangle],free_triangle;
-      [empty;triangle],triangle; [triangle;empty],triangle]);
+      [empty;triangle],triangle; [triangle;empty],triangle];
+   let left_count = 32_769 and right_count = 16_385 in
+   let left = make triangle_xyz (Array.init left_count (fun i -> i mod 3))
+     [|0;left_count|] [|Topology.Open_polyline|]
+   and right = make line_xyz (Array.init right_count (fun i -> i mod 2))
+     [|0;right_count|] [|Topology.Open_polyline|] in
+   let inputs = [left;right] in
+   let before = List.map geometry_bytes inputs in
+   let expected = make [|(0.,0.,0.);(1.,0.,0.);(0.,1.,0.);
+     (5.,0.,0.);(6.,0.,0.)|]
+     (Array.init (left_count + right_count) (fun i ->
+       if i < left_count then i mod 3 else 3 + (i - left_count) mod 2))
+     [|0;left_count;left_count + right_count|]
+     [|Topology.Open_polyline;Topology.Open_polyline|] |> geometry_bytes in
+   List.iter (fun domains -> List.iter (fun grain ->
+     let output = Parallel.run ~domains (fun () ->
+       Mesh_merge.run ~grain inputs |> get_ok) in
+     if geometry_bytes output <> expected || List.map geometry_bytes inputs <> before then
+       fail "merge chunk boundaries or input ownership";
+     let cancelled = Cancel.create () in Cancel.cancel cancelled;
+     (match Parallel.run ~domains (fun () -> Mesh_merge.run ~cancel:cancelled ~grain inputs) with
+      | Error error when Error.code error="cancelled" -> ()
+      | _ -> fail "chunked merge ignored precancellation");
+     if List.map geometry_bytes inputs <> before then fail "cancelled chunked merge mutated inputs")
+     [257;16_384;65_536;max_int]) [1;8]);
   (let source = "__src" in
    let tagged = Mesh_merge.run ~source_attribute:source [grid; box; grid] |> get_ok in
    let ints geometry = match Geometry.find_attribute ~owner:Attribute.Primitive source geometry with

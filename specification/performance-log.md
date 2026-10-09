@@ -11535,3 +11535,169 @@ material control regression. Only uninstrumented learned-eight whole median
 Pre-commit shipping passes (exit 0; `/tmp/rays-f-merge-phases-ship.log`). This
 checkpoint records attribution and the approved next design, retaining no
 production optimization and making no F3 or overall-completion claim.
+
+### F3 vertex-only chunked-loop trial: rejected, regression localized
+
+2026-10-09, same M1/OCaml5.3/Dune dev setup and unchanged benchmark fixtures.
+Astra's approved design is implemented only in vertex rewriting. Stable grain
+ranges use Parallel.for_ chunk_size1, cutoff vertices_here/grain<2, overflow-safe
+ends and cancellation before subranges of at most16,384 elements. Primitive
+rewrites and all allocation/copy/schema/attribute/group work remain unchanged.
+
+The independent regression in test_rdk.ml adds two open polylines with32,769
+and16,385 references to small distinct point sets. Expected concatenated indices
+and point rebasing are authored independently. Full geometry bytes and unchanged
+inputs match at domains1/8, grains257/16,384/65,536/max_int; precancellation
+preserves inputs. Existing empty/free-point cases stay. It passes before the
+trial (`/tmp/rays-f-merge-vertex-regression-before.log`), after, and restored.
+Full @check/RDK/procedural/benchmark focused checks pass on candidate and restored
+(`/tmp/rays-f-merge-vertex-focused.log`,
+`/tmp/rays-f-merge-vertex-restored-focused.log`), exit0.
+
+Astra approves the implementation and generated-loop condition before timing.
+`otool -tvV _build/default/lib/rdk/mesh/.rdk_mesh.objs/native/rdk_mesh__Mesh_merge.o`
+produces preserved `f-merge-vertex-inner-loop-arm64.txt`: the normal inner loop
+has direct integer load/add/store, register-held index/end, no per-element
+callback/allocation/loop-state store. Cancellation is before the subrange.
+Bounds checks, runtime polling, closure reloads and dmb ishld remain. This is
+code evidence, not a promise of improved time. `f-merge-vertex-trial.patch`
+preserves the complete candidate production diff.
+
+Preserved production executables:
+
+| Executable | SHA256 |
+|---|---|
+| /private/tmp/f-merge-vertex-before.exe | 198f0d471e8888394518cc450fd204472c63d0bd42d9468987e85f642e3fe4e4 |
+| /private/tmp/f-merge-vertex-after.exe | 8284d0c53e59a032909d83d2a9966990129ad9aa0b4104c01a7533939e441d37 |
+
+The complete seven-process matrix runs in isolation from builds/tests/active
+agents, production before then after per mode; reverse learned order follows:
+
+```sh
+for task_kind in before after; do
+  for task_mode in chains-learned chains-off pieces-learned; do
+    case "$task_mode" in
+      chains-learned) task_args='--branches 1 learned';;
+      chains-off) task_args='--branches 1 off';;
+      pieces-learned) task_args='--loops 1 learned';;
+    esac
+    for task_trial in 0 1 2 3 4 5 6; do
+      RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-vertex-${task_kind}.exe ${=task_args} > "specification/performance/f-merge-vertex-${task_kind}-${task_mode}-${task_trial}.csv" 2> "specification/performance/f-merge-vertex-${task_kind}-${task_mode}-${task_trial}-nodes.csv" || exit $?
+    done
+  done
+ done
+for task_kind in after before; do
+  for task_trial in 0 1 2 3 4 5 6; do
+    RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-vertex-${task_kind}.exe --branches 1 learned > "specification/performance/f-merge-vertex-reverse-${task_kind}-chains-learned-${task_trial}.csv" 2> "specification/performance/f-merge-vertex-reverse-${task_kind}-chains-learned-${task_trial}-nodes.csv" || exit $?
+  done
+ done
+```
+
+This command uses zsh argument splitting. All56 processes exit0; all112 whole
+rows pin fixture/mode, both domain rows, point counts, chain/piece hashes and
+fanouts. No samples are excluded. Learned runs retain existing untimed training
+and clear output caches while retaining timing knowledge. Seven-process medians:
+
+| Mode | Domains | Before whole ms | After whole ms | Before root merge ms | After root merge ms |
+|---|---:|---:|---:|---:|---:|
+| Learned chains | 1 | 152.101994 | 817.284822 | 59.299946 | 725.937128 |
+| Learned chains | 8 | 63.404799 | 59.296131 | 37.958860 | 32.547951 |
+| Off chains | 1 | 205.591917 | 911.634922 | 79.107046 | 784.686089 |
+| Off chains | 8 | 55.523157 | 63.062906 | 25.458097 | 32.633066 |
+| Learned pieces | 1 | 1972.412109 | 4473.544836 | 119.451046 | 1303.678036 |
+| Learned pieces | 8 | 258.543015 | 305.453777 | 78.130007 | 84.857225 |
+| Reverse learned chains | 1 | 148.737907 | 899.132013 | 57.942152 | 807.601929 |
+| Reverse learned chains | 8 | 63.197136 | 69.355011 | 35.804987 | 44.502974 |
+
+Whole caller/program allocation medians, bytes:
+
+| Mode | Domains | Before caller | Before program | After caller | After program |
+|---|---:|---:|---:|---:|---:|
+| Learned chains | 1 | 503647672 | 503647960 | 503647752 | 503648040 |
+| Learned chains | 8 | 374051424 | 505434744 | 373985952 | 505430936 |
+| Off chains | 1 | 503647896 | 503648184 | 503647976 | 503648264 |
+| Off chains | 8 | 503975464 | 505314376 | 503927024 | 505310896 |
+| Learned pieces | 1 | 1120474624 | 1120474912 | 1120476712 | 1120477000 |
+| Learned pieces | 8 | 785739360 | 1131804744 | 785611800 | 1131739648 |
+| Reverse learned chains | 1 | 503647672 | 503647960 | 503647752 | 503648040 |
+| Reverse learned chains | 8 | 374043640 | 505434456 | 373978344 | 505434176 |
+
+Astra: **“not met, revert.”** The substantial one-domain slowdown repeats in
+reverse order; eight-domain benefit is inconsistent and above50.600 ms.
+One-domain allocation grows only80 B per chains cook, ruling out substantial
+per-element boxing as the explanation. No eight-domain-only variant is retained.
+
+Finish the already approved before/after phase comparison, with unchanged
+caller-side time-only probes. Baseline diagnostic is byte-identical to the prior
+preserved diagnostic. Candidate diagnostic differs only by the approved vertex
+loop. Each diagnostic passes @check/RDK core+mesh/benchmark build, exit0
+(`/tmp/rays-f-merge-vertex-phase-before-build.log`,
+`/tmp/rays-f-merge-vertex-phase-after-build.log`). Preserve executables:
+
+| Executable | SHA256 |
+|---|---|
+| /private/tmp/f-merge-vertex-phase-before.exe | 1319e3a2c2e3476fbea67f9502490a07e41f29c15c6bf8214720b076e9c53cae |
+| /private/tmp/f-merge-vertex-phase-after.exe | 9b3f17b6cc9e8bd3fe635827e6784bfeb157edacfb92bd165bc198c6b4bad96d |
+
+```sh
+for task_trial in 0 1 2 3 4 5 6; do
+  for task_kind in before after; do
+    RAYS_BRANCH_NODE_TIMES=1 RAYS_MERGE_PHASES_FILE="specification/performance/f-merge-vertex-phase-${task_kind}-${task_trial}-phases.csv" /private/tmp/f-merge-vertex-phase-${task_kind}.exe --branches 1 learned > "specification/performance/f-merge-vertex-phase-${task_kind}-${task_trial}.csv" 2> "specification/performance/f-merge-vertex-phase-${task_kind}-${task_trial}-nodes.csv" || exit $?
+  done
+ done
+```
+
+All14 isolated processes exit0, with28 fixed whole rows and392 phase rows.
+Every training/measured cook has exactly seven distinct names and expected call
+counts. Every sample has nonnegative finite intervals, child sum≤complete;
+every measured complete≤Session root-own. All samples/outliers remain. Seven
+medians, measured cooks (ms; do not sum separate phase medians):
+
+| Phase | Before 1 | After 1 | Before 8 | After 8 |
+|---|---:|---:|---:|---:|
+| Complete merge | 59.088945 | 737.746000 | 31.002045 | 38.609028 |
+| Allocation | 7.629871 | 7.917881 | 6.649971 | 13.001919 |
+| Position blits | 1.578808 | 1.800776 | 1.616955 | 1.634121 |
+| Vertex rewrites | 29.999256 | 707.682371 | 7.277250 | 14.573812 |
+| Primitive rewrites | 10.023832 | 10.380983 | 2.436876 | 2.379179 |
+| Kind blits | 0.121117 | 0.194073 | 0.134945 | 0.129938 |
+| Attributes | 9.644032 | 9.572983 | 6.491184 | 6.479979 |
+| Remaining residual | 0.010967 | 0.014067 | 0.038862 | 0.046730 |
+
+Training vertex medians1/8 before31.332970/7.666111, after707.224846/13.223171 ms;
+training complete76.023817/32.737017 before,752.810955/38.201809 after. These
+remain labeled separately. The one-domain slowdown is localized inside vertex
+rewriting; allocation and attributes do not explain it. The eight-domain run
+also has higher allocation timing, without substantial allocation-byte growth.
+The machine-level cause remains unproven.
+
+Diagnostic whole medians1/8 before153.919935/60.307980, after830.646992/67.720175 ms;
+Session root-own60.372829/33.061981 before,739.007950/42.027950 after. Whole
+caller/program B before1=503652976/503653264, after1=503653056/503653344;
+before8=374057624/505444976, after8=373992600/505439488. These diagnostics
+attribute the rejection; they never establish the production performance gate.
+
+`f-merge-vertex-phase-after.patch` is probe-only against the preserved candidate;
+its apply check passes on candidate source. The existing f-merge-phases.patch
+reproduces the baseline diagnostic. All four source/Dune files restore from the
+fresh baseline archive byte-for-byte, leaving no production/API/linkage diff.
+Both trial/baseline-probe apply checks pass on restored production. Keep the
+regression, failed production patch, candidate probe patch, assembly and154 raw
+CSV files. This rejection does not establish an unreachable F3 gate.
+
+Pre-commit shipping passes, exit0
+(`/tmp/rays-f-merge-vertex-restored-ship.log`). Four restored files also compare
+byte-for-byte with the fresh baseline archive. The retained product source is
+unchanged from the prior full F5 native checkpoint; the new change is a pure
+regression plus failed-trial evidence. No F3 or overall F.md completion is claimed.
+
+Astra audits all392 phase rows/56 cooks and28 measured containment pairs:
+**“not met, revert.”** The failed loop remains reverted. Astra approves only
+native stack sampling of the preserved production baseline/rejected candidate,
+seven alternating-order pairs with unchanged --branches1learned fixture.
+Use `/usr/bin/sample "$profile_pid" 10 1 -mayDie -file "$prefix-sample.txt"`,
+retain sampler output and cook/sampler exit statuses, verify executable hashes,
+and distinguish initial-thread/worker counts and actual coverage. Sampling
+aggregates training/measured and both domain counts; it cannot establish phase
+timing or the gate. Determine whether stacks remain in rewrite or enter GC/poll/
+runtime slow paths; if unresolved, state the limit. No new optimization approved.
