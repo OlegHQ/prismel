@@ -1125,6 +1125,17 @@ no retained residual/program proof cache and no per-frame qualification.
 `Lower.of_checked` publishes this derived metadata, which `Contexts` copies
 into the current document without replacing edited source.
 
+`image/map` is an authored packed producer too. Its static observation
+evaluates only the checked pixel-function argument, then binds a representative
+Vec2 column to that instantiated callable. Qualification uses the same packed
+compiler and GPU form checks, including actual captures. The image recipe does
+not become an approximate scalar merely because its internal pixel program
+qualifies. `Lower.image_sites` retains the authored producer separately from
+runtime instance/site/tuple; named-call prefixes are never stripped to infer
+permission. Missing or conflicting observations remain unresolved. Prepared
+image maps use this plan-bound metadata for their `Display "image/map"` sink;
+absent metadata keeps CPU selection. Exact CPU image cooking is unchanged.
+
 Candidates cover maps and one-clause collecting loops over packed
 Float/Vec2/Vec3/Vec4 arrays. Captures, folded constants, records, function
 bindings and register demand are decided by actual compilation; uncertainty
@@ -1497,9 +1508,10 @@ are `((x+0.5)/width, (y+0.5)/height)`, with the top row first and x varying
 fastest. The prepared CPU map preserves lexical captures and live frame facts;
 four finite channels are clamped, scaled by 255 and rounded ties to even into
 owned RGBA8 storage. Unsupported packed bodies return the actual compilation
-refusal. Workspace display currently resolves CPU images; captured geometry
-in that resolver, GPU placement, resident image sinks and frozen exact GPU
-snapshots remain F2.2 work. No image GPU eligibility or timing gate is implied.
+refusal. Authored image qualification also covers these instantiated pixel
+functions. Workspace display currently resolves CPU images; captured geometry
+in that resolver, GPU publication, resident image sinks and frozen exact GPU
+snapshots remain F2.2 work. Qualification alone does not establish the timing gate.
 
 `scene/geometry geometry :texture image` applies the same image as a texture
 without changing its transform, material or render state. The image card footer
@@ -1538,5 +1550,5 @@ reusable padded RGBA8 buffer, copies into a reusable texture, and publishes
 a generation-checked borrowed token after completion. Unchanged dimensions
 create no persistent resources; resize and failed writes invalidate previous
 tokens. This implements the producer/converter boundary. Workspace image
-qualification, resident consumers and frozen exact snapshots remain required
+publication, resident consumers and frozen exact snapshots remain required
 before the image display route can use it.

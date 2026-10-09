@@ -504,7 +504,9 @@ let composition_key core scene = scene, core.Core.level,
 let compose value (update : (_, _) Core.update) ~baked ~baked_views ~scene =
   let live={update.core.live_frame with t=Sketch_support.Timeline.time(Core.timeline update.core);
     frame=Int64.to_int(Sketch_support.Timeline.frame(Core.timeline update.core))}in
-  let plan=(snd update.core.doc.workspace).plan in
+  let lowered=snd update.core.doc.workspace in
+  Workspace_images.bind value.host.images lowered;
+  let plan=lowered.plan in
   let textures,errors=Document.Int_map.fold(fun id source (textures,errors)->
     match Workspace_images.texture value.host.images ~state:update.core.cook.state ~live plan source with
     |Ok texture->Document.Int_map.add id texture textures,errors
@@ -675,6 +677,7 @@ let update_with value frame ~inspector =
     V.handles ui ~selected ~scene:(Core.scene value.core) ~space (view_camera value)
       extra ~bounds:(V.film extra ~key:(focus_key value) bounds) in
   let _,lowered=value.core.doc.workspace in
+  Workspace_images.bind value.host.images lowered;
   let live={(Sketch_support.Live_frame.of_frame frame) with t=Sketch_support.Timeline.time(Core.timeline value.core)}in
   let image_errors=ref [] in
   let preview image=match Workspace_images.image value.host.images ~state:value.core.cook.state ~live lowered.plan image with
@@ -858,6 +861,7 @@ let update_with value frame ~inspector =
           then (0, 0, raw_frame.width, raw_frame.height) else leaf.body in
         let drawing = Option.bind core.doc.Document.shell (fun shell -> List.assoc_opt key shell.canvases) in
         let _, lowered = core.doc.workspace in
+        Workspace_images.bind value.host.images lowered;
         let same_plan = (snd value.core.doc.workspace).plan == lowered.plan in
         let previous = List.assoc_opt key value.canvases in
         let dynamic = match previous with

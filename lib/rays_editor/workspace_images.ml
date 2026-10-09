@@ -6,15 +6,22 @@ module CPU=Procedural.Image
 type entry={image:Image.t;mutable payload:CPU.t;mutable texture:(Texture.t,string)result Lazy.t;
   mutable frame:Frame_input.t option;mutable state_stamp:string;mutable serial:int}
 type t={resources:Workspace_resources.t;domains:int;mutable plan:E.plan option;mutable serial:int;
+  mutable qualification:(E.plan * Flow.Workspace.Paths.t * Flow.Workspace.path option array) option;
   mutable arguments:I.program option array;mutable drawings:Sketch_support.Drawing.prepared option array;
   mutable maps:(int * int * E.fn * Flow_sop.Image_kernel.t) option array;
   mutable resolved:entry option array;
   mutable entries:(string*entry)list}
 let create ?(domains=Parallel.recommended_domains()) resources={resources;domains;plan=None;serial=0;
+  qualification=None;
   arguments=[||];drawings=[||];maps=[||];resolved=[||];entries=[]}
 let error message=Flow.Diagnostic.error ~code:"E_IMAGE" message
 let message result=Result.map_error error result
 let (let*)=Result.bind
+let bind t (lowered:Flow_sop.Lower.t) =
+  if not(Option.fold ~none:false ~some:(fun (plan,approx,image_sites)->plan==lowered.plan
+      && approx==lowered.approx && image_sites==lowered.image_sites)t.qualification)then begin
+    t.qualification<-Some(lowered.plan,lowered.approx,lowered.image_sites);t.plan<-None
+  end
 let bytes_of_image image =
   match CPU.Private.rgba8 image with Some bytes->bytes|None->
     let rgba=CPU.Private.storage image in
@@ -97,8 +104,12 @@ let rec resolve t ~state ~live plan value =
                 |_->
                     let sources=Flow_sop.Attribute_kernel.sources(E.Fn fn)in
                     if sources<>[] then Error(error "Captured geometry needs a cooked image-kernel source resolver.")else
+                    let path,approx=match t.qualification with
+                      |Some(bound,approx,image_sites)when bound==plan->image_sites.(id),approx
+                      |_->None,Flow.Workspace.Paths.empty in
                     Result.map(fun p->t.maps.(id)<-Some(width,height,fn,p);p)
-                      (Flow_sop.Image_kernel.prepare ~identity:(Procedural.Node.Private.fresh_id()) ~width ~height ~fn ~sources:[] [])in
+                      (Flow_sop.Image_kernel.prepare ?path ~approx ~site:(node.inst,node.site,node.iter)
+                        ~identity:(Procedural.Node.Private.fresh_id()) ~width ~height ~fn ~sources:[] [])in
               let source=Flow_sop.Image_kernel.node ~state:(E.fork_state state) prepared in
               let* context=Result.map_error error(Procedural.Context.create ~input:live ~time:live.t
                 ~frame:(Int64.of_int live.frame) ~domains:t.domains())in

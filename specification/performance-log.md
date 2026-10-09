@@ -9339,3 +9339,72 @@ Focused/native checks and `_build/default/tools/check.exe --ship` pass
 executables and 13 fixtures at four times/domains 1/8. Shipping log:
 `/tmp/rays-f-gpu-image-sink-ship.log`. The final focused check additionally
 pins wrong-domain creation and refusal of scalar runner output.
+
+### F2.2 image kernel: authored qualification checkpoint (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. This checkpoint changes qualification/provenance plumbing, not a
+kernel algorithm or measured cost row. It makes no timing improvement claim.
+The exact CPU image regression runs at domains 1/8; native GPU qualification
+runs on the initial domain, at three times per fixture.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest @lib/flow_sop/runtest @lib/flow_gpu/runtest @lib/flow_gpu/runtest-native @tools/api_manifest/runtest
+dune promote tools/api_manifest/api_stable.json
+_build/default/tools/bench_workspace_lower.exe --approx
+_build/default/lib/flow_gpu/test_image_sink_native.exe > specification/performance/f-image-map-qualification-parity.csv
+_build/default/tools/check.exe --ship
+cd test
+../_build/default/test/test_workspace_images_native.exe
+```
+
+Canonical authored `image/map` producers now enter the existing static
+observer and qualification pipeline. Only the actual checked function argument
+is evaluated; its instantiated callable and lexical captures are bound to a
+representative immutable Vec2 column. Production packed compilation and shared
+GPU form checks decide eligibility. Folded constants qualify; unsupported
+dynamic operations, state-dependent pixels and used float32-overflow captures
+retain their actual refusal. A refusal dominates successful instances in
+either order; requalification of finite captures recovers from immutable
+candidates. An unconsumed function supplies no image permission.
+
+The synthetic pixel map preserves separate authored path and runtime
+instance/site/iteration provenance. Lowering collects transient observations
+and retains only an authored path per image plan node. A missing observation
+is sticky before or after a successful observation at the same runtime tuple,
+independently of the qualifier's authored conclusion. Workspace image owners
+retain only `(plan, approx, image_sites)` and invalidate prepared maps on a
+binding change. Unknown/unbound provenance stays CPU-only. Qualified internal
+pixel programs use the display sink; the image recipe does not taint every
+consumer, and exact CPU cooking remains unchanged.
+
+| Native fixture | Dimensions | Times | Maximum channel difference | Differing channels | Differing pixels |
+|---|---|---|---:|---:|---:|
+| Qualified aliased named-function image | 65×17 | 0, 0.5, 1 | 0 | 0 | 0 |
+| Existing gradient/live/tie/clipping converter controls | 65×3 | 0, 0.5, 1 | 0 | 0 | 0 |
+
+The named-function fixture follows actual qualification, `Lower.image_sites`,
+`Image_kernel.prepare`, prepared executor selection in Qualification policy,
+the production `Flow_gpu.Host`, and completed RGBA8 conversion/copy before
+channel comparison to exact CPU output. All fifteen raw rows are in
+`specification/performance/f-image-map-qualification-parity.csv`. Pixel reads
+occur only for this numerical verification. Mock callbacks separately verify
+permission and ownership selection; they do not simulate shader math.
+CPU tests preserve full image bytes at one/eight domains and prove an earlier
+snapshot survives a later cook. Fused/unfused compiler and emitter checks cover
+the representative adaptation; the prepared asymmetric UV grid exercises the
+actual executor. The actual-catalog audit covers 40 files including both custom
+catalogs, with four qualified paths in `flow_image_kernel`.
+
+Astra's final reviewed verdict is **“Approved.”**
+Focused checks, native tests and the qualification audit pass (exit 0). The four
+intended public API changes are reviewed and promoted. This does not establish
+resident runtime-image publication, exact GPU snapshot boundaries, the full
+F2.2 timing/allocation gate or F2.3. The final shipping run passes (exit 0),
+including 38 standard workspaces, two actual custom-catalog executables and
+13 fixtures at four times/domains 1/8. Shipping log:
+`/tmp/rays-f-image-qualification-ship.log`.
+The native workspace image executable also passes (exit 0), covering nested
+render invalidation, same-frame state changes, exact one/eight-domain Canvas
+snapshots and owned-resource close. Its log is
+`/tmp/rays-f-image-qualification-workspace-native.log`.

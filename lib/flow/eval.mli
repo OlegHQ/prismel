@@ -201,9 +201,11 @@ module Private : sig
       cleared on evaluation exit and in live states, including capture adapters
       and later forcing; ordinary residual IDs and evaluation remain unchanged. *)
 
-  val map_function : signature:Ty.fn_signature -> fn -> value list -> (value, Diagnostic.t) result
+  val map_function : ?site:(int * Workspace.path * int list) -> ?path:Workspace.path ->
+    signature:Ty.fn_signature -> fn -> value list -> (value, Diagnostic.t) result
   (** Bind immutable packed columns to an instantiated function, retaining its
-      body and captures as a genuine residual map for downstream compilation. *)
+      body and captures as a genuine residual map for downstream compilation.
+      [site] identifies the runtime instance; [path] identifies its authored producer. *)
 
   val free_names : Workspace.term -> string list
   (** Lexically free binding names, including nested function captures. *)

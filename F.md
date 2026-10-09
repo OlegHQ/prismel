@@ -124,7 +124,8 @@ are conditional, and F3 requires the owner's request to move its numbers.
 **Current continuation (2026-10-09).** Packed Vec2/Vec4 groundwork is committed
 in `46984986`; CPU `image/map` is committed in `4ba82525`, and immutable GPU
 uploads in `767dea7d`. The GPU producer/converter checkpoint is recorded in
-F2.2 below. Connected GPU image qualification/publication, resident consumers
+F2.2 below. Authored image qualification is implemented by the checkpoint below;
+connected GPU image publication, resident consumers
 and exact snapshots remain open; F2.3 remains open. The paragraphs that follow
 record the earlier field and qualification implementation history.
 Deterministic sampled slab chunks (`8f1f4789`) now preserve complete geometry and seam
@@ -1235,9 +1236,33 @@ parity are `performance/f-image-map-gpu-converter{,-parity}.csv`.
 Focused/native checks and `--ship` pass; this is a converter checkpoint,
 not connected GPU image completion.
 
+**Authored image qualification checkpoint (2026-10-09).** Canonical `image/map`
+sites now use the existing qualification pipeline: static observation binds
+a representative Vec2 column to the actual checked pixel function, preserving
+captures, and compiles with production packed/GPU form checks. Unsupported
+dynamic operations, state and float32-overflow captures refuse qualification;
+folded supported constants qualify. Refusals dominate successes across graph
+instances, with finite requalification rebuilding the result. The image recipe
+does not taint unrelated exact consumers. Lowering retains authored image paths
+separately from runtime named-call prefixes, and ambiguity remains sticky in
+either order. Image owners bind only plan/path/site metadata and invalidate
+prepared maps at that boundary; unbound or missing provenance remains CPU-only.
+
+Focused tests cover independent image sites sharing a callable, held functions,
+canonical declaration identity, captures in both instance orders, named-function
+aliases, fused/unfused compilation/emission and qualified executor selection.
+Exact CPU snapshots retain full-byte equality at domains 1/8 and survive later
+cooks. Native qualification→lowering→prepared executor→production Host→converter
+at 65×17 has zero maximum channel difference, differing channels and pixels at
+times 0/0.5/1. This verifies producer selection and conversion, not runtime image
+publication. Astra approves the authored qualification checkpoint; the 40-file
+actual-catalog qualification audit and focused/native checks pass. Commands and
+raw channel differences are in the performance log. No new timing gate is claimed.
+The final shipping run passes (exit 0), including all 38 standard workspaces,
+two actual custom-catalog executables and 13 fixtures at four times/domains 1/8.
+
 The workspace resolver still refuses captured geometry without a cooked-source
-resolver. Synthetic-map GPU eligibility at the authored image site, GPU
-runtime-image publication, resident 2D/mesh consumers, exact
+resolver. GPU runtime-image publication, resident 2D/mesh consumers, exact
 snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
 channel differences through the connected display route are still required.
 The producer/converter verdict does not close F2.2,

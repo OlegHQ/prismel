@@ -33,7 +33,7 @@ let qualify_workspace ?record ?inputs ?observe (workspace : W.t) =
     let visit = walk collect in
     let all = List.iter (visit owner) and fields fs = List.iter (fun (_, t) -> visit owner t) fs in
     (if not collect then match term.node with
-     | W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = "array/sum"; _} -> add owner term
+     | W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = ("array/sum" | "image/map"); _} -> add owner term
      | _ -> ());
     match term.node with
     | W.Vec ts | List_lit ts | Str ts | List_op (_,ts) | Hof (_,ts) -> all ts
@@ -78,9 +78,30 @@ let qualify_workspace ?record ?inputs ?observe (workspace : W.t) =
       W.Paths.iter (fun path -> match Hashtbl.find_opt outcomes path with
         | Some (_ :: _) -> ()
         | _ -> Hashtbl.replace outcomes path (pending path)) possible);
+    let adapted = match producer, view.term.node with
+      | Some path, W.Op {op = "image/map"; args; _} ->
+          let canonical = match Flow.Op.find ~extra:workspace.ops "image/map" Flow.Context.image,
+              Flow.Op.find "image/map" Flow.Context.image with
+            | Some actual, Some builtin -> actual == builtin | _ -> false in
+          if not canonical then Error [Flow.Diagnostic.error ~code:"E_GPU_FORM"
+            "Image qualification needs the canonical image/map declaration."]
+          else (match List.assoc_opt "function" args with
+            | None -> Error [Flow.Diagnostic.error ~code:"E_KERNEL_FORM" "Image map needs a pixel function."]
+            | Some term ->
+                let mapped = Result.map_error (fun d -> [d]) (Result.bind
+                  (E.Private.eval_term residual term ~live:(Frame_input.at_time 0.)) (function
+                    | E.Fn fn -> E.Private.map_function ~path
+                        ~site:(view.instance, view.site, view.iter)
+                        ~signature:Ty.{params=[Vec2];result=Vec4} fn [E.Vec2_array [|0.5;0.5|]]
+                    | _ -> Error (Flow.Diagnostic.error ~code:"E_KERNEL_FORM" "Image map needs a pixel function."))) in
+                Result.bind mapped (function E.Residual r -> Ok r
+                    | _ -> Error [Flow.Diagnostic.error ~code:"E_KERNEL_FORM" "Image map did not produce a pixel program."]))
+      | _ -> Ok residual in
     Option.iter (fun path ->
-      let reasons = match Packed.compile_result residual view.term with
-        | Error reasons -> reasons | Ok packed -> Packed.gpu_refusals packed in
+      let reasons = match adapted with
+        | Error reasons -> reasons
+        | Ok residual -> (match Packed.compile_result residual (E.Private.residual_view residual).term with
+            | Error reasons -> reasons | Ok packed -> Packed.gpu_refusals packed) in
       let reasons = List.map (fun (d : Flow.Diagnostic.t) ->
         {d with span = (match d.span with Some _ -> d.span | None -> Some view.term.form.span);
           message = Printf.sprintf "%s (producer %s, instance %d, tuple [%s])" d.message
@@ -88,7 +109,7 @@ let qualify_workspace ?record ?inputs ?observe (workspace : W.t) =
       match Hashtbl.find_opt outcomes path with
       | Some ((d : Flow.Diagnostic.t) :: _) when d.code <> "E_PACKED_PENDING" || reasons = [] -> ()
       | _ -> Hashtbl.replace outcomes path reasons) producer;
-    Option.iter (fun callback -> callback producer residual) observe in
+    Option.iter (fun callback -> callback producer (Result.value adapted ~default:residual)) observe in
   let (let*) = Result.bind in
   let* evaluated = E.Private.static_with_kernels ?record ?inputs ~observe:observed workspace in
   let reasons path = match List.assoc_opt path workspace.packed with

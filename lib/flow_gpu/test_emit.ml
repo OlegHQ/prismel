@@ -1,4 +1,25 @@
 let () =
+  List.iter (fun source ->
+    let checked=match Flow.Workspace.check Flow.Check.{version=1;kinds=[]}
+        (Flow.Syntax.parse source |> Test_program.ok)with
+      |Some workspace,[]->workspace
+      |_,ds->failwith(String.concat "\n"(List.map Flow.Diagnostic.to_string ds))in
+    let audited=ref Flow.Workspace.Paths.empty in
+    let qualified,_=Flow_ir.qualify_workspace ~observe:(fun producer residual->
+      let view=Flow.Eval.Private.residual_view residual in
+      Option.iter(fun path->
+        List.iter(fun fusion->
+          let packed=Flow_ir.Packed.compile_result ~fusion residual view.term |> Result.get_ok in
+          ignore(Flow_gpu.Emit.kernel packed |> Test_program.ok)) [true;false];
+        audited:=Flow.Workspace.Paths.add path !audited)producer)checked |> Test_program.ok in
+    assert(not(Flow.Workspace.Paths.is_empty !audited));
+    assert(Flow.Workspace.Paths.subset !audited qualified.approx))
+    ["(workspace pixels (graph img :context image (image/map (fn [uv] [uv.x uv.y t 1]))))";
+     "(workspace pixels (defn render :context image [(bias : float)]
+        (image/map (fn [uv] [(+ uv.x bias) uv.y (floor 0.5) 1])))
+        (graph img :context image (render 0.125)))"]
+
+let () =
   let qualifies source =
     let program = Test_program.compile source in
     assert (Flow_ir.Packed.gpu_refusals program = []);

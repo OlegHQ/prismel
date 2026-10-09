@@ -26,6 +26,7 @@ module Editor3 = struct
     let host_stats value = let host=value.Environment.host in
       host.quit_requested,host.fired,host.resources.samples_created,host.resources.samples_destroyed
     let image value image = let core=value.Environment.core in
+      Workspace_images.bind value.host.images (snd core.doc.workspace);
       Workspace_images.image value.host.images ~state:core.cook.state ~live:core.live_frame
         (snd core.doc.workspace).plan image
     let with_images ?state ?live ?plan value run =
@@ -33,6 +34,7 @@ module Editor3 = struct
       let state = Option.value ~default:core.cook.state state
       and live = Option.value ~default:core.live_frame live
       and plan = Option.value ~default:(snd core.doc.workspace).plan plan in
+      Workspace_images.bind value.host.images (snd core.doc.workspace);
       Flow_sop.Lower.with_images
         ~metadata:(fun plan id -> Option.map Rays.Image.get_size (Workspace_images.peek value.host.images plan id))
         (Workspace_images.payload value.host.images) (fun () ->

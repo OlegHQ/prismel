@@ -83,3 +83,54 @@ let () =
         G.Image_sink.close sink;G.Image_sink.close sink;
         assert(G.Image_sink.texture resized=None && Result.is_error(G.Image_sink.convert sink ~width:17 ~height:5 output))));
     Printf.eprintf "GPU image sink: odd-width pixels, ties-even/clipping, live colors, reuse, resize and stale generations pass\n%!")
+
+let () =
+  let forms=Flow.Syntax.parse "(workspace image
+    (defn render :context image [(bias : float)]
+      (let* [picture (image/map (fn [uv] [(+ uv.x bias) uv.y (* t 0.5) 1]))] picture))
+    (defn invoke :context image [(alias : fn)] (alias 0.125))
+    (graph g :context image (invoke :alias render)))" |> get in
+  let w=match Flow.Workspace.check Flow.Check.{version=1;kinds=[]} forms with
+    |Some w,[]->w|_,ds->failwith(String.concat "; "(List.map Flow.Diagnostic.to_string ds))in
+  let lowered=Flow_sop.Lower.of_checked ~factories:[] w |> get in
+  let node=Array.find_opt(fun(n:Flow.Eval.node)->n.kind="image/map")lowered.plan.nodes |> Option.get in
+  let path=lowered.image_sites.(node.id) |> Option.get in
+  assert(path=["def:render";"picture"] && path<>node.site);
+  let fn=match List.assoc "function" node.args with Flow.Eval.Fn fn->fn|_->assert false in
+  let program=Flow_sop.Image_kernel.prepare ~path ~approx:lowered.approx
+    ~site:(node.inst,node.site,node.iter) ~identity:0 ~width:65 ~height:17 ~fn ~sources:[] []
+    |> get |> Flow_sop.Image_kernel.program in
+  let gpu=match Rays_execution.acquire_gpu()with Ok gpu->gpu
+    |Error e->failwith(Format.asprintf "%a" Rays_execution.pp_error e)in
+  Fun.protect ~finally:(fun()->Rays_execution.release_gpu gpu)(fun()->
+    let host=G.Host.create ~clock:Unix.gettimeofday gpu in
+    let sink=G.Image_sink.create gpu |> get in
+    Fun.protect ~finally:(fun()->G.Image_sink.close sink;G.Host.close host)(fun()->
+      Flow_ir.Gpu.with_backend(G.Host.backend host)(fun()->
+        List.iter(fun time->
+          let live=Frame_input.at_time time in
+          let output=match Flow_ir.Executor.try_display ~policy:Qualification program ~live |> get with
+            |Some(Gpu output)->output|_->assert false in
+          let converted=G.Image_sink.convert sink ~width:65 ~height:17
+            (G.Host.output host output |> Option.get) |> get in
+          let actual=B.read_texture(G.Image_sink.texture converted |> Option.get) ~bytes_per_row:260 |> native in
+          let values=match Flow_ir.Executor.force program ~live |> get with
+            |Flow.Eval.Vec4_array xs->xs|_->assert false in
+          let context=P.Context.create() |> Result.get_ok in
+          let expected=P.Image.Private.of_vec4 ~context ~width:65 ~height:17 values
+            |> Result.get_ok |> P.Image.Private.rgba8 |> Option.get in
+          let maximum=ref 0 and channels=ref 0 and pixels=ref 0 in
+          for pixel=0 to 65*17-1 do
+            let different=ref false in
+            for channel=0 to 3 do
+              let i=4*pixel+channel in
+              let d=abs(Char.code(Bytes.get actual i)-Char.code(Bytes.get expected i))in
+              maximum:=max !maximum d;
+              if d<>0 then(incr channels;different:=true)
+            done;
+            if !different then incr pixels
+          done;
+          Printf.printf "image_sink,qualified_named,65,17,%.2f,%d,%d,%d\n%!"
+            time !maximum !channels !pixels;
+          assert(!maximum<=1)) [0.;0.5;1.])));
+  Printf.eprintf "GPU image qualification: named-call authored path selects production Host, emitted pixels and converter match exact CPU channels\n%!"

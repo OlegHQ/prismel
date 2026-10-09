@@ -86,6 +86,9 @@ type t = {
   zones : zone list;
   volatile : unit Network.Int_map.t;  (** compiled ids, see {!is_volatile} *)
   plan : Flow.Eval.plan;
+  image_sites : Flow.Workspace.path option array;
+      (** Authored image/map producers, indexed by plan node; missing or conflicting
+          observations stay [None]. Runtime sites retain named-call prefixes. *)
   states : Flow.Eval.value list;
   evaluated : Flow.Eval.t;  (** recording evaluation shared with graph probes *)
   approx : Flow.Workspace.Paths.t;  (** qualified actual packed specializations *)

@@ -4,7 +4,7 @@ let (let*) = Result.bind
 type t = {identity:int; width:int; height:int; fn:E.fn; sources:int list;
   inputs:P.Node.t list; program:Flow_ir.Executor.program; packed:Flow_ir.Packed.t}
 let error message = Error (Flow.Diagnostic.error ~code:"E_IMAGE" message)
-let prepare ~identity ~width ~height ~fn ~sources inputs =
+let prepare ?site ?path ?(approx=Flow.Workspace.Paths.empty) ~identity ~width ~height ~fn ~sources inputs =
   if width <= 0 || height <= 0 then error "Image dimensions must be positive."
   else if width > min Sys.max_floatarray_length Sys.max_string_length / 4 / height then
     error "Image dimensions exceed native storage bounds."
@@ -20,9 +20,10 @@ let prepare ~identity ~width ~height ~fn ~sources inputs =
         uv.(i) <- (float x +. 0.5) /. float width; uv.(i + 1) <- v
       done
     done;
-    let* values = E.Private.map_function
+    let* values = E.Private.map_function ?site ?path
       ~signature:Flow.Ty.{params=[Vec2];result=Vec4} fn [E.Vec2_array uv] in
-    let* program = Attribute_kernel.prepare ~sources inputs values in
+    let approx = if path=None then Flow.Workspace.Paths.empty else approx in
+    let* program = Attribute_kernel.prepare ~approx ~sink:(Flow_ir.Display "image/map") ~sources inputs values in
     let ir = Flow_ir.Executor.graph program in
     match ir.nodes.(ir.roots.(0)).kind with
     | Flow_ir.Kernel {body=Packed_map packed;_} ->

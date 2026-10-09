@@ -13,7 +13,9 @@ val qualify_workspace :
     ambiguous producers stay explicitly pending. Every call rebuilds conclusions;
     no residual/program proofs are retained and live forcing never requalifies.
     The optional audit callback receives the associated authored producer, or
-    None for an ambiguous/missing association, and the actual observed handle. *)
+    None for an ambiguous/missing association, and the actual observed handle.
+    For image/map, successful adaptation supplies its synthetic pixel map with
+    the original captures, authored producer and runtime instance/tuple. *)
 
 type id = Flow.Workspace.path * int list
 (** The path includes a graph-instance namespace; provenance retains the authored

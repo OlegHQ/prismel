@@ -792,3 +792,15 @@ the old pair until success. Close releases the pair, pipeline and library
 on the initial domain before the GPU lease. This sink does not qualify an
 authored image site or force an exact image snapshot; those belong to the
 workspace/compiler and resource boundaries.
+
+The compiler qualifies canonical authored `image/map` sites by adapting their
+actual checked function argument to a representative packed pixel map. The
+synthetic map retains lexical captures and distinct authored/runtime provenance;
+all observed specializations must pass the existing packed compiler and GPU
+form checks. Lowering records only the authored path per image plan node,
+with ambiguity sticky in either observation order. Workspace image owners bind
+only the plan, qualified paths and image-site array, invalidating prepared maps
+when that metadata changes. This grants internal display-program selection;
+the current workspace resource resolver still cooks exact CPU images. Native
+qualification tests exercise prepared executor selection through the production
+Host and converter, separately from resident runtime-image publication.

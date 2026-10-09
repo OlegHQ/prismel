@@ -86,3 +86,68 @@ let () =
   (match Flow_sop.Image_kernel.prepare ~identity:0 ~width:1 ~height:1 ~fn:stateful ~sources:[] [] with
    | Error d -> assert (d.code="E_PACKED_STATE") | Ok _ -> assert false);
   print_endline "image/map: typed function, graph gestures, UV orientation, reference/packed/domain bytes and live captures pass"
+
+let () =
+  let w=check "(workspace pixels
+    (defn render :context image [(bias : float)]
+      (let* [picture (image/map (fn [uv] [(+ uv.x bias) uv.y t 1]) :width 65 :height 3)] picture))
+    (defn invoke :context image [(alias : fn)] (alias 0.125))
+    (graph img :context image (invoke :alias render)))" in
+  let lowered=Flow_sop.Lower.of_checked ~factories:[] w |> ok in
+  let producer=Array.find_opt(fun(n:E.node)->n.kind="image/map")lowered.plan.nodes |> Option.get in
+  let path=lowered.image_sites.(producer.id) |> Option.get in
+  assert(path=["def:render";"picture"] && path<>producer.site);
+  assert(Flow.Workspace.Paths.mem path lowered.approx);
+  let fn=match List.assoc "function" producer.args with E.Fn fn->fn|_->assert false in
+  let prepare ?path approx=Flow_sop.Image_kernel.prepare ?path ~approx
+    ~site:(producer.inst,producer.site,producer.iter) ~identity:0 ~width:387 ~height:91 ~fn ~sources:[] [] |> ok in
+  let qualified=prepare ~path lowered.approx in
+  let unqualified=prepare Flow.Workspace.Paths.empty in
+  let no_provenance=prepare lowered.approx in
+  let calls=ref 0 in
+  let backend:Flow_ir.Gpu.backend={cost=(fun _ ~count:_->Some 0.);prepare=(fun packed->
+    assert(Flow_ir.Packed.site packed=(producer.inst,path,producer.iter));
+    Ok{run=(fun inputs->incr calls;Ok Flow_ir.Gpu.{identity=1;count=inputs.count;width=4;
+      stamp=Int64.of_int !calls;gpu_seconds=None});readback=(fun _->assert false)})}in
+  Flow_ir.Gpu.with_backend backend(fun()->
+    List.iter(fun kernel->assert(ok(Flow_ir.Executor.try_display ~policy:Qualification
+      (Flow_sop.Image_kernel.program kernel) ~live:(Frame_input.at_time 0.5))=None))
+      [unqualified;no_provenance];
+    assert(!calls=0);
+    (match ok(Flow_ir.Executor.try_display ~policy:Qualification
+        (Flow_sop.Image_kernel.program qualified) ~live:(Frame_input.at_time 0.5))with
+     |Some(Gpu output)->assert(output.width=4 && output.count=387*91)|_->assert false);
+    assert(!calls=1));
+  let exact=cook ~time:0.5 1 qualified in
+  assert(bytes exact=bytes(cook ~time:0.5 8 qualified));
+  assert(bytes exact=bytes(cook ~time:0.5 1 unqualified));
+  assert(bytes exact=bytes(cook ~time:0.5 1 no_provenance));
+  let copied=Bytes.copy(bytes exact)in
+  ignore(cook ~time:0.75 1 qualified);
+  assert(bytes exact=copied);
+  print_endline "image lowering: named-call authored provenance, qualified display selection and independent exact CPU snapshots pass"
+
+let () =
+  let module W=Flow.Workspace in
+  let w=check "(workspace pixels (graph img :context image
+    (let* [a (image/map (fn [uv] [uv.x uv.y t 1]))
+      b (map (fn [x] (+ x t)) (array/float 4))] a)))" in
+  let graph=List.hd w.graphs in
+  let bindings,body=match graph.body.node with W.Let(bindings,body)->bindings,body|_->assert false in
+  let a=["img";"a"] in
+  let b=List.assoc (W.Name "b") bindings in
+  (* Hand-built conflicting kernel observations at one runtime site must poison the
+     bridge independently of the qualifier's authored-path conclusions. *)
+  let roots=(b.form,["unknown:a"])::(b.form,["unknown:b"])::
+    List.filter(fun(form,_)->form!=b.form)w.packed_roots in
+  let bindings=List.map(fun(name,(term:W.term))->
+    name,if name=W.Name "b"then {term with path=Some a}else term)bindings in
+  List.iter(fun bindings->
+    let graph={graph with body={graph.body with node=W.Let(bindings,body)}}in
+    let lowered=Flow_sop.Lower.of_checked ~factories:[] {w with graphs=[graph];packed_roots=roots} |> ok in
+    assert(W.Paths.mem a lowered.approx);
+    let images=Array.to_list lowered.plan.nodes |> List.filter(fun(n:E.node)->n.kind="image/map")in
+    assert(List.length images=1);
+    List.iter(fun(n:E.node)->assert(n.site=a && lowered.image_sites.(n.id)=None))images)
+    [bindings;List.rev bindings];
+  print_endline "image lowering: missing provenance is sticky before and after a successful observation"

@@ -442,7 +442,7 @@ and ev c env (x : W.term) : value =
   match st.time with
   | None ->
       (match st.observe_kernel, x.node with
-       | Some observe, (W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = "array/sum"; _}) ->
+       | Some observe, (W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = ("array/sum" | "image/map"); _}) ->
            observe {rid = Atomic.fetch_and_add bulk_ids (-1); rterm = x;
              renv = capture x env; rc = c; previous = false; fast = Untried}
        | _ -> ());
@@ -1160,7 +1160,7 @@ let show v = show_with Fun.id v
 
 module Private = struct
   let static_with_kernels = static_impl
-  let map_function ~(signature : Ty.fn_signature) fn arrays = protect (fun () ->
+  let map_function ?site ?path ~(signature : Ty.fn_signature) fn arrays = protect (fun () ->
     match fn with
     | Named _ -> fail "E_KERNEL_FORM" "A bulk function needs an instantiated local body."
     | Closure cl ->
@@ -1183,13 +1183,16 @@ module Private = struct
     let binding name ty = W.{path = None; ty; node = Ref_binding (name, []); form = cl.body.form} in
     let inputs = List.mapi (fun i value -> "$kernel-input:" ^ string_of_int i, value) arrays in
     let function_name = "$kernel-function" in
-    let term = W.{path = None; ty = Ty.Array result; form = cl.body.form;
+    let term = W.{path; ty = Ty.Array result; form = cl.body.form;
       node = Hof (`Map, binding function_name (Ty.Fn None) ::
         List.map (fun (name, value) -> binding name (Value.ty_of value)) inputs)} in
+    let at = match site with
+      | None -> cl.at
+      | Some (inst, base, iter) -> {cl.at with inst; base; iter; prefix = []; route = []} in
     Residual {rid = Atomic.fetch_and_add bulk_ids (-1); rterm = term;
       renv = List.fold_left (fun env (name, value) -> Smap.add name value env)
         (Smap.singleton function_name (Fn fn)) inputs;
-      rc = {cl.at with data = true; rec_ = false}; previous = false; fast = Untried})
+      rc = {at with data = true; rec_ = false}; previous = false; fast = Untried})
   let free_names term = Names.elements (free_names term)
   let free_name_walks () = Atomic.get free_walks
   let force_with_executor ?state ?elems ?resolve ~execute v ~live =

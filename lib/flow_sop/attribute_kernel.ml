@@ -84,7 +84,7 @@ let write ~grain name values geometry = match values with
             (fun attr -> G.with_attribute attr geometry))
   | _ -> error "E_ATTR_TYPE" "sop/with_attr takes a packed vec3 array."
 
-let prepare ?profile ~sources inputs values =
+let prepare ?profile ?approx ?sink ~sources inputs values =
   if List.compare_lengths sources inputs <> 0 then
     error "E_DATA_SOURCE" "Attribute source ids and inputs must correspond."
   else
@@ -124,7 +124,7 @@ let prepare ?profile ~sources inputs values =
       | E.Deferred (ty, id) when Flow.Ty.is_geometry ty ->
           Option.map (fun origin -> ["@sop-points"; string_of_int origin], []) (List.assoc_opt id by_source)
       | _ -> None) in
-  Flow_ir.Executor.compile ?profile ~count_source values
+  Flow_ir.Executor.compile ?profile ?approx ?sink ~count_source values
 
 let node ?state ?(reference = false) ?elems ?profile ~source ~name ~values ~sources inputs =
   let program = prepare ?profile ~sources inputs values in

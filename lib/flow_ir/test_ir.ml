@@ -1,6 +1,69 @@
 open Flow_ir
 module E = Flow.Eval
 
+let () =
+  let module W = Flow.Workspace in
+  let check source = match W.check Flow.Check.{version=1;kinds=[]}
+      (Flow.Syntax.parse source |> Result.get_ok) with
+    | Some workspace, [] -> workspace
+    | _, ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
+  let qualify ?inputs workspace =
+    let observed = ref [] in
+    let qualified,evaluation = qualify_workspace ~record:true ?inputs
+      ~observe:(fun producer residual ->
+        let view=E.Private.residual_view residual in
+        if Option.is_some producer && view.term.ty=Flow.Ty.Array Flow.Ty.Vec4 then begin
+          List.iter (fun fusion ->
+            match Packed.compile_result ~fusion residual view.term with
+            | Ok packed when Packed.gpu_refusals packed=[] ->
+                assert (Packed.site packed=(view.instance,Option.get producer,view.iter))
+            | _ -> ()) [true;false];
+          observed:=(producer,view.site):: !observed
+        end) workspace |> Result.get_ok in
+    qualified,evaluation,!observed in
+  let path=["img";"picture"] in
+  let image body="(workspace pixels (graph img :context image (let* [picture
+    (image/map (fn [uv] "^body^"))] picture)))" in
+  List.iter (fun (body,accepted,code) ->
+    let qualified,_,_=qualify (check(image body)) in
+    assert (W.Paths.mem path qualified.approx=accepted);
+    if not accepted then assert (List.exists (fun (d:Flow.Diagnostic.t)->d.code=code)
+      (List.assoc path qualified.approx_reasons)))
+    ["[uv.x uv.y t 1]",true,"";
+     "[(floor 2.5) uv.y t 1]",true,"";
+     "[(floor uv.x) uv.y t 1]",false,"E_PACKED_OPERATOR";
+     "[(+ uv.x 1e39) uv.y t 1]",false,"E_GPU_FORM"];
+  let shared=check "(workspace pixels (graph img :context image
+    (let* [f (fn [uv] [uv.x uv.y t 1]) held (fn [uv] [uv.x uv.y t 1])
+      a (image/map f) b (image/map f)] b)))" in
+  let qualified,_,seen=qualify shared in
+  assert (W.Paths.mem ["img";"a"] qualified.approx && W.Paths.mem ["img";"b"] qualified.approx);
+  assert (not(W.Paths.mem ["img";"held"] qualified.approx));
+  assert (List.mem_assoc (Some ["img";"a"]) seen && List.mem_assoc (Some ["img";"b"]) seen);
+  let captures=check "(workspace pixels
+    (graph img :context image [(offset : float 2.0)]
+      (let* [picture (image/map (fn [uv] [(+ uv.x offset) uv.y t 1]))] picture))
+    (graph host :context host [(one : float 2.0) (two : float 3.0)]
+      (list (ref img :offset one) (ref img :offset two))))" in
+  List.iter (fun (one,two,accepted)->
+    let qualified,_,_=qualify ~inputs:["host",["one",E.Float one;"two",E.Float two]] captures in
+    assert(W.Paths.mem path qualified.approx=accepted);
+    if not accepted then assert(List.exists(fun(d:Flow.Diagnostic.t)->d.code="E_GPU_FORM")
+      (List.assoc path qualified.approx_reasons))) [1e39,7.,false;7.,1e39,false;2.,7.,true];
+  let state=check "(workspace pixels (graph img :context image
+    (let* [bias (state [n 0.0] (+ n 0.1)) picture (image/map (fn [uv] [uv.x uv.y bias 1]))] picture)))" in
+  let qualified,_,_=qualify state in
+  assert (not(W.Paths.mem path qualified.approx));
+  assert(List.exists(fun(d:Flow.Diagnostic.t)->d.code="E_PACKED_STATE")
+    (List.assoc path qualified.approx_reasons));
+  let counterfeit=Option.get(Flow.Op.find "image/map" Flow.Context.image) in
+  let counterfeit={counterfeit with category="Counterfeit image map"} in
+  let qualified,_,_=qualify {shared with ops=counterfeit::shared.ops} in
+  assert(not(W.Paths.mem ["img";"a"] qualified.approx));
+  assert(List.exists(fun(d:Flow.Diagnostic.t)->d.code="E_GPU_FORM")
+    (List.assoc ["img";"a"] qualified.approx_reasons));
+  print_endline "image qualification: authored sites, shared functions, folded/unsupported forms, capture requalification, state and declaration identity pass"
+
 (* External value declarations cannot be swept in Flow's tests: Flow does not
    depend on Flow_ir. Exercise every declared argument and choice here. *)
 let () =

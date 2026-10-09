@@ -24,6 +24,7 @@ type t = {
   zones : zone list;
   volatile : unit Network.Int_map.t;
   plan : E.plan;
+  image_sites : Workspace.path option array;
   states : E.value list;
   evaluated : E.t;
   approx : Workspace.Paths.t;
@@ -116,7 +117,16 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
     ?(sites = []) ?inputs checked =
   Phase_timer.measure Lower (fun () ->
   try
-    let checked, evaluated = ok (Flow_ir.qualify_workspace ~record:true ?inputs checked) in
+    let image_origins = Hashtbl.create 16 in
+    let observe producer residual =
+      let view = E.Private.residual_view residual in
+      let key = view.instance, view.site, view.iter in
+      let origin = match Hashtbl.find_opt image_origins key with
+        | None -> producer
+        | Some (Some previous) when producer = Some previous -> producer
+        | _ -> None in
+      Hashtbl.replace image_origins key origin in
+    let checked, evaluated = ok (Flow_ir.qualify_workspace ~record:true ?inputs ~observe checked) in
     let profile = Flow_ir.Profile.create ~clock:Unix.gettimeofday in
     (* Kernel bodies are cache inputs as well as their captures. The digest is
        lazy so ordinary catalog edits retain their existing pipeline counts.
@@ -124,6 +134,9 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
        if unrelated structural edits measurably recook them. *)
     let kernel_source = lazy (Digest.string (fst (Lisp.print checked.source))) in
     let plan = evaluated.plan in
+    let image_sites = Array.map (fun (node : E.node) ->
+      if node.kind = "image/map" then Option.join
+        (Hashtbl.find_opt image_origins (node.inst, node.site, node.iter)) else None) plan.nodes in
     let ids = ref compiled_ids and site_table = Hashtbl.create 64
     and site_list = ref (List.rev sites) and site_count = ref (List.length sites) in
     List.iteri (fun i path -> Hashtbl.replace site_table path i) sites;
@@ -615,7 +628,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m)
                Network.Int_map.empty;
         pending = List.rev !pending; provenance = !provenance; zones = List.rev !zones;
-        volatile = !volatile_nodes; plan; states = evaluated.states; evaluated;
+        volatile = !volatile_nodes; plan; image_sites; states = evaluated.states; evaluated;
         approx = checked.approx; approx_reasons = checked.approx_reasons; profile; preview}
   with Fail diagnostic -> Error diagnostic)
 

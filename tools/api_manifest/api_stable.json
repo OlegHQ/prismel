@@ -200,7 +200,7 @@
         "val show : value -> string",
         "module Private : sig",
         "val static_with_kernels : ? record : bool -> ? inputs : ( string * ( string * value ) list ) list -> ? observe : ( residual -> unit ) -> Workspace.t -> ( t , Diagnostic.t ) result",
-        "val map_function : signature : Ty.fn_signature -> fn -> value list -> ( value , Diagnostic.t ) result",
+        "val map_function : ? site : ( int * Workspace.path * int list ) -> ? path : Workspace.path -> signature : Ty.fn_signature -> fn -> value list -> ( value , Diagnostic.t ) result",
         "val free_names : Workspace.term -> string list",
         "val free_name_walks : unit -> int",
         "val force_with_executor : ? state : state -> ? elems : ( string * value ) list -> ? resolve : ( value -> ( value , Diagnostic.t ) result ) -> execute : ( residual -> live -> ( value , Diagnostic.t ) result option ) -> value -> live : live -> ( value , Diagnostic.t ) result",
@@ -221,7 +221,7 @@
         "val compiled : value -> int",
         "end"
       ],
-      "api_sha256": "d29c3d16dcb3e572998c950953719fce23c7a3c974bebccaa8663e716d1eb666",
+      "api_sha256": "81bda5775475332f4923feb8317be431235aebf6e8f1320deb9e46390137142e",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Eval",
@@ -825,10 +825,10 @@
       "api": [
         "val sources : Flow.Eval.value -> int list",
         "val resolve : geometry : ( int -> Rdk.Geometry.t option ) -> Flow.Eval.value -> ( Flow.Eval.value , Flow.Diagnostic.t ) result",
-        "val prepare : ? profile : Flow_ir.Profile.t -> sources : int list -> Procedural.Node.t list -> Flow.Eval.value -> ( Flow_ir.Executor.program , Flow.Diagnostic.t ) result",
+        "val prepare : ? profile : Flow_ir.Profile.t -> ? approx : Flow.Workspace.Paths.t -> ? sink : Flow_ir.sink -> sources : int list -> Procedural.Node.t list -> Flow.Eval.value -> ( Flow_ir.Executor.program , Flow.Diagnostic.t ) result",
         "val node : ? state : Flow.Eval.state -> ? reference : bool -> ? elems : ( string * Flow.Eval.value ) list -> ? profile : Flow_ir.Profile.t -> source : string -> name : string -> values : Flow.Eval.value -> sources : int list -> Procedural.Node.t list -> Procedural.Node.t"
       ],
-      "api_sha256": "48312838028d7f002b82111d2a8744d8979b0781aee0a11ab69334ea488c15eb",
+      "api_sha256": "1e13e430da99d909571707ef55e2b392187d1a3eb4f6b30d44fe436c21a1aa3e",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Attribute_kernel",
@@ -861,11 +861,11 @@
     {
       "api": [
         "type t",
-        "val prepare : identity : int -> width : int -> height : int -> fn : Flow.Eval.fn -> sources : int list -> Procedural.Node.t list -> ( t , Flow.Diagnostic.t ) result",
+        "val prepare : ? site : ( int * Flow.Workspace.path * int list ) -> ? path : Flow.Workspace.path -> ? approx : Flow.Workspace.Paths.t -> identity : int -> width : int -> height : int -> fn : Flow.Eval.fn -> sources : int list -> Procedural.Node.t list -> ( t , Flow.Diagnostic.t ) result",
         "val node : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> t -> Procedural.Node.t",
         "val program : t -> Flow_ir.Executor.program"
       ],
-      "api_sha256": "8d242f97fbbaf07a247ef62b3c937f000a96bd35286610d3deff08c89ee94b73",
+      "api_sha256": "241cc4faf04217c6f1916c9df71fb88422c8b42f88db493149fb1bad182ccf79",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Image_kernel",
@@ -893,7 +893,7 @@
         "type origin = { merge : int ; input : int ; source : int ; site : Flow.Workspace.path ; iter : int list }",
         "type zone = { cid : int ; site : Flow.Workspace.path ; iter : int list ; body_site : Flow.Workspace.path ; base : int ; count : int Atomic.t ; ekey : string option ; positions : ( float * float * float ) array Atomic.t }",
         "type graph = { name : string ; instance : int ; default : bool ; inputs : ( string * Flow.Eval.value ) list ; network : Network.t ; root : int option ; }",
-        "type t = { graphs : graph list ; compiled_ids : int Instance_path.Map.t ; sites : Flow.Workspace.path list ; compiled : int Network.Int_map.t ; pending : pending list ; provenance : origin Network.Int_map.t ; zones : zone list ; volatile : unit Network.Int_map.t ; plan : Flow.Eval.plan ; states : Flow.Eval.value list ; evaluated : Flow.Eval.t ; approx : Flow.Workspace.Paths.t ; approx_reasons : ( Flow.Workspace.path * Flow.Diagnostic.t list ) list ; profile : Flow_ir.Profile.t ; preview : node : int -> probes : int list -> Network.t -> ( Network.t * int ) option ; }",
+        "type t = { graphs : graph list ; compiled_ids : int Instance_path.Map.t ; sites : Flow.Workspace.path list ; compiled : int Network.Int_map.t ; pending : pending list ; provenance : origin Network.Int_map.t ; zones : zone list ; volatile : unit Network.Int_map.t ; plan : Flow.Eval.plan ; image_sites : Flow.Workspace.path option array ; states : Flow.Eval.value list ; evaluated : Flow.Eval.t ; approx : Flow.Workspace.Paths.t ; approx_reasons : ( Flow.Workspace.path * Flow.Diagnostic.t list ) list ; profile : Flow_ir.Profile.t ; preview : node : int -> probes : int list -> Network.t -> ( Network.t * int ) option ; }",
         "val origin : t -> int -> origin option",
         "val tags : t -> site : Flow.Workspace.path -> iter : int list -> int list",
         "val zone_element : t -> Flow.Workspace.path -> int -> ( string * ( float * float * float ) ) option",
@@ -907,7 +907,7 @@
         "val counts : t -> int * int",
         "val status : t -> seconds : float -> string option"
       ],
-      "api_sha256": "6a932c8459da9d7021f822b9d056c545c6bcec0f3c89790896b0beaac32337cf",
+      "api_sha256": "aa6aac97ab1dd0ad6cd1e038e809b77cc0c8a1205062013faa1ec760b0bdd775",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Lower",

@@ -473,7 +473,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
     if !steps > max_steps then raise Budget;
     let t, v = if x.meta <> [] then bypass cx x else plain cx x in
     (match t.node with
-     | Hof _ | Loop _ | Op {op = "array/sum"; _} -> Paths.iter (remember_root t.form) v.packed_producers
+     | Hof _ | Loop _ | Op {op = ("array/sum" | "image/map"); _} -> Paths.iter (remember_root t.form) v.packed_producers
      | _ -> ());
     t, precision cx.path v
 
@@ -1337,6 +1337,14 @@ let check ?(ops = []) ?(library = false) catalog forms =
         if o.name = "array/sum" then begin
           root cx.path x [refusal x "E_GPU_FORM" "Ordered reductions stay on the CPU."];
           (tm x ty (Op { op = o.name; args = List.rev !named; skip }),
+           {v with packed_producers = Paths.singleton cx.path})
+        end else if o.name = "image/map" then begin
+          root cx.path x [];
+          List.iter (fun a -> match a.aterm.node with
+            | Fn {body;zone;_} ->
+                link_body cx.path body; link zone (Paths.singleton cx.path)
+            | _ -> ()) args;
+          (tm x ty (Op {op = o.name; args = List.rev !named; skip}),
            {v with packed_producers = Paths.singleton cx.path})
         end else (tm x ty (Op { op = o.name; args = List.rev !named; skip }), v)
       end
