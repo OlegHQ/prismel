@@ -4,6 +4,11 @@
  (modules runtime_resources)
  (libraries sdl3 sdl3_image sdl3_ttf sdl3_mixer ogpu unix))
 
+(test
+ (name test_gpu_image)
+ (modules test_gpu_image)
+ (libraries runtime_resources ogpu_mock))
+
 (executable
  (name test_main)
  (modules test_main test_runtime_resources test_resources_font test_resources_audio test_png_rows)

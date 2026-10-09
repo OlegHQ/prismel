@@ -549,7 +549,10 @@ module Private=struct
       ((((stamp*65599)lxor id)*65599 lxor
         Runtime_resources.Canvas.Private.identity canvas)*65599 lxor
         Runtime_resources.Canvas.generation canvas)rest
- let resource_stamp resources=resource_stamp_loop 0x345678 resources
+ let native_resource_stamp stage=List.fold_left(fun stamp->function
+   |Scene2_layer(_,resources)|Scene2_segment(_,resources)|Ui_layer(_,resources)->
+       resource_stamp_loop stamp resources
+   |Scene3_layer _->stamp)0x345678 stage.layers
  let rec find_native_stage aggregate scene density width height=function
   |[]->None
   |entry::rest->
@@ -557,7 +560,7 @@ module Private=struct
          same_native_scene entry.cached_scene scene&&
          entry.cached_density=density&&
          entry.cached_width=width&&entry.cached_height=height&&
-         entry.cached_resource_stamp=resource_stamp entry.cached_stage.resources
+         entry.cached_resource_stamp=native_resource_stamp entry.cached_stage
       then Some entry else
         find_native_stage aggregate scene density width height rest
  let native_scene_cacheable scene=
@@ -591,7 +594,7 @@ module Private=struct
                next_native_stage_identity:=Int64.succ!next_native_stage_identity;
                {stage with retained=Some
                  ("scene-stage:"^Int64.to_string!next_native_stage_identity,1L)}in
-           let stamp=resource_stamp stage.resources in
+           let stamp=native_resource_stamp stage in
            cache:=List.filter(fun entry->not(same_native_scene entry.cached_scene scene&&
              entry.cached_aggregate=aggregate&&
              entry.cached_density=density&&entry.cached_width=width&&

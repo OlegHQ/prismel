@@ -1,11 +1,14 @@
 type error =
   | Stage of string
+  | Resource of Runtime_resources.error
   | Begin of Rays_execution.error
   | Lower of Rays_execution.error
   | Step of Rays_execution.error
 
 let pp_error formatter = function
   | Stage message -> Format.fprintf formatter "native Scene staging: %s" message
+  | Resource error -> Format.fprintf formatter "native Scene resource: %a"
+      Runtime_resources.pp_error error
   | Begin error ->
       Format.fprintf formatter "native Scene submission setup: %a"
         Rays_execution.pp_error error
@@ -46,6 +49,20 @@ let draws_of_prepared (staged:Scene.Private.staged_native) prepared=
             cache:=List.filteri(fun index _->index<retained_draw_capacity)!cache;
           draws
 
+let rec validate_images = function
+  | [] -> Ok ()
+  | (_, Rays_execution.Image image) :: rest ->
+      Result.bind (Runtime_resources.Image.Private.gpu_snapshot image)
+        (fun _ -> validate_images rest)
+  | _ :: rest -> validate_images rest
+
+let rec validate_layers = function
+  | [] -> Ok ()
+  | (Scene.Private.Scene2_layer (_, resources)
+    | Scene2_segment (_, resources) | Ui_layer (_, resources)) :: rest ->
+      Result.bind (validate_images resources) (fun () -> validate_layers rest)
+  | Scene3_layer _ :: rest -> validate_layers rest
+
 let render ~execution ~density ~width ~height scene =
   let active_submission=ref None in
   let prepared = try
@@ -56,13 +73,15 @@ let render ~execution ~density ~width ~height scene =
         match staged with
         | Error message -> Error (Stage message)
         | Ok staged -> (
-            let replayed=match staged.retained with
+            let replayed=match validate_layers staged.layers with
+            | Error error -> Error (Resource error)
+            | Ok () -> Result.map_error (fun error -> Step error) (match staged.retained with
             |None->Ok None
             |Some(identity,version)->
                 Rays_execution.Private.replay
-                    ~clear:staged.clear ~identity ~version execution in
+                    ~clear:staged.clear ~identity ~version execution) in
             match replayed with
-            |Error error->Error(Step error)
+            |Error error->Error error
             |Ok(Some ())->Ok `Replayed
             |Ok None->
             match Rays_execution.Private.begin_submission execution with

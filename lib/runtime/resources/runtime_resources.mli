@@ -14,8 +14,25 @@ module Image : sig
   val size : t -> ((int*int),error) result
   val pixels : t -> (bytes,error) result
   module Private : sig
+    val of_gpu : width:int -> height:int -> source:(unit -> Ogpu.Backend.texture option) -> (t,error) result
+    val replace_gpu_source : t -> width:int -> height:int ->
+      source:(unit -> Ogpu.Backend.texture option) -> (unit,error) result
+    (** Publish a borrowed, generation-validated RGBA8 source without CPU pixel
+        storage or readback. Replacement preserves identity and may resize.
+        The callback must return the published texture until invalidated;
+        substitution or expiration is an error, never a CPU fallback.
+        Destroying the image does not destroy its source texture. *)
+
     val replace_gpu : t -> Ogpu.Backend.texture -> (unit,error) result
-    val gpu_snapshot : t -> (int * int * int * Ogpu.Backend.texture) option
+    (** Same-shape publication for owners that already manage raw texture lifetime. *)
+
+    val gpu_snapshot : t -> ((int * int * int * Ogpu.Backend.texture) option,error) result
+    val readbacks : t -> int
+    (** Successful GPU pixel reads through this image; publication does not read. *)
+
+    val cpu_storage_bytes : t -> int
+    (** Current CPU bank and spare, excluding separately leased snapshots. *)
+
     type lease
     (* The bytes remain stable until the lease is released, including across
        image destruction. Mutations use a second bounded buffer rather than

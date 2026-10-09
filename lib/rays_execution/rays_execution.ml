@@ -423,7 +423,8 @@ let snapshot value ~lease_policy ~density source =
       else let key="image:"^string_of_int(Runtime_resources.Image.identity image)
       and generation=Runtime_resources.Image.generation image in
       (match Runtime_resources.Image.Private.gpu_snapshot image with
-      |Some(width,height,generation,gpu) when (match value.runtime with Window _->true|Offscreen _->false)->
+      |Error e->resource operation e
+      |Ok(Some(width,height,generation,gpu)) when (match value.runtime with Window _->true|Offscreen _->false)->
           let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene-image";
             min_filter=Linear;mag_filter=Linear;mip_filter=No_mip;
             address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;
@@ -431,7 +432,7 @@ let snapshot value ~lease_policy ~density source =
           Ok(width,height,{Scene_execution.key=key^":"^string_of_int density^":"^
             string_of_int generation;levels=[|{width;height;bytes=Bytes.empty}|];
             sampler;gpu=Some gpu})
-      |None|Some _->
+      |Ok(None|Some _)->
       (match find key generation with
       |Some cached->Ok cached
       |None->match Runtime_resources.Image.Private.borrow_snapshot image with
@@ -710,7 +711,7 @@ let scene2_resource_stamps resolve commands=
   let stamps=List.filter_map(fun id->
     match resolve id with
     |None->missing:=true;None
-    |Some(Image image)->if Runtime_resources.Image.destroyed image then(
+    |Some(Image image)->if Result.is_error(Runtime_resources.Image.Private.gpu_snapshot image)then(
         missing:=true;None)else
       Some(Image_stamp(id,image,Runtime_resources.Image.generation image))
     |Some(Text text)->if Runtime_resources.Text.destroyed text then(

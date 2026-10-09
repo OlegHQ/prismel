@@ -124,8 +124,9 @@ are conditional, and F3 requires the owner's request to move its numbers.
 **Current continuation (2026-10-09).** Packed Vec2/Vec4 groundwork is committed
 in `46984986`; CPU `image/map` is committed in `4ba82525`, and immutable GPU
 uploads in `767dea7d`. The GPU producer/converter checkpoint is recorded in
-F2.2 below. Authored image qualification is implemented by the checkpoint below;
-connected GPU image publication, resident consumers
+F2.2 below. Authored image qualification and private borrowed runtime image
+backing are implemented by the checkpoints below;
+connected workspace GPU image publication, resident consumers
 and exact snapshots remain open; F2.3 remains open. The paragraphs that follow
 record the earlier field and qualification implementation history.
 Deterministic sampled slab chunks (`8f1f4789`) now preserve complete geometry and seam
@@ -1261,8 +1262,32 @@ raw channel differences are in the performance log. No new timing gate is claime
 The final shipping run passes (exit 0), including all 38 standard workspaces,
 two actual custom-catalog executables and 13 fixtures at four times/domains 1/8.
 
+**Borrowed runtime image checkpoint (2026-10-09).** Private images now publish
+completed GPU output through a validated borrowed-source callback, without a
+CPU pixel buffer or publication readback. Replacement preserves identity,
+increments generation and supports resize. Descriptor, domain, destroyed,
+expired and substituted sources fail before mutation. Explicit snapshots retain
+their bytes across later publication and destruction; CPU replacement and Canvas
+copying clear GPU backing. Destruction releases the borrow, not its texture.
+Both lower-scene caching and retained Scene replay check callback liveness even
+without a generation change. Stage stamps include each 2D/UI layer's image
+generations. Native tests expire a converter output after two renders of the
+same Scene, require both cache paths to fail, then republish and verify changed
+pixels against a fresh render. Ordinary images, retained display-list segments
+and mixed layers are covered, including empty aggregate resource lists.
+Qualified named-image publication at 65×17 and times 0/0.5/1
+has zero channel and pixel differences against exact CPU output. The existing
+path-tracer film publication remains compatible. Mock coverage includes zero
+stored CPU bytes/reads at publication, 1024² construction allocation below a
+4 KiB assertion ceiling, leases, CPU transitions and borrowed ownership.
+This is private backing groundwork: workspace producer ownership, resident
+mesh/offscreen consumers and deferred exact GPU snapshots are still open.
+Commands and raw parity are recorded in the performance log.
+Final reviewed-code focused/native checks, API validation and `--ship` pass
+(exit 0), including the full workspace sweep at four times/domains 1/8.
+
 The workspace resolver still refuses captured geometry without a cooked-source
-resolver. GPU runtime-image publication, resident 2D/mesh consumers, exact
+resolver. Connected workspace GPU publication, resident 2D/mesh consumers, exact
 snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
 channel differences through the connected display route are still required.
 The producer/converter verdict does not close F2.2,

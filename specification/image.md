@@ -71,6 +71,18 @@ Destruction is idempotent. Stale resource use is rejected at the checked native
 boundary, and command completion retains submitted resources long enough for
 in-flight GPU work.
 
+Private runtime images can also borrow completed RGBA8 GPU output. Publication
+validates dimensions, format, single-sample depth-one storage and sampling/readback
+usages before changing the image. It preserves image identity, increments the
+generation on replacement and keeps no CPU pixel buffer. The owner supplies a
+callback that returns the published texture while its output remains current.
+Expiration, destruction or substitution without republication returns a typed
+resource error, including when a renderer reuses a cached Scene. Publication
+does not read pixels; explicit pixel and snapshot requests perform checked
+readback. Snapshot bytes remain valid across replacement, resize and destruction.
+Destroying an image drops the borrow without destroying its owner's texture.
+Successful CPU replacement or Canvas copying clears the GPU backing.
+
 ## Performance contract
 
 Image storage is packed rather than a boxed per-pixel OCaml structure. Stable

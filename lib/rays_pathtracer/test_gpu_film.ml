@@ -34,8 +34,8 @@ let run () =
         get(P.render tracer camera);get(P.flush tracer);
         let image=Rays.Image.Private.resource(P.image tracer)in
         let texture=match Runtime_resources.Image.Private.gpu_snapshot image with
-          |Some(_,_,_,texture)->texture
-          |None->failwith"traced film was published through CPU image storage"in
+          |Ok(Some(_,_,_,texture))->texture
+          |_->failwith"traced film was published through CPU image storage"in
         let direct=match Ogpu.Backend.read_texture texture ~bytes_per_row:(48*4)with
           |Ok bytes->bytes|Error error->failwith(Ogpu.Error.to_string error)in
         assert(Bytes.equal direct(get (P.pixels tracer)));
@@ -57,9 +57,9 @@ let run () =
         for _=1 to 30 do
           get(P.render tracer camera);get(P.flush tracer);
           match Runtime_resources.Image.Private.gpu_snapshot image with
-          |Some(_,_,_,texture)->Hashtbl.replace textures
+          |Ok(Some(_,_,_,texture))->Hashtbl.replace textures
               (Ogpu.Backend.texture_id texture)()
-          |None->failwith"GPU film reverted to CPU storage"
+          |_->failwith"GPU film reverted to CPU storage"
         done;
         assert(Hashtbl.length textures=3)));
   let after=live_handles()in

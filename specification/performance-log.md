@@ -9408,3 +9408,70 @@ The native workspace image executable also passes (exit 0), covering nested
 render invalidation, same-frame state changes, exact one/eight-domain Canvas
 snapshots and owned-resource close. Its log is
 `/tmp/rays-f-image-qualification-workspace-native.log`.
+
+### F2.2 image kernel: borrowed runtime backing checkpoint (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. Mock publication checks and native GPU checks run on the initial
+domain; two isolated wrong-domain calls verify refusal. Native fixtures run
+once at each of times 0/0.5/1. This is a resource-boundary correctness check,
+not a timing benchmark or a revised cost row.
+
+```sh
+_build/default/tools/check.exe @check @lib/runtime/resources/runtest @lib/rays/runtest @lib/flow_gpu/runtest-native @lib/rays/test_canvas_native
+_build/default/tools/check.exe @lib/rays_pathtracer/test_gpu_film @tools/api_manifest/runtest
+_build/default/lib/flow_gpu/test_image_sink_native.exe > specification/performance/f-image-gpu-backing-parity.csv
+_build/default/tools/check.exe --ship
+```
+
+Private runtime images validate a borrowed GPU callback before publication:
+positive/cardinality-safe dimensions, matching RGBA8 depth-one single-sample
+storage, sampling and copy-source usages, initial-domain access and a live
+texture. Later reads require the same physical texture; expiration or
+substitution returns a typed resource error. Replacement preserves identity
+and changes dimensions/generation only after validation. No dummy CPU pixels
+are allocated. Explicit snapshots own their readback bytes across publication,
+resize and destruction. Image destruction drops its borrow; the producer owns
+the texture. Successful CPU replacement and every Canvas-copy publication
+branch clear GPU backing, including reuse of an earlier Canvas mirror.
+
+| Check | Result |
+|---|---|
+| Mock constructor, 65×3 and 1024² | Each allocation delta below the 4 KiB regression ceiling |
+| Stored CPU bytes at GPU publication | 0 |
+| Pixel reads at GPU publication | 0 |
+| Qualified named image through publication, 65×17, times 0/0.5/1 | Maximum channel difference 0; differing channels/pixels 0 |
+| Earlier converter and qualification controls | All fifteen rows retain zero channel/pixel differences |
+| Expired source without image-generation change | Both lower-scene caching and reused Scene rendering refuse; republication produces changed pixels equal to a fresh render |
+| Existing native path-tracer film | Compatible publication, zero live-handle delta |
+
+All eighteen raw native rows are in
+`specification/performance/f-image-gpu-backing-parity.csv`. Channel verification
+explicitly reads pixels; publication itself does not. Image readback counters
+count actual successful image reads. Mock tests additionally cover invalid
+descriptors, resize, destroyed/substituted sources, failed replacement without
+mutation, stable leases, repeated release/destruction, CPU transitions and
+complete mock cleanup. Both cache regressions deliberately hold generation
+unchanged during expiration, then verify recovery after republication.
+Retained replay validation traverses actual 2D, display-list and UI layer
+resources, rather than the aggregate resource list that can be empty during
+rendering. Native stage generation stamps use those same layer dependencies.
+The strengthened native regression initially failed at its changed-pixel
+assertion with the old aggregate-only stamp; it now covers ordinary images,
+single retained segments and mixed layers. Initial shipping passed before
+these final replay corrections; a new shipping run is required for the final
+code. Regression log: `/tmp/rays-f-gpu-image-backing-replay-regression.log`;
+the corrected focused/native run passes (exit 0) in
+`/tmp/rays-f-gpu-image-backing-replay-fixed.log`.
+The small/large constructor allocation assertions guard against area-sized
+CPU backing; they do not measure complete display-frame allocation.
+
+Astra's final reviewed verdict after the replay corrections is
+**“Checkpoint approved.”** Focused/native checks and API validation pass (exit 0). No public
+stable manifest change is needed: the changed private Runtime_resources surface
+is excluded from that manifest. This does not establish connected workspace
+publication, resident mesh/offscreen consumers, deferred exact GPU snapshots,
+captured geometry resolution, the full F2.2 timing/allocation gate or F2.3.
+Final shipping validation passes (exit 0), including 38 standard workspaces,
+two custom-catalog executables and 13 fixtures at four times/domains 1/8.
+Log: `/tmp/rays-f-gpu-image-backing-final-ship.log`.

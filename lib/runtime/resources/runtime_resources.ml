@@ -13,16 +13,17 @@ let valid_storage width height bytes=
   &&Bytes.length bytes=width*height*4
 
 module Image=struct
+  type gpu_source={texture:Ogpu.Backend.texture;borrow:unit->Ogpu.Backend.texture option}
   type t={identity:int;mutable generation:int;mutable width:int;mutable height:int;
     mutable rgba:bytes;mutable spare:bytes option;mutable leases:(bytes*int)list;
-    mutable gpu:Ogpu.Backend.texture option;
+    mutable gpu:gpu_source option;mutable readbacks:int;
     mutable canvas_owner:int option;
     mutable canvas_returns:(bytes*(bytes->unit))list;mutable dead:bool}
   type lease={owner:t;bytes:bytes;mutable released:bool}
   let identity x=x.identity and generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"image is destroyed"else f())
   let owned ~width ~height ~rgba={identity=fresh_identity();generation=1;width;height;rgba;gpu=None;
-    spare=None;leases=[];canvas_owner=None;canvas_returns=[];dead=false}
+    readbacks=0;spare=None;leases=[];canvas_owner=None;canvas_returns=[];dead=false}
   let create ~width ~height ~rgba=main"Image.create"(fun()->
     if not(valid_storage width height rgba)then error"Image.create"Invalid_argument"invalid RGBA extent or storage"
     else Ok(owned ~width ~height ~rgba:(Bytes.copy rgba)))
@@ -35,11 +36,31 @@ module Image=struct
           Ok(owned~width:decoded.width~height:decoded.height~rgba:decoded.pixels)
         else error"Image.load_file"Decode"decoded image has invalid RGBA storage")
   let size x=live"Image.size"x(fun()->Ok(x.width,x.height))
+  let validate_gpu operation ~width ~height source =
+    if width<=0||height<=0||width>Sys.max_string_length/4/height then
+      error operation Invalid_argument "invalid GPU image extent"
+    else match source()with
+    |None->error operation Destroyed "GPU image source was closed or superseded"
+    |Some texture->
+        let descriptor=Ogpu.Backend.Private.texture_descriptor texture in
+        if Ogpu.Backend.Private.texture_destroyed texture then
+          error operation Destroyed "GPU image texture is destroyed"
+        else if descriptor.width<>width||descriptor.height<>height||descriptor.depth<>1
+          ||descriptor.sample_count<>1||descriptor.format<>Ogpu.Types.Rgba8_unorm
+          ||not(List.mem Ogpu.Types.Texture_binding descriptor.usage)
+          ||not(List.mem Ogpu.Types.Texture_copy_src descriptor.usage)then
+          error operation Invalid_argument "GPU image texture shape, format or usage is invalid"
+        else Ok texture
+  let gpu_texture operation x source =
+    Result.bind(validate_gpu operation ~width:x.width ~height:x.height source.borrow)(fun texture->
+      if texture==source.texture then Ok texture
+      else error operation Destroyed "GPU image source changed without publication")
   let gpu_pixels operation x=match x.gpu with
     |None->Ok(Bytes.copy x.rgba)
-    |Some texture->(match Ogpu.Backend.read_texture texture ~bytes_per_row:(x.width*4) with
-      |Ok bytes->Ok bytes
-      |Error e->error operation Io(Ogpu.Error.to_string e))
+    |Some source->Result.bind(gpu_texture operation x source)(fun texture->
+        match Ogpu.Backend.read_texture texture ~bytes_per_row:(x.width*4) with
+        |Ok bytes->x.readbacks<-x.readbacks+1;Ok bytes
+        |Error e->error operation Io(Ogpu.Error.to_string e))
   let pixels x=live"Image.pixels"x(fun()->gpu_pixels"Image.pixels"x)
   let leased x bytes=List.memq bytes(List.map fst x.leases)
   let return_canvas_storage x bytes=match List.assq_opt bytes x.canvas_returns with
@@ -73,22 +94,30 @@ module Image=struct
     x.leases<-List.remove_assq lease.bytes x.leases;
     if count>1 then x.leases<-(lease.bytes,count-1)::x.leases
     else if lease.bytes!=x.rgba then
-      if not(return_canvas_storage x lease.bytes)then x.spare<-Some lease.bytes
+      if not(return_canvas_storage x lease.bytes)&&not x.dead&&x.gpu=None then
+        x.spare<-Some lease.bytes
   end
   let replace x ~width ~height ~rgba=live"Image.replace"x(fun()->
     if not(valid_storage width height rgba)then error"Image.replace"Invalid_argument"invalid RGBA replacement"
     else match writable x(Bytes.length rgba)with Error _ as e->e|Ok bytes->
       Bytes.blit rgba 0 bytes 0(Bytes.length rgba);install x bytes;
       x.width<-width;x.height<-height;x.gpu<-None;x.generation<-x.generation+1;Ok())
-  let replace_gpu x texture=live"Image.replace_gpu"x(fun()->
-    let descriptor=Ogpu.Backend.Private.texture_descriptor texture in
-    if Ogpu.Backend.Private.texture_destroyed texture||
-       descriptor.width<>x.width||descriptor.height<>x.height||
-       not(List.mem Ogpu.Types.Texture_binding descriptor.usage) then
-      error"Image.replace_gpu"Invalid_argument"GPU texture shape or usage is invalid"
-    else (x.gpu<-Some texture;x.generation<-x.generation+1;Ok()))
-  let gpu_snapshot x=if x.dead then None else
-    Option.map(fun texture->x.width,x.height,x.generation,texture)x.gpu
+  let of_gpu ~width ~height ~source=main"Image.of_gpu"(fun()->
+    Result.map(fun texture->let x=owned ~width ~height ~rgba:Bytes.empty in
+      x.gpu<-Some{texture;borrow=source};x)
+      (validate_gpu "Image.of_gpu" ~width ~height source))
+  let replace_gpu_source x ~width ~height ~source=live"Image.replace_gpu_source"x(fun()->
+    Result.map(fun texture->
+      install x Bytes.empty;x.spare<-None;
+      x.width<-width;x.height<-height;x.gpu<-Some{texture;borrow=source};
+      x.generation<-x.generation+1)
+      (validate_gpu "Image.replace_gpu_source" ~width ~height source))
+  let replace_gpu x texture=replace_gpu_source x ~width:x.width ~height:x.height
+    ~source:(fun()->Some texture)
+  let gpu_snapshot x=live"Image.gpu_snapshot"x(fun()->match x.gpu with
+    |None->Ok None
+    |Some source->Result.map(fun texture->Some(x.width,x.height,x.generation,texture))
+        (gpu_texture "Image.gpu_snapshot" x source))
   let replace_owned target source=main"Image.replace_owned"(fun()->
     if target.dead then error"Image.replace_owned"Destroyed"target image is destroyed"
     else if source.dead then error"Image.replace_owned"Destroyed"source image is destroyed"
@@ -123,10 +152,14 @@ module Image=struct
   module Private=struct
     type nonrec lease=lease
     let of_owned_rgba=owned
+    let of_gpu=of_gpu
+    let replace_gpu_source=replace_gpu_source
     let replace_gpu=replace_gpu
     let gpu_snapshot=gpu_snapshot
     let borrow_snapshot=borrow_snapshot
     let release_snapshot=release_snapshot
+    let readbacks x=x.readbacks
+    let cpu_storage_bytes x=Bytes.length x.rgba+Option.fold ~none:0 ~some:Bytes.length x.spare
   end
 end
 
@@ -214,7 +247,7 @@ module Canvas=struct
     else match sync_cpu"Canvas.copy_to_image"x with Error _ as e->e|Ok()->
     begin discard_invalid_mirror x;
     if match x.mirror with Some mirror->mirror==image&&valid_mirror x image|None->false then(
-      image.generation<-image.generation+1;Ok())
+      image.gpu<-None;image.generation<-image.generation+1;Ok())
     else if match x.blocked with Some blocked->blocked==image|None->false then begin
       let spare=take_image_spare image(Bytes.length x.rgba)in
       match spare with
@@ -222,7 +255,7 @@ module Canvas=struct
       |Ok spare->
         image.rgba<-x.rgba;publish_storage x image;
         image.width<-x.width;image.height<-x.height;
-        retain_spare x spare;image.generation<-image.generation+1;
+        retain_spare x spare;image.gpu<-None;image.generation<-image.generation+1;
         x.blocked<-None;x.mirror<-Some image;Ok()
     end else if x.mirror=None then begin
       match take_image_spare image(Bytes.length x.rgba)with
@@ -230,14 +263,14 @@ module Canvas=struct
       |Ok spare->
         image.rgba<-x.rgba;publish_storage x image;
         image.width<-x.width;image.height<-x.height;
-        retain_spare x spare;image.generation<-image.generation+1;
+        retain_spare x spare;image.gpu<-None;image.generation<-image.generation+1;
         x.blocked<-None;x.mirror<-Some image;Ok()
     end else
       let width=x.width and height=x.height and source=x.rgba in
       match Image.writable image(Bytes.length source)with Error _ as e->e|Ok bytes->
       Bytes.blit source 0 bytes 0(Bytes.length source);Image.install image bytes;
       image.width<-width;image.height<-height;
-      image.generation<-image.generation+1;Ok()end)
+      image.gpu<-None;image.generation<-image.generation+1;Ok()end)
   let snapshot x=live"Canvas.snapshot"x(fun()->match sync_cpu"Canvas.snapshot"x with Error _ as e->e|Ok()->
     Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
   let draw_image x image ~x:px ~y:py=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with
@@ -248,7 +281,7 @@ module Canvas=struct
     discard_invalid_mirror x;
     if x.mirror=None&&x.blocked=None then begin
       let image:Image.t={identity=fresh_identity();generation=1;
-        width=x.width;height=x.height;rgba=x.rgba;spare=None;leases=[];gpu=None;
+        width=x.width;height=x.height;rgba=x.rgba;spare=None;leases=[];gpu=None;readbacks=0;
         canvas_owner=None;canvas_returns=[];dead=false}in
       publish_storage x image;
       x.mirror<-Some image;Ok image

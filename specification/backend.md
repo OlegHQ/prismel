@@ -647,6 +647,17 @@ The path tracer instead publishes one of two borrowed OGPU film textures on
 completion. Scene samples that texture directly without image staging or a
 per-frame CPU readback. The tracer writes the other texture while rendering;
 explicit `Image.pixels` and capture remain checked readback boundaries.
+Private runtime image publication also accepts a validated borrowed-output
+callback, with no CPU pixel allocation or readback. The callback must keep
+returning the physically identical published texture; expired or substituted
+outputs fail with a typed resource error. Resized republication updates image
+dimensions and generation only after validation. Both scene lowering and a
+pass over 2D/UI layer resources before retained replay check source liveness
+even when generation is unchanged. Native stage stamps include every such
+layer's resource generations, including retained segments and mixed layers.
+Explicit CPU snapshots own their readback bytes independently of later output
+updates. Images release the borrow, while producer owners release the GPU
+resources. CPU replacement and Canvas copying clear GPU authority on success.
 Scene rejects malformed, destroyed, and foreign-device GPU image sources; a
 canvas rendered on another device than the window's falls back to its CPU
 pixels.
