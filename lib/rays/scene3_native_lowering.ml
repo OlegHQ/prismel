@@ -26,6 +26,10 @@ let packed_color(c:Color.t)=Int32.of_int((c.r lsl 24)lor(c.g lsl 16)lor(c.b lsl 
 let put32 bytes index value=Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value)
 let color bytes index(c:Color.t)=put32 bytes index(float c.r/.255.);put32 bytes(index+1)(float c.g/.255.);put32 bytes(index+2)(float c.b/.255.);put32 bytes(index+3)(float c.a/.255.)
 let matrix bytes offset value=for index=0 to 15 do put32 bytes(offset+index)(Mat4.get value~row:(index/4)~column:(index mod 4))done
+(* Public camera clip depth is [-1,1]; native raster/shadow depth is [0,1]. *)
+let native_clip_projection projection=Mat4.mul
+  (Mat4.of_rows (1.,0.,0.,0.) (0.,1.,0.,0.) (0.,0.,0.5,0.5) (0.,0.,0.,1.))
+  projection
 (* ---- World lighting (Scene3.with_world, specification/environment.md) ---- *)
 
 (* The one Blinn-Phong to PBR mapping: albedo = diffuse (Color.t is sRGB, so
@@ -158,7 +162,7 @@ let world_of(baked:World.baked)shadow sun=
         rgb 32 sun.radiance(Float.pi*.sun.angular_radius*.sun.angular_radius))baked.sun;
       (match baked.background with World.Color c->put 35 1.;rgb 36 c 1.|Environment|Transparent->());
       Option.iter(fun(s:Shadow3.Private.snapshot)->
-        put 39 1.;matrix bytes 40 s.view_projection;put 56 s.bias;put 57 s.normal_bias;
+        put 39 1.;matrix bytes 40(native_clip_projection s.view_projection);put 56 s.bias;put 57 s.normal_bias;
         put 58 s.strength;put 59(match s.filter with Hard->0.|Pcf_3x3->1.|Pcf_5x5->2.);
         put 60(float s.width);put 61(float s.height);
         Array.iteri(fun index depth->put(64+index)depth)s.depths)snapshot;
@@ -212,7 +216,7 @@ let background_attributes=
   for i=0 to 2 do Bytes.set_int32_le bytes(i*12)Int32.minus_one done;
   "world:background:attributes",bytes
 let background_uniforms ~camera ~viewport=
-  match Mat4.inverse(Camera.view_projection_matrix~viewport camera)with
+  match Mat4.inverse(native_clip_projection(Camera.view_projection_matrix~viewport camera))with
   |None->None
   |Some inverse->
       let bytes=Bytes.make 5456 '\000' in
@@ -221,7 +225,7 @@ let background_uniforms ~camera ~viewport=
 let uniforms_blinn_phong ~camera ~viewport scene(drawing:Scene3.Private.drawing)=
   let bytes=Bytes.make 5456 '\000'and material=drawing.material in
   put32 bytes 82 1.;
-  let projection=Camera.view_projection_matrix~viewport camera in
+  let projection=native_clip_projection(Camera.view_projection_matrix~viewport camera)in
   matrix bytes 0(Mat4.mul projection drawing.transform);matrix bytes 16 drawing.transform;
   let normal=match Mat4.inverse drawing.transform with None->Mat4.identity|Some value->Mat4.transpose value in matrix bytes 32 normal;
   let eye=Camera.position camera in put32 bytes 48 eye.x;put32 bytes 49 eye.y;put32 bytes 50 eye.z;
@@ -262,7 +266,7 @@ let instance_uniforms ?world ~camera ~viewport scene drawing all ~first ~count =
   (* Word 83 marks the packed matrix table that starts after the shared
      Scene3 material and light block. Each instance owns three 4x4 matrices. *)
   put32 bytes 83 1.;
-  let projection=Camera.view_projection_matrix ~viewport camera in
+  let projection=native_clip_projection(Camera.view_projection_matrix ~viewport camera)in
   let worlds,normals=instance_frames parent all in
   for i=0 to count-1 do
     let world=worlds.(first+i) and offset=1364+i*48 in

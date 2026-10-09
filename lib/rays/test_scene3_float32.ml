@@ -30,10 +30,11 @@ let legacy source (entry:Scene_execution.scene3_entry)=
   let uniforms=Bytes.copy(Option.get entry.draw.state.transform_uniforms)in
   Bytes.set_int32_le uniforms(82*4)0l;
   {entry with vertex_attributes=None;draw={
-    mesh={entry.draw.mesh with key=entry.draw.mesh.key^":legacy";vertices=bytes};
+    mesh={entry.draw.mesh with key=entry.draw.mesh.key^":legacy:"^
+      Digest.to_hex(Digest.bytes bytes);vertices=bytes};
     state={entry.draw.state with transform_uniforms=Some uniforms}}}
 
-let native source first second=
+let native source second_source first second=
   match Runtime.create_offscreen ~logical_width:128 ~logical_height:128 ~width:128 ~height:128 ()with
   |Error error->failwith(Ogpu.Error.to_string error)
   |Ok runtime->Fun.protect ~finally:(fun()->ignore(Runtime.destroy runtime))(fun()->
@@ -51,9 +52,9 @@ let native source first second=
       let before=(Runtime.stats runtime).uploaded_bytes in
       let changed=render second in
       let uploaded=Int64.sub(Runtime.stats runtime).uploaded_bytes before in
-      (* The f64 oracle of the recoloured mesh decides, not a pixel change:
-         this fixture's shading does not vary with the vertex colours. *)
-      let oracle=render(legacy source second)in
+      if changed=current then failwith "recolour did not change visible triangle pixels";
+      (* Compare the recoloured mesh with its own independent f64 oracle. *)
+      let oracle=render(legacy second_source second)in
       let maximum=ref 0 in
       for i=0 to Bytes.length changed-1 do
         maximum:=max !maximum(abs(Char.code(Bytes.get oracle i)-Char.code(Bytes.get changed i)))
@@ -97,5 +98,6 @@ let run_native ()=
   let vertices,normals,indices,colors=make[|Color.red;Color.green;Color.blue|]in
   let source=mesh(vertices,normals,indices,colors)in
   let first=stage source in
-  let second=stage(mesh(vertices,normals,indices,[|Color.blue;Color.red;Color.green|]))in
-  native source first second
+  let second_source=mesh(vertices,normals,indices,[|Color.blue;Color.red;Color.green|])in
+  let second=stage second_source in
+  native source second_source first second

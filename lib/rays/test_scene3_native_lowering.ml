@@ -53,6 +53,16 @@ let run () =
     (match entry.vertex_attributes with Some(_,bytes)->Bytes.get_int32_le bytes 0<>0xff0000ffl|None->true)
   then failwith"native Scene3 vertex ABI";
   (match entry.draw.state.transform_uniforms with Some bytes when Bytes.length bytes=5456&&Int32.float_of_bits(Bytes.get_int32_le bytes(64*4))=1.->()|_->failwith"native Scene3 uniform ABI");
+  let check_clip_depth label offset bytes=
+    let word index=Int32.float_of_bits(Bytes.get_int32_le bytes((offset+index)*4))in
+    let depth z=(word 10*.z+.word 11)/.(word 14*.z+.word 15)in
+    if Float.abs(depth 1.9)>1e-6 || Float.abs(depth(-998.)-.1.)>1e-6 then
+      failwith(label^": camera near/far must map to native depth 0/1")in
+  check_clip_depth "ordinary MVP" 0 (Option.get entry.draw.state.transform_uniforms);
+  let instanced=prepare ~width:16 ~height:16
+    (Scene3.create[Scene3.instances_array mesh [|Mat4.identity;Mat4.identity|]])in
+  check_clip_depth "instance MVP" 1364
+    (Option.get instanced.entries.(0).draw.state.transform_uniforms);
   let staged=Result.get_ok(Scene.Private.stage_native~width:16~height:16
     [Scene.view3d~camera scene])in
   if List.length staged.scene3<>1||Array.length(List.hd staged.scene3).entries<>1 then
@@ -75,6 +85,18 @@ let run () =
   let shadow_stage=Result.get_ok(Scene.Private.stage_native~width:16~height:16[Scene.view3d~camera shadowed])in
   let shadow_entry=(List.hd shadow_stage.scene3).entries.(0)in
   (match shadow_entry.family,shadow_entry.auxiliary with Scene_execution.Scene3_shadow,Some value when Bytes.length value.buffer=84->()|_->failwith"native shadow staging");
+  check_clip_depth "authored Shadow3" 0 (Option.get shadow_entry.auxiliary).buffer;
+  let baked=World.bake ~domains:1 ~width:64 ~height:32 World.default in
+  let world_stage=prepare ~width:16 ~height:16
+    (Scene3.with_world baked shadowed)in
+  let world_entry=Array.find_opt(fun (entry:Scene_execution.scene3_entry)->
+    Option.is_some entry.auxiliary)world_stage.entries |> Option.get in
+  check_clip_depth "World authored Shadow3" 40 (Option.get world_entry.auxiliary).buffer;
+  let inverse=Option.get world_stage.entries.(0).draw.state.transform_uniforms in
+  let word index=Int32.float_of_bits(Bytes.get_int32_le inverse((84+index)*4))in
+  let world_z depth=(word 10*.depth+.word 11)/.(word 14*.depth+.word 15)in
+  if Float.abs(world_z 0.-.1.9)>1e-5 || Float.abs(world_z 1.+.998.)>1e-3 then
+    failwith "World background inverse did not use native depth endpoints";
   let strip=Mesh.create_exn~mode:Mesh.Triangle_strip~indices:[0;1;2;3]
     ~normals:[Vec3.unit_z;Vec3.unit_z;Vec3.unit_z;Vec3.unit_z]
     [Vec3.zero;Vec3.unit_x;Vec3.unit_y;Vec3.create 1. 1. 0.]in

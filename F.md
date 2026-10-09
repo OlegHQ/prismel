@@ -1372,6 +1372,21 @@ exact rounding. One failing check for each."
 
 #### F2.3 Drawing to texture without the readback
 
+**Native camera groundwork (2026-10-09).** The actual mesh-consumer baseline
+exposed missing [-1,1]→[0,1] clip-depth conversion: default orthographic
+geometry was clipped before sampling its texture. Native lowering now adapts
+ordinary/instance camera matrices, World background inversion and both authored
+Shadow3 upload paths once. Fitted sun matrices already use native depth and
+remain unchanged. New near/far and visible-pixel regressions fail before the
+correction and pass afterward, including close perspective geometry, depth
+order, instances, repeated Scene replay and resource cleanup. The float32
+recolor oracle now uses the corresponding source colors and a complete legacy
+payload key, with its original one-channel tolerance and 36-byte upload check.
+Astra approves the correction; focused checks, full F5 native qualification
+and shipping pass (exit 0). The 2× PXUI goldens skip at the actual 1× density.
+This is correctness groundwork; the full round-trip baseline and resident
+image/render route are still pending.
+
 **Today.** `image/render drawing :width :height` renders into an offscreen
 `Rays.Canvas`, `Canvas.to_image` reads the pixels back to a CPU `Image.t`,
 and a `:texture` consumer uploads them again. That is one GPU→CPU→GPU round

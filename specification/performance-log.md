@@ -9475,3 +9475,64 @@ captured geometry resolution, the full F2.2 timing/allocation gate or F2.3.
 Final shipping validation passes (exit 0), including 38 standard workspaces,
 two custom-catalog executables and 13 fixtures at four times/domains 1/8.
 Log: `/tmp/rays-f-gpu-image-backing-final-ship.log`.
+
+### F2 resident image groundwork: native camera clip depth (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. Correctness checks run on the initial domain; the pure World fixture
+bakes at one domain. Each of two native camera cases renders ordinary geometry
+twice and a two-instance batch twice into one 32×32 Canvas. No timing or
+performance gate is claimed.
+
+```sh
+_build/default/tools/check.exe @check @lib/rays/test_scene3_native_lowering @lib/rays/test_canvas_native
+_build/default/tools/check.exe @check @lib/rays/runtest @lib/rays/test_canvas_native @lib/rays/test_scene3_native_lowering_native @lib/rays/test_scene3_float32_native @lib/rays/test_world_raster tools/bench_workspace_lower.exe @tools/api_manifest/runtest
+```
+
+The real `image/render`→texture→mesh fixture initially uploaded all CPU texture
+bytes but returned a black destination. Its source image changed with time.
+A diagnostic using far=3 instead of the default 1000 made source/destination
+bytes identical, identifying clip-depth clipping. That diagnostic is not the
+round-trip performance baseline. Public Camera/Mat4 matrices use [-1,1] depth;
+Metal rasterization uses [0,1]. One package-private adapter now converts
+`z_native=(z_public+w)/2` at the five camera/shadow boundaries: ordinary MVP,
+instance MVP, World background inverse and two authored Shadow3 uploads.
+The fitted sun projection and generic native shaders remain unchanged.
+
+| Regression | Evidence |
+|---|---|
+| Default orthographic, near=0.1/far=1000 | Near/far map to 0/1; visible green plane |
+| Perspective at distance 0.15, near=0.1 | Visible green plane; farther red plane does not overwrite it |
+| Two-instance batch and repeated Scene | Visible blue pixels, exact replay snapshots |
+| Authored shadows and World inverse | Both uploads use native depth; background inverse reconstructs the public near/far points |
+| Fitted sun shadow | Existing native shadow/reuse/zero-handle-delta regression passes |
+| Float32 triangle | Original maximum channel difference 0; recolor stays within the unchanged ≤1 tolerance and uploads exactly 36 bytes |
+| Owned Canvas fixture | Zero native live-handle delta |
+
+Before-fix pure near/far and native visible-pixel assertions both fail in
+`/tmp/rays-f-native-camera-depth-before.log`. The corrected focused checks pass
+(exit 0) in `/tmp/rays-f-native-camera-depth-final-focused.log`. Making geometry
+visible also exposed a test-oracle defect: the recolored float32 entry was
+compared to the original colors. Each legacy render now serializes its actual
+source and keys the complete immutable payload, since Scene3 vertex-stable
+keys intentionally skip geometry byte comparison. The test requires visible
+recoloring; its tolerance and packed upload bound are preserved.
+
+Astra's final review says: “Approved this correctness checkpoint; no remaining
+blocker found.” Native qualification passes (exit 0) with the command below.
+The sweep covers 38 standard workspaces, two custom-catalog executables and
+13 fixtures at four times/domains 1/8. All three workspace pixel aliases pass;
+PXUI's 2× golden checks skip at the actual 1× display density, with no fixture
+refresh. The first command misspelled one alias; its valid checks completed,
+then the corrected command passed using those cached results.
+
+```sh
+_build/default/tools/check.exe @lib/rays/runtest-native @lib/flow_gpu/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+Logs: `/tmp/rays-f-native-camera-depth-full-native.log` (first command),
+`/tmp/rays-f-native-camera-depth-qualified.log` (corrected command).
+Shipping passes (exit 0): `_build/default/tools/check.exe --ship`, log
+`/tmp/rays-f-native-camera-depth-ship.log`. The benchmark restores the default
+camera and verifies full source/destination bytes outside its timer before
+accepting any raw performance rows. This does not complete F2.2 or F2.3.

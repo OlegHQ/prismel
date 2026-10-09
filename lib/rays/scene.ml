@@ -385,7 +385,8 @@ module Private=struct
    |resource->Ok resource
    |exception Not_found->
        let source=Shadow3.Private.snapshot shadow in
-       let matrix=Array.init 16(fun index->Mat4.get source.view_projection~row:(index/4)~column:(index mod 4))in
+       let projection=Scene3_native_lowering.native_clip_projection source.view_projection in
+       let matrix=Array.init 16(fun index->Mat4.get projection~row:(index/4)~column:(index mod 4))in
        let snapshot:Scene_execution.shadow_snapshot={width=source.width;height=source.height;depths=source.depths;matrix;bias={constant=source.bias;slope=source.normal_bias};kernel=(match source.filter with Hard->Tap1|Pcf_3x3->Tap9|Pcf_5x5->Tap25);strength=source.strength}in
        match Scene_execution.shadow_resource~key:(string_of_int id)snapshot with
        |Error _ as error->error

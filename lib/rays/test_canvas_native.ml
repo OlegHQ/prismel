@@ -19,7 +19,35 @@ let region_has_pixel_other_than canvas ~x0 ~y0 ~x1 ~y1 expected=
   done;
   !found
 
+let camera_depth ()=
+  let baseline=live_handles()in
+  let canvas=Canvas.create_exn ~width:32 ~height:32 in
+  Fun.protect ~finally:(fun()->Canvas.destroy canvas)(fun()->
+    let mesh=Mesh.plane ~width:1. ~height:1.()in
+    let cameras=[Camera.orthographic ~height:2. ~at:(Vec3.create 0. 0. 2.) ~target:Vec3.zero();
+      Camera.perspective ~at:(Vec3.create 0. 0. 0.15) ~target:Vec3.zero()]in
+    List.iter(fun camera->
+      let far=Scene3.translate(Vec3.create 0. 0.(-0.02))
+        [Scene3.mesh ~material:(Material.unlit Color.red) ~cull:Cull_none mesh]in
+      let near=Scene3.mesh ~material:(Material.unlit Color.green) ~cull:Cull_none mesh in
+      let scene=Scene.[clear Color.black;view3d ~camera(Scene3.create[near;far])]in
+      Canvas.render canvas scene;
+      require(channel canvas ~x:16 ~y:16=(0,255,0,255)) "camera native near/far clipping or depth order";
+      let first=snapshot canvas in Canvas.render canvas scene;
+      require(snapshot canvas=first) "camera depth retained replay pixels";
+      let transforms=[|Mat4.identity;Mat4.translation(Vec3.create 0. 0.(-0.02))|]in
+      let instances=Scene3.instances_array ~material:(Material.unlit Color.blue)
+        ~cull:Cull_none mesh transforms in
+      let scene=Scene.[clear Color.black;view3d ~camera(Scene3.create[instances])]in
+      Canvas.render canvas scene;
+      require(channel canvas ~x:16 ~y:16=(0,0,255,255)) "camera native instance clipping";
+      let first=snapshot canvas in Canvas.render canvas scene;
+      require(snapshot canvas=first) "camera instance retained replay pixels")cameras);
+  require(live_handles()=baseline) "camera native live-handle delta";
+  print_endline "camera native depth: default orthographic, close perspective, depth order, instances and retained replay pass"
+
 let run () =
+  camera_depth();
   let baseline=live_handles()in
   let canvas=Canvas.create_exn~width:64~height:64 in
   let rendered=ref 0 in

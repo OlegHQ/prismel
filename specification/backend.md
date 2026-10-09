@@ -620,6 +620,13 @@ they do not masquerade as a read of the BGRA window drawable.
 
 ## Resource rules
 
+Public camera and authored Shadow3 matrices use clip depth [-1,1]. Native
+Scene3 lowering converts that depth once to [0,1] before packing ordinary and
+instance MVPs, inverting the World background projection, or uploading an
+authored shadow matrix. The fitted GPU sun-shadow matrix already uses [0,1].
+Generic shaders accept native matrices directly. This preserves default
+orthographic near/far clipping and perspective geometry close to the near plane.
+
 Images, fonts, canvases, meshes, pipelines, and command resources are owned
 native resources. Safe APIs make destruction idempotent, reject use after
 release, and preserve same-device validation. Sketch-owned resources are
