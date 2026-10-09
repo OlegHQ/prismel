@@ -190,8 +190,94 @@ let branch_mode mode repeats =
       placement domains repeats !points seconds.(repeats / 2) allocated.(repeats / 2)
       total_allocated.(repeats/2) !fanouts !hash) [1; 8]
 
+let image_render_mode () =
+  let env name default=Option.fold ~none:default ~some:int_of_string(Sys.getenv_opt name)in
+  let repeats=env "RAYS_IMAGE_RENDER_REPEATS" 7 and frames=env "RAYS_IMAGE_RENDER_FRAMES" 20
+  and warmups=env "RAYS_IMAGE_RENDER_WARMUPS" 10 in
+  let baseline=Sys.getenv_opt "RAYS_IMAGE_RENDER_BASELINE"=Some "1"in
+  if repeats<7 || frames<2 || warmups<10 then
+    invalid_arg "image/render needs seven trials, at least two frames and ten warmups";
+  let allocation()=let s=Gc.stat()in
+    (s.minor_words+.s.major_words-.s.promoted_words)*.float(Sys.word_size/8)in
+  let mesh=Rays.Mesh.plane ~width:2. ~height:2.()in
+  let camera=Rays.Camera.orthographic ~height:2. ~at:(Rays.Vec3.create 0. 0. 2.)
+    ~target:Rays.Vec3.zero()in
+  List.iter(fun size->
+    let text=Printf.sprintf "(workspace rendered
+      (graph drawing :context draw
+        (draw/merge (draw/background \"#102030\")
+          (draw/rect [(* t %d) %d 0] [%d %d 0] :fill \"#a0b0c0\")))
+      (graph img :context image (image/render (ref drawing) :width %d :height %d)))"
+      (size/2)(size/4)(size/4)(size/4)size size in
+    let doc=match Rays_editor.Workspace.load text with Ok doc->doc|Error ds->
+      failwith(String.concat "; "(List.map Flow.Diagnostic.to_string ds))in
+    let evaluated=Flow.Eval.static doc.checked |> ok in
+    let value=List.assoc "img" evaluated.results and state=Flow.Eval.create_state()in
+    Gc.full_major();
+    let before=allocation()in let started=now()in
+    let owner=Rays_editor.Editor3.create ~workspace:doc ~await:true ~domains:1
+      ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)() |> Result.get_ok in
+    let canvas=Rays.Canvas.create ~width:size ~height:size |> Result.get_ok in
+    let closed=ref false in
+    let close()=if not !closed then begin closed:=true;
+      Rays.Canvas.destroy canvas;Rays_editor.Editor3.close owner end in
+    Fun.protect ~finally:close(fun()->
+      let frame=ref 0 and last_live=ref(Frame_input.at_time 0.)in
+      let render time=
+        let live={(Frame_input.at_time time)with size=(size,size);frame= !frame}in
+        last_live:=live;
+        incr frame;
+        Rays_editor.Editor3.Private.with_images ~plan:evaluated.plan ~state ~live owner
+          (fun ~image:_ ~texture->
+            let texture=ok(texture value) |> Rays.Scene3.textured ~filter:Nearest in
+            let scene3=Rays.Scene3.create ~ambient:Rays.Color.white
+              [Rays.Scene3.mesh ~material:(Rays.Material.matte Rays.Color.white)
+                ~cull:Cull_none ~texture mesh]in
+            Rays.Canvas.render canvas Rays.Scene.[clear Rays.Color.black;view3d ~camera scene3])in
+      let hash()=let image=Rays.Canvas.to_image canvas |> Result.get_ok in
+        Fun.protect ~finally:(fun()->Rays.Image.destroy image)(fun()->
+          let bytes=Rays.Image.Private.pixels image |> Result.get_ok in
+          Rays_editor.Editor3.Private.with_images ~plan:evaluated.plan ~state ~live: !last_live owner
+            (fun ~image ~texture:_->let source=ok(image value)in
+              let source_bytes=Rays.Image.Private.pixels source |> Result.get_ok in
+              assert(source_bytes=bytes));
+          Bytes.to_string bytes |> Digest.string |> Digest.to_hex)in
+      let stats()=Rays.Canvas.Private.native_stats canvas in
+      let report phase trial count seconds bytes uploaded hash=
+        Printf.printf "image_render,%d,%d,1,%s,%d,%d,%.9f,%.0f,%.0f,%s\n%!"
+          size (size*size) phase trial count (seconds/.float count) (bytes/.float count)
+          (Int64.to_float uploaded/.float count) hash in
+      render 0.;
+      let elapsed=now()-.started in let bytes=allocation()-.before in
+      let cold_hash=hash()in
+      report "cold_owner_frame" 0 1 elapsed bytes (stats()).uploaded_bytes cold_hash;
+      for warmup=0 to warmups-1 do render(float warmup/.float frames)done;
+      let expected=ref None and times=Array.make repeats 0. in
+      for trial=0 to repeats-1 do
+        Gc.full_major();
+        let initial=stats()in let before=allocation()in let started=now()in
+        for frame=0 to frames-1 do render(float frame/.float frames)done;
+        let elapsed=now()-.started in let bytes=allocation()-.before in
+        let final=stats()in
+        assert(Int64.sub final.frames initial.frames=Int64.of_int frames);
+        let uploaded=Int64.sub final.uploaded_bytes initial.uploaded_bytes in
+        if baseline then assert(uploaded>=Int64.of_int(frames*size*size*4));
+        let hash=hash()in assert(hash<>cold_hash);
+        (match !expected with None->expected:=Some hash|Some prior->assert(prior=hash));
+        times.(trial)<-elapsed/.float frames;
+        report "warm_display" trial frames elapsed bytes uploaded hash
+      done;
+      Gc.full_major();
+      let before=allocation()in let started=now()in close();
+      let elapsed=now()-.started in let bytes=allocation()-.before in
+      let created,destroyed=Rays_editor.Editor3.Private.image_stats owner in assert(created=destroyed);
+      report "teardown" 0 1 elapsed bytes 0L "";
+      Array.sort Float.compare times;
+      Printf.eprintf "image/render size=%d domains=1 trials=%d frames=%d warmups=%d median_ms=%.6f\n%!"
+        size repeats frames warmups (times.(repeats/2)*.1000.))) [512;1024;2048]
+
 let image_mode () =
-  print_endline "name,pixels,domains,median_s,bytes_all_domains,hash";
+  print_endline "name,size,pixels,domains,phase,repetition,frames,time_s,bytes_all_domains_per_frame,uploaded_bytes_per_frame,hash";
   let allocated_bytes () = let stats = Gc.quick_stat () in
     (stats.minor_words +. stats.major_words -. stats.promoted_words) *. float (Sys.word_size / 8) in
   List.iter (fun size ->
@@ -217,8 +303,10 @@ let image_mode () =
           match !expected with None -> expected := Some !hash | Some prior -> assert (prior = !hash))
       done;
       Array.sort Float.compare times; Array.sort Float.compare allocations;
-      Printf.printf "image_noise,%d,%d,%.9f,%.0f,%s\n%!" (size*size) domains times.(3) allocations.(3) !hash) [1;8])
-    [128;512;1024]
+      Printf.printf "image_noise,%d,%d,%d,cpu_cook_median,0,1,%.9f,%.0f,0,%s\n%!"
+        size (size*size) domains times.(3) allocations.(3) !hash) [1;8])
+    [128;512;1024];
+  image_render_mode()
 
 let image_map_mode () =
   let env name default = Option.fold ~none:default ~some:int_of_string (Sys.getenv_opt name) in

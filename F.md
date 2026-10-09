@@ -1372,7 +1372,7 @@ exact rounding. One failing check for each."
 
 #### F2.3 Drawing to texture without the readback
 
-**Native camera groundwork (2026-10-09).** The actual mesh-consumer baseline
+**Native camera groundwork (2026-10-09, `3baff757`).** The actual mesh-consumer baseline
 exposed missing [-1,1]→[0,1] clip-depth conversion: default orthographic
 geometry was clipped before sampling its texture. Native lowering now adapts
 ordinary/instance camera matrices, World background inversion and both authored
@@ -1384,8 +1384,20 @@ recolor oracle now uses the corresponding source colors and a complete legacy
 payload key, with its original one-channel tolerance and 36-byte upload check.
 Astra approves the correction; focused checks, full F5 native qualification
 and shipping pass (exit 0). The 2× PXUI goldens skip at the actual 1× density.
-This is correctness groundwork; the full round-trip baseline and resident
-image/render route are still pending.
+This is correctness groundwork; the resident image/render route is still pending.
+
+**Round-trip baseline (2026-10-09).** The actual workspace texture callback,
+live drawing and completed mesh consumer are measured at 512²/1024²/2048²,
+seven trials of twenty frames after ten warmups, on the M1/dev/OCaml 5.3 at
+one domain. Median times are 43.399990/139.405048/514.362109 ms/frame;
+allocation is 67,918,306/250,370,554/980,179,450 bytes/frame. Destination uploads
+are exactly one RGBA8 image per frame at every size. Full final source and
+destination bytes are equal; every warm hash is stable and differs from the
+cold hash. Cold preparation and teardown are separate rows. Astra says
+“Accepted as the F2.3 roundtrip baseline.” Raw CSV:
+`specification/performance/f-image-render-roundtrip-before.csv`; commands and
+limits are recorded in the performance log. The resident allocation gate
+remains open.
 
 **Today.** `image/render drawing :width :height` renders into an offscreen
 `Rays.Canvas`, `Canvas.to_image` reads the pixels back to a CPU `Image.t`,

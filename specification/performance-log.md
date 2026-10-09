@@ -9536,3 +9536,67 @@ Shipping passes (exit 0): `_build/default/tools/check.exe --ship`, log
 `/tmp/rays-f-native-camera-depth-ship.log`. The benchmark restores the default
 camera and verifies full source/destination bytes outside its timer before
 accepting any raw performance rows. This does not complete F2.2 or F2.3.
+
+### F2.3 image/render round-trip baseline (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. Native rendering and the editor owner use one domain. The benchmark
+runs alone, with no builds, tests or active agents, after the camera-depth
+correction `3baff757` passes focused, native and shipping checks.
+
+```sh
+RAYS_IMAGE_RENDER_BASELINE=1 RAYS_IMAGE_RENDER_REPEATS=7 RAYS_IMAGE_RENDER_FRAMES=20 RAYS_IMAGE_RENDER_WARMUPS=10 _build/default/tools/bench_workspace_lower.exe --images > specification/performance/f-image-render-roundtrip-before.csv 2> /tmp/rays-f-image-render-roundtrip-before.log
+```
+
+Each size retains one editor owner, checked plan, evaluation state, mesh,
+default orthographic camera and destination Canvas. A live colored rectangle
+is rendered through the real `image/render` producer and workspace texture
+callback, then sampled by a nearest-filtered matte-white mesh. The timed warm
+interval includes producer rendering, CPU image capture/conversion, texture
+resolution/upload and completed offscreen mesh rendering. The existing route
+creates and destroys a source Canvas per changed frame. Seven trials each
+contain twenty completed frames after ten warmups; each trial uses the same
+time sequence 0 through 19/20 with unique frame identities. Full major GC and
+global allocation snapshots sit outside the timer. Document parsing, static
+evaluation, mesh and camera creation precede the cold-owner timer.
+
+Full final source/destination RGBA8 equality and MD5 validation occur outside
+timing and allocation measurements. Each warm hash differs from the initial
+time-zero hash and is identical across seven trials. Frame counters prove all
+twenty destination renders completed; baseline-only assertions require at least
+one full RGBA8 destination upload per frame. Image ownership balances at close.
+
+| Size | Warm median ms/frame | Allocated bytes/frame | Destination uploaded bytes/frame | Warm full-byte MD5 |
+|---|---:|---:|---:|---|
+| 512² | 43.399990 | 67,918,306 | 1,048,576 | `cdc3cea2e1c2d39634538ec65341e790` |
+| 1024² | 139.405048 | 250,370,554 | 4,194,304 | `cf67ff4b1a5a6eff98fca9312f3b5a47` |
+| 2048² | 514.362109 | 980,179,450 | 16,777,216 | `6a44f30ed4a2757a638cd5062df9c325` |
+
+| Size | Cold owner + frame ms | Cold allocated bytes | Teardown ms | Teardown allocated bytes |
+|---|---:|---:|---:|---:|
+| 512² | 115.930796 | 78,451,384 | 1.712084 | 33,632 |
+| 1024² | 150.013924 | 267,189,944 | 2.427816 | 33,632 |
+| 2048² | 530.053854 | 1,022,164,664 | 5.149126 | 33,632 |
+
+Cold and teardown rows are single observations, not medians. Warm allocation
+is the median of seven whole-trial allocation totals divided by twenty;
+destination uploads equal the full RGBA8 extent at every size and trial.
+The CSV also retains the existing seven-trial CPU image/noise controls at
+128²/512²/1024² and domains 1/8, with matching hashes across domain counts.
+Those controls are not an F2.2 image/map measurement.
+
+Astra's verdict: “Accepted as the F2.3 roundtrip baseline.” This establishes
+the current live producer→texture→completed mesh cost and pixel oracle. It
+does not establish the resident allocation gate, an after improvement, GPU
+image/map performance, resize behavior or GPU resource/readback counters.
+The run exits 0. Native stderr includes `Context leak detected, CoreAnalytics
+returned false`; this system diagnostic does not establish a Rays resource
+leak. Earlier partial black-frame diagnostics are excluded from the accepted
+CSV. The next change retains the source Canvas and borrows its completed
+texture, then repeats this protocol with the baseline upload assertion disabled.
+
+Raw: `specification/performance/f-image-render-roundtrip-before.csv`;
+run log: `/tmp/rays-f-image-render-roundtrip-before.log`.
+Reviewed-code `@check tools/bench_workspace_lower.exe` and `--ship` pass
+(exit 0); logs `/tmp/rays-f-image-render-baseline-check.log` and
+`/tmp/rays-f-image-render-baseline-ship.log`.
