@@ -1513,7 +1513,13 @@ GPU display values remain opaque identity/count/generation tokens. Workspace
 owners retain at most 64 producer runners, 64 pipelines and 64 styled drawing
 sinks, close sinks before their GPU lease, and reject stale generations. A
 four-byte status read validates finite shader intermediates and outputs without
-reading back the packed array. Compile, GPU execution and explicit readback have separate tier
+reading back the packed array. Each runner input slot retains only its last
+successfully uploaded immutable array and covered length. An unchanged source
+reuses that upload; a replacement array, changed length or replaced buffer
+requires another upload. A failed upload invalidates the prior source before
+the write, so a partially overwritten buffer cannot be reused as the old
+source. Frame uniforms and validation status are written on every dispatch;
+close releases both the buffer and retained array. Compile, GPU execution and explicit readback have separate tier
 reports. The GPU badge's group time is the completed device dispatch duration
 when timestamps are supported, otherwise wall time. Production placement compares
 the measured native GPU row of the Flow IR cost table (pack, upload and dispatch, plus the

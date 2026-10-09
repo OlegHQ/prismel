@@ -535,10 +535,12 @@
         "val close : t -> unit",
         "module Private : sig",
         "val buffer_creations : t -> int",
+        "val input_uploads : t -> int",
+        "val input_uploaded_bytes : t -> int",
         "val create_owned : Ogpu.Backend.device -> Ogpu.Backend.queue -> Pipelines.t -> Emit.msl -> t",
         "end"
       ],
-      "api_sha256": "f113a5a22471ce61faef2e2661f768616e308164fd1c5c208b4df767e1c8ce51",
+      "api_sha256": "59c17c2fd4d3521f88ad502569345ad27b046de1480b2d83e9d35aac0de367c8",
       "excluded_legacy_symbols": [],
       "library": "flow_gpu",
       "module": "Run",

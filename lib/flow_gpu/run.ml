@@ -1,14 +1,16 @@
 module B = Ogpu.Backend
 module P = Flow_ir.Packed
-type slot = {mutable buffer : B.buffer option; mutable capacity : int; mutable bytes : bytes}
+type slot = {mutable buffer : B.buffer option; mutable capacity : int; mutable bytes : bytes;
+  mutable uploaded:(float array * int) option}
 type t = {device:B.device; queue:B.queue; pipelines : Pipelines.t; msl : Emit.msl; inputs : slot array;
   output : slot; table : slot; status:slot; uniforms : bytes; mutable closed : bool; mutable creations : int;
+  mutable input_uploads:int; mutable input_uploaded_bytes:int;
   mutable generation : int; mutable table_ready:bool; domain : Domain.id}
 type output = {owner : t; count : int; width : int; gpu_seconds : float option; generation : int}
 exception Failed of Flow.Diagnostic.t
 let diagnostic error = Flow.Diagnostic.error ~code:"E_GPU" (Ogpu.Error.to_string error)
 let get = function Ok value -> value | Error error -> raise (Failed (diagnostic error))
-let slot () = {buffer=None;capacity=0;bytes=Bytes.empty}
+let slot () = {buffer=None;capacity=0;bytes=Bytes.empty;uploaded=None}
 let nonfinite () =
   Failed(Flow.Diagnostic.error ~code:"E_KERNEL" "GPU inputs must remain finite when represented as float32.")
 let pack bytes offset value =
@@ -35,7 +37,8 @@ let create_owned device queue pipelines (msl : Emit.msl) =
   if not(Domain.is_main_domain())then invalid_arg "Run.create: initial domain required";
   {device;queue;pipelines;msl;inputs=Array.map (fun _ -> slot ()) msl.input_widths;
     output=slot ();table=slot ();status=slot();uniforms=Bytes.create msl.uniform_bytes;
-    closed=false;creations=0;generation=0;table_ready=false;domain=Domain.self ()}
+    closed=false;creations=0;input_uploads=0;input_uploaded_bytes=0;
+    generation=0;table_ready=false;domain=Domain.self ()}
 let create gpu=create_owned(Rays_execution.gpu_device gpu)(Rays_execution.gpu_queue gpu)
 let ensure t slot length =
   if length>slot.capacity then begin
@@ -47,6 +50,7 @@ let ensure t slot length =
     let fresh = get (B.create_buffer t.device
       {label=Some "Flow packed compute";size=Int64.of_int !capacity;usage=[Storage;Copy_src;Copy_dst]}) in
     Option.iter (fun buffer -> ignore (B.destroy_buffer buffer)) slot.buffer;
+    slot.uploaded<-None;
     slot.buffer<-Some fresh;slot.capacity<- !capacity;slot.bytes<-bytes;
     t.creations<-t.creations+1
   end;
@@ -88,8 +92,17 @@ let dispatch t (values : P.Private.inputs) =
     let buffers=Array.mapi (fun index slot ->
       let length=values.count*msl.input_widths.(index)*4 in
       let buffer=ensure t slot length in
-      pack_array slot.bytes values.arrays.(index) (length/4);
-      get (B.write_buffer buffer ~offset:0L slot.bytes);buffer) t.inputs in
+      let source=values.arrays.(index) in
+      if not (match slot.uploaded with Some (old,covered)->old==source && covered=length | None->false) then begin
+        (* A failed write may have partially replaced the previous source. *)
+        slot.uploaded<-None;
+        pack_array slot.bytes source (length/4);
+        get (B.write_buffer buffer ~offset:0L slot.bytes);
+        slot.uploaded<-Some(source,length);
+        t.input_uploads<-t.input_uploads+1;
+        t.input_uploaded_bytes<-t.input_uploaded_bytes+Bytes.length slot.bytes
+      end;
+      buffer) t.inputs in
     let output=ensure t t.output (values.count*msl.output_width*4) in
     let status=ensure t t.status 4 in
     Bytes.set_int32_le t.status.bytes 0 0l;
@@ -152,10 +165,13 @@ let close t =
   if Domain.self()<>t.domain then invalid_arg "Run.close: creating domain required";
   if not t.closed then begin
   Array.iter (fun slot -> Option.iter (fun buffer -> ignore (B.destroy_buffer buffer)) slot.buffer;
-    slot.buffer<-None;slot.bytes<-Bytes.empty;slot.capacity<-0) (Array.append t.inputs [|t.output;t.table;t.status|]);
+    slot.buffer<-None;slot.bytes<-Bytes.empty;slot.capacity<-0;slot.uploaded<-None)
+    (Array.append t.inputs [|t.output;t.table;t.status|]);
   t.closed<-true
 end
 module Private = struct
   let buffer_creations t = t.creations
+  let input_uploads t = t.input_uploads
+  let input_uploaded_bytes t = t.input_uploaded_bytes
   let create_owned = create_owned
 end

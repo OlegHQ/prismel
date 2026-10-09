@@ -416,7 +416,56 @@ let benchmark_gpu () =
         [10_000;1_000_000]
     end)
 
+let benchmark_gpu_uploads () =
+  let get = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d) in
+  let source = "(workspace uploads (graph g :context value [(uv : (array vec2) (map (fn [x] [x x]) (array/range 0)))] (let* [mapped (map (fn [p] [p.x p.y t 1]) uv)] 0.0)))" in
+  let forms = get (Flow.Syntax.parse source) in
+  let workspace = match Flow.Workspace.check ~ops:Flow_ir.Operators.all {Flow.Check.version=1;kinds=[]} forms with
+    | Some w, [] -> w | _, ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+  let gpu = match Rays_execution.acquire_gpu () with Ok gpu -> gpu
+    | Error e -> failwith (Format.asprintf "%a" Rays_execution.pp_error e) in
+  Fun.protect ~finally:(fun () -> Rays_execution.release_gpu gpu) (fun () ->
+    print_endline "size,count,domains,trial,frames,dispatch_s_per_frame,bytes_per_frame,buffer_creations,input_uploads,input_uploaded_bytes";
+    List.iter (fun size ->
+      let uv = Array.init (size*size*2) (fun i ->
+        (float (if i mod 2=0 then i/2 mod size else i/2/size) +. 0.5) /. float size) in
+      let evaluated = get (Flow.Eval.static ~record:true ~inputs:["g",["uv",Flow.Eval.Vec2_array uv]] workspace) in
+      let residual = match List.assoc ["g";"mapped"] evaluated.records |> List.hd |> snd with
+        | Flow.Eval.Residual r -> r | _ -> failwith "expected packed map" in
+      let packed = get (Flow_ir.Packed.compile_result residual (Flow.Eval.Private.residual_view residual).term
+        |> Result.map_error (function d::_ -> d | [] -> assert false)) in
+      let msl = get (Flow_gpu.Emit.kernel packed) in
+      let cache = Flow_gpu.Pipelines.create ~clock:Unix.gettimeofday (Rays_execution.gpu_device gpu) in
+      Fun.protect ~finally:(fun () -> Flow_gpu.Pipelines.close cache) (fun () ->
+        let runner = Flow_gpu.Run.create gpu cache msl in
+        Fun.protect ~finally:(fun () -> Flow_gpu.Run.close runner) (fun () ->
+          let inputs = get (Flow_ir.Packed.Private.prepare packed ~live:(Frame_input.at_time 0.)) in
+          let code = (Flow_ir.Packed.Private.view packed).code in
+          assert (inputs.count=size*size && inputs.arrays.(0)==uv);
+          let step index =
+            Array.iteri (fun i instruction -> match instruction with
+              | Flow_ir.Packed.Frame "t" -> inputs.frame.(i)<-float index/.60.
+              | _ -> ()) code;
+            ignore (get (Flow_gpu.Run.dispatch runner inputs)) in
+          for index=1 to 10 do step index done;
+          let creations = Flow_gpu.Run.Private.buffer_creations runner in
+          for trial=1 to 7 do
+            Gc.full_major ();
+            let uploads = Flow_gpu.Run.Private.input_uploads runner
+            and uploaded_bytes = Flow_gpu.Run.Private.input_uploaded_bytes runner in
+            let bytes = allocated_bytes () and started = Unix.gettimeofday () in
+            for frame=1 to 200 do step (10+(trial-1)*200+frame) done;
+            let elapsed = Unix.gettimeofday ()-.started in
+            let allocated = allocated_bytes ()-.bytes in
+            assert (Flow_gpu.Run.Private.buffer_creations runner=creations);
+            Printf.printf "%d,%d,1,%d,200,%.9f,%.0f,%d,%d,%d\n%!" size inputs.count trial
+              (elapsed/.200.) (allocated/.200.) creations
+              (Flow_gpu.Run.Private.input_uploads runner-uploads)
+              (Flow_gpu.Run.Private.input_uploaded_bytes runner-uploaded_bytes)
+          done))) [512;1024;2048])
+
 let () =
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu-uploads"] then (benchmark_gpu_uploads (); exit 0);
   if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu"] then (benchmark_gpu (); exit 0);
   if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu-check"] then (gpu_check (); exit 0);
   let grid = ok (Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
@@ -446,4 +495,4 @@ let () =
     flow_loops ~fusion_only:true 1_000_000
   else if Array.to_list Sys.argv = [Sys.argv.(0); "--attribute-fusion"] then
     flow_attribute_fusion grid
-  else invalid_arg "bench_kernel [--cost|--attributes|--loops|--fusion|--attribute-fusion|--gpu|--gpu-check]"
+  else invalid_arg "bench_kernel [--cost|--attributes|--loops|--fusion|--attribute-fusion|--gpu|--gpu-check|--gpu-uploads]"

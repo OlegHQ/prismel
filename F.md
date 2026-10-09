@@ -1200,9 +1200,21 @@ still scale with image size, and upload/display is outside this cook gate.
 Raw evidence is `performance/f-image-map-cpu-domains{1,8}.csv`; see
 "F2.2 image kernel: CPU checkpoint" in `performance-log.md`.
 
+**GPU upload checkpoint (2026-10-09).** `Flow_gpu.Run` reuses its last
+successfully uploaded immutable input per slot, keyed by array identity and
+covered length, with invalidation on buffer replacement, failed upload and
+close. Frame uniforms and the four-byte validation-status read remain live.
+Native output checks cover same-sized replacement/reversion and changed frame
+uniforms. Injected partial-write tests require reupload of the previous array.
+Seven isolated 200-dispatch trials after ten warm-ups at 512²/1024²/2048²
+reduce UV upload bytes per frame from 2/8/32 MiB to zero. Raw evidence and
+dispatch timings are in `performance/f-image-gpu-uploads-{before,after}.csv`;
+the performance log separates this runner checkpoint from the image gate.
+Astra accepts the checkpoint; focused/native checks and `--ship` pass.
+
 The workspace resolver still refuses captured geometry without a cooked-source
 resolver. Synthetic-map GPU eligibility at the authored image site, GPU
-conversion/copy and immutable upload reuse, resident 2D/mesh consumers, exact
+conversion/copy, resident 2D/mesh consumers, exact
 snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
 channel differences are still required. The CPU verdict does not close F2.2,
 F2.3 or F.md.

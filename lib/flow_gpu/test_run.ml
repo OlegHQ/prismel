@@ -29,7 +29,24 @@ let () = match Rays_execution.acquire_gpu () with
               if name<>"noise" then assert (!maximum=0.) else assert (!maximum<=2e-4);
               let created=Flow_gpu.Run.Private.buffer_creations runner in
               ignore (Test_program.ok (Flow_gpu.Run.dispatch runner values));
-              assert (Flow_gpu.Run.Private.buffer_creations runner=created)))
+              assert (Flow_gpu.Run.Private.buffer_creations runner=created);
+              assert (Flow_gpu.Run.Private.input_uploads runner=Array.length values.arrays);
+              if name="vec2" then begin
+                let replacement={values with arrays=Array.map Array.copy values.arrays}in
+                replacement.arrays.(0).(0)<-17.;
+                let changed=Test_program.ok(Flow_gpu.Run.dispatch runner replacement)
+                  |> Flow_gpu.Run.readback |> Test_program.ok |> array in
+                assert(changed.(0)=17. && changed.(1)=18.);
+                let restored=Test_program.ok(Flow_gpu.Run.dispatch runner values)
+                  |> Flow_gpu.Run.readback |> Test_program.ok |> array in
+                assert(restored=expected);
+                let later=Test_program.ok(Flow_ir.Packed.Private.prepare program ~live:(Frame_input.at_time 2.))in
+                let animated=Test_program.ok(Flow_gpu.Run.dispatch runner
+                  {values with frame=later.frame;uniforms=later.uniforms})
+                  |> Flow_gpu.Run.readback |> Test_program.ok |> array in
+                assert(animated.(0)=0. && animated.(1)=2.);
+                assert(Flow_gpu.Run.Private.input_uploads runner=3)
+              end))
             (Test_program.fixtures count @ Test_program.vector_fixtures count)) [1024;65536];
         let hidden=Test_program.compile
           "(map (fn [x] (if (> (+ x t) 0) 0 (* (* (+ x t) 1e20) (* (+ x t) 1e20)))) (array/range 1024))"in

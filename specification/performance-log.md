@@ -9179,3 +9179,70 @@ rendering. It does not establish synthetic image GPU eligibility, GPU
 conversion/copy, resident/exact ownership, geometry capture resolution in the
 workspace, GPU timing/allocation/resource/readback gates, native CPU/GPU
 per-channel differences or F2.3. F2.2 and the full F scope remain open.
+
+## F2.2 GPU immutable-input upload checkpoint (2026-10-09)
+
+Machine: Macmini9,1 Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. GPU work runs on the initial domain. Each size has ten warm-up
+dispatches and seven isolated trials of 200 completed dispatches. No agents,
+builds or tests run during either measurement command.
+
+```sh
+_build/default/tools/check.exe @check tools/bench_kernel.exe
+# Before: input-upload counters installed, input reuse not installed.
+RAYS_BENCH_DOMAINS=1 _build/default/tools/bench_kernel.exe --gpu-uploads \
+  > specification/performance/f-image-gpu-uploads-before.csv
+# After: same fixture and commands with immutable-input reuse.
+RAYS_BENCH_DOMAINS=1 _build/default/tools/bench_kernel.exe --gpu-uploads \
+  > specification/performance/f-image-gpu-uploads-after.csv
+_build/default/tools/check.exe @check @lib/flow_gpu/runtest \
+  @lib/flow_gpu/runtest-native @tools/api_manifest/runtest
+```
+
+| Immutable UV → Vec4 runner | Before median ms/frame | After median ms/frame | Before input upload bytes/frame | After input upload bytes/frame |
+|---|---:|---:|---:|---:|
+| 512² | 1.854100 | 0.237235 | 2,097,152 | 0 |
+| 1024² | 7.553384 | 0.682425 | 8,388,608 | 0 |
+| 2048² | 28.449996 | 2.063916 | 33,554,432 | 0 |
+
+The fixture uses a packed pixel-center Vec2 UV array and the emitted body
+`[uv.x uv.y t 1]`. Preparation and pipeline creation are outside timing.
+Every dispatch changes the time uniform, submits and completes GPU work,
+and reads the mandatory four-byte finite-status flag. No output-buffer or
+texture readback occurs in timed frames. Each trial reports raw wall time,
+OCaml allocation, actual successful input writes/bytes and persistent buffer
+creations. The latter stays at three total, with no warm creation delta.
+Median allocation is 6,529 bytes/frame before and 6,513 after at each size;
+this establishes constant OCaml allocation for this prepared runner, not
+literal zero allocation. Both raw CSVs contain all 21 trials.
+
+Each input slot retains one immutable source identity and covered byte
+length, valid only for its current buffer. A replacement or count change
+requires upload. Invalidate the marker before a changed-source write:
+a failed write can partially overwrite the previous source. Mark the new
+source only after success; buffer replacement and close clear the marker.
+Frame uniforms and status reset remain unconditional. The public runner
+contract requires replacing arrays rather than mutating uploaded storage.
+
+The mock regression injects a partially completed replacement upload, then
+requires reupload of both the previous and replacement arrays. It checks
+same-source reuse, changed coverage, buffer growth, failed completion,
+float32 overflow, stale outputs and owner/domain cleanup. Native tests
+verify same-sized replacement/reversion and changed frame uniforms while
+reusing the same source. Existing arithmetic and vector outputs remain exact;
+noise remains within its unchanged recorded tolerance. Focused/native checks
+pass; the intended API manifest change adds only two private upload counters.
+
+These measurements cover upload reuse and completed producer dispatch only.
+They exclude RGBA8 conversion, buffer-to-texture copy, workspace placement,
+resident display, frozen exact snapshots and image rendering. The sub-5 ms
+F2.2 image gate remains unproven until the completed image route is measured.
+
+Astra reviewed the implementation and both complete raw CSVs. Verdict:
+**“Upload checkpoint accepted.”** No ownership or failure-path blocker
+remains. The verdict establishes immutable-input reuse only, not the F2.2
+GPU image gate.
+
+`_build/default/tools/check.exe --ship` passes (exit 0), including all 38
+standard workspaces, both actual custom-catalog executables and 13 fixtures
+at four times/domains 1/8. Log: `/tmp/rays-f-gpu-uploads-ship.log`.
