@@ -1516,9 +1516,11 @@ resident image for draw/image, UI and mesh consumers. One owner retains at most
 CPU request has its own immutable payload and validity stamp: it does not read
 or replace the displayed GPU image, and exact-first map cooking creates no
 runtime image. The current image/render route cooks child CPU payloads so nested
-GPU display cannot change exact rounding. Captured geometry, resident Canvas
-production, frozen exact GPU snapshots and connected timing gates remain F2.2
-and F2.3 work. Qualification alone does not establish the timing gate.
+GPU display cannot change exact rounding. Display image/render retains a native
+Canvas and publishes its texture through the same image boundary. Connected
+timing/allocation gates are qualified for the measured uncaptured fixtures in
+the performance log. Captured geometry and frozen exact GPU snapshots remain
+F2.2 work; the source-cone and input-proof helpers are foundation only.
 
 `scene/geometry geometry :texture image` applies the same image as a texture
 without changing its transform, material or render state. The image card footer

@@ -1356,7 +1356,7 @@ comparisons, authored replan/resize and separate readback/teardown rows.
 Its measurements and verdict follow; the converter-only numbers above do not
 establish this connected gate.
 
-**Connected timing/allocation gates PASS (2026-10-09).** The actual owner-qualified
+**Connected timing/allocation gates PASS (2026-10-09, `32ddcd99`).** The actual owner-qualified
 workspace route is measured for both live lexical fixtures at 512²/1024²/2048²,
 seven trials of 200 completed frames after ten warmups. At 1024², GPU producer
 medians are 1.538370 ms (live-dependency gradient) and 1.557695 ms (changing
@@ -1380,6 +1380,63 @@ consumer/end-to-end medians and limits are in the performance log. Broad F5
 native qualification and pre-commit `--ship` pass (exit 0); 2× UI goldens remain
 unqualified on the actual 1× display. Captured geometry and deferred Lisp
 `(exact image)` still prevent overall F2.2 completion.
+
+**Captured geometry foundation (2026-10-09; owner connection remains open).**
+`Lower.source_context` finds the actual captured node's graph instance, including
+nondefault overrides; `source_cone` keeps its upstream inputs and filters drives
+and frame callbacks with `Network.remove_nodes`. The enclosing context stays
+available for future nested captures. `Attribute_kernel.source_origins` exposes
+the existing point-count proof unchanged. `Image_kernel.with_inputs` rebinds
+current compiled sources while sharing the UV/program, refusing changed proofs
+or source counts with `E_DATA_SOURCE`. A normal `flow.capture` geometry consumer
+uses Session's packed-instance materialization boundary. Focused/API checks pass:
+live override source updates change full CPU image bytes equally at domains 1/8,
+the program stays physically shared, unrelated downstream image callbacks are
+excluded, bad source mappings refuse, and materialized instance P matches the
+independent expansion. Astra approves this foundation. Current callback context,
+bounded owner capture storage, freshness/recursion, workspace GPU capture
+execution and measurements remain required; this does not enable that route.
+Broad F5 native qualification and pre-commit `--ship` pass (exit 0). The 2× UI
+goldens remain unqualified on the actual 1× display; no golden or tolerance changes.
+
+**Next owner bridge design (GPT 6 Astra, 2026-10-09; not implemented).**
+Pass the current network to its frame-node callbacks; the image callback supplies
+its own lowering's compiled map and current network to the resolver. This avoids
+the stale outer Environment scope after a document edit. Direct requests obtain
+source contexts from the bound lowering. Retain the unrestricted context across
+nested calls even when a callback runs inside a restricted source cone.
+
+Prepare source cones before image cache hits, without cooking geometry. Recreate
+their Value_lane on a supplied state-stamp change; use `Edit_graph.compile_all`
+with its previous result to preserve unchanged compiled roots. A source revision
+changes when its root's physical identity or the exact
+`Context.cache_projection (Graph.dependencies root)` changes. Revisions are
+owner-monotonic, including after eviction. Each image stamp stores the ordered
+reachable `(source_plan_id, revision)` vector; parent image/render includes its
+children's captures, while unrelated fixed renders retain their own cache hits.
+CPU execution rebinds the actual inputs and cooks them with Image_kernel.node.
+Display resolves materializing consumers and immutable flattened attributes only
+when execution needs them. Source-origin proof changes reprepare the pixel
+program; position/attribute changes retain its UV/program where that proof holds.
+
+One request scope owns the active `(plan, node)` path, pending-image reservations
+and a lazily created zero-cache Session, balanced with Fun.protect. Recursive
+callback entry shares that scope and returns typed cycle errors. Retain at most
+64 source records and 64 MiB of charged capture geometry/flattened arrays;
+oversized captures execute uncached. This is a capture-cache budget, not a
+total-process memory claim. Copy the effective immutable seed/grain/domains from
+Core.cook into Workspace_host/Workspace_images at creation, and use one context
+helper for source projection, source cooking and CPU image cooking. Standalone
+defaults remain seed 0L/grain 16384; export takes the declared window seed.
+
+The connected regression must cover changing transitive captures under a parent
+render, same-frame state changes, two override instances, packed instances,
+nested acyclic image dependencies, cycle failure/replan recovery and unrelated
+fixed-render reuse. A seed/grain-sensitive custom source pins owner configuration
+against independent CPU cooks at domains 1/8. Then measure static/changing
+captures with source point counts, including complete drive resolution, cooking,
+flattening and uploads, and repeat the uncaptured 1024² gate. Earlier uncaptured
+measurements do not establish capture costs or zero uploads for changing geometry.
 
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row

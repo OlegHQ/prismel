@@ -38,6 +38,8 @@ let fail code message = raise (Fail (Diagnostic.error ~code message))
 let ok = function Ok value -> value | Error diagnostic -> raise (Fail diagnostic)
 let edit = function Ok value -> value | Error message -> fail "E_LOWER" message
 
+type image_context = {compiled:int Network.Int_map.t; network:Network.t}
+
 type image_resolver = E.plan -> state:E.state -> live:Frame_input.t -> E.value ->
   (Procedural.Image.t, Diagnostic.t) result
 type images = {resolve:image_resolver; metadata:E.plan -> int -> (int * int) option}
@@ -641,7 +643,35 @@ let workspace ~factories ?extra ?(ops = Operators.all) ?reference ?compiled_ids 
       | Some d -> d
       | None -> Diagnostic.error ~code:"E_LOWER" "Workspace did not check"))
 
-let counts lowered =
+let source_context (lowered:t) ~node =
+  if node < 0 || node >= Array.length lowered.plan.nodes
+    || not(Ty.is_geometry lowered.plan.nodes.(node).ty) then
+    Error(Diagnostic.error ~code:"E_DATA_SOURCE" "Capture needs a geometry plan node.")
+  else match Network.Int_map.find_opt node lowered.compiled with
+    |None->Error(Diagnostic.error ~code:"E_DATA_SOURCE" "Capture source was not compiled.")
+    |Some id->
+        match List.find_opt(fun (graph:graph)->graph.instance=lowered.plan.nodes.(node).inst
+          && Option.is_some(Edit.find graph.network.geometry ~node_id:id))lowered.graphs with
+        |None->Error(Diagnostic.error ~code:"E_DATA_SOURCE" "Capture source has no owning network.")
+        |Some graph->Ok{compiled=lowered.compiled;network=graph.network}
+
+let source_cone (context:image_context) ~node =
+  match Network.Int_map.find_opt node context.compiled with
+  |None->Error(Diagnostic.error ~code:"E_DATA_SOURCE" "Capture source was not compiled.")
+  |Some root when Option.is_none(Edit.find context.network.geometry ~node_id:root)->
+      Error(Diagnostic.error ~code:"E_DATA_SOURCE" "Capture source is outside its owning network.")
+  |Some root->
+      let seen=Hashtbl.create 16 in
+      let rec visit id=if not(Hashtbl.mem seen id)then begin
+        Hashtbl.add seen id();
+        Option.iter(Array.iter(Option.iter visit))(Edit.inputs context.network.geometry ~node_id:id)
+      end in
+      visit root;
+      let removed=Edit.inspect context.network.geometry |> List.filter_map(fun (n:Edit.node_info)->
+        if Hashtbl.mem seen n.id then None else Some n.id)in
+      Result.map(fun network->network,root)(Network.remove_nodes removed context.network)
+
+let counts (lowered:t) =
   let live = Network.Int_map.fold (fun _ id n ->
     if Network.Int_map.mem id lowered.volatile then n + 1 else n) lowered.compiled 0 in
   live, Network.Int_map.cardinal lowered.compiled - live

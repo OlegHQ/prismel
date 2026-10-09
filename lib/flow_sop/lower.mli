@@ -101,6 +101,15 @@ type t = {
           live arguments and fold snapshot. The authored network is unchanged. *)
 }
 
+type image_context = {compiled:int Network.Int_map.t; network:Network.t}
+
+val source_context : t -> node:int -> (image_context, Flow.Diagnostic.t) result
+(** The captured geometry node's own instance, including graph overrides. *)
+
+val source_cone : image_context -> node:int -> (Network.t * int, Flow.Diagnostic.t) result
+(** Keep only the source's upstream inputs, drives and frame callbacks; retain
+    the enclosing context separately for any nested image captures. *)
+
 val origin : t -> int -> origin option
 (** The origin of a tag: {!t.provenance}, else a loop over geometry, whose element
     [i] has tag [base + i], site [body_site] and iteration [iter @ [i]] (the

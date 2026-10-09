@@ -38,6 +38,90 @@ let stages program = Array.fold_left (fun count (node : Flow_ir.node) -> match n
   | _ -> count) 0 (Flow_ir.Executor.graph program).nodes
 
 let () =
+  let lowered=lower {|(workspace captures
+    (graph mesh :context sop [(offset : float 0.015625)]
+      (let* [geo (sop/box :consolidate_points true :center [(+ offset (* t 0.015625)) 0 0])
+             p (reduce + [0 0 0] (sop/attr geo :P))
+             picture (image/map (fn [uv] [(+ uv.x p.x) uv.y 0.5 1]) :width 7 :height 3)]
+        (sop/attr_from_image geo picture :attribute "Cd")))
+    (graph other :context sop (ref mesh :offset 0.03125)))|} in
+  let graph=List.find(fun(g:L.graph)->g.name="mesh" && not g.default)lowered.graphs in
+  let producer=Array.find_opt(fun(n:E.node)->n.kind="image/map" && n.inst=graph.instance)
+      lowered.plan.nodes |> Option.get in
+  let fn=match List.assoc "function" producer.args with E.Fn fn->fn|_->assert false in
+  let sources=Flow_sop.Attribute_kernel.sources(E.Fn fn)in
+  assert(List.length sources=1);
+  let source=List.hd sources in
+  let context=L.source_context lowered ~node:source |> flow_ok in
+  assert(context.network==graph.network);
+  let network,root=L.source_cone context ~node:source |> flow_ok in
+  assert(List.length(Edit.inspect network.geometry)=1);
+  assert(not(Flow_sop.Port.Map.is_empty network.drives));
+  assert(Flow_sop.Network.Int_map.is_empty network.frame_nodes);
+  assert(not(Flow_sop.Network.Int_map.is_empty context.network.frame_nodes));
+  List.iter(fun context->match L.source_cone context ~node:source with
+    |Error d->assert(d.code="E_DATA_SOURCE")|Ok _->assert false)
+    [L.{context with compiled=Flow_sop.Network.Int_map.empty};
+     L.{context with compiled=Flow_sop.Network.Int_map.singleton source (Procedural.Node.Private.fresh_id())}];
+  List.iter(fun id->match L.source_context lowered ~node:id with
+    |Error d->assert(d.code="E_DATA_SOURCE")|Ok _->assert false)[-1;Array.length lowered.plan.nodes;producer.id];
+  let resolve time=
+    let live=Frame_input.at_time time in
+    let lane=Flow_sop.Value_lane.create()in
+    (* A whole-network resolution would call the deliberately absent image provider. *)
+    let resolved=Flow_sop.Value_lane.resolve lane ~live ~time network |> flow_ok in
+    Edit.compile_node resolved.geometry ~node_id:root |> get_string_ok in
+  let input=resolve 0. in
+  let kernel=Flow_sop.Image_kernel.prepare ~identity:1 ~width:7 ~height:3 ~fn ~sources [input] |> flow_ok in
+  let bytes domains kernel=
+    let session=session()in
+    Fun.protect ~finally:(fun()->Session.close session)(fun()->
+      let image=cook session ~domains ~time:0. (Flow_sop.Image_kernel.node kernel)
+        |> Result.get_ok |> fun output->Procedural.Payload.image output.payload |> Result.get_ok in
+      Procedural.Image.Private.rgba8 image |> Option.get)in
+  let initial=bytes 1 kernel in
+  assert(initial=bytes 8 kernel);
+  if Char.code(Bytes.get initial 0)<>82 then
+    failwith(Printf.sprintf "override first red: expected 82, got %d" (Char.code(Bytes.get initial 0)));
+  let current=resolve 1. in
+  assert(current!=input);
+  assert(Flow_sop.Attribute_kernel.source_origins ~sources [current]
+    =Flow_sop.Attribute_kernel.source_origins ~sources [input]);
+  let rebound=Flow_sop.Image_kernel.with_inputs kernel [current] |> flow_ok in
+  assert(Flow_sop.Image_kernel.program rebound==Flow_sop.Image_kernel.program kernel);
+  let independently_prepared=Flow_sop.Image_kernel.prepare ~identity:2 ~width:7 ~height:3
+    ~fn ~sources [current] |> flow_ok in
+  let changed=bytes 1 rebound in
+  assert(changed<>initial && changed=bytes 8 rebound && changed=bytes 1 independently_prepared);
+  List.iter(fun inputs->match Flow_sop.Image_kernel.with_inputs kernel inputs with
+    |Error d->assert(d.code="E_DATA_SOURCE")|Ok _->assert false)
+    [[];[Procedural.Sop.box()]];
+  let session=session()in
+  Fun.protect ~finally:(fun()->Session.close session)(fun()->
+    let original=cook session ~domains:1 ~time:0. input |> geometry in
+    let transforms=[|Rays_math.Mat4.translation(Rays_math.Vec3.create 1. 0. 0.);
+      Rays_math.Mat4.translation(Rays_math.Vec3.create 3. 0. 0.)|]in
+    let packed=Procedural.Node.Private.make_geometry ~operation:"test.capture.instances" ~version:1
+      ~parameters:"" ~cook_mode:Procedural.Node.Generator
+      ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
+      (fun ~node_id:_ _ _->Ok Procedural.Node.Private.{geometry=original;diagnostics=[];instances=Some transforms})in
+    let consumer=Flow_sop.Attribute_kernel.materialized_source packed in
+    List.iter(fun domains->
+      let output=cook session ~domains ~time:0. consumer |> Result.get_ok in
+      assert(output.instances=None);
+      let materialized=Procedural.Payload.geometry output.payload |> Result.get_ok in
+      let expected=Rdk.Instance_copy.materialize_instances ~transforms original |> get_ok in
+      assert(Geometry.point_count materialized=2*Geometry.point_count original);
+      assert(geometry_bytes materialized=geometry_bytes expected);
+      let attribute=E.Struct("sop/attr",Flow.Ty.Array Flow.Ty.Vec3,
+        ["geometry",E.Deferred(Flow.Ty.geometry,source);"attribute",E.Text "P"])in
+      let positions=Flow_sop.Attribute_kernel.resolve ~geometry:(fun id->
+        if id=source then Some materialized else None)attribute |> flow_ok in
+      match positions with E.Vec3_array xs->assert(Array.length xs=6*Geometry.point_count original)|_->assert false)
+      [1;8]);
+  print_endline "image capture foundation: live override cone, no downstream image callback, shared program proof and materialized instance P pass"
+
+let () =
   let text = "(workspace field (graph g :context sop
     (sop/iso_surface :field (fn [p] (- (length p) (+ 1 t)))
       :resolution [64 64 64] :min [-2 -2 -2] :max [2 2 2] :iso 0)))" in

@@ -10152,3 +10152,59 @@ Terminal successful logs: `/tmp/rays-f-connected-image-full.log` and
 custom and fixture programs at domains 1/8; runtime presentation, gallery and
 prepared-command qualification also pass. The actual display is 1×, so 2× UI
 goldens remain explicitly unqualified. No tolerance or golden is changed.
+
+## F2.2 captured image geometry foundation (2026-10-09)
+
+This is correctness plumbing, with no new placement policy or performance claim.
+`Attribute_kernel.source_origins` extracts the existing point-origin calculation
+unchanged, including the source/input count check. `Image_kernel.prepare` stores
+the ordered proof before UV allocation; `with_inputs` checks it and shares the
+original program/packed UV grid when binding updated compiled inputs. Count or
+origin mismatches return `E_DATA_SOURCE` and require preparation again.
+
+`Lower.source_context` uses the captured geometry plan node's actual instance,
+including nondefault graph overrides. `source_cone` walks editable inputs from
+its compiled source and removes the complement through `Network.remove_nodes`.
+This also excludes unrelated drives and image frame callbacks; state declarations
+stay conservative. Nested resource resolution must retain the enclosing context.
+`Attribute_kernel.materialized_source` is a real Generic geometry consumer,
+returning the Session-materialized input with no remaining instance transforms.
+It reuses the existing packed-input boundary and does not duplicate expansion.
+
+The focused fixture uses a live box in a nondefault graph override and a pixel
+function capturing a reduction of P. The restricted cone resolves without an
+image provider, whereas the enclosing network contains an image frame callback.
+The first pixel pins the override value independently. Current source updates
+change complete image bytes equally at domains 1/8; rebinding physically shares
+the original program and equals a freshly prepared CPU kernel. Changed origins,
+wrong source counts, absent mappings and out-of-network IDs return typed errors.
+A two-transform packed source produces complete geometry bytes identical to
+independent `Instance_copy.materialize_instances` at domains 1/8; its captured P
+includes both instances and no transforms remain on the consumer output.
+
+Astra: “Approved as a foundation checkpoint, subject to the focused run
+completing successfully.” The focused run completed successfully (exit 0):
+`/tmp/rays-f-image-capture-foundation-focused.log`.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_sop/runtest @tools/api_manifest/runtest
+```
+
+The intended manifest additions are Attribute_kernel source proof/materializing
+consumer, Image_kernel.with_inputs and Lower's source context/cone. They are
+reviewed and promoted. Broad F5 native qualification and pre-commit shipping pass
+(exit 0): `/tmp/rays-f-image-capture-foundation-full.log` and
+`/tmp/rays-f-image-capture-foundation-ship.log`. Both workspace IR sweeps cover
+38 standard files, two custom catalogs and 13 fixtures at four times/domains 1/8;
+the native sweep also compares complete geometry/image/texture/drawing pixels.
+Other native GPU, presentation, gallery and UI checks pass. The actual display
+is 1×, so 2× UI goldens remain unqualified, with no tolerance or golden changes.
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+_build/default/tools/check.exe --ship
+```
+
+Owner callback context, capture caching/budgets, recursion/freshness and connected
+CPU/GPU workspace capture execution remain required. The earlier uncaptured
+performance qualification does not establish capture costs.

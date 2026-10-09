@@ -837,6 +837,18 @@ functions declare Input dependencies. Payload accounting includes retained
 packed captures and captured input storage conservatively. No native handle
 enters the function payload.
 
+Captured image source plumbing stays in Flow_sop. `Lower.source_context` selects
+the geometry plan node's owning instance, and `source_cone` restricts its network
+to upstream inputs, filtering drives and frame callbacks before live resolution.
+The unrestricted context remains available for nested captures. The existing
+point-origin proof is exposed by `Attribute_kernel.source_origins`;
+`Image_kernel.with_inputs` preserves the prepared UV/program only when that
+ordered proof still matches. `Attribute_kernel.materialized_source` is a normal
+one-input geometry consumer, so Session expands packed instances before exposing
+their attributes. This foundation does not yet connect captured geometry to the
+workspace image resolver; current owner context, freshness and bounded storage
+remain to be wired.
+
 Flow IR accepts an initial-domain GPU backend through scoped, renderer-neutral
 callbacks. GPU values carry identity, count, width, generation and optional
 completed device dispatch duration; they carry no backend handle. A
@@ -870,8 +882,8 @@ synthetic map retains lexical captures and distinct authored/runtime provenance;
 all observed specializations must pass the existing packed compiler and GPU
 form checks. Lowering records only the authored path per image plan node,
 with ambiguity sticky in either observation order. Workspace image owners bind
-only the plan, qualified paths and image-site array, invalidating prepared maps
-when that metadata changes. This grants internal display-program selection;
-the current workspace resource resolver still cooks exact CPU images. Native
-qualification tests exercise prepared executor selection through the production
-Host and converter, separately from resident runtime-image publication.
+the plan, qualified paths and image-site array, invalidating prepared maps
+when that metadata changes. Display publishes the completed GPU texture through
+the runtime image boundary; CPU consumers have independent exact payloads.
+Native qualification exercises actual owner selection, resident publication and
+draw/image and mesh consumers, alongside explicit full-byte source comparisons.

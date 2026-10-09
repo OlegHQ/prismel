@@ -830,10 +830,12 @@
       "api": [
         "val sources : Flow.Eval.value -> int list",
         "val resolve : geometry : ( int -> Rdk.Geometry.t option ) -> Flow.Eval.value -> ( Flow.Eval.value , Flow.Diagnostic.t ) result",
+        "val source_origins : sources : int list -> Procedural.Node.t list -> ( ( int * int ) list , Flow.Diagnostic.t ) result",
+        "val materialized_source : Procedural.Node.t -> Procedural.Node.t",
         "val prepare : ? profile : Flow_ir.Profile.t -> ? approx : Flow.Workspace.Paths.t -> ? sink : Flow_ir.sink -> sources : int list -> Procedural.Node.t list -> Flow.Eval.value -> ( Flow_ir.Executor.program , Flow.Diagnostic.t ) result",
         "val node : ? state : Flow.Eval.state -> ? reference : bool -> ? elems : ( string * Flow.Eval.value ) list -> ? profile : Flow_ir.Profile.t -> source : string -> name : string -> values : Flow.Eval.value -> sources : int list -> Procedural.Node.t list -> Procedural.Node.t"
       ],
-      "api_sha256": "1e13e430da99d909571707ef55e2b392187d1a3eb4f6b30d44fe436c21a1aa3e",
+      "api_sha256": "f13bd07667798015594cefc1dd9d464c27250442b8a5c3c1b6e02b396cc42b05",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Attribute_kernel",
@@ -868,9 +870,10 @@
         "type t",
         "val prepare : ? site : ( int * Flow.Workspace.path * int list ) -> ? path : Flow.Workspace.path -> ? approx : Flow.Workspace.Paths.t -> identity : int -> width : int -> height : int -> fn : Flow.Eval.fn -> sources : int list -> Procedural.Node.t list -> ( t , Flow.Diagnostic.t ) result",
         "val node : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> t -> Procedural.Node.t",
-        "val program : t -> Flow_ir.Executor.program"
+        "val program : t -> Flow_ir.Executor.program",
+        "val with_inputs : t -> Procedural.Node.t list -> ( t , Flow.Diagnostic.t ) result"
       ],
-      "api_sha256": "241cc4faf04217c6f1916c9df71fb88422c8b42f88db493149fb1bad182ccf79",
+      "api_sha256": "67ecdbd329c3fdfa05dc0f4cffbc161869f7a9aa0d17709f4221ac2b5ded201d",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Image_kernel",
@@ -899,6 +902,9 @@
         "type zone = { cid : int ; site : Flow.Workspace.path ; iter : int list ; body_site : Flow.Workspace.path ; base : int ; count : int Atomic.t ; ekey : string option ; positions : ( float * float * float ) array Atomic.t }",
         "type graph = { name : string ; instance : int ; default : bool ; inputs : ( string * Flow.Eval.value ) list ; network : Network.t ; root : int option ; }",
         "type t = { graphs : graph list ; compiled_ids : int Instance_path.Map.t ; sites : Flow.Workspace.path list ; compiled : int Network.Int_map.t ; pending : pending list ; provenance : origin Network.Int_map.t ; zones : zone list ; volatile : unit Network.Int_map.t ; plan : Flow.Eval.plan ; image_sites : Flow.Workspace.path option array ; states : Flow.Eval.value list ; evaluated : Flow.Eval.t ; approx : Flow.Workspace.Paths.t ; approx_reasons : ( Flow.Workspace.path * Flow.Diagnostic.t list ) list ; profile : Flow_ir.Profile.t ; preview : node : int -> probes : int list -> Network.t -> ( Network.t * int ) option ; }",
+        "type image_context = { compiled : int Network.Int_map.t ; network : Network.t }",
+        "val source_context : t -> node : int -> ( image_context , Flow.Diagnostic.t ) result",
+        "val source_cone : image_context -> node : int -> ( Network.t * int , Flow.Diagnostic.t ) result",
         "val origin : t -> int -> origin option",
         "val tags : t -> site : Flow.Workspace.path -> iter : int list -> int list",
         "val zone_element : t -> Flow.Workspace.path -> int -> ( string * ( float * float * float ) ) option",
@@ -912,7 +918,7 @@
         "val counts : t -> int * int",
         "val status : t -> seconds : float -> string option"
       ],
-      "api_sha256": "aa6aac97ab1dd0ad6cd1e038e809b77cc0c8a1205062013faa1ec760b0bdd775",
+      "api_sha256": "599798cda3f051b3bf533a2bc6dfb3f294700b7096df1539954f63ed8f6964d9",
       "excluded_legacy_symbols": [],
       "library": "flow_sop",
       "module": "Lower",

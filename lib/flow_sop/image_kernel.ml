@@ -2,7 +2,8 @@ module E = Flow.Eval
 module P = Procedural
 let (let*) = Result.bind
 type t = {identity:int; width:int; height:int; fn:E.fn; sources:int list;
-  inputs:P.Node.t list; program:Flow_ir.Executor.program; packed:Flow_ir.Packed.t}
+  inputs:P.Node.t list; origins:(int * int) list;
+  program:Flow_ir.Executor.program; packed:Flow_ir.Packed.t}
 let error message = Error (Flow.Diagnostic.error ~code:"E_IMAGE" message)
 let prepare ?site ?path ?(approx=Flow.Workspace.Paths.empty) ~identity ~width ~height ~fn ~sources inputs =
   if width <= 0 || height <= 0 then error "Image dimensions must be positive."
@@ -12,6 +13,7 @@ let prepare ?site ?path ?(approx=Flow.Workspace.Paths.empty) ~identity ~width ~h
       (E.Private.function_body fn)) then
     error "Image map needs an instantiated vec4 pixel body."
   else
+    let* origins = Attribute_kernel.source_origins ~sources inputs in
     let uv = Array.make (width * height * 2) 0. in
     for y = 0 to height - 1 do
       let v = (float y +. 0.5) /. float height in
@@ -27,7 +29,7 @@ let prepare ?site ?path ?(approx=Flow.Workspace.Paths.empty) ~identity ~width ~h
     let ir = Flow_ir.Executor.graph program in
     match ir.nodes.(ir.roots.(0)).kind with
     | Flow_ir.Kernel {body=Packed_map packed;_} ->
-        Ok {identity;width;height;fn;sources;inputs;program;packed}
+        Ok {identity;width;height;fn;sources;inputs;origins;program;packed}
     | _ ->
         (match values with
          | E.Residual r -> (match Flow_ir.Packed.compile_result r (E.Private.residual_view r).term with
@@ -35,6 +37,11 @@ let prepare ?site ?path ?(approx=Flow.Workspace.Paths.empty) ~identity ~width ~h
              | _ -> Error (Flow.Diagnostic.error ~code:"E_KERNEL_FORM" "Image function needs a packed map body."))
          | _ -> error "Image function did not produce a pixel map.")
 let program t = t.program
+let with_inputs t inputs =
+  let* origins = Attribute_kernel.source_origins ~sources:t.sources inputs in
+  if origins <> t.origins then
+    Error (Flow.Diagnostic.error ~code:"E_DATA_SOURCE" "Image source point-origin proof changed; prepare the kernel again.")
+  else Ok {t with inputs}
 let node ?state ?elems t =
   P.Node.Private.make ~operation:"image/map" ~version:1
     ~parameters:(Printf.sprintf "%d:%d:%d" t.identity t.width t.height

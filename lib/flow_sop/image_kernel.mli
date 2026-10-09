@@ -12,3 +12,7 @@ val node : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list ->
 (** Cook through [Procedural.Session] to install the context's shared pool. *)
 
 val program : t -> Flow_ir.Executor.program
+
+val with_inputs : t -> Procedural.Node.t list -> (t, Flow.Diagnostic.t) result
+(** Rebind current compiled inputs while sharing the UV grid and program.
+    A changed point-origin proof or source count returns [E_DATA_SOURCE]. *)

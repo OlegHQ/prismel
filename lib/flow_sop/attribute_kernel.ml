@@ -84,7 +84,7 @@ let write ~grain name values geometry = match values with
             (fun attr -> G.with_attribute attr geometry))
   | _ -> error "E_ATTR_TYPE" "sop/with_attr takes a packed vec3 array."
 
-let prepare ?profile ?approx ?sink ~sources inputs values =
+let source_origins ~sources inputs =
   if List.compare_lengths sources inputs <> 0 then
     error "E_DATA_SOURCE" "Attribute source ids and inputs must correspond."
   else
@@ -103,7 +103,16 @@ let prepare ?profile ?approx ?sink ~sources inputs values =
               if i >= 0 && i < Array.length inputs then point_origin inputs.(i) else N.id node
           | _ -> N.id node in
         Hashtbl.add origins (N.id node) origin; origin in
-  let by_source = List.combine sources inputs |> List.map (fun (id, node) -> id, point_origin node) in
+  Ok (List.combine sources inputs |> List.map (fun (id, node) -> id, point_origin node))
+
+let materialized_source source =
+  N.Private.make_geometry ~operation:"flow.capture" ~version:1 ~parameters:""
+    ~cook_mode:N.Generic ~dependencies:Procedural.Context.Dependencies.static
+    ~inputs:[|source|] (fun ~node_id:_ _ geometries ->
+      Ok N.Private.{geometry=geometries.(0);diagnostics=[];instances=None})
+
+let prepare ?profile ?approx ?sink ~sources inputs values =
+  Result.bind (source_origins ~sources inputs) (fun by_source ->
   let rec captured bindings (term : Flow.Workspace.term) = match term.node with
     | Ref_binding (name, fields) ->
         List.fold_left (fun value field -> Option.bind value (function
@@ -124,7 +133,7 @@ let prepare ?profile ?approx ?sink ~sources inputs values =
       | E.Deferred (ty, id) when Flow.Ty.is_geometry ty ->
           Option.map (fun origin -> ["@sop-points"; string_of_int origin], []) (List.assoc_opt id by_source)
       | _ -> None) in
-  Flow_ir.Executor.compile ?profile ?approx ?sink ~count_source values
+  Flow_ir.Executor.compile ?profile ?approx ?sink ~count_source values)
 
 let node ?state ?(reference = false) ?elems ?profile ~source ~name ~values ~sources inputs =
   let program = prepare ?profile ~sources inputs values in
