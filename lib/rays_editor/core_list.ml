@@ -20,10 +20,16 @@ let open_level value level =
 
 (* The geometry objects to cook: visible ones, each with its network. *)
 let geometry_objects value =
+  (* a workspace without a scene graph shows each graph the lowering made a network of; an image
+     graph is one (the canvas previews its nodes) but its payload is not geometry, so the geometry
+     cook never takes it (Workspace_images cooks images) *)
+  let ws, _ = value.doc.Document.workspace in
+  let image_graph node = List.exists (fun (g : Flow.Workspace.graph) ->
+    g.name = Node.label node && Flow.Context.result g.context = Flow.Ty.image) ws.checked.graphs in
   List.filter_map (fun id ->
     match Edit_graph.find (scene value) ~node_id:id,
         Document.Int_map.find_opt id value.doc.Document.networks with
-    | Some node, Some network when Objects.visible node
+    | Some node, Some network when Objects.visible node && not (image_graph node)
         && not (Edit_graph.is_bypassed (scene value) ~node_id:id) ->
         (match Document.Int_map.find_opt id value.viewed with
          | Some (graph, displayed) -> Some (id, graph, displayed)

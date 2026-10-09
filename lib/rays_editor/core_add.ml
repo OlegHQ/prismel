@@ -65,6 +65,10 @@ let value_expression ~ops context key =
    body), wired to the selected node when the kind takes a geometry input. *)
 let scope_add value key =
   match add_target value with
+  | _ when String.starts_with ~prefix:"newgraph:" key ->
+      (* "New graph: <context>" of the add menu: a whole graph, opened once made *)
+      let context = String.sub key 9 (String.length key - 9) in
+      [ Syntax_batch ("New graph", [ snd (new_graph value context) ]) ]
   | Some (_, context) when context = Flow.Context.scene && (List.mem key [ "geometry"; "world" ] || String.starts_with ~prefix:"of:" key) ->
       (* composition: geometry brings its SOP graph, World its world graph, one gesture each *)
       let geometry existing label =
