@@ -464,7 +464,100 @@ let benchmark_gpu_uploads () =
               (Flow_gpu.Run.Private.input_uploaded_bytes runner-uploaded_bytes)
           done))) [512;1024;2048])
 
+let benchmark_image_map_gpu () =
+  let module G=Flow_gpu in
+  let module B=Ogpu.Backend in
+  let get=function Ok x->x|Error d->failwith(Flow.Diagnostic.to_string d)in
+  let gpu=match Rays_execution.acquire_gpu()with Ok gpu->gpu
+    |Error e->failwith(Format.asprintf "%a" Rays_execution.pp_error e)in
+  Fun.protect ~finally:(fun()->Rays_execution.release_gpu gpu)(fun()->
+    print_endline "fixture,width,height,domains,phase,trial,frames,seconds_per_frame,bytes_per_frame,gpu_seconds_per_frame,runner_buffer_creations,sink_buffer_creations,sink_texture_creations,input_uploads,input_uploaded_bytes,status_reads,output_readback_bytes";
+    List.iter(fun(name,expression)->
+      let forms=Flow.Syntax.parse("(workspace image (graph g :context image "^expression^"))") |> get in
+      let workspace=match Flow.Workspace.check {Flow.Check.version=1;kinds=[]} forms with
+        |Some w,[]->w|_,ds->failwith(String.concat "; "(List.map Flow.Diagnostic.to_string ds))in
+      let evaluated=Flow.Eval.static workspace |> get in
+      let fn=match List.assoc "function" evaluated.plan.nodes.(0).args with Flow.Eval.Fn f->f|_->assert false in
+      List.iter(fun size->
+        Gc.full_major();
+        let cold_bytes=allocated_bytes() and cold_started=Unix.gettimeofday()in
+        let kernel=Flow_sop.Image_kernel.prepare ~identity:0 ~width:size ~height:size ~fn ~sources:[] [] |> get in
+        let ir=Flow_ir.Executor.graph(Flow_sop.Image_kernel.program kernel)in
+        let packed=match ir.nodes.(ir.roots.(0)).kind with Flow_ir.Kernel{body=Packed_map p;_}->p|_->assert false in
+        let cache=G.Pipelines.create ~clock:Unix.gettimeofday (Rays_execution.gpu_device gpu)in
+        Fun.protect ~finally:(fun()->G.Pipelines.close cache)(fun()->
+          let runner=G.Run.create gpu cache (G.Emit.kernel packed |> get)in
+          let sink=G.Image_sink.create gpu |> get in
+          Fun.protect ~finally:(fun()->G.Image_sink.close sink;G.Run.close runner)(fun()->
+            let step index=
+              let live=Frame_input.at_time(float(index mod 200)/.200.)in
+              let inputs=Flow_ir.Packed.Private.prepare packed ~live |> get in
+              let output=G.Run.dispatch runner inputs |> get in
+              let converted=G.Image_sink.convert sink ~width:size ~height:size output |> get in
+              assert(G.Image_sink.texture converted<>None)in
+            let queue=Rays_execution.gpu_queue gpu in
+            let timing_before=B.gpu_timing queue in
+            step 0;
+            let cold_seconds=Unix.gettimeofday()-.cold_started in
+            let cold_allocated=allocated_bytes()-.cold_bytes in
+            let report width height phase trial frames seconds allocated before uploads uploaded reads readback creates=
+              let after=B.gpu_timing queue in
+              let gpu_seconds=if after.timing_supported then
+                (after.gpu_seconds-.before.B.gpu_seconds)/.float frames else nan in
+              let runner_creations,sink_buffers,sink_textures=creates in
+              Printf.printf "%s,%d,%d,1,%s,%d,%d,%.9f,%.0f,%.9f,%d,%d,%d,%d,%d,%d,%d\n%!"
+                name width height phase trial frames (seconds/.float frames) (allocated/.float frames) gpu_seconds
+                (G.Run.Private.buffer_creations runner-runner_creations)
+                (G.Image_sink.Private.buffer_creations sink-sink_buffers)
+                (G.Image_sink.Private.texture_creations sink-sink_textures)
+                (G.Run.Private.input_uploads runner-uploads)
+                (G.Run.Private.input_uploaded_bytes runner-uploaded)
+                (G.Run.Private.status_reads runner-reads)
+                (G.Run.Private.readback_bytes runner-readback)in
+            report size size "cold" 0 1 cold_seconds cold_allocated timing_before 0 0 0 0 (0,0,0);
+            for frame=1 to 10 do step frame done;
+            let creates=G.Run.Private.buffer_creations runner,G.Image_sink.Private.buffer_creations sink,
+              G.Image_sink.Private.texture_creations sink in
+            for trial=1 to 7 do
+              Gc.full_major();
+              let before=B.gpu_timing queue
+              and uploads=G.Run.Private.input_uploads runner
+              and uploaded=G.Run.Private.input_uploaded_bytes runner
+              and reads=G.Run.Private.status_reads runner
+              and readback=G.Run.Private.readback_bytes runner in
+              let bytes=allocated_bytes() and started=Unix.gettimeofday()in
+              for frame=1 to 200 do step (10+(trial-1)*200+frame)done;
+              let elapsed=Unix.gettimeofday()-.started in
+              let allocated=allocated_bytes()-.bytes in
+              assert(creates=(G.Run.Private.buffer_creations runner,G.Image_sink.Private.buffer_creations sink,
+                G.Image_sink.Private.texture_creations sink));
+              assert(G.Run.Private.status_reads runner-reads=200 && G.Run.Private.readback_bytes runner=readback);
+              report size size "warm" trial 200 elapsed allocated before uploads uploaded reads readback creates
+            done;
+            Gc.full_major();
+            let before=B.gpu_timing queue
+            and uploads=G.Run.Private.input_uploads runner
+            and uploaded=G.Run.Private.input_uploaded_bytes runner
+            and reads=G.Run.Private.status_reads runner
+            and readback=G.Run.Private.readback_bytes runner in
+            let bytes=allocated_bytes() and started=Unix.gettimeofday()in
+            let width=size+1 and height=size in
+            let resized=Flow_sop.Image_kernel.prepare ~identity:0 ~width ~height ~fn ~sources:[] [] |> get in
+            let ir=Flow_ir.Executor.graph(Flow_sop.Image_kernel.program resized)in
+            let p=match ir.nodes.(ir.roots.(0)).kind with Flow_ir.Kernel{body=Packed_map p;_}->p|_->assert false in
+            assert((G.Emit.kernel p |> get).source=(G.Emit.kernel packed |> get).source);
+            let inputs=Flow_ir.Packed.Private.prepare p ~live:(Frame_input.at_time 0.25) |> get in
+            let output=G.Run.dispatch runner inputs |> get in
+            let converted=G.Image_sink.convert sink ~width ~height output |> get in
+            assert(G.Image_sink.texture converted<>None);
+            let elapsed=Unix.gettimeofday()-.started in
+            let allocated=allocated_bytes()-.bytes in
+            report width height "resize" 0 1 elapsed allocated before uploads uploaded reads readback creates))) [512;1024;2048])
+      ["gradient","(image/map (fn [uv] [uv.x uv.y 0.5 1]))";
+       "live_capture","(let* [bias (* t 0.25)] (image/map (fn [uv] [(+ uv.x bias) uv.y 0.5 1])))"])
+
 let () =
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map-gpu"] then (benchmark_image_map_gpu (); exit 0);
   if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu-uploads"] then (benchmark_gpu_uploads (); exit 0);
   if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu"] then (benchmark_gpu (); exit 0);
   if Array.to_list Sys.argv = [Sys.argv.(0); "--gpu-check"] then (gpu_check (); exit 0);
@@ -495,4 +588,4 @@ let () =
     flow_loops ~fusion_only:true 1_000_000
   else if Array.to_list Sys.argv = [Sys.argv.(0); "--attribute-fusion"] then
     flow_attribute_fusion grid
-  else invalid_arg "bench_kernel [--cost|--attributes|--loops|--fusion|--attribute-fusion|--gpu|--gpu-check|--gpu-uploads]"
+  else invalid_arg "bench_kernel [--cost|--attributes|--loops|--fusion|--attribute-fusion|--gpu|--gpu-check|--gpu-uploads|--image-map-gpu]"

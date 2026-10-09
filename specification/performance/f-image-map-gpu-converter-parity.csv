@@ -1,0 +1,13 @@
+test,fixture,width,height,time,max_channel_difference,differing_channels,differing_pixels
+image_sink,gradient,65,3,0.00,0,0,0
+image_sink,gradient,65,3,0.50,0,0,0
+image_sink,gradient,65,3,1.00,0,0,0
+image_sink,live,65,3,0.00,0,0,0
+image_sink,live,65,3,0.50,0,0,0
+image_sink,live,65,3,1.00,0,0,0
+image_sink,ties,65,3,0.00,0,0,0
+image_sink,ties,65,3,0.50,0,0,0
+image_sink,ties,65,3,1.00,0,0,0
+image_sink,clip,65,3,0.00,0,0,0
+image_sink,clip,65,3,0.50,0,0,0
+image_sink,clip,65,3,1.00,0,0,0

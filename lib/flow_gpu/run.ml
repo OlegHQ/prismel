@@ -5,6 +5,7 @@ type slot = {mutable buffer : B.buffer option; mutable capacity : int; mutable b
 type t = {device:B.device; queue:B.queue; pipelines : Pipelines.t; msl : Emit.msl; inputs : slot array;
   output : slot; table : slot; status:slot; uniforms : bytes; mutable closed : bool; mutable creations : int;
   mutable input_uploads:int; mutable input_uploaded_bytes:int;
+  mutable status_reads:int; mutable readback_bytes:int;
   mutable generation : int; mutable table_ready:bool; domain : Domain.id}
 type output = {owner : t; count : int; width : int; gpu_seconds : float option; generation : int}
 exception Failed of Flow.Diagnostic.t
@@ -38,7 +39,7 @@ let create_owned device queue pipelines (msl : Emit.msl) =
   {device;queue;pipelines;msl;inputs=Array.map (fun _ -> slot ()) msl.input_widths;
     output=slot ();table=slot ();status=slot();uniforms=Bytes.create msl.uniform_bytes;
     closed=false;creations=0;input_uploads=0;input_uploaded_bytes=0;
-    generation=0;table_ready=false;domain=Domain.self ()}
+    status_reads=0;readback_bytes=0;generation=0;table_ready=false;domain=Domain.self ()}
 let create gpu=create_owned(Rays_execution.gpu_device gpu)(Rays_execution.gpu_queue gpu)
 let ensure t slot length =
   if length>slot.capacity then begin
@@ -137,6 +138,7 @@ let dispatch t (values : P.Private.inputs) =
       let receipt=get (B.commit commands) in committed:=true;receipt) in
     get (B.complete_through queue receipt.epoch);
     let flags=get(B.read_buffer status ~offset:0L ~length:4)in
+    t.status_reads<-t.status_reads+1;
     if Bytes.get_int32_le flags 0<>0l then
       raise(Failed(Flow.Diagnostic.error ~code:"E_KERNEL" "GPU output contains a nonfinite value."));
     Ok {owner=t;count=values.count;width=msl.output_width;gpu_seconds=B.gpu_duration queue receipt;
@@ -149,8 +151,11 @@ let readback output =
     Error (Flow.Diagnostic.error ~code:"E_GPU" "GPU output was closed or superseded.")
   else try
     let length=output.count*output.width in
-    let values,finite=if length=0 then [||],true else
-      unpack_array (get (B.read_buffer (Option.get output.owner.output.buffer) ~offset:0L ~length:(length*4))) length in
+    let values,finite=if length=0 then [||],true else begin
+      let bytes=get(B.read_buffer (Option.get output.owner.output.buffer) ~offset:0L ~length:(length*4))in
+      output.owner.readback_bytes<-output.owner.readback_bytes+length*4;
+      unpack_array bytes length
+    end in
     if not finite then
       Error (Flow.Diagnostic.error ~code:"E_KERNEL" "GPU output contains a nonfinite value.")
     else Ok (match output.width with 2 -> Flow.Eval.Vec2_array values
@@ -173,5 +178,7 @@ module Private = struct
   let buffer_creations t = t.creations
   let input_uploads t = t.input_uploads
   let input_uploaded_bytes t = t.input_uploaded_bytes
+  let status_reads t = t.status_reads
+  let readback_bytes t = t.readback_bytes
   let create_owned = create_owned
 end

@@ -17,5 +17,7 @@ module Private : sig
   val buffer_creations : t -> int
   val input_uploads : t -> int
   val input_uploaded_bytes : t -> int
+  val status_reads : t -> int
+  val readback_bytes : t -> int
   val create_owned : Ogpu.Backend.device -> Ogpu.Backend.queue -> Pipelines.t -> Emit.msl -> t
 end

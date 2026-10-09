@@ -122,7 +122,11 @@ F2.1 remains open because its eight-domain whole-cook median is 20.167 ms
 against the unchanged <10 ms gate. F1.3 and F2.2–F2.3 remain open. F2.4 and F4
 are conditional, and F3 requires the owner's request to move its numbers.
 **Current continuation (2026-10-09).** Packed Vec2/Vec4 groundwork is committed
-in `46984986`; `image/map` and resident-image consumers remain unimplemented.
+in `46984986`; CPU `image/map` is committed in `4ba82525`, and immutable GPU
+uploads in `767dea7d`. The GPU producer/converter checkpoint is recorded in
+F2.2 below. Connected GPU image qualification/publication, resident consumers
+and exact snapshots remain open; F2.3 remains open. The paragraphs that follow
+record the earlier field and qualification implementation history.
 Deterministic sampled slab chunks (`8f1f4789`) now preserve complete geometry and seam
 normals, improving the eight-domain whole cook from 20.954 to 12.937 ms in
 their paired trial. The subsequent explicit-rounding checkpoint measures
@@ -1212,11 +1216,31 @@ dispatch timings are in `performance/f-image-gpu-uploads-{before,after}.csv`;
 the performance log separates this runner checkpoint from the image gate.
 Astra accepts the checkpoint; focused/native checks and `--ship` pass.
 
+**GPU producer/converter checkpoint (2026-10-09).** `Flow_gpu.Image_sink`
+converts a current validated Vec4 runner output with ties-to-even rounding,
+256-byte padded rows and the existing buffer-to-texture blit. It reuses one
+buffer/texture pair, replaces resized resources only after successful
+completion, and invalidates borrowed generations before writes. Mock tests
+pin ordering, failed allocation/dispatch/copy/completion cleanup, reuse and
+zero pixel reads. Native 65×3 gradient/live/clipping/tie fixtures at three
+times have zero maximum channel difference, differing channels and pixels;
+resize and stale outputs are checked separately. Seven isolated 200-frame
+producer/converter trials include fresh input preparation, completed dispatch
+and finite-status read, conversion/copy completion and converter-token access.
+At 1024², medians are 1.915741 ms (gradient) and 1.937801 ms (live capture).
+Warm allocation is constant in pixel count, with zero input uploads or
+persistent resource creations. Cold and resize rows are separate. Astra's
+verdict is “Producer/converter checkpoint accepted.” Raw timing and native
+parity are `performance/f-image-map-gpu-converter{,-parity}.csv`.
+Focused/native checks and `--ship` pass; this is a converter checkpoint,
+not connected GPU image completion.
+
 The workspace resolver still refuses captured geometry without a cooked-source
 resolver. Synthetic-map GPU eligibility at the authored image site, GPU
-conversion/copy, resident 2D/mesh consumers, exact
+runtime-image publication, resident 2D/mesh consumers, exact
 snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
-channel differences are still required. The CPU verdict does not close F2.2,
+channel differences through the connected display route are still required.
+The producer/converter verdict does not close F2.2,
 F2.3 or F.md.
 
 **Astra design and groundwork (2026-10-09).**

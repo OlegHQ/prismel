@@ -778,3 +778,17 @@ readback appear separately in execution reports. GPU group time uses the
 completed device duration when available and wall time otherwise. Images use the existing UI
 image batch for borrowed inspector thumbnails; probing dimensions never loads
 resources or renders a Canvas inside a UI frame.
+
+`Flow_gpu.Image_sink` consumes a current validated width-four runner output.
+It owns one reusable storage/copy-source buffer and an RGBA8 texture with
+binding and copy-source/destination usages. Conversion clamps finite float32
+channels and rounds ×255 to nearest, ties to even, writing 256-byte-aligned
+rows. Compute and the existing `Backend.buffer_to_texture` blit share one
+conversion submission; publication follows completion. The producer's
+four-byte finite-status read remains mandatory; the converter reads no
+pixels. Borrowed texture tokens are generation checked. Resize allocates a
+replacement pair before publication, cleans it up on failure and retains
+the old pair until success. Close releases the pair, pipeline and library
+on the initial domain before the GPU lease. This sink does not qualify an
+authored image site or force an exact image snapshot; those belong to the
+workspace/compiler and resource boundaries.

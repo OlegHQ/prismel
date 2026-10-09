@@ -1531,3 +1531,12 @@ CPU array. Attribute-reading cones retain their cooked-input CPU route.
 Fixed-step runs,
 exports and reference comparisons continue to use CPU execution; the unstable
 qualification hook exists only to exercise and measure native selection.
+
+The `Flow_gpu.Image_sink` conversion boundary accepts only a current
+width-four output with one element per requested pixel. It writes one
+reusable padded RGBA8 buffer, copies into a reusable texture, and publishes
+a generation-checked borrowed token after completion. Unchanged dimensions
+create no persistent resources; resize and failed writes invalidate previous
+tokens. This implements the producer/converter boundary. Workspace image
+qualification, resident consumers and frozen exact snapshots remain required
+before the image display route can use it.

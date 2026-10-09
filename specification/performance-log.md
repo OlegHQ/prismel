@@ -9246,3 +9246,96 @@ GPU image gate.
 `_build/default/tools/check.exe --ship` passes (exit 0), including all 38
 standard workspaces, both actual custom-catalog executables and 13 fixtures
 at four times/domains 1/8. Log: `/tmp/rays-f-gpu-uploads-ship.log`.
+
+## F2.2 image kernel: GPU producer/converter checkpoint (2026-10-09)
+
+Machine: Macmini9,1 Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. GPU execution is on the initial domain. Each fixture/size has ten
+warm-up frames followed by seven isolated trials of 200 completed frames.
+No agents, tests or builds run during the timing command.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_gpu/runtest \
+  @lib/flow_gpu/runtest-native tools/bench_kernel.exe
+RAYS_BENCH_DOMAINS=1 _build/default/tools/bench_kernel.exe --image-map-gpu \
+  > specification/performance/f-image-map-gpu-converter.csv
+_build/default/lib/flow_gpu/test_image_sink_native.exe \
+  > specification/performance/f-image-map-gpu-converter-parity.csv
+_build/default/tools/check.exe --ship
+```
+
+| Producer/converter | 512² median ms/frame | 1024² median ms/frame | 2048² median ms/frame | Allocated bytes/frame at every size |
+|---|---:|---:|---:|---:|
+| Gradient | 0.605360 | 1.915741 | 4.919800 | 18,121 |
+| Live capture | 0.594580 | 1.937801 | 6.020305 | 21,849 |
+
+These are actual authored `image/map` functions prepared by
+`Flow_sop.Image_kernel`, retaining its immutable UV grid and packed program.
+Each timed frame performs fresh `Packed.Private.prepare`, producer dispatch
+and completion including its four-byte finite-status read, RGBA8 conversion,
+the existing `Backend.buffer_to_texture` copy, conversion completion, and
+`Image_sink.texture` token access. The live fixture changes a captured time
+uniform within [0,1) every frame. No session/result cache skips dispatch.
+The gradient is deliberately dispatched even though its colors are static.
+GC preparation, grid/program preparation and first pipeline/resource creation
+are outside warm timing. Device duration covers both submissions and is
+supplemental to completed wall time.
+
+Every warm trial records zero runner/sink buffer creations, zero texture
+creations and zero input uploads/bytes. Each records 200 status reads and
+zero output-buffer readback bytes. The converter reads no buffer/texture
+pixels, pinned by the mock command test. OCaml metadata allocation is
+constant across the three element counts, rather than literally zero.
+The CSV retains all 54 rows: six fresh-owner cold rows, 42 warm trials,
+and six resize rows. Readback for the separate native parity command is
+outside the performance command.
+
+| Fixture | Cold size | Cold preparation + first conversion ms | Resize dimensions | Grid/program preparation + first resized conversion ms |
+|---|---:|---:|---:|---:|
+| Gradient | 512² | 72.737217 | 513×512 | 4.867077 |
+| Gradient | 1024² | 15.810966 | 1025×1024 | 21.028042 |
+| Gradient | 2048² | 57.151079 | 2049×2048 | 88.518143 |
+| Live capture | 512² | 31.422853 | 513×512 | 5.434990 |
+| Live capture | 1024² | 17.657995 | 1025×1024 | 49.423933 |
+| Live capture | 2048² | 66.067934 | 2049×2048 | 73.869944 |
+
+Cold rows each have one sample, not a median; they include grid/program,
+emission, pipeline/library creation, source upload, buffer/texture creation
+and the first completed output. Native driver caches are retained. Resize
+reuses the runner/pipelines, builds the changed UV grid/program, uploads its
+new source, grows runner buffers and transactionally replaces sink storage.
+Allocation scales in these cold/resize rows and is recorded in the raw CSV.
+
+The converter capability-checks compute, validates device limits and requires
+a live width-four output containing exactly width×height pixels. It clamps
+finite float32 channels, multiplies by 255 and explicitly rounds ties to
+even. Rows use 256-byte alignment; compute and blit share the conversion
+submission. A source-buffer read is unnecessary because the producer already
+validated finite output. At unchanged dimensions one buffer/texture pair is
+reused. Resize retains the old pair until completion, cleans up a failed new
+pair, and invalidates borrowed outputs before writes. Close releases its
+resources, pipeline and library before the GPU lease.
+
+Native parity covers gradient, live capture, both tie parities and clipping
+at 65×3 and times 0/0.5/1. All twelve rows have maximum channel difference
+**0**, differing channels **0** and differing pixels **0**. Tests also cover
+17×5 resize, source/sink generation invalidation, repeated close and domain
+ownership. Mock coverage checks compute→blit order/padding, unchanged reuse,
+failed pipeline/texture allocation, dispatch/copy/completion failure cleanup,
+transactional resize and no pixel reads. It does not simulate shader math.
+Existing native arithmetic/vector tests remain exact and noise retains its
+unchanged tolerance. Intended API changes add the owned `Image_sink` module
+and two private runner counters; the reviewed manifest is promoted.
+
+Astra's verdict after reviewing all raw rows and the measurement boundary:
+**“Producer/converter checkpoint accepted.”** Both 1024² medians are below
+5 ms for this prepared producer/converter. This is not the full F2.2 GPU gate:
+runtime-image publication, authored qualification/placement, resident 2D/mesh
+consumers, frozen exact snapshots and full display-frame allocation are
+outside the timer. Connected native parity and F2.3 remain open.
+
+Focused/native checks and `_build/default/tools/check.exe --ship` pass
+(exit 0), including all 38 standard workspaces, two actual custom-catalog
+executables and 13 fixtures at four times/domains 1/8. Shipping log:
+`/tmp/rays-f-gpu-image-sink-ship.log`. The final focused check additionally
+pins wrong-domain creation and refusal of scalar runner output.

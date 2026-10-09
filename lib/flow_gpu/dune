@@ -1,7 +1,7 @@
 (library
  (name flow_gpu)
  (public_name rays.flow_gpu)
- (modules emit pipelines run host)
+ (modules emit pipelines run host image_sink)
  (libraries flow flow_ir ogpu rays_execution rays_math lru))
 
 (test
@@ -19,6 +19,15 @@
  (alias runtest-native)
  (action (run %{exe:test_run.exe})))
 
+(executable
+ (name test_image_sink_native)
+ (modules test_image_sink_native test_program)
+ (libraries flow_gpu flow flow_ir flow_sop procedural rays_execution ogpu unix))
+
+(rule
+ (alias runtest-native)
+ (action (run %{exe:test_image_sink_native.exe})))
+
 (test
  (name test_pipelines)
  (modules test_pipelines test_program)
@@ -27,4 +36,9 @@
 (test
  (name test_run_lifetime)
  (modules test_run_lifetime test_program)
+ (libraries flow_gpu flow flow_ir ogpu_mock unix))
+
+(test
+ (name test_image_sink)
+ (modules test_image_sink test_program)
  (libraries flow_gpu flow flow_ir ogpu_mock unix))

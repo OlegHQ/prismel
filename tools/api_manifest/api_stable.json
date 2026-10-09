@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 178,
+  "module_count": 179,
   "modules": [
     {
       "api": [
@@ -505,6 +505,26 @@
     {
       "api": [
         "type t",
+        "type output",
+        "val create : Rays_execution.gpu -> ( t , Flow.Diagnostic.t ) result",
+        "val convert : t -> width : int -> height : int -> Run.output -> ( output , Flow.Diagnostic.t ) result",
+        "val texture : output -> Ogpu.Backend.texture option",
+        "val close : t -> unit",
+        "module Private : sig",
+        "val create_owned : Ogpu.Backend.device -> Ogpu.Backend.queue -> ( t , Flow.Diagnostic.t ) result",
+        "val buffer_creations : t -> int",
+        "val texture_creations : t -> int",
+        "end"
+      ],
+      "api_sha256": "3561c3aa7adae26de1d19b08ed1094a2a34767289c52abe49add6933d48760c1",
+      "excluded_legacy_symbols": [],
+      "library": "flow_gpu",
+      "module": "Image_sink",
+      "source": "lib/flow_gpu/image_sink.mli"
+    },
+    {
+      "api": [
+        "type t",
         "type compiled = { pipeline : Ogpu.Backend.pipeline ; seconds : float }",
         "val create : clock : ( unit -> float ) -> Ogpu.Backend.device -> t",
         "val get : t -> Emit.msl -> ( compiled , Flow.Diagnostic.t ) result",
@@ -537,10 +557,12 @@
         "val buffer_creations : t -> int",
         "val input_uploads : t -> int",
         "val input_uploaded_bytes : t -> int",
+        "val status_reads : t -> int",
+        "val readback_bytes : t -> int",
         "val create_owned : Ogpu.Backend.device -> Ogpu.Backend.queue -> Pipelines.t -> Emit.msl -> t",
         "end"
       ],
-      "api_sha256": "59c17c2fd4d3521f88ad502569345ad27b046de1480b2d83e9d35aac0de367c8",
+      "api_sha256": "4e38e5c693c8abca54dc9706019ded9c10a354b908c9abbe52752d68e7287e00",
       "excluded_legacy_symbols": [],
       "library": "flow_gpu",
       "module": "Run",
