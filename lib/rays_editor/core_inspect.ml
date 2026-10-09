@@ -544,9 +544,70 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
                             (Parameter.Floating_view (float_range f)) (Parameter.Float_value f)) l) None None
                     | _ -> wired ())
                | _ -> None) n.rows in
-           let arg_row name = List.find_map (fun ((r : P.row), _) ->
-             if String.starts_with ~prefix:(arg_prefix ^ r.label) name then Some r else None) op_rows in
-           let rows = Option.to_list layout_row @ Option.to_list size_row @ List.map snd ref_rows @ List.map snd op_rows @ List.map (fun (parameter : Flow_sop.Port.parameter) ->
+           (* a nested operator call in a wired row (the call `* 0.2 (sin ...)` in row b): one sub-row per leaf of its
+              tree, addressed by [Set_arg]'s [sub] (child indices; the head is child 0).  Depth 4, 12 rows. *)
+           let operator_call (e : S.t) = match e.node with
+             | S.List ({ S.node = S.Sym h; _ } :: _ :: _) -> not (String.contains h '/') | _ -> false in
+           let sub_entries (r : P.row) (ir : Pxui_shell.Inspector.flow_row) = match r.expr with
+             | Some e when operator_call e ->
+                 let count = ref 0 in
+                 let rec walk chain depth sub (e : S.t) = match e.node with
+                   | S.List ({ S.node = S.Sym h; _ } :: _) when depth < 4 ->
+                       List.concat (List.mapi (fun i (c : S.t) ->
+                         if i = 0 then [] else
+                         let sub = sub @ [ i ] in
+                         match c.node with
+                         | S.List ({ S.node = S.Sym h'; _ } :: _ :: _) when not (String.contains h' '/') ->
+                             walk (chain @ [ h ]) (depth + 1) sub c
+                         | _ when !count >= 12 -> []
+                         | _ ->
+                             incr count;
+                             let label = r.label ^ "." ^ String.concat "." (List.map (fun k -> string_of_int (k - 1)) sub) in
+                             let base = Printf.sprintf "%s%s@%s" arg_prefix r.label (String.concat "." (List.map string_of_int sub)) in
+                             let field ?vec3 ?(suffix = "") kind current =
+                               { Parameter.name = base ^ suffix; label = (if vec3 = None then label else suffix);
+                                 description = None; folder = []; impact = Parameter.Cook; primary = false;
+                                 unit = None; vec3; kind; default = current; current } in
+                             let range f = let m = Float.max 1. (Float.abs f *. 2.) in
+                               { Parameter.soft_min = -. m; soft_max = m; hard_min = None; hard_max = None } in
+                             let make fields drive =
+                               [ base, r, sub, { Pxui_shell.Inspector.path = base; fields; shown = ir.shown;
+                                                 locked = false; drive; live = None } ] in
+                             (match c.node with
+                              | S.Num t ->
+                                  (match int_of_string_opt t, float_of_string_opt t with
+                                   | Some i, _ ->
+                                       make [ field (Parameter.Integer_view { Parameter.soft_min = min 0 (2 * i);
+                                         soft_max = max 10 (2 * i); hard_min = None; hard_max = None }) (Parameter.Int_value i) ] None
+                                   | _, Some f -> make [ field (Parameter.Floating_view (range f)) (Parameter.Float_value f) ] None
+                                   | _ -> [])
+                              | S.Str t -> make [ field Parameter.Text_view (Parameter.Text_value t) ] None
+                              | S.Sym ("true" | "false" as b) -> make [ field Parameter.Toggle_view (Parameter.Bool_value (b = "true")) ] None
+                              | S.Vec l when List.length l >= 2 && List.length l <= 4 && List.for_all (fun (x : S.t) -> match x.node with
+                                  | S.Num t -> float_of_string_opt t <> None | _ -> false) l ->
+                                  make (List.mapi (fun i (x : S.t) ->
+                                    let f = match x.node with S.Num t -> float_of_string t | _ -> 0. in
+                                    field ~vec3:(base, i) ~suffix:(List.nth [ ".x"; ".y"; ".z"; ".w" ] i)
+                                      (Parameter.Floating_view (range f)) (Parameter.Float_value f)) l) None
+                              | S.Sym s -> make [ field Parameter.Text_view (Parameter.Text_value "") ] (Some s)
+                              | _ -> make [ field Parameter.Text_view (Parameter.Text_value "") ] (Some ("=" ^ Flow.Lisp.flat c)))) (S.children e))
+                   | _ -> [] in
+                 walk [] 0 [] e
+             | _ -> [] in
+           let entries = List.concat_map (fun ((r : P.row), (ir : Pxui_shell.Inspector.flow_row)) ->
+             (ir.path, r, [], ir) :: sub_entries r ir) op_rows in
+           (* the operator rows' Unfold: the nested call becomes its own binding and card *)
+           let unfold_nested = List.concat_map (fun ((r : P.row), _) ->
+             match r.expr with
+             | Some e when operator_call e ->
+                 if Pxui.Ui.inspector_button ui ~key:("ws-unfold-" ^ r.label) ("Unfold " ^ r.label)
+                 then [ Syntax_edit (Flow_graph.Flow_edit.Unfold { node = n.path; key = r.key; sub = [] }) ] else []
+             | _ -> []) op_rows in
+           let arg_row name =
+             let base = List.fold_left (fun b suffix ->
+               if String.ends_with ~suffix b then String.sub b 0 (String.length b - 2) else b) name [ ".x"; ".y"; ".z"; ".w" ] in
+             List.find_map (fun (b, (r : P.row), sub, _) -> if b = base then Some (r, sub) else None) entries in
+           let rows = Option.to_list layout_row @ Option.to_list size_row @ List.map snd ref_rows @ List.map (fun (_, _, _, ir) -> ir) entries @ List.map (fun (parameter : Flow_sop.Port.parameter) ->
              let wired = match authored parameter with Some e -> not (literal e) | None -> false in
              { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = on_card_row parameter.path; locked = false;
                (* a computed argument reads as its expression, "=" first: typing another one, or
@@ -586,7 +647,7 @@ S.make (S.Num (Flow.Lisp.float f)) in
                      Syntax_edit (Flow_graph.Flow_edit.Set_layout_size { node = n.path; size }))
                      (Array.find_index (( = ) chosen) size_names)
                | Pxui_shell.Inspector.Edited (name, edited) when String.starts_with ~prefix:arg_prefix name ->
-                   Option.bind (arg_row name) (fun (r : P.row) ->
+                   Option.bind (arg_row name) (fun ((r : P.row), sub) ->
                      let component = if String.ends_with ~suffix:".x" name then Some 0
                        else if String.ends_with ~suffix:".y" name then Some 1
                        else if String.ends_with ~suffix:".z" name then Some 2 else None in
@@ -597,11 +658,11 @@ S.make (S.Num (Flow.Lisp.float f)) in
                        | Text_value t | Choice_value t -> Some (S.make (S.Str t)) in
                      Option.map (fun value ->
                        Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key;
-                         sub = (match component with Some i -> [ i ] | None -> []); value })) syntax)
+                         sub = (match component with Some i -> sub @ [ i ] | None -> sub); value })) syntax)
                | Pxui_shell.Inspector.Expression (path, text) when String.starts_with ~prefix:arg_prefix path ->
-                   Option.bind (arg_row path) (fun (r : P.row) ->
+                   Option.bind (arg_row path) (fun ((r : P.row), sub) ->
                      match expression_text text with
-                     | Ok value -> Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key; sub = []; value }))
+                     | Ok value -> Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key; sub; value }))
                      | Error message -> Some (Declined message))
                | Pxui_shell.Inspector.Reset path when String.starts_with ~prefix:arg_prefix path -> None
                | Pxui_shell.Inspector.Edited (name, edited) ->
@@ -709,7 +770,7 @@ S.make (S.Num (Flow.Lisp.float f)) in
                    then [ Pxui_graph.Scope.Probe_set { zone = z; index = k } ] else []))
              | _ -> [] in
            on_card := List.length (List.filter (fun (r : Pxui_shell.Inspector.flow_row) -> r.shown && r.path.[0] <> '@') rows);
-           hoist @ macro @ note @ movers @ edits, picks) in
+           hoist @ macro @ note @ movers @ unfold_nested @ edits, picks) in
            (* the sheet's bar: what a field takes, and how many rows are on the card *)
            if not (window || narrow) then
              Pxui.Ui.inspector_bar ui ~hints:[ "s", "pin row to card"; "\xe2\x8c\xa5 click", "type a value" ] ~count:!on_card;

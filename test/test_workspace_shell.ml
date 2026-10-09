@@ -2061,7 +2061,45 @@ let run_op_inspector () =
   check (source !e <> before && not (has (source !e) "(* 3.0 a)") && has (source !e) "(* ") ("the inspector showed no editable input row of a * node: " ^ source !e);
   E3.close !e
 
-let run () = run_op_inspector (); run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
+(* a nested operator argument shows as sub-rows, one per literal leaf: a drag on the 3.0 of the product in b is a
+   Set_arg with the child path [1]; Unfold makes the nested call its own binding *)
+let run_nested_inspector () =
+  let text = {|(workspace ops
+    (graph g :context value (let* [a 1.0 b (+ 2.0 (* 3.0 a))] (+ a b)))
+    (graph editor :context editor (ui/workspace (ui/split "horizontal" (ui/graph "g") (ui/inspector)))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  let step ?(buttons = []) ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  step []; step [];
+  let click point =
+    step ~mouse:point [ Event.MouseMoved point ];
+    step ~mouse:point [ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ] in
+  let bx, by, _, _ = Option.get (E3.node_box !e [ "g"; "b" ]) in
+  click (float (bx + 60), float (by + 12));
+  step [];
+  check (dump_line !e "scope selected" = "g/b") ("op node not selected: " ^ dump_line !e "scope selected");
+  let before = source !e in
+  let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
+  let at dy x = float (ix + 200 + x), float (iy + dy) in
+  let drag dy =
+    step ~mouse:(at dy 0) ~buttons:[ Input.LeftButton ] [ Event.MousePressed (Input.LeftButton, at dy 0) ];
+    List.iter (fun x -> step ~mouse:(at dy x) ~buttons:[ Input.LeftButton ] []) [ 20; 40; 60; 80 ];
+    step ~mouse:(at dy 90) [ Event.MouseReleased (Input.LeftButton, at dy 90) ];
+    step [] in
+  drag 281;
+  let after = source !e in
+  check (after <> before && has after "(+ 2.0 (* " && has after "a 1.0" && has after " a))" && not (has after "(* 3.0 a)"))
+    ("the nested * input was not editable from the inspector: " ^ after);
+  let b_line = List.find (fun l -> has l "b (+") (String.split_on_char '\n' after) in
+  check (has b_line "(+ 2.0 (* " && not (has b_line "(* 3.0 a)") && has b_line " a))" && E3.undo_label !e = Some "Edit value")
+    ("only the nested 3.0 may change: " ^ b_line);
+  click (at 154 0);
+  step [];
+  let unfolded = source !e in
+  check (has unfolded "node (* " && has unfolded "b (+ 2.0 node)")
+    ("Unfold did not make the nested call its own binding: " ^ unfolded);
+  E3.close !e
+
+let run () = run_nested_inspector (); run_op_inspector (); run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
   run_undo_under_pane (); run_atomic_frame (); run_undo_and_input (); run_carry_reaches_no_history ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
