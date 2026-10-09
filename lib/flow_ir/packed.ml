@@ -23,6 +23,7 @@ type t = { residual : E.residual; term : W.term; sources : (E.residual * W.term)
   count_source : count_source; origin : origin option;
   sites : (int * W.path * int list) list }
 exception Unsupported
+exception Compile_refused of Flow.Diagnostic.t
 
 let zipped t = t.iteration = Zip || Array.length t.sources = 1
 
@@ -125,23 +126,29 @@ let rec reads_names names (term : W.term) =
 let rec compile_impl ?(fusion = true) ?(dynamic = false)
     ?(count_source = fun _ _ -> None) residual (term : W.term) =
   let view = E.Private.residual_view residual in
-  if view.previous || E.state_dependent (E.Residual residual) then None else
+  let refuse ?(at = term) code message =
+    raise (Compile_refused (Flow.Diagnostic.error ~span:at.form.span ~code message)) in
   try
+    if view.previous then refuse "E_PACKED_STATE" "Previous-state values require reference evaluation.";
+    if E.state_dependent (E.Residual residual) then
+      refuse "E_PACKED_STATE" "State-dependent kernels require reference evaluation.";
     let function_body (f : W.term) = match f.node with
       | W.Fn {capture = Some _; _} ->
           (match E.Private.eval_term residual f ~live:(Frame_input.at_time 0.) with
            | Ok (E.Fn fn) -> (match E.Private.function_body fn with
                | Some (params, body) -> params, body, E.Private.function_bindings fn
-               | None -> raise Unsupported)
-           | _ -> raise Unsupported)
+               | None -> refuse ~at:f "E_PACKED_FUNCTION" "Captured function has no instantiated packed body.")
+           | Error d -> raise (Compile_refused d)
+           | Ok _ -> refuse ~at:f "E_PACKED_FUNCTION" "Captured callable did not resolve to a function.")
       | W.Fn {params; body; _} -> params, body, view.bindings
       | W.Ref_binding (name, []) ->
           (match List.assoc_opt name view.bindings with
-           | Some (E.Fn f) -> (match E.Private.function_body f with
-               | Some (params, body) -> params, body, E.Private.function_bindings f
-               | None -> raise Unsupported)
-           | _ -> raise Unsupported)
-      | _ -> raise Unsupported in
+           | Some (E.Fn fn) -> (match E.Private.function_body fn with
+               | Some (params, body) -> params, body, E.Private.function_bindings fn
+               | None -> refuse ~at:f "E_PACKED_FUNCTION" ("Function " ^ name ^ " has no instantiated packed body."))
+           | _ -> refuse ~at:f "E_PACKED_FUNCTION" ("Function binding " ^ name ^ " is unavailable."))
+      | W.Fn_ref name -> refuse ~at:f "E_PACKED_FUNCTION" ("Function value " ^ name ^ " has no instantiated packed body.")
+      | _ -> refuse ~at:f "E_PACKED_FUNCTION" "Packed kernels require a function with an instantiated body." in
     let params, accumulator, body, sources, bindings, iteration, result, skip = match term.node with
       | W.Hof (`Map, f :: sources) ->
           let params, body, bindings = function_body f in
@@ -150,103 +157,124 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
           let params, body, bindings = function_body f in
           (match params with
            | acc :: params -> params, Some acc, body, [source], bindings, Zip, Accumulate (seed, false), []
-           | _ -> raise Unsupported)
+           | _ -> refuse "E_PACKED_FORM" "Packed reduce requires an accumulator parameter.")
       | W.Loop {kind; accs; clauses; body; skip; _} ->
           let accumulator, result = match kind, accs with
             | `For, [] -> None, Collect | `Sum, [] -> None, Sum false
             | (`Fold | `Scan), [p, seed] -> Some (p, None), Accumulate (seed, kind = `Scan)
-            | _ -> raise Unsupported in
+            | _ -> refuse "E_PACKED_FORM" "Packed fold/scan requires exactly one accumulator." in
           List.map (fun (p, _) -> p, None) clauses, accumulator, body,
             List.map snd clauses, view.bindings, Product, result, skip
       | W.Op {op = "array/sum"; args = [_, source]; _} ->
-          let ty = match source.ty with Ty.Array ty -> ty | _ -> raise Unsupported in
+          let ty = match source.ty with Ty.Array ty -> ty | _ ->
+            refuse ~at:source "E_PACKED_TYPE" ("array/sum source is " ^ Ty.to_string source.ty ^ ", not an array.") in
           let body = {source with ty; node = W.Ref_binding ("@item", [])} in
           [W.Name "@item", None], None, body, [source], view.bindings, Zip, Sum true, []
-      | _ -> raise Unsupported in
+      | _ -> refuse "E_PACKED_FORM" "Packed kernels require map, reduce, a numeric loop or array/sum." in
     let sources = Array.of_list sources in
     let binding_fn = match term.node with
       | W.Hof (_, {node = W.Ref_binding (name, []); _} :: _) -> Some name | _ -> None in
     let names = List.filter_map (function W.Name name, _ -> Some name | _ -> None)
       (params @ Option.to_list accumulator) in
     (* ponytail: correlated clauses stay interpreted; lower their changing source counts before tiling them. *)
-    if iteration = Product && Array.exists (reads_names names) sources then raise Unsupported;
+    if iteration = Product && Array.exists (reads_names names) sources then
+      refuse "E_PACKED_FORM" "Correlated product sources require reference evaluation.";
     let widths = Array.map (fun (s : W.term) -> match s.ty with
-      | Ty.Array (Ty.Float | Vec2 | Vec3 | Vec4 as ty) -> width_of ty | _ -> raise Unsupported) sources in
-    if Array.length sources <> List.length params then raise Unsupported;
+      | Ty.Array (Ty.Float | Vec2 | Vec3 | Vec4 as ty) -> width_of ty
+      | _ -> refuse ~at:s "E_PACKED_TYPE" ("Packed source must be a float/vector array, got " ^ Ty.to_string s.ty ^ ".")) sources in
+    if Array.length sources <> List.length params then
+      refuse "E_PACKED_FORM" (Printf.sprintf "Packed kernel has %d sources but %d parameters."
+        (Array.length sources) (List.length params));
     let code = ref [] and size = ref 0 and uniforms = ref [] and nuniforms = ref 0 and uniform_names = ref [] in
     let dependent = Array.make Flow.Packed_ops.register_limit false in
     let emit instruction =
       (* ponytail: cap scratch at 512 KiB per block; measure larger bodies before raising it. *)
-      if !size >= Flow.Packed_ops.register_limit then raise Unsupported;
+      if !size >= Flow.Packed_ops.register_limit then
+        refuse "E_PACKED_LIMIT" (Printf.sprintf "Packed kernel exceeds %d registers." Flow.Packed_ops.register_limit);
       let id = !size in incr size; code := instruction :: !code;
       dependent.(id) <- (match instruction with
         | Accumulator _ -> true | Binary (_, a, b) -> dependent.(a) || dependent.(b)
         | Unary (_, a) -> dependent.(a) | Noise3 (a, b, c, _, _) | Select (a, b, c) -> dependent.(a) || dependent.(b) || dependent.(c)
         | _ -> false); id in
-    let literal v =
+    let literal ?(at = term) v =
       let data = match v with
         | E.Int _ | Float _ | Bool _ | Vec2 _ | Vec3 _ | Vec4 _ -> components v
-        | _ -> raise Unsupported in
+        | _ -> refuse ~at "E_PACKED_TYPE" ("Packed constant has unsupported type " ^ Ty.to_string (V.ty_of v) ^ ".") in
       {registers = Array.map (fun f -> emit (Const f)) data; constant = Some v} in
     let input i width = {registers = Array.init width (fun j -> emit (Input (i, width, j))); constant = None} in
-    let uniform name v = match v with
+    let uniform at name v = match v with
       | E.Residual _ | E.Int _ | Float _ | Bool _ | Vec2 _ | Vec3 _ | Vec4 _ when dynamic || E.is_live v ->
           let ty = match v with E.Residual r -> (E.Private.residual_view r).term.ty | v -> V.ty_of v in
-          let width = width_of ty in
+          let width = try width_of ty with Unsupported ->
+            refuse ~at "E_PACKED_CAPTURE" ("Capture " ^ String.concat "." (fst name :: snd name)
+              ^ " has unsupported type " ^ Ty.to_string ty ^ ".") in
           let i = !nuniforms in incr nuniforms; uniforms := v :: !uniforms;
           uniform_names := name :: !uniform_names;
           {registers = Array.init width (fun j -> emit (Uniform (i, j))); constant = None}
-      | _ -> literal v in
+      | E.Int _ | Float _ | Bool _ | Vec2 _ | Vec3 _ | Vec4 _ -> literal ~at v
+      | _ -> refuse ~at "E_PACKED_CAPTURE" ("Capture " ^ String.concat "." (fst name :: snd name)
+          ^ " has unsupported type " ^ Ty.to_string (V.ty_of v) ^ ".") in
     let env = List.mapi (fun i (pattern, annotation) ->
       match pattern with
       | W.Name name when annotation = None || annotation = Some
           (match widths.(i) with 2 -> Ty.Vec2 | 3 -> Ty.Vec3 | 4 -> Ty.Vec4 | _ -> Ty.Float) ->
           name, input i widths.(i)
-      | _ -> raise Unsupported) params in
+      | W.Name name -> refuse "E_PACKED_TYPE" (Printf.sprintf
+          "Packed parameter %s annotation %s does not match its %d-component source."
+          name (Option.fold ~none:"none" ~some:Ty.to_string annotation) widths.(i))
+      | _ -> refuse "E_PACKED_FORM" "Packed parameters require name patterns.") params in
     let env = match accumulator, result with
       | Some (W.Name name, annotation), Accumulate (seed, _) ->
-          if not (List.mem seed.ty [Ty.Float;Ty.Int;Ty.Vec2;Ty.Vec3;Ty.Vec4]) then raise Unsupported;
+          if not (List.mem seed.ty [Ty.Float;Ty.Int;Ty.Vec2;Ty.Vec3;Ty.Vec4]) then
+            refuse ~at:seed "E_PACKED_TYPE" ("Packed accumulator " ^ name ^ " has unsupported seed type " ^ Ty.to_string seed.ty ^ ".");
           let width = width_of seed.ty in
           if annotation <> None && annotation <> Some seed.ty
-              && not (seed.ty = Ty.Int && annotation = Some Ty.Float) then raise Unsupported;
+              && not (seed.ty = Ty.Int && annotation = Some Ty.Float) then
+            refuse ~at:seed "E_PACKED_TYPE" (Printf.sprintf
+              "Packed accumulator %s annotation %s does not match seed type %s."
+              name (Option.fold ~none:"none" ~some:Ty.to_string annotation) (Ty.to_string seed.ty));
           (name, {registers = Array.init width (fun i -> emit (Accumulator i)); constant = None}) :: env
-      | None, _ -> env | _ -> raise Unsupported in
+      | None, _ -> env | _ -> refuse "E_PACKED_FORM" "Packed accumulator requires a name pattern." in
     let captures = Hashtbl.create 16 in
-    let captured name fields = match Hashtbl.find_opt captures (name, fields) with
+    let captured at name fields = match Hashtbl.find_opt captures (name, fields) with
       | Some e -> e
       | None ->
-          let e = uniform (name, fields) (captured_value bindings name fields) in
+          let value = try captured_value bindings name fields with Unsupported ->
+            refuse ~at "E_PACKED_CAPTURE" ("Captured binding or field " ^ String.concat "." (name :: fields) ^ " is unavailable.") in
+          let e = uniform at (name, fields) value in
           Hashtbl.add captures (name, fields) e; e in
-    let field e = function
+    let field at e = function
       | "x" when Array.length e.registers >= 2 -> {registers = [|e.registers.(0)|]; constant = None}
       | "y" when Array.length e.registers >= 2 -> {registers = [|e.registers.(1)|]; constant = None}
       | "z" when Array.length e.registers >= 3 -> {registers = [|e.registers.(2)|]; constant = None}
       | "w" when Array.length e.registers = 4 -> {registers = [|e.registers.(3)|]; constant = None}
-      | _ -> raise Unsupported in
+      | name -> refuse ~at "E_PACKED_TYPE" (Printf.sprintf "Component %s is unavailable on a %d-component packed value."
+          name (Array.length e.registers)) in
     let component e i = e.registers.(if Array.length e.registers = 1 then 0 else i) in
     let rec expression env (t : W.term) =
-      match t.node with
-      | W.Lit (Param.Int_value n) -> literal (E.Int n)
-      | Lit (Param.Float_value f) -> literal (E.Float f)
-      | Lit (Param.Bool_value b) -> literal (E.Bool b)
+      try match t.node with
+      | W.Lit (Param.Int_value n) -> literal ~at:t (E.Int n)
+      | Lit (Param.Float_value f) -> literal ~at:t (E.Float f)
+      | Lit (Param.Bool_value b) -> literal ~at:t (E.Bool b)
       | Ref_binding (name, fields) ->
           (match List.assoc_opt name env with
-           | Some e -> List.fold_left field e fields
+           | Some e -> List.fold_left (field t) e fields
            | None ->
-               (* A record may contain a deferred vec3. Bind that vector as a
+               (* A record may contain a deferred vector. Bind that vector as a
                   uniform before projecting its component. *)
                let direct = try ignore (captured_value bindings name fields); true
                  with Unsupported -> false in
-               if direct then captured name fields else
+               if direct then captured t name fields else
                match List.rev fields with
-               | component :: prefix -> field (captured name (List.rev prefix)) component
-               | [] -> raise Unsupported)
+               | component :: prefix -> field t (captured t name (List.rev prefix)) component
+               | [] -> refuse ~at:t "E_PACKED_CAPTURE" ("Captured binding " ^ name ^ " is unavailable."))
       | Time -> {registers = [|emit (Frame "t")|]; constant = None}
       | Vec ts when List.mem (List.length ts) [2;3;4] ->
           let components = List.map (expression env) ts in
-          if not (List.for_all (fun e -> Array.length e.registers = 1) components) then raise Unsupported;
+          if not (List.for_all (fun e -> Array.length e.registers = 1) components) then
+            refuse ~at:t "E_PACKED_TYPE" "Packed vector components must be scalar values.";
           {registers = Array.of_list (List.map (fun e -> e.registers.(0)) components); constant = None}
-      | Get (t, f) -> field (expression env t) f
+      | Get (value, f) -> field t (expression env value) f
       | Cond (arms, default) ->
           expression env (List.fold_right (fun (condition, yes) no ->
             {t with node = If (condition, yes, no)}) arms default)
@@ -258,7 +286,7 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
             let value, ty = match literal.node with
               | Num s -> (Param.Float_value (float_of_string s), Ty.Float)
               | Sym ("true" | "false" as s) -> Param.Bool_value (s = "true"), Ty.Bool
-              | _ -> raise Unsupported in
+              | _ -> refuse ~at:t "E_PACKED_FORM" "Packed case arms require numeric or boolean literals." in
             let right : W.term = {path = None; ty; node = Lit value; form = literal} in
             let left, right = if scrutinee.ty = Ty.Bool || ty = Ty.Bool then
               boolean scrutinee, boolean right else scrutinee, right in
@@ -273,34 +301,38 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
            | Some v -> expression env (if V.truthy v then yes else no)
            | None ->
                let yes = expression env yes and no = expression env no in
-               if Array.length condition.registers <> 1 then raise Unsupported;
+               if Array.length condition.registers <> 1 then
+                 refuse ~at:t "E_PACKED_TYPE" "Packed conditions require a scalar value.";
                let width = max (Array.length yes.registers) (Array.length no.registers) in
                {registers = Array.init width (fun i ->
                  emit (Select (condition.registers.(0), component yes i, component no i))); constant = None})
       | Op {op; args; _} ->
           let declaration, kind = match Flow.Op.find ~extra:(E.Private.residual_ops residual) op Flow.Context.value with
             | Some o -> (match Flow.Op.packed_kind o with
-                | Some kind -> o, kind | None -> raise Unsupported)
-            | _ -> raise Unsupported in
+                | Some kind -> o, kind | None -> refuse ~at:t "E_PACKED_OPERATOR"
+                    ("Operator " ^ op ^ " is not a canonical scalar declaration or validated packed intrinsic."))
+            | _ -> refuse ~at:t "E_PACKED_OPERATOR" ("Operator " ^ op ^ " is unavailable.") in
           let expressions = List.map (fun (_, t) -> expression env t) args in
           if List.for_all (fun e -> Option.is_some e.constant) expressions && not declaration.live then
-            literal (declaration.body ~live:(Frame_input.at_time 0.)
-              ~node:(fun _ _ -> raise Unsupported)
+            literal ~at:t (declaration.body ~live:(Frame_input.at_time 0.)
+              ~node:(fun name _ -> refuse ~at:t "E_PACKED_CONSTANT" ("Constant operator " ^ op ^ " attempted to create node " ^ name ^ "."))
               (List.map2 (fun (name, _) e -> name, Option.get e.constant) args expressions))
           else if declaration.live && args = [] && List.mem t.ty [Ty.Float; Ty.Int; Ty.Bool] then
             {registers = [|emit (Frame declaration.name)|]; constant = None}
           else begin
             let width = List.fold_left (fun n e -> max n (Array.length e.registers)) 1 expressions in
-            if t.ty = Ty.Int then raise Unsupported;
+            if t.ty = Ty.Int then refuse ~at:t "E_PACKED_OPERATOR" ("Dynamic integer operation " ^ op ^ " requires reference evaluation.");
             let registers = match kind, expressions with
               | Flow.Op.Noise3, a::rest when Array.length a.registers=3 ->
                   let configuration=List.map2(fun (name,_) expression ->
-                    name,match expression.constant with Some value->value|None->raise Unsupported)
+                    name,match expression.constant with Some value->value|None->
+                      refuse ~at:t "E_PACKED_CONSTANT" ("Noise configuration " ^ name ^ " must be constant."))
                     (List.tl args) rest in
                   let integer name default=Option.fold ~none:default ~some:V.int_of
                     (List.assoc_opt name configuration)in
                   let seed=integer "seed" 0 and octaves=integer "octaves" 1 in
-                  if not (Flow.Packed_ops.supported_noise_octaves octaves) then raise Unsupported;
+                  if not (Flow.Packed_ops.supported_noise_octaves octaves) then
+                    refuse ~at:t "E_PACKED_CONSTANT" (Printf.sprintf "Packed noise octaves must be 1 to 32, got %d." octaves);
                   [|emit (Noise3 (a.registers.(0), a.registers.(1), a.registers.(2), seed, octaves))|]
               | Flow.Op.Exact, [a] -> a.registers
               | Flow.Op.Length, [a] when Array.length a.registers = 3 ->
@@ -313,27 +345,36 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
                   Array.init width (fun i -> emit (Binary (op, component a i, component b i)))
               | Flow.Op.Unary op, [a] when width = 1 ->
                   [|emit (Unary (op, a.registers.(0)))|]
-              | _ -> raise Unsupported in
+              | _ -> refuse ~at:t "E_PACKED_OPERATOR" (Printf.sprintf
+                  "Dynamic operator %s has no packed instruction for %d arguments at width %d." op (List.length expressions) width) in
             {registers; constant = None}
           end
       | Let (bindings, result) ->
           let env = List.fold_left (fun env (p, t) -> match p with
-            | W.Name n -> (n, expression env t) :: env | _ -> raise Unsupported) env bindings in
+            | W.Name n -> (n, expression env t) :: env
+            | _ -> refuse ~at:t "E_PACKED_FORM" "Packed let bindings require name patterns.") env bindings in
           expression env result
       | Expanded {body; _} | Bypass body -> expression env body
-      | _ -> raise Unsupported in
+      | _ -> refuse ~at:t "E_PACKED_FORM" ("Unsupported packed body form " ^
+          Option.value ~default:(Ty.to_string t.ty) (Flow.Syntax.head t.form) ^ ".")
+      with V.Fail (code, message, span) ->
+        raise (Compile_refused (Flow.Diagnostic.error ~span:(Option.value ~default:t.form.span span) ~code message)) in
     let output = (expression env body).registers in
     let result_ty = match term.ty with Ty.Array ty -> ty | ty -> ty in
-    if not (List.mem result_ty [Ty.Float;Ty.Vec2;Ty.Vec3;Ty.Vec4]) then raise Unsupported;
+    if not (List.mem result_ty [Ty.Float;Ty.Vec2;Ty.Vec3;Ty.Vec4]) then
+      refuse "E_PACKED_TYPE" ("Packed result must be float or vector, got " ^ Ty.to_string result_ty ^ ".");
     let width = width_of result_ty in
     (match result with
-     | Sum _ | Accumulate _ when not (List.mem body.ty [Ty.Float;Ty.Vec2;Ty.Vec3;Ty.Vec4]) -> raise Unsupported
+     | Sum _ | Accumulate _ when not (List.mem body.ty [Ty.Float;Ty.Vec2;Ty.Vec3;Ty.Vec4]) ->
+         refuse ~at:body "E_PACKED_TYPE" ("Packed reduction body has unsupported type " ^ Ty.to_string body.ty ^ ".")
      | _ -> ());
     (* array_init also broadcasts a scalar to the requested vector width. *)
     let output = if Array.length output = 1 && width > 1 then Array.make width output.(0) else output in
-    if Array.length output <> width then raise Unsupported;
+    if Array.length output <> width then refuse "E_PACKED_TYPE" (Printf.sprintf
+      "Packed result has %d components but its type requires %d." (Array.length output) width);
     let counts = Array.map (count_of residual) sources in
-    let count = count_of_sources iteration counts in
+    let count = try count_of_sources iteration counts with Unsupported ->
+      refuse "E_PACKED_LIMIT" "Packed product source count exceeds the integer limit." in
     let rec paths sites (t : W.term) =
       let sites = match t.path with Some p -> (view.instance, p, view.iter) :: sites | None -> sites in
       let children = match t.node with
@@ -362,14 +403,21 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       output; count; iteration; result; skip; stages = [residual, term]; fusion; dynamic; body; binding_fn;
       uniform_names = Array.of_list (List.rev !uniform_names); count_source;
       origin = None; sites} in
-    Some (if fusion then fuse_maps program else program)
-  with Unsupported | V.Fail _ | Invalid_argument _ -> None
+    Ok (if fusion then fuse_maps program else program)
+  with
+  | Compile_refused d -> Error [d]
+  | V.Fail (code, message, span) ->
+      Error [Flow.Diagnostic.error ~span:(Option.value ~default:term.form.span span) ~code message]
+  | Invalid_argument message -> Error [Flow.Diagnostic.error ~span:term.form.span ~code:"E_PACKED_LAYOUT"
+      ("Packed layout is unsupported: " ^ message)]
+  | Unsupported -> Error [Flow.Diagnostic.error ~span:term.form.span ~code:"E_PACKED_FORM"
+      "Packed form requires reference evaluation."]
 and source_program ~dynamic ~count_source (residual, (term : W.term)) = match term.node with
   | W.Ref_binding (name, []) ->
       (match List.assoc_opt name (E.Private.residual_view residual).bindings with
        | Some (E.Residual r) -> source_program ~dynamic ~count_source (r, (E.Private.residual_view r).term)
        | _ -> None)
-  | _ -> compile_impl ~dynamic ~count_source residual term
+  | _ -> compile_impl ~dynamic ~count_source residual term |> Result.to_option
 and fuse_maps t =
   if t.skip <> [||] || (t.iteration = Product && Array.length t.sources <> 1) then t else
   let children = Array.map (source_program ~dynamic:t.dynamic ~count_source:t.count_source) t.sources in
@@ -444,8 +492,9 @@ and fuse_maps t =
 
 let static_count t = t.count
 let count_origin t = t.origin
-let compile ?fusion ?count_source r term = compile_impl ?fusion ?count_source r term
-let compile_template ?count_source r term = compile_impl ~dynamic:true ?count_source r term
+let compile_result ?fusion ?count_source r term = compile_impl ?fusion ?count_source r term
+let compile ?fusion ?count_source r term = compile_result ?fusion ?count_source r term |> Result.to_option
+let compile_template ?count_source r term = compile_impl ~dynamic:true ?count_source r term |> Result.to_option
 let rebind t residual =
   let view = E.Private.residual_view residual in
   if not t.dynamic || List.length t.stages <> 1 || t.term != view.term || view.previous
@@ -486,8 +535,8 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
       match nested with
       | Some (residual, term) -> evaluate residual term
       | None -> (match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source residual term with
-          | Some program -> force ~state ?elems ?resolve ?measure program ~live
-          | None -> E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
+          | Ok program -> force ~state ?elems ?resolve ?measure program ~live
+          | Error _ -> E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
     let seed = match t.result with
       | Accumulate (seed, _) -> Some (get (E.Private.eval_term ~state ?elems ?resolve t.residual seed ~live))
       | _ -> None in
@@ -701,8 +750,8 @@ module Private = struct
         | _ -> materialize residual term
       and materialize residual term =
         match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source residual term with
-        | Some program -> get (force ~state ?elems ?resolve program ~live)
-        | None -> get (E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
+        | Ok program -> get (force ~state ?elems ?resolve program ~live)
+        | Error _ -> get (E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
       let arrays = Array.mapi (fun index (residual, term) ->
         match evaluate residual term, t.widths.(index) with
         | E.Float_array values, 1 | Vec2_array values, 2 | Vec3_array values, 3 | Vec4_array values, 4 -> values

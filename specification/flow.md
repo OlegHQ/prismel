@@ -1146,6 +1146,14 @@ constants/noise do not invalidate a program. A one-source Product is already
 effective Zip. Ordered accumulators remain refused even when unused. This
 runtime backstop does not yet replace the checker's advisory candidate walk.
 
+`Flow_ir.Packed.compile_result` reports the first actual compilation refusal
+with a source span and a concrete state, function, capture, type, form, register
+limit, operator, constant or layout reason. Evaluator diagnostic codes are
+preserved. The existing option-returning compile APIs and runtime reference
+fallback wrap the same result. Declining a child compilation or exceeding the
+combined fusion register budget may still produce a valid unfused program;
+that successful compilation is not reported as a refusal.
+
 Cook-time specialization uses the instantiated SOP facts, including parameter
 overrides, rather than a catalog's default declaration. A regular node with
 preserved topology carries its designated input's point-count origin; changed

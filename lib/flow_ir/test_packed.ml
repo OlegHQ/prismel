@@ -1,13 +1,14 @@
 module E = Flow.Eval
 module I = Flow_ir
 let ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d)
-let recorded body =
+let checked ?(ops = []) body =
   let text = "(workspace w (graph g :context value (let* [tested " ^ body ^ "] 0.0)))" in
   let forms = ok (Flow.Syntax.parse text) in
-  let workspace = match Flow.Workspace.check {Flow.Check.version = 1; kinds = []} forms with
+  match Flow.Workspace.check ~ops {Flow.Check.version = 1; kinds = []} forms with
     | Some w, [] -> w
-    | _, ds -> failwith (text ^ "\n" ^ String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
-  let evaluation = ok (E.static ~record:true workspace) in
+    | _, ds -> failwith (text ^ "\n" ^ String.concat "; " (List.map Flow.Diagnostic.to_string ds))
+let recorded ?ops body =
+  let evaluation = ok (E.static ~record:true (checked ?ops body)) in
   List.assoc ["g"; "tested"] evaluation.records |> List.hd |> snd
 let same a b = match a, b with
   | Ok a, Ok b -> Marshal.to_string a [Marshal.No_sharing] = Marshal.to_string b [Marshal.No_sharing]
@@ -17,6 +18,18 @@ let has_cpu p = Array.exists (fun (n : I.node) -> n.tier = Cpu_kernel) (I.Execut
 let stages p = Array.fold_left (fun count (n : I.node) -> match n.kind with
   | Kernel {body = Packed_map p; _} -> max count (I.Packed.stage_count p) | _ -> count)
   0 (I.Executor.graph p).nodes
+let compile ?fusion residual term =
+  let legacy = I.Packed.compile ?fusion residual term in
+  (match legacy, I.Packed.compile_result ?fusion residual term with
+   | None, Error [_] -> ()
+   | Some a, Ok b ->
+       assert (Marshal.to_string (I.Packed.Private.view a) [Marshal.No_sharing]
+         = Marshal.to_string (I.Packed.Private.view b) [Marshal.No_sharing]);
+       assert (I.Packed.stage_count a = I.Packed.stage_count b
+         && I.Packed.provenance a = I.Packed.provenance b
+         && I.Packed.static_count a = I.Packed.static_count b)
+   | _ -> assert false);
+  legacy
 let () =
   List.iter (fun (x,y,z) ->
     let expression = Printf.sprintf "(length [%.17g %.17g %.17g])" x y z in
@@ -27,7 +40,7 @@ let () =
   let value = recorded "(map (fn [p] (if (> t 0) (min (length p) 1.0) 0.0))
     (array/vec3 16385 [1e200 0 0]))" in
   let packed = match value with E.Residual residual ->
-    I.Packed.compile residual (E.Private.residual_view residual).term |> Option.get
+    compile residual (E.Private.residual_view residual).term |> Option.get
     | _ -> failwith "length kernel did not defer" in
   List.iter (fun time ->
     let live = Frame_input.at_time time in
@@ -84,7 +97,7 @@ let () =
           if not (same output reference) then failwith (Printf.sprintf "Parity failed (%d domains, t=%g): %s" domains time body);
           (* Exercise the register executor even below the placement cutoff. *)
           match value with
-          | E.Residual r -> (match I.Packed.compile r (E.Private.residual_view r).term with
+          | E.Residual r -> (match compile r (E.Private.residual_view r).term with
               | Some p ->
                   if not (same (I.Packed.force p ~live) reference) then
                     failwith (Printf.sprintf "Direct kernel parity failed (%d domains, t=%g): %s" domains time body)
@@ -101,7 +114,7 @@ let () =
     let program = ok (I.Executor.compile value) in
     if stages program < 2 then failwith ("Map chain did not fuse: " ^ body);
     let unfused = match value with E.Residual r ->
-      I.Packed.compile ~fusion:false r (E.Private.residual_view r).term |> Option.get
+      compile ~fusion:false r (E.Private.residual_view r).term |> Option.get
       | _ -> failwith "live map chain did not defer" in
     assert (I.Packed.stage_count unfused = 1);
     List.iter (fun time ->
@@ -142,7 +155,7 @@ let () =
   List.iter (fun body ->
     let value = recorded body in
     let packed = match value with E.Residual r ->
-      I.Packed.compile r (E.Private.residual_view r).term | _ -> assert false in
+      compile r (E.Private.residual_view r).term | _ -> assert false in
     assert (packed = None);
     let program = ok (I.Executor.compile value) in
     List.iter (fun time ->
@@ -158,7 +171,7 @@ let () =
   let value = ok (E.Private.map_function
     ~signature:Flow.Ty.{params = [Vec2]; result = Vec4} fn [E.Vec2_array grid]) in
   let packed = match value with E.Residual r ->
-    I.Packed.compile r (E.Private.residual_view r).term |> Option.get | _ -> assert false in
+    compile r (E.Private.residual_view r).term |> Option.get | _ -> assert false in
   assert (I.Packed.static_count packed = Some 32769);
   List.iter (fun time ->
     let live = Frame_input.at_time time in
@@ -171,3 +184,75 @@ let () =
         assert (xs.(0) = grid.(0) && xs.(1) = grid.(1) && xs.(2) = time && xs.(3) = 1.)
       | _ -> assert false)) [1;8]) [0.;0.25;2.];
   assert (grid = original)
+
+let () =
+  let prepare ?ops body = match recorded ?ops body with
+    | E.Residual residual -> residual, (E.Private.residual_view residual).term
+    | _ -> failwith ("diagnostic fixture did not defer: " ^ body) in
+  let refused body code =
+    let residual, term = prepare body in
+    assert (compile residual term = None);
+    match I.Packed.compile_result residual term with
+    | Error [d] ->
+        assert (d.code = code && d.message <> "");
+        assert (Option.fold ~none:false ~some:(fun (span : Flow.Diagnostic.span) ->
+          span.finish > span.start) d.span);
+        d
+    | _ -> failwith ("expected " ^ code ^ ": " ^ body) in
+  List.iter (fun (body, code) -> ignore (refused body code))
+    ["(let* [s (state [a 0.0] (+ a (frame/dt)))] (map (fn [x] (+ x s)) (array/range 3)))", "E_PACKED_STATE";
+     "(for [x (array/range 3) y (array/float (+ x 1))] (+ y t))", "E_PACKED_FORM";
+     "(let* [bad (list 1 2)] (map (fn [x] (+ (+ x t) (first bad))) (array/range 3)))", "E_PACKED_CAPTURE";
+     "(map (fn [x] (+ t (first (list x 1)))) (array/range 3))", "E_PACKED_FORM";
+     "(map sin (array/float 3 t))", "E_PACKED_FUNCTION";
+     "(map (fn [x] (+ x (floor t))) (array/range 3))", "E_PACKED_OPERATOR";
+     "(fold [a false] [x (array/range 3)] (+ x t))", "E_PACKED_TYPE"];
+  let residual, term = prepare ~ops:I.Operators.all
+      "(map (fn [p] (noise3 p :seed (frame/index))) (array/vec3 3 [0 1 2]))" in
+  assert (compile residual term = None);
+  (match I.Packed.compile_result residual term with
+   | Error [d] -> assert (d.code = "E_PACKED_CONSTANT") | _ -> assert false);
+  let sins n name = List.init n (fun _ -> "(sin ") |> String.concat ""
+    |> fun prefix -> prefix ^ name ^ String.make n ')' in
+  let kernel n = "(map (fn [x] (+ t " ^ sins n "x" ^ ")) (array/range 3))" in
+  let residual, term = prepare (kernel 61) in
+  let packed = Option.get (compile residual term) in
+  assert (Array.length (I.Packed.Private.view packed).code = Flow.Packed_ops.register_limit);
+  ignore (refused (kernel 62) "E_PACKED_LIMIT");
+  let constant = "(map (fn [x] (+ (+ x t) (pow 1e200 2.0))) (array/range 3))" in
+  (* Ordinary static evaluation also rejects this constant. Compile its
+     checked term in the compatible empty scope before materialization. *)
+  let bad = match (List.hd (checked constant).graphs).body.node with
+    | Flow.Workspace.Let ([_, term], _) -> term | _ -> assert false in
+  let residual, _ = prepare "(map (fn [x] (+ x t)) (array/range 3))" in
+  assert (compile residual bad = None);
+  let d = match I.Packed.compile_result residual bad with
+    | Error [d] -> assert (d.code = "E_NONFINITE"); d | _ -> assert false in
+  assert (Option.fold ~none:false ~some:(fun (span : Flow.Diagnostic.span) ->
+    span.finish - span.start = String.length "(pow 1e200 2.0)") d.span);
+  let parity value packed = List.iter (fun time ->
+    let live = Frame_input.at_time time in
+    let reference = E.Private.force_reference value ~live in
+    List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+      assert (same (I.Packed.force packed ~live) reference))) [1;8]) [0.;0.125;1.25;7.] in
+  List.iter (fun vector ->
+    let value = recorded ("(let* [r {:vector " ^ vector ^ "}] (map (fn [x] (+ x r.vector.x)) (array/range 2051)))") in
+    match value with
+    | E.Residual residual ->
+        let packed = Option.get (compile residual (E.Private.residual_view residual).term) in
+        parity value packed
+    | _ -> assert false) ["[t 1]"; "[t 1 2]"; "[t 1 2 3]"];
+  let value = recorded ("(map (fn [y] (- " ^ sins 40 "y" ^ " t)) (map (fn [x] (+ t "
+    ^ sins 40 "x" ^ ")) (array/range 2051)))") in
+  (match value with
+   | E.Residual residual ->
+       let term = (E.Private.residual_view residual).term in
+       let child = match term.node with Flow.Workspace.Hof (`Map, [_; child]) -> child | _ -> assert false in
+       let child = Option.get (compile ~fusion:false residual child) in
+       let packed = Option.get (compile residual term) in
+       assert (Array.length (I.Packed.Private.view packed).code
+         + Array.length (I.Packed.Private.view child).code > Flow.Packed_ops.register_limit);
+       assert (I.Packed.stage_count packed = 1);
+       parity value packed
+   | _ -> assert false);
+  print_endline "Packed diagnostics: refusal reasons/spans, 64-register boundary, captures and unfused fallback passed"

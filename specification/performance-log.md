@@ -8906,3 +8906,63 @@ noise maxima are 8.82050105e-7 and 9.88528899e-5 within the existing tolerance.
 Full F5
 native/pixel qualification of the preceding field optimization belongs to
 `97e5f7bf`; final full-scope native/pixel qualification remains required.
+
+## F1.3 diagnostic packed compilation (2026-10-09)
+
+`Packed.compile_result` returns the first actual compilation refusal with
+its source span and concrete state/function/capture/type/form/register-limit/
+operator/constant/layout reason. Evaluator errors retain their original code
+and span (or acquire the nearest expression span when missing). Existing
+option compile/template APIs wrap the same implementation. Fatal helper
+sites now use a separate diagnostic exception; speculative `Unsupported`
+control flow remains for deferred-vector capture projection, unknown counts,
+declined child compilation and over-budget fusion. Runtime materialization
+still uses the reference fallback on refusal. No arithmetic, register
+emission, argument order, iteration, fusion decision or dependency edge changes.
+
+The existing packed matrix checks legacy option/result agreement and identical
+successful program views, counts and provenance. Focused cases cover state,
+function, capture, type, form, limit, operator and constant refusals with
+nonempty messages/spans; exactly 64 versus 65 registers; preserved E_NONFINITE
+for a folded constant; deferred Vec2/Vec3/Vec4 record components; and two
+individually valid stages whose combined register budget declines fusion
+but successfully executes the unfused program. Captures/fusion retain exact
+reference parity at four times and one/eight domains. Ordinary evaluation
+rejects the nonfinite literal before compilation; its test uses a checked
+subterm in the compatible live residual scope to exercise the public API.
+
+Focused validation passes (exit 0):
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_ir/runtest @lib/flow_gpu/runtest @lib/flow_sop/runtest
+_build/default/tools/check.exe @tools/api_manifest/runtest
+# Review the expected single Packed.compile_result binding, then accept it.
+dune promote
+```
+
+The manifest check initially exits 1 with that intended addition and its
+module hash; the diff is reviewed/promoted. Emitter/numeric goldens and
+existing tolerances remain unchanged. Astra approves this diagnostic
+checkpoint: no missing normal-path refusal translation or fallback regression,
+and no additional blocking test needed. The generic Unsupported backstop
+remains, with normal fatal helpers providing concrete reasons. This is a
+correctness foundation without a performance claim or new benchmark gate.
+It does not complete F1.3: checker candidate/provenance/state facts, actual
+instantiated capture qualification, inspector reasons and the complete
+authored producer/emitter audit remain required.
+
+Shipping and native GPU validation pass (exit 0) on Macmini9,1, Apple M1,
+OCaml 5.3/dev:
+
+```sh
+_build/default/tools/check.exe --ship
+_build/default/tools/check.exe @lib/flow_gpu/runtest-native
+```
+
+The complete workspace IR sweep covers 37 standard files, two actual
+custom-catalog executables and 13 fixtures at four times/domains 1/8. Native
+arithmetic/select/Vec2/Vec4/input results remain exact at 1,024 and 65,536
+elements; noise maxima remain 8.82050105e-7 and 9.88528899e-5 within the
+unchanged tolerance. This checkpoint's native scope is emitted GPU numerics.
+The full F5 native/pixel sweep qualified the preceding field checkpoint
+`97e5f7bf`; final full-scope native/pixel qualification is still required.

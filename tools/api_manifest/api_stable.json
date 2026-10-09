@@ -765,6 +765,7 @@
         "type instruction = Const of float | Input of int * int * int | Uniform of int * int | Frame of string | Accumulator of int | Binary of binary * int * int | Unary of unary * int | Noise3 of int * int * int * int * int | Select of int * int * int",
         "type origin = Flow.Workspace.path * int list",
         "type count_source = Flow.Eval.residual -> Flow.Workspace.term -> origin option",
+        "val compile_result : ? fusion : bool -> ? count_source : count_source -> Flow.Eval.residual -> Flow.Workspace.term -> ( t , Flow.Diagnostic.t list ) Stdlib.result",
         "val compile : ? fusion : bool -> ? count_source : count_source -> Flow.Eval.residual -> Flow.Workspace.term -> t option",
         "val compile_template : ? count_source : count_source -> Flow.Eval.residual -> Flow.Workspace.term -> t option",
         "val rebind : t -> Flow.Eval.residual -> t option",
@@ -785,7 +786,7 @@
         "val prepare : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> ? resolve : ( Flow.Eval.value -> ( Flow.Eval.value , Flow.Diagnostic.t ) result ) -> t -> live : Flow.Eval.live -> ( inputs , Flow.Diagnostic.t ) result",
         "end"
       ],
-      "api_sha256": "c24fb709c3487a123ad5430f0031fdc7797a26f18e8774605505648eef0e78cc",
+      "api_sha256": "7137d7a6bf7f11b092c2dd65493dfb4649c409e3f3fa3b87a8338a7b850d7cab",
       "excluded_legacy_symbols": [],
       "library": "flow_ir",
       "module": "Packed",

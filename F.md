@@ -155,6 +155,9 @@ complete: emission is the largest interval (6.155 ms at eight domains), and
 Astra next approves direct packed edge writes with a captured all-mask golden.
 F1.3's shared compiler/emitter/dispatch form checks are implemented; focused,
 shipping and native GPU checks pass. Its two-stage qualification wiring remains pending.
+Explicit declaration capabilities (`e7c36ea7`) and diagnostic compilation are
+implemented; the diagnostic checkpoint passes focused, shipping and native
+GPU checks with Astra approval. Actual-capture qualification remains pending.
 Direct packed edge writes (`97e5f7bf`) now pass F2.1's measured gate: eight-domain whole
 cook medians are 9.131908 and 9.860992 ms in opposite execution orders,
 with exact geometry and about 15.7 MB less allocation. Astra's verdict is
@@ -557,7 +560,7 @@ deferred record/vector components and successful declined fusion. This is
 approved design; diagnostic compilation and the remaining qualification/provenance/
 inspector/full-catalog audit are still pending.
 
-**Declaration capability foundation (2026-10-09).** Explicit noise capability
+**Declaration capability foundation (2026-10-09, `e7c36ea7`).** Explicit noise capability
 and the shared `Op.packed_kind` classifier are implemented in packed and scalar
 IR compilation. Canonical scalar built-ins retain frame handling and constant
 folding; color operators and opaque copied declarations clear the capability.
@@ -569,6 +572,21 @@ Astra approves this declaration checkpoint without narrowing or execution
 changes. Shipping and native GPU checks pass (exit 0). This is a foundation,
 not completion of F1.3; diagnostic compilation and actual-capture qualification
 remain required.
+
+**Diagnostic compilation foundation (2026-10-09).**
+`Packed.compile_result` now reports the first actual refusal with a source
+span and a concrete reason, preserving evaluator codes. The legacy compile
+APIs and runtime reference fallback consume the same result. Speculative
+deferred-vector projection, unknown counts, child compilation and declined
+fusion keep their previous behavior. Tests cover state/function/capture/type/
+form/limit/operator/constant refusals, preserved nonfinite constant diagnostics,
+the 64/65-register
+boundary, deferred Vec2/Vec3/Vec4 record components and successful unfused
+fallback at four times/domains 1/8. Focused IR/GPU/SOP checks pass, the single
+public API addition is reviewed/promoted, and Astra approves this checkpoint.
+Shipping and native GPU validation pass (exit 0). Actual-capture qualification,
+checker provenance/state facts, inspector reasons and the full authored
+producer/emitter audit remain open; this is not completion of F1.3.
 
 **Source audit (2026-10-08; predicate/test implementation pending).**
 The current 39-file `--approx` audit (including the actual custom catalogs)

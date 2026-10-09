@@ -12,6 +12,11 @@ type count_source = Flow.Eval.residual -> Flow.Workspace.term -> origin option
 (** Hosts may prove equal source cardinality from instantiated domain facts.
     [None] retains a materialization boundary for dynamic multi-input maps. *)
 
+val compile_result : ?fusion:bool -> ?count_source:count_source ->
+  Flow.Eval.residual -> Flow.Workspace.term -> (t, Flow.Diagnostic.t list) Stdlib.result
+(** The first actual compilation refusal, with its source location. Declined
+    fusion retains a valid unfused program and is not a refusal. *)
+
 val compile : ?fusion:bool -> ?count_source:count_source ->
   Flow.Eval.residual -> Flow.Workspace.term -> t option
 (** Unsupported bodies remain on the reference interpreter. Fusion defaults to
