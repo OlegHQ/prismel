@@ -248,7 +248,7 @@ let rows ?(wide = true) state p =
     let root_graph = List.find_opt (fun (g : W.graph) -> g.context = Flow.Context.scene) ws.graphs in
     List.iter (fun (group, graphs) ->
       add (Head (group, match group with
-        | "Scene" -> "v  r" | "Geometry" | "Materials" -> "used" | "Layout" -> "Space [" | _ -> ""));
+        | "Scene" -> "v  r" | "Geometry" | "Materials" -> "used" | "Layout" -> "/ [" | _ -> ""));
       let graph_rows graphs = List.iter (fun (g : W.graph) ->
         let n = loops g.form in
         add (graph_row p g (match g.context with
@@ -516,7 +516,7 @@ let view state ui ~bounds:(x, y, w, h) p =
             if right = "v  r" then List.iteri (fun column name ->
               Ui.Paint.cap paint ~at:(flag_x column +. 6. -. (Ui.Paint.cap_width paint name /. 2.), cy) ~color:ink_3 name)
               [ "v"; "r" ]
-            else if right = "Space [" then begin
+            else if right = "/ [" then begin
               let small = Pxui_shell.Kit.cap_size ui in
               let kw = Ui.Paint.text_width paint ~size:small right in
               Ui.Paint.text paint ~size:small ~at:(x +. w -. 12. -. kw, cy)
@@ -643,7 +643,7 @@ let view state ui ~bounds:(x, y, w, h) p =
           tx := !tx +. Ui.Paint.text_width paint ~size:small key +. 8.;
           Ui.Paint.text paint ~at:(!tx, Pxui_shell.Kit.text_y ui (fy +. 1.) rh) ~color:muted what;
           tx := !tx +. Ui.Paint.text_width paint what +. 8.)
-          [ "/", "filter"; "i", "enter"; "Space j", "jump" ];
+          [ "s", "filter"; "i", "enter"; "/ j", "jump" ];
         let count = plural (List.length p.workspace.graphs) "graph" in
         Ui.Paint.cap paint ~at:(fx +. fw -. 12. -. Ui.Paint.cap_width paint count, Pxui_shell.Kit.cap_y ui (fy +. 1.) rh) count);
   (* the scroll thumb: 4 points wide, 2 from the edge, line-3, over a track 6 points in from both ends *)

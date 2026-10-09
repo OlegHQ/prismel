@@ -359,7 +359,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   (* a World key is written to the text (below); only a World the host made is edited here *)
   let next, world_label, world_edits = if in_world value
     then world_keys value next result.selection actions else next, None, [] in
-  (* Space e opens the World, creating the singleton on first use. *)
+  (* / e opens the World, creating the singleton on first use. *)
   let next, world_added = match Objects.ids "world" next.scene.graph.geometry with
     | [] when List.mem Leader.Go_world actions ->
         (match add_world next daylight with Ok doc -> doc, true | Error _ -> next, false)
@@ -473,7 +473,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     | Some id when Edit_graph.find (network value').graph.geometry ~node_id:id <> None ->
         Selection.select id selection
     | Some _ | None -> selection in
-  (* Space e selects the scene's World, then enters it *)
+  (* / e selects the scene's World, then enters it *)
   let selection = match target with
     | Some (Document.Inside id) when List.mem Leader.Go_world actions && level = Document.Scene ->
         Selection.select id selection
@@ -506,7 +506,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
         { (open_level { value' with back = rest } back_level) with pane_graph }
     | _ -> value' in
   let value' = match followed with Some graph -> go value' graph | None -> value' in
-  (* In the World, Space m flips the view pane to the lat-long map. *)
+  (* In the World, / m flips the view pane to the lat-long map. *)
   let map_view = if List.mem Leader.Toggle_map actions && in_world value'
     then not value'.map_view else value'.map_view && in_world value' in
   let value' = { value' with map_view } in
@@ -521,7 +521,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   let outlined = List.find_map (function
     | Navigator.Open { graph; node } -> Some (graph, node)
     | _ -> None) result.outline_intents in
-  (* Space j, or a material just made, shows its graph like a row of the outline *)
+  (* / j, or a material just made, shows its graph like a row of the outline *)
   let outlined = match outlined, result.prompt_intent, !created with
     | None, Some (Go graph), _ | None, _, Some graph -> Some (graph, None)
     | _ -> outlined in
@@ -538,7 +538,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
             Pxui_graph.Scope.Frame_selection) }
     | _ -> value' in
   let value' = match outlined with Some (graph, _) -> go value' graph | None -> value' in
-  (* the graph panel's own projection: list and text views are panels of their own now (Space l
+  (* the graph panel's own projection: list and text views are panels of their own now (/ l
      retypes), so opening a graph is the only thing that changes it *)
   let projections = if result.open_graph <> None || outlined <> None then
       Level_map.add value'.level Graph_view value'.projections

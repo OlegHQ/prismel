@@ -119,7 +119,7 @@ The pane's structure is `graph.html`'s, not only its card internals:
 
 - **Levels.** `Projection.level` Point / Chip / Card / Full is layout data stored by path (`Layout_by_path.level`,
   `pinned`) and travels as `Level_set` through `Doc.layout_edit`, one history entry per gesture. `o` opens the
-  selection one level and pins it, `p` points it or goes back, `⇧O` / `⇧P` do it for every node. The layout reserves the requested level's size and the pane draws that level at every zoom. A card's body is `P.placed.lines` (`Projection.lines`): the rows
+  selection one level and pins it, `p` points it or goes back, `⇧O` / `⇧K` do it for every node. The layout reserves the requested level's size and the pane draws that level at every zoom. A card's body is `P.placed.lines` (`Projection.lines`): the rows
   `Flow_graph.Exposure.shown` lets through (wired or written, a written default included, so a row whose wire is taken off stays: `fallback` writes the
   schema default; the schema's primary rows are not applied on the card, see
   flow.md 5.1); Full lists every row under its folder label rows. Index rows through `lines`
@@ -149,7 +149,7 @@ the item of a path (`geo.slot`, `item_at`), the wired out-ports (`geo.read`) and
 zone (`geo.inside`); `update` asks them and never walks `geo.items` or `geo.wires`. A wire segment is cut to the
 viewport (`clip_segment`, the pane's one Liang-Barsky clip, which routing's `crosses` shares) before it is made
 into 16-point hit boxes; the wires of a zone's body get their boxes again right after the zone's tile, cut to
-it, so they lie over the tile and under the cards. Gestures that take every node (`⇧P`, a drag of the whole
+it, so they lie over the tile and under the cards. Gestures that take every node (`⇧K`, a drag of the whole
 selection, the letter hints) look paths up in tables or sets, never in lists. `scope_idle_frame` in
 `test/test_pxui_graph.ml` bounds the allocation of an idle frame with nothing in view on 2,001 nodes;
 `dune exec test/test_main.exe -- bench_scope_big` prints the frame, the 16 x 16 pane, `Point_all` and one

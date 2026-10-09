@@ -71,9 +71,9 @@ module Private : sig
   end
   (** Unstable test and diagnostic hooks. These are outside the supported
       sketch API and may change without compatibility shims. *)
-  (** Helix-style leader keys. Space (while no text field is focused) opens a
+  (** Helix-style leader keys. [/] (while no text field is focused) opens a
       centered which-key panel; the next key runs a binding from the global
-      scope or from the focused pane, the one last clicked. Escape, Space, an
+      scope or from the focused pane, the one last clicked. Escape, [/], an
       unknown key, a click, or window focus loss cancel it. *)
   module Render_budget : sig
     val film : through:bool -> resolution:int * int -> gate:int * int -> (int * int) * int
@@ -126,12 +126,12 @@ module Private : sig
   (** [timeline_frames] (default 240) is the scrub range of the timeline bar,
       extended while playback runs past it. [name] (default the workspace name; [run]
       uses the window title) is recorded in presets, which live in [presets]
-      (default [~/.rays/<name>]): [Space s] saves the full document under a
-      typed name (prefilled with the time), [Space b] searches, loads (Enter, one
+      (default [~/.rays/<name>]): [/ s] saves the full document under a
+      typed name (prefilled with the time), [/ b] searches, loads (Enter, one
       undo entry), and deletes (Delete twice) them. Edits also save one recovery
       file under [<presets>/state], at most twice a second and on close, using
       the source file's absolute path (or workspace name) as its identity.
-      [Space b] offers it as "Last edited state". Opening an unchanged sketch
+      [/ b] offers it as "Last edited state". Opening an unchanged sketch
       preserves its recovery file; autosave keeps source files untouched.
       See {!Preset}. *)
 
@@ -567,13 +567,13 @@ module Editor3 : sig
       camera that root names; any other sees through {!render_camera}. *)
 
   val flying : 'prepared t -> bool
-  (** [Space w] with the view focused: held W/S/A/D/Q/E fly the viewport
+  (** [/ w] with the view focused: held W/S/A/D/Q/E fly the viewport
       camera ([Easy_camera.fly]) with the pointer captured through
-      [Sketch.set_relative_mouse]. Escape or focus loss exits; Space exits and
+      [Sketch.set_relative_mouse]. Escape or focus loss exits; Space or [/] exits and
       opens the leader. *)
 
   val look_through : 'prepared t -> bool
-  (** The view shows [render_camera] ([Space v], or the Camera panel toggle);
+  (** The view shows [render_camera] ([/ v], or the Camera panel toggle);
       orbit input is frozen unless the active camera follows the viewport. *)
 
   val timeline : 'prepared t -> Sketch_support.Timeline.t
@@ -584,10 +584,10 @@ module Editor3 : sig
       The document is a scene of objects above the SOP networks. The code
       [graph] is the geometry object [geo1]; [?lights] become light objects
       and [?world] the World. The graph pane shows the open level as a graph
-      or a list ([Space l]): [i], a double-click, or activating a list row
+      or a list ([/ l]): [i], a double-click, or activating a list row
       enters a geometry object's SOP network or the World's layer stack, and
-      [u] goes back up; [Space e] opens the World (created on first use), and
-      [Space a] opens the add menu of the open level (objects, SOPs, or World
+      [u] goes back up; [/ e] opens the World (created on first use), and
+      [/ a] opens the add menu of the open level (objects, SOPs, or World
       layers): hover a category for its submenu, or type to search. Object transforms place each object's cook as a
       whole, so moving one never re-cooks SOPs. [graph], [document],
       [prepared], and [displayed_node] describe the open (else the first)

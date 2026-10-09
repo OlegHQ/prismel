@@ -204,11 +204,11 @@ let editor_text () =
   let settle () = for _ = 1 to 4 do step [] done in
   settle ();
   let gx, gy, gw, gh = (E.panes !env (frame 0 [])).graph in
-  (* enter the sunflower object, then Space l t: the graph panel shows its text *)
+  (* enter the sunflower object, then / l t: the graph panel shows its text *)
   click (float (gx + 50), float (gy + 100));
   step [ key Input.Home ]; step [ char 'i' ]; settle ();
-  step [ key Input.Space; char 'l'; char 't' ]; step [];
-  check (contains (dump ()) "projection: text") ("Space l t did not reach the text pane\n" ^ dump ());
+  step [ key (Input.KeyChar '/'); char 'l'; char 't' ]; step [];
+  check (contains (dump ()) "projection: text") ("/ l t did not reach the text pane\n" ^ dump ());
   let ws () = E.workspace !env in
   let original = ws () in
   let base = E.undo_label !env in
@@ -365,8 +365,8 @@ let editor_binding () =
   step [ key Input.Home ]; step [ char 'i' ]; settle ();
   (* walk to a binding, then show the text pane: its Selection tab edits the closure shown *)
   for _ = 1 to 4 do step [ key Input.ArrowRight ] done;
-  step [ key Input.Space; char 'l'; char 't' ]; step [];
-  check (contains (dump ()) "projection: text") "Space l t did not reach the text pane";
+  step [ key (Input.KeyChar '/'); char 'l'; char 't' ]; step [];
+  check (contains (dump ()) "projection: text") "/ l t did not reach the text pane";
   let area = float (gx + 200), float (gy + 24 + 60) and apply = float (gx + 32), float (gy + gh - (if gw < 400 then 16 else 40)) in
   let type_closure text = click area; step ~keys:[ Input.Meta ] [ char 'a' ]; step [ Event.TextInput text ] in
   let ws () = E.workspace !env in
@@ -812,7 +812,7 @@ let editor_text_drop () =
   let at ?buttons point events = mouse := point; step ?buttons events in
   let key k = Event.KeyPressed k and char c = Event.KeyPressed (Input.KeyChar c) in
   let jump name =
-    step [ key Input.Space; char 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
+    step [ key (Input.KeyChar '/'); char 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
   let line () = Option.value ~default:"-" (E.carry_line !env) in
   let source () = Flow.Lisp.print (E.workspace !env).source |> fst in
   for _ = 1 to 4 do step [] done;

@@ -3,7 +3,7 @@ open Rays
 let check condition message = if not condition then failwith message
 let key k = Event.KeyPressed k
 let char c = key (Input.KeyChar c)
-let palette = [key Input.Space; char '/']
+let palette = [key (Input.KeyChar '/'); char '/']
 let wheel point = [Event.MouseMoved point; Event.MouseScrolled (0., 1.)]
 
 let frame ?(buttons = []) ?(keys = []) ?(delta = (0., 0.)) mouse events count : Frame.t = {
@@ -164,12 +164,12 @@ let run () =
     let cancelled = camera !current in
     step [Event.MouseMoved (190., 350.)];
     check (camera !current = cancelled) (name ^ ": popup did not cancel an existing drag");
-    (* the scene opens as a list: Space l g in the graph pane shows the scene graph *)
+    (* the scene opens as a list: / l g in the graph pane shows the scene graph *)
     begin
       let gx, gy, _, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in
       let point = float (gx + 25), float (gy + 300) in
       step ~mouse:point [Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)];
-      step [key Input.Space; char 'l'; char 'g']
+      step [key (Input.KeyChar '/'); char 'l'; char 'g']
     end;
     step [];
     let gx, gy, _, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.graph in

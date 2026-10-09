@@ -346,9 +346,10 @@ let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timelin
             | Some (Editor_core.Keymap.Leader sequence)
                 when sequence = "" || String.contains sequence ' ' ->
                 Some ("invalid leader sequence: " ^ command.id)
-            | Some (Chord (Input.Space, modifiers))
-                when not (List.mem Input.Meta modifiers || List.mem Input.Ctrl modifiers) ->
-                Some ("Space is reserved for leader routing: " ^ command.id)
+            | Some (Chord (Input.KeyChar '/', modifiers))
+                when not (List.mem Input.Meta modifiers || List.mem Input.Ctrl modifiers
+                          || List.mem Input.Shift modifiers) ->
+                Some ("/ is reserved for leader routing: " ^ command.id)
             | Some (Chord (_, modifiers)) when List.exists (function
                 | Input.Meta | Ctrl | Shift | Alt -> false | _ -> true) modifiers ->
                 Some ("invalid chord modifier: " ^ command.id)
@@ -1009,7 +1010,7 @@ let crash_dump value directory =
     Printf.fprintf channel
       "level: %s\nprojection: %s\npane graph: %s\ngraph panels: %s\nwindows: %s\npanels: %s\nroute: %s\ntext: %s\nmap view: %b\ngraph pan: %b\nguide: %b\nkey hud: %s\nselected: %s\nscope selected: %s\nfocus: %s\nprompt: %s\n\
        undo: %s (%d entries)\nredo: %s\ncook: %s\nedit error: %s\nrenderer: %s\nlive scene: %s\nautosave: %s\n\
-       load document.rays with Space b (workspace documents only) after copying it to %s\n"
+       load document.rays with / b (workspace documents only) after copying it to %s\n"
       (Core.level_name core)
       (match Core.projection core with Core.List_view -> "list"
         | Graph_view -> "graph" | Text_view -> "text")

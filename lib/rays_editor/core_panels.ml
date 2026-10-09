@@ -188,14 +188,14 @@ let panel_kind : Pxui_shell.Layout.panel -> string = function
   | Canvas _ -> "canvas" | View _ -> "viewport" | Graph -> "graph" | List -> "list" | Lisp -> "lisp"
   | Inspector -> "inspector" | Outline -> "outline" | Timeline -> "timeline" | Spreadsheet -> "spreadsheet"
 
-(* Space [ and Space n: the layouts of the switch and the floating windows, each one edit of the
+(* / [ and / n: the layouts of the switch and the floating windows, each one edit of the
    editor graph (written from the layout shown first, when the document has none). *)
 let layout_actions value (workspace : shell) ~(leaf : Pxui_shell.Layout.leaf option) actions =
   let graph = Option.map (fun (g : Flow.Workspace.graph) -> g.name)
     (Workspace_doc.editor_graph (fst value.doc.Document.workspace)) in
   let edit make = match graph with
     | _ when workspace.restored ->
-        [ Declined "The default layout is showing. Space z returns to the editor graph." ]
+        [ Declined "The default layout is showing. / z returns to the editor graph." ]
     | Some graph -> [ Syntax_edit (make graph) ]
     | None ->
         let scene = Option.value ~default:"scene" (List.find_map (fun (g : Flow.Workspace.graph) ->
@@ -248,10 +248,10 @@ let layout_intents value (workspace : shell) intents =
                   [ Syntax_inline { home; key; make = (fun p ->
                       Flow_graph.Flow_edit.Set_panel_kind { node = p @ [ "@result" ]; kind }) } ]
               | _ -> [ Declined ("These panels are copies made by a loop in " ^ Document.describe (fst value.doc.Document.workspace).source home
-                  ^ ": retype them (Space o), or edit the loop in the editor graph.") ])
+                  ^ ": retype them (/ o), or edit the loop in the editor graph.") ])
          | None -> [ Declined "This panel is not part of the editor graph's tree." ])
     | _ when workspace.restored ->
-        [ Declined "The default layout is showing. Space z returns to the editor graph." ]
+        [ Declined "The default layout is showing. / z returns to the editor graph." ]
     | _ ->
         (* no editor graph: the layout shown is written as one first, then edited *)
         let scene = Option.value ~default:"scene" (List.find_map (fun (g : Flow.Workspace.graph) ->

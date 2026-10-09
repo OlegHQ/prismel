@@ -337,7 +337,7 @@ rebuild decodes the physical input list with the slot presence captured at
 build time, so sparse optional connections keep their slot. Match Size exercises
 this path with one required geometry input and one optional target input.
 
-The node menu (`Pxui_graph.Node_menu`: leader `Space a`, `Tab` in the graph panel, or a
+The node menu (`Pxui_graph.Node_menu`: leader `/ a`, `Tab` in the graph panel, or a
 right-click on the empty canvas) is a search field over the kinds, the likeliest first.
 Typing searches the whole catalog by stable key, display label, or category. Catalog tests require unique keys, instantiate every
 registered factory with disconnected placeholders, and compare the constructed
@@ -426,8 +426,8 @@ navigation, painting, view persistence and mode state.
 Reachable `Context.Time`/`Context.Frame`
 dependencies trigger external-effect recooks while static graphs remain cached.
 Long dynamic cooks finish before the newest clock snapshot is submitted;
-parameter edits remain urgent and supersede stale work. `Space p`, `x` and `r`
-play or pause, stop, and reset the local clock; `Space g`, `i`, `c` and `h` control graph,
+parameter edits remain urgent and supersede stale work. `/ p`, `x` and `r`
+play or pause, stop, and reset the local clock; `/ g`, `i`, `c` and `h` control graph,
 inspector, camera controls, and all UI.
 
 The template/value split and soft-versus-strict behavior are based on the

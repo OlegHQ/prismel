@@ -210,7 +210,7 @@ routing, and atomic file storage (user preferences and documents are
 s-expressions printed by `Flow.Lisp`). Sketch hosts use
 `Editor_core.History`, `Editor_core.Router`, and `Editor_core.Store`;
 the router filters fly-mode keyboard events before leader and chord routing,
-while passing Space through to arm the leader after fly exits.
+while passing `/` through to arm the leader after fly exits (`/` and Space both exit; only `/` is passed on, so Space does not also play).
 `flow` supplies the expression/value model, diagnostics and the workspace language
 (reader, checker, evaluator) over `param`. `ppx_rays` depends on `flow` for
 declaration checks only.
@@ -749,7 +749,7 @@ run and sends its caret offset in logical points to SDL3. Text fields, numeric
 editors, and picker search share UTF-8 caret and selection editing. PXUI
 applies text events only to a focused editor; Sketch UI
 suppresses workspace and graph keyboard shortcuts while an editor has focus,
-and its leader key (Space) only
+and its leader key (/) only
 arms while no editor is focused. Camera PNG requests capture the
 just-presented native framebuffer through `Sketch.run_state`'s `after_present`
 hook. The UI offers the supported native 1× export factor. PXUI copy, cut, and

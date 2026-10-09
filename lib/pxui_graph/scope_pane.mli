@@ -69,7 +69,7 @@ type command =
   | Open_level  (** [o]: the selected nodes one level more detailed, pinned *)
   | Point_level  (** [p]: the selected nodes to points, or back to the level they had *)
   | Open_all  (** [⇧O]: every node to the default level *)
-  | Point_all  (** [⇧P]: every node to a point, or every node back *)
+  | Point_all  (** [⇧K]: every node to a point, or every node back *)
   | Show_hints
       (** [w]: with one node selected, a letter chip on every node it can connect to (a node with
           several fitting inputs asks for a second letter); a complete label is a

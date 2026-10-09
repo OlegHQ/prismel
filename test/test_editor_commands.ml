@@ -57,7 +57,7 @@ let run () =
         ~frame:(Test_editor_input.frame (500.,400.) events 1) Idle in
       check (List.map (fun (c : _ Command.t) -> c.action) actions = [expected]) "guide key failed outside or inside graph focus")
       [key Input.Shift :: [char '/'], L.Guide_toggle;
-       [char '?'], L.Guide_toggle; [key Input.Space; char '?'], L.Guide_keys])
+       [char '?'], L.Guide_toggle; [key (Input.KeyChar '/'); char '?'], L.Guide_keys])
     Pxui_shell.Layout.[View ""; View "v1.0"; Graph; List; Lisp; Inspector; Outline; Timeline];
   (* Tab is the graph's own key for the add menu ("Tab add after" on the strip), and no other pane's *)
   List.iter (fun (focus, expected) ->
@@ -151,7 +151,7 @@ let run () =
       "case-equivalent triggers were accepted";
     rejected [make (Leader "qj") bump; make ~id:"test.other" (Leader "qjj") (set 4)]
       "unreachable leader prefix was accepted";
-    rejected [make (Chord (Input.Space, [])) bump] "unreachable Space chord was accepted";
+    rejected [make (Chord (Input.KeyChar '/', [])) bump] "unreachable / chord was accepted";
     rejected [make (Leader "") bump] "empty leader was accepted";
     rejected [make (Chord (Input.KeyChar 'k', [Input.Shift])) bump;
       make ~id:"test.other" (Chord (Input.KeyChar 'k', [Input.Alt])) (set 4)]
@@ -171,13 +171,13 @@ let run () =
         incr count;
         current := update !current (Test_editor_input.frame ~keys mouse events !count) in
       let value () = Settings.get schema (settings !current) in
-      step []; step [key Input.Space; char 'q'; char 'j'];
+      step []; step [key (Input.KeyChar '/'); char 'q'; char 'j'];
       check (value () = 3) (name ^ ": canonical leader action did not run");
       current := set 0 !current;
-      step [key Input.Space; char 'q'; char 'q'];
+      step [key (Input.KeyChar '/'); char 'q'; char 'q'];
       check (value () = 3) (name ^ ": alias action differed");
       current := set 0 !current;
-      step [key Input.Space; char '/']; step [Event.TextInput "bump command"];
+      step [key (Input.KeyChar '/'); char '/']; step [Event.TextInput "bump command"];
       step [key Input.Enter]; step [];
       check (value () = 3) (name ^ ": palette action differed");
       current := set 0 !current;
@@ -221,7 +221,7 @@ let run () =
     E3.close !current; current := create (); step [] 2; step [char '?'] 3;
     check (enabled () = Some true) "a new host did not load the saved guide preference";
     (* A sheet owns input until shared modal dismissal, then shortcuts resume. *)
-    step [key Input.Space; char '?'] 4; step [char '?'] 5;
+    step [key (Input.KeyChar '/'); char '?'] 4; step [char '?'] 5;
     check (enabled () = Some true) "guide key escaped the key-sheet modal";
     step [key Input.Escape] 6; step [char '?'] 7;
     check (enabled () = Some false) "key-sheet dismissal kept keyboard focus";

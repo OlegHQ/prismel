@@ -1,4 +1,4 @@
-(** The node menu (leader [Space a], the sheet's [01]): a search field over the kinds from the
+(** The node menu (leader [/ a], the sheet's [01]): a search field over the kinds from the
     start, the likeliest first (what takes an input after the selected node, then the rest), typed
     search over the whole catalog by name, key or category.  Pure state plus one PXUI popup; the
     host decides what a picked key adds. *)

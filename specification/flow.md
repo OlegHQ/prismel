@@ -339,7 +339,7 @@ Bypass on `if` selects its then arm; `cond` and `case` cannot be bypassed.
 - Zoom range 0.25 to 2.5, at the pointer. The zoom never changes a node's level: a card
   stays a card with its rows at every zoom, only smaller. `o` opens the selection one level
   and pins it, `p` points it or goes back to the level it had; `⇧O` returns every node to a
-  card and `⇧P` points every node, or puts every node back.
+  card and `⇧K` points every node, or puts every node back.
 
 ### 6.5 Colour and type
 
@@ -395,7 +395,7 @@ selection, row keys on the row under the pointer.
 | `Tab` | `graph.add-after` | the add menu; with a node selected the pick is wired after it (§7.3) |
 | `w` | `scope.hints` | connect by letter hints (§7.5) |
 | `o` / `p` | `scope.open` / `scope.point` | open the selection one level, pinned / point it, or back |
-| `⇧O` / `⇧P` | `scope.open-all` / `scope.point-all` | every node to a card / every node to a point, or back |
+| `⇧O` / `⇧K` | `scope.open-all` / `scope.point-all` | every node to a card / every node to a point, or back |
 | `v` | `scope.display` | preview the selected geometry node at the iteration selectors (below) |
 | `b` | `scope.bypass` | toggle `^:bypass`; on a node with a boolean `:visible` and no bypass, toggle that instead |
 | `x`, Delete, Backspace | `scope.delete` | the hovered wired row's wire or list item, else the selected wire, else the selected nodes |
@@ -418,10 +418,10 @@ selection, row keys on the row under the pointer.
 | `y` | `carry.pick-up` | pick up a graph or object (§7.12) |
 | `?` | `guide.toggle` | guide strip on or off |
 
-Every `⌘` chord is also bound with Ctrl. Leader keys (`Space`, then): `a` add menu, `j` jump
+Every `⌘` chord is also bound with Ctrl. Leader keys (`/`, then): `a` add menu, `j` jump
 to a graph, `e` the World, `f` frame the displayed tile, `/` palette, `?` key sheet, `s`
 save preset, `b` browse presets, `t` `g` `i` `h` toggle the timeline, graph, inspector or
-all UI, `p` `r` `x` play, reset, stop, `z` restore layout, `o` `v`/`h`/`x`/`f` split side by
+all UI, `p` `r` `x` play, reset, stop (Space also plays and pauses, `⇧P` resets, from any pane; the palette is `/ /`), `z` restore layout, `o` `v`/`h`/`x`/`f` split side by
 side, split stacked, close, float or dock the focused panel, `l` `g`/`l`/`t`/`i`/`u`/`m`/`w`
 retype the focused panel (graph, list, lisp, inspector, outline, timeline, viewport), `n`
 plus the same letters a floating window of that kind, `[` `0`..`9`/`n`/`x` the layouts
@@ -443,7 +443,7 @@ it is view state, outside the document and history.
 
 ### 7.3 Add
 
-`Space a`, `Tab` in the graph panel and a right-click on empty canvas open the node menu
+`/ a`, `Tab` in the graph panel and a right-click on empty canvas open the node menu
 (`Pxui_graph.Node_menu`): a search field over the kinds, the likeliest first (what takes an
 input after the selected node, then the rest), typed search over the whole catalog by name,
 key or category. A kind of another context is listed after the others, dimmed, and cannot be
@@ -549,7 +549,7 @@ While carrying:
   in the strip and outlined in the graph pane. A letter previews, `Enter` writes, `Esc` drops, and
   a left press on a place is the put. Letters never reach the commands while the carry lasts.
   The pointer previews too once it moves.
-- **It survives navigation.** `i`, `u` and `Space j` (and the walking keys) work while carrying;
+- **It survives navigation.** `i`, `u` and `/ j` (and the walking keys) work while carrying;
   holding the pointer over a node for 0.6 s follows its reference. Nothing else edits the
   document until the put, and the autosave never writes a preview.
 - **Budget.** A put whose apply (edit and check) or whose target cook takes 500 ms or more
@@ -571,7 +571,7 @@ and `Core` turns a drop into the put.
 
 ## 8. Views
 
-A panel of the editor graph is a graph, a list or a lisp panel (§11.11); `Space l` retypes
+A panel of the editor graph is a graph, a list or a lisp panel (§11.11); `/ l` retypes
 the focused one. They show the same graph, level and selection and write the same edits.
 
 ### 8.1 Graph
@@ -622,7 +622,7 @@ On by default until the user turns it off (`?`); the setting persists in user pr
   carries `guide : Guide_context.t list` (pure data, no predicate), and the host computes the
   current context: `Canvas | Node | Multi | Hints | Leader | Search | List | Text`. `Canvas`
   is the empty canvas, `Node` one node selected, `Multi` several.
-- **Which-key** after `Space`, and the **key sheet** on `Space ?`, grouped Add, Panel,
+- **Which-key** after `/`, and the **key sheet** on `/ ?`, grouped Add, Panel,
   Layout, Go, Time, File, plus a section per pane.
 - **HUD.** A key press echoes `key · command label` for 1.5 seconds.
 
@@ -868,7 +868,7 @@ card edit the points in place.
 **Strips.** A `ui/timeline` leaf has no header and, in a vertical split by ratio (a plain
 `ui/split` reads best), a height of 30 points whatever the ratio says, the other side taking the
 rest: it sits between two panels at any window size. A fixed size written for it wins. Hiding the
-timeline (`Space t`) removes the leaf's strip. The strip's frame field is typed (a click opens it,
+timeline (`/ t`) removes the leaf's strip. The strip's frame field is typed (a click opens it,
 Enter commits, Escape cancels) and clamps to 0 and the last frame. A tree without a
 timeline leaf has the same strip under the tree. The status strip (28 points) spans the window below
 both; no panel gives up space for it. A collapsed panel is a strip of its header: 22 points in a
@@ -880,7 +880,7 @@ viewport through its scene's render camera, `:view` picks a graph panel's view a
 panel's tab. They say how the editor opens the document; use never rewrites them. The editor
 follows one again whenever its value in the text changes, by any route (a reload of the source file,
 a preset, an edit, undo), for the panel that changed; a reload that leaves them as they were leaves
-what the user did in the UI alone. `Space v` and the inspector toggle look-through for the focused
+what the user did in the UI alone. `/ v` and the inspector toggle look-through for the focused
 viewport only.
 
 **Panels are instances.** Every leaf draws and works, docked or floating, however many of a kind the
@@ -919,7 +919,7 @@ wins for that leaf.
 `Set_panel_kind`, `Set_layout`, `Layout_new`, `Layout_remove`, `Layout_window`, `Layout_float`,
 `Merge_layouts`) accept a graph whose result is the `ui/workspace` call or a binding of it. The
 printer never threads a `ui/` call (§11.3): a layout is a tree of containers, not a pipeline.
-Named layouts, the `Space [` keys and the migration of an older file with several editor graphs are
+Named layouts, the `/ [` keys and the migration of an older file with several editor graphs are
 in `workspace/iteration.md` §4.
 
 ### Import
@@ -1341,8 +1341,8 @@ order and `draw/translate` scopes a Drawing.
 composition inside the panel's clip and translation. Background fills only
 that Canvas; it does not clear other panes. Docked, floating, repeated and
 bound Canvas leaves keep their own identity. Hiding the UI draws the focused
-Canvas over the whole window. The header menu and `Space l c` retype a pane;
-`Space n c` opens a floating Canvas. These edits use `Flow_edit` and need a
+Canvas over the whole window. The header menu and `/ l c` retype a pane;
+`/ n c` opens a floating Canvas. These edits use `Flow_edit` and need a
 draw graph to reference (`E_DRAW_GRAPH` when absent).
 
 The add menu lists every Draw operator directly from `Flow.Op`; frame and

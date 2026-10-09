@@ -70,10 +70,10 @@ end
 module Router : sig
   (** Tab cancels leader routing, runs its exact-modifier host binding or
       passes to UI traversal, then hands the remaining ordered events to
-      the UI (including a same-frame Space). *)
+      the UI (including a same-frame /). *)
   type state = Idle | Pending of string  (** leader keys typed so far *)
 
-  (** In fly mode, keep pointer/window events and pass Space to the leader
+  (** In fly mode, keep pointer/window events and pass / to the leader (Space exits too, but is not passed on)
       router after ending the mode. Escape ends fly without opening a shortcut. *)
   val fly : Rays.Frame.t -> bool * Rays.Frame.t
 

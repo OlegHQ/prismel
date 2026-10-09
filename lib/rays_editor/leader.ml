@@ -13,17 +13,17 @@ type action =
   | Render_mode of int  (* the viewport header's tabs: 0 solid, 1 wire, 2 traced *)
   | Undo | Redo
   | Panel_split of Pxui_shell.Layout.axis | Panel_close | Panel_retype of Pxui_shell.Layout.panel
-      (* Space o ...: the focused panel, as the header menu does *)
-  | Toggle_map  (* Space m: in the World, the view pane flips to the lat-long map *)
+      (* / o ...: the focused panel, as the header menu does *)
+  | Toggle_map  (* / m: in the World, the view pane flips to the lat-long map *)
   | Ui_scale of int  (* Command +/-/0: the kit text of every panel but the graph and viewports *)
   | Restore_layout | Enter | Up | Go_world
   | Peek  (* I: the followed graph in a floating window *)
   | Pick_up  (* y: carry the open material or SOP graph, or the selected object's graph (see carry.ml) *)
-  | Jump  (* Space j: a filter over every graph *)
+  | Jump  (* / j: a filter over every graph *)
   | Layout_switch of int | Layout_new | Layout_remove
-      (* Space [ 0..9, n, x: the layouts of the editor graph's switch *)
+      (* / [ 0..9, n, x: the layouts of the editor graph's switch *)
   | Window_new of Pxui_shell.Layout.panel | Float_toggle
-      (* Space n g/l/t/i/u/m/w: a floating window in the active layout; Space o f floats or docks the focused panel *)
+      (* / n g/l/t/i/u/m/w: a floating window in the active layout; / o f floats or docks the focused panel *)
   | World_emit | World_reseed | World_time of float | World_play | World_preset of int
   | Scope_command of Pxui_graph.Scope.command  (* the workspace pane, see [Core.scope_name] *)
   | List_command of Pxui_shell.Tree.command
@@ -67,7 +67,10 @@ let keymap = [
   command ~id:"workspace.camera-section" ~label:"camera section" ~trigger:(Leader "c")
     Open_camera;
   command ~id:"timeline.play-pause" ~label:"play / pause" ~trigger:(Leader "p") Play_pause;
+  command ~id:"timeline.play-pause" ~label:"play / pause" ~trigger:(Chord (Input.Space, [])) Play_pause;
   command ~id:"timeline.reset" ~label:"reset" ~trigger:(Leader "r") Reset;
+  command ~id:"timeline.reset" ~label:"reset"
+    ~trigger:(Chord (Input.KeyChar 'p', [Input.Shift])) Reset;
   command ~id:"sketch.stop" ~label:"stop" ~trigger:(Leader "x") Stop;
   command ~id:"workspace.command-palette" ~label:"command palette" ~trigger:(Leader "/")
     Command_palette;
@@ -82,7 +85,7 @@ let keymap = [
     (Panel_split `V);
   command ~id:"panel.close" ~label:"close panel" ~trigger:(Leader "ox") Panel_close;
   command ~id:"panel.float" ~label:"float / dock panel" ~trigger:(Leader "of") Float_toggle;
-  (* Space [: the first nine rows are the layouts, named from their panels when which-key draws *)
+  (* / [: the first nine rows are the layouts, named from their panels when which-key draws *)
 ]
 @ List.init 10 (fun i ->
   command ~id:("layout." ^ string_of_int i) ~label:"layout" ~trigger:(Leader ("[" ^ string_of_int i))
@@ -90,7 +93,7 @@ let keymap = [
 @ [
   command ~id:"layout.new" ~label:"layout: new, from this one" ~trigger:(Leader "[n") Layout_new;
   command ~id:"layout.remove" ~label:"layout: remove this one" ~trigger:(Leader "[x") Layout_remove;
-  (* Space n: a floating window of the kind Space l would make *)
+  (* / n: a floating window of the kind / l would make *)
   command ~id:"window.graph" ~label:"window: graph" ~trigger:(Leader "ng") (Window_new Graph);
   command ~id:"window.list" ~label:"window: list" ~trigger:(Leader "nl") (Window_new List);
   command ~id:"window.lisp" ~label:"window: lisp text" ~trigger:(Leader "nt") (Window_new Lisp);
@@ -99,7 +102,7 @@ let keymap = [
   command ~id:"window.timeline" ~label:"window: timeline" ~trigger:(Leader "nm") (Window_new Timeline);
   command ~id:"window.viewport" ~label:"window: viewport" ~trigger:(Leader "nw") (Window_new (View ""));
   command ~id:"window.canvas" ~label:"window: canvas" ~trigger:(Leader "nc") (Window_new (Canvas ""));
-  (* Space l: the focused panel becomes one of the kinds (a document without an editor graph
+  (* / l: the focused panel becomes one of the kinds (a document without an editor graph
      gets one written from its layout first) *)
   command ~id:"panel.graph" ~label:"panel: graph" ~trigger:(Leader "lg") (Panel_retype Graph);
   command ~id:"panel.list" ~label:"panel: list" ~trigger:(Leader "ll") (Panel_retype List);

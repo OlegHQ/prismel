@@ -56,7 +56,7 @@ type prompt =
   | Keys
   | Saving of string
   | Palette of string  (* command search query *)
-  | Jumping of string  (* Space j: graph search query *)
+  | Jumping of string  (* / j: graph search query *)
   | Browsing of { query : string; presets : (string * float) list; last_state : float option }
   | Making_macro of { nodes : Flow.Workspace.path list; draft : Flow_graph.Flow_edit.macro_draft;
                       state : Pxui_shell.Prompt.macro }  (* the make-macro dialog *)
@@ -66,7 +66,7 @@ type prompt_intent = Save_preset_file of string | Load_preset_file of string | L
   | Delete_preset_file of { name : string; query : string }
   | Delete_last_state of string
   | Run_action of Leader.action
-  | Go of string  (* Space j picked a graph *)
+  | Go of string  (* / j picked a graph *)
 
 type timeline_intent = Pxui_shell.Timeline_bar.intent =
   Pause_toggle | Stop_playback | Reset_playback | Seek_playback of int64 | Set_end of int
@@ -243,7 +243,7 @@ type 'prepared t = {
   history : Document.t Editor_core.History.t;
   focus : Pxui_shell.Layout.panel;
   focus_path : Pxui_shell.Layout.path option;  (* which leaf of that kind: every leaf is an
-    instance, and Space o / Space l act on the one clicked, not the first *)
+    instance, and / o and / l act on the one clicked, not the first *)
   pane_keys : (int * (Pxui_shell.Layout.panel * Pxui_shell.Layout.path option)) list;
   leader : Leader.state;
   held_keys : Input.key list;

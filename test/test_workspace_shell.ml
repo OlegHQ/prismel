@@ -179,7 +179,7 @@ let run_editor () =
   check (focus_after (float (hx + 30), float (hy + 100)) = "View") "a press in a viewport focuses a viewport";
   E3.close !e
 
-(* Space o ...: the focused panel is split, closed or retyped by keys, the header menu's edits *)
+(* / o ...: the focused panel is split, closed or retyped by keys, the header menu's edits *)
 let run_panel_keys () =
   let started () =
     let e = ref (editor (case "variations")) and count = ref 0 in
@@ -194,22 +194,22 @@ let run_panel_keys () =
     e, step in
   let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
   let e, step = started () in
-  step [ key Input.Space; ch 'o'; ch 'v' ]; step [];
-  check (E3.undo_label !e = Some "Split panel" && has (source !e) "network_a") "Space o v split the focused panel";
-  step [ key Input.Space; ch 'o'; ch 'x' ]; step [];
-  check (E3.undo_label !e = Some "Close panel") "Space o x closed it again";
+  step [ key (Input.KeyChar '/'); ch 'o'; ch 'v' ]; step [];
+  check (E3.undo_label !e = Some "Split panel" && has (source !e) "network_a") "/ o v split the focused panel";
+  step [ key (Input.KeyChar '/'); ch 'o'; ch 'x' ]; step [];
+  check (E3.undo_label !e = Some "Close panel") "/ o x closed it again";
   let e, step = started () in
-  step [ key Input.Space; ch 'o'; ch 'h' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'o'; ch 'h' ]; step [];
   check (E3.undo_label !e = Some "Split panel" && has (source !e) "\"vertical\" 0.5 network_a network_b")
-    "Space o h split it stacked";
+    "/ o h split it stacked";
   let e, step = started () in
-  step [ key Input.Space; ch 'l'; ch 'i' ]; step [];
-  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/inspector") "Space l i retyped it to an inspector";
-  (* on the graph panel, Space l l / t / g only switch its own view: no edit *)
+  step [ key (Input.KeyChar '/'); ch 'l'; ch 'i' ]; step [];
+  check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/inspector") "/ l i retyped it to an inspector";
+  (* on the graph panel, / l l / t / g only switch its own view: no edit *)
   let e, step = started () in
-  step [ key Input.Space; ch 'l'; ch 'l' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'l'; ch 'l' ]; step [];
   check (E3.undo_label !e = None && dump_line !e "projection" = "list")
-    ("Space l l on the graph panel shows the list: " ^ dump_line !e "projection");
+    ("/ l l on the graph panel shows the list: " ^ dump_line !e "projection");
   (* a document without an editor graph gets one written from its layout before the retype *)
   let e = ref (editor "(workspace w (graph g :context sop (sop/box)))") and count = ref 0 in
   let step ?(mouse = (600., 300.)) events = incr count; e := E3.update !e (frame mouse events !count) in
@@ -221,7 +221,7 @@ let run_panel_keys () =
   step ~mouse:p [ Event.MouseReleased (Input.LeftButton, p) ];
   step ~mouse:p [];
   check (not (has (source !e) "(graph editor")) "the plain workspace has no editor graph";
-  step ~mouse:p [ key Input.Space; ch 'l'; ch 'i' ]; step ~mouse:p [];
+  step ~mouse:p [ key (Input.KeyChar '/'); ch 'l'; ch 'i' ]; step ~mouse:p [];
   check (has (source !e) "(graph editor :context editor" && has (source !e) "network (ui/inspector)"
          && has (source !e) "preview (ui/viewport (ref scene))" && has (source !e) "(graph scene :context scene"
          && E3.undo_label !e = Some "Retype panel")
@@ -237,7 +237,7 @@ let run_panel_keys () =
   step ~mouse:right [ Event.MousePressed (Input.LeftButton, right) ];
   step ~mouse:right [ Event.MouseReleased (Input.LeftButton, right) ];
   step ~mouse:right [];
-  step ~mouse:right [ key Input.Space; ch 'o'; ch 'x' ]; step ~mouse:right [];
+  step ~mouse:right [ key (Input.KeyChar '/'); ch 'o'; ch 'x' ]; step ~mouse:right [];
   check (E3.undo_label !e = Some "Close panel" && has (source !e) "a (ui/graph)" && not (has (source !e) "b (ui/graph)"))
     ("closing the second graph panel closed it, not the first: " ^ source !e);
   E3.close !e
@@ -259,22 +259,22 @@ let run_unbound_panels () =
   let inline = with_editor "    (ui/workspace (ui/split-at \"vertical\" 0.5 (ui/graph) (ui/viewport (ref scene))))" in
   let e, step = started inline (300., 100.) in
   check (dump_line !e "focus" = "Graph") ("focus is the inline graph panel: " ^ dump_line !e "focus");
-  step [ key Input.Space; ch 'l'; ch 'i' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'l'; ch 'i' ]; step [];
   check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/inspector)" && has (source !e) "(ui/viewport (ref scene))")
     ("an inline panel was retyped: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e);
   E3.close !e;
   let e, step = started inline (300., 100.) in
-  step [ key Input.Space; ch 'o'; ch 'v' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'o'; ch 'v' ]; step [];
   check (E3.undo_label !e = Some "Split panel" && has (source !e) "graph_a" || has (source !e) "ui/split-at \"horizontal\" 0.5")
     ("an inline panel was split: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e);
   E3.close !e;
   (* a loop's panels: retyping edits the template, splitting them says why it cannot *)
   let e, step = started (case "variations") (800., 100.) in
   check (dump_line !e "focus" = "View") "focus is a looped viewport";
-  step [ key Input.Space; ch 'o'; ch 'x' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'o'; ch 'x' ]; step [];
   check (E3.undo_label !e = None && has (dump_line !e "cook") "copies made by a loop")
     ("closing a looped panel said why not: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ " / " ^ dump_line !e "cook");
-  step [ key Input.Space; ch 'l'; ch 'l' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'l'; ch 'l' ]; step [];
   check (E3.undo_label !e = Some "Retype panel" && has (source !e) "(ui/list)")
     ("retyping a looped panel edits its template: " ^ Option.value ~default:"-" (E3.undo_label !e));
   E3.close !e
@@ -303,7 +303,7 @@ let run_values () =
   let add ?workspace text =
     let e, step = started ?text:workspace () in
     if workspace = None then check (E3.level !e = Some "g") "the box graph is open";
-    step [ key Input.Space; ch 'a' ]; step [ Event.TextInput text ]; step [ key Input.Enter ]; step [];
+    step [ key (Input.KeyChar '/'); ch 'a' ]; step [ Event.TextInput text ]; step [ key Input.Enter ]; step [];
     !e in
   let e = add "number" in
   check (E3.undo_label e = Some "Add node" && has (source e) "value 1.0") ("a number binding: " ^ source e);
@@ -649,8 +649,8 @@ let run_restore () =
   step [];
   check (panes_graph !e = 0) "the bricked shell has no graph panel";
   let key k = Event.KeyPressed k in
-  step [ key Input.Space; key (Input.KeyChar 'z') ]; step [];
-  check (panes_graph !e > 0) "Space z restores the default layout";
+  step [ key (Input.KeyChar '/'); key (Input.KeyChar 'z') ]; step [];
+  check (panes_graph !e > 0) "/ z restores the default layout";
   check (has (dump_line !e "cook") "Default layout") ("the status says so: " ^ dump_line !e "cook");
   check (source !e = source bricked) "the document is untouched by Restore";
   (* the editor graph is repaired from the restored shell: the layout edit ends the restore *)
@@ -660,9 +660,9 @@ let run_restore () =
   check (panes_graph !e > 0 && not (has (dump_line !e "cook") "Default layout")) "editing the editor graph ends the restore";
   (* pressing it twice returns to the editor graph's layout *)
   e := bricked; step [];
-  step [ key Input.Space; key (Input.KeyChar 'z') ]; step [];
-  step [ key Input.Space; key (Input.KeyChar 'z') ]; step [];
-  check (panes_graph !e = 0) "the second Space z returns to the editor graph";
+  step [ key (Input.KeyChar '/'); key (Input.KeyChar 'z') ]; step [];
+  step [ key (Input.KeyChar '/'); key (Input.KeyChar 'z') ]; step [];
+  check (panes_graph !e = 0) "the second / z returns to the editor graph";
   E3.close !e
 
 (* one orbit camera per viewport: the drag of the focused viewport moves only it, and focusing
@@ -743,7 +743,7 @@ let run_cameras () =
   step ~buttons:[ Input.LeftButton ] graph_pane [ Event.MousePressed (Input.LeftButton, graph_pane) ];
   step graph_pane [ Event.MouseReleased (Input.LeftButton, graph_pane) ];
   let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
-  step graph_pane [ key Input.Space; ch 'l'; ch 'g' ]; step graph_pane [];
+  step graph_pane [ key (Input.KeyChar '/'); ch 'l'; ch 'g' ]; step graph_pane [];
   check (has (dump_line !e "projection") "graph") ("the pane is not showing a graph: " ^ dump_line !e "projection");
   let scope_selected () = dump_line !e "scope selected" in
   click "v1.1.2";
@@ -1067,13 +1067,13 @@ let run_panel_states () =
     ("the edge drop did not dock the panel: " ^ dump_line !e "edit error" ^ "\n" ^ source !e);
   step ~keys:[Input.Meta] target [Event.KeyPressed (Input.KeyChar 'z')];
   check (Doc.to_text (E3.workspace !e) = before) "one undo did not revert the docking gesture";
-  step target [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'g')]; step target [];
+  step target [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'g')]; step target [];
   check ((state "network").collapsed) "the leader graph toggle was not saved";
-  step target [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'a')];
+  step target [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'a')];
   check (not (state "network").collapsed) "Add did not expand the saved collapsed graph";
   step target [];
   step target [Event.KeyPressed Input.Escape]; step target [];
-  step target [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 't')]; step target [];
+  step target [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 't')]; step target [];
   check (Option.fold ~none:false ~some:(fun (state : Panels.state) -> not state.collapsed)
       (Editor_document.Layout_by_path.Path_map.find_opt ["editor"; "@panel"; "-1"]
         (E3.workspace !e).layout.panels))
@@ -1129,7 +1129,7 @@ let run_ref_picker () =
   check (has (source !e) "(ref g1)") ("undo did not restore ref to g1: " ^ source !e);
   E3.close !e
 
-(* Space a on a scene graph: World, Merge and Geometry are one gesture each, one undo entry *)
+(* / a on a scene graph: World, Merge and Geometry are one gesture each, one undo entry *)
 let run_compose () =
   let text = {|(workspace compose
     (graph g1 :context sop (sop/box))
@@ -1144,7 +1144,7 @@ let run_compose () =
     let step ?(keys = []) events = incr count; e := E3.update !e (Test_editor_input.frame ~keys (450., 300.) events !count) in
     step []; step [];
     let before = source !e in
-    step [ key Input.Space; ch 'a' ]; step [ Event.TextInput typed ]; step [ key Input.Enter ]; step [];
+    step [ key (Input.KeyChar '/'); ch 'a' ]; step [ Event.TextInput typed ]; step [ key Input.Enter ]; step [];
     let after = source !e and label = E3.undo_label !e in
     step ~keys:[ Input.Meta ] [ ch 'z' ]; step [];
     let undone = source !e in
@@ -1154,13 +1154,13 @@ let run_compose () =
     (String.map (function '\n' -> ' ' | c -> c) t))) in
   let before, after, label, undone = pick "World" in
   check (has (flat after) "(scene/world (ref sky))" && has (flat after) "(graph sky :context world" && label = Some "Add World"
-         && undone = before) ("Space a World: " ^ after);
+         && undone = before) ("/ a World: " ^ after);
   let before, after, label, undone = pick "Geometry" in
   check (has (flat after) "(graph shape :context sop" && has (flat after) "(scene/geometry (ref shape))"
-         && label = Some "Add geometry" && undone = before) ("Space a Geometry: " ^ after);
+         && label = Some "Add geometry" && undone = before) ("/ a Geometry: " ^ after);
   let before, after, label, undone = pick "Merge" in
-  check (has (flat after) "(scene/merge)" && undone = before && label <> None) ("Space a Merge: " ^ after);
-  (* Space e selects the scene's World, a merge member, and enters it *)
+  check (has (flat after) "(scene/merge)" && undone = before && label <> None) ("/ a Merge: " ^ after);
+  (* / e selects the scene's World, a merge member, and enters it *)
   let e = ref (editor {|(workspace sky
     (graph g1 :context sop (sop/box))
     (graph sky :context world (world/sun (world/sky)))
@@ -1168,22 +1168,22 @@ let run_compose () =
       (scene/root (scene/merge (scene/geometry (ref g1)) (scene/world (ref sky) :name "Dome")))))|}) and count = ref 0 in
   let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
   step []; step [];
-  step [ key Input.Space; ch 'e' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'e' ]; step [];
   check (E3.level !e = Some "Dome" && not (has (source !e) "graph world"))
-    "Space e did not enter the World of a scene/world member";
+    "/ e did not enter the World of a scene/world member";
   E3.close !e;
-  (* Space e on a scene with a root and no World makes one: a member of the merge and a world graph *)
+  (* / e on a scene with a root and no World makes one: a member of the merge and a world graph *)
   let e = ref (editor {|(workspace plain
     (graph g1 :context sop (sop/box))
     (graph scene :context scene (scene/root (scene/merge (scene/geometry (ref g1))))))|}) and count = ref 0 in
   let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
   step []; step [];
-  step [ key Input.Space; ch 'e' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'e' ]; step [];
   check (has (flat (source !e)) "(scene/world (ref world)" && has (source !e) "graph world :context world"
          && has (source !e) "scene/root" && E3.undo_label !e = Some "Add World")
-    ("Space e did not write the new World: " ^ source !e);
+    ("/ e did not write the new World: " ^ source !e);
   E3.close !e;
-  print_endline "workspace shell: Space a adds World, Geometry (with its SOP graph) and Merge, one undo entry each; Space e enters a World member"
+  print_endline "workspace shell: / a adds World, Geometry (with its SOP graph) and Merge, one undo entry each; / e enters a World member"
 
 (* A switch holds the layouts of one editor graph: lowering, the names read from the panels, the
    edits, one merged undo entry, and the keys. *)
@@ -1284,34 +1284,34 @@ let run_layouts () =
   let step ?(keys = []) events = incr count; e := E3.update !e (Test_editor_input.frame ~keys (300., 150.) events !count) in
   step []; step [];
   let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
-  step [ key Input.Space; ch '[' ]; step [];  (* which-key lists the layouts *)
+  step [ key (Input.KeyChar '/'); ch '[' ]; step [];  (* which-key lists the layouts *)
   step [ ch '1' ]; step [];
-  check (has (source !e) ":active 1" && E3.undo_label !e = Some "Layout") "Space [ 1 switches the layout";
-  step [ key Input.Space; ch '['; ch '2' ]; step [];
-  check (has (source !e) ":active 2") "Space [ 2 switches again";
+  check (has (source !e) ":active 1" && E3.undo_label !e = Some "Layout") "/ [ 1 switches the layout";
+  step [ key (Input.KeyChar '/'); ch '['; ch '2' ]; step [];
+  check (has (source !e) ":active 2") "/ [ 2 switches again";
   step ~keys:[ Input.Meta ] [ ch 'z' ]; step [];
   check (has (source !e) ":active 0") "one undo returns past both switches";
-  step [ key Input.Space; ch '['; ch 'n' ]; step [];
-  check (has (source !e) ":active 3" && E3.undo_label !e = Some "New layout") "Space [ n copies the layout";
-  step [ key Input.Space; ch '['; ch 'x' ]; step [];
-  check (E3.undo_label !e = Some "Remove layout" && not (has (source !e) "layout preview")) "Space [ x removes it";
-  step [ key Input.Space; ch 'n'; ch 'i' ]; step [];
-  check (has (source !e) "(ui/floating (ui/inspector))" && E3.undo_label !e = Some "New window") "Space n i opens an inspector window";
+  step [ key (Input.KeyChar '/'); ch '['; ch 'n' ]; step [];
+  check (has (source !e) ":active 3" && E3.undo_label !e = Some "New layout") "/ [ n copies the layout";
+  step [ key (Input.KeyChar '/'); ch '['; ch 'x' ]; step [];
+  check (E3.undo_label !e = Some "Remove layout" && not (has (source !e) "layout preview")) "/ [ x removes it";
+  step [ key (Input.KeyChar '/'); ch 'n'; ch 'i' ]; step [];
+  check (has (source !e) "(ui/floating (ui/inspector))" && E3.undo_label !e = Some "New window") "/ n i opens an inspector window";
   (* the layout's one docked panel cannot float: refused, nothing written, the entry stays *)
   let before = source !e in
-  step [ key Input.Space; ch 'o'; ch 'f' ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'o'; ch 'f' ]; step [];
   check (E3.undo_label !e = Some "New window" && source !e = before)
-    ("Space o f on a layout's only docked panel is refused: " ^ Option.value ~default:"-" (E3.undo_label !e));
+    ("/ o f on a layout's only docked panel is refused: " ^ Option.value ~default:"-" (E3.undo_label !e));
   (* in a layout of several panels the focused one floats, as one entry named Float panel *)
-  step [ key Input.Space; ch '['; ch '0' ]; step [];
+  step [ key (Input.KeyChar '/'); ch '['; ch '0' ]; step [];
   let gx, gy, gw, gh = (E3.panes !e (Test_editor_input.frame (0., 0.) [] !count)).graph in
   let at = (float gx +. float gw /. 2., float gy +. float gh /. 2.) in
   let press events = incr count; e := E3.update !e (Test_editor_input.frame at events !count) in
   press [ Event.MouseMoved at ]; press [ Event.MousePressed (Input.LeftButton, at) ];
   press [ Event.MouseReleased (Input.LeftButton, at) ]; press [];
-  press [ key Input.Space; ch 'o'; ch 'f' ]; press [];
+  press [ key (Input.KeyChar '/'); ch 'o'; ch 'f' ]; press [];
   check (E3.undo_label !e = Some "Float panel" && has (source !e) "(ui/floating")
-    ("Space o f floats the focused panel: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e)
+    ("/ o f floats the focused panel: " ^ Option.value ~default:"-" (E3.undo_label !e) ^ "\n" ^ source !e)
 
 (* The inspector with nothing selected has a Scene root section over the root's settings: a press
    on one of its controls writes the root in the text as one "Render settings" entry. *)
@@ -1411,7 +1411,7 @@ let run_copy_lisp () =
   step []; step [];
   (* whether this run has a clipboard is asked first, so each case has one outcome that passes *)
   let available = Result.is_ok (Rays.Clipboard.set_text "probe") in
-  step [ key Input.Space; Event.KeyPressed (Input.KeyChar '/') ]; step [];
+  step [ key (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar '/') ]; step [];
   step [ Event.TextInput "copy workspace" ]; step [ key Input.Enter ]; step [];
   let note = dump_line !e "cook" in
   if available then begin
@@ -1596,9 +1596,9 @@ let run_studio () =
   check (dump_line !e "projection" = "graph" && E3.look_through !e) "the studio opens as its keywords say";
   set "network" "view" (S.Str "list");
   check (dump_line !e "projection" = "list") "a changed :view was not followed";
-  step at [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l') ];
+  step at [ Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'l') ];
   step at [ Event.KeyPressed (Input.KeyChar 'g') ]; rest ();
-  check (dump_line !e "projection" = "graph") "Space l g did not show the graph";
+  check (dump_line !e "projection" = "graph") "/ l g did not show the graph";
   e := (match E3.edit !e (E.Set_layout_size { node = [ "editor"; "stage" ]; size = `Ratio 0.4 }) with Ok e -> e | Error m -> fail m);
   rest ();
   check (dump_line !e "projection" = "graph") "an edit that left :view alone reset the view the user chose";
@@ -1610,7 +1610,7 @@ let run_studio () =
   check (dump_line !e "focus" = "Outline") "a changed :focus was not followed";
   (* the Size row of a split's card converts it, keeping the sizes it shows: the editor graph in
      the pane, the studio card selected, the row's menu *)
-  step at [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'j') ];
+  step at [ Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'j') ];
   step at [ Event.TextInput "editor" ]; step at [ Event.KeyPressed Input.Enter ]; rest ();
   (let x, y, w, h = Option.get (E3.node_box !e [ "editor"; "studio" ]) in click (float (x + w / 2), float (y + max 1 (h / 2))));
   check (dump_line !e "scope selected" = "editor/studio") ("the studio card is not where the test clicks: " ^ dump_line !e "scope selected");
@@ -1739,7 +1739,7 @@ let run_panels () =
   check (has (panels ()) "outline oa: search \"zz\"; outline ob*: search \"q\"")
     ("a search typed in one outline shows in the other: " ^ panels ());
   click (550., 60.);
-  step (550., 60.) [ Event.KeyPressed (Input.KeyChar '/') ]; step (550., 60.) [ Event.TextInput "g" ]; step (550., 60.) [];
+  step (550., 60.) [ Event.KeyPressed (Input.KeyChar 's') ]; step (550., 60.) [ Event.TextInput "g" ]; step (550., 60.) [];
   (* the focused row is a node id, which depends on how many nodes were allocated before it *)
   let any_id line = List.exists (fun id -> has (panels ()) (line (string_of_int id))) (List.init 4096 Fun.id) in
   check (any_id (fun id -> "list la*: focus " ^ id ^ ", 0 folded, filter \"g\"; list lb: focus -, 0 folded, filter -"))
@@ -1771,7 +1771,7 @@ let run_panel_chain () =
   for _ = 1 to 6 do step [] done;
   step [ Event.MouseMoved at ];
   step [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
-  let keys cs = List.iter (fun c -> step [ Event.KeyPressed (if c = ' ' then Input.Space else Input.KeyChar c) ]; step []) cs;
+  let keys cs = List.iter (fun c -> step [ Event.KeyPressed (if c = ' ' then (Input.KeyChar '/') else Input.KeyChar c) ]; step []) cs;
     step [] in
   keys [ ' '; 'o'; 'v' ];
   keys [ ' '; 'l'; 'u' ];
@@ -1791,7 +1791,7 @@ let run_undo_and_input () =
       e := E3.update !e (Test_editor_input.frame ~keys ~buttons mouse events !count) in
     for _ = 1 to 4 do step [] done;
     e, count, step in
-  let press c = Event.KeyPressed (if c = ' ' then Input.Space else Input.KeyChar c) in
+  let press c = Event.KeyPressed (if c = ' ' then (Input.KeyChar '/') else Input.KeyChar c) in
   (* E12: navigation is view state.  It leaves no entry, does not swallow the next undo and does
      not drop what redo restores. *)
   let e, _, step = session (200., 300.) in
@@ -1947,7 +1947,7 @@ let run_atomic_frame () =
   step [ Event.MouseMoved at ];
   step [ Event.MousePressed (Input.LeftButton, at); Event.MouseReleased (Input.LeftButton, at) ];
   let before = source !e and label = E3.undo_label !e in
-  List.iter (fun c -> step [ Event.KeyPressed (if c = ' ' then Input.Space else Input.KeyChar c) ]; step []) [ ' '; 'o'; 'x' ];
+  List.iter (fun c -> step [ Event.KeyPressed (if c = ' ' then (Input.KeyChar '/') else Input.KeyChar c) ]; step []) [ ' '; 'o'; 'x' ];
   step [];
   check (dump_line !e "edit error" <> "-") ("closing the only panel was not refused: " ^ source !e);
   check (source !e = before && E3.undo_label !e = label)
@@ -2311,8 +2311,8 @@ let run_roots () =
   let film () = E3.film !e (frame (100., 100.) [] !count) in
   let fx, fy, pane_w, pane_h = film () in
   check ((fx, fy) = (0, 0) && pane_w > 0 && pane_h > 0) "a free view does not fill its pane";
-  step ~events:[ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'v') ] (); step (); step ();
-  check (E3.look_through !e) "Space v did not look through the camera";
+  step ~events:[ Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'v') ] (); step (); step ();
+  check (E3.look_through !e) "/ v did not look through the camera";
   let gx, gy, gate_w, gate_h = film () in
   check (gx > 0 && gy > 0 && gate_w < pane_w && gate_h < pane_h && abs ((gate_w * 450) - (gate_h * 800)) <= 800)
     "looking through the camera does not show the root's 800 x 450 gate inside the pane";
@@ -2321,7 +2321,7 @@ let run_roots () =
     "the first viewport does not look through its own root's camera";
   (* look-through is the focused viewport's own: the other keeps its orbit until its panel says so *)
   check (not (near (Camera.position (E3.viewport_camera !e night)) (eye_of "night")))
-    "Space v looked through a viewport that does not have the focus";
+    "/ v looked through a viewport that does not have the focus";
   let through = editor (replace (roots_text ~renderer:"Raster" ()) "(ui/viewport (ref night))"
     "(ui/viewport (ref night) :look_through true)") in
   let through = E3.update (E3.update through (frame (100., 100.) [] 1)) (frame (100., 100.) [] 2) in
@@ -2341,7 +2341,7 @@ let run_roots_native () =
   let width = 1200 in
   let directory = Filename.temp_dir "rays-roots" "" in
   let png = Filename.concat directory "roots.png" in
-  (* look-through is each viewport's own: the first takes Space v, the second says so in the text *)
+  (* look-through is each viewport's own: the first takes / v, the second says so in the text *)
   let text = replace (roots_text ()) "(ui/viewport (ref night))" "(ui/viewport (ref night) :look_through true)" in
   let doc = build_ok (of_text text) in
   let shell = shell_of doc in
@@ -2384,7 +2384,7 @@ let run_roots_native () =
       let mouse, buttons, events =
         match drag_at 101 ~from:0. ~by:10. c, drag_at 161 ~from:10. ~by:200. c with
         | Some move, _ | None, Some move -> move
-        | None, None -> (100., 100.), [], (if c = 2 then [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'v') ] else []) in
+        | None, None -> (100., 100.), [], (if c = 2 then [ Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'v') ] else []) in
       E3.update e { frame with mouse; mouse_buttons = buttons; mouse_delta = 0., 0.; keys = []; events })
     ~view:E3.scene
     ~after_present:(fun e (frame : Frame.t) ->

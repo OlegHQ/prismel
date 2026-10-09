@@ -88,8 +88,8 @@ module Keymap = struct
 
   let label = function
     | Leader sequence ->
-        (* the sheets write each key apart: Space o v *)
-        "Space " ^ String.concat " " (List.init (String.length sequence) (fun i -> String.make 1 sequence.[i]))
+        (* the sheets write each key apart: / o v *)
+        "/ " ^ String.concat " " (List.init (String.length sequence) (fun i -> String.make 1 sequence.[i]))
     | Chord (key, modifiers) ->
         let open Rays.Input in
         let key, modifiers = match key with
@@ -174,10 +174,11 @@ module Router = struct
   let fly (frame : Rays.Frame.t) =
     let open Rays in
     let exits = List.exists (function
-      | Event.KeyPressed (Input.Escape | Input.Space) | Event.WindowFocusLost -> true
+      | Event.KeyPressed (Input.Escape | Input.Space | Input.KeyChar '/')
+      | Event.WindowFocusLost -> true
       | _ -> false) frame.events in
     exits, { frame with events = List.filter (function
-      | Event.KeyPressed Input.Space | Event.WindowFocusLost -> true
+      | Event.KeyPressed (Input.KeyChar '/') | Event.WindowFocusLost -> true
       | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
       | Event.TextEditing _ -> false
       | _ -> true) frame.events }
@@ -225,7 +226,8 @@ module Router = struct
           (match chord keymap focus !modifiers Input.Tab with
            | None -> Idle, actions, event :: passed
            | Some action -> Idle, action :: actions, passed)
-      | Idle, Event.KeyPressed Input.Space when not text_focus && not command ->
+      | Idle, Event.KeyPressed (Input.KeyChar '/')
+          when not text_focus && not command && not (List.mem Input.Shift !modifiers) ->
           Pending "", actions, passed
       | Idle, Event.KeyPressed key when not text_focus ->
           (* Shift and a symbol key is the symbol it types, when a chord is bound to that *)
@@ -241,7 +243,7 @@ module Router = struct
       | Pending _, Event.KeyPressed key when modifier key -> state, actions, passed
       | Pending prefix, Event.KeyPressed (Input.KeyChar character) ->
           (* An exact sequence runs; a proper prefix opens the next page. *)
-          (* Space then Shift-/ is the sequence "?", as the sheets write it *)
+          (* / then Shift-/ is the sequence "?", as the sheets write it *)
           let character = if List.mem Input.Shift !modifiers
             then Option.value (shifted character) ~default:character else character in
           let typed = prefix ^ String.make 1 (Char.lowercase_ascii character) in

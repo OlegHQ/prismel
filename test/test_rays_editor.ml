@@ -157,13 +157,13 @@ let run () =
          (Rays_editor.Editor3.scene environment)
    | None -> ());
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space;
+      (frame ~events:[Event.KeyPressed (Input.KeyChar '/');
         Event.KeyPressed (Input.KeyChar 'h')] 1) in
   let hidden_scene = Rays_editor.Editor3.scene environment (frame 1) in
   check (Rays_editor.Editor3.scene environment (frame 2) == hidden_scene)
     "unchanged hidden 3D scene composition was rebuilt";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space;
+      (frame ~events:[Event.KeyPressed (Input.KeyChar '/');
         Event.KeyPressed (Input.KeyChar 'h')] 2) in
   (* Graph focus shows the Flow guide; the ordinary status/FPS strip remains
      under View focus. Compare sampling in the pane that displays it. *)
@@ -195,7 +195,7 @@ let run () =
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[mouse_press (Input.LeftButton, blank_inspector);
         mouse_release (Input.LeftButton, blank_inspector);
-        Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'w')] 10) in
+        Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'w')] 10) in
   check (not (Rays_editor.Editor3.flying environment))
     "same-frame inspector click routed a view-only shortcut";
   let environment = Rays_editor.Editor3.update environment
@@ -224,7 +224,7 @@ let run () =
     check (ui_bytes (Rays_editor.Editor3.scene environment (frame 19)) <> collapsed_scene)
     "workspace render accordion lost its armed press before the release frame";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space;
+      (frame ~events:[Event.KeyPressed (Input.KeyChar '/');
         Event.KeyPressed (Input.KeyChar 'w')] 19) in
   check (not (Rays_editor.Editor3.flying environment))
     "inspector child press did not focus its pane";
@@ -252,11 +252,11 @@ let run () =
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Home] 20) in
   let environment = Rays_editor.Editor3.update environment (frame 20) in
-  let camera_frame = frame ~events:[Event.KeyPressed Input.Space;
+  let camera_frame = frame ~events:[Event.KeyPressed (Input.KeyChar '/');
       Event.KeyPressed (Input.KeyChar 'c')] 21 in
   let environment = Rays_editor.Editor3.update environment camera_frame in
   check (scope_line environment = "scope selected: -")
-    "Space c did not restore the camera/render inspector";
+    "/ c did not restore the camera/render inspector";
   let box environment path = match Rays_editor.Editor3.node_box environment path with
     | Some rect -> rect | None -> fail "the node has no box in the graph pane" in
   let text_of environment = Editor_document.Workspace_doc.to_text
@@ -275,7 +275,7 @@ let run () =
     { (frame ~events:[Event.KeyPressed (Input.KeyChar key)] count) with
       keys = Input.Meta :: (if shift then [Input.Shift] else []) } in
   let environment = Rays_editor.Editor3.update environment
-      (frame ~mouse:source_point ~events:[Event.KeyPressed Input.Space;
+      (frame ~mouse:source_point ~events:[Event.KeyPressed (Input.KeyChar '/');
         Event.KeyPressed (Input.KeyChar 'a')] 24) in
   let environment = Rays_editor.Editor3.update environment
       (frame ~mouse:source_point ~events:[Event.TextInput "null"; Event.KeyPressed Input.Enter] 25) in
@@ -336,9 +336,9 @@ let run () =
   let environment = Rays_editor.Editor3.update environment (frame 150) in
   check (xs environment = xs1) "redo did not restore every dragged node";
   let environment = Rays_editor.Editor3.update environment (chord 'z' 151) in
-  (* Space c clears the selection the drag made, as before this check. *)
+  (* / c clears the selection the drag made, as before this check. *)
   let environment = Rays_editor.Editor3.update environment (frame ~events:[
-      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'c')] 152) in
+      Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'c')] 152) in
   let deadline = Unix.gettimeofday () +. 60. in
   let rec wait_source count environment =
     let environment = Rays_editor.Editor3.update environment (frame count) in
@@ -374,7 +374,7 @@ let run () =
   let menu_point = graph_x + (graph_width / 2), graph_y + (graph_height / 2) in
   let add environment count =
     let environment = Rays_editor.Editor3.update environment
-        (frame ~mouse:menu_point ~events:[Event.KeyPressed Input.Space;
+        (frame ~mouse:menu_point ~events:[Event.KeyPressed (Input.KeyChar '/');
           Event.KeyPressed (Input.KeyChar 'a')] count) in
     Rays_editor.Editor3.update environment
       (frame ~mouse:menu_point ~events:[Event.TextInput "null";
@@ -391,22 +391,22 @@ let run () =
   check (not (has (text_of environment) "sop/null")) "Backspace did not delete the added node";
   let environment = add environment 234 in
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space;
+      (frame ~events:[Event.KeyPressed (Input.KeyChar '/');
         Event.KeyPressed (Input.KeyChar 'g')] 236) in
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[Event.KeyPressed Input.Backspace] 237) in
   check (has (text_of environment) "sop/null")
     "hidden graph still accepted a delete shortcut";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space;
+      (frame ~events:[Event.KeyPressed (Input.KeyChar '/');
         Event.KeyPressed (Input.KeyChar 'g')] 238) in
-  (* Space t shows the timeline bar; dragging its scrub slider seeks and
+  (* / t shows the timeline bar; dragging its scrub slider seeks and
      pauses the shared clock. *)
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space;
+      (frame ~events:[Event.KeyPressed (Input.KeyChar '/');
         Event.KeyPressed (Input.KeyChar 't')] 240) in
   let tx, ty, tw, th = (Rays_editor.Editor3.panes environment (frame 241)).timeline in
-  check (th > 0 && tw = 900) "Space t did not show the full-width timeline bar";
+  check (th > 0 && tw = 900) "/ t did not show the full-width timeline bar";
   let environment = Rays_editor.Editor3.update environment (frame 241) in
   let scrub_y = ty + (th / 2) and scrub_x = tx + tw - 60 in
   let environment = Rays_editor.Editor3.update environment
@@ -419,7 +419,7 @@ let run () =
       && Sketch_support.Timeline.frame clock >= 200L)
     "dragging the timeline scrub did not seek and pause";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[Event.KeyPressed Input.Space] 244) in
+      (frame ~events:[Event.KeyPressed (Input.KeyChar '/')] 244) in
   (match Sys.getenv_opt "RAYS_UI_PREVIEW" with
    | Some directory -> Sketch.export ~directory ~prefix:"workspace-leader"
        ~frames:1 ~config:{ Sketch.default_config with width=900; height=640 }
@@ -519,7 +519,7 @@ let run () =
   let environment = Rays_editor.Editor3.update environment (command 'z' 17) in
   check (List.map (fun info -> info.Edit_graph.id) (cameras environment) = [camera_id])
     "undo after deleting the camera did not restore the original in one step";
-  (* Fly: Space w (view focused) flies, held W moves forward, Escape exits;
+  (* Fly: / w (view focused) flies, held W moves forward, Escape exits;
      Space exits and arms the leader in the same frame. *)
   let key k = Event.KeyPressed k in
   let fly_view environment = let vx, vy, _, _ = (Rays_editor.Editor3.panes
@@ -528,8 +528,8 @@ let run () =
       mouse_press (Input.RightButton, fly_view environment);
       mouse_release (Input.RightButton, fly_view environment)] 18) in
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'w')] 18) in
-  check (Rays_editor.Editor3.flying environment) "Space w did not enter fly mode";
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'w')] 18) in
+  check (Rays_editor.Editor3.flying environment) "/ w did not enter fly mode";
   let before = viewport_eye environment in
   let environment = Rays_editor.Editor3.update environment
       { (frame ~events:[key (Input.KeyChar 'w')] 18) with keys = [Input.KeyChar 'w'] } in
@@ -540,16 +540,16 @@ let run () =
       (frame ~events:[key Input.Escape] 18) in
   check (not (Rays_editor.Editor3.flying environment)) "Escape did not exit fly mode";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'w')] 18) in
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'w')] 18) in
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space] 18) in
+      (frame ~events:[key (Input.KeyChar '/')] 18) in
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[key (Input.KeyChar 'g')] 18) in
   check (not (Rays_editor.Editor3.flying environment)
       && width (Rays_editor.Editor3.panes environment (frame 18)).graph = 0)
     "Space did not exit fly mode into the leader";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 18) in
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'g')] 18) in
   (* F frames the displayed geometry in the viewport even when another node is selected. *)
   let environment = enter3 environment 400 in
   let environment = Rays_editor.Editor3.update environment (frame 404) in
@@ -609,14 +609,14 @@ let run () =
   (* A sketch command runs from its leader key and from the palette. *)
   let mode environment = Settings.get mode_schema (Rays_editor.Editor3.settings environment) in
   let environment = Rays_editor.Editor3.update environment (frame ~events:[
-      Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'q');
+      Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'q');
       Event.KeyPressed (Input.KeyChar 'j')] 300) in
   check (mode environment = 3) "Space qj did not run the sketch command";
   let environment = Rays_editor.Editor3.update environment (undo 301) in
   check (mode environment = 0) "undo did not revert the sketch command";
   let environment = List.fold_left (fun environment (count, events) ->
       Rays_editor.Editor3.update environment (frame ~events count)) environment [
-      302, [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar '/')];
+      302, [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar '/')];
       303, [Event.TextInput "bump"];
       304, [Event.KeyPressed Input.Enter];
       305, []] in
@@ -624,7 +624,7 @@ let run () =
   Rays_editor.Editor3.close environment;
 
   (* Every document is a workspace, so every document saves: the prompt owns the keyboard
-     while it is open, Enter writes the workspace text, and Space b loads it back. *)
+     while it is open, Enter writes the workspace text, and / b loads it back. *)
   let module Preset = Rays_editor.Private.Preset in
   let presets = Filename.temp_dir "sketch-ui-workspace-presets" "" in
   let mesh_scene mesh = Scene3.create [Scene3.mesh mesh] in
@@ -638,16 +638,16 @@ let run () =
   let environment = wait 0 environment in
   let key k = Event.KeyPressed k in
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 's')] 50) in
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 's')] 50) in
   let graph_width = width (Rays_editor.Editor3.panes environment (frame 50)).graph in
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'g')] 50) in
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'g')] 50) in
   check (width (Rays_editor.Editor3.panes environment (frame 50)).graph
       = graph_width) "open preset prompt let a workspace shortcut toggle the graph";
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[key Input.Enter] 51) in
   let saved = Preset.list ~directory:presets in
-  check (List.length saved = 1) "Space s did not save a preset of the document";
+  check (List.length saved = 1) "/ s did not save a preset of the document";
   let original = Editor_document.Workspace_doc.to_text (Rays_editor.Editor3.workspace environment) in
   check (has (In_channel.with_open_bin (Preset.path ~directory:presets ~name:(fst (List.hd saved)))
                 In_channel.input_all) original)
@@ -666,20 +666,20 @@ let run () =
   check (has (report_line Rays_editor.Editor3.crash_dump environment "phases") "check")
     "the crash report omitted the last edit's phases";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'b')] 52) in
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'b')] 52) in
   let environment = Rays_editor.Editor3.update environment
       (frame ~events:[key Input.Enter] 53) in
   check (Editor_document.Workspace_doc.to_text (Rays_editor.Editor3.workspace environment) = original
       && Rays_editor.Editor3.undo_label environment = Some "Load preset")
-    "Space b did not load the saved preset as one history entry";
+    "/ b did not load the saved preset as one history entry";
   (* Looking through the camera fits the film to its aspect (the render
      resolution); otherwise the whole pane. *)
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 52) in
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'v')] 52) in
   let environment = Rays_editor.Editor3.update environment (frame 53) in
   check (Rays_editor.Editor3.look_through environment
       && near (Camera.position (Rays_editor.Editor3.view_camera environment)) (eye environment))
-    "Space v did not look through the render camera";
+    "/ v did not look through the render camera";
   let settings = Rays_editor.Editor3.render_settings environment in
   let _, _, pane_w, pane_h = (Rays_editor.Editor3.panes environment (frame 54)).view in
   let fx, fy, fw, fh = Rays_editor.Editor3.film environment (frame 54) in
@@ -696,10 +696,10 @@ let run () =
       && abs (fw * 1080 - fh * 1920) <= 1920 && fx = side + ((area_w - fw) / 2)
       && fy = (if narrow then top else top + ((area_h - fh) / 2)))
     "look-through did not letterbox the film to the camera's aspect";
-  (* Space v toggles look-through off: the view camera is the free viewport
+  (* / v toggles look-through off: the view camera is the free viewport
      (a following camera keeps it at the viewport). *)
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 54) in
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'v')] 54) in
   check (not (Rays_editor.Editor3.look_through environment)
       && near (Camera.position (Rays_editor.Editor3.view_camera environment))
            (viewport_eye environment))
@@ -707,8 +707,8 @@ let run () =
   check (Rays_editor.Editor3.film environment (frame 54) = (0, 0, pane_w, pane_h))
     "without look-through the film did not fill the view pane";
   let environment = Rays_editor.Editor3.update environment
-      (frame ~events:[key Input.Space; key (Input.KeyChar 'v')] 54) in
-  check (Rays_editor.Editor3.look_through environment) "Space v did not restore look-through";
+      (frame ~events:[key (Input.KeyChar '/'); key (Input.KeyChar 'v')] 54) in
+  check (Rays_editor.Editor3.look_through environment) "/ v did not restore look-through";
   Rays_editor.Editor3.close environment;
 
   (* Finite native smoke: the relative-pointer boundary toggles on a live

@@ -231,11 +231,11 @@ let part_preset () =
     let e = editor ~presets:directory still in
     let e, count = settle e (fun e -> E3.prepared e <> None) in
     let e = E3.edit e (E.Set_note { node = [ "g"; "a" ]; text = "kept" }) |> Result.get_ok in
-    let e = E3.update e (frame [ key Input.Space; char 's' ] (count + 1)) in
+    let e = E3.update e (frame [ key (Input.KeyChar '/'); char 's' ] (count + 1)) in
     let e = E3.update e (frame [ key Input.Enter ] (count + 2)) in
-    let name = match Preset.list ~directory with [ (name, _) ] -> name | _ -> fail "Space s did not save one preset" in
+    let name = match Preset.list ~directory with [ (name, _) ] -> name | _ -> fail "/ s did not save one preset" in
     let path = Preset.path ~directory ~name in
-    check (Filename.check_suffix path ".rays" && Sys.file_exists path) "Space s saved a .rays";
+    check (Filename.check_suffix path ".rays" && Sys.file_exists path) "/ s saved a .rays";
     let text = In_channel.with_open_bin path In_channel.input_all in
     check (has text "(workspace study" && has text "; kept" && has text "(view") "the preset is s-expressions with its comments";
     check (not (has text "{\"") && not (has text "\"version\"")) "no JSON";
@@ -244,12 +244,12 @@ let part_preset () =
     let ws = fst (loaded.doc.workspace) in
     check (Doc.to_text ws = Doc.to_text (E3.workspace e)) "save then load round trip";
     check (Preset.list ~directory |> List.map fst = [ name ]) "listed";
-    (* load through Space b: one undo entry *)
+    (* load through / b: one undo entry *)
     let e = E3.edit e (E.Rename { node = [ "g"; "a" ]; to_ = "ball" }) |> Result.get_ok in
-    let e = E3.update e (frame [ key Input.Space; char 'b' ] (count + 3)) in
+    let e = E3.update e (frame [ key (Input.KeyChar '/'); char 'b' ] (count + 3)) in
     let e = E3.update e (frame [ Event.TextInput name; key Input.Enter ] (count + 4)) in
     let e = E3.update e (frame [] (count + 5)) in
-    check (has (Doc.to_text (E3.workspace e)) "(sop/transform a ") "Space b restored the saved source";
+    check (has (Doc.to_text (E3.workspace e)) "(sop/transform a ") "/ b restored the saved source";
     check (E3.undo_label e = Some "Load preset") "load is one undo entry";
     (* errors never touch the document *)
     let corrupt = Preset.path ~directory ~name:"corrupt" in

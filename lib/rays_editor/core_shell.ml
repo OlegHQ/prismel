@@ -3,7 +3,7 @@ include Core_model
 
 (* ---- the shell ---- *)
 
-(* The layouts Space [ switches among: a switch's, named from their panels; else the editor graphs of an
+(* The layouts / [ switches among: a switch's, named from their panels; else the editor graphs of an
    older file (several named layouts), the current one marked. *)
 let layouts value =
   match value.doc.Document.shell with

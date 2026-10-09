@@ -6,7 +6,7 @@ workspace text, each with its context (`sop`, `scene`, `world`, `material`, `set
 `editor`). `i` or a double-click follows a reference into the graph it names; `u` goes
 back.
 
-A graph, a list and a lisp panel show the same graph; `Space l` and a letter retypes the
+A graph, a list and a lisp panel show the same graph; `/ l` and a letter retypes the
 focused panel (`flow.md` §8, §11.11).
 
 ## The scene graph: objects, merge, root
@@ -46,7 +46,7 @@ SOP graph. The world graph is the layer stack: its result is the top layer
 (`(graph sky :context world (world/sun (world/sky :turbidity 3)))`, or `(world/none)` for no
 layers); the World's other keywords (background, time of day, sun, ...) are the keywords of
 `scene/world`. Deleting the object, hiding it and looping over it are the gestures of any object;
-`Space e` selects the scene's World and enters it, creating one (written as a `scene/world`
+`/ e` selects the scene's World and enters it, creating one (written as a `scene/world`
 member and a `world` graph) when the scene has none. `i` enters a geometry object or the World, `u`
 leaves.
 
@@ -73,10 +73,10 @@ One gesture is one undo entry (`Core.Syntax_batch`: all the rewrites or none).
 
 | Gesture | Writes |
 |---|---|
-| `Space a` Geometry | a new SOP graph (a box), a `scene/geometry (ref it)` binding and one more merge input |
-| `Space a` Geometry of... graph | the object and its merge input only; two objects share the graph and it cooks once (the second takes a distinct `:name`) |
-| `Space a` World | a world graph (a sky and a sun), a `scene/world` binding and its merge input; refused when the scene has one |
-| `Space a` Merge | with two or more objects selected, `Flow_edit.Group_merge`: a new merge between the selection and the old one; with none, an empty merge to wire |
+| `/ a` Geometry | a new SOP graph (a box), a `scene/geometry (ref it)` binding and one more merge input |
+| `/ a` Geometry of... graph | the object and its merge input only; two objects share the graph and it cooks once (the second takes a distinct `:name`) |
+| `/ a` World | a world graph (a sky and a sun), a `scene/world` binding and its merge input; refused when the scene has one |
+| `/ a` Merge | with two or more objects selected, `Flow_edit.Group_merge`: a new merge between the selection and the old one; with none, an empty merge to wire |
 | select wire, delete | the merge loses the input (`Disconnect`); the binding stays as an unwired node and wires back with an ordinary wire (the design drops a "+" stub for it: the prototype draws one, the editor does without) |
 | `b` on a scene object | `:visible false` on its call (again, `:visible true`): one key takes an object out of the render without removing it, as `b` bypasses a SOP node. A node that can be bypassed keeps `b` as the bypass (`Scope_pane.hide_row`) |
 | `Alt` `Up` / `Down` on a hovered merge input | `Move_item`: the input swaps with its neighbour, so the merge order (the list order) changes. Lists and strings move the same way (`Projection.reorderable`) |
@@ -123,15 +123,15 @@ an empty one means none. Presets are workspace documents (s-expressions, see `ap
 ## Levels and keys
 
 The scene and the World open as lists, a SOP network as a graph; a graph panel's
-`:view` keyword and `Space l` choose the view, and each panel keeps its own. The Lisp
+`:view` keyword and `/ l` choose the view, and each panel keeps its own. The Lisp
 pane shows and edits the text of any graph, the scene's and the World's included.
 Inside the World the view pane
-opens on the lat-long map and `Space m` flips it between the map and 3D. `i`, a double-click on a tile or row, or the row
+opens on the lat-long map and `/ m` flips it between the map and 3D. `i`, a double-click on a tile or row, or the row
 menu's Enter open a geometry object or the World. On a camera, Enter selects it
 as the active render camera and enables look-through; entering it again keeps
 look-through enabled. `u` goes back up (both
-from any pane). `Space e` selects the World and opens it, creating it on first use as a
-daylight sky with a sun. `Space a` opens the add menu of the open level
+from any pane). `/ e` selects the World and opens it, creating it on first use as a
+daylight sky with a sun. `/ a` opens the add menu of the open level
 (objects, SOPs, or World layers) in list and graph alike: a search field over the kinds,
 the likeliest first; typing searches everything. Leader sequences are
 `Editor_core.Keymap.Leader` strings; which-key shows one page per typed
