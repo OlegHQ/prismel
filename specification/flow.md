@@ -1184,8 +1184,12 @@ their own executables; the twelve generated fixtures run through it too.
 seed 0 and raw 0..1 `Rays_math.Noise.sample3` values. The SOP/editor host owns
 its declaration through `Flow_sop.Operators.all`; `flow` has no math-layer
 dependency. Both the interpreter and packed executor use that declaration's
-semantics. Packed intrinsic selection verifies the declaration's identity,
-so an explicit custom operator with the same name keeps its custom behavior.
+semantics. Packed selection uses `Flow.Op.packed_kind`: scalar built-ins
+require canonical declaration identity, while noise requires an explicit
+validated `Packed_ops.Noise3` capability. This capability asserts intrinsic
+semantics; code copying an operator and changing its behavior clears it.
+An ordinary custom operator with the same name keeps its custom behavior.
+Canonical operators without dynamic packed instructions still constant-fold.
 `sop/noise_displace :mode "normal_3d"` computes
 `P + N * (amplitude * noise3(P * frequency))` at seed 0. The default
 `"height_2d"` mode adds signed X/Z noise to Y. Both preserve topology and

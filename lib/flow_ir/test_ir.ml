@@ -269,7 +269,8 @@ let () =
   let program = ok (Executor.compile v) in
   let live = Frame_input.at_time 7. in
   assert (same_result (Executor.force program ~live) (E.Private.force_reference v ~live));
-  let custom = {Flow_ir.Operators.noise3 with body = (fun ~live:_ ~node:_ _ -> E.Float 0.125)} in
+  let custom = {Flow_ir.Operators.noise3 with packed_extension = None;
+    body = (fun ~live:_ ~node:_ _ -> E.Float 0.125)} in
   let v = mapped ~ops:[custom] body in
   let program = ok (Executor.compile v) in
   assert (Array.for_all (fun (n : node) -> n.tier <> Cpu_kernel) (Executor.graph program).nodes);

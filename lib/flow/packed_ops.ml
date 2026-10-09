@@ -1,5 +1,6 @@
 type binary = Add | Sub | Mul | Div | Mod | Pow | Min | Max | Lt | Le | Gt | Ge | Eq | And | Or
 type unary = Sin | Cos | Sqrt | Abs | Not
+type extension = Noise3
 
 let register_limit = 64
 let supported_noise_octaves n = n >= 1 && n <= 32

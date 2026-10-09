@@ -8849,3 +8849,60 @@ After restoring instrumentation, the shipping-built workspace/RDK benchmark
 executables have the exact same SHA-256 as the saved uninstrumented candidate:
 `1d687fab9d20bcf15f332e4d54a9a460bb551c0433b2570918870dd2c0fcacf8`
 and `cde649c5d36faba6dd1d3cfde62b30b9d5e795ed5c69392e604034d288b02ea6`.
+
+## F1.3 explicit packed declaration capability (2026-10-09)
+
+The declaration foundation adds `Packed_ops.extension = Noise3`, an explicit
+`Op.t.packed_extension` and `Op.packed_kind`. Packed and scalar IR share this
+classifier. Canonical scalar built-ins require declaration identity; operations
+without dynamic register instructions still constant-fold. Canonical frame
+operations remain accepted, including record/list-valued operations in scalar
+IR. The sole intrinsic extension is explicitly declared noise3 with its
+existing scalar value/name/vec3-position/int-keyword/float-result contract.
+Validation reports E_OP_DECLARATION for a malformed capability and direct
+classification also refuses it. A capability asserts intrinsic semantics;
+changing a copied declaration's behavior clears it. Color declarations and
+the opaque custom-noise fixture clear theirs. External full record constructors
+initialize no capability. No new dependency, cache, CPU arithmetic, argument
+ordering, register generation, iteration or fusion behavior.
+
+Tests exercise real/counterfeit/copy declarations, malformed position/result/
+keyword/name/live capabilities, reverse keyword order, color capability reset,
+actual real-noise residual compilation and counterfeit refusal. The existing
+packed one/eight-domain matrix adds a folded floor constant in a live map,
+including count zero; existing scalar/packed/noise/fallback parity remains.
+Focused validation passes (exit 0), emitter goldens unchanged:
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest @lib/flow_gpu/runtest @lib/flow_sop/runtest
+_build/default/tools/check.exe @tools/api_manifest/runtest
+# Review expected Op/Packed_ops additions, then accept deliberately.
+dune promote
+```
+
+The first focused runs caught two test compile errors (record-update syntax
+and private color declaration access); both are corrected. The manifest check
+first fails with precisely the intended two-module API additions, then those
+are reviewed/promoted. No numeric or rendering golden changes.
+
+Astra approves this declaration checkpoint: no unintended narrowing or
+execution changes, no additional blocking regression. This is a correctness
+foundation with no timing/performance claim or new benchmark gate. It does
+not complete F1.3: diagnostic compile_result, checker candidate/provenance/state
+facts, actual instantiated capture qualification, inspector reasons and the
+full authored producer/emitter audit remain open.
+
+Shipping and native GPU validation pass (exit 0) for this checkpoint:
+
+```sh
+_build/default/tools/check.exe --ship
+_build/default/tools/check.exe @lib/flow_gpu/runtest-native
+```
+
+The full workspace IR sweep covers 37 standard files, two actual custom
+catalog executables and 13 fixtures at four times/domains 1/8. Native
+arithmetic/select/Vec2/Vec4 results are exact at 1,024 and 65,536 elements;
+noise maxima are 8.82050105e-7 and 9.88528899e-5 within the existing tolerance.
+Full F5
+native/pixel qualification of the preceding field optimization belongs to
+`97e5f7bf`; final full-scope native/pixel qualification remains required.

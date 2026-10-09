@@ -155,7 +155,7 @@ complete: emission is the largest interval (6.155 ms at eight domains), and
 Astra next approves direct packed edge writes with a captured all-mask golden.
 F1.3's shared compiler/emitter/dispatch form checks are implemented; focused,
 shipping and native GPU checks pass. Its two-stage qualification wiring remains pending.
-Direct packed edge writes now pass F2.1's measured gate: eight-domain whole
+Direct packed edge writes (`97e5f7bf`) now pass F2.1's measured gate: eight-domain whole
 cook medians are 9.131908 and 9.860992 ms in opposite execution orders,
 with exact geometry and about 15.7 MB less allocation. Astra's verdict is
 “met”; shipping and full F5 native/pixel qualification pass (exit 0).
@@ -527,7 +527,7 @@ product/reduction/skip refusals. A marked map with a used `1e39` constant stays
 CPU under zero GPU cost and never prepares/dispatches even in qualification
 mode; this test fails when either caller's old incomplete gate is restored.
 Astra approves the foundation; `--ship` and native GPU numerics pass (exit 0).
-Declaration capabilities, diagnostic packed
+Declaration capabilities are added by the checkpoint below. Diagnostic packed
 compilation, checker candidate/provenance/state facts, instantiated capture
 qualification, inspector reasons and the full actual-catalog audit remain open.
 
@@ -554,8 +554,21 @@ Preserve evaluator diagnostic codes and all constant folding/arithmetic/order.
 Tests pin real/counterfeit/copy noise capabilities and malformed signatures,
 64 versus 65 registers, meaningful refusals, folded constant-only operations,
 deferred record/vector components and successful declined fusion. This is
-approved design; its implementation and the remaining qualification/provenance/
+approved design; diagnostic compilation and the remaining qualification/provenance/
 inspector/full-catalog audit are still pending.
+
+**Declaration capability foundation (2026-10-09).** Explicit noise capability
+and the shared `Op.packed_kind` classifier are implemented in packed and scalar
+IR compilation. Canonical scalar built-ins retain frame handling and constant
+folding; color operators and opaque copied declarations clear the capability.
+Real/counterfeit noise, copied built-ins, invalid signatures and keyword order
+are checked; folded constant-only operations retain existing empty/live-map
+reference parity. Focused Flow/IR/GPU/SOP checks pass, emitter goldens are
+unchanged and the intended public manifest changes are reviewed/promoted.
+Astra approves this declaration checkpoint without narrowing or execution
+changes. Shipping and native GPU checks pass (exit 0). This is a foundation,
+not completion of F1.3; diagnostic compilation and actual-capture qualification
+remain required.
 
 **Source audit (2026-10-08; predicate/test implementation pending).**
 The current 39-file `--approx` audit (including the actual custom catalogs)
@@ -982,7 +995,7 @@ baseline. Focused RDK core/procedural SOP checks pass. Direct packed edge
 writes and their complete measurement matrix remain pending; do not refresh
 this golden to accept drift from that trial.
 
-**Direct packed edges: measured gate met (2026-10-09).** Edges now write
+**Direct packed edges: done (2026-10-09, `97e5f7bf`).** Edges now write
 positions and interpolated normals directly into their existing owned slots;
 winding swaps both packed positions and normals. The captured 1,024-case
 golden and every saved-before full benchmark hash remain unchanged. Seven

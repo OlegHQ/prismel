@@ -38,6 +38,7 @@ let () =
   assert (List.length Op.all = 113);
   List.iter (fun (o : Op.t) ->
     assert (Option.get (Op.find o.name o.ctx) == o);
+    assert (Option.is_some (Op.packed_kind o) = (o.ctx = Context.value && o.shape = Op.Scalar));
     let s = o.signature in
     let base = List.map (fun (n,t) -> n, sample n t) s.pos in
     let optional = [base; base @ List.map (fun (n,t) -> n, sample n t) s.opt] in
@@ -61,6 +62,8 @@ let () =
   List.iter (fun ctx ->
     List.iter (fun (o : Op.t) -> assert (o.ctx = ctx || o.ctx = Context.value)) (Op.of_context ctx)) (Context.all ());
   assert ((Option.get (Op.find "rand" Context.scene)).name = "value/rand");
+  let sine = Option.get (Op.find "sin" Context.value) in
+  assert (Op.packed_kind {sine with category = "Copied"} = None);
   let rejects name args =
     try (Option.get (Op.find name Context.editor)).check args; assert false
     with Value.Fail ("E_RANGE", _, _) -> () in

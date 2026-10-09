@@ -4,7 +4,7 @@ let attr : Flow.Op.t = {
     opt = []; rest = None; kw = []};
   out = (fun _ -> Flow.Ty.Array Flow.Ty.Vec3); any_num = false; choices = [];
   shape = Flow.Op.Struct {splice = false}; live = false; category = "Attributes";
-  arithmetic = None;
+  arithmetic = None; packed_extension = None;
   check = (fun args -> match List.assoc "attribute" args with
     | Flow.Value.Text name when String.trim name <> "" -> ()
     | _ -> Flow.Value.fail "E_ATTR_NAME" "A point attribute needs a nonblank name.");

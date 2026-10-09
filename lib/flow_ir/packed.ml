@@ -223,8 +223,6 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       | "z" when Array.length e.registers >= 3 -> {registers = [|e.registers.(2)|]; constant = None}
       | "w" when Array.length e.registers = 4 -> {registers = [|e.registers.(3)|]; constant = None}
       | _ -> raise Unsupported in
-    let binary name = match Flow.Packed_ops.binary name with Some op -> op | None -> raise Unsupported in
-    let unary name = match Flow.Packed_ops.unary name with Some op -> op | None -> raise Unsupported in
     let component e i = e.registers.(if Array.length e.registers = 1 then 0 else i) in
     let rec expression env (t : W.term) =
       match t.node with
@@ -280,10 +278,9 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
                {registers = Array.init width (fun i ->
                  emit (Select (condition.registers.(0), component yes i, component no i))); constant = None})
       | Op {op; args; _} ->
-          let declaration = match Flow.Op.find ~extra:(E.Private.residual_ops residual) op Flow.Context.value with
-            | Some o when o.ctx = Flow.Context.value && o.shape = Flow.Op.Scalar
-                && (o == Operators.noise3 || Option.fold ~none:false ~some:((==) o)
-                  (Flow.Op.find o.name Flow.Context.value)) -> o
+          let declaration, kind = match Flow.Op.find ~extra:(E.Private.residual_ops residual) op Flow.Context.value with
+            | Some o -> (match Flow.Op.packed_kind o with
+                | Some kind -> o, kind | None -> raise Unsupported)
             | _ -> raise Unsupported in
           let expressions = List.map (fun (_, t) -> expression env t) args in
           if List.for_all (fun e -> Option.is_some e.constant) expressions && not declaration.live then
@@ -295,8 +292,8 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
           else begin
             let width = List.fold_left (fun n e -> max n (Array.length e.registers)) 1 expressions in
             if t.ty = Ty.Int then raise Unsupported;
-            let registers = match expressions with
-              | a::rest when declaration == Operators.noise3 && Array.length a.registers=3 ->
+            let registers = match kind, expressions with
+              | Flow.Op.Noise3, a::rest when Array.length a.registers=3 ->
                   let configuration=List.map2(fun (name,_) expression ->
                     name,match expression.constant with Some value->value|None->raise Unsupported)
                     (List.tl args) rest in
@@ -305,17 +302,16 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
                   let seed=integer "seed" 0 and octaves=integer "octaves" 1 in
                   if not (Flow.Packed_ops.supported_noise_octaves octaves) then raise Unsupported;
                   [|emit (Noise3 (a.registers.(0), a.registers.(1), a.registers.(2), seed, octaves))|]
-              | [a] when declaration.name = "exact" -> a.registers
-              | [a] when declaration.name = "length"
-                  && Array.length a.registers = 3 ->
+              | Flow.Op.Exact, [a] -> a.registers
+              | Flow.Op.Length, [a] when Array.length a.registers = 3 ->
                   let square i = emit (Binary (Mul, a.registers.(i), a.registers.(i))) in
                   let xx = square 0 and yy = square 1 and zz = square 2 in
                   let xy = emit (Binary (Add, xx, yy)) in
                   let sum = emit (Binary (Add, xy, zz)) in
                   [|emit (Unary (Sqrt, sum))|]
-              | [a; b] -> let op = binary declaration.name in
+              | Flow.Op.Binary op, [a; b] ->
                   Array.init width (fun i -> emit (Binary (op, component a i, component b i)))
-              | [a] when width = 1 -> let op = unary declaration.name in
+              | Flow.Op.Unary op, [a] when width = 1 ->
                   [|emit (Unary (op, a.registers.(0)))|]
               | _ -> raise Unsupported in
             {registers; constant = None}

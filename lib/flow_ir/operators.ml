@@ -16,6 +16,7 @@ let noise3 : Flow.Op.t = {
     kw = ["seed",Flow.Ty.Int;"octaves",Flow.Ty.Int]};
   out = (fun _ -> Flow.Ty.Float); any_num = false; choices = [];
   shape = Flow.Op.Scalar; live = false; category = "Noise"; arithmetic = None;
+  packed_extension = Some Flow.Packed_ops.Noise3;
   check = (fun args ->
     if not(List.exists(fun (_,v)->match v with Flow.Value.Residual _->true|_->false)args)
     then ignore(noise_settings args));
@@ -43,7 +44,7 @@ let color_value color =
   let r,g,b,a=Rays_math.Color.to_floats color in
   if color.Rays_math.Color.a=255 then Flow.Value.Vec3(r,g,b)
   else Flow.Value.List [|Float r;Float g;Float b;Float a|]
-let hsl : Flow.Op.t = {noise3 with name="color/hsl"; category="Color";
+let hsl : Flow.Op.t = {noise3 with name="color/hsl"; category="Color"; packed_extension=None;
   signature={pos=["h",Flow.Ty.Float;"s",Flow.Ty.Float;"l",Flow.Ty.Float];opt=[];rest=None;kw=[]};
   out=(fun _->Flow.Ty.Vec3);check=(fun _->());
   body=(fun ~live:_ ~node:_ args->

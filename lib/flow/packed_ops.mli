@@ -3,6 +3,7 @@
     implement its instruction semantics. *)
 type binary = Add | Sub | Mul | Div | Mod | Pow | Min | Max | Lt | Le | Gt | Ge | Eq | And | Or
 type unary = Sin | Cos | Sqrt | Abs | Not
+type extension = Noise3
 
 val register_limit : int
 val supported_noise_octaves : int -> bool

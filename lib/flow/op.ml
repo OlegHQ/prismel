@@ -5,6 +5,8 @@ type signature = {
 }
 type shape = Scalar | Struct of { splice : bool }
 type arithmetic = { apply : 'f 'r. ('f, 'r) Value.t -> ('f, 'r) Value.t -> ('f, 'r) Value.t }
+type packed_kind = Binary of Packed_ops.binary | Unary of Packed_ops.unary
+  | Noise3 | Length | Exact | Frame | Constant_only
 type t = {
   name : string; ctx : Context.t; signature : signature;
   out : Ty.t list -> Ty.t; any_num : bool;
@@ -14,6 +16,7 @@ type t = {
   body : 'f 'r. live:Frame_input.t -> node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
     (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t;
   category : string; arithmetic : arithmetic option;
+  packed_extension : Packed_ops.extension option;
 }
 type implementation = { run : 'f 'r. name:string -> node:(string -> (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t) ->
   (string * ('f, 'r) Value.t) list -> ('f, 'r) Value.t }
@@ -24,7 +27,8 @@ let mk ?(ctx = Context.value) ?(opt = []) ?rest ?(kw = []) ?(any_num = false)
     ?(category = "Math") ?arithmetic name pos out (body : implementation) =
   { name; ctx; signature = {pos; opt; rest; kw}; out; any_num; choices; shape; live = false;
     check = (fun args -> check.validate choices args);
-    body = (fun ~live:_ ~node args -> body.run ~name ~node args); category; arithmetic }
+    body = (fun ~live:_ ~node args -> body.run ~name ~node args); category; arithmetic;
+    packed_extension = None }
 let fl = Ty.Float
 let lst j ts = match List.nth_opt ts j with Some (Ty.List _ as t) -> t | _ -> Ty.List Ty.Any
 let elm j ts = match lst j ts with Ty.List e -> e | _ -> Ty.Any
@@ -499,6 +503,31 @@ let of_context ?(extra = []) ctx =
   @ List.filter (fun o -> o.ctx = Context.value) all
 let arith name = Option.bind (Hashtbl.find_opt table name) (fun o -> o.arithmetic)
 
+let valid_extension op = match op.packed_extension with
+  | None -> true
+  | Some Packed_ops.Noise3 ->
+      op.name = "noise3" && op.ctx = Context.value && op.shape = Scalar
+      && not op.live && not op.any_num && op.arithmetic = None
+      && op.signature.pos = ["position", Ty.Vec3]
+      && op.signature.opt = [] && op.signature.rest = None
+      && List.sort Stdlib.compare op.signature.kw = ["octaves", Ty.Int; "seed", Ty.Int]
+      && (try op.out [Ty.Vec3] = Ty.Float
+          with Value.Fail _ | Invalid_argument _ -> false)
+
+let packed_kind op =
+  if op.ctx <> Context.value || op.shape <> Scalar then None
+  else if Option.fold ~none:false ~some:((==) op) (Hashtbl.find_opt table op.name) then
+    match Packed_ops.binary op.name, Packed_ops.unary op.name with
+    | Some binary, _ -> Some (Binary binary)
+    | _, Some unary -> Some (Unary unary)
+    | _ when op.name = "length" -> Some Length
+    | _ when op.name = "exact" -> Some Exact
+    | _ when op.live -> Some Frame
+    | _ -> Some Constant_only
+  else match op.packed_extension with
+    | Some Packed_ops.Noise3 when valid_extension op -> Some Noise3
+    | _ -> None
+
 let validate extra =
   let seen = Hashtbl.create 16 in
   List.find_map (fun op ->
@@ -508,4 +537,8 @@ let validate extra =
       | _ -> false in
     if not valid || Hashtbl.mem table op.name || Hashtbl.mem seen op.name then
       Some (Diagnostic.error ~code:"E_OP_DECLARATION" ("Invalid or duplicate extra operator " ^ op.name))
+    else if not (valid_extension op) then
+      Some (Diagnostic.error ~code:"E_OP_DECLARATION"
+        ("Invalid packed capability for " ^ op.name ^
+         ": noise3 requires a scalar value declaration with position:vec3, seed:int/octaves:int keywords and float result."))
     else (Hashtbl.add seen op.name (); None)) extra

@@ -59,3 +59,40 @@ let () =
     | Flow.Value.Float n -> assert (bits n (N.sample3 (N.create 0) ~x:0.37 ~y:(-1.25) ~z:17.4))
     | _ -> assert false) [Flow_ir.Operators.noise3];
   print_endline "Packed noise spans, scalar bits and one/eight-domain parity passed"
+
+let () =
+  let noise = Flow_ir.Operators.noise3 in
+  assert (Flow.Op.packed_kind noise = Some Flow.Op.Noise3);
+  assert (noise.packed_extension = Some Flow.Packed_ops.Noise3);
+  List.iter (fun (op : Flow.Op.t) ->
+    assert (op.packed_extension = None && Flow.Op.packed_kind op = None))
+    (List.filter (fun (op : Flow.Op.t) -> op.name <> "noise3") Flow_ir.Operators.all);
+  let reversed = {noise with signature = {noise.signature with kw = List.rev noise.signature.kw}} in
+  assert (Flow.Op.validate [reversed] = None && Flow.Op.packed_kind reversed = Some Flow.Op.Noise3);
+  List.iter (fun (op : Flow.Op.t) ->
+    assert (Flow.Op.packed_kind op = None);
+    match Flow.Op.validate [op] with
+    | Some d -> assert (d.code = "E_OP_DECLARATION" && String.length d.message > 0)
+    | None -> assert false)
+    [{noise with signature = {noise.signature with pos = ["position", Flow.Ty.Vec2]}};
+     {noise with out = (fun _ -> Flow.Ty.Vec3)};
+     {noise with signature = {noise.signature with kw = ["seed", Flow.Ty.Int; "seed", Flow.Ty.Int]}};
+     {noise with signature = {noise.signature with kw = ["seed", Flow.Ty.Int; "octaves", Flow.Ty.Float]}};
+     {noise with name = "other_noise"}; {noise with live = true}];
+  let sine = Option.get (Flow.Op.find "sin" Flow.Context.value) in
+  let counterfeit = {sine with name = "noise3"} in
+  assert (Flow.Op.validate [counterfeit] = None && Flow.Op.packed_kind counterfeit = None);
+  let compile op body source =
+    let text = "(workspace w (graph g :context value (let* [tested (map (fn [p] "
+      ^ body ^ ") " ^ source ^ ")] 0.0)))" in
+    let forms = Result.get_ok (Flow.Syntax.parse text) in
+    let workspace = match Flow.Workspace.check ~ops:[op] {Flow.Check.version=1;kinds=[]} forms with
+      | Some w, [] -> w
+      | _, ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
+    let evaluated = Result.get_ok (Flow.Eval.static ~record:true workspace) in
+    match List.assoc ["g";"tested"] evaluated.records |> List.hd |> snd with
+    | Flow.Eval.Residual residual ->
+        Flow_ir.Packed.compile residual (Flow.Eval.Private.residual_view residual).term
+    | _ -> failwith "capability test did not defer its map" in
+  assert (Option.is_some (compile noise "(noise3 (+ p [t 0 0]))" "(array/vec3 2051 [0.3 0.7 -0.2])"));
+  assert (compile counterfeit "(noise3 (+ p t))" "(array/range 2051)" = None)

@@ -43,6 +43,7 @@ let () =
     let source = Printf.sprintf "(array/range %d)" count in
     let vectors = Printf.sprintf "(array/vec3 %d [0.25 -0.5 1])" count in
     let cases = [
+      "(map (fn [x] (+ (+ x t) (floor 1.75))) " ^ source ^ ")";
       "(map (fn [x] [x t]) " ^ source ^ ")";
       "(map (fn [x] [x t (+ x t) -0.0]) " ^ source ^ ")";
       "(map (fn [(p : vec2)] (+ p t)) (map (fn [x] [x 1]) " ^ source ^ "))";

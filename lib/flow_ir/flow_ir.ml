@@ -374,9 +374,7 @@ and residual b r =
                    add ~provenance b id t.ty count kind [] rate)
           | Op {op; args = ts; _} ->
               let op = match Flow.Op.find ~extra:(E.Private.residual_ops r) op Flow.Context.value with
-                | Some op when op.ctx = Flow.Context.value && op.shape = Flow.Op.Scalar
-                    && (op == Operators.noise3 || Option.fold ~none:false ~some:((==) op)
-                      (Flow.Op.find op.name Flow.Context.value)) -> op
+                | Some op when Flow.Op.packed_kind op <> None -> op
                 | _ -> raise Unsupported in
               let kind, rate = if op.live then Source (Frame_field op.name),
                   (if op.name = "frame/events" || op.name = "frame/input" then Event else Frame)
