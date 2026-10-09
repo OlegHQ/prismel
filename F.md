@@ -117,11 +117,12 @@ saying what the table establishes and what it does not, the raw file paths.
 
 **Current open work (2026-10-09).** The paragraphs below preserve checkpoint
 history; their earlier “open” statements are not the current task list. Known
-remaining work is the changing 65,536-point capture GPU producer gate
-(5.527799 ms on the retained scalar Vec3 branch against <5 ms), and F3 fan-out (latest retained
+remaining work is F3 fan-out (latest retained
 production learned-eight median63.197136 ms against≤50.600 ms). The chunked
 vertex trial is rejected and restored; its evidence and boundary regression
-remain. A final requirement-by-requirement audit and final F5 qualification
+remain. The unchanged, uninstrumented capture remeasurement below passes the
+changing-source GPU median gate at4.755571 ms (range4.344505–5.610975 ms;
+three of seven trials exceed5 ms). A final requirement-by-requirement audit and final F5 qualification
 are still required. F2.4/F4 retain their conditional/optional scope; F8 is a
 handoff. Overall completion is not claimed.
 
@@ -1887,6 +1888,45 @@ workspace sweeps, expanded owner/oversized capture, Canvas and runtime checks.
 Actual display is1×;2× goldens remain unqualified. Pre-commit shipping passes
 (exit0; `/tmp/rays-f-owner-coverage-ship.log`).
 The two measured gates and final audit remain open.
+
+**Scalar Vec3 source-refresh attribution and current gate qualification
+(2026-10-09).** The approved three-fixture probes retain1050 phase rows,
+90 whole rows,71 counter rows and69 per-trial GC snapshot rows. All nine native
+pixel comparisons have maximum0; CPU domains1/8 hashes and resource/capture
+assertions pass. P/Cd ordered traversals now measure0.121803/0.121765 ms,
+versus0.678835/0.677707 in the preceding XYZ-loop diagnostic. Changing-source
+materialization takes1.683940 ms and P/Cd flattening0.234637/0.233426 ms inside
+packed preparation2.473027 ms. Inclusive/node-own clocks have distinct coverage;
+do not add overlapping medians. Trials decline from5.65/5.83 ms toward4.03–4.35 ms
+alongside changing allocation-related phases. Sampled GC counts do not establish
+the cause or elapsed GC time; CPU worker internals remain unobserved. Astra
+accepts attribution and all105 applicable containment checks. All nine temporary
+source files are restored byte-for-byte, the saved patch applies cleanly and
+restored focused checks pass. Raw evidence is
+`f-image-map-capture-attribution-scalar-vec3*`.
+
+Astra then requests the unchanged full uninstrumented capture matrix and controls,
+with seven trials,200 completed frames and10 warmups. All440 data rows,
+70 CPU domain-hash pairs,30 native snapshots with zero differences,210 warm
+resource rows and168 capture rows pass. At1024², CPU8/GPU-producer medians are
+16.512156/1.476744 ms (static1024 points),17.276049/1.644295 (changing1024),
+18.973112/1.837995 (static65536),19.464016/4.755571 (changing65536).
+Gradient/live controls are13.434172/1.408764 and13.276100/1.430500 ms. Fixed-source
+producer allocations remain independent of pixel count; static89161 B/frame,
+changing1024-point370195 B/frame and changing65536-point10413406 B/frame.
+
+Astra: **“PASS: close the changing-source GPU median gate for this qualified
+configuration.”** Every existing1024² CPU<40 ms/GPU<5 ms median gate passes.
+Changing-source range4.344505–5.610975 ms includes three of seven trials above5 ms;
+this is a median qualification, not a worst-case guarantee. Its separate
+end-to-end median is5.575650 ms. This is current measurement evidence, with no
+claim of improvement caused by unchanged performance code. No further optimization
+or repeat batch is required for this gate. Raw full matrix/control evidence is
+`f-image-map-captures-owner-checkpoint-recheck*` and
+`f-image-map-uncaptured-owner-checkpoint-recheck*`. Pre-commit shipping passes
+(exit0; `/tmp/rays-f-scalar-refresh-gates-ship.log`);
+the preceding owner checkpoint's full F5 remains applicable to the identical
+production source. F3 and the final audit remain open.
 
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row

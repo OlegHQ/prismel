@@ -12127,3 +12127,109 @@ checks pass. Pre-commit shipping passes, exit0
 (`/tmp/rays-f-owner-coverage-ship.log`). Actual display remains1×;2× goldens
 remain unqualified.
 Changing-source GPU<5 ms, F3≤50.600 ms and final audit remain open.
+
+### F2.2 scalar Vec3 source-refresh attribution and current production gates (2026-10-09)
+
+Apple M1/Macmini9,1, OCaml5.3, Dune dev, native Metal, actual1× display.
+Production checkpoint186c0e1f (implementation78a646f6); no production optimization
+is made in this checkpoint. Astra approves the same temporary nine-file probes
+on the retained scalar Vec3 branch, then explicitly requests the ordinary
+uninstrumented full matrix before another optimization. Each benchmark runs
+alone with no builds/tests/agents.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest @lib/flow_sop/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-capture-attribution-scalar-vec3-whole.csv 2> specification/performance/f-image-map-capture-attribution-scalar-vec3-counters.csv
+# Restore the nine source files byte-for-byte, rebuild the ordinary harness.
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest @lib/flow_sop/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-captures-owner-checkpoint-recheck.csv 2> specification/performance/f-image-map-captures-owner-checkpoint-recheck-counters.csv
+_build/default/tools/bench_workspace_lower.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-owner-checkpoint-recheck.csv 2> specification/performance/f-image-map-uncaptured-owner-checkpoint-recheck-counters.csv
+```
+
+Diagnostic build and run exit0 (`/tmp/rays-f-scalar-refresh-probes-build.log`).
+The saved probe patch is `f-image-map-capture-attribution-scalar-vec3.patch`;
+the run additionally writes its phase `.csv` and `-gc.csv`. All1050 phase rows,
+90 whole rows,71 counter rows and69 GC rows complete. Three fixtures: static/
+changing65536 points at1024² and gradient; CPU1/8 seven warm samples, GPU8
+seven×200 completed frames after10 warmups. Nine full native pixel comparisons
+have zero differing channels/pixels, CPU1/8 hashes match, and ownership/capture/
+resize/replan/close assertions pass.
+
+Changing-source diagnostic medians, ms/frame:
+
+| Interval and coverage | Prior XYZ-loop diagnostic | Scalar Vec3 diagnostic |
+|---|---:|---:|
+| Complete producer, initial domain | 6.292236 | 4.349805 |
+| Packed preparation, inclusive | 4.157250 | 2.473027 |
+| Materialization, inclusive | 2.047064 | 1.683940 |
+| Line, all-cook-domain node-own | 0.341308 | 0.294302 |
+| Write Cd, all-cook-domain node-own | 1.697543 | 1.381015 |
+| Validation, initial domain inclusive | 0.227145 | 0.151922 |
+| XYZ storage, initial domain inclusive | 0.327947 | 0.253010 |
+| P / Cd flatten, initial domain inclusive | 0.306879 / 0.310577 | 0.234637 / 0.233426 |
+| P / Cd ordered traversal, initial domain inclusive | 0.678835 / 0.677707 | 0.121803 / 0.121765 |
+| Completed execution, inclusive | 1.235315 | 0.980209 |
+| Sink conversion, inclusive | 0.811477 | 0.806959 |
+
+These nested/inclusive intervals cannot be added together. Initial-domain clocks
+do not observe CPU worker internals; Session node-own durations retain their
+separate coverage. Astra checks all105 applicable parent/child relationships;
+none violates containment. All21 warm producer counter rows have200 status reads
+and no resource creation/upload/output-readback deltas.
+
+Diagnostic changing trials decline5.654016/5.825809/4.696125/4.349805/4.057915/
+4.133999/4.033060 ms alongside lower materialization and allocation-related
+phases. Per-trial `Gc.quick_stat` snapshots occur after the pre-allocation marker
+and before the start clock, then after the end clock and before the post-allocation
+marker. Existing `Gc.stat` boundary collections are excluded from those deltas.
+The snapshots add diagnostic allocation overhead; sampled counters can lag and
+do not measure GC time. Minor counts18/18/18/18/18/19/20, major0/0/0/0/0/1/4,
+compactions0; later faster trials have more collections, so these counts do not
+establish the timing cause. This diagnostic4.349805 ms is not a gate result.
+
+All nine production files are restored from the fresh archive byte-for-byte
+(`cmp`, exit0), including every temporary API and GC/harness probe. The patch
+passes `git apply --check`; restored focused checks/rebuild pass, exit0
+(`/tmp/rays-f-scalar-refresh-restored.log`). No temporary source change remains.
+
+The requested unchanged ordinary harness then completes the full eight-cell
+capture matrix and both1024² controls. Seven repetitions,200 GPU frames per
+trial,10 warmups, CPU1/8; producer, consumer and end-to-end clocks stay separate.
+All440 data rows,70 CPU domain-hash pairs,30 complete zero-difference native
+snapshots,210 warm resource rows and168 capture rows pass. Static sources reuse
+capture data; changing sources record200 cooks/400 flattens. Warm uploads,
+image readbacks and GPU resource creations remain0. Cold owner/preparation,
+resize/replan, snapshot and teardown rows remain in the raw files.
+
+| Fixture | CPU8 ms | GPU producer ms | Consumer ms | End-to-end ms | Producer B/frame |
+|---|---:|---:|---:|---:|---:|
+| Static1024 points,512² | 5.871058 | 0.586179 | 0.363184 | 1.044865 | 89161 |
+| Static1024 points,1024² | 16.512156 | 1.476744 | 0.616235 | 2.383735 | 89161 |
+| Static1024 points,2048² | 56.735992 | 4.441091 | 1.348500 | 6.187460 | 89161 |
+| Changing1024 points,512² | 6.511927 | 0.732579 | 0.383960 | 1.170195 | 370195 |
+| Changing1024 points,1024² | 17.276049 | 1.644295 | 0.613824 | 2.616020 | 370195 |
+| Changing1024 points,2048² | 58.954000 | 4.855405 | 1.282926 | 6.776235 | 370195 |
+| Static65536 points,1024² | 18.973112 | 1.837995 | 0.616424 | 3.087415 | 89161 |
+| Changing65536 points,1024² | 19.464016 | 4.755571 | 0.603240 | 5.575650 | 10413406 |
+
+Uncaptured gradient CPU8/producer13.434172/1.408764 ms,33721 B/frame;
+live capture13.276100/1.430500 ms,32593 B/frame. Fixed-source producer allocation
+remains independent of pixel count. All existing1024² CPU<40 ms and GPU
+producer<5 ms median gates pass; CPU2048² has no40 ms gate.
+
+Astra: **“PASS: close the changing-source GPU median gate for this qualified
+configuration.”** Its seven samples are5.581995/5.610975/5.068265/4.568505/
+4.755571/4.522350/4.344505 ms: median4.755571, range4.344505–5.610975,
+three of seven above5 ms. This is median qualification, not a worst-case
+guarantee. The separate end-to-end median5.575650 ms is retained. These are
+current qualification results; no measured improvement is attributed to
+unchanged performance code. No further optimization or repeat batch is required
+to satisfy this median gate. All raw rows/outliers remain in the two
+`f-image-map-*-owner-checkpoint-recheck*` matrix/control families above.
+
+The preceding owner's full F5 evidence
+(`/tmp/rays-f-owner-coverage-full.log`) applies to the byte-identical production
+source. Pre-commit shipping passes, exit0
+(`/tmp/rays-f-scalar-refresh-gates-ship.log`). Actual1× only;2× goldens remain
+unqualified.
+F3≤50.600 ms and the final audit remain open.
