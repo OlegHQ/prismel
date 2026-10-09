@@ -616,6 +616,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
               value = Flow.Syntax.make (Flow.Syntax.Num text) }))
         | Rename { graph; to_ } -> Some (Syntax_edit (Flow_graph.Flow_edit.Rename_graph { name = graph; to_ }))
         | Remove graph -> Some (Syntax_edit (Flow_graph.Flow_edit.Remove_graph { name = graph }))
+        | New_graph context -> Some (Syntax_batch ("New graph", [ snd (new_graph value context) ]))
         | Flag { node; name; value } ->
             Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node; key = Flow_graph.Flow_edit.Kw name; sub = [];
               value = Flow.Syntax.make (Flow.Syntax.Sym (if value then "true" else "false")) }))

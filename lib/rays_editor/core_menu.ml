@@ -9,7 +9,8 @@ let scene_entries value =
       off = None } in
   entry "world" "World" [ "Object" ] :: entry "merge" "Merge" [ "Object" ]
   :: entry "material" "Material" [ "Material" ]
-  :: List.filter_map (fun (g : Flow.Workspace.graph) ->
+  :: List.map (fun c -> entry ("newgraph:" ^ c) ("New graph: " ^ c) [ "Graph" ]) Navigator.new_graph_contexts
+  @ List.filter_map (fun (g : Flow.Workspace.graph) ->
        if g.context = Flow.Context.sop then Some (entry ("of:" ^ g.name) g.name [ "Object"; "Geometry of..." ])
        else None) (fst value.doc.Document.workspace).checked.graphs
 

@@ -451,6 +451,18 @@ picked. The host writes one `Add_node`: a kind with an input reads the selected 
 graph's result when nothing is selected, so the text still checks. `Scope.scope_point` gives
 the lattice position under a menu opened by the pointer.
 
+**New graph, Rename, Delete.** A graph of any context is made and removed from the UI. A
+right-click in the Navigator opens a list menu (`Ui.context_menu`): "New graph" with a submenu
+of sop, scene, draw, image, value and material, and, on a graph row, "Rename" (F2's field) and
+"Delete" (the `Remove_graph` gesture, refused naming the graphs that read it). The add menu at
+the scene level lists the same six under "Graph" as "New graph: <context>", and so does the
+Navigator's `+`, so a workspace with no graph can start. Each pick is one `Set_graph` named by
+the context (`sop`, then `sop_2` ...) and opens the new graph. The default bodies check and cook:
+`(sop/box)`; `(draw/background "#111318")`; `(image/noise :width 256 :height 256 :frequency 0.03
+:seed 1)`; `1`; a `material/standard`; and for a scene a `let*` of a camera, a light and, when a
+SOP graph exists, `(scene/geometry (ref <that graph>))`, closed by
+`(scene/root (scene/merge ...) :camera camera)`, which renders in `ui/viewport`.
+
 ### 7.5 Letter hints
 
 `w` with one node selected:

@@ -89,6 +89,40 @@ let new_material value =
            kw "roughness"; S.make (S.Num "0.4") ] ] in
   name, Flow_graph.Flow_edit.Set_graph { name; form }
 
+(* A new graph of a context, from the Navigator's context menu or the add menu: a fresh name
+   (the context's, then [_2] ...) and a body that checks and cooks.  A scene reads the first SOP
+   graph, if any, and has a camera and a light, so it renders in a viewport. *)
+let new_graph value context =
+  let ws, _ = value.doc.Document.workspace in
+  let taken n = List.exists (fun (g : Flow.Workspace.graph) -> g.name = n) (ws.checked.graphs @ ws.checked.defs) in
+  let rec pick i = let n = if i = 1 then context else context ^ "_" ^ string_of_int i in
+    if taken n then pick (i + 1) else n in
+  let name = pick 1 in
+  let module S = Flow.Syntax in
+  let list items = S.make (S.List items) and sym s = S.make (S.Sym s) and kw k = S.make (S.Kw k)
+  and num n = S.make (S.Num n) and str s = S.make (S.Str s) in
+  let vec items = S.make (S.Vec (List.map num items)) in
+  let call head args = list (sym head :: args) in
+  let body = match context with
+    | "sop" -> call "sop/box" []
+    | "draw" -> call "draw/background" [ str "#111318" ]
+    | "image" -> call "image/noise" [ kw "width"; num "256"; kw "height"; num "256";
+                                      kw "frequency"; num "0.03"; kw "seed"; num "1" ]
+    | "value" -> num "1"
+    | "material" -> call "material/standard" [ kw "name"; str name; kw "color"; str "#cccccc";
+                                              kw "roughness"; num "0.4" ]
+    | _ ->
+        let geometry = List.find_map (fun (g : Flow.Workspace.graph) ->
+          if g.context = Flow.Context.sop then Some g.name else None) ws.checked.graphs in
+        let bindings = (match geometry with
+          | Some g -> [ "geometry", call "scene/geometry" [ list [ sym "ref"; sym g ] ] ] | None -> [])
+          @ [ "camera", call "scene/camera" [ kw "eye"; vec [ "4"; "5"; "5" ]; kw "target"; vec [ "0"; "0"; "0" ] ];
+              "light", call "scene/light" [ kw "translate"; vec [ "0"; "5"; "3" ]; kw "intensity"; num "50" ] ] in
+        list [ sym "let*"; S.make (S.Vec (List.concat_map (fun (n, e) -> [ sym n; e ]) bindings));
+               call "scene/root" [ call "scene/merge" (List.map (fun (n, _) -> sym n) bindings);
+                                   kw "camera"; sym "camera" ] ] in
+  name, Flow_graph.Flow_edit.Set_graph { name; form = list [ sym "graph"; sym name; kw "context"; sym context; body ] }
+
 (* "=(* 2 t)" typed in a row: the expression after the "=", any Lisp expression *)
 let expression_text text =
   match Flow.Syntax.parse (String.sub text 1 (String.length text - 1)) with

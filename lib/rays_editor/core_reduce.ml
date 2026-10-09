@@ -256,7 +256,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
            | Ok doc ->
                List.iter (function
                  | Flow_graph.Flow_edit.Add_node { scope; name; _ } -> added := [ scope @ [ name ] ]
-                 | Set_graph { name; _ } when label = "New material" -> created := Some name
+                 | Set_graph { name; _ } when label = "New material" || label = "New graph" -> created := Some name
                  | _ -> ()) ops;
                if !edit_note = None then
                  edit_note := Option.map (fun words -> "Wrote " ^ words) (Echo.batch ops);

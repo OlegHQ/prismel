@@ -48,6 +48,65 @@ let canvas_preview () =
     check (shown () = default) "v again did not restore the canvas pane's own picture");
   ()
 
+let has text piece =
+  let n = String.length piece in
+  let rec at i = i + n <= String.length text && (String.sub text i n = piece || at (i + 1)) in
+  at 0
+
+let with_editor text f =
+  let module E3 = Rays_editor.Editor3 in
+  let workspace = match Rays_editor.Workspace.load text with
+    | Ok workspace -> workspace
+    | Error ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+  let editor = Result.get_ok (E3.create ~workspace ~await:true ~domains:1 ~prepare:(fun _ _ -> Ok ())
+    ~scene3:(fun _ () -> Rays.Scene3.empty) ()) in
+  Fun.protect ~finally:(fun () -> E3.close editor) (fun () -> f editor)
+
+(* an image-context workspace is not a geometry object: the cook has nothing to reject *)
+let image_cook () =
+  let module E3 = Rays_editor.Editor3 in
+  let text = {|(workspace k
+    (graph image :context image
+      (let* [bias (* 0.2 (+ 1 (sin t)))
+             pixels (image/map (fn [uv] [(+ uv.x bias) uv.y 0.5 1]) :width 16 :height 16)]
+        pixels))
+    (graph picture :context draw (draw/image (ref image) :at [0 0 0]))
+    (graph settings :context settings (settings/config :title "k" :width 900 :height 600)))|} in
+  with_editor text (fun editor ->
+    let e = ref editor in
+    for count = 1 to 2 do e := E3.update !e (Test_editor_input.frame (450., 300.) [] count) done;
+    let status = E3.Private.status_text !e in
+    check (not (has status "Cook rejected") && not (has status "E_PAYLOAD"))
+      ("an image graph made the cook reject: " ^ status))
+
+(* New graph: each context's default body checks, a scene reads the SOP graph, and Delete refuses
+   a graph that is read *)
+let new_graphs () =
+  let module E3 = Rays_editor.Editor3 in
+  let text = {|(workspace n
+    (graph settings :context settings (settings/config :title "n" :width 900 :height 600)))|} in
+  let contexts = [ "sop"; "scene"; "draw"; "image"; "value"; "material" ] in
+  with_editor text (fun editor ->
+    let names e = List.map (fun (g : Flow.Workspace.graph) -> g.name)
+      (E3.workspace e).Editor_document.Workspace_doc.checked.graphs in
+    let add e context = match E3.edit e (E3.Private.new_graph e context) with
+      | Ok e -> e | Error m -> failwith ("New graph " ^ context ^ " refused: " ^ m) in
+    let e = List.fold_left add editor contexts in
+    List.iter (fun n -> check (List.mem n (names e)) ("New graph did not make " ^ n)) contexts;
+    check (List.mem "sop_2" (names (add e "sop"))) "a second New graph sop is not named afresh";
+    let source = fst (Flow.Lisp.print (E3.workspace e).Editor_document.Workspace_doc.source) in
+    check (has source "(ref sop)") "the new scene does not read the SOP graph";
+    let e = ref e in
+    for count = 1 to 3 do e := E3.update !e (Test_editor_input.frame (450., 300.) [] count) done;
+    check (not (has (E3.Private.status_text !e) "rejected"))
+      ("the new graphs do not cook: " ^ E3.Private.status_text !e);
+    (match E3.edit !e (Flow_graph.Flow_edit.Remove_graph { name = "sop" }) with
+     | Ok _ -> failwith "a read SOP graph was deleted"
+     | Error m -> check (has m "scene") ("the refusal does not name the scene: " ^ m));
+    match E3.edit !e (Flow_graph.Flow_edit.Remove_graph { name = "draw" }) with
+    | Ok removed -> check (not (List.mem "draw" (names removed))) "an unread graph stayed"
+    | Error m -> failwith ("an unread graph was refused: " ^ m))
+
 let run () =
   let open Editor_core.Guide_context in
   let module L = Rays_editor.Private.Leader in
@@ -256,4 +315,6 @@ let run () =
     step [] 200; E3.crash_dump !current directory;
     check (contains (dump ()) "key hud: -\n") "key HUD outlived 1.5 seconds");
   canvas_preview ();
+  image_cook ();
+  new_graphs ();
   print_endline "editor commands: the host rejects ambiguity and share alias/scoped keyboard/palette actions"

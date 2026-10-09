@@ -344,6 +344,10 @@ module Editor3 : sig
   module Private : sig
     val gpu_qualification : 'prepared t -> unit
     (** Explicit native benchmark selection. Production requires measured GPU costs. *)
+    val status_text : 'prepared t -> string
+    (** The status strip's text: a cook or edit error reads "Cook rejected: ..." in it. *)
+    val new_graph : 'prepared t -> string -> Flow_graph.Flow_edit.op
+    (** The [Set_graph] a "New graph" of this context name ([sop], [scene], ...) writes. *)
     val image_plan : 'prepared t -> Flow.Eval.plan
     val image_payload : ?state:Flow.Eval.state -> ?live:Frame_input.t ->
       'prepared t -> Flow.Eval.value -> (Procedural.Image.t,Flow.Diagnostic.t) result

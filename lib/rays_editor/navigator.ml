@@ -14,15 +14,21 @@ type intent =
   | Rename of { graph : string; to_ : string }
   | Remove of string
   | Layout of int
+  | New_graph of string
   | Add
   | Flag of { node : path; name : string; value : bool }
 
 (* [rename]: the graph whose name the field holds, and whether the field has opened yet *)
 type state = { query : string; typing : bool; rename : (string * bool) option;
                scene_closed : bool;  (* the scene's root row is folded: its objects are hidden *)
-               opened : string list  (* graphs whose node rows are unfolded under their row *) }
+               opened : string list;  (* graphs whose node rows are unfolded under their row *)
+               context : (float * float * string option) option
+                 (* the right-click menu: its point and the graph row it was opened on *) }
 
-let initial = { query = ""; typing = false; rename = None; scene_closed = false; opened = [] }
+(* the contexts a graph can be created in from the UI *)
+let new_graph_contexts = [ "sop"; "scene"; "draw"; "image"; "value"; "material" ]
+
+let initial = { query = ""; typing = false; rename = None; scene_closed = false; opened = []; context = None }
 let open_graph graph s = if List.mem graph s.opened then s else { s with opened = graph :: s.opened }
 let with_query query s = { s with query }
 let query s = s.query
@@ -471,6 +477,32 @@ let view state ui ~bounds:(x, y, w, h) p =
        if Ui.key_pressed ui Rays.Input.F2 then begin_rename := Some (graph, false)
        else if Ui.key_pressed ui Rays.Input.Delete then emit (Remove graph)
    | _ -> ());
+  (* a right-click opens the context menu: New graph (a context each), and on a graph row Rename
+     and Delete.  The row's own graph is kept with the menu; a function row has neither. *)
+  let context = ref state.context in
+  if Ui.context_clicked signal then begin
+    let cx, cy = signal.release_point in
+    let graph = match Option.map (fun k -> rows.(k)) (row_at signal.release_point) with
+      | Some (Graph_row { graph; _ } | Root_row { graph; _ }) -> Some graph
+      | _ -> None in
+    context := Some (cx, cy, graph)
+  end;
+  (match !context with
+   | None -> ()
+   | Some (cx, cy, graph) ->
+       let editable = match graph with Some g -> not (String.starts_with ~prefix:"def:" g) | None -> false in
+       let items = [ "New graph", true; "Rename", editable; "Delete", editable ] in
+       let submenu = Ui.{ row = 0; rows = List.map (fun c -> c, true) new_graph_contexts; keys = []; current = None } in
+       (match Ui.context_menu ui ~at:(cx, cy) ~danger:[ 2 ] ~submenus:[ submenu ] "navigator-context" items with
+        | `Open -> ()
+        | `Dismiss -> context := None
+        | `Pick n ->
+            context := None;
+            (match n, graph with
+             | 1, Some g -> begin_rename := Some (g, false)
+             | 2, Some g -> emit (Remove g)
+             | n, _ when n >= 3 -> emit (New_graph (List.nth new_graph_contexts (n - 3)))
+             | _ -> ())));
   Ui.draw ui content (fun paint _ ->
     let scroll = Ui.scroll_position ui box in
     Ui.Paint.fill paint ~x ~y:top ~w ~h:body theme.panel;
@@ -686,5 +718,5 @@ let view state ui ~bounds:(x, y, w, h) p =
     | Some graph -> { state with opened = (if List.mem graph state.opened
                                            then List.filter (( <> ) graph) state.opened else graph :: state.opened) }
     | None -> state in
-  { state with rename = (if !begin_rename <> None then !begin_rename else state.rename);
+  { state with context = !context; rename = (if !begin_rename <> None then !begin_rename else state.rename);
                scene_closed = (if !fold then not state.scene_closed else state.scene_closed) }, List.rev !intents

@@ -30,6 +30,8 @@ module Editor3 = struct
         ~live:(Option.value ~default:core.live_frame live) image
     let image_stats value = let resources=value.Environment.host.resources in
       resources.images_created,resources.images_destroyed
+    let status_text value=Core.status_text value.Environment.core
+    let new_graph value context=snd (Core.new_graph value.Environment.core context)
     let image_render_stats value=Workspace_images.render_stats value.Environment.host.images
     let image_capture_stats value=Workspace_images.capture_stats value.Environment.host.images
     let canvas_scenes value=List.map (fun (_,(p:Environment.canvas_picture))->p.scene) value.Environment.canvases

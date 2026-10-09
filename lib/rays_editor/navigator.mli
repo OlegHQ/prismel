@@ -18,11 +18,16 @@ type intent =
   | Rename of { graph : string; to_ : string }  (** F2 on a graph row *)
   | Remove of string  (** Delete on a graph row *)
   | Layout of int  (** a row of the Layout section: show that layout *)
+  | New_graph of string
+      (** the context menu's "New graph" entry: a graph of this context name (["sop"], ["scene"] ...) *)
   | Add  (** the [+] beside the search field: the add menu *)
   | Flag of { node : path; name : string; value : bool }
       (** a press on an object's visible or render flag: that argument of its binding *)
 
 type state
+
+val new_graph_contexts : string list
+(** The contexts "New graph" offers: sop, scene, draw, image, value, material. *)
 
 val initial : state
 
