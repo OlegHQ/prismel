@@ -142,7 +142,7 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
   let jump = List.find_map (fun (c : Leader.command) ->
     if c.id = "scene.jump" then Option.map (fun t -> Editor_core.Keymap.label t, "jump") c.trigger else None) Leader.keymap in
   let extra = match value.focus with
-    | Pxui_shell.Layout.Outline -> [ "/", "filter"; "i", "enter" ] @ Option.to_list jump
+    | Pxui_shell.Layout.Outline -> [ "s", "filter"; "i", "enter" ] @ Option.to_list jump
     | Graph -> [ "Tab", "add after"; "o", "open"; "v", "view"; "b", "bypass"; "i", "enter"; "f", "frame"; "w", "hints";
                  "/", "leader" ]
     | View _ -> [ "w", "move"; "e", "rotate"; "r", "scale"; "i", "enter object"; "\xe2\x8c\xa5 drag", "orbit" ]

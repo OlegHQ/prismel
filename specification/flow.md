@@ -594,7 +594,7 @@ Everything in §6 and §7.
 
 `Pxui_shell.Tree` rows. Its keys (`Tree.bindings`, scoped to the graph panel): arrows or
 `j` / `k` move, Shift extends, Left and Right fold and unfold, Home and End, Tab and
-Shift-Tab reparent, `⌥↑` / `⌥↓` move a row, `F2` renames, Delete removes, `/` filters, `h`
+Shift-Tab reparent, `⌥↑` / `⌥↓` move a row, `F2` renames, Delete removes, `s` filters, `h`
 hides or shows, Enter opens the selected row in the graph, `f` reveals the selection.
 
 ### 8.3 Text
