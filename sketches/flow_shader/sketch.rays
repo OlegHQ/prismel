@@ -1,0 +1,54 @@
+(workspace flow_shader
+  ;; One shader, many looks: a stepped-echo glow (inlined into each kernel).
+  (defmacro glow [uv bands cx cy radius shrink drift bg ring core]
+    `(let* [u# ~uv
+            ;; bands: quantize x, each slice shifts the centre and scales the radius
+            q# (- u#.x (mod u#.x (/ 1 ~bands)))
+            rad# (* ~radius (- 1 (* q# ~shrink)))
+            mx# (+ ~cx (* q# ~drift))
+            ;; glow: smooth radial falloff from the slice's own centre
+            dx# (/ (- u#.x mx#) rad#)
+            dy# (/ (- u#.y ~cy) rad#)
+            g# (max 0 (- 1 (* 0.5 (+ (* dx# dx#) (* dy# dy#)))))
+            a# (* g# g#)
+            b# (* a# (* a# a#))
+            ;; palette: background colour plus a ring layer (a) and a core layer (b)
+            col# (+ (+ ~bg (* a# ~ring)) (* b# ~core))]
+       [col#.x col#.y col#.z 1]))
+
+  (graph picture :context draw
+    (let* [;; slow animation: bands drift, blobs breathe
+           drift (+ 0.6 (* 0.15 (sin (* t 0.4))))
+           breathe (+ 1 (* 0.12 (sin (* t 0.7))))
+           orange (image/map
+                    (fn [uv] (glow uv 10 0.2 0.5 (* 0.44 breathe) 0.85 drift
+                               [0.45 0.65 0.6] [0.5 -0.35 -0.45] [-0.8 -0.1 0.3]))
+                    :width 256 :height 256)
+           pink (image/map
+                  (fn [uv] (glow uv 7 0.18 0.5 (* 0.4 breathe) 1.05 drift
+                             [0.1 0.1 0.03] [0.4 0.3 0.9] [0.55 0.1 -0.3]))
+                  :width 256 :height 256)
+           teal (image/map
+                  (fn [uv] (glow uv 5 0.2 0.55 (* 0.36 breathe) 1.1 (* 0.8 drift)
+                             [0.06 0.03 0.1] [1.0 0.3 0.3] [-0.2 0.6 0.6]))
+                  :width 256 :height 256)
+           lime (image/map
+                  (fn [uv] (glow uv 9 0.25 0.45 (* 0.4 breathe) 0.9 (* 0.6 drift)
+                             [0.7 0.1 0.15] [-0.15 0.9 -0.05] [-0.4 -0.1 0.8]))
+                  :width 256 :height 256)]
+      (draw/merge (draw/background "#0b0b0e")
+        (draw/image orange :at [8 8 0])
+        (draw/image pink :at [272 8 0])
+        (draw/image teal :at [8 272 0])
+        (draw/image lime :at [272 272 0]))))
+
+  (graph settings :context settings
+    (settings/config :title "Rays Lisp as a shader language" :width 1280 :height 800))
+
+  (graph editor :context editor
+    (let* [preview (ui/canvas (ref picture))
+           network (ui/graph "picture" :focus true)
+           inspector (ui/inspector :of network)]
+      (ui/workspace (ui/split "horizontal" preview
+        (ui/split "horizontal" network inspector :second_size 230)
+        :second_size 740)))))
