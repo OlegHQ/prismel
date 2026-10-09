@@ -933,6 +933,7 @@ let editor_command_click () =
   step [];
   check (dump_line "scope selected" = "scope selected: g/a")
     ("a Command-click on a name did not select its binding: " ^ dump_line "scope selected");
+  check (E.Private.inspector_subject !env = Some [ "g"; "a" ]) "the inspector does not show the Command-clicked binding";
   E.close !env
 
 let run () =

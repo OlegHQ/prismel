@@ -346,6 +346,8 @@ module Editor3 : sig
     (** Explicit native benchmark selection. Production requires measured GPU costs. *)
     val status_text : 'prepared t -> string
     (** The status strip's text: a cook or edit error reads "Cook rejected: ..." in it. *)
+    val inspector_subject : 'prepared t -> Flow.Workspace.path option
+    (** The node the inspector shows for the selection, when it is exactly one. *)
     val new_graph : 'prepared t -> string -> Flow_graph.Flow_edit.op
     (** The [Set_graph] a "New graph" of this context name ([sop], [scene], ...) writes. *)
     val image_plan : 'prepared t -> Flow.Eval.plan

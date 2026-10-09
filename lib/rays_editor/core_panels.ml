@@ -373,3 +373,9 @@ let paste_bindings value =
        | Error message -> [ Declined message ]
        | Ok [ op ] -> [ Syntax_edit op ]
        | Ok ops -> [ Syntax_batch ("Paste", ops) ])
+
+(* The one node the inspector shows for the pane's selection, if exactly one (a test hook) *)
+let inspector_subject value =
+  if value.scope_key = None then None
+  else match inspector_paths (Pxui_graph.Scope.selected value.scope_view) with
+    | [ path ] -> Some path | _ -> None

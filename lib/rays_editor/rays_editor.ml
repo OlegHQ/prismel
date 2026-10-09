@@ -31,6 +31,7 @@ module Editor3 = struct
     let image_stats value = let resources=value.Environment.host.resources in
       resources.images_created,resources.images_destroyed
     let status_text value=Core.status_text value.Environment.core
+    let inspector_subject value=Core.inspector_subject value.Environment.core
     let new_graph value context=snd (Core.new_graph value.Environment.core context)
     let image_render_stats value=Workspace_images.render_stats value.Environment.host.images
     let image_capture_stats value=Workspace_images.capture_stats value.Environment.host.images
