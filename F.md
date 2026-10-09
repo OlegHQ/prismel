@@ -1548,6 +1548,39 @@ both workspace sweeps, native/pixel checks and oversized capture qualification
 Next attribution must separate uniform compilation/execution and
 whole ordered traversal before any further accumulation change.
 
+**Ordered traversal and accumulator write (2026-10-09; large GPU gate still open).**
+The second temporary attribution confirms about 8 ms/frame in the two ordered
+P/Cd reduction traversals; callback compilation takes only a few microseconds.
+Changing geometry adds about 1.90 ms of materialization and 0.38 ms of flattening,
+nested in P source preparation. Traversal includes per-chunk scratch allocation;
+worker CPU internals remain unobserved. The eight-file reproducible patch and
+raw diagnostic rows are `f-image-map-capture-attribution-after*`; production
+probes were restored byte-for-byte and focused checks passed.
+
+Astra approved only replacing the `Accumulator` instruction's generic fill
+with indexed float writes. All other instructions, finite checks, scheduling
+and ordered accumulation remain unchanged. Existing full-byte fold/scan and
+uniform regressions pass, including every scan element, cancellation, signed
+zero, changing captures, diagnostics, rollback and domains 1/8. The unchanged
+eight-cell and control runs preserve all 30 zero-difference native parity rows
+and resource/capture checks. Large CPU8/GPU medians become
+23.262978/7.562215 ms static and 22.775888/9.956585 ms changing. Static large
+allocation falls by exactly 6,291,456 B/frame to 761,465 B/frame; fixed-source
+pixel-size independence and uncaptured allocations remain unchanged.
+Astra: “Retain the indexed loop.” CPU gates and small/control GPU gates pass;
+both large GPU gates still fail. Raw rows are `f-image-map-captures-accumulator-after*`
+and `f-image-map-uncaptured-recheck-accumulator-after*`. The next approved action
+is a third temporary attribution preserving this loop, plus an instruction
+listing of both reduction programs captured outside timing. No further hot-loop
+change is approved yet. Frozen exact images and expanded owner qualification
+also remain open.
+
+The indexed-write checkpoint passes full F5 native/pixel qualification,
+including both complete workspace sweeps and oversized capture qualification
+(exit 0; `/tmp/rays-f-image-accumulator-full.log`). Shipping also passes
+(exit 0; `/tmp/rays-f-image-accumulator-ship.log`). Actual display is 1×;
+2× goldens remain unqualified.
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing

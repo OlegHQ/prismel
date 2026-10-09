@@ -630,7 +630,8 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
             done
         | Uniform (uniform, component) -> Array.fill scratch (at + first) (last - first) uniforms.(uniform).(component)
         | Frame _ -> Array.fill scratch (at + first) (last - first) frame.(slot)
-        | Accumulator component -> Array.fill scratch (at + first) (last - first) accumulator.(component)
+        | Accumulator component ->
+            for j = first to last - 1 do scratch.(at + j) <- accumulator.(component) done
         | Select (condition, yes, no) ->
             let condition = condition * block_size and yes = yes * block_size and no = no * block_size in
             for j = first to last - 1 do

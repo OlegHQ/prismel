@@ -10559,3 +10559,130 @@ including the two complete workspace sweeps, native GPU/editor/prepared commands
 workspace pixels, gallery float32, oversized capture and runtime qualification,
 and PXUI parity. Actual display is 1×; 2× goldens remain unqualified. Pre-commit
 shipping passes (exit 0; `/tmp/rays-f-image-capture-uniform-ship.log`).
+
+## F2.2 ordered uniform traversal attribution (2026-10-09)
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. This second
+temporary diagnostic measures the committed shared-uniform implementation at
+`64c84473`, before the accumulator write trial below. Astra approved reusing
+the original inclusive, domain-local timer and outer ownership/GPU probes.
+The current shared helper adds bounded authored-site intervals for complete
+uniform preparation, callback compilation/execution, seed evaluation, source
+arrays, output/accumulator setup and complete ordered traversal. Traversal
+includes per-chunk scratch allocation; it does not isolate instruction work.
+There are no instruction, element, block or chunk clocks. Inclusive phases
+overlap and must not be summed twice. CPU worker internals remain unobserved.
+
+The reproducible eight-file temporary patch is
+`specification/performance/f-image-map-capture-attribution-after.patch`, applied
+to `64c84473`. Focused Flow/IR, timer and benchmark checks passed. No other
+builds, tests or agents ran during timing. The harness retains static/changing
+65,536-point 1024² images and the uncaptured gradient, seven CPU8 caller
+samples, seven ×200 completed GPU producer frames after ten warmups, and
+the existing correctness/resize/replan/ownership checks:
+
+```sh
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-capture-attribution-after-whole.csv 2> specification/performance/f-image-map-capture-attribution-after-counters.csv
+```
+
+The harness separately writes
+`specification/performance/f-image-map-capture-attribution-after.csv`.
+Seven-trial medians, inclusive milliseconds per completed GPU frame:
+
+| Interval | Static P/Cd | Changing P/Cd |
+|---|---:|---:|
+| Whole producer | 10.058135 | 12.391540 |
+| Packed preparation | 8.018458 | 10.242362 |
+| Complete uniform preparation | 8.013679 | 10.236350 |
+| P compile | 0.003283 | 0.003169 |
+| Cd compile | 0.002608 | 0.005037 |
+| P execute | 4.002240 | 6.043152 |
+| Cd execute | 3.995267 | 4.173237 |
+| P ordered traversal, including scratch | 3.993431 | 3.943491 |
+| Cd ordered traversal, including scratch | 3.987672 | 3.972787 |
+| P source preparation | 0.001664 | 2.092278 |
+| Cd source preparation | 0.000856 | 0.190697 |
+| Source preflight (two calls/frame) | 0.006582 | 0.039635 |
+| Materialization (nested in P source) | no warm calls | 1.896484 |
+| Flatten (two calls/frame, nested) | no warm calls | 0.375942 |
+| Completed Run execution | 1.246672 | 1.286684 |
+| Sink conversion | 0.752336 | 0.770530 |
+| Runtime publication | 0.001128 | 0.002408 |
+
+CPU8 whole-caller medians are 25.202990/24.912834 ms static/changing and
+12.874126 ms gradient; CPU worker phases are not qualified by these clocks.
+The diagnostic exits 0, preserving 896 phase rows, 90 whole rows, all nine
+native parity comparisons at zero difference and all counter assertions.
+Production files were restored byte-for-byte, verified against HEAD, then
+`@check @lib/flow/runtest @lib/flow_ir/runtest` and the benchmark build passed
+(exit 0; `/tmp/rays-f-capture-attribution-restored-build.log`).
+
+Astra verified the attribution: the two ordered reduction traversals account
+for roughly 8 ms/frame, while compilation takes only a few microseconds.
+Its next approved trial changes only the `Accumulator` instruction's generic
+`Array.fill` to an indexed float-array write loop. This allows the compiler
+to avoid boxing the changing accumulator for the generic fill; every other
+instruction, scheduling decision, reduction order and finite check remains.
+No timing gate is established by attribution alone.
+
+## F2.2 indexed accumulator scratch writes (2026-10-09)
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. The complete
+product diff changes only `Packed.force`'s `Accumulator` instruction from
+generic `Array.fill` to indexed writes. Existing full-byte ordered-uniform,
+fold and scan tests cover every scan output, scalar/vector accumulators,
+multi-block cancellation, signed zero, changing inputs, empty inputs,
+reference errors, rollback and domains 1/8. Focused checks and benchmark build
+pass (exit 0; `/tmp/rays-f-image-accumulator-focused.log`).
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_ir/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-captures-accumulator-after.csv 2> specification/performance/f-image-map-captures-accumulator-after-counters.csv
+_build/default/tools/bench_workspace_lower.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-recheck-accumulator-after.csv 2> specification/performance/f-image-map-uncaptured-recheck-accumulator-after-counters.csv
+```
+
+The tool remains unchanged from `4d5f3959`. Before evidence is clean
+`64c84473` and its `f-image-map-captures-after*`/uncaptured after rows.
+After timing runs alone, with no builds, tests or other agents: seven CPU1/8
+cooks, seven ×200 completed producer/consumer/combined frames, ten warmups.
+Both commands exit 0. Seven-trial medians, milliseconds and bytes/frame:
+
+| Source | Points | Image | CPU8 whole cook | GPU producer | Consumer | Combined | Producer bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Static P/Cd | 1,024 | 512² | 4.184961 | 0.785331 | 0.441824 | 1.234530 | 253,001 |
+| Static P/Cd | 1,024 | 1024² | 15.170097 | 1.807555 | 0.681751 | 2.964259 | 253,001 |
+| Static P/Cd | 1,024 | 2048² | 55.599928 | 5.025400 | 1.550926 | 7.137785 | 253,001 |
+| Changing P/Cd | 1,024 | 512² | 4.596233 | 0.905244 | 0.430266 | 1.374426 | 583,275 |
+| Changing P/Cd | 1,024 | 1024² | 15.722990 | 1.981795 | 0.596865 | 2.938485 | 583,275 |
+| Changing P/Cd | 1,024 | 2048² | 56.645870 | 4.883935 | 1.283960 | 6.801164 | 583,275 |
+| Static P/Cd | 65,536 | 1024² | 23.262978 | 7.562215 | 0.673035 | 8.017770 | 761,465 |
+| Changing P/Cd | 65,536 | 1024² | 22.775888 | 9.956585 | 0.680350 | 10.638089 | 14,231,239 |
+
+Large GPU medians improve 9.757650→7.562215 ms static and
+12.211875→9.956585 ms changing. Static large allocation falls exactly
+6,291,456 B/frame (two Vec3 reductions ×65,536 elements ×16-byte float
+box), from 7,052,921 to 761,465 B/frame. Fixed-source small allocations fall
+98,304 B/frame and remain identical at all pixel sizes. Uncaptured CPU8/GPU
+medians are 12.090921/1.527954 ms gradient and 11.873960/1.653045 ms live;
+33,721/32,593 B allocations are unchanged. The measurements do not establish
+a control timing improvement.
+
+All 440 rows are retained. All 30 native parity comparisons have zero channel
+or pixel differences, and independent CPU1/8 hashes match. Warm cook/flatten,
+resource/generation/status, upload/readback, resize/replan and teardown
+assertions pass. Astra reviewed the raw rows: **“Retain the indexed loop.”**
+CPU gates and small/control GPU gates pass; **both large-source GPU gates
+still fail**. No tolerance, fixture or gate changed.
+
+The next approved action is a third temporary attribution using the same
+probes while retaining the indexed loop, plus both reduction instruction
+listings/output slots/widths collected through the existing callback outside
+timing. No instruction clocks/counters or further hot-loop change are approved.
+
+The full F5 matrix passes (exit 0; `/tmp/rays-f-image-accumulator-full.log`):
+`@all @runtest @smoke`, Rays/FlowGPU/editor/prepared-command/test native aliases,
+oversized capture and runtime qualification, all workspace pixel aliases,
+gallery float32 and PXUI parity. Both workspace sweeps cover 38 standard files,
+two custom-catalog executables and 13 fixtures at four times/domains 1/8.
+Actual display is 1×; 2× goldens remain unqualified. Pre-commit shipping passes
+(exit 0; `/tmp/rays-f-image-accumulator-ship.log`).
