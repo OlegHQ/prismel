@@ -150,11 +150,16 @@ eight-domain batch (11.280 ms in the reverse-order batch). Astra says keep
 the scan and next approves only sequential y/z FMA hoisting in the SOP grid.
 The strict <10 ms whole-cook gate remains open. That hoist is now rejected
 after the balanced repeat; Astra next approves joined extractor count/
-emission time attribution inside the same complete cook. F1.3 has an approved
-two-stage candidate/qualification design; implementation remains pending.
+emission time attribution inside the same complete cook. That diagnostic is
+complete: emission is the largest interval (6.155 ms at eight domains), and
+Astra next approves direct packed edge writes with a captured all-mask golden.
+F1.3's shared compiler/emitter/dispatch form checks are implemented; focused,
+shipping and native GPU checks pass. Its two-stage qualification wiring remains pending.
 F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
-This checkpoint's focused checks, `--ship` and full F5 native/pixel validation
-passed (exit 0) on the confirmed M1, including the 37-file pixel sweep.
+Full F5 native/pixel validation passed at `8f1f4789` (exit 0) on the confirmed
+M1, including the 37-file pixel sweep. The current shared-form-check checkpoint
+passes focused checks, `--ship` and native GPU numerics; final full native/pixel
+qualification remains part of shipping the completed F scope.
 
 Earlier status paragraphs below are the implementation history; this
 checkpoint supersedes their temporary native-access and commit restrictions.
@@ -453,7 +458,9 @@ a new error.
 
 **Astra design (2026-10-09; implementation pending).** The current compiler
 and emitter support Vec2/Vec4; the older audit below predates that groundwork.
-One-source `for` still compiles Product and fails emission. Name-only noise
+The earlier claim that one-source `for` fails emission was incorrect:
+`Packed.Private.view` already treats one source as zipped, including Product.
+No CPU iteration change is needed. Name-only noise
 recognition also accepts a counterfeit declaration the compiler refuses.
 The complete contract needs static candidates with reasons, followed by
 qualification of actual captures at the existing `Lower.of_checked`
@@ -471,7 +478,7 @@ The accepted implementation order is:
 2. Checker output records `packed` candidates/refusals and candidate→producer
    provenance for aliases, conditionals and body paths. Preserve precision
    taint independently, propagate state dependence, align Vec2/Vec4, and
-   use Zip for one-source loops while retaining Product for multiple sources.
+   preserve the existing effective Zip behavior for one-source loops.
 3. `Eval.Private.static_with_kernels` observes each actual packed-form
    residual before static materialization, including empty maps. Its live
    state clears the observer. `Flow_ir.qualify_workspace` uses production
@@ -501,6 +508,23 @@ pass the shared emitter form check. Device availability, runtime nonfinite
 values and placement profitability remain separate execution checks. This
 is an approved design, not evidence of a completed F1.3 gate.
 
+**Shared form-check foundation (2026-10-09).** `Packed.gpu_refusals` now owns
+the existing emitter's pure restrictions, consumed by emission, placement
+and display dispatch. Register/octave/finite-float32 facts are shared in
+`Packed_ops`; code generation and qualification share a fresh reachability
+mask. Error ordering/text and effective one-source Zip behavior are preserved.
+No instructions, arithmetic, CPU iteration, fusion or dependency edges change.
+Focused Flow/IR/GPU tests pass, emitter goldens are unchanged, and the narrow
+public manifest additions are reviewed/promoted. Tests pin used versus unused
+overflow constants, one-source loops, vectors, noise bounds and existing
+product/reduction/skip refusals. A marked map with a used `1e39` constant stays
+CPU under zero GPU cost and never prepares/dispatches even in qualification
+mode; this test fails when either caller's old incomplete gate is restored.
+Astra approves the foundation; `--ship` and native GPU numerics pass (exit 0).
+Declaration capabilities, diagnostic packed
+compilation, checker candidate/provenance/state facts, instantiated capture
+qualification, inspector reasons and the full actual-catalog audit remain open.
+
 **Source audit (2026-10-08; predicate/test implementation pending).**
 The current 39-file `--approx` audit (including the actual custom catalogs)
 prints nine paths: six in particles, one in Flow kernel, two in Flow particles
@@ -525,11 +549,11 @@ The refusal union read from the current compiler/emitter is:
   counts and unsupported conditional/case shapes fail. Constant folding can
   introduce a float64 constant outside float32 range even when each literal
   fits, so checking literal magnitude alone is insufficient.
-- A single-clause `for` still uses Product in the packed compiler while the
-  emitter demands Zip. State-fold inputs can also be marked by today's
-  syntactic body rule even though packed preparation refuses state-dependent
-  residuals. These discrepancies remain open; this audit does not establish
-  the F1.3 gate.
+- The earlier audit treated internal Product as a one-source emission
+  discrepancy; the public packed view already treats one source as zipped.
+  State-fold inputs can still be marked by today's syntactic body rule even
+  though packed preparation refuses state-dependent residuals. That remains
+  open; this audit does not establish the F1.3 gate.
 
 **Today.** The emitter (`lib/flow_gpu/emit.ml`) refuses ordered
 accumulators, multi-source products and skipped elements with `E_GPU_FORM`
@@ -887,6 +911,33 @@ report parent-minus-child residuals and overhead, preserve all outliers,
 and restore source/Dune byte-for-byte (temporary Unix linkage only if
 needed). No algorithm, production dependency or public API change is
 approved. The strict <10 ms whole-cook gate remains unmet.
+
+**Joined extractor attribution (2026-10-09).** The approved diagnostic is
+complete and all source/Dune restored byte-for-byte. Seven isolated one/eight
+whole cooks preserve every full hash/count and paired child containment.
+At eight domains, count/setup/emission/finish medians are
+1.330/0.084/6.155/0.440 ms within a 7.898 ms extraction parent; one-domain
+medians are 3.632/0.073/13.021/0.401 within 17.161 ms. Timed median
+parent-minus-child residuals are 1.907/0.954 μs at eight/one domains.
+Emission includes gradients, the second count/prefix pass and triangle filling,
+not triangle filling alone. Uninstrumented whole medians are 28.687/18.417 ms
+at one/eight domains; faster instrumented medians are variability evidence,
+not an improvement. The strict <10 ms gate remains open.
+
+Astra next says “not met, try writing interpolated edge positions and normals
+directly into the existing packed output arrays.” Before implementing, capture
+one aggregate golden of complete geometry bytes across all 256 cube masks,
+inside values 1 and equality 0, smooth/flat and existing empty results. Direct
+edge writes remove immediate Vec3/pair copies; triangle winding reads its three
+owned slots and swaps both position/normal slots together when flipped. Keep
+all interpolation, cross product, normalization, thresholds, association and
+signed zeros unchanged; flat normals overwrite the three slots as before.
+No edge reuse, gradients/scheduling changes, cache or new storage. Preserve
+saved-before full hashes plus existing nonlinear seam/asymmetric/domain/grain
+coverage. Measure seven isolated one/eight whole cooks, sampled/dense sphere,
+gyroid and asymmetric controls, a reversed eight-domain whole pair, and joined
+emission attribution. Keep only with exactness, material allocation reduction
+and repeatable whole benefit without control regressions; otherwise fix/revert.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value

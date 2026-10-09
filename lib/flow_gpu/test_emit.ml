@@ -1,4 +1,22 @@
 let () =
+  let qualifies source =
+    let program = Test_program.compile source in
+    assert (Flow_ir.Packed.gpu_refusals program = []);
+    ignore (Test_program.ok (Flow_gpu.Emit.kernel program)) in
+  qualifies "(for [x (array/range 1024)] (+ x t))";
+  List.iter qualifies
+    ["(map (fn [x] (+ x t)) (array/range 1024))";
+     "(map (fn [x] [x t]) (array/range 1024))";
+     "(map (fn [x] [x t 2 3]) (array/range 1024))";
+     "(map (fn [x] (noise3 [x t 0] :octaves 32)) (array/range 1024))";
+     "(map (fn [x] (let* [unused 1e39] (+ x t))) (array/range 1024))"];
+  let overflowing = Test_program.compile
+      "(map (fn [x] (+ x (+ t 1e39))) (array/range 1024))" in
+  (match Flow_ir.Packed.gpu_refusals overflowing, Flow_gpu.Emit.kernel overflowing with
+   | reason :: _, Error emitted ->
+       assert (reason.code = "E_GPU_FORM" && reason.code = emitted.code
+         && reason.message = emitted.message)
+   | _ -> assert false);
   List.iter (fun (width, body) ->
     let program = Test_program.compile ~fusion:false body in
     let msl = Test_program.ok (Flow_gpu.Emit.kernel program) in
@@ -53,7 +71,12 @@ let () =
     assert (inputs.count=1024);
     assert (Array.length inputs.frame=Array.length (Flow_ir.Packed.Private.view program).code))
     (Test_program.fixtures 1024);
-  List.iter (fun source -> assert (Result.is_error (Flow_gpu.Emit.kernel (Test_program.compile source))))
+  List.iter (fun source ->
+    let program = Test_program.compile source in
+    match Flow_ir.Packed.gpu_refusals program, Flow_gpu.Emit.kernel program with
+    | reason :: _, Error emitted ->
+        assert (reason.code = emitted.code && reason.message = emitted.message)
+    | _ -> assert false)
     ["(sum [x (array/range 1024)] (+ x t))";
      "(for [x (array/range 32) y (array/range 32)] (+ (+ x y) t))";
      "(for [x (array/range 1024)] :skip [0] (+ x t))"];

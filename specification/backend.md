@@ -27,6 +27,14 @@ upward edge from `flow_ir` to `flow_gpu`. Native leases, pipeline compilation,
 uploads and dispatch remain initial-domain host work. Closing programs drops
 their buffers before closing the pipeline owner and releasing the lease.
 
+`Flow_ir.Packed.gpu_refusals` owns the pure GPU form restrictions shared by
+placement, display execution and Metal emission. It requires collecting
+effective-Zip programs without skips or ordered accumulators, and checks
+output-reachable noise octaves and constants against `Flow.Packed_ops` limits.
+One-source Product programs already have effective-Zip semantics. Reachability
+is a fresh mask; qualification never mutates the borrowed program. This shared
+check creates no dependency from the numeric IR to the GPU implementation.
+
 `flow_sop` depends
 only on `flow`, `flow_ir`, `param`, `procedural` and the standard-library `unix`
 clock; its typed overlay and

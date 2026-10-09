@@ -28,6 +28,11 @@ val count_origin : t -> origin option
 val elementwise : t -> bool
 (** False for sums and accumulator steps; they must not fuse as independent elements. *)
 
+val gpu_refusals : t -> Flow.Diagnostic.t list
+(** Pure form restrictions shared by placement, display execution and emission.
+    Constants/noise are checked only when reachable from outputs; ordered
+    accumulators are refused even when unreachable. *)
+
 val stage_count : t -> int
 (** Number of packed stages executed in this register program without intermediate arrays. *)
 
@@ -46,6 +51,9 @@ val reference : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list
   t -> live:Flow.Eval.live -> (Flow.Eval.value, Flow.Diagnostic.t) result
 
 module Private : sig
+  val output_reachable : t -> bool array
+  (** Fresh instruction mask used by GPU qualification and code generation. *)
+
   type view = {code : instruction array; widths : int array; output : int array;
     uniform_widths : int array; collecting : bool; zipped : bool; skip : int array}
   val view : t -> view

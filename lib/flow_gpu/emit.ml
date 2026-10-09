@@ -51,10 +51,7 @@ let unary operation a = match operation with
   | Sqrt -> "sqrt(fabs(" ^ a ^ "))" | Abs -> "fabs(" ^ a ^ ")" | Not -> "(" ^ a ^ "==0.0f)"
 let kernel program = try
   let view = P.Private.view program in
-  if not view.collecting || not view.zipped || view.skip<>[||] then
-    fail "GPU kernels require Collect with Zip iteration and no skipped elements.";
-  if Array.exists (function P.Accumulator _ -> true | _ -> false) view.code then
-    fail "Ordered accumulators stay on the CPU.";
+  (match P.gpu_refusals program with [] -> () | reason :: _ -> fail reason.message);
   let offset = ref 4 and uniform_layout = ref [] in
   let uniform name width =
     let first = !offset in offset := first+width*4;
@@ -62,19 +59,10 @@ let kernel program = try
   let uniforms = Array.mapi (fun index width -> uniform ("uniform:" ^ string_of_int index) width) view.uniform_widths in
   let frames = Array.mapi (fun index -> function
     | P.Frame name -> uniform (Printf.sprintf "frame:%d:%s" index name) 1 | _ -> 0) view.code in
-  let used=Array.make (Array.length view.code) false in
-  let rec use slot = if not used.(slot) then begin
-    used.(slot)<-true;
-    match view.code.(slot) with
-    | P.Binary (_,a,b) -> use a;use b | Unary (_,a) -> use a
-    | Select (a,b,c) | Noise3 (a,b,c,_,_) -> use a;use b;use c
-    | _ -> ()
-  end in
-  Array.iter use view.output;
+  let used = P.Private.output_reachable program in
   let table_seeds = Array.to_list(Array.mapi(fun index instruction->index,instruction)view.code)
     |> List.filter_map (function
-      | index,P.Noise3 (_,_,_,seed,octaves) when used.(index) ->
-          if octaves<1 || octaves>32 then fail "GPU noise supports 1 to 32 octaves.";
+      | index,P.Noise3 (_,_,_,seed,_) when used.(index) ->
           Some seed | _ -> None) |> List.sort_uniq Int.compare |> Array.of_list in
   let table seed = match Array.find_index ((=) seed) table_seeds with Some index -> index*512 | None -> assert false in
   let body = Buffer.create 4096 in
@@ -82,8 +70,6 @@ let kernel program = try
     if used.(slot) then begin
     let expression = match instruction with
       | P.Const value ->
-          if not (Float.is_finite (Int32.float_of_bits(Int32.bits_of_float value))) then
-            fail "Nonfinite float32 shader constants require reference evaluation.";
           Printf.sprintf "as_type<float>(0x%lxu)" (Int32.bits_of_float value)
       | Input (input,width,component) -> Printf.sprintf "input%d[i*%d+%d]" input width component
       | Uniform (index,component) -> Printf.sprintf "as_type<float>(uniforms[%d])" (uniforms.(index)+component)

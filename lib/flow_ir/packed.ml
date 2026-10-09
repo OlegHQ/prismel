@@ -24,6 +24,40 @@ type t = { residual : E.residual; term : W.term; sources : (E.residual * W.term)
   sites : (int * W.path * int list) list }
 exception Unsupported
 
+let zipped t = t.iteration = Zip || Array.length t.sources = 1
+
+let output_reachable t =
+  let used = Array.make (Array.length t.code) false in
+  let rec use slot = if not used.(slot) then begin
+    used.(slot) <- true;
+    match t.code.(slot) with
+    | Binary (_, a, b) -> use a; use b
+    | Unary (_, a) -> use a
+    | Select (a, b, c) | Noise3 (a, b, c, _, _) -> use a; use b; use c
+    | _ -> ()
+  end in
+  Array.iter use t.output;
+  used
+
+let gpu_refusals t =
+  let reasons = ref [] in
+  let refuse message = reasons := Flow.Diagnostic.error ~code:"E_GPU_FORM" message :: !reasons in
+  if t.result <> Collect || not (zipped t) || t.skip <> [||] then
+    refuse "GPU kernels require Collect with Zip iteration and no skipped elements.";
+  if Array.exists (function Accumulator _ -> true | _ -> false) t.code then
+    refuse "Ordered accumulators stay on the CPU.";
+  let used = output_reachable t in
+  let bad_noise = ref false and bad_constant = ref false in
+  Array.iteri (fun i instruction -> if used.(i) then match instruction with
+    | Noise3 (_, _, _, _, octaves) ->
+        if not (Flow.Packed_ops.supported_noise_octaves octaves) then bad_noise := true
+    | Const value -> if not (Flow.Packed_ops.finite_float32 value) then bad_constant := true
+    | _ -> ()) t.code;
+  if !bad_noise then refuse "GPU noise supports 1 to 32 octaves.";
+  if !bad_constant then
+    refuse "Nonfinite float32 shader constants require reference evaluation.";
+  List.rev !reasons
+
 let width_of = function
   | Ty.Vec2 -> 2 | Vec3 -> 3 | Vec4 -> 4 | Float | Int | Bool -> 1
   | _ -> raise Unsupported
@@ -140,10 +174,10 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
       | Ty.Array (Ty.Float | Vec2 | Vec3 | Vec4 as ty) -> width_of ty | _ -> raise Unsupported) sources in
     if Array.length sources <> List.length params then raise Unsupported;
     let code = ref [] and size = ref 0 and uniforms = ref [] and nuniforms = ref 0 and uniform_names = ref [] in
-    let dependent = Array.make 64 false in
+    let dependent = Array.make Flow.Packed_ops.register_limit false in
     let emit instruction =
       (* ponytail: cap scratch at 512 KiB per block; measure larger bodies before raising it. *)
-      if !size >= 64 then raise Unsupported;
+      if !size >= Flow.Packed_ops.register_limit then raise Unsupported;
       let id = !size in incr size; code := instruction :: !code;
       dependent.(id) <- (match instruction with
         | Accumulator _ -> true | Binary (_, a, b) -> dependent.(a) || dependent.(b)
@@ -269,7 +303,7 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
                   let integer name default=Option.fold ~none:default ~some:V.int_of
                     (List.assoc_opt name configuration)in
                   let seed=integer "seed" 0 and octaves=integer "octaves" 1 in
-                  if octaves<1||octaves>32 then raise Unsupported;
+                  if not (Flow.Packed_ops.supported_noise_octaves octaves) then raise Unsupported;
                   [|emit (Noise3 (a.registers.(0), a.registers.(1), a.registers.(2), seed, octaves))|]
               | [a] when declaration.name = "exact" -> a.registers
               | [a] when declaration.name = "length"
@@ -361,14 +395,14 @@ and fuse_maps t =
   try
     let sources = ref [] and widths = ref [] and nsources = ref 0 in
     let uniforms = ref [] and nuniforms = ref 0 and code = ref [] and ncode = ref 0 in
-    let dependent = Array.make 64 false and stages = ref t.stages and sites = ref t.sites in
+    let dependent = Array.make Flow.Packed_ops.register_limit false and stages = ref t.stages and sites = ref t.sites in
     let shared = Hashtbl.create 64 in
     let emit instruction =
       let key = Marshal.to_string instruction [Marshal.No_sharing] in
       match Hashtbl.find_opt shared key with
       | Some id -> id
       | None ->
-          if !ncode >= 64 then raise Unsupported;
+          if !ncode >= Flow.Packed_ops.register_limit then raise Unsupported;
           let id = !ncode in incr ncode; code := instruction :: !code;
           dependent.(id) <- (match instruction with
             | Accumulator _ -> true | Binary (_, a, b) -> dependent.(a) || dependent.(b)
@@ -647,6 +681,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     result
 
 module Private = struct
+  let output_reachable = output_reachable
   type view = {code : instruction array; widths : int array; output : int array;
     uniform_widths : int array; collecting : bool; zipped : bool; skip : int array}
   let view (t : t) =
@@ -655,7 +690,7 @@ module Private = struct
       uniform_widths.(index) <- max uniform_widths.(index) (component+1) | _ -> ()) t.code;
     {code=t.code; widths=t.widths; output=t.output; uniform_widths;
       collecting=(match t.result with Collect -> true | _ -> false);
-      zipped=t.iteration=Zip || Array.length t.sources=1; skip=t.skip}
+      zipped=zipped t; skip=t.skip}
   type inputs = {arrays : float array array; uniforms : float array array;
     frame : float array; count : int}
   let prepare ?state ?elems ?resolve (t : t) ~live =

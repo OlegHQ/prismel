@@ -220,8 +220,7 @@ let place ?(approx=W.Paths.empty) ?(gpu_cost=fun _ ~count:_ -> None) ir =
       let gpu=match node.kind,node.count with
         |Kernel{body=Packed_map packed;_},Count.Static count when count>=1024
           && List.exists(fun(path,_)->W.Paths.mem path approx)node.provenance ->
-            let view=Packed.Private.view packed in
-            view.collecting && view.zipped && view.skip=[||] &&
+            Packed.gpu_refusals packed = [] &&
               Option.fold ~none:false ~some:(fun seconds->Float.is_finite seconds && seconds>=0.
                 && seconds<Cost.estimate (Cost.packed ~count) ~count)(gpu_cost packed ~count)
         |_->false in
@@ -544,8 +543,7 @@ module Executor = struct
       |_->None,false in
     match packed with None->cpu()|Some packed->
       let _,site,_=Packed.site packed in
-      let view=Packed.Private.view packed in
-      if not(W.Paths.mem site program.approx) || not(view.collecting && view.zipped && view.skip=[||])
+      if not(W.Paths.mem site program.approx) || Packed.gpu_refusals packed <> []
         then cpu()else
       let cheaper count= count>=1024 && (policy=Gpu.Qualification ||
         Option.fold ~none:false ~some:(fun seconds->Float.is_finite seconds && seconds>=0.

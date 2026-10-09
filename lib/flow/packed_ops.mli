@@ -4,6 +4,11 @@
 type binary = Add | Sub | Mul | Div | Mod | Pow | Min | Max | Lt | Le | Gt | Ge | Eq | And | Or
 type unary = Sin | Cos | Sqrt | Abs | Not
 
+val register_limit : int
+val supported_noise_octaves : int -> bool
+val finite_float32 : float -> bool
+(** Limits shared by packed compilation and GPU form qualification. *)
+
 val binary : string -> binary option
 val unary : string -> unary option
 val noise_names : string list

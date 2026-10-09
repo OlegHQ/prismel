@@ -371,7 +371,24 @@ let ()=
     Ok{run=(fun inputs->incr dispatched;Ok Gpu.{identity=1;count=inputs.count;width=1;stamp=Int64.of_int !dispatched;
       gpu_seconds= !gpu_seconds});
       readback=(fun _->Ok(E.Float_array[||]))})}in
+  let overflow_ws = check "(workspace gpu (graph g :context value (let* [mapped
+      (map (fn [x] (+ x (+ t 1e39))) (array/range 1024))] 0.0)))" in
+  assert (Flow.Workspace.Paths.mem ["g";"mapped"] overflow_ws.approx);
+  let overflow_evaluation = ok (E.static ~record:true overflow_ws) in
+  let overflow_value = List.assoc ["g";"mapped"] overflow_evaluation.records |> List.hd |> snd in
+  let overflow_program = ok (Executor.compile ~approx:overflow_ws.approx
+      ~sink:(Display "circles") overflow_value) in
+  let overflow_packed = Array.find_map (function
+      | {kind=Kernel {body=Packed_map packed;_};_} -> Some packed | _ -> None)
+      (Executor.graph overflow_program).nodes |> Option.get in
+  let overflow_root = {root with kind=Kernel {body=Packed_map overflow_packed;
+      elementwise=true;requires_exact=true}} in
+  assert ((ok (place ~approx:approximable ~gpu_cost:(fun _ ~count:_ -> Some 0.)
+      (ir [overflow_root] [0]))).nodes.(0).tier = Cpu_kernel);
   Gpu.with_backend backend(fun()->
+    assert (ok (Executor.try_display ~policy:Gpu.Qualification overflow_program
+      ~live:(Frame_input.at_time 1.)) = None);
+    assert (!prepared = 0 && !dispatched = 0);
     assert(match ok(Executor.force_display program ~live:(Frame_input.at_time 1.))with Executor.Cpu _->true|_->false);
     assert(!prepared=0 && !dispatched=0);
     for i=1 to 2 do assert(match ok(Executor.force_display ~policy:Gpu.Qualification program

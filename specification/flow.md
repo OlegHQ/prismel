@@ -1138,6 +1138,14 @@ The inspector reports `approximable` for eligible paths; the graph's tier badge
 continues to describe execution. `bench_workspace_lower --approx` prints the
 complete sets, including workspaces checked by their own custom catalogs.
 
+Actual packed GPU form checks are shared through `Flow_ir.Packed.gpu_refusals`:
+placement, display dispatch and the emitter all refuse non-collecting forms,
+multi-source products, skips and ordered accumulators. Output-reachable
+constants must stay finite in float32 and noise octaves must be 1–32; unused
+constants/noise do not invalidate a program. A one-source Product is already
+effective Zip. Ordered accumulators remain refused even when unused. This
+runtime backstop does not yet replace the checker's advisory candidate walk.
+
 Cook-time specialization uses the instantiated SOP facts, including parameter
 overrides, rather than a catalog's default declaration. A regular node with
 preserved topology carries its designated input's point-count origin; changed

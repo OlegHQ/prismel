@@ -8561,3 +8561,128 @@ overlap benchmark execution.
 Rejected-hoist checkpoint: restored focused checks and `--ship` pass
 (exit 0). Production source is identical to the native-qualified scan
 checkpoint `c69c79fd`; this commit adds only documentation and evidence.
+
+## F2.1 field kernel — joined extractor phase attribution (2026-10-09)
+
+On retained scan checkpoint `d4a4b60b`, temporary caller-side timestamps
+measure count through the shared-pool join, prefix/output allocation/setup,
+emission through its join, and packed wrapping/geometry construction. These
+are children of the existing coarse extraction interval, never overlapping
+worker sums. No algorithm, cancellation, GC or error-path changes. Timestamp
+output uses 17 significant digits and is buffered until exit. Temporary Unix
+linkage and all production sources are restored byte-for-byte. The archived
+three-source/Dune patch is `f-field-extract-phases-instrumentation.patch`.
+
+Confirmed M1/Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev profile,
+grain 16,384, seven isolated cooks per process after one excluded warm-up,
+fresh zero-capacity sessions and existing GC policy. No builds, tests, other
+benchmarks or agent work overlap. Save retained and instrumented executables,
+restore source, and repeat these commands at domains 1/8:
+
+```sh
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-extract-retained.exe --fields > specification/performance/f-field-extract-phases-cook-8.csv
+RAYS_F_FIELD_PROFILE=1 RAYS_F_EXTRACT_PHASE_CSV=specification/performance/f-field-extract-phases-child-8.csv RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-extract-phases.exe --fields > specification/performance/f-field-extract-phases-time-cook-8.csv 2> specification/performance/f-field-extract-phases-parent-8.csv
+```
+
+| Whole cook | One domain median ms | Eight domains median ms | One domain allocated bytes | Eight domains allocated bytes |
+|---|---:|---:|---:|---:|
+| Uninstrumented | 28.687 | 18.417 | 42720424 | 42757352 |
+| Instrumented | 26.260 | 12.181 | 42721440 | 42758616 |
+
+| Time-only interval | One domain median ms | Eight domains median ms |
+|---|---:|---:|
+| Grid | 1.544 | 1.579 |
+| Preparation | 0.589 | 0.594 |
+| Kernel | 7.026 | 2.277 |
+| Extraction parent | 17.161 | 7.898 |
+| Count child, through join | 3.632 | 1.330 |
+| Prefix/output setup child | 0.073 | 0.084 |
+| Emission child, through join | 13.021 | 6.155 |
+| Packed/geometry finish child | 0.401 | 0.440 |
+
+All full hashes are `8a9c2d382ab7564328783e84a132cef1`, with 85,680
+points/vertices and 28,560 triangles. Each domain has exactly 32 parent and
+32 child rows, one phase set per warm-up -1 and trials 0..6. Child sums fit
+in the paired extraction parent using exact rational arithmetic on the
+round-tripped binary durations. Per-cook parent, child sum and residual are
+retained in `f-field-extract-phases-residual.csv`, including warm-up. Timed
+residual medians are 0.954 μs at one domain and 1.907 μs at eight.
+
+Observed instrumented-minus-uninstrumented whole median differences are
+−2.427 ms at one domain and −6.236 ms at eight; these do not measure a
+speedup or isolate wall-time overhead because the separate whole runs vary.
+Instrumentation adds 1,016/1,264 median allocated bytes at one/eight domains.
+All raw wall/allocation/promotion/major and phase outliers remain in
+`specification/performance/f-field-extract-phases-*.csv`. Phase medians are
+not summed into a whole median. The strict <10.000 ms gate remains unmet.
+
+Astra's interpretation: joined emission is the largest measured interval;
+it includes gradients, the second count pass, local prefixes and triangle
+filling, not filling alone. Its verdict is “not met, try writing interpolated
+edge positions and normals directly into the existing packed output arrays.”
+The approved trial writes each triangle's three edges into disjoint owned
+slots, reads them for unchanged cross/outward/flip arithmetic, and swaps both
+position/normal slots together if flipped. Flat shading overwrites its three
+normal slots as before. Preserve expressions, association, thresholds,
+normalization, signed zeros, triangle order/counters/assertions. No edge
+reuse, caches, gradients or scheduling changes or new storage.
+
+Before implementation, capture one aggregate full-geometry golden across
+all 256 cube masks, inside values 1/equality 0 and smooth/flat shading,
+retaining empty-mask errors. Retain nonlinear seams, asymmetry, domains/grains
+and saved-before benchmark hashes. Seven isolated before/after trials at
+domains 1/8 cover whole SOP cooking and sampled/dense sphere/gyroid/asymmetric
+controls; reverse the eight-domain whole pair and repeat joined emission
+attribution. Keep only with exact geometry/errors, material allocation
+reduction and repeatable whole benefit without material control regression;
+otherwise correct/revert. The strict whole-cook <10 ms gate is unchanged.
+Restored `@check`, RDK/procedural SOP/Flow SOP checks and benchmark build pass
+(exit 0). No diagnostic code or Unix linkage ships.
+
+## F1.3 shared GPU form-check foundation (2026-10-09)
+
+Previously emission owned pure restrictions while placement and display
+execution checked only collect/Zip/skip. A marked program with a used
+float64 constant outside float32 range could be selected and prepared before
+emission refused it. `Packed.gpu_refusals` now supplies those exact checks to
+all three callers. Register/octave/float32 facts are shared in `Packed_ops`;
+qualification and generation share a fresh output-reachability mask. Ordered
+accumulators remain checked across all instructions; constants/noise remain
+output-reachable only. Refusal precedence/text are unchanged, and all emitter
+goldens remain unchanged. There is no new dependency edge or instruction,
+arithmetic, CPU iteration or fusion change.
+
+Correction to the earlier F1.3 audit/design: one-source `for` already emits
+successfully because `Private.view` treats a single source as effective Zip,
+even if the internal iteration is Product. Preserve that behavior and add a
+regression; do not change CPU iteration to fix a nonexistent mismatch.
+
+Astra's verdict: “The foundation diff is correct by inspection.” Its requested
+boundary regression is implemented: a marked used-1e39 map remains Cpu_kernel
+under zero GPU cost; Qualification display returns Ok None without backend
+preparation or dispatch. Restoring only the old placement gate makes that
+fixture fail its tier assertion; restoring only the old display gate makes
+it fail its display assertion. Both guards are restored and the fixture
+passes. Focused emitter checks cover one-source loops, Float/Vec2/Vec4,
+32-octave noise, used/unused float32-overflow constants and existing product/
+reduction/skip refusals. Mask traversal is bounded by the existing register
+limit, with no retained cache or work proportional to array length. This is
+correctness groundwork, not a measured frame-performance improvement.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest @lib/flow_gpu/runtest @tools/api_manifest/runtest
+dune promote
+```
+
+Focused checks pass (exit 0); the narrow additions to Packed_ops/Packed APIs
+are reviewed and intentionally promoted. Backend/Flow specifications describe
+the shared actual-program backstop. This does not complete F1.3: declaration
+capabilities, diagnostic packed compilation, checker candidate/provenance/
+state facts, instantiated capture qualification, inspector reasons and the
+full authored actual-catalog audit still require implementation and coverage.
+
+Shared-form-check checkpoint: `--ship` and
+`@lib/flow_gpu/runtest-native` pass (exit 0) on the confirmed M1, with the
+full workspace sweep at four times/domains 1/8 and unchanged native noise
+tolerances. The preceding full F5 pixel/native qualification is explicitly
+attributed to `8f1f4789`; final full-scope qualification remains required.
