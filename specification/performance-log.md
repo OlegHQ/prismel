@@ -11184,3 +11184,92 @@ failure/recovery, oversized capture, runtime qualification and pixel aliases
 pass. Actual display is 1×; 2× goldens remain unqualified. No product probes
 are present. This checkpoint remains short of overall F2.2/F.md completion.
 Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-xyz-write-ship.log`).
+
+## F2.2 retained XYZ-loop source-refresh attribution (2026-10-09)
+
+Machine: Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev profile, actual 1× display.
+Candidate: committed `dce3fefb`. Astra approved repeating the same temporary
+source-refresh probes on the retained loop. The production algorithm is unchanged
+from that commit; no additional probe family or instruction capture is added.
+Session node-own durations cover cook domains and exclude input cooks;
+initial-domain write phases and CPU worker-unobserved labels retain their
+previous meaning. Exactly one line/with_attr/capture sample is asserted after
+each successful materializer cook. Supplied node durations do not affect the
+Phase_timer nesting stack. Reporting stays outside timed frame loops.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest @lib/flow_sop/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-capture-attribution-xyz-write-whole.csv 2> specification/performance/f-image-map-capture-attribution-xyz-write-counters.csv
+```
+
+The run additionally writes `f-image-map-capture-attribution-xyz-write.csv`.
+The reproducible nine-file probe-only patch has the same prefix with `.patch`.
+Static/changing 65,536-point 1024² images and the gradient control use seven
+CPU1/8 samples and seven ×200 completed GPU frames after ten warmups, isolated
+from builds/tests/active agents. All 1,050 phase rows, 90 caller rows and 71
+counter rows complete (headers additional). Nine full native pixel comparisons
+have zero error/differing channels/pixels, CPU1/8 hashes match, and all capture/
+resource/resize/replan/close assertions pass. Diagnostic build and benchmark
+exit 0 (`/tmp/rays-f-image-xyz-write-attribution-build.log`).
+
+Changing-source seven-trial medians, milliseconds per completed GPU frame:
+
+| Interval and coverage | Prior source-refresh diagnostic | Retained XYZ loop |
+|---|---:|---:|
+| Whole caller | 6.248649 | 6.292236 |
+| Materialization, inclusive | 2.432431 | 2.047064 |
+| Line, node own across cook domains | 0.295147 | 0.341308 |
+| With_attr, node own across cook domains | 2.128962 | 1.697543 |
+| Capture, node own across cook domains | 0.000290 | 0.000200 |
+| Write validation, nested | 0.189129 | 0.227145 |
+| XYZ storage construction, nested | 0.940881 | 0.327947 |
+| Attribute installation, nested | 0.001158 | 0.000762 |
+| Cd map traversal, nested | 0.641835 | 0.715462 |
+| Cd map source preparation, nested | 0.273716 | 0.317236 |
+| P flatten | 0.263529 | 0.306879 |
+| Cd flatten | 0.263864 | 0.310577 |
+| P ordered direct traversal | 0.563650 | 0.678835 |
+| Cd ordered direct traversal | 0.561979 | 0.677707 |
+| Packed preparation, inclusive | 4.224846 | 4.157250 |
+| Completed GPU execution | 1.080877 | 1.235315 |
+| Sink conversion | 0.792496 | 0.811477 |
+
+XYZ construction is measurably cheaper in this diagnostic. Other phases are
+higher; whole elapsed time remains above the gate. Inclusive intervals overlap,
+and medians cannot be summed to form a wall-time decomposition. In particular,
+map/write intervals are nested inside with_attr/materialization/preparation.
+This evidence makes no claim that the unexplained remainder is copying or that
+a copying/ownership optimization is warranted.
+
+Static whole producer is 3.432676 ms versus 3.429029 ms previously, with no
+warm materializer/write/flatten calls. Static packed preparation is 1.684387 ms,
+P/Cd direct traversal 0.808113/0.810248 ms. Gradient producer is 1.467475 ms
+versus 1.533430 ms. CPU8 callers are 17.069101 ms static, 17.332792 ms changing,
+12.264967 ms gradient; their worker internals remain explicitly unobserved.
+
+All nine production files are restored byte-for-byte from the fresh committed
+candidate archive. The saved probe-only patch passes `git apply --check`; no
+production instrumentation remains. Astra's seven-sample review confirms
+nonoverlapping XYZ construction ranges: 0.817–0.952 ms before, 0.315–0.401 ms
+after. Materialization also falls; other observed phases rise. It makes no whole
+GPU improvement claim and retains the changing-source gate as open.
+
+The next approved bounded experiment uses scalar component accumulators only
+for the already-recognized width-3 ordered-add path: read x/y/z into local float
+references, iterate the same ascending indices, add/finite-check/update x then
+y then z, and write the totals back after each successful chunk. Keep other
+widths, recognizer restrictions, ordered chunks and reference fallback unchanged.
+No reassociation, vectorization, parallel reduction or cached values. The native
+compiler's register behavior must be measured rather than presumed. Strengthen
+post-chunk overflow separately in x/y/z with unchanged reference diagnostic,
+caller/input bytes and recovery; preserve signed zero/cancellation/boundary
+coverage. Repeat unchanged isolated eight-cell/control measurements against
+the uninstrumented XYZ-write baseline (changing GPU 6.181384 ms). Astra requires
+repeatable benefit without regressions before retention. This experiment is
+not implemented in this diagnostic checkpoint.
+
+Restored focused checks/build pass (exit 0;
+`/tmp/rays-f-image-xyz-write-attribution-restored.log`). Pre-commit shipping
+passes (exit 0; `/tmp/rays-f-image-xyz-write-attribution-ship.log`). No product
+behavior changes here; `/tmp/rays-f-image-xyz-write-full.log` remains the full
+F5 native/pixel evidence for the unchanged committed implementation, actual 1×.

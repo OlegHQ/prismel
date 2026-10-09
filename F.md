@@ -1754,6 +1754,34 @@ qualification and all pixel aliases. Actual display is 1×; 2× goldens remain
 unqualified. No product probes are present.
 Shipping passes (exit 0; `/tmp/rays-f-image-xyz-write-ship.log`).
 
+**XYZ-loop source-refresh remeasurement (2026-10-09; diagnostic).**
+The approved same-probe comparison confirms XYZ construction falls from
+0.940881 to 0.327947 ms/frame and materialization from 2.432431 to 2.047064 ms.
+Whole producer time is 6.292236 ms versus 6.248649 ms in the prior diagnostic;
+direct reductions, flattening, line/map work and completed dispatch are higher
+in this run. Nested timings overlap, and median differences are not a summed
+wall-time decomposition. The static diagnostic stays 3.432676 ms. All nine
+native pixel comparisons, CPU1/8 hashes and resource/capture assertions pass.
+Raw seven-sample rows and the reproducible probe-only patch are
+`f-image-map-capture-attribution-xyz-write*`; all nine production files are
+restored byte-for-byte and `git apply --check` passes. No production probes
+remain. This evidence confirms the measured write benefit without passing
+the changing-source GPU gate or approving another optimization by itself.
+Astra confirms the seven XYZ ranges do not overlap: 0.817–0.952 ms before,
+0.315–0.401 ms after. Its next approved experiment uses local scalar float
+references for x/y/z only inside the proved width-3 ordered-add chunk. Preserve
+ascending indices and x/y/z finite-check order, write totals back after successful
+chunk completion, and keep other widths/predicate/fallback/chunks unchanged.
+No reassociation, parallel reduction, vectorization or cache is permitted.
+Extend post-chunk overflow independently for x/y/z, preserving reference errors,
+caller/input immutability and recovery; repeat the unchanged full eight-cell/
+control protocol against XYZ-write results. Retention requires repeatable
+measured benefit without regressions. This trial is not implemented here.
+Restored focused checks and shipping pass (exit 0;
+`/tmp/rays-f-image-xyz-write-attribution-restored.log`,
+`/tmp/rays-f-image-xyz-write-attribution-ship.log`). The unchanged production
+checkpoint retains its preceding full F5 qualification; actual 1× only.
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing
