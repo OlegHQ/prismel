@@ -12055,3 +12055,73 @@ sketch tree, so shipping also reruns and passes the complete38+2+13 workspace
 sweep on the final tree. Dependency gate and printing/threading checks pass.
 Actual display remains1×;2× goldens remain unqualified.
 Changing-source GPU<5 ms, expanded owner coverage, F3 and final audit stay open.
+
+### F2.2 actual packed-owner coverage and graph state identity (2026-10-09)
+
+Apple M1/Macmini9,1, OCaml5.3, Dune dev; native Metal, actual1× display.
+These are correctness fixtures at domains1/8, not timing measurements.
+
+```sh
+_build/default/tools/check.exe @check lib/flow/test_state.exe
+_build/default/lib/flow/test_state.exe
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_sop/runtest @lib/flow_graph/runtest @lib/rays_editor/native_qualification/runtest-native
+```
+
+The pure regression fails before the correction
+(`/tmp/rays-f-graph-state-before.log`, exit2): live inline graph refs add a
+caller-derived state entry instead of reading the referenced static instance.
+The shared evaluator now stores its existing cid in each private cell and uses
+it for live hits of the normalized graph/override key. The body is reevaluated;
+cached static results are not returned. Unknown live keys retain the previous
+caller-instance fallback; this is not proof of independent state for arbitrary
+dynamic override tuples. Astra approves this bounded correctness fix.
+
+Afterward, compiled and reference tests agree for default inline/bound refs,
+two independent known override tuples, repeated/coerced-equivalent refs,
+opposite force orders, unchanged private snapshots and static instance identities,
+host ticks and value frames (`/tmp/rays-f-graph-state-after.log`, exit0).
+Existing L14 geometry instance/node-sharing checks remain green.
+
+Actual packed source inspection proves3 prototype points and2 instances.
+The capture oracle computes all6 transformed P values, first/fourth element
+order and copied Cd independently of the instance materializer and kernel.
+Complete CPU bytes match at domains1/8 under two overrides and time/state changes.
+GPU maps and their composed parent renders match complete oracle bytes within
+the existing one-channel tolerance; all24 map comparisons measure maximum0.
+Same-frame fresh forks and restored caller state refresh correctly. Resident
+child CPU storage remains0, warm calls leave source cook/flatten/Host/native
+pixel-read counters unchanged, unrelated fixed renders retain identity/generation,
+and retained CPU/frozen bytes survive later requests and clean resource close.
+
+The state-driven3→2-point fixture produces `E_ARRAY_RANGE` twice for index2,
+invalidates the prior parent publication and leaves caller state, resources and
+saved bytes unchanged. A valid same-frame fresh fork recovers its pixels and
+native image identity at domains1/8. Cycle recovery additionally rebinds a changed
+plan at both domain counts while retaining the old CPU payload.
+
+A negative probe changes only the display source's first materializer creation
+to use the unexpanded root. The new packed-owner fixture immediately fails with
+`E_ARRAY_RANGE` (`/tmp/rays-f-owner-materializer-negative.log`, exit1).
+The saved source is restored byte-for-byte (`cmp`, exit0); restored focused
+checks pass (`/tmp/rays-f-owner-materializer-restored.log`, exit0). Final focused
+Flow/SOP/graph/native checks after review corrections pass
+(`/tmp/rays-f-owner-coverage-focused.log`, exit0). Intentional inspection reads
+occur before the warm counters are sampled. Cleanup destroys resource images,
+then owner canvases, then GPU storage; creation/destruction counts match and
+native handles return to baseline. No gate/tolerance/golden is changed, and no
+new performance claim is made. Broad qualification and shipping follow below.
+
+Full F5 native/pixel qualification passes, exit0
+(`/tmp/rays-f-owner-coverage-full.log`), with candidate source held fixed:
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/rays_editor/native_qualification/qualification @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+Both complete workspace sweeps cover38 standard files,2 actual custom-catalog
+executables and13 fixtures at four times/domains1/8. Expanded native owner,
+oversized capture, retained Canvas, runtime/presentation and requested pixel
+checks pass. Pre-commit shipping passes, exit0
+(`/tmp/rays-f-owner-coverage-ship.log`). Actual display remains1×;2× goldens
+remain unqualified.
+Changing-source GPU<5 ms, F3≤50.600 ms and final audit remain open.

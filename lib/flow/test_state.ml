@@ -7,6 +7,55 @@ let checked body =
   | _, ds -> failwith (String.concat "; " (List.map Diagnostic.to_string ds))
 let value r = List.assoc "g" (Result.get_ok r).Eval.results
 let () =
+  let forms=Result.get_ok(Syntax.parse {|(workspace references
+    (graph level :context value [(step : float 2)] (state [n 0.0] (+ n step)))
+    (graph host :context host (state [n 0] (+ n 3)))
+    (graph inline :context value (if (< (ref level) 4) 2 4))
+    (graph bound :context value (let* [n (ref level)] (if (< n 4) 2 4)))
+    (graph override_inline :context value (if (< (ref level :step 4) 8) 4 8))
+    (graph override_bound :context value
+      (let* [n (ref level :step 4.0)] (if (< n 8) 4 8)))
+    (graph other :context value (if (< (ref level :step 6) 12) 6 12))
+    (graph shared :context value (+ (ref level :step 4) (ref level :step 4.0)))
+    (graph host_inline :context value (if (< (ref host) 6) 3 6))
+    (graph host_bound :context value (let* [n (ref host)] (if (< n 6) 3 6))))|})in
+  let workspace=match Workspace.check {Check.version=1;kinds=[]} forms with
+    |Some w,[]->w|_,ds->failwith(String.concat "; "(List.map Diagnostic.to_string ds))in
+  let evaluation=Result.get_ok(Eval.static workspace)in
+  let identities()=Array.map(fun(i:Eval.instance)->
+    i.graph,i.default,List.map(fun(n,v)->n,Eval.show v)i.inputs)evaluation.plan.instances in
+  let original=identities()in
+  assert(Array.length original=12);
+  List.iter(fun force->
+    let caller=Eval.create_state()in
+    List.iter(fun(tick,frame,level,host)->
+      let live={(Frame_input.at_time 0.)with tick;frame}in
+      List.iter(fun v->ignore(Result.get_ok(force ~state:caller v ~live)))evaluation.states;
+      let stamp=Eval.state_stamp caller in
+      let expected=["level",Eval.Float(float(2*level));"host",Eval.Int(3*host);
+        "inline",Eval.Int(2*level);"bound",Eval.Int(2*level);
+        "override_inline",Eval.Int(4*level);"override_bound",Eval.Int(4*level);
+        "other",Eval.Int(6*level);"shared",Eval.Float(float(8*level));
+        "host_inline",Eval.Int(3*host);"host_bound",Eval.Int(3*host)]in
+      List.iter(fun results->
+        let private_state=Eval.fork_state caller in
+        for _=1 to 2 do
+          List.iter(fun(name,residual)->
+            let actual=Result.get_ok(force ~state:private_state residual ~live)in
+            let wanted=List.assoc name expected in
+            if actual<>wanted then failwith(Printf.sprintf
+              "Graph state %s at tick%d/frame%d: expected %s, got %s"
+              name tick frame (Eval.show wanted)(Eval.show actual)))results
+        done;
+        assert(Eval.state_stamp private_state=stamp && Eval.state_stamp caller=stamp))
+        [evaluation.results;List.rev evaluation.results];
+      assert(identities()=original))
+      [0,0,1,1;1,0,1,2;1,1,2,2])
+    [(fun ~state v ~live->Eval.force ~state v ~live);
+     (fun ~state v ~live->Eval.Private.force_reference ~state v ~live)];
+  print_endline "Graph state: inline/bound known tuples, coercion sharing, opposite orders, private snapshots and host/frame clocks agree"
+
+let () =
   let w = checked "(let* [s (state [previous 0.0] (+ previous (frame/dt)))] (+ s s))" in
   let state = Eval.create_state () in
   let run frame = Eval.run ~state ~live:{(Frame_input.at_time (float frame)) with frame; dt = 0.25} ~time:(float frame) w in

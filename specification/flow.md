@@ -984,6 +984,10 @@ tuple. A plan node keyed by `(site, iter)` in instance `i` gets the compiled id
 use; passing a previous result's `sites` and `compiled_ids` back keeps ids stable across
 edits, so session cache entries survive them.
 
+A live reference to a tuple already present in that plan reevaluates its graph
+under the same instance identity. Inline and bound references share its state;
+coerced-equivalent input overrides share one instance as during planning.
+
 - A catalog call becomes its factory node with literal parameters.
 - Every `sop/merge` becomes one `flow.merge_n` node that tags each primitive with a running
   input index in the `__flow_src` primitive attribute; `Lower.origin` maps a tag back to the

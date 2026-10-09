@@ -1,4 +1,214 @@
 let ok=function Ok value->value|Error d->failwith(Flow.Diagnostic.to_string d)
+let ()=List.iter(fun stateful->
+  let module E=Flow.Eval in
+  let module P=Procedural in
+  let module L=Flow_sop.Lower in
+  let module Native=Runtime_resources.Image in
+  let bias=if stateful then "(state [n 0.015625] (+ n 0.015625))"else "(* t 0.015625)"in
+  let lowered=Flow.Syntax.parse(Printf.sprintf {|(workspace packed_capture
+    (graph drawing :context draw [(image : image (image/noise :width 1 :height 1))] (draw/image image))
+    (graph mesh :context sop [(offset : float 0.125)]
+      (let* [bias %s
+             prototype (sop/curve (list [0 0 0] [0.03125 0.015625 0] [-0.015625 0 0.03125]))
+             colored (sop/with_attr prototype :Cd
+               (exact (map (fn [p] [0.03125 0.0625 0.125]) (sop/attr prototype :P))))
+             targets (sop/curve (list [(+ offset bias) 0.03125 0] [-0.03125 0.0625 0.015625]))
+             geo (sop/copy_to_points colored targets :pack true)
+             p (reduce + [0 0 0] (sop/attr geo :P))
+             a (array/nth (sop/attr geo :P) 0)
+             b (array/nth (sop/attr geo :P) 3)
+             c (reduce + [0 0 0] (sop/attr geo :Cd))
+             img (image/map (fn [uv] [(+ uv.x (/ p.x 4)) (+ uv.y (+ a.x (* b.x 2))) c.y 1])
+               :width 65 :height 17)
+             frozen (exact img)
+             parent (image/render (ref drawing :image img) :width 65 :height 17)] geo))
+    (graph other :context sop (ref mesh :offset 0.25))
+    (graph backdrop :context draw (draw/background "#102030"))
+    (graph fixed :context image (image/render (ref backdrop) :width 65 :height 17)))|}bias)
+    |> ok |> L.workspace ~factories:Sop_catalog.Editor.factories |> ok in
+  let create domains=
+    let resources=Workspace_resources.create()and gpu=Workspace_gpu.create()in
+    let owner=Workspace_images.create ~domains ~gpu resources in
+    Workspace_images.bind owner lowered;owner,resources,gpu in
+  let cpu1=create 1 and cpu8=create 8 and gpu1=create 1 and gpu8=create 8 in
+  List.iter(fun(_,_,gpu)->Workspace_gpu.qualification gpu)[gpu1;gpu8];
+  let _,handles=Ogpu.Impl.create_driver()in let before=handles()in
+  let state=E.create_state()in
+  let live frame={(Frame_input.at_time(float frame))with frame}in
+  let advance state frame=List.iter(fun value->ignore(E.force ~state value ~live:(live frame) |> ok))lowered.states in
+  let node override kind=Array.find_opt(fun(n:E.node)->n.kind=kind
+    && lowered.plan.instances.(n.inst).graph="mesh"
+    && lowered.plan.instances.(n.inst).default<>override)lowered.plan.nodes |> Option.get in
+  let value override kind=E.Deferred(Flow.Ty.image,(node override kind).id)in
+  let payload (owner,_,_) state live override kind=
+    Workspace_images.payload owner lowered.plan ~state ~live(value override kind) |> ok in
+  let image (owner,_,_) state live override kind=
+    Workspace_images.image owner lowered.plan ~state ~live(value override kind) |> ok in
+  let bytes payload=P.Image.Private.rgba8 payload |> Option.get in
+  let inspect_packed domains state current override=
+    let source=(node override "sop/copy_to_points").id in
+    let context=L.source_context lowered ~node:source |> ok in
+    let cone,root=L.source_cone context ~node:source |> ok in
+    let lane=Flow_sop.Value_lane.create ~state:(E.fork_state state)()in
+    let resolved=Flow_sop.Value_lane.resolve lane ~live:current ~time:current.Frame_input.t cone |> ok in
+    let root=P.Edit_graph.compile_node resolved.geometry ~node_id:root |> Result.get_ok in
+    let session=P.Session.create ~max_entries:0 ~max_payload_bytes:0 |> Result.get_ok in
+    Fun.protect ~finally:(fun()->P.Session.close session)(fun()->
+      let context=P.Context.create ~domains() |> Result.get_ok in
+      let output=P.Session.cook session ~context root |> Result.get_ok in
+      let prototype=P.Payload.geometry output.payload |> Result.get_ok in
+      assert(Rdk.Geometry.point_count prototype=3 && Array.length(Option.get output.instances)=2))in
+  let expected offset bias=
+    (* Two translated copies of three authored prototype points. This oracle
+       never calls the instance materializer or the capture/kernel helpers. *)
+    let sum_x=0.03125+.3.*.(offset+.bias-.0.03125)in
+    let first_x=offset+.bias and second_x= -.0.03125 in
+    let rgba=Array.init(65*17*4)(fun i->let pixel=i/4 in match i mod 4 with
+      |0->(float(pixel mod 65)+.0.5)/.65.+.sum_x/.4.
+      |1->(float(pixel/65)+.0.5)/.17.+.first_x+.2.*.second_x
+      |2->6.*.0.0625|_->1.)in
+    P.Image.Private.of_vec4 ~context:(P.Context.create() |> Result.get_ok) ~width:65 ~height:17 rgba
+      |> Result.get_ok |> bytes in
+  let fixed owner=
+    let owner,_,_=owner in
+    Workspace_images.image owner lowered.plan ~state ~live:(live 0)
+      (List.assoc "fixed" lowered.evaluated.results) |> ok in
+  let generation image=Native.generation(Rays.Image.Private.resource image)in
+  let retained=ref []in
+  Fun.protect ~finally:(fun()->List.iter(fun(owner,resources,gpu)->
+    Workspace_resources.close resources;Workspace_images.close owner;Workspace_gpu.close gpu)[cpu1;cpu8;gpu1;gpu8])
+    (fun()->
+      let backdrops=List.map(fun owner->let image=fixed owner in owner,image,generation image)[gpu1;gpu8]in
+      let check state frame bias=
+        let current=live frame in
+        let stamp=E.state_stamp state in
+        List.iter(fun override->
+          let offset=if override then 0.25 else 0.125 in
+          let expected=expected offset bias in
+          List.iter(fun domains->inspect_packed domains state current override)[1;8];
+          let one=payload cpu1 state current override "image/map"
+          and eight=payload cpu8 state current override "image/map"in
+          assert(bytes one=expected && bytes eight=expected);
+          if !retained=[] then retained:=[one,Bytes.copy(bytes one)];
+          List.iteri(fun index ((owner,_,gpu)as owned)->
+            let child=image owned state current override "image/map"in
+            let native=Rays.Image.Private.resource child in
+            assert(Native.Private.cpu_storage_bytes native=0);
+            let actual=Rays.Image.Private.pixels child |> Result.get_ok in
+            let maximum=ref 0 in
+            Bytes.iteri(fun i c->maximum:=max !maximum(abs(Char.code c-Char.code(Bytes.get expected i))))actual;
+            assert(!maximum<=1);
+            let parent=image owned state current override "image/render"in
+            let rendered=Rays.Image.Private.pixels parent |> Result.get_ok in
+            Bytes.iteri(fun i c->assert(abs(Char.code c-Char.code(Bytes.get expected i))<=1))rendered;
+            let stats=Workspace_images.capture_stats owner in
+            let host,_,_,_,_=Workspace_gpu.image_stats gpu in
+            let reads=host.status_reads in
+            let parent_native=Rays.Image.Private.resource parent in
+            let child_reads=Native.Private.readbacks native
+            and parent_reads=Native.Private.readbacks parent_native in
+            assert(image owned state current override "image/map"==child
+              && image owned state current override "image/render"==parent
+              && Workspace_images.capture_stats owner=stats
+              && Native.Private.readbacks native=child_reads
+              && Native.Private.readbacks parent_native=parent_reads);
+            let host,_,_,_,_=Workspace_gpu.image_stats gpu in
+            assert(host.status_reads=reads && host.readback_bytes=0);
+            let cpu=payload owned state current override "image/map"in
+            assert(bytes cpu=expected && Native.Private.cpu_storage_bytes native=0);
+            if frame=0 then begin
+              let frozen=payload owned state current override "exact"in
+              assert(bytes frozen=actual);
+              retained:=(frozen,Bytes.copy(bytes frozen)):: !retained
+            end;
+            Printf.printf "packed_capture,stateful=%b,domains=%d,override=%b,frame=%d,max=%d\n%!"
+              stateful (if index=0 then 1 else 8) override frame !maximum)
+            [gpu1;gpu8]) [false;true];
+        List.iter(fun(owned,image,old)->assert(fixed owned==image && generation image=old))backdrops;
+        assert(E.state_stamp state=stamp);
+        List.iter(fun(payload,saved)->assert(bytes payload=saved)) !retained in
+      if stateful then advance state 0;
+      check state 0 (if stateful then 0.03125 else 0.);
+      if stateful then advance state 1;
+      check state 1 (if stateful then 0.046875 else 0.015625);
+      if stateful then begin
+        let fresh=E.create_state()in
+        advance fresh 1;
+        check fresh 1 0.03125;
+        check state 1 0.046875
+      end;
+      List.iter(fun(owner,_,gpu)->
+        let metadata,data,charged,cooks,flattens=Workspace_images.capture_stats owner in
+        let expected_cooks=if stateful then 8 else 4 in
+        assert(metadata=2 && data=2 && charged<=64*1024*1024
+          && cooks=expected_cooks && flattens=2*expected_cooks);
+        let host,_,_,_,_=Workspace_gpu.image_stats gpu in
+        assert(host.status_reads=expected_cooks && host.readback_bytes=0)) [gpu1;gpu8]);
+  assert(handles()=before);
+  List.iter(fun(_,resources,_)->assert(resources.Workspace_resources.images_created=resources.images_destroyed))
+    [cpu1;cpu8;gpu1;gpu8];
+  print_endline "Actual packed captures: six materialized P/Cd values, order, two overrides, live/state forks, CPU domains, GPU/parent bytes, warm reuse, fixed render and clean close pass")
+  [false;true]
+let ()=List.iter(fun domains->
+  let module E=Flow.Eval in
+  let module L=Flow_sop.Lower in
+  let module P=Procedural in
+  let lowered=Flow.Syntax.parse {|(workspace state_failure
+    (graph level :context value (state [n 0] (+ n 1)))
+    (graph drawing :context draw [(image : image (image/noise :width 1 :height 1))] (draw/image image))
+    (graph mesh :context sop
+      (let* [points (if (< (ref level) 2)
+                     (list [0 0 0] [0.015625 0 0] [0.03125 0 0]) (list [0 0 0] [0.015625 0 0]))
+             geo (sop/curve points)
+             point (array/nth (sop/attr geo :P) 2)
+             img (image/map (fn [uv] [(+ uv.x point.x) uv.y 0.5 1]) :width 65 :height 17)
+             parent (image/render (ref drawing :image img) :width 65 :height 17)] geo)))|}
+    |> ok |> L.workspace ~factories:Sop_catalog.Editor.factories |> ok in
+  let resources=Workspace_resources.create()and gpu=Workspace_gpu.create()in
+  let owner=Workspace_images.create ~domains ~gpu resources in
+  Workspace_images.bind owner lowered;Workspace_gpu.qualification gpu;
+  let state=E.create_state()in
+  let live frame={(Frame_input.at_time(float frame))with frame}in
+  let advance state frame=List.iter(fun value->ignore(E.force ~state value ~live:(live frame) |> ok))lowered.states in
+  let value kind=let node=Array.find_opt(fun(n:E.node)->n.kind=kind)lowered.plan.nodes |> Option.get in
+    E.Deferred(Flow.Ty.image,node.id)in
+  let image state frame=Workspace_images.image owner lowered.plan ~state ~live:(live frame)
+    (value "image/render")in
+  let payload state frame=Workspace_images.payload owner lowered.plan ~state ~live:(live frame)
+    (value "image/map")in
+  let _,handles=Ogpu.Impl.create_driver()in let before=handles()in
+  let retained=ref None in
+  Fun.protect ~finally:(fun()->Workspace_resources.close resources;Workspace_images.close owner;Workspace_gpu.close gpu)(fun()->
+    advance state 0;
+    let saved=payload state 0 |> ok in
+    let bytes=P.Image.Private.rgba8 saved |> Option.get |> Bytes.copy in
+    retained:=Some(saved,bytes);
+    let first=image state 0 |> ok in
+    let original=Rays.Image.Private.pixels first |> Result.get_ok in
+    assert(original=bytes && resources.images_created=2);
+    advance state 1;
+    let stamp=E.state_stamp state in
+    for _=1 to 2 do
+      (match image state 1 with
+       |Error d->if d.Flow.Diagnostic.code<>"E_ARRAY_RANGE"then failwith(Flow.Diagnostic.to_string d)
+       |Ok _->failwith "Invalid source cardinality unexpectedly rendered");
+      assert(E.state_stamp state=stamp && resources.images_created=2
+        && P.Image.Private.rgba8 saved=Some bytes);
+      assert(Result.is_error(Rays.Image.Private.pixels first))
+    done;
+    let fresh=E.create_state()in
+    advance fresh 1;
+    let fresh_stamp=E.state_stamp fresh in
+    let recovered=image fresh 1 |> ok in
+    assert(recovered==first && Rays.Image.Private.pixels recovered=Ok original
+      && E.state_stamp fresh=fresh_stamp && E.state_stamp state=stamp
+      && resources.images_created=2);
+    assert(payload fresh 1 |> ok |> P.Image.Private.rgba8 = Some bytes));
+  let saved,bytes=Option.get !retained in
+  assert(P.Image.Private.rgba8 saved=Some bytes && handles()=before
+    && resources.images_created=resources.images_destroyed);
+  Printf.printf "State capture failure domains=%d: repeated typed array refusal, caller rollback, stale parent invalidation, same-frame fork recovery and retained bytes pass\n"domains)
+  [1;8]
 let ()=
   let module E=Flow.Eval in
   let module Image=Rays.Image in
@@ -28,7 +238,7 @@ let ()=
     ~live:(Frame_input.at_time time)(value kind)in
   let bytes payload=Procedural.Image.Private.rgba8 payload |> Option.get in
   let held=ref None in
-  Fun.protect ~finally:(fun()->Workspace_images.close owner;Workspace_resources.close resources;Workspace_gpu.close gpu)(fun()->
+  Fun.protect ~finally:(fun()->Workspace_resources.close resources;Workspace_images.close owner;Workspace_gpu.close gpu)(fun()->
     let ordinary=payload "image/map" 0. |> ok in
     assert(Char.code(Bytes.get(bytes ordinary)2)=127 && resources.images_created=0);
     let first=payload "exact" 0. |> ok in
@@ -107,7 +317,7 @@ let ()=List.iter(fun(width,height,expected_reads)->
   let state=E.create_state()in
   let _,handles=Ogpu.Impl.create_driver()in let before=handles()in
   let held=ref [||]in
-  Fun.protect ~finally:(fun()->Workspace_images.close owner;Workspace_resources.close resources;Workspace_gpu.close gpu)(fun()->
+  Fun.protect ~finally:(fun()->Workspace_resources.close resources;Workspace_images.close owner;Workspace_gpu.close gpu)(fun()->
     let resolve frame=Workspace_images.payload owner lowered.plan ~state
       ~live:{(Frame_input.at_time(float frame))with frame}(E.Deferred(Flow.Ty.image,n.id))in
     held:=Array.init 63(fun frame->resolve frame |> ok);
@@ -205,12 +415,13 @@ let ()=
   let module L=Flow_sop.Lower in
   let module N=Flow_sop.Network in
   let module P=Procedural in
-  let forms=Flow.Syntax.parse {|(workspace cycle
+  let lower center=Flow.Syntax.parse(Printf.sprintf {|(workspace cycle
     (graph mesh :context sop
-      (let* [geo (sop/box :consolidate_points true :center [0.015625 0 0])
+      (let* [geo (sop/box :consolidate_points true :center [%g 0 0])
              p (reduce + [0 0 0] (sop/attr geo :P))
-             img (image/map (fn [uv] [(+ uv.x p.x) uv.y 0.5 1]) :width 7 :height 3)] geo)))|} |> ok in
-  let lowered=L.workspace ~factories:Sop_catalog.Editor.factories forms |> ok in
+             img (image/map (fn [uv] [(+ uv.x p.x) uv.y 0.5 1]) :width 7 :height 3)] geo)))|}center)
+    |> ok |> L.workspace ~factories:Sop_catalog.Editor.factories |> ok in
+  let lowered=lower 0.015625 in
   let graph=List.hd lowered.graphs in
   let image_node=Array.find_opt(fun(n:E.node)->n.kind="image/map")lowered.plan.nodes |> Option.get in
   let id=N.Int_map.find image_node.id lowered.compiled in
@@ -224,9 +435,9 @@ let ()=
   let stamp=E.state_stamp state in
   let _,handles=Ogpu.Impl.create_driver()in
   let before=handles()in
-  let run fail=
+  let run domains fail=
     let resources=Workspace_resources.create()and gpu=Workspace_gpu.create()in
-    let owner=Workspace_images.create ~domains:1 ~gpu resources in
+    let owner=Workspace_images.create ~domains ~gpu resources in
     Workspace_images.bind owner lowered;
     Fun.protect ~finally:(fun()->Workspace_resources.close resources;Workspace_images.close owner;Workspace_gpu.close gpu)(fun()->
       let resolve network=Workspace_images.payload owner ~context:L.{compiled=lowered.compiled;network}
@@ -237,9 +448,19 @@ let ()=
       done;
       let result=resolve graph.network |> ok in
       assert(E.state_stamp state=stamp && resources.images_created=0);
-      P.Image.Private.rgba8 result |> Option.get |> Bytes.copy)in
-  assert(run true=run false && handles()=before);
-  print_endline "Workspace capture cycles: typed repeated resolver re-entry, unchanged caller state, acyclic recovery and clean close pass"
+      let saved=P.Image.Private.rgba8 result |> Option.get |> Bytes.copy in
+      let replanned=lower 0.03125 in
+      Workspace_images.bind owner replanned;
+      let node=Array.find_opt(fun(n:E.node)->n.kind="image/map")replanned.plan.nodes |> Option.get in
+      let rebuilt=Workspace_images.payload owner replanned.plan ~state ~live:(Frame_input.at_time 0.)
+        (E.Deferred(Flow.Ty.image,node.id)) |> ok in
+      let changed=P.Image.Private.rgba8 rebuilt |> Option.get |> Bytes.copy in
+      assert(changed<>saved && P.Image.Private.rgba8 result=Some saved
+        && E.state_stamp state=stamp && resources.images_created=0);
+      saved,changed)in
+  let expected=run 1 false in
+  assert(run 1 true=expected && run 8 false=expected && run 8 true=expected && handles()=before);
+  print_endline "Workspace capture cycles: typed repeated resolver re-entry, unchanged caller state, same-owner acyclic and changed-plan recovery, CPU domains and clean close pass"
 let ()=
   let _,handles=Ogpu.Impl.create_driver()in
   let before=handles()in

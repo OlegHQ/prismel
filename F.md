@@ -118,8 +118,7 @@ saying what the table establishes and what it does not, the raw file paths.
 **Current open work (2026-10-09).** The paragraphs below preserve checkpoint
 history; their earlier “open” statements are not the current task list. Known
 remaining work is the changing 65,536-point capture GPU producer gate
-(5.527799 ms on the retained scalar Vec3 branch against <5 ms), expanded actual-owner
-packed-instance/state/replan/failure coverage, and F3 fan-out (latest retained
+(5.527799 ms on the retained scalar Vec3 branch against <5 ms), and F3 fan-out (latest retained
 production learned-eight median63.197136 ms against≤50.600 ms). The chunked
 vertex trial is rejected and restored; its evidence and boundary regression
 remain. A final requirement-by-requirement audit and final F5 qualification
@@ -1851,6 +1850,43 @@ complete workspace sweeps, native owner/capture/Canvas and runtime/pixel checks.
 Actual1× only;2× goldens remain unverified. Pre-commit shipping passes (exit0;
 `/tmp/rays-f-frozen-exact-ship.log`). Large changing-source
 GPU<5 ms, expanded owner coverage, F3 and final audit remain open.
+
+**Expanded owner coverage and graph state correction (2026-10-09).** Actual
+packed copies retain three prototype points and two instances before capture.
+An independent six-point P/Cd oracle checks transformed positions, element order
+and attributes under two graph overrides, live time and state. CPU domains1/8
+match complete bytes; qualified GPU domains1/8 and composed parent renders
+match the oracle (all24 map comparisons have maximum channel error0).
+Same-frame fresh state forks and restored caller snapshots refresh captures
+without advancing caller state. Warm calls leave source cook/flatten counters,
+Host status/readback counters and native child/parent pixel-read counters
+unchanged. The resident child has no CPU pixel storage; ordinary CPU requests,
+frozen snapshots and unrelated fixed renders retain their separate lifetimes.
+All retained CPU bytes survive Image→Canvas→GPU cleanup with handles at baseline.
+
+A valid source changing from three to two points makes index2 fail twice with
+`E_ARRAY_RANGE`, invalidates the old parent publication, preserves state/resources
+and saved bytes, then recovers under a valid same-frame fork. The actual callback
+cycle additionally recovers after a changed-plan rebind at domains1/8. Bypassing
+only the packed-instance materializer makes the new fixture fail; the original
+owner source is restored byte-for-byte and the checks pass again.
+
+That cardinality fixture exposed inline graph refs using their caller's state
+identity. Each private static cell now retains its existing instance ID; live
+refs to a known normalized tuple reevaluate under that identity. No live cells
+are allocated and plan numbering is unchanged. Pure compiled/reference checks
+cover inline/bound refs, independent override tuples, coerced-equivalent sharing,
+opposite force orders, repeated calls, caller forks and host-tick/frame clocks.
+The pre-fix regression fails; the correction passes. Astra approves this shared
+fix and functional coverage. Unknown live override tuples retain the previous
+caller-instance fallback; independent state identity for them is not established
+by this checkpoint. No performance gate or new performance claim follows from
+this correction. Focused checks and full F5 native/pixel qualification pass
+(exit0; `/tmp/rays-f-owner-coverage-full.log`), including both complete38+2+13
+workspace sweeps, expanded owner/oversized capture, Canvas and runtime checks.
+Actual display is1×;2× goldens remain unqualified. Pre-commit shipping passes
+(exit0; `/tmp/rays-f-owner-coverage-ship.log`).
+The two measured gates and final audit remain open.
 
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row

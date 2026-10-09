@@ -143,7 +143,7 @@ and st = {
 and node = { id : int; inst : int; site : W.path; iter : int list; kind : string; ty : Ty.t;
              args : (string * value) list }
 
-and cell = { cgraph : string; cdefault : bool; mutable cinputs : (string * value) list; mutable cresult : value }
+and cell = { cinst : int; cgraph : string; cdefault : bool; mutable cinputs : (string * value) list; mutable cresult : value }
 
 type live = Frame_input.t
 type instance = { graph : string; default : bool; inputs : (string * value) list; result : value }
@@ -989,13 +989,15 @@ and graph_value ?(rec_ = true) c name over =
       (Smap.add n v env, (n, v) :: ins)) (Smap.empty, []) g.inputs in
     (ev c0 env g.body, List.rev ins) in
   match st.time with
-  | Some _ -> fst (run c.inst)
+  | Some _ ->
+      let inst = match Hashtbl.find_opt st.cache key with Some cell -> cell.cinst | None -> c.inst in
+      fst (run inst)
   | None ->
       (match Hashtbl.find_opt st.cache key with
        | Some cell -> cell.cresult
        | None ->
            let cid = List.length st.cells in
-           let cell = { cgraph = name; cdefault = (over = []); cinputs = []; cresult = No_geo } in
+           let cell = { cinst = cid; cgraph = name; cdefault = (over = []); cinputs = []; cresult = No_geo } in
            st.cells <- cell :: st.cells;
            Hashtbl.replace st.cache key cell;
            let v, ins = run cid in
