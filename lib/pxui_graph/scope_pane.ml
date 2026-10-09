@@ -50,7 +50,7 @@ type command =
   | Open_level  (** [o]: the selection one level more detailed, pinned *)
   | Point_level  (** [p]: the selection to points, or back to its previous level *)
   | Open_all  (** [⇧O]: every node to card *)
-  | Point_all  (** [⇧P]: every node to a point, or every node back *)
+  | Point_all  (** [⇧K]: every node to a point, or every node back *)
   | Show_hints  (** [w]: letter hints; a letter connects the selected node's output *)
 
 type stats = {
@@ -1191,7 +1191,7 @@ let bindings =
     make ~guide:some "open" "open one level" Open_level (ch 'o') [];
     make ~guide:some "point" "point, or back" Point_level (ch 'p') [];
     make ~guide:any "open-all" "every node to card" Open_all (ch 'o') [ Input.Shift ];
-    make ~guide:any "point-all" "every node to a point, or back" Point_all (ch 'p') [ Input.Shift ];
+    make ~guide:any "point-all" "every node to a point, or back" Point_all (ch 'k') [ Input.Shift ];
     make ~guide:one "rename" "rename node / edit input default" Edit_name Input.F2 [];
     make ~guide:some "frame" "frame the selection (titled box)" Make_frame (ch 'g') [ Input.Shift ];
     make ~guide:some "duplicate" "duplicate" Duplicate (ch 'd') [ Input.Meta ];

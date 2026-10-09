@@ -123,7 +123,7 @@ let follow_tests () =
     step ~keys ~mouse:(x, y) [ Event.MouseReleased (Input.LeftButton, (x, y)) ] in
   let pane () = dump_line !e "pane graph" and route () = dump_line !e "route" in
   let jump name =
-    step [ key Input.Space; ch 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
+    step [ key (Input.KeyChar '/'); ch 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
   for _ = 1 to 12 do step [] done;
   check (pane () = "scene" && route () = "scene") ("opens on the scene: " ^ pane ());
 
@@ -145,9 +145,9 @@ let follow_tests () =
   check (List.length (List.filter (fun l -> has l "unused") lines) = 1) "only the unread material is unused";
   check (Array.length (N.rows (N.with_query "cob" N.initial) params) = 2) "typing filters across the groups";
 
-  (* Space j, then follow with i and back with u *)
+  (* / j, then follow with i and back with u *)
   jump "shards";
-  check (pane () = "shards" && route () = "scene > shards") ("Space j jumps: " ^ route ());
+  check (pane () = "shards" && route () = "scene > shards") ("/ j jumps: " ^ route ());
   let bx, by, bw, bh = Option.get (E3.node_box !e [ "shards"; "m" ]) in
   click (float bx +. float bw /. 2., float by +. float bh -. 6.);
   step [ ch 'i' ]; step [];
@@ -206,17 +206,17 @@ let follow_tests () =
   step ~keys:[ Input.Shift ] [ ch 'i' ]; step [];
   check (has (text_of !e) "(ui/floating (ui/graph \"cobalt\"))" || has (text_of !e) "ui/graph \"cobalt\"")
     ("I opens the material in a floating graph: " ^ text_of !e);
-  (* Space a: Material makes a graph and opens it; Material of... fills the reference *)
+  (* / a: Material makes a graph and opens it; Material of... fills the reference *)
   jump "scene";
-  step [ key Input.Space; ch 'a' ]; step [ Event.TextInput "material" ]; step [ key Input.Enter ]; step [];
-  check (has (text_of !e) "(graph material :context material") ("Space a made a material graph: " ^ text_of !e);
+  step [ key (Input.KeyChar '/'); ch 'a' ]; step [ Event.TextInput "material" ]; step [ key Input.Enter ]; step [];
+  check (has (text_of !e) "(graph material :context material") ("/ a made a material graph: " ^ text_of !e);
   check (pane () = "material" && E3.undo_label !e = Some "New material") "and opened it";
   step [ ch 'u' ]; step [];
   check (pane () = "scene") "u returns from it";
   jump "shards";
   let bx, by, bw, bh = Option.get (E3.node_box !e [ "shards"; "m" ]) in
   click (float bx +. float bw /. 2., float by +. float bh -. 6.);
-  step [ key Input.Space; ch 'a' ]; step [ Event.TextInput "spare" ]; step [ key Input.Enter ]; step [];
+  step [ key (Input.KeyChar '/'); ch 'a' ]; step [ Event.TextInput "spare" ]; step [ key Input.Enter ]; step [];
   check (has (text_of !e) ":material (ref spare)" && has (text_of !e) "(sop/material m")
     ("Material of... adds a sop/material after the selection: " ^ text_of !e);
 
@@ -252,7 +252,7 @@ let carry_tests () =
     step ?buttons ?keys ?mouse events; (Unix.gettimeofday () -. start) *. 1000. in
   let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
   let jump name =
-    step [ key Input.Space; ch 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
+    step [ key (Input.KeyChar '/'); ch 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
   let pane () = dump_line !e "pane graph" in
   let line () = Option.value ~default:"-" (E3.carry_line !e) in
   let ws = ref (E3.workspace !e) in
@@ -538,7 +538,7 @@ let viewport_carry_tests () =
     incr count; e := E3.update !e (frame ~keys mouse events !count) in
   let key k = Event.KeyPressed k and ch c = Event.KeyPressed (Input.KeyChar c) in
   let jump name =
-    step [ key Input.Space; ch 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
+    step [ key (Input.KeyChar '/'); ch 'j' ]; step [ Event.TextInput name ]; step [ key Input.Enter ]; step [] in
   let line () = Option.value ~default:"-" (E3.carry_line !e) in
   for _ = 1 to 12 do step [] done;
   let ws = E3.workspace !e in

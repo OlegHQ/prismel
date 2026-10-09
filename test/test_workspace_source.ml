@@ -283,10 +283,10 @@ let run_autosave () =
   step [Event.MouseMoved (200., 300.); Event.MouseScrolled (0., -2.)];
   for _ = 1 to 70 do step [] done;
   check (read state = snapshot) "orbiting after a restart overwrote the last edited state";
-  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
+  step [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'b')];
   step [Event.KeyPressed Input.Enter];
   check (has (source_text !e) ":radius 1.25" && E3.undo_label !e = Some "Restore last edited state")
-    ("Space b did not restore the last edited state as one undo entry: "
+    ("/ b did not restore the last edited state as one undo entry: "
       ^ Option.value ~default:"-" (E3.undo_label !e) ^ "; " ^ cook_line !e ^ "; " ^ source_text !e);
   check (Vec3.nearly_equal saved_eye (Camera.position (Easy_camera.camera (E3.camera !e))) ~eps:1e-9)
     "recovery did not restore the viewport";
@@ -298,11 +298,11 @@ let run_autosave () =
   write state typo;
   e := create (); count := 0;
   step [];
-  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
+  step [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'b')];
   step [Event.KeyPressed Input.Enter];
   check (has (source_text !e) ":radius 0.5" && has (cook_line !e) "rejected")
     "a broken autosave replaced the live document or hid its error";
-  step [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b')];
+  step [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'b')];
   step [Event.KeyPressed Input.Delete]; step [Event.KeyPressed Input.Delete];
   check (not (Sys.file_exists state)) "Delete twice did not remove the recovery file";
   E3.close !e;
@@ -347,14 +347,14 @@ let run_start_keywords () =
   let run_for seconds = for _ = 1 to int_of_float (seconds *. 60.) do step [] done in
   let line = Test_workspace_shell.dump_line in
   let show_graph () =
-    step [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'l') ];
+    step [ Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'l') ];
     step [ Event.KeyPressed (Input.KeyChar 'g') ]; step [] in
   step []; step [];
   check (line !e "projection" = "list" && has (line !e "panels") "lisp code: graph tab")
     ("the sketch opens as its keywords say: " ^ line !e "projection" ^ " / " ^ line !e "panels");
   (* a reload that leaves the keywords alone leaves the view the user chose *)
   show_graph ();
-  check (line !e "projection" = "graph") "Space l g did not show the graph";
+  check (line !e "projection" = "graph") "/ l g did not show the graph";
   write file (text ~radius:"0.7" "list" "graph");
   run_for 1.; step [];
   check (E3.undo_label !e = Some "Reload sketch.rays" && has (source_text !e) "0.7") "the file did not reload";
@@ -365,16 +365,16 @@ let run_start_keywords () =
   check (line !e "projection" = "text" && has (line !e "panels") "lisp code: document tab")
     ("a reload did not follow the changed keywords: " ^ line !e "projection" ^ " / " ^ line !e "panels");
   (* a preset: saved with :view "text", loaded over a document that says "list" *)
-  step [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 's') ];
+  step [ Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 's') ];
   step [ Event.KeyPressed Input.Enter ]; step [];
   let name = match Editor_document.Preset.list ~directory:presets with
-    | [ (name, _) ] -> name | _ -> fail "Space s did not save one preset" in
+    | [ (name, _) ] -> name | _ -> fail "/ s did not save one preset" in
   e := Result.get_ok (E3.edit !e (Flow_graph.Flow_edit.Set_arg {
     node = [ "editor"; "net" ]; key = Kw "view"; sub = []; value = Flow.Syntax.make (Str "list") }));
   step []; step [];
   check (line !e "projection" = "list") "an edit of :view was not followed";
   let load () =
-    step [ Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'b') ];
+    step [ Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'b') ];
     step [ Event.TextInput name; Event.KeyPressed Input.Enter ]; step []; step [] in
   load ();
   check (E3.undo_label !e = Some "Load preset" && line !e "projection" = "text")

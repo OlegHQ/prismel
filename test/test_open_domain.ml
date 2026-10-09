@@ -180,7 +180,7 @@ let () =
     let x, y, width, height = (E.panes !host frame).graph in
     let point = float (x + width / 2), float (y + height / 2) in
     step [Event.MouseMoved point; Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point)];
-    step [Event.KeyPressed Input.Space];
+    step [Event.KeyPressed (Input.KeyChar '/')];
     step [Event.KeyPressed (Input.KeyChar 'a')];
     step [Event.TextInput "toy/emit"];
     step [Event.KeyPressed Input.Enter];

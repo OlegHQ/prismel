@@ -79,7 +79,7 @@ val view : state -> Pxui.Ui.t -> bounds:int * int * int * int -> params -> state
 
 val jump_rows : Flow.Workspace.t -> (string * string) list
 (** Every graph with its outline group (Scene, Geometry, Materials, World, Layout, ...), in the
-    outline's order: what [Space j] filters. *)
+    outline's order: what [/ j] filters. *)
 
 val notes : Flow.Eval.t -> (string * string) list
 (** The roughness of each evaluated material graph, as its row's detail. *)

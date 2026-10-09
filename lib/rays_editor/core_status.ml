@@ -31,7 +31,7 @@ let carry_line (c : _ carry) =
            Printf.sprintf "Carrying %s · put on %s · Enter writes · Esc drops" held
              (String.concat " · " (List.map (fun (letter, _, label) -> letter ^ " " ^ label) targets))
        | `Keys, _ ->
-           Printf.sprintf "Carrying %s · nothing here takes it · u, i or Space j go elsewhere · Esc drops" held)
+           Printf.sprintf "Carrying %s · nothing here takes it · u, i or / j go elsewhere · Esc drops" held)
 
 let status_text ?(brief = false) value =
   match value.carry with Some c -> carry_line c | None ->
@@ -60,11 +60,11 @@ let status_text ?(brief = false) value =
   let cook = cook ^ (if phases = "" then "" else " · " ^ phases) in
   (* What the open level's keys do, so the World and the menu are findable. *)
   let hint = match value.level with
-    | Document.Scene -> "i/double-click enter · Space a add · Space e World"
+    | Document.Scene -> "i/double-click enter · / a add · / e World"
     | Inside id when kind value id = Some "world" ->
-        "u up · drag map: move layer/sun · t dome/light · n reseed · d day cycle · [ ] time · Space m 3D/map"
-    | Inside _ -> "u up · Space a add · Space l panel kind" in
-  (if value.workspace.restored then "Default layout · Space z returns to the editor graph · " else "")
+        "u up · drag map: move layer/sun · t dome/light · n reseed · d day cycle · [ ] time · / m 3D/map"
+    | Inside _ -> "u up · / a add · / l panel kind" in
+  (if value.workspace.restored then "Default layout · / z returns to the editor graph · " else "")
   ^ cook ^ (if brief then "" else " · " ^ level_name value ^ " · " ^ hint)
 
 (* "ring · iteration 1 of 12": which iteration the viewport's highlight and the inspector show for the
@@ -144,20 +144,20 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
   let extra = match value.focus with
     | Pxui_shell.Layout.Outline -> [ "/", "filter"; "i", "enter" ] @ Option.to_list jump
     | Graph -> [ "Tab", "add after"; "o", "open"; "v", "view"; "b", "bypass"; "i", "enter"; "f", "frame"; "w", "hints";
-                 "Space", "leader" ]
+                 "/", "leader" ]
     | View _ -> [ "w", "move"; "e", "rotate"; "r", "scale"; "i", "enter object"; "\xe2\x8c\xa5 drag", "orbit" ]
     | _ -> [] in
   if height <= 0 then ()
   else if (match value.leader with Leader.Pending _ -> true | Idle -> false) then begin
     (* an open leader: the pending prefix in the accent and what the strip waits for *)
-    let prefix = match value.leader with Leader.Pending p when p <> "" -> "Space " ^ p | _ -> "Space" in
+    let prefix = match value.leader with Leader.Pending p when p <> "" -> "/ " ^ p | _ -> "/" in
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~readout ~text:line
       ?fps:status_fps ~notes ~leader:prefix ~context:Editor_core.Guide_context.Leader ()
   end
   else if moving <> None then begin
     Pxui_shell.Status_bar.guide ui ~bounds:(x, y, width, height) ~file ~state ~layout ~readout ~text:line
       ?fps:status_fps ~notes ~accent:true ~kind:("moving " ^ Option.get moving)
-      ~extra:[ "drag to an edge", "dock"; "Space o f", "float or dock"; "Space n", "new window" ]
+      ~extra:[ "drag to an edge", "dock"; "/ o f", "float or dock"; "/ n", "new window" ]
       ~context:Editor_core.Guide_context.Canvas ()
   end
   else if state <> `Error && value.carry = None && value.guide then begin

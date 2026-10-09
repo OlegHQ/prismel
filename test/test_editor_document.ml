@@ -98,7 +98,7 @@ let run () =
           (String.concat "," (List.map (fun (i : Edit_graph.node_info) -> i.label)
             (Edit_graph.inspect (current_document !value)))) (prepared !value <> None))
     end;
-    step [key Input.Space; char 's']; step [key Input.Enter]; step [];
+    step [key (Input.KeyChar '/'); char 's']; step [key Input.Enter]; step [];
     check (List.length (Preset.list ~directory) = 1) "the document did not save a preset";
     List.iter (fun (name, _) -> Sys.remove (Preset.path ~directory ~name)) (Preset.list ~directory)) in
   let prepares = Atomic.make 0 in

@@ -516,7 +516,7 @@ let hidden_preview () = with_editor (workspace preview_text) (fun e ->
   e := E.update !e (Test_editor_input.frame p
     [Event.MousePressed (Input.LeftButton, p); Event.MouseReleased (Input.LeftButton, p)] 2);
   e := E.update !e (Test_editor_input.frame p
-    [Event.KeyPressed Input.Space; Event.KeyPressed (Input.KeyChar 'h')] 3);
+    [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 'h')] 3);
   check (List.map List.length (layers !e) = [0])
     "hiding the UI switched the focused preview to the primary scene")
 
@@ -812,7 +812,7 @@ let enter_camera () =
     check (E.look_through !e) "repeated camera Enter disabled look-through";
     let in_view = 100., 300. in
     step ~mouse:in_view (click Input.LeftButton in_view);
-    step ~mouse:in_view [key Input.Space; key (Input.KeyChar 'v')];
+    step ~mouse:in_view [key (Input.KeyChar '/'); key (Input.KeyChar 'v')];
     check (not (E.look_through !e)) "camera fixture did not leave look-through";
     let at = float (gx + 60), float (gy + 24 + row * 24 + 12) in
     step ~mouse:at (click Input.RightButton at);

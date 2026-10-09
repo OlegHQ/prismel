@@ -727,7 +727,7 @@ The editor autosaves document edits and viewport navigation to one atomic
 The source file's absolute path identifies a file-backed sketch; other sketches
 use their workspace name. Writes coalesce at most twice a second, and close
 flushes pending edits. An unchanged opening preserves the previous recovery.
-`Space b` lists it as **Last edited state**; Enter validates and restores it as
+`/ b` lists it as **Last edited state**; Enter validates and restores it as
 one undo step, and Delete twice removes it. This includes applied Lisp edits,
 external source reloads, settings, graph layout and camera navigation. Failed
 writes appear in the status and retry. The source file changes only on explicit
@@ -735,10 +735,10 @@ Save.
 
 #### Sketch workspace keys
 
-`Space` (with no text field focused) opens a centered which-key panel; the
+`/` (with no text field focused) opens a centered which-key panel; the
 next key runs a command from the editor keymap, one list of pure-data
 `Editor_core.Command.t` entries (`id`, `label`, optional `trigger`, optional
-`scope`, `guide` contexts, `action`) that drives dispatch, the guide, the panel, and the `Space /` command
+`scope`, `guide` contexts, `action`) that drives dispatch, the guide, the panel, and the `/ /` command
 palette. Built-ins carry `Leader.action` payloads the update pipeline handles;
 sketch `?commands` are the same entries whose action is a
 `'prepared t -> 'prepared t` function run after the frame. Command/Ctrl
@@ -746,7 +746,7 @@ chords, Delete/Backspace, Home, and focus-dependent `F` use that same table;
 `pxui_graph` exports its graph commands as entries without interpreting keys.
 Entries without a trigger appear only in the palette. Global commands always apply; the others
 belong to the focused pane (the last one clicked, marked by an accent rule
-along its top). Escape, Space, an unknown key, a click, or focus loss cancel it.
+along its top). Escape, `/`, an unknown key, a click, or focus loss cancel it.
 Supplied commands validate at `create`: built-in IDs are reserved; aliases
 share one action value; overlapping shortcuts and leader prefixes are errors.
 Chord case and modifier order normalize once. Scoped commands are available
@@ -834,7 +834,7 @@ rule. `Flow_graph.Flow_edit` is every gesture as a checked rewrite of the text, 
 | `?` / `/` | global | grouped key sheet / command palette |
 | `w` / `v` | view | fly mode / look through render camera |
 
-The table above lists keys after `Space`. With a graph panel focused, the pane's own
+The table above lists keys after `/`. With a graph panel focused, the pane's own
 keys are `Pxui_graph.Scope.bindings`; `flow.md` §7.2 has the whole table. In short:
 
 | Key | Action |
@@ -842,7 +842,7 @@ keys are `Pxui_graph.Scope.bindings`; `flow.md` §7.2 has the whole table. In sh
 | arrows | walk to the nearest node in that direction |
 | `Tab` | the add menu; with a node selected the pick is wired after it |
 | `w` | connect the selected output by letter hints |
-| `o` / `p`, `⇧O` / `⇧P` | open the selection one detail level / point it or go back; the same for every node |
+| `o` / `p`, `⇧O` / `⇧K` | open the selection one detail level / point it or go back; the same for every node |
 | `v` / `b` | view the selected geometry node (it becomes the graph's result) / toggle bypass |
 | `x`, Delete, Backspace | delete the hovered wire or item, the selected wire, or the selection |
 | `f` / Home | frame the selection / frame all |
@@ -859,7 +859,7 @@ the graph. The Lisp pane is editable.
 `?` toggles the contextual guide globally. The guide
 starts on and saves its setting in `~/.rays/preferences.rays` through
 `Editor_core.Store` (override with `RAYS_EDITOR_PREFERENCES`). Its strip
-lists each pane's own keys as its design sheet does. `Space ?` shows the grouped
+lists each pane's own keys as its design sheet does. `/ ?` shows the grouped
 key sheet; key feedback lasts 1.5 seconds. Shared UI text focus owns typing
 and modal dismissal. `Tab` runs Add in the canvas; `Shift-Tab` remains UI
 traversal. World keys are `t`/`n`/`d`, described in `scene.md`.
@@ -973,7 +973,7 @@ the voxel wall's path tracer. Follow-viewport motion writes the camera node as v
 state, with no undo entry. The camera object's generated parameter schema is read
 into a typed camera and follow flag and written from viewport edits, so the
 host has no camera field names or copied defaults. Fly mode captures the pointer with
-`Sketch.set_relative_mouse`; Escape exits and Space exits into the leader.
+`Sketch.set_relative_mouse`; Escape exits; `/` exits into the leader and Space exits.
 `Editor_core.Router` owns the fly-mode key filter; pointer and focus-loss events
 still reach the workspace.
 `Rays_pathtracer.render` accepts `Camera.t` directly, including its

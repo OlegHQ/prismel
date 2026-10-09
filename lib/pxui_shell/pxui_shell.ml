@@ -950,7 +950,7 @@ module Which_key = struct
 
   let tallest sections = List.fold_left (fun most (_, rows) -> max most (List.length rows)) 0 sections
 
-  (* The leader: a sheet over the status strip, the [Space] key and its name over six columns.  Hosts
+  (* The leader: a sheet over the status strip, the [/] key and its name over six columns.  Hosts
      that give a [category] get the sections of the sheet (the keys of the leader only); without it the
      sections are the commands everywhere and those of the focused pane, with the key chords. *)
   let panel ui ?category ?(describe = fun _ -> None) ?(order = fun _ -> []) keymap ~prefix ~focus ~focus_name =
@@ -966,7 +966,7 @@ module Which_key = struct
     (* the edge, 8, the head row, a section label under 4, its rows, 8; never under the sheet's 183 *)
     let height = Float.max 183. (1. +. 8. +. row +. 4. +. row +. (float (tallest sections) *. row) +. 8.) in
     let y = Float.max 0. (view_h -. float Layout.status_height -. height) in
-    let leader = if prefix = "" then "Space" else "Space " ^ prefix in
+    let leader = if prefix = "" then "/" else "/ " ^ prefix in
     (* build before the body it shields; the host closes it on any key *)
     ignore (Ui.popup ui ~dismiss_initial:false ~at:(0., y) ~width:view_w ~height "leader" (fun () ->
       let box = Ui.box ui ~w:Ui.Grow ~h:(Ui.Px height) "leader-sheet" in
@@ -1222,7 +1222,7 @@ module Status_bar = struct
         Ui.Paint.text paint ~at:(tx +. kw +. 8., Kit.text_y ui y h) ~color:(Pxui.Theme.ink_2 theme) label) pairs);
     if (Ui.signal ui bar).hovered then
       Ui.tooltip ui ~key:"guide-strip" ~text:(title ^ " \xc2\xb7 "
-        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 Space ?: all keys")
+        ^ String.concat "  " (List.map fst keys) ^ " \xc2\xb7 / ?: all keys")
 
   (* Echo, the sheet's [08]: tips stacked 4 apart in the pane's bottom-left corner, the last at the
      bottom.  A tip is 24 high on the sheet fill with a line-2 edge and 13-point text 7 in; information
@@ -1284,7 +1284,7 @@ module Timeline_bar = struct
         let clicked = Kit.button ui ~key ~at:(!cx, cy) ~w ?icon ?hint ?active ?enabled label in
         cx := !cx +. w +. 8.; clicked in
       let pause = button "timeline-play" ~icon:`Play ~active:playing
-          ?hint:(if tall then Some "Space p" else None) "Play" in
+          ?hint:(if tall then Some "Space" else None) "Play" in
       let stop = button "timeline-stop" ~icon:`Stop "Stop" in
       let reset = tall && button "timeline-reset" "Reset" in
       (* the rule between the buttons and the fields: 4 points of margin each side *)
@@ -1507,7 +1507,7 @@ module Tree = struct
       key "move-down" "move down" ArrowDown Move_down ~modifiers:[Alt];
       key "rename" "rename" F2 Rename_row;
       key "delete" "delete" Delete Delete_rows; key "delete" "delete" Backspace Delete_rows;
-      key "filter" "filter" (KeyChar '/') Filter;
+      key "filter" "filter" (KeyChar 's') Filter;
       key "hide" "hide / show" (KeyChar 'h') Hide;
       key "activate" "open selected in graph" Enter Activate_row ]
 

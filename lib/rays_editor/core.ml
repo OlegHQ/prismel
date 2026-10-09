@@ -44,7 +44,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
         ^ " · " ^ command.label, frame.time +. 1.5)
     | [] -> (match leader with
         | Leader.Pending prefix when leader <> value.leader ->
-            Some ((if prefix = "" then "Space" else "Space " ^ prefix) ^ " · leader", frame.time +. 1.5)
+            Some ((if prefix = "" then "Space" else "/ " ^ prefix) ^ " · leader", frame.time +. 1.5)
         | _ -> value.hud) in
   let actions = List.map (fun (command : Leader.command) -> command.action) commands in
   let hud = match hud with Some (_, until) when frame.time >= until -> None | _ -> hud in
@@ -134,7 +134,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
         view, changes @ emitted
     | Leader.Open_camera -> Pxui_graph.Scope.clear_selection view, changes
     | _ -> view, changes) (value.scope_view, []) actions in
-  (* Space a: the node menu of the graph the pane shows *)
+  (* / a: the node menu of the graph the pane shows *)
   let menu, command_changes =
     if List.mem Leader.Add_node actions && graph_shown then begin
       let gx, gy, gw, gh = match graph_leaf value (geometry value workspace frame) with
@@ -245,7 +245,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
       | Open_camera -> expand Inspector
       | Add_node -> expand Graph
       | _ -> []) actions in
-    (* Space o ...: the focused panel's split, close and retype, as its header menu *)
+    (* / o ...: the focused panel's split, close and retype, as its header menu *)
     let intents = intents @ (match focused_leaf (geometry value workspace frame) focus focus_path with
       | None -> []
       | Some leaf -> List.filter_map (function
@@ -962,7 +962,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
         Pxui_shell.Which_key.panel ui ~category:Leader.group ~describe:Leader.describe_prefix ~order:Leader.order keymap ~prefix
           ~focus:(Leader.scope focus) ~focus_name:(Leader.pane_name focus))
     | Idle -> None in
-  (* Presets: Space s names and saves the document, Space b browses, loads
+  (* Presets: / s names and saves the document, / b browses, loads
      (Enter), and deletes (Delete twice). A load replaces the document below
      as one undo entry. *)
   let initial_prompt = List.fold_left (fun prompt -> function
