@@ -9093,6 +9093,8 @@ image/resident work.
 
 ## F2.2 image kernel: CPU checkpoint (2026-10-09)
 
+Implementation and raw measurement commit: `4ba82525`.
+
 Machine: Macmini9,1, Apple M1, eight logical CPUs, OCaml 5.3, Dune dev.
 Seven isolated warm trials per fixture/size at domains one/eight; no builds,
 tests or other agents run during either measurement command.

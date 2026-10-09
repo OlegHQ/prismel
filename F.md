@@ -1173,7 +1173,7 @@ the sequential cutoff should be, and what the one failing check is."
 
 #### F2.2 Image kernels: a per-pixel `map`
 
-**CPU checkpoint (2026-10-09; F2.2 remains open).** `image/map` now has a
+**CPU checkpoint (2026-10-09, `4ba82525`; F2.2 remains open).** `image/map` now has a
 strict Vec2-to-Vec4 Lisp declaration, typed graph function zone and argument
 gestures. `Flow_sop.Image_kernel` retains the immutable UV grid and actual
 packed program, executes once per uncached session cook and converts to one
