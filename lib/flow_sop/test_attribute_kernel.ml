@@ -38,6 +38,54 @@ let stages program = Array.fold_left (fun count (node : Flow_ir.node) -> match n
   | _ -> count) 0 (Flow_ir.Executor.graph program).nodes
 
 let () =
+  List.iter (fun count ->
+    let positions = Packed.Float3.Private.of_owned_exn
+      ~x:(Array.make count 0.) ~y:(Array.make count 0.) ~z:(Array.make count 0.) in
+    let original = Geometry.create ~positions ~topology:(Topology.empty ~point_count:count) ()
+      |> get_string_ok in
+    let before = geometry_bytes original in
+    let input = Procedural.Node.Private.make_geometry ~operation:"test.xyz_write" ~version:1
+      ~parameters:"" ~cook_mode:Procedural.Node.Generator
+      ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
+      (fun ~node_id:_ _ _ -> Ok Procedural.Node.Private.{geometry=original;diagnostics=[];instances=None}) in
+    let values = Array.init (count * 3) (fun j ->
+      if j mod 17 = 0 then -0. else match j mod 3 with
+      | 0 -> float_of_int (j / 3) +. 0.125
+      | 1 -> -.float_of_int (j / 3) -. 0.25
+      | _ -> float_of_int (j / 3) *. 0.5 +. 0.375) in
+    let expected = Marshal.to_string values [Marshal.No_sharing] in
+    let first = ref None in
+    List.iter (fun domains ->
+      let session = session () in
+      Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
+        let source = Array.copy values in
+        let node values = Flow_sop.Attribute_kernel.node ~source:"xyz-write"
+          ~name:"Cd" ~values:(E.Vec3_array values) ~sources:[0] [input] in
+        let output = cook session ~domains ~time:0. (node source) |> geometry in
+        let packed = Geometry.find_attribute ~owner:Attribute.Point "Cd" output |> Option.get
+          |> Attribute.get (Attribute.key ~name:"Cd" ~owner:Attribute.Point Attribute.float3)
+          |> Option.get |> Packed.Float3.Private.view in
+        for i = 0 to count - 1 do
+          assert (Int64.bits_of_float packed.x.(i) = Int64.bits_of_float values.(3*i));
+          assert (Int64.bits_of_float packed.y.(i) = Int64.bits_of_float values.(3*i+1));
+          assert (Int64.bits_of_float packed.z.(i) = Int64.bits_of_float values.(3*i+2))
+        done;
+        let bytes = geometry_bytes output in
+        (match !first with None -> first:=Some bytes | Some first -> assert (first=bytes));
+        assert (Marshal.to_string source [Marshal.No_sharing]=expected);
+        Array.fill source 0 (Array.length source) 99.;
+        assert (geometry_bytes output=bytes && geometry_bytes original=before);
+        let failure values code = match cook session ~domains ~time:0. (node values) with
+          | Error d -> assert (d.code=code && geometry_bytes original=before)
+          | Ok _ -> assert false in
+        failure (Array.make (count*3+3) 0.) "E_ATTR_COUNT";
+        if count>0 then begin
+          let bad = Array.copy values in bad.(Array.length bad-1)<-Float.infinity;
+          failure bad "E_NONFINITE"
+        end)) [1;8]) [0;32769];
+  print_endline "XYZ attribute writes: empty/multi-block, signed-zero/domain bytes, ownership and error immutability pass"
+
+let () =
   let lowered=lower {|(workspace captures
     (graph mesh :context sop [(offset : float 0.015625)]
       (let* [geo (sop/box :consolidate_points true :center [(+ offset (* t 0.015625)) 0 0])

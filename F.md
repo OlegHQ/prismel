@@ -1725,6 +1725,35 @@ Restored focused checks and shipping pass (exit 0;
 `/tmp/rays-f-image-source-refresh-ship.log`). No product behavior changes here;
 the direct-input checkpoint's full F5 qualification remains the current evidence.
 
+**Direct XYZ write (2026-10-09; allocation retained, changing GPU gate open).**
+Only non-P storage construction changes: three zeroed float arrays and one
+ascending direct copy replace the Array.init callbacks. Validation and
+installation order, P behavior, ownership and parallelism remain unchanged.
+The node-through-Session regression passes before/after: empty and 32,769-point
+inputs, distinct XYZ/signed-zero bits, complete domains-1/8 geometry bytes,
+input immutability, post-write input mutation and count/nonfinite failure
+immutability. Focused checks and benchmark build pass.
+
+The unchanged eight-cell capture matrix and 1024² controls pass all 30 native
+pixel comparisons, CPU1/8 hashes and capture/resource assertions. Large static
+CPU8/GPU medians are 17.415047/3.555745 ms; large changing medians are
+17.284155/6.181384 ms. Changing producer allocation falls from 13,558,975 to
+10,413,280 B/frame; static allocation stays exactly 89,161 B/frame. Smaller
+changing allocations are pixel-count independent with minor trial variation
+(370,181–370,195 B/frame), and control allocations stay unchanged. Raw files
+are `f-image-map-captures-xyz-write-after*` and
+`f-image-map-uncaptured-recheck-xyz-write-after*`.
+Astra: “Retain the XYZ loop for its allocation reduction.” No large-source GPU
+timing improvement is established; changing still misses <5 ms. The next
+authorized action repeats the same source-refresh attribution on this loop,
+comparing all seven phase samples before broadening. No copying, ownership or
+cache optimization is approved. Full F5 native/pixel qualification passes (exit 0;
+`/tmp/rays-f-image-xyz-write-full.log`), including both complete workspace
+sweeps, native owner/image/retained-Canvas tests, oversized capture, runtime
+qualification and all pixel aliases. Actual display is 1×; 2× goldens remain
+unqualified. No product probes are present.
+Shipping passes (exit 0; `/tmp/rays-f-image-xyz-write-ship.log`).
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing
@@ -2054,6 +2083,12 @@ Learned runs perform untimed training and clear output caches while retaining
 timing knowledge; they are not untrained cold runs. The uninstrumented whole
 learned-chain median decides the unchanged 50.600 ms gate. There is no current
 evidence supporting an unreachable closure, and no new measured verdict yet.
+Astra's protocol clarification: `RAYS_BRANCH_NODE_TIMES=1` only reports existing
+Session samples after the cook timer stops. Its seven-process learned runs are
+valid for the whole-cook gate; no additional env-unset batch is needed. Here
+“uninstrumented” means production execution without temporary profiling changes;
+the existing Session timing work stays in the measured cook. Keep the variable
+identical before/after and in reverse-order comparisons.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

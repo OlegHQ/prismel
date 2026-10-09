@@ -75,10 +75,15 @@ let write ~grain name values geometry = match values with
           x.(i) <- values.(i * 3); y.(i) <- values.(i * 3 + 1); z.(i) <- values.(i * 3 + 2)
         done) geometry)
       else
-        let storage = P.Private.of_owned_exn
-          ~x:(Array.init count (fun i -> values.(i * 3)))
-          ~y:(Array.init count (fun i -> values.(i * 3 + 1)))
-          ~z:(Array.init count (fun i -> values.(i * 3 + 2))) in
+        let x = Array.make count 0.
+        and y = Array.make count 0.
+        and z = Array.make count 0. in
+        for i = 0 to count - 1 do
+          x.(i) <- values.(i * 3);
+          y.(i) <- values.(i * 3 + 1);
+          z.(i) <- values.(i * 3 + 2)
+        done;
+        let storage = P.Private.of_owned_exn ~x ~y ~z in
         Result.map_error (Flow.Diagnostic.error ~code:"E_ATTR_TYPE")
           (Result.bind (A.create_owned ~name ~owner:A.Point (A.Float3 storage))
             (fun attr -> G.with_attribute attr geometry))

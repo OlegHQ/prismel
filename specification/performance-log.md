@@ -11096,3 +11096,91 @@ Restored `@check`, Flow/IR/FlowSop focused tests and benchmark build pass (exit 
 Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-source-refresh-ship.log`).
 This diagnostic checkpoint changes no product behavior; full F5 native evidence
 remains `/tmp/rays-f-image-direct-input-full.log`, on the actual 1× display.
+
+## F2.2 direct XYZ attribute write (2026-10-09)
+
+Machine: Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev profile, actual 1× display.
+Baseline: `d7e406b4` direct-input product code, with diagnostic evidence committed
+in `e2323f0a`. Astra's source-refresh attribution identified 0.940881 ms/frame
+in non-P XYZ storage construction. Its approved trial replaces the three
+Array.init callbacks with three zeroed float arrays and one ascending direct
+interleaved-to-XYZ copy loop. Count/finite validation stays before allocation,
+and the same owned storage constructor and attribute installation follow it.
+P writes, parallelism, ownership, representation, caches and Duplicate_input
+policy remain unchanged. Astra reviews and approves the production diff.
+
+The focused regression cooks actual Attribute_kernel nodes through Session at
+domains 1/8 with empty and 32,769-point arrays. It pins distinct XYZ and signed
+zero by Int64 bits and complete geometry bytes, checks the input values and
+original geometry stay unchanged, and mutates the caller's array after success
+to confirm installed storage is owned. Wrong count retains E_ATTR_COUNT;
+infinity retains E_NONFINITE, and failed writes leave original bytes unchanged.
+The test passes against the original implementation first (exit 0;
+`/tmp/rays-f-image-xyz-write-regression-before.log`), then the candidate with
+`@check`, FlowSop tests and benchmark build (exit 0;
+`/tmp/rays-f-image-xyz-write-focused.log`). No public API or manifest changes.
+
+The benchmark code and fixtures are unchanged. Run alone, without builds,
+tests or active agents: seven CPU samples at domains 1/8, seven ×200 completed
+GPU producer/consumer/combined frames per cell after ten warmups. Capture GPU
+owners use eight domains; uncaptured controls retain their established one-domain
+GPU owner. CPU hash computation and explicit native readbacks stay outside the
+warm producer timer. Cold preparation, route qualification, odd-width resize,
+replan and close remain separate rows.
+
+```sh
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-captures-xyz-write-after.csv 2> specification/performance/f-image-map-captures-xyz-write-after-counters.csv
+_build/default/tools/bench_workspace_lower.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-recheck-xyz-write-after.csv 2> specification/performance/f-image-map-uncaptured-recheck-xyz-write-after-counters.csv
+```
+
+All 440 data rows complete (352 capture, 88 control). Thirty full native pixel
+comparisons have zero maximum error/differing channels/differing pixels, CPU
+domains 1/8 hashes match, and all 210 warm trial rows retain the resource/source
+cache/cook/flatten/resize/replan/close assertions. Counter artifacts retain
+448 capture and 56 control rows, plus headers.
+
+Seven-trial medians in milliseconds and all-domain allocated B/frame:
+
+| Capture fixture | CPU8 | GPU producer | Consumer | Combined | Producer B/frame |
+|---|---:|---:|---:|---:|---:|
+| Static 1,024 points, 512² | 4.152060 | 0.670580 | 0.425299 | 1.099535 | 89,161 |
+| Static 1,024 points, 1024² | 14.477015 | 1.587850 | 0.666324 | 2.555610 | 89,161 |
+| Static 1,024 points, 2048² | 54.420948 | 4.463880 | 1.506850 | 6.354965 | 89,161 |
+| Changing 1,024 points, 512² | 4.379988 | 0.767455 | 0.440226 | 1.228945 | 370,195 |
+| Changing 1,024 points, 1024² | 14.961004 | 1.760164 | 0.660784 | 2.871341 | 370,195 |
+| Changing 1,024 points, 2048² | 54.713964 | 4.933571 | 1.557560 | 7.010920 | 370,195 |
+| Static 65,536 points, 1024² | 17.415047 | 3.555745 | 0.676910 | 5.126956 | 89,161 |
+| Changing 65,536 points, 1024² | 17.284155 | 6.181384 | 0.678130 | 7.035110 | 10,413,280 |
+
+Large direct-input baseline CPU8/GPU was 17.266035/3.510880 ms static and
+18.228054/6.159385 ms changing. Large changing allocation falls from 13,558,975
+to 10,413,280 B/frame (about 3.15 MB). Static producer allocation stays exactly
+89,161 at all source/pixel sizes. Smaller changing rows range 370,181–370,195
+B/frame: pixel-count independent with minor trial variation, not identical
+in every row. Uncaptured gradient CPU8/GPU is 12.489080/1.530524 ms and live
+capture 11.399984/1.526026 ms; allocations remain 33,721/32,593 B/frame.
+
+Astra: **“Retain the XYZ loop for its allocation reduction.”** There is no
+demonstrated large-source GPU timing improvement: 6.159385 →6.181384 ms is
+essentially unchanged, and the changing-source <5 ms gate still fails. CPU8,
+static-source GPU and smaller-source GPU gates pass. This does not complete
+F2.2. Astra authorizes repeating the same source-refresh attribution on the
+retained loop, preserving all phase/coverage labels and raw seven-sample
+comparisons. That must establish whether XYZ elapsed cost decreased and
+another phase offset it, or elapsed cost remained unchanged despite fewer
+allocations. No copying, ownership or cache optimization is approved.
+
+Full F5 native/pixel qualification passes (exit 0;
+`/tmp/rays-f-image-xyz-write-full.log`):
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/rays_editor/native_qualification/qualification @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+Both complete workspace sweeps cover 38 standard files, two custom-catalog
+executables and 13 fixtures at four times/domains 1/8; the native sweep verifies
+geometry/image/texture/drawing pixels. Native owner captures, retained Canvas,
+failure/recovery, oversized capture, runtime qualification and pixel aliases
+pass. Actual display is 1×; 2× goldens remain unqualified. No product probes
+are present. This checkpoint remains short of overall F2.2/F.md completion.
+Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-xyz-write-ship.log`).
