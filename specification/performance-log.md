@@ -10208,3 +10208,81 @@ _build/default/tools/check.exe --ship
 Owner callback context, capture caching/budgets, recursion/freshness and connected
 CPU/GPU workspace capture execution remain required. The earlier uncaptured
 performance qualification does not establish capture costs.
+
+## F2.2 captured image owner bridge (2026-10-09)
+
+Functional qualification only; no new timing or allocation claim. The owner now
+resolves actual live source cones with current callback context, uses the effective
+seed/grain/domains for projection and cooking, rebinds unchanged origin proofs,
+and bounds retained geometry/flattened arrays to 64 records and 64 MiB. Oversized
+captures execute uncached. State snapshots, request recursion and Session cleanup
+remain on their established initial-domain/worker boundaries.
+
+The complete CPU executable passes direct nested image-sampling geometry and
+stateful sequential-versus-fresh-owner snapshot regressions, matching full image
+bytes at domains 1/8 without changing caller state. Native P/Cd captures from two
+override instances at times 0/1 have maximum channel difference 0 in all four
+cases, exactly four GPU status reads and zero output readback bytes. Mandatory
+status reads remain present. Parent captures refresh and the unrelated explicit-
+size fixed render retains its generation. Saved CPU payloads remain immutable.
+Two actual exported PNGs equal complete independently cooked nested CPU images;
+the 0.499999999 channel rounds to CPU127. Export uses reference lowering and CPU
+resolution, including nested resources. Ordinary exact payload requests preserve
+resident display authority.
+
+Repeated real callback re-entry returns E_IMAGE_CYCLE before any resource
+publication, and the same owner subsequently succeeds on the original context.
+Caller state and final native handle counts are unchanged. Astra approves the
+functional checkpoint once the native executable including PNG equality passes;
+that condition is fulfilled. Expanded state/instance coverage, static/changing
+capture measurements and the uncaptured
+1024-square regression gate remain open. Frozen Lisp `(exact image)` remains open.
+
+Successful focused executables: `/tmp/rays-f-image-capture-owner-cpu.log`,
+`/tmp/rays-f-image-capture-owner-native.log`,
+`/tmp/rays-f-image-capture-owner-cycle.log`. The intentional API manifest changes
+(current callback/resolver context and export factories) are reviewed and promoted.
+Broad F5 validation, including the oversized capture qualification, passes
+(exit 0; `/tmp/rays-f-image-capture-owner-full-final.log`). This includes the
+native GPU/editor/prepared-command tests, workspace pixels, gallery float32,
+runtime qualification and PXUI parity. Actual display scale is 1×; 2× goldens
+remain unqualified. Pre-commit shipping passes (exit 0;
+`/tmp/rays-f-image-capture-owner-ship.log`).
+
+Owner configuration uses a seed/grain-sensitive custom geometry source declaring
+Seed/Grain/Domains dependencies. Seeds 17L/49L with grain 257 and domains 1/8 match
+independent Image_kernel/Session CPU cooks byte for byte; the observed context
+domain count is correct. The 65-source native image (one GPU producer, avoiding
+the separate image-count limit) retains 64 source/data records and 78,720 charged
+bytes after 65 materializer cooks/flattens. A second producer reuses the first
+resolved retained source without further materialization or flattening. Two GPU
+dispatches execute. Removing only the metadata ownership guard produces the
+expected failed reuse assertion; it is restored before final validation.
+
+The optional qualification allocates one immutable geometry just above 64 MiB.
+Only the pixel function changes with time, leaving its source root/projection
+unchanged. Two GPU frames produce two materializer cooks/flattens with zero data
+records/bytes retained. Returning to a small source and rendering two more frames
+adds only one cook/flatten; caching resumes. Four dispatches and full pixel checks
+pass, cache sizes are zero after close and final handles are unchanged. This
+tests the retained capture-data budget, not total process memory. The work totals
+count successful display-capture materialization/flattening; exact CPU source
+cooks are separate and do not advance them. Astra: “Approved as a functional
+checkpoint; no additional blocker found.” No timing verdict is inferred.
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. These are
+deterministic functional fixtures, not timing trials. Commands (run each
+executable from its build directory):
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_sop/runtest @tools/api_manifest/runtest test/test_workspace_images.exe test/test_workspace_images_native.exe lib/rays_editor/native_qualification/test_workspace_gpu_native.exe
+(cd _build/default/test && ./test_workspace_images.exe)
+(cd _build/default/test && ./test_workspace_images_native.exe)
+(cd _build/default/lib/rays_editor/native_qualification && ./test_workspace_gpu_native.exe)
+(cd _build/default/lib/rays_editor/native_qualification && ./test_workspace_gpu_native.exe --capture-budget)
+```
+
+Successful oversized run: `/tmp/rays-f-image-capture-owner-oversized.log`.
+Counterfactual failed assertion: `/tmp/rays-f-image-capture-owner-budget-without-guard.log`.
+Final focused/API run: `/tmp/rays-f-image-capture-owner-focused.log` (exit 0).
+The new unstable image_capture_stats hook is intentionally promoted too.

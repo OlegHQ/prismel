@@ -1399,7 +1399,7 @@ execution and measurements remain required; this does not enable that route.
 Broad F5 native qualification and pre-commit `--ship` pass (exit 0). The 2× UI
 goldens remain unqualified on the actual 1× display; no golden or tolerance changes.
 
-**Next owner bridge design (GPT 6 Astra, 2026-10-09; not implemented).**
+**Owner bridge (GPT 6 Astra, 2026-10-09; functional checkpoint).**
 Pass the current network to its frame-node callbacks; the image callback supplies
 its own lowering's compiled map and current network to the resolver. This avoids
 the stale outer Environment scope after a document edit. Direct requests obtain
@@ -1407,7 +1407,9 @@ source contexts from the bound lowering. Retain the unrestricted context across
 nested calls even when a callback runs inside a restricted source cone.
 
 Prepare source cones before image cache hits, without cooking geometry. Recreate
-their Value_lane on a supplied state-stamp change; use `Edit_graph.compile_all`
+their Value_lane on a supplied state-stamp change or a new live input for stateful
+cones, always forking the supplied caller snapshot. Skip compilation for a
+physically unchanged resolved graph; otherwise use `Edit_graph.compile_all`
 with its previous result to preserve unchanged compiled roots. A source revision
 changes when its root's physical identity or the exact
 `Context.cache_projection (Graph.dependencies root)` changes. Revisions are
@@ -1437,6 +1439,37 @@ against independent CPU cooks at domains 1/8. Then measure static/changing
 captures with source point counts, including complete drive resolution, cooking,
 flattening and uploads, and repeat the uncaptured 1024² gate. Earlier uncaptured
 measurements do not establish capture costs or zero uploads for changing geometry.
+
+The bridge is implemented. Direct CPU requests install the owner resolver scope;
+an image-sampling geometry source and stateful sequential-versus-fresh-owner
+requests pass without advancing the caller's state. Live P/Cd captures from two
+override instances match complete CPU bytes at domains 1/8. Their actual GPU
+images have maximum channel difference 0 in all four time/instance cases, exactly
+four status reads and no output readback. Parent renders refresh; an unrelated
+fixed render retains its generation. Reachable preparation-time dependency
+summaries replace the prior global-plan scan. A real callback re-entry cycle
+returns `E_IMAGE_CYCLE` twice, then the same owner recovers with an acyclic context,
+unchanged caller state, no published resources and clean handles.
+
+Export lowers with reference evaluation and resolves CPU images recursively.
+Two exported PNGs match complete independently cooked CPU nested-render bytes;
+the rounding-sensitive 0.499999999 channel stays 127 despite a separately resident
+GPU child. Ordinary CPU payload requests still leave resident images untouched.
+Astra's functional approval condition (the full native executable including PNG
+equality) is satisfied. Effective owner seed/grain/domains match independent CPU
+cooks at domains 1/8. A single image capturing 65 sources retains 64 metadata/data
+records and 78,720 charged bytes, then reuses the retained source without cooking
+or flattening again. Removing only the metadata-ownership guard makes that reuse
+assertion fail; the guard is restored. Immutable geometry over 64 MiB stays
+uncached across changing pixels with unchanged source projection, then a small
+source resumes caching. Display materializer/flatten counters survive close;
+exact CPU cooks do not contribute to them. Astra approves the functional
+checkpoint. Expanded state/instance coverage and capture measurements remain
+required, followed by frozen
+`(exact image)`. Broad F5 qualification, including the oversized capture
+qualification, passes (exit 0; `/tmp/rays-f-image-capture-owner-full-final.log`).
+Pre-commit shipping passes (exit 0;
+`/tmp/rays-f-image-capture-owner-ship.log`); this is not an overall F2.2 verdict.
 
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
@@ -1739,6 +1772,34 @@ copying 72 MB takes 55 ms at one domain. Rank the four candidates above (or
 a fifth), give me the first one to implement with its one failing check, the
 exact measurement protocol, and the number that would make you say the gate
 is met."
+
+**Current Astra review (2026-10-09; measurement/trial pending).** The default
+triangulated grids invalidate the earlier 72 MB estimate: the merged positions,
+vertex indices, primitive offsets and kinds occupy 179,736,140 bytes, plus
+48 MB of normals. Their native integer callbacks perform about 15.97 million
+rewrites, with checked accesses, an indirect callback and an ARM64 assignment
+barrier per store. The private validated constructors do not rewalk topology.
+The two cited reverted commits retain log changes, not the implementation
+patches, so the 570 ms trial cannot be diagnosed from those diffs.
+
+Astra approves measuring the unchanged tool first. If the learned eight-domain
+whole-cook median already meets 50.600 ms, return the evidence before optimizing.
+Otherwise its first distinct trial uses Array.concat to initialize vertex indices
+only for exactly two inputs, skipping the existing rewrite only for a prefilled
+segment whose point offset is zero. Other arities and all nonzero rebasing,
+primitive offsets, position/attribute/group work and cancellation stay as before.
+Fresh stdlib initialization avoids assignment barriers for the unchanged first
+segment; the second segment gains a copy, so improvement is only a hypothesis.
+
+The failing semantic fixture independently pins empty/triangle/free-point/open-
+polyline indices, compares complete bytes at domains 1/8 and catches the case
+where vertex offset is zero but point offset is nonzero. Seven separate processes
+per before/after mode (`--branches 1 learned`, `--branches 1 off`, `--loops 1 learned`)
+retain exact hashes and all rows, followed by reverse-order learned comparison.
+Learned runs perform untimed training and clear output caches while retaining
+timing knowledge; they are not untrained cold runs. The uninstrumented whole
+learned-chain median decides the unchanged 50.600 ms gate. There is no current
+evidence supporting an unreachable closure, and no new measured verdict yet.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

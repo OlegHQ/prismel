@@ -7,6 +7,115 @@ let editor doc=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains:1
   ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())
 let workspace producer=load("(workspace images (graph img :context image "^producer^
   ") (graph picture :context draw (draw/image (ref img) :at [1 2 0] :scale 2.0 :angle 0.1)))")
+let ()=
+  let module P=Procedural in
+  let observed=Atomic.make 0 in
+  let dependencies=List.fold_left P.Context.Dependencies.union P.Context.Dependencies.static
+    (List.map P.Context.Dependencies.one[Seed;Grain;Domains])in
+  let source()=P.Node.Private.make ~operation:"image_context" ~version:1 ~parameters:""
+    ~cook_mode:Generator ~dependencies ~inputs:[||](fun ~node_id:_ context _->
+      Atomic.set observed(P.Context.domains context);
+      let point=Int64.to_float(P.Context.seed context)/.256.,float(P.Context.grain context)/.1024.,0. in
+      P.Node.Private.cook(P.Sop.points[|point|])context[||])in
+  let factory=P.Edit_graph.factory ~key:"image_context" ~label:"Image context" ~category:["Test"]
+    ~arity:0(function []->source()|_->assert false)in
+  let factories=factory::Sop_catalog.Editor.factories in
+  let doc=match Rays_editor.Workspace.load ~factories {|(workspace context
+    (graph mesh :context sop (let* [geo (sop/image_context)
+      p (array/sum (sop/attr geo :P))
+      img (image/map (fn [uv] [(+ uv.x p.x) p.y 0.5 1]) :width 65 :height 17)] geo)))|}with
+    |Ok doc->doc|Error ds->failwith(String.concat "; "(List.map Flow.Diagnostic.to_string ds))in
+  let run seed domains=
+    let grain=257 in
+    let owner=Result.get_ok(Editor.create ~workspace:doc ~factories ~seed ~grain ~await:true ~domains
+      ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
+    Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+      let plan=Editor.Private.image_plan owner in
+      let node=Array.find_opt(fun(n:E.node)->n.kind="image/map")plan.nodes |> Option.get in
+      Atomic.set observed 0;
+      let payload=Editor.Private.image_payload owner(E.Deferred(Flow.Ty.image,node.id)) |> ok in
+      assert(Atomic.get observed=domains);
+      let fn=match List.assoc "function" node.args with E.Fn fn->fn|_->assert false in
+      let sources=Flow_sop.Attribute_kernel.sources(E.Fn fn)in
+      let kernel=Flow_sop.Image_kernel.prepare ~identity:0 ~width:65 ~height:17 ~fn ~sources [source()] |> ok in
+      let session=P.Session.create ~max_entries:0 ~max_payload_bytes:0 |> Result.get_ok in
+      Fun.protect ~finally:(fun()->P.Session.close session)(fun()->
+        let context=P.Context.create ~seed ~grain ~domains() |> Result.get_ok in
+        let expected=P.Session.cook session ~context(Flow_sop.Image_kernel.node kernel)
+          |> Result.get_ok |> fun output->P.Payload.image output.payload |> Result.get_ok in
+        let bytes=P.Image.Private.rgba8 payload |> Option.get |> Bytes.copy in
+        assert(P.Image.Private.rgba8 expected=Some bytes && Char.code(Bytes.get bytes 1)=64);
+        bytes))in
+  assert(run 17L 1=run 17L 8 && run 49L 1=run 49L 8 && run 17L 1<>run 49L 1);
+  print_endline "Image captures: effective owner seed/grain/domains match independent cooks and exact domain bytes"
+let ()=
+  let doc=load {|(workspace captures
+    (graph mesh :context sop [(offset : float 0.015625)]
+      (let* [geo (sop/box :consolidate_points true :center [(+ offset (* t 0.015625)) 0 0])
+             p (reduce + [0 0 0] (sop/attr geo :P))
+             img (image/map (fn [uv] [(+ uv.x p.x) uv.y 0.5 1]) :width 7 :height 3)] geo))
+    (graph other :context sop (ref mesh :offset 0.03125)))|}in
+  let run domains=
+    let owner=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains
+      ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
+    Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+      let plan=Editor.Private.image_plan owner in
+      let instance=Array.find_index(fun(i:E.instance)->i.graph="mesh" && not i.default)plan.instances |> Option.get in
+      let producer=Array.find_opt(fun(n:E.node)->n.kind="image/map" && n.inst=instance)plan.nodes |> Option.get in
+      let image=E.Deferred(Flow.Ty.image,producer.id)in
+      let fn=List.assoc "function" producer.args in
+      assert(not(E.frame_dependent fn));
+      let at time=Editor.Private.image_payload ~live:(Frame_input.at_time time)owner image |> ok in
+      let first=at 0. in
+      let bytes=Procedural.Image.Private.rgba8 first |> Option.get |> Bytes.copy in
+      assert(Char.code(Bytes.get bytes 0)=82);
+      assert(at 0.==first);
+      let later=at 1. in
+      let changed=Procedural.Image.Private.rgba8 later |> Option.get |> Bytes.copy in
+      assert(changed<>bytes && Procedural.Image.Private.rgba8 first=Some bytes);
+      assert(at 1.==later && Editor.Private.image_stats owner=(0,0));
+      bytes,changed)in
+  assert(run 1=run 8);
+  print_endline "image captures: actual owner, current live nondefault SOP source, independent CPU stamps and one/eight-domain full bytes pass"
+let ()=
+  let nested=load {|(workspace nested
+    (graph mesh :context sop
+      (let* [base (sop/box :consolidate_points true :center [0.015625 0 0])
+             noise (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 3 :height 2)
+             textured (sop/with_attr base :uv (exact (map (fn [p] [0.25 0.5 0]) (sop/attr base :P))))
+             geo (sop/attr_from_image textured noise :attribute "sample")
+             p (reduce + [0 0 0] (sop/attr geo :P))
+             img (image/map (fn [uv] [(+ uv.x p.x) uv.y 0.5 1]) :width 7 :height 3)]
+        geo)))|}in
+  let owner=editor nested in
+  Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+    let plan=Editor.Private.image_plan owner in
+    let node=Array.find_opt(fun(n:E.node)->n.kind="image/map" && n.site=["mesh";"img"])plan.nodes |> Option.get in
+    let image=ok(Editor.Private.image_payload owner(E.Deferred(Flow.Ty.image,node.id)))in
+    assert(Procedural.Image.width image=7 && Procedural.Image.height image=3));
+  let doc=load {|(workspace stateful
+    (graph mesh :context sop
+      (let* [bias (state [n 0.015625] (+ n 0.015625))
+             geo (sop/box :consolidate_points true :center [bias 0 0])
+             p (reduce + [0 0 0] (sop/attr geo :P))
+             img (image/map (fn [uv] [(+ uv.x p.x) uv.y 0.5 1]) :width 7 :height 3)]
+        geo)))|}in
+  let state=E.create_state()in
+  let stamp=E.state_stamp state in
+  let snapshot ~first domains=
+    let owner=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains
+      ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
+    Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+      let node=Array.find_opt(fun(n:E.node)->n.kind="image/map")(Editor.Private.image_plan owner).nodes |> Option.get in
+      let image=E.Deferred(Flow.Ty.image,node.id)in
+      let at frame=Editor.Private.image_payload ~state ~live:{(Frame_input.at_time(float frame))with frame}owner image |> ok in
+      if first then ignore(at 0);
+      let result=at 1 in
+      assert(E.state_stamp state=stamp);
+      Procedural.Image.Private.rgba8 result |> Option.get |> Bytes.copy)in
+  let sequential=snapshot ~first:true 1 in
+  assert(sequential=snapshot ~first:false 1 && sequential=snapshot ~first:true 8);
+  print_endline "image captures: direct nested resource resolution and stateful source snapshot parity without mutating caller state pass"
 let () =
   List.iter (fun producer ->
     let doc=workspace producer in
@@ -119,7 +228,11 @@ let ()=
     |Error d->d.Flow.Diagnostic.code="E_IMAGE"|Ok _->false);
   let payload=Result.get_ok(Procedural.Image.create ~width:1 ~height:1 ~rgba:[|0.2;0.3;0.4;1.|])in
   let calls=ref 0 in
-  Flow_sop.Lower.with_images(fun _ ~state:_ ~live:_ _->incr calls;Ok payload)(fun()->
+  Flow_sop.Lower.with_images(fun ?context plan ~state:_ ~live:_ _->
+    assert(plan==lowered.plan);
+    let context=Option.get context in
+    assert(context.network==graph.network && context.compiled==lowered.compiled);
+    incr calls;Ok payload)(fun()->
     Flow_sop.Value_lane.reset lane;
     let resolved=ok(Flow_sop.Value_lane.resolve lane ~time:1. graph.network)in
     let node=Result.get_ok(Procedural.Edit_graph.compile_node resolved.geometry ~node_id:(Option.get graph.root))in

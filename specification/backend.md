@@ -845,9 +845,22 @@ point-origin proof is exposed by `Attribute_kernel.source_origins`;
 `Image_kernel.with_inputs` preserves the prepared UV/program only when that
 ordered proof still matches. `Attribute_kernel.materialized_source` is a normal
 one-input geometry consumer, so Session expands packed instances before exposing
-their attributes. This foundation does not yet connect captured geometry to the
-workspace image resolver; current owner context, freshness and bounded storage
-remain to be wired.
+their attributes. The workspace resolver receives the current network and
+compiled map at its frame callback, preserving the enclosing context during
+nested resolution. Source preflight retains compiled roots and exact context
+projections; owner-monotonic revisions invalidate only reachable image stamps.
+Stateful sources fork the supplied snapshot again for a new live input. The owner
+retains at most 64 source records and 64 MiB of charged geometry/flattened arrays;
+oversized captures execute uncached. One request owns a lazy zero-cache Session,
+pending image reservations and the active dependency path; recursive callback
+entry returns `E_IMAGE_CYCLE` and unwinds before worker resource effects.
+Data retention requires its source metadata to remain present at the same
+revision, so an active request cannot resurrect evicted metadata's cached data.
+Private counters separate retained record/byte counts from cumulative successful
+display-capture materialization and attribute flattening; exact CPU cooks bypass
+that cache and its two work counters.
+Exact CPU requests preserve resident images. Export uses reference lowering and
+recursively resolves CPU images before uploading its independent image copies.
 
 Flow IR accepts an initial-domain GPU backend through scoped, renderer-neutral
 callbacks. GPU values carry identity, count, width, generation and optional

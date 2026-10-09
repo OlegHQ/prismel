@@ -40,7 +40,9 @@
 val source_attribute : string
 (** ["__flow_src"]: the primitive int attribute every collecting merge writes. *)
 
-type image_resolver = Flow.Eval.plan -> state:Flow.Eval.state -> live:Frame_input.t -> Flow.Eval.value ->
+type image_context = {compiled:int Network.Int_map.t; network:Network.t}
+
+type image_resolver = ?context:image_context -> Flow.Eval.plan -> state:Flow.Eval.state -> live:Frame_input.t -> Flow.Eval.value ->
   (Procedural.Image.t, Flow.Diagnostic.t) result
 val with_images : ?metadata:(Flow.Eval.plan -> int -> (int * int) option) -> image_resolver -> (unit -> 'a) -> 'a
 val image_metadata : Flow.Eval.plan -> int -> (int * int) option
@@ -100,8 +102,6 @@ type t = {
           geometry-loop template previews the selected element, with its captures,
           live arguments and fold snapshot. The authored network is unchanged. *)
 }
-
-type image_context = {compiled:int Network.Int_map.t; network:Network.t}
 
 val source_context : t -> node:int -> (image_context, Flow.Diagnostic.t) result
 (** The captured geometry node's own instance, including graph overrides. *)

@@ -40,7 +40,7 @@ let edit = function Ok value -> value | Error message -> fail "E_LOWER" message
 
 type image_context = {compiled:int Network.Int_map.t; network:Network.t}
 
-type image_resolver = E.plan -> state:E.state -> live:Frame_input.t -> E.value ->
+type image_resolver = ?context:image_context -> E.plan -> state:E.state -> live:Frame_input.t -> E.value ->
   (Procedural.Image.t, Diagnostic.t) result
 type images = {resolve:image_resolver; metadata:E.plan -> int -> (int * int) option}
 let image_provider = Domain.DLS.new_key (fun () -> None)
@@ -485,12 +485,16 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         volatile.(node.id) <- true;
         volatile_nodes := Network.Int_map.add compiled.(node.id) () !volatile_nodes
       end) plan.nodes;
+    let compiled_context = Array.to_list compiled
+      |> List.mapi (fun i id -> i, id)
+      |> List.filter (fun (i, id) -> id <> 0 && not templ.(i))
+      |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m) Network.Int_map.empty in
     let live_network network graph =
       let network = Network.with_states evaluated.states network |> Network.with_profile profile
         |> Network.with_reference reference |> Network.with_approx checked.approx in
       let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes -> match p.zone with
         | Some z when z.stateful && Edit.find graph ~node_id:p.cid <> None ->
-            Network.Int_map.add p.cid (fun state _live node ->
+            Network.Int_map.add p.cid (fun ~network:_ state _live node ->
               let snapshot = E.fork_state state in
               Ok(Procedural.Node.Private.adopt_identity ~source:node
                 (make_zone ~state:snapshot ~outer:[] z (Procedural.Node.Private.input_array node)))) nodes
@@ -498,7 +502,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
       let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes ->
         List.fold_left (fun nodes (k : kernel_input) ->
           if not (E.state_dependent (E.Fn k.fn)) || Edit.find graph ~node_id:k.cid = None then nodes
-          else Network.Int_map.add k.cid (fun state _live node ->
+          else Network.Int_map.add k.cid (fun ~network:_ state _live node ->
             Ok (kernel_node ~state:(E.fork_state state) k (Procedural.Node.inputs node))) nodes)
           nodes p.kernels) prepared frame_nodes in
       let frame_nodes = Array.fold_left (fun nodes (n : E.node) ->
@@ -512,7 +516,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
             (match ir.nodes.(ir.roots.(0)).kind with
              |Flow_ir.Kernel {body=(Packed_map _ | Readback);_}->true |_->false) in
           if not eligible && not(E.state_dependent values) then nodes else
-          Network.Int_map.add compiled.(n.id) (fun state live node ->
+          Network.Int_map.add compiled.(n.id) (fun ~network:_ state live node ->
           let name = match List.assoc "attribute" n.args with E.Text name -> name | _ -> assert false in
           (* Only input-independent producers can materialize before SOP cooking.
              Attribute-reading cones keep their existing cooked-input CPU path. *)
@@ -529,13 +533,13 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         frame_nodes plan.nodes in
       let frame_nodes=Array.fold_left(fun nodes (n:E.node)->
         if (n.kind<>"image/load" && n.kind<>"image/render" && n.kind<>"image/map") || Edit.find graph ~node_id:compiled.(n.id)=None
-          then nodes else Network.Int_map.add compiled.(n.id)(fun state live node->
+          then nodes else Network.Int_map.add compiled.(n.id)(fun ~network state live node->
             match Domain.DLS.get image_provider with
             |None->Error(Diagnostic.error ~code:"E_IMAGE" "Image resources need an initial-domain resolver.")
             |Some images->Result.map(fun image->
                 if Procedural.Node.parameters node=string_of_int(Procedural.Image.data_id image) then node else
                 Procedural.Node.Private.adopt_identity ~source:node (resource_image n.kind (Ok image)))
-              (images.resolve plan ~state ~live (E.Deferred(Ty.image,n.id))))nodes)
+              (images.resolve ~context:{compiled=compiled_context;network} plan ~state ~live (E.Deferred(Ty.image,n.id))))nodes)
         frame_nodes plan.nodes in
       let network = Network.with_frame_nodes frame_nodes network in
       let drives = List.fold_left (fun drives (p : pending) ->
@@ -618,17 +622,13 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           let geometry = edit (Edit.add_node viewed network.geometry) in
           let network = ok (Network.with_geometry geometry network) in
           let frames = if not z.stateful then network.frame_nodes else
-            Network.Int_map.add root (fun state _live node ->
+            Network.Int_map.add root (fun ~network:_ state _live node ->
               Ok(Procedural.Node.Private.adopt_identity ~source:node
                 (make_zone ~state:(E.fork_state state) ~outer:[] z (Procedural.Node.Private.input_array node))))
               network.frame_nodes in
           Network.with_frame_nodes frames network, root) outer in
     Ok {graphs; compiled_ids = !ids; sites = List.rev !site_list;
-        compiled = Array.to_list compiled
-          |> List.mapi (fun i id -> i, id)
-          |> List.filter (fun (i, id) -> id <> 0 && not templ.(i))
-          |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m)
-               Network.Int_map.empty;
+        compiled = compiled_context;
         pending = List.rev !pending; provenance = !provenance; zones = List.rev !zones;
         volatile = !volatile_nodes; plan; image_sites; states = evaluated.states; evaluated;
         approx = checked.approx; approx_reasons = checked.approx_reasons; profile; preview}

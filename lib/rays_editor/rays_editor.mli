@@ -349,6 +349,10 @@ module Editor3 : sig
       'prepared t -> Flow.Eval.value -> (Procedural.Image.t,Flow.Diagnostic.t) result
     (** Inspect the owned plan and request an independent immutable CPU image cook. *)
     val image_stats : 'prepared t -> int * int
+    val image_capture_stats : 'prepared t -> int * int * int * int * int
+    (** Source records, retained data records and charged bytes; cumulative successful
+        display-capture materializer cooks and attribute flattens. Exact CPU cooks
+        use their own inputs and do not contribute to these two totals. *)
     val image_render_stats : 'prepared t -> int * int * int * int
     (** Canvases created/destroyed, successful captures and actual GPU pixel readbacks. *)
 
@@ -668,6 +672,7 @@ module Workspace : sig
   (** Open the native workspace. Host inputs persist across edits and source reloads. *)
 
   val export : ?inputs:(string * (string * Flow.Eval.value) list) list ->
+    ?factories:Procedural.Edit_graph.factory list ->
     ?graph:string -> ?fps:int -> ?prefix:string -> directory:string -> frames:int ->
     Workspace_doc.t -> (unit, Flow.Diagnostic.t) result
   (** Export a draw graph (the first by default) through [Sketch.export_state].

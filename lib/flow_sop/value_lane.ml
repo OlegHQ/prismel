@@ -106,7 +106,7 @@ let compute ~state previous plan ~live =
   let geometry = Network.Int_map.fold (fun id rebuild result -> Result.bind result (fun geometry ->
     match Procedural.Edit_graph.find geometry ~node_id:id with
     | None -> Ok geometry
-    | Some node -> Result.bind (rebuild state live node) (fun node ->
+    | Some node -> Result.bind (rebuild ~network:plan.network state live node) (fun node ->
         Result.map_error (Flow.Diagnostic.error ~code:"E_GEOMETRY")
           (Procedural.Edit_graph.replace_node node geometry)))) plan.network.frame_nodes geometry in
   Result.map (fun geometry -> {geometry; applied = !applied; applied_text = !applied_text;

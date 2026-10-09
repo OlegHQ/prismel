@@ -2,6 +2,77 @@ module E=Flow.Eval
 let ok=function Ok value->value|Error d->failwith(Flow.Diagnostic.to_string d)
 let load text=match Rays_editor.Workspace.load text with Ok doc->doc|Error diagnostics->
   failwith(String.concat "; "(List.map Flow.Diagnostic.to_string diagnostics))
+let ()=
+  let module Editor=Rays_editor.Editor3 in
+  let module P=Procedural in
+  let module I=Runtime_resources.Image in
+  let _,handles=Ogpu.Impl.create_driver()in
+  let before=handles()in
+  let doc=load {|(workspace captured
+    (graph drawing :context draw [(image : image (image/noise :width 65 :height 17))] (draw/image image))
+    (graph mesh :context sop [(offset : float 0.015625)]
+      (let* [base (sop/box :consolidate_points true :center [(+ offset (* t 0.015625)) 0 0])
+             geo (sop/with_attr base :Cd (exact (map (fn [p] [0.015625 0.03125 0.0625]) (sop/attr base :P))))
+             p (reduce + [0 0 0] (sop/attr geo :P))
+             c (reduce + [0 0 0] (sop/attr geo :Cd))
+             img (image/map (fn [uv] [(+ uv.x p.x) (+ uv.y c.x) c.y 1]) :width 65 :height 17)
+             parent (image/render (ref drawing :image img) :width 65 :height 17)]
+        geo))
+    (graph other :context sop (ref mesh :offset 0.03125))
+    (graph backdrop :context draw (draw/background "#102030"))
+    (graph fixed :context image (image/render (ref backdrop) :width 65 :height 17)))|}in
+  let owner domains=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains
+    ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
+  let display=owner 8 and cpu1=owner 1 and cpu8=owner 8 in
+  Fun.protect ~finally:(fun()->List.iter Editor.close[display;cpu1;cpu8])(fun()->
+    Editor.Private.gpu_qualification display;
+    let node owner ~override kind graph=
+      let plan=Editor.Private.image_plan owner in
+      Array.find_opt(fun(n:E.node)->n.kind=kind && plan.instances.(n.inst).graph=graph
+        && plan.instances.(n.inst).default<>override)plan.nodes |> Option.get in
+    let value owner ~override kind graph=E.Deferred(Flow.Ty.image,(node owner ~override kind graph).id)in
+    let live time=Frame_input.at_time time in
+    let exact owner time ~override kind graph=Editor.Private.image_payload ~live:(live time)owner
+      (value owner ~override kind graph) |> ok in
+    let rgba payload=match P.Image.Private.rgba8 payload with Some bytes->bytes|None->
+      let values=P.Image.Private.storage payload in
+      Bytes.init(Array.length values)(fun i->Char.chr(int_of_float(Float.round(values.(i)*.255.))))in
+    let resolve time ~override kind graph=Editor.Private.with_images ~live:(live time)display
+      (fun ~image ~texture:_->ok(image(value display ~override kind graph)))in
+    let fixed=resolve 0. ~override:false "image/render" "fixed"in
+    let generation image=I.generation(Rays.Image.Private.resource image)in
+    let fixed_generation=generation fixed in
+    let images=Array.init 2(fun i->resolve 0. ~override:(i=1) "image/map" "mesh")in
+    let saved=exact cpu1 0. ~override:true "image/map" "mesh"in
+    let saved_bytes=Bytes.copy(rgba saved)in
+    let parent=resolve 0. ~override:false "image/render" "mesh"in
+    let parent_generation=generation parent in
+    List.iter(fun time->
+      Array.iteri(fun i image->
+        let override=i=1 in
+        assert(resolve time ~override "image/map" "mesh"==image);
+        let resource=Rays.Image.Private.resource image in
+        assert(I.Private.cpu_storage_bytes resource=0);
+        let expected=rgba(exact cpu1 time ~override "image/map" "mesh")in
+        assert(expected=rgba(exact cpu8 time ~override "image/map" "mesh"));
+        let actual=Rays.Image.Private.pixels image |> Result.get_ok in
+        let maximum=ref 0 in
+        Bytes.iteri(fun i c->maximum:=max !maximum(abs(Char.code c-Char.code(Bytes.get expected i))))actual;
+        Printf.printf "workspace_geometry_capture,override=%b,time=%.2f,max=%d\n%!"override time !maximum;
+        assert(!maximum<=1))images;
+      assert(resolve time ~override:false "image/render" "mesh"==parent);
+      let actual=Rays.Image.Private.pixels parent |> Result.get_ok in
+      let expected=rgba(exact cpu1 time ~override:false "image/render" "mesh")in
+      assert(expected=rgba(exact cpu8 time ~override:false "image/render" "mesh"));
+      Bytes.iteri(fun i c->assert(abs(Char.code c-Char.code(Bytes.get expected i))<=1))actual;
+      assert(resolve time ~override:false "image/render" "fixed"==fixed && generation fixed=fixed_generation)
+    )[0.;1.];
+    assert(generation parent>parent_generation && rgba saved=saved_bytes);
+    let stats,_,_,_,_=Editor.Private.image_gpu_stats display in
+    Printf.printf "workspace_geometry_capture,status_reads=%d,readback_bytes=%d\n%!"stats.status_reads stats.readback_bytes;
+    assert(stats.status_reads=4 && stats.readback_bytes=0));
+  assert(handles()=before);
+  print_endline "Native geometry captures: P/Cd, two instances, exact CPU domains, resident GPU, parent freshness, unrelated fixed render reuse and close pass"
 let () =
   let exercise ~stateful =
     let bias=if stateful then "(state [previous 0.0] (+ previous 0.2))" else "(* t 0.1)"in
@@ -195,13 +266,15 @@ let ()=
   let module P=Procedural in
   let module I=Runtime_resources.Image in
   let doc=load "(workspace nested_exact
-    (graph img :context image (image/map (fn [uv] [uv.x uv.y 0.499999999 1]) :width 65 :height 17))
+    (graph img :context image (image/map (fn [uv] [uv.x uv.y 0.499999999 1]) :width 320 :height 240))
     (graph drawing :context draw (draw/image (ref img)))
-    (graph rendered :context image (image/render (ref drawing) :width 65 :height 17)))"in
+    (graph rendered :context image (image/render (ref drawing) :width 320 :height 240))
+    (graph picture :context draw (draw/image (ref rendered)))
+    (graph settings :context settings (settings/config :width 320 :height 240)))"in
   let owner domains=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains
     ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
   let display=owner 1 in
-  Fun.protect ~finally:(fun()->Editor.close display)(fun()->
+  let expected=Fun.protect ~finally:(fun()->Editor.close display)(fun()->
     Editor.Private.gpu_qualification display;
     let value owner kind=let plan=Editor.Private.image_plan owner in
       let node=Array.find_opt(fun(n:E.node)->n.kind=kind)plan.nodes |> Option.get in
@@ -215,13 +288,22 @@ let ()=
       let values=P.Image.Private.storage image in
       Bytes.init(Array.length values)(fun i->Char.chr(int_of_float(Float.round(values.(i)*.255.))))in
     let bytes=rgba actual in
-    for i=0 to 65*17-1 do assert(Bytes.get bytes(i*4+2)=Char.chr 127)done;
+    for i=0 to 320*240-1 do assert(Bytes.get bytes(i*4+2)=Char.chr 127)done;
     List.iter(fun domains->let oracle=owner domains in
       Fun.protect ~finally:(fun()->Editor.close oracle)(fun()->
         let expected=Editor.Private.image_payload oracle(value oracle "image/render") |> ok in
         assert(rgba expected=bytes)))[1;8];
     assert(I.generation resource=generation && I.Private.readbacks resource=0
-      && I.Private.cpu_storage_bytes resource=0));
+      && I.Private.cpu_storage_bytes resource=0);bytes)in
+  let directory=Filename.temp_dir "rays-export-exact-image-" ""in
+  Fun.protect ~finally:(fun()->Array.iter(fun name->Sys.remove(Filename.concat directory name))
+    (Sys.readdir directory);Unix.rmdir directory)(fun()->
+      ok(Rays_editor.Workspace.export ~graph:"picture" ~fps:60 ~directory ~frames:2 doc);
+      let files=Sys.readdir directory in assert(Array.length files=2);
+      Array.iter(fun name->let image=Rays.Image.load(Filename.concat directory name) |> Result.get_ok in
+        Fun.protect ~finally:(fun()->Rays.Image.destroy image)(fun()->
+          assert(Rays.Image.get_size image=(320,240));
+          assert(Result.get_ok(Rays.Image.Private.pixels image)=expected)))files);
   print_endline "Nested image/render exactness: CPU rounding survives an already-resident GPU child without reading or replacing it"
 
 let ()=

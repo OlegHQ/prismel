@@ -1,11 +1,18 @@
 (copy_files ../workspace_gpu.ml)
 (copy_files ../workspace_gpu.mli)
+(copy_files ../workspace_images.ml)
+(copy_files ../workspace_images.mli)
+(copy_files ../workspace_resources.ml)
 
 (executable
  (name test_workspace_gpu_native)
- (modules test_workspace_gpu_native workspace_gpu)
- (libraries rays flow flow_ir flow_sop flow_gpu rays_execution scene_command lru runtime_resources ogpu))
+ (modules test_workspace_gpu_native workspace_gpu workspace_images workspace_resources)
+ (libraries rays flow flow_ir flow_sop flow_gpu rays_execution scene_command lru runtime_resources ogpu sop_catalog sketch_support))
 
 (rule
  (alias runtest-native)
  (action (run %{exe:test_workspace_gpu_native.exe})))
+
+(rule
+ (alias qualification)
+ (action (run %{exe:test_workspace_gpu_native.exe} --capture-budget)))

@@ -1007,6 +1007,11 @@ and check, then compose `Editor3` with the resulting document. The generated ent
 window from the `settings` graph, with the viewport starting at the scene's first camera. A scene
 graph is authoritative: it replaces the host's camera and lights, and an empty one means none.
 
+`Workspace.export` accepts the same custom `?factories` as loading and running.
+It lowers with reference evaluation, uses the declared window seed for captured
+geometry, and resolves image producers recursively through exact CPU cooks before
+uploading its independent export images.
+
 `Flow.Op.all` declares the built-in operators once for checking, evaluation and editor menus.
 `Flow.Value.t` carries pure values with evaluator-specific function and residual type parameters;
 `Flow.Eval.value` specializes it and re-exports its constructors. `Struct` holds the head, resolved

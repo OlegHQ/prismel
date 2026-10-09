@@ -1,7 +1,7 @@
 module Int_map = Map.Make (Int)
 module Int_set = Set.Make (Int)
 type t = { geometry : Procedural.Edit_graph.t; drives : Flow.Eval.value Port.Map.t; states : Flow.Eval.value list;
-  frame_nodes : (Flow.Eval.state -> Frame_input.t -> Procedural.Node.t ->
+  frame_nodes : (network:t -> Flow.Eval.state -> Frame_input.t -> Procedural.Node.t ->
     (Procedural.Node.t, Flow.Diagnostic.t) result) Int_map.t;
   profile : Flow_ir.Profile.t option; reference : bool; approx:Flow.Workspace.Paths.t }
 let error code message = Error (Flow.Diagnostic.error ~code message)

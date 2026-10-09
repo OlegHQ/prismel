@@ -6,9 +6,9 @@ type prepared={plan:E.plan;effects:I.program;args:I.program option array;edges:b
 type t={resources:Workspace_resources.t;images:Workspace_images.t;gpu:Workspace_gpu.t;mutable prepared:prepared option;mutable pending_saves:string list;
   mutable quit_requested:bool;mutable fired:int;mutable deterministic:bool;
   mutable pending_events:Frame_input.event list}
-let create ?domains ()=let resources=Workspace_resources.create()in
+let create ?seed ?grain ?domains ()=let resources=Workspace_resources.create()in
   let gpu=Workspace_gpu.create()in
-  {resources;images=Workspace_images.create ?domains ~gpu resources;gpu;prepared=None;pending_saves=[];quit_requested=false;fired=0;
+  {resources;images=Workspace_images.create ?seed ?grain ?domains ~gpu resources;gpu;prepared=None;pending_saves=[];quit_requested=false;fired=0;
     deterministic=false;pending_events=[]}
 let take_events host=let events=List.rev host.pending_events in host.pending_events<-[];events
 let effects (workspace:Editor_document.Workspace_doc.t) (plan:E.plan)=

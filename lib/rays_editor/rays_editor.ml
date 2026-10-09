@@ -31,6 +31,7 @@ module Editor3 = struct
     let image_stats value = let resources=value.Environment.host.resources in
       resources.images_created,resources.images_destroyed
     let image_render_stats value=Workspace_images.render_stats value.Environment.host.images
+    let image_capture_stats value=Workspace_images.capture_stats value.Environment.host.images
     let image_gpu_stats value=Workspace_gpu.image_stats value.Environment.host.gpu
     let host_stats value = let host=value.Environment.host in
       host.quit_requested,host.fired,host.resources.samples_created,host.resources.samples_destroyed
@@ -177,13 +178,14 @@ module Workspace = struct
     Editor3.run ?inputs ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ())
       (workspace_window doc)
 
-  let export ?inputs ?graph ?(fps = 60) ?prefix ~directory ~frames doc =
+  let export ?inputs ?(factories=Sop_catalog.Editor.factories) ?graph ?(fps = 60) ?prefix ~directory ~frames doc =
     let ( let* ) = Result.bind in
     let* () = if fps > 0 && frames > 0 then Ok () else
       Error (Flow.Diagnostic.error ~code:"E_EXPORT_RANGE" "Export frame count and fps must be positive.") in
     let doc = match inputs with None -> doc | Some inputs -> {doc with Workspace_doc.inputs} in
     let* window = workspace_window doc in
-    let* evaluated = Flow.Eval.static ~inputs:doc.inputs doc.checked in
+    let* lowered = Flow_sop.Lower.of_checked ~reference:true ~factories ~inputs:doc.inputs doc.checked in
+    let evaluated=lowered.evaluated in
     let* ()=Workspace_host.export_check doc evaluated.plan in
     let chosen = List.find_opt (fun (g : Flow.Workspace.graph) ->
       g.context = Flow.Context.draw && Option.fold ~none:true ~some:((=) g.name) graph) doc.checked.graphs in
@@ -191,14 +193,15 @@ module Workspace = struct
     | None -> Error (Flow.Diagnostic.error ~code:"E_DRAW_GRAPH" "Export needs a draw graph.")
     | Some graph ->
         let state = Flow.Eval.create_state () in
-        let host=Workspace_host.create()in
+        let host=Workspace_host.create ~seed:(Int64.of_int window.seed)()in
+        Workspace_images.bind host.images lowered;
         let value = List.assoc graph.name evaluated.results in
         let* prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value in
         let view () frame =
           let live = {(Frame_input.at_time frame.Rays.Frame.time) with
             dt = 1. /. float fps; frame = frame.count; tick = frame.count; size = (window.width, window.height)} in
           match Sketch_support.Drawing.render_prepared ~state prepared
-            ~image:(Workspace_images.image host.images ~state ~live evaluated.plan) ~live ~size:live.size with
+            ~image:(Workspace_images.image ~display:false host.images ~state ~live evaluated.plan) ~live ~size:live.size with
           | Ok scene -> (match Workspace_host.export_update host ~state ~live doc evaluated.plan with
               |Ok()->scene|Error d->raise(Flow.Value.Fail(d.code,d.message,d.span)))
           | Error d -> raise (Flow.Value.Fail (d.code, d.message, d.span)) in
