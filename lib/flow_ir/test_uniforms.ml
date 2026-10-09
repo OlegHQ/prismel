@@ -115,13 +115,17 @@ let ()=
     let live=Frame_input.at_time 0.25 in
     assert(same(P.force packed ~live)(E.Private.force_reference value ~live))))[1;8];
   (* A resolver may advance a fold before a later reduction error; both callers roll it back. *)
-  let value,_,packed=fixture Flow.Ty.Float "+"in
   let fold=evaluate(workspace [] "(state [a 0.0] (+ a 1.0))")in
   let live=Frame_input.at_time 0. in
+  List.iter(fun(ty,failed_component)->
+  let value,sum,packed=fixture ty "+"in
+  let width=width ty in
   List.iter(fun domains->Rays_math.Parallel.run ~domains(fun()->
     List.iter(fun count->List.iter(fun gpu->
       let state=E.create_state()in let before=E.state_stamp state in
-      let current=ref(E.Float_array(Array.init count(fun i->if i>=count-2 then 1e308 else 0.)))in
+      let values=Array.init(count*width)(fun i->
+        if i mod width=failed_component && i/width>=count-2 then 1e308 else 0.)in
+      let current=ref(if width=1 then E.Float_array values else E.Vec3_array values)in
       let original=bytes !current in
       let resolve value=ignore(ok(E.Private.force_reference ~state fold ~live));resolve_source current value in
       let reference_state=E.create_state()in
@@ -133,9 +137,16 @@ let ()=
         else P.force ~state ~resolve packed ~live in
       assert(same result expected && E.state_stamp state=before);
       assert(bytes !current=original);
-      current:=E.Float_array[|1.;2.;3.|];
+      current:=(if width=1 then E.Float_array[|1.;2.;3.|]
+        else E.Vec3_array[|1.;2.;3.;4.;5.;6.|]);
       let expected=E.Private.force_reference ~resolve:(resolve_source current) value ~live in
-      if gpu then ignore(ok(P.Private.prepare ~state ~resolve packed ~live))
+      if gpu then begin
+        let prepared=ok(P.Private.prepare ~state ~resolve packed ~live)in
+        let expected_uniform=ok(E.Private.force_reference ~resolve:(resolve_source current) sum ~live)
+          |> components in
+        assert(Array.exists(fun actual->bytes actual=bytes expected_uniform)prepared.uniforms)
+      end
       else assert(same(P.force ~state ~resolve packed ~live)expected);
-      assert(ok(E.Private.force_reference ~state fold ~live)=E.Float 1.)) [false;true]) [2;16385])) [1;8];
+      assert(ok(E.Private.force_reference ~state fold ~live)=E.Float 1.)) [false;true]) [2;16385])) [1;8])
+    [Flow.Ty.Float,0;Vec3,0;Vec3,1;Vec3,2];
   print_endline "Captured uniform packed/reference parity, ordered named reductions, changing inputs, errors and rollback passed"

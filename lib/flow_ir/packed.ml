@@ -620,8 +620,28 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let chunk chunk =
       if ordered_add then begin
         let source = inputs.(0) in
-        for i = chunk * blocks_per_chunk * block_size
-          to min count ((chunk + 1) * blocks_per_chunk * block_size) - 1 do
+        let first = chunk * blocks_per_chunk * block_size
+        and last = min count ((chunk + 1) * blocks_per_chunk * block_size) - 1 in
+        if width = 3 then begin
+          let x = ref accumulator.(0) and y = ref accumulator.(1)
+          and z = ref accumulator.(2) in
+          for i = first to last do
+            let offset = i * 3 in
+            let next = !x +. source.(offset) in
+            if not (Float.is_finite next) then raise Nonfinite;
+            x := next;
+            let next = !y +. source.(offset + 1) in
+            if not (Float.is_finite next) then raise Nonfinite;
+            y := next;
+            let next = !z +. source.(offset + 2) in
+            if not (Float.is_finite next) then raise Nonfinite;
+            z := next
+          done;
+          accumulator.(0) <- !x;
+          accumulator.(1) <- !y;
+          accumulator.(2) <- !z
+        end else
+        for i = first to last do
           for component = 0 to width - 1 do
             let x = accumulator.(component) +. source.(i * width + component) in
             if not (Float.is_finite x) then raise Nonfinite;

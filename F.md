@@ -118,7 +118,7 @@ saying what the table establishes and what it does not, the raw file paths.
 **Current open work (2026-10-09).** The paragraphs below preserve checkpoint
 history; their earlier “open” statements are not the current task list. Known
 remaining work is the changing 65,536-point capture GPU producer gate
-(6.181384 ms against <5 ms), frozen `(exact image)`, expanded actual-owner
+(5.527799 ms on the retained scalar Vec3 branch against <5 ms), frozen `(exact image)`, expanded actual-owner
 packed-instance/state/replan/failure coverage, and F3 fan-out (latest retained
 production learned-eight median63.197136 ms against≤50.600 ms). The chunked
 vertex trial is rejected and restored; its evidence and boundary regression
@@ -1792,6 +1792,37 @@ Restored focused checks and shipping pass (exit 0;
 `/tmp/rays-f-image-xyz-write-attribution-restored.log`,
 `/tmp/rays-f-image-xyz-write-attribution-ship.log`). The unchanged production
 checkpoint retains its preceding full F5 qualification; actual 1× only.
+
+**Scalar Vec3 ordered-add branch retained (2026-10-09).** Only the recognized
+width-3 path uses scalar x/y/z locals and publishes totals after each successful
+chunk; all other widths, recognition, traversal and fallback remain unchanged.
+The stronger reference/packed preparation tests pin overflow separately in
+x/y/z after the chunk boundary, caller-state rollback, unchanged inputs and
+recovery at domains1/8. They pass before/after. Assembly retains totals in
+floating-point registers with the same ordered additions and finite checks.
+
+The unchanged eight-cell/control matrix retains440 data rows,30 exact native
+pixel comparisons and all210 warm resource/capture/counter assertions. Large
+static GPU producer median improves3.555745→2.094190 ms; its seven ranges are
+3.378–3.679 before versus2.067–2.120 after, with no overlap. Changing-source
+median is5.527799 ms versus6.181384 before, but ranges overlap; do not claim a
+precisely repeatable0.654 ms saving. Every changing-source sample still exceeds
+5 ms. Controls and allocations remain stable. Astra: “Retain the scalar Vec3
+branch.” No additional before/after batch is needed for retention.
+
+Raw files are `f-image-map-captures-scalar-vec3-after*` and
+`f-image-map-uncaptured-recheck-scalar-vec3-after*`; the production patch and
+assembly are preserved separately. Corrected focused checks and full F5 native
+qualification pass (exit0; `/tmp/rays-f-image-scalar-vec3-full.log`), including
+both complete workspace sweeps, owner/capture/Canvas/oversized-source and runtime
+checks and all requested pixel aliases. Actual1× only;2× goldens remain unverified.
+Astra approves fresh source-refresh attribution on this
+branch with existing three fixtures/probes and seven×200 frames/ten warmups,
+including CPU caller/node-own, P/Cd flatten/write/direct reductions, completed
+dispatch and conversion. Retain per-trial GC collection-count deltas only from
+snapshots outside timing; they cannot measure GC elapsed time. Restore probes;
+no further arithmetic/ownership/cache optimization is approved yet. Frozen
+images, expanded owner coverage, F3 and the final audit remain open.
 
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row

@@ -11892,3 +11892,108 @@ only, no new optimization approved; unchanged whole learned-eight gate≤50.600 
 Pre-commit shipping passes, exit0 (`/tmp/rays-f-merge-explicit-ship.log`). The
 worktree retains only failed-trial evidence and documentation. No production
 change, F3 gate achievement or overall completion is claimed.
+
+### F2.2 scalar Vec3 ordered-add branch: retained static improvement
+
+2026-10-09, Apple M1 Macmini9,1, OCaml5.3, Dune dev, actual1× display. Baseline
+is retained XYZ-write production dce3fefb; intervening commits add diagnostics,
+tests and documentation, with rejected production changes restored. Implement
+only Astra's approved recognized width-3 ordered-add branch: scalar float locals
+for x/y/z, ascending element order, finite-check/update x then y then z, and
+write three totals back only after successful chunk. Other widths, predicate,
+chunk traversal, seed/source handling and reference fallback remain unchanged.
+No reassociation/vectorization/parallel reduction/caching. Astra approves diff.
+
+Strengthen the existing test_uniforms rollback fixture for Float and Vec3
+x/y/z overflow at counts2/16385 (after chunk boundary), domains1/8, CPU force and
+GPU preparation. Check exact reference diagnostics, input bytes, caller stamps,
+rollback and successful recovery; recovered prepared uniform bits match reference
+sum. Pass on baseline first (exit0;
+/tmp/rays-f-image-scalar-vec3-regression-before.log), then candidate. The initial
+focused invocation incorrectly included empty @test/test_workspace_lower and
+exited1 for that alias, despite executed tests passing. Corrected @check/full
+FlowIR/FlowSOP/FlowGPU/benchmark command exits0:
+/tmp/rays-f-image-scalar-vec3-focused-corrected.log. No public API/manifest change.
+
+Preserve production diff f-image-scalar-vec3-trial.patch and native loop
+f-image-scalar-vec3-loop-arm64.txt. otool of compiled Flow_ir.Packed shows totals
+in d12/d14/d16, ascending x/y/z fadd and finite checks, with accumulator stores
+after the chunk. No normal-loop float boxing or calls occur; runtime polling
+slow paths and checked array accesses remain. Preserved candidate executable
+/private/tmp/f-image-scalar-vec3-after.exe SHA256:
+7f57dc3c0ee7df36f4c24efbb58fdae0b25f89ebd11fdc4d2b798c88eac05ba5.
+
+Unchanged fixtures and isolated protocol: seven CPU caller samples at1/8 domains;
+seven×200 completed GPU producer/consumer/combined frames after ten warmups,
+eight-domain capture owner and one-domain uncaptured control owner. No concurrent
+builds/tests/active agents. CPU hashes and explicit native readbacks stay outside
+warm producer timers; cold publication, parity, resize, replan and close remain
+separate rows:
+
+```sh
+/private/tmp/f-image-scalar-vec3-after.exe --image-map-captures > specification/performance/f-image-map-captures-scalar-vec3-after.csv 2> specification/performance/f-image-map-captures-scalar-vec3-after-counters.csv
+/private/tmp/f-image-scalar-vec3-after.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-recheck-scalar-vec3-after.csv 2> specification/performance/f-image-map-uncaptured-recheck-scalar-vec3-after-counters.csv
+```
+
+Both modes exit0. Retain440 data rows (352 capture/88 control),30 native
+comparisons with zero maximum error/differing channels/differing pixels, and all
+CPU1/8 hash/resource/cook/flatten/resize/replan/close assertions. All210 warm
+trial rows have200 frames, no destination uploads and no source-image readbacks.
+Counter artifacts have448 capture records/two headers and56 control records/
+one header. Seven-trial medians (ms, all-domain producer B/frame):
+
+| Fixture | CPU8 | GPU producer | Consumer | Combined | Producer B |
+|---|---:|---:|---:|---:|---:|
+| Static1024 points,512² | 4.518032 | 0.651245 | 0.431560 | 1.095630 | 89161 |
+| Static1024 points,1024² | 14.573812 | 1.572140 | 0.669611 | 2.529305 | 89161 |
+| Static1024 points,2048² | 54.708004 | 4.483265 | 1.543504 | 6.348910 | 89161 |
+| Changing1024 points,512² | 4.330873 | 0.754961 | 0.426825 | 1.218365 | 370195 |
+| Changing1024 points,1024² | 14.709949 | 1.744375 | 0.669365 | 2.881260 | 370195 |
+| Changing1024 points,2048² | 54.460049 | 4.905120 | 1.565270 | 6.973369 | 370195 |
+| Static65536 points,1024² | 16.739845 | 2.094190 | 0.663731 | 3.583055 | 89161 |
+| Changing65536 points,1024² | 16.317129 | 5.527799 | 0.670545 | 6.560780 | 10413337 |
+
+Large XYZ-write baseline CPU8/GPU producer static17.415047/3.555745 ms,
+changing17.284155/6.181384. Uncaptured gradient CPU8/GPU12.115002/1.529535 ms,
+33721 B; live capture11.449099/1.534040 ms,32593 B. Static capture89161 B stays
+source/pixel-count independent. Changing-large median10413337 B versus
+10413280 before is small trial variation, not an allocation reduction claim.
+
+Astra: **“Retain the scalar Vec3 branch.”** Large static seven-sample ranges
+3.378–3.679 ms before versus2.067–2.120 ms after do not overlap. Controls,
+allocations and all30 parity comparisons remain stable; assembly supports the
+intended mechanism. Another unchanged batch is unnecessary for retention.
+Changing-source median improves to5.527799 ms, but ranges overlap: do not claim
+a precisely repeatable0.654 ms saving there. All seven samples exceed5 ms;
+the strict changing-source producer gate remains unmet. The eight-domain CPU
+1024² cases pass40 ms. No overall F2.2 or F.md completion is claimed.
+
+Next approved action: fresh source-refresh attribution on this branch with
+existing probes/three diagnostic fixtures, seven×200 frames/ten warmups, CPU
+caller and node-own timings, P/Cd flattening, write phases/direct reductions,
+completed dispatch and conversion. Retain per-trial GC collection-count deltas
+only from snapshots outside timing, if available; no per-frame sampling. Counts
+may describe variation, not GC elapsed time. Restore probes byte-for-byte; no
+further arithmetic/ownership/cache optimization is approved before attribution.
+
+Full F5 native/pixel qualification completes below. Actual display remains1×;
+2× goldens are not qualified by this run.
+
+Full F5 native/pixel qualification passes, exit0
+(`/tmp/rays-f-image-scalar-vec3-full.log`), with candidate source held fixed:
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/rays_editor/native_qualification/qualification @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+Both complete workspace IR sweeps cover38 standard files,2 actual custom-catalog
+executables and13 fixtures at four times/domains1/8. Native image publication,
+resident consumers, actual-owner captures, caller-state snapshots, nested source
+resolution, capacity64 metadata/data, oversized uncached source, cycle recovery,
+Canvas, runtime/presentation and all requested pixel aliases pass. Actual1× only;
+2× goldens remain unqualified. No goldens/tolerances/gates are relaxed.
+
+Pre-commit shipping passes, exit0
+(`/tmp/rays-f-image-scalar-vec3-ship.log`). Retain the scalar Vec3 branch and
+stronger regression with all raw benchmark/assembly artifacts. Changing-source
+GPU<5 ms, frozen images, expanded owner coverage, F3 and final audit remain open.
