@@ -21,6 +21,13 @@ module Editor3 = struct
   include Environment
   module Private = struct
     let gpu_qualification value=Workspace_gpu.qualification value.Environment.host.gpu
+    let image_plan value=(snd value.Environment.core.doc.workspace).plan
+    let image_payload ?state ?live value image=
+      let core=value.Environment.core in
+      Workspace_images.bind value.host.images (snd core.doc.workspace);
+      Workspace_images.payload value.host.images (image_plan value)
+        ~state:(Option.value ~default:core.cook.state state)
+        ~live:(Option.value ~default:core.live_frame live) image
     let image_stats value = let resources=value.Environment.host.resources in
       resources.images_created,resources.images_destroyed
     let host_stats value = let host=value.Environment.host in

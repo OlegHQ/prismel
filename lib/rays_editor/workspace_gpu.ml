@@ -7,9 +7,12 @@ module Sinks=Lru.Make(struct
   let equal=(=)
   let hash=Hashtbl.hash
 end)
+module Images=Lru.Make(struct type t=string let equal=String.equal let hash=Hashtbl.hash end)
 type t={mutable owner:(X.gpu * H.t)option; sinks:P.gpu_circles Sinks.t;
+  images:Flow_gpu.Image_sink.t Images.t;
   mutable backend:G.backend option; mutable closed:bool; mutable policy:G.policy}
 let create ()={owner=None;sinks=Sinks.create ~release:(fun _->P.close_gpu_circles)64;
+  images=Images.create ~release:(fun _->Flow_gpu.Image_sink.close)64;
   backend=None;closed=false;policy=G.Measured}
 let qualification t=
   if t.closed || not(Domain.is_main_domain())then invalid_arg "Workspace_gpu.qualification: open initial-domain owner required";
@@ -29,6 +32,18 @@ let backend t = match t.backend with Some backend->backend|None->
     prepare=(fun packed->Result.bind(owner t)(fun(_,host)->(H.backend host).prepare packed))}in
   t.backend<-Some backend;backend
 let with_backend t run=G.with_backend ~policy:t.policy (backend t)run
+let image t ~key ~width ~height ~publish value=
+  Result.bind(owner t)(fun(gpu,host)->match H.output host value with
+    |None->Error(error "The image's GPU producer was closed or superseded.")
+    |Some output->
+        let convert sink=Result.bind(Flow_gpu.Image_sink.convert sink ~width ~height output)publish in
+        match Images.find_opt t.images key with
+        |Some sink->convert sink
+        |None when Images.length t.images>=64->Error(error "A workspace owns at most 64 GPU image sinks.")
+        |None->Result.bind(Flow_gpu.Image_sink.create gpu)(fun sink->
+            let committed=ref false in
+            Fun.protect ~finally:(fun()->if not !committed then Flow_gpu.Image_sink.close sink)(fun()->
+              Result.map(fun result->Images.add t.images key sink;committed:=true;result)(convert sink))))
 let circles t (value:G.value) ~radius ~fill ~stroke ~stroke_width =
   Result.bind(owner t)(fun(gpu,host)->
     match H.output host value with
@@ -44,6 +59,7 @@ let close t=
   if not(Domain.is_main_domain())then invalid_arg "Workspace_gpu.close: initial domain required";
   if not t.closed then begin
   Sinks.clear t.sinks;
+  Images.clear t.images;
   Option.iter(fun(gpu,host)->H.close host;X.release_gpu gpu)t.owner;
   t.owner<-None;t.closed<-true
 end

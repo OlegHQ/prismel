@@ -678,6 +678,21 @@ without rescanning unchanged authored geometry. Mixed 2D layer caches freeze
 resource identity/generation lists beside their IR, rather than retaining stale
 source/destination rectangles after resize; those lists count against the cache
 byte capacity. Existing inspection APIs format these errors as strings.
+The workspace shares one lazy GPU owner between drawing and image display.
+Qualified image/map selection scopes that backend at resolution, including
+preview and mesh callbacks. Its completed packed output converts through one
+image sink per stable authored key; output stamps and runner identities do not
+enter that key. The owner commits a new sink only after successful conversion
+and publication, rejects a 65th site and closes uncommitted sinks on errors or
+exceptions. CPU payload and display validity are independent; exact-first map
+cooking creates no runtime image. CPU/GPU authority transitions preserve the
+runtime image identity and reuse the borrowed Texture when GPU authority returns.
+Legacy image/render materializes CPU children without overwriting a resident
+child, and legacy CPU publications invalidate old display stamps. Recursive
+resolution reserves pending ancestor entries inside the 64-image bound. Close
+clears image programs/payloads/views, destroys images, then closes sinks, host
+runners/pipelines and the GPU lease. Explicit frozen GPU-image snapshots and
+resident Canvas production remain separate work.
 Scene rejects malformed, destroyed, and foreign-device GPU image sources; a
 canvas rendered on another device than the window's falls back to its CPU
 pixels.

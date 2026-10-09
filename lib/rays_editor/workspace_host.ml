@@ -7,7 +7,8 @@ type t={resources:Workspace_resources.t;images:Workspace_images.t;gpu:Workspace_
   mutable quit_requested:bool;mutable fired:int;mutable deterministic:bool;
   mutable pending_events:Frame_input.event list}
 let create ?domains ()=let resources=Workspace_resources.create()in
-  {resources;images=Workspace_images.create ?domains resources;gpu=Workspace_gpu.create();prepared=None;pending_saves=[];quit_requested=false;fired=0;
+  let gpu=Workspace_gpu.create()in
+  {resources;images=Workspace_images.create ?domains ~gpu resources;gpu;prepared=None;pending_saves=[];quit_requested=false;fired=0;
     deterministic=false;pending_events=[]}
 let take_events host=let events=List.rev host.pending_events in host.pending_events<-[];events
 let effects (workspace:Editor_document.Workspace_doc.t) (plan:E.plan)=
@@ -106,7 +107,7 @@ let save_pending host save =
   let paths=host.pending_saves in host.pending_saves<-[];
   List.fold_left(fun result path->Result.bind result(fun()->
     Result.map_error(fun message->Flow.Diagnostic.error ~code:"E_EFFECT" message)(save path)))(Ok())paths
-let close host=Workspace_gpu.close host.gpu;Workspace_resources.close host.resources
+let close host=Workspace_images.close host.images;Workspace_resources.close host.resources;Workspace_gpu.close host.gpu
 let export_check workspace plan =
   match effects workspace plan with
   |None->Ok()

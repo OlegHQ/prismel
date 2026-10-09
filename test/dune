@@ -53,7 +53,7 @@
 (executable
  (name test_workspace_images_native)
  (modules test_workspace_images_native)
- (libraries rays rays_editor editor_document flow unix))
+ (libraries rays rays_editor editor_document flow flow_sop procedural ogpu runtime_resources unix))
 
 (rule
  (alias runtest-native)

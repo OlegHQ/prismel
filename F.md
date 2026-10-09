@@ -125,9 +125,10 @@ are conditional, and F3 requires the owner's request to move its numbers.
 in `46984986`; CPU `image/map` is committed in `4ba82525`, and immutable GPU
 uploads in `767dea7d`. The GPU producer/converter checkpoint is recorded in
 F2.2 below. Authored image qualification and private borrowed runtime image
-backing are implemented by the checkpoints below;
-connected workspace GPU image publication, resident consumers
-and exact snapshots remain open; F2.3 remains open. The paragraphs that follow
+backing are implemented by the checkpoints below. Resident consumers are
+committed in `6636e12b`; connected workspace GPU publication and independent
+CPU snapshots have a functional checkpoint below. Connected timing gates,
+frozen exact GPU snapshots and F2.3 remain open. The paragraphs that follow
 record the earlier field and qualification implementation history.
 Deterministic sampled slab chunks (`8f1f4789`) now preserve complete geometry and seam
 normals, improving the eight-domain whole cook from 20.954 to 12.937 ms in
@@ -1286,7 +1287,7 @@ Commands and raw parity are recorded in the performance log.
 Final reviewed-code focused/native checks, API validation and `--ship` pass
 (exit 0), including the full workspace sweep at four times/domains 1/8.
 
-**Resident consumer checkpoint (2026-10-09).** Private Texture views borrow a
+**Resident consumer checkpoint (2026-10-09, `6636e12b`).** Private Texture views borrow a
 runtime GPU image without CPU storage or ownership; identity remains stable
 and dimensions follow republication. CPU pixel/sampling/mipmap/subsection
 operations explicitly require an immutable snapshot. Mesh staging binds the
@@ -1305,10 +1306,35 @@ sweeps at four times/domains 1/8. The 2× PXUI goldens skip at the actual 1×
 density. Raw parity and commands are in the performance log. Workspace GPU
 publication and retained Canvas production are still open.
 
+**Connected workspace publication checkpoint (2026-10-09).** Workspace image
+display now scopes its shared GPU owner and executes qualified Image_kernel
+programs through `try_display`, Host output, one authored-site sink and validated
+runtime image publication. A stable borrowed Texture serves mesh consumers.
+CPU payloads and display have independent stamps; exact-first CPU map requests
+create no runtime Image and never read or replace an existing GPU display.
+Unselected placement keeps the CPU cook; execution/publication errors remain
+errors. Production keeps Measured; the native fixture explicitly uses
+Qualification. New sinks commit only after publication succeeds; errors and
+exceptions leave no slot or native handle behind. Close releases images before
+sinks/runners/pipelines and the GPU lease. Pending recursive parents reserve
+entries within the 64-image bound, including exact-only entries.
+Five actual-editor mixed image/mesh comparisons have maximum channel difference
+0 and differing channels/pixels 0. Live lexical capture, body edits, odd-size
+resize, CPU/GPU transitions, repeated static GPU failure/retry, independent CPU
+domain-1/8 snapshots, saved payloads and zero source reads pass. A nested render
+keeps CPU's 127 rounding for 0.499999999 while its child is resident on the GPU;
+legacy display A → exact B → display A restores A. The owner fixture covers 80
+failed conversions, 80 failed publications, exceptions, all 64 pinned sinks,
+capacity refusal and failed existing updates followed by retry. Astra approves
+the functional checkpoint. Focused/native/API checks, full F5 qualification
+and shipping pass (exit 0), including both complete workspace sweeps at four
+times/domains 1/8. The 2× PXUI goldens remain unqualified at the actual 1×
+density. Raw parity and commands are in the performance
+log. This is functional evidence, not a connected timing/allocation verdict.
+
 The workspace resolver still refuses captured geometry without a cooked-source
-resolver. Connected workspace GPU publication, resident workspace 2D/mesh
-consumers, exact snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
-channel differences through the connected display route are still required.
+resolver. Frozen exact GPU snapshots, connected GPU timing/allocation/resource/
+readback counters and the complete size/parity measurement matrix remain required.
 The producer/converter verdict does not close F2.2,
 F2.3 or F.md.
 
@@ -1417,6 +1443,26 @@ cold hash. Cold preparation and teardown are separate rows. Astra says
 `specification/performance/f-image-render-roundtrip-before.csv`; commands and
 limits are recorded in the performance log. The resident allocation gate
 remains open.
+
+**Astra retained-Canvas design (2026-10-09; implementation pending).** The
+offscreen target already has Texture_binding, Render_attachment and
+Texture_copy_src; no OGPU feature is needed. A private completed-frame source
+must expire before render attempts, resize, CPU mutation or destruction and
+become valid only after successful publication. Display image/render retains
+one Canvas per entry and publishes its texture through the existing borrowed
+Image/Texture route. Resize retains the old allocation until replacement
+rendering and publication succeed, while old callbacks are already invalid.
+Exact CPU render cooks CPU children into a separate temporary Canvas, captures
+the completed pixels and updates only entry.cpu. It must not overwrite the
+resident display Image. Destruction detaches the runtime resource before GPU
+execution teardown and does not synchronize discarded CPU pixels. Close destroys
+published Images before retained Canvases, then sinks/Host/leases. Native checks
+must count actual source captures/readbacks, cover failure/recovery/resize and
+retained Scene expiry, and preserve old CPU payloads. Repeat the accepted
+seven-by-twenty-frame baseline protocol unchanged, with its upload assertion
+disabled; compare full bytes/hashes outside timing and require warm allocation
+to stop growing with pixel count. Resident Canvas lands before the separate
+deferred Lisp exact-image surface; both remain required.
 
 **Today.** `image/render drawing :width :height` renders into an offscreen
 `Rays.Canvas`, `Canvas.to_image` reads the pixels back to a CPU `Image.t`,

@@ -66,6 +66,10 @@ compiles the actual function and captures. A session cook executes the packed
 map and converts finite Vec4 channels to an owned RGBA8 image with the shared
 pool. Conversion clamps to [0,1], scales by 255 and rounds ties to even.
 Existing float-backed noise and sampling keep their original precision.
+Workspace display may independently execute a qualified pixel function on the
+GPU. SOP payload resolution still cooks this CPU node, never a resident GPU
+readback, and preserves older immutable payloads across display updates and
+resize. No GPU handle enters a procedural payload or session cache.
 
 An explicit bridge converts geometry to `Rays.Mesh.t`, which `Scene3` lowers
 through the native OGPU/Metal path.

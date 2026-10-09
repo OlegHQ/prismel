@@ -1,0 +1,11 @@
+(copy_files ../workspace_gpu.ml)
+(copy_files ../workspace_gpu.mli)
+
+(executable
+ (name test_workspace_gpu_native)
+ (modules test_workspace_gpu_native workspace_gpu)
+ (libraries rays flow flow_ir flow_sop flow_gpu rays_execution scene_command lru runtime_resources ogpu))
+
+(rule
+ (alias runtest-native)
+ (action (run %{exe:test_workspace_gpu_native.exe})))

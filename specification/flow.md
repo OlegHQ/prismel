@@ -1509,9 +1509,16 @@ fastest. The prepared CPU map preserves lexical captures and live frame facts;
 four finite channels are clamped, scaled by 255 and rounded ties to even into
 owned RGBA8 storage. Unsupported packed bodies return the actual compilation
 refusal. Authored image qualification also covers these instantiated pixel
-functions. Workspace display currently resolves CPU images; captured geometry
-in that resolver, GPU publication, resident image sinks and frozen exact GPU
-snapshots remain F2.2 work. Qualification alone does not establish the timing gate.
+functions. Qualified workspace display can select the GPU through the existing
+measured placement policy, convert/copy completed output to RGBA8 and publish a
+resident image for draw/image, UI and mesh consumers. One owner retains at most
+64 authored image sites; failed new publications consume no sink slot. An exact
+CPU request has its own immutable payload and validity stamp: it does not read
+or replace the displayed GPU image, and exact-first map cooking creates no
+runtime image. The current image/render route cooks child CPU payloads so nested
+GPU display cannot change exact rounding. Captured geometry, resident Canvas
+production, frozen exact GPU snapshots and connected timing gates remain F2.2
+and F2.3 work. Qualification alone does not establish the timing gate.
 
 `scene/geometry geometry :texture image` applies the same image as a texture
 without changing its transform, material or render state. The image card footer

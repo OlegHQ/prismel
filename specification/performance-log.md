@@ -9702,3 +9702,108 @@ unchanged expensive sweep results retained by Dune. Shipping log:
 Raw: `specification/performance/f-image-resident-consumer-parity.csv` (27 rows:
 18 existing producer/publication controls and nine resident consumer cases).
 Log: `/tmp/rays-f-resident-texture-parity.log`.
+
+### F2 connected workspace image publication (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. GPU resolution/publication and native rendering run on the initial
+domain. Independent exact CPU oracles cook at domains 1/8. This checkpoint
+measures functional parity and ownership, not timing or allocation gates.
+
+The editor now shares one lazy Workspace_gpu owner with Workspace_images.
+Image/map display selection scopes its backend inside resolution, so previews,
+Private callbacks and scene texture composition reach the same qualified path.
+The chain is Image_kernel.program → Executor.try_display → Host.output →
+Image_sink conversion/copy → validated runtime Image → borrowed Texture or
+image consumer. Production retains Measured placement and the existing cost
+table; only the native fixture explicitly chooses Qualification.
+
+An authored-key entry independently retains optional runtime display and
+immutable CPU payloads, each with its own serial/frame/state validity. Exact-first
+map cooking creates no runtime Image. Exact requests use Image_kernel.node and
+Session.cook and neither read nor replace a resident display. Borrowed Texture
+identity remains stable across GPU publication, resize and CPU/GPU transitions.
+The display stamp is cleared before attempts and restored only after success;
+GPU failures propagate without silently substituting CPU output.
+
+Image sinks key on the authored site, rather than changing runner/output
+identity. The owner caches a new sink only after conversion and publication
+succeed. Error/exception cleanup closes an uncommitted sink; new creation at 64
+is refused, preserving all pinned outputs. A newly created runtime Image is
+registered only after its borrowed view validates. Close drops image references,
+destroys runtime images, closes sinks and Host, then releases the GPU lease.
+Recursive image resolution reserves pending ancestor entries within the same
+64-entry bound, including exact-only entries without runtime Images.
+
+Review caught two issues before accepting the checkpoint. Legacy image/render
+must resolve CPU child payloads, even if a child already has a resident GPU
+display; it now materializes a scoped CPU Image without changing that GPU
+image. Other legacy CPU publications must invalidate display validity so
+display A → exact B → display A restores A. A new nested rounding regression
+uses 0.499999999, whose CPU conversion is 127 while float32 is 128, and checks
+the exact rendered bytes against independent domain-1/8 cooking. The resident
+child keeps its generation, zero stored CPU bytes and zero Image pixel reads.
+
+```sh
+_build/default/tools/check.exe @check @tools/api_manifest/runtest @lib/rays_editor/runtest-native test/test_workspace_images.exe test/test_workspace_images_native.exe
+cd _build/default/test
+./test_workspace_images.exe > /tmp/rays-f-workspace-gpu-image-final-cpu.log 2>&1
+./test_workspace_images_native.exe > /tmp/rays-f-workspace-gpu-image-final-native.log 2>&1
+cd ../../..
+rg '^test,width|^workspace_gpu_image,' /tmp/rays-f-workspace-gpu-image-final-native.log > specification/performance/f-workspace-image-publication-parity.csv
+```
+
+Final focused/API/owner checks pass (exit 0),
+`/tmp/rays-f-workspace-gpu-image-final-check.log`. Both actual test executables
+pass (exit 0) in the separate logs above. The raw CSV filters the five parity
+rows and header from the native executable's output. Width/height are source
+dimensions; each mixed image/mesh destination is 65×17. Rows, in order: live
+lexical capture at 0/1, body edit/resize to 35×33, GPU return after a 65×3 CPU
+placement, and successful static recovery after repeated GPU failure.
+
+| Check | Result |
+|---|---|
+| Five actual-editor mixed image/mesh renders vs exact CPU-image/Texture oracles | Maximum channel difference 0, differing channels/pixels 0 |
+| Warm repeated consumer rendering | Uploaded-byte delta 0 in each case |
+| GPU source Image pixel reads | 0 during display and exact CPU requests; mandatory small GPU status reads are separate and are not counted by Image.readbacks |
+| Exact-first, exact-after-display and old CPU payloads | No runtime Image on exact-first; same-frame payload reused; old bytes unchanged after update/resize |
+| CPU oracle | Exact RGBA8 bytes equal independent session cooking at domains 1/8 |
+| Live lexical capture, body edit, odd-size resize, CPU/GPU transitions | Current display; one stable Image and borrowed Texture identity |
+| Static GPU execution failure and repeated request | E_KERNEL both times, no stale success; subsequent valid static body renders correctly |
+| Nested image/render CPU rounding | 127 at every blue channel; matches independent exact CPU render; resident child untouched |
+| Legacy display A → exact B → display A | Original A pixels restored |
+| Recursive capacity | 63 exact-only entries reject a new render/new child; child alone can then occupy slot 64; zero runtime Images |
+
+The package-private sink-owner fixture compiles the actual workspace_gpu source
+through Dune copy_files, without exposing test mutation hooks. Eighty rejected
+shape conversions, eighty rejected new publications and a raised publication
+exception leave both the held output and live native handle counts unchanged.
+Then 63 more successful keys fill all 64 sink slots; a 65th is rejected while
+all prior outputs remain usable. A failed existing-key publication invalidates
+its prior output, and retry succeeds at capacity. Owner close restores the
+original native handle count. Log:
+`/tmp/rays-f-workspace-gpu-image-owner-check.log` (exit 0).
+
+API promotion is intentional: only Editor3.Private.image_plan/image_payload
+are added, to qualify the actual owned plan and independently request the
+production CPU payload route. Existing public Lisp forms and graph projections
+do not change. The manifest passes the final API check.
+
+Astra: “Approved the functional checkpoint; no remaining blocker found.”
+Full shipping/F5 qualification passes (exit 0). Both workspace sweeps cover
+38 standard files, two custom-catalog executables and 13 fixtures at four
+times/domains 1/8; the native sweep checks geometry, image, texture and drawing
+pixels. The 2× PXUI goldens remain unqualified at this actual 1× density;
+their prior skip is retained by Dune and no fixtures are refreshed.
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+_build/default/tools/check.exe --ship
+```
+
+Logs: `/tmp/rays-f-workspace-gpu-image-full.log` and
+`/tmp/rays-f-workspace-gpu-image-ship.log`, both exit 0.
+Connected timing/allocation
+and the complete size matrix, resident Canvas image/render, explicit frozen
+exact GPU snapshots and captured geometry remain open; this checkpoint does
+not establish the F2.2 or F2.3 performance gates.

@@ -168,3 +168,27 @@ let () =
     ["(image/noise :width 2 :height 2 :frequency (+ 0.3 (* 0.01 t)) :seed 31)";
      "(image/map (fn [uv] [uv.x uv.y (* t 0.05) 1]) :width 65 :height 3)";
      "(image/load \"sdl3_image_fixtures/sample.png\")"]
+
+let ()=
+  let maps=List.init 64(fun i->Printf.sprintf
+    "(graph m%d :context image (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 1 :height 1))" i)in
+  let doc=load("(workspace capacity "^String.concat " " maps^
+    " (graph drawing :context draw (draw/image (ref m63)))"^
+    " (graph rendered :context image (image/render (ref drawing) :width 1 :height 1)))")in
+  let owner=editor doc in
+  Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+    let plan=Editor.Private.image_plan owner in
+    let nodes=Array.to_list plan.nodes |> List.filter(fun(n:E.node)->n.kind="image/map")in
+    let value(n:E.node)=E.Deferred(Flow.Ty.image,n.id)in
+    let exact node=Editor.Private.image_payload owner(value node)in
+    let retained=ok(exact(List.hd nodes))in
+    List.iter(fun node->ignore(ok(exact node)))(List.filteri(fun i _->i>0 && i<63)nodes);
+    assert(Editor.Private.image_stats owner=(0,0));
+    let render=Array.find_opt(fun(n:E.node)->n.kind="image/render")plan.nodes |> Option.get in
+    let refused()=assert(match exact render with Error d->d.Flow.Diagnostic.code="E_IMAGE"|Ok _->false)in
+    refused();
+    ignore(ok(exact(List.nth nodes 63)));
+    refused();
+    assert(ok(exact(List.hd nodes))==retained);
+    assert(Editor.Private.image_stats owner=(0,0)));
+  print_endline "Image capacity: exact-only entries reserve recursive parents, failed resolution consumes no slot or runtime image"
