@@ -394,6 +394,192 @@ let image_map_mode () =
     ["gradient","(image/map (fn [uv] [uv.x uv.y 0.5 1]))";
      "live_capture","(let* [bias (* t 0.25)] (image/map (fn [uv] [(+ uv.x bias) uv.y 0.5 1])))"]
 
+let connected_image_mode () =
+  let module Editor=Rays_editor.Editor3 in
+  let module Image=Runtime_resources.Image in
+  let frames=200 and repeats=7 and warmups=10 in
+  let allocation()=let s=Gc.stat()in
+    (s.minor_words+.s.major_words-.s.promoted_words)*.float(Sys.word_size/8)in
+  let hash bytes=Digest.to_hex(Digest.string(Bytes.to_string bytes))in
+  let load text=match Rays_editor.Workspace.load text with Ok doc->doc|Error ds->
+    failwith(String.concat "; "(List.map Flow.Diagnostic.to_string ds))in
+  let text width height body=Printf.sprintf "(workspace connected_image
+    (graph img :context image (let* [bias (* t 0.25)]
+      (image/map (fn [uv] %s) :width %d :height %d))))" body width height in
+  let create ?source domains doc=Editor.create ?source ~workspace:doc ~await:true ~domains
+    ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)() |> Result.get_ok in
+  let value owner=let plan=Editor.Private.image_plan owner in
+    let node=Array.find_opt(fun(n:Flow.Eval.node)->n.kind="image/map")plan.nodes |> Option.get in
+    Flow.Eval.Deferred(Flow.Ty.image,node.id)in
+  let live width height frame time={(Frame_input.at_time time)with size=width,height;frame}in
+  let counters owner=
+    let host,created,closed,buffers,textures=Editor.Private.image_gpu_stats owner in
+    [|host.runners_created;host.runners_released;host.pipeline_compilations;host.pipeline_releases;
+      host.buffer_creations;host.input_uploads;host.input_uploaded_bytes;host.status_reads;
+      host.readback_bytes;created;closed;buffers;textures|]in
+  let delta before after=Array.mapi(fun i n->n-before.(i))after in
+  let report_counters fixture width height policy phase trial count before after=
+    Printf.eprintf "connected_image_counters,%s,%d,%d,%s,%s,%d,%d" fixture width height policy phase trial count;
+    Array.iter(fun n->Printf.eprintf ",%d" n)(delta before after);Printf.eprintf "\n%!"in
+  let report fixture width height domains policy phase trial count seconds bytes digest
+      maximum channels pixels uploads image_reads=
+    Printf.printf "%s,%d,%d,%d,%s,%s,%d,%d,%.9f,%.0f,%s,%d,%d,%d,%.0f,%d\n%!"
+      fixture width height domains policy phase trial count (seconds/.float count)(bytes/.float count)
+      digest maximum channels pixels (Int64.to_float uploads/.float count)image_reads in
+  let assert_warm before after count=
+    let changes=delta before after in
+    Array.iteri(fun i n->assert(n=(if i=7 then count else 0)))changes in
+  let cpu_bytes owner width height frame time=
+    let image=Editor.Private.image_payload ~live:(live width height frame time) owner(value owner) |> ok in
+    Procedural.Image.Private.rgba8 image |> Option.get in
+  print_endline "fixture,width,height,domains,policy,phase,trial,frames,seconds_per_frame,bytes_per_frame,hash,max_channel_difference,differing_channels,differing_pixels,destination_uploaded_bytes_per_frame,source_image_readbacks";
+  Printf.eprintf "connected_image_counters,fixture,width,height,policy,phase,trial,frames,runners_created,runners_released,pipeline_compilations,pipeline_releases,runner_buffers,input_uploads,input_uploaded_bytes,status_reads,output_readback_bytes,sinks_created,sinks_closed,sink_buffers,sink_textures\n%!";
+  List.iter(fun(fixture,body)->List.iter(fun size->
+    let source_text=text size size body in
+    let doc=load source_text in
+    (* Production selection is a fresh-owner observation, separate from qualification. *)
+    let measured=create 1 doc in
+    Fun.protect ~finally:(fun()->Editor.close measured)(fun()->
+      Gc.full_major();let before=counters measured in
+      let bytes=allocation()in let started=now()in
+      let image=Editor.Private.with_images ~live:(live size size 0 0.) measured
+        (fun ~image ~texture:_->ok(image(value measured)))in
+      let elapsed=now()-.started in let allocated=allocation()-.bytes in
+      let resource=Rays.Image.Private.resource image in
+      let route=match Image.Private.gpu_snapshot resource |> Result.get_ok with None->"cpu"|Some _->"gpu"in
+      report fixture size size 1 "measured" ("route_probe_"^route) 0 1 elapsed allocated "" 0 0 0 0L
+        (Image.Private.readbacks resource);
+      report_counters fixture size size "measured" "route_probe" 0 1 before(counters measured));
+    let expected=Hashtbl.create 9 in
+    List.iter(fun domains->
+      let owner=create domains doc in
+      Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+        let cook phase trial frame time=
+          Gc.full_major();let before=allocation()in let started=now()in
+          let bytes=cpu_bytes owner size size frame time in
+          let elapsed=now()-.started in let allocated=allocation()-.before in
+          let digest=hash bytes in
+          if domains=1 then Hashtbl.replace expected trial digest else assert(Hashtbl.find expected trial=digest);
+          report fixture size size domains "exact_cpu" phase trial 1 elapsed allocated digest 0 0 0 0L 0 in
+        cook "cold_cpu_cook" 0 0 0.;
+        ignore(cpu_bytes owner size size 1 0.125);
+        for trial=1 to repeats do cook "warm_cpu_cook" trial (trial+1)(float trial/.8.)done)) [1;8];
+    let file=Filename.temp_file "rays-connected-image-" ".rays"in
+    Out_channel.with_open_bin file(fun ch->output_string ch source_text);
+    Gc.full_major();let cold_bytes=allocation()in let cold_started=now()in
+    let owner=ref(create ~source:(Rays_editor.Source.at ~file
+      ~digest:(Editor_document.Contexts.sha256 source_text)) 1 doc)in
+    let closed=ref false and canvas=ref None in
+    let close()=if not !closed then begin closed:=true;Option.iter Rays.Canvas.destroy !canvas;Editor.close !owner end in
+    Fun.protect ~finally:(fun()->close();Sys.remove file)(fun()->
+      Editor.Private.gpu_qualification !owner;
+      let width=ref size and height=ref size and frame=ref 0 in
+      let step time=
+        let input=live !width !height !frame time in incr frame;
+        Editor.Private.with_images ~live:input !owner(fun ~image ~texture->
+          let value=value !owner in ok(image value),ok(texture value))in
+      let image,texture=step 0. in
+      let elapsed=now()-.cold_started in let allocated=allocation()-.cold_bytes in
+      let resource=Rays.Image.Private.resource image and identity=Rays.Texture.Private.identity texture in
+      let before=counters !owner in
+      assert(before.(7)=1 && Option.is_some(Result.get_ok(Image.Private.gpu_snapshot resource)));
+      report fixture size size 1 "qualification" "cold_owner_publish" 0 1 elapsed allocated "" 0 0 0 0L 0;
+      report_counters fixture size size "qualification" "cold_owner_publish" 0 1 (Array.make 13 0)before;
+      let publish time=let actual,view=step time in
+        assert(actual==image && Rays.Texture.Private.identity view=identity)in
+      for j=0 to warmups-1 do publish(float j/.float frames)done;
+      let run phase render=
+        for trial=0 to repeats-1 do
+          Gc.full_major();let before=counters !owner and generation=Image.generation resource
+          and reads=Image.Private.readbacks resource in
+          let images=Editor.Private.image_stats !owner and targets=Editor.Private.image_render_stats !owner in
+          let initial=Option.map Rays.Canvas.Private.native_stats !canvas in
+          let bytes=allocation()in let started=now()in
+          for j=0 to frames-1 do render(float j/.float frames)done;
+          let elapsed=now()-.started in let allocated=allocation()-.bytes in
+          let after=counters !owner in
+          let uploads=match initial,!canvas with Some initial,Some canvas->
+            let final=Rays.Canvas.Private.native_stats canvas in
+            assert(Int64.sub final.frames initial.frames=Int64.of_int frames);
+            Int64.sub final.uploaded_bytes initial.uploaded_bytes|_->0L in
+          let producer=phase<>"consumer_only"in
+          report fixture size size 1 "qualification" phase trial frames elapsed allocated "" 0 0 0 uploads
+            (Image.Private.readbacks resource-reads);
+          report_counters fixture size size "qualification" phase trial frames before after;
+          assert_warm before after (if producer then frames else 0);
+          assert(Image.generation resource-generation=(if producer then frames else 0));
+          assert(Editor.Private.image_stats !owner=images && Editor.Private.image_render_stats !owner=targets);
+          assert(Image.Private.readbacks resource=reads && Image.Private.cpu_storage_bytes resource=0 && uploads=0L)
+        done in
+      run "warm_producer" publish;
+      let destination=Rays.Canvas.create ~width:size ~height:size |> Result.get_ok in canvas:=Some destination;
+      let mesh=Rays.Mesh.plane ~width:2. ~height:2.()in
+      let camera=Rays.Camera.orthographic ~height:2. ~at:(Rays.Vec3.create 0. 0. 2.) ~target:Rays.Vec3.zero()in
+      let scene=Rays.Scene.[clear Rays.Color.black;view3d ~camera(Rays.Scene3.create ~ambient:Rays.Color.white
+        [Rays.Scene3.mesh ~material:(Rays.Material.matte Rays.Color.white) ~cull:Cull_none
+          ~texture:(Rays.Scene3.textured ~filter:Nearest texture)mesh])]in
+      let consume _=Rays.Canvas.render destination scene in
+      for _=1 to warmups do consume 0. done;run "consumer_only" consume;
+      let combined time=publish time;consume time in
+      for j=0 to warmups-1 do combined(float j/.float frames)done;run "end_to_end" combined;
+      let verify time=
+        publish time;
+        let generation=Image.generation resource and reads=Image.Private.readbacks resource
+        and before=counters !owner in
+        Gc.full_major();let bytes=allocation()in let started=now()in
+        let pixels=Rays.Image.Private.pixels image |> Result.get_ok in
+        let elapsed=now()-.started in let allocated=allocation()-.bytes in
+        assert(Image.generation resource=generation && Image.Private.cpu_storage_bytes resource=0);
+        let cpu=Array.of_list(List.map(fun domains->let exact=create domains(load(text !width !height body))in
+          Fun.protect ~finally:(fun()->Editor.close exact)(fun()->
+            Bytes.copy(cpu_bytes exact !width !height 0 time))) [1;8])in
+        assert(cpu.(0)=cpu.(1));
+        let maximum=ref 0 and channels=ref 0 and differing=ref 0 in
+        for p=0 to Bytes.length pixels/4-1 do
+          let changed=ref false in
+          for c=0 to 3 do let i=p*4+c in
+            let difference=abs(Char.code(Bytes.get pixels i)-Char.code(Bytes.get cpu.(0)i))in
+            maximum:=max !maximum difference;
+            if difference<>0 then begin incr channels;changed:=true end
+          done;
+          if !changed then incr differing
+        done;
+        report fixture !width !height 1 "qualification" "verify_snapshot" (int_of_float(time*.100.)) 1
+          elapsed allocated (hash pixels) !maximum !channels !differing 0L (Image.Private.readbacks resource-reads);
+        report_counters fixture !width !height "qualification" "verify_snapshot" 0 1 before(counters !owner);
+        assert(!maximum<=1 && Image.generation resource=generation && before=counters !owner
+          && Image.Private.readbacks resource=reads+1);
+        pixels in
+      let first=verify 0. in let later=verify 0.5 in
+      if fixture="live_capture"then assert(first<>later)else assert(first=later);
+      consume 0.;
+      let captured=Rays.Canvas.to_image destination |> Result.get_ok in
+      Fun.protect ~finally:(fun()->Rays.Image.destroy captured)(fun()->
+        assert(Rays.Image.Private.pixels captured |> Result.get_ok=later));
+      let resized=text (size+1)size body in
+      Out_channel.with_open_bin file(fun ch->output_string ch resized);
+      Gc.full_major();let before=counters !owner in let bytes=allocation()in let started=now()in
+      let reload:Rays.Frame.t={width=size;height=size;size=size,size;drawable_width=size;drawable_height=size;
+        drawable_size=size,size;pixel_scale=1.,1.;time=10.;dt=0.;fps=60.;count=100000;
+        mouse=0.,0.;mouse_delta=0.,0.;keys=[];mouse_buttons=[];events=[]}in
+      owner:=Editor.update !owner reload;width:=size+1;publish 0.25;
+      let elapsed=now()-.started in let allocated=allocation()-.bytes in
+      report fixture !width !height 1 "qualification" "resize_replan" 0 1 elapsed allocated "" 0 0 0 0L 0;
+      report_counters fixture !width !height "qualification" "resize_replan" 0 1 before(counters !owner);
+      assert(Rays.Image.get_size image=(!width,!height));ignore(verify 0.25);
+      let before=counters !owner and reads=Image.Private.readbacks resource in
+      Gc.full_major();let bytes=allocation()in let started=now()in close();
+      let elapsed=now()-.started in let allocated=allocation()-.bytes in
+      report fixture !width !height 1 "qualification" "teardown" 0 1 elapsed allocated "" 0 0 0 0L
+        (Image.Private.readbacks resource-reads);
+      let after=counters !owner in
+      report_counters fixture !width !height "qualification" "teardown" 0 1 before after;
+      assert(after.(0)=after.(1) && after.(9)=after.(10) && after.(7)=before.(7)
+        && after.(8)=before.(8) && Image.Private.readbacks resource=reads);
+      let created,destroyed=Editor.Private.image_stats !owner in assert(created=destroyed))) [512;1024;2048])
+    ["gradient_live_dependency","[uv.x uv.y (+ 0.5 (- bias bias)) 1]";
+     "live_capture","[(+ uv.x bias) uv.y 0.5 1]"]
+
 let field_mode () =
   let env name default = Option.fold ~none:default ~some:int_of_string (Sys.getenv_opt name) in
   let domains = env "RAYS_BENCH_DOMAINS" 8 and repeats = env "RAYS_BENCH_REPEATS" 7 in
@@ -440,6 +626,7 @@ let () =
   if Array.to_list Sys.argv = [Sys.argv.(0); "--fields"] then begin field_mode (); exit 0 end;
   if Array.to_list Sys.argv = [Sys.argv.(0); "--images"] then begin image_mode (); exit 0 end;
   if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map"] then begin image_map_mode (); exit 0 end;
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map-connected"] then begin connected_image_mode (); exit 0 end;
   if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--branches"; "--loops"] then begin
     branch_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 3);
     exit 0

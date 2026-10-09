@@ -8,11 +8,20 @@ module Sinks=Lru.Make(struct
   let hash=Hashtbl.hash
 end)
 module Images=Lru.Make(struct type t=string let equal=String.equal let hash=Hashtbl.hash end)
+type image_stats={mutable created:int;mutable closed:int;mutable buffers:int;mutable textures:int}
+let close_image stats sink=
+  stats.closed<-stats.closed+1;
+  stats.buffers<-stats.buffers+Flow_gpu.Image_sink.Private.buffer_creations sink;
+  stats.textures<-stats.textures+Flow_gpu.Image_sink.Private.texture_creations sink;
+  Flow_gpu.Image_sink.close sink
 type t={mutable owner:(X.gpu * H.t)option; sinks:P.gpu_circles Sinks.t;
   images:Flow_gpu.Image_sink.t Images.t;
+  image_stats:image_stats;mutable closed_host:H.Private.stats;
   mutable backend:G.backend option; mutable closed:bool; mutable policy:G.policy}
-let create ()={owner=None;sinks=Sinks.create ~release:(fun _->P.close_gpu_circles)64;
-  images=Images.create ~release:(fun _->Flow_gpu.Image_sink.close)64;
+let create ()=let image_stats={created=0;closed=0;buffers=0;textures=0}in
+  {owner=None;sinks=Sinks.create ~release:(fun _->P.close_gpu_circles)64;
+  images=Images.create ~release:(fun _->close_image image_stats)64;
+  image_stats;closed_host=H.Private.zero;
   backend=None;closed=false;policy=G.Measured}
 let qualification t=
   if t.closed || not(Domain.is_main_domain())then invalid_arg "Workspace_gpu.qualification: open initial-domain owner required";
@@ -41,8 +50,9 @@ let image t ~key ~width ~height ~publish value=
         |Some sink->convert sink
         |None when Images.length t.images>=64->Error(error "A workspace owns at most 64 GPU image sinks.")
         |None->Result.bind(Flow_gpu.Image_sink.create gpu)(fun sink->
+            t.image_stats.created<-t.image_stats.created+1;
             let committed=ref false in
-            Fun.protect ~finally:(fun()->if not !committed then Flow_gpu.Image_sink.close sink)(fun()->
+            Fun.protect ~finally:(fun()->if not !committed then close_image t.image_stats sink)(fun()->
               Result.map(fun result->Images.add t.images key sink;committed:=true;result)(convert sink))))
 let circles t (value:G.value) ~radius ~fill ~stroke ~stroke_width =
   Result.bind(owner t)(fun(gpu,host)->
@@ -55,11 +65,19 @@ let circles t (value:G.value) ~radius ~fill ~stroke ~stroke_width =
       Result.bind sink(fun sink->native(P.gpu_circles sink
         ~source:(fun()->Option.bind(H.output host value)Flow_gpu.Run.buffer)
         ~count:value.count ~radius ~fill ~stroke ~stroke_width)))
+let image_stats t=
+  if not(Domain.is_main_domain())then invalid_arg "Workspace_gpu.image_stats: initial domain required";
+  let host=Option.fold ~none:t.closed_host ~some:(fun(_,host)->H.Private.stats host)t.owner in
+  let buffers=ref t.image_stats.buffers and textures=ref t.image_stats.textures in
+  Images.iter t.images(fun _ sink->
+    buffers:= !buffers+Flow_gpu.Image_sink.Private.buffer_creations sink;
+    textures:= !textures+Flow_gpu.Image_sink.Private.texture_creations sink);
+  host,t.image_stats.created,t.image_stats.closed,!buffers,!textures
 let close t=
   if not(Domain.is_main_domain())then invalid_arg "Workspace_gpu.close: initial domain required";
   if not t.closed then begin
   Sinks.clear t.sinks;
   Images.clear t.images;
-  Option.iter(fun(gpu,host)->H.close host;X.release_gpu gpu)t.owner;
+  Option.iter(fun(gpu,host)->H.close host;t.closed_host<-H.Private.stats host;X.release_gpu gpu)t.owner;
   t.owner<-None;t.closed<-true
 end

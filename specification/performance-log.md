@@ -9986,3 +9986,169 @@ The required pre-commit shipping check passes (exit 0):
 Astra's verdict: “F2.3 allocation gate: PASS” for the measured workload.
 This qualifies the retained image/render allocation gate across the measured
 sizes; it does not complete the deferred Lisp exact-image surface or F2.2.
+
+## F2.2 connected workspace image measurement plumbing (2026-10-09)
+
+Apple M1 Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev. The private
+Host counter hook combines current runner totals with counters frozen in the
+existing LRU release callback. It retains actual runner creation/release,
+pipeline compilation/release, buffer creation, input uploads/bytes, successful
+four-byte status reads and explicit output readback bytes. Workspace statistics
+add actual sink creation/close and buffer/texture creation, including failed
+uncommitted sinks, and preserve Host totals after close. No placement, dispatch,
+shader, conversion or cache-policy algorithm changes. Inspection is outside
+frame work and requires the initial domain for fresh/live/closed owners.
+
+Native Host regression executes 65 independently prepared producers, forces
+eviction, checks all dispatch/upload/buffer totals and the first explicit
+4,096-byte readback, then reacquires the original producer. Close preserves
+all totals and balances runner/pipeline ownership. The original test's exact
+65-creation assumption was incorrect: the existing CLOCK eviction can discard
+a newly inserted untouched runner and reacquire it. The regression instead
+pins executed status reads exactly and requires creation/release to balance
+the actual retained 64 runners. No cache-policy change is made. The workspace
+fixture counts 80 failed conversions, 80 failed publications, an exception,
+64 committed sinks and failed existing updates: 225 successful sink creations,
+225 closes, and 145 buffers/textures each after close. Native handles return
+to their starting count.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_gpu/runtest @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @tools/api_manifest/runtest
+dune promote
+_build/default/tools/check.exe @check @tools/api_manifest/runtest tools/bench_workspace_lower.exe
+```
+
+Focused native/pure/API checks pass (exit 0):
+`/tmp/rays-f-connected-image-stats-focused.log`. The two intended public
+manifest surfaces are Host.Private statistics and Editor3.Private.image_gpu_stats.
+Astra approves the accounting as measurement plumbing, with the subsequently
+implemented initial-domain guard. This does not establish a performance gate.
+
+The connected benchmark uses actual owner-qualified plans. Both fixtures capture
+`bias = t * 0.25`; the live gradient computes its blue channel as
+`0.5 + (bias - bias)`, while the changing capture adds bias to uv.x. Dispatch
+and Image generation deltas prove the gradient's constant pixels do not hide
+a cached display result. Fresh Measured probes record production selection;
+the native matrix explicitly selects Qualification. Producer, consumer-only
+and complete source-plus-mesh frames have separate rows. Counter/hash/parity
+operations remain outside sequential timing/allocation snapshots. Source-file
+replan/resize uses the actual Editor.update route, rather than a standalone sink.
+Benchmark review and native measurements are complete in the section below.
+Broad qualification and pre-commit shipping pass (exit 0); final logs follow.
+
+## F2.2 connected workspace image timing/allocation qualification (2026-10-09)
+
+Machine: Apple M1 Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev.
+Native producer/consumer execution uses one domain. Run isolated, without
+builds, tests or active agents. Both fixtures use the actual owner-qualified
+plan and capture bias = t * 0.25. The gradient retains a genuine live lexical
+dependency but constant pixels; successful status-read and publication counters
+prove it executes rather than measuring a cached result. The changing capture
+adds bias to the red channel. No production placement policy is changed.
+
+```sh
+_build/default/tools/check.exe @check @tools/api_manifest/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-connected > specification/performance/f-image-map-connected.csv 2> /tmp/rays-f-image-map-connected.log
+rg '^connected_image_counters,' /tmp/rays-f-image-map-connected.log > specification/performance/f-image-map-connected-counters.csv
+```
+
+Seven trials of 200 frames follow ten warmups at every size. Each trial uses
+bounded times j / 200 and distinct frame identities. The producer timer includes
+argument forcing, packed preparation, completed dispatch/status validation,
+conversion/buffer-to-texture completion and image/texture availability. Consumer
+timing renders an already published image on the retained nearest-filtered mesh;
+end-to-end timing resolves a new producer frame then completes that Canvas render.
+GC preparation, sequential allocation/counter snapshots, hashes and CPU/native
+comparisons sit outside the timer. Consumer cost is measured directly, not
+subtracted from unrelated medians.
+
+| Fixture | Size | GPU producer median ms | Producer bytes/frame | Consumer-only median ms | End-to-end median ms | End-to-end bytes/frame |
+|---|---:|---:|---:|---:|---:|---:|
+| Live-dependency gradient | 512² | 0.587790 | 51,593 | 0.347285 | 0.984905 | 84,649 |
+| Live-dependency gradient | 1024² | 1.538370 | 51,593 | 0.593270 | 2.413355 | 84,649 |
+| Live-dependency gradient | 2048² | 4.774500 | 51,593 | 1.264100 | 6.608875 | 84,649 |
+| Changing capture | 512² | 0.596750 | 43,105 | 0.349175 | 0.991986 | 76,161 |
+| Changing capture | 1024² | 1.557695 | 43,105 | 0.595665 | 2.392501 | 76,161 |
+| Changing capture | 2048² | 4.840524 | 43,105 | 1.323506 | 6.677926 | 76,161 |
+
+Producer/end-to-end allocation is the listed value at every trial and size,
+independent of pixel count across this range; it is not zero OCaml allocation.
+Consumer-only allocation medians are 33,073 bytes/frame at every size/fixture
+(individual trials 33,071–33,073).
+
+| Exact CPU owner cook | Size | 1-domain median ms | 8-domain median ms | 8-domain median allocated bytes |
+|---|---:|---:|---:|---:|
+| Live-dependency gradient | 512² | 11.338949 | 4.612923 | 10,586,760 |
+| Live-dependency gradient | 1024² | 56.896925 | 13.832092 | 42,228,136 |
+| Live-dependency gradient | 2048² | 215.566158 | 46.659946 | 168,799,480 |
+| Changing capture | 512² | 11.187077 | 3.503799 | 10,448,256 |
+| Changing capture | 1024² | 54.070950 | 13.118982 | 41,696,248 |
+| Changing capture | 2048² | 203.433037 | 43.431997 | 166,693,632 |
+
+CPU cooks are seven uncached live requests after preparation/warmup, through
+the actual owner payload route including conversion and session cleanup. Every
+corresponding complete-byte hash agrees between domains 1 and 8. The unchanged
+CPU <40 ms and GPU <5 ms gates concern 1024², not 2048².
+
+All 126 warm counter rows have exactly the expected counts: producer and
+end-to-end trials perform 200 mandatory four-byte status reads and publication
+generation advances; consumer-only trials perform zero. Persistent runner,
+pipeline, sink, buffer and texture creations/releases, input uploads, output
+pixel readbacks and destination uploads are zero. Workspace Image/Canvas
+creation/destruction/capture/readback totals remain unchanged during those trials.
+Sources keep stable Image/Texture identity and zero retained CPU pixel storage.
+
+All 18 full-source comparisons against independently cooked exact CPU results
+at domains 1/8 have maximum channel difference 0, differing channels 0 and
+differing pixels 0. They cover times 0/0.5 at each square size and source-file
+replan/resize to 513×512, 1025×1024 and 2049×2048 at time 0.25. Changing-capture
+bytes differ between the two times; gradient bytes remain equal. Each explicit
+verification reads the source Image exactly once outside warm measurement,
+leaves its display generation unchanged and performs no Host output readback.
+Completed nearest-filtered mesh bytes equal the published source bytes.
+
+All six fresh Measured route probes select GPU. These are single selection
+observations; repeated timing is Qualification evidence and does not substitute
+for production workload calibration. Existing producer/converter rows use a
+different measurement boundary; this is the first connected matrix, not a
+paired before/after optimization claim.
+
+| Fixture | Size | Cold owner + publication ms | Source replan/resize ms | Teardown ms |
+|---|---:|---:|---:|---:|
+| Live-dependency gradient | 512² | 7.320881 | 29.718876 | 1.060963 |
+| Live-dependency gradient | 1024² | 19.160032 | 80.266953 | 0.831842 |
+| Live-dependency gradient | 2048² | 70.925951 | 334.810019 | 1.469851 |
+| Changing capture | 512² | 6.987095 | 19.535065 | 0.865936 |
+| Changing capture | 1024² | 16.710043 | 74.481010 | 1.487970 |
+| Changing capture | 2048² | 57.151079 | 353.077173 | 2.465010 |
+
+Cold/resize/teardown are single observations, with allocation and explicit
+verification-read costs retained separately in the raw CSV. Resize includes
+actual Editor.update source reconciliation/preparation/publication; writing the
+new source precedes measurement. It creates one runner, three runner buffers,
+one UV upload and one replacement sink buffer/texture. Close retains all
+cumulative counters, balances runner/sink and Image ownership and adds no
+source pixel readback. The real per-frame generation and source-storage assertions
+are part of the runnable benchmark, not inferred from an isolated converter.
+
+Astra's verdict: “Connected F2.2 timing and allocation gates: PASS for the
+measured fixtures.” It reviewed all 264 measurement rows and 168 counter rows.
+This accepts the connected performance checkpoint; captured geometry and
+deferred Lisp `(exact image)` still prevent F2.2 completion. Full F5 qualification
+and pre-commit shipping pass (exit 0).
+Native matrix exits 0: `/tmp/rays-f-image-map-connected.log`.
+Final tool typecheck/API/build exits 0:
+`/tmp/rays-f-connected-image-bench-check.log`.
+Raw: `specification/performance/f-image-map-connected.csv` and
+`specification/performance/f-image-map-connected-counters.csv`.
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+_build/default/tools/check.exe --ship
+```
+
+Terminal successful logs: `/tmp/rays-f-connected-image-full.log` and
+`/tmp/rays-f-connected-image-ship.log`. Native workspace sweeps include standard,
+custom and fixture programs at domains 1/8; runtime presentation, gallery and
+prepared-command qualification also pass. The actual display is 1×, so 2× UI
+goldens remain explicitly unqualified. No tolerance or golden is changed.

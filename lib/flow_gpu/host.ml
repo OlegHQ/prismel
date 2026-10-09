@@ -2,13 +2,28 @@ module B=Ogpu.Backend
 module G=Flow_ir.Gpu
 module Cache=Lru.Make(struct type t=string let equal=String.equal let hash=Hashtbl.hash end)
 type runner={identity:int;run:Run.t;mutable stamp:int64;mutable output:Run.output option}
+type stats={runners_created:int;runners_released:int;pipeline_compilations:int;pipeline_releases:int;
+  buffer_creations:int;input_uploads:int;input_uploaded_bytes:int;status_reads:int;readback_bytes:int}
+let zero={runners_created=0;runners_released=0;pipeline_compilations=0;pipeline_releases=0;
+  buffer_creations=0;input_uploads=0;input_uploaded_bytes=0;status_reads=0;readback_bytes=0}
+let add_run stats run={stats with
+  buffer_creations=stats.buffer_creations+Run.Private.buffer_creations run;
+  input_uploads=stats.input_uploads+Run.Private.input_uploads run;
+  input_uploaded_bytes=stats.input_uploaded_bytes+Run.Private.input_uploaded_bytes run;
+  status_reads=stats.status_reads+Run.Private.status_reads run;
+  readback_bytes=stats.readback_bytes+Run.Private.readback_bytes run}
 type t={gpu:Rays_execution.gpu;pipelines:Pipelines.t;runners:runner Cache.t;
+  created:int ref;retired:stats ref;
   mutable closed:bool;domain:Domain.id;cost:Flow_ir.Packed.t -> count:int -> float option}
 let next=Atomic.make 1
 let create ?(cost=fun _ ~count:_->None) ~clock gpu =
   if not(Domain.is_main_domain())then invalid_arg "Host.create: initial domain required";
+  let created=ref 0 and retired=ref zero in
   {gpu;pipelines=Pipelines.create ~clock(Rays_execution.gpu_device gpu);
-    runners=Cache.create ~release:(fun _ runner->runner.output<-None;Run.close runner.run)64;
+    created;retired;
+    runners=Cache.create ~release:(fun _ runner->
+      retired:={(add_run !retired runner.run) with runners_released=(!retired).runners_released+1};
+      runner.output<-None;Run.close runner.run)64;
     closed=false;domain=Domain.self();cost}
 let live t=not t.closed && Domain.self()=t.domain
 let error message=Error(Flow.Diagnostic.error ~code:"E_GPU" message)
@@ -28,6 +43,7 @@ let backend t : G.backend =
        let key=string_of_int(Atomic.fetch_and_add next 1)in
        let runner ()=match Cache.find_opt t.runners key with Some runner->runner|None->
          let runner={identity=Atomic.fetch_and_add next 1;run=Run.create t.gpu t.pipelines msl;stamp=0L;output=None}in
+         incr t.created;
          Cache.add t.runners key runner;runner in
        ignore(runner());
        {G.run=(fun inputs->if not(live t)then error "GPU host is closed or called from another domain."else
@@ -42,3 +58,16 @@ let backend t : G.backend =
 let close t=
   if Domain.self()<>t.domain then invalid_arg "Host.close: creating domain required";
   if not t.closed then begin Cache.clear t.runners;Pipelines.close t.pipelines;t.closed<-true end
+module Private=struct
+  type nonrec stats=stats={runners_created:int;runners_released:int;
+    pipeline_compilations:int;pipeline_releases:int;buffer_creations:int;
+    input_uploads:int;input_uploaded_bytes:int;status_reads:int;readback_bytes:int}
+  let zero=zero
+  let stats t=
+    if Domain.self()<>t.domain then invalid_arg "Host.Private.stats: creating domain required";
+    let totals=ref !(t.retired)in
+    Cache.iter t.runners(fun _ runner->totals:=add_run !totals runner.run);
+    {!totals with runners_created= !(t.created);
+      pipeline_compilations=Pipelines.Private.compilations t.pipelines;
+      pipeline_releases=Pipelines.Private.releases t.pipelines}
+end

@@ -494,9 +494,14 @@
         "val create : ? cost : ( Flow_ir.Packed.t -> count : int -> float option ) -> clock : ( unit -> float ) -> Rays_execution.gpu -> t",
         "val backend : t -> Flow_ir.Gpu.backend",
         "val output : t -> Flow_ir.Gpu.value -> Run.output option",
-        "val close : t -> unit"
+        "val close : t -> unit",
+        "module Private : sig",
+        "type stats = { runners_created : int ; runners_released : int ; pipeline_compilations : int ; pipeline_releases : int ; buffer_creations : int ; input_uploads : int ; input_uploaded_bytes : int ; status_reads : int ; readback_bytes : int }",
+        "val zero : stats",
+        "val stats : t -> stats",
+        "end"
       ],
-      "api_sha256": "93563724bb00cf86cebf83b3201612b4ff9618c848e90c045688b9d61639448a",
+      "api_sha256": "05e8143aec06bd681172c6f988f9403b8d9df24a33966ac03d5a727a03a5f811",
       "excluded_legacy_symbols": [],
       "library": "flow_gpu",
       "module": "Host",
@@ -3429,6 +3434,7 @@
         "val image_payload : ? state : Flow.Eval.state -> ? live : Frame_input.t -> 'prepared t -> Flow.Eval.value -> ( Procedural.Image.t , Flow.Diagnostic.t ) result",
         "val image_stats : 'prepared t -> int * int",
         "val image_render_stats : 'prepared t -> int * int * int * int",
+        "val image_gpu_stats : 'prepared t -> Flow_gpu.Host.Private.stats * int * int * int * int",
         "val image : 'prepared t -> Flow.Eval.value -> ( Rays.Image.t , Flow.Diagnostic.t ) result",
         "val with_images : ? state : Flow.Eval.state -> ? live : Frame_input.t -> ? plan : Flow.Eval.plan -> 'prepared t -> ( image : ( Flow.Eval.value -> ( Rays.Image.t , Flow.Diagnostic.t ) result ) -> texture : ( Flow.Eval.value -> ( Rays.Texture.t , Flow.Diagnostic.t ) result ) -> 'a ) -> 'a",
         "val host_stats : 'prepared t -> bool * int * int * int",
@@ -3500,7 +3506,7 @@
         "val main : ? factories : Procedural.Edit_graph.factory list -> ? imports : ( string * string ) list -> path : string -> digest : string -> catalog : string -> string -> unit",
         "end"
       ],
-      "api_sha256": "39a37dff23def36e65bdc928b74d575df6e91376d39eb96ba064052ba3e01d17",
+      "api_sha256": "3a0506f2f1cebe7a5990bc0b7aab6b97db36d3ce2e5b3b70dca84f86b9a59bf1",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",

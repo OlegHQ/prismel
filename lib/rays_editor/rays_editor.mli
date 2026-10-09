@@ -352,6 +352,10 @@ module Editor3 : sig
     val image_render_stats : 'prepared t -> int * int * int * int
     (** Canvases created/destroyed, successful captures and actual GPU pixel readbacks. *)
 
+    val image_gpu_stats : 'prepared t -> Flow_gpu.Host.Private.stats * int * int * int * int
+    (** Cumulative Host totals, sinks created/closed and sink buffer/texture creations,
+        including evicted runners and failed sinks; inspect outside frame measurements. *)
+
     val image : 'prepared t -> Flow.Eval.value -> (Rays.Image.t, Flow.Diagnostic.t) result
     val with_images : ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?plan:Flow.Eval.plan ->
       'prepared t ->

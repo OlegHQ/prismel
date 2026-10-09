@@ -129,8 +129,9 @@ backing are implemented by the checkpoints below. Resident consumers are
 committed in `6636e12b`; connected workspace GPU publication and independent
 CPU snapshots are committed in `3db45c8b`. Completed-Canvas borrowing is committed
 in `5f0e50b2`; the retained workspace Canvas checkpoint below passes F2.3's
-measured allocation gate. Connected image/map timing gates and frozen exact GPU
-snapshots remain open. The paragraphs that follow
+measured allocation gate. Connected image/map timing/allocation gates now pass
+the checkpoint below; captured geometry and frozen exact GPU snapshots remain
+open. The paragraphs that follow
 record the earlier field and qualification implementation history.
 Deterministic sampled slab chunks (`8f1f4789`) now preserve complete geometry and seam
 normals, improving the eight-domain whole cook from 20.954 to 12.937 ms in
@@ -218,7 +219,7 @@ once so you know what exists before you add anything.
 | SOP overlay | `lib/flow_sop` (`lower`, `attribute_kernel`, `value_lane`, `operators`) | Lowers a checked workspace to a `Procedural` network; `sop/attr` and `sop/with_attr` are the kernel boundary (`Attribute_kernel` over `Rdk.Kernel.edit_point_ranges`); image resolver callback (`Lower.with_images`). |
 | Graph layer | `lib/flow_graph` (`projection`, `flow_edit`, `exposure`, `probe`) | Domain-neutral projection and gestures; zones for map/filter/reduce/sort-by and if/cond/case arms; probes force one tuple. |
 | 2D | `lib/sketch_support/drawing.ml`, `lib/flow/op.ml` (`draw_op` lines ~200-240) | 18 `draw/*` kinds; plural kinds (`circles`, `rects`, `lines`, `points`, ...) lower to one instanced `Scene_command.Shape_batch`; GPU display sinks take a `gpu_token`. |
-| Images | `lib/flow/op.ml`, `lib/flow_sop/image_kernel.ml`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, retained display `image/render`, `image/noise`, CPU/GPU display `image/map` (packed Vec2→Vec4, owned RGBA8); resident `draw/image`/`scene/geometry :texture image`; exact CPU `sop/attr_from_image`. The editor pins at most 64 images. Connected image/map measurements, captured geometry and deferred frozen exact GPU snapshots remain open. |
+| Images | `lib/flow/op.ml`, `lib/flow_sop/image_kernel.ml`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, retained display `image/render`, `image/noise`, CPU/GPU display `image/map` (packed Vec2→Vec4, owned RGBA8); resident `draw/image`/`scene/geometry :texture image`; exact CPU `sop/attr_from_image`. The editor pins at most 64 images. Connected timing/allocation gates pass; captured geometry and deferred frozen exact GPU snapshots remain open. |
 | Catalog | `lib/sop_catalog`, `ppx/ppx_rays`, `lib/procedural/node.ml` | 162 `sop/*` kinds, one declaration each, including the field SOP, `Node.facts` (elementwise, reads, writes, topology, exact). |
 | Cook | `lib/procedural/session.ml` | Component-keyed LRU; learned placement fans branches and zone elements across domains above a 2 ms measured subtree. |
 | Geometry | `lib/rdk/**` | Float64 structure-of-arrays planes; `Mesh_merge.merge_plain` is the serial merge (see F3). Scene3 packs planes into float32 24+12-byte streams (`lib/rays/scene3_native_lowering.ml`). |
@@ -1335,10 +1336,50 @@ density. Raw parity and commands are in the performance
 log. This is functional evidence, not a connected timing/allocation verdict.
 
 The workspace resolver still refuses captured geometry without a cooked-source
-resolver. Frozen exact GPU snapshots, connected GPU timing/allocation/resource/
-readback counters and the complete size/parity measurement matrix remain required.
+resolver. Frozen exact GPU snapshots remain required. The connected GPU timing/
+allocation/resource/readback and complete size/parity matrix are verified below.
 The producer/converter verdict does not close F2.2,
 F2.3 or F.md.
+
+**Connected measurement plumbing (2026-10-09).**
+Private actual-owner GPU statistics now retain runner/pipeline/sink creations,
+releases, uploads and readbacks through eviction, failed publication and close.
+Native regressions cover 65 executed producers, eviction/reacquisition, a saved
+explicit readback, 80 failed conversions, 80 failed publications, an exception,
+64 pinned sinks and repeated close. Totals remain cumulative; inspection rejects
+worker domains for fresh/live/closed owners. Focused/native/API checks pass.
+The new `bench_workspace_lower --image-map-connected` mode follows Astra's
+actual-qualified-owner design: live lexical gradient and changing-capture
+fixtures, fresh Measured route probes, separate Qualification producer,
+consumer-only and end-to-end trials, CPU domain parity, native full-image
+comparisons, authored replan/resize and separate readback/teardown rows.
+Its measurements and verdict follow; the converter-only numbers above do not
+establish this connected gate.
+
+**Connected timing/allocation gates PASS (2026-10-09).** The actual owner-qualified
+workspace route is measured for both live lexical fixtures at 512²/1024²/2048²,
+seven trials of 200 completed frames after ten warmups. At 1024², GPU producer
+medians are 1.538370 ms (live-dependency gradient) and 1.557695 ms (changing
+capture), including preparation, status validation, conversion/copy completion
+and image/texture publication. Exact CPU owner cooks at eight domains measure
+13.832092/13.118982 ms with every corresponding hash equal at domains 1/8.
+Producer allocation is exactly 51,593/43,105 bytes/frame, respectively, at
+every size and trial. All warm producer/end-to-end trials have 200 successful
+status reads and Image generation advances, stable Image/Texture identity,
+zero persistent resource creation, input uploads, pixel readbacks and CPU storage.
+Consumer-only replay has no producer dispatch or generation advance. Independent
+source comparisons at times 0/0.5 and authored odd-width resize have zero maximum
+channel difference, differing channels and pixels in all 18 cases. Full completed
+mesh bytes equal source pixels. Six fresh Measured probes select GPU; repeated
+timing uses explicitly labelled Qualification. Cold owner/preparation, source-file
+replan/resize, explicit readbacks and teardown are separate rows. Astra's verdict:
+“Connected F2.2 timing and allocation gates: PASS for the measured fixtures.”
+Raw data: `specification/performance/f-image-map-connected.csv` and
+`specification/performance/f-image-map-connected-counters.csv`. Commands, machine,
+consumer/end-to-end medians and limits are in the performance log. Broad F5
+native qualification and pre-commit `--ship` pass (exit 0); 2× UI goldens remain
+unqualified on the actual 1× display. Captured geometry and deferred Lisp
+`(exact image)` still prevent overall F2.2 completion.
 
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row

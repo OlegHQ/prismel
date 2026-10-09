@@ -62,3 +62,48 @@ let () = match Rays_execution.acquire_gpu () with
             |Error diagnostic->diagnostic.Flow.Diagnostic.code="E_KERNEL"|Ok _->false)));
         print_endline "GPU run: emitted kernels match the CPU tier within the recorded native noise tolerance"
       end)
+
+let ()=
+  let module H=Flow_gpu.Host in
+  let _,handles=Ogpu.Impl.create_driver()in
+  let baseline=handles()in
+  let gpu=match Rays_execution.acquire_gpu()with Ok gpu->gpu|Error e->
+    failwith(Format.asprintf "%a" Rays_execution.pp_error e)in
+  Fun.protect ~finally:(fun()->Rays_execution.release_gpu gpu)(fun()->
+    let host=H.create ~clock:Unix.gettimeofday gpu in
+    Fun.protect ~finally:(fun()->H.close host)(fun()->
+      let packed=List.assoc "arithmetic"(Test_program.fixtures 1024)in
+      let inputs=Flow_ir.Packed.Private.prepare packed ~live:(Frame_input.at_time 1.) |> Test_program.ok in
+      let backend=H.backend host in
+      let first=backend.prepare packed |> Test_program.ok in
+      let value=first.run inputs |> Test_program.ok in
+      ignore(first.readback value |> Test_program.ok);
+      let initial=H.Private.stats host in
+      assert(initial.runners_created=1 && initial.runners_released=0 && initial.status_reads=1);
+      for _=1 to 64 do
+        let kernel=backend.prepare packed |> Test_program.ok in
+        ignore(kernel.run inputs |> Test_program.ok)
+      done;
+      let evicted=H.Private.stats host in
+      assert(evicted.runners_created>=65 && evicted.runners_released=evicted.runners_created-64
+        && evicted.pipeline_compilations=1 && evicted.status_reads=65);
+      assert(evicted.buffer_creations=65*initial.buffer_creations
+        && evicted.input_uploads=65*initial.input_uploads
+        && evicted.input_uploaded_bytes=65*initial.input_uploaded_bytes
+        && evicted.readback_bytes=initial.readback_bytes && initial.readback_bytes=4096);
+      assert(H.output host value=None);
+      ignore(first.run inputs |> Test_program.ok);
+      let renewed=H.Private.stats host in
+      assert(renewed.runners_created=evicted.runners_created+1
+        && renewed.runners_released=evicted.runners_released+1 && renewed.status_reads=66);
+      assert(Domain.join(Domain.spawn(fun()->try ignore(H.Private.stats host);false with Invalid_argument _->true)));
+      H.close host;H.close host;
+      let closed=H.Private.stats host in
+      assert(closed.runners_created=renewed.runners_created && closed.runners_released=closed.runners_created
+        && closed.pipeline_compilations=1 && closed.pipeline_releases=1
+        && closed.status_reads=renewed.status_reads && closed.readback_bytes=initial.readback_bytes
+        && closed.buffer_creations=renewed.buffer_creations
+        && closed.input_uploads=renewed.input_uploads
+        && closed.input_uploaded_bytes=renewed.input_uploaded_bytes)));
+  assert(handles()=baseline);
+  print_endline "GPU Host counters: eviction, reacquisition and idempotent close preserve cumulative successful work, zero handles"

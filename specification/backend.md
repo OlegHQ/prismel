@@ -713,6 +713,11 @@ closed targets. Legacy CPU publications invalidate old display stamps. Recursive
 resolution reserves pending ancestor entries inside the 64-image bound. Close
 destroys published Images, then retained Canvases, then sinks, host runners/pipelines
 and the GPU lease. Explicit deferred frozen GPU-image snapshots remain separate work.
+Private workspace GPU statistics combine live runner/sink counters with totals
+frozen when an entry is retired. Failed uncommitted sinks and closed owners
+remain accounted for; pipeline compilation and runner creation/release are
+reported separately. Inspection requires the initial domain and happens outside
+frame measurements, so eviction cannot hide uploads, creations or pixel reads.
 Scene rejects malformed, destroyed, and foreign-device GPU image sources; a
 canvas rendered on another device than the window's falls back to its CPU
 pixels.
