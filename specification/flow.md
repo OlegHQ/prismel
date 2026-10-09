@@ -1154,6 +1154,18 @@ fallback wrap the same result. Declining a child compilation or exceeding the
 combined fusion register budget may still produce a valid unfused program;
 that successful compilation is not reported as a refusal.
 
+`Eval.Private.static_with_kernels` can observe each actual static entry into
+map, reduce, loop or array/sum before materialization, including empty/static
+forms and unsupported types. Each handle contains the current checked term,
+lexical free captures, graph instance and iteration tuple; repeated entries
+are retained and untaken branches stay unvisited. These synthetic handles do
+include attempted specializations whose enclosing static evaluation later
+defers; they do not establish exhaustive execution coverage. They do
+not change ordinary residual identities. The callback is cleared in live
+evaluation and when static evaluation exits, so forcing and capture adapters
+do not repeat it. This provides evidence for actual-capture qualification;
+the current checker still publishes its advisory eligibility walk.
+
 Cook-time specialization uses the instantiated SOP facts, including parameter
 overrides, rather than a catalog's default declaration. A regular node with
 preserved topology carries its designated input's point-count origin; changed

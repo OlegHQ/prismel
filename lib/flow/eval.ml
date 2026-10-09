@@ -117,6 +117,7 @@ and st = {
   resolve : (value -> (value, Diagnostic.t) result) option;
   execute : (residual -> Frame_input.t -> (value, Diagnostic.t) result option) option;
   compiled_residuals : bool;
+  mutable observe_kernel : (residual -> unit) option;
   source : string Lazy.t;
   state : state option;
   mutable states : value list;
@@ -149,6 +150,8 @@ type instance = { graph : string; default : bool; inputs : (string * value) list
 type plan = { instances : instance array; nodes : node array }
 type t = { plan : plan; authored : int array; results : (string * value) list; states : value list;
            records : (W.path * (int list * value) list) list }
+
+let bulk_ids = Atomic.make (-1)
 
 let create_state () = {source = ""; frame = None; before = Smap.empty; next = Smap.empty;host=None}
 let reset_frame s = s.source <- ""; s.frame <- None; s.before <- Smap.empty; s.next <- Smap.empty
@@ -438,6 +441,11 @@ and ev c env (x : W.term) : value =
   let c = match x.path with Some p -> { c with base = p; route = [] } | None -> c in
   match st.time with
   | None ->
+      (match st.observe_kernel, x.node with
+       | Some observe, (W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = "array/sum"; _}) ->
+           observe {rid = Atomic.fetch_and_add bulk_ids (-1); rterm = x;
+             renv = capture x env; rc = c; previous = false; fast = Untried}
+       | _ -> ());
       let saved = st.nodes and saved_n = st.nnodes and saved_authored = st.authored in
       (match ev_raw c env x with
        | v -> (match x.path with Some p -> note c p v | None -> ()); v
@@ -991,7 +999,7 @@ let new_state ~record ws =
   let graphs = Hashtbl.create 8 and defs = Hashtbl.create 8 in
   List.iter (fun (g : W.graph) -> Hashtbl.replace graphs g.name g) ws.W.graphs;
   List.iter (fun (g : W.graph) -> Hashtbl.replace defs g.name g) ws.W.defs;
-  { time = None; resolve = None; execute = None; compiled_residuals = true;
+  { time = None; resolve = None; execute = None; compiled_residuals = true; observe_kernel = None;
     source = lazy (Digest.string (fst (Lisp.print ws.W.source))); state = None; states = [];
     nfns = 0; fn_calls = Hashtbl.create 1;
     steps = 0; nodes = []; authored = []; nnodes = 0; cells = []; cache = Hashtbl.create 8;
@@ -999,7 +1007,8 @@ let new_state ~record ws =
     kind_fns = ws.W.kind_fns; ops = ws.ops }
 
 let live_state (st : st) ~state ?(elems = Smap.empty) (l : live) =
-  { st with time = Some l; state = Some state; steps = 0; memo = Hashtbl.create 16;
+  { st with time = Some l; state = Some state; observe_kernel = None;
+    steps = 0; memo = Hashtbl.create 16;
     fn_calls = Hashtbl.create 16; record = false; elems }
 
 let root st = { st; inst = -1; prefix = []; base = []; route = []; iter = []; depth = 0; rec_ = true; data = false; geometry = false; host=false }
@@ -1011,7 +1020,7 @@ let protect f =
   | Stack_overflow -> Error (diagnostic "E_DEPTH" "Evaluation is nested too deeply." None)
   | Out_of_memory -> Error (diagnostic "E_ARRAY_MEMORY" "Frame data exceeds available memory." None)
 
-let static ?(record = false) ?(inputs = []) ws =
+let static_impl ?(record = false) ?(inputs = []) ?observe ws =
   Phase_timer.measure Evaluate (fun () ->
   protect (fun () ->
     if List.length inputs <> List.length (List.sort_uniq String.compare (List.map fst inputs)) then
@@ -1021,6 +1030,8 @@ let static ?(record = false) ?(inputs = []) ws =
         failf "E_UNKNOWN_GRAPH" "Unknown graph input target: %s." name) inputs;
     List.iter (fun (_, ins) -> List.iter (fun (_, value) -> Value.validate value) ins) inputs;
     let st = new_state ~record ws in
+    st.observe_kernel <- observe;
+    Fun.protect ~finally:(fun () -> st.observe_kernel <- None) (fun () ->
     let c = root st in
     let results = List.map (fun (g : W.graph) ->
       let over = Option.value (List.assoc_opt g.name inputs) ~default:[] in
@@ -1031,7 +1042,9 @@ let static ?(record = false) ?(inputs = []) ws =
       |> List.sort (fun (a, _) (b, _) -> compare a b) in
     { plan = { instances; nodes = Array.of_list (List.rev st.nodes) }; results; records;
       authored = Array.of_list (List.rev st.authored);
-      states = List.rev st.states }))
+      states = List.rev st.states })))
+
+let static ?record ?inputs ws = static_impl ?record ?inputs ws
 
 let rec is_live = function
   | Residual _ -> true
@@ -1146,7 +1159,7 @@ let run ?record ?inputs ?state ?live ~time ws =
 let show v = show_with Fun.id v
 
 module Private = struct
-  let bulk_ids = Atomic.make (-1)
+  let static_with_kernels = static_impl
   let map_function ~(signature : Ty.fn_signature) fn arrays = protect (fun () ->
     match fn with
     | Named _ -> fail "E_KERNEL_FORM" "A bulk function needs an instantiated local body."

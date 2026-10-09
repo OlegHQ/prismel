@@ -199,6 +199,7 @@
         "val hash : float list -> float",
         "val show : value -> string",
         "module Private : sig",
+        "val static_with_kernels : ? record : bool -> ? inputs : ( string * ( string * value ) list ) list -> ? observe : ( residual -> unit ) -> Workspace.t -> ( t , Diagnostic.t ) result",
         "val map_function : signature : Ty.fn_signature -> fn -> value list -> ( value , Diagnostic.t ) result",
         "val free_names : Workspace.term -> string list",
         "val free_name_walks : unit -> int",
@@ -220,7 +221,7 @@
         "val compiled : value -> int",
         "end"
       ],
-      "api_sha256": "f1a7d97b6819585e0d92db904fc1afa9098851cb99df598ac1d705085b1108e3",
+      "api_sha256": "1ee3cc9757711807726cbaa9560612a2e8c8ea8fd604582f7fea51a7c8a78736",
       "excluded_legacy_symbols": [],
       "library": "flow",
       "module": "Eval",

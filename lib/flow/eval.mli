@@ -186,6 +186,21 @@ val show : value -> string
 (** [str] formatting (register C2); a residual shows as [?]. *)
 
 module Private : sig
+  val static_with_kernels :
+    ?record:bool -> ?inputs:(string * (string * value) list) list ->
+    ?observe:(residual -> unit) -> Workspace.t -> (t, Diagnostic.t) result
+  (** Ordinary static evaluation with an observational callback before each
+      actual entry into map, reduce, loop or array/sum, including static and
+      empty forms and unsupported signatures. Handles carry the exact checked
+      term, lexical captures, instance and iteration tuple; they have distinct
+      negative IDs, separate from returned residuals. Repeated entries are not
+      deduplicated; attempted specializations remain observed when the enclosing
+      static evaluation later defers, and untaken branches are not visited.
+      This is not exhaustive execution coverage. The callback must not
+      mutate values or turn compilation refusal into a language error. It is
+      cleared on evaluation exit and in live states, including capture adapters
+      and later forcing; ordinary residual IDs and evaluation remain unchanged. *)
+
   val map_function : signature:Ty.fn_signature -> fn -> value list -> (value, Diagnostic.t) result
   (** Bind immutable packed columns to an instantiated function, retaining its
       body and captures as a genuine residual map for downstream compilation. *)

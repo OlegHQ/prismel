@@ -682,6 +682,92 @@ let () = (* register L16: :skip leaves iterations out; the others keep their tup
      | _ -> failwith "the merge of merges"))
 
 let () =
+  t "kernel observation preserves evaluation and sees actual static captures" (fun () ->
+    let ws = check "(workspace observation
+      (defn doubled :context value [(offset : float)]
+        (let* [items (map (fn [x] (+ x offset)) (array/range 2))] (array/sum items)))
+      (graph g :context host [(offset : float 2.0)]
+        (let* [static_map (map (fn [x] (+ x offset)) (array/range 2))
+               empty_map (map (fn [x] (+ x offset)) (array/range 0))
+               live_map (map (fn [x] (+ (+ x offset) t)) (array/range 3))
+               from_def (doubled offset)
+               nested (for [i (range 2)]
+                 (let* [mapped (map (fn [x] (+ (+ x i) offset)) (array/range 2))]
+                   (array/sum mapped)))
+               list_map (map (fn [x] (+ x offset)) (list 1 2))
+               reduced (reduce (fn [a x] (+ a x)) 0.0 (array/range 2))
+               unvisited (if true 0.0 (array/sum (map (fn [x] (+ x offset)) (array/range 3))))]
+          {:static static_map :empty empty_map :live live_map :def from_def
+           :nested nested :list list_map :reduced reduced :unvisited unvisited}))
+      (graph other :context host (ref g :offset 7.0)))" in
+    let ordinary = static ~record:true ws in
+    let seen = ref [] and adapter_checked = ref false in
+    let observe residual =
+      seen := residual :: !seen;
+      let view = Eval.Private.residual_view residual in
+      if not !adapter_checked && view.site = ["g";"static_map"] then begin
+        adapter_checked := true;
+        let count = List.length !seen in
+        assert (Eval.Private.eval_term residual view.term ~live:(Frame_input.at_time 0.)
+          = Ok (Eval.Float_array [|2.;3.|]));
+        assert (List.length !seen = count)
+      end in
+    let observed = ok (Eval.Private.static_with_kernels ~record:true ~observe ws) in
+    assert (!adapter_checked);
+    (* Compare ordinary identities as well as immutable data, without comparing
+       the closures embedded in function/residual contexts. *)
+    let rec identity = function
+      | Eval.Fn fn -> Eval.Text ("fn:" ^ string_of_int (Eval.Private.function_id fn))
+      | Residual r -> Eval.Text ("residual:" ^ string_of_int (Eval.Private.residual_id r))
+      | List xs -> Eval.List (Array.map identity xs)
+      | Record fs -> Eval.Record (List.map (fun (name, v) -> name, identity v) fs)
+      | Struct (name, ty, fs) -> Eval.Struct (name, ty, List.map (fun (name, v) -> name, identity v) fs)
+      | v -> v in
+    let results r = List.map (fun (name, v) -> name, identity v) r.Eval.results in
+    let records r = List.map (fun (path, values) ->
+      path, List.map (fun (tuple, v) -> tuple, identity v) values) r.Eval.records in
+    let instances r = Array.map (fun (i : Eval.instance) ->
+      i.graph, i.default, List.map (fun (name, v) -> name, identity v) i.inputs, identity i.result) r.Eval.plan.instances in
+    assert (results ordinary = results observed && records ordinary = records observed);
+    assert (instances ordinary = instances observed && ordinary.authored = observed.authored);
+    assert (ordinary.plan.nodes = observed.plan.nodes && ordinary.states = observed.states);
+    let ids = List.map Eval.Private.residual_id !seen in
+    assert (List.for_all (fun id -> id < 0) ids);
+    assert (List.length (List.sort_uniq compare ids) = List.length ids);
+    let views = List.map Eval.Private.residual_view (List.rev !seen) in
+    let at path = List.filter (fun (v : Eval.Private.residual_view) -> v.site = path) views in
+    let offsets views = List.map (fun (v : Eval.Private.residual_view) -> List.assoc "offset" v.bindings) views in
+    let maps = at ["g";"static_map"] in
+    assert (offsets maps = [Eval.Float 2.; Float 7.]);
+    let authored = match (List.find (fun (g : Workspace.graph) -> g.name = "g") ws.graphs).body.node with
+      | Workspace.Let (bindings, _) -> List.assoc (Workspace.Name "static_map") bindings
+      | _ -> assert false in
+    List.iter (fun (v : Eval.Private.residual_view) ->
+      assert (v.term == authored && v.iter = []);
+      assert (List.map fst v.bindings = ["offset"]);
+      let instance = observed.plan.instances.(v.instance) in
+      assert (instance.graph = "g" && List.assoc "offset" instance.inputs = List.assoc "offset" v.bindings)) maps;
+    List.iter (fun path -> assert (offsets (at ["g";path]) = [Eval.Float 2.; Float 7.]))
+      ["empty_map";"live_map";"list_map"];
+    assert (List.for_all (fun (v : Eval.Private.residual_view) -> match v.term.ty with
+      | Ty.List _ -> true | _ -> false) (at ["g";"list_map"]));
+    assert (List.length (at ["g";"reduced"]) = 2);
+    let nested = List.filter (fun (v : Eval.Private.residual_view) -> List.mem_assoc "i" v.bindings) views in
+    assert (List.map (fun (v : Eval.Private.residual_view) -> v.iter, List.assoc "i" v.bindings,
+      List.assoc "offset" v.bindings) nested =
+      [[0], Eval.Int 0, Float 2.; [1], Int 1, Float 2.; [0], Int 0, Float 7.; [1], Int 1, Float 7.]);
+    let definitions = List.filter (fun (v : Eval.Private.residual_view) -> match v.term.node with
+      | Workspace.Hof (`Map, _) -> List.mem "def:doubled" v.site | _ -> false) views in
+    assert (offsets definitions = [Eval.Float 2.; Float 7.]);
+    assert (List.exists (fun (v : Eval.Private.residual_view) -> match v.term.node with
+      | Workspace.Op {op = "array/sum"; _} -> true | _ -> false) views);
+    assert (not (List.exists (fun (v : Eval.Private.residual_view) -> List.mem "unvisited" v.site) views));
+    let count = List.length !seen in
+    List.iter (fun time ->
+      let live = Frame_input.at_time time in
+      List.iter2 (fun (name, a) (other, b) ->
+        assert (name = other && Eval.force a ~live = Eval.force b ~live)) ordinary.results observed.results;
+      assert (List.length !seen = count)) [0.;0.125;1.25;7.]);
   t "live packed accumulators defer the complete iteration" (fun () ->
     List.iter (fun body ->
       let workspace = check (value body) in

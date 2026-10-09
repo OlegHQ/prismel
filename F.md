@@ -157,7 +157,9 @@ F1.3's shared compiler/emitter/dispatch form checks are implemented; focused,
 shipping and native GPU checks pass. Its two-stage qualification wiring remains pending.
 Explicit declaration capabilities (`e7c36ea7`) and diagnostic compilation are
 implemented; the diagnostic checkpoint passes focused, shipping and native
-GPU checks with Astra approval. Actual-capture qualification remains pending.
+GPU checks with Astra approval. Static kernel observation also passes focused,
+shipping and native GPU checks with Astra approval. Actual-capture qualification
+remains pending.
 Direct packed edge writes (`97e5f7bf`) now pass F2.1's measured gate: eight-domain whole
 cook medians are 9.131908 and 9.860992 ms in opposite execution orders,
 with exact geometry and about 15.7 MB less allocation. Astra's verdict is
@@ -573,7 +575,7 @@ changes. Shipping and native GPU checks pass (exit 0). This is a foundation,
 not completion of F1.3; diagnostic compilation and actual-capture qualification
 remain required.
 
-**Diagnostic compilation foundation (2026-10-09).**
+**Diagnostic compilation foundation (2026-10-09, `8e55635a`).**
 `Packed.compile_result` now reports the first actual refusal with a source
 span and a concrete reason, preserving evaluator codes. The legacy compile
 APIs and runtime reference fallback consume the same result. Speculative
@@ -587,6 +589,48 @@ public API addition is reviewed/promoted, and Astra approves this checkpoint.
 Shipping and native GPU validation pass (exit 0). Actual-capture qualification,
 checker provenance/state facts, inspector reasons and the full authored
 producer/emitter audit remain open; this is not completion of F1.3.
+
+**Evaluator observation foundation (2026-10-09).**
+`Eval.Private.static_with_kernels` now observes each actual static entry into
+map/reduce/loop/array-sum before materialization, including empty/static forms
+and unsupported types. The exact checked term, lexical free bindings,
+instance and tuple are retained; no path deduplication or manufactured visits
+to untaken branches. Observer handles share the existing negative synthetic
+allocator, leaving ordinary residual/function identities unchanged. The
+observer is cleared in live states and on static evaluation exit. A focused
+regression checks static/empty/live/list maps, defn captures, default/override
+instances, nested tuples, reduce/array-sum, records/results/identities, capture
+adapter recursion and later forcing at four times. Flow checks pass; the
+single private API addition is reviewed/promoted. Shipping and native GPU
+validation pass (exit 0); Astra approves the observer checkpoint. Observations
+include attempted specializations before an enclosing static evaluation defers,
+not exhaustive execution coverage. Qualification aggregation, checker candidate/provenance/
+state facts, inspector wiring and the full producer/emitter audit remain open.
+
+**Next checker/qualification wiring (Astra, 2026-10-09).** Add shared
+`Packed_ops.scalar_width` (Float/Int/Bool/Vec2/3/4) and `array_width` (only
+Array Float/Vec2/3/4), then private checker producer/state facts and immutable
+candidate/refusal metadata. Candidates are independent of existing
+`approx`/`approx_sources` precision taint: uncertainty about captures or
+folding must not reject ordinary CPU use at exact sinks. Narrow precision
+recognition uses actual `Op.packed_kind` capabilities and preserves taint
+through ordinary transformations; canonical exact alone clears it.
+Link map/collect body and consumed callable paths after the specialized body
+is checked, using a local association table; never rewrite the evaluator's
+callable term. Union all producer links, including refused uses. Generic Any
+or one specialization's refusal cannot erase a possible candidate at a shared
+authored path. State dependency is conservative, not an unconditional refusal
+under uncertain graph defaults/calls; independent frame-only maps inside a
+state step remain candidates. Authored skips are tuple-sensitive.
+Qualification associates roots by authored term.path or a checked-term index
+of form ID/lexical owner for anonymous roots; runtime site is provenance,
+never a path to shorten heuristically. Do not stamp new paths onto terms.
+Switch raw definitive approx to empty only with the connected qualification/
+Lower/Contexts/Inspector/tool/test migration; an additive metadata checkpoint
+must remain explicitly transitional. The same checked workspace's input must
+qualify accepted→refused→accepted for representable→1e39→representable captures,
+without changing candidates or retaining old conclusions. The complete
+standard/custom-catalog producer/emitter audit remains required.
 
 **Source audit (2026-10-08; predicate/test implementation pending).**
 The current 39-file `--approx` audit (including the actual custom catalogs)

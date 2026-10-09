@@ -8966,3 +8966,67 @@ elements; noise maxima remain 8.82050105e-7 and 9.88528899e-5 within the
 unchanged tolerance. This checkpoint's native scope is emitted GPU numerics.
 The full F5 native/pixel sweep qualified the preceding field checkpoint
 `97e5f7bf`; final full-scope native/pixel qualification is still required.
+
+## F1.3 actual static kernel observation (2026-10-09)
+
+Astra's evaluator-hook design places observation in `ev`'s static branch,
+following the existing path/context adjustment and outside the `ev_raw`
+Needs_t handler. `Eval.Private.static_with_kernels` factors the existing static
+implementation and observes each actual entry into map/reduce/loop/array-sum,
+without type filtering. Entirely static and empty maps are observed before
+materialization; unsupported list/signature instances remain visible. The
+handle captures the exact current checked term, lexical free bindings,
+instance and iteration tuple. Definitions and nested forms enter normally;
+no deduplication or manufactured untaken visits. An attempted specialization
+is observed even if its later Needs_t discards nodes from that attempt.
+
+Observer handles share `Private.map_function`'s existing negative synthetic
+ID allocator, moved above the evaluator. They do not increment the ordinary
+residual counter or alter function identities/evaluator keys. Live states
+explicitly clear the callback, including Packed's capture adapter evaluation.
+Static evaluation clears it in Fun.protect on success/error so returned
+residual contexts do not retain the observer closure. Ordinary Eval.static
+supplies no callback; arithmetic, iteration and materialization are unchanged.
+No new dependency or proof cache. This is observation infrastructure, without
+a speed claim; definitive qualification/checker provenance, consumer metadata,
+inspector reasons and the whole authored producer/emitter audit remain open.
+
+The one evaluator regression compares ordinary and observed results, records,
+instances, plan/authored structure and ordinary residual/function identities.
+It exercises static/empty/live/list maps, a captured graph input in default
+and overridden instances, defn captures, nested iteration tuples, reduce and
+array/sum, exact checked-term identity and untaken-branch exclusion. Synthetic
+IDs are distinct/negative. A callback's reference eval_term does not recurse
+into observation; after return, forcing at 0, 0.125, 1.25 and 7 yields identical
+values without another callback.
+
+Focused validation passes (exit 0):
+
+```sh
+_build/default/tools/check.exe @check
+_build/default/tools/check.exe @check @lib/flow/runtest
+_build/default/tools/check.exe @tools/api_manifest/runtest
+# Review the single Eval.Private.static_with_kernels binding, then accept it.
+dune promote
+```
+
+The manifest check first exits 1 with exactly that intended addition and the
+Eval module hash; the diff is reviewed/promoted. Existing goldens/tolerances
+remain unchanged. Astra approves the observer checkpoint with no blocking
+correctness issue; observations include attempted specializations whose
+enclosing evaluation later defers, rather than exhaustive execution coverage.
+Shipping and native GPU validation pass (exit 0) on Macmini9,1, Apple M1,
+OCaml 5.3/dev:
+
+```sh
+_build/default/tools/check.exe --ship
+_build/default/tools/check.exe @lib/flow_gpu/runtest-native
+```
+
+The full workspace IR sweep covers 37 standard files, two actual custom
+catalog executables and 13 fixtures at four times/domains 1/8. Native
+arithmetic/select/Vec2/Vec4/input results remain exact at 1,024 and 65,536
+elements; noise maxima remain 8.82050105e-7 and 9.88528899e-5 within the
+unchanged tolerance. This qualifies the observation foundation and existing
+evaluation paths, not the still-unimplemented definitive qualification layer.
+Final full-scope native/pixel qualification remains required.
