@@ -91,9 +91,9 @@ let summarize t v =
   | E.Deferred ((Flow.Ty.Named "image"), id) -> (match t.image id with Some image -> Image image | None -> Value v)
   | v -> Value v
 
-let plan_node t path ~probes =
+let plan_node ?(ty = Flow.Ty.geometry) t path ~probes =
   let find probes = Option.bind (Hashtbl.find_opt t.raw path) (List.find_map (fun (it, v) ->
-    match v with E.Deferred ((Flow.Ty.Named "geometry"), id) when it = probes -> Some id | _ -> None)) in
+    match v with E.Deferred (deferred, id) when deferred = ty && it = probes -> Some id | _ -> None)) in
   match find probes with
   | Some _ as found -> found
   | None ->

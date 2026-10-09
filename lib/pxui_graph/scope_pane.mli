@@ -63,7 +63,7 @@ type command =
   | Item_up | Item_down  (** Alt-Up / Alt-Down on the hovered list row: [Move_item]; each row has an [↑] button *)
   | Make_frame  (** Shift-G *)
   | Duplicate  (** Command-D: copy the selected nodes with fresh names ({!Flow_graph.Flow_edit.Duplicate}) *)
-  | Display  (** [v]: {!Display_set} for the selected geometry node *)
+  | Display  (** [v]: {!Display_set} for the selected geometry, drawing or image node *)
   | Copy | Cut | Paste  (** Command-C / X / V: {!Copy_requested} (a cut deletes too), {!Paste_requested} *)
   | Frame_selection  (** [f]: pan and zoom to the selected nodes (all of them with none selected) *)
   | Open_level  (** [o]: the selected nodes one level more detailed, pinned *)

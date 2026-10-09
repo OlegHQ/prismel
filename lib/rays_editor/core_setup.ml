@@ -95,7 +95,7 @@ let create ?settings ?(keymap = Leader.keymap)
         factories;
         selection = Selection.empty; menu = None;
         scope_view = Pxui_graph.Scope.create (); probes = Layout_by_path.Path_map.empty; lit = None;
-        previews = Document.Int_map.empty; viewed = Document.Int_map.empty; view_key = None;
+        previews = Document.Int_map.empty; viewed = Document.Int_map.empty; canvas_preview = None; canvas_viewed = None; view_key = None;
         scope_key = None; edit_phases = Flow.Phase_timer.empty; select_later = []; open_import = None; pane_graph = None; back = [];
         flow_catalog = lazy (Result.to_option (Editor_document.Contexts.catalog
           ~version:Flow_sop.Manifest.version factories));

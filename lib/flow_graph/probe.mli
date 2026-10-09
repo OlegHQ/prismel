@@ -63,7 +63,7 @@ val same_eval : t -> t -> bool
 val execution : t -> path -> probes:int list -> execution option
 (** Host execution metadata without forcing a probe value. *)
 
-val plan_node : t -> path -> probes:int list -> int option
+val plan_node : ?ty:Flow.Ty.t -> t -> path -> probes:int list -> int option
 (** The plan node ({!Flow.Eval.node} id) of a geometry value at the probe.
     A loop over geometry shares its template id across element indices; static
     loop indices retain their exact match, including skipped iterations. *)

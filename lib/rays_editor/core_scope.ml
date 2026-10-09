@@ -1,18 +1,25 @@
 open Editor_document
 include Core_panes
 
+(* the plan node of a drawing or image at [path], with its type *)
+let picture_node records path ~probes =
+  List.find_map (fun ty -> Option.map (fun id -> ty, id) (Flow_graph.Probe.plan_node ~ty records path ~probes))
+    Flow.Ty.[ drawing; image ]
+
 let sync_views value =
   let lowered = snd value.doc.Document.workspace in
   match value.view_key with
-  | Some (previous, probes, previews) when previous == lowered && probes == value.probes
-      && previews == value.previews -> value
-  | _ when Document.Int_map.is_empty value.previews ->
-      { value with viewed = Document.Int_map.empty; view_key = Some (lowered, value.probes, value.previews) }
+  | Some (previous, probes, previews, canvas) when previous == lowered && probes == value.probes
+      && previews == value.previews && canvas == value.canvas_preview -> value
+  | _ when Document.Int_map.is_empty value.previews && value.canvas_preview = None ->
+      { value with viewed = Document.Int_map.empty; canvas_viewed = None;
+        view_key = Some (lowered, value.probes, value.previews, value.canvas_preview) }
   | _ ->
       let records = Flow_graph.Probe.make ~dynamic:(Flow_sop.Lower.zone_count lowered) lowered.evaluated in
+      let probes_of (preview : preview) = List.map (fun path -> Option.value ~default:0
+        (Layout_by_path.Path_map.find_opt path value.probes)) preview.chain in
       let previews, viewed = Document.Int_map.fold (fun object_id (preview : preview) (previews, viewed) ->
-        let probes = List.map (fun path -> Option.value ~default:0
-          (Layout_by_path.Path_map.find_opt path value.probes)) preview.chain in
+        let probes = probes_of preview in
         let viewed_node = Option.bind (Flow_graph.Probe.plan_node records preview.path ~probes) (fun node ->
           Option.bind (Document.Int_map.find_opt object_id value.doc.Document.networks)
             (fun network -> lowered.preview ~node ~probes network.graph)) in
@@ -21,7 +28,13 @@ let sync_views value =
             Document.Int_map.add object_id preview previews,
             Document.Int_map.add object_id viewed_node viewed
         | None -> previews, viewed) value.previews (Document.Int_map.empty, Document.Int_map.empty) in
-      { value with previews; viewed; view_key = Some (lowered, value.probes, previews) }
+      let canvas_preview, canvas_viewed = match value.canvas_preview with
+        | None -> None, None
+        | Some preview ->
+            let shown = picture_node records preview.path ~probes:(probes_of preview) in
+            (match shown with Some _ -> value.canvas_preview, shown | None -> None, None) in
+      { value with previews; viewed; canvas_preview; canvas_viewed;
+        view_key = Some (lowered, value.probes, previews, canvas_preview) }
 
 let view_node value path =
   match value.scope_key with
@@ -30,8 +43,8 @@ let view_node value path =
       let probes = List.map (fun path -> Option.value ~default:0
         (Layout_by_path.Path_map.find_opt path value.probes)) chain in
       let node = Option.bind key.records (fun records -> Flow_graph.Probe.plan_node records path ~probes) in
+      let lowered = snd value.doc.workspace in
       let owner = Option.bind node (fun node ->
-        let lowered = snd value.doc.workspace in
         let owns id = Option.bind (Document.Int_map.find_opt id value.doc.networks)
           (fun network -> lowered.preview ~node ~probes network.graph) <> None in
         match value.level with
@@ -41,7 +54,12 @@ let view_node value path =
             value.doc.networks None) in
       (match owner with
        | Some owner -> sync_views { value with previews = Document.Int_map.add owner { path; chain } value.previews }
-       | None -> value)
+       | None ->
+           let picture = Option.bind key.records (fun records -> picture_node records path ~probes) in
+           if picture = None then value
+           else match value.canvas_preview with
+             | Some held when held.path = path -> sync_views { value with canvas_preview = None }
+             | _ -> sync_views { value with canvas_preview = Some { path; chain } })
   | None -> value
 
 (* Lay the workspace pane out again when the document, the probes or the

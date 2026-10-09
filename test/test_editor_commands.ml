@@ -10,6 +10,44 @@ let schema = Editor_core.Param.(schema ~name:"command-value" ~default:0
   [field ~name:"value" ~label:"Value" ~kind:(integer ~min:0 ~max:100 ())
     ~default:0 ~get:Fun.id ~set:(fun value _ -> value) ()])
 
+(* v on a drawing or image node shows it in the canvas panes; v again restores their pictures *)
+let canvas_preview () =
+  let module E3 = Rays_editor.Editor3 in
+  let text = {|(workspace v
+    (graph image :context image
+      (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 64 :height 32))
+    (graph picture :context draw
+      (draw/image (ref image) :at [0 0 0]))
+    (graph settings :context settings (settings/config :title "v" :width 900 :height 640))
+    (graph editor :context editor
+      (let* [preview (ui/canvas (ref picture))
+             network (ui/graph "image" :focus true)]
+        (ui/workspace (ui/split "vertical" preview network :second_size 264)))))|} in
+  let workspace = match Rays_editor.Workspace.load text with
+    | Ok workspace -> workspace
+    | Error ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+  let editor = Result.get_ok (E3.create ~workspace ~await:true ~domains:1 ~prepare:(fun _ _ -> Ok ())
+    ~scene3:(fun _ () -> Rays.Scene3.empty) ()) in
+  Fun.protect ~finally:(fun () -> E3.close editor) (fun () ->
+    let count = ref 0 in
+    let step e = incr count; E3.update e (Test_editor_input.frame (450., 300.) [] !count) in
+    (* the widths of the images a picture draws: the default draws its image at 64, the preview fits the pane *)
+    let widths scene = Array.to_list (Scene.Private.commands scene) |> List.filter_map (function
+      | Scene_command.Render_ir.Image i -> Some i.destination.width | _ -> None) in
+    let e = ref (step (step (step editor))) in
+    let shown () = List.map widths (E3.Private.canvas_scenes !e) in
+    let default = shown () in
+    check (default <> [] && List.for_all (fun w -> w = [ 64. ]) default) "the default picture is not the 64 point image";
+    e := step (Rays_editor.Reduce.select_path !e [ "image"; "@result" ]);
+    e := step (Rays_editor.Reduce.view !e [ "image"; "@result" ]);
+    e := step !e;
+    check (List.length (shown ()) = List.length default && List.for_all (function [ w ] -> w > 64. | _ -> false) (shown ()))
+      "v on an image node did not show exactly its fitted image in the canvas pane";
+    e := step (Rays_editor.Reduce.view !e [ "image"; "@result" ]);
+    e := step !e;
+    check (shown () = default) "v again did not restore the canvas pane's own picture");
+  ()
+
 let run () =
   let open Editor_core.Guide_context in
   let module L = Rays_editor.Private.Leader in
@@ -217,4 +255,5 @@ let run () =
       "key HUD displayed a different alias from the routed chord";
     step [] 200; E3.crash_dump !current directory;
     check (contains (dump ()) "key hud: -\n") "key HUD outlived 1.5 seconds");
+  canvas_preview ();
   print_endline "editor commands: the host rejects ambiguity and share alias/scoped keyboard/palette actions"

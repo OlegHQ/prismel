@@ -32,6 +32,7 @@ module Editor3 = struct
       resources.images_created,resources.images_destroyed
     let image_render_stats value=Workspace_images.render_stats value.Environment.host.images
     let image_capture_stats value=Workspace_images.capture_stats value.Environment.host.images
+    let canvas_scenes value=List.map (fun (_,(p:Environment.canvas_picture))->p.scene) value.Environment.canvases
     let image_gpu_stats value=Workspace_gpu.image_stats value.Environment.host.gpu
     let host_stats value = let host=value.Environment.host in
       host.quit_requested,host.fired,host.resources.samples_created,host.resources.samples_destroyed
@@ -97,6 +98,8 @@ module Reduce = struct
   let select_path (editor : _ Editor3.t) path = match path with
     | graph :: _ -> {editor with Environment.core = { (Core.go editor.core graph) with Core.select_later = [path] }}
     | [] -> editor
+  let view (editor : _ Editor3.t) path =
+    {editor with Environment.core = Core.view_node editor.core path}
   let step (e : _ Editor3.t) ?select ?preview actions frame =
     { e with Environment.core = Core.reduce_idle ?select ?preview e.Environment.core actions frame }
 end

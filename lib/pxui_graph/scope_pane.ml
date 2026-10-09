@@ -32,7 +32,7 @@ type change =
   | Defn_requested of path list  (** the host types the outside names and writes the [defn] *)
   | Frames_set of { scope : path; frames : (string * (float * float) * (float * float)) list }
       (** the frames of one scope after a gesture (create, resize, retitle, delete) *)
-  | Display_set of path  (** preview this geometry node in the viewport at the zone selectors *)
+  | Display_set of path  (** preview this geometry node in the viewport, or this drawing or image node in the canvas panes, at the zone selectors *)
   | Activated of path
   | Drop_over of { path : path; kind : string; value : string }
   | Dropped of { path : path; kind : string; value : string }
@@ -952,7 +952,8 @@ let action_changes t command =
       else Copy_requested paths :: edit (E.Delete_nodes { nodes = paths })
   | Paste -> [ Paste_requested ]
   | Display -> one (fun n ->
-      if n.ty <> Flow.Ty.geometry then [ Notice "Only a geometry node can be viewed" ]
+      if not (List.mem n.ty Flow.Ty.[ geometry; drawing; image ]) then
+        [ Notice "Only a geometry, drawing or image node can be viewed" ]
       else [ Display_set n.path ])
   | Item_up | Item_down ->
       (match t.hovered_row with

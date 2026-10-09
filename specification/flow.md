@@ -436,6 +436,10 @@ captures, live arguments and frame-fold snapshot. The authored network remains a
 for probes. Viewport framing follows the preview, and picking it keeps the selected
 template and tuple. Viewing the result restores the default picture. A request whose
 path no longer evaluates to geometry falls back to the graph result.
+`v` on a drawing or image node shows it in every canvas pane (an image fitted at the
+origin) instead of the panes' own pictures; `v` on the same node again restores them, and a
+path that stops evaluating to a drawing or image falls back too. Like the geometry preview
+it is view state, outside the document and history.
 
 ### 7.3 Add
 

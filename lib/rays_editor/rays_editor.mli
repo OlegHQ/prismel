@@ -356,6 +356,8 @@ module Editor3 : sig
     val image_render_stats : 'prepared t -> int * int * int * int
     (** Canvases created/destroyed, successful captures and actual GPU pixel readbacks. *)
 
+    val canvas_scenes : 'prepared t -> Rays.Scene.t list
+    (** The picture each canvas pane drew last frame, in layout order. *)
     val image_gpu_stats : 'prepared t -> Flow_gpu.Host.Private.stats * int * int * int * int
     (** Cumulative Host totals, sinks created/closed and sink buffer/texture creations,
         including evicted runners and failed sinks; inspect outside frame measurements. *)
@@ -648,6 +650,8 @@ module Reduce : sig
   val spreadsheet : 'a Editor3.t -> int list -> int * Rdk.Geometry.t option
   val select_path : 'a Editor3.t -> string list -> 'a Editor3.t
   (** Select the checked lexical path; unstable test/diagnostic hook. *)
+  val view : 'a Editor3.t -> string list -> 'a Editor3.t
+  (** [v] on the checked lexical path, as the graph pane requests it; unstable test hook. *)
   val step : 'prepared Editor3.t -> ?select:int list -> ?preview:Flow_graph.Flow_edit.op ->
     Private.Leader.action list -> Rays.Frame.t -> 'prepared Editor3.t
 end

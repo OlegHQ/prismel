@@ -40,6 +40,9 @@ let viewed_path value (scope : Flow_graph.Projection.scope) =
         Option.bind (Document.Int_map.find_opt id value.previews) valid
     | _ -> Document.Int_map.fold (fun _ preview found ->
         match found with Some _ -> found | None -> valid preview) value.previews None in
+  let preview = match preview, value.canvas_preview with
+    | None, Some canvas -> valid canvas
+    | _ -> preview in
   match preview with
   | Some _ -> preview
   | None -> match scope.result with
@@ -297,7 +300,7 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
              then None else Some (if active_camera then "active" else
                Option.value ~default:"cached" (List.assoc_opt "cook" readouts)) in
            let buttons =
-             (if n.ty = Flow.Ty.geometry then
+             (if List.mem n.ty Flow.Ty.[ geometry; drawing; image ] then
                 [ { Pxui.Ui.caption = "View"; keycap = "V"; active = displayed = Some n.path; usable = true }, `View ]
               else [])
              @ (if P.bypassable n then

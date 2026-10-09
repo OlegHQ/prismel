@@ -21,7 +21,8 @@ type ('rendered, 'camera) hidden_scene_cache = {
 }
 
 type canvas_picture = {size : int * int; dynamic : bool; scene : Scene.t;
-  prepared : Sketch_support.Drawing.prepared option}
+  prepared : Sketch_support.Drawing.prepared option;
+  preview : (Flow.Ty.t * int) option  (* the node shown instead of the pane's own picture *)}
 
 (* A World bake for this frame: the preview size while a gesture or the
    day cycle is live, the final size when idle. *)
@@ -862,21 +863,37 @@ let update_with value frame ~inspector =
           then (0, 0, raw_frame.width, raw_frame.height) else leaf.body in
         let drawing = Option.bind core.doc.Document.shell (fun shell -> List.assoc_opt key shell.canvases) in
         let _, lowered = core.doc.workspace in
+        let preview = core.Core.canvas_viewed in
+        let drawing = match preview with
+          | Some (ty, id) when ty = Flow.Ty.drawing -> Some (Flow.Eval.Deferred (ty, id))
+          | _ -> drawing in
         Workspace_images.bind value.host.images lowered;
         let same_plan = (snd value.core.doc.workspace).plan == lowered.plan in
         let previous = List.assoc_opt key value.canvases in
         let dynamic = match previous with
-          | Some picture when same_plan -> picture.dynamic
+          | _ when preview <> None -> true
+          | Some picture when same_plan && picture.preview = preview -> picture.dynamic
           | _ -> lowered.states <> [] || Array.exists (fun (n : Flow.Eval.node) ->
               List.exists (fun (_, v) -> Flow.Eval.is_live v) n.args) lowered.plan.nodes in
         (match drawing with
+         | None when preview = None -> pictures, error
+         | _ when (match preview with Some (ty, _) -> ty = Flow.Ty.image | None -> false) ->
+             let id = snd (Option.get preview) in
+             (match Workspace_images.image value.host.images ~state:core.cook.state ~live:frame_input lowered.plan
+                (Flow.Eval.Deferred (Flow.Ty.image, id)) with
+              | Ok img ->
+                  let iw, ih = Rays.Image.get_size img in
+                  let scale = Float.min (float w /. float iw) (float h /. float ih) in
+                  (key, {size = (w, h); dynamic; scene = [Rays.Scene.rect ~at:(0, 0) ~w ~h ~fill:Color.black (); Rays.Scene.image img ~at:(0, 0) ~scale ()]; prepared = None; preview}) :: pictures, error
+              | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []; prepared = None; preview} previous) :: pictures,
+                  Some (Flow.Diagnostic.to_string d))
          | None -> pictures, error
          | Some _ when same_plan && not dynamic && Option.fold ~none:false
-             ~some:(fun picture -> picture.size = (w, h)) previous ->
+             ~some:(fun picture -> picture.size = (w, h) && picture.preview = preview) previous ->
              (key, Option.get previous) :: pictures, error
          | Some drawing ->
              let prepared = match previous with
-               | Some {prepared = Some p; _} when same_plan -> Ok p
+               | Some {prepared = Some p; preview = held; _} when same_plan && held = preview -> Ok p
                | _ -> Sketch_support.Drawing.prepare ~profile:lowered.profile
                    ~approx:(fst core.doc.workspace).checked.approx ~states:lowered.states lowered.plan drawing in
              (match Result.bind prepared (fun p -> Result.map (fun scene -> p, scene)
@@ -885,8 +902,9 @@ let update_with value frame ~inspector =
                    ~gpu_policy:(Workspace_gpu.policy value.host.gpu)
                    ~image:(Workspace_images.image value.host.images ~state:core.cook.state ~live:frame_input lowered.plan)
                    p ~live:frame_input ~size:(w, h)))) with
-              | Ok (prepared, scene) -> (key, {size = (w, h); dynamic; scene; prepared = Some prepared}) :: pictures, error
-              | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []; prepared = None} previous) :: pictures,
+              | Ok (prepared, scene) -> (key, {size = (w, h); dynamic; scene;
+                  prepared = Some prepared; preview}) :: pictures, error
+              | Error d -> (key, Option.value ~default:{size = (w, h); dynamic; scene = []; prepared = None; preview} previous) :: pictures,
                   Some (Flow.Diagnostic.to_string d)))
     | _ -> pictures, error) ([], context_error) (Core.geometry core core.workspace raw_frame).leaves in
   let rendered, views, drawn,texture_errors = compose { value with core } { update with core } ~baked ~baked_views ~scene in

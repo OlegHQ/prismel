@@ -216,7 +216,9 @@ type 'prepared t = {
   probes : int Layout_by_path.Path_map.t;  (* the iteration each zone shows: view state, not history *)
   previews : preview Document.Int_map.t;  (* viewport requests, outside the document and history *)
   viewed : (Flow_sop.Network.t * int) Document.Int_map.t;
-  view_key : (Flow_sop.Lower.t * int Layout_by_path.Path_map.t * preview Document.Int_map.t) option;
+  canvas_preview : preview option;  (* the drawing or image node the canvas panes show instead of their own picture; view state, outside the document and history *)
+  canvas_viewed : (Flow.Ty.t * int) option;  (* its plan node and type, resolved by [sync_views] *)
+  view_key : (Flow_sop.Lower.t * int Layout_by_path.Path_map.t * preview Document.Int_map.t * preview option) option;
   lit : lit_cache option;  (* the highlight of the selected node at the probes, see {!lit_tags} *)
   scope_key : scope_key option;
   edit_phases : Flow.Phase_timer.t;
