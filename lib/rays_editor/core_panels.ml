@@ -29,12 +29,13 @@ let panel_title value (leaf : Pxui_shell.Layout.leaf) =
     | List -> "List", level_name value
     | Lisp -> "Lisp", if (let _, _, w, _ = leaf.frame in w < 400) then ""  (* the narrow sheet has the kind alone *)
         else if graph = "" then value.file else if value.file = "" then graph else value.file ^ " / " ^ graph
-    | Inspector -> "Inspector", (match (if value.scope_key = None then [] else Pxui_graph.Scope.selected value.scope_view) with
+    | Inspector -> "Inspector", (match (if value.scope_key = None then [] else inspector_paths (Pxui_graph.Scope.selected value.scope_view)) with
         | [ path ] when graph <> "" ->
             (* the node's title (a result is `result`, not `@result`); the narrow column has the node alone *)
             let title = match Option.bind value.scope_key (fun (k : scope_key) -> Flow_graph.Projection.find k.scope path) with
               | Some n -> Flow_graph.Projection.title n
-              | None -> List.nth path (List.length path - 1) in
+              | None -> let last = List.nth path (List.length path - 1) in
+                  if String.starts_with ~prefix:":" last then String.sub last 1 (String.length last - 1) else last in
             if (let _, _, w, _ = leaf.frame in w < 340) then title else graph ^ " / " ^ title
         | _ -> graph)
     | Outline -> "Outline", if (let _, _, w, _ = leaf.frame in w < 300) then ""  (* the narrow sheet has the kind alone *)

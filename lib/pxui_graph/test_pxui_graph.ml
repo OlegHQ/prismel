@@ -701,6 +701,20 @@ let scope_gestures () =
   let _, changes = scope_click cview (let x, y = Option.get (Scope.Private.ref_chip cview [ "g"; "ys" ] ri) in
     int_of_float x, int_of_float y) in
   check (List.mem (Scope.Selected [ [ "g"; "xs" ] ]) changes) "a click on a read name did not select its binding";
+  (* a click on an expression chip selects its card and the row, [holder @ [":" ^ label]] *)
+  let ew = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace e (graph g :context value (let* [a 1.0 b (+ 2.0 (* 3.0 a))] (+ a b))))" |> Result.get_ok in
+  let eview, escope = scope_view ew.checked "g" in
+  let eview = settled eview in
+  let eb = Option.get (P.find escope [ "g"; "b" ]) in
+  let ei = Option.get (List.find_index (fun (r : P.row) -> match r.chip with P.Inline _ -> true | _ -> false) eb.rows) in
+  let label = (List.nth eb.rows ei).label in
+  let eview, changes = scope_click eview (let x, y = Option.get (Scope.Private.expr_chip eview [ "g"; "b" ] ei) in
+    int_of_float x, int_of_float y) in
+  check (List.mem (Scope.Selected [ [ "g"; "b" ]; [ "g"; "b"; ":" ^ label ] ]) changes)
+    "a click on an expression chip did not select its row";
+  check (Scope.selected eview = [ [ "g"; "b" ]; [ "g"; "b"; ":" ^ label ] ])
+    "the pane did not keep the row selected beside its card";
   (* frames: Shift-G makes one around the selection, the corner resizes it, the cross deletes it *)
   let view = settled (Scope.select [ heart; [ "flower"; "bloom" ] ] (fst (scope_view w "flower"))) in
   let view, changes = Scope.run_command view Scope.Make_frame in

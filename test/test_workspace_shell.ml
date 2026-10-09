@@ -2099,7 +2099,43 @@ let run_nested_inspector () =
     ("Unfold did not make the nested call its own binding: " ^ unfolded);
   E3.close !e
 
-let run () = run_nested_inspector (); run_op_inspector (); run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
+(* a click on the expression chip of a row (the nested `* 3.0 a` in b) makes that expression the inspector's
+   subject: the pane selects the card and the row [b @ [":" ^ label]], the inspector shows the `*` call's
+   leaves, and a drag on the 3.0 is a Set_arg with the child path [1] *)
+let run_expression_chip () =
+  let text = {|(workspace ops
+    (graph g :context value (let* [a 1.0 b (+ 2.0 (* 3.0 a))] (+ a b)))
+    (graph editor :context editor (ui/workspace (ui/split "horizontal" (ui/graph "g") (ui/inspector)))))|} in
+  let e = ref (editor text) and count = ref 0 in
+  let step ?(buttons = []) ?(mouse = (450., 300.)) events = incr count; e := E3.update !e (frame ~buttons mouse events !count) in
+  step []; step [];
+  let click point =
+    step ~mouse:point [ Event.MouseMoved point ];
+    step ~mouse:point [ Event.MousePressed (Input.LeftButton, point); Event.MouseReleased (Input.LeftButton, point) ] in
+  let bx, by, bw, _ = Option.get (E3.node_box !e [ "g"; "b" ]) in
+  let z = float bw /. Flow_graph.Projection.node_width in
+  (* the second line of the card (2.0, then the call), at the right where its text is *)
+  let chip = float bx +. (Flow_graph.Projection.node_width -. 35.) *. z,
+             float by +. (Flow_graph.Projection.body_top +. 1.5 *. Flow_graph.Projection.row_height) *. z in
+  click chip;
+  step [];
+  check (dump_line !e "scope selected" = "g/b, g/b/:b")
+    ("the chip did not select its row: " ^ dump_line !e "scope selected");
+  let before = source !e in
+  let ix, iy, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).inspector in
+  let at dy x = float (ix + 200 + x), float (iy + dy) in
+  let drag dy =
+    step ~mouse:(at dy 0) ~buttons:[ Input.LeftButton ] [ Event.MousePressed (Input.LeftButton, at dy 0) ];
+    List.iter (fun x -> step ~mouse:(at dy x) ~buttons:[ Input.LeftButton ] []) [ 20; 40; 60; 80 ];
+    step ~mouse:(at dy 90) [ Event.MouseReleased (Input.LeftButton, at dy 90) ];
+    step [] in
+  drag 190;
+  let after = source !e in
+  check (after <> before && has after "(+ 2.0 (* " && not (has after "(* 3.0 a)"))
+    ("the 3.0 of the * was not editable from the row's inspector: " ^ after);
+  E3.close !e
+
+let run () = run_expression_chip (); run_nested_inspector (); run_op_inspector (); run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
   run_undo_under_pane (); run_atomic_frame (); run_undo_and_input (); run_carry_reaches_no_history ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following
