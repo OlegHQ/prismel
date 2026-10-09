@@ -10866,3 +10866,143 @@ qualification, all workspace pixel aliases, gallery float32 and PXUI parity.
 Actual display is 1×; 2× goldens remain unqualified.
 
 Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-ordered-add-ship.log`).
+
+## F2.2 direct-input ordered accumulation (2026-10-09)
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. The approved
+pattern adds a no-skip proof and branches once per ordered chunk. Matching
+reductions read their single input in ascending element/component order,
+perform the same addition, finite check and accumulator write, and allocate
+no chunk scratch, index array, noise scratch or instruction table. Generic
+chunks regain their original unconditional dependent execution and output
+lookup. Source/seed preparation, chunk ordering, empty result construction and
+transactional reference fallback remain unchanged. No unrolling, reassociation,
+parallel reduction, result cache or new instruction is added.
+
+The existing all-width, cancellation/signed-zero, empty/changing-input and
+fallback matrix remains. One canonical Vec3 case additionally covers counts
+1, 1023, 1024, 1025, 16383, 16384 and 16385. The overflow/rollback matrix
+retains the two-element case and adds 16,385 elements whose last two values
+overflow across the chunk boundary. Both CPU force and GPU preparation return
+the original reference diagnostic, retain input bytes, restore state after a
+resolver advanced a real fold, and recover in the same frame, at domains 1/8.
+Focused checks/build pass (exit 0; `/tmp/rays-f-image-direct-input-focused.log`).
+Astra reviewed the actual code and bounds before timing: “Approved for isolated
+timing.”
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_ir/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-captures-direct-input-after.csv 2> specification/performance/f-image-map-captures-direct-input-after-counters.csv
+_build/default/tools/bench_workspace_lower.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-recheck-direct-input-after.csv 2> specification/performance/f-image-map-uncaptured-recheck-direct-input-after-counters.csv
+```
+
+The unchanged benchmark compares against `14415764` and its ordered-add after
+files, with seven CPU1/8 cooks and seven ×200 completed GPU/consumer/combined
+trials after ten warmups. Commands run alone, with no builds/tests/other agents,
+and both exit 0. Seven-trial medians, milliseconds and bytes/frame:
+
+| Source | Points | Image | CPU8 whole cook | GPU producer | Consumer | Combined | Producer bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Static P/Cd | 1,024 | 512² | 4.099131 | 0.654271 | 0.439640 | 1.108930 | 89,161 |
+| Static P/Cd | 1,024 | 1024² | 15.037775 | 1.593555 | 0.673085 | 2.586200 | 89,161 |
+| Static P/Cd | 1,024 | 2048² | 55.053949 | 4.480320 | 1.553985 | 6.357424 | 89,161 |
+| Changing P/Cd | 1,024 | 512² | 4.324198 | 0.765110 | 0.438120 | 1.230795 | 419,443 |
+| Changing P/Cd | 1,024 | 1024² | 14.796972 | 1.776340 | 0.672334 | 2.902880 | 419,443 |
+| Changing P/Cd | 1,024 | 2048² | 54.298162 | 4.969710 | 1.512315 | 7.029974 | 419,443 |
+| Static P/Cd | 65,536 | 1024² | 17.266035 | 3.510880 | 0.675430 | 5.172775 | 89,161 |
+| Changing P/Cd | 65,536 | 1024² | 18.228054 | 6.159385 | 0.626094 | 6.924624 | 13,558,975 |
+
+Large CPU8 medians improve 19.203901→17.266035 ms static and
+19.567013→18.228054 ms changing; GPU medians improve 5.443920→3.510880
+and 6.654539→6.159385 ms. Static producer allocation is exactly 89,161
+B/frame across every measured source/pixel size, eliminating the chunk-scratch
+slope. Fixed-source changing allocation remains pixel-size independent.
+Uncaptured CPU8/GPU medians are 12.129068/1.591871 ms gradient and
+11.545897/1.574425 ms live; 33,721/32,593 B allocations are unchanged.
+No control timing improvement is claimed.
+
+All 440 raw rows, all 30 zero-difference native parity comparisons and all 210
+warm Host-counter rows are retained; CPU1/8 hashes match. Source work, resource,
+status/generation, upload/readback, resize/replan and teardown assertions pass.
+Astra: **“Retain the direct-input path.”** All measured CPU8 gates pass.
+The large static GPU gate **passes at 3.510880 ms**; the large changing case
+**still fails at 6.159385 ms**. Smaller/control GPU cases pass. This does not
+complete F2.2 or change any fixture, tolerance or gate.
+
+## F2.2 direct-input source-refresh attribution (2026-10-09)
+
+On the same machine/profile/display, Astra approved fresh attribution before
+another optimization. The candidate above retains all product changes. The
+eight-file patch adds only temporary probes, with no new instruction capture;
+the previously inspected two nine-slot programs remain unchanged. Direct
+traversal is labeled separately from generic traversal including scratch,
+because matched chunks allocate none. Inclusive phases overlap and must not
+be summed twice; CPU worker internals remain explicitly unobserved.
+
+The isolated harness uses static/changing 65,536-point 1024² images plus the
+gradient control, seven CPU8 caller samples and seven ×200 completed producer
+frames after ten warmups, retaining correctness/ownership/resize checks:
+
+```sh
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-capture-attribution-direct-input-whole.csv 2> specification/performance/f-image-map-capture-attribution-direct-input-counters.csv
+```
+
+It additionally writes `f-image-map-capture-attribution-direct-input.csv`.
+The reproducible probe-only patch has the same prefix under
+`specification/performance/`, applies to the candidate in this checkpoint and
+passes `git apply --check` after restoration. The original candidate's Packed/
+regression diff and all eight archived production files are preserved
+byte-for-byte after removing the probes. Focused diagnostic build and run
+exit 0; nine full native parity comparisons have zero differences and all
+counters/assertions pass. No builds, tests or other agents run during timing.
+
+Seven-trial medians, inclusive milliseconds per completed GPU producer frame:
+
+| Interval | Static P/Cd | Changing P/Cd |
+|---|---:|---:|
+| Whole producer | 3.440310 | 6.123780 |
+| Packed preparation | 1.652670 | 4.219518 |
+| P direct traversal | 0.789125 | 0.584205 |
+| Cd direct traversal | 0.790160 | 0.583329 |
+| P source preparation | 0.003150 | 2.771025 |
+| Cd source preparation | 0.002154 | 0.274242 |
+| Materialization (nested in P source) | no warm calls | 2.491270 |
+| Flatten (nested, two calls/frame) | no warm calls | 0.543628 |
+| Cd construction packed-map traversal (nested in materialization) | no warm calls | 0.649028 |
+| P compile | 0.007939 | 0.003650 |
+| Cd compile | 0.004208 | 0.005255 |
+| Source preflight (two calls/frame) | 0.010160 | 0.043579 |
+| Completed Run execution | 0.894736 | 1.036061 |
+| Sink conversion | 0.819508 | 0.810062 |
+
+CPU8 whole-caller medians are 18.198013 ms static, 18.316984 ms changing
+and 12.657166 ms gradient; worker phases remain unqualified. These diagnostic
+numbers identify source refresh as material. They neither substitute for the
+uninstrumented gates nor approve another optimization by themselves.
+
+Astra's verdict: **“Attribution accepted.”** Source refresh explains the
+remaining changing-source failure. Its next approved action is a targeted
+diagnostic split, not an optimization: aggregate the materializer's existing
+`Session.node_timings` by `sop/line`, `flow.with_attr` and `flow.capture`, without
+changing Session timing; separately time Attribute_kernel.write validation,
+interleaved-to-XYZ construction and attribute creation/installation; distinguish
+P/Cd flattening while retaining the packed-map probe. Existing node timings
+cover worker-executed node work and exclude upstream input cooking; missing
+domain-local write probes remain unobserved. Reporting stays outside timed
+frame loops, and node timings must not be summed with nested write/map phases.
+Repeat the same isolated seven-trial cells and restore the temporary patch.
+
+The inspection target is Attribute_kernel.write's three Array.init callbacks
+and the node's Duplicate_input 0 policy. The new evidence must distinguish
+storage construction, input preparation and geometry generation before any
+change. No cache, dependency or ownership change is approved.
+
+Restored production passes the full F5 native/pixel matrix (exit 0;
+`/tmp/rays-f-image-direct-input-full.log`): `@all @runtest @smoke`, all listed
+Rays/FlowGPU/editor/prepared-command/test native aliases, oversized capture
+and runtime qualification, all workspace pixel aliases, gallery float32 and
+PXUI parity. Both workspace sweeps cover 38 standard files, two custom-catalog
+executables and 13 fixtures at four times/domains 1/8; the native sweep verifies
+geometry/image/texture/drawing pixels. Actual display is 1×; 2× goldens remain
+unqualified. No production probes remain.
+Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-direct-input-ship.log`).

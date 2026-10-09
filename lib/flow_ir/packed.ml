@@ -536,7 +536,7 @@ let ordered_add t =
   let width = Array.length t.output in
   match t.result with
   | Accumulate (_, false) when width >= 1 && width <= 4 && t.iteration = Zip
-      && Array.length t.sources = 1 && t.widths = [|width|]
+      && Array.length t.sources = 1 && t.widths = [|width|] && Array.length t.skip = 0
       && Array.length t.code = 3 * width && Array.length t.dependent = 3 * width ->
       let matched = ref true in
       for k = 0 to width - 1 do
@@ -618,6 +618,17 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let blocks_per_chunk = 16 in
     let chunks = if blocks = 0 then 0 else (blocks - 1) / blocks_per_chunk + 1 in
     let chunk chunk =
+      if ordered_add then begin
+        let source = inputs.(0) in
+        for i = chunk * blocks_per_chunk * block_size
+          to min count ((chunk + 1) * blocks_per_chunk * block_size) - 1 do
+          for component = 0 to width - 1 do
+            let x = accumulator.(component) +. source.(i * width + component) in
+            if not (Float.is_finite x) then raise Nonfinite;
+            accumulator.(component) <- x
+          done
+        done
+      end else begin
       let scratch = Array.make (Array.length t.code * block_size) 0. in
       let noise_scratch=Rays_math.Noise.Private.create_fbm3_scratch () in
       let tables=Array.map(function Noise3(_,_,_,seed,_)->Some(Operators.noise_table seed)
@@ -702,10 +713,9 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
       done in
       execute false 0 length;
       for j = 0 to length - 1 do
-        (match t.result with Accumulate _ when not ordered_add -> execute true j (j + 1) | _ -> ());
+        (match t.result with Accumulate _ -> execute true j (j + 1) | _ -> ());
         for component = 0 to width - 1 do
-          let x = if ordered_add then accumulator.(component) +. scratch.(component * block_size + j)
-            else scratch.(t.output.(component) * block_size + j) in
+          let x = scratch.(t.output.(component) * block_size + j) in
           if not (Float.is_finite x) then raise Nonfinite;
           (match t.result with
            | Collect -> () | Accumulate _ -> accumulator.(component) <- x
@@ -717,7 +727,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
         done;
         (match t.result with Sum _ -> initialized := true | _ -> ())
       done
-      done in
+      done end in
     (match t.result with
      | Collect -> Rays_math.Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(chunks - 1) chunk
      | Sum _ | Accumulate _ ->

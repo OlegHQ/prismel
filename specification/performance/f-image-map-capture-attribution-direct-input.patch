@@ -1,0 +1,399 @@
+--- a/lib/flow/phase_timer.ml
++++ b/lib/flow/phase_timer.ml
+@@ -1,15 +1,16 @@
+-type phase = Print | Parse | Check | Evaluate | Lower | Project | Layout | Reduce | Cook
++type phase = Print | Parse | Check | Evaluate | Lower | Project | Layout | Reduce | Cook | Attribution of string
+ type entry = { phase : phase; calls : int; seconds : float }
+ type t = { total : float; entries : entry list }
+ let phases = [Print; Parse; Check; Evaluate; Lower; Project; Layout; Reduce; Cook]
+ let name = function
+   | Print -> "print" | Parse -> "parse" | Check -> "check" | Evaluate -> "evaluate"
+   | Lower -> "lower" | Project -> "project" | Layout -> "layout" | Reduce -> "reduce" | Cook -> "cook"
++  | Attribution name -> name
+ let empty = { total = 0.; entries = [] }
+ type scope = { mutable children : float }
+ type sample = { now : unit -> float; started : float; mutable entries : entry list; mutable stack : scope list }
+ let current = Domain.DLS.new_key (fun () -> None)
+-let measure phase run = match Domain.DLS.get current with
++let measure_with ~inclusive phase run = match Domain.DLS.get current with
+   | None -> run ()
+   | Some sample ->
+       let started = sample.now () in
+@@ -21,12 +22,16 @@
+         (match parent with p :: _ -> p.children <- p.children +. elapsed | [] -> ());
+         let prior = List.find_opt (fun e -> e.phase = phase) sample.entries in
+         let entry = { phase; calls = 1 + Option.fold ~none:0 ~some:(fun e -> e.calls) prior;
+-          seconds = max 0. (elapsed -. scope.children)
++          seconds = max 0. (elapsed -. if inclusive then 0. else scope.children)
+             +. Option.fold ~none:0. ~some:(fun e -> e.seconds) prior } in
+         sample.entries <- entry :: List.filter (fun e -> e.phase <> phase) sample.entries)
++let measure phase run=measure_with ~inclusive:false phase run
++let measure_inclusive phase run=measure_with ~inclusive:true phase run
+ let sample ~clock run =
+   let snapshot sample = { total = sample.now () -. sample.started;
+-    entries = List.filter_map (fun phase -> List.find_opt (fun e -> e.phase = phase) sample.entries) phases } in
++    entries = List.filter_map (fun phase -> List.find_opt (fun e -> e.phase = phase) sample.entries) phases
++      @ (List.filter (fun e->match e.phase with Attribution _->true|_->false) sample.entries
++        |> List.sort(fun a b->String.compare(name a.phase)(name b.phase))) } in
+   match Domain.DLS.get current with
+   | Some sample ->
+       let value = run () in
+--- a/lib/flow/phase_timer.mli
++++ b/lib/flow/phase_timer.mli
+@@ -1,6 +1,6 @@
+ (** Optional, domain-local edit instrumentation. The host supplies its clock;
+     Flow acquires no platform dependency. Durations exclude nested phases. *)
+-type phase = Print | Parse | Check | Evaluate | Lower | Project | Layout | Reduce | Cook
++type phase = Print | Parse | Check | Evaluate | Lower | Project | Layout | Reduce | Cook | Attribution of string
+ type entry = { phase : phase; calls : int; seconds : float }
+ type t = { total : float; entries : entry list }
+ val phases : phase list
+@@ -12,6 +12,7 @@
+     on exceptions. Backward clock readings are clamped. *)
+ 
+ val measure : phase -> (unit -> 'a) -> 'a
++val measure_inclusive : phase -> (unit -> 'a) -> 'a
+ val calls : t -> phase -> int
+ val seconds : t -> phase -> float
+ val summary : t -> string
+--- a/lib/flow/test_phase_timer.ml
++++ b/lib/flow/test_phase_timer.ml
+@@ -23,4 +23,13 @@
+       let _, child = sample ~clock:(fun () -> 0.) (fun () -> measure Lower (fun () -> ())) in
+       assert (calls child Lower = 1)) in
+     Domain.join child) in
+-  assert (parent.entries = [])
++  assert (parent.entries = []);
++  time:=0.;
++  let _, nested=sample ~clock(fun()->measure Reduce(fun()->
++    time:=1.;measure_inclusive(Attribution "outer")(fun()->
++      time:=2.;measure_inclusive(Attribution "inner")(fun()->time:=4.);time:=5.);time:=6.))in
++  assert(seconds nested Reduce=2. && seconds nested(Attribution "outer")=4.
++    && seconds nested(Attribution "inner")=2.);
++  (try ignore(sample ~clock(fun()->measure_inclusive(Attribution "exception")
++    (fun()->failwith "probe")))with Failure _->());
++  let _, restored=sample ~clock(fun()->())in assert(restored.entries=[])
+--- a/lib/flow_ir/packed.ml
++++ b/lib/flow_ir/packed.ml
+@@ -531,6 +531,8 @@
+ exception Failed of Flow.Diagnostic.t
+ exception Nonfinite
+ let get = function Ok x -> x | Error d -> raise (Failed d)
++let probe name run = Flow.Phase_timer.measure_inclusive (Attribution name) run
++let probe_site t = let _, path, _ = site t in String.concat "/" path
+ 
+ let ordered_add t =
+   let width = Array.length t.output in
+@@ -551,6 +553,8 @@
+ let rec force ?state ?elems ?resolve ?measure t ~live =
+   let state = Option.value ~default:(E.create_state ()) state in
+   let work () =
++    let label = probe_site t in
++    let timed phase run = probe (phase ^ ":" ^ label) run in
+     let rec evaluate residual (term : W.term) =
+       let nested = match term.node with
+         | W.Ref_binding (name, []) ->
+@@ -563,14 +567,14 @@
+       | None -> (match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source residual term with
+           | Ok program -> force ~state ?elems ?resolve ?measure program ~live
+           | Error _ -> E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
+-    let seed = match t.result with
++    let seed = timed "seed_eval" (fun () -> match t.result with
+       | Accumulate (seed, _) -> Some (get (E.Private.eval_term ~state ?elems ?resolve t.residual seed ~live))
+-      | _ -> None in
+-    let inputs = Array.mapi (fun i (residual, term) ->
++      | _ -> None) in
++    let inputs = timed "source_arrays" (fun () -> Array.mapi (fun i (residual, term) ->
+       let value = get (evaluate residual term) in
+       match value, t.widths.(i) with
+       | E.Float_array xs, 1 | Vec2_array xs, 2 | Vec3_array xs, 3 | Vec4_array xs, 4 -> xs
+-      | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources in
++      | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources) in
+     let lengths = Array.mapi (fun i a -> Array.length a / t.widths.(i)) inputs in
+     let count = if t.iteration = Product && Array.exists ((=) 0) lengths then 0 else
+       Array.fold_left (fun a b -> match t.iteration with
+@@ -607,11 +611,13 @@
+     let kept = count - Array.length skip in
+     let collecting = match t.result with Collect | Accumulate (_, true) -> true | _ -> false in
+     if collecting && kept > Sys.max_floatarray_length / width then V.fail "E_ARRAY_RANGE" "Kernel output exceeds native storage bounds.";
++    let output, accumulator, initialized = timed "output_accumulator_setup" (fun () ->
+     let output = Array.make (if collecting then kept * width else 0) 0. in
+     let accumulator = match seed with
+       | Some (E.Vec2 _ | Vec3 _ | Vec4 _ as value) -> components value
+       | Some v -> Array.make width (V.num v) | None -> Array.make width 0. in
+     let initialized = ref (match t.result with Sum zero -> zero | _ -> true) in
++    output, accumulator, initialized) in
+     let ordered_add = ordered_add t in
+     let block_size = 1024 in
+     let blocks = if count = 0 then 0 else (count - 1) / block_size + 1 in
+@@ -728,7 +734,8 @@
+         (match t.result with Sum _ -> initialized := true | _ -> ())
+       done
+       done end in
+-    (match t.result with
++    timed (if ordered_add then "ordered_direct_traversal" else "traversal_including_chunk_scratch")
++      (fun () -> match t.result with
+      | Collect -> Rays_math.Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(chunks - 1) chunk
+      | Sum _ | Accumulate _ ->
+          (* The fixed tree composes ordered chunk spans, retaining reference additions
+@@ -764,15 +771,19 @@
+     result
+ 
+ and force_uniforms ~state ?elems ?resolve ?measure t ~live =
++  probe ("uniform_prepare:" ^ probe_site t) (fun () ->
+   let execute residual live =
+-    match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source
+-      residual (E.Private.residual_view residual).term with
+-    | Ok packed -> Some (force ~state ?elems ?resolve ?measure packed ~live)
++    let view = E.Private.residual_view residual in
++    let label = String.concat "/" (Option.value ~default:view.site view.term.path) in
++    match probe ("uniform_compile:" ^ label) (fun () ->
++      compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source residual view.term) with
++    | Ok packed -> Some (probe ("uniform_execute:" ^ label) (fun () ->
++        force ~state ?elems ?resolve ?measure packed ~live))
+     | Error _ -> None in
+   match get (E.Private.force_with_executor ~state ?elems ?resolve ~compiled:false ~execute
+     (E.List t.uniforms) ~live) with
+   | E.List values -> Array.map components values
+-  | _ -> assert false
++  | _ -> assert false)
+ 
+ module Private = struct
+   let ordered_add = ordered_add
+@@ -788,7 +799,7 @@
+       zipped=zipped t; skip=t.skip}
+   type inputs = {arrays : float array array; uniforms : float array array;
+     frame : float array; count : int}
+-  let prepare ?state ?elems ?resolve ?measure (t : t) ~live =
++  let prepare_impl ?state ?elems ?resolve ?measure (t : t) ~live =
+     let state = Option.value ~default:(E.create_state ()) state in
+     E.transaction state (fun () -> try
+       let rec evaluate residual term =
+@@ -802,10 +813,10 @@
+         match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source residual term with
+         | Ok program -> get (force ~state ?elems ?resolve program ~live)
+         | Error _ -> get (E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
+-      let arrays = Array.mapi (fun index (residual, term) ->
++      let arrays = probe "gpu_source_arrays" (fun () -> Array.mapi (fun index (residual, term) ->
+         match evaluate residual term, t.widths.(index) with
+         | E.Float_array values, 1 | Vec2_array values, 2 | Vec3_array values, 3 | Vec4_array values, 4 -> values
+-        | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources in
++        | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources) in
+       let count = if arrays=[||] then 0 else Array.fold_left min max_int
+         (Array.mapi (fun index values -> Array.length values / t.widths.(index)) arrays) in
+       let uniforms = force_uniforms ~state ?elems ?resolve ?measure t ~live in
+@@ -820,4 +831,6 @@
+       | Unsupported -> Error (Flow.Diagnostic.error ~code:"E_KERNEL" "Kernel inputs need reference evaluation.")
+       | V.Fail (code,message,span) -> Error (Flow.Diagnostic.error ?span ~code message)
+       | Out_of_memory -> Error (Flow.Diagnostic.error ~code:"E_ARRAY_MEMORY" "Frame data exceeds available memory."))
++  let prepare ?state ?elems ?resolve ?measure t ~live =
++    probe "packed_prepare" (fun () -> prepare_impl ?state ?elems ?resolve ?measure t ~live)
+ end
+--- a/lib/flow_gpu/run.ml
++++ b/lib/flow_gpu/run.ml
+@@ -73,6 +73,8 @@
+   end
+   else try
+     let msl=t.msl in
++    let compiled,buffers,output,status,table=Flow.Phase_timer.measure_inclusive
++      (Attribution "run_pack_upload")(fun()->
+     let compiled=match Pipelines.get t.pipelines msl with
+       | Ok compiled -> compiled | Error error -> raise (Failed error) in
+     Bytes.set_int32_le t.uniforms 0 (Int32.of_int values.count);
+@@ -121,6 +123,8 @@
+         t.table_ready<-true
+       end;Some buffer
+     end in
++    compiled,buffers,output,status,table)in
++    Flow.Phase_timer.measure_inclusive(Attribution "run_completed_execution")(fun()->
+     let queue=t.queue in
+     let commands=get (B.begin_commands queue) in
+     let committed=ref false in
+@@ -142,7 +146,7 @@
+     if Bytes.get_int32_le flags 0<>0l then
+       raise(Failed(Flow.Diagnostic.error ~code:"E_KERNEL" "GPU output contains a nonfinite value."));
+     Ok {owner=t;count=values.count;width=msl.output_width;gpu_seconds=B.gpu_duration queue receipt;
+-      generation=t.generation}
++      generation=t.generation})
+   with Failed error -> Error error
+     | Out_of_memory -> error "GPU staging exceeds available memory."
+   end
+--- a/lib/rays_editor/workspace_images.ml
++++ b/lib/rays_editor/workspace_images.ml
+@@ -7,6 +7,7 @@
+ module P=Procedural
+ module Sources=Lru.Make(struct type t=int let equal=Int.equal let hash=Hashtbl.hash end)
+ let capture_limit=64*1024*1024
++let probe name run=Flow.Phase_timer.measure_inclusive(Attribution name)run
+ type captured={geometry:Rdk.Geometry.t;attributes:(string*E.value)list;bytes:int}
+ type source={network:Flow_sop.Network.t;cone:Flow_sop.Network.t;id:int;
+   mutable lane:Flow_sop.Value_lane.t;mutable state_stamp:string;mutable live:Frame_input.t;
+@@ -80,7 +81,7 @@
+     |Some lowered when lowered.plan==plan->Result.map(fun context->
+         request.contexts<-(plan,context)::request.contexts;context)(L.source_context lowered ~node:id)
+     |_->Error(Flow.Diagnostic.error ~code:"E_DATA_SOURCE" "Capture needs its current owning network."))
+-let prepare_source t request ~state ~live plan id=with_active request plan id(fun()->
++let prepare_source_impl t request ~state ~live plan id=with_active request plan id(fun()->
+   let* owner=source_context t request plan id in
+   let state_stamp=E.state_stamp state in
+   let* source=match Sources.find_opt t.source_cache id with
+@@ -114,6 +115,8 @@
+   source.compiled<-Some compiled;source.root<-Some root;source.geometry<-Some resolved.geometry;source.live<-live;
+   source.dependencies<-dependencies;source.projection<-projection;
+   Ok source)
++let prepare_source t request ~state ~live plan id=probe "source_preflight"
++  (fun()->prepare_source_impl t request ~state ~live plan id)
+ let retain_capture t id revision captured=
+   match Sources.peek t.source_cache id with
+   |Some source when source.revision=revision->
+@@ -127,7 +130,8 @@
+       |Some(revision,captured)when revision=source.revision->Ok captured
+       |_->let* session=session request in
+           let* context=cook_context t live in
+-          let* output=diagnostic(P.Session.cook session ~context (Option.get source.materializer))in
++          let* output=probe "materialization"(fun()->
++            diagnostic(P.Session.cook session ~context (Option.get source.materializer)))in
+           let* geometry=diagnostic(P.Payload.geometry output.payload)in
+           t.source_cooks<-t.source_cooks+1;
+           Ok{geometry;attributes=[];bytes=Rdk.Geometry.payload_bytes geometry}in
+@@ -140,8 +144,8 @@
+           Error(Flow.Diagnostic.error ~code:"E_DATA_SOURCE" "Attribute source was not prepared.")in
+         let* captured=captured t request ~live id source in
+         (match List.assoc_opt name captured.attributes with Some value->Ok value|None->
+-          let* value=Flow_sop.Attribute_kernel.resolve ~geometry:(fun node->
+-            if node=id then Some captured.geometry else None)value in
++          let* value=probe "flatten"(fun()->Flow_sop.Attribute_kernel.resolve ~geometry:(fun node->
++            if node=id then Some captured.geometry else None)value)in
+           t.attribute_flattens<-t.attribute_flattens+1;
+           let size=match value with E.Vec3_array values->Array.length values*8+16|_->0 in
+           let bytes=if size>max_int-captured.bytes then max_int else captured.bytes+size in
+@@ -241,7 +245,7 @@
+     (Array.init(Bytes.length bytes/4)(fun i->let o=4*i in
+       Color.rgba(Char.code(Bytes.get bytes o))(Char.code(Bytes.get bytes(o+1)))
+         (Char.code(Bytes.get bytes(o+2)))(Char.code(Bytes.get bytes(o+3))))))
+-let publish t key entry ~width ~height ~source=
++let publish_impl t key entry ~width ~height ~source=
+   let* image=match entry.image with
+     |None->Workspace_resources.image t.resources key(fun()->
+         match Runtime_resources.Image.Private.of_gpu ~width ~height ~source with
+@@ -258,6 +262,8 @@
+     message(Texture.Private.of_image(Image.Private.resource image))in
+   entry.image<-Some image;entry.borrowed<-Some borrowed;
+   entry.texture<-Some(lazy(Ok borrowed));Ok()
++let publish t key entry ~width ~height ~source=probe "runtime_publication"
++  (fun()->publish_impl t key entry ~width ~height ~source)
+ let prepare t plan =
+   match t.plan with Some old when old==plan->Ok()|_->
+     let programs=Array.map(fun(n:E.node)->if n.ty=Flow.Ty.image then
+@@ -293,7 +299,7 @@
+     let* ()=prepare t plan in
+     match value with
+     |E.Deferred(Flow.Ty.Named "image",id)when id>=0 && id<Array.length plan.nodes->
+-        let* forced=I.force ~state (Option.get t.arguments.(id)) ~live in
++        let* forced=probe "owner_arguments"(fun()->I.force ~state (Option.get t.arguments.(id)) ~live)in
+         let args=match forced with E.Record args->args|_->assert false in
+         let int key default=Option.fold ~none:default ~some:V.int_of(List.assoc_opt key args)in
+         let number key default=Option.fold ~none:default ~some:V.num(List.assoc_opt key args)in
+--- a/lib/rays_editor/workspace_gpu.ml
++++ b/lib/rays_editor/workspace_gpu.ml
+@@ -2,6 +2,7 @@
+ module H=Flow_gpu.Host
+ module X=Rays_execution
+ module P=X.Private
++let probe name run=Flow.Phase_timer.measure_inclusive(Attribution name)run
+ module Sinks=Lru.Make(struct
+   type t=int * float * int32 * int32 * float
+   let equal=(=)
+@@ -45,7 +46,8 @@
+   Result.bind(owner t)(fun(gpu,host)->match H.output host value with
+     |None->Error(error "The image's GPU producer was closed or superseded.")
+     |Some output->
+-        let convert sink=Result.bind(Flow_gpu.Image_sink.convert sink ~width ~height output)publish in
++        let convert sink=Result.bind(probe "sink_conversion"(fun()->
++          Flow_gpu.Image_sink.convert sink ~width ~height output))publish in
+         match Images.find_opt t.images key with
+         |Some sink->convert sink
+         |None when Images.length t.images>=64->Error(error "A workspace owns at most 64 GPU image sinks.")
+--- a/tools/bench_workspace_lower.ml
++++ b/tools/bench_workspace_lower.ml
+@@ -398,6 +398,18 @@
+   let module Editor=Rays_editor.Editor3 in
+   let module Image=Runtime_resources.Image in
+   let frames=200 and repeats=7 and warmups=10 in
++  let attribution=Out_channel.open_text "specification/performance/f-image-map-capture-attribution-direct-input.csv"in
++  output_string attribution "fixture,domains,trial,frames,phase,calls,inclusive_seconds\n";
++  let report_attribution fixture domains trial frames (timing:Flow.Phase_timer.t)=
++    Printf.fprintf attribution "%s,%d,%d,%d,initial_domain_inclusive:whole_trial,1,%.9f\n"
++      fixture domains trial frames timing.total;
++    List.iter(fun(e:Flow.Phase_timer.entry)->match e.phase with
++      |Attribution name->Printf.fprintf attribution "%s,%d,%d,%d,initial_domain_inclusive:%s,%d,%.9f\n"
++        fixture domains trial frames name e.calls e.seconds
++      |_->())timing.entries;
++    if frames=1 then
++      Printf.fprintf attribution "%s,%d,%d,%d,worker_internal_unobserved,0,\n" fixture domains trial frames;
++    flush attribution in
+   let gpu_domains=if captures then 8 else 1 in
+   let allocation()=let s=Gc.stat()in
+     (s.minor_words+.s.major_words-.s.promoted_words)*.float(Sys.word_size/8)in
+@@ -461,7 +473,8 @@
+   let fixtures=if captures then List.concat_map(fun points->List.map(fun changing->
+     Printf.sprintf "%s_P_Cd_%d" (if changing then "changing" else "static") points,
+     points,changing,captured points changing,(if points=1024 then [512;1024;2048] else [1024]))[false;true])
+-      [1024;65536]
++      [65536] @ ["gradient_live_dependency",0,false,
++        uncaptured "[uv.x uv.y (+ 0.5 (- bias bias)) 1]",[1024]]
+     else List.map(fun(name,body)->name,0,name="live_capture",uncaptured body,
+       (if only_1024 then [1024] else [512;1024;2048]))
+       ["gradient_live_dependency","[uv.x uv.y (+ 0.5 (- bias bias)) 1]";
+@@ -503,11 +516,13 @@
+       Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+         let cook phase trial frame time=
+           Gc.full_major();let before=allocation()in let started=now()in
+-          let bytes=cpu_bytes owner size size frame time in
++          let bytes,timing=Flow.Phase_timer.sample ~clock:now
++            (fun()->cpu_bytes owner size size frame time)in
+           let elapsed=now()-.started in let allocated=allocation()-.before in
+           let digest=hash bytes in
+           if domains=1 then Hashtbl.replace expected trial digest else assert(Hashtbl.find expected trial=digest);
+-          report fixture size size domains "exact_cpu" phase trial 1 elapsed allocated digest 0 0 0 0L 0 in
++          report fixture size size domains "exact_cpu" phase trial 1 elapsed allocated digest 0 0 0 0L 0;
++          if domains=8 && phase="warm_cpu_cook" then report_attribution fixture domains trial 1 timing in
+         cook "cold_cpu_cook" 0 0 0.;
+         ignore(cpu_bytes owner size size 1 0.125);
+         for trial=1 to repeats do cook "warm_cpu_cook" trial (trial+1)(float trial/.8.)done)) [1;8];
+@@ -538,6 +553,7 @@
+         assert(actual==image && Rays.Texture.Private.identity view=identity)in
+       for j=0 to warmups-1 do publish(float j/.float frames)done;
+       let run phase render=
++        if phase="warm_producer" then
+         for trial=0 to repeats-1 do
+           Gc.full_major();let before=counters !owner and capture_before=capture_counters !owner
+           and generation=Image.generation resource
+@@ -545,7 +561,8 @@
+           let images=Editor.Private.image_stats !owner and targets=Editor.Private.image_render_stats !owner in
+           let initial=Option.map Rays.Canvas.Private.native_stats !canvas in
+           let bytes=allocation()in let started=now()in
+-          for j=0 to frames-1 do render(float j/.float frames)done;
++          let (),timing=Flow.Phase_timer.sample ~clock:now(fun()->
++            for j=0 to frames-1 do render(float j/.float frames)done)in
+           let elapsed=now()-.started in let allocated=allocation()-.bytes in
+           let after=counters !owner in
+           let uploads=match initial,!canvas with Some initial,Some canvas->
+@@ -553,6 +570,7 @@
+             assert(Int64.sub final.frames initial.frames=Int64.of_int frames);
+             Int64.sub final.uploaded_bytes initial.uploaded_bytes|_->0L in
+           let producer=phase<>"consumer_only"in
++          report_attribution fixture gpu_domains trial frames timing;
+           report fixture size size gpu_domains "qualification" phase trial frames elapsed allocated "" 0 0 0 uploads
+             (Image.Private.readbacks resource-reads);
+           report_counters fixture size size "qualification" phase trial frames before after;
+@@ -650,7 +668,8 @@
+       assert(capture_after.(0)=0 && capture_after.(1)=0 && capture_after.(2)=0);
+       assert(after.(0)=after.(1) && after.(9)=after.(10) && after.(7)=before.(7)
+         && after.(8)=before.(8) && Image.Private.readbacks resource=reads);
+-      let created,destroyed=Editor.Private.image_stats !owner in assert(created=destroyed))) sizes)fixtures
++      let created,destroyed=Editor.Private.image_stats !owner in assert(created=destroyed))) sizes)fixtures;
++  Out_channel.close attribution
+ 
+ let field_mode () =
+   let env name default = Option.fold ~none:default ~some:int_of_string (Sys.getenv_opt name) in

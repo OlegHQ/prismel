@@ -62,6 +62,8 @@ let ()=
       |[a;b]->Flow.Value.Float(Flow.Value.num a-.Flow.Value.num b)|_->assert false)}in
   List.iter(fun(ty,reducer,override,seed,packed_expected,fast)->
     let value,sum,packed=fixture ?override ?seed ty reducer in
+    let counts=if ty=Flow.Ty.Vec3 && reducer="+"then
+      [0;1;1023;1024;1025;16383;16384;16385;32769]else[0;32769]in
     List.iter(fun count->List.iter(fun time->
       let current=ref(data ty count time)in let original=bytes !current in
       let live={(Frame_input.at_time time)with frame=int_of_float(time*.4.)}in
@@ -78,7 +80,7 @@ let ()=
         let prepared=ok(P.Private.prepare ~resolve:(resolve_source current) ?measure:(observed ~fast gpu) packed ~live)in
         assert(Array.exists(fun actual->bytes actual=bytes uniform)prepared.uniforms);
         assert((!cpu>0)=packed_expected && (!gpu>0)=packed_expected);
-        assert(bytes !current=original))) [1;8]) [0.;0.25;0.5]) [0;32769])
+        assert(bytes !current=original))) [1;8]) [0.;0.25;0.5]) counts)
     [Flow.Ty.Float,"+",None,None,true,true;
      Float,"(fn [a x] (+ a x))",None,None,true,true;
      Vec2,"+",None,None,true,true;
@@ -117,9 +119,10 @@ let ()=
   let fold=evaluate(workspace [] "(state [a 0.0] (+ a 1.0))")in
   let live=Frame_input.at_time 0. in
   List.iter(fun domains->Rays_math.Parallel.run ~domains(fun()->
-    List.iter(fun gpu->
+    List.iter(fun count->List.iter(fun gpu->
       let state=E.create_state()in let before=E.state_stamp state in
-      let current=ref(E.Float_array[|1e308;1e308|])in
+      let current=ref(E.Float_array(Array.init count(fun i->if i>=count-2 then 1e308 else 0.)))in
+      let original=bytes !current in
       let resolve value=ignore(ok(E.Private.force_reference ~state fold ~live));resolve_source current value in
       let reference_state=E.create_state()in
       let reference_resolve value=ignore(ok(E.Private.force_reference ~state:reference_state fold ~live));
@@ -129,9 +132,10 @@ let ()=
       let result=if gpu then Result.map(fun _->E.Int 0)(P.Private.prepare ~state ~resolve packed ~live)
         else P.force ~state ~resolve packed ~live in
       assert(same result expected && E.state_stamp state=before);
+      assert(bytes !current=original);
       current:=E.Float_array[|1.;2.;3.|];
       let expected=E.Private.force_reference ~resolve:(resolve_source current) value ~live in
       if gpu then ignore(ok(P.Private.prepare ~state ~resolve packed ~live))
       else assert(same(P.force ~state ~resolve packed ~live)expected);
-      assert(ok(E.Private.force_reference ~state fold ~live)=E.Float 1.)) [false;true])) [1;8];
+      assert(ok(E.Private.force_reference ~state fold ~live)=E.Float 1.)) [false;true]) [2;16385])) [1;8];
   print_endline "Captured uniform packed/reference parity, ordered named reductions, changing inputs, errors and rollback passed"

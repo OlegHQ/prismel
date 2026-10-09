@@ -1648,6 +1648,50 @@ sweeps, GPU/editor/runtime/oversized-capture tests and all pixel aliases.
 Actual display is 1×; 2× goldens remain unqualified.
 Shipping passes (exit 0; `/tmp/rays-f-image-ordered-add-ship.log`).
 
+**Direct-input ordered chunks (2026-10-09; changing-source GPU gate still open).**
+The approved fast chunk adds `skip=[]` to the exact Zip recognizer, reads
+elements/components in ascending order and performs the same finite-checked
+add/write without scratch/index/noise/table allocations. Generic execution
+returns to its original path. Seed/source/empty/ordered-chunk/transaction
+behavior remains. Boundary counts around 1024 and 16384, post-chunk overflow,
+input immutability, exact reference errors and state rollback/recovery extend
+the existing all-width/domain/fallback regression and pass focused checks.
+
+The unchanged eight-cell/control runs retain all 30 exact native parity rows,
+CPU1/8 hashes and resource/capture assertions. Large CPU8/GPU medians are
+17.266035/3.510880 ms static and 18.228054/6.159385 ms changing. Static
+producer allocation is exactly 89,161 B/frame at every measured source/pixel
+size; fixed-source changing allocations and uncaptured allocations retain their
+expected bounds. Astra: “Retain the direct-input path.” All CPU8 and small/
+control GPU gates pass. The large static GPU gate passes; changing still fails.
+Raw after files are `f-image-map-captures-direct-input-after*` and
+`f-image-map-uncaptured-recheck-direct-input-after*`.
+
+Approved fresh attribution now measures changing-source materialization at
+2.491270 ms and flattening at 0.543628 ms, nested in source preparation;
+the two direct traversals take about 1.17 ms total. No scratch work is attributed
+to matched chunks. Inclusive/initial-domain limits remain explicit. Nine parity
+comparisons and counters pass; the probe-only reproducible patch and raw rows
+are `f-image-map-capture-attribution-direct-input*`. Production probes are
+restored byte-for-byte. Further optimization requires Astra's review of this
+evidence; frozen exact images, expanded owner qualification and F3 remain open.
+
+Astra: “Attribution accepted.” The next approved action is a source-refresh
+diagnostic: reuse existing Session.node_timings for line/with_attr/capture,
+split Attribute_kernel.write into validation/XYZ storage/attribute installation,
+and label P/Cd flattening. Worker node timings and initial-domain write clocks
+must retain their distinct coverage and nested accounting; report outside frame
+loops and preserve the same seven-trial parity/counter protocol. Inspect the
+three Array.init callbacks and Duplicate_input 0 before optimizing. No cache,
+dependency or ownership change is approved.
+
+The restored direct-input checkpoint passes full F5 native/pixel qualification
+(exit 0; `/tmp/rays-f-image-direct-input-full.log`), including both complete
+workspace sweeps and native geometry/image/texture/drawing pixels, oversized
+capture and runtime qualification. Actual display is 1×; 2× goldens remain
+unqualified. No production probes remain.
+Shipping passes (exit 0; `/tmp/rays-f-image-direct-input-ship.log`).
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing

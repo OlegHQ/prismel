@@ -872,10 +872,12 @@ packed declaration capability, then use the same typed ordered accumulator
 instructions as an explicit lambda. Unsupported or changed declarations stay
 interpreted. Existing transactions and reference fallback preserve diagnostic
 and state behavior; this does not reassociate reductions or add GPU reductions.
-The exact non-collecting Zip addition pattern at width 1–4 bypasses dependent
-instruction dispatch after matching every input/accumulator/add slot, output
-and dependency flag. Its component loop performs the same ordered additions
-and finite checks; other layouts, Product folds and scans retain generic packed execution.
+The exact non-collecting Zip addition pattern at width 1–4, with no skips,
+reads its single input directly after matching every input/accumulator/add
+slot, output and dependency flag. Each ordered chunk visits elements and
+components in ascending order with the same finite checks, without scratch
+storage or instruction dispatch. Other layouts, Product folds and scans retain
+generic packed execution.
 
 Flow IR accepts an initial-domain GPU backend through scoped, renderer-neutral
 callbacks. GPU values carry identity, count, width, generation and optional
