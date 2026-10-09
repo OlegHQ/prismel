@@ -1464,6 +1464,24 @@ disabled; compare full bytes/hashes outside timing and require warm allocation
 to stop growing with pixel count. Resident Canvas lands before the separate
 deferred Lisp exact-image surface; both remain required.
 
+**Completed-Canvas source groundwork (2026-10-09).** The private Canvas source
+now borrows only a completed GPU frame and expires before later render attempts,
+explicit invalidation, CPU mutation or destruction. Runtime context checks
+cover both the initial domain and platform main thread, including headless
+resources before SDL initialization. Native 65×3 checks cover direct sampling,
+retained Scene expiry with unchanged published Image generation, invalid
+density and late-Clear failures, recovery, old CPU snapshot leases and zero
+native handle delta. Actual source captures/readbacks remain zero during
+borrowing; explicit CPU mutation and capture produce the expected (1,2) counters,
+unchanged by destruction. Astra approves the Canvas boundary and shared Apple
+thread-guard correction. Only the pre-initialization worker-thread assertion is
+Apple-specific; post-video rejection retains the platform-neutral SDL contract.
+Focused/API, full F5 native qualification and pre-commit shipping pass (exit 0), including both
+complete workspace sweeps at four times/domains 1/8. The 2× PXUI goldens remain
+unqualified at the actual 1× density. This is borrowing/lifetime groundwork;
+workspace retained-Canvas wiring,
+size-dependent cache checks and the F2.3 allocation gate remain open.
+
 **Today.** `image/render drawing :width :height` renders into an offscreen
 `Rays.Canvas`, `Canvas.to_image` reads the pixels back to a CPU `Image.t`,
 and a `:texture` consumer uploads them again. That is one GPU→CPU→GPU round

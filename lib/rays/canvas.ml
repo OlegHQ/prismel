@@ -1,8 +1,9 @@
 type t={resource:Runtime_resources.Canvas.t;
-  mutable execution:Rays_execution.t option;mutable destroyed:bool}
+  mutable execution:Rays_execution.t option;mutable destroyed:bool;
+  mutable epoch:int;mutable completed:bool}
 let message operation error=Format.asprintf"%s: %a"operation Runtime_resources.pp_error error
 let create ~width ~height=match Runtime_resources.Canvas.create ~width ~height with
-  |Ok resource->Ok{resource;execution=None;destroyed=false}
+  |Ok resource->Ok{resource;execution=None;destroyed=false;epoch=0;completed=false}
   |Error error->Error(message"Canvas.create"error)
 let create_exn ~width ~height=match create ~width ~height with Ok value->value|Error value->failwith value
 let size value=match Runtime_resources.Canvas.size value.resource with Ok value->value|Error error->failwith(message"Canvas.size"error)
@@ -23,7 +24,11 @@ let execution?(density=1) value=
       match Rays_execution.create_offscreen configuration with
       |Error error->failwith(execution_message"Canvas.render"error)
       |Ok execution->value.execution<-Some execution;execution
+let invalidate value=
+  ignore(size value);
+  value.epoch<-value.epoch+1;value.completed<-false
 let render ?(density=1) value scene=
+  invalidate value;
   if density<1 then invalid_arg"Canvas.render: density must be positive";
   let execution=execution~density value and width,height=size value in
   (match Native_scene_lowering.render~execution~density~width:(width/density)~height:(height/density) scene with
@@ -34,7 +39,7 @@ let render ?(density=1) value scene=
     |Error error->failwith(execution_message"Canvas.render"error)
     |Ok texture->
       match Runtime_resources.Canvas.Private.publish_gpu value.resource texture with
-      |Ok()->()|Error error->failwith(message"Canvas.render"error)
+      |Ok()->value.completed<-true|Error error->failwith(message"Canvas.render"error)
 let packed color=Int32.logor(Int32.shift_left(Int32.of_int color.Color.r)24)
   (Int32.logor(Int32.shift_left(Int32.of_int color.g)16)
     (Int32.logor(Int32.shift_left(Int32.of_int color.b)8)(Int32.of_int color.a)))
@@ -57,6 +62,22 @@ let to_image value=match Runtime_resources.Canvas.capture value.resource with
   |Ok image->Ok(Image.Private.of_resource image)
   |Error error->Error(message"Canvas.to_image"error)
 module Private=struct
+  let invalidate=invalidate
+  let pixel_stats value=Runtime_resources.Canvas.Private.pixel_stats value.resource
+  let gpu_source value=
+    match Runtime_resources.Canvas.size value.resource with
+    |Error error->Error(message "Canvas.gpu_source" error)
+    |Ok _ when value.destroyed || not value.completed->Error "Canvas.gpu_source: no completed GPU frame"
+    |Ok _->
+    match Runtime_resources.Canvas.Private.gpu_snapshot value.resource with
+    |None->Error "Canvas.gpu_source: no completed GPU frame"
+    |Some(width,height,generation,texture)->
+        let epoch=value.epoch in
+        Ok(width,height,fun()->
+          if value.destroyed || not value.completed || value.epoch<>epoch then None else
+          match Runtime_resources.Canvas.Private.gpu_snapshot value.resource with
+          |Some(_,_,current,source)when current=generation && source==texture->Some texture
+          |_->None)
   type native_stats=Rays_execution.stats
   let copy_to_image value image=
     match Runtime_resources.Canvas.copy_to_image value.resource(Image.Private.resource image)with
@@ -73,10 +94,11 @@ let write_bytes value bytes=match Runtime_resources.Canvas.replace_pixels value.
 let capture()=match Canvas_runtime.capture()with Error _ as error->error|Ok(w,h,bytes)->let value=create_exn~width:w~height:h in(try write_bytes value bytes;Ok value with exn->ignore(Runtime_resources.Canvas.destroy value.resource);Error(Printexc.to_string exn))
 let save_screen_png=Canvas_runtime.save
 let destroy value=if not value.destroyed then(
+  invalidate value;
+  value.destroyed<-true;
+  ignore(Runtime_resources.Canvas.destroy value.resource);
   Option.iter(fun execution->
-    ignore(Runtime_resources.Canvas.Private.forget_gpu value.resource);
     ignore(Rays_execution.destroy execution))
     value.execution;
   value.execution<-None;
-  ignore(Runtime_resources.Canvas.destroy value.resource);
-  value.destroyed<-true)
+  ())

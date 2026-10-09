@@ -9,6 +9,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __APPLE__
+#include <pthread.h>
+#endif
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_metal.h>
@@ -53,6 +56,11 @@ CAMLprim value caml_sdl3_clear_error(value unit)
 CAMLprim value caml_sdl3_is_main_thread(value unit)
 {
   (void)unit;
+#ifdef __APPLE__
+  /* SDL accepts every thread before initialization; headless resources must
+     still run on the platform main thread. */
+  if (!pthread_main_np()) return Val_false;
+#endif
   return Val_bool(SDL_IsMainThread());
 }
 

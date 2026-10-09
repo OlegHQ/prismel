@@ -2670,6 +2670,9 @@
         "val apply_mask : source : t -> mask : t -> unit",
         "val to_image : t -> ( Image.t , string ) result",
         "module Private : sig",
+        "val invalidate : t -> unit",
+        "val gpu_source : t -> ( ( int * int * ( unit -> Ogpu.Backend.texture option ) ) , string ) result",
+        "val pixel_stats : t -> int * int",
         "val copy_to_image : t -> Image.t -> ( unit , string ) result",
         "type native_stats = Rays_execution.stats",
         "val native_stats : t -> native_stats",
@@ -2678,7 +2681,7 @@
         "val save_screen_png : string -> ( unit , string ) result",
         "val destroy : t -> unit"
       ],
-      "api_sha256": "7fb7bebd2356373722032e1da0dd5b2e6b9d1629e5649aef5ddb04c4d4a0416a",
+      "api_sha256": "4247ca0762a2e3f1c54da66ea05626d7cf16ddf8dcfb43739eb273d96e5cf91a",
       "excluded_legacy_symbols": [],
       "library": "rays",
       "module": "Canvas",

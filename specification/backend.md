@@ -603,8 +603,18 @@ texture to the Canvas resource. A window scene that draws the canvas samples
 that texture directly, keyed by canvas generation, with no readback or
 upload; CPU access (`pixel`, `pixels`, `capture`, `to_image`, `save_png`)
 reads the texture back lazily, and a CPU mutation makes the CPU pixels
-authoritative again. `Canvas.destroy` destroys the coordinator and releases the
-lease. Offscreen submission never creates a hidden window, acquires a drawable,
+authoritative again. `Canvas.Private.gpu_source` borrows only a successfully
+completed frame, on the initial SDL domain and platform main thread. Its source
+callback expires before any later render attempt (including an invalid density
+or failed staging), explicit invalidation, CPU mutation or destruction. It
+checks the publication epoch, runtime generation and physical texture identity;
+an expired callback cannot keep a retained Scene usable merely because its
+published Image generation has not changed. Successful captures and actual
+GPU pixel readbacks are counted independently by `Canvas.Private.pixel_stats`.
+`Canvas.destroy` detaches the runtime resource before destroying the coordinator
+and releasing the lease, without reading discarded GPU pixels. Owned CPU
+captures and their leases survive that destruction.
+Offscreen submission never creates a hidden window, acquires a drawable,
 presents, or waits for display pacing.
 
 Windowed runtime configuration selects FIFO presentation when vsync is enabled

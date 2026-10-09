@@ -18,6 +18,16 @@ val map_pixels : t -> (x:int -> y:int -> Color.t -> Color.t) -> unit
 val apply_mask : source:t -> mask:t -> unit
 val to_image : t -> (Image.t,string) result
 module Private : sig
+  val invalidate : t -> unit
+  val gpu_source : t -> ((int * int * (unit -> Ogpu.Backend.texture option)),string) result
+  (** Borrow the completed GPU frame until another render attempt, explicit
+      invalidation, CPU mutation or destruction. Requires the initial SDL domain
+      and platform main thread. *)
+
+  val pixel_stats : t -> int * int
+  (** Successful captures and actual successful GPU pixel readbacks, including
+      operations through private copying and implicit CPU synchronization. *)
+
   (** Copy current pixels into an existing image without replacing its identity
       or allocating a same-sized snapshot. *)
   val copy_to_image : t -> Image.t -> (unit,string) result

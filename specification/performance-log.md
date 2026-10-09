@@ -9807,3 +9807,63 @@ Connected timing/allocation
 and the complete size matrix, resident Canvas image/render, explicit frozen
 exact GPU snapshots and captured geometry remain open; this checkpoint does
 not establish the F2.2 or F2.3 performance gates.
+
+## F2.3 completed-Canvas borrowing boundary (2026-10-09)
+
+Apple M1 Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev. The new
+65×3 native fixture runs on the initial domain, with explicit worker-domain
+and same-domain OCaml-thread rejection checks. It uses the real native
+offscreen producer and image consumer, rather than a mock lifetime flag.
+
+`Canvas.Private.gpu_source` publishes a completed-frame callback checked against
+the Canvas publication epoch, runtime generation and physical texture identity.
+It expires before later render attempts, including invalid density and failed
+late-Clear staging, and before explicit invalidation, CPU mutation or destruction.
+Retained Scene replay refuses expired sources even without an Image generation
+change. Successful recovery publishes a fresh borrow. CPU captures and snapshot
+leases retain their exact bytes through newer rendering and source destruction.
+
+The same-domain thread fixture exposed the shared SDL query accepting any thread
+before initialization. The Apple stub now also checks `pthread_main_np()`;
+other platforms preserve SDL semantics. SDL tests check main-thread success and
+worker-thread rejection before initialization on Apple, and after Video init on
+all platforms. Rejected Canvas operations preserve the previously valid source.
+
+| Actual source operation | Successful captures | Successful GPU pixel readbacks |
+|---|---:|---:|
+| Completed texture borrowed and sampled by another Canvas | 0 | 0 |
+| Failed render attempts and explicit invalidation | 0 | 0 |
+| CPU pixel mutation | 0 | 1 |
+| Subsequent explicit Canvas.to_image | 1 | 2 |
+| New GPU frame followed by source destruction | 1 | 2 |
+
+Counters are cumulative within the fixture and count actual successful operations.
+Borrowed Images are destroyed before source targets; final live native handles
+equal the starting count. Existing 603-frame submission accounting and the
+unchanged transient-Scene promotion ceiling also pass.
+
+```sh
+_build/default/tools/check.exe @check @lib/sdl3/runtest @lib/runtime/resources/runtest @lib/rays/runtest @lib/rays/test_canvas_native @tools/api_manifest/runtest
+_build/default/tools/check.exe @all @runtest @smoke @lib/sdl3/runtest-native @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+_build/default/tools/check.exe --ship
+```
+
+Astra approves the Canvas borrowing and Apple guard correction. The API manifest
+intentionally adds only Canvas.Private.invalidate/gpu_source/pixel_stats.
+This establishes the source/lifetime boundary, not a workspace resident-render
+path or an allocation improvement. Workspace ownership, size-dependent cache
+invalidation and the matched F2.3 performance gate remain open.
+
+Focused checks and API validation pass (exit 0):
+`/tmp/rays-f-retained-canvas-boundary-check.log`. The full shipping/native F5
+run passes (exit 0): `/tmp/rays-f-retained-canvas-boundary-full.log`.
+Both workspace sweeps cover 38 standard workspaces, two custom-catalog
+executables and 13 fixtures at four times/domains 1/8; native geometry, image,
+texture and drawing pixels agree. The corrected platform-specific SDL test and
+final focused/API checks pass (exit 0):
+`/tmp/rays-f-retained-canvas-boundary-final-check.log`.
+The 2× PXUI goldens skip at this display's actual 1× density and remain
+unqualified; no fixtures or tolerances are changed.
+
+The required pre-commit `--ship` check passes (exit 0):
+`/tmp/rays-f-retained-canvas-boundary-ship.log`.

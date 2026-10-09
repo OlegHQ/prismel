@@ -46,7 +46,92 @@ let camera_depth ()=
   require(live_handles()=baseline) "camera native live-handle delta";
   print_endline "camera native depth: default orthographic, close perspective, depth order, instances and retained replay pass"
 
+let completed_source ()=
+  let baseline=live_handles()in
+  let canvas=Canvas.create_exn ~width:65 ~height:3
+  and destination=Canvas.create_exn ~width:65 ~height:3 in
+  let images=ref[]in
+  Fun.protect ~finally:(fun()->
+    List.iter Image.destroy !images;Canvas.destroy canvas;Canvas.destroy destination)(fun()->
+    require(Result.is_error(Canvas.Private.gpu_source canvas))"fresh Canvas allowed a GPU borrow";
+    let render color=Canvas.render canvas Scene.[clear color]in
+    let borrow()=
+      let width,height,source=Result.get_ok(Canvas.Private.gpu_source canvas)in
+      require((width,height)=(65,3))"Canvas borrow extent";
+      let resource=Result.get_ok(Runtime_resources.Image.Private.of_gpu ~width ~height ~source)in
+      let image=Image.Private.of_resource resource in images:=image:: !images;
+      source,image in
+    let expires source image=
+      require(Option.is_none(source()))"old Canvas source remains current";
+      match Runtime_resources.Image.Private.gpu_snapshot(Image.Private.resource image)with
+      |Error{kind=Runtime_resources.Destroyed;_}->()
+      |_->failwith"expired Canvas image did not report Destroyed"in
+    render Color.red;
+    let source,image=borrow()in
+    let generation=Runtime_resources.Image.generation(Image.Private.resource image)in
+    let published=image in
+    let scene=Scene.[clear Color.black;image published ~at:(0,0)()]in
+    Canvas.render destination scene;
+    require(channel destination ~x:64 ~y:2=(255,0,0,255))"borrowed Canvas native consumer pixel";
+    require(Canvas.Private.pixel_stats canvas=(0,0))"Canvas borrowing captured or read source pixels";
+    let wrong_context()=
+      require(Option.is_none(source()))"Canvas callback accepted wrong execution context";
+      require(Result.is_error(Canvas.Private.gpu_source canvas))"Canvas borrow accepted wrong execution context";
+      let rejected=try render Color.green;false with Failure _->true in
+      require rejected "Canvas render accepted wrong execution context"in
+    Domain.join(Domain.spawn wrong_context);
+    let thread_result=ref(Ok())in
+    let thread=Thread.create(fun()->
+      try
+        require(Domain.is_main_domain())"thread fixture did not run on the initial domain";
+        wrong_context()
+      with exn->thread_result:=Error exn)()in
+    Thread.join thread;(match !thread_result with Ok()->()|Error exn->raise exn);
+    require(Option.is_some(source()))"rejected wrong-context operations invalidated Canvas";
+    render Color.blue;expires source image;
+    require(Runtime_resources.Image.generation(Image.Private.resource image)=generation)
+      "source expiry mutated published Image generation";
+    let replay_failed=try Canvas.render destination scene;false with Failure _->true in
+    require replay_failed "retained Scene replay accepted an expired Canvas source";
+    let source,image=borrow()in
+    let failed=try Canvas.render canvas Scene.[rect ~at:(0,0) ~w:1 ~h:1();clear Color.red];false
+      with Failure _->true in
+    require failed "Canvas late Clear fixture succeeded";expires source image;
+    require(Result.is_error(Canvas.Private.gpu_source canvas))"failed render left a completed Canvas source";
+    require(Canvas.Private.pixel_stats canvas=(0,0))"failed Canvas render read or captured pixels";
+    render Color.green;
+    let source,image=borrow()in
+    let failed=try Canvas.render ~density:0 canvas Scene.[clear Color.blue];false
+      with Invalid_argument _->true in
+    require failed "Canvas accepted zero density";expires source image;
+    require(Result.is_error(Canvas.Private.gpu_source canvas))"invalid density left a completed source";
+    render Color.green;
+    let source,image=borrow()in
+    Canvas.Private.invalidate canvas;expires source image;
+    render Color.red;
+    let source,image=borrow()in
+    Canvas.set_pixel canvas ~x:0 ~y:0 Color.blue;expires source image;
+    require(Canvas.Private.pixel_stats canvas=(0,1))"CPU mutation actual Canvas readback count";
+    render Color.green;
+    let captured=Result.get_ok(Canvas.to_image canvas)in images:=captured:: !images;
+    let _,_,_,bytes,lease=Result.get_ok(Runtime_resources.Image.Private.borrow_snapshot
+      (Image.Private.resource captured))in
+    Fun.protect ~finally:(fun()->Runtime_resources.Image.Private.release_snapshot lease)(fun()->
+      let saved=Bytes.copy bytes in
+      require(Bytes.sub saved 0 4=Bytes.of_string "\x00\xff\x00\xff")"Canvas CPU snapshot pixel";
+      require(Canvas.Private.pixel_stats canvas=(1,2))"Canvas capture actual readback count";
+      render Color.blue;
+      let source,image=borrow()in
+      Canvas.destroy canvas;expires source image;
+      require(Canvas.Private.pixel_stats canvas=(1,2))"Canvas destruction read discarded GPU pixels";
+      require(bytes=saved && Result.get_ok(Image.Private.pixels captured)=saved)
+        "Canvas updates or destruction changed retained CPU bytes";
+      Canvas.destroy canvas));
+  require(live_handles()=baseline)"Canvas borrowed-source live-handle delta";
+  print_endline "Canvas completed source: native consumer, domain/thread guards, attempt/CPU/destroy expiry, retained CPU lease, no teardown readback, zero delta"
+
 let run () =
+  completed_source();
   camera_depth();
   let baseline=live_handles()in
   let canvas=Canvas.create_exn~width:64~height:64 in

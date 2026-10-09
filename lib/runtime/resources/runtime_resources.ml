@@ -179,6 +179,7 @@ module Canvas=struct
        pixels are read back lazily while [cpu_stale]. A CPU mutation makes
        the CPU bank authoritative again and forgets the texture. *)
     mutable gpu:Ogpu.Backend.texture option;mutable cpu_stale:bool;
+    mutable captures:int;mutable readbacks:int;
     mutable dead:bool}
   let generation x=x.generation and destroyed x=x.dead
   let live op x f=main op(fun()->if x.dead then error op Destroyed"canvas is destroyed"else f())
@@ -186,7 +187,7 @@ module Canvas=struct
     if width<=0||height<=0||width>max_int/4||height>max_int/(width*4)then
       error operation Invalid_argument"invalid canvas extent"
     else Ok(Bytes.make(width*height*4)'\000')
-  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun rgba->{identity=fresh_identity();generation=1;width;height;rgba;spare=None;mirror=None;blocked=None;gpu=None;cpu_stale=false;dead=false})(storage"Canvas.create"width height))
+  let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun rgba->{identity=fresh_identity();generation=1;width;height;rgba;spare=None;mirror=None;blocked=None;gpu=None;cpu_stale=false;captures=0;readbacks=0;dead=false})(storage"Canvas.create"width height))
   let size x=live"Canvas.size"x(fun()->Ok(x.width,x.height))
   let valid_mirror x image=not image.Image.dead&&image.canvas_owner=Some x.identity&&
     image.rgba==x.rgba
@@ -231,7 +232,7 @@ module Canvas=struct
     |Some texture->
         detach_for_overwrite x;
         (match Ogpu.Backend.read_texture_into texture~bytes_per_row:(x.width*4)~destination:x.rgba with
-         |Ok()->x.cpu_stale<-false;Ok()
+         |Ok()->x.cpu_stale<-false;x.readbacks<-x.readbacks+1;Ok()
          |Error e->error op Io(Ogpu.Error.to_string e))
   let cpu_overwrites x=x.cpu_stale<-false;x.gpu<-None
   let cpu_mutates op x=match sync_cpu op x with Error _ as e->e|Ok()->x.gpu<-None;Ok()
@@ -279,17 +280,19 @@ module Canvas=struct
   let resize x ~width ~height=live"Canvas.resize"x(fun()->match storage"Canvas.resize"width height with Error _ as e->e|Ok rgba->cpu_overwrites x;detach_mirror x;x.blocked<-None;x.spare<-None;x.width<-width;x.height<-height;x.rgba<-rgba;x.generation<-x.generation+1;Ok())
   let capture x=live"Canvas.capture"x(fun()->match sync_cpu"Canvas.capture"x with Error _ as e->e|Ok()->
     discard_invalid_mirror x;
-    if x.mirror=None&&x.blocked=None then begin
+    let result=if x.mirror=None&&x.blocked=None then begin
       let image:Image.t={identity=fresh_identity();generation=1;
         width=x.width;height=x.height;rgba=x.rgba;spare=None;leases=[];gpu=None;readbacks=0;
         canvas_owner=None;canvas_returns=[];dead=false}in
       publish_storage x image;
       x.mirror<-Some image;Ok image
     end else
-      Image.create~width:x.width~height:x.height~rgba:x.rgba)
+      Image.create~width:x.width~height:x.height~rgba:x.rgba in
+    Result.map(fun image->x.captures<-x.captures+1;image)result)
   let save_png x path=live"Canvas.save_png"x(fun()->match sync_cpu"Canvas.save_png"x with Error _ as e->e|Ok()->try let bytes=Png.encode~width:x.width~height:x.height x.rgba in let out=open_out_bin path in Fun.protect~finally:(fun()->close_out_noerr out)(fun()->output_bytes out bytes);Ok()with Sys_error m->error"Canvas.save_png"Io m)
   module Private=struct
     let identity x=x.identity
+    let pixel_stats x=x.captures,x.readbacks
     let publish_gpu x texture=live"Canvas.Private.publish_gpu"x(fun()->
       let descriptor=Ogpu.Backend.Private.texture_descriptor texture in
       if Ogpu.Backend.Private.texture_destroyed texture||
@@ -297,8 +300,9 @@ module Canvas=struct
          not(List.mem Ogpu.Types.Texture_binding descriptor.usage) then
         error"Canvas.Private.publish_gpu"Invalid_argument"GPU texture shape or usage is invalid"
       else(x.gpu<-Some texture;x.cpu_stale<-true;x.generation<-x.generation+1;Ok()))
-    let gpu_snapshot x=if x.dead then None else
-      Option.map(fun texture->x.width,x.height,x.generation,texture)x.gpu
+    let gpu_snapshot x=match live "Canvas.Private.gpu_snapshot" x(fun()->
+      Ok(Option.map(fun texture->x.width,x.height,x.generation,texture)x.gpu))with
+      |Ok snapshot->snapshot|Error _->None
     let forget_gpu x=live"Canvas.Private.forget_gpu"x(fun()->
       match sync_cpu"Canvas.Private.forget_gpu"x with
       |Ok()->x.gpu<-None;Ok()

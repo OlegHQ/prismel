@@ -73,6 +73,8 @@ module Canvas : sig
         forget it. *)
     val publish_gpu : t -> Ogpu.Backend.texture -> (unit,error) result
     val gpu_snapshot : t -> (int * int * int * Ogpu.Backend.texture) option
+    val pixel_stats : t -> int * int
+    (** Successful captures and actual successful GPU pixel readbacks. *)
 
     (** Reads back any stale CPU pixels, then drops the GPU reference. *)
     val forget_gpu : t -> (unit,error) result

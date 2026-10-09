@@ -115,6 +115,7 @@ let run () =
   if get(Canvas.size bank_canvas)<>(8,2)then failwith"mirrored canvas resize";
   get(Image.destroy second);get(Canvas.destroy bank_canvas);
   List.iter(fun frame->if List.mem frame[1;2;60;600]then let capture=get(Canvas.capture canvas)in if get(Image.size capture)<>(4,4)then failwith"capture";get(Image.destroy capture)) [1;2;60;600];
+  if Canvas.Private.pixel_stats canvas<>(4,0)then failwith"CPU Canvas successful capture/readback counters";
   get(Canvas.resize canvas~width:8~height:8);if get(Canvas.size canvas)<>(8,8)then failwith"resize";
   let png=Filename.temp_file"rays-next-"".png"in get(Canvas.save_png canvas png);let input=open_in_bin png in let signature=really_input_string input 8 in close_in input;Sys.remove png;if signature<>"\x89PNG\r\n\x1a\n"then failwith"PNG";
   let assets=Assets.create()and order=ref[]in ignore(get(Assets.borrow assets~destroy:(fun()->order:=1::!order;Image.destroy image)image));ignore(get(Assets.borrow assets~destroy:(fun()->order:=2::!order;Canvas.destroy canvas)canvas));get(Assets.destroy assets);if!order<>[1;2]then failwith"on_stop order";

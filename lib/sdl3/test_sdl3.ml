@@ -1,9 +1,28 @@
+module Native_thread=Thread
 open Sdl3
 
 let fail message = failwith ("SDL3 test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
 
 let run () =
+  let wrong_thread () =
+    let outcome = ref (Ok ()) in
+    let thread = Native_thread.create (fun () ->
+      try
+        if not (Sdl3.Thread.is_initial_domain ()) then
+          fail "thread fixture did not use the initial OCaml domain";
+        if Sdl3.Thread.is_sdl_main_thread () then
+          fail "platform main-thread query accepted another thread";
+        match Init.init [Init.Events] with
+        | Error {kind=Wrong_domain; _} -> ()
+        | _ -> fail "SDL init accepted another thread"
+      with exn -> outcome := Error exn) () in
+    Native_thread.join thread;
+    match !outcome with Ok () -> () | Error exn -> raise exn in
+  if not (Sdl3.Thread.is_sdl_main_thread ()) then fail "platform main thread refused before SDL init";
+  (* SDL deliberately defines the main thread at initialization elsewhere. *)
+  if Sys.os_type="Unix" && Sys.file_exists "/System/Library/Frameworks/Metal.framework" then
+    wrong_thread ();
   let triple (v : version) = v.major, v.minor, v.patch in
   let compiled = compiled_version and linked = linked_version () in
   (match Sdl3_lock.check_installed ~lock:(Sdl3_lock.read "../../packaging/sdl3.lock")
@@ -18,6 +37,8 @@ let run () =
    | Error { kind = Incompatible_version; _ } -> ()
    | Ok () | Error _ -> fail "prerelease extension headers were not rejected");
   get (Init.init [Init.Video; Init.Events]);
+  if not (Sdl3.Thread.is_sdl_main_thread ()) then fail "platform main thread refused after SDL init";
+  wrong_thread ();
   (match Window.create ~title:"bad\x00title" ~width:8 ~height:8 () with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok window -> ignore (Window.destroy window); fail "NUL window title succeeded"
