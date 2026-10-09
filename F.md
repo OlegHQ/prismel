@@ -2258,7 +2258,24 @@ regression must pass unchanged. First run seven alternating-order diagnostic
 phase pairs against production; stop if the catastrophe persists. Only if it
 disappears run the full production learned/off/pieces/reverse matrix. Retention
 compares with production, never the rejected trial; ≤50.600 ms remains the
-unchanged whole learned-eight gate. This trial is not implemented yet.
+unchanged whole learned-eight gate.
+
+**Explicit range-helper trial stopped (2026-10-09).** The approved typed helper
+passes full focused checks and Astra's assembly review: arrays/offsets/index/end
+stay in registers; checked accesses, store barrier and polls remain; the normal
+inner path has no captured-value loads/calls/allocations/spills. Nevertheless,
+seven alternating-order phase pairs retain the catastrophe: measured vertex
+time at one domain grows29.943943→777.833700 ms, training30.824184→736.407042;
+at eight domains measured vertex7.259846→10.388851 ms. All hashes, fanouts,
+phase counts and containment checks pass; one-domain allocation grows only80 B.
+The protocol stops before the full production matrix. Captured-value reloads
+are not established as the cause. Production/probe files are restored byte-for-
+byte; retain42 raw diagnostic CSVs, both patches and assembly. Restored full
+@check/RDK/procedural checks pass. Astra audits all392 rows: “not met, revert.”
+Its next approved F3 diagnostic attributes existing attribute concatenation by
+storage kind and coordinate plane, with bounded buffers, nested containment
+checks and seven alternating diagnostic/baseline pairs; no optimization is
+approved. F3 remains open; no unreachable proof exists.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

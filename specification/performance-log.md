@@ -11790,3 +11790,105 @@ Pre-commit shipping passes, exit0
 (`/tmp/rays-f-merge-vertex-sampling-ship.log`). Production source/Dune remain
 unchanged. This checkpoint adds diagnostic evidence and the next approved design;
 no performance or overall completion claim is made.
+
+### F3 explicit integer range helper: early stop after phase regression
+
+2026-10-09, Apple M1 Macmini9,1, OCaml5.3, Dune dev. Implement the approved
+private typed inline-never rewrite_vertices helper, called once per existing
+≤16,384-element cancellation subrange of the rejected chunked design. No other
+merge phase changes. Baseline source is archived fresh in
+/private/tmp/rays-f-merge-explicit-baseline.tar; candidate in
+/private/tmp/rays-f-merge-explicit-candidate.tar. The production trial is saved
+as f-merge-explicit-trial.patch; inner assembly as
+f-merge-explicit-inner-loop-arm64.txt.
+
+Full @check/RDK/procedural/benchmark focused validation passes on the candidate
+(exit0, /tmp/rays-f-merge-explicit-focused.log), including the existing independent
+32769/16385-reference grain257/16384/65536/max_int domain1/8 full-byte,
+ownership and precancellation regression. Astra approves both implementation
+and the assembly condition before timing. Source/target x0/x1, offsets x2/x3,
+index x4 and end x7 remain in registers on the successful inner path. Both
+bounds checks, dmb ishld and runtime polling remain. No per-element closure
+loads, calls, allocation or spills occur on that path. The registers satisfy
+the proposed hypothesis check; that alone is not performance evidence.
+
+Preserved executables (SHA256):
+
+| Executable | SHA256 |
+|---|---|
+| Production baseline /private/tmp/f-merge-vertex-before.exe | 198f0d471e8888394518cc450fd204472c63d0bd42d9468987e85f642e3fe4e4 |
+| Production candidate /private/tmp/f-merge-explicit-after.exe | a90eaff889b961a41c6dd136d74eaab16d3e7691ac635746c481e89bc2bf5340 |
+| Baseline diagnostic /private/tmp/f-merge-vertex-phase-before.exe | 1319e3a2c2e3476fbea67f9502490a07e41f29c15c6bf8214720b076e9c53cae |
+| Candidate diagnostic /private/tmp/f-merge-explicit-phase-after.exe | 33ba0d4af8652e0e0f1c33847dd68a1247072593d2cc6686dce2530f1df0b603 |
+
+The candidate probe uses the same approved caller-side time-only phases,
+training/measured labels, precision, call counts and fail-on-overflow/negative
+checks as the baseline. Diagnostic @check/RDK core+mesh/benchmark build passes
+(exit0; /tmp/rays-f-merge-explicit-phase-build.log). Four probe source/Dune files
+restore byte-for-byte to the current candidate before timing; saved
+f-merge-explicit-phase-after.patch applies cleanly to it. No temporary API or
+Unix linkage is promoted. Seven isolated alternating-order phase pairs, no
+builds/tests/active agents:
+
+```sh
+for task_trial in 0 1 2 3 4 5 6; do
+  if (( task_trial % 2 == 0 )); then task_order=(before after); else task_order=(after before); fi
+  for task_kind in $task_order; do
+    if [[ "$task_kind" == before ]]; then task_exe=/private/tmp/f-merge-vertex-phase-before.exe; else task_exe=/private/tmp/f-merge-explicit-phase-after.exe; fi
+    RAYS_BRANCH_NODE_TIMES=1 RAYS_MERGE_PHASES_FILE="specification/performance/f-merge-explicit-phase-${task_kind}-${task_trial}-phases.csv" "$task_exe" --branches 1 learned > "specification/performance/f-merge-explicit-phase-${task_kind}-${task_trial}.csv" 2> "specification/performance/f-merge-explicit-phase-${task_kind}-${task_trial}-nodes.csv" || exit $?
+  done
+ done
+```
+
+All14 processes exit0; all28 whole rows retain chain hash
+67c129ecc130f8881a2eaf92c053b64c,2M points and fanouts0/1 at domains1/8.
+All392 phase rows retain exactly seven names/cook with expected call counts,
+nonnegative finite intervals, per-sample sum≤complete and measured complete≤
+Session root-own. No samples/outliers are excluded. Seven medians (ms):
+
+| Measured phase | Before 1 | After 1 | Before 8 | After 8 |
+|---|---:|---:|---:|---:|
+| Complete merge | 58.871031 | 807.116985 | 31.229973 | 38.687944 |
+| Allocation | 7.572889 | 7.817030 | 6.357908 | 6.561041 |
+| Position blits | 1.574278 | 1.757145 | 1.648903 | 1.628160 |
+| Vertex rewrites | 29.943943 | 777.833700 | 7.259846 | 10.388851 |
+| Primitive rewrites | 9.998083 | 10.001898 | 2.657890 | 2.451181 |
+| Kind blits | 0.121117 | 0.193834 | 0.174999 | 0.128031 |
+| Attributes | 9.568214 | 9.490013 | 6.503820 | 6.330967 |
+| Remaining residual | 0.010729 | 0.014782 | 0.017166 | 0.041962 |
+
+Training vertex medians1/8: before30.824184/7.652760, after736.407042/10.193825;
+training complete before75.666904/32.477856, after780.827045/35.007000.
+Training/measured records remain distinct. Never sum separate phase medians.
+Diagnostic whole medians1/8 before153.849840/61.465979, after901.137114/67.044973;
+Session root-own before60.152054/33.265829, after808.382988/40.699005.
+Whole caller/program allocation B before1=503652976/503653264,
+after1=503653056/503653344; before8=374065408/505440432,
+after8=373973816/505433768. One-domain bytes grow only80 B.
+
+The vertex catastrophe persists with captured-array/offset reloads removed.
+That hypothesis is not established as its cause. The approved protocol therefore
+stops here: no uninstrumented learned/off/pieces matrix is run for this rejected
+trial. Production is restored byte-for-byte from the fresh baseline archive;
+all four files compare equal, and the saved production patch applies cleanly.
+Retain all42 diagnostic CSVs, trial/probe patches and assembly. Restored full
+@check/RDK/procedural/benchmark checks pass (exit0;
+/tmp/rays-f-merge-explicit-restored-focused.log). Diagnostics cannot meet the
+50.600 ms whole learned-eight gate or prove it unreachable.
+
+Astra verifies all392 phase rows/56 cooks and confirms the vertex medians:
+**“not met, revert.”** Stop before the production matrix as specified. The
+next approved F3 action is attribute-concatenation attribution by storage kind
+and coordinate plane, using restored source/time-only probes. Record attribute
+name/owner/kind and input/output lengths outside timers; time existing
+concatenate_attribute calls and nest Float2/3/4 plane Array.concat intervals.
+Preserve allocation/evaluation order/callbacks, use bounded buffered reports with
+overflow failure, and require plane sums≤attribute interval and attribute sums≤
+aggregate interval. Distinguish training/measured. Seven isolated alternating
+learned diagnostic/baseline pairs at1/8 domains retain all whole/node/phase rows,
+allocations/hashes/outliers; restore temporary files byte-for-byte. Attribution
+only, no new optimization approved; unchanged whole learned-eight gate≤50.600 ms.
+
+Pre-commit shipping passes, exit0 (`/tmp/rays-f-merge-explicit-ship.log`). The
+worktree retains only failed-trial evidence and documentation. No production
+change, F3 gate achievement or overall completion is claimed.
