@@ -783,12 +783,12 @@ let run_views () =
        (Option.is_some (E3.prepared !e)) (dump_line !e "cook"));
   for c = 200 to 230 do e := E3.update !e (frame (450., 300.) [] c) done;
   let scene = E3.scene !e (frame (450., 300.) [] 231) in
-  E3.close !e;
+  Fun.protect ~finally:(fun () -> E3.close !e) (fun () ->
   match Scene.Private.stage_native ~width:900 ~height:640 scene with
   | Error m -> fail m
   | Ok staged ->
       let viewports = List.length (List.filter (function Scene.Private.Scene3_layer _ -> true | _ -> false) staged.layers) in
-      check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports)
+      check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports))
 
 
 (* ---- the copies of a loop are one template, through the editor (register V4) ---- *)

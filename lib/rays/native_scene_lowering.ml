@@ -63,17 +63,24 @@ let rec validate_layers = function
       Result.bind (validate_images resources) (fun () -> validate_layers rest)
   | Scene3_layer _ :: rest -> validate_layers rest
 
+let rec validate_mesh_images = function
+  | [] -> Ok ()
+  | image :: rest -> Result.bind (Runtime_resources.Image.Private.gpu_snapshot image)
+      (fun _ -> validate_mesh_images rest)
+
 let render ~execution ~density ~width ~height scene =
   let active_submission=ref None in
   let prepared = try
       let outcome=Fun.protect
         ~finally:(fun () -> Scene.Private.release scene)
         (fun () ->
-        let staged=Scene.Private.stage_native_render ~density ~width ~height scene in
+        let staged=Scene.Private.stage_native_render_checked ~density ~width ~height scene in
         match staged with
-        | Error message -> Error (Stage message)
+        | Error (Scene.Private.Message message) -> Error (Stage message)
+        | Error (Scene.Private.Resource error) -> Error (Resource error)
         | Ok staged -> (
-            let replayed=match validate_layers staged.layers with
+            let replayed=match Result.bind (validate_layers staged.layers)
+              (fun () -> validate_mesh_images staged.mesh_images) with
             | Error error -> Error (Resource error)
             | Ok () -> Result.map_error (fun error -> Step error) (match staged.retained with
             |None->Ok None

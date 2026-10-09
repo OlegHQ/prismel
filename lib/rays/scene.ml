@@ -181,7 +181,12 @@ module Private=struct
  type staged_native={clear:float*float*float*float;scene2:Scene_command.Render_ir.t;
    resources:(int*Rays_execution.resource)list;
    scene3:Scene_execution.prepared_scene3 list;layers:native_layer list;
+   mesh_images:Runtime_resources.Image.t list;
    retained:(string*int64)option}
+ type native_error=Message of string|Resource of Runtime_resources.error
+ let pp_native_error formatter=function
+   |Message message->Format.pp_print_string formatter message
+   |Resource error->Runtime_resources.pp_error formatter error
  let native_segment_version segment resources=
    let mix stamp value=Int64.logxor(Int64.mul stamp 0x100000001b3L)
        (Int64.of_int value)in
@@ -429,34 +434,81 @@ module Private=struct
    |_->total+32)0(Scene_command.Render_ir.Private.commands_readonly ir)
  let stage_scene2_layer ~density nodes=
    let cache=Domain.DLS.get scene2_layer_caches in
-   match Layer_table.find cache(nodes,density)with
-   |ir->Ok(ir,image_resources~density nodes)
-   |exception Not_found->
+   let resources=image_resources~density nodes in
+   let versions=List.map(function
+     |id,Rays_execution.Image image->id,Runtime_resources.Image.identity image,Runtime_resources.Image.generation image
+     |id,Text text->id,Runtime_resources.Text.Private.identity text,Runtime_resources.Text.generation text
+     |id,Canvas canvas->id,Runtime_resources.Canvas.Private.identity canvas,Runtime_resources.Canvas.generation canvas)resources in
+   match (try Some(Layer_table.find cache(nodes,density))with Not_found->None)with
+   |Some(ir,old)when old=versions->Ok(ir,resources)
+   |_->
        match stage_materialized ~density nodes with
        |Error _ as error->error
        |Ok(ir,_)as result->
-           Layer_table.add cache~bytes:(scene2_layer_bytes ir)(nodes,density)ir;
+           let bytes=scene2_layer_bytes ir+List.length versions*7*(Sys.word_size/8)in
+           Layer_table.add cache~bytes(nodes,density)(ir,versions);
            result
 
  let empty_ir=Result.get_ok(Scene_command.Render_ir.Private.create_owned[||])
+ let rec validate_native_resources=function
+   |[]->Ok()
+   |(_,Rays_execution.Image image)::rest->
+       Result.bind(Runtime_resources.Image.Private.gpu_snapshot image)
+         (fun _->validate_native_resources rest)
+   |_::rest->validate_native_resources rest
+ let rec validate_native_images=function
+   |[]->Ok()
+   |Image node::rest->
+       Result.bind(Runtime_resources.Image.Private.gpu_snapshot
+         (Image.Private.resource node.image))(fun _->validate_native_images rest)
+   |(Group nested|Translate(_,_,nested)|Rotate(_,nested)|Scale(_,_,nested)
+     |Clip(_,_,_,_,nested)|Blend(_,nested))::rest->
+       Result.bind(validate_native_images nested)(fun()->validate_native_images rest)
+   |Display_list node::rest->Result.bind(validate_native_resources node.resources)
+       (fun()->validate_native_images rest)
+   |Ui node::rest->Result.bind(validate_native_resources node.ui_resources)
+       (fun()->validate_native_images rest)
+   |_::rest->validate_native_images rest
  let stage_native_uncached_with ~aggregate ?(density=1) ~width ~height scene =
-   if width<=0||height<=0 then Error "invalid scene extent"else
+   match validate_native_images scene with Error error->Error(Resource error)|Ok()->
+   if width<=0||height<=0 then Error(Message "invalid scene extent")else
    let grouped=grouped_items(ordered_items scene)in
    let materialized=match grouped with
    |[`Two _]->stage_materialized ~density scene
    |_->if aggregate then stage_materialized ~density scene else Ok(empty_ir,[])in
-   match materialized with Error _ as error->error
+   match materialized with Error message->Error(Message message)
    |Ok(scene2,resources)->
-   let failure=ref None in
+   let failure=ref None and mesh_images=ref[] in
    let callbacks:Scene3_native_lowering.resources={
-     texture=(fun value->let levels=texture_levels value.Scene3.value in let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in let min_filter,mag_filter,mip_filter=match value.filter with Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip|Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip|Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);max_anisotropy=1}in Ok{Scene_execution.key="texture:"^string_of_int(Texture.Private.identity value.Scene3.value);levels;sampler;gpu=None});
+     texture=(fun value->
+       let key="texture:"^string_of_int(Texture.Private.identity value.Scene3.value)in
+       let source=match Texture.Private.image value.Scene3.value with
+       |None->Ok(key,texture_levels value.Scene3.value,None)
+       |Some image->(match Runtime_resources.Image.Private.gpu_snapshot image with
+         |Error error->Error(Scene3_native_lowering.Resource error)
+         |Ok None->Error Scene3_native_lowering.Unsupported_texture
+         |Ok(Some(width,height,generation,gpu))->
+             mesh_images:=image::!mesh_images;
+             Ok(key^":"^string_of_int generation,
+               [|{Scene_execution.width;height;bytes=Bytes.empty}|],Some gpu))in
+       Result.map(fun(key,levels,gpu)->
+         let address=function Texture.Clamp->Ogpu.Types.Clamp_to_edge|Repeat->Repeat|Mirror->Mirror_repeat in
+         let min_filter,mag_filter,mip_filter=match value.filter with
+           |Texture.Nearest->Ogpu.Types.Nearest,Ogpu.Types.Nearest,Ogpu.Types.No_mip
+           |Texture.Bilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.No_mip
+           |Texture.Trilinear->Ogpu.Types.Linear,Ogpu.Types.Linear,Ogpu.Types.Linear_mip in
+         let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene3-texture";
+           min_filter;mag_filter;mip_filter;address_u=address value.wrap_u;
+           address_v=address value.wrap_v;lod_min=0.;lod_max=float(Array.length levels-1);
+           max_anisotropy=1}in
+         {Scene_execution.key;levels;sampler;gpu})source);
      shadow=(fun value->match shadow_resource value with Error _->Error Unsupported_shadow|Ok resource->Ok{Scene_execution.key=resource.texture.key;buffer=resource.parameters;texture=resource.texture;environment=None;sun_shadow=None})}in
    let layers=match grouped with
    |[`Two _]->[Scene2_layer(scene2,resources)]
    |_->List.filter_map(fun item->if!failure<>None then None else match item with
        |`Two nodes->(match stage_scene2_layer ~density nodes with
          |Ok(ir,resources)->Some(Scene2_layer(ir,resources))
-         |Error message->failure:=Some message;None)
+         |Error message->failure:=Some(Message message);None)
        |`Segment node->Some(Scene2_segment(node.segment,node.resources))
        |`Ui node->Some(Ui_layer(node.ui,node.ui_resources))
        |`Three node->
@@ -464,19 +516,22 @@ module Private=struct
          (match Scene3_native_lowering.prepare~resources:callbacks~camera:node.camera
             ~viewport node.scene with
           |Ok prepared->Some(Scene3_layer prepared)
-          |Error error->failure:=Some("native View3d lowering failed: "^
+          |Error error->failure:=Some(match error with
+             |Scene3_native_lowering.Resource error->Resource error
+             |error->Message("native View3d lowering failed: "^
              (match error with
-              |Scene3_native_lowering.Unsupported_mode->"render mode"|Unsupported_texture->"texture"
+              |Scene3_native_lowering.Unsupported_mode->"render mode"
+              |Unsupported_texture->"borrowed GPU texture needs an explicit CPU snapshot"
               |Unsupported_shadow->"shadow"
               |Too_many_lights->"more than 64 lights"|Invalid_mesh->"mesh"
-              |Invalid_viewport->"viewport"));None))grouped in
+              |Invalid_viewport->"viewport"|Resource _->assert false)));None))grouped in
    let clear=ref(0.,0.,0.,0.)and seen_draw=ref false in
    List.iter(function
      |Scene3_layer _|Ui_layer _->seen_draw:=true
      |Scene2_segment(segment,_)->
          Array.iter(function
            |Scene_command.Render_ir.Clear color->
-               if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
+               if!seen_draw then failure:=Some(Message"native Clear after drawing is unsupported")
                else clear:=unpack_clear color
            |Geometry _|Shapes _|Image _|Glyphs _->seen_draw:=true
            |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
@@ -484,7 +539,7 @@ module Private=struct
              (Scene_command.Display_list.render_ir segment))
      |Scene2_layer(ir,_)->Array.iter(function
        |Scene_command.Render_ir.Clear color->
-          if!seen_draw then failure:=Some"native Clear after drawing is unsupported"
+          if!seen_draw then failure:=Some(Message"native Clear after drawing is unsupported")
           else clear:=unpack_clear color
        |Geometry _|Shapes _|Image _|Glyphs _->seen_draw:=true
        |Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->())
@@ -496,7 +551,7 @@ module Private=struct
        ("scene2-segment:"^Int64.to_string(Scene_command.Display_list.id segment),
         native_segment_version segment resources)
    |_->None in
-   Ok{clear= !clear;scene2;resources;scene3;layers;retained}
+   Ok{clear= !clear;scene2;resources;scene3;layers;mesh_images= !mesh_images;retained}
 
  let stage_native_uncached ?density ~width ~height scene=
    stage_native_uncached_with ~aggregate:true ?density ~width ~height scene
@@ -553,7 +608,10 @@ module Private=struct
  let native_resource_stamp stage=List.fold_left(fun stamp->function
    |Scene2_layer(_,resources)|Scene2_segment(_,resources)|Ui_layer(_,resources)->
        resource_stamp_loop stamp resources
-   |Scene3_layer _->stamp)0x345678 stage.layers
+   |Scene3_layer _->stamp)
+     (List.fold_left(fun stamp image->
+       ((stamp*65599)lxor Runtime_resources.Image.identity image)*65599 lxor
+       Runtime_resources.Image.generation image)0x345678 stage.mesh_images)stage.layers
  let rec find_native_stage aggregate scene density width height=function
   |[]->None
   |entry::rest->
@@ -608,9 +666,13 @@ module Private=struct
            Ok stage
 
  let stage_native ?density ~width ~height scene=
-   stage_native_internal ~aggregate:true ?density ~width ~height scene
- let stage_native_render ?density ~width ~height scene=
+   Result.map_error(Format.asprintf "%a" pp_native_error)
+     (stage_native_internal ~aggregate:true ?density ~width ~height scene)
+ let stage_native_render_checked ?density ~width ~height scene=
    stage_native_internal ~aggregate:false ?density ~width ~height scene
+ let stage_native_render ?density ~width ~height scene=
+   Result.map_error(Format.asprintf "%a" pp_native_error)
+     (stage_native_render_checked ?density ~width ~height scene)
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
  let rec release scene =

@@ -4,19 +4,25 @@ type level = {
   pixels : Color.t array;
 }
 
-type t = {
+type cpu = {
   width : int;
   height : int;
   pixels : Color.t array;
   mipmaps : level array;
-  id : int;  (* process-local identity; textures are immutable *)
 }
+type backing = Cpu of cpu | Borrowed of Runtime_resources.Image.t
+type t = { backing : backing; id : int }
 
 let next_id = Atomic.make 1
 let fresh_id () = Atomic.fetch_and_add next_id 1
 
 type filter = Nearest | Bilinear | Trilinear
 type wrap = Clamp | Repeat | Mirror
+
+let cpu operation texture = match texture.backing with
+  | Cpu data -> data
+  | Borrowed _ -> invalid_arg (operation ^ ": borrowed GPU texture needs an explicit CPU snapshot")
+let owned data = { backing=Cpu data; id=fresh_id() }
 
 let create_owned ~width ~height pixels =
   if width <= 0 || height <= 0 then
@@ -28,7 +34,7 @@ let create_owned ~width ~height pixels =
         (Printf.sprintf
            "Texture.create: expected %d pixels for %dx%d, received %d"
            expected width height (Array.length pixels))
-    else Ok { width; height; pixels; mipmaps = [||]; id = fresh_id () }
+    else Ok (owned { width; height; pixels; mipmaps = [||] })
 
 let create ~width ~height pixels =
   create_owned ~width ~height (Array.of_list pixels)
@@ -41,14 +47,13 @@ let create_exn ~width ~height pixels =
 let init ~width ~height make =
   if width <= 0 || height <= 0 then
     invalid_arg "Texture.init: dimensions must be positive";
-  {
+  owned {
     width;
     height;
     pixels =
       Array.init (width * height) (fun index ->
         make ~x:(index mod width) ~y:(index / width));
     mipmaps = [||];
-    id = fresh_id ();
   }
 
 let require_main_domain () =
@@ -66,7 +71,7 @@ let load filename =
             let pixels=Array.init(width*height)(fun index->let offset=index*4 in
               Color.rgba(Char.code(Bytes.get bytes offset))(Char.code(Bytes.get bytes(offset+1)))
                 (Char.code(Bytes.get bytes(offset+2)))(Char.code(Bytes.get bytes(offset+3))))in
-            Ok{width;height;pixels;mipmaps=[||];id=fresh_id()}
+            Ok(owned{width;height;pixels;mipmaps=[||]})
         |Error error,_|_,Error error->Error("Texture load failed: "^Format.asprintf"%a"Runtime_resources.pp_error error))
 
 let load_exn filename =
@@ -74,12 +79,17 @@ let load_exn filename =
   | Ok texture -> texture
   | Error message -> failwith message
 
-let width texture = texture.width
-let height texture = texture.height
-let size texture = texture.width, texture.height
-let pixels texture = Array.to_list texture.pixels
+let size texture = match texture.backing with
+  | Cpu data -> data.width,data.height
+  | Borrowed image -> (match Runtime_resources.Image.size image with
+    | Ok size -> size
+    | Error error -> invalid_arg (Format.asprintf "Texture.size: %a" Runtime_resources.pp_error error))
+let width texture = fst(size texture)
+let height texture = snd(size texture)
+let pixels texture = Array.to_list (cpu "Texture.pixels" texture).pixels
 
 let pixel texture ~x ~y =
+  let texture=cpu "Texture.pixel" texture in
   if x < 0 || y < 0 || x >= texture.width || y >= texture.height then None
   else Some texture.pixels.((y * texture.width) + x)
 
@@ -116,6 +126,7 @@ let next_level (source : level) : level =
   }
 
 let generate_mipmaps texture =
+  let texture=cpu "Texture.generate_mipmaps" texture in
   let rec build (level : level) (acc : level list) =
     if level.width = 1 && level.height = 1 then List.rev acc
     else
@@ -127,19 +138,22 @@ let generate_mipmaps texture =
     height = texture.height;
     pixels = texture.pixels;
   } in
-  { texture with mipmaps = Array.of_list (build base []); id = fresh_id () }
+  owned { texture with mipmaps = Array.of_list (build base []) }
 
-let has_mipmaps texture = Array.length texture.mipmaps > 0
-let mipmap_count texture = 1 + Array.length texture.mipmaps
+let has_mipmaps texture = match texture.backing with Cpu data->Array.length data.mipmaps>0|Borrowed _->false
+let mipmap_count texture = match texture.backing with Cpu data->1+Array.length data.mipmaps|Borrowed _->1
 
 let subsection ~x ~y ~width ~height texture =
+  match texture.backing with
+  | Borrowed _ -> Error "Texture.subsection: borrowed GPU texture needs an explicit CPU snapshot"
+  | Cpu texture ->
   if width <= 0 || height <= 0 then
     Error "Texture.subsection: dimensions must be positive"
   else if x < 0 || y < 0
           || x + width > texture.width || y + height > texture.height
   then Error "Texture.subsection: rectangle is outside the source texture"
   else
-    Ok {
+    Ok (owned {
       width;
       height;
       pixels =
@@ -148,8 +162,7 @@ let subsection ~x ~y ~width ~height texture =
           texture.pixels.
             (((y + target_y) * texture.width) + x + target_x));
       mipmaps = [||];
-      id = fresh_id ();
-    }
+    })
 
 let subsection_exn ~x ~y ~width ~height texture =
   match subsection ~x ~y ~width ~height texture with
@@ -220,7 +233,7 @@ let[@inline always] sample_pixels_packed
       blend_packed top bottom vertical
 
 let[@inline always] sample_index_packed
-    ~filter ~wrap_u ~wrap_v texture index ~u ~v =
+    ~filter ~wrap_u ~wrap_v (texture:cpu) index ~u ~v =
   if index = 0 then
     sample_pixels_packed ~filter ~wrap_u ~wrap_v
       ~width:texture.width ~height:texture.height texture.pixels ~u ~v
@@ -233,7 +246,8 @@ let sample_lod_packed ?(filter = Bilinear) ?(wrap_u = Clamp) ?(wrap_v = Clamp)
     texture ~lod ~u ~v =
   if not (Float.is_finite lod) then
     invalid_arg "Texture.sample_lod: lod must be finite";
-  let maximum = mipmap_count texture - 1 in
+  let texture=cpu "Texture.sample_lod" texture in
+  let maximum = Array.length texture.mipmaps in
   let lod = Float.max 0. (Float.min (float_of_int maximum) lod) in
   match filter with
   | Nearest | Bilinear ->
@@ -261,7 +275,13 @@ module Private = struct
   let identity texture = texture.id
   let create_owned = create_owned
   let sample_lod_packed = sample_lod_packed
+  let image texture=match texture.backing with Cpu _->None|Borrowed image->Some image
+  let of_image image=match Runtime_resources.Image.Private.gpu_snapshot image with
+    | Error error -> Error(Format.asprintf "Texture.Private.of_image: %a" Runtime_resources.pp_error error)
+    | Ok None -> Error "Texture.Private.of_image: resident GPU image required"
+    | Ok(Some _) -> Ok{backing=Borrowed image;id=fresh_id()}
   let levels texture =
+    let texture=cpu "Texture.Private.levels" texture in
     Array.append [|texture.width,texture.height,Array.copy texture.pixels|]
       (Array.map(fun (level:level)->level.width,level.height,Array.copy level.pixels)
          texture.mipmaps)

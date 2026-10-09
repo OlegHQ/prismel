@@ -58,6 +58,7 @@ module Private : sig
     resources : (int * Rays_execution.resource) list;
     scene3 : Scene_execution.prepared_scene3 list;
     layers : native_layer list;
+    mesh_images : Runtime_resources.Image.t list;
     retained : (string * int64) option;
   }
   val native_segment_version : Scene_command.Display_list.t ->
@@ -65,6 +66,10 @@ module Private : sig
   val stage_native : ?density:int -> width:int -> height:int -> t -> (staged_native,string) result
   val stage_native_render : ?density:int -> width:int -> height:int -> t ->
     (staged_native,string) result
+  type native_error = Message of string | Resource of Runtime_resources.error
+  val pp_native_error : Format.formatter -> native_error -> unit
+  val stage_native_render_checked : ?density:int -> width:int -> height:int -> t ->
+    (staged_native,native_error) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result
   val commands : ?density:int -> t -> Scene_command.Render_ir.command array
   val stage : ?density:int -> width:int -> height:int -> t ->

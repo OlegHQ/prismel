@@ -665,6 +665,19 @@ layer's resource generations, including retained segments and mixed layers.
 Explicit CPU snapshots own their readback bytes independently of later output
 updates. Images release the borrow, while producer owners release the GPU
 resources. CPU replacement and Canvas copying clear GPU authority on success.
+Private Texture views borrow these images without pixel arrays or ownership.
+Their identity is stable; dimensions follow image publication, and native mesh
+keys include image generation. CPU sampling, extraction and mipmap/subsection
+operations require an explicit immutable snapshot. The native mesh callback
+binds the GPU image directly instead of entering the CPU texture-level cache.
+Both window and offscreen image consumers use resident GPU snapshots and retain
+same-device validation. Fresh staging validates authored image resources before
+constructing commands and preserves resource errors through the private checked
+boundary. Cached-stage replay validates image dependencies, including meshes,
+without rescanning unchanged authored geometry. Mixed 2D layer caches freeze
+resource identity/generation lists beside their IR, rather than retaining stale
+source/destination rectangles after resize; those lists count against the cache
+byte capacity. Existing inspection APIs format these errors as strings.
 Scene rejects malformed, destroyed, and foreign-device GPU image sources; a
 canvas rendered on another device than the window's falls back to its CPU
 pixels.

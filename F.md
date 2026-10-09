@@ -1286,9 +1286,28 @@ Commands and raw parity are recorded in the performance log.
 Final reviewed-code focused/native checks, API validation and `--ship` pass
 (exit 0), including the full workspace sweep at four times/domains 1/8.
 
+**Resident consumer checkpoint (2026-10-09).** Private Texture views borrow a
+runtime GPU image without CPU storage or ownership; identity remains stable
+and dimensions follow republication. CPU pixel/sampling/mipmap/subsection
+operations explicitly require an immutable snapshot. Mesh staging binds the
+borrowed texture directly and retains image-generation dependencies. Offscreen
+2D images now use the same resident path as windows, preserving device checks.
+Checked fresh staging and pre-replay validation preserve typed resource errors.
+Mixed-layer IR caches retain exact frozen resource generations, including their
+storage in the byte cap, so resize cannot reuse old image rectangles.
+Nine native image/mesh/mixed cases match fresh round-trip renders byte for byte
+with zero warm uploads and source reads. Expiry without republication, resize,
+CPU authority, wrong-device rejection, retained snapshots and zero handle delta
+pass. Removing the layer guard makes mixed resize parity fail; restoration
+passes. Astra approves functional consumer support. Focused checks, full F5
+native qualification and shipping pass (exit 0), including both workspace
+sweeps at four times/domains 1/8. The 2× PXUI goldens skip at the actual 1×
+density. Raw parity and commands are in the performance log. Workspace GPU
+publication and retained Canvas production are still open.
+
 The workspace resolver still refuses captured geometry without a cooked-source
-resolver. Connected workspace GPU publication, resident 2D/mesh consumers, exact
-snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
+resolver. Connected workspace GPU publication, resident workspace 2D/mesh
+consumers, exact snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
 channel differences through the connected display route are still required.
 The producer/converter verdict does not close F2.2,
 F2.3 or F.md.
@@ -1386,7 +1405,7 @@ Astra approves the correction; focused checks, full F5 native qualification
 and shipping pass (exit 0). The 2× PXUI goldens skip at the actual 1× density.
 This is correctness groundwork; the resident image/render route is still pending.
 
-**Round-trip baseline (2026-10-09).** The actual workspace texture callback,
+**Round-trip baseline (2026-10-09, `10038226`).** The actual workspace texture callback,
 live drawing and completed mesh consumer are measured at 512²/1024²/2048²,
 seven trials of twenty frames after ten warmups, on the M1/dev/OCaml 5.3 at
 one domain. Median times are 43.399990/139.405048/514.362109 ms/frame;

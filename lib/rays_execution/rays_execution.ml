@@ -424,7 +424,7 @@ let snapshot value ~lease_policy ~density source =
       and generation=Runtime_resources.Image.generation image in
       (match Runtime_resources.Image.Private.gpu_snapshot image with
       |Error e->resource operation e
-      |Ok(Some(width,height,generation,gpu)) when (match value.runtime with Window _->true|Offscreen _->false)->
+      |Ok(Some(width,height,generation,gpu))->
           let sampler:Ogpu.Types.sampler_descriptor={label=Some"scene-image";
             min_filter=Linear;mag_filter=Linear;mip_filter=No_mip;
             address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;
@@ -432,7 +432,7 @@ let snapshot value ~lease_policy ~density source =
           Ok(width,height,{Scene_execution.key=key^":"^string_of_int density^":"^
             string_of_int generation;levels=[|{width;height;bytes=Bytes.empty}|];
             sampler;gpu=Some gpu})
-      |Ok(None|Some _)->
+      |Ok None->
       (match find key generation with
       |Some cached->Ok cached
       |None->match Runtime_resources.Image.Private.borrow_snapshot image with

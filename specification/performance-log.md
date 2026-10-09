@@ -9600,3 +9600,105 @@ run log: `/tmp/rays-f-image-render-roundtrip-before.log`.
 Reviewed-code `@check tools/bench_workspace_lower.exe` and `--ship` pass
 (exit 0); logs `/tmp/rays-f-image-render-baseline-check.log` and
 `/tmp/rays-f-image-render-baseline-ship.log`.
+
+### F2 resident image consumers (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs; OCaml 5.3.0, Dune dev
+profile. Native producers and consumers run on the initial domain. A single
+wrong-domain construction check spawns and joins one test domain. These are
+functional parity, ownership and upload/readback checks, not timings.
+
+```sh
+_build/default/tools/check.exe @check @lib/rays/runtest @lib/rays_execution/runtest @lib/flow_gpu/runtest @lib/flow_gpu/runtest-native @lib/scene_execution/runtest-native
+_build/default/lib/flow_gpu/test_image_sink_native.exe > specification/performance/f-image-resident-consumer-parity.csv 2> /tmp/rays-f-resident-texture-parity.log
+_build/default/tools/check.exe @tools/api_manifest/runtest
+dune promote tools/api_manifest/api_stable.json
+_build/default/tools/check.exe @check @tools/api_manifest/runtest
+```
+
+A private Texture backing variant borrows a validated runtime image without
+CPU Color arrays or texture ownership. Its stable identity survives image
+resize/republication. Pixel extraction, sampling, mipmap generation, subsection
+and CPU-level queries explicitly refuse this view until a caller makes an
+immutable CPU snapshot. Ordinary CPU Texture behavior remains covered by the
+existing Rays texture suite. Native mesh lowering skips CPU levels, binds
+`sampled_texture.gpu` and retains image dependencies. Offscreen image lowering
+also borrows the successful GPU snapshot, preserving native device validation.
+Fresh staging preserves resource errors before image command construction;
+cache-hit rendering validates retained layers and mesh dependencies before
+replay. Authored geometry is scanned only on uncached staging.
+
+The mixed-layer cache previously froze image source/destination rectangles but
+never compared resource dimensions or generations on reuse. It now retains an
+exact immutable list of resource ids, identities and generations with its IR;
+the byte charge includes seven words per list/three-int-tuple entry. A same-shape
+generation change conservatively rebuilds that layer. Cache keys themselves
+stay immutable, and existing count/byte capacities remain unchanged.
+
+The native fixture publishes pixel-center gradients at 65×17, times 0.25 and
+0.75, then resizes the same image to 17×5 at time 0.5. It renders each through
+three retained scene descriptions: a 2D image, a nearest-filtered matte-white
+mesh, and a mixed image/mesh scene. The mixed mesh occupies the right half so
+old 2D image rectangles remain visible after resize. Each case renders three
+times into a 65×17 offscreen Canvas; the third render adds zero uploaded bytes.
+Full destination bytes equal a fresh ordinary CPU-image/texture render from
+the same GPU producer's explicit verification readback. These nine checks prove
+residency versus a GPU→CPU→GPU round-trip oracle, not a float64 producer oracle.
+
+| Check | Result |
+|---|---|
+| Three scenes × three publications | Maximum channel difference 0; differing channels/pixels 0 |
+| Warm consumer upload delta | 0 bytes in each of nine cases |
+| Source Image reads during publication/display | 0; one separately requested leased snapshot is counted explicitly |
+| Source expiry with unchanged image generation | Typed resource failure; no source readback or CPU fallback |
+| Resize | Stable image/view identity; metadata and mixed rectangles refresh |
+| CPU-authority transition | Borrowed view refuses CPU fallback until explicitly converted |
+| Wrong device | Both image and mesh consumers reject the foreign source; native Scene_execution separately checks typed Cross_device |
+| Destruction and ownership | Old leased bytes survive updates/destruction; borrowed texture remains alive until producer close; native handle delta 0 |
+
+Removing the frozen-version guard makes the mixed resize full-byte comparison
+fail (exit 1), `/tmp/rays-f-resident-texture-layer-counterfactual.log`. Restoring
+the guard passes focused/native checks (exit 0),
+`/tmp/rays-f-resident-texture-final-focused.log`. The earlier destruction
+diagnostic identified string formatting before the typed checked boundary;
+the final fixture covers destroyed 2D and mesh resources. API promotion is
+intentional: only Scene.Private's dependency/checked-staging surface and
+Texture.Private's borrowed-view constructor/accessor change. The reviewed
+manifest passes in `/tmp/rays-f-resident-texture-api-accepted.log`.
+
+The broad suite exposed an existing test lifetime violation in
+`test_workspace_shell.run_views`: it closed the editor before staging the
+resource-bearing scene to count viewports. Fresh resource validation now
+correctly rejects those destroyed UI images. The close predates consolidation
+(`ab16bf071`); the unchanged fixture passes at `10038226` before this new
+validation. The fixture now stages and checks all four viewports while the
+editor is alive, then closes with `Fun.protect`. Astra approves this lifetime
+fix; no viewport, golden, tolerance or resource assertion is relaxed.
+
+Astra's verdict: “Approved the resident-consumer checkpoint; no remaining
+blocker found.” This approves functional consumer support only. Workspace
+GPU publication, resident Canvas production, deferred exact snapshots,
+captured-geometry resolution and connected timing/allocation gates remain
+pending. Final reviewed-code focused checks and full native qualification pass
+(exit 0). Both workspace sweeps cover 38 standard files, two custom-catalog
+executables and 13 fixtures at four times/domains 1/8; the native sweep compares
+geometry, image, texture and drawing pixels. The 2× PXUI goldens skip at the
+actual 1× density; no fixtures are refreshed. The required pre-commit `--ship`
+also passes (exit 0).
+
+```sh
+_build/default/tools/check.exe @check @test/test_workspace_shell @tools/api_manifest/runtest
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+_build/default/tools/check.exe --ship
+```
+
+The first full run fails only at the old closed-editor fixture while both
+workspace sweeps complete successfully (`/tmp/rays-f-resident-texture-full.log`).
+The corrected fixture passes (`/tmp/rays-f-resident-texture-shell-lifetime.log`);
+the full rerun passes (`/tmp/rays-f-resident-texture-full-qualified.log`) with
+unchanged expensive sweep results retained by Dune. Shipping log:
+`/tmp/rays-f-resident-texture-ship.log`.
+
+Raw: `specification/performance/f-image-resident-consumer-parity.csv` (27 rows:
+18 existing producer/publication controls and nine resident consumer cases).
+Log: `/tmp/rays-f-resident-texture-parity.log`.

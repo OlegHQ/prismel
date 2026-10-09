@@ -5,6 +5,7 @@ type error =
   | Too_many_lights
   | Invalid_mesh
   | Invalid_viewport
+  | Resource of Runtime_resources.error
 
 type resources = {
   texture : Scene3.texture -> (Scene_execution.sampled_texture, error) result;
