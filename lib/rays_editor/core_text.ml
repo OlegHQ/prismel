@@ -100,6 +100,10 @@ let apply_text value intents =
     | Toggle_parinfer -> with_text { text with parinfer = not text.parinfer }
     | Picker picker -> with_text { text with picker }
     | Open_graph graph -> go value graph
+    | Select_binding path
+      when (match value.scope_key with
+            | Some { scope; _ } -> Flow_graph.Projection.find scope path = None
+            | None -> false) -> value
     | Select_binding path ->
         { value with scope_view = Pxui_graph.Scope.select [ path ] value.scope_view }
     | Carry_over _ -> value  (* read by the carry's report, not an edit *)

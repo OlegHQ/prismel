@@ -1422,6 +1422,11 @@ let wired_geo ~measure t ~z ~fs ~x ~w ~fold s =
   let left = right -. live_w -. Float.min (measure fs s) room -. gap -. aw in
   left, fw, room, live, live_w
 
+(* where the name of a row that reads a binding is: its left and its width, in the card's points *)
+let ref_chip_geo t ~z ~fs ~w s =
+  let left, _, room, _, _ = wired_geo ~measure:t.measure t ~z ~fs ~x:0. ~w ~fold:false s in
+  left, t.measure fs "\xe2\x86\x90" +. 6. *. z +. Float.min (t.measure fs s) room
+
 let paint_value paint ui t ~z ~fs ?size ?(fold = false) ~x ~y ~w ~live (r : P.row) =
   let theme = t.theme in
   let ls = match size with Some s -> s | None -> max 4 (fs - 2) in
@@ -2490,6 +2495,20 @@ let update t ui (frame : Frame.t) =
                         ~at:(left -. fw -. 2. *. z, (top +. float k *. P.row_height +. 4.) *. z) ("fold" ^ string_of_int i) in
                     if (Ui.signal ui b).clicked
                     then [ Syntax_edit (E.Fold_into { node = Hashtbl.find t.folds (n.path, i) }) ] else []
+                | P.Row (i, { chip = P.Name s; _ }) when not (E.nested s) ->
+                    (* a row that reads a binding: a click on its name selects that binding *)
+                    let root = List.hd (String.split_on_char '.' s) in
+                    let rec target k =
+                      if k < 0 then None else
+                      let cand = List.filteri (fun j _ -> j < k) n.path @ [ root ] in
+                      if node_of t cand <> None || input_of t cand <> None then Some cand else target (k - 1) in
+                    (match target (List.length n.path - 1) with
+                     | None -> []
+                     | Some cand ->
+                         let left, width = ref_chip_geo t ~z ~fs ~w:(p.w *. z) s in
+                         let b = Ui.box ui ~flags:Ui.(clickable + tab_stop) ~w:(Ui.Px width) ~h:(Ui.Px (16. *. z))
+                             ~at:(left, (top +. float k *. P.row_height +. 4.) *. z) ("ref" ^ string_of_int i) in
+                         if (Ui.signal ui b).clicked then [ Selected [ cand ] ] else [])
                 | _ -> []) (Array.to_list p.lines)))
         | _ -> [] in
       let editors = match t.editing, p.item with
@@ -3026,6 +3045,16 @@ module Private = struct
              Option.map (fun k -> sx t (x +. 100.), sy t (rows_top n y +. (float k +. 0.5) *. P.row_height))
                (Hashtbl.find_opt (line_of_row p.lines) i)
          | None -> None)
+    | _ -> None
+  let ref_chip t path i =
+    match node_of t path, item_at t path with
+    | Some n, Some (p, x, y) ->
+        (match List.nth_opt n.rows i, Hashtbl.find_opt (line_of_row p.lines) i with
+         | Some { chip = P.Name s; _ }, Some k ->
+             let z = t.zoom in
+             let left, width = ref_chip_geo t ~z ~fs:(font_of z) ~w:(p.w *. z) s in
+             Some (sx t x +. left +. width /. 2., sy t (rows_top n y +. (float k +. 0.5) *. P.row_height))
+         | _ -> None)
     | _ -> None
   let fold_button t path i =
     match node_of t path, item_at t path with

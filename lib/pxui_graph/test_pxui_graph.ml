@@ -695,6 +695,12 @@ let scope_gestures () =
   let cview = settled cview in
   check (match snd (scope_click cview (add_row cview cscope [ "g"; "ys" ])) with [ Scope.Notice _ ] -> true | _ -> false)
     "the + list row of a concat did not ask for a wire";
+  (* a click on the name a row reads selects that binding, so the inspector follows it *)
+  let ys = Option.get (P.find cscope [ "g"; "ys" ]) in
+  let ri = Option.get (List.find_index (fun (r : P.row) -> r.chip = P.Name "xs") ys.rows) in
+  let _, changes = scope_click cview (let x, y = Option.get (Scope.Private.ref_chip cview [ "g"; "ys" ] ri) in
+    int_of_float x, int_of_float y) in
+  check (List.mem (Scope.Selected [ [ "g"; "xs" ] ]) changes) "a click on a read name did not select its binding";
   (* frames: Shift-G makes one around the selection, the corner resizes it, the cross deletes it *)
   let view = settled (Scope.select [ heart; [ "flower"; "bloom" ] ] (fst (scope_view w "flower"))) in
   let view, changes = Scope.run_command view Scope.Make_frame in
