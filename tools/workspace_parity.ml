@@ -180,7 +180,7 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
       let lanes = List.map (fun (g : L.graph) -> g, Flow_sop.Value_lane.create ~state ()) lowered.graphs in
       let session = S.create ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024) |> string_ok in
       S.set_volatile session (L.is_volatile lowered);
-      let owner = if (commands || directory <> None) && Array.exists (fun (n : E.node) -> n.ty = Flow.Ty.image) evaluated.plan.nodes then
+      let owner = if Array.exists (fun (n : E.node) -> n.ty = Flow.Ty.image) evaluated.plan.nodes then
         Some (Rays_editor.Editor3.create ~workspace ~factories ~domains ~await:true
           ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) () |> string_ok)
         else None in

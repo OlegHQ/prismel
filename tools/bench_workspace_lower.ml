@@ -220,6 +220,61 @@ let image_mode () =
       Printf.printf "image_noise,%d,%d,%.9f,%.0f,%s\n%!" (size*size) domains times.(3) allocations.(3) !hash) [1;8])
     [128;512;1024]
 
+let image_map_mode () =
+  let env name default = Option.fold ~none:default ~some:int_of_string (Sys.getenv_opt name) in
+  let domains = env "RAYS_BENCH_DOMAINS" 8 and repeats = env "RAYS_BENCH_REPEATS" 7 in
+  if domains <= 0 || repeats < 7 then invalid_arg "image/map needs positive domains and at least seven repetitions";
+  let fn producer =
+    let forms = Flow.Syntax.parse ("(workspace benchmark (graph img :context image "^producer^"))") |> ok in
+    let workspace = match Flow.Workspace.check {Flow.Check.version=1;kinds=[]} forms with
+      | Some w, _ -> w | _, ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+    let evaluated = Flow.Eval.static workspace |> ok in
+    let node = Array.find_opt (fun (n:Flow.Eval.node) -> n.kind="image/map") evaluated.plan.nodes |> Option.get in
+    match List.assoc "function" node.args with Flow.Eval.Fn fn -> fn | _ -> assert false in
+  let allocation stats = (stats.Gc.minor_words +. stats.major_words -. stats.promoted_words) *. float (Sys.word_size/8) in
+  let host_ok = function Ok x -> x | Error d -> failwith (Procedural.Diagnostic.error_to_string d) in
+  let cook node time =
+    let session = Procedural.Session.create ~max_entries:0 ~max_payload_bytes:0 |> Result.get_ok in
+    Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+      let context = Procedural.Context.create ~domains ~time () |> Result.get_ok in
+      let output = Procedural.Session.cook session ~context node |> host_ok in
+      Procedural.Payload.image output.payload |> host_ok) in
+  let hash image = Procedural.Image.Private.rgba8 image |> Option.get
+    |> Bytes.to_string |> Digest.string |> Digest.to_hex in
+  print_endline "fixture,size,pixels,domains,phase,repetition,time_s,bytes_all_domains,hash";
+  Rays_math.Parallel.run ~domains (fun () -> ());
+  List.iter (fun (name, body) ->
+    let fn = fn body in
+    List.iter (fun size ->
+      Gc.full_major ();
+      let before = Gc.stat () and started = now () in
+      let prepared = Image_kernel.prepare ~identity:(Procedural.Node.Private.fresh_id ())
+        ~width:size ~height:size ~fn ~sources:[] [] |> ok in
+      let node = Image_kernel.node prepared in
+      let image = cook node 0. in
+      let elapsed = now () -. started in
+      let bytes = allocation (Gc.stat ()) -. allocation before in
+      Printf.printf "%s,%d,%d,%d,cold_prepare_cook,0,%.9f,%.0f,%s\n%!"
+        name size (size*size) domains elapsed bytes (hash image);
+      ignore (cook node 0.125);
+      let times = Array.make repeats 0. in
+      for repetition=0 to repeats-1 do
+        let time = if name="gradient" then 0. else float (repetition+1)/.60. in
+        Gc.full_major ();
+        let before = Gc.stat () and started = now () in
+        let image = cook node time in
+        let elapsed = now () -. started in
+        let bytes = allocation (Gc.stat ()) -. allocation before in
+        times.(repetition)<-elapsed;
+        Printf.printf "%s,%d,%d,%d,warm_cook,%d,%.9f,%.0f,%s\n%!"
+          name size (size*size) domains repetition elapsed bytes (hash image)
+      done;
+      Array.sort Float.compare times;
+      Printf.eprintf "image/map %s size=%d domains=%d trials=%d median_ms=%.6f\n%!"
+        name size domains repeats (times.(repeats/2)*.1000.)) [512;1024;2048])
+    ["gradient","(image/map (fn [uv] [uv.x uv.y 0.5 1]))";
+     "live_capture","(let* [bias (* t 0.25)] (image/map (fn [uv] [(+ uv.x bias) uv.y 0.5 1])))"]
+
 let field_mode () =
   let env name default = Option.fold ~none:default ~some:int_of_string (Sys.getenv_opt name) in
   let domains = env "RAYS_BENCH_DOMAINS" 8 and repeats = env "RAYS_BENCH_REPEATS" 7 in
@@ -265,6 +320,7 @@ let field_mode () =
 let () =
   if Array.to_list Sys.argv = [Sys.argv.(0); "--fields"] then begin field_mode (); exit 0 end;
   if Array.to_list Sys.argv = [Sys.argv.(0); "--images"] then begin image_mode (); exit 0 end;
+  if Array.to_list Sys.argv = [Sys.argv.(0); "--image-map"] then begin image_map_mode (); exit 0 end;
   if Array.length Sys.argv > 1 && List.mem Sys.argv.(1) ["--branches"; "--loops"] then begin
     branch_mode Sys.argv.(1) (if Array.length Sys.argv > 2 then int_of_string Sys.argv.(2) else 3);
     exit 0

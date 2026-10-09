@@ -4,18 +4,21 @@ module I=Flow_ir.Executor
 module V=Flow.Value
 module CPU=Procedural.Image
 type entry={image:Image.t;mutable payload:CPU.t;mutable texture:(Texture.t,string)result Lazy.t;
-  mutable frame:Frame_input.t option}
-type t={resources:Workspace_resources.t;mutable plan:E.plan option;mutable serial:int;
+  mutable frame:Frame_input.t option;mutable state_stamp:string;mutable serial:int}
+type t={resources:Workspace_resources.t;domains:int;mutable plan:E.plan option;mutable serial:int;
   mutable arguments:I.program option array;mutable drawings:Sketch_support.Drawing.prepared option array;
+  mutable maps:(int * int * E.fn * Flow_sop.Image_kernel.t) option array;
   mutable resolved:entry option array;
   mutable entries:(string*entry)list}
-let create resources={resources;plan=None;serial=0;arguments=[||];drawings=[||];resolved=[||];entries=[]}
+let create ?(domains=Parallel.recommended_domains()) resources={resources;domains;plan=None;serial=0;
+  arguments=[||];drawings=[||];maps=[||];resolved=[||];entries=[]}
 let error message=Flow.Diagnostic.error ~code:"E_IMAGE" message
 let message result=Result.map_error error result
 let (let*)=Result.bind
 let bytes_of_image image =
-  let rgba=CPU.Private.storage image in
-  Bytes.init(Array.length rgba)(fun i->Char.chr(int_of_float(Float.round(rgba.(i)*.255.))))
+  match CPU.Private.rgba8 image with Some bytes->bytes|None->
+    let rgba=CPU.Private.storage image in
+    Bytes.init(Array.length rgba)(fun i->Char.chr(int_of_float(Float.round(rgba.(i)*.255.))))
 let cpu_of_image image =
   let* bytes=message(Image.Private.pixels image)in
   let width,height=Image.get_size image in
@@ -34,9 +37,11 @@ let prepare t plan =
     match Array.find_opt Result.is_error programs with Some(Error d)->Error d|_->
       t.plan<-Some plan;t.serial<-t.serial+1;t.arguments<-Array.map Result.get_ok programs;
       t.drawings<-Array.make(Array.length plan.nodes)None;
+      t.maps<-Array.make(Array.length plan.nodes)None;
       t.resolved<-Array.make(Array.length plan.nodes)None;Ok()
 let rec resolve t ~state ~live plan value =
   if not(Domain.is_main_domain())then Error(error "Image resources must resolve on the initial domain.")else
+  if t.resources.closed then Error(error "Workspace image resources are closed.")else
   let* ()=prepare t plan in
   E.transaction state(fun()->try
     match value with
@@ -51,11 +56,19 @@ let rec resolve t ~state ~live plan value =
           |"image/noise" when List.exists(fun(_,v)->E.is_live v)node.args->Printf.sprintf "noise:%d:%d" t.serial id
           |"image/noise"->"noise:"^Marshal.to_string args [Marshal.No_sharing]
           |"image/render"->Printf.sprintf "render:%d:%d" t.serial id
+          |"image/map"->"map:"^Marshal.to_string(node.inst,node.site,node.iter)[Marshal.No_sharing]
           |_->V.fail "E_IMAGE" "Unknown image producer."in
-        let dynamic=List.exists(fun(_,v)->E.is_live v)node.args || (node.kind="image/render"
-          && Array.exists(fun(n:E.node)->List.exists(fun(_,v)->E.is_live v)n.args)plan.nodes)in
+        let plan_dependent predicate=node.kind="image/render"
+          && Array.exists(fun(n:E.node)->List.exists(fun(_,v)->predicate v)n.args)plan.nodes in
+        let stateful=List.exists(fun(_,v)->E.state_dependent v)node.args || plan_dependent E.state_dependent in
+        let dynamic=List.exists(fun(_,v)->E.is_live v || E.frame_dependent v)node.args || stateful
+          || plan_dependent(fun v->E.is_live v || E.frame_dependent v)in
         let previous=List.assoc_opt key t.entries in
-        let result=(match previous with Some entry when not dynamic || Option.fold ~none:false ~some:(Frame_input.equal live)entry.frame->Ok entry
+        let state_stamp=if stateful then E.state_stamp state else "" in
+        let result=(match previous with Some entry when
+          (node.kind<>"image/map" || (entry.serial=t.serial && Option.is_some t.maps.(id)))
+          && (not dynamic || (Option.fold ~none:false ~some:(Frame_input.equal live)entry.frame
+            && entry.state_stamp=state_stamp))->Ok entry
         |_->
           let* ()=if previous=None && List.length t.entries>=64 then Error(error "A workspace owns at most 64 image snapshots.")else Ok()in
           let* image,payload=match node.kind with
@@ -71,6 +84,29 @@ let rec resolve t ~state ~live plan value =
               let* cooked=Result.map_error(fun d->error d.Procedural.Diagnostic.message)
                 (Procedural.Node.Private.cook source context [||])in
               let* payload=Result.map_error(fun d->error d.Procedural.Diagnostic.message)(Procedural.Payload.image cooked.payload)in
+              let* image=match previous with
+                |Some entry->message(Image.upload_rgba ~into:entry.image ~width ~height ~rgba:(bytes_of_image payload)())
+                |None->Workspace_resources.image t.resources key(fun()->Image.upload_rgba ~width ~height ~rgba:(bytes_of_image payload)())in
+              Ok(image,payload)
+          |"image/map"->
+              let width=int "width" 256 and height=int "height" 256 in
+              let fn=match List.assoc "function" args with E.Fn fn->fn
+                |_->V.fail "E_IMAGE" "Image map needs a pixel function." in
+              let* prepared=match t.maps.(id) with
+                |Some(w,h,f,p)when w=width && h=height && f==fn->Ok p
+                |_->
+                    let sources=Flow_sop.Attribute_kernel.sources(E.Fn fn)in
+                    if sources<>[] then Error(error "Captured geometry needs a cooked image-kernel source resolver.")else
+                    Result.map(fun p->t.maps.(id)<-Some(width,height,fn,p);p)
+                      (Flow_sop.Image_kernel.prepare ~identity:(Procedural.Node.Private.fresh_id()) ~width ~height ~fn ~sources:[] [])in
+              let source=Flow_sop.Image_kernel.node ~state:(E.fork_state state) prepared in
+              let* context=Result.map_error error(Procedural.Context.create ~input:live ~time:live.t
+                ~frame:(Int64.of_int live.frame) ~domains:t.domains())in
+              let* session=Result.map_error error(Procedural.Session.create ~max_entries:0 ~max_payload_bytes:0)in
+              let* payload=Fun.protect ~finally:(fun()->Procedural.Session.close session)(fun()->
+                let* cooked=Result.map_error(fun d->error d.Procedural.Diagnostic.message)
+                  (Procedural.Session.cook session ~context source)in
+                Result.map_error(fun d->error d.Procedural.Diagnostic.message)(Procedural.Payload.image cooked.payload))in
               let* image=match previous with
                 |Some entry->message(Image.upload_rgba ~into:entry.image ~width ~height ~rgba:(bytes_of_image payload)())
                 |None->Workspace_resources.image t.resources key(fun()->Image.upload_rgba ~width ~height ~rgba:(bytes_of_image payload)())in
@@ -93,8 +129,8 @@ let rec resolve t ~state ~live plan value =
                 let* payload=cpu_of_image image in Ok(image,payload))
           |_->assert false in
           let entry=match previous with
-            |Some entry->entry.payload<-payload;entry.texture<-texture payload;entry.frame<-Some live;entry
-            |None->{image;payload;texture=texture payload;frame=Some live}in
+            |Some entry->entry.payload<-payload;entry.texture<-texture payload;entry.frame<-Some live;entry.state_stamp<-state_stamp;entry.serial<-t.serial;entry
+            |None->{image;payload;texture=texture payload;frame=Some live;state_stamp;serial=t.serial}in
           if previous=None then t.entries<-(key,entry)::t.entries;Ok entry)in
         Result.map(fun entry->t.resolved.(id)<-Some entry;entry)result
     |_->Error(error "Expected an image value.")

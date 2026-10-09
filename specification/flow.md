@@ -1479,7 +1479,8 @@ Fixed-step window runs use the export effect policy: active quit/dialog requests
 ### Images
 
 `image/noise :width :height :frequency :seed`, `image/load path`, and
-`image/render drawing :width :height` return image values in every value-capable
+`image/render drawing :width :height`, and
+`image/map (fn [uv] [uv.x uv.y 0.5 1]) :width :height` return image values in every value-capable
 context. Noise defaults to 256×256, frequency 0.02 and seed 0. `:freq` remains an
 alias for frequency. Render dimensions default to the logical frame size.
 `draw/image image :at [0 0 0] :scale 1.0 :angle 0.0` uses the ordinary canvas pane.
@@ -1489,6 +1490,16 @@ resources, releases each once on close, and returns `E_IMAGE` on resource failur
 Live rendering replaces pixels in the same owned image. SOP consumers receive an immutable
 RGBA snapshot resolved on the initial domain before a worker starts. `image/render` uses
 the native offscreen Metal Canvas, including during fixed-step export.
+
+`image/map` requires a Vec2-to-Vec4 function and defaults to 256×256. Its
+function input is an editable graph zone with typed UV rails. Pixel centers
+are `((x+0.5)/width, (y+0.5)/height)`, with the top row first and x varying
+fastest. The prepared CPU map preserves lexical captures and live frame facts;
+four finite channels are clamped, scaled by 255 and rounded ties to even into
+owned RGBA8 storage. Unsupported packed bodies return the actual compilation
+refusal. Workspace display currently resolves CPU images; captured geometry
+in that resolver, GPU placement, resident image sinks and frozen exact GPU
+snapshots remain F2.2 work. No image GPU eligibility or timing gate is implied.
 
 `scene/geometry geometry :texture image` applies the same image as a texture
 without changing its transform, material or render state. The image card footer

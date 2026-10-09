@@ -51,6 +51,15 @@ drawing never reads pixels back from the GPU.
 
 ## Ownership
 
+Lisp `image/map` evaluates a Vec2-to-Vec4 function at pixel-center UV
+coordinates, top row first, and cooks one owned RGBA8 output buffer. Each
+finite channel is clamped to [0,1] and multiplied by 255. Let `n=floor(q)`:
+increment it when the fractional part exceeds 0.5, or equals 0.5 and `n` is
+odd. Thus scaled values 0.5, 1.5, 2.5 and 254.5 become 0, 2, 2 and 254.
+Nonfinite channels refuse the cook. One/eight-domain CPU cooks produce the
+same bytes. Existing float-backed procedural images retain their float
+precision; exact sampling of RGBA8 images expands bytes by division by 255.
+
 Loaded or created images are owned by the caller and belong in
 `Sketch.run_state ~on_stop`:
 

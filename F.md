@@ -171,8 +171,16 @@ and emission. Capture changes rebuild accepted/refused/pending conclusions;
 ambiguous or missing observations never qualify. Focused and shipping checks,
 the full workspace sweep and native GPU numerics pass (exit 0). Astra's F1.3
 gate verdict is “met”; the final materialized-source/shared-function regressions
-also pass. F2.2 and F2.3 remain open; image/map and resident-image consumers
-are still unimplemented. This qualification checkpoint does not complete F.md.
+also pass. F2.2 now has a connected CPU image/map checkpoint: typed Lisp and
+graph gestures, packed pixel functions, owned RGBA8 conversion, live captures,
+workspace drawing/sampling/textures, stable identity across edits/resize, and
+nested render invalidation are implemented. Astra accepts its prepared CPU
+whole-cook gate: 1024² medians are 11.874914 ms (gradient) and 12.237072 ms
+(live capture) at eight domains, with matching full-byte hashes across domains
+1/8 at all three measured sizes. F2.2 remains open for GPU qualification,
+conversion/copy, resident/exact consumers, geometry capture resolution and
+native GPU timing/allocation/parity. F2.3 remains open. These checkpoints do
+not complete F.md.
 Full F5 native/pixel validation passed at `8f1f4789` (exit 0) on the confirmed
 M1, including the 37-file pixel sweep. The current shared-form-check checkpoint
 passes focused checks, `--ship` and native GPU numerics. The direct-edge
@@ -201,7 +209,7 @@ once so you know what exists before you add anything.
 | SOP overlay | `lib/flow_sop` (`lower`, `attribute_kernel`, `value_lane`, `operators`) | Lowers a checked workspace to a `Procedural` network; `sop/attr` and `sop/with_attr` are the kernel boundary (`Attribute_kernel` over `Rdk.Kernel.edit_point_ranges`); image resolver callback (`Lower.with_images`). |
 | Graph layer | `lib/flow_graph` (`projection`, `flow_edit`, `exposure`, `probe`) | Domain-neutral projection and gestures; zones for map/filter/reduce/sort-by and if/cond/case arms; probes force one tuple. |
 | 2D | `lib/sketch_support/drawing.ml`, `lib/flow/op.ml` (`draw_op` lines ~200-240) | 18 `draw/*` kinds; plural kinds (`circles`, `rects`, `lines`, `points`, ...) lower to one instanced `Scene_command.Shape_batch`; GPU display sinks take a `gpu_token`. |
-| Images | `lib/flow/op.ml:264-269`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, `image/render` (offscreen `Rays.Canvas`), `image/noise` (cooked); `draw/image`; `scene/geometry :texture image`; `sop/attr_from_image`. The editor pins at most 64 images. |
+| Images | `lib/flow/op.ml`, `lib/flow_sop/image_kernel.ml`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, `image/render` (offscreen `Rays.Canvas`), `image/noise`, CPU `image/map` (packed Vec2→Vec4, owned RGBA8); `draw/image`; `scene/geometry :texture image`; `sop/attr_from_image`. The editor pins at most 64 images. GPU image/map and resident consumers remain open. |
 | Catalog | `lib/sop_catalog`, `ppx/ppx_rays`, `lib/procedural/node.ml` | 162 `sop/*` kinds, one declaration each, including the field SOP, `Node.facts` (elementwise, reads, writes, topology, exact). |
 | Cook | `lib/procedural/session.ml` | Component-keyed LRU; learned placement fans branches and zone elements across domains above a 2 ms measured subtree. |
 | Geometry | `lib/rdk/**` | Float64 structure-of-arrays planes; `Mesh_merge.merge_plain` is the serial merge (see F3). Scene3 packs planes into float32 24+12-byte streams (`lib/rays/scene3_native_lowering.ml`). |
@@ -1165,7 +1173,41 @@ the sequential cutoff should be, and what the one failing check is."
 
 #### F2.2 Image kernels: a per-pixel `map`
 
-**Astra design and groundwork (2026-10-09; image/map not yet implemented).**
+**CPU checkpoint (2026-10-09; F2.2 remains open).** `image/map` now has a
+strict Vec2-to-Vec4 Lisp declaration, typed graph function zone and argument
+gestures. `Flow_sop.Image_kernel` retains the immutable UV grid and actual
+packed program, executes once per uncached session cook and converts to one
+owned RGBA8 output buffer. No per-pixel interpreter closure is installed.
+Float-backed noise/sampling retain their precision; exact byte-image sampling
+explicitly expands normalized samples without retaining a float copy. Tests
+pin both tie parities, clipping/nonfinite/cancellation, >two-grain asymmetric
+UV orientation, reference/packed/domain parity, named functions and live
+lexical captures. Workspace display, mesh textures and SOP sampling use the
+CPU result. Plan/body edits and resize preserve the image resource identity;
+closed owners refuse resolution. Nested image/map→drawing→image/render
+invalidates for frame dependencies and same-frame changes to drawing state.
+State-dependent pixel bodies retain the compiler's `E_PACKED_STATE` refusal.
+
+Focused checks and `--ship` pass; the 38-file workspace sweep includes the new
+`sketches/flow_image_kernel` with both custom catalogs and 13 fixtures.
+The odd-width native nested-render/state regression passes. Seven isolated
+warm whole cooks at 512²/1024²/2048² preserve every corresponding full-byte
+hash between domains 1/8. At 1024², eight-domain medians are **11.874914 ms**
+for the gradient and **12.237072 ms** for a live capture. Astra's verdict is
+**CPU gate PASS**, covering the prepared producer through conversion and
+cleanup. Cold grid/program preparation has separate rows. CPU allocations
+still scale with image size, and upload/display is outside this cook gate.
+Raw evidence is `performance/f-image-map-cpu-domains{1,8}.csv`; see
+"F2.2 image kernel: CPU checkpoint" in `performance-log.md`.
+
+The workspace resolver still refuses captured geometry without a cooked-source
+resolver. Synthetic-map GPU eligibility at the authored image site, GPU
+conversion/copy and immutable upload reuse, resident 2D/mesh consumers, exact
+snapshots, GPU timing/allocation/resource/readback counters and native CPU/GPU
+channel differences are still required. The CPU verdict does not close F2.2,
+F2.3 or F.md.
+
+**Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing
 scalar registers. Packed Vec2/Vec4 storage, maps/loops, fields, uniforms, array

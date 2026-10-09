@@ -9090,3 +9090,90 @@ is “met”. This closes actual-capture eligibility qualification, not F2.2/F2.
 or the full F scope. No performance improvement is claimed. Final full-scope
 native/pixel qualification and the field re-gate remain required after the
 image/resident work.
+
+## F2.2 image kernel: CPU checkpoint (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs, OCaml 5.3, Dune dev.
+Seven isolated warm trials per fixture/size at domains one/eight; no builds,
+tests or other agents run during either measurement command.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_sop/runtest \
+  @lib/procedural/runtest @tools/api_manifest/runtest @sketches/runtest \
+  test/test_workspace_images.exe test/test_workspace_images_native.exe \
+  tools/bench_workspace_lower.exe
+# Review/accept the Image_kernel and Image.Private API surfaces and sketch rule.
+dune promote tools/api_manifest/api_stable.json sketches/dune.rays.inc
+cd test
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ../_build/default/test/test_workspace_images.exe
+../_build/default/test/test_workspace_images_native.exe
+cd ..
+_build/default/tools/check.exe --ship
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 \
+  _build/default/tools/bench_workspace_lower.exe --image-map \
+  > specification/performance/f-image-map-cpu-domains1.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 \
+  _build/default/tools/bench_workspace_lower.exe --image-map \
+  > specification/performance/f-image-map-cpu-domains8.csv
+```
+
+| Whole CPU cook | Size | One domain median ms | Eight domains median ms |
+|---|---:|---:|---:|
+| Gradient | 512² | 10.766029 | 3.033876 |
+| Gradient | 1024² | 60.293913 | 11.874914 |
+| Gradient | 2048² | 213.590860 | 43.864012 |
+| Live capture | 512² | 11.169910 | 3.770113 |
+| Live capture | 1024² | 57.817936 | 12.237072 |
+| Live capture | 2048² | 219.217062 | 44.734001 |
+
+| Cold grid/program preparation + first cook | Size | One domain ms | Eight domains ms |
+|---|---:|---:|---:|
+| Gradient | 512² | 15.240192 | 5.321980 |
+| Gradient | 1024² | 64.701080 | 21.168947 |
+| Gradient | 2048² | 233.356953 | 69.581032 |
+| Live capture | 512² | 12.104988 | 4.801989 |
+| Live capture | 1024² | 62.089920 | 16.487122 |
+| Live capture | 2048² | 221.880913 | 61.650991 |
+
+The pool is warmed before the cold-preparation rows. Warm rows reuse the UV
+grid and program, disable session output-cache hits, and time session/context
+setup through uncached `Session.cook`, finished `Payload.Image` conversion and
+cleanup. Hashing and GC preparation are outside timing. The live fixture
+changes its captured time each trial. Each domain CSV contains all 48 raw
+samples (six cold rows and 42 warm rows), including all-domain allocation
+counts and complete-image hashes. Every corresponding hash matches across
+domain counts; live-image hashes change between trials. At 1024², median
+allocated bytes are 40,517,576 / 40,608,704 for gradient at domains 1/8 and
+41,587,608 / 41,679,800 for the live capture. Only the final output image is
+one RGBA8 buffer; packed float output and execution scratch remain temporary
+allocations. This is not a constant-allocation CPU claim.
+
+The first measurement command stopped before the live fixture because its
+benchmark source returned a function from a `let*` in the function-input
+position (`E_FN_ESCAPES`). Its partial gradient rows remain in
+`performance/f-image-map-cpu-invalid-fixture.csv`, excluded from the gate.
+The corrected fixture captures bias around `image/map`, matching the authored
+workspace syntax. Both complete domain commands above then pass (exit 0).
+
+Functional checks pin strict Vec2→Vec4 typing, editable graph zones/rows,
+pixel-center orientation on a 387×91 image, scalar reference/packed output,
+byte rounding/clipping/nonfinite/cancellation, named functions and lexical
+time captures. Byte-backed SOP sampling matches explicit normalized float
+sampling at one/eight domains. Workspace tests cover drawing, texture and
+SOP consumers at four times/domains 1/8, replan/body-edit/resize with stable
+image identity, and balanced creation/destruction. Native 65×3 nested
+image/map→draw/image→image/render refreshes for time-dependent callable
+captures and for different drawing-fold snapshots at the same frame facts.
+State-dependent pixel bodies explicitly retain `E_PACKED_STATE`.
+
+Shipping passes (exit 0), including 38 standard workspaces, both actual custom
+catalog executables and 13 fixtures; log:
+`/tmp/rays-f-image-map-cpu-ship.log`. Astra's read-only checkpoint review finds
+no remaining blocker and its measured **CPU whole-cook gate verdict is PASS**:
+both 1024² eight-domain medians are below the unchanged 40 ms gate.
+
+This establishes the prepared CPU producer gate, excluding display upload and
+rendering. It does not establish synthetic image GPU eligibility, GPU
+conversion/copy, resident/exact ownership, geometry capture resolution in the
+workspace, GPU timing/allocation/resource/readback gates, native CPU/GPU
+per-channel differences or F2.3. F2.2 and the full F scope remain open.

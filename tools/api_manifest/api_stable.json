@@ -1,7 +1,7 @@
 {
   "generator": "tools/api_manifest/api_manifest.exe",
   "kind": "stable_high_level",
-  "module_count": 177,
+  "module_count": 178,
   "modules": [
     {
       "api": [
@@ -836,6 +836,19 @@
     },
     {
       "api": [
+        "type t",
+        "val prepare : identity : int -> width : int -> height : int -> fn : Flow.Eval.fn -> sources : int list -> Procedural.Node.t list -> ( t , Flow.Diagnostic.t ) result",
+        "val node : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> t -> Procedural.Node.t",
+        "val program : t -> Flow_ir.Executor.program"
+      ],
+      "api_sha256": "8d242f97fbbaf07a247ef62b3c937f000a96bd35286610d3deff08c89ee94b73",
+      "excluded_legacy_symbols": [],
+      "library": "flow_sop",
+      "module": "Image_kernel",
+      "source": "lib/flow_sop/image_kernel.mli"
+    },
+    {
+      "api": [
         "type t = int list",
         "module Map : Map.S with",
         "type key = t"
@@ -1175,10 +1188,13 @@
         "val payload_bytes : t -> int",
         "module Private : sig",
         "val storage : t -> float array",
+        "val rgba8 : t -> bytes option",
+        "val of_owned_rgba8 : width : int -> height : int -> bytes -> ( t , Diagnostic.error ) result",
         "val of_owned_rgba : width : int -> height : int -> float array -> ( t , Diagnostic.error ) result",
+        "val of_vec4 : context : Context.t -> width : int -> height : int -> float array -> ( t , Diagnostic.error ) result",
         "end"
       ],
-      "api_sha256": "cc8538e6c16bb67649da7c0dcd51d896115922db6d9b25aa033a02aac38262b2",
+      "api_sha256": "a0caaf9485ea4ae3c27c42c1022df23f3a461407b842cae4ae53d057cf0f073e",
       "excluded_legacy_symbols": [],
       "library": "procedural",
       "module": "Image",

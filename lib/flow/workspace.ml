@@ -1348,6 +1348,14 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let num_of a = match a.aterm.node with
       | Lit (Param.Int_value n) -> Some (float_of_int n) | Lit (Param.Float_value f) -> Some f | _ -> None in
     match o.name with
+    | "image/map" ->
+        List.iter (fun a -> match a.av.ty with
+          | Ty.Fn (Some {params=[Ty.Vec2];result=Ty.Vec4}) -> ()
+          | _ -> err a.aform "E_TYPE" "image/map needs a vec2-to-vec4 pixel function.") pos;
+        List.iter (fun a -> match a.key, int_of a with
+          | Some ("width" | "height"), Some n when n <= 0 ->
+              err a.aform "E_RANGE" "Image dimensions must be positive."
+          | _ -> ()) args
     | "length" -> List.iter (fun a ->
         if a.av.ty <> Ty.Vec3 && a.av.ty <> Ty.Any then
           err a.aform "E_TYPE" "length needs a vec3.") pos

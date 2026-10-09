@@ -216,7 +216,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           let template = templ.(node.id) in
           let cid = compiled.(node.id) in
           let live = List.filter (fun (_, v) -> E.is_live v) node.args in
-          let resource = node.kind="image/load" || node.kind="image/render" in
+          let resource = node.kind="image/load" || node.kind="image/render" || node.kind="image/map" in
           if not template && node.kind <> "sop/with_attr" && not resource then
             pending := List.rev_append (List.map (fun (field, value) ->
               {node = cid; field; value}) live) !pending;
@@ -234,10 +234,10 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
               | arg -> [arg]) args in
           let dynamic = ref [] in
           let p = match node.kind with
-            | "image/load" | "image/render" ->
+            | "image/load" | "image/render" | "image/map" ->
                 let factory=Edit.factory ~key:node.kind ~label:node.kind ~category:["Image"] ~arity:0
                   (fun _->resource_image node.kind (Error(Diagnostic.error ~code:"E_IMAGE"
-                    "A loaded or rendered image needs an initial-domain image resolver.")))in
+                    "This image needs an initial-domain image resolver.")))in
                 {cid;factory;slots=[];arity=0;changes=[];dynamic=[];zone=None;kernels=[]}
             | "sop/with_attr" ->
                 let name = match List.assoc "attribute" args with
@@ -513,7 +513,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
               ~values ~sources:(deps n) (Procedural.Node.inputs node))))) nodes)
         frame_nodes plan.nodes in
       let frame_nodes=Array.fold_left(fun nodes (n:E.node)->
-        if (n.kind<>"image/load" && n.kind<>"image/render") || Edit.find graph ~node_id:compiled.(n.id)=None
+        if (n.kind<>"image/load" && n.kind<>"image/render" && n.kind<>"image/map") || Edit.find graph ~node_id:compiled.(n.id)=None
           then nodes else Network.Int_map.add compiled.(n.id)(fun state live node->
             match Domain.DLS.get image_provider with
             |None->Error(Diagnostic.error ~code:"E_IMAGE" "Image resources need an initial-domain resolver.")

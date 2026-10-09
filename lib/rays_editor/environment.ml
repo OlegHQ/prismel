@@ -367,7 +367,7 @@ let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timelin
       | None -> core in
     { core; camera; control = V.create_control (); draw; overlay; status;
       rendered = None; views = []; drawn = Document.Int_map.empty; composed = None;
-      resolved = None; context_error = None; canvases = []; host=Workspace_host.create(); baked = None; baked_from = None; baked_views = []; map = None;
+      resolved = None; context_error = None; canvases = []; host=Workspace_host.create ~domains:core.cook.domains (); baked = None; baked_from = None; baked_views = []; map = None;
       render_status = None; pending_render = None;
       background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; held = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
       state_checked = neg_infinity; saved_doc = core.doc; saved_view = V.section camera extra; state_error = None })

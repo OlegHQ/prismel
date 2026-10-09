@@ -280,6 +280,9 @@ let images = [
     ["drawing",Ty.drawing] (fun _->Ty.image) {run=fun ~name ~node args->node name args};
   mk ~category:"Image" ~shape:(Struct {splice=false}) ~kw:["width",Ty.Int;"height",Ty.Int;"frequency",Ty.Float;"freq",Ty.Float;"seed",Ty.Int]
     "image/noise" [] (fun _->Ty.image) {run=fun ~name ~node args->node name args};
+  mk ~category:"Image" ~shape:(Struct {splice=false}) ~kw:["width",Ty.Int;"height",Ty.Int]
+    "image/map" ["function",Ty.Fn (Some {params=[Ty.Vec2];result=Ty.Vec4})]
+    (fun _->Ty.image) {run=fun ~name ~node args->node name args};
 ]
 
 let all = frame @ arrays @ draw @ host @ integers @ images @ [

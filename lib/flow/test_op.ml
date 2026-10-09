@@ -35,7 +35,7 @@ let check (o : Op.t) args =
   with Value.Fail (code, msg, _) -> failwith (o.name ^ ": " ^ code ^ ": " ^ msg)
 
 let () =
-  assert (List.length Op.all = 113);
+  assert (List.length Op.all = 114);
   List.iter (fun (o : Op.t) ->
     assert (Option.get (Op.find o.name o.ctx) == o);
     assert (Option.is_some (Op.packed_kind o) = (o.ctx = Context.value && o.shape = Op.Scalar));

@@ -15,6 +15,14 @@
  (executable (name main) (modules main) (libraries rays_editor))
  (rule (alias smoke-all)
   (action (setenv RAYS_MAX_FRAMES 120 (run ./main.exe)))))
+(subdir flow_image_kernel
+ (rule
+  (target main.ml)
+  (deps sketch.rays (glob_files *.png) (glob_files *.ttf))
+  (action (chdir %{workspace_root} (with-stdout-to %{target} (run %{bin:rays-lisp} ml %{dep:sketch.rays})))))
+ (executable (name main) (modules main) (libraries rays_editor))
+ (rule (alias smoke-all)
+  (action (setenv RAYS_MAX_FRAMES 120 (run ./main.exe)))))
 (subdir flow_kernel
  (rule
   (target main.ml)

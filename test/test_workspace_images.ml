@@ -7,6 +7,50 @@ let editor doc=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains:1
   ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())
 let workspace producer=load("(workspace images (graph img :context image "^producer^
   ") (graph picture :context draw (draw/image (ref img) :at [1 2 0] :scale 2.0 :angle 0.1)))")
+let () =
+  List.iter (fun producer ->
+    let doc=workspace producer in
+    let owner=editor doc in
+    Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+      let evaluated=ok(E.static doc.checked)in
+      let image_value=List.assoc "img" evaluated.results in
+      let image_at time=Editor.Private.with_images ~plan:evaluated.plan
+        ~live:(Frame_input.at_time time) owner (fun ~image ~texture:_ -> ok(image image_value))in
+      let first=image_at 0. in
+      assert(Rays.Image.get_size first=(65,3));
+      let pixels=Rays.Image.Private.pixels first |> Result.get_ok in
+      assert(Bytes.get pixels 0=Char.chr 2 && Bytes.get pixels 1=Char.chr 42
+        && Bytes.get pixels 2=Char.chr 128 && Bytes.get pixels 3=Char.chr 255);
+      assert(image_at 0.==first);
+      assert(image_at 1.==first);
+      assert(Rays.Image.Private.pixels first |> Result.get_ok <> pixels);
+      let prepared=ok(Sketch_support.Drawing.prepare evaluated.plan(List.assoc "picture" evaluated.results))in
+      let scene=ok(Sketch_support.Drawing.render_prepared ~image:(fun v->Editor.Private.with_images
+        ~plan:evaluated.plan ~live:(Frame_input.at_time 1.) owner (fun ~image ~texture:_->image v))
+        prepared ~live:(Frame_input.at_time 1.) ~size:(65,3))in
+      assert(Array.exists(function Scene_command.Render_ir.Image _->true|_->false)(Rays.Scene.Private.commands scene));
+      assert(Editor.Private.image_stats owner=(1,0)));
+    assert(Editor.Private.image_stats owner=(1,1)))
+    ["(image/map (fn [uv] [(+ uv.x (* t 0.25)) uv.y 0.5 1]) :width 65 :height 3)";
+     "(let* [bias (* t 0.25)] (image/map (fn [uv] [(+ uv.x bias) uv.y 0.5 1]) :width 65 :height 3))"];
+  print_endline "image/map: initial-domain drawing, live callable captures, stable image identity and close pass"
+let () =
+  let doc=workspace "(image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 65 :height 3)"in
+  let owner=editor doc in
+  let resolve doc=let evaluated=ok(E.static doc.Editor_document.Workspace_doc.checked)in
+    Editor.Private.with_images ~plan:evaluated.plan ~live:(Frame_input.at_time 0.) owner
+      (fun ~image ~texture:_->ok(image(List.assoc "img" evaluated.results)))in
+  Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+    let image=resolve doc in
+    let resized=workspace "(image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 17 :height 5)"in
+    assert(resolve resized==image && Rays.Image.get_size image=(17,5));
+    let previous=Rays.Image.Private.pixels image |> Result.get_ok in
+    let edited=workspace "(image/map (fn [uv] [uv.y uv.x 0.5 1]) :width 17 :height 5)"in
+    assert(resolve edited==image);
+    assert(Rays.Image.Private.pixels image |> Result.get_ok <> previous);
+    assert(Editor.Private.image_stats owner=(1,0)));
+  assert(Editor.Private.image_stats owner=(1,1));
+  print_endline "image/map: replan, body edit and resize replace pixels under one owned image identity"
 let ()=
   let doc=workspace "(image/noise :width 2 :height 2 :frequency 0.3 :seed 31)"in
   let evaluated=ok(E.static doc.checked)in
@@ -122,4 +166,5 @@ let () =
     assert (created > 0 && created = destroyed)
   end)
     ["(image/noise :width 2 :height 2 :frequency (+ 0.3 (* 0.01 t)) :seed 31)";
+     "(image/map (fn [uv] [uv.x uv.y (* t 0.05) 1]) :width 65 :height 3)";
      "(image/load \"sdl3_image_fixtures/sample.png\")"]
