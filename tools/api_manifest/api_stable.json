@@ -813,6 +813,7 @@
         "val force : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> ? resolve : ( Flow.Eval.value -> ( Flow.Eval.value , Flow.Diagnostic.t ) result ) -> ? measure : ( ( unit -> float ) * ( t -> seconds : float -> reference : bool -> unit ) ) -> t -> live : Flow.Eval.live -> ( Flow.Eval.value , Flow.Diagnostic.t ) result",
         "val reference : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> ? resolve : ( Flow.Eval.value -> ( Flow.Eval.value , Flow.Diagnostic.t ) result ) -> t -> live : Flow.Eval.live -> ( Flow.Eval.value , Flow.Diagnostic.t ) result",
         "module Private : sig",
+        "val ordered_add : t -> bool",
         "val output_reachable : t -> bool array",
         "type view = { code : instruction array ; widths : int array ; output : int array ; uniform_widths : int array ; collecting : bool ; zipped : bool ; skip : int array }",
         "val view : t -> view",
@@ -820,7 +821,7 @@
         "val prepare : ? state : Flow.Eval.state -> ? elems : ( string * Flow.Eval.value ) list -> ? resolve : ( Flow.Eval.value -> ( Flow.Eval.value , Flow.Diagnostic.t ) result ) -> ? measure : ( ( unit -> float ) * ( t -> seconds : float -> reference : bool -> unit ) ) -> t -> live : Flow.Eval.live -> ( inputs , Flow.Diagnostic.t ) result",
         "end"
       ],
-      "api_sha256": "5179ee65f984f0936d889dc9450724bd4bc17ac2939a8cfb21e65f36654d25fb",
+      "api_sha256": "28dc0345c793c201d0f0a00d8b22070f2895ad0c3b26d9d082ffe4708a2d96b9",
       "excluded_legacy_symbols": [],
       "library": "flow_ir",
       "module": "Packed",

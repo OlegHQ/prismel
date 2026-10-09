@@ -10773,3 +10773,96 @@ the unchanged eight-cell/control matrices must repeat in isolation against
 `0f070d3f`'s uninstrumented 7.562215/9.956585 ms GPU baselines, preserving all
 parity/counter/resize/ownership checks. This is an approved design, not an
 implemented fast path or measured gate verdict.
+
+## F2.2 proved ordered-add dispatch bypass (2026-10-09)
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. The approved
+local fast path recognizes only a non-collecting Accumulate, result width
+1–4, exactly one Zip source of the same width, and the complete proved
+Input/Accumulator/Binary Add layout, output slots and dependency flags. One
+boolean is computed before traversal. Independent input-block loading remains;
+matching programs bypass per-element dependent dispatch and add the current
+accumulator directly to its input scratch register before the original finite
+check and accumulator assignment. Source/seed/skip/chunk/empty/fallback rules
+remain. Other programs retain generic packed execution.
+
+Astra approved one shared pure `Packed.Private.ordered_add` predicate for
+execution and tests. The single intentional private API manifest entry was
+reviewed/promoted. Review caught that the existing `zipped` helper also accepts
+single-source Product loops; the final predicate explicitly requires Zip.
+The new exact-layout Product-fold regression has the same nine instructions
+as the supported Vec3 reduction but is rejected by the predicate.
+
+The expanded uniform matrix checks the predicate through existing measurement
+callbacks while comparing full CPU bytes and prepared uniform bits at domains
+1/8. It covers canonical addition at all four widths, equivalent lambdas,
+multi-block cancellation and signed zero, empty/changing sources, a rejected
+nearby recurrence and reversed addition, unsupported/custom operators and the
+integer-seed reference path. Full-byte scan and broadcast-fold checks prove
+those fallbacks; overflow after a resolver advances a real state fold preserves
+the reference diagnostic and rolls back state before recovery. Focused checks
+and the benchmark/API build pass (exit 0;
+`/tmp/rays-f-image-ordered-add-focused.log`).
+
+```sh
+_build/default/tools/check.exe @check @lib/flow_ir/runtest @tools/api_manifest/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-captures-ordered-add-after.csv 2> specification/performance/f-image-map-captures-ordered-add-after-counters.csv
+_build/default/tools/bench_workspace_lower.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-recheck-ordered-add-after.csv 2> specification/performance/f-image-map-uncaptured-recheck-ordered-add-after-counters.csv
+```
+
+The tool remains unchanged from `4d5f3959`. Before evidence is the
+uninstrumented `0f070d3f` accumulator after files. After commands run alone,
+with no builds/tests/other agents: seven CPU1/8 cooks and seven ×200 completed
+GPU/consumer/combined trials after ten warmups. Both exit 0. Seven-trial
+medians, milliseconds and bytes/frame:
+
+| Source | Points | Image | CPU8 whole cook | GPU producer | Consumer | Combined | Producer bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Static P/Cd | 1,024 | 512² | 4.748106 | 0.752275 | 0.380750 | 1.170850 | 253,529 |
+| Static P/Cd | 1,024 | 1024² | 15.413046 | 1.788894 | 0.629770 | 2.821105 | 253,529 |
+| Static P/Cd | 1,024 | 2048² | 58.767080 | 5.019115 | 1.581655 | 6.954761 | 253,529 |
+| Changing P/Cd | 1,024 | 512² | 5.017996 | 0.908440 | 0.377215 | 1.312500 | 583,811 |
+| Changing P/Cd | 1,024 | 1024² | 15.599012 | 1.998075 | 0.630361 | 3.082165 | 583,811 |
+| Changing P/Cd | 1,024 | 2048² | 57.220936 | 5.292414 | 1.662925 | 7.479236 | 583,811 |
+| Static P/Cd | 65,536 | 1024² | 19.203901 | 5.443920 | 0.638815 | 6.611080 | 761,993 |
+| Changing P/Cd | 65,536 | 1024² | 19.567013 | 6.654539 | 0.567360 | 7.319130 | 14,232,181 |
+
+Large CPU8 medians improve 23.262978→19.203901 ms static and
+22.775888→19.567013 ms changing; GPU medians improve 7.562215→5.443920
+and 9.956585→6.654539 ms. The bounded recognizer adds 528 B/frame to static
+producer allocations; fixed-source allocation remains identical at all pixel
+sizes. Uncaptured CPU8/GPU medians are 12.243986/1.596760 ms gradient and
+11.686087/1.625144 ms live; 33,721/32,593 B allocations are unchanged.
+No control timing improvement is claimed.
+
+All 440 raw rows are retained. All 30 native parity comparisons have zero
+channel/pixel differences and CPU1/8 hashes match. Warm source cook/flatten,
+status/generation, resources/uploads/readbacks, CPU storage, resize/replan
+and teardown assertions pass. Astra: **“Retain the change.”** CPU gates and
+small/control GPU cases pass; **both large GPU cases still miss <5 ms**.
+This is a retained optimization, not completed F2.2.
+
+Astra's next approved trial keeps every recognition restriction and adds
+`skip=[]`. It branches once per chunk: matching programs read their single
+interleaved input directly in ascending element/component order, perform the
+same finite-checked addition and accumulator assignment, and allocate no
+scratch/index/noise/table storage. Generic chunks regain their original
+unconditional dependent execution and output lookup. Seed, source, ordered
+chunk, empty and transactional fallback behavior remain. No unrolling,
+parallel reduction, reassociation or result cache is allowed.
+
+The required regression extends one Vec3 case to counts 1, 1023, 1024,
+1025, 16383, 16384 and 16385, and adds nonfinite failure after a chunk boundary
+with exact reference diagnostics and state rollback. All current width,
+cancellation/signed-zero, empty/changing and rejected-pattern tests remain.
+The unchanged capture/control protocol must produce separate direct-input
+after files. If either large GPU median still misses <5 ms, obtain fresh
+attribution before broadening. That direct-input trial is not yet implemented.
+
+The complete F5 native/pixel matrix passes (exit 0;
+`/tmp/rays-f-image-ordered-add-full.log`), including both workspace sweeps,
+native GPU/editor/prepared-command tests, oversized capture and runtime
+qualification, all workspace pixel aliases, gallery float32 and PXUI parity.
+Actual display is 1×; 2× goldens remain unqualified.
+
+Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-ordered-add-ship.log`).

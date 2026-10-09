@@ -532,6 +532,22 @@ exception Failed of Flow.Diagnostic.t
 exception Nonfinite
 let get = function Ok x -> x | Error d -> raise (Failed d)
 
+let ordered_add t =
+  let width = Array.length t.output in
+  match t.result with
+  | Accumulate (_, false) when width >= 1 && width <= 4 && t.iteration = Zip
+      && Array.length t.sources = 1 && t.widths = [|width|]
+      && Array.length t.code = 3 * width && Array.length t.dependent = 3 * width ->
+      let matched = ref true in
+      for k = 0 to width - 1 do
+        if t.code.(k) <> Input (0, width, k) || t.dependent.(k)
+          || t.code.(width+k) <> Accumulator k || not t.dependent.(width+k)
+          || t.code.(2*width+k) <> Binary (Add, width+k, k) || not t.dependent.(2*width+k)
+          || t.output.(k) <> 2*width+k then matched := false
+      done;
+      !matched
+  | _ -> false
+
 let rec force ?state ?elems ?resolve ?measure t ~live =
   let state = Option.value ~default:(E.create_state ()) state in
   let work () =
@@ -596,6 +612,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
       | Some (E.Vec2 _ | Vec3 _ | Vec4 _ as value) -> components value
       | Some v -> Array.make width (V.num v) | None -> Array.make width 0. in
     let initialized = ref (match t.result with Sum zero -> zero | _ -> true) in
+    let ordered_add = ordered_add t in
     let block_size = 1024 in
     let blocks = if count = 0 then 0 else (count - 1) / block_size + 1 in
     let blocks_per_chunk = 16 in
@@ -685,9 +702,11 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
       done in
       execute false 0 length;
       for j = 0 to length - 1 do
-        (match t.result with Accumulate _ -> execute true j (j + 1) | _ -> ());
+        (match t.result with Accumulate _ when not ordered_add -> execute true j (j + 1) | _ -> ());
         for component = 0 to width - 1 do
-          let x = scratch.(t.output.(component) * block_size + j) in if not (Float.is_finite x) then raise Nonfinite;
+          let x = if ordered_add then accumulator.(component) +. scratch.(component * block_size + j)
+            else scratch.(t.output.(component) * block_size + j) in
+          if not (Float.is_finite x) then raise Nonfinite;
           (match t.result with
            | Collect -> () | Accumulate _ -> accumulator.(component) <- x
            | Sum _ ->
@@ -746,6 +765,7 @@ and force_uniforms ~state ?elems ?resolve ?measure t ~live =
   | _ -> assert false
 
 module Private = struct
+  let ordered_add = ordered_add
   let output_reachable = output_reachable
   type view = {code : instruction array; widths : int array; output : int array;
     uniform_widths : int array; collecting : bool; zipped : bool; skip : int array}

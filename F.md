@@ -1608,6 +1608,46 @@ Vec2/3/4 matched-pattern regressions, a nearby rejected recurrence and the
 unchanged after benchmark matrices remain required. The fast path is not yet
 implemented, and the large GPU timing gate stays open.
 
+**Proved ordered-add dispatch bypass (2026-10-09; large GPU gate still open).**
+The approved local fast path is implemented: one pure predicate proves the
+complete non-collecting, one-input Zip addition layout at width 1–4, including
+dependencies and outputs. It loads the input block normally and bypasses
+per-element dependent dispatch, using the original finite check and ordered
+accumulator assignment. The single reviewed/promoted Private predicate API
+lets tests verify the same recognition directly. Scalar/Vec2/3/4 full-byte
+reference and prepared-uniform checks pass at domains 1/8 over empty/changing
+multi-block sources, cancellation/signed zero, errors and state rollback.
+Recurrence, reversed addition, scans and broadcasting remain generic. Review
+tightened `zipped` to exact Zip; a Product fold with the same nine instructions
+is explicitly rejected and remains byte-exact.
+
+The unchanged eight-cell and control benchmarks finish with all 30 native
+parity comparisons at zero difference and every resource/capture assertion
+passing. Large CPU8/GPU medians become 19.203901/5.443920 ms static and
+19.567013/6.654539 ms changing. Fixed-source allocation remains pixel-size
+independent; the bounded predicate adds 528 B/frame static, and uncaptured
+allocations stay unchanged. Astra: “Retain the change.” CPU and small/control
+GPU gates pass; both large GPU cases still miss <5 ms. Raw rows are
+`f-image-map-captures-ordered-add-after*` and
+`f-image-map-uncaptured-recheck-ordered-add-after*`.
+
+Astra's next approved trial adds `skip=[]` to recognition and branches once
+per chunk. Matched programs read their input directly in ascending element/
+component order, allocating no scratch/indices/noise/tables. Generic chunks
+regain unconditional dependent execution and output lookup. Seeds, sources,
+ordered chunks, empty results and transactional fallback stay unchanged. No
+unrolling, parallel reduction, reassociation or cache is allowed. Vec3 counts
+around block/chunk boundaries and a nonfinite failure after a chunk boundary
+must extend the regression before the unchanged direct-input after benchmarks.
+That trial is not implemented yet; if it still misses <5 ms, fresh attribution
+is required before broadening.
+
+Full F5 native/pixel qualification passes (exit 0;
+`/tmp/rays-f-image-ordered-add-full.log`), including both complete workspace
+sweeps, GPU/editor/runtime/oversized-capture tests and all pixel aliases.
+Actual display is 1×; 2× goldens remain unqualified.
+Shipping passes (exit 0; `/tmp/rays-f-image-ordered-add-ship.log`).
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing

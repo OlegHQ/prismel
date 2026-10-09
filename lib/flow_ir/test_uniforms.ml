@@ -6,7 +6,9 @@ let same a b=match a,b with
   |Ok a,Ok b->bytes a=bytes b
   |Error a,Error b->Flow.Diagnostic.to_string a=Flow.Diagnostic.to_string b
   |_->false
-let components=function E.Float x->[|x|]|Vec3(x,y,z)->[|x;y;z|]|_->assert false
+let components=function E.Float x->[|x|]|Vec2(x,y)->[|x;y|]
+  |Vec3(x,y,z)->[|x;y;z|]|Vec4(x,y,z,w)->[|x;y;z;w|]|_->assert false
+let width=function Flow.Ty.Float->1|Vec2->2|Vec3->3|Vec4->4|_->assert false
 let source ty : Flow.Op.t={Flow_ir.Operators.noise3 with
   name="probe/data";packed_extension=None;
   signature={pos=[];opt=[];rest=None;kw=[]};out=(fun _->Flow.Ty.Array ty);
@@ -21,9 +23,11 @@ let workspace ?(bindings="") ops body=
 let evaluate workspace=List.assoc ["g";"tested"](ok(E.static ~record:true workspace)).records
   |> List.hd |> snd
 let fixture ?override ?seed ty reducer=
-  let vector=ty=Flow.Ty.Vec3 in
-  let seed=Option.value ~default:(if vector then "[-0.0 -0.0 -0.0]"else "-0.0") seed in
-  let body=if vector then "[s.x s.y s.z t]"else "[s uv.x uv.y t]"in
+  let width=width ty in
+  let seed=Option.value ~default:(if width=1 then "-0.0" else
+    "["^String.concat " "(List.init width(fun _->"-0.0"))^"]") seed in
+  let body=match width with 1->"[s uv.x uv.y t]"|2->"[s.x s.y uv.x t]"
+    |3->"[s.x s.y s.z t]"|_->"[s.x s.y s.z s.w]"in
   let workspace=workspace ~bindings:("data (probe/data) s (reduce "^reducer^" "^seed^" data)")
     [source ty]("(fn [(uv : vec2)] "^body^")")in
   (* Exercise the compiler's independent declaration guard even for an unchecked extension. *)
@@ -35,13 +39,19 @@ let fixture ?override ?seed ty reducer=
   let packed=match value with E.Residual r->
     P.compile r(E.Private.residual_view r).term |> Option.get|_->assert false in
   value,sum,packed
-let observed counter=Some((fun()->0.),(fun packed ~seconds:_ ~reference->
-  if not reference && not(P.Private.view packed).collecting then incr counter))
+let observed ?fast counter=Some((fun()->0.),(fun packed ~seconds:_ ~reference->
+  if not reference && not(P.Private.view packed).collecting then begin
+    incr counter;Option.iter(fun expected->assert(P.Private.ordered_add packed=expected))fast
+  end))
 let cancellation i=match i mod 5 with 0->1e16|1->1.|2-> -1e16|3->1.|_-> -0.
-let data ty count time=if ty=Flow.Ty.Float then
-    E.Float_array(Array.init count(fun i->if i=count-1 then time else cancellation i))
-  else E.Vec3_array(Array.init(count*3)(fun i->match i mod 3 with
-    |0->cancellation(i/3)|1->time|_-> -0.))
+let data ty count time=
+  let width=width ty in
+  let values=Array.init(count*width)(fun i->if width=1 then
+    (if i=count-1 then time else cancellation i)
+    else match i mod width with
+    |0->cancellation(i/width)|1->time|2-> -0.|_->cancellation(i/width)+.time)in
+  match width with 1->E.Float_array values|2->Vec2_array values
+    |3->Vec3_array values|_->Vec4_array values
 let resolve_source current=function
   |E.Struct("probe/data",_,_)->Ok !current
   |_->Error(Flow.Diagnostic.error ~code:"E_DATA_SOURCE" "Unexpected source.")
@@ -50,7 +60,7 @@ let ()=
   let custom={addition with arithmetic=None;
     body=(fun ~live:_ ~node:_ args->match List.map snd args with
       |[a;b]->Flow.Value.Float(Flow.Value.num a-.Flow.Value.num b)|_->assert false)}in
-  List.iter(fun(ty,reducer,override,seed,packed_expected)->
+  List.iter(fun(ty,reducer,override,seed,packed_expected,fast)->
     let value,sum,packed=fixture ?override ?seed ty reducer in
     List.iter(fun count->List.iter(fun time->
       let current=ref(data ty count time)in let original=bytes !current in
@@ -62,20 +72,46 @@ let ()=
       let uniform=match scalar with E.Int n->[|float n|]|_->components scalar in
       List.iter(fun domains->Rays_math.Parallel.run ~domains(fun()->
         let cpu=ref 0 and gpu=ref 0 in
-        assert(same(P.force ~resolve:(resolve_source current) ?measure:(observed cpu) packed ~live)expected);
+        assert(same(P.force ~resolve:(resolve_source current) ?measure:(observed ~fast cpu) packed ~live)expected);
         assert(same(Flow_ir.Executor.force ~resolve:(resolve_source current)
           (ok(Flow_ir.Executor.compile sum)) ~live)(Ok scalar));
-        let prepared=ok(P.Private.prepare ~resolve:(resolve_source current) ?measure:(observed gpu) packed ~live)in
+        let prepared=ok(P.Private.prepare ~resolve:(resolve_source current) ?measure:(observed ~fast gpu) packed ~live)in
         assert(Array.exists(fun actual->bytes actual=bytes uniform)prepared.uniforms);
         assert((!cpu>0)=packed_expected && (!gpu>0)=packed_expected);
         assert(bytes !current=original))) [1;8]) [0.;0.25;0.5]) [0;32769])
-    [Flow.Ty.Float,"+",None,None,true;
-     Float,"(fn [a x] (+ a x))",None,None,true;
-     Vec3,"+",None,None,true;
-     Vec3,"(fn [a x] (+ a x))",None,None,true;
-     Float,"min",None,None,false;
-     Float,"+",Some custom,None,false;
-     Float,"+",None,Some "0",false];
+    [Flow.Ty.Float,"+",None,None,true,true;
+     Float,"(fn [a x] (+ a x))",None,None,true,true;
+     Vec2,"+",None,None,true,true;
+     Vec3,"+",None,None,true,true;
+     Vec4,"+",None,None,true,true;
+     Vec3,"(fn [a x] (+ a x))",None,None,true,true;
+     Float,"(fn [a x] (+ (* a 0.99) x))",None,None,true,false;
+     Vec3,"(fn [a x] (+ x a))",None,None,true,false;
+     Float,"min",None,None,false,false;
+     Float,"+",Some custom,None,false,false;
+     Float,"+",None,Some "0",false,false];
+  List.iter(fun body->
+    let value=evaluate(workspace [] body)in
+    let packed=match value with E.Residual r->P.compile r(E.Private.residual_view r).term
+      |> Option.get|_->assert false in
+    assert(not(P.Private.ordered_add packed));
+    List.iter(fun domains->Rays_math.Parallel.run ~domains(fun()->
+      let live=Frame_input.at_time 0. in
+      assert(same(P.force packed ~live)(E.Private.force_reference value ~live))))[1;8])
+    ["(scan [a [t 0.0]] [x (map (fn [x] [x -0.0]) (array/range 32769))] (+ a x))";
+     "(fold [a [t 0.0]] [x (array/range 32769)] (+ a x))"];
+  let value=evaluate(workspace []
+    "(fold [a [t 0.0 0.0]] [x (array/vec3 32769 [0.25 -0.0 1.0])] (+ a x))")in
+  let packed=match value with E.Residual r->P.compile r(E.Private.residual_view r).term
+    |> Option.get|_->assert false in
+  (* Same instructions as a supported reduction, but the fold is a Product loop. *)
+  assert((P.Private.view packed).code=[|P.Input(0,3,0);Input(0,3,1);Input(0,3,2);
+    Accumulator 0;Accumulator 1;Accumulator 2;
+    Binary(Add,3,0);Binary(Add,4,1);Binary(Add,5,2)|]);
+  assert(not(P.Private.ordered_add packed));
+  List.iter(fun domains->Rays_math.Parallel.run ~domains(fun()->
+    let live=Frame_input.at_time 0.25 in
+    assert(same(P.force packed ~live)(E.Private.force_reference value ~live))))[1;8];
   (* A resolver may advance a fold before a later reduction error; both callers roll it back. *)
   let value,_,packed=fixture Flow.Ty.Float "+"in
   let fold=evaluate(workspace [] "(state [a 0.0] (+ a 1.0))")in

@@ -56,6 +56,9 @@ val reference : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list
   t -> live:Flow.Eval.live -> (Flow.Eval.value, Flow.Diagnostic.t) result
 
 module Private : sig
+  val ordered_add : t -> bool
+  (** Recognizes the exact component-wise non-collecting ordered-add program. *)
+
   val output_reachable : t -> bool array
   (** Fresh instruction mask used by GPU qualification and code generation. *)
 
