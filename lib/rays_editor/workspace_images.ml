@@ -298,6 +298,41 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
         let int key default=Option.fold ~none:default ~some:V.int_of(List.assoc_opt key args)in
         let number key default=Option.fold ~none:default ~some:V.num(List.assoc_opt key args)in
         let node=plan.nodes.(id)in
+        if node.kind="exact" then begin
+          let* child=resolve t ~display:true ~state ~live plan (List.assoc "value" args)in
+          let source=Option.get child.image in
+          let width,height=Image.get_size source in
+          let resource=Image.Private.resource source in
+          let* _=Result.map_error(fun e->error(Format.asprintf "%a" Runtime_resources.pp_error e))
+            (Runtime_resources.Image.Private.gpu_snapshot resource)in
+          let key=authored_key "exact:" node ^ Marshal.to_string
+            (t.serial,Image.Private.identity source,Runtime_resources.Image.generation resource,width,height)
+            [Marshal.No_sharing]in
+          let result=match List.assoc_opt key t.entries with
+            |Some entry->Ok entry
+            |None->
+                if List.length t.entries+request.pending_images>=64 then
+                  Error(error "A workspace owns at most 64 image snapshots.")else begin
+                request.pending_images<-request.pending_images+1;
+                Fun.protect ~finally:(fun()->request.pending_images<-request.pending_images-1)(fun()->
+                  let payload=ref None in
+                  let* image=Workspace_resources.image t.resources key(fun()->
+                    (* Admission precedes the read. Pixels returns owned bytes;
+                       the native image copies them and the CPU snapshot owns them. *)
+                    let ( let* )=Result.bind in
+                    let* bytes=Image.Private.pixels source in
+                    let* cpu=Result.map_error(fun d->d.Procedural.Diagnostic.message)
+                      (CPU.Private.of_owned_rgba8 ~width ~height bytes)in
+                    let* image=Image.upload_rgba ~width ~height ~rgba:bytes()in
+                    payload:=Some cpu;Ok image)in
+                  let payload=Option.get !payload in
+                  let stamp={serial=t.serial;frame=live;state_stamp="";sources=[]}in
+                  let entry={image=Some image;cpu=Some{payload;stamp};texture=Some(texture payload);
+                    borrowed=None;display=Some stamp;canvas=None}in
+                  t.entries<-(key,entry)::t.entries;Ok entry)
+                end in
+          Result.map(fun entry->t.resolved.(id)<-Some entry;entry)result
+        end else begin
         let* sources=List.fold_left(fun result source->let* sources=result in
           let* prepared=prepare_source t request ~state ~live plan source in
           Ok((source,prepared)::sources))(Ok[])t.source_ids.(id)in
@@ -381,7 +416,8 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
                   if display then Ok(Option.get child.image)else
                   let payload=(Option.get child.cpu).payload in
                   let width=CPU.width payload and height=CPU.height payload in
-                  match child.image with
+                  if Option.fold ~none:false ~some:((==)(Option.get child.cpu).stamp)child.display then
+                    Ok(Option.get child.image)else match child.image with
                   |Some image when Runtime_resources.Image.Private.gpu_snapshot
                       (Image.Private.resource image)=Ok None->
                       child.display<-None;
@@ -437,6 +473,7 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
           if display then entry.display<-Some stamp;
           if previous=None then t.entries<-(key,entry)::t.entries;Ok entry))in
         Result.map(fun entry->t.resolved.(id)<-Some entry;entry)result
+        end
     |_->Error(error "Expected an image value.")
     with V.Fail(code,message,span)->Error(Flow.Diagnostic.error ?span ~code message)
       |Invalid_argument message|Failure message->Error(error message))in

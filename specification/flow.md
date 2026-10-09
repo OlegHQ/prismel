@@ -1502,6 +1502,19 @@ Live rendering replaces pixels in the same owned image. SOP consumers receive an
 RGBA snapshot resolved on the initial domain before a worker starts. `image/render` uses
 the native offscreen Metal Canvas, including during fixed-step export.
 
+`(exact image)` explicitly freezes the current successful display publication as
+an immutable RGBA8 image. A GPU publication is read back once per source identity,
+generation and dimensions at that exact site in the current plan. Repeated requests
+reuse the snapshot; a changed publication or replan creates a distinct native image
+and CPU payload. Previously constructed scenes retain their frozen pixels. These
+versions remain pinned under the workspace's existing 64-image limit, including
+their source images; admission failure returns `E_IMAGE` before reading pixels.
+An expired source is refused even when a frozen version is cached. CPU snapshots
+remain valid after close, while native resources are released once. Frozen images
+remain image resources: state rejects them, including aliases, lists, records and
+opaque values, before exposing a seed or storing a step. Graph image inputs accept
+them. Numeric and packed-array `exact` retain their existing data semantics.
+
 `image/map` requires a Vec2-to-Vec4 function and defaults to 256×256. Its
 function input is an editable graph zone with typed UV rails. Pixel centers
 are `((x+0.5)/width, (y+0.5)/height)`, with the top row first and x varying
@@ -1512,15 +1525,16 @@ refusal. Authored image qualification also covers these instantiated pixel
 functions. Qualified workspace display can select the GPU through the existing
 measured placement policy, convert/copy completed output to RGBA8 and publish a
 resident image for draw/image, UI and mesh consumers. One owner retains at most
-64 authored image sites; failed new publications consume no sink slot. An exact
+64 authored image sites; failed new publications consume no sink slot. An ordinary
 CPU request has its own immutable payload and validity stamp: it does not read
 or replace the displayed GPU image, and exact-first map cooking creates no
 runtime image. The current image/render route cooks child CPU payloads so nested
-GPU display cannot change exact rounding. Display image/render retains a native
+GPU display cannot change ordinary CPU rounding; an explicit `(exact image)` child
+uses its frozen bytes. Display image/render retains a native
 Canvas and publishes its texture through the same image boundary. Connected
 timing/allocation gates are qualified for the measured uncaptured fixtures in
-the performance log. Captured geometry and frozen exact GPU snapshots remain
-F2.2 work; the source-cone and input-proof helpers are foundation only.
+the performance log. Actual-owner captured geometry is implemented; its changing
+large-source timing gate and expanded owner qualification remain F2.2 work.
 
 `scene/geometry geometry :texture image` applies the same image as a texture
 without changing its transform, material or render state. The image card footer
@@ -1558,6 +1572,5 @@ width-four output with one element per requested pixel. It writes one
 reusable padded RGBA8 buffer, copies into a reusable texture, and publishes
 a generation-checked borrowed token after completion. Unchanged dimensions
 create no persistent resources; resize and failed writes invalidate previous
-tokens. This implements the producer/converter boundary. Workspace image
-publication, resident consumers and frozen exact snapshots remain required
-before the image display route can use it.
+tokens. Workspace publication and resident consumers use this boundary;
+explicit `(exact image)` freezes the publication through the resource owner.

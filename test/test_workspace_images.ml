@@ -280,6 +280,8 @@ let () =
   end)
     ["(image/noise :width 2 :height 2 :frequency (+ 0.3 (* 0.01 t)) :seed 31)";
      "(image/map (fn [uv] [uv.x uv.y (* t 0.05) 1]) :width 65 :height 3)";
+     "(exact (image/map (fn [uv] [uv.x uv.y (* t 0.05) 1]) :width 65 :height 3))";
+     "(exact (image/noise :width 2 :height 2 :frequency (+ 0.3 (* 0.01 t)) :seed 31))";
      "(image/load \"sdl3_image_fixtures/sample.png\")"]
 
 let ()=

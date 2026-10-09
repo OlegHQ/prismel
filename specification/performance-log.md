@@ -11997,3 +11997,59 @@ Pre-commit shipping passes, exit0
 (`/tmp/rays-f-image-scalar-vec3-ship.log`). Retain the scalar Vec3 branch and
 stronger regression with all raw benchmark/assembly artifacts. Changing-source
 GPU<5 ms, frozen images, expanded owner coverage, F3 and final audit remain open.
+
+### F2.2 frozen `(exact image)` functional checkpoint (2026-10-09)
+
+The resource owner resolves and validates the current successful display
+publication before snapshot lookup. Exact site, plan serial and source
+identity/generation/dimensions identify one immutable owned RGBA8 payload and
+distinct native image. The existing 64-entry/native-image admissions pin
+versions until close; new admission occurs before reading source pixels.
+Ordinary CPU image payloads remain independent of GPU display publication.
+Explicit snapshot reads are intentional; no warm display measurement includes
+them and no timing/allocation gate is claimed by this checkpoint.
+
+Astra: “The functional boundary is acceptable.” Numeric and array exact
+semantics, graph image input composition, typed resource/state boundaries and
+same-generation source validation remain intact. Focused Flow/graph/SOP checks
+pass; static direct/alias/container/called-function/graph-result state cases and
+opaque runtime seed/step backstops preserve caller state. Projection input edits
+and text round-trip produce the new typed image node.
+
+The native owner test passes: independent CPU blue127, GPU-frozen blue128; same
+publication reuses the payload without another read; advance, resize and
+identical replan produce distinct versions while the saved composed drawing
+Scene renders unchanged bytes. An expired borrowed callback at unchanged source
+generation fails twice without readback/allocation; restoring that publication
+reuses its snapshot. Nonfinite frame failure rolls back caller state and the
+next finite publication recovers. CPU snapshots remain readable after owner
+close; resource creation/destruction counts match and native handles return to
+baseline.
+
+Both CPU7×3 and qualified GPU65×17 capacity fixtures retain63 frozen versions
+plus one mutable source. The65th resource fails twice without another native
+image or source read. GPU reads stay63; CPU reads stay0. Saved payload bytes
+remain unchanged and cleanup releases every resource. Qualification preserves
+the existing1024-element GPU placement floor; the small fixture exercises CPU
+snapshot ownership and the larger one exercises GPU readback admission.
+
+Full F5 native/pixel qualification passes, exit0
+(`/tmp/rays-f-frozen-exact-full.log`), with candidate source held fixed:
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/rays_editor/native_qualification/qualification @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+Both complete workspace sweeps cover38 standard files,2 actual custom-catalog
+executables and13 fixtures at four times/domains1/8. Native owner/capture/Canvas,
+oversized-source, runtime and requested pixel checks pass. Ordinary snapshot
+consumers additionally cover CPU exact image/map and image/noise through SOP,
+drawing and texture command parity at domains1/8. Corrected focused checks pass;
+an earlier mixed command reported an undefined `@test/test_workspace_images`
+alias, corrected by building and running that existing test executable directly
+and completing the full `@runtest` above. Pre-commit shipping passes, exit0
+(`/tmp/rays-f-frozen-exact-ship.log`). The teaching README changes a watched
+sketch tree, so shipping also reruns and passes the complete38+2+13 workspace
+sweep on the final tree. Dependency gate and printing/threading checks pass.
+Actual display remains1×;2× goldens remain unqualified.
+Changing-source GPU<5 ms, expanded owner coverage, F3 and final audit stay open.

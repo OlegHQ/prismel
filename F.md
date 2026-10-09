@@ -118,7 +118,7 @@ saying what the table establishes and what it does not, the raw file paths.
 **Current open work (2026-10-09).** The paragraphs below preserve checkpoint
 history; their earlier “open” statements are not the current task list. Known
 remaining work is the changing 65,536-point capture GPU producer gate
-(5.527799 ms on the retained scalar Vec3 branch against <5 ms), frozen `(exact image)`, expanded actual-owner
+(5.527799 ms on the retained scalar Vec3 branch against <5 ms), expanded actual-owner
 packed-instance/state/replan/failure coverage, and F3 fan-out (latest retained
 production learned-eight median63.197136 ms against≤50.600 ms). The chunked
 vertex trial is rejected and restored; its evidence and boundary regression
@@ -1823,6 +1823,34 @@ dispatch and conversion. Retain per-trial GC collection-count deltas only from
 snapshots outside timing; they cannot measure GC elapsed time. Restore probes;
 no further arithmetic/ownership/cache optimization is approved yet. Frozen
 images, expanded owner coverage, F3 and the final audit remain open.
+
+**Frozen exact image checkpoint (2026-10-09).** `(exact image)` now creates a
+typed deferred image card with an editable input, and Lower routes it through
+the existing initial-domain resource owner. The owner first resolves and
+validates a successful child display publication, including cache hits, then
+keys the snapshot by exact site, plan serial and source identity/generation/size.
+Owned RGBA8 CPU bytes and a distinct native image stay immutable across later
+publications and replans. The existing 64-entry/native-resource admission pins
+versions until close and refuses overflow before snapshot readback/allocation.
+Ordinary CPU image requests retain their independent CPU reference; explicit
+snapshots intentionally capture the selected display bytes.
+
+Static direct/alias/list/record/called-function/graph-result state refusal and
+opaque runtime seed/step refusal pass. Runtime validation recursively resolves
+data before exposing a seed or storing next; failed requests preserve caller
+state. Numeric and packed-array exact state remains valid. Graph projection,
+input gestures and text round-trip pass. Native checks prove CPU blue127 versus
+frozen GPU128, one read per version, saved Scene stability through advance,
+resize and identical replan, repeated same-generation expired-source refusal,
+recovery, legal image graph overrides and retained CPU bytes after clean close.
+CPU7×3 and GPU65×17 capacity checks retain63 snapshots plus their source and
+refuse the65th resource without another readback. Astra approves the functional
+boundary; this checkpoint introduces no performance claim or gate. Full F5
+qualification passes (exit0; `/tmp/rays-f-frozen-exact-full.log`), including both
+complete workspace sweeps, native owner/capture/Canvas and runtime/pixel checks.
+Actual1× only;2× goldens remain unverified. Pre-commit shipping passes (exit0;
+`/tmp/rays-f-frozen-exact-ship.log`). Large changing-source
+GPU<5 ms, expanded owner coverage, F3 and final audit remain open.
 
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row

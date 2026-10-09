@@ -302,7 +302,9 @@ let all = frame @ arrays @ draw @ host @ integers @ images @ [
     Float(fin name(exp(num(List.assoc "x" args))))};
   mk ~category:"Convert" "exact" ["value", Ty.Any]
     (function ty :: _ -> ty | _ -> Ty.Any)
-    {run = fun ~name:_ ~node:_ args -> List.assoc "value" args};
+    {run = fun ~name ~node args ->
+      let value = List.assoc "value" args in
+      if Value.ty_of value = Ty.image then node name args else value};
   binary "+" (( +. ));
   binary "-" (( -. ));
   binary "*" (( *. ));

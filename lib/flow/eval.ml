@@ -597,7 +597,7 @@ and ev_raw c env (x : W.term) : value =
            let state,_ = state_plane c in let key = state_key c zone in
            match Smap.find_opt key state.next with
            | Some v -> v
-           | None -> let v = coerce_to x.ty (ev c env step) in
+           | None -> let v = state_data c (coerce_to x.ty (ev c env step)) in
                state.next <- Smap.add key v state.next; v)
   | W.If (cnd, a, b) ->
       if truthy (concrete c (ev (sub c "if") env cnd)) then ev (sub c "then") env a
@@ -667,7 +667,19 @@ and state_previous c env zone init =
   let state,frame = state_plane c in
   begin_frame state (Lazy.force c.st.source) frame;
   match Smap.find_opt (state_key c zone) state.before with
-  | Some v -> v | None -> ev c env init
+  | Some v -> state_data c v | None -> state_data c (ev c env init)
+
+and state_data c value =
+  match concrete c value with
+  | Deferred _ | No_geo -> fail "E_STATE_TYPE" "State stores data, not deferred nodes or layouts."
+  | Struct (_, ty, _) when Ty.shape ty ->
+      fail "E_STATE_TYPE" "State stores data, not deferred nodes or layouts."
+  | Fn _ -> fail "E_FN_ESCAPES" "A function value cannot be stored in state."
+  | List values -> List (Array.map (state_data c) values)
+  | Record fields -> Record (List.map (fun (name, value) -> name, state_data c value) fields)
+  | Struct (name, ty, fields) ->
+      Struct (name, ty, List.map (fun (name, value) -> name, state_data c value) fields)
+  | value -> value
 
 and apply_op c ?(authored = 0) name (vals : (string * value) list) : value =
   let o = match Op.find ~extra:c.st.ops name Context.value with

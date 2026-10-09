@@ -1,4 +1,131 @@
 let ok=function Ok value->value|Error d->failwith(Flow.Diagnostic.to_string d)
+let ()=
+  let module E=Flow.Eval in
+  let module Image=Rays.Image in
+  let module Native=Runtime_resources.Image in
+  let lower width height=Flow.Syntax.parse(Printf.sprintf {|(workspace frozen
+    (graph img :context image
+      (let* [bias (* t 0.125)]
+        (image/map (fn [uv] [bias uv.y (- 0.5 0.000000001) 1]) :width %d :height %d)))
+    (graph frozen :context image (exact (ref img)))
+    (graph picture :context draw [(image : image (image/noise :width 1 :height 1))]
+      (draw/image image))
+    (graph composed :context draw (ref picture :image (ref frozen))))|}width height)
+    |> ok |> Flow_sop.Lower.workspace ~factories:Sop_catalog.Editor.factories |> ok in
+  let resources=Workspace_resources.create()and gpu=Workspace_gpu.create()in
+  let owner=Workspace_images.create ~domains:1 ~gpu resources in
+  Workspace_gpu.qualification gpu;
+  let state=E.create_state()in let original_stamp=E.state_stamp state in
+  let _,handles=Ogpu.Impl.create_driver()in let before=handles()in
+  let plan=ref(lower 65 17)in
+  let bind lowered=plan:=lowered;Workspace_images.bind owner lowered in
+  bind !plan;
+  let value kind=let n=Array.find_opt(fun(n:E.node)->n.kind=kind)(!plan).plan.nodes |> Option.get in
+    E.Deferred(Flow.Ty.image,n.id)in
+  let payload kind time=Workspace_images.payload owner (!plan).plan ~state
+    ~live:(Frame_input.at_time time)(value kind)in
+  let image kind time=Workspace_images.image owner (!plan).plan ~state
+    ~live:(Frame_input.at_time time)(value kind)in
+  let bytes payload=Procedural.Image.Private.rgba8 payload |> Option.get in
+  let held=ref None in
+  Fun.protect ~finally:(fun()->Workspace_images.close owner;Workspace_resources.close resources;Workspace_gpu.close gpu)(fun()->
+    let ordinary=payload "image/map" 0. |> ok in
+    assert(Char.code(Bytes.get(bytes ordinary)2)=127 && resources.images_created=0);
+    let first=payload "exact" 0. |> ok in
+    held:=Some first;
+    let saved_bytes=Bytes.copy(bytes first)in
+    let frozen=image "exact" 0. |> ok and child=image "image/map" 0. |> ok in
+    let native=Image.Private.resource child in
+    assert(Char.code(Bytes.get saved_bytes 2)=128 && Image.Private.identity frozen<>Image.Private.identity child
+      && Native.Private.readbacks native=1 && resources.images_created=2);
+    assert(payload "exact" 0. |> ok == first);
+    assert(payload "image/map" 0. |> ok == ordinary);
+    assert(Native.Private.readbacks native=1);
+    let drawing=Sketch_support.Drawing.prepare (!plan).plan
+      (List.assoc "composed" (!plan).evaluated.results) |> ok in
+    let scene=Sketch_support.Drawing.render_prepared ~state
+      ~image:(Workspace_images.image owner (!plan).plan ~state ~live:(Frame_input.at_time 0.))
+      drawing ~live:(Frame_input.at_time 0.) ~size:(65,17) |> ok in
+    let render_saved()=
+      let canvas=Rays.Canvas.create ~width:65 ~height:17 |> Result.get_ok in
+      Fun.protect ~finally:(fun()->Rays.Canvas.destroy canvas)(fun()->
+        Rays.Canvas.render canvas scene;
+        let image=Rays.Canvas.to_image canvas |> Result.get_ok in
+        Fun.protect ~finally:(fun()->Image.destroy image)(fun()->Image.Private.pixels image |> Result.get_ok))in
+    let saved_scene=render_saved()in
+    assert(saved_scene=saved_bytes);
+    let second=payload "exact" 1. |> ok in
+    assert(second!=first && bytes second<>saved_bytes && bytes first=saved_bytes);
+    assert(Image.Private.identity(image "exact" 1. |> ok)<>Image.Private.identity frozen
+      && Native.Private.readbacks native=2 && render_saved()=saved_scene);
+    (* Expire a borrowed source without changing its published generation.
+       Even a frozen-key hit must validate it before returning the payload. *)
+    let texture=match Native.Private.gpu_snapshot native |> Result.get_ok with
+      |Some(_,_,_,texture)->texture|None->assert false in
+    let available=ref true in
+    Native.Private.replace_gpu_source native ~width:65 ~height:17
+      ~source:(fun()->if !available then Some texture else None) |> Result.get_ok;
+    let third=payload "exact" 1. |> ok in
+    let reads=Native.Private.readbacks native and created=resources.images_created
+    and generation=Native.generation native in
+    available:=false;
+    for _=1 to 2 do
+      assert(match payload "exact" 1. with Error d->d.Flow.Diagnostic.code="E_IMAGE"|Ok _->false)
+    done;
+    assert(Native.Private.readbacks native=reads && resources.images_created=created
+      && Native.generation native=generation && E.state_stamp state=original_stamp);
+    available:=true;
+    assert(payload "exact" 1. |> ok == third && Native.Private.readbacks native=reads);
+    assert(Result.is_error(payload "exact" Float.infinity));
+    assert(E.state_stamp state=original_stamp && bytes first=saved_bytes);
+    let recovered=payload "exact" 2. |> ok in
+    assert(bytes recovered<>bytes second && render_saved()=saved_scene);
+    bind(lower 17 5);
+    let resized=payload "exact" 2. |> ok in
+    assert(Procedural.Image.width resized=17 && Procedural.Image.height resized=5
+      && resized!=recovered && bytes first=saved_bytes && render_saved()=saved_scene);
+    bind(lower 17 5);
+    let replanned=payload "exact" 2. |> ok in
+    assert(replanned!=resized && bytes replanned=bytes resized && render_saved()=saved_scene);
+    assert(E.state_stamp state=original_stamp));
+  let saved=Option.get !held in
+  assert(Char.code(Bytes.get(bytes saved)2)=128 && resources.images_created=resources.images_destroyed
+    && handles()=before);
+  print_endline "Frozen exact images: CPU127/GPU128, read-once versions, saved Scene, expiry/refusal/recovery, resize/replan, ref composition and owned close pass"
+
+let ()=List.iter(fun(width,height,expected_reads)->
+  let module E=Flow.Eval in
+  let resources=Workspace_resources.create()and gpu=Workspace_gpu.create()in
+  let owner=Workspace_images.create ~domains:1 ~gpu resources in
+  Workspace_gpu.qualification gpu;
+  let lowered=Flow.Syntax.parse(Printf.sprintf {|(workspace versions (graph img :context image
+    (exact (image/map (fn [uv] [(* t 0.0078125) uv.y 0.5 1]) :width %d :height %d))))|}width height)
+    |> ok |> Flow_sop.Lower.workspace ~factories:Sop_catalog.Editor.factories |> ok in
+  Workspace_images.bind owner lowered;
+  let n=Array.find_opt(fun(n:E.node)->n.kind="exact")lowered.plan.nodes |> Option.get in
+  let child=Array.find_opt(fun(n:E.node)->n.kind="image/map")lowered.plan.nodes |> Option.get in
+  let state=E.create_state()in
+  let _,handles=Ogpu.Impl.create_driver()in let before=handles()in
+  let held=ref [||]in
+  Fun.protect ~finally:(fun()->Workspace_images.close owner;Workspace_resources.close resources;Workspace_gpu.close gpu)(fun()->
+    let resolve frame=Workspace_images.payload owner lowered.plan ~state
+      ~live:{(Frame_input.at_time(float frame))with frame}(E.Deferred(Flow.Ty.image,n.id))in
+    held:=Array.init 63(fun frame->resolve frame |> ok);
+    let source=Workspace_images.image owner lowered.plan ~state
+      ~live:{(Frame_input.at_time 62.)with frame=62}(E.Deferred(Flow.Ty.image,child.id)) |> ok in
+    let native=Rays.Image.Private.resource source in
+    assert(resources.images_created=64 && Runtime_resources.Image.Private.readbacks native=expected_reads);
+    for _=1 to 2 do
+      assert(match resolve 63 with Error d->d.Flow.Diagnostic.code="E_IMAGE"|Ok _->false)
+    done;
+    assert(resources.images_created=64 && Runtime_resources.Image.Private.readbacks native=expected_reads);
+    Array.iteri(fun frame payload->
+      let bytes=Procedural.Image.Private.rgba8 payload |> Option.get in
+      assert(Char.code(Bytes.get bytes 0)=int_of_float(Float.round(float frame*.0.0078125*.255.)))) !held);
+  assert(resources.images_created=resources.images_destroyed && handles()=before);
+  assert(Array.length !held=63 && Procedural.Image.width (!held).(0)=width);
+  Printf.printf "Frozen exact capacity %dx%d: 63 pinned versions plus source, 65th resource refuses before readback, retained bytes survive close\n"width height)
+  [7,3,0;65,17,63]
 let ()=if Array.mem "--capture-budget" Sys.argv then begin
   let module E=Flow.Eval in
   let module P=Procedural in

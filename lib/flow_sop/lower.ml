@@ -231,7 +231,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           let template = templ.(node.id) in
           let cid = compiled.(node.id) in
           let live = List.filter (fun (_, v) -> E.is_live v) node.args in
-          let resource = node.kind="image/load" || node.kind="image/render" || node.kind="image/map" in
+          let resource = node.ty=Ty.image && node.kind="exact"
+            || node.kind="image/load" || node.kind="image/render" || node.kind="image/map" in
           if not template && node.kind <> "sop/with_attr" && not resource then
             pending := List.rev_append (List.map (fun (field, value) ->
               {node = cid; field; value}) live) !pending;
@@ -249,7 +250,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
               | arg -> [arg]) args in
           let dynamic = ref [] in
           let p = match node.kind with
-            | "image/load" | "image/render" | "image/map" ->
+            | "image/load" | "image/render" | "image/map" | "exact" when resource ->
                 let factory=Edit.factory ~key:node.kind ~label:node.kind ~category:["Image"] ~arity:0
                   (fun _->resource_image node.kind (Error(Diagnostic.error ~code:"E_IMAGE"
                     "This image needs an initial-domain image resolver.")))in
@@ -532,7 +533,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
               ~values ~sources:(deps n) (Procedural.Node.inputs node))))) nodes)
         frame_nodes plan.nodes in
       let frame_nodes=Array.fold_left(fun nodes (n:E.node)->
-        if (n.kind<>"image/load" && n.kind<>"image/render" && n.kind<>"image/map") || Edit.find graph ~node_id:compiled.(n.id)=None
+        if (n.kind<>"image/load" && n.kind<>"image/render" && n.kind<>"image/map"
+            && not(n.kind="exact" && n.ty=Ty.image)) || Edit.find graph ~node_id:compiled.(n.id)=None
           then nodes else Network.Int_map.add compiled.(n.id)(fun ~network state live node->
             match Domain.DLS.get image_provider with
             |None->Error(Diagnostic.error ~code:"E_IMAGE" "Image resources need an initial-domain resolver.")

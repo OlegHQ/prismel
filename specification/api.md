@@ -1010,7 +1010,12 @@ graph is authoritative: it replaces the host's camera and lights, and an empty o
 `Workspace.export` accepts the same custom `?factories` as loading and running.
 It lowers with reference evaluation, uses the declared window seed for captured
 geometry, and resolves image producers recursively through exact CPU cooks before
-uploading its independent export images.
+uploading its independent export images. This describes ordinary image requests;
+explicit Lisp `(exact image)` freezes the selected successful display publication,
+including its GPU RGBA8 bytes when selected. Frozen versions own distinct native
+images and immutable CPU snapshots, reuse one read per publication and remain
+pinned under the workspace's64-image resource limit until close. State cannot
+store them; image graph inputs can. See `specification/flow.md`, “Images”.
 
 `Flow.Op.all` declares the built-in operators once for checking, evaluation and editor menus.
 `Flow.Value.t` carries pure values with evaluator-specific function and residual type parameters;

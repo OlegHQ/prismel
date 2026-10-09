@@ -136,6 +136,30 @@ let () =
   assert (Option.is_none (Projection.find (Projection.of_graph catalog edited "g") ["g";"output#0#0#0"]))
 
 let () =
+  let source=ok(Syntax.parse {|(workspace frozen (graph g :context image
+    (let* [img (image/noise :width 3 :height 2) snapshot (exact img)] snapshot)))|})in
+  let check source=match Workspace.check catalog source with
+    |Some workspace,[]->workspace|_,ds->failwith(String.concat "; "(List.map Diagnostic.to_string ds))in
+  let workspace=check source in
+  let card=Projection.find(Projection.of_graph catalog workspace "g")["g";"snapshot"] |> Option.get in
+  assert(card.head="exact" && card.ty=Ty.image && List.length card.rows=1);
+  let evaluation=ok(Eval.static workspace)in
+  let node=Array.find_opt(fun(n:Eval.node)->n.kind="exact")evaluation.plan.nodes |> Option.get in
+  assert(node.ty=Ty.image && List.mem_assoc "value" node.args
+    && List.assoc "g" evaluation.results=Eval.Deferred(Ty.image,node.id));
+  let replacement=ok(Syntax.parse "(image/noise :width 5 :height 4)") |> List.hd in
+  let source,edited=ok(Flow_edit.apply_checked catalog source
+    (Set_arg{node=card.path;key=Pos 0;sub=[];value=replacement}))in
+  let nested=Projection.find(Projection.of_graph catalog edited "g")["g";"snapshot#0"] |> Option.get in
+  assert(nested.head="image/noise");
+  let text,_=Lisp.print source in
+  let roundtrip=check(ok(Syntax.parse text))in
+  let result=ok(Eval.static roundtrip)in
+  let node=Array.find_opt(fun(n:Eval.node)->n.kind="exact")result.plan.nodes |> Option.get in
+  let child=match List.assoc "value" node.args with Eval.Deferred(_,id)->result.plan.nodes.(id)|_->assert false in
+  assert(List.assoc "width" child.args=Eval.Int 5 && List.assoc "height" child.args=Eval.Int 4)
+
+let () =
   let source = ok (Syntax.parse "(workspace norm (graph g :context value
     (let* [radius (length [3 4 0])] radius)))") in
   let checked = match Workspace.check catalog source with Some w, [] -> w | _, ds ->
