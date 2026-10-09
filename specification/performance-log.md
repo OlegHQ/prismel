@@ -12347,3 +12347,165 @@ established seven-process before/after learned/off/pieces matrix and reversed-
 order learned comparison using the fresh preserved baseline, retaining all rows
 and allocations. The unchanged≤50.600 ms whole learned-eight gate decides;
 no optimization or unreachable verdict is claimed at this attribution checkpoint.
+
+### F3 single source-tag construction: measured gate met (2026-10-09)
+
+Apple M1/Macmini9,1, OCaml5.3, Dune dev, shared16,384 grain; production baseline
+at54fc7716 has identical implementation to51735051. Astra designs/reviews the
+14-line shared `Mesh_merge.merge` change. For a nonempty list, nonblank source
+name and no existing requested primitive tag, merge original inputs then create
+the final tag array once. Subsequent ranges use `Array.fill`; empty inputs still
+consume their index. Cancellation precedes allocation and each range. Existing
+tags/mixed inputs, invalid names and empty lists retain the original path.
+Owned APIs append the tag in the same attribute order. No public API, parameter,
+grain, layout, dependency or tolerance changes.
+
+One independent regression in `lib/rdk/test_rdk.ml` uses8,193/8,191 primitives
+with leading/interspersed/trailing empties, negative base(-7), explicit expected
+topology/payload/tag values(-6/-4) and complete geometry bytes. It tests existing
+tag fallback42/-4, ordering, unchanged input bytes and cancellation at domains1/8,
+invalid-name-before-grain error precedence and an empty list's absent tag.
+A one-domain tagged-minus-plain ceiling of135,168 bytes
+(`8 × 16,384 + 4096`) fails unchanged production at267,528 bytes
+(`/tmp/rays-f-source-tag-before.log`, exit1). After implementation it passes,
+alongside full focused checks/build, exit0
+(`/tmp/rays-f-source-tag-after-focused.log`). The test does not infer timing.
+
+```sh
+_build/default/tools/check.exe @check @lib/rdk/runtest @lib/procedural/runtest tools/bench_workspace_lower.exe
+# Preserve the freshly built candidate and the prior ordinary baseline.
+# Seven processes per command/version, all before modes then all after modes.
+RAYS_BRANCH_NODE_TIMES=1 "$task_exe" --branches 1 learned > "${task_prefix}.csv" 2> "${task_prefix}-nodes.csv"
+RAYS_BRANCH_NODE_TIMES=1 "$task_exe" --branches 1 off > "${task_prefix}.csv" 2> "${task_prefix}-nodes.csv"
+RAYS_BRANCH_NODE_TIMES=1 "$task_exe" --loops 1 learned > "${task_prefix}.csv" 2> "${task_prefix}-nodes.csv"
+# Reverse comparison: seven candidate learned processes, then seven baseline.
+RAYS_BRANCH_NODE_TIMES=1 "$task_exe" --branches 1 learned > "${task_prefix}.csv" 2> "${task_prefix}-nodes.csv"
+```
+
+Preserved executables `/private/tmp/f-merge-source-tags-{before,after}-54fc7716.exe`:
+before SHA256 `1200a25c7ae20f61bbdf9f61f096408ec469453f2ac835e31c9f5486f4e7d9c7`,
+after SHA256 `3a535b92639cd3ff803754031c3979840d6c57303d1b2177a99e17e19a59b204`.
+No temporary profiling source/API/timer is in either executable. All benchmarks
+run alone, without builds/tests/agents. Each process covers domains1/8 with one
+measured cook, after unchanged learning/cache clear/pool warmup where requested.
+Existing Session node timing reports occur after the measured cook.
+All112 raw CSVs are `f-merge-source-tags-{before,after}-{chains-learned,chains-off,pieces-learned}-{0..6}*`
+and `f-merge-source-tags-reverse-{after,before}-chains-learned-{0..6}*`.
+All56 successful process statuses are in `f-merge-source-tags-status.csv`.
+
+Raw validation checks112 whole rows and6132 node rows for finite values,
+placement/domain/cardinality/fanout and unchanged hashes:
+chains `67c129ecc130f8881a2eaf92c053b64c`,2,000,000 points;
+pieces `8ef295fbdea12b586200fd1ffcdcb58f`,3,200,000 points.
+Learned fanouts0/1 at domains1/8; placement-off0. No outlier is excluded.
+
+| Whole-cook median, ms | Before1 | After1 | Before8 | After8 |
+|---|---:|---:|---:|---:|
+| Learned chains | 154.392004 | 152.622938 | 52.356005 | 45.914173 |
+| Placement-off chains | 219.273090 | 208.276987 | 58.030128 | 54.247856 |
+| Learned pieces | 1476.792097 | 1339.178085 | 278.192043 | 245.237827 |
+| Reversed-order learned chains | 157.277107 | 150.286913 | 51.244020 | 46.201944 |
+
+| Existing merge-own median, ms | Before1 | After1 | Before8 | After8 |
+|---|---:|---:|---:|---:|
+| Learned chains | 60.889959 | 55.477142 | 27.810812 | 22.289991 |
+| Placement-off chains | 84.861994 | 74.975014 | 26.460886 | 22.485971 |
+| Learned pieces root | 125.848055 | 116.767883 | 82.349062 | 75.090885 |
+| Reversed-order learned chains | 61.744928 | 54.601908 | 26.864052 | 22.104025 |
+
+| Learned allocation median, bytes | Before1 | After1 | Before8 | After8 |
+|---|---:|---:|---:|---:|
+| Chains caller | 503647672 | 471709952 | 374049576 | 342119720 |
+| Chains program | 503647960 | 471710240 | 505433888 | 473490984 |
+| Pieces caller | 1120474624 | 1069838200 | 785717360 | 734960344 |
+| Pieces program | 1120474912 | 1069838488 | 1131801608 | 1081135216 |
+
+Chain one-domain caller/program savings are31,937,720 bytes, consistent with
+removing the31,936,032-byte temporary source payload plus metadata. Eight-domain
+caller/program counters have their existing distinct coverage and scheduling
+variability; their separate medians are retained rather than treated as equal.
+
+Forward candidate learned-eight samples47.629118/44.987202/45.095921/50.259113/
+48.188925/45.665026/45.914173 ms (range44.987202–50.259113), baseline
+65.922976/55.041790/51.537037/50.856113/52.356005/52.518129/48.963070.
+Reverse candidate46.573877/46.375036/46.201944/45.239925/48.341990/44.408083/
+45.691013 ms (range44.408083–48.341990), baseline53.130865/51.244020/
+51.077127/68.334818/49.843073/50.763130/60.887098.
+All14 candidate learned-eight samples meet≤50.600 ms; the declared gate remains
+the whole-cook median. These do not establish a universal worst-case bound.
+
+Astra audits112 whole rows,112 root-node rows and56 statuses:
+**“met. Keep the source-tag optimization.”** Its source/regression review remains
+approved; one-domain/off/pieces medians improve and both learned-eight medians
+pass. No further F3 optimization is required. The prior `merge_plain` phase timer
+would omit the new final tag allocation/fill, so its interval is not a complete
+merge comparison; Session cook/node clocks include all work and decide this gate.
+Final source-fixed F5, shipping and the overall requirements audit are underway.
+
+### Final field preservation and F requirements audit (2026-10-09)
+
+Apple M1/Macmini9,1, OCaml5.3, Dune dev, actual1× display and real Metal device.
+Three Astra reviewers audit F0/F1/F6/F7, F2.2/F2.3/F2.4/F5, and F2.1/F3/F4/F8
+against actual code/tests and the complete current evidence. They identify no
+remaining implementation defect. The audit closes one explicit pure constant-
+body image-map test gap, performs the previously required post-image field
+re-gate, and corrects stale current documentation; it preserves continuation
+and conditional/optional scope.
+
+The source-tag candidate stays fixed throughout full F5 qualification, exit0
+(`/tmp/rays-f-source-tags-full.log`):
+
+```sh
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/rays_editor/native_qualification/qualification @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+Both complete workspace sweeps cover38 standard files,2 actual custom-catalog
+executables and13 fixtures at four times/domains1/8. Native geometry/image/
+texture/drawing pixels, capture/owner/state/cycle recovery, retained Canvas,
+GPU numerics, runtime/presentation, UI and requested pixel aliases pass.
+The run is on the actual1× display;2× goldens remain unqualified.
+
+After the terminal full-suite exit and while all tests/agents are idle:
+
+```sh
+RAYS_BENCH_DOMAINS=1 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_workspace_lower.exe --fields > specification/performance/f-field-final-cook-1.csv 2> specification/performance/f-field-final-cook-1-stderr.txt
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 _build/default/tools/bench_workspace_lower.exe --fields > specification/performance/f-field-final-cook-8.csv 2> specification/performance/f-field-final-cook-8-stderr.txt
+```
+
+Both processes exit0 (`f-field-final-status.csv`); stderr is empty. The ordinary
+uninstrumented fixture keeps the packed64³ sphere,65³ samples,16,384 grain,
+one untimed warm cook then seven whole-cook trials, with existing GC/allocation
+markers outside timing. No field optimization is made here.
+Every row retains hash `8a9c2d382ab7564328783e84a132cef1`,85,680 points/vertices
+and28,560 primitives. All14 rows and both statuses are reviewed by Astra.
+
+| Final field median | Domains1 | Domains8 |
+|---|---:|---:|
+| Whole cook, ms | 25.650024 | 9.196997 |
+| All-domain allocation, bytes | 26995816 | 27032576 |
+
+Eight-domain samples9.960175/8.832932/8.493185/9.690046/9.368896/9.038925/
+9.196997 ms, range8.493185–9.960175, all below10 ms.
+Astra: **“met — F2.1's gate is preserved on the final measured source.”**
+This requalifies the unchanged field implementation after image/resident work;
+it does not claim a new performance improvement.
+
+The missing pure constant image case adds five lines to existing
+`lib/flow_sop/test_image_kernel.ml`: literal Vec4(0.25,0.5,0.75,1) over387×91,
+independent full RGBA bytes64/128/191/255, ordinary Session cooks at domains1/8.
+Focused @check/Flow SOP tests pass, exit0
+(`/tmp/rays-f-final-constant-image.log`). The full F5 alias selection above is
+then validated again using Dune's cache, exit0
+(`/tmp/rays-f-final-audit-full.log`); no production source changes after the
+initial full run. The dependency gate reports51 libraries,52 rules,18 whitelists
+and0 listed exceptions.
+
+`specification/flow.md` now distinguishes exact CPU evaluation and actual GPU
+placement, independent narrow checker taint and uncertain candidates, ordinary
+CPU image-render requests and resident display children. It supersedes the stale
+changing-source/owner qualification note. F.md's current Images row and final
+requirements table match the implementation and reviewed results.
+All required F implementation/measured items now pass; F2.4/F4 retain their
+conditional/optional scope and F8 hands off future phases, including the distinct
+million-circle difference fixture. Final shipping passes, exit0
+(`/tmp/rays-f-final-audit-ship.log`); the completion commit follows.

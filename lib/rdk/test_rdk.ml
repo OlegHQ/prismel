@@ -4136,7 +4136,77 @@ let run () =
    then fail "nested merge source attribute";
    let plain = Mesh_merge.run [grid; box; grid] |> get_ok in
    if Geometry.find_attribute ~owner:Attribute.Primitive source plain <> None
-   then fail "merge without source_attribute added one");
+   then fail "merge without source_attribute added one";
+   let left_count = 8193 and right_count = 8191 in
+   let make xyz count index_base payload_base =
+     let topology = Topology.create_owned ~point_count:(Array.length xyz)
+       ~vertex_points:(Array.init (3 * count) (fun i -> index_base + i mod 3))
+       ~primitive_offsets:(Array.init (count + 1) (fun i -> 3 * i))
+       ~primitive_kinds:(Array.make count Topology.Polygon) |> get_ok in
+     let payload = Attribute.create_owned ~name:"payload" ~owner:Attribute.Primitive
+       (Attribute.Int (Array.init count (fun i -> payload_base + i))) |> get_ok in
+     Geometry.create ~positions:(Geometry.positions (Line_geometry.points xyz))
+       ~topology ~attributes:[payload] () |> get_ok in
+   let left_xyz = [|(0.,0.,0.);(1.,0.,0.);(0.,1.,0.)|]
+   and right_xyz = [|(3.,0.,0.);(4.,0.,0.);(3.,1.,0.)|] in
+   let left = make left_xyz left_count 0 100
+   and right = make right_xyz right_count 0 1000
+   and empty = make [||] 0 0 0 in
+   let expected_topology = Topology.create_owned ~point_count:6
+       ~vertex_points:(Array.init (3 * (left_count + right_count)) (fun i ->
+         if i < 3 * left_count then i mod 3 else 3 + i mod 3))
+       ~primitive_offsets:(Array.init (left_count + right_count + 1) (fun i -> 3 * i))
+       ~primitive_kinds:(Array.make (left_count + right_count) Topology.Polygon) |> get_ok in
+   let expected_payload = Attribute.create_owned ~name:"payload" ~owner:Attribute.Primitive
+       (Attribute.Int (Array.init (left_count + right_count) (fun i ->
+         if i < left_count then 100 + i else 1000 + i - left_count))) |> get_ok in
+   let expected_plain = Geometry.create
+       ~positions:(Geometry.positions (Line_geometry.points (Array.append left_xyz right_xyz)))
+       ~topology:expected_topology ~attributes:[expected_payload] () |> get_ok in
+   let expected first = Attribute.create_owned ~name:source ~owner:Attribute.Primitive
+       (Attribute.Int (Array.init (left_count + right_count) (fun i ->
+         if i < left_count then first else -4))) |> get_ok
+       |> fun attribute -> Geometry.with_attribute attribute expected_plain |> get_ok in
+   let inputs = [empty;left;empty;right;empty] in
+   let existing = Attribute.create_owned ~name:source ~owner:Attribute.Primitive
+       (Attribute.Int (Array.make left_count 42)) |> get_ok in
+   let tagged_left = Geometry.with_attribute existing left |> get_ok in
+   List.iter (fun (inputs, expected) ->
+     let before = List.map geometry_bytes inputs in
+     let expected = geometry_bytes expected in
+     List.iter (fun domains ->
+       let output = Parallel.run ~domains (fun () ->
+         Mesh_merge.run ~source_attribute:source ~source_base:(-7) inputs |> get_ok) in
+       if geometry_bytes output <> expected || List.map geometry_bytes inputs <> before then
+         fail "merge source-tag empty indexing, attribute order or ownership";
+       let cancelled = Cancel.create () in Cancel.cancel cancelled;
+       (match Parallel.run ~domains (fun () ->
+          Mesh_merge.run ~cancel:cancelled ~source_attribute:source inputs) with
+        | Error error when Error.code error = "cancelled" -> ()
+        | _ -> fail "tagged merge ignored cancellation");
+       if List.map geometry_bytes inputs <> before then fail "cancelled tagged merge mutated inputs")
+       [1;8]) [inputs,expected (-6); [empty;tagged_left;empty;right;empty],expected 42];
+   (match Mesh_merge.merge ~grain:0 ~source_attribute:" " inputs with
+    | Error "Attribute.create_owned: empty name" -> ()
+    | _ -> fail "tagged merge changed invalid-name error precedence");
+   if Geometry.find_attribute ~owner:Attribute.Primitive source
+       (Mesh_merge.run ~source_attribute:source [] |> get_ok) <> None then
+     fail "empty input-list merge added a source attribute";
+   Parallel.run ~domains:1 (fun () ->
+     let allocated run =
+       Gc.full_major ();
+       let before = Gc.allocated_bytes () in
+       let result = run () |> get_ok in
+       let bytes = Gc.allocated_bytes () -. before in
+       if Geometry.primitive_count result <> left_count + right_count then
+         fail "source-tag allocation fixture cardinality";
+       bytes in
+     let plain = allocated (fun () -> Mesh_merge.run inputs) in
+     let tagged = allocated (fun () -> Mesh_merge.run ~source_attribute:source inputs) in
+     let ceiling = float_of_int (8 * (left_count + right_count) + 4096) in
+     if tagged -. plain > ceiling then
+       fail (Printf.sprintf "merge source tags allocate twice: extra %.0f B, ceiling %.0f B"
+         (tagged -. plain) ceiling)));
   let grouped_inputs = List.map (fun name ->
     let group = Group.init ~owner:Group.Primitive ~name
         (Geometry.primitive_count box) (fun primitive -> primitive = 0) in

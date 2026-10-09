@@ -1110,8 +1110,8 @@ remain interpreted. Probe forcing uses the reference walker independently of
 compilation settings. The IR retains lexical provenance, cardinality origins,
 frame/event rates and exact/approximate precision. Its placement pass refuses
 approximate inputs to catalog calls, exports, state seeds and cache keys with
-`E_APPROX_SINK`; `(exact x)` is the explicit readback card. Current producers
-are exact, so its runtime value is unchanged. A host GPU backend may place a
+`E_APPROX_SINK`; `(exact x)` is the explicit readback card. CPU evaluation
+remains exact. A host GPU backend may place a
 covered approximable packed producer at a display sink after measured costs
 justify it; `(exact x)` explicitly materializes a selected GPU producer.
 
@@ -1161,12 +1161,15 @@ eligibility without erasing the producer's own facts.
 
 Precision taint remains independent of qualification candidates. The
 checker retains precision producer paths through aliases, arithmetic and containers and
-reports `E_APPROX_SINK` before an eligible value reaches a catalog slot or
+reports `E_APPROX_SINK` before a statically tainted value reaches a catalog slot or
 parameter, state seed, graph override, or `settings/*`/`scene/*` argument. Its
 message names the producer and consumer paths. `draw/*` and `ui/*` consumers
-may display these values; exact-only consumers require `(exact x)`, including
+may display these values; exact-only consumers require `(exact x)` for this taint, including
 when CPU execution currently supplies the producer. This conservative check
-does not change CPU values. An inline `exact` is a graph card with its input's
+does not change CPU values. Candidate or qualification membership alone does
+not apply this static taint; uncertain candidates remain legal CPU programs,
+with actual placement and execution enforcing their precision boundaries.
+An inline `exact` is a graph card with its input's
 cards and function zones projected and edited beneath it.
 The inspector reports `approximable` for qualified paths or the pending/refusal
 reasons; the graph's tier badge
@@ -1532,13 +1535,15 @@ resident image for draw/image, UI and mesh consumers. One owner retains at most
 64 authored image sites; failed new publications consume no sink slot. An ordinary
 CPU request has its own immutable payload and validity stamp: it does not read
 or replace the displayed GPU image, and exact-first map cooking creates no
-runtime image. The current image/render route cooks child CPU payloads so nested
+runtime image. Ordinary CPU image/render requests cook child CPU payloads so nested
 GPU display cannot change ordinary CPU rounding; an explicit `(exact image)` child
 uses its frozen bytes. Display image/render retains a native
 Canvas and publishes its texture through the same image boundary. Connected
 timing/allocation gates are qualified for the measured uncaptured fixtures in
-the performance log. Actual-owner captured geometry is implemented; its changing
-large-source timing gate and expanded owner qualification remain F2.2 work.
+the performance log. Actual-owner captured geometry, expanded owner qualification,
+frozen exact snapshots and changing-source timing gates are also qualified there.
+The largest changing-source GPU producer passes its median gate at4.755571 ms,
+with range4.344505–5.610975 ms; this is not a worst-case bound.
 
 `scene/geometry geometry :texture image` applies the same image as a texture
 without changing its transform, material or render state. The image card footer

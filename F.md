@@ -117,14 +117,16 @@ saying what the table establishes and what it does not, the raw file paths.
 
 **Current open work (2026-10-09).** The paragraphs below preserve checkpoint
 history; their earlier “open” statements are not the current task list. Known
-remaining work is F3 fan-out (latest retained
-production learned-eight median51.383018 ms against≤50.600 ms, with range
-49.017906–73.501110 ms). The chunked
+remaining work is the completion commit. The final scope
+audit, source-fixed F5, field re-gate, constant-image domain regression and
+documentation corrections and shipping have passed; their evidence is recorded below.
+F3 passes with the reviewed source-tag optimization: learned-eight
+whole median45.914173 ms, reversed-order46.201944 ms, against≤50.600 ms;
+all14 candidate learned-eight samples pass. The chunked
 vertex trial is rejected and restored; its evidence and boundary regression
 remain. The unchanged, uninstrumented capture remeasurement below passes the
 changing-source GPU median gate at4.755571 ms (range4.344505–5.610975 ms;
-three of seven trials exceed5 ms). A final requirement-by-requirement audit and final F5 qualification
-are still required. F2.4/F4 retain their conditional/optional scope; F8 is a
+three of seven trials exceed5 ms). F2.4/F4 retain their conditional/optional scope; F8 is a
 handoff. Overall completion is not claimed.
 
 **Committed milestone (2026-10-08, `e36a0ac4`).** F1.1, F1.2, F1.4 and the F6 canvas-image
@@ -231,7 +233,7 @@ once so you know what exists before you add anything.
 | SOP overlay | `lib/flow_sop` (`lower`, `attribute_kernel`, `value_lane`, `operators`) | Lowers a checked workspace to a `Procedural` network; `sop/attr` and `sop/with_attr` are the kernel boundary (`Attribute_kernel` over `Rdk.Kernel.edit_point_ranges`); image resolver callback (`Lower.with_images`). |
 | Graph layer | `lib/flow_graph` (`projection`, `flow_edit`, `exposure`, `probe`) | Domain-neutral projection and gestures; zones for map/filter/reduce/sort-by and if/cond/case arms; probes force one tuple. |
 | 2D | `lib/sketch_support/drawing.ml`, `lib/flow/op.ml` (`draw_op` lines ~200-240) | 18 `draw/*` kinds; plural kinds (`circles`, `rects`, `lines`, `points`, ...) lower to one instanced `Scene_command.Shape_batch`; GPU display sinks take a `gpu_token`. |
-| Images | `lib/flow/op.ml`, `lib/flow_sop/image_kernel.ml`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, retained display `image/render`, `image/noise`, CPU/GPU display `image/map` (packed Vec2→Vec4, owned RGBA8); resident `draw/image`/`scene/geometry :texture image`; exact CPU `sop/attr_from_image`. The editor pins at most 64 images. Connected timing/allocation gates pass; captured geometry and deferred frozen exact GPU snapshots remain open. |
+| Images | `lib/flow/op.ml`, `lib/flow_sop/image_kernel.ml`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, retained display `image/render`, `image/noise`, CPU/GPU display `image/map` (packed Vec2→Vec4, owned RGBA8); resident `draw/image`/`scene/geometry :texture image`; exact CPU `sop/attr_from_image`; qualified captured geometry and deferred frozen exact GPU snapshots. The editor pins at most 64 images. Connected/captured timing and retained-Canvas allocation gates pass. |
 | Catalog | `lib/sop_catalog`, `ppx/ppx_rays`, `lib/procedural/node.ml` | 162 `sop/*` kinds, one declaration each, including the field SOP, `Node.facts` (elementwise, reads, writes, topology, exact). |
 | Cook | `lib/procedural/session.ml` | Component-keyed LRU; learned placement fans branches and zone elements across domains above a 2 ms measured subtree. |
 | Geometry | `lib/rdk/**` | Float64 structure-of-arrays planes; `Mesh_merge.merge_plain` is the serial merge (see F3). Scene3 packs planes into float32 24+12-byte streams (`lib/rays/scene3_native_lowering.ml`). |
@@ -2155,6 +2157,11 @@ Astra designs the family and the uniform layout; you do the rest.
 
 ### F3. The two-chain fan-out gate (Astra only)
 
+**Measured gate met (2026-10-09; final source-fixed qualification pending).**
+Astra: **“met. Keep the source-tag optimization.”** See the final checkpoint
+below for complete before/after/control/reverse evidence. Earlier rejected
+trials and diagnostic misses in this section preserve history.
+
 **Today.** The fixture is `bench_workspace_lower --branches` (its workspace
 text is at `tools/bench_workspace_lower.ml:130-138`: two separately authored
 1M-point grids, two `noise_displace` each, merged at the root). P4 Step 3's
@@ -2451,6 +2458,73 @@ First require independent provenance/ownership/cancellation/domain regression
 and a failing allocation ceiling; then the full seven-process learned/off/pieces
 and reverse-order learned matrices. No new optimization or unreachable closure
 is claimed at this attribution checkpoint.
+
+**Single source-tag construction retained (2026-10-09).** Shared
+`Mesh_merge.merge` now merges original inputs when the nonempty input list has
+no existing requested primitive source attribute and its name is nonblank.
+It creates that final Int array once, fills input ranges with the existing
+`source_base + input_index` values, and appends through existing owned APIs.
+All other paths retain their prior implementation. Empty inputs still consume
+indices; cancellation is checked before allocation and each range.
+
+The independent regression uses8,193/8,191 primitives, leading/interspersed/
+trailing empties, negative base, explicitly expected topology/payload/tag bytes,
+attribute order, existing-tag fallback and unchanged inputs at domains1/8.
+Cancellation, invalid-name-before-grain precedence and empty-input-list behavior
+pass. Before implementation its allocation ceiling fails at267,528 extra bytes
+against135,168; afterward the full @check/RDK/procedural/build checks pass.
+
+All56 isolated processes and112 whole rows retain the two fixed hashes,
+cardinalities and fanouts. Learned whole medians1/8 improve
+154.392004/52.356005→152.622938/45.914173 ms; reverse-order comparison improves
+157.277107/51.244020→150.286913/46.201944 ms. All14 candidate learned-eight
+samples pass≤50.600 ms, forward range44.987202–50.259113, reverse
+44.408083–48.341990. Placement-off medians219.273090/58.030128→
+208.276987/54.247856 ms; learned-pieces1476.792097/278.192043→
+1339.178085/245.237827 ms. One-domain caller/program allocation falls by
+31,937,720 bytes, consistent with eliminating the temporary source-tag payload.
+
+Astra audits112 whole rows,112 root-node rows and56 process statuses:
+**“met. Keep the source-tag optimization.”** No further F3 optimization is
+needed. Raw112 CSVs and statuses are `specification/performance/f-merge-source-tags-*`;
+commands, allocations, node medians and limitations are in the performance log.
+This is a whole-cook median gate; the old `merge_plain` diagnostic interval
+would exclude the new final tag work and cannot decide it. Source-fixed final
+F5, shipping and the overall requirements audit now pass as recorded below;
+the completion commit remains.
+
+**Final requirements audit (2026-10-09).** Three Astra reviewers independently
+audit the assigned requirements against actual code/tests and current evidence,
+then the implementation closes the identified constant-image coverage gap,
+post-image field re-gate and documentation drift. Historical misses above are
+superseded by this audit; continuation work remains explicitly separate.
+
+| Item | Final scope and evidence |
+|---|---|
+| F0 | Documentation/dependency boundaries match actual Dune libraries and the gate. No retired plan files remain. The Images row and Flow precision/resident-render descriptions now match current behavior. |
+| F1.1 | Typed Fn/Image ports, specialization and physical keyword inputs; external declaration, projection/gestures, captures/cache and domains1/8 tests pass. |
+| F1.2 | Independent static precision taint covers aliases/containers and exact-only sinks, with explicit exact and execution backstops; uncertain candidates remain legal CPU programs. |
+| F1.3 | Actual-capture qualification, sticky ambiguity/refusal, authored provenance, inspector reasons and document requalification are audited through real catalogs with fused/unfused compilation and emission. |
+| F1.4 | Vec2/Vec4 typing/literals/fields/coercion, graph editing and reference/packed tests pass; later integer/gather/scatter/kernel forms retain continuation scope. |
+| F2.1 | Lisp field SOP, packed sampling, projection/probes, sampled marching/normals and unchanged1,024-case golden pass. Final isolated field whole median25.650024/9.196997 ms at domains1/8; all seven eight-domain samples pass<10 ms and retain the full geometry hash. Astra: “met — F2.1's gate is preserved on the final measured source.” |
+| F2.2 | CPU/GPU image maps, RGBA8 conversion, captures/state/instances, resident ownership and frozen exact sinks pass. Added pure constant-body full-byte oracle at domains1/8 passes. Reviewed captured GPU median4.755571 ms passes<5 ms; range4.344505–5.610975 remains a median qualification. |
+| F2.3 | Retained Canvas/resident drawing→texture, independent CPU snapshots, transactional failures/resize and teardown pass. Qualified warm allocation85,450 B/frame at all three measured sizes. |
+| F2.4 | Conditional fragment pipeline work is not activated: existing private borrowed textures satisfy resident consumers; no demonstrated workspace requires another pipeline family. |
+| F3 | Astra: “met. Keep the source-tag optimization.” Both forward45.914173 and reverse46.201944 ms pass≤50.600; hashes, controls and all14 candidate learned-eight samples pass. |
+| F4 | Optional full-editor allocation information; no performance gate or requested owner-triggered investigation. |
+| F5 | Final source-fixed native/pixel suite passes on the real M1 Metal device. Both38+2+13 workspace sweeps pass at four times/domains1/8. Actual1× is qualified;2× goldens remain explicitly unqualified. |
+| F6–F7 | Canvas-image coercion/scalar refusal and bounded conventions pass. Intentional exclusions remain documented; no known-red exemption is used. |
+| F8 | Continuation handoff completed; Phases5–11 remain future work, starting with modules. The million-circle-specific difference record remains distinct from generic image-map parity. |
+
+Full final validation exit0: `/tmp/rays-f-source-tags-full.log`. The five-line
+constant-image oracle then passes focused @check/Flow SOP checks, exit0
+(`/tmp/rays-f-final-constant-image.log`); the complete alias selection is
+revalidated with Dune's cache, exit0 (`/tmp/rays-f-final-audit-full.log`).
+Final field raw rows/statuses are `specification/performance/f-field-final-*`;
+both processes exit0 and all14 rows retain hash
+`8a9c2d382ab7564328783e84a132cef1`,85,680 points/vertices and28,560 primitives.
+No gate, tolerance, golden, public API or dependency is relaxed. Final shipping
+passes, exit0 (`/tmp/rays-f-final-audit-ship.log`); the completion commit follows.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

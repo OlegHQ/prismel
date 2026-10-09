@@ -65,6 +65,11 @@ let () =
     List.iteri (fun c n -> assert (Char.code (Bytes.get (bytes one) (i+c))=n))
       [uv_byte x 387;uv_byte y 91;128;255]
   done done;
+  let constant = fn "(workspace w (graph img :context image
+    (image/map (fn [uv] [0.25 0.5 0.75 1]))))" |> prepare in
+  let expected = Bytes.init (387*91*4) (fun i ->
+    Char.chr (match i mod 4 with 0 -> 64 | 1 -> 128 | 2 -> 191 | _ -> 255)) in
+  List.iter (fun domains -> assert (bytes (cook domains constant)=expected)) [1;8];
   let live = fn "(workspace w (defn render :context image [(bias : float)]
       (image/map (fn [uv] [(+ uv.x bias) uv.y 0.5 1]) :width 65 :height 3))
       (graph img :context image (render (* t 0.25))))" |> prepare ~width:65 ~height:3 in

@@ -238,6 +238,20 @@ let tag_inputs name base geometries =
 let merge ?cancel ?grain ?pad_groups ?source_attribute ?(source_base = 0) geometries =
   match source_attribute with
   | None -> merge_plain ?cancel ?grain ?pad_groups geometries
+  | Some name when geometries <> [] && String.trim name <> ""
+      && List.for_all (fun geometry ->
+        Geometry.find_attribute ~owner:Attribute.Primitive name geometry = None) geometries ->
+      Result.bind (merge_plain ?cancel ?grain ?pad_groups geometries) (fun merged ->
+        Cancel.check_opt cancel;
+        let values = Array.make (Geometry.primitive_count merged) source_base in
+        let offset = ref 0 in
+        List.iteri (fun index geometry ->
+          Cancel.check_opt cancel;
+          let count = Geometry.primitive_count geometry in
+          if index > 0 then Array.fill values !offset count (source_base + index);
+          offset := !offset + count) geometries;
+        Result.bind (Attribute.create_owned ~name ~owner:Attribute.Primitive (Attribute.Int values))
+          (fun attribute -> Geometry.with_attribute attribute merged))
   | Some name ->
       Result.bind (tag_inputs name source_base geometries)
         (merge_plain ?cancel ?grain ?pad_groups)
