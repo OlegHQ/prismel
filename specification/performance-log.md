@@ -12058,6 +12058,8 @@ Changing-source GPU<5 ms, expanded owner coverage, F3 and final audit stay open.
 
 ### F2.2 actual packed-owner coverage and graph state identity (2026-10-09)
 
+Implementation and regressions: `78a646f6`.
+
 Apple M1/Macmini9,1, OCaml5.3, Dune dev; native Metal, actual1× display.
 These are correctness fixtures at domains1/8, not timing measurements.
 

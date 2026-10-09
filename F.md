@@ -1851,7 +1851,7 @@ Actual1× only;2× goldens remain unverified. Pre-commit shipping passes (exit0;
 `/tmp/rays-f-frozen-exact-ship.log`). Large changing-source
 GPU<5 ms, expanded owner coverage, F3 and final audit remain open.
 
-**Expanded owner coverage and graph state correction (2026-10-09).** Actual
+**Expanded owner coverage and graph state correction (2026-10-09, `78a646f6`).** Actual
 packed copies retain three prototype points and two instances before capture.
 An independent six-point P/Cd oracle checks transformed positions, element order
 and attributes under two graph overrides, live time and state. CPU domains1/8
