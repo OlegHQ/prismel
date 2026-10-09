@@ -11273,3 +11273,170 @@ Restored focused checks/build pass (exit 0;
 passes (exit 0; `/tmp/rays-f-image-xyz-write-attribution-ship.log`). No product
 behavior changes here; `/tmp/rays-f-image-xyz-write-full.log` remains the full
 F5 native/pixel evidence for the unchanged committed implementation, actual 1×.
+
+## F3 fresh fan-out baseline (2026-10-09)
+
+Machine: Apple M1 Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev profile.
+Production checkpoint: `b93df6a9` (RDK/Session unchanged). Build uses the normal
+check launcher after restoring all temporary image probes; preserve the resulting
+binary as `/private/tmp/f-merge-before.exe`, SHA256
+`198f0d471e8888394518cc450fd204472c63d0bd42d9468987e85f642e3fe4e4`.
+Astra confirmed that RAYS_BRANCH_NODE_TIMES only reports existing Session
+samples after the whole-cook timer stops; it does not instrument the timed path.
+Existing Session timing remains part of the production cook. No extra env-unset
+batch is required. Run alone, without builds, tests or active agents.
+
+Seven separate processes per mode, each retaining domain-1/8 rows, stdout and
+node reports:
+
+```sh
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-before.exe --branches 1 learned > "specification/performance/f-merge-before-chains-learned-${trial}.csv" 2> "specification/performance/f-merge-before-chains-learned-${trial}-nodes.csv"
+done
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-before.exe --branches 1 off > "specification/performance/f-merge-before-chains-off-${trial}.csv" 2> "specification/performance/f-merge-before-chains-off-${trial}-nodes.csv"
+done
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-before.exe --loops 1 learned > "specification/performance/f-merge-before-pieces-learned-${trial}.csv" 2> "specification/performance/f-merge-before-pieces-learned-${trial}-nodes.csv"
+done
+```
+
+Learned runs perform one untimed training cook and clear output caches while
+retaining timing knowledge, then measure with the existing pool warmup,
+full-major policy and 512-entry/256-MiB Session limits. They are not untrained
+cold runs. Placement-off is the separate untrained control. All 21 processes
+exit 0; all 42 whole-cook rows retain exact hashes:
+chains `67c129ecc130f8881a2eaf92c053b64c`, pieces
+`8ef295fbdea12b586200fd1ffcdcb58f`. These hashes cover materialized geometry;
+a display-only pieces representation cannot substitute for the chains result.
+
+Seven-process medians (milliseconds; allocation in bytes):
+
+| Mode | Domains | Whole cook | Caller allocation | Program allocation | Fanouts | Root merge own |
+|---|---:|---:|---:|---:|---:|---:|
+| Learned chains | 1 | 148.324013 | 503,647,672 | 503,647,960 | 0 | 58.411121 |
+| Learned chains | 8 | 51.798820 | 374,059,712 | 505,437,232 | 1 | 26.059866 |
+| Off chains | 1 | 199.245930 | 503,647,896 | 503,648,184 | 0 | 76.219082 |
+| Off chains | 8 | 55.030107 | 503,969,320 | 505,313,904 | 0 | 25.868893 |
+| Learned pieces | 1 | 1984.183073 | 1,120,474,624 | 1,120,474,912 | 0 | 114.761114 |
+| Learned pieces | 8 | 267.518997 | 785,753,048 | 1,131,801,808 | 1 | 74.564219 |
+
+Node timings are node-own work, not upstream cooks; parallel nodes can overlap.
+They diagnose merge cost and do not replace the whole-cook gate. Keep all raw
+samples, including the first learned-eight 65.128803 ms. Passing individual
+trials do not pass the median gate.
+
+Astra: **“not met, try two-input vertex-index prefilling with Array.concat,
+skipping only zero-point-offset rebasing.”** The fresh learned-eight median
+exceeds the unchanged 50.600 ms gate by 1.198820 ms. The approved trial remains
+bounded to exactly two inputs, fresh concatenated vertex storage and skipping
+only prefilled zero-point-offset segments. Nonzero offsets, other arities,
+primitive offsets, position/attribute/group work, cancellation and scheduling
+stay unchanged. The fixed triangle/free-point/polyline regression must pass
+before implementation; retain complete geometry/input bytes at domains 1/8 and
+precancellation. Repeat the identical seven-process after matrix and then seven
+learned-chain processes for after followed by before in a separate reverse-order
+comparison. No measured trial or unreachable verdict is claimed yet.
+
+## F3 vertex-index prefill trial rejected (2026-10-09)
+
+Same Apple M1/OCaml 5.3/Dune dev machine and protocol as the fresh baseline.
+Astra approved exactly-two-input vertex-index Array.concat followed by skipping
+only prefilled segments with zero point offset. Existing nonzero rebasing,
+other arities, primitive offsets, attributes/groups and scheduling remain.
+Cancellation is checked before concatenation and at existing input/index
+boundaries. The reproducible production-only rejected patch is
+`specification/performance/f-merge-vertex-prefill-trial.patch`.
+
+Before changing the implementation, the independent fixed regression passed on
+unchanged code (exit 0; `/tmp/rays-f-merge-regression-before.log`, `@check`
+and RDK core/mesh tests). It constructs the expected seven-point triangle/free-
+point/polyline geometry independently: vertex indices [0;1;2;5;6], offsets
+[0;3;5], Polygon/Open_polyline. Five-input empty cases and the equivalent
+two-input case pin complete geometry bytes. Free-points followed by triangle
+expects [2;3;4], catching zero vertex offset with nonzero point offset. Leading/
+trailing empty two-input cases pin prefill behavior. All inputs remain byte-
+identical at domains 1/8; precancellation returns cancelled and preserves inputs.
+The same regression and full focused RDK/procedural tests pass on the candidate
+(exit 0; `/tmp/rays-f-merge-focused.log`). Astra approves its implementation diff.
+
+Preserve `/private/tmp/f-merge-after.exe`, SHA256
+`b5b201e334e71c2dc00e1fc2b0eb464455b607c7cfdc8683519c603f981862e3`.
+The before executable remains unchanged at its recorded hash. The after run
+repeats all seven separate-process modes with RAYS_BRANCH_NODE_TIMES=1, isolated
+from builds/tests/active agents; reverse-order learned comparison then runs
+seven fresh after processes followed by seven fresh before processes:
+
+```sh
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-after.exe --branches 1 learned > "specification/performance/f-merge-after-chains-learned-${trial}.csv" 2> "specification/performance/f-merge-after-chains-learned-${trial}-nodes.csv"
+done
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-after.exe --branches 1 off > "specification/performance/f-merge-after-chains-off-${trial}.csv" 2> "specification/performance/f-merge-after-chains-off-${trial}-nodes.csv"
+done
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-after.exe --loops 1 learned > "specification/performance/f-merge-after-pieces-learned-${trial}.csv" 2> "specification/performance/f-merge-after-pieces-learned-${trial}-nodes.csv"
+done
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-after.exe --branches 1 learned > "specification/performance/f-merge-reverse-after-chains-learned-${trial}.csv" 2> "specification/performance/f-merge-reverse-after-chains-learned-${trial}-nodes.csv"
+done
+for trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-before.exe --branches 1 learned > "specification/performance/f-merge-reverse-before-chains-learned-${trial}.csv" 2> "specification/performance/f-merge-reverse-before-chains-learned-${trial}-nodes.csv"
+done
+```
+
+All 56 processes across baseline/after/reverse batches complete: 112 whole-cook
+rows retain fixed chain/piece hashes, cardinalities and fanouts. All 112 stdout/
+node CSVs remain, including outliers; no per-node metric substitutes for the
+whole-cook gate. Seven-process medians:
+
+| Mode | Domains | Before whole ms | After whole ms | After caller B | After program B | Fanouts | After root merge ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Learned chains | 1 | 148.324013 | 148.796082 | 503,647,728 | 503,648,016 | 0 | 58.889151 |
+| Learned chains | 8 | 51.798820 | 65.582991 | 374,015,976 | 505,177,448 | 1 | 39.048910 |
+| Off chains | 1 | 199.245930 | 199.889898 | 503,647,952 | 503,648,240 | 0 | 77.643871 |
+| Off chains | 8 | 55.030107 | 66.389084 | 503,925,760 | 505,053,176 | 0 | 36.741018 |
+| Learned pieces | 1 | 1984.183073 | 2004.331827 | 1,120,474,648 | 1,120,474,936 | 0 | 121.362925 |
+| Learned pieces | 8 | 267.518997 | 264.780045 | 779,593,392 | 1,131,798,432 | 1 | 77.320099 |
+
+| Reverse-order learned chains | Domains | Before whole ms | After whole ms | Before merge ms | After merge ms |
+|---|---:|---:|---:|---:|---:|
+| After batch followed by before batch | 1 | 148.498058 | 148.794889 | 58.406115 | 58.833122 |
+| After batch followed by before batch | 8 | 51.988840 | 71.448088 | 27.842045 | 45.994043 |
+
+Reverse caller/program bytes at eight domains are 374,061,160/505,436,112 before
+and 373,998,968/505,176,848 after; at one domain
+503,647,672/503,647,960 before and 503,647,728/503,648,016 after.
+The substantial eight-domain regression persists in both execution orders;
+unchanged output is correctness evidence, not a reason to retain the trial.
+
+Astra: **“not met, revert.”** The Array.concat production change is reverted
+byte-for-byte. Keep the independent regression, rejected patch, executables and
+raw measurements. `git apply --check` validates the rejected patch against
+restored source. F3 remains above 50.600 ms; these results do not establish that
+the gate is unreachable.
+
+Astra approves one next diagnostic of restored merge: caller-side time-only
+intervals for output-array allocation, position-plane blits, joined vertex-
+index rewrites, joined primitive-offset rewrites, kind blits, attribute
+concatenation and remaining wrapping/groups/geometry construction, plus the
+complete merge interval. Aggregate repeated phases across inputs without
+changing order. No GC snapshots, printing or new callbacks inside element
+loops. Buffer reports outside measurement and retain round-trip timestamps;
+distinguish training from measured cooks. Temporary Unix linkage is diagnostic-
+only and must be restored with source byte-for-byte.
+
+Run seven isolated learned-chain processes of the diagnostic executable and
+the preserved production baseline under identical settings. Retain whole/node/
+phase rows as `f-merge-phases-*`, fixed hashes/cardinalities/fanouts and paired
+phase sums contained within their corresponding merge intervals. Report
+instrumentation overhead before another optimization. No further trial is
+approved yet; the whole learned-eight-domain gate remains 50.600 ms.
+
+Restored `@check`, full RDK/procedural focused tests and benchmark build pass
+(exit 0; `/tmp/rays-f-merge-restored-focused.log`). Pre-commit shipping passes
+(exit 0; `/tmp/rays-f-merge-restored-ship.log`). The production merge source is
+byte-identical to the preceding full F5 native checkpoint, whose actual-1×
+evidence remains `/tmp/rays-f-image-xyz-write-full.log`. This checkpoint retains
+only the independent regression, rejected patch and measured evidence; no
+production optimization or overall F3/F.md completion is claimed.

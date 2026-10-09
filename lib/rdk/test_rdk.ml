@@ -4057,6 +4057,43 @@ let run () =
   let merged = Mesh_merge.run [grid; grid] |> get_ok in
   if Geometry.point_count merged <> 90 || Geometry.primitive_count merged <> 128
   then fail "merge cardinality";
+  (let make xyz vertex_points primitive_offsets primitive_kinds =
+     let positions = Geometry.positions (Line_geometry.points xyz) in
+     let topology = Topology.create_owned ~point_count:(Array.length xyz)
+       ~vertex_points ~primitive_offsets ~primitive_kinds |> get_ok in
+     Geometry.create ~positions ~topology () |> get_ok in
+   let triangle_xyz = [|(0.,0.,0.);(1.,0.,0.);(0.,1.,0.)|]
+   and free_xyz = [|(3.,0.,0.);(4.,0.,0.)|]
+   and line_xyz = [|(5.,0.,0.);(6.,0.,0.)|] in
+   let triangle = make triangle_xyz [|0;1;2|] [|0;3|] [|Topology.Polygon|]
+   and free = Line_geometry.points free_xyz
+   and empty = Line_geometry.points [||]
+   and line = make line_xyz [|0;1|] [|0;2|] [|Topology.Open_polyline|] in
+   let free_line = make [|(3.,0.,0.);(4.,0.,0.);(5.,0.,0.);(6.,0.,0.)|]
+     [|2;3|] [|0;2|] [|Topology.Open_polyline|] in
+   let expected = make [|(0.,0.,0.);(1.,0.,0.);(0.,1.,0.);
+     (3.,0.,0.);(4.,0.,0.);(5.,0.,0.);(6.,0.,0.)|]
+     [|0;1;2;5;6|] [|0;3;5|] [|Topology.Polygon;Topology.Open_polyline|] in
+   let free_triangle = make [|(3.,0.,0.);(4.,0.,0.);
+     (0.,0.,0.);(1.,0.,0.);(0.,1.,0.)|]
+     [|2;3;4|] [|0;3|] [|Topology.Polygon|] in
+   List.iter (fun (inputs, expected) ->
+     let before = List.map geometry_bytes inputs in
+     let expected = geometry_bytes expected in
+     List.iter (fun domains ->
+       let output = Parallel.run ~domains (fun () ->
+         Mesh_merge.run ~grain:1 inputs |> get_ok) in
+       if geometry_bytes output <> expected || List.map geometry_bytes inputs <> before then
+         fail "merge empty/free-point topology rebasing or input ownership";
+       let cancelled = Cancel.create () in Cancel.cancel cancelled;
+       (match Parallel.run ~domains (fun () -> Mesh_merge.run ~cancel:cancelled inputs) with
+        | Error error when Error.code error="cancelled" -> ()
+        | _ -> fail "merge ignored precancellation");
+       if List.map geometry_bytes inputs <> before then fail "cancelled merge mutated inputs")
+       [1;8])
+     [[empty;triangle;free;empty;line],expected;
+      [triangle;free_line],expected; [free;triangle],free_triangle;
+      [empty;triangle],triangle; [triangle;empty],triangle]);
   (let source = "__src" in
    let tagged = Mesh_merge.run ~source_attribute:source [grid; box; grid] |> get_ok in
    let ints geometry = match Geometry.find_attribute ~owner:Attribute.Primitive source geometry with

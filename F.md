@@ -2084,7 +2084,7 @@ a fifth), give me the first one to implement with its one failing check, the
 exact measurement protocol, and the number that would make you say the gate
 is met."
 
-**Current Astra review (2026-10-09; measurement/trial pending).** The default
+**Current Astra review (2026-10-09; baseline measured, prefill trial rejected).** The default
 triangulated grids invalidate the earlier 72 MB estimate: the merged positions,
 vertex indices, primitive offsets and kinds occupy 179,736,140 bytes, plus
 48 MB of normals. Their native integer callbacks perform about 15.97 million
@@ -2117,6 +2117,54 @@ valid for the whole-cook gate; no additional env-unset batch is needed. Here
 “uninstrumented” means production execution without temporary profiling changes;
 the existing Session timing work stays in the measured cook. Keep the variable
 identical before/after and in reverse-order comparisons.
+
+The fresh unchanged baseline on the M1 retains all 42 whole-cook rows and
+fixed hashes across seven separate processes per mode at domains 1/8. Learned
+chains take 148.324013/51.798820 ms; placement-off chains 199.245930/55.030107 ms;
+learned pieces 1984.183073/267.518997 ms. Learned merge-own medians are
+58.411121/26.059866 ms. The preserved executable is `/private/tmp/f-merge-before.exe`
+(SHA256 `198f0d471e8888394518cc450fd204472c63d0bd42d9468987e85f642e3fe4e4`).
+Raw stdout/node reports are `f-merge-before-{chains-learned,chains-off,pieces-learned}-{0..6}*`.
+Astra: “not met, try two-input vertex-index prefilling with Array.concat,
+skipping only zero-point-offset rebasing.” The unchanged learned-eight median
+misses by 1.198820 ms; keep all seven samples, including the 65.128803 ms first
+run. Implement only the approved trial after the independent fixed regression
+passes unchanged code; require the full after/control and reverse-order matrix
+before a gate verdict. No unreachable closure is supported.
+
+The independent regression passes before/after: a seven-point triangle/free-
+point/open-polyline result with explicit topology, five-input empties, the same
+two-input result, free-points followed by triangle (zero vertex offset with
+nonzero point offset), and both leading/trailing empty two-input cases. Complete
+geometry/input bytes match at domains 1/8; precancellation leaves inputs unchanged.
+Whole RDK/procedural focused checks and benchmark build pass.
+
+The approved prefill trial regresses learned-eight whole cook from
+51.798820 to 65.582991 ms; the reverse-order run confirms
+51.988840 before versus 71.448088 after. Learned merge-own eight-domain medians
+are 26.059866 before/39.048910 after in the first matrix and
+27.842045 before/45.994043 after in reverse order. Every fixed hash and fanout
+count remains correct. Astra: “not met, revert.” The production change is
+reverted byte-for-byte; the regression, 112 raw stdout/node CSVs, both preserved
+executables and `f-merge-vertex-prefill-trial.patch` remain. The rejected patch
+passes `git apply --check` on the restored tree. No unreachable closure is
+supported; F3 remains open.
+
+Astra's next approved action is time-only attribution of restored merge:
+allocation, position blits, joined vertex rewrites, joined primitive-offset
+rewrites, kind blits, attributes and remaining wrapping/groups/construction,
+plus the complete interval. Aggregate repeated caller intervals in order,
+buffer reports outside measurement, distinguish training/measured cooks,
+preserve round-trip time precision and avoid GC samples or callbacks inside
+element loops. Seven isolated learned-chain processes and the saved production
+baseline retain hashes/cardinalities/fanouts and phase sums contained within
+merge time; report instrumentation overhead. Temporary Unix linkage/source
+must be restored byte-for-byte. No further optimization is approved yet.
+Restored `@check`, complete RDK/procedural focused checks and benchmark build
+pass (exit 0; `/tmp/rays-f-merge-restored-focused.log`), as does shipping (exit 0;
+`/tmp/rays-f-merge-restored-ship.log`). Production merge is the unchanged
+implementation from the preceding full F5 native checkpoint; only its new
+regression and evidence are retained here.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 
