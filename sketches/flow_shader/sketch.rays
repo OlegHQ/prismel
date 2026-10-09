@@ -1,46 +1,99 @@
 (workspace flow_shader
-  ;; One shader, many looks: a stepped-echo glow (inlined into each kernel).
-  (defmacro glow [uv bands cx cy radius shrink drift bg ring core]
+  ;; One shader, many looks.  A panel is four per-pixel kernels composited by alpha, in the
+  ;; order of the picture: background gradient, haze, bright ring, dark core.  Each kernel
+  ;; is the same stepped echo: x is quantized into bands (no floor: q = x - mod x step), and
+  ;; every band to the right is a smaller or taller, fainter copy whose centre has moved right.
+  ;; (A single kernel with all four zones does not fit the 64-register packed program.)
+  (defmacro grad [uv bg0 bg1]
     `(let* [u# ~uv
-            ;; bands: quantize x, each slice shifts the centre and scales the radius
-            q# (- u#.x (mod u#.x (/ 1 ~bands)))
-            rad# (* ~radius (- 1 (* q# ~shrink)))
-            mx# (+ ~cx (* q# ~drift))
-            ;; glow: smooth radial falloff from the slice's own centre
-            dx# (/ (- u#.x mx#) rad#)
-            dy# (/ (- u#.y ~cy) rad#)
-            g# (max 0 (- 1 (* 0.5 (+ (* dx# dx#) (* dy# dy#)))))
-            a# (* g# g#)
-            b# (* a# (* a# a#))
-            ;; palette: background colour plus a ring layer (a) and a core layer (b)
-            col# (+ (+ ~bg (* a# ~ring)) (* b# ~core))]
-       [col#.x col#.y col#.z 1]))
+            c# (+ ~bg0 (* (- ~bg1 ~bg0) u#.y))]
+       [c#.x c#.y c#.z 1]))
+
+  ;; squared distance s from the band's own centre, in units of the band's radii
+  (defmacro haze [uv bands cx cy rx ry shrink stretch fade drift col]
+    `(let* [u# ~uv one# 1
+            q# (- u#.x (mod u#.x (/ one# ~bands)))
+            dx# (/ (- u#.x (+ ~cx (* q# ~drift))) (* ~rx (- one# (* q# ~shrink))))
+            dy# (/ (- u#.y ~cy) (* ~ry (+ one# (* q# ~stretch))))
+            h# (max 0 (- one# (* 0.35 (+ (* dx# dx#) (* dy# dy#)))))
+            c# ~col]
+       [c#.x c#.y c#.z (* (* h# h#) (- one# (* q# ~fade)))]))
+
+  ;; ring: a bump around d = 0.8; its colour drifts by dcol with the band index
+  (defmacro ring [uv bands cx cy rx ry shrink stretch fade drift col dcol]
+    `(let* [u# ~uv one# 1
+            q# (- u#.x (mod u#.x (/ one# ~bands)))
+            dx# (/ (- u#.x (+ ~cx (* q# ~drift))) (* ~rx (- one# (* q# ~shrink))))
+            dy# (/ (- u#.y ~cy) (* ~ry (+ one# (* q# ~stretch))))
+            r# (max 0 (- one# (* 1.8 (abs (- (+ (* dx# dx#) (* dy# dy#)) 0.64)))))
+            c# (+ ~col (* ~dcol q#))]
+       [c#.x c#.y c#.z (* (* r# r#) (- one# (* q# ~fade)))]))
+
+  ;; core: a tight dark centre, d < 0.55
+  (defmacro core [uv bands cx cy rx ry shrink stretch fade drift col]
+    `(let* [u# ~uv one# 1
+            q# (- u#.x (mod u#.x (/ one# ~bands)))
+            dx# (/ (- u#.x (+ ~cx (* q# ~drift))) (* ~rx (- one# (* q# ~shrink))))
+            dy# (/ (- u#.y ~cy) (* ~ry (+ one# (* q# ~stretch))))
+            k# (max 0 (- one# (* 3.3 (+ (* dx# dx#) (* dy# dy#)))))
+            c# ~col]
+       [c#.x c#.y c#.z (* (* k# k#) (- one# (* q# ~fade)))]))
+
+  ;; a panel at (x, y): bands, centre, radii, shrink, stretch, fade, drift, then the palette
+  (defmacro panel [x y bands cx cy rx ry shrink stretch fade drift bg0 bg1 hz rg drg cr]
+    `(draw/merge
+       (draw/image (image/map (fn [uv#] (grad uv# ~bg0 ~bg1)) :width 360 :height 240) :at [~x ~y 0])
+       (draw/image (image/map (fn [uv#] (haze uv# ~bands ~cx ~cy ~rx ~ry ~shrink ~stretch ~fade ~drift ~hz))
+                     :width 360 :height 240) :at [~x ~y 0])
+       (draw/image (image/map (fn [uv#] (ring uv# ~bands ~cx ~cy ~rx ~ry ~shrink ~stretch ~fade ~drift ~rg ~drg))
+                     :width 360 :height 240) :at [~x ~y 0])
+       (draw/image (image/map (fn [uv#] (core uv# ~bands ~cx ~cy ~rx ~ry ~shrink ~stretch ~fade ~drift ~cr))
+                     :width 360 :height 240) :at [~x ~y 0])))
 
   (graph picture :context draw
-    (let* [;; slow animation: bands drift, blobs breathe
-           drift (+ 0.6 (* 0.15 (sin (* t 0.4))))
-           breathe (+ 1 (* 0.12 (sin (* t 0.7))))
-           orange (image/map
-                    (fn [uv] (glow uv 10 0.2 0.5 (* 0.44 breathe) 0.85 drift
-                               [0.45 0.65 0.6] [0.5 -0.35 -0.45] [-0.8 -0.1 0.3]))
-                    :width 256 :height 256)
-           pink (image/map
-                  (fn [uv] (glow uv 7 0.18 0.5 (* 0.4 breathe) 1.05 drift
-                             [0.1 0.1 0.03] [0.4 0.3 0.9] [0.55 0.1 -0.3]))
-                  :width 256 :height 256)
-           teal (image/map
-                  (fn [uv] (glow uv 5 0.2 0.55 (* 0.36 breathe) 1.1 (* 0.8 drift)
-                             [0.06 0.03 0.1] [1.0 0.3 0.3] [-0.2 0.6 0.6]))
-                  :width 256 :height 256)
-           lime (image/map
-                  (fn [uv] (glow uv 9 0.25 0.45 (* 0.4 breathe) 0.9 (* 0.6 drift)
-                             [0.7 0.1 0.15] [-0.15 0.9 -0.05] [-0.4 -0.1 0.8]))
-                  :width 256 :height 256)]
+    (let* [;; real-time animation: all of it rides the GPU uniform t
+           drift (+ 0.55 (* 0.2 (sin (* t 0.9))))
+           drift2 (* 1.2 drift)
+           drift3 (* 0.5 drift)
+           driftb (+ 1.0 (* 0.12 (sin (* t 0.9))))
+           breathe (+ 1 (* 0.12 (sin (* t 1.3))))
+           sway (* 0.06 (sin (* t 0.7)))
+           hue (* 0.5 (+ 1 (sin (* t 0.5))))
+           rx1 (* 0.2 breathe)
+           ry1 (* 0.3 breathe)
+           rx2 (* 0.1 breathe)
+           ry2 (* 0.14 breathe)
+           rx3 (* 0.22 breathe)
+           rx6 (* 0.26 breathe)
+           ry6 (* 0.38 breathe)
+           ry3 (* 0.2 breathe)
+           rx4 (* 0.19 breathe)
+           ry4 (* 0.27 breathe)
+           rx5 (* 0.22 breathe)
+           ry5 (* 0.2 breathe)
+           cy2 (+ 0.5 sway)
+           cy6 (- 0.5 sway)
+           ring1 [1.0 (+ 0.35 (* 0.3 hue)) 0.1]
+           ring5 [0.15 (+ 0.7 (* 0.2 hue)) 0.8]]
       (draw/merge (draw/background "#0b0b0e")
-        (draw/image orange :at [8 8 0])
-        (draw/image pink :at [272 8 0])
-        (draw/image teal :at [8 272 0])
-        (draw/image lime :at [272 272 0]))))
+        ;; 1 teal to lavender, navy core, orange-magenta ring
+        (panel 8 8 14 0.2 0.5 rx1 ry1 0.5 0.15 0.35 drift
+          [0.45 0.75 0.7] [0.6 0.4 0.85] [0.9 0.8 0.7] ring1 [0.0 -0.3 0.5] [0.1 0.15 0.6])
+        ;; 2 small, tight bands
+        (panel 372 8 12 0.12 cy2 rx2 ry2 0.1 0.2 0.3 drift2
+          [0.45 0.75 0.7] [0.6 0.4 0.85] [0.85 0.75 0.7] [1.0 0.45 0.1] [0.0 -0.2 0.4] [0.05 0.1 0.45])
+        ;; 3 crimson ground, lime ring, navy core
+        (panel 8 256 9 0.3 0.5 rx3 ry3 0.7 0.0 0.4 drift3
+          [0.45 0.05 0.1] [0.75 0.1 0.12] [0.9 0.5 0.3] [0.7 1.0 0.1] [0.3 -0.1 0.7] [0.1 0.5 0.8])
+        ;; 4 dark olive, pink ring fading to blue, wide bands
+        (panel 372 256 6 0.1 cy2 rx4 ry4 0.45 0.0 0.9 driftb
+          [0.12 0.12 0.02] [0.14 0.12 0.04] [0.3 0.2 0.9] [1.0 0.35 0.7] [-0.7 0.0 0.3] [0.15 0.2 0.7])
+        ;; 5 near black, white core, teal ring going red, taller bands
+        (panel 8 504 5 0.1 0.5 rx5 ry5 0.6 1.2 0.6 driftb
+          [0.08 0.05 0.12] [0.1 0.05 0.12] [0.5 0.1 0.35] ring5 [0.85 -0.6 -0.6] [0.95 0.98 0.95])
+        ;; 6 gradient again, lime ring, fast fade
+        (panel 372 504 3 0.45 cy6 rx6 ry6 0.1 0.0 0.2 drift3
+          [0.45 0.75 0.7] [0.6 0.4 0.85] [0.9 0.7 0.5] [0.8 1.0 0.1] [0.2 -0.65 0.3] [0.05 0.2 0.7]))))
 
   (graph settings :context settings
     (settings/config :title "Rays Lisp as a shader language" :width 1280 :height 800))
@@ -51,4 +104,4 @@
            inspector (ui/inspector :of network)]
       (ui/workspace (ui/split "horizontal" preview
         (ui/split "horizontal" network inspector :second_size 230)
-        :second_size 740)))))
+        :second_size 540)))))
