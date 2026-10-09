@@ -475,7 +475,7 @@ a new error.
 
 #### F1.3 One eligibility set: the checker marks exactly what the emitter compiles
 
-**Done (2026-10-09, qualification checkpoint).** Shared width facts,
+**Done (2026-10-09, `25fb324a`).** Shared width facts,
 immutable candidates/refusals and producer/body provenance are connected to
 actual static captures. Raw checking publishes an empty definitive set and
 pending/refusal reasons; qualification compiles each observed specialization
