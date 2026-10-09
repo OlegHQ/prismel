@@ -1581,6 +1581,33 @@ including both complete workspace sweeps and oversized capture qualification
 (exit 0; `/tmp/rays-f-image-accumulator-ship.log`). Actual display is 1×;
 2× goldens remain unqualified.
 
+**Indexed-loop follow-up attribution (2026-10-09; no further optimization yet).**
+The third isolated diagnostic preserves committed `0f070d3f`'s indexed writes.
+The two ordered traversals still take about 5.5 ms/frame; compiler time remains
+only a few microseconds. Changing geometry adds about 1.95 ms materialization
+and 0.37 ms flattening. The captured actual programs each contain nine slots
+(three Input, three Accumulator, three Binary Add), all scanned per accumulator
+step. Only the initial GPU preparation enables the bounded two-program
+callback; it disarms before warmups/trials and formats listings at process exit.
+All nine parity comparisons and resource/capture checks pass. Raw CSV/listing/
+reproducible patch files are `f-image-map-capture-attribution-accumulator*`.
+Production probes and collector are restored byte-for-byte. Further design
+requires Astra review of this evidence; neither large GPU gate is closed.
+Restored focused checks and pre-commit shipping pass (exit 0;
+`/tmp/rays-f-capture-attribution-accumulator-restored.log`,
+`/tmp/rays-f-capture-attribution-accumulator-ship.log`).
+
+Astra's verdict: “Attribution accepted.” Its next approved design recognizes
+only non-collecting, one-input zipped ordered addition at width 1–4, with
+exactly the proved Input/Accumulator/Binary Add layout, matching dependency
+flags and output slots. Input block loading remains; the component loop adds
+the accumulator directly to its input register with the existing finite check
+and assignment. Every unmatched program remains unchanged; no reassociation,
+new instructions, cache fields or scheduling changes are allowed. Scalar and
+Vec2/3/4 matched-pattern regressions, a nearby rejected recurrence and the
+unchanged after benchmark matrices remain required. The fast path is not yet
+implemented, and the large GPU timing gate stays open.
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing

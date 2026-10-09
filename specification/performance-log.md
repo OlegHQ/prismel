@@ -10686,3 +10686,90 @@ gallery float32 and PXUI parity. Both workspace sweeps cover 38 standard files,
 two custom-catalog executables and 13 fixtures at four times/domains 1/8.
 Actual display is 1×; 2× goldens remain unqualified. Pre-commit shipping passes
 (exit 0; `/tmp/rays-f-image-accumulator-ship.log`).
+
+## F2.2 remaining ordered traversal attribution (2026-10-09)
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. Astra approved
+the third temporary diagnostic on `0f070d3f`, preserving the indexed writes.
+It reuses the second probes, with identical inclusive/initial-domain coverage,
+static/changing 65,536-point 1024² images, gradient control, seven CPU8 caller
+samples and seven ×200 completed producer frames after ten warmups. Scratch
+allocation remains inside the complete traversal interval. Worker internals
+remain unobserved, and inclusive phases must not be summed twice.
+
+The only added diagnostic captures the actual two reduction programs through
+the existing preparation measurement callback. A file-local collector retains
+at most those two references during the first GPU preparation, asserts that
+both were captured and disarms before warmups/trials. Its zero clock avoids
+new clocks inside execution. An at-exit writer formats the program listings
+after all measurements; no per-instruction clocks or counters are added.
+The first preparation is instrumented and is not timing-gate evidence.
+The environment variable is set only for the isolated diagnostic command:
+
+```sh
+RAYS_IMAGE_REDUCTION_LISTING=specification/performance/f-image-map-capture-attribution-accumulator-programs.txt _build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-capture-attribution-accumulator-whole.csv 2> specification/performance/f-image-map-capture-attribution-accumulator-counters.csv
+```
+
+The harness additionally writes `f-image-map-capture-attribution-accumulator.csv`.
+All five raw/patch/listing artifacts share that prefix under
+`specification/performance/`. The eight-file patch applies to `0f070d3f`;
+production files were restored byte-for-byte against HEAD after timing.
+The focused diagnostic build and run exit 0, with nine zero-difference parity
+comparisons and all resource/capture/resize/close assertions passing.
+No other builds, tests or agents ran during the measurements.
+
+Seven-trial medians, inclusive milliseconds per completed GPU producer frame:
+
+| Interval | Static P/Cd | Changing P/Cd |
+|---|---:|---:|
+| Whole producer | 7.579745 | 9.980655 |
+| Packed preparation | 5.583771 | 7.853714 |
+| P ordered traversal, including scratch | 2.772475 | 2.724782 |
+| Cd ordered traversal, including scratch | 2.779611 | 2.753351 |
+| P execute | 2.780430 | 4.876285 |
+| Cd execute | 2.786957 | 2.955486 |
+| P compile | 0.003195 | 0.002995 |
+| Cd compile | 0.002447 | 0.004680 |
+| P source preparation | 0.001732 | 2.139674 |
+| Cd source preparation | 0.001284 | 0.187166 |
+| Materialization (nested in P source) | no warm calls | 1.948781 |
+| Flatten (nested, two calls/frame) | no warm calls | 0.368427 |
+| Completed Run execution | 1.233052 | 1.284670 |
+| Sink conversion | 0.753514 | 0.776274 |
+
+CPU8 whole-caller medians are 22.897005 ms static, 22.413015 ms changing
+and 11.982918 ms gradient. Both captured programs are exactly nine slots:
+three independent Input registers, three dependent Accumulator registers and
+three dependent Binary Add registers, with output slots 6/7/8 and source
+width 3. The existing interpreter scans all nine slots per accumulator step.
+This preserves evidence of the remaining traversal cost; it does not approve
+a new specialization or close the failing large GPU gates.
+
+Astra approved the capture wiring: “Approved for this diagnostic.” Restored
+production `@check @lib/flow/runtest @lib/flow_ir/runtest` and benchmark build
+pass (exit 0; `/tmp/rays-f-capture-attribution-accumulator-restored.log`).
+Pre-commit shipping passes (exit 0;
+`/tmp/rays-f-capture-attribution-accumulator-ship.log`). The complete native
+matrix already passed for the unchanged product at `0f070d3f`; this checkpoint
+adds evidence and documentation only, with no remaining production probes.
+
+Astra's verdict is **“Attribution accepted.”** Its next approved design is a
+local fast path for the exact observed component-wise ordered-add pattern.
+Before traversal, one boolean must prove non-collecting Accumulate, one zipped
+input of result width 1–4, exactly `3*width` slots in the observed
+Input/Accumulator/Binary Add order, matching dependencies and output slots
+`2*width+k`. No new instruction, cache field or scheduling change is allowed.
+For matching programs the independent input-block execution remains, while
+the existing component loop adds the current accumulator directly to its
+input scratch register, then performs the existing finite check and assignment.
+All seed/skip/source/chunk/empty/fallback behavior remains. Scans, reversed
+operands, broadcasting and other trees stay on the current interpreter.
+
+Before implementation, the decisive regression must pin matched scalar and
+Vec2/3/4 patterns and reject the nearby `(+ (* a 0.99) x)` form. Full reference
+results at domains 1/8 must cover cancellation, signed zero, empty/changing
+inputs, nonfinite rollback and integer-seed refusal. After focused checks,
+the unchanged eight-cell/control matrices must repeat in isolation against
+`0f070d3f`'s uninstrumented 7.562215/9.956585 ms GPU baselines, preserving all
+parity/counter/resize/ownership checks. This is an approved design, not an
+implemented fast path or measured gate verdict.
