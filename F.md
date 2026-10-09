@@ -118,7 +118,8 @@ saying what the table establishes and what it does not, the raw file paths.
 **Current open work (2026-10-09).** The paragraphs below preserve checkpoint
 history; their earlier “open” statements are not the current task list. Known
 remaining work is F3 fan-out (latest retained
-production learned-eight median63.197136 ms against≤50.600 ms). The chunked
+production learned-eight median51.383018 ms against≤50.600 ms, with range
+49.017906–73.501110 ms). The chunked
 vertex trial is rejected and restored; its evidence and boundary regression
 remain. The unchanged, uninstrumented capture remeasurement below passes the
 changing-source GPU median gate at4.755571 ms (range4.344505–5.610975 ms;
@@ -2232,8 +2233,10 @@ is met."
 
 **Current Astra review (2026-10-09; prefill rejected, phase attribution complete).** The default
 triangulated grids invalidate the earlier 72 MB estimate: the merged positions,
-vertex indices, primitive offsets and kinds occupy 179,736,140 bytes, plus
-48 MB of normals. Their native integer callbacks perform about 15.97 million
+vertex indices, primitive offsets and kinds occupy 179,736,140 bytes. The later
+attribute diagnostic below corrects the earlier extra48 MB normal estimate:
+this unchanged fixture has no normal/vector attribute, only the31,936,032-byte
+primitive integer source tag. Their native integer callbacks perform about 15.97 million
 rewrites, with checked accesses, an indirect callback and an ARM64 assignment
 barrier per store. The private validated constructors do not rewalk topology.
 The two cited reverted commits retain log changes, not the implementation
@@ -2411,6 +2414,43 @@ Its next approved F3 diagnostic attributes existing attribute concatenation by
 storage kind and coordinate plane, with bounded buffers, nested containment
 checks and seven alternating diagnostic/baseline pairs; no optimization is
 approved. F3 remains open; no unreachable proof exists.
+
+**Attribute attribution complete (2026-10-09; production unchanged).** The
+approved storage-kind/plane probes preserve the original expressions and
+evaluation order; their separate bounded buffers and nested containment checks
+pass review. Seven isolated alternating diagnostic/baseline pairs retain42 raw
+CSVs plus14 successful process statuses under `f-merge-attributes-*`.
+All28 whole rows,196 node rows,196 exclusive phase rows and28 attribute rows
+pass hash/cardinality/fanout, finite/count/length and containment checks.
+The fixture contains exactly one primitive Int attribute, `__flow_src`, with
+input lengths1,996,002/1,996,002 and output3,992,004. There are no vector
+attributes or plane samples; no coordinate-plane timing is claimed.
+
+The fresh uninstrumented production whole medians at domains1/8 are
+151.468992/51.383018 ms. Eight-domain samples55.944920/50.595999/73.501110/
+51.383018/49.017906/49.971819/57.826042 retain their full49.017906–73.501110 ms
+range; the unchanged≤50.600 ms gate misses by0.783018 ms. Diagnostic medians
+are152.385950/63.387871 ms; paired whole differences have medians
+0.710011/10.046005 ms, without establishing a pure probe cost or timing cause.
+Measured aggregate attributes9.629011/6.664991 ms are almost entirely the
+source-tag concatenation9.627819/6.662130 ms. Separate phase medians cannot
+be summed. Training samples remain separately labeled.
+
+All four temporary source/API/Dune/harness files are restored byte-for-byte,
+focused checks/rebuild pass, and the saved `f-merge-attributes.patch` applies
+cleanly. The ordinary baseline binary is freshly built at51735051; no older
+pre-scalar harness is reused. Full commands, allocations, medians and hashes
+are in `specification/performance-log.md`. Shipping passes, exit0
+(`/tmp/rays-f-merge-attributes-ship.log`). Astra: **“not met, try constructing
+newly generated source tags once on the merged output.”** Its next approved
+trial merges original inputs when none has the requested primitive source tag,
+then allocates/fills that final tag once; existing/mixed tags, invalid names and
+empty-input-list paths retain their current behavior. Empty inputs consume an
+index; cancellation, error precedence and attribute order must stay intact.
+First require independent provenance/ownership/cancellation/domain regression
+and a failing allocation ceiling; then the full seven-process learned/off/pieces
+and reverse-order learned matrices. No new optimization or unreachable closure
+is claimed at this attribution checkpoint.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

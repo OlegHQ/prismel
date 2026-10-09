@@ -12235,3 +12235,115 @@ source. Pre-commit shipping passes, exit0
 (`/tmp/rays-f-scalar-refresh-gates-ship.log`). Actual1× only;2× goldens remain
 unqualified.
 F3≤50.600 ms and the final audit remain open.
+
+### F3 attribute storage-kind attribution (2026-10-09)
+
+Apple M1/Macmini9,1, OCaml5.3, Dune dev; source checkpoint51735051.
+No production optimization is applied. Astra approves attribution of existing
+attribute concatenation by storage kind and, where present, individual packed
+vector planes. The probes preserve the existing argument expressions and
+evaluation order. Metadata and reports stay outside individual timers;
+separate bounded buffers and nested containment checks fail on overflow or
+inconsistent samples. Training and measured cooks remain distinct.
+
+The fresh production baseline executable is preserved before probes:
+`/private/tmp/f-merge-attr-baseline-51735051.exe`, SHA256
+`1200a25c7ae20f61bbdf9f61f096408ec469453f2ac835e31c9f5486f4e7d9c7`.
+The diagnostic executable is `/private/tmp/f-merge-attr-diagnostic-51735051.exe`,
+SHA256 `c6ebc1e4328af141f4e30097c4590295b49ea56ba252eb453a5dbc193c457c4d`.
+The source archive is `/private/tmp/rays-f-merge-attribute-original-51735051.tar`;
+the reproducible four-file probe patch is `f-merge-attributes.patch`.
+
+```sh
+_build/default/tools/check.exe @check @lib/rdk/runtest @lib/procedural/runtest tools/bench_workspace_lower.exe
+# After diagnostic build/preservation, restore the four files byte-for-byte.
+_build/default/tools/check.exe @check @lib/rdk/runtest @lib/procedural/runtest tools/bench_workspace_lower.exe
+# Seven pairs, trial0..6; even diagnostic/baseline, odd baseline/diagnostic.
+# task_kind selects the preserved executable and matching output prefix.
+RAYS_BRANCH_NODE_TIMES=1 \
+RAYS_MERGE_PHASES_FILE="${task_prefix}-phases.csv" \
+RAYS_MERGE_ATTRIBUTES_FILE="${task_prefix}-attributes.csv" \
+"/private/tmp/f-merge-attr-${task_kind}-51735051.exe" --branches 1 learned \
+  > "${task_prefix}.csv" 2> "${task_prefix}-nodes.csv"
+```
+
+Prefixes are `specification/performance/f-merge-attributes-${task_kind}-${trial}`.
+Baseline ignores both diagnostic output variables and produces only whole/node
+CSVs. No build, test or agent work runs during the isolated measurement batch.
+All14 process exits are0 in `f-merge-attributes-status.csv`; all42 raw CSVs,
+including every outlier, are retained. Each process runs domains1/8 with one
+measured learned cook after the unchanged untimed learning/cache-clear/pool
+warmup protocol. Reporting occurs after the whole-cook timer.
+
+Independent raw validation checks28 whole rows,196 node rows,196 exclusive
+phase rows and28 attribute rows. Every geometry hash remains
+`67c129ecc130f8881a2eaf92c053b64c`; points2,000,000 and fanouts0/1 at domains1/8.
+All seven phases and their original call counts, finite/nonnegative durations,
+phase sums within complete merge, and measured merge within merge-own pass.
+All four cook/domain samples per trial contain exactly one attribute:
+primitive Int `__flow_src`, inputs1,996,002/1,996,002, output3,992,004, one whole
+row and no plane row. The attribute interval is contained in the matching
+aggregate attribute interval and complete merge. This corrects the older
+extra48 MB normals estimate: this fixture has no vector/normal attribute.
+Its source-tag output is31,936,032 bytes. Vector-plane probes are present in
+the reproducible patch but this fixture does not exercise them.
+
+| Median | Production1 | Production8 | Diagnostic1 | Diagnostic8 |
+|---|---:|---:|---:|---:|
+| Whole cook, ms | 151.468992 | 51.383018 | 152.385950 | 63.387871 |
+| Existing merge-own, ms | 59.101105 | 27.511835 | 60.902119 | 38.489103 |
+| Caller allocation, bytes | 503647672 | 374045704 | 503653376 | 374061120 |
+| Program allocation, bytes | 503647960 | 505436208 | 503653664 | 505443224 |
+
+Production eight-domain whole samples are55.944920/50.595999/73.501110/
+51.383018/49.017906/49.971819/57.826042 ms, range49.017906–73.501110.
+Diagnostic eight-domain range48.792124–72.051048 ms. Median paired diagnostic
+minus production whole differences are0.710011/10.046005 ms at domains1/8;
+they retain scheduling/GC/noise effects and do not isolate pure probe cost.
+No timing cause is inferred from these differences.
+
+| Diagnostic measured interval, ms | Domains1 | Domains8 |
+|---|---:|---:|
+| Complete merge | 59.604168 | 34.710884 |
+| Allocation | 7.734060 | 12.983084 |
+| Position blits | 1.641989 | 1.631737 |
+| Joined vertex rewrites | 30.266047 | 7.218838 |
+| Joined primitive rewrites | 10.026932 | 2.422810 |
+| Kind blits | 0.123024 | 0.132799 |
+| Aggregate attributes | 9.629011 | 6.664991 |
+| Source-tag Int concatenation, inclusive | 9.627819 | 6.662130 |
+| Remaining metadata/wrapping/groups/construction/probes | 0.010252 | 0.043631 |
+
+Separate medians must not be summed; attribute time nests within aggregate
+attributes. Complete training intervals are77.728987/33.506870 ms, with
+source-tag concatenation8.607149/6.443024 ms, separately labeled in raw rows.
+
+Diagnostic focused checks/build pass, exit0
+(`/tmp/rays-f-merge-attributes-probes-build.log`). All four source files are
+restored byte-for-byte from the fresh archive (`cmp`, exit0), and the patch
+passes `git apply --check`. Restored full focused checks/rebuild pass, exit0
+(`/tmp/rays-f-merge-attributes-restored.log`). No temporary API, Unix dependency
+or timer remains in production. The preceding full F5 checkpoint applies to
+byte-identical production source. Shipping passes, exit0
+(`/tmp/rays-f-merge-attributes-ship.log`).
+
+Astra: **“not met, try constructing newly generated source tags once on the
+merged output.”** It audits28 whole and28 attribute rows and corrects its prior
+normal estimate. Its next approved trial in shared `Mesh_merge.merge` calls
+`merge_plain` on original nonempty-list inputs only for a valid nonblank source
+name when no input has that primitive attribute. Allocate the final tag array
+once with `source_base`, fill subsequent ranges with `source_base + input_index`,
+and append through existing owned-attribute/geometry APIs. This removes temporary
+per-input tags and their concatenation; it adds no parallel loop or dependency.
+Existing/mixed tags, invalid names and the empty-list case keep the current
+path. Empty inputs still consume an index; cancellation is checked before
+allocation and every range. Ordering and error precedence are the main risks.
+
+Before implementation, add one independent primitive-rich merge regression with
+empty inputs, negative base, full geometry/input bytes at domains1/8, fallback
+and cancellation. A one-domain tagged-minus-untagged allocation ceiling of
+`8 × output_primitive_count + 4096` bytes must fail current code. Then run the
+established seven-process before/after learned/off/pieces matrix and reversed-
+order learned comparison using the fresh preserved baseline, retaining all rows
+and allocations. The unchanged≤50.600 ms whole learned-eight gate decides;
+no optimization or unreachable verdict is claimed at this attribution checkpoint.
