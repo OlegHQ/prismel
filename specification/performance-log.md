@@ -9030,3 +9030,63 @@ elements; noise maxima remain 8.82050105e-7 and 9.88528899e-5 within the
 unchanged tolerance. This qualifies the observation foundation and existing
 evaluation paths, not the still-unimplemented definitive qualification layer.
 Final full-scope native/pixel qualification remains required.
+
+## F1.3 actual-capture qualification (2026-10-09)
+
+Machine: Macmini9,1, Apple M1, eight logical CPUs, OCaml 5.3, Dune dev.
+This is correctness/eligibility evidence, not a timing benchmark.
+
+The checker now publishes immutable packed candidate/refusal facts and
+producer/body provenance independently of precision taint. Its definitive
+approximation set starts empty. `Flow_ir.qualify_workspace` observes actual
+static captures, compiles with production fusion and applies the shared GPU
+form restrictions. Refusal dominates pending ambiguity, which dominates
+success; untaken or unassociated producers remain pending. Every qualification
+rebuilds from candidates, without proof caches or per-frame compilation.
+Lowering and document metadata publication are connected to the inspector and
+all existing audit/benchmark consumers. Literal patches share one guarded
+physical-form remapper for terms and producer metadata.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest \
+  @lib/flow_gpu/runtest @lib/flow_sop/runtest @test/test_scene_sync \
+  @test/test_workspace_doc @test/test_workspace_source @tools/api_manifest/runtest
+# Review the five intended API surfaces, then accept their generated diff.
+dune promote tools/api_manifest/api_stable.json
+_build/default/tools/check.exe @check @lib/flow_ir/runtest
+_build/default/tools/bench_kernel.exe --gpu-check
+_build/default/tools/bench_workspace_lower.exe --approx
+_build/default/tools/check.exe --ship
+_build/default/tools/check.exe @lib/flow_gpu/runtest-native
+```
+
+Focused executables pass; the first combined run exits 1 only for the intended
+API diff, subsequently reviewed/promoted. The final boundary regression run
+passes (exit 0). Tests pin capture requalification with unchanged candidates,
+failure/ambiguity ordering, source preservation/reuse, generated/repeated/zero
+IDs, aliases/bypass, state, empty/static/vector/noise kernels and register
+limits. A failed child compilation retains its materialized boundary while
+the outer map qualifies; one refused use of a shared callable prevents its
+body path qualifying without disqualifying the independent successful root.
+
+The 39-file `--approx` audit passes with each actual catalog, including
+sop_gallery and voxel_wall: 23 qualified paths (five particles, six Flow
+kernel, twelve Flow particles GPU). Each published dependency has observed
+authored producers accepted by fused/unfused compilation and pure emission.
+Pending/refused paths are reported explicitly; no unassociated observation
+is silently counted as success. Shipping passes (exit 0), including 37
+standard files, both actual custom-catalog executables and 13 fixtures,
+ordinary/qualified static signature equality and CPU/reference/cooked parity
+at four times and domains 1/8. Pure GPU fixtures pass (exit 0).
+
+Native GPU validation passes (exit 0). Arithmetic/select/Vec2/Vec4/Vec4-input
+results remain exact at 1,024 and 65,536 elements; noise maximum absolute
+errors are 8.82050105e-7 and 9.88528899e-5 within the unchanged tolerance.
+No golden, tolerance or performance gate is relaxed. Logs:
+`/tmp/rays-f-qualification-{focused-final,boundaries,ship,native,gpu-fixtures,approx}.log`.
+
+Astra approves the implementation and focused checks; its final F1.3 verdict
+is “met”. This closes actual-capture eligibility qualification, not F2.2/F2.3
+or the full F scope. No performance improvement is claimed. Final full-scope
+native/pixel qualification and the field re-gate remain required after the
+image/resident work.

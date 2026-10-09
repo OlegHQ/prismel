@@ -343,7 +343,7 @@ let () =
 
 let ()=
   let ws=check "(workspace gpu (graph g :context value (let* [mapped (map (fn [x] (+ x t)) (array/range 1024))] 0.0)))"in
-  let evaluation=ok(E.static ~record:true ws)in
+  let ws,evaluation=ok(qualify_workspace ~record:true ws)in
   let value=List.assoc ["g";"mapped"] evaluation.records |>List.hd|>snd in
   let profile=Profile.create ~clock:(fun()->0.)in
   let program=ok(Executor.compile ~profile ~approx:ws.approx ~sink:(Display "circles") value)in
@@ -374,8 +374,11 @@ let ()=
       readback=(fun _->Ok(E.Float_array[||]))})}in
   let overflow_ws = check "(workspace gpu (graph g :context value (let* [mapped
       (map (fn [x] (+ x (+ t 1e39))) (array/range 1024))] 0.0)))" in
-  assert (Flow.Workspace.Paths.mem ["g";"mapped"] overflow_ws.approx);
-  let overflow_evaluation = ok (E.static ~record:true overflow_ws) in
+  assert (List.mem_assoc ["g";"mapped"] overflow_ws.packed);
+  let overflow_ws, overflow_evaluation = ok (qualify_workspace ~record:true overflow_ws) in
+  assert (not (Flow.Workspace.Paths.mem ["g";"mapped"] overflow_ws.approx));
+  assert (List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_GPU_FORM")
+    (List.assoc ["g";"mapped"] overflow_ws.approx_reasons));
   let overflow_value = List.assoc ["g";"mapped"] overflow_evaluation.records |> List.hd |> snd in
   let overflow_program = ok (Executor.compile ~approx:overflow_ws.approx
       ~sink:(Display "circles") overflow_value) in
@@ -417,3 +420,163 @@ let ()=
         |Executor.Gpu _->expect_gpu|Executor.Cpu _->not expect_gpu)))
     [0.,true;Cost.estimate Cpu_kernel ~count:1024,true;1.,false];
   print_endline "GPU neutral callbacks: measured placement, illegal exact sinks, qualification scope and phase profiles passed"
+
+let () =
+  let module W = Flow.Workspace in
+  let path = ["g";"mapped"] in
+  let text body = "(workspace qualification (graph g :context host " ^ body ^ "))" in
+  let mapped body = text ("(let* [mapped " ^ body ^ " alias mapped] alias)") in
+  let fingerprint (evaluation : E.t) =
+    let key = Flow.Value.key_of ~residual:E.Private.residual_id in
+    List.map (fun (name,v) -> name,key v) evaluation.results,
+    List.map (fun (path,vs) -> path,List.map (fun (it,v) -> it,key v) vs) evaluation.records,
+    Array.map (fun (n : E.node) -> n.id,n.kind,n.site,n.iter,n.inst,
+      List.map (fun (name,v) -> name,key v) n.args) evaluation.plan.nodes in
+  let qualify ?inputs ws =
+    assert (W.Paths.is_empty ws.W.approx);
+    let qualified,evaluation = ok (qualify_workspace ~record:true ?inputs ws) in
+    assert (qualified.packed == ws.packed && qualified.packed_roots == ws.packed_roots);
+    let reference = ok (E.static ~record:true ?inputs ws) in
+    assert (fingerprint reference = fingerprint evaluation);
+    List.iter (fun domains -> Rays_math.Parallel.run ~domains (fun () ->
+      List.iter (fun time ->
+        let live = Frame_input.at_time time in
+        let actual_state = E.create_state () and reference_state = E.create_state () in
+        List.iter2 (fun (_,a) (_,b) ->
+          assert (same_result (E.force ~state:actual_state a ~live)
+            (E.force ~state:reference_state b ~live))) evaluation.results reference.results)
+        [0.;0.125;1.25;7.])) [1;8];
+    qualified in
+  let expect ?(ops = []) source accepted code =
+    let ws = check ~ops source in
+    let qualified = qualify ws in
+    if W.Paths.mem path qualified.approx <> accepted then
+      failwith ("qualification mismatch: " ^ source ^ "\n" ^ String.concat "\n"
+        (List.concat_map (fun (p,ds) -> List.map (fun d -> String.concat "/" p ^ ": " ^
+          Flow.Diagnostic.to_string d) ds) qualified.approx_reasons));
+    if not accepted then assert (List.exists (fun (d : Flow.Diagnostic.t) -> d.code = code)
+      (List.assoc path qualified.approx_reasons));
+    qualified in
+  List.iter (fun body -> ignore (expect (mapped body) true ""))
+    ["(map (fn [x] (+ x t)) (array/range 4))";
+     "(map (fn [x] (+ x 2.0)) (array/float 0))";
+     "(for [x (array/float 4)] (* x 2.0))";
+     "(map (fn [x] [x t]) (array/float 4))";
+     "(map (fn [x] [x t 0 1]) (array/float 4))";
+     "(map (fn [uv] [uv.x uv.y t 1]) (map (fn [x] [x 2]) (array/float 4)))";
+     "(map (fn [x] (floor 2.5)) (array/float 4))"];
+  List.iter (fun (body,code) -> ignore (expect (mapped body) false code))
+    ["(map (fn [x] (+ x (floor t))) (array/float 4))", "E_PACKED_OPERATOR";
+     "(for [x (array/float 4)] :skip [0] (+ x t))", "E_GPU_FORM";
+     "(for [x (array/float 4) y (array/float 4)] (+ x y))", "E_GPU_FORM";
+     "(map sin (array/float 4 t))", "E_PACKED_FUNCTION";
+     "(map (fn [x] (+ x (+ t (pow 1e20 2.0)))) (array/float 4))", "E_GPU_FORM"];
+  ignore (expect ~ops:Operators.all
+    (mapped "(map (fn [p] (noise3 p :seed 7 :octaves 3)) (array/vec3 4))") true "");
+  ignore (expect ~ops:Operators.all
+    (mapped "(map (fn [p] (noise3 p :octaves 99)) (array/vec3 0))") false "E_PACKED_CONSTANT");
+  let counterfeit = {(Option.get (Flow.Op.find "sin" Flow.Context.value)) with name = "noise3"} in
+  ignore (expect ~ops:[counterfeit] (mapped "(map (fn [x] (noise3 (+ x t))) (array/float 4))")
+    false "E_PACKED_OPERATOR");
+  let sins n = String.concat "" (List.init n (fun _ -> "(sin ")) ^ "x" ^ String.make n ')' in
+  List.iter (fun (n,accepted) -> ignore (expect (mapped
+    ("(map (fn [x] (+ t " ^ sins n ^ ")) (array/range 3))")) accepted "E_PACKED_LIMIT"))
+    [61,true;62,false];
+  let ws = check "(workspace qualification (graph g :context value [(offset : float 2.0)]
+    (let* [mapped (map (fn [x] (+ x (+ offset t))) (array/range 4))] 0.0)))" in
+  List.iter (fun (offset,accepted) ->
+    let qualified = qualify ~inputs:["g",["offset",E.Float offset]] ws in
+    assert (W.Paths.mem path qualified.approx = accepted);
+    if not accepted then assert (List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_GPU_FORM")
+      (List.assoc path qualified.approx_reasons))) [2.,true;1e39,false;7.,true];
+  let ws = check "(workspace qualification
+    (graph g :context value [(offset : float 2.0)]
+      (let* [mapped (map (fn [x] (+ x (+ offset t))) (array/range 4))] 0.0))
+    (graph h :context host [(one : float 2.0) (two : float 3.0)]
+      (list (ref g :offset one) (ref g :offset two))))" in
+  List.iter (fun (one,two,accepted) ->
+    let qualified = qualify ~inputs:["h",["one",E.Float one;"two",E.Float two]] ws in
+    assert (W.Paths.mem path qualified.approx = accepted))
+    [1e39,7.,false;7.,1e39,false;2.,7.,true];
+  ignore (expect (text "(let* [s (state [a 0.0] (+ a (frame/dt)))
+    mapped (map (fn [x] (+ x s)) (array/range 4))] 0.0)") false "E_PACKED_STATE");
+  let independent = check (text "(state [s 0.0] (let* [mapped
+    (map (fn [x] (+ x t)) (array/range 4))] (+ s (array/sum (exact mapped)))))") in
+  let qualified = qualify independent in
+  let roots = W.Paths.of_list (List.map snd independent.packed_roots) in
+  let maps = W.Paths.filter (fun path -> match List.assoc_opt path independent.packed with
+    | Some (W.Candidate _) -> true | _ -> false) roots in
+  assert (not (W.Paths.is_empty maps) && W.Paths.subset maps qualified.approx);
+  let bypass = check (mapped "^:bypass (exact (map (fn [x] (+ x t)) (array/range 4)))") in
+  let qualified = qualify bypass in
+  assert (not (W.Paths.is_empty qualified.approx));
+  let conditional = check (mapped "(if true (map (fn [x] (+ x t)) (array/range 4))
+    (map (fn [x] (+ x t)) (array/range 4)))") in
+  let qualified = qualify conditional in
+  assert (not (W.Paths.mem path qualified.approx));
+  assert (List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_PACKED_PENDING")
+    (List.assoc path qualified.approx_reasons));
+  let boundary = check (text "(let* [blocked (map (fn [x] (floor (+ x t))) (array/float 4))
+    mapped (map (fn [x] (+ x t)) blocked)] 0.0)") in
+  let seen = ref false in
+  let qualified,_ = ok (qualify_workspace ~observe:(fun producer residual ->
+    if producer = Some path then begin
+      seen := true;
+      List.iter (fun fusion -> match Packed.compile_result ~fusion residual (E.Private.residual_view residual).term with
+        | Ok packed -> assert (Packed.gpu_refusals packed = [])
+        | Error _ -> assert false) [true;false]
+    end) boundary) in
+  assert (!seen && W.Paths.mem path qualified.approx
+    && not (W.Paths.mem ["g";"blocked"] qualified.approx));
+  let shared = check (text "(let* [f (fn [x] (sin (+ x t))) good (map f (array/float 4))
+    bad (map f (list 1.0 2.0))] 0.0)") in
+  let qualified = qualify shared in
+  assert (W.Paths.mem ["g";"good"] qualified.approx && not (W.Paths.mem ["g";"bad"] qualified.approx)
+    && not (W.Paths.mem ["g";"f"] qualified.approx));
+  (* A known physical root with an unresolved owner must invalidate another
+     successful observation of that producer, in either traversal order. *)
+  let ws = check (text "(let* [a (map (fn [x] (+ x t)) (array/range 4))
+    b (map (fn [x] (+ x t)) (array/range 4))] b)") in
+  let a = ["g";"a"] and b = ["g";"b"] in
+  let form p = List.find (fun (_,path) -> path = p) ws.packed_roots |> fst in
+  List.iter (fun (known,ambiguous) ->
+    let fake = ["missing"] in
+    let modified = {ws with packed_roots = (form ambiguous, known) :: (form ambiguous,fake) ::
+      List.filter (fun (_,path) -> path <> ambiguous) ws.packed_roots} in
+    let qualified,_ = ok (qualify_workspace modified) in
+    assert (not (W.Paths.mem known qualified.approx));
+    assert (List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_PACKED_PENDING")
+      (List.assoc known qualified.approx_reasons))) [a,b;b,a];
+  List.iter (fun source ->
+    let ws = check source in
+    let observed = ref W.Paths.empty in
+    let qualified,_ = ok (qualify_workspace ~observe:(fun producer _ ->
+      Option.iter (fun path -> observed := W.Paths.add path !observed) producer) ws) in
+    let expected = W.Paths.of_list (List.map snd ws.packed_roots) in
+    assert (not (W.Paths.is_empty expected));
+    if not (W.Paths.subset expected !observed) then failwith ("unmatched callable root: " ^ source);
+    let candidates = W.Paths.filter (fun path -> match List.assoc_opt path ws.packed with
+      | Some (W.Candidate _) -> true | _ -> false) expected in
+    assert (not (W.Paths.is_empty candidates) && W.Paths.subset candidates qualified.approx))
+    [text "(let* [f (fn [offset] (let* [unused 0] (+ (array/sum (exact (map (fn [x] (+ x offset)) (array/float 4)))) 1))) alias f] (alias 2.0))";
+     "(workspace qualification (defn f :context host [(offset : float)]
+        (let* [unused 0] (map (fn [x] (+ x offset)) (array/float 4))))
+        (defn invoke :context host [(alias : fn)] (alias 2.0))
+        (graph g :context host (invoke :alias f)))"];
+  let checked_forms forms = match W.check {Flow.Check.version = 1; kinds = []} forms with
+    | Some ws,_ -> ws | _,ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
+  let graph name = ok (Flow.Syntax.parse ("(graph " ^ name ^ " :context host
+    (let* [mapped (map (fn [x] (+ x t)) (array/range 4))] mapped))")) |> List.hd in
+  let forms = [Flow.Syntax.make (List [Flow.Syntax.make (Sym "workspace");
+    Flow.Syntax.make (Sym "identity"); graph "g"; graph "h"])] in
+  let rec zero (form : Flow.Syntax.t) =
+    let node = match form.node with
+      | List xs -> Flow.Syntax.List (List.map zero xs)
+      | Vec xs -> Vec (List.map zero xs) | Map xs -> Map (List.map zero xs)
+      | Quote (kind,x) -> Quote (kind,zero x) | node -> node in
+    {form with id = 0; node} in
+  List.iter (fun forms ->
+    let qualified = qualify (checked_forms forms) in
+    assert (W.Paths.mem ["g";"mapped"] qualified.approx && W.Paths.mem ["h";"mapped"] qualified.approx))
+    [forms;List.map zero forms];
+  print_endline "Workspace qualification: actual captures, empty/vector/loop/noise kernels, limits, ambiguity, callable ownership and repeated/zero IDs passed"

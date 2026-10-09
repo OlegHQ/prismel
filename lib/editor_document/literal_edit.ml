@@ -135,9 +135,10 @@ let patch catalog (workspace : W.t) op =
               Option.bind (List.find_opt (fun (p : Flow.Check.parameter) -> p.name = field)
                 descriptor.parameters) (fun parameter ->
               let source, forms = patch_source workspace.source before value in
+              let remap_form (form : S.t) = if form.span.finish > form.span.start
+                then Option.value ~default:form (Hashtbl.find_opt forms form.id) else form in
               let update (term : W.term) =
-                let form = if term.form.span.finish > term.form.span.start
-                  then Option.value ~default:term.form (Hashtbl.find_opt forms term.form.id) else term.form in
+                let form = remap_form term.form in
                 if term.form.id = before.id then
                   let ty, _, node = Option.get (literal form) in {term with ty; node; form}
                 else {term with form} in
@@ -156,6 +157,8 @@ let patch catalog (workspace : W.t) op =
                     and _, new_value, _ = Option.get (literal argument.form) in
                     let workspace = {workspace with source; graphs = List.map graph workspace.graphs;
                       defs = List.map graph workspace.defs;
+                      packed_roots = List.map (fun ((form : S.t), path) ->
+                        remap_form form, path) workspace.packed_roots;
                       macros = List.map (fun (form : S.t) ->
                         Option.value ~default:form (Hashtbl.find_opt forms form.id)) workspace.macros} in
                     Ok (workspace, {path; field; kind; authored; before = old_value; after = new_value; expr = argument.form})))

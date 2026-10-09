@@ -891,6 +891,10 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     | Some result -> result
     | None -> Flow_sop.Lower.of_checked ~factories ?compiled_ids ?sites
         ~inputs:workspace.inputs workspace.checked in
+  let workspace = if workspace.checked.approx == lowered.approx
+      && workspace.checked.approx_reasons == lowered.approx_reasons then workspace else
+    {workspace with checked = {workspace.checked with
+      approx = lowered.approx; approx_reasons = lowered.approx_reasons}} in
   let* () = check_context_time workspace lowered.plan in
   let* () = check_scene workspace lowered.plan in
   let* items, root = items workspace lowered in

@@ -373,8 +373,14 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
              List.iter (fun (label, text) ->
                Pxui.Ui.inspector_readout ui ~width ~key:("ws-" ^ label) ~label text)
                (List.filter (fun (label, _) -> List.mem label ["tier"; "execution group"; "group time"]) readouts);
-           if Flow.Workspace.Paths.mem n.path (fst value.doc.Document.workspace).checked.approx then
-             Pxui.Ui.inspector_readout ui ~width ~key:"ws-precision" ~label:"precision" "approximable";
+           let checked = (fst value.doc.Document.workspace).checked in
+           (if Flow.Workspace.Paths.mem n.path checked.approx then
+             Pxui.Ui.inspector_readout ui ~width ~key:"ws-precision" ~label:"precision" "approximable"
+           else match List.assoc_opt n.path checked.approx_reasons with
+             | Some reasons -> List.iteri (fun i (reason : Flow.Diagnostic.t) ->
+                 Pxui.Ui.inspector_readout ui ~width ~key:("ws-precision-" ^ string_of_int i)
+                   ~label:"precision" reason.message) reasons
+             | None -> ());
            let hoist = if footer.invariant && Pxui.Ui.inspector_button ui ~key:"ws-hoist" "Move out of the loop"
              then [ Syntax_edit (Flow_graph.Flow_edit.Hoist { node = n.path }) ] else [] in
            (* a macro call: what it is, and the request the pane's lens button makes *)

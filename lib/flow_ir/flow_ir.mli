@@ -3,6 +3,18 @@
 module Operators = Operators
 module Packed = Packed
 
+val qualify_workspace :
+  ?record:bool -> ?inputs:(string * (string * Flow.Eval.value) list) list ->
+  ?observe:(Flow.Workspace.path option -> Flow.Eval.residual -> unit) ->
+  Flow.Workspace.t -> (Flow.Workspace.t * Flow.Eval.t, Flow.Diagnostic.t) result
+(** Evaluate once with actual captures and qualify immutable checker candidates
+    through production packed compilation and the shared GPU form checks. Any
+    observed refusal dominates successes across instances/tuples. Unobserved or
+    ambiguous producers stay explicitly pending. Every call rebuilds conclusions;
+    no residual/program proofs are retained and live forcing never requalifies.
+    The optional audit callback receives the associated authored producer, or
+    None for an ambiguous/missing association, and the actual observed handle. *)
+
 type id = Flow.Workspace.path * int list
 (** The path includes a graph-instance namespace; provenance retains the authored
     path, so overrides have distinct cardinality origins without moving cards. *)

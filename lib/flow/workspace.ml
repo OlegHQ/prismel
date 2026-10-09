@@ -42,8 +42,11 @@ and node =
 
 type graph = { name : string; context : context;
   inputs : (string * Ty.t * term option) list; body : term; form : S.t }
+type packed_form = Candidate of Paths.t | Refused of Diagnostic.t list
 type t = { name : string; graphs : graph list; defs : graph list; macros : S.t list;
   source : S.t list; live : Paths.t; invariant : Paths.t; approx : Paths.t;
+  packed : (path * packed_form) list; packed_roots : (S.t * path) list;
+  approx_reasons : (path * Diagnostic.t list) list;
   kind_fns : (string * (string * Context.t * Check.slot list)) list; ops : Op.t list }
 
 let max_iterations = Op.max_iterations
@@ -88,6 +91,7 @@ let map_seq f xs = List.rev (List.fold_left (fun acc x -> f x :: acc) [] xs)
 (* ---- checker state ---- *)
 
 type v = { ty : Ty.t; live : bool; live_len : bool; approx : bool; approx_sources : Paths.t;
+  packed_producers : Paths.t; state_dep : bool;
   vary : int list; len : int option;
   fn : callee option; groups : string list; list_fields : string list list }
 and callee =
@@ -107,45 +111,49 @@ exception Budget
 
 let leaf ?(live = false) ?(vary = []) ?(groups = []) ?len ty =
   { ty; live; live_len = false; approx = false; approx_sources = Paths.empty;
+    packed_producers = Paths.empty; state_dep = false;
     vary; len; fn = None; groups; list_fields = [] }
 let union a b = List.sort_uniq compare (a @ b)
 let derive ty vs = { ty; live = List.exists (fun v -> v.live) vs; live_len = false; approx = false;
   approx_sources = List.fold_left (fun sources v -> Paths.union sources v.approx_sources) Paths.empty vs;
+  packed_producers = List.fold_left (fun sources v -> Paths.union sources v.packed_producers) Paths.empty vs;
+  state_dep = List.exists (fun v -> v.state_dep) vs;
   vary = List.fold_left (fun a v -> union a v.vary) [] vs; len = None; fn = None;
   groups = List.fold_left (fun a v -> union a v.groups) [] vs;
   list_fields = List.fold_left (fun a v -> union a v.list_fields) [] vs }
 let approximate vs = List.exists (fun (v : v) -> v.approx) vs
-let packed_array = function Ty.Array (Ty.Float | Ty.Vec3) -> true | _ -> false
-let rec packed_body (term : term) = match term.node with
+let packed_array ty = Option.is_some (Packed_ops.array_width ty)
+let rec packed_body ~ops (term : term) =
+  let body = packed_body ~ops in
+  match term.node with
   | Lit (Param.Int_value _ | Float_value _ | Bool_value _) | Time -> true
-  | Ref_binding _ -> List.mem term.ty [Ty.Float; Ty.Int; Ty.Bool; Ty.Vec3]
-  | Vec terms -> List.length terms = 3 && List.for_all packed_body terms
-  | Get (value, field) -> value.ty = Ty.Vec3 && List.mem field ["x"; "y"; "z"] && packed_body value
-  | Op {op; args = []; _} ->
-      Option.fold ~none:false ~some:(fun (o : Op.t) -> o.live && o.shape = Op.Scalar
-        && List.mem term.ty [Ty.Float; Ty.Int; Ty.Bool]) (Op.find op Context.value)
-  | Op {op; args; _} when List.mem op Packed_ops.noise_names ->
-      List.for_all (fun (key, t) -> match key, t.node with
-        | "position", _ -> packed_body t
-        | "seed", Lit (Param.Int_value _) -> true
-        | "octaves", Lit (Param.Int_value n) -> n >= 1 && n <= 32
-        | _ -> false) args
-  | Op {op; args = [_, vector]; _} when List.mem op Packed_ops.derived_names ->
-      vector.ty = Ty.Vec3 && packed_body vector
+  | Ref_binding _ -> Option.is_some (Packed_ops.scalar_width term.ty)
+  | Vec terms -> List.mem (List.length terms) [2;3;4] && List.for_all body terms
+  | Get (value, field) ->
+      List.mem (value.ty, field) [Ty.Vec2,"x"; Vec2,"y"; Vec3,"x"; Vec3,"y"; Vec3,"z";
+        Vec4,"x"; Vec4,"y"; Vec4,"z"; Vec4,"w"] && body value
   | Op {op; args; _} ->
-      (Option.is_some (Packed_ops.binary op) && List.length args = 2
-       || Option.is_some (Packed_ops.unary op) && List.length args = 1)
-      && List.for_all (fun (_, t) -> packed_body t) args
-  | Let (bindings, result) -> List.for_all (fun (p, t) -> match p with Name _ -> packed_body t | _ -> false) bindings
-      && packed_body result
-  | If (test, yes, no) -> packed_body test && packed_body yes && packed_body no
-  | Cond (arms, default) -> packed_body default
-      && List.for_all (fun (test, value) -> packed_body test && packed_body value) arms
-  | Case (scrutinee, arms, default) -> packed_body scrutinee && packed_body default
+      (match Option.bind (Op.find ~extra:ops op Context.value) Op.packed_kind with
+       | Some Op.Frame -> args = [] && List.mem term.ty [Ty.Float;Int;Bool]
+       | Some Noise3 -> List.for_all (fun (key, t) -> match key, t.node with
+           | "position", _ -> body t | "seed", Lit (Param.Int_value _) -> true
+           | "octaves", Lit (Param.Int_value n) -> Packed_ops.supported_noise_octaves n
+           | _ -> false) args
+       | Some Length -> (match args with [_, vector] -> vector.ty = Ty.Vec3 && body vector | _ -> false)
+       | Some Exact -> (match args with [_, t] -> body t | _ -> false)
+       | Some (Binary _) -> List.length args = 2 && List.for_all (fun (_, t) -> body t) args
+       | Some (Unary _) -> List.length args = 1 && List.for_all (fun (_, t) -> body t) args
+       | Some Constant_only | None -> false)
+  | Let (bindings, result) -> List.for_all (fun (p, t) -> match p with Name _ -> body t | _ -> false) bindings
+      && body result
+  | If (test, yes, no) -> body test && body yes && body no
+  | Cond (arms, default) -> body default
+      && List.for_all (fun (test, value) -> body test && body value) arms
+  | Case (scrutinee, arms, default) -> body scrutinee && body default
       && List.for_all (fun ((literal : S.t), value) ->
         (match literal.node with S.Num _ | S.Sym ("true" | "false") -> true | _ -> false)
-        && packed_body value) arms
-  | Bypass body | Expanded {body; _} -> packed_body body
+        && body value) arms
+  | Bypass t | Expanded {body = t; _} -> body t
   | _ -> false
 let rec list_fields = function
   | Ty.List _ -> [[]]
@@ -256,7 +264,47 @@ let check ?(ops = []) ?(library = false) catalog forms =
   match Op.validate ops with Some error -> None, [error] | None ->
   let find_op = Op.find ~extra:ops in
   let diags = ref [] in
-  let live = ref Paths.empty and invariant = ref Paths.empty and approx = ref Paths.empty in
+  let live = ref Paths.empty and invariant = ref Paths.empty in
+  let roots = Hashtbl.create 32 and links = Hashtbl.create 64 and root_forms = Hashtbl.create 32 in
+  let link path producers = if not (Paths.is_empty producers) then
+    Hashtbl.replace links path (Paths.union producers
+      (Option.value ~default:Paths.empty (Hashtbl.find_opt links path))) in
+  let remember_root (form : S.t) path =
+    let forms = Option.value ~default:[] (Hashtbl.find_opt root_forms form.id) in
+    if not (List.exists (fun (old, owner) -> old == form && owner = path) forms) then
+      Hashtbl.replace root_forms form.id ((form, path) :: forms) in
+  let root path (form : S.t) reasons =
+    let candidate = if reasons = [] then Candidate (Paths.singleton path) else Refused reasons in
+    let merged = match Hashtbl.find_opt roots path, candidate with
+      | Some (Candidate old), Candidate next -> Candidate (Paths.union old next)
+      | Some (Candidate _ as old), Refused _ -> old
+      | _, Candidate _ -> candidate
+      | Some (Refused old), Refused next -> Refused (List.sort_uniq compare (old @ next))
+      | None, _ -> candidate in
+    Hashtbl.replace roots path merged;
+    remember_root form path;
+    link path (Paths.singleton path) in
+  let refusal (form : S.t) code message = Diagnostic.error ~span:form.span ~code message in
+  let source_refusal (term : term) = match term.ty with
+    | Ty.Any | Array Any -> []
+    | ty when packed_array ty -> []
+    | ty -> [refusal term.form "E_PACKED_TYPE" ("Packed source requires Array Float/Vec2/Vec3/Vec4, got " ^ show ty ^ ".")] in
+  let rec link_body producer (term : term) =
+    let visit = link_body producer in
+    let all = List.iter visit and fields fs = List.iter (fun (_, t) -> visit t) fs in
+    match term.node with
+    | Hof _ | Loop _ | Fn _ -> ()
+    | Op {op; _} when Option.bind (find_op op Context.value) Op.packed_kind = Some Op.Exact -> ()
+    | _ ->
+        Option.iter (fun path -> link path (Paths.singleton producer)) term.path;
+        match term.node with
+        | Vec ts -> all ts | Get (t, _) | Bypass t | Expanded {body = t; _} -> visit t
+        | Op {args; _} -> fields args | Let (bindings, result) -> fields bindings; visit result
+        | If (c, a, b) -> all [c;a;b]
+        | Cond (arms, d) -> List.iter (fun (a,b) -> all [a;b]) arms; visit d
+        | Case (s, arms, d) -> visit s; fields arms; visit d
+        | Call_fn {args; body; _} -> all args; Option.iter visit body
+        | _ -> () in
   let steps = ref 0 and zones = ref 0 in
   let add sev (x : S.t) code msg =
     let span = if x.span.start = 0 && x.span.finish = 0 then None else Some x.span in
@@ -282,7 +330,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
         [] in
   let mark id (v : v) =
     if v.live then live := Paths.add id !live;
-    if v.approx then approx := Paths.add id !approx in
+    link id v.packed_producers in
   (* the path of a let*, zone or fn written inline: [~for], then [~for~1], ... under one path,
      so two of them in one expression never share compiled ids *)
   let kind_fns = ref [] in
@@ -424,6 +472,9 @@ let check ?(ops = []) ?(library = false) catalog forms =
     incr steps;
     if !steps > max_steps then raise Budget;
     let t, v = if x.meta <> [] then bypass cx x else plain cx x in
+    (match t.node with
+     | Hof _ | Loop _ | Op {op = "array/sum"; _} -> Paths.iter (remember_root t.form) v.packed_producers
+     | _ -> ());
     t, precision cx.path v
 
   and plain cx (x : S.t) : term * v =
@@ -474,7 +525,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
         | Ty.Int | Ty.Float | Ty.Any -> ()
         | t -> err c "E_TYPE" (Printf.sprintf "Vector components are numbers; got %s." (show t))) cs rs;
       let vs = List.map snd rs in
-      (tm x ty (Vec (List.map fst rs)), {(derive ty vs) with approx = ty = Ty.Vec3 && approximate vs})
+      (tm x ty (Vec (List.map fst rs)), {(derive ty vs) with approx = approximate vs})
     end
 
   and record cx (x : S.t) (items : S.t list) what =
@@ -733,13 +784,14 @@ let check ?(ops = []) ?(library = false) catalog forms =
         if iv.live then err initial "E_STATE_INIT" "A state seed is static; read the frame in the step.";
         if shape_ty iv.ty then err initial "E_STATE_TYPE" "State stores data, not deferred nodes or layouts.";
         let lengths = list_fields iv.ty in
-        let env = bind_pat p {iv with live = true; live_len = List.mem [] lengths; list_fields = lengths} cx.env id ":" in
+        let env = bind_pat p {iv with live = true; state_dep = true; live_len = List.mem [] lengths; list_fields = lengths} cx.env id ":" in
         let step, sv = body {cx with env; path = id; zbody = false} step in
         no_fn x sv.ty "A state step";
         let ty = Option.value ~default:iv.ty (Ty.unify iv.ty sv.ty) in
         if not (Ty.fits sv.ty ty) || shape_ty sv.ty then
           err x "E_STATE_TYPE" "A state step returns the seed's data type.";
         let v = {sv with ty; live = true; approx = false; approx_sources = Paths.empty;
+          state_dep = true; packed_producers = Paths.empty;
           fn = None; list_fields = union sv.list_fields lengths;
           live_len = sv.live_len || List.mem [] lengths} in
         (tm x ty (State {binder = pat_ir p; init; step; zone = id}), v)
@@ -869,11 +921,18 @@ let check ?(ops = []) ?(library = false) catalog forms =
               approx = kind = `For && skip = [] && packed_array ty && List.length clauses = 1
                 && List.for_all (fun (p, _) -> match p with Name _ -> true | _ -> false) clauses
                 && List.for_all (fun (_, (t : term)) -> packed_array t.ty) clauses
-                && packed_body bt;
+                && packed_body ~ops bt;
               vary = union (List.filter (( <> ) zid) bv.vary)
                 (List.fold_left (fun a (v : v) -> union a v.vary) [] ins) } in
+    let reasons = if kind <> `For || List.length clauses <> 1 then
+        [refusal x "E_GPU_FORM" "GPU kernels require collecting one-source loops."]
+      else List.concat_map (fun (pattern, source) -> match pattern with
+        | Name _ -> source_refusal source
+        | _ -> [refusal x "E_PACKED_FORM" "Packed parameters require name patterns."]) clauses in
+    root id x reasons;
+    link_body id bt;
     (tm x ty (Loop { kind; accs = (match init with Some (p, t, _) -> [ (pat_ir p, t) ] | None -> []);
-                     clauses; skip; body = bt; zone = id }), v)
+                     clauses; skip; body = bt; zone = id }), {v with packed_producers = Paths.singleton id})
 
   and mk_fn cx (x : S.t) id name : term * v =
     match x.node with
@@ -896,7 +955,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
         let (bt, bv) = call_closure cx x c args in
         let ir_params = List.map (fun (p, ty) -> (pat_ir p, ty)) params in
         (tm x (Ty.Fn None) (Fn { params = ir_params; body = bt; zone = id; capture = None }),
-         { (leaf ~live:bv.live (Ty.Fn None)) with fn = Some (Closure c) })
+         { (leaf ~live:bv.live (Ty.Fn None)) with state_dep = bv.state_dep; fn = Some (Closure c) })
     | _ -> bad x "E_FN" "fn is (fn [params] body)."
 
   and call_closure cx x (c : closure) (args : arg list) : term * v =
@@ -917,7 +976,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
                                depth = cx.depth + 1; zbody = false;
                                stack = List.sort_uniq compare (cx.stack @ c.ccx.stack) } in
       let (bt, bv) = body inner c.body in
-      (bt, { bv with fn = None })
+      (bt, { bv with fn = None; state_dep = bv.state_dep || List.exists (fun a -> a.av.state_dep) args })
     end
 
   and fn_arg cx (x : S.t) : term * v =
@@ -1014,9 +1073,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
               err x "E_TYPE" (Printf.sprintf "reduce's function must return the accumulator type %s; it returns %s." (show it) (show rv.ty));
             (`Reduce, it, false) in
       let v = derive ty (fv :: rv :: list_vs @ (match init with Some (_, iv) -> [ iv ] | None -> [])) in
-      let eligible = match result.node with
-        | Call_fn {fn; _} -> Option.fold ~none:false ~some:(fun (g : graph) -> packed_body g.body) (Hashtbl.find_opt def_terms fn)
-        | _ -> packed_body result in
+      let specialized = match result.node with Call_fn {body = Some body; _} -> body | _ -> result in
+      let eligible = packed_body ~ops specialized in
       let params = match fv.fn with
         | Some (Closure c) -> Some c.params
         | Some (Def_fn name) -> Option.map (fun d -> List.map (fun (name, ty, _) -> S.make (S.Sym name), Some ty) d.sparams)
@@ -1026,7 +1084,27 @@ let check ?(ops = []) ?(library = false) catalog forms =
         List.length params = List.length lists && List.for_all2 (fun ((p : S.t), annotation) (_, _, (v : v)) ->
           (match p.node with S.Sym _ -> true | _ -> false)
           && (annotation = None || annotation = Ty.elem v.ty)) params lists) params in
+      let reasons = if kind <> `Map then
+          [refusal x "E_GPU_FORM" "GPU kernels require collecting maps."]
+        else List.concat_map (fun (_, t, _) -> source_refusal t) lists
+          @ Option.fold ~none:[] ~some:(fun params ->
+              if List.length params <> List.length lists then
+                [refusal x "E_PACKED_FORM" "Packed parameter count differs from its sources."]
+              else List.concat (List.map2 (fun ((p : S.t), annotation) (_, _, (v : v)) ->
+                match p.node, annotation, Ty.elem v.ty with
+                | S.Sym _, _, None when v.ty = Ty.Any -> []
+                | S.Sym _, _, Some Ty.Any | S.Sym _, None, _ -> []
+                | S.Sym _, Some want, Some have when want = have -> []
+                | S.Sym _, _, _ -> [refusal x "E_PACKED_TYPE" "Packed parameter annotation differs from its source."]
+                | _ -> [refusal x "E_PACKED_FORM" "Packed parameters require name patterns."]) params lists)) params in
+      root cx.path x reasons;
+      link_body cx.path specialized;
+      (match fv.fn with
+       | Some (Closure c) -> link c.cid (Paths.singleton cx.path)
+       | Some (Def_fn name) -> link ["def:" ^ name] (Paths.singleton cx.path)
+       | _ -> ());
       (tm x ty (Hof (kind, terms)), { v with live_len; live = v.live || live_len;
+        packed_producers = Paths.singleton cx.path;
         approx = kind = `Map && packed_array ty && inputs_fit
           && List.for_all (fun (_, _, (v : v)) -> packed_array v.ty) lists && eligible })
     end
@@ -1248,12 +1326,19 @@ let check ?(ops = []) ?(library = false) catalog forms =
           | "linspace", [ _; _; Some n ] -> Some (max 0 n)
           | _ -> None in
         let derived = derive ty avs in
+        let capability = Op.packed_kind o in
+        let exact = capability = Some Op.Exact in
         let v = { derived with live = o.live || List.exists (fun (v : v) -> v.live) avs; live_len; len;
-          approx = Packed_ops.supports o.name && approximate avs;
-          approx_sources = (if o.name = "exact" || shape_ty ty then Paths.empty else
+          approx = (match capability with Some (Op.Binary _ | Unary _ | Length | Noise3) -> approximate avs | _ -> false);
+          packed_producers = (if exact || shape_ty ty then Paths.empty else derived.packed_producers);
+          approx_sources = (if exact || shape_ty ty then Paths.empty else
             derived.approx_sources);
           list_fields = (if o.live then list_fields ty else []) } in
-        (tm x ty (Op { op = o.name; args = List.rev !named; skip }), v)
+        if o.name = "array/sum" then begin
+          root cx.path x [refusal x "E_GPU_FORM" "Ordered reductions stay on the CPU."];
+          (tm x ty (Op { op = o.name; args = List.rev !named; skip }),
+           {v with packed_producers = Paths.singleton cx.path})
+        end else (tm x ty (Op { op = o.name; args = List.rev !named; skip }), v)
       end
     end
 
@@ -1345,6 +1430,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
     let ty = Ty.Fn (Some {signature with result = rv.ty}) in
     { a with aterm = {a.aterm with ty; node = Fn {params; body = result; zone; capture = Some a.aterm}};
       av = {a.av with ty; live = a.av.live || rv.live;
+        state_dep = a.av.state_dep || rv.state_dep;
         approx_sources = Paths.union a.av.approx_sources rv.approx_sources} }
 
   and apply_kind cx x (k : Check.kind) (args : arg list) : term * v =
@@ -1426,7 +1512,7 @@ let check ?(ops = []) ?(library = false) catalog forms =
         err x "E_MISSING_INPUT" (Printf.sprintf "%s needs its :%s input" short p.name)) k.parameters;
     let ty = kind_out k in
     let v = { (derive ty (List.map (fun a -> a.av) args)) with groups = union groups_in !writes;
-      approx_sources = Paths.empty } in
+      approx_sources = Paths.empty; packed_producers = Paths.empty } in
     (tm x ty (Call { kind = k.qualified; ctx = k.context; args = List.rev !out }), v)
 
   and def_default (d : signature) pname : (term * v) option =
@@ -1487,7 +1573,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
         let inner = { env = !env; ctx = d.sctx; stack = d.sname :: cx.stack; scope = "ƒ " ^ d.sname;
                       path = [ "def:" ^ d.sname ]; in_def = true; depth = cx.depth + 1; zone = 0; zbody = false } in
         let (bt, bv) = body inner d.sbody in
-        (tm x bv.ty (Call_fn { fn = d.sname; args = List.rev !terms; body = Some bt }), { bv with fn = None })
+        (tm x bv.ty (Call_fn { fn = d.sname; args = List.rev !terms; body = Some bt }),
+         { bv with fn = None; state_dep = bv.state_dep || List.exists (fun a -> a.av.state_dep) args })
       end
     end
 
@@ -1547,7 +1634,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
                     err d "E_TYPE" (Printf.sprintf "The default of %s input %s is %s; it is declared %s." name n (show v.ty) (show ty));
                   (Some t, v)
               | None -> (None, leaf ty) in
-            let v = { (leaf ~live:dv.live ty) with vary = [] } in
+            let v = { (leaf ~live:dv.live ty) with vary = []; state_dep = dv.state_dep;
+              packed_producers = dv.packed_producers; approx_sources = dv.approx_sources } in
             mark [ name; ":" ^ n ] v;
             env := Smap.add n v !env; inputs := (n, ty, dt) :: !inputs) sg.sparams;
           let (bt, bv) = body { cx0 with env = !env } sg.sbody in
@@ -1557,7 +1645,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
           gstack := List.tl !gstack;
           Hashtbl.replace graph_terms name { name; context = sg.sctx; inputs = List.rev !inputs; body = bt; form = sg.sform };
           let v = { (leaf ~live:bv.live want) with groups = []; approx = bv.approx;
-            approx_sources = bv.approx_sources } in
+            approx_sources = bv.approx_sources; packed_producers = bv.packed_producers;
+            state_dep = bv.state_dep } in
           Hashtbl.replace ginfo name v;
           v
         end in
@@ -1673,8 +1762,20 @@ let check ?(ops = []) ?(library = false) catalog forms =
   match outcome with
   | Some (wname, _, go, dos) when not has_error ->
       let get tbl = List.filter_map (Hashtbl.find_opt tbl) in
+      let packed = Hashtbl.fold (fun path producers entries ->
+        let classification = match Hashtbl.find_opt roots path with
+          | Some (Refused _ as refusal) -> refusal
+          | Some (Candidate own) -> Candidate (Paths.union own producers)
+          | None -> Candidate producers in
+        (path, classification) :: entries) links [] |> List.sort compare in
+      let packed_roots = Hashtbl.fold (fun _ forms roots -> forms @ roots) root_forms []
+        |> List.sort (fun (a, p) (b, q) -> let n = compare p q in if n = 0 then compare a.S.id b.S.id else n) in
+      let approx_reasons = List.map (fun (path, classification) -> path, match classification with
+        | Refused reasons -> reasons
+        | Candidate _ -> [Diagnostic.error ~code:"E_PACKED_PENDING" "Actual producer captures have not been qualified."]) packed in
       (Some { name = wname; graphs = get graph_terms go; defs = get def_terms dos;
-              macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant; approx = !approx;
+              macros = List.rev !macro_forms; source = forms; live = !live; invariant = !invariant; approx = Paths.empty;
+              packed; packed_roots; approx_reasons;
                 kind_fns = !kind_fns; ops },
        diagnostics)
   | _ -> (None, diagnostics))

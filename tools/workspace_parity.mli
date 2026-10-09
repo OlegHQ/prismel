@@ -5,7 +5,10 @@ val check : ?directory:string -> ?commands:bool -> factories:Procedural.Edit_gra
     IR/reference at four times and one/eight domains. A directory also compares
     authored payloads and native pixels of every cooked/drawing result, including
     images and scene image textures. [commands] prepares the same commands and
-    checks owned image bytes without requiring a native rendering device. *)
+    checks owned image bytes without requiring a native rendering device.
+    Audits each qualified path against observed authored producers with fused/
+    unfused packed compilation and pure emission; reports pending/refused forms. *)
 
 val report_approx : name:string -> Editor_document.Workspace_doc.t -> unit
-(** Print the checker's complete advisory path set using the actual catalog. *)
+(** Qualify and print the complete path set using actual inputs/captures and the
+    caller's catalog, auditing fused/unfused emission and reporting all reasons. *)

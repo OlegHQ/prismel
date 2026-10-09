@@ -26,6 +26,8 @@ type t = {
   plan : E.plan;
   states : E.value list;
   evaluated : E.t;
+  approx : Workspace.Paths.t;
+  approx_reasons : (Workspace.path * Diagnostic.t list) list;
   profile : Flow_ir.Profile.t;
   preview : node:int -> probes:int list -> Network.t -> (Network.t * int) option;
 }
@@ -114,7 +116,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
     ?(sites = []) ?inputs checked =
   Phase_timer.measure Lower (fun () ->
   try
-    let evaluated = ok (E.static ~record:true ?inputs checked) in
+    let checked, evaluated = ok (Flow_ir.qualify_workspace ~record:true ?inputs checked) in
     let profile = Flow_ir.Profile.create ~clock:Unix.gettimeofday in
     (* Kernel bodies are cache inputs as well as their captures. The digest is
        lazy so ordinary catalog edits retain their existing pipeline counts.
@@ -613,7 +615,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           |> List.fold_left (fun m (i, id) -> Network.Int_map.add i id m)
                Network.Int_map.empty;
         pending = List.rev !pending; provenance = !provenance; zones = List.rev !zones;
-        volatile = !volatile_nodes; plan; states = evaluated.states; evaluated; profile; preview}
+        volatile = !volatile_nodes; plan; states = evaluated.states; evaluated;
+        approx = checked.approx; approx_reasons = checked.approx_reasons; profile; preview}
   with Fail diagnostic -> Error diagnostic)
 
 let workspace ~factories ?extra ?(ops = Operators.all) ?reference ?compiled_ids ?sites ?inputs source =

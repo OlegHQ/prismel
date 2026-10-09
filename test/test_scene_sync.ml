@@ -120,6 +120,61 @@ let text_first what doc level edit after =
   | Error message -> failwith (what ^ ": " ^ message)
 
 let run () =
+  let qualification = Ws_fixture.of_text {|(workspace qualification
+    (graph g :context value [(offset : float 2.0)]
+      (let* [mapped (map (fn [x] (+ x (+ offset t))) (array/range 4))] 0.0))
+    (graph geo :context sop (sop/box :size 1.0)))|} in
+  let path = ["g";"mapped"] in
+  check (Flow.Workspace.Paths.is_empty qualification.checked.approx) "raw checker published qualified paths";
+  let first = lower qualification in
+  let current = ref first in
+  List.iter (fun (offset,accepted) ->
+    let previous = !current in
+    let workspace = {(fst previous.workspace) with inputs = ["g",["offset",E.Float offset]]} in
+    let doc = lower ~previous workspace in
+    let qualified,lowered = doc.workspace in
+    check (Flow.Workspace.Paths.mem path qualified.checked.approx = accepted)
+      "input changes reused stale qualification";
+    check (qualified.checked.approx == lowered.approx) "document did not publish lowering qualification";
+    check (qualified.source == workspace.source && qualified.checked.source == workspace.checked.source)
+      "qualification replaced the authored source";
+    if not accepted then check (List.exists (fun (d : Flow.Diagnostic.t) -> d.code = "E_GPU_FORM")
+      (List.assoc path qualified.checked.approx_reasons)) "capture overflow has no reason";
+    current := doc) [2.,true;1e39,false;7.,true];
+  let previous = !current in
+  let catalog = Result.get_ok (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
+  let edited = Workspace_doc.edit catalog (fst previous.workspace)
+    (Flow_graph.Flow_edit.Set_arg {node = ["geo";"@result"]; key = Kw "size"; sub = [];
+      value = Flow.Syntax.make (Num "2.0")}) |> Result.get_ok in
+  check (edited.literal <> None) "catalog literal did not exercise the fast patch";
+  let doc = lower ~previous edited in
+  check (Flow.Workspace.Paths.mem path (fst doc.workspace).checked.approx)
+    "patched authored forms lost their producer associations";
+  check ((fst doc.workspace).source == edited.source && contains (Workspace_doc.to_text (fst doc.workspace)) ":size 2.0")
+    "publishing metadata lost the literal edit";
+  let unchanged = lower ~previous:doc (fst doc.workspace) in
+  check ((fst unchanged.workspace).checked == (fst doc.workspace).checked
+    && snd unchanged.workspace == snd doc.workspace) "unchanged qualification broke literal reuse";
+  let old_form = List.find (fun (_,p) -> p = path) qualification.checked.packed_roots |> fst in
+  let generated = Flow.Syntax.make old_form.node in
+  let generated_checked = {qualification.checked with
+    packed_roots = List.map (fun (form,path) -> (if form == old_form then generated else form),path)
+      qualification.checked.packed_roots;
+    graphs = List.map (fun (graph : Flow.Workspace.graph) ->
+      if graph.name <> "g" then graph else match graph.body.node with
+      | Let (bindings,result) -> {graph with body = {graph.body with node = Let (
+          List.map (fun (pattern,(term : Flow.Workspace.term)) -> pattern,
+            if term.form == old_form then {term with form = generated} else term) bindings,result)}}
+      | _ -> assert false) qualification.checked.graphs} in
+  let generated_doc = lower {qualification with checked = generated_checked} in
+  let edited = Workspace_doc.edit catalog (fst generated_doc.workspace)
+    (Flow_graph.Flow_edit.Set_arg {node = ["geo";"@result"]; key = Kw "size"; sub = [];
+      value = Flow.Syntax.make (Num "2.0")}) |> Result.get_ok in
+  check (List.exists (fun (form,_) -> form == generated) edited.checked.packed_roots)
+    "literal patch replaced a generated ID-zero producer";
+  let edited_doc = lower ~previous:generated_doc edited in
+  check (Flow.Workspace.Paths.mem path (fst edited_doc.workspace).checked.approx)
+    "generated empty-span root stopped matching after literal patch";
   let doc = open_text text in
   (* Following the viewport writes camera coordinates every frame. Rounding them
      makes the camera diverge far enough to flash its own frustum when zoomed out. *)

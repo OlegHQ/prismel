@@ -59,9 +59,8 @@ let gpu_refusals t =
     refuse "Nonfinite float32 shader constants require reference evaluation.";
   List.rev !reasons
 
-let width_of = function
-  | Ty.Vec2 -> 2 | Vec3 -> 3 | Vec4 -> 4 | Float | Int | Bool -> 1
-  | _ -> raise Unsupported
+let width_of ty = match Flow.Packed_ops.scalar_width ty with
+  | Some width -> width | None -> raise Unsupported
 let components = function
   | E.Vec2 (x,y) -> [|x;y|] | Vec3 (x,y,z) -> [|x;y;z|]
   | Vec4 (x,y,z,w) -> [|x;y;z;w|] | value -> [|V.num value|]
@@ -179,9 +178,9 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
     (* ponytail: correlated clauses stay interpreted; lower their changing source counts before tiling them. *)
     if iteration = Product && Array.exists (reads_names names) sources then
       refuse "E_PACKED_FORM" "Correlated product sources require reference evaluation.";
-    let widths = Array.map (fun (s : W.term) -> match s.ty with
-      | Ty.Array (Ty.Float | Vec2 | Vec3 | Vec4 as ty) -> width_of ty
-      | _ -> refuse ~at:s "E_PACKED_TYPE" ("Packed source must be a float/vector array, got " ^ Ty.to_string s.ty ^ ".")) sources in
+    let widths = Array.map (fun (s : W.term) -> match Flow.Packed_ops.array_width s.ty with
+      | Some width -> width
+      | None -> refuse ~at:s "E_PACKED_TYPE" ("Packed source must be a float/vector array, got " ^ Ty.to_string s.ty ^ ".")) sources in
     if Array.length sources <> List.length params then
       refuse "E_PACKED_FORM" (Printf.sprintf "Packed kernel has %d sources but %d parameters."
         (Array.length sources) (List.length params));

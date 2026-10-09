@@ -10,6 +10,12 @@ val supported_noise_octaves : int -> bool
 val finite_float32 : float -> bool
 (** Limits shared by packed compilation and GPU form qualification. *)
 
+val scalar_width : Ty.t -> int option
+(** Register widths for Float/Int/Bool and Vec2/3/4 expressions. *)
+
+val array_width : Ty.t -> int option
+(** Source widths for Array Float/Vec2/3/4 only; Int/Bool arrays are refused. *)
+
 val binary : string -> binary option
 val unary : string -> unary option
 val noise_names : string list

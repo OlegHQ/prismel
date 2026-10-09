@@ -5,6 +5,103 @@ module W = Flow.Workspace
 module V = Flow.Value
 module Ty = Flow.Ty
 
+let qualify_workspace ?record ?inputs ?observe (workspace : W.t) =
+  let roots = Hashtbl.create 32 and index = Hashtbl.create 32 and outcomes = Hashtbl.create 32
+  and callable_owners = Hashtbl.create 16 in
+  let callable owner (body : W.term) =
+    let entries = Option.value ~default:[] (Hashtbl.find_opt callable_owners body.form.id) in
+    if not (List.exists (fun (form, path) -> form == body.form && path = owner) entries) then
+      Hashtbl.replace callable_owners body.form.id ((body.form, owner) :: entries) in
+  List.iter (fun (form, path) ->
+    let entries = Option.value ~default:[] (Hashtbl.find_opt roots form.Flow.Syntax.id) in
+    Hashtbl.replace roots form.id ((form, path) :: entries)) workspace.packed_roots;
+  let add owner (term : W.term) =
+    let producers = Option.value ~default:[] (Hashtbl.find_opt roots term.form.id)
+      |> List.fold_left (fun paths (form, path) ->
+          if form == term.form then W.Paths.add path paths else paths) W.Paths.empty in
+    let producers = match term.path with
+      | Some path when W.Paths.mem path producers -> W.Paths.singleton path
+      | _ when W.Paths.mem owner producers -> W.Paths.singleton owner
+      | _ -> producers in
+    let entries = Option.value ~default:[] (Hashtbl.find_opt index term.form.id) in
+    let same (form, base, _) = form == term.form && base = owner in
+    let old = List.find_opt same entries |> Option.fold ~none:W.Paths.empty ~some:(fun (_,_,paths) -> paths) in
+    Hashtbl.replace index term.form.id
+      ((term.form, owner, W.Paths.union old producers) :: List.filter (fun e -> not (same e)) entries) in
+  let rec walk collect owner (term : W.term) =
+    let owner = Option.value term.path ~default:owner in
+    let visit = walk collect in
+    let all = List.iter (visit owner) and fields fs = List.iter (fun (_, t) -> visit owner t) fs in
+    (if not collect then match term.node with
+     | W.Hof ((`Map | `Reduce), _) | W.Loop _ | W.Op {op = "array/sum"; _} -> add owner term
+     | _ -> ());
+    match term.node with
+    | W.Vec ts | List_lit ts | Str ts | List_op (_,ts) | Hof (_,ts) -> all ts
+    | Call {args;_} | Op {args;_} | Record args -> fields args
+    | Graph_ref {inputs;_} -> fields inputs
+    | Let (bindings, body) -> fields bindings; visit owner body
+    | Loop {zone;accs;clauses;body;_} ->
+        List.iter (fun (_,t) -> visit zone t) (accs @ clauses); visit zone body
+    | Fn {zone;body;capture;_} ->
+        if collect then callable zone body;
+        Option.iter (visit owner) capture; visit zone body
+    | Call_fn {args;body;_} -> all args; Option.iter (fun (body : W.term) ->
+        let owners = Option.value ~default:[] (Hashtbl.find_opt callable_owners body.form.id)
+          |> List.filter_map (fun (form, owner) -> if form == body.form then Some owner else None)
+          |> List.sort_uniq compare in
+        visit (match owners with [owner] -> owner | _ -> owner) body) body
+    | State {init;step;zone;_} -> visit owner init; visit zone step
+    | If (c,a,b) -> all [c;a;b]
+    | Cond (arms,d) -> List.iter (fun (a,b) -> all [a;b]) arms; visit owner d
+    | Case (s,arms,d) -> visit owner s; fields arms; visit owner d
+    | Assoc (r,updates) -> visit owner r; fields updates
+    | Get (t,_) | Bypass t | Expanded {body=t;_} -> visit owner t
+    | Lit _ | Text _ | Nil | Time | Ref_binding _ | Fn_ref _ -> () in
+  List.iter (fun (graph : W.graph) -> callable ["def:" ^ graph.name] graph.body) workspace.defs;
+  List.iter (fun collect -> List.iter (fun (graph : W.graph) ->
+    let owner = if List.exists (fun (g : W.graph) -> g == graph) workspace.defs
+      then ["def:" ^ graph.name] else [graph.name] in
+    List.iter (fun (_,_,term) -> Option.iter (walk collect owner) term) graph.inputs;
+    walk collect owner graph.body) (workspace.graphs @ workspace.defs)) [true;false];
+  let pending path = [Flow.Diagnostic.error ~code:"E_PACKED_PENDING"
+    ("No unambiguous static specialization was observed for producer " ^ String.concat "/" path ^ ".")] in
+  let observed residual =
+    let view = E.Private.residual_view residual in
+    let producers = Option.value ~default:[] (Hashtbl.find_opt index view.term.form.id)
+      |> List.find_opt (fun (form, owner, _) -> form == view.term.form && owner = view.owner)
+      |> Option.fold ~none:W.Paths.empty ~some:(fun (_,_,paths) -> paths) in
+    let producer = if W.Paths.cardinal producers = 1 then Some (W.Paths.choose producers) else None in
+    (if producer = None then
+      let possible = Option.value ~default:[] (Hashtbl.find_opt roots view.term.form.id)
+        |> List.fold_left (fun paths (form, path) ->
+            if form == view.term.form then W.Paths.add path paths else paths) producers in
+      W.Paths.iter (fun path -> match Hashtbl.find_opt outcomes path with
+        | Some (_ :: _) -> ()
+        | _ -> Hashtbl.replace outcomes path (pending path)) possible);
+    Option.iter (fun path ->
+      let reasons = match Packed.compile_result residual view.term with
+        | Error reasons -> reasons | Ok packed -> Packed.gpu_refusals packed in
+      let reasons = List.map (fun (d : Flow.Diagnostic.t) ->
+        {d with span = (match d.span with Some _ -> d.span | None -> Some view.term.form.span);
+          message = Printf.sprintf "%s (producer %s, instance %d, tuple [%s])" d.message
+            (String.concat "/" path) view.instance (String.concat "," (List.map string_of_int view.iter))}) reasons in
+      match Hashtbl.find_opt outcomes path with
+      | Some ((d : Flow.Diagnostic.t) :: _) when d.code <> "E_PACKED_PENDING" || reasons = [] -> ()
+      | _ -> Hashtbl.replace outcomes path reasons) producer;
+    Option.iter (fun callback -> callback producer residual) observe in
+  let (let*) = Result.bind in
+  let* evaluated = E.Private.static_with_kernels ?record ?inputs ~observe:observed workspace in
+  let reasons path = match List.assoc_opt path workspace.packed with
+    | Some (W.Refused reasons) -> reasons
+    | _ -> Option.value ~default:(pending path) (Hashtbl.find_opt outcomes path) in
+  let approx, approx_reasons = List.fold_left (fun (accepted, rejected) (path, form) ->
+    let refused = match form with
+      | W.Refused reasons -> reasons
+      | Candidate producers -> W.Paths.elements producers |> List.concat_map reasons in
+    if refused = [] then W.Paths.add path accepted, rejected
+    else accepted, (path, refused) :: rejected) (W.Paths.empty, []) workspace.packed in
+  Ok ({workspace with approx; approx_reasons = List.rev approx_reasons}, evaluated)
+
 type id = W.path * int list
 module Count = struct
   type t = Static of int | Data of id | Unknown

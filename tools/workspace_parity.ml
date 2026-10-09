@@ -104,14 +104,55 @@ let picture ?compare ?texture (output : S.output) =
   Option.iter (fun compare -> compare mesh scene) compare;
   scene
 
+let qualify ~name (workspace : Editor_document.Workspace_doc.t) =
+  let module W = Flow.Workspace in
+  let observed = Hashtbl.create 32 in
+  let observe producer residual =
+    let view = E.Private.residual_view residual in
+    let accepted = List.map (fun fusion ->
+      match I.Packed.compile_result ~fusion residual view.term with
+      | Error _ -> false
+      | Ok packed ->
+          let expected = I.Packed.gpu_refusals packed = [] in
+          let emitted = match Flow_gpu.Emit.kernel packed with Ok _ -> true | Error _ -> false in
+          if emitted <> expected then failwith (name ^ ": compiler/emitter form disagreement");
+          emitted) [true;false] |> List.for_all Fun.id in
+    match producer with
+    | Some path -> Hashtbl.replace observed path
+        (accepted && Option.value ~default:true (Hashtbl.find_opt observed path))
+    | None ->
+        if not (List.exists (fun (form,_) -> form == view.term.form) workspace.checked.packed_roots) then
+          failwith (name ^ ": observed kernel has no authored producer association at " ^
+            String.concat "/" view.owner);
+        Printf.printf "%s: pending observation at %s, instance %d, tuple [%s]\n%!"
+        name (String.concat "/" view.owner) view.instance
+        (String.concat "," (List.map string_of_int view.iter)) in
+  let checked, evaluated = I.qualify_workspace ~record:true ~inputs:workspace.inputs
+    ~observe workspace.checked |> ok in
+  W.Paths.iter (fun path -> match List.assoc_opt path checked.packed with
+    | Some (W.Candidate producers) when not (W.Paths.is_empty producers) ->
+        W.Paths.iter (fun producer ->
+          if Hashtbl.find_opt observed producer <> Some true then
+            failwith (name ^ ": qualified path lacks accepted fused/unfused authored producer " ^
+              String.concat "/" path ^ " -> " ^ String.concat "/" producer)) producers
+    | _ -> failwith (name ^ ": qualified path has no candidate provenance")) checked.approx;
+  List.iter (fun (path, reasons) ->
+    List.iter (fun (reason : Flow.Diagnostic.t) ->
+      Printf.printf "%s: %s %s: %s\n%!" name (String.concat "/" path) reason.code reason.message)
+      reasons) checked.approx_reasons;
+  checked, evaluated
+
 let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_document.Workspace_doc.t) =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories |> ok in
   let evaluated = E.static ~record:true ~inputs:workspace.inputs workspace.checked |> ok in
+  let checked, qualified = qualify ~name workspace in
+  if signature evaluated <> signature qualified then
+    failwith (name ^ ": qualification changed static evaluation");
   let compiled = L.of_checked ~factories ~inputs:workspace.inputs workspace.checked |> ok
   and reference = L.of_checked ~reference:true ~factories ~inputs:workspace.inputs workspace.checked |> ok in
   if signature evaluated <> signature compiled.evaluated || signature evaluated <> signature reference.evaluated
     then failwith (name ^ ": static plan/instance/value/record mismatch");
-  ignore (I.of_evaluation workspace.checked catalog evaluated |> I.optimize |> ok);
+  ignore (I.of_evaluation checked catalog evaluated |> I.optimize |> ok);
   let prepared = List.map (fun v -> v, I.Executor.compile v |> ok) (values evaluated) in
   let pixels = Option.map (fun directory ->
     if not (Sys.file_exists directory) then Unix.mkdir directory 0o755;
@@ -237,6 +278,7 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
      else ", cooked payloads equal")
 
 let report_approx ~name (document : Editor_document.Workspace_doc.t) =
-  let paths = Flow.Workspace.Paths.elements document.checked.approx in
+  let checked, _ = qualify ~name document in
+  let paths = Flow.Workspace.Paths.elements checked.approx in
   Printf.printf "%s: %d approximable [%s]\n%!" name (List.length paths)
     (String.concat "; " (List.map (String.concat "/") paths))

@@ -164,7 +164,15 @@ Direct packed edge writes (`97e5f7bf`) now pass F2.1's measured gate: eight-doma
 cook medians are 9.131908 and 9.860992 ms in opposite execution orders,
 with exact geometry and about 15.7 MB less allocation. Astra's verdict is
 “met”; shipping and full F5 native/pixel qualification pass (exit 0).
-F1.3, F2.2 and F2.3 are still open.
+Actual-capture qualification and the connected checker/lowering/document/
+inspector/tool migration now complete F1.3. The 39-file actual-catalog audit
+checks 23 qualified authored/body paths through fused/unfused compilation
+and emission. Capture changes rebuild accepted/refused/pending conclusions;
+ambiguous or missing observations never qualify. Focused and shipping checks,
+the full workspace sweep and native GPU numerics pass (exit 0). Astra's F1.3
+gate verdict is “met”; the final materialized-source/shared-function regressions
+also pass. F2.2 and F2.3 remain open; image/map and resident-image consumers
+are still unimplemented. This qualification checkpoint does not complete F.md.
 Full F5 native/pixel validation passed at `8f1f4789` (exit 0) on the confirmed
 M1, including the 37-file pixel sweep. The current shared-form-check checkpoint
 passes focused checks, `--ship` and native GPU numerics. The direct-edge
@@ -467,7 +475,32 @@ a new error.
 
 #### F1.3 One eligibility set: the checker marks exactly what the emitter compiles
 
-**Astra design (2026-10-09; implementation pending).** The current compiler
+**Done (2026-10-09, qualification checkpoint).** Shared width facts,
+immutable candidates/refusals and producer/body provenance are connected to
+actual static captures. Raw checking publishes an empty definitive set and
+pending/refusal reasons; qualification compiles each observed specialization
+and applies the production GPU form checks. Actual failures dominate pending
+ambiguity and successes; absent/untaken specializations remain pending.
+Lowering qualifies once, and the document publishes only derived metadata
+without replacing source. Inspector reasons and tool consumers use that result.
+Literal patches preserve physical producer references, including generated
+empty-span forms, while unchanged documents retain their identity.
+
+Tests cover representable→1e39→representable captures on unchanged candidates,
+overflowing/finite instances in either order, ambiguity in either order,
+callable aliases, bypass, untaken branches, independent/state-dependent maps,
+empty/static/vector/noise kernels, register limits, repeated/zero syntax IDs,
+materialized unsupported children and shared-function provenance. The actual
+catalog/file routes audit every published path with fused/unfused compilation
+and pure emission, reporting every pending/refusal reason and preserving
+ordinary evaluation/cook parity. The 39-file report has 23 qualified paths;
+shipping covers 37 standard files, both custom-catalog executables and 13
+fixtures at four times/domains 1/8. Focused, shipping, pure GPU fixtures and
+native GPU checks pass. The five intended public API surfaces are promoted.
+Astra's verdict is “met” for F1.3; details and commands are in the performance
+log. No timing improvement or image/resident gate is claimed.
+
+**Astra design (2026-10-09; implemented by the checkpoint above).** The current compiler
 and emitter support Vec2/Vec4; the older audit below predates that groundwork.
 The earlier claim that one-source `for` fails emission was incorrect:
 `Packed.Private.view` already treats one source as zipped, including Product.

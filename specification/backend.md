@@ -35,6 +35,16 @@ One-source Product programs already have effective-Zip semantics. Reachability
 is a fresh mask; qualification never mutates the borrowed program. This shared
 check creates no dependency from the numeric IR to the GPU implementation.
 
+`Flow_ir.qualify_workspace` joins immutable checker candidates to actual static
+captures through the evaluator's temporary observation callback. It uses the
+production packed compiler and that same pure form check, without importing
+the emitter or creating a device. Missing/ambiguous specializations remain
+pending; actual refusals dominate successes. Lowering owns this qualification
+and exposes only derived path/reason metadata to the document and inspector.
+The validation-only workspace tool additionally compares fused/unfused
+programs with pure emission using each caller's actual catalog. No execution
+proof cache or per-frame qualification is introduced.
+
 `flow_sop` depends
 only on `flow`, `flow_ir`, `param`, `procedural` and the standard-library `unix`
 clock; its typed overlay and

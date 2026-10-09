@@ -1204,12 +1204,13 @@ module Private = struct
     term : W.term;
     bindings : (string * value) list;
     site : W.path;
+    owner : W.path;
     iter : int list;
     instance : int;
     previous : bool;
   }
   let residual_view r = {term = r.rterm; bindings = Smap.bindings r.renv;
-    site = site r.rc; iter = r.rc.iter; instance = r.rc.inst; previous = r.previous}
+    site = site r.rc; owner = r.rc.base; iter = r.rc.iter; instance = r.rc.inst; previous = r.previous}
   let residual_id r = r.rid
   let residual_ops r = r.rc.st.ops
   let force_reference ?state ?elems ?resolve v ~live = force_with ?state ?elems ?resolve ~compiled:false v ~live

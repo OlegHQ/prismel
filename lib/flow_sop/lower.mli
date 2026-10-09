@@ -88,6 +88,9 @@ type t = {
   plan : Flow.Eval.plan;
   states : Flow.Eval.value list;
   evaluated : Flow.Eval.t;  (** recording evaluation shared with graph probes *)
+  approx : Flow.Workspace.Paths.t;  (** qualified actual packed specializations *)
+  approx_reasons : (Flow.Workspace.path * Flow.Diagnostic.t list) list;
+      (** pending or refused specializations; rebuilt with the evaluation *)
   profile : Flow_ir.Profile.t;  (** bounded execution timings shared by value lanes, kernels and drawing *)
   preview : node:int -> probes:int list -> Network.t -> (Network.t * int) option;
       (** Scratch viewport network for a plan node at its iteration tuple. A
@@ -157,7 +160,8 @@ val of_checked :
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
   Flow.Workspace.t -> (t, Flow.Diagnostic.t) result
 (** Lower an already checked document, without rebuilding a catalog or checking
-    its source again. The retained evaluation includes probe records.
+    its source again. The retained evaluation includes probe records and
+    qualifies actual packed captures, publishing [approx] and [approx_reasons].
     [reference:true] retains native catalog cooking but independently interprets
     value drives and attribute writes for full-workspace parity checks. *)
 

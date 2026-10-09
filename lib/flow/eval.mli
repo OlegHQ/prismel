@@ -240,6 +240,9 @@ module Private : sig
     term : Workspace.term;
     bindings : (string * value) list;
     site : Workspace.path;
+    owner : Workspace.path;
+        (** Evaluator lexical base, excluding runtime prefix and route. It is
+            not always the checker's cx.path for anonymous input expressions. *)
     iter : int list;
     instance : int;
     previous : bool;

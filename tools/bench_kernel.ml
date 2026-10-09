@@ -272,8 +272,9 @@ let gpu_check () =
   List.iter (fun count ->
     let doc = match Rays_editor.Workspace.load (gpu_drawing count) with Ok doc -> doc
       | Error ds -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string ds)) in
-    assert (not (Flow.Workspace.Paths.is_empty doc.Editor_document.Workspace_doc.checked.approx));
-    let evaluation = get (Flow.Eval.static doc.checked) in
+    let checked, evaluation = get (Flow_ir.qualify_workspace ~inputs:doc.inputs
+      doc.Editor_document.Workspace_doc.checked) in
+    assert (not (Flow.Workspace.Paths.is_empty checked.approx));
     let circles = Array.find_opt (fun (node : Flow.Eval.node) -> node.kind = "draw/circles")
       evaluation.plan.nodes |> Option.get in
     let value = List.assoc "positions" circles.args in
@@ -282,7 +283,7 @@ let gpu_check () =
       | _ -> failwith "drawing benchmark needs a packed residual" in
     ignore (get (Flow_gpu.Emit.kernel packed));
     let _, site, _ = Flow_ir.Packed.site packed in
-    assert (Flow.Workspace.Paths.mem site doc.checked.approx);
+    assert (Flow.Workspace.Paths.mem site checked.approx);
     assert (Flow_ir.Packed.static_count packed = Some count)) [10_000; 1_000_000];
   print_endline "GPU benchmark fixtures: emitted noise and live display maps, exact counts, approximate paths"
 

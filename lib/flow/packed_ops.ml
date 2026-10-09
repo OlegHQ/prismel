@@ -6,6 +6,13 @@ let register_limit = 64
 let supported_noise_octaves n = n >= 1 && n <= 32
 let finite_float32 x = Float.is_finite (Int32.float_of_bits (Int32.bits_of_float x))
 
+let scalar_width = function
+  | Ty.Float | Int | Bool -> Some 1 | Vec2 -> Some 2 | Vec3 -> Some 3 | Vec4 -> Some 4
+  | _ -> None
+let array_width = function
+  | Ty.Array (Ty.Float | Vec2 | Vec3 | Vec4 as ty) -> scalar_width ty
+  | _ -> None
+
 let binaries = ["+", Add; "-", Sub; "*", Mul; "/", Div; "mod", Mod; "pow", Pow;
   "min", Min; "max", Max; "<", Lt; "<=", Le; ">", Gt; ">=", Ge; "=", Eq;
   "and", And; "or", Or]

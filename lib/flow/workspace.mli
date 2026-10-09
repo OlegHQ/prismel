@@ -86,6 +86,10 @@ type graph = {
   form : Syntax.t;
 }
 
+type packed_form = Candidate of Paths.t | Refused of Diagnostic.t list
+(** A candidate links an authored path to the producers that require actual
+    capture qualification. Structural refusals do not prevent CPU evaluation. *)
+
 type t = {
   name : string;
   graphs : graph list;
@@ -102,11 +106,18 @@ type t = {
           variables or the accumulator (register L7, the "same each time"
           mark) *)
   approx : Paths.t;
-      (** Advisory GPU eligibility: packed maps/collect loops over floats or
-          vec3 values with covered bodies, and supported derivatives. [exact]
-          removes this class. The checker requires explicit exact boundaries
-          at statically visible exact-only sinks; execution placement and the
-          runtime precision backstop belong to the IR. *)
+      (** Definitive eligibility, empty after check until actual-capture
+          qualification above Flow. Independent precision taint still enforces
+          statically visible exact-only sinks; execution precision belongs to IR. *)
+  packed : (path * packed_form) list;
+      (** Immutable candidate/refusal facts, including aliases and kernel body
+          participation. Holding an unused callable does not qualify it. *)
+  packed_roots : (Syntax.t * path) list;
+      (** Physical authored form identities and their checker producer paths.
+          Syntax IDs may restart across imports or be zero on generated forms;
+          qualifier traversal supplies evaluator ownership without rewriting terms. *)
+  approx_reasons : (path * Diagnostic.t list) list;
+      (** Pending/structural refusals after check; actual reasons after qualification. *)
   kind_fns : (string * (string * Context.t * Check.slot list)) list;
       (** A catalog kind used as a function value: its qualified name, context and
           complete ordered slot signature, including a repeated final slot. *)

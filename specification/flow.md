@@ -1111,11 +1111,26 @@ are exact, so its runtime value is unchanged. A host GPU backend may place a
 covered approximable packed producer at a display sink after measured costs
 justify it; `(exact x)` explicitly materializes a selected GPU producer.
 
-The checker's `Workspace.approx` paths are advisory GPU eligibility, separate
-from an executed value's precision. Packed float/vec3 maps and one-clause
-collect loops qualify when their bodies use the shared `Flow.Packed_ops`
-operations, numeric literals, vec3 fields, `let*`, `if`, `cond` and numeric/bool
-`case`. `(length vec3)` returns its Euclidean norm as a float, using
+The checker records immutable `Workspace.packed` candidates/refusals and
+candidate-to-producer links, including aliases and kernel body paths. Its
+definitive `Workspace.approx` starts empty. `Flow_ir.qualify_workspace` runs
+the ordinary static evaluation once, observes each actual specialization,
+compiles with production fusion and applies the shared GPU form checks.
+It qualifies a path only when all its producers have observed, unambiguously
+associated specializations that pass. A refusal or ambiguous observation
+dominates successes; unobserved producers remain explicitly pending.
+`approx_reasons` retains structural, actual compilation/emission or pending
+reasons. Inputs/captures changing rebuild conclusions from candidates, with
+no retained residual/program proof cache and no per-frame qualification.
+`Lower.of_checked` publishes this derived metadata, which `Contexts` copies
+into the current document without replacing edited source.
+
+Candidates cover maps and one-clause collecting loops over packed
+Float/Vec2/Vec3/Vec4 arrays. Captures, folded constants, records, function
+bindings and register demand are decided by actual compilation; uncertainty
+does not exclude ordinary CPU use. Declaration capabilities in `Flow.Op`
+and width/register/octave/float32 facts in `Flow.Packed_ops` are shared with
+compilation. `(length vec3)` returns its Euclidean norm as a float, using
 `sqrt ((x*x + y*y) + z*z)` with that association and separately rounded
 float64 multiplications and additions (no contraction). Concrete scalar inputs are
 type errors; unannotated Fn inputs are checked again at the call site.
@@ -1123,10 +1138,14 @@ The packed compiler derives it from existing multiplication/addition/square-root
 instructions and preserves the reference's nonfinite diagnostic and lazy branches.
 Numeric nullary
 live built-ins and `t` are per-frame uniforms. Noise seed/octave
-arguments must be literal (octaves 1–32). Multi-clause products, reductions,
-filters, unsupported operations and catalog calls stay outside the set.
-Supported derivatives preserve eligibility; `(exact x)` removes it. The
-checker retains producer paths through aliases, arithmetic and containers and
+arguments must compile as constants (octaves 1–32). Multi-clause products,
+reductions, filters and unsupported actual programs stay outside the qualified
+set. One-source Product already has effective Zip behavior; authored skips
+are checked against each actual iteration tuple. `(exact x)` clears derived
+eligibility without erasing the producer's own facts.
+
+Precision taint remains independent of qualification candidates. The
+checker retains precision producer paths through aliases, arithmetic and containers and
 reports `E_APPROX_SINK` before an eligible value reaches a catalog slot or
 parameter, state seed, graph override, or `settings/*`/`scene/*` argument. Its
 message names the producer and consumer paths. `draw/*` and `ui/*` consumers
@@ -1134,9 +1153,13 @@ may display these values; exact-only consumers require `(exact x)`, including
 when CPU execution currently supplies the producer. This conservative check
 does not change CPU values. An inline `exact` is a graph card with its input's
 cards and function zones projected and edited beneath it.
-The inspector reports `approximable` for eligible paths; the graph's tier badge
+The inspector reports `approximable` for qualified paths or the pending/refusal
+reasons; the graph's tier badge
 continues to describe execution. `bench_workspace_lower --approx` prints the
-complete sets, including workspaces checked by their own custom catalogs.
+complete qualified sets and every pending/refusal reason, including workspaces
+checked by their own custom catalogs. The actual-catalog workspace parity
+routes audit every published path against observed authored producers with
+fused/unfused compilation and pure emission, alongside ordinary evaluation parity.
 
 Actual packed GPU form checks are shared through `Flow_ir.Packed.gpu_refusals`:
 placement, display dispatch and the emitter all refuse non-collecting forms,
@@ -1144,7 +1167,7 @@ multi-source products, skips and ordered accumulators. Output-reachable
 constants must stay finite in float32 and noise octaves must be 1–32; unused
 constants/noise do not invalidate a program. A one-source Product is already
 effective Zip. Ordered accumulators remain refused even when unused. This
-runtime backstop does not yet replace the checker's advisory candidate walk.
+runtime backstop remains for hand-built programs and execution boundaries.
 
 `Flow_ir.Packed.compile_result` reports the first actual compilation refusal
 with a source span and a concrete state, function, capture, type, form, register
@@ -1163,8 +1186,10 @@ include attempted specializations whose enclosing static evaluation later
 defers; they do not establish exhaustive execution coverage. They do
 not change ordinary residual identities. The callback is cleared in live
 evaluation and when static evaluation exits, so forcing and capture adapters
-do not repeat it. This provides evidence for actual-capture qualification;
-the current checker still publishes its advisory eligibility walk.
+do not repeat it. Qualification uses these observations, matching physical
+authored forms and checked lexical ownership; syntax IDs alone are insufficient
+because imports restart IDs and generated forms may use zero. Runtime instance
+prefixes and tuple sites are diagnostic provenance, not authored path guesses.
 
 Cook-time specialization uses the instantiated SOP facts, including parameter
 overrides, rather than a catalog's default declaration. A regular node with
