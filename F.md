@@ -115,11 +115,11 @@ saying what the table establishes and what it does not, the raw file paths.
 
 ## 1. Where the tree is
 
-**Current open work (2026-10-09).** The paragraphs below preserve checkpoint
-history; their earlier “open” statements are not the current task list. Known
-remaining work is the completion commit. The final scope
-audit, source-fixed F5, field re-gate, constant-image domain regression and
-documentation corrections and shipping have passed; their evidence is recorded below.
+**Current completion (2026-10-09, `a0a8cd7b`).** The required F scope is complete
+and committed. The paragraphs below preserve checkpoint history; their earlier
+“open” statements are superseded by the final requirements audit. Source-fixed
+F5, the field re-gate, constant-image domain regression, documentation corrections
+and shipping pass; their evidence is recorded below.
 F3 passes with the reviewed source-tag optimization: learned-eight
 whole median45.914173 ms, reversed-order46.201944 ms, against≤50.600 ms;
 all14 candidate learned-eight samples pass. The chunked
@@ -127,7 +127,7 @@ vertex trial is rejected and restored; its evidence and boundary regression
 remain. The unchanged, uninstrumented capture remeasurement below passes the
 changing-source GPU median gate at4.755571 ms (range4.344505–5.610975 ms;
 three of seven trials exceed5 ms). F2.4/F4 retain their conditional/optional scope; F8 is a
-handoff. Overall completion is not claimed.
+handoff. Qualification covers actual1×;2× goldens remain explicitly unqualified.
 
 **Committed milestone (2026-10-08, `e36a0ac4`).** F1.1, F1.2, F1.4 and the F6 canvas-image
 coercion are implemented and verified. The field SOP, selected-tuple probes,
@@ -2157,7 +2157,7 @@ Astra designs the family and the uniform layout; you do the rest.
 
 ### F3. The two-chain fan-out gate (Astra only)
 
-**Measured gate met (2026-10-09; final source-fixed qualification pending).**
+**Measured gate met (2026-10-09, `a0a8cd7b`; final qualification passed).**
 Astra: **“met. Keep the source-tag optimization.”** See the final checkpoint
 below for complete before/after/control/reverse evidence. Earlier rejected
 trials and diagnostic misses in this section preserve history.
@@ -2459,7 +2459,7 @@ and a failing allocation ceiling; then the full seven-process learned/off/pieces
 and reverse-order learned matrices. No new optimization or unreachable closure
 is claimed at this attribution checkpoint.
 
-**Single source-tag construction retained (2026-10-09).** Shared
+**Single source-tag construction retained (2026-10-09, `a0a8cd7b`).** Shared
 `Mesh_merge.merge` now merges original inputs when the nonempty input list has
 no existing requested primitive source attribute and its name is nonblank.
 It creates that final Int array once, fills input ranges with the existing
@@ -2490,10 +2490,10 @@ needed. Raw112 CSVs and statuses are `specification/performance/f-merge-source-t
 commands, allocations, node medians and limitations are in the performance log.
 This is a whole-cook median gate; the old `merge_plain` diagnostic interval
 would exclude the new final tag work and cannot decide it. Source-fixed final
-F5, shipping and the overall requirements audit now pass as recorded below;
-the completion commit remains.
+F5, shipping and the overall requirements audit pass as recorded below;
+implementation, regressions and all raw evidence are committed in `a0a8cd7b`.
 
-**Final requirements audit (2026-10-09).** Three Astra reviewers independently
+**Final requirements audit (2026-10-09, `a0a8cd7b`).** Three Astra reviewers independently
 audit the assigned requirements against actual code/tests and current evidence,
 then the implementation closes the identified constant-image coverage gap,
 post-image field re-gate and documentation drift. Historical misses above are
@@ -2524,7 +2524,9 @@ Final field raw rows/statuses are `specification/performance/f-field-final-*`;
 both processes exit0 and all14 rows retain hash
 `8a9c2d382ab7564328783e84a132cef1`,85,680 points/vertices and28,560 primitives.
 No gate, tolerance, golden, public API or dependency is relaxed. Final shipping
-passes, exit0 (`/tmp/rays-f-final-audit-ship.log`); the completion commit follows.
+passes, exit0 (`/tmp/rays-f-final-audit-ship.log`), with the staged pre-commit
+repeat also exit0 (`/tmp/rays-f-final-audit-staged-ship.log`). Required F work
+is complete and committed in `a0a8cd7b`.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

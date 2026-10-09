@@ -12350,6 +12350,8 @@ no optimization or unreachable verdict is claimed at this attribution checkpoint
 
 ### F3 single source-tag construction: measured gate met (2026-10-09)
 
+Implementation, regression and complete raw evidence: `a0a8cd7b`.
+
 Apple M1/Macmini9,1, OCaml5.3, Dune dev, shared16,384 grain; production baseline
 at54fc7716 has identical implementation to51735051. Astra designs/reviews the
 14-line shared `Mesh_merge.merge` change. For a nonempty list, nonblank source
@@ -12444,6 +12446,8 @@ Final source-fixed F5, shipping and the overall requirements audit are underway.
 
 ### Final field preservation and F requirements audit (2026-10-09)
 
+Completed implementation, tests, audit and evidence checkpoint: `a0a8cd7b`.
+
 Apple M1/Macmini9,1, OCaml5.3, Dune dev, actual1× display and real Metal device.
 Three Astra reviewers audit F0/F1/F6/F7, F2.2/F2.3/F2.4/F5, and F2.1/F3/F4/F8
 against actual code/tests and the complete current evidence. They identify no
@@ -12508,4 +12512,6 @@ requirements table match the implementation and reviewed results.
 All required F implementation/measured items now pass; F2.4/F4 retain their
 conditional/optional scope and F8 hands off future phases, including the distinct
 million-circle difference fixture. Final shipping passes, exit0
-(`/tmp/rays-f-final-audit-ship.log`); the completion commit follows.
+(`/tmp/rays-f-final-audit-ship.log`); staged pre-commit shipping also passes,
+exit0 (`/tmp/rays-f-final-audit-staged-ship.log`). Required F work is complete
+and committed in `a0a8cd7b`.
