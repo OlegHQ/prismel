@@ -776,6 +776,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     | Failed d -> Error d
     | Nonfinite | Unsupported -> Error (Flow.Diagnostic.error ~code:"E_KERNEL" "Kernel needs reference evaluation.")
     | V.Fail (code, message, span) -> Error (Flow.Diagnostic.error ?span ~code message)
+    | Invalid_argument message -> Error (Flow.Diagnostic.error ~code:"E_KERNEL" ("Kernel needs reference evaluation: " ^ message))
     | Out_of_memory -> Error (Flow.Diagnostic.error ~code:"E_ARRAY_MEMORY" "Frame data exceeds available memory.")) in
   match result with Ok _ -> result | Error _ ->
     let started = Option.map (fun (clock, _) -> clock ()) measure in
@@ -839,5 +840,6 @@ module Private = struct
     with Failed error -> Error error
       | Unsupported -> Error (Flow.Diagnostic.error ~code:"E_KERNEL" "Kernel inputs need reference evaluation.")
       | V.Fail (code,message,span) -> Error (Flow.Diagnostic.error ?span ~code message)
+      | Invalid_argument message -> Error (Flow.Diagnostic.error ~code:"E_KERNEL" ("Kernel inputs need reference evaluation: " ^ message))
       | Out_of_memory -> Error (Flow.Diagnostic.error ~code:"E_ARRAY_MEMORY" "Frame data exceeds available memory."))
 end

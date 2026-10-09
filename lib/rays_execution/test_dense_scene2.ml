@@ -32,7 +32,7 @@ let run () =
     let execution=get (Rays_execution.create_offscreen
       {Rays_execution.
         logical_width=64;logical_height=48;drawable_width=64*scale;drawable_height=48*scale;
-        title="dense-scene2";vsync=false}) in
+        title="dense-scene2";vsync=false;high_density=true}) in
     Fun.protect ~finally:(fun () -> ignore (get (Rays_execution.destroy execution)))
       (fun () ->
         let render ir =

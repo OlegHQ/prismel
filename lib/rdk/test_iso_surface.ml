@@ -96,7 +96,7 @@ let run () =
       for y = 0 to ry do
         for x = 0 to rx do
           samples.(x + (rx+1)*(y + (ry+1)*z)) <- field
-            (min.x +. float x *. sx) (min.y +. float y *. sy) (min.z +. float z *. sz)
+            (Float.fma (float x) sx min.x) (Float.fma (float y) sy min.y) (Float.fma (float z) sz min.z)
         done
       done
     done;

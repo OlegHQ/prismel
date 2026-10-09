@@ -84,7 +84,7 @@ let run () =
     let configuration = { Rays_execution.
       logical_width = 64; logical_height = 40;
       drawable_width = 64 * density; drawable_height = 40 * density;
-      title = "ui-pipeline"; vsync = false } in
+      title = "ui-pipeline"; vsync = false; high_density = true } in
     match Rays_execution.create_offscreen configuration with
     | Error _ -> print_endline "UI pipeline: skipped (no native Metal device)"
     | Ok execution ->

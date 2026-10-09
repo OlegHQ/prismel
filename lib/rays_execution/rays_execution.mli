@@ -12,6 +12,7 @@ type configuration = {
   drawable_height : int;
   title : string;
   vsync : bool;
+  high_density : bool;  (** a drawable at the display's native density (false: the logical size) *)
 }
 val default_configuration : configuration
 

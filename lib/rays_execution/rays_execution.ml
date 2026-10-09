@@ -9,9 +9,9 @@ let resource operation value =
   Error { operation; kind=Resource; message=Format.asprintf "%a" Runtime_resources.pp_error value }
 
 type configuration = { logical_width:int; logical_height:int;
-  drawable_width:int; drawable_height:int; title:string;vsync:bool }
+  drawable_width:int; drawable_height:int; title:string;vsync:bool;high_density:bool }
 let default_configuration = { logical_width=640; logical_height=480;
-  drawable_width=640; drawable_height=480; title="Rays";vsync=true }
+  drawable_width=640; drawable_height=480; title="Rays";vsync=true; high_density=true }
 type family = Scene_execution.pipeline_family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil | Scene3_world | Ui
 type blend = Ogpu.Pipeline.blend = Replace | Alpha | Add | Multiply | Screen | Subtract
@@ -282,7 +282,7 @@ let finish_create runtime=
 let create (configuration:configuration) =
   let operation="Rays_execution.create" in
   match valid_configuration operation configuration with Error _ as error->error|Ok()->
-    match Runtime.create ~vsync:configuration.vsync ~hidden:false
+    match Runtime.create ~vsync:configuration.vsync ~hidden:false ~high_density:configuration.high_density
         ~title:configuration.title ~width:configuration.logical_width
         ~height:configuration.logical_height () with
     |Error e->backend operation e
@@ -1057,7 +1057,7 @@ let retained_view_capacity=4
 let make_retained_target (f:presentation_facts) draws=
   let dw=f.drawable_width and dh=f.drawable_height in
   match create_offscreen{logical_width=f.logical_width;logical_height=f.logical_height;
-      drawable_width=dw;drawable_height=dh;title="Rays retained view";vsync=false}with
+      drawable_width=dw;drawable_height=dh;title="Rays retained view";vsync=false;high_density=true}with
   |Error _->None
   |Ok exec->
       let fail_with canvas=

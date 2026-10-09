@@ -100,7 +100,7 @@ let write_crash ~title ~dump ~recent exn backtrace=
     Printf.eprintf"Rays crash report: %s\n%!"directory
   with error->Printf.eprintf"Rays crash report could not be written: %s\n%!"
     (Printexc.to_string error))
-let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun model _->model)?(crash_dump=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
+let run_state_internal ?(config=default_config)?max_frames ?(high_density=true)?(after_present=fun model _->model)?(crash_dump=fun _ _->())~init~update~view ?(on_stop=fun _->())()=
   if config.width<=0||config.height<=0 then invalid_arg"Sketch: dimensions must be positive";
   let max_frames=match max_frames,Sys.getenv_opt"RAYS_MAX_FRAMES"with
     |Some _,_|None,(None|Some"")->max_frames
@@ -115,7 +115,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(after_present=fun m
   let first=frame config 0 0. 0.[]in
   (match config.clock with Fixed dt when not(Float.is_finite dt&&dt>0.)->
     invalid_arg"fixed dt must be finite and positive"|_->());
-  let configuration={Rays_execution.logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;vsync}in
+  let configuration={Rays_execution.logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;vsync;high_density}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Rays_execution.pp_error e)in
   let coordinator=get(Rays_execution.create configuration)in
   get(Rays_execution.show coordinator);
@@ -253,5 +253,5 @@ let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~fr
   let after_export=after_present in
   let after_present model frame=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index;after_export model frame|Error message->failwith("Frame export failed: "^message)in
   let config={config with clock=Fixed(1./.float fps);fps=None}in
-  Parallel.run ?domains:config.domains(fun()->run_state_internal~config~max_frames:frames~after_present~init~update~view~on_stop())
+  Parallel.run ?domains:config.domains(fun()->run_state_internal~config~max_frames:frames~high_density:false~after_present~init~update~view~on_stop())
 let export ?config ?fps ?prefix ~directory ~frames view=ignore(export_state?config?fps?prefix~directory~frames~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())

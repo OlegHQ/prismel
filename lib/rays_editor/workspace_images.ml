@@ -229,7 +229,10 @@ let bind t (lowered:Flow_sop.Lower.t) =
 let bytes_of_image image =
   match CPU.Private.rgba8 image with Some bytes->bytes|None->
     let rgba=CPU.Private.storage image in
-    Bytes.init(Array.length rgba)(fun i->Char.chr(int_of_float(Float.round(rgba.(i)*.255.))))
+    (* clamp, scale, round ties to even: the same bytes Procedural.Image.of_vec4 writes *)
+    Bytes.init(Array.length rgba)(fun i->let q=Float.max 0.(Float.min 1. rgba.(i))*.255. in
+      let n=int_of_float(Float.floor q)in let f=q-.float n in
+      Char.chr(if f>0.5||(f=0.5&&n land 1=1)then n+1 else n))
 let cpu_of_image image =
   let* bytes=message(Image.Private.pixels image)in
   let width,height=Image.get_size image in
@@ -476,7 +479,8 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
         end
     |_->Error(error "Expected an image value.")
     with V.Fail(code,message,span)->Error(Flow.Diagnostic.error ?span ~code message)
-      |Invalid_argument message|Failure message->Error(error message))in
+      |Invalid_argument message|Failure message->Error(error message)
+      |Not_found->Error(error "Image source is not bound to a compiled input."))in
   let result=match value with E.Deferred(_,id)->with_active request plan id run|_->run()in
   if display && Result.is_error result then (match value with
     |E.Deferred(_,id)when id>=0 && id<Array.length plan.nodes->

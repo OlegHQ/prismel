@@ -9,7 +9,7 @@ let get_ir = function
 let configuration ~logical_width ~logical_height ~drawable_width ~drawable_height =
   { Rays_execution.
     logical_width; logical_height; drawable_width; drawable_height;
-    title = "scene2-coordinates"; vsync = false }
+    title = "scene2-coordinates"; vsync = false; high_density = true }
 
 let rgba bytes ~width x y =
   let offset = (y * width + x) * 4 in

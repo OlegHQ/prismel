@@ -547,7 +547,7 @@ let reveal window =
   let* () = Sdl3.Window.center window in
   Sdl3.Window.sync window
 
-let create ?(vsync = true) ?(hidden = true) ?(title = "Rays") ~width ~height () =
+let create ?(vsync = true) ?(hidden = true) ?(high_density = true) ?(title = "Rays") ~width ~height () =
   let op = "Runtime.create" in
   if width <= 0 || height <= 0 then
     Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
@@ -573,7 +573,7 @@ let create ?(vsync = true) ?(hidden = true) ?(title = "Rays") ~width ~height () 
       (* SDL itself turns a Control-click into the secondary click. *)
       let* () = sdl op (Sdl3.Hint.control_click_is_right_click true) in
       let flags : Sdl3.Window.flag list =
-        Metal :: High_pixel_density :: (if hidden then [ Hidden ] else [])
+        Sdl3.Window.Metal :: (if high_density then [ Sdl3.Window.High_pixel_density ] else []) @ (if hidden then [ Sdl3.Window.Hidden ] else [])
       in
       let* window = acquire (Sdl3.Window.create ~title ~width ~height ~flags ()) Sdl3.Window.destroy in
       let* () = if hidden then Ok () else sdl op (reveal window) in

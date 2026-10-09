@@ -12,7 +12,7 @@ let ()=
   List.iter(fun density->
     let execution=get(Rays_execution.create_offscreen{Rays_execution.
       logical_width=32;logical_height=24;drawable_width=32*density;drawable_height=24*density;
-      title="GPU drawing parity";vsync=false})in
+      title="GPU drawing parity";vsync=false;high_density=true})in
     let gpu=get(Rays_execution.acquire_gpu())in
     let sink=get(Rays_execution.Private.create_gpu_circles gpu)in
     let positions=native_get(B.create_buffer(Rays_execution.gpu_device gpu)

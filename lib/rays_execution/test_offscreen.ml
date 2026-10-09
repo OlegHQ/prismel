@@ -36,7 +36,7 @@ let run () =
   let baseline=live_handles()in
   let configuration={Rays_execution.
     logical_width=3;logical_height=2;drawable_width=3;drawable_height=2;
-    title="offscreen-test";vsync=false}in
+    title="offscreen-test";vsync=false;high_density=true}in
   match Rays_execution.create_offscreen configuration with
   |Error _->print_endline"Rays offscreen: skipped (no native Metal device)"
   |Ok execution->

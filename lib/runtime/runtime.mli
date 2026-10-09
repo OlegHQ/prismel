@@ -37,8 +37,10 @@ type presentation_facts = {
   pixel_density : float; display_scale : float; refresh_rate : float option;
   vsync : bool;
 }
-val create : ?vsync:bool -> ?hidden:bool -> ?title:string ->
+val create : ?vsync:bool -> ?hidden:bool -> ?high_density:bool -> ?title:string ->
   width:int -> height:int -> unit -> (t, Ogpu.Error.t) result
+(** [high_density] (default true) asks for a drawable at the display's native density; false
+    keeps the drawable at the logical size, so a capture is the same bytes on every display. *)
 
 (** A layerless target that never acquires or presents. [?device] borrows a
     live OGPU device (normally the presenting window's, see [device]) so the

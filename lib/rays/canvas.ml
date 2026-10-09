@@ -20,7 +20,7 @@ let execution?(density=1) value=
       let configuration={Rays_execution.
         logical_width=width/density;logical_height=height/density;drawable_width=width;
         drawable_height=height;title="Rays Canvas";
-        vsync=false}in
+        vsync=false;high_density=true}in
       match Rays_execution.create_offscreen configuration with
       |Error error->failwith(execution_message"Canvas.render"error)
       |Ok execution->value.execution<-Some execution;execution

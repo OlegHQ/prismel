@@ -18,7 +18,8 @@ The high-level API is functional:
   `Scene.render`.
 
 New sketches start with `Sketch`; finite direct-render experiments can use
-`Sketch.export`.
+`Sketch.export`. An export renders its window at the logical size whatever the display's
+density, so its frames are the same bytes on a 1x and a 2x display.
 
 Lisp geometry sketches can read `(sop/attr g :P)` / `(sop/attr g :N)` as
 packed vec3 arrays, transform them with `map`, and write them with

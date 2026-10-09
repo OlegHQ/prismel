@@ -44,7 +44,7 @@ let () =
   let config : Rays_execution.configuration =
     { logical_width = 64; logical_height = 64;
       drawable_width = 64; drawable_height = 64;
-      title = "scene2-ir-benchmark"; vsync = false } in
+      title = "scene2-ir-benchmark"; vsync = false; high_density = true } in
   let execution = get (Rays_execution.create_offscreen config) in
   let retained = make_ir () in
   let copies = Array.init 50 (fun _ -> make_ir ()) in
