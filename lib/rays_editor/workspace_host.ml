@@ -107,7 +107,7 @@ let save_pending host save =
   let paths=host.pending_saves in host.pending_saves<-[];
   List.fold_left(fun result path->Result.bind result(fun()->
     Result.map_error(fun message->Flow.Diagnostic.error ~code:"E_EFFECT" message)(save path)))(Ok())paths
-let close host=Workspace_images.close host.images;Workspace_resources.close host.resources;Workspace_gpu.close host.gpu
+let close host=Workspace_resources.close host.resources;Workspace_images.close host.images;Workspace_gpu.close host.gpu
 let export_check workspace plan =
   match effects workspace plan with
   |None->Ok()

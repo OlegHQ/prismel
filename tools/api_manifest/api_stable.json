@@ -3428,6 +3428,7 @@
         "val image_plan : 'prepared t -> Flow.Eval.plan",
         "val image_payload : ? state : Flow.Eval.state -> ? live : Frame_input.t -> 'prepared t -> Flow.Eval.value -> ( Procedural.Image.t , Flow.Diagnostic.t ) result",
         "val image_stats : 'prepared t -> int * int",
+        "val image_render_stats : 'prepared t -> int * int * int * int",
         "val image : 'prepared t -> Flow.Eval.value -> ( Rays.Image.t , Flow.Diagnostic.t ) result",
         "val with_images : ? state : Flow.Eval.state -> ? live : Frame_input.t -> ? plan : Flow.Eval.plan -> 'prepared t -> ( image : ( Flow.Eval.value -> ( Rays.Image.t , Flow.Diagnostic.t ) result ) -> texture : ( Flow.Eval.value -> ( Rays.Texture.t , Flow.Diagnostic.t ) result ) -> 'a ) -> 'a",
         "val host_stats : 'prepared t -> bool * int * int * int",
@@ -3499,7 +3500,7 @@
         "val main : ? factories : Procedural.Edit_graph.factory list -> ? imports : ( string * string ) list -> path : string -> digest : string -> catalog : string -> string -> unit",
         "end"
       ],
-      "api_sha256": "b2ab79e32782b3e4f1a14d8f9a571ce27a7c2538f7c6e144e8d7a702ed66259e",
+      "api_sha256": "39a37dff23def36e65bdc928b74d575df6e91376d39eb96ba064052ba3e01d17",
       "excluded_legacy_symbols": [],
       "library": "rays_editor",
       "module": "Rays_editor",

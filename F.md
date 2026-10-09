@@ -127,8 +127,10 @@ uploads in `767dea7d`. The GPU producer/converter checkpoint is recorded in
 F2.2 below. Authored image qualification and private borrowed runtime image
 backing are implemented by the checkpoints below. Resident consumers are
 committed in `6636e12b`; connected workspace GPU publication and independent
-CPU snapshots have a functional checkpoint below. Connected timing gates,
-frozen exact GPU snapshots and F2.3 remain open. The paragraphs that follow
+CPU snapshots are committed in `3db45c8b`. Completed-Canvas borrowing is committed
+in `5f0e50b2`; the retained workspace Canvas checkpoint below passes F2.3's
+measured allocation gate. Connected image/map timing gates and frozen exact GPU
+snapshots remain open. The paragraphs that follow
 record the earlier field and qualification implementation history.
 Deterministic sampled slab chunks (`8f1f4789`) now preserve complete geometry and seam
 normals, improving the eight-domain whole cook from 20.954 to 12.937 ms in
@@ -216,7 +218,7 @@ once so you know what exists before you add anything.
 | SOP overlay | `lib/flow_sop` (`lower`, `attribute_kernel`, `value_lane`, `operators`) | Lowers a checked workspace to a `Procedural` network; `sop/attr` and `sop/with_attr` are the kernel boundary (`Attribute_kernel` over `Rdk.Kernel.edit_point_ranges`); image resolver callback (`Lower.with_images`). |
 | Graph layer | `lib/flow_graph` (`projection`, `flow_edit`, `exposure`, `probe`) | Domain-neutral projection and gestures; zones for map/filter/reduce/sort-by and if/cond/case arms; probes force one tuple. |
 | 2D | `lib/sketch_support/drawing.ml`, `lib/flow/op.ml` (`draw_op` lines ~200-240) | 18 `draw/*` kinds; plural kinds (`circles`, `rects`, `lines`, `points`, ...) lower to one instanced `Scene_command.Shape_batch`; GPU display sinks take a `gpu_token`. |
-| Images | `lib/flow/op.ml`, `lib/flow_sop/image_kernel.ml`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, `image/render` (offscreen `Rays.Canvas`), `image/noise`, CPU `image/map` (packed Vec2→Vec4, owned RGBA8); `draw/image`; `scene/geometry :texture image`; `sop/attr_from_image`. The editor pins at most 64 images. GPU image/map and resident consumers remain open. |
+| Images | `lib/flow/op.ml`, `lib/flow_sop/image_kernel.ml`, `lib/rays_editor/workspace_images.ml`, `lib/procedural` (`attr_from_image`) | `image/load`, retained display `image/render`, `image/noise`, CPU/GPU display `image/map` (packed Vec2→Vec4, owned RGBA8); resident `draw/image`/`scene/geometry :texture image`; exact CPU `sop/attr_from_image`. The editor pins at most 64 images. Connected image/map measurements, captured geometry and deferred frozen exact GPU snapshots remain open. |
 | Catalog | `lib/sop_catalog`, `ppx/ppx_rays`, `lib/procedural/node.ml` | 162 `sop/*` kinds, one declaration each, including the field SOP, `Node.facts` (elementwise, reads, writes, topology, exact). |
 | Cook | `lib/procedural/session.ml` | Component-keyed LRU; learned placement fans branches and zone elements across domains above a 2 ms measured subtree. |
 | Geometry | `lib/rdk/**` | Float64 structure-of-arrays planes; `Mesh_merge.merge_plain` is the serial merge (see F3). Scene3 packs planes into float32 24+12-byte streams (`lib/rays/scene3_native_lowering.ml`). |
@@ -1444,7 +1446,7 @@ cold hash. Cold preparation and teardown are separate rows. Astra says
 limits are recorded in the performance log. The resident allocation gate
 remains open.
 
-**Astra retained-Canvas design (2026-10-09; implementation pending).** The
+**Astra retained-Canvas design (2026-10-09; implemented by the checkpoint below).** The
 offscreen target already has Texture_binding, Render_attachment and
 Texture_copy_src; no OGPU feature is needed. A private completed-frame source
 must expire before render attempts, resize, CPU mutation or destruction and
@@ -1464,7 +1466,7 @@ disabled; compare full bytes/hashes outside timing and require warm allocation
 to stop growing with pixel count. Resident Canvas lands before the separate
 deferred Lisp exact-image surface; both remain required.
 
-**Completed-Canvas source groundwork (2026-10-09).** The private Canvas source
+**Completed-Canvas source groundwork (2026-10-09, `5f0e50b2`).** The private Canvas source
 now borrows only a completed GPU frame and expires before later render attempts,
 explicit invalidation, CPU mutation or destruction. Runtime context checks
 cover both the initial domain and platform main thread, including headless
@@ -1482,10 +1484,45 @@ unqualified at the actual 1× density. This is borrowing/lifetime groundwork;
 workspace retained-Canvas wiring,
 size-dependent cache checks and the F2.3 allocation gate remain open.
 
-**Today.** `image/render drawing :width :height` renders into an offscreen
-`Rays.Canvas`, `Canvas.to_image` reads the pixels back to a CPU `Image.t`,
-and a `:texture` consumer uploads them again. That is one GPU→CPU→GPU round
-trip per live frame.
+**Retained workspace Canvas functional checkpoint (2026-10-09).** Display
+image/render now reuses a same-size Canvas and publishes its completed texture
+through the stable borrowed Image/Texture. Resize publishes the replacement
+before destroying the old allocation. Stale requests expire old sources before
+argument forcing, including failures before drawing preparation. Exact CPU cooks
+use separate temporary targets and leave resident display generations untouched.
+Reachable omitted dimensions invalidate explicit-size parents while unrelated
+fixed-size images remain cached. Actual target/capture/readback counters survive
+close. Native fixtures cover resize, repeated drawing and argument failures,
+recovery, failed resized publication cleanup, stable identities, independent old
+CPU bytes and zero native live-handle delta. Five actual mixed 2D/mesh comparisons
+against the CPU round-trip oracle have zero differing channels/pixels, including
+65×17 and 35×33 sources. Astra approves this functional checkpoint. Raw parity:
+`specification/performance/f-workspace-retained-canvas-parity.csv`.
+Broad qualification passes (exit 0), including both complete workspace sweeps at
+four times/domains 1/8. The matched allocation gate passes below; the deferred
+Lisp exact-image surface remains required.
+
+**Measured allocation gate PASS (2026-10-09).** The accepted seven-by-twenty-frame
+protocol, ten warmups and all three sizes are repeated at one domain. Before →
+after median ms/frame: 512² 43.399990 → 0.692904; 1024² 139.405048 → 1.004601;
+2048² 514.362109 → 2.203953. Median allocation falls from
+67,918,306/250,370,554/980,179,450 to 85,450 bytes/frame at every size. Individual
+trials range from 84,021 to 85,450 bytes/frame; this is constant in pixel count
+across the tested range, not zero allocation. All 21 warm trials have zero
+source target creation/destruction, captures, Canvas/Image readbacks and
+destination uploads. Full-byte hashes match the before baseline; explicit
+verification readbacks are recorded outside measurement. Cold and teardown
+remain separate rows. Astra's verdict: “F2.3 allocation gate: PASS” for the
+measured workload. Raw CSVs are `specification/performance/f-image-render-resident-after.csv`
+and `specification/performance/f-image-render-resident-counters.csv`; the performance
+log records commands, machine, repetitions and limits. Pre-commit shipping
+passes (exit 0). Deferred Lisp `(exact image)` and outstanding F2.2 requirements
+are not completed by this verdict.
+
+**Today.** Display `image/render drawing :width :height` retains an offscreen
+`Rays.Canvas` and binds its completed texture directly. Exact CPU image requests
+render separately and capture their own pixels. The original round trip below
+is preserved as the measured before baseline.
 
 **Goal.** When the rendered image feeds only a `:texture` or `draw/image`
 sink, keep the canvas's texture resident and bind it directly. The CPU

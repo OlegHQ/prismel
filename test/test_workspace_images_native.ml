@@ -239,3 +239,185 @@ let ()=
     ignore(ok(Editor.Private.image_payload ~live:(Frame_input.at_time 10.) owner value));
     assert(display 0.=first));
   print_endline "Legacy image stamps: display A, exact B, display A restores A pixels"
+
+let ()=
+  let module Editor=Rays_editor.Editor3 in
+  let module I=Runtime_resources.Image in
+  let _,handles=Ogpu.Impl.create_driver()in
+  let baseline=handles()in
+  let doc=load "(workspace dimensions
+    (graph drawing :context draw (draw/background \"#102030\"))
+    (graph child :context image (image/render (ref drawing)))
+    (graph parent_drawing :context draw (draw/image (ref child)))
+    (graph parent :context image (image/render (ref parent_drawing) :width 80 :height 40))
+    (graph fixed :context image (image/render (ref drawing) :width 7 :height 5))
+    (graph width_only :context image (image/render (ref drawing) :width 9))
+    (graph height_only :context image (image/render (ref drawing) :height 11)))"in
+  let owner=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains:1
+    ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
+  Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+    let plan=Editor.Private.image_plan owner in
+    let value name=(Array.find_opt(fun(instance:E.instance)->instance.graph=name && instance.default)
+      plan.instances |> Option.get).result in
+    let live width height={(Frame_input.at_time 0.)with size=width,height}in
+    let display size name=Editor.Private.with_images ~live:size owner
+      (fun ~image ~texture:_->ok(image(value name)))in
+    let a=live 65 17 and b=live 35 33 in
+    let child=display a "child" and parent=display a "parent"
+    and fixed=display a "fixed" and width=display a "width_only"
+    and height=display a "height_only"in
+    let generation image=I.generation(Rays.Image.Private.resource image)in
+    let parent_before=generation parent and fixed_before=generation fixed in
+    assert(Editor.Private.image_render_stats owner=(5,0,0,0));
+    assert(display b "child"==child && Rays.Image.get_size child=(35,33));
+    assert(display b "parent"==parent && generation parent>parent_before);
+    assert(display b "fixed"==fixed && generation fixed=fixed_before);
+    assert(display b "width_only"==width && Rays.Image.get_size width=(9,33));
+    assert(display b "height_only"==height && Rays.Image.get_size height=(35,11));
+    assert(Editor.Private.image_render_stats owner=(8,3,0,0));
+    let parent_bytes=Result.get_ok(Rays.Image.Private.pixels parent)in
+    let offset=(20*80+50)*4 in
+    assert(Bytes.sub parent_bytes offset 4=Bytes.make 4 '\000');
+    let child_generation=generation child and fixed_generation=generation fixed in
+    let exact size name=ok(Editor.Private.image_payload ~live:size owner(value name))in
+    let child_a=exact a "child" and fixed_a=exact a "fixed"in
+    assert((Procedural.Image.width child_a,Procedural.Image.height child_a)=(65,17));
+    let child_b=exact b "child"in
+    assert((Procedural.Image.width child_b,Procedural.Image.height child_b)=(35,33));
+    assert(exact b "fixed"==fixed_a);
+    assert(generation child=child_generation && generation fixed=fixed_generation);
+    assert((Procedural.Image.width child_a,Procedural.Image.height child_a)=(65,17));
+    assert(Editor.Private.image_render_stats owner=(11,6,3,3)));
+  assert(Editor.Private.image_render_stats owner=(11,11,3,3));
+  assert(handles()=baseline);
+  print_endline "Resident Canvas dimensions: omitted axes, nested resize, fixed cache, independent CPU stamps, no implicit Canvas readback, zero handles"
+
+let ()=
+  let module Editor=Rays_editor.Editor3 in
+  let module I=Runtime_resources.Image in
+  let _,handles=Ogpu.Impl.create_driver()in
+  let baseline=handles()in
+  let source=Filename.temp_file "rays-retained-canvas-" ".rays"in
+  let text ?width_expression width height position=Printf.sprintf "(workspace retained
+    (graph drawing :context draw (draw/merge (draw/background \"#102030\")
+      (draw/translate [%s 0 0] (draw/rect [0 2 0] [16 5 0] :fill \"#a0b0c0\"))))
+    (graph rendered :context image (image/render (ref drawing) :width %s :height %d)))"
+    position (Option.value ~default:(string_of_int width)width_expression) height in
+  let initial=text 65 17 "(* t 16)"in
+  Out_channel.with_open_bin source(fun ch->output_string ch initial);
+  let owner=ref(Result.get_ok(Editor.create ~workspace:(load initial) ~await:true ~domains:1
+    ~source:(Rays_editor.Source.at ~file:source ~digest:(Editor_document.Contexts.sha256 initial))
+    ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)()))in
+  let destination=Rays.Canvas.create_exn ~width:65 ~height:17 in
+  Fun.protect ~finally:(fun()->Rays.Canvas.destroy destination;Editor.close !owner;Sys.remove source)(fun()->
+    let value()=(Array.find_opt(fun(instance:E.instance)->instance.graph="rendered")
+      (Editor.Private.image_plan !owner).instances |> Option.get).result in
+    let live=Frame_input.at_time in
+    let exact time=ok(Editor.Private.image_payload ~live:(live time) !owner(value()))in
+    let rgba payload=match Procedural.Image.Private.rgba8 payload with Some bytes->bytes|None->
+      let channels=Procedural.Image.Private.storage payload in
+      Bytes.init(Array.length channels)(fun i->Char.chr(int_of_float(Float.round(channels.(i)*.255.))))in
+    let saved=exact 0. in let saved_bytes=Bytes.copy(rgba saved)in
+    assert(Editor.Private.image_stats !owner=(0,0));
+    let resolve time=Editor.Private.with_images ~live:(live time) !owner(fun ~image ~texture->
+      ok(image(value())),ok(texture(value())))in
+    let image,texture=resolve 0. in
+    let identity=Rays.Texture.Private.identity texture and resource=Rays.Image.Private.resource image in
+    let initial_generation=I.generation resource in
+    assert(Editor.Private.image_render_stats !owner=(2,1,1,1));
+    for frame=0 to 19 do
+      let actual,view=resolve(float frame/.20.)in
+      assert(actual==image && Rays.Texture.Private.identity view=identity)
+    done;
+    assert(Editor.Private.image_render_stats !owner=(2,1,1,1));
+    assert(I.generation resource>initial_generation);
+    assert(I.Private.cpu_storage_bytes resource=0 && I.Private.readbacks resource=0);
+    let mesh=Rays.Mesh.plane ~width:(2.*.65./.17.) ~height:2.()in
+    let camera=Rays.Camera.orthographic ~height:2. ~at:(Rays.Vec3.create 0. 0. 2.) ~target:Rays.Vec3.zero()in
+    let scene source_image texture=Rays.Scene.[clear Rays.Color.black;image source_image ~at:(0,0)();Private.layer_break;
+      view3d ~viewport:(33,0,32,17) ~camera(Rays.Scene3.create ~ambient:Rays.Color.white
+        [Rays.Scene3.mesh ~material:(Rays.Material.matte Rays.Color.white) ~cull:Cull_none
+          ~texture:(Rays.Scene3.textured ~filter:Nearest texture) mesh])]in
+    let snapshot()=let image=Result.get_ok(Rays.Canvas.to_image destination)in
+      Fun.protect ~finally:(fun()->Rays.Image.destroy image)(fun()->Result.get_ok(Rays.Image.Private.pixels image))in
+    let verify time=
+      let actual,view=resolve time in
+      assert(actual==image && Rays.Texture.Private.identity view=identity);
+      let generation=I.generation resource in
+      let payload=exact time in
+      assert(I.generation resource=generation && I.Private.readbacks resource=0);
+      assert(rgba saved=saved_bytes);
+      let displayed=scene actual view in
+      Rays.Canvas.render destination displayed;Rays.Canvas.render destination displayed;
+      let uploaded=(Rays.Canvas.Private.native_stats destination).uploaded_bytes in
+      Rays.Canvas.render destination displayed;
+      assert((Rays.Canvas.Private.native_stats destination).uploaded_bytes=uploaded);
+      let actual=snapshot()in
+      let width=Procedural.Image.width payload and height=Procedural.Image.height payload and bytes=rgba payload in
+      let oracle=Result.get_ok(Rays.Image.upload_rgba ~width ~height ~rgba:bytes())in
+      Fun.protect ~finally:(fun()->Rays.Image.destroy oracle)(fun()->
+        let texture=Rays.Texture.init ~width ~height(fun ~x ~y->let o=(y*width+x)*4 in
+          Rays.Color.rgba(Char.code(Bytes.get bytes o))(Char.code(Bytes.get bytes(o+1)))
+            (Char.code(Bytes.get bytes(o+2)))(Char.code(Bytes.get bytes(o+3))))in
+        Rays.Canvas.render destination(scene oracle texture);
+        assert(snapshot()=actual));
+      Printf.printf "workspace_retained_canvas,%d,%d,%.2f,0,0,0\n%!" width height time in
+    verify 0.;verify 0.5;
+    let reload time contents=
+      Out_channel.with_open_bin source(fun ch->output_string ch contents);
+      let frame:Rays.Frame.t={width=65;height=17;size=65,17;drawable_width=65;drawable_height=17;
+        drawable_size=65,17;pixel_scale=1.,1.;time;dt=0.;fps=60.;count=int_of_float time;
+        mouse=0.,0.;mouse_delta=0.,0.;keys=[];mouse_buttons=[];events=[]}in
+      owner:=Editor.update !owner frame in
+    reload 10.(text 35 33 "(* t 16)");verify 0.5;
+    assert(Rays.Image.get_size image=(35,33));
+    let failure_text=text 35 33 "(* t 1e19)"in
+    ignore(load failure_text);
+    reload 20. failure_text;
+    let generation=I.generation resource and stats=Editor.Private.image_render_stats !owner in
+    List.iter(fun _->assert(Editor.Private.with_images ~live:(live 2.) !owner
+      (fun ~image ~texture:_->image(value())) |> Result.is_error))[0;1];
+    assert(I.generation resource=generation && Editor.Private.image_render_stats !owner=stats);
+    assert(match I.Private.gpu_snapshot resource with Error{kind=Runtime_resources.Destroyed;_}->true|_->false);
+    verify 0.;
+    reload 30.(text ~width_expression:"(+ 35 (int (* t 1e19)))" 35 33 "(* t 16)");
+    ignore(resolve 0.);
+    let generation=I.generation resource and stats=Editor.Private.image_render_stats !owner in
+    List.iter(fun _->assert(Editor.Private.with_images ~live:(live 2.) !owner
+      (fun ~image ~texture:_->image(value())) |> Result.is_error))[0;1];
+    assert(I.generation resource=generation && Editor.Private.image_render_stats !owner=stats);
+    assert(match I.Private.gpu_snapshot resource with Error{kind=Runtime_resources.Destroyed;_}->true|_->false);
+    verify 0.;
+    assert(I.Private.cpu_storage_bytes resource=0 && I.Private.readbacks resource=0);
+    let _,_,captures,readbacks=Editor.Private.image_render_stats !owner in
+    Editor.close !owner;
+    let created,destroyed,captures_after,readbacks_after=Editor.Private.image_render_stats !owner in
+    assert(created=destroyed && captures=captures_after && readbacks=readbacks_after);
+    assert(rgba saved=saved_bytes));
+  assert(handles()=baseline);
+  print_endline "Resident Canvas live route: mixed mesh/image roundtrip parity, stable identity, exact isolation, replan/resize, failure/recovery, snapshots and teardown pass"
+
+let ()=
+  let module Editor=Rays_editor.Editor3 in
+  let _,handles=Ogpu.Impl.create_driver()in
+  let baseline=handles()in
+  let doc width=load(Printf.sprintf "(workspace failed_publication
+    (graph drawing :context draw (draw/background \"#102030\"))
+    (graph rendered :context image (image/render (ref drawing) :width %d :height 8)))" width)in
+  let owner=Result.get_ok(Editor.create ~workspace:(doc 8) ~await:true ~domains:1
+    ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
+  Fun.protect ~finally:(fun()->Editor.close owner)(fun()->
+    let request width=let evaluated=ok(E.static(doc width).checked)in
+      Editor.Private.with_images ~plan:evaluated.plan owner(fun ~image ~texture:_->
+        image(List.assoc "rendered" evaluated.results))in
+    let image=ok(request 8)in
+    assert(Editor.Private.image_render_stats owner=(1,0,0,0));
+    (* Force replacement publication to fail after a resized candidate renders. *)
+    Rays.Image.destroy image;
+    assert(match request 9 with Error d->d.Flow.Diagnostic.code="E_IMAGE"|Ok _->false);
+    assert(Editor.Private.image_render_stats owner=(2,1,0,0));
+    assert(match request 9 with Error d->d.Flow.Diagnostic.code="E_IMAGE"|Ok _->false);
+    assert(Editor.Private.image_render_stats owner=(3,2,0,0)));
+  assert(Editor.Private.image_render_stats owner=(3,3,0,0));
+  assert(handles()=baseline);
+  print_endline "Resident Canvas failed publication: resized candidates close once, prior allocation retained until owner close, no readback or handle leak"

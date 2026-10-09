@@ -7,19 +7,79 @@ type stamp={serial:int;frame:Frame_input.t;state_stamp:string}
 type snapshot={payload:CPU.t;stamp:stamp}
 type entry={mutable image:Image.t option;mutable cpu:snapshot option;
   mutable texture:(Texture.t,string)result Lazy.t option;mutable borrowed:Texture.t option;
-  mutable display:stamp option}
+  mutable display:stamp option;mutable canvas:Canvas.t option}
 type t={resources:Workspace_resources.t;gpu:Workspace_gpu.t;domains:int;mutable plan:E.plan option;mutable serial:int;
   mutable qualification:(E.plan * Flow.Workspace.Paths.t * Flow.Workspace.path option array) option;
   mutable arguments:I.program option array;mutable drawings:Sketch_support.Drawing.prepared option array;
   mutable maps:(int * int * E.fn * Flow_sop.Image_kernel.t) option array;
+  mutable sizes:(bool * bool) array;
   mutable resolved:entry option array;
-  mutable entries:(string*entry)list}
+  mutable entries:(string*entry)list;
+  mutable canvases_created:int;mutable canvases_destroyed:int;
+  mutable captures:int;mutable readbacks:int}
 let create ?(domains=Parallel.recommended_domains()) ~gpu resources={resources;gpu;domains;plan=None;serial=0;
   qualification=None;
-  arguments=[||];drawings=[||];maps=[||];resolved=[||];entries=[]}
+  arguments=[||];drawings=[||];maps=[||];sizes=[||];resolved=[||];entries=[];
+  canvases_created=0;canvases_destroyed=0;captures=0;readbacks=0}
 let error message=Flow.Diagnostic.error ~code:"E_IMAGE" message
 let message result=Result.map_error error result
 let (let*)=Result.bind
+let create_canvas t ~width ~height=Result.map(fun canvas->
+  t.canvases_created<-t.canvases_created+1;canvas)(message(Canvas.create ~width ~height))
+let destroy_canvas t canvas=
+  let captures,readbacks=Canvas.Private.pixel_stats canvas in
+  Canvas.destroy canvas;
+  t.canvases_destroyed<-t.canvases_destroyed+1;
+  t.captures<-t.captures+captures;t.readbacks<-t.readbacks+readbacks
+let render_stats t=
+  let captures,readbacks=List.fold_left(fun(c,r)(_,entry)->match entry.canvas with
+    |None->c,r|Some canvas->let captures,readbacks=Canvas.Private.pixel_stats canvas in
+        c+captures,r+readbacks)(t.captures,t.readbacks)t.entries in
+  t.canvases_created,t.canvases_destroyed,captures,readbacks
+let authored_key prefix (node:E.node)=prefix^Marshal.to_string(node.inst,node.site,node.iter)[Marshal.No_sharing]
+let invalidate_display entry=entry.display<-None;Option.iter Canvas.Private.invalidate entry.canvas
+module Functions=Hashtbl.Make(struct type t=E.fn let equal=(==) let hash=E.Private.function_id end)
+module Residuals=Hashtbl.Make(struct type t=E.residual let equal=(==) let hash=E.Private.residual_id end)
+let size_dependencies plan root=
+  let nodes=Array.make(Array.length plan.E.nodes)false
+  and functions=Functions.create 8 and residuals=Residuals.create 8 in
+  let width=ref false and height=ref false in
+  let rec visit value=if not(!width && !height)then match value with
+    |E.Deferred(_,id)when id>=0 && id<Array.length nodes && not nodes.(id)->
+        nodes.(id)<-true;let node=plan.nodes.(id)in
+        if node.kind="image/render"then begin
+          width:= !width || not(List.mem_assoc "width" node.args);
+          height:= !height || not(List.mem_assoc "height" node.args)
+        end;
+        List.iter(fun(_,value)->visit value)node.args
+    |E.List values->Array.iter visit values
+    |E.Record fields|E.Struct(_,_,fields)->List.iter(fun(_,value)->visit value)fields
+    |E.Fn fn when not(Functions.mem functions fn)->Functions.add functions fn();
+        List.iter(fun(_,value)->visit value)(E.Private.function_bindings fn)
+    |E.Residual residual when not(Residuals.mem residuals residual)->Residuals.add residuals residual();
+        List.iter(fun(_,value)->visit value)(E.Private.residual_view residual).bindings
+    |_->()in
+  visit(E.Deferred(Flow.Ty.image,root));!width,!height
+let dependencies plan (node:E.node)=
+  let plan_dependent predicate=node.kind="image/render"
+    && Array.exists(fun(n:E.node)->List.exists(fun(_,v)->predicate v)n.args)plan.E.nodes in
+  let stateful=List.exists(fun(_,v)->E.state_dependent v)node.args || plan_dependent E.state_dependent in
+  let dynamic=List.exists(fun(_,v)->E.is_live v || E.frame_dependent v)node.args || stateful
+    || plan_dependent(fun v->E.is_live v || E.frame_dependent v)in
+  stateful,dynamic
+let current t ~state ~live plan (node:E.node) (old:stamp)=
+  let stateful,dynamic=dependencies plan node in
+  let prepared=match node.kind with
+    |"image/map"->old.serial=t.serial && Option.is_some t.maps.(node.id)
+    |"image/render"->
+        Option.fold ~none:false ~some:((==)plan)t.plan && old.serial=t.serial
+        && Option.is_some t.drawings.(node.id)
+        && (let width,height=t.sizes.(node.id)in
+          (not width || fst old.frame.size=fst live.Frame_input.size)
+          && (not height || snd old.frame.size=snd live.size))
+    |_->true in
+  prepared && (not dynamic || (Frame_input.equal live old.frame
+    && old.state_stamp=(if stateful then E.state_stamp state else "")))
 let bind t (lowered:Flow_sop.Lower.t) =
   if not(Option.fold ~none:false ~some:(fun (plan,approx,image_sites)->plan==lowered.plan
       && approx==lowered.approx && image_sites==lowered.image_sites)t.qualification)then begin
@@ -40,6 +100,23 @@ let texture payload=lazy(
     (Array.init(Bytes.length bytes/4)(fun i->let o=4*i in
       Color.rgba(Char.code(Bytes.get bytes o))(Char.code(Bytes.get bytes(o+1)))
         (Char.code(Bytes.get bytes(o+2)))(Char.code(Bytes.get bytes(o+3))))))
+let publish t key entry ~width ~height ~source=
+  let* image=match entry.image with
+    |None->Workspace_resources.image t.resources key(fun()->
+        match Runtime_resources.Image.Private.of_gpu ~width ~height ~source with
+        |Error error->Error(Format.asprintf "%a" Runtime_resources.pp_error error)
+        |Ok image->let accepted=ref false in
+          Fun.protect ~finally:(fun()->if not !accepted then ignore(Runtime_resources.Image.destroy image))(fun()->
+            Result.map(fun view->entry.borrowed<-Some view;accepted:=true;Image.Private.of_resource image)
+              (Texture.Private.of_image image)))
+    |Some image->Result.map(fun()->image)
+        (Result.map_error(fun e->error(Format.asprintf "%a" Runtime_resources.pp_error e))
+          (Runtime_resources.Image.Private.replace_gpu_source (Image.Private.resource image)
+            ~width ~height ~source))in
+  let* borrowed=match entry.borrowed with Some view->Ok view|None->
+    message(Texture.Private.of_image(Image.Private.resource image))in
+  entry.image<-Some image;entry.borrowed<-Some borrowed;
+  entry.texture<-Some(lazy(Ok borrowed));Ok()
 let prepare t plan =
   match t.plan with Some old when old==plan->Ok()|_->
     let programs=Array.map(fun(n:E.node)->if n.ty=Flow.Ty.image then
@@ -48,12 +125,21 @@ let prepare t plan =
       t.plan<-Some plan;t.serial<-t.serial+1;t.arguments<-Array.map Result.get_ok programs;
       t.drawings<-Array.make(Array.length plan.nodes)None;
       t.maps<-Array.make(Array.length plan.nodes)None;
+      t.sizes<-Array.map(fun(n:E.node)->if n.kind="image/render"then size_dependencies plan n.id else false,false)plan.nodes;
       t.resolved<-Array.make(Array.length plan.nodes)None;Ok()
-let rec resolve ?(pending=0) t ~display ~state ~live plan value =
+let rec resolve ?(pending=0) t ~display ~state ~live (plan:E.plan) value =
   if not(Domain.is_main_domain())then Error(error "Image resources must resolve on the initial domain.")else
   if t.resources.closed then Error(error "Workspace image resources are closed.")else
-  let* ()=prepare t plan in
   E.transaction state(fun()->try
+    (match value with
+    |E.Deferred(Flow.Ty.Named "image",id)when display && id>=0 && id<Array.length plan.nodes->
+        let node=plan.nodes.(id)in
+        if node.kind="image/render"then
+          Option.iter(fun entry->
+            if not(Option.fold ~none:false ~some:(current t ~state ~live plan node)entry.display)then
+              invalidate_display entry)(List.assoc_opt(authored_key "render:" node)t.entries)
+    |_->());
+    let* ()=prepare t plan in
     match value with
     |E.Deferred(Flow.Ty.Named "image",id)when id>=0 && id<Array.length plan.nodes->
         let* forced=I.force ~state (Option.get t.arguments.(id)) ~live in
@@ -65,19 +151,14 @@ let rec resolve ?(pending=0) t ~display ~state ~live plan value =
           |"image/load"->(match List.assoc "path" args with E.Text path->"load:"^path|_->V.fail "E_IMAGE" "Image path is text.")
           |"image/noise" when List.exists(fun(_,v)->E.is_live v)node.args->Printf.sprintf "noise:%d:%d" t.serial id
           |"image/noise"->"noise:"^Marshal.to_string args [Marshal.No_sharing]
-          |"image/render"->Printf.sprintf "render:%d:%d" t.serial id
-          |"image/map"->"map:"^Marshal.to_string(node.inst,node.site,node.iter)[Marshal.No_sharing]
+          |"image/render"->authored_key "render:" node
+          |"image/map"->authored_key "map:" node
           |_->V.fail "E_IMAGE" "Unknown image producer."in
-        let plan_dependent predicate=node.kind="image/render"
-          && Array.exists(fun(n:E.node)->List.exists(fun(_,v)->predicate v)n.args)plan.nodes in
-        let stateful=List.exists(fun(_,v)->E.state_dependent v)node.args || plan_dependent E.state_dependent in
-        let dynamic=List.exists(fun(_,v)->E.is_live v || E.frame_dependent v)node.args || stateful
-          || plan_dependent(fun v->E.is_live v || E.frame_dependent v)in
+        let stateful,_=dependencies plan node in
         let previous=List.assoc_opt key t.entries in
         let state_stamp=if stateful then E.state_stamp state else "" in
         let stamp={serial=t.serial;frame=live;state_stamp}in
-        let valid (old:stamp)=(node.kind<>"image/map" || (old.serial=t.serial && Option.is_some t.maps.(id)))
-          && (not dynamic || (Frame_input.equal live old.frame && old.state_stamp=state_stamp))in
+        let valid=current t ~state ~live plan node in
         let result=(match previous with Some entry when
           (if display then Option.fold ~none:false ~some:valid entry.display
            else Option.fold ~none:false ~some:(fun cpu->valid cpu.stamp)entry.cpu)->Ok entry
@@ -85,8 +166,8 @@ let rec resolve ?(pending=0) t ~display ~state ~live plan value =
           let* ()=if previous=None && List.length t.entries+pending>=64 then Error(error "A workspace owns at most 64 image snapshots.")else Ok()in
           let pending=pending+(if previous=None then 1 else 0)in
           let entry=match previous with Some entry->entry|None->
-            {image=None;cpu=None;texture=None;borrowed=None;display=None}in
-          if display then entry.display<-None;
+            {image=None;cpu=None;texture=None;borrowed=None;display=None;canvas=None}in
+          if display then invalidate_display entry;
           let upload ~width ~height payload=
             match entry.image with
             |Some image->message(Image.upload_rgba ~into:image ~width ~height ~rgba:(bytes_of_image payload)())
@@ -126,22 +207,54 @@ let rec resolve ?(pending=0) t ~display ~state ~live plan value =
             |Some(Gpu value)->
                 Workspace_gpu.image t.gpu ~key ~width ~height value ~publish:(fun output->
                 let source()=Flow_gpu.Image_sink.texture output in
-                let* image=match entry.image with
-                  |None->Workspace_resources.image t.resources key(fun()->
-                      match Runtime_resources.Image.Private.of_gpu ~width ~height ~source with
-                      |Error error->Error(Format.asprintf "%a" Runtime_resources.pp_error error)
-                      |Ok image->let accepted=ref false in
-                        Fun.protect ~finally:(fun()->if not !accepted then ignore(Runtime_resources.Image.destroy image))(fun()->
-                          Result.map(fun view->entry.borrowed<-Some view;accepted:=true;Image.Private.of_resource image)
-                            (Texture.Private.of_image image)))
-                  |Some image->Result.map(fun()->image)
-                      (Result.map_error(fun e->error(Format.asprintf "%a" Runtime_resources.pp_error e))
-                        (Runtime_resources.Image.Private.replace_gpu_source (Image.Private.resource image)
-                          ~width ~height ~source))in
-                let* borrowed=match entry.borrowed with Some view->Ok view|None->
-                  message(Texture.Private.of_image(Image.Private.resource image))in
-                entry.image<-Some image;entry.borrowed<-Some borrowed;
-                entry.texture<-Some(lazy(Ok borrowed));Ok())
+                publish t key entry ~width ~height ~source)
+          end else if node.kind="image/render"then begin
+              let width=int "width" (fst live.Frame_input.size)and height=int "height" (snd live.size)in
+              if width<=0||height<=0||width>Sys.max_string_length/4/height then Error(error "Image dimensions exceed native storage bounds.")else
+              let drawing=List.assoc "drawing" args in
+              let* prepared=match t.drawings.(id)with Some p->Ok p|None->
+                Result.map(fun p->t.drawings.(id)<-Some p;p)(Sketch_support.Drawing.prepare plan drawing)in
+              let temporary=ref[]in
+              Fun.protect ~finally:(fun()->List.iter Image.destroy !temporary)(fun()->
+              let* scene=Sketch_support.Drawing.render_prepared ~state
+                ~image:(fun value->
+                  let* child=resolve ~pending t ~display ~state ~live plan value in
+                  if display then Ok(Option.get child.image)else
+                  let payload=(Option.get child.cpu).payload in
+                  let width=CPU.width payload and height=CPU.height payload in
+                  match child.image with
+                  |Some image when Runtime_resources.Image.Private.gpu_snapshot
+                      (Image.Private.resource image)=Ok None->
+                      child.display<-None;
+                      message(Image.upload_rgba ~into:image ~width ~height ~rgba:(bytes_of_image payload)())
+                  |None->
+                      let key=fst(List.find(fun(_,candidate)->candidate==child)t.entries)in
+                      let* image=Workspace_resources.image t.resources key(fun()->
+                        Image.upload_rgba ~width ~height ~rgba:(bytes_of_image payload)())in
+                      child.image<-Some image;Ok image
+                  |Some _->let* image=message(Image.upload_rgba ~width ~height ~rgba:(bytes_of_image payload)())in
+                      temporary:=image:: !temporary;Ok image)
+                prepared ~live ~size:(width,height)in
+              if display then begin
+                let previous=entry.canvas in
+                let* canvas,created=match previous with
+                  |Some canvas when Canvas.size canvas=(width,height)->Ok(canvas,false)
+                  |_->Result.map(fun canvas->canvas,true)(create_canvas t ~width ~height)in
+                let accepted=ref false in
+                Fun.protect ~finally:(fun()->if created && not !accepted then destroy_canvas t canvas)(fun()->
+                  Canvas.render canvas scene;
+                  let* width,height,source=message(Canvas.Private.gpu_source canvas)in
+                  let* ()=publish t key entry ~width ~height ~source in
+                  entry.canvas<-Some canvas;accepted:=true;
+                  if created then Option.iter(destroy_canvas t)previous;
+                  Ok())
+              end else
+              let* canvas=create_canvas t ~width ~height in
+              Fun.protect ~finally:(fun()->destroy_canvas t canvas)(fun()->
+                Canvas.render canvas scene;
+                let* image=message(Canvas.to_image canvas)in
+                Fun.protect ~finally:(fun()->Image.destroy image)(fun()->
+                  let* payload=cpu_of_image image in entry.cpu<-Some{payload;stamp};Ok())))
           end else begin
           entry.display<-None;
           let* image,payload=match node.kind with
@@ -159,39 +272,6 @@ let rec resolve ?(pending=0) t ~display ~state ~live plan value =
               let* payload=Result.map_error(fun d->error d.Procedural.Diagnostic.message)(Procedural.Payload.image cooked.payload)in
               let* image=upload ~width ~height payload in
               Ok(image,payload)
-          |"image/render"->
-              let width=int "width" (fst live.Frame_input.size)and height=int "height" (snd live.size)in
-              if width<=0||height<=0||width>Sys.max_string_length/4/height then Error(error "Image dimensions exceed native storage bounds.")else
-              let drawing=List.assoc "drawing" args in
-              let* prepared=match t.drawings.(id)with Some p->Ok p|None->
-                Result.map(fun p->t.drawings.(id)<-Some p;p)(Sketch_support.Drawing.prepare plan drawing)in
-              let temporary=ref[]in
-              Fun.protect ~finally:(fun()->List.iter Image.destroy !temporary)(fun()->
-              let* scene=Sketch_support.Drawing.render_prepared ~state
-                ~image:(fun value->
-                  let* child=resolve ~pending t ~display:false ~state ~live plan value in
-                  let payload=(Option.get child.cpu).payload in
-                  let width=CPU.width payload and height=CPU.height payload in
-                  match child.image with
-                  |Some image when Runtime_resources.Image.Private.gpu_snapshot
-                      (Image.Private.resource image)=Ok None->
-                      child.display<-None;
-                      message(Image.upload_rgba ~into:image ~width ~height ~rgba:(bytes_of_image payload)())
-                  |None->
-                      let key=fst(List.find(fun(_,candidate)->candidate==child)t.entries)in
-                      let* image=Workspace_resources.image t.resources key(fun()->
-                        Image.upload_rgba ~width ~height ~rgba:(bytes_of_image payload)())in
-                      child.image<-Some image;Ok image
-                  |Some _->let* image=message(Image.upload_rgba ~width ~height ~rgba:(bytes_of_image payload)())in
-                      temporary:=image:: !temporary;Ok image)
-                prepared ~live ~size:(width,height)in
-              let* canvas=message(Canvas.create ~width ~height)in
-              Fun.protect ~finally:(fun()->Canvas.destroy canvas)(fun()->
-                Canvas.render canvas scene;
-                let* image=match entry.image with
-                  |Some image->Result.map(fun()->image)(message(Canvas.Private.copy_to_image canvas image))
-                  |None->Workspace_resources.image t.resources key(fun()->Canvas.to_image canvas)in
-                let* payload=cpu_of_image image in Ok(image,payload)))
           |_->assert false in
           entry.cpu<-Some{payload;stamp};entry.image<-Some image;
           entry.texture<-Some(texture payload);Ok()end in
@@ -206,5 +286,7 @@ let payload t plan ~state ~live value=Result.map(fun entry->(Option.get entry.cp
 let texture t ~state ~live plan value=Result.bind(resolve t ~display:true ~state ~live plan value)(fun entry->message(Lazy.force(Option.get entry.texture)))
 let peek t plan id=if t.resources.closed || not(Option.fold ~none:false ~some:((==)plan)t.plan)
   || id<0 || id>=Array.length t.resolved then None else Option.bind t.resolved.(id)(fun entry->entry.image)
-let close t=t.plan<-None;t.qualification<-None;t.arguments<-[||];t.drawings<-[||];
-  t.maps<-[||];t.resolved<-[||];t.entries<-[]
+let close t=
+  List.iter(fun(_,entry)->Option.iter(destroy_canvas t)entry.canvas)t.entries;
+  t.plan<-None;t.qualification<-None;t.arguments<-[||];t.drawings<-[||];
+  t.maps<-[||];t.sizes<-[||];t.resolved<-[||];t.entries<-[]

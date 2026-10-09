@@ -30,6 +30,7 @@ module Editor3 = struct
         ~live:(Option.value ~default:core.live_frame live) image
     let image_stats value = let resources=value.Environment.host.resources in
       resources.images_created,resources.images_destroyed
+    let image_render_stats value=Workspace_images.render_stats value.Environment.host.images
     let host_stats value = let host=value.Environment.host in
       host.quit_requested,host.fired,host.resources.samples_created,host.resources.samples_destroyed
     let image value image = let core=value.Environment.core in

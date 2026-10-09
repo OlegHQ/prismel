@@ -191,6 +191,7 @@ let branch_mode mode repeats =
       total_allocated.(repeats/2) !fanouts !hash) [1; 8]
 
 let image_render_mode () =
+  let module Image=Runtime_resources.Image in
   let env name default=Option.fold ~none:default ~some:int_of_string(Sys.getenv_opt name)in
   let repeats=env "RAYS_IMAGE_RENDER_REPEATS" 7 and frames=env "RAYS_IMAGE_RENDER_FRAMES" 20
   and warmups=env "RAYS_IMAGE_RENDER_WARMUPS" 10 in
@@ -202,6 +203,7 @@ let image_render_mode () =
   let mesh=Rays.Mesh.plane ~width:2. ~height:2.()in
   let camera=Rays.Camera.orthographic ~height:2. ~at:(Rays.Vec3.create 0. 0. 2.)
     ~target:Rays.Vec3.zero()in
+  Printf.eprintf "image_render_counters,size,domains,phase,repetition,frames,targets_created,targets_destroyed,captures,canvas_readbacks,image_readbacks\n%!";
   List.iter(fun size->
     let text=Printf.sprintf "(workspace rendered
       (graph drawing :context draw
@@ -223,6 +225,21 @@ let image_render_mode () =
       Rays.Canvas.destroy canvas;Rays_editor.Editor3.close owner end in
     Fun.protect ~finally:close(fun()->
       let frame=ref 0 and last_live=ref(Frame_input.at_time 0.)in
+      let source=ref None in
+      let lookup_source()=
+        let generation=Option.map Image.generation !source in
+        Rays_editor.Editor3.Private.with_images ~plan:evaluated.plan ~state ~live: !last_live owner
+          (fun ~image ~texture:_->
+            let resource=ok(image value) |> Rays.Image.Private.resource in
+            Option.iter(fun previous->assert(previous==resource);
+              assert(generation=Some(Image.generation resource))) !source;
+            source:=Some resource)in
+      let counters()=
+        let created,destroyed,captures,readbacks=Rays_editor.Editor3.Private.image_render_stats owner in
+        created,destroyed,captures,readbacks,Option.fold ~none:0 ~some:Image.Private.readbacks !source in
+      let report_counters phase trial frames (a,b,c,d,e) (v,w,x,y,z)=
+        Printf.eprintf "image_render_counters,%d,1,%s,%d,%d,%d,%d,%d,%d,%d\n%!"
+          size phase trial frames (v-a)(w-b)(x-c)(y-d)(z-e)in
       let render time=
         let live={(Frame_input.at_time time)with size=(size,size);frame= !frame}in
         last_live:=live;
@@ -249,12 +266,17 @@ let image_render_mode () =
           (Int64.to_float uploaded/.float count) hash in
       render 0.;
       let elapsed=now()-.started in let bytes=allocation()-.before in
+      lookup_source();
+      let cold_counters=counters()in
+      report_counters "cold_owner_frame" 0 1 (0,0,0,0,0) cold_counters;
       let cold_hash=hash()in
+      report_counters "cold_hash" 0 1 cold_counters (counters());
       report "cold_owner_frame" 0 1 elapsed bytes (stats()).uploaded_bytes cold_hash;
       for warmup=0 to warmups-1 do render(float warmup/.float frames)done;
       let expected=ref None and times=Array.make repeats 0. in
       for trial=0 to repeats-1 do
         Gc.full_major();
+        lookup_source();let initial_counters=counters()in
         let initial=stats()in let before=allocation()in let started=now()in
         for frame=0 to frames-1 do render(float frame/.float frames)done;
         let elapsed=now()-.started in let bytes=allocation()-.before in
@@ -262,15 +284,24 @@ let image_render_mode () =
         assert(Int64.sub final.frames initial.frames=Int64.of_int frames);
         let uploaded=Int64.sub final.uploaded_bytes initial.uploaded_bytes in
         if baseline then assert(uploaded>=Int64.of_int(frames*size*size*4));
+        lookup_source();let final_counters=counters()in
+        if not baseline then begin
+          assert(initial_counters=final_counters);assert(uploaded=0L)
+        end;
+        report_counters "warm_display" trial frames initial_counters final_counters;
         let hash=hash()in assert(hash<>cold_hash);
+        report_counters "warm_hash" trial 1 final_counters (counters());
         (match !expected with None->expected:=Some hash|Some prior->assert(prior=hash));
         times.(trial)<-elapsed/.float frames;
         report "warm_display" trial frames elapsed bytes uploaded hash
       done;
       Gc.full_major();
+      let before_counters=counters()in
       let before=allocation()in let started=now()in close();
       let elapsed=now()-.started in let bytes=allocation()-.before in
       let created,destroyed=Rays_editor.Editor3.Private.image_stats owner in assert(created=destroyed);
+      let targets_created,targets_destroyed,_,_,_=counters()in assert(targets_created=targets_destroyed);
+      report_counters "teardown" 0 1 before_counters (counters());
       report "teardown" 0 1 elapsed bytes 0L "";
       Array.sort Float.compare times;
       Printf.eprintf "image/render size=%d domains=1 trials=%d frames=%d warmups=%d median_ms=%.6f\n%!"

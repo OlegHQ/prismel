@@ -349,6 +349,9 @@ module Editor3 : sig
       'prepared t -> Flow.Eval.value -> (Procedural.Image.t,Flow.Diagnostic.t) result
     (** Inspect the owned plan and request an independent immutable CPU image cook. *)
     val image_stats : 'prepared t -> int * int
+    val image_render_stats : 'prepared t -> int * int * int * int
+    (** Canvases created/destroyed, successful captures and actual GPU pixel readbacks. *)
+
     val image : 'prepared t -> Flow.Eval.value -> (Rays.Image.t, Flow.Diagnostic.t) result
     val with_images : ?state:Flow.Eval.state -> ?live:Frame_input.t -> ?plan:Flow.Eval.plan ->
       'prepared t ->

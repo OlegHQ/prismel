@@ -697,12 +697,22 @@ and publication, rejects a 65th site and closes uncommitted sinks on errors or
 exceptions. CPU payload and display validity are independent; exact-first map
 cooking creates no runtime image. CPU/GPU authority transitions preserve the
 runtime image identity and reuse the borrowed Texture when GPU authority returns.
-Legacy image/render materializes CPU children without overwriting a resident
-child, and legacy CPU publications invalidate old display stamps. Recursive
+Display image/render retains one Canvas per stable authored entry and publishes
+its completed texture through the same borrowed Image/Texture route. Every stale
+request expires the previous source before argument forcing or drawing preparation.
+Same-size frames reuse the target; resizing installs a replacement only after
+rendering and publication succeed, then destroys the old target. Failed replacement
+targets close immediately. Preparation records reachable omitted width/height
+dependencies, so an explicit-size parent refreshes when its implicit-size child
+changes; unrelated fixed-size images retain their cached frame.
+CPU image/render cooks exact children into a separate temporary Canvas and owns
+its captured payload. It preserves resident child images and the parent's display
+image, generation and texture. The private image_render_stats hook counts actual
+target creation/destruction, captures and GPU pixel readbacks across live and
+closed targets. Legacy CPU publications invalidate old display stamps. Recursive
 resolution reserves pending ancestor entries inside the 64-image bound. Close
-clears image programs/payloads/views, destroys images, then closes sinks, host
-runners/pipelines and the GPU lease. Explicit frozen GPU-image snapshots and
-resident Canvas production remain separate work.
+destroys published Images, then retained Canvases, then sinks, host runners/pipelines
+and the GPU lease. Explicit deferred frozen GPU-image snapshots remain separate work.
 Scene rejects malformed, destroyed, and foreign-device GPU image sources; a
 canvas rendered on another device than the window's falls back to its CPU
 pixels.

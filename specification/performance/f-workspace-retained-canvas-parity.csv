@@ -1,0 +1,6 @@
+test,width,height,time,max_channel_difference,differing_channels,differing_pixels
+workspace_retained_canvas,65,17,0.00,0,0,0
+workspace_retained_canvas,65,17,0.50,0,0,0
+workspace_retained_canvas,35,33,0.50,0,0,0
+workspace_retained_canvas,35,33,0.00,0,0,0
+workspace_retained_canvas,35,33,0.00,0,0,0

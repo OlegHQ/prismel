@@ -9867,3 +9867,122 @@ unqualified; no fixtures or tolerances are changed.
 
 The required pre-commit `--ship` check passes (exit 0):
 `/tmp/rays-f-retained-canvas-boundary-ship.log`.
+
+## F2.3 retained workspace Canvas functional checkpoint (2026-10-09)
+
+Apple M1 Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev. Workspace
+fixtures use real Metal targets on the initial domain. The dimension fixture
+uses the editor's actual lowered plan; the live fixture reloads an authored
+`.rays` file through Editor.update. Source dimensions include 65×17 and 35×33;
+the mixed 2D/mesh comparison destination is 65×17.
+
+Display image/render retains its same-size source target, publishes completed
+borrowed textures under stable authored keys and installs resized targets only
+after successful publication. Old callbacks expire before argument forcing,
+including failed force/prepare paths. CPU cooking uses a separate temporary
+Canvas and leaves resident parent/child publications untouched. Prepared reachable
+dimension summaries refresh explicit-size parents of implicit-size children
+without invalidating unrelated fixed-size images. Close releases published
+Images before retained targets, then GPU sinks/runners/leases.
+
+| Fixture | Evidence |
+|---|---|
+| Twenty changing same-size display frames | Same Image/Texture identity; target counts remain (2 created, 1 destroyed), with the one earlier explicit CPU capture/readback unchanged |
+| Omitted dimensions and explicit-size parent | Target counts (5,0,0,0) → (8,3,0,0); unrelated fixed-size generation unchanged |
+| Independent exact snapshots at both sizes | Counts (11,6,3,3) before close → (11,11,3,3) after close; prior CPU bytes unchanged |
+| Repeated drawing/argument failures and recovery | No successful publication or target/capture/readback change on failure; old source refuses with typed Destroyed |
+| Two failed resized publications | Counts (1,0,0,0) → (2,1,0,0) → (3,2,0,0); close gives (3,3,0,0) |
+| Five mixed 2D/mesh CPU round-trip comparisons | Maximum channel difference 0; differing channels 0; differing pixels 0 |
+| Fixture teardown | Zero native live-handle delta; no discarded-pixel synchronization |
+
+Count tuples are (targets created, targets destroyed, successful captures,
+successful target GPU pixel readbacks). Explicit source Image pixel reads used
+by parity comparisons are a separate resource boundary and do not increment
+Canvas counters. Three warmed consumer replays add zero destination uploaded bytes.
+
+```sh
+_build/default/tools/check.exe @check @tools/api_manifest/runtest test/test_workspace_images.exe test/test_workspace_images_native.exe
+(cd _build/default/test && ./test_workspace_images.exe)
+(cd _build/default/test && ./test_workspace_images_native.exe)
+_build/default/tools/check.exe @all @runtest @smoke @lib/rays/runtest-native @lib/flow_gpu/runtest-native @lib/rays_editor/runtest-native @lib/scene_execution/runtest-native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+Typecheck/API, CPU workspace image tests and actual native image tests pass
+(exit 0): `/tmp/rays-f-workspace-retained-canvas-check.log`,
+`/tmp/rays-f-workspace-retained-canvas-cpu.log` and
+`/tmp/rays-f-workspace-retained-canvas-native.log`. The single new API-manifest
+entry is the private actual-source image_render_stats hook. Astra's review:
+“Approved the retained-Canvas functional checkpoint; no blocker found.”
+Raw parity: `specification/performance/f-workspace-retained-canvas-parity.csv`.
+Broad qualification passes (exit 0):
+`/tmp/rays-f-workspace-retained-canvas-full.log`. Both complete workspace sweeps
+cover 38 standard files, two custom-catalog executables and 13 fixtures at four
+times/domains 1/8, including native geometry/image/texture/drawing pixel equality.
+The 2× PXUI goldens remain unqualified at the actual 1× density; no fixture or
+tolerance is changed. Matched before/after allocation measurements follow below.
+This functional checkpoint does
+not qualify the connected image/map gate, captured geometry or deferred Lisp
+exact-image snapshots.
+
+## F2.3 retained workspace Canvas matched measurement (2026-10-09)
+
+Machine: Apple M1 Macmini9,1, eight logical CPUs, OCaml 5.3.0, Dune dev.
+Editor/native rendering uses one domain. Run isolated after full qualification,
+with no builds, tests or active agents. The accepted before baseline is
+`10038226`; the after uses the same workspace, camera, mesh, destination target,
+time sequence and seven trials of twenty completed frames after ten warmups.
+The timed interval includes live producer preparation/rendering, borrowed image
+publication, texture resolution and completed mesh consumption. Counter snapshots,
+source lookup and complete byte/hash comparisons sit outside both timing and
+allocation measurements. Source lookup at last_live is checked not to change
+publication generation. The original stdout columns are unchanged.
+
+```sh
+RAYS_IMAGE_RENDER_REPEATS=7 RAYS_IMAGE_RENDER_FRAMES=20 RAYS_IMAGE_RENDER_WARMUPS=10 _build/default/tools/bench_workspace_lower.exe --images > specification/performance/f-image-render-resident-after.csv 2> /tmp/rays-f-image-render-resident-after.log
+rg '^image_render_counters,' /tmp/rays-f-image-render-resident-after.log > specification/performance/f-image-render-resident-counters.csv
+```
+
+| Size | Before median ms/frame | After median ms/frame | Before median bytes/frame | After median bytes/frame | Before → after destination upload bytes/frame |
+|---|---:|---:|---:|---:|---:|
+| 512² | 43.399990 | 0.692904 | 67,918,306 | 85,450 | 1,048,576 → 0 |
+| 1024² | 139.405048 | 1.004601 | 250,370,554 | 85,450 | 4,194,304 → 0 |
+| 2048² | 514.362109 | 2.203953 | 980,179,450 | 85,450 | 16,777,216 → 0 |
+
+Allocation medians match at every size. Individual early trials range from
+84,021 to 84,125 bytes/frame; trials 3–6 are 85,450 at each size. These are
+whole-frame allocations, not zero allocation. Every one of the 21 warm trials
+has zero actual source target creation/destruction, capture, Canvas readback,
+Image readback and destination upload deltas. Cold creates one retained target
+without capture/readback; teardown destroys one target without reading discarded
+pixels. Each explicit full-byte hash verification performs one source Image
+readback outside warm measurement, independently of the source Canvas counter.
+Actual source counters in the original before run were unmeasured.
+
+All seven warm MD5s match the corresponding before baseline, and source bytes
+equal destination bytes: 512² `cdc3cea2e1c2d39634538ec65341e790`, 1024²
+`cf67ff4b1a5a6eff98fca9312f3b5a47`, 2048²
+`6a44f30ed4a2757a638cd5062df9c325`. Each differs from its cold time-zero hash.
+
+| Size | After cold owner + frame ms | Cold bytes | Teardown ms | Teardown bytes |
+|---|---:|---:|---:|---:|
+| 512² | 60.271978 | 17,602,040 | 1.132011 | 53,592 |
+| 1024² | 29.478073 | 23,888,680 | 0.972986 | 53,592 |
+| 2048² | 34.806967 | 49,054,504 | 1.360893 | 53,592 |
+
+Cold and teardown are single observations. Resize and independent exact CPU
+cooks have functional/counter qualification above, not matched timing rows in
+this run. CPU image/noise controls remain in the CSV with matching one/eight-domain
+hashes; they do not qualify image/map. The connected F2.2 performance matrix,
+captured geometry and deferred Lisp exact-image surface remain separate work.
+
+Raw before: `specification/performance/f-image-render-roundtrip-before.csv`.
+Raw after/counters: `specification/performance/f-image-render-resident-after.csv`
+and `specification/performance/f-image-render-resident-counters.csv`.
+Native measurement exits 0: `/tmp/rays-f-image-render-resident-after.log`.
+Reviewed counter instrumentation typecheck/API/tool build passes (exit 0):
+`/tmp/rays-f-image-render-resident-measure-check.log`.
+The required pre-commit shipping check passes (exit 0):
+`/tmp/rays-f-workspace-retained-canvas-ship.log`.
+Astra's verdict: “F2.3 allocation gate: PASS” for the measured workload.
+This qualifies the retained image/render allocation gate across the measured
+sizes; it does not complete the deferred Lisp exact-image surface or F2.2.
