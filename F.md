@@ -1519,6 +1519,35 @@ uniform cache or reassociation is allowed. The focused compiler matrix and
 uninstrumented after measurements remain required. These
 instrumented numbers do not replace the uninstrumented failing gate evidence.
 
+**Shared uniform preparation correction (2026-10-09; large GPU gate still open).**
+CPU `Packed.force` and GPU `Packed.Private.prepare` now share one evaluator
+context for captured uniforms. Its existing execution hook runs supported
+numeric subexpressions packed while surrounding scalar expressions remain on
+the reference walker; compilation refusals keep reference evaluation. Named
+canonical `+` reductions use existing ordered accumulator instructions after
+checking the actual declaration's packed capability. No reassociation or
+cross-frame cache is added. The focused seven-case matrix observes actual
+packed execution and exact CPU/prepared-uniform bits at domains 1/8, including
+Vec3, cancellation/signed zero over 32,769 elements, changing captures, empty
+and integer seeds, unsupported/custom callables, nonfinite diagnostics and
+transactional state rollback/recovery. Actual workspace CPU/native checks pass.
+The two intentional private API additions are reviewed and promoted.
+
+The unchanged eight-cell and uncaptured 1024² matrices finish with 30 native
+parity comparisons at maximum difference 0 and all resource/capture assertions
+passing. Large-source CPU8/GPU medians are now 25.685072/9.757650 ms static
+and 25.298119/12.211875 ms changing. Astra: “The shared preparation correction
+is worth retaining.” CPU gates pass for every measured 1024² cell; GPU gates
+pass for small sources and controls but still fail for both large sources.
+Allocation remains pixel-size-independent at fixed source size. Raw after
+files are `f-image-map-captures-after*.csv` and
+`f-image-map-uncaptured-recheck-after*.csv`. Broad F5 validation passes, including
+both workspace sweeps, native/pixel checks and oversized capture qualification
+(exit 0; `/tmp/rays-f-image-capture-uniform-full.log`). Shipping passes
+(exit 0; `/tmp/rays-f-image-capture-uniform-ship.log`).
+Next attribution must separate uniform compilation/execution and
+whole ordered traversal before any further accumulation change.
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing

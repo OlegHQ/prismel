@@ -131,7 +131,7 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
     if view.previous then refuse "E_PACKED_STATE" "Previous-state values require reference evaluation.";
     if E.state_dependent (E.Residual residual) then
       refuse "E_PACKED_STATE" "State-dependent kernels require reference evaluation.";
-    let function_body (f : W.term) = match f.node with
+    let function_body ?reduction (f : W.term) = match f.node with
       | W.Fn {capture = Some _; _} ->
           (match E.Private.eval_term residual f ~live:(Frame_input.at_time 0.) with
            | Ok (E.Fn fn) -> (match E.Private.function_body fn with
@@ -146,6 +146,17 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
                | Some (params, body) -> params, body, E.Private.function_bindings fn
                | None -> refuse ~at:f "E_PACKED_FUNCTION" ("Function " ^ name ^ " has no instantiated packed body."))
            | _ -> refuse ~at:f "E_PACKED_FUNCTION" ("Function binding " ^ name ^ " is unavailable."))
+      | W.Fn_ref "+" when Option.is_some reduction ->
+          (match Flow.Op.find ~extra:(E.Private.residual_ops residual) "+" Flow.Context.value with
+           | Some op when Flow.Op.packed_kind op = Some (Flow.Op.Binary Add) ->
+               let seed, source = Option.get reduction in
+               let item_ty = match source.W.ty with Ty.Array ty -> ty | _ ->
+                 refuse ~at:source "E_PACKED_TYPE" "Packed reduce requires a numeric array." in
+               let arg name ty = {f with path=None;ty;node=W.Ref_binding(name,[])} in
+               let body = {f with ty=term.ty;node=W.Op {op=op.name;
+                 args=["a",arg "@accumulator" seed.W.ty;"b",arg "@item" item_ty];skip=[]}} in
+               [W.Name "@accumulator",None;W.Name "@item",None],body,view.bindings
+           | _ -> refuse ~at:f "E_PACKED_FUNCTION" "Packed named reduce requires canonical addition.")
       | W.Fn_ref name -> refuse ~at:f "E_PACKED_FUNCTION" ("Function value " ^ name ^ " has no instantiated packed body.")
       | _ -> refuse ~at:f "E_PACKED_FUNCTION" "Packed kernels require a function with an instantiated body." in
     let params, accumulator, body, sources, bindings, iteration, result, skip = match term.node with
@@ -153,7 +164,7 @@ let rec compile_impl ?(fusion = true) ?(dynamic = false)
           let params, body, bindings = function_body f in
           params, None, body, sources, bindings, Zip, Collect, []
       | W.Hof (`Reduce, [f; seed; source]) ->
-          let params, body, bindings = function_body f in
+          let params, body, bindings = function_body ~reduction:(seed,source) f in
           (match params with
            | acc :: params -> params, Some acc, body, [source], bindings, Zip, Accumulate (seed, false), []
            | _ -> refuse "E_PACKED_FORM" "Packed reduce requires an accumulator parameter.")
@@ -554,9 +565,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let strides = Array.make (Array.length inputs) 1 in
     if t.iteration = Product && count > 0 then
       for i = Array.length inputs - 2 downto 0 do strides.(i) <- strides.(i + 1) * lengths.(i + 1) done;
-    let uniforms = Array.map (fun v ->
-      let v = get (E.Private.force_reference ~state ?elems ?resolve v ~live) in
-      components v) t.uniforms in
+    let uniforms = force_uniforms ~state ?elems ?resolve ?measure t ~live in
     let frame = Array.map (function
       | Frame "t" -> live.Frame_input.t
       | Frame name ->
@@ -724,6 +733,17 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     Option.iter (fun (clock, report) -> report t ~seconds:(max 0. (clock () -. Option.get started)) ~reference:true) measure;
     result
 
+and force_uniforms ~state ?elems ?resolve ?measure t ~live =
+  let execute residual live =
+    match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source
+      residual (E.Private.residual_view residual).term with
+    | Ok packed -> Some (force ~state ?elems ?resolve ?measure packed ~live)
+    | Error _ -> None in
+  match get (E.Private.force_with_executor ~state ?elems ?resolve ~compiled:false ~execute
+    (E.List t.uniforms) ~live) with
+  | E.List values -> Array.map components values
+  | _ -> assert false
+
 module Private = struct
   let output_reachable = output_reachable
   type view = {code : instruction array; widths : int array; output : int array;
@@ -737,7 +757,7 @@ module Private = struct
       zipped=zipped t; skip=t.skip}
   type inputs = {arrays : float array array; uniforms : float array array;
     frame : float array; count : int}
-  let prepare ?state ?elems ?resolve (t : t) ~live =
+  let prepare ?state ?elems ?resolve ?measure (t : t) ~live =
     let state = Option.value ~default:(E.create_state ()) state in
     E.transaction state (fun () -> try
       let rec evaluate residual term =
@@ -757,8 +777,7 @@ module Private = struct
         | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources in
       let count = if arrays=[||] then 0 else Array.fold_left min max_int
         (Array.mapi (fun index values -> Array.length values / t.widths.(index)) arrays) in
-      let uniforms = Array.map (fun value ->
-        components (get (E.Private.force_reference ~state ?elems ?resolve value ~live))) t.uniforms in
+      let uniforms = force_uniforms ~state ?elems ?resolve ?measure t ~live in
       let frame = Array.map (function
         | Frame "t" -> live.Frame_input.t
         | Frame name -> (match Flow.Op.find name Flow.Context.value with

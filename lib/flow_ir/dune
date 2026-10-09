@@ -22,6 +22,11 @@
  (libraries flow_ir flow rays_math))
 
 (test
+ (name test_uniforms)
+ (modules test_uniforms)
+ (libraries flow_ir flow rays_math))
+
+(test
  (name test_frame_kernel)
  (modules test_frame_kernel)
  (deps ../../examples/particles/sketch.rays)

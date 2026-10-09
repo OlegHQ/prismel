@@ -862,6 +862,17 @@ that cache and its two work counters.
 Exact CPU requests preserve resident images. Export uses reference lowering and
 recursively resolves CPU images before uploading its independent image copies.
 
+CPU packed execution and GPU input preparation share uniform evaluation through
+Flow's existing evaluator execution hook. Supported numeric subexpressions run
+in packed CPU kernels; scalar surrounding expressions and compilation refusals
+retain reference evaluation. The context shares the current state, immutable
+bindings, resolver and live input. No uniform result is cached across frames.
+Canonical named `+` reductions check the captured operation environment and
+packed declaration capability, then use the same typed ordered accumulator
+instructions as an explicit lambda. Unsupported or changed declarations stay
+interpreted. Existing transactions and reference fallback preserve diagnostic
+and state behavior; this does not reassociate reductions or add GPU reductions.
+
 Flow IR accepts an initial-domain GPU backend through scoped, renderer-neutral
 callbacks. GPU values carry identity, count, width, generation and optional
 completed device dispatch duration; they carry no backend handle. A

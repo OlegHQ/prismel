@@ -10465,3 +10465,97 @@ Restored-code focused checks (`@check`, `@lib/flow_ir/runtest`, timer executable
 and benchmark build), restored timer execution and pre-commit shipping pass
 (exit 0; `/tmp/rays-f-image-capture-attribution-restored.log`,
 `/tmp/rays-f-image-capture-attribution-ship.log`).
+
+## F2.2 shared packed uniform preparation (2026-10-09)
+
+Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. Astra's
+attribution design is implemented in the common Packed uniform path, shared by
+CPU force and GPU prepare. One evaluator context forces the complete immutable
+uniform list using the existing numeric execution hook. Successful packed
+subterms execute with the same state/live/element bindings/resolver, fusion,
+dynamic settings and cardinality proof; compiler refusals return to reference
+evaluation. Surrounding scalar expressions stay on the reference walker.
+Small subexpressions compile per preparation, with no cross-frame cache.
+
+The actual authored `(reduce + ...)` receives narrow canonical callable
+support. `Op.find` uses the residual's captured operation environment and
+requires the existing Binary Add capability. The compiler builds the same
+typed accumulator/item addition as an explicit lambda and retains ordered
+accumulation, seed/empty-input rules and reference diagnostic fallback. Other
+named callables remain interpreted. No accumulator hot-loop change, reduction
+reassociation or new GPU operation is included.
+
+The new focused matrix compares full CPU output bytes and prepared uniform bits
+at domains 1/8 over empty and 32,769-element sources and three changing live
+inputs. It covers canonical addition and equivalent lambdas for float/Vec3,
+multi-block cancellation and signed zero, unsupported min, and an unchecked
+same-name custom declaration to exercise the compiler's independent guard.
+Existing measurement callbacks prove that both CPU force and GPU prepare run
+the supported uniform reductions packed; the unsupported/custom forms do not.
+Integer 0 seeds retain reference fallback, matching the exact scalar value
+constructor (Int for empty input, Float for nonempty float input). A resolver
+advances a real fold before an overflow error: both callers return the original
+reference diagnostic, restore the state and subsequently recover. Input arrays
+remain unchanged. Private evaluator `compiled` control and GPU preparation's
+optional measurement callback are the two reviewed/promoted manifest changes.
+
+Focused Flow/IR, benchmark/API build, actual-owner CPU and native tests pass:
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest
+_build/default/tools/check.exe @tools/api_manifest/runtest tools/bench_workspace_lower.exe test/test_workspace_images.exe test/test_workspace_images_native.exe
+(cd _build/default/test && ./test_workspace_images.exe)
+(cd _build/default/test && ./test_workspace_images_native.exe)
+```
+
+The benchmark source remains unchanged from `4d5f3959`. After all builds,
+tests and other agents became idle, the full eight capture cells and separate
+uncaptured 1024² control repeat the same seven CPU1/8 cooks and seven 200-frame
+completed GPU/consumer/combined trials after ten warmups:
+
+```sh
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-captures-after.csv 2> specification/performance/f-image-map-captures-after-counters.csv
+_build/default/tools/bench_workspace_lower.exe --image-map-connected-1024 > specification/performance/f-image-map-uncaptured-recheck-after.csv 2> specification/performance/f-image-map-uncaptured-recheck-after-counters.csv
+```
+
+Both runs exit 0. Seven-trial medians, milliseconds and bytes/frame:
+
+| Source | Points | Image | CPU8 whole cook | GPU producer | Consumer | Combined | Producer bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Static P/Cd | 1,024 | 512² | 5.348921 | 0.832685 | 0.379596 | 1.269675 | 351,305 |
+| Static P/Cd | 1,024 | 1024² | 15.635967 | 2.016746 | 0.624655 | 3.119844 | 351,305 |
+| Static P/Cd | 1,024 | 2048² | 57.089806 | 5.426325 | 1.640074 | 7.443714 | 351,305 |
+| Changing P/Cd | 1,024 | 512² | 5.202055 | 0.979425 | 0.377525 | 1.430690 | 681,579 |
+| Changing P/Cd | 1,024 | 1024² | 15.792131 | 2.253026 | 0.622720 | 3.420510 | 681,579 |
+| Changing P/Cd | 1,024 | 2048² | 57.624102 | 5.767635 | 1.660985 | 7.909645 | 681,579 |
+| Static P/Cd | 65,536 | 1024² | 25.685072 | 9.757650 | 0.631931 | 10.422729 | 7,052,921 |
+| Changing P/Cd | 65,536 | 1024² | 25.298119 | 12.211875 | 0.621525 | 12.921420 | 20,522,722 |
+
+Large-source CPU8 before/after medians are 65.782070→25.685072 ms static
+and 66.111088→25.298119 ms changing; GPU medians are
+45.126491→9.757650 and 48.500581→12.211875 ms. Static large allocation falls
+from 156,297,081 to 7,052,921 B/frame. The uncaptured CPU8/GPU medians are
+12.253046/1.609435 ms gradient and 11.778116/1.636395 ms live; allocations
+33,721/32,593 B/frame are 160 B above the immediately preceding controls.
+Pixel-size allocation independence remains exact at fixed 1,024-point count.
+
+All 440 after data rows are retained with resource/capture counters. All 30
+full native parity comparisons have maximum channel difference 0 and no
+differing channels/pixels; independent CPU1/8 hashes match. Warm geometry
+reuse/update counts, status reads/generations, no warm resource creation/
+uploads/readbacks, CPU-storage exclusion, resize/replan and teardown pass.
+Astra verified the raw rows and all 210 warm Host rows: “The shared preparation
+correction is worth retaining.” **CPU gates pass for every measured 1024²
+fixture. GPU gates pass for small sources and controls but still fail for both
+large sources.** This is a retained correction, not overall F2.2 completion.
+
+Before another optimization, Astra requires new temporary attribution of
+uniform preparation/compilation/execution, then seed/source/scratch setup and
+the complete ordered chunk traversal. Existing source/materializer/flatten,
+dispatch/conversion/publication probes remain. Inclusive phases must not be
+summed twice, and worker CPU coverage remains explicitly unobserved. Broad
+F5 validation passes (exit 0; `/tmp/rays-f-image-capture-uniform-full.log`),
+including the two complete workspace sweeps, native GPU/editor/prepared commands,
+workspace pixels, gallery float32, oversized capture and runtime qualification,
+and PXUI parity. Actual display is 1×; 2× goldens remain unqualified. Pre-commit
+shipping passes (exit 0; `/tmp/rays-f-image-capture-uniform-ship.log`).

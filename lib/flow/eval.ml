@@ -1195,8 +1195,8 @@ module Private = struct
       rc = {at with data = true; rec_ = false}; previous = false; fast = Untried})
   let free_names term = Names.elements (free_names term)
   let free_name_walks () = Atomic.get free_walks
-  let force_with_executor ?state ?elems ?resolve ~execute v ~live =
-    force_with ?state ?elems ?resolve ~execute v ~live
+  let force_with_executor ?state ?elems ?resolve ?compiled ~execute v ~live =
+    force_with ?state ?elems ?resolve ?compiled ~execute v ~live
   let function_bindings = function Closure cl -> Smap.bindings cl.env | Named _ -> []
   let function_id = function Closure cl -> cl.fid | Named n -> n.fid
   let state_values state = List.map snd (Smap.bindings state.before) @ List.map snd (Smap.bindings state.next)

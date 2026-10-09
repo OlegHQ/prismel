@@ -67,5 +67,6 @@ module Private : sig
     frame : float array; count : int}
   val prepare : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list ->
     ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
+    ?measure:((unit -> float) * (t -> seconds:float -> reference:bool -> unit)) ->
     t -> live:Flow.Eval.live -> (inputs, Flow.Diagnostic.t) result
 end

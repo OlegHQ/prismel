@@ -215,11 +215,13 @@ module Private : sig
 
   val force_with_executor : ?state:state -> ?elems:(string * value) list ->
     ?resolve:(value -> (value, Diagnostic.t) result) ->
+    ?compiled:bool ->
     execute:(residual -> live -> (value, Diagnostic.t) result option) ->
     value -> live:live -> (value, Diagnostic.t) result
   (** Dispatch supported packed subterms inside an evaluator-owned frame fold.
       None retains the interpreter. The callback receives the current immutable
       bindings; the evaluator still owns cell identity and the frame transaction.
+      [compiled:false] keeps surrounding scalar terms on the reference walker.
       Reference forcing never invokes this callback. *)
 
   val function_bindings : fn -> (string * value) list
