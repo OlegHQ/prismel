@@ -12000,6 +12000,8 @@ GPU<5 ms, frozen images, expanded owner coverage, F3 and final audit remain open
 
 ### F2.2 frozen `(exact image)` functional checkpoint (2026-10-09)
 
+Implementation and regressions: `d94b761b`.
+
 The resource owner resolves and validates the current successful display
 publication before snapshot lookup. Exact site, plan serial and source
 identity/generation/dimensions identify one immutable owned RGBA8 payload and

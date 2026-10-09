@@ -1824,7 +1824,7 @@ snapshots outside timing; they cannot measure GC elapsed time. Restore probes;
 no further arithmetic/ownership/cache optimization is approved yet. Frozen
 images, expanded owner coverage, F3 and the final audit remain open.
 
-**Frozen exact image checkpoint (2026-10-09).** `(exact image)` now creates a
+**Frozen exact image checkpoint (2026-10-09, `d94b761b`; functional slice complete).** `(exact image)` now creates a
 typed deferred image card with an editable input, and Lower routes it through
 the existing initial-domain resource owner. The owner first resolves and
 validates a successful child display publication, including cache hits, then
