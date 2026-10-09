@@ -10369,3 +10369,99 @@ The baseline CSVs remain checked in before any subsequent producer change.
 Focused benchmark build and pre-commit shipping pass (exit 0;
 `/tmp/rays-f-image-map-captures-build.log`,
 `/tmp/rays-f-image-map-captures-baseline-ship.log`).
+
+## F2.2 large-source uniform attribution (2026-10-09)
+
+Same Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev, actual display 1×. Builds,
+tests and other agents were idle during diagnostics. Starting from `4d5f3959`,
+temporary `Phase_timer` probes aggregate bounded phase names/uniform indices
+on the initial domain, preserve exclusive existing timers and add inclusive
+nested measurements. A fake-clock regression checks inclusive/exclusive
+nesting and exception restoration. No per-frame printing or in-trial GC
+snapshot occurs. Each trial prints aggregated rows afterward.
+
+Static/changing 65,536-point sources at 1024² and one uncaptured gradient
+control run seven 200-frame producer trials after ten warmups. Independent
+CPU1/8 whole cooks preserve the byte oracle; seven CPU8 caller samples are
+also recorded. Consumer/combined timing is omitted in this diagnostic matrix;
+full native parity, resize/replan, counter and teardown checks remain. Every
+CPU8 sample explicitly labels worker internals unobserved, including samples
+with initial-domain uniform subwork. No CPU remainder is inferred by
+subtracting incomplete worker coverage.
+
+The reproducible temporary patch is
+`specification/performance/f-image-map-capture-attribution.patch`. Apply it to
+a checkout of `4d5f3959`, then run:
+
+```sh
+_build/default/tools/check.exe @check lib/flow/test_phase_timer.exe tools/bench_workspace_lower.exe
+_build/default/lib/flow/test_phase_timer.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-capture-attribution-whole.csv 2> specification/performance/f-image-map-capture-attribution-counters.csv
+```
+
+The patched harness writes aggregated phases separately to
+`specification/performance/f-image-map-capture-attribution.csv`. Build,
+fake-clock check and diagnostic run exit 0. All eight modified product/tool/
+test files are restored byte for byte afterward. The patch is evidence only;
+no probe or new timer API remains in shipping code.
+
+Medians of seven GPU trials, inclusive milliseconds/frame:
+
+| Initial-domain phase | Static 65,536 | Changing 65,536 | Gradient control | Calls/200-frame trial |
+|---|---:|---:|---:|---:|
+| Whole producer | 42.957189 | 45.413494 | 1.544915 | 1 |
+| Owner arguments | 0.000981 | 0.001097 | 0.000598 | 400 |
+| Source preflight | 0.008935 | 0.041260 | — | 400 |
+| Packed preparation | 41.087186 | 43.220823 | 0.006000 | 200 |
+| Source-array evaluation | 0.002692 | 0.003620 | 0.001914 | 200 |
+| Uniform 0 | 20.531909 | 22.892056 | 0.001657 | 200 |
+| Uniform 1 | 20.546052 | 20.197668 | — | 200 |
+| Uniform 2 | 0.001742 | 0.001712 | — | 200 |
+| Materialization | — | 2.177452 | — | 200 changing |
+| Attribute flatten | — | 0.457065 | — | 400 changing |
+| Run packing/upload | 0.005523 | 0.008280 | 0.001692 | 200 |
+| Run encoding/completion/status | 1.032089 | 1.272550 | 0.718323 | 200 |
+| Sink conversion/copy | 0.803688 | 0.781459 | 0.803946 | 200 |
+| Runtime publication | 0.002066 | 0.002794 | 0.000995 | 200 |
+
+Materialization and flattening are nested inside changing uniform evaluation,
+and uniforms are nested inside Packed preparation. These inclusive medians
+overlap; summing them would count work twice. Source preflight is called twice
+because the harness requests Image and Texture. Static counters confirm no
+materializer cook or flatten, while changing counters confirm 200/400.
+
+CPU8 caller medians are 61.739922 ms static, 58.990002 ms changing and
+12.320042 ms gradient. Observed initial-domain CPU uniforms 0/1 take about
+21 ms each in captured cases; worker internals remain unobserved. Instrumented
+whole-row allocations are 156,305,812 B/frame static, 169,779,576 B/frame
+changing and 38,894 B/frame gradient. These include probe overhead and are
+diagnostic, not replacements for baseline allocations or timing gates.
+
+The phase CSV has 378 rows, whole CSV 90 rows and counter CSV 71 rows, plus
+their headers. All nine full native comparisons have maximum channel/pixel
+difference 0, CPU1/8 bytes match, and reuse/bounds/resize/close assertions pass.
+The GPU evidence identifies captured-uniform reference evaluation as the main
+cost, with geometry update nested within it. Astra accepts the attribution and
+requires one shared uniform-evaluation helper for CPU force/GPU prepare using
+the existing evaluator execution hook. Successful packed subterms execute;
+compile refusals preserve reference evaluation. Scalar surrounding expressions
+stay on the reference path. The actual `(reduce + ...)` also needs narrow
+canonical callable specialization: resolve `+` in the actual operation
+environment, require packed Binary Add, and retain the existing typed ordered
+accumulator behavior, seed and empty-array rules. No name-only recognition,
+reassociation or cross-frame cache is allowed.
+
+The required focused matrix covers the canonical callable and explicit lambda,
+Vec3 and cancellation-sensitive multi-block floats including signed zero,
+changing captures, exact domains 1/8, empty/unsupported/error/nonfinite paths,
+state rollback and a custom same-name operation. It must observe packed
+execution, since output parity alone would also pass before the change.
+After implementation, distinct after CSVs must repeat the unchanged eight-cell
+and uncaptured regression matrices. Further optimization requires new
+attribution if those still fail. The original failing baseline remains intact;
+no optimization or overall captured-source acceptance is claimed here.
+
+Restored-code focused checks (`@check`, `@lib/flow_ir/runtest`, timer executable
+and benchmark build), restored timer execution and pre-commit shipping pass
+(exit 0; `/tmp/rays-f-image-capture-attribution-restored.log`,
+`/tmp/rays-f-image-capture-attribution-ship.log`).

@@ -1498,6 +1498,27 @@ capture cells and both uncaptured cells pass; both large-source cells fail.
 Allocation passes pixel-size independence at fixed source count. Separate
 attribution remains required; no overall captured-source acceptance is inferred.
 
+**Captured-source attribution (2026-10-09; diagnostic, no optimization).**
+Temporary initial-domain inclusive probes over seven 200-frame trials identify
+captured-uniform reference evaluation as the large-source GPU cost. Static
+65,536-point producer median is 42.957189 ms/frame, with 41.087186 ms inside
+Packed preparation and about 20.5 ms each in uniforms 0/1. Source preflight
+takes 0.008935 ms/frame across two calls. Changing producer median is
+45.413494 ms, with 43.220823 ms in preparation. Its 2.177452 ms materializer
+and 0.457065 ms flatten phases are nested inside uniform evaluation, not added
+again. The gradient control prepares in 0.006000 ms/frame. Seven CPU8 whole
+cooks and nine exact native parity comparisons also pass; worker-internal CPU
+phases remain explicitly unobserved. All eight temporary files are restored.
+Raw rows, whole-trial/counter CSVs and a reproducible patch from `4d5f3959`
+are `specification/performance/f-image-map-capture-attribution*`. Astra accepts
+the attribution and designs shared packed evaluation of supported uniform
+subexpressions through the existing evaluator hook, plus narrow canonical
+`+` reducer support using the actual operation environment. Ordered reduction,
+fallback diagnostics and transactional state stay intact; no cross-frame
+uniform cache or reassociation is allowed. The focused compiler matrix and
+uninstrumented after measurements remain required. These
+instrumented numbers do not replace the uninstrumented failing gate evidence.
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing
