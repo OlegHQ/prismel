@@ -179,6 +179,7 @@ module Private : sig
     ((float * float * float * float) * (float * float * float * float) * (float * float * float * float)) option
   val output_socket : t -> path -> (float * float) option
   val row_center : t -> path -> int -> (float * float) option
+  val ref_chip : t -> path -> int -> (float * float) option
   val fold_button : t -> path -> int -> (float * float) option
   (* the centre of the fold button of a wired row ([n.rows.(i)]); [None] when it has none *)
   val lens_toggle : t -> path -> (float * float) option

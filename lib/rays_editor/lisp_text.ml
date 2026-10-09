@@ -731,6 +731,12 @@ let ref_at text byte =
     then found := Some (word text tokens.(i + 1))) tokens;
   !found
 
+(* the plain name under [byte] (not a head, keyword or literal) *)
+let symbol_at text byte =
+  let tokens, _, _ = lex text in
+  Array.fold_left (fun found t ->
+    if t.kind = Sym && t.start <= byte && byte <= t.stop then Some (word text t) else found) None tokens
+
 (* the "#rrggbb" literals of the text with their colour *)
 let color_chips text =
   let tokens, _, _ = lex text in

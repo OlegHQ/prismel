@@ -469,7 +469,50 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
              Some { Pxui_shell.Inspector.path = "@size"; fields = [ field ]; shown = true; locked = false;
                     drive = None; live = None }
            end in
-           let rows = Option.to_list layout_row @ Option.to_list size_row @ List.map snd ref_rows @ List.map (fun (parameter : Flow_sop.Port.parameter) ->
+           (* a value operator (+, *, sin ...) or a nested call has no catalog parameters: its inputs are
+              the card's rows, so the inspector shows those.  A literal is a field, a wire or an
+              expression a readout that typing replaces; edits are [Set_arg] on the row's own key. *)
+           let arg_prefix = "@arg:" in
+           let op_rows = if parameters <> [] || ref_rows <> [] || layout_row <> None || size_row <> None then [] else
+             List.filter_map (fun (r : P.row) ->
+               match r.kind, r.expr with
+               | (P.Arg | P.Rest), Some e when not r.head ->
+                   let name = arg_prefix ^ r.label in
+                   let field ?vec3 ?(suffix = "") kind current =
+                     { Parameter.name = name ^ suffix; label = (if vec3 = None then r.label else suffix);
+                       description = None; folder = []; impact = Parameter.Cook; primary = false;
+                       unit = None; vec3; kind; default = current; current } in
+                   let range lo hi = { Parameter.soft_min = lo; soft_max = hi; hard_min = None; hard_max = None } in
+                   let float_range f = match r.control with
+                     | P.Range (lo, hi) -> range lo hi
+                     | _ -> let m = Float.max 1. (Float.abs f *. 2.) in range (-. m) m in
+                   let row fields drive live =
+                     Some (r, { Pxui_shell.Inspector.path = name; fields; shown = P.row_shown ?pin:(pin_of r) r;
+                                locked = false; drive; live }) in
+                   let wired () = row [ field Parameter.Text_view (Parameter.Text_value "") ]
+                     (Some (match e with { S.node = S.Sym s; _ } -> s | e -> "=" ^ Flow.Lisp.flat e)) None in
+                   (match e.node with
+                    | S.Num t ->
+                        (match r.ty, float_of_string_opt t with
+                         | Some Flow.Ty.Int, _ when int_of_string_opt t <> None ->
+                             let i = int_of_string t in
+                             row [ field (Parameter.Integer_view { Parameter.soft_min = min 0 (2 * i); soft_max = max 10 (2 * i);
+                                 hard_min = None; hard_max = None }) (Parameter.Int_value i) ] None None
+                         | _, Some f -> row [ field (Parameter.Floating_view (float_range f)) (Parameter.Float_value f) ] None None
+                         | _ -> wired ())
+                    | S.Str t -> row [ field Parameter.Text_view (Parameter.Text_value t) ] None None
+                    | S.Sym ("true" | "false" as b) -> row [ field Parameter.Toggle_view (Parameter.Bool_value (b = "true")) ] None None
+                    | S.Vec ([ _; _; _ ] as l) when List.for_all (fun (x : S.t) -> match x.node with
+                        | S.Num t -> float_of_string_opt t <> None | _ -> false) l ->
+                        row (List.mapi (fun i (x : S.t) ->
+                          let f = match x.node with S.Num t -> float_of_string t | _ -> 0. in
+                          field ~vec3:(name, i) ~suffix:(List.nth [ ".x"; ".y"; ".z" ] i)
+                            (Parameter.Floating_view (float_range f)) (Parameter.Float_value f)) l) None None
+                    | _ -> wired ())
+               | _ -> None) n.rows in
+           let arg_row name = List.find_map (fun ((r : P.row), _) ->
+             if String.starts_with ~prefix:(arg_prefix ^ r.label) name then Some r else None) op_rows in
+           let rows = Option.to_list layout_row @ Option.to_list size_row @ List.map snd ref_rows @ List.map snd op_rows @ List.map (fun (parameter : Flow_sop.Port.parameter) ->
              let wired = match authored parameter with Some e -> not (literal e) | None -> false in
              { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = on_card_row parameter.path; locked = false;
                (* a computed argument reads as its expression, "=" first: typing another one, or
@@ -508,6 +551,25 @@ S.make (S.Num (Flow.Lisp.float f)) in
                        | `Ratio -> `Ratio 0.5 | `First -> `First 240 | `Second -> `Second 240) in
                      Syntax_edit (Flow_graph.Flow_edit.Set_layout_size { node = n.path; size }))
                      (Array.find_index (( = ) chosen) size_names)
+               | Pxui_shell.Inspector.Edited (name, edited) when String.starts_with ~prefix:arg_prefix name ->
+                   Option.bind (arg_row name) (fun (r : P.row) ->
+                     let component = if String.ends_with ~suffix:".x" name then Some 0
+                       else if String.ends_with ~suffix:".y" name then Some 1
+                       else if String.ends_with ~suffix:".z" name then Some 2 else None in
+                     let syntax = match edited with
+                       | Editor_core.Param.Float_value f -> Some (num f)
+                       | Int_value i -> Some (S.make (S.Num (string_of_int i)))
+                       | Bool_value b -> Some (S.make (S.Sym (string_of_bool b)))
+                       | Text_value t | Choice_value t -> Some (S.make (S.Str t)) in
+                     Option.map (fun value ->
+                       Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key;
+                         sub = (match component with Some i -> [ i ] | None -> []); value })) syntax)
+               | Pxui_shell.Inspector.Expression (path, text) when String.starts_with ~prefix:arg_prefix path ->
+                   Option.bind (arg_row path) (fun (r : P.row) ->
+                     match expression_text text with
+                     | Ok value -> Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key; sub = []; value }))
+                     | Error message -> Some (Declined message))
+               | Pxui_shell.Inspector.Reset path when String.starts_with ~prefix:arg_prefix path -> None
                | Pxui_shell.Inspector.Edited (name, edited) ->
                    (match List.find_opt (fun (r, _) -> ("@ref:" ^ r.P.label) = name) ref_rows with
                     | Some (r, _) ->

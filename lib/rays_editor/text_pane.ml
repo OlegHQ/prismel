@@ -669,7 +669,9 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
           if command then
             (match Lisp_text.ref_at text byte with
              | Some name when List.mem name names.Lisp_text.graphs -> emit (Open_graph name)
-             | _ -> ())
+             | _ ->
+                 (* a name read in the text: its binding is selected, so the inspector follows it *)
+                 Option.iter (fun name -> emit (Select_binding [ shown.graph; name ])) (Lisp_text.symbol_at text byte))
           else match List.find_opt (fun (a, b, _) -> a <= byte && byte < b) chips with
             | Some (a, b, _) -> emit (Picker (Some (a, b, false)))
             | None -> ())
