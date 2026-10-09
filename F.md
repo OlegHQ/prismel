@@ -2235,8 +2235,30 @@ phase audit confirms “not met, revert.” Its next approved diagnostic is nati
 stack sampling of preserved baseline/rejected candidate in seven alternating-
 order pairs. Retain initial-thread/worker counts, coverage and exit statuses;
 sampling aggregates training/measured and both domains and cannot decide the
-gate. No algorithm change is approved. F3 remains open above50.600 ms; this
-rejected design supplies no unreachable proof.
+gate. F3 remains open above50.600 ms; this rejected design supplies no
+unreachable proof.
+
+**Native sampling complete (2026-10-09).** All 14 cook/sampler exits are zero;
+13 profiles contain stacks and baseline0 is retained as an empty capture.
+Candidate initial-thread rewrite self counts are1008/1063/1016/1053/1148/
+1103/1081 out of1698–1875 thread samples, subtracting immediate children to
+avoid double-counting duplicated frames. Seven domain workers and eight backup
+threads are reported separately. Samples aggregate hashing, training, measured
+cooks and both domain counts. They support time in the native loop rather than
+a dominant runtime callee, without proving a machine-level cause or absence of
+GC. Astra confirms “not met, revert.” All raw profiles/statuses/counts remain.
+
+Astra now approves a controlled trial of a private noncapturing, explicitly
+typed integer range helper receiving source/target arrays and offsets directly.
+Call it once per cancellation subrange in the rejected chunked design, retaining
+boundaries, cancellation, checked accesses and the integer-store barrier.
+Before timing, require arrays/offsets/loop state held in registers with no
+per-element closure reload/call. Existing boundary/ownership/cancellation
+regression must pass unchanged. First run seven alternating-order diagnostic
+phase pairs against production; stop if the catastrophe persists. Only if it
+disappears run the full production learned/off/pieces/reverse matrix. Retention
+compares with production, never the rejected trial; ≤50.600 ms remains the
+unchanged whole learned-eight gate. This trial is not implemented yet.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

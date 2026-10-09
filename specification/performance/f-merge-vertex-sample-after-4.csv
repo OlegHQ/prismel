@@ -1,0 +1,3 @@
+fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash
+branches,learned,1,1,2000000,0.865105867,503647752,503648040,0,67c129ecc130f8881a2eaf92c053b64c
+branches,learned,8,1,2000000,0.136716127,373960280,505436848,1,67c129ecc130f8881a2eaf92c053b64c

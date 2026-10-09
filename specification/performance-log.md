@@ -11701,3 +11701,92 @@ and distinguish initial-thread/worker counts and actual coverage. Sampling
 aggregates training/measured and both domain counts; it cannot establish phase
 timing or the gate. Determine whether stacks remain in rewrite or enter GC/poll/
 runtime slow paths; if unresolved, state the limit. No new optimization approved.
+
+### F3 rejected-loop native sampling: loop residency and controlled next trial
+
+2026-10-09, same Apple M1 Macmini9,1, OCaml5.3/Dune dev executables. Production
+remains reverted. SHA256 checks immediately before profiling match preserved
+baseline198f0d471e8888394518cc450fd204472c63d0bd42d9468987e85f642e3fe4e4 and
+candidate8284d0c53e59a032909d83d2a9966990129ad9aa0b4104c01a7533939e441d37.
+Seven isolated alternating-order pairs, no builds/tests/active agents:
+
+```sh
+for task_trial in 0 1 2 3 4 5 6; do
+  if (( task_trial % 2 == 0 )); then task_order=(before after); else task_order=(after before); fi
+  for task_kind in $task_order; do
+    task_prefix="specification/performance/f-merge-vertex-sample-${task_kind}-${task_trial}"
+    RAYS_BRANCH_NODE_TIMES=1 /private/tmp/f-merge-vertex-${task_kind}.exe --branches 1 learned > "$task_prefix.csv" 2> "$task_prefix-nodes.csv" &
+    profile_pid=$!
+    /usr/bin/sample "$profile_pid" 10 1 -mayDie -file "$task_prefix-sample.txt" > "$task_prefix-sampler.txt" 2>&1
+    task_sample_status=$?
+    wait "$profile_pid"
+    task_cook_status=$?
+    echo "kind,trial,pid,sampler_exit,cook_exit" > "$task_prefix-status.csv"
+    echo "$task_kind,$task_trial,$profile_pid,$task_sample_status,$task_cook_status" >> "$task_prefix-status.csv"
+    if (( task_cook_status != 0 )); then exit "$task_cook_status"; fi
+  done
+ done
+```
+
+All14 cooks and samplers exit0. All28 whole rows preserve chain hash,2M points,
+domain1/8 and fanouts0/1. All70 raw files remain, including sampler diagnostics
+and statuses. Before0 has an empty callgraph despite successful sampler exit;
+retain it and report13 usable profiles. Requested sampling is10 seconds at1ms,
+with -mayDie terminating coverage when each short process exits. No measured
+wall time from this diagnostic decides a gate.
+
+`f-merge-vertex-sample-counts.csv` preserves per-thread exclusive counts;
+`f-merge-vertex-sample-summary.csv` aggregates initial thread and seven threads
+with domain_thread_func separately from eight backup-thread bodies. The parser
+subtracts immediate-child counts, asserts nonnegative self counts and exact
+per-thread sample conservation, and avoids recursive-frame double counting.
+Initial-thread counts (samples; not phase timings):
+
+| Trial | Before total | Before vertex callback self | Before GC/interrupt self | After total | After rewrite self | After GC/interrupt self |
+|---|---:|---:|---:|---:|---:|---:|
+| 0 | 0 (empty) | 0 | 0 | 1698 | 1008 | 44 |
+| 1 | 789 | 40 | 43 | 1792 | 1063 | 42 |
+| 2 | 778 | 36 | 50 | 1708 | 1016 | 42 |
+| 3 | 779 | 40 | 52 | 1788 | 1053 | 54 |
+| 4 | 780 | 42 | 49 | 1875 | 1148 | 45 |
+| 5 | 789 | 40 | 50 | 1826 | 1103 | 47 |
+| 6 | 770 | 45 | 39 | 1794 | 1081 | 43 |
+
+GC/interrupt groups known GC, marking, sweep, collection and interrupt leaf
+symbols; the CSV also reports other caml_ runtime leaves, including untimed
+hashing. Domain-worker total samples before1..6 are2326–2422 with54–67 vertex
+callback leaves; after0..6 are2416–2492 with137–157 rewrite leaves. Idle worker
+and backup coverage is retained rather than folded into initial-thread counts.
+These profiles aggregate untimed hashing, training, measured cooking and both
+domain counts. They cannot turn sample percentages into one-domain phase time.
+
+Astra independently checks the exclusive rewrite counts and linked PC mapping.
+Prominent candidate offsets+172 and+188 are captured vertex-offset and target
+header loads; +204 is dmb ishld, while +292 is the caml_call_gc slow path.
+Samples stay in the native loop, without a sampled runtime callee beneath it.
+This resolves the broad loop-vs-runtime distinction; it does not identify the
+microarchitectural stall, prove GC never intervened or support unreachable closure.
+Astra: **“not met, revert.”** The implementation remains reverted.
+
+Astra approves one controlled next trial: private noncapturing typed helper
+`rewrite_vertices (source:int array) (target:int array) point_offset vertex_offset
+first last`, marked inline never, containing only the checked ascending integer
+assignment loop. Call once per existing cancellation subrange in the rejected
+chunked design. Keep its chunking/cancellation, checked accesses and DMB; leave
+primitive rewrites and other phases unchanged. This tests captured reloads, not
+an established explanation. Before timing, arrays/offsets/index/end must actually
+remain in registers without per-element closure loads/calls. Reuse the existing
+full-byte32769/16385-reference domain/grain/ownership/precancellation regression.
+
+First run seven isolated alternating-order phase pairs against unchanged
+production, keeping all rows/allocations/hashes. Stop and reject if the vertex
+catastrophe persists. If it disappears, repeat the complete seven-process
+uninstrumented learned/off/pieces and reverse learned matrices at1/8 domains.
+Retention compares with production, not the rejected implementation. Only whole
+learned-eight median≤50.600 ms with exact hashes and acceptable controls passes.
+This next trial remains unimplemented.
+
+Pre-commit shipping passes, exit0
+(`/tmp/rays-f-merge-vertex-sampling-ship.log`). Production source/Dune remain
+unchanged. This checkpoint adds diagnostic evidence and the next approved design;
+no performance or overall completion claim is made.
