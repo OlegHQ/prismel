@@ -2454,6 +2454,7 @@
         "val output_socket : t -> path -> ( float * float ) option",
         "val row_center : t -> path -> int -> ( float * float ) option",
         "val ref_chip : t -> path -> int -> ( float * float ) option",
+        "val expr_chip : t -> path -> int -> ( float * float ) option",
         "val fold_button : t -> path -> int -> ( float * float ) option",
         "val lens_toggle : t -> path -> ( float * float ) option",
         "val lens_step_button : t -> path -> int -> ( float * float ) option",
@@ -2465,7 +2466,7 @@
         "val wire_midpoint : t -> int -> ( float * float ) option",
         "end"
       ],
-      "api_sha256": "49f21a4fa74ecb51090b786a06d37583af140dd45d0e66846c5b144e5f71ae19",
+      "api_sha256": "30c15fbeb05fbe0c618f9d161fdf85787d74ff0f5928f1e33b4b8dc9fe6e4205",
       "excluded_legacy_symbols": [],
       "library": "pxui_graph",
       "module": "Scope_pane",
