@@ -8715,3 +8715,137 @@ measurements; this test checkpoint makes no performance claim.
 
 The checkpoint also passes `_build/default/tools/check.exe --ship` (exit 0),
 including the full build, tests, native smoke examples and whitespace check.
+
+## F2.1 field kernel: direct packed edges (2026-10-09)
+
+Apple M1 (Macmini9,1, eight logical CPUs), OCaml 5.3, Dune dev profile.
+Baseline is `696d84bd`, with the aggregate geometry golden captured from
+retained `2c9feb3e`. Only shared marching edge emission changes: interpolate
+positions/normals directly into the already allocated packed arrays, then
+read each triangle's three owned slots for the unchanged winding calculation.
+A flip swaps both position and normal slots. Flat-normal arithmetic remains
+unchanged. No gradient, sampling, scheduling, storage, cache, public API or
+production dependency change. The previous Vec3 records/pairs and winding
+tuple were immediately copied and discarded.
+
+Seven measured trials per executable/domain/fixture, excluded warm-up,
+shared pool, grain 16,384, unchanged GC settings. Whole cooks use a fresh
+zero-capacity Session per cook, warm the pool and one full cook, then perform
+one full major collection before the measured sequence. Each trial includes
+grid, preparation, kernel and complete extraction; hashes are computed outside
+the timer. RDK controls retain their existing warm-up/GC policy. All runs are
+isolated: no concurrent builds, tests, or active agents. Every row and outlier
+is retained. The reverse eight-domain whole pair runs after then before.
+
+```sh
+# Saved both benchmark executables before editing production.
+cp _build/default/tools/bench_workspace_lower.exe /private/tmp/f-workspace-edge-before-696d84bd.exe
+cp _build/default/tools/bench_rdk_iso.exe /private/tmp/f-rdk-edge-before-696d84bd.exe
+# After focused checks/build, saved the candidate under corresponding after names.
+for domains in 1 8; do
+  RAYS_BENCH_DOMAINS=$domains RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-edge-before-696d84bd.exe --fields > specification/performance/f-field-edge-cook-before-$domains.csv
+  for mode in sampled-sphere sampled-gyroid sampled-asymmetric sphere raw asymmetric; do
+    RAYS_BENCH_DOMAINS=$domains RAYS_BENCH_REPEATS=7 RAYS_RDK_ISO_RESOLUTION=64 /private/tmp/f-rdk-edge-before-696d84bd.exe --$mode > specification/performance/f-field-edge-$mode-before-$domains.csv
+  done
+done
+# Run the same matrix with after executable/output names, then the reverse pair:
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-edge-after-696d84bd.exe --fields > specification/performance/f-field-edge-cook-reverse-after-8.csv
+RAYS_BENCH_DOMAINS=8 RAYS_BENCH_REPEATS=7 /private/tmp/f-workspace-edge-before-696d84bd.exe --fields > specification/performance/f-field-edge-cook-reverse-before-8.csv
+```
+
+Medians (ms; allocation is aggregate bytes across all domains):
+
+| Fixture | Domains | Before ms | After ms | Before bytes | After bytes |
+|---|---:|---:|---:|---:|---:|
+| Whole sphere SOP | 1 | 26.190996 | 25.660038 | 42,720,424 | 26,994,928 |
+| Whole sphere SOP | 8 | 9.758949 | 9.131908 | 42,757,720 | 27,031,480 |
+| Whole sphere SOP, reverse order | 8 | 10.291815 | 9.860992 | 42,757,192 | 27,031,320 |
+| Sampled sphere | 1 | 16.199827 | 15.541792 | 32,194,008 | 16,468,512 |
+| Sampled sphere | 8 | 5.765915 | 4.505873 | 32,217,664 | 16,492,536 |
+| Sampled gyroid | 1 | 29.654026 | 29.453993 | 114,913,752 | 40,239,576 |
+| Sampled gyroid | 8 | 12.468100 | 7.889986 | 114,939,416 | 40,263,144 |
+| Sampled asymmetric | 1 | 10.540009 | 9.574175 | 50,978,832 | 20,243,256 |
+| Sampled asymmetric | 8 | 6.936073 | 5.650043 | 50,982,280 | 20,246,704 |
+| Dense sphere | 1 | 20.308018 | 19.589901 | 31,393,656 | 15,668,160 |
+| Dense sphere | 8 | 21.497011 | 20.071983 | 31,393,888 | 15,668,392 |
+| Dense gyroid | 1 | 41.675091 | 41.371107 | 105,325,400 | 30,651,224 |
+| Dense gyroid | 8 | 45.075893 | 41.692972 | 105,325,632 | 30,651,456 |
+| Dense asymmetric | 1 | 11.899948 | 10.797977 | 49,918,888 | 19,183,312 |
+| Dense asymmetric | 8 | 12.394905 | 11.059999 | 49,966,464 | 19,232,264 |
+
+The unchanged complete sphere hash is `8a9c2d382ab7564328783e84a132cef1`,
+85,680 points/vertices, 28,560 triangles, 64³ cells and 65³ samples. Gyroid
+and asymmetric full hashes/cardinalities also match the saved baseline at
+both domains in every row. Sphere/gyroid use 64³ cells; asymmetric uses
+(129,256,2) cells and the existing off-centre sphere/non-dyadic bounds.
+The committed 1,024-mask golden remains
+`4efce5e9c56d8d5fb9ead44e339bded7`; nonlinear seam/asymmetric, grain/domain,
+malformed-input, cancellation and source-ownership regressions also pass.
+No golden, threshold or tolerance is refreshed.
+
+The identical joined count/setup/emission/finish diagnostic from
+`f-field-extract-phases-instrumentation.patch` applies to retained and
+candidate sources. Temporary Unix linkage and SOP/RDK timers are restored
+byte-for-byte after saving both diagnostic executables. Caller intervals
+include joins; worker times are never summed. Emit includes gradients,
+second count/local prefixes and triangle filling, not just filling.
+
+```sh
+for version in before after; do
+  for domains in 1 8; do
+    RAYS_BENCH_DOMAINS=$domains RAYS_BENCH_REPEATS=7 RAYS_F_FIELD_PROFILE=1 RAYS_F_EXTRACT_PHASE_CSV=specification/performance/f-field-edge-phases-child-$version-$domains.csv /private/tmp/f-workspace-edge-phases-$version-696d84bd.exe --fields > specification/performance/f-field-edge-phases-cook-$version-$domains.csv 2> specification/performance/f-field-edge-phases-parent-$version-$domains.csv
+  done
+done
+```
+
+| Joined phase | 1 domain before ms | 1 domain after ms | 8 domains before ms | 8 domains after ms |
+|---|---:|---:|---:|---:|
+| Count | 3.661871 | 3.659010 | 0.727177 | 0.755072 |
+| Setup | 0.077963 | 0.082016 | 0.083923 | 0.082970 |
+| Emission | 13.145924 | 12.234926 | 4.163980 | 3.610134 |
+| Packed wrapping/geometry | 0.406027 | 0.401020 | 0.432968 | 0.479937 |
+| Complete extraction parent | 17.448187 | 16.386986 | 5.896091 | 5.198956 |
+| Instrumented whole cook | 26.643991 | 25.750875 | 10.092020 | 9.541035 |
+
+All 32 parent/child rows per executable/domain contain warm-up -1 and timed
+IDs 0..6, exactly one set per cook. Rational parsing of round-trip timestamps
+verifies each child sum is contained in its extraction parent; every residual
+is retained in `f-field-edge-phases-residual.csv`. Instrumented whole medians
+are 0.453/0.091 ms above the one-domain uninstrumented before/after batches,
+and 0.333/0.409 ms above at eight domains. Instrumentation allocation overhead
+is 1,016 bytes at one domain and 112/1,704 bytes at eight domains for
+before/after. These are separately run batches and include host variability;
+this does not establish precise causal timer overhead.
+
+Astra's verdict is **“met”**: keep direct packed edges. Both measured
+eight-domain whole-cook after medians are strictly below 10 ms, opposite
+orders both improve, one-domain timing improves, all six control medians
+improve, and whole-cook allocation falls 15,725,496 bytes (36.8%) at one
+domain. Joined emission supports the intended attribution. This establishes
+the measured F2.1 gate on this machine/profile, not completion of F1.3,
+F2.2/F2.3, a general latency guarantee, or allocation-free rendering. No
+further F2.1 optimization is requested.
+
+Focused restored checks pass (exit 0):
+
+```sh
+_build/default/tools/check.exe @check @lib/rdk/runtest @lib/procedural/test_sop_nodes @lib/flow_sop/runtest tools/bench_rdk_iso.exe tools/bench_workspace_lower.exe
+```
+
+Shipping and full F5 native/pixel validation pass (exit 0) on the M1:
+
+```sh
+_build/default/tools/check.exe --ship
+_build/default/tools/check.exe @lib/flow_gpu/runtest-native @lib/rays/test_shape_batch_native @lib/rays/test_scene3_float32_native @lib/rays/test_canvas_native @test/runtest-native @test/test_workspace_pixels @examples/sop_gallery/test_workspace_pixels @sketches/voxel_wall/test_workspace_pixels @examples/sop_gallery/test_scene3_float32_gallery @lib/runtime/native_qualification/qualification @lib/pxui/test_ui_parity
+```
+
+The native sweep includes 37 standard files, two actual custom-catalog
+executables and 13 fixtures at four times/domains 1/8, with cooked payloads
+and native geometry/image/texture/drawing pixels equal. SOP render parity's
+23 graphs also retain one/four-domain PNGs. No display goldens are refreshed.
+Production source remains the measured candidate; diagnostics are absent.
+
+After restoring instrumentation, the shipping-built workspace/RDK benchmark
+executables have the exact same SHA-256 as the saved uninstrumented candidate:
+`1d687fab9d20bcf15f332e4d54a9a460bb551c0433b2570918870dd2c0fcacf8`
+and `cde649c5d36faba6dd1d3cfde62b30b9d5e795ed5c69392e604034d288b02ea6`.

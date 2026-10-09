@@ -155,11 +155,17 @@ complete: emission is the largest interval (6.155 ms at eight domains), and
 Astra next approves direct packed edge writes with a captured all-mask golden.
 F1.3's shared compiler/emitter/dispatch form checks are implemented; focused,
 shipping and native GPU checks pass. Its two-stage qualification wiring remains pending.
-F1.3, the remaining F2.1 performance work, F2.2 and F2.3 are still open.
+Direct packed edge writes now pass F2.1's measured gate: eight-domain whole
+cook medians are 9.131908 and 9.860992 ms in opposite execution orders,
+with exact geometry and about 15.7 MB less allocation. Astra's verdict is
+“met”; shipping and full F5 native/pixel qualification pass (exit 0).
+F1.3, F2.2 and F2.3 are still open.
 Full F5 native/pixel validation passed at `8f1f4789` (exit 0) on the confirmed
 M1, including the 37-file pixel sweep. The current shared-form-check checkpoint
-passes focused checks, `--ship` and native GPU numerics; final full native/pixel
-qualification remains part of shipping the completed F scope.
+passes focused checks, `--ship` and native GPU numerics. The direct-edge
+checkpoint also passes the full F5 native/pixel aliases, including every
+workspace at four times/domains 1/8. Final full native/pixel qualification
+remains part of shipping the completed F scope.
 
 Earlier status paragraphs below are the implementation history; this
 checkpoint supersedes their temporary native-access and commit restrictions.
@@ -524,6 +530,32 @@ Astra approves the foundation; `--ship` and native GPU numerics pass (exit 0).
 Declaration capabilities, diagnostic packed
 compilation, checker candidate/provenance/state facts, instantiated capture
 qualification, inspector reasons and the full actual-catalog audit remain open.
+
+**Next declaration/diagnostic slice (Astra, 2026-10-09).** Add
+`Packed_ops.extension = Noise3`, an explicit `Op.t.packed_extension`, and
+`Op.packed_kind` with binary/unary/noise/length/exact/frame/constant-only
+cases. Canonical scalar built-ins are recognized by declaration identity;
+constant-only preserves folding of built-ins without dynamic instructions.
+The sole extension capability asserts intrinsic noise3 semantics and requires
+the existing name/context/scalar shape, one vec3 position, optional int seed/
+octaves keywords, float result, no positional option/rest/live/arithmetic
+behavior. Validate that contract once and in direct classification; changing
+a copied declaration's semantics clears its capability (including color
+operators and the opaque custom-noise test). Differently named intrinsic
+aliases need scalar executor plumbing and are not part of this slice.
+
+`Packed.compile_result` returns the first actual refusal with its producer
+span and concrete state/function/capture/type/form/limit/operator/constant/
+layout reason. Existing option APIs wrap that result. A separate compile
+exception preserves speculative `Unsupported` control flow: deferred-vector
+capture projection, unknown counts, declined child/fusion compilation,
+over-budget fusion's valid unfused fallback, rebind and runtime preparation.
+Preserve evaluator diagnostic codes and all constant folding/arithmetic/order.
+Tests pin real/counterfeit/copy noise capabilities and malformed signatures,
+64 versus 65 registers, meaningful refusals, folded constant-only operations,
+deferred record/vector components and successful declined fusion. This is
+approved design; its implementation and the remaining qualification/provenance/
+inspector/full-catalog audit are still pending.
 
 **Source audit (2026-10-08; predicate/test implementation pending).**
 The current 39-file `--approx` audit (including the actual custom catalogs)
@@ -949,6 +981,21 @@ results. It fails with an unset expected hash and passes with the captured
 baseline. Focused RDK core/procedural SOP checks pass. Direct packed edge
 writes and their complete measurement matrix remain pending; do not refresh
 this golden to accept drift from that trial.
+
+**Direct packed edges: measured gate met (2026-10-09).** Edges now write
+positions and interpolated normals directly into their existing owned slots;
+winding swaps both packed positions and normals. The captured 1,024-case
+golden and every saved-before full benchmark hash remain unchanged. Seven
+isolated M1/dev trials measure whole cooks 26.191→25.660 ms at one domain
+and 9.759→9.132 ms at eight; the reverse eight-domain pair is
+10.292→9.861 ms. Allocation falls 42.72→26.99 MB at one domain, and all six
+sampled/dense extraction controls improve. Joined emission medians fall
+13.146→12.235 ms at one domain and 4.164→3.610 ms at eight; diagnostic
+source/Dune changes are restored byte-for-byte. Astra's verdict is “met”
+for the measured F2.1 gate; no further F2.1 optimization is requested.
+Raw rows, commands and review are in the performance log. Shipping and full
+F5 native/pixel qualification pass (exit 0) for this checkpoint; F1.3 and the
+image/resident work remain separate requirements.
 
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value

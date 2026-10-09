@@ -224,6 +224,16 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
           target.y.(index) <- value.y;
           target.z.(index) <- value.z
         in
+        let[@inline] swap (values : float array) left right =
+          let value = values.(left) in
+          values.(left) <- values.(right);
+          values.(right) <- value
+        in
+        let[@inline] swap_slots (target : Packed.Float3.Private.view) left right =
+          swap target.x left right;
+          swap target.y left right;
+          swap target.z left right
+        in
         let fill_z_gradient gradient z values previous next =
           iter_plane (fun flat ->
             gradient.(flat) <-
@@ -273,7 +283,7 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
             | 2 | 6 -> base + x_points + 1
             | 3 | 7 -> base + x_points
             | _ -> assert false in
-          let edge cell_x cell_y base left right =
+          let edge cell_x cell_y base left right output =
             let left_index = corner_index base left
             and right_index = corner_index base right in
             let left_value = if left < 4 then lower_values.(left_index)
@@ -290,9 +300,9 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
             and rx = min.x +. float_of_int (cell_x + corner_x.(right)) *. x_step
             and ry = min.y +. float_of_int (cell_y + corner_y.(right)) *. y_step
             and rz = min.z +. float_of_int (z + if right < 4 then 0 else 1) *. z_step in
-            let point = Vec3.create (lx +. (rx -. lx) *. amount)
-                (ly +. (ry -. ly) *. amount)
-                (lz +. (rz -. lz) *. amount) in
+            vertices.x.(output) <- lx +. (rx -. lx) *. amount;
+            vertices.y.(output) <- ly +. (ry -. ly) *. amount;
+            vertices.z.(output) <- lz +. (rz -. lz) *. amount;
             let lgx = if left < 4 then lower_gx.(left_index)
               else upper_gx.(left_index)
             and lgy = if left < 4 then lower_gy.(left_index)
@@ -309,9 +319,15 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
             and ny = -. (lgy +. (rgy -. lgy) *. amount)
             and nz = -. (lgz +. (rgz -. lgz) *. amount) in
             let length = sqrt (nx *. nx +. ny *. ny +. nz *. nz) in
-            let normal = if length <= 1e-18 then Vec3.zero
-              else Vec3.create (nx /. length) (ny /. length) (nz /. length) in
-            point, normal in
+            if length <= 1e-18 then begin
+              normals.x.(output) <- 0.;
+              normals.y.(output) <- 0.;
+              normals.z.(output) <- 0.
+            end else begin
+              normals.x.(output) <- nx /. length;
+              normals.y.(output) <- ny /. length;
+              normals.z.(output) <- nz /. length
+            end in
           let fill_cell cell =
             if counts.(cell) <> 0 then begin
             let cell_x = cell mod x_cells and cell_y = cell / x_cells in
@@ -319,23 +335,28 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
             let output = ref
                 ((slab_offsets.(z) + local_offsets.(cell)) * 3) in
             let emit e0a e0b e1a e1b e2a e2b =
-              let p0,n0 = edge cell_x cell_y i0 e0a e0b
-              and p1,n1 = edge cell_x cell_y i0 e1a e1b
-              and p2,n2 = edge cell_x cell_y i0 e2a e2b in
-              let abx = p1.x-.p0.x and aby=p1.y-.p0.y and abz=p1.z-.p0.z
-              and acx = p2.x-.p0.x and acy=p2.y-.p0.y and acz=p2.z-.p0.z in
+              let first = !output in
+              let second = first + 1 and third = first + 2 in
+              edge cell_x cell_y i0 e0a e0b first;
+              edge cell_x cell_y i0 e1a e1b second;
+              edge cell_x cell_y i0 e2a e2b third;
+              let abx = vertices.x.(second)-.vertices.x.(first)
+              and aby = vertices.y.(second)-.vertices.y.(first)
+              and abz = vertices.z.(second)-.vertices.z.(first)
+              and acx = vertices.x.(third)-.vertices.x.(first)
+              and acy = vertices.y.(third)-.vertices.y.(first)
+              and acz = vertices.z.(third)-.vertices.z.(first) in
               let gx = aby*.acz-.abz*.acy and gy=abz*.acx-.abx*.acz
               and gz=abx*.acy-.aby*.acx in
-              let outward_x=n0.x+.n1.x+.n2.x and outward_y=n0.y+.n1.y+.n2.y
-              and outward_z=n0.z+.n1.z+.n2.z in
+              let outward_x=normals.x.(first)+.normals.x.(second)+.normals.x.(third)
+              and outward_y=normals.y.(first)+.normals.y.(second)+.normals.y.(third)
+              and outward_z=normals.z.(first)+.normals.z.(second)+.normals.z.(third) in
               let flip = gx*.outward_x +. gy*.outward_y +. gz*.outward_z < 0. in
-              let p1,p2,n1,n2 = if flip then p2,p1,n2,n1 else p1,p2,n1,n2 in
-              store vertices !output p0; store vertices (!output + 1) p1;
-              store vertices (!output + 2) p2;
-              if smooth then begin
-                store normals !output n0; store normals (!output + 1) n1;
-                store normals (!output + 2) n2
-              end else begin
+              if flip then begin
+                swap_slots vertices second third;
+                swap_slots normals second third
+              end;
+              if not smooth then begin
                 let length = sqrt (gx*.gx +. gy*.gy +. gz*.gz) in
                 let sign = if flip then -1. else 1. in
                 let normal = if length <= 1e-18 then Vec3.zero else
