@@ -8686,3 +8686,32 @@ Shared-form-check checkpoint: `--ship` and
 full workspace sweep at four times/domains 1/8 and unchanged native noise
 tolerances. The preceding full F5 pixel/native qualification is explicitly
 attributed to `8f1f4789`; final full-scope qualification remains required.
+
+## F2.1 pre-edge complete-geometry regression (2026-10-09)
+
+Before changing shared edge emission, retained marcher `2c9feb3e` captures
+one aggregate hash `4efce5e9c56d8d5fb9ead44e339bded7`. Existing independent
+six-tetrahedron count checks now cover all 256 masks, inside value 1 and
+exact-equality value 0, and both smooth/flat shading (1,024 cases). The
+aggregate records smooth/inside/mask plus complete authored geometry bytes
+through the existing Rdk_test_support.geometry_bytes helper: positions,
+topology, attributes and groups, excluding allocation IDs/derived caches.
+Empty results are retained and checked against the existing empty-surface
+message. This protects winding, normals, ordering, signed-zero bits and
+degenerate cases; cardinality equality alone is insufficient.
+
+The unset expected hash fails and reports the captured retained result;
+installing that result passes without an algorithm change. Do not refresh
+it merely to accept candidate drift. Native/production emission is unchanged.
+
+```sh
+_build/default/tools/check.exe @check @lib/rdk/test_core @lib/procedural/test_sop_nodes tools/bench_rdk_iso.exe tools/bench_workspace_lower.exe
+```
+
+Focused checks pass (exit 0). Existing nonlinear seam/asymmetric/domain/grain
+regressions remain. The next direct-write trial still needs saved-before
+workspace/RDK executables and all Astra-prescribed whole/control/phase
+measurements; this test checkpoint makes no performance claim.
+
+The checkpoint also passes `_build/default/tools/check.exe --ship` (exit 0),
+including the full build, tests, native smoke examples and whitespace check.

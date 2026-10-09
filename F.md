@@ -939,6 +939,17 @@ gyroid and asymmetric controls, a reversed eight-domain whole pair, and joined
 emission attribution. Keep only with exactness, material allocation reduction
 and repeatable whole benefit without control regressions; otherwise fix/revert.
 
+**Pre-edge geometry baseline (2026-10-09).** The required aggregate golden
+is captured from retained `2c9feb3e` before any edge-emission edit:
+`4efce5e9c56d8d5fb9ead44e339bded7`. Existing independent tetrahedron counts
+now run all 256 masks with inside 1/equality 0 and both smooth/flat shading.
+The aggregate encodes settings, mask, complete authored geometry bytes
+(positions, topology, attributes/groups, excluding IDs/caches) and empty
+results. It fails with an unset expected hash and passes with the captured
+baseline. Focused RDK core/procedural SOP checks pass. Direct packed edge
+writes and their complete measurement matrix remain pending; do not refresh
+this golden to accept drift from that trial.
+
 **Lisp.** A field is an ordinary `fn` of one `vec3` parameter returning a
 float, passed to a catalog kind through an `Fn` port (F1.1). No new value
 type. The first consumer is a new SOP:

@@ -21,7 +21,8 @@ let run () =
   let minimum = Vec3.create (-1.) (-1.) (-1.)
   and maximum = Vec3.create 1. 1. 1. in
   let corner_to_flat = [|0;1;3;2;4;5;7;6|] in
-  List.iter (fun inside ->
+  let masks = Buffer.create 262144 in
+  List.iter (fun smooth -> List.iter (fun inside ->
     for mask = 0 to 255 do
       let samples = Array.make 8 (-1.) in
       Array.iteri (fun corner flat ->
@@ -32,14 +33,22 @@ let run () =
         triangles + match positives with 0 | 4 -> 0 | 1 | 3 -> 1 | 2 -> 2
           | _ -> assert false) 0
           [[0;1;2;6];[0;2;3;6];[0;3;7;6];[0;7;4;6];[0;4;5;6];[0;5;1;6]] in
-      match Iso_surface.extract_sampled ~resolution:(1,1,1)
-          ~min:minimum ~max:maximum ~iso:0. ~samples () with
+      let result = Iso_surface.extract_sampled ~smooth ~resolution:(1,1,1)
+          ~min:minimum ~max:maximum ~iso:0. ~samples () in
+      Buffer.add_string masks (Marshal.to_string (smooth, inside, mask,
+        match result with
+        | Ok geometry -> Ok (Rdk_test_support.geometry_bytes geometry)
+        | Error error -> Error (Error.message error)) [Marshal.No_sharing]);
+      match result with
       | Error error -> check (expected = 0 && Error.message error =
           "Iso3.extract: the requested isosurface is empty")
           "cube mask returned an unexpected empty-surface error"
       | Ok geometry -> check (expected > 0 && Geometry.primitive_count geometry = expected)
           "cube mask triangle count differs from independent tetrahedron counts"
-    done) [1.;0.];
+    done) [1.;0.]) [true;false];
+  let mask_hash = Digest.to_hex (Digest.string (Buffer.contents masks)) in
+  check (mask_hash = "4efce5e9c56d8d5fb9ead44e339bded7")
+    ("all-mask full geometry golden changed: " ^ mask_hash);
   let sample domains = Parallel.run ~domains (fun () ->
     Iso_surface.extract ~resolution:(1, 1, 1) ~min:minimum ~max:maximum
       ~iso:0. ~field:(fun point -> point.Vec3.z) () |> get |> snapshot) in
