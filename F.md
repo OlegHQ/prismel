@@ -2084,7 +2084,7 @@ a fifth), give me the first one to implement with its one failing check, the
 exact measurement protocol, and the number that would make you say the gate
 is met."
 
-**Current Astra review (2026-10-09; baseline measured, prefill trial rejected).** The default
+**Current Astra review (2026-10-09; prefill rejected, phase attribution complete).** The default
 triangulated grids invalidate the earlier 72 MB estimate: the merged positions,
 vertex indices, primitive offsets and kinds occupy 179,736,140 bytes, plus
 48 MB of normals. Their native integer callbacks perform about 15.97 million
@@ -2159,12 +2159,39 @@ preserve round-trip time precision and avoid GC samples or callbacks inside
 element loops. Seven isolated learned-chain processes and the saved production
 baseline retain hashes/cardinalities/fanouts and phase sums contained within
 merge time; report instrumentation overhead. Temporary Unix linkage/source
-must be restored byte-for-byte. No further optimization is approved yet.
+must be restored byte-for-byte. That diagnostic is now complete; see below.
 Restored `@check`, complete RDK/procedural focused checks and benchmark build
 pass (exit 0; `/tmp/rays-f-merge-restored-focused.log`), as does shipping (exit 0;
 `/tmp/rays-f-merge-restored-ship.log`). Production merge is the unchanged
 implementation from the preceding full F5 native checkpoint; only its new
 regression and evidence are retained here.
+
+Seven diagnostic/baseline pairs retain 28 whole rows and 196 phase rows under
+`specification/performance/f-merge-phases-*`. Every hash, cardinality, fanout,
+phase count and per-sample containment check passes. The uninstrumented whole
+medians are 149.086952/62.613010 ms at domains 1/8; diagnostic medians are
+151.123047/63.819885 ms. Median paired overhead is 2.187967/1.014232 ms.
+Measured merge intervals are 57.885885/34.251928 ms, with vertex rewrites
+29.390097/7.174969 ms, primitive rewrites 9.824038/2.469301 ms, allocation
+7.495880/6.633043 ms, attributes 9.441137/6.445885 ms and position blits
+1.575232/1.592875 ms. Separate phase medians must not be summed. Training
+samples remain separately labeled. All four temporary files are restored
+byte-for-byte; the probe patch remains reproducible and focused checks pass.
+
+Astra: “not met, try chunked vertex-index rewrites with a plain inner loop,
+leaving primitive-offset rewrites unchanged.” Replace only the per-element
+vertex callback with stable grain-sized ranges dispatched through the shared
+pool at chunk size 1, with a sequential cutoff `vertices_here / grain < 2`.
+Each range uses plain integer load/add/store loops; split large custom grains
+into at most 16,384-element subranges with cancellation checked before each.
+Use overflow-safe range ends. No other merge phase changes. The independent
+regression adds 32,769/16,385-reference open polylines at domains 1/8 and grains
+257/16,384/65,536/max_int, comparing full bytes and unchanged inputs. Inspect
+generated assembly, repeat the seven-process learned/off/pieces and reverse
+matrix, then repeat temporary before/after phase attribution. Keep only for
+repeatable whole-cook improvement without material control regression. The
+unchanged gate is an uninstrumented learned-eight median ≤50.600 ms; no
+unreachable closure is supported. The new trial is not implemented yet.
 
 ### F4. Full static editor allocation (information, optional, Astra only)
 

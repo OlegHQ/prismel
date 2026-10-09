@@ -1,0 +1,218 @@
+--- a/lib/rdk/mesh/mesh_merge.ml
++++ b/lib/rdk/mesh/mesh_merge.ml
+@@ -1,5 +1,27 @@
+ open Rays_math
+ 
++type scope = { mutable children : float }
++type phase_sample = { mutable stack : scope list; mutable entries : (string * int * float) list }
++let phase_enabled = Domain.DLS.new_key (fun () -> false)
++let phase_current = Domain.DLS.new_key (fun () -> None)
++let phase_buffer = Domain.DLS.new_key (fun () -> [])
++let phase name run = match Domain.DLS.get phase_current with
++  | None -> run ()
++  | Some sample ->
++      let started = Unix.gettimeofday () in
++      let parent = sample.stack and scope = {children=0.} in
++      sample.stack <- scope::parent;
++      Fun.protect run ~finally:(fun () ->
++        let elapsed = Unix.gettimeofday () -. started in
++        let exclusive = elapsed -. scope.children in
++        assert (elapsed>=0. && exclusive>=0.);
++        sample.stack <- parent;
++        (match parent with [] -> () | p::_ -> p.children<-p.children+.elapsed);
++        let calls,seconds = match List.find_opt(fun(n,_,_)->n=name)sample.entries with
++          | None -> 0,0. | Some(_,calls,seconds)->calls,seconds in
++        sample.entries <- (name,calls+1,seconds+.exclusive)
++          :: List.filter(fun(n,_,_)->n<>name)sample.entries)
++
+ let points values =
+   let count = Array.length values in
+   let builder = Packed.Float3.Builder.create count in
+@@ -76,7 +98,7 @@
+   Attribute.create_owned ~name:(Attribute.name template)
+     ~owner:(Attribute.owner template) storage
+ 
+-let merge_plain ?cancel ?(grain = 16_384) ?(pad_groups = true) geometries =
++let merge_plain_impl ?cancel ?(grain = 16_384) ?(pad_groups = true) geometries =
+   if grain <= 0 then invalid_arg "Rdk.Mesh_merge.merge: grain must be positive";
+   match geometries with
+   | [] -> Ok (points [||])
+@@ -121,11 +143,13 @@
+         let point_count = List.fold_left (fun n g -> n + Geometry.point_count g) 0 geometries
+         and vertex_count = List.fold_left (fun n g -> n + Geometry.vertex_count g) 0 geometries
+         and primitive_count = List.fold_left (fun n g -> n + Geometry.primitive_count g) 0 geometries in
++        let px,py,pz,vertex_points,primitive_offsets,primitive_kinds = phase "allocation" (fun () ->
+         let px = Array.make point_count 0. and py = Array.make point_count 0.
+         and pz = Array.make point_count 0. in
+         let vertex_points = Array.make vertex_count 0
+         and primitive_offsets = Array.make (primitive_count + 1) 0
+         and primitive_kinds = Bytes.make primitive_count '\000' in
++        px,py,pz,vertex_points,primitive_offsets,primitive_kinds) in
+         let point_at = ref 0 and vertex_at = ref 0 and primitive_at = ref 0 in
+         List.iter (fun geometry ->
+           Cancel.check_opt cancel;
+@@ -134,22 +158,26 @@
+           let points_here = Geometry.point_count geometry
+           and vertices_here = Geometry.vertex_count geometry
+           and primitives_here = Geometry.primitive_count geometry in
++          phase "position_blits" (fun () ->
+           Array.blit positions.x 0 px !point_at points_here;
+           Array.blit positions.y 0 py !point_at points_here;
+-          Array.blit positions.z 0 pz !point_at points_here;
++          Array.blit positions.z 0 pz !point_at points_here);
+           let point_offset = !point_at and vertex_offset = !vertex_at
+           and primitive_offset = !primitive_at in
++          phase "vertex_rewrites_including_join" (fun () ->
+           if vertices_here > 0 then Parallel.for_ ~chunk_size:grain ~start:0
+               ~finish:(vertices_here - 1) (fun index ->
+                 if index land 16383 = 0 then Cancel.check_opt cancel;
+                 vertex_points.(vertex_offset + index) <-
+-                  topology.vertex_points.(index) + point_offset);
++                  topology.vertex_points.(index) + point_offset));
++          phase "primitive_rewrites_including_join" (fun () ->
+           if primitives_here > 0 then Parallel.for_ ~chunk_size:grain ~start:1
+               ~finish:primitives_here (fun index ->
+                 if index land 16383 = 0 then Cancel.check_opt cancel;
+                 primitive_offsets.(primitive_offset + index) <-
+-                  topology.primitive_offsets.(index) + vertex_offset);
+-          Bytes.blit topology.primitive_kinds 0 primitive_kinds !primitive_at primitives_here;
++                  topology.primitive_offsets.(index) + vertex_offset));
++          phase "kind_blits" (fun () ->
++            Bytes.blit topology.primitive_kinds 0 primitive_kinds !primitive_at primitives_here);
+           point_at := !point_at + points_here;
+           vertex_at := !vertex_at + vertices_here;
+           primitive_at := !primitive_at + primitives_here) geometries;
+@@ -165,7 +193,7 @@
+                   Option.get (find_matching template geometry)) geometries) in
+                 Result.bind (concatenate_attribute template values)
+                   (fun attribute -> build (attribute :: result) rest) in
+-          Result.bind (build [] first_attributes) (fun attributes ->
++          Result.bind (phase "attributes" (fun () -> build [] first_attributes)) (fun attributes ->
+             let owner_count geometry = function
+               | Group.Point -> Geometry.point_count geometry
+               | Group.Vertex -> Geometry.vertex_count geometry
+@@ -221,6 +249,31 @@
+                     Edge_group.Builder.freeze builder) templates in
+             Geometry.create ~positions ~topology ~attributes ~groups ~edge_groups ()))
+ 
++let merge_plain ?cancel ?grain ?pad_groups geometries =
++  if not (Domain.DLS.get phase_enabled) then merge_plain_impl ?cancel ?grain ?pad_groups geometries
++  else
++    let prior = Domain.DLS.get phase_current in
++    let sample = {stack=[];entries=[]} in
++    Domain.DLS.set phase_current (Some sample);
++    Fun.protect ~finally:(fun () -> Domain.DLS.set phase_current prior) (fun () ->
++      let started = Unix.gettimeofday () in
++      let result = phase "remaining_metadata_wrapping_groups_geometry_and_probe_bookkeeping"
++        (fun () -> merge_plain_impl ?cancel ?grain ?pad_groups geometries) in
++      let whole = Unix.gettimeofday () -. started in
++      assert (whole>=0.);
++      let buffered = Domain.DLS.get phase_buffer in
++      if List.length buffered>=8 then failwith "merge phase buffer overflow";
++      Domain.DLS.set phase_buffer ((whole,sample.entries)::buffered);
++      result)
++
++module Private = struct
++  let enable_phase_samples () =
++    assert (Domain.is_main_domain ()); Domain.DLS.set phase_enabled true
++  let take_phase_samples () =
++    let samples=List.rev(Domain.DLS.get phase_buffer) in
++    Domain.DLS.set phase_buffer [];samples
++end
++
+ (* An input without [name] is tagged [base + its index]; one that has it keeps
+    its values, so nested merges keep the innermost tag. *)
+ let tag_inputs name base geometries =
+--- a/lib/rdk/mesh/mesh_merge.mli
++++ b/lib/rdk/mesh/mesh_merge.mli
+@@ -14,3 +14,8 @@
+ val run : ?cancel:Cancel.t -> ?grain:int -> ?source_attribute:string ->
+   ?source_base:int -> Geometry.t list ->
+   (Geometry.t, Error.t) result
++
++module Private : sig
++  val enable_phase_samples : unit -> unit
++  val take_phase_samples : unit -> (float * (string * int * float) list) list
++end
+--- a/lib/rdk/mesh/dune
++++ b/lib/rdk/mesh/dune
+@@ -1,7 +1,7 @@
+ (library
+  (name rdk_mesh)
+  (public_name rays.rdk.mesh)
+- (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rdk_gen rdk_curve rays_math)
++ (libraries rdk_core rdk_exact rdk_spatial rdk_attrib rdk_gen rdk_curve rays_math unix)
+  (flags (:standard -open Rdk_core -open Rdk_exact -open Rdk_spatial -open Rdk_attrib -open Rdk_gen -open Rdk_curve))
+  (private_modules clean convex_hull crease curvature deform duplicate edge_constraints edge_ops edge_relax edge_transport extract_centroid extract_point_curve facet fuse_cleanup fuse_rules fuse_target_rules group_path laplacian mirror_geometry poly_bevel poly_bridge poly_cut poly_extrude poly_loft polyframe remesh reverse_faces revolve rewire_vertices smooth subdivide surface_metric sweep_circle triangulate triangulate2d uv_ops uv_parameterize)
+  (modules blast_by_attribute boolean_detect bound clean compact_points convex_hull crease curvature curve_topology deform deletion dissolve duplicate edge_collapse edge_constraints edge_flip edge_ops edge_relax edge_transport extract_centroid extract_point_curve facet fuse_cleanup fuse_grid fuse_reduce fuse_rules fuse_target_rules graph_color group_mesh group_path instance_copy intersection_analysis laplacian match_size mesh_merge mirror_geometry motion ordering plane_clip point_replication point_split poly_bevel poly_bridge poly_cut poly_extrude poly_fill poly_loft poly_reduce polyframe ray remesh reverse_faces revolve rewire_vertices separate_pieces smooth subdivide surface_metric sweep_circle sweep_modeling transform_ops triangulate triangulate2d uv_ops uv_parameterize))
+--- a/tools/bench_workspace_lower.ml
++++ b/tools/bench_workspace_lower.ml
+@@ -125,6 +125,9 @@
+ 
+ let branch_mode mode repeats =
+   let placement=if Array.length Sys.argv>3 then Sys.argv.(3) else "auto" in
++  if mode<>"--branches" || placement<>"learned" || repeats<>1 then
++    invalid_arg "Merge phase diagnostic requires --branches 1 learned";
++  Rdk.Mesh_merge.Private.enable_phase_samples ();
+   if not(List.mem placement ["auto";"learned";"forced";"off"]) then
+     invalid_arg "branch placement must be auto, learned, forced or off";
+   let text = if mode = "--branches" then {|(workspace branches
+@@ -148,6 +151,22 @@
+   let root = Result.get_ok (Procedural.Edit_graph.compile_node graph.network.geometry ~node_id:(Option.get graph.root)) in
+   print_endline "fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash";
+   let expected = ref None in
++  let phase_channel=Out_channel.open_text (Sys.getenv "RAYS_MERGE_PHASES_FILE") in
++  output_string phase_channel "domains,cook,phase,calls,seconds,complete_merge_seconds\n";
++  let report_phases domains cook samples node_seconds =
++    let whole,entries=match samples with [sample]->sample|_->failwith "Expected exactly one root merge sample" in
++    let expected=["allocation",1;"position_blits",2;"vertex_rewrites_including_join",2;
++      "primitive_rewrites_including_join",2;"kind_blits",2;"attributes",1;
++      "remaining_metadata_wrapping_groups_geometry_and_probe_bookkeeping",1] in
++    assert(List.length entries=List.length expected);
++    List.iter(fun(name,calls)->match List.filter(fun(n,_,_)->n=name)entries with
++      |[(_,actual,seconds)]->assert(actual=calls && seconds>=0.)|_->assert false)expected;
++    let sum=List.fold_left(fun total(_,_,seconds)->total+.seconds)0. entries in
++    assert(sum<=whole && whole<=node_seconds);
++    List.iter(fun(name,calls,seconds)->Printf.fprintf phase_channel "%d,%s,%s,%d,%.17g,%.17g\n"
++      domains cook name calls seconds whole)entries;
++    flush phase_channel in
++  Fun.protect ~finally:(fun()->Out_channel.close phase_channel) (fun()->
+   List.iter (fun domains ->
+     let context = Result.get_ok (Procedural.Context.create ~domains ()) in
+     Rays_math.Parallel.run ~domains (fun () -> ());
+@@ -159,8 +178,11 @@
+       Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+         Procedural.Session.Private.set_parallel_override session
+           (match placement with "forced" -> Some true | "off" -> Some false | _ -> None);
++        let training=ref None in
+         if placement="learned" then begin
+           ignore(Result.get_ok(Procedural.Session.cook session ~context root));
++          training:=Some(Rdk.Mesh_merge.Private.take_phase_samples (),
++            Option.get(Procedural.Session.node_seconds session (Procedural.Node.id root)));
+           Procedural.Session.Private.clear_cache_keep_timings session
+         end;
+         let before_fanouts=Procedural.Session.Private.fanouts session in
+@@ -179,16 +201,20 @@
+         hash := cook_hash (Result.get_ok (Procedural.Payload.geometry output.payload));
+         if repeat=repeats-1 && Sys.getenv_opt "RAYS_BRANCH_NODE_TIMES"=Some "1" then
+           List.iter(fun(sample:Procedural.Session.node_timing) ->
+-            Printf.eprintf "node,%s,%d,%d,%s,%d,%d,%.9f\n%!" placement domains sample.node_id
++            Printf.eprintf "node,%s,%d,%d,%s,%d,%d,%.17g\n%!" placement domains sample.node_id
+               sample.operation sample.input_points sample.points sample.seconds)
+             (Procedural.Session.node_timings session);
++        let measured=Rdk.Mesh_merge.Private.take_phase_samples () in
++        let samples,node_seconds=Option.get !training in report_phases domains "training" samples node_seconds;
++        report_phases domains "measured" measured
++          (Option.get(Procedural.Session.node_seconds session (Procedural.Node.id root)));
+         match !expected with None -> expected := Some !hash | Some prior -> assert (prior = !hash))
+     done;
+     Array.sort Float.compare seconds; Array.sort Float.compare allocated;
+     Array.sort Float.compare total_allocated;
+-    Printf.printf "%s,%s,%d,%d,%d,%.9f,%.0f,%.0f,%d,%s\n%!" (String.sub mode 2 (String.length mode - 2))
++    Printf.printf "%s,%s,%d,%d,%d,%.17g,%.0f,%.0f,%d,%s\n%!" (String.sub mode 2 (String.length mode - 2))
+       placement domains repeats !points seconds.(repeats / 2) allocated.(repeats / 2)
+-      total_allocated.(repeats/2) !fanouts !hash) [1; 8]
++      total_allocated.(repeats/2) !fanouts !hash) [1; 8])
+ 
+ let image_render_mode () =
+   let module Image=Runtime_resources.Image in

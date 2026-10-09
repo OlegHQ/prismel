@@ -11440,3 +11440,98 @@ byte-identical to the preceding full F5 native checkpoint, whose actual-1×
 evidence remains `/tmp/rays-f-image-xyz-write-full.log`. This checkpoint retains
 only the independent regression, rejected patch and measured evidence; no
 production optimization or overall F3/F.md completion is claimed.
+
+### F3 restored merge: time-only attribution and next vertex-loop design
+
+2026-10-09, Apple M1 Macmini9,1, OCaml 5.3, Dune dev profile. Seven isolated
+learned-chain diagnostic→baseline pairs, domains 1/8 in each process, with no
+concurrent agents/builds/tests. Existing untimed training, cache clearing that
+retains timing knowledge, pool warmup and full-major collection are unchanged.
+
+```sh
+for task_trial in 0 1 2 3 4 5 6; do
+  RAYS_BRANCH_NODE_TIMES=1 RAYS_MERGE_PHASES_FILE="specification/performance/f-merge-phases-diagnostic-${task_trial}-phases.csv" /private/tmp/f-merge-phases.exe --branches 1 learned > "specification/performance/f-merge-phases-diagnostic-${task_trial}.csv" 2> "specification/performance/f-merge-phases-diagnostic-${task_trial}-nodes.csv"
+  RAYS_BRANCH_NODE_TIMES=1 RAYS_MERGE_PHASES_FILE="specification/performance/f-merge-phases-baseline-${task_trial}-phases.csv" /private/tmp/f-merge-before.exe --branches 1 learned > "specification/performance/f-merge-phases-baseline-${task_trial}.csv" 2> "specification/performance/f-merge-phases-baseline-${task_trial}-nodes.csv"
+done
+```
+
+The baseline ignores the phase variable and emits no phase file. All 14
+processes exit 0; all 28 whole rows keep 2,000,000 points, hash
+67c129ecc130f8881a2eaf92c053b64c, and fanouts 0/1 at domains 1/8. All 196 phase
+rows are retained. Each training/measured cook has exactly seven phase records;
+child intervals sum within complete merge, and measured complete merge fits
+inside the corresponding Session root-own interval. Missing/duplicate records,
+negative intervals/residuals and buffer overflow fail rather than being dropped
+or clamped. The remaining phase is an exclusive residual including metadata,
+wrapping, groups, geometry creation and probe bookkeeping, not independent
+attribution of those operations. No GC snapshots/printing/new callbacks in
+inner loops. Training records are distinct from measured records.
+
+Seven-process medians, milliseconds:
+
+| Metric | Domains 1 | Domains 8 |
+|---|---:|---:|
+| Production whole cook | 149.086952 | 62.613010 |
+| Diagnostic whole cook | 151.123047 | 63.819885 |
+| Paired diagnostic-minus-baseline overhead | 2.187967 | 1.014232 |
+| Production Session root-own | 58.272839 | 37.170887 |
+| Diagnostic Session root-own | 59.142828 | 36.458015 |
+| Measured complete merge | 57.885885 | 34.251928 |
+| Allocation | 7.495880 | 6.633043 |
+| Position blits | 1.575232 | 1.592875 |
+| Joined vertex rewrites | 29.390097 | 7.174969 |
+| Joined primitive rewrites | 9.824038 | 2.469301 |
+| Kind blits | 0.120163 | 0.134945 |
+| Attributes | 9.441137 | 6.445885 |
+| Remaining residual | 0.010967 | 0.017881 |
+
+Training complete medians are 74.259043/32.706976 ms; allocation
+22.696018/14.074087, position 2.200842/1.692295, vertex 30.669928/7.634878,
+primitive 10.279894/2.471924, kind 0.210047/0.187159, attributes
+8.280993/6.525040 and residual 0.014067/0.015497 ms. Separate phase medians
+must never be summed into a synthetic cook time. Complete merge and Session
+root-own have different scopes; their difference does not diagnose missing work.
+
+Whole caller/program allocation medians are 503,647,672/503,647,960 B (baseline1),
+374,047,304/505,437,688 B (baseline8), 503,652,976/503,653,264 B (diagnostic1),
+and 374,060,752/505,441,320 B (diagnostic8). The latest baseline62.613010 ms is
+slower than the earlier51.798820/reverse51.988840 ms; retain this context and all
+samples. Instrumentation cannot establish the 50.600 ms whole-cook gate.
+
+Preserved diagnostic SHA256:
+1319e3a2c2e3476fbea67f9502490a07e41f29c15c6bf8214720b076e9c53cae.
+Baseline SHA256 remains
+198f0d471e8888394518cc450fd204472c63d0bd42d9468987e85f642e3fe4e4.
+`f-merge-phases.patch` preserves the four-file probe. Source/Dune files were
+restored byte-for-byte against `/private/tmp/rays-f-merge-phase-probes/original.tar`;
+`git apply --check` passes. No temporary Private API or Unix linkage is promoted.
+Diagnostic focused build and restored @check/RDK core+mesh/benchmark checks
+exit 0 (`/tmp/rays-f-merge-phases-build.log`,
+`/tmp/rays-f-merge-phases-restored.log`). Production source remains unchanged.
+
+Astra verdict: **“not met, try chunked vertex-index rewrites with a plain inner
+loop, leaving primitive-offset rewrites unchanged.”** This narrower trial uses
+new phase evidence. The previous 570 ms attempt remains unexplained because its
+implementation was not preserved. Change only vertex rewriting: dispatch stable
+grain ranges using existing Parallel.for_ at chunk size1; keep the sequential
+cutoff vertices_here/grain<2; compute ends as first+min grain(count-first).
+Within each range, use plain integer assignment loops, with cancellation checks
+before subranges of at most16,384 elements. No cancellation branch/call inside
+the element loop. Keep the OCaml assignment barrier and every other merge phase.
+Inspect assembly for direct load/add/store without per-element indirect calls,
+allocation or repeated loop-state spills; no speedup is promised.
+
+Extend the independent regression with32,769/16,385-reference open polylines
+on small distinct point sets; compare full independently authored bytes and
+unchanged inputs at domains1/8, grains257/16,384/65,536/max_int. Existing empty,
+free-point and precancelled cases stay. Pass this on baseline before changing
+production. Preserve baseline/candidate executables; repeat seven processes per
+learned/off/pieces mode and reverse learned order under f-merge-vertex-*.
+Repeat temporary before/after phase attribution, restoring source byte-for-byte.
+Keep only with exact results and repeatable whole-cook improvement without
+material control regression. Only uninstrumented learned-eight whole median
+≤50.600 ms meets F3; no defensible unreachable closure exists. Trial pending.
+
+Pre-commit shipping passes (exit 0; `/tmp/rays-f-merge-phases-ship.log`). This
+checkpoint records attribution and the approved next design, retaining no
+production optimization and making no F3 or overall-completion claim.
