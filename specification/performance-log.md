@@ -11006,3 +11006,93 @@ executables and 13 fixtures at four times/domains 1/8; the native sweep verifies
 geometry/image/texture/drawing pixels. Actual display is 1×; 2× goldens remain
 unqualified. No production probes remain.
 Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-direct-input-ship.log`).
+
+## F2.2 source-refresh component attribution (2026-10-09)
+
+Machine: Apple M1 Macmini9,1, OCaml 5.3.0, Dune dev profile, actual 1× display.
+Candidate: `d7e406b4`, unchanged direct-input product code. Astra approved
+reusing existing Session node timings and splitting attribute writing and
+flattening before another optimization. The nine-file probe-only patch is
+`specification/performance/f-image-map-capture-attribution-source-refresh.patch`.
+It adds no product algorithm or instruction. Session samples are collected once
+immediately after each successful materializer cook, with exactly one expected
+native operation (`line`, `flow.with_attr`, `flow.capture`) asserted. Native
+`line` corresponds to Lisp `sop/line`. Node-own timings include worker execution
+and exclude input cooks; parallel node durations may overlap. They do not
+modify the Phase_timer nesting stack. An external-duration regression verifies
+aggregation without subtracting these durations from parent exclusive phases.
+
+Write probes preserve count checking, finite checking, storage construction and
+installation order. Missing domain-local write samples remain blank and labeled
+unobserved. P and Cd flattening are reported separately. Reporting occurs after
+each timed loop, never in the producer's frame. No builds, tests or other agents
+run during measurement. The isolated run uses static/changing 65,536-point
+1024² images and the gradient control: seven CPU1/8 caller samples and seven
+×200 completed GPU producer frames after ten warmups. CPU worker internals
+remain unobserved; the GPU materializer's write probes are observed on the
+initial domain in all seven changing-source trials.
+
+```sh
+_build/default/tools/check.exe @check @lib/flow/runtest @lib/flow_ir/runtest @lib/flow_sop/runtest tools/bench_workspace_lower.exe
+_build/default/tools/bench_workspace_lower.exe --image-map-captures > specification/performance/f-image-map-capture-attribution-source-refresh-whole.csv 2> specification/performance/f-image-map-capture-attribution-source-refresh-counters.csv
+```
+
+The harness additionally writes `f-image-map-capture-attribution-source-refresh.csv`:
+1,050 phase rows, 90 whole-caller rows and 71 counter rows (headers additional).
+Nine full native pixel comparisons have zero maximum error/differing channels/
+pixels. CPU1/8 hashes and all source-cache/materialization/flatten/resource/
+resize/replan/close assertions pass. The diagnostic build and benchmark exit 0.
+An initial premeasurement assertion identified the native operation spelling;
+that attempt produced no measured rows. The corrected operation-set assertion
+passes for all materializer cooks in the retained run.
+
+Seven-trial medians in milliseconds per completed GPU producer frame:
+
+| Interval and coverage | Static P/Cd | Changing P/Cd |
+|---|---:|---:|
+| Whole caller | 3.429029 | 6.248649 |
+| Materialization, initial-domain inclusive | no warm calls | 2.432431 |
+| `line`, node own across cook domains | no warm calls | 0.295147 |
+| `flow.with_attr`, node own across cook domains | no warm calls | 2.128962 |
+| `flow.capture`, node own across cook domains | no warm calls | 0.000290 |
+| Attribute count/finite validation, nested | no warm calls | 0.189129 |
+| Attribute XYZ storage construction, nested | no warm calls | 0.940881 |
+| Attribute creation/installation, nested | no warm calls | 0.001158 |
+| Cd packed-map traversal, nested | no warm calls | 0.641835 |
+| Cd map source preparation, nested | no warm calls | 0.273716 |
+| Cd map output setup, nested | no warm calls | 0.044911 |
+| P flatten | no warm calls | 0.263529 |
+| Cd flatten | no warm calls | 0.263864 |
+| Packed preparation, inclusive | 1.658608 | 4.224846 |
+| P ordered direct traversal | 0.794556 | 0.563650 |
+| Cd ordered direct traversal | 0.794528 | 0.561979 |
+| Completed GPU execution | 0.904018 | 1.080877 |
+| Sink conversion | 0.808976 | 0.792496 |
+
+CPU8 whole callers are 17.910004 ms static, 18.834829 ms changing and
+12.658834 ms gradient. Gradient GPU producer is 1.533430 ms. Timings overlap:
+node-own with_attr includes its map and write phases; materialization includes
+node work; packed preparation includes materialization, flattening and reductions.
+Do not sum overlapping inclusive intervals or interpret summed node times as
+a wall-time remainder. The XYZ construction is a measured contributor, while
+installation is small. These instrumented numbers do not establish the
+uninstrumented gate or authorize an optimization by themselves.
+
+All nine archived production files are restored byte-for-byte to the candidate;
+the saved probe-only patch passes `git apply --check` after restoration. No
+production probes remain. Astra: **“Attribution accepted.”** It approves a
+narrow non-P write trial: allocate three zeroed float arrays and copy interleaved
+XYZ values in one ascending loop, then use the same owned storage constructor
+and installation. Count/finite validation stays before allocation; P behavior,
+parallelism, caching, storage representation and Duplicate_input policy stay
+unchanged. A regression must cover empty/multi-block/distinct XYZ/signed-zero,
+domains 1/8, input ownership, count/nonfinite diagnostics and failed-write
+immutability. Repeat the unchanged eight-cell capture matrix and 1024² controls
+against the direct-input baseline. This design is not implemented in the
+attribution checkpoint and makes no performance verdict.
+
+Restored `@check`, Flow/IR/FlowSop focused tests and benchmark build pass (exit 0;
+`/tmp/rays-f-image-source-refresh-restored-focused.log`).
+Pre-commit shipping passes (exit 0; `/tmp/rays-f-image-source-refresh-ship.log`).
+This diagnostic checkpoint changes no product behavior; full F5 native evidence
+remains `/tmp/rays-f-image-direct-input-full.log`, on the actual 1× display.

@@ -1692,6 +1692,39 @@ capture and runtime qualification. Actual display is 1×; 2× goldens remain
 unqualified. No production probes remain.
 Shipping passes (exit 0; `/tmp/rays-f-image-direct-input-ship.log`).
 
+**Source-refresh split (2026-10-09; diagnostic, gate still open).**
+The approved nine-file temporary patch reuses Session.node_timings immediately
+after each successful materializer cook, asserts exactly one line/with_attr/
+capture sample and distinguishes node-own durations across cook domains from
+initial-domain inclusive probes. The native line operation is `line` (the Lisp
+kind is `sop/line`). Attribute writing retains its execution order while timing
+count/finite validation, the three Array.init XYZ planes and installation;
+flattening is labeled P/Cd. Missing write clocks remain blank/unobserved.
+
+The isolated seven-trial protocol passes all nine native parity comparisons,
+CPU1/8 hashes and resource/capture/resize/replan/close assertions. Changing
+producer/materialization medians are 6.248649/2.432431 ms. Node-own line,
+with_attr and capture medians are 0.295147/2.128962/0.000290 ms; write validation,
+XYZ construction and installation take 0.189129/0.940881/0.001158 ms nested
+inside with_attr, alongside the 0.641835 ms packed-map traversal. P/Cd flattens
+take 0.263529/0.263864 ms. These overlapping durations cannot be added together.
+Static production has no warm materializer/write/flatten calls. Raw rows and
+the reproducible probe-only patch are `f-image-map-capture-attribution-source-refresh*`.
+All nine production files are restored byte-for-byte; the patch passes
+`git apply --check`. This attribution does not substitute for a performance gate.
+Astra: “Attribution accepted.” The next approved trial replaces only the
+non-P write's three Array.init callbacks with three zeroed float arrays and one
+ascending direct XYZ copy loop. Validation stays before allocation, installation
+afterward; P, ownership, cache, Duplicate_input policy and parallelism stay
+unchanged. Empty/multi-block/signed-zero/domain/ownership/error regressions must
+pass before the unchanged eight-cell/control benchmark protocol. The trial is
+not implemented in this attribution checkpoint; a remaining GPU miss must be
+reported before any broader change.
+Restored focused checks and shipping pass (exit 0;
+`/tmp/rays-f-image-source-refresh-restored-focused.log`,
+`/tmp/rays-f-image-source-refresh-ship.log`). No product behavior changes here;
+the direct-input checkpoint's full F5 qualification remains the current evidence.
+
 **Astra design and groundwork (2026-10-09).**
 Use pixel-center UV coordinates `((x+0.5)/width, (y+0.5)/height)`, top row
 first, in immutable packed Vec2 storage; compile the Vec4 body with existing
