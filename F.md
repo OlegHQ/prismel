@@ -1890,7 +1890,7 @@ Actual display is1×;2× goldens remain unqualified. Pre-commit shipping passes
 The two measured gates and final audit remain open.
 
 **Scalar Vec3 source-refresh attribution and current gate qualification
-(2026-10-09).** The approved three-fixture probes retain1050 phase rows,
+(2026-10-09, `625b8eaf`).** The approved three-fixture probes retain1050 phase rows,
 90 whole rows,71 counter rows and69 per-trial GC snapshot rows. All nine native
 pixel comparisons have maximum0; CPU domains1/8 hashes and resource/capture
 assertions pass. P/Cd ordered traversals now measure0.121803/0.121765 ms,

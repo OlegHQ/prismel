@@ -12130,6 +12130,8 @@ Changing-source GPU<5 ms, F3≤50.600 ms and final audit remain open.
 
 ### F2.2 scalar Vec3 source-refresh attribution and current production gates (2026-10-09)
 
+Qualification evidence and reproducible probes: `625b8eaf`.
+
 Apple M1/Macmini9,1, OCaml5.3, Dune dev, native Metal, actual1× display.
 Production checkpoint186c0e1f (implementation78a646f6); no production optimization
 is made in this checkpoint. Astra approves the same temporary nine-file probes
