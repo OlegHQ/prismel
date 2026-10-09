@@ -885,6 +885,56 @@ let editor_text_drop () =
   check (E.workspace !env == original) "and one undo gives it back";
   E.close !env
 
+(* Command-click on a name read in the Document text selects its binding: the pane's selection (and so the
+   inspector's subject) is the path of the binding, not the node under the caret *)
+let editor_command_click () =
+  let open Rays in
+  let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
+      Sop_catalog.Editor.factories |> Result.get_ok in
+  let text = {|(workspace cc
+  (graph g :context value (let* [a 1.0 b (+ 2.0 (* 3.0 a))] (+ a b)))
+  (graph editor :context editor
+    (ui/workspace (ui/split-at "vertical" 0.12 (ui/graph) (ui/lisp)))))|} in
+  let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
+  let presets = Filename.temp_dir "rays-text-presets" "" in
+  let env = ref (E.create ~presets ~await:true ~workspace
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+        |> Result.map_error Rdk.Error.to_string)
+      ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
+  let count = ref 0 and mouse = ref (450., 320.) in
+  let step ?(buttons = []) ?(keys = []) events =
+    incr count;
+    env := E.update !env { (frame ~mouse:!mouse ~keys !count events) with mouse_buttons = buttons } in
+  let at ?buttons ?keys point events = mouse := point; step ?buttons ?keys events in
+  let dump_line key =
+    let directory = Filename.temp_dir "rays-text-pane" "" in
+    Fun.protect ~finally:(fun () ->
+      Array.iter (fun f -> Sys.remove (Filename.concat directory f)) (Sys.readdir directory);
+      Unix.rmdir directory) (fun () ->
+      E.crash_dump !env directory;
+      let text = In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all in
+      match List.find_opt (fun l -> String.starts_with ~prefix:(key ^ ": ") l) (String.split_on_char '\n' text) with
+      | Some l -> l | None -> fail ("no " ^ key ^ " in the dump")) in
+  for _ = 1 to 4 do step [] done;
+  let gx, gy, gw, gh = (E.panes !env (frame 0 [])).graph in
+  let gy = gy + gh + 1 + 28 in
+  let tab = tab_at ~narrow:(gw < 400) ~right:(gx + gw - 36) ~top:gy 2 in
+  at tab [ Event.MouseMoved tab ];
+  at tab [ Event.MousePressed (Input.LeftButton, tab); Event.MouseReleased (Input.LeftButton, tab) ]; step [];
+  let printed = Flow.Lisp.print (E.workspace !env).source |> fst in
+  let lines = String.split_on_char '\n' printed in
+  let line = Option.get (List.find_index (fun l -> contains l "(+ a b)") lines) in
+  let col = let l = List.nth lines line in
+    let rec find i = if String.sub l i 7 = "(+ a b)" then i + 3 else find (i + 1) in find 0 in
+  let char_w = 6.95 in
+  let name = float gx +. 36. +. float col *. char_w +. 3., float gy +. 6. +. 2. +. float line *. line_pitch in
+  at name [ Event.MouseMoved name ];
+  at ~keys:[ Input.Meta ] name [ Event.MousePressed (Input.LeftButton, name); Event.MouseReleased (Input.LeftButton, name) ];
+  step [];
+  check (dump_line "scope selected" = "scope selected: g/a")
+    ("a Command-click on a name did not select its binding: " ^ dump_line "scope selected");
+  E.close !env
+
 let run () =
   selection_text ();
   paste ();
@@ -893,6 +943,7 @@ let run () =
   editor_binding ();
   editor_w9 ();
   editor_active_scrub ();
+  editor_command_click ();
   token_scrubs ();
   editor_literal_scrub ();
   editor_text_drop ();

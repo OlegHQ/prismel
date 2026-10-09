@@ -207,6 +207,105 @@ let compiled_at value chains records path =
   Option.bind (Flow_graph.Probe.plan_node records path ~probes:(probes_of value chains path)) (fun plan ->
     Flow_sop.Network.Int_map.find_opt plan (snd value.doc.Document.workspace).compiled)
 
+(* A nested operator call in a wired row (the call `* 0.2 (sin ...)` in row b): one sub-row per leaf of its
+   tree, addressed by [Set_arg]'s [sub] (child indices; the head is child 0).  Depth 4, 12 rows.  They are
+   the body of the inspector of a node under its row, and of the row itself (a click on its chip). *)
+let arg_prefix = "@arg:"
+
+let operator_call (e : Flow.Syntax.t) =
+  let module S = Flow.Syntax in
+  match e.node with
+  | S.List ({ S.node = S.Sym h; _ } :: _ :: _) -> not (String.contains h '/') | _ -> false
+
+let sub_entries ~shown (r : Flow_graph.Projection.row) =
+  let module P = Flow_graph.Projection in
+  let module S = Flow.Syntax in
+  match r.expr with
+  | Some e when operator_call e ->
+      let count = ref 0 in
+      let rec walk chain depth sub (e : S.t) = match e.node with
+        | S.List ({ S.node = S.Sym h; _ } :: _) when depth < 4 ->
+            List.concat (List.mapi (fun i (c : S.t) ->
+              if i = 0 then [] else
+              let sub = sub @ [ i ] in
+              match c.node with
+              | S.List ({ S.node = S.Sym h'; _ } :: _ :: _) when not (String.contains h' '/') ->
+                  walk (chain @ [ h ]) (depth + 1) sub c
+              | _ when !count >= 12 -> []
+              | _ ->
+                  incr count;
+                  let label = r.label ^ "." ^ String.concat "." (List.map (fun k -> string_of_int (k - 1)) sub) in
+                  let base = Printf.sprintf "%s%s@%s" arg_prefix r.label (String.concat "." (List.map string_of_int sub)) in
+                  let field ?vec3 ?(suffix = "") kind current =
+                    { Parameter.name = base ^ suffix; label = (if vec3 = None then label else suffix);
+                      description = None; folder = []; impact = Parameter.Cook; primary = false;
+                      unit = None; vec3; kind; default = current; current } in
+                  let range f = let m = Float.max 1. (Float.abs f *. 2.) in
+                    { Parameter.soft_min = -. m; soft_max = m; hard_min = None; hard_max = None } in
+                  let make fields drive =
+                    [ base, r, sub, { Pxui_shell.Inspector.path = base; fields; shown;
+                                      locked = false; drive; live = None } ] in
+                  (match c.node with
+                   | S.Num t ->
+                       (match int_of_string_opt t, float_of_string_opt t with
+                        | Some i, _ ->
+                            make [ field (Parameter.Integer_view { Parameter.soft_min = min 0 (2 * i);
+                              soft_max = max 10 (2 * i); hard_min = None; hard_max = None }) (Parameter.Int_value i) ] None
+                        | _, Some f -> make [ field (Parameter.Floating_view (range f)) (Parameter.Float_value f) ] None
+                        | _ -> [])
+                   | S.Str t -> make [ field Parameter.Text_view (Parameter.Text_value t) ] None
+                   | S.Sym ("true" | "false" as b) -> make [ field Parameter.Toggle_view (Parameter.Bool_value (b = "true")) ] None
+                   | S.Vec l when List.length l >= 2 && List.length l <= 4 && List.for_all (fun (x : S.t) -> match x.node with
+                       | S.Num t -> float_of_string_opt t <> None | _ -> false) l ->
+                       make (List.mapi (fun i (x : S.t) ->
+                         let f = match x.node with S.Num t -> float_of_string t | _ -> 0. in
+                         field ~vec3:(base, i) ~suffix:(List.nth [ ".x"; ".y"; ".z"; ".w" ] i)
+                           (Parameter.Floating_view (range f)) (Parameter.Float_value f)) l) None
+                   | S.Sym s -> make [ field Parameter.Text_view (Parameter.Text_value "") ] (Some s)
+                   | _ -> make [ field Parameter.Text_view (Parameter.Text_value "") ] (Some ("=" ^ Flow.Lisp.flat c)))) (S.children e))
+        | _ -> [] in
+      walk [] 0 [] e
+  | _ -> []
+
+(* The inspector's subject among the pane's selected paths: a card selected together with one of its
+   rows (the pane selects both on a click on an expression chip) is the row alone. *)
+let inspector_paths paths =
+  let holder p = match List.rev p with
+    | last :: (_ :: _ as rest) when String.starts_with ~prefix:":" last -> Some (List.rev rest) | _ -> None in
+  match paths with
+  | [ a; b ] when holder b = Some a -> [ b ]
+  | [ a; b ] when holder a = Some b -> [ a ]
+  | paths -> paths
+
+(* the row and sub-path of a field named [name] among [entries] (a vector's cell is its row's [.x] ...) *)
+let arg_row_in entries name =
+  let base = List.fold_left (fun b suffix ->
+    if String.ends_with ~suffix b then String.sub b 0 (String.length b - 2) else b) name [ ".x"; ".y"; ".z"; ".w" ] in
+  List.find_map (fun (b, (r : Flow_graph.Projection.row), sub, _) -> if b = base then Some (r, sub) else None) entries
+
+(* the request of an edit of a sub-row or of an operator row ([arg_row] finds the row and sub-path of a field) *)
+let arg_request (n : Flow_graph.Projection.node) ~arg_row = function
+  | Pxui_shell.Inspector.Edited (name, edited) ->
+      let module S = Flow.Syntax in
+      Option.bind (arg_row name) (fun ((r : Flow_graph.Projection.row), sub) ->
+        let component = if String.ends_with ~suffix:".x" name then Some 0
+          else if String.ends_with ~suffix:".y" name then Some 1
+          else if String.ends_with ~suffix:".z" name then Some 2 else None in
+        let syntax = match edited with
+          | Editor_core.Param.Float_value f -> Some (S.make (S.Num (Flow.Lisp.float f)))
+          | Int_value i -> Some (S.make (S.Num (string_of_int i)))
+          | Bool_value b -> Some (S.make (S.Sym (string_of_bool b)))
+          | Text_value t | Choice_value t -> Some (S.make (S.Str t)) in
+        Option.map (fun value ->
+          Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key;
+            sub = (match component with Some i -> sub @ [ i ] | None -> sub); value })) syntax)
+  | Pxui_shell.Inspector.Expression (path, text) ->
+      Option.bind (arg_row path) (fun ((r : Flow_graph.Projection.row), sub) ->
+        match expression_text text with
+        | Ok value -> Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key; sub; value }))
+        | Error message -> Some (Declined message))
+  | _ -> None
+
 (* The inspector of the node selected in the workspace pane: its
    value at the probe, whether it recooks every frame, the list of its
    iterations (a click moves the zone's probe), and the catalog parameters of
@@ -227,7 +326,34 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
   let module S = Flow.Syntax in
   match value.scope_key, value.doc.Document.workspace with
   | Some { scope; records = Some records; graph; _ }, _ ->
+      (* [holder @ [":" ^ label]]: a row of a node that is an operator call (the pane's expression chip) *)
+      let row_subject = match List.rev path with
+        | last :: (_ :: _ as rev_holder) when String.starts_with ~prefix:":" last
+                                             && not (List.exists (fun (i : P.input) -> i.path = path) scope.inputs) ->
+            let label = String.sub last 1 (String.length last - 1) in
+            Option.bind (P.find scope (List.rev rev_holder)) (fun (h : P.node) ->
+              Option.map (fun r -> h, r) (List.find_opt (fun (r : P.row) ->
+                r.label = label && (match r.expr with Some e -> operator_call e | None -> false)) h.rows))
+        | _ -> None in
       (match P.find scope path with
+       | None when row_subject <> None ->
+           (* an expression chip clicked on a card: the row is the subject, its body the sub-rows the
+              holder's own inspector builds for it, and the Unfold button *)
+           let h, (r : P.row) = Option.get row_subject in
+           let e = Option.get r.expr in
+           let op = match e.node with S.List ({ S.node = S.Sym op; _ } :: _) -> op | _ -> "" in
+           ignore (Pxui.Ui.inspector_header ui ~key:"ws-header" ~kind:op
+             ~title:(P.title h ^ " \xc2\xb7 " ^ r.label) ~detail:(Flow.Lisp.flat e) ());
+           let entries = sub_entries ~shown:true r in
+           let requests = Pxui.Ui.inspector_body ui (fun () ->
+             let unfold =
+               if Pxui.Ui.inspector_button ui ~key:("ws-unfold-" ^ r.label) ("Unfold " ^ r.label)
+               then [ Syntax_edit (Flow_graph.Flow_edit.Unfold { node = h.path; key = r.key; sub = [] }) ] else [] in
+             unfold @ (if entries = [] then [] else
+               Pxui_shell.Inspector.flow_fields ui ~width ~kind_label:(kind_label op)
+                 (List.map (fun (_, _, _, ir) -> ir) entries)
+               |> List.filter_map (arg_request h ~arg_row:(arg_row_in entries)))) in
+           requests, []
        | None ->
            (* a graph input: its type, and its default as one Lisp form (the pane's field, here) *)
            (match List.find_opt (fun (i : P.input) -> i.path = path) scope.inputs with
@@ -506,7 +632,6 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
            (* a value operator (+, *, sin ...) or a nested call has no catalog parameters: its inputs are
               the card's rows, so the inspector shows those.  A literal is a field, a wire or an
               expression a readout that typing replaces; edits are [Set_arg] on the row's own key. *)
-           let arg_prefix = "@arg:" in
            let op_rows = if parameters <> [] || ref_rows <> [] || layout_row <> None || size_row <> None then [] else
              List.filter_map (fun (r : P.row) ->
                match r.kind, r.expr with
@@ -544,58 +669,8 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
                             (Parameter.Floating_view (float_range f)) (Parameter.Float_value f)) l) None None
                     | _ -> wired ())
                | _ -> None) n.rows in
-           (* a nested operator call in a wired row (the call `* 0.2 (sin ...)` in row b): one sub-row per leaf of its
-              tree, addressed by [Set_arg]'s [sub] (child indices; the head is child 0).  Depth 4, 12 rows. *)
-           let operator_call (e : S.t) = match e.node with
-             | S.List ({ S.node = S.Sym h; _ } :: _ :: _) -> not (String.contains h '/') | _ -> false in
-           let sub_entries (r : P.row) (ir : Pxui_shell.Inspector.flow_row) = match r.expr with
-             | Some e when operator_call e ->
-                 let count = ref 0 in
-                 let rec walk chain depth sub (e : S.t) = match e.node with
-                   | S.List ({ S.node = S.Sym h; _ } :: _) when depth < 4 ->
-                       List.concat (List.mapi (fun i (c : S.t) ->
-                         if i = 0 then [] else
-                         let sub = sub @ [ i ] in
-                         match c.node with
-                         | S.List ({ S.node = S.Sym h'; _ } :: _ :: _) when not (String.contains h' '/') ->
-                             walk (chain @ [ h ]) (depth + 1) sub c
-                         | _ when !count >= 12 -> []
-                         | _ ->
-                             incr count;
-                             let label = r.label ^ "." ^ String.concat "." (List.map (fun k -> string_of_int (k - 1)) sub) in
-                             let base = Printf.sprintf "%s%s@%s" arg_prefix r.label (String.concat "." (List.map string_of_int sub)) in
-                             let field ?vec3 ?(suffix = "") kind current =
-                               { Parameter.name = base ^ suffix; label = (if vec3 = None then label else suffix);
-                                 description = None; folder = []; impact = Parameter.Cook; primary = false;
-                                 unit = None; vec3; kind; default = current; current } in
-                             let range f = let m = Float.max 1. (Float.abs f *. 2.) in
-                               { Parameter.soft_min = -. m; soft_max = m; hard_min = None; hard_max = None } in
-                             let make fields drive =
-                               [ base, r, sub, { Pxui_shell.Inspector.path = base; fields; shown = ir.shown;
-                                                 locked = false; drive; live = None } ] in
-                             (match c.node with
-                              | S.Num t ->
-                                  (match int_of_string_opt t, float_of_string_opt t with
-                                   | Some i, _ ->
-                                       make [ field (Parameter.Integer_view { Parameter.soft_min = min 0 (2 * i);
-                                         soft_max = max 10 (2 * i); hard_min = None; hard_max = None }) (Parameter.Int_value i) ] None
-                                   | _, Some f -> make [ field (Parameter.Floating_view (range f)) (Parameter.Float_value f) ] None
-                                   | _ -> [])
-                              | S.Str t -> make [ field Parameter.Text_view (Parameter.Text_value t) ] None
-                              | S.Sym ("true" | "false" as b) -> make [ field Parameter.Toggle_view (Parameter.Bool_value (b = "true")) ] None
-                              | S.Vec l when List.length l >= 2 && List.length l <= 4 && List.for_all (fun (x : S.t) -> match x.node with
-                                  | S.Num t -> float_of_string_opt t <> None | _ -> false) l ->
-                                  make (List.mapi (fun i (x : S.t) ->
-                                    let f = match x.node with S.Num t -> float_of_string t | _ -> 0. in
-                                    field ~vec3:(base, i) ~suffix:(List.nth [ ".x"; ".y"; ".z"; ".w" ] i)
-                                      (Parameter.Floating_view (range f)) (Parameter.Float_value f)) l) None
-                              | S.Sym s -> make [ field Parameter.Text_view (Parameter.Text_value "") ] (Some s)
-                              | _ -> make [ field Parameter.Text_view (Parameter.Text_value "") ] (Some ("=" ^ Flow.Lisp.flat c)))) (S.children e))
-                   | _ -> [] in
-                 walk [] 0 [] e
-             | _ -> [] in
            let entries = List.concat_map (fun ((r : P.row), (ir : Pxui_shell.Inspector.flow_row)) ->
-             (ir.path, r, [], ir) :: sub_entries r ir) op_rows in
+             (ir.path, r, [], ir) :: sub_entries ~shown:ir.shown r) op_rows in
            (* the operator rows' Unfold: the nested call becomes its own binding and card *)
            let unfold_nested = List.concat_map (fun ((r : P.row), _) ->
              match r.expr with
@@ -603,10 +678,7 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
                  if Pxui.Ui.inspector_button ui ~key:("ws-unfold-" ^ r.label) ("Unfold " ^ r.label)
                  then [ Syntax_edit (Flow_graph.Flow_edit.Unfold { node = n.path; key = r.key; sub = [] }) ] else []
              | _ -> []) op_rows in
-           let arg_row name =
-             let base = List.fold_left (fun b suffix ->
-               if String.ends_with ~suffix b then String.sub b 0 (String.length b - 2) else b) name [ ".x"; ".y"; ".z"; ".w" ] in
-             List.find_map (fun (b, (r : P.row), sub, _) -> if b = base then Some (r, sub) else None) entries in
+           let arg_row = arg_row_in entries in
            let rows = Option.to_list layout_row @ Option.to_list size_row @ List.map snd ref_rows @ List.map (fun (_, _, _, ir) -> ir) entries @ List.map (fun (parameter : Flow_sop.Port.parameter) ->
              let wired = match authored parameter with Some e -> not (literal e) | None -> false in
              { Pxui_shell.Inspector.path = parameter.path; fields = parameter.fields; shown = on_card_row parameter.path; locked = false;
@@ -646,24 +718,8 @@ S.make (S.Num (Flow.Lisp.float f)) in
                        | `Ratio -> `Ratio 0.5 | `First -> `First 240 | `Second -> `Second 240) in
                      Syntax_edit (Flow_graph.Flow_edit.Set_layout_size { node = n.path; size }))
                      (Array.find_index (( = ) chosen) size_names)
-               | Pxui_shell.Inspector.Edited (name, edited) when String.starts_with ~prefix:arg_prefix name ->
-                   Option.bind (arg_row name) (fun ((r : P.row), sub) ->
-                     let component = if String.ends_with ~suffix:".x" name then Some 0
-                       else if String.ends_with ~suffix:".y" name then Some 1
-                       else if String.ends_with ~suffix:".z" name then Some 2 else None in
-                     let syntax = match edited with
-                       | Editor_core.Param.Float_value f -> Some (num f)
-                       | Int_value i -> Some (S.make (S.Num (string_of_int i)))
-                       | Bool_value b -> Some (S.make (S.Sym (string_of_bool b)))
-                       | Text_value t | Choice_value t -> Some (S.make (S.Str t)) in
-                     Option.map (fun value ->
-                       Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key;
-                         sub = (match component with Some i -> sub @ [ i ] | None -> sub); value })) syntax)
-               | Pxui_shell.Inspector.Expression (path, text) when String.starts_with ~prefix:arg_prefix path ->
-                   Option.bind (arg_row path) (fun ((r : P.row), sub) ->
-                     match expression_text text with
-                     | Ok value -> Some (Syntax_edit (Flow_graph.Flow_edit.Set_arg { node = n.path; key = r.key; sub; value }))
-                     | Error message -> Some (Declined message))
+               | (Pxui_shell.Inspector.Edited (name, _) | Pxui_shell.Inspector.Expression (name, _)) as ev
+                 when String.starts_with ~prefix:arg_prefix name -> arg_request n ~arg_row ev
                | Pxui_shell.Inspector.Reset path when String.starts_with ~prefix:arg_prefix path -> None
                | Pxui_shell.Inspector.Edited (name, edited) ->
                    (match List.find_opt (fun (r, _) -> ("@ref:" ^ r.P.label) = name) ref_rows with

@@ -624,7 +624,7 @@ scroll position, so it overshoots and settles like every other scrolling view.
 `Pxui_shell.Inspector` shows the selected node's inputs: the same rows the card has, every
 one of them, with a pin toggle per row (§5.1) and a reset. An edit there is the same
 `Flow_edit` op the canvas writes and records the same history entry. An `:of` keyword ties it to one graph panel
-(§11.11). A value operator's input that is itself an operator call (`b` in `(+ 2.0 (* 3.0 a))`) shows one sub-row per literal leaf of that call (labelled `b.1`, `b.1.0`: the argument indices from the row down; depth 4, 12 rows), edited through `Set_arg` with a `sub` path (child indices, the head being child 0); an Unfold button promotes the call to its own binding and card.
+(§11.11). A value operator's input that is itself an operator call (`b` in `(+ 2.0 (* 3.0 a))`) shows one sub-row per literal leaf of that call (labelled `b.1`, `b.1.0`: the argument indices from the row down; depth 4, 12 rows), edited through `Set_arg` with a `sub` path (child indices, the head being child 0); an Unfold button promotes the call to its own binding and card. A single click on such an expression chip on a card (the text after its `ƒ`) makes that expression the inspector's subject: the pane selects the card and the row (`holder @ [":" ^ label]`), and the inspector titles it `holder · label`, names the operator in its head and shows those sub-rows and the Unfold button.
 
 ## 10. Guide
 

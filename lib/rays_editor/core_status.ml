@@ -111,7 +111,7 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
   let selection = match value.focus, value.selected_box with
     | Pxui_shell.Layout.View _, Some (_, _, name) -> Some name
     | _ ->
-    match Pxui_graph.Scope.selected value.scope_view with
+    match inspector_paths (Pxui_graph.Scope.selected value.scope_view) with
     | [ path ] -> List.nth_opt (List.rev path) 0
     | [] -> None
     | paths -> Some (Printf.sprintf "%d selected" (List.length paths)) in
@@ -128,7 +128,7 @@ let status_box value ui (frame : Frame.t) ~render_status ~error_status ~context 
   let alone = floating = 0 && value.focus = Graph && List.length docked = 1 in
   let readout = if not alone then "" else
     let nodes = (Pxui_graph.Scope.stats value.scope_view).nodes in
-    let selected = List.length (Pxui_graph.Scope.selected value.scope_view) in
+    let selected = List.length (inspector_paths (Pxui_graph.Scope.selected value.scope_view)) in
     Printf.sprintf "%d node%s%s" nodes (if nodes = 1 then "" else "s")
       (if selected = 0 then "" else Printf.sprintf " \xc2\xb7 %d selected" selected) in
   let notes = if floating > 0 then [ Printf.sprintf "%d floating" floating ]

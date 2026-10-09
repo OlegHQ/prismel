@@ -663,7 +663,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
         | Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
       (* a row of a geometry object's list selects its node in the pane: the inspector follows it *)
       let scope_selected = if scope_active || (lowered_level && value.scope_key <> None)
-        then Pxui_graph.Scope.selected scope_view else [] in
+        then inspector_paths (Pxui_graph.Scope.selected scope_view) else [] in
       let open_network = network value in
       let window = List.exists (fun (l : Pxui_shell.Layout.leaf) -> l.floating && l.panel = Inspector && l.body = bounds) g.leaves in
       (* a window keeps its 1-point border on the left, right and bottom: its panel lies inside *)

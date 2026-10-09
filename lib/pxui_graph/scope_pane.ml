@@ -734,7 +734,12 @@ let with_scope ?(at = fun _ -> None) ?(level = fun _ -> None) ?(pin = fun _ _ ->
     stats = { t.stats with nodes = n; zones = z; rows = r } } in
   let t = regeo t scope layout ~shift:no_shift in
   (* an edit that removed or moved a node drops it from the selection *)
-  let t = { (refresh t) with selected = Path_set.filter (Paths.mem t.geo.slot) t.selected } in
+  let t = { (refresh t) with selected = Path_set.filter (fun p ->
+    Paths.mem t.geo.slot p
+    (* a row of a node (the inspector's subject, [holder @ [":b"]]) lives while its holder does *)
+    || (match List.rev p with
+        | last :: (_ :: _ as holder) -> String.starts_with ~prefix:":" last && Paths.mem t.geo.slot (List.rev holder)
+        | _ -> false)) t.selected } in
   let selected_wire = match t.selected_wire with
     | Some (sp, sk, _) when Array.exists (fun w -> match w.target with Some (tp, tk, _) -> sp = tp && sk = tk | None -> false) t.geo.wires ->
         t.selected_wire
@@ -2464,7 +2469,15 @@ let update t ui (frame : Frame.t) =
                     ~w:(Ui.Px (if r.kind = P.Add then (p.w -. label_x -. head_pad) *. z else 24. *. z)) ~h:(Ui.Px (16. *. z))
                     ~at:((if r.kind = P.Add then label_x else value_x p.w) *. z, (top +. float k *. P.row_height +. 4.) *. z)
                     ("a" ^ string_of_int i) in
-                if not (Ui.signal ui b).clicked then [] else
+                (* a click on the expression's text (not its glyph, which unfolds) makes the row the
+                   inspector's subject: the holder stays selected, the row is [holder @ [":" ^ label]] *)
+                let subject = match r.chip with
+                  | P.Inline _ ->
+                      let cb = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px ((field_w -. 24.) *. z)) ~h:(Ui.Px (16. *. z))
+                          ~at:((value_x p.w +. 24.) *. z, (top +. float k *. P.row_height +. 4.) *. z) ("ex" ^ string_of_int i) in
+                      if (Ui.signal ui cb).clicked then [ Selected [ n.path; n.path @ [ ":" ^ r.label ] ] ] else []
+                  | _ -> [] in
+                subject @ if not (Ui.signal ui b).clicked then [] else
                 (match r.kind, r.chip with
                  | P.Add, _ ->
                      (match r.key with
@@ -2727,12 +2740,17 @@ let update t ui (frame : Frame.t) =
   let t = List.fold_left (fun t ((p : P.placed), _, _, tile, (s : Ui.signal), (sub : _), fields) ->
     let outs, dels, taps, _ = sub in
     List.iter emit fields;
+    (* a click on a read name or an expression chip selects what it names *)
+    let t = match List.find_map (function Selected paths -> Some paths | _ -> None) fields with
+      | Some paths -> select paths t
+      | None -> t in
     let t =
       if s.pressed && left s && t.context = None then begin
         let additive = List.mem Input.Shift (Ui.press_keys ui tile) in
         let selected = if additive then
             (if Path_set.mem p.path t.selected then Path_set.remove p.path t.selected else Path_set.add p.path t.selected)
-          else if Path_set.mem p.path t.selected then t.selected else Path_set.singleton p.path in
+          else if Path_set.mem p.path t.selected && Path_set.for_all (Paths.mem t.geo.slot) t.selected then t.selected
+          else Path_set.singleton p.path in
         emit (Selected (Path_set.elements selected));
         { t with selected; selected_wire = None; drag = Some (Moving { paths = parents_removed (Path_set.elements selected);
                                                  dx = 0.; dy = 0.; moved = false }) }
@@ -3045,6 +3063,16 @@ module Private = struct
              Option.map (fun k -> sx t (x +. 100.), sy t (rows_top n y +. (float k +. 0.5) *. P.row_height))
                (Hashtbl.find_opt (line_of_row p.lines) i)
          | None -> None)
+    | _ -> None
+  let expr_chip t path i =
+    match node_of t path, item_at t path with
+    | Some n, Some (p, x, y) ->
+        (match List.nth_opt n.rows i, Hashtbl.find_opt (line_of_row p.lines) i with
+         | Some { chip = P.Inline _; _ }, Some k ->
+             let z = t.zoom in
+             Some (sx t x +. (value_x p.w +. 24. +. (field_w -. 24.) /. 2.) *. z,
+                   sy t (rows_top n y +. (float k +. 0.5) *. P.row_height))
+         | _ -> None)
     | _ -> None
   let ref_chip t path i =
     match node_of t path, item_at t path with
