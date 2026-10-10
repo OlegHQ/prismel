@@ -753,7 +753,8 @@ let check ?(ops = []) ?(library = false) catalog forms =
 
   and input cx key (x : S.t) =
     match S.head x with
-    | Some h when String.contains h '/' || List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"; "exact"] ->
+    | Some h when String.contains h '/' || Hashtbl.mem macro_tbl h
+        || List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"; "exact"] ->
         let memo = cx.path, key, x.id in
         let id = match Hashtbl.find_opt input_paths memo with
           | Some id -> id
@@ -770,7 +771,10 @@ let check ?(ops = []) ?(library = false) catalog forms =
                 | [] -> assert false in
               Hashtbl.add input_paths memo id; id in
         if List.mem h ["fn"; "map"; "filter"; "reduce"; "sort-by"; "if"; "cond"; "case"; "exact"] then binding cx x id
-        else let t, v = infer {cx with path = id} x in mark id v; t, v
+        else let t, v = infer {cx with path = id} x in mark id v;
+          (* Canvas previews need the inline result recorded at its card path.
+             Scene and SOP lowering retain their operation's original site. *)
+          (if t.ty = Ty.drawing || t.ty = Ty.image then {t with path = Some id} else t), v
     | _ -> infer cx x
 
   and state cx (x : S.t) id : term * v =

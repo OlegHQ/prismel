@@ -203,6 +203,12 @@ The pointer button defaults to `"left"`; other names are `"middle"`,
 record, including ordered event records; their fields and spelling are
 declared in `Flow.Op` and `Frame_input`.
 
+A picture's frame is the pane that shows it: a canvas pane evaluates its drawing with
+`size` set to the pane's own logical size, so `frame/width` and `frame/height` are the
+viewport and a drawing sized with them fills each pane exactly, whatever the window or the
+layout. Probes, value lanes and geometry keep the window snapshot, and pointer
+coordinates remain window points. Export uses the configured window size.
+
 `(state [previous init] step)` folds over frames. The seed is static data;
 the step reads the previous value and current frame, and returns the next
 value. Int/float results use the wider type. A cell is identified by source,

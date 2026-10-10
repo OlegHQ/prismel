@@ -74,7 +74,9 @@ that is not in use, and never add a "first leaf of a kind" path. Layout gestures
 ops on the editor graph; disclosure and window bounds are `Layout_by_path.panels`.
 
 **Files.** Command-S writes the source file only while its digest is the remembered one, else a
-preset. It applies text drafts first and refuses when one does not check. A changed source file
+preset. Command-O (`Leader.Open_source`) opens the system dialog over the sketch's folder and
+loads the chosen `.rays` into the window through the import-open path, which refuses while the
+document has unsaved work. It applies text drafts first and refuses when one does not check. A changed source file
 reloads as one entry; while the document has unsaved work or a draft the file's text waits and the
 strip says so ("Reload sketch from its file" takes it). Autosave writes one recovery file per
 sketch at 2 Hz and on close, never over an earlier session's file while the document is still the

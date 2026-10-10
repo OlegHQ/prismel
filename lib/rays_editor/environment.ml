@@ -270,6 +270,7 @@ type 'prepared t = {
   pick_press : (float * float) option;  (* a left press in the view that may become a click *)
   source : Source_file.t option;  (* the .rays the document came from: polled, saved over *)
   held : string option;  (* the file's changed text, waiting while the document has unsaved work *)
+  open_dialog : int option;  (* Command-O's system dialog, until it answers *)
   refused : string option;  (* the file's text that did not check: the Document tab shows it *)
   opened : Document.t;  (* the document this session started from *)
   state_owned : bool;  (* this session wrote the recovery file *)
@@ -372,7 +373,7 @@ let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timelin
       resolved = None; context_error = None; canvases = []; host=Workspace_host.create
         ~seed:core.cook.seed ~grain:core.cook.grain ~domains:core.cook.domains (); baked = None; baked_from = None; baked_views = []; map = None;
       render_status = None; pending_render = None;
-      background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; held = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
+      background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; held = None; open_dialog = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
       state_checked = neg_infinity; saved_doc = core.doc; saved_view = V.section camera extra; state_error = None })
     (Core.create ?settings ?world
       ~keymap:(V.keymap @ List.map (fun (c : _ Editor_core.Command.t) ->
@@ -587,7 +588,8 @@ let open_import value (update : (_, _) Core.update) = match update.core.Core.ope
         value, {update with core = {core with Core.notice = Some (Core.Refusal,
           "Save or undo your changes before opening " ^ path ^ ".")}}
       else
-        let file = Filename.concat (Filename.dirname (Source_file.file source)) path in
+        let file = if Filename.is_relative path
+          then Filename.concat (Filename.dirname (Source_file.file source)) path else path in
         (match Source_file.read file with
          | Error message -> value, {update with core = {core with Core.notice = Some (Core.Refusal, message)}}
          | Ok original ->
@@ -599,6 +601,27 @@ let open_import value (update : (_, _) Core.update) = match update.core.Core.ope
                   {value with source = Some (Source_file.at ~file ~digest:(Source_file.sha original));
                     held = None; refused = None}, {update with core; scene_changed = true}))
   | _ -> value, update
+
+(* Command-O: the system dialog over the sketch's folder; its answer, a frame later, is opened
+   the way an import is (unsaved work refuses it). *)
+let open_dialog value (update : (_, _) Core.update) events =
+  let notice kind text = { update with core = { update.core with Core.notice = Some (kind, text) } } in
+  let value, update = match value.source with
+    | _ when not (List.mem Leader.Open_source update.actions) -> value, update
+    | None -> value, notice Core.Refusal "This editor was not opened from a .rays file."
+    | Some source ->
+        (match Sketch.show_file_dialog ~filters:[ "Rays sketch", [ "rays" ] ]
+                 ~default_location:(Filename.dirname (Source_file.file source)) Sketch.Open_file with
+         | Ok id -> { value with open_dialog = Some id }, update
+         | Error message -> value, notice Core.Refusal ("Open: " ^ message)) in
+  List.fold_left (fun (value, (update : (_, _) Core.update)) -> function
+    | Event.FileDialog { id; result } when value.open_dialog = Some id ->
+        { value with open_dialog = None },
+        (match result with
+         | Ok (path :: _) -> { update with core = { update.core with Core.open_import = Some path } }
+         | Ok [] -> update
+         | Error message -> notice Core.Refusal ("Open: " ^ message))
+    | _ -> value, update) (value, update) events
 
 let reload_source value (update : (_, _) Core.update) ~now = match value.source with
   | Some previous when not (Core.carrying update.core) ->
@@ -715,6 +738,7 @@ let update_with value frame ~inspector =
       ~view_state:(function
         | Some (_, camera, _, extra, _) -> V.section camera extra
         | None -> V.section value.camera extra) frame)) in
+  let value, update = open_dialog value update frame.Frame.events in
   let value, update = open_import value update in
   let value, update = reload_source value update ~now:frame.Frame.time in
   let focused = follow_focus { value with core = update.core } frame in
@@ -862,6 +886,8 @@ let update_with value frame ~inspector =
     | Canvas key ->
         let _, _, w, h = if not (V.ui_visible control) && core.focus = Canvas key
           then (0, 0, raw_frame.width, raw_frame.height) else leaf.body in
+        (* a picture's frame is its pane: frame/width and frame/height read the canvas, not the window *)
+        let frame_input = {frame_input with Frame_input.size = (w, h)} in
         let drawing = Option.bind core.doc.Document.shell (fun shell -> List.assoc_opt key shell.canvases) in
         let _, lowered = core.doc.workspace in
         let preview = core.Core.canvas_viewed in
@@ -875,7 +901,7 @@ let update_with value frame ~inspector =
           | _ when preview <> None -> true
           | Some picture when same_plan && picture.preview = preview -> picture.dynamic
           | _ -> lowered.states <> [] || Array.exists (fun (n : Flow.Eval.node) ->
-              List.exists (fun (_, v) -> Flow.Eval.is_live v) n.args) lowered.plan.nodes in
+              List.exists (fun (_, v) -> Flow.Eval.is_live v || Flow.Eval.frame_dependent v) n.args) lowered.plan.nodes in
         (match drawing with
          | None when preview = None -> pictures, error
          | _ when (match preview with Some (ty, _) -> ty = Flow.Ty.image | None -> false) ->

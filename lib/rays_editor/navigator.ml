@@ -132,16 +132,16 @@ let readers (ws : W.t) name =
   List.length (List.filter (fun (g : W.graph) -> g.name <> name && List.mem name (reads g.form)) ws.graphs)
 
 let calls (ws : W.t) name =
-  List.fold_left (fun n (g : W.graph) -> n + count_where (fun f -> head f = Some name) g.form) 0
-    (ws.graphs @ List.filter (fun (d : W.graph) -> d.name <> name) ws.defs)
+  let forms = List.map (fun (g : W.graph) -> g.form)
+    (ws.graphs @ List.filter (fun (d : W.graph) -> d.name <> name) ws.defs) @ ws.macros in
+  List.fold_left (fun n form -> n + count_where (fun f -> head f = Some name) form) 0 forms
 
 let macro_name (form : S.t) = match form.node with
   | S.List ({ S.node = S.Sym "defmacro"; _ } :: { S.node = S.Sym n; _ } :: _) -> Some n
   | _ -> None
 
 let macro_uses (ws : W.t) name =
-  List.fold_left (fun n (g : W.graph) -> n + count_where (fun f -> head f = Some name) g.form) 0
-    (ws.graphs @ ws.defs)
+  calls ws name
 
 let plural n what = Printf.sprintf "%d %s%s" n what (if n = 1 then "" else "s")
 
@@ -244,12 +244,6 @@ let rows ?(wide = true) state p =
     let groups = grouped ws in
     (* the narrow sheet has no Layout section, and so none of the editor graphs *)
     let groups = if wide then groups else List.filter (fun (g, _) -> g <> "Layout") groups in
-    let groups = if (ws.defs <> [] || ws.macros <> []) && not (List.mem_assoc "Geometry" groups)
-      then List.filter_map (fun group ->
-        match List.assoc_opt group groups with
-        | Some graphs -> Some (group, graphs)
-        | None -> if group = "Geometry" then Some (group, []) else None) (group_order ())
-      else groups in
     (* the scene's first graph is the root row; its objects are its tree *)
     let root_graph = List.find_opt (fun (g : W.graph) -> g.context = Flow.Context.scene) ws.graphs in
     List.iter (fun (group, graphs) ->
@@ -277,10 +271,10 @@ let rows ?(wide = true) state p =
           p.layouts;
         graph_rows graphs
       end
-      else begin
-        graph_rows graphs;
-        if group = "Geometry" then defs_rows ()
-      end) groups;
+      else graph_rows graphs) groups;
+    if ws.defs <> [] || ws.macros <> [] then begin
+      add (Head ("Definitions", "used")); defs_rows ()
+    end;
     (* the active graph's inputs *)
     (match p.scope, p.active with
      | Some scope, Some graph when scope.inputs <> [] ->

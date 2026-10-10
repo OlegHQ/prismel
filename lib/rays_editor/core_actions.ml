@@ -29,7 +29,7 @@ let apply_action value (workspace, selection, tree, timeline, changes) action =
   | World_play when Sketch_support.Timeline.mode timeline <> Sketch_support.Timeline.Playing ->
       timeline_step T.toggle_pause
   | Frame_tile | Hide_ui | Look_through | Look_through_camera | Render_mode _ | Fly | Save_preset | Browse_presets | Save_source
-  | Reload_source
+  | Reload_source | Open_source
   | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys | Copy_lisp
   | Sketch_command _ | Scope_command _ | Toggle_map | Ui_scale _ | Enter | Up | Go_world
@@ -50,7 +50,7 @@ let intent_label = function
   | Object_arg _ -> Some "Edit expression"
   | Rename _ -> Some "Rename node"
   | Pin_row { pin; _ } -> Some (if pin = Some false then "Unpin row from card" else "Pin row to card")
-  | Notice _ | Declined _ -> None
+  | Follow_source _ | Notice _ | Declined _ -> None
 
 let in_world value = match value.level with
   | Document.Inside id -> kind value id = Some "world"

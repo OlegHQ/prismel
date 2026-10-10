@@ -5,6 +5,7 @@ type action =
   | Save_preset | Browse_presets
   | Save_source  (* Command-S: rewrite the sketch's .rays, else a preset *)
   | Reload_source  (* the palette: take the source file's text over unsaved edits *)
+  | Open_source  (* Command-O: choose a .rays in the system dialog and open it in this window *)
   | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
   | Play_pause | Reset | Stop
   | Add_node
@@ -162,6 +163,7 @@ let keymap = [
     ~trigger:(Chord (Input.KeyChar 'f', [])) ~scope:view Frame_camera;
 ] @ List.concat_map (fun modifier -> [
   command ~id:"file.save" ~label:"save sketch" ~trigger:(Chord (Input.KeyChar 's', [modifier])) Save_source;
+  command ~id:"file.open" ~label:"open sketch" ~trigger:(Chord (Input.KeyChar 'o', [modifier])) Open_source;
   command ~id:"edit.undo" ~label:"undo" ~trigger:(Chord (Input.KeyChar 'z', [modifier])) Undo;
   command ~id:"edit.redo" ~label:"redo"
     ~trigger:(Chord (Input.KeyChar 'z', [modifier; Input.Shift])) Redo;

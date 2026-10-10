@@ -310,7 +310,10 @@ scope nodes, with a `when`, `is` or `else` rail and a `then` yield. They have
 no iteration selector and the probe tints the selected arm. Collapse and body
 edits use the same paths, boxes and history as other zones.
 
-The card menu and keymap expose Wrap conditional (`Shift-I`), Add arm
+The add menu lists the language's forms beside the operators, each added as a card holding a
+small working expression to edit in place: Branch (`if`, `cond`, `case`), Loop (`for`, `fold`,
+`scan`, `sum`), Function (`fn`, `map`, `filter`, `reduce`, `sort-by`), Data (`list`, `record`,
+`let*`) and Frame (`state`); `Core_add.forms` is the one table. The card menu and keymap expose Wrap conditional (`Shift-I`), Add arm
 (`Alt-A`) and Delete first arm (`Alt-Delete`). An inserted cond arm starts
 with `false`; case starts with a literal of the existing test's kind.
 The final else stays. Arm insertion/deletion remaps the remaining arm paths.
@@ -379,6 +382,10 @@ work follows what is in view, never the size of the graph.
 | Right-click a node | the node becomes the selection and the pane's context menu opens |
 | Right-click empty canvas | the host's add menu at that point (`Menu_requested`) |
 | Drag a frame by its title | the frame and the nodes whose centres lie inside it move together |
+
+Marquee selection tests rectangle overlap in either drag direction, including unnamed result
+nodes and nodes shown as chips or points. A card need not be fully enclosed. Expanded zones are
+selected when fully enclosed, so crossing their body can select the nodes inside their scope.
 
 Taking a wire off a nested node's row unfolds the node first (`Unfold`, then `Disconnect`),
 so a wire never deletes a node.
@@ -462,6 +469,9 @@ the context (`sop`, then `sop_2` ...) and opens the new graph. The default bodie
 :seed 1)`; `1`; a `material/standard`; and for a scene a `let*` of a camera, a light and, when a
 SOP graph exists, `(scene/geometry (ref <that graph>))`, closed by
 `(scene/root (scene/merge ...) :camera camera)`, which renders in `ui/viewport`.
+
+Functions and macros appear under Definitions independently of the graphs' contexts; their use
+counts include calls inside macro templates as well as graph and function bodies.
 
 ### 7.5 Letter hints
 
@@ -610,8 +620,12 @@ bindings in scope; ranked prefix, word, fuzzy, then by group and by use in the t
 describes the token under the resting pointer, and lets a number be dragged sideways:
 the text applies live on every frame of the drag as one history entry, so the viewport
 follows the value (`Lisp_text`, `Ui.language`).  The text is one of the pane's two surfaces of the
-same edit: Command-click on a `(ref name)` shows that graph (onto the back stack of `i`); in the Graph
-tab the caret inside a binding selects its node, and selecting a node scrolls the text to its binding;
+same edit: Command/Ctrl-click on a name follows its lexical definition, including function and
+macro call heads, dotted record reads, and graph inputs. A `(ref name)` opens that graph. A target
+outside the displayed Graph or Selection text switches the initiating pane to Document and reveals
+the definition. In all three tabs, clicking or moving the caret while editing a binding selects its
+node and updates the inspector; selecting a node scrolls the text to its binding. An unapplied
+Selection draft stays attached to its original closure and graph while selection changes;
 a `"#rrggbb"` literal wears its colour as a bar and a click opens the kit's colour control (swatch,
 hex, r g b), each edit applied live as one history entry; and completion after `:material`
 (the material graphs, inserted as `(ref name)`), `:camera` (the scene's cameras), `:active` (the
@@ -625,6 +639,10 @@ scroll position, so it overshoots and settles like every other scrolling view.
 one of them, with a pin toggle per row (§5.1) and a reset. An edit there is the same
 `Flow_edit` op the canvas writes and records the same history entry. An `:of` keyword ties it to one graph panel
 (§11.11). A value operator's input that is itself an operator call (`b` in `(+ 2.0 (* 3.0 a))`) shows one sub-row per literal leaf of that call (labelled `b.1`, `b.1.0`: the argument indices from the row down; depth 4, 12 rows), edited through `Set_arg` with a `sub` path (child indices, the head being child 0); an Unfold button promotes the call to its own binding and card. A single click on such an expression chip on a card (the text after its `ƒ`) makes that expression the inspector's subject: the pane selects the card and the row (`holder @ [":" ^ label]`), and the inspector titles it `holder · label`, names the operator in its head and shows those sub-rows and the Unfold button.
+
+A click on a wired inspector value selects its upstream node, frames it in the graph, and reveals
+it in Lisp without editing the document. For nested expression sub-rows, the clicked subexpression
+determines the source. Dotted record reads follow the binding that owns the record.
 
 ## 10. Guide
 
@@ -703,6 +721,9 @@ inputs show their checked array type. The selector is view state; scrubbing or w
 a body row edits the same authored text, including from the text pane. Expressions,
 `ref`s, loops, and calls of named functions and macros written in an input stay chips
 (`Unfold` binds them); a macro's arguments are pieces of its template and stay chips too.
+Each inline macro call still has its own evaluated site, so repeated expansions never share
+an image resource. A drawing or image call records its result at the nested card path for `v`.
+The inspector of a named macro call exposes its inputs under their hole names.
 
 Rule: no syntax is text-only. New syntax or sugar ships with its graph projection, its
 `Flow_edit` gestures and a test.
@@ -885,6 +906,11 @@ Enter commits, Escape cancels) and clamps to 0 and the last frame. A tree withou
 timeline leaf has the same strip under the tree. The status strip (28 points) spans the window below
 both; no panel gives up space for it. A collapsed panel is a strip of its header: 22 points in a
 vertical split, 28 points wide in a horizontal one.
+
+Panel header context menus open at the right-click point. An authored timeline also opens its panel
+menu when right-clicked anywhere in its strip, including a child control; right-clicking its ruler
+does not seek. The implicit bottom timeline has a playback/hide menu at the pointer. Closing a
+floating panel removes its empty layout wrappers and retains at least one panel in every layout.
 
 **Start keywords.** `:focus true` on any panel form gives that panel the keyboard focus (the first
 in tree order when several say so; none: the first viewport), `:look_through true` shows the

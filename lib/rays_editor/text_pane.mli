@@ -36,6 +36,7 @@ type state = {
   menu : (float * float) option;  (** the right-click menu while it is open *)
   picker : (int * int * bool) option;  (** the colour literal being edited: byte range, edited yet *)
   scrubbing : bool;  (** a successfully applied token scrub; retain printed line breaks until release *)
+  target : path option;  (** a definition revealed in the Document tab *)
   cache : ((Flow.Syntax.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
@@ -80,7 +81,13 @@ val line_of : string -> Flow.Diagnostic.t -> int option
     position, else its span. *)
 
 val binding_at : shown -> int -> path option
-(** The path of the innermost binding of the Graph tab whose text holds the byte. *)
+(** The innermost binding or inline node at a byte in any tab. *)
+
+val reference_target : Flow.Syntax.t list -> from:path -> string -> path option
+(** Resolve a read in its lexical scope, including dotted record outputs. *)
+
+val definition_at : shown -> int -> path option
+(** The definition of the symbol at a printed byte, including call heads. *)
 
 val cameras : Flow.Syntax.t list -> string -> string list
 (** The bindings of a scene graph that are [scene/camera] calls. *)
@@ -121,6 +128,7 @@ type intent =
       (** the colour literal (byte range with its quotes) whose control is open, and whether an edit was made *)
   | Open_graph of string  (** Command-click on a [(ref name)]: show that graph (the back stack remembers this one) *)
   | Select_binding of path  (** the caret moved into this binding of the Graph tab: select its node *)
+  | Jump_definition of path  (** follow and reveal a definition *)
   | Carry_over of int * bool
       (** a payload is held over the text at this byte of the shown text; [true] on the frame it is released *)
 

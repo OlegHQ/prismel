@@ -253,6 +253,10 @@ type signal = {
 }
 
 val signal : t -> box -> signal
+
+val context_at : t -> box -> (float * float) option
+(** The released right-click in this box or a descendant, through shared capture. *)
+
 val key_events : t -> box -> (Rays.Event.t * Rays.Input.key list) list
 (** The focused key/text events paired with their event-time held keys.
     Use this for custom controls that interpret Shift, Command or Control. *)
@@ -613,7 +617,7 @@ val text_area_submit :
   ?errors:int list -> ?messages:(int * (int * int) option * string) list -> ?spans:(int * int) list -> ?reveal:int -> ?language:language ->
   ?on_context:(float * float -> unit) -> ?on_scrub:([ `Live | `Done ] -> unit) ->
   ?on_scrub_edit:(int * int -> string -> unit) ->
-  ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) -> ?on_drop:(int -> drop -> unit) ->
+  ?on_click:(int -> bool -> unit) -> ?on_caret:(int -> unit) -> ?on_caret_move:(int -> unit) -> ?on_drop:(int -> drop -> unit) ->
   ?chips:(int * int * Rays.Color.t) list ->
   string -> string -> string * bool
 (** {!text_area} that also reports Command- or Ctrl-Enter pressed in it this frame (the host's
@@ -633,6 +637,7 @@ val text_area_submit :
     edit its syntax without reparsing the whole text. [on_click byte command] is called when the area is
     left-clicked at byte offset [byte] without a drag, [command] being true when Command or Ctrl is
     held; [on_caret] receives the caret offset each frame the area has focus;
+    [on_caret_move] reports movement caused by pointer or keyboard input;
     [on_drop byte drop] is called while a payload ({!val-carry}) is held over the area, with the byte
     offset under the pointer and whether it is hovering or was released there; [chips] are byte
     ranges underlined with a colour bar (a colour literal shows its colour). *)

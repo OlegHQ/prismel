@@ -90,6 +90,7 @@ type shell = {
 (* What a pane asks of the document: a gesture on the workspace text, a parameter or the name
    of a scene object or World layer (the inspector), a message. *)
 type change =
+  | Follow_source of Flow.Workspace.path
   | Dock_panels of Pxui_shell.Layout.path * Pxui_shell.Layout.path * [ `Left | `Right | `Top | `Bottom ]
   | Panel_state of Pxui_shell.Layout.path * Editor_core.Panels.state
   | Select_layout of string

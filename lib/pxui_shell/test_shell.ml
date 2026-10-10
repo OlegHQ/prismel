@@ -140,6 +140,12 @@ let () =
        if gx <> 0 || gw <> 1000 || bx <= 0 || bx + bw >= 1000 || by <= 28 || bh <= 0 then
          failwith "a float is not an inset overlay over a full-size sibling"
    | _ -> failwith "float leaves are not last");
+  (* collapsed, an authored float that was never moved is a short tab, not its whole window *)
+  let folded = L.geometry ~state:(fun path -> { Editor_core.Panels.default_state with
+    collapsed = path = [ 1; 0 ] }) floated wide_frame in
+  (match List.rev folded.leaves with
+   | { frame = _, _, w, h; body = _, _, _, 0; _ } :: _ when w <= 150 && h <= 40 -> ()
+   | _ -> failwith "a collapsed float kept its window size");
   (* fixed sides keep their points at every window size (flow.md 11.11): the outline column,
      the right column, the graph and the lisp panel; the timeline leaf is its 24-point strip
      with no header; the status strip spans the window *)
@@ -252,10 +258,10 @@ let () =
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseMoved (600., 10.)]);
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MousePressed (Input.RightButton, (600., 10.))]);
   ignore (chrome L.default ~mouse:(600., 10.) [Event.MouseReleased (Input.RightButton, (600., 10.))]);
-  ignore (chrome L.default ~mouse:(470., 38.) [Event.MouseMoved (470., 38.)]);
-  let pick = [Event.MousePressed (Input.LeftButton, (470., 38.));
-    Event.MouseReleased (Input.LeftButton, (470., 38.))] in
-  (match chrome L.default ~mouse:(470., 38.) pick with
+  ignore (chrome L.default ~mouse:(620., 28.) [Event.MouseMoved (620., 28.)]);
+  let pick = [Event.MousePressed (Input.LeftButton, (620., 28.));
+    Event.MouseReleased (Input.LeftButton, (620., 28.))] in
+  (match chrome L.default ~mouse:(620., 28.) pick with
    | [ Pxui_shell.Chrome.Split_panel ([ 1; 0 ], `H) ] -> ()
    | intents -> failwith (Printf.sprintf "the header menu did not split the graph panel (%d intents)" (List.length intents)));
   let collapse = [Event.MousePressed (Input.LeftButton, (985., 10.));

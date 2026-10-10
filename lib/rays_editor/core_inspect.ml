@@ -284,7 +284,15 @@ let arg_row_in entries name =
   List.find_map (fun (b, (r : Flow_graph.Projection.row), sub, _) -> if b = base then Some (r, sub) else None) entries
 
 (* the request of an edit of a sub-row or of an operator row ([arg_row] finds the row and sub-path of a field) *)
-let arg_request (n : Flow_graph.Projection.node) ~arg_row = function
+let follow_row source (n : Flow_graph.Projection.node) r =
+  List.find_map (fun name -> Option.map (fun path -> Follow_source path)
+    (Text_pane.reference_target source ~from:n.path name)) (Flow_graph.Projection.sources r)
+
+let arg_request ~source (n : Flow_graph.Projection.node) ~arg_row = function
+  | Pxui_shell.Inspector.Follow path ->
+      Option.bind (arg_row path) (fun ((r : Flow_graph.Projection.row), sub) ->
+        let expr = List.fold_left (fun expr i -> Option.bind expr (fun expr -> List.nth_opt (Flow.Syntax.children expr) i)) r.expr sub in
+        follow_row source n {r with expr; chip = (if sub = [] then r.chip else Const)})
   | Pxui_shell.Inspector.Edited (name, edited) ->
       let module S = Flow.Syntax in
       Option.bind (arg_row name) (fun ((r : Flow_graph.Projection.row), sub) ->
@@ -352,7 +360,7 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
              unfold @ (if entries = [] then [] else
                Pxui_shell.Inspector.flow_fields ui ~width ~kind_label:(kind_label op)
                  (List.map (fun (_, _, _, ir) -> ir) entries)
-               |> List.filter_map (arg_request h ~arg_row:(arg_row_in entries)))) in
+               |> List.filter_map (arg_request ~source:(fst value.doc.workspace).source h ~arg_row:(arg_row_in entries)))) in
            requests, []
        | None ->
            (* a graph input: its type, and its default as one Lisp form (the pane's field, here) *)
@@ -635,7 +643,7 @@ let workspace_inspector ?(image=fun _->None) ?(window = false) ?(on_choice = fun
            let op_rows = if parameters <> [] || ref_rows <> [] || layout_row <> None || size_row <> None then [] else
              List.filter_map (fun (r : P.row) ->
                match r.kind, r.expr with
-               | (P.Arg | P.Rest), Some e when not r.head ->
+               | (P.Arg | P.Rest | P.Hole), Some e when not r.head ->
                    let name = arg_prefix ^ r.label in
                    let field ?vec3 ?(suffix = "") kind current =
                      { Parameter.name = name ^ suffix; label = (if vec3 = None then r.label else suffix);
@@ -718,8 +726,14 @@ S.make (S.Num (Flow.Lisp.float f)) in
                        | `Ratio -> `Ratio 0.5 | `First -> `First 240 | `Second -> `Second 240) in
                      Syntax_edit (Flow_graph.Flow_edit.Set_layout_size { node = n.path; size }))
                      (Array.find_index (( = ) chosen) size_names)
-               | (Pxui_shell.Inspector.Edited (name, _) | Pxui_shell.Inspector.Expression (name, _)) as ev
-                 when String.starts_with ~prefix:arg_prefix name -> arg_request n ~arg_row ev
+               | (Pxui_shell.Inspector.Edited (name, _) | Pxui_shell.Inspector.Expression (name, _) | Pxui_shell.Inspector.Follow name) as ev
+                 when String.starts_with ~prefix:arg_prefix name -> arg_request ~source:(fst value.doc.workspace).source n ~arg_row ev
+               | Pxui_shell.Inspector.Follow path ->
+                   let row = match row_of path with Some _ as row -> row | None ->
+                     List.find_map (fun suffix ->
+                       if String.ends_with ~suffix path then row_of (String.sub path 0 (String.length path - 2))
+                       else None) [".x"; ".y"; ".z"; ".w"] in
+                   Option.bind row (follow_row (fst value.doc.workspace).source n)
                | Pxui_shell.Inspector.Reset path when String.starts_with ~prefix:arg_prefix path -> None
                | Pxui_shell.Inspector.Edited (name, edited) ->
                    (match List.find_opt (fun (r, _) -> ("@ref:" ^ r.P.label) = name) ref_rows with

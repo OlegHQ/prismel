@@ -93,6 +93,16 @@ let rec rename_ref old nw (e : S.t) : S.t = match e.node with
       { e with node = S.Sym (nw ^ String.sub s (String.length old) (String.length s - String.length old)) }
   | _ -> map_children (rename_ref old nw) e
 
+(* A panel's place in the layout moves to [new]; an [:of old] still follows the panel itself. *)
+let rec rename_place old nw (e : S.t) : S.t = match e.node with
+  | S.List items ->
+      let rec go = function
+        | ({ S.node = S.Kw "of"; _ } as k) :: v :: rest -> k :: v :: go rest
+        | x :: rest -> rename_place old nw x :: go rest
+        | [] -> [] in
+      { e with node = S.List (go items) }
+  | _ -> rename_ref old nw e
+
 (* [(ref old ...)] reads [new]: only the reference, never a binding of the same name *)
 let rec rename_graph_ref old nw (e : S.t) : S.t = match e.node with
   | S.List (({ S.node = S.Sym "ref"; _ } as r) :: ({ S.node = S.Sym n; _ } as s) :: rest) when n = old ->
@@ -742,6 +752,40 @@ let kid_pos (e : S.t) i = match head_sym e, e.node with
   | Some ("ui/split" | "ui/split-at"), S.List (_ :: args) -> List.length (positional args) - 2 + i
   | _ -> i
 
+(* Remove a named panel from every layout wrapper. Docking keeps its binding
+   for reinsertion; closing drops it. Empty wrapper bindings disappear too. *)
+let strip_panel ~keep sc leaf =
+  let removed = ref [leaf] in
+  let rec strip (e : S.t) = match e.node with
+    | S.Sym name when List.mem name !removed -> None
+    | S.List ({ S.node = S.Sym ("ui/split" | "ui/split-at"); _ } :: _) ->
+        (match layout_kids e with
+         | [a; b] -> (match strip a, strip b with
+             | None, other | other, None -> other
+             | Some a, Some b -> Some (arg_set (arg_set e (Pos (kid_pos e 0)) (Some a))
+                 (Pos (kid_pos e 1)) (Some b)))
+         | _ -> Some e)
+    | S.List (({ S.node = S.Sym "ui/tile"; _ } as head) :: cells) ->
+        (match List.filter_map strip cells with [] -> None
+         | cells -> Some {e with node = S.List (head :: cells)})
+    | S.List [({ S.node = S.Sym ("ui/floating" | "ui/workspace"); _ } as head); child] ->
+        Option.map (fun child -> {e with node = S.List [head; child]}) (strip child)
+    | S.List (({ S.node = S.Sym "ui/switch"; _ } as head) :: args) ->
+        Some {e with node = S.List (head :: List.map (fun child -> match strip child with
+          | Some child -> child | None -> fail "Keep at least one panel in every layout.") args)}
+    | _ -> Some e in
+  let rec clean ps =
+    let before = List.length !removed in
+    let ps = List.filter_map (fun (p, e) ->
+      if pat_key p = leaf then (if keep then Some (p, e) else None)
+      else match strip e with
+        | Some e -> Some (p, e)
+        | None -> removed := pat_key p :: !removed; None) ps in
+    if before = List.length !removed then ps else clean ps in
+  let ps = clean sc.ps in
+  let res = match strip sc.res with Some r -> r | None -> fail "Keep at least one docked panel." in
+  ps, res, !removed
+
 let drop_kid (e : S.t) i = match head_sym e with
   | Some ("ui/split" | "ui/split-at") -> Some (List.nth (layout_kids e) (1 - i))
   | Some "ui/tile" -> (match layout_kids e with [ _ ] -> None | _ -> Some (arg_set e (Pos i) None))
@@ -1316,18 +1360,9 @@ let rewrite ?fallback src op : (unit -> S.t list) list =
         let sc = match scope_of s with
           | Some sc -> sc
           | None -> fail "This editor graph is a single expression. Edit it in Lisp." in
-        let is_leaf (x : S.t) = x.node = S.Sym leaf in
-        let sibling (e : S.t) = match head_sym e, layout_kids e with
-          | Some ("ui/split" | "ui/split-at"), [ x; y ] when is_leaf x -> Some y
-          | Some ("ui/split" | "ui/split-at"), [ x; y ] when is_leaf y -> Some x
-          | _ -> None in
-        match List.find_opt (fun (_, e) -> sibling e <> None) sc.ps with
-        | None -> fail "Only a panel inside a split can close. Restore layout brings the shell back."
-        | Some (pp, pe) ->
-            let ps = List.filter_map (fun (p, e) ->
-              if p == pp then Some (p, Option.get (sibling pe))
-              else if pat_key p = leaf then None else Some (p, e)) sc.ps in
-            reorder (rebuild sc ps sc.res)))
+        ignore (get_node s leaf);
+        let ps, res, _ = strip_panel ~keep:false sc leaf in
+        reorder (rebuild sc ps res)))
   | Dock_panel { node; target; side } -> one (fun () ->
       let sp, leaf = split_node node and tp, target = split_node target in
       if sp <> tp || leaf = target then fail "Dock two different panels of the same layout.";
@@ -1336,41 +1371,15 @@ let rewrite ?fallback src op : (unit -> S.t list) list =
         let sc = ensure s in
         ignore (get_node s leaf);
         ignore (get_node s target);
-        let removed = ref [leaf] in
-        (* Strip the moved panel from its split/tile; empty wrappers disappear too. *)
-        let rec strip (e : S.t) = match e.node with
-          | S.Sym name when List.mem name !removed -> None
-          | S.List ({ S.node = S.Sym ("ui/split" | "ui/split-at"); _ } :: _) ->
-              (match layout_kids e with
-               | [ a; b ] ->
-                   (match strip a, strip b with
-                    | None, other | other, None -> other
-                    | Some a, Some b ->
-                        Some (arg_set (arg_set e (Pos (kid_pos e 0)) (Some a)) (Pos (kid_pos e 1)) (Some b)))
-               | _ -> Some e)
-          | S.List (({ S.node = S.Sym "ui/tile"; _ } as head) :: cells) ->
-              (match List.filter_map strip cells with [] -> None
-               | cells -> Some {e with node = S.List (head :: cells)})
-          | S.List [({ S.node = S.Sym ("ui/floating" | "ui/workspace"); _ } as head); child] ->
-              Option.map (fun child -> {e with node = S.List [head; child]}) (strip child)
-          | _ -> Some e in
-        let rec clean ps =
-          let before = List.length !removed in
-          let ps = List.filter_map (fun (p, e) ->
-            if pat_key p = leaf then Some (p, e) else match strip e with
-            | Some e -> Some (p, e)
-            | None -> removed := pat_key p :: !removed; None) ps in
-          if before = List.length !removed then ps else clean ps in
-        let ps = clean sc.ps in
-        if List.mem target !removed then fail "A panel cannot dock inside its own group.";
-        let res = match strip sc.res with Some r -> r | None -> fail "Keep at least one docked panel." in
+        let ps, res, removed = strip_panel ~keep:true sc leaf in
+        if List.mem target removed then fail "A panel cannot dock inside its own group.";
         let group = fresh used (target ^ "_dock") in
         let first = side = `Left || side = `Top in
         let split = call "ui/split-at" [mk (S.Str (if side = `Top || side = `Bottom then "vertical" else "horizontal"));
           mk (S.Num "0.5"); sym (if first then leaf else target); sym (if first then target else leaf)] in
         let ps = List.map (fun (p, e) -> p,
-          (if pat_key p = target then e else rename_ref target group e)) ps in
-        reorder (rebuild sc (ps @ [sym group, split]) (rename_ref target group res))))
+          (if pat_key p = target then e else rename_place target group e)) ps in
+        reorder (rebuild sc (ps @ [sym group, split]) (rename_place target group res))))
   | Duplicate { nodes } -> one (fun () ->
       let sp, names = duplicate_plan src nodes in
       edit_scope src sp (fun s ->

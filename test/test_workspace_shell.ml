@@ -155,7 +155,7 @@ let run_editor () =
   let hx = 400. in
   click ~button:Input.RightButton (hx, 10.);
   step [];
-  click (340., 37.);
+  click (420., 28.);
   step [];
   check (E3.undo_label !e = Some "Split panel") ("the menu split the graph panel: " ^ Option.value ~default:"-" (E3.undo_label !e));
   check (has (source !e) "network_a" && has (source !e) "network_b") "the split bound two new panels";
@@ -167,7 +167,7 @@ let run_editor () =
   let depth = E3.undo_label !e in
   click ~button:Input.RightButton (float (hx + (hw / 2)), float (hy + 10));
   step [];
-  click (float (hx + 30), float (hy + 24 + 6 + 12));
+  click (float (hx + (hw / 2) + 20), float (hy + 10 + 18));
   step [];
   check (E3.undo_label !e = depth) "a looped panel did not change the graph";
   settle ();
@@ -624,11 +624,42 @@ let run_ops () =
   let refuse name op needle = match E3.edit e op with
     | Error m -> check (has m needle) (name ^ ": " ^ m)
     | Ok _ -> fail (name ^ " was accepted") in
-  refuse "close outside a split" (E.Close_panel { node = [ "editor"; "shell" ] }) "inside a split";
+  refuse "close the workspace" (E.Close_panel { node = [ "editor"; "shell" ] }) "Keep at least one";
   refuse "an unknown panel type" (E.Set_panel_kind { node = [ "editor"; "network" ]; kind = "dashboard" }) "Unknown panel type";
   refuse "resize a panel" (E.Set_layout_size { node = [ "editor"; "network" ]; size = `Ratio 0.4 }) "not a split";
   refuse "no such binding" (E.Split_panel { node = [ "editor"; "nothing" ]; axis = `H }) "no longer exists";
-  E3.close plain; E3.close e
+  let floating = editor (with_editor
+    "(let* [main (ui/graph) outline (ui/outline) window (ui/floating outline) tiles (ui/tile main window)] (ui/workspace tiles))") in
+  (match E3.edit floating (E.Close_panel {node = ["editor"; "outline"]}) with
+   | Ok closed ->
+       check (Panels.to_string (tree closed) = "(tile graph)") "closing a floating panel left its wrapper";
+       check (not (has (source closed) "ui/floating")) "empty floating wrapper remained in Lisp";
+       (match E3.edit closed (E.Close_panel {node = ["editor"; "main"]}) with
+        | Error message -> check (has message "Keep at least one") "last panel refusal"
+        | Ok _ -> fail "closing the last panel was accepted")
+   | Error message -> fail message);
+  let switched = editor (with_editor
+    "(let* [main (ui/graph) outline (ui/outline) window (ui/floating outline)] (ui/workspace (ui/switch (ui/split-at \"horizontal\" 0.5 main window) (ui/lisp) :active 0)))") in
+  (match E3.edit switched (E.Close_panel {node = ["editor"; "outline"]}) with
+   | Ok closed ->
+       check (not (has (source closed) "ui/floating") && has (source closed) "(ui/switch main (ui/lisp)")
+         "closing a floating panel did not clean its switch branch";
+       (match E3.edit closed (E.Close_panel {node = ["editor"; "main"]}) with
+        | Error message -> check (has message "every layout") "empty switch branch refusal"
+        | Ok _ -> fail "closing the last panel in a switch branch was accepted")
+   | Error message -> fail message);
+  (* a panel that follows a graph panel keeps following it when a window docks on that panel
+     or is closed: :of names the panel, never the split it ends up in *)
+  let followed = editor (with_editor
+    "(let* [network (ui/graph) inspector (ui/inspector :of network)] (ui/workspace (ui/split-at \"horizontal\" 0.5 network inspector)))") in
+  (match E3.edit followed (E.Layout_window {graph = "editor"; kind = "outline"}) with
+   | Error message -> fail ("new window: " ^ message)
+   | Ok windowed ->
+       (match E3.edit windowed (E.Dock_panel {node = ["editor"; "inspector"]; target = ["editor"; "network"]; side = `Left}) with
+        | Ok docked -> check (has (source docked) ":of network)") ("docking on a followed panel renamed :of: " ^ source docked)
+        | Error message -> fail ("dock on a followed panel: " ^ message)));
+  E3.close followed;
+  E3.close switched; E3.close floating; E3.close plain; E3.close e
 
 (* an editor graph that hides everything is valid; Restore layout brings the default back *)
 let run_restore () =
@@ -2059,6 +2090,11 @@ let run_op_inspector () =
   step ~mouse:(at 90) [ Event.MouseReleased (Input.LeftButton, at 90) ];
   step [];
   check (source !e <> before && not (has (source !e) "(* 3.0 a)") && has (source !e) "(* ") ("the inspector showed no editable input row of a * node: " ^ source !e);
+  let label = E3.undo_label !e and authored = source !e in
+  click (float (ix + 210), float (iy + 210)); step [];
+  check (dump_line !e "scope selected" = "g/a" && E3.Private.inspector_subject !e = Some ["g"; "a"])
+    ("a wired inspector value did not select its source: " ^ dump_line !e "scope selected");
+  check (source !e = authored && E3.undo_label !e = label) "following a wire edited the document";
   E3.close !e
 
 (* a nested operator argument shows as sub-rows, one per literal leaf: a drag on the 3.0 of the product in b is a
@@ -2133,9 +2169,63 @@ let run_expression_chip () =
   let after = source !e in
   check (after <> before && has after "(+ 2.0 (* " && not (has after "(* 3.0 a)"))
     ("the 3.0 of the * was not editable from the row's inspector: " ^ after);
+  click (at 214 0); step [];
+  check (dump_line !e "scope selected" = "g/a")
+    ("a nested inspector reference followed its parent expression: " ^ dump_line !e "scope selected");
   E3.close !e
 
-let run () = run_expression_chip (); run_nested_inspector (); run_op_inspector (); run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
+let run_context_menus () =
+  let exercise body check_menu =
+    let presets = Filename.temp_dir "rays-context-presets" "" in
+    let e = ref (editor ~presets ("(workspace menus (graph g :context value 0) (graph editor :context editor " ^ body ^ "))"))
+    and count = ref 0 in
+    let step ?(buttons = []) point events =
+      incr count; e := E3.update !e (frame ~buttons point events !count) in
+    let hover point = step point [Event.MouseMoved point] in
+    let click button point =
+      hover point;
+      step ~buttons:[button] point [Event.MousePressed (button, point)];
+      step point [Event.MouseReleased (button, point)] in
+    step (450., 300.) []; step (450., 300.) [];
+    Fun.protect ~finally:(fun () -> E3.close !e) (fun () -> check_menu e step hover click) in
+  exercise
+    "(let* [outline (ui/outline) main (ui/graph \"g\")] (ui/workspace (ui/split \"horizontal\" outline main :first_size 216)))"
+    (fun e step hover click ->
+      let origin = 20., 220. in
+      click Input.RightButton origin;
+      hover (40., 239.); step (40., 239.) [];
+      let choice = 189., 335. in
+      hover choice; step choice [];
+      click Input.LeftButton choice; step choice [];
+      check (E3.undo_label !e = Some "New graph" && has (source !e) "(graph value :context value")
+        ("Outline's New graph submenu did not create its selected context: " ^ source !e));
+  exercise
+    "(let* [main (ui/graph \"g\") time (ui/timeline)] (ui/workspace (ui/split \"vertical\" main time :second_size 24)))"
+    (fun e step _hover click ->
+      let geometry = Layout.geometry ~hidden:[] (shell_of (build_ok (E3.workspace !e))).tree (frame (0., 0.) [] 0) in
+      let x, y, _, _ = (Option.get (Layout.find geometry Timeline)).body in
+      let origin = float (x + 500), float (y + 12) in
+      click Input.RightButton origin; step origin [];
+      let choice = fst origin +. 20., min (snd origin) (640. -. 335.) +. 19. in
+      click Input.LeftButton choice; step choice [];
+      check (E3.undo_label !e = Some "Split panel" && has (source !e) "time_a (ui/timeline)"
+        && has (source !e) "time_b (ui/lisp)")
+        ("the timeline context menu did not open at the pointer: " ^ source !e);
+      check (Sketch_support.Timeline.mode (E3.timeline !e) = Playing) "a timeline right-click sought the playhead");
+  exercise "(ui/workspace (ui/graph \"g\"))"
+    (fun e step _hover click ->
+      (* / t reveals the implicit strip when there is no authored timeline leaf. *)
+      step (450., 300.) [Event.KeyPressed (Input.KeyChar '/'); Event.KeyPressed (Input.KeyChar 't')];
+      step (450., 300.) [];
+      let _, y, _, _ = (E3.panes !e (frame (0., 0.) [] 0)).timeline in
+      let origin = 500., float (y + 12) in
+      click Input.RightButton origin; step origin [];
+      click Input.LeftButton (520., min (snd origin) (640. -. 86.) +. 19.);
+      step origin [];
+      check (Sketch_support.Timeline.mode (E3.timeline !e) = Paused)
+        "the implicit timeline had no context menu at the pointer")
+
+let run () = run_context_menus (); run_expression_chip (); run_nested_inspector (); run_op_inspector (); run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
   run_undo_under_pane (); run_atomic_frame (); run_undo_and_input (); run_carry_reaches_no_history ()
 
 (* Native VIEW regression over the reported sketch, including its piece renderer and a following

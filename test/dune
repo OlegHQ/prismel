@@ -55,6 +55,16 @@
  (modules test_workspace_images_native)
  (libraries rays rays_editor editor_document flow flow_sop procedural ogpu runtime_resources unix))
 
+(executable
+ (name test_flow_shader)
+ (modules test_flow_shader)
+ (libraries rays_editor editor_document flow flow_graph flow_sop procedural sop_catalog))
+
+(rule
+ (alias test_flow_shader)
+ (deps ../sketches/flow_shader/sketch.rays)
+ (action (run %{exe:test_flow_shader.exe} %{dep:../sketches/flow_shader/sketch.rays})))
+
 (rule
  (alias runtest-native)
  (locks smoke_window)
@@ -281,6 +291,7 @@
  (name runtest)
  (deps
   (alias test_rays)
+  (alias test_flow_shader)
   (alias test_text_pane)
   (alias test_editor_consistency)
   (alias test_easy_camera)

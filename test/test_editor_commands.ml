@@ -15,9 +15,9 @@ let canvas_preview () =
   let module E3 = Rays_editor.Editor3 in
   let text = {|(workspace v
     (graph image :context image
-      (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 64 :height 32))
+      (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 64 :height 8))
     (graph picture :context draw
-      (draw/image (ref image) :at [0 0 0]))
+      (draw/merge (draw/background "#0b0b0e") (draw/image (ref image) :at [0 0 0])))
     (graph settings :context settings (settings/config :title "v" :width 900 :height 640))
     (graph editor :context editor
       (let* [preview (ui/canvas (ref picture))
@@ -45,8 +45,53 @@ let canvas_preview () =
       "v on an image node did not show exactly its fitted image in the canvas pane";
     e := step (Rays_editor.Reduce.view !e [ "image"; "@result" ]);
     e := step !e;
-    check (shown () = default) "v again did not restore the canvas pane's own picture");
+    check (shown () = default) "v again did not restore the canvas pane's own picture";
+    e := step (Rays_editor.Reduce.select_path !e [ "picture"; "@result#0" ]);
+    e := step (Rays_editor.Reduce.view !e [ "picture"; "@result#0" ]);
+    check (List.for_all ((=) []) (shown ()))
+      "View on an inline background did not replace the canvas picture";
+    e := step (Rays_editor.Reduce.view !e [ "picture"; "@result#0" ]);
+    check (shown () = default) "View on the inline background again did not restore the picture");
   ()
+
+(* frame/width and frame/height in a canvas pane are the pane's size, not the window's *)
+let canvas_frame_size () =
+  let module E3 = Rays_editor.Editor3 in
+  let text = {|(workspace f
+    (graph picture :context draw
+      (draw/image (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width (frame/width) :height (frame/height))
+        :at [0 0 0]))
+    (graph settings :context settings (settings/config :title "f" :width 900 :height 640))
+    (graph editor :context editor
+      (let* [preview (ui/canvas (ref picture))
+             network (ui/graph "picture" :focus true)]
+        (ui/workspace (ui/split "horizontal" preview network :second_size 500)))))|} in
+  let workspace = match Rays_editor.Workspace.load text with
+    | Ok workspace -> workspace
+    | Error ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
+  let editor = Result.get_ok (E3.create ~workspace ~await:true ~domains:1 ~prepare:(fun _ _ -> Ok ())
+    ~scene3:(fun _ () -> Rays.Scene3.empty) ()) in
+  Fun.protect ~finally:(fun () -> E3.close editor) (fun () ->
+    let step e count = E3.update e (Test_editor_input.frame (450., 300.) [] count) in
+    let e = step (step (step editor 1) 2) 3 in
+    let sizes = List.concat_map (fun scene -> Array.to_list (Scene.Private.commands scene)
+      |> List.filter_map (function
+        | Scene_command.Render_ir.Image i -> Some (i.destination.width, i.destination.height) | _ -> None))
+      (E3.Private.canvas_scenes e) in
+    check (match sizes with [ w, h ] -> w > 0. && w < 500. && h > 0. && h < 640. | _ -> false)
+      "frame/width and frame/height in a canvas pane are not the pane's size")
+
+(* every language form of the add menu starts as an expression that checks *)
+let menu_forms () =
+  let forms = Rays_editor.Editor3.Private.menu_forms in
+  List.iter (fun form -> check (List.mem_assoc form forms) ("the add menu has no " ^ form))
+    [ "if"; "cond"; "case"; "for"; "fold"; "scan"; "sum"; "fn"; "map"; "filter"; "reduce"; "sort-by";
+      "list"; "record"; "let*"; "state" ];
+  List.iter (fun (form, text) ->
+    let source = Printf.sprintf "(workspace m (graph g :context value (let* [added %s] 0)))" text in
+    match Rays_editor.Workspace.load source with
+    | Ok _ -> ()
+    | Error ds -> failwith (form ^ ": " ^ String.concat "; " (List.map Flow.Diagnostic.to_string ds))) forms
 
 let has text piece =
   let n = String.length piece in
@@ -315,6 +360,8 @@ let run () =
     step [] 200; E3.crash_dump !current directory;
     check (contains (dump ()) "key hud: -\n") "key HUD outlived 1.5 seconds");
   canvas_preview ();
+  canvas_frame_size ();
+  menu_forms ();
   image_cook ();
   new_graphs ();
   print_endline "editor commands: the host rejects ambiguity and share alias/scoped keyboard/palette actions"

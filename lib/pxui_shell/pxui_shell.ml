@@ -145,11 +145,17 @@ module Layout = struct
     let status = min status_height (max 0 (frame.height - header - timeline - 1)) in
     let bottom = frame.height - status - timeline in
     let leaves = ref [] and splitters = ref [] and floats = ref [] in
-    let leaf ?(floating = false) path panel ((fx, fy, fw, fh) as outer) =
+    let leaf ?(floating = false) path panel outer =
+      let collapsed = (state path).Editor_core.Panels.collapsed in
+      (* a collapsed window is a short tab, its title and the expand button, wherever its place
+         came from: a saved window or the default one of a ui/floating *)
+      let (fx, fy, fw, fh) as outer = match outer with
+        | x, y, w, _ when floating && collapsed ->
+            x, y, min w (max 90 (60 + (7 * String.length (Editor_core.Panels.name panel)))),
+            header_margin + header_height + 2
+        | outer -> outer in
       (* a window keeps its 1-point line-3 edge on all four sides: header and body lie inside it *)
       let x, y, w, h = if floating then fx + 1, fy + 1, max 1 (fw - 2), max 1 (fh - 2) else outer in
-      (* a docked timeline is its strip alone *)
-      let collapsed = (state path).Editor_core.Panels.collapsed in
       (* a header is a 24-point row under a 4-point margin; a docked collapsed pane is its row alone *)
       (* a docked timeline under 90 points is its strip alone; a taller one (timeline.html) has
          a header too *)
@@ -264,10 +270,7 @@ module Layout = struct
       | Some (x, y, w, h) ->
           let w = min frame.width w and h = min frame.height h in
           let x = max 0 (min x (frame.width - w)) and y = max 0 (min y (frame.height - header_height)) in
-          (* a collapsed window is a short tab: its title and the expand button *)
-          let w = if (state path).collapsed
-            then min w (max 90 (60 + (7 * String.length (Editor_core.Panels.name panel)))) else w in
-          leaf ~floating:true path panel (x, y, w, if (state path).collapsed then header_margin + header_height + 2 else min h (frame.height - y))) all;
+          leaf ~floating:true path panel (x, y, w, min h (frame.height - y))) all;
     { leaves = List.rev !leaves; splitters = List.rev !splitters;
       status_at = (0, frame.height - status, frame.width, status);
       timeline_at = (0, bottom, frame.width, timeline) }
@@ -452,6 +455,40 @@ module Chrome = struct
         | [x; y; w; h] -> x, y, w, h | _ -> bounds)
     | None -> bounds
 
+  let panel_menu ?(state = fun _ -> Editor_core.Panels.default_state) ?(key_of = fun _ -> "")
+      ui (l : leaf) box ~at =
+    let module Ui = Pxui.Ui in
+    Option.iter (fun (x, y) ->
+      Ui.set_state ui box 1;
+      Ui.set_text_state ui box (Some (Printf.sprintf "%g %g" x y))) at;
+    if Ui.state ui box ~default:0 <> 1 then [] else
+    let x, y, w, h = l.frame in
+    let at = match Option.map (String.split_on_char ' ') (Ui.text_state ui box) with
+      | Some [mx; my] -> (match float_of_string_opt mx, float_of_string_opt my with
+          | Some mx, Some my -> mx, my | _ -> float x, float (y + h))
+      | _ -> float x, float (y + h) in
+    let rows = ["Split right", true; "Split down", true;
+      (if (state l.path).window = None then "Float" else "Dock"), true; "Close", true; "", false]
+      @ List.map (fun (name, _) -> name, true) retypes in
+    let last key = if key = "" then "" else String.sub key (String.length key - 1) 1 in
+    let keys = [key_of "panel.split-right"; key_of "panel.split-below"; key_of "panel.float";
+      key_of "panel.close"; ""] @ List.map (fun (_, panel) -> last (key_of (match panel with
+        | Graph -> "panel.graph" | List -> "panel.list" | Lisp -> "panel.lisp"
+        | Inspector -> "panel.inspector" | Spreadsheet -> "panel.spreadsheet" | Outline -> "panel.outline"
+        | Canvas _ -> "panel.canvas" | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
+    let current = 5 + Option.value ~default:0 (List.find_index (fun (_, panel) ->
+      match panel, l.panel with View _, View _ | Canvas _, Canvas _ -> true | a, b -> a = b) retypes) in
+    match Ui.context_menu ui ~at ~width:232. ~keys ~selected:current ~lead_from:5
+        ("workspace-menu-" ^ key l.path) rows with
+    | `Open -> []
+    | `Dismiss -> Ui.set_state ui box 0; []
+    | `Pick i -> Ui.set_state ui box 0;
+        [match i with
+         | 0 -> Split_panel (l.path, `H) | 1 -> Split_panel (l.path, `V)
+         | 2 -> Window (l.path, if (state l.path).window <> None then None else Some (x, y, max 120 w, max 80 h))
+         | 3 -> Close_panel l.path
+         | i -> Retype_panel (l.path, snd (List.nth retypes (i - 5)))]
+
   (* Chrome of the retained workspace, painted and hit through PXUI boxes:
      panel backgrounds, splitters, and header bars with a collapse button and a
      right-click menu (split, close, retype). *)
@@ -581,47 +618,12 @@ module Chrome = struct
           end
         end
       end;
-      let opened = Ui.state ui box ~default:0 = 1 in
       (* the whole empty header drags; a click that did not move opens the menu *)
       let still = Float.hypot (fst drag.release_point -. fst drag.press_point)
           (snd drag.release_point -. snd drag.press_point) < 4. in
-      let opened = opened || Ui.context_clicked drag || (drag.clicked && still) in
-      Ui.set_state ui box (if opened then 1 else 0);
-      if opened then begin
-        (* the sheet's [04]: the four actions with their leader keys, a rule, the panel kinds (a square
-           before the one in use, the key that makes the panel one at the right); the keys are the
-           host's own ([key_of] a command id), the kinds' one letter.  The size of the split is the
-           gutter's right-click. *)
-        let rows = [ "Split right", true; "Split down", true;
-                     (if (state l.path).window = None then "Float" else "Dock"), true; "Close", true;
-                     "", false ]
-          @ List.map (fun (name, _) -> name, true) retypes in
-        let last key = if key = "" then "" else String.sub key (String.length key - 1) 1 in
-        let keys = [ key_of "panel.split-right"; key_of "panel.split-below"; key_of "panel.float";
-                     key_of "panel.close"; "" ]
-          @ List.map (fun (_, panel) -> last (key_of (match panel with
-              | Graph -> "panel.graph" | List -> "panel.list" | Lisp -> "panel.lisp"
-              | Inspector -> "panel.inspector" | Spreadsheet -> "panel.spreadsheet" | Outline -> "panel.outline"
-              | Canvas _ -> "panel.canvas" | Timeline -> "panel.timeline" | View _ -> "panel.viewport"))) retypes in
-        let current = let rec find i = function
-          | [] -> 5
-          | (_, panel) :: rest ->
-              (* every viewport is the Viewport row, whatever its key *)
-              if (match panel, l.panel with View _, View _ | Canvas _, Canvas _ -> true | a, b -> a = b) then 5 + i
-              else find (i + 1) rest in
-          find 0 retypes in
-        match Ui.context_menu ui ~at:(float x, float (y + h)) ~width:232. ~keys ~selected:current ~lead_from:5
-            ("workspace-menu-" ^ label) rows with
-        | `Open -> ()
-        | `Dismiss -> Ui.set_state ui box 0
-        | `Pick i -> Ui.set_state ui box 0;
-            emit (match i with
-              | 0 -> Split_panel (l.path, `H) | 1 -> Split_panel (l.path, `V)
-              | 2 -> Window (l.path, if (state l.path).window <> None then None else
-                    Some (let fx, fy, _, fh = l.frame in fx, fy, max 120 w, max 80 fh))
-              | 3 -> Close_panel l.path
-              | i -> Retype_panel (l.path, snd (List.nth retypes (i - 5))))
-      end;
+      let at = if Ui.context_clicked drag then Some drag.release_point
+        else if drag.clicked && still then Some (float x, float (y + h)) else None in
+      List.iter emit (panel_menu ~state ~key_of ui l box ~at);
       l, title l, box, button, grip) headed in
     (* the tip of a panel being moved: a 20-point sheet with a line-2 edge, the label size in ink *)
     Option.iter (fun (wx, wy, ww) ->
@@ -1269,7 +1271,7 @@ module Timeline_bar = struct
     let module Ui = Pxui.Ui in
     let theme = Ui.theme ui in
     let fx = float x and fy = float y and fw = float width and fh = float height in
-    let bar = Ui.box ui ~flags:Ui.clip ~w:(Ui.Px fw) ~h:(Ui.Px fh) ~at:(fx, fy) "workspace-timeline" in
+    let bar = Ui.box ui ~flags:Ui.(clip + clickable) ~w:(Ui.Px fw) ~h:(Ui.Px fh) ~at:(fx, fy) "workspace-timeline" in
     let top = if edge then 1. else 0. in
     Ui.draw ui bar (fun paint (x, y, w, h) ->
       Ui.Paint.fill paint ~x ~y ~w ~h theme.panel;
@@ -1322,7 +1324,7 @@ module Timeline_bar = struct
       let ruler = Ui.box ui ~flags:Ui.(clickable + blocking) ~at:(ruler_x, ruler_y)
           ~w:(Ui.Px ruler_w) ~h:(Ui.Px ruler_h) "timeline-scrub" in
       let signal = Ui.signal ui ruler in
-      let scrub = if (signal.held || signal.released) && ruler_w > 1. then begin
+      let scrub = if signal.button = Some Input.LeftButton && (signal.held || signal.released) && ruler_w > 1. then begin
           let px = fst (if signal.released then signal.release_point else signal.pointer) in
           let rx, _, _, _ = Ui.rect ui ruler in
           Some (Float.round (Float.max 0. (Float.min 1. ((px -. rx -. inner_x) /. span)) *. range))
@@ -1905,7 +1907,7 @@ module Inspector = struct
 
   type flow_change = Edited of string * Param.value
     | Pinned of string * bool | Reset of string
-    | Expression of string * string
+    | Expression of string * string | Follow of string
 
   let rec insert path field items = match path with
     | [] -> items @ [Field field]
@@ -2050,7 +2052,11 @@ module Inspector = struct
               ~line:(Pxui.Theme.ports theme).float
               ~valid:expression ("flow-expression-" ^ path) source in
           if text = source then [] else [Expression (path, text)]
-        else (Ui.draw ui box (fun paint (x, y, _, _) ->
+        else (let link = Ui.box ui ~flags:Ui.(clickable + tab_stop_marked)
+            ~at:(control_x, control_y) ~w:(Ui.Px (Float.max 1. (control_w -. 24.))) ~h:(Ui.Px 20.)
+            ("flow-source-" ^ path) in
+          let followed = (Ui.signal ui link).clicked in
+          Ui.draw ui box (fun paint (x, y, _, _) ->
           let ty = Kit.text_y ui (y +. control_y -. 0.5) 20. in
           let left = x +. control_x +. 2. and right = x +. control_x +. control_w -. 2. in
           Ui.Paint.text paint ~at:(left, ty) ~color:theme.accent "\xe2\x86\x90";
@@ -2060,7 +2066,8 @@ module Inspector = struct
             (Ui.ellipsis ~width:(Ui.Paint.text_width paint ~size:(Ui.font_size ui)) ~limit:(right -. source_x -. live_w) source);
           Option.iter (fun value ->
             Ui.Paint.text paint ~color:theme.foreground
-              ~at:(right -. Ui.Paint.text_width paint value, ty) value) live); []) in
+              ~at:(right -. Ui.Paint.text_width paint value, ty) value) live);
+          if followed then [Follow path] else []) in
         let reset = hovered && action ui ("reset-" ^ path) "\xc3\x97" ~x:(width -. 32.)
             ~y:control_y ~enabled:true () in
         let pin = pinnable && action ui ("pin-" ^ path) "pin" ~x:0. ~y:control_y ~enabled:true () in

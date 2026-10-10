@@ -789,6 +789,19 @@ let run () =
   if !result <> `Dismiss then fail "press outside did not dismiss the context menu";
   Ui.destroy ui;
   (* Text areas: the text_field edit and IME path over lines. *)
+  let ui = Ui.create ~font_size:11 () in
+  let submenu events = Ui.frame ui (frame ~scale:1. ~time:0. events) (fun ui ->
+    Ui.context_menu ui ~at:(20., 20.) ~width:150.
+      ~submenus:[Ui.{row = 0; rows = ["Draw", true; "Value", true]; keys = []; current = None}]
+      "submenu" ["New graph", true; "Delete", true]) in
+  ignore (submenu []);
+  ignore (submenu [move (60, 38)]);
+  ignore (submenu [move (190, 62)]);
+  if submenu [press (190, 62)] <> `Open then fail "submenu committed on press";
+  if submenu [] <> `Open then fail "submenu lost capture between frames";
+  if submenu [release (190, 62)] <> `Pick 3 then fail "submenu did not commit on release";
+  if submenu [press (300, 200)] <> `Dismiss then fail "submenu did not dismiss outside";
+  Ui.destroy ui;
   let area = ref "" and readonly = ref false and errors = ref [] and wrapped = ref false
   and submitted = ref false and language = ref None and context = ref None and scrubs = ref []
   and scrub_edits = ref [] in

@@ -802,7 +802,28 @@ let scope_gestures () =
   check (List.mem heart (Scope.selected view) && List.mem [ "flower"; "result" ] (Scope.selected view))
     "Shift marquee did not add to the selection";
   let view, _ = drag (settled (Scope.select [ heart ] (fst (scope_view w "flower")))) (int_of_float (rx -. 4.), int_of_float (ry -. 4.)) (int_of_float (rx +. rw +. 4.), int_of_float (ry +. rh +. 4.)) in
-  check (not (List.mem heart (Scope.selected view))) "a plain marquee kept the old selection"
+  check (not (List.mem heart (Scope.selected view))) "a plain marquee kept the old selection";
+  (* A narrow crossing must select the unnamed result too, without enclosing its card. *)
+  let workspace = Editor_document.Workspace_doc.of_text scope_catalog
+    "(workspace crossing (graph g :context value (let* [a 1.0] (+ a 2.0))))"
+    |> Result.get_ok |> fun doc -> doc.checked in
+  let scope = P.of_graph scope_catalog workspace "g" in
+  let result = ["g"; "@result"] and upstream = ["g"; "a"] in
+  check ((Option.get (P.find scope result)).synthetic) "crossing fixture has no unnamed result";
+  List.iter (fun level ->
+    let view = Scope.create ~width:3000 ~height:2000 ()
+      |> Scope.with_scope ~key:"g" ~level:(fun _ -> Some (level, true)) scope |> settled in
+    let x, y, w, h = Option.get (Scope.Private.box_of view result) in
+    let a = int_of_float (x +. w /. 2. -. 6.), int_of_float (y -. 12.)
+    and b = int_of_float (x +. w /. 2. +. 6.), int_of_float (y +. h +. 12.) in
+    List.iter (fun (a, b) ->
+      let selected, changes = drag view a b in
+      check (Scope.selected selected = [result]) "a crossing marquee skipped the unnamed result";
+      check (List.exists (function Scope.Selected [path] -> path = result | _ -> false) changes)
+        "a crossing marquee did not report the result selection") [a, b; b, a];
+    let selected, _ = drag (Scope.select [upstream] view) ~shift:true a b in
+    check (List.mem upstream (Scope.selected selected) && List.mem result (Scope.selected selected))
+      "Shift crossing did not keep the old selection and add the unnamed result") [P.Card; Chip; Point]
 
 let run_scope () =
   let module E = Flow_graph.Flow_edit in

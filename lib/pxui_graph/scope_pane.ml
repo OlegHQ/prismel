@@ -2144,7 +2144,7 @@ let row_at ?(header = 14.) (p : P.placed) (n : P.node) ~shown ~px ~py =
 let marquee_hits t (rx, ry, rw, rh) =
   let z = t.zoom in
   let hits = Array.fold_left (fun acc ((p : P.placed), ax, ay) -> match p.item with
-    | P.Item n when not n.synthetic ->
+    | P.Item _ ->
         let x, y, w, h = sx t ax, sy t ay, p.w *. z, p.h *. z in
         let touches = x < rx +. rw && x +. w > rx && y < ry +. rh && y +. h > ry in
         let inside = x >= rx && y >= ry && x +. w <= rx +. rw && y +. h <= ry +. rh in

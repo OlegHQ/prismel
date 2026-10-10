@@ -662,7 +662,8 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
       let lowered_level = match value.level with
         | Document.Inside id -> kind value id = Some "geometry" | Scene -> false in
       (* a row of a geometry object's list selects its node in the pane: the inspector follows it *)
-      let scope_selected = if scope_active || (lowered_level && value.scope_key <> None)
+      let scope_selected = if (match value.scope_key with Some k -> Some k.graph = graph_name value | None -> false)
+          || (lowered_level && value.scope_key <> None)
         then inspector_paths (Pxui_graph.Scope.selected scope_view) else [] in
       let open_network = network value in
       let window = List.exists (fun (l : Pxui_shell.Layout.leaf) -> l.floating && l.panel = Inspector && l.body = bounds) g.leaves in
@@ -824,6 +825,18 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
                      | Ok expr, Some (key, sub) -> Some (Object_arg { node = node_id; key; sub; expr })
                      | Error message, _ -> Some (Declined message)
                      | Ok _, None -> None)
+                | Follow path ->
+                    let home = match value.level with
+                      | Document.Scene -> List.assoc_opt node_id value.doc.homes.objects
+                      | Inside _ -> List.assoc_opt node_id value.doc.homes.layers in
+                    Option.bind home (fun (home : Document.home) -> match home with
+                      | Bound_at from ->
+                          Option.bind (Flow_graph.Flow_edit.arg_text ws.source from (Kw path)) (fun expr ->
+                            match expr.Flow.Syntax.node with
+                            | Sym name -> Option.map (fun path -> Follow_source path)
+                                (Text_pane.reference_target ws.source ~from name)
+                            | _ -> None)
+                      | _ -> None)
                 | Pinned _ | Reset _ -> None) edits))) in
           None, changes, [], value.live_cook, [], []) in
     (* an inspector shows the pane in use, or the graph panel its [:of] names; one of another pane
@@ -933,7 +946,36 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
            shortcut_frame in
     let drops = Pxui_shell.Chrome.drop_targets ui ~geometry:g ~state:(panel_state value)
       ~dragging:(List.find_map (function Pxui_shell.Chrome.Dragging (path, released) -> Some (path, released) | _ -> None) intents) in
-    let workspace, drag_changes = layout_intents vw workspace (grips @ drops) in
+    let timeline_menus = List.concat_map (fun ((leaf : Pxui_shell.Layout.leaf), box) ->
+      if leaf.panel <> Timeline || leaf.body = (0, 0, 0, 0) then [] else
+      Pxui.Ui.within ui box (fun () ->
+        Pxui_shell.Chrome.panel_menu ~state:(panel_state value)
+          ~key_of:(fun id -> match List.find_opt (fun (c : Leader.command) -> c.id = id) keymap with
+            | Some {trigger = Some trigger; _} -> Editor_core.Keymap.label trigger | _ -> "")
+          ui leaf box ~at:(Pxui.Ui.context_at ui box))) (of_kind Timeline) in
+    let strip_playback, strip_layout = match timeline_root with
+      | Some (_, box) when (let _, _, _, h = g.timeline_at in h > 0) ->
+          Pxui.Ui.within ui box (fun () ->
+            let module Ui = Pxui.Ui in
+            Option.iter (fun (x, y) -> Ui.set_text_state ui box (Some (Printf.sprintf "%g %g" x y)))
+              (Ui.context_at ui box);
+            match Option.map (String.split_on_char ' ') (Ui.text_state ui box) with
+            | Some [x; y] ->
+                (match float_of_string_opt x, float_of_string_opt y with
+                 | Some x, Some y ->
+                     let playing = Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing in
+                     (match Ui.context_menu ui ~at:(x, y) "timeline-context"
+                       [(if playing then "Pause" else "Play"), true; "Stop", true; "Hide timeline", true] with
+                      | `Open -> [], []
+                      | result ->
+                          Ui.set_text_state ui box None;
+                          (match result with `Pick 0 -> [Pause_toggle], [] | `Pick 1 -> [Stop_playback], []
+                           | `Pick 2 -> [], [Pxui_shell.Chrome.Toggle [-1]] | _ -> [], []))
+                 | _ -> [], [])
+            | _ -> [], [])
+      | _ -> [], [] in
+    let timeline_intents = timeline_intents @ strip_playback in
+    let workspace, drag_changes = layout_intents vw workspace (grips @ drops @ timeline_menus @ strip_layout) in
     let workspace = match workspace.window_live with
       | None -> workspace
       | Some _ when List.exists (function Pxui_shell.Chrome.Window_drag _ -> true | _ -> false)

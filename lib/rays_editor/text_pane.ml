@@ -39,12 +39,13 @@ type state = {
   menu : (float * float) option;  (* the right-click menu, while open *)
   picker : (int * int * bool) option;  (* the colour literal (byte range with its quotes) being edited, and whether it changed *)
   scrubbing : bool;
+  target : path option;  (* a definition revealed in Document, including macros *)
   cache : ((S.t list * Editor_document.Workspace_doc.t option * string * path option * tab) * shown) option;
 }
 
 let initial = { tab = Selection; draft = None; binding_draft = None; graph_draft = None;
   doc_base = None; binding_base = None; graph_base = None;
-  doc_errors = []; binding_errors = []; graph_errors = []; wrap = false; parinfer = true; menu = None; picker = None; scrubbing = false; cache = None }
+  doc_errors = []; binding_errors = []; graph_errors = []; wrap = false; parinfer = true; menu = None; picker = None; scrubbing = false; target = None; cache = None }
 
 (* ---- reading the source ---- *)
 
@@ -52,8 +53,8 @@ let root_form (source : S.t list) name =
   match source with
   | { S.node = S.List (_ :: _ :: items); _ } :: _ ->
       List.find_opt (fun (item : S.t) -> match item.node with
-        | S.List ({ S.node = S.Sym ("graph" | "defn" as h); _ } :: { S.node = S.Sym n; _ } :: _) ->
-            (if h = "defn" then "def:" ^ n else n) = name
+        | S.List ({ S.node = S.Sym ("graph" | "defn" | "defmacro" as h); _ } :: { S.node = S.Sym n; _ } :: _) ->
+            (if h = "defn" then "def:" ^ n else if h = "defmacro" then "macro:" ^ n else n) = name
         | _ -> false) items
   | _ -> None
 
@@ -150,7 +151,24 @@ let mark spans (found : (S.t option * S.t) option) = match found with
        | _ -> None)
 
 (* the path of the innermost binding whose text holds [byte] (name through expression) *)
-let binding_at (shown : shown) byte = match shown.body with
+let graph_at (shown : shown) byte =
+  match shown.source with
+  | {S.node = S.List (_ :: _ :: items); _} :: _ ->
+      List.find_map (fun (root : S.t) ->
+        match S.children root, span_of shown.spans root with
+        | {S.node = S.Sym ("graph" | "defn" | "defmacro" as h); _} :: {node = S.Sym name; _} :: _, Some span
+          when span.start <= byte && byte < span.finish ->
+            Some ((if h = "defn" then "def:" else if h = "defmacro" then "macro:" else "") ^ name, root)
+        | _ -> None) items
+  | _ -> None
+
+let binding_at (shown : shown) byte =
+  let graph, body = match shown.body with
+    | Some body -> shown.graph, Some body
+    | None -> (match graph_at shown byte with
+        | Some (graph, root) -> graph, Option.map (fun body -> body, shown.spans) (last root)
+        | None -> shown.graph, None) in
+  match body with
   | None -> None
   | Some (body, spans) ->
       let holds (f : S.t) = match span_of spans f with
@@ -181,7 +199,82 @@ let binding_at (shown : shown) byte = match shown.body with
         | Some _ as found -> found
         | None -> if scope body = None && holds body && Flow_graph.Flow_edit.node_call body
             then Some (nested [] "@result" body) else None in
-      Option.map (fun names -> shown.graph :: names) found
+      Option.map (fun names -> graph :: names) found
+
+(* Resolve a wire/read in its lexical scope, from the inner scope outwards.
+   A dotted record output still belongs to the binding before its first dot. *)
+let reference_target source ~from name =
+  let module E = Flow_graph.Flow_edit in
+  let name = match String.index_opt name '.' with
+    | Some i -> String.sub name 0 i | None -> name in
+  let parameter (p : S.t) = match p.node with S.List (p :: _) -> E.pat_names p | _ -> E.pat_names p in
+  let rail_names expr = match S.head expr, S.children expr with
+    | Some "fn", _ :: {S.node = S.Vec ps; _} :: _ -> List.concat_map parameter ps
+    | Some ("for" | "sum" | "fold" | "scan" | "state"), _ :: args ->
+        List.concat_map (fun (arg : S.t) -> match arg.node with
+          | S.Vec ps -> List.concat_map (fun (p, _) -> E.pat_names p) (pairs ps)
+          | _ -> []) (List.filteri (fun i _ -> i < List.length args - 1) args)
+    | _ -> [] in
+  let input prefix = match prefix with
+    | [graph] -> Option.bind (root_form source graph) (fun root ->
+        let params = List.find_map (fun (arg : S.t) -> match arg.node with S.Vec ps -> Some ps | _ -> None)
+          (List.filteri (fun i _ -> i > 1) (S.children root)) in
+        if Option.fold ~none:false ~some:(fun ps -> List.exists (fun p -> List.mem name (parameter p)) ps) params
+        then Some [graph; ":" ^ name] else None)
+    | _ -> None in
+  let rec local prefix leaf =
+    let expr = match prefix with
+      | [graph] -> Option.bind (root_form source graph) last
+      | _ -> Option.map snd (binding source prefix) in
+    let found = Option.bind expr (fun expr ->
+      let body = enter expr in
+      let bindings = match scope body with Some (ps, _) -> ps | None -> [] in
+      let holder, _ = Option.value ~default:(leaf, []) (E.leaf_keys leaf) in
+      let rec before = function
+        | [] -> []
+        | (p, v) :: _ when E.pat_key p = holder ->
+            if S.head v = Some "fn" then [p, v] else []
+        | pair :: rest -> pair :: before rest in
+      let bindings = if List.exists (fun (p, _) -> E.pat_key p = holder) bindings then before bindings else bindings in
+      match List.find_opt (fun (p, _) -> List.mem name (E.pat_names p)) (List.rev bindings) with
+      | Some (p, _) -> Some (prefix @ [E.pat_key p])
+      | None when E.nested name && binding source (prefix @ [name]) <> None -> Some (prefix @ [name])
+      | None when List.mem name (rail_names expr) -> Some prefix
+      | None -> input prefix) in
+    match found, List.rev prefix with
+    | Some _ as found, _ -> found
+    | None, child :: (_ :: _ as parent) -> local (List.rev parent) child
+    | _ -> None in
+  let found = match List.rev from with leaf :: (_ :: _ as prefix) -> local (List.rev prefix) leaf | _ -> None in
+  match found with Some _ as found -> found | None ->
+    List.find_map (fun key -> if root_form source key <> None then Some [key] else None)
+      ["def:" ^ name; "macro:" ^ name; name]
+
+let definition_at (shown : shown) byte =
+  let rec symbol (form : S.t) = match form.node, span_of shown.spans form with
+    | S.Sym name, Some span when span.start <= byte && byte < span.finish -> Some name
+    | _ -> List.find_map symbol (S.children form) in
+  Option.bind (List.find_map symbol shown.source) (fun name ->
+    let from = Option.value ~default:[shown.graph] (binding_at shown byte) in
+    match binding shown.source from with
+    | Some (Some p, _) when (match span_of shown.spans p with
+        | Some span -> span.start <= byte && byte < span.finish | None -> false) -> Some from
+    | _ -> reference_target shown.source ~from name)
+
+let path_mark source spans = function
+  | [graph] -> Option.bind (root_form source graph) (fun root ->
+      Option.map (fun (span : Flow.Diagnostic.span) -> span.start, span.finish) (span_of spans root))
+  | [graph; input] when String.starts_with ~prefix:":" input ->
+      let name = String.sub input 1 (String.length input - 1) in
+      Option.bind (root_form source graph) (fun root ->
+        List.find_map (fun (arg : S.t) -> match arg.node with
+          | S.Vec ps -> List.find_map (fun (p : S.t) ->
+              let pattern = match p.node with S.List (p :: _) -> p | _ -> p in
+              if List.mem name (Flow_graph.Flow_edit.pat_names pattern) then
+                Option.map (fun (span : Flow.Diagnostic.span) -> span.start, span.finish) (span_of spans p)
+              else None) ps
+          | _ -> None) (List.filteri (fun i _ -> i > 1) (S.children root)))
+  | path -> mark spans (binding source path)
 
 (* the bindings of a scene graph that are cameras (the values of [scene/root :camera]) *)
 let cameras source graph =
@@ -288,7 +381,7 @@ let make_shown_with ?workspace source graph selected tab =
   and applied_spans = lazy (snd (Lazy.force printed)) in
   let key = match selected with Some path -> path | None -> [ graph ] in
   match tab with
-  | Document -> { graph; text = Lazy.force applied; mark = None; key; applied; body = None;
+  | Document -> { graph; text = Lazy.force applied; mark = Option.bind selected (path_mark source (Lazy.force applied_spans)); key; applied; body = None;
       source; spans = Lazy.force applied_spans; applied_spans }
   | Selection | Graph ->
       (match root_form source graph with
@@ -296,13 +389,12 @@ let make_shown_with ?workspace source graph selected tab =
            source; spans = []; applied_spans }
        | Some root ->
            let names = match selected with Some (_ :: names) -> names | _ -> [] in
-           let found = Option.bind (last root) (fun body -> find_binding body names) in
            let form = match tab, names with
              | Selection, top :: _ -> Option.value ~default:root (closure root top)
              | _ -> root in
            let text, spans = Flow.Lisp.print [ form ] in
-           { graph; text; mark = mark spans found; key; applied;
-             body = (if tab = Graph then Option.map (fun body -> body, spans) (last root) else None);
+           { graph; text; mark = Option.bind selected (path_mark source spans); key; applied;
+             body = Some ((if form == root then Option.value ~default:root (last root) else form), spans);
              source; spans; applied_spans })
 
 let make_shown source graph selected tab = make_shown_with source graph selected tab
@@ -350,6 +442,12 @@ let patched_shown previous workspace shown =
 (* [shown] recomputed only when the source, the graph, the selection or the
    tab changed *)
 let shown ?workspace state ~(source : S.t list) ~graph ~selected =
+  let graph = match state.tab, state.binding_draft with
+    | Selection, Some (graph :: _, _) -> graph | _ -> graph in
+  let selected = match state.tab, state.binding_draft, state.target with
+    | Selection, Some (path, _), _ -> Some path
+    | Document, _, Some path -> Some path
+    | _ -> selected in
   let key = (source, workspace, graph, selected, state.tab) in
   let same a b = match a, b with None, None -> true | Some a, Some b -> a == b | _ -> false in
   match state.cache with
@@ -555,6 +653,7 @@ type intent =
   | Picker of (int * int * bool) option
   | Open_graph of string
   | Select_binding of path
+  | Jump_definition of path
   | Carry_over of int * bool
 
 let dirty state (shown : shown) = match state.draft with
@@ -667,18 +766,20 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
         (* Command-click follows a (ref name); a click on a colour literal opens the colour control *)
         ~on_click:(fun byte command ->
           if command then
-            (match Lisp_text.ref_at text byte with
-             | Some name when List.mem name names.Lisp_text.graphs -> emit (Open_graph name)
-             | _ ->
-                 (* a name read in the text: its binding is selected, so the inspector follows it *)
-                 Option.iter (fun name -> emit (Select_binding [ shown.graph; name ])) (Lisp_text.symbol_at text byte))
+            (let target = match Lisp_text.ref_at text byte with
+              | Some name when List.mem name names.Lisp_text.graphs -> Some [name]
+              | _ -> if text = shown.text then definition_at shown byte else None in
+             Option.iter (fun path ->
+               if path_mark shown.source shown.spans path = None then emit (Tab Document);
+               emit (Jump_definition path)) target)
           else match List.find_opt (fun (a, b, _) -> a <= byte && byte < b) chips with
             | Some (a, b, _) -> emit (Picker (Some (a, b, false)))
-            | None -> ())
+            | None -> Option.iter (fun path -> emit (Select_binding path)) (caret_select byte))
         (* the caret in a binding selects its node *)
-        ~on_caret:(fun byte -> caret := Some byte; match caret_select byte with
-          | Some path when path <> shown.key -> emit (Select_binding path)
-          | _ -> ())
+        ~on_caret:(fun byte -> caret := Some byte)
+        ~on_caret_move:(fun byte -> match caret_select byte with
+            | Some path when path <> shown.key -> emit (Select_binding path)
+            | _ -> ())
         key text in
     (match !phase with
      | Some `Live ->
@@ -782,11 +883,27 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
     | d :: _ -> String.map (function '\n' -> ' ' | c -> c) (Flow.Diagnostic.to_string d)
     | [] -> if dirty then "Unapplied draft. Every other pane shows the last applied document."
         else clean in
+  let caret_select text =
+    if text = shown.text then binding_at shown else
+    let mapped = lazy (match S.parse text with
+    | Error _ -> None
+    | Ok forms ->
+        let rec spans (form : S.t) = (form.id, form.span) :: List.concat_map spans (S.children form) in
+        let spans = List.concat_map spans forms in
+        let mapped = match state.tab, forms with
+          | Document, _ -> {shown with source = forms; spans; body = None}
+          | Graph, [form] -> {shown with spans; body = Option.map (fun body -> body, spans) (last form)}
+          | Selection, [form] -> {shown with spans; body = Some
+              ((if List.mem (S.head form) [Some "graph"; Some "defn"] then Option.value ~default:form (last form) else form), spans)}
+          | _ -> shown in
+        Some mapped) in
+    fun byte -> Option.bind (Lazy.force mapped) (fun mapped -> binding_at mapped byte) in
   (match state.tab with
    | Document ->
        let text = Option.value ~default:applied state.draft in
        editor "text-document" ~at:(body_y, body_h) ~text ~errors:(real_errors state.doc_errors)
-         ~spans:[] ~apply:(fun t -> Doc_apply t) ~discard:Doc_discard ~can_apply:dirty
+         ~spans:(if dirty then [] else Option.to_list shown.mark) ?reveal:(if dirty then None else Option.map fst shown.mark)
+         ~caret_select:(caret_select text) ~apply:(fun t -> Doc_apply t) ~discard:Doc_discard ~can_apply:dirty
          ~message:(message state.doc_errors ~dirty ~clean:"Source matches the applied document.")
          ~draft:(fun t -> Doc_draft t) ~scrub:(fun t done_ -> Doc_scrub (t, done_)) ()
    | Graph ->
@@ -796,7 +913,7 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
        let spans = if dirty then [] else Option.to_list shown.mark in
        editor "text-graph" ~at:(body_y, body_h) ~text ~errors:(real_errors state.graph_errors)
          ~spans ?reveal:(if dirty then None else Option.map fst shown.mark)
-         ~caret_select:(fun byte -> if dirty then None else binding_at shown byte) ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
+         ~caret_select:(caret_select text) ~apply:(fun t -> Graph_apply (shown.graph, t)) ~discard:Graph_discard ~can_apply:dirty
          ~message:(message state.graph_errors ~dirty
            ~clean:(Printf.sprintf "Edit %s as text; Check and apply checks the whole workspace." shown.graph))
          ~draft:(fun t -> Graph_draft (shown.graph, t))
@@ -809,6 +926,7 @@ let view ui ~bounds:(x, y, width, height) ~tabs_right ~vocab ~names state (shown
        let spans = if dirty then [] else Option.to_list shown.mark in
        editor "text-selection" ~at:(body_y, body_h) ~text ~errors:(real_errors state.binding_errors)
          ~spans ?reveal:(Option.map fst shown.mark)
+         ~caret_select:(caret_select text)
          ~apply:(fun t -> Binding_apply (shown.key, t)) ~discard:Binding_discard ~can_apply:dirty
          ~message:(message state.binding_errors ~dirty
            ~clean:"The selection with what it reads; Check and apply writes the bindings shown.")

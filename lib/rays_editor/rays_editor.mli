@@ -89,7 +89,7 @@ module Private : sig
 
   module Leader : sig
     type action =
-      | Save_preset | Browse_presets | Save_source | Reload_source
+      | Save_preset | Browse_presets | Save_source | Reload_source | Open_source
       | Toggle_timeline | Toggle_graph | Toggle_inspector | Hide_ui | Open_camera
       | Play_pause | Reset | Stop
       | Add_node | Frame_tile | Frame_camera
@@ -199,8 +199,10 @@ module Private : sig
       applied_spans : Flow.Lisp.spans Lazy.t;
     }
     val binding_at : shown -> int -> string list option
-    (** The path of the innermost node of the Graph tab whose text holds a byte: a binding,
-        the result, or a call nested in one of their inputs. *)
+    (** The innermost binding or inline node at a byte in any tab. *)
+
+    val reference_target : Flow.Syntax.t list -> from:string list -> string -> string list option
+    val definition_at : shown -> int -> string list option
     val make_shown : Flow.Syntax.t list -> string -> string list option -> tab -> shown
     val scrub_op : shown -> int * int -> string -> Flow_graph.Flow_edit.op option
     val line_of : string -> Flow.Diagnostic.t -> int option
@@ -350,6 +352,8 @@ module Editor3 : sig
     (** The node the inspector shows for the selection, when it is exactly one. *)
     val new_graph : 'prepared t -> string -> Flow_graph.Flow_edit.op
     (** The [Set_graph] a "New graph" of this context name ([sop], [scene], ...) writes. *)
+    val menu_forms : (string * string) list
+    (** The language forms of the add menu with the Lisp each is added as. *)
     val image_plan : 'prepared t -> Flow.Eval.plan
     val image_payload : ?state:Flow.Eval.state -> ?live:Frame_input.t ->
       'prepared t -> Flow.Eval.value -> (Procedural.Image.t,Flow.Diagnostic.t) result

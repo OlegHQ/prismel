@@ -8,5 +8,9 @@ a stepped echo: x is quantized into bands, and every band to the right is a smal
 fainter copy whose centre has moved right and whose ring colour drifts. Six `panel` calls give
 different bands, radii and palettes; `t` animates drift, breathing and hue as GPU uniforms. One
 kernel holding all four zones would exceed the 64-register packed program, so the zones are layers.
-Only `+ - * / mod max abs` are used, so the measured placement picks Metal.
+The graph overview is `motion` → six named panels → `result`, with a separate background.
+The panels start as compact cards: select one to edit its named macro inputs in the inspector,
+press `o` to reveal its rows, and `v` to preview it. Open `motion` to inspect drift, breathing,
+sway and hue and their per-panel uniforms. Open `ember` to inspect its extra rim layer.
+The shader arithmetic includes `pow` and `sin`; the display kernels run through the GPU lane.
 Run: `dune exec sketches/flow_shader/main.exe`. Edit a card in the graph and the picture follows.

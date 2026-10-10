@@ -130,6 +130,43 @@ let selection_text () =
           | Some (None, { Flow.Syntax.node = List ({ node = Sym "value/hsv"; _ } :: _); _ }) -> true | _ -> false))
     "binding: a nested node is the call written in the input";
   check (T.binding_at d 5 = None) "binding_at: the Document tab has none";
+  let offset_in text part = let rec at i =
+    if i + String.length part > String.length text then fail ("missing token " ^ part)
+    else if String.sub text i (String.length part) = part then i else at (i + 1) in at 0 in
+  List.iter (fun tab ->
+    let shown = T.make_shown bloom "flower" (Some ["flower"; "ring"; "leaf"]) tab in
+    check (T.binding_at shown (offset_in shown.text "leaf (" + 6) = Some ["flower"; "ring"; "leaf"])
+      "all Lisp tabs must select the nested node under the caret";
+    check (T.definition_at shown (offset_in shown.text "(petal :length" + 2) = Some ["def:petal"])
+      "a function call head did not resolve its definition") [T.Selection; Graph; Document];
+  let lexical = Flow.Syntax.parse {|(workspace nav
+    (defmacro panel [x] x)
+    (graph g :context value
+      (let* [motion {:rx 1.0}
+             outer motion.rx
+             inner (let* [motion {:rx 2.0} leaf motion.rx] (panel leaf))]
+        inner)))|} |> Result.get_ok in
+  check (T.reference_target lexical ~from:["g"; "outer"] "motion.rx" = Some ["g"; "motion"])
+    "a dotted output did not resolve its owning binding";
+  check (T.reference_target lexical ~from:["g"; "inner"; "leaf"] "motion.rx" = Some ["g"; "inner"; "motion"])
+    "a shadowed name did not resolve in its inner scope";
+  let shown = T.make_shown lexical "g" (Some ["g"; "inner"]) Graph in
+  check (T.definition_at shown (offset_in shown.text "(panel leaf)" + 2) = Some ["macro:panel"])
+    "a macro call head did not resolve its template";
+  let rails = Flow.Syntax.parse {|(workspace rails
+    (graph g [(x : float 1.0)] :context value
+      (let* [outer x
+             loop (for [x (range 2)] (let* [leaf (+ x 1)] leaf))
+             f (fn [(x : float)] (let* [leaf (+ x 1.0)] leaf))]
+        outer)))|} |> Result.get_ok in
+  check (T.reference_target rails ~from:["g"; "outer"] "x" = Some ["g"; ":x"])
+    "a graph input did not resolve its input card";
+  List.iter (fun tab ->
+    check (marked (T.make_shown rails "g" (Some ["g"; ":x"]) tab) = "(x : float 1.0)")
+      "a referenced graph input was not revealed in Lisp") [T.Graph; Document];
+  List.iter (fun owner ->
+    check (T.reference_target rails ~from:["g"; owner; "leaf"] "x" = Some ["g"; owner])
+      "a local rail binder jumped to a shadowed graph input") ["loop"; "f"];
   (* Command-click, colour chips and the document-aware completions *)
   let module L = Rays_editor.Private.Lisp_text in
   let sample = "(sop/material geo :material (ref cobalt) :tint \"#ff8000\" :note \"#zzzzzz\")" in
@@ -421,7 +458,7 @@ let editor_binding () =
   let host_edited = ws () and host_label = E.undo_label !env in
   click apply;
   check (ws () == host_edited && E.undo_label !env = host_label)
-    "an old Selection draft overwrote a host edit";
+    ("an old Selection draft overwrote a host edit: " ^ dump ());
   check (contains (dump ()) "draft yes" && contains (dump ()) "E_DRAFT_CONFLICT")
     ("an old Selection draft was not kept as a conflict: " ^ dump ());
   E.close !env; Test_workspace_source.remove_tree presets
@@ -892,7 +929,8 @@ let editor_command_click () =
   let catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version
       Sop_catalog.Editor.factories |> Result.get_ok in
   let text = {|(workspace cc
-  (graph g :context value (let* [a 1.0 b (+ 2.0 (* 3.0 a))] (+ a b)))
+  (graph g :context value (let* [a 1.0 b (+ 2.0 (* 3.0 a)) c (ref h)] (+ a b)))
+  (graph h :context value (let* [target 7.0] target))
   (graph editor :context editor
     (ui/workspace (ui/split-at "vertical" 0.12 (ui/graph) (ui/lisp)))))|} in
   let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
@@ -929,11 +967,30 @@ let editor_command_click () =
   let char_w = 6.95 in
   let name = float gx +. 36. +. float col *. char_w +. 3., float gy +. 6. +. 2. +. float line *. line_pitch in
   at name [ Event.MouseMoved name ];
-  at ~keys:[ Input.Meta ] name [ Event.MousePressed (Input.LeftButton, name); Event.MouseReleased (Input.LeftButton, name) ];
+  at name [ Event.MousePressed (Input.LeftButton, name); Event.MouseReleased (Input.LeftButton, name) ];
   step [];
+  check (E.Private.inspector_subject !env = Some ["g"; "@result"])
+    "an ordinary click in Document did not select its containing node";
+  at ~keys:[ Input.Meta ] name [ Event.MousePressed (Input.LeftButton, name); Event.MouseReleased (Input.LeftButton, name) ];
+  step []; step [];
   check (dump_line "scope selected" = "scope selected: g/a")
     ("a Command-click on a name did not select its binding: " ^ dump_line "scope selected");
   check (E.Private.inspector_subject !env = Some [ "g"; "a" ]) "the inspector does not show the Command-clicked binding";
+  let graph_tab = tab_at ~narrow:(gw < 400) ~right:(gx + gw - 36) ~top:gy 1 in
+  at graph_tab [Event.MouseMoved graph_tab];
+  at graph_tab [Event.MousePressed (Input.LeftButton, graph_tab); Event.MouseReleased (Input.LeftButton, graph_tab)];
+  step [];
+  let graph = T.make_shown (E.workspace !env).source "g" None T.Graph in
+  let lines = String.split_on_char '\n' graph.text in
+  let line = Option.get (List.find_index (fun line -> contains line "(ref h)") lines) in
+  let col = let text = List.nth lines line in
+    let rec find i = if String.sub text i 7 = "(ref h)" then i + 5 else find (i + 1) in find 0 in
+  let reference = float gx +. 36. +. float col *. char_w +. 3., float gy +. 8. +. float line *. line_pitch in
+  at reference [Event.MouseMoved reference];
+  at ~keys:[Input.Ctrl] reference [Event.MousePressed (Input.LeftButton, reference); Event.MouseReleased (Input.LeftButton, reference)];
+  step []; step [];
+  check (dump_line "pane graph" = "pane graph: h") "Ctrl-click did not open the referenced graph";
+  check (contains (dump_line "text") "document tab") "an out-of-Graph definition did not switch to Document";
   E.close !env
 
 let run () =

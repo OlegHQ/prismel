@@ -1,0 +1,408 @@
+/* ==========================================================================
+   Minimal Slack-style theme for Campfire
+   Apply: Account settings → Custom styles → paste this whole file → Save.
+   Remove: clear that box and save.
+
+   - Dark sidebar on the left (desktop), room list as flat "# room" rows
+   - Flat, left-aligned messages (yours too), with a row hover highlight
+   - Header bar, boxed composer, green send button
+   - Follows the system light/dark setting
+   ========================================================================== */
+
+:root {
+  /* Sidebar: Slack "Aubergine". For a neutral look try #1a1d21 / #27242c. */
+  --slack-sidebar: #3f0e40;
+  --slack-sidebar-hover: #350d36;
+  --slack-sidebar-text: #cfc3cf;
+  --slack-sidebar-text-strong: #ffffff;
+  --slack-sidebar-line: rgb(255 255 255 / 0.12);
+
+  --slack-accent: #007a5a;          /* send button */
+  --slack-row-hover: #f8f8f8;       /* message hover */
+  --slack-mention-bg: #fef9ec;
+  --slack-mention-bar: #e8a33d;
+  --slack-radius: 6px;
+  --slack-sidebar-px: 260px;
+
+  --font-family: Lato, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+
+  /* Softer greys and Slack's link blue */
+  --lch-gray: 97% 0.002 260;
+  --lch-gray-dark: 91% 0.003 260;
+  --lch-gray-darker: 80% 0.004 260;
+  --lch-blue: 47% 0.13 250;
+  --lch-blue-light: 95% 0.025 250;
+
+  @media (prefers-color-scheme: dark) {
+    --slack-sidebar: #19171d;
+    --slack-sidebar-hover: #27242c;
+    --slack-sidebar-text: #b9b9bb;
+    --slack-row-hover: #222529;
+    --slack-mention-bg: rgb(242 199 68 / 0.1);
+
+    --lch-white: 19% 0.006 260;     /* #1a1d21 instead of pure black */
+    --lch-gray: 24% 0.006 260;
+    --lch-gray-dark: 30% 0.006 260;
+    --lch-gray-darker: 42% 0.006 260;
+    --lch-blue: 72% 0.12 245;
+    --lch-blue-light: 28% 0.05 245;
+  }
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.46;
+}
+
+/* --------------------------------------------------------------------------
+   Layout: sidebar on the left (desktop only; mobile keeps the slide-in panel)
+   -------------------------------------------------------------------------- */
+@media (min-width: 100ch) {
+  body.sidebar {
+    --sidebar-width: var(--slack-sidebar-px);
+
+    grid-template-areas:
+      "sidebar nav"
+      "sidebar main";
+    grid-template-columns: var(--sidebar-width) 1fr;
+  }
+
+  #nav {
+    inset-inline: var(--sidebar-width) 0;
+  }
+
+  .sidebar #main-content {
+    border-inline: 0;
+    margin-inline: 0;
+  }
+
+  /* Header bar */
+  .sidebar #nav {
+    background: var(--color-bg);
+    border-block-end: 1px solid var(--color-border-dark);
+    margin-inline-start: 0;
+    padding-block: 0.5em;
+
+    .room--current,
+    .account-logo {
+      margin-inline-start: 0;
+    }
+  }
+
+  .sidebar .messages {
+    padding-block-start: calc(var(--navbar-height) + 0.5em);
+  }
+
+  .sidebar .typing-indicator {
+    margin-inline-start: 0;
+  }
+
+  .sidebar__tools {
+    inset-inline: 0 auto;
+  }
+
+  #app-logo {
+    display: none;
+  }
+}
+
+/* Room name in the header: plain bold text instead of a black pill */
+#nav .room--current {
+  --btn-background: transparent;
+  --btn-border-color: transparent;
+  --btn-color: var(--color-text);
+
+  font-size: 1.1em;
+  font-weight: 800;
+  padding-inline: 0.25em;
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar
+   -------------------------------------------------------------------------- */
+.sidebar #sidebar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--slack-sidebar);
+  color: var(--slack-sidebar-text);
+}
+
+#sidebar :is(.directs, .sidebar__tools) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--slack-sidebar);
+}
+
+#sidebar .directs {
+  border-block-end: 1px solid var(--slack-sidebar-line);
+  padding-block-end: var(--block-space);
+}
+
+#sidebar .sidebar__tools {
+  border-block-start: 1px solid var(--slack-sidebar-line);
+}
+
+#sidebar .direct__author {
+  color: var(--slack-sidebar-text);
+
+  .unread & {
+    color: var(--slack-sidebar-text-strong);
+
+    &::after {
+      background-color: var(--slack-sidebar-text-strong);
+    }
+  }
+}
+
+/* Room list: flat rows */
+#sidebar .rooms {
+  --row-gap: 1px;
+
+  gap: 1px;
+  padding-inline: 0.6em;
+}
+
+#sidebar .room {
+  --btn-background: transparent;
+  --btn-border-color: transparent;
+  --btn-border-radius: var(--slack-radius);
+  --btn-color: var(--slack-sidebar-text);
+  --btn-padding: 0.3em 0.9em;
+  --hover-size: 0;
+  --hover-filter: none;
+
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--slack-sidebar-text);
+  font-weight: 400;
+  inline-size: 100%;
+  margin-inline-end: 0;
+
+  &:hover {
+    background-color: var(--slack-sidebar-hover);
+  }
+
+  &.unread {
+    box-shadow: none;
+    color: var(--slack-sidebar-text-strong);
+    font-weight: 800;
+  }
+}
+
+#sidebar .room:not(.rooms__new-btn)::before {
+  content: "#";
+  flex-shrink: 0;
+  opacity: 0.6;
+  inline-size: 0.9em;
+}
+
+#sidebar .rooms__new-btn {
+  --btn-color: var(--slack-sidebar-text);
+
+  background-color: var(--slack-sidebar);
+  opacity: 0.85;
+}
+
+/* Sidebar buttons and icons on a dark background */
+#sidebar .sidebar__tool:not(.avatar) {
+  --btn-background: transparent;
+  --btn-border-color: var(--slack-sidebar-line);
+}
+
+#sidebar :is(img.colorize--black, .btn:not(.avatar) img:not([class])) {
+  filter: invert(1);
+}
+
+#sidebar .direct__new .avatar--icon {
+  background-color: var(--slack-sidebar-hover);
+}
+
+/* --------------------------------------------------------------------------
+   Messages: flat rows, everyone left-aligned
+   -------------------------------------------------------------------------- */
+.messages {
+  --message-space: 0;
+  --message-row-gap: 0;
+
+  row-gap: 0;
+}
+
+.message {
+  --content-padding-block: 0;
+  --content-padding-inline: 0;
+
+  column-gap: 0.6em;
+  grid-auto-columns: 36px 1fr min-content;
+  padding-block: 0.45em;
+  padding-inline: 1.25em;
+
+  @media (any-hover: hover) {
+    &:hover {
+      background-color: var(--slack-row-hover);
+    }
+  }
+
+  + .message--threaded {
+    margin-block-start: 0;
+    padding-block-start: 0.1em;
+  }
+}
+
+.message__avatar {
+  --avatar-size: 36px;
+  --avatar-border-radius: var(--slack-radius);
+
+  box-shadow: none;
+
+  .avatar {
+    --avatar-border-radius: var(--slack-radius);
+  }
+}
+
+.message__body {
+  max-inline-size: 100%;
+}
+
+.message__body-content {
+  --message-background: transparent;
+
+  border-radius: 0;
+  inline-size: auto;
+  margin-block-end: 0;
+}
+
+.message__author {
+  font-size: 1em;
+  font-weight: 900;
+}
+
+.message__permalink {
+  font-size: 0.75em;
+}
+
+.message__attachment {
+  border-radius: var(--slack-radius);
+  margin-block-start: 0.3em;
+  max-inline-size: min(480px, 100%);
+}
+
+/* Your own messages: same layout as everyone else's */
+.message--me {
+  grid-auto-columns: 36px 1fr min-content;
+  grid-template-areas:
+    "sep sep sep"
+    "avatar body body";
+
+  :is(.message__body, .message__meta, .message__heading) {
+    justify-self: start;
+  }
+
+  .message__body {
+    flex-direction: row;
+  }
+
+  :is(.message__meta, .message__heading) {
+    flex-direction: row;
+    justify-content: start;
+  }
+
+  .message__meta {
+    padding-inline: 0 calc(var(--btn-size) / 2);
+  }
+
+  .message__avatar {
+    margin-inline: 0;
+  }
+
+  .message__actions {
+    justify-content: start;
+
+    @media (min-width: 100ch) {
+      inset-inline-start: calc(100% + var(--message-column-gap) / 2);
+      inset-inline-end: auto;
+    }
+  }
+}
+
+.message--emoji:not(:has(.composer--edit)) .message__body-content {
+  padding: 0;
+  text-align: start;
+
+  .message--me & {
+    padding: 0;
+    text-align: start;
+  }
+}
+
+/* Mentions: yellow row with a bar, like Slack */
+.message--mentioned {
+  background-color: var(--slack-mention-bg);
+  box-shadow: inset 3px 0 0 var(--slack-mention-bar);
+
+  .message__body-content {
+    --message-background: transparent;
+
+    animation: none;
+  }
+}
+
+/* Day separator: thin rule with a small bordered pill */
+.message__day-separator {
+  font-size: 0.75em;
+  font-weight: 700;
+  margin-block: 0.75em 0.25em;
+  text-transform: none;
+
+  time,
+  span {
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-border-dark);
+    padding: 0.3em 1.2em;
+  }
+
+  &::before,
+  &::after {
+    border-top: 1px solid var(--color-border-dark);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Composer
+   -------------------------------------------------------------------------- */
+.composer {
+  padding: 0.25em 1.25em 1em;
+}
+
+.composer__input.input {
+  --input-border-color: var(--color-border-darker);
+
+  border-radius: 8px;
+  box-shadow: none;
+
+  &:focus-within {
+    --input-border-color: var(--color-text);
+  }
+}
+
+#composer .btn--reversed {
+  --btn-background: var(--slack-accent);
+  --btn-border-radius: var(--slack-radius);
+  --btn-color: #fff;
+}
+
+/* Fewer pill shapes overall */
+code {
+  border-radius: 3px;
+  color: #c01343;
+
+  @media (prefers-color-scheme: dark) {
+    color: #e8912d;
+  }
+}
+
+pre {
+  border: 1px solid var(--color-border-dark);
+  border-radius: 4px;
+  padding: 0.5em 0.75em;
+}

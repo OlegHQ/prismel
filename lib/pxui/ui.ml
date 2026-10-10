@@ -2372,7 +2372,7 @@ let inspector_message ui ~key message =
       ~color:(Theme.ink_2 ui.theme)
       (inspector_fit paint ~size:ui.font_size ~width:(w -. 38.) message))
 
-let popup ui ?stroke ?max_height ?(dismiss_initial = true) ?(attached = false) ?(keep = [])
+let popup_with_related ui ?stroke ?max_height ?(dismiss_initial = true) ?(attached = false) ?(keep = []) ?(related = [])
     ~at:(x, y) ~width ~height label f =
   let key = key_of (current_seed ui) label in
   (* Build a popup before the body it shields. Previous popups arbitrate in
@@ -2381,12 +2381,14 @@ let popup ui ?stroke ?max_height ?(dismiss_initial = true) ?(attached = false) ?
      events, and only the modal one is dismissed, by a press outside it and every [keep] rectangle. *)
   ui.modal_in_frame <- true;
   if not attached then begin
+    let belongs target = hit_within ui target key
+      || List.exists (hit_within ui target) related in
     Int_table.filter_map_inplace (fun target signal ->
-      if hit_within ui target key then Some signal else None) ui.signals;
-    if Option.fold ~none:false ~some:(fun active -> not (hit_within ui active key)) ui.active then begin
+      if belongs target then Some signal else None) ui.signals;
+    if Option.fold ~none:false ~some:(fun active -> not (belongs active)) ui.active then begin
       ui.cancelled <- ui.active_button :: ui.cancelled; ui.active <- None
     end;
-    if ui.focus <> 0 && not (hit_within ui ui.focus key) then unfocus ui
+    if ui.focus <> 0 && not (belongs ui.focus) then unfocus ui
   end;
   let slot = Table.find ui.table key in
   let rect = if slot >= 0 then ui.rx.(slot), ui.ry.(slot), ui.rw.(slot), ui.rh.(slot)
@@ -2411,6 +2413,9 @@ let popup ui ?stroke ?max_height ?(dismiss_initial = true) ?(attached = false) ?
       if attached then ui.modal_extra <- key :: ui.modal_extra else ui.modal_key <- Some key;
       Some result)
   end
+
+let popup ui ?stroke ?max_height ?dismiss_initial ?attached ?keep ~at ~width ~height label f =
+  popup_with_related ui ?stroke ?max_height ?dismiss_initial ?attached ?keep ~at ~width ~height label f
 
 (* A centered panel from last frame's height. *)
 let modal ui ?(width = 320.) label f =
@@ -3291,6 +3296,13 @@ let context_clicked (signal : signal) =
   signal.released && signal.button = Some Input.RightButton
   && ((px -. rx) *. (px -. rx)) +. ((py -. ry) *. (py -. ry)) < 16.
 
+let context_at ui box =
+  Int_table.fold (fun target (value : accumulator) found ->
+    if found = None && hit_within ui target (key box) && value.released && value.button = Some Input.RightButton
+       && Float.hypot (fst value.press_point -. fst value.release_point)
+            (snd value.press_point -. snd value.release_point) < 4.
+    then Some value.release_point else found) ui.signals None
+
 (* What a code editor knows about its text: colours by byte span, matching bracket pairs, the
    indentation of a new line, the brackets typed in pairs, ranked completions for the token at
    the caret, a description of the token under the pointer, and the numeric literals a drag
@@ -3341,7 +3353,7 @@ let scrubbed literal dx ~coarse =
   | None, None -> literal
 
 let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(messages = []) ?(spans = [])
-    ?reveal ?language ?on_context ?on_scrub ?on_scrub_edit ?on_click ?on_caret ?on_drop ?(chips = []) label text =
+    ?reveal ?language ?on_context ?on_scrub ?on_scrub_edit ?on_click ?on_caret ?on_caret_move ?on_drop ?(chips = []) label text =
   (* a line of code is one and a half times its text, as code editors set it (17 points at 11,
      20 at 13): the 24-point row is a control's, twice the text *)
   let row = float (text_line_height ui) in
@@ -3636,6 +3648,8 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   (* scrolling: the wheel, then whatever keeps the caret (or [reveal]) in view *)
   let final = edit.text in
   if focused then Option.iter (fun f -> f edit.caret) on_caret;
+  if focused && !moved && (signal.pressed || signal.dragging || key_events ui body <> []) then
+    Option.iter (fun f -> f edit.caret) on_caret_move;
   (match on_click with
    | Some f when signal.clicked && signal.button = Some Input.LeftButton && scrub_state >= 0 ->
        Option.iter (fun byte -> f byte (command_modifiers (press_keys ui body)))
@@ -4099,6 +4113,7 @@ type submenu = { row : int; rows : (string * bool) list; keys : string list; cur
 
 let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(danger = [])
     ?(submenus = []) ?(lead_from = 0) ?dismiss_initial label items =
+  let submenu_key = key_of (current_seed ui) (label ^ "-sub") in
   (* the width follows the longest row; an empty label is a separator line; [keys] are the
      shortcuts at the right of the rows, in ink-2 at the label size *)
   let row_height = float ui.kit_row_height and gap = 9. in
@@ -4181,7 +4196,8 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
   let keep = List.map sub_geometry submenus in
   let stroke = Theme.edge ui.theme in
   let opened = ref None in
-  match popup ui ~stroke ~keep ?dismiss_initial ~at:(x, y) ~width ~height label (fun () ->
+  let related = if submenus = [] then [] else [submenu_key] in
+  match popup_with_related ui ~stroke ~keep ~related ?dismiss_initial ~at:(x, y) ~width ~height label (fun () ->
       let top = pad "menu-top" in
       let open_row = state ui top ~default:(-1) in
       opened := if open_row >= 0 then Some open_row else None;

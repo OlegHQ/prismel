@@ -552,10 +552,17 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
       | Some List -> Level_map.add value'.level List_view value'.projections
       | Some _ when graph_name value' <> None -> Level_map.add value'.level Text_view value'.projections
       | _ -> value'.projections in
+  let selection_changed = Pxui_graph.Scope.selected result.scope_view <> Pxui_graph.Scope.selected value.scope_view || outlined <> None in
+  let text = if selection_changed then {text with target = None} else text in
+  let locals = if selection_changed then List.map (fun (key, (local : local)) ->
+      key, {local with code = {local.code with target = None}}) result.locals else result.locals in
   let value' = { value' with projections; text;
     rows = row_sets;
     live_cook = result.live_cook } in
-  let value' = apply_text { value' with timeline; history; locals = result.locals } result.text_intents in
+  let value' = List.fold_left (fun value -> function
+    | Follow_source path -> select_source value path
+    | _ -> value) {value' with locals} result.changes in
+  let value' = apply_text { value' with timeline; history } result.text_intents in
   (* each other text pane's intents fold into its own state *)
   let value' = List.fold_left (fun v (key, _, intents) -> apply_text_at v key intents)
     value' result.other_texts |> sync_scope in

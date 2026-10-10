@@ -187,6 +187,24 @@ let () = (* 1. function values *)
   t "fn: inline functions are recorded at their nested card path" (fun () ->
     let rs = records (value "(let* [xs (map (fn [x] (* x 2)) (list 1 2))] (count xs))") in
     assert (List.map snd (recs rs [ "g"; "xs#0"; ":x" ]) = [ Eval.Int 1; Int 2 ]));
+  t "draw: inline calls are recorded at their graph card paths" (fun () ->
+    let ws = check {|(workspace w (graph g :context draw
+      (draw/merge (draw/background "#0b0b0e") (draw/background "#ffffff"))))|} in
+    let evaluated = static ~record:true ws in
+    List.iter (fun path ->
+      assert (List.exists (function _, Eval.Deferred (ty, _) -> ty = Ty.drawing | _ -> false)
+        (recs evaluated.records path))) [["g"; "@result#0"]; ["g"; "@result#1"]]);
+  t "draw: repeated inline macros keep independent image sites" (fun () ->
+    let ws = check {|(workspace w
+      (defmacro panel [color]
+        `(draw/image (image/map (fn [uv#] ~color) :width 2 :height 2)))
+      (graph g :context draw
+        (draw/merge (panel [1 0 0 1]) (panel [0 1 0 1]) (panel [0 0 1 1]))))|} in
+    let evaluated = static ~record:true ws in
+    let images = Array.to_list evaluated.plan.nodes
+      |> List.filter (fun (n : Eval.node) -> n.kind = "image/map") in
+    let sites = List.map (fun (n : Eval.node) -> n.inst, n.site, n.iter) images in
+    assert (List.length images = 3 && List.length (List.sort_uniq compare sites) = 3));
   t "fn: map is typed statically through the function body" (fun () ->
     let ws = check (sop "(let* [cs (map (fn [x] (sop/box :size x)) (list 1 2))] (sop/merge cs))") in
     assert (ty_at ws [ "g"; "cs" ] = "list:geometry" && ty_at ws [ "g"; "cs#0"; "@result" ] = "geometry"));

@@ -33,6 +33,7 @@ module Editor3 = struct
     let status_text value=Core.status_text value.Environment.core
     let inspector_subject value=Core.inspector_subject value.Environment.core
     let new_graph value context=snd (Core.new_graph value.Environment.core context)
+    let menu_forms = List.map (fun (_, form, text, _) -> form, text) Core.forms
     let image_render_stats value=Workspace_images.render_stats value.Environment.host.images
     let image_capture_stats value=Workspace_images.capture_stats value.Environment.host.images
     let canvas_scenes value=List.map (fun (_,(p:Environment.canvas_picture))->p.scene) value.Environment.canvases

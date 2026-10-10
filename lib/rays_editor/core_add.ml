@@ -17,6 +17,27 @@ let add_target value =
        | Inside id when kind value id = Some "world" -> Some ("world", Flow.Context.world)
        | _ -> None)
 
+(* The language's forms, which are not operators: the menu adds each as a card with a small
+   working expression to edit in place.  Section of the Value category, name in the menu, the
+   expression it starts as, the binding's name. *)
+let forms = [
+  "Frame", "state", "(state [previous 0.0] (+ previous (frame/dt)))", "state";
+  "Branch", "if", "(if true 1.0 0.0)", "choice";
+  "Branch", "cond", "(cond false 1.0 :else 0.0)", "choice";
+  "Branch", "case", "(case 0 0 1.0 :else 0.0)", "choice";
+  "Loop", "for", "(for [i (range 4)] i)", "each";
+  "Loop", "fold", "(fold [total 0.0] [i (range 4)] (+ total i))", "folded";
+  "Loop", "scan", "(scan [total 0.0] [i (range 4)] (+ total i))", "steps";
+  "Loop", "sum", "(sum [i (range 4)] i)", "total";
+  "Function", "fn", "(fn [x] x)", "function";
+  "Function", "map", "(map (fn [x] x) (range 4))", "mapped";
+  "Function", "filter", "(filter (fn [x] (> x 1)) (range 4))", "kept";
+  "Function", "reduce", "(reduce (fn [total x] (+ total x)) 0 (range 4))", "reduced";
+  "Function", "sort-by", "(sort-by (fn [x] x) (range 4))", "sorted";
+  "Data", "list", "(list 1.0 2.0 3.0)", "items";
+  "Data", "record", "{:a 1.0 :b 2.0}", "record";
+  "Data", "let*", "(let* [a 1.0] a)", "scope" ]
+
 (* The menu's "Value" entries: a value is a binding with an expression (a number, the time, an
    operator call), which the other nodes read by name ("=number", "=t", "=+", ...). *)
 let value_entries =
@@ -29,8 +50,12 @@ let value_entries =
       off = None } in
   let categorize name = (Option.get (Flow.Op.find name Flow.Context.value)).category in
   [ entry "Math" "=number" "Number"; entry "Math" "=t" "Time (t)"; entry ~output:Flow.Ty.Vec3 "Math" "=vec3" "Vector";
-    entry "Text" "=text" "Text"; entry "Text" "=str" "str"; entry "Frame" "=state" "State" ]
-  @ List.map (fun op -> entry (categorize op) ("=" ^ op) op) Flow.Workspace.value_ops
+    entry "Text" "=text" "Text"; entry "Text" "=str" "str" ]
+  @ List.map (fun (sub, form, _, _) ->
+      entry ~output:(match sub with "Loop" | "Data" | "Function" -> Flow.Ty.List Flow.Ty.Float | _ -> Flow.Ty.Float)
+        sub ("=" ^ form) form) forms
+  @ List.filter_map (fun op -> if List.exists (fun (_, form, _, _) -> form = op) forms then None
+      else Some (entry (categorize op) ("=" ^ op) op)) Flow.Workspace.value_ops
 
 (* the expression and the name a "Value" entry makes *)
 let value_expression ~ops context key =
@@ -44,9 +69,9 @@ let value_expression ~ops context key =
   | "vec3" -> mk (S.Vec [ num "0.0"; num "0.0"; num "0.0" ]), "vector"
   | "text" -> mk (S.Str "text"), "text"
   | "str" -> mk (S.List [ mk (S.Sym "str"); mk (S.Str "text") ]), "text"
-  | "state" ->
-      let expr = Result.get_ok (S.parse "(state [previous 0.0] (+ previous (frame/dt)))") in
-      List.hd expr, "state"
+  | form when List.exists (fun (_, f, _, _) -> f = form) forms ->
+      let _, _, text, name = List.find (fun (_, f, _, _) -> f = form) forms in
+      List.hd (Result.get_ok (S.parse text)), name
   | op ->
       let signature = Flow.Workspace.op_signature ~ops context op in
       let argument (label, ty) = match Flow_graph.Flow_edit.default_for ty label with

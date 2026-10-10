@@ -139,6 +139,10 @@ module Chrome : sig
       [panel.graph] ... [panel.viewport]).  The size of a split is its gutter's right-click
       ({!splitters}).  Pure: the host applies the intents. *)
 
+  val panel_menu : ?state:(Layout.path -> Editor_core.Panels.state) -> ?key_of:(string -> string) ->
+    Pxui.Ui.t -> Layout.leaf -> Pxui.Ui.box -> at:(float * float) option -> intent list
+  (** The shared panel menu, opened at a right-click and retained on [box]. *)
+
   val tools_start : Pxui.Ui.t -> focused:bool -> floating:bool -> collapsed:bool -> string -> float
   (** Where the tools of a header begin, from its left edge: after the title as {!update} lays
       it out, an 8-point gap, the 1 x 12 rule between two 4-point margins and an 8-point gap. *)
@@ -326,7 +330,7 @@ module Inspector : sig
   }
   type flow_change = Edited of string * Editor_core.Param.value
     | Pinned of string * bool | Reset of string
-    | Expression of string * string
+    | Expression of string * string | Follow of string
   val flow_fields : Pxui.Ui.t -> ?expanded:string list -> ?width:float ->
     ?pins:bool -> ?pin_click:bool -> ?chips:(string * Rays.Color.t) list -> ?kind_label:string ->
     ?on_choice:(string -> Pxui.Ui.box -> unit) -> flow_row list -> flow_change list

@@ -56,6 +56,24 @@ let graph_edit ?(merge = Editor_core.History.Step) value name text =
    refused apply keeps the draft and its errors and changes nothing else. *)
 let scrub_merge = Editor_core.History.Gesture "text-scrub"
 
+let select_source value path = match path with
+  | [] -> value
+  | graph :: _ when String.starts_with ~prefix:"macro:" graph -> value
+  | graph :: _ ->
+      let locals = List.map (fun (key, (local : local)) ->
+        key, {local with code = {local.code with target = None}}) value.locals in
+      let next = sync_scope (go {value with text = {value.text with target = None}; locals} graph) in
+      match next.scope_key with
+      | Some {scope; graph = current; _} when current = graph &&
+          (Flow_graph.Projection.find scope path <> None
+           || List.exists (fun (input : Flow_graph.Projection.input) -> input.path = path) scope.inputs) ->
+          if Pxui_graph.Scope.selected next.scope_view = [path] then next else
+          {next with select_later = [];
+            scope_view = fst (Pxui_graph.Scope.run_command (Pxui_graph.Scope.select [path] next.scope_view)
+              Pxui_graph.Scope.Frame_selection)}
+      | _ when List.length path = 1 -> {next with scope_view = Pxui_graph.Scope.select [] next.scope_view}
+      | _ -> value
+
 let apply_text value intents =
   List.fold_left (fun value intent ->
     let intent, literal = match intent with
@@ -83,8 +101,22 @@ let apply_text value intents =
     let whole = Editor_document.Workspace_doc.to_text in
     let of_graph graph (ws : Editor_document.Workspace_doc.t) =
       (Text_pane.make_shown ws.source graph None Text_pane.Graph).text in
-    let of_binding path (ws : Editor_document.Workspace_doc.t) =
-      (Text_pane.make_shown ws.source (List.hd path) (Some path) Text_pane.Selection).text in
+    let checked_binding ?(merge = Editor_core.History.Step) path ~draft old apply =
+      match old with
+      | Some (previous : Workspace_doc.t) when previous.source != workspace.source ->
+          (* Selection can patch a root binding outside the printed upstream closure.
+             Merge the complete candidate graph so a concurrent edit of that binding
+             cannot disappear just because it was outside the printed closure. *)
+          (match Text_pane.graph_op previous.source ~graph:(List.hd path) ~selection:path draft with
+           | Error d -> Error [d]
+           | Ok (Flow_graph.Flow_edit.Set_graph {name; form}) ->
+               let mine = fst (Flow.Lisp.print [form]) in
+               (match Text_pane.merge3 ~base:(of_graph name previous) ~mine ~theirs:(of_graph name workspace) with
+                | Some merged -> graph_edit ~merge value name merged
+                | None -> Error [Flow.Diagnostic.error ~position:{line = 1; col = 0} ~code:"E_DRAFT_CONFLICT"
+                    "The document changed in the same place as this draft. Your draft is kept; discard it and reapply your edits to the current text."])
+           | Ok _ -> apply draft)
+      | _ -> apply draft in
     let scrub apply draft = match literal with
       | Some (source, op, position) when source == workspace.source ->
           Doc.syntax_edit_result ~factories:value.factories value.doc op
@@ -100,12 +132,11 @@ let apply_text value intents =
     | Toggle_parinfer -> with_text { text with parinfer = not text.parinfer }
     | Picker picker -> with_text { text with picker }
     | Open_graph graph -> go value graph
-    | Select_binding path
-      when (match value.scope_key with
-            | Some { scope; _ } -> Flow_graph.Projection.find scope path = None
-            | None -> false) -> value
     | Select_binding path ->
-        { value with scope_view = Pxui_graph.Scope.select [ path ] value.scope_view }
+        select_source {value with text = {text with target = None}} path
+    | Jump_definition path ->
+        let next = select_source value path in
+        {next with text = {text with target = Some path}}
     | Carry_over _ -> value  (* read by the carry's report, not an edit *)
     | Doc_draft draft -> with_text { text with draft = Some draft; doc_base = base text.doc_base; doc_errors = []; scrubbing = false }
     | Doc_discard -> with_text { text with draft = None; doc_base = None; doc_errors = [] }
@@ -124,7 +155,7 @@ let apply_text value intents =
          | Ok value -> { value with text = { text with graph_draft = None; graph_base = None; graph_errors = [] } }
          | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors })
     | Binding_apply (path, draft) ->
-        (match checked ~shown:(of_binding path) ~draft text.binding_base (binding_edit value path) with
+        (match checked_binding path ~draft text.binding_base (binding_edit value path) with
          | Ok value -> { value with text = { text with binding_draft = None; binding_base = None; binding_errors = [] } }
          | Error binding_errors ->
              with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors })
@@ -143,7 +174,7 @@ let apply_text value intents =
          | Error graph_errors -> with_text { text with graph_draft = Some (graph, draft); graph_base = base text.graph_base; graph_errors; scrubbing = false })
     | Binding_scrub (path, draft, done_) ->
         (match (if finished done_ draft text.binding_base (Option.bind text.binding_draft (fun (p,d) -> if p = path then Some d else None)) then Ok value else
-          checked ~shown:(of_binding path) ~draft text.binding_base (scrub (binding_edit ~merge:scrub_merge value path))) with
+          checked_binding ~merge:scrub_merge path ~draft text.binding_base (scrub (binding_edit ~merge:scrub_merge value path))) with
          | Ok value -> { value with text = { text with binding_draft = (if done_ then None else Some (path, draft)); binding_base = (if done_ then None else Some (fst value.doc.workspace)); binding_errors = []; scrubbing = not done_ && Option.is_some literal; cache = (if done_ then None else text.cache) } }
          | Error binding_errors -> with_text { text with binding_draft = Some (path, draft); binding_base = base text.binding_base; binding_errors; scrubbing = false })
     | Literal_scrub _ -> value) value intents
@@ -153,6 +184,8 @@ let apply_text_at value key intents =
   if intents = [] then value else
   let mine = value.text in
   let v = apply_text { value with text = (local_of value key).code } intents in
+  let mine = if List.exists (function Text_pane.Select_binding _ | Jump_definition _ -> true | _ -> false) intents
+    then {mine with target = None} else mine in
   { v with text = mine; locals = put_local key (fun l -> { l with code = v.text }) v.locals }
 
 (* The unapplied drafts of a text pane, as the applies its Check & apply would make. *)

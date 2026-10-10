@@ -4,6 +4,28 @@ let load text=match Rays_editor.Workspace.load text with Ok doc->doc|Error diagn
   failwith(String.concat "; "(List.map Flow.Diagnostic.to_string diagnostics))
 let ()=
   let module Editor=Rays_editor.Editor3 in
+  let doc=load {|(workspace animated
+    (graph picture :context draw
+      (let* [bias (* t 0.2)]
+        (draw/image (image/map (fn [uv] [bias uv.y 0 1]) :width 64 :height 64))))
+    (graph editor :context editor (ui/workspace (ui/canvas (ref picture)))))|}in
+  let owner=ref(Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains:1
+    ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)()))in
+  let canvas=Rays.Canvas.create_exn ~width:900 ~height:640 in
+  Fun.protect ~finally:(fun()->Editor.close !owner;Rays.Canvas.destroy canvas)(fun()->
+    let sample count=
+      let frame:Rays.Frame.t={width=900;height=640;size=900,640;
+        drawable_width=900;drawable_height=640;drawable_size=900,640;pixel_scale=1.,1.;
+        time=float count;dt=1.;fps=1.;count;mouse=(-100.,-100.);mouse_delta=0.,0.;
+        keys=[];mouse_buttons=[];events=[]}in
+      owner:=Editor.update !owner frame;
+      Rays.Canvas.render canvas(Editor.scene !owner frame);
+      Rays.Canvas.pixel canvas ~x:10 ~y:40 in
+    let first=sample 0 in
+    assert(first<>sample 1));
+  print_endline "Canvas playback refreshes image/map functions with captured time"
+let ()=
+  let module Editor=Rays_editor.Editor3 in
   let module P=Procedural in
   let module I=Runtime_resources.Image in
   let _,handles=Ogpu.Impl.create_driver()in
