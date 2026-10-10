@@ -1225,10 +1225,10 @@ let paint_header paint ui t ~z ~fs ~x ~y ~w (n : P.node) ?execution ?lens_open ?
       right end else right in
   let name_end = if shown = P.Chip && P.set_count n > 0 then
       name_end +. 9. *. z +. Ui.Paint.text_width paint ~size:ls (Printf.sprintf "+%d" (P.set_count n)) else name_end in
-  (* where the name and the kind meet, the kind yields *)
+  (* where the name and the kind meet, the kind yields; a value card has its field there instead *)
   let kind_text = match failed with Some code -> Some code | None ->
     match t.imported n.path with Some file -> Some file
-    | None -> if n.zone = None && n.head <> n.name then Some n.head else None in
+    | None -> if n.zone = None && n.head <> n.name && not (P.value_card n) then Some n.head else None in
   Option.iter (fun text ->
     let room = right -. (name_end +. 6. *. z) in
     if room >= 3. *. Ui.Paint.text_width paint ~size:ls "m" then begin
