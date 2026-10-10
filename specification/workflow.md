@@ -38,15 +38,12 @@ rebuild the launcher before starting agents. A queued request checks the current
 worktree when it acquires the lock; it does not pin an earlier revision.
 
 Standard shipping excludes the large studio fracture and high-density
-procedural parallel exactness fixtures, the all-field catalog cache-key sweep,
-and the sketch's exhaustive control-boundary sweep. They retain all their checks under
+procedural parallel exactness fixtures and the all-field catalog cache-key sweep. They retain all their checks under
 `@qualification-scale` (also part of `@qualification`), with focused aliases
 `@test/test_shattered_studio`,
-`@lib/procedural/test_procedural_parallel_exact`,
-`@test/test_sop_catalog_exhaustive` and
-`@sketches/pastel_flow/test_control_boundaries`. The catalog still checks every
-factory's metadata and targeted cache invalidation by default; the sketch still
-checks its preset, repeatability, seed behavior and settings round-trip.
+`@lib/sop/test_parallel_exact` and
+`@test/test_sop_catalog_exhaustive`. The catalog still checks every
+factory's metadata and targeted cache invalidation by default.
 Regular algorithm and one/four-domain regressions remain in `@runtest`.
 Display-dependent tests
 and GPU rendering integration tests remain under `@runtest-native`;

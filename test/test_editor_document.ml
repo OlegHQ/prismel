@@ -2,7 +2,7 @@
    is deterministic, and both public hosts save every document (there is no other kind) after
    the scene's objects are deleted through real UI events. *)
 open Rays
-open Procedural
+open Sop
 
 module Preset = Editor_document.Preset
 module Document = Editor_document.Document
@@ -13,7 +13,7 @@ let char c = key (Input.KeyChar c)
 
 let frame ?(keys = []) ?(mouse = (450., 320.)) events count : Frame.t = {
   width = 900; height = 640; size = 900, 640;
-  drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+
   pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.;
   fps = 60.; count; mouse; mouse_delta = 0., 0.; keys; mouse_buttons = []; events }
 
@@ -103,7 +103,7 @@ let run () =
     List.iter (fun (name, _) -> Sys.remove (Preset.path ~directory ~name)) (Preset.list ~directory)) in
   let prepares = Atomic.make 0 in
   let prepare _ _ = Atomic.incr prepares; Ok (Atomic.get prepares) in
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   exercise
     ~create:(fun () -> E3.create ~await:true ~workspace ~presets:directory ~factories ~prepare
       ~scene3:(fun _ _ -> Scene3.create []) () |> Result.get_ok)

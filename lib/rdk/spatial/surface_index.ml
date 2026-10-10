@@ -38,7 +38,7 @@ type t = {
 type hit = {
   primitive : int;
   distance : float;
-  barycentric : float * float * float;
+
 }
 
 type vertex_selection = All_triangle_vertices | Any_triangle_vertex
@@ -497,7 +497,6 @@ let create_validated_triangles ?cancel ~grain geometry =
       ~code:"invalid_parameter" message)
 
 let triangle_count value = Array.length value.primitives
-let node_count value = value.node_count
 
 let triangle_bounds_into value triangle output =
   output.(0) <- value.triangle_min_x.(triangle);
@@ -1038,22 +1037,15 @@ let query_distance_squared_into value qx qy qz maximum scratch output query =
   if value.node_count > 0 then visit 0;
   output.(query) <- if scratch.(1) = 0. then Float.infinity else scratch.(0)
 
-let closest_distances_many_into ?cancel ?selection ?position_indices ~grain value
+let closest_distances_many_into ?cancel ?selection ~grain value
     ~queries ~max_distance_squared ~distances_squared =
   if grain <= 0 then invalid_arg "Surface_index: grain must be positive";
-  let position_count = Packed.Float3.length queries in
-  let query_count = match position_indices with
-    | None -> position_count | Some values -> Array.length values in
+  let query_count = Packed.Float3.length queries in
   (match selection with
    | Some group when Group.owner group <> Group.Point
        || Group.length group <> query_count ->
        invalid_arg "Surface_index: query selection must be a matching point group"
    | None | Some _ -> ());
-  (match position_indices with
-   | None -> ()
-   | Some values -> Array.iter (fun point ->
-       if point < 0 || point >= position_count then
-         invalid_arg "Surface_index: query position index is out of bounds") values);
   if Array.length distances_squared < query_count then
     invalid_arg "Surface_index: output array is too short";
   let queries = Packed.Float3.Private.view queries in
@@ -1066,10 +1058,8 @@ let closest_distances_many_into ?cancel ?selection ?position_indices ~grain valu
       if query land 4095 = 0 then Cancel.check_opt cancel;
       if match selection with None -> true | Some group -> Group.mem query group
       then begin
-        let point = match position_indices with None -> query
-          | Some values -> values.(query) in
-        let qx = queries.x.(point) and qy = queries.y.(point)
-        and qz = queries.z.(point) in
+        let qx = queries.x.(query) and qy = queries.y.(query)
+        and qz = queries.z.(query) in
         if not (Float.is_finite qx && Float.is_finite qy && Float.is_finite qz) then
           invalid_arg "Surface_index: query positions must be finite";
         query_distance_squared_into value qx qy qz max_distance_squared scratch
@@ -1078,29 +1068,6 @@ let closest_distances_many_into ?cancel ?selection ?position_indices ~grain valu
     done)
 
 let maximum_squared_distance = sqrt max_float
-
-let closest ?max_distance value ~x ~y ~z =
-  if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
-    Error (Error.make ~operation:"surface_index" ~code:"invalid_query"
-      "query position must be finite")
-  else
-    let maximum = match max_distance with
-      | None -> Ok Float.infinity
-      | Some distance when Float.is_finite distance && distance >= 0.
-          && distance <= maximum_squared_distance -> Ok (distance *. distance)
-      | Some _ -> Error (Error.make ~operation:"surface_index"
-          ~code:"invalid_distance"
-          "maximum distance must be finite, non-negative, and safely squarable") in
-    Result.map (fun maximum ->
-      let primitive = [|-1|] and triangle = [|-1|]
-      and a = [|0.|] and b = [|0.|] and c = [|0.|]
-      and distance = [|Float.infinity|] and scratch = Array.make 8 0.
-      and best_primitive = [|-1|] and best_triangle = [|-1|] in
-      query_into value x y z maximum scratch best_primitive best_triangle
-        primitive triangle a b c distance 0;
-      if primitive.(0) < 0 then None else Some {
-        primitive = primitive.(0); distance = sqrt distance.(0);
-        barycentric = a.(0), b.(0), c.(0) }) maximum
 
 let[@inline] ray_aabb_intersects value node ox oy oz dx dy dz minimum maximum
     tolerance =
@@ -1725,9 +1692,7 @@ let raycast_many_into ?cancel ?selection ~grain value ~queries ~directions
       end
     done)
 
-let raycast ?(min_distance = 0.) ?(max_distance = Float.infinity)
-    ?(tolerance = 0.) ?(direction_mode = Ray_forward)
-    ?(surface_hit = Ray_first_surface) value ~origin ~direction =
+let raycast value ~origin ~direction =
   try
     let queries = Packed.Float3.Private.of_owned_exn ~x:[|origin.Vec3.x|]
         ~y:[|origin.y|] ~z:[|origin.z|]
@@ -1737,13 +1702,13 @@ let raycast ?(min_distance = 0.) ?(max_distance = Float.infinity)
     and distance = [|Float.infinity|] in
     raycast_many_into ~grain:1 value ~queries
       ~directions:(Constant_direction {
-        x = direction.Vec3.x; y = direction.y; z = direction.z }) ~min_distance
-      ~max_distance ~tolerance ~direction_mode ~surface_hit
+        x = direction.Vec3.x; y = direction.y; z = direction.z })
+      ~min_distance:0. ~max_distance:Float.infinity ~tolerance:0.
+      ~direction_mode:Ray_forward ~surface_hit:Ray_first_surface
       ~primitives:primitive ~triangles:triangle ~barycentric_a:a
       ~barycentric_b:b ~barycentric_c:c ~distances:distance;
     if primitive.(0) < 0 then Ok None else Ok (Some {
-      primitive = primitive.(0); distance = distance.(0);
-      barycentric = a.(0), b.(0), c.(0) })
+      primitive = primitive.(0); distance = distance.(0) })
   with Invalid_argument message -> Error (Error.make ~operation:"surface_index"
       ~code:"invalid_ray" message)
 

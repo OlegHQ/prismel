@@ -25,12 +25,6 @@ let gray x =
   let clamped = clamp_byte x in
   { r = clamped; g = clamped; b = clamped; a = 255 }
 
-let from_hex hex =
-  let r = (hex land 0xFF0000) lsr 16 in
-  let g = (hex land 0x00FF00) lsr 8 in
-  let b = hex land 0x0000FF in
-  { r; g; b; a = 255 }
-
 let hex value =
   let value =
     if String.length value > 0 && value.[0] = '#' then
@@ -69,23 +63,6 @@ let wrap_hue hue =
 
 let byte value = int_of_float ((clamp_unit value *. 255.) +. 0.5)
 
-let hsv ?(alpha = 1.) hue saturation value =
-  let hue = wrap_hue hue /. 60. in
-  let saturation = clamp_unit saturation in
-  let value = clamp_unit value in
-  let chroma = value *. saturation in
-  let x = chroma *. (1. -. abs_float (mod_float hue 2. -. 1.)) in
-  let r, g, b =
-    if hue < 1. then chroma, x, 0.
-    else if hue < 2. then x, chroma, 0.
-    else if hue < 3. then 0., chroma, x
-    else if hue < 4. then 0., x, chroma
-    else if hue < 5. then x, 0., chroma
-    else chroma, 0., x
-  in
-  let m = value -. chroma in
-  rgba (byte (r +. m)) (byte (g +. m)) (byte (b +. m)) (byte alpha)
-
 let hsl ?(alpha = 1.) hue saturation lightness =
   let hue = wrap_hue hue /. 60. in
   let saturation = clamp_unit saturation in
@@ -107,16 +84,9 @@ let hsl ?(alpha = 1.) hue saturation lightness =
 let black = { r = 0; g = 0; b = 0; a = 255 }
 let white = { r = 255; g = 255; b = 255; a = 255 }
 let red = { r = 255; g = 0; b = 0; a = 255 }
-let green = { r = 0; g = 255; b = 0; a = 255 }
-let blue = { r = 0; g = 0; b = 255; a = 255 }
-let yellow = { r = 255; g = 255; b = 0; a = 255 }
-let cyan = { r = 0; g = 255; b = 255; a = 255 }
-let magenta = { r = 255; g = 0; b = 255; a = 255 }
 
 (* Additional useful colors *)
 let transparent = { r = 0; g = 0; b = 0; a = 0 }
-let dark_gray = { r = 64; g = 64; b = 64; a = 255 }
-let light_gray = { r = 192; g = 192; b = 192; a = 255 }
 
 (* Color Operations *)
 let with_alpha c a = { c with a = clamp_byte a }
@@ -144,70 +114,7 @@ let gradient colors position =
       blend colors.(left) colors.(left + 1)
         ~pct:(position -. float left)
 
-let lighten c f =
-  let f = max 0.0 (min 1.0 f) in (* clamp f to [0,1] *)
-  blend c white ~pct:f
-
-let darken c f =
-  let f = max 0.0 (min 1.0 f) in (* clamp f to [0,1] *)
-  blend c black ~pct:f
-
-let rgb_extrema color =
-  let r = float color.r /. 255. in
-  let g = float color.g /. 255. in
-  let b = float color.b /. 255. in
-  let alpha = float color.a /. 255. in
-  let maximum = max r (max g b) in
-  let minimum = min r (min g b) in
-  r, g, b, alpha, maximum, minimum
-
-let hue_of_rgb r g b maximum minimum =
-  let delta = maximum -. minimum in
-  if delta = 0. then 0.
-  else
-    let sector =
-      if maximum = r then mod_float ((g -. b) /. delta) 6.
-      else if maximum = g then ((b -. r) /. delta) +. 2.
-      else ((r -. g) /. delta) +. 4.
-    in
-    wrap_hue (sector *. 60.)
-
-let to_hsv color =
-  let r, g, b, alpha, maximum, minimum = rgb_extrema color in
-  let delta = maximum -. minimum in
-  let saturation = if maximum = 0. then 0. else delta /. maximum in
-  hue_of_rgb r g b maximum minimum, saturation, maximum, alpha
-
-let to_hsl color =
-  let r, g, b, alpha, maximum, minimum = rgb_extrema color in
-  let delta = maximum -. minimum in
-  let lightness = (maximum +. minimum) /. 2. in
-  let saturation =
-    if delta = 0. then 0.
-    else delta /. (1. -. abs_float (2. *. lightness -. 1.))
-  in
-  hue_of_rgb r g b maximum minimum, saturation, lightness, alpha
-
-let saturate color amount =
-  let hue, saturation, lightness, alpha = to_hsl color in
-  hsl ~alpha hue (saturation +. amount) lightness
-
-let desaturate color amount = saturate color (-.amount)
-
-let rotate_hue color degrees =
-  let hue, saturation, lightness, alpha = to_hsl color in
-  hsl ~alpha (hue +. degrees) saturation lightness
-
-let invert c = {
-  r = 255 - c.r;
-  g = 255 - c.g;
-  b = 255 - c.b;
-  a = c.a; (* keep alpha unchanged *)
-}
-
 (* Utility functions *)
-let equal c1 c2 =
-  c1.r = c2.r && c1.g = c2.g && c1.b = c2.b && c1.a = c2.a
 
 let to_string c =
   Printf.sprintf "Color(r=%d, g=%d, b=%d, a=%d)" c.r c.g c.b c.a

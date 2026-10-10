@@ -1,5 +1,5 @@
 module E = Flow.Eval
-module P = Procedural
+module P = Sop
 let (let*) = Result.bind
 type t = {identity:int; width:int; height:int; fn:E.fn; sources:int list;
   inputs:P.Node.t list; origins:(int * int) list;
@@ -42,12 +42,10 @@ let with_inputs t inputs =
   if origins <> t.origins then
     Error (Flow.Diagnostic.error ~code:"E_DATA_SOURCE" "Image source point-origin proof changed; prepare the kernel again.")
   else Ok {t with inputs}
-let node ?state ?elems t =
+let node ?state t =
   P.Node.Private.make ~operation:"image/map" ~version:1
     ~parameters:(Printf.sprintf "%d:%d:%d" t.identity t.width t.height
-      ^ Option.fold ~none:"" ~some:E.state_stamp state
-      ^ Option.fold ~none:"" ~some:(fun xs -> Flow.Value.key_of
-          ~residual:E.Private.residual_id (E.Record xs)) elems)
+      ^ Option.fold ~none:"" ~some:E.state_stamp state)
     ~cook_mode:P.Node.Generator
     ~dependencies:(if E.frame_dependent (E.Fn t.fn) || E.state_dependent (E.Fn t.fn)
       then P.Context.Dependencies.one Input else P.Context.Dependencies.static)
@@ -57,7 +55,7 @@ let node ?state ?elems t =
           (fun i -> Result.to_option (P.Payload.geometry payloads.(i)))) in
       let result =
         if P.Context.cancelled context then Error (Flow.Diagnostic.error ~code:"E_CANCELLED" "Image kernel cancelled.")
-        else Flow_ir.Packed.force ?state ?elems ~resolve t.packed ~live:(P.Context.input context) in
+        else Flow_ir.Packed.force ?state ~resolve t.packed ~live:(P.Context.input context) in
       Result.bind (Result.map_error (fun (d:Flow.Diagnostic.t) -> P.Diagnostic.error ~code:d.code d.message) result)
         (function
           | E.Vec4_array rgba -> Result.map (fun image -> P.Node.Private.{

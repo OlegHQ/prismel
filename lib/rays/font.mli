@@ -4,7 +4,6 @@ type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting
 type alignment=Left|Center|Right
 val load:string->int->(t,[`Msg of string])result
 val system : ?size:int -> unit -> (t,[`Msg of string]) result
-val render_text:?density:int->t->string->render_mode->(Image.t,[`Msg of string])result
 val cached_text : ?wrap:int -> ?align:alignment -> ?density:int -> t -> string -> render_mode -> (Image.t,[`Msg of string]) result
 module Private : sig
   type automatic
@@ -21,15 +20,10 @@ module Private : sig
       and [glyph_alpha] holds one coverage byte per pixel. *)
 
 end
-val shutdown : unit -> unit
 (* Measurements are logical points and allocate no image; [wrap] measures
    wrapped text. Invalid UTF-8 is measured and drawn as U+FFFD. *)
-val text_size : ?wrap:int -> t -> string -> (int*int,[`Msg of string]) result
 (* Vertical metrics in logical points. Raise [Invalid_argument] on a
    destroyed font. *)
 val get_ascent : t -> int
-val get_descent : t -> int
-val get_line_skip : t -> int
 val set_hinting:t->hinting->(unit,[`Msg of string])result
-val get_size:t->int
 val destroy:t->unit

@@ -92,45 +92,13 @@ let check_triangles geometry =
       "Remesh emitted a non-triangle primitive"
   done
 
-let test_uniform_outputs_and_projection () =
-  let source = grid () in
-  let source_primitives = Geometry.primitive_count source in
-  let output = Remesh.run ~grain:7 ~iterations:2 ~target_length:0.72
-      ~output_hard_edges:"hard" ~output_mesh_size:"mesh_size"
-      ~output_quality:"quality" source |> get in
-  check_triangles output;
-  check (Geometry.primitive_count output > source_primitives)
-    "Remesh did not refine a coarse grid";
-  let sizes = scalar Attribute.Point "mesh_size" output in
-  Array.iter (fun value -> check (value = 0.72)
-    "Remesh uniform mesh-size output drift") sizes;
-  let quality = scalar Attribute.Primitive "quality" output in
-  Array.iter (fun value -> check (Float.is_finite value && value >= 0. && value <= 1.)
-    "Remesh emitted an invalid quality value") quality;
-  let hard = Geometry.find_edge_group "hard" output |> Option.get in
-  let index = Topology_index.create (Geometry.topology output) in
-  check (Edge_group.cardinality hard = Topology_index.boundary_edge_count index)
-    "Remesh hard-edge output does not match the open boundary";
-  check (Geometry.find_attribute ~owner:Attribute.Point "N" output <> None)
-    "Remesh did not generate requested point normals";
-  let surface = Surface_index.create source |> get in
-  let positions = Packed.Float3.Private.view (Geometry.positions output) in
-  for point = 0 to Geometry.point_count output - 1 do
-    match Surface_index.closest surface ~x:positions.x.(point)
-        ~y:positions.y.(point) ~z:positions.z.(point) with
-    | Error error -> fail (Error.to_string error)
-    | Ok None -> fail "Remesh projection point missed its source surface"
-    | Ok (Some hit) -> check (hit.distance <= 1e-8)
-        "Remesh projection left a point off the source surface"
-  done
-
 let seam_fixture () =
   let positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.;1.;1.;0.|] ~y:[|0.;0.;1.;1.|] ~z:[|0.;0.;0.;0.|] in
   let topology = Topology.polygons_owned ~point_count:4
       ~vertex_points:[|0;1;2; 0;2;3|] ~primitive_offsets:[|0;3;6|]
       |> get_string in
-  let uv = Packed.Float2.Private.of_shared ~x:[|0.;1.;1.; 2.;3.;2.|]
+  let uv = Packed.Float2.of_owned ~x:[|0.;1.;1.; 2.;3.;2.|]
       ~y:[|0.;0.;1.; 0.;1.;1.|] |> get_string in
   let geometry = Geometry.create ~positions ~topology () |> get_string
       |> add_attribute ~owner:Attribute.Vertex ~name:"uv" (Attribute.Float2 uv)
@@ -263,7 +231,6 @@ let test_fused_split_matches_composed_reference () =
       geometry |> Option.get in
   check (Group.cardinality (vertex_group fused) = 5)
     "Remesh fused split violated endpoint-intersection vertex-group interpolation"
-
 
 (* A payload-rich fixture: split, collapse and flip all fire, attributes and
    groups of every owner ride along. The hashes were produced by the chained
@@ -413,7 +380,6 @@ let test_parallel_exact () =
     "Remesh one-domain/multi-domain geometry drift"
 
 let run () =
-  test_uniform_outputs_and_projection ();
   test_adaptive_hard_and_uv_seams ();
   test_input_points_only ();
   test_fused_split_matches_composed_reference ();

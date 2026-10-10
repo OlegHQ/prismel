@@ -35,8 +35,8 @@ let owner t =
     Result.map(fun gpu->let owner=gpu,H.create ~clock:Unix.gettimeofday gpu in
       t.owner<-Some owner;owner)(native(X.acquire_gpu()))
 let backend t = match t.backend with Some backend->backend|None->
-  (* The measured cost is the Flow IR table's native GPU row (performance-log
-     "P5 native calibration"); placement compares it with the CPU kernel tier. *)
+  (* The measured cost is the Flow IR table's native GPU row;
+     placement compares it with the CPU kernel tier. *)
   let backend:G.backend={cost=(fun _ ~count->Some(Flow_ir.Cost.estimate Gpu ~count));
     prepare=(fun packed->Result.bind(owner t)(fun(_,host)->(H.backend host).prepare packed))}in
   t.backend<-Some backend;backend

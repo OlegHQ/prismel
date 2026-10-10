@@ -26,7 +26,6 @@ val copy_transforms :
     target order: a packed copy is its source drawn at these matrices. *)
 
 val materialize_instances :
-  ?cancel:Cancel.t -> ?grain:int -> ?apply_transform:bool ->
   transforms:Rays_math.Mat4.t array -> Geometry.t ->
   (Geometry.t, Error.t) result
 (** Materialize transform-major copies with exact topology and group ancestry. *)
@@ -40,9 +39,6 @@ val duplicate :
 
 module Private : sig
   val copy_to_points :
-    ?cancel:Cancel.t -> ?grain:int -> ?source_primitives:Group.t ->
-    ?target_points:Group.t -> ?piece_attribute:string ->
-    ?target_attributes:copy_target_attribute_rule list ->
-    source:Geometry.t -> targets:Geometry.t -> unit ->
+    ?cancel:Cancel.t -> ?grain:int -> source:Geometry.t -> targets:Geometry.t -> unit ->
     (Geometry.t, string) result
 end

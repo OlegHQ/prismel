@@ -172,19 +172,6 @@ let without_edge_group name value =
   if Array.length groups = Array.length value.edge_groups then value
   else make value.positions value.topology value.attributes value.groups groups
 
-let rename_attribute ~owner ~from ~into value =
-  if String.equal from into then
-    if find_attribute ~owner from value = None
-    then Error ("Geometry.rename_attribute: missing attribute " ^ from)
-    else Ok value
-  else if find_attribute ~owner into value <> None then
-    Error ("Geometry.rename_attribute: destination already exists: " ^ into)
-  else match find_attribute ~owner from value with
-    | None -> Error ("Geometry.rename_attribute: missing attribute " ^ from)
-    | Some attribute ->
-        Result.bind (Attribute.with_name into attribute) (fun renamed ->
-          with_attribute renamed (without_attribute ~owner from value))
-
 let rename_edge_group ~from ~into value =
   if String.equal from into then
     if find_edge_group from value = None

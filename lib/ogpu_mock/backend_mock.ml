@@ -254,7 +254,7 @@ let create()=
         begin_commands;
 
         gpu_duration=(fun _->None);
-        gpu_timing=(fun()->{Backend.timing_supported=false;gpu_seconds=0.;gpu_samples=0L});
+        gpu_timing=(fun()->{Backend.gpu_seconds=0.});
         destroy_queue=(fun()->c.queues<-c.queues-1;Hashtbl.remove c.queue_clocks id;Ok())});
     create_surface=(fun _->
       let _id=token c and frame=ref 0L in

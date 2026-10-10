@@ -8,7 +8,7 @@ let wheel point = [Event.MouseMoved point; Event.MouseScrolled (0., 1.)]
 
 let frame ?(buttons = []) ?(keys = []) ?(delta = (0., 0.)) mouse events count : Frame.t = {
   width = 900; height = 640; size = 900, 640;
-  drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+
   pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.;
   fps = 60.; count; mouse; mouse_delta = delta; keys; mouse_buttons = buttons; events }
 
@@ -198,11 +198,14 @@ let run () =
     step [key Input.Tab; key Input.Space];
     let _, _, collapsed, _ = (panes !current (frame (0., 0.) [] 0)).Pxui_shell.Layout.view in
     check (collapsed < width) (name ^ ": same-frame Tab/Space did not activate the pane header")) in
-  let workspace = Ws_fixture.box () in
-  let world = { World.default with layers = []; background = World.Transparent } in
-  let module E3 = Rays_editor.Editor3 in
-  exercise ~name:"Editor3"
-    ~create:(fun () -> E3.create ~workspace ~world ~camera:(Easy_camera.create ~inertia:false ())
+  let workspace = Ws_fixture.of_text {|(workspace world
+    (graph g :context sop (sop/box))
+    (graph sky :context world (world/none))
+    (graph scene :context scene
+      (scene/merge (scene/geometry (ref g)) (scene/world (ref sky)))))|} in
+  let module E3 = Rays_editor.Editor in
+  exercise ~name:"Editor"
+    ~create:(fun () -> E3.create ~workspace ~camera:(Easy_camera.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) () |> Result.get_ok)
     ~update:E3.update ~close:E3.close ~dump:E3.crash_dump ~panes:E3.panes
     ~camera:(fun env -> let camera = E3.camera env in

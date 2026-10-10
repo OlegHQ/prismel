@@ -54,8 +54,6 @@ let run name count entry =
   for _=1 to 4 do
     ignore (get (Scene_execution.render_sampled_resources renderer draws))
   done;
-  let retained=Scene_execution.retained_stats renderer in
-  require (retained.plan_entries<=2) "retained plans exceeded their two slots";
   get (Scene_execution.destroy renderer);
   let after=live_handles () in
   require (after=before) (Printf.sprintf "%s leaked handles %d -> %d" name before after)

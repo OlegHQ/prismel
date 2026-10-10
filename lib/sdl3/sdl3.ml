@@ -135,9 +135,9 @@ module Init = struct
   let bit = function Video -> 1 | Events -> 2
   let mask values = List.fold_left (fun mask value -> mask lor bit value) 0 values
 
-  let init ?(release = true) subsystems =
+  let init subsystems =
     on_main "SDL3.Init.init" (fun () ->
-      match check_version ~release () with
+      match check_version () with
       | Error _ as failure -> failure
       | Ok () ->
           Private_raw.clear_error ();

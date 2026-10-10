@@ -1,25 +1,25 @@
 (library
  (name flow_sop)
  (public_name rays.flow_sop)
- (modules port instance_path curve network value_lane catalog manifest operators attribute_kernel function_kernel image_kernel lower)
- (private_modules function_kernel)
- (libraries flow flow_ir param procedural unix))
+ (modules port instance_path curve merge_source network value_lane catalog manifest operators attribute_kernel function_kernel image_kernel lower)
+ (private_modules function_kernel merge_source)
+ (libraries flow flow_ir param sop unix))
 
 (test
  (name test_image_kernel)
  (modules test_image_kernel)
- (libraries flow flow_ir flow_graph flow_sop procedural))
+ (libraries flow flow_ir flow_graph flow_sop sop))
 
 (test
  (name test_keyword_ports)
  (modules test_keyword_ports)
- (libraries flow flow_ir flow_graph flow_sop procedural sop_catalog)
+ (libraries flow flow_ir flow_graph flow_sop sop sop_catalog lisp_sop)
  (preprocess (pps rays.ppx)))
 
 (test
  (name test_attribute_kernel)
  (modules test_attribute_kernel)
- (libraries flow flow_ir flow_graph flow_sop sop_catalog rdk rdk_test_support))
+ (libraries flow flow_ir flow_graph flow_sop sop_catalog rdk rdk_test_support lisp_sop))
 
 (test
  (name test_noise_kernel)
@@ -33,7 +33,7 @@
 (executable
  (name test_main)
  (modules test_main test_projection test_workspace_edit test_workspace_cook test_workspace_zone)
- (libraries flow flow_sop flow_graph editor_document sop_catalog procedural rdk unix))
+ (libraries flow flow_sop flow_graph editor_document sop_catalog sop rdk unix lisp_sop))
 
 (rule
  (alias test_projection)

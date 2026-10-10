@@ -1,5 +1,3 @@
-open Rays
-open Procedural
 open Editor_document
 include Core_list
 
@@ -20,20 +18,6 @@ let workspace_doc ~factories ~seed_scene workspace =
   let doc = { doc with scene = { doc.scene with graph };
     active_camera = if has_scene then doc.active_camera else List.nth_opt (Objects.ids "camera" scene) 0 } in
   Ok doc
-
-(* A World object for [world], with its layer network. *)
-let add_world (doc : Document.t) world =
-  let _, values = Layers.of_world world in
-  let ( let* ) = Result.bind in
-  let* node = Edit_graph.instantiate Layers.Settings.factory [] in
-  let* graph = Edit_graph.add_node ~factory:Layers.Settings.factory node doc.scene.graph.geometry in
-  let* graph, _ = Edit_graph.apply_parameters graph ~node_id:(Node.id node) values in
-  let* network = Layers.network_of_world world in
-  Ok { doc with scene = { doc.scene with graph = Result.get_ok (Flow_sop.Network.with_geometry graph doc.scene.graph) };
-       networks = Document.Int_map.add (Node.id node) network doc.networks }
-
-(* A new World starts as a daylight sky with a sun, ready to turn. *)
-let daylight = Option.value ~default:World.default (List.assoc_opt "daylight" World.presets)
 
 let preferences_file () = match Sys.getenv_opt "RAYS_EDITOR_PREFERENCES" with
   | Some path when path <> "" -> path
@@ -58,24 +42,19 @@ let browse value query =
   Some (Browsing { query; presets = Preset.list ~directory:value.presets; last_state })
 
 let create ?settings ?(keymap = Leader.keymap)
-    ?(seed_scene = fun _ scene -> scene) ?world
-    ?(name = "sketch") ?presets ?(state_key = name) ?(timeline_frames = 240)
-    ?(layout = Pxui_shell.Layout.default) ?(factories = [])
+    ?(seed_scene = fun _ scene -> scene)
+    ?(name = "sketch") ?presets ?(state_key = name) ?(factories = [])
     ?(seed = 0L) ?(grain = 16_384)
     ?domains ?(max_entries = 512)
-    ?(max_payload_bytes = 256 * 1024 * 1024) ?await ?(carry_budget = 0.5)
+    ?(max_payload_bytes = 256 * 1024 * 1024) ?await
     ~workspace ~prepare () =
   let factories = if factories = [] then Sop_catalog.Editor.factories else factories in
   let settings = Option.value settings ~default:workspace.Workspace_doc.settings in
   let opened = workspace_doc ~factories ~seed_scene:(seed_scene factories)
       { workspace with Workspace_doc.settings } in
   Result.bind opened (fun doc ->
-  let has_world = Editor_document.Contexts.graph_of workspace Flow.Context.world <> None in
-  let doc = match (if Objects.ids "world" doc.scene.graph.geometry = [] && not has_world
-                   then Option.map (add_world doc) world else None) with
-    | Some (Ok doc) -> doc | Some (Error _) | None -> doc in
   Result.map (fun cook ->
-      let workspace = { tree = layout; hidden = [ Pxui_shell.Layout.Timeline ]; live = None; window_live = None;
+      let workspace = { tree = Pxui_shell.Layout.default; hidden = [ Pxui_shell.Layout.Timeline ]; live = None; window_live = None;
                         restored = false } in
       let presets = match presets with
         | Some directory -> directory
@@ -103,16 +82,16 @@ let create ?settings ?(keymap = Leader.keymap)
           (List.map Flow_sop.Catalog.descriptor factories @ Editor_document.Contexts.descriptors));
         tree = Pxui_shell.Tree.create (); outline = Navigator.initial; held_keys = [];
         ui = (let ui = Pxui.Ui.create () in Pxui.Ui.set_font_size ui (default_text_size ()); ui); workspace;
-        timeline = Sketch_support.Timeline.create (); live_frame = Frame_input.at_time 0.; cook;
+        timeline = Timeline.create (); live_frame = Frame_input.at_time 0.; cook;
         edit_error = None; status_fps = None;
         status_fps_at = Float.neg_infinity; last_dt = 0.; steady = 0;
         history = Editor_core.History.create doc;
         focus = Editor_core.Panels.main; focus_path = None; pane_keys = []; leader = Leader.Idle;
-        keymap; timeline_frames = max 1 timeline_frames; queued = [];
+        keymap; timeline_frames = 240; queued = [];
         graph_at = None; graph_pane = None; graph_panes = [];
         list_at = None; text_at = None; outline_at = None; locals = [];
         started = { on = None; views = []; tabs = [] };
-        framing = None; carry = None; carry_budget; traces = []; view_tools = None; gates = []; selected_box = None;
+        framing = None; carry = None; carry_budget = 0.5; traces = []; view_tools = None; gates = []; selected_box = None;
         file = (fst doc.Document.workspace).checked.name ^ ".rays" } in
       Cook.set_volatile cook (Flow_sop.Lower.is_volatile (snd doc.workspace));
       (* the panels open as their start keywords say; the first graph pane (the focused leaf, else

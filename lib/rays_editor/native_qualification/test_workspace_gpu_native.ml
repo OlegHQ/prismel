@@ -1,7 +1,7 @@
 let ok=function Ok value->value|Error d->failwith(Flow.Diagnostic.to_string d)
 let ()=List.iter(fun stateful->
   let module E=Flow.Eval in
-  let module P=Procedural in
+  let module P=Sop in
   let module L=Flow_sop.Lower in
   let module Native=Runtime_resources.Image in
   let bias=if stateful then "(state [n 0.015625] (+ n 0.015625))"else "(* t 0.015625)"in
@@ -152,7 +152,7 @@ let ()=List.iter(fun stateful->
 let ()=List.iter(fun domains->
   let module E=Flow.Eval in
   let module L=Flow_sop.Lower in
-  let module P=Procedural in
+  let module P=Sop in
   let lowered=Flow.Syntax.parse {|(workspace state_failure
     (graph level :context value (state [n 0] (+ n 1)))
     (graph drawing :context draw [(image : image (image/noise :width 1 :height 1))] (draw/image image))
@@ -236,7 +236,7 @@ let ()=
     ~live:(Frame_input.at_time time)(value kind)in
   let image kind time=Workspace_images.image owner (!plan).plan ~state
     ~live:(Frame_input.at_time time)(value kind)in
-  let bytes payload=Procedural.Image.Private.rgba8 payload |> Option.get in
+  let bytes payload=Sop.Image.Private.rgba8 payload |> Option.get in
   let held=ref None in
   Fun.protect ~finally:(fun()->Workspace_resources.close resources;Workspace_images.close owner;Workspace_gpu.close gpu)(fun()->
     let ordinary=payload "image/map" 0. |> ok in
@@ -251,9 +251,9 @@ let ()=
     assert(payload "exact" 0. |> ok == first);
     assert(payload "image/map" 0. |> ok == ordinary);
     assert(Native.Private.readbacks native=1);
-    let drawing=Sketch_support.Drawing.prepare (!plan).plan
+    let drawing=Drawing.prepare (!plan).plan
       (List.assoc "composed" (!plan).evaluated.results) |> ok in
-    let scene=Sketch_support.Drawing.render_prepared ~state
+    let scene=Drawing.render_prepared ~state
       ~image:(Workspace_images.image owner (!plan).plan ~state ~live:(Frame_input.at_time 0.))
       drawing ~live:(Frame_input.at_time 0.) ~size:(65,17) |> ok in
     let render_saved()=
@@ -292,7 +292,7 @@ let ()=
     assert(bytes recovered<>bytes second && render_saved()=saved_scene);
     bind(lower 17 5);
     let resized=payload "exact" 2. |> ok in
-    assert(Procedural.Image.width resized=17 && Procedural.Image.height resized=5
+    assert(Sop.Image.width resized=17 && Sop.Image.height resized=5
       && resized!=recovered && bytes first=saved_bytes && render_saved()=saved_scene);
     bind(lower 17 5);
     let replanned=payload "exact" 2. |> ok in
@@ -330,15 +330,15 @@ let ()=List.iter(fun(width,height,expected_reads)->
     done;
     assert(resources.images_created=64 && Runtime_resources.Image.Private.readbacks native=expected_reads);
     Array.iteri(fun frame payload->
-      let bytes=Procedural.Image.Private.rgba8 payload |> Option.get in
+      let bytes=Sop.Image.Private.rgba8 payload |> Option.get in
       assert(Char.code(Bytes.get bytes 0)=int_of_float(Float.round(float frame*.0.0078125*.255.)))) !held);
   assert(resources.images_created=resources.images_destroyed && handles()=before);
-  assert(Array.length !held=63 && Procedural.Image.width (!held).(0)=width);
+  assert(Array.length !held=63 && Sop.Image.width (!held).(0)=width);
   Printf.printf "Frozen exact capacity %dx%d: 63 pinned versions plus source, 65th resource refuses before readback, retained bytes survive close\n"width height)
   [7,3,0;65,17,63]
 let ()=if Array.mem "--capture-budget" Sys.argv then begin
   let module E=Flow.Eval in
-  let module P=Procedural in
+  let module P=Sop in
   let geometry count=
     let positions=Rdk.Packed.Float3.Builder.create count in
     Rdk.Packed.Float3.Builder.set positions 0 0.03125 0. 0.;
@@ -379,7 +379,7 @@ let ()=if Array.mem "--capture-budget" Sys.argv then begin
 end
 let ()=
   let module E=Flow.Eval in
-  let module P=Procedural in
+  let module P=Sop in
   let bindings=List.init 65(fun i->Printf.sprintf
     "g%d (sop/box :consolidate_points true :center [0.015625 0 0]) p%d (array/sum (sop/attr g%d :P))"i i i)
     |> String.concat " "in
@@ -414,7 +414,7 @@ let ()=
   let module E=Flow.Eval in
   let module L=Flow_sop.Lower in
   let module N=Flow_sop.Network in
-  let module P=Procedural in
+  let module P=Sop in
   let lower center=Flow.Syntax.parse(Printf.sprintf {|(workspace cycle
     (graph mesh :context sop
       (let* [geo (sop/box :consolidate_points true :center [%g 0 0])

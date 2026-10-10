@@ -1,7 +1,6 @@
 (** Initial-domain conversion of scalar-interleaved float32 xyz positions into
     the existing 64-byte Shape_batch circle instance ABI. *)
 type t
-val source : string
 val create : device:Ogpu.Backend.device -> queue:Ogpu.Backend.queue ->
   (t, Ogpu.Error.t) result
 val dispatch : t -> source:Ogpu.Backend.buffer -> count:int -> radius:float ->

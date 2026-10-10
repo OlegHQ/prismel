@@ -24,7 +24,7 @@
     - A catalog call becomes its catalog factory node with literal parameters
       (colour text [#rrggbb] becomes a vec3).
     - Every [sop/merge] becomes one internal [flow.merge_n] node over
-      [Procedural.Sop.merge ~source_attribute:{!source_attribute}] with one slot
+      [Sop.Nodes.Merge] with its [source_attribute] set to {!source_attribute} with one slot
       per collected input, so a spliced list is one node, not a chain.
     - [sop/curve] (a workspace operator) becomes a [flow.curve] node over
       {!Curve.factory} (a [flow.curve] node with an encoded [points] parameter).
@@ -43,7 +43,7 @@ val source_attribute : string
 type image_context = {compiled:int Network.Int_map.t; network:Network.t}
 
 type image_resolver = ?context:image_context -> Flow.Eval.plan -> state:Flow.Eval.state -> live:Frame_input.t -> Flow.Eval.value ->
-  (Procedural.Image.t, Flow.Diagnostic.t) result
+  (Sop.Image.t, Flow.Diagnostic.t) result
 val with_images : ?metadata:(Flow.Eval.plan -> int -> (int * int) option) -> image_resolver -> (unit -> 'a) -> 'a
 val image_metadata : Flow.Eval.plan -> int -> (int * int) option
 (** Scope an initial-domain resource resolver around value-lane resolution.
@@ -62,14 +62,14 @@ type zone = { cid : int; site : Flow.Workspace.path; iter : int list;
               body_site : Flow.Workspace.path; base : int; count : int Atomic.t; ekey : string option;
               positions : (float * float * float) array Atomic.t }
 (** A loop over geometry ({!zones}): its compiled id, plan key, the site of its body
-    result, the first of the {!Procedural.Zone.max_elements} tags it reserves and the
+    result, the first of the {!Sop.Zone.max_elements} tags it reserves and the
     element count of the last cook that ran it ([-1] before any). *)
 
 type graph = {
   name : string;
   instance : int;  (** index in [Flow.Eval.plan.instances] *)
   default : bool;  (** the graph with its own default inputs, not a [ref] override *)
-  inputs : (string * Flow.Eval.value) list;
+
   network : Network.t;
   root : int option;  (** displayed node (the graph result); [None] for [nil] *)
 }
@@ -141,7 +141,7 @@ val field_calls : ?state:Flow.Eval.state -> live:Frame_input.t ->
 val is_volatile : t -> int -> bool
 (** A compiled node is volatile when it is live (an argument depends on [t])
     or fed by a volatile node: its cache key changes with the time.  Pass
-    [is_volatile lowered] to [Procedural.Session.set_volatile]. *)
+    [is_volatile lowered] to [Sop.Session.set_volatile]. *)
 
 val objects : t -> (int * Network.t * int) list
 (** Every graph that returns geometry as (instance index, network, displayed
@@ -154,8 +154,7 @@ val changes : Port.parameter -> Flow.Eval.value -> ((string * Param.value) list,
     lowering ([Editor_document.Contexts]) reads its structs through it. *)
 
 val workspace :
-  factories:Procedural.Edit_graph.factory list -> ?extra:Catalog.descriptor list ->
-  ?ops:Flow.Op.t list ->
+  factories:Sop.Edit_graph.factory list -> ?extra:Catalog.descriptor list ->
   ?reference:bool ->
   ?compiled_ids:int Instance_path.Map.t -> ?sites:Flow.Workspace.path list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->
@@ -166,7 +165,7 @@ val workspace :
     the checker's first error, the evaluator's, or [E_LOWER]. *)
 
 val of_checked :
-  factories:Procedural.Edit_graph.factory list ->
+  factories:Sop.Edit_graph.factory list ->
   ?reference:bool ->
   ?compiled_ids:int Instance_path.Map.t -> ?sites:Flow.Workspace.path list ->
   ?inputs:(string * (string * Flow.Eval.value) list) list ->

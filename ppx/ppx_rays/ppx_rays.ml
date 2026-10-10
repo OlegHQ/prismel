@@ -23,10 +23,6 @@ let primary_attribute =
 let ignore_attribute =
   Attribute.declare_flag "sop.ignore" Attribute.Context.label_declaration
 
-(* Typed boundary checks share the record's defaults and hard ranges. *)
-let nonblank_attribute = expression_attribute "sop.nonblank"
-let validate_attribute = expression_attribute "sop.validate"
-
 let type_expression_attribute name =
   Attribute.declare name Attribute.Context.type_declaration
     Ast_pattern.(single_expr_payload __) Fun.id
@@ -88,7 +84,7 @@ let type_name = function
 
 let parameter_constructor ~loc name =
   pexp_construct ~loc
-    (located_path ~loc ["Procedural"; "Parameter"; name]) None
+    (located_path ~loc ["Sop"; "Parameter"; name]) None
 
 let apply ~loc function_ arguments = pexp_apply ~loc function_ arguments
 
@@ -102,7 +98,7 @@ let numeric_kind declaration integer =
   Option.iter (fun value -> arguments := (Labelled "hard_max", value) :: !arguments)
     (Attribute.get hard_max_attribute declaration);
   arguments := List.rev_append !arguments [Nolabel, eunit ~loc];
-  apply ~loc (ident ~loc ["Procedural"; "Parameter";
+  apply ~loc (ident ~loc ["Sop"; "Parameter";
     if integer then "integer" else "floating"]) !arguments
 
 let kind_expression declaration =
@@ -216,7 +212,7 @@ let field_expression ~kind components type_declaration declaration =
         Labelled "set", set;
         Nolabel, eunit ~loc ]
   in
-  apply ~loc (ident ~loc ["Procedural"; "Parameter"; "field"]) arguments
+  apply ~loc (ident ~loc ["Sop"; "Parameter"; "field"]) arguments
 
 let value_binding ~loc name expression =
   pstr_value ~loc Nonrecursive [value_binding ~loc
@@ -235,7 +231,7 @@ let generate_type type_declaration =
       let default_name = type_declaration.ptype_name.txt ^ "_default" in
       [ value_binding ~loc default_name (eunit ~loc);
         value_binding ~loc (type_declaration.ptype_name.txt ^ "_schema")
-          (apply ~loc (ident ~loc ["Procedural"; "Parameter"; "schema"])
+          (apply ~loc (ident ~loc ["Sop"; "Parameter"; "schema"])
             [ Labelled "name", estring ~loc type_declaration.ptype_name.txt;
               Labelled "default", evar ~loc default_name; Nolabel, elist ~loc [] ]) ]
   | Ptype_record declarations ->
@@ -256,7 +252,7 @@ let generate_type type_declaration =
         let literal_numeric = Attribute.get kind_attribute declaration = None
           && match kind.pexp_desc with
           | Pexp_apply ({ pexp_desc = Pexp_ident {txt = Longident.Ldot
-              (Longident.Ldot (Longident.Lident "Procedural", "Parameter"),
+              (Longident.Ldot (Longident.Lident "Sop", "Parameter"),
                ("integer" | "floating")); _}; _}, arguments) ->
               List.for_all (function
                 | Labelled _, {pexp_desc = Pexp_constant
@@ -281,7 +277,7 @@ let generate_type type_declaration =
           not (Attribute.has_flag ignore_attribute declaration))
         |> List.map field in
       let schema_expression = apply ~loc
-          (ident ~loc ["Procedural"; "Parameter"; "schema"])
+          (ident ~loc ["Sop"; "Parameter"; "schema"])
           [ Labelled "name", estring ~loc type_declaration.ptype_name.txt;
             Labelled "default", evar ~loc default_name;
             Nolabel, elist ~loc fields ] in
@@ -318,7 +314,7 @@ let generate_signature type_declaration =
     psig_value ~loc (value_description ~loc
       ~name:{ loc; txt = schema_name }
       ~type_:(ptyp_constr ~loc
-        (located_path ~loc ["Procedural"; "Parameter"; "schema"]) [type_])
+        (located_path ~loc ["Sop"; "Parameter"; "schema"]) [type_])
       ~prim:[]) ]
 
 let generate_intf ~ctxt (_recursive, declarations) =
@@ -443,17 +439,17 @@ let build_expression ~loc ~validate ~facts ~rest type_name label inputs optional
           Location.raise_errorf ~loc:expression.pexp_loc
             "sop.node_facts requires elementwise, reads, writes, topology and exact exactly once";
         let facts = pexp_record ~loc fields (Some (apply ~loc
-          (ident ~loc ["Procedural"; "Node"; "facts"]) [Nolabel, var "node"])) in
+          (ident ~loc ["Sop"; "Node"; "facts"]) [Nolabel, var "node"])) in
         pexp_let ~loc Nonrecursive
           [Ast_builder.Default.value_binding ~loc ~pat:(pvar "node") ~expr:operator_call]
-          (apply ~loc (ident ~loc ["Procedural"; "Node"; "Private"; "with_facts"])
+          (apply ~loc (ident ~loc ["Sop"; "Node"; "Private"; "with_facts"])
             [Nolabel, facts; Nolabel, var "node"]) in
   let parameterize dynamic_schema rebuild =
     let node = if dynamic_schema then var "node" else operator_call in
     let schema = if dynamic_schema then apply ~loc (var "schema")
         [Nolabel,var "parameters";Nolabel,node]
       else var (type_name ^ "_schema") in
-    let body = apply ~loc (ident ~loc ["Procedural"; "Node"; "parameterize"])
+    let body = apply ~loc (ident ~loc ["Sop"; "Node"; "parameterize"])
       [Labelled "schema",schema;Labelled "values",var "parameters";
        Labelled "rebuild",rebuild;Nolabel,node] in
     if dynamic_schema then pexp_let ~loc Nonrecursive
@@ -557,164 +553,11 @@ let build_expression ~loc ~validate ~facts ~rest type_name label inputs optional
        case ~lhs:(ppat_construct ~loc (located_lident ~loc "Some") (Some (pvar "schema")))
          ~guard:None ~rhs:(make_body true)]))
 
-(* A node's typed signature follows its record: optional fields in declaration
-   order, one argument per vec3 group, then positional ports (or generator unit).
-   There is no second function name, argument list or default to maintain. *)
-type argument = Arg_optional of string | Arg_labelled of string | Arg_positional of string | Arg_unit
-
 let node_keywords declaration = match Attribute.get node_keywords_attribute declaration with
   | None -> []
   | Some expression -> string_constant expression "sop.node_keywords"
       |> String.split_on_char ',' |> List.map String.trim
 
-let node_arguments declaration slots =
-  let fields = match declaration.ptype_kind with Ptype_record fields -> fields | _ -> [] in
-  let components = vec3_components fields in
-  let seen = ref [] in
-  let arguments = List.filter_map (fun field ->
-    if Attribute.has_flag ignore_attribute field then None else
-    let name = match List.assoc_opt field.pld_name.txt components with
-      | Some (group,_) -> group | None -> field.pld_name.txt in
-    if List.mem name !seen then None else begin
-      seen := name :: !seen; Some (Arg_optional name)
-    end) fields in
-  let keywords = node_keywords declaration in
-  arguments @ List.map (fun slot ->
-    if List.mem slot keywords then Arg_labelled slot else Arg_positional slot) slots
-    @ (if List.for_all (fun slot -> List.mem slot keywords) slots then [Arg_unit] else [])
-
-let typed_function declaration ~key ~inputs ~optional ~slots ~rest ~arguments =
-  let loc = declaration.ptype_loc in
-  let fields = match declaration.ptype_kind with
-    | Ptype_record fields -> fields | _ -> [] in
-  let components = vec3_components fields in
-  let field name = List.find_opt (fun f -> f.pld_name.txt = name) fields in
-  let group_fields group = List.filter_map (fun (name, (group_name, _)) ->
-      if group_name = group then field name else None) components in
-  let var name = evar ~loc name and pvar name = ppat_var ~loc { loc; txt = name } in
-  let default field = pexp_field ~loc (var (declaration.ptype_name.txt ^ "_default"))
-      (located_lident ~loc field) in
-  let fail message = apply ~loc (ident ~loc ["Stdlib"; "invalid_arg"])
-      [Nolabel, estring ~loc ("Sop." ^ key ^ ": " ^ message)] in
-  let message attribute field what =
-    Option.map (fun e -> string_constant e what) (Attribute.get attribute field) in
-  let blank value = apply ~loc (ident ~loc ["Stdlib"; "String"; "trim"]) [Nolabel, value] in
-  let is_blank value = pexp_apply ~loc (ident ~loc ["Stdlib"; "="])
-      [Nolabel, blank value; Nolabel, estring ~loc ""] in
-  let numeric_check field value =
-    (* [not (Float.is_finite v) || v < hard_min || v > hard_max] *)
-    let compare op bound = pexp_apply ~loc (ident ~loc ["Stdlib"; op]) [Nolabel, value; Nolabel, bound] in
-    let bounds = List.filter_map Fun.id [
-        Option.map (compare "<") (Attribute.get hard_min_attribute field);
-        Option.map (compare ">") (Attribute.get hard_max_attribute field) ] in
-    let finite = if type_name field.pld_type = Some "float" then
-        [pexp_apply ~loc (ident ~loc ["Stdlib"; "not"]) [Nolabel,
-           apply ~loc (ident ~loc ["Stdlib"; "Float"; "is_finite"]) [Nolabel, value]]]
-      else [] in
-    match finite @ bounds with
-    | [] -> Location.raise_errorf ~loc:field.pld_loc
-        "sop.validate on %s needs a float field or a hard range" field.pld_name.txt
-    | first :: rest -> List.fold_left (fun left right ->
-        pexp_apply ~loc (ident ~loc ["Stdlib"; "||"]) [Nolabel, left; Nolabel, right]) first rest in
-  (* one typed argument: its pattern, the record fields it sets (name, value)
-     and the checks it runs *)
-  let checks = ref [] and sets = ref [] and params = ref [] and node_inputs = ref [] in
-  (* A check on a [?x] argument runs on the value given, before the default
-     resolves: [Option.iter (fun value -> if ... ) x]. [access] reads the
-     checked number or text out of the argument (a vec3 component). *)
-  let add_check ~name ~optional_value ~access condition message =
-    let statement = if optional_value then
-        apply ~loc (ident ~loc ["Stdlib"; "Option"; "iter"])
-          [ Nolabel, pexp_fun ~loc Nolabel None (pvar "value")
-              (pexp_ifthenelse ~loc (condition (access (var "value"))) (fail message) None);
-            Nolabel, var name ]
-      else pexp_ifthenelse ~loc (condition (access (var name))) (fail message) None in
-    checks := (optional_value, statement) :: !checks in
-  let settle ~name ~optional_value ~access field_name =
-    match field field_name with
-    | None -> Location.raise_errorf ~loc "node signature names no field or slot %S" field_name
-    | Some f ->
-        sets := (field_name, access (var name)) :: !sets;
-        Option.iter (add_check ~name ~optional_value ~access is_blank)
-          (message nonblank_attribute f "sop.nonblank");
-        Option.iter (add_check ~name ~optional_value ~access (numeric_check f))
-          (message validate_attribute f "sop.validate") in
-  let bind name value body = pexp_let ~loc Nonrecursive
-      [Ast_builder.Default.value_binding ~loc ~pat:(pvar name) ~expr:value] body in
-  let bindings = ref [] in
-  let resolve name ~optional_value ~default_value =
-    (* a [?x] argument becomes [let x = Option.value ~default x] *)
-    if optional_value then bindings := (name, apply ~loc (ident ~loc ["Stdlib"; "Option"; "value"])
-        [Labelled "default", default_value; Nolabel, var name]) :: !bindings in
-  let vec3 group = match group_fields group with
-    | [x; y; z] -> Some (x, y, z) | _ -> None in
-  let component value axis = pexp_field ~loc value (located_path ~loc ["Rays_math"; "Vec3"; axis]) in
-  let argument_default f = default f.pld_name.txt in
-  let slot_index name = let rec go index = function
-      | [] -> None | slot :: rest -> if slot = name then Some index else go (index + 1) rest in
-    go 0 slots in
-  List.iter (fun argument ->
-    let name, optional_value = match argument with
-      | Arg_unit -> "()", false
-      | Arg_optional name -> name, true
-      | Arg_labelled name -> name, false
-      | Arg_positional name -> name, false in
-    let source = name in
-    let label = match argument with
-      | Arg_optional _ -> Optional name
-      | Arg_labelled _ -> Labelled name
-      | Arg_positional _ | Arg_unit -> Nolabel in
-    match argument with
-    | Arg_unit -> params := (Nolabel, punit ~loc) :: !params
-    | _ ->
-        params := (label, pvar name) :: !params;
-        match slot_index source, vec3 source, field source with
-        | Some index, _, _ -> node_inputs := (index, name) :: !node_inputs
-        | None, Some (x, y, z), _ ->
-            resolve name ~optional_value ~default_value:(apply ~loc
-              (ident ~loc ["Rays_math"; "Vec3"; "create"])
-              (List.map (fun f -> Nolabel, argument_default f) [x; y; z]));
-            List.iter2 (fun f axis -> settle ~name ~optional_value
-                ~access:(fun value -> component value axis) f.pld_name.txt)
-              [x; y; z] ["x"; "y"; "z"]
-        | None, None, Some f ->
-            resolve name ~optional_value ~default_value:(argument_default f);
-            settle ~name ~optional_value ~access:Fun.id source
-        | None, None, None ->
-            Location.raise_errorf ~loc "node signature names no field, vec3 group or slot %S" name)
-    arguments;
-  let input_value index =
-    let slot = List.assoc index !node_inputs in
-    if optional = [] || List.mem index optional then var slot
-    else pexp_construct ~loc (located_lident ~loc "Some") (Some (var slot)) in
-  let inputs_list = match rest with
-    | None -> elist ~loc (List.init inputs input_value)
-    | Some index -> apply ~loc (ident ~loc ["Stdlib"; "List"; "append"])
-        [Nolabel, elist ~loc (List.init index input_value);
-         Nolabel, if optional = [] then input_value index else
-           apply ~loc (ident ~loc ["Stdlib";"List";"map"])
-             [Nolabel,ident ~loc ["Stdlib";"Option";"some"];Nolabel,input_value index]] in
-  let record =
-    let sets = List.rev !sets in
-    let every = List.for_all (fun f -> List.mem_assoc f.pld_name.txt sets) fields in
-    if fields = [] then var (declaration.ptype_name.txt ^ "_default")
-    else pexp_record ~loc (List.map (fun (f, v) -> located_lident ~loc f, v) sets)
-      (if every then None else Some (var (declaration.ptype_name.txt ^ "_default"))) in
-  let label = pexp_match ~loc (var "label")
-      [ case ~lhs:(ppat_construct ~loc (located_lident ~loc "Some") (Some (pvar "value")))
-          ~guard:None ~rhs:(var "value");
-        case ~lhs:(ppat_construct ~loc (located_lident ~loc "None") None)
-          ~guard:None ~rhs:(estring ~loc key) ] in
-  let body = apply ~loc (var "build")
-      [Labelled "label", label; Labelled "inputs", inputs_list; Nolabel, record] in
-  let sequence body (_, statement) = pexp_sequence ~loc statement body in
-  let body = List.fold_left sequence body (List.filter (fun (optional_value, _) -> not optional_value) !checks) in
-  let body = List.fold_left (fun body (name, value) -> bind name value body) body !bindings in
-  let body = List.fold_left sequence body (List.filter fst !checks) in
-  let body = List.fold_left (fun body (label, pattern) -> pexp_fun ~loc label None pattern body)
-      body !params in
-  pexp_fun ~loc Nolabel None (pvar "build")
-    (pexp_fun ~loc (Optional "label") None (pvar "label") body)
 
 let generate_node_type declaration =
   ensure_monomorphic declaration;
@@ -748,9 +591,6 @@ let generate_node_type declaration =
         | None -> true
         | Some index -> List.mem index optional || rest = Some index) keywords then
     Location.raise_errorf ~loc "sop.node_keywords must name distinct required slots";
-  let typed = [value_binding ~loc (declaration.ptype_name.txt ^ "_fn")
-    (typed_function declaration ~key ~inputs ~optional ~slots ~rest
-      ~arguments:(node_arguments declaration slots))] in
   let build = evar ~loc "build" and input_nodes = evar ~loc "input_nodes" in
   let construct = apply ~loc build
       [ Labelled "label", estring ~loc key;
@@ -769,21 +609,21 @@ let generate_node_type declaration =
     Labelled "label", estring ~loc label;
     Labelled "slots", elist ~loc (List.map (estring ~loc) slots);
     Labelled "fields", apply ~loc
-      (ident ~loc ["Procedural"; "Parameter"; "view"])
+      (ident ~loc ["Sop"; "Parameter"; "view"])
       [Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_schema");
        Nolabel, evar ~loc (declaration.ptype_name.txt ^ "_default")];
     Labelled "category", elist ~loc (List.map (estring ~loc) category) ] @ input_types
       @ (if keywords = [] then [] else
           [Labelled "keyword_inputs", elist ~loc (List.map (estring ~loc) keywords)]) in
   let factory = if optional = [] && Option.is_none rest then
-      apply ~loc (ident ~loc ["Procedural"; "Edit_graph"; "factory"])
+      apply ~loc (ident ~loc ["Sop"; "Edit_graph"; "factory"])
         (common @ [Labelled "arity", eint ~loc inputs; Nolabel, constructor])
     else
       let requirements = List.init inputs (fun index ->
-        pexp_construct ~loc (located_path ~loc ["Procedural"; "Edit_graph";
+        pexp_construct ~loc (located_path ~loc ["Sop"; "Edit_graph";
           if Some index = rest then (if List.mem index optional then "Optional_rest" else "Rest")
           else if List.mem index optional then "Optional" else "Required"]) None) in
-      apply ~loc (ident ~loc ["Procedural"; "Edit_graph"; "factory_slots"])
+      apply ~loc (ident ~loc ["Sop"; "Edit_graph"; "factory_slots"])
         (common @ [Labelled "inputs", elist ~loc requirements;
           Nolabel, constructor]) in
   [value_binding ~loc (declaration.ptype_name.txt ^ "_factory")
@@ -793,7 +633,6 @@ let generate_node_type declaration =
     (build_expression ~loc ~validate:(Attribute.get record_validate_attribute declaration)
        ~facts:(Attribute.get node_facts_attribute declaration) ~rest
        declaration.ptype_name.txt label inputs optional)]
-  @ typed
 
 let generate_node_impl ~ctxt (_recursive, declarations) =
   let _loc = Expansion_context.Deriver.derived_item_loc ctxt in
@@ -822,15 +661,14 @@ let manifest structure =
 let attributes = List.map (fun attribute -> Attribute.T attribute)
     [ default_attribute; label_attribute; name_attribute; description_attribute;
       folder_attribute; impact_attribute; soft_min_attribute; soft_max_attribute;
-      hard_min_attribute; hard_max_attribute; kind_attribute; vec3_attribute; unit_attribute;
-      nonblank_attribute; validate_attribute ]
+      hard_min_attribute; hard_max_attribute; kind_attribute; vec3_attribute; unit_attribute; ]
   @ [Attribute.T ignore_attribute; Attribute.T primary_attribute]
 
 let node_attributes = List.map (fun attribute -> Attribute.T attribute)
     [node_key_attribute; node_operation_attribute; node_label_attribute; node_category_attribute; node_facts_attribute;
      node_inputs_attribute; node_optional_attribute; node_slots_attribute; node_types_attribute; node_keywords_attribute; node_rest_attribute]
   @ List.map (fun attribute -> Attribute.T attribute)
-    [nonblank_attribute; validate_attribute; hard_min_attribute;
+    [hard_min_attribute;
      hard_max_attribute; vec3_attribute]
 
 let () =

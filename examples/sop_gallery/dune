@@ -1,31 +1,10 @@
 (rule
- (target gallery_source.ml)
+ (target lisp.ml)
  (deps gallery.rays)
  (action (chdir %{workspace_root}
-  (with-stdout-to %{target} (run %{bin:rays-lisp} source %{dep:gallery.rays})))))
-
-(executable
- (name main)
- (libraries rays rdk_rays procedural flow sop_catalog rays_editor workspace_parity))
-
+  (with-stdout-to %{target} (run %{bin:rays-lisp} ml %{dep:gallery.rays})))))
+(executable (name lisp) (modules lisp) (libraries rays_editor))
 (rule
- (alias runtest)
- (action (run %{exe:main.exe} --check-all)))
-
-(rule
- (alias test_workspace_pixels)
- (locks smoke_window)
- (action (setenv RAYS_WORKSPACE_PIXELS /tmp/rays-workspace-pixels-sop-gallery
-  (run %{exe:main.exe} --check-all))))
-
-(rule
- (aliases runtest-native test_scene3_float32_gallery)
- (locks smoke_window)
- (action
-  (setenv RAYS_SCENE3_FLOAT32_COMPARE 1
-   (setenv RAYS_WORKSPACE_PIXELS /tmp/rays-scene3-float32-gallery
-    (run %{exe:main.exe} --check-all)))))
-
-(alias
- (name qualification)
- (deps (alias test_workspace_pixels)))
+ (alias smoke-all)
+ (locks ../../smoke_window)
+ (action (setenv RAYS_MAX_FRAMES 30 (run %{exe:lisp.exe}))))

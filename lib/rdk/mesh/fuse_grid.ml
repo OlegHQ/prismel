@@ -15,19 +15,6 @@ type fuse_targeting = Point_snap.targeting =
   | Specified_points of string
 type grid_rounding = Grid_nearest | Grid_down | Grid_up
 
-let fuse_attribute_rule ?weight_attribute ~pattern method_ =
-  let weight_attribute = match method_ with
-    | Attribute_weighted_average | Attribute_weighted_sum
-    | Attribute_minimum_weight | Attribute_maximum_weight
-    | Attribute_concatenate_weight_order -> weight_attribute
-    | Attribute_average | Attribute_least_point | Attribute_greatest_point
-    | Attribute_maximum | Attribute_minimum | Attribute_mode
-    | Attribute_median | Attribute_sum | Attribute_sum_squares
-    | Attribute_root_mean_square | Attribute_concatenate -> None in
-  { pattern; method_; weight_attribute }
-
-let fuse_group_rule ~pattern group_method = { group_pattern = pattern; group_method }
-
 type fuse_attribute_view =
   | Fuse_float of float array
   | Fuse_int of int array

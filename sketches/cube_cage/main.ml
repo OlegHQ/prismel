@@ -15,7 +15,7 @@
    The camera object carries depth of field (Aperture, Focus distance; with
    W, drag the yellow handle to slide the target along the view direction)
    and the render settings (resolution, max samples). The trace fills
-   [Editor3.film]: the whole pane while orbiting freely, the camera's aspect
+   [Editor.film]: the whole pane while orbiting freely, the camera's aspect
    while looking through it; accumulation stops at max samples. "Render /
    save PNG" renders the camera at its resolution progressively, with the
    status bar counting samples, then saves the PNG.
@@ -27,9 +27,9 @@
    saves the final window; RAYS_CAGE_EXPORT=path renders the camera
    halfway through a finite smoke. *)
 open Rays
-open Procedural
+open Sop
 module P = Rays_pathtracer
-module Editor = Rays_editor.Editor3
+module Editor = Rays_editor.Editor
 module Renderer = Rays_editor.Renderer
 module Settings = Rays_editor.Settings
 let rgb = P.Linear_color.rgb
@@ -88,12 +88,11 @@ let rdk_error result = Result.map_error Rdk.Error.to_string result
 (* A point cloud (any node before Copy to Points) draws as unlit markers in
    both preview renderers; a surface draws lit, or as its unlit edges. *)
 let points_node mesh transforms =
-  Scene3.with_raster (Scene3.raster_state ~point_size:9. ())
-    [ Scene3.instances_array ~material:point_material ~cull:Scene3.Cull_none mesh transforms ]
+  Scene3.instances_array ~material:point_material ~cull:Scene3.Cull_none mesh transforms
 
 let prepare settings (output : Session.output) =
   let s = Settings.get settings_schema settings in
-  let geometry = (Result.get_ok (Procedural.Payload.geometry output.payload)) in
+  let geometry = (Result.get_ok (Sop.Payload.geometry output.payload)) in
   let transforms = Option.value ~default:[| Mat4.identity |] output.instances in
   let topology = Rdk.Geometry.topology geometry in
   let triangles = ref 0 in
@@ -124,8 +123,7 @@ let prepare settings (output : Session.output) =
         finish ~wire:(points_node mesh transforms) ())
   | Wireframe ->
       Result.bind (Renderer.wire_mesh geometry) (fun mesh ->
-        finish ~wire:(Scene3.with_raster (Scene3.raster_state ~line_width:1.5 ())
-            [ Scene3.instances_array ~material:wire_material ~cull:Scene3.Cull_none mesh transforms ]) ())
+        finish ~wire:(Scene3.instances_array ~material:wire_material ~cull:Scene3.Cull_none mesh transforms) ())
 
 (* ---- sketch ---- *)
 

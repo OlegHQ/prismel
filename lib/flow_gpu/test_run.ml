@@ -26,7 +26,7 @@ let () = match Rays_execution.acquire_gpu () with
               let maximum=ref 0. in
               Array.iteri (fun index value -> maximum:=max !maximum (abs_float(value-.expected.(index)))) actual;
               Printf.printf "%s,%d,max_abs_error=%.9g\n%!" name count !maximum;
-              (* Native rows, Apple M1 (performance-log "P5 native calibration"):
+              (* Native rows, Apple M1:
                  noise 8.82e-7 at 1,024 and 9.89e-5 at 65,536 elements. *)
               if name<>"noise" then assert (!maximum=0.) else assert (!maximum<=2e-4);
               let created=Flow_gpu.Run.Private.buffer_creations runner in

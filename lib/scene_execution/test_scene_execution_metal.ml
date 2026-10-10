@@ -45,7 +45,6 @@ fragment float4 scene_fragment(Out v [[stage_in]],const device float*p [[buffer(
 let run () =
   let driver,live_handles=Ogpu.Impl.create_driver()in
   let before=live_handles()in
-  if Scene_execution.pipeline_variants_per_sample<>66 then failwith"pipeline family/blend cardinality drift";
   let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2;layer=None}in
   let renderer=get(Scene_execution.create~offscreen:true driver configuration(fun device family blend samples->let bytes,vertex_bindings,fragment_bindings,groups=match family with
     |Scene_execution.Scene2|Scene2_textured->source2,[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex]};{group=0;binding=6;kind=Storage_buffer;visibility=[Vertex]}],[{Ogpu.Shader.group=0;binding=1;kind=Storage_buffer;visibility=[Fragment]}],[0,[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex]};{binding=6;kind=Buffer;visibility=[Vertex]};{binding=1;kind=Buffer;visibility=[Fragment]}]]

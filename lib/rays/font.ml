@@ -6,14 +6,14 @@ module Text_key=struct
   type t=int*int*string*int option*alignment*(int*int*int*int)
   let equal=(=) let hash=Hashtbl.hash end
 module Text_cache=Lru.Make(Text_key)
-type t={resource:Runtime_resources.Font.t;size:int;
+type t={resource:Runtime_resources.Font.t;
   mutable generation:int;
   cache:Image.t Text_cache.t}
 let text_cache_capacity=256
 let text_cache()=Text_cache.create ~release:(fun _ image->Image.destroy image)text_cache_capacity
 let message operation error=`Msg(Format.asprintf"%s: %a"operation Runtime_resources.pp_error error)
 let fonts:t list ref=ref[]
-let make ?source:_ size=function Ok resource->let value={resource;size;generation=1;cache=text_cache()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
+let make ?source:_ _size=function Ok resource->let value={resource;generation=1;cache=text_cache()}in fonts:=value::!fonts;Ok value|Error error->Error(message"Font.load"error)
 let load path size=make ~source:path size(Runtime_resources.Font.open_file ~path ~size:(float size))
 let system ?(size=16)()=make size(Runtime_resources.Font.open_system ~size:(float size))
 let rgba(Blended c)=c.Color.r,c.g,c.b,c.a
@@ -31,7 +31,6 @@ let image_of_text text=match Runtime_resources.Text.Private.into_image text with
 let paint ?(density=1) ?wrap ?(align=Left) font text mode=match Runtime_resources.Font.render font.resource ?wrap_width:wrap ~align:(resource_align align) ~density ~color:(rgba mode)(sanitize text)with
   |Error error->Error(message"Font.render_text"error)|Ok None->Ok(Image.create ~width:1 ~height:1())
   |Ok(Some value)->let result=image_of_text value in ignore(Runtime_resources.Text.destroy value);result
-let render_text ?(density=1) font text mode=paint ~density font text mode
 let key ?wrap ?(align=Left) ?(density=1) ?(size=0) text mode:Text_key.t=density,size,text,wrap,align,rgba mode
 let cached_text ?wrap ?(align=Left) ?(density=1) font text mode=let key=key ?wrap ~align ~density text mode in match Text_cache.find font.cache key with image->Ok image|exception Not_found->
   match paint ~density ?wrap ~align font text mode with Error _ as error->error|Ok image->
@@ -43,7 +42,6 @@ let resource_hinting=function
   |Mono_hinting->Runtime_resources.Font.Mono_hinting
   |None_hinting->Runtime_resources.Font.None_hinting
 let set_hinting font value=match Runtime_resources.Font.set_hinting font.resource(resource_hinting value)with Ok()->clear_cache font;();font.generation<-font.generation+1;Ok()|Error e->Error(message"Font.set_hinting"e)
-let get_size font=font.size
 let destroy font=
   fonts:=List.filter(fun candidate->candidate!=font)!fonts;
   clear_cache font;ignore(Runtime_resources.Font.destroy font.resource)
@@ -87,8 +85,6 @@ module Private=struct
    decr automatic_references;
    if handle.entry.references=0&&not handle.entry.cached then Image.destroy handle.entry.image
   end
- let clear_automatic()=
-  Text_cache.clear automatic_cache;Font_cache.clear automatic_fonts
  let automatic_counts()=
   Text_cache.length automatic_cache,Font_cache.length automatic_fonts,
     !automatic_references
@@ -120,10 +116,6 @@ module Private=struct
                    Bytes.get rgba(index*4+3))}
            |Error error,_|_,Error error->Error(message"Font.glyph"error))
 end
-let shutdown()=Private.clear_automatic();let owned= !fonts in fonts:=[];List.iter destroy owned
-let text_size ?wrap font text=match Runtime_resources.Font.size_text font.resource ?wrap_width:wrap(sanitize text)with Ok size->Ok size|Error e->Error(message"Font.text_size"e)
 let metrics font=match Runtime_resources.Font.metrics font.resource with
   |Ok m->m|Error e->let `Msg text=message"Font.metrics"e in invalid_arg text
 let get_ascent font=(metrics font).ascent
-let get_descent font=(metrics font).descent
-let get_line_skip font=(metrics font).line_skip

@@ -3,7 +3,7 @@
    World node, its layers, a preset, settings, and objects only the host made) goes through
    [Scene_sync.reconcile], and the text it leaves lowers to the same document (by labels). *)
 open Rays
-open Procedural
+open Sop
 
 module Document = Editor_document.Document
 module Contexts = Editor_document.Contexts
@@ -28,10 +28,11 @@ let text = {|(workspace sync
            arm (scene/geometry (ref g) :name "arm" :translate [1 0 0])
            cam (scene/camera :name "cam" :eye [0 2 6])
            side (scene/camera :name "side" :eye [6 2 0])
-           all (scene/merge body arm cam side (scene/light :name "fill"))]
+           studio (scene/world (ref world) :name "studio" :exposure 0.5)
+           all (scene/merge body arm cam side (scene/light :name "fill") studio)]
       all))
   (graph world :context world
-    (world/world (world/sun (world/sky :name "sky") :name "sun") :name "studio" :exposure 0.5))
+    (world/sun (world/sky :name "sky") :name "sun"))
   (graph settings :context settings (settings/config :title "t" :width 640)))|}
 
 let lower ?previous workspace =
@@ -315,11 +316,11 @@ let run () =
   let edited = wrote "World preset" ~level:(Document.Inside wid) doc (Sync.Layers (preset_network, values)) preset in
   check (contains (source edited) "world/room") "a World preset did not reach the text";
   same_after_reload edited "world preset";
-  (* deleting the World: its graph stays and says none (a removed graph would be seeded again) *)
+  (* deleting the World takes the member out of the scene; its graph stays *)
   let worldless = Document.prune (with_scene doc (Edit_graph.remove_nodes [ wid ] (scene doc))) in
   let edited = wrote "World delete" doc (Sync.Delete [ wid ]) worldless in
-  check (contains (source edited) "world/none" && Objects.ids "world" (scene edited) = [])
-    "a deleted World was not written as none";
+  check (not (contains (source edited) "(scene/world") && Objects.ids "world" (scene edited) = [])
+    "a deleted World stayed in the scene";
   same_after_reload edited "world delete";
   check (Objects.ids "world" (scene (open_text (source edited))) = []) "a deleted World came back on reload";
   (* settings graph *)
@@ -366,23 +367,7 @@ let run () =
   let followed = ok (reconcile ~adopt:false bare (set bare "camera1" [ float "eye_x" 3. ])) in
   check (not (contains (source followed) "scene/") && snapshot followed = snapshot (set bare "camera1" [ float "eye_x" 3. ]))
     "a follow-the-viewport move was written or lost";
-  (* the host's World, edited, is written as a world graph *)
-  let worlded = match Objects.ids "world" (scene bare) with
-    | [] ->
-        let node = Result.get_ok (Edit_graph.instantiate Layers.Settings.factory []) in
-        let graph = Result.get_ok (Edit_graph.add_node ~factory:Layers.Settings.factory node (scene bare)) in
-        let daylight = List.assoc "daylight" World.presets in
-        let network = Result.get_ok (Layers.network_of_world daylight) in
-        let doc = with_scene bare graph in
-        { doc with networks = Document.Int_map.add (Node.id node) network doc.networks }
-    | _ -> bare in
-  let edited = ok (reconcile bare worlded) in
-  check (contains (source edited) "graph world" && contains (source edited) "world/sky")
-    "a World added by the host did not reach the text";
-  (* the host's own camera and light are not in the text, only the World is *)
-  let layers (doc : Document.t) = let _, layers, _, _ = snapshot doc in layers in
-  check (layers (open_text (source edited)) = layers edited) "added world: the saved text is not the document";
-  (* a scene graph is authoritative for cameras and lights (and a world graph for the World): what
+  (* a scene graph is authoritative for cameras and lights: what
      it does not say is not there, and the host seeds nothing *)
   let names doc = List.sort compare (List.map (fun (i : Edit_graph.node_info) -> i.label) (Edit_graph.inspect (scene doc))) in
   let with_graphs extra = Ws_fixture.of_text ("(workspace bare (graph g :context sop (sop/box))" ^ extra ^ ")") in
@@ -392,11 +377,6 @@ let run () =
     "a scene graph kept the host's camera or light";
   check (names (lower ~previous:bare (with_graphs " (graph scene :context scene (scene/merge))")) = [])
     "an empty scene graph kept an object";
-  let with_world = match Objects.ids "world" (scene worlded) with _ :: _ -> worlded | [] -> failwith "no host World" in
-  check (Objects.ids "world" (scene (lower ~previous:with_world (with_graphs ""))) <> [])
-    "a workspace with no world graph lost the host's World";
-  check (Objects.ids "world" (scene (lower ~previous:with_world (with_graphs " (graph world :context world (world/none))"))) = [])
-    "(world/none) kept the host's World";
   (* deleting a host-made camera or light adopts the other host objects into a scene graph and
      removes the one; the saved text has no seed to bring it back *)
   let without (doc : Document.t) label =
@@ -413,11 +393,6 @@ let run () =
   (* adopted, the others are objects of the text *)
   let nothing = ok (write no_camera (Sync.Delete [ node_id no_camera "light1" ])) in
   check (names (open_text (source nothing)) = [ "g" ]) "deleting the last host objects was not written";
-  (* the host's World, deleted: the world graph says none *)
-  let no_world = ok (reconcile with_world (Document.prune (with_scene with_world
-    (Edit_graph.remove_nodes (Objects.ids "world" (scene with_world)) (scene with_world))))) in
-  check (contains (source no_world) "world/none" && Objects.ids "world" (scene (open_text (source no_world))) = [])
-    "a deleted host World came back on reload";
   (* adding by key: an object joins the scene's merge, a layer goes on top of the stack; a document
      with no scene graph (or World graph) gets one, its host objects written first *)
   let add doc name expr = Result.get_ok (Flow_graph.Flow_edit.apply_checked
@@ -444,37 +419,18 @@ let run () =
   check (Result.is_ok (Workspace_doc.edit catalog (fst layered.workspace) (Flow_graph.Flow_edit.Delete_nodes { nodes = [ [ "world"; "haze" ] ] })))
     "a World layer could not be deleted by its binding";
   (* through the editor: a workspace with no scene graph gets one when an object is added *)
-  let env = Rays_editor.Editor3.create ~workspace:(Ws_fixture.of_text "(workspace bare (graph g :context sop (sop/box)))")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+  let env = Rays_editor.Editor.create ~workspace:(Ws_fixture.of_text "(workspace bare (graph g :context sop (sop/box)))")
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok in
-  let env = match Rays_editor.Editor3.edit env (Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
+  let env = match Rays_editor.Editor.edit env (Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; name = "lamp";
     expr = call "scene/light" [] }) with Ok env -> env | Error m -> failwith m in
-  let saved = Workspace_doc.to_text (Rays_editor.Editor3.workspace env) in
+  let saved = Workspace_doc.to_text (Rays_editor.Editor.workspace env) in
   check (contains saved "graph scene" && contains saved "scene/geometry (ref g)" && contains saved "scene/camera"
          && contains saved "lamp") "adding to a missing scene graph did not write it";
-  check (Rays_editor.Editor3.undo_label env = Some "Add node") "adding an object is not one entry";
-  Rays_editor.Editor3.close env;
+  check (Rays_editor.Editor.undo_label env = Some "Add node") "adding an object is not one entry";
+  Rays_editor.Editor.close env;
   print_endline "scene sync: fields, inline, rename, reparent, delete, camera, World, settings, host objects, add by key ok"
-
-(* Command: dune exec test/test_main.exe -- bench_scene_sync (from _build/default/test).  One handle-drag frame on an
-   object of a workspace: the derived edit, its text rewrite and the new lowering, median of 50. *)
-let bench () =
-  let case name =
-    In_channel.with_open_bin (Filename.concat "../specification/workspace/cases" (name ^ ".lisp")) In_channel.input_all in
-  List.iter (fun (name, label) ->
-    let doc = open_text (case name) in
-    let id = node_id doc label in
-    let runs = 50 in
-    let times = List.init runs (fun i ->
-      let after = set doc label [ float "translate_x" (Stdlib.float_of_int i *. 0.01) ] in
-      let start = Unix.gettimeofday () in
-      ignore (ok (reconcile doc after));
-      (Unix.gettimeofday () -. start) *. 1000.) in
-    ignore id;
-    let sorted = List.sort compare times in
-    Printf.printf "reconcile of one transform edit, %s: %.2f ms (median of %d)\n%!" name (List.nth sorted (runs / 2)) runs)
-    [ "bloom", "flower"; "variations", "garden" ]
 
 (* ---- the copies of a loop are one template (register V4) ---- *)
 
@@ -1085,7 +1041,7 @@ let run_instances () =
   check (Objects.ids "world" (scene doc) = []) "the part holds no World";
   (match doc.view_worlds with
    | [ (_, Some day); (_, Some night) ] ->
-       check (Procedural.Node.label day.node = "Noon" && Procedural.Node.label night.node = "Dusk")
+       check (Sop.Node.label day.node = "Noon" && Sop.Node.label night.node = "Dusk")
          "each viewport's World node is its own";
        check (Layers.to_world day.node day.layers <> None && Layers.to_world night.node night.layers <> None)
          "both Worlds bake";

@@ -1,7 +1,7 @@
 type blend=Replace|Alpha|Add|Multiply
 type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable automatic:Font.Private.automatic option;mutable rendered:Image.t option}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
-and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
+and image_node={image:Image.t;x:int;y:int;scale:float;angle:float}
 and display_list_node={segment:Scene_command.Display_list.t;
   resources:(int*Rays_execution.resource)list}
 and ui_node={ui:Scene_command.Ui_batch.t;
@@ -11,18 +11,9 @@ and node=Group of t|Clear of Color.t|Geometry of Scene_command.Render_ir.geometr
  |View3d of view3d_node|Region of int*int*int*int*bool*int|Layer_break
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
-let empty=[]let one n=[n]let group x=Group x let clear c=Clear c
+let empty=[]let group x=Group x let clear c=Clear c
 let default_color=Color.white
 let rgba c=Int32.logor(Int32.shift_left(Int32.of_int c.Color.r)24)(Int32.logor(Int32.shift_left(Int32.of_int c.g)16)(Int32.logor(Int32.shift_left(Int32.of_int c.b)8)(Int32.of_int c.a)))
-let point2 (x,y)={Scene_command.Path.x=float x;y=float y}
-let geometry_of_mesh color (mesh:Scene_command.Path.mesh)=
-  let vertices=Array.make(Array.length mesh.vertices*2)0. in
-  Array.iteri(fun index (point:Scene_command.Path.point)->vertices.(index*2)<-point.x;vertices.(index*2+1)<-point.y)mesh.vertices;
-  Geometry{Scene_command.Render_ir.vertices;indices=mesh.indices;color=rgba color}
-let path_error operation=function
-  |Ok mesh->mesh|Error Scene_command.Path.Empty_path->{Scene_command.Path.vertices=[||];indices=[||]}
-  |Error _->invalid_arg operation
-let stroke_path ?(width=1.) color path=geometry_of_mesh color(path_error"Scene path stroke"(Scene_command.Path.stroke~tolerance:0.25~width~cap:Scene_command.Path.Butt~join:Scene_command.Path.Miter~miter_limit:4. path))
 type path_geometry_key={points:(int*int)list;closed:bool;stroke_width:int64;
   fill_rgba:int32 option;stroke_rgba:int32 option}
 module Path_geometry_key=struct
@@ -75,7 +66,6 @@ let polyline points ?(color=default_color)()=
     ~color:(rgba color)))
 let point ~at:(x,y) ?(color=default_color)()=polygon[x,y;x+1,y;x+1,y+1;x,y+1]~fill:color()
 let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
-let square ~at ~size ?fill ?stroke()=rect~at~w:size~h:size?fill?stroke()
 let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
   let radius=max 0(min radius(min(abs w)(abs h)/2))in
   let key=w,h,radius,Option.map rgba fill,Option.map rgba stroke in
@@ -99,40 +89,11 @@ let ellipse ~at:(cx,cy as at) ~rx ~ry ?fill ?stroke()=
     Geometry geometry)(Scene_command.Shape2.ellipse ~center:at ~rx ~ry
       ~fill:(Option.map rgba fill) ~stroke:(Option.map rgba stroke)))))
 let circle ~at ~radius ?fill ?stroke()=ellipse~at~rx:radius~ry:radius?fill?stroke()
-let triangle a b c ?fill ?stroke()=polygon[a;b;c]?fill?stroke()
-let quad a b c d ?fill ?stroke()=polygon[a;b;c;d]?fill?stroke()
-let arc_points (cx,cy) radius from_ to_=List.init 33(fun i->let a=from_+.(to_-.from_)*.float i/.32. in cx+int_of_float(float radius*.cos a),cy+int_of_float(float radius*.sin a))
-let arc ~at~radius~from_~to_ ?(color=default_color)()=polyline(arc_points at radius from_ to_)~color()
-let pie ~at ~radius ~from_ ~to_ ?fill ?stroke()=polygon(at::arc_points at radius from_ to_)?fill?stroke()
-module Bezier_table=Lru.Make(Structural_key(struct type t=(int*int)list*int*int32 end))
-let bezier_cache_capacity=256
-let bezier_caches=Domain.DLS.new_key(fun()->Bezier_table.create bezier_cache_capacity)
-let bezier_cached key make=
-  let cache=Domain.DLS.get bezier_caches in
-  match Bezier_table.find cache key with
-  |value->value
-  |exception Not_found->let value=make()in Bezier_table.add cache key value;value
-let bezier points ?(steps=20)?(color=default_color)()=
-  let steps=max 1 steps in
-  match points with
-  |[]->Group[]|[p0]->point~at:p0~color()
-  |first::rest->
-      bezier_cached(points,steps,rgba color)(fun()->
-      let controls=Array.of_list points in
-      let sampled=List.init(steps+1)(fun sample->let t=float sample/.float steps in
-        let values=Array.map(fun(x,y)->float x,float y)controls in
-        for level=Array.length values-1 downto 1 do for index=0 to level-1 do
-          let x0,y0=values.(index)and x1,y1=values.(index+1)in
-          values.(index)<-(x0+.t*.(x1-.x0),y0+.t*.(y1-.y0))done done;
-        let x,y=values.(0)in {Scene_command.Path.x;y})in
-      let commands=Array.of_list(Scene_command.Path.Move_to(point2 first)::List.map(fun p->Scene_command.Path.Line_to p)(List.tl sampled))in
-      ignore rest;stroke_path color(Scene_command.Path.of_commands commands))
-let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;let points=Path.points~steps value in if Path.is_closed value then polygon points?fill?stroke()else polyline points?color:stroke()
+let path ?fill value=let points=Path.points~steps:20 value in if Path.is_closed value then polygon points?fill()else polyline points()
 let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;automatic=None;rendered=None}
-let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;automatic=None;rendered=None}
-let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
+let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ()=
   if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
-  Image{image;x;y;scale;angle;center;flip_x}
+  Image{image;x;y;scale;angle}
 let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
 let display_list ?(images=[]) segment=
   let images=Array.of_list images in
@@ -159,7 +120,7 @@ let text_input_region ~at:(x,y)~w~h ?(focused=false) ?(cursor=0)()=
   if cursor<0 then invalid_arg"Scene.text_input_region: negative cursor offset";
   Region(x,y,w,h,focused,cursor)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
-let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
+let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)
 module Private=struct
  let display_list=display_list
  let shapes batch=Shapes batch
@@ -222,15 +183,13 @@ module Private=struct
      Array.blit builder.values 0 values 0 builder.length;builder.values<-values);
    Array.unsafe_set builder.values builder.length command;
    builder.length<-builder.length+1
- let image_command builder image x y scale angle center flip_x=
+ let image_command builder image x y scale angle=
   let width,height=Image.get_size image in let rect={Scene_command.Render_ir.x=0.;y=0.;width=float width;height=float height}in
     let destination={Scene_command.Render_ir.x=float x;y=float y;width=float width*.scale;height=float height*.scale}in
     let command=Scene_command.Render_ir.Image{resource_id=Image.Private.identity image;source=rect;destination}in
-    let transformed=angle<>0.||flip_x||center<>None in
-    if transformed then(
-      let cx,cy=match center with None->destination.width*.0.5,destination.height*.0.5|Some(cx,cy)->float cx,float cy in
-      let px=destination.x+.cx and py=destination.y+.cy and c=cos angle and s=sin angle and sx=if flip_x then -.1. else 1. in
-      let xx=c*.sx and xy=(-.s)and yx=s*.sx and yy=c in
+    if angle<>0. then(
+      let px=destination.x+.destination.width*.0.5 and py=destination.y+.destination.height*.0.5 and c=cos angle and s=sin angle in
+      let xx=c and xy=(-.s)and yx=s and yy=c in
       emit builder(Scene_command.Render_ir.Push_transform{xx;xy;yx;yy;tx=px-.xx*.px-.xy*.py;ty=py-.yx*.px-.yy*.py});
       emit builder command;emit builder Scene_command.Render_ir.Pop_transform)
     else emit builder command
@@ -245,10 +204,10 @@ module Private=struct
        Array.iter (emit builder) (Scene_command.Render_ir.Private.commands_readonly
          (Scene_command.Display_list.render_ir node.segment));
        nodes xs
-   |Image node::xs->image_command builder node.image node.x node.y node.scale node.angle node.center node.flip_x;nodes xs
+   |Image node::xs->image_command builder node.image node.x node.y node.scale node.angle;nodes xs
    |Text node::xs->
        let scale=1./.float(max 1 density)in
-       image_command builder(text_image~density node)node.x node.y scale 0. None false;nodes xs
+       image_command builder(text_image~density node)node.x node.y scale 0.;nodes xs
    |Group g::xs->nodes g;nodes xs
    |Translate(x,y,g)::xs->emit builder(Scene_command.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
    |Scale(x,y,g)::xs->emit builder(Scene_command.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.});nodes g;emit builder Scene_command.Render_ir.Pop_transform;nodes xs
@@ -289,10 +248,10 @@ module Private=struct
       |Failure message->Error message
       |Invalid_argument message->Error message
 
- let stage ?(density=1) ~width ~height scene =
+ let stage ~width ~height scene =
    if width <= 0 || height <= 0 then Error "invalid scene extent"
    else
-     try stage_materialized ~density scene with
+     try stage_materialized scene with
      |Failure message->Error message
      |Invalid_argument message->Error message
 
@@ -344,8 +303,7 @@ module Private=struct
    |Ui left,Ui right->left.ui==right.ui&&left.ui_resources==right.ui_resources
    |Shapes left,Shapes right->left==right
    |Image left,Image right->left.image==right.image&&left.x=right.x&&
-       left.y=right.y&&left.scale=right.scale&&left.angle=right.angle&&
-       left.center=right.center&&left.flip_x=right.flip_x
+       left.y=right.y&&left.scale=right.scale&&left.angle=right.angle
    |Text left,Text right->left.x=right.x&&left.y=right.y&&
        left.value=right.value&&left.color=right.color&&left.size=right.size&&
        left.wrap=right.wrap&&left.align=right.align&&
@@ -406,7 +364,7 @@ module Private=struct
    |Display_list _->3
    |Ui _->4
    |Shapes _->16
-   |Image node->Hashtbl.hash(5,node.x,node.y,node.scale,node.angle,node.center,node.flip_x)
+   |Image node->Hashtbl.hash(5,node.x,node.y,node.scale,node.angle)
    |Text node->Hashtbl.hash(6,node.x,node.y,node.value,node.color,node.size,node.wrap,node.align)
    |Group nodes->7 lxor hash_native_scene nodes
    |Translate(x,y,nodes)->Hashtbl.hash(8,x,y)lxor hash_native_scene nodes
@@ -665,14 +623,14 @@ module Private=struct
            cache:=trim_native_stage_cache!cache;
            Ok stage
 
- let stage_native ?density ~width ~height scene=
+ let stage_native ~width ~height scene=
    Result.map_error(Format.asprintf "%a" pp_native_error)
-     (stage_native_internal ~aggregate:true ?density ~width ~height scene)
+     (stage_native_internal ~aggregate:true ~width ~height scene)
  let stage_native_render_checked ?density ~width ~height scene=
    stage_native_internal ~aggregate:false ?density ~width ~height scene
- let stage_native_render ?density ~width ~height scene=
+ let stage_native_render ~width ~height scene=
    Result.map_error(Format.asprintf "%a" pp_native_error)
-     (stage_native_render_checked ?density ~width ~height scene)
+     (stage_native_render_checked ~width ~height scene)
 
  let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
  let rec release scene =

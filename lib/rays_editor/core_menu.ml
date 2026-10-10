@@ -35,11 +35,11 @@ let open_menu value (x, y) =
       let module M = Pxui_graph.Node_menu in
       let extra = (fst value.doc.workspace).checked.ops in
       let factories context = List.map (fun factory -> M.{
-        key = Procedural.Edit_graph.factory_key factory;
-        label = Procedural.Edit_graph.factory_label factory;
-        category = Procedural.Edit_graph.factory_category factory;
-        arity = Procedural.Edit_graph.factory_arity factory
-          - List.length (Procedural.Edit_graph.factory_keyword_inputs factory);
+        key = Sop.Edit_graph.factory_key factory;
+        label = Sop.Edit_graph.factory_label factory;
+        category = Sop.Edit_graph.factory_category factory;
+        arity = Sop.Edit_graph.factory_arity factory
+          - List.length (Sop.Edit_graph.factory_keyword_inputs factory);
         context = context_name context; output = Flow.Ty.geometry; off = None }) (catalog value context) in
       let not_here entries =
         List.map (fun (e : M.entry) -> { e with off = Some ("not in " ^ context_name context) }) entries in

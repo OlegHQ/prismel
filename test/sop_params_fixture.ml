@@ -4,7 +4,7 @@ type t = {
 }
 [@@deriving sop_params]
 
-open Procedural
+open Sop
 
 module Vector_fixture = struct
   type parameters = {
@@ -19,8 +19,12 @@ module Vector_fixture = struct
     [@@sop.node_label "Vector Fixture"] [@@sop.node_category "Test"]
     [@@sop.node_inputs 2] [@@sop.node_optional "1"]
     [@@sop.node_slots "input, target"]
-  let build = parameters_build (fun ~label _parameters input target ->
-    Sop.match_size ~label input target)
+  let build = parameters_build (fun ~label:_ _parameters input target ->
+    let with_ = ("input", input)
+      :: Option.to_list (Option.map (fun t -> "target", t) target) in
+    Lisp_sop.node ~with_
+      (if target = None then "(sop/match_size (sop/ext_input))"
+       else "(sop/match_size (sop/ext_input) (sop/ext_target))"))
   let factory = parameters_factory build
 end
 
@@ -35,11 +39,13 @@ module Optional_rest_fixture = struct
     [@@sop.node_inputs 3] [@@sop.node_optional "1,2"] [@@sop.node_rest 2]
     [@@sop.node_slots "base, fixed, extras"]
 
-  let build = parameters_build (fun ~label parameters base fixed extras ->
-    Sop.merge ~label ~source_attribute:parameters.tag
-      (base :: Option.to_list fixed @ extras))
+  let build = parameters_build (fun ~label:_ parameters base fixed extras ->
+    let with_ = List.mapi (fun i n -> Printf.sprintf "i%d" i, n)
+      (base :: Option.to_list fixed @ extras) in
+    Lisp_sop.node ~with_
+      (Printf.sprintf "(sop/merge :source_attribute %S %s)" parameters.tag
+         (String.concat " " (List.map (fun (k, _) -> "(sop/ext_" ^ k ^ ")") with_))))
   let factory = parameters_factory build
-  let fn = parameters_fn build
 end
 
 module Dynamic_schema_fixture = struct
@@ -58,10 +64,13 @@ module Dynamic_schema_fixture = struct
         | Parameter.Integer _ -> Parameter.Field {field with
             kind=Parameter.index_choice labels}
         | _ -> original) (Parameter.fields parameters_schema))
-  let build = parameters_build ~schema (fun ~label parameters inputs ->
+  let build = parameters_build ~schema (fun ~label:_ parameters inputs ->
     match inputs with
-    | a :: b :: rest -> Sop.switch ~label ~input:parameters.input a b rest
+    | _ :: _ :: _ ->
+        let with_ = List.mapi (fun i n -> Printf.sprintf "i%d" i, n) inputs in
+        Lisp_sop.node ~with_
+          (Printf.sprintf "(sop/switch :input %d %s)" parameters.input
+             (String.concat " " (List.map (fun (k, _) -> "(sop/ext_" ^ k ^ ")") with_)))
     | _ -> invalid_arg "dynamic schema fixture needs two inputs")
   let factory = parameters_factory build
-  let fn = parameters_fn build
 end

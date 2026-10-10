@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 
 (* Scene objects are nodes of the scene network: input 0 is the parent and
    parameters hold the transform and each kind's settings, so the graph, the
@@ -10,7 +10,7 @@ open Procedural
 let empty = Rdk.Line_geometry.points [||]
 
 let marker operation ~label _ parent =
-  Sop.custom ~label ~operation (Option.to_list parent) (fun ~context:_ _ -> Ok empty)
+  Custom.plain ~label ~operation (Option.to_list parent) (fun ~context:_ _ -> Ok empty)
 
 module Geometry = struct
   type parameters = {
@@ -79,7 +79,7 @@ module Camera = struct
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label _parameters ->
-    Sop.custom ~label ~operation:"camera" [] (fun ~context:_ _ -> Ok empty))
+    Custom.plain ~label ~operation:"camera" [] (fun ~context:_ _ -> Ok empty))
 
   let factory = parameters_factory build
 
@@ -138,7 +138,7 @@ module Root = struct
     [@@deriving sop_params, sop_node]
 
   let build = parameters_build (fun ~label _parameters ->
-    Sop.custom ~label ~operation:"root" [] (fun ~context:_ _ -> Ok empty))
+    Custom.plain ~label ~operation:"root" [] (fun ~context:_ _ -> Ok empty))
   let factory = parameters_factory build
 
   let default = parameters_default

@@ -38,41 +38,6 @@ and promotion_rule = {
   promotion_operation : promote_operation;
 }
 
-let promotion_rule ?new_name ?(keep_original = false)
-    ?(output_as_attribute = false) ?(mode = Include_any)
-    ~source ~destination ~pattern () = {
-  promotion_source = source;
-  promotion_destination = destination;
-  promotion_pattern = pattern;
-  promotion_new_name = new_name;
-  promotion_keep_original = keep_original;
-  promotion_output_as_attribute = output_as_attribute;
-  promotion_operation = Promote_elements mode;
-}
-
-let boundary_promotion_rule ?new_name ?(keep_original = false)
-    ?(output_as_attribute = false) ?(attributes = []) ?(tolerance = 1e-6)
-    ?(include_unshared_edges = false)
-    ?(include_all_unshared_curve_edges = false)
-    ?(include_all_primitives_sharing_boundary_points = false)
-    ~source ~destination ~pattern () = {
-  promotion_source = source;
-  promotion_destination = destination;
-  promotion_pattern = pattern;
-  promotion_new_name = new_name;
-  promotion_keep_original = keep_original;
-  promotion_output_as_attribute = output_as_attribute;
-  promotion_operation = Promote_boundary {
-    promote_boundary_attributes = attributes;
-    promote_boundary_tolerance = tolerance;
-    promote_include_unshared_edges = include_unshared_edges;
-    promote_include_all_unshared_curve_edges =
-      include_all_unshared_curve_edges;
-    promote_include_all_primitives_sharing_boundary_points =
-      include_all_primitives_sharing_boundary_points;
-  };
-}
-
 type primitive_connectivity =
   | Primitive_share_points
   | Primitive_share_edges
@@ -134,15 +99,14 @@ type range_rule = {
   range_specification : range;
 }
 
-let range_rule ?base ?(invert = false) ?filter ?connectivity
-    ?(merge = Group_replace) ~owner ~name specification = {
+let range_rule ~owner ~name specification = {
   range_owner = owner;
   range_name = name;
-  range_base = base;
-  range_invert = invert;
-  range_filter = filter;
-  range_connectivity = connectivity;
-  range_merge = merge;
+  range_base = None;
+  range_invert = false;
+  range_filter = None;
+  range_connectivity = None;
+  range_merge = Group_replace;
   range_specification = specification;
 }
 
@@ -477,83 +441,6 @@ let promoted_selection ?cancel ~grain ~source ~destination ~mode ~name
         (fun edge ->
           if edge land 16_383 = 0 then Cancel.check_opt cancel;
           predicate edge))
-
-let promote ?cancel ?(grain = 16_384) ?name ?(keep_original = false)
-    ?output_attribute ?(mode = Include_any) ~source ~destination ~group geometry =
-  if grain <= 0 then Error "Group Promote: grain must be positive"
-  else if String.trim group = "" then Error "Group Promote: empty source group name"
-  else
-    let output_name = Option.value ~default:group name in
-    if String.trim output_name = "" then Error "Group Promote: empty output group name"
-    else if (match output_attribute with
-        | Some name -> String.trim name = "" | None -> false) then
-      Error "Group Promote: empty output attribute name"
-    else if output_attribute <> None && destination = Group_edges then
-      Error "Group Promote: native edges do not own attributes"
-    else if mode = Include_shared_edge && destination <> Group_primitives
-    then Error "Group Promote: shared-edge inclusion requires primitive output"
-    else if mode = Include_all && destination = Group_points
-        && source <> Group_points
-    then Error "Group Promote: entirely-contained mode is unavailable for point output"
-    else begin
-      match find_selection source group geometry with
-      | None -> Error (Printf.sprintf "Group Promote: missing %s group %S"
-          (owner_name source) group)
-      | Some selection ->
-          Cancel.check_opt cancel;
-          if output_attribute <> None then begin
-            let predicate, count = if source = destination then
-                selection_mem selection, selection_length selection
-              else begin
-                let topology = Geometry.topology geometry in
-                let index = Topology_index.create ?cancel topology in
-                promote_predicate ~source ~destination ~mode topology index
-                  selection,
-                owner_count geometry index destination
-              end in
-            let values = Array.make count 0 in
-            if count > 0 then
-              Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(count - 1)
-                (fun element ->
-                  if element land 16_383 = 0 then Cancel.check_opt cancel;
-                  if predicate element then values.(element) <- 1);
-            let geometry = if keep_original then geometry
-              else remove_group source group geometry in
-            let attribute_owner = match destination with
-              | Group_points -> Attribute.Point
-              | Group_vertices -> Attribute.Vertex
-              | Group_primitives -> Attribute.Primitive
-              | Group_edges -> assert false in
-            Result.bind (Attribute.create_owned
-              ~name:(Option.get output_attribute) ~owner:attribute_owner
-              (Attribute.Int values)) (fun attribute ->
-                Geometry.with_attribute attribute geometry)
-          end else begin
-            let ordinary, edges = if source = destination then
-                renamed_selection output_name selection
-              else begin
-              let topology = Geometry.topology geometry in
-              let index = Topology_index.create ?cancel topology in
-              let predicate = promote_predicate ~source ~destination ~mode
-                  topology index selection in
-              let count = owner_count geometry index destination in
-              match ordinary_owner destination with
-              | Some owner ->
-                  Some (Group.init ~grain ~owner ~name:output_name count
-                    (fun element ->
-                      if element land 16_383 = 0 then Cancel.check_opt cancel;
-                      predicate element)), None
-              | None ->
-                  None, Some (Edge_group.init ~grain ~topology ~index
-                    ~name:output_name (fun edge ->
-                      if edge land 16_383 = 0 then Cancel.check_opt cancel;
-                      predicate edge))
-              end in
-            let geometry = if keep_original then geometry
-              else remove_group source group geometry in
-            install_group destination ordinary edges geometry
-          end
-    end
 
 type boundary_storage =
   | Boundary_selection of selection
@@ -4316,12 +4203,6 @@ let transfer ?cancel ?(grain = 16_384) ?(rules = default_transfer_rules)
         Result.bind result (fun () -> transfer_rule rule)) (Ok ()) rules in
       Result.bind result (fun () -> store_commit target_store target)
     with Invalid_argument message -> Error message
-
-let promote ?cancel ?grain ?name ?keep_original ?output_attribute
-    ?mode ~source ~destination ~group geometry =
-  Error.guard ~operation:"group_promote" ~code:"invalid_group" (fun () ->
-    promote ?cancel ?grain ?name ?keep_original ?output_attribute ?mode
-      ~source ~destination ~group geometry)
 
 let expand ?cancel ?grain ?name ?steps ?flood ?step_attribute
     ?primitive_connectivity ?normal_spread ?normal_attribute

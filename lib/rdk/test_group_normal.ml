@@ -2,17 +2,6 @@ open Rays
 open Rdk
 open Rdk_test_support
 
-let geometry positions primitives =
-  let packed = Packed.Float3.Builder.create (Array.length positions) in
-  Array.iteri (fun point (x, y, z) ->
-    Packed.Float3.Builder.set packed point x y z) positions;
-  let topology = Topology.Builder.create ~point_count:(Array.length positions) () in
-  Array.iter (fun (kind, points) -> match kind with
-    | `Polygon -> Topology.Builder.add_polygon topology points
-    | `Open -> Topology.Builder.add_open_polyline topology points) primitives;
-  Geometry.create ~positions:(Packed.Float3.Builder.freeze packed)
-    ~topology:(Topology.Builder.freeze topology) () |> Result.get_ok
-
 let group owner name geometry = match Geometry.find_group ~owner name geometry with
   | Some group -> group
   | None -> fail ("missing group " ^ name)
@@ -38,96 +27,12 @@ let expect_invalid operation message = match operation () with
   | Error error -> check (Error.code error = "invalid_group") message
   | Ok _ -> fail (message ^ ": unexpectedly succeeded")
 
-let test_primitive_geometric_normals () =
-  let source = geometry
-      [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.);
-        (3., 0., 0.); (3., 1., 0.); (4., 0., 0.);
-        (6., 0., 0.); (6., 1., 0.); (6., 0., 1.);
-        (9., 0., 0.); (10., 0., 0.)|]
-      [|`Polygon, [|0; 1; 2|]; `Polygon, [|3; 4; 5|];
-        `Polygon, [|6; 7; 8|]; `Open, [|9; 10|]|] in
-  let positive = Group_ops.group_normal ~direction:(Vec3.create 0. 0. 7.)
-      ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"positive" source
-      |> get_ok in
-  expect_members [0] (group Group.Primitive "positive" positive)
-    "Group Normal primitive winding direction";
-  let both = Group_ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:0. ~include_opposite:true ~owner:Group_ops.Group_primitives
-      ~name:"both" source |> get_ok in
-  expect_members [0; 1] (group Group.Primitive "both" both)
-    "Group Normal opposite direction";
-  let hemisphere = Group_ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:(Float.pi *. 0.5) ~owner:Group_ops.Group_primitives
-      ~name:"hemisphere" source |> get_ok in
-  expect_members [0; 2] (group Group.Primitive "hemisphere" hemisphere)
-    "Group Normal inclusive right-angle boundary and curve exclusion"
-
-let test_point_geometric_normals () =
-  let source = geometry
-      [|(0., 0., 0.); (1., 0., 0.); (1., 1., 0.); (0., 1., 0.);
-        (4., 4., 4.)|]
-      [|`Polygon, [|0; 1; 2; 3|]|] in
-  let selected = Group_ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:0. ~owner:Group_ops.Group_points ~name:"up" source |> get_ok in
-  expect_members [0; 1; 2; 3] (group Group.Point "up" selected)
-    "Group Normal angle-weighted point normals and isolated point exclusion"
-
 let float3_attribute ~owner ~name values =
   let packed = Packed.Float3.Builder.create (Array.length values) in
   Array.iteri (fun index (x, y, z) ->
     Packed.Float3.Builder.set packed index x y z) values;
   Attribute.create_owned ~owner ~name
     (Attribute.Float3 (Packed.Float3.Builder.freeze packed)) |> Result.get_ok
-
-let test_attribute_and_edge_normals () =
-  let source = geometry
-      [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.); (3., 0., 0.)|]
-      [|`Open, [|0; 1; 2; 3|]|] in
-  let normals = float3_attribute ~owner:Attribute.Point ~name:"N"
-      [|(0., 1., 0.); (0., 1., 0.); (0., -1., 0.); (0., -1., 0.)|] in
-  let source = Geometry.with_attribute normals source |> Result.get_ok in
-  let selected = Group_ops.group_normal ~direction:(Vec3.create 0. 1. 0.)
-      ~spread_angle:0.
-      ~owner:Group_ops.Group_edges ~name:"guided" source |> get_ok in
-  check (edge_members (edge_group "guided" selected) = [0])
-    "Group Normal automatically uses point N for edges";
-  let geometric = Group_ops.group_normal ~use_existing_normal:false
-      ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~owner:Group_ops.Group_edges ~name:"geometric" source |> get_ok in
-  check (edge_members (edge_group "geometric" geometric) = [])
-    "Group Normal can force geometric normals instead of point N";
-  let both = Group_ops.group_normal ~normal_attribute:"N"
-      ~direction:(Vec3.create 0. 1. 0.) ~spread_angle:0.
-      ~include_opposite:true ~owner:Group_ops.Group_edges ~name:"both" source
-      |> get_ok in
-  check (edge_members (edge_group "both" both) = [0; 2])
-    "Group Normal edge opposite attribute directions";
-  let primitive_source = geometry
-      [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.);
-        (2., 0., 0.); (3., 0., 0.); (2., 1., 0.)|]
-      [|`Polygon, [|0; 1; 2|]; `Polygon, [|3; 4; 5|]|] in
-  let authored = float3_attribute ~owner:Attribute.Primitive ~name:"authored"
-      [|(1., 0., 0.); (0., 1., 0.)|] in
-  let primitive_source = Geometry.with_attribute authored primitive_source
-      |> Result.get_ok in
-  let selected = Group_ops.group_normal ~normal_attribute:"authored"
-      ~direction:(Vec3.create 1. 0. 0.) ~spread_angle:0.
-      ~owner:Group_ops.Group_primitives ~name:"authored_x" primitive_source |> get_ok in
-  expect_members [0] (group Group.Primitive "authored_x" selected)
-    "Group Normal primitive attribute override"
-
-let test_extreme_coordinates () =
-  let magnitude = max_float /. 4. in
-  let source = geometry
-      [|(magnitude, magnitude, magnitude);
-        (-.magnitude, magnitude, magnitude);
-        (magnitude, -.magnitude, magnitude)|]
-      [|`Polygon, [|0; 1; 2|]|] in
-  let selected = Group_ops.group_normal ~direction:(Vec3.create 0. 0. 1.)
-      ~spread_angle:0. ~owner:Group_ops.Group_primitives ~name:"extreme" source
-      |> get_ok in
-  expect_members [0] (group Group.Primitive "extreme" selected)
-    "Group Normal overflow-safe extreme coordinates"
 
 let test_base_merge_and_failures () =
   let source = Plane_generators.grid ~columns:3 ~rows:2 ~size:2. () |> get_ok in
@@ -214,10 +119,6 @@ let test_scale_parallel_exactness () =
     "Group Normal edge one/four-domain exactness"
 
 let run () =
-  test_primitive_geometric_normals ();
-  test_point_geometric_normals ();
-  test_attribute_and_edge_normals ();
-  test_extreme_coordinates ();
   test_base_merge_and_failures ();
   test_scale_parallel_exactness ();
   print_endline "group normal tests passed"

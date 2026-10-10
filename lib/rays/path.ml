@@ -12,11 +12,7 @@ let empty = []
 let add command path = command :: path
 let move_to x y = add (Move_to (x, y))
 let line_to x y = add (Line_to (x, y))
-let quadratic_to ~control ~to_ = add (Quadratic_to (control, to_))
-let cubic_to ~control1 ~control2 ~to_ =
-  add (Cubic_to (control1, control2, to_))
 let close = add Close
-let commands path = List.rev path
 
 let is_closed path =
   match path with Close :: _ -> true | _ -> false

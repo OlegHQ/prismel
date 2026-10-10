@@ -791,17 +791,17 @@ let build_with_ancestry ?cancel ?require_closed ?defer_rounded_slivers
     ~with_ancestry:true ~with_corner_payload:corner_payload
     ~expression complex weiler cells
 
-let build ?cancel ?require_closed ~expression complex weiler cells =
-  match build_internal ?cancel ?require_closed ~with_ancestry:false
+let build ?cancel ~expression complex weiler cells =
+  match build_internal ?cancel ~with_ancestry:false
       ~with_corner_payload:false
       ~expression complex weiler cells with
   | Ok value -> Ok value.geometry
   | Error _ as error -> error
 
-let build_selected_with_ancestry ?cancel ?(require_closed = false)
+let build_selected_with_ancestry ?cancel
     ?defer_rounded_slivers ?barycentric_cache ?(corner_payload = true)
     ~selection ~side complex weiler cells =
-  build_internal ?cancel ~require_closed ?defer_rounded_slivers ?barycentric_cache
+  build_internal ?cancel ~require_closed:false ?defer_rounded_slivers ?barycentric_cache
     ~facet_selection:selection
     ~preferred_side:side ~with_ancestry:true ~with_corner_payload:corner_payload
     ~expression:Left
@@ -1025,9 +1025,9 @@ let concatenate_ancestries ?cancel values =
 module Private = struct
   type nonrec barycentric_cache = barycentric_cache
   type ancestry_view = {
-    point_complex_vertices : int array;
+
     corner_complex_vertices : int array;
-    primitive_complex_facets : int array;
+
     primitive_sides : bytes;
     primitive_triangles : int array;
     primitive_source_points : int array;
@@ -1040,9 +1040,9 @@ module Private = struct
     edge_source_edges : int array;
   }
   let ancestry_view (value : ancestry) = {
-    point_complex_vertices = value.point_complex_vertices;
+
     corner_complex_vertices = value.corner_complex_vertices;
-    primitive_complex_facets = value.primitive_complex_facets;
+
     primitive_sides = value.primitive_sides;
     primitive_triangles = value.primitive_triangles;
     primitive_source_points = value.primitive_source_points;

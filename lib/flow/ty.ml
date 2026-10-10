@@ -24,8 +24,8 @@ let descriptor name = List.find_opt (fun entry -> entry.name = name) !registry
 let structural = ["float", Float; "int", Int; "bool", Bool; "vec2", Vec2; "vec3", Vec3; "vec4", Vec4;
   "text", Text; "color", Color; "fn", Fn None; "any", Any]
 let names () = structural @ List.map (fun entry -> entry.name, Named entry.name) !registry
-let register ?(shape = true) ?(color = `Output) ?default name =
-  let entry = {name; shape; color; default} in
+let register ?(color = `Output) ?default name =
+  let entry = {name; shape = true; color; default} in
   if not (Symbol.valid_name name) || Symbol.reserved name || List.mem_assoc name structural then
     Error (Diagnostic.error ~code:"E_TYPE_NAME" ("Invalid nominal type name " ^ name))
   else match descriptor name with

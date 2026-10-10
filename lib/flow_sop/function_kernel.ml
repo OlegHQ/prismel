@@ -1,6 +1,6 @@
 module E = Flow.Eval
-module K = Procedural.Kernel
-let host_error (d : Flow.Diagnostic.t) = Procedural.Diagnostic.error ~code:d.code d.message
+module K = Sop.Kernel
+let host_error (d : Flow.Diagnostic.t) = Sop.Diagnostic.error ~code:d.code d.message
 let value = function K.Floats xs -> E.Float_array xs | Vec3s xs -> E.Vec3_array xs
 let column = function
   | E.Float_array xs -> Ok (K.Floats xs)
@@ -34,18 +34,18 @@ let storage values =
 let node ?state ?(reference = false) ?elems ~identity ~signature ~fn ~sources inputs =
   (* ponytail: fresh binding identity recooks after equivalent re-lowering;
      structural body/capture keys can replace it if this becomes measurable. *)
-  Procedural.Node.Private.make ~operation:"flow.function" ~version:1
+  Sop.Node.Private.make ~operation:"flow.function" ~version:1
     ~parameters:(string_of_int identity
       ^ Option.fold ~none:"" ~some:(fun bindings -> Flow.Value.key_of
           ~residual:E.Private.residual_id (E.Record bindings)) elems
-      ^ Option.fold ~none:"" ~some:E.state_stamp state) ~cook_mode:Procedural.Node.Generic
+      ^ Option.fold ~none:"" ~some:E.state_stamp state) ~cook_mode:Sop.Node.Generic
     ~dependencies:(if E.frame_dependent (E.Fn fn) || E.state_dependent (E.Fn fn) then
-        Procedural.Context.Dependencies.one Procedural.Context.Dependencies.Input
-      else Procedural.Context.Dependencies.static)
+        Sop.Context.Dependencies.one Sop.Context.Dependencies.Input
+      else Sop.Context.Dependencies.static)
     ~inputs:(Array.of_list inputs) (fun ~node_id:_ _ payloads ->
       let resolve = Attribute_kernel.resolve ~geometry:(fun id ->
         Option.bind (List.find_index (( = ) id) sources)
-          (fun index -> Result.to_option (Procedural.Payload.geometry payloads.(index)))) in
+          (fun index -> Result.to_option (Sop.Payload.geometry payloads.(index)))) in
       let prepare columns = Result.map_error host_error (
         Result.bind (E.Private.map_function ~signature fn (List.map value columns)) (fun values ->
         Result.bind (Attribute_kernel.prepare ~sources inputs values) (fun program ->
@@ -53,13 +53,13 @@ let node ?state ?(reference = false) ?elems ~identity ~signature ~fn ~sources in
           match ir.nodes.(ir.roots.(0)).kind with
           | Flow_ir.Kernel {body = Packed_map packed; _} ->
               Ok (fun context -> Result.map_error host_error (
-                if Procedural.Context.cancelled context then
+                if Sop.Context.cancelled context then
                   Error (Flow.Diagnostic.error ~code:"E_CANCELLED" "Bulk function cancelled.")
                 else Result.bind (if reference then Flow_ir.Executor.force ?state ?elems ~reference:true ~resolve program
-                    ~live:(Procedural.Context.input context)
+                    ~live:(Sop.Context.input context)
                   else Flow_ir.Packed.force ?state ?elems ~resolve packed
-                    ~live:(Procedural.Context.input context)) (fun value ->
-                    if Procedural.Context.cancelled context then
+                    ~live:(Sop.Context.input context)) (fun value ->
+                    if Sop.Context.cancelled context then
                       Error (Flow.Diagnostic.error ~code:"E_CANCELLED" "Bulk function cancelled.")
                     else column value)))
           | _ -> Error (Flow.Diagnostic.error ~code:"E_KERNEL_FORM"
@@ -68,10 +68,10 @@ let node ?state ?(reference = false) ?elems ~identity ~signature ~fn ~sources in
          cache entries are evicted. Account conservatively for that storage. *)
       let bytes = Array.fold_left (fun bytes payload ->
         List.fold_left (fun bytes (_, size) -> add_bytes bytes size) bytes
-          (Procedural.Payload.payload_components payload))
+          (Sop.Payload.payload_components payload))
         (storage (E.Fn fn ::
           (Option.fold ~none:[] ~some:(List.map snd) elems)
           @ (Option.fold ~none:[] ~some:E.Private.state_values state))) payloads in
       let kernel = K.create ~payload_bytes:bytes prepare in
-      Ok Procedural.Node.Private.{payload = Procedural.Payload.Kernel kernel;
+      Ok Sop.Node.Private.{payload = Sop.Payload.Kernel kernel;
         diagnostics = []; instances = None})

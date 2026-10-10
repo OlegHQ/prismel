@@ -86,7 +86,7 @@ module Kit : sig
   val switch : Pxui.Ui.t -> key:string -> at:float * float -> bool -> bool
   (** The kit's 28 x 14 switch, on or off; true on a click. *)
 
-  val segments : Pxui.Ui.t -> key:string -> right:float -> y:float -> ?h:float -> string list -> int ->
+  val segments : Pxui.Ui.t -> key:string -> right:float -> y:float -> string list -> int ->
     int option * float
   (** Text tabs laid out leftwards from [right], the one in use underlined: the tab clicked
       and where the row starts. *)
@@ -96,11 +96,6 @@ module Kit : sig
   (** A colour in the control column at [at], [w] wide: a 20-point swatch and its hex field;
       the hex text as typed. *)
 
-  val vector : Pxui.Ui.t -> Pxui.Ui.box -> at:float * float -> w:float -> ?reserve:float ->
-    ?axes:string list -> (int -> x:float -> w:float -> 'a list) -> 'a list
-  (** A vector in the control column of the row [box]: one cell a letter of [axes] (x y z), 8
-      points between, each with its letter in ink-3; [cell index ~x ~w] builds the field (relative
-      to the box) and returns its requests.  [reserve] keeps room at the right. *)
 end
 
 module Chrome : sig
@@ -212,7 +207,7 @@ module Status_bar : sig
       [avoid] (the graph's cards) stands above it. *)
 
   val draw : Pxui.Ui.t -> bounds:(int * int * int * int) -> ?file:string -> ?state:state ->
-    ?layout:string -> ?notes:string list -> ?readout:string -> ?accent:bool -> ?kind:string -> ?selection:string ->
+    ?layout:string -> ?notes:string list -> ?readout:string -> ?kind:string -> ?selection:string ->
     text:string -> fps:int option -> unit -> unit
   (** The status strip without the keys: the file, its state, the whole status line, the
       layout in use and the frame rate. *)
@@ -350,8 +345,7 @@ module Inspector : sig
       sections, open when their ["/"]-joined path is in [expanded]. Returns
       this frame's edits, empty when nothing changed. *)
 
-  val record : Pxui.Ui.t -> ?expanded:string list ->
-    'record Editor_core.Param.schema -> 'record ->
+  val record : Pxui.Ui.t -> 'record Editor_core.Param.schema -> 'record ->
     ('record * Editor_core.Param.effects, string) result
   (** [fields] over a typed record, edits applied through [Param.apply_all]. *)
 end

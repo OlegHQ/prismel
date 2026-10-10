@@ -27,7 +27,6 @@ type camera_snapshot = {
   snapshot_fov_y : float;
   snapshot_near : float;
   snapshot_far : float;
-  snapshot_up_axis : Vec3.t;
   snapshot_camera : Camera.t;
 }
 
@@ -39,19 +38,8 @@ type t = {
   fov_y : float;
   near : float;
   far : float;
-  enabled : bool;
   control_area : (int * int * int * int) option;
   inertia : bool;
-  drag_coefficient : float;
-  rotation_sensitivity : Vec2.t;
-  translation_sensitivity : Vec2.t;
-  dolly_sensitivity : float;
-  up_axis : Vec3.t;
-  relative_y_axis : bool;
-  middle_button_enabled : bool;
-  translation_key : Input.key option;
-  auto_distance : bool;
-  auto_distance_pending : bool;
   interactions : binding list;
   drag : (Input.mouse_button * interaction * (float * float)) option;
   velocity : motion option;
@@ -66,30 +54,16 @@ let validate_distance distance =
   if not (Float.is_finite distance) || distance <= 0. then
     invalid_arg "Easy_camera: distance must be finite and positive"
 
-let validate_nonnegative name value =
-  if not (Float.is_finite value) || value < 0. then
-    invalid_arg
-      ("Easy_camera: " ^ name ^ " must be finite and non-negative")
-
-let validate_sensitivity name value =
-  validate_nonnegative (name ^ ".x") value.Vec2.x;
-  validate_nonnegative (name ^ ".y") value.y
-
-let validate_drag_coefficient value =
-  if not (Float.is_finite value) || value < 0. || value >= 1. then
-    invalid_arg
-      "Easy_camera: drag coefficient must be finite and in [0, 1)"
-
-let validate_up_axis axis =
-  if Vec3.length_sq axis <= 1e-18 then
-    invalid_arg "Easy_camera: up axis must be non-zero"
-
 let validate_control_area = function
   | None -> ()
   | Some (_, _, width, height) ->
       if width < 0 || height < 0 then
         invalid_arg
           "Easy_camera: control-area dimensions must be non-negative"
+
+let rotation_sensitivity = 0.01
+let dolly_sensitivity = 0.01
+let drag_coefficient = 0.9
 
 let clamp_elevation elevation =
   let limit = (Float.pi /. 2.) -. 1e-4 in
@@ -103,21 +77,10 @@ let default_interactions =
   ]
 
 let create ?(target = Vec3.zero) ?(distance = 10.) ?(azimuth = 0.)
-    ?(elevation = 0.) ?(fov_y = Float.pi /. 3.) ?(near = 0.1)
-    ?(far = 1000.) ?(enabled = true) ?control_area ?(inertia = true)
-    ?(drag_coefficient = 0.9)
-    ?(rotation_sensitivity = Vec2.create 0.01 0.01)
-    ?(translation_sensitivity = Vec2.create 1. 1.)
-    ?(dolly_sensitivity = 0.01) ?(up_axis = Vec3.unit_y)
-    ?(relative_y_axis = true) ?(middle_button_enabled = true)
-    ?translation_key ?(auto_distance = false) () =
+    ?(elevation = 0.) ?(fov_y = Float.pi /. 3.)
+    ?(inertia = true) () =
+  let near = 0.1 and far = 1000. in
   validate_distance distance;
-  validate_control_area control_area;
-  validate_drag_coefficient drag_coefficient;
-  validate_sensitivity "rotation sensitivity" rotation_sensitivity;
-  validate_sensitivity "translation sensitivity" translation_sensitivity;
-  validate_nonnegative "dolly sensitivity" dolly_sensitivity;
-  validate_up_axis up_axis;
   ignore
     (Camera.perspective ~fov_y ~near ~far
        ~at:(Vec3.create 0. 0. distance) ~target ());
@@ -130,19 +93,8 @@ let create ?(target = Vec3.zero) ?(distance = 10.) ?(azimuth = 0.)
     fov_y;
     near;
     far;
-    enabled;
-    control_area;
+    control_area = None;
     inertia;
-    drag_coefficient;
-    rotation_sensitivity;
-    translation_sensitivity;
-    dolly_sensitivity;
-    up_axis = Vec3.normalize up_axis;
-    relative_y_axis;
-    middle_button_enabled;
-    translation_key;
-    auto_distance;
-    auto_distance_pending = auto_distance;
     interactions = default_interactions;
     drag = None;
     velocity = None;
@@ -173,11 +125,10 @@ let camera value =
       && cached.snapshot_elevation = value.elevation
       && cached.snapshot_fov_y = value.fov_y
       && cached.snapshot_near = value.near
-      && cached.snapshot_far = value.far
-      && cached.snapshot_up_axis = value.up_axis ->
+      && cached.snapshot_far = value.far ->
       cached.snapshot_camera
   | _ ->
-      let up = value.up_axis in
+      let up = Vec3.unit_y in
       let right, forward = orbit_basis up in
       let cosine = cos value.elevation in
       let horizontal =
@@ -201,7 +152,6 @@ let camera value =
           snapshot_fov_y = value.fov_y;
           snapshot_near = value.near;
           snapshot_far = value.far;
-          snapshot_up_axis = value.up_axis;
           snapshot_camera = camera };
       camera
 
@@ -212,7 +162,6 @@ let near value = value.near
 let far value = value.far
 let control_area value = value.control_area
 let inertia value = value.inertia
-let up_axis value = value.up_axis
 
 (* Inverse of [camera]'s orbit placement; keeps the up axis, lens, and input
    settings and drops any in-flight inertia. *)
@@ -223,8 +172,8 @@ let of_view ~eye ~target value =
     { value with target; drag = None; velocity = None }
   else
     let unit = Vec3.scale offset (1. /. distance) in
-    let right, forward = orbit_basis value.up_axis in
-    let height = Float.max (-1.) (Float.min 1. (Vec3.dot unit value.up_axis)) in
+    let right, forward = orbit_basis Vec3.unit_y in
+    let height = Float.max (-1.) (Float.min 1. (Vec3.dot unit Vec3.unit_y)) in
     { value with target; distance; elevation = clamp_elevation (asin height);
       azimuth = atan2 (Vec3.dot unit right) (Vec3.dot unit forward);
       drag = None; velocity = None }
@@ -259,14 +208,6 @@ let with_clip ~near ~far value =
     { value with near; far }
   end
 
-let set_enabled enabled value =
-  {
-    value with
-    enabled;
-    drag = if enabled then value.drag else None;
-    velocity = if enabled then value.velocity else None;
-  }
-
 let with_control_area area value =
   validate_control_area area;
   if area = value.control_area then value
@@ -275,29 +216,6 @@ let with_control_area area value =
 let with_inertia inertia value =
   if inertia = value.inertia then value
   else { value with inertia; velocity = if inertia then value.velocity else None }
-
-let same_binding button key binding =
-  binding.button = button && binding.key = key
-
-let add_interaction ?key ~button interaction value =
-  {
-    value with
-    interactions =
-      { button; key; interaction }
-      :: List.filter
-           (fun binding -> not (same_binding button key binding))
-           value.interactions;
-    drag = None;
-  }
-
-let clear_interactions value =
-  { value with interactions = []; drag = None; velocity = None }
-
-let has_interaction ?key ~button interaction value =
-  List.exists
-    (fun binding ->
-      same_binding button key binding && binding.interaction = interaction)
-    value.interactions
 
 let reset value =
   {
@@ -308,7 +226,6 @@ let reset value =
     elevation = value.initial.elevation;
     drag = None;
     velocity = None;
-    auto_distance_pending = value.auto_distance;
   }
 
 let contains value (x, y) =
@@ -323,9 +240,7 @@ let pan_axes value =
   let forward =
     Vec3.normalize (Vec3.sub (Camera.target camera) (Camera.position camera))
   in
-  let up =
-    if value.relative_y_axis then Camera.up camera else value.up_axis
-  in
+  let up = Camera.up camera in
   let right = Vec3.normalize (Vec3.cross forward up) in
   let up = Vec3.normalize (Vec3.cross right forward) in
   right, up
@@ -336,10 +251,10 @@ let apply_delta frame value interaction dx dy =
       {
         value with
         azimuth =
-          value.azimuth -. (dx *. value.rotation_sensitivity.Vec2.x);
+          value.azimuth -. (dx *. rotation_sensitivity);
         elevation =
           clamp_elevation
-            (value.elevation +. (dy *. value.rotation_sensitivity.y));
+            (value.elevation +. (dy *. rotation_sensitivity));
       }
   | Pan ->
       let right, up = pan_axes value in
@@ -351,40 +266,34 @@ let apply_delta frame value interaction dx dy =
       let delta =
         Vec3.add
           (Vec3.scale right
-             (-.dx *. units_per_pixel *. value.translation_sensitivity.x))
+             (-.dx *. units_per_pixel))
           (Vec3.scale up
-             (dy *. units_per_pixel *. value.translation_sensitivity.y))
+             (dy *. units_per_pixel))
       in
       { value with target = Vec3.add value.target delta }
   | Dolly ->
       let distance =
-        value.distance *. exp (dy *. value.dolly_sensitivity)
+        value.distance *. exp (dy *. dolly_sensitivity)
       in
       { value with distance = Float.max 1e-4 distance }
 
 let interaction_for_button value keys button =
-  if button = Input.MiddleButton && not value.middle_button_enabled then None
-  else
-    match value.translation_key with
-    | Some key when button = Input.LeftButton && List.mem key keys ->
-        Some Pan
-    | _ ->
-        let eligible binding =
-          binding.button = button
-          &&
-          match binding.key with
-          | None -> true
-          | Some key -> List.mem key keys
-        in
-        (match
-           List.find_opt
-             (fun binding -> Option.is_some binding.key && eligible binding)
-             value.interactions
-         with
-         | Some binding -> Some binding.interaction
-         | None ->
-             List.find_opt eligible value.interactions
-             |> Option.map (fun (binding : binding) -> binding.interaction))
+  let eligible binding =
+    binding.button = button
+    &&
+    match binding.key with
+    | None -> true
+    | Some key -> List.mem key keys
+  in
+  match
+    List.find_opt
+      (fun binding -> Option.is_some binding.key && eligible binding)
+      value.interactions
+  with
+  | Some binding -> Some binding.interaction
+  | None ->
+      List.find_opt eligible value.interactions
+      |> Option.map (fun (binding : binding) -> binding.interaction)
 
 let double_click value button point time =
   match value.last_press with
@@ -401,7 +310,7 @@ let apply_inertia frame value =
   match value.drag, value.velocity with
   | None, Some motion when value.inertia && frame.Frame.dt > 0. ->
       let frames = frame.dt *. 60. in
-      let decay = value.drag_coefficient ** frames in
+      let decay = drag_coefficient ** frames in
       let value =
         apply_delta frame value motion.interaction
           (motion.dx *. decay) (motion.dy *. decay)
@@ -423,21 +332,9 @@ let cache_keys (frame : Frame.t) value =
   else { value with previous_keys = frame.keys }
 
 let update value frame =
-  if not value.enabled then
-    cache_keys frame value
-  else if frame.Frame.events = [] && not value.auto_distance_pending then
+  if frame.Frame.events = [] then
     apply_inertia frame (cache_keys frame value)
   else
-    let value =
-      if value.auto_distance_pending then
-        let height = float_of_int (max 1 frame.Frame.height) in
-        {
-          value with
-          distance = height /. (2. *. tan (value.fov_y /. 2.));
-          auto_distance_pending = false;
-        }
-      else value
-    in
     let pointer_events = List.fold_left (fun flags -> function
       | Event.MousePressed _ -> 3
       | MouseMoved _ | MouseReleased _ -> flags lor 1 | _ -> flags) 0 frame.events in
@@ -505,7 +402,7 @@ let update value frame =
                     (value.distance
                      *. exp
                           (-.vertical
-                           *. value.dolly_sensitivity *. 12.));
+                           *. dolly_sensitivity *. 12.));
                 velocity = None;
                 pointer = Some !pointer;
               }
@@ -529,7 +426,7 @@ let update value frame =
    the up axis and pitches within +-89 degrees; each wheel step scales the
    speed by 1.2. The orbit target stays [distance] ahead. *)
 let fly ~speed value (frame : Frame.t) =
-  let view = camera value and up = up_axis value in
+  let view = camera value and up = Vec3.unit_y in
   let eye = Camera.position view in
   let forward = Vec3.normalize (Vec3.sub (Camera.target view) eye) in
   let dx, dy = frame.mouse_delta in

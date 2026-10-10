@@ -17,14 +17,6 @@ val create :
   ?cancel:Cancel.t -> ?grain:int -> ?points:Group.t -> Packed.Float3.t ->
   (t, Error.t) result
 
-val length : t -> int
-
-val nearest :
-  ?max_distance:float -> t -> x:float -> y:float -> z:float ->
-  ((int * float) option, Error.t) result
-(** Return the source index and Euclidean distance of the closest point.
-    The lowest source index wins exact distance ties. *)
-
 module Private : sig
   val nearest_k_into :
     t ->

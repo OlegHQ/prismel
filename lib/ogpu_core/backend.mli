@@ -19,7 +19,7 @@ type driver_pipeline =
 type driver_frame = { frame_token:token }
 
 (** Accumulated GPU execution time reported by the driver for this queue's device. *)
-type gpu_timing = { timing_supported:bool; gpu_seconds:float; gpu_samples:int64 }
+type gpu_timing = {  gpu_seconds:float }
 type driver_surface =
   { configure:Surface.configuration -> (unit,Error.t) result
   ; acquire_sync:unit -> ([ `Acquired of driver_frame | `Timeout | `Occluded | `Device_lost ],Error.t) result
@@ -256,7 +256,7 @@ val create_compute_pipeline_from : library -> entry:string ->
   ?linked:string list -> unit -> (pipeline,Error.t) result
 val create_intersection_table : pipeline -> capacity:int -> (function_table,Error.t) result
 val table_set_function : function_table -> index:int -> string -> (unit,Error.t) result
-val table_set_buffer : function_table -> index:int -> ?offset:int64 -> buffer -> (unit,Error.t) result
+val table_set_buffer : function_table -> index:int -> buffer -> (unit,Error.t) result
 val destroy_table : function_table -> (unit,Error.t) result
 val destroy_library : library -> (unit,Error.t) result
 val pack_instance_records : device -> instance_record array -> (bytes,Error.t) result
@@ -271,7 +271,7 @@ val begin_commands : queue -> (commands,Error.t) result
 
 val compute_encoder : commands -> (compute_encoder,Error.t) result
 val set_pipeline : compute_encoder -> pipeline -> (unit,Error.t) result
-val set_buffer : compute_encoder -> index:int -> ?offset:int64 -> buffer -> (unit,Error.t) result
+val set_buffer : compute_encoder -> index:int -> buffer -> (unit,Error.t) result
 val set_bytes : compute_encoder -> index:int -> bytes -> (unit,Error.t) result
 val set_texture : compute_encoder -> index:int -> texture -> (unit,Error.t) result
 val set_accel : compute_encoder -> index:int -> accel -> (unit,Error.t) result

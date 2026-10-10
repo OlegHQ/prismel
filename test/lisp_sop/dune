@@ -1,0 +1,5 @@
+; Test support: SOP graphs written as Rays Lisp text and compiled to
+; Procedural nodes through the real lowering. Not a product library.
+(library
+ (name lisp_sop)
+ (libraries flow flow_sop editor_document sop_catalog sop rdk rays_math))

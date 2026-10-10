@@ -3,7 +3,7 @@
 module Store = Store
 module Panels = Panels
 
-(** Typed parameter schemas (the same values as [Procedural.Parameter]). *)
+(** Typed parameter schemas (the same values as [Sop.Parameter]). *)
 module Param = Param
 
 (** Bounded immutable undo history with explicit edit merge rules. *)

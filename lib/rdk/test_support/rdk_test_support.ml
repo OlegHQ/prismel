@@ -1,4 +1,4 @@
-(* The helpers the rdk and procedural tests share. A test file opens this module and keeps
+(* The helpers the rdk and sop tests share. A test file opens this module and keeps
    only the helpers that are its own. tools/dedupe removes a local copy when the compiler
    resolves it to the same definition as the one here, so change a definition only together
    with every file that relies on it. *)
@@ -133,3 +133,19 @@ let equal_geometry left right =
   && List.equal equal_group (Geometry.groups left) (Geometry.groups right)
   && List.equal equal_edge_group
        (Geometry.edge_groups left) (Geometry.edge_groups right)
+
+(* Polygon topologies for these fixtures: the builder offers polylines only. *)
+module Tb = struct
+  type t = { point_count : int; mutable polygons : int array list; builder : Topology.Builder.t }
+  let create ~point_count () =
+    { point_count; polygons = []; builder = Topology.Builder.create ~point_count () }
+  let add_triangle t a b c = t.polygons <- [| a; b; c |] :: t.polygons
+  let add_polygon t points = t.polygons <- points :: t.polygons
+  let add_open_polyline t points = Topology.Builder.add_open_polyline t.builder points
+  let freeze t = match List.rev t.polygons with
+    | [] -> Topology.Builder.freeze t.builder
+    | polygons ->
+        let offsets = List.fold_left (fun acc p -> (List.hd acc + Array.length p) :: acc) [ 0 ] polygons in
+        Topology.polygons_owned ~point_count:t.point_count ~vertex_points:(Array.concat polygons)
+          ~primitive_offsets:(Array.of_list (List.rev offsets)) |> Result.get_ok
+end

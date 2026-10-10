@@ -7,7 +7,7 @@ description: Add a packed geometry operation to rdk in rays with its interface, 
 
 1. Read `lib/rdk/AGENTS.md` first. Pick the sublibrary by what the op
    depends on (`lib/rdk/dune` and its subdirectories list them, lowest
-   first). Never import `geom`, `procedural`, or anything above `rdk`.
+   first). Never import `geom`, `sop`, or anything above `rdk`.
 2. One family module with an `.mli`. Its doc comment states complexity,
    parallel grain, determinism, and cancellation. The entry point is
    `run ?cancel ?grain ~required geometry` returning `(_, Error.t) result`;

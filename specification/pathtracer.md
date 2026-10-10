@@ -284,7 +284,7 @@ the Retina drawable size at proportionally lower throughput. Further speed
 needs fewer GPU rays per pixel: adaptive probe counts, or an M3-class GPU with
 hardware ray tracing.
 
-For the 2,065-instance voxel wall, `dune exec tools/bench_pathtracer_mesh.exe -- --gpu`
+For the 2,065-instance voxel wall, a one-off probe
 on an Apple M1 (arm64, one domain, default Dune profile) measured 9.6 ms and
 3.42 million minor words for CPU triangle expansion before prototype decoding
 was hoisted out of the instance loop; the same single-run probe measured
@@ -376,12 +376,12 @@ frame.
 ## SOP workflow example
 
 `sketches/voxel_wall/` is the Houdini-style network Grid → Wall Depth → Copy
-Cubes (cube prototype), hosted in the `Rays_editor.Editor3` workspace with
+Cubes (cube prototype), hosted in the `Rays_editor.Editor` workspace with
 the tracer painted into the view pane by the overlay hook. `wall_depth` is a
-`Procedural.Custom.map` node whose typed `Parameter.schema` (frequency,
+`Sop.Custom.map` node whose typed `Parameter.schema` (frequency,
 amplitude, base depth, octaves, seed) drives the inspector; it writes the
 per-point `scale` attribute, the OCaml equivalent of an Attribute Wrangle.
-`copy_cubes` is a two-input `Procedural.Custom.create` node with a
+`copy_cubes` is a two-input `Sop.Custom.create` node with a
 "Pack and instance" choice, Houdini's Copy to Points pack toggle. Packed, its
 cook is O(prototype + targets): the prototype polygons followed by one loose
 point per copy carrying `scale`; there are no fake packed primitives inside

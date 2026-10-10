@@ -16,9 +16,6 @@ type surface_attribute = {
   target_name : string;
 }
 
-val surface_attribute :
-  ?into:string -> owner:Attribute.owner -> string -> surface_attribute
-
 val transfer_points :
   ?cancel:Cancel.t ->
   ?grain:int ->
@@ -73,7 +70,6 @@ val transfer_surface :
   ?source_primitives:Group.t ->
   ?source_vertices:Group.t ->
   ?source_vertex_selection:surface_vertex_selection ->
-  ?target_points:Group.t ->
   ?target_elements:Group.t ->
   attributes:surface_attribute list ->
   source:Geometry.t ->

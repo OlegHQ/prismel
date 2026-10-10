@@ -1,7 +1,5 @@
 # Performance and memory architecture
 
-Measurements, baselines and per-operation benchmark transcripts are in [performance-log.md](performance-log.md).
-
 ## Runtime performance
 
 Rays is designed for live creative coding and high-density deterministic
@@ -219,8 +217,7 @@ Frame performance is qualified with the cleanup plan's P3 protocol:
 
 ## Measurement contract
 
-The focused RDK benchmarks, including `tools/bench_rdk_ops.exe`,
-and `tools/bench_rdk_iso.exe`, report elapsed
+The focused RDK benchmarks report elapsed
 time and GC allocation for their declared geometry fixtures. Run them with the
 release profile and record input cardinalities and domain count.
 
@@ -231,32 +228,11 @@ unless a stable dedicated benchmark runner is available.
 
 `tools/bench_gpu.exe` reports native fixed costs with separate upload, synchronized dispatch,
 GPU duration and readback columns at 1,024, 65,536 and 1,000,000 elements.
-`tools/bench_kernel.exe --gpu` reuses the emitted noise program and runner at those counts,
-including cold compilation, input preparation, combined upload/dispatch, GPU duration, optional
-array readback, wall time and allocations. Ten compilations and seven warm-run samples are used;
-the no-array-readback path still performs the runner's four-byte numeric-validation read.
-The reported maximum absolute error is measured against the exact CPU output, not a guessed
-tolerance. Existing CPU/native one/eight-domain rows precede the GPU rows.
-
-The same mode measures complete CPU/GPU editor updates, Scene construction and offscreen
-rendering for 10,000 and 1,000,000 live noise-driven circles (ten warm-up and 200 frames).
-`device_gpu_s` includes compute, circle conversion and render work on the shared device;
-the GPU variant explicitly selects qualification policy and asserts a real GPU shape token.
-Production placement retains its measured-cost policy. Run these tools alone after building.
-`tools/bench_kernel.exe --gpu-check` checks emitted benchmark fixtures and placement paths
-without a native device or timing them. Native startup failures print the actual backend
-rejection and exit 2 before any benchmark row; absent compute capability prints a skip reason.
 
 `tools/bench_shattered_renderer.exe` is the native frame benchmark: it cooks
 the shattered-cube graph, renders the packed result through the sketch runtime
 at 1200×760 logical points, and prints one JSON line with frame percentiles,
 allocation, RSS and the live drawable size and scale.
-
-`tools/bench_pxui.exe` measures retained-scene construction and a captured
-pointer drag on a configurable large control panel. PXUI keeps O(1) reverse-list
-builders but memoizes one ordered widget array; vertical hit testing resolves a
-single row arithmetically, so pointer lookup is independent of panel length.
-`RAYS_PXUI_BENCH_WIDGETS` and `RAYS_PXUI_BENCH_REPEATS` control the run.
 
 Every parallelized operation is also exercised inside `Parallel.run ~domains:1`
 and with multiple domains. Geometry output must be exactly equal, including
@@ -643,25 +619,17 @@ the release profile and are repeated with `RAYS_BENCH_DOMAINS=4`.
 
 | Area | Command |
 |---|---|
-| One RDK operation | `RAYS_RDK_OPS_FILTER=<name> RAYS_RDK_OPS_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_rdk_ops.exe` |
 | Exact predicates | `RAYS_PREDICATE_BENCH_COUNT=1000000 RAYS_PREDICATE_BENCH_REPEATS=5 dune exec --profile release tools/bench_predicates.exe` |
-| Boolean pipeline | `RAYS_BOOLEAN_PAIR_COUNT=10000 RAYS_BOOLEAN_REPEATS=3 RAYS_BOOLEAN_GRAIN=256 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_boolean_pipeline.exe` |
-| Boolean stage | the same with `-- <stage>`: `constraints`, `seam`, `arrangement`, `cdt`, `refinement`, `coplanar`, `complex`, `materialization`, `payload`, `product` |
 | Circle from Edges | `RAYS_CIRCLE_EDGE_POINTS=1000000 RAYS_CIRCLE_EDGE_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_circle_from_edges.exe` |
 | Graph Color | `RAYS_GRAPH_COLOR_ELEMENTS=1000000 RAYS_GRAPH_COLOR_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_graph_color.exe` |
 | Convex Hull | `RAYS_HULL_REPEATS=3 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_convex_hull.exe` |
 | Extract Centroid | `RAYS_CENTROID_SIZE=1000000 RAYS_CENTROID_REPEATS=3 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_extract_centroid.exe` |
 | Extract Point from Curve | `RAYS_EXTRACT_REPEATS=5 RAYS_BENCH_DOMAINS=1 dune exec --profile release tools/bench_extract_point_curve.exe` |
-| Instance traversal | `RAYS_INSTANCE_BENCH_COUNT=100000 dune exec tools/bench_instances.exe` |
 | Cold Scene3 display packing | `dune exec tools/bench_scene3_packing.exe -- 1000000 7` (mesh construction excluded; cold coordinate planes, median/p95 and allocated bytes) |
-| Scene3 float64/float32 gallery pixels | `_build/default/tools/check.exe @examples/sop_gallery/test_scene3_float32_gallery` (native device required; records each scene's maximum channel difference and changed-pixel count) |
+| Scene3 float64/float32 gallery pixels | `_build/default/tools/check.exe @test/test_scene3_float32_gallery` (native device required; records each scene's maximum channel difference and changed-pixel count) |
 | Material assignment | `dune exec tools/bench_material_assign.exe -- 100000 1` |
 | Editor held drag and undo | `dune exec tools/bench_rays_editor.exe -- 200 1000 2000` |
 | SOP graph scale smoke | `dune build test/test_main.exe`, then `_build/default/test/test_main.exe test_pxui_graph_smoke` |
-| Workspace lowering | `dune exec tools/bench_workspace_lower.exe` |
-| Independent cook branches | `dune exec tools/bench_workspace_lower.exe -- --branches 7 learned` |
-| Piece-list zone branches | `dune exec tools/bench_workspace_lower.exe -- --loops 7 learned` |
-| Workspace live frame | `dune exec tools/bench_workspace_live.exe -- 600 1` |
 | Source digest polling | `dune exec tools/bench_source_poll.exe -- examples/sop_gallery/gallery.rays` |
 | Named-pane owner lookup | `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune exec tools/bench_named_owner.exe` |
 | Live light contexts | `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dune exec tools/bench_live_lights.exe` |

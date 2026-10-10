@@ -1,4 +1,0 @@
-(library
- (name sketch_support)
- (public_name rays.sketch_support)
- (libraries rays frame_input flow flow_ir rdk rdk_rays procedural lru))

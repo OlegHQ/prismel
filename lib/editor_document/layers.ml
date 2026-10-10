@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 
 (* The World: a scene-level node holding its global settings, entered like a
    geometry object to edit its layer stack. Layers are nodes chained through
@@ -8,7 +8,7 @@ open Procedural
    are degrees in the inspector and radians in [World]. *)
 
 let marker operation ~label _ below =
-  Sop.custom ~label ~operation (Option.to_list below) (fun ~context:_ _ ->
+  Custom.plain ~label ~operation (Option.to_list below) (fun ~context:_ _ ->
     Ok Objects.empty)
 
 let emit_parameter = Parameter.choice ~equal:( = ) ["Dome", World.Dome; "Light", World.Light]

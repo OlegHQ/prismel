@@ -87,7 +87,6 @@ module Float2 = struct
   module Private = struct
     type view = { x : float array; y : float array }
     let view (value : buffer) = { x = value.x; y = value.y }
-    let of_shared = of_owned
   end
 end
 

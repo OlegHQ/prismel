@@ -117,7 +117,6 @@ let indent text caret =
          | _ -> column at + 1) in
   String.make width ' '
 
-
 (* ---- what the editor knows about the language: completions, descriptions, numbers ---- *)
 
 module Param = Editor_core.Param
@@ -145,7 +144,7 @@ let vocab ?(ops = []) (descriptors : Flow_sop.Catalog.descriptor list) =
           | None -> (match String.index_opt d.qualified '/' with
               | Some i -> String.sub d.qualified 0 i | None -> "sop"));
         title = d.label; category = d.category;
-        slots = List.map (fun (n, r) -> n, r = Procedural.Edit_graph.Required) d.slots;
+        slots = List.map (fun (n, r) -> n, r = Sop.Edit_graph.Required) d.slots;
         fields = d.fields } in
       Hashtbl.add by_name d.qualified entry; Some entry
     end) descriptors in
@@ -619,7 +618,6 @@ let number_at text byte =
   Array.to_list tokens |> List.find_map (fun t ->
     if t.kind = Num && t.start <= byte && byte < t.stop then Some (t.start, t.stop) else None)
 
-
 (* Parinfer's indent mode: the closing brackets at the end of each line (its paren trail) are
    inferred from the indentation of the code lines that follow, so a form holds exactly the
    lines indented past its opener, and a closer that matches nothing is dropped.  Strings (over
@@ -732,10 +730,6 @@ let ref_at text byte =
   !found
 
 (* the plain name under [byte] (not a head, keyword or literal) *)
-let symbol_at text byte =
-  let tokens, _, _ = lex text in
-  Array.fold_left (fun found t ->
-    if t.kind = Sym && t.start <= byte && byte <= t.stop then Some (word text t) else found) None tokens
 
 (* the "#rrggbb" literals of the text with their colour *)
 let color_chips text =

@@ -15,20 +15,7 @@ val create :
   ?azimuth:float ->
   ?elevation:float ->
   ?fov_y:float ->
-  ?near:float ->
-  ?far:float ->
-  ?enabled:bool ->
-  ?control_area:(int * int * int * int) ->
   ?inertia:bool ->
-  ?drag_coefficient:float ->
-  ?rotation_sensitivity:Vec2.t ->
-  ?translation_sensitivity:Vec2.t ->
-  ?dolly_sensitivity:float ->
-  ?up_axis:Vec3.t ->
-  ?relative_y_axis:bool ->
-  ?middle_button_enabled:bool ->
-  ?translation_key:Input.key ->
-  ?auto_distance:bool ->
   unit ->
   t
 
@@ -37,8 +24,7 @@ val update : t -> Frame.t -> t
     outside the control area. Double-clicking a configured button resets the
     original target, distance, and orientation. Vertical wheel/trackpad motion
     dollies and horizontal wheel/trackpad motion is ignored. The default drag
-    bindings are left orbit and middle/right pan; [translation_key] plus a left
-    drag also pans. *)
+    bindings are left orbit and middle/right pan. *)
 
 val camera : t -> Camera.t
 val target : t -> Vec3.t
@@ -61,15 +47,8 @@ val frame_bounds : min:Vec3.t -> max:Vec3.t -> t -> t
 val with_distance : float -> t -> t
 val with_fov_y : float -> t -> t
 val with_clip : near:float -> far:float -> t -> t
-val set_enabled : bool -> t -> t
 val with_control_area : (int * int * int * int) option -> t -> t
 val with_inertia : bool -> t -> t
-
-val add_interaction :
-  ?key:Input.key -> button:Input.mouse_button -> interaction -> t -> t
-val clear_interactions : t -> t
-val has_interaction :
-  ?key:Input.key -> button:Input.mouse_button -> interaction -> t -> bool
 
 val reset : t -> t
 

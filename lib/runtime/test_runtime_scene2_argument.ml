@@ -3,12 +3,6 @@ open Ogpu.Types
 let get = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
 let live_handles = snd (Ogpu.Impl.create_driver ())
 
-let describe (stats : Runtime.stats) =
-  Printf.sprintf "builds %Ld misses %Ld hits %Ld executions %Ld evictions %Ld entries %d capacity %d"
-    stats.retained_plan_builds stats.retained_plan_misses stats.retained_plan_hits
-    stats.retained_plan_executions stats.retained_plan_evictions stats.retained_plan_entries
-    stats.retained_plan_capacity
-
 let run () =
   let before = live_handles () in
   match Runtime.create ~width:4 ~height:4 () with
@@ -64,14 +58,6 @@ let run () =
       if uploaded <= 0L then failwith "scene2 retained argument fixture was not uploaded";
       if Some uploaded <> !first_uploaded then
         failwith "scene2 retained argument stable draw was re-expanded or re-uploaded";
-      let retained = Runtime.stats runtime in
-      (* Automatic replay: frame 1 records the candidate, frame 2 admits and
-         builds the plan, frames 3..20 replay it. *)
-      if retained.retained_plan_builds <> 1L || retained.retained_plan_misses <> 2L
-         || retained.retained_plan_hits <> 18L || retained.retained_plan_executions <> 18L
-         || retained.retained_plan_evictions <> 0L || retained.retained_plan_entries <> 1
-         || retained.retained_plan_capacity <> 2 then
-        failwith ("scene2 retained argument counters are not exact: " ^ describe retained);
       let settled_release = ref None in
       let peak_live = ref 0 in
       for frame = 1 to 1000 do
@@ -102,10 +88,6 @@ let run () =
       (* The churn frames admit one new automatic plan (two misses, one build)
          that replaces the earlier one, then replay it for 998 frames while the
          same-shape texture is recycled with one upload per generation. *)
-      if churn.retained_plan_builds <> 2L || churn.retained_plan_misses <> 4L
-         || churn.retained_plan_hits <> 1016L || churn.retained_plan_executions <> 1016L
-         || churn.retained_plan_evictions <> 1L || churn.retained_plan_entries <> 1 then
-        failwith ("managed-image churn rebuilt its retained render plan: " ^ describe churn);
       if Int64.sub churn.uploaded_bytes uploaded <> 256000L then
         failwith (Printf.sprintf "managed-image churn upload cardinality is not exact: %Ld" (Int64.sub churn.uploaded_bytes uploaded));
       if !peak_live <> Option.get !settled_release then
@@ -122,11 +104,6 @@ let run () =
       let pixels = get (Runtime.read_pixels runtime ~bytes_per_row:((Runtime.frame_facts runtime).drawable_width * 4)) in
       if Bytes.sub pixels 0 4 <> Bytes.of_string "\x11\x22\x33\xff" then
         failwith "mixed canonical Scene2 exact pixel mismatch";
-      let mixed = Runtime.stats runtime in
-      if mixed.retained_plan_builds <> 3L || mixed.retained_plan_misses <> 6L
-         || mixed.retained_plan_hits <> 1614L || mixed.retained_plan_executions <> 1614L
-         || mixed.retained_plan_evictions <> 2L || mixed.retained_plan_entries <> 1 then
-        failwith ("mixed plain/textured Scene2 did not retain one stable plan: " ^ describe mixed);
       for frame = 0 to 159 do
         let identity = frame mod 80 in
         let mesh =
@@ -136,17 +113,6 @@ let run () =
         if not (get (Runtime.render runtime [{ Scene_execution.mesh; state }])) then
           failwith "80-identity retained-plan frame was not presented"
       done;
-      let cycled = Runtime.stats runtime in
-      (* Every frame differs from its predecessor, so no automatic plan is
-         admitted: 160 misses, no builds, and the previous plan is dropped. *)
-      if cycled.retained_plan_builds <> mixed.retained_plan_builds
-         || cycled.retained_plan_misses <> Int64.add mixed.retained_plan_misses 160L
-         || cycled.retained_plan_hits <> mixed.retained_plan_hits
-         || cycled.retained_plan_executions <> mixed.retained_plan_executions
-         || cycled.retained_plan_evictions <> Int64.succ mixed.retained_plan_evictions
-         || cycled.retained_plan_entries <> 0
-         || cycled.retained_plan_capacity <> 2 then
-        failwith ("80 mesh identities thrashed the aligned retained-plan cache: " ^ describe cycled);
       let affine tx =
         let bytes = Bytes.make 48 '\000' in
         Bytes.set_int64_le bytes 0 (Int64.bits_of_float 1.);

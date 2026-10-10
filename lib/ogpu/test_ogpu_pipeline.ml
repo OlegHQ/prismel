@@ -6,10 +6,6 @@ let caps = Ogpu.Caps.minimum_m1
 let shader ~backend ~entries ~bindings =
   ok (Ogpu.Shader.create { backend; label = None; bytes = Bytes.of_string "artifact"; entry_points = entries; bindings })
 let entry name stage : Ogpu.Shader.entry_point = { name; stage }
-let reflected group binding kind visibility : Ogpu.Shader.binding = { group; binding; kind; visibility }
-let layout device kind visibility =
-  let group = ok (Ogpu.Binding.create_layout [ { binding = 0; kind; visibility } ]) in
-  ok (Ogpu.Binding.create_pipeline_layout ~device ~capabilities:caps [ 0, group ])
 
 let run () =
   let device = Ogpu.Handle.create_device () in

@@ -16,8 +16,8 @@ let translate : Sdl3.Event.t -> Runtime_input.event option = function
       Some (if down then Pointer_pressed (value, x, y) else Pointer_released (value, x, y))
   | Mouse_wheel { x; y; _ } -> Some (Wheel (x, y))
   | Scroll { x; y; phase; seconds } -> Some (Scroll { x; y; phase; seconds })
-  | Key { key; modifiers; down; repeat } ->
-      let event = { Runtime_input.key; modifiers; repeat } in
+  | Key { key; down; _ } ->
+      let event = { Runtime_input.key;  } in
       Some (if down then Key_pressed event else Key_released event)
   | Text_input text -> Some (Text_input text)
   | Text_editing { text; start; length } -> Some (Text_editing { text; start; length })

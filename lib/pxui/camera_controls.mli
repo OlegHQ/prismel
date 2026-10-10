@@ -9,7 +9,7 @@ module Camera_control : sig
   type t
   type render_request = { filename : string }
 
-  val create : ?prefix:string -> unit -> t
+  val create : unit -> t
 
   val toggle_ui : t -> t
   val open_camera : t -> t

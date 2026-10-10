@@ -1,29 +1,18 @@
 # Rays
 
-> Rays is under active development. APIs and qualification tooling may
-> change while the native GPU migration is completed.
+> Rays is under active development. The language, the workspace format and
+> the qualification tooling may change.
 
-Rays is a functional creative-coding framework for OCaml. It combines pure
-scene construction, immutable sketch state, native Metal rendering, typed
-input and media resources, a UI toolkit, and production-oriented procedural
-geometry.
+Rays is a creative-coding system for native Apple-Silicon Macs. A sketch is a
+Lisp workspace file, `sketch.rays`. Its drawings, geometry, scenes, settings and
+UI are graphs that the Rays Editor draws from the text, and edits back into the
+text. Rendering goes through Metal, with OGPU as the renderer interface and SDL3
+for window, input and media. Metal unavailability is a typed startup error;
+there is no other renderer.
 
-Rays currently supports one platform stack: macOS on Apple Silicon, SDL3
-for the window/event/media lifecycle, and Rays's custom OGPU/Metal renderer.
-Metal unavailability is a typed startup error. Applications do not select a
-different renderer.
-
-## Highlights
-
-- `Sketch`, `Frame`, and immutable `Scene` values for ordinary applications.
-- Native 2D and 3D rendering through typed OGPU commands and Metal resources.
-- Logical-point coordinates with explicit Retina drawable dimensions.
-- Images, fonts, text, audio, canvases, capture, and asset ownership helpers.
-- PXUI, an immediate-mode UI kit with an instanced Metal renderer, plus
-  graph/inspector adapters for procedural tools.
-- Deterministic random, noise, fixed-clock, and multicore preparation APIs.
-- RDK packed geometry and immutable Procedural SOPs.
-- Bounded GPU resource, retained-plan, mesh, and text caches.
+The OCaml API (`Sketch`, `Frame`, `Scene`) is an internal layer that the editor
+is built on. It is not a user-facing product, and new sketches are written in
+Rays Lisp.
 
 ## Platform requirements
 
@@ -71,231 +60,181 @@ The checked-in `.envrc` only activates the repository-local opam switch and
 loads non-secret defaults from `.env` when present. It does not choose a
 renderer.
 
-## Five-minute sketch
+## A sketch
 
-```ocaml
-open Rays
-
-type model = { phase : float }
-
-let init _frame = { phase = 0. }
-
-let update model (frame : Frame.t) =
-  { phase = model.phase +. frame.dt }
-
-let view model (frame : Frame.t) =
-  let radius = 42 + int_of_float (10. *. sin (2. *. model.phase)) in
-  Scene.[
-    clear (Color.rgb 20 22 28);
-    circle
-      ~at:(frame.width / 2, frame.height / 2)
-      ~radius
-      ~fill:(Color.rgb 90 170 240)
-      ();
-    text ~at:(12, 12) (Printf.sprintf "frame %d" frame.count);
-  ]
-
-let () =
-  ignore
-    (Sketch.run_state
-       ~config:{ Sketch.default_config with
-         width = 640;
-         height = 360;
-         title = "My Rays sketch";
-       }
-       ~init ~update ~view ())
-```
-
-Give each executable its own Dune stanza:
+This is `examples/basic/sketch.rays`:
 
 ```lisp
-(executable
- (name main)
- (libraries rays))
+(workspace basic
+
+  (graph picture :context draw
+    (let* [phase (state [previous 0.0] (+ previous (frame/dt)))]
+      (draw/merge (draw/background "#14161c")
+                  (draw/circle [(/ (frame/width) 2) (/ (frame/height) 2) 0]
+                               (+ 42 (int (* 10 (sin (* phase 2)))))
+                               :fill "#5aaaf0")
+                  (draw/text [12 12 0]
+                             (str (frame/width)
+                                  " × "
+                                  (frame/height)
+                                  "  frame "
+                                  (frame/index))))))
+
+  (graph editor :context editor
+    (ui/workspace (ui/canvas (ref picture) :focus true)))
+
+  (graph window :context settings
+    (settings/config :title "Rays basic sketch" :width 640 :height 360)))
 ```
 
-Then run it natively:
+A workspace is a list of named graphs. Each graph has a context: `draw` for
+pictures, `sop` for geometry, `scene` for 3D scenes, `editor` for the layout
+of the window, and `settings` for the window title, size and seed. `(ref name)`
+points at another graph. The language reference is
+[specification/flow.md](specification/flow.md).
+
+Run an example or a sketch natively:
 
 ```sh
-dune exec ./main.exe
+dune exec examples/basic/lisp.exe
+dune exec sketches/flow_contours/main.exe
 ```
 
-Resource-owning models release their images, fonts, canvases, and audio in
-`Sketch.run_state ~on_stop`, while SDL3 and Metal are still alive.
+Command-S in the window rewrites the file with its comments kept. An edit of
+the file on disk reloads the window. A finite run sets `RAYS_MAX_FRAMES` to a
+frame count and exits when it is reached; the `smoke` rules use this.
 
-## Examples
+## Examples and sketches
 
-Every directory under `examples/` is a self-contained executable. Useful
-starting points include:
+`examples/<name>/` holds a short teaching program. Each Lisp example has a
+`sketch.rays` and a `dune` file that generates `lisp.exe`:
 
 ```sh
-dune exec examples/basic/main.exe
-dune exec examples/drawing/main.exe
-dune exec examples/audio/main.exe
-dune exec examples/particles/main.exe
-dune exec examples/noise/main.exe
-dune exec examples/generative/main.exe
-dune exec examples/recursive_rectangles/main.exe
-dune exec examples/pxui/main.exe
-dune exec examples/procedural_modeling/main.exe
-dune exec examples/sop_gallery/main.exe -- --entry boolean
+dune exec examples/audio/lisp.exe
+dune exec examples/basic/lisp.exe
+dune exec examples/drawing/lisp.exe
+dune exec examples/file_dialog/lisp.exe
+dune exec examples/generative/lisp.exe
+dune exec examples/noise/lisp.exe
+dune exec examples/particles/lisp.exe
+dune exec examples/procedural_modeling/lisp.exe
+dune exec examples/pxui/lisp.exe
+dune exec examples/recursive_rectangles/lisp.exe
+dune exec examples/sop_gallery/lisp.exe
+```
+
+`examples/sop_gallery` is a `gallery.rays` catalogue of SOP graphs; its scene shows
+`(ref boolean)` and the outline opens the others. One example is still an OCaml
+executable:
+
+```sh
 dune exec examples/pathtracer/main.exe
 ```
 
-The larger editable voxel-wall sketch runs with
-`dune exec sketches/voxel_wall/main.exe`.
-
-Examples and sketches intended for automation must provide an explicit finite
-native smoke path; the runtime does not impose an implicit frame limit.
-
-### Sketch workspace keys
-
-`Rays_editor` environments (for example `sketches/voxel_wall`) use a leader key:
-press `Space`, read the which-key panel, then press one key. Pane-scoped keys
-apply to the pane you clicked last.
-
-| Keys | Action |
-|---|---|
-| `Space s` / `Space b` | save / browse presets (`~/.rays/<sketch>/`) |
-| `Space t` / `g` / `i` | toggle timeline / graph / inspector |
-| `Space h` / `Space c` | hide all UI / camera section |
-| `Space p` / `r` / `x` | play-pause / reset / stop |
-| `Space a` / `Space f` (graph) | add node / frame displayed tile |
-| `Space o` / `Space l` / `Space [` | split, close or float the focused panel / retype it / switch layout |
-| `Space w` / `Space v` (3D view) | fly (WASD, Q/E, Shift, wheel; Esc) / look through render camera |
-| `F` (graph / viewport) | frame the selected nodes / focus the camera on the displayed node |
-| `Home`, Delete, Cmd/Ctrl-C/V/X/D/Z | frame all tiles, delete, clipboard, undo |
-| right click | context menu (right drag pans) |
-
-## Architecture
-
-```text
-examples / sketches / pxui / procedural / rdk
-                         |
-                         v
-                      rays ----------------> ogpu
-                         |                        ^
-                         |                        |
-                         v                        |
-                      runtime ------> ogpu_metal --------> metal
-                         |
-                         +----> sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
-```
-
-- `rays` owns public application semantics, pure scenes, resources, and
-  renderer behavior.
-- `runtime` owns the initial-domain SDL3 lifecycle, Metal view, drawable
-  presentation, and event translation.
-- `ogpu` is the checked renderer-facing command vocabulary.
-- `ogpu_metal` translates OGPU commands to the safe Metal library.
-- `metal` owns typed Objective-C++ calls, native validation, ownership, and
-  command-completion retention.
-- `rdk` is the sole packed topology/geometry kernel; `procedural` wraps it in
-  immutable graphs.
-
-No public Rays type exposes an SDL3 or Metal handle. All window, input,
-resource, and presentation operations remain on the initial OCaml domain.
-Pure CPU work may use the shared Domainslib pool and joins before native
-command submission.
-
-## Repository layout
-
-```text
-lib/rays/          public creative-coding API
-lib/runtime/          SDL3 + Metal native lifecycle
-lib/sdl3*/            SDL3 and media bindings
-lib/metal/            safe/raw Metal API and OCaml/Dune generation
-lib/ogpu/             renderer command interface
-lib/ogpu_metal/       Metal implementation of OGPU
-lib/rdk/              packed geometry/topology core
-lib/procedural/       immutable SOP graphs
-lib/pxui*/            UI and graph presentation
-lib/sketch_support/   target-neutral sketch helpers
-lib/rays_editor/        Rays Editor, the interactive sketch environment
-lib/rays_pathtracer/ Metal ray-tracing path tracer
-examples/             self-contained examples
-sketches/             experimental native applications
-test/                 automated tests
-specification/        architecture and behavioral specifications
-```
-
-The root `rays.opam` file is generated from `dune-project`. SDL dependency
-probes live as the small local opam packages under `packaging/`; application
-libraries remain under `lib/` and build through Dune.
-
-## Coordinates and rendering
-
-`Frame.width`, `Frame.height`, `Scene` geometry, input positions, and PXUI
-layout use logical points. `Frame.drawable_size` exposes physical Metal
-drawable pixels, and `Frame.pixel_scale` marks the conversion boundary. Do not
-manually scale ordinary drawing or input coordinates.
-
-Scenes are pure values. Rendering lowers them to checked native commands only
-at `Scene.render` or `Sketch`. Image generations upload when their
-content changes; immutable mesh and retained command data use bounded native
-caches. Submitted resources stay alive until Metal completion.
-
-`Scene3` provides cameras, transforms, depth/stencil, lighting, culling,
-blending, MSAA, textures, shadows, and the supported typed shader surface.
-Unsupported programmable features return typed errors instead of changing the
-rendering path.
-
-## Geometry and procedural modeling
-
-The geometry stack has one authoritative core:
-
-```text
-procedural ──> rdk ──> rays_math
-     └────────> rdk_rays ──> rays
-```
-
-RDK owns packed topology, reverse incidence, spatial acceleration, attributes,
-groups, and high-density modeling algorithms. Procedural wraps the same
-operations in immutable cookable graphs with bounded caches and explicit
-cancellation. `rdk_rays` converts cooked geometry for rendering.
-
-See [the RDK specification](specification/rdk.md), [procedural
-specification](specification/procedural.md), and [modeling-kernel
-requirements](specification/modeling-kernels.md) for production guarantees.
-
-## Development and qualification
-
-Before handing off an ordinary change:
+`sketches/<name>/sketch.rays` is a sketch that is only a workspace, with no
+`dune` or `main.ml` of its own. `sketches/dune` generates its executable as
+`sketches/<name>/main.exe`. Every sketch except the three below is of this
+kind, for example `sketches/flow_contours`, `sketches/flow_terrain` and
+`sketches/ws_tunnel`. `sketches/cube_cage`, `sketches/shattered_cube` and
+`sketches/voxel_wall` still have their own `main.ml`:
 
 ```sh
-dune build @all
-dune runtest
+dune exec sketches/voxel_wall/main.exe
+```
+
+Examples and sketches that automation runs must finish on their own under
+`RAYS_MAX_FRAMES`.
+
+## Scaffolding
+
+Create an example (`examples/<name>/sketch.rays` and its `dune`):
+
+```sh
+dune exec tools/new_example.exe -- my_example
+dune exec examples/my_example/lisp.exe
+```
+
+Create a sketch (`sketches/<name>/sketch.rays` only). Then add it to the
+generated build file, which is checked in as `sketches/dune.rays.inc`:
+
+```sh
+dune exec tools/new_example.exe -- --sketch my_sketch
+dune build @runtest; dune promote
+dune exec sketches/my_sketch/main.exe
+```
+
+Both copy `specification/workspace/cases/bloom.lisp` as the starting file. The
+name may use only lowercase letters, digits, `_` and `-`.
+
+For the conventions of writing a `.rays` file (names, macros, pixel kernels),
+see `.claude/skills/write-rays-lisp/SKILL.md`.
+
+## Build and test
+
+```sh
+dune build @check                 # typecheck only
+dune build @lib/<name>/runtest    # focused tests for one library
+dune build @all && dune runtest && dune build @smoke && git diff --check
 dune build @doc
 ```
 
-Native integration tests must arrange their own termination. Performance work
-records wall time, allocation, memory, input size, profile, machine, and domain
-count; deterministic multicore paths compare ordered results exactly.
+- `dune build @smoke` runs two finite native examples. `dune build @smoke-all`
+  runs every example and sketch, and opens a window for each one in turn.
+- `dune runtest` is the window-free suite. Display-dependent tests run under
+  `@runtest-native`, and long or machine-specific checks run under
+  `@qualification`.
+- To render an editor to a PNG without opening a window, build
+  `tools/ui_shot.exe` and run it on a sketch:
 
-Default `dune runtest` is the green pre-commit suite; display-dependent tests run
-under `@runtest-native` and machine-, SDK- or evidence-dependent checks under
-`@qualification`. `dune build @smoke` runs two finite native examples (2D and
-3D); `dune build @smoke-all` runs every example and sketch when full native
-coverage is wanted.
+  ```sh
+  dune build tools/ui_shot.exe
+  _build/default/tools/ui_shot.exe sketches/flow_contours/sketch.rays OUT.png
+  ```
 
-Metal binding expansion uses hybrid OCaml/Dune generation. The generator owns
-mechanical declarations and typed direct selector calls; the safe API,
-lifetimes, validation, and behavior remain handwritten and tested. GPU binding
-generation does not use Python glue.
+- A fatal exception in a running sketch writes a report under `/tmp/rays-crash`.
 
-## Documentation
+## Layout
 
-- [Public API](specification/api.md)
-- [Native backend](specification/backend.md)
-- [Graphics](specification/graphics.md)
-- [3D rendering](specification/3d.md)
+```text
+examples/      short teaching programs (sketch.rays or main.ml)
+sketches/      experiments; sketches/dune generates the workspace-only ones
+lib/rays/      public creative-coding API (Sketch, Frame, Scene)
+lib/flow*/     the Lisp language, its IR and GPU emitter, graph and SOP layers
+lib/rdk/       packed geometry and topology core
+lib/sop/ immutable SOP graphs over rdk
+lib/pxui*/     immediate-mode UI and the graph pane
+lib/rays_editor/ the Rays Editor
+lib/metal/, lib/ogpu*/, lib/runtime/, lib/sdl3*/ native layers
+specification/ architecture and behaviour
+tools/         generators, check runner, ui_shot and benchmarks
+test/          automated tests
+```
+
+## Specification
+
+- [Rays Flow, the workspace language and editor](specification/flow.md)
+- [Workspace cases and iteration](specification/workspace/iteration.md)
+- [Public API](specification/api.md) and [native backend](specification/backend.md)
+- [Graphics](specification/graphics.md), [3D rendering](specification/3d.md)
 - [Images](specification/image.md) and [audio](specification/audio.md)
-- [Rays Flow, the workspace editor](specification/flow.md)
-- [Input and events](specification/input.md)
-- [SDL3 bindings](specification/sdl3.md)
-- [Metal bindings](specification/metal.md)
+- [Input and events](specification/input.md) and [window](specification/window.md)
+- [Sop SOPs](specification/sop.md) and [RDK](specification/rdk.md)
+- [PXUI](specification/pxui.md)
+- [SDL3 bindings](specification/sdl3.md) and [Metal bindings](specification/metal.md)
 - [Packaging](specification/packaging.md)
 
 Rays is licensed under the MIT License. External SDL3 libraries and Apple
 platform frameworks retain their own licenses and terms; see
 [licenses](specification/licenses.md).
+
+## Not yet ported to Rays Lisp
+
+Three OCaml sketches were removed from the tree. Their last OCaml source is
+still in git history (`git show <commit>:sketches/<name>/main.ml`). Each one
+needs the following before it can be written as a `sketch.rays`:
+
+| Sketch | What it did | What Rays Lisp is missing |
+|---|---|---|
+| `chromatic_drift` | Generative 1080 x 800 artwork: noise-shaped surfaces built as packed meshes with per-vertex colour and normals, a 256 x 256 texture generated in code and mapped onto a blended quad, a film-grain layer, a panel of sliders with an animate toggle, settings saved to and loaded from a file, a PNG-sequence export, and a geometry benchmark. | Hand-built meshes with per-vertex colour and normals (`scene/geometry` takes SOP geometry only). Textures on 3D surfaces (there is no texture op, and `image/load` gives 2D images). UI sliders bound to sketch parameters, and a save/load of their values (`settings/config` takes only title, size and seed). A sequence export: `host/save_png` writes one picture. |
+| `pastel_flow` | Two procedural pastel compositions ("Pearl waves", "Iridescent silk") driven by 56 sliders in five sections. It had per-vertex coloured meshes, a grain layer of about 18,000 points drawn as alpha-blended quads with depth testing off, presets, Save and Load buttons for the control values, one undo entry per slider drag, and a single-PNG export at a chosen size. | Hand-built meshes with per-vertex colour and normals. Alpha-blended 3D layers with a depth state (the `scene/` ops have no blend or depth control). The UI kit ops: `ui/` has no slider, button or undo operation. |
+| `code_quadtree` | A map of the repository's source files. It scanned the tree under `--root`, asked an OCaml language server over pipes for the symbols of each file, laid files and symbols out in a quadtree, and let the viewer zoom, pan and click into a cell. Labels appeared at zoom-dependent sizes, and it could save a screenshot. | Reading a directory tree and the contents of text files (no listing or text-read op exists). Starting a child process for a language-server client. A text atlas: many labels at once are one `draw/text` each. Screenshots are already covered by `host/save_png`. |

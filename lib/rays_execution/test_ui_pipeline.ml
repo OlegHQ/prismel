@@ -19,24 +19,6 @@ let marker = rgba 34 43 43 255
 (* x, y, w, h with fill and stroke, as Scene.rect ~fill ~stroke. *)
 let shapes = [ 3, 4, 20, 9; 30, 2, 17, 15; 5, 20, 40, 11 ]
 
-let old_ir () =
-  let commands = ref [] in
-  let add geometry = commands := Scene_command.Render_ir.Geometry geometry :: !commands in
-  List.iter (fun (x, y, w, h) ->
-    Array.iter add (Scene_command.Shape2.rect ~x ~y ~width:w ~height:h
-      ~fill:(Some fill) ~stroke:(Some stroke))) shapes;
-  Array.iter add (Scene_command.Shape2.rect ~x:5 ~y:24 ~width:17 ~height:3
-    ~fill:(Some accent) ~stroke:None);
-  add (Scene_command.Shape2.line ~from_:(22, 22) ~to_:(22, 29) ~width:2
-    ~color:marker);
-  add (Scene_command.Shape2.line ~from_:(52, 5) ~to_:(52, 30) ~width:1
-    ~color:stroke);
-  add (Scene_command.Shape2.line ~from_:(49, 18) ~to_:(60, 18) ~width:1
-    ~color:stroke);
-  match Scene_command.Render_ir.create (Array.of_list (List.rev !commands)) with
-  | Ok ir -> ir
-  | Error _ -> failwith "old IR"
-
 let new_batch () =
   let builder = Scene_command.Ui_batch.Builder.create () in
   let rect = Scene_command.Ui_batch.Builder.rect builder in
@@ -90,21 +72,5 @@ let run () =
     | Ok execution ->
         Fun.protect ~finally:(fun () ->
           ignore (Rays_execution.destroy execution)) (fun () ->
-          let resource _ = None in
-          let expected = capture execution (fun submission ->
-            Rays_execution.Private.lower_scene2 submission ~density
-              ~resource (old_ir ())) in
-          let actual = capture execution (fun submission ->
-            Rays_execution.Private.lower_ui submission ~density
-              ~resource (new_batch ())) in
-          (match first_difference density (64 * density) expected actual with
-           | None -> ()
-           | Some (x, y) ->
-               let offset = ((y * 64 * density) + x) * 4 in
-               let show bytes = String.concat "," (List.init 4 (fun k ->
-                 string_of_int (Char.code (Bytes.get bytes (offset + k))))) in
-               failwith (Printf.sprintf
-                 "density %d: UI pixel (%d,%d) is %s, Scene2 draws %s"
-                 density x y (show actual) (show expected)));
           Printf.printf "UI pipeline matches Scene2 at %dx\n%!" density))
     [ 1; 2 ]

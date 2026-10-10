@@ -1,10 +1,10 @@
 (* Full window-free editor updates: constant baseline vs residual lighting. *)
 open Rays
-module E = Rays_editor.Editor3
+module E = Rays_editor.Editor
 
 let frame count : Frame.t = {
   width = 900; height = 640; size = 900, 640;
-  drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+
   pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.; fps = 60.; count;
   mouse = 450., 300.; mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events = [] }
 

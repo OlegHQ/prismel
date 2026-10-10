@@ -1,10 +1,10 @@
 (* W2b: live drives, volatile cache slots, fixed-step determinism, realtime
    edits and the editor's cook path. *)
 open Flow_sop
-module Edit = Procedural.Edit_graph
-module Session = Procedural.Session
+module Edit = Sop.Edit_graph
+module Session = Sop.Session
 module Cook = Rays_editor.Private.Cook
-module Timeline = Sketch_support.Timeline
+module Timeline = Rays_editor.Timeline
 
 let fail message = failwith ("test_workspace_live: " ^ message)
 let check condition message = if not condition then fail message
@@ -53,11 +53,11 @@ let frame p ~time =
   let compiled = Edit.compile_all ?previous:p.previous resolved.geometry in
   p.previous <- Some compiled;
   let node = Result.get_ok (Edit.compiled_node compiled ~node_id:p.root) in
-  let context = Procedural.Context.create ~domains:p.domains ~grain:97 ~seed:42L ()
+  let context = Sop.Context.create ~domains:p.domains ~grain:97 ~seed:42L ()
     |> Result.get_ok in
   match Session.cook p.session ~context node with
-  | Ok output -> resolved, (Result.get_ok (Procedural.Payload.geometry output.payload))
-  | Error e -> fail (Procedural.Diagnostic.error_to_string e)
+  | Ok output -> resolved, (Result.get_ok (Sop.Payload.geometry output.payload))
+  | Error e -> fail (Sop.Diagnostic.error_to_string e)
 
 let small = {|(workspace w
   (graph g :context sop []
@@ -184,7 +184,7 @@ let run () =
   let objects = Lower.objects orrery in
   let digest geometry = Digest.string (geometry_bytes geometry) in
   let cook = ref (Result.get_ok (Cook.create ~await:true
-    ~prepare:(fun _ output -> Ok (digest (Result.get_ok (Procedural.Payload.geometry output.Session.payload))))
+    ~prepare:(fun _ output -> Ok (digest (Result.get_ok (Sop.Payload.geometry output.Session.payload))))
     ~seed:42L ~grain:97 ~domains:1 ~max_entries:512
     ~max_payload_bytes:(256 * 1024 * 1024) ())) in
   Cook.set_volatile !cook (Lower.is_volatile orrery);
@@ -194,13 +194,13 @@ let run () =
     let next, changes = Timeline.seek !timeline ~frame:(Int64.of_int n) in
     timeline := next;
     let update = Cook.update ~live:false !cook ~settings:Rays_editor.Settings.none ~objects
-      ~edit_error:None ~effects:Procedural.Parameter.no_effects
+      ~edit_error:None ~effects:Sop.Parameter.no_effects
       ~timeline_changes:changes ~timeline:next
       ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. }
       ~frame_request:None in
     cook := update.cook;
     check (update.edit_error = None) "editor cook: edit error";
-    check (Cook.status !cook = Procedural.Async_cook.Idle && update.prepared_changed)
+    check (Cook.status !cook = Sop.Async_cook.Idle && update.prepared_changed)
       "await: the cook of frame n is published in frame n";
     let expected = digest (snd (frame reference ~time:(Timeline.time next))) in
     match Cook.pieces !cook with

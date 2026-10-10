@@ -9,21 +9,16 @@ Read `lib/rays_editor/AGENTS.md` first. Pick the lowest level that works:
 
 | Level | Blocks | Example |
 |---|---|---|
-| 0 sketch | `rays` (`Sketch`, `Frame`, `Scene`) | `examples/basic` |
-| 1 sketch + panel | `pxui`, `Editor_core.Param/History/Store`, `Pxui_shell.Inspector` | `sketches/pastel_flow` |
+| 0 sketch | a `.rays` workspace | `examples/basic` |
+| 1 sketch + panel | `pxui`, `Editor_core.Param/History/Store`, `Pxui_shell.Inspector` | none yet |
 | 2 custom shell | `Pxui_shell` (Layout, Chrome, Which_key, Prompt, Timeline_bar, Status_bar, Shell), `Pxui_graph`, `Editor_core.Command/Keymap/Router` | none yet |
-| 3 Rays Editor | `Rays_editor.Editor3` with a SOP graph | `sketches/voxel_wall`, `sketches/shattered_cube` |
+| 3 Rays Editor | `Rays_editor.Editor` with a SOP graph | `sketches/voxel_wall`, `sketches/shattered_cube` |
 
-1. **Command**: one `Editor_core.Command.make ~id ~label ?trigger ?scope
-   action` entry, the same type as every built-in. In Rays Editor pass it
-   as `?commands` with `action : 'prepared t -> 'prepared t`; its trigger
-   joins the keymap and which-key, and it appears in the palette
-   (`Space /`). A built-in is a `Leader.keymap` entry with a `Leader.action`
-   payload handled in the update pipeline. Change undoable state in the action through
-   `set_settings` or document edits, never a ref. Never add a variant or a
-   `match` for a sketch command.
+1. **Command**: a built-in is a `Leader.keymap` entry (`Editor_core.Command.make ~id ~label
+   ?trigger ?scope action`) with a `Leader.action` payload handled in the update pipeline.
+   `Editor.create` takes no host commands: a workspace file configures the editor.
 2. **Node**: catalog nodes use the `add-sop` skill. A sketch node is a
-   `Procedural.Custom` node with a `Param` schema plus an
+   `Sop.Custom` node with a `Param` schema plus an
    `Edit_graph.factory` passed in `~factories` (see voxel_wall's
    `factories`), so the node menu can create it.
 3. **Sketch state**: put it in a `Param` schema and pass
@@ -44,7 +39,7 @@ Read `lib/rays_editor/AGENTS.md` first. Pick the lowest level that works:
    optional input 0 as the parent, no `[@@sop.register]`), added to the
    scene catalog in `Core.catalog`. A key that only means something on one
    level is a `Leader` chord or sequence filtered in `Core.routed`. Sketches
-   pass lights as `?lights` and read `Editor3.objects`/`lights`/`world` for
+   pass lights as `?lights` and read `Editor.objects`/`lights`/`world` for
    their own renderers; see `specification/scene.md`.
 
 8. **Graph pane work** (canvas, graph keys, parameter drives,
@@ -53,7 +48,7 @@ Read `lib/rays_editor/AGENTS.md` first. Pick the lowest level that works:
    `Flow_sop.Flow_edit.op` the pane emits and the host applies; a new graph command carries
    its `guide` contexts.
 9. **Editor behaviour without a window**: `Rays_editor.Reduce.step` runs one frame's reduction
-   with chosen actions and selection; `Editor3.create ~await:true` plus scripted frames drives
+   with chosen actions and selection; `Editor.create ~await:true` plus scripted frames drives
    the whole editor (see `test/test_workspace_shell.ml`). Close every editor a test creates.
 
 Check: `dune build @lib/editor_core/runtest @lib/pxui_shell/runtest`,

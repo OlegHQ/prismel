@@ -355,8 +355,8 @@ let tops ~rh rows =
 (* the search row: 4 points of margin over a 24-point row *)
 let search_height = 28.
 
-let row_rects ?(row_height = 24) state p ~bounds:(x, y, w, _) =
-  let rh = float row_height and x = float x and y = float y and w = float w in
+let row_rects state p ~bounds:(x, y, w, _) =
+  let rh = 24. and x = float x and y = float y and w = float w in
   let rows = rows ~wide:(w >= 300.) state p in
   let t = tops ~rh rows in
   Array.mapi (fun i r -> r, (x, y +. search_height +. t.(i), w, t.(i + 1) -. t.(i))) rows

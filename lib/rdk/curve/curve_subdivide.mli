@@ -2,8 +2,7 @@ type scheme = Catmull_clark | Bilinear
 exception Error of string
 type plan = {
   source : Rdk_core.Geometry.t;
-  source_topology : Rdk_core.Topology.Private.view;
-  scheme : scheme;
+
   output_topology : Rdk_core.Topology.t;
   output_index : Rdk_core.Topology_index.t option;
   point_offsets : int array;

@@ -18,13 +18,13 @@ SOP graph remains acyclic and its cache remains bounded.
 ## One authoritative core
 
 ```text
-Procedural ──> RDK ──> Rays.Mesh
+Sop ──> RDK ──> Rays.Mesh
 ```
 
 RDK owns packed geometry, reverse topology, attribute interpolation/reduction,
 spatial acceleration, and high-density modeling algorithms. `rays_math`
 owns mathematical values; `rdk_rays` converts cooked geometry to render
-meshes. Procedural owns graph composition, context dependencies, diagnostics,
+meshes. Sop owns graph composition, context dependencies, diagnostics,
 and bounded evaluation. RDK never imports upward.
 
 `Rdk.Topology` remains the compact forward point/corner/primitive structure.
@@ -44,31 +44,31 @@ while using index planes rather than per-element objects.
 | Topology | Triangle adjacency and immutable editing | `Rdk.Topology_index` owns the reverse index |
 | Extrusion/revolve/sweep | Cardinality-first generators | `Rdk.Poly_extrude.run`, `Rdk.Sweep_modeling.revolve`, and `sweep` own topology and payload output |
 | Loop/Catmull-Clark | Surface subdivision | `Rdk.Subdivide.subdivide` owns the packed kernel |
-| Edge subdivision | One packed owner | `Rdk.Subdivide.edge_divide` owns the kernel; Procedural wraps it |
+| Edge subdivision | One packed owner | `Rdk.Subdivide.edge_divide` owns the kernel; Sop wraps it |
 | Edge collapse | No former single owner | `Rdk.Edge_collapse` owns selected-edge component planning and delegates packed reduction, rewiring, and cleanup to the single Fuse core; it is the contraction primitive for future reduce/remesh work |
-| Blend Shapes | No former single owner | `Rdk.Blend_shapes` owns target ordering, masks, point-ID matching, and packed fixed-width point-field interpolation; Procedural stores only immutable target descriptors and never caches mutable deltas inside a node |
-| Attribute Composite | No former single owner | `Rdk.Attribute_composite` owns independent owner-pattern discovery, ordered weighted/alpha composition, direct-index cardinality and finite-value validation, exact packed output planes, and stale-normal policy; Procedural stores only immutable ordered input descriptors and complete cache identity |
-| Attribute Mirror | No former single owner | `Rdk.Attribute_mirror` owns reflected point/primitive correspondence, explicit point/vertex/primitive mapping, packed payload remap and transformations, pair/side metadata, validation, and stale-normal policy; Procedural stores only names and immutable parameters, resolves groups at cook time, and never retains a competing correspondence or topology kernel |
-| Rewire Vertices | No former single owner | `Rdk.Rewire_vertices.run` owns owner-dependent selection promotion, recursive point-map resolution, corner-to-point mutation, newly-unused point compaction, and union corner-edge ancestry; Procedural stores only typed names/policies and never edits topology or retains mutable connectivity |
-| Polygon reduction | No former single owner | `Rdk.Poly_reduce` owns adaptive QEM scoring, deterministic independent contraction batches, hard-feature/boundary policy, manifold link and foldover checks, and delegates every committed packed contraction/remap to the shared Edge Collapse/Fuse core; Procedural only resolves named groups and cache identity |
-| Boolean intersection detection | Formerly only boxed `Csg3` BSP classification | `Rdk.Boolean_detect` owns deterministic surface triangulation, two-pass packed AxB and unordered AxA BVH triangle-pair discovery, locally normalized narrow-phase classification, topology-contact suppression, symmetric self-pair aggregation, cancellation, and exact-size group/CSR outputs; Procedural resolves optional one/two-input roles, two named primitive restrictions, and immutable cache identity. This reusable detection stage does not replace the future robust corefinement kernel |
-| Intersection event analysis | No former packed owner | `Rdk.Intersection_analysis` owns one packed mixed triangle/curve-piece BVH, reuses the shared `Triangle_intersection` decision/event kernel for triangle pairs, supplies fixed-scratch segment/segment and segment/triangle events, preflights exact raw cardinality, welds stable point identities, and emits aligned input/primitive/parameter/incident-point CSR provenance; Procedural owns only graph roles and named-group resolution |
-| Polygon bevel | No former single owner | `Rdk.Poly_bevel.run` owns selected-edge eligibility, face-ring slide/collision planning, cross-face ring splits, connected continuation/corner topology, profile sampling, cardinality-first packed output, payload ancestry, and generated groups; Procedural only resolves a named native edge group and immutable parameters |
-| Point splitting | One packed owner | `Rdk.Point_split` owns selected-incidence classification, mixed vertex/primitive attribute and named-group seam tuple clustering, stable point allocation, promotion, and one-to-many point/group/native-edge ancestry; Procedural only resolves typed groups and immutable seam policy |
-| Point generation | No former single owner | `Rdk.Point_generate` owns exact cardinality planning, deterministic per-source emission, every point-storage copy path, provenance, generated grouping, and retained-topology extension; Procedural supplies generator/modifier graph identity and resolves an optional named point group |
-| Point replication | No former single owner | `Rdk.Point_replicate` reuses Point Generate cardinality/payload planning and the canonical Copy-to-Points basis transform, then exclusively owns source-keyed local shape sampling, copied-vector/normal transformation, quasi coordinates, rest-space noise, velocity synthesis, and custom-shape ancestry; Procedural only resolves graph inputs/groups and immutable identity |
-| Geometry distance fields | No former single owner | `Rdk.Transform_ops.distance_along_geometry` owns exact edge-path propagation, `Rdk.Transform_ops.distance_from_geometry` owns point/surface reference queries, and `Rdk.Transform_ops.distance_from_target` owns analytic point/axis/plane projection; all reuse the shared falloff/output policy and packed storage rather than placing distance kernels in Procedural graph cooks |
-| Packed element ordering | No former single owner | `Ordering.sort` owns stable point/primitive permutation, deterministic random shuffle, strict index-permutation validation, indirect destination ranks, and complete payload/topology remapping; Procedural contributes only immutable cache identity and named-group resolution |
-| Attribute-driven deletion | No former single owner | `Rdk.Blast_by_attribute` owns packed scalar point/primitive classification and delegates every topology/payload/group/native-edge mutation to the single `Deletion.delete` planner; Procedural resolves only the optional named base group and immutable node identity |
-| Edge crease authoring | No former single owner | `Rdk.Crease.crease` owns unique-edge reduction, coherent incident-corner `creaseweight` updates, and optional vertex-color endpoint visualization for the existing Subdivide kernel; Procedural resolves only a named topology-affine edge group and cache identity |
-| Frame-domain attribute fading | No former single owner | `Rdk.Attribute_fade` owns scalar point-driver validation, affine frame retiming, in/hold/out ramp evaluation, independent reference-cardinality policy, packed output, and grayscale visualization; Procedural declares the exact Frame dependency, resolves only a named point group/input roles, and never embeds mutable solver state in the cook |
-| Polygon-curve cutting | No former single owner | `Rdk.Poly_cut.cut` owns point/edge event classification, threshold interpolation, change subdivision, fragment planning, point compaction, every-owner payload/group/native-edge ancestry, and closed-fragment policy; Procedural resolves only named primitive/point/edge groups and immutable parameters |
-| Reversible piece separation | No former single owner | `Rdk.Separate_pieces` owns integer/text identity compilation, point/primitive rigidity validation, stable projected bounds and layout, same-owner translation metadata, Move Back arithmetic, overflow checks, and packed position fills; Procedural contributes immutable parameter identity only |
-| Edge flip | No former single owner | `Rdk.Edge_flip` exclusively owns manifold polygon-boundary rotation, corner-payload cycling, validity checks, and native-edge ancestry; Procedural contributes immutable selection/parameter identity only |
+| Blend Shapes | No former single owner | `Rdk.Blend_shapes` owns target ordering, masks, point-ID matching, and packed fixed-width point-field interpolation; Sop stores only immutable target descriptors and never caches mutable deltas inside a node |
+| Attribute Composite | No former single owner | `Rdk.Attribute_composite` owns independent owner-pattern discovery, ordered weighted/alpha composition, direct-index cardinality and finite-value validation, exact packed output planes, and stale-normal policy; Sop stores only immutable ordered input descriptors and complete cache identity |
+| Attribute Mirror | No former single owner | `Rdk.Attribute_mirror` owns reflected point/primitive correspondence, explicit point/vertex/primitive mapping, packed payload remap and transformations, pair/side metadata, validation, and stale-normal policy; Sop stores only names and immutable parameters, resolves groups at cook time, and never retains a competing correspondence or topology kernel |
+| Rewire Vertices | No former single owner | `Rdk.Rewire_vertices.run` owns owner-dependent selection promotion, recursive point-map resolution, corner-to-point mutation, newly-unused point compaction, and union corner-edge ancestry; Sop stores only typed names/policies and never edits topology or retains mutable connectivity |
+| Polygon reduction | No former single owner | `Rdk.Poly_reduce` owns adaptive QEM scoring, deterministic independent contraction batches, hard-feature/boundary policy, manifold link and foldover checks, and delegates every committed packed contraction/remap to the shared Edge Collapse/Fuse core; Sop only resolves named groups and cache identity |
+| Boolean intersection detection | Formerly only boxed `Csg3` BSP classification | `Rdk.Boolean_detect` owns deterministic surface triangulation, two-pass packed AxB and unordered AxA BVH triangle-pair discovery, locally normalized narrow-phase classification, topology-contact suppression, symmetric self-pair aggregation, cancellation, and exact-size group/CSR outputs; Sop resolves optional one/two-input roles, two named primitive restrictions, and immutable cache identity. This reusable detection stage does not replace the future robust corefinement kernel |
+| Intersection event analysis | No former packed owner | `Rdk.Intersection_analysis` owns one packed mixed triangle/curve-piece BVH, reuses the shared `Triangle_intersection` decision/event kernel for triangle pairs, supplies fixed-scratch segment/segment and segment/triangle events, preflights exact raw cardinality, welds stable point identities, and emits aligned input/primitive/parameter/incident-point CSR provenance; Sop owns only graph roles and named-group resolution |
+| Polygon bevel | No former single owner | `Rdk.Poly_bevel.run` owns selected-edge eligibility, face-ring slide/collision planning, cross-face ring splits, connected continuation/corner topology, profile sampling, cardinality-first packed output, payload ancestry, and generated groups; Sop only resolves a named native edge group and immutable parameters |
+| Point splitting | One packed owner | `Rdk.Point_split` owns selected-incidence classification, mixed vertex/primitive attribute and named-group seam tuple clustering, stable point allocation, promotion, and one-to-many point/group/native-edge ancestry; Sop only resolves typed groups and immutable seam policy |
+| Point generation | No former single owner | `Rdk.Point_generate` owns exact cardinality planning, deterministic per-source emission, every point-storage copy path, provenance, generated grouping, and retained-topology extension; Sop supplies generator/modifier graph identity and resolves an optional named point group |
+| Point replication | No former single owner | `Rdk.Point_replicate` reuses Point Generate cardinality/payload planning and the canonical Copy-to-Points basis transform, then exclusively owns source-keyed local shape sampling, copied-vector/normal transformation, quasi coordinates, rest-space noise, velocity synthesis, and custom-shape ancestry; Sop only resolves graph inputs/groups and immutable identity |
+| Geometry distance fields | No former single owner | `Rdk.Transform_ops.distance_along_geometry` owns exact edge-path propagation, `Rdk.Transform_ops.distance_from_geometry` owns point/surface reference queries, and `Rdk.Transform_ops.distance_from_target` owns analytic point/axis/plane projection; all reuse the shared falloff/output policy and packed storage rather than placing distance kernels in Sop graph cooks |
+| Packed element ordering | No former single owner | `Ordering.sort` owns stable point/primitive permutation, deterministic random shuffle, strict index-permutation validation, indirect destination ranks, and complete payload/topology remapping; Sop contributes only immutable cache identity and named-group resolution |
+| Attribute-driven deletion | No former single owner | `Rdk.Blast_by_attribute` owns packed scalar point/primitive classification and delegates every topology/payload/group/native-edge mutation to the single `Deletion.delete` planner; Sop resolves only the optional named base group and immutable node identity |
+| Edge crease authoring | No former single owner | `Rdk.Crease.crease` owns unique-edge reduction, coherent incident-corner `creaseweight` updates, and optional vertex-color endpoint visualization for the existing Subdivide kernel; Sop resolves only a named topology-affine edge group and cache identity |
+| Frame-domain attribute fading | No former single owner | `Rdk.Attribute_fade` owns scalar point-driver validation, affine frame retiming, in/hold/out ramp evaluation, independent reference-cardinality policy, packed output, and grayscale visualization; Sop declares the exact Frame dependency, resolves only a named point group/input roles, and never embeds mutable solver state in the cook |
+| Polygon-curve cutting | No former single owner | `Rdk.Poly_cut.cut` owns point/edge event classification, threshold interpolation, change subdivision, fragment planning, point compaction, every-owner payload/group/native-edge ancestry, and closed-fragment policy; Sop resolves only named primitive/point/edge groups and immutable parameters |
+| Reversible piece separation | No former single owner | `Rdk.Separate_pieces` owns integer/text identity compilation, point/primitive rigidity validation, stable projected bounds and layout, same-owner translation metadata, Move Back arithmetic, overflow checks, and packed position fills; Sop contributes immutable parameter identity only |
+| Edge flip | No former single owner | `Rdk.Edge_flip` exclusively owns manifold polygon-boundary rotation, corner-payload cycling, validity checks, and native-edge ancestry; Sop contributes immutable selection/parameter identity only |
 | Edge cusp / Facet cusp | Formerly Facet-local fan splitting | One `Facet.split_points_on_edge_ends` packed kernel owns point-fan partitioning and one-to-many payload/group/native-edge ancestry; `Rdk.Facet.edge_cusp` supplies explicit path-end masks while Facet supplies dihedral masks |
-| Edge straightening | No former single owner | `Edge_ops.straighten` owns selected-edge components, scale-normalized covariance fitting, deterministic principal-axis selection, and packed point projection; Procedural only resolves named groups and node identity |
-| Edge length equalization | No former single owner | `Edge_ops.equalize` owns target reduction, selected incidence planning, the independent-edge exact path, deterministic connected projection, convergence and finite-result policy, stale-normal invalidation, and packed coordinate output; Procedural only resolves named groups and immutable solver parameters |
-| Reference edge relaxation | No former single owner | `Edge_relax.relax` owns matching-topology validation, individual/scale-independent reference targets, movable/pinned incidence planning, shorten-only policy, a closed-form independent-edge path, and delegates connected iterations to the shared `Edge_constraints` projector; Procedural owns only two-input roles, named-group resolution, and immutable parameters |
+| Edge straightening | No former single owner | `Edge_ops.straighten` owns selected-edge components, scale-normalized covariance fitting, deterministic principal-axis selection, and packed point projection; Sop only resolves named groups and node identity |
+| Edge length equalization | No former single owner | `Edge_ops.equalize` owns target reduction, selected incidence planning, the independent-edge exact path, deterministic connected projection, convergence and finite-result policy, stale-normal invalidation, and packed coordinate output; Sop only resolves named groups and immutable solver parameters |
+| Reference edge relaxation | No former single owner | `Edge_relax.relax` owns matching-topology validation, individual/scale-independent reference targets, movable/pinned incidence planning, shorten-only policy, a closed-form independent-edge path, and delegates connected iterations to the shared `Edge_constraints` projector; Sop owns only two-input roles, named-group resolution, and immutable parameters |
 | Boolean | Exact corefinement | `Rdk.Boolean` owns the arrangement and extraction pipeline |
 | Delaunay/Voronoi | Planar modeling | `Rdk.Delaunay2` and `Rdk.Voronoi2` own exact-predicate results |
 | Isosurface | Scalar-field extraction | `Rdk.Iso_surface` owns packed output |
@@ -118,7 +118,7 @@ hierarchical edits, detail-attribute option overrides, and limit output.
 
 Ends is a cardinality-first closure edit in the packed curve core. It remaps
 corners and optional duplicated seam points through explicit target-to-source
-planes, rather than rebuilding topology in Procedural. Native-edge ancestry is
+planes, rather than rebuilding topology in Sop. Native-edge ancestry is
 derived from source directed corners, so face unroll can split one shared edge
 into multiple exact descendants without accidentally selecting a newly authored
 closing edge.
@@ -575,7 +575,7 @@ internal triangle IDs and different source primitives. The narrow phase marks
 shared point IDs, rejects an intersection that exists only at those topological
 vertices or edges, retains duplicate faces and overlap beyond a shared edge,
 then writes both directions of each retained primitive pair before stable row
-deduplication. One-input Procedural cooks therefore build one surface index and
+deduplication. One-input Sop cooks therefore build one surface index and
 never manufacture a second geometry snapshot.
 
 RDK therefore needs the exact/implicit stages above before `Csg3` can be
@@ -681,7 +681,7 @@ query plan is shared by every field of a spatial owner. Generated metadata is
 committed once with expected-linear lookup, avoiding immutable-table quadratic
 rebuilding for large patterns. Attribute selection
 compiles stable include/exclude globs once for each operator; exact-name lists
-remain strict. Procedural source/destination group patterns union same-owner
+remain strict. Sop source/destination group patterns union same-owner
 packed bitsets in one disjoint byte pass. Source-vertex partial surfaces and
 the remaining Houdini kernel functions remain explicit operator work rather
 than alternate geometry cores.
@@ -718,7 +718,7 @@ does not conceal open or inconsistently wound input behind an absolute value.
 The public complexity is O(vertices) for perimeter and O(sum(c²)) for polygon
 corner counts c, with O(primitives + chunks × max(c)) auxiliary/output storage.
 Future curvature and differential measurements belong in this same analysis
-core, not in a second Procedural implementation.
+core, not in a second Sop implementation.
 
 ### Attribute blur and iterative relaxation
 

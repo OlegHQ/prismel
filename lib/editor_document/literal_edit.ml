@@ -4,7 +4,7 @@ module S = Flow.Syntax
 module W = Flow.Workspace
 module E = Flow.Eval
 module L = Flow_sop.Lower
-module Edit = Procedural.Edit_graph
+module Edit = Sop.Edit_graph
 
 type change = {
   path : W.path; field : string; kind : string; authored : int;

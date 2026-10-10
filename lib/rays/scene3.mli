@@ -16,28 +16,6 @@ type depth_state = private {
   comparison : comparison;
   write : bool;
 }
-type stencil_operation =
-  | Keep
-  | Zero
-  | Replace
-  | Increment
-  | Decrement
-  | Increment_wrap
-  | Decrement_wrap
-  | Invert
-type stencil_state = private {
-  comparison : comparison;
-  reference : int;
-  read_mask : int;
-  write_mask : int;
-  on_stencil_fail : stencil_operation;
-  on_depth_fail : stencil_operation;
-  on_pass : stencil_operation;
-}
-type raster_state = private {
-  line_width : float;
-  point_size : float;
-}
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type texture = private {
   value : Texture.t;
@@ -57,34 +35,15 @@ val create :
   ?shadow:Shadow3.t ->
   ?ambient:Color.t ->
   ?separate_specular:bool ->
-  ?depth_clear:float ->
-  ?stencil_clear:int ->
   ?samples:int ->
   node list ->
   t
 
 val depth_state :
-  ?comparison:comparison -> ?write:bool -> unit -> depth_state
-val default_depth : depth_state
-val stencil_state :
-  ?comparison:comparison ->
-  ?reference:int ->
-  ?read_mask:int ->
-  ?write_mask:int ->
-  ?on_stencil_fail:stencil_operation ->
-  ?on_depth_fail:stencil_operation ->
-  ?on_pass:stencil_operation ->
-  unit ->
-  stencil_state
-val default_stencil : stencil_state
-val raster_state :
-  ?line_width:float -> ?point_size:float -> unit -> raster_state
-val default_raster : raster_state
+  ?write:bool -> unit -> depth_state
 
 val textured :
   ?filter:Texture.filter ->
-  ?wrap_u:Texture.wrap ->
-  ?wrap_v:Texture.wrap ->
   Texture.t ->
   texture
 
@@ -100,7 +59,6 @@ val mesh :
 (* Draw immutable geometry at many independent transforms. *)
 val instances_array :
   ?material:Material.t ->
-  ?texture:texture ->
   ?mode:render_mode ->
   ?cull:cull ->
   ?shading:shading ->
@@ -118,69 +76,12 @@ val nodes : t -> node list
 val group : node list -> node
 val transform : Mat4.t -> node list -> node
 val translate : Vec3.t -> node list -> node
-val rotate : axis:Vec3.t -> float -> node list -> node
-val scale : Vec3.t -> node list -> node
 val with_depth : depth_state -> node list -> node
-val with_stencil : stencil_state -> node list -> node
-val with_raster : raster_state -> node list -> node
 val with_blend : blend -> node list -> node
 
-val box :
-  ?material:Material.t ->
-  ?texture:texture ->
-  ?mode:render_mode ->
-  ?cull:cull ->
-  ?shading:shading ->
-  width:float ->
-  height:float ->
-  depth:float ->
-  unit ->
-  node
 val plane :
-  ?material:Material.t ->
-  ?texture:texture ->
-  ?mode:render_mode ->
   ?cull:cull ->
-  ?shading:shading ->
   width:float ->
-  height:float ->
-  unit ->
-  node
-val sphere :
-  ?material:Material.t ->
-  ?texture:texture ->
-  ?mode:render_mode ->
-  ?cull:cull ->
-  ?shading:shading ->
-  radius:float ->
-  unit ->
-  node
-val icosphere :
-  ?material:Material.t ->
-  ?texture:texture ->
-  ?mode:render_mode ->
-  ?cull:cull ->
-  ?shading:shading ->
-  radius:float ->
-  unit ->
-  node
-val cylinder :
-  ?material:Material.t ->
-  ?texture:texture ->
-  ?mode:render_mode ->
-  ?cull:cull ->
-  ?shading:shading ->
-  radius:float ->
-  height:float ->
-  unit ->
-  node
-val cone :
-  ?material:Material.t ->
-  ?texture:texture ->
-  ?mode:render_mode ->
-  ?cull:cull ->
-  ?shading:shading ->
-  radius:float ->
   height:float ->
   unit ->
   node
@@ -202,17 +103,15 @@ module Private : sig
     texture : texture option;
     mode : render_mode;
     cull : cull;
-    shading : shading;
+
     depth : depth_state;
-    stencil : stencil_state;
-    raster : raster_state;
+
     blend : blend;
     transform : Mat4.t;
   }
 
   val drawings : t -> drawing list
   val cacheable : t -> bool
-  val iter_drawings : (drawing -> unit) -> t -> unit
   (* Iterate one descriptor per mesh node. [Some transforms] is a borrowed
      instance batch composed after the descriptor's parent transform. *)
   val iter_batches : (drawing -> Mat4.t array option -> unit) -> t -> unit

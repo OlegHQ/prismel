@@ -3,7 +3,7 @@ let ok=function Ok value->value|Error d->failwith(Flow.Diagnostic.to_string d)
 let load text=match Rays_editor.Workspace.load text with Ok doc->doc|Error diagnostics->
   failwith(String.concat "; "(List.map Flow.Diagnostic.to_string diagnostics))
 let ()=
-  let module Editor=Rays_editor.Editor3 in
+  let module Editor=Rays_editor.Editor in
   let doc=load {|(workspace animated
     (graph picture :context draw
       (let* [bias (* t 0.2)]
@@ -15,7 +15,7 @@ let ()=
   Fun.protect ~finally:(fun()->Editor.close !owner;Rays.Canvas.destroy canvas)(fun()->
     let sample count=
       let frame:Rays.Frame.t={width=900;height=640;size=900,640;
-        drawable_width=900;drawable_height=640;drawable_size=900,640;pixel_scale=1.,1.;
+        pixel_scale=1.,1.;
         time=float count;dt=1.;fps=1.;count;mouse=(-100.,-100.);mouse_delta=0.,0.;
         keys=[];mouse_buttons=[];events=[]}in
       owner:=Editor.update !owner frame;
@@ -25,8 +25,8 @@ let ()=
     assert(first<>sample 1));
   print_endline "Canvas playback refreshes image/map functions with captured time"
 let ()=
-  let module Editor=Rays_editor.Editor3 in
-  let module P=Procedural in
+  let module Editor=Rays_editor.Editor in
+  let module P=Sop in
   let module I=Runtime_resources.Image in
   let _,handles=Ogpu.Impl.create_driver()in
   let before=handles()in
@@ -106,12 +106,12 @@ let () =
         (image/map (fn [uv] [uv.x uv.y "^channel^" 1]) :width 65 :height 3)))
       (graph drawing :context draw (draw/image (ref img)"^scale^"))
       (graph rendered :context image (image/render (ref drawing) :width 65 :height 3)))")in
-    let owner=Result.get_ok(Rays_editor.Editor3.create ~workspace:doc ~await:true ~domains:1
+    let owner=Result.get_ok(Rays_editor.Editor.create ~workspace:doc ~await:true ~domains:1
       ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
-    Fun.protect ~finally:(fun()->Rays_editor.Editor3.close owner)(fun()->
+    Fun.protect ~finally:(fun()->Rays_editor.Editor.close owner)(fun()->
       let evaluated=ok(E.static doc.checked)in
       let image_value=List.assoc "rendered" evaluated.results in
-      let snapshot state live=Rays_editor.Editor3.Private.with_images ~plan:evaluated.plan ~state ~live owner
+      let snapshot state live=Rays_editor.Editor.Private.with_images ~plan:evaluated.plan ~state ~live owner
         (fun ~image ~texture:_->let image=ok(image image_value)in
           image,Result.get_ok(Rays.Image.Private.pixels image))in
       let state=E.create_state()in
@@ -128,8 +128,8 @@ let () =
         assert(different<>one);
         let _,restored=snapshot state live1 in assert(restored=one)
       end;
-      assert(Rays_editor.Editor3.Private.image_stats owner=(2,0)));
-    assert(Rays_editor.Editor3.Private.image_stats owner=(2,2))in
+      assert(Rays_editor.Editor.Private.image_stats owner=(2,0)));
+    assert(Rays_editor.Editor.Private.image_stats owner=(2,2))in
   exercise ~stateful:false;exercise ~stateful:true;
   print_endline "Native nested image/map: frame and same-frame state captures refresh rendered pixels"
 let ()=
@@ -137,22 +137,22 @@ let ()=
     (draw/merge (draw/background \"#102030\") (draw/circle [4 4 0] 2 :fill \"#a0b0c0\"))) \
     (graph rendered :context image (image/render (ref drawing) :width 8 :height 8)) \
     (graph picture :context draw (draw/image (ref rendered))))"in
-  let owner=Result.get_ok(Rays_editor.Editor3.create ~workspace:doc ~await:true ~domains:1
+  let owner=Result.get_ok(Rays_editor.Editor.create ~workspace:doc ~await:true ~domains:1
     ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
-  Fun.protect ~finally:(fun()->Rays_editor.Editor3.close owner)(fun()->
+  Fun.protect ~finally:(fun()->Rays_editor.Editor.close owner)(fun()->
     let evaluated=ok(E.static doc.checked)in
-    let image=ok(Rays_editor.Editor3.Private.image owner(List.assoc "rendered" evaluated.results))in
+    let image=ok(Rays_editor.Editor.Private.image owner(List.assoc "rendered" evaluated.results))in
     let expected=Result.get_ok(Rays.Image.Private.pixels image)in
     assert(Rays.Image.get_size image=(8,8));
-    assert(ok(Rays_editor.Editor3.Private.image owner(List.assoc "rendered" evaluated.results))==image);
-    assert(Rays_editor.Editor3.Private.image_stats owner=(1,0));
+    assert(ok(Rays_editor.Editor.Private.image owner(List.assoc "rendered" evaluated.results))==image);
+    assert(Rays_editor.Editor.Private.image_stats owner=(1,0));
     List.iter(fun domains->Rays.Parallel.run ~domains(fun()->
-      let fresh=Result.get_ok(Rays_editor.Editor3.create ~workspace:doc ~await:true ~domains
+      let fresh=Result.get_ok(Rays_editor.Editor.create ~workspace:doc ~await:true ~domains
         ~prepare:(fun _ _->Ok()) ~scene3:(fun _ ()->Rays.Scene3.empty)())in
-      Fun.protect ~finally:(fun()->Rays_editor.Editor3.close fresh)(fun()->
-        let actual=ok(Rays_editor.Editor3.Private.image fresh(List.assoc "rendered" evaluated.results))in
+      Fun.protect ~finally:(fun()->Rays_editor.Editor.close fresh)(fun()->
+        let actual=ok(Rays_editor.Editor.Private.image fresh(List.assoc "rendered" evaluated.results))in
         assert(Result.get_ok(Rays.Image.Private.pixels actual)=expected))))[1;8]);
-  assert(Rays_editor.Editor3.Private.image_stats owner=(1,1));
+  assert(Rays_editor.Editor.Private.image_stats owner=(1,1));
   let directory ()=Filename.temp_dir "rays-rendered-image-" ""in
   let first=directory()and second=directory()in
   let remove path=Array.iter(fun name->Sys.remove(Filename.concat path name))(Sys.readdir path);Unix.rmdir path in
@@ -164,8 +164,8 @@ let ()=
   print_endline "Native Canvas image snapshots: repeat cache, exact one/eight-domain bytes and close ownership passed"
 
 let ()=
-  let module Editor=Rays_editor.Editor3 in
-  let module P=Procedural in
+  let module Editor=Rays_editor.Editor in
+  let module P=Sop in
   let module I=Runtime_resources.Image in
   let _,handles=Ogpu.Impl.create_driver()in
   let before=handles()in
@@ -254,8 +254,8 @@ let ()=
           assert(!maximum<=1));
         assert(I.Private.readbacks resource=0)in
       verify 0.;verify 1.;
-      let frame time={Rays.Frame.width=65;height=17;size=65,17;drawable_width=65;drawable_height=17;
-        drawable_size=65,17;pixel_scale=1.,1.;time;dt=0.;fps=60.;count=int_of_float time;
+      let frame time={Rays.Frame.width=65;height=17;size=65,17;
+        pixel_scale=1.,1.;time;dt=0.;fps=60.;count=int_of_float time;
         mouse=0.,0.;mouse_delta=0.,0.;keys=[];mouse_buttons=[];events=[]}in
       let reload time text=
         Out_channel.with_open_bin source(fun ch->output_string ch text);
@@ -284,8 +284,8 @@ let ()=
   print_endline "Workspace GPU images: exact-first independent CPU snapshots, live display, mesh/image parity, replan/resize, authority transitions and ownership pass"
 
 let ()=
-  let module Editor=Rays_editor.Editor3 in
-  let module P=Procedural in
+  let module Editor=Rays_editor.Editor in
+  let module P=Sop in
   let module I=Runtime_resources.Image in
   let doc=load "(workspace nested_exact
     (graph img :context image (image/map (fn [uv] [uv.x uv.y 0.499999999 1]) :width 320 :height 240))
@@ -330,7 +330,7 @@ let ()=
   print_endline "Nested image/render exactness: CPU rounding survives an already-resident GPU child without reading or replacing it"
 
 let ()=
-  let module Editor=Rays_editor.Editor3 in
+  let module Editor=Rays_editor.Editor in
   let doc=load "(workspace stamp (graph img :context image
     (image/noise :width 4 :height 4 :frequency (+ 0.1 (* t 0.01)) :seed 31)))"in
   let owner=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains:1
@@ -346,7 +346,7 @@ let ()=
   print_endline "Legacy image stamps: display A, exact B, display A restores A pixels"
 
 let ()=
-  let module Editor=Rays_editor.Editor3 in
+  let module Editor=Rays_editor.Editor in
   let module I=Runtime_resources.Image in
   let _,handles=Ogpu.Impl.create_driver()in
   let baseline=handles()in
@@ -386,19 +386,19 @@ let ()=
     let child_generation=generation child and fixed_generation=generation fixed in
     let exact size name=ok(Editor.Private.image_payload ~live:size owner(value name))in
     let child_a=exact a "child" and fixed_a=exact a "fixed"in
-    assert((Procedural.Image.width child_a,Procedural.Image.height child_a)=(65,17));
+    assert((Sop.Image.width child_a,Sop.Image.height child_a)=(65,17));
     let child_b=exact b "child"in
-    assert((Procedural.Image.width child_b,Procedural.Image.height child_b)=(35,33));
+    assert((Sop.Image.width child_b,Sop.Image.height child_b)=(35,33));
     assert(exact b "fixed"==fixed_a);
     assert(generation child=child_generation && generation fixed=fixed_generation);
-    assert((Procedural.Image.width child_a,Procedural.Image.height child_a)=(65,17));
+    assert((Sop.Image.width child_a,Sop.Image.height child_a)=(65,17));
     assert(Editor.Private.image_render_stats owner=(11,6,3,3)));
   assert(Editor.Private.image_render_stats owner=(11,11,3,3));
   assert(handles()=baseline);
   print_endline "Resident Canvas dimensions: omitted axes, nested resize, fixed cache, independent CPU stamps, no implicit Canvas readback, zero handles"
 
 let ()=
-  let module Editor=Rays_editor.Editor3 in
+  let module Editor=Rays_editor.Editor in
   let module I=Runtime_resources.Image in
   let _,handles=Ogpu.Impl.create_driver()in
   let baseline=handles()in
@@ -419,8 +419,8 @@ let ()=
       (Editor.Private.image_plan !owner).instances |> Option.get).result in
     let live=Frame_input.at_time in
     let exact time=ok(Editor.Private.image_payload ~live:(live time) !owner(value()))in
-    let rgba payload=match Procedural.Image.Private.rgba8 payload with Some bytes->bytes|None->
-      let channels=Procedural.Image.Private.storage payload in
+    let rgba payload=match Sop.Image.Private.rgba8 payload with Some bytes->bytes|None->
+      let channels=Sop.Image.Private.storage payload in
       Bytes.init(Array.length channels)(fun i->Char.chr(int_of_float(Float.round(channels.(i)*.255.))))in
     let saved=exact 0. in let saved_bytes=Bytes.copy(rgba saved)in
     assert(Editor.Private.image_stats !owner=(0,0));
@@ -458,7 +458,7 @@ let ()=
       Rays.Canvas.render destination displayed;
       assert((Rays.Canvas.Private.native_stats destination).uploaded_bytes=uploaded);
       let actual=snapshot()in
-      let width=Procedural.Image.width payload and height=Procedural.Image.height payload and bytes=rgba payload in
+      let width=Sop.Image.width payload and height=Sop.Image.height payload and bytes=rgba payload in
       let oracle=Result.get_ok(Rays.Image.upload_rgba ~width ~height ~rgba:bytes())in
       Fun.protect ~finally:(fun()->Rays.Image.destroy oracle)(fun()->
         let texture=Rays.Texture.init ~width ~height(fun ~x ~y->let o=(y*width+x)*4 in
@@ -470,8 +470,8 @@ let ()=
     verify 0.;verify 0.5;
     let reload time contents=
       Out_channel.with_open_bin source(fun ch->output_string ch contents);
-      let frame:Rays.Frame.t={width=65;height=17;size=65,17;drawable_width=65;drawable_height=17;
-        drawable_size=65,17;pixel_scale=1.,1.;time;dt=0.;fps=60.;count=int_of_float time;
+      let frame:Rays.Frame.t={width=65;height=17;size=65,17;
+        pixel_scale=1.,1.;time;dt=0.;fps=60.;count=int_of_float time;
         mouse=0.,0.;mouse_delta=0.,0.;keys=[];mouse_buttons=[];events=[]}in
       owner:=Editor.update !owner frame in
     reload 10.(text 35 33 "(* t 16)");verify 0.5;
@@ -503,7 +503,7 @@ let ()=
   print_endline "Resident Canvas live route: mixed mesh/image roundtrip parity, stable identity, exact isolation, replan/resize, failure/recovery, snapshots and teardown pass"
 
 let ()=
-  let module Editor=Rays_editor.Editor3 in
+  let module Editor=Rays_editor.Editor in
   let _,handles=Ogpu.Impl.create_driver()in
   let baseline=handles()in
   let doc width=load(Printf.sprintf "(workspace failed_publication

@@ -9,7 +9,6 @@ val build :
   ?resolve_left_self_intersections:bool ->
   ?resolve_right_self_intersections:bool ->
   ?ignore_opposite_duplicate_self_pairs:bool ->
-  ?ignore_shared_point_self_pairs:bool ->
   grain:int -> left:Geometry.t -> right:Geometry.t ->
   unit -> (t, Error.t) result
 (** Build a deterministic exact non-coplanar arrangement plan. Broad-phase

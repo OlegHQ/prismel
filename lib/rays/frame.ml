@@ -2,9 +2,7 @@ type t = {
   width : int;
   height : int;
   size : int * int;
-  drawable_width : int;
-  drawable_height : int;
-  drawable_size : int * int;
+
   pixel_scale : float * float;
   time : float;
   dt : float;
@@ -17,6 +15,5 @@ type t = {
   events : Event.t list;
 }
 
-let key_down key frame = List.mem key frame.keys
 let mouse_down button frame = List.mem button frame.mouse_buttons
 let has_event predicate frame = List.exists predicate frame.events

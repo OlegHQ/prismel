@@ -1,4 +1,4 @@
-open Procedural
+open Sop
 open Editor_document
 include Core_shell
 
@@ -218,7 +218,6 @@ let operator_call (e : Flow.Syntax.t) =
   | S.List ({ S.node = S.Sym h; _ } :: _ :: _) -> not (String.contains h '/') | _ -> false
 
 let sub_entries ~shown (r : Flow_graph.Projection.row) =
-  let module P = Flow_graph.Projection in
   let module S = Flow.Syntax in
   match r.expr with
   | Some e when operator_call e ->

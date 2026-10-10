@@ -6,4 +6,4 @@
 
 (executable
  (name main)
- (libraries rays rays_pathtracer rdk procedural sop_catalog rays_editor unix))
+ (libraries rays rays_pathtracer rdk sop sop_catalog rays_editor unix))

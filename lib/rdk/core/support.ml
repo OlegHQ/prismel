@@ -31,11 +31,10 @@ module Key_map = struct
 
   (* Specialized per key type: a shared higher-order builder would call
      [hash]/[equal] through closures in the probe loops. *)
-  let ints ?cancel keep (values : int array) =
+  let ints keep (values : int array) =
     Option.map (fun capacity ->
       let indices = Array.make capacity (-1) and mask = capacity - 1 in
       Array.iteri (fun index key ->
-        if index land 4095 = 0 then Cancel.check_opt cancel;
         let slot = ref (integer_hash key mask) in
         while indices.(!slot) >= 0 && values.(indices.(!slot)) <> key do
           slot := (!slot + 1) land mask
@@ -53,11 +52,10 @@ module Key_map = struct
         done;
         !result) (capacity (Array.length values))
 
-  let strings ?cancel keep (values : string array) =
+  let strings keep (values : string array) =
     Option.map (fun capacity ->
       let indices = Array.make capacity (-1) and mask = capacity - 1 in
       Array.iteri (fun index key ->
-        if index land 4095 = 0 then Cancel.check_opt cancel;
         let slot = ref (Hashtbl.hash key land mask) in
         while indices.(!slot) >= 0 && not (String.equal values.(indices.(!slot)) key) do
           slot := (!slot + 1) land mask

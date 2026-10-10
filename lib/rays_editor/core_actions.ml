@@ -1,12 +1,12 @@
 open Rays
-open Procedural
+open Sop
 open Editor_document
 include Core_status
 
 (* Leader actions owned by the workspace; the environment handles the rest
    from [update.actions]. *)
 let apply_action value (workspace, selection, tree, timeline, changes) action =
-  let module T = Sketch_support.Timeline in
+  let module T = Timeline in
   let timeline_step step = let timeline, more = step timeline in
     workspace, selection, tree, timeline, changes @ more in
   let expand panel (workspace : shell) =
@@ -26,13 +26,13 @@ let apply_action value (workspace, selection, tree, timeline, changes) action =
   | Add_node -> expand Pxui_shell.Layout.Graph workspace, selection, tree, timeline, changes
   | Frame_tile when projection value = List_view ->
       workspace, selection, Pxui_shell.Tree.reveal tree, timeline, changes
-  | World_play when Sketch_support.Timeline.mode timeline <> Sketch_support.Timeline.Playing ->
+  | World_play when Timeline.mode timeline <> Timeline.Playing ->
       timeline_step T.toggle_pause
   | Frame_tile | Hide_ui | Look_through | Look_through_camera | Render_mode _ | Fly | Save_preset | Browse_presets | Save_source
   | Reload_source | Open_source
   | List_command _ | Frame_camera | Undo | Redo | Command_palette
   | Guide_toggle | Guide_keys | Copy_lisp
-  | Sketch_command _ | Scope_command _ | Toggle_map | Ui_scale _ | Enter | Up | Go_world
+  | Scope_command _ | Toggle_map | Ui_scale _ | Enter | Up | Go_world
   | Panel_split _ | Panel_close | Panel_retype _ | Tool _
   | Layout_switch _ | Layout_new | Layout_remove | Window_new _ | Float_toggle | Peek | Pick_up | Jump
   | World_emit | World_reseed | World_time _ | World_play | World_preset _ ->

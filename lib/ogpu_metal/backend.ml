@@ -1502,8 +1502,8 @@ let create () =
                 let gpu_duration epoch = Queue.gpu_duration queue epoch in
                 let gpu_timing () =
                   let timing = Queue.gpu_timing_for_device device in
-                  { Ogpu_core.Backend.timing_supported = timing.supported;
-                    gpu_seconds = timing.duration_seconds; gpu_samples = timing.sample_count }
+                  {
+                    Ogpu_core.Backend.gpu_seconds = timing.duration_seconds }
                 in
                 let destroy_queue () =
                   if

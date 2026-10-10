@@ -200,11 +200,11 @@ let selection_text () =
 
 let frame ?(mouse = (450., 320.)) ?(keys = []) count events : Rays.Frame.t = {
   width = 900; height = 640; size = 900, 640;
-  drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+
   pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.;
   fps = 60.; count; mouse; mouse_delta = 0., 0.; keys; mouse_buttons = []; events }
 
-module E = Rays_editor.Editor3
+module E = Rays_editor.Editor
 
 (* The centre of a tab (Selection, Graph, Document) in the header over a text pane's body: the
    tabs end at [right], 12 points apart, in the test face's 7-point glyphs.  A graph panel in
@@ -221,7 +221,7 @@ let editor_text () =
   let workspace = Rays_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
   let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 in
@@ -378,7 +378,7 @@ let editor_binding () =
   let workspace = Rays_editor.Workspace_doc.of_text catalog (case "sunflower") |> Result.get_ok in
   let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 in
@@ -605,7 +605,7 @@ let editor_w9 () =
     let workspace = Rays_editor.Workspace_doc.of_text catalog (case "rosette") |> Result.get_ok in
     let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-        ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+        ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
           |> Result.map_error Rdk.Error.to_string)
         ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
     let mouse = ref (640., 360.) in
@@ -624,8 +624,8 @@ let editor_w9 () =
           | 12 -> [ Event.MouseMoved (780., 380.); Event.MouseScrolled (0., 9.) ]
           | 16 -> click (960., 470.)
           | _ -> [] in
-      let f : Frame.t = { width = 1400; height = 800; size = 1400, 800; drawable_width = 1400;
-        drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
+      let f : Frame.t = { width = 1400; height = 800; size = 1400, 800;
+          pixel_scale = 1., 1.;
         time = float n /. 60.; dt = 1. /. 60.; fps = 60.; count = n; mouse = !mouse;
         mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events } in
       env := E.update !env f
@@ -703,7 +703,7 @@ let editor_active_scrub () =
   let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
   let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 and mouse = ref (450., 320.) in
@@ -839,7 +839,7 @@ let editor_text_drop () =
   let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
   let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 and mouse = ref (450., 320.) in
@@ -936,7 +936,7 @@ let editor_command_click () =
   let workspace = Rays_editor.Workspace_doc.of_text catalog text |> Result.get_ok in
   let presets = Filename.temp_dir "rays-text-presets" "" in
   let env = ref (E.create ~presets ~await:true ~workspace
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok) in
   let count = ref 0 and mouse = ref (450., 320.) in

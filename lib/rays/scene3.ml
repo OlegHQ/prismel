@@ -14,28 +14,6 @@ type depth_state = {
   comparison : comparison;
   write : bool;
 }
-type stencil_operation =
-  | Keep
-  | Zero
-  | Replace
-  | Increment
-  | Decrement
-  | Increment_wrap
-  | Decrement_wrap
-  | Invert
-type stencil_state = {
-  comparison : comparison;
-  reference : int;
-  read_mask : int;
-  write_mask : int;
-  on_stencil_fail : stencil_operation;
-  on_depth_fail : stencil_operation;
-  on_pass : stencil_operation;
-}
-type raster_state = {
-  line_width : float;
-  point_size : float;
-}
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 
 type texture = {
@@ -55,8 +33,6 @@ type node =
   | Group of node list
   | Transform of Mat4.t * node list
   | Depth_state of depth_state * node list
-  | Stencil_state of stencil_state * node list
-  | Raster_state of raster_state * node list
   | Blend_state of blend * node list
 
 type t = {
@@ -71,41 +47,9 @@ type t = {
   world : World.baked option;
 }
 
-let depth_state ?(comparison = Less) ?(write = true) () =
-  { comparison; write }
+let depth_state ?(write = true) () = { comparison = Less; write }
 
 let default_depth = depth_state ()
-
-let validate_stencil_byte name value =
-  if value < 0 || value > 0xff then
-    invalid_arg ("Scene3.stencil_state: " ^ name ^ " must be in 0..255")
-
-let stencil_state ?(comparison = Always) ?(reference = 0)
-    ?(read_mask = 0xff) ?(write_mask = 0xff)
-    ?(on_stencil_fail = Keep) ?(on_depth_fail = Keep) ?(on_pass = Keep) () =
-  validate_stencil_byte "reference" reference;
-  validate_stencil_byte "read_mask" read_mask;
-  validate_stencil_byte "write_mask" write_mask;
-  {
-    comparison;
-    reference;
-    read_mask;
-    write_mask;
-    on_stencil_fail;
-    on_depth_fail;
-    on_pass;
-  }
-
-let default_stencil = stencil_state ()
-
-let raster_state ?(line_width = 1.) ?(point_size = 1.) () =
-  if not (Float.is_finite line_width) || line_width <= 0. then
-    invalid_arg "Scene3.raster_state: line_width must be finite and positive";
-  if not (Float.is_finite point_size) || point_size <= 0. then
-    invalid_arg "Scene3.raster_state: point_size must be finite and positive";
-  { line_width; point_size }
-
-let default_raster = raster_state ()
 
 let empty = {
   nodes = [];
@@ -120,12 +64,8 @@ let empty = {
 }
 
 let create ?(lights = []) ?shadow ?(ambient = Color.rgb 32 32 32)
-    ?(separate_specular = false) ?(depth_clear = 1.)
-    ?(stencil_clear = 0) ?(samples = 1) nodes =
-  if not (Float.is_finite depth_clear)
-     || depth_clear < 0. || depth_clear > 1.
-  then invalid_arg "Scene3.create: depth_clear must be finite and in 0..1";
-  validate_stencil_byte "stencil_clear" stencil_clear;
+    ?(separate_specular = false)
+    ?(samples = 1) nodes =
   if not (List.mem samples [1; 4; 9; 16]) then
     invalid_arg "Scene3.create: samples must be 1, 4, 9, or 16";
   {
@@ -134,62 +74,33 @@ let create ?(lights = []) ?shadow ?(ambient = Color.rgb 32 32 32)
     shadow;
     ambient;
     separate_specular;
-    depth_clear;
-    stencil_clear;
+    depth_clear = 1.;
+    stencil_clear = 0;
     samples;
     world = None;
   }
 
-let textured ?(filter = Texture.Bilinear) ?(wrap_u = Texture.Clamp)
-    ?(wrap_v = Texture.Clamp) value =
-  { value; filter; wrap_u; wrap_v }
+let textured ?(filter = Texture.Bilinear) value =
+  { value; filter; wrap_u = Texture.Clamp; wrap_v = Texture.Clamp }
 
 let mesh ?(material = Material.default) ?texture ?(mode = Faces)
     ?(cull = Cull_back) ?(shading = Smooth) value =
   Mesh (value, material, texture, mode, cull, shading)
 
-let instances_array ?(material = Material.default) ?texture ?(mode = Faces)
+let instances_array ?(material = Material.default) ?(mode = Faces)
     ?(cull = Cull_back) ?(shading = Smooth) value transforms =
-  Instances (value, material, texture, mode, cull, shading,
+  Instances (value, material, None, mode, cull, shading,
     Array.copy transforms)
 
 let nodes scene = scene.nodes
 let group nodes = Group nodes
 let transform matrix nodes = Transform (matrix, nodes)
 let translate value nodes = transform (Mat4.translation value) nodes
-let rotate ~axis angle nodes = transform (Mat4.rotation ~axis angle) nodes
-let scale value nodes = transform (Mat4.scaling value) nodes
 let with_depth state nodes = Depth_state (state, nodes)
-let with_stencil state nodes = Stencil_state (state, nodes)
-let with_raster state nodes = Raster_state (state, nodes)
 let with_blend blend nodes = Blend_state (blend, nodes)
 
-let box ?material ?texture ?mode ?cull ?shading
-    ~width ~height ~depth () =
-  mesh ?material ?texture ?mode ?cull ?shading
-    (Mesh.box ~width ~height ~depth ())
-
-let plane ?material ?texture ?mode ?cull ?shading ~width ~height () =
-  mesh ?material ?texture ?mode ?cull ?shading
-    (Mesh.plane ~width ~height ())
-
-let sphere ?material ?texture ?mode ?cull ?shading ~radius () =
-  mesh ?material ?texture ?mode ?cull ?shading
-    (Mesh.sphere ~radius ())
-
-let icosphere ?material ?texture ?mode ?cull ?shading ~radius () =
-  mesh ?material ?texture ?mode ?cull ?shading
-    (Mesh.icosphere ~radius ())
-
-let cylinder ?material ?texture ?mode ?cull ?shading
-    ~radius ~height () =
-  mesh ?material ?texture ?mode ?cull ?shading
-    (Mesh.cylinder ~radius ~height ())
-
-let cone ?material ?texture ?mode ?cull ?shading
-    ~radius ~height () =
-  mesh ?material ?texture ?mode ?cull ?shading
-    (Mesh.cone ~radius ~height ())
+let plane ?cull ~width ~height () =
+  mesh ?cull (Mesh.plane ~width ~height ())
 
 let with_world baked scene = { scene with world = Some baked }
 
@@ -201,8 +112,6 @@ module Private = struct
       |Group children->Group(List.map node children)
       |Transform(matrix,children)->Transform(matrix,List.map node children)
       |Depth_state(state,children)->Depth_state(state,List.map node children)
-      |Stencil_state(state,children)->Stencil_state(state,List.map node children)
-      |Raster_state(state,children)->Raster_state(state,List.map node children)
       |Blend_state(state,children)->Blend_state(state,List.map node children)in
     {scene with nodes=List.map node scene.nodes}
   type drawing = {
@@ -211,10 +120,9 @@ module Private = struct
     texture : texture option;
     mode : render_mode;
     cull : cull;
-    shading : shading;
+
     depth : depth_state;
-    stencil : stencil_state;
-    raster : raster_state;
+
     blend : blend;
     transform : Mat4.t;
   }
@@ -227,24 +135,22 @@ module Private = struct
       | Group nested :: rest
       | Transform (_, nested) :: rest
       | Depth_state (_, nested) :: rest
-      | Stencil_state (_, nested) :: rest
-      | Raster_state (_, nested) :: rest
       | Blend_state (_, nested) :: rest -> nodes nested && nodes rest
       | Mesh (_, _, Some _, _, _, _) :: _
       | Instances (_, _, Some _, _, _, _, _) :: _ -> false in
     Option.is_none scene.shadow && nodes scene.nodes
 
   let drawings scene =
-    let rec flatten parent depth stencil raster blend acc = function
+    let rec flatten parent depth blend acc = function
       | [] -> acc
-      | Mesh (mesh, material, texture, mode, cull, shading) :: rest ->
-          flatten parent depth stencil raster blend
-            ({ mesh; material; texture; mode; cull; shading;
-               depth; stencil; raster; blend;
+      | Mesh (mesh, material, texture, mode, cull, _shading) :: rest ->
+          flatten parent depth blend
+            ({ mesh; material; texture; mode; cull;
+               depth;   blend;
                transform = parent } :: acc)
             rest
       | Instances
-          (mesh, material, texture, mode, cull, shading, transforms)
+          (mesh, material, texture, mode, cull, _shading, transforms)
         :: rest ->
           let acc =
             Array.fold_left
@@ -255,107 +161,59 @@ module Private = struct
                   texture;
                   mode;
                   cull;
-                  shading;
+
                   depth;
-                  stencil;
-                  raster;
+
                   blend;
                   transform = Mat4.mul parent transform;
                 }
                 :: acc)
               acc transforms
           in
-          flatten parent depth stencil raster blend acc rest
+          flatten parent depth blend acc rest
       | Group nodes :: rest ->
-          flatten parent depth stencil raster blend
-            (flatten parent depth stencil raster blend acc nodes) rest
+          flatten parent depth blend
+            (flatten parent depth blend acc nodes) rest
       | Transform (matrix, nodes) :: rest ->
           let transform = Mat4.mul parent matrix in
-          flatten parent depth stencil raster blend
-            (flatten transform depth stencil raster blend acc nodes) rest
+          flatten parent depth blend
+            (flatten transform depth blend acc nodes) rest
       | Depth_state (state, nodes) :: rest ->
-          flatten parent depth stencil raster blend
-            (flatten parent state stencil raster blend acc nodes) rest
-      | Stencil_state (state, nodes) :: rest ->
-          flatten parent depth stencil raster blend
-            (flatten parent depth state raster blend acc nodes) rest
-      | Raster_state (state, nodes) :: rest ->
-          flatten parent depth stencil raster blend
-            (flatten parent depth stencil state blend acc nodes) rest
+          flatten parent depth blend
+            (flatten parent state blend acc nodes) rest
       | Blend_state (state, nodes) :: rest ->
-          flatten parent depth stencil raster blend
-            (flatten parent depth stencil raster state acc nodes) rest
+          flatten parent depth blend
+            (flatten parent depth state acc nodes) rest
     in
     List.rev
-      (flatten Mat4.identity default_depth default_stencil default_raster
-         Alpha [] scene.nodes)
-
-  let iter_drawings operation scene =
-    let rec visit parent depth stencil raster blend = function
-      | [] -> ()
-      | Mesh (mesh, material, texture, mode, cull, shading) :: rest ->
-          operation { mesh; material; texture; mode; cull; shading;
-            depth; stencil; raster; blend; transform = parent };
-          visit parent depth stencil raster blend rest
-      | Instances (mesh, material, texture, mode, cull, shading,
-          transforms) :: rest ->
-          Array.iter (fun transform -> operation {
-            mesh; material; texture; mode; cull; shading;
-            depth; stencil; raster; blend;
-            transform = Mat4.mul parent transform }) transforms;
-          visit parent depth stencil raster blend rest
-      | Group nodes :: rest ->
-          visit parent depth stencil raster blend nodes;
-          visit parent depth stencil raster blend rest
-      | Transform (matrix, nodes) :: rest ->
-          visit (Mat4.mul parent matrix) depth stencil raster blend nodes;
-          visit parent depth stencil raster blend rest
-      | Depth_state (state, nodes) :: rest ->
-          visit parent state stencil raster blend nodes;
-          visit parent depth stencil raster blend rest
-      | Stencil_state (state, nodes) :: rest ->
-          visit parent depth state raster blend nodes;
-          visit parent depth stencil raster blend rest
-      | Raster_state (state, nodes) :: rest ->
-          visit parent depth stencil state blend nodes;
-          visit parent depth stencil raster blend rest
-      | Blend_state (state, nodes) :: rest ->
-          visit parent depth stencil raster state nodes;
-          visit parent depth stencil raster blend rest in
-    visit Mat4.identity default_depth default_stencil default_raster Alpha scene.nodes
+      (flatten Mat4.identity default_depth Alpha [] scene.nodes)
 
   let iter_batches operation scene =
-    let rec visit parent depth stencil raster blend = function
+    let rec visit parent depth blend = function
       | [] -> ()
-      | Mesh (mesh, material, texture, mode, cull, shading) :: rest ->
-          operation { mesh; material; texture; mode; cull; shading;
-            depth; stencil; raster; blend; transform = parent } None;
-          visit parent depth stencil raster blend rest
-      | Instances (mesh, material, texture, mode, cull, shading,
+      | Mesh (mesh, material, texture, mode, cull, _shading) :: rest ->
+          operation { mesh; material; texture; mode; cull;
+            depth;   blend; transform = parent } None;
+          visit parent depth blend rest
+      | Instances (mesh, material, texture, mode, cull, _shading,
           transforms) :: rest ->
-          operation { mesh; material; texture; mode; cull; shading;
-            depth; stencil; raster; blend; transform = parent }
+          operation { mesh; material; texture; mode; cull;
+            depth;   blend; transform = parent }
             (Some transforms);
-          visit parent depth stencil raster blend rest
+          visit parent depth blend rest
       | Group nodes :: rest ->
-          visit parent depth stencil raster blend nodes;
-          visit parent depth stencil raster blend rest
+          visit parent depth blend nodes;
+          visit parent depth blend rest
       | Transform (matrix, nodes) :: rest ->
-          visit (Mat4.mul parent matrix) depth stencil raster blend nodes;
-          visit parent depth stencil raster blend rest
+          visit (Mat4.mul parent matrix) depth blend nodes;
+          visit parent depth blend rest
       | Depth_state (state, nodes) :: rest ->
-          visit parent state stencil raster blend nodes;
-          visit parent depth stencil raster blend rest
-      | Stencil_state (state, nodes) :: rest ->
-          visit parent depth state raster blend nodes;
-          visit parent depth stencil raster blend rest
-      | Raster_state (state, nodes) :: rest ->
-          visit parent depth stencil state blend nodes;
-          visit parent depth stencil raster blend rest
+          visit parent state blend nodes;
+          visit parent depth blend rest
       | Blend_state (state, nodes) :: rest ->
-          visit parent depth stencil raster state nodes;
-          visit parent depth stencil raster blend rest in
-    visit Mat4.identity default_depth default_stencil default_raster Alpha scene.nodes
+          visit parent depth state nodes;
+          visit parent depth blend rest in
+    visit Mat4.identity default_depth Alpha scene.nodes
 
   let lights scene = scene.lights
   let shadow scene = scene.shadow

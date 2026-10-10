@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 open Editor_document
 include Core_reduce
 
@@ -53,7 +53,7 @@ let set_root value root =
       { value with doc;
         history = commit ~label:"Render settings" ~merge:(Gesture "render settings") doc value.history }
 
-(* A host-driven gesture on a workspace document ([Editor3.edit], W11's
+(* A host-driven gesture on a workspace document ([Editor.edit], W11's
    entry): the same reduction as a [Syntax_edit] intent, committed as one
    history entry named by the op ([Gesture] merge for a scrub). *)
 let syntax_edit value op =

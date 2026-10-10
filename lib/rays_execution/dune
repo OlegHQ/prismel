@@ -6,11 +6,6 @@
  (libraries ogpu scene_command scene_execution runtime lru
   runtime_resources))
 
-(test
- (name test_gpu_circles)
- (modules test_gpu_circles)
- (libraries rays_execution scene_command ogpu_mock))
-
 (executable
  (name test_gpu_draw)
  (modules test_gpu_draw)

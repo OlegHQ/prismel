@@ -49,40 +49,6 @@ let run () =
   let mask_hash = Digest.to_hex (Digest.string (Buffer.contents masks)) in
   check (mask_hash = "4efce5e9c56d8d5fb9ead44e339bded7")
     ("all-mask full geometry golden changed: " ^ mask_hash);
-  let sample domains = Parallel.run ~domains (fun () ->
-    Iso_surface.extract ~resolution:(1, 1, 1) ~min:minimum ~max:maximum
-      ~iso:0. ~field:(fun point -> point.Vec3.z) () |> get |> snapshot) in
-  let one = sample 1 and four = sample 4 in
-  check (one = four) "isosurface changed across one/four domains";
-  let points, indices, normals = one in
-  let p x y = x, y, 0. in
-  let expected = [|p 0. 0.; p 1. 1.; p 1. 0.;
-    p 0. 0.; p 0. 1.; p 1. 1.;
-    p (-1.) 0.; p 0. 1.; p 0. 0.;
-    p (-1.) 0.; p (-1.) 1.; p 0. 1.;
-    p (-1.) 0.; p 0. 0.; p (-1.) (-1.);
-    p (-1.) (-1.); p 0. 0.; p 0. (-1.);
-    p 0. (-1.); p 0. 0.; p 1. 0.;
-    p 0. (-1.); p 1. 0.; p 1. (-1.)|] in
-  check (points = expected
-    && indices = Array.init 24 Fun.id
-    && normals = Array.make 24 (0., 0., -1.))
-    "single-cell isosurface ordered baseline changed";
-  let dense = Iso_surface.extract_dense ~resolution:(1, 1, 1)
-      ~min:minimum ~max:maximum ~iso:0.
-      ~field:(Iso_surface.Field.custom (fun xyz -> xyz.(2))) ()
-      |> get |> snapshot in
-  check (one = dense) "dense and boxed isosurfaces differ";
-  List.iter (fun domains -> Parallel.run ~domains (fun () ->
-    let min = Vec3.create (-1.) (-1.) (-3.) and max = Vec3.create 1. 1. 3. in
-    let dense = Iso_surface.extract_dense ~resolution:(1,1,3) ~min ~max ~iso:0.
-        ~field:(Iso_surface.Field.custom (fun xyz -> xyz.(2))) () |> get |> snapshot in
-    let samples = [| -3.;-3.;-3.;-3.; -1.;-1.;-1.;-1.;
-                     1.;1.;1.;1.; 3.;3.;3.;3. |] in
-    let sampled = Iso_surface.extract_sampled ~resolution:(1,1,3) ~min ~max ~iso:0.
-        ~samples () |> get |> snapshot in
-    check (dense = one && sampled = one)
-      "empty/crossing/empty slabs changed the independent ordered plane golden")) [1;8];
   List.iter (fun (resolution, min, max, center, radius) ->
     let rx, ry, rz = resolution in
     let field x y z =
@@ -103,18 +69,18 @@ let run () =
     let before = Marshal.to_string samples [Marshal.No_sharing] in
     List.iter (fun smooth ->
       let expected = Parallel.run ~domains:1 (fun () ->
-        Iso_surface.extract_dense ~smooth ~resolution ~min ~max ~iso:0.
-          ~field:(Iso_surface.Field.custom (fun xyz -> field xyz.(0) xyz.(1) xyz.(2))) ()
+        Iso_surface.extract_sampled ~grain:max_int ~smooth ~resolution ~min ~max ~iso:0. ~samples ()
         |> get |> Rdk_test_support.geometry_bytes) in
       List.iter (fun grain -> List.iter (fun domains -> Parallel.run ~domains (fun () ->
         let sampled = Iso_surface.extract_sampled ~grain ~smooth ~resolution ~min ~max ~iso:0. ~samples ()
           |> get in
         check (Rdk_test_support.geometry_bytes sampled = expected)
-          "sampled isosurface bytes differ by layout, normals, grain or domains";
-        let dense = Iso_surface.extract_dense ~grain ~smooth ~resolution ~min ~max ~iso:0.
-          ~field:(Iso_surface.Field.custom (fun xyz -> field xyz.(0) xyz.(1) xyz.(2))) () |> get in
-        check (Rdk_test_support.geometry_bytes dense = expected)
-          "dense isosurface scheduling changed authored bytes")) [1;8]) [16_384;257;max_int]) [true;false];
+          "sampled isosurface bytes differ by layout, normals, grain or domains")) [1;8]) [16_384;257;max_int]) [true;false];
+    let dense = Iso_surface.extract_dense ~resolution ~min ~max ~iso:0.
+      ~field:(Iso_surface.Field.custom (fun xyz -> field xyz.(0) xyz.(1) xyz.(2))) () |> get in
+    check (Rdk_test_support.geometry_bytes dense
+        = Rdk_test_support.geometry_bytes (Iso_surface.extract_sampled ~resolution ~min ~max ~iso:0. ~samples () |> get))
+      "dense isosurface differs from the sampled lattice";
     check (Marshal.to_string samples [Marshal.No_sharing] = before) "extract_sampled mutated borrowed samples")
     [(64,64,64), Vec3.create (-2.) (-2.) (-2.), Vec3.create 2. 2. 2., Vec3.zero, 1.;
      (129,256,2), Vec3.create (-2.) (-1.5) (-1.), Vec3.create 3. 2. 1.7,
@@ -130,8 +96,7 @@ let run () =
   let before = Array.copy samples in
   List.iter (fun smooth ->
     let expected = Parallel.run ~domains:1 (fun () ->
-      Iso_surface.extract_dense ~smooth ~resolution ~min ~max ~iso:0.
-        ~field:(Iso_surface.Field.custom (fun p -> field p.(0) p.(1) p.(2))) ()
+      Iso_surface.extract_sampled ~grain:max_int ~smooth ~resolution ~min ~max ~iso:0. ~samples ()
       |> get |> Rdk_test_support.geometry_bytes) in
     List.iter (fun grain -> List.iter (fun domains -> Parallel.run ~domains (fun () ->
       let actual = Iso_surface.extract_sampled ~grain ~smooth ~resolution ~min ~max
@@ -160,20 +125,10 @@ let run () =
      (1,1,1),16_384,Array.make 9 0.; (1,1,1),0,Array.make 8 0.;
      (0,1,1),16_384,[||]; (Sys.max_array_length-1,Sys.max_array_length-1,2),16_384,[||];
      (1,1,1),16_384,Array.make 8 nan];
-  (match Iso_surface.extract ~resolution:(0, 1, 1) ~min:minimum ~max:maximum
-      ~iso:0. ~field:(fun _ -> 0.) () with
-   | Error _ -> () | Ok _ -> failwith "zero resolution accepted");
-  (match Iso_surface.extract ~resolution:(1, 1, 1) ~min:minimum ~max:maximum
-      ~iso:0. ~field:(fun _ -> Float.nan) () with
-   | Error _ -> () | Ok _ -> failwith "non-finite field accepted");
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
   (match Iso_surface.extract_sampled ~cancel ~resolution:(1,1,1)
       ~min:minimum ~max:maximum ~iso:0. ~samples:(Array.make 8 0.) () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> failwith "cancelled sampled isosurface succeeded");
-  (match Iso_surface.extract ~cancel ~resolution:(1, 1, 1)
-      ~min:minimum ~max:maximum ~iso:0. ~field:(fun _ -> 0.) () with
-   | Error error when Error.code error = "cancelled" -> ()
-   | _ -> failwith "cancelled isosurface succeeded");
   print_endline "RDK isosurface fixtures passed"

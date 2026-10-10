@@ -1,10 +1,10 @@
 (* Actual named-pane selection lookup, while navigation stays at Scene. *)
 open Rays
-module E = Rays_editor.Editor3
+module E = Rays_editor.Editor
 
 let frame mouse events count : Frame.t = {
   width = 900; height = 640; size = 900, 640;
-  drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+
   pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.; fps = 60.; count;
   mouse; mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events }
 
@@ -28,12 +28,12 @@ let run objects =
       Event.MouseReleased (Input.LeftButton, point)] 3);
     assert (E.level !e = None);
     let expected = E.selected_node !e |> Option.get in
-    assert (Procedural.Node.operation expected = "box");
+    assert (Sop.Node.operation expected = "box");
     for sample = 1 to 5 do
       Gc.full_major ();
       let allocated = Gc.allocated_bytes () and started = Unix.gettimeofday () in
       for _ = 1 to 10000 do
-        assert (Option.map Procedural.Node.id (E.selected_node !e) = Some (Procedural.Node.id expected))
+        assert (Option.map Sop.Node.id (E.selected_node !e) = Some (Sop.Node.id expected))
       done;
       Printf.printf "%d objects, sample %d: %.6f ms/lookup, %.0f bytes/lookup\n%!"
         objects sample ((Unix.gettimeofday () -. started) *. 0.1)

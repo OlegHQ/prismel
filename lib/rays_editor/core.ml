@@ -1,12 +1,12 @@
 open Rays
-open Procedural
+open Sop
 open Editor_document
 include Core_host
 
 let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_focus ~camera_panel ~view_handles
     ~render_status ~error_status ~view_state (frame : Frame.t) =
   let carrying = value.carry <> None in
-  let live_frame=Sketch_support.Live_frame.of_frame frame in
+  let live_frame=Live_frame.of_frame frame in
   let live_frame=if host_events=[]then live_frame else
     {live_frame with events=host_events @ live_frame.events} in
   let value = {value with live_frame} in
@@ -80,7 +80,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
         | Event.KeyPressed _ | Event.KeyReleased _ | Event.TextInput _
         | Event.TextEditing _ -> false | _ -> true) frame.events }
     else frame in
-  let timeline, timeline_changes = Sketch_support.Timeline.update
+  let timeline, timeline_changes = Timeline.update
       value.timeline shortcut_frame in
   let workspace, selection, tree, timeline, timeline_changes = List.fold_left
       (apply_action value)
@@ -388,13 +388,13 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
           (* the triangles the scene draws: a polygon of n corners fans into n - 2 (exact for polygons, a
              count of corners and faces, not a walk of every face, for a frame's cost) *)
           let tris = List.fold_left (fun n (piece : _ Cook.piece) ->
-            match piece.output.Procedural.Session.payload with
+            match piece.output.Sop.Session.payload with
             | Payload.Image _ | Payload.Kernel _ -> n
             | Geometry g -> n + max 0 (Rdk.Geometry.vertex_count g - (2 * Rdk.Geometry.primitive_count g))) 0 (pieces value) in
           let objects = List.length (pieces value) in
           let points = Option.bind (piece value) (fun (piece : _ Cook.piece) ->
             Option.map Rdk.Geometry.point_count
-              (Result.to_option (Payload.geometry piece.output.Procedural.Session.payload))) in
+              (Result.to_option (Payload.geometry piece.output.Sop.Session.payload))) in
           (* the traced readout: its samples are the caption's "n/cap spp" *)
           let traced = List.assoc_opt key value.traces in
           (* a body about as wide as the workspace sheet's follows that sheet: the narrow traced
@@ -869,9 +869,9 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
       if height <= 0 then [] else
       Pxui.Ui.within ui box (fun () ->
         Pxui_shell.Timeline_bar.draw ui ~bounds ~edge
-          ~playing:(Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing)
-          ~frame:(Sketch_support.Timeline.frame timeline)
-          ~time:(Sketch_support.Timeline.time timeline)
+          ~playing:(Timeline.mode timeline = Timeline.Playing)
+          ~frame:(Timeline.frame timeline)
+          ~time:(Timeline.time timeline)
           ~max_frame:value.timeline_frames ())) timeline_slots in
     (* a lowered node is edited through its text: the handles of the node selected in the
        graph pane write its arguments, the list's rows of a geometry object have none *)
@@ -963,7 +963,7 @@ let update_frame ~image ~host_events ~carry_changed value ~all_ui_visible ~text_
             | Some [x; y] ->
                 (match float_of_string_opt x, float_of_string_opt y with
                  | Some x, Some y ->
-                     let playing = Sketch_support.Timeline.mode timeline = Sketch_support.Timeline.Playing in
+                     let playing = Timeline.mode timeline = Timeline.Playing in
                      (match Ui.context_menu ui ~at:(x, y) "timeline-context"
                        [(if playing then "Pause" else "Play"), true; "Stop", true; "Hide timeline", true] with
                       | `Open -> [], []

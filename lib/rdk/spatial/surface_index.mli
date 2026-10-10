@@ -9,7 +9,7 @@ type t
 type hit = {
   primitive : int;
   distance : float;
-  barycentric : float * float * float;
+
 }
 
 type vertex_selection = All_triangle_vertices | Any_triangle_vertex
@@ -32,18 +32,8 @@ val create :
   ?vertices:Group.t -> ?vertex_selection:vertex_selection -> Geometry.t ->
   (t, Error.t) result
 val triangle_count : t -> int
-val node_count : t -> int
-
-val closest :
-  ?max_distance:float -> t -> x:float -> y:float -> z:float ->
-  (hit option, Error.t) result
-(** Expected O(log triangles) query time for ordinary spatial distributions;
-    degenerate overlapping bounds can visit every triangle. Equal-distance
-    ties select the lower source primitive ID. *)
 
 val raycast :
-  ?min_distance:float -> ?max_distance:float -> ?tolerance:float ->
-  ?direction_mode:ray_direction_mode -> ?surface_hit:ray_surface_hit ->
   t -> origin:Rays_math.Vec3.t -> direction:Rays_math.Vec3.t ->
   (hit option, Error.t) result
 (** Intersect a two-sided polygon surface with a world-space ray. Direction is
@@ -84,8 +74,7 @@ module Private : sig
       Supplied arrays must cover every query. *)
 
   val closest_distances_many_into :
-    ?cancel:Cancel.t -> ?selection:Group.t -> ?position_indices:int array ->
-    grain:int -> t -> queries:Packed.Float3.t ->
+    ?cancel:Cancel.t -> ?selection:Group.t -> grain:int -> t -> queries:Packed.Float3.t ->
     max_distance_squared:float -> distances_squared:float array -> unit
   (** Fill only closest squared distance, retaining [infinity] for misses and
       unselected queries. Per-range traversal scratch is fixed size; no

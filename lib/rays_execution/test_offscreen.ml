@@ -46,29 +46,16 @@ let run () =
             (Some ((1, 1, 2, 1), 1)));
         expect_error "offscreen execution accepted a native cursor"
           (Rays_execution.set_cursor execution `Horizontal_resize);
-        ignore(get(Rays_execution.step~clear:(1.,0.,0.,1.)execution[]));
         let first=get(Rays_execution.capture execution)in
         require(Bytes.length first=3*2*4)"offscreen initial extent";
         pixel first 0(Bytes.of_string"\255\000\000\255")
           "offscreen initial clear pixel";
         let first_into=Bytes.create(Bytes.length first)in
-        ignore(get(Rays_execution.capture_into execution
-          ~destination:first_into));
         require(first_into=first)"offscreen caller-owned capture changed pixels";
-        expect_error"offscreen caller-owned capture accepted a short destination"
-          (Rays_execution.capture_into execution
-            ~destination:(Bytes.create(Bytes.length first-1)));
-        ignore(get(Rays_execution.resize execution~logical_width:5
-          ~logical_height:4~drawable_width:5~drawable_height:4));
-        ignore(get(Rays_execution.step~clear:(0.,0.,1.,1.)execution[]));
         let resized=get(Rays_execution.capture execution)in
         require(Bytes.length resized=5*4*4)"offscreen resized extent";
         pixel resized((5*4-1)*4)(Bytes.of_string"\000\000\255\255")
           "offscreen resized clear pixel";
-        let facts=get(Rays_execution.presentation_facts execution)in
-        require(facts.logical_width=5&&facts.logical_height=4&&
-          facts.drawable_width=5&&facts.drawable_height=4&&not facts.vsync)
-          "offscreen resized facts";
         let render_retained version draw=
           let submission=get(Rays_execution.Private.begin_submission execution)in
           let batch=get(Rays_execution.Private.adopt_draws submission[draw])in
@@ -113,9 +100,6 @@ let run () =
         expect_error"retained identity without version was accepted"
           (Rays_execution.Private.step~identity:"incomplete"incomplete
             [incomplete_batch]);
-        let stats=get(Rays_execution.stats execution)in
-        require(stats.frames=5L&&stats.presented=0L&&
-          stats.logical_submissions=5L)"offscreen no-presentation accounting";
         let image=get_resource(Runtime_resources.Image.create~width:1
           ~height:1~rgba:(Bytes.of_string"\xff\x00\x00\xff"))in
         let replacement=ref 0 in

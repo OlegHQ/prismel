@@ -10,7 +10,6 @@ type velocity_stretch =
   | Replicate_scaled_velocity
   | Replicate_velocity_only
 val error : string -> ('a, string) result
-type sample_scratch = float array
 type quasi_data = {
   offset_u : float array;
   offset_v : float array;

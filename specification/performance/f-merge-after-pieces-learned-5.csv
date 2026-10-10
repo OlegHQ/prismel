@@ -1,3 +1,0 @@
-fixture,placement,domains,repeats,points,median_s,caller_allocated_bytes,program_allocated_bytes,fanouts,hash
-loops,learned,1,1,3200000,1.919698000,1120474648,1120474936,0,8ef295fbdea12b586200fd1ffcdcb58f
-loops,learned,8,1,3200000,0.259260893,779565824,1131798432,1,8ef295fbdea12b586200fd1ffcdcb58f

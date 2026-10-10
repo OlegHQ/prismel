@@ -14,11 +14,7 @@ type key = Sdl3.Key.t =
 type scroll_phase = Sdl3.Event.scroll_phase =
   | Scroll_began | Scroll_changed | Scroll_ended | Scroll_momentum
 
-type modifier = Sdl3.Key.modifier =
-  | Shift_held | Control_held | Alt_held | Meta_held
-  | Num_lock | Caps_lock | Scroll_lock
-
-type key_event = { key : key; modifiers : modifier list; repeat : bool }
+type key_event = { key : key;  }
 
 type event =
   | Pointer_moved of float * float
@@ -55,14 +51,9 @@ type event =
 type snapshot = {
   pointer : float * float;
   mouse_delta : float * float;
-  wheel_delta : float * float;
-  buttons : mouse_button list;
-  keys : key list;
-  pointer_captured : bool;
+
   visible : bool;
-  logical_width : int;
-  logical_height : int;
-  dropped_events : int;
+
 }
 
 type t
@@ -81,4 +72,3 @@ val relative : t -> bool
 val add_motion : t -> dx:float -> dy:float -> unit
 val set_extent : t -> logical_width:int -> logical_height:int -> (unit, string) result
 val snapshot : t -> snapshot
-val queued_count : t -> int

@@ -27,10 +27,8 @@ val all_triangles : t -> bool
 module Builder : sig
   type t
   val create : ?vertex_capacity:int -> ?primitive_capacity:int -> point_count:int -> unit -> t
-  val add_polygon : t -> int array -> unit
   val add_open_polyline : t -> int array -> unit
   val add_closed_polyline : t -> int array -> unit
-  val add_triangle : t -> int -> int -> int -> unit
   val freeze : t -> topology
 end
 

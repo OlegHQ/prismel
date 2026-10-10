@@ -47,7 +47,6 @@ module Float2 : sig
   module Private : sig
     type view = { x : float array; y : float array }
     val view : t -> view
-    val of_shared : x:float array -> y:float array -> (t, string) result
   end
 end
 

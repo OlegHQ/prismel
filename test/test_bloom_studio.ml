@@ -2,7 +2,7 @@
    The Navigator lists the document and opens a graph or a node from a click, the host bars
    run the commands the graph pane has keys for, and Make defn writes a reusable function. *)
 open Rays
-module E3 = Rays_editor.Editor3
+module E3 = Rays_editor.Editor
 module N = Rays_editor.Private.Navigator
 module Bars = Rays_editor.Private.Bars
 module Layout = Pxui_shell.Layout
@@ -22,14 +22,13 @@ let catalog = Editor_document.Contexts.catalog ~version:1 factories |> Result.ge
 let width = 2400 and height = 1400
 let frame ?(buttons = []) ?(keys = []) mouse events count =
   { (Test_editor_input.frame ~buttons ~keys mouse events count) with
-    width; height; size = width, height; drawable_width = width; drawable_height = height;
-    drawable_size = width, height }
+    width; height; size = width, height;   }
 
 let editor () =
   let workspace = match Doc.of_text catalog (bloom ()) with
     | Ok d -> d | Error ds -> fail (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
   E3.create ~await:true ~workspace
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
@@ -62,7 +61,7 @@ let run () =
     chips = [];
     (* as many object and layout rows as the panel draws: a row's place depends on them *)
     objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
-        lead = false; inert = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
+        lead = false; inert = false; chosen = false; home = None }) (Sop.Edit_graph.inspect (E3.scene_document !e)));
     root_detail = ""; layouts = Option.map (fun (sw : Document.switch) -> Editor_core.Panels.labels sw.layouts, sw.active) (shell ()).switch; notes = [] } in
   let scope = Some (Flow_graph.Projection.of_graph catalog ws.checked "flower") in
   let lines = Array.to_list (Array.map N.describe (N.rows (N.open_graph "flower" N.initial) (params scope))) in
@@ -116,8 +115,8 @@ let run () =
   step ~mouse:p [ Event.KeyPressed (Input.KeyChar 'v') ];
   step ~mouse:p []; step [];
   check (E3.workspace !e == before && E3.undo_label !e = label) "v changed the source or history";
-  check (Procedural.Node.label (E3.displayed_node !e) = "uv_sphere")
-    ("the viewport shows the viewed node at the scene level: " ^ Procedural.Node.label (E3.displayed_node !e));
+  check (Sop.Node.label (E3.displayed_node !e) = "uv_sphere")
+    ("the viewport shows the viewed node at the scene level: " ^ Sop.Node.label (E3.displayed_node !e));
   (* an input's slider writes the graph input's default: one history entry, the text follows *)
   let slider_y, slider_x, slider_w =
     let rects = N.row_rects (N.open_graph "flower" N.initial) (params scope) ~bounds:(outline ()) in

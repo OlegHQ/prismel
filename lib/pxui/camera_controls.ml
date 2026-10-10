@@ -64,7 +64,7 @@ module Camera_control = struct
   type t = visibility
   type render_request = { filename : string }
 
-  let create ?(prefix = "camera") () = make prefix
+  let create () = make "camera"
   let toggle_ui = toggle_ui
   let open_camera = open_camera
 

@@ -17,10 +17,6 @@ val run :
   ?center_attribute:string -> ?radii_attribute:string -> Geometry.t ->
   (Geometry.t, Error.t) result
 
-val bounding_box :
-  ?cancel:Cancel.t -> ?grain:int -> ?padding:Rays_math.Vec3.t ->
-  Geometry.t -> (Geometry.t, Error.t) result
-
 module Private : sig
   val selected_bounds :
     ?cancel:Cancel.t -> grain:int -> operation:string ->

@@ -321,9 +321,9 @@ let part10b () = (* duplicate; positional arguments in any order; scene and Worl
   check (first = "box_2" && E.fresh_among used "sop/box" = "box_3" && List.mem "box_3" !used)
     "names of one batch are not distinct";
   (* a keyword before the positional argument is still an argument of the call *)
-  let mixed = "(workspace w\n  (graph world :context world\n    (world/world :name \"w\" (world/sky :name \"s\"))))" in
+  let mixed = "(workspace w\n  (graph world :context world\n    (world/sun :name \"w\" (world/sky :name \"s\"))))" in
   check (has (apply mixed (E.Set_arg { node = [ "world"; "@result" ]; key = Pos 0; sub = [];
-    value = S.make (S.List [ sym "world/sun" ]) })) "(world/sun)") "a positional argument after a keyword pair is found";
+    value = S.make (S.List [ sym "world/sky" ]) })) "(world/sky)") "a positional argument after a keyword pair is found";
   (* a scene object joins the merge, a World layer goes on top of the stack, deleting takes them out *)
   let scene = "(workspace w\n  (graph g :context sop (sop/box))\n  (graph scene :context scene\n    (let* [a (scene/geometry (ref g)) all (scene/merge a)] all)))" in
   let added = apply scene (E.Add_node { scope = [ "scene" ]; name = "lamp"; expr = S.make (S.List [ sym "scene/light" ]) }) in
@@ -333,11 +333,11 @@ let part10b () = (* duplicate; positional arguments in any order; scene and Worl
   let single = "(workspace w\n  (graph g :context sop (sop/box))\n  (graph scene :context scene (scene/geometry (ref g))))" in
   check (has (apply single (E.Add_node { scope = [ "scene" ]; name = "lamp"; expr = S.make (S.List [ sym "scene/light" ]) }))
            "(scene/merge (scene/geometry (ref g)) lamp)") "a scene that is one object becomes a merge";
-  let world = "(workspace w\n  (graph world :context world\n    (let* [sky (world/sky) all (world/world sky)] all)))" in
+  let world = "(workspace w\n  (graph world :context world\n    (let* [sky (world/sky)] sky)))" in
   let layered = apply world (E.Add_node { scope = [ "world" ]; name = "sun"; expr = S.make (S.List [ sym "world/sun" ]) }) in
-  check (has layered "sun (world/sun sky)" && has layered "(world/world sun)") ("a new layer is not on top\n" ^ layered);
+  check (has layered "sun (world/sun sky)" && has layered "sun)))") ("a new layer is not on top\n" ^ layered);
   let closed = apply layered (E.Delete_nodes { nodes = [ [ "world"; "sun" ] ] }) in
-  check (has closed "(world/world sky)" && not (has closed "world/sun")) ("the stack did not close over a deleted layer\n" ^ closed);
+  check (has closed "sky)))" && not (has closed "world/sun")) ("the stack did not close over a deleted layer\n" ^ closed);
   let graph = S.make (S.List [ sym "graph"; sym "g"; S.make (S.Kw "context"); sym "sop"; S.make (S.List [ sym "sop/box" ]) ]) in
   check (has (apply scene (E.Set_graph { name = "g"; form = graph })) "(graph g :context sop"
          && has (apply "(workspace w (graph g :context sop (sop/box)))"

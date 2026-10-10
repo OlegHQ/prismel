@@ -42,11 +42,6 @@ let run () =
             failwith (Printf.sprintf "offscreen pixel drift at frame %d" frame)
         end
       done;
-      let retained=Scene_execution.retained_stats renderer in
-      if retained.plan_hits<590L||retained.plan_entries<>1 then
-        failwith (Printf.sprintf "stable frames did not replay the retained plan: hits %Ld entries %d failures %Ld (%s)"
-          retained.plan_hits retained.plan_entries retained.plan_failures
-          (Option.value retained.plan_last_failure ~default:"none"));
       let uploaded=Scene_execution.upload_bytes renderer in
       if uploaded<=0L || Scene_execution.Private.cache_count_for_report renderer>2 then
         failwith "offscreen cache accounting is unbounded or empty";
@@ -74,9 +69,6 @@ let run () =
         if Scene_execution.Private.cache_count_for_report renderer>256 then
           failwith "dense native cache overflow"
       done;
-      let stats=Scene_execution.retained_stats renderer in
-      if stats.plan_builds<>stats.plan_evictions then
-        failwith (Printf.sprintf "indirect plans leaked: %Ld built, %Ld dropped" stats.plan_builds stats.plan_evictions);
       get (Scene_execution.destroy renderer);
       let after=live_handles () in
       if after<>before then

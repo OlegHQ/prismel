@@ -52,7 +52,7 @@ val build_with_ancestry :
   (ancestry, Error.t) result
 
 val build :
-  ?cancel:Cancel.t -> ?require_closed:bool -> expression:expression ->
+  ?cancel:Cancel.t -> expression:expression ->
   Boolean_complex.t -> Boolean_weiler.t -> Boolean_cells.t ->
   (Geometry.t, Error.t) result
 (** Extract a triangle boundary. Exact combinatorics choose facets and
@@ -62,9 +62,9 @@ val build :
 module Private : sig
   type barycentric_cache
   type ancestry_view = {
-    point_complex_vertices : int array;
+
     corner_complex_vertices : int array;
-    primitive_complex_facets : int array;
+
     primitive_sides : bytes;
     primitive_triangles : int array;
     primitive_source_points : int array;
@@ -101,7 +101,7 @@ module Private : sig
       zero omits, one keeps canonical orientation, and two reverses it. The
       requested side supplies deterministic payload ancestry. *)
   val build_selected_with_ancestry :
-    ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+    ?cancel:Cancel.t -> ?defer_rounded_slivers:bool ->
     ?barycentric_cache:barycentric_cache ->
     ?corner_payload:bool ->
     selection:bytes ->

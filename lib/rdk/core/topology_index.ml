@@ -155,10 +155,6 @@ let create_from_point_index ?cancel point_index topology =
     non_manifold_edge_count = !non_manifold_edge_count;
   }
 
-let create_uncached ?cancel topology =
-  create_from_point_index ?cancel (Point_index.create_uncached ?cancel topology)
-    topology
-
 (* Bounded: at most [cache_capacity] live indices, released with their topology. *)
 let cache_capacity = 64
 let cache = Support.Identity_cache.create ~id:Topology.data_id cache_capacity
@@ -171,7 +167,6 @@ let create ?cancel topology =
 
 let point_count value = value.point_count
 let topology_data_id value = value.topology_id
-let vertex_count value = Array.length value.primitive_of_vertex
 let edge_count value = Array.length value.edge_a
 
 let get name values index =
@@ -182,7 +177,6 @@ let get name values index =
 let primitive_of_vertex value index = get "primitive_of_vertex" value.primitive_of_vertex index
 let next_vertex value index = get "next_vertex" value.next_vertex index
 let edge_of_vertex value index = get "edge_of_vertex" value.edge_of_vertex index
-let opposite_vertex value index = get "opposite_vertex" value.opposite_vertex index
 let edge_points value edge = get "edge_points" value.edge_a edge, value.edge_b.(edge)
 let find_edge_index value ~a ~b =
   if a < 0 || b < 0 || a >= value.point_count || b >= value.point_count then -1

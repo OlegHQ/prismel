@@ -148,45 +148,6 @@ let test_primitive_indirect () =
            (Array.init count Fun.id))
     "primitive random Sort Indices without reorder"
 
-let test_topology_and_spatial_keys () =
-  let positions = Packed.Float3.Private.of_owned_exn
-      ~x:[|0.; 1.; 2.; 3.; 4.|] ~y:(Array.make 5 0.) ~z:(Array.make 5 0.) in
-  let builder = Topology.Builder.create ~point_count:5 () in
-  Topology.Builder.add_triangle builder 2 0 3;
-  Topology.Builder.add_triangle builder 3 1 2;
-  let geometry = Geometry.create ~positions ~topology:(Topology.Builder.freeze builder)
-      () |> Result.get_ok |> with_int "id" [|0; 1; 2; 3; 4|] in
-  let vertex_order = Ordering.sort ~grain:1 ~owner:Ordering.Points
-      ~key:Ordering.By_vertex_order geometry |> get_ok in
-  check (same_int_array (ids vertex_order) [|4; 2; 0; 3; 1|])
-    "Sort points by first vertex order with unconnected-first policy";
-  let primitive_index = Ordering.sort ~grain:1 ~owner:Ordering.Points
-      ~key:Ordering.By_primitive_index geometry |> get_ok in
-  check (same_int_array (ids primitive_index) [|4; 0; 2; 3; 1|])
-    "Sort points by lowest primitive index with unconnected-first policy";
-  let locality = Line_geometry.points
-      [|0., 0., 1.; 0., 1., 0.; 1., 0., 0.; 0., 0., 0.|]
-      |> with_int "id" [|0; 1; 2; 3|]
-      |> Ordering.sort ~grain:1 ~owner:Ordering.Points ~key:Ordering.Spatial_locality
-      |> get_ok in
-  check (same_int_array (ids locality) [|3; 2; 1; 0|])
-    "Morton spatial-locality ordering";
-  let extreme = Line_geometry.points
-      [|max_float, max_float, max_float; -.max_float, -.max_float, -.max_float|]
-      |> Ordering.sort ~grain:1 ~owner:Ordering.Points ~key:Ordering.Spatial_locality in
-  (match extreme with
-   | Ok _ -> ()
-   | Error error -> fail ("extreme spatial Sort failed: " ^ Error.to_string error));
-  (match Line_geometry.points [|Float.nan, 0., 0.|]
-      |> Ordering.sort ~owner:Ordering.Points ~key:Ordering.Spatial_locality with
-   | Error error -> check (Error.code error = "invalid_sort")
-       "non-finite spatial Sort diagnostic"
-   | Ok _ -> fail "spatial Sort accepted non-finite position");
-  (match Ordering.sort ~owner:Ordering.Primitives ~key:Ordering.By_vertex_order geometry with
-   | Error error -> check (Error.code error = "invalid_sort")
-       "point-only topology Sort diagnostic"
-   | Ok _ -> fail "primitive Sort accepted By Vertex Order")
-
 let test_dense_exactness () =
   let source = points (Array.init 150_001 (fun point ->
       sin (float_of_int point *. 0.001))) in
@@ -211,6 +172,5 @@ let run () =
   test_indirect ();
   test_restricted_and_errors ();
   test_primitive_indirect ();
-  test_topology_and_spatial_keys ();
   test_dense_exactness ();
   print_endline "extended sort tests passed"

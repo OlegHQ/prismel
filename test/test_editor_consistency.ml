@@ -1,7 +1,7 @@
 (* Cross-representation checks: authored text, derived state, saved state and the picture. *)
 open Rays
 module D = Editor_document
-module E = Rays_editor.Editor3
+module E = Rays_editor.Editor
 module F = Flow_graph.Flow_edit
 module S = Flow.Syntax
 
@@ -14,7 +14,7 @@ let build ?previous ws = D.Contexts.of_workspace ~factories ?previous ws |> Resu
 let frame n = Test_editor_input.frame (450., 300.) [] n
 let step e n = E.update e (frame n)
 let create ?camera ?settings ?presets ?source ws = E.create ?camera ?settings ?presets ?source ~await:true ~workspace:ws
-  ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+  ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
     |> Result.map_error Rdk.Error.to_string)
   ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok
 
@@ -114,7 +114,7 @@ let frozen_context_time () =
   let cases = [
     "scene", "(scene/light :width (+ 1 t))", "scene/light.width";
     "scene", "(scene/geometry (ref g) :translate [t 0 0])", "scene/geometry.translate";
-    "world", "(world/world :time_of_day t)", "world/world.time_of_day";
+    "world", "(world/sky :turbidity (+ 2 t))", "world/sky.turbidity";
     "settings", "(settings/config :fps (+ 60 (int t)))", "settings/config.fps";
     "editor", "(ui/workspace (ui/split-at \"horizontal\" (+ 0.4 (* 0.1 t)) (ui/graph) (ui/inspector)))",
       "ui/split-at.ratio"] in
@@ -229,8 +229,8 @@ let preview_identity () =
     && List.for_all (fun (key, _) -> List.mem key (keys closed)) (shell closed).views)
     "closed preview left orphan membership/provenance";
   let id = List.hd (List.assoc comparison (shell doc).views) in
-  let graph, _ = Procedural.Edit_graph.apply_parameters doc.scene.graph.geometry ~node_id:id
-    ["translate_x", Procedural.Parameter.Float_value 3.] |> Result.get_ok in
+  let graph, _ = Sop.Edit_graph.apply_parameters doc.scene.graph.geometry ~node_id:id
+    ["translate_x", Sop.Parameter.Float_value 3.] |> Result.get_ok in
   let after = {doc with scene = {doc.scene with graph = Flow_sop.Network.with_geometry graph doc.scene.graph |> Result.get_ok}} in
   check (match D.Scene_sync.reconcile ~factories doc after with
     | Error message -> Test_text_pane.contains message "viewport scene reference"
@@ -299,8 +299,9 @@ let preview_camera_world () =
     (graph g :context sop (sop/box))
     (graph scene :context scene [(eye : vec3 [0 0 6])]
       (scene/merge (scene/geometry (ref g))
-        (scene/camera :name "camera" :eye eye :active true)))
-    (graph world :context world (world/world (world/sky) :exposure 0.5))
+        (scene/camera :name "camera" :eye eye :active true)
+        (scene/world (ref world) :exposure 0.5)))
+    (graph world :context world (world/sky))
     (graph editor :context editor
       (let* [main (ui/viewport (ref scene))
              comparison (ui/viewport (ref scene :eye [6 0 0]))]
@@ -313,7 +314,7 @@ let preview_camera_world () =
     let doc = build (E.workspace !e) in
     let ids = List.assoc key (Option.get doc.shell).views in
     let comparison = List.find_map (fun id ->
-      Option.bind (Procedural.Edit_graph.find doc.scene.graph.geometry ~node_id:id)
+      Option.bind (Sop.Edit_graph.find doc.scene.graph.geometry ~node_id:id)
         (fun node -> Option.map fst (D.Objects.Camera.of_node node))) ids |> Option.get in
     check (Vec3.nearly_equal (Camera.position comparison) (Vec3.create 6. 0. 0.) ~eps:1e-6)
       "the comparison instance lost its independently authored camera";
@@ -369,7 +370,7 @@ let live_lights () =
     let source = E.workspace !e and prepared = E.prepared !e in
     let scene = E.scene_document !e in
     let before = layers !e and lights = E.lights !e in
-    let before_time = Sketch_support.Timeline.time (E.timeline !e) in
+    let before_time = Rays_editor.Timeline.time (E.timeline !e) in
     e := E.update !e { (frame 2) with dt = 2. };
     check (E.workspace !e == source && E.undo_label !e = None)
       "timeline lighting changed authored state or history";
@@ -379,7 +380,7 @@ let live_lights () =
       "timeline lighting changed authored object identities or scene fields";
     check (E.lights !e <> lights && layers !e <> before)
       "timeline lighting did not reach staged rendering";
-    check (Sketch_support.Timeline.time (E.timeline !e) = before_time +. 2.)
+    check (Rays_editor.Timeline.time (E.timeline !e) = before_time +. 2.)
       "live lighting used runtime time instead of the editor timeline";
     let frozen_frame n = { (frame n) with dt = 0. } in
     let before = layers !e in
@@ -424,7 +425,7 @@ let live_light_determinism () =
     let prepares = ref 0 and drawings = ref 0 in
     let e = ref (E.create ~workspace:ws ~presets ~await:true ~domains ~seed:42L
       ~prepare:(fun _ output -> incr prepares;
-        Ok (Test_workspace_cook.geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))))
+        Ok (Test_workspace_cook.geometry_bytes (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))))
       ~scene3:(fun _ _ -> incr drawings; Scene3.empty) () |> Result.get_ok) in
     Fun.protect ~finally:(fun () -> E.close !e) (fun () ->
       let samples = List.mapi (fun i dt ->
@@ -696,7 +697,7 @@ let failed_renderer_modes () = with_dir (fun presets ->
     (graph editor :context editor (ui/workspace
       (ui/tile (ui/viewport (ref scene)) (ui/viewport (ref scene :size 2))))))|} in
   let e = ref (E.create ~await:true ~presets ~workspace:ws
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh (Mesh.with_mode Mesh.Lines mesh)]) () |> Result.get_ok) in
   let report () = E.crash_dump !e presets;
@@ -737,7 +738,7 @@ let run_native () = with_dir (fun directory ->
       title = "Preview failure isolation"}
     ~init:(fun _ -> E.create ~await:true ~workspace:ws
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh ->
         let size = abs_float (Option.get (Mesh.vertex 0 mesh)).Vec3.x *. 2. in
@@ -800,7 +801,7 @@ let enter_camera () =
     let key k = Event.KeyPressed k in
     step [key Input.Home];
     let rec select name index =
-      if Option.map Procedural.Node.label (E.selected_node !e) = Some name then index
+      if Option.map Sop.Node.label (E.selected_node !e) = Some name then index
       else (check (index < 4) ("no camera row " ^ name);
         step [key Input.ArrowDown]; select name (index + 1)) in
     let row = select "telephoto" 0 in

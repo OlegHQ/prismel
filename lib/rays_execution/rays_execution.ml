@@ -157,9 +157,9 @@ let compose_raster (a:Scene_command.Render_ir.transform) (b:Scene_command.Render
   yy=a.xy*.b.yx+.a.yy*.b.yy;tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
   ty=a.xy*.b.tx+.a.yy*.b.ty+.a.ty}
 
-type presentation_facts=Runtime.presentation_facts={title:string;logical_width:int;
-  logical_height:int;drawable_width:int;drawable_height:int;position:(int*int)option;
-  pixel_density:float;display_scale:float;refresh_rate:float option;vsync:bool}
+type presentation_facts=Runtime.presentation_facts={logical_width:int;
+  logical_height:int;drawable_width:int;drawable_height:int;
+  pixel_density:float;}
 (* An offscreen target leases its device (see [acquire_device]). *)
 type runtime=Window of Runtime.t|Offscreen of Runtime.t*bool
 let target=function Window runtime|Offscreen(runtime,_)->runtime
@@ -788,14 +788,6 @@ let lower_scene2_with_policy value ~lease_policy ~density ~resource:resolve ir =
 let lower_scene2 value ~density ~resource ir=
   lower_scene2_with_policy value~lease_policy:Copy_image_snapshots
     ~density~resource ir
-let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height =
-  match ensure"Rays_execution.resize"value with Error _ as e->e|Ok()->
-  let resized=match value.runtime with
-  |Window runtime->Runtime.resize runtime~width:logical_width~height:logical_height
-  |Offscreen(runtime,_)->Runtime.resize runtime~drawable:(drawable_width,drawable_height)
-      ~width:logical_width~height:logical_height in
-  Result.map_error (fun e->{operation="Rays_execution.resize";
-      kind=Backend;message=Ogpu.Error.to_string e}) resized
 let replay_step ?clear ~identity ~version value=
   match ensure"Rays_execution.Private.replay"value with
   |Error _ as error->error
@@ -1012,12 +1004,6 @@ let offscreen_target value=
   |Offscreen(runtime,_)->(match Runtime.target runtime with
       |Ok texture->Ok texture|Error e->backend operation e)
   |Window _->fail operation Unsupported"operation requires an offscreen execution"
-let capture_into value~destination=
-  match ensure"Rays_execution.capture_into"value with Error _ as e->e|Ok()->
-  match presentation_facts value with Error _ as error->error|Ok facts->
-  match Runtime.read_pixels_into(target value.runtime)
-      ~bytes_per_row:(facts.drawable_width*4)~destination with
-  |Ok()->Ok()|Error e->backend"Rays_execution.capture_into"e
 let rec destroy value=if value.dead then Ok()else
   let () = release_views value in
   match value.runtime with

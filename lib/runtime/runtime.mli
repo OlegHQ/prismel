@@ -14,14 +14,13 @@ val target : t -> (Ogpu.Backend.texture,Ogpu.Error.t) result
 
 (** One record for window and offscreen targets. [frames] counts successful
     renders and replays; [presented] those that reached the display. *)
-type stats = { frames:int64; presented:int64; logical_draws:int64;
-  logical_passes:int64; logical_submissions:int64;
-  pipeline_cache_entries:int; mesh_cache_entries:int;
-  uploaded_bytes:int64; gpu_timing_supported:bool; gpu_duration_seconds:float;
-  gpu_sample_count:int64; retained_plan_builds:int64; retained_plan_hits:int64;
-  retained_plan_misses:int64; retained_plan_evictions:int64;
-  retained_plan_executions:int64; retained_plan_entries:int;
-  retained_plan_capacity:int;
+type stats = {   logical_draws:int64;
+  logical_passes:int64;
+  pipeline_cache_entries:int;
+  uploaded_bytes:int64;  gpu_duration_seconds:float;
+    retained_plan_hits:int64;
+  retained_plan_misses:int64;
+
   sun_shadow_passes:int64; (** World sun map renders (Scene3.with_world). *) }
 
 val zero_stats : stats
@@ -32,10 +31,10 @@ type frame_facts = { logical_width:int; logical_height:int;
 (** An offscreen target has no [position] or [refresh_rate], never vsyncs,
     and reports its drawable/logical ratio as both density and display scale. *)
 type presentation_facts = {
-  title : string; logical_width : int; logical_height : int;
-  drawable_width : int; drawable_height : int; position : (int * int) option;
-  pixel_density : float; display_scale : float; refresh_rate : float option;
-  vsync : bool;
+   logical_width : int; logical_height : int;
+  drawable_width : int; drawable_height : int;
+  pixel_density : float;
+
 }
 val create : ?vsync:bool -> ?hidden:bool -> ?high_density:bool -> ?title:string ->
   width:int -> height:int -> unit -> (t, Ogpu.Error.t) result
@@ -63,11 +62,9 @@ val replay_prepared_sampled_resources :
 (** Resizes to [width]x[height] logical points. A window's drawable follows
     its display, so [?drawable] is rejected there; an offscreen target uses
     [?drawable] pixels, 1x by default. *)
-val resize : ?drawable:int * int -> t -> width:int -> height:int ->
+val resize : t -> width:int -> height:int ->
   (unit, Ogpu.Error.t) result
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
-val read_pixels_into : t -> bytes_per_row:int -> destination:bytes ->
-  (unit, Ogpu.Error.t) result
 val stats : t -> stats
 val frame_facts : t -> frame_facts
 val map_logical_rect : frame_facts -> int * int * int * int ->
@@ -100,7 +97,6 @@ val set_text_input : t -> ((int * int * int * int) * int) option ->
 val window_changed : t -> unit
 
 val show : t -> (unit, Ogpu.Error.t) result
-val hide : t -> (unit, Ogpu.Error.t) result
 
 (** Native file dialogs. [show_dialog] returns at once with the dialog's id;
     the outcome arrives as a [Runtime_input.Dialog_closed] with that id, in

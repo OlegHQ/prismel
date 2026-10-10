@@ -70,16 +70,6 @@ let () =
   assert(cpu_saved=cpu && I.Private.cpu_storage_bytes image=0);
   I.Private.release_snapshot cpu_lease;
   assert(I.Private.cpu_storage_bytes image=0);
-  let canvas=get(Runtime_resources.Canvas.create ~width:17 ~height:5)in
-  get(Runtime_resources.Canvas.clear canvas 0x11223344l);
-  get(Runtime_resources.Canvas.copy_to_image canvas image);
-  assert(get(I.Private.gpu_snapshot image)=None && !reads=2);
-  assert(get(I.pixels image)=Bytes.init(17*5*4)(fun i->"\x11\x22\x33\x44".[i mod 4]));
-  get(I.Private.replace_gpu_source image ~width:17 ~height:5 ~source:(fun()->Some resized));
-  get(Runtime_resources.Canvas.clear canvas 0x55667788l);
-  get(Runtime_resources.Canvas.copy_to_image canvas image);
-  assert(get(I.Private.gpu_snapshot image)=None && !reads=2);
-  get(Runtime_resources.Canvas.destroy canvas);
   get(I.Private.replace_gpu_source image ~width:17 ~height:5 ~source:(fun()->Some resized));
   native(B.destroy_texture resized);
   assert(Result.is_error(I.Private.gpu_snapshot image) && Result.is_error(I.pixels image));

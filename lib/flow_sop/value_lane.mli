@@ -3,7 +3,7 @@
     [Ui.frame], before submitting a cook; document literals remain untouched. *)
 type t
 type resolved = private {
-  geometry : Procedural.Edit_graph.t;
+  geometry : Sop.Edit_graph.t;
   applied : Flow.Port_type.value Port.Map.t;
   applied_text : string Port.Map.t;
       (** live text and list parameters as applied (a list of vec3 is

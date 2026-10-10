@@ -36,14 +36,6 @@ let create_owned ~width ~height pixels =
            expected width height (Array.length pixels))
     else Ok (owned { width; height; pixels; mipmaps = [||] })
 
-let create ~width ~height pixels =
-  create_owned ~width ~height (Array.of_list pixels)
-
-let create_exn ~width ~height pixels =
-  match create ~width ~height pixels with
-  | Ok texture -> texture
-  | Error message -> invalid_arg message
-
 let init ~width ~height make =
   if width <= 0 || height <= 0 then
     invalid_arg "Texture.init: dimensions must be positive";
@@ -56,42 +48,12 @@ let init ~width ~height make =
     mipmaps = [||];
   }
 
-let require_main_domain () =
-  if not (Domain.is_main_domain ()) then
-    invalid_arg "Texture.load must run on the main domain"
-
-let load filename =
-  require_main_domain ();
-  match Runtime_resources.Image.load_file filename with
-  | Error error -> Error ("Texture load failed: " ^ Format.asprintf "%a" Runtime_resources.pp_error error)
-  | Ok image ->
-      Fun.protect ~finally:(fun()->ignore(Runtime_resources.Image.destroy image))(fun()->
-        match Runtime_resources.Image.size image,Runtime_resources.Image.pixels image with
-        |Ok(width,height),Ok bytes->
-            let pixels=Array.init(width*height)(fun index->let offset=index*4 in
-              Color.rgba(Char.code(Bytes.get bytes offset))(Char.code(Bytes.get bytes(offset+1)))
-                (Char.code(Bytes.get bytes(offset+2)))(Char.code(Bytes.get bytes(offset+3))))in
-            Ok(owned{width;height;pixels;mipmaps=[||]})
-        |Error error,_|_,Error error->Error("Texture load failed: "^Format.asprintf"%a"Runtime_resources.pp_error error))
-
-let load_exn filename =
-  match load filename with
-  | Ok texture -> texture
-  | Error message -> failwith message
-
 let size texture = match texture.backing with
   | Cpu data -> data.width,data.height
   | Borrowed image -> (match Runtime_resources.Image.size image with
     | Ok size -> size
     | Error error -> invalid_arg (Format.asprintf "Texture.size: %a" Runtime_resources.pp_error error))
-let width texture = fst(size texture)
-let height texture = snd(size texture)
 let pixels texture = Array.to_list (cpu "Texture.pixels" texture).pixels
-
-let pixel texture ~x ~y =
-  let texture=cpu "Texture.pixel" texture in
-  if x < 0 || y < 0 || x >= texture.width || y >= texture.height then None
-  else Some texture.pixels.((y * texture.width) + x)
 
 let next_level (source : level) : level =
   let width = max 1 ((source.width + 1) / 2)
@@ -140,9 +102,6 @@ let generate_mipmaps texture =
   } in
   owned { texture with mipmaps = Array.of_list (build base []) }
 
-let has_mipmaps texture = match texture.backing with Cpu data->Array.length data.mipmaps>0|Borrowed _->false
-let mipmap_count texture = match texture.backing with Cpu data->1+Array.length data.mipmaps|Borrowed _->1
-
 let subsection ~x ~y ~width ~height texture =
   match texture.backing with
   | Borrowed _ -> Error "Texture.subsection: borrowed GPU texture needs an explicit CPU snapshot"
@@ -163,11 +122,6 @@ let subsection ~x ~y ~width ~height texture =
             (((y + target_y) * texture.width) + x + target_x));
       mipmaps = [||];
     })
-
-let subsection_exn ~x ~y ~width ~height texture =
-  match subsection ~x ~y ~width ~height texture with
-  | Ok texture -> texture
-  | Error message -> invalid_arg message
 
 let[@inline always] wrap_coordinate mode value =
   match mode with
@@ -267,14 +221,11 @@ let sample_lod_packed ?(filter = Bilinear) ?(wrap_u = Clamp) ?(wrap_v = Clamp)
 let sample_lod ?filter ?wrap_u ?wrap_v texture ~lod ~u ~v =
   sample_lod_packed ?filter ?wrap_u ?wrap_v texture ~lod ~u ~v |> unpack
 
-let sample ?(filter = Bilinear) ?(wrap_u = Clamp) ?(wrap_v = Clamp)
-    texture ~u ~v =
-  sample_lod ~filter ~wrap_u ~wrap_v texture ~lod:0. ~u ~v
+let sample texture ~u ~v = sample_lod texture ~lod:0. ~u ~v
 
 module Private = struct
   let identity texture = texture.id
   let create_owned = create_owned
-  let sample_lod_packed = sample_lod_packed
   let image texture=match texture.backing with Cpu _->None|Borrowed image->Some image
   let of_image image=match Runtime_resources.Image.Private.gpu_snapshot image with
     | Error error -> Error(Format.asprintf "Texture.Private.of_image: %a" Runtime_resources.pp_error error)

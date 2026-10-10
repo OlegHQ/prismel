@@ -7,6 +7,6 @@ open Rdk_core
     deterministic corner expansion because Rays's render mesh has one
     attribute tuple per render vertex. Both values remain immutable. *)
 
-val to_mesh : ?cancel:Cancel.t -> Geometry.t -> (Rays.Mesh.t, Error.t) result
+val to_mesh : Geometry.t -> (Rays.Mesh.t, Error.t) result
 
-val of_mesh : ?cancel:Cancel.t -> Rays.Mesh.t -> (Geometry.t, Error.t) result
+val of_mesh : Rays.Mesh.t -> (Geometry.t, Error.t) result

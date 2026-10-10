@@ -2,8 +2,8 @@ open Rays
 
 let frame : Frame.t = {
   width = 400; height = 300; size = 400, 300;
-  drawable_width = 400; drawable_height = 300;
-  drawable_size = 400, 300; pixel_scale = 1., 1.;
+
+   pixel_scale = 1., 1.;
   time = 0.; dt = 0.; fps = 0.; count = 0; mouse = 0., 0.;
   mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events = [];
 }
@@ -56,7 +56,7 @@ let () =
   Pxui.Ui.destroy ui;
   let layout = Pxui_shell.Layout.default in
   let wide_frame = { frame with width = 1000; size = 1000, 300;
-    drawable_width = 1000; drawable_size = 1000, 300 } in
+     } in
   let panes = Pxui_shell.Layout.(panes (geometry layout wide_frame)) in
   let _, _, view_width, _ = panes.view
   and _, _, graph_width, _ = panes.graph
@@ -82,8 +82,8 @@ let () =
     failwith "collapsed graph and inspector did not vanish";
   (* the default three columns match the retired fixed layout at these sizes and states *)
   let golden (w, h) hidden (view, graph_w, inspector_w, status, timeline) =
-    let f = { frame with width = w; height = h; size = w, h; drawable_width = w;
-      drawable_height = h; drawable_size = w, h } in
+    let f = { frame with width = w; height = h; size = w, h;
+       } in
     let p = Pxui_shell.Layout.(panes (geometry ~hidden layout f)) in
     let width (_, _, w, _) = w in
     if p.view <> view || width p.graph <> graph_w || width p.inspector <> inspector_w

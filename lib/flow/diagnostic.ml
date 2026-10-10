@@ -6,8 +6,8 @@ type t = { code : string; severity : severity; position : position option;
 
 let error ?span ?position ~code message =
   {code; severity = Error; position; message; span}
-let warning ?span ?position ~code message =
-  {code; severity = Warning; position; message; span}
+let warning ?span ~code message =
+  {code; severity = Warning; position = None; message; span}
 let to_string value = match value.position with
   | None -> value.code ^ ": " ^ value.message
   | Some position -> Printf.sprintf "%s at %d:%d: %s"

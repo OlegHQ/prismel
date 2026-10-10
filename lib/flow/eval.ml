@@ -923,7 +923,6 @@ and loop c env ~out kind accs clauses skip body zone =
          | 4 -> Vec4_array data | _ -> Float_array data) in
   if packed then Fun.protect ~finally:(fun () -> c.st.steps <- saved_steps) work else work ()
 
-
 (* W8: [(for [p (sop/point_list g)] body)].  The count is known only when [g] cooks, so
    the body is evaluated once, as a template, with the element unknown: a point is a residual
    read from [st.elems] when forced, a piece a plan node [zone/element].  The template's nodes
@@ -1131,8 +1130,8 @@ let with_live ?state ?elems ?resolve ?execute ?(compiled = true) (l : live) (f :
         restore_state state saved);
       result
 
-let residual_eval ?state ?elems r ~live =
-  with_live ?state ?elems live (fun ctx_of -> let c = ctx_of r in force_res c r)
+let residual_eval r ~live =
+  with_live live (fun ctx_of -> let c = ctx_of r in force_res c r)
 
 let force_with ?state ?elems ?resolve ?execute ?compiled v ~live =
   if not (is_live v) then Ok v
@@ -1150,7 +1149,7 @@ let force_with ?state ?elems ?resolve ?execute ?compiled v ~live =
         | v -> v in
       go v)
 
-let force ?state ?elems ?resolve v ~live = force_with ?state ?elems ?resolve v ~live
+let force ?state ?elems v ~live = force_with ?state ?elems v ~live
 
 let run ?record ?inputs ?state ?live ~time ws =
   let state = Option.value ~default:(create_state ()) state in

@@ -193,7 +193,7 @@ buttons; keys; events }`. Size and pointer coordinates are logical points;
 events retain host order. Every field is live. The host captures one snapshot
 before routing editor keys and passes it to probes, value lanes, context
 lowering and drawing. Geometry workers receive the same snapshot through
-`Procedural.Context.input`. Cache equality includes all fields and floating
+`Sop.Context.input`. Cache equality includes all fields and floating
 point bits, including signed zero.
 
 `frame/dt`, `frame/index`, `frame/width`, `frame/height`, `pointer/x`,

@@ -2,7 +2,7 @@ module E = Flow.Eval
 module G = Rdk.Geometry
 module A = Rdk.Attribute
 module P = Rdk.Packed.Float3
-module N = Procedural.Node
+module N = Sop.Node
 module Functions = Hashtbl.Make (struct
   type t = E.fn
   let equal = ( == )
@@ -112,7 +112,7 @@ let source_origins ~sources inputs =
 
 let materialized_source source =
   N.Private.make_geometry ~operation:"flow.capture" ~version:1 ~parameters:""
-    ~cook_mode:N.Generic ~dependencies:Procedural.Context.Dependencies.static
+    ~cook_mode:N.Generic ~dependencies:Sop.Context.Dependencies.static
     ~inputs:[|source|] (fun ~node_id:_ _ geometries ->
       Ok N.Private.{geometry=geometries.(0);diagnostics=[];instances=None})
 
@@ -149,21 +149,21 @@ let node ?state ?(reference = false) ?elems ?profile ~source ~name ~values ~sour
   let node = N.Private.make_geometry ~label:("Write " ^ name) ~operation:"flow.with_attr" ~version:1
     ~parameters ~cook_mode:(N.Duplicate_input 0)
     ~dependencies:(if E.frame_dependent values then
-        Procedural.Context.Dependencies.one Procedural.Context.Dependencies.Input
-      else Procedural.Context.Dependencies.static)
+        Sop.Context.Dependencies.one Sop.Context.Dependencies.Input
+      else Sop.Context.Dependencies.static)
     ~inputs:(Array.of_list inputs)
     (fun ~node_id:_ context geometries ->
       let resolve = resolve ~geometry:(fun id -> Option.map (fun index -> geometries.(index))
         (List.find_index ((=) id) sources)) in
       let result = if geometries = [||] then error "E_DATA_SOURCE" "Attribute write needs geometry."
-        else if Procedural.Context.cancelled context then error "E_CANCELLED" "Attribute kernel cancelled."
+        else if Sop.Context.cancelled context then error "E_CANCELLED" "Attribute kernel cancelled."
         else Result.bind program (fun program ->
           Result.bind (Flow_ir.Executor.force ?state ?elems ~reference ~resolve program
-            ~live:(Procedural.Context.input context))
-            (fun values -> if Procedural.Context.cancelled context then
+            ~live:(Sop.Context.input context))
+            (fun values -> if Sop.Context.cancelled context then
                 error "E_CANCELLED" "Attribute kernel cancelled."
-              else write ~grain:(Procedural.Context.grain context) name values geometries.(0))) in
-      Result.map_error (fun (d : Flow.Diagnostic.t) -> Procedural.Diagnostic.error ~code:d.code d.message)
+              else write ~grain:(Sop.Context.grain context) name values geometries.(0))) in
+      Result.map_error (fun (d : Flow.Diagnostic.t) -> Sop.Diagnostic.error ~code:d.code d.message)
         (Result.map (fun geometry -> N.Private.{geometry; diagnostics = []; instances = None}) result)) in
   N.Private.with_facts { (N.facts node) with elementwise = N.Points;
     topology = N.Preserved; reads = ["*"]; writes = [name] } node

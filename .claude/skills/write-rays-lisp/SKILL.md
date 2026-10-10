@@ -80,7 +80,6 @@ worked example.
 dune build tools/ui_shot.exe
 _build/default/tools/ui_shot.exe sketches/<name>/sketch.rays /tmp/out.png 1500 900
 UI_SHOT_DO="select:picture/<card>" _build/default/tools/ui_shot.exe ...   # its inspector rows
-dune exec tools/bench_workspace_lower.exe -- --approx | grep <name>        # GPU-qualified paths
 ```
 
 Read the picture: the status strip shows the first diagnostic, the graph shows whether

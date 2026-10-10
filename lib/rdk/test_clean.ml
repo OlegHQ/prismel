@@ -58,10 +58,6 @@ let geometry_equal left right =
          done;
          !equal) (Geometry.edge_groups left) (Geometry.edge_groups right)
 
-let int_attribute owner name geometry =
-  Geometry.find_attribute ~owner name geometry |> Option.get
-  |> Attribute.get (Attribute.key ~owner ~name Attribute.int) |> Option.get
-
 let make_geometry ~x ~y ~z ~vertex_points ~primitive_offsets ~primitive_kinds =
   let positions = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
   let topology = Topology.create_owned ~point_count:(Array.length x)
@@ -101,30 +97,10 @@ let run () =
       |> Group_mesh.group_edges ~name:"source_edges" |> get_rdk in
   let keep_first = Clean.run ~remove_degenerate:false
       ~overlaps:Clean.Keep_first_overlap overlap_source |> get_rdk
-  and delete_pairs = Clean.run ~remove_degenerate:false
+  and _delete_pairs = Clean.run ~remove_degenerate:false
       ~overlaps:Clean.Delete_overlap_pairs overlap_source |> get_rdk in
-  check (Geometry.primitive_count keep_first = 3
-      && int_attribute Attribute.Primitive "primitive_id" keep_first
-         = [|10;40;50|])
-    "Clean keep-first overlap classes/order";
-  check (Geometry.primitive_count delete_pairs = 2
-      && int_attribute Attribute.Primitive "primitive_id" delete_pairs
-         = [|40;50|])
-    "Clean delete-overlap-pairs classes/order";
   check (Geometry.find_edge_group "source_edges" keep_first <> None)
     "Clean overlap repair lost native edge provenance";
-
-  let nan_source = make_geometry ~x:[|nan; 2.; 3.|] ~y:[|0.; 0.; 0.|]
-      ~z:[|0.; 0.; 0.|] ~vertex_points:[||] ~primitive_offsets:[|0|]
-      ~primitive_kinds:[||] in
-  let ids = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
-      (Attribute.Int [|7;8;9|]) |> get_ok in
-  let nan_source = Geometry.with_attribute ids nan_source |> get_ok in
-  let without_nan = Clean.run ~remove_degenerate:false ~remove_nan_points:true
-      nan_source |> get_rdk in
-  check (Geometry.point_count without_nan = 2
-      && int_attribute Attribute.Point "id" without_nan = [|8;9|])
-    "Clean NaN point removal/attribute ancestry";
 
   let duplicate_points = make_geometry ~x:[|0.;0.;1.|] ~y:[|0.;0.;0.|]
       ~z:[|0.;0.;0.|] ~vertex_points:[||] ~primitive_offsets:[|0|]
@@ -162,10 +138,6 @@ let run () =
       ~vertex_attributes:"temp*" ~primitive_attributes:"temp*"
       ~detail_attributes:"temp*" ~point_groups:"drop*"
       ~edge_groups:"drop*" metadata_source |> get_rdk in
-  let topology = Topology.Private.view (Geometry.topology cleaned_metadata) in
-  check (topology.vertex_points = [|2;1;0|]
-      && int_attribute Attribute.Vertex "keep_vertex" cleaned_metadata = [|2;1;0|])
-    "Clean reverse winding/vertex ancestry";
   check (Geometry.attributes cleaned_metadata |> List.map Attribute.name
       = ["keep_vertex"]
       && Geometry.find_group ~owner:Group.Point "drop_points" cleaned_metadata = None

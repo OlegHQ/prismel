@@ -575,10 +575,10 @@ While carrying:
   holding the pointer over a node for 0.6 s follows its reference. Nothing else edits the
   document until the put, and the autosave never writes a preview.
 - **Budget.** A put whose apply (edit and check) or whose target cook takes 500 ms or more
-  (`?carry_budget` of `Editor3.create`, seconds, default 0.5) is not shown: the target is lit and
+  (a fixed 0.5 s budget) is not shown: the target is lit and
   the strip says what it would write and why there is no picture (`Would write :material (ref cobalt)
   on shards/m · no preview, applying takes 612 ms · release writes it`); the release still writes it.
-  `test_materials` runs it with a zero budget and times a preview's apply and restore frames.
+  `test_materials` times a preview's apply and restore frames.
 
 Gesture echo: every other gesture that writes the text also prints what it wrote in the same strip
 slot, in the words of the text (`Wrote :visible false on scene/body`, `Wrote :translate [3 0 0] on scene/b`;
@@ -1034,7 +1034,7 @@ coerced-equivalent input overrides share one instance as during planning.
 - Every `sop/merge` becomes one `flow.merge_n` node that tags each primitive with a running
   input index in the `__flow_src` primitive attribute; `Lower.origin` maps a tag back to the
   site and iteration that made it (viewport provenance).
-- `sop/curve` becomes a `flow.curve` node whose `points` parameter is a text-encoded list
+- `sop/curve` becomes a `flow.curve` node whose `points` parameter is a text-encoded list (and `closed` a toggle)
   (`Flow_sop.Curve`).
 - A bypassed call makes no node: the evaluator passes its input through.
 
@@ -1054,8 +1054,7 @@ The patch lineage is bounded to 4,096 distinct arguments; structural edits and
 unsupported literals use the full check. Geometry templates, frame folds,
 retained function records and non-SOP values use the full lowering after the
 source patch: measured over every checked-in file, the edit itself is under a
-millisecond there and the rest is the evaluation the changed value requires
-(`specification/performance-log.md`, "Phase 4 Step 1 closure").
+millisecond there and the rest is the evaluation the changed value requires.
 
 A text-pane number drag uses the numeric token's pre-edit byte range reported
 by PXUI and the printer's form IDs to address the innermost source card's
@@ -1215,9 +1214,7 @@ An inline `exact` is a graph card with its input's
 cards and function zones projected and edited beneath it.
 The inspector reports `approximable` for qualified paths or the pending/refusal
 reasons; the graph's tier badge
-continues to describe execution. `bench_workspace_lower --approx` prints the
-complete qualified sets and every pending/refusal reason, including workspaces
-checked by their own custom catalogs. The actual-catalog workspace parity
+continues to describe execution. The actual-catalog workspace parity
 routes audit every published path against observed authored producers with
 fused/unfused compilation and pure emission, alongside ordinary evaluation parity.
 
@@ -1422,8 +1419,7 @@ Rules from the root `AGENTS.md` apply. What the code holds itself to:
 - The value lane does no work for networks without drives.
 - A frame never re-lowers.
 
-Benchmarks: `tools/bench_rays_editor.exe`, `tools/bench_workspace_lower.exe`,
-`tools/bench_workspace_live.exe`, and `dune exec test/test_main.exe -- bench_scope_big`.
+Benchmarks: `tools/bench_rays_editor.exe` and `dune exec test/test_main.exe -- bench_scope_big`.
 
 ## 16. Tests
 

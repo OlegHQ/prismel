@@ -236,7 +236,6 @@ through the fixed native material/light path; inputs it cannot honor (more than
 CPU mesh coordinates remain float64. Native display uses a cached float32
 mirror; coordinates or UVs that overflow float32 produce an invalid-mesh
 lowering error. Changing only colors or UVs reuses the geometry mirror.
-`specification/3d-parity.md` tracks the scoped states still partially lowered.
 
 The renderer uses native Metal color, depth, and stencil attachments, not
 projected 2D painter ordering. Perspective and orthographic cameras use
@@ -247,15 +246,13 @@ Explicit asymmetric frusta,
 off-axis portal cameras, vertical projection flipping, and frustum diagnostic
 meshes cover multi-display and projection-mapping use cases.
 
-`Scene3.with_depth`, `with_stencil`, `with_raster`, and `with_blend` provide
-immutable scoped intent. Only state explicitly accepted by
-`Scene3_native_lowering` counts as implemented by the public native renderer.
-Unsupported stencil/raster/programming combinations must fail rather than be
-ignored. Capture and offscreen ownership use the native Canvas/resource path;
+`Scene3.with_depth` and `with_blend` provide immutable scoped intent. Only state
+explicitly accepted by `Scene3_native_lowering` counts as implemented by the public
+native renderer; stencil and raster state have no public constructor until the
+renderer lowers them. Capture and offscreen ownership use the native Canvas/resource path;
 there is no separate public `Framebuffer3` module in the installed library.
 
-See [`3d.md`](./3d.md) for the rendering contract and
-[`3d-parity.md`](./3d-parity.md) for the audited openFrameworks parity matrix.
+See [`3d.md`](./3d.md) for the rendering contract.
 
 ### Packed geometry in `Rdk`
 
@@ -291,7 +288,7 @@ selections preserve the same typed errors while keeping group storage in the
 attribute core and topology paths in the mesh core.
 
 Loop and Catmull-Clark mesh subdivision use the same packed RDK core
-as `Procedural.Sop.subdivide`. The SOP additionally exposes bilinear
+as `Sop.subdivide`. The SOP additionally exposes bilinear
 refinement, recursive depth, all six OpenSubdiv face-varying interpolation
 policies, standard or Smooth Triangles Catmull-Clark masks, groups, and
 Uniform or Chaikin semi-sharp `creaseweight` plus uniformly decayed
@@ -302,11 +299,11 @@ Houdini without materializing an input-sized control field. Houdini-compatible `
 `osd_creasingmethod`, and `osd_trianglesubdiv` detail fields override the
 corresponding node options at the RDK cook boundary without adding a second
 geometry model.
-`Procedural.Sop.crease` is the authoring companion: it adds, sets, or deletes
+`Sop.crease` is the authoring companion: it adds, sets, or deletes
 edge-consistent vertex `creaseweight` values over all edges or a named native
 edge group and can add deterministic endpoint visualization colors before the
 same Subdivide kernel consumes the snapshot.
-`Procedural.Sop.attribute_fade` is the frame-dependent scalar point-field
+`Sop.attribute_fade` is the frame-dependent scalar point-field
 companion for iterative sketches. It multiplies the input field by an explicit
 fade-in/hold/fade-out envelope, defaults missing fade/start/hold-scale values
 to one/zero/one, accepts independently cooked equal-point-count start and hold
@@ -314,7 +311,7 @@ sources, and exposes affine start retiming plus piecewise-linear in/out ramps.
 The node reads `Frame.count` through `Context.Frame`; it does not use wall time,
 global state, or a hidden feedback cache. A point group preserves values
 outside the selection, and visualization writes opaque grayscale point `Cd`.
-`Procedural.Sop.poly_cut` is the curve-breaking companion. A primitive group
+`Sop.poly_cut` is the curve-breaking companion. A primitive group
 restricts source curves and a second name resolves as either a point group or
 native edge group according to the typed element mode. Remove and Cut are
 distinct topology policies; scalar crossings interpolate exact cut endpoints,
@@ -322,7 +319,7 @@ while scalar or tuple change detection emits enough disconnected subsegments
 to respect the requested maximum change. The static graph node delegates all
 cardinality planning, point/vertex payload interpolation, group ancestry, and
 parallel fills to `Rdk.Poly_cut.cut`.
-`Procedural.Sop.separate_pieces` packs integer- or text-identified point or
+`Sop.separate_pieces` packs integer- or text-identified point or
 primitive pieces into stable, non-overlapping projection intervals along an
 arbitrary axis. A float3 translation field is written on the identity owner's
 domain and the Move Back mode subtracts it later. Point identities must remain
@@ -330,19 +327,19 @@ uniform within every primitive, while primitive identities must agree at
 shared points; ambiguous topology is rejected rather than deformed. The node
 is static and delegates all bounds, ownership, overflow, and parallel position
 work to `Rdk.Separate_pieces.run_checked`.
-`Procedural.Sop.edge_equalize` targets the initial average, longest, or
+`Sop.edge_equalize` targets the initial average, longest, or
 shortest length of a named native edge group, or all topology edges when the
 group is omitted. Independent edges are solved directly; connected selections
 use a bounded deterministic RDK projection controlled by `~iterations` and a
 relative `~tolerance`. The node may publish the processed topology-affine
 selection with `~output_group`, and never owns mutable solver state.
-`Procedural.Sop.edge_relax` is the two-input reference-length companion. The
+`Sop.edge_relax` is the two-input reference-length companion. The
 reference must carry exactly the same packed polygon/curve topology. A typed
 point or primitive group selects movable source points, an optional point group
 pins them, and individual or source-mean-normalized target policy controls the
 reference lengths. Iteration, step, tolerance, and shorten-only controls are
 immutable node identity; bounded scratch lives only for the cook.
-`Procedural.Sop.blend_shapes` accepts immutable `Sop.blend_shape` target
+`Sop.blend_shapes` accepts immutable `Sop.blend_shape` target
 descriptors. Normalized mode assigns residual weight to the first input and
 renormalizes positive target totals above one; differencing mode applies a
 stable sum of weighted target-minus-source deltas and permits extrapolation.
@@ -350,7 +347,7 @@ Point groups, source/shape scalar masks, integer/text point-ID matching, and
 Float/Float2/Float3/Float4 point-attribute patterns are exact node identity.
 Missing target IDs and missing blendable target fields contribute the source
 value, so partial targets remain deterministic rather than shifting indices.
-`Procedural.Sop.attribute_composite` folds ordered immutable inputs across
+`Sop.attribute_composite` folds ordered immutable inputs across
 independent detail, primitive, point, and vertex attribute patterns. Mean,
 component-wise Max/Min, and standard ordered Over/Under operations share one
 packed RDK kernel. Every input has a finite global weight; an optional
@@ -358,7 +355,7 @@ same-owner scalar alpha distributes it per element, with missing alpha equal to
 one. Canonical `P` requires explicit `~allow_position:true`, and patterns,
 weights, alpha name, input order, and operation all participate in cache
 identity. The first input remains the topology and untouched-payload owner.
-`Procedural.Sop.attribute_mirror` copies named point, vertex, or primitive
+`Sop.attribute_mirror` copies named point, vertex, or primitive
 attributes across an explicit correspondence. Mapping mode resolves a named
 integer destination-to-source field and destination group at cook time. Plane
 mode reflects point positions, or primitive bounding-box centers, into a packed
@@ -367,7 +364,7 @@ restriction, copied-name patterns, copy/UV/vector/point transforms, literal
 text replacement, pair metadata, and side groups are immutable node identity.
 The node never retains a spatial index or correspondence scratch after its
 immutable output snapshot is committed.
-`Procedural.Sop.rewire_vertices` changes corner-to-point incidence from a
+`Sop.rewire_vertices` changes corner-to-point incidence from a
 scalar integer point, vertex, or primitive field. A typed point/vertex/
 primitive/native-edge selection is promoted first to that field's owner.
 Recursive point chains, target deletion, newly-unused-point cleanup, and a
@@ -375,16 +372,16 @@ vertex original-point provenance field are immutable node identity. Invalid
 targets leave their corners unchanged; cycle members retain their own points.
 All topology mutation, payload compaction, and topology-affine edge-group
 ancestry remain inside the shared RDK core.
-`Procedural.Sop.edge_transport` transports scalar point fields over a stable
+`Sop.edge_transport` transports scalar point fields over a stable
 shortest-path forest. First/last root selection seeds every selected component;
 an explicit named root group performs deterministic multi-source traversal and
 leaves unreachable points unchanged. The operation, root value, constant and
 edge-length integration, direction, forward split, backward branch merge,
 normalization, point group, and root group are all part of immutable cache
-identity. `Procedural.Sop.edge_transport_curves` uses primitive order as an
+identity. `Sop.edge_transport_curves` uses primitive order as an
 O(vertices) curve traversal, supports scalar point or vertex fields and
 forward/backward direction, and rejects cross-curve point aliasing rather than
-allowing scheduling-dependent writes. `Procedural.Sop.edge_transport_parent`
+allowing scheduling-dependent writes. `Sop.edge_transport_parent`
 uses an integer point-parent forest when topology edges are absent; invalid or
 self parents form roots, cycles remain unchanged, and independent trees cook
 in parallel with stable numeric child order.
@@ -401,18 +398,18 @@ Point `N` is an ordinary point-stencil payload by default. The typed
 `recompute_point_normals` option instead replaces an existing input point `N`
 after the complete surface/curve cook with final area-weighted normalized
 normals; it never creates a normal field for an input that lacked point `N`.
-`Procedural.Sop.poly_loft` triangulates an authored sequence of selected open
+`Sop.poly_loft` triangulates an authored sequence of selected open
 or closed polygon curves or polygon faces through the shared packed RDK core.
 It accepts unequal section cardinalities, closest or rest-guided alignment,
 two- and three-distance pairing objectives, U/V wrap, source retention,
 generated-face grouping, explicit collinearity policy, and existing-normal
 regeneration while preserving exact attribute and group ancestry.
-`Procedural.Sop.skin` builds the corresponding linear polygon surface through
+`Sop.skin` builds the corresponding linear polygon surface through
 the same packed core. Equal-cardinality neighbors emit quads in stable section
 order; unequal neighbors retain PolyLoft's deterministic triangle zipper.
 This polygonal single-input contract deliberately excludes spline surfaces and
 bilinear U/V boundary networks.
-`Procedural.Sop.poly_bridge` consumes two named native edge groups from one
+`Sop.poly_bridge` consumes two named native edge groups from one
 input. Each must decompose into the same number of simple open paths or closed
 loops. Components pair in stable authored or centroid-sorted order; reverse
 controls and a closed-loop destination shift refine correspondence. Input
@@ -420,7 +417,7 @@ retention defaults on, and equal/unequal boundaries emit shared-core quads or
 zipper triangles without duplicating boundary points. Positive `divisions`
 adds uniform straight rows to equal-cardinality bridges with linear numeric and
 nearest discrete point/vertex interpolation.
-`Procedural.Sop.poly_reduce` exposes deterministic adaptive QEM reduction over
+`Sop.poly_reduce` exposes deterministic adaptive QEM reduction over
 the same packed RDK geometry. A ratio or absolute polygon target, primitive
 restriction, hard point/native-edge constraints, strict boundary locking,
 original-position mode, equal-length weighting, optional normal-deviation
@@ -428,20 +425,20 @@ limit, and surviving-face group are immutable cache parameters. Polygon
 triangulation, manifold link validation, flip rejection, cancellation, and
 payload/group/native-edge remapping stay below the graph boundary. A constrained
 surface may stop above its requested target rather than violating topology.
-`Procedural.Sop.convex_hull` constructs a lower-dimensional or closed 3D hull
+`Sop.convex_hull` constructs a lower-dimensional or closed 3D hull
 from all points or an explicitly typed point/vertex/primitive/native-edge
 selection. Exact predicates own affine and horizon decisions; immutable
 parameters control point/detail ancestry, a source-point integer field, and an
 all-face group. The output is a free point, endpoint curve, planar polygon, or
 outward triangle surface rather than a fake always-solid placeholder.
-`Procedural.Sop.extract_centroid` emits one free point for the whole detail,
+`Sop.extract_centroid` emits one free point for the whole detail,
 each primitive, or each stable first-occurrence integer/text point or primitive
 piece. Equal-point-mass and bounding-box centers use scale-normalized packed
 reductions; convex-hull centers call the same exact hull kernel and reduce its
 line, planar area, or closed volume. Optional source primitive numbers and
 piece identifiers are point attributes, while source detail attributes remain
 structurally shared.
-`Procedural.Sop.extract_point_from_curve` discards the selected polygon curves
+`Sop.extract_point_from_curve` discards the selected polygon curves
 and emits disconnected points wherever a scalar point field exactly matches or
 linearly crosses a constant, per-primitive scalar attribute, or current cook
 time. Current-time mode alone declares `Context.Time`; constant and authored
@@ -452,21 +449,21 @@ generated point fields expose uniform-edge curve U, per-curve cut count, and
 original primitive number. Plateau vertices and closed seams have explicit
 once-per-curve behavior, and all topology-changing work stays in the shared
 RDK kernel.
-`Procedural.Sop.circle_from_edges` transforms each simple path or loop in a
+`Sop.circle_from_edges` transforms each simple path or loop in a
 named topology-affine edge group, or every topology boundary component when no
 group is named. Best-fit radius is the default; a positive constant radius,
 finite component-wise scale, and output native edge group are immutable cache
 identity. The static node resolves only the group name and delegates component
 planning, normalized covariance/eigensystem fitting, algebraic circle fitting,
 projection, cancellation, validation, and stale-normal handling to RDK.
-`Procedural.Sop.graph_color` resolves an optional typed group, promotes it to
+`Sop.graph_color` resolves an optional typed group, promotes it to
 the point or primitive graph owner, and delegates stable component planning and
 greedy coloring to RDK. Point graphs connect all points in each primitive;
 primitive graphs connect through any shared point or only a shared closed-
 polygon edge. Unselected elements receive `-1`. Optional stable sorting and
 detail integer-array workset begin/length fields are part of immutable node
 identity and remain byte-identical across domain counts.
-`Procedural.Sop.poly_bevel` wraps the single packed RDK bevel kernel. A named
+`Sop.poly_bevel` wraps the single packed RDK bevel kernel. A named
 native edge group or all eligible edges produces chamfered or divided rounded
 fillets; point-float distance scale, flat-edge exclusion, first-ring collision
 limiting, edge/corner primitive groups, and offset native-edge groups are stable
@@ -474,7 +471,7 @@ node parameters. Partial networks split the neighboring ring-face boundary,
 while connected junctions share continuation profiles or emit deterministic
 corner faces. Numeric vertex fields interpolate across profile rows; discrete
 fields and groups retain stable nearest ancestry.
-`Procedural.Sop.point_split` wraps the shared packed point-fan splitter for
+`Sop.point_split` wraps the shared packed point-fan splitter for
 point, vertex, or primitive selections. With no seam pattern, every selected
 corner becomes unique. With ordered include/exclude globs, differing vertex or
 primitive attribute tuples and named vertex/primitive group membership define
@@ -484,7 +481,7 @@ ownership; free points receive the storage type's zero/empty
 default. Original point numbers remain a stable prefix and all point payload,
 groups, and topology-affine native-edge ancestry follow the explicit source
 map.
-`Procedural.Sop.ends` changes closure for selected polygon faces and polygon
+`Sop.ends` changes closure for selected polygon faces and polygon
 curves. Open removes the closing segment; straight close creates a polygon and
 removes a repeated shared endpoint when round-tripping an unroll. Shared-seam
 unroll appends a corner referencing the first point, while new-seam unroll
@@ -493,7 +490,7 @@ group ancestry. Both unroll modes retain the original closing-edge ancestry;
 new straight closing edges remain outside source edge groups. The older
 `curve_ends` entry point remains a curve-only compatibility surface over the
 same packed kernel.
-`Procedural.Sop.duplicate` always retains the complete source as an exact
+`Sop.duplicate` always retains the complete source as an exact
 prefix. Its optional primitive group restricts only the appended copies;
 unreferenced source points are not multiplied. Fixed and ragged payload,
 ordinary and ordered groups, and native-edge membership follow exact
@@ -501,8 +498,8 @@ copy-major ancestry. An optional output-group prefix creates one primitive
 group per appended copy using a one-based suffix. Same-name primitive groups
 are replaced by default or unioned when `preserve_groups` is enabled; group
 count and packed payload have explicit bounds.
-`Procedural.Sop.point_generate_origin` is the no-input origin-cloud form.
-`Procedural.Sop.point_generate` is the connected form: it emits a total expected
+`Sop.point_generate_origin` is the no-input origin-cloud form.
+`Sop.point_generate` is the connected form: it emits a total expected
 count per selected source point (with an optional point-float scale and
 deterministic fractional rounding), or accepts a point-float probability for a
 zero/one decision. Output is source-major and local-index-major. Optional input
@@ -512,7 +509,7 @@ topology-affine edge groups. Ordered copy patterns select every fixed or ragged
 point storage and detail fields independently. The optional generated group
 and integer `sourcepoint`/`sourceindex` fields make ancestry explicit; retained
 points use `-1` when no previous compatible provenance field exists.
-`Procedural.Sop.point_replicate` builds spatial clouds on the same emission
+`Sop.point_replicate` builds spatial clouds on the same emission
 contract. Built-in point, box, sphere-volume, disk-area, and line distributions use
 normalized local coordinates; an optional second custom-shape graph samples
 its points and emits `shapeptnum`. Local center, size, Euler orientation, and
@@ -529,12 +526,12 @@ source frame is singular. Canonical `P` always follows the position path once;
 the default pattern is `P`, preserving copied vector payload unchanged. The
 custom shape remains an ordinary immutable SOP
 input rather than an internal file-loader boundary.
-`Procedural.Sop.delete_attributes` is the attribute removal entry point. Its
+`Sop.delete_attributes` is the attribute removal entry point. Its
 owner-specific patterns can select one literal name or multiple names; the
 editor exposes the same operation as `Delete Attributes`.
-`Procedural.Sop.rename_attributes` applies ordered owner-scoped pattern rules,
+`Sop.rename_attributes` applies ordered owner-scoped pattern rules,
 including a single exact name, with an explicit destination conflict policy.
-`Procedural.Sop.bound` creates a bounding box with its default shape; use
+`Sop.bound` creates a bounding box with its default shape; use
 equal lower and upper padding for symmetric expansion. The editor exposes the
 same operation as `Bound`.
 The checked packed operations are `Rdk.Bound.run_checked`,
@@ -560,15 +557,15 @@ curve ends, joins, path tracing, centroid extraction, and curve-point cuts.
 validation and cancellation boundary around the packed Fuse and grid kernels.
 `Rdk.Plane_clip.clip_checked` and `clip_transform_checked` preserve the same
 typed clipping boundary while exposing only the plane policy and operations.
-`Procedural.Sop.group_rename` applies ordered owner-scoped rename rules with
+`Sop.group_rename` applies ordered owner-scoped rename rules with
 an explicit conflict policy, including the single-group case.
-`Procedural.Sop.group_promotions` uses one ordered rule list for single and
+`Sop.group_promotions` uses one ordered rule list for single and
 multiple group conversions. A rule may emit a group or a named integer mask;
 patterns that match no source group leave the geometry unchanged.
-`Procedural.Sop.promote_attributes` handles one named attribute or a pattern.
+`Sop.promote_attributes` handles one named attribute or a pattern.
 Aligned output and index patterns name promoted values and their contributing
 source indices; same-owner renames work without a piece partition.
-`Procedural.Sop.blast` deletes an existing typed point, vertex, or primitive
+`Sop.blast` deletes an existing typed point, vertex, or primitive
 group (build one with `Sop.group` and a typed `Select`) through the packed
 destroy/heal/compaction contract.
 
@@ -581,26 +578,24 @@ interface inside `Ui.frame`, keep values in the model, and compose
 the pixel-exact design-kit contract.
 
 ```ocaml
-type model = { ui : Pxui.Ui.t; radius : float; palette : int }
+type model = { ui : Pxui.Ui.t; name : string; wire : bool }
 
 let update model frame =
   Pxui.Ui.frame model.ui frame @@ fun ui ->
   Pxui.Ui.panel ui "Look" @@ fun () ->
-  let radius = Pxui.Ui.slider ui "Radius" ~range:(10., 120.) model.radius in
-  let palette = Pxui.Ui.choice ui "Palette" ["ocean"; "sunset"] model.palette in
-  { model with radius; palette }
+  let name = Pxui.Ui.text_field ui "Name" model.name in
+  let wire = Pxui.Ui.toggle ui "Wire" model.wire in
+  { model with name; wire }
 
 let view model _frame = scene_of model @ Pxui.Ui.scene model.ui
 let on_stop model = Pxui.Ui.destroy model.ui
 ```
 
-Kit widgets are `label`, `button`, `toggle`, `slider`, `int_slider`,
-`text_field`, `choice`, `range_slider`, `xy`, and `accordion` inside a
-`panel`. Buttons, toggles, choices, and accordion headers commit on a press
-and release inside the same control; sliders, ranges, and XY pads capture
-the pointer and clamp to their drag range. Double-clicking a slider label
-opens an inline numeric editor (Enter commits even beyond the soft range,
-Escape cancels). `WindowFocusLost` cancels capture, focus, and composition.
+Kit widgets are `label`, `button`, `toggle` and `text_field` inside a
+`panel`, and the inspector rows and `value_field` the editor builds on. Buttons, toggles
+and section headers commit on a press and release inside the same control; a
+field's track captures the pointer. A field opens an inline editor (Enter
+commits valid text, Escape cancels). `WindowFocusLost` cancels capture, focus, and composition.
 Custom widgets are functions over `Ui.box`, `Ui.signal`, and `Ui.draw`;
 layout uses `Px`, `Pct`, `Rel`, `Grow`, `Fit`, and `Text` sizes, `row`/`col`
 nesting, floating `~at` boxes, and canvas `~xform` transforms.
@@ -628,7 +623,7 @@ under 4 points via `Ui.context_clicked`) are the shared overlay widgets.
 ### `Pxui_shell.Inspector`
 
 The dependency-free `param` library (`Editor_core.Param`, also
-`Procedural.Parameter`) owns renderer-neutral typed templates and immutable
+`Sop.Parameter`) owns renderer-neutral typed templates and immutable
 values. `Node.parameterize` attaches a schema, current values, and a pure
 rebuild function to the SOP that owns them. `Pxui_shell.Inspector` builds kit
 rows from any schema, so a SOP node and a plain sketch record share one
@@ -653,9 +648,9 @@ let settings, effects =
 (* a selected SOP node *)
 let node, effects =
   match Pxui_shell.Inspector.fields ui ~expanded:["Geometry"]
-      (Procedural.Node.parameter_fields node) with
-  | [] -> node, Procedural.Parameter.no_effects
-| changes -> Result.get_ok (Procedural.Node.apply_parameters node changes)
+      (Sop.Node.parameter_fields node) with
+  | [] -> node, Sop.Parameter.no_effects
+| changes -> Result.get_ok (Sop.Node.apply_parameters node changes)
 ```
 
 In Rays Editor, `Inspector.flow_fields` renders the rows of the selected node of the
@@ -670,24 +665,24 @@ vec3 controls. It returns typed `flow_change` requests (`Edited`, `Pinned`, `Res
 `effects.export` marks output-only state. Graph edits preserve logical IDs and
 shared subgraphs; the sketch host's `Doc` module applies typed graph edit
 requests, and selected-node changes go through
-`Procedural.Edit_graph.apply_parameters` before compiling the cookable graph.
+`Sop.Edit_graph.apply_parameters` before compiling the cookable graph.
 The host's `Cook` module owns compilation, reactive scheduling, polling, and
 framing work; `Core` composes those results with the workspace UI, and
-`Environment` with the 3D viewport (`Viewport3`) makes it the public `Editor3`.
+`Environment` with the 3D viewport (`Viewport`) makes it the public `Editor`.
 The graph pane is `Pxui_graph.Scope`: a left-to-right canvas over workspace text (polyline wires, zones, editable
 literal rows, typed sockets, live drives written as `t` expressions). `Pxui_graph.Node_menu` is its categorised add
 menu. `Editor_document.Layout_by_path` is the UI-free saved layout shared by the host and canvas. Graph/list/text
 views (the Lisp pane is editable) and the pane's gestures and keys are specified in `flow.md`.
 `rays.pxui_graph` supplies deterministic initial layout,
 persistent tile positions by path, ordered ports and wires, node
-dragging, selection, captured pan, zoom, and framing. `Rays_editor.Editor3.run`
+dragging, selection, captured pan, zoom, and framing. `Rays_editor.Editor.run`
 composes them in a gutter-resizable, independently
 collapsible workspace of panels (view, graph, list, lisp, inspector, outline, timeline) whose
 default is the view/graph/inspector columns at 45/35/20; a workspace's `(graph editor …)` replaces the
 layout (`Editor_core.Panels`, `flow.md` §11.11).
 The workspace defaults to a light viewport background. Every 3D/SOP editor
 shares a Renderer section with Raster, Wireframe and Path traced choices.
-`Editor3.renderer` reads it and `set_renderer` queues a choice for the next
+`Editor.renderer` reads it and `set_renderer` queues a choice for the next
 update. The choice saves with viewport preferences; switching the common
 renderer retains cooked geometry. A sketch's existing renderer setting uses
 the same control and custom renderer. Standalone 2D art drawing paths are separate.
@@ -740,8 +735,8 @@ next key runs a command from the editor keymap, one list of pure-data
 `Editor_core.Command.t` entries (`id`, `label`, optional `trigger`, optional
 `scope`, `guide` contexts, `action`) that drives dispatch, the guide, the panel, and the `/ /` command
 palette. Built-ins carry `Leader.action` payloads the update pipeline handles;
-sketch `?commands` are the same entries whose action is a
-`'prepared t -> 'prepared t` function run after the frame. Command/Ctrl
+there is no host-supplied command seam: a workspace file is the only way to configure an
+editor. Command/Ctrl
 chords, Delete/Backspace, Home, and focus-dependent `F` use that same table;
 `pxui_graph` exports its graph commands as entries without interpreting keys.
 Entries without a trigger appear only in the palette. Global commands always apply; the others
@@ -785,7 +780,7 @@ Copies of an authored call share that ID even when their evaluation sites differ
 These IDs belong to the checked source and may change on reparse; they do not
 change the plan's `(instance, site, iteration)` identities.
 
-`Rays_editor.Workspace.run`, `Workspace.export` and `Editor3.create`/`run`
+`Rays_editor.Workspace.run`, `Workspace.export` and `Editor.create`/`run`
 accept `?inputs`, a list of graph names and named `Flow.Eval.value`
 overrides. Unknown graphs/inputs, duplicate overrides and incompatible values
 produce typed errors before evaluation. Overrides survive source edits and
@@ -875,12 +870,12 @@ error while successful siblings remain visible.
 
 The Lisp pane shows and edits the workspace text (`Rays_editor.Text_pane`: Selection, Graph and
 Document tabs; Check and apply is atomic and one "Edit text" history entry). A sketch is a `.rays` file
-(below); an OCaml host that needs its own code passes a workspace to `Editor3.run ~workspace`, for
+(below); an OCaml host that needs its own code passes a workspace to `Editor.run ~workspace`, for
 example `Rays_editor.Workspace.open_text` over its `sketch.rays` (see `sketches/cube_cage/`, a
 sketch with a node of its own). The catalog manifest `lib/sop_catalog/flow_manifest.sexp` is generated by
 `dune exec tools/flow_manifest.exe` and checked for drift by the `sop_catalog` runtest rule; `dune promote`
 accepts an intended catalog change. Every document is a workspace (`Workspace.load`, `Workspace.open_text`) and saves.
-`Procedural.Node.facts` combines cook mode, element-wise class, component reads/writes,
+`Sop.Node.facts` combines cook mode, element-wise class, component reads/writes,
 topology and exactness. A declaration's `[@@sop.node_facts]` record can depend on
 `parameters`; editing them rebuilds the facts with the cook. `Edit_graph.factory_facts`
 exposes the default declaration, exported through the Lisp manifest and
@@ -943,7 +938,7 @@ underlying input; overlays build before the body and paint last. Modal height
 history retains at most 32 keys. History `Gesture` keys are strings naming the
 operation and target; unrelated commands use `Step`, even during a drag.
 
-Shortcuts, traversal, text selection and slider steps use the held keys at
+Shortcuts, traversal and text selection use the held keys at
 each event. A modifier pressed or released later in the same frame cannot
 change an earlier event. `Ui.key_events` exposes these contexts to custom
 widgets; `Ui.press_keys` retains the keys at a pointer gesture's press through
@@ -953,10 +948,7 @@ editor. Fly movement still samples held keys for its continuous frame step.
 
 PXUI's visible controls are keyboard stops. Tab/Shift-Tab traverse them in
 presentation order and stay inside an open popup; Enter/Space use the same
-click signal as pointer activation. Choices, sliders and XY controls accept
-arrow keys. Sliders also support Home/End and Shift for larger steps; Enter
-opens numeric entry, which accepts values beyond its soft range, and Escape
-cancels. Range controls switch handles with Enter/Space. `Ui.tab_stop` gives
+click signal as pointer activation. `Ui.tab_stop` gives
 custom buttons the same traversal while retaining host shortcuts after
 pointer use; Escape returns keyboard control to the host. Collapse, graph
 VIEW/ACTIVE, and menu buttons use it. The Router yields unbound Tab and all
@@ -965,7 +957,7 @@ opening the leader. Existing tree indentation bindings remain available while
 the tree owns keys. Wheel camera control uses the event's pointer position,
 so a later pane crossing in the same frame cannot discard an owned wheel.
 
-`Editor3` keeps camera objects (operation `camera`) in the scene: a
+`Editor` keeps camera objects (operation `camera`) in the scene: a
 default one following the viewport is added to a scene without one, exactly
 one is ACTIVE (tile button or context menu), and
 `render_camera` drives look-through, PNG export, and sketch renderers such as
@@ -986,7 +978,7 @@ optional `(layout ...)` by path, `(settings ...)` and `(view ...)` forms
 (`specification/flow.md` §4.4). Loading checks and lowers the source into one
 geometry object per `sop` graph and is one undo entry; there is no older
 format. Every document is a workspace (`~workspace` of
-`Editor3.create`); `Editor3.edit` applies a `Flow_graph.Flow_edit.op` as one
+`Editor.create`); `Editor.edit` applies a `Flow_graph.Flow_edit.op` as one
 history entry named by the op). Scene and World edits made through the list, the inspector, the handles or the
 World keys are written back to the text in the same frame (`Editor_document.Scene_sync`), so Save round-trips them;
 `create ?await` makes each frame block on the cook it submits (a fixed-step run, a test); the crash report writes `document.txt` (a text
@@ -1002,9 +994,9 @@ represent empty networks.
 `rays-lisp check|ml|dune|fmt FILE` (`tools/lisp`) checks it with the editor's catalog (a typo fails
 `dune build` at the `.rays` line), generates `main.ml` (the text embedded, its SHA-256 as `digest`) and
 the stanzas of `sketches/dune.rays.inc` (checked in: `dune build @runtest; dune promote` after adding a
-sketch; `dune exec tools/new_example.exe -- --lisp <name>` scaffolds one). The generated program is
+sketch; `dune exec tools/new_example.exe -- --sketch <name>` scaffolds one). The generated program is
 `Rays_editor.Workspace.main ~path ~digest ~catalog text`; OCaml hosts call `Workspace.load` to parse
-and check, then compose `Editor3` with the resulting document. The generated entry point opens the
+and check, then compose `Editor` with the resulting document. The generated entry point opens the
 window from the `settings` graph, with the viewport starting at the scene's first camera. A scene
 graph is authoritative: it replaces the host's camera and lights, and an empty one means none.
 
@@ -1047,7 +1039,7 @@ does not reload. There is no three-way merge and no file-system events (`ponytai
 
 ### Boolean fracture pieces
 
-`Procedural.Sop.boolean_fracture` subtracts zero-volume cutter surfaces from an
+`Sop.boolean_fracture` subtracts zero-volume cutter surfaces from an
 oriented solid through the shared exact Boolean arrangement. Its primitive
 integer `piece` attribute comes from the oriented Weiler cell bounded by each
 output face. Seam points remain shared in the cooked geometry: membership, not
@@ -1070,7 +1062,7 @@ desktop output. Setting
 deterministic functions of the positive timestep and frame count. This mode is
 intended for repeatable simulation, tests, and offline frame export.
 
-Expensive procedural sketches use `Procedural.Async_cook`: submit immutable
+Expensive procedural sketches use `Sop.Async_cook`: submit immutable
 graph/context/preparation requests after parameter commit, poll once per frame,
 keep the previous successful snapshot interactive, and show the reported cook
 elapsed time in the overlay. The queue is bounded to the active request plus
@@ -1187,8 +1179,8 @@ A proposed high-level feature should demonstrate:
 
 Workspace surface assignment is described in [workspace/materials.md](workspace/materials.md).
 `Flow.Context.material` and `Flow.Ty.material` type reusable material graphs;
-`Procedural.Sop.material` assigns them to primitive groups, and the generic
-`.rays` host uses `Sketch_support.Surface` for material batches and explosion.
+`Sop.material` assigns them to primitive groups, and the generic
+`.rays` host uses `Rays_editor.Surface` for material batches and explosion.
 
 `Sketch.run_state` accepts `?after_present`, called with the current model and
 frame after `Scene.render`. It returns the model used on the next frame and

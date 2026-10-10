@@ -151,7 +151,8 @@ let map_children f x = match x.node with
   | Map xs -> {x with node = Map (map_seq f xs)}
   | _ -> x
 
-let expand ?(state = state ()) macros x =
+let expand macros x =
+  let state = state () in
   let tbl = table macros in
   let rec go depth x =
     if inert x then x else match call_of tbl x with

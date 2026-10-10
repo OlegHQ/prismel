@@ -11,7 +11,7 @@ let () =
     |> List.filter (fun name -> Filename.check_suffix name ".lisp" || name = "import.rays")
     |> List.map (Filename.concat fixtures) in
   if List.length fixtures < 12 then failwith "missing generated workspace fixtures";
-  let custom = ["examples/sop_gallery/gallery.rays"; "sketches/voxel_wall/sketch.rays"] in
+  let custom = ["sketches/voxel_wall/sketch.rays"] in
   let count = ref 0 in
   List.iter (fun path ->
     let name = String.sub path (String.length root + 1) (String.length path - String.length root - 1) in

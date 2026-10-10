@@ -2,15 +2,15 @@
    same frame changes, undo agrees with the document, a changed graph with the same prepared
    value is drawn again, and one pointer drag is one undo entry. *)
 open Rays
-open Procedural
-module E = Rays_editor.Editor3
+open Sop
+module E = Rays_editor.Editor
 module S = Flow.Syntax
 
 let check condition message = if not condition then failwith message
 
-let rec source ~label ~inputs:_ value =
+let rec source ~label:_ ~inputs:_ value =
   Node.parameterize ~schema:Test_editor_commands.schema ~values:value ~rebuild:source
-    (Sop.points ~label [|float value, 0., 0.|])
+    (Lisp_sop.snapshot (Rdk.Line_geometry.points [|float value, 0., 0.|]))
 
 let factory = Edit_graph.factory ~key:"test_source" ~label:"Test source" ~category:["Test"]
     ~fields:(Editor_core.Param.view Test_editor_commands.schema 0) ~arity:0 (fun _ -> source ~label:"test_source" ~inputs:[] 0)

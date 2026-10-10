@@ -49,10 +49,19 @@ dune exec tools/codemod/codemod.exe -- prune lib/<name> [lib/<other> ...]
   `codemod.exe -- drop-c-unused lib/metal` (clang's unused-function errors as
   the oracle); unused registry entries are dropped during `prune`.
 
+- `codemod.exe -- split-modules [--dry-run | --interfaces] FILE.ml` splits a file that is a sequence of
+  top-level `module X = struct ... end` into one `x.ml` per module (bodies and the comments
+  before each module move byte for byte) and leaves `module X = X` re-exports in `FILE.ml`, so no
+  caller changes. Add the new files to the dune `modules` field, then remove the `open`s the build
+  reports unused (the leading opens are copied everywhere). The `.mli` stays the one public
+  signature, because a sibling may use values the signature hides; `--interfaces` also splits the
+  `.mli` into `x.mli` when they do not. A module naming a sibling defined after it (a capture by
+  name) is refused. `split-modules --self-test` runs in `runtest`.
+
 ## Rules
 
 - Only prune libraries whose exports are internal. For user-facing APIs
-  (`rays`, `pxui`, `procedural`, `rays_pathtracer`, `rays_editor`,
+  (`rays`, `pxui`, `sop`, `rays_pathtracer`, `rays_editor`,
   `rays_math`) list with `dead-exports` and decide by hand: unused is not
   unwanted there.
 - Unused `let x = e in` locals are deleted; check the printed `26 ...` lines

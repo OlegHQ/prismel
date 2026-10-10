@@ -120,9 +120,6 @@ let rec init_array ?(grain = 64) length init =
               (fun index -> output.(index) <- init index));
         output
 
-let map ?(grain = 64) f values =
-  Array.of_list values |> map_array ~grain f |> Array.to_list
-
 let rec for_ ?(chunk_size = 64) ~start ~finish body =
   if chunk_size <= 0 then invalid_arg "Parallel.for_: chunk_size must be positive";
   if finish < start then ()

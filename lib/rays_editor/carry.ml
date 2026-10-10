@@ -5,7 +5,7 @@
    is no list of what a widget accepts: [put] runs the edit (the one the inspector or the
    graph already writes) and the document's own check, and its result is the preview, the
    refusal's reason and the write.  See specification/flow.md, "Carry". *)
-open Procedural
+open Sop
 open Editor_document
 
 module W = Flow.Workspace

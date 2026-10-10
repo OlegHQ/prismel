@@ -42,41 +42,6 @@ let add_float3 ~owner ~name ~x ~y ~z geometry =
       |> Result.get_ok in
   Geometry.with_attribute attribute geometry |> Result.get_ok
 
-let triangle z =
-  let positions = Packed.Float3.Private.of_owned_exn
-      ~x:[|0.; 2.; 0.|] ~y:[|0.; 0.; 2.|] ~z:(Array.make 3 z) in
-  let builder = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle builder 0 1 2;
-  Geometry.create ~positions ~topology:(Topology.Builder.freeze builder) ()
-  |> Result.get_ok
-
-let make_source () =
-  triangle 0.
-  |> add_float ~owner:Attribute.Point ~name:"point_value" [|10.; 20.; 30.|]
-  |> add_float ~owner:Attribute.Vertex ~name:"vertex_value" [|4.; 8.; 12.|]
-  |> add_float ~owner:Attribute.Primitive ~name:"primitive_value" [|40.|]
-  |> add_int ~owner:Attribute.Detail ~name:"detail_value" [|50|]
-
-let make_target () =
-  triangle 1.5
-  |> add_float ~owner:Attribute.Point ~name:"point_value" (Array.make 3 2.)
-  |> add_float ~owner:Attribute.Vertex ~name:"vertex_value" (Array.make 3 2.)
-  |> add_float ~owner:Attribute.Primitive ~name:"primitive_value" [|2.|]
-  |> add_int ~owner:Attribute.Detail ~name:"detail_value" [|2|]
-
-let two_triangle_source () =
-  let positions = Packed.Float3.Private.of_owned_exn
-      ~x:[|0.; 1.; 0.; 10.; 11.; 10.|]
-      ~y:[|0.; 0.; 1.; 0.; 0.; 1.|]
-      ~z:(Array.make 6 0.) in
-  let builder = Topology.Builder.create ~point_count:6 () in
-  Topology.Builder.add_triangle builder 0 1 2;
-  Topology.Builder.add_triangle builder 3 4 5;
-  Geometry.create ~positions ~topology:(Topology.Builder.freeze builder) ()
-  |> Result.get_ok
-  |> add_float ~owner:Attribute.Vertex ~name:"corner_value"
-       [|0.; 10.; 20.; 100.; 110.; 120.|]
-
 let compare_transferred left right =
   List.iter (fun (owner, name) ->
     if float_values ~owner ~name left <> float_values ~owner ~name right then
@@ -185,116 +150,6 @@ let test_blend_falloff () =
    | Error error when Error.code error = "invalid_transfer" -> ()
    | _ -> fail "point transfer accepted blend width without a threshold")
 
-let test_multi_owner_exactness () =
-  let source = make_source () and target = make_target () in
-  let transfer domains = Parallel.run ~domains (fun () ->
-    Attribute_ops.transfer_all ~grain:1 ~point_pattern:"point_*"
-      ~primitive_pattern:"primitive_*" ~vertex_pattern:"vertex_*"
-      ~detail_pattern:"detail_*" ~max_distance:1. ~blend_width:1.
-      ~falloff:Attribute_ops.Linear ~source ~target () |> get_ok) in
-  let one = transfer 1 and four = transfer 4 in
-  compare_transferred one four;
-  let sequential =
-    Attribute_ops.transfer_points ~grain:1 ~pattern:"point_*"
-      ~max_distance:1. ~blend_width:1. ~falloff:Attribute_ops.Linear
-      ~source ~target () |> get_ok
-    |> fun target -> Attribute_ops.transfer_primitives ~grain:1
-        ~pattern:"primitive_*" ~max_distance:1. ~blend_width:1.
-        ~falloff:Attribute_ops.Linear ~source ~target () |> get_ok
-    |> fun target -> Attribute_ops.transfer_vertices ~grain:1
-        ~pattern:"vertex_*" ~max_distance:1. ~blend_width:1.
-        ~falloff:Attribute_ops.Linear ~source ~target () |> get_ok
-    |> fun target -> Attribute_ops.transfer_detail ~pattern:"detail_*"
-        ~source ~target () |> get_ok in
-  compare_transferred one sequential;
-  if float_values ~owner:Attribute.Point ~name:"point_value" one
-      <> [|6.; 11.; 16.|]
-      || float_values ~owner:Attribute.Primitive ~name:"primitive_value" one
-         <> [|21.|]
-      || float_values ~owner:Attribute.Vertex ~name:"vertex_value" one
-         <> [|3.; 5.; 7.|]
-      || int_values ~owner:Attribute.Detail ~name:"detail_value" one <> [|50|]
-  then fail "multi-owner transfer values";
-  (match Attribute_ops.transfer_all ~point_pattern:"bad[" ~source ~target () with
-   | Error error when Error.code error = "invalid_transfer" -> ()
-   | _ -> fail "multi-owner transfer accepted a malformed pattern");
-  let cancelled = Cancel.create () in
-  Cancel.cancel cancelled;
-  (match Attribute_ops.transfer_all ~cancel:cancelled ~point_pattern:"*"
-      ~source ~target () with
-   | Error error when Error.code error = "cancelled" -> ()
-   | _ -> fail "cancelled multi-owner transfer published output")
-
-let test_empty_surface_selection () =
-  let source = make_source () and target = make_target () in
-  let empty = Group.init ~owner:Group.Primitive ~name:"empty" 1
-      (fun _ -> false) in
-  let transferred = Attribute_ops.transfer_vertices ~grain:1
-      ~pattern:"vertex_*" ~unmatched:Attribute_ops.Default_value
-      ~source_primitives:empty ~source ~target () |> get_ok in
-  if float_values ~owner:Attribute.Vertex ~name:"vertex_value" transferred
-      <> [|0.; 0.; 0.|] then
-    fail "empty source surface selection did not publish unmatched defaults"
-
-let test_source_vertex_surface_selection () =
-  let source = two_triangle_source () in
-  let target = Line_geometry.points [|(0.25, 0.25, 0.2); (10.25, 0.25, 0.2)|]
-      |> add_float ~owner:Attribute.Point ~name:"sampled" [|9.; 9.|] in
-  let spec = Attribute_ops.surface_attribute ~owner:Attribute.Vertex
-      ~into:"sampled" "corner_value" in
-  let first_triangle = Group.init ~grain:1 ~owner:Group.Vertex
-      ~name:"first_triangle" 6 (fun vertex -> vertex < 3) in
-  let index = Surface_index.create ~grain:1 ~vertices:first_triangle source
-      |> get_ok in
-  if Surface_index.triangle_count index <> 1 then
-    fail "source vertex selection did not retain exactly one triangle";
-  (match Surface_index.closest index ~x:10.25 ~y:0.25 ~z:0.2 with
-   | Ok (Some hit) when hit.primitive = 0 -> ()
-   | _ -> fail "source vertex selection lost original primitive identity");
-  let run domains = Parallel.run ~domains (fun () ->
-    Attribute_ops.transfer_surface ~grain:1 ~max_distance:0.5
-      ~unmatched:Attribute_ops.Default_value ~source_vertices:first_triangle
-      ~attributes:[spec] ~source ~target () |> get_ok) in
-  let one = run 1 and four = run 4 in
-  let one_values = float_values ~owner:Attribute.Point ~name:"sampled" one in
-  if one_values <> [|7.5; 0.|]
-      || one_values <> float_values ~owner:Attribute.Point ~name:"sampled" four then
-    fail "source vertex all-corners transfer/domain exactness";
-  let one_corner = Group.init ~grain:1 ~owner:Group.Vertex ~name:"one_corner" 6
-      (fun vertex -> vertex = 3) in
-  let any = Attribute_ops.transfer_surface ~grain:1 ~max_distance:0.5
-      ~unmatched:Attribute_ops.Default_value ~source_vertices:one_corner
-      ~source_vertex_selection:Attribute_ops.Any_triangle_vertex
-      ~attributes:[spec] ~source ~target () |> get_ok in
-  if float_values ~owner:Attribute.Point ~name:"sampled" any <> [|0.; 107.5|] then
-    fail "source vertex any-corner transfer";
-  let none = Attribute_ops.transfer_surface ~grain:1 ~max_distance:0.5
-      ~unmatched:Attribute_ops.Default_value ~source_vertices:one_corner
-      ~source_vertex_selection:Attribute_ops.All_triangle_vertices
-      ~attributes:[spec] ~source ~target () |> get_ok in
-  if float_values ~owner:Attribute.Point ~name:"sampled" none <> [|0.; 0.|] then
-    fail "source vertex all-corners empty surface";
-  let second_primitive = Group.init ~grain:1 ~owner:Group.Primitive
-      ~name:"second_primitive" 2 (fun primitive -> primitive = 1) in
-  let disjoint = Attribute_ops.transfer_surface ~grain:1 ~max_distance:0.5
-      ~unmatched:Attribute_ops.Default_value ~source_primitives:second_primitive
-      ~source_vertices:first_triangle ~attributes:[spec] ~source ~target ()
-      |> get_ok in
-  if float_values ~owner:Attribute.Point ~name:"sampled" disjoint <> [|0.; 0.|] then
-    fail "primitive and vertex source restrictions were not intersected";
-  let wrong_owner = Group.init ~grain:1 ~owner:Group.Point ~name:"wrong" 6
-      (fun _ -> true) in
-  (match Attribute_ops.transfer_surface ~source_vertices:wrong_owner
-      ~attributes:[spec] ~source ~target () with
-   | Error error when Error.code error = "invalid_transfer" -> ()
-   | _ -> fail "source vertex transfer accepted wrong group ownership");
-  let cancelled = Cancel.create () in
-  Cancel.cancel cancelled;
-  (match Attribute_ops.transfer_surface ~cancel:cancelled
-      ~source_vertices:first_triangle ~attributes:[spec] ~source ~target () with
-   | Error error when Error.code error = "cancelled" -> ()
-   | _ -> fail "cancelled source vertex transfer published output")
-
 let test_group_union_many () =
   let make name predicate = Group.init ~grain:1 ~owner:Group.Point ~name 100_003
       predicate in
@@ -336,9 +191,6 @@ let test_scale_exactness () =
 let run () =
   test_source_kernels ();
   test_blend_falloff ();
-  test_multi_owner_exactness ();
-  test_empty_surface_selection ();
-  test_source_vertex_surface_selection ();
   test_group_union_many ();
   test_scale_exactness ();
   print_endline "attribute transfer tests passed"

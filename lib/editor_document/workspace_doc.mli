@@ -36,7 +36,6 @@ type t = {
 val import_paths : string -> (string list, Flow.Diagnostic.t list) result
 val import_texts : t -> (string * string) list
 val imported_file : t -> Flow.Workspace.path -> string option
-val authored_source : t -> Flow.Syntax.t list
 
 val name : t -> string
 

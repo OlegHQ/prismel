@@ -30,7 +30,7 @@ Lowering carries material values into the assignment's numeric parameters;
 there is no mutable material registry and no renderer dependency in Flow or
 the geometry libraries. Editing a referenced graph changes the cook key.
 
-The generic `.rays` host prepares `Sketch_support.Surface`. It groups
+The generic `.rays` host prepares `Rays_editor.Surface`. It groups
 triangles by surface properties, shares their mesh planes, and applies the
 same surfaces in raster and path-traced modes. Raster uses
 Blinn–Phong shininess derived from roughness; tracing maps it back to

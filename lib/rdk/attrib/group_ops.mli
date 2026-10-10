@@ -23,24 +23,6 @@ and promotion_rule = {
   promotion_output_as_attribute : bool;
   promotion_operation : promote_operation;
 }
-val promotion_rule :
-  ?new_name:string ->
-  ?keep_original:bool ->
-  ?output_as_attribute:bool ->
-  ?mode:promote_mode ->
-  source:owner ->
-  destination:owner -> pattern:string -> unit -> promotion_rule
-val boundary_promotion_rule :
-  ?new_name:string ->
-  ?keep_original:bool ->
-  ?output_as_attribute:bool ->
-  ?attributes:boundary_attribute list ->
-  ?tolerance:float ->
-  ?include_unshared_edges:bool ->
-  ?include_all_unshared_curve_edges:bool ->
-  ?include_all_primitives_sharing_boundary_points:bool ->
-  source:owner ->
-  destination:owner -> pattern:string -> unit -> promotion_rule
 type primitive_connectivity = Primitive_share_points | Primitive_share_edges
 type expand_normal_attribute = {
   expand_normal_owner : Rdk_core.Attribute.owner;
@@ -88,11 +70,6 @@ type range_rule = {
   range_specification : range;
 }
 val range_rule :
-  ?base:string ->
-  ?invert:bool ->
-  ?filter:range_filter ->
-  ?connectivity:range_connectivity ->
-  ?merge:boolean_operation ->
   owner:owner -> name:string -> range -> range_rule
 type rename_conflict =
     Rename_skip
@@ -172,11 +149,6 @@ type group_store = {
   mutable dirty : bool;
 }
 
-val promote :
-  ?cancel:Rdk_core.Cancel.t -> ?grain:int -> ?name:string ->
-  ?keep_original:bool -> ?output_attribute:string -> ?mode:promote_mode ->
-  source:owner -> destination:owner -> group:string ->
-  Rdk_core.Geometry.t -> (Rdk_core.Geometry.t, Rdk_core.Error.t) result
 val expand :
   ?cancel:Rdk_core.Cancel.t -> ?grain:int -> ?name:string -> ?steps:int ->
   ?flood:bool -> ?step_attribute:string ->

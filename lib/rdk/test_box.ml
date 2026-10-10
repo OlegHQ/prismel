@@ -188,34 +188,6 @@ let check_point_modes () =
       && point.x.(59) = 2. && point.y.(59) = 3.5 && point.z.(59) = 5.)
     "Box volume-lattice points/order"
 
-let check_transform_and_rotation_order () =
-  let transformed = Box_generator.box ~connectivity:Box_generator.Box_quads
-      ~center:(Vec3.create 4. 5. 6.)
-      ~rotation:(Vec3.create 0. 0. (Float.pi *. 0.5))
-      ~uniform_scale:0.5 ~size:(Vec3.create 2. 4. 6.) () |> get_ok
-      |> Analysis.bounds |> Option.get in
-  check (near transformed.center.x 4. && near transformed.center.y 5.
-      && near transformed.center.z 6. && near transformed.size.x 2.
-      && near transformed.size.y 1. && near transformed.size.z 3.)
-    "Box center/rotation/uniform-scale bounds";
-  let rotation = Vec3.create 0.3 0.5 0.7 in
-  let first order = Box_generator.box ~connectivity:Box_generator.Box_surface_points
-      ~rotation ~rotation_order:order ~size:(Vec3.create 2. 4. 6.) ()
-      |> get_ok |> positions |> fun values ->
-      Vec3.create values.x.(0) values.y.(0) values.z.(0) in
-  let source = Vec3.create 1. (-2.) (-3.) in
-  let expected = Mat4.mul (Mat4.rotation_z rotation.z)
-      (Mat4.mul (Mat4.rotation_y rotation.y) (Mat4.rotation_x rotation.x))
-      |> fun matrix -> Mat4.transform_point matrix source in
-  let actual = first Box_generator.Box_xyz in
-  check (near actual.x expected.x && near actual.y expected.y
-      && near actual.z expected.z)
-    "Box XYZ rotation order";
-  let other = first Box_generator.Box_zyx in
-  check (not (near actual.x other.x && near actual.y other.y
-      && near actual.z other.z))
-    "Box rotation orders collapsed to one order"
-
 let check_validation () =
   let size = Vec3.create 1. 1. 1. in
   expect_code "invalid_parameter" (Box_generator.box ~grain:0 ~size ());
@@ -284,7 +256,6 @@ let run () =
   check_default_compatibility ();
   check_divisions_connectivity_and_groups ();
   check_point_modes ();
-  check_transform_and_rotation_order ();
   check_validation ();
   check_parallel_exact ();
   print_endline "box tests passed"

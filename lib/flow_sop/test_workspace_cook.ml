@@ -8,6 +8,9 @@ let check condition message = if not condition then fail message
 let read path = In_channel.with_open_bin path In_channel.input_all
 let cases = "../specification/workspace/cases"
 let factories = Sop_catalog.Editor.factories
+let merge nodes =
+  let with_ = List.mapi (fun i n -> Printf.sprintf "i%d" i, n) nodes in
+  Lisp_sop.node ~with_ ("(sop/merge " ^ String.concat " " (List.map (fun (k, _) -> "(sop/ext_" ^ k ^ ")") with_) ^ ")")
 
 let () =
   let catalog = Result.get_ok (Editor_document.Contexts.catalog ~version:Manifest.version factories) in
@@ -21,13 +24,13 @@ let () =
     ("image/noise projects " ^ name)) ["width";"height";"frequency";"seed"];
   let lowered = Lower.of_checked ~factories checked |> Result.get_ok in
   let graph = List.hd lowered.graphs in
-  let node = Procedural.Edit_graph.compile_node graph.network.geometry ~node_id:(Option.get graph.root) |> Result.get_ok in
-  let session = Procedural.Session.create ~max_entries:16 ~max_payload_bytes:65536 |> Result.get_ok in
-  Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
-    let context = Procedural.Context.create ~domains:8 ~grain:17 () |> Result.get_ok in
-    let image = Procedural.Session.cook session ~context node |> Result.get_ok
-      |> fun output -> Procedural.Payload.image output.payload |> Result.get_ok in
-    check (Procedural.Image.width image = 17 && Procedural.Image.height image = 9) "Lisp image/noise cooked dimensions");
+  let node = Sop.Edit_graph.compile_node graph.network.geometry ~node_id:(Option.get graph.root) |> Result.get_ok in
+  let session = Sop.Session.create ~max_entries:16 ~max_payload_bytes:65536 |> Result.get_ok in
+  Fun.protect ~finally:(fun () -> Sop.Session.close session) (fun () ->
+    let context = Sop.Context.create ~domains:8 ~grain:17 () |> Result.get_ok in
+    let image = Sop.Session.cook session ~context node |> Result.get_ok
+      |> fun output -> Sop.Payload.image output.payload |> Result.get_ok in
+    check (Sop.Image.width image = 17 && Sop.Image.height image = 9) "Lisp image/noise cooked dimensions");
   let changed = Flow_edit.apply catalog forms (Flow_edit.Set_arg {
     node=["g";"img"];key=Flow_edit.Kw "width";sub=[];
     value=Flow.Syntax.parse "19" |> Result.get_ok |> List.hd}) in
@@ -65,27 +68,27 @@ let cook ~domains (graph : Lower.graph) =
   match graph.root with
   | None -> None
   | Some root ->
-      let compiled = match Procedural.Edit_graph.compile_node
+      let compiled = match Sop.Edit_graph.compile_node
           graph.network.geometry ~node_id:root with
         | Ok compiled -> compiled | Error message -> fail message in
-      let context = match Procedural.Context.create ~domains ~grain:97 ~seed:42L () with
+      let context = match Sop.Context.create ~domains ~grain:97 ~seed:42L () with
         | Ok context -> context | Error message -> fail message in
-      let session = Procedural.Session.create ~max_entries:512
+      let session = Sop.Session.create ~max_entries:512
           ~max_payload_bytes:(256 * 1024 * 1024) |> Result.get_ok in
-      Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
-        match Procedural.Session.cook session ~context compiled with
-        | Ok output -> Some (Result.get_ok (Procedural.Payload.geometry output.payload))
-        | Error error -> fail (Procedural.Diagnostic.error_to_string error))
+      Fun.protect ~finally:(fun () -> Sop.Session.close session) (fun () ->
+        match Sop.Session.cook session ~context compiled with
+        | Ok output -> Some (Result.get_ok (Sop.Payload.geometry output.payload))
+        | Error error -> fail (Sop.Diagnostic.error_to_string error))
 
 let fixtures = ["bloom"; "facade"; "garland"; "kit"; "orrery"; "rosette";
   "sunflower"; "tiles"; "tree"; "tunnel"; "variations"; "wave"]
 
 let nodes (graph : Lower.graph) =
-  List.length (Procedural.Edit_graph.inspect graph.network.geometry)
+  List.length (Sop.Edit_graph.inspect graph.network.geometry)
 
 let operations (graph : Lower.graph) operation =
-  List.length (List.filter (fun (n : Procedural.Edit_graph.node_info) ->
-    n.operation = operation) (Procedural.Edit_graph.inspect graph.network.geometry))
+  List.length (List.filter (fun (n : Sop.Edit_graph.node_info) ->
+    n.operation = operation) (Sop.Edit_graph.inspect graph.network.geometry))
 
 (* register L16: a skipped iteration makes no node; the others keep compiled ids, plan keys and
    provenance, so the cook keeps hitting its cache *)
@@ -118,11 +121,11 @@ let skips () =
   check (bytes some <> bytes all) "a skipped loop cooked like the whole"
 
 let optional_rest () =
-  let module Edit=Procedural.Edit_graph in
+  let module Edit=Sop.Edit_graph in
   let factory=Edit.factory_slots ~key:"rest_fixture" ~operation:"merge" ~label:"Rest fixture"
     ~category:["Test"] ~slots:["base";"fixed";"extras"]
     ~inputs:[Required;Optional;Optional_rest]
-    (fun inputs -> Procedural.Sop.merge (List.filter_map Fun.id inputs)) in
+    (fun inputs -> merge (List.filter_map Fun.id inputs)) in
   let factories=factory::factories in
   let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
   let manifest,_=Manifest.generate factories |> Result.get_ok in
@@ -138,13 +141,13 @@ let optional_rest () =
       | Some (lowered : Lower.t) -> lowered.compiled_ids,lowered.sites in
     match Lower.workspace ~factories ~compiled_ids ~sites forms with
       | Ok lowered -> lowered | Error diagnostic -> fail (Flow.Diagnostic.to_string diagnostic) in
-  let a=Procedural.Sop.box () and b=Procedural.Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
+  let a=Lisp_sop.node {|(sop/box)|} and b=Lisp_sop.node {|(sop/box :center [2.0 0.0 0.0])|} in
   let cook_node nodes=
-    let context=Procedural.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
-    let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
-    Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
-      match Procedural.Session.cook session ~context (Procedural.Sop.merge nodes) with
-        | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload)) | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
+    let context=Sop.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
+    let session=Sop.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
+    Fun.protect ~finally:(fun () -> Sop.Session.close session) (fun () ->
+      match Sop.Session.cook session ~context (merge nodes) with
+        | Ok output -> (Result.get_ok (Sop.Payload.geometry output.payload)) | Error error -> fail (Sop.Diagnostic.error_to_string error)) in
   List.iter (fun (result,nodes) ->
     let lowered=lower_text (source result) in
     let graph=List.hd lowered.graphs in
@@ -193,15 +196,15 @@ let optional_rest () =
 let attribute_composite () =
   let source result=Printf.sprintf
     "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/box :center [2 0 0]) r %s] r)))" result in
-  let a=Procedural.Sop.box () and b=Procedural.Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
-  let expected=Procedural.Sop.attribute_composite ~allow_position:true ~weight2:0.5 ~weights:"0.2\n0.3"
-    a None (Some b) None None [b;a] in
-  let context=Procedural.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
-  let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
-  let expected=Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
-    match Procedural.Session.cook session ~context expected with
-    | Ok output -> geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload))
-    | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
+  let a=Lisp_sop.node {|(sop/box)|} and b=Lisp_sop.node {|(sop/box :center [2.0 0.0 0.0])|} in
+  let expected=Lisp_sop.node ~with_:["a",a;"b",b]
+    {|(sop/attribute_composite (sop/ext_a) nil (sop/ext_b) nil nil (sop/ext_b) (sop/ext_a) :allow_position true :weight2 0.5 :weights "0.2\n0.3")|} in
+  let context=Sop.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
+  let session=Sop.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
+  let expected=Fun.protect ~finally:(fun () -> Sop.Session.close session) (fun () ->
+    match Sop.Session.cook session ~context expected with
+    | Ok output -> geometry_bytes (Result.get_ok (Sop.Payload.geometry output.payload))
+    | Error error -> fail (Sop.Diagnostic.error_to_string error)) in
   let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
   List.iter (fun result ->
     let forms=Flow.Syntax.parse (source result) |> Result.get_ok in
@@ -249,16 +252,16 @@ let switch () =
 let blend_shapes () =
   let source result=Printf.sprintf
     "(workspace w (graph g :context sop (let* [a (sop/box) b (sop/box :center [2 0 0]) c (sop/box :center [4 0 0]) r %s] r)))" result in
-  let a=Procedural.Sop.box () and b=Procedural.Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) ()
-  and c=Procedural.Sop.box ~center:(Rays_math.Vec3.create 4. 0. 0.) () in
-  let expected=Procedural.Sop.blend_shapes ~weight2:0.5 ~weights:"0.2\n0.3" ~shape_masks:"5\tother_mask\tshape"
-    a None (Some b) None None [c;a] in
-  let context=Procedural.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
-  let session=Procedural.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
-  let expected=Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
-    match Procedural.Session.cook session ~context expected with
-    | Ok output -> geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload))
-    | Error error -> fail (Procedural.Diagnostic.error_to_string error)) in
+  let a=Lisp_sop.node {|(sop/box)|} and b=Lisp_sop.node {|(sop/box :center [2.0 0.0 0.0])|}
+  and c=Lisp_sop.node {|(sop/box :center [4.0 0.0 0.0])|} in
+  let expected=Lisp_sop.node ~with_:["a",a;"b",b;"c",c]
+    {|(sop/blend_shapes (sop/ext_a) nil (sop/ext_b) nil nil (sop/ext_c) (sop/ext_a) :weight2 0.5 :weights "0.2\n0.3" :shape_masks "5\tother_mask\tshape")|} in
+  let context=Sop.Context.create ~domains:1 ~seed:42L () |> Result.get_ok in
+  let session=Sop.Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
+  let expected=Fun.protect ~finally:(fun () -> Sop.Session.close session) (fun () ->
+    match Sop.Session.cook session ~context expected with
+    | Ok output -> geometry_bytes (Result.get_ok (Sop.Payload.geometry output.payload))
+    | Error error -> fail (Sop.Diagnostic.error_to_string error)) in
   let catalog=Catalog.of_factories ~version:1 factories |> Result.get_ok in
   List.iter (fun result ->
     let forms=Flow.Syntax.parse (source result) |> Result.get_ok in
@@ -369,16 +372,16 @@ let run () =
        check (nodes small = 7 * 4 + 1 + 2 + 1) "bloom ref override node count";
        check (small.instance <> flower.instance) "distinct instances";
        (* provenance: the ring merge's input k is petal k's last transform *)
-       let ring = List.find_map (fun (n : Procedural.Edit_graph.node_info) ->
+       let ring = List.find_map (fun (n : Sop.Edit_graph.node_info) ->
          let inputs = n.inputs in
          if n.operation = "merge" && Array.length inputs = 12 then Some n.id
-         else None) (Procedural.Edit_graph.inspect flower.network.geometry)
+         else None) (Sop.Edit_graph.inspect flower.network.geometry)
          |> Option.get in
        for k = 0 to 11 do
          let origin = snd (List.find (fun (_, (o : Lower.origin)) -> o.merge = ring && o.input = k)
            (Network.Int_map.bindings bloom.provenance)) in
          check (origin.iter = [k]) "bloom provenance iteration";
-         check (Some origin.source = (Option.get (Procedural.Edit_graph.inputs
+         check (Some origin.source = (Option.get (Sop.Edit_graph.inputs
            flower.network.geometry ~node_id:ring)).(k)) "bloom provenance source"
        done;
        check (Network.Int_map.cardinal bloom.provenance

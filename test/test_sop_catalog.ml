@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 open Test_support
 
 let check_metadata factory node =
@@ -41,7 +41,7 @@ let edit_parameters graph ~node_id changes =
 
 let cook session node = match Session.cook session
     ~context:(Context.create () |> Result.get_ok) node with
-  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+  | Ok output -> (Result.get_ok (Sop.Payload.geometry output.Session.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let catalog_node key inputs changes =
@@ -83,7 +83,7 @@ let test_morph_sketch () =
         ~max_payload_bytes:64_000_000 |> Result.get_ok in
     let context = Context.create ~domains ~grain:97 () |> Result.get_ok in
     let geometry = match Session.cook session ~context node with
-      | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+      | Ok output -> (Result.get_ok (Sop.Payload.geometry output.Session.payload))
       | Error error -> fail (name ^ ": " ^ Diagnostic.error_to_string error) in
     Session.close session;
     geometry in
@@ -146,7 +146,7 @@ let test_morph_sketch () =
   (* an unwired Blend Shapes passes its input through *)
   let session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
       |> Result.get_ok in
-  let grid = Sop.grid ~width_mode:Procedural.Sop.Kernel_auto ~height_mode:Procedural.Sop.Kernel_auto ~rows:2 ~columns:2 ~size:1. () in
+  let grid = Lisp_sop.node {|(sop/grid :width_mode "Auto" :height_mode "Auto" :rows 2 :columns 2)|} in
   let idle = catalog_node "blend_shapes" [Some grid; None; None; None; None] [] in
   check (Node.operation idle = "blend_shapes"
       && positions (cook session idle) = positions (cook session grid))
@@ -170,7 +170,7 @@ let test_node_inputs () =
         |> Result.get_ok in
     let context = Context.create ~domains ~grain:1 () |> Result.get_ok in
     let geometry = match Session.cook session ~context node with
-      | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+      | Ok output -> (Result.get_ok (Sop.Payload.geometry output.Session.payload))
       | Error error -> fail (Diagnostic.error_to_string error) in
     Session.close session;
     geometry in
@@ -190,7 +190,7 @@ let test_node_inputs () =
   let source = line [|0.; 1.; 2.|] |> add point "mask" (Rdk.Attribute.Float [|0.; 0.5; 1.|])
   and target = line [|10.; 11.; 12.|]
       |> add point "mask" (Rdk.Attribute.Float [|1.; 0.5; 0.|]) in
-  let blend ?(inputs = [Some (Sop.snapshot source); Some (Sop.snapshot target);
+  let blend ?(inputs = [Some (Lisp_sop.snapshot (source)); Some (Lisp_sop.snapshot (target));
                          None; None; None]) changes =
     catalog_node "blend_shapes" inputs changes in
   let scaled source_name = both "masked Blend Shapes" (blend [
@@ -210,7 +210,7 @@ let test_node_inputs () =
   let ordered = line [|0.; 1.; 2.|] |> add point "id" (Rdk.Attribute.Int [|10; 20; 30|])
   and shuffled = line [|12.; 10.; 11.|]
       |> add point "id" (Rdk.Attribute.Int [|30; 10; 20|]) in
-  let inputs = [Some (Sop.snapshot ordered); Some (Sop.snapshot shuffled);
+  let inputs = [Some (Lisp_sop.snapshot (ordered)); Some (Lisp_sop.snapshot (shuffled));
                 None; None; None] in
   let by_id = both "ID-matched Blend Shapes" (blend ~inputs [
       "point_id_attribute", Parameter.Text_value "id";
@@ -224,8 +224,8 @@ let test_node_inputs () =
       |> add point "value" (Rdk.Attribute.Float values)
       |> add point "alpha" (Rdk.Attribute.Float alpha) in
   let composite = both "alpha Attribute Composite" (catalog_node "attribute_composite"
-      [Some (Sop.snapshot (layer [|0.; 1.; 2.|] [|2.; 4.; 6.|] [|1.; 1.; 0.|]));
-       Some (Sop.snapshot (layer [|10.; 11.; 12.|] [|10.; 20.; 30.|] [|1.; 0.; 1.|]));
+      [Some (Lisp_sop.snapshot ((layer [|0.; 1.; 2.|] [|2.; 4.; 6.|] [|1.; 1.; 0.|])));
+       Some (Lisp_sop.snapshot ((layer [|10.; 11.; 12.|] [|10.; 20.; 30.|] [|1.; 0.; 1.|])));
        None; None; None] [
       "point_attributes", Parameter.Text_value "P value";
       "allow_position", Parameter.Bool_value true;
@@ -256,9 +256,9 @@ let test_node_inputs () =
   let skin inputs = both "Skin" (catalog_node "skin" inputs []) in
   let corners geometry =
     (Rdk.Topology.Private.view (Rdk.Geometry.topology geometry)).vertex_points in
-  let straight = skin [Some (Sop.snapshot (rings 0)); None]
-  and turned = skin [Some (Sop.snapshot (rings 1)); None]
-  and guided = skin [Some (Sop.snapshot (rings 1)); Some (Sop.snapshot (rings 0))] in
+  let straight = skin [Some (Lisp_sop.snapshot ((rings 0))); None]
+  and turned = skin [Some (Lisp_sop.snapshot ((rings 1))); None]
+  and guided = skin [Some (Lisp_sop.snapshot ((rings 1))); Some (Lisp_sop.snapshot ((rings 0)))] in
   check (Rdk.Geometry.primitive_count guided = 4
       && corners guided = corners straight && corners guided <> corners turned
       && xs guided = xs turned)
@@ -268,8 +268,8 @@ let test_node_inputs () =
 let test_motion () =
   let session = Session.create ~max_entries:32 ~max_payload_bytes:16_000_000
       |> Result.get_ok in
-  let previous = Sop.points [|(0.,0.,0.); (1.,1.,1.)|]
-  and current = Sop.points [|(1.,2.,3.); (3.,5.,7.)|] in
+  let previous = Lisp_sop.snapshot (Rdk.Line_geometry.points [|(0.,0.,0.); (1.,1.,1.)|])
+  and current = Lisp_sop.snapshot (Rdk.Line_geometry.points [|(1.,2.,3.); (3.,5.,7.)|]) in
   let rested = catalog_node "rest_position" [Some current; None] [] in
   let graph = catalog_node "point_velocity" [Some rested; Some previous; None]
       Parameter.["dt", Float_value 0.5; "add_x", Float_value 1.;
@@ -303,7 +303,7 @@ let set_color_test () =
   let plain = colors (catalog_node "set_color" [Some box] []) in
   check (Array.for_all (( = ) 1.) plain.x && Array.for_all (( = ) 1.) plain.w)
     "set_color defaults are not opaque white";
-  let grouped = Sop.group ~name:"g" (Select.point_indices [|0|]) box in
+  let grouped = Lisp_sop.node ~with_:["box", (box)] {|(sop/group_range (sop/ext_box) :name "g" :end_ 0)|} in
   let tinted = colors (catalog_node "set_color" [Some grouped]
     Parameter.["group", Text_value "g"; "color_r", Float_value 0.25;
       "alpha", Float_value 0.5]) in
@@ -313,39 +313,32 @@ let set_color_test () =
 
 let run ?(exhaustive = false) () =
   test_motion ();
-  let source = Sop_catalog.Box.create ~label:"box"
-      ~size:(Vec3.create 2. 2. 2.) ~connectivity:Rdk.Box_generator.Box_quads
-      ~consolidate_points:true () in
-  let ordinary_chain = source
-    |> Sop_catalog.Normal.create ~label:"normal" in
+  let labelled label ?with_ text = Node.relabel label (Lisp_sop.node ?with_ text) in
+  let source = labelled "box"
+    {|(sop/box :size [2.0 2.0 2.0] :connectivity "Quads" :consolidate_points true)|} in
+  let ordinary_chain = labelled "normal" ~with_:["source", source]
+    {|(sop/normals (sop/ext_source))|} in
   List.iter (fun node -> check (Node.has_parameters node)
       ("catalog node has no parameters: " ^ Node.label node))
     [ordinary_chain; List.hd (Node.inputs ordinary_chain)];
-  let plane = (Sop_catalog.Grid.create ~width:3. ~height:3. ~label:"grid" ~columns:2 ~rows:2
-  ~size:3. ())
-    |> Sop_catalog.Mountain.create ~label:"mountain" ~seed:3 ~height:0.2
-         ~frequency:(Vec3.create 0.2 1. 0.2) ~octaves:2 ~lacunarity:2.
-         ~roughness:0.5 in
-  let targets = Sop_catalog.Point_generate.origin ~label:"points" ~points:4 ()
-    |> Sop_catalog.Attribute_noise_quaternion.create ~label:"orient" ~seed:4
-         ~owner:Rdk.Attribute.Point ~name:"orient"
-         ~location:Rdk.Attribute_ops.Noise_element_number
-         ~frequency:(Vec3.create 0.2 0.2 0.2) ~octaves:2
-    |> Sop_catalog.Point_jitter.create ~label:"jitter" ~seed:5 ~scale:0.1 in
-  let cutters = (Sop_catalog.Copy_to_points.create ~label:"copy" plane targets) in
-  let graph = Sop_catalog.Boolean_fracture.create ~label:"fracture"
-      ~cutters source
-    |> Sop_catalog.Exploded_view.create ~label:"exploded-view" in
+  let grid = labelled "grid" {|(sop/grid :width 3.0 :height 3.0 :columns 2 :rows 2 :size 3.0)|} in
+  let plane = labelled "mountain" ~with_:["grid", grid]
+    {|(sop/mountain (sop/ext_grid) :seed 3 :height 0.2 :frequency [0.2 1.0 0.2] :octaves 2 :lacunarity 2.0 :roughness 0.5)|} in
+  let origin = labelled "points" {|(sop/points :points 4)|} in
+  let orient_node = labelled "orient" ~with_:["origin", origin]
+    {|(sop/attribute_noise_quaternion (sop/ext_origin) :seed 4 :owner "Point" :name "orient" :location "element-number" :frequency [0.2 0.2 0.2] :octaves 2)|} in
+  let targets = labelled "jitter" ~with_:["orient", orient_node]
+    {|(sop/point_jitter (sop/ext_orient) :seed 5 :scale 0.1)|} in
+  let cutters = labelled "copy" ~with_:["plane", plane; "targets", targets]
+    {|(sop/copy_to_points (sop/ext_plane) (sop/ext_targets))|} in
+  let graph = labelled "exploded-view" ~with_:["fracture",
+      labelled "fracture" ~with_:["source", source; "cutters", cutters]
+        {|(sop/boolean_fracture (sop/ext_source) (sop/ext_cutters))|}]
+    {|(sop/exploded_view (sop/ext_fracture))|} in
   let fracture = List.hd (Node.inputs graph) in
   let orient = List.hd (Node.inputs targets) in
-  let custom_noise = Sop_catalog.Attribute_noise_quaternion.create
-      ~owner:Rdk.Attribute.Point ~name:"orient" ~seed:4
-      ~frequency:(Vec3.create 0.2 0.2 0.2) ~octaves:2
-      ~location:(Rdk.Attribute_ops.Noise_attribute "rest position")
-      ~range:(Rdk.Attribute_ops.Noise_min_max
-        (Rdk.Attribute_ops.Vec4 (0., 0.1, 0.2, 0.3),
-         Rdk.Attribute_ops.Vec4 (0.7, 0.8, 0.9, 1.)))
-      (List.hd (Node.inputs orient)) in
+  let custom_noise = Lisp_sop.node ~with_:["origin", List.hd (Node.inputs orient)]
+    {|(sop/attribute_noise_quaternion (sop/ext_origin) :owner "Point" :name "orient" :seed 4 :frequency [0.2 0.2 0.2] :octaves 2 :location "attribute:rest position" :range "min-max;vec4,0.0,0.1,0.2,0.3;vec4,0.7,0.8,0.9,1.0")|} in
   let field node name = List.find (fun value -> value.Parameter.name = name)
       (Node.parameter_fields node) in
   List.iter (fun (node, names) -> List.iter (fun name ->
@@ -359,8 +352,8 @@ let run ?(exhaustive = false) () =
                "axis_x"; "axis_y"; "axis_z"];
      fracture, ["resolve_cutter_self_intersections";
                 "detriangulation"; "require_closed"; "piece_attribute"];
-     Sop_catalog.Box.create (), List.map (fun value -> value.Parameter.name)
-       (Node.parameter_fields (Sop_catalog.Box.create ()))];
+     (let box = Lisp_sop.node {|(sop/box)|} in box, List.map (fun value -> value.Parameter.name)
+       (Node.parameter_fields box))];
   let changed_graph, effects = edit_parameters targets
       ~node_id:(Node.id orient)
       ["location", (field custom_noise "location").current;
@@ -403,11 +396,11 @@ let run ?(exhaustive = false) () =
       |> List.find (fun field -> field.Parameter.name = "points") in
   check (effects.cook && value.current = Parameter.Int_value 50)
     "catalog point count did not enforce its PPX hard maximum";
-  let cube = Sop_catalog.Box.create ~label:"cube" ()
-  and dodecahedron = Sop_catalog.Platonic.create ~normals:Rdk.Parametric_generators.Platonic_no_normals ~label:"dodecahedron"
-      ~kind:Rdk.Parametric_generators.Platonic_dodecahedron ~radius:1. () in
-  let switched = Sop_catalog.Switch.create ~label:"source-switch"
-      cube dodecahedron [] in
+  let cube = labelled "cube" {|(sop/box)|}
+  and dodecahedron = labelled "dodecahedron"
+    {|(sop/platonic :kind "Dodecahedron" :radius 1.0 :normals "None")|} in
+  let switched = labelled "source-switch" ~with_:["cube", cube; "dodecahedron", dodecahedron]
+    {|(sop/switch (sop/ext_cube) (sop/ext_dodecahedron))|} in
   check (Node.operation switched = "switch" && Node.has_parameters switched)
     "catalog Switch is not the standard parameterized SOP switch";
   let switched, switch_effects = edit_parameters switched
@@ -429,8 +422,8 @@ let run ?(exhaustive = false) () =
   check (Rdk.Geometry.primitive_count (cook session switched)
       = Rdk.Geometry.primitive_count (cook session dodecahedron))
     "catalog Switch did not cook the selected dodecahedron branch";
-  let replacement = (Sop_catalog.Grid.create ~width:1. ~height:1. ~label:"replacement-grid"
-  ~columns:2 ~rows:2 ~size:1. ()) in
+  let replacement = labelled "replacement-grid"
+    {|(sop/grid :width 1.0 :height 1.0 :columns 2 :rows 2 :size 1.0)|} in
   let document = Edit_graph.of_graph switched
       |> Edit_graph.add_node replacement |> Result.get_ok
       |> Edit_graph.connect ~source:(Node.id replacement)
@@ -691,8 +684,8 @@ let run ?(exhaustive = false) () =
   end;
   let key_session = Session.create ~max_entries:8 ~max_payload_bytes:1_000_000
       |> Result.get_ok in
-  let exploded = Sop_catalog.Box.create ~label:"key-box" ()
-    |> Sop_catalog.Exploded_view.create ~label:"key-view" in
+  let exploded = labelled "key-view" ~with_:["key_box", labelled "key-box" {|(sop/box)|}]
+    {|(sop/exploded_view (sop/ext_key_box))|} in
   ignore (cook key_session exploded);
   let misses = (Session.stats key_session).misses in
   let exploded, _ = Node.apply_parameters exploded
@@ -742,8 +735,8 @@ let run ?(exhaustive = false) () =
       && Result.is_ok (Edit_graph.instantiate_optional attribute_fade_factory
         [None; None; None]))
     "Attribute Fade lost its two optional source input signatures";
-  let fade_source = Sop_catalog.Box.create ~label:"fade-source" ()
-  and fade_hold = Sop_catalog.Box.create ~label:"fade-hold" () in
+  let fade_source = labelled "fade-source" {|(sop/box)|}
+  and fade_hold = labelled "fade-hold" {|(sop/box)|} in
   let fade = Edit_graph.instantiate_optional attribute_fade_factory
       [Some fade_source; None; Some fade_hold] |> Result.get_ok in
   let fade, _ = Node.apply_parameters fade
@@ -779,7 +772,7 @@ let run ?(exhaustive = false) () =
   check (Mesh.mode point_mesh = Mesh.Points && Mesh.vertex_count point_mesh = 50)
     "point-only SOP output did not retain point rendering mode";
   Session.close point_session;
-  let explosion = Sketch_support.Packed_pieces.explosion graph |> Option.get in
+  let explosion = Rays_editor.Packed_pieces.explosion graph |> Option.get in
   check (Node.operation graph = "exploded_view" && explosion.amount = 0.32
       && explosion.piece_attribute = "piece")
     "standard Exploded View node lost its operation or PPX defaults";

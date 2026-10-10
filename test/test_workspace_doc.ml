@@ -116,8 +116,8 @@ let char c = key (Input.KeyChar c)
 
 let editor ?presets text =
   let workspace = of_text text in
-  Rays_editor.Editor3.create ~await:true ~workspace ?presets
-    ~prepare:(fun _ output -> Ok (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload)))
+  Rays_editor.Editor.create ~await:true ~workspace ?presets
+    ~prepare:(fun _ output -> Ok (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload)))
     ~scene3:(fun _ _ -> Scene3.create []) () |> function
   | Ok e -> e | Error m -> fail m
 
@@ -129,17 +129,17 @@ let first_x geometry =
    frames, not a wait on the clock *)
 let settle ?(from = 0) e ok =
   let rec go count e =
-    let e = Rays_editor.Editor3.update e (frame [] count) in
+    let e = Rays_editor.Editor.update e (frame [] count) in
     if ok e then e, count
     else if count > from + 200 then fail "the editor did not settle"
     else go (count + 1) e in
   go from e
 
 let part_editor () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let e = editor still in
-  let objects e = List.map (fun (i : Procedural.Edit_graph.node_info) -> i.label, i.operation)
-    (Procedural.Edit_graph.inspect (E3.document e)) in
+  let objects e = List.map (fun (i : Sop.Edit_graph.node_info) -> i.label, i.operation)
+    (Sop.Edit_graph.inspect (E3.document e)) in
   check (List.mem ("g", "geometry") (objects e)) "one geometry object per sop graph";
   let e, count = settle e (fun e -> E3.prepared e <> None) in
   let before = Option.get (E3.prepared e) in
@@ -179,7 +179,7 @@ let part_editor () =
   E3.close e
 
 let part_conditional_history () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let e = editor {|(workspace history
     (graph g :context value
       (let* [a (+ 1 2)
@@ -204,7 +204,7 @@ let part_conditional_history () =
   E3.close e
 
 let part_live () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let e = editor moving in
   let e, count = settle e (fun e -> E3.prepared e <> None) in
   let xs = ref [] in
@@ -218,7 +218,7 @@ let part_live () =
   E3.close !e
 
 let part_preset () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let directory = Filename.temp_dir "rays-workspace-presets" "" in
   Fun.protect ~finally:(fun () ->
     let state = Filename.concat directory "state" in
@@ -314,7 +314,7 @@ let part_contexts () =
   let module Objects = Editor_document.Objects in
   let module Layers = Editor_document.Layers in
   let module Contexts = Editor_document.Contexts in
-  let module Edit = Procedural.Edit_graph in
+  let module Edit = Sop.Edit_graph in
   let build ?previous ws = match Contexts.of_workspace ~factories ?previous ws with
     | Ok d -> d | Error d -> fail (Flow.Diagnostic.to_string d) in
   let bloom = of_text (case "bloom") in
@@ -348,7 +348,7 @@ let part_contexts () =
   (* the World: a node and its layer stack, bottom first *)
   let world_id = (List.hd (ops "world")).id in
   let world_node = (List.hd (ops "world")).node in
-  check (Procedural.Node.label world_node = "Bloom study") "the World's name";
+  check (Sop.Node.label world_node = "Bloom study") "the World's name";
   (match Layers.to_world world_node (network world_id) with
    | Some w ->
        check (w.exposure = -0.5) "World exposure";
@@ -423,7 +423,7 @@ let part_contexts () =
 
 (* W10: the scene's objects and the World come from the workspace *)
 let part_editor_contexts () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let e = ref (editor (case "bloom")) in
   let count = ref 0 in
   let step events = incr count; e := E3.update !e (frame events !count) in
@@ -435,8 +435,8 @@ let part_editor_contexts () =
       Unix.rmdir directory) (fun () ->
       E3.crash_dump !e directory;
       In_channel.with_open_bin (Filename.concat directory "editor.txt") In_channel.input_all) in
-  let objects () = List.map (fun (i : Procedural.Edit_graph.node_info) -> i.label, i.operation)
-    (Procedural.Edit_graph.inspect (E3.document !e)) in
+  let objects () = List.map (fun (i : Sop.Edit_graph.node_info) -> i.label, i.operation)
+    (Sop.Edit_graph.inspect (E3.document !e)) in
   check (List.mem ("accent", "geometry") (objects ()) && List.mem ("Bloom study", "world") (objects ()))
     "the editor opens the workspace's objects and World";
   check (List.length (List.filter (fun (_, op) -> op = "camera") (objects ())) = 1
@@ -447,8 +447,8 @@ let part_editor_contexts () =
   let e' = E3.edit !e (E.Set_arg { node = [ "scene"; "accent" ]; key = Kw "scale"; sub = [];
     value = S.make (S.Vec (List.map (fun n -> S.make (S.Num n)) [ "1"; "1"; "1" ])) }) |> Result.get_ok in
   check (E3.undo_label e' = Some "Edit value") "one history entry";
-  check (List.exists (fun (i : Procedural.Edit_graph.node_info) -> i.label = "accent"
-    && (Option.get (Editor_document.Objects.geometry i.node)).scale_x = 1.) (Procedural.Edit_graph.inspect (E3.document e')))
+  check (List.exists (fun (i : Sop.Edit_graph.node_info) -> i.label = "accent"
+    && (Option.get (Editor_document.Objects.geometry i.node)).scale_x = 1.) (Sop.Edit_graph.inspect (E3.document e')))
     "the scene edit reached the object"
 
 let part_literals () =
@@ -588,7 +588,7 @@ let part_literals () =
       op ["g";"a"] "size" [0] "2.5", true;
      "(workspace w (graph g :context sop (let* [dots (sop/points :points 2) copies (for [p (sop/point_list dots)] (let* [a (sop/box :size [1 1 1])] a))] (sop/merge copies))))",
       op ["g";"copies";"a"] "size" [0] "2", true];
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let e = editor still in
   Fun.protect ~finally:(fun () -> E3.close e) (fun () ->
     let e = E3.update e (frame [] 0) in
@@ -714,7 +714,7 @@ let part_projection_reuse () =
   let typed = of_text "(workspace w (defn a :context value [] 1) (graph b :context value (let* [result (a)] 1)))" in
   let changed = of_text "(workspace w (defn a :context value [] [1 2 3]) (graph b :context value (let* [result (a)] 1)))" in
   check (not (Projection.same_graph typed.checked changed.checked "b")) "projection reuse hid a changed dependency type";
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let e = editor text in
   Fun.protect ~finally:(fun () -> E3.close e) (fun () ->
     let e = E3.update e (frame [] 0) in

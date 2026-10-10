@@ -1,4 +1,4 @@
-open Procedural
+open Sop
 module S = Flow.Syntax
 module W = Flow.Workspace
 module P = Flow_graph.Projection

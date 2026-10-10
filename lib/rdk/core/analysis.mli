@@ -12,10 +12,6 @@ type accumulation = Per_element | Throughout
 type connectivity_owner = Connectivity_points | Connectivity_primitives
 type connectivity_attribute = Connectivity_integer | Connectivity_text of string
 
-val bounds : ?cancel:Cancel.t -> Geometry.t -> bounds option
-(** Axis-aligned point bounds. Empty geometry has no bounds. O(points) time
-    and O(1) auxiliary memory. *)
-
 val surface_area :
   ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t ->
   Geometry.t -> (float, string) result
@@ -34,12 +30,6 @@ val signed_volume :
 
     Perimeter is O(vertices). Polygon measures are O(sum(c squared)) for corner
     counts [c], with O(primitives + parallel chunks * max(c)) storage. *)
-
-val connectivity : Geometry.t -> int array * int
-(** Primitive connected-component IDs based on shared points, numbered by the
-    first primitive encountered in each component. Returns IDs and component
-    count. O(vertices alpha(primitives)) time and O(points + primitives)
-    auxiliary/output memory. *)
 
 val classify_connectivity :
   ?cancel:Cancel.t ->

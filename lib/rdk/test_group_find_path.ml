@@ -26,19 +26,6 @@ let order group =
   | Some values -> values
   | None -> fail ("group " ^ Group.name group ^ " is not ordered")
 
-let primitive_fan () =
-  let positions = Packed.Float3.Private.of_owned_exn
-      ~x:[|0.; -1.; 1.; 1.; -1.|]
-      ~y:[|0.; 0.; 0.; 0.; 0.|]
-      ~z:[|0.; -1.; -1.; 1.; 1.|] in
-  let topology = Topology.Builder.create ~point_count:5 () in
-  Topology.Builder.add_triangle topology 0 1 2;
-  Topology.Builder.add_triangle topology 0 2 3;
-  Topology.Builder.add_triangle topology 0 3 4;
-  Topology.Builder.add_triangle topology 0 4 1;
-  Geometry.create ~positions ~topology:(Topology.Builder.freeze topology) ()
-  |> function Ok value -> value | Error message -> fail message
-
 let ordered_primitives name length elements =
   Group.ordered ~owner:Group.Primitive ~name ~length elements
   |> function Ok value -> value | Error message -> fail message
@@ -111,50 +98,6 @@ let test_closure () =
        "missing closure structured code"
    | Ok _ -> fail "close mode reused the primary line")
 
-let test_primitive_paths () =
-  let source = primitive_fan () in
-  let base = ordered_primitives "base" 4 [|0; 2|] in
-  let path = Group_mesh.group_find_path ~grain:1 ~base ~name:"path" source |> get_ok in
-  let path = Geometry.find_group ~owner:Group.Primitive "path" path
-      |> Option.get in
-  check (order path = [|0; 1; 2|])
-    "primitive path uses stable shared-edge dual traversal";
-  let collision = Group.init ~owner:Group.Primitive ~name:"avoid" 4
-      (fun primitive -> primitive = 1) in
-  let avoided = Group_mesh.group_find_path ~grain:1 ~collision ~base
-      ~name:"avoided" source |> get_ok in
-  check (order (Geometry.find_group ~owner:Group.Primitive "avoided" avoided
-      |> Option.get) = [|0; 3; 2|])
-    "primitive collision group excludes dual-graph faces";
-  let region = Group.init ~owner:Group.Primitive ~name:"region" 4
-      (fun primitive -> primitive <> 1) in
-  let contained = Group_mesh.group_find_path ~grain:1 ~collision:region ~contain:true
-      ~base ~name:"contained" source |> get_ok in
-  check (order (Geometry.find_group ~owner:Group.Primitive "contained" contained
-      |> Option.get) = [|0; 3; 2|])
-    "primitive collision containment restricts the dual graph";
-  let closed = Group_mesh.group_find_path ~grain:1 ~ending:Group_mesh.Close_path ~base
-      ~name:"loop" source |> get_ok in
-  check (order (Geometry.find_group ~owner:Group.Primitive "loop" closed
-      |> Option.get) = [|0; 1; 2; 3|])
-    "primitive close mode blocks primary shared edges";
-  let nonmanifold_positions = Packed.Float3.Private.of_owned_exn
-      ~x:[|0.; 1.; 0.; 0.;|] ~y:[|0.; 0.; 1.; -1.|]
-      ~z:[|0.; 0.; 0.; 1.|] in
-  let nonmanifold_topology = Topology.Builder.create ~point_count:4 () in
-  Topology.Builder.add_triangle nonmanifold_topology 0 1 2;
-  Topology.Builder.add_triangle nonmanifold_topology 1 0 3;
-  Topology.Builder.add_triangle nonmanifold_topology 0 1 3;
-  let nonmanifold = Geometry.create ~positions:nonmanifold_positions
-      ~topology:(Topology.Builder.freeze nonmanifold_topology) ()
-      |> function Ok value -> value | Error message -> fail message in
-  (match Group_mesh.group_find_path
-      ~base:(ordered_primitives "base" 3 [|0; 2|]) ~name:"path"
-      nonmanifold with
-   | Error error -> check (Error.code error = "invalid_group")
-       "non-manifold primitive path structured code"
-   | Ok _ -> fail "primitive path accepted non-manifold shared edges")
-
 let test_validation_and_cancellation () =
   let source = diamond () in
   let unordered = Group.init ~owner:Group.Point ~name:"base" 5
@@ -221,7 +164,6 @@ let run () =
   test_shortest_and_modes ();
   test_collision_constraints ();
   test_closure ();
-  test_primitive_paths ();
   test_validation_and_cancellation ();
   test_parallel_exactness ();
   print_endline "group find path tests passed"

@@ -15,7 +15,7 @@ model updates, `Frame` facts, and pure `Scene` construction.
   borrowed resources with deterministic teardown.
 - `Pxui` and the graph/inspector adapters remain sibling libraries above the
   public Rays API.
-- `Rdk` owns packed geometry/topology; `Geom` and `Procedural` adapt it.
+- `Rdk` owns packed geometry/topology; `Geom` and `Sop` adapt it.
 
 ## Native foundation
 

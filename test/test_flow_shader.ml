@@ -34,17 +34,17 @@ let () =
     |> List.filter (fun (n : E.node) -> n.kind = "image/map") in
   let sites = List.map (fun (n : E.node) -> n.inst, n.site, n.iter) images in
   assert (List.length images = 25 && List.length (List.sort_uniq compare sites) = 25);
-  let session = Result.get_ok (Procedural.Session.create ~max_entries:0 ~max_payload_bytes:0) in
-  Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
+  let session = Result.get_ok (Sop.Session.create ~max_entries:0 ~max_payload_bytes:0) in
+  Fun.protect ~finally:(fun () -> Sop.Session.close session) (fun () ->
     let samples = List.map (fun (image : E.node) ->
       let fn = match List.assoc "function" image.args with E.Fn fn -> fn | _ -> assert false in
       let kernel = ok (Flow_sop.Image_kernel.prepare ~identity:image.id ~width:5 ~height:5
         ~fn ~sources:[] []) in
       let sample time =
-        let context = Result.get_ok (Procedural.Context.create ~time ~domains:1 ()) in
-        let output = Result.get_ok (Procedural.Session.cook session ~context (Flow_sop.Image_kernel.node kernel)) in
-        let pixels = Result.get_ok (Procedural.Payload.image output.payload) in
-        Option.get (Procedural.Image.Private.rgba8 pixels) |> Bytes.copy in
+        let context = Result.get_ok (Sop.Context.create ~time ~domains:1 ()) in
+        let output = Result.get_ok (Sop.Session.cook session ~context (Flow_sop.Image_kernel.node kernel)) in
+        let pixels = Result.get_ok (Sop.Payload.image output.payload) in
+        Option.get (Sop.Image.Private.rgba8 pixels) |> Bytes.copy in
       sample 0., sample 1.) images in
     let backgrounds = List.map (fun i -> fst (List.nth samples i)) [0;4;8;12;16;21] in
     assert (List.length (List.sort_uniq Bytes.compare backgrounds) = 4);

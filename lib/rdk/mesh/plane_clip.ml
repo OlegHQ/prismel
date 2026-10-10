@@ -1698,14 +1698,3 @@ type selection = Deform.selection =
   | Selected_vertices of Group.t
   | Selected_primitives of Group.t
   | Selected_edges of Edge_group.t
-
-let clip_transform ?cancel ?grain ?keep ?snapping_tolerance ?fill
-    ?split_connectivity ?clip_attribute ?distance ?selection
-    ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
-    ?above_group ?below_group ?(local_normal = Vec3.unit_y) ~transform geometry =
-  let origin = Mat4.transform_point transform Vec3.zero
-  and normal = Mat4.transform_direction transform local_normal in
-  clip ?cancel ?grain ?keep ?snapping_tolerance ?fill
-    ?split_connectivity ?clip_attribute ?distance ?selection
-    ?replace_existing_groups ?clipped_edge_group ?cap_group ?clipped_group
-    ?above_group ?below_group ~origin ~normal geometry

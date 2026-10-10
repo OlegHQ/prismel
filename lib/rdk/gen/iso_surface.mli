@@ -11,30 +11,17 @@
     and slab; invalid parameters, nonfinite samples and cancellation are typed
     errors. *)
 
-type metaball = private {
-  center : Rays_math.Vec3.t;
-  radius : float;
-  strength : float;
-}
-
 type sample = float array
 (** Borrowed XYZ sample. Custom callbacks must not retain or mutate it. *)
 
 module Field : sig
   type t
-  val gyroid : ?scale:float -> unit -> t
   val custom : (sample -> float) -> t
   (** Fields must be deterministic and concurrency-safe: sufficiently large
       planes sample concurrently in disjoint chunks of the shared pool. *)
 end
 
-val extract : ?cancel:Cancel.t -> ?grain:int -> ?smooth:bool ->
-  resolution:int * int * int -> min:Rays_math.Vec3.t ->
-  max:Rays_math.Vec3.t -> iso:float ->
-  field:(Rays_math.Vec3.t -> float) -> unit ->
-  (Geometry.t, Error.t) result
-val extract_dense : ?cancel:Cancel.t -> ?grain:int -> ?smooth:bool ->
-  resolution:int * int * int -> min:Rays_math.Vec3.t ->
+val extract_dense : resolution:int * int * int -> min:Rays_math.Vec3.t ->
   max:Rays_math.Vec3.t -> iso:float -> field:Field.t -> unit ->
   (Geometry.t, Error.t) result
 

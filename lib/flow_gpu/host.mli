@@ -1,6 +1,5 @@
 type t
-val create : ?cost:(Flow_ir.Packed.t -> count:int -> float option) ->
-  clock:(unit -> float) -> Rays_execution.gpu -> t
+val create : clock:(unit -> float) -> Rays_execution.gpu -> t
 (** Owns at most 64 runners and 64 pipelines. An absent cost keeps production
     CPU placement until native measurements supply a model. The caller owns the GPU lease. *)
 

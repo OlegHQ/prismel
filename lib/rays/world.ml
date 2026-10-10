@@ -28,8 +28,7 @@ type map = { width : int; height : int; pixels : Float.Array.t }
 type light = { position : Vec3.t; normal : Vec3.t; u : Vec3.t; v : Vec3.t;
                radiance : rgb }
 type sun = { direction : Vec3.t; radiance : rgb; angular_radius : float }
-type cdf = { marginal : Float.Array.t; conditional : Float.Array.t;
-             integral : float }
+type cdf = { marginal : Float.Array.t; conditional : Float.Array.t }
 type baked = {
   camera : map; lighting : map; cdf : cdf; sh9 : rgb array;
   specular : map array; lights : light list; sun : sun option;
@@ -43,11 +42,6 @@ let white = rgb 1. 1. 1.
 let scale_rgb k c = { r = k *. c.r; g = k *. c.g; b = k *. c.b }
 
 (* ---- mapping ---- *)
-
-let uv_of_direction d =
-  let d = Vec3.normalize d in
-  let u = (Float.atan2 d.Vec3.x (-. d.z) /. two_pi) +. 0.5 in
-  (if u >= 1. then u -. 1. else u), Float.acos (clamp1 d.y) /. pi
 
 let direction_of_uv u v =
   let phi = (u -. 0.5) *. two_pi and theta = v *. pi in
@@ -97,11 +91,6 @@ let[@inline] sample_into m u v (out : Float.Array.t) o =
               +. (tx *. (Float.Array.unsafe_get p (bb + c) -. Float.Array.unsafe_get p (ab + c))) in
     Float.Array.unsafe_set out (o + c) (top +. (ty *. (bottom -. top)))
   done
-
-let lookup m d =
-  let u, v = uv_of_direction d and out = Float.Array.make 3 0. in
-  sample_into m u v out 0;
-  rgb (Float.Array.get out 0) (Float.Array.get out 1) (Float.Array.get out 2)
 
 (* ---- Nishita sky ---- *)
 
@@ -490,15 +479,6 @@ let project_sh m =
     rgb (lobe.(k) *. total.(k * 3)) (lobe.(k) *. total.((k * 3) + 1))
       (lobe.(k) *. total.((k * 3) + 2)))
 
-let irradiance baked n =
-  let y = Array.make 9 0. in
-  sh_basis (Vec3.normalize n) y;
-  let r = ref 0. and g = ref 0. and b = ref 0. in
-  Array.iteri (fun k (c : rgb) ->
-    r := !r +. (c.r *. y.(k)); g := !g +. (c.g *. y.(k)); b := !b +. (c.b *. y.(k)))
-    baked.sh9;
-  rgb !r !g !b
-
 let luminance p o =
   Float.max 0. ((0.2126 *. Float.Array.get p o) +. (0.7152 *. Float.Array.get p (o + 1))
                 +. (0.0722 *. Float.Array.get p (o + 2)))
@@ -530,7 +510,7 @@ let build_cdf m =
   done;
   let total = !sum in
   normalise marginal 0 h total;
-  { marginal; conditional; integral = total *. two_pi /. float w *. (pi /. float h) }
+  { marginal; conditional }
 
 (* Box average when shrinking, bilinear when growing. *)
 let resample src w h =
@@ -692,14 +672,15 @@ end
 module Cache = Lru.Make (Key)
 let caches = Domain.DLS.new_key (fun () -> Cache.create 4)
 
-let bake_cached ?domains ?(light_radius = 10.) ~width ~height (world : t) =
+let bake_cached ~width ~height (world : t) =
+  let light_radius = 10. in
   let plain = { world with background = Environment; exposure = 0. } in
   let key = plain, width, height, light_radius in
   let cache = Domain.DLS.get caches in
   let baked = match Cache.find cache key with
     | baked -> baked
     | exception Not_found ->
-        let baked = bake ?domains ~light_radius ~width ~height plain in
+        let baked = bake ~light_radius ~width ~height plain in
         Cache.add cache key baked; baked in
   { baked with background = world.background; exposure = world.exposure }
 

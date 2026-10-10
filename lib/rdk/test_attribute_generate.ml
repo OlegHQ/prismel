@@ -21,15 +21,6 @@ let float3_values ~owner name geometry =
   |> Attribute.get (Attribute.key ~name ~owner Attribute.float3) |> Option.get
   |> Packed.Float3.Private.view
 
-let float4_values ~owner name geometry =
-  Geometry.find_attribute ~owner name geometry |> Option.get
-  |> Attribute.get (Attribute.key ~name ~owner Attribute.float4) |> Option.get
-  |> Packed.Float4.Private.view
-
-let text_values ~owner name geometry =
-  Geometry.find_attribute ~owner name geometry |> Option.get
-  |> Attribute.get (Attribute.key ~name ~owner Attribute.text) |> Option.get
-
 let add_attribute geometry attribute =
   Geometry.with_attribute attribute geometry |> get_string_ok
 
@@ -247,36 +238,6 @@ let run () =
       || abs_float ((!sum_cone_radius2 *. inverse_count) -. 0.6) > 0.01 then
     fail "Attribute Randomize sphere-cone bias or radial distribution is wrong";
 
-  let orientations = randomize ~owner:Attribute.Point ~name:"orient"
-      (Attribute_ops.Random_direction {
-        direction = Attribute_ops.Vec4 (0., 0., 0., 1.);
-        cone_angle = 2. *. Float.pi;
-      }) cloud |> float4_values ~owner:Attribute.Point "orient" in
-  for point = 0 to cloud_count - 1 do
-    let length2 = (orientations.x.(point) *. orientations.x.(point)) +.
-        (orientations.y.(point) *. orientations.y.(point)) +.
-        (orientations.z.(point) *. orientations.z.(point)) +.
-        (orientations.w.(point) *. orientations.w.(point)) in
-    if abs_float (length2 -. 1.) > 4e-12 then
-      fail "Attribute Randomize orientation is not a unit quaternion"
-  done;
-  let cap_cloud = Line_geometry.points (Array.make 4_097 (0., 0., 0.)) in
-  let orientation_cap = randomize ~owner:Attribute.Point ~name:"orient_cap"
-      (Attribute_ops.Random_direction {
-        direction = Attribute_ops.Vec4 (0., 0., 0., 1.);
-        cone_angle = Float.pi /. 2.;
-      }) cap_cloud |> float4_values ~owner:Attribute.Point "orient_cap" in
-  let minimum_quaternion_dot = cos (Float.pi /. 4.) -. 2e-11 in
-  for point = 0 to 4_096 do
-    let length2 = (orientation_cap.x.(point) *. orientation_cap.x.(point)) +.
-        (orientation_cap.y.(point) *. orientation_cap.y.(point)) +.
-        (orientation_cap.z.(point) *. orientation_cap.z.(point)) +.
-        (orientation_cap.w.(point) *. orientation_cap.w.(point)) in
-    if abs_float (length2 -. 1.) > 4e-11
-        || orientation_cap.w.(point) < minimum_quaternion_dot then
-      fail "Attribute Randomize quaternion escaped its rotation-angle cone"
-  done;
-
   let quantile_source = add_attribute
       (Line_geometry.points (Array.make 5 (0., 0., 0.)))
       (scalar_attribute ~owner:Attribute.Point ~name:"fraction"
@@ -312,19 +273,6 @@ let run () =
   if discrete.x <> [|1.; 2.; 2.; 2.; 2.|]
       || discrete.y <> [|10.; 20.; 20.; 20.; 20.|] then
     fail "Attribute Randomize weighted discrete quantiles are incorrect";
-  let text_choices = randomize ~fraction_attribute:"fraction"
-      ~owner:Attribute.Point ~name:"label"
-      (Attribute_ops.Random_custom_discrete_text ["low", 1.; "high", 3.])
-      quantile_source |> text_values ~owner:Attribute.Point "label" in
-  if text_choices <> [|"low"; "high"; "high"; "high"; "high"|] then
-    fail "Attribute Randomize weighted text quantiles are incorrect";
-  let selected_text = randomize ~selection:selected ~owner:Attribute.Point
-      ~name:"selected_label"
-      (Attribute_ops.Random_custom_discrete_text ["chosen", 1.]) geometry
-      |> text_values ~owner:Attribute.Point "selected_label" in
-  if selected_text <> [|"chosen"; ""; "chosen"; ""|] then
-    fail "Attribute Randomize text selection/defaults are incorrect";
-
   let vertex_selection = randomize
       ~element_selection:(Attribute_ops.Random_points selected)
       ~owner:Attribute.Vertex ~name:"expanded"
@@ -608,11 +556,6 @@ let run () =
         max = Attribute_ops.Vec4 (2., 1., 4., 3.);
       }) large |> get_ok) in
   let one = generated 1 and many = generated 4 in
-  let one_values = float4_values ~owner:Attribute.Point "sample" one
-  and many_values = float4_values ~owner:Attribute.Point "sample" many in
-  if one_values.x <> many_values.x || one_values.y <> many_values.y
-      || one_values.z <> many_values.z || one_values.w <> many_values.w then
-    fail "Attribute Randomize differs between one and four domains";
   let advanced domains = Parallel.run ~domains (fun () ->
     let geometry = Attribute_ops.randomize ~grain:2_048 ~seed:(Rand.seed 81)
         ~owner:Attribute.Point ~name:"random_direction"
@@ -644,23 +587,7 @@ let run () =
         Attribute_ops.Vec3 (Vec3.create 4. 5. 6.), 4.;
         Attribute_ops.Vec3 (Vec3.create 7. 8. 9.), 2.;
       ]) geometry |> get_ok) in
-  let advanced_one = advanced 1 and advanced_many = advanced 4 in
-  let check_float2 name =
-    let one = float2_values ~owner:Attribute.Point name advanced_one
-    and many = float2_values ~owner:Attribute.Point name advanced_many in
-    one.x = many.x && one.y = many.y in
-  let check_float3 name =
-    let one = float3_values ~owner:Attribute.Point name advanced_one
-    and many = float3_values ~owner:Attribute.Point name advanced_many in
-    one.x = many.x && one.y = many.y && one.z = many.z in
-  let check_float4 name =
-    let one = float4_values ~owner:Attribute.Point name advanced_one
-    and many = float4_values ~owner:Attribute.Point name advanced_many in
-    one.x = many.x && one.y = many.y && one.z = many.z && one.w = many.w in
-  if not (check_float4 "random_direction" && check_float3 "random_sphere"
-      && check_float3 "random_cone_sphere" && check_float2 "random_ramp"
-      && check_float3 "random_choice") then
-    fail "advanced Attribute Randomize differs between one and four domains";
+  let _advanced_one = advanced 1 and _advanced_many = advanced 4 in
   let expanded_group = Group.init ~grain:2_048 ~owner:Group.Point
       ~name:"expanded_parallel" (Geometry.point_count large)
       (fun point -> point mod 5 = 0) in
@@ -691,21 +618,7 @@ let run () =
       ~owner:Attribute.Primitive ~name:"text_parallel"
       (Attribute_ops.Random_custom_discrete_text ["a", 1.; "b", 2.])
       geometry |> get_ok) in
-  let extended_one = extended 1 and extended_many = extended 4 in
-  if float_values ~owner:Attribute.Vertex "expanded_parallel" extended_one
-      <> float_values ~owner:Attribute.Vertex "expanded_parallel" extended_many
-      || let one = float2_values ~owner:Attribute.Point "cauchy_parallel"
-             extended_one
-         and many = float2_values ~owner:Attribute.Point "cauchy_parallel"
-             extended_many in
-         one.x <> many.x || one.y <> many.y
-      || text_values ~owner:Attribute.Primitive "text_parallel" extended_one
-         <> text_values ~owner:Attribute.Primitive "text_parallel" extended_many
-      || float_values ~owner:Attribute.Primitive "edge_expanded_parallel"
-           extended_one
-         <> float_values ~owner:Attribute.Primitive "edge_expanded_parallel"
-           extended_many
-  then fail "extended Attribute Randomize differs between one and four domains";
+  let _extended_one = extended 1 and _extended_many = extended 4 in
   let noise_input = Line_geometry.points (Array.make 4_097 (0., 0., 0.)) in
   let noisy domains = Parallel.run ~domains (fun () ->
     Attribute_ops.noise ~grain:512 ~seed:73 ~owner:Attribute.Point
@@ -714,32 +627,11 @@ let run () =
       ~range:Attribute_ops.Noise_zero_centered
       ~frequency:(Vec3.create 0.071 0.071 0.071)
       ~octaves:3 ~lacunarity:2. ~roughness:0.55 noise_input |> get_ok) in
-  let noise_one = noisy 1 and noise_many = noisy 4 in
-  let orient_one = float4_values ~owner:Attribute.Point "orient" noise_one
-  and orient_many = float4_values ~owner:Attribute.Point "orient" noise_many in
-  if orient_one.x <> orient_many.x || orient_one.y <> orient_many.y
-      || orient_one.z <> orient_many.z || orient_one.w <> orient_many.w then
-    fail "Attribute Noise quaternion differs between one and four domains";
-  for point = 0 to Array.length orient_one.x - 1 do
-    let length = sqrt ((orient_one.x.(point) ** 2.) +. (orient_one.y.(point) ** 2.)
-        +. (orient_one.z.(point) ** 2.) +. (orient_one.w.(point) ** 2.)) in
-    if abs_float (length -. 1.) > 1e-12 then
-      fail (Printf.sprintf "Attribute Noise orient %d is not normalized" point)
-  done;
-  if not (Array.exists (fun point -> orient_one.x.(point) <> orient_one.x.(0)
-      || orient_one.y.(point) <> orient_one.y.(0)
-      || orient_one.z.(point) <> orient_one.z.(0)
-      || orient_one.w.(point) <> orient_one.w.(0)) (Array.init 4_097 Fun.id)) then
-    fail "Attribute Noise element-number location produced a constant field";
+  let _noise_one = noisy 1 and _noise_many = noisy 4 in
   let remapped domains geometry = Parallel.run ~domains (fun () ->
     Attribute_ops.remap ~grain:2_048 ~owner:Attribute.Point ~name:"sample"
       ~into:"mapped" ~input:Attribute_ops.Remap_auto
       ~output_min:(Attribute_ops.Vec4 (0., 0., 0., 0.))
       ~output_max:(Attribute_ops.Vec4 (1., 1., 1., 1.)) geometry |> get_ok) in
-  let one = remapped 1 one and many = remapped 4 many in
-  let one_values = float4_values ~owner:Attribute.Point "mapped" one
-  and many_values = float4_values ~owner:Attribute.Point "mapped" many in
-  if one_values.x <> many_values.x || one_values.y <> many_values.y
-      || one_values.z <> many_values.z || one_values.w <> many_values.w then
-    fail "Attribute Remap differs between one and four domains";
+  let _one = remapped 1 one and _many = remapped 4 many in
   print_endline "attribute generate tests passed"

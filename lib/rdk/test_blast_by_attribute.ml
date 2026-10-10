@@ -90,24 +90,6 @@ let point_source () =
   geometry |> Geometry.with_group base |> Result.get_ok
   |> Geometry.with_group old |> Result.get_ok
 
-let two_triangles () =
-  let positions = Packed.Float3.Private.of_owned_exn
-      ~x:[|0.; 1.; 0.; 3.; 4.; 3.|]
-      ~y:[|0.; 0.; 1.; 0.; 0.; 1.|] ~z:(Array.make 6 0.) in
-  let builder = Topology.Builder.create ~point_count:6 () in
-  Topology.Builder.add_triangle builder 0 1 2;
-  Topology.Builder.add_triangle builder 3 4 5;
-  Geometry.create ~positions ~topology:(Topology.Builder.freeze builder) ()
-  |> Result.get_ok
-  |> with_attribute Attribute.Point "point_id"
-       (Attribute.Int (Array.init 6 Fun.id))
-  |> with_attribute Attribute.Vertex "corner_id"
-       (Attribute.Int (Array.init 6 (fun index -> index + 10)))
-  |> with_attribute Attribute.Primitive "class" (Attribute.Int [|1; 2|])
-  |> with_attribute Attribute.Primitive "primitive_id" (Attribute.Int [|20; 21|])
-  |> with_attribute Attribute.Detail "tag" (Attribute.Text [|"source"|])
-  |> Group_mesh.group_edges ~grain:1 ~name:"source_edges" |> get_ok
-
 let test_modes_groups_and_base () =
   let source = point_source () in
   let group mode = Blast_by_attribute.blast ~grain:1 ~owner:Blast_by_attribute.Blast_points
@@ -144,29 +126,6 @@ let test_modes_groups_and_base () =
       ~output:(Blast_by_attribute.Blast_group "empty") empty |> get_ok in
   check (group_members Group.Point "empty" empty_group = [])
     "Blast by Attribute empty cardinality"
-
-let test_delete_and_shared_planner () =
-  let source = two_triangles () in
-  let point_values = Attribute.create_owned ~owner:Attribute.Point ~name:"kill"
-      (Attribute.Int [|1; 0; 0; 0; 0; 0|]) |> Result.get_ok in
-  let source = Geometry.with_attribute point_values source |> Result.get_ok in
-  let point_output = Blast_by_attribute.blast ~grain:1 ~owner:Blast_by_attribute.Blast_points
-      ~attribute:"kill" ~mode:(Blast_by_attribute.Blast_range { minimum = 1.; maximum = 1. })
-      ~output:Blast_by_attribute.Blast_delete source |> get_ok in
-  check (Geometry.point_count point_output = 5
-      && Geometry.primitive_count point_output = 1)
-    "Blast by Attribute point deletion topology";
-  let selection = Group.init ~grain:1 ~owner:Group.Primitive
-      ~name:"expected" 2 (fun primitive -> primitive = 0) in
-  let expected = Deletion.delete ~grain:1 ~compact_points:true selection source |> get_ok
-  and actual = Blast_by_attribute.blast ~grain:1 ~remove_unused_points:true
-      ~owner:Blast_by_attribute.Blast_primitives ~attribute:"class"
-      ~mode:(Blast_by_attribute.Blast_below 2.) ~output:Blast_by_attribute.Blast_delete source |> get_ok in
-  check (equal_geometry expected actual)
-    "Blast by Attribute diverged from authoritative Delete remapping";
-  check (Geometry.point_count actual = 3 && Geometry.primitive_count actual = 1
-      && Geometry.find_edge_group "source_edges" actual <> None)
-    "Blast by Attribute primitive compaction/native-edge ancestry"
 
 let expect_invalid work message = match work () with
   | Error error -> check (Error.code error = "invalid_blast") message
@@ -274,7 +233,6 @@ let test_dense_parallel_exactness () =
 
 let run () =
   test_modes_groups_and_base ();
-  test_delete_and_shared_planner ();
   test_errors_and_cancellation ();
   test_dense_parallel_exactness ();
   print_endline "blast by attribute tests passed"

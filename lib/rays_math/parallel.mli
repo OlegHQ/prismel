@@ -25,9 +25,6 @@ val map_array : ?grain:int -> ('a -> 'b) -> 'a array -> 'b array
 val init_array : ?grain:int -> int -> (int -> 'a) -> 'a array
 (** Parallel deterministic [Array.init] with a sequential cutoff. *)
 
-val map : ?grain:int -> ('a -> 'b) -> 'a list -> 'b list
-(** Parallel order-preserving map. Small lists run sequentially. *)
-
 val for_ :
   ?chunk_size:int -> start:int -> finish:int -> (int -> unit) -> unit
 (** Execute the inclusive integer range in stable contiguous chunks. Pool

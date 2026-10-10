@@ -7,12 +7,6 @@ let expect kind = function
   | Error error -> fail ("unexpected error: " ^ Ogpu.Error.to_string error)
   | Ok _ -> fail "expected rejection"
 
-let layout () =
-  ok (Ogpu.Binding.create_layout
-    [ { binding = 2; kind = Sampler; visibility = [ Fragment ] }
-    ; { binding = 0; kind = Buffer; visibility = [ Vertex; Fragment ] }
-    ; { binding = 1; kind = Texture; visibility = [ Fragment ] } ])
-
 let run () =
   let caps = Ogpu.Caps.minimum_m1 in
   let device = Ogpu.Handle.create_device () in

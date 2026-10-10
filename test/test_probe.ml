@@ -48,7 +48,7 @@ let sunflower () =
   let head = T.node w "sunflower" [ "head" ] in
   let f = footer r head ~probes:[] in
   check (f.value = "geometry" && f.runs = None && not f.invariant) "head: geometry without counts";
-  let r' = recorded w ~geometry:(fun _ -> Some { Probe.points = 1204; prims = 1440; groups = [ "a"; "b" ]; data_id = 7; extent = None; seconds = Some 0.003; attributes = [] }) in
+  let r' = recorded w ~geometry:(fun _ -> Some { Probe.points = 1204; prims = 1440; groups = [ "a"; "b" ];  extent = None; seconds = Some 0.003; attributes = [] }) in
   check ((footer r' head ~probes:[]).value = "1440 prims · groups a, b · 1 204 pts · 0.003 s") "head: cooked point and primitive counts beside timing";
   check ((footer r' { head with path = [ "nowhere" ] } ~probes:[]).value = "geometry") "an unrecorded node shows its type";
   (* iterations: the inspector list *)
@@ -201,11 +201,11 @@ let off_display () =
     if n.site = site then Network.Int_map.find_opt n.id lowered.compiled else None)
     (Array.to_list lowered.plan.nodes) in
   let orphan = Option.get (compiled [ "g"; "orphan" ]) and shown = Option.get (compiled [ "g"; "r" ]) in
-  let cook = Result.get_ok (Cook.create ~await:true ~prepare:(fun _ output -> Ok (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload)))
+  let cook = Result.get_ok (Cook.create ~await:true ~prepare:(fun _ output -> Ok (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload)))
     ~seed:1L ~grain:97 ~domains:1 ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024) ()) in
   let update probes = Cook.update ~live:false ~probes cook ~settings:Rays_editor.Settings.none
-    ~objects:(Lower.objects lowered) ~edit_error:None ~effects:Procedural.Parameter.no_effects
-    ~timeline_changes:[] ~timeline:(Sketch_support.Timeline.create ())
+    ~objects:(Lower.objects lowered) ~edit_error:None ~effects:Sop.Parameter.no_effects
+    ~timeline_changes:[] ~timeline:(Rays_editor.Timeline.create ())
     ~frame:{ (Test_editor_input.frame (0., 0.) [] 0) with dt = 0. } ~frame_request:None in
   let object_id = let id, _, _ = List.hd (Lower.objects lowered) in id in
   let updated = update [ object_id, shown; object_id, orphan ] in

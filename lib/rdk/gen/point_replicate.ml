@@ -47,7 +47,6 @@ let radical_inverse base value =
         (output +. (float_of_int (value mod base) *. factor)) in
   loop value inverse 0.
 
-type sample_scratch = float array
 type quasi_data = {
   offset_u : float array;
   offset_v : float array;

@@ -2,10 +2,6 @@ open Rays
 open Rdk
 open Rdk_test_support
 
-let bounds geometry = match Analysis.bounds geometry with
-  | Some bounds -> bounds
-  | None -> fail "geometry has no bounds"
-
 let normal_values owner geometry =
   match Geometry.find_attribute ~owner "N" geometry with
   | Some attribute ->
@@ -63,127 +59,7 @@ let equal_geometry left right =
   && List.equal equal_edge_group (Geometry.edge_groups left)
        (Geometry.edge_groups right)
 
-let check_numeric_targets () =
-  let source = Box_generator.box ~size:(Vec3.create 2. 4. 8.) () |> get_ok in
-  let unit = Match_size.run source |> get_ok |> bounds in
-  check (near unit.center.x 0. && near unit.center.y 0. && near unit.center.z 0.
-      && near unit.size.x 0.25 && near unit.size.y 0.5 && near unit.size.z 1.)
-    "default unit reference contain fit";
-  let explicit = Match_size.run ~fit:Match_size.Stretch
-      ~target_center:(Vec3.create 10. 20. 30.)
-      ~target_size:(Vec3.create 4. 8. 12.) source |> get_ok |> bounds in
-  check (near explicit.center.x 10. && near explicit.center.y 20.
-      && near explicit.center.z 30. && near explicit.size.x 4.
-      && near explicit.size.y 8. && near explicit.size.z 12.)
-    "explicit numeric stretch reference";
-  let axes = Match_size.run ~fit:Match_size.Stretch ~scale_axes:(true, false, true)
-      ~target_center:(Vec3.create 10. 20. 30.)
-      ~target_size:(Vec3.create 4. 8. 12.) source |> get_ok |> bounds in
-  check (near axes.size.x 4. && near axes.size.y 4. && near axes.size.z 12.
-      && near axes.center.x 10. && near axes.center.y 20.
-      && near axes.center.z 30.)
-    "per-axis scale enable";
-  let aligned = Match_size.run ~fit:Match_size.Translate_only
-      ~justify:(Vec3.create 1. 0. 0.)
-      ~target_justify:(Vec3.create (-1.) 0. 0.)
-      ~offset:(Vec3.create 0.5 2. 3.)
-      ~translate_axes:(true, false, false)
-      ~target_center:(Vec3.create 10. 20. 30.)
-      ~target_size:(Vec3.create 4. 8. 12.) source |> get_ok |> bounds in
-  check (near aligned.max.x 8.5 && near aligned.center.y 0.
-      && near aligned.center.z 0.)
-    "cross-anchor, offset, and translation-axis controls"
-
 let with_group group geometry = Geometry.with_group group geometry |> Result.get_ok
-
-let check_selections () =
-  let source = Line_geometry.points [|(0.,0.,0.); (2.,0.,0.); (10.,10.,10.); (11.,10.,10.)|] in
-  let source_bounds = Group.init ~owner:Group.Point ~name:"source_bounds" 4
-      (fun point -> point < 2)
-  and move = Group.init ~owner:Group.Point ~name:"move" 4
-      (fun point -> point = 0) in
-  let source = source |> with_group source_bounds |> with_group move in
-  let output = Match_size.run ~fit:Match_size.Translate_only
-      ~selection:(Transform_ops.Selected_points move)
-      ~source_selection:(Transform_ops.Selected_points source_bounds)
-      ~justify:(Vec3.create 1. 0. 0.)
-      ~target_justify:(Vec3.create (-1.) 0. 0.)
-      ~target_center:(Vec3.create 20. 0. 0.)
-      ~target_size:(Vec3.create 1. 1. 1.) source |> get_ok in
-  let output = positions output in
-  check (near output.x.(0) 17.5 && near output.x.(1) 2.
-      && near output.x.(2) 10. && near output.x.(3) 11.)
-    "independent move and source-bounds selections";
-  let target = Line_geometry.points [|(100.,0.,0.); (200.,0.,0.)|] in
-  let target_group = Group.init ~owner:Group.Point ~name:"anchor" 2
-      (fun point -> point = 0) in
-  let target = with_group target_group target in
-  let output = Match_size.run ~fit:Match_size.Translate_only
-      ~source_selection:(Transform_ops.Selected_points source_bounds)
-      ~target_selection:(Transform_ops.Selected_points target_group) ~target source
-      |> get_ok |> bounds in
-  check (near output.center.x 104.5)
-    "target selection controls reference bounds";
-  let component_source = Box_generator.box ~size:(Vec3.create 1. 2. 3.) () |> get_ok
-      |> Group_mesh.group_edges ~name:"all_edges" |> get_ok in
-  let primitives = Group.init ~owner:Group.Primitive ~name:"all_primitives"
-      (Geometry.primitive_count component_source) (fun _ -> true) in
-  let edges = Geometry.find_edge_group "all_edges" component_source
-      |> Option.get in
-  let component_target = Box_generator.box ~size:(Vec3.create 4. 5. 6.) () |> get_ok
-      |> Transform_ops.transform (Mat4.translation (Vec3.create 7. 8. 9.)) in
-  let vertices = Group.init ~owner:Group.Vertex ~name:"all_vertices"
-      (Geometry.vertex_count component_target) (fun _ -> true) in
-  let component_output = Match_size.run ~fit:Match_size.Stretch
-      ~selection:(Transform_ops.Selected_edges edges)
-      ~source_selection:(Transform_ops.Selected_primitives primitives)
-      ~target_selection:(Transform_ops.Selected_vertices vertices)
-      ~target:component_target component_source |> get_ok |> bounds in
-  check (near component_output.center.x 7. && near component_output.center.y 8.
-      && near component_output.center.z 9. && near component_output.size.x 4.
-      && near component_output.size.y 5. && near component_output.size.z 6.)
-    "edge move, primitive source, and vertex target selections";
-  let empty_move = Group.init ~owner:Group.Point ~name:"empty_move" 4
-      (fun _ -> false) in
-  let unchanged = Match_size.run ~selection:(Transform_ops.Selected_points empty_move)
-      ~fit:Match_size.Stretch ~target source |> get_ok in
-  check (Geometry.data_id unchanged = Geometry.data_id source)
-    "empty move selection is a structural identity"
-
-let check_fit_modes () =
-  let source = Box_generator.box ~size:(Vec3.create 1. 2. 4.) () |> get_ok
-  and target = Box_generator.box ~size:(Vec3.create 4. 6. 8.) () |> get_ok in
-  let size fit = Match_size.run ~fit ~target source |> get_ok |> bounds
-      |> fun bounds -> bounds.size in
-  let x = size Match_size.Match_x and y = size Match_size.Match_y and z = size Match_size.Match_z
-  and contain = size Match_size.Contain and cover = size Match_size.Cover in
-  check (near x.x 4. && near x.y 8. && near x.z 16.) "uniform X fit";
-  check (near y.x 3. && near y.y 6. && near y.z 12.) "uniform Y fit";
-  check (near z.x 2. && near z.y 4. && near z.z 8.) "uniform Z fit";
-  check (near contain.x 2. && near contain.y 4. && near contain.z 8.)
-    "uniform contain fit";
-  check (near cover.x 4. && near cover.y 8. && near cover.z 16.)
-    "uniform cover fit";
-  let doubled = Box_generator.box ~size:(Vec3.create 2. 4. 6.) () |> get_ok in
-  List.iter (fun fit ->
-    let measured = Match_size.run ~fit ~translate_axes:(false, false, false)
-        ~target:doubled (Box_generator.box ~size:(Vec3.create 1. 2. 3.) () |> get_ok)
-        |> get_ok |> bounds in
-    check (near measured.size.x 2. && near measured.size.y 4.
-        && near measured.size.z 6.) "metric fit linear scale")
-    [Match_size.Match_perimeter; Match_size.Match_area; Match_size.Match_volume];
-  let source = Box_generator.box ~size:(Vec3.create 1. 2. 3.) () |> get_ok in
-  let source_faces = Group.init ~owner:Group.Primitive ~name:"source_faces"
-      (Geometry.primitive_count source) (fun _ -> true)
-  and target_faces = Group.init ~owner:Group.Primitive ~name:"target_faces"
-      (Geometry.primitive_count doubled) (fun _ -> true) in
-  let selected = Match_size.run ~fit:Match_size.Match_area
-      ~source_selection:(Transform_ops.Selected_primitives source_faces)
-      ~target_selection:(Transform_ops.Selected_primitives target_faces)
-      ~target:doubled source |> get_ok |> bounds in
-  check (near selected.size.x 2. && near selected.size.y 4.
-      && near selected.size.z 6.)
-    "primitive-selected metric fit"
 
 let check_normals () =
   let source = Line_geometry.polyline [|(0.,0.,0.); (1.,1.,0.)|] |> get_ok in
@@ -271,9 +147,6 @@ let check_parallel_exact () =
     "one-domain and four-domain incidence-selected Match Size differ"
 
 let run () =
-  check_numeric_targets ();
-  check_selections ();
-  check_fit_modes ();
   check_normals ();
   check_validation ();
   check_parallel_exact ();

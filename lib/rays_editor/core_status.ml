@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 open Editor_document
 include Core_setup
 
@@ -37,7 +37,7 @@ let status_text ?(brief = false) value =
   match value.carry with Some c -> carry_line c | None ->
   let cook = match Cook.status value.cook with
     | Async_cook.Cooking { seconds; queued = true; _ }
-      when Sketch_support.Timeline.mode value.timeline = Sketch_support.Timeline.Playing ->
+      when Timeline.mode value.timeline = Timeline.Playing ->
         (* playing and a newer frame is already waiting: frames are skipped *)
         Printf.sprintf "cook %d ms · skipping frames" (int_of_float (seconds *. 1000.))
     | Async_cook.Cooking { seconds; queued; _ } ->

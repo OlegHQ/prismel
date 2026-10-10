@@ -10,7 +10,7 @@ type rule = {
 type payload = Position | Ordinary of Rdk_core.Attribute.t
 type selected = {
   source_owner : Rdk_core.Attribute.owner;
-  source_name : string;
+
   target_name : string;
   payload : payload;
 }

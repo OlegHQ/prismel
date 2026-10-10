@@ -1,22 +1,17 @@
 type stats = {
-  frames : int64;
-  presented : int64;
+
   logical_draws : int64;
   logical_passes : int64;
-  logical_submissions : int64;
+
   pipeline_cache_entries : int;
-  mesh_cache_entries : int;
+
   uploaded_bytes : int64;
-  gpu_timing_supported : bool;
+
   gpu_duration_seconds : float;
-  gpu_sample_count : int64;
-  retained_plan_builds : int64;
+
   retained_plan_hits : int64;
   retained_plan_misses : int64;
-  retained_plan_evictions : int64;
-  retained_plan_executions : int64;
-  retained_plan_entries : int;
-  retained_plan_capacity : int;
+
   sun_shadow_passes : int64;
 }
 
@@ -61,16 +56,14 @@ let count counters draw_count ~presented =
   counters.logical_submissions <- Int64.succ counters.logical_submissions
 
 type presentation_facts = {
-  title : string;
+
   logical_width : int;
   logical_height : int;
   drawable_width : int;
   drawable_height : int;
-  position : (int * int) option;
+
   pixel_density : float;
-  display_scale : float;
-  refresh_rate : float option;
-  vsync : bool;
+
 }
 
 (* SDL announces a change of size or density with an event instead of making
@@ -107,7 +100,7 @@ type window = {
 type t = {
   renderer : Scene_execution.t;
   window : window option;
-  title : string;
+
   mutable facts : frame_facts;
   mutable presentation : presentation_facts option;
   counters : counters;
@@ -600,7 +593,7 @@ let create ?(vsync = true) ?(hidden = true) ?(high_density = true) ?(title = "Ra
             Some
               { handle = window; view; vsync; cursors = []; cursor_shape = None;
                 text_input = false; changed = Change_flag.create () };
-          title;
+
           facts;
           presentation = None;
           counters = new_counters ();
@@ -621,7 +614,7 @@ let offscreen_facts ~logical_width ~logical_height ~width ~height =
     pixel_scale_y = float height /. float logical_height;
   }
 
-let create_offscreen ?device ?(title = "Rays") ~logical_width ~logical_height ~width ~height
+let create_offscreen ?device ?title:_ ~logical_width ~logical_height ~width ~height
     () =
   let op = "Runtime.create_offscreen" in
   if width <= 0 || height <= 0 || logical_width <= 0 || logical_height <= 0 then
@@ -636,7 +629,7 @@ let create_offscreen ?device ?(title = "Rays") ~logical_width ~logical_height ~w
           {
             renderer;
             window = None;
-            title;
+
             facts = offscreen_facts ~logical_width ~logical_height ~width ~height;
             presentation = None;
             counters = new_counters ();
@@ -777,86 +770,64 @@ let replay_prepared_sampled_resources ?clear ~identity ~version (value : t) =
         | Ok None -> Ok None
         | Error _ as error -> error)
 
-let resize ?drawable (value : t) ~width ~height =
+let resize (value : t) ~width ~height =
   let op = "Runtime.resize" in
   if value.dead then stale op
   else if width <= 0 || height <= 0 then
     Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
   else
-    match (value.window, drawable) with
-    | Some _, Some _ ->
-        Error
-          (Ogpu.Error.make op Invalid_argument "a window's drawable size follows its display")
-    | Some window, None -> (
+    match value.window with
+    | Some window -> (
         match sdl op (Sdl3.Window.set_size window.handle ~width ~height) with
         | Error _ as e -> e
         | Ok () ->
             value.presentation <- None;
             Result.bind (facts window.handle) (apply_facts value ~vsync:window.vsync))
-    | None, drawable ->
-        let drawable_width, drawable_height = Option.value drawable ~default:(width, height) in
-        if drawable_width <= 0 || drawable_height <= 0 then
-          Error (Ogpu.Error.make op Invalid_argument "dimensions must be positive")
-        else (
-          value.presentation <- None;
-          apply_facts value ~vsync:false
-            (offscreen_facts ~logical_width:width ~logical_height:height ~width:drawable_width
-               ~height:drawable_height))
+    | None ->
+        value.presentation <- None;
+        apply_facts value ~vsync:false
+          (offscreen_facts ~logical_width:width ~logical_height:height ~width ~height)
 
 let read_pixels (value : t) ~bytes_per_row =
   if value.dead then stale "Runtime.read_pixels"
   else Scene_execution.read_pixels value.renderer ~bytes_per_row
-
-let read_pixels_into (value : t) ~bytes_per_row ~destination =
-  if value.dead then stale "Runtime.read_pixels_into"
-  else Scene_execution.read_pixels_into value.renderer ~bytes_per_row ~destination
 
 let stats (value : t) =
   let renderer = value.renderer and counters = value.counters in
   let timing = Ogpu.Backend.gpu_timing (Scene_execution.queue renderer)
   and retained = Scene_execution.retained_stats renderer in
   {
-    frames = counters.frames;
-    presented = counters.presented;
+
     logical_draws = counters.logical_draws;
     logical_passes = counters.logical_passes;
-    logical_submissions = counters.logical_submissions;
+
     pipeline_cache_entries = Scene_execution.pipeline_count renderer;
-    mesh_cache_entries = Scene_execution.Private.cache_count_for_report renderer;
+
     uploaded_bytes = Scene_execution.upload_bytes renderer;
-    gpu_timing_supported = timing.timing_supported;
+
     gpu_duration_seconds = timing.gpu_seconds;
-    gpu_sample_count = timing.gpu_samples;
-    retained_plan_builds = retained.plan_builds;
+
     retained_plan_hits = retained.plan_hits;
     retained_plan_misses = retained.plan_misses;
-    retained_plan_evictions = retained.plan_evictions;
-    retained_plan_executions = retained.plan_executions;
-    retained_plan_entries = retained.plan_entries;
-    retained_plan_capacity = retained.plan_capacity;
+
     sun_shadow_passes = Scene_execution.sun_shadow_passes renderer;
   }
 
 let zero_stats =
   {
-    frames = 0L;
-    presented = 0L;
+
     logical_draws = 0L;
     logical_passes = 0L;
-    logical_submissions = 0L;
+
     pipeline_cache_entries = 0;
-    mesh_cache_entries = 0;
+
     uploaded_bytes = 0L;
-    gpu_timing_supported = false;
+
     gpu_duration_seconds = 0.;
-    gpu_sample_count = 0L;
-    retained_plan_builds = 0L;
+
     retained_plan_hits = 0L;
     retained_plan_misses = 0L;
-    retained_plan_evictions = 0L;
-    retained_plan_executions = 0L;
-    retained_plan_entries = 0;
-    retained_plan_capacity = 0;
+
     sun_shadow_passes = 0L;
   }
 
@@ -875,16 +846,14 @@ let query_presentation (value : t) =
       let facts = value.facts in
       Ok
         {
-          title = value.title;
+
           logical_width = facts.logical_width;
           logical_height = facts.logical_height;
           drawable_width = facts.drawable_width;
           drawable_height = facts.drawable_height;
-          position = None;
+
           pixel_density = facts.pixel_scale_x;
-          display_scale = facts.pixel_scale_x;
-          refresh_rate = None;
-          vsync = false;
+
         }
   | Some { handle = window; vsync; _ } -> (
       let op = "Runtime.presentation_facts" in
@@ -893,19 +862,17 @@ let query_presentation (value : t) =
           sdl op (Sdl3.Window.title window),
           sdl op (Sdl3.Window.position window) )
       with
-      | Ok facts, Ok title, Ok position ->
+      | Ok facts, Ok _title, Ok _position ->
           Ok
             {
-              title;
+
               logical_width = facts.logical_width;
               logical_height = facts.logical_height;
               drawable_width = facts.drawable_width;
               drawable_height = facts.drawable_height;
-              position = Some position;
+
               pixel_density = facts.pixel_density;
-              display_scale = facts.display_scale;
-              refresh_rate = facts.refresh_rate;
-              vsync = facts.vsync;
+
             }
       | Error e, _, _ | _, Error e, _ | _, _, Error e -> Error e)
 
@@ -1017,8 +984,6 @@ let show (value : t) =
           let synced = sync_facts value in
           if Result.is_ok synced then value.presentation <- None;
           synced)
-
-let hide = window_call "Runtime.hide" Sdl3.Window.hide
 
 type dialog_kind = Open_file | Open_files | Save_file | Open_folder
 type dialog_filter = { name : string; pattern : string }

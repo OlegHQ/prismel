@@ -73,12 +73,10 @@ let[@inline always] clamp01 value =
   if value <= 0. then 0. else if value >= 1. then 1. else value
 let sample3 noise ~x ~y ~z = clamp01 ((raw3 noise ~x ~y ~z +. 1.) /. 2.)
 let sample2 noise ~x ~y = clamp01 ((raw2 noise ~x ~y +. 1.) /. 2.)
-let sample1 noise x = sample3 noise ~x ~y:0. ~z:0.
 
-let fractal ?(octaves = 4) ?(lacunarity = 2.) ?(gain = 0.5) sample =
+let fractal ?(octaves = 4) sample =
   if octaves <= 0 then invalid_arg "Noise.fbm: octaves must be positive";
-  if lacunarity <= 0. then invalid_arg "Noise.fbm: lacunarity must be positive";
-  if gain < 0. then invalid_arg "Noise.fbm: gain must be non-negative";
+  let lacunarity = 2. and gain = 0.5 in
   let rec loop octave frequency amplitude sum weights =
     if octave = octaves then
       if weights = 0. then 0. else sum /. weights
@@ -88,17 +86,13 @@ let fractal ?(octaves = 4) ?(lacunarity = 2.) ?(gain = 0.5) sample =
   in
   loop 0 1. 1. 0. 0.
 
-let fbm1 ?octaves ?lacunarity ?gain noise x =
-  fractal ?octaves ?lacunarity ?gain
-    (fun frequency -> sample1 noise (x *. frequency))
-
-let fbm2 ?octaves ?lacunarity ?gain noise ~x ~y =
-  fractal ?octaves ?lacunarity ?gain
+let fbm2 ?octaves noise ~x ~y =
+  fractal ?octaves
     (fun frequency ->
       sample2 noise ~x:(x *. frequency) ~y:(y *. frequency))
 
-let fbm3 ?octaves ?lacunarity ?gain noise ~x ~y ~z =
-  fractal ?octaves ?lacunarity ?gain
+let fbm3 ?octaves noise ~x ~y ~z =
+  fractal ?octaves
     (fun frequency ->
       sample3 noise ~x:(x *. frequency) ~y:(y *. frequency)
         ~z:(z *. frequency))

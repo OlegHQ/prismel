@@ -27,16 +27,10 @@ val build :
     O(segments + embedded_points + incidences) auxiliary storage. [grain]
     controls deterministic disjoint point-query ranges. *)
 
-val source_point_count : t -> int
 val point_count : t -> int
 val split_point_count : t -> int
 (* Public packed accessors below return defensive copies. Exact predicates
    must use [Private]; approximate coordinates never decide topology. *)
-val approximate_x : t -> float array
-val approximate_y : t -> float array
-val insert_points : t -> int array
-val constraint_points : t -> int array
-val constraint_winding : t -> int array
 val split_source_first : t -> int -> int
 val split_source_second : t -> int -> int
 val split_source_parameter : t -> int -> float

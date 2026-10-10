@@ -18,7 +18,6 @@ val prepare :
     constraints and seam contributors but add zero to volumetric winding. *)
 
 val extract :
-  ?cancel:Cancel.t -> ?require_closed:bool ->
   expression:Boolean_extract.expression -> t -> (Geometry.t, Error.t) result
 (** Evaluate an expression without repeating intersection, refinement, radial,
     or cell-classification work. *)

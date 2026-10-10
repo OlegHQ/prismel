@@ -14,17 +14,17 @@ type method_ =
   | Array_all
   | Unique_values
 
-val promote :
+val promote_pattern :
   ?cancel:Cancel.t ->
   ?grain:int ->
-  ?into:string ->
   ?method_:method_ ->
   ?delete_source:bool ->
   ?piece_attribute:string ->
-  ?index_attribute:string ->
+  ?into_pattern:string ->
+  ?index_pattern:string ->
   source:Attribute.owner ->
   destination:Attribute.owner ->
-  name:string ->
+  pattern:string ->
   Geometry.t ->
   (Geometry.t, Error.t) result
 (** Promote an ordinary attribute between point, vertex, primitive, and detail
@@ -57,7 +57,7 @@ val promote :
     Canonical point position [P] is intentionally not an ordinary attribute
     and must be changed by a geometry operator.
 
-    [index_attribute] writes the contributing source element number as a
+    [index_pattern] writes the contributing source element number as a
     destination-owned integer attribute for [First], [Last], [Minimum],
     [Maximum], or [Mode]. Ties select the first stable incidence; piece
     relations are deduplicated and source-index ordered. Empty incidences write
@@ -77,22 +77,9 @@ val promote :
     elements), including primitive-to-point reverse incidence when needed.
     [Array_all] is O(incidences) time/storage. [Unique_values] is
     O(incidences * log(max incidence)) time and O(incidences + destinations)
-    auxiliary storage, plus its exact packed result. *)
+    auxiliary storage, plus its exact packed result.
 
-val promote_pattern :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?method_:method_ ->
-  ?delete_source:bool ->
-  ?piece_attribute:string ->
-  ?into_pattern:string ->
-  ?index_pattern:string ->
-  source:Attribute.owner ->
-  destination:Attribute.owner ->
-  pattern:string ->
-  Geometry.t ->
-  (Geometry.t, Error.t) result
-(** Promote every source-owner attribute selected by a compiled
+    Promote every source-owner attribute selected by a compiled
     {!Attribute_pattern} in stable source attribute order. Blank selects all;
     no match is an identity. The topology incidence and optional piece
     partition plan are built once and reused for every selected payload.
@@ -260,34 +247,6 @@ type interpolate_computed = {
 (** Optional point- or vertex-number/weight arrays computed from primitive UVW
     coordinates. The resulting pair can drive a later weighted interpolation
     with equivalent coefficients. *)
-
-type combine_operation =
-  | Combine_copy
-  | Combine_add
-  | Combine_subtract
-  | Combine_multiply
-  | Combine_divide
-  | Combine_maximum
-  | Combine_minimum
-
-type combine_process =
-  | Combine_process_none
-  | Combine_reciprocal
-  | Combine_clamp_01
-  | Combine_complement_clamp_01
-  | Combine_threshold_half
-
-type combine_layer = {
-  source : string option;
-  source_input : int;
-  operation : combine_operation;
-  scale : float;
-  add : float;
-  process : combine_process;
-  blend : float;
-  blend_attribute : string option;
-  blend_input : int;
-}
 
 type enumeration_storage = Integer | Text of { prefix : string }
 type enumeration_mode = Enumerate_piece_elements | Enumerate_pieces
@@ -535,72 +494,6 @@ val remap :
     the ramp. [into] preserves the source and writes another same-shape
     attribute. O(elements * components) time and exact output storage. *)
 
-val copy_rule :
-  ?into:string -> owner:Attribute.owner -> string -> copy_rule
-(** Select one owner-specific source include/exclude pattern. [into] enables a
-    one-glob capture rewrite; otherwise source names are preserved. *)
-
-val interpolate_attribute :
-  ?into:string -> owner:Attribute.owner -> string -> interpolate_attribute
-(** Select a source attribute for primitive-parametric interpolation. [into]
-    defaults to the source name. Canonical [P] is accepted only as a
-    point-owned source and may be written to a point-owned target. *)
-
-val combine_layer :
-  ?source:string ->
-  ?source_input:int ->
-  ?scale:float ->
-  ?add:float ->
-  ?process:combine_process ->
-  ?blend:float ->
-  ?blend_attribute:string ->
-  ?blend_input:int ->
-  combine_operation -> combine_layer
-(** Define one ordered Attribute Combine layer. A missing [source] is an
-    implicit zero field, allowing [add] to express constants. Input zero is
-    the primary/output geometry. *)
-
-val combine :
-  ?cancel:Cancel.t ->
-  ?grain:int ->
-  ?selection:Group.t ->
-  ?match_attribute:string ->
-  ?create_missing:bool ->
-  ?create_missing_as_scalar:bool ->
-  ?delete_sources:bool ->
-  ?error_on_missing:bool ->
-  ?overall_scale:float ->
-  ?threshold:float ->
-  ?minimum:float ->
-  ?maximum:float ->
-  owner:Attribute.owner ->
-  destination:string ->
-  layers:combine_layer list ->
-  geometries:Geometry.t array ->
-  unit ->
-  (Geometry.t, Error.t) result
-(** Layer numeric attributes into one destination. Sources and blend masks may
-    come from any [geometries] input; input zero supplies output topology and
-    existing destination values. Cross-input elements match by index or by an
-    integer/text [match_attribute], with the highest source element winning
-    duplicate keys. Unmatched sources are zero and unmatched blend masks are
-    zero. Missing source layers are skipped when [error_on_missing=false]; a
-    missing blend attribute then behaves as constant one.
-
-    Scalar destinations receive vector length; scalar sources replicate into
-    tuple destinations, while tuple sources truncate or zero-extend. All seven
-    arithmetic modes, preprocessing, clamped per-element blend, overall scale,
-    component threshold, and component clamps execute in one fused traversal.
-    Existing integer destinations retain integer storage with checked
-    truncation. [P] is a valid point float3 destination/source.
-
-    For [n] output elements, [l] layers, and tuple width [w <= 4], work is
-    O(n*l*w), or O(source + n + n*l*w) with value matching. Auxiliary storage
-    is O(n*w) plus one O(n) map per referenced matched input. Selected elements
-    and components write disjoint ranges in parallel; layer order remains
-    exact across domain counts. Output metadata and optional source deletion
-    commit atomically in one rebuild. *)
-
 val interpolate :
   ?cancel:Cancel.t ->
   ?grain:int ->
@@ -612,8 +505,6 @@ val interpolate :
   ?primitive_pattern:string ->
   ?detail_pattern:string ->
   ?match_groups:bool ->
-  ?primitive_attribute:string ->
-  ?uvw_attribute:string ->
   ?pre_scale:float ->
   ?normalize_weights:bool ->
   ?threshold:float ->
@@ -794,12 +685,6 @@ type surface_attribute = {
   target_name : string;
 }
 
-val surface_attribute :
-  ?into:string -> owner:Attribute.owner -> string -> surface_attribute
-(** Select a source point, vertex, or primitive attribute for closest-surface
-    transfer into the destination owner selected by {!transfer_surface}.
-    [into] defaults to the source name. *)
-
 val transfer_surface :
   ?cancel:Cancel.t ->
   ?grain:int ->
@@ -812,7 +697,6 @@ val transfer_surface :
   ?source_primitives:Group.t ->
   ?source_vertices:Group.t ->
   ?source_vertex_selection:surface_vertex_selection ->
-  ?target_points:Group.t ->
   ?target_elements:Group.t ->
   attributes:surface_attribute list ->
   source:Geometry.t ->
@@ -831,8 +715,7 @@ val transfer_surface :
     polygons. [source_vertices] further retains triangulated regions with all
     selected source corners by default, or any selected corner with
     [Any_triangle_vertex]. Both groups may be combined. [target_elements] must
-    match the destination owner and restricts writes. [target_points] is the compatibility spelling for a
-    point-owned [target_elements]; supplying both is invalid.
+    match the destination owner and restricts writes.
 
     [max_distance] is a full-influence threshold. A positive [blend_width]
     extends the query radius and blends numeric values back to their existing

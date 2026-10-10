@@ -62,12 +62,12 @@ module Builder = struct
     let fill,stroke=style fill stroke in
     append builder 4l (x-.radius) (y-.radius) (x+.radius) (y+.radius) fill stroke
       (if stroke=0l then 0. else stroke_width)
-  let rect builder ~x ~y ~width ~height ?fill ?stroke ?(stroke_width=1.) () =
+  let rect builder ~x ~y ~width ~height ?fill ?stroke () =
     if not (Float.is_finite width && Float.is_finite height) || width<0. || height<0.
     then invalid_arg "Shape_batch extent";
     let fill,stroke=style fill stroke in
     append builder 0l x y (x+.width) (y+.height) fill stroke
-      (if stroke=0l then 0. else stroke_width)
+      (if stroke=0l then 0. else 1.)
   let line builder ~x0 ~y0 ~x1 ~y1 ~color ~width =
     append builder 5l x0 y0 x1 y1 color 0l width
   let publish builder = {bytes=Bytes.sub builder.bytes 0 (builder.count*instance_bytes);

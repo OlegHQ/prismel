@@ -314,11 +314,6 @@ let bound ?cancel ?(grain = 16_384) ?selection
 
 let run = bound
 
-let bounding_box ?cancel ?grain ?(padding = Vec3.zero) geometry =
-  Error.guard ~operation:"bounding_box" ~code:"invalid_geometry" @@ fun () ->
-  Error.unguard (bound ?cancel ?grain ~shape:(Bound_box { divisions = 1, 1, 1 })
-    ~lower_padding:padding ~upper_padding:padding geometry)
-
 module Private = struct
   let selected_bounds = selected_bounds
 end

@@ -7,7 +7,7 @@ type descriptor = {
   operation : string;
   label : string;
   category : string list;
-  slots : (string * Procedural.Edit_graph.input_requirement) list;
+  slots : (string * Sop.Edit_graph.input_requirement) list;
   slot_types : string list;
   (** Optional serialized types in physical input order. Empty keeps the context defaults. *)
   keyword_inputs : string list;
@@ -19,9 +19,9 @@ type descriptor = {
     ([Editor_document.Contexts]).  The namespace of [qualified] gives the
     context. *)
 
-val descriptor : Procedural.Edit_graph.factory -> descriptor
+val descriptor : Sop.Edit_graph.factory -> descriptor
 (** The [sop/] kind of a factory. *)
 
 val of_factories :
-  version:int -> ?extra:descriptor list -> Procedural.Edit_graph.factory list ->
+  version:int -> ?extra:descriptor list -> Sop.Edit_graph.factory list ->
   (Flow.Check.catalog, Flow.Diagnostic.t) result

@@ -1,23 +1,15 @@
 type node type t=node list type blend=Replace|Alpha|Add|Multiply
-val empty:t val one:node->t val group:t->node val clear:Color.t->node
+val empty:t  val group:t->node val clear:Color.t->node
 val point : at:(int*int) -> ?color:Color.t -> unit -> node
 val line : from_:(int*int) -> to_:(int*int) -> ?color:Color.t -> ?width:int -> unit -> node
 val rect : at:(int*int) -> w:int -> h:int -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
-val square : at:(int*int) -> size:int -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
 val rounded_rect : at:(int*int) -> w:int -> h:int -> radius:int -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
 val circle : at:(int*int) -> radius:int -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
-val ellipse : at:(int*int) -> rx:int -> ry:int -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
-val triangle : (int*int) -> (int*int) -> (int*int) -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
-val quad : (int*int) -> (int*int) -> (int*int) -> (int*int) -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
 val polygon : (int*int) list -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
 val polyline : (int*int) list -> ?color:Color.t -> unit -> node
-val arc : at:(int*int) -> radius:int -> from_:float -> to_:float -> ?color:Color.t -> unit -> node
-val pie : at:(int*int) -> radius:int -> from_:float -> to_:float -> ?fill:Color.t -> ?stroke:Color.t -> unit -> node
-val bezier : (int*int) list -> ?steps:int -> ?color:Color.t -> unit -> node
-val path : ?steps:int -> ?fill_rule:Path.fill_rule -> ?fill:Color.t -> ?stroke:Color.t -> Path.t -> node
+val path : ?fill:Color.t -> Path.t -> node
 val text : at:(int*int) -> ?color:Color.t -> ?size:int -> string -> node
-val font_text : Font.t -> at:(int*int) -> ?color:Color.t -> ?wrap:int -> ?align:Font.alignment -> string -> node
-val image : Image.t -> at:(int*int) -> ?scale:float -> ?angle:float -> ?center:(int*int) -> ?flip_x:bool -> unit -> node
+val image : Image.t -> at:(int*int) -> ?scale:float -> ?angle:float -> unit -> node
 val view3d : ?viewport:(int*int*int*int) -> camera:Camera.t -> Scene3.t -> node
 
 (** Pure IME metadata in logical points; [cursor] is the non-negative caret
@@ -27,7 +19,6 @@ val translate : int -> int -> t -> node
 val rotate : float -> t -> node
 val scale : float -> float -> t -> node
 val clip : at:(int*int) -> w:int -> h:int -> t -> node
-val blend : blend -> t -> node
 val render : t -> unit
 module Private : sig
   val shapes : Scene_command.Shape_batch.t -> node
@@ -63,8 +54,8 @@ module Private : sig
   }
   val native_segment_version : Scene_command.Display_list.t ->
     (int * Rays_execution.resource) list -> int64
-  val stage_native : ?density:int -> width:int -> height:int -> t -> (staged_native,string) result
-  val stage_native_render : ?density:int -> width:int -> height:int -> t ->
+  val stage_native : width:int -> height:int -> t -> (staged_native,string) result
+  val stage_native_render : width:int -> height:int -> t ->
     (staged_native,string) result
   type native_error = Message of string | Resource of Runtime_resources.error
   val pp_native_error : Format.formatter -> native_error -> unit
@@ -72,7 +63,7 @@ module Private : sig
     (staged_native,native_error) result
   val to_ir : t -> (Scene_command.Render_ir.t,string) result
   val commands : ?density:int -> t -> Scene_command.Render_ir.command array
-  val stage : ?density:int -> width:int -> height:int -> t ->
+  val stage : width:int -> height:int -> t ->
     (Scene_command.Render_ir.t * (int * Rays_execution.resource) list, string) result
   val install_renderer : (t -> unit) -> unit
   val text_regions : t -> (int*int*int*int*bool*int) list

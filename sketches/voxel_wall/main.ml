@@ -17,7 +17,7 @@
    RAYS_PATHTRACER_FRAMES=N runs a finite smoke; RAYS_PATHTRACER_PNG=path
    saves the final window. *)
 open Rays
-open Procedural
+open Sop
 module P = Rays_pathtracer
 let rgb = P.Linear_color.rgb
 
@@ -95,10 +95,10 @@ type prepared = { mode : Renderer.t; traced : P.mesh option; raster : Scene3.nod
   wire : Scene3.node option; triangles : int; instances : int }
 
 let prepare mode (output : Session.output) =
-  let packed = Option.map (fun transforms -> (Result.get_ok (Procedural.Payload.geometry output.payload)), transforms) output.instances in
+  let packed = Option.map (fun transforms -> (Result.get_ok (Sop.Payload.geometry output.payload)), transforms) output.instances in
   let geometry, instances = match packed with
     | Some (prototype, transforms) -> prototype, Array.length transforms
-    | None -> (Result.get_ok (Procedural.Payload.geometry output.payload)), 0 in
+    | None -> (Result.get_ok (Sop.Payload.geometry output.payload)), 0 in
   let topology = Rdk.Geometry.topology geometry in
   let triangles = ref 0 in
   for primitive = 0 to Rdk.Topology.primitive_count topology - 1 do
@@ -153,11 +153,11 @@ let settings_schema =
   Parameter.schema ~name:"voxel_wall" ~default:initial_renderer
     [ Renderer.field ~default:initial_renderer ~get:Fun.id ~set:(fun renderer _ -> renderer) ]
 
-let renderer env = Settings.get settings_schema (Rays_editor.Editor3.settings env)
+let renderer env = Settings.get settings_schema (Rays_editor.Editor.settings env)
 
 (* What the tracer currently holds, compared physically so an idle frame
    uploads nothing. *)
-type model = { env : prepared Rays_editor.Editor3.t; tracer : P.t;
+type model = { env : prepared Rays_editor.Editor.t; tracer : P.t;
   shown : (Mat4.t * prepared) list; lit : Light.t list; world : World.baked option }
 
 let scene3 _graph prepared =
@@ -200,7 +200,7 @@ let init _frame =
   let env =
     let workspace, source = Rays_editor.Workspace.open_text ~factories ~path:Sketch_source.path
         ~digest:Sketch_source.digest Sketch_source.text in
-    match Rays_editor.Editor3.create ~name:"voxel_wall"
+    match Rays_editor.Editor.create ~name:"voxel_wall"
       ~camera:(Easy_camera.create ~target:(v 0. 0. 1.) ~distance:19. ~azimuth:(-0.22)
         ~elevation:0.08 ~fov_y:0.7 ~inertia:false ())
       ~background ~seed:7L ~grain:2 ~max_entries:24
@@ -213,15 +213,15 @@ let init _frame =
   { env; tracer; shown = []; lit = []; world = None }
 
 let update m (frame : Frame.t) =
-  let env = Rays_editor.Editor3.update m.env frame in
+  let env = Rays_editor.Editor.update m.env frame in
   let env = match switch_to with
     | Some target when frames > 0 && frame.count = frames / 2 ->
-        Rays_editor.Editor3.set_settings env (Settings.make settings_schema target)
+        Rays_editor.Editor.set_settings env (Settings.make settings_schema target)
     | _ -> env in
   let renderer = renderer env in
   (* Every renderable object at its world transform in one scene_mesh; when
      only transforms changed, [P.move] rebuilds just the instance structure. *)
-  let objects = Rays_editor.Editor3.objects env in
+  let objects = Rays_editor.Editor.objects env in
   let same_prepared = List.equal (fun (_, p) (_, q) -> p == q) objects m.shown in
   let same = same_prepared && List.equal (fun (m, _) (n, _) -> Mat4.nearly_equal m n ~eps:0.) objects m.shown in
   if not same then begin
@@ -234,20 +234,20 @@ let update m (frame : Frame.t) =
         | Ok () -> () | Error _ -> rebuild ())
       else rebuild ()
   end;
-  let lit = Rays_editor.Editor3.lights env in
+  let lit = Rays_editor.Editor.lights env in
   if lit <> m.lit then (match P.set_lights m.tracer (List.map P.light_of lit) with
     | Ok () -> () | Error e -> prerr_endline e);
-  let world = Rays_editor.Editor3.world env in
+  let world = Rays_editor.Editor.world env in
   if world != m.world then (match P.set_world m.tracer world with
     | Ok () -> () | Error e -> prerr_endline e);
   let m = { m with shown = objects; lit; world } in
   (* The trace follows the view pane (the camera object through
      look-through) with the camera object's lens. *)
   if renderer = Path_traced then begin
-    let _, _, width, height = Rays_editor.Editor3.film env frame in
+    let _, _, width, height = Rays_editor.Editor.film env frame in
     (match P.resize m.tracer ~width:(max 1 width) ~height:(max 1 height) with
      | Ok () -> () | Error e -> prerr_endline e);
-    let camera = Rays_editor.Editor3.view_camera env in
+    let camera = Rays_editor.Editor.view_camera env in
     let camera = if not orbit then camera else
       let target = Camera.target camera in
       let angle = 0.5 *. sin (float frame.count *. 0.05) in
@@ -266,7 +266,7 @@ let update m (frame : Frame.t) =
   end;
   { m with env }
 
-let view m (frame : Frame.t) = Rays_editor.Editor3.scene m.env frame
+let view m (frame : Frame.t) = Rays_editor.Editor.scene m.env frame
 
 let () =
   if Array.exists (( = ) "--approx") Sys.argv then begin
@@ -295,10 +295,10 @@ let () =
         match Session.cook session ~context graph with
         | Error error -> failwith (name ^ ": " ^ Diagnostic.error_to_string error)
         | Ok output ->
-            if Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)) = 0 then
+            if Rdk.Geometry.point_count (Result.get_ok (Sop.Payload.geometry output.payload)) = 0 then
               failwith (name ^ ": empty geometry");
             Printf.printf "%s: %d points, %d instances\n%!" name
-              (Rdk.Geometry.point_count (Result.get_ok (Procedural.Payload.geometry output.payload)))
+              (Rdk.Geometry.point_count (Result.get_ok (Sop.Payload.geometry output.payload)))
               (Option.fold ~none:0 ~some:Array.length output.instances)) graphs);
     exit 0
   end;
@@ -307,6 +307,6 @@ let () =
             ; domains = Some 1 }
     ~init ~update ~view
     ~after_present:(fun m frame ->
-      { m with env = Rays_editor.Editor3.after_present m.env frame })
-    ~crash_dump:(fun m -> Rays_editor.Editor3.crash_dump m.env)
-    ~on_stop:(fun m -> Rays_editor.Editor3.close m.env; P.destroy m.tracer) ())
+      { m with env = Rays_editor.Editor.after_present m.env frame })
+    ~crash_dump:(fun m -> Rays_editor.Editor.crash_dump m.env)
+    ~on_stop:(fun m -> Rays_editor.Editor.close m.env; P.destroy m.tracer) ())

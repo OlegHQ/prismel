@@ -32,9 +32,8 @@ type t = {
 }
 (** [diffuse] tints both the diffuse and the specular response. *)
 
-val no_attenuation : attenuation
 val attenuation :
-  ?constant:float -> ?linear:float -> ?quadratic:float -> unit -> attenuation
+  ?constant:float -> ?quadratic:float -> unit -> attenuation
 
 val directional :
   ?diffuse:Color.t ->

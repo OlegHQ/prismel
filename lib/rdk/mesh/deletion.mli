@@ -27,7 +27,6 @@ val delete :
 val delete_primitives :
   ?cancel:Rdk_core.Cancel.t ->
   ?grain:int ->
-  ?selected:bool ->
   ?compact_points:bool ->
   Rdk_core.Group.t ->
   Rdk_core.Geometry.t -> (Rdk_core.Geometry.t, Rdk_core.Error.t) result

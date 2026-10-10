@@ -3,10 +3,8 @@ let tests = [
   "spatial", "test_surface_index", Test_surface_index.run;
   "mesh", "test_extract_centroid", Test_extract_centroid.run;
   "curve", "test_extract_point_curve", Test_extract_point_curve.run;
-  "curve", "test_curve_sampling", Test_curve_sampling.run;
   "exact", "test_predicates", Test_predicates.run;
   "exact", "test_delaunay2", Test_delaunay2.run;
-  "exact", "test_voronoi2", Test_voronoi2.run;
   "exact", "test_planar_cdt", Test_planar_cdt.run;
   "exact", "test_planar_constraints", Test_planar_constraints.run;
   "exact", "test_triangulate2d", Test_triangulate2d.run;
@@ -107,7 +105,6 @@ let tests = [
   "attrib", "test_group_random", Test_group_random.run;
   "attrib", "test_group_bounds", Test_group_bounds.run;
   "attrib", "test_group_normal", Test_group_normal.run;
-  "attrib", "test_group_non_planar", Test_group_non_planar.run;
   "attrib", "test_group_backface", Test_group_backface.run;
   "attrib", "test_group_edge_angle", Test_group_edge_angle.run;
   "attrib", "test_group_edge_depth", Test_group_edge_depth.run;

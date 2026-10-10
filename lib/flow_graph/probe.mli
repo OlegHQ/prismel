@@ -13,7 +13,7 @@
 type path = Flow.Workspace.path
 
 type geometry = {
-  points : int; prims : int; groups : string list; data_id : int;
+  points : int; prims : int; groups : string list;
   extent : (float * float * float) option;  (** the size of the bounding box, when there are points *)
   seconds : float option;  (** what the node itself took the last time it was really cooked (a cache hit keeps it) *)
   attributes : (string * string * string * int) list;

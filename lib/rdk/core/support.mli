@@ -16,12 +16,12 @@ module Key_map : sig
   type keep = First | Last
   (** Which index a repeated key resolves to. *)
 
-  val ints : ?cancel:Cancel.t -> keep -> int array -> (int -> int) option
+  val ints : keep -> int array -> (int -> int) option
   (** [ints keep keys] returns a lookup from a key to the first or last index
       holding it in [keys], or [-1]. [None] when the table would exceed array
       limits. O(n) expected build time and O(n) memory. *)
 
-  val strings : ?cancel:Cancel.t -> keep -> string array -> (string -> int) option
+  val strings : keep -> string array -> (string -> int) option
   (** String-keyed {!ints}. *)
 end
 

@@ -1,6 +1,5 @@
 let tests = [
   "test_rays", Test_rays.run;
-  "test_easy_camera", Test_easy_camera.run;
   "test_sop_ui", Test_sop_ui.run;
   "test_custom_sop", Test_custom_sop.run;
   "test_rays_editor", Test_rays_editor.run;
@@ -12,18 +11,15 @@ let tests = [
   "test_editor_transactions", Test_editor_transactions.run;
   "test_scene_tree", (fun () -> Test_scene_tree.run (); Test_scene_tree.run_host ());
   "test_scene_sync", (fun () -> Test_scene_sync.run (); Test_scene_sync.run_loops (); Test_scene_sync.run_nested_loops (); Test_scene_sync.run_root (); Test_scene_sync.run_compose (); Test_scene_sync.run_instances ());
-  "bench_scene_sync", Test_scene_sync.bench;
   "test_sop_catalog", (fun () -> Test_sop_catalog.run ());
   "test_sop_catalog_exhaustive", (fun () -> Test_sop_catalog.run ~exhaustive:true ());
-  "test_sketch_support", Test_sketch_support.run;
-  "test_terminal_boolean_normals", Test_terminal_boolean_normals.run;
+  "test_packed_pieces", Test_packed_pieces.run;
   "test_workspace_live", Test_workspace_live.run;
   "test_text_pane", Test_text_pane.run;
   "test_editor_consistency", Test_editor_consistency.run;
   "test_editor_consistency_native", Test_editor_consistency.run_native;
   "test_probe", Test_probe.run;
   "test_viewport_pick", Test_viewport_pick.run;
-  "bench_viewport_pick", Test_viewport_pick.bench;
   "test_workspace_doc", Test_workspace_doc.run;
   "test_workspace_shell", (fun () -> Test_workspace_shell.run (); Test_workspace_shell.run_roots ());
   "test_workspace_shell_native", Test_workspace_shell.run_native;
@@ -32,7 +28,6 @@ let tests = [
   "test_workspace_source", Test_workspace_source.run;
   "test_bloom_studio", Test_bloom_studio.run;
   "dependency_gate", Dependency_gate.run;
-  "sop_render_parity", Sop_render_parity.run;
 ]
 
 let () =

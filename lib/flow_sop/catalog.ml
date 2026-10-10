@@ -1,4 +1,4 @@
-module Edit = Procedural.Edit_graph
+module Edit = Sop.Edit_graph
 
 type descriptor = {
   qualified : string; key : string; operation : string; label : string;
@@ -26,7 +26,7 @@ let of_factories ~version ?(extra = []) factories =
     Hashtbl.replace declarations ("sop/" ^ Edit.factory_key factory) Flow.Check.{
       elementwise = (match facts.elementwise with Points -> Points | Primitives -> Primitives | None -> Irregular);
       reads = facts.reads; writes = facts.writes;
-      preserves_topology = (facts.topology = Procedural.Node.Preserved); exact = facts.exact}) factories;
+      preserves_topology = (facts.topology = Sop.Node.Preserved); exact = facts.exact}) factories;
   let seen = Hashtbl.create 64 in
   let rec build reversed = function
     | [] -> Ok Flow.Check.{version; kinds = List.rev reversed}

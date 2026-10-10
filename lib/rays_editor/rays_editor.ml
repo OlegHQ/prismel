@@ -3,6 +3,11 @@ open Editor_document
 module Settings = Settings
 module Source = Source_file
 module Workspace_doc = Workspace_doc
+module Drawing = Drawing
+module Live_frame = Live_frame
+module Packed_pieces = Packed_pieces
+module Surface = Surface
+module Timeline = Timeline
 
 let workspace_catalog ?(factories = Sop_catalog.Editor.factories) () =
   Contexts.catalog ~version:Flow_sop.Manifest.version factories
@@ -11,13 +16,9 @@ type window = Contexts.window =
   { title : string; width : int; height : int; fps : int; seed : int }
 let workspace_window = Contexts.window
 
-type layout = Pxui_shell.Layout.t
-
-let default_layout = Pxui_shell.Layout.default
-
 module Renderer = Renderer
 
-module Editor3 = struct
+module Editor = struct
   include Environment
   module Private = struct
     let gpu_qualification value=Workspace_gpu.qualification value.Environment.host.gpu
@@ -35,7 +36,6 @@ module Editor3 = struct
     let new_graph value context=snd (Core.new_graph value.Environment.core context)
     let menu_forms = List.map (fun (_, form, text, _) -> form, text) Core.forms
     let image_render_stats value=Workspace_images.render_stats value.Environment.host.images
-    let image_capture_stats value=Workspace_images.capture_stats value.Environment.host.images
     let canvas_scenes value=List.map (fun (_,(p:Environment.canvas_picture))->p.scene) value.Environment.canvases
     let image_gpu_stats value=Workspace_gpu.image_stats value.Environment.host.gpu
     let host_stats value = let host=value.Environment.host in
@@ -58,9 +58,9 @@ module Editor3 = struct
   end
 
   type render_settings = Objects.Root.render = { width : int; height : int; max_spp : int }
-  let render_camera value = (extra value).Viewport3.document_camera
+  let render_camera value = (extra value).Viewport.document_camera
   let view_camera value = view_camera value
-  let render_settings value = Objects.Root.render (extra value).Viewport3.root
+  let render_settings value = Objects.Root.render (extra value).Viewport.root
   let film value frame = film value frame
 
   type slot = { film : int * int; step : int; samples : int; max_spp : int; viewports : int }
@@ -68,43 +68,43 @@ module Editor3 = struct
     Option.map (fun (info : Renderer.info) ->
       { film = info.size; step = info.step; samples = info.samples; max_spp = info.cap;
         viewports = info.viewports })
-      (Renderer.info (extra value).Viewport3.renderer ~key)
+      (Renderer.info (extra value).Viewport.renderer ~key)
   let take_export value = take_export value
   let set_render_status value status = set_render_status value status
-  let flying value = (extra value).Viewport3.fly <> None
-  let look_through value = Viewport3.look_through (extra value)
-  let renderer value = (extra value).Viewport3.renderer.mode
+  let flying value = (extra value).Viewport.fly <> None
+  let look_through value = Viewport.look_through (extra value)
+  let renderer value = (extra value).Viewport.renderer.mode
   let set_renderer value mode =
-    {value with extra = {value.extra with Viewport3.renderer_request = Some mode}}
+    {value with extra = {value.extra with Viewport.renderer_request = Some mode}}
 
-  let create ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare ~scene3
+  let create ?name ?presets ?factories ?settings ?lights ?camera
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare ~scene3
       ?overlay ?status () =
-    create ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare
+    create ?name ?presets ?factories ?settings ?lights ?camera
+      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare
       ~draw:scene3 ?overlay ?status ()
 
-  let run ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~workspace ?source ~prepare
-      ~scene3 ?overlay ?status () =
-    run ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights ?world ?camera ?lens
-      ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes ~config ~workspace ?source ~prepare
-      ~draw:scene3 ?overlay ?status ()
+  let run ?inputs ?name ?factories ?lights ?camera
+      ?seed ?grain ?max_entries ?max_payload_bytes ~config ~workspace ?source ~prepare
+      ~scene3 ?overlay () =
+    run ?inputs ?name ?factories ?lights ?camera
+      ?seed ?grain ?max_entries ?max_payload_bytes ~config ~workspace ?source ~prepare
+      ~draw:scene3 ?overlay ()
 end
 
 module Reduce = struct
-  let open_import (editor : _ Editor3.t) file =
+  let open_import (editor : _ Editor.t) file =
     {editor with Environment.core = {editor.core with Core.open_import = Some file}}
-  let spreadsheet (editor : _ Editor3.t) path =
+  let spreadsheet (editor : _ Editor.t) path =
     let key = Core.panel_key editor.core.doc path in
     let pane = Core.shown_as editor.core (key, path, Pxui_shell.Layout.Spreadsheet) in
     (Core.local_of editor.core key).sheet_owner, Core.spreadsheet_source pane
-  let select_path (editor : _ Editor3.t) path = match path with
+  let select_path (editor : _ Editor.t) path = match path with
     | graph :: _ -> {editor with Environment.core = { (Core.go editor.core graph) with Core.select_later = [path] }}
     | [] -> editor
-  let view (editor : _ Editor3.t) path =
+  let view (editor : _ Editor.t) path =
     {editor with Environment.core = Core.view_node editor.core path}
-  let step (e : _ Editor3.t) ?select ?preview actions frame =
+  let step (e : _ Editor.t) ?select ?preview actions frame =
     { e with Environment.core = Core.reduce_idle ?select ?preview e.Environment.core actions frame }
 end
 
@@ -130,12 +130,11 @@ module Workspace = struct
     | Ok catalog -> Workspace_doc.of_text ?ops ?imports catalog text
 
   (* A hand-written host: the checked document and its file, or the diagnostics and exit 1. *)
-  let open_text ?factories ?imports ~path ~digest text =
+  let open_text ?factories ~path ~digest text =
     let source = Source.find ~path ~digest in
-    let imports = match imports, source with
-      | Some imports, _ -> Ok imports
-      | None, Some source -> Source_file.read_imports ~file:(Source.file source) text
-      | None, None -> Ok [] in
+    let imports = match source with
+      | Some source -> Source_file.read_imports ~file:(Source.file source) text
+      | None -> Ok [] in
     match Result.bind imports (fun imports -> load ?factories ~imports text) with
     | Error ds ->
         List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d)) ds;
@@ -155,7 +154,7 @@ module Workspace = struct
       match g.root with
       | None -> Ok rest
       | Some node_id ->
-          let* graph = Procedural.Edit_graph.compile_node g.network.geometry ~node_id in
+          let* graph = Sop.Edit_graph.compile_node g.network.geometry ~node_id in
           Ok ((g.name, graph) :: rest)) lowered.graphs (Ok [])
 
   let declared_camera ?(factories = Sop_catalog.Editor.factories) doc base =
@@ -164,7 +163,7 @@ module Workspace = struct
     | Ok document ->
         let scene = document.Document.scene.graph.Flow_sop.Network.geometry in
         (match Option.bind (List.nth_opt (Objects.ids "camera" scene) 0) (fun node_id ->
-            Option.bind (Procedural.Edit_graph.find scene ~node_id) Objects.Camera.of_node) with
+            Option.bind (Sop.Edit_graph.find scene ~node_id) Objects.Camera.of_node) with
          | Some (view, _) -> Rays.Easy_camera.of_view ~eye:(Rays.Camera.position view)
              ~target:(Rays.Camera.target view) base
          | None -> base)
@@ -176,20 +175,20 @@ module Workspace = struct
     Result.map (fun window ->
     let config = { Rays.Sketch.default_config with width = window.width; height = window.height;
                    title = window.title; fps = Some window.fps } in
-    let prepare _ = Sketch_support.Surface.of_output in
-    let scene3 = Sketch_support.Surface.scene3 in
+    let prepare _ = Surface.of_output in
+    let scene3 = Surface.scene3 in
     let lights = [ Rays.Light.directional ~direction:(Rays.Vec3.create (-1.) (-1.4) (-0.8))
                      ~diffuse:Rays.Color.white () ] in
     let camera = declared_camera ?factories doc (Rays.Easy_camera.create ~target:Rays.Vec3.zero ~distance:3.6
         ~azimuth:0.4 ~elevation:0.6 ()) in
-    Editor3.run ?inputs ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ())
+    Editor.run ?inputs ~config ~lights ~camera ?factories ~seed:(Int64.of_int window.seed) ~workspace:doc ?source ~prepare ~scene3 ())
       (workspace_window doc)
 
-  let export ?inputs ?(factories=Sop_catalog.Editor.factories) ?graph ?(fps = 60) ?prefix ~directory ~frames doc =
+  let export ?graph ?(fps = 60) ~directory ~frames doc =
+    let factories = Sop_catalog.Editor.factories in
     let ( let* ) = Result.bind in
     let* () = if fps > 0 && frames > 0 then Ok () else
       Error (Flow.Diagnostic.error ~code:"E_EXPORT_RANGE" "Export frame count and fps must be positive.") in
-    let doc = match inputs with None -> doc | Some inputs -> {doc with Workspace_doc.inputs} in
     let* window = workspace_window doc in
     let* lowered = Flow_sop.Lower.of_checked ~reference:true ~factories ~inputs:doc.inputs doc.checked in
     let evaluated=lowered.evaluated in
@@ -203,34 +202,34 @@ module Workspace = struct
         let host=Workspace_host.create ~seed:(Int64.of_int window.seed)()in
         Workspace_images.bind host.images lowered;
         let value = List.assoc graph.name evaluated.results in
-        let* prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value in
+        let* prepared = Drawing.prepare ~states:evaluated.states evaluated.plan value in
         let view () frame =
           let live = {(Frame_input.at_time frame.Rays.Frame.time) with
             dt = 1. /. float fps; frame = frame.count; tick = frame.count; size = (window.width, window.height)} in
-          match Sketch_support.Drawing.render_prepared ~state prepared
+          match Drawing.render_prepared ~state prepared
             ~image:(Workspace_images.image ~display:false host.images ~state ~live evaluated.plan) ~live ~size:live.size with
           | Ok scene -> (match Workspace_host.export_update host ~state ~live doc evaluated.plan with
               |Ok()->scene|Error d->raise(Flow.Value.Fail(d.code,d.message,d.span)))
           | Error d -> raise (Flow.Value.Fail (d.code, d.message, d.span)) in
         let config = {Rays.Sketch.default_config with width = window.width; height = window.height;
-          title = window.title; resizable = false; clock = Rays.Sketch.Fixed (1. /. float fps)} in
+          title = window.title;  clock = Rays.Sketch.Fixed (1. /. float fps)} in
         let after_present () _=match Workspace_host.save_pending host Rays.Canvas.save_screen_png with
           |Ok()->()|Error d->raise(Flow.Value.Fail(d.code,d.message,d.span))in
-        (try ignore (Rays.Sketch.export_state ~config ~fps ?prefix ~directory ~frames
+        (try ignore (Rays.Sketch.export_state ~config ~fps ~directory ~frames
            ~init:(fun _ -> ()) ~update:(fun () _ -> ()) ~view ~after_present
            ~on_stop:(fun()->Workspace_host.close host) ()); Ok ()
          with Flow.Value.Fail (code, message, span) -> Error (Flow.Diagnostic.error ?span ~code message))
 
-  let main ?factories ?imports ~path ~digest ~catalog text =
-    let expected = Contexts.catalog_digest (Option.value ~default:Sop_catalog.Editor.factories factories) in
+  let main ?imports ~path ~digest ~catalog text =
+    let expected = Contexts.catalog_digest Sop_catalog.Editor.factories in
     if catalog <> expected then
       prerr_endline (path ^ ": built against another catalog; checking the source again");
-    match load ?factories ?imports text with
+    match load ?imports text with
     | Error ds ->
         List.iter (fun d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d)) ds;
         exit 1
     | Ok doc ->
-        (match run ?factories ~source:{ path; digest } doc with
+        (match run ~source:{ path; digest } doc with
          | Ok () -> ()
          | Error d -> prerr_endline (Flow.Diagnostic.report ~file:path ~source:text d); exit 1)
 end

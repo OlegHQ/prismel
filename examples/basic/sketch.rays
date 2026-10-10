@@ -1,4 +1,3 @@
-; The OCaml main.ml stays beside this sketch as the rasterization oracle.
 (workspace basic
 
   (graph picture :context draw

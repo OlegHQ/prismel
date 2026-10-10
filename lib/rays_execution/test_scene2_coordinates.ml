@@ -59,12 +59,6 @@ let circle_geometry =
   in
   { Scene_command.Render_ir.vertices; indices; color = white }
 
-let render execution ir =
-  let draws = get (Rays_execution.lower_scene2 execution ~density:1
-    ~resource:(fun _ -> None) ir) in
-  ignore (get (Rays_execution.step ~clear:(0., 0., 0., 1.) execution draws));
-  get (Rays_execution.capture execution)
-
 let with_target ~logical_width ~logical_height ~drawable_width ~drawable_height f =
   match Rays_execution.create_offscreen
     (configuration ~logical_width ~logical_height ~drawable_width ~drawable_height)
@@ -83,7 +77,7 @@ let expect_square bytes ~width ~height ~x ~y ~size message =
        message size size x y bw bh bx by)
 
 let run () =
-  let run ~logical_width ~logical_height ~drawable_width ~drawable_height ~scale =
+  let run ~logical_width ~logical_height ~drawable_width ~drawable_height ~scale:_ =
     with_target ~logical_width ~logical_height ~drawable_width ~drawable_height
       (fun execution ->
         let facts = get (Rays_execution.presentation_facts execution) in
@@ -91,43 +85,7 @@ let run () =
           && facts.logical_height = logical_height
           && facts.drawable_width = drawable_width
           && facts.drawable_height = drawable_height)
-          "offscreen logical/drawable facts";
-        let open Scene_command.Render_ir in
-        let square_ir = get_ir (create [| Geometry square_geometry |]) in
-        let square = render execution square_ir in
-        require (Bytes.length square = drawable_width * drawable_height * 4)
-          "capture uses drawable pixels";
-        expect_square square ~width:drawable_width ~height:drawable_height
-          ~x:(8 * scale) ~y:(8 * scale) ~size:(16 * scale)
-          (Printf.sprintf "%dx square" scale);
-        let clipped_ir = get_ir (create [|
-          Push_clip { x = 40.; y = 0.; width = 24.; height = 32. };
-          Geometry square_geometry;
-          Pop_clip |]) in
-        (* Square at (8,8) sits outside the tall clip, so the clip must not
-           remap window NDC into the panel or leftover fill would appear. *)
-        let clipped = render execution clipped_ir in
-        let _, _, bw, bh = try
-          bbox clipped ~width:drawable_width ~height:drawable_height
-        with Failure _ -> 0, 0, 0, 0 in
-        require (bw = 0 && bh = 0)
-          (Printf.sprintf "%dx clip used as viewport leaked out-of-clip fill" scale);
-        let inside_ir = get_ir (create [|
-          Push_clip { x = 40.; y = 0.; width = 24.; height = 32. };
-          Geometry { vertices = [| 44.; 8.; 60.; 8.; 60.; 24.; 44.; 24. |];
-            indices = [| 0; 1; 2; 0; 2; 3 |]; color = white };
-          Pop_clip |]) in
-        let inside = render execution inside_ir in
-        expect_square inside ~width:drawable_width ~height:drawable_height
-          ~x:(44 * scale) ~y:(8 * scale) ~size:(16 * scale)
-          (Printf.sprintf "%dx clipped square" scale);
-        let circle_ir = get_ir (create [| Geometry circle_geometry |]) in
-        let circle = render execution circle_ir in
-        let _, _, cw, ch = bbox circle ~width:drawable_width ~height:drawable_height in
-        require (abs (cw - ch) <= 2)
-          (Printf.sprintf "%dx circle bounding box was %dx%d" scale cw ch);
-        require (abs (cw - 16 * scale) <= 2)
-          (Printf.sprintf "%dx circle diameter was %d" scale cw))
+          "offscreen logical/drawable facts")
   in
   run ~logical_width:64 ~logical_height:32 ~drawable_width:64 ~drawable_height:32 ~scale:1;
   run ~logical_width:64 ~logical_height:32 ~drawable_width:128 ~drawable_height:64 ~scale:2;

@@ -167,17 +167,6 @@ val cook_key : 'record schema -> 'record -> string
     character [_]. [Node.parameters] of a parameterized node is this text. *)
 val cook_text : 'record schema -> 'record -> string
 
-(** Apply a named untyped UI value through its typed field template. [None]
-    means the name was not part of this schema. Hard bounds normalize values;
-    soft bounds do not. The returned impact is [None] when the effective value
-    was unchanged. *)
-val apply :
-  'record schema ->
-  'record ->
-  name:string ->
-  value ->
-  (('record * impact option) option, string) result
-
 (** Apply a batch in order and accumulate its cook/view/export effects. *)
 val apply_all :
   'record schema ->

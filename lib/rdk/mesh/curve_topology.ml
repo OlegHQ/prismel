@@ -55,16 +55,6 @@ let convert_line ?cancel ?grain ?edges ?(connect_path = false)
           | Some name -> Curve_ops.with_length_attribute ?cancel ?grain ~name output
         else Ok output)) )
 
-type curve_end_mode = Open_curve | Close_curve | Unroll_curve
-
-let curve_ends ?cancel ?grain ?primitives mode geometry =
-  let mode = match mode with
-    | Open_curve -> Curve_ops.Open
-    | Close_curve -> Curve_ops.Close
-    | Unroll_curve -> Curve_ops.Unroll in
-  protected "curve_ends" "invalid_geometry" (fun () ->
-    Curve_ops.ends ?cancel ?grain ?primitives mode geometry)
-
 type ends_mode =
   | Ends_open
   | Ends_close_straight

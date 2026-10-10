@@ -119,10 +119,10 @@ let vertex_normals geometry =
            Ok (Some { x = values.x; y = values.y; z = values.z })
        | _ -> Error "Rdk.Deform: vertex N must have float3 storage")
 
-let face_vectors ?cancel ~grain ?primitives geometry =
+let face_vectors ?cancel ~grain geometry =
   Result.map (fun ((x, y, z), _) -> { x; y; z })
     (Face_normals.polygon_area_vector ?cancel ~grain ~need_inverse:false
-      ~first_failure:true ?primitives ~operation:"Rdk.Deform" geometry)
+      ~first_failure:true ~operation:"Rdk.Deform" geometry)
 
 let point_vectors_from_vertices ?cancel ~grain topology source =
   let topology_view = Topology.Private.view topology in
@@ -149,7 +149,7 @@ let point_vectors_from_vertices ?cancel ~grain topology source =
       end);
   { x; y; z }
 
-let geometric_point_vectors ?cancel ~grain ?primitives geometry =
+let geometric_point_vectors ?cancel ~grain geometry =
   Result.map (fun faces ->
     let topology = Geometry.topology geometry in
     let topology_view = Topology.Private.view topology in
@@ -162,15 +162,12 @@ let geometric_point_vectors ?cancel ~grain ?primitives geometry =
       while vertex >= topology_view.primitive_offsets.(!primitive + 1) do
         incr primitive
       done;
-      if match primitives with None -> true | Some group -> Group.mem !primitive group
-      then begin
-        let point = topology_view.vertex_points.(vertex) in
-        x.(point) <- x.(point) +. faces.x.(!primitive);
-        y.(point) <- y.(point) +. faces.y.(!primitive);
-        z.(point) <- z.(point) +. faces.z.(!primitive)
-      end
+      let point = topology_view.vertex_points.(vertex) in
+      x.(point) <- x.(point) +. faces.x.(!primitive);
+      y.(point) <- y.(point) +. faces.y.(!primitive);
+      z.(point) <- z.(point) +. faces.z.(!primitive)
     done;
-    { x; y; z }) (face_vectors ?cancel ~grain ?primitives geometry)
+    { x; y; z }) (face_vectors ?cancel ~grain geometry)
 
 let resolve_directions ?cancel ~grain ?direction_attribute geometry =
   match direction_attribute with

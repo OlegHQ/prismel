@@ -36,7 +36,7 @@ let floating_calls declaration =
     method! expression expression =
       (match expression.pexp_desc with
        | Pexp_apply ({pexp_desc=Pexp_ident {txt=Longident.Ldot
-           (Longident.Ldot (Longident.Lident "Procedural", "Parameter"), "floating"); _}; _}, _) ->
+           (Longident.Ldot (Longident.Lident "Sop", "Parameter"), "floating"); _}; _}, _) ->
            incr count
        | _ -> ());
       super#expression expression
@@ -54,8 +54,6 @@ let () =
     | _ -> assert false in
   assert (List.length (Ppx_rays.generate_type unit_declaration) = 2);
   ignore (Ppx_rays.generate_node_type unit_declaration);
-  assert (Ppx_rays.node_arguments unit_declaration ["in0"] =
-    [Ppx_rays.Arg_positional "in0"]);
   let valid = declaration vector "" in
   assert (List.length (Ppx_rays.generate_type valid) = 2);
   assert (floating_calls valid = 1);
@@ -116,8 +114,6 @@ let () =
       "[@@sop.node_slots \"input, field\"] [@@sop.node_keywords \"field\"]
        [@@sop.node_types [\"geometry\"; \"fn(vec3,float)->float\"]]") in
   ignore (Ppx_rays.generate_node_type keyword);
-  assert (Ppx_rays.node_arguments keyword ["input"; "field"] =
-    [Ppx_rays.Arg_optional "center"; Arg_positional "input"; Arg_labelled "field"]);
   List.iter (fun attrs -> reject "sop.node_keywords must name distinct required slots"
       (fun () -> Ppx_rays.generate_node_type (declaration vector (node "fixture" attrs))))
     ["[@@sop.node_keywords \"missing\"]";
@@ -132,9 +128,6 @@ let () =
       "[@@sop.node_rest 1]") in
   let _, _, _, _, _, _, _, rest_slot = Ppx_rays.node_metadata rest in
   assert (rest_slot = Some 1);
-  assert (Ppx_rays.node_arguments rest ["in0";"in1"] =
-    [Ppx_rays.Arg_optional "center";Arg_positional "in0";Arg_positional "in1"]);
-  assert (Ppx_rays.node_arguments rest [] = [Ppx_rays.Arg_optional "center";Arg_unit]);
   ignore (Ppx_rays.generate_node_type rest)
 ;
   let optional_rest=declaration vector (node "fixture"
@@ -142,8 +135,8 @@ let () =
   let _,_,_,_,_,optional,_,rest_slot=Ppx_rays.node_metadata optional_rest in
   assert (optional=[0;1] && rest_slot=Some 1);
   ignore (Ppx_rays.generate_node_type optional_rest);
-  let facts = "[@@sop.node_facts {elementwise = Procedural.Node.Points; reads = [\"P\"];\n\
-    writes = [\"P\"]; topology = Procedural.Node.Preserved; exact = false}]" in
+  let facts = "[@@sop.node_facts {elementwise = Sop.Node.Points; reads = [\"P\"];\n\
+    writes = [\"P\"]; topology = Sop.Node.Preserved; exact = false}]" in
   ignore (Ppx_rays.generate_node_type (declaration vector (node "fixture" facts)));
   List.iter (fun fields -> reject
       "sop.node_facts requires elementwise, reads, writes, topology and exact exactly once"

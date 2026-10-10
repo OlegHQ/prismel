@@ -32,15 +32,11 @@ type precision = Exact | Approx
 type tier = Interp | Closure | Cpu_kernel | Gpu | Gpu_compile | Gpu_readback | Cooked
 module Cost : sig
   type tier_cost = {fixed : float; per_element : float}
-  val table : tier -> tier_cost
   val estimate : tier -> count:int -> float
   val cheapest : legal:tier list -> count:int -> tier
   val packed : count:int -> tier
   (** The same measured CPU decision used at placement and force time. *)
 
-  val display_sink : tier -> count:int -> float
-  (** Measured seconds a display sink adds beyond the producer: CPU instance
-      building and upload, or the resident GPU circle conversion. *)
 end
 module Gpu : sig
   type value={identity:int;count:int;width:int;stamp:int64;gpu_seconds:float option}
@@ -130,15 +126,12 @@ module Executor : sig
       Failures rerun the reference for its precise diagnostic. *)
 
   type displayed=Cpu of Flow.Eval.value | Gpu of Gpu.value
-  val try_display : ?state:Flow.Eval.state -> ?elems:(string*Flow.Eval.value)list ->
-    ?resolve:(Flow.Eval.value -> (Flow.Eval.value,Flow.Diagnostic.t)result) ->
+  val try_display : ?state:Flow.Eval.state -> ?resolve:(Flow.Eval.value -> (Flow.Eval.value,Flow.Diagnostic.t)result) ->
     ?reference:bool -> ?policy:Gpu.policy -> program -> live:Frame_input.t ->
     (displayed option,Flow.Diagnostic.t)result
   (** Select a GPU producer without executing the CPU fallback. [None] leaves
       ordinary worker cooking intact; explicit readbacks return owned CPU data. *)
 
-  val force_display : ?state:Flow.Eval.state -> ?elems:(string*Flow.Eval.value)list ->
-    ?resolve:(Flow.Eval.value -> (Flow.Eval.value,Flow.Diagnostic.t)result) ->
-    ?reference:bool -> ?policy:Gpu.policy -> program -> live:Frame_input.t ->
+  val force_display : ?state:Flow.Eval.state -> ?reference:bool -> ?policy:Gpu.policy -> program -> live:Frame_input.t ->
     (displayed,Flow.Diagnostic.t)result
 end

@@ -1,7 +1,6 @@
 type t = {
   source_count : int;
-  unique_x : float array;
-  unique_y : float array;
+
   unique_source : int array;
   source_unique : int array;
   triangle_points : int array;
@@ -33,18 +32,16 @@ let triangle_point value triangle local =
 
 module Private = struct
   type view = {
-    unique_x : float array;
-    unique_y : float array;
+
     unique_source : int array;
-    source_unique : int array;
+
     triangle_points : int array;
   }
 
   let view (value : result_t) = {
-    unique_x = value.unique_x;
-    unique_y = value.unique_y;
+
     unique_source = value.unique_source;
-    source_unique = value.source_unique;
+
     triangle_points = value.triangle_points;
   }
 end
@@ -236,7 +233,7 @@ let build ?cancel ?(seed = 0L) ~x ~y () =
     let unique_x,unique_y,unique_source,source_unique = exact_duplicates x y in
     let point_count = Array.length unique_x in
     if point_count < 3 then Ok {
-      source_count; unique_x; unique_y; unique_source; source_unique;
+      source_count;   unique_source; source_unique;
       triangle_points = [||];
     } else begin
       let maximum = ref 0. in
@@ -519,7 +516,7 @@ let build ?cancel ?(seed = 0L) ~x ~y () =
           triangle_points.(target) <- unsorted.(source);
           triangle_points.(target + 1) <- unsorted.(source + 1);
           triangle_points.(target + 2) <- unsorted.(source + 2)) order;
-      Ok { source_count; unique_x; unique_y; unique_source; source_unique;
+      Ok { source_count;   unique_source; source_unique;
         triangle_points }
     end
   with

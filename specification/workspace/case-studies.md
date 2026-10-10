@@ -82,13 +82,12 @@ A for zone repeats one shared petal function. Per-petal variation comes from the
                                   :scale [0.55 0.55 0.55])
            camera (scene/camera :eye [0.5 1.8 6] :target [0.8 0.3 0] :fov 50)
            light (scene/light :translate [4 6 5] :intensity 60)
-           composed (scene/merge main accent camera light)]
+           sky (scene/world (ref world) :name "Bloom study" :exposure -0.5)
+           composed (scene/merge main accent camera light sky)]
       composed))
 
   (graph world :context world
-    (world/world (world/sun (world/sky :turbidity 3) :intensity 1500)
-                 :name "Bloom study"
-                 :exposure -0.5))
+    (world/sun (world/sky :turbidity 3) :intensity 1500))
 
   (graph settings :context settings
     (let* [seed 42

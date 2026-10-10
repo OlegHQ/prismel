@@ -90,7 +90,7 @@ type t = {
   latitude : float;  (** Radians, north positive. *)
   day_of_year : int;
   sun : [ `Linked | `Manual of float * float ];
-  (** [`Linked] uses {!sun_direction}; [`Manual (azimuth, elevation)]. *)
+  (** [`Linked] uses the linked sun direction; [`Manual (azimuth, elevation)]. *)
 }
 
 val default : t
@@ -100,14 +100,6 @@ val presets : (string * t) list
 (** ["neon corridor"], ["soft blobs"], ["white room"], ["daylight"]. *)
 
 val direction_of_uv : float -> float -> Vec3.t
-val uv_of_direction : Vec3.t -> float * float
-
-val sun_direction : latitude:float -> day_of_year:int -> hours:float -> Vec3.t
-(** Unit vector toward the sun, north = -Z, east = +X. Declination
-    [-23.44 deg * cos (2pi (day + 10) / 365)], hour angle
-    [(hours - 12) * 15 deg]; then east = [-cos dec sin h],
-    north = [sin dec cos lat - cos dec sin lat cos h],
-    up = [sin dec sin lat + cos dec cos lat cos h]. *)
 
 (** {1 Bake} *)
 
@@ -128,9 +120,6 @@ type sun = { direction : Vec3.t; radiance : rgb; angular_radius : float }
 type cdf = {
   marginal : Float.Array.t;  (** [height + 1] entries, 0 .. 1. *)
   conditional : Float.Array.t;  (** [height] rows of [width + 1], 0 .. 1. *)
-  integral : float;
-  (** Integral of the lighting luminance over the sphere; its sampling pdf
-      is [luminance / integral] per steradian. *)
 }
 (** Importance sampling of the lighting map by luminance x sin theta. A
     row or map with zero weight is uniform. *)
@@ -145,7 +134,7 @@ type baked = {
       [0.282095; 0.488603 y; 0.488603 z; 0.488603 x; 1.092548 xy;
        1.092548 yz; 0.315392 (3z^2 - 1); 1.092548 xz; 0.546274 (x^2 - y^2)],
       already multiplied by the cosine-lobe factors pi, 2pi/3, pi/4
-      (Ramamoorthi-Hanrahan). See {!irradiance}. *)
+      (Ramamoorthi-Hanrahan). *)
   specular : map array;
   (** 6 GGX-prefiltered lighting mips for roughness 0, 0.2, .., 1: 128x64,
       64x32, .., 4x2. Mip 0 is a box downsample. *)
@@ -163,14 +152,7 @@ val bake : ?domains:int -> ?light_radius:float -> width:int -> height:int ->
     split into segments of at most 60 degrees; room panels stay at their
     true position in the box. *)
 
-val bake_cached : ?domains:int -> ?light_radius:float -> width:int ->
+val bake_cached : width:int ->
   height:int -> t -> baked
 (** [bake] behind a per-domain LRU of capacity 4 keyed structurally;
     changing only [background] or [exposure] is a hit. *)
-
-val lookup : map -> Vec3.t -> rgb
-(** Bilinear, wrapping in u. *)
-
-val irradiance : baked -> Vec3.t -> rgb
-(** [sum sh9.(i) * Y_i n]: irradiance at normal [n] from the lighting map;
-    divide by pi for the radiance of a white Lambertian surface. *)

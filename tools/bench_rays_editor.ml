@@ -1,17 +1,17 @@
-(* Rays Editor edit frames on a large workspace graph: one full [Editor3.update]
+(* Rays Editor edit frames on a large workspace graph: one full [Editor.update]
    per sample while a node drag records into the undo document, plus the
    undo frame that restores the layout. Prints CSV:
    name,nodes,median_s,p95_s,bytes_per_frame.
    [--panels [nodes]] measures idle frames (the pointer moving over the viewport) of layouts
    with one and three graph panels and one and two inspectors over the same graph. *)
-open Procedural
+open Sop
 
 let pointer (x, y) = float x, float y
 
 let frame ?(mouse = 0, 0) ?(buttons = []) ?(events = []) count : Rays.Frame.t = {
   width = 1_200; height = 760; size = 1_200, 760;
-  drawable_width = 1_200; drawable_height = 760;
-  drawable_size = 1_200, 760; pixel_scale = 1., 1.;
+
+   pixel_scale = 1., 1.;
   time = float_of_int count /. 60.; dt = 1. /. 60.; fps = 60.; count;
   mouse = pointer mouse; mouse_delta = 0., 0.; keys = [];
   mouse_buttons = buttons; events;
@@ -63,7 +63,7 @@ let report name nodes samples bytes =
     (bytes /. float_of_int (Array.length samples))
 
 let measure nodes =
-  let module E = Rays_editor.Editor3 in
+  let module E = Rays_editor.Editor in
   let workspace, names = workspace nodes in
   let environment = E.create ~workspace
       ~domains:1 ~presets:(Filename.temp_dir "rays-editor-bench" "")
@@ -155,7 +155,7 @@ let measure nodes =
 (* Idle frames of one graph under layouts that differ only in how many graph panels and
    inspectors they hold: what an extra panel instance costs a frame. *)
 let measure_panels nodes =
-  let module E = Rays_editor.Editor3 in
+  let module E = Rays_editor.Editor in
   let text, _ = workspace_text nodes in
   let body = String.sub text 0 (String.length text - 2) in  (* without the workspace's closing bracket *)
   let graphs n = if n = 1 then "(ui/graph \"g\")"
@@ -189,7 +189,7 @@ let measure_panels nodes =
       "panels_1_graph_2_inspectors", 1, 2; "panels_3_graphs_2_inspectors", 3, 2 ]
 
 let measure_spreadsheet () =
-  let module E = Rays_editor.Editor3 in
+  let module E = Rays_editor.Editor in
   let workspace = load {|(workspace sheet
     (graph g :context sop (sop/grid :counts "Point counts" :connectivity "Points" :rows 1000 :columns 1000))
     (graph editor :context editor (let* [gpanel (ui/graph "g" :focus true)]
@@ -220,19 +220,18 @@ let measure_spreadsheet () =
 
 let measure_world () =
   let open Rays in
-  let module E = Rays_editor.Editor3 in
+  let module E = Rays_editor.Editor in
   Parallel.run ~domains:1 (fun () ->
     let workspace = match Rays_editor.Workspace.load
         "(workspace w (graph g :context sop (sop/points :points 1)))" with
       | Ok workspace -> workspace | Error _ -> failwith "the World fixture does not check" in
     let environment = ref (E.create ~domains:1 ~workspace
-      ~world:{ World.default with layers = []; background = World.Transparent }
       ~camera:(Easy_camera.create ~inertia:false ())
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) in
     Fun.protect ~finally:(fun () -> E.close !environment) (fun () ->
       let input count x events = { (frame ~mouse:(100, 300) ~buttons:[Input.LeftButton]
           ~events count) with width = 900; height = 640; size = 900, 640;
-          drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+
           mouse = x, 300.; mouse_delta = 0.02, 0.; keys = [Input.Shift] } in
       let deadline = Unix.gettimeofday () +. 2. in
       while E.prepared !environment = None do

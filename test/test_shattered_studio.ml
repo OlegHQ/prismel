@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 
 let get = Result.get_ok
 let path = Sys.argv.(1)
@@ -45,12 +45,12 @@ let () = with_cook 1 (fun cook ->
     assert (Rdk.Topology_index.boundary_edge_count index = 0);
     assert (Rdk.Topology_index.non_manifold_edge_count index = 0)) parts;
   let source = Node.inputs fracture |> List.hd |> cook in
-  let original_volume = Rdk.Analysis.signed_volume (Result.get_ok (Procedural.Payload.geometry source.payload)) |> get
+  let original_volume = Rdk.Analysis.signed_volume (Result.get_ok (Sop.Payload.geometry source.payload)) |> get
   and fractured_volume = Rdk.Analysis.signed_volume g |> get in
   assert (abs_float (original_volume -. fractured_volume) < 1e-7 *. abs_float original_volume);
   let colored = cook graph in
-  let prepared = Sketch_support.Surface.of_output colored |> get in
-  let drawings = Sketch_support.Surface.scene3 graph prepared |> Scene3.Private.drawings in
+  let prepared = Rays_editor.Surface.of_output colored |> get in
+  let drawings = Rays_editor.Surface.scene3 graph prepared |> Scene3.Private.drawings in
   assert (List.length drawings = 4);
   Printf.printf "studio fracture: %d closed manifold shards, %d faces, volume %.9g; exact across 1/4 domains; four material batches\n%!"
     !count (Rdk.Geometry.primitive_count g) fractured_volume)

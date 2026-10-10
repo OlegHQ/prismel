@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 
 (* Effect- and dependency-aware cook scheduler. It fires initially, after a
    committed cook parameter change, after [force], and whenever the sketch

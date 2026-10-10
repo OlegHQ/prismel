@@ -84,16 +84,12 @@
 
 (executable
  (name test_main)
- (modules test_main test_metal_argument_reflection_snapshot test_metal_resource_bounds test_metal_blit_command25_safe test_metal_command_support121_safe test_metal_device_library5_safe test_metal_device_queues3_safe test_metal_function_tables_safe test_metal_render_encoder_safe test_metal_compute_encoder35_safe test_metal_command_buffer19_safe test_metal_compute_pipeline11_safe test_metal_render_icb_argument)
+ (modules test_main test_metal_argument_reflection_snapshot test_metal_blit_command25_safe test_metal_command_support121_safe test_metal_compute_encoder35_safe test_metal_render_icb_argument)
  (libraries metal unix))
 
 (rule
  (aliases runtest test_metal_argument_reflection_snapshot)
  (action (run %{exe:test_main.exe} test_metal_argument_reflection_snapshot)))
-
-(rule
- (aliases runtest-native test_metal_resource_bounds)
- (action (run %{exe:test_main.exe} test_metal_resource_bounds)))
 
 (rule
  (aliases runtest-native test_metal_blit_command25_safe)
@@ -104,32 +100,8 @@
  (action (run %{exe:test_main.exe} test_metal_command_support121_safe)))
 
 (rule
- (aliases runtest-native test_metal_device_library5_safe)
- (action (run %{exe:test_main.exe} test_metal_device_library5_safe)))
-
-(rule
- (aliases runtest-native test_metal_device_queues3_safe)
- (action (run %{exe:test_main.exe} test_metal_device_queues3_safe)))
-
-(rule
- (aliases runtest-native test_metal_function_tables_safe)
- (action (run %{exe:test_main.exe} test_metal_function_tables_safe)))
-
-(rule
- (aliases runtest-native test_metal_render_encoder_safe)
- (action (run %{exe:test_main.exe} test_metal_render_encoder_safe)))
-
-(rule
  (aliases runtest-native test_metal_compute_encoder35_safe)
  (action (run %{exe:test_main.exe} test_metal_compute_encoder35_safe)))
-
-(rule
- (aliases runtest-native test_metal_command_buffer19_safe)
- (action (run %{exe:test_main.exe} test_metal_command_buffer19_safe)))
-
-(rule
- (aliases runtest-native test_metal_compute_pipeline11_safe)
- (action (run %{exe:test_main.exe} test_metal_compute_pipeline11_safe)))
 
 (rule
  (aliases runtest-native test_metal_render_icb_argument)

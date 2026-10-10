@@ -1,7 +1,7 @@
 (library
  (name workspace_parity)
  (modules workspace_parity)
- (libraries rays rays_editor rays_execution runtime scene_execution ogpu flow_ir flow_gpu flow_sop editor_document sketch_support rdk_rays rdk_test_support unix))
+ (libraries rays rays_editor rays_execution runtime scene_execution ogpu flow_ir flow_gpu flow_sop editor_document rdk_rays rdk_test_support unix))
 
 (executable
  (name check)
@@ -12,13 +12,6 @@
  (name bench_gpu)
  (modules bench_gpu)
  (libraries ogpu rays_execution rays_math unix))
-
-(test
- (name test_check)
- (modules test_check)
- (libraries unix)
- (deps check.exe)
- (action (run %{test} %{exe:check.exe})))
 
 (executable
  (name new_example)
@@ -33,7 +26,7 @@
 (executable
  (name bench_named_owner)
  (modules bench_named_owner)
- (libraries rays_editor rays procedural unix))
+ (libraries rays_editor rays sop unix))
 
 (executable
  (name bench_live_lights)
@@ -50,84 +43,6 @@
  (modules bench_sdl3)
  (libraries rays.sdl3 rays.sdl3_image rays.sdl3_ttf rays.sdl3_mixer unix yojson))
 
-(rule
- (targets bench_metal_ffi_bridge.o libbench_metal_ffi_stubs.a
-  dllbench_metal_ffi_stubs.so)
- (deps bench_metal_ffi_bridge.mm)
- (action
-  (run %{exe:../lib/metal/build_bridge.exe}
-   --sanitizers none
-   --profile %{profile}
-   --ocaml-include %{ocaml-config:standard_library}
-   --source %{dep:bench_metal_ffi_bridge.mm}
-   --object bench_metal_ffi_bridge.o
-   --archive libbench_metal_ffi_stubs.a
-   --shared dllbench_metal_ffi_stubs.so)))
-
-(executable
- (name bench_metal_ffi)
- (modules bench_metal_ffi)
- (libraries rays.metal unix yojson)
- (foreign_archives bench_metal_ffi_stubs))
-
-(executable
- (name bench_metal_registry)
- (modules bench_metal_registry)
- (libraries rays.metal unix))
-
-(rule
- (alias metal-bench)
- (action
-  (run %{exe:bench_metal_ffi.exe} --iterations 1000000 --samples 5
-   --profile test --check)))
-
-; Opt-in native benchmarks. RAYS_BENCH_FRAMES defaults to 120.
-(rule
- (alias bench-code-quadtree-tour)
- (action
-  (chdir %{workspace_root}
-   (progn
-    (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
-    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --smoke --bench --frames %{env:RAYS_BENCH_FRAMES=120} --reference-draws)
-    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --smoke --bench --frames %{env:RAYS_BENCH_FRAMES=120})))))
-
-(rule
- (alias bench-code-quadtree-hover)
- (action
-  (chdir %{workspace_root}
-   (progn
-    (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
-    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --hover-bench --zoom 1.45 --bench --frames %{env:RAYS_BENCH_FRAMES=120}
-     --rebuild-art)
-    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --hover-bench --zoom 1.45 --bench --frames %{env:RAYS_BENCH_FRAMES=120})))))
-
-(rule
- (alias bench-code-quadtree-renderer)
- (action
-  (chdir %{workspace_root}
-   (progn
-    (run %{exe:../sketches/code_quadtree/main.exe} --index-only)
-    (run /usr/bin/time -l %{exe:../sketches/code_quadtree/main.exe}
-     --smoke --bench --frames %{env:RAYS_BENCH_FRAMES=120})))))
-
-; Geometry-only benchmark: no native window.
-(rule
- (alias bench-pastel-flow)
- (action
-  (chdir %{workspace_root}
-   (progn
-    (run uname -sm)
-    (run sysctl -n machdep.cpu.brand_string)
-    (run ocamlc -version)
-    (run /bin/echo preset=waves profile=dev geometry_domains=1)
-    (run %{exe:../sketches/pastel_flow/main.exe} --preset waves --bench)
-    (run /bin/echo preset=silk profile=dev geometry_domains=1)
-    (run %{exe:../sketches/pastel_flow/main.exe} --preset silk --bench)))))
-
 ; Finite native path-tracer benchmark. Override the three variables as needed.
 (rule
  (alias bench-pathtracer)
@@ -139,30 +54,20 @@
       (run %{exe:../examples/pathtracer/main.exe})))))))
 
 (executable
- (name bench_instances)
- (modules bench_instances)
- (libraries rays unix))
-
-(executable
  (name bench_world)
  (modules bench_world)
  (libraries rays unix))
 
 (executable
- (name bench_pathtracer_mesh)
- (modules bench_pathtracer_mesh)
- (libraries rays rays_pathtracer rdk unix))
-
-(executable
  (name bench_shattered_renderer)
  (modules bench_shattered_renderer)
- (libraries rays flow rdk rdk_rays procedural sop_catalog sketch_support rays_editor unix))
+ (libraries rays flow rdk rdk_rays sop sop_catalog rays_editor unix))
 
 (executable
  (name render_workspace)
  (modules render_workspace)
- (libraries rays rays_pathtracer procedural rdk rdk_rays flow flow_sop
-  editor_document sop_catalog sketch_support rays_editor))
+ (libraries rays rays_pathtracer sop rdk rdk_rays flow flow_sop
+  editor_document sop_catalog rays_editor))
 
 (executable
  (name bench_material_assign)
@@ -170,39 +75,14 @@
  (libraries rdk rays_math unix))
 
 (executable
- (name bench_rdk_iso)
- (modules bench_rdk_iso)
- (libraries rdk rays_math unix))
-
-(executable
- (name bench_pxui)
- (modules bench_pxui)
- (libraries rays pxui unix))
-
-(executable
  (name bench_uniforms)
  (modules bench_uniforms)
  (libraries scene_execution scene_execution_fixtures ogpu unix))
 
 (executable
- (name bench_scene2_ir)
- (modules bench_scene2_ir)
- (libraries rays_execution runtime_resources scene_command unix))
-
-(executable
- (name bench_rdk_ops)
- (modules bench_rdk_ops)
- (libraries rays rdk rdk_rays procedural unix))
-
-(executable
  (name bench_predicates)
  (modules bench_predicates)
  (libraries rdk rdk_boolean unix))
-
-(executable
- (name bench_boolean_pipeline)
- (modules bench_boolean_pipeline)
- (libraries rays rdk rdk_boolean unix))
 
 (executable
  (name bench_convex_hull)
@@ -230,11 +110,6 @@
  (libraries rays rdk unix))
 
 (executable
- (name bench_curvature)
- (modules bench_curvature)
- (libraries rays rdk unix))
-
-(executable
  (name bench_laplacian)
  (modules bench_laplacian)
  (libraries rays rdk unix))
@@ -249,82 +124,41 @@
  (modules boolean_stress)
  (libraries rays rdk unix))
 
-
 (executable
  (name bench_rays_editor)
  (modules bench_rays_editor)
- (libraries rays procedural flow flow_graph rays_editor unix))
-
-(executable
- (name bench_drawing)
- (modules bench_drawing)
- (libraries rays rays_editor flow unix))
-
-(executable
- (name bench_kernel)
- (modules bench_kernel)
- (libraries rdk rays_math flow flow_ir flow_gpu flow_sop sop_catalog rays_editor rays_execution scene_command ogpu unix))
-
-(executable
- (name bench_workspace_live)
- (modules bench_workspace_live)
- (libraries flow_sop sop_catalog flow procedural param str unix))
-
-(executable
- (name bench_workspace_lower)
- (modules bench_workspace_lower)
- (libraries flow_sop sop_catalog flow procedural rdk param unix editor_document rays_editor workspace_parity))
+ (libraries rays sop flow flow_graph rays_editor unix))
 
 (executable
  (name ui_shot)
  (modules ui_shot)
- (libraries rays rays_editor procedural rdk rdk_rays flow))
-
-(executable
- (name widgets_shot)
- (modules widgets_shot)
- (libraries rays pxui pxui_shell))
+ (libraries rays rays_editor sop rdk rdk_rays flow))
 
 ; Builds every bench without running one, so they keep compiling.
 (alias
  (name bench-build)
  (deps
-  bench_boolean_pipeline.exe
   bench_circle_from_edges.exe
   bench_convex_hull.exe
-  bench_curvature.exe
   bench_delaunay2.exe
   bench_extract_centroid.exe
   bench_extract_point_curve.exe
   bench_graph_color.exe
   bench_gpu.exe
-  bench_instances.exe
-  bench_kernel.exe
   bench_laplacian.exe
   bench_live_lights.exe
   bench_material_assign.exe
-  bench_metal_ffi.exe
-  bench_metal_registry.exe
   bench_named_owner.exe
-  bench_pathtracer_mesh.exe
   bench_predicates.exe
-  bench_pxui.exe
   bench_rays_editor.exe
-  bench_rdk_iso.exe
-  bench_rdk_ops.exe
-  bench_scene2_ir.exe
   bench_scene3_packing.exe
   bench_sdl3.exe
   bench_shattered_renderer.exe
   bench_source_poll.exe
   bench_uniforms.exe
-  bench_workspace_live.exe
-  bench_workspace_lower.exe
   bench_world.exe
   boolean_stress.exe))
 (executable
  (name bench_scene3_packing)
  (modules bench_scene3_packing)
  (libraries rays unix))
-
-(executable (name port_oracle) (modules port_oracle))

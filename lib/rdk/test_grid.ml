@@ -146,42 +146,6 @@ let check_connectivity () =
         "Grid polygon winding disagrees with N"
     done) [quads; triangles; reversed; alternating]
 
-let check_orientation_and_uv () =
-  let xy = Plane_generators.grid ~orientation:Plane_generators.Grid_xy ~center:(Vec3.create 1. 2. 3.)
-      ~width:4. ~height:2. ~columns:2 ~rows:2 ~size:1. () |> get_ok in
-  let xy_bounds = Analysis.bounds xy |> Option.get
-  and xy_normal = float3_attribute Attribute.Point "N" xy in
-  check (near xy_bounds.min.x (-1.) && near xy_bounds.max.x 3.
-      && near xy_bounds.min.y 1. && near xy_bounds.max.y 3.
-      && near xy_bounds.center.z 3. && near xy_normal.z.(0) 1.)
-    "Grid XY orientation/dimensions/center";
-  let yz = Plane_generators.grid ~orientation:Plane_generators.Grid_yz ~center:(Vec3.create 2. 3. 4.)
-      ~width:6. ~height:2. ~columns:2 ~rows:2 ~size:1. () |> get_ok in
-  let yz_bounds = Analysis.bounds yz |> Option.get
-  and yz_normal = float3_attribute Attribute.Point "N" yz in
-  check (near yz_bounds.center.x 2. && near yz_bounds.size.y 2.
-      && near yz_bounds.size.z 6. && near yz_normal.x.(0) 1.)
-    "Grid YZ orientation";
-  let custom = Plane_generators.grid ~orientation:(Plane_generators.Grid_axes {
-        horizontal = Vec3.create max_float max_float 0.;
-        vertical = Vec3.create 0. 0. max_float })
-      ~rotation:(Float.pi *. 0.5) ~center:(Vec3.create 4. 5. 6.)
-      ~width:4. ~height:2. ~uv_attribute:"st"
-      ~columns:4 ~rows:2 ~size:1. () |> get_ok in
-  let custom_points = positions custom
-  and custom_normals = float3_attribute Attribute.Point "N" custom
-  and uv = float2_attribute Attribute.Point "st" custom in
-  check (near custom_normals.x.(0) (-.(1. /. sqrt 2.))
-      && near custom_normals.y.(0) (1. /. sqrt 2.)
-      && near custom_normals.z.(0) 0.)
-    "Grid robust custom frame normal";
-  let dx = custom_points.x.(0) -. 4. and dy = custom_points.y.(0) -. 5.
-  and dz = custom_points.z.(0) -. 6. in
-  check (near ((dx*.dx) +. (dy*.dy) +. (dz*.dz)) 5.
-      && near uv.x.(0) 0. && near uv.y.(0) 0.
-      && near uv.x.(14) 1. && near uv.y.(14) 1.)
-    "Grid custom frame dimensions and normalized UV"
-
 let check_count_modes () =
   let point_counts = Plane_generators.grid ~counts:Plane_generators.Grid_point_counts
       ~connectivity:Plane_generators.Grid_quads ~columns:4 ~rows:3 ~size:2. () |> get_ok in
@@ -265,7 +229,6 @@ let check_parallel_exact () =
 let run () =
   check_default_compatibility ();
   check_connectivity ();
-  check_orientation_and_uv ();
   check_count_modes ();
   check_validation ();
   check_parallel_exact ();

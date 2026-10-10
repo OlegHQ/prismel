@@ -1,7 +1,6 @@
 open Ogpu_metal_native
 let get=function Ok value->value|Error value->failwith(Ogpu.Error.to_string value)
 let get_metal=function Ok value->value|Error value->failwith(Format.asprintf"%a"Metal.pp_error value)
-let outcome=function Ok()->"supported"|Error value when value.Ogpu.Error.kind=Ogpu.Error.Unsupported->"unsupported"|Error value->"error:"^Ogpu.Error.to_string value
 let run () =
   let device=get(Device.system_default())in let native=Device.Private.metal device in let info=get_metal(Metal.Device.info native)and reported=Device.capabilities device in
   if reported.limits.max_buffer_size<>info.max_buffer_length||reported.ray_tracing<>info.raytracing then failwith"reported capability differs from Metal probe";

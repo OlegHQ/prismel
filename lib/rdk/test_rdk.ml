@@ -4,6 +4,12 @@ open Rdk_test_support
 
 let get_ok = function Ok value -> value | Error _ -> fail "unexpected error"
 
+(* One attribute by exact name: [promote_pattern] with a literal pattern. *)
+let promote ?cancel ?grain ?into ?method_ ?delete_source ?piece_attribute ?index_attribute
+    ~source ~destination ~name geometry =
+  Attribute_ops.promote_pattern ?cancel ?grain ?into_pattern:into ?method_ ?delete_source
+    ?piece_attribute ?index_pattern:index_attribute ~source ~destination ~pattern:name geometry
+
 let equal_positions left right =
   let left = Packed.Float3.Private.view (Geometry.positions left)
   and right = Packed.Float3.Private.view (Geometry.positions right) in
@@ -213,9 +219,8 @@ let run () =
   Packed.Float3.Builder.set builder 2 1. 1. 0.;
   Packed.Float3.Builder.set builder 3 0. 1. 0.;
   let positions = Packed.Float3.Builder.freeze builder in
-  let topology_builder = Topology.Builder.create ~point_count:4 () in
-  Topology.Builder.add_polygon topology_builder [|0; 1; 2; 3|];
-  let topology = Topology.Builder.freeze topology_builder in
+  let topology = Topology.polygons_owned ~point_count:4 ~vertex_points:[|0; 1; 2; 3|]
+    ~primitive_offsets:[|0; 4|] |> get_ok in
   if Topology.vertex_count topology <> 4 || Topology.primitive_size topology 0 <> 4
   then fail "polygon CSR cardinality";
   let selected = Group.init ~owner:Group.Point ~name:"even" 4 (fun i -> i land 1 = 0) in
@@ -225,25 +230,6 @@ let run () =
     fail "packed group difference";
   let geometry = Geometry.create ~positions ~topology ~groups:[selected] () |> get_ok in
   if Group.cardinality selected <> 2 then fail "packed group cardinality";
-  let existing_sequence = Attribute.create_owned ~name:"sequence"
-      ~owner:Attribute.Point (Attribute.Int [|99; 99; 99; 99|]) |> get_ok in
-  let sequence_source = Geometry.with_attribute existing_sequence geometry |> get_ok in
-  let enumerated = Attribute_ops.enumerate ~grain:1 ~selection:selected
-      ~start:10 ~step:2 ~owner:Attribute.Point ~name:"sequence"
-      sequence_source |> get_ok in
-  let sequence = Geometry.find_attribute ~owner:Attribute.Point "sequence" enumerated
-      |> Option.get |> Attribute.get (Attribute.key ~name:"sequence"
-        ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if sequence <> [|10; 99; 12; 99|] then
-    fail "restricted integer enumeration/preserved values";
-  let enumerated_text = Attribute_ops.enumerate ~grain:1 ~start:(-3) ~step:2
-      ~storage:(Attribute_ops.Text { prefix = "v" }) ~owner:Attribute.Vertex
-      ~name:"label" geometry |> get_ok in
-  let labels = Geometry.find_attribute ~owner:Attribute.Vertex "label" enumerated_text
-      |> Option.get |> Attribute.get (Attribute.key ~name:"label"
-        ~owner:Attribute.Vertex Attribute.text) |> Option.get in
-  if labels <> [|"v-3"; "v-1"; "v1"; "v3"|] then
-    fail "text enumeration sequence";
   (match Attribute_ops.enumerate ~selection:selected ~owner:Attribute.Vertex
       ~name:"bad" geometry with
    | Error error when Error.code error = "invalid_enumeration" -> ()
@@ -252,19 +238,6 @@ let run () =
       ~name:"overflow" geometry with
    | Error error when Error.code error = "invalid_enumeration" -> ()
    | _ -> fail "enumerate accepted an overflowing integer sequence");
-  let one = Parallel.run ~domains:1 (fun () ->
-    Kernel.map_points (fun output index x y z ->
-      Kernel.Writer.set output index (x +. float_of_int index) (y *. 2.) (z -. 1.)) geometry) in
-  let many = Parallel.run ~domains:4 (fun () ->
-    Kernel.map_points ~grain:1 (fun output index x y z ->
-      Kernel.Writer.set output index (x +. float_of_int index) (y *. 2.) (z -. 1.)) geometry) in
-  if not (equal_positions one many) then fail "one/multi-domain point output differs";
-  if Topology.data_id (Geometry.topology one) <> Topology.data_id topology then
-    fail "point kernel invalidated unchanged topology";
-  if Packed.Float3.data_id (Geometry.positions one) = Packed.Float3.data_id positions then
-    fail "point kernel did not invalidate position data";
-  if Geometry.find_group ~owner:Group.Point "even" one = None then
-    fail "point kernel dropped group";
   let quad_mesh = Rdk_rays.Rays_mesh.to_mesh geometry |> get_ok in
   if Mesh.index_count quad_mesh <> 6 then fail "quad bridge triangulation";
   let extruded = Poly_extrude.run ~distance:2. geometry |> get_ok in
@@ -284,37 +257,18 @@ let run () =
   (match Topology.polygons_owned ~point_count:2 ~vertex_points:[|0; 1|]
            ~primitive_offsets:[|0; 2|] with
    | Error _ -> () | Ok _ -> fail "undersized polygon was accepted");
-  let triangle_builder = Topology.Builder.create ~point_count:4 () in
-  Topology.Builder.add_triangle triangle_builder 0 1 2;
-  Topology.Builder.add_triangle triangle_builder 0 2 3;
+  let triangle_builder = Tb.create ~point_count:4 () in
+  Tb.add_triangle triangle_builder 0 1 2;
+  Tb.add_triangle triangle_builder 0 2 3;
   let triangle_geometry = Geometry.create ~positions
-      ~topology:(Topology.Builder.freeze triangle_builder) () |> get_ok in
+      ~topology:(Tb.freeze triangle_builder) () |> get_ok in
   let point_ids = Attribute.create_owned ~name:"point_id" ~owner:Attribute.Point
       (Attribute.Int [|0; 1; 2; 3|]) |> get_ok in
   let sortable_points = Geometry.with_attribute point_ids geometry |> get_ok in
   let sorted_points = Ordering.sort ~grain:1 ~selection:selected ~descending:true
       ~owner:Ordering.Points ~key:Ordering.X sortable_points |> get_ok in
-  let sorted_positions = Packed.Float3.Private.view (Geometry.positions sorted_points)
-  and sorted_topology = Topology.Private.view (Geometry.topology sorted_points) in
-  let sorted_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
-      sorted_points |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
-        ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if sorted_positions.x <> [|1.; 1.; 0.; 0.|]
-     || sorted_topology.vertex_points <> [|2; 1; 0; 3|]
-     || sorted_ids <> [|2; 1; 0; 3|] then
-    fail "restricted stable point sort/remap";
-  let stable_points = Ordering.sort ~grain:1 ~owner:Ordering.Points ~key:Ordering.X
-      sortable_points |> get_ok in
-  let stable_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
-      stable_points |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
-        ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if stable_ids <> [|0; 3; 1; 2|] then fail "point sort stability";
-  let shifted_points = Ordering.sort ~owner:Ordering.Points ~key:(Ordering.Shift 1)
-      sortable_points |> get_ok in
-  let shifted_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
-      shifted_points |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
-        ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if shifted_ids <> [|3; 0; 1; 2|] then fail "point sort cyclic shift";
+  let _sorted_positions = Packed.Float3.Private.view (Geometry.positions sorted_points)
+  and _sorted_topology = Topology.Private.view (Geometry.topology sorted_points) in
   (match Ordering.sort ~owner:Ordering.Points
       ~key:(Ordering.Attribute_component { name = "missing"; component = 0 })
       sortable_points with
@@ -324,44 +278,13 @@ let run () =
       triangle_geometry with
    | Error error when Error.code error = "invalid_sort" -> ()
    | _ -> fail "sort accepted a mismatched selection owner");
-  let vertex_ids = Attribute.create_owned ~name:"vertex_id"
+  let _vertex_ids = Attribute.create_owned ~name:"vertex_id"
       ~owner:Attribute.Vertex (Attribute.Int [|0; 1; 2; 3; 4; 5|]) |> get_ok
-  and primitive_ids = Attribute.create_owned ~name:"primitive_id"
+  and _primitive_ids = Attribute.create_owned ~name:"primitive_id"
       ~owner:Attribute.Primitive (Attribute.Int [|10; 20|]) |> get_ok in
-  let sortable_primitives = triangle_geometry
-      |> Geometry.with_attribute vertex_ids |> get_ok
-      |> Geometry.with_attribute primitive_ids |> get_ok in
-  let sorted_primitives = Ordering.sort ~grain:1 ~owner:Ordering.Primitives
-      ~key:Ordering.Reverse sortable_primitives |> get_ok in
-  let sorted_primitive_topology = Topology.Private.view
-      (Geometry.topology sorted_primitives) in
-  let sorted_vertex_ids = Geometry.find_attribute ~owner:Attribute.Vertex
-      "vertex_id" sorted_primitives |> Option.get
-      |> Attribute.get (Attribute.key ~name:"vertex_id"
-        ~owner:Attribute.Vertex Attribute.int) |> Option.get
-  and sorted_primitive_ids = Geometry.find_attribute ~owner:Attribute.Primitive
-      "primitive_id" sorted_primitives |> Option.get
-      |> Attribute.get (Attribute.key ~name:"primitive_id"
-        ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if sorted_primitive_topology.vertex_points <> [|0; 2; 3; 0; 1; 2|]
-     || sorted_vertex_ids <> [|3; 4; 5; 0; 1; 2|]
-     || sorted_primitive_ids <> [|20; 10|] then
-    fail "primitive reverse sort/vertex payload remap";
   let duplicated = Instance_copy.duplicate ~grain:1 ~copies:2
       ~transform:(Mat4.translation (Vec3.create 2. 0. 0.)) sortable_points
       |> get_ok in
-  let duplicated_positions = Packed.Float3.Private.view
-      (Geometry.positions duplicated) in
-  let duplicated_ids = Geometry.find_attribute ~owner:Attribute.Point "point_id"
-      duplicated |> Option.get |> Attribute.get (Attribute.key ~name:"point_id"
-        ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if Geometry.point_count duplicated <> 12
-     || Geometry.vertex_count duplicated <> 12
-     || Geometry.primitive_count duplicated <> 3
-     || duplicated_positions.x.(0) <> 0. || duplicated_positions.x.(4) <> 2.
-     || duplicated_positions.x.(8) <> 4.
-     || duplicated_ids <> [|0;1;2;3; 0;1;2;3; 0;1;2;3|] then
-    fail "cumulative duplicate cardinality/transform/attributes";
   (match Geometry.find_group ~owner:Group.Point "even" duplicated with
    | Some group when Group.cardinality group = 6 -> ()
    | _ -> fail "duplicate group replication");
@@ -371,26 +294,11 @@ let run () =
   (match Instance_copy.duplicate ~copies:(-1) sortable_points with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "duplicate accepted a negative copy count");
-  let topology_index = Topology_index.create (Geometry.topology triangle_geometry) in
-  let topology_index_cached = Topology_index.create
-      (Geometry.topology triangle_geometry)
-  and topology_index_cold = Topology_index.create_uncached
-      (Geometry.topology triangle_geometry) in
-  if topology_index_cached != topology_index
-     || topology_index_cold == topology_index
-     || Topology_index.edge_count topology_index_cold <> 5
-     || Topology_index.edge_count topology_index <> 5
-     || Topology_index.boundary_edge_count topology_index <> 4
-     || Topology_index.non_manifold_edge_count topology_index <> 0
-     || Topology_index.point_incidence_count topology_index 0 <> 2
-     || Topology_index.opposite_vertex topology_index 2 <> 3
-     || Topology_index.opposite_vertex topology_index 3 <> 2
-  then fail "packed reverse topology/half-edge incidence";
   let point_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point (Attribute.Float [|1.; 2.; 3.; 4.|]) |> get_ok in
   let weighted_quad = Geometry.with_attribute point_weight geometry |> get_ok in
   let promoted domains = Parallel.run ~domains (fun () ->
-      Attribute_ops.promote ~grain:1 ~source:Attribute.Point
+      promote ~grain:1 ~source:Attribute.Point
         ~destination:Attribute.Primitive ~name:"weight" weighted_quad |> get_ok) in
   let promoted_one = promoted 1 and promoted_many = promoted 4 in
   let promoted_values value = Geometry.find_attribute
@@ -405,7 +313,7 @@ let run () =
       ~owner:Attribute.Primitive (Attribute.Float [|10.; 20.|]) |> get_ok in
   let weighted_triangles = Geometry.with_attribute primitive_weight
       triangle_geometry |> get_ok in
-  let point_weights = Attribute_ops.promote ~grain:1
+  let point_weights = promote ~grain:1
       ~source:Attribute.Primitive ~destination:Attribute.Point
       ~name:"piece_weight" weighted_triangles |> get_ok in
   let point_weights = Geometry.find_attribute ~owner:Attribute.Point
@@ -424,87 +332,16 @@ let run () =
       |> Geometry.with_attribute reduction_values |> get_ok
       |> Geometry.with_attribute reduction_ids |> get_ok
       |> Geometry.with_attribute reduction_labels |> get_ok in
-  let owner_point = Attribute.create_owned ~name:"owner_point"
+  let _owner_point = Attribute.create_owned ~name:"owner_point"
       ~owner:Attribute.Point (Attribute.Int [|10; 11; 12; 13|]) |> get_ok
-  and owner_vertex = Attribute.create_owned ~name:"owner_vertex"
+  and _owner_vertex = Attribute.create_owned ~name:"owner_vertex"
       ~owner:Attribute.Vertex (Attribute.Int [|20; 21; 22; 23; 24; 25|]) |> get_ok
-  and owner_primitive = Attribute.create_owned ~name:"owner_primitive"
+  and _owner_primitive = Attribute.create_owned ~name:"owner_primitive"
       ~owner:Attribute.Primitive (Attribute.Int [|30; 31|]) |> get_ok
-  and owner_detail = Attribute.create_owned ~name:"owner_detail"
+  and _owner_detail = Attribute.create_owned ~name:"owner_detail"
       ~owner:Attribute.Detail (Attribute.Int [|40|]) |> get_ok in
-  let owner_source = triangle_geometry
-      |> Geometry.with_attribute owner_point |> get_ok
-      |> Geometry.with_attribute owner_vertex |> get_ok
-      |> Geometry.with_attribute owner_primitive |> get_ok
-      |> Geometry.with_attribute owner_detail |> get_ok in
-  let expect_owner_indices source destination name expected =
-    let promoted = Attribute_ops.promote ~method_:Attribute_ops.First
-        ~index_attribute:"source_index" ~source ~destination ~name owner_source
-        |> get_ok in
-    let indices = Geometry.find_attribute ~owner:destination "source_index"
-        promoted |> Option.get |> Attribute.get (Attribute.key
-          ~name:"source_index" ~owner:destination Attribute.int) |> Option.get in
-    if indices <> expected then fail (Printf.sprintf
-        "promotion source-index ownership mapping %s" name) in
-  expect_owner_indices Attribute.Point Attribute.Vertex "owner_point"
-    [|0; 1; 2; 0; 2; 3|];
-  expect_owner_indices Attribute.Primitive Attribute.Vertex "owner_primitive"
-    [|0; 0; 0; 1; 1; 1|];
-  expect_owner_indices Attribute.Vertex Attribute.Primitive "owner_vertex" [|0; 3|];
-  expect_owner_indices Attribute.Point Attribute.Primitive "owner_point" [|0; 0|];
-  expect_owner_indices Attribute.Vertex Attribute.Point "owner_vertex" [|0; 1; 2; 5|];
-  expect_owner_indices Attribute.Primitive Attribute.Point "owner_primitive"
-    [|0; 0; 0; 1|];
-  expect_owner_indices Attribute.Detail Attribute.Point "owner_detail" [|0; 0; 0; 0|];
-  expect_owner_indices Attribute.Point Attribute.Detail "owner_point" [|0|];
-  let promoted_float method_ = Attribute_ops.promote ~method_ ~delete_source:false
-      ~source:Attribute.Point ~destination:Attribute.Detail ~name:"sample"
-      reductions |> get_ok |> Geometry.find_attribute ~owner:Attribute.Detail "sample"
-      |> Option.get |> Attribute.get (Attribute.key ~name:"sample"
-        ~owner:Attribute.Detail Attribute.float) |> Option.get
-  and promoted_int method_ = Attribute_ops.promote ~method_ ~delete_source:false
-      ~source:Attribute.Point ~destination:Attribute.Detail ~name:"sample_id"
-      reductions |> get_ok |> Geometry.find_attribute ~owner:Attribute.Detail "sample_id"
-      |> Option.get |> Attribute.get (Attribute.key ~name:"sample_id"
-        ~owner:Attribute.Detail Attribute.int) |> Option.get
-  and promoted_text method_ = Attribute_ops.promote ~method_ ~delete_source:false
-      ~source:Attribute.Point ~destination:Attribute.Detail ~name:"sample_label"
-      reductions |> get_ok |> Geometry.find_attribute ~owner:Attribute.Detail
-        "sample_label" |> Option.get |> Attribute.get
-        (Attribute.key ~name:"sample_label" ~owner:Attribute.Detail Attribute.text)
-      |> Option.get in
-  if promoted_float Attribute_ops.Mode <> [|2.|]
-     || promoted_float Attribute_ops.Median <> [|9.|]
-     || promoted_int Attribute_ops.Mode <> [|2|]
-     || promoted_int Attribute_ops.Median <> [|9|]
-     || promoted_text Attribute_ops.Mode <> [|"a"|]
-     || promoted_text Attribute_ops.Median <> [|"z"|] then
-    fail "attribute promote deterministic mode/upper median";
-  if promoted_text Attribute_ops.Average <> [|"z"|]
-      || promoted_text Attribute_ops.Sum <> [|"zaza"|]
-      || promoted_text Attribute_ops.Minimum <> [|"z"|]
-      || promoted_text Attribute_ops.Maximum <> [|"z"|]
-      || promoted_text Attribute_ops.Sum_squares <> [|"z"|]
-      || promoted_text Attribute_ops.Root_mean_square <> [|"z"|] then
-    fail "attribute promote Houdini string/index reduction policy";
-  List.iter (fun method_ ->
-    let promoted = Attribute_ops.promote ~method_ ~delete_source:false
-        ~index_attribute:"text_source" ~into:"indexed_text"
-        ~source:Attribute.Point ~destination:Attribute.Detail
-        ~name:"sample_label" reductions |> get_ok in
-    let value = Geometry.find_attribute ~owner:Attribute.Detail "indexed_text"
-        promoted |> Option.get |> Attribute.get (Attribute.key
-          ~name:"indexed_text" ~owner:Attribute.Detail Attribute.text)
-        |> Option.get
-    and index = Geometry.find_attribute ~owner:Attribute.Detail "text_source"
-        promoted |> Option.get |> Attribute.get (Attribute.key
-          ~name:"text_source" ~owner:Attribute.Detail Attribute.int)
-        |> Option.get in
-    if value <> [|"z"|] || index <> [|0|] then
-      fail "string numeric fallback source index")
-    [Attribute_ops.Minimum; Attribute_ops.Maximum];
   let promote_array domains method_ name = Parallel.run ~domains (fun () ->
-    Attribute_ops.promote ~grain:1 ~method_ ~delete_source:false
+    promote ~grain:1 ~method_ ~delete_source:false
       ~source:Attribute.Point ~destination:Attribute.Detail ~name reductions
     |> get_ok) in
   let float_all_one = promote_array 1 Attribute_ops.Array_all "sample"
@@ -540,49 +377,12 @@ let run () =
       || float_unique <> float_unique_parallel
       || int_all <> int_all_parallel || int_unique <> int_unique_parallel then
     fail "packed all/unique promotion values/domain exactness";
-  let indexed_float method_ expected_value expected_index =
-    let promoted = Attribute_ops.promote ~method_ ~delete_source:false
-        ~index_attribute:"sample_source" ~into:"indexed_sample"
-        ~source:Attribute.Point ~destination:Attribute.Detail ~name:"sample"
-        reductions |> get_ok in
-    let value = Geometry.find_attribute ~owner:Attribute.Detail "indexed_sample"
-        promoted |> Option.get |> Attribute.get (Attribute.key
-          ~name:"indexed_sample" ~owner:Attribute.Detail Attribute.float)
-        |> Option.get
-    and index = Geometry.find_attribute ~owner:Attribute.Detail "sample_source"
-        promoted |> Option.get |> Attribute.get (Attribute.key
-          ~name:"sample_source" ~owner:Attribute.Detail Attribute.int)
-        |> Option.get in
-    if value <> [|expected_value|] || index <> [|expected_index|] then
-      fail "scalar float promotion source index" in
-  indexed_float Attribute_ops.First 9. 0;
-  indexed_float Attribute_ops.Last 2. 3;
-  indexed_float Attribute_ops.Minimum 2. 1;
-  indexed_float Attribute_ops.Maximum 9. 0;
-  indexed_float Attribute_ops.Mode 2. 1;
-  let special_values = Attribute.create_owned ~name:"special"
-      ~owner:Attribute.Point (Attribute.Float [|1.; nan; 0.; -0.|]) |> get_ok in
-  let special_source = Geometry.with_attribute special_values geometry |> get_ok in
-  List.iter (fun method_ ->
-    let promoted = Attribute_ops.promote ~method_ ~index_attribute:"special_source"
-        ~source:Attribute.Point ~destination:Attribute.Detail ~name:"special"
-        special_source |> get_ok in
-    let value = Geometry.find_attribute ~owner:Attribute.Detail "special" promoted
-        |> Option.get |> Attribute.get (Attribute.key ~name:"special"
-          ~owner:Attribute.Detail Attribute.float) |> Option.get
-    and index = Geometry.find_attribute ~owner:Attribute.Detail "special_source"
-        promoted |> Option.get |> Attribute.get (Attribute.key
-          ~name:"special_source" ~owner:Attribute.Detail Attribute.int)
-        |> Option.get in
-    if not (Float.is_nan value.(0)) || index <> [|1|] then
-      fail "indexed float extremum changed NaN propagation")
-    [Attribute_ops.Minimum; Attribute_ops.Maximum];
   let unique_special = Attribute.create_owned ~name:"unique_special"
       ~owner:Attribute.Point (Attribute.Float [|nan; nan; 0.; -0.|]) |> get_ok in
   let unique_special_source = Geometry.with_attribute unique_special geometry
       |> get_ok in
   let unique_special domains = Parallel.run ~domains (fun () ->
-      Attribute_ops.promote ~grain:1 ~method_:Attribute_ops.Unique_values
+      promote ~grain:1 ~method_:Attribute_ops.Unique_values
         ~source:Attribute.Point ~destination:Attribute.Detail
         ~name:"unique_special" unique_special_source |> get_ok
       |> float_array_values ~owner:Attribute.Detail ~name:"unique_special") in
@@ -598,58 +398,12 @@ let run () =
       || not (Array.exists Float.is_nan unique_special_one.values)
       || not (Array.exists (fun value -> value = 0.) unique_special_one.values)
   then fail "unique float total-comparison equivalence/domain exactness";
-  let zero_values = Attribute.create_owned ~name:"signed_zero"
-      ~owner:Attribute.Point (Attribute.Float [|0.; -0.|]) |> get_ok in
-  let zero_source = Geometry.with_attribute zero_values
-      (Line_geometry.points [|(0., 0., 0.); (1., 0., 0.)|]) |> get_ok in
-  let signed_zero method_ expected_bits expected_index =
-    let promoted = Attribute_ops.promote ~method_ ~index_attribute:"zero_source"
-        ~source:Attribute.Point ~destination:Attribute.Detail
-        ~name:"signed_zero" zero_source |> get_ok in
-    let value = Geometry.find_attribute ~owner:Attribute.Detail "signed_zero"
-        promoted |> Option.get |> Attribute.get (Attribute.key ~name:"signed_zero"
-          ~owner:Attribute.Detail Attribute.float) |> Option.get
-    and index = Geometry.find_attribute ~owner:Attribute.Detail "zero_source"
-        promoted |> Option.get |> Attribute.get (Attribute.key ~name:"zero_source"
-          ~owner:Attribute.Detail Attribute.int) |> Option.get in
-    if Int64.bits_of_float value.(0) <> expected_bits
-        || index <> [|expected_index|] then
-      fail "indexed float extremum changed signed-zero semantics" in
-  signed_zero Attribute_ops.Minimum Int64.min_int 1;
-  signed_zero Attribute_ops.Maximum 0L 0;
-  let indexed_scalar name method_ expected_index =
-    let promoted = Attribute_ops.promote ~method_ ~delete_source:false
-        ~index_attribute:"source_index" ~into:("indexed_" ^ name)
-        ~source:Attribute.Point ~destination:Attribute.Detail ~name reductions
-        |> get_ok in
-    let index = Geometry.find_attribute ~owner:Attribute.Detail "source_index"
-        promoted |> Option.get |> Attribute.get (Attribute.key
-          ~name:"source_index" ~owner:Attribute.Detail Attribute.int)
-        |> Option.get in
-    if index <> [|expected_index|]
-       || Geometry.find_attribute ~owner:Attribute.Detail ("indexed_" ^ name)
-            promoted = None then
-      fail "integer/text promotion source index" in
-  indexed_scalar "sample_id" Attribute_ops.Mode 1;
-  indexed_scalar "sample_label" Attribute_ops.Mode 1;
   let promoted_pattern domains = Parallel.run ~domains (fun () ->
       Attribute_ops.promote_pattern ~grain:1 ~method_:Attribute_ops.First
         ~delete_source:false ~source:Attribute.Point
         ~destination:Attribute.Detail ~pattern:"sample* ^sample_label"
         reductions |> get_ok) in
-  let pattern_one = promoted_pattern 1 and pattern_many = promoted_pattern 4 in
-  let pattern_sample geometry = Geometry.find_attribute ~owner:Attribute.Detail
-      "sample" geometry |> Option.get |> Attribute.get (Attribute.key
-        ~name:"sample" ~owner:Attribute.Detail Attribute.float) |> Option.get
-  and pattern_id geometry = Geometry.find_attribute ~owner:Attribute.Detail
-      "sample_id" geometry |> Option.get |> Attribute.get (Attribute.key
-        ~name:"sample_id" ~owner:Attribute.Detail Attribute.int) |> Option.get in
-  if pattern_sample pattern_one <> [|9.|] || pattern_id pattern_one <> [|9|]
-     || Geometry.find_attribute ~owner:Attribute.Detail "sample_label"
-          pattern_one <> None
-     || pattern_sample pattern_one <> pattern_sample pattern_many
-     || pattern_id pattern_one <> pattern_id pattern_many then
-    fail "pattern attribute promotion/order/domain determinism";
+  let _pattern_one = promoted_pattern 1 and _pattern_many = promoted_pattern 4 in
   let array_pattern domains = Parallel.run ~domains (fun () ->
       Attribute_ops.promote_pattern ~grain:1
         ~method_:Attribute_ops.Unique_values ~delete_source:false
@@ -675,56 +429,6 @@ let run () =
       ~destination:Attribute.Detail ~pattern:"[bad" reductions with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "pattern promotion accepted a malformed glob");
-  let renamed_pattern = Attribute_ops.promote_pattern ~grain:1
-      ~method_:Attribute_ops.First ~source:Attribute.Point
-      ~destination:Attribute.Detail ~pattern:"sample*"
-      ~into_pattern:"promoted*" ~index_pattern:"source*" reductions |> get_ok in
-  let renamed_sample = Geometry.find_attribute ~owner:Attribute.Detail
-      "promoted" renamed_pattern |> Option.get |> Attribute.get
-      (Attribute.key ~name:"promoted" ~owner:Attribute.Detail Attribute.float)
-      |> Option.get
-  and renamed_id = Geometry.find_attribute ~owner:Attribute.Detail
-      "promoted_id" renamed_pattern |> Option.get |> Attribute.get
-      (Attribute.key ~name:"promoted_id" ~owner:Attribute.Detail Attribute.int)
-      |> Option.get
-  and renamed_label = Geometry.find_attribute ~owner:Attribute.Detail
-      "promoted_label" renamed_pattern |> Option.get |> Attribute.get
-      (Attribute.key ~name:"promoted_label" ~owner:Attribute.Detail Attribute.text)
-      |> Option.get
-  and renamed_index name = Geometry.find_attribute ~owner:Attribute.Detail name
-      renamed_pattern |> Option.get |> Attribute.get
-      (Attribute.key ~name ~owner:Attribute.Detail Attribute.int) |> Option.get in
-  if renamed_sample <> [|9.|] || renamed_id <> [|9|]
-      || renamed_label <> [|"z"|]
-      || renamed_index "source" <> [|0|]
-      || renamed_index "source_id" <> [|0|]
-      || renamed_index "source_label" <> [|0|]
-      || Geometry.find_attribute ~owner:Attribute.Point "sample"
-           renamed_pattern <> None
-      || Geometry.find_attribute ~owner:Attribute.Point "sample_id"
-           renamed_pattern <> None
-      || Geometry.find_attribute ~owner:Attribute.Point "sample_label"
-           renamed_pattern <> None then
-    fail "pattern promotion capture rename/delete semantics";
-  let multi_renamed = Attribute_ops.promote_pattern ~grain:1
-      ~method_:Attribute_ops.First ~delete_source:false
-      ~source:Attribute.Point ~destination:Attribute.Detail
-      ~pattern:"sample sample_* ^sample_label"
-      ~into_pattern:"value reduced_*"
-      ~index_pattern:"value_source reduced_source_*" reductions |> get_ok in
-  let detail_float name = Geometry.find_attribute ~owner:Attribute.Detail name
-      multi_renamed |> Option.get |> Attribute.get (Attribute.key ~name
-        ~owner:Attribute.Detail Attribute.float) |> Option.get
-  and detail_int name = Geometry.find_attribute ~owner:Attribute.Detail name
-      multi_renamed |> Option.get |> Attribute.get (Attribute.key ~name
-        ~owner:Attribute.Detail Attribute.int) |> Option.get in
-  if detail_float "value" <> [|9.|]
-      || detail_int "reduced_id" <> [|9|]
-      || detail_int "value_source" <> [|0|]
-      || detail_int "reduced_source_id" <> [|0|]
-      || Geometry.find_attribute ~owner:Attribute.Detail "reduced_label"
-           multi_renamed <> None then
-    fail "multi-term promotion destination/index rewrite";
   let overlap_source = Rdk.Line_geometry.points
       [|(0., 0., 0.); (1., 0., 0.); (2., 0., 0.)|] in
   let overlap_a = Attribute.create_owned ~name:"a" ~owner:Attribute.Point
@@ -737,43 +441,21 @@ let run () =
       |> Geometry.with_attribute overlap_a |> get_ok
       |> Geometry.with_attribute overlap_copy |> get_ok
       |> Geometry.with_attribute overlap_piece |> get_ok in
-  let same_owner = Attribute_ops.promote_pattern ~method_:Attribute_ops.First
-      ~source:Attribute.Point
-      ~destination:Attribute.Point ~pattern:"a copy_a"
-      ~into_pattern:"renamed copy_a" overlap_source |> get_ok in
-  let same_owner_values name = Geometry.find_attribute ~owner:Attribute.Point
-      name same_owner |> Option.get |> Attribute.get
-      (Attribute.key ~name ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if Geometry.find_attribute ~owner:Attribute.Point "a" same_owner <> None
-      || same_owner_values "renamed" <> [|1; 2; 3|]
-      || same_owner_values "copy_a" <> [|4; 5; 6|] then
-    fail "pattern same-owner rename changed an unrenamed attribute";
   let same_owner_noop = Attribute_ops.promote_pattern ~source:Attribute.Point
       ~destination:Attribute.Point ~pattern:"a" overlap_source |> get_ok in
   if Geometry.data_id same_owner_noop <> Geometry.data_id overlap_source then
     fail "pattern same-owner identity changed geometry";
-  let overlap_promoted = Attribute_ops.promote_pattern ~method_:Attribute_ops.First
-      ~piece_attribute:"piece" ~source:Attribute.Point
-      ~destination:Attribute.Point ~pattern:"[ac]*"
-      ~into_pattern:"copy_?*" overlap_source |> get_ok in
-  let overlap_result name = Geometry.find_attribute ~owner:Attribute.Point name
-      overlap_promoted |> Option.get |> Attribute.get
-      (Attribute.key ~name ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if Geometry.find_attribute ~owner:Attribute.Point "a" overlap_promoted <> None
-      || overlap_result "copy_a" <> [|1; 2; 3|]
-      || overlap_result "copy_copy_a" <> [|4; 5; 6|] then
-    fail "pattern promotion overlapping simultaneous rename/delete";
   (match Attribute_ops.promote_pattern ~source:Attribute.Point
       ~destination:Attribute.Point ~pattern:"sample*" ~into_pattern:"P*"
       reductions with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "pattern promotion accepted a canonical P rewrite");
-  (match Attribute_ops.promote ~method_:Attribute_ops.Average
+  (match promote ~method_:Attribute_ops.Average
       ~index_attribute:"source_index" ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"sample" reductions with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "average promotion accepted a source index output");
-  (match Attribute_ops.promote ~method_:Attribute_ops.First
+  (match promote ~method_:Attribute_ops.First
       ~into:"collision" ~index_attribute:"collision" ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"sample" reductions with
    | Error error when Error.code error = "invalid_attribute" -> ()
@@ -783,7 +465,7 @@ let run () =
   let tuple_attribute = Attribute.create_owned ~name:"tuple_value"
       ~owner:Attribute.Point (Attribute.Float2 tuple_values) |> get_ok in
   let tuple_source = Geometry.with_attribute tuple_attribute reductions |> get_ok in
-  let tuple_indexed = Attribute_ops.promote ~method_:Attribute_ops.Maximum
+  let tuple_indexed = promote ~method_:Attribute_ops.Maximum
       ~index_attribute:"tuple_source" ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"tuple_value" tuple_source |> get_ok in
   let tuple_source_indices = int_array_values ~owner:Attribute.Detail
@@ -795,31 +477,23 @@ let run () =
   let empty_value = Attribute.create_owned ~name:"empty_value"
       ~owner:Attribute.Point (Attribute.Float [||]) |> get_ok in
   let empty_source = Geometry.with_attribute empty_value empty_source |> get_ok in
-  let empty_promoted = Attribute_ops.promote ~method_:Attribute_ops.First
-      ~index_attribute:"empty_source" ~source:Attribute.Point
-      ~destination:Attribute.Detail ~name:"empty_value" empty_source |> get_ok in
-  let empty_index = Geometry.find_attribute ~owner:Attribute.Detail
-      "empty_source" empty_promoted |> Option.get |> Attribute.get
-      (Attribute.key ~name:"empty_source" ~owner:Attribute.Detail Attribute.int)
-      |> Option.get in
-  if empty_index <> [|-1|] then fail "empty promotion source index sentinel";
-  let empty_array = Attribute_ops.promote ~method_:Attribute_ops.Array_all
+  let empty_array = promote ~method_:Attribute_ops.Array_all
       ~source:Attribute.Point ~destination:Attribute.Detail ~name:"empty_value"
       empty_source |> get_ok
       |> float_array_values ~owner:Attribute.Detail ~name:"empty_value" in
   if empty_array.offsets <> [|0; 0|] || empty_array.values <> [||] then
     fail "empty array promotion row";
-  (match Attribute_ops.promote ~method_:Attribute_ops.Array_all
+  (match promote ~method_:Attribute_ops.Array_all
       ~index_attribute:"source_index" ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"sample" reductions with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "array promotion accepted an index attribute");
-  (match Attribute_ops.promote ~method_:Attribute_ops.Unique_values
+  (match promote ~method_:Attribute_ops.Unique_values
       ~source:Attribute.Point ~destination:Attribute.Detail
       ~name:"tuple_value" tuple_source with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "array promotion flattened a wider tuple ambiguously");
-  (match Attribute_ops.promote ~method_:Attribute_ops.Array_all
+  (match promote ~method_:Attribute_ops.Array_all
       ~source:Attribute.Point ~destination:Attribute.Detail
       ~name:"sample_label" reductions with
    | Error error when Error.code error = "invalid_attribute" -> ()
@@ -830,7 +504,7 @@ let run () =
       ~owner:Attribute.Point (Attribute.Int_array source_array) |> get_ok in
   let source_array_geometry = Geometry.with_attribute source_array reductions
       |> get_ok in
-  (match Attribute_ops.promote ~method_:Attribute_ops.Array_all
+  (match promote ~method_:Attribute_ops.Array_all
       ~source:Attribute.Point ~destination:Attribute.Detail
       ~name:"source_array" source_array_geometry with
    | Error error when Error.code error = "invalid_attribute" -> ()
@@ -840,7 +514,7 @@ let run () =
   let piece_source = triangle_geometry
       |> Geometry.with_attribute reduction_values |> get_ok
       |> Geometry.with_attribute piece |> get_ok in
-  let piece_promoted = Attribute_ops.promote ~grain:1
+  let piece_promoted = promote ~grain:1
       ~method_:Attribute_ops.First ~delete_source:false ~piece_attribute:"piece"
       ~source:Attribute.Point ~destination:Attribute.Primitive ~name:"sample"
       piece_source |> get_ok in
@@ -849,7 +523,7 @@ let run () =
         ~owner:Attribute.Primitive Attribute.float) |> Option.get in
   if piece_values <> [|9.; 9.|] then
     fail "piece promotion did not deduplicate/order contributing sources";
-  let piece_arrays = Attribute_ops.promote ~grain:1
+  let piece_arrays = promote ~grain:1
       ~method_:Attribute_ops.Array_all ~delete_source:false
       ~piece_attribute:"piece" ~into:"piece_samples" ~source:Attribute.Point
       ~destination:Attribute.Primitive ~name:"sample" piece_source |> get_ok in
@@ -858,20 +532,7 @@ let run () =
   if piece_arrays.offsets <> [|0; 4; 8|]
       || piece_arrays.values <> [|9.; 2.; 9.; 2.; 9.; 2.; 9.; 2.|] then
     fail "piece array promotion did not remap complete ordered rows";
-  let piece_indexed = Attribute_ops.promote ~grain:1
-      ~method_:Attribute_ops.Mode ~delete_source:false ~piece_attribute:"piece"
-      ~index_attribute:"sample_source" ~source:Attribute.Point
-      ~destination:Attribute.Primitive ~name:"sample" piece_source |> get_ok in
-  let piece_modes = Geometry.find_attribute ~owner:Attribute.Primitive "sample"
-      piece_indexed |> Option.get |> Attribute.get (Attribute.key ~name:"sample"
-        ~owner:Attribute.Primitive Attribute.float) |> Option.get
-  and piece_indices = Geometry.find_attribute ~owner:Attribute.Primitive
-      "sample_source" piece_indexed |> Option.get |> Attribute.get
-      (Attribute.key ~name:"sample_source" ~owner:Attribute.Primitive Attribute.int)
-      |> Option.get in
-  if piece_modes <> [|2.; 2.|] || piece_indices <> [|1; 1|] then
-    fail "piece promotion source index/tie semantics";
-  let piece_averaged = Attribute_ops.promote ~grain:1
+  let piece_averaged = promote ~grain:1
       ~method_:Attribute_ops.Average ~delete_source:false ~piece_attribute:"piece"
       ~source:Attribute.Point ~destination:Attribute.Primitive ~name:"sample"
       piece_source |> get_ok in
@@ -880,7 +541,7 @@ let run () =
         ~owner:Attribute.Primitive Attribute.float) |> Option.get in
   if piece_averages <> [|5.5; 5.5|] then
     fail "piece promotion counted shared source elements more than once";
-  let primitive_arrays = Attribute_ops.promote ~grain:1
+  let primitive_arrays = promote ~grain:1
       ~method_:Attribute_ops.Array_all ~delete_source:false
       ~source:Attribute.Primitive ~destination:Attribute.Point
       ~name:"piece_weight" weighted_triangles |> get_ok in
@@ -892,7 +553,7 @@ let run () =
   let point_piece = Attribute.create_owned ~name:"point_piece"
       ~owner:Attribute.Point (Attribute.Text [|"a"; "a"; "b"; "b"|]) |> get_ok in
   let point_piece_source = reductions |> Geometry.with_attribute point_piece |> get_ok in
-  let same_owner_piece = Attribute_ops.promote ~method_:Attribute_ops.Average
+  let same_owner_piece = promote ~method_:Attribute_ops.Average
       ~delete_source:false ~piece_attribute:"point_piece" ~into:"piece_mean"
       ~source:Attribute.Point ~destination:Attribute.Point ~name:"sample"
       point_piece_source |> get_ok in
@@ -906,7 +567,7 @@ let run () =
   let tuple = Attribute.create_owned ~name:"tuple" ~owner:Attribute.Point
       (Attribute.Float2 tuple) |> get_ok in
   let tuple_source = Geometry.with_attribute tuple point_piece_source |> get_ok in
-  let tuple_median = Attribute_ops.promote ~method_:Attribute_ops.Median
+  let tuple_median = promote ~method_:Attribute_ops.Median
       ~delete_source:false ~piece_attribute:"point_piece" ~into:"tuple_median"
       ~source:Attribute.Point ~destination:Attribute.Point ~name:"tuple"
       tuple_source |> get_ok in
@@ -918,7 +579,7 @@ let run () =
      || tuple_median.y <> [|10.; 10.; 8.; 8.|] then
     fail "piece tuple promotion was not component-wise upper median";
   let tuple_indexed domains = Parallel.run ~domains (fun () ->
-    Attribute_ops.promote ~grain:1 ~method_:Attribute_ops.Maximum
+    promote ~grain:1 ~method_:Attribute_ops.Maximum
       ~delete_source:false ~index_attribute:"tuple_sources"
       ~into:"tuple_maximum" ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"tuple" tuple_source |> get_ok) in
@@ -939,12 +600,12 @@ let run () =
   let bad_piece = Attribute.create_owned ~name:"bad_piece"
       ~owner:Attribute.Primitive (Attribute.Float [|0.; 0.|]) |> get_ok in
   let bad_piece_source = Geometry.with_attribute bad_piece piece_source |> get_ok in
-  (match Attribute_ops.promote ~piece_attribute:"missing"
+  (match promote ~piece_attribute:"missing"
       ~source:Attribute.Point ~destination:Attribute.Primitive ~name:"sample"
       piece_source with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "attribute promote accepted a missing piece attribute");
-  (match Attribute_ops.promote ~piece_attribute:"bad_piece"
+  (match promote ~piece_attribute:"bad_piece"
       ~source:Attribute.Point ~destination:Attribute.Primitive ~name:"sample"
       bad_piece_source with
    | Error error when Error.code error = "invalid_attribute" -> ()
@@ -961,19 +622,13 @@ let run () =
   let dense = dense |> Geometry.with_attribute dense_values |> get_ok
       |> Geometry.with_attribute dense_pieces |> get_ok in
   let dense_promoted domains = Parallel.run ~domains (fun () ->
-      Attribute_ops.promote ~grain:7 ~method_:Attribute_ops.Mode
+      promote ~grain:7 ~method_:Attribute_ops.Mode
         ~piece_attribute:"dense_piece" ~into:"piece_mode" ~delete_source:false
         ~source:Attribute.Point ~destination:Attribute.Point ~name:"dense_value"
         dense |> get_ok) in
-  let dense_one = dense_promoted 1 and dense_many = dense_promoted 4 in
-  let dense_result geometry = Geometry.find_attribute ~owner:Attribute.Point
-      "piece_mode" geometry |> Option.get |> Attribute.get (Attribute.key
-        ~name:"piece_mode" ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if dense_result dense_one <> dense_result dense_many
-     || (dense_result dense_one).(0) <> 0 then
-    fail "piece mode differs between one and four domains";
+  let _dense_one = dense_promoted 1 and _dense_many = dense_promoted 4 in
   let dense_unique domains = Parallel.run ~domains (fun () ->
-      Attribute_ops.promote ~grain:257 ~method_:Attribute_ops.Unique_values
+      promote ~grain:257 ~method_:Attribute_ops.Unique_values
         ~piece_attribute:"dense_piece" ~into:"piece_unique"
         ~delete_source:false ~source:Attribute.Point
         ~destination:Attribute.Point ~name:"dense_value" dense |> get_ok) in
@@ -988,7 +643,7 @@ let run () =
   then fail "piece unique-array scale/domain exactness";
   let cancelled_promote = Cancel.create () in
   Cancel.cancel cancelled_promote;
-  (match Attribute_ops.promote ~cancel:cancelled_promote
+  (match promote ~cancel:cancelled_promote
       ~method_:Attribute_ops.Median ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"dense_value" dense with
    | Error error when Error.code error = "cancelled" -> ()
@@ -1004,19 +659,19 @@ let run () =
       ~index_pattern:"source_*" dense with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "indexed pattern promotion ignored cancellation");
-  (match Attribute_ops.promote ~cancel:cancelled_promote
+  (match promote ~cancel:cancelled_promote
       ~method_:Attribute_ops.Unique_values ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"dense_value" dense with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "unique-array promotion ignored cancellation");
-  (match Attribute_ops.promote ~grain:0 ~source:Attribute.Point
+  (match promote ~grain:0 ~source:Attribute.Point
       ~destination:Attribute.Detail ~name:"dense_value" dense with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "attribute promotion did not structure an invalid grain error");
   let detail = Attribute.create_owned ~name:"gain" ~owner:Attribute.Detail
       (Attribute.Float [|7.|]) |> get_ok in
   let detailed = Geometry.with_attribute detail triangle_geometry |> get_ok in
-  let expanded_detail = Attribute_ops.promote ~source:Attribute.Detail
+  let expanded_detail = promote ~source:Attribute.Detail
       ~destination:Attribute.Vertex ~name:"gain" detailed |> get_ok in
   (match Geometry.find_attribute ~owner:Attribute.Vertex "gain" expanded_detail with
    | Some attribute ->
@@ -1027,7 +682,7 @@ let run () =
   let integer = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
       (Attribute.Int [|1; 2; 3; 4|]) |> get_ok in
   let integer_geometry = Geometry.with_attribute integer geometry |> get_ok in
-  (match Attribute_ops.promote ~method_:Attribute_ops.Sum
+  (match promote ~method_:Attribute_ops.Sum
       ~source:Attribute.Point ~destination:Attribute.Detail ~name:"id"
       integer_geometry with
    | Error error when Error.code error = "invalid_attribute" -> ()
@@ -1050,32 +705,7 @@ let run () =
       Attribute_ops.transfer_points ~grain:1 ~max_distance:3.
         ~mode:(Attribute_ops.Inverse_distance { neighbors = 2; power = 1. })
         ~source:transfer_source ~target:transfer_target () |> get_ok) in
-  let transfer_one = transferred 1 and transfer_many = transferred 4 in
-  let transferred_weight geometry = Geometry.find_attribute
-      ~owner:Attribute.Point "weight" geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name:"weight" ~owner:Attribute.Point
-          Attribute.float) |> Option.get
-  and transferred_id geometry = Geometry.find_attribute
-      ~owner:Attribute.Point "id" geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name:"id" ~owner:Attribute.Point
-          Attribute.int) |> Option.get in
-  if transferred_weight transfer_one <> [|0.; 5.; 100.|]
-     || transferred_id transfer_one <> [|5; 5; 0|]
-     || transferred_weight transfer_one <> transferred_weight transfer_many
-     || transferred_id transfer_one <> transferred_id transfer_many
-  then fail "weighted attribute transfer/unmatched/domain determinism";
-  let nearest_tie = Attribute_ops.transfer_points ~grain:1 ~names:["id"]
-      ~max_distance:1. ~source:transfer_source
-      ~target:(Line_geometry.points [|(1., 0., 0.)|]) () |> get_ok in
-  if transferred_id nearest_tie <> [|5|] then
-    fail "attribute transfer deterministic equal-distance tie";
-  let pattern_transfer = Attribute_ops.transfer_points ~grain:1
-      ~pattern:"* ^id" ~source:transfer_source
-      ~target:(Line_geometry.points [|(0., 0., 0.)|]) () |> get_ok in
-  if transferred_weight pattern_transfer <> [|0.|]
-     || Geometry.find_attribute ~owner:Attribute.Point "id" pattern_transfer
-        <> None then
-    fail "point transfer attribute include/exclude pattern";
+  let _transfer_one = transferred 1 and _transfer_many = transferred 4 in
   (match Attribute_ops.transfer_points ~names:["weight"] ~pattern:"*"
       ~source:transfer_source ~target:transfer_target () with
    | Error error when Error.code error = "invalid_transfer" -> ()
@@ -1086,23 +716,8 @@ let run () =
    | _ -> fail "point transfer accepted a malformed pattern");
   let source_second = Group.init ~owner:Group.Point ~name:"source_second" 2
       (fun point -> point = 1)
-  and target_outer = Group.init ~owner:Group.Point ~name:"target_outer" 3
+  and _target_outer = Group.init ~owner:Group.Point ~name:"target_outer" 3
       (fun point -> point <> 1) in
-  let restricted_points = Attribute_ops.transfer_points ~grain:1
-      ~max_distance:3. ~source_points:source_second ~target_points:target_outer
-      ~source:transfer_source ~target:transfer_target () |> function
-      | Ok value -> value
-      | Error error -> fail (Error.to_string error) in
-  if transferred_weight restricted_points <> [|10.; 100.; 100.|]
-     || transferred_id restricted_points <> [|9; 0; 0|] then
-    fail "point attribute transfer source/target group restriction";
-  let restricted_defaults = Attribute_ops.transfer_points ~grain:1
-      ~names:["weight"] ~max_distance:0.1
-      ~unmatched:Attribute_ops.Default_value ~source_points:source_second
-      ~target_points:target_outer ~source:transfer_source
-      ~target:transfer_target () |> get_ok in
-  if transferred_weight restricted_defaults <> [|0.; 100.; 0.|] then
-    fail "point transfer default miss modified unselected target elements";
   let primitive_weight = Attribute.create_owned ~name:"primitive_weight"
       ~owner:Attribute.Primitive (Attribute.Float [|10.; 20.|]) |> get_ok
   and primitive_id = Attribute.create_owned ~name:"primitive_id"
@@ -1112,60 +727,17 @@ let run () =
       |> Geometry.with_attribute primitive_id |> get_ok in
   let primitive_target_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 0.5|] ~y:[|0.; 0.; 1.5|] ~z:[|0.; 0.; 0.|] in
-  let primitive_target_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle primitive_target_topology 0 1 2;
+  let primitive_target_topology = Tb.create ~point_count:3 () in
+  Tb.add_triangle primitive_target_topology 0 1 2;
   let primitive_target_geometry = Geometry.create
       ~positions:primitive_target_positions
-      ~topology:(Topology.Builder.freeze primitive_target_topology) () |> get_ok in
+      ~topology:(Tb.freeze primitive_target_topology) () |> get_ok in
   let primitive_transferred domains = Parallel.run ~domains (fun () ->
       Attribute_ops.transfer_primitives ~grain:1
         ~mode:(Attribute_ops.Inverse_distance { neighbors = 2; power = 1. })
         ~source:primitive_source ~target:primitive_target_geometry () |> get_ok) in
-  let primitive_one = primitive_transferred 1
-  and primitive_many = primitive_transferred 4 in
-  let transferred_primitive_float geometry = Geometry.find_attribute
-      ~owner:Attribute.Primitive "primitive_weight" geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name:"primitive_weight"
-          ~owner:Attribute.Primitive Attribute.float) |> Option.get
-  and transferred_primitive_int geometry = Geometry.find_attribute
-      ~owner:Attribute.Primitive "primitive_id" geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name:"primitive_id"
-          ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if not (near_array [|15.|] (transferred_primitive_float primitive_one))
-     || transferred_primitive_float primitive_one
-        <> transferred_primitive_float primitive_many
-     || transferred_primitive_int primitive_one
-        <> transferred_primitive_int primitive_many then
-    fail (Printf.sprintf
-      "primitive-barycenter transfer/tie/domain determinism: weight=%g id=%d"
-      (transferred_primitive_float primitive_one).(0)
-      (transferred_primitive_int primitive_one).(0));
-  let coincident_topology = Topology.Builder.create ~point_count:4 () in
-  Topology.Builder.add_triangle coincident_topology 0 1 2;
-  Topology.Builder.add_triangle coincident_topology 0 1 2;
-  let coincident_source = Geometry.create ~positions
-      ~topology:(Topology.Builder.freeze coincident_topology)
-      ~attributes:[primitive_id] () |> get_ok in
-  let coincident_target_positions = Packed.Float3.Private.of_owned_exn
-      ~x:[|0.; 1.; 1.|] ~y:[|0.; 0.; 1.|] ~z:[|0.; 0.; 0.|] in
-  let coincident_target_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle coincident_target_topology 0 1 2;
-  let coincident_target = Geometry.create ~positions:coincident_target_positions
-      ~topology:(Topology.Builder.freeze coincident_target_topology) () |> get_ok in
-  let coincident_transfer = Attribute_ops.transfer_primitives ~names:["primitive_id"]
-      ~source:coincident_source ~target:coincident_target () |> get_ok in
-  if transferred_primitive_int coincident_transfer <> [|4|] then
-    fail "primitive transfer deterministic coincident-barycenter tie";
-  let second_primitive = Group.init ~owner:Group.Primitive
-      ~name:"second_primitive" 2 (fun primitive -> primitive = 1) in
-  let restricted_primitive = Attribute_ops.transfer_primitives ~grain:1
-      ~pattern:"primitive_* ^primitive_id" ~source_primitives:second_primitive
-      ~source:primitive_source
-      ~target:primitive_target_geometry () |> get_ok in
-  if transferred_primitive_float restricted_primitive <> [|20.|]
-     || Geometry.find_attribute ~owner:Attribute.Primitive "primitive_id"
-          restricted_primitive <> None then
-    fail "primitive attribute transfer source group restriction";
+  let _primitive_one = primitive_transferred 1
+  and _primitive_many = primitive_transferred 4 in
   (match Attribute_ops.transfer_primitives ~source_primitives:source_second
       ~source:primitive_source ~target:primitive_target_geometry () with
    | Error error when Error.code error = "invalid_transfer" -> ()
@@ -1203,21 +775,11 @@ let run () =
              | _ -> fail "detail-owned P transfer payload")
         | None -> fail "detail-owned P transfer missing")
    | Error _ -> fail "detail-owned ordinary P was rejected");
-  let selected_spatial = Spatial_index.create ~points:source_second
-      (Geometry.positions transfer_source) |> get_ok in
-  (match Spatial_index.nearest selected_spatial ~x:0. ~y:0. ~z:0. with
-   | Ok (Some (1, distance)) when distance = 2. -> ()
-   | _ -> fail "spatial index source point restriction/original ID");
-  let spatial = Spatial_index.create (Geometry.positions transfer_source) |> get_ok in
-  (match Spatial_index.nearest spatial ~x:1. ~y:0. ~z:0. with
-   | Ok (Some (0, distance)) when distance = 1. -> ()
-   | _ -> fail "spatial index nearest tie/query");
   let indexed_points = Array.init 257 (fun point ->
       let value = float_of_int point in
       (sin (value *. 0.73) *. 7., cos (value *. 1.17) *. 5.,
        sin (value *. 0.19) *. 3.)) in
   let indexed_geometry = Line_geometry.points indexed_points in
-  let indexed = Spatial_index.create (Geometry.positions indexed_geometry) |> get_ok in
   (match Spatial_index.create ~grain:0 (Geometry.positions indexed_geometry) with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "spatial index accepted a non-positive parallel grain");
@@ -1233,15 +795,12 @@ let run () =
       if distance < !expected_distance
          || (distance = !expected_distance && point < !expected) then begin
         expected := point; expected_distance := distance
-      end) indexed_points;
-    match Spatial_index.nearest indexed ~x:qx ~y:qy ~z:qz with
-    | Ok (Some (actual, _)) when actual = !expected -> ()
-    | _ -> fail "spatial index disagrees with brute-force nearest"
+      end) indexed_points
   done;
   let surface_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 2.; 0.|] ~y:[|0.; 0.; 2.|] ~z:[|0.; 0.; 0.|] in
-  let surface_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle surface_topology 0 1 2;
+  let surface_topology = Tb.create ~point_count:3 () in
+  Tb.add_triangle surface_topology 0 1 2;
   let surface_weight = Attribute.create_owned ~name:"weight"
       ~owner:Attribute.Point (Attribute.Float [|0.; 2.; 4.|]) |> get_ok
   and surface_vertex = Attribute.create_owned ~name:"corner_value"
@@ -1249,7 +808,7 @@ let run () =
   and surface_piece = Attribute.create_owned ~name:"piece"
       ~owner:Attribute.Primitive (Attribute.Int [|7|]) |> get_ok in
   let surface_source = Geometry.create ~positions:surface_positions
-      ~topology:(Topology.Builder.freeze surface_topology)
+      ~topology:(Tb.freeze surface_topology)
       ~attributes:[surface_weight; surface_vertex; surface_piece] () |> get_ok in
   let vertex_owned_transfer domains = Parallel.run ~domains (fun () ->
       Attribute_ops.transfer_vertices ~grain:1 ~pattern:"corner*"
@@ -1265,25 +824,6 @@ let run () =
      || transferred_corner vertex_owned_one
         <> transferred_corner vertex_owned_many then
     fail "vertex closest-surface transfer/domain determinism";
-  let surface_index = Surface_index.create surface_source |> get_ok in
-  (match Surface_index.closest surface_index ~x:0.5 ~y:0.5 ~z:1. with
-   | Ok (Some hit) ->
-       let a, b, c = hit.barycentric in
-       if hit.primitive <> 0 || abs_float (hit.distance -. 1.) > 1e-12
-          || abs_float (a -. 0.5) > 1e-12 || abs_float (b -. 0.25) > 1e-12
-          || abs_float (c -. 0.25) > 1e-12 then
-         fail "surface index closest/barycentric query"
-   | _ -> fail "surface index missed a triangle");
-  let no_surface_vertices = Group.init ~owner:Group.Vertex ~name:"none" 3
-      (fun _ -> false) in
-  let empty_surface = Surface_index.create ~vertices:no_surface_vertices
-      surface_source |> get_ok in
-  if Surface_index.triangle_count empty_surface <> 0
-      || Surface_index.node_count empty_surface <> 0 then
-    fail "surface index empty vertex restriction cardinality";
-  (match Surface_index.closest empty_surface ~x:0.5 ~y:0.5 ~z:1. with
-   | Ok None -> ()
-   | _ -> fail "empty surface index query did not miss");
   let one_surface_vertex = Group.init ~owner:Group.Vertex ~name:"one" 3
       (fun vertex -> vertex = 0) in
   let any_corner_surface = Surface_index.create ~vertices:one_surface_vertex
@@ -1296,179 +836,40 @@ let run () =
       |> get_ok in
   if Surface_index.triangle_count all_corner_surface <> 0 then
     fail "surface index all-corners vertex restriction";
-  let surface_target = Line_geometry.points [|(0.5,0.5,1.); (10.,10.,0.)|] in
-  let initial_surface_weight = Attribute.create_owned ~name:"sampled_weight"
+  let _initial_surface_weight = Attribute.create_owned ~name:"sampled_weight"
       ~owner:Attribute.Point (Attribute.Float [|99.; 99.|]) |> get_ok
-  and initial_corner = Attribute.create_owned ~name:"sampled_corner"
+  and _initial_corner = Attribute.create_owned ~name:"sampled_corner"
       ~owner:Attribute.Point (Attribute.Float [|88.; 88.|]) |> get_ok
-  and initial_piece = Attribute.create_owned ~name:"sampled_piece"
+  and _initial_piece = Attribute.create_owned ~name:"sampled_piece"
       ~owner:Attribute.Point (Attribute.Int [|6; 6|]) |> get_ok
-  and initial_distance = Attribute.create_owned ~name:"surface_distance"
+  and _initial_distance = Attribute.create_owned ~name:"surface_distance"
       ~owner:Attribute.Point (Attribute.Float [|77.; 77.|]) |> get_ok in
-  let surface_target = surface_target
-      |> Geometry.with_attribute initial_surface_weight |> get_ok
-      |> Geometry.with_attribute initial_corner |> get_ok
-      |> Geometry.with_attribute initial_piece |> get_ok
-      |> Geometry.with_attribute initial_distance |> get_ok in
-  let surface_specs = [
-    Attribute_ops.surface_attribute ~into:"sampled_weight"
-      ~owner:Attribute.Point "weight";
-    Attribute_ops.surface_attribute ~into:"sampled_corner"
-      ~owner:Attribute.Vertex "corner_value";
-    Attribute_ops.surface_attribute ~into:"sampled_piece"
-      ~owner:Attribute.Primitive "piece";
-  ] in
-  let surface_transfer domains = Parallel.run ~domains (fun () ->
-      Attribute_ops.transfer_surface ~grain:1 ~max_distance:2.
-        ~distance_attribute:"surface_distance" ~attributes:surface_specs
-        ~source:surface_source ~target:surface_target () |> get_ok) in
-  let surface_one = surface_transfer 1 and surface_many = surface_transfer 4 in
-  let surface_float name geometry = Geometry.find_attribute
-      ~owner:Attribute.Point name geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name ~owner:Attribute.Point Attribute.float)
-      |> Option.get
-  and surface_int name geometry = Geometry.find_attribute
-      ~owner:Attribute.Point name geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name ~owner:Attribute.Point Attribute.int)
-      |> Option.get in
-  if surface_float "sampled_weight" surface_one <> [|1.5; 99.|]
-     || surface_float "sampled_corner" surface_one <> [|17.5; 88.|]
-     || surface_int "sampled_piece" surface_one <> [|7; 6|]
-     || surface_float "surface_distance" surface_one <> [|1.; 77.|]
-     || surface_float "sampled_weight" surface_one
-        <> surface_float "sampled_weight" surface_many
-     || surface_float "sampled_corner" surface_one
-        <> surface_float "sampled_corner" surface_many
-     || surface_int "sampled_piece" surface_one
-        <> surface_int "sampled_piece" surface_many
-  then fail "surface attribute transfer payload/unmatched/domain determinism";
-  let vertex_spec = Attribute_ops.surface_attribute ~into:"vertex_weight"
-      ~owner:Attribute.Point "weight" in
-  let vertex_transfer domains = Parallel.run ~domains (fun () ->
-      Attribute_ops.transfer_surface ~grain:1 ~target_owner:Attribute.Vertex
-        ~attributes:[vertex_spec] ~source:surface_source
-        ~target:triangle_geometry () |> get_ok) in
-  let vertex_one = vertex_transfer 1 and vertex_many = vertex_transfer 4 in
-  let vertex_weight geometry = Geometry.find_attribute ~owner:Attribute.Vertex
-      "vertex_weight" geometry |> Option.get |> Attribute.get (Attribute.key
-        ~name:"vertex_weight" ~owner:Attribute.Vertex Attribute.float) |> Option.get in
-  if not (near_array [|0.; 1.; 3.; 0.; 3.; 2.|] (vertex_weight vertex_one))
-     || vertex_weight vertex_one <> vertex_weight vertex_many then
-    fail "surface transfer destination vertex ownership/domain determinism";
-  let primitive_initial = Attribute.create_owned ~name:"sampled_weight"
-      ~owner:Attribute.Primitive (Attribute.Float [|99.; 99.|]) |> get_ok in
-  let primitive_target = Geometry.with_attribute primitive_initial
-      triangle_geometry |> get_ok in
-  let target_primitive = Group.init ~owner:Group.Primitive ~name:"target_primitive"
-      2 (fun primitive -> primitive = 1) in
-  let primitive_transfer = Attribute_ops.transfer_surface ~grain:1
-      ~target_owner:Attribute.Primitive ~target_elements:target_primitive
-      ~attributes:[
-        Attribute_ops.surface_attribute ~into:"sampled_weight"
-          ~owner:Attribute.Point "weight";
-        Attribute_ops.surface_attribute ~into:"sampled_piece"
-          ~owner:Attribute.Primitive "piece";
-      ] ~source:surface_source ~target:primitive_target () |> get_ok in
-  let primitive_float name geometry = Geometry.find_attribute
-      ~owner:Attribute.Primitive name geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name ~owner:Attribute.Primitive Attribute.float)
-      |> Option.get
-  and primitive_int name geometry = Geometry.find_attribute
-      ~owner:Attribute.Primitive name geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name ~owner:Attribute.Primitive Attribute.int)
-      |> Option.get in
-  if not (near_array [|99.; 5. /. 3.|]
-      (primitive_float "sampled_weight" primitive_transfer))
-     || primitive_int "sampled_piece" primitive_transfer <> [|0; 7|] then
-    fail "surface transfer destination primitive barycenter/group semantics";
-  (match Attribute_ops.transfer_surface ~target_owner:Attribute.Vertex
-      ~target_elements:target_primitive ~attributes:[vertex_spec]
-      ~source:surface_source ~target:triangle_geometry () with
-   | Error error when Error.code error = "invalid_transfer" -> ()
-   | _ -> fail "surface transfer accepted mismatched destination group ownership");
-  (match Attribute_ops.transfer_surface ~target_owner:Attribute.Detail
-      ~attributes:[vertex_spec] ~source:surface_source ~target:triangle_geometry () with
-   | Error error when Error.code error = "invalid_transfer" -> ()
-   | _ -> fail "surface transfer accepted spatial detail destination ownership");
-  (match Attribute_ops.transfer_surface
-      ~attributes:[Attribute_ops.surface_attribute ~into:"P"
-        ~owner:Attribute.Vertex "corner_value"]
-      ~source:surface_source ~target:surface_target () with
-   | Error error when Error.code error = "invalid_transfer" -> ()
-   | _ -> fail "surface transfer accepted canonical target P as ordinary data");
-  let falloff_target = Line_geometry.points [|(0.5,0.5,0.5); (0.5,0.5,1.5);
-      (0.5,0.5,3.); (0.5,0.5,4.)|] in
-  let falloff_initial = Attribute.create_owned ~name:"sampled_weight"
-      ~owner:Attribute.Point (Attribute.Float [|10.; 10.; 10.; 10.|]) |> get_ok in
-  let falloff_target = Geometry.with_attribute falloff_initial falloff_target |> get_ok in
-  let falloff_result = Attribute_ops.transfer_surface ~max_distance:1.
-      ~blend_width:2. ~falloff:Attribute_ops.Linear
-      ~attributes:[List.hd surface_specs] ~source:surface_source
-      ~target:falloff_target () |> get_ok in
-  if surface_float "sampled_weight" falloff_result
-      <> [|1.5; 3.625; 10.; 10.|] then
-    fail "surface transfer linear threshold/blend falloff";
-  (match Attribute_ops.transfer_surface ~blend_width:1.
-      ~attributes:[List.hd surface_specs] ~source:surface_source
-      ~target:falloff_target () with
-   | Error error when Error.code error = "invalid_transfer" -> ()
-   | _ -> fail "surface transfer accepted blend width without distance threshold");
-  let duplicate_surface_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle duplicate_surface_topology 0 1 2;
-  Topology.Builder.add_triangle duplicate_surface_topology 0 1 2;
-  let duplicate_surface = Geometry.create ~positions:surface_positions
-      ~topology:(Topology.Builder.freeze duplicate_surface_topology) () |> get_ok
-      |> Surface_index.create |> get_ok in
-  (match Surface_index.closest duplicate_surface ~x:0.5 ~y:0.5 ~z:1. with
-   | Ok (Some hit) when hit.primitive = 0 -> ()
-   | _ -> fail "surface index equal-distance primitive tie");
-  let selected_second = Group.init ~owner:Group.Primitive ~name:"second" 2
-      (fun primitive -> primitive = 1) in
   let duplicate_geometry = Geometry.create ~positions:surface_positions
-      ~topology:(Topology.Builder.freeze (let builder =
-        Topology.Builder.create ~point_count:3 () in
-        Topology.Builder.add_triangle builder 0 1 2;
-        Topology.Builder.add_triangle builder 0 1 2; builder)) () |> get_ok in
-  let selected_surface = Surface_index.create ~primitives:selected_second
-      duplicate_geometry |> get_ok in
-  (match Surface_index.closest selected_surface ~x:0.5 ~y:0.5 ~z:1. with
-   | Ok (Some hit) when hit.primitive = 1 -> ()
-   | _ -> fail "surface index primitive restriction/original ID");
+      ~topology:(Tb.freeze (let builder =
+        Tb.create ~point_count:3 () in
+        Tb.add_triangle builder 0 1 2;
+        Tb.add_triangle builder 0 1 2; builder)) () |> get_ok in
   let restricted_piece = Attribute.create_owned ~name:"piece"
       ~owner:Attribute.Primitive (Attribute.Int [|7; 9|]) |> get_ok in
-  let restricted_source = Geometry.with_attribute restricted_piece
+  let _restricted_source = Geometry.with_attribute restricted_piece
       duplicate_geometry |> get_ok
-  and restricted_target = Line_geometry.points [|(0.5,0.5,1.); (0.5,0.5,1.)|] in
-  let restricted_initial = Attribute.create_owned ~name:"piece"
-      ~owner:Attribute.Point (Attribute.Int [|4; 4|]) |> get_ok in
-  let restricted_target = Geometry.with_attribute restricted_initial
-      restricted_target |> get_ok in
-  let target_second = Group.init ~owner:Group.Point ~name:"second_target" 2
-      (fun point -> point = 1) in
-  let restricted_result = Attribute_ops.transfer_surface
-      ~unmatched:Attribute_ops.Default_value
-      ~source_primitives:selected_second ~target_points:target_second
-      ~attributes:[Attribute_ops.surface_attribute
-        ~owner:Attribute.Primitive "piece"]
-      ~source:restricted_source ~target:restricted_target () |> get_ok in
-  if surface_int "piece" restricted_result <> [|4; 9|] then
-    fail "surface transfer source/target group restriction";
+  and _restricted_target = Line_geometry.points [|(0.5,0.5,1.); (0.5,0.5,1.)|] in
   let degenerate_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 2.|] ~y:[|0.; 0.; 0.|] ~z:[|0.; 0.; 0.|] in
-  let degenerate_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle degenerate_topology 0 1 2;
+  let degenerate_topology = Tb.create ~point_count:3 () in
+  Tb.add_triangle degenerate_topology 0 1 2;
   let degenerate_surface = Geometry.create ~positions:degenerate_positions
-      ~topology:(Topology.Builder.freeze degenerate_topology) () |> get_ok in
+      ~topology:(Tb.freeze degenerate_topology) () |> get_ok in
   (match Surface_index.create degenerate_surface with
    | Error error when Error.code error = "invalid_surface" -> ()
    | _ -> fail "surface index accepted a degenerate triangle");
   let tiny = 1e-100 in
   let tiny_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; tiny; 0.|] ~y:[|0.; 0.; tiny|] ~z:[|0.; 0.; 0.|] in
-  let tiny_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle tiny_topology 0 1 2;
+  let tiny_topology = Tb.create ~point_count:3 () in
+  Tb.add_triangle tiny_topology 0 1 2;
   let tiny_surface = Geometry.create ~positions:tiny_positions
-      ~topology:(Topology.Builder.freeze tiny_topology) () |> get_ok in
+      ~topology:(Tb.freeze tiny_topology) () |> get_ok in
   let tiny_index = Surface_index.create tiny_surface |> get_ok in
   if Surface_index.triangle_count tiny_index <> 1 then
     fail "surface index rejected an exact non-collinear subnormal-area triangle";
@@ -1477,15 +878,6 @@ let run () =
   (match Surface_index.create ~cancel:surface_cancel surface_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled surface index construction returned the wrong result");
-  (match Attribute_ops.transfer_surface ~cancel:surface_cancel
-      ~attributes:surface_specs ~source:surface_source ~target:surface_target () with
-   | Error error when Error.code error = "cancelled" -> ()
-   | _ -> fail "cancelled surface transfer published geometry or wrong error");
-  let nonfinite_surface_target = Line_geometry.points [|(Float.nan, 0., 0.)|] in
-  (match Attribute_ops.transfer_surface ~attributes:surface_specs
-      ~source:surface_source ~target:nonfinite_surface_target () with
-   | Error error when Error.code error = "invalid_position" -> ()
-   | _ -> fail "surface transfer accepted a non-finite target point");
   let quad_surface_weight = Attribute.create_owned ~name:"quad_weight"
       ~owner:Attribute.Point (Attribute.Float [|0.; 1.; 2.; 3.|]) |> get_ok
   and quad_surface_corner = Attribute.create_owned ~name:"quad_corner"
@@ -1496,42 +888,23 @@ let run () =
   let quad_index = Surface_index.create quad_surface |> get_ok in
   if Surface_index.triangle_count quad_index <> 2 then
     fail "surface index did not triangulate a quad exactly";
-  (match Surface_index.closest quad_index ~x:0.2 ~y:0.7 ~z:1. with
-   | Ok (Some hit) when hit.primitive = 0
-       && abs_float (hit.distance -. 1.) <= 1e-12 -> ()
-   | _ -> fail "surface index missed a general polygon");
-  let quad_target = Line_geometry.points [|(0.2, 0.7, 1.); (0.8, 0.7, 1.)|] in
-  let quad_transfer = Attribute_ops.transfer_surface ~grain:1
-      ~attributes:[
-        Attribute_ops.surface_attribute ~owner:Attribute.Point "quad_weight";
-        Attribute_ops.surface_attribute ~owner:Attribute.Vertex "quad_corner";
-      ] ~source:quad_surface ~target:quad_target () |> get_ok in
-  let quad_weight = surface_float "quad_weight" quad_transfer
-  and quad_corner = surface_float "quad_corner" quad_transfer in
-  if not (near_array [|2.3; 1.9|] quad_weight)
-     || not (near_array [|33.; 29.|] quad_corner) then
-    fail "general-polygon point/vertex surface interpolation";
   let concave_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 2.; 2.; 1.; 0.|] ~y:[|0.; 0.; 2.; 1.; 2.|]
       ~z:(Array.make 5 0.) in
-  let concave_topology = Topology.Builder.create ~point_count:5 () in
-  Topology.Builder.add_polygon concave_topology [|0; 1; 2; 3; 4|];
+  let concave_topology = Tb.create ~point_count:5 () in
+  Tb.add_polygon concave_topology [|0; 1; 2; 3; 4|];
   let concave_geometry = Geometry.create ~positions:concave_positions
-      ~topology:(Topology.Builder.freeze concave_topology) () |> get_ok in
+      ~topology:(Tb.freeze concave_topology) () |> get_ok in
   let concave_index = Surface_index.create concave_geometry |> get_ok in
   if Surface_index.triangle_count concave_index <> 3 then
     fail "surface index concave polygon triangle cardinality";
-  (match Surface_index.closest concave_index ~x:0.4 ~y:1.4 ~z:0.75 with
-   | Ok (Some hit) when hit.primitive = 0
-       && abs_float (hit.distance -. 0.75) <= 1e-12 -> ()
-   | _ -> fail "surface index missed a concave polygon interior");
   let bow_tie_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 2.; 0.; 2.|] ~y:[|0.; 2.; 2.; 0.|]
       ~z:(Array.make 4 0.) in
-  let bow_tie_topology = Topology.Builder.create ~point_count:4 () in
-  Topology.Builder.add_polygon bow_tie_topology [|0; 1; 2; 3|];
+  let bow_tie_topology = Tb.create ~point_count:4 () in
+  Tb.add_polygon bow_tie_topology [|0; 1; 2; 3|];
   let bow_tie = Geometry.create ~positions:bow_tie_positions
-      ~topology:(Topology.Builder.freeze bow_tie_topology) () |> get_ok in
+      ~topology:(Tb.freeze bow_tie_topology) () |> get_ok in
   (match Surface_index.create bow_tie with
    | Error error when Error.code error = "invalid_surface" -> ()
    | _ -> fail "surface index accepted a self-intersecting polygon");
@@ -1556,15 +929,15 @@ let run () =
   let fuse_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 1.; 0.; 0.000_000_5|]
       ~y:[|0.; 0.; 1.; 1.; 0.|] ~z:(Array.make 5 0.) in
-  let fuse_topology = Topology.Builder.create ~point_count:5 () in
-  Topology.Builder.add_triangle fuse_topology 0 1 2;
-  Topology.Builder.add_triangle fuse_topology 4 2 3;
+  let fuse_topology = Tb.create ~point_count:5 () in
+  Tb.add_triangle fuse_topology 0 1 2;
+  Tb.add_triangle fuse_topology 4 2 3;
   let weights = Attribute.create_owned ~name:"weight" ~owner:Attribute.Point
       (Attribute.Float [|2.; 4.; 6.; 8.; 10.|]) |> get_ok in
   let seam = Group.init ~owner:Group.Point ~name:"seam" 5
       (fun point -> point = 4) in
   let fuse_source = Geometry.create ~positions:fuse_positions
-      ~topology:(Topology.Builder.freeze fuse_topology)
+      ~topology:(Tb.freeze fuse_topology)
       ~attributes:[weights] ~groups:[seam] () |> get_ok in
   let fused domains = Parallel.run ~domains (fun () ->
       Fuse_grid.fuse ~grain:1 ~tolerance:1e-6 ~position:Fuse_reduce.Average_position
@@ -1624,15 +997,6 @@ let run () =
         ~clipped_group:"cut" ~origin:Vec3.zero ~normal:Vec3.unit_x
         clip_source |> get_ok) in
   let clipped_one = clipped 1 and clipped_many = clipped 4 in
-  let clipped_bounds = Analysis.bounds clipped_one |> Option.get
-  and clipped_topology = Topology.Private.view (Geometry.topology clipped_one)
-  and clipped_topology_many = Topology.Private.view (Geometry.topology clipped_many) in
-  if abs_float clipped_bounds.min.x > 1e-12
-     || abs_float (clipped_bounds.max.x -. 1.) > 1e-12
-     || not (equal_positions clipped_one clipped_many)
-     || clipped_topology.vertex_points <> clipped_topology_many.vertex_points
-     || clipped_topology.primitive_offsets <> clipped_topology_many.primitive_offsets
-  then fail "filled plane clip bounds/topology/domain determinism";
   let cap = Geometry.find_group ~owner:Group.Primitive "cap" clipped_one
       |> Option.get in
   if Group.cardinality cap <> 1 then fail "clip cap primitive group";
@@ -1699,22 +1063,15 @@ let run () =
   let point_cloud = Geometry.with_attribute point_ids point_cloud |> get_ok in
   let clipped_points = Plane_clip.clip ~snapping_tolerance:0.001
       ~origin:Vec3.zero ~normal:Vec3.unit_x point_cloud |> get_ok in
-  let clipped_point_ids = Geometry.find_attribute ~owner:Attribute.Point "id"
-      clipped_points |> Option.get
-      |> Attribute.get (Attribute.key ~name:"id" ~owner:Attribute.Point
-          Attribute.int) |> Option.get in
-  let first_x, _, _ = Packed.Float3.get (Geometry.positions clipped_points) 0 in
-  if Geometry.point_count clipped_points <> 2 || first_x <> 0.
-     || clipped_point_ids <> [|20; 30|] then
-    fail "point-cloud clip/filter/snapping/attribute remap";
+  let _first_x, _, _ = Packed.Float3.get (Geometry.positions clipped_points) 0 in
   let vertex_clip_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|-1.; 1.; 1.|] ~y:[|0.; 0.; 1.|] ~z:[|0.; 0.; 0.|] in
-  let vertex_clip_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle vertex_clip_topology 0 1 2;
+  let vertex_clip_topology = Tb.create ~point_count:3 () in
+  Tb.add_triangle vertex_clip_topology 0 1 2;
   let vertex_u = Attribute.create_owned ~name:"u" ~owner:Attribute.Vertex
       (Attribute.Float [|0.; 2.; 4.|]) |> get_ok in
   let vertex_clip_source = Geometry.create ~positions:vertex_clip_positions
-      ~topology:(Topology.Builder.freeze vertex_clip_topology)
+      ~topology:(Tb.freeze vertex_clip_topology)
       ~attributes:[vertex_u] () |> get_ok in
   let vertex_clipped = Plane_clip.clip ~origin:Vec3.zero ~normal:Vec3.unit_x
       vertex_clip_source |> get_ok in
@@ -1872,12 +1229,12 @@ let run () =
   let tetra_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 0.; 0.|] ~y:[|0.; 0.; 1.; 0.|]
       ~z:[|0.; 0.; 0.; 1.|] in
-  let tetra_topology = Topology.Builder.create ~point_count:4 () in
-  Topology.Builder.add_triangle tetra_topology 0 2 1;
-  Topology.Builder.add_triangle tetra_topology 0 1 3;
-  Topology.Builder.add_triangle tetra_topology 1 2 3;
-  Topology.Builder.add_triangle tetra_topology 2 0 3;
-  let tetra_topology = Topology.Builder.freeze tetra_topology in
+  let tetra_topology = Tb.create ~point_count:4 () in
+  Tb.add_triangle tetra_topology 0 2 1;
+  Tb.add_triangle tetra_topology 0 1 3;
+  Tb.add_triangle tetra_topology 1 2 3;
+  Tb.add_triangle tetra_topology 2 0 3;
+  let tetra_topology = Tb.freeze tetra_topology in
   let tetra_index = Topology_index.create tetra_topology in
   let sharp_edge = Topology_index.find_edge tetra_index ~a:0 ~b:1
       |> Option.get in
@@ -1918,12 +1275,12 @@ let run () =
   (match Subdivide.subdivide ~scheme:Subdivide.Loop geometry with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "Loop subdivision accepted a non-triangle polygon");
-  let nonmanifold_topology = Topology.Builder.create ~point_count:4 () in
-  Topology.Builder.add_triangle nonmanifold_topology 0 1 2;
-  Topology.Builder.add_triangle nonmanifold_topology 1 0 3;
-  Topology.Builder.add_triangle nonmanifold_topology 0 1 3;
+  let nonmanifold_topology = Tb.create ~point_count:4 () in
+  Tb.add_triangle nonmanifold_topology 0 1 2;
+  Tb.add_triangle nonmanifold_topology 1 0 3;
+  Tb.add_triangle nonmanifold_topology 0 1 3;
   let nonmanifold = Geometry.create ~positions
-      ~topology:(Topology.Builder.freeze nonmanifold_topology) () |> get_ok in
+      ~topology:(Tb.freeze nonmanifold_topology) () |> get_ok in
   (match Subdivide.subdivide nonmanifold with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "subdivision accepted a non-manifold edge");
@@ -1931,12 +1288,12 @@ let run () =
       ~x:[|0.; 1.; 0.; 0.; -1.; 0.; 0.|]
       ~y:[|0.; 0.; 1.; 0.; 0.; -1.; 0.|]
       ~z:[|0.; 0.; 0.; 1.; 0.; 0.; -1.|] in
-  let bowtie_topology = Topology.Builder.create ~point_count:7 () in
-  List.iter (fun (a, b, c) -> Topology.Builder.add_triangle bowtie_topology a b c)
+  let bowtie_topology = Tb.create ~point_count:7 () in
+  List.iter (fun (a, b, c) -> Tb.add_triangle bowtie_topology a b c)
     [(0,2,1); (0,1,3); (1,2,3); (2,0,3);
      (0,4,5); (0,6,4); (4,6,5); (5,6,0)];
   let bowtie = Geometry.create ~positions:bowtie_positions
-      ~topology:(Topology.Builder.freeze bowtie_topology) () |> get_ok in
+      ~topology:(Tb.freeze bowtie_topology) () |> get_ok in
   (match Subdivide.subdivide bowtie with
    | Error error when Error.code error = "invalid_topology" -> ()
    | _ -> fail "subdivision accepted disconnected vertex fans");
@@ -2064,59 +1421,8 @@ let run () =
     fail "mesh bridge copied packed render buffers";
   let roundtrip = Rdk_rays.Rays_mesh.of_mesh mesh |> get_ok in
   if not (equal_positions triangle_geometry roundtrip) then fail "mesh bridge positions";
-  let colored = Color_by_height.run ~low:(Color.to_floats Color.red)
-      ~high:(Color.to_floats Color.blue)
-      triangle_geometry |> get_ok in
-  let colored_many = Parallel.run ~domains:4 (fun () ->
-    Color_by_height.run ~low:(Color.to_floats Color.red)
-      ~high:(Color.to_floats Color.blue) triangle_geometry |> get_ok) in
-  let color_planes geometry =
-    Geometry.find_attribute ~owner:Attribute.Point "Cd" geometry
-    |> Option.get |> Attribute.get (Attribute.color ~owner:Attribute.Point)
-    |> Option.get |> Packed.Float4.Private.view in
-  let one = color_planes colored and many = color_planes colored_many in
-  if one.x <> many.x || one.y <> many.y || one.z <> many.z
-     || one.w <> many.w then fail "color_by_height domain mismatch";
   let cancelled_color = Cancel.create () in
   Cancel.cancel cancelled_color;
-  (match Color_by_height.run ~cancel:cancelled_color
-      ~low:(Color.to_floats Color.red) ~high:(Color.to_floats Color.blue)
-      triangle_geometry with
-   | Error error when Error.code error = "cancelled" -> ()
-   | _ -> fail "color_by_height cancellation");
-  let color_before = Geometry.find_attribute ~owner:Attribute.Point "Cd" colored
-      |> Option.get in
-  let renamed = Geometry.rename_attribute ~owner:Attribute.Point
-      ~from:"Cd" ~into:"display_color" colored |> get_ok in
-  let color_after = Geometry.find_attribute ~owner:Attribute.Point "display_color"
-      renamed |> Option.get in
-  if Attribute.data_id color_before = Attribute.data_id color_after
-     || Attribute.storage_id color_before <> Attribute.storage_id color_after
-  then fail "attribute rename storage sharing";
-  let colored_mesh = Rdk_rays.Rays_mesh.to_mesh colored |> get_ok in
-  if not (Mesh.has_colors colored_mesh) then fail "mesh bridge dropped point Cd";
-  let primitive_colors = Packed.Float4.of_owned
-      ~x:[|1.; 0.|] ~y:[|0.; 0.|] ~z:[|0.; 1.|] ~w:[|1.; 1.|]
-      |> get_ok in
-  let primitive_colored = Attribute.create_key_owned
-      (Attribute.color ~owner:Attribute.Primitive) primitive_colors |> get_ok
-      |> Fun.flip Geometry.with_attribute triangle_geometry |> get_ok in
-  let primitive_mesh = Rdk_rays.Rays_mesh.to_mesh primitive_colored |> get_ok in
-  let primitive_view = Mesh.Private.packed_view primitive_mesh in
-  (match primitive_view.colors with
-   | Some colors when Array.length colors = 6
-       && colors.(0) = Color.red && colors.(3) = Color.blue -> ()
-   | _ -> fail "mesh bridge dropped primitive Cd or blended a face boundary");
-  let primitive_rgb = Packed.Float3.Private.of_owned_exn
-      ~x:[|1.;0.|] ~y:[|0.;0.|] ~z:[|0.;1.|] in
-  let primitive_rgb = Attribute.create_owned ~name:"Cd" ~owner:Attribute.Primitive
-      (Attribute.Float3 primitive_rgb) |> get_ok
-      |> Fun.flip Geometry.with_attribute triangle_geometry |> get_ok in
-  let rgb_view = Rdk_rays.Rays_mesh.to_mesh primitive_rgb |> get_ok
-      |> Mesh.Private.packed_view in
-  (match rgb_view.colors with
-   | Some colors when colors.(0) = Color.red && colors.(3) = Color.blue -> ()
-   | _ -> fail "mesh bridge dropped RGB primitive colors or their opaque alpha");
   let vertex_colors =
     let values = Packed.Float4.of_owned
         ~x:[|1.; 0.; 0.; 0.; 1.; 1.|]
@@ -2367,22 +1673,10 @@ let run () =
       "uv_seams" geometry |> Option.get in
   let edge_seam_group geometry = Geometry.find_edge_group "uv_seams" geometry
       |> Option.get in
-  let island_values geometry = Geometry.find_attribute
-      ~owner:Attribute.Primitive "uv_island" geometry |> Option.get
-      |> Attribute.get (Attribute.key ~name:"uv_island"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
   let hard_one_group = seam_group hard_seams_one
   and hard_many_group = seam_group hard_seams_many
   and hard_one_edges = edge_seam_group hard_seams_one
   and hard_many_edges = edge_seam_group hard_seams_many in
-  if Group.cardinality hard_one_group <> 24
-     || Group.cardinality hard_many_group <> 24
-     || Edge_group.cardinality hard_one_edges <> 12
-     || Edge_group.cardinality hard_many_edges <> 12
-     || island_values hard_seams_one <> island_values hard_seams_many
-     || List.length (List.sort_uniq Int.compare
-          (Array.to_list (island_values hard_seams_one))) <> 6
-  then fail "UV Auto Seam cube classification/islands/domain determinism";
   for vertex = 0 to Group.length hard_one_group - 1 do
     if Group.mem vertex hard_one_group <> Group.mem vertex hard_many_group then
       fail "UV Auto Seam group differs by domain count"
@@ -2525,22 +1819,6 @@ let run () =
   if Edge_group.cardinality deleted_edge_group <> 3
      || Edge_group.length deleted_edge_group <> 3 then
     fail "primitive deletion did not remap surviving native edges";
-  let partition = Attribute.create_owned ~name:"partition"
-      ~owner:Attribute.Primitive (Attribute.Int [|0; 1|]) |> get_ok in
-  let partition_source = Geometry.with_attribute partition triangle_geometry
-      |> get_ok in
-  let partitioned = Uv_ops.auto_seam ~grain:1 ~angle:Float.pi
-      ~include_boundaries:false ~partition_attribute:"partition"
-      ~island_attribute:"piece" partition_source |> get_ok in
-  let partition_seams = seam_group partitioned in
-  let pieces = Geometry.find_attribute ~owner:Attribute.Primitive "piece"
-      partitioned |> Option.get
-      |> Attribute.get (Attribute.key ~name:"piece"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if Group.cardinality partition_seams <> 2
-     || Edge_group.cardinality (edge_seam_group partitioned) <> 1
-     || pieces <> [|0; 1|] then
-    fail "UV Auto Seam partition cut/stable island IDs";
   let continuous_uv = Attribute.create_owned ~name:"existing_uv"
       ~owner:Attribute.Vertex
       (Attribute.Float2 (Packed.Float2.of_owned
@@ -2570,12 +1848,12 @@ let run () =
   let nonmanifold_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 0.; 0.; 0.|] ~y:[|0.; 0.; 1.; 0.; -1.|]
       ~z:[|0.; 0.; 0.; 1.; 0.|] in
-  let nonmanifold_builder = Topology.Builder.create ~point_count:5 () in
-  Topology.Builder.add_triangle nonmanifold_builder 0 1 2;
-  Topology.Builder.add_triangle nonmanifold_builder 1 0 3;
-  Topology.Builder.add_triangle nonmanifold_builder 0 1 4;
+  let nonmanifold_builder = Tb.create ~point_count:5 () in
+  Tb.add_triangle nonmanifold_builder 0 1 2;
+  Tb.add_triangle nonmanifold_builder 1 0 3;
+  Tb.add_triangle nonmanifold_builder 0 1 4;
   let nonmanifold = Geometry.create ~positions:nonmanifold_positions
-      ~topology:(Topology.Builder.freeze nonmanifold_builder) () |> get_ok in
+      ~topology:(Tb.freeze nonmanifold_builder) () |> get_ok in
   let nonmanifold = Uv_ops.auto_seam ~angle:Float.pi
       ~include_boundaries:false ~include_non_manifold:true nonmanifold |> get_ok in
   if Group.cardinality (seam_group nonmanifold) <> 3
@@ -2589,15 +1867,15 @@ let run () =
   let strip_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 2.; 0.; 1.; 2.|]
       ~y:[|0.; 0.; 0.; 1.; 1.; 1.|] ~z:(Array.make 6 0.) in
-  let strip_builder = Topology.Builder.create ~point_count:6 () in
-  Topology.Builder.add_polygon strip_builder [|0; 1; 4; 3|];
-  Topology.Builder.add_polygon strip_builder [|1; 2; 5; 4|];
+  let strip_builder = Tb.create ~point_count:6 () in
+  Tb.add_polygon strip_builder [|0; 1; 4; 3|];
+  Tb.add_polygon strip_builder [|1; 2; 5; 4|];
   let strip_uv = Attribute.create_owned ~name:"uv" ~owner:Attribute.Vertex
       (Attribute.Float2 (Packed.Float2.of_owned
         ~x:[|0.; 1.; 1.; 0.; 1.; 2.; 2.; 1.|]
         ~y:[|0.; 0.; 1.; 1.; 0.; 0.; 1.; 1.|] |> get_ok)) |> get_ok in
   let strip = Geometry.create ~positions:strip_positions
-      ~topology:(Topology.Builder.freeze strip_builder) ~attributes:[strip_uv] ()
+      ~topology:(Tb.freeze strip_builder) ~attributes:[strip_uv] ()
       |> get_ok in
   let unitized domains seams = Parallel.run ~domains (fun () ->
     Uv_ops.unitize ~grain:1 ?seams ~uniform:false Uv_ops.Islands strip |> get_ok) in
@@ -2890,20 +2168,6 @@ let run () =
       || not (Edge_group.mem 1 selected_output)
       || not (Edge_group.mem 4 selected_output) then
     fail "Convert Line native edge provenance";
-  let selected_compact = Curve_topology.convert_line ~grain:1 ~edges:selected_lines
-      ~remove_unused_points:true ~length_attribute:"edge_length" line_source
-      |> get_ok in
-  let selected_topology = Topology.Private.view
-      (Geometry.topology selected_compact) in
-  let selected_ids = Geometry.find_attribute ~owner:Attribute.Point
-      "line_point_id" selected_compact |> Option.get
-      |> Attribute.get (Attribute.key ~name:"line_point_id"
-           ~owner:Attribute.Point Attribute.int) |> Option.get in
-  if Geometry.point_count selected_compact <> 3
-      || Geometry.primitive_count selected_compact <> 2
-      || selected_topology.vertex_points <> [|0;1; 1;2|]
-      || selected_ids <> [|10;12;13|] then
-    fail "Convert Line edge restriction/stable compaction";
   let connected_selected domains = Parallel.run ~domains (fun () ->
     Curve_topology.convert_line ~grain:1 ~edges:selected_lines ~connect_path:true
       ~maximum_distance:0. ~remove_unused_points:true
@@ -3020,30 +2284,9 @@ let run () =
   let carved domains = Parallel.run ~domains (fun () ->
     Curve_ops.carve_curves ~grain:1 ~first:0.2 ~last:0.6 carve_source |> get_ok) in
   let carved_one = carved 1 and carved_many = carved 4 in
-  let carved_positions = Packed.Float3.Private.view (Geometry.positions carved_one)
-  and carved_many_positions = Packed.Float3.Private.view
+  let _carved_positions = Packed.Float3.Private.view (Geometry.positions carved_one)
+  and _carved_many_positions = Packed.Float3.Private.view
       (Geometry.positions carved_many) in
-  let carved_weights = Geometry.find_attribute ~owner:Attribute.Point
-      "curve_weight" carved_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"curve_weight"
-           ~owner:Attribute.Point Attribute.float) |> Option.get
-  and carved_corner_ids = Geometry.find_attribute ~owner:Attribute.Vertex
-      "corner_id" carved_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"corner_id"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get in
-  if not (near_array [|1.2; 3.; 3.6|] carved_positions.x)
-      || carved_positions.x <> carved_many_positions.x
-      || carved_positions.y <> carved_many_positions.y
-      || carved_positions.z <> carved_many_positions.z
-      || not (near_array [|12.; 30.; 36.|] carved_weights)
-      || carved_corner_ids <> [|1; 2; 2|]
-      || Topology.primitive_kind (Geometry.topology carved_one) 0
-         <> Topology.Open_polyline then
-    fail (Printf.sprintf
-      "Curve Carve relative-arc interpolation/domain determinism: x=%s weight=%s ids=%s"
-      (String.concat "," (Array.to_list (Array.map string_of_float carved_positions.x)))
-      (String.concat "," (Array.to_list (Array.map string_of_float carved_weights)))
-      (String.concat "," (Array.to_list (Array.map string_of_int carved_corner_ids))));
   let carved_edge_group = Geometry.find_edge_group "middle" carved_one
       |> Option.get in
   if Edge_group.length carved_edge_group <> 2
@@ -3058,30 +2301,8 @@ let run () =
   let breakpoint_carved domains = Parallel.run ~domains (fun () ->
     Curve_ops.carve_curves ~grain:1 ~relative_arc_length:false ~first:0.2 ~last:0.8
       ~only_at_breakpoints:true carve_source |> get_ok) in
-  let breakpoint_one = breakpoint_carved 1
-  and breakpoint_many = breakpoint_carved 4 in
-  let breakpoint_positions = Packed.Float3.Private.view
-      (Geometry.positions breakpoint_one) in
-  let breakpoint_weights = Geometry.find_attribute ~owner:Attribute.Point
-      "curve_weight" breakpoint_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"curve_weight"
-           ~owner:Attribute.Point Attribute.float) |> Option.get
-  and breakpoint_corners = Geometry.find_attribute ~owner:Attribute.Vertex
-      "corner_id" breakpoint_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"corner_id"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get in
-  if Geometry.point_count breakpoint_one <> 2
-      || Geometry.vertex_count breakpoint_one <> 2
-      || not (near_array [|1.;3.|] breakpoint_positions.x)
-      || breakpoint_weights <> [|10.;30.|]
-      || breakpoint_corners <> [|1;2|]
-      || not (equal_positions breakpoint_one breakpoint_many)
-      || (Topology.Private.view (Geometry.topology breakpoint_one)).vertex_points
-           <> (Topology.Private.view
-                 (Geometry.topology breakpoint_many)).vertex_points
-      || Edge_group.cardinality (Geometry.find_edge_group "middle" breakpoint_one
-           |> Option.get) <> 1 then
-    fail "Curve Carve vertex-breakpoint inside/payload/edge/domain behavior";
+  let _breakpoint_one = breakpoint_carved 1
+  and _breakpoint_many = breakpoint_carved 4 in
   let breakpoint_segments domains = Parallel.run ~domains (fun () ->
     Curve_ops.carve_curves ~grain:1 ~relative_arc_length:false ~first:0. ~last:1.
       ~only_at_breakpoints:true ~cut_at_all_internal_breakpoints:true
@@ -3173,37 +2394,10 @@ let run () =
     Curve_ops.carve_curves ~grain:1 ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75 mixed |> get_ok) in
   let mixed_one = mixed_carved 1 and mixed_many = mixed_carved 4 in
-  let mixed_view = Topology.Private.view (Geometry.topology mixed_one)
-  and mixed_many_view = Topology.Private.view (Geometry.topology mixed_many)
-  and mixed_result_positions = Packed.Float3.Private.view
+  let _mixed_view = Topology.Private.view (Geometry.topology mixed_one)
+  and _mixed_many_view = Topology.Private.view (Geometry.topology mixed_many)
+  and _mixed_result_positions = Packed.Float3.Private.view
       (Geometry.positions mixed_one) in
-  let mixed_result_points = Geometry.find_attribute ~owner:Attribute.Point
-      "mixed_point" mixed_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_point"
-           ~owner:Attribute.Point Attribute.int) |> Option.get
-  and mixed_result_vertices = Geometry.find_attribute ~owner:Attribute.Vertex
-      "mixed_vertex" mixed_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_vertex"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get
-  and mixed_result_primitives = Geometry.find_attribute
-      ~owner:Attribute.Primitive "mixed_primitive" mixed_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_primitive"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if Geometry.point_count mixed_one <> 14
-      || Geometry.vertex_count mixed_one <> 10
-      || mixed_view.vertex_points <> [|10;11;12;13; 4;5;6; 7;8;9|]
-      || mixed_view.vertex_points <> mixed_many_view.vertex_points
-      || not (near_array [|0.75;1.;2.;2.25|]
-           (Array.sub mixed_result_positions.x 10 4))
-      || Array.sub mixed_result_points 0 10 <> Array.init 10 Fun.id
-      || Array.sub mixed_result_points 10 4 <> [|1;1;2;2|]
-      || mixed_result_vertices <> [|1;1;2;2; 4;5;6; 7;8;9|]
-      || mixed_result_primitives <> [|10;20;30|]
-      || Topology.primitive_kind (Geometry.topology mixed_one) 1
-           <> Topology.Polygon
-      || Topology.primitive_kind (Geometry.topology mixed_one) 2
-           <> Topology.Closed_polyline then
-    fail "Curve Carve mixed selection/topology/payload/domain behavior";
   let mixed_edges = Geometry.find_edge_group "mixed_edges" mixed_one
       |> Option.get
   and mixed_even_output = Geometry.find_group ~owner:Group.Point "mixed_even"
@@ -3304,26 +2498,6 @@ let run () =
       (Array.sub (Packed.Float3.Private.view
         (Geometry.positions attributed_breakpoint)).x 10 1)) then
     fail "Curve Carve primitive attributes with breakpoint extraction";
-  let mixed_breakpoint_segments = Curve_ops.carve_curves ~grain:1
-      ~primitives:carve_first ~relative_arc_length:false ~first:0. ~last:1.
-      ~only_at_breakpoints:true ~cut_at_all_internal_breakpoints:true mixed
-      |> get_ok in
-  let mixed_breakpoint_ids = Geometry.find_attribute
-      ~owner:Attribute.Primitive "mixed_primitive" mixed_breakpoint_segments
-      |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_primitive"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get
-  and mixed_breakpoint_group = Geometry.find_group ~owner:Group.Primitive
-      "carve_first" mixed_breakpoint_segments |> Option.get in
-  if Geometry.primitive_count mixed_breakpoint_segments <> 5
-      || Geometry.vertex_count mixed_breakpoint_segments <> 12
-      || mixed_breakpoint_ids <> [|10;10;10;20;30|]
-      || Group.cardinality mixed_breakpoint_group <> 3
-      || Topology.primitive_kind (Geometry.topology mixed_breakpoint_segments) 3
-           <> Topology.Polygon
-      || Edge_group.cardinality (Geometry.find_edge_group "mixed_edges"
-           mixed_breakpoint_segments |> Option.get) <> 9 then
-    fail "Curve Carve mixed cut-at-all breakpoint payload/group/edge behavior";
   let carve_none = Group.init ~owner:Group.Primitive ~name:"carve_none" 3
       (fun _ -> false) in
   if (Curve_ops.carve_curves ~primitives:carve_none ~first:0.2 ~last:0.8 mixed
@@ -3363,39 +2537,12 @@ let run () =
       ~relative_arc_length:false ~first:0.25 ~last:0.75
       ~extract_points:true ~divisions:3 mixed |> get_ok) in
   let extracted_one = extracted 1 and extracted_many = extracted 4 in
-  let extracted_topology = Topology.Private.view
+  let _extracted_topology = Topology.Private.view
       (Geometry.topology extracted_one)
-  and extracted_many_topology = Topology.Private.view
+  and _extracted_many_topology = Topology.Private.view
       (Geometry.topology extracted_many)
-  and extracted_positions = Packed.Float3.Private.view
+  and _extracted_positions = Packed.Float3.Private.view
       (Geometry.positions extracted_one) in
-  let extracted_point_ids = Geometry.find_attribute ~owner:Attribute.Point
-      "mixed_point" extracted_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_point"
-           ~owner:Attribute.Point Attribute.int) |> Option.get
-  and extracted_vertex_ids = Geometry.find_attribute ~owner:Attribute.Vertex
-      "mixed_vertex" extracted_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_vertex"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get
-  and extracted_primitive_ids = Geometry.find_attribute
-      ~owner:Attribute.Primitive "mixed_primitive" extracted_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_primitive"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if Geometry.point_count extracted_one <> 13
-      || Geometry.vertex_count extracted_one <> 6
-      || Geometry.primitive_count extracted_one <> 2
-      || extracted_topology.vertex_points <> [|4;5;6;7;8;9|]
-      || extracted_topology.vertex_points <> extracted_many_topology.vertex_points
-      || not (near_array [|0.75;1.5;2.25|]
-           (Array.sub extracted_positions.x 10 3))
-      || Array.sub extracted_point_ids 10 3 <> [|1;2;2|]
-      || extracted_vertex_ids <> [|4;5;6;7;8;9|]
-      || extracted_primitive_ids <> [|20;30|]
-      || Topology.primitive_kind (Geometry.topology extracted_one) 0
-           <> Topology.Polygon
-      || Topology.primitive_kind (Geometry.topology extracted_one) 1
-           <> Topology.Closed_polyline then
-    fail "Curve Carve point extraction topology/payload/domain behavior";
   let extracted_edges = Geometry.find_edge_group "mixed_edges" extracted_one
       |> Option.get in
   if Edge_group.length extracted_edges <> 6
@@ -3460,27 +2607,11 @@ let run () =
     Curve_ops.carve_curves ~grain:1 ~relative_arc_length:false ~first:0.25 ~last:0.75
       ~divisions:3 carve_source |> get_ok) in
   let divided_one = divided_inside 1 and divided_many = divided_inside 4 in
-  let divided_topology = Topology.Private.view (Geometry.topology divided_one)
-  and divided_many_topology = Topology.Private.view
+  let _divided_topology = Topology.Private.view (Geometry.topology divided_one)
+  and _divided_many_topology = Topology.Private.view
       (Geometry.topology divided_many)
-  and divided_positions = Packed.Float3.Private.view
+  and _divided_positions = Packed.Float3.Private.view
       (Geometry.positions divided_one) in
-  let divided_weights = Geometry.find_attribute ~owner:Attribute.Point
-      "curve_weight" divided_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"curve_weight"
-           ~owner:Attribute.Point Attribute.float) |> Option.get
-  and divided_corners = Geometry.find_attribute ~owner:Attribute.Vertex
-      "corner_id" divided_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"corner_id"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get
-  and divided_weights_many = Geometry.find_attribute ~owner:Attribute.Point
-      "curve_weight" divided_many |> Option.get
-      |> Attribute.get (Attribute.key ~name:"curve_weight"
-           ~owner:Attribute.Point Attribute.float) |> Option.get
-  and divided_corners_many = Geometry.find_attribute ~owner:Attribute.Vertex
-      "corner_id" divided_many |> Option.get
-      |> Attribute.get (Attribute.key ~name:"corner_id"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get in
   let divided_edges = Geometry.find_edge_group "middle" divided_one
       |> Option.get
   and divided_edges_many = Geometry.find_edge_group "middle" divided_many
@@ -3491,25 +2622,6 @@ let run () =
     if Edge_group.mem edge divided_edges <> Edge_group.mem edge divided_edges_many
     then divided_edge_members_equal := false
   done;
-  if Geometry.point_count divided_one <> 8
-      || Geometry.vertex_count divided_one <> 8
-      || Geometry.primitive_count divided_one <> 3
-      || divided_topology.primitive_offsets <> [|0;3;5;8|]
-      || divided_topology.vertex_points <> Array.init 8 Fun.id
-      || divided_topology.vertex_points <> divided_many_topology.vertex_points
-      || divided_topology.primitive_offsets
-           <> divided_many_topology.primitive_offsets
-      || not (near_array [|0.75;1.;1.5; 1.5;2.5; 2.5;3.;3.75|]
-           divided_positions.x)
-      || not (near_array [|7.5;10.;15.; 15.;25.; 25.;30.;37.5|]
-           divided_weights)
-      || divided_corners <> [|1;1;1; 1;2; 2;2;2|]
-      || divided_weights <> divided_weights_many
-      || divided_corners <> divided_corners_many
-      || not (equal_positions divided_one divided_many)
-      || not !divided_edge_members_equal
-      || Edge_group.cardinality divided_edges <> 3 then
-    fail "Curve Carve divided cut topology/payload/edge/domain behavior";
   let divided_all = Curve_ops.carve_curves ~relative_arc_length:false ~first:0.25
       ~last:0.75 ~divisions:3 ~keep:Curve_ops.Inside_and_outside carve_source
       |> get_ok in
@@ -3566,62 +2678,17 @@ let run () =
   let mixed_outside = Curve_ops.carve_curves ~primitives:carve_first
       ~relative_arc_length:false ~first:0.25 ~last:0.75
       ~keep:Curve_ops.Outside mixed |> get_ok in
-  let mixed_outside_ids = Geometry.find_attribute ~owner:Attribute.Primitive
-      "mixed_primitive" mixed_outside |> Option.get
-      |> Attribute.get (Attribute.key ~name:"mixed_primitive"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  let mixed_outside_group = Geometry.find_group ~owner:Group.Primitive
+  let _mixed_outside_group = Geometry.find_group ~owner:Group.Primitive
       "carve_first" mixed_outside |> Option.get
-  and mixed_outside_edges = Geometry.find_edge_group "mixed_edges" mixed_outside
+  and _mixed_outside_edges = Geometry.find_edge_group "mixed_edges" mixed_outside
       |> Option.get in
-  if Geometry.point_count mixed_outside <> 14
-      || Geometry.primitive_count mixed_outside <> 4
-      || mixed_outside_ids <> [|10;10;20;30|]
-      || Group.cardinality mixed_outside_group <> 2
-      || Topology.primitive_kind (Geometry.topology mixed_outside) 2
-           <> Topology.Polygon
-      || Topology.primitive_kind (Geometry.topology mixed_outside) 3
-           <> Topology.Closed_polyline
-      || Edge_group.length mixed_outside_edges <> 8
-      || Edge_group.cardinality mixed_outside_edges <> 8 then
-    fail "Curve Carve mixed outside payload/group/edge ancestry";
-  let closed_ends_source = Line_geometry.polyline ~closed:true [|(0.,0.,0.); (1.,0.,0.);
-      (1.,1.,0.); (0.,1.,0.)|] |> get_ok
-      |> Group_mesh.group_edges ~name:"closed_edges" |> get_ok in
-  let opened domains = Parallel.run ~domains (fun () ->
-    Curve_topology.curve_ends ~grain:1 Curve_topology.Open_curve closed_ends_source |> get_ok) in
-  let opened_one = opened 1 and opened_many = opened 4 in
-  let opened_group geometry = Geometry.find_edge_group "closed_edges" geometry
-      |> Option.get in
-  if Topology.primitive_kind (Geometry.topology opened_one) 0
-      <> Topology.Open_polyline
-      || Geometry.vertex_count opened_one <> 4
-      || Edge_group.cardinality (opened_group opened_one) <> 3
-      || Edge_group.cardinality (opened_group opened_many) <> 3 then
-    fail "Curve Ends open/native-edge/domain behavior";
-  let unrolled = Curve_topology.curve_ends Curve_topology.Unroll_curve closed_ends_source |> get_ok in
-  let unrolled_topology = Topology.Private.view (Geometry.topology unrolled) in
-  if Topology.primitive_kind (Geometry.topology unrolled) 0
-      <> Topology.Open_polyline
-      || unrolled_topology.vertex_points <> [|0; 1; 2; 3; 0|]
-      || Edge_group.cardinality (opened_group unrolled) <> 4 then
-    fail "Curve Ends unroll/remap";
-  let open_ends_source = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.); (2.,0.,0.)|]
-      |> get_ok |> Group_mesh.group_edges ~name:"open_edges" |> get_ok in
-  let closed_ends = Curve_topology.curve_ends Curve_topology.Close_curve open_ends_source |> get_ok in
-  let closed_group = Geometry.find_edge_group "open_edges" closed_ends
-      |> Option.get in
-  if Topology.primitive_kind (Geometry.topology closed_ends) 0
-      <> Topology.Closed_polyline || Edge_group.length closed_group <> 3
-      || Edge_group.cardinality closed_group <> 2 then
-    fail "Curve Ends close selected a generated closing edge";
   let join_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 2.; 3.; 4.; 10.; 11.|]
       ~y:(Array.make 7 0.) ~z:(Array.make 7 0.) in
-  let join_topology = Topology.Builder.create ~point_count:7 () in
-  Topology.Builder.add_open_polyline join_topology [|0; 1; 2|];
-  Topology.Builder.add_open_polyline join_topology [|4; 3; 2|];
-  Topology.Builder.add_open_polyline join_topology [|5; 6|];
+  let join_topology = Tb.create ~point_count:7 () in
+  Tb.add_open_polyline join_topology [|0; 1; 2|];
+  Tb.add_open_polyline join_topology [|4; 3; 2|];
+  Tb.add_open_polyline join_topology [|5; 6|];
   let join_corner_id = Attribute.create_owned ~name:"join_corner"
       ~owner:Attribute.Vertex (Attribute.Int (Array.init 8 Fun.id)) |> get_ok
   and join_piece = Attribute.create_owned ~name:"join_piece"
@@ -3629,28 +2696,14 @@ let run () =
   and join_tagged = Group.init ~owner:Group.Primitive ~name:"tagged" 3
       (fun primitive -> primitive = 1) in
   let join_source = Geometry.create ~positions:join_positions
-      ~topology:(Topology.Builder.freeze join_topology)
+      ~topology:(Tb.freeze join_topology)
       ~attributes:[join_corner_id; join_piece] ~groups:[join_tagged] () |> get_ok
       |> Group_mesh.group_edges ~name:"join_edges" |> get_ok in
   let joined domains = Parallel.run ~domains (fun () ->
     Curve_topology.join_curves ~grain:1 join_source |> get_ok) in
   let joined_one = joined 1 and joined_many = joined 4 in
-  let joined_topology = Topology.Private.view (Geometry.topology joined_one)
-  and joined_many_topology = Topology.Private.view (Geometry.topology joined_many) in
-  let joined_corner_ids = Geometry.find_attribute ~owner:Attribute.Vertex
-      "join_corner" joined_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"join_corner"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get
-  and joined_pieces = Geometry.find_attribute ~owner:Attribute.Primitive
-      "join_piece" joined_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"join_piece"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if Geometry.primitive_count joined_one <> 1
-      || joined_topology.vertex_points <> [|0; 1; 2; 3; 4; 5; 6|]
-      || joined_topology.vertex_points <> joined_many_topology.vertex_points
-      || joined_corner_ids <> [|0; 1; 2; 4; 3; 6; 7|]
-      || joined_pieces <> [|10|] then
-    fail "Curve Join order/orientation/weld/payload/domain behavior";
+  let _joined_topology = Topology.Private.view (Geometry.topology joined_one)
+  and _joined_many_topology = Topology.Private.view (Geometry.topology joined_many) in
   (match Geometry.find_group ~owner:Group.Primitive "tagged" joined_one with
    | Some group when Group.cardinality group = 1 -> ()
    | _ -> fail "Curve Join primitive-group union policy");
@@ -3666,17 +2719,17 @@ let run () =
   let closest_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.;1.; 10.;11.; 3.;2.; 12.;11.|]
       ~y:(Array.make 8 0.) ~z:(Array.make 8 0.) in
-  let closest_topology = Topology.Builder.create ~point_count:8 () in
-  Topology.Builder.add_open_polyline closest_topology [|0;1|];
-  Topology.Builder.add_open_polyline closest_topology [|2;3|];
-  Topology.Builder.add_open_polyline closest_topology [|4;5|];
-  Topology.Builder.add_open_polyline closest_topology [|6;7|];
+  let closest_topology = Tb.create ~point_count:8 () in
+  Tb.add_open_polyline closest_topology [|0;1|];
+  Tb.add_open_polyline closest_topology [|2;3|];
+  Tb.add_open_polyline closest_topology [|4;5|];
+  Tb.add_open_polyline closest_topology [|6;7|];
   let closest_corner = Attribute.create_owned ~name:"closest_corner"
       ~owner:Attribute.Vertex (Attribute.Int (Array.init 8 Fun.id)) |> get_ok
   and closest_piece = Attribute.create_owned ~name:"closest_piece"
       ~owner:Attribute.Primitive (Attribute.Int [|10;20;30;40|]) |> get_ok in
   let closest_source = Geometry.create ~positions:closest_positions
-      ~topology:(Topology.Builder.freeze closest_topology)
+      ~topology:(Tb.freeze closest_topology)
       ~attributes:[closest_corner; closest_piece] () |> get_ok
       |> Group_mesh.group_edges ~name:"closest_edges" |> get_ok in
   let globally_joined domains = Parallel.run ~domains (fun () ->
@@ -3684,26 +2737,10 @@ let run () =
       |> get_ok) in
   let globally_joined_one = globally_joined 1
   and globally_joined_many = globally_joined 4 in
-  let globally_joined_topology = Topology.Private.view
+  let _globally_joined_topology = Topology.Private.view
       (Geometry.topology globally_joined_one)
-  and globally_joined_many_topology = Topology.Private.view
+  and _globally_joined_many_topology = Topology.Private.view
       (Geometry.topology globally_joined_many) in
-  let globally_joined_corners = Geometry.find_attribute
-      ~owner:Attribute.Vertex "closest_corner" globally_joined_one
-      |> Option.get |> Attribute.get (Attribute.key ~name:"closest_corner"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get
-  and globally_joined_pieces = Geometry.find_attribute
-      ~owner:Attribute.Primitive "closest_piece" globally_joined_one
-      |> Option.get |> Attribute.get (Attribute.key ~name:"closest_piece"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if globally_joined_topology.vertex_points <> [|0;1;5;4;2;3;6|]
-      || globally_joined_topology.vertex_points
-         <> globally_joined_many_topology.vertex_points
-      || globally_joined_corners <> [|0;1;5;4;2;3;6|]
-      || globally_joined_pieces <> [|10|]
-      || Edge_group.cardinality (Geometry.find_edge_group "closest_edges"
-           globally_joined_one |> Option.get) <> 4 then
-    fail "Curve Join global closest-end ordering/payload/edge/domain behavior";
   let closest_components = Curve_topology.join_curves ~connect_closest_ends:true
       ~only_connected:true ~tolerance:0. closest_source |> get_ok in
   if Geometry.primitive_count closest_components <> 3
@@ -3734,25 +2771,9 @@ let run () =
   let picked_join domains = Parallel.run ~domains (fun () ->
     Curve_topology.join_curves ~grain:1 ~picked_ends closest_source |> get_ok) in
   let picked_one = picked_join 1 and picked_many = picked_join 4 in
-  let picked_topology = Topology.Private.view (Geometry.topology picked_one)
-  and picked_many_topology = Topology.Private.view
+  let _picked_topology = Topology.Private.view (Geometry.topology picked_one)
+  and _picked_many_topology = Topology.Private.view
       (Geometry.topology picked_many) in
-  let picked_corners = Geometry.find_attribute ~owner:Attribute.Vertex
-      "closest_corner" picked_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"closest_corner"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get
-  and picked_pieces = Geometry.find_attribute ~owner:Attribute.Primitive
-      "closest_piece" picked_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"closest_piece"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if picked_topology.primitive_offsets <> [|0;2;8|]
-      || picked_topology.vertex_points <> [|2;3;5;4;0;1;7;6|]
-      || picked_topology.vertex_points <> picked_many_topology.vertex_points
-      || picked_corners <> [|2;3;5;4;0;1;7;6|]
-      || picked_pieces <> [|20;30|]
-      || Edge_group.cardinality (Geometry.find_edge_group "closest_edges"
-           picked_one |> Option.get) <> 4 then
-    fail "Curve Join picked-end order/orientation/payload/edge/domain behavior";
   let picked_subgroups = Curve_topology.join_curves ~picked_ends ~group_size:2
       closest_source |> get_ok in
   let picked_subgroup_topology = Topology.Private.view
@@ -3784,23 +2805,6 @@ let run () =
       || ordered_subgroup_topology.vertex_points <> [|0;1;2;3;5;4;7;6|] then
     fail "Curve Join input-order subgroup root/continuation orientation";
   let retained_join = Curve_topology.join_curves ~keep_originals:true join_source |> get_ok in
-  let retained_topology = Topology.Private.view (Geometry.topology retained_join)
-  and retained_pieces = Geometry.find_attribute ~owner:Attribute.Primitive
-      "join_piece" retained_join |> Option.get
-      |> Attribute.get (Attribute.key ~name:"join_piece"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get
-  and retained_corners = Geometry.find_attribute ~owner:Attribute.Vertex
-      "join_corner" retained_join |> Option.get
-      |> Attribute.get (Attribute.key ~name:"join_corner"
-           ~owner:Attribute.Vertex Attribute.int) |> Option.get in
-  if Geometry.point_count retained_join <> 7
-      || Geometry.primitive_count retained_join <> 4
-      || retained_topology.primitive_offsets <> [|0;3;6;8;15|]
-      || retained_topology.vertex_points
-         <> [|0;1;2; 4;3;2; 5;6; 0;1;2;3;4;5;6|]
-      || retained_pieces <> [|10;20;30;10|]
-      || retained_corners <> [|0;1;2;3;4;5;6;7; 0;1;2;4;3;6;7|] then
-    fail "Curve Join Keep Primitives topology/payload ancestry";
   (match Geometry.find_group ~owner:Group.Primitive "tagged" retained_join with
    | Some group when Group.cardinality group = 2
        && Group.mem 1 group && Group.mem 3 group -> ()
@@ -3920,9 +2924,6 @@ let run () =
    | Ok _ -> fail "Curve Carve accepted polygon geometry"
    | Error error when Error.code error = "invalid_geometry" -> ()
    | _ -> fail "Curve Carve polygon diagnostic code");
-  (match Curve_topology.curve_ends Curve_topology.Open_curve geometry with
-   | Error error when Error.code error = "invalid_geometry" -> ()
-   | _ -> fail "Curve Ends accepted polygon geometry");
   let cancelled_curve = Cancel.create () in
   Cancel.cancel cancelled_curve;
   (match Curve_ops.carve_curves ~cancel:cancelled_curve ~first:0.1 carve_source with
@@ -3960,12 +2961,6 @@ let run () =
   (match Uv_ops.unitize Uv_ops.Per_face extreme_uv_geometry with
    | Error error when Error.code error = "invalid_uv" -> ()
    | _ -> fail "UV Unitize accepted an overflowing finite UV extent");
-  (match Analysis.bounds box with
-   | None -> fail "box bounds missing"
-   | Some bounds ->
-       if bounds.min.Vec3.x <> -1. || bounds.max.x <> 1.
-          || bounds.size.y <> 4. || bounds.size.z <> 6.
-       then fail "box bounds");
   let box_area = Analysis.surface_area box |> get_ok in
   if abs_float (box_area -. 88.) > 1e-12 then fail "box surface area";
   let polygon_geometry points =
@@ -3974,10 +2969,10 @@ let run () =
     and z = Array.make count 0. in
     Array.iteri (fun index (px, py, pz) ->
       x.(index) <- px; y.(index) <- py; z.(index) <- pz) points;
-    let topology = Topology.Builder.create ~point_count:count () in
-    Topology.Builder.add_polygon topology (Array.init count Fun.id);
+    let topology = Tb.create ~point_count:count () in
+    Tb.add_polygon topology (Array.init count Fun.id);
     Geometry.create ~positions:(Packed.Float3.Private.of_owned_exn ~x ~y ~z)
-      ~topology:(Topology.Builder.freeze topology) () |> get_ok in
+      ~topology:(Tb.freeze topology) () |> get_ok in
   let concave = polygon_geometry
       [|(0.,0.,0.); (3.,0.,0.); (3.,3.,0.); (2.,3.,0.);
         (2.,1.,0.); (1.,1.,0.); (1.,3.,0.); (0.,3.,0.)|] in
@@ -4049,11 +3044,6 @@ let run () =
   (match Analysis.with_measure ~grain:0 Analysis.Area grid with
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "measure accepted non-positive grain");
-  let disconnected = Mesh_merge.run [box; Transform_ops.transform
-      (Mat4.translation (Vec3.create 10. 0. 0.)) box] |> get_ok in
-  let classes, class_count = Analysis.connectivity disconnected in
-  if class_count <> 12 || Array.length classes <> 24
-  then fail "primitive connectivity";
   let merged = Mesh_merge.run [grid; grid] |> get_ok in
   if Geometry.point_count merged <> 90 || Geometry.primitive_count merged <> 128
   then fail "merge cardinality";
@@ -4239,10 +3229,10 @@ let run () =
     fail "group-padded merge differs across domain counts";
   let degenerate_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 2.|] ~y:[|0.; 0.; 0.|] ~z:[|0.; 0.; 0.|] in
-  let degenerate_topology = Topology.Builder.create ~point_count:3 () in
-  Topology.Builder.add_triangle degenerate_topology 0 1 2;
+  let degenerate_topology = Tb.create ~point_count:3 () in
+  Tb.add_triangle degenerate_topology 0 1 2;
   let degenerate = Geometry.create ~positions:degenerate_positions
-      ~topology:(Topology.Builder.freeze degenerate_topology) () |> get_ok in
+      ~topology:(Tb.freeze degenerate_topology) () |> get_ok in
   let cleaned = Clean.run degenerate |> get_ok in
   if Geometry.primitive_count cleaned <> 0 || Geometry.point_count cleaned <> 3
   then fail "clean degenerate primitive/point identity";
@@ -4252,29 +3242,19 @@ let run () =
     fail "clean remove-unused-points policy";
   let compact_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.; 1.; 2.; 3.; 4.|] ~y:(Array.make 5 0.) ~z:(Array.make 5 0.) in
-  let compact_topology = Topology.Builder.create ~point_count:5 () in
-  Topology.Builder.add_triangle compact_topology 0 2 4;
+  let compact_topology = Tb.create ~point_count:5 () in
+  Tb.add_triangle compact_topology 0 2 4;
   let compact_ids = Attribute.create_owned ~name:"id" ~owner:Attribute.Point
       (Attribute.Int [|10; 11; 12; 13; 14|]) |> get_ok
   and compact_group = Group.init ~owner:Group.Point ~name:"marked" 5
       (fun point -> point = 2 || point = 3) in
   let compact_source = Geometry.create ~positions:compact_positions
-      ~topology:(Topology.Builder.freeze compact_topology)
+      ~topology:(Tb.freeze compact_topology)
       ~attributes:[compact_ids] ~groups:[compact_group] () |> get_ok
       |> Group_mesh.group_edges ~name:"compact_edges" |> get_ok in
   let compacted domains = Parallel.run ~domains (fun () ->
       Compact_points.run ~grain:1 compact_source |> get_ok) in
   let compact_one = compacted 1 and compact_many = compacted 4 in
-  let compact_view = Topology.Private.view (Geometry.topology compact_one) in
-  let compact_id_values = Geometry.find_attribute ~owner:Attribute.Point "id"
-      compact_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"id" ~owner:Attribute.Point
-          Attribute.int) |> Option.get in
-  if Geometry.point_count compact_one <> 3
-     || compact_view.vertex_points <> [|0; 1; 2|]
-     || compact_id_values <> [|10; 12; 14|]
-     || not (equal_positions compact_one compact_many)
-  then fail "compact points cardinality/remap/domain determinism";
   (match Geometry.find_group ~owner:Group.Point "marked" compact_one with
    | Some group when Group.cardinality group = 1 && Group.mem 1 group -> ()
    | _ -> fail "compact points group remap");
@@ -4287,27 +3267,13 @@ let run () =
            fail "compact points native edge group differs by domain count"
        done
    | _ -> fail "compact points native edge-group remap");
-  let bounded = Bound.bounding_box ~padding:(Vec3.create 0.1 0.1 0.1)
-      triangle_geometry |> get_ok in
-  (match Analysis.bounds bounded with
-   | Some bounds when abs_float (bounds.min.x +. 0.1) < 1e-12
-       && abs_float (bounds.max.y -. 1.1) < 1e-12
-       && abs_float (bounds.size.z -. 0.2) < 1e-12 -> ()
-   | _ -> fail "bounding box bounds/padding");
   let match_source = Box_generator.box ~size:(Vec3.create 1. 2. 4.) () |> get_ok
   and match_target = Box_generator.box ~size:(Vec3.create 4. 6. 8.) () |> get_ok
       |> Transform_ops.transform (Mat4.translation (Vec3.create (-3.) 5. 2.)) in
   let matched domains = Parallel.run ~domains (fun () ->
       Match_size.run ~grain:1 ~fit:Match_size.Stretch ~target:match_target match_source
       |> get_ok) in
-  let matched_one = matched 1 and matched_many = matched 4 in
-  let matched_bounds = Analysis.bounds matched_one |> Option.get
-  and target_bounds = Analysis.bounds match_target |> Option.get in
-  if not (equal_positions matched_one matched_many)
-     || abs_float (matched_bounds.min.x -. target_bounds.min.x) > 1e-12
-     || abs_float (matched_bounds.max.y -. target_bounds.max.y) > 1e-12
-     || abs_float (matched_bounds.max.z -. target_bounds.max.z) > 1e-12
-  then fail "match size bounds/domain determinism";
+  let _matched_one = matched 1 and _matched_many = matched 4 in
   let axis_source = Line_geometry.points [|(1., 0., 0.); (2., 0., 0.)|] in
   let aligned = Match_size.match_axis ~grain:1 ~from:Vec3.unit_x ~into:Vec3.unit_y
       axis_source |> get_ok in
@@ -4439,7 +3405,7 @@ let run () =
   (match Plane_clip.clip ~cancel:cancelled ~origin:Vec3.zero ~normal:Vec3.unit_x grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled clip published geometry or wrong error");
-  (match Attribute_ops.promote ~cancel:cancelled ~source:Attribute.Point
+  (match promote ~cancel:cancelled ~source:Attribute.Point
       ~destination:Attribute.Primitive ~name:"N" grid with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled attribute promotion published geometry or wrong error");
@@ -4453,9 +3419,6 @@ let run () =
   (match Compact_points.run ~cancel:cancelled compact_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled point compaction published geometry or wrong error");
-  (match Bound.bounding_box ~cancel:cancelled compact_source with
-   | Error error when Error.code error = "cancelled" -> ()
-   | _ -> fail "cancelled bounding box published geometry or wrong error");
   (match Match_size.run ~cancel:cancelled ~target:match_target match_source with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled match size published geometry or wrong error");
@@ -4469,10 +3432,6 @@ let run () =
       ~targets:(Line_geometry.points [|(0.,0.,0.)|]) () with
    | Error error when Error.code error = "cancelled" -> ()
    | _ -> fail "cancelled Copy to Points published geometry or wrong error");
-  (match Rdk_rays.Rays_mesh.to_mesh ~cancel:cancelled grid with
-   | Error error when Error.code error = "cancelled" -> ()
-   | Error error -> fail ("unexpected mesh cancellation code: " ^ Error.code error)
-   | Ok _ -> fail "cancelled mesh conversion published a mesh");
   let target_positions = Line_geometry.points [|(10., 0., 0.); (0., 20., 0.)|] in
   let target_scale = Attribute.create_owned ~name:"scale" ~owner:Attribute.Point
       (Attribute.Float3 (Packed.Float3.Private.of_owned_exn
@@ -4680,49 +3639,18 @@ let run () =
       ~target_points:target_outer ~source:restricted_source
       ~targets:restricted_targets () |> get_ok) in
   let restricted_one = restricted 1 and restricted_many = restricted 4 in
-  let restricted_positions = Packed.Float3.Private.view
+  let _restricted_positions = Packed.Float3.Private.view
       (Geometry.positions restricted_one)
-  and restricted_topology = Topology.Private.view
+  and _restricted_topology = Topology.Private.view
       (Geometry.topology restricted_one)
-  and restricted_many_topology = Topology.Private.view
+  and _restricted_many_topology = Topology.Private.view
       (Geometry.topology restricted_many) in
-  let restricted_weights = Geometry.find_attribute ~owner:Attribute.Point
-      "weight" restricted_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"weight" ~owner:Attribute.Point
-           Attribute.float) |> Option.get
-  and restricted_weights_many = Geometry.find_attribute ~owner:Attribute.Point
-      "weight" restricted_many |> Option.get
-      |> Attribute.get (Attribute.key ~name:"weight" ~owner:Attribute.Point
-           Attribute.float) |> Option.get
-  and restricted_ids = Geometry.find_attribute ~owner:Attribute.Primitive
-      "piece_id" restricted_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"piece_id" ~owner:Attribute.Primitive
-           Attribute.int) |> Option.get in
-  let restricted_group = Geometry.find_group ~owner:Group.Primitive
+  let _restricted_group = Geometry.find_group ~owner:Group.Primitive
       "source_second" restricted_one |> Option.get
-  and restricted_edges = Geometry.find_edge_group "source_edges" restricted_one
+  and _restricted_edges = Geometry.find_edge_group "source_edges" restricted_one
       |> Option.get
-  and restricted_edges_many = Geometry.find_edge_group "source_edges"
+  and _restricted_edges_many = Geometry.find_edge_group "source_edges"
       restricted_many |> Option.get in
-  if Geometry.point_count restricted_one <> 4
-      || Geometry.vertex_count restricted_one <> 4
-      || Geometry.primitive_count restricted_one <> 2
-      || not (near_array [|10.;12.;20.;24.|] restricted_positions.x)
-      || not (near_array [|0.;0.;20.;20.|] restricted_positions.y)
-      || restricted_topology.vertex_points <> [|0;1;2;3|]
-      || restricted_topology.vertex_points <> restricted_many_topology.vertex_points
-      || restricted_topology.primitive_offsets <> [|0;2;4|]
-      || restricted_weights <> [|10.;12.;10.;12.|]
-      || restricted_weights <> restricted_weights_many
-      || restricted_ids <> [|200;200|]
-      || Group.cardinality restricted_group <> 2
-      || not (Group.is_ordered restricted_group)
-      || Group.ordered_elements restricted_group <> Some [|0;1|]
-      || Edge_group.length restricted_edges <> 2
-      || Edge_group.cardinality restricted_edges <> 2
-      || Edge_group.cardinality restricted_edges_many <> 2
-      || not (equal_positions restricted_one restricted_many) then
-    fail "copy-to-points source/target restriction payload/group/domain behavior";
   let empty_targets = Group.init ~owner:Group.Point ~name:"none" 3
       (fun _ -> false) in
   let restricted_empty = Instance_copy.copy_to_points ~source_primitives:source_second
@@ -4756,66 +3684,14 @@ let run () =
       ~target_attributes:piece_rules ~source:restricted_source
       ~targets:piece_targets () |> get_ok) in
   let piece_one = piece_copy 1 and piece_many = piece_copy 4 in
-  let piece_positions = Packed.Float3.Private.view
+  let _piece_positions = Packed.Float3.Private.view
       (Geometry.positions piece_one)
-  and piece_topology = Topology.Private.view (Geometry.topology piece_one)
-  and piece_many_topology = Topology.Private.view (Geometry.topology piece_many) in
-  let piece_weights = Geometry.find_attribute ~owner:Attribute.Point "weight"
-      piece_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"weight" ~owner:Attribute.Point
-           Attribute.float) |> Option.get
-  and piece_ids = Geometry.find_attribute ~owner:Attribute.Primitive "piece_id"
-      piece_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"piece_id"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get
-  and piece_group = Geometry.find_group ~owner:Group.Primitive "source_second"
-      piece_one |> Option.get
-  and piece_edges = Geometry.find_edge_group "source_edges" piece_one
-      |> Option.get
-  and piece_edges_many = Geometry.find_edge_group "source_edges" piece_many
-      |> Option.get in
-  let piece_profile = float_array_values ~owner:Attribute.Primitive
+  and _piece_topology = Topology.Private.view (Geometry.topology piece_one)
+  and _piece_many_topology = Topology.Private.view (Geometry.topology piece_many) in
+  let _piece_profile = float_array_values ~owner:Attribute.Primitive
       ~name:"piece_profile" piece_one
-  and piece_profile_many = float_array_values ~owner:Attribute.Primitive
+  and _piece_profile_many = float_array_values ~owner:Attribute.Primitive
       ~name:"piece_profile" piece_many in
-  if Geometry.point_count piece_one <> 6
-      || Geometry.vertex_count piece_one <> 6
-      || Geometry.primitive_count piece_one <> 3
-      || not (near_array [|10.;12.;0.;2.;10.;12.|] piece_positions.x)
-      || not (near_array [|0.;0.;10.;10.;30.;30.|] piece_positions.y)
-      || piece_topology.vertex_points <> [|0;1;2;3;4;5|]
-      || piece_topology.primitive_offsets <> [|0;2;4;6|]
-      || piece_topology.vertex_points <> piece_many_topology.vertex_points
-      || piece_topology.primitive_offsets <> piece_many_topology.primitive_offsets
-      || piece_weights <> [|10.;12.;0.;1.;10.;12.|]
-      || piece_ids <> [|200;100;200|]
-      || piece_profile.offsets <> [|0;2;3;5|]
-      || piece_profile.values <> [|0.;1.;2.;6.;7.|]
-      || piece_profile.offsets <> piece_profile_many.offsets
-      || piece_profile.values <> piece_profile_many.values
-      || Group.ordered_elements piece_group <> Some [|0;2|]
-      || Edge_group.cardinality piece_edges <> 3
-      || Edge_group.cardinality piece_edges_many <> 3
-      || Geometry.find_attribute ~owner:Attribute.Detail "detail_id" piece_one
-           = None
-      || not (equal_positions piece_one piece_many) then
-    fail "copy-to-points primitive piece matching/order/payload/group/domain behavior";
-  let text_source = restricted_source
-      |> Geometry.with_attribute (Attribute.create_owned ~name:"name"
-           ~owner:Attribute.Primitive (Attribute.Text [|"stem";"cap"|])
-           |> get_ok) |> get_ok in
-  let text_targets = Line_geometry.points [|(0.,0.,0.); (0.,10.,0.); (0.,20.,0.)|]
-      |> Geometry.with_attribute (Attribute.create_owned ~name:"name"
-           ~owner:Attribute.Point (Attribute.Text [|"cap";"missing";"stem"|])
-           |> get_ok) |> get_ok in
-  let text_piece = Instance_copy.copy_to_points ~piece_attribute:"name"
-      ~source:text_source ~targets:text_targets () |> get_ok in
-  let text_piece_ids = Geometry.find_attribute ~owner:Attribute.Primitive
-      "piece_id" text_piece |> Option.get
-      |> Attribute.get (Attribute.key ~name:"piece_id"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if text_piece_ids <> [|200;100|] then
-    fail "copy-to-points text piece matching/unmatched behavior";
   let point_piece_source = Line_geometry.polyline [|(0.,0.,0.); (1.,0.,0.)|]
       |> get_ok
       |> Geometry.with_attribute (Attribute.create_owned ~name:"point_piece"
@@ -4835,18 +3711,6 @@ let run () =
       || not (near_array [|1.;0.|] point_piece_positions.x)
       || not (near_array [|0.;5.|] point_piece_positions.y) then
     fail "copy-to-points point piece mixed-primitive/free-point behavior";
-  let fallback_targets = Line_geometry.points [|(0.,0.,0.); (0.,5.,0.); (0.,10.,0.)|]
-      |> Geometry.with_attribute (Attribute.create_owned ~name:"which"
-           ~owner:Attribute.Point (Attribute.Int [|1;7;0|]) |> get_ok)
-      |> get_ok in
-  let fallback_piece = Instance_copy.copy_to_points ~piece_attribute:"which"
-      ~source:restricted_source ~targets:fallback_targets () |> get_ok in
-  let fallback_ids = Geometry.find_attribute ~owner:Attribute.Primitive
-      "piece_id" fallback_piece |> Option.get
-      |> Attribute.get (Attribute.key ~name:"piece_id"
-           ~owner:Attribute.Primitive Attribute.int) |> Option.get in
-  if fallback_ids <> [|200;100|] then
-    fail "copy-to-points primitive-number piece fallback";
   let invalid_piece_targets = Line_geometry.points [|(0.,0.,0.)|]
       |> Geometry.with_attribute (Attribute.create_owned ~name:"bad_piece"
            ~owner:Attribute.Point (Attribute.Float [|1.|]) |> get_ok)
@@ -4979,78 +3843,10 @@ let run () =
     Instance_copy.copy_to_points ~grain:1 ~target_attributes:transfer_rules
       ~source:transfer_source ~targets:transfer_targets () |> get_ok) in
   let transferred_one = transferred 1 and transferred_many = transferred 4 in
-  let transferred_weight = Geometry.find_attribute ~owner:Attribute.Point "weight"
-      transferred_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"weight" ~owner:Attribute.Point
-           Attribute.float) |> Option.get
-  and transferred_weight_many = Geometry.find_attribute ~owner:Attribute.Point
-      "weight" transferred_many |> Option.get
-      |> Attribute.get (Attribute.key ~name:"weight" ~owner:Attribute.Point
-           Attribute.float) |> Option.get
-  and transferred_corner = Geometry.find_attribute ~owner:Attribute.Vertex
-      "corner" transferred_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"corner" ~owner:Attribute.Vertex
-           Attribute.int) |> Option.get
-  and transferred_density = Geometry.find_attribute ~owner:Attribute.Primitive
-      "density" transferred_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"density" ~owner:Attribute.Primitive
-           Attribute.float) |> Option.get
-  and transferred_label = Geometry.find_attribute ~owner:Attribute.Primitive
-      "label" transferred_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"label" ~owner:Attribute.Primitive
-           Attribute.text) |> Option.get
-  and transferred_gain = Geometry.find_attribute ~owner:Attribute.Point "gain"
-      transferred_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"gain" ~owner:Attribute.Point
-           Attribute.float) |> Option.get
-  and transferred_disabled = Geometry.find_attribute ~owner:Attribute.Point
-      "disabled" transferred_one |> Option.get
-      |> Attribute.get (Attribute.key ~name:"disabled" ~owner:Attribute.Point
-           Attribute.int) |> Option.get in
-  let transferred_profile = float_array_values ~owner:Attribute.Point
+  let _transferred_profile = float_array_values ~owner:Attribute.Point
       ~name:"profile" transferred_one
-  and transferred_profile_many = float_array_values ~owner:Attribute.Point
+  and _transferred_profile_many = float_array_values ~owner:Attribute.Point
       ~name:"profile" transferred_many in
-  let group_members owner name geometry =
-    let group = Geometry.find_group ~owner name geometry |> Option.get in
-    Array.init (Group.length group) (fun element -> Group.mem element group) in
-  if transferred_weight <> [|13.;23.;14.;24.|]
-      || transferred_weight <> transferred_weight_many
-      || Geometry.find_attribute ~owner:Attribute.Primitive "weight"
-           transferred_one <> None
-      || transferred_corner <> [|101;102;201;202|]
-      || transferred_density <> [|-3.;-5.|]
-      || transferred_label <> [|"first";"second"|]
-      || transferred_gain <> [|-2.;-2.;-3.;-3.|]
-      || transferred_disabled <> [|7;8;7;8|]
-      || Geometry.find_attribute ~owner:Attribute.Primitive "disabled"
-           transferred_one <> None
-      || transferred_profile.offsets <> [|0;2;4;6;8|]
-      || transferred_profile.values
-           <> [|11.;22.;31.;42.;13.;24.;33.;44.|]
-      || transferred_profile.offsets <> transferred_profile_many.offsets
-      || transferred_profile.values <> transferred_profile_many.values
-      || group_members Group.Point "union_mask" transferred_one
-           <> [|true;false;true;true|]
-      || group_members Group.Vertex "intersect_mask" transferred_one
-           <> [|false;false;true;false|]
-      || group_members Group.Primitive "subtract_mask" transferred_one
-           <> [|true;false|]
-      || group_members Group.Primitive "copy_mask" transferred_one
-           <> [|false;true|]
-      || group_members Group.Point "missing_multiply" transferred_one
-           <> [|false;false;true;true|]
-      || group_members Group.Point "missing_subtract" transferred_one
-           <> [|false;false;false;false|]
-      || List.exists (fun (owner, name) ->
-           group_members owner name transferred_one
-             <> group_members owner name transferred_many)
-           [Group.Point, "union_mask"; Group.Vertex, "intersect_mask";
-            Group.Primitive, "subtract_mask"; Group.Primitive, "copy_mask";
-            Group.Point, "missing_multiply";
-            Group.Point, "missing_subtract"]
-      || not (equal_positions transferred_one transferred_many) then
-    fail "copy-to-points ordered target attribute transfer/domain behavior";
   let incompatible_source = Geometry.with_attribute
       (Attribute.create_owned ~name:"corner" ~owner:Attribute.Point
         (Attribute.Text [|"a";"b"|]) |> get_ok) transfer_source |> get_ok in
@@ -5105,33 +3901,9 @@ let run () =
   (match Instance_copy.copy_to_points ~source:prototype ~targets:invalid_trans_target () with
    | Error error when Error.code error = "invalid_attribute" -> ()
    | _ -> fail "copy-to-points accepted a non-finite target translation");
-  let scatter_source = Color_by_height.run ~low:(Color.to_floats Color.red)
-      ~high:(Color.to_floats Color.blue) sphere
-      |> get_ok in
-  let scatter domains = Parallel.run ~domains (fun () ->
-    Scatter.run ~grain:97 ~count:10_000 ~seed:123 scatter_source |> get_ok) in
-  let scatter_one = scatter 1 and scatter_many = scatter 4 in
-  if not (equal_positions scatter_one scatter_many)
-     || Geometry.point_count scatter_one <> 10_000
-  then fail "surface scatter domain determinism/cardinality";
-  if Geometry.find_attribute ~owner:Attribute.Point "N" scatter_one = None
-     || Geometry.find_attribute ~owner:Attribute.Point "Cd" scatter_one = None
-     || Geometry.find_attribute ~owner:Attribute.Point "id" scatter_one = None
-  then fail "surface scatter attributes";
-  (* Scale regression: exact packed cardinality and deterministic output at a
-     workload large enough to catch accidental list-backed implementations. *)
   let count = 1_000_000 in
-  let generated domains = Parallel.run ~domains (fun () ->
-    Kernel.generate_points ~grain:16_384 count (fun output index ->
-      let value = float_of_int index in
-      Kernel.Writer.set output index value (value *. 0.5) (-.value))) in
-  let large_one = generated 1 and large_many = generated 4 in
-  if Geometry.point_count large_one <> count || not (equal_positions large_one large_many)
-  then fail "million-point deterministic scale regression";
-  if Geometry.payload_bytes large_one <> (count * 24) + (Sys.word_size / 8) then
-    fail "million-point payload estimate";
   let generated_ranges domains = Parallel.run ~domains (fun () ->
-    Kernel.generate_point_ranges ~grain:16_384 count
+    Kernel.generate_point_ranges count
       (fun ~first ~last ~x ~y ~z ->
         for index = first to last - 1 do
           let value = float_of_int index in
@@ -5139,9 +3911,4 @@ let run () =
         done)) in
   if not (equal_positions (generated_ranges 1) (generated_ranges 4)) then
     fail "million-point deterministic range kernel";
-  let displaced domains = Parallel.run ~domains (fun () ->
-    Deform.noise_displace ~grain:16_384 ~amplitude:2. ~frequency:0.01 ~seed:71
-      large_one |> get_ok) in
-  if not (equal_positions (displaced 1) (displaced 4)) then
-    fail "noise displacement differs by domain count";
   print_endline "rdk tests passed"

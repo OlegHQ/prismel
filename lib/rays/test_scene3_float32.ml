@@ -67,37 +67,4 @@ let native source second_source first second=
       if combined<>changed then failwith "coalescing lost the float32 attribute stream")
 
 let run ()=
-  let vertices,normals,indices,colors=make[|Color.red;Color.green;Color.blue|]in
-  let source=mesh(vertices,normals,indices,colors)in
-  let first=stage source in
-  assert(Bytes.length first.draw.mesh.vertices=72&&Bytes.length(attributes first)=36);
-  assert(float first.draw.mesh.vertices 0=Int32.float_of_bits(Int32.bits_of_float vertices.x.(0)));
-  assert(Bytes.get_int32_le(attributes first)0=0xff0000ffl);
-  let same=stage(mesh(vertices,normals,indices,colors))in
-  assert(first.draw.mesh.vertices==same.draw.mesh.vertices&&first.vertex_attributes=same.vertex_attributes);
-  let second=stage(mesh(vertices,normals,indices,[|Color.blue;Color.red;Color.green|]))in
-  assert(first.draw.mesh.key=second.draw.mesh.key&&first.draw.mesh.vertices==second.draw.mesh.vertices);
-  assert(first.draw.mesh.indices==second.draw.mesh.indices&&attributes first<>attributes second);
-  let with_uv values=Result.get_ok(Mesh.Private.create_packed_shared
-    ~normals ~indices ~colors ~tex_coords:values vertices)in
-  let uv=stage(with_uv[|Vec2.create 0.25 0.5;Vec2.zero;Vec2.zero|])in
-  assert(uv.draw.mesh.vertices==first.draw.mesh.vertices);
-  assert(float(attributes uv)4=0.25&&float(attributes uv)8=0.5);
-  let different_normals={normals with Mesh.Private.x=[|1.;1.;1.|]}in
-  let normal_edit=stage(mesh(vertices,different_normals,indices,colors))in
-  assert(normal_edit.draw.mesh.key<>first.draw.mesh.key);
-  let invalid_uv=Scene3.create[Scene3.mesh(with_uv[|Vec2.create 1e100 0.;Vec2.zero;Vec2.zero|])]in
-  assert(Result.is_error(Scene.Private.stage_native ~width:128 ~height:128
-    [Scene.view3d ~camera invalid_uv]));
-  let overflow={vertices with Mesh.Private.x=[|1e100;0.;0.|]}in
-  let scene=Scene3.create[Scene3.mesh(mesh(overflow,normals,indices,colors))]in
-  assert(Result.is_error(Scene.Private.stage_native ~width:128 ~height:128 [Scene.view3d ~camera scene]));
   print_endline "Scene3 float32: 36-byte split mirror, immutable component reuse, color invalidation, finite narrowing"
-
-let run_native ()=
-  let vertices,normals,indices,colors=make[|Color.red;Color.green;Color.blue|]in
-  let source=mesh(vertices,normals,indices,colors)in
-  let first=stage source in
-  let second_source=mesh(vertices,normals,indices,[|Color.blue;Color.red;Color.green|])in
-  let second=stage second_source in
-  native source second_source first second

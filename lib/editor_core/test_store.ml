@@ -32,8 +32,8 @@ let () =
     assert (get (Editor_core.Store.Settings.load ~sketch:"test" path) = values));
   let open Rays in
   let view3 = Easy_camera.create ~distance:9. ~fov_y:0.8 () in
-  let loaded3, look = Editor_core.Store.Viewport.decode3 (Easy_camera.create ())
-    (Editor_core.Store.Viewport.encode3 view3 ~look_through:true) in
+  let loaded3, look = Editor_core.Store.Viewport.decode (Easy_camera.create ())
+    (Editor_core.Store.Viewport.encode view3 ~look_through:true) in
   assert (look && abs_float (Easy_camera.distance loaded3 -. 9.) < 0.000001);
   assert (Easy_camera.fov_y loaded3 = Easy_camera.fov_y view3);
   print_endline "editor store: atomic s-expression round-trip"

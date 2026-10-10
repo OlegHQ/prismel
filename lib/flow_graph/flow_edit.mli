@@ -192,8 +192,6 @@ val apply_checked :
     diagnostic when none checks. *)
 
 val apply :
-  ?ops:Flow.Op.t list ->
-  ?library:bool ->
   Flow.Check.catalog -> Flow.Syntax.t list -> op ->
   (Flow.Syntax.t list, Flow.Diagnostic.t) result
 

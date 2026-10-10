@@ -1,16 +1,16 @@
 # lib/rays_editor rules
 
 `rays_editor` is Rays Editor: it composes `pxui`, `pxui_shell`, `pxui_graph`, `editor_core`,
-`editor_document`, `sketch_support` and `sop_catalog` into the SOP workspace. Nothing imports it.
-`Rays_editor.Editor3` is the one editor. Root repository rules apply.
+`editor_document` and `sop_catalog` into the SOP workspace. Nothing imports it.
+`Rays_editor.Editor` is the one editor. Root repository rules apply.
 
 ## Where things live
 
 | Module | Owns |
 |---|---|
-| `Rays_editor` (`rays_editor.mli`) | The public API: `Editor3`, `Workspace` (a `.rays` file as a program), `Settings`, `Source`, `Renderer`, and the unstable test hooks `Private` and `Reduce` |
+| `Rays_editor` (`rays_editor.mli`) | The public API: `Editor`, `Workspace` (a `.rays` file as a program), `Settings`, `Source`, `Renderer`, and the unstable test hooks `Private` and `Reduce` |
 | `Environment` | `Core` plus the 3D viewport: orbits, composition, World bakes, autosave, source polling, `run` |
-| `Viewport3`, `Renderer` | Camera objects and follow-viewport, guides and handles, raster / wireframe / traced slots |
+| `Viewport`, `Renderer` | Camera objects and follow-viewport, guides and handles, raster / wireframe / traced slots |
 | `Core_model` | Every type: the model `t`, `frame_result`, `change`, `carry` |
 | `Core_shell` … `Core_host` | The model's functions, one module per concern, each `include`s the one before, so `Core` is the whole |
 | `Core_reduce` | `reduce`: the one reduction of a frame (no UI) |
@@ -58,8 +58,7 @@ turns the result and the frame's actions into the next model. Never set a ref or
   (`install ~label:"Put"`), and cancelling restores the original document physically.
 
 **Keys.** Keys become actions only through the one `Editor_core.Command.t` keymap
-(`Leader.keymap3`, `Pxui_graph.Scope.bindings`, `Pxui_shell.Tree.bindings`, sketch commands as
-`Leader.Sketch_command id`). Panes do not match `KeyPressed` for commands. A key that only means
+(`Leader.keymap3`, `Pxui_graph.Scope.bindings`, `Pxui_shell.Tree.bindings`). Panes do not match `KeyPressed` for commands. A key that only means
 something on one level or view is filtered in `Core.routed`. A focused text field keeps the
 keyboard except the global Command/Ctrl chords it has no use for. The graph pane's fields count as
 text focus only while the pane is drawn; a pane that is not drawn is `Scope.suspend`ed.
@@ -86,7 +85,7 @@ one opened, and never a carry preview.
 focused one. The viewport shows each object's graph result, or its transient lexical preview
 request at the loop selectors. A preview never reaches the document or history. Viewports asking for the same picture
 share a tracer; a traced slot at its cap with nothing changed does not render. Relative mouse and
-fly mode end through `Viewport3.release` on every path that stops navigating.
+fly mode end through `Viewport.release` on every path that stops navigating.
 
 **Text.** The printed text and its span map (`Flow.Lisp.print`) are the only readers of the text:
 never match strings. `Lisp_text` offers the checker's forms (`Flow.Workspace.special_forms`).
@@ -96,7 +95,7 @@ the card's `Set_arg`; an unapplied draft or stale source uses the existing
 whole-text merge. Active token scrubs patch cached text and spans without
 printing and restore canonical line breaks on release.
 
-**Resources.** Every editor a test creates is closed (`Editor3.close`): each holds worker domains.
+**Resources.** Every editor a test creates is closed (`Editor.close`): each holds worker domains.
 Tests pass `~await:true` and count frames; they never wait on the clock for a cook. Caches have
 capacities (64 converted meshes, 16 tracers, 64 panel states, 1 catalog).
 

@@ -27,11 +27,10 @@ val material : t
 val is_geometry : t -> bool
 val is_cooked : t -> bool
 
-val register : ?shape:bool -> ?color:color -> ?default:Syntax.t -> string -> (t, Diagnostic.t) result
+val register : ?color:color -> ?default:Syntax.t -> string -> (t, Diagnostic.t) result
 (** Declare on the initial domain before checking workspaces. Identical declarations
     are idempotent; conflicts and invalid or reserved names are refused. *)
 
-val descriptor : string -> nominal option
 val shape : t -> bool
 val color : t -> color
 val default : t -> Syntax.t option

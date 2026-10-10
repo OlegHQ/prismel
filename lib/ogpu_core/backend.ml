@@ -9,7 +9,7 @@ type driver_pipeline={pipeline_token:token;
   create_table:capacity:int->(driver_table,Error.t)result;
   destroy_pipeline:unit->(unit,Error.t)result}
 type driver_frame={frame_token:token}
-type gpu_timing={timing_supported:bool;gpu_seconds:float;gpu_samples:int64}
+type gpu_timing={gpu_seconds:float}
 type driver_library={
   create_compute_pipeline_in:entry:string->constants:(string*Shader.constant_value)list->
     interface:Shader.binding list->linked:string list->(driver_pipeline,Error.t)result;
@@ -412,12 +412,12 @@ let set_pipeline (encoder:compute_encoder) (pipeline:pipeline)=
   if pipeline.dead then error op Error.Stale_handle"pipeline is destroyed"
   else if pipeline.device!=commands_device encoder.compute_commands then error op Error.Cross_device"pipeline belongs to another device"
   else match encoder.compute_raw.set_pipeline pipeline.pipeline_driver.pipeline_token with Error _ as e->e|Ok()->encoder.pipeline_set<-true;Ok()
-let set_buffer (encoder:compute_encoder) ~index ?(offset=0L) (buffer:buffer)=
+let set_buffer (encoder:compute_encoder) ~index (buffer:buffer)=
   let op="Backend.set_buffer"in
   match open_compute op encoder with Error _ as e->e|Ok()->match valid_slot op index with Error _ as e->e|Ok()->
   match check_resource op (commands_device encoder.compute_commands) buffer.resource with Error _ as e->e|Ok()->
-  if offset<0L||offset>=buffer.buffer_descriptor.size then error op Error.Invalid_argument"buffer offset is out of range"
-  else match encoder.compute_raw.set_buffer ~index ~offset buffer.resource.raw.token with Error _ as e->e|Ok()->
+  if buffer.buffer_descriptor.size<=0L then error op Error.Invalid_argument"buffer is empty"
+  else match encoder.compute_raw.set_buffer ~index ~offset:0L buffer.resource.raw.token with Error _ as e->e|Ok()->
     mark_submitted encoder.compute_commands.commands_queue buffer.resource;Ok()
 let max_inline_bytes=4096
 let set_bytes (encoder:compute_encoder) ~index bytes=
@@ -458,13 +458,13 @@ let table_set_function (table:function_table) ~index name=
   if index<0||index>=table.table_capacity then error op Error.Invalid_argument"table index exceeds its capacity"
   else if not(List.mem name table.table_pipeline.pipeline_linked)then error op Error.Invalid_argument"function is not linked into the table's pipeline"
   else table.table_raw.table_set_function ~index name
-let table_set_buffer (table:function_table) ~index ?(offset=0L) (buffer:buffer)=
+let table_set_buffer (table:function_table) ~index (buffer:buffer)=
   let op="Backend.table_set_buffer"in
   match live_table op table with Error _ as e->e|Ok()->
   match check_resource op table.table_device buffer.resource with Error _ as e->e|Ok()->
   if index<0||index>=table.table_capacity then error op Error.Invalid_argument"table index exceeds its capacity"
-  else if offset<0L||offset>=buffer.buffer_descriptor.size then error op Error.Invalid_argument"buffer offset exceeds its buffer"
-  else table.table_raw.table_set_buffer ~index buffer.resource.raw.token ~offset
+  else if buffer.buffer_descriptor.size<=0L then error op Error.Invalid_argument"buffer is empty"
+  else table.table_raw.table_set_buffer ~index buffer.resource.raw.token ~offset:0L
 let destroy_table (table:function_table)=
   if table.table_dead then Ok()
   else match table.table_raw.destroy_table()with Error _ as e->e|Ok()->

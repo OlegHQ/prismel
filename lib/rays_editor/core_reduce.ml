@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 open Editor_document
 include Core_carry
 
@@ -95,10 +95,10 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
     settings; label } in
   let timeline, timeline_changes = List.fold_left (fun (timeline, changes) intent ->
     let next, emitted = match intent with
-      | Pause_toggle -> Sketch_support.Timeline.toggle_pause timeline
-      | Stop_playback -> Sketch_support.Timeline.stop timeline
-      | Reset_playback -> Sketch_support.Timeline.reset timeline
-      | Seek_playback frame -> Sketch_support.Timeline.seek timeline ~frame
+      | Pause_toggle -> Timeline.toggle_pause timeline
+      | Stop_playback -> Timeline.stop timeline
+      | Reset_playback -> Timeline.reset timeline
+      | Seek_playback frame -> Timeline.seek timeline ~frame
       | Set_end _ -> timeline, [] in
     next, changes @ emitted) (timeline, timeline_changes) result.timeline_intents in
   (* the End field of a tall timeline: the scrub range (view state, like the playhead) *)
@@ -359,10 +359,12 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
   (* a World key is written to the text (below); only a World the host made is edited here *)
   let next, world_label, world_edits = if in_world value
     then world_keys value next result.selection actions else next, None, [] in
-  (* / e opens the World, creating the singleton on first use. *)
+  (* / e opens the World, writing one (a [scene/world] member and its world graph) on first use. *)
   let next, world_added = match Objects.ids "world" next.scene.graph.geometry with
     | [] when List.mem Leader.Go_world actions ->
-        (match add_world next daylight with Ok doc -> doc, true | Error _ -> next, false)
+        (match Result.bind (Editor_document.Scene_sync.add_world next)
+                 (Doc.syntax_batch ~factories:value.factories next) with
+         | Ok doc -> doc, true | Error _ -> next, false)
     | _ -> next, false in
   let next, result = if Option.is_some loaded then next, result
     else reconciled ~before:before_world next result in
@@ -655,7 +657,7 @@ let reduce ~carry_changed ~all_ui_visible ~view_state ~carrying ~held_keys ~lead
    selection is [select], and [preview] puts a payload in flight whose hot target shows that edit
    on a scratch document (as {!carry_step} leaves the model while a target is hot). *)
 let reduce_idle ?select ?preview value actions (frame : Frame.t) =
-  let value = {value with live_frame = Sketch_support.Live_frame.of_frame frame} in
+  let value = {value with live_frame = Live_frame.of_frame frame} in
   let value = match preview with
     | None -> value
     | Some op ->

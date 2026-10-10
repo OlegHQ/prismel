@@ -20,8 +20,7 @@ let run ?(grain = 16_384) ?cancel count operation =
 
 type plan = {
   source : Geometry.t;
-  source_topology : Topology.Private.view;
-  scheme : scheme;
+
   output_topology : Topology.t;
   output_index : Topology_index.t option;
   point_offsets : int array;
@@ -169,7 +168,7 @@ let shared_plan ?cancel ?grain scheme geometry topology index =
   let output_index = match Geometry.edge_groups geometry with
     | [] -> None
     | _ -> Some (Topology_index.create ?cancel output_topology) in
-  { source = geometry; source_topology = topology; scheme;
+  { source = geometry;
     output_topology; output_index; point_offsets; point_sources; point_weights;
     point_representative; point_old; vertex_left; vertex_right; vertex_weight;
     vertex_old; primitive_source = Array.init source_primitives Fun.id;
@@ -274,7 +273,7 @@ let independent_plan ?cancel ?grain scheme geometry
   let output_index = match Geometry.edge_groups geometry with
     | [] -> None
     | _ -> Some (Topology_index.create ?cancel output_topology) in
-  { source = geometry; source_topology = topology; scheme;
+  { source = geometry;
     output_topology; output_index; point_offsets; point_sources; point_weights;
     point_representative; point_old; vertex_left; vertex_right; vertex_weight;
     vertex_old; primitive_source = Array.init source_primitives Fun.id;

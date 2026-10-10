@@ -1,7 +1,5 @@
 # Packed Development Kit
 
-Benchmark transcripts and dated measurements are in [rdk-log.md](rdk-log.md).
-
 Status: first production-oriented vertical slice implemented.
 
 ## Purpose and boundary
@@ -12,7 +10,7 @@ interpreted VEX clone. Its public values are immutable and target-independent;
 builders and kernels use locally owned mutation over packed storage.
 
 ```text
-procedural / examples ──> rdk ──> rdk_boolean ──> rdk_mesh
+sop / examples ──> rdk ──> rdk_boolean ──> rdk_mesh
                                   rdk_rays ──> rdk_mesh + rays
                                   rdk_mesh ──> rdk_attrib / rdk_gen / rdk_curve
                                   rdk_attrib / rdk_gen / rdk_curve
@@ -20,7 +18,7 @@ procedural / examples ──> rdk ──> rdk_boolean ──> rdk_mesh
 rays ──> rays_math
 ```
 
-RDK must not import Procedural, Runtime, SDL3, Metal, or platform code.
+RDK must not import Sop, Runtime, SDL3, Metal, or platform code.
 The renderer boundary is `Rdk_rays.Rays_mesh`, which converts to and
 from `Rays.Mesh.t`. `rdk` and `rdk_core` do not link Rays or the GPU
 stack. `Rdk.Color_by_height` accepts normalized RGBA float tuples;
@@ -533,7 +531,7 @@ render target.
 
 Public RDK operations use `Rdk.Error.t` with a stable operation, code, message,
 and optional corrective hints. Long-running operators accept `Rdk.Cancel.t`; polling is
-outside arithmetic inner loops or amortized over fixed blocks. Procedural cook
+outside arithmetic inner loops or amortized over fixed blocks. Sop cook
 contexts share this token directly, so cancellation cannot publish a partial
 snapshot.
 
@@ -3056,13 +3054,8 @@ storage.
 
 ### Benchmark commands
 
-Per-operation filter names, fixture sizes and results are with each transcript
-in [rdk-log.md](rdk-log.md).
-
 | Area | Command |
 |---|---|
-| RDK operations (all, or one with `RAYS_RDK_OPS_FILTER=<name>`) | `dune build --profile release tools/bench_rdk_ops.exe`, then `RAYS_BENCH_DOMAINS=1 RAYS_RDK_OPS_REPEATS=5 _build/default/tools/bench_rdk_ops.exe`; repeat with `RAYS_BENCH_DOMAINS=4` |
-| Measure Curvature | `dune build --profile release tools/bench_curvature.exe`, then `RAYS_BENCH_DOMAINS=1 RAYS_CURVATURE_POINTS=1000000 RAYS_CURVATURE_REPEATS=3 _build/default/tools/bench_curvature.exe`; repeat with `RAYS_BENCH_DOMAINS=4` |
 | Attribute Laplacian | `dune build --profile release tools/bench_laplacian.exe`, then `RAYS_BENCH_DOMAINS=1 RAYS_LAPLACIAN_POINTS=1000000 RAYS_LAPLACIAN_REPEATS=3 _build/default/tools/bench_laplacian.exe`; repeat with `RAYS_BENCH_DOMAINS=4` |
 | Triangulate 2D | `RAYS_DELAUNAY_POINTS=100000 RAYS_DELAUNAY_REPEATS=3 RAYS_REFINEMENT_POINTS=100000 RAYS_REGULARIZATION_POINTS=10000 RAYS_DELAUNAY_DOMAINS=1 dune exec -j 1 tools/bench_delaunay2.exe` |
 

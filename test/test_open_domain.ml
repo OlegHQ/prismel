@@ -18,7 +18,7 @@ let contains text fragment =
 
 let frame : Frame.t = {
   width = 1000; height = 700; size = 1000, 700;
-  drawable_width = 1000; drawable_height = 700; drawable_size = 1000, 700;
+
   pixel_scale = 1., 1.; time = 0.; dt = 1. /. 60.; fps = 60.; count = 0;
   mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events = [];
 }
@@ -166,7 +166,7 @@ let () =
     (snd (W.check {catalog with kinds = []}
       (Flow.Syntax.parse "(workspace w (graph g :context toy (toynodes/missing)))" |> Result.get_ok)))))
     "registered catalog prefix was not recognized";
-  let module E = Rays_editor.Editor3 in
+  let module E = Rays_editor.Editor in
   let host_text = "(workspace host (graph g :context toy (toy/emit 1.0 :gain 3.0))\n\
     (graph editor :context editor (ui/workspace (ui/split \"horizontal\" (ui/graph \"g\") (ui/lisp)))))" in
   let workspace = doc (Rays_editor.Workspace.load ~ops host_text) in

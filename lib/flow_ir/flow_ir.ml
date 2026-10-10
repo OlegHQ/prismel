@@ -132,7 +132,7 @@ type precision = Exact | Approx
 type tier = Interp | Closure | Cpu_kernel | Gpu | Gpu_compile | Gpu_readback | Cooked
 module Cost = struct
   type tier_cost = {fixed : float; per_element : float}
-  (* P4 measured CPU table, performance-log "P4 residual pruning and costs".
+  (* P4 measured CPU table.
      CPU packed-map endpoints are 1,024 and 1M elements at one domain; the
      closure row is one compiled scalar expression. Only legal tiers compete.
      ponytail: one affine model per tier, not an instruction-aware scheduler;
@@ -143,8 +143,8 @@ module Cost = struct
     | Cpu_kernel ->
         let per_element = (0.016522884 -. 0.000040054) /. (1_000_000. -. 1024.) in
         {fixed=0.000040054 -. per_element *. 1024.;per_element}
-    (* P5 native rows, performance-log "P5 native calibration" (Apple M1,
-       `bench_kernel --gpu` and `bench_gpu`): pack, upload and synchronized
+    (* P5 native rows (Apple M1,
+       `bench_gpu`): pack, upload and synchronized
        dispatch at 1,024 and 1M elements, explicit readback, cold compile. *)
     | Gpu ->
         let per_element = (0.020215034 -. 0.000437975) /. (1_000_000. -. 1024.) in
@@ -645,7 +645,7 @@ module Executor = struct
     end) program.profile;
     result
   type displayed=Cpu of E.value | Gpu of Gpu.value
-  let try_display ?state ?elems ?resolve ?(reference=false) ?policy program ~live =
+  let try_display ?state ?resolve ?(reference=false) ?policy program ~live =
     let policy=Option.value ~default:(Domain.DLS.get Gpu.current_policy) policy in
     let cpu()=Ok None in
     if reference then cpu()else match Domain.DLS.get Gpu.current with None->cpu()|Some backend->
@@ -671,7 +671,7 @@ module Executor = struct
       if Option.fold ~none:false ~some:(fun count->not(cheaper count))(Packed.static_count packed)
         then cpu()else
       let (let*)=Result.bind in
-      let* inputs=Packed.Private.prepare ?state ?elems ?resolve packed ~live in
+      let* inputs=Packed.Private.prepare ?state ?resolve packed ~live in
       if not(cheaper inputs.count) then cpu()else
       let* ()=match program.sink,readback with
         |Some(Display _),_ |_,true->Ok()
@@ -692,8 +692,8 @@ module Executor = struct
       let* output=profile ~seconds:(fun output->output.Gpu.gpu_seconds) Gpu(fun()->kernel.run inputs)in
       if readback then profile Gpu_readback(fun()->Result.map(fun value->Some(Cpu value))(kernel.readback output))
       else Ok(Some(Gpu output))
-  let force_display ?state ?elems ?resolve ?(reference=false) ?policy program ~live =
-    Result.bind (try_display ?state ?elems ?resolve ~reference ?policy program ~live) (function
+  let force_display ?state ?(reference=false) ?policy program ~live =
+    Result.bind (try_display ?state ~reference ?policy program ~live) (function
       |Some value->Ok value
-      |None->Result.map(fun value->Cpu value)(force ?state ?elems ?resolve ~reference program ~live))
+      |None->Result.map(fun value->Cpu value)(force ?state ~reference program ~live))
 end

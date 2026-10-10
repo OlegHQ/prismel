@@ -4,7 +4,7 @@
    by path, and refused text leaving the last good document. *)
 open Rays
 module Doc = Editor_document.Workspace_doc
-module E3 = Rays_editor.Editor3
+module E3 = Rays_editor.Editor
 module Source = Rays_editor.Source
 
 let fail message = failwith ("test_workspace_source: " ^ message)
@@ -120,7 +120,7 @@ let run_find () =
 
 let editor ?presets ?(imports = []) ~source text =
   E3.create ~await:true ~workspace:(Result.get_ok (Doc.of_text ~imports catalog text)) ?presets ~source
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m

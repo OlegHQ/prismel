@@ -7,7 +7,7 @@ queries, and point clustering. `rdk_attrib` owns attribute and group operations.
 sampling, editing, and sweeps. `rdk_mesh` owns modeling operations, and
 `rdk_boolean` owns Boolean stages.
 `rdk` re-exports the stable public module paths; renderer conversion is isolated in
-`rdk_rays`. `procedural` wraps RDK operations as SOPs.
+`rdk_rays`. `sop` wraps RDK operations as SOPs.
 
 Sublibraries have one-way dependencies: core → `rays_math`, exact → core,
 spatial → exact/core, attrib → spatial/exact/core, gen → attrib/spatial/exact/core,
@@ -19,7 +19,7 @@ its `.mli`, or add the missing `.mli` during the move. Keep module aliases in
 private. Run the family tests and a one-domain/four-domain exact comparison
 before marking a split complete.
 
-`lib/rdk/test_*` and `lib/procedural/test_*` open `Rdk_test_support`
+`lib/rdk/test_*` and `lib/sop/test_*` open `Rdk_test_support`
 (`lib/rdk/test_support`) for `fail`, `check`, `get_ok`, the geometry
 comparisons and the like; a test file defines only helpers that differ.
 `tools/dedupe` removes a local copy the compiler resolves to the shared
@@ -30,27 +30,24 @@ dev builds are opaque, so a cross-module call is not inlined.
 Geometry libraries follow this additional direction:
 
 ```text
-procedural ──> rdk ──> rdk_core ──> rays_math
+sop ──> rdk ──> rdk_core ──> rays_math
      └───────> rdk_rays ──> rays
 ```
 
-`procedural` uses `rdk` for packed SOPs and `rays_math` for mathematical
-values. `rdk` must never depend on `procedural`.
-`procedural` and `pxui` must never depend on each other; typed parameter
-schemas live in the dependency-free `param` library (`Procedural.Parameter`)
+`sop` uses `rdk` for packed SOPs and `rays_math` for mathematical
+values. `rdk` must never depend on `sop`.
+`sop` and `pxui` must never depend on each other; typed parameter
+schemas live in the dependency-free `param` library (`Sop.Parameter`)
 and `Pxui_shell.Inspector` renders them.
-`sketch_support` is a leaf helper for sketches. It may depend on `procedural`,
-`rdk`, and `rays`, but must not own widgets, renderer backends, or geometry
-kernels and must never be imported by those underlying libraries.
 `pxui_graph` and `Pxui_shell.Inspector` are presentation adapters, not graph authorities:
 selection lives in returned immutable UI state, network topology lives in
-`Procedural.Edit_graph`, and the `rays_editor` host applies typed editor commands
+`Sop.Edit_graph`, and the `rays_editor` host applies typed editor commands
 before compiling a cookable DAG. Parameter edits replace the selected node in
 that same immutable document (or use `Node.apply_parameters` for a standalone
 node). `sop_catalog` may attach
 PPX-derived schemas through `Node.parameterize`, but delegates cooking to
-ordinary Procedural SOPs. `sketch_ui` composes these leaves and must not move
-widgets, camera policy, or render lifecycle into `procedural` or `rdk`.
+ordinary Sop SOPs. `sketch_ui` composes these leaves and must not move
+widgets, camera policy, or render lifecycle into `sop` or `rdk`.
 
 ## Procedural geometry scope
 
@@ -74,7 +71,7 @@ widgets, camera policy, or render lifecycle into `procedural` or `rdk`.
   promotion, and high-density modeling algorithms.
 - `rays_math` owns mathematical values such as vectors, bounds, matrices,
   noise, random streams, and parallel execution policy.
-- `procedural` wraps RDK operations as immutable SOP nodes and must not
+- `sop` wraps RDK operations as immutable SOP nodes and must not
   reimplement packed geometry algorithms inside graph cooks.
 - When replacing a public algorithm, compare a captured public result before
   and after the change, then add direct RDK correctness, malformed-input,

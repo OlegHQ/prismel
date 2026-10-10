@@ -27,21 +27,19 @@ in a browser, never product code and never a web fallback.
 
 ## Direction
 
-Lisp is the first-class surface of Rays; the OCaml API is second-class, used by tests and
-integrations. When the two could differ, Lisp decides: its names, defaults, ranges and errors
-are the contract, and the OCaml function is derived to match (`specification/procedural.md`,
+Lisp is the first-class surface of Rays: a sketch is a `.rays` workspace. `Sketch`, `Frame` and
+`Scene` are the internal layer the editor is built on; there are no typed SOP constructors, and the
+only OCaml programs are `examples/pathtracer` and the sketches `cube_cage`, `shattered_cube` and
+`voxel_wall`. The OCaml API is second-class, used by tests and integrations. When the two could
+differ, Lisp decides: its names, defaults, ranges and errors are the contract, and the OCaml function is derived to match (`specification/sop.md`,
 "one declaration", for SOPs). A new capability ships in Lisp first; do not add an OCaml-only
 parameter or behaviour.
-
-Roadmap, not yet built, so do not code against it: Lisp becomes the main language for all of
-Rays, 2D sketches included, with an optimizer underneath that decides what to compile and
-what to cook. Until that lands, `Sketch`/`Frame`/`Scene` stay the way to write a 2D sketch.
 
 ## Libraries
 
 | Library | Owns |
 |---|---|
-| `native_layer_token`, `lru`, `param`, `frame_input`, `rays_math` | Leaves with no dependencies: the opaque presentation-layer handle, a bounded LRU, typed parameter schemas (`Procedural.Parameter`, `Editor_core.Param`), immutable logical frame facts, and the pure `Vec2`/`Vec3`/`Mat4`/`Quat`/`Color` math that `rays` re-exports |
+| `native_layer_token`, `lru`, `param`, `frame_input`, `rays_math` | Leaves with no dependencies: the opaque presentation-layer handle, a bounded LRU, typed parameter schemas (`Sop.Parameter`, `Editor_core.Param`), immutable logical frame facts, and the pure `Vec2`/`Vec3`/`Mat4`/`Quat`/`Color` math that `rays` re-exports |
 | `sdl3`, `sdl3_image/ttf/mixer` | SDL3 bindings (foundational) |
 | `metal` | Metal bindings: safe layer over a handwritten bridge (foundational) |
 | `ogpu_core`, `ogpu` | Portable GPU core and virtual public API |
@@ -52,8 +50,8 @@ what to cook. Until that lands, `Sketch`/`Frame`/`Scene` stay the way to write a
 | `rays` | `Sketch`, `Frame`, pure `Scene`, `Event`/`Input`, resources, renderer behavior |
 | `rays_pathtracer` | Hardware ray-traced path tracer |
 | `rdk` | The single packed geometry/topology compute core, built from `rdk_core` → `rdk_exact` → `rdk_spatial` → `rdk_attrib` → `rdk_gen`/`rdk_curve` → `rdk_mesh` → `rdk_boolean`; `rdk_rays` is its glue to `rays` meshes |
-| `procedural` | Immutable SOP graphs over `rdk` operations |
-| `sop_catalog` | Inspectable SOP constructors registered by PPX |
+| `sop` | Immutable SOP graphs over `rdk` operations |
+| `sop_catalog` | Inspectable SOP node factories registered by PPX |
 | `flow` | UI-free workspace language over `param` and `frame_input`: reader, printer, macros, checker, evaluator, frame folds, packed arrays and typed deferred nodes |
 | `flow_ir` | Typed dataflow IR over `flow` evaluations with sharing, hoisting, pruning, fusion and precision passes, and the block-at-a-time CPU kernel tier over `Parallel`; `flow` never depends on it |
 | `flow_gpu` | Metal emitter from `flow_ir` packed programs, a pipeline cache of 64 and owned runners; depends on `flow`, `flow_ir`, `ogpu`, `rays_execution`, `lru`; never reaches geometry or UI |
@@ -64,18 +62,17 @@ what to cook. Until that lands, `Sketch`/`Frame`/`Scene` stay the way to write a
 | `pxui` | The one immediate-mode UI engine (`Pxui.Ui`) |
 | `pxui_shell` | Editor chrome over PXUI: layout, headers, keys, status, timeline, prompts, frame, `Inspector` |
 | `pxui_graph` | SOP-network presentation; emits typed requests, never edits |
-| `sketch_support` | Procedural-to-Scene glue (`Bridge`: cooked meshes, instances, frame context) and packed pieces |
-| `rays_editor` | Rays Editor: the Houdini-like SOP shell (`Editor3`), composed only from public blocks |
+| `rays_editor` | Rays Editor: the Houdini-like SOP shell (`Editor`), composed only from public blocks; also the Sop-to-Scene glue (`Surface`, `Packed_pieces`), canvas `Drawing`, `Live_frame` and `Timeline` |
 
 `examples/<name>/` are short teaching programs; `sketches/<name>/` are
 experiments. Each has its own `dune`, depends only on what it shows, keeps
-framework code out, and runs finitely under `RAYS_MAX_FRAMES`. Scaffold an
-example with `dune exec tools/new_example.exe -- <name>`. A sketch that is only a Flow workspace is
-`sketches/<name>/sketch.rays` with no `dune` or `main.ml` (`--lisp <name>` scaffolds it): `sketches/dune`
+framework code out, and runs finitely under `RAYS_MAX_FRAMES`. Scaffold a Lisp
+example (`sketch.rays` plus its `dune`) with `dune exec tools/new_example.exe -- <name>`. A sketch that is only a Flow workspace is
+`sketches/<name>/sketch.rays` with no `dune` or `main.ml` (`--sketch <name>` scaffolds it): `sketches/dune`
 generates its executable with `rays-lisp`, and after adding or removing one you run
 `dune build @runtest; dune promote` to update the checked-in `sketches/dune.rays.inc`. Command-S in
 its window rewrites the file (comments kept) and an edit of the file reloads the window. Prefer
-`Rays_editor.Editor3` for SOP sketches, SOP graphs for geometry, and
+`Rays_editor.Editor` for SOP sketches, SOP graphs for geometry, and
 deterministic seeds.
 
 ## Dependency rules
@@ -96,14 +93,14 @@ exception.
 - `rays` never depends on `pxui`, geometry, sketch libraries, or examples.
 - `pxui_shell` depends only on `rays`, `editor_core`, and `pxui`; it never imports
   SOP, graph, geometry, or sketch libraries.
-- `rdk` never reaches `procedural`; `procedural` never reaches UI
-  libraries; `pxui` never reaches `procedural`; `param` depends on nothing;
-  `pxui_graph` never reaches `procedural` or `rdk` and never imports `sketch_*`;
+- `rdk` never reaches `sop`; `sop` never reaches UI
+  libraries; `pxui` never reaches `sop`; `param` depends on nothing;
+  `pxui_graph` never reaches `sop` or `rdk`;
   `flow_graph` depends only on `flow` and `param`; `flow_ir` depends only on `flow`, `param` and
-  `rays_math` and never reaches `rays`, `pxui*`, `procedural`, `rdk`, `sketch_*` or `rays_editor`;
+  `rays_math` and never reaches `rays`, `pxui*`, `sop`, `rdk` or `rays_editor`;
   `flow_gpu` depends only on `flow`, `flow_ir`, `param`, `rays_math`,
   `ogpu_core`, `ogpu`, `rays_execution` and `lru` and never reaches
-  `procedural`, `rdk`, `flow_sop`, `sketch_support` or any UI library;
+  `sop`, `rdk`, `flow_sop` or any UI library;
   nothing below imports `rays_editor`.
 - A boundary change updates the gate, adds focused tests at each affected
   boundary, and updates `specification/backend.md`. Do not expose raw SDL,
@@ -163,8 +160,8 @@ Bootstrap: `opam switch create . 5.3.0 --no-install`, then `opam pin add
 
 ## Public API
 
-- User-facing code starts with `Sketch`, `Frame`, and `Scene`; thread an
-  immutable model through `Sketch.run_state`; no global user-state refs.
+- A sketch is a `.rays` workspace. OCaml code on the internal layer (`Sketch`, `Frame`, `Scene`)
+  threads an immutable model through `Sketch.run_state`; no global user-state refs.
 - A `view` returns `Scene.t`. Scene constructors are pure data;
   `Scene.render` is the effect boundary.
 - `Frame.t` carries canvas, time, input, and ordered events.

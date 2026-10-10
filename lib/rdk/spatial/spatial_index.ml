@@ -9,7 +9,6 @@ type t = {
 exception Group_error of string
 
 let finite value = Float.is_finite value
-let maximum_squared_distance = sqrt max_float
 let length value = Array.length value.order
 
 let create_raw ?cancel ?(grain = 16_384) ?points:selection packed =
@@ -255,25 +254,6 @@ let nearest_distances_many_into ?cancel ?points ~grain value ~queries
           if length value > 0 then
             visit_distance_squared context query 0 (length value - 1) 0
         end)
-
-let nearest ?max_distance value ~x ~y ~z =
-  if not (finite x && finite y && finite z) then
-    Error (Error.make ~operation:"spatial_index" ~code:"invalid_query"
-      "query position must be finite")
-  else
-    let maximum = match max_distance with
-      | None -> Ok Float.infinity
-      | Some distance when finite distance && distance >= 0.
-          && distance <= maximum_squared_distance ->
-          Ok (distance *. distance)
-      | Some _ -> Error (Error.make ~operation:"spatial_index"
-          ~code:"invalid_distance"
-          "maximum distance must be finite, non-negative, and safely squarable") in
-    Result.map (fun maximum ->
-      let indices = [|-1|] and distances = [|Float.infinity|] in
-      if nearest_k_into value ~x ~y ~z ~max_distance_squared:maximum
-          ~indices ~distances_squared:distances ~offset:0 ~count:1 = 0
-      then None else Some (indices.(0), sqrt distances.(0))) maximum
 
 module Private = struct
   let nearest_k_into = nearest_k_into

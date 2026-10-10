@@ -546,14 +546,13 @@ let transform_single_instance ?cancel ~grain matrix geometry =
                  Geometry.with_attribute attribute output |> Support.get_ok))
         output [Attribute.Point; Attribute.Vertex]
 
-let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
-    ~transforms geometry =
+let materialize_instances ?cancel ?(grain = 16_384) ~transforms geometry =
   if grain <= 0 then
     invalid_arg "Rdk.Instance_copy.materialize_instances: grain must be positive";
   Cancel.check_opt cancel;
   let matrices = Array.copy transforms in
   let invalid_transform = ref (-1) in
-  if apply_transform then Array.iteri (fun instance matrix ->
+  Array.iteri (fun instance matrix ->
       for row = 0 to 3 do for column = 0 to 3 do
         if !invalid_transform < 0
             && not (Float.is_finite (Mat4.get matrix ~row ~column)) then
@@ -564,8 +563,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
     Error (Printf.sprintf
       "Rdk.Instance_copy.materialize_instances: transform %d must be finite"
       !invalid_transform)
-  else if total = 1 && (not apply_transform
-      || Mat4.nearly_equal matrices.(0) Mat4.identity ~eps:0.) then
+  else if total = 1 && Mat4.nearly_equal matrices.(0) Mat4.identity ~eps:0. then
     Ok geometry
   else if total = 1 then
     Ok (transform_single_instance ?cancel ~grain matrices.(0) geometry)
@@ -588,11 +586,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
       Error "Rdk.Instance_copy.materialize_instances: primitive-offset output exceeds array limits"
     else begin
       let source_positions = Packed.Float3.Private.view (Geometry.positions geometry) in
-      let x, y, z = if not apply_transform then
-          repeat_array ?cancel ~grain total source_positions.x,
-          repeat_array ?cancel ~grain total source_positions.y,
-          repeat_array ?cancel ~grain total source_positions.z
-        else
+      let x, y, z =
           let rows = Array.map Mat4.to_rows matrices in
           let x = Array.make output_points 0. and y = Array.make output_points 0.
           and z = Array.make output_points 0. in
@@ -669,8 +663,8 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
             && (owner = Attribute.Point || owner = Attribute.Vertex)
         then Attribute.get (Attribute.normal ~owner) attribute
         else None in
-      let has_normals = apply_transform
-        && List.exists (fun attribute -> typed_normal attribute <> None)
+      let has_normals =
+        List.exists (fun attribute -> typed_normal attribute <> None)
           (Geometry.attributes geometry) in
       let normal_matrices = if not has_normals then None
         else
@@ -720,7 +714,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
         Attribute.create_key_owned (Attribute.normal ~owner) value |> Support.get_ok in
       let rec attributes output = function
         | [] -> Ok (List.rev output)
-        | attribute :: rest when apply_transform ->
+        | attribute :: rest ->
             (match typed_normal attribute, normal_matrices with
              | Some _, None -> attributes output rest
              | Some source, Some matrices ->
@@ -729,10 +723,7 @@ let materialize_instances ?cancel ?(grain = 16_384) ?(apply_transform = true)
                  attributes (attribute :: output) rest
              | None, _ ->
                  Result.bind (repeat_attribute ?cancel ~grain total attribute)
-                   (fun attribute -> attributes (attribute :: output) rest))
-        | attribute :: rest ->
-            Result.bind (repeat_attribute ?cancel ~grain total attribute)
-            (fun attribute -> attributes (attribute :: output) rest) in
+                   (fun attribute -> attributes (attribute :: output) rest)) in
       Result.bind (attributes [] (Geometry.attributes geometry)) (fun attributes ->
         let positions = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
         let edge_groups = match Geometry.edge_groups geometry with
@@ -1531,7 +1522,8 @@ let materialize_instances_raw = materialize_instances
 let duplicate_raw = duplicate
 
 module Private = struct
-  let copy_to_points = copy_to_points_raw
+  let copy_to_points ?cancel ?grain ~source ~targets () =
+    copy_to_points_raw ?cancel ?grain ~source ~targets ()
 end
 
 let copy_to_points ?cancel ?grain ?source_primitives ?target_points
@@ -1569,10 +1561,9 @@ let copy_transforms ?cancel ?(grain = 16_384) ?target_points targets =
           (f.r20.(i) *. f.sx.(i), f.r21.(i) *. f.sy.(i), f.r22.(i) *. f.sz.(i), f.tz.(i))
           (0., 0., 0., 1.)) selected)))
 
-let materialize_instances ?cancel ?grain ?apply_transform ~transforms geometry =
+let materialize_instances ~transforms geometry =
   Error.guard ~operation:"materialize_instances" ~code:"invalid_parameter"
-    (fun () -> materialize_instances_raw ?cancel ?grain ?apply_transform
-      ~transforms geometry)
+    (fun () -> materialize_instances_raw ~transforms geometry)
 
 let duplicate ?cancel ?grain ?copies ?cumulative ?transform ?primitives
     ?copy_group_prefix ?preserve_groups geometry =

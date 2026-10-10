@@ -16,9 +16,7 @@ let run () =
     Ink.rect packed x y 5 7 color;
     add (Scene.rect ~at:(x,y) ~w:5 ~h:7 ~fill:color ());
     if i mod 11=0 then begin
-      Ink.line packed x y (x+9) (y+3) color;
       add (Scene.line ~from_:(x,y) ~to_:(x+9,y+3) ~color ());
-      Ink.outline packed x y 13 8 color;
       add (Scene.rect ~at:(x,y) ~w:13 ~h:8 ~stroke:color ())
     end
   done;
@@ -28,7 +26,6 @@ let run () =
     let x=1.125+.float (i*11 mod 110) and y=2.375+.float (i*17 mod 110) in
     let w=0.75+.float (i mod 7)*.0.125 and h=1.5 in
     let color=Color.rgba 230 221 193 (90+i*5) in
-    Ink.rectf packed x y w h color;
     let module P=Scene_command.Path in
     let path=P.of_commands [|P.Move_to {x;y};P.Line_to {x=x+.w;y};
       P.Line_to {x=x+.w;y=y+.h};P.Line_to {x;y=y+.h};P.Close|] in
@@ -45,7 +42,6 @@ let run () =
   let clipped=Ink.create ~ids:[|777L;778L|] ~version:2L ~clip:(3,5,112,107) () in
   Ink.rect clipped 0 0 128 128 Color.white;
   let clipped_batch=Option.get (Ink.take clipped) in
-  Ink.set_clip clipped None;
   Ink.rect clipped 0 0 128 128 Color.white;
   let unclipped_batch=Option.get (Ink.take clipped) in
   let canvas=Canvas.create_exn ~width:128 ~height:128 in

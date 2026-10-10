@@ -10,14 +10,12 @@ let mouse_move point = Event.MouseMoved (pointer point)
 
 let frame ?(mouse = 0, 0) ?(keys = []) ?(events = []) () : Frame.t = {
   width = 1000; height = 700; size = 1000, 700;
-  drawable_width = 1000; drawable_height = 700;
-  drawable_size = 1000, 700; pixel_scale = 1., 1.;
+
+   pixel_scale = 1., 1.;
   time = 0.; dt = 1. /. 60.; fps = 60.; count = 0;
   mouse = (float (fst mouse), float (snd mouse));
   mouse_delta = 0., 0.; keys; mouse_buttons = []; events;
 }
-
-let center (x, y, width, height) = x + (width / 2), y + (height / 2)
 
 (* ------------------------------------------------------- the node menu *)
 
@@ -82,10 +80,10 @@ let run_menu () =
     "node search did not use the shared fuzzy matching rule";
   (* every generated SOP can be reached by typing its key *)
   let entries = List.map (fun factory -> Node_menu.{
-    key = Procedural.Edit_graph.factory_key factory;
-    label = Procedural.Edit_graph.factory_label factory;
-    category = Procedural.Edit_graph.factory_category factory;
-    arity = Procedural.Edit_graph.factory_arity factory;
+    key = Sop.Edit_graph.factory_key factory;
+    label = Sop.Edit_graph.factory_label factory;
+    category = Sop.Edit_graph.factory_category factory;
+    arity = Sop.Edit_graph.factory_arity factory;
     context = "sop"; output = Flow.Ty.geometry; off = None }) Sop_catalog.Editor.factories in
   check (List.length entries = List.length Sop_catalog.Editor.factories)
     "the menu conversion dropped a generated SOP descriptor";
@@ -137,7 +135,6 @@ let scope_click view point =
   scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ())
 let rect_center (x, y, w, h) = int_of_float (x +. w /. 2.), int_of_float (y +. h /. 2.)
 
-
 (* Zoomed out, a node is its shown level's geometry: at every zoom, and with one card pinned
    full among points, each wire end is a port of a node (the dot for a point, the two ends of a
    chip, the sockets of a card). *)
@@ -176,7 +173,7 @@ let scope_zoom_geometry () =
     if Scope.zoom view < 0.5 then List.iter (fun path ->
       let x, y, w, h = Option.get (Scope.Private.box_of view path) in
       let view, _ = scope_click view (int_of_float (x +. w /. 2.), int_of_float (y +. Float.min (h /. 2.) (11. *. Scope.zoom view))) in
-      check (Scope.selected view = [ path ]) ("a click on " ^ String.concat "/" path ^ " did not select it")) paths) 
+      check (Scope.selected view = [ path ]) ("a click on " ^ String.concat "/" path ^ " did not select it")) paths)
     [ false, 1., (fun z -> z >= 0.5); false, 0.45, (fun z -> z < 0.5 && z >= 0.34);
       false, 0.3, (fun z -> z < 0.34); true, 0.3, (fun z -> z < 0.34); true, 0.45, (fun z -> z < 0.5) ]
 
@@ -296,7 +293,6 @@ let scope_levels () =
    | [ Scope.Syntax_edit (Flow_graph.Flow_edit.Disconnect { node; key = Flow_graph.Flow_edit.Kw "radius"; fallback = Some f }) ] ->
        check (node = sphere && Flow.Lisp.flat f = default) "the wire taken off radius did not fall back to its default"
    | _ -> fail "Delete over a wired row is not a Disconnect with the default")
-
 
 let scope_connection_hover () =
   let ws = Editor_document.Workspace_doc.of_text scope_catalog
@@ -433,7 +429,7 @@ let scope_pinch () =
 let scope_carry () =
   let frame ?mouse ?keys ?events () =
     { (frame ?mouse ?keys ?events ()) with width = 3000; height = 2000; size = (3000, 2000);
-      drawable_width = 3000; drawable_height = 2000; drawable_size = (3000, 2000) } in
+        } in
   let w = load_workspace "bloom" in
   let scope = P.of_graph scope_catalog w "flower" in
   let view = Scope.create ~width:3000 ~height:2000 () |> Scope.with_scope ~key:"flower" scope
@@ -476,7 +472,7 @@ let scope_gestures () =
   (* a large window keeps the zoom at 1, where every field is built *)
   let frame ?mouse ?keys ?events () =
     { (frame ?mouse ?keys ?events ()) with width = 3000; height = 2000; size = (3000, 2000);
-      drawable_width = 3000; drawable_height = 2000; drawable_size = (3000, 2000) } in
+        } in
   let scope_click view point =
     scope_step view (frame ~mouse:point ~events:(mouse_move point :: click point) ()) in
   let center_of view path = let x, y, w, h = Option.get (Scope.Private.box_of view path) in x, y, w, h in
@@ -1094,67 +1090,6 @@ let run () =
   run_menu ();
   run_scope ();
   Printf.printf "test_pxui_graph: %d checks\n" !checks
-
-(* Frame cost of the graph pane on Sunflower (240 iterations), expanded and
-   collapsed. From [_build/default/test]:
-   ../lib/pxui_graph/test_main.exe bench_scope_pane
-   Set RAYS_SCOPE_PROFILE=1 for allocation stacks; its timings include the profiler. *)
-let bench_scope_pane () =
-  let w = load_workspace "sunflower" in
-  let ui = Pxui.Ui.create ~font_size:11 () in
-  let frames = 300 in
-  let time label build step =
-    let view = ref build in
-    for _ = 1 to 20 do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> step !view ui (frame ()))) done;
-    let profile = Sys.getenv_opt "RAYS_SCOPE_PROFILE" <> None in
-    let samples = Hashtbl.create 64 in
-    let sample allocation =
-      let stack = Printexc.raw_backtrace_to_string allocation.Gc.Memprof.callstack in
-      Hashtbl.replace samples stack
-        (allocation.n_samples + Option.value ~default:0 (Hashtbl.find_opt samples stack)); None in
-    if profile then ignore (Gc.Memprof.start ~sampling_rate:0.001 ~callstack_size:20
-      {Gc.Memprof.null_tracker with alloc_minor = sample; alloc_major = sample});
-    let started = Unix.gettimeofday () and allocated = Gc.allocated_bytes () in
-    for _ = 1 to frames do view := fst (Pxui.Ui.frame ui (frame ()) (fun ui -> step !view ui (frame ()))) done;
-    Printf.printf "%-28s %.3f ms/frame, %.0f bytes/frame\n%!" label
-      ((Unix.gettimeofday () -. started) *. 1000. /. float frames)
-      ((Gc.allocated_bytes () -. allocated) /. float frames);
-    if profile then begin
-      Gc.Memprof.stop ();
-      Hashtbl.to_seq samples |> List.of_seq |> List.sort (fun (_, a) (_, b) -> Int.compare b a)
-      |> List.filteri (fun i _ -> i < 8) |> List.iter (fun (stack, count) ->
-          Printf.printf "PROFILE %s: %d sampled words\n%s\n%!" label count stack)
-    end in
-  let zone = [ "sunflower"; "seeds_each" ] in
-  let scoped ?(records = true) collapsed =
-    let view = Scope.create ~width:1000 ~height:700 ()
-      |> Scope.with_scope ~collapsed:(fun p -> collapsed && p = zone) ~key:"sunflower"
-           (P.of_graph scope_catalog w "sunflower") in
-    if records then Scope.with_records (recorded w) view else view in
-  time "scope pane, no records" (scoped ~records:false false) (fun view ui f -> Scope.update view ui f);
-  time "scope pane, zone expanded" (scoped false) (fun view ui f -> Scope.update view ui f);
-  time "scope pane, zone collapsed" (scoped true) (fun view ui f -> Scope.update view ui f);
-  (* the costs around the frame: one recording evaluation (a document change),
-     and Orrery's live records rebuilt every frame (Probe.make and the footers) *)
-  let timed label n f =
-    let started = Unix.gettimeofday () in
-    for _ = 1 to n do ignore (Sys.opaque_identity (f ())) done;
-    Printf.printf "%-28s %.3f ms\n%!" label ((Unix.gettimeofday () -. started) *. 1000. /. float n) in
-  timed "record eval, Sunflower" 20 (fun () -> Flow.Eval.static ~record:true w);
-  let orrery = load_workspace "orrery" in
-  timed "record eval, Orrery" 20 (fun () -> Flow.Eval.static ~record:true orrery);
-  let evaluated = Result.get_ok (Flow.Eval.static ~record:true orrery) in
-  let scope = P.of_graph scope_catalog orrery "orrery" in
-  let live_view records =
-    Scope.create ~width:1000 ~height:700 ()
-    |> Scope.with_scope ~key:"orrery" scope
-    |> fun view -> match records with
-      | None -> view | Some t -> Scope.with_records (Flow_graph.Probe.make ~time:t evaluated) view in
-  time "orrery pane, no records" (live_view None) (fun view ui f -> Scope.update view ui f);
-  let t = ref 0. in
-  time "orrery pane, live records" (live_view (Some 0.)) (fun view ui f ->
-    t := !t +. 0.016;
-    Scope.update (Scope.with_records (Flow_graph.Probe.make ~time:!t evaluated) view) ui f)
 
 (* 2,001 nodes in one scope: laying it out and painting a frame.  Command:
    dune exec test/test_main.exe -- bench_scope_big *)

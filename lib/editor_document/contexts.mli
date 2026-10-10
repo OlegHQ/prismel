@@ -2,7 +2,7 @@
 
     Their Lisp spellings are generated from the schemas that exist:
     [scene/geometry], [scene/light] and [scene/camera] from the object
-    factories, [world/world] and [world/gradient], [world/sky], [world/sun],
+    factories, [world/gradient], [world/sky], [world/sun],
     [world/shape], [world/scatter], [world/room] from the World factories and
     [settings/config] from the workspace settings record.  A keyword is a
     schema field; three consecutive [_x _y _z] or [_r _g _b] floats are one
@@ -14,7 +14,7 @@
 val descriptors : Flow_sop.Catalog.descriptor list
 (** Every generated kind; the manifest generator writes them. *)
 
-val catalog : version:int -> Procedural.Edit_graph.factory list ->
+val catalog : version:int -> Sop.Edit_graph.factory list ->
   (Flow.Check.catalog, Flow.Diagnostic.t) result
 (** {!Flow_sop.Catalog.of_factories} with {!descriptors}: what a workspace text
     is checked against. *)
@@ -30,7 +30,7 @@ val window : Workspace_doc.t -> (window, Flow.Diagnostic.t) result
 
 val has_settings : Workspace_doc.t -> bool
 
-val of_workspace : factories:Procedural.Edit_graph.factory list -> ?previous:Document.t ->
+val of_workspace : factories:Sop.Edit_graph.factory list -> ?previous:Document.t ->
   Workspace_doc.t -> (Document.t, Flow.Diagnostic.t) result
 (** The document of a workspace: the objects of its scene graph as nodes of the
     scene network (each geometry object owning the lowered network of its sop
@@ -49,8 +49,8 @@ val of_workspace : factories:Procedural.Edit_graph.factory list -> ?previous:Doc
 val group_triples : Editor_core.Param.field_view list -> Editor_core.Param.field_view list
 (** Three consecutive [_x _y _z] (or [_r _g _b]) floats of one folder as one vec3 field. *)
 
-val resolve_scene : ?previous:Procedural.Edit_graph.t -> ?state:Flow.Eval.state -> ?live:Frame_input.t -> Document.t -> time:float ->
-  Procedural.Edit_graph.t * Flow.Diagnostic.t list
+val resolve_scene : ?previous:Sop.Edit_graph.t -> ?state:Flow.Eval.state -> ?live:Frame_input.t -> Document.t -> time:float ->
+  Sop.Edit_graph.t * Flow.Diagnostic.t list
 (** Resolve recorded live light intensity/color fields for composition, without
     changing source, networks, identities or history. A failed light retains
     its previous value (or the authored zero-time value without [previous]);
@@ -65,13 +65,13 @@ val instance_root : Flow.Eval.value -> Document.view_root option
 val graph_of : Workspace_doc.t -> Flow.Workspace.context -> Flow.Workspace.graph option
 (** The first graph of a context. *)
 
-val world_kinds : (string * Procedural.Edit_graph.factory) list
+val world_kinds : (string * Sop.Edit_graph.factory) list
 (** The qualified World kinds ([world/sky], ...) with their factories. *)
 
 val sha256 : string -> string
 (** Lower-case hex SHA-256: the digest of a sketch source. *)
 
-val catalog_digest : Procedural.Edit_graph.factory list -> string
+val catalog_digest : Sop.Edit_graph.factory list -> string
 (** {!sha256} of the manifest text the catalog generates (with {!descriptors}),
     or of its error: what a [.rays] binary compares against the catalog it
     runs with. *)

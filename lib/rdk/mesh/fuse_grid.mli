@@ -10,13 +10,6 @@ type fuse_targeting = Point_snap.targeting =
   | Specified_points of string
 type grid_rounding = Grid_nearest | Grid_down | Grid_up
 
-val fuse_attribute_rule :
-  ?weight_attribute:string -> pattern:string -> Fuse_reduce.attribute_method ->
-  Fuse_reduce.attribute_rule
-
-val fuse_group_rule :
-  pattern:string -> Fuse_reduce.group_method -> Fuse_reduce.group_rule
-
 val fuse :
   ?cancel:Rdk_core.Cancel.t ->
   ?grain:int ->

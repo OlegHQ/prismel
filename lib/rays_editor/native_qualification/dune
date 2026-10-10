@@ -1,3 +1,5 @@
+(copy_files ../drawing.ml)
+(copy_files ../drawing.mli)
 (copy_files ../workspace_gpu.ml)
 (copy_files ../workspace_gpu.mli)
 (copy_files ../workspace_images.ml)
@@ -6,8 +8,8 @@
 
 (executable
  (name test_workspace_gpu_native)
- (modules test_workspace_gpu_native workspace_gpu workspace_images workspace_resources)
- (libraries rays flow flow_ir flow_sop flow_gpu rays_execution scene_command lru runtime_resources ogpu sop_catalog sketch_support))
+ (modules test_workspace_gpu_native drawing workspace_gpu workspace_images workspace_resources)
+ (libraries rays flow flow_ir flow_sop flow_gpu rays_execution scene_command lru runtime_resources ogpu sop_catalog))
 
 (rule
  (alias runtest-native)

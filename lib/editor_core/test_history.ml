@@ -58,7 +58,7 @@ let bindings : (scope, [ `Toggle | `Layout | `Undo | `Redo | `Delete | `Frame | 
 
 let frame events : Rays.Frame.t = {
   width = 10; height = 10; size = 10, 10;
-  drawable_width = 10; drawable_height = 10; drawable_size = 10, 10;
+
   pixel_scale = 1., 1.; time = 0.; dt = 0.; fps = 0.; count = 0;
   mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons = [];
   events;

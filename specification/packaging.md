@@ -17,7 +17,7 @@ The root package installs:
   `rays.scene_command`, and
   `rays.scene_execution`;
 - ordinary feature libraries such as `rays.rdk`,
-  `rays.procedural`, and the UI/sketch adapters.
+  `rays.sop`, and the UI/sketch adapters.
 
 Runtime sublibraries are native-only internal
 qualification boundaries. Their target types contain only `Native`; they do not

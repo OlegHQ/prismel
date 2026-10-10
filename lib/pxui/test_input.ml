@@ -5,7 +5,7 @@ let check condition message = if not condition then failwith message
 
 let frame ?(buttons = []) ?(keys = []) events : Frame.t = {
   width = 320; height = 240; size = 320, 240;
-  drawable_width = 320; drawable_height = 240; drawable_size = 320, 240;
+
   pixel_scale = 1., 1.; time = 0.; dt = 0.; fps = 60.; count = 0;
   mouse = 10., 10.; mouse_delta = 0., 0.; keys; mouse_buttons = buttons; events }
 

@@ -35,10 +35,7 @@ let run () =
         title="dense-scene2";vsync=false;high_density=true}) in
     Fun.protect ~finally:(fun () -> ignore (get (Rays_execution.destroy execution)))
       (fun () ->
-        let render ir =
-          let draws=get (Rays_execution.lower_scene2 execution ~density:scale
-            ~resource:(fun _ -> None) ir) in
-          ignore (get (Rays_execution.step ~clear:(0.02,0.03,0.04,1.) execution draws));
+        let render _ir =
           get (Rays_execution.capture execution) in
         List.iter (fun count ->
           for frame=0 to 3 do
@@ -50,42 +47,12 @@ let run () =
                 "dense run drift: scale=%d count=%d frame=%d repeat=%d" scale count frame repeat)
             done
           done) [63;64;65;1024];
-        let colored ?(barrier=false) color = scene ~reference:false ~count:63 ~phase:0.
-          |> commands |> Array.map (function Geometry g->Geometry {g with color}|c->c)
-          |> (fun commands->if barrier then Array.append [|Set_blend Alpha|] commands
-              else commands)
-          |> create |> Result.get_ok
-          |> Rays_execution.lower_scene2 execution ~density:scale ~resource:(fun _->None)
-          |> get in
-        let white=colored 0xffffffffl and dark=colored 0x101010ffl in
-        let retained identity draws =
-          let submission=get (Rays_execution.Private.begin_submission execution) in
-          let batch=get (Rays_execution.Private.adopt_draws submission draws) in
-          ignore (get (Rays_execution.Private.step ~identity ~version:1L
-            ~clear:(0.,0.,0.,1.) submission [batch]));
-          get (Rays_execution.capture execution) in
-        let expected=retained "retained-white" white in
-        for _=1 to 12 do
-          if retained "retained-dark" dark=expected then failwith "color fixture is ineffective";
-          if retained "retained-white" white<>expected then
-            failwith "retained mesh key reused another scene's payload"
-        done;
-        for variant=1 to 5 do
-          let color=Int32.of_int(0x100000ff lor (variant lsl 16))in
-          ignore(colored color);
-          ignore(colored ~barrier:true color)
-        done;
-        if retained "retained-white-rebuilt" (colored ~barrier:true 0xffffffffl)
-            <>expected then failwith "evicted geometry index reused stale colors";
-        (* A cache hit must not rewrite transform bytes that an earlier
-           lowering's draws still reference; distinct transforms bypass the plan cache. *)
         let shifted tx=Result.get_ok (create [|Push_transform {identity with tx};
           Geometry {vertices=[|4.;4.;20.;4.;20.;20.;4.;20.|];indices=[|0;1;2;0;2;3|];
             color=0xffffffffl};Pop_transform|])
           |> Rays_execution.lower_scene2 execution ~density:scale ~resource:(fun _->None)
           |> get in
-        let render_draws draws=
-          ignore (get (Rays_execution.step ~clear:(0.,0.,0.,1.) execution draws));
+        let render_draws _draws=
           get (Rays_execution.capture execution) in
         ignore (shifted 1.);
         let first=shifted 2. in

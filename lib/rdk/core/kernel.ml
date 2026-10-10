@@ -1,11 +1,5 @@
 open Rays_math
 
-module Writer = struct
-  type t = { x : float array; y : float array; z : float array }
-  let set value index x y z =
-    value.x.(index) <- x; value.y.(index) <- y; value.z.(index) <- z
-end
-
 let run ?(grain = 16_384) count operation =
   if grain <= 0 then invalid_arg "Kernel: grain must be positive";
   if count > 0 then
@@ -23,27 +17,11 @@ let geometry_of_positions positions =
   let topology = Topology.empty ~point_count:(Packed.Float3.length positions) in
   Geometry.create ~positions ~topology () |> Result.get_ok
 
-let generate_points ?grain count operation =
-  if count < 0 then invalid_arg "Kernel.generate_points: negative point count";
-  let x = Array.make count 0. and y = Array.make count 0. and z = Array.make count 0. in
-  let writer = Writer.{ x; y; z } in
-  run ?grain count (operation writer);
-  Packed.Float3.Private.of_owned_exn ~x ~y ~z |> geometry_of_positions
-
-let generate_point_ranges ?grain count operation =
+let generate_point_ranges count operation =
   if count < 0 then invalid_arg "Kernel.generate_point_ranges: negative point count";
   let x = Array.make count 0. and y = Array.make count 0. and z = Array.make count 0. in
-  run_ranges ?grain count (fun ~first ~last -> operation ~first ~last ~x ~y ~z);
+  run_ranges count (fun ~first ~last -> operation ~first ~last ~x ~y ~z);
   Packed.Float3.Private.of_owned_exn ~x ~y ~z |> geometry_of_positions
-
-let map_points ?grain operation geometry =
-  let source = Packed.Float3.Private.view (Geometry.positions geometry) in
-  let x = Array.copy source.x and y = Array.copy source.y and z = Array.copy source.z in
-  let writer = Writer.{ x; y; z } in
-  run ?grain (Array.length x) (fun index ->
-    operation writer index source.x.(index) source.y.(index) source.z.(index));
-  let positions = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
-  Geometry.with_positions positions geometry |> Result.get_ok
 
 let edit_point_ranges ?grain operation geometry =
   let source = Packed.Float3.Private.view (Geometry.positions geometry) in

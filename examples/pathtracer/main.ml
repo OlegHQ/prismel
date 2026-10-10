@@ -93,5 +93,5 @@ let view m (frame : Frame.t) =
 
 let () =
   ignore (Sketch.run_state
-    ~config:{ Sketch.default_config with width; height; title = "Rays path tracer"; resizable = false }
+    ~config:{ Sketch.default_config with width; height; title = "Rays path tracer" }
     ~init ~update ~view ~on_stop:(fun m -> P.destroy m.tracer) ())

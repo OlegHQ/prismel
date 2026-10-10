@@ -172,7 +172,7 @@ module Png=struct
 end
 
 module Canvas=struct
-  type t={identity:int;mutable generation:int;mutable width:int;mutable height:int;
+  type t={identity:int;mutable generation:int;width:int;height:int;
     mutable rgba:bytes;mutable spare:bytes option;mutable mirror:Image.t option;
     mutable blocked:Image.t option;
     (* The GPU frame this canvas last rendered (owned by its execution); CPU
@@ -197,12 +197,6 @@ module Canvas=struct
   let publish_storage x image=
     image.Image.canvas_owner<-Some x.identity;
     Image.register_canvas_storage image x.rgba(accept_returned_storage x)
-  let take_image_spare image length=
-    if Image.canvas_storage image image.Image.rgba&&
-       not(Image.leased image image.rgba)then begin
-      ignore(Image.return_canvas_storage image image.rgba);Ok None
-    end else Result.map Option.some(Image.writable image length)
-  let retain_spare x=Option.iter(fun spare->if x.spare=None then x.spare<-Some spare)
   let detach_mirror x=(match x.mirror with
     |Some image when valid_mirror x image->image.canvas_owner<-None
     |_->());x.mirror<-None
@@ -234,50 +228,10 @@ module Canvas=struct
         (match Ogpu.Backend.read_texture_into texture~bytes_per_row:(x.width*4)~destination:x.rgba with
          |Ok()->x.cpu_stale<-false;x.readbacks<-x.readbacks+1;Ok()
          |Error e->error op Io(Ogpu.Error.to_string e))
-  let cpu_overwrites x=x.cpu_stale<-false;x.gpu<-None
   let cpu_mutates op x=match sync_cpu op x with Error _ as e->e|Ok()->x.gpu<-None;Ok()
-  let clear x color=live"Canvas.clear"x(fun()->cpu_overwrites x;detach_for_mutation x;for offset=0 to Bytes.length x.rgba/4-1 do write_color x.rgba(offset*4)color done;x.generation<-x.generation+1;Ok())
   let set_pixel x ~x:px ~y:py color=live"Canvas.set_pixel"x(fun()->if px<0||py<0||px>=x.width||py>=x.height then error"Canvas.set_pixel"Invalid_argument"pixel is out of bounds"else match cpu_mutates"Canvas.set_pixel"x with Error _ as e->e|Ok()->(detach_for_mutation x;write_color x.rgba((py*x.width+px)*4)color;x.generation<-x.generation+1;Ok()))
-  let replace_pixels x pixels=live"Canvas.replace_pixels"x(fun()->
-    let expected=x.width*x.height*4 in
-    if Bytes.length pixels<>expected then error"Canvas.replace_pixels"Invalid_argument"pixel storage length does not match canvas"
-    else(cpu_overwrites x;detach_for_mutation x;Bytes.blit pixels 0 x.rgba 0 expected;x.generation<-x.generation+1;Ok()))
-  let copy_to_image x image=main"Canvas.copy_to_image"(fun()->
-    if x.dead then error"Canvas.copy_to_image"Destroyed"canvas is destroyed"
-    else if image.Image.dead then error"Canvas.copy_to_image"Destroyed"image is destroyed"
-    else match sync_cpu"Canvas.copy_to_image"x with Error _ as e->e|Ok()->
-    begin discard_invalid_mirror x;
-    if match x.mirror with Some mirror->mirror==image&&valid_mirror x image|None->false then(
-      image.gpu<-None;image.generation<-image.generation+1;Ok())
-    else if match x.blocked with Some blocked->blocked==image|None->false then begin
-      let spare=take_image_spare image(Bytes.length x.rgba)in
-      match spare with
-      |Error _ as failure->failure
-      |Ok spare->
-        image.rgba<-x.rgba;publish_storage x image;
-        image.width<-x.width;image.height<-x.height;
-        retain_spare x spare;image.gpu<-None;image.generation<-image.generation+1;
-        x.blocked<-None;x.mirror<-Some image;Ok()
-    end else if x.mirror=None then begin
-      match take_image_spare image(Bytes.length x.rgba)with
-      |Error _ as failure->failure
-      |Ok spare->
-        image.rgba<-x.rgba;publish_storage x image;
-        image.width<-x.width;image.height<-x.height;
-        retain_spare x spare;image.gpu<-None;image.generation<-image.generation+1;
-        x.blocked<-None;x.mirror<-Some image;Ok()
-    end else
-      let width=x.width and height=x.height and source=x.rgba in
-      match Image.writable image(Bytes.length source)with Error _ as e->e|Ok bytes->
-      Bytes.blit source 0 bytes 0(Bytes.length source);Image.install image bytes;
-      image.width<-width;image.height<-height;
-      image.gpu<-None;image.generation<-image.generation+1;Ok()end)
   let snapshot x=live"Canvas.snapshot"x(fun()->match sync_cpu"Canvas.snapshot"x with Error _ as e->e|Ok()->
     Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
-  let draw_image x image ~x:px ~y:py=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with
-    |Ok(w,h),Ok bytes->(match cpu_mutates"Canvas.draw_image"x with Error _ as e->e|Ok()->detach_for_mutation x;for sy=0 to h-1 do let dy=py+sy in if dy>=0&&dy<x.height then for sx=0 to w-1 do let dx=px+sx in if dx>=0&&dx<x.width then Bytes.blit bytes((sy*w+sx)*4)x.rgba((dy*x.width+dx)*4)4 done done;x.generation<-x.generation+1;Ok())
-    |Error e,_|_,Error e->Error e)
-  let resize x ~width ~height=live"Canvas.resize"x(fun()->match storage"Canvas.resize"width height with Error _ as e->e|Ok rgba->cpu_overwrites x;detach_mirror x;x.blocked<-None;x.spare<-None;x.width<-width;x.height<-height;x.rgba<-rgba;x.generation<-x.generation+1;Ok())
   let capture x=live"Canvas.capture"x(fun()->match sync_cpu"Canvas.capture"x with Error _ as e->e|Ok()->
     discard_invalid_mirror x;
     let result=if x.mirror=None&&x.blocked=None then begin
@@ -303,10 +257,6 @@ module Canvas=struct
     let gpu_snapshot x=match live "Canvas.Private.gpu_snapshot" x(fun()->
       Ok(Option.map(fun texture->x.width,x.height,x.generation,texture)x.gpu))with
       |Ok snapshot->snapshot|Error _->None
-    let forget_gpu x=live"Canvas.Private.forget_gpu"x(fun()->
-      match sync_cpu"Canvas.Private.forget_gpu"x with
-      |Ok()->x.gpu<-None;Ok()
-      |Error _ as e->x.gpu<-None;x.cpu_stale<-false;e)
   end
   let destroy x=main"Canvas.destroy"(fun()->if x.dead then Ok()else(x.gpu<-None;x.cpu_stale<-false;detach_mirror x;x.blocked<-None;x.spare<-None;x.rgba<-Bytes.empty;x.dead<-true;Ok()))
 end
@@ -329,11 +279,10 @@ module Text=struct
 end
 
 module Font=struct
-  type style=Normal|Bold|Italic|Underline|Strikethrough
   type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting|Light_subpixel_hinting
-  type glyph_metrics={min_x:int;max_x:int;min_y:int;max_y:int;advance:int}
+  type glyph_metrics={advance:int}
   type alignment=Sdl3_ttf.Font.alignment=Left|Center|Right
-  type metrics=Sdl3_ttf.Font.metrics={height:int;ascent:int;descent:int;line_skip:int}
+  type metrics={ascent:int}
   type t={raw:Sdl3_ttf.Font.t;base_size:float;mutable generation:int;
     mutable density:int;mutable align:alignment;mutable dead:bool}
   let users=ref 0
@@ -349,13 +298,9 @@ module Font=struct
   let open_system ~size=main"Font.open_system"(fun()->match ttf"Font.open_system"(Sdl3_ttf.Font.system_path())with Error _ as e->e|Ok path->open_file~path~size)
   let invalidate x=x.generation<-x.generation+1
   let mutate op x call=live op x(fun()->match ttf op(call())with Error _ as e->e|Ok()->invalidate x;Ok())
-  let style=function Normal->Sdl3_ttf.Font.Normal|Bold->Bold|Italic->Italic|Underline->Underline|Strikethrough->Strikethrough
   let hinting=function Normal_hinting->Sdl3_ttf.Font.Normal_hinting|Light_hinting->Light_hinting|Mono_hinting->Mono_hinting|None_hinting->None_hinting|Light_subpixel_hinting->Light_subpixel_hinting
-  let set_style x values=mutate"Font.set_style"x(fun()->Sdl3_ttf.Font.set_style x.raw(List.map style values))
-  let set_outline x value=mutate"Font.set_outline"x(fun()->Sdl3_ttf.Font.set_outline x.raw value)
   let set_hinting x value=mutate"Font.set_hinting"x(fun()->Sdl3_ttf.Font.set_hinting x.raw(hinting value))
-  let set_kerning x value=mutate"Font.set_kerning"x(fun()->Sdl3_ttf.Font.set_kerning x.raw value)
-  let glyph_metrics x glyph=live"Font.glyph_metrics"x(fun()->match ttf"Font.glyph_metrics"(Sdl3_ttf.Font.glyph_metrics x.raw glyph)with Error _ as e->e|Ok m->Ok{min_x=m.min_x;max_x=m.max_x;min_y=m.min_y;max_y=m.max_y;advance=m.advance})
+  let glyph_metrics x glyph=live"Font.glyph_metrics"x(fun()->match ttf"Font.glyph_metrics"(Sdl3_ttf.Font.glyph_metrics x.raw glyph)with Error _ as e->e|Ok m->Ok{advance=m.advance})
   let valid_utf8 text=
     let n=String.length text in let rec loop i=if i=n then true else let c=Char.code text.[i]in
       let continuation j= j<n && Char.code text.[j]land 0xc0=0x80 in
@@ -367,11 +312,7 @@ module Font=struct
   let set_align x align=
     if align=x.align then Ok()else match ttf"Font.render"(Sdl3_ttf.Font.set_wrap_alignment x.raw align)with Error _ as e->e|Ok()->x.align<-align;Ok()
   (* Logical-point measurements: density 1, matching [render ~density:1]. *)
-  let metrics x=live"Font.metrics"x(fun()->match set_density x 1 with Error _ as e->e|Ok()->ttf"Font.metrics"(Sdl3_ttf.Font.metrics x.raw))
-  let size_text x ?wrap_width text=live"Font.size_text"x(fun()->
-    if not(valid_utf8 text)then error"Font.size_text"Invalid_argument"text is not strict UTF-8"
-    else match set_density x 1 with Error _ as e->e|Ok()->ttf"Font.size_text"(match wrap_width with
-      |None->Sdl3_ttf.Font.size_text x.raw text|Some wrap_width->Sdl3_ttf.Font.size_text_wrapped x.raw~wrap_width text))
+  let metrics x=live"Font.metrics"x(fun()->match set_density x 1 with Error _ as e->e|Ok()->Result.map(fun(m:Sdl3_ttf.Font.metrics)->{ascent=m.ascent})(ttf"Font.metrics"(Sdl3_ttf.Font.metrics x.raw)))
   let render x ?wrap_width ?(align=Left) ~density ~color text=live"Font.render"x(fun()->
     if density<=0||density>16 then error"Font.render"Invalid_argument"density must be in 1..16"
     else if not(valid_utf8 text)then error"Font.render"Invalid_argument"text is not strict UTF-8"
@@ -384,17 +325,15 @@ module Font=struct
   let glyph_metrics_at x ~density glyph=live"Font.glyph_metrics_at"x(fun()->
     if density<=0||density>16 then error"Font.glyph_metrics_at"Invalid_argument"density must be in 1..16"
     else match set_density x density with Error _ as e->e|Ok()->glyph_metrics x glyph)
-  let cached_text x ?wrap_width ~density ~color text=render x ?wrap_width ~density ~color text
   let destroy x=main"Font.destroy"(fun()->if x.dead then Ok()else(match ttf"Font.destroy"(Sdl3_ttf.Font.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;decr users;if!users=0 then ignore(Sdl3_ttf.Init.quit());Ok()))
 end
 
 module Audio=struct
-  type generated={mixed_bytes:int;pcm_f32:bytes}
   type t={mixer:Sdl3_mixer.Mixer.t;channels:Sdl3_mixer.Channels.t;
     music:Sdl3_mixer.Music.t;
     mutable dead:bool}
-  and sample={owner:t;mutable generation:int;
-    mutable raw:Sdl3_mixer.Audio.t;mutable dead:bool}
+  and sample={owner:t;
+    raw:Sdl3_mixer.Audio.t;mutable dead:bool}
   let mix_error op e=error op Decode(Format.asprintf"%a"Sdl3_mixer.pp_error e)
   let result op=function Ok x->Ok x|Error e->mix_error op e
   let live op x f=main op(fun()->if x.dead then error op Destroyed"audio owner is destroyed"else f())
@@ -405,25 +344,10 @@ module Audio=struct
   let create op ~max_channels mixer=main op(fun()->
     match result op(Sdl3_mixer.Init.init())with Error _ as e->e|Ok()->
     match result op(mixer())with Error _ as e->e|Ok mixer->attach op~max_channels mixer)
-  let create_memory ~sample_rate ~channels ~max_channels=create"Audio.create_memory"~max_channels(fun()->Sdl3_mixer.Mixer.create_memory~sample_rate~channels)
   let create_device ~max_channels=create"Audio.create_device"~max_channels Sdl3_mixer.Mixer.create_device
-  let channel_count x=Sdl3_mixer.Channels.count x.channels
-  let channel_playing x channel=live"Audio.channel_playing"x(fun()->result"Audio.channel_playing"(Sdl3_mixer.Channels.playing x.channels channel))
-  let load_sample_bytes x bytes=live"Audio.load_sample_bytes"x(fun()->match result"Audio.load_sample_bytes"(Sdl3_mixer.Audio.load_bytes x.mixer(Bytes.copy bytes))with Error _ as e->e|Ok raw->Ok{owner=x;generation=1;raw;dead=false})
-  let reload_sample_bytes x bytes=sample_live"Audio.reload_sample_bytes"x(fun()->match result"Audio.reload_sample_bytes"(Sdl3_mixer.Audio.reload_bytes x.raw(Bytes.copy bytes))with Error _ as e->e|Ok replacement->ignore(Sdl3_mixer.Audio.destroy x.raw);x.raw<-replacement;x.generation<-x.generation+1;Ok())
-  let sample_generation(x:sample)=x.generation
+  let load_sample_bytes x bytes=live"Audio.load_sample_bytes"x(fun()->match result"Audio.load_sample_bytes"(Sdl3_mixer.Audio.load_bytes x.mixer(Bytes.copy bytes))with Error _ as e->e|Ok raw->Ok{owner=x;raw;dead=false})
   let valid_volume x=Float.is_finite x&&x>=0.&&x<=1.
-  let play_sample x ?channel ?(loops=0)?(fade_in_ms=0)?(volume=1.) sample=sample_live"Audio.play_sample"sample(fun()->if not(valid_volume volume)then error"Audio.play_sample"Invalid_argument"volume must be in 0..1"else match result"Audio.play_sample"(Sdl3_mixer.Channels.play x.channels ?channel~loops~fade_in_ms sample.raw)with Error _ as e->e|Ok channel->match result"Audio.play_sample"(Sdl3_mixer.Channels.set_volume x.channels channel volume)with Error _ as e->e|Ok()->Ok channel)
-  let stop_channel x channel ?(fade_out_ms=0)()=live"Audio.stop_channel"x(fun()->match result"Audio.stop_channel"(Sdl3_mixer.Channels.stop x.channels channel~fade_out_ms())with Error _ as e->e|Ok()->Ok())
-  let pause_channel x channel=live"Audio.pause_channel"x(fun()->match result"Audio.pause_channel"(Sdl3_mixer.Channels.pause x.channels channel)with Error _ as e->e|Ok()->Ok())
-  let resume_channel x channel=live"Audio.resume_channel"x(fun()->match result"Audio.resume_channel"(Sdl3_mixer.Channels.resume x.channels channel)with Error _ as e->e|Ok()->Ok())
-  let play_music x ?(loops=0)?(fade_in_ms=0) sample=sample_live"Audio.play_music"sample(fun()->match result"Audio.play_music"(Sdl3_mixer.Music.set_audio x.music sample.raw)with Error _ as e->e|Ok()->match result"Audio.play_music"(Sdl3_mixer.Music.play x.music~loops~fade_in_ms())with Error _ as e->e|Ok()->Ok())
-  let pause_music x=live"Audio.pause_music"x(fun()->match result"Audio.pause_music"(Sdl3_mixer.Music.pause x.music)with Error _ as e->e|Ok()->Ok())
-  let resume_music x=live"Audio.resume_music"x(fun()->match result"Audio.resume_music"(Sdl3_mixer.Music.resume x.music)with Error _ as e->e|Ok()->Ok())
-  let stop_music x ?(fade_out_ms=0)()=live"Audio.stop_music"x(fun()->match result"Audio.stop_music"(Sdl3_mixer.Music.stop x.music~fade_out_ms())with Error _ as e->e|Ok()->Ok())
-  let set_master_volume x volume=live"Audio.set_master_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_master_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_master_volume"(Sdl3_mixer.Mixer.set_gain x.mixer volume)with Error _ as e->e|Ok()->Ok())
-  let set_music_volume x volume=live"Audio.set_music_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_music_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_music_volume"(Sdl3_mixer.Music.set_volume x.music volume)with Error _ as e->e|Ok()->Ok())
-  let generate x ~frames=live"Audio.generate"x(fun()->match result"Audio.generate"(Sdl3_mixer.Mixer.generate x.mixer~frames)with Error _ as e->e|Ok generated->Ok{mixed_bytes=generated.mixed_bytes;pcm_f32=Bytes.copy generated.pcm_f32})
+  let play_sample x ?(loops=0)?(volume=1.) sample=sample_live"Audio.play_sample"sample(fun()->if not(valid_volume volume)then error"Audio.play_sample"Invalid_argument"volume must be in 0..1"else match result"Audio.play_sample"(Sdl3_mixer.Channels.play x.channels ~loops ~fade_in_ms:0 sample.raw)with Error _ as e->e|Ok channel->match result"Audio.play_sample"(Sdl3_mixer.Channels.set_volume x.channels channel volume)with Error _ as e->e|Ok()->Ok channel)
   let destroy_sample (x:sample)=main"Audio.destroy_sample"(fun()->if x.dead then Ok()else match result"Audio.destroy_sample"(Sdl3_mixer.Audio.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;Ok())
   let destroy x=main"Audio.destroy"(fun()->if x.dead then Ok()else match result"Audio.destroy"(Sdl3_mixer.Music.destroy x.music)with Error _ as e->e|Ok()->match result"Audio.destroy"(Sdl3_mixer.Channels.destroy x.channels)with Error _ as e->e|Ok()->match result"Audio.destroy"(Sdl3_mixer.Mixer.destroy x.mixer)with Error _ as e->e|Ok()->x.dead<-true;ignore(Sdl3_mixer.Init.quit());Ok())
 end
@@ -431,6 +355,5 @@ end
 module Assets=struct
   type t={mutable hooks:(unit->(unit,error)result)list;mutable dead:bool}
   let create()={hooks=[];dead=false}
-  let borrow x ~destroy value=main"Assets.borrow"(fun()->if x.dead then error"Assets.borrow"Destroyed"assets are destroyed"else(x.hooks<-destroy::x.hooks;Ok value))
   let destroy x=main"Assets.destroy"(fun()->if x.dead then Ok()else let first=ref None in List.iter(fun hook->match hook()with Ok()->()|Error e->if !first=None then first:=Some e)x.hooks;x.hooks<-[];x.dead<-true;match!first with None->Ok()|Some e->Error e)
 end

@@ -1,0 +1,55 @@
+(library
+ (name sop)
+ (public_name rays.sop)
+ (libraries param frame_input rays_math rdk lru unix)
+ (preprocess (pps rays.ppx))
+ (modules context diagnostic image kernel payload parameter node session async_cook instances image_nodes
+  support groups sop_topology attributes shapes nodes zone custom graph edit_graph)
+ (private_modules support groups sop_topology attributes shapes))
+
+(test
+ (name test_facts)
+ (modules test_facts)
+ (libraries sop rdk rays_math sop_catalog lisp_sop rdk_test_support))
+
+(test
+ (name test_payload)
+ (modules test_payload)
+ (libraries sop lisp_sop))
+
+(test
+ (name test_parallel_branches)
+ (modules test_parallel_branches)
+ (libraries sop rdk rays_math lisp_sop rdk_test_support unix))
+(test
+ (name test_attr_from_image)
+ (modules test_attr_from_image)
+ (libraries sop rdk lisp_sop unix))
+
+; One executable per suite: each links only its own module, so a suite builds and runs
+; while another is being edited.
+(executables
+ (names run_sop run_edit_graph run_nodes run_parallel_exact run_diagnostics)
+ (modules run_sop run_edit_graph run_nodes run_parallel_exact run_diagnostics
+  test_sop test_edit_graph test_nodes test_parallel_exact test_diagnostics)
+ (libraries sop rays rdk rdk_rays rdk_test_support lisp_sop))
+
+(rule
+ (aliases runtest test_sop)
+ (action (run %{exe:run_sop.exe})))
+
+(rule
+ (aliases runtest test_edit_graph)
+ (action (run %{exe:run_edit_graph.exe})))
+
+(rule
+ (aliases runtest test_nodes)
+ (action (run %{exe:run_nodes.exe})))
+
+(rule
+ (aliases qualification qualification-scale test_parallel_exact)
+ (action (run %{exe:run_parallel_exact.exe})))
+
+(rule
+ (aliases runtest test_diagnostics)
+ (action (run %{exe:run_diagnostics.exe})))

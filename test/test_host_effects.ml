@@ -1,8 +1,8 @@
-module Editor=Rays_editor.Editor3
+module Editor=Rays_editor.Editor
 let load text=match Rays_editor.Workspace.load text with
   |Ok doc->doc|Error diagnostics->failwith(String.concat "\n"(List.map Flow.Diagnostic.to_string diagnostics))
 let frame ?(keys=[]) ?(events=[]) count : Rays.Frame.t={width=640;height=360;size=640,360;
-  drawable_width=640;drawable_height=360;drawable_size=640,360;pixel_scale=1.,1.;
+  pixel_scale=1.,1.;
   time=float count /. 60.;dt=1. /. 60.;fps=60.;count;mouse=(-100.,-100.);mouse_delta=0.,0.;
   mouse_buttons=[];keys;events}
 let workspace effects=load("(workspace host (graph picture :context draw (draw/background \"#111827\")) "^

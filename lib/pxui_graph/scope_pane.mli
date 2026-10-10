@@ -78,11 +78,11 @@ type command =
 
 type stats = {
   nodes : int; zones : int; rows : int;  (** of the whole scope *)
-  drawn_items : int; drawn_zones : int; drawn_rows : int;
+  drawn_items : int; drawn_zones : int;
       (** what the last frame built: only what is in view *)
 }
 
-val create : ?x:int -> ?y:int -> ?width:int -> ?height:int -> ?theme:Pxui.theme -> unit -> t
+val create : ?width:int -> ?height:int -> unit -> t
 val with_bounds : x:int -> y:int -> width:int -> height:int -> t -> t
 val with_guide : bool -> t -> t
 

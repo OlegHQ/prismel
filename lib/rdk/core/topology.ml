@@ -145,23 +145,8 @@ module Builder = struct
     value.primitive_offsets.(value.primitive_count) <- value.vertex_count;
     Bytes.set value.primitive_kinds (value.primitive_count - 1)
       (Char.chr (kind_code kind))
-  let add_polygon value points = add_primitive value Polygon 3 points
   let add_open_polyline value points = add_primitive value Open_polyline 2 points
   let add_closed_polyline value points = add_primitive value Closed_polyline 3 points
-  let add_triangle value a b c =
-    require_open value;
-    let valid point = point >= 0 && point < value.point_count in
-    if not (valid a && valid b && valid c) then
-      invalid_arg "Topology.Builder.add_triangle: invalid point";
-    ensure_vertices value (value.vertex_count + 3);
-    ensure_primitives value (value.primitive_count + 1);
-    value.vertex_points.(value.vertex_count) <- a;
-    value.vertex_points.(value.vertex_count + 1) <- b;
-    value.vertex_points.(value.vertex_count + 2) <- c;
-    value.vertex_count <- value.vertex_count + 3;
-    value.primitive_count <- value.primitive_count + 1;
-    value.primitive_offsets.(value.primitive_count) <- value.vertex_count;
-    Bytes.set value.primitive_kinds (value.primitive_count - 1) '\000'
   let freeze value =
     require_open value;
     value.frozen <- true;

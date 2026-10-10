@@ -2,7 +2,7 @@
 
    Their Lisp spellings are generated from the schemas that exist: one kind
    per object factory ([scene/geometry], [scene/light], [scene/camera]), per
-   World node and layer factory ([world/world], [world/gradient], ...) and
+   World layer factory ([world/gradient], ...) and
    the workspace settings record ([settings/config]).  A kind's keywords are
    its schema's fields, three consecutive [_x _y _z] or [_r _g _b] floats
    grouped as one vec3 or colour ([:translate [0 1 0]], [:color "#3b7d4e"]),
@@ -13,7 +13,7 @@
    the scene, world and settings results into the editor document:
    objects become nodes of the scene network, the World a node with its layer
    stack as a network, settings a [Settings.t]. *)
-open Procedural
+open Sop
 module E = Flow.Eval
 module W = Flow.Workspace
 module Edit = Edit_graph
@@ -62,12 +62,11 @@ let group_triples (fields : Param.field_view list) =
   go fields
 
 (* The World and the root are scene kinds too: [scene/world] is a merge member that references a
-   world graph, [scene/root] ends the scene graph.  The old [world/world] stays a (legacy) kind of
-   the world context, so old files still check and load. *)
+   world graph, [scene/root] ends the scene graph. *)
 let scene_kinds = List.map (fun f -> "scene/" ^ Edit.factory_key f, f)
     (Objects.catalog @ [ Layers.Settings.factory; Objects.Root.factory ])
 let world_kinds = List.map (fun f -> "world/" ^ Edit.factory_key f, f)
-    (Layers.Settings.factory :: Layers.catalog)
+    Layers.catalog
 
 (* Workspace settings: what the host needs to open the window. *)
 type window = { title : string; width : int; height : int; fps : int; seed : int }
@@ -96,7 +95,6 @@ let kind_slots qualified = match qualified with
   | "scene/geometry" -> [ "geometry", Edit.Required; "texture", Edit.Optional ]
   | "scene/world" -> [ "world", Edit.Required ]
   | "scene/root" -> [ "scene", Edit.Required; "camera", Edit.Optional ]
-  | "world/world" -> [ "layers", Edit.Optional ]
   | q when String.starts_with ~prefix:"world/" q -> [ "below", Edit.Optional ]
   | _ -> []
 
@@ -601,7 +599,7 @@ let is_world_kind kind = List.mem_assoc kind world_kinds
 
 (* the slot a world call stacks its predecessor in *)
 let world_below = function
-  | "world/world" -> Some "layers" | kind when is_world_kind kind -> Some "below" | _ -> None
+  | kind when is_world_kind kind -> Some "below" | _ -> None
 
 (* The layer network of the layers (bottom first); ids come from [previous] by home, else by label. *)
 let layer_network ?previous ~homes layers =
@@ -872,7 +870,7 @@ let same_settings a b =
    (matched by home, then by operation and label), tile layouts and the objects the
    workspace does not declare (the host's camera and lights): the workspace owns geometry
    always, every object when it has a scene graph (an empty one means none), and the World
-   when it has a world graph ([world/none] means none).  Whatever a declared object's text
+   when a [scene/world] references a world graph.  Whatever a declared object's text
    does not say is the schema's default, so the text is the whole truth of it. *)
 let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let compiled_ids, sites = match previous with
@@ -956,18 +954,9 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   (* a scene graph is authoritative for every object kind: what it does not say is not there
      (no camera, no lights), and the host seeds nothing *)
   let has_scene = graph_of workspace Flow.Context.scene <> None in
-  let has_world = graph_of workspace Flow.Context.world <> None in
-  (* the World is a merge member ([scene/world]); an old file's world graph returning a
-     [world/world] call is read as the scene's World, written where it is *)
+  (* the World is a merge member ([scene/world]) *)
   let scene_world = List.find_opt (fun item -> item.group = None && Edit.factory_operation item.factory = "world") items in
-  let owned operation = operation = "geometry"
-    || (has_scene && (operation <> "world" || scene_world <> None)) in
-  let* world, layers, orphan = if scene_world <> None then Ok (None, [], false) else
-    let* stack = calls ~want:is_world_kind ~below:world_below workspace lowered.plan Flow.Context.world in
-    match List.rev stack with
-    | [] -> Ok (None, [], false)
-    | { kind = "world/world"; _ } as world :: layers -> Ok (Some world, List.rev layers, false)
-    | _ -> Ok (None, [], true)  (* layers no [scene/world] references: the scene has no World of it *) in
+  let owned operation = operation = "geometry" || has_scene in
   (* claim or create a node per item, then drop the owned nodes nothing claimed *)
   let* graph, used, objects = List.fold_left (fun state item ->
     let* graph, used, objects = state in
@@ -994,8 +983,8 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
   let graph = Edit.remove_nodes stale graph in
   let* graph = link_parents graph objects in
   (* the World node *)
-  let* graph, world_id, world_network, layer_homes = match world with
-    | None when scene_world <> None ->
+  let* graph, world_id, world_network, layer_homes = match scene_world with
+    | Some _ ->
         (* the node the objects made; its layers are the referenced world graph's *)
         let id, item = List.find (fun (_, (item : item)) ->
           item.group = None && Edit.factory_operation item.factory = "world") objects in
@@ -1009,31 +998,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
           Document.Int_map.find_opt id doc.networks) in
         let* network, made = layer_network ?previous:previous_network ~homes:old_homes.layers stack in
         Ok (graph, Some id, Some network, made)
-    | None ->
-        (* a world graph that returns no World removes the host's *)
-        let gone = if has_world && not orphan then Objects.ids "world" graph else [] in
-        Ok (Edit.remove_nodes gone graph, None, None, [])
-    | Some { args; home; _ } ->
-        let factory = Layers.Settings.factory in
-        let label = Option.value (label_arg args) ~default:"World" in
-        let existing = List.find_map (fun (i : Edit.node_info) ->
-          if i.operation = "world" then Some i.id else None) (Edit.inspect graph) in
-        let claimed = match existing with
-          | Some id when old_homes.world = Some home || find_node graph [] "world" label <> None -> Some id
-          | _ -> None in
-        let* graph, id = match claimed with
-          | Some id -> Ok (graph, id)
-          | None ->
-              let old = List.filter (fun (info : Edit.node_info) -> info.operation = "world")
-                  (Edit.inspect graph) in
-              let graph = Edit.remove_nodes (List.map (fun (info : Edit.node_info) -> info.id) old) graph in
-              add_node graph factory label in
-        let* values = changes "world/world" args in
-        let* graph = apply factory graph id values in
-        let previous_network = Option.bind previous (fun (doc : Document.t) ->
-          Document.Int_map.find_opt id doc.networks) in
-        let* network, made = layer_network ?previous:previous_network ~homes:old_homes.layers layers in
-        Ok (graph, Some id, Some network, made) in
+    | None -> Ok (graph, None, None, []) in
   let* scene_network = Flow_sop.Network.with_geometry graph scene.graph in
   let first = match objects with (id, _) :: _ -> Some id | [] -> None in
   let scene = { scene with graph = scene_network;
@@ -1093,8 +1058,7 @@ let of_workspace ~factories ?previous (workspace : Workspace_doc.t) =
     else { workspace with Workspace_doc.settings } in
   let homes = { Document.objects = List.filter_map (fun (id, item) ->
       Some (id, if item.group = None then item.home else Document.Looped)) objects;
-    world = (match scene_world with
-      | Some item -> Some item.home | None -> Option.map (fun (c : call) -> c.home) world);
+    world = Option.map (fun item -> item.home) scene_world;
     layers = layer_homes; root = root.root_home;
     world_graph = Option.bind scene_world (fun item -> item.via);
     settings = (match settings_calls with (c : call) :: _ -> Some c.home | [] -> None) } in

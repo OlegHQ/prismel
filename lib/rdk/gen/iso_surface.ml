@@ -1,29 +1,17 @@
 open Rdk_core
 open Rays_math
 
-type metaball = {
-  center : Vec3.t;
-  radius : float;
-  strength : float;
-}
-
 type sample = float array
 
 module Field = struct
   type t =
 
-    | Gyroid of float
     | Custom of (sample -> float)
-
-  let gyroid ?(scale = 1.) () =
-    if not (Float.is_finite scale) || scale = 0. then
-      invalid_arg "Iso3.Field.gyroid: scale must be finite and non-zero";
-    Gyroid scale
 
   let custom field = Custom field
 end
 
-type evaluator = Boxed of (Vec3.t -> float) | Dense of Field.t | Sampled of float array
+type evaluator =  Dense of Field.t | Sampled of float array
 
 let sample_scratch = Domain.DLS.new_key (fun () -> Array.make 3 0.)
 
@@ -94,21 +82,7 @@ let extract_with evaluator ?cancel ?(grain = 16_384) ?(smooth = true)
     let pz = Float.fma (float_of_int z) z_step min.z in
     (match evaluator with
      | Sampled samples -> Array.blit samples (z * plane_stride) values 0 plane_stride
-     | Boxed field ->
-         iter_plane (fun flat ->
-           let x = flat mod x_points and y = flat / x_points in
-           values.(flat) <- field (Vec3.create
-             (Float.fma (float_of_int x) x_step min.x)
-             (Float.fma (float_of_int y) y_step min.y) pz))
 
-     | Dense (Gyroid scale) ->
-         iter_plane (fun flat ->
-           let xi = flat mod x_points and yi = flat / x_points in
-           let x = Float.fma (float_of_int xi) x_step min.x *. scale
-           and y = Float.fma (float_of_int yi) y_step min.y *. scale
-           and z = pz *. scale in
-           values.(flat) <-
-             (sin x *. cos y) +. (sin y *. cos z) +. (sin z *. cos x))
      | Dense (Custom field) ->
          iter_plane (fun flat ->
            let x = flat mod x_points and y = flat / x_points in
@@ -456,12 +430,8 @@ let protect ?cancel evaluator finish ?grain ?smooth ~resolution ~min ~max ~iso (
       finish
     with Invalid_argument message -> Error message)
 
-let extract ?cancel ?grain ?smooth ~resolution ~min ~max ~iso ~field () =
-  protect ?cancel (Boxed field) geometry_of_packed ?grain ?smooth
-    ~resolution ~min ~max ~iso ()
-
-let extract_dense ?cancel ?grain ?smooth ~resolution ~min ~max ~iso ~field () =
-  protect ?cancel (Dense field) geometry_of_packed ?grain ?smooth
+let extract_dense ~resolution ~min ~max ~iso ~field () =
+  protect (Dense field) geometry_of_packed
     ~resolution ~min ~max ~iso ()
 
 let extract_sampled ?cancel ?grain ?smooth ~resolution ~min ~max ~iso ~samples () =

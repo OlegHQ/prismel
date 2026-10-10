@@ -6,21 +6,19 @@ module Field = struct
     [@@sop.node_types ["fn(vec3,float)->float"; "image"]]
     [@@deriving sop_params, sop_node]
   let build = parameters_build (fun ~label _ field picture ->
-    Procedural.Node.Private.make ~label ~operation:"test_field" ~version:1
-      ~parameters:"" ~cook_mode:Procedural.Node.Generic
-      ~dependencies:Procedural.Context.Dependencies.static ~inputs:[|field; picture|]
+    Sop.Node.Private.make ~label ~operation:"test_field" ~version:1
+      ~parameters:"" ~cook_mode:Sop.Node.Generic
+      ~dependencies:Sop.Context.Dependencies.static ~inputs:[|field; picture|]
       (fun ~node_id:_ context inputs ->
-        Result.bind (Procedural.Payload.image inputs.(1)) (fun _ ->
-        Result.bind (Procedural.Payload.kernel inputs.(0)) (fun kernel ->
-        Result.bind (Procedural.Kernel.prepare kernel
+        Result.bind (Sop.Payload.image inputs.(1)) (fun _ ->
+        Result.bind (Sop.Payload.kernel inputs.(0)) (fun kernel ->
+        Result.bind (Sop.Kernel.prepare kernel
           [Vec3s [|2.; 0.; 0.|]; Floats [|0.|]]) (fun run ->
         Result.bind (run context) (function
-          | Procedural.Kernel.Floats values ->
-              Procedural.Node.Private.cook (Procedural.Sop.points
-                (Array.map (fun x -> x, 0., 0.) values)) context [||]
+          | Sop.Kernel.Floats values ->
+              Sop.Node.Private.cook (Lisp_sop.snapshot (Rdk.Line_geometry.points (Array.map (fun x -> x, 0., 0.) values))) context [||]
           | _ -> assert false))))))
   let factory = parameters_factory build
-  let fn = parameters_fn build
 end
 
 let ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d)
@@ -30,7 +28,7 @@ let checked catalog args =
   Option.is_some workspace
 
 let () =
-  let module Edit = Procedural.Edit_graph in
+  let module Edit = Sop.Edit_graph in
   assert (Edit.factory_keyword_inputs Field.factory = ["field"; "picture"]);
   assert (Edit.factory_input_types Field.factory = ["fn(vec3,float)->float"; "image"]);
   let catalog = Flow_sop.Catalog.of_factories ~version:Flow_sop.Manifest.version [Field.factory] |> ok in
@@ -62,16 +60,16 @@ let () =
     assert (not (checked catalog ":field (fn [p] p.x) :picture (image/noise)"));
     assert (not (checked catalog ":picture (image/noise)"));
     assert (not (checked catalog ":field (fn [p amount] (+ p.x amount))"))) [catalog; loaded];
-  let node = Procedural.Sop.null (Procedural.Sop.box ()) in
-  assert (List.for_all2 ( == ) (Procedural.Node.inputs (Field.fn ~field:node ~picture:node ())) [node; node]);
+  let node = Lisp_sop.node {|(-> (sop/box) (sop/null))|} in
+  assert (List.for_all2 ( == ) (Sop.Node.inputs (Sop.Edit_graph.instantiate Field.factory [node; node] |> Result.get_ok)) [node; node]);
   let bad = Edit.factory ~key:"bad" ~label:"Bad" ~category:["Test"] ~arity:1
       ~slots:["field"] ~keyword_inputs:["field"] ~input_types:["fn(vec3,)->float"] (fun _ -> node) in
   assert (Result.is_error (Flow_sop.Catalog.of_factories ~version:1 [bad]))
 
 let () =
   let module L = Flow_sop.Lower in
-  let module S = Procedural.Session in
-  let module Edit = Procedural.Edit_graph in
+  let module S = Sop.Session in
+  let module Edit = Sop.Edit_graph in
   let text offset = Printf.sprintf
     "(workspace w
        (defn consume :context sop [(f : fn)]
@@ -93,10 +91,10 @@ let () =
     let session = S.create ~max_entries:32 ~max_payload_bytes:65536 |> Result.get_ok in
     Fun.protect ~finally:(fun () -> S.close session) (fun () ->
       let cooked node time =
-        let context = Procedural.Context.create ~domains ~time () |> Result.get_ok in
+        let context = Sop.Context.create ~domains ~time () |> Result.get_ok in
         let output = match S.cook session ~context node with Ok x -> x
-          | Error d -> failwith (Procedural.Diagnostic.error_to_string d) in
-        let geometry = Procedural.Payload.geometry output.payload |> Result.get_ok in
+          | Error d -> failwith (Sop.Diagnostic.error_to_string d) in
+        let geometry = Sop.Payload.geometry output.payload |> Result.get_ok in
         Array.init (Rdk.Geometry.point_count geometry)
           (fun i -> Rdk.Packed.Float3.get (Rdk.Geometry.positions geometry) i) in
       let first = lower 7 in
@@ -126,7 +124,7 @@ let () =
       assert (cooked initial 0.5 = [|9.5,0.,0.; 6.5,0.,0.|]);
       assert (cooked (node (lower ~reference:true 7)) 0.5 = [|9.5,0.,0.; 6.5,0.,0.|]);
       let edited = node (lower ~previous:first 10) in
-      assert (Procedural.Node.id edited = Procedural.Node.id initial);
+      assert (Sop.Node.id edited = Sop.Node.id initial);
       assert (cooked edited 0. = [|12.,0.,0.; 6.,0.,0.|]))) [1;8];
   print_endline "keyword ports: generated Fn/Image metadata, compiled captures, live values and cache invalidation pass"
 
@@ -147,15 +145,15 @@ let () =
         ~factories:(Field.factory :: Sop_catalog.Editor.factories)
         (Flow.Syntax.parse text |> ok) |> ok in
     let graph = List.hd l.graphs in
-    let node = Procedural.Edit_graph.compile_node graph.network.geometry
+    let node = Sop.Edit_graph.compile_node graph.network.geometry
         ~node_id:(Option.get graph.root) |> Result.get_ok in
     List.iter (fun domains ->
-      let session = Procedural.Session.create ~max_entries:32 ~max_payload_bytes:65536 |> Result.get_ok in
-      Fun.protect ~finally:(fun () -> Procedural.Session.close session) (fun () ->
-        let context = Procedural.Context.create ~domains () |> Result.get_ok in
-        let output = match Procedural.Session.cook session ~context node with
-          | Ok x -> x | Error d -> failwith (Procedural.Diagnostic.error_to_string d) in
-        let geometry = Procedural.Payload.geometry output.payload |> Result.get_ok in
+      let session = Sop.Session.create ~max_entries:32 ~max_payload_bytes:65536 |> Result.get_ok in
+      Fun.protect ~finally:(fun () -> Sop.Session.close session) (fun () ->
+        let context = Sop.Context.create ~domains () |> Result.get_ok in
+        let output = match Sop.Session.cook session ~context node with
+          | Ok x -> x | Error d -> failwith (Sop.Diagnostic.error_to_string d) in
+        let geometry = Sop.Payload.geometry output.payload |> Result.get_ok in
         let points = Array.init (Rdk.Geometry.point_count geometry)
             (fun i -> Rdk.Packed.Float3.get (Rdk.Geometry.positions geometry) i) in
         assert (points = expected))) [1;8]) [false;true])

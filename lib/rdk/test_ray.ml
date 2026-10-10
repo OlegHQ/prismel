@@ -181,7 +181,7 @@ let check_direction_policies () =
       ~direction:(Ray.Ray_vector Vec3.unit_y) ~source ~collision () |> get_ok in
   check (near (positions restricted).y.(0) 3.) "Ray collision restriction";
   let public_surface = Surface_index.create collision |> get_ok in
-  (match Surface_index.raycast ~direction_mode:Surface_index.Ray_bidirectional_closest
+  (match Surface_index.raycast
       public_surface ~origin:Vec3.zero ~direction:Vec3.unit_y with
    | Ok (Some hit) -> check (near hit.distance 1.) "Surface_index.raycast distance"
    | Ok None -> fail "Surface_index.raycast missed"

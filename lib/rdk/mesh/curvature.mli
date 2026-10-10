@@ -7,7 +7,6 @@ type outputs = {
   curvedness : string option;
   shape_index : string option;
 }
-val default_outputs : outputs
 exception Curvature_error of string
 val run :
   ?cancel:Rdk_core.Cancel.t ->

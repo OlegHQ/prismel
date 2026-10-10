@@ -1,4 +1,4 @@
-open Procedural
+open Sop
 
 type mode = Cube | Sphere
 
@@ -16,7 +16,7 @@ type parameters = {
     [@sop.impact "export"];
   mode : mode
     [@sop.default Cube] [@sop.folder "Geometry"]
-    [@sop.kind Procedural.Parameter.choice ~equal:( = )
+    [@sop.kind Sop.Parameter.choice ~equal:( = )
       ["Cube", Cube; "Sphere", Sphere]];
   internal : int [@sop.default 17] [@sop.ignore];
 } [@@deriving sop_params]
@@ -24,29 +24,33 @@ type parameters = {
 let inspectable_node values =
   Custom.node ~label:"Selected shape" ~operation:"selected-shape"
     ~schema:parameters_schema ~values []
-    (fun ~label ~inputs:_ ~parameters -> match parameters.mode with
-      | Cube -> Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~label ~x_divisions:parameters.count ()
-      | Sphere -> Sop.uv_sphere ~radius_x_mode:Procedural.Sop.Kernel_auto ~radius_y_mode:Procedural.Sop.Kernel_auto ~radius_z_mode:Procedural.Sop.Kernel_auto ~normals_mode:Procedural.Sop.Kernel_auto ~uv_attribute:"" ~label ~segments:(max 3 parameters.count)
-          ~base_radius:1. ())
+    (fun ~label:_ ~inputs:_ ~parameters -> match parameters.mode with
+      | Cube -> Lisp_sop.node (Printf.sprintf {|(sop/box :normals "Auto" :connectivity "Triangles" :x_divisions %d)|} (parameters.count))
+      | Sphere -> Lisp_sop.node (Printf.sprintf {|(sop/uv_sphere
+   :radius_x_mode "Auto"
+   :radius_y_mode "Auto"
+   :radius_z_mode "Auto"
+   :normals_mode "Auto"
+   :uv_attribute ""
+   :segments %d)|} ((max 3 parameters.count))))
 
 open Test_support
 
 let dynamic_schema () =
   let module Dynamic=Sop_params_fixture.Dynamic_schema_fixture in
-  let base=Sop.box ~label:"Base" ()
-  and extra=Sop.box ~label:"Extra" ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
-  let typed=Dynamic.fn ~input:1 [base;extra] in
-  (* Attaching the input-dependent schema evaluates the operator once. *)
-  assert (Node.id typed=max (Node.id base) (Node.id extra)+1);
-  let factory=Edit_graph.instantiate Dynamic.factory [base;extra] |> Result.get_ok in
-  let factory=fst (Node.apply_parameters factory ["input",Parameter.Int_value 1] |> Result.get_ok) in
-  assert (Node.parameter_key typed=Node.parameter_key factory);
+  let base=Node.relabel "Base" (Lisp_sop.node {|(sop/box)|})
+  and extra=Node.relabel "Extra" (Lisp_sop.node {|(sop/box :center [2.0 0.0 0.0])|}) in
+  let instance inputs=Edit_graph.instantiate Dynamic.factory inputs |> Result.get_ok in
+  let select index node=fst (Node.apply_parameters node ["input",Parameter.Int_value index] |> Result.get_ok) in
+  let typed=select 1 (instance [base;extra]) in
+  let factory=typed in
   let choices node=match Node.parameter_fields node with
     | [{Parameter.name="input";kind=Parameter.Choice_view labels;current=Parameter.Int_value index;_}] -> labels,index
     | _ -> fail "generated dynamic schema did not retain labelled integer choices" in
   assert (choices typed=([|"0 · Base";"1 · Extra"|],1));
   assert ((List.hd (Node.parameter_fields typed)).Parameter.default=Parameter.Int_value 0);
-  let current=Sop_catalog.Switch.create ~input:1 base extra [] in
+  let current=Lisp_sop.node ~with_:["base",base;"extra",extra]
+    "(sop/switch (sop/ext_base) (sop/ext_extra) :input 1)" in
   assert ((List.hd (Node.parameter_fields current)).Parameter.default=Parameter.Int_value 0);
   let port=Flow_sop.Port.parameters (Node.parameter_fields typed) |> Result.get_ok |> List.hd in
   assert (port.Flow_sop.Port.ty=Some Flow.Port_type.Int);
@@ -61,24 +65,22 @@ let dynamic_schema () =
   let grown=Node.Private.rebuild_with_inputs edited [|base;extra;base|] in
   assert (choices grown=([|"0 · Base";"1 · Extra";"2 · Base"|],0));
   assert (Node.id grown=Node.id edited);
-  let grown_typed=Dynamic.fn [base;extra;base] in
+  let grown_typed=instance [base;extra;base] in
   assert (Node.parameter_key grown_typed=Node.parameter_key grown);
   assert (Result.is_error (Node.apply_parameters typed ["input",Parameter.Int_value 2]));
-  List.iter (fun construct -> assert (match construct () with
-    | _ -> false | exception Invalid_argument _ -> true)) [
-    (fun () -> Dynamic.fn []);
-    (fun () -> Dynamic.fn ~input:(-1) [base;extra]);
-    (fun () -> Dynamic.fn ~input:2 [base;extra]);
-    (fun () -> Node.Private.rebuild_with_inputs typed [|base|])];
-  let bad=Sop.custom ~label:"Bad" ~operation:"test_error" []
+  assert (Result.is_error (Edit_graph.instantiate Dynamic.factory []));
+  assert (Result.is_error (Node.apply_parameters typed ["input",Parameter.Int_value (-1)]));
+  assert (match Node.Private.rebuild_with_inputs typed [|base|] with
+    | _ -> false | exception Invalid_argument _ -> true);
+  let bad=Sop.Custom.plain ~label:"Bad" ~operation:"test_error" []
     (fun ~context:_ _ -> Error "unselected branch was cooked") in
-  let selected=Dynamic.fn ~input:1 [bad;extra] in
+  let selected=select 1 (instance [bad;extra]) in
   List.iter (fun domains ->
     let context=Context.create ~domains ~grain:97 ~seed:42L () |> Result.get_ok in
     let session=Session.create ~max_entries:16 ~max_payload_bytes:10_000_000 |> Result.get_ok in
     Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
       let cook node=match Session.cook session ~context node with
-        | Ok output -> Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload)))
+        | Ok output -> Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions (Result.get_ok (Sop.Payload.geometry output.payload)))
         | Error error -> fail (Diagnostic.error_to_string error) in
       assert (cook typed=cook extra);
       assert (cook factory=cook extra);
@@ -108,12 +110,11 @@ let run () =
        assert (List.map (fun field -> field.Parameter.primary) fields = [true; false; false])
    | _ -> fail "PPX module alias did not produce the single registry entry");
   let module Rest=Sop_params_fixture.Optional_rest_fixture in
-  let base=Sop.box () and extra=Sop.box ~center:(Rays_math.Vec3.create 2. 0. 0.) () in
+  let base=Lisp_sop.node {|(sop/box)|} and extra=Lisp_sop.node {|(sop/box :center [2.0 0.0 0.0])|} in
   List.iter (fun (fixed,extras,slots) ->
-    let typed=Rest.fn base fixed extras in
-    let factory=Edit_graph.instantiate_optional Rest.factory slots |> Result.get_ok in
-    assert (Node.parameter_key typed=Node.parameter_key factory);
-    assert (List.map Node.id (Node.inputs typed)=List.map Node.id (Node.inputs factory));
+    let typed=Edit_graph.instantiate_optional Rest.factory slots |> Result.get_ok in
+    assert (List.map Node.id (Node.inputs typed)
+      =List.map Node.id (base::Option.to_list fixed@extras));
     let edited=fst (Node.apply_parameters typed ["tag",Parameter.Text_value "sources"] |> Result.get_ok) in
     assert (Node.id edited=Node.id typed);
     assert (List.map Node.id (Node.inputs edited)=List.map Node.id (Node.inputs typed)))
@@ -132,8 +133,8 @@ let run () =
   let graph = inspectable_node parameters_default in
   let ui = Pxui.Ui.create ~font_size:11 () in
   let frame time events : Rays.Frame.t = { width = 320; height = 240;
-    size = 320, 240; drawable_width = 320; drawable_height = 240;
-    drawable_size = 320, 240; pixel_scale = 1., 1.; time; dt = 0.; fps = 0.;
+    size = 320, 240;
+     pixel_scale = 1., 1.; time; dt = 0.; fps = 0.;
     count = 0; mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons = [];
     events } in
   let step graph time events =
@@ -211,7 +212,7 @@ let run () =
         Pxui_shell.Inspector.flow_fields ui [expression_row]) in
   if edits <> [Pxui_shell.Inspector.Expression ("count", "=t*2")] then
     fail "Flow inspector expression field did not commit an edit";
-  let box = Sop_catalog.Box.create () in
+  let box = Lisp_sop.node {|(sop/box)|} in
   let vector = Flow_sop.Port.parameters (Node.parameter_fields box)
     |> Result.get_ok |> List.find (fun (parameter : Flow_sop.Port.parameter) ->
       parameter.path = "size") in

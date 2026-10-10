@@ -3,8 +3,8 @@ open Support
 module String_set = Set.Make (String)
 
 let stable_library_directories =
-  [ "rays"; "param"; "frame_input"; "flow"; "flow_ir"; "flow_gpu"; "flow_graph"; "flow_sop"; "procedural"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"
-  ; "sop_catalog"; "sketch_support"; "rays_editor"
+  [ "rays"; "param"; "frame_input"; "flow"; "flow_ir"; "flow_gpu"; "flow_graph"; "flow_sop"; "sop"; "editor_core"; "pxui"; "pxui_shell"; "pxui_graph"
+  ; "sop_catalog"; "rays_editor"
   ]
 
 let rdk_sublibrary_directories =

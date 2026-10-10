@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 open Editor_document
 
 type bounds = Vec3.t * Vec3.t
@@ -133,7 +133,7 @@ let create ~prepare ~seed ~grain ?domains ?await ~max_entries ~max_payload_bytes
 (* the failing node of a cook error: the innermost entry of its trace *)
 let failure_of = function
   | Async_cook.Cook_error { code; trace; _ } when trace <> [] ->
-      Some (code, (List.nth trace (List.length trace - 1)).Procedural.Diagnostic.node_id)
+      Some (code, (List.nth trace (List.length trace - 1)).Sop.Diagnostic.node_id)
   | _ -> None
 
 let failed_node value = if value.error = None then None else !(value.failure)
@@ -154,8 +154,8 @@ let reset_state ?(host_state=true) value =
 
 let context value timeline frame = Context.create ~seed:value.seed
     ~grain:value.grain ~domains:value.domains
-    ~frame:(Sketch_support.Timeline.frame timeline) ~time:(Sketch_support.Timeline.time timeline)
-    ~input:(Sketch_support.Live_frame.of_frame frame) ()
+    ~frame:(Timeline.frame timeline) ~time:(Timeline.time timeline)
+    ~input:(Live_frame.of_frame frame) ()
 
 let busy value = match status value with
   | Async_cook.Idle -> false | Cooking _ -> true
@@ -167,11 +167,11 @@ let update ?input ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~
     ~edit_error ~effects ~timeline_changes
     ~timeline ~frame ~frame_request =
   Flow.Phase_timer.measure Cook (fun () ->
-  if List.exists (function Sketch_support.Timeline.Reset_now | Stopped_now -> true | _ -> false)
+  if List.exists (function Timeline.Reset_now | Stopped_now -> true | _ -> false)
       timeline_changes then reset_state ~host_state:false value;
-  let input = match input with Some input->input|None->Sketch_support.Live_frame.of_frame frame in
-  let input={input with t=Sketch_support.Timeline.time timeline;
-    frame=Int64.to_int(Sketch_support.Timeline.frame timeline)} in
+  let input = match input with Some input->input|None->Live_frame.of_frame frame in
+  let input={input with t=Timeline.time timeline;
+    frame=Int64.to_int(Timeline.frame timeline)} in
   let objects, value_lanes, applied, resolve_error =
     List.fold_left (fun (objects, lanes, applied, error)
         (id, (network : Flow_sop.Network.t), displayed) ->
@@ -180,7 +180,7 @@ let update ?input ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~
       let lanes = Document.Int_map.add id lane lanes in
       match Flow_sop.Value_lane.resolve lane
           ~live:input
-          ~time:(Sketch_support.Timeline.time timeline) network with
+          ~time:(Timeline.time timeline) network with
       | Ok resolved -> (id, resolved.geometry, displayed) :: objects,
           lanes, Document.Int_map.add id resolved applied, error
       | Error diagnostic ->
@@ -255,7 +255,7 @@ let update ?input ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~
     else pieces, prepared_changed in
   let schedule, submit = Schedule.step ?live value.schedule
       ~graphs:(List.map snd graphs) ~effects
-      ~context_changed:(Sketch_support.Timeline.changed_context timeline_changes)
+      ~context_changed:(Timeline.changed_context timeline_changes)
       ~force:(changed || value.force || probes <> value.probing
         || not (Option.fold ~none:false ~some:(( == ) settings) value.settings))
       ~busy:(busy value || framing <> None) ~frame in
@@ -275,7 +275,7 @@ let update ?input ?live ?(probes = []) ?(lit = Pick.Set.empty) value ~settings ~
   let summary (key, node) (output : Session.output) =
     let g = Result.get_ok (Payload.geometry output.payload) in
     key, { Flow_graph.Probe.seconds = Async_cook.node_seconds value.worker (Node.id node); points = Rdk.Packed.Float3.length (Rdk.Geometry.positions g);
-           prims = Rdk.Geometry.primitive_count g; data_id = Rdk.Geometry.data_id g;
+           prims = Rdk.Geometry.primitive_count g;
            extent = Option.map (fun (lo, hi) ->
              hi.Vec3.x -. lo.Vec3.x, hi.y -. lo.y, hi.z -. lo.z) (geometry_bounds g);
            groups = List.sort_uniq compare (List.map Rdk.Group.name (Rdk.Geometry.groups g));

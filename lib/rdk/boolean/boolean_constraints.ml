@@ -310,7 +310,7 @@ let opposite_duplicate first_triangle second_triangle =
 let build ?cancel ?(resolve_left_self_intersections = false)
     ?(resolve_right_self_intersections = false)
     ?(ignore_opposite_duplicate_self_pairs = false)
-    ?(ignore_shared_point_self_pairs = false) ~grain ~left ~right () =
+    ~grain ~left ~right () =
   try
     if grain <= 0 then error "invalid_parameter" "grain must be positive"
     else
@@ -328,23 +328,13 @@ let build ?cancel ?(resolve_left_self_intersections = false)
                   ~tolerance:0. left_surface right_surface in
               let left_self_first, left_self_second =
                 if resolve_left_self_intersections then
-                  (if ignore_shared_point_self_pairs then
-                     Surface_index.Private
-                       .overlapping_self_triangle_pairs_disjoint_topology
-                       ?cancel ~grain ~tolerance:0. left_surface
-                   else
-                     Surface_index.Private.overlapping_self_triangle_pairs
-                       ?cancel ~grain ~tolerance:0. left_surface)
+                  Surface_index.Private.overlapping_self_triangle_pairs
+                    ?cancel ~grain ~tolerance:0. left_surface
                 else [||], [||] in
               let right_self_first, right_self_second =
                 if resolve_right_self_intersections then
-                  (if ignore_shared_point_self_pairs then
-                     Surface_index.Private
-                       .overlapping_self_triangle_pairs_disjoint_topology
-                       ?cancel ~grain ~tolerance:0. right_surface
-                   else
-                     Surface_index.Private.overlapping_self_triangle_pairs
-                       ?cancel ~grain ~tolerance:0. right_surface)
+                  Surface_index.Private.overlapping_self_triangle_pairs
+                    ?cancel ~grain ~tolerance:0. right_surface
                 else [||], [||] in
               let cross_count = Array.length cross_first
               and left_self_count = Array.length left_self_first

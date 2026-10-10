@@ -1,4 +1,4 @@
-open Procedural
+open Sop
 
 let flow_result result = Result.map_error Flow.Diagnostic.to_string result
 let update_geometry edit document =
@@ -24,18 +24,16 @@ let syntax_edit_result ~factories (doc : Editor_document.Document.t) op =
     let* catalog = Editor_document.Contexts.catalog ~version:Flow_sop.Manifest.version factories in
     let* workspace = Editor_document.Workspace_doc.edit catalog (fst doc.workspace) op in
     Editor_document.Contexts.of_workspace ~factories ~previous:doc workspace in
-  (* a gesture on the scene or the World the host composes (the text has no such graph yet, so
-     the edit finds nothing to change): the host's own objects are written out first, and the
-     gesture is tried on that text.  Kept only when it then checks. *)
-  let adopted ~world = Result.bind (Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
-    (Editor_document.Scene_sync.adopt ~factories ~world doc)) run in
+  (* a gesture on the scene the host composes (the text has no such graph yet, so the edit finds
+     nothing to change): the host's own objects are written out first, and the gesture is tried
+     on that text.  Kept only when it then checks. *)
+  let adopted () = Result.bind (Result.map_error (Flow.Diagnostic.error ~code:"E_EDIT")
+    (Editor_document.Scene_sync.adopt ~factories doc)) run in
   match run doc with
   | Ok _ as done_ -> done_
   | Error _ as refused ->
-      let retry = List.filter_map (fun (graph, world) ->
-        if missing graph then Result.to_option (adopted ~world) else None)
-        [ "scene", false; "world", true ] in
-      (match retry with doc :: _ -> Ok doc | [] -> refused)
+      (match (if missing "scene" then Result.to_option (adopted ()) else None) with
+       | Some doc -> Ok doc | None -> refused)
 
 let syntax_edit ~factories (doc : Editor_document.Document.t) op =
   Result.map_error Flow.Diagnostic.to_string (syntax_edit_result ~factories doc op)
@@ -47,7 +45,7 @@ let syntax_batch ~factories (doc : Editor_document.Document.t) ops =
     | Flow_graph.Flow_edit.Add_node { scope = [ "scene" ]; _ } -> true | _ -> false) ops in
   let missing = not (List.exists (fun (g : Flow.Workspace.graph) -> g.name = "scene")
     (fst doc.workspace).checked.graphs) in
-  let first = if adds_to_scene && missing then Editor_document.Scene_sync.adopt ~factories ~world:false doc
+  let first = if adds_to_scene && missing then Editor_document.Scene_sync.adopt ~factories doc
     else Ok doc in
   List.fold_left (fun doc op -> Result.bind doc (fun doc -> syntax_edit ~factories doc op))
     (Result.map_error Fun.id first) ops

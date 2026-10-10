@@ -26,15 +26,6 @@ val perspective :
   fov_y:float -> aspect:float -> near:float -> far:float -> t
 (** Right-handed perspective projection. [fov_y] is in radians. *)
 
-val frustum :
-  left:float ->
-  right:float ->
-  bottom:float ->
-  top:float ->
-  near:float ->
-  far:float ->
-  t
-
 val orthographic :
   left:float ->
   right:float ->

@@ -40,16 +40,14 @@ val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
 type stats = Runtime.stats
 val stats : t -> (stats,error) result
 type presentation_facts = {
-  title : string;
+
   logical_width : int;
   logical_height : int;
   drawable_width : int;
   drawable_height : int;
-  position : (int * int) option;
+
   pixel_density : float;
-  display_scale : float;
-  refresh_rate : float option;
-  vsync : bool;
+
 }
 (* Read-only production-window facts for native qualification tooling. *)
 val presentation_facts : t -> (presentation_facts,error) result
@@ -70,12 +68,7 @@ val show_dialog : t -> ?filters:dialog_filter list -> ?default_location:string -
   dialog_kind -> (int,error) result
 (* SDL announced a size or density change of the window. *)
 val window_changed : t -> unit
-val resize : t -> logical_width:int -> logical_height:int ->
-  drawable_width:int -> drawable_height:int -> (unit,error) result
-val step : ?clear:(float * float * float * float) -> t -> draw list ->
-  (unit,error) result
 val capture : t -> (bytes,error) result
-val capture_into : t -> destination:bytes -> (unit,error) result
 
 (** An offscreen execution's completed frame texture, on the device it leased
     (the presenting window's when one exists). A window execution samples a

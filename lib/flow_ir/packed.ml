@@ -581,7 +581,7 @@ let rec force ?state ?elems ?resolve ?measure t ~live =
     let strides = Array.make (Array.length inputs) 1 in
     if t.iteration = Product && count > 0 then
       for i = Array.length inputs - 2 downto 0 do strides.(i) <- strides.(i + 1) * lengths.(i + 1) done;
-    let uniforms = force_uniforms ~state ?elems ?resolve ?measure t ~live in
+    let uniforms = force_uniforms ~state ?resolve ?measure t ~live in
     let frame = Array.map (function
       | Frame "t" -> live.Frame_input.t
       | Frame name ->
@@ -799,17 +799,17 @@ module Private = struct
   let ordered_add = ordered_add
   let output_reachable = output_reachable
   type view = {code : instruction array; widths : int array; output : int array;
-    uniform_widths : int array; collecting : bool; zipped : bool; skip : int array}
+    uniform_widths : int array; collecting : bool; }
   let view (t : t) =
     let uniform_widths = Array.make (Array.length t.uniforms) 1 in
     Array.iter (function Uniform (index, component) ->
       uniform_widths.(index) <- max uniform_widths.(index) (component+1) | _ -> ()) t.code;
     {code=t.code; widths=t.widths; output=t.output; uniform_widths;
       collecting=(match t.result with Collect -> true | _ -> false);
-      zipped=zipped t; skip=t.skip}
+      }
   type inputs = {arrays : float array array; uniforms : float array array;
     frame : float array; count : int}
-  let prepare ?state ?elems ?resolve ?measure (t : t) ~live =
+  let prepare ?state ?resolve ?measure (t : t) ~live =
     let state = Option.value ~default:(E.create_state ()) state in
     E.transaction state (fun () -> try
       let rec evaluate residual term =
@@ -821,15 +821,15 @@ module Private = struct
         | _ -> materialize residual term
       and materialize residual term =
         match compile_impl ~fusion:t.fusion ~dynamic:t.dynamic ~count_source:t.count_source residual term with
-        | Ok program -> get (force ~state ?elems ?resolve program ~live)
-        | Error _ -> get (E.Private.eval_term ~state ?elems ?resolve residual term ~live) in
+        | Ok program -> get (force ~state ?resolve program ~live)
+        | Error _ -> get (E.Private.eval_term ~state ?resolve residual term ~live) in
       let arrays = Array.mapi (fun index (residual, term) ->
         match evaluate residual term, t.widths.(index) with
         | E.Float_array values, 1 | Vec2_array values, 2 | Vec3_array values, 3 | Vec4_array values, 4 -> values
         | _ -> V.fail "E_ARRAY_TYPE" "Kernel input changed its packed element type.") t.sources in
       let count = if arrays=[||] then 0 else Array.fold_left min max_int
         (Array.mapi (fun index values -> Array.length values / t.widths.(index)) arrays) in
-      let uniforms = force_uniforms ~state ?elems ?resolve ?measure t ~live in
+      let uniforms = force_uniforms ~state ?resolve ?measure t ~live in
       let frame = Array.map (function
         | Frame "t" -> live.Frame_input.t
         | Frame name -> (match Flow.Op.find name Flow.Context.value with

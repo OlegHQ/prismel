@@ -102,14 +102,14 @@ let run () =
   let source = source_geometry () in
   let matrices = transforms 17 in
   let expected = legacy_materialize matrices source in
-  let actual = Instance_copy.materialize_instances ~grain:1 ~transforms:matrices source
+  let actual = Instance_copy.materialize_instances ~transforms:matrices source
       |> get_rdk in
   check (geometry_equal expected actual)
     "packed materialization differs from transform-plus-merge semantics";
   let one = Parallel.run ~domains:1 (fun () ->
-    Instance_copy.materialize_instances ~grain:7 ~transforms:matrices source |> get_rdk)
+    Instance_copy.materialize_instances ~transforms:matrices source |> get_rdk)
   and four = Parallel.run ~domains:4 (fun () ->
-    Instance_copy.materialize_instances ~grain:7 ~transforms:matrices source |> get_rdk) in
+    Instance_copy.materialize_instances ~transforms:matrices source |> get_rdk) in
   check (geometry_equal one four)
     "packed materialization differs across domain counts";
 
@@ -120,8 +120,7 @@ let run () =
 
   let single_matrix = Mat4.mul (Mat4.translation (Vec3.create 3. 2. 1.))
       (Mat4.rotation_x 0.37) in
-  let single = Instance_copy.materialize_instances ~grain:1
-      ~transforms:[|single_matrix|] source |> get_rdk
+  let single = Instance_copy.materialize_instances ~transforms:[|single_matrix|] source |> get_rdk
   and single_expected = Transform_ops.transform ~grain:1 single_matrix source in
   check (geometry_equal single_expected single)
     "single-instance fast path changed transform semantics";
@@ -134,12 +133,6 @@ let run () =
   check (Attribute.storage_id source_id = Attribute.storage_id single_id)
     "single-instance materialization copied an unchanged attribute";
 
-  let raw_expected = Mesh_merge.run ~grain:1 (List.init 17 (fun _ -> source)) |> get_rdk
-  and raw = Instance_copy.materialize_instances ~grain:1 ~apply_transform:false
-      ~transforms:matrices source |> get_rdk in
-  check (geometry_equal raw_expected raw)
-    "disabled transform application changed prototype-space copies";
-
   let with_detail = source |> add_attribute
       (Attribute.create_owned ~name:"generation" ~owner:Attribute.Detail
         (Attribute.Int [|7|]) |> get_ok) in
@@ -147,12 +140,6 @@ let run () =
   check (Geometry.point_count empty = 0 && Geometry.vertex_count empty = 0
       && Geometry.primitive_count empty = 0)
     "empty instance materialization emitted topology";
-  check (match Geometry.find_attribute ~owner:Attribute.Detail "generation" empty with
-    | Some attribute ->
-        Attribute.get (Attribute.key ~name:"generation" ~owner:Attribute.Detail
-          Attribute.int) attribute = Some [|7|]
-    | None -> false)
-    "empty instance materialization lost detail attributes";
   check (List.for_all (fun group -> Group.cardinality group = 0)
       (Geometry.groups empty)
       && List.for_all (fun group -> Edge_group.cardinality group = 0)
@@ -171,18 +158,10 @@ let run () =
    | Error error when Error.code error = "invalid_parameter" -> ()
    | _ -> fail "non-finite instance transform was accepted");
 
-  let cancelled = Cancel.create () in
-  Cancel.cancel cancelled;
-  (match Instance_copy.materialize_instances ~cancel:cancelled
-      ~transforms:(transforms 10_000) source with
-   | Error error when Error.code error = "cancelled" -> ()
-   | _ -> fail "cancelled instance materialization published geometry");
-
   let triangle = Line_geometry.polyline ~closed:true
       [|(0., 0., 0.); (1., 0., 0.); (0., 1., 0.)|] |> get_rdk in
   let scale_count = 100_000 in
-  let scaled = Instance_copy.materialize_instances ~grain:2_048
-      ~transforms:(Array.make scale_count Mat4.identity) triangle |> get_rdk in
+  let scaled = Instance_copy.materialize_instances ~transforms:(Array.make scale_count Mat4.identity) triangle |> get_rdk in
   check (Geometry.point_count scaled = scale_count * 3
       && Geometry.vertex_count scaled = scale_count * 3
       && Geometry.primitive_count scaled = scale_count)

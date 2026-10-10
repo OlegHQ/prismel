@@ -46,7 +46,7 @@ programs with pure emission using each caller's actual catalog. No execution
 proof cache or per-frame qualification is introduced.
 
 `flow_sop` depends
-only on `flow`, `flow_ir`, `param`, `procedural` and the standard-library `unix`
+only on `flow`, `flow_ir`, `param`, `sop` and the standard-library `unix`
 clock; its typed overlay and
 value lane cannot reach presentation, the catalog, editor or GPU libraries.
 Math-backed value declarations such as `noise3` live in `flow_ir` and are
@@ -67,14 +67,14 @@ Neither `flow_ir` nor `flow_graph` gains a platform-clock dependency.
 `flow_graph` depends only on `flow` and `param`. It owns `Projection`,
 `Flow_edit`, `Exposure` and `Probe` for every domain. `pxui_graph` consumes
 that neutral layer and menu entries supplied by the host; it never reaches
-`procedural` or `rdk`, even transitively. The gate checks both boundaries.
+`sop` or `rdk`, even transitively. The gate checks both boundaries.
 
 `Value.Deferred (ty, id)` identifies a typed node in the evaluator plan.
 Geometry nodes lower through `flow_sop`; Drawing nodes lower through
-`Sketch_support.Drawing` into existing native `Rays.Scene` commands. Canvas
+`Rays_editor.Drawing` into existing native `Rays.Scene` commands. Canvas
 panels use the same PXUI composition and renderer as every other panel.
 There is one evaluator, one UI engine and one native Metal renderer.
-`sketch_support` may reach `flow_ir` to prepare drawing argument programs;
+`rays_editor` may reach `flow_ir` to prepare drawing argument programs;
 the editor retains that preparation while the plan is unchanged, and exports
 prepare once before playback. Numeric maps inside frame folds dispatch through
 the packed tier with current immutable bindings. `flow` owns fold identity and
@@ -83,22 +83,22 @@ transactions and receives only a private execution callback; it never imports
 
 `frame_input` owns immutable logical frame facts (time, step, index, size,
 pointer, held keys/buttons and ordered events), with no dependencies. The host
-captures these once from `Rays.Frame` through `Sketch_support.Live_frame`.
-`procedural.Context` carries the same snapshot for geometry-zone bodies;
+captures these once from `Rays.Frame` through `Rays_editor.Live_frame`.
+`Sop.Context` carries the same snapshot for geometry-zone bodies;
 its `Input` dependency projects every field into the cook cache key. No SDL,
 runtime or renderer value crosses either pure boundary.
 
 Material graph values lower into primitive surface attributes through
-`procedural` and `rdk_attrib`. `sketch_support` converts these into shared
+`sop` and `rdk_attrib`. `rays_editor` converts these into shared
 render mesh batches; neither the material context nor the assignment kernel
 imports rendering code. `rdk_rays` expands primitive colors through the
 existing attribute promotion kernel, preserving face boundaries.
 
 ```text
-examples / sketches / pxui / editor / sketch_support / rdk_rays
+examples / sketches / pxui / editor / rdk_rays
                          |                  |                |
                          |                  v                v
-                         |              procedural         rays
+                         |              sop         rays
                          |                  |
                          |                  v
                          |                 rdk
@@ -169,19 +169,17 @@ control. It owns bounded per-viewport tracing resources and inserts their images
 through the existing Scene presentation path. Raster and wireframe use Scene3;
 all three modes run on the native Metal backend. This adds no dependency from
 the renderer or foundational libraries back into the editor.
-`procedural` depends only on `rdk`, `rays_math` (vectors, matrices,
+`sop` depends only on `rdk`, `rays_math` (vectors, matrices,
 `Color`, `Parallel`) and `lru`; it never reaches `rays` or the GPU
-runtime, and the dependency gate keeps it so. The Rays-dependent glue
-(`Sketch_support.Bridge`: frame-to-context, bounded mesh cache,
-`cook_to_mesh`/`cook_to_scene3`) lives in `sketch_support`.
-`sop_catalog` depends only on `rays_math`, `rdk` and `procedural`: its node
+runtime, and the dependency gate keeps it so. The Rays-dependent glue (`Surface`, `Packed_pieces`) lives in `rays_editor`.
+`sop_catalog` depends only on `rays_math`, `rdk` and `sop`: its node
 schemas name `Rays_math.Vec3`/`Mat4` directly, and the gate rejects any path
 from it to `rays`, the runtime or a GPU library.
 
-`procedural` is preprocessed by `rays.ppx` (which links `ppxlib` and `flow`
+`sop` is preprocessed by `rays.ppx` (which links `ppxlib` and `flow`
 at build time only, never into the library): the node declarations that
 yield both the editor factory and the typed `Sop` constructor live there, in
-private `sop_*.ml` modules, and `Procedural.Nodes` exports their factories to
+private modules (`sop_topology.ml` and its siblings), and `Sop.Nodes` exports their factories to
 `sop_catalog`. `Edit_graph` no longer calls `Sop`, so a declaration may use
 `Edit_graph.factory` without a cycle.
 
@@ -202,7 +200,7 @@ typed SDK calls are generated, while custom marshalling/ownership primitives
 are explicitly registered as `Native` entries. This does not change the OGPU
 boundary or expose the private raw ABI (see `specification/metal.md`).
 The dependency-free `param` library owns typed parameter schemas
-(`Procedural.Parameter` and `Editor_core.Param` are aliases of it), so
+(`Sop.Parameter` and `Editor_core.Param` are aliases of it), so
 `Pxui_shell.Inspector` renders SOP nodes and plain sketch records alike
 without the geometry stack. The `editor_core` library owns bounded,
 labelled undo history with explicit edit merge rules, named commands, key
@@ -214,7 +212,7 @@ while passing `/` through to arm the leader after fly exits (`/` and Space both 
 `flow` supplies the expression/value model, diagnostics and the workspace language
 (reader, checker, evaluator) over `param`. `ppx_rays` depends on `flow` for
 declaration checks only.
-`flow_sop` depends on `flow`, `param` and `procedural` for the SOP overlay, value
+`flow_sop` depends on `flow`, `param` and `sop` for the SOP overlay, value
 lane, lowering, edits, projection and probes. The editor runs
 the value lane on its initial domain before cook submissions and retains
 applied values for the graph and inspector. The gate forbids
@@ -235,7 +233,7 @@ presets. `Shell.frame` owns the workspace's PXUI frame calls. `rays_editor`
 supplies commands, playback state, and preset data. The one private
 `editor_document` library contains Document, Settings, Objects, Layers and
 Preset. Its package-private status and dependency gate enforce a transitive
-ban on PXUI, shell, graph presentation, sketch_support and rays_editor.
+ban on PXUI, shell, graph presentation and rays_editor.
 Loaded documents validate before installation and current levels resolve
 after load, undo, and removal. The host reduces stable-ID pane edits after UI
 construction and records every edit path through its commit helper.
@@ -246,7 +244,7 @@ reads the same PXUI hit tree before building the frame. `rays_editor`'s shared
 `Environment.scene` path composes both 2D and 3D views: viewport adapters
 supply camera and world painting, while visible/hidden composition, the
 leader overlay, and the unchanged hidden-scene cache follow one path.
-`Viewport3` owns camera-node seeding, active-camera repair, look-through
+`Viewport` owns camera-node seeding, active-camera repair, look-through
 navigation, and follow-viewport document writes. `Viewport2` owns 2D panel,
 navigation, scene, and persistence operations. `Environment` shares scene
 composition, render-request completion, and PNG status handling. Presets use
@@ -372,7 +370,7 @@ The gate (`test/dependency_gate.ml`) holds three kinds of rule. "May never
 reach" rules run over the transitive closure; `rays_pathtracer` (no Metal
 backend, mock, geometry graph, catalog, UI or editor library), `rdk_rays`
 (the renderer leaf: `rdk_core`, `rdk_attrib`, `rdk_mesh` and `rays`, never the
-Boolean stack, `procedural` or anything above) and `scene_execution_fixtures`
+Boolean stack, `sop` or anything above) and `scene_execution_fixtures`
 (only `scene_execution` and `ogpu`) have theirs. "Depends only on" whitelists
 check every direct dependency, external ones included: `param`,
 `native_layer_token`, `frame_input` and `lru` list none, `flow` only `param` and `frame_input`, `ogpu_core`
@@ -380,10 +378,9 @@ only `native_layer_token`, `ogpu` and `ogpu_mock` only `ogpu_core`, `metal`
 only `threads` and `native_layer_token`, `ogpu_metal_native` only `ogpu_core`,
 `metal` and `lru`, `ogpu_metal` only `ogpu_metal_native` and `metal`,
 `pxui_shell` only `rays`, `editor_core` and `pxui`, `sop_catalog` only
-`rays_math`, `rdk` and `procedural`. The Metal token scan covers `lib`,
+`rays_math`, `rdk` and `sop`. The Metal token scan covers `lib`,
 `examples`, `sketches`, `tools` and `test`; outside the backend it admits
-only the binding tooling (`tools/codemod/metal_registry.ml`), the two binding
-benches (`tools/bench_metal_ffi.ml`, `tools/bench_metal_registry.ml`), the
+only the binding tooling (`tools/codemod/metal_registry.ml`), the
 Metal conformance driver (`test/ogpu_conformance/test_metal.ml`) and the gate
 itself. `lib/metal` takes its source preprocessor from
 `ppx/result_bind`, so no foundational library is built by something under
@@ -825,8 +822,8 @@ generated catalog to Flow checking and graph projection.
 
 Function keyword inputs use the same physical factory slots. A hidden
 `flow.function` resource cooks captured geometry before supplying a
-`Procedural.Payload.Kernel`. Flow_sop owns the specialized function and its
-compiled packed program; Procedural borrows packed columns through the neutral
+`Sop.Payload.Kernel`. Flow_sop owns the specialized function and its
+compiled packed program; Sop borrows packed columns through the neutral
 `Kernel.prepare` runner interface. It imports neither Flow nor Flow_ir.
 The runner supports current float/vec3 packed signatures and returns
 `E_KERNEL_FORM` for unsupported bodies. Reference execution remains available

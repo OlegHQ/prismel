@@ -3,7 +3,7 @@
    the editor graph with history entries; "Restore layout" survives a layout that
    hides everything. *)
 open Rays
-open Procedural
+open Sop
 module Doc = Editor_document.Workspace_doc
 module Document = Editor_document.Document
 module Contexts = Editor_document.Contexts
@@ -11,7 +11,7 @@ module Panels = Editor_core.Panels
 module Layout = Pxui_shell.Layout
 module E = Flow_graph.Flow_edit
 module S = Flow.Syntax
-module E3 = Rays_editor.Editor3
+module E3 = Rays_editor.Editor
 
 let fail message = failwith ("test_workspace_shell: " ^ message)
 let check condition message = if not condition then fail message
@@ -76,7 +76,7 @@ let run_lowering () =
   let keys6 = List.filter_map (fun (_, p) -> match p with Panels.View k -> Some k | _ -> None)
       (leaves (shell_of more).tree) in
   check (List.filteri (fun i _ -> i < 4) keys6 = keys && List.length keys6 = 6) "panel keys follow the iteration index";
-  check (List.length (Editor_document.Document.scene_graph more |> Procedural.Edit_graph.inspect) > 4) "more objects for more viewports";
+  check (List.length (Editor_document.Document.scene_graph more |> Sop.Edit_graph.inspect) > 4) "more objects for more viewports";
   (* the default shell of a workspace without an editor graph, and a named graph panel *)
   let plain = build_ok (of_text (case "tree")) in
   check (plain.shell = None) "no editor graph, no shell";
@@ -106,7 +106,7 @@ let frame ?(buttons = []) mouse events count = Test_editor_input.frame ~buttons 
    the worker *)
 let editor ?camera ?presets text =
   E3.create ?camera ?presets ~await:true ~workspace:(of_text text)
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
@@ -568,8 +568,8 @@ let run_frame_key () =
     let events = match n with
       | 4 -> click (900., 300.) | 6 -> [ key Input.ArrowDown ] | 8 -> [ key (Input.KeyChar 'i') ]
       | 16 -> [ key Input.ArrowRight ] | 18 -> [ key Input.Shift; key (Input.KeyChar 'g') ] | _ -> [] in
-    let f : Frame.t = { width = 1400; height = 800; size = 1400, 800; drawable_width = 1400;
-      drawable_height = 800; drawable_size = 1400, 800; pixel_scale = 1., 1.;
+    let f : Frame.t = { width = 1400; height = 800; size = 1400, 800;
+        pixel_scale = 1., 1.;
       time = float n /. 60.; dt = 1. /. 60.; fps = 60.; count = n; mouse = (640., 360.);
       mouse_delta = 0., 0.; keys = (if n = 18 then [ Input.Shift ] else []); mouse_buttons = []; events } in
     e := E3.update !e f
@@ -821,7 +821,6 @@ let run_views () =
       let viewports = List.length (List.filter (function Scene.Private.Scene3_layer _ -> true | _ -> false) staged.layers) in
       check (viewports = 4) (Printf.sprintf "four viewports draw four 3D layers, got %d" viewports))
 
-
 (* ---- the copies of a loop are one template, through the editor (register V4) ---- *)
 
 let count_of text piece =
@@ -991,7 +990,6 @@ let run_loop_expression () =
          = List.map (fun v -> Some (Parameter.Float_value v)) [ 0.; 3.; 6. ]) "the saved text does not reopen with the same copies";
   E3.close !e;
   print_endline "workspace shell: an expression typed in a copy edits the template ok"
-
 
 let run_panel_states () =
   let directory = Filename.temp_dir "rays-panel-state" "" in
@@ -1210,7 +1208,7 @@ let run_compose () =
   let step events = incr count; e := E3.update !e (frame (450., 300.) events !count) in
   step []; step [];
   step [ key (Input.KeyChar '/'); ch 'e' ]; step [];
-  check (has (flat (source !e)) "(scene/world (ref world)" && has (source !e) "graph world :context world"
+  check (has (flat (source !e)) "(scene/world (ref sky)" && has (source !e) "graph sky :context world"
          && has (source !e) "scene/root" && E3.undo_label !e = Some "Add World")
     ("/ e did not write the new World: " ^ source !e);
   E3.close !e;
@@ -1567,7 +1565,7 @@ let run_studio () =
   let e = ref (editor (replace text ":active 0" ":active 1")) and count = ref 0 and probes = ref [] in
   let big mouse events = incr count;
     { (frame mouse events !count) with width = 1440; height = 900; size = 1440, 900;
-      drawable_width = 1440; drawable_height = 900; drawable_size = 1440, 900 } in
+        } in
   (* the sketch's own rows end every inspector: a tall filler whose place says where that inspector
      has scrolled to *)
   let step ?(buttons = []) mouse events =
@@ -1612,7 +1610,7 @@ let run_studio () =
   let e = ref (editor text) and count = ref 0 in
   let big mouse events = incr count;
     { (frame mouse events !count) with width = 1440; height = 900; size = 1440, 900;
-      drawable_width = 1440; drawable_height = 900; drawable_size = 1440, 900 } in
+        } in
   let step ?(buttons = []) mouse events = e := E3.update !e { (big mouse events) with mouse_buttons = buttons } in
   let click point = step point [ Event.MouseMoved point ];
     step ~buttons:[ Input.LeftButton ] point [ Event.MousePressed (Input.LeftButton, point) ];
@@ -1965,13 +1963,12 @@ let run_carry_reaches_no_history () =
     ("Enter on a camera did not make it the render camera: " ^ source entered);
   E3.close e
 
-(* E16: a frame's gestures land together.  Closing the only panel of a document with no editor
-   graph is two gestures (write the layout shown as an editor graph, then close the panel): the
-   close is refused, so the editor graph is not left written either. *)
+(* E16: a frame's gestures land together.  Closing the only panel of a document is refused and
+   leaves the document as it was. *)
 let run_atomic_frame () =
   let at = 200., 300. in
-  let e = ref (E3.create ~layout:(Panels.Leaf Panels.Graph) ~await:true
-      ~workspace:(of_text "(workspace solo (graph g :context sop (sop/box)))")
+  let e = ref (E3.create ~await:true
+      ~workspace:(of_text "(workspace solo (graph g :context sop (sop/box)) (graph editor :context editor (ui/workspace (ui/graph))))")
       ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Scene3.empty) () |> Result.get_ok) and count = ref 0 in
   let step events = incr count; e := E3.update !e (frame at events !count) in
   for _ = 1 to 4 do step [] done;
@@ -2211,7 +2208,7 @@ let run_context_menus () =
       check (E3.undo_label !e = Some "Split panel" && has (source !e) "time_a (ui/timeline)"
         && has (source !e) "time_b (ui/lisp)")
         ("the timeline context menu did not open at the pointer: " ^ source !e);
-      check (Sketch_support.Timeline.mode (E3.timeline !e) = Playing) "a timeline right-click sought the playhead");
+      check (Rays_editor.Timeline.mode (E3.timeline !e) = Playing) "a timeline right-click sought the playhead");
   exercise "(ui/workspace (ui/graph \"g\"))"
     (fun e step _hover click ->
       (* / t reveals the implicit strip when there is no authored timeline leaf. *)
@@ -2222,7 +2219,7 @@ let run_context_menus () =
       click Input.RightButton origin; step origin [];
       click Input.LeftButton (520., min (snd origin) (640. -. 86.) +. 19.);
       step origin [];
-      check (Sketch_support.Timeline.mode (E3.timeline !e) = Paused)
+      check (Rays_editor.Timeline.mode (E3.timeline !e) = Paused)
         "the implicit timeline had no context menu at the pointer")
 
 let run () = run_context_menus (); run_expression_chip (); run_nested_inspector (); run_op_inspector (); run_spreadsheet (); run_panels (); run_studio (); run_copy_lisp (); run_hide_and_order (); run_root_section (); run_layouts (); run_compose (); run_ref_picker (); run_result_view (); run_loop_view (); run_geometry_view (); run_panel_states (); run_camera_zoom (); run_cameras (); run_lowering (); run_ops (); run_panel_keys (); run_unbound_panels (); run_values (); run_duplicate_and_view (); run_movers (); run_frame_key (); run_loop_copies (); run_loop_expression (); run_editor (); run_restore (); run_views (); run_instances (); run_host_scene_edit (); run_panel_chain ();
@@ -2244,18 +2241,18 @@ let run_view_native () =
       ~presets:(Filename.concat directory "presets") ~seed:7349L ~grain:2
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8 ~azimuth:0.72 ~elevation:0.42 ())
       ~prepare:(fun _ output ->
-        match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece" (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) with
+        match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece" (Result.get_ok (Sop.Payload.geometry output.Session.payload)) with
         | Some attribute when (match Rdk.Attribute.Private.storage attribute with
             | Rdk.Attribute.Int _ | Text _ -> true | _ -> false) ->
-            Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece" (Result.get_ok (Procedural.Payload.geometry output.payload))
+            Rays_editor.Packed_pieces.of_geometry ~piece_attribute:"piece" (Result.get_ok (Sop.Payload.geometry output.payload))
             |> Result.map (fun pieces -> `Pieces pieces)
-        | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
+        | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.payload))
             |> Result.map (fun mesh -> `Mesh (mesh, output.instances))
             |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun node preview ->
         rendered := Node.operation node;
         let mesh, transforms = match preview with
-          | `Pieces pieces -> Sketch_support.Packed_pieces.mesh_for_node node pieces, None
+          | `Pieces pieces -> Rays_editor.Packed_pieces.mesh_for_node node pieces, None
           | `Mesh (mesh, transforms) -> mesh, transforms in
         vertices := Mesh.vertices mesh;
         let shading = if Node.operation node = "box" then Scene3.Flat else Smooth in
@@ -2347,7 +2344,7 @@ let run_renderers_native ?(authored = false) () =
   ignore (Sketch.run_state ~max_frames:46
     ~config:{Sketch.default_config with width = 900; height = 640; title = "shared renderer"}
     ~init:(fun _ -> E3.create ~await:true ~workspace ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh
         ~material:(Material.unlit (Color.rgb 200 20 200)) mesh]) () |> Result.get_ok)
@@ -2564,7 +2561,7 @@ let run_roots_native () =
     ~config:{ Sketch.default_config with width; height = 640; title = "two roots" }
     ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->
@@ -2692,7 +2689,7 @@ let run_budget_native () =
     ~config:{ Sketch.default_config with width = 900; height = 640; title = "budget" }
     ~init:(fun _ -> E3.create ~await:true ~workspace:(of_text text)
       ~presets:(Filename.concat directory "presets")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) () |> Result.get_ok)
     ~update:(fun e (frame : Frame.t) ->

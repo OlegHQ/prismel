@@ -15,12 +15,10 @@ val point_vector_attribute :
 val face_vectors :
   ?cancel:Rdk_core.Cancel.t ->
   grain:int ->
-  ?primitives:Rdk_core.Group.t ->
   Rdk_core.Geometry.t -> (planes, string) result
 val geometric_point_vectors :
   ?cancel:Rdk_core.Cancel.t ->
   grain:int ->
-  ?primitives:Rdk_core.Group.t ->
   Rdk_core.Geometry.t -> (planes, string) result
 val resolve_directions :
   ?cancel:Rdk_core.Cancel.t ->

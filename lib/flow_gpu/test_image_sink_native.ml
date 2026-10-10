@@ -1,6 +1,6 @@
 module G=Flow_gpu
 module B=Ogpu.Backend
-module P=Procedural
+module P=Sop
 module I=Runtime_resources.Image
 let get=Test_program.ok
 let resource=function Ok x->x|Error e->failwith(Format.asprintf "%a" Runtime_resources.pp_error e)

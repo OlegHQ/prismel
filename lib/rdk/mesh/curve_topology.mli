@@ -52,11 +52,7 @@ val convert_line :
   ?make_isolated_loops_closed:bool ->
   ?remove_unused_points:bool -> ?length_attribute:string -> Geometry.t ->
   (Geometry.t, Error.t) result
-type curve_end_mode = Open_curve | Close_curve | Unroll_curve
 
-val curve_ends :
-  ?cancel:Cancel.t -> ?grain:int -> ?primitives:Group.t -> curve_end_mode ->
-  Geometry.t -> (Geometry.t, Error.t) result
 type ends_mode =
   | Ends_open
   | Ends_close_straight

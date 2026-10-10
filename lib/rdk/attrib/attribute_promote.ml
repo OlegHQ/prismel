@@ -1305,35 +1305,6 @@ let promote_bound ?cancel ~grain ~method_ ~delete_source ~source ~destination
                 Geometry.with_attribute indices geometry)
           | None, Some _ | Some _, None -> assert false)))
 
-let validate_promotion_names ~piece_attribute ~source ~name ~into =
-  if String.trim name = "" || String.trim into = "" then
-    Error "Rdk.Attribute_ops.promote: attribute names must not be empty"
-  else if (match piece_attribute with
-      | Some value -> String.trim value = ""
-      | None -> false) then
-    Error "Rdk.Attribute_ops.promote: piece attribute name must not be empty"
-  else if source = Attribute.Point && String.equal name "P" then
-    Error "Rdk.Attribute_ops.promote: canonical P is not an ordinary attribute"
-  else Ok ()
-
-let promote_raw ?cancel ?(grain = 16_384) ?into ?(method_ = Average)
-    ?(delete_source = true) ?piece_attribute ?index_attribute ~source
-    ~destination ~name geometry =
-  if grain <= 0 then invalid_arg "Rdk.Attribute_ops.promote: grain must be positive";
-  let into = Option.value ~default:name into in
-  Result.bind (validate_promotion_names ~piece_attribute ~source ~name ~into)
-    (fun () -> match Geometry.find_attribute ~owner:source name geometry with
-      | None -> Error ("Rdk.Attribute_ops.promote: missing source attribute " ^ name)
-      | Some attribute ->
-          Result.bind (validate_index_request ~method_ ~destination ~into
-              ~piece_attribute ~index_attribute attribute) (fun () ->
-            if source = destination && String.equal name into
-                && Option.is_none piece_attribute then Ok geometry
-            else Result.bind (make_promotion_plan ?cancel ?piece_attribute
-                  ~source ~destination geometry) (fun plan ->
-                promote_bound ?cancel ~grain ~method_ ~delete_source ~source
-                  ~destination ~name ~into ?index_attribute ~attribute plan geometry)))
-
 let promote_pattern_raw ?cancel ?(grain = 16_384) ?(method_ = Average)
     ?(delete_source = true) ?piece_attribute ?into_pattern ?index_pattern
     ~source ~destination ~pattern geometry =
@@ -1418,18 +1389,6 @@ let promote_pattern_raw ?cancel ?(grain = 16_384) ?(method_ = Average)
               ?index_attribute plan geometry)
             (fun geometry -> promote geometry (index + 1)) in
       promote geometry 0))))))
-
-let promote ?cancel ?grain ?into ?method_ ?delete_source ?piece_attribute
-    ?index_attribute ~source ~destination ~name geometry =
-  try Result.map_error
-      (Error.of_string ~operation:"attribute_promote" ~code:"invalid_attribute")
-      (promote_raw ?cancel ?grain ?into ?method_ ?delete_source ?piece_attribute
-         ?index_attribute ~source ~destination ~name geometry)
-  with
-  | Cancel.Cancelled -> Error (Error.make ~operation:"attribute_promote"
-      ~code:"cancelled" "attribute promotion was cancelled")
-  | Invalid_argument message -> Error (Error.make ~operation:"attribute_promote"
-      ~code:"invalid_parameter" message)
 
 let promote_pattern ?cancel ?grain ?method_ ?delete_source ?piece_attribute
     ?into_pattern ?index_pattern ~source ~destination ~pattern geometry =

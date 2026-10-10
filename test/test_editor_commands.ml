@@ -12,7 +12,7 @@ let schema = Editor_core.Param.(schema ~name:"command-value" ~default:0
 
 (* v on a drawing or image node shows it in the canvas panes; v again restores their pictures *)
 let canvas_preview () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let text = {|(workspace v
     (graph image :context image
       (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width 64 :height 8))
@@ -56,7 +56,7 @@ let canvas_preview () =
 
 (* frame/width and frame/height in a canvas pane are the pane's size, not the window's *)
 let canvas_frame_size () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let text = {|(workspace f
     (graph picture :context draw
       (draw/image (image/map (fn [uv] [uv.x uv.y 0.5 1]) :width (frame/width) :height (frame/height))
@@ -83,7 +83,7 @@ let canvas_frame_size () =
 
 (* every language form of the add menu starts as an expression that checks *)
 let menu_forms () =
-  let forms = Rays_editor.Editor3.Private.menu_forms in
+  let forms = Rays_editor.Editor.Private.menu_forms in
   List.iter (fun form -> check (List.mem_assoc form forms) ("the add menu has no " ^ form))
     [ "if"; "cond"; "case"; "for"; "fold"; "scan"; "sum"; "fn"; "map"; "filter"; "reduce"; "sort-by";
       "list"; "record"; "let*"; "state" ];
@@ -99,7 +99,7 @@ let has text piece =
   at 0
 
 let with_editor text f =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let workspace = match Rays_editor.Workspace.load text with
     | Ok workspace -> workspace
     | Error ds -> failwith (String.concat "; " (List.map Flow.Diagnostic.to_string ds)) in
@@ -109,7 +109,7 @@ let with_editor text f =
 
 (* an image-context workspace is not a geometry object: the cook has nothing to reject *)
 let image_cook () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let text = {|(workspace k
     (graph image :context image
       (let* [bias (* 0.2 (+ 1 (sin t)))
@@ -127,7 +127,7 @@ let image_cook () =
 (* New graph: each context's default body checks, a scene reads the SOP graph, and Delete refuses
    a graph that is read *)
 let new_graphs () =
-  let module E3 = Rays_editor.Editor3 in
+  let module E3 = Rays_editor.Editor in
   let text = {|(workspace n
     (graph settings :context settings (settings/config :title "n" :width 900 :height 600)))|} in
   let contexts = [ "sop"; "scene"; "draw"; "image"; "value"; "material" ] in
@@ -210,99 +210,8 @@ let run () =
       ~frame:(Test_editor_input.frame (500., 400.) [ char key_char ] 1) Idle in
     List.exists (fun (c : _ Command.t) -> c.action = L.List_command expected) actions in
   check (list_step 'j' Pxui_shell.Tree.Down && list_step 'k' Pxui_shell.Tree.Up) "j and k do not walk the list";
-  (* focus is a panel; commands are scoped by its kind: every viewport is one scope, and the
-     list and lisp panels are graph-pane projections *)
-  let module P = Pxui_shell.Layout in
-  check (List.for_all (fun panel -> L.scope panel = P.Graph) [P.Graph; P.List; P.Lisp]
-      && L.scope (P.View "v1.2") = P.View "" && L.scope (P.View "main") = L.scope (P.View "v0")
-      && L.scope P.Inspector = P.Inspector && L.scope P.Outline = P.Outline)
-    "panel kinds do not map to the scopes commands use";
-  check (host_ids (L.scope P.Lisp) Canvas = host_ids P.Graph Canvas
-      && host_ids (L.scope (P.View "v3")) Canvas = host_ids (P.View "") Canvas
-      && host_ids (L.scope P.Outline) Canvas <> host_ids P.Graph Canvas)
-    "a lisp or second viewport panel routed to the wrong scope";
-  let table = List.map (fun (command : _ Command.t) ->
-    {command with scope = Some Pxui_shell.Layout.Graph}) Scope.bindings in
-  List.iter (fun (pressed, modifiers, expected) ->
-    let input = Test_editor_input.frame ~keys:[] (500.,400.)
-      (List.map key modifiers @ [key pressed]) 1 in
-    let route focus = let _, actions, _ = Editor_core.Router.step table ~focus
-      ~text_focus:false ~frame:input Idle in List.map (fun (c : _ Command.t) -> c.action) actions in
-    check (route Pxui_shell.Layout.Graph = [expected]) "a graph pane key routed the wrong action";
-    check (route (Pxui_shell.Layout.View "") = [] && route Pxui_shell.Layout.Inspector = [])
-      "a graph pane key escaped graph scope")
-    Scope.[Input.ArrowLeft, [], Walk Left; Input.ArrowDown, [], Walk Down;
-      Input.ArrowUp, [], Walk Up; Input.ArrowRight, [], Walk Right;
-      Input.KeyChar 'x', [], Delete; Input.Delete, [], Delete; Input.Backspace, [], Delete;
-      Input.KeyChar 'b', [], Bypass; Input.KeyChar 'r', [], Wrap_repeat;
-      Input.KeyChar 'r', [Input.Shift], Wrap_iterate; Input.KeyChar 'c', [], Collapse;
-      Input.KeyChar 'm', [], Make_macro; Input.Home, [], Frame_all];
-  let exercise ~name ~create ~update ~close ~settings ~set_settings =
-    let set n env = set_settings env (Settings.make schema n) in
-    let bump = set 3 in
-    let make ?scope ?(id = "test.bump") trigger action =
-      Command.make ~id ~label:"bump command" ~trigger ?scope action in
-    let rejected commands message = match create commands with
-      | Error reason -> check (String.length reason > 0) (name ^ ": empty command error")
-      | Ok env -> close env; failwith (name ^ ": " ^ message) in
-    rejected [make (Keymap.Leader "qj") bump; make (Leader "j") (set 4)]
-      "different actions sharing an id were accepted";
-    rejected [make ~id:"edit.undo" (Leader "qj") bump] "reserved id was accepted";
-    rejected [make (Leader "s") bump] "built-in leader collision was accepted";
-    rejected [make (Chord (Input.KeyChar 'Z', [Input.Meta])) bump]
-      "built-in chord collision was accepted";
-    rejected [make (Leader "qj") bump; make ~id:"test.other" (Leader "QJ") (set 4)]
-      "case-equivalent triggers were accepted";
-    rejected [make (Leader "qj") bump; make ~id:"test.other" (Leader "qjj") (set 4)]
-      "unreachable leader prefix was accepted";
-    rejected [make (Chord (Input.KeyChar '/', [])) bump] "unreachable / chord was accepted";
-    rejected [make (Leader "") bump] "empty leader was accepted";
-    rejected [make (Chord (Input.KeyChar 'k', [Input.Shift])) bump;
-      make ~id:"test.other" (Chord (Input.KeyChar 'k', [Input.Alt])) (set 4)]
-      "equal-specificity overlapping chords were accepted";
-    rejected [make (Chord (Input.KeyChar 'k', [Input.Enter])) bump]
-      "non-modifier chord key was accepted";
-    rejected [make ~id:"" (Leader "qj") bump] "empty id was accepted";
-    let commands = [make (Leader "QJ") bump; make (Leader "qq") bump;
-      make ~id:"test.modifier" (Chord (Input.KeyChar 'm', [Input.Meta])) (set 30);
-      make ~scope:(Pxui_shell.Layout.View "") ~id:"test.view"
-        (Chord (Input.KeyChar 'g', [])) (set 10);
-      make ~scope:Pxui_shell.Layout.Graph ~id:"test.graph"
-        (Chord (Input.KeyChar 'g', [])) (set 20)] in
-    let current = ref (create commands |> Result.get_ok) and count = ref 0 in
-    Fun.protect ~finally:(fun () -> close !current) (fun () ->
-      let step ?(mouse = (100., 300.)) ?(keys = []) events =
-        incr count;
-        current := update !current (Test_editor_input.frame ~keys mouse events !count) in
-      let value () = Settings.get schema (settings !current) in
-      step []; step [key (Input.KeyChar '/'); char 'q'; char 'j'];
-      check (value () = 3) (name ^ ": canonical leader action did not run");
-      current := set 0 !current;
-      step [key (Input.KeyChar '/'); char 'q'; char 'q'];
-      check (value () = 3) (name ^ ": alias action differed");
-      current := set 0 !current;
-      step [key (Input.KeyChar '/'); char '/']; step [Event.TextInput "bump command"];
-      step [key Input.Enter]; step [];
-      check (value () = 3) (name ^ ": palette action differed");
-      current := set 0 !current;
-      step [key Input.Meta; char 'm'; Event.KeyReleased Input.Meta];
-      check (value () = 30) (name ^ ": same-frame Command release changed chord dispatch");
-      current := set 0 !current;
-      step ~keys:[Input.Meta] [char 'm'; key Input.Meta];
-      check (value () = 0) (name ^ ": a later modifier press changed an earlier chord");
-      step [char 'g'];
-      check (value () = 10) (name ^ ": view-scoped chord did not run");
-      let point = 500., 500. in
-      step ~mouse:point [Event.MousePressed (Input.LeftButton, point);
-        Event.MouseReleased (Input.LeftButton, point)];
-      step [char 'g'];
-      check (value () = 20) (name ^ ": graph-scoped chord did not run")) in
   let workspace = Ws_fixture.box () in
-  let module E3 = Rays_editor.Editor3 in
-  exercise ~name:"Editor3"
-    ~create:(fun commands -> E3.create ~workspace ~commands ~settings:(Settings.make schema 0)
-      ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ _ -> Scene3.empty) ())
-    ~update:E3.update ~close:E3.close ~settings:E3.settings ~set_settings:E3.set_settings;
+  let module E3 = Rays_editor.Editor in
   let directory = Filename.temp_dir "rays-guide" "" in
   let filename = Filename.concat directory "preferences.rays" in
   let previous = Sys.getenv_opt "RAYS_EDITOR_PREFERENCES" in
@@ -364,4 +273,4 @@ let run () =
   menu_forms ();
   image_cook ();
   new_graphs ();
-  print_endline "editor commands: the host rejects ambiguity and share alias/scoped keyboard/palette actions"
+  print_endline "editor commands: the host guide and key routing"

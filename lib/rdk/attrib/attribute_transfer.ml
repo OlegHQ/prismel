@@ -636,7 +636,7 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
     ?(blend_width = 0.) ?(falloff = Smoothstep) ?(unmatched = Keep_target)
     ?(target_owner = Attribute.Point) ?distance_attribute ?source_primitives
     ?source_vertices ?(source_vertex_selection = All_triangle_vertices)
-    ?target_points ?target_elements
+    ?target_elements
     ~attributes ~source ~target () =
   if grain <= 0 then invalid_arg
       "Rdk.Attribute_ops.transfer_surface: grain must be positive";
@@ -648,16 +648,6 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
   let source_attributes = Array.make (Array.length specifications) None in
   let seen = Hashtbl.create (Array.length specifications + 1) in
   let failure = ref None in
-  let target_selection = match target_points, target_elements with
-    | Some _, Some _ ->
-        failure := Some "target_points and target_elements are mutually exclusive";
-        None
-    | Some group, None ->
-        if target_owner <> Attribute.Point then
-          failure := Some "target_points requires point destination ownership";
-        Some group
-    | None, Some group -> Some group
-    | None, None -> None in
   if target_owner = Attribute.Detail then
     failure := Some "detail ownership is not a spatial surface destination";
   (match source_primitives with
@@ -670,7 +660,7 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
        || Group.length group <> Geometry.vertex_count source ->
        failure := Some "source vertex selection must be a matching vertex group"
    | None | Some _ -> ());
-  (match target_selection with
+  (match target_elements with
    | Some group when
        let expected_owner, expected_length = match target_owner with
          | Attribute.Point -> Group.Point, Geometry.point_count target
@@ -750,21 +740,21 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
           specification.target_name target in
       let storage = match Attribute.Private.storage source_attribute with
         | Attribute.Float _ -> Attribute.Float
-            (initial_float ?selection:target_selection unmatched existing target_count)
+            (initial_float ?selection:target_elements unmatched existing target_count)
         | Attribute.Int _ -> Attribute.Int
-            (initial_int ?selection:target_selection unmatched existing target_count)
+            (initial_int ?selection:target_elements unmatched existing target_count)
         | Attribute.Text _ -> Attribute.Text
-            (initial_text ?selection:target_selection unmatched existing target_count)
+            (initial_text ?selection:target_elements unmatched existing target_count)
         | Attribute.Float2 _ ->
-            let x, y = initial_float2 ?selection:target_selection unmatched existing
+            let x, y = initial_float2 ?selection:target_elements unmatched existing
                 target_count in
             Attribute.Float2 (Packed.Float2.of_owned ~x ~y |> Result.get_ok)
         | Attribute.Float3 _ ->
-            let x, y, z = initial_float3 ?selection:target_selection unmatched existing
+            let x, y, z = initial_float3 ?selection:target_elements unmatched existing
                 target_count in
             Attribute.Float3 (Packed.Float3.Private.of_owned_exn ~x ~y ~z)
         | Attribute.Float4 _ ->
-            let x, y, z, w = initial_float4 ?selection:target_selection unmatched
+            let x, y, z, w = initial_float4 ?selection:target_elements unmatched
                 existing target_count in
             Attribute.Float4
               (Packed.Float4.of_owned ~x ~y ~z ~w |> Result.get_ok)
@@ -777,7 +767,7 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
       else
         let name = Option.get distance_name in
         let existing = Geometry.find_attribute ~owner:target_owner name target in
-        let values = initial_float ?selection:target_selection unmatched existing
+        let values = initial_float ?selection:target_elements unmatched existing
             target_count in
         Attribute.create_owned ~name ~owner:target_owner (Attribute.Float values)))
       (install_attributes_batch target)
@@ -801,7 +791,7 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
       and barycentric_b = Array.make target_count 0.
       and barycentric_c = Array.make target_count 0.
       and distances_squared = Array.make target_count Float.infinity in
-      Surface_index.Private.closest_many_into ?cancel ?selection:target_selection
+      Surface_index.Private.closest_many_into ?cancel ?selection:target_elements
         ?position_indices ~grain surface ~queries:query_positions
         ~max_distance_squared:maximum_squared
         ~primitives ~triangles ~barycentric_a ~barycentric_b ~barycentric_c
@@ -866,26 +856,26 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
         let owner = specification.source_owner in
         let storage = match Attribute.Private.storage source_attribute with
           | Attribute.Float values ->
-              let output = initial_float ?selection:target_selection
+              let output = initial_float ?selection:target_elements
                   unmatched existing target_count in
               transfer_numeric owner values output; Attribute.Float output
           | Attribute.Int values ->
-              let output = initial_int ?selection:target_selection
+              let output = initial_int ?selection:target_elements
                   unmatched existing target_count in
               transfer_discrete owner values output; Attribute.Int output
           | Attribute.Text values ->
-              let output = initial_text ?selection:target_selection
+              let output = initial_text ?selection:target_elements
                   unmatched existing target_count in
               transfer_discrete owner values output; Attribute.Text output
           | Attribute.Float2 values ->
               let values = Packed.Float2.Private.view values in
-              let x, y = initial_float2 ?selection:target_selection
+              let x, y = initial_float2 ?selection:target_elements
                   unmatched existing target_count in
               transfer_numeric owner values.x x; transfer_numeric owner values.y y;
               Attribute.Float2 (Packed.Float2.of_owned ~x ~y |> Result.get_ok)
           | Attribute.Float3 values ->
               let values = Packed.Float3.Private.view values in
-              let x, y, z = initial_float3 ?selection:target_selection
+              let x, y, z = initial_float3 ?selection:target_elements
                   unmatched existing target_count in
               transfer_numeric owner values.x x; transfer_numeric owner values.y y;
               transfer_numeric owner values.z z;
@@ -902,7 +892,7 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
               Attribute.Float3 (Packed.Float3.Private.of_owned_exn ~x ~y ~z)
           | Attribute.Float4 values ->
               let values = Packed.Float4.Private.view values in
-              let x, y, z, w = initial_float4 ?selection:target_selection
+              let x, y, z, w = initial_float4 ?selection:target_elements
                   unmatched existing target_count in
               transfer_numeric owner values.x x; transfer_numeric owner values.y y;
               transfer_numeric owner values.z z; transfer_numeric owner values.w w;
@@ -918,7 +908,7 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
         else
           let name = Option.get distance_name in
           let existing = Geometry.find_attribute ~owner:target_owner name target in
-          let values = initial_float ?selection:target_selection
+          let values = initial_float ?selection:target_elements
               unmatched existing target_count in
           if target_count > 0 then Parallel.for_ ~chunk_size:grain ~start:0
               ~finish:(target_count - 1) (fun point ->
@@ -930,8 +920,7 @@ let transfer_surface_raw ?cancel ?(grain = 16_384) ?max_distance
 
 let transfer_surface ?cancel ?grain ?max_distance ?blend_width ?falloff ?unmatched
     ?target_owner ?distance_attribute ?source_primitives ?source_vertices
-    ?source_vertex_selection ?target_points
-    ?target_elements
+    ?source_vertex_selection ?target_elements
     ~attributes ~source ~target () =
   try Result.map_error
       (Error.of_string ~operation:"attribute_transfer_surface"
@@ -939,7 +928,7 @@ let transfer_surface ?cancel ?grain ?max_distance ?blend_width ?falloff ?unmatch
       (transfer_surface_raw ?cancel ?grain ?max_distance ?blend_width ?falloff
          ?unmatched ?target_owner ?distance_attribute ?source_primitives
          ?source_vertices ?source_vertex_selection
-         ?target_points ?target_elements ~attributes ~source ~target ())
+         ?target_elements ~attributes ~source ~target ())
   with
   | Cancel.Cancelled -> Error (Error.make ~operation:"attribute_transfer_surface"
       ~code:"cancelled" "surface attribute transfer was cancelled")

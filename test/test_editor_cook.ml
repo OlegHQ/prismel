@@ -1,8 +1,8 @@
 open Rays
-open Procedural
+open Sop
 module Cook = Rays_editor.Private.Cook
 module Settings = Rays_editor.Settings
-module Timeline = Sketch_support.Timeline
+module Timeline = Rays_editor.Timeline
 module Document = Editor_document.Document
 
 let check condition message = if not condition then failwith message
@@ -56,7 +56,7 @@ let with_cook ?(domains = 1) prepare run =
     run current step finish)
 
 let run () =
-  let source = Sop.points [|0., 0., 0.|] in
+  let source = Lisp_sop.snapshot (Rdk.Line_geometry.points [|0., 0., 0.|]) in
   let objects = [network 1 source; network 2 source] in
   let prepares = Atomic.make 0 in
   with_cook (fun settings _ -> Atomic.incr prepares; Ok (mode settings))
@@ -66,8 +66,7 @@ let run () =
       let second = List.assoc 2 (List.map (fun (piece : _ Cook.piece) -> piece.id, piece)
         (Cook.pieces !current)) in
       let changed = network 1 (let migration_translation = Vec3.create 2. 0. 0. in
-Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
-  ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z source) in
+Lisp_sop.node ~with_:["source", (source)] (Printf.sprintf {|(sop/transform (sop/ext_source) :mode "Matrix" :m03 %s :m13 %s :m23 %s)|} ((Lisp_sop.float migration_translation.Vec3.x)) ((Lisp_sop.float migration_translation.Vec3.y)) ((Lisp_sop.float migration_translation.Vec3.z)))) in
       ignore (finish ~settings:a [changed; List.nth objects 1]);
       check (Atomic.get prepares = 3) "one changed object re-prepared its static sibling";
       check (List.find (fun (piece : _ Cook.piece) -> piece.id = 2)
@@ -79,12 +78,12 @@ Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
       for _ = 1 to 5 do ignore (step ~settings:b [changed; List.nth objects 1]) done;
       check (Atomic.get prepares = 5) "idle frames resubmitted static objects");
   let dependencies = Context.Dependencies.(union (one Time) (one Frame)) in
-  let dynamic = Sop.custom ~operation:"editor_cook_clock" ~dependencies [source]
+  let dynamic = Sop.Custom.plain ~operation:"editor_cook_clock" ~dependencies [source]
     (fun ~context inputs ->
       Rdk.Geometry.with_positions (Rdk.Packed.Float3.Private.of_owned_exn
         ~x:[|Context.time context|] ~y:[|Int64.to_float (Context.frame context)|] ~z:[|0.|]) inputs.(0)) in
   with_cook (fun _ output -> Ok (Rdk.Packed.Float3.get
-      (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.Session.payload))) 0)) (fun current _ finish ->
+      (Rdk.Geometry.positions (Result.get_ok (Sop.Payload.geometry output.Session.payload))) 0)) (fun current _ finish ->
     let objects = [network 1 dynamic; network 2 source] in
     ignore (finish objects);
     let static = List.find (fun (piece : _ Cook.piece) -> piece.id = 2) (Cook.pieces !current) in
@@ -108,7 +107,7 @@ Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
   let network = graph.network and root = Option.get graph.root in
   let target = {Flow_sop.Port.node = root; path = "uniform_scale"} in
   let positions _ output =
-      let points = Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) in
+      let points = Rdk.Geometry.positions (Result.get_ok (Sop.Payload.geometry output.Session.payload)) in
       Ok (Array.init (Rdk.Packed.Float3.length points)
         (Rdk.Packed.Float3.get points)) in
   let exact first second =

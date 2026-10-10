@@ -8,8 +8,8 @@ val write_text : filename:string -> string -> (unit, string) result
 val read_text : filename:string -> (string, string) result
 
 module Viewport : sig
-  val encode3 : Rays.Easy_camera.t -> look_through:bool -> Flow.Syntax.t
-  val decode3 : Rays.Easy_camera.t -> Flow.Syntax.t -> Rays.Easy_camera.t * bool
+  val encode : Rays.Easy_camera.t -> look_through:bool -> Flow.Syntax.t
+  val decode : Rays.Easy_camera.t -> Flow.Syntax.t -> Rays.Easy_camera.t * bool
 end
 
 module Settings : sig

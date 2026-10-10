@@ -25,8 +25,8 @@ type panel = {
   intensity : float;
 }
 
-let panel ?(softness = 0.05) ?(color = Linear_color.rgb 1. 1. 1.) ~intensity ~width ~height direction =
-  { direction; width; height; softness; color; intensity }
+let panel ?(softness = 0.05) ~intensity ~width ~height direction =
+  { direction; width; height; softness; color = Linear_color.rgb 1. 1. 1.; intensity }
 
 type environment = { sky : Linear_color.t; ground : Linear_color.t; panels : panel list }
 type camera = Rays.Camera.t
@@ -39,8 +39,8 @@ type light = {
   intensity : float;
 }
 
-let rect_light ?(color = Linear_color.rgb 1. 1. 1.) ~intensity ~size ~target at =
-  { at; target; size; color; intensity }
+let rect_light ~intensity ~size ~target at =
+  { at; target; size; color = Linear_color.rgb 1. 1. 1.; intensity }
 
 (* Inverse of the raster World conversion (a rect of radiance L and area A is
    a Light.t of color L A / pi), so the irradiance pi I / d^2 matches. *)
@@ -59,11 +59,7 @@ let light_of (light : Rays.Light.t) =
 
 type sphere = { center : Rays.Vec3.t; radius : float; sphere_material : material }
 
-let sphere ~radius sphere_material center = { center; radius; sphere_material }
-
 type strand = { points : Rays.Vec3.t array; thickness : float; strand_material : material }
-
-let strand ~thickness strand_material points = { points; thickness; strand_material }
 
 type scene = {
   objects : (Rdk.Geometry.t * material) list;
@@ -216,7 +212,6 @@ type t = {
   mutable history_epoch : int;
   mutable pending : pending list;  (* oldest first, at most two in flight *)
   mutable retired : (unit -> unit) list;  (* freed once no frame is in flight *)
-  preview_scale : int;
   mutable history_scale : int;
   mutable bands : int;  (* row bands per accumulation frame *)
   mutable frame_gpu : float;  (* GPU seconds of the frame in progress *)
@@ -237,7 +232,7 @@ type t = {
   mutable camera : camera option;
   mutable moving : bool;
   mutable scene_edited : bool;
-  mutable pixels : bytes;
+
 }
 
 let ( let* ) = Result.bind
@@ -391,8 +386,6 @@ let flat_mesh ?(spheres = []) ?(strands = []) objects =
       extras;
       scene = None;
     }
-
-let triangle_count mesh = mesh.triangles
 
 (* Column-major 3x4 transform plus its 3x3 normal matrix (cofactors / det):
    seven packed float3 columns, 84 bytes. *)
@@ -1191,9 +1184,8 @@ let allocate_film device ~width ~height =
   Ok { accum; history_color = [| color0; color1 |];
        history_geometry = [| geometry0; geometry1 |]; outputs = [| output0; output1; output2 |] }
 
-let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ?(preview_scale = 1) ~width ~height (scene : scene) =
+let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ~width ~height (scene : scene) =
   if width <= 0 || height <= 0 then Error "path tracer size must be positive"
-  else if preview_scale <= 0 then Error "path tracer preview_scale must be positive"
   else if spp <= 0 || bounces <= 0 then Error "path tracer spp and bounces must be positive"
   else
     let* lease =
@@ -1269,7 +1261,6 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ?(pre
           history_epoch = 0;
           pending = [];
           retired = [];
-          preview_scale;
           history_scale = 1;
           bands = 3;
           frame_gpu = 0.;
@@ -1290,7 +1281,7 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ?(pre
           camera = None;
           moving = false;
           scene_edited = false;
-          pixels;
+
         }
     in
     (match created with
@@ -1303,18 +1294,11 @@ let create ?(spp = 1) ?(bounces = 6) ?(exposure = 1.) ?(round_samples = 4) ?(pre
 
 let camera_fov camera =
   match Rays.Camera.projection camera with
-  | Perspective { fov_y; lens_offset; _ }
-    when lens_offset = Rays.Vec2.zero
-         && (not (Rays.Camera.v_flip camera))
-         && Rays.Camera.forced_aspect camera = None ->
-      Ok fov_y
-  | _ -> Error "path tracer requires an unshifted perspective camera"
+  | Perspective { fov_y; _ } -> Ok fov_y
+  | Orthographic _ -> Error "path tracer requires a perspective camera"
 
-(* The frame size the next dispatch traces: preview frames trace every
-   [preview_scale]th pixel and fill the block. *)
-let dispatch_size t =
-  let scale = if t.moving then t.preview_scale else 1 in
-  scale, (t.width + scale - 1) / scale, (t.height + scale - 1) / scale
+(* The frame size the next dispatch traces: the whole frame, every pixel. *)
+let dispatch_size t = 1, t.width, t.height
 
 let uniform_bytes t (camera : camera) fov ~row_offset =
   let open Rays.Vec3 in
@@ -1431,7 +1415,6 @@ let reset t =
   restart t;
   t.scene_edited <- false
 
-
 (* Geometry, lights, or World just became current: the next [render] is a
    preview frame, like a camera move, so continuous edits stay interactive. *)
 let edited t =
@@ -1465,17 +1448,6 @@ let samples t = t.completed * t.spp
 let size t = (t.width, t.height)
 let image t = t.image
 
-let pixels t =
-  match Runtime_resources.Image.Private.gpu_snapshot t.resource with
-  | Error error -> Error (Format.asprintf "%a" Runtime_resources.pp_error error)
-  | Ok None -> Ok t.pixels
-  | Ok (Some _) -> (
-      match Runtime_resources.Image.pixels t.resource with
-      | Ok pixels ->
-          t.pixels <- pixels;
-          Ok pixels
-      | Error error -> Error (Format.asprintf "%a" Runtime_resources.pp_error error))
-
 let band_ms = 6.
 
 (* Publishes a completed frame's pixels unless a reset made them obsolete. *)
@@ -1503,7 +1475,7 @@ let publish t (pending : pending) =
           (Runtime_resources.Image.Private.replace_gpu t.resource film)
       else
         let* rgba = gpu (B.read_texture film ~bytes_per_row:(t.width * 4)) in
-        t.pixels <- rgba;
+        ();
         Result.map_error
           (Format.asprintf "%a" Runtime_resources.pp_error)
           (Runtime_resources.Image.replace t.resource ~width:t.width ~height:t.height ~rgba)
@@ -1663,7 +1635,7 @@ let resize t ~width ~height =
     t.height <- height;
     t.next_output_slot <- 0;
     t.history_slot <- 0;
-    t.pixels <- pixels;
+    ();
     Ok ()
   end
 

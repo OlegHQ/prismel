@@ -50,10 +50,6 @@ let polygon points ~fill ~stroke =
 let polyline points ~color =
   stroke_path color (path_of_points ~closed:false points)
 
-let rect ~x ~y ~width ~height ~fill ~stroke =
-  polygon [x, y; x + width, y; x + width, y + height; x, y + height]
-    ~fill ~stroke
-
 let rounded_rect ~width ~height ~radius ~fill ~stroke =
   let fill = match fill, stroke with None, None -> Some 0xffffffffl | _ -> fill in
   let radius = max 0 (min radius (min (abs width) (abs height) / 2)) in

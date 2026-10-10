@@ -1747,17 +1747,15 @@ let facet ?cancel ?(grain = 16_384) ?primitives
       | Some name -> Geometry.without_group ~owner:Group.Primitive name geometry)
       result
 
-let run ?cancel ?grain ?selection ?primitives ?pre_compute_normals
+let run ?cancel ?grain ?selection ?pre_compute_normals
     ?make_normals_unit_length ?unique_points ?consolidate_distance
     ?consolidate_normals_distance ?remove_inline_points ?inline_distance
     ?orient_polygons ?cusp_angle ?remove_degenerate ?make_planar
     ?post_compute_normals ?reverse_normals geometry =
   Error.guard ~operation:"facet" ~code:"invalid_geometry" (fun () ->
-    let resolved = match selection, primitives with
-      | Some _, Some _ -> Error
-          "Facet selection and primitive selection are mutually exclusive"
-      | None, primitives -> Ok primitives
-      | Some selection, None -> Result.map Option.some
+    let resolved = match selection with
+      | None -> Ok None
+      | Some selection -> Result.map Option.some
           (facet_primitives_of_selection ?cancel
             ~grain:(Option.value ~default:16_384 grain) selection geometry) in
     Result.bind resolved (fun primitives ->

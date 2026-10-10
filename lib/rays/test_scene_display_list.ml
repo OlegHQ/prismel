@@ -2,8 +2,6 @@ open Rays
 
 let run () =
   let builder = Scene_command.Display_list.Builder.create () in
-  Scene_command.Display_list.Builder.solid_rect builder
-    ~x:2. ~y:3. ~width:8. ~height:9. ~color:0xff0000ffl;
   let segment = Result.get_ok
       (Scene_command.Display_list.Builder.publish builder ~id:41L ~version:3L) in
   let node = Scene.Private.display_list segment in
@@ -26,7 +24,6 @@ let run () =
        when String.starts_with ~prefix:"scene-stage:" identity ->
        (match Array.to_list (Scene_command.Render_ir.Private.commands_readonly ir) with
         | [Scene_command.Render_ir.Push_transform _;
-           Scene_command.Render_ir.Geometry _;
            Scene_command.Render_ir.Pop_transform] -> ()
         | _ -> failwith "transformed display-list command order drift")
    | _ -> failwith "transformed display list bypassed retained transform lowering");

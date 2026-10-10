@@ -40,7 +40,7 @@ type panel =
   ; intensity : float }
 
 val panel :
-  ?softness:float -> ?color:Linear_color.t -> intensity:float -> width:float ->
+  ?softness:float -> intensity:float -> width:float ->
   height:float -> Rays.Vec3.t -> panel
 
 type environment = { sky : Linear_color.t; ground : Linear_color.t; panels : panel list }
@@ -53,7 +53,7 @@ type light =
   { at : Rays.Vec3.t; target : Rays.Vec3.t; size : float * float; color : Linear_color.t; intensity : float }
 
 val rect_light :
-  ?color:Linear_color.t -> intensity:float -> size:float * float -> target:Rays.Vec3.t ->
+  intensity:float -> size:float * float -> target:Rays.Vec3.t ->
   Rays.Vec3.t -> light
 
 val light_of : Rays.Light.t -> light
@@ -76,14 +76,10 @@ val light_of : Rays.Light.t -> light
     rather than tessellated. *)
 type sphere = { center : Rays.Vec3.t; radius : float; sphere_material : material }
 
-val sphere : radius:float -> material -> Rays.Vec3.t -> sphere
-
 (** A round polyline of constant [thickness] (diameter), traced as linear
     curve segments. Needs [Ogpu.Caps.Ray_tracing_curves]; [create] and
     [replace_mesh] fail with a typed message otherwise. *)
 type strand = { points : Rays.Vec3.t array; thickness : float; strand_material : material }
-
-val strand : thickness:float -> material -> Rays.Vec3.t array -> strand
 
 type scene =
   { objects : (Rdk.Geometry.t * material) list
@@ -103,8 +99,6 @@ val mesh :
   (mesh, string) result
 (** Triangles, spheres, and strands together become one primitive structure
     per kind under an instance structure (Metal holds one kind per structure). *)
-
-val triangle_count : mesh -> int
 
 val mesh_instanced :
   prototype:(Rdk.Geometry.t * material) -> ?materials:material array ->
@@ -131,12 +125,9 @@ val scene_mesh : (Rays.Mat4.t * mesh) list -> (mesh, string) result
     when no ray-tracing Metal device is available. *)
 val create :
   ?spp:int -> ?bounces:int -> ?exposure:float -> ?round_samples:int ->
-  ?preview_scale:int -> width:int -> height:int -> scene -> (t, string) result
+  width:int -> height:int -> scene -> (t, string) result
 (** [round_samples] (default 4) is the number of probe rays per camera-visible
-    shading point for round-corner materials; secondary bounces use a quarter.
-    [preview_scale] (default 1: full resolution) is the pixel block a preview
-    frame traces once; 2 traces a quarter of the pixels and fills the blocks,
-    a blockier but faster preview for heavy scenes. *)
+    shading point for round-corner materials; secondary bounces use a quarter. *)
 
 (** Accepts a perspective camera with no lens offset, forced aspect, or
     vertical flip. Other projections return an error. The camera's
@@ -149,7 +140,7 @@ val create :
     window's own drawing interleaves with. A frame whose camera
     differs from the previous call, or the first frame over newly installed
     geometry ({!replace_mesh}, {!queue_mesh}, {!move}), lights, or World, is
-    an interactive preview: [preview_scale]-block
+    an interactive preview: full-resolution
     primary visibility, direct lighting, one round-corner probe, temporal
     reprojection with disocclusion rejection, and an edge-aware spatial
     resolve. Progressive accumulation restarts as soon as the camera rests and edits
@@ -214,9 +205,5 @@ val size : t -> int * int
 val image : t -> Rays.Image.t
 (** Borrowed; destroyed by [destroy]. In a native Sketch, Scene samples its
     completed GPU film directly. *)
-
-val pixels : t -> (bytes, string) result
-(** Last resolved RGBA8 frame, row-major. Explicit readback for GPU film;
-    a failed readback is an [Error]. *)
 
 val destroy : t -> unit

@@ -49,7 +49,6 @@ let create_internal ~copy input=
     Ok{id=Atomic.fetch_and_add next_id 1;
       commands}
 let create input=create_internal~copy:true input
-let commands t=Array.map copy_command t.commands
 module Private=struct
   let identity t=t.id
   let commands_readonly t=t.commands

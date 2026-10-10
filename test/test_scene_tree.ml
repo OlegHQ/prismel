@@ -4,18 +4,18 @@
    never re-cook SOPs; [/ e] opens the World, which then bakes; [/ l] then
    [l], [t] or [g] shows the graph panel's list, text or graph (the workspace's scene graph). *)
 open Rays
-open Procedural
+open Sop
 open Test_support
 
 let frame ?(mouse = 450, 320) ?(events = []) ?(keys = []) ?(buttons = []) count : Frame.t = {
   width = 900; height = 640; size = 900, 640;
-  drawable_width = 900; drawable_height = 640; drawable_size = 900, 640;
+
   pixel_scale = 1., 1.; time = float_of_int count /. 60.; dt = 1. /. 60.;
   fps = 60.; count; mouse = (let x, y = mouse in float x, float y);
   mouse_delta = 0., 0.; keys; mouse_buttons = buttons; events;
 }
 
-module E = Rays_editor.Editor3
+module E = Rays_editor.Editor
 
 (* geo1 (one box), two lights, a camera, a World of sky, softbox and constellation *)
 let text = {|(workspace scene_tree
@@ -24,11 +24,12 @@ let text = {|(workspace scene_tree
     (let* [body (scene/geometry (ref geo) :name "geo1")
            key (scene/light :name "key")
            fill (scene/light :name "fill" :translate [-3 4 2])
-           cam (scene/camera :name "camera1" :aperture 0.3)]
-      (scene/merge body key fill cam)))
-  (graph world :context world
-    (world/world :name "world" (world/scatter (world/shape (world/sky :name "sky") :name "softbox")
-                                :name "constellation"))))|}
+           cam (scene/camera :name "camera1" :aperture 0.3)
+           world (scene/world (ref sky) :name "world")]
+      (scene/merge body key fill cam world)))
+  (graph sky :context world
+    (world/scatter (world/shape (world/sky :name "sky") :name "softbox")
+                   :name "constellation")))|}
 
 let contains text piece =
   let n = String.length piece in
@@ -49,10 +50,9 @@ let labelled env =
 let run () =
   let cooks = Atomic.make 0 in
   let env = E.create ~await:true ~workspace:(Ws_fixture.of_text text)
-      ~lens:{ aperture = 0.3; focus_distance = None }
       ~max_entries:4 ~max_payload_bytes:(16 * 1024 * 1024)
       ~prepare:(fun _ output -> Atomic.incr cooks;
-        Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+        Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   let count = ref 0 in
@@ -329,8 +329,7 @@ let run () =
   check (not (contains (source env) "(scene/geometry")) "deleting geo1 left it in the text";
   (* what was written opens as the same scene *)
   let reopened = E.create ~await:true ~workspace:(Ws_fixture.of_text (source env))
-    ~lens:{ aperture = 0.3; focus_distance = None }
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   check (labelled reopened = labelled env) "the saved text does not open as the edited scene";
@@ -359,7 +358,7 @@ let run () =
     let env = E.create ~await:true ~workspace ~domains ~grain:16 ~max_entries:4
         ~max_payload_bytes:(16 * 1024 * 1024)
         ~prepare:(fun _ output ->
-          let points = Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) in
+          let points = Rdk.Geometry.positions (Result.get_ok (Sop.Payload.geometry output.Session.payload)) in
           Ok (Digest.string (String.concat "," (List.init (Rdk.Packed.Float3.length points)
             (fun index -> let x, y, z = Rdk.Packed.Float3.get points index in
               Printf.sprintf "%h %h %h" x y z)))))
@@ -371,14 +370,14 @@ let run () =
   check (digest 1 = digest 4) "one domain and four domains cooked different geometry";
   print_endline "scene tree: list keys, enter/up, lights, reparent, World, graph, domains ok"
 
-(* What the host made (its camera, its light, its World) is deleted like any object, and the
+(* What the host made (its camera and its light) is deleted like any object, and the
    deletion is in the saved text: a scene graph (world graph) is authoritative, so a reload does
    not seed it again.  Through the list's Delete key, then Save (the text) and reload. *)
 let run_host () =
   let lights = [ Light.directional ~direction:(Vec3.create (-1.) (-1.) (-1.)) ~diffuse:Color.white () ] in
   let open_text text =
-    E.create ~await:true ~lights ~world:World.default ~workspace:(Ws_fixture.of_text text)
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+    E.create ~await:true ~lights ~workspace:(Ws_fixture.of_text text)
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [Scene3.mesh mesh]) () |> Result.get_ok in
   let count = ref 0 in
@@ -397,8 +396,8 @@ let run_host () =
     step (select (step env [ key Input.Home ]) 8) [ key Input.Delete ] in
   let source env = Rays_editor.Workspace_doc.to_text (E.workspace env) in
   let env = step (open_text "(workspace host (graph g :context sop (sop/box)))") [] in
-  check (names env = List.sort compare [ "camera1"; "g"; "light1"; "world" ])
-    ("the host did not seed its camera, light and World: " ^ String.concat "," (names env));
+  check (names env = List.sort compare [ "camera1"; "g"; "light1" ])
+    ("the host did not seed its camera and light: " ^ String.concat "," (names env));
   let reopen env what present absent =
     let reopened = step (open_text (source env)) [] in
     check (List.for_all (fun n -> List.mem n (names reopened)) present
@@ -410,7 +409,7 @@ let run_host () =
   check (E.undo_label no_camera = Some "Delete") "deleting the host camera is not one 'Delete' entry";
   check (contains (source no_camera) "graph scene" && contains (source no_camera) "scene/light"
          && not (contains (source no_camera) "scene/camera")) "a deleted host camera is not in the text";
-  E.close (reopen no_camera "the deleted camera" [ "light1"; "g"; "world" ] [ "camera1" ]);
+  E.close (reopen no_camera "the deleted camera" [ "light1"; "g" ] [ "camera1" ]);
   let undone = step ~keys:[ Input.Meta ] no_camera [ key (Input.KeyChar 'z') ] in
   check (List.mem "camera1" (names undone) && not (contains (source undone) "graph scene"))
     "undo did not give the host camera back";
@@ -421,12 +420,5 @@ let run_host () =
   let reopened = reopen no_light "the deleted light" [ "camera1"; "g" ] [ "light1" ] in
   check (E.lights reopened = []) "a reload lit a scene whose light was deleted";
   E.close reopened;
-  (* the World *)
-  let no_world = delete env "world" in
-  check (contains (source no_world) "world/none" && E.undo_label no_world = Some "Delete")
-    "a deleted host World is not in the text";
-  let reopened = reopen no_world "the deleted World" [ "camera1"; "light1" ] [ "world" ] in
-  check (E.world reopened = None) "a reload seeded the deleted World again";
-  E.close reopened;
-  List.iter E.close [ env; no_camera; undone; no_light; no_world ];
-  print_endline "scene tree: host camera, light and World deletions survive Save and reload ok"
+  List.iter E.close [ env; no_camera; undone; no_light ];
+  print_endline "scene tree: host camera and light deletions survive Save and reload ok"

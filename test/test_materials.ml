@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 
 let get = Result.get_ok
 (* pointer positions are the 11-point kit's *)
@@ -37,24 +37,27 @@ let signature geometry =
     | _ -> failwith "unexpected material attribute")
 
 let face_materials_preserve_explosion () =
-  let piece x id = Sop.box ~normals:None ~connectivity:(Rdk.Box_generator.Box_triangles) ~size:(Vec3.create 1. 1. 1.) ()
-      |> (let migration_translation = Vec3.create x 0. 0. in
-fun migration_input ->
-  Sop.transform ~mode:Sop.Transform_matrix ~m03:migration_translation.Vec3.x
-    ~m13:migration_translation.Vec3.y ~m23:migration_translation.Vec3.z
-    migration_input)
-      |> Sop.set_int ~owner:Rdk.Attribute.Primitive ~name:"piece" ~value:id in
-  let geometry = (Result.get_ok (Procedural.Payload.geometry (cook 1 (Sop.merge [piece (-2.) 0; piece 2. 1])).payload)) in
+  let piece x id = Lisp_sop.node (Printf.sprintf {|(-> (sop/box :normals "Auto" :connectivity "Triangles" :size [1.0 1.0 1.0])
+    (sop/transform :mode "Matrix" :m03 %s :m13 0.0 :m23 0.0)
+    (sop/set_int :owner "Primitive" :name "piece" :value %d))|} (Lisp_sop.float x) id) in
+  let geometry = (Result.get_ok (Sop.Payload.geometry (cook 1 (Lisp_sop.node ~with_:["in2", (piece (-2.) 0); "in3", (piece 2. 1)] {|(sop/merge (sop/ext_in2) (sop/ext_in3))|})).payload)) in
   let group = Rdk.Group.init ~owner:Rdk.Group.Primitive ~name:"one_face"
       (Rdk.Geometry.primitive_count geometry) (( = ) 0) in
-  let node = Rdk.Geometry.with_group group geometry |> get |> Sop.snapshot
-      |> Sop.material ~material:"blue" ~color:(Vec3.create 0.15 0.43 0.96)
-          ~roughness:0.3 ~emission:Vec3.zero
-      |> Sop.material ~group:"one_face" ~material:"white" ~color:(Vec3.create 1. 1. 1.)
-          ~roughness:0.8 ~emission:Vec3.zero
-      |> Sop_catalog.Exploded_view.create ~amount:1. in
-  let surface = cook 1 node |> Sketch_support.Surface.of_output |> get in
-  let drawings = Sketch_support.Surface.scene3 node surface |> Scene3.Private.drawings in
+  let node = Lisp_sop.node ~with_:["in4", (Lisp_sop.snapshot (Rdk.Geometry.with_group group geometry |> get))] {|(-> (sop/material
+       (sop/ext_in4)
+       :material "blue"
+       :color [0.15 0.43 0.96]
+       :roughness 0.3
+       :emission [0.0 0.0 0.0])
+     (sop/material
+       :group "one_face"
+       :material "white"
+       :color [1.0 1.0 1.0]
+       :roughness 0.8
+       :emission [0.0 0.0 0.0])
+     (sop/exploded_view :amount 1.0))|} in
+  let surface = cook 1 node |> Rays_editor.Surface.of_output |> get in
+  let drawings = Rays_editor.Surface.scene3 node surface |> Scene3.Private.drawings in
   assert (List.length drawings = 2);
   (* Centers ±2 move to ±4. Painting just one face must leave every face of
      each cube at exactly the same rigid displacement. *)
@@ -67,7 +70,7 @@ fun migration_input ->
       assert (abs_float v.vertices.z.(index) <= 0.5)) v.indices) drawings
 
 (* ---- the editor around materials: outline, follow and back, rename, assign, pick ---- *)
-module E3 = Rays_editor.Editor3
+module E3 = Rays_editor.Editor
 module N = Rays_editor.Private.Navigator
 module Edit = Flow_graph.Flow_edit
 
@@ -88,13 +91,13 @@ let follow_source = {|(workspace follow
     (let* [obj (scene/geometry (ref shards) :name "shards")] (scene/merge obj))))|}
 
 let frame ?(buttons = []) ?(keys = []) mouse events count : Frame.t = {
-  width = 900; height = 640; size = 900, 640; drawable_width = 900; drawable_height = 640;
-  drawable_size = 900, 640; pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.;
+  width = 900; height = 640; size = 900, 640;
+   pixel_scale = 1., 1.; time = float count /. 60.; dt = 1. /. 60.;
   fps = 60.; count; mouse; mouse_delta = (0., 0.); keys; mouse_buttons = buttons; events }
 
 let editor () =
   E3.create ~await:true ~workspace:(workspace follow_source)
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
   |> function Ok e -> e | Error m -> fail m
@@ -235,12 +238,19 @@ let carry_source = {|(workspace carrying
 
 let carry_tests () =
   let module L = Pxui_shell.Layout in
+  (* the panels [editor] below declares, for the outline rows' places *)
   let layout = L.Split { axis = `H; size = `Ratio 0.22; a = L.Leaf L.Outline;
     b = L.Split { axis = `H; size = `Ratio 0.45; a = L.Leaf (L.View "main");
       b = L.Split { axis = `H; size = `Ratio 0.62; a = L.Leaf L.Graph; b = L.Leaf L.Inspector } } } in
-  let make ?(source = carry_source) ?carry_budget () =
-    E3.create ~await:true ?carry_budget ~layout ~workspace:(workspace source)
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+  let editor = {|
+  (graph editor :context editor
+    (ui/workspace (ui/split-at "horizontal" 0.22 (ui/outline)
+      (ui/split-at "horizontal" 0.45 (ui/viewport (ref scene))
+        (ui/split-at "horizontal" 0.62 (ui/graph) (ui/inspector))))))|} in
+  let with_editor source = String.sub source 0 (String.length source - 1) ^ editor ^ ")" in
+  let make ?(source = carry_source) () =
+    E3.create ~await:true ~workspace:(workspace (with_editor source))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
     |> function Ok e -> e | Error m -> fail m in
@@ -272,7 +282,7 @@ let carry_tests () =
       records = None; probes = (fun _ -> 0); selected = []; chips;
       (* as many object rows as the panel draws: a row's place depends on them *)
       objects = (List.map (fun _ -> { N.depth = 0; letter = ""; name = ""; detail = ""; visible = None; render = None;
-        lead = false; inert = false; chosen = false; home = None }) (Procedural.Edit_graph.inspect (E3.scene_document !e)));
+        lead = false; inert = false; chosen = false; home = None }) (Sop.Edit_graph.inspect (E3.scene_document !e)));
       root_detail = ""; layouts = None; notes = [] } in
     let geometry = L.geometry ~hidden:[ L.Timeline ] layout (frame (0., 0.) [] 0) in
     let bounds = (Option.get (L.find geometry L.Outline)).body in
@@ -476,26 +486,6 @@ let carry_tests () =
     ("one entry added the node and its material: " ^ text_of !e);
   step ~keys:[ Input.Meta ] [ ch 'z' ];
   check (E3.workspace !e == !ws) "undone as one";
-  (* over the budget: the target is lit, the strip says what a release writes and why there is no
-     picture, and the document shown stays as it was; the release still writes it *)
-  E3.close !e;
-  e := make ~carry_budget:0. ();
-  for _ = 1 to 12 do step [] done;
-  ws := E3.workspace !e;
-  jump "shards";
-  drag_to (tile [ "shards"; "m" ]);
-  check (has (line ()) "Would write :material (ref cobalt) on shards/m" && has (line ()) "no preview"
-         && has (line ()) "applying takes")
-    ("a slow put says what it would write and why it is not shown: " ^ line ());
-  check (E3.workspace !e == !ws && has (text_of !e) "(ref spare)" && not (has (text_of !e) "(ref cobalt)"))
-    "a held-back put shows no picture: the document shown is the original";
-  check (E3.carrying !e <> None && E3.undo_label !e = history) "the carry goes on, nothing is written";
-  let at = tile [ "shards"; "m" ] in
-  step ~mouse:at [ Event.MouseReleased (Input.LeftButton, at) ]; step []; step [];
-  check (E3.carrying !e = None && E3.undo_label !e = Some "Put" && has (text_of !e) ":material (ref cobalt)")
-    "the release writes it, as one Put entry";
-  step ~keys:[ Input.Meta ] [ ch 'z' ];
-  check (E3.workspace !e == !ws) "and one undo gives it back";
   (* Enter before a letter keeps the carry and says so, ahead of the prompt *)
   jump "cobalt";
   step [ ch 'y' ]; step [];
@@ -530,7 +520,7 @@ let viewport_source = {|(workspace views
 
 let viewport_carry_tests () =
   let e = ref (E3.create ~await:true ~workspace:(workspace viewport_source)
-    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+    ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Session.payload))
       |> Result.map_error Rdk.Error.to_string)
     ~scene3:(fun _ mesh -> Scene3.create [ Scene3.mesh mesh ]) ()
     |> function Ok e -> e | Error m -> fail m) and count = ref 0 in
@@ -606,28 +596,28 @@ let () =
       |> List.assoc "geo" in
   let node = graph in
   let one = cook 1 node and four = cook 4 node in
-  assert (signature (Result.get_ok (Procedural.Payload.geometry one.payload)) = signature (Result.get_ok (Procedural.Payload.geometry four.payload)));
-  assert (Rdk.Geometry.primitive_count (Result.get_ok (Procedural.Payload.geometry one.payload)) = 6);
-  (match attr "shop_materialpath" (Result.get_ok (Procedural.Payload.geometry one.payload)), attr "material_roughness" (Result.get_ok (Procedural.Payload.geometry one.payload)) with
+  assert (signature (Result.get_ok (Sop.Payload.geometry one.payload)) = signature (Result.get_ok (Sop.Payload.geometry four.payload)));
+  assert (Rdk.Geometry.primitive_count (Result.get_ok (Sop.Payload.geometry one.payload)) = 6);
+  (match attr "shop_materialpath" (Result.get_ok (Sop.Payload.geometry one.payload)), attr "material_roughness" (Result.get_ok (Sop.Payload.geometry one.payload)) with
    | Rdk.Attribute.Text names, Float rough ->
        assert (names.(0) = "white" && rough.(0) = 0.8);
        assert (Array.sub names 1 5 = Array.make 5 "blue");
        assert (Array.sub rough 1 5 = Array.make 5 0.3)
    | _ -> assert false);
-  let surface = Sketch_support.Surface.of_output one |> get in
-  let drawings = Sketch_support.Surface.scene3 node surface |> Scene3.Private.drawings in
+  let surface = Rays_editor.Surface.of_output one |> get in
+  let drawings = Rays_editor.Surface.scene3 node surface |> Scene3.Private.drawings in
   assert (List.length drawings = 2);
   assert (List.fold_left (fun n (d : Scene3.Private.drawing) -> n + Mesh.index_count d.mesh) 0 drawings = 36);
   assert (List.exists (fun (d : Scene3.Private.drawing) -> d.material.diffuse = Color.hex_exn "#2670f5") drawings);
   let assign ?cancel ?group ?(roughness = 0.2) geometry =
     Rdk.Material_assign.run ?cancel ?group ~name:"red" ~color:(1.,0.,0.)
       ~roughness ~emission:(0.,0.,0.) geometry in
-  assert (Result.is_error (assign ~group:"missing" (Result.get_ok (Procedural.Payload.geometry one.payload))));
-  assert (Result.is_error (assign ~roughness:Float.nan (Result.get_ok (Procedural.Payload.geometry one.payload))));
+  assert (Result.is_error (assign ~group:"missing" (Result.get_ok (Sop.Payload.geometry one.payload))));
+  assert (Result.is_error (assign ~roughness:Float.nan (Result.get_ok (Sop.Payload.geometry one.payload))));
   let cancelled = Rdk.Cancel.create () in Rdk.Cancel.cancel cancelled;
-  (match assign ~cancel:cancelled (Result.get_ok (Procedural.Payload.geometry one.payload)) with
+  (match assign ~cancel:cancelled (Result.get_ok (Sop.Payload.geometry one.payload)) with
    | Error e -> assert (Rdk.Error.code e = "cancelled") | _ -> assert false);
-  assert (signature (Result.get_ok (Procedural.Payload.geometry one.payload)) = signature (Result.get_ok (Procedural.Payload.geometry (cook 1 node).payload)));
+  assert (signature (Result.get_ok (Sop.Payload.geometry one.payload)) = signature (Result.get_ok (Sop.Payload.geometry (cook 1 node).payload)));
   List.iter (fun text -> assert (Result.is_error (Rays_editor.Workspace.load text)))
     ["(workspace x (graph m :context material (material/standard :roughness 2)))";
      "(workspace x (graph m :context material (material/standard :color \"invalid\")))";

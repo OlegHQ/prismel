@@ -10,83 +10,24 @@ type mode =
   | Triangle_fan
 
 type t
-type face = {
-  vertex_indices : int * int * int;
-  points : Vec3.t * Vec3.t * Vec3.t;
-  vertex_normals : (Vec3.t * Vec3.t * Vec3.t) option;
-  vertex_colors : (Color.t * Color.t * Color.t) option;
-  vertex_tex_coords : (Vec2.t * Vec2.t * Vec2.t) option;
-  face_normal : Vec3.t;
-}
-
-val create_exn :
-  ?mode:mode ->
-  ?indices:int list ->
-  ?normals:Vec3.t list ->
-  ?colors:Color.t list ->
-  ?tex_coords:Vec2.t list ->
-  Vec3.t list ->
-  t
 
 val mode : t -> mode
 val vertices : t -> Vec3.t list
-val normals : t -> Vec3.t list
-val tex_coords : t -> Vec2.t list
 val vertex_count : t -> int
 val index_count : t -> int
 val centroid : t -> Vec3.t option
-val has_normals : t -> bool
-val has_colors : t -> bool
-val has_tex_coords : t -> bool
 
 val vertex : int -> t -> Vec3.t option
 
 val with_mode : mode -> t -> t
-val with_vertex : int -> Vec3.t -> t -> (t, string) result
 (* [remove_vertex] preserves valid indexing and therefore returns an error
    while the vertex is still referenced. *)
-val remove_vertex : int -> t -> (t, string) result
-val clear : t -> t
 val recalculate_normals : t -> t
 (* Duplicate triangle vertices so every face has one constant normal. *)
-val flat_shaded : t -> t
 
 (* Expand triangle, strip, and fan modes to indexed triangles. *)
-val triangles : t -> (int * int * int) list
-val faces : t -> face list
-val face : int -> t -> face option
-val face_normals : t -> Vec3.t list
 
-val plane : ?columns:int -> ?rows:int -> width:float -> height:float -> unit -> t
-val box :
-  ?x_segments:int ->
-  ?y_segments:int ->
-  ?z_segments:int ->
-  width:float ->
-  height:float ->
-  depth:float ->
-  unit ->
-  t
-val sphere : ?segments:int -> ?rings:int -> radius:float -> unit -> t
-val icosphere : ?subdivisions:int -> radius:float -> unit -> t
-val cylinder :
-  ?segments:int ->
-  ?height_segments:int ->
-  ?cap_segments:int ->
-  ?capped:bool ->
-  radius:float ->
-  height:float ->
-  unit ->
-  t
-val cone :
-  ?segments:int ->
-  ?height_segments:int ->
-  ?cap_segments:int ->
-  ?capped:bool ->
-  radius:float ->
-  height:float ->
-  unit ->
-  t
+val plane : width:float -> height:float -> unit -> t
 
 module Private : sig
   type vec3_view = {
@@ -98,7 +39,7 @@ module Private : sig
   type view = {
     mode : mode;
     vertices : Vec3.t array;
-    indices : int array;
+
     normals : Vec3.t array option;
     colors : Color.t array option;
     tex_coords : Vec2.t array option;
@@ -119,9 +60,6 @@ module Private : sig
   val create_owned :
     ?mode:mode ->
     ?indices:int array ->
-    ?normals:Vec3.t array ->
-    ?colors:Color.t array ->
-    ?tex_coords:Vec2.t array ->
     Vec3.t array ->
     (t, string) result
   (** Ownership-transfer construction for sibling-library generators.

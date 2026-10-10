@@ -2,8 +2,8 @@ open Rdk
 open Rdk_test_support
 module E = Flow.Eval
 module L = Flow_sop.Lower
-module Edit = Procedural.Edit_graph
-module Session = Procedural.Session
+module Edit = Sop.Edit_graph
+module Session = Sop.Session
 let flow_ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d)
 let factories = Sop_catalog.Editor.factories
 let catalog = Flow_sop.Catalog.of_factories ~version:1 factories |> flow_ok
@@ -21,18 +21,18 @@ let lower ?previous text =
 let compiled (l : L.t) =
   let graph = List.hd l.graphs in
   Edit.compile_node graph.network.geometry ~node_id:(Option.get graph.root) |> get_string_ok
-let context ~domains time = Procedural.Context.create ~domains ~time ~grain:257 () |> get_string_ok
+let context ~domains time = Sop.Context.create ~domains ~time ~grain:257 () |> get_string_ok
 let session () = Session.create ~max_entries:32 ~max_payload_bytes:(64 * 1024 * 1024) |> get_string_ok
 let cook session ~domains ~time node = Session.cook session ~context:(context ~domains time) node
-let geometry = function Ok (output : Session.output) -> (Result.get_ok (Procedural.Payload.geometry output.payload))
-  | Error d -> failwith (Procedural.Diagnostic.error_to_string d)
+let geometry = function Ok (output : Session.output) -> (Result.get_ok (Sop.Payload.geometry output.payload))
+  | Error d -> failwith (Sop.Diagnostic.error_to_string d)
 let reference (l : L.t) node =
   let n = Array.find_opt (fun (n : E.node) -> n.kind = "sop/with_attr") l.plan.nodes |> Option.get in
   let values = List.assoc "values" n.args in
   let sources = match List.assoc "geometry" n.args with E.Deferred (_, id) ->
     id :: List.filter ((<>) id) (Flow_sop.Attribute_kernel.sources values) | _ -> assert false in
   Flow_sop.Attribute_kernel.node ~reference:true ~source:"reference"
-    ~name:"P" ~values ~sources (Procedural.Node.inputs node)
+    ~name:"P" ~values ~sources (Sop.Node.inputs node)
 let stages program = Array.fold_left (fun count (node : Flow_ir.node) -> match node.kind with
   | Kernel {body = Packed_map p; _} -> max count (Flow_ir.Packed.stage_count p)
   | _ -> count) 0 (Flow_ir.Executor.graph program).nodes
@@ -44,10 +44,10 @@ let () =
     let original = Geometry.create ~positions ~topology:(Topology.empty ~point_count:count) ()
       |> get_string_ok in
     let before = geometry_bytes original in
-    let input = Procedural.Node.Private.make_geometry ~operation:"test.xyz_write" ~version:1
-      ~parameters:"" ~cook_mode:Procedural.Node.Generator
-      ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
-      (fun ~node_id:_ _ _ -> Ok Procedural.Node.Private.{geometry=original;diagnostics=[];instances=None}) in
+    let input = Sop.Node.Private.make_geometry ~operation:"test.xyz_write" ~version:1
+      ~parameters:"" ~cook_mode:Sop.Node.Generator
+      ~dependencies:Sop.Context.Dependencies.static ~inputs:[||]
+      (fun ~node_id:_ _ _ -> Ok Sop.Node.Private.{geometry=original;diagnostics=[];instances=None}) in
     let values = Array.init (count * 3) (fun j ->
       if j mod 17 = 0 then -0. else match j mod 3 with
       | 0 -> float_of_int (j / 3) +. 0.125
@@ -110,7 +110,7 @@ let () =
   List.iter(fun context->match L.source_cone context ~node:source with
     |Error d->assert(d.code="E_DATA_SOURCE")|Ok _->assert false)
     [L.{context with compiled=Flow_sop.Network.Int_map.empty};
-     L.{context with compiled=Flow_sop.Network.Int_map.singleton source (Procedural.Node.Private.fresh_id())}];
+     L.{context with compiled=Flow_sop.Network.Int_map.singleton source (Sop.Node.Private.fresh_id())}];
   List.iter(fun id->match L.source_context lowered ~node:id with
     |Error d->assert(d.code="E_DATA_SOURCE")|Ok _->assert false)[-1;Array.length lowered.plan.nodes;producer.id];
   let resolve time=
@@ -125,8 +125,8 @@ let () =
     let session=session()in
     Fun.protect ~finally:(fun()->Session.close session)(fun()->
       let image=cook session ~domains ~time:0. (Flow_sop.Image_kernel.node kernel)
-        |> Result.get_ok |> fun output->Procedural.Payload.image output.payload |> Result.get_ok in
-      Procedural.Image.Private.rgba8 image |> Option.get)in
+        |> Result.get_ok |> fun output->Sop.Payload.image output.payload |> Result.get_ok in
+      Sop.Image.Private.rgba8 image |> Option.get)in
   let initial=bytes 1 kernel in
   assert(initial=bytes 8 kernel);
   if Char.code(Bytes.get initial 0)<>82 then
@@ -143,21 +143,21 @@ let () =
   assert(changed<>initial && changed=bytes 8 rebound && changed=bytes 1 independently_prepared);
   List.iter(fun inputs->match Flow_sop.Image_kernel.with_inputs kernel inputs with
     |Error d->assert(d.code="E_DATA_SOURCE")|Ok _->assert false)
-    [[];[Procedural.Sop.box()]];
+    [[];[Lisp_sop.node {|(sop/box)|}]];
   let session=session()in
   Fun.protect ~finally:(fun()->Session.close session)(fun()->
     let original=cook session ~domains:1 ~time:0. input |> geometry in
     let transforms=[|Rays_math.Mat4.translation(Rays_math.Vec3.create 1. 0. 0.);
       Rays_math.Mat4.translation(Rays_math.Vec3.create 3. 0. 0.)|]in
-    let packed=Procedural.Node.Private.make_geometry ~operation:"test.capture.instances" ~version:1
-      ~parameters:"" ~cook_mode:Procedural.Node.Generator
-      ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
-      (fun ~node_id:_ _ _->Ok Procedural.Node.Private.{geometry=original;diagnostics=[];instances=Some transforms})in
+    let packed=Sop.Node.Private.make_geometry ~operation:"test.capture.instances" ~version:1
+      ~parameters:"" ~cook_mode:Sop.Node.Generator
+      ~dependencies:Sop.Context.Dependencies.static ~inputs:[||]
+      (fun ~node_id:_ _ _->Ok Sop.Node.Private.{geometry=original;diagnostics=[];instances=Some transforms})in
     let consumer=Flow_sop.Attribute_kernel.materialized_source packed in
     List.iter(fun domains->
       let output=cook session ~domains ~time:0. consumer |> Result.get_ok in
       assert(output.instances=None);
-      let materialized=Procedural.Payload.geometry output.payload |> Result.get_ok in
+      let materialized=Sop.Payload.geometry output.payload |> Result.get_ok in
       let expected=Rdk.Instance_copy.materialize_instances ~transforms original |> get_ok in
       assert(Geometry.point_count materialized=2*Geometry.point_count original);
       assert(geometry_bytes materialized=geometry_bytes expected);
@@ -392,14 +392,14 @@ let () =
     let values = List.assoc "values" call.args in
     let main = match List.assoc "geometry" call.args with E.Deferred (_, id) -> id | _ -> assert false in
     let sources = main :: List.filter ((<>) main) (Flow_sop.Attribute_kernel.sources values) in
-    let inputs = Procedural.Node.inputs node in
+    let inputs = Sop.Node.inputs node in
     let prepare inputs = Flow_sop.Attribute_kernel.prepare ~sources inputs values |> flow_ok in
     assert (stages (Flow_ir.Executor.compile values |> flow_ok) = 1);
     let program = prepare inputs in
     assert (stages program = expected_stages);
     if expected_stages = 3 && List.length inputs > 1 then begin
       let change field = List.mapi (fun i node -> if i = 0 then node else
-        Procedural.Node.Private.with_facts (field (Procedural.Node.facts node)) node) inputs in
+        Sop.Node.Private.with_facts (field (Sop.Node.facts node)) node) inputs in
       assert (stages (prepare (change (fun facts -> {facts with topology = Changed}))) = 1);
       assert (stages (prepare (change (fun facts -> {facts with elementwise = None}))) = 1);
       assert (stages (prepare (change (fun facts -> {facts with elementwise = Primitives}))) = 3)
@@ -421,21 +421,21 @@ let () =
      "(sop/scatter (sop/grid) :count 2050 :seed 9)", 1]
 let () =
   let empty = Kernel.generate_point_ranges 0 (fun ~first:_ ~last:_ ~x:_ ~y:_ ~z:_ -> ()) in
-  let empty_input = Procedural.Node.Private.make_geometry ~operation:"empty_fixture" ~version:1
-    ~parameters:"" ~cook_mode:Procedural.Node.Generator
-    ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
-    (fun ~node_id:_ _ _ -> Ok Procedural.Node.Private.{geometry=empty; diagnostics=[]; instances=None}) in
+  let empty_input = Sop.Node.Private.make_geometry ~operation:"empty_fixture" ~version:1
+    ~parameters:"" ~cook_mode:Sop.Node.Generator
+    ~dependencies:Sop.Context.Dependencies.static ~inputs:[||]
+    (fun ~node_id:_ _ _ -> Ok Sop.Node.Private.{geometry=empty; diagnostics=[]; instances=None}) in
   let empty_write = Flow_sop.Attribute_kernel.node ~source:"empty"
     ~name:"P" ~values:(E.Struct ("sop/attr", Flow.Ty.Array Flow.Ty.Vec3,
       ["geometry", E.Deferred (Flow.Ty.geometry,0); "attribute", E.Text "P"]))
     ~sources:[0] [empty_input] in
-  let output = Procedural.Node.Private.cook empty_write (context ~domains:8 0.) [|Procedural.Payload.Geometry empty|] in
-  (match output with Ok output -> assert (geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)) = geometry_bytes empty)
-    | Error d -> failwith (Procedural.Diagnostic.error_to_string d));
+  let output = Sop.Node.Private.cook empty_write (context ~domains:8 0.) [|Sop.Payload.Geometry empty|] in
+  (match output with Ok output -> assert (geometry_bytes (Result.get_ok (Sop.Payload.geometry output.payload)) = geometry_bytes empty)
+    | Error d -> failwith (Sop.Diagnostic.error_to_string d));
   let cancel = Cancel.create () in
   Cancel.cancel cancel;
-  let cancelled = Procedural.Context.create ~cancel ~domains:1 () |> get_string_ok in
-  (match Procedural.Node.Private.cook empty_write cancelled [|Procedural.Payload.Geometry empty|] with
+  let cancelled = Sop.Context.create ~cancel ~domains:1 () |> get_string_ok in
+  (match Sop.Node.Private.cook empty_write cancelled [|Sop.Payload.Geometry empty|] with
    | Error d -> assert (d.code = "E_CANCELLED") | Ok _ -> assert false);
   List.iter (fun columns ->
     List.iter (fun amp ->
@@ -444,7 +444,7 @@ let () =
       Fun.protect ~finally:(fun () -> Session.close session) (fun () ->
         let ref_node = reference l node in
         List.iter (fun time ->
-          let base = cook session ~domains:1 ~time (List.hd (Procedural.Node.inputs node)) |> geometry in
+          let base = cook session ~domains:1 ~time (List.hd (Sop.Node.inputs node)) |> geometry in
           let before = geometry_bytes base in
           let amplitude = if amp = "0.8" then 0.8 else 0.8 +. time *. 0.1 in
           let native = Deform.noise_displace ~mode:Deform.Normal_3d ~seed:0
@@ -502,10 +502,10 @@ let () =
       let live = { (Frame_input.at_time time) with frame } in
       let resolved = Flow_sop.Value_lane.resolve ~live lane ~time graph.network |> flow_ok in
       let node = Edit.compile_node resolved.geometry ~node_id:(Option.get graph.root) |> get_string_ok in
-      let context = Procedural.Context.create ~input:live ~time ~frame:(Int64.of_int frame)
+      let context = Sop.Context.create ~input:live ~time ~frame:(Int64.of_int frame)
         ~domains:8 () |> get_string_ok in
       let output = Session.cook session ~context node |> geometry in
-      let base = Session.cook session ~context (List.hd (Procedural.Node.inputs node)) |> geometry in
+      let base = Session.cook session ~context (List.hd (Sop.Node.inputs node)) |> geometry in
       let amplitude = List.fold_left (fun a _ -> a +. 0.1) 0.8 (List.init (frame + 1) Fun.id) in
       let native = Deform.noise_displace ~mode:Deform.Normal_3d ~seed:0 ~amplitude ~frequency:0.16 base |> get_ok in
       assert (geometry_bytes (Geometry.without_attribute ~owner:Attribute.Point "N" output) = geometry_bytes native))
@@ -517,7 +517,7 @@ let () =
   let s = Session.create ~max_entries:32 ~max_payload_bytes:(64 * 1024 * 1024) |> get_string_ok in
   Fun.protect ~finally:(fun () -> Session.close s) (fun () ->
     let node = compiled reader in
-    let original = cook s ~domains:1 ~time:0. (List.hd (Procedural.Node.inputs node)) |> geometry in
+    let original = cook s ~domains:1 ~time:0. (List.hd (Sop.Node.inputs node)) |> geometry in
     let copy = cook s ~domains:8 ~time:0. node |> geometry in
     assert (geometry_bytes original = geometry_bytes copy));
   let ws = match Flow.Workspace.check ~ops:Flow_sop.Operators.all catalog forms with
@@ -535,7 +535,7 @@ let () =
   let probe_session = Session.create ~max_entries:32 ~max_payload_bytes:(64 * 1024 * 1024) |> get_string_ok in
   Fun.protect ~finally:(fun () -> Session.close probe_session) (fun () ->
     let node = compiled large in
-    let base = cook probe_session ~domains:8 ~time:1.25 (List.hd (Procedural.Node.inputs node)) |> geometry in
+    let base = cook probe_session ~domains:8 ~time:1.25 (List.hd (Sop.Node.inputs node)) |> geometry in
     let geometry_id = Array.find_opt (fun (n : E.node) -> n.kind = "sop/grid") large.plan.nodes
       |> Option.get |> fun n -> n.id in
     let reads = ref 0 in

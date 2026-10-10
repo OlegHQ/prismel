@@ -21,10 +21,9 @@ val triangle_point : t -> int -> int -> int
 
 module Private : sig
   type view = {
-    unique_x : float array;
-    unique_y : float array;
+
     unique_source : int array;
-    source_unique : int array;
+
     triangle_points : int array;
   }
 

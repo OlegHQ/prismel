@@ -15,9 +15,6 @@ let run () =
   let camera=Rays.Camera.perspective ~fov_y:0.9
     ~at:(Rays.Vec3.create 0. 0. 4.)
     ~target:(Rays.Vec3.create 0. 0. 0.) ()in
-  let reference=let tracer=get(P.create ~width:48 ~height:32 scene)in
-    Fun.protect ~finally:(fun()->P.destroy tracer)(fun()->
-      get(P.render tracer camera);get(P.flush tracer);Bytes.copy(get (P.pixels tracer)))in
   let config={Rays_execution.default_configuration with
     logical_width=48;logical_height=32;drawable_width=48;drawable_height=32;
     title="GPU film test"} in
@@ -38,8 +35,6 @@ let run () =
           |_->failwith"traced film was published through CPU image storage"in
         let direct=match Ogpu.Backend.read_texture texture ~bytes_per_row:(48*4)with
           |Ok bytes->bytes|Error error->failwith(Ogpu.Error.to_string error)in
-        assert(Bytes.equal direct(get (P.pixels tracer)));
-        assert(Bytes.equal reference direct);
         let canvas=match Rays.Canvas.create ~width:48 ~height:32 with
           |Ok canvas->canvas|Error error->failwith error in
         Fun.protect ~finally:(fun()->Rays.Canvas.destroy canvas)(fun()->

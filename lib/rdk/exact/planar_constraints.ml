@@ -18,11 +18,6 @@ type t = {
 let source_point_count value = Array.length value.source_x
 let point_count value = Array.length value.x
 let split_point_count value = Array.length value.split_points
-let approximate_x value = Array.copy value.x
-let approximate_y value = Array.copy value.y
-let insert_points value = Array.copy value.inserted
-let constraint_points value = Array.copy value.constraints
-let constraint_winding value = Array.copy value.constraint_winding
 
 let check_split value split =
   if split < 0 || split >= split_point_count value then

@@ -52,7 +52,7 @@ let outputs ports = group "outputs" (List.map (fun (name, ty) ->
   let name_ty = String.lowercase_ascii (Flow.Port_type.name ty) in
   group "output" [quote name; if Flow.Symbol.valid_name name_ty then name_ty else quote name_ty]) ports)
 
-let facts (facts : Procedural.Node.facts) =
+let facts (facts : Sop.Node.facts) =
   let mode = match facts.cook_mode with
     | Generator -> ["generator"] | Duplicate_input index -> ["duplicate-input"; string_of_int index]
     | In_place index -> ["in-place"; string_of_int index]
@@ -78,7 +78,7 @@ let entry ?facts:declaration ?(keyword_inputs = []) ~qualified ~key ~operation ~
   "(kind " ^ quote qualified ^ "\n      " ^ String.concat "\n      " properties ^ ")"
 
 let descriptor ?facts (d : Catalog.descriptor) =
-  let module Edit = Procedural.Edit_graph in
+  let module Edit = Sop.Edit_graph in
   let types = if d.slot_types = [] then List.map (fun _ -> "geometry") d.slots else d.slot_types in
   let slots = List.map2 (fun (name, requirement) ty ->
     group "slot" [quote name; (match requirement with
@@ -97,7 +97,7 @@ let descriptor ?facts (d : Catalog.descriptor) =
    generated scene, world and settings kinds ([extra]) follow them and are outside it. *)
 let generate ?extra factories =
   Result.map (fun _ ->
-    let kinds = List.map (fun f -> descriptor ~facts:(Procedural.Edit_graph.factory_facts f)
+    let kinds = List.map (fun f -> descriptor ~facts:(Sop.Edit_graph.factory_facts f)
       (Catalog.descriptor f)) factories in
     let payload = group "version" [string_of_int version] ^ "\n" ^
       group "kinds" kinds in

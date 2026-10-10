@@ -10,12 +10,12 @@
  (libraries rays pxui scene_command sdl3))
 
 (rule
- (aliases runtest-native test_ui_parity)
- (locks smoke_window)
+ (aliases runtest test_ui_parity)
  (deps fixtures/kit_panel_2x.png fixtures/kit_overlays_2x.png fixtures/kit_zones_2x.png fixtures/kit_table_2x.png)
  (action
+  (setenv SDL_VIDEODRIVER dummy
   (setenv RAYS_UI_FONT %{dep:../../assets/fonts/DepartureMono-Regular.otf}
-   (run %{exe:test_main.exe} test_ui_parity))))
+   (run %{exe:test_main.exe} test_ui_parity)))))
 
 (rule
  (aliases runtest test_ui)

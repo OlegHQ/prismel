@@ -44,7 +44,7 @@ type plan = {
   boundary_interpolation : boundary_interpolation;
   triangle_subdivision : triangle_policy;
   creasing_method : creasing_method;
-  holes : Rdk_core.Group.t option;
+
   creases : crease_plan option;
   vertex_kind : bytes;
   vertex_a : int array;
@@ -59,7 +59,7 @@ and crease_plan = {
   edge_sharpness : float array;
   child_edge_sharpness : float array;
   has_edge_creases : bool;
-  has_corner_creases : bool;
+
   vertex_masks : vertex_mask_plan;
 }
 and vertex_mask_plan = {
@@ -134,7 +134,7 @@ val interpolate_owned_attribute :
   primitive_source:int array -> Rdk_core.Attribute.t -> Rdk_core.Attribute.t
 type divided_boundary = {
   geometry : Rdk_core.Geometry.t;
-  edge_offsets : int array;
+
   points : int array;
   vertices : int array;
   source_primitive_to_output : int array;

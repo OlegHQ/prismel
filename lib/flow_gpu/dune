@@ -22,7 +22,7 @@
 (executable
  (name test_image_sink_native)
  (modules test_image_sink_native test_program)
- (libraries flow_gpu flow flow_ir flow_sop procedural rays rays_execution ogpu unix))
+ (libraries flow_gpu flow flow_ir flow_sop sop rays rays_execution ogpu unix))
 
 (rule
  (alias runtest-native)

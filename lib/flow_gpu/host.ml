@@ -1,4 +1,3 @@
-module B=Ogpu.Backend
 module G=Flow_ir.Gpu
 module Cache=Lru.Make(struct type t=string let equal=String.equal let hash=Hashtbl.hash end)
 type runner={identity:int;run:Run.t;mutable stamp:int64;mutable output:Run.output option}
@@ -14,9 +13,9 @@ let add_run stats run={stats with
   readback_bytes=stats.readback_bytes+Run.Private.readback_bytes run}
 type t={gpu:Rays_execution.gpu;pipelines:Pipelines.t;runners:runner Cache.t;
   created:int ref;retired:stats ref;
-  mutable closed:bool;domain:Domain.id;cost:Flow_ir.Packed.t -> count:int -> float option}
+  mutable closed:bool;domain:Domain.id}
 let next=Atomic.make 1
-let create ?(cost=fun _ ~count:_->None) ~clock gpu =
+let create ~clock gpu =
   if not(Domain.is_main_domain())then invalid_arg "Host.create: initial domain required";
   let created=ref 0 and retired=ref zero in
   {gpu;pipelines=Pipelines.create ~clock(Rays_execution.gpu_device gpu);
@@ -24,7 +23,7 @@ let create ?(cost=fun _ ~count:_->None) ~clock gpu =
     runners=Cache.create ~release:(fun _ runner->
       retired:={(add_run !retired runner.run) with runners_released=(!retired).runners_released+1};
       runner.output<-None;Run.close runner.run)64;
-    closed=false;domain=Domain.self();cost}
+    closed=false;domain=Domain.self()}
 let live t=not t.closed && Domain.self()=t.domain
 let error message=Error(Flow.Diagnostic.error ~code:"E_GPU" message)
 let output t (value:G.value)=
@@ -34,7 +33,7 @@ let output t (value:G.value)=
     Option.bind runner.output(fun output->if Run.count output<>value.count || Run.width output<>value.width
       || Run.buffer output=None then None else Some output))
 let backend t : G.backend =
-  {cost=(fun packed ~count->if live t then t.cost packed ~count else None);
+  {cost=(fun _ ~count:_->None);
    prepare=(fun packed->if not(live t)then error "GPU host is closed or called from another domain."else
      Result.bind (Emit.kernel packed)(fun msl->
      Result.map(fun _compiled->

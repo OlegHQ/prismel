@@ -3,7 +3,7 @@
  (public_name rays.rays_editor)
  (private_modules echo carry selection common leader doc schedule pick cook lisp_text text_pane navigator bars source_file
   spreadsheet core_model core_shell core_inspect core_panes core_scope core_add core_list core_setup core_status core_actions
-  core_text core_panels core_menu core_carry core_reduce core_host core environment
-  viewport3 renderer workspace_resources workspace_images workspace_gpu workspace_host)
- (libraries editor_document rays rays_pathtracer procedural flow flow_ir flow_gpu flow_sop flow_graph editor_core pxui pxui_shell pxui_graph sop_catalog sketch_support rays_execution scene_command lru unix)
+  core_text core_panels core_menu core_carry core_reduce core_host core world_map environment
+  viewport renderer workspace_resources workspace_images workspace_gpu workspace_host)
+ (libraries editor_document rays frame_input rdk rdk_rays rays_pathtracer sop flow flow_ir flow_gpu flow_sop flow_graph editor_core pxui pxui_shell pxui_graph sop_catalog rays_execution scene_command lru unix)
  (preprocess (pps rays.ppx)))

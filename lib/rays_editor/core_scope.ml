@@ -89,8 +89,8 @@ let sync_scope value =
         | Some k when Option.fold ~none:false ~some:(( == ) lowered.evaluated) k.evaluated -> k.evaluated
         | _ -> Some lowered.evaluated in
       let time = if not (Flow.Workspace.Paths.is_empty ws.checked.live)
-        then Some {value.live_frame with Frame_input.t = Sketch_support.Timeline.time value.timeline;
-          frame = Int64.to_int (Sketch_support.Timeline.frame value.timeline)} else None in
+        then Some {value.live_frame with Frame_input.t = Timeline.time value.timeline;
+          frame = Int64.to_int (Timeline.frame value.timeline)} else None in
       let summaries = value.cook.Cook.summaries in
       let executions = Flow_ir.Profile.executions lowered.profile in
       let fresh = match previous with

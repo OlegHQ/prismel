@@ -32,7 +32,7 @@ switch of a document with no authored renderer) writes `(scene/root ...)` over t
 keywords, and Save round-trips them. The viewport reads the renderer, the resolution, `max_spp`,
 `bounces` and `round_samples` from the root. A root in the text names the renderer and wins over
 the viewport's preference and a sketch's `renderer` setting; a document without one keeps both.
-`Editor3.render_settings` is the root's size and samples.
+`Editor.render_settings` is the root's size and samples.
 
 Old files load unchanged: a graph without a root is a part, and `:width`, `:height` and `:max_spp`
 on a `scene/camera` (the camera's former Render folder, no longer a field of it) are read as the
@@ -49,12 +49,6 @@ layers); the World's other keywords (background, time of day, sun, ...) are the 
 `/ e` selects the scene's World and enters it, creating one (written as a `scene/world`
 member and a `world` graph) when the scene has none. `i` enters a geometry object or the World, `u`
 leaves.
-
-`world/world` is the old spelling, kept as a read-only legacy so old files load: a world graph returning
-`(world/world <stack> :name ...)` that no `scene/world` references is read as the scene's World and
-edited where it is written. No menu offers it and no checked-in sketch uses it: `voxel_wall`, `ws_bloom`
-and `cube_cage` were migrated to `scene/world (ref world)` (the name, exposure and rotation on the
-call, the layers alone in the world graph).
 
 ### What is refused
 
@@ -109,7 +103,7 @@ network goes with it; a pasted object copies its source's network.
 An empty scene or SOP graph has no displayed node (a SOP graph's result is `nil`).
 Deleting every SOP clears that object's preview, including a late cook from
 before deletion. Disconnected nonempty SOPs stay editable; a compile error
-retains the last successful preview with an error. Editor3 preserves an empty
+retains the last successful preview with an error. Editor preserves an empty
 scene without adding a camera.
 
 A preset load parses, checks and lowers the text.
@@ -140,22 +134,22 @@ the selected node's xyz triples and Escape hides them so drags only orbit; a
 selected camera also gets a handle sliding its target along the view
 direction (its focus distance). Camera guides (frustum, aim line, eye marker)
 are drawn over the sketch overlay for every camera the view is not looking
-through; clicking the eye marker selects that camera. `Editor3.view_camera`
+through; clicking the eye marker selects that camera. `Editor.view_camera`
 is what the pane shows, for sketch renderers: the render camera through
 look-through, else the free viewport carrying the ACTIVE camera's lens. The
 Viewport section pairs the look-through toggle with "Camera follows
 viewport" (the ACTIVE camera's parameter, one undo entry) so a fixed camera
 is set up by looking through it and orbiting. Looking through, the render
-fills `Editor3.film`: the root's aspect (its render resolution, the gate) fitted
+fills `Editor.film`: the root's aspect (its render resolution, the gate) fitted
 into the pane; otherwise the whole pane, whatever draws it. Solid, Wire and Traced are the
 same camera in the same rectangle: a path-traced free view is traced at the pane's own drawable
 pixels and replaces the raster picture in place, and only looking through the camera shows the
 gate (the tracer's film is then the root's resolution in the step that fits it). The editor
 paints its 3D view, the sketch overlay, the guides and the handles inside that rect (the axis
 gizmo keeps the pane's corner), and every mark over a view is clipped to its pane. "Render / save PNG" captures the screen
-unless the sketch takes the request (`Editor3.take_export`) to render at
-`Editor3.render_settings` (resolution, max samples) with progress in the
-status bar (`Editor3.set_render_status`).
+unless the sketch takes the request (`Editor.take_export`) to render at
+`Editor.render_settings` (resolution, max samples) with progress in the
+status bar (`Editor.set_render_status`).
 List rows carry a kind badge (G geometry, L light, C camera, W world, ✦ sun,
 · layer, S SOP); the status bar names the open level's keys.
 
@@ -204,7 +198,7 @@ at their world transforms (`Scene3.nodes` under `Scene3.transform`), so
 moving, parenting, hiding, or re-lighting objects never re-cooks SOPs. Light
 objects light the scene when it has any; otherwise the first object's own
 Scene3 lights do. While inside an object the others draw ghosted
-(screen-blended, no depth writes) and are not editable. `Editor3.objects`,
+(screen-blended, no depth writes) and are not editable. `Editor.objects`,
 `lights`, and `world` hand the same scene to a sketch's own renderer (the
 voxel wall's path tracer).
 
@@ -226,11 +220,11 @@ so playback and `Sketch.export` with `Fixed dt` are deterministic. See
   and shows that instance's own World (`Document.view_worlds`: the node and the layers of the
   `scene/world` its merge holds, none when it holds none). Only the document's own scene (the first
   scene graph) has scene objects in the list; the instance of a viewport is shown, not edited, so
-  its root and World are edited in their graph. `Viewport3` reads everything per key: `film`,
+  its root and World are edited in their graph. `Viewport` reads everything per key: `film`,
   `view_camera` and `render` take the viewport's key and read that key's root (a viewport over a
   part, or over the document's own scene, reads `Document.root` and the ACTIVE camera, and a root
   that names no camera falls back to the document's). Looking through, each viewport sees through
-  its own root's camera (`Editor3.viewport_camera`). `Environment` threads the key through
+  its own root's camera (`Editor.viewport_camera`). `Environment` threads the key through
   `camera_of`, `paint_view` and the render call.
 
 ### The path tracer's film, budget and sample cap
@@ -255,8 +249,7 @@ so playback and `Sketch.export` with `Fixed dt` are deterministic. See
   scene, so they can share. The sample budget: the focused viewport's slot renders every frame; of
   the other slots that want the GPU (their picture differs from what the tracer last had, or they
   are short of their cap) one takes a turn per frame, in rotation (`Renderer.next_turn`); a slot at
-  its cap with an unchanged picture costs nothing. `Editor3.slot` reports a slot's film, step,
+  its cap with an unchanged picture costs nothing. `Editor.slot` reports a slot's film, step,
   samples, cap and the viewports it serves.
 - Not built: comparing two roots in one pane (a wipe between two slots, `:against`).
   `E_SCENE_ROOT` stays strict: a root is never merged or wired into another.
-- A legacy `world/world` file keeps its spelling until the World is deleted and added again.

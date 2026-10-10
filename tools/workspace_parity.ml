@@ -2,7 +2,7 @@ module E = Flow.Eval
 module I = Flow_ir
 module L = Flow_sop.Lower
 module N = Flow_sop.Network
-module S = Procedural.Session
+module S = Sop.Session
 let ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d)
 let string_ok = function Ok x -> x | Error d -> failwith d
 let rec functions = function
@@ -83,7 +83,7 @@ let compare_float32 runtime id mesh scene =
     id !maximum !changed (Bytes.length after / 4)
 
 let picture ?compare ?texture (output : S.output) =
-  let geometry = Result.get_ok (Procedural.Payload.geometry output.payload) in
+  let geometry = Result.get_ok (Sop.Payload.geometry output.payload) in
   let mesh = Rdk_rays.Rays_mesh.to_mesh geometry |> Result.map_error Rdk.Error.to_string |> string_ok in
   let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions geometry) in
   let lo = Array.make 3 infinity and hi = Array.make 3 neg_infinity in
@@ -181,34 +181,34 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
       let session = S.create ~max_entries:512 ~max_payload_bytes:(256 * 1024 * 1024) |> string_ok in
       S.set_volatile session (L.is_volatile lowered);
       let owner = if Array.exists (fun (n : E.node) -> n.ty = Flow.Ty.image) evaluated.plan.nodes then
-        Some (Rays_editor.Editor3.create ~workspace ~factories ~domains ~await:true
+        Some (Rays_editor.Editor.create ~workspace ~factories ~domains ~await:true
           ~prepare:(fun _ _ -> Ok ()) ~scene3:(fun _ () -> Rays.Scene3.empty) () |> string_ok)
         else None in
       reference, lowered, state, lanes, session, owner) in
     Fun.protect ~finally:(fun () -> List.iter (fun (_,_,_,_,s,owner) ->
-      S.close s; Option.iter (fun owner -> Rays_editor.Editor3.close owner;
-        let created, destroyed = Rays_editor.Editor3.Private.image_stats owner in
+      S.close s; Option.iter (fun owner -> Rays_editor.Editor.close owner;
+        let created, destroyed = Rays_editor.Editor.Private.image_stats owner in
         if created <> destroyed then failwith (name ^ ": leaked image oracle resources")) owner) modes) (fun () ->
     List.iteri (fun frame time ->
       let live = {(Frame_input.at_time time) with frame; dt = (if frame = 0 then 0. else time -. [|0.;0.125;1.25;7.|].(frame-1)); size = (800,600)} in
       let results = List.map (fun (reference, (lowered : L.t), state, lanes, session, owner) ->
         let scoped run = match owner with
-          | Some owner -> Rays_editor.Editor3.Private.with_images ~state ~live ~plan:evaluated.plan owner run
+          | Some owner -> Rays_editor.Editor.Private.with_images ~state ~live ~plan:evaluated.plan owner run
           | None -> let unavailable _ = Error (Flow.Diagnostic.error ~code:"E_IMAGE" "Image qualification needs its workspace owner.") in
               run ~image:unavailable ~texture:unavailable in
         scoped (fun ~image ~texture ->
         let networks = List.map (fun ((g : L.graph), lane) -> g,
           (Flow_sop.Value_lane.resolve ~live lane ~time g.network |> ok).geometry) lanes in
-        let context = Procedural.Context.create ~input:live ~time ~frame:(Int64.of_int frame) ~domains () |> string_ok in
+        let context = Sop.Context.create ~input:live ~time ~frame:(Int64.of_int frame) ~domains () |> string_ok in
         let cook network cid =
-          let node = Procedural.Edit_graph.compile_node network ~node_id:cid |> string_ok in
+          let node = Sop.Edit_graph.compile_node network ~node_id:cid |> string_ok in
           match S.cook session ~context node with Ok output -> output
-            | Error d -> failwith (name ^ ": " ^ Procedural.Diagnostic.error_to_string d) in
+            | Error d -> failwith (name ^ ": " ^ Sop.Diagnostic.error_to_string d) in
         let sources = Hashtbl.create 8 in
         let geometry id = match Hashtbl.find_opt sources id with Some g -> Some g | None ->
           Option.bind (N.Int_map.find_opt id lowered.compiled) (fun cid ->
-            Option.bind (List.find_opt (fun (_,network) -> Procedural.Edit_graph.find network ~node_id:cid <> None) networks)
-              (fun (_,network) -> let g = (Result.get_ok (Procedural.Payload.geometry (cook network cid).payload)) in Hashtbl.add sources id g; Some g)) in
+            Option.bind (List.find_opt (fun (_,network) -> Sop.Edit_graph.find network ~node_id:cid <> None) networks)
+              (fun (_,network) -> let g = (Result.get_ok (Sop.Payload.geometry (cook network cid).payload)) in Hashtbl.add sources id g; Some g)) in
         let resolve = Flow_sop.Attribute_kernel.resolve ~geometry in
         let results = List.mapi (fun index (value, program) ->
           let result = if reference then E.Private.force_reference ~state ~resolve value ~live
@@ -221,9 +221,9 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
           let output = cook network cid in
           let id = Printf.sprintf "%s-%d-t%g" g.name g.instance time in
           let bytes = match output.payload with
-            | Procedural.Payload.Geometry geometry -> Rdk_test_support.geometry_bytes geometry
-            | Image image -> Marshal.to_string (Procedural.Image.width image, Procedural.Image.height image,
-                Procedural.Image.Private.storage image) [Marshal.No_sharing]
+            | Sop.Payload.Geometry geometry -> Rdk_test_support.geometry_bytes geometry
+            | Image image -> Marshal.to_string (Sop.Image.width image, Sop.Image.height image,
+                Sop.Image.Private.storage image) [Marshal.No_sharing]
             | Kernel _ -> failwith "Workspace results cannot contain function payloads" in
           compare payloads ("geometry-" ^ id) (bytes ^ Marshal.to_string output.instances []);
           id, cid, output) g.root) networks in
@@ -252,7 +252,7 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
             | _ -> [] in
           let textures = List.concat_map (fun (_, value) -> textures value) evaluated.results in
           List.iter (fun (id, cid, output) -> match output.S.payload with
-            | Procedural.Payload.Image _ ->
+            | Sop.Payload.Image _ ->
                 let node = Array.find_opt (fun (n : E.node) -> N.Int_map.find_opt n.id lowered.compiled = Some cid) evaluated.plan.nodes |> Option.get in
                 render id [Rays.Scene.image (image (E.Deferred (Flow.Ty.image, node.id))) ~at:(0,0) ()]
             | Kernel _ -> failwith "Workspace results cannot display function payloads"
@@ -263,8 +263,8 @@ let check ?directory ?(commands = false) ~factories ~name (workspace : Editor_do
             List.iteri (fun index (target, source) -> if target = cid then
               render (Printf.sprintf "%s-texture-%d" id index) (picture ~texture:(texture source |> ok) output)) textures) cooked;
           List.iter (fun (graph, value) -> if Flow.Value.ty_of value = Flow.Ty.drawing then begin
-            let prepared = Sketch_support.Drawing.prepare ~states:evaluated.states evaluated.plan value |> ok in
-            let scene = Sketch_support.Drawing.render_prepared ~state ~reference ~image:(fun value -> Ok (image value)) prepared ~live ~size:(800,600) |> ok in
+            let prepared = Rays_editor.Drawing.prepare ~states:evaluated.states evaluated.plan value |> ok in
+            let scene = Rays_editor.Drawing.render_prepared ~state ~reference ~image:(fun value -> Ok (image value)) prepared ~live ~size:(800,600) |> ok in
             render (Printf.sprintf "%s-draw-t%g" graph time) scene
           end) evaluated.results
         end); results)) modes in

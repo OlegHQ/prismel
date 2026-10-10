@@ -19,6 +19,5 @@ val array_width : Ty.t -> int option
 val binary : string -> binary option
 val unary : string -> unary option
 val noise_names : string list
-val derived_names : string list
 val names : string list
 val supports : string -> bool

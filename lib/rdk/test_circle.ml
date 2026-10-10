@@ -98,32 +98,6 @@ let check_arc_modes () =
       && near reversed.x.(2) 2. && near reversed.z.(2) 0.)
     "Circle reverse traversal"
 
-let check_orientation_and_ellipse () =
-  let ellipse = Plane_generators.circle ~orientation:Plane_generators.Circle_xy
-      ~center:(Vec3.create 1. 2. 3.) ~radius_x:3. ~radius_y:1.
-      ~uniform_scale:2. ~rotation:(Float.pi *. 0.5)
-      ~segments:64 ~radius:1. () |> get_ok in
-  let bounds = Analysis.bounds ellipse |> Option.get in
-  check (near bounds.center.x 1. && near bounds.center.y 2.
-      && near bounds.center.z 3. && near bounds.size.x 4.
-      && near bounds.size.y 12. && near bounds.size.z 0.)
-    "Circle XY ellipse dimensions/center/rotation";
-  let yz = Plane_generators.circle ~orientation:Plane_generators.Circle_yz
-      ~radius_x:4. ~radius_y:2. ~segments:64 ~radius:1. () |> get_ok
-      |> Analysis.bounds |> Option.get in
-  check (near yz.size.x 0. && near yz.size.y 8. && near yz.size.z 4.)
-    "Circle YZ orientation";
-  let custom = Plane_generators.circle ~orientation:(Plane_generators.Circle_axes {
-        horizontal = Vec3.create max_float max_float 0.;
-        vertical = Vec3.create 0. 0. max_float })
-      ~center:(Vec3.create 4. 5. 6.) ~radius_x:3. ~radius_y:2.
-      ~segments:128 ~radius:1. () |> get_ok in
-  let point = positions custom in
-  let dx = point.x.(0) -. 4. and dy = point.y.(0) -. 5.
-  and dz = point.z.(0) -. 6. in
-  check (near ((dx *. dx) +. (dy *. dy) +. (dz *. dz)) 9.)
-    "Circle robust custom plane frame"
-
 let check_validation () =
   expect_code "invalid_parameter"
     (Plane_generators.circle ~grain:0 ~segments:3 ~radius:1. ());
@@ -197,7 +171,6 @@ let check_parallel_exact () =
 let run () =
   check_default_compatibility ();
   check_arc_modes ();
-  check_orientation_and_ellipse ();
   check_validation ();
   check_parallel_exact ();
   print_endline "circle tests passed"

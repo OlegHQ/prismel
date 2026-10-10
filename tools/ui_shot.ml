@@ -10,15 +10,15 @@ let scale = Option.value ~default:1 (Option.bind (Sys.getenv_opt "UI_SHOT_SCALE"
 
 let frame count : Rays.Frame.t = {
   width; height; size = width, height;
-  drawable_width = width * scale; drawable_height = height * scale;
-  drawable_size = width * scale, height * scale; pixel_scale = float scale, float scale;
+
+   pixel_scale = float scale, float scale;
   time = float_of_int count /. 60.; dt = 1. /. 60.; fps = 60.; count;
   mouse = -100., -100.; mouse_delta = 0., 0.; keys = [];
   mouse_buttons = []; events = [];
 }
 
 let () =
-  let module E = Rays_editor.Editor3 in
+  let module E = Rays_editor.Editor in
   let text = In_channel.with_open_bin Sys.argv.(1) In_channel.input_all in
   let workspace = match Result.bind (Rays_editor.Source.read_imports ~file:Sys.argv.(1) text)
       (fun imports -> Rays_editor.Workspace.load ~imports text) with
@@ -26,7 +26,7 @@ let () =
     | Error diagnostics -> failwith (String.concat "\n" (List.map Flow.Diagnostic.to_string diagnostics)) in
   let canvas = Rays.Canvas.create_exn ~width:(width * scale) ~height:(height * scale) in
   let editor = E.create ~workspace ~await:true ~presets:(Filename.temp_dir "ui-shot" "")
-      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.Procedural.Session.payload))
+      ~prepare:(fun _ output -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.Sop.Session.payload))
         |> Result.map_error Rdk.Error.to_string)
       ~scene3:(fun _ mesh -> Rays.Scene3.create [Rays.Scene3.mesh mesh]) () |> Result.get_ok in
   let editor = ref editor in

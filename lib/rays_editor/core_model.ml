@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 open Editor_document
 
 type bounds = Cook.bounds
@@ -233,7 +233,7 @@ type 'prepared t = {
   outline : Navigator.state;  (* the Navigator panel: its search (view state) *)
   ui : Pxui.Ui.t;
   workspace : shell;
-  timeline : Sketch_support.Timeline.t;
+  timeline : Timeline.t;
   live_frame : Frame_input.t;
   cook : 'prepared Cook.t;
   edit_error : string option;

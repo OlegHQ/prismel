@@ -2,17 +2,6 @@ open Rays
 open Rdk
 open Rdk_test_support
 
-let geometry positions primitives =
-  let packed = Packed.Float3.Builder.create (Array.length positions) in
-  Array.iteri (fun point (x, y, z) ->
-    Packed.Float3.Builder.set packed point x y z) positions;
-  let topology = Topology.Builder.create ~point_count:(Array.length positions) () in
-  Array.iter (fun (kind, points) -> match kind with
-    | `Polygon -> Topology.Builder.add_polygon topology points
-    | `Open -> Topology.Builder.add_open_polyline topology points) primitives;
-  Geometry.create ~positions:(Packed.Float3.Builder.freeze packed)
-    ~topology:(Topology.Builder.freeze topology) () |> Result.get_ok
-
 let group owner name geometry = match Geometry.find_group ~owner name geometry with
   | Some group -> group
   | None -> fail ("missing group " ^ name)
@@ -56,57 +45,6 @@ let test_point_box_and_sphere () =
       ~owner:Group_ops.Group_points ~name:"spherical" source |> get_ok in
   expect_members [0; 1; 2] (group Group.Point "spherical" spherical)
     "Group Bounds inclusive point sphere"
-
-let test_vertex_and_primitive_containment () =
-  let source = geometry
-      [|(-2., 0., 0.); (0., 0., 0.); (2., 0., 0.);
-        (-0.25, 0., 0.); (0.25, 0., 0.); (0., 0.25, 0.)|]
-      [|`Polygon, [|0; 1; 2|]; `Polygon, [|3; 4; 5|]|] in
-  let bounds = box (Vec3.create (-0.5) (-0.5) (-0.5))
-      (Vec3.create 0.5 0.5 0.5) in
-  let vertices = Group_ops.group_bounds bounds ~owner:Group_ops.Group_vertices
-      ~name:"vertices" source |> get_ok in
-  expect_members [1; 3; 4; 5] (group Group.Vertex "vertices" vertices)
-    "Group Bounds vertex position ownership";
-  let full = Group_ops.group_bounds bounds ~containment:Group_ops.Fully_contained
-      ~owner:Group_ops.Group_primitives ~name:"full" source |> get_ok in
-  expect_members [1] (group Group.Primitive "full" full)
-    "Group Bounds full primitive containment";
-  let partial = Group_ops.group_bounds bounds ~containment:Group_ops.Partially_contained
-      ~owner:Group_ops.Group_primitives ~name:"partial" source |> get_ok in
-  expect_members [0; 1] (group Group.Primitive "partial" partial)
-    "Group Bounds partial primitive containment"
-
-let test_edge_intersection_and_extremes () =
-  let source = geometry [|(-2., 0., 0.); (2., 0., 0.)|]
-      [|`Open, [|0; 1|]|] in
-  let bounds = box (Vec3.create (-0.25) (-0.25) (-0.25))
-      (Vec3.create 0.25 0.25 0.25) in
-  let full = Group_ops.group_bounds bounds ~containment:Group_ops.Fully_contained
-      ~owner:Group_ops.Group_edges ~name:"full" source |> get_ok in
-  check (edge_members (edge_group "full" full) = [])
-    "Group Bounds full edge containment";
-  let partial = Group_ops.group_bounds bounds ~containment:Group_ops.Partially_contained
-      ~owner:Group_ops.Group_edges ~name:"partial" source |> get_ok in
-  check (edge_members (edge_group "partial" partial) = [0])
-    "Group Bounds segment-box intersection with outside endpoints";
-  let spherical = Group_ops.group_bounds (sphere Vec3.zero 0.25)
-      ~containment:Group_ops.Partially_contained ~owner:Group_ops.Group_edges
-      ~name:"sphere" source |> get_ok in
-  check (edge_members (edge_group "sphere" spherical) = [0])
-    "Group Bounds segment-sphere intersection with outside endpoints";
-  let extreme = geometry [|(-.max_float, 0., 0.); (max_float, 0., 0.)|]
-      [|`Open, [|0; 1|]|] in
-  let extreme_box = Group_ops.group_bounds bounds
-      ~containment:Group_ops.Partially_contained ~owner:Group_ops.Group_edges
-      ~name:"extreme" extreme |> get_ok in
-  check (edge_members (edge_group "extreme" extreme_box) = [0])
-    "Group Bounds overflow-safe extreme segment-box intersection";
-  let extreme_sphere = Group_ops.group_bounds (sphere Vec3.zero 1.)
-      ~containment:Group_ops.Partially_contained ~owner:Group_ops.Group_edges
-      ~name:"extreme" extreme |> get_ok in
-  check (edge_members (edge_group "extreme" extreme_sphere) = [0])
-    "Group Bounds overflow-safe extreme segment-sphere intersection"
 
 let reference_box minimum maximum (ax, ay, az) (bx, by, bz) =
   let first = ref 0. and last = ref 1. and hit = ref true in
@@ -294,8 +232,6 @@ let test_checked_boundary () =
 
 let run () =
   test_point_box_and_sphere ();
-  test_vertex_and_primitive_containment ();
-  test_edge_intersection_and_extremes ();
   test_randomized_segment_reference ();
   test_base_merge_and_failures ();
   test_scale_parallel_exactness ();

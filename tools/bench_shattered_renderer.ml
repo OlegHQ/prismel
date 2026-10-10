@@ -1,8 +1,8 @@
 open Rays
-open Procedural
+open Sop
 
 type ui_mode = Visible | Hidden
-type preview = Pieces of Sketch_support.Packed_pieces.t | Mesh of Mesh.t
+type preview = Pieces of Rays_editor.Packed_pieces.t | Mesh of Mesh.t
 
 type gc_snapshot = {
   allocated_bytes : float;
@@ -81,7 +81,7 @@ module Allocation_profile = struct
 end
 
 type model = {
-  environment : preview Rays_editor.Editor3.t;
+  environment : preview Rays_editor.Editor.t;
   launched_at : float;
   hidden_toggled : bool;
   ready_at : float option;
@@ -197,23 +197,23 @@ let lights = [
 
 let prepare output =
   match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece"
-      (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) with
+      (Result.get_ok (Sop.Payload.geometry output.Session.payload)) with
   | Some attribute ->
       (match Rdk.Attribute.Private.storage attribute with
        | Rdk.Attribute.Int _ | Text _ ->
-           Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece"
-             (Result.get_ok (Procedural.Payload.geometry output.payload))
+           Rays_editor.Packed_pieces.of_geometry ~piece_attribute:"piece"
+             (Result.get_ok (Sop.Payload.geometry output.payload))
            |> Result.map (fun pieces -> Pieces pieces)
-       | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
+       | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.payload))
            |> Result.map (fun mesh -> Mesh mesh)
            |> Result.map_error Rdk.Error.to_string)
-  | None -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
+  | None -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.payload))
       |> Result.map (fun mesh -> Mesh mesh)
       |> Result.map_error Rdk.Error.to_string
 
 let scene3 node preview =
   let mesh = match preview with
-    | Pieces pieces -> Sketch_support.Packed_pieces.mesh_for_node node pieces
+    | Pieces pieces -> Rays_editor.Packed_pieces.mesh_for_node node pieces
     | Mesh mesh -> mesh in
   let primitive_mode = Mesh.mode mesh in
   let shading = match Node.operation node with
@@ -229,19 +229,13 @@ let scene3 node preview =
     | _ -> Scene3.Cull_none in
   let drawing = Scene3.mesh ~cull ~shading
       ~material:preview_material mesh in
-  let drawing = match primitive_mode with
-    | Mesh.Points ->
-        Scene3.with_raster (Scene3.raster_state ~point_size:11. ()) [drawing]
-    | Lines | Line_strip | Line_loop ->
-        Scene3.with_raster (Scene3.raster_state ~line_width:2. ()) [drawing]
-    | Triangles | Triangle_strip | Triangle_fan -> drawing in
   Scene3.create ~samples:1 ~lights [drawing]
 
 let overlay graph preview frame =
   let pieces = match preview with
     | None -> "waiting for first cook"
     | Some (Pieces pieces) -> Printf.sprintf "%d closed pieces"
-        (Sketch_support.Packed_pieces.piece_count pieces)
+        (Rays_editor.Packed_pieces.piece_count pieces)
     | Some (Mesh mesh) -> Printf.sprintf "%d preview vertices"
         (Mesh.vertex_count mesh) in
   Scene.[
@@ -253,13 +247,13 @@ let overlay graph preview frame =
   ]
 
 let cardinality environment =
-  match Rays_editor.Editor3.prepared environment with
+  match Rays_editor.Editor.prepared environment with
   | None -> None
   | Some (Mesh _) -> failwith "shattered-cube fixture lost its piece attribute"
   | Some (Pieces pieces) ->
-      let mesh = Sketch_support.Packed_pieces.mesh_for_node
-          (Rays_editor.Editor3.displayed_node environment) pieces in
-      let piece_count = Sketch_support.Packed_pieces.piece_count pieces
+      let mesh = Rays_editor.Packed_pieces.mesh_for_node
+          (Rays_editor.Editor.displayed_node environment) pieces in
+      let piece_count = Rays_editor.Packed_pieces.piece_count pieces
       and triangles = Mesh.Private.triangle_count mesh
       and render_vertices = Mesh.vertex_count mesh in
       if piece_count <> 18_278 || triangles <> 278_368
@@ -270,7 +264,7 @@ let cardinality environment =
       Some (piece_count, triangles, render_vertices)
 
 let init frame =
-  let environment = Rays_editor.Editor3.create
+  let environment = Rays_editor.Editor.create
       ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8
         ~azimuth:0.72 ~elevation:0.42 ())
       ~seed:7349L ~grain ~domains ~max_entries:24
@@ -297,8 +291,8 @@ let init frame =
     pieces = None;
     triangles = None;
     render_vertices = None;
-    drawable_width = frame.Frame.drawable_width;
-    drawable_height = frame.drawable_height;
+    drawable_width = int_of_float (float frame.Frame.width *. fst frame.pixel_scale);
+    drawable_height = int_of_float (float frame.height *. snd frame.pixel_scale);
     pixel_scale_x = fst frame.pixel_scale;
     pixel_scale_y = snd frame.pixel_scale;
   }
@@ -343,10 +337,10 @@ let update model frame =
         { frame with Frame.events = Event.KeyPressed (Input.KeyChar 'h')
             :: frame.Frame.events }, true
     | (Visible, _ | Hidden, true) -> frame, model.hidden_toggled in
-  let environment = Rays_editor.Editor3.update model.environment frame in
+  let environment = Rays_editor.Editor.update model.environment frame in
   let model = { model with environment; hidden_toggled;
-      drawable_width = frame.Frame.drawable_width;
-      drawable_height = frame.drawable_height;
+      drawable_width = int_of_float (float frame.Frame.width *. fst frame.pixel_scale);
+      drawable_height = int_of_float (float frame.height *. snd frame.pixel_scale);
       pixel_scale_x = fst frame.pixel_scale; pixel_scale_y = snd frame.pixel_scale } in
   let model = match model.ready_at with
     | Some _ -> model
@@ -409,12 +403,11 @@ let print_result model result =
 let () =
   let final = Sketch.run_state
       ~config:{ Sketch.default_config with width = 1200; height = 760;
-        title = "Rays shattered-cube renderer benchmark"; domains = Some domains;
-        resizable = false }
+        title = "Rays shattered-cube renderer benchmark"; domains = Some domains }
       ~init ~update
       ~view:(fun model frame ->
-        Rays_editor.Editor3.scene model.environment frame)
-      ~on_stop:(fun model -> Rays_editor.Editor3.close model.environment) () in
+        Rays_editor.Editor.scene model.environment frame)
+      ~on_stop:(fun model -> Rays_editor.Editor.close model.environment) () in
   match final.result with
   | None -> failwith "shattered renderer stopped before producing a result"
   | Some result -> print_result final result

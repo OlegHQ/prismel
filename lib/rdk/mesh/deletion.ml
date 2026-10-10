@@ -399,7 +399,7 @@ let delete ?cancel ?grain ?(selected = true) ?(compact_points = false)
     else Ok (materialize_plan ?cancel ?grain plan geometry)
   with Delete_error message -> Error message
 
-let delete_primitives ?cancel ?grain ?selected ?(compact_points = false)
+let delete_primitives ?cancel ?grain ?(compact_points = false)
     group geometry =
   if Group.owner group <> Group.Primitive then
     Error (Error.make ~operation:"delete_primitives" ~code:"invalid_selection"
@@ -407,4 +407,4 @@ let delete_primitives ?cancel ?grain ?selected ?(compact_points = false)
   else Result.map_error
       (fun error -> Error.make ~operation:"delete_primitives"
         ~code:(Error.code error) (Error.message error))
-      (delete ?cancel ?grain ?selected ~compact_points group geometry)
+      (delete ?cancel ?grain ~compact_points group geometry)

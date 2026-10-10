@@ -56,14 +56,14 @@ let field (f : S.t) name = match f.node with
 module Viewport = struct
   open Rays
 
-  let encode3 easy ~look_through =
+  let encode easy ~look_through =
     let camera = Easy_camera.camera easy in
     let vector (v : Vec3.t) = vec [ v.x; v.y; v.z ] in
     map [ "eye", vector (Camera.position camera); "target", vector (Camera.target camera);
           "fov", number (Easy_camera.fov_y easy);
           "look_through", make (S.Sym (string_of_bool look_through)) ]
 
-  let decode3 easy form =
+  let decode easy form =
     let vector name = match Option.bind (field form name) vec_of with
       | Some [ x; y; z ] -> Some (Vec3.create x y z) | _ -> None in
     let easy = match vector "eye", vector "target" with

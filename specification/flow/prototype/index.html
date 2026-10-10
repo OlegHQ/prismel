@@ -698,7 +698,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line);
            rings (user/rings grid :count 8)]
       (output rings)))
 |}]
-<span class="c">(* network : Procedural.Edit_graph.t, already validated *)</span>
+<span class="c">(* network : Sop.Edit_graph.t, already validated *)</span>
 
 <span class="c">(* a typo fails the build, not the run: *)</span>
 <span class="er">File "sketches/terrain/main.ml", line 12, characters 31-37:
@@ -766,7 +766,7 @@ Error: rings has no parameter :cuont. Did you mean :count?</span></pre>
   | Expr <span class="kw">of</span> Flow.Expr.t                          <span class="c">(* folds to and from Math nodes *)</span>
 
 <span class="kw">type</span> t = {
-  geometry : Procedural.Edit_graph.t;          <span class="c">(* SOP nodes and geometry wires, unchanged *)</span>
+  geometry : Sop.Edit_graph.t;          <span class="c">(* SOP nodes and geometry wires, unchanged *)</span>
   values : Flow.Graph.t;                         <span class="c">(* value nodes and value wires *)</span>
   drives : drive Port_map.t;                     <span class="c">(* the literal in the node record survives *)</span>
   definitions : Definition.t String_map.t;       <span class="c">(* shared compounds, M5 *)</span>

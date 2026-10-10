@@ -69,7 +69,7 @@ type plan = {
   boundary_interpolation : boundary_interpolation;
   triangle_subdivision : triangle_policy;
   creasing_method : creasing_method;
-  holes : Group.t option;
+
   creases : crease_plan option;
   vertex_kind : bytes;
   vertex_a : int array;
@@ -85,7 +85,7 @@ and crease_plan = {
   edge_sharpness : float array;
   child_edge_sharpness : float array;
   has_edge_creases : bool;
-  has_corner_creases : bool;
+
   vertex_masks : vertex_mask_plan;
 }
 
@@ -853,14 +853,14 @@ let make_plan ?cancel ?grain ?edge_ancestry_attribute ?edge_crease_override ?hol
       source topology index with
     | None -> None
     | Some (edge_sharpness, corner_sharpness, has_edge_creases,
-        has_corner_creases) ->
+        _has_corner_creases) ->
         let child_edge_sharpness = build_child_edge_sharpness ?cancel ?grain
             creasing_method index source_points edge_sharpness in
         let vertex_masks = build_vertex_sharp_plan ?cancel ?grain
             creasing_method index edge_sharpness child_edge_sharpness
             corner_sharpness in
         Some { method_ = creasing_method; edge_sharpness; child_edge_sharpness; has_edge_creases;
-          has_corner_creases; vertex_masks } in
+           vertex_masks } in
   let vertex_kind, vertex_a, vertex_b, vertex_primitive, vertex_edge_source,
       primitive_source,
       output_topology =
@@ -869,7 +869,7 @@ let make_plan ?cancel ?grain ?edge_ancestry_attribute ?edge_crease_override ?hol
   { scheme; source; source_topology = topology; index; source_points; source_vertices;
     source_primitives; edge_count; face_offset; output_points; point_offsets;
     point_sources; point_weights; point_representative; edge_ancestry_attribute;
-    boundary_interpolation; triangle_subdivision; creasing_method; holes; creases;
+    boundary_interpolation; triangle_subdivision; creasing_method;  creases;
     vertex_kind; vertex_a;
     vertex_b; vertex_primitive; vertex_edge_source; primitive_source;
     topology = output_topology }
@@ -1261,14 +1261,14 @@ let fvar_refinement ?cancel ?grain mode plan equal =
   let creases = match crease_data geometry fvar_topology_view fvar_index with
     | None -> None
     | Some (edge_sharpness, corner_sharpness, has_edge_creases,
-        has_corner_creases) ->
+        _has_corner_creases) ->
         let child_edge_sharpness = build_child_edge_sharpness ?cancel ?grain
             plan.creasing_method fvar_index fvar_point_count edge_sharpness in
         let vertex_masks = build_vertex_sharp_plan ?cancel ?grain
             plan.creasing_method fvar_index edge_sharpness child_edge_sharpness
             corner_sharpness in
         Some { method_ = plan.creasing_method; edge_sharpness; child_edge_sharpness; has_edge_creases;
-          has_corner_creases; vertex_masks } in
+           vertex_masks } in
   let output_count = Bytes.length plan.vertex_kind in
   let output_point_of_vertex = Array.make output_count 0 in
   run ?grain ?cancel output_count (fun output ->
@@ -2861,7 +2861,7 @@ let interpolate_owned_attribute ?cancel ?grain ~point_left ~point_right
 
 type divided_boundary = {
   geometry : Geometry.t;
-  edge_offsets : int array;
+
   points : int array;
   vertices : int array;
   source_primitive_to_output : int array;
@@ -3059,7 +3059,7 @@ let divide_unselected_edges ?cancel ?grain plan (chains : interface_chains)
     Edge_group.Builder.freeze builder) in
   let geometry = Geometry.create ~positions ~topology:output_topology ~attributes
       ~groups ~edge_groups () |> get_ok in
-  { geometry; edge_offsets = Array.copy chains.edge_offsets;
+  { geometry;
     points = chain_points; vertices = chain_vertices;
     source_primitive_to_output =
       Array.copy plan.unselected_primitive_of_source }

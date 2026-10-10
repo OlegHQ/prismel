@@ -12,7 +12,7 @@ type control = Plain | Range of float * float | Choice
 type row = {
   label : string; key : E.arg_key; ty : Ty.t option; expr : S.t option; chip : chip;
   default : string option; socket : bool; kind : row_kind; control : control;
-  folder : string; primary : bool; head : bool;
+  folder : string;  head : bool;
 }
 
 type zone_kind = For | Fold | Scan | Sum | Let | Fn | State | Branch
@@ -139,9 +139,9 @@ let chip c (e : S.t option) = match e with
             | Some h when List.mem_assoc h c.macros -> inline "◆"
             | _ -> inline "ƒ"))
 
-let row c ?ty ?default ?(socket = true) ?(kind = Arg) ?(control = Plain) ?(folder = "") ?(primary = false)
+let row c ?ty ?default ?(socket = true) ?(kind = Arg) ?(control = Plain) ?(folder = "") ?primary:_
     ?(head = false) label key expr =
-  { label; key; ty; expr; chip = chip c expr; default; socket; kind; control; folder; primary; head }
+  { label; key; ty; expr; chip = chip c expr; default; socket; kind; control; folder;  head }
 
 let add c label key ?(socket = true) ty =
   row c ?ty ~socket ~kind:Add label key None

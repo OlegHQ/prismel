@@ -1,5 +1,5 @@
 module E=Flow.Eval
-module Editor=Rays_editor.Editor3
+module Editor=Rays_editor.Editor
 let ok=function Ok value->value|Error d->failwith(Flow.Diagnostic.to_string d)
 let load text=match Rays_editor.Workspace.load text with Ok doc->doc|Error ds->
   failwith(String.concat "; "(List.map Flow.Diagnostic.to_string ds))
@@ -8,7 +8,7 @@ let editor doc=Result.get_ok(Editor.create ~workspace:doc ~await:true ~domains:1
 let workspace producer=load("(workspace images (graph img :context image "^producer^
   ") (graph picture :context draw (draw/image (ref img) :at [1 2 0] :scale 2.0 :angle 0.1)))")
 let ()=
-  let module P=Procedural in
+  let module P=Sop in
   let observed=Atomic.make 0 in
   let dependencies=List.fold_left P.Context.Dependencies.union P.Context.Dependencies.static
     (List.map P.Context.Dependencies.one[Seed;Grain;Domains])in
@@ -16,7 +16,7 @@ let ()=
     ~cook_mode:Generator ~dependencies ~inputs:[||](fun ~node_id:_ context _->
       Atomic.set observed(P.Context.domains context);
       let point=Int64.to_float(P.Context.seed context)/.256.,float(P.Context.grain context)/.1024.,0. in
-      P.Node.Private.cook(P.Sop.points[|point|])context[||])in
+      P.Node.Private.cook(Lisp_sop.snapshot(Rdk.Line_geometry.points[|point|]))context[||])in
   let factory=P.Edit_graph.factory ~key:"image_context" ~label:"Image context" ~category:["Test"]
     ~arity:0(function []->source()|_->assert false)in
   let factories=factory::Sop_catalog.Editor.factories in
@@ -67,12 +67,12 @@ let ()=
       assert(not(E.frame_dependent fn));
       let at time=Editor.Private.image_payload ~live:(Frame_input.at_time time)owner image |> ok in
       let first=at 0. in
-      let bytes=Procedural.Image.Private.rgba8 first |> Option.get |> Bytes.copy in
+      let bytes=Sop.Image.Private.rgba8 first |> Option.get |> Bytes.copy in
       assert(Char.code(Bytes.get bytes 0)=82);
       assert(at 0.==first);
       let later=at 1. in
-      let changed=Procedural.Image.Private.rgba8 later |> Option.get |> Bytes.copy in
-      assert(changed<>bytes && Procedural.Image.Private.rgba8 first=Some bytes);
+      let changed=Sop.Image.Private.rgba8 later |> Option.get |> Bytes.copy in
+      assert(changed<>bytes && Sop.Image.Private.rgba8 first=Some bytes);
       assert(at 1.==later && Editor.Private.image_stats owner=(0,0));
       bytes,changed)in
   assert(run 1=run 8);
@@ -92,7 +92,7 @@ let ()=
     let plan=Editor.Private.image_plan owner in
     let node=Array.find_opt(fun(n:E.node)->n.kind="image/map" && n.site=["mesh";"img"])plan.nodes |> Option.get in
     let image=ok(Editor.Private.image_payload owner(E.Deferred(Flow.Ty.image,node.id)))in
-    assert(Procedural.Image.width image=7 && Procedural.Image.height image=3));
+    assert(Sop.Image.width image=7 && Sop.Image.height image=3));
   let doc=load {|(workspace stateful
     (graph mesh :context sop
       (let* [bias (state [n 0.015625] (+ n 0.015625))
@@ -112,7 +112,7 @@ let ()=
       if first then ignore(at 0);
       let result=at 1 in
       assert(E.state_stamp state=stamp);
-      Procedural.Image.Private.rgba8 result |> Option.get |> Bytes.copy)in
+      Sop.Image.Private.rgba8 result |> Option.get |> Bytes.copy)in
   let sequential=snapshot ~first:true 1 in
   assert(sequential=snapshot ~first:false 1 && sequential=snapshot ~first:true 8);
   print_endline "image captures: direct nested resource resolution and stateful source snapshot parity without mutating caller state pass"
@@ -133,8 +133,8 @@ let () =
       assert(image_at 0.==first);
       assert(image_at 1.==first);
       assert(Rays.Image.Private.pixels first |> Result.get_ok <> pixels);
-      let prepared=ok(Sketch_support.Drawing.prepare evaluated.plan(List.assoc "picture" evaluated.results))in
-      let scene=ok(Sketch_support.Drawing.render_prepared ~image:(fun v->Editor.Private.with_images
+      let prepared=ok(Rays_editor.Drawing.prepare evaluated.plan(List.assoc "picture" evaluated.results))in
+      let scene=ok(Rays_editor.Drawing.render_prepared ~image:(fun v->Editor.Private.with_images
         ~plan:evaluated.plan ~live:(Frame_input.at_time 1.) owner (fun ~image ~texture:_->image v))
         prepared ~live:(Frame_input.at_time 1.) ~size:(65,3))in
       assert(Array.exists(function Scene_command.Render_ir.Image _->true|_->false)(Rays.Scene.Private.commands scene));
@@ -172,18 +172,18 @@ let ()=
     let oracle=Result.get_ok(Rays.Image.Private.pixels image)in
     let ui=Pxui.Ui.create()in
     Fun.protect ~finally:(fun()->Pxui.Ui.destroy ui)(fun()->
-      let frame:Rays.Frame.t={width=32;height=32;size=32,32;drawable_width=32;drawable_height=32;
-        drawable_size=32,32;pixel_scale=1.,1.;time=0.;dt=0.;fps=60.;count=0;
+      let frame:Rays.Frame.t={width=32;height=32;size=32,32;
+        pixel_scale=1.,1.;time=0.;dt=0.;fps=60.;count=0;
         mouse=0.,0.;mouse_delta=0.,0.;keys=[];mouse_buttons=[];events=[]}in
       Pxui.Ui.frame ui frame(fun ui->
         let box=Pxui.Ui.box ui ~w:(Px 16.) ~h:(Px 16.) "image"in
         Pxui.Ui.draw ui box(fun paint(x,y,w,h)->Pxui.Ui.Paint.image paint ~x ~y ~w ~h image));
       assert(Pxui.Ui.scene ui<>[]));
     assert(Result.get_ok(Rays.Image.Private.pixels image)=oracle);
-    let prepared=ok(Sketch_support.Drawing.prepare evaluated.plan(List.assoc "picture" evaluated.results))in
+    let prepared=ok(Rays_editor.Drawing.prepare evaluated.plan(List.assoc "picture" evaluated.results))in
     let commands=ref None in
     List.iter(fun(reference,domains)->Rays.Parallel.run ~domains(fun()->
-      let scene=ok(Sketch_support.Drawing.render_prepared ~reference ~image:(Editor.Private.image owner)
+      let scene=ok(Rays_editor.Drawing.render_prepared ~reference ~image:(Editor.Private.image owner)
         prepared ~live:(Frame_input.at_time 0.) ~size:(32,32))in
       let actual=Rays.Scene.Private.commands scene in
       assert(Array.exists(function Scene_command.Render_ir.Image _->true|_->false)actual);
@@ -226,7 +226,7 @@ let ()=
   let lane=Flow_sop.Value_lane.create()in
   assert(match Flow_sop.Value_lane.resolve lane ~time:0. graph.network with
     |Error d->d.Flow.Diagnostic.code="E_IMAGE"|Ok _->false);
-  let payload=Result.get_ok(Procedural.Image.create ~width:1 ~height:1 ~rgba:[|0.2;0.3;0.4;1.|])in
+  let payload=Result.get_ok(Sop.Image.create ~width:1 ~height:1 ~rgba:[|0.2;0.3;0.4;1.|])in
   let calls=ref 0 in
   Flow_sop.Lower.with_images(fun ?context plan ~state:_ ~live:_ _->
     assert(plan==lowered.plan);
@@ -235,12 +235,12 @@ let ()=
     incr calls;Ok payload)(fun()->
     Flow_sop.Value_lane.reset lane;
     let resolved=ok(Flow_sop.Value_lane.resolve lane ~time:1. graph.network)in
-    let node=Result.get_ok(Procedural.Edit_graph.compile_node resolved.geometry ~node_id:(Option.get graph.root))in
-    let session=Result.get_ok(Procedural.Session.create ~max_entries:16 ~max_payload_bytes:65536)in
-    Fun.protect ~finally:(fun()->Procedural.Session.close session)(fun()->
-      List.iter(fun domains->let context=Result.get_ok(Procedural.Context.create ~domains())in
-        let output=Result.get_ok(Procedural.Session.cook session ~context node)in
-        assert(Result.get_ok(Procedural.Payload.image output.payload)==payload)) [1;8]));
+    let node=Result.get_ok(Sop.Edit_graph.compile_node resolved.geometry ~node_id:(Option.get graph.root))in
+    let session=Result.get_ok(Sop.Session.create ~max_entries:16 ~max_payload_bytes:65536)in
+    Fun.protect ~finally:(fun()->Sop.Session.close session)(fun()->
+      List.iter(fun domains->let context=Result.get_ok(Sop.Context.create ~domains())in
+        let output=Result.get_ok(Sop.Session.cook session ~context node)in
+        assert(Result.get_ok(Sop.Payload.image output.payload)==payload)) [1;8]));
   assert(!calls=1);
   print_endline "images: resources snapshot before worker submission, exact one/eight-domain payload identity passed"
 

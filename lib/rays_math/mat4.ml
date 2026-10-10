@@ -160,19 +160,6 @@ let perspective ~fov_y ~aspect ~near ~far =
      (2. *. far *. near) /. (near -. far))
     (0., 0., -1., 0.)
 
-let frustum ~left ~right ~bottom ~top ~near ~far =
-  validate_frustum "Mat4.frustum" near far;
-  if left = right || bottom = top then
-    invalid_arg "Mat4.frustum: bounds must span non-zero ranges";
-  let width = right -. left and height = top -. bottom
-  and depth = far -. near in
-  of_rows
-    ((2. *. near) /. width, 0., (right +. left) /. width, 0.)
-    (0., (2. *. near) /. height, (top +. bottom) /. height, 0.)
-    (0., 0., -.((far +. near) /. depth),
-     -.((2. *. far *. near) /. depth))
-    (0., 0., -1., 0.)
-
 let orthographic ~left ~right ~bottom ~top ~near ~far =
   if left = right || bottom = top || near = far then
     invalid_arg "Mat4.orthographic: bounds must span non-zero ranges";

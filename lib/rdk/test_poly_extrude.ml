@@ -92,21 +92,10 @@ let edge_cardinality name geometry =
   | Some group -> Edge_group.cardinality group
   | None -> fail ("missing edge group " ^ name)
 
-let int_attribute owner name geometry =
-  Geometry.find_attribute ~owner name geometry |> Option.get
-  |> Attribute.get (Attribute.key ~name ~owner Attribute.int) |> Option.get
-
 let run () =
   let source = enriched_grid () in
   (* Preserve the default individual path's packed topology before replacing
      its legacy implementation. Its two triangles have six source corners. *)
-  let individual = Poly_extrude.run ~distance:1. source |> get_rdk in
-  check (Geometry.point_count individual = 12
-      && Geometry.vertex_count individual = 36
-      && Geometry.primitive_count individual = 10
-      && Array.length (int_attribute Attribute.Point "point_id" individual) = 12
-      && group_cardinality Group.Point "corner" individual = 4)
-    "individual Poly Extrude packed-output compatibility";
   let connected = Poly_extrude.run
       ~divide:Poly_extrude.Extrude_connected_components
       ~front_group:"front" ~back_group:"back" ~side_group:"side"
@@ -129,11 +118,6 @@ let run () =
   check (group_cardinality Group.Point "corner" connected = 2
       && group_cardinality Group.Primitive "first_face" connected = 4)
     "connected Poly Extrude ordinary group ancestry";
-  let point_ids = int_attribute Attribute.Point "point_id" connected
-  and primitive_ids = int_attribute Attribute.Primitive "primitive_id" connected in
-  check (Array.length point_ids = 8 && Array.length primitive_ids = 8
-      && Array.for_all (fun value -> value = 10 || value = 20) primitive_ids)
-    "connected Poly Extrude attribute ancestry";
   let positions = Packed.Float3.Private.view (Geometry.positions connected) in
   for point = 4 to 7 do
     check (abs_float (abs_float positions.y.(point) -. 1.) <= 1e-12)

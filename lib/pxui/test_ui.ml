@@ -1,5 +1,5 @@
 (* Interaction contract of the immediate-mode kit: press/drag/release,
-   capture, focus loss, text entry, numeric editing, scrolling, accordions,
+   capture, focus loss, text entry, numeric editing, scrolling, inspector sections,
    and identical behaviour at 1x and 2x backing scales. *)
 open Rays
 module Ui = Pxui.Ui
@@ -12,9 +12,7 @@ let move point = Event.MouseMoved (pointer point)
 
 let frame ~scale ~time events : Frame.t =
   { width = 320; height = 240; size = 320, 240;
-    drawable_width = int_of_float (320. *. scale);
-    drawable_height = int_of_float (240. *. scale);
-    drawable_size = int_of_float (320. *. scale), int_of_float (240. *. scale);
+
     pixel_scale = scale, scale; time; dt = 1. /. 60.; fps = 60.; count = 0;
     mouse = 0., 0.; mouse_delta = 0., 0.; keys = []; mouse_buttons = []; events }
 
@@ -27,10 +25,6 @@ let with_scale scale =
   let time = ref 0. in
   let step ui events build =
     time := !time +. 0.5;
-    Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
-      Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () -> build ui)) in
-  let fast_step ui events build =
-    time := !time +. 0.1;
     Ui.frame ui (frame ~scale ~time:!time events) (fun ui ->
       Ui.panel ui ~x:0. ~y:0. ~width:240. "panel" (fun () -> build ui)) in
   let modified_step ui modifiers key build =
@@ -81,20 +75,6 @@ let with_scale scale =
   step ui [press (237, row 0); release (236, row 0)] build;
   if not !value then fail (label "half-open bounds accepted a press on the right edge");
 
-  (* Slider capture: continuous, beyond bounds, clamped to the drag range. *)
-  let amount = ref 5. in
-  let build ui = amount := Ui.slider ui "Amount" ~range:(0., 10.) !amount in
-  let ui = Ui.create ~font_size:11 () in
-  settle ui build;
-  step ui [press (150, row 0)] build;
-  let pressed = !amount in
-  step ui [move (400, row 0)] build;
-  if !amount <> 10. then fail (label "slider drag did not capture and clamp");
-  step ui [move (100, row 0)] build;
-  if !amount <> 0. then fail (label "slider did not follow the captured pointer");
-  step ui [release (100, row 0)] build;
-  if pressed = 5. then fail (label "slider press did not set the value");
-
   (* Compact inspector sliders use the visible track's position, including
      on a simple click, and Option-click opens the numeric editor. *)
   let compact = ref "0" in
@@ -115,17 +95,26 @@ let with_scale scale =
     with keys = [Input.Alt] } build);
   if not (Ui.text_input_focused ui) then
     fail (label "Option-click did not open compact numeric entry");
+  (* The track keeps the pointer from press to release, even outside the field; a lost window or a
+     cancelled pointer ends the capture. *)
+  compact := "0";
   let ui = Ui.create ~font_size:11 () in
-  let build ui = amount := Ui.slider ui "Amount" ~range:(0., 10.) !amount in
-  settle ui build;
-  step ui [press (150, row 0)] build;
-  let before = !amount in
-  step ui [Event.WindowFocusLost; move (400, row 0)] build;
-  if !amount <> before then fail (label "window focus loss did not cancel capture");
-  step ui [press (150, row 0)] build;
-  let before = !amount in
-  step ui [Event.PointerCancelled Input.LeftButton; move (400, row 0)] build;
-  if !amount <> before then fail (label "pointer cancellation did not stop capture");
+  let tick time events = ignore (Ui.frame ui (frame ~scale ~time events) build) in
+  tick 0. [];
+  tick 0.5 [press (50, 30)];
+  tick 1. [move (400, 30)];
+  if float_of_string !compact <> 1. then fail (label "slide drag did not capture beyond the field");
+  tick 1.5 [move (30, 30)];
+  if float_of_string !compact >= 0.5 then fail (label "slide did not follow the captured pointer");
+  tick 2. [release (30, 30)];
+  tick 2.5 [press (50, 30)];
+  let before = !compact in
+  tick 3. [Event.WindowFocusLost; move (400, 30)];
+  if !compact <> before then fail (label "window focus loss did not cancel capture");
+  tick 3.5 [press (50, 30)];
+  let before = !compact in
+  tick 4. [Event.PointerCancelled Input.LeftButton; move (400, 30)];
+  if !compact <> before then fail (label "pointer cancellation did not stop capture");
 
   (* Buttons fire on release inside only. *)
   let clicks = ref 0 in
@@ -137,45 +126,51 @@ let with_scale scale =
   step ui [press (20, row 0); release (20, row 0)] build;
   if !clicks <> 1 then fail (label "button did not fire on release inside");
 
-  (* Accordions hide their rows and keep child values in the model. *)
-  let nested = ref false and visible = ref false in
+  (* A collapsed inspector section builds none of its rows; a click on its header opens it. *)
+  let built = ref false and opened = ref None in
   let build ui =
-    ignore (Ui.accordion ui "Advanced" (fun () ->
-      nested := Ui.toggle ui "Nested" !nested));
-    visible := Ui.toggle ui "Visible" !visible in
+    built := false;
+    ignore (Ui.inspector_section ui ~key:"Advanced" "Advanced" (fun () ->
+      built := true; ignore (Ui.toggle ui "Nested" false)));
+    opened := Ui.expanded ui "Advanced" in
   let ui = Ui.create ~font_size:11 () in
   settle ui build;
-  step ui [press (210, row 1); release (210, row 1)] build;
-  if not !visible || !nested then
-    fail (label "collapsed accordion occupied a row");
+  if !built || !opened <> Some false then fail (label "a collapsed section built its rows");
   step ui [press (20, row 0); release (20, row 0)] build;
   settle ui build;
-  step ui [press (210, row 1); release (210, row 1)] build;
-  if not !nested then fail (label "expanded accordion child was not interactive");
+  if not !built || !opened <> Some true then fail (label "a click did not open its section");
 
-  (* Integer sliders snap and clamp; typed values may exceed the soft range. *)
-  let count = ref 2 in
-  let build ui = count := Ui.int_slider ui "Count" ~range:(1, 5) !count in
-  let ui = Ui.create ~font_size:11 () in
-  settle ui build;
-  step ui [press (130, row 0); move (400, row 0); release (400, row 0)] build;
-  if !count <> 5 then fail (label "integer slider did not snap and clamp");
-  step ui [press (20, row 0); release (20, row 0)] build;
-  fast_step ui [press (20, row 0); release (20, row 0)] build;
-  if not (Ui.text_input_focused ui) then fail (label "label double-click did not edit");
-  step ui [Event.TextInput "27"; Event.KeyPressed Input.Enter] build;
-  if !count <> 27 || Ui.text_input_focused ui then
-    fail (label "typed integer was not committed beyond the soft range");
-  step ui [press (20, row 0); release (20, row 0)] build;
-  fast_step ui [press (20, row 0); release (20, row 0)] build;
-  step ui [Event.TextInput "3.5"; Event.KeyPressed Input.Enter] build;
-  if !count <> 27 || not (Ui.text_input_focused ui) then
-    fail (label "invalid integer text was committed or dismissed");
-  step ui [Event.KeyPressed Input.Escape; Event.TextInput "4"] build;
-  if !count <> 27 || Ui.text_input_focused ui then
+  (* A numeric field edits as text: Enter commits, invalid text stays open, Escape cancels, a
+     pasted line loses its break, the caret takes insertions and an outside press commits. *)
+  let count = ref "2" in
+  let build ui =
+    let value, _ = Ui.value_field ui ~at:(20., 20.) ~w:101. ~h:21.
+      ~valid:(fun text -> float_of_string_opt text <> None) "count" !count in
+    count := value in
+  let ui = Ui.create ~font_size:11 () and clock = ref 0. in
+  let fstep ?(keys = []) ?(dt = 0.5) ui events build =
+    clock := !clock +. dt;
+    ignore (Ui.frame ui { (frame ~scale ~time:!clock events) with keys } build) in
+  let ffast ui events build = fstep ~dt:0.1 ui events build in
+  let fcommand ui key build =
+    fstep ~keys:[Input.Meta] ui [Event.KeyPressed (Input.KeyChar key)] build in
+  let open_field () =
+    fstep ui [press (70, 30); release (70, 30)] build;
+    ffast ui [press (70, 30); release (70, 30)] build in
+  fstep ui [] build;
+  open_field ();
+  if not (Ui.text_input_focused ui) then fail (label "a click did not open the field");
+  fstep ui [Event.TextInput "27"; Event.KeyPressed Input.Enter] build;
+  if !count <> "27" || Ui.text_input_focused ui then
+    fail (label ("typed number was not committed: " ^ !count));
+  open_field ();
+  fstep ui [Event.TextInput "x"; Event.KeyPressed Input.Enter] build;
+  if !count <> "27" || not (Ui.text_input_focused ui) then
+    fail (label "invalid number text was committed or dismissed");
+  fstep ui [Event.KeyPressed Input.Escape; Event.TextInput "4"] build;
+  if !count <> "27" || Ui.text_input_focused ui then
     fail (label "Escape did not cancel numeric editing");
-  step ui [press (20, row 0); release (20, row 0)] build;
-  fast_step ui [press (20, row 0); release (20, row 0)] build;
+  open_field ();
   let previous_clipboard = Clipboard.get_text () in
   Fun.protect ~finally:(fun () ->
     match previous_clipboard with
@@ -184,32 +179,24 @@ let with_scale scale =
       (* a copied line comes with its break: a field of one line takes the line *)
       (match Clipboard.set_text "12\n" with Ok () -> ()
        | Error message -> fail message);
-      command_step ui 'v' build;
-      step ui [Event.KeyPressed Input.Enter] build;
-      if !count <> 12 then fail (label "numeric editor refused a pasted line for its break");
-      step ui [press (20, row 0); release (20, row 0)] build;
-      fast_step ui [press (20, row 0); release (20, row 0)] build;
+      fcommand ui 'v' build;
+      fstep ui [Event.KeyPressed Input.Enter] build;
+      if !count <> "12" then fail (label "numeric editor refused a pasted line for its break");
+      open_field ();
       (match Clipboard.set_text "31" with Ok () -> ()
        | Error message -> fail message);
-      command_step ui 'v' build;
-      step ui [Event.KeyPressed Input.Enter] build;
-      if !count <> 31 then fail (label "numeric editor did not paste valid text"));
-  step ui [press (20, row 0); release (20, row 0)] build;
-  fast_step ui [press (20, row 0); release (20, row 0)] build;
-  step ui [Event.KeyPressed Input.ArrowRight;
+      fcommand ui 'v' build;
+      fstep ui [Event.KeyPressed Input.Enter] build;
+      if !count <> "31" then fail (label "numeric editor did not paste valid text"));
+  open_field ();
+  fstep ui [Event.KeyPressed Input.ArrowRight;
     Event.KeyPressed Input.ArrowLeft; Event.TextInput "2";
     Event.KeyPressed Input.Enter] build;
-  if !count <> 321 then fail (label "numeric editor ignored its insertion caret");
-
-  let amount = ref 0.25 in
-  let build ui = amount := Ui.slider ui "Amount" ~range:(0., 1.) !amount in
-  let ui = Ui.create ~font_size:11 () in
-  settle ui build;
-  step ui [press (20, row 0); release (20, row 0)] build;
-  fast_step ui [press (20, row 0); release (20, row 0)] build;
-  step ui [Event.TextInput "2.5"] build;
-  step ui [press (300, 200)] build;
-  if !amount <> 2.5 then fail (label "typed float was not committed by an outside press");
+  if !count <> "321" then fail (label "numeric editor ignored its insertion caret");
+  open_field ();
+  fstep ui [Event.TextInput "2.5"] build;
+  fstep ui [press (300, 200)] build;
+  if !count <> "2.5" then fail (label "typed number was not committed by an outside press");
 
   (* A bounded panel scrolls by whole rows and routes hits to scrolled rows. *)
   let toggles = Array.make 4 false in
@@ -513,39 +500,6 @@ let with_scale scale =
       if Clipboard.get_text () <> Ok long_value then
         fail (label "edge drag did not select through the end"));
   Ui.destroy ui;
-
-  (* Choice, range, and XY controls. *)
-  let mode = ref 0 and band = ref (0.25, 0.75) and point = ref (0., 0.) in
-  let build ui =
-    mode := Ui.choice ui "Mode" ["dots"; "lines"] !mode;
-    band := Ui.range_slider ui "Band" ~range:(0., 1.) !band;
-    point := Ui.xy ui "Point" ~x_range:(-1., 1.) ~y_range:(-1., 1.) !point in
-  let ui = Ui.create ~font_size:11 () in
-  settle ui build;
-  step ui [press (20, row 0); release (20, row 0)] build;
-  if !mode <> 0 then fail (label "choice label area activated its control");
-  step ui [press (200, row 0); release (200, row 0)] build;
-  if !mode <> 0 then fail (label "choice stepped instead of opening its menu");
-  (* the menu is under the control (a row is 24 high from 3, the control 20 of it, a point of gap):
-     its options start 7 below its top (the edge and 6 of padding) *)
-  let option n = 3 + 24 + 1 + 7 + (n * 24) + 12 in
-  step ui [press (200, option 1); release (200, option 1)] build;
-  if !mode <> 1 then fail (label "choice menu option did not pick");
-  settle ui build;
-  step ui [press (130, row 1); move (160, row 1); release (160, row 1)] build;
-  if !band = (0.25, 0.75) || snd !band <> 0.75 then
-    fail (label "range did not drag its nearer handle");
-  step ui [press (150, row 2); move (200, row 2 + 6); release (200, row 2 + 6)] build;
-  if !point = (0., 0.) then fail (label "xy pad did not update");
-  Ui.destroy ui;
-  (* a label with an id of its own (###) opens its menu as any other *)
-  let mode = ref 0 in
-  let build ui = mode := Ui.choice ui "Mode###mode" ["dots"; "lines"] !mode in
-  let ui = Ui.create ~font_size:11 () in
-  settle ui build;
-  step ui [press (200, row 0); release (200, row 0)] build;
-  step ui [press (200, option 1); release (200, option 1)] build;
-  if !mode <> 1 then fail (label "a choice with a ### id did not pick from its menu");
   Ui.destroy ui
 
 let run () =
@@ -614,37 +568,7 @@ let run () =
   if Ui.cursor field_ui <> Some `Text then fail "a text field did not request the I-beam";
   Ui.frame field_ui (frame ~scale:1. ~time:0.8 [move (300, 200)]) field;
   if Ui.cursor field_ui <> None then fail "the I-beam outlived hover";
-  let area_ui = Ui.create ~font_size:11 () in
-  let area ui = ignore (Ui.text_area ui ~at:(0., 0.) ~w:200. ~h:100. "area" "hello") in
-  Ui.frame area_ui (frame ~scale:1. ~time:0.9 []) area;
-  Ui.frame area_ui (frame ~scale:1. ~time:1.0 [move (50, 30)]) area;
-  if Ui.cursor area_ui <> Some `Text then fail "a text area did not request the I-beam";
-  Ui.destroy field_ui; Ui.destroy area_ui;
-  Ui.destroy ui;
-  (* A canvas maps child coordinates by scale and offset, for layout,
-     painting, and hit testing alike. *)
-  let ui = Ui.create ~font_size:11 () in
-  let clicked = ref false and child_rect = ref (0., 0., 0., 0.) in
-  let build ui =
-    let canvas = Ui.box ui ~w:(Ui.Px 200.) ~h:(Ui.Px 200.) ~at:(10., 20.)
-        ~xform:(2., 5., 0.) "canvas" in
-    Ui.within ui canvas (fun () ->
-      let child = Ui.box ui ~flags:Ui.clickable ~w:(Ui.Px 10.) ~h:(Ui.Px 10.)
-          ~at:(3., 4.) "child" in
-      child_rect := Ui.rect ui child;
-      Ui.draw ui child (fun paint _ ->
-        Ui.Paint.input_region paint ~x:0. ~y:0. ~w:10. ~h:10.
-          ~focused:true ~cursor:5. ());
-      if (Ui.signal ui child).clicked then clicked := true) in
-  Ui.frame ui (frame ~scale:1. ~time:0. []) build;
-  (match Scene.Private.text_regions (Ui.scene ui) with
-   | [(_, _, _, _, true, 10)] -> ()
-   | _ -> fail "canvas transform did not scale the IME caret offset");
-  Ui.frame ui (frame ~scale:1. ~time:0.1 []) build;
-  (* origin (10, 20) + (3, 4) * 2 + (5, 0) = (21, 28), 20 points square *)
-  if !child_rect <> (21., 28., 20., 20.) then fail "canvas transform misplaced a child";
-  Ui.frame ui (frame ~scale:1. ~time:0.2 [press (40, 47); release (40, 47)]) build;
-  if not !clicked then fail "canvas child did not receive a transformed hit";
+  Ui.destroy field_ui;
   Ui.destroy ui;
   (* Keys that come and go (150,000 of them, 500 a frame) leave the retained state the size it was. *)
   let ui = Ui.create ~font_size:11 () and next = ref 0 in
@@ -674,9 +598,6 @@ let run () =
     Ui.panel ui "panel" (fun () ->
       Ui.label ui "PXUI";
       ignore (Ui.toggle ui "Animate" true);
-      ignore (Ui.slider ui "Radius" ~range:(10., 120.) 48.);
-      ignore (Ui.int_slider ui "Steps" ~range:(1, 64) 8);
-      ignore (Ui.choice ui "Palette" ["ocean"; "sunset"] 0);
       ignore (Ui.text_field ui "Caption" "Functional UI");
       ignore (Ui.button ui "Quit")));
   (match Scene.Private.stage_native ~width:320 ~height:240 (Ui.scene ui) with
@@ -802,14 +723,14 @@ let run () =
   if submenu [release (190, 62)] <> `Pick 3 then fail "submenu did not commit on release";
   if submenu [press (300, 200)] <> `Dismiss then fail "submenu did not dismiss outside";
   Ui.destroy ui;
-  let area = ref "" and readonly = ref false and errors = ref [] and wrapped = ref false
+  let area = ref "" and errors = ref [] and wrapped = ref false
   and submitted = ref false and language = ref None and context = ref None and scrubs = ref []
   and scrub_edits = ref [] in
   let ui = Ui.create ~font_size:11 () and time = ref 0. in
   let area_step ?(keys = []) events =
     time := !time +. 0.5;
     ignore (Ui.frame ui { (frame ~scale:1. ~time:!time events) with keys } (fun ui ->
-      let text, submit = Ui.text_area_submit ui ~at:(0., 0.) ~w:300. ~h:96. ~readonly:!readonly
+      let text, submit = Ui.text_area_submit ui ~at:(0., 0.) ~w:300. ~h:96.
         ~wrap:!wrapped ~errors:!errors ?language:!language ~on_context:(fun at -> context := Some at)
         ~on_scrub:(fun p -> scrubs := p :: !scrubs)
         ~on_scrub_edit:(fun range value -> scrub_edits := (range, value) :: !scrub_edits) "area" !area in
@@ -848,13 +769,6 @@ let run () =
     if Clipboard.get_text () <> Ok "_abX\ncé" then fail "text area cut lost the text";
     area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'v')];
     expect "paste keeps the newline" "_abX\ncé";
-    readonly := true;
-    area_step [Event.TextInput "no"; Event.KeyPressed Input.Backspace; Event.KeyPressed Input.Enter];
-    expect "readonly" "_abX\ncé";
-    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'a')];
-    area_step ~keys:[Input.Meta] [Event.KeyPressed (Input.KeyChar 'c')];
-    if Clipboard.get_text () <> Ok "_abX\ncé" then fail "readonly text area cannot copy";
-    readonly := false;
     (* copy and cut with no selection take the caret's line: of an empty area, nothing *)
     area := "";
     area_step [press (150, 12); release (150, 12)];
@@ -885,10 +799,6 @@ let run () =
   expect "Command-Enter inserts nothing" "xab  ";
   area_step ~keys:[Input.Ctrl] [Event.KeyPressed Input.Enter];
   if not !submitted then fail "Control-Enter did not report an apply";
-  readonly := true;
-  area_step [Event.KeyPressed Input.Tab];
-  expect "readonly Tab" "xab  ";
-  readonly := false;
   (* soft wrapping: one long line is several rows, the caret and Up/Down follow the rows, and
      nothing scrolls sideways *)
   area := String.make 100 'a';
@@ -897,8 +807,7 @@ let run () =
   area_step [Event.TextInput "X"];
   let x_at = String.index !area 'X' in
   if x_at < 60 || x_at > 99 then fail (Printf.sprintf "a click on the third row landed at column %d" x_at);
-  let y_third, _ = region () in
-  if y_third < 2 * Ui.text_line_height ui then fail (Printf.sprintf "a wrapped caret is on the first row (y %d)" y_third);
+
   area_step [Event.KeyPressed Input.ArrowUp; Event.TextInput "Y"];
   let y_at = String.index !area 'Y' in
   if y_at >= x_at || x_at - y_at > 60 then

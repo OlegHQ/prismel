@@ -41,8 +41,6 @@ val with_edge_group : Edge_group.t -> t -> (t, string) result
 val without_attribute : owner:Attribute.owner -> string -> t -> t
 val without_group : owner:Group.owner -> string -> t -> t
 val without_edge_group : string -> t -> t
-val rename_attribute :
-  owner:Attribute.owner -> from:string -> into:string -> t -> (t, string) result
 val rename_edge_group :
   from:string -> into:string -> t -> (t, string) result
 

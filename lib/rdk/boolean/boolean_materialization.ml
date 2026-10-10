@@ -1196,19 +1196,19 @@ let repair_rounded_slivers ?cancel ~grain ~require_closed
                         remaining !two_sided !other))))) in
       continue 0 initial
 
-let collapse_tiny_seam_batch ?cancel ~grain ~threshold ~require_closed
-    ?allow_opposite_duplicates ancestry seam geometry =
+let collapse_tiny_seam_batch ~grain ~threshold ~require_closed
+    ancestry seam geometry =
   let base = Boolean_extract.geometry ancestry in
   if Geometry.positions geometry != Geometry.positions base
       || Geometry.topology geometry != Geometry.topology base then
     error "geometry_mismatch"
       "Boolean cleanup target does not share the extraction positions and topology"
   else
-    match tiny_seam_edges ?cancel ~grain ~threshold ancestry seam,
-        surface_seam_edges ?cancel ~grain ancestry seam with
+    match tiny_seam_edges ~grain ~threshold ancestry seam,
+        surface_seam_edges ~grain ancestry seam with
     | Error _ as failure, _ | _, (Error _ as failure) -> failure
     | Ok candidates, Ok exact_seams ->
-        match safe_independent_edges ?cancel ~grain candidates geometry with
+        match safe_independent_edges ~grain candidates geometry with
         | Error _ as failure -> failure
         | Ok selected ->
             let candidate_count = Edge_group.cardinality candidates
@@ -1228,7 +1228,7 @@ let collapse_tiny_seam_batch ?cancel ~grain ~threshold ~require_closed
                 let tagged_seams = Edge_group.with_name seam_name exact_seams in
                 let tagged = match Geometry.with_edge_group tagged_seams tagged with
                   | Ok geometry -> geometry | Error message -> invalid_arg message in
-                match Edge_collapse.run ?cancel ~grain ~edges:selected
+                match Edge_collapse.run ~grain ~edges:selected
                     ~position:Fuse_reduce.First_position
                     ~remove_degenerate_primitives:true
                     ~recompute_point_normals:true tagged with
@@ -1248,11 +1248,10 @@ let collapse_tiny_seam_batch ?cancel ~grain ~threshold ~require_closed
              | Error _ as failure -> failure
              | Ok (output, point_sources, vertex_sources, primitive_sources,
                  output_seams) ->
-                 match verify_materialized_seam_curves ?cancel ~grain seam with
+                 match verify_materialized_seam_curves ~grain seam with
                  | Error _ as failure -> failure
                  | Ok () ->
-                     match verify_surface ?cancel ~grain ~require_closed
-                         ?allow_opposite_duplicates output with
+                     match verify_surface ~grain ~require_closed output with
                      | Error _ as failure -> failure
                      | Ok () -> Ok {
                          cleanup_geometry = output;

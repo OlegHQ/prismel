@@ -1,5 +1,5 @@
 type t
-type compiled = {pipeline : Ogpu.Backend.pipeline; seconds : float}
+type compiled = {pipeline : Ogpu.Backend.pipeline}
 val create : clock:(unit -> float) -> Ogpu.Backend.device -> t
 val get : t -> Emit.msl -> (compiled, Flow.Diagnostic.t) result
 val close : t -> unit

@@ -2,9 +2,9 @@ open Rays
 module E=Flow.Eval
 module I=Flow_ir.Executor
 module V=Flow.Value
-module CPU=Procedural.Image
+module CPU=Sop.Image
 module L=Flow_sop.Lower
-module P=Procedural
+module P=Sop
 module Sources=Lru.Make(struct type t=int let equal=Int.equal let hash=Hashtbl.hash end)
 let capture_limit=64*1024*1024
 type captured={geometry:Rdk.Geometry.t;attributes:(string*E.value)list;bytes:int}
@@ -28,7 +28,7 @@ type t={resources:Workspace_resources.t;gpu:Workspace_gpu.t;seed:int64;grain:int
   mutable source_ids:int list array;
   mutable freshness:(bool*bool)array;
   mutable qualification:(E.plan * Flow.Workspace.Paths.t * Flow.Workspace.path option array) option;
-  mutable arguments:I.program option array;mutable drawings:Sketch_support.Drawing.prepared option array;
+  mutable arguments:I.program option array;mutable drawings:Drawing.prepared option array;
   mutable maps:(int * int * E.fn * Flow_sop.Image_kernel.t) option array;
   mutable sizes:(bool * bool) array;
   mutable resolved:entry option array;
@@ -51,7 +51,7 @@ let capture_stats t=
 let error message=Flow.Diagnostic.error ~code:"E_IMAGE" message
 let message result=Result.map_error error result
 let (let*)=Result.bind
-let cook_context t (live:Frame_input.t)=Result.map_error error(Procedural.Context.create ~seed:t.seed ~grain:t.grain ~domains:t.domains
+let cook_context t (live:Frame_input.t)=Result.map_error error(Sop.Context.create ~seed:t.seed ~grain:t.grain ~domains:t.domains
   ~input:live ~time:live.Frame_input.t ~frame:(Int64.of_int live.frame)())
 let diagnostic result=Result.map_error(fun(d:P.Diagnostic.error)->Flow.Diagnostic.error ~code:d.code d.message)result
 let with_request t ?context plan run=match t.request with
@@ -229,7 +229,7 @@ let bind t (lowered:Flow_sop.Lower.t) =
 let bytes_of_image image =
   match CPU.Private.rgba8 image with Some bytes->bytes|None->
     let rgba=CPU.Private.storage image in
-    (* clamp, scale, round ties to even: the same bytes Procedural.Image.of_vec4 writes *)
+    (* clamp, scale, round ties to even: the same bytes Sop.Image.of_vec4 writes *)
     Bytes.init(Array.length rgba)(fun i->let q=Float.max 0.(Float.min 1. rgba.(i))*.255. in
       let n=int_of_float(Float.floor q)in let f=q-.float n in
       Char.chr(if f>0.5||(f=0.5&&n land 1=1)then n+1 else n))
@@ -237,7 +237,7 @@ let cpu_of_image image =
   let* bytes=message(Image.Private.pixels image)in
   let width,height=Image.get_size image in
   let rgba=Array.init(Bytes.length bytes)(fun i->float(Char.code(Bytes.get bytes i))/.255.)in
-  Result.map_error(fun d->error d.Procedural.Diagnostic.message)(CPU.Private.of_owned_rgba ~width ~height rgba)
+  Result.map_error(fun d->error d.Sop.Diagnostic.message)(CPU.Private.of_owned_rgba ~width ~height rgba)
 let texture payload=lazy(
   let bytes=bytes_of_image payload in
   Texture.Private.create_owned ~width:(CPU.width payload) ~height:(CPU.height payload)
@@ -324,7 +324,7 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
                        the native image copies them and the CPU snapshot owns them. *)
                     let ( let* )=Result.bind in
                     let* bytes=Image.Private.pixels source in
-                    let* cpu=Result.map_error(fun d->d.Procedural.Diagnostic.message)
+                    let* cpu=Result.map_error(fun d->d.Sop.Diagnostic.message)
                       (CPU.Private.of_owned_rgba8 ~width ~height bytes)in
                     let* image=Image.upload_rgba ~width ~height ~rgba:bytes()in
                     payload:=Some cpu;Ok image)in
@@ -379,7 +379,7 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
                     |_->None,Flow.Workspace.Paths.empty in
                   Result.map(fun p->t.maps.(id)<-Some(width,height,fn,p);p)
                     (Flow_sop.Image_kernel.prepare ?path ~approx ~site:(node.inst,node.site,node.iter)
-                      ~identity:(Procedural.Node.Private.fresh_id()) ~width ~height ~fn ~sources:ids inputs)in
+                      ~identity:(Sop.Node.Private.fresh_id()) ~width ~height ~fn ~sources:ids inputs)in
             let* prepared=match t.maps.(id)with
               |Some(w,h,f,p)when w=width && h=height && f==fn->
                   (match Flow_sop.Image_kernel.with_inputs p inputs with
@@ -390,8 +390,8 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
               let* context=cook_context t live in
               let* session=session request in
               let* payload=(
-                let* cooked=diagnostic(Procedural.Session.cook session ~context source)in
-                diagnostic(Procedural.Payload.image cooked.payload))in
+                let* cooked=diagnostic(Sop.Session.cook session ~context source)in
+                diagnostic(Sop.Payload.image cooked.payload))in
               entry.cpu<-Some{payload;stamp};Ok payload in
             if not display then Result.map ignore(cook())else
             let* selected=Workspace_gpu.with_backend t.gpu(fun()->
@@ -410,10 +410,10 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
               if width<=0||height<=0||width>Sys.max_string_length/4/height then Error(error "Image dimensions exceed native storage bounds.")else
               let drawing=List.assoc "drawing" args in
               let* prepared=match t.drawings.(id)with Some p->Ok p|None->
-                Result.map(fun p->t.drawings.(id)<-Some p;p)(Sketch_support.Drawing.prepare plan drawing)in
+                Result.map(fun p->t.drawings.(id)<-Some p;p)(Drawing.prepare plan drawing)in
               let temporary=ref[]in
               Fun.protect ~finally:(fun()->List.iter Image.destroy !temporary)(fun()->
-              let* scene=Sketch_support.Drawing.render_prepared ~state
+              let* scene=Drawing.render_prepared ~state
                 ~image:(fun value->
                   let* child=resolve t ~display ~state ~live plan value in
                   if display then Ok(Option.get child.image)else
@@ -463,11 +463,11 @@ let rec resolve ?context t ~display ~state ~live (plan:E.plan) value =
               let width=int "width" 256 and height=int "height" 256 in
               let frequency=number "frequency" (number "freq" 0.02)and seed=int "seed" 0 in
               let* ()=if not(Float.is_finite frequency)||frequency<0. then Error(error "Noise frequency must be finite and nonnegative.")else Ok()in
-              let source=Procedural.Image_nodes.noise ~width ~height ~frequency ~seed ()in
-              let* context=Result.map_error error(Procedural.Context.create ())in
-              let* cooked=Result.map_error(fun d->error d.Procedural.Diagnostic.message)
-                (Procedural.Node.Private.cook source context [||])in
-              let* payload=Result.map_error(fun d->error d.Procedural.Diagnostic.message)(Procedural.Payload.image cooked.payload)in
+              let source=Sop.Image_nodes.noise ~width ~height ~frequency ~seed ()in
+              let* context=Result.map_error error(Sop.Context.create ())in
+              let* cooked=Result.map_error(fun d->error d.Sop.Diagnostic.message)
+                (Sop.Node.Private.cook source context [||])in
+              let* payload=Result.map_error(fun d->error d.Sop.Diagnostic.message)(Sop.Payload.image cooked.payload)in
               let* image=upload ~width ~height payload in
               Ok(image,payload)
           |_->assert false in

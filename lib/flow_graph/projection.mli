@@ -57,7 +57,6 @@ type row = {
   kind : row_kind;
   control : control;
   folder : string;  (** the schema folder the row sits in (shown at level [Full]); empty for none *)
-  primary : bool;  (** a primary row of the schema ({!Exposure}) *)
   head : bool;  (** the first geometry slot of a node kind: the header's in-port, not a row of the body *)
 }
 

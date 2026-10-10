@@ -413,7 +413,7 @@ let () = (* macros through the workspace (M1, M2) *)
   ignore (good "(workspace w (defn f :context value [(x : float)] x) (defmacro a [x] `(f ~x)) (defmacro b [x] `(a ~x)) (graph g :context value (b 1)))")
 
 let () = (* the other contexts: scene, world, settings, editor *)
-  ignore (good "(workspace w (graph a :context sop (sop/box)) (graph s :context scene (scene/merge (scene/geometry (ref a)) (scene/geometry (ref a) :translate [1 0 0] :name \"b\") (scene/camera :eye [0 2 6]) (scene/light :color \"#ffcc88\"))) (graph x :context world (world/world (world/sun (world/sky)) :name \"L\")) (graph c :context settings (settings/config :title \"t\" :fps 30)))");
+  ignore (good "(workspace w (graph a :context sop (sop/box)) (graph s :context scene (scene/merge (scene/geometry (ref a)) (scene/geometry (ref a) :translate [1 0 0] :name \"b\") (scene/camera :eye [0 2 6]) (scene/light :color \"#ffcc88\"))) (graph x :context world (world/sun (world/sky) :name \"L\")) (graph c :context settings (settings/config :title \"t\" :fps 30)))");
   (* the kinds are the schemas' kinds: an unknown kind, keyword or type is reported per context *)
   let scene b = "(workspace w (graph a :context sop (sop/box)) (graph s :context scene " ^ b ^ "))" in
   let world b = "(workspace w (graph x :context world " ^ b ^ "))" in
@@ -437,9 +437,9 @@ let () = (* the other contexts: scene, world, settings, editor *)
   bad (settings "(settings/config :fps 500)") "E_HARD_RANGE";
   bad (settings "(settings/config :nothing 1)") "E_UNKNOWN_PARAM";
   bad (settings "(settings/config :title 3)") "E_TYPE";
-  bad (settings "(world/world)") "E_WRONG_CONTEXT";
+  bad (settings "(world/sky)") "E_WRONG_CONTEXT";
   (* a graph's result has its context's type *)
-  bad (scene "(world/world)") "E_WRONG_CONTEXT";
+  bad (scene "(world/sky)") "E_WRONG_CONTEXT";
   bad "(workspace w (graph a :context sop (sop/box)) (graph s :context scene (ref a)))" "E_TYPE";
   bad (world "(scene/merge)") "E_WRONG_CONTEXT";
   bad "(workspace w (graph e :context editor (ui/workspace (ui/split \"diagonal\" (ui/graph) (ui/lisp)))))" "E_RANGE" ~text:"axis";

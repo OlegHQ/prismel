@@ -101,7 +101,6 @@ type size =
   | Rel of (float -> float)
   | Grow
   | Fit
-  | Text
 
 type axis = Row | Column
 type flags = int
@@ -153,7 +152,6 @@ and painter = paint -> rect -> unit
 
 and ui = {
   mutable theme : Theme.t;
-  font : Font.t option;
   mutable font_size : int;
   (* owned kit faces by size; [None] caches a failed load *)
   faces : Font.t option Int_table.t;
@@ -190,10 +188,8 @@ and ui = {
   mutable b_w : size array; mutable b_h : size array;
   mutable b_max_h : float array;
   mutable b_row : bool array;
-  mutable b_padding : float array; mutable b_gap : float array;
+  mutable b_padding : float array;
   mutable b_at_x : float array; mutable b_at_y : float array;
-  mutable b_xform : (float * float * float) option array;
-  mutable b_text : string array; mutable b_text_size : int array;
   mutable b_scroll_step : float array;
   mutable b_hit : (rect -> rect) option array;
   mutable b_painters : painter list array;
@@ -448,23 +444,20 @@ let kit_font_path = lazy (
       | None -> upward (Filename.dirname (Sys.executable_name)))
 
 let face ui size =
-  match size with
-  | None when Option.is_some ui.font -> ui.font
-  | _ ->
-      let size = Option.value size ~default:ui.font_size in
-      match Int_table.find_opt ui.faces size with
-      | Some face -> face
-      | None ->
-          let loaded = match Lazy.force kit_font_path with
-            | Some path -> Font.load path size
-              (* the sheets' renderer does not hint: unhinted glyphs have its weight and x-height *)
-              |> Result.map (fun font -> ignore (Font.set_hinting font Font.None_hinting); font)
-            | None -> Error (`Msg "no kit font") in
-          let face = match loaded with
-            | Ok font -> Some font
-            | Error _ -> Result.to_option (Font.system ~size ()) in
-          Int_table.replace ui.faces size face;
-          face
+  let size = Option.value size ~default:ui.font_size in
+  match Int_table.find_opt ui.faces size with
+  | Some face -> face
+  | None ->
+      let loaded = match Lazy.force kit_font_path with
+        | Some path -> Font.load path size
+          (* the sheets' renderer does not hint: unhinted glyphs have its weight and x-height *)
+          |> Result.map (fun font -> ignore (Font.set_hinting font Font.None_hinting); font)
+        | None -> Error (`Msg "no kit font") in
+      let face = match loaded with
+        | Ok font -> Some font
+        | Error _ -> Result.to_option (Font.system ~size ()) in
+      Int_table.replace ui.faces size face;
+      face
 
 (* The kit face's ascent as a fraction of its size, measured once on a large face.  SDL_ttf rounds
    a font's ascent up to a whole pixel; the sheets' renderer rounds it to the nearest.  Where the two
@@ -512,10 +505,10 @@ let text_width ui ?size text = float (text_width_px ui ?size text) /. float ui.d
 
 (* ----------------------------------------------------------- create *)
 
-let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
+let create ?(font_size = Theme.font_size) () =
   if font_size <= 0 then invalid_arg "Ui.create: font_size must be positive";
   let capacity = 64 in
-  { theme; font; font_size; faces = Int_table.create 4; table = Table.create ();
+  { theme = Theme.default; font_size; faces = Int_table.create 4; table = Table.create ();
     slot_key = Array.make capacity 0; free = []; next_slot = 0;
     touched = Array.make capacity (-1);
     rx = Array.make capacity 0.; ry = Array.make capacity 0.;
@@ -539,10 +532,8 @@ let create ?(theme = Theme.default) ?font ?(font_size = Theme.font_size) () =
     b_w = Array.make capacity Grow; b_h = Array.make capacity Grow;
     b_max_h = Array.make capacity Float.infinity;
     b_row = Array.make capacity false;
-    b_padding = Array.make capacity 0.; b_gap = Array.make capacity 0.;
+    b_padding = Array.make capacity 0.;
     b_at_x = Array.make capacity Float.nan; b_at_y = Array.make capacity Float.nan;
-    b_xform = Array.make capacity None;
-    b_text = Array.make capacity ""; b_text_size = Array.make capacity 0;
     b_scroll_step = Array.make capacity 0.;
     b_hit = Array.make capacity None;
     b_painters = Array.make capacity []; b_overlays = Array.make capacity [];
@@ -1070,12 +1061,8 @@ let ensure_box_capacity ui size =
     ui.b_max_h <- grow ui.b_max_h size Float.infinity;
     ui.b_row <- grow ui.b_row size false;
     ui.b_padding <- grow ui.b_padding size 0.;
-    ui.b_gap <- grow ui.b_gap size 0.;
     ui.b_at_x <- grow ui.b_at_x size Float.nan;
     ui.b_at_y <- grow ui.b_at_y size Float.nan;
-    ui.b_xform <- grow ui.b_xform size None;
-    ui.b_text <- grow ui.b_text size "";
-    ui.b_text_size <- grow ui.b_text_size size 0;
     ui.b_scroll_step <- grow ui.b_scroll_step size 0.;
     ui.b_hit <- grow ui.b_hit size None;
     ui.b_painters <- grow ui.b_painters size [];
@@ -1120,14 +1107,13 @@ let append_box ui ~key ~parent =
   end;
   index
 
-let set_box ui index ~flags ~w ~h ~max_h ~row ~padding ~gap ~at_x ~at_y ~xform
-    ~text ~text_size ~scroll_step ~hit =
+let set_box ui index ~flags ~w ~h ~max_h ~row ~padding ~at_x ~at_y
+    ~scroll_step ~hit =
   ui.b_flags.(index) <- flags; ui.b_w.(index) <- w; ui.b_h.(index) <- h;
   ui.b_max_h.(index) <- max_h; ui.b_row.(index) <- row;
-  ui.b_padding.(index) <- padding; ui.b_gap.(index) <- gap;
+  ui.b_padding.(index) <- padding;
   ui.b_at_x.(index) <- at_x; ui.b_at_y.(index) <- at_y;
-  ui.b_xform.(index) <- xform; ui.b_text.(index) <- text;
-  ui.b_text_size.(index) <- text_size; ui.b_scroll_step.(index) <- scroll_step;
+  ui.b_scroll_step.(index) <- scroll_step;
   ui.b_hit.(index) <- hit; ui.b_painters.(index) <- [];
   ui.b_overlays.(index) <- []
 
@@ -1138,21 +1124,20 @@ let int_key seed n =
   if hash = 0 || hash = 1 then hash + 2 else hash
 
 let box_keyed ui ?(flags = none) ?(w = Grow) ?(h = Fit) ?(max_h = Float.infinity)
-    ?(axis = Column) ?(padding = 0.) ?(gap = 0.) ?at ?xform ?(text = "")
-    ?(text_size = 0) ?(scroll_step = 24.) ?hit key =
+    ?(axis = Column) ?(padding = 0.) ?at
+    ?(scroll_step = 24.) ?hit key =
   require_building ui;
   let key = unique_key ui key in
   let index = append_box ui ~key ~parent:(current_parent ui) in
   let at_x, at_y = match at with Some (x, y) -> x, y | None -> Float.nan, Float.nan in
-  set_box ui index ~flags ~w ~h ~max_h ~row:(axis = Row) ~padding ~gap ~at_x ~at_y
-    ~xform ~text ~text_size ~scroll_step ~hit;
+  set_box ui index ~flags ~w ~h ~max_h ~row:(axis = Row) ~padding ~at_x ~at_y
+    ~scroll_step ~hit;
   { index; box_key = key; box_slot = ui.b_slot.(index) }
 
-let box ui ?flags ?w ?h ?max_h ?axis ?padding ?gap ?at ?xform ?text ?text_size
+let box ui ?flags ?w ?h ?max_h ?axis ?padding ?at
     ?scroll_step ?hit label =
   require_building ui;
-  box_keyed ui ?flags ?w ?h ?max_h ?axis ?padding ?gap ?at ?xform ?text
-    ?text_size ?scroll_step ?hit (key_of (current_seed ui) label)
+  box_keyed ui ?flags ?w ?h ?max_h ?axis ?padding ?at ?scroll_step ?hit (key_of (current_seed ui) label)
 
 let set_at ui box ~at:(x, y) =
   require_building ui;
@@ -1242,7 +1227,6 @@ let focus ui box =
     ui.composition <- ""; ui.edit_focus <- 0
   end;
   ui.focus <- box.box_key
-let active ui box = ui.active = Some box.box_key
 let hovered_within ui box = hit_within ui ui.hot box.box_key
 
 (* ------------------------------------------------------------- carry *)
@@ -1309,45 +1293,32 @@ let children ui index visit =
 
 let flow ui index = Float.is_nan ui.b_at_x.(index)
 
-let text_extent ui index row =
-  let text = ui.b_text.(index) in
-  if text = "" then 0.
-  else if row then
-    text_width ui ?size:(if ui.b_text_size.(index) > 0
-      then Some ui.b_text_size.(index) else None) text
-  else float (if ui.b_text_size.(index) > 0 then ui.b_text_size.(index)
-    else ui.font_size) *. 1.3
-
-(* Bottom-up: fixed, text, and fit sizes. Children follow their parent in
+(* Bottom-up: fixed and fit sizes. Children follow their parent in
    build order, so a reverse sweep sees every child first. *)
 let intrinsic ui =
   for index = ui.count - 1 downto 0 do
-    let padding = ui.b_padding.(index) and gap = ui.b_gap.(index)
-    and row = ui.b_row.(index) in
-    let along = ref 0. and across = ref 0. and flow_count = ref 0 in
+    let padding = ui.b_padding.(index) and row = ui.b_row.(index) in
+    let along = ref 0. and across = ref 0. in
     let next = ref ui.b_first.(index) in
     while !next >= 0 do
       let child = !next in
       if flow ui child then begin
-        incr flow_count;
         let cw = ui.l_w.(child) and ch = ui.l_h.(child) in
         if row then (along := !along +. cw; across := Float.max !across ch)
         else (along := !along +. ch; across := Float.max !across cw)
       end;
       next := ui.b_next.(child)
     done;
-    let gaps = gap *. float (max 0 (!flow_count - 1)) in
-    let content_w = (if row then !along +. gaps else !across) +. (2. *. padding)
-    and content_h = (if row then !across else !along +. gaps) +. (2. *. padding) in
+    let content_w = (if row then !along else !across) +. (2. *. padding)
+    and content_h = (if row then !across else !along) +. (2. *. padding) in
     ui.l_content.(index) <- content_h;
-    let resolve kind content horizontal = match kind with
+    let resolve kind content = match kind with
       | Px value -> value
       | Fit -> content
-      | Text -> text_extent ui index horizontal +. (2. *. padding)
       | Pct _ | Rel _ | Grow -> 0. in
-    ui.l_w.(index) <- resolve ui.b_w.(index) content_w true;
+    ui.l_w.(index) <- resolve ui.b_w.(index) content_w;
     ui.l_h.(index) <- Float.min ui.b_max_h.(index)
-        (resolve ui.b_h.(index) content_h false)
+        (resolve ui.b_h.(index) content_h)
   done
 
 (* Scrolling as NSScrollView does it, the constants fitted to a recording of one (scriptc-ui
@@ -1486,24 +1457,15 @@ let arrange ui time =
       apply_scroll ui time index;
       ui.scroll_y.(slot) <- Float.max 0. (Float.min max_scroll ui.scroll_y.(slot))
     end;
-    (* Children live in this box's space, or in its canvas. *)
-    let canvas = ui.b_xform.(index) in
-    let unit = match canvas with None -> 1. | Some (scale, _, _) -> scale in
-    let child_scale = match canvas with None -> ui.l_scale.(index)
-      | Some (scale, _, _) -> ui.l_scale.(index) *. scale in
-    let child_tx = match canvas with None -> ui.l_tx.(index)
-      | Some (_, tx, _) -> ui.l_tx.(index) +. (ui.l_scale.(index) *. (ui.l_x.(index) +. tx)) in
-    let child_ty = match canvas with None -> ui.l_ty.(index)
-      | Some (_, _, ty) -> ui.l_ty.(index) +. (ui.l_scale.(index) *. (ui.l_y.(index) +. ty)) in
-    let origin_x = match canvas with None -> ui.l_x.(index) | Some _ -> 0. in
-    let origin_y = match canvas with None -> ui.l_y.(index) | Some _ -> 0. in
-    let inner_w = (ui.l_w.(index) -. (2. *. padding) -. gutter) /. unit
-    and inner_h = (ui.l_h.(index) -. (2. *. padding)) /. unit in
+    let child_scale = ui.l_scale.(index) and child_tx = ui.l_tx.(index)
+    and child_ty = ui.l_ty.(index) in
+    let inner_w = ui.l_w.(index) -. (2. *. padding) -. gutter
+    and inner_h = ui.l_h.(index) -. (2. *. padding) in
     let relative kind inner current = match kind with
       | Pct fraction -> inner *. fraction
       | Rel f -> f inner
-      | Px _ | Fit | Text | Grow -> current in
-    let fixed = ref 0. and grow_count = ref 0 and flow_count = ref 0 in
+      | Px _ | Fit | Grow -> current in
+    let fixed = ref 0. and grow_count = ref 0 in
     let next = ref ui.b_first.(index) in
     while !next >= 0 do
       let child = !next in
@@ -1513,18 +1475,16 @@ let arrange ui time =
       ui.l_h.(child) <- Float.min ui.b_max_h.(child)
         (relative ui.b_h.(child) inner_h ui.l_h.(child));
       if flow ui child then begin
-        incr flow_count;
         let kind = if row then ui.b_w.(child) else ui.b_h.(child) in
         if kind = Grow then incr grow_count
         else fixed := !fixed +. (if row then ui.l_w.(child) else ui.l_h.(child))
       end;
       next := ui.b_next.(child)
     done;
-    let gaps = ui.b_gap.(index) *. float (max 0 (!flow_count - 1)) in
     let share = if !grow_count = 0 then 0.
-      else Float.max 0. (((if row then inner_w else inner_h) -. !fixed -. gaps)
+      else Float.max 0. (((if row then inner_w else inner_h) -. !fixed)
         /. float !grow_count) in
-    let cursor = ref (padding /. unit) in
+    let cursor = ref padding in
     let scroll_offset = if scrolls then ui.scroll_y.(slot) +. ui.scroll_visual.(slot) else 0. in
     next := ui.b_first.(index);
     while !next >= 0 do
@@ -1540,17 +1500,17 @@ let arrange ui time =
       end;
       if flow ui child then begin
         if row then begin
-          ui.l_x.(child) <- origin_x +. !cursor;
-          ui.l_y.(child) <- origin_y +. (padding /. unit) -. scroll_offset;
-          cursor := !cursor +. ui.l_w.(child) +. ui.b_gap.(index)
+          ui.l_x.(child) <- ui.l_x.(index) +. !cursor;
+          ui.l_y.(child) <- ui.l_y.(index) +. padding -. scroll_offset;
+          cursor := !cursor +. ui.l_w.(child)
         end else begin
-          ui.l_x.(child) <- origin_x +. (padding /. unit);
-          ui.l_y.(child) <- origin_y +. !cursor -. scroll_offset;
-          cursor := !cursor +. ui.l_h.(child) +. ui.b_gap.(index)
+          ui.l_x.(child) <- ui.l_x.(index) +. padding;
+          ui.l_y.(child) <- ui.l_y.(index) +. !cursor -. scroll_offset;
+          cursor := !cursor +. ui.l_h.(child)
         end
       end else begin
-        ui.l_x.(child) <- origin_x +. ui.b_at_x.(child);
-        ui.l_y.(child) <- origin_y +. ui.b_at_y.(child)
+        ui.l_x.(child) <- ui.l_x.(index) +. ui.b_at_x.(child);
+        ui.l_y.(child) <- ui.l_y.(index) +. ui.b_at_y.(child)
       end;
       next := ui.b_next.(child)
     done
@@ -1598,28 +1558,28 @@ module Paint = struct
     Batch.Builder.textured paint.builder ~texture:id ~x ~y ~width:w ~height:h
       ~u0:0. ~v0:0. ~u1:(float(Image.get_width image)) ~v1:(float(Image.get_height image)) ~color:0xffffffffl
 
-  let fill paint ~x ~y ~w ~h ?(radius = 0.) color =
+  let fill paint ~x ~y ~w ~h color =
     prepare paint;
     Batch.Builder.rect paint.builder ~x ~y ~width:w ~height:h
-      ~color:(packed color) ~radius ()
+      ~color:(packed color) ~radius:0. ()
 
-  let stroke paint ~x ~y ~w ~h ?(width = 1.) ?(radius = 0.) color =
+  let stroke paint ~x ~y ~w ~h ?(width = 1.) color =
     prepare paint;
     Batch.Builder.rect paint.builder ~x ~y ~width:w ~height:h
-      ~border_color:(packed color) ~border:width ~radius ()
+      ~border_color:(packed color) ~border:width ~radius:0. ()
 
   (* A border drawn inside its box, as CSS draws one: [stroke] centres its line on the rectangle's
      edge, so a box of whole points gets the line half a width in; the border then covers whole
      points (a 1-point border on a 2x display is two pixels, on the box's own pixels). *)
-  let frame paint ~x ~y ~w ~h ?(width = 1.) ?(radius = 0.) color =
+  let frame paint ~x ~y ~w ~h ?(width = 1.) color =
     let half = width /. 2. in
-    stroke paint ~x:(x +. half) ~y:(y +. half) ~w:(w -. width) ~h:(h -. width) ~width ~radius color
+    stroke paint ~x:(x +. half) ~y:(y +. half) ~w:(w -. width) ~h:(h -. width) ~width color
 
-  let rect paint ~x ~y ~w ~h ?fill:fill_color ?stroke:stroke_color ?radius () =
+  let rect paint ~x ~y ~w ~h ?fill:fill_color ?stroke:stroke_color () =
     let fill_color = match fill_color, stroke_color with
       | None, None -> Some Color.white | _ -> fill_color in
-    Option.iter (fill paint ~x ~y ~w ~h ?radius) fill_color;
-    Option.iter (stroke paint ~x ~y ~w ~h ?radius) stroke_color
+    Option.iter (fill paint ~x ~y ~w ~h) fill_color;
+    Option.iter (stroke paint ~x ~y ~w ~h) stroke_color
 
   let wire paint p0 p1 p2 p3 ?(width = 1.) color =
     prepare paint;
@@ -1742,22 +1702,8 @@ module Paint = struct
     dashed paint ~from_:(x, y) ~to_:(x, y +. h) color; dashed paint ~from_:(x +. w, y) ~to_:(x +. w, y +. h) color
 
   (* Empty: a hairline box crossed corner to corner. *)
-  let cross paint ~x ~y ~w ~h color =
-    frame paint ~x ~y ~w ~h color;
-    line paint ~from_:(x, y) ~to_:(x +. w, y +. h) color;
-    line paint ~from_:(x, y +. h) ~to_:(x +. w, y) color
 
   (* Bypassed, stale, cooking: diagonal hairlines every 5 points, clipped to the rectangle. *)
-  let hatch paint ~x ~y ~w ~h color =
-    let previous = paint.clip_rect in
-    paint.clip_rect <- intersect previous
-      ((x *. paint.scale) +. paint.tx, (y *. paint.scale) +. paint.ty, w *. paint.scale, h *. paint.scale);
-    let offset = ref (-. h) in
-    while !offset < w do
-      line paint ~from_:(x +. !offset, y +. h) ~to_:(x +. !offset +. h, y) color;
-      offset := !offset +. 7.
-    done;
-    paint.clip_rect <- previous
 
   (* A flag of the outline: 12 points, the input fill, a line-3 edge inside the box and, when on, a
      6-point mark in ink-2; square, or round for the second column onwards. *)
@@ -1774,12 +1720,6 @@ module Paint = struct
 
   (* Progress of work with no known end shape: a 96 by 8 box with a line-3 edge, hatched, and the
      done part a 6-point bar in ink inside the edge. *)
-  let progress paint ~x ~y ?(w = 96.) ?(h = 8.) fraction =
-    let theme = paint.owner.theme in
-    hatch paint ~x ~y ~w ~h (Theme.border theme);
-    frame paint ~x ~y ~w ~h (Theme.border theme);
-    fill paint ~x:(x +. 1.) ~y:(y +. 1.) ~w:(Float.round ((w -. 2.) *. Float.max 0. (Float.min 1. fraction)))
-      ~h:(h -. 2.) theme.foreground
 
   (* The ratio of a splitter in the drag: an accent label ("58 / 42"), no box. *)
   let ratio paint ~at first second =
@@ -1859,7 +1799,7 @@ let paint_all ui (frame : Frame.t) =
     if has_hit then record_hit ui index parent_hit clipped_hit;
     (* a box with no extent of its own (a [Fit] box whose children are all placed with [~at]) is
        not out of view: its children show unless it clips them *)
-    let shown = visible || ui.b_xform.(index) <> None in
+    let shown = visible in
     if shown || ((w <= 0. || h <= 0.) && ui.b_flags.(index) land clip = 0) then begin
       if shown then run ui.b_painters.(index) index clip_rect;
       let child_clip = if ui.b_flags.(index) land clip <> 0 then
@@ -1946,8 +1886,8 @@ let frame ui (frame : Frame.t) f =
   ui.parents <- []; ui.seeds <- [];
   let root = append_box ui ~key:0x2c1b3c6d ~parent:(-1) in
   set_box ui root ~flags:none ~w:(Px (float frame.width)) ~h:(Px (float frame.height))
-    ~max_h:Float.infinity ~row:false ~padding:0. ~gap:0. ~at_x:0. ~at_y:0.
-    ~xform:None ~text:"" ~text_size:0 ~scroll_step:0. ~hit:None;
+    ~max_h:Float.infinity ~row:false ~padding:0. ~at_x:0. ~at_y:0.
+    ~scroll_step:0. ~hit:None;
   ui.parents <- [root]; ui.seeds <- [0x2c1b3c6d];
   let result = Fun.protect ~finally:(fun () -> ui.building <- false)
       (fun () -> let result = f ui in carry_ghost ui; result) in
@@ -2002,8 +1942,8 @@ let hover_delay ui ~key =
     | _ -> ui.hover_rest <- Some (key, ui.pointer, time, ui.frame_number); false
 
 (* A tooltip: a 20-point sheet with a line-2 edge and 6 points of padding, text at the label size and
-   the shortcut [shortcut] after it in ink-3; long text wraps to further 14-point lines. *)
-let tooltip ?shortcut ui ~key ~text =
+   long text wraps to further 14-point lines. *)
+let tooltip ui ~key ~text =
   if hover_delay ui ~key then begin
     let size = max 8 (ui.font_size - 2) in
     let char_width = Float.max 1. (text_width ui ~size "0") in
@@ -2015,11 +1955,8 @@ let tooltip ?shortcut ui ~key ~text =
         lines, line ^ " " ^ word
       else line :: lines, word) ([], "") (String.split_on_char ' ' text) in
     let lines = List.rev (last :: lines) in
-    let key_text = Option.value shortcut ~default:"" in
     let widest = List.fold_left (fun most line -> Float.max most (text_width ui ~size line)) 0. lines in
-    let last_width = text_width ui ~size last in
-    let with_key = if key_text = "" then 0. else 6. +. text_width ui ~size key_text in
-    let width = Float.min width (14. +. Float.max widest (last_width +. with_key)) in
+    let width = Float.min width (14. +. widest) in
     let height = 20. +. (14. *. float (List.length lines - 1)) in
     let px, py = ui.pointer in
     let x = Float.max 8. (Float.min (px +. 12.) (ui.view_w -. width -. 8.)) in
@@ -2033,18 +1970,11 @@ let tooltip ?shortcut ui ~key ~text =
         Paint.frame paint ~x ~y ~w ~h (Theme.edge ui.theme);
         List.iteri (fun i line ->
           Paint.text paint ~size ~color:ui.theme.foreground
-            ~at:(x +. 7., y +. (14. *. float i) +. Float.floor (float (20 - size) /. 2.)) line) lines;
-        if key_text <> "" then
-          Paint.text paint ~size ~color:(Theme.ink_3 ui.theme)
-            ~at:(x +. 7. +. last_width +. 6.,
-                 y +. (14. *. float (List.length lines - 1)) +. Float.floor (float (20 - size) /. 2.)) key_text))
+            ~at:(x +. 7., y +. (14. *. float i) +. Float.floor (float (20 - size) /. 2.)) line) lines))
   end
 
-let row ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
-  within ui (box ui ~w ~h ~axis:Row ~gap ~padding label) f
-
-let col ui ?(w = Grow) ?(h = Fit) ?(gap = 0.) ?(padding = 0.) label f =
-  within ui (box ui ~w ~h ~axis:Column ~gap ~padding label) f
+let col ui ?(padding = 0.) label f =
+  within ui (box ui ~axis:Column ~padding label) f
 
 (* --------------------------------------------------------- kit widgets *)
 
@@ -2112,46 +2042,24 @@ let value_control (x, y, w, h) =
 let toggle_control (x, y, w, h) = x + w - side - 28, y + ((h - 14) / 2), 28, 14
 let control_hit shape rect = floats (shape (ints rect))
 
-let position (x, _, w, _) fraction =
-  x + int_of_float ((Float.max 0. (Float.min 1. fraction)
-    *. float (max 1 (w - 1))) +. 0.5)
-
-let compact_float value =
-  if abs_float value >= 1000. || (value <> 0. && abs_float value < 0.01)
-  then Printf.sprintf "%.2g" value
-  else Printf.sprintf "%.3g" value
-
 (* A value shown to three significant digits of its range (48.0 in 0..120, 0.20 in 0..1). *)
-let range_float ~span value =
-  if abs_float value >= 1000. || not (Float.is_finite span) || span <= 0. then compact_float value
-  else
-    let decimals = max 1 (min 4 (2 - int_of_float (Float.floor (Float.log10 span)))) in
-    Printf.sprintf "%.*f" decimals value
 
 let fraction_at (x, _, w, _) pointer_x =
   Float.max 0. (Float.min 1. ((pointer_x -. float x) /. float (max 1 (w - 1))))
 
 let fill paint (x, y, w, h) color =
   Paint.fill paint ~x:(float x) ~y:(float y) ~w:(float w) ~h:(float h) color
-let framed paint (x, y, w, h) ~fill:color ~stroke =
-  Paint.fill paint ~x:(float x) ~y:(float y) ~w:(float w) ~h:(float h) color;
-  Paint.stroke paint ~x:(float x +. 0.5) ~y:(float y +. 0.5) ~w:(float (w - 1)) ~h:(float (h - 1)) stroke
 let kit_text paint ?color x y text =
   Paint.text paint ~at:(float x, float y) ?color text
 
 let hover_row paint ui bounds = fill paint bounds (Theme.faint_border ui.theme)
 (* a field is a value on a hairline: accent while it holds the keyboard *)
 let underline paint (cx, cy, cw, ch) color = fill paint (cx, cy + ch - 1, cw, 1) color
-let paint_switch paint ?(disabled = false) (theme : Theme.t) ~x ~y value =
-  if disabled then begin
-    Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:27. ~h:13. (Theme.faint_border theme);
-    Paint.fill paint ~x:(x +. 3.) ~y:(y +. 3.) ~w:8. ~h:8. (Theme.border theme)
-  end else begin
-    Paint.fill paint ~x ~y ~w:28. ~h:14. (if value then theme.input else theme.track);
-    Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:27. ~h:13. (Theme.border theme);
-    Paint.fill paint ~x:(x +. (if value then 17. else 3.)) ~y:(y +. 3.) ~w:8. ~h:8.
-      (if value then theme.accent else Theme.ink_3 theme)
-  end
+let paint_switch paint (theme : Theme.t) ~x ~y value =
+  Paint.fill paint ~x ~y ~w:28. ~h:14. (if value then theme.input else theme.track);
+  Paint.stroke paint ~x:(x +. 0.5) ~y:(y +. 0.5) ~w:27. ~h:13. (Theme.border theme);
+  Paint.fill paint ~x:(x +. (if value then 17. else 3.)) ~y:(y +. 3.) ~w:8. ~h:8.
+    (if value then theme.accent else Theme.ink_3 theme)
 let cap_y ui y h = text_top ui ~size:(max 8 (ui.font_size - 2)) y h
 (* a section header: a label in ink-3 and a chevron, under 16 points of space *)
 let paint_section paint ui (x, y, w, h) label ~open_ ~hovered =
@@ -2176,8 +2084,8 @@ let paint_button_ground paint theme ~held ~hovered ~on ~primary (cx, cy, cw, ch)
     Paint.stroke paint ~x:(cx +. 0.5) ~y:(cy +. 0.5) ~w:(cw -. 1.) ~h:(ch -. 1.) (Theme.border theme)
 
 let panel_with ?stroke ?(window = false) ui ?(x = 12.) ?(y = 12.) ?(width = 280.) ?height ?max_height
-    ?(row_height = 24) ?(padding = 0) label f =
-  if row_height < 24 then invalid_arg "Ui.panel: row_height must be at least 24";
+    ?(padding = 0) label f =
+  let row_height = 24 in
   if padding < 0 then invalid_arg "Ui.panel: padding must be non-negative";
   let width = Float.max 180. width in
   let max_h = match max_height with
@@ -2290,8 +2198,8 @@ let inspector_toggle_value ui ~key ~at:(x, y) value =
   value
 
 (* A switch row: the switch sits at the start of the control column, not at the row's end. *)
-let inspector_toggle ui ?pin ~key ~label value =
-  let row, cx, cy, _ = inspector_row ui ?pin ~key ~label () in
+let inspector_toggle ui ~key ~label value =
+  let row, cx, cy, _ = inspector_row ui ~key ~label () in
   within ui row (fun () -> inspector_toggle_value ui ~key:(key ^ "-value") ~at:(cx, cy) value)
 
 (* A text button on a row of its own. *)
@@ -2414,8 +2322,8 @@ let popup_with_related ui ?stroke ?max_height ?(dismiss_initial = true) ?(attach
       Some result)
   end
 
-let popup ui ?stroke ?max_height ?dismiss_initial ?attached ?keep ~at ~width ~height label f =
-  popup_with_related ui ?stroke ?max_height ?dismiss_initial ?attached ?keep ~at ~width ~height label f
+let popup ui ?stroke ?max_height ?dismiss_initial ?attached ~at ~width ~height label f =
+  popup_with_related ui ?stroke ?max_height ?dismiss_initial ?attached ~at ~width ~height label f
 
 (* A centered panel from last frame's height. *)
 let modal ui ?(width = 320.) label f =
@@ -2466,79 +2374,55 @@ let footer ui ?right hints =
 (* A message under a section: a 6-point dot (the accent for information, the error ink for [error]) and
    the text in ink-2 (or the error ink), wrapped to the width of the parent as it was laid out last
    frame, on lines of 20 points with 4 above and below: a message of one line is 28 high, of two 48. *)
-let message ui ?(error = false) ~key text =
-  let parent = current_parent ui in
-  let room = (if parent >= 0 && ui.rw.(ui.b_slot.(parent)) > 0. then ui.rw.(ui.b_slot.(parent)) else ui.view_w) -. 38. in
-  let lines = List.fold_left (fun lines word -> match lines with
-    | [] -> [ word ]
-    | line :: rest ->
-        if text_width ui (line ^ " " ^ word) <= room then (line ^ " " ^ word) :: rest else word :: line :: rest)
-    [] (String.split_on_char ' ' text) |> List.rev in
-  let row = box ui ~flags:none ~w:Grow ~h:(Px (8. +. (20. *. float (List.length lines)))) key in
-  draw ui row (fun paint (x, y, _, _) ->
-    let theme = ui.theme in
-    let ink = if error then Theme.invalid else Theme.ink_2 theme in
-    Paint.circle paint ~at:(x +. 15., y +. 16.) ~radius:3. ~fill:(if error then Theme.invalid else theme.accent) ();
-    List.iteri (fun i line ->
-      Paint.text paint ~at:(x +. 26., y +. 4. +. (20. *. float i) +. text_top ui 0. 20.) ~color:ink line) lines)
 
 (* A button is its text on a 20-point box (6 points of padding in a transparent 1-point edge):
-   a fill on hover and press, the control fill when [on], an accent line inside the bottom edge with
-   the keyboard, a line-3 edge for the one [primary]; [key] follows the text in ink-3 at the label
-   size.  The box starts 5 points in so that its text lines up with the labels at 12. *)
-let button ui ?key ?(primary = false) ?(on = false) ?(disabled = false) ?(bare = false)
+   a fill on hover and press, an accent line inside the bottom edge with the keyboard.  The box
+   starts 5 points in so that its text lines up with the labels at 12. *)
+let button ui ?(bare = false)
     ?(icon = false) ?(at_end = false) ?ink text =
   let shown = display text in
-  let size = max 8 (ui.font_size - 2) in
   let measure = text_width ui in
-  let key_width = match key with Some key -> 6. +. measure ~size key | None -> 0. in
   (* the box: a 1-point edge and 6 points of padding (4 when [bare]) round the text; an [icon] is the
      20-point control square with its glyph centred *)
-  let width = if icon then 20. else measure shown +. key_width +. (if bare then 10. else 14.) in
+  let width = if icon then 20. else measure shown +. (if bare then 10. else 14.) in
   let extent (x, y, w, h) =
     let bx = if at_end then x +. w -. 8. -. width else x +. 5. in
     bx, y +. 2., Float.max 1. (Float.min width (w -. 10.)), h -. 4. in
-  let row = kit_row ui ~flags:(if disabled then blocking
-      else clickable lor focusable lor blocking lor tab_only lor focus_mark)
+  let row = kit_row ui ~flags:(clickable lor focusable lor blocking lor tab_only lor focus_mark)
       ~hit:extent text in
   let signal = signal ui row in
-  let theme = ui.theme and focus = (not disabled) && focused ui row in
+  let theme = ui.theme and focus = focused ui row in
   draw ui row (fun paint rect ->
     let x, y, w, h = rect in
     let cx, cy, cw, ch = extent (x, y, w, h) in
-    let ink = if disabled then Theme.ink_3 theme
-      else Option.value ink ~default:(if bare then Theme.ink_2 theme else theme.foreground) in
-    if not disabled then paint_button_ground paint theme ~held:signal.held ~hovered:signal.hovered
-        ~on ~primary (cx, cy, cw, ch);
+    let ink = Option.value ink ~default:(if bare then Theme.ink_2 theme else theme.foreground) in
+    paint_button_ground paint theme ~held:signal.held ~hovered:signal.hovered
+        ~on:false ~primary:false (cx, cy, cw, ch);
     (* the keyboard's mark: the accent over the last row of the box, its whole width *)
     if focus then Paint.fill paint ~x:cx ~y:(cy +. ch -. 1.) ~w:cw ~h:1. theme.accent;
     let pad = if icon then Float.floor ((cw -. measure shown) /. 2.) else if bare then 5. else 7. in
-    (match icon, shown with
-     | true, ("<" | ">" | "v" | "^") ->
-         let direction = match shown with
-           | "<" -> `Left | ">" -> `Right | "v" -> `Down | _ -> `Up in
-         Paint.chevron paint ~at:(cx +. (cw /. 2.), cy +. (ch /. 2.)) direction ink
-     | _ -> Paint.text paint ~at:(cx +. pad, text_top ui y h) ~color:ink shown);
-    Option.iter (fun key ->
-      Paint.text paint ~size ~at:(cx +. pad +. measure shown +. 6., text_top ui ~size y h)
-        ~color:(Theme.ink_3 theme) key) key);
-  (not disabled) && signal.clicked
+    match icon, shown with
+    | true, ("<" | ">" | "v" | "^") ->
+        let direction = match shown with
+          | "<" -> `Left | ">" -> `Right | "v" -> `Down | _ -> `Up in
+        Paint.chevron paint ~at:(cx +. (cw /. 2.), cy +. (ch /. 2.)) direction ink
+    | _ -> Paint.text paint ~at:(cx +. pad, text_top ui y h) ~color:ink shown);
+  signal.clicked
 
-(* A switch on its row: the label (ink-3 when [disabled]) and the 28 x 14 switch at the end. *)
-let toggle ui ?(disabled = false) text value =
-  let row = kit_row ui ~flags:(if disabled then blocking else clickable lor focusable lor blocking lor tab_only)
+(* A switch on its row: the label and the 28 x 14 switch at the end. *)
+let toggle ui text value =
+  let row = kit_row ui ~flags:(clickable lor focusable lor blocking lor tab_only)
       ~hit:(control_hit toggle_control) text in
   let signal = signal ui row in
-  let value = if (not disabled) && signal.clicked then not value else value in
+  let value = if signal.clicked then not value else value in
   let theme = ui.theme and shown = display text in
-  let hovered = signal.hovered && not disabled in
+  let hovered = signal.hovered in
   draw ui row (fun paint rect ->
     let (x, y, _, h) as bounds = ints rect in
     let cx, cy, _, _ = toggle_control bounds in
     if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(if disabled then Theme.ink_3 theme else theme.foreground)
-      (x + side) (label_y ui y h) shown;
-    paint_switch paint ~disabled theme ~x:(float cx) ~y:(float cy) value);
+    kit_text paint ~color:theme.foreground (x + side) (label_y ui y h) shown;
+    paint_switch paint theme ~x:(float cx) ~y:(float cy) value);
   value
 
 let previous_utf8 text index =
@@ -3104,104 +2988,11 @@ let inspector_header ui ~key ?kind ?badge ?index ?rename ?(actions = []) ?reset 
   ignore editing;
   { renamed = title'; chosen = !pressed; reset_pressed = !reset_pressed }
 
-
-let keyboard_fraction keys ~step value =
-  List.fold_left (fun value (event, modifiers) ->
-    let step = step *. (if List.mem Input.Shift modifiers then 10. else 1.) in
-    match event with
-    | Event.KeyPressed (Input.ArrowLeft | ArrowDown) ->
-        Float.max 0. (value -. step)
-    | Event.KeyPressed (Input.ArrowRight | ArrowUp) ->
-        Float.min 1. (value +. step)
-    | Event.KeyPressed Input.Home -> 0.
-    | Event.KeyPressed Input.End -> 1.
-    | _ -> value) value keys
-
-let slider_row ui ?(disabled = false) text ~draw_value ~value_text ~fraction_of ~from_fraction ~step ~parse
-    ~current value =
-  let row = if disabled then kit_row ui ~flags:blocking text else kit_row ui text in
-  let signal = signal ui row in
-  let bounds = ints (rect ui row) in
-  let control = value_control bounds in
-  let in_control point = contains (floats control) point in
-  let typed, editing = numeric_editor ~align_right:true ui row signal ~keys:(key_events ui row)
-      ~current:(fun () -> current value)
-      ~parse in
-  if editing then ui.b_flags.(row.index) <- clickable lor focusable lor blocking lor focus_mark;
-  let dragging = not editing && (signal.held || signal.released)
-    && in_control signal.press_point in
-  let value = match typed with
-    | Some typed -> typed
-    | None when dragging ->
-        let x = if signal.released then fst signal.release_point
-          else fst signal.pointer in
-        from_fraction value (fraction_at control x)
-    | None when not editing ->
-        let fraction = fraction_of value in
-        let adjusted = keyboard_fraction (key_events ui row) ~step fraction in
-        if adjusted = fraction then value else from_fraction value adjusted
-    | None -> value in
-  let theme = ui.theme and shown = display text in
-  let hovered = signal.hovered && in_control signal.pointer in
-  let pressed = dragging && signal.held in
-  let edit = text_state ui row and valid = state ui row ~default:1 land 1 <> 0 in
-  let composition = ui.composition and focused = focused ui row in
-  let edit_caret = ui.edit_caret and edit_anchor = ui.edit_anchor in
-  draw ui row (fun paint rect ->
-    let (x, y, _, h) as bounds = ints rect in
-    let (cx, cy, cw, ch) as control = value_control bounds in
-    if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(if disabled then Theme.ink_3 theme else Theme.ink_2 theme)
-      (x + side) (label_y ui y h) shown;
-    match edit with
-    | Some text ->
-        underline paint control (if valid then theme.accent else Theme.invalid);
-        if focused then paint_text_edit paint ~right:true ~control ~y:(label_y ui y h)
-          ~composition { text; caret = edit_caret; anchor = edit_anchor }
-        else kit_text paint (cx + cw - 2 - int_of_float (Float.round (Paint.text_width paint text))) (label_y ui y h) text
-    | None ->
-        underline paint control (if disabled then Theme.faint_border theme else Theme.edge theme);
-        (* the 2-point line over the hairline is the position in the soft range *)
-        if not disabled then
-          Paint.fill paint ~x:(float cx) ~y:(float (cy + ch - 3))
-            ~w:(float cw *. Float.max 0. (Float.min 1. (fraction_of value))) ~h:2.
-            (if pressed then theme.foreground else Theme.ink_2 theme);
-        if draw_value then begin
-          let text = value_text value in
-          Paint.text paint ~color:(if disabled then Theme.ink_3 theme else theme.foreground)
-            ~at:(float (cx + cw - 2) -. Paint.text_width paint text, float (label_y ui y h)) text
-        end);
-  value
-
-let slider ui ?disabled text ~range:(low, high) value =
-  if not (Float.is_finite low && Float.is_finite high) || high <= low then
-    invalid_arg "Ui.slider: range must be finite and increasing";
-  if not (Float.is_finite value) then invalid_arg "Ui.slider: value must be finite";
-  (* a disabled value is shown as short as it can be (0.5), as the sheet draws it *)
-  slider_row ui ?disabled text ~draw_value:true
-    ~value_text:(if disabled = Some true then compact_float else range_float ~span:(high -. low)) ~step:0.01
-    ~fraction_of:(fun value -> (value -. low) /. (high -. low))
-    ~from_fraction:(fun _ fraction -> low +. (fraction *. (high -. low)))
-    ~parse:(fun text ->
-      match float_of_string_opt text with
-      | Some value when Float.is_finite value -> Some value
-      | Some _ | None -> None)
-    ~current:(range_float ~span:(high -. low)) value
-
-let int_slider ui ?disabled text ~range:(low, high) value =
-  if high <= low then invalid_arg "Ui.int_slider: range must be increasing";
-  slider_row ui ?disabled text ~draw_value:true ~value_text:string_of_int
-    ~step:(1. /. float (high - low))
-    ~fraction_of:(fun value -> float (value - low) /. float (high - low))
-    ~from_fraction:(fun _ fraction ->
-      max low (min high (low + int_of_float ((fraction *. float (high - low)) +. 0.5))))
-    ~parse:int_of_string_opt ~current:string_of_int value
-
-let text_field ui ?(disabled = false) ?placeholder ?invalid text value =
-  let row = kit_row ui ~flags:(if disabled then blocking else clickable lor focusable lor blocking lor focus_mark)
+let text_field ui text value =
+  let row = kit_row ui ~flags:(clickable lor focusable lor blocking lor focus_mark)
       ~hit:(control_hit value_control) text in
   let signal = signal ui row in
-  let focused = (not disabled) && focused ui row in
+  let focused = focused ui row in
   let edit = if focused then load_text_edit ui row.box_key value else
     let end_ = String.length value in
     { text = value; caret = end_; anchor = end_ } in
@@ -3215,7 +3006,7 @@ let text_field ui ?(disabled = false) ?placeholder ?invalid text value =
   end;
   let value = edit.text in
   let theme = ui.theme and shown = display text and composition = ui.composition in
-  let hovered = signal.hovered && not disabled in
+  let hovered = signal.hovered in
   (* the I-beam over the value, as in any text field *)
   (let (px, py) = ui.pointer in
    let (cx, cy, cw, ch) = value_control (ints (rect ui row)) in
@@ -3225,33 +3016,15 @@ let text_field ui ?(disabled = false) ?placeholder ?invalid text value =
     let (x, y, _, h) as bounds = ints rect in
     let (cx, cy, cw, ch) as control = value_control bounds in
     if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(if disabled then Theme.ink_3 theme else Theme.ink_2 theme)
-      (x + side) (label_y ui y h) shown;
-    underline paint control (if invalid <> None then Theme.invalid else if focused then theme.accent
-      else if disabled then Theme.faint_border theme else Theme.edge theme);
-    (* an empty field shows what it is for, in ink-3 *)
-    (match placeholder with
-     | Some hint when value = "" -> kit_text paint ~color:(Theme.ink_3 theme) (cx + 2) (label_y ui y h) hint
-     | _ -> ());
+    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y h) shown;
+    underline paint control (if focused then theme.accent else Theme.edge theme);
     if focused then paint_text_edit paint ~control ~y:(label_y ui y h)
       ~composition edit
     else begin
       Paint.input_region paint ~x:(float cx) ~y:(float cy) ~w:(float cw)
         ~h:(float ch) ~focused:false ();
-      kit_text paint ~color:(if invalid <> None then Theme.invalid
-          else if disabled then Theme.ink_3 theme else theme.foreground)
-        (cx + 2) (label_y ui y h) value
+      kit_text paint ~color:theme.foreground (cx + 2) (label_y ui y h) value
     end);
-  (* the reason, under the field: 11 points in the error ink at the control column *)
-  Option.iter (fun reason ->
-    let message = box ui ~flags:none ~w:Grow ~h:(Px (float ui.kit_row_height)) (text ^ "-invalid") in
-    draw ui message (fun paint rect ->
-      let (x, y, _, h) as bounds = ints rect in
-      let size = max 8 (ui.font_size - 2) in
-      let cx, _, cw, _ = value_control bounds in
-      ignore x;
-      Paint.text paint ~size ~color:Theme.invalid ~at:(float cx, text_top ui ~size (float y) (float h))
-        (ellipsis ~width:(fun t -> Paint.text_width paint ~size t) ~limit:(float cw) reason))) invalid;
   value
 
 (* Multiline text: the same focus, IME composition, clipboard and edit
@@ -3352,14 +3125,14 @@ let scrubbed literal dx ~coarse =
       if !n > 0 && s.[!n - 1] = '.' then String.sub s 0 (!n + 1) else String.sub s 0 !n
   | None, None -> literal
 
-let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors = []) ?(messages = []) ?(spans = [])
+let text_area_submit ui ~at ~w ~h ?(wrap = false) ?(errors = []) ?(messages = []) ?(spans = [])
     ?reveal ?language ?on_context ?on_scrub ?on_scrub_edit ?on_click ?on_caret ?on_caret_move ?on_drop ?(chips = []) label text =
   (* a line of code is one and a half times its text, as code editors set it (17 points at 11,
      20 at 13): the 24-point row is a control's, twice the text *)
   let row = float (text_line_height ui) in
   let body = box ui
       ~flags:(clickable lor focusable lor blocking lor scroll lor clip
-              lor (if readonly then 0 else keep_tab))
+              lor keep_tab)
       ~at ~w:(Px w) ~h:(Px h) ~scroll_step:row label in
   let char_w = text_width ui "0" in
   (* the sheet's code area: a 36-point gutter (wider only past 999 lines), the text at its edge,
@@ -3435,7 +3208,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
   let scrub_state = state ui scrub ~default:0 in
   let scrubbing = ref None in
   (match language with
-   | Some l when not readonly && signal.pressed && signal.button = Some Input.LeftButton ->
+   | Some l when signal.pressed && signal.button = Some Input.LeftButton ->
        (match l.number_at text (point_at signal.press_point) with
         | Some (a, b) -> set_state ui scrub (a + 1); set_text_state ui scrub (Some (String.sub text a (b - a)))
         | None -> set_state ui scrub 0)
@@ -3455,7 +3228,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
      built before the keys so a click on one is seen this frame *)
   let open_ = if focused then state ui suggest ~default:0 else (set_state ui suggest 0; 0) in
   let items = match language with
-    | Some l when open_ <> 0 && not readonly -> Array.of_list (l.complete edit.text edit.caret)
+    | Some l when open_ <> 0 -> Array.of_list (l.complete edit.text edit.caret)
     | _ -> [||] in
   let shown = min 8 (Array.length items) in
   let selected = ref (min (open_ land 255) (max 0 (Array.length items - 1))) in
@@ -3492,7 +3265,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
         press_select ui edit ~shift:(press_shift ui body) ~clicks:signal.clicks ~line_of
           (point_at signal.press_point);
         (* a double click on true / false flips it, as dragging flips a number *)
-        if signal.clicks = 2 && language <> None && not readonly then begin
+        if signal.clicks = 2 && language <> None then begin
           let a, b = text_selection edit in
           let flipped = match String.sub edit.text a (b - a) with
             | "true" -> Some "false" | "false" -> Some "true" | _ -> None in
@@ -3528,18 +3301,18 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       | Event.KeyPressed ((Input.ArrowUp | Input.ArrowDown) as key) when listing ->
           let n = Array.length items in
           selected := (!selected + (if key = Input.ArrowUp then n - 1 else 1)) mod n
-      | Event.KeyPressed (Input.Tab | Input.Enter) when listing && not readonly -> accept items.(!selected)
+      | Event.KeyPressed (Input.Tab | Input.Enter) when listing -> accept items.(!selected)
       | Event.KeyPressed Input.Escape when open_ <> 0 && not !closed -> set_state ui suggest 0; closed := true
       | Event.KeyPressed Input.Escape -> unfocus ui
       | Event.KeyPressed Input.Enter ->
-          if not readonly then begin
+          begin
             let indent = match language with
               | Some l -> l.indent edit.text (fst (text_selection edit)) | None -> "" in
             change (); replace_text edit ("\n" ^ indent)
           end
       (* brackets come in pairs: an opener wraps the selection or inserts both, a closer typed
          before itself steps over it, Backspace between an empty pair takes both *)
-      | Event.TextInput s when language <> None && String.length s = 1 && not readonly && not command ->
+      | Event.TextInput s when language <> None && String.length s = 1 && not command ->
           let c = s.[0] and pairs = (Option.get language).pairs in
           let start, stop = text_selection edit in
           let next = if edit.caret < String.length edit.text then Some edit.text.[edit.caret] else None in
@@ -3556,7 +3329,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
                edit.caret <- edit.caret - 1; edit.anchor <- edit.caret
            | None -> changed := edit_text_event ~multiline:true ui edit ~accept:(fun _ -> true) ~modifiers event || !changed);
           typed := true
-      | Event.KeyPressed Input.Backspace when language <> None && not readonly && not command
+      | Event.KeyPressed Input.Backspace when language <> None && not command
           && edit.caret = edit.anchor && edit.caret > 0 && edit.caret < String.length edit.text
           && List.mem (edit.text.[edit.caret - 1], edit.text.[edit.caret]) (Option.get language).pairs ->
           change (); edit.anchor <- edit.caret - 1; edit.caret <- edit.caret + 1; replace_text edit ""; typed := true
@@ -3565,10 +3338,10 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
           let s = line_start edit.text edit.caret in
           let e = min (String.length edit.text) (line_end edit.text edit.caret + 1) in
           if Clipboard.set_text (String.sub edit.text s (e - s)) = Ok ()
-             && (key = 'x' || key = 'X') && not readonly then begin
+             && (key = 'x' || key = 'X') then begin
             change (); edit.anchor <- s; edit.caret <- e; replace_text edit ""; typed := true
           end
-      | Event.KeyPressed Input.Tab when not command && not readonly ->
+      | Event.KeyPressed Input.Tab when not command ->
           if not shift then (change (); replace_text edit "  ")
           else begin
             (* Shift-Tab: up to two spaces leave the start of the line *)
@@ -3594,18 +3367,11 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
       | Event.KeyPressed (Input.End | Input.ArrowRight) when command || event = Event.KeyPressed Input.End ->
           move (stop_of rows line)
       | event ->
-          let before = edit.text, edit.caret, edit.anchor in
           if edit_text_event ~multiline:true ui edit ~accept:(fun _ -> true) ~modifiers event then begin
-            if readonly then begin
-              let text, caret, anchor = before in
-              edit.text <- text; edit.caret <- caret; edit.anchor <- anchor;
-              ui.edit_undo <- []; ui.edit_redo <- []
-            end else begin
-              changed := true;
-              (match event with
-               | Event.TextInput _ | Event.KeyPressed (Input.Backspace | Input.Delete) -> typed := true
-               | _ -> ())
-            end
+            changed := true;
+            (match event with
+             | Event.TextInput _ | Event.KeyPressed (Input.Backspace | Input.Delete) -> typed := true
+             | _ -> ())
           end))
       (key_events ui body);
     (* a dragged number: the literal at the press follows the pointer (the caret sits after it) *)
@@ -3628,7 +3394,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     (* typing opens the popup on the token at the caret (the selection starts over); a popup
        left open follows the caret and closes when the caret leaves its token *)
     (match language with
-     | Some l when not readonly && (!typed || (open_ <> 0 && not !closed)) ->
+     | Some l when (!typed || (open_ <> 0 && not !closed)) ->
          (match l.complete edit.text edit.caret with
           | c :: _ when !typed -> set_state ui suggest ((fst c.replace + 1) * 256)
           | c :: _ when fst c.replace = (open_ lsr 8) - 1 ->
@@ -3637,7 +3403,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
      | _ -> ());
     (* the language's rewrite (parinfer) after this frame's edits; the anchor maps like the caret *)
     (match language with
-     | Some { rewrite = Some rewrite; _ } when !changed && not readonly ->
+     | Some { rewrite = Some rewrite; _ } when !changed ->
          let text', caret' = rewrite edit.text edit.caret in
          let anchor' = if edit.anchor = edit.caret then caret' else snd (rewrite edit.text edit.anchor) in
          edit.text <- text'; edit.caret <- caret'; edit.anchor <- anchor'
@@ -3701,7 +3467,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     | _ -> None in
   (* the pointer over a number invites a drag; over any other token it describes it after a rest *)
   let under_pointer = match language with
-    | Some _ when signal.hovered && ui.active = None && not readonly ->
+    | Some _ when signal.hovered && ui.active = None ->
         point_in ~strict:true final rows signal.pointer
     | _ -> None in
   let hovered_number = match language, under_pointer, !scrubbing with
@@ -3751,7 +3517,7 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     popup;
   draw ui body (fun paint (bx, by, bw, bh) ->
     let width text = Paint.text_width paint text /. paint.scale in
-    Paint.fill paint ~x:bx ~y:by ~w:bw ~h:bh (if readonly then theme.panel else theme.input);
+    Paint.fill paint ~x:bx ~y:by ~w:bw ~h:bh theme.input;
     let previous = paint.clip_rect in
     let clip x w = paint.clip_rect <- intersect previous
       ((x *. paint.scale) +. paint.tx, (by *. paint.scale) +. paint.ty,
@@ -3862,106 +3628,6 @@ let text_area_submit ui ~at ~w ~h ?(readonly = false) ?(wrap = false) ?(errors =
     end else Paint.input_region paint ~x:bx ~y:by ~w:bw ~h:bh ~focused:false ();
     paint.clip_rect <- previous);
   final, !submitted
-
-let text_area ui ~at ~w ~h ?readonly ?errors ?spans ?reveal ?language label text =
-  fst (text_area_submit ui ~at ~w ~h ?readonly ?errors ?spans ?reveal ?language label text)
-
-let range_slider ui text ~range:(low, high) (lower, upper) =
-  if high <= low then invalid_arg "Ui.range_slider: range must be increasing";
-  let clamp value = Float.max low (Float.min high value) in
-  let lower = clamp lower and upper = clamp upper in
-  let lower, upper = Float.min lower upper, Float.max lower upper in
-  let row = kit_row ui ~hit:(control_hit value_control) text in
-  let signal = signal ui row in
-  let control = value_control (ints (rect ui row)) in
-  let fraction value = (value -. low) /. (high -. low) in
-  (* The nearer handle is captured on press and kept for the drag. *)
-  let handle =
-    if signal.pressed then begin
-      let x = fst signal.press_point in
-      let low_x = float (position control (fraction lower))
-      and high_x = float (position control (fraction upper)) in
-      let handle = if Float.abs (x -. low_x) <= Float.abs (x -. high_x) then 0 else 1 in
-      set_state ui row handle; handle
-    end else
-      let handle = state ui row ~default:0 in
-      let handle = if signal.clicked && signal.button = None then 1 - handle else handle in
-      set_state ui row handle; handle in
-  let lower, upper =
-    if signal.held || signal.released then
-      let x = if signal.released then fst signal.release_point else fst signal.pointer in
-      let value = low +. (fraction_at control x *. (high -. low)) in
-      if handle = 0 then Float.min value upper, upper
-      else lower, Float.max value lower
-    else
-      let current = if handle = 0 then lower else upper in
-      let fraction = fraction current in
-      let adjusted = keyboard_fraction (key_events ui row) ~step:0.01 fraction in
-      if adjusted = fraction then lower, upper else
-        let value = low +. (adjusted *. (high -. low)) in
-        if handle = 0 then Float.min value upper, upper
-        else lower, Float.max value lower in
-  let theme = ui.theme and shown = display text and hovered = signal.hovered in
-  draw ui row (fun paint rect ->
-    let (x, y, _, h) as bounds = ints rect in
-    let (cx, cy, cw, ch) as control = value_control bounds in
-    if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y h) shown;
-    underline paint control (Theme.edge theme);
-    (* the line between the two positions, over the hairline *)
-    let clamp value = Float.max 0. (Float.min 1. (fraction value)) in
-    Paint.fill paint ~x:(float cx +. (float cw *. clamp lower)) ~y:(float (cy + ch - 3))
-      ~w:(float cw *. (clamp upper -. clamp lower)) ~h:2. (Theme.ink_2 theme);
-    kit_text paint (cx + 2) (label_y ui y h) (range_float ~span:(high -. low) lower);
-    let upper = range_float ~span:(high -. low) upper in
-    Paint.text paint ~at:(float (cx + cw - 2) -. Paint.text_width paint upper, float (label_y ui y h)) upper);
-  lower, upper
-
-let xy ui text ~x_range:(x_min, x_max) ~y_range:(y_min, y_max) (px, py) =
-  if x_max <= x_min || y_max <= y_min then invalid_arg "Ui.xy: ranges must increase";
-  let clamp low high value = Float.max low (Float.min high value) in
-  let px = clamp x_min x_max px and py = clamp y_min y_max py in
-  (* a 124-point pad in the value column: a row of 128 around it *)
-  let row = box ui ~flags:(clickable lor focusable lor blocking lor tab_only) ~w:Grow ~h:(Px 128.)
-      ~hit:(control_hit value_control) text in
-  let signal = signal ui row in
-  let (cx, cy, cw, ch) = value_control (ints (rect ui row)) in
-  (* the pad's inside, within its 1-point edge *)
-  let ix = float (cx + 1) and iy = float (cy + 1) and iw = float (max 1 (cw - 2)) and ih = float (max 1 (ch - 2)) in
-  let px, py =
-    if signal.held || signal.released then
-      let x, y = if signal.released then signal.release_point else signal.pointer in
-      let fx = clamp 0. 1. ((x -. ix) /. iw) and fy = clamp 0. 1. ((y -. iy) /. ih) in
-      x_min +. (fx *. (x_max -. x_min)), y_min +. (fy *. (y_max -. y_min))
-    else
-      List.fold_left (fun (px, py) -> function
-        | Event.KeyPressed Input.ArrowLeft -> clamp x_min x_max (px -. (x_max -. x_min) *. 0.01), py
-        | Event.KeyPressed Input.ArrowRight -> clamp x_min x_max (px +. (x_max -. x_min) *. 0.01), py
-        | Event.KeyPressed Input.ArrowUp -> px, clamp y_min y_max (py -. (y_max -. y_min) *. 0.01)
-        | Event.KeyPressed Input.ArrowDown -> px, clamp y_min y_max (py +. (y_max -. y_min) *. 0.01)
-        | _ -> px, py) (px, py) signal.keys in
-  let theme = ui.theme and shown = display text in
-  let hovered = signal.hovered and pressed = signal.held in
-  draw ui row (fun paint rect ->
-    let (x, y, _, h) as bounds = ints rect in
-    let (cx, cy, cw, ch) = value_control bounds in
-    let knob_x = ix +. (((px -. x_min) /. (x_max -. x_min)) *. iw) +. 0.5
-    and knob_y = iy +. (((py -. y_min) /. (y_max -. y_min)) *. ih) +. 0.5 in
-    if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(Theme.ink_2 theme) (x + side) (label_y ui y (min h 24)) shown;
-    framed paint (cx, cy, cw, ch) ~fill:theme.input ~stroke:(Theme.border theme);
-    Paint.fill paint ~x:(ix +. Float.floor (iw /. 2.)) ~y:iy ~w:1. ~h:ih (Theme.faint_border theme);
-    Paint.fill paint ~x:ix ~y:(iy +. Float.floor (ih /. 2.)) ~w:iw ~h:1. (Theme.faint_border theme);
-    Paint.fill paint ~x:(knob_x -. 0.5) ~y:iy ~w:1. ~h:ih (Theme.border theme);
-    Paint.fill paint ~x:ix ~y:(knob_y -. 0.5) ~w:iw ~h:1. (Theme.border theme);
-    Paint.circle paint ~at:(knob_x, knob_y) ~radius:(if pressed then 5. else 4.)
-      ~fill:theme.accent ~stroke:theme.foreground ();
-    (* the readout, right and at the foot of the pad *)
-    let readout = Printf.sprintf "%s \xc2\xb7 %s" (range_float ~span:(x_max -. x_min) px)
-        (range_float ~span:(y_max -. y_min) py) in
-    Paint.cap paint ~at:(ix +. iw -. 4. -. Paint.cap_width paint readout,
-      text_top ui ~size:(max 8 (ui.font_size - 2)) (iy +. ih -. 24.) 24.) readout);
-  px, py
 
 type pick = [ `None | `Pick of int | `Delete of int | `Submit | `Back | `Cancel ]
 
@@ -4112,7 +3778,7 @@ let picker ui ?(limit = 10) ?mark ?(off = fun _ -> false) ?(slash = true) ?(at_r
 type submenu = { row : int; rows : (string * bool) list; keys : string list; current : int option }
 
 let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(danger = [])
-    ?(submenus = []) ?(lead_from = 0) ?dismiss_initial label items =
+    ?(submenus = []) ?(lead_from = 0) label items =
   let submenu_key = key_of (current_seed ui) (label ^ "-sub") in
   (* the width follows the longest row; an empty label is a separator line; [keys] are the
      shortcuts at the right of the rows, in ink-2 at the label size *)
@@ -4197,7 +3863,7 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
   let stroke = Theme.edge ui.theme in
   let opened = ref None in
   let related = if submenus = [] then [] else [submenu_key] in
-  match popup_with_related ui ~stroke ~keep ~related ?dismiss_initial ~at:(x, y) ~width ~height label (fun () ->
+  match popup_with_related ui ~stroke ~keep ~related ~at:(x, y) ~width ~height label (fun () ->
       let top = pad "menu-top" in
       let open_row = state ui top ~default:(-1) in
       opened := if open_row >= 0 then Some open_row else None;
@@ -4227,67 +3893,6 @@ let context_menu ui ~at:(x, y) ?width ?selected ?(swatches = []) ?(keys = []) ?(
            (match result with
             | Some (Some index) -> dismiss_popup ui; `Pick (base_of sub + index)
             | _ -> `Open))
-
-(* A field that opens its options as the kit's menu: an accent underline and a chevron up while it is
-   open, the menu a point under the field and as wide, a square before the current option.  A click
-   on the field or on an option closes it; the arrow keys step through the options without it. *)
-let choice ui ?(disabled = false) text options selected =
-  let options = Array.of_list options in
-  let count = Array.length options in
-  if count = 0 then invalid_arg "Ui.choice: options must not be empty";
-  if selected < 0 || selected >= count then
-    invalid_arg "Ui.choice: selected index is out of bounds";
-  let row = if disabled then kit_row ui ~flags:blocking text
-    else kit_row ui ~hit:(control_hit value_control) text in
-  let signal = signal ui row in
-  let opened = (not disabled) && state ui row ~default:0 = 1 in
-  let selected =
-    let direction = List.fold_left (fun direction -> function
-      | Event.KeyPressed (Input.ArrowLeft | ArrowDown) -> direction - 1
-      | Event.KeyPressed (Input.ArrowRight | ArrowUp) -> direction + 1
-      | _ -> direction) 0 signal.keys in
-    if direction <> 0 then ((selected + direction) mod count + count) mod count else selected in
-  let cx, cy, cw, ch = value_control (ints (rect ui row)) in
-  let opened = if disabled then false else if signal.clicked then not opened else opened in
-  let selected, opened =
-    if not opened then selected, false
-    else match context_menu ui ~at:(float cx, float (cy + ch + 1)) ~width:(float cw) ~selected
-        ~dismiss_initial:false (text ^ "-choice") (Array.to_list (Array.map (fun option -> option, true) options)) with
-      | `Pick index -> index, false
-      | `Dismiss -> selected, false
-      | `Open -> selected, true in
-  set_state ui row (if opened then 1 else 0);
-  let theme = ui.theme and shown = display text in
-  let hovered = signal.hovered && not disabled in
-  let keyboard = (not disabled) && focused ui row in
-  draw ui row (fun paint rect ->
-    let (x, y, _, h) as bounds = ints rect in
-    let (cx, cy, cw, ch) as control = value_control bounds in
-    let ink = if disabled then Theme.ink_3 theme else theme.foreground in
-    if hovered then hover_row paint ui bounds;
-    kit_text paint ~color:(if disabled then Theme.ink_3 theme else Theme.ink_2 theme)
-      (x + side) (label_y ui y h) shown;
-    underline paint control (if opened || keyboard then theme.accent
-      else if disabled then Theme.faint_border theme else Theme.edge theme);
-    kit_text paint ~color:ink (cx + 2) (label_y ui y h) options.(selected);
-    Paint.chevron paint ~at:(float (cx + cw) -. 5., float cy +. (float ch /. 2.))
-      (if opened then `Up else `Down) ink);
-  selected
-
-let accordion ui ?(expanded = false) ?set_expanded text f =
-  let gap = section_gap ui in
-  let row = box ui ~flags:(clickable lor focusable lor blocking lor tab_only) ~w:Grow
-      ~h:(Px (float (ui.kit_row_height + gap))) text in
-  let signal = signal ui row in
-  let open_ = state ui row ~default:(if expanded then 1 else 0) = 1 in
-  let open_ = match set_expanded with Some forced -> forced | None -> open_ in
-  let open_ = if signal.clicked then not open_ else open_ in
-  set_state ui row (if open_ then 1 else 0);
-  if not open_ then ui.closed_section <- row.index;
-  let shown = display text and hovered = signal.hovered in
-  draw ui row (fun paint (x, y, w, h) ->
-    paint_section paint ui (x, y +. float gap, w, h -. float gap) shown ~open_ ~hovered);
-  if open_ then Some (f ()) else None
 
 let expanded ui text =
   let key = key_of (current_seed ui) text in

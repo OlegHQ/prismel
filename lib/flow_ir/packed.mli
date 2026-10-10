@@ -63,13 +63,12 @@ module Private : sig
   (** Fresh instruction mask used by GPU qualification and code generation. *)
 
   type view = {code : instruction array; widths : int array; output : int array;
-    uniform_widths : int array; collecting : bool; zipped : bool; skip : int array}
+    uniform_widths : int array; collecting : bool; }
   val view : t -> view
   (* Borrowed immutable arrays for downstream compilation. *)
   type inputs = {arrays : float array array; uniforms : float array array;
     frame : float array; count : int}
-  val prepare : ?state:Flow.Eval.state -> ?elems:(string * Flow.Eval.value) list ->
-    ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
+  val prepare : ?state:Flow.Eval.state -> ?resolve:(Flow.Eval.value -> (Flow.Eval.value, Flow.Diagnostic.t) result) ->
     ?measure:((unit -> float) * (t -> seconds:float -> reference:bool -> unit)) ->
     t -> live:Flow.Eval.live -> (inputs, Flow.Diagnostic.t) result
 end

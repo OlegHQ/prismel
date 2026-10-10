@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 
 (* The document (network, lights, camera) is sketch.rays. *)
 
@@ -7,28 +7,28 @@ let material = Material.create ~diffuse:(Color.hex_exn "#f2b36d")
     ~ambient:(Color.hex_exn "#422006") ~specular:Color.white ~shininess:48. ()
 
 (* [Mesh] carries a packed cook's instance transforms. *)
-type preview = Pieces of Sketch_support.Packed_pieces.t
+type preview = Pieces of Rays_editor.Packed_pieces.t
   | Mesh of Mesh.t * Mat4.t array option
 
 let prepare output =
   match Rdk.Geometry.find_attribute ~owner:Rdk.Attribute.Primitive "piece"
-      (Result.get_ok (Procedural.Payload.geometry output.Session.payload)) with
+      (Result.get_ok (Sop.Payload.geometry output.Session.payload)) with
   | Some attribute ->
       (match Rdk.Attribute.Private.storage attribute with
        | Rdk.Attribute.Int _ | Text _ ->
-           Sketch_support.Packed_pieces.of_geometry ~piece_attribute:"piece"
-             (Result.get_ok (Procedural.Payload.geometry output.payload))
+           Rays_editor.Packed_pieces.of_geometry ~piece_attribute:"piece"
+             (Result.get_ok (Sop.Payload.geometry output.payload))
            |> Result.map (fun pieces -> Pieces pieces)
-       | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
+       | _ -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.payload))
            |> Result.map (fun mesh -> Mesh (mesh, output.instances))
            |> Result.map_error Rdk.Error.to_string)
-  | None -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Procedural.Payload.geometry output.payload))
+  | None -> Rdk_rays.Rays_mesh.to_mesh (Result.get_ok (Sop.Payload.geometry output.payload))
       |> Result.map (fun mesh -> Mesh (mesh, output.instances))
       |> Result.map_error Rdk.Error.to_string
 
 let scene3 node preview =
   let mesh = match preview with
-    | Pieces pieces -> Sketch_support.Packed_pieces.mesh_for_node node pieces
+    | Pieces pieces -> Rays_editor.Packed_pieces.mesh_for_node node pieces
     | Mesh (mesh, _) -> mesh in
   let primitive_mode = Mesh.mode mesh in
   let shading = match Node.operation node with
@@ -54,19 +54,13 @@ let scene3 node preview =
         Scene3.instances_array ~cull ~shading ~material:preview_material mesh transforms
     | Mesh (_, None) | Pieces _ -> Scene3.mesh ~cull ~shading ~material:preview_material mesh
   in
-  let drawing = match primitive_mode with
-    | Mesh.Points ->
-        Scene3.with_raster (Scene3.raster_state ~point_size:11. ()) [drawing]
-    | Lines | Line_strip | Line_loop ->
-        Scene3.with_raster (Scene3.raster_state ~line_width:2. ()) [drawing]
-    | Triangles | Triangle_strip | Triangle_fan -> drawing in
   Scene3.create ~samples:1 [drawing]
 
 let overlay graph preview frame =
   let pieces = match preview with
     | None -> "waiting for first cook"
     | Some (Pieces pieces) -> Printf.sprintf "%d closed pieces"
-        (Sketch_support.Packed_pieces.piece_count pieces)
+        (Rays_editor.Packed_pieces.piece_count pieces)
     | Some (Mesh (mesh, _)) -> Printf.sprintf "%d preview vertices"
         (Mesh.vertex_count mesh) in
   Scene.[
@@ -80,7 +74,7 @@ let overlay graph preview frame =
 let () =
   let workspace, source = Rays_editor.Workspace.open_text ~path:Sketch_source.path
       ~digest:Sketch_source.digest Sketch_source.text in
-  Rays_editor.Editor3.run
+  Rays_editor.Editor.run
     ~config:{ Sketch.default_config with width = 1200; height = 760;
       title = "Rays sketch · shattered cube"; domains = Some 1 }
     ~camera:(Easy_camera.create ~target:Vec3.zero ~distance:6.8

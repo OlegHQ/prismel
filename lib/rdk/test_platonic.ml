@@ -103,51 +103,6 @@ let check_catalog () =
         (name ^ " is not closed two-manifold")
     done) cases
 
-let check_normals_groups_colors_and_bridge () =
-  let none = make ~normals:Parametric_generators.Platonic_no_normals () in
-  check (Geometry.find_attribute ~owner:Attribute.Point "N" none = None
-      && Geometry.find_attribute ~owner:Attribute.Vertex "N" none = None)
-    "Platonic_no_normals emitted N";
-  let smooth = make ~kind:Parametric_generators.Platonic_dodecahedron
-      ~normals:Parametric_generators.Platonic_point_normals () in
-  let point = positions smooth
-  and normal = float3_attribute smooth Attribute.Point "N" in
-  for p = 0 to Geometry.point_count smooth - 1 do
-    check (near normal.x.(p) (point.x.(p) /. 2.)
-        && near normal.y.(p) (point.y.(p) /. 2.)
-        && near normal.z.(p) (point.z.(p) /. 2.))
-      "Platonic point normal is not radial"
-  done;
-  let soccer = make ~kind:Parametric_generators.Platonic_soccer_ball
-      ~normals:Parametric_generators.Platonic_vertex_normals ~face_groups:"face" () in
-  let normal = float3_attribute soccer Attribute.Vertex "N"
-  and color = float3_attribute soccer Attribute.Primitive "Cd" in
-  for primitive = 0 to 31 do
-    let expected = if primitive < 12 then 0. else 1. in
-    check (near color.x.(primitive) expected
-        && near color.y.(primitive) expected && near color.z.(primitive) expected)
-      "soccer-ball primitive color"
-  done;
-  for primitive = 0 to Geometry.primitive_count soccer - 1 do
-    let first, last = Topology.primitive_vertex_range
-        (Geometry.topology soccer) primitive in
-    for vertex = first + 1 to last - 1 do
-      check (normal.x.(vertex) = normal.x.(first)
-          && normal.y.(vertex) = normal.y.(first)
-          && normal.z.(vertex) = normal.z.(first))
-        "Platonic vertex normals are not hard per face"
-    done
-  done;
-  (match Geometry.find_group ~owner:Group.Primitive "face_pentagons" soccer,
-      Geometry.find_group ~owner:Group.Primitive "face_hexagons" soccer with
-   | Some pentagons, Some hexagons ->
-       check (Group.cardinality pentagons = 12 && Group.cardinality hexagons = 20)
-         "soccer-ball face groups"
-   | _ -> fail "soccer-ball face groups are missing");
-  let mesh = Rdk_rays.Rays_mesh.to_mesh soccer |> get_ok in
-  check (Mesh.index_count mesh = 348 && Mesh.normals mesh <> [])
-    "soccer ball failed terminal triangulation"
-
 let check_orientation_rotation_and_validation () =
   let rotation = Vec3.create 0.3 0.5 0.7 and center = Vec3.create 3. (-2.) 5. in
   let source = Vec3.scale (Vec3.create 1. 1. 1.) (2. /. sqrt 3.) in
@@ -204,7 +159,6 @@ let check_parallel_exact () =
 
 let run () =
   check_catalog ();
-  check_normals_groups_colors_and_bridge ();
   check_orientation_rotation_and_validation ();
   check_parallel_exact ();
   print_endline "Platonic tests passed"

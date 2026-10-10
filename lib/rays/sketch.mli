@@ -11,15 +11,11 @@ type config = {
   fps : int option;
   domains : int option;
   clock : clock;
-  resizable : bool;
-  fullscreen : bool;
+
 }
 (** [default_config] enables native resizing. *)
 
 val default_config : config
-
-val run : ?config:config -> (Frame.t -> Scene.t) -> unit
-(** Run a sketch with no user model. *)
 
 val run_state :
   ?config:config ->
@@ -45,7 +41,7 @@ val run_state :
     for the next frame and [on_stop]. *)
 
 val export :
-  ?config:config -> ?fps:int -> ?prefix:string -> directory:string ->
+  ?config:config -> ?prefix:string -> directory:string ->
   frames:int -> (Frame.t -> Scene.t) -> unit
 (** Renders a deterministic PNG sequence named [prefix-NNNNNN.png]. Captured
     frames use the renderer's native backing dimensions. *)

@@ -2,8 +2,8 @@
    points) cooks deterministically at 1 and 3 domains; moving one point recooks
    only its element; pieces, keys and provenance. *)
 open Flow_sop
-module Edit = Procedural.Edit_graph
-module Session = Procedural.Session
+module Edit = Sop.Edit_graph
+module Session = Sop.Session
 
 let fail message = failwith ("test_workspace_zone: " ^ message)
 let check condition message = if not condition then fail message
@@ -29,7 +29,7 @@ let lower source = match Flow.Syntax.parse source with
       | Error d -> fail (Flow.Diagnostic.to_string d))
 
 let context ~domains = Result.get_ok
-  (Procedural.Context.create ~domains ~grain:97 ~seed:42L ())
+  (Sop.Context.create ~domains ~grain:97 ~seed:42L ())
 let session ?(entries = 512) () =
   Result.get_ok (Session.create ~max_entries:entries ~max_payload_bytes:(256 * 1024 * 1024))
 
@@ -37,8 +37,8 @@ let cook ?(domains = 1) session graph =
   let root = Option.get (graph : Lower.graph).root in
   let compiled = Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:root) in
   match Session.cook session ~context:(context ~domains) compiled with
-  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload))
-  | Error error -> fail (Procedural.Diagnostic.error_to_string error)
+  | Ok output -> (Result.get_ok (Sop.Payload.geometry output.payload))
+  | Error error -> fail (Sop.Diagnostic.error_to_string error)
 
 let prims = Rdk.Geometry.primitive_count
 
@@ -121,14 +121,14 @@ let previews () =
         let network, root = Option.get (lowered.preview ~node:target.id ~probes graph.network) in
         let resolved = Result.get_ok (Value_lane.resolve lane ~live:input ~time:input.t network) in
         let compiled = Result.get_ok (Edit.compile_node resolved.geometry ~node_id:root) in
-        let context = Result.get_ok (Procedural.Context.create ~domains ~grain:1 ~input ~time:input.t
+        let context = Result.get_ok (Sop.Context.create ~domains ~grain:1 ~input ~time:input.t
           ~frame:(Int64.of_int input.frame) ()) in
         let output = Result.get_ok (Session.cook s ~context compiled) in
-        let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions (Result.get_ok (Procedural.Payload.geometry output.payload))) in
+        let positions = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions (Result.get_ok (Sop.Payload.geometry output.payload))) in
         let mean values = Array.fold_left (+.) 0. values /. float (Array.length values) in
         check (mean positions.x = float (index mod 2 * 10) +. input.t && mean positions.y = input.t)
           "preview selectors changed the live frame or fold's accumulated value";
-        geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)))) in
+        geometry_bytes (Result.get_ok (Sop.Payload.geometry output.payload)))) in
   check (play 1 = play 3) "live previews and frame folds differ across domains"
 
 (* the graph with its zero-input node [operation] replaced by a snapshot of its cook whose
@@ -136,15 +136,15 @@ let previews () =
 let move_point session (graph : Lower.graph) operation ~index ~by =
   let field = List.find (fun (n : Edit.node_info) -> n.operation = operation)
       (Edit.inspect graph.network.geometry) in
-  let base = (Result.get_ok (Procedural.Payload.geometry (Result.get_ok (Session.cook session ~context:(context ~domains:1)
+  let base = (Result.get_ok (Sop.Payload.geometry (Result.get_ok (Session.cook session ~context:(context ~domains:1)
     (Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:field.id)))).payload)) in
   let view = Rdk.Packed.Float3.Private.view (Rdk.Geometry.positions base) in
   let moved = Result.get_ok (Rdk.Geometry.with_positions
     (Rdk.Packed.Float3.of_owned ~x:(Array.copy view.x)
        ~y:(Array.mapi (fun i v -> if i = index then v +. by else v) view.y)
        ~z:(Array.copy view.z) |> Result.get_ok) base) in
-  let replaced = Result.get_ok (Procedural.Node.Private.restore_id field.id
-    (Procedural.Sop.snapshot moved)) in
+  let replaced = Result.get_ok (Sop.Node.Private.restore_id field.id
+    (Lisp_sop.snapshot (moved))) in
   base, Result.get_ok (Edit.replace_node replaced graph.network.geometry)
 
 let run () =
@@ -166,10 +166,10 @@ let run () =
         let input = {(Frame_input.at_time (float i *. 0.25)) with frame = i; dt = 0.25} in
         let resolved = Result.get_ok (Value_lane.resolve lane ~live:input ~time:input.t graph.network) in
         let compiled = Result.get_ok (Edit.compile_node resolved.geometry ~node_id:(Option.get graph.root)) in
-        let context = Result.get_ok (Procedural.Context.create ~domains ~grain:1
+        let context = Result.get_ok (Sop.Context.create ~domains ~grain:1
           ~input ~time:input.t ~frame:(Int64.of_int i) ()) in
         let output = Result.get_ok (Session.cook s ~context compiled) in
-        geometry_bytes (Result.get_ok (Procedural.Payload.geometry output.payload)) in
+        geometry_bytes (Result.get_ok (Sop.Payload.geometry output.payload)) in
       let values = Array.init 3 (fun i -> frame (i + 1)) in
       Array.iteri (fun i bytes ->
         let oracle = List.hd (lower (source (Printf.sprintf "%.17g" (float (i + 1) *. 0.25)))).graphs in
@@ -235,7 +235,7 @@ let run () =
   let compiled = Result.get_ok (Edit.compile_node graph' ~node_id:root) in
   let before = Session.stats s in
   let second = match Session.cook s ~context:(context ~domains:1) compiled with
-    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload)) | Error e -> fail (Procedural.Diagnostic.error_to_string e) in
+    | Ok output -> (Result.get_ok (Sop.Payload.geometry output.payload)) | Error e -> fail (Sop.Diagnostic.error_to_string e) in
   let after = Session.stats s in
   let n = Rdk.Geometry.point_count base in
   check (a.cooks > 0 && n > 4) "the collection has points";
@@ -262,12 +262,12 @@ let run () =
   let at time graph lowered =
     let s = session () in
     Session.set_volatile s (Lower.is_volatile lowered);
-    let context = Result.get_ok (Procedural.Context.create ~domains:1 ~grain:97 ~seed:42L ~time ()) in
+    let context = Result.get_ok (Sop.Context.create ~domains:1 ~grain:97 ~seed:42L ~time ()) in
     let root = Option.get (graph : Lower.graph).root in
     let compiled = Result.get_ok (Edit.compile_node graph.network.geometry ~node_id:root) in
     match Session.cook s ~context compiled with
-    | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.payload)), Session.stats s
-    | Error e -> fail (Procedural.Diagnostic.error_to_string e) in
+    | Ok output -> (Result.get_ok (Sop.Payload.geometry output.payload)), Session.stats s
+    | Error e -> fail (Sop.Diagnostic.error_to_string e) in
   let g0, _ = at 0. live_graph live and g1, stats = at 1.25 live_graph live in
   check (geometry_bytes g0 <> geometry_bytes g1) "a loop body that reads t did not move with t";
   let fixed = buzz "1.25" in
@@ -291,10 +291,10 @@ let run () =
   let ids = Rdk.Attribute.create_owned ~name:"id" ~owner:Rdk.Attribute.Point
     (Rdk.Attribute.Int (Array.init n (fun i -> n - 1 - i))) |> Result.get_ok in
   let keyed = Result.get_ok (Rdk.Geometry.with_attribute ids base) in
-  let ordered = Result.get_ok (Procedural.Zone.elements Points ~key:"id" keyed) in
+  let ordered = Result.get_ok (Sop.Zone.elements Points ~key:"id" keyed) in
   check (ordered.(0).key = 0 && ordered.(0).position = Rdk.Packed.Float3.get
     (Rdk.Geometry.positions base) (n - 1)) "elements follow the key attribute";
-  let plain = Result.get_ok (Procedural.Zone.elements Points keyed) in
+  let plain = Result.get_ok (Sop.Zone.elements Points keyed) in
   check (plain.(0).position = Rdk.Packed.Float3.get (Rdk.Geometry.positions base) 0) "index order without a key";
   (* a body that reads t only is live; one that reads only its element is not *)
   let counts text = Lower.counts (lower text) in
@@ -307,36 +307,3 @@ let run () =
   (let* [f (sop/grid)] (sop/merge (for [p (sop/point_list f)] (sop/transform (sop/box) :translate p))))))|}) = 0)
     "a body that reads its element is live";
   print_endline "workspace zone: ok"
-
-(* [test_main.exe bench_workspace_zone]: a scatter of N points, a for over them with a
-   two-node body; cold cook, a recook after one point moves (the other N-1 elements hit),
-   and the same work as N hand-written copies of the body (the baseline a zone replaces). *)
-let bench () =
-  Printf.printf "session capacity 16384 entries, then the editor default of 512\n";
-  List.iter (fun capped ->
-  let time f =
-    let started = Unix.gettimeofday () and words = Gc.minor_words () in
-    let value = f () in
-    value, (Unix.gettimeofday () -. started) *. 1000., (Gc.minor_words () -. words) /. 1e6 in
-  Printf.printf "%8s %10s %10s %8s %10s %10s\n" "N" "cold ms" "moved ms" "misses" "hits" "Mwords";
-  List.iter (fun count ->
-    let source = Printf.sprintf {|
-(workspace bench
-  (graph bench :context sop
-    (let* [bed (sop/uv_sphere :radius 1 :segments 4 :rings 3)
-           spots (sop/scatter bed :count %d :seed 1)
-           dots (for [p (sop/point_list spots)]
-                  (sop/transform (sop/uv_sphere :radius 0.02 :segments 6 :rings 3) :translate p))]
-      (sop/merge bed dots))))|} count in
-    let graph = List.hd (lower source).graphs in
-    let s = session ~entries:(if capped then 512 else 16384) () in
-    let (_, cold, _) = time (fun () -> cook s graph) in
-    let _, graph' = move_point s graph "scatter" ~index:0 ~by:0.01 in
-    let root = Option.get graph.root in
-    let before = Session.stats s in
-    let compiled = Result.get_ok (Edit.compile_node graph' ~node_id:root) in
-    let (_, moved, words) = time (fun () ->
-      Result.get_ok (Session.cook s ~context:(context ~domains:1) compiled)) in
-    let after = Session.stats s in
-    Printf.printf "%8d %10.2f %10.2f %8d %10d %10.2f\n" count cold moved
-      (after.misses - before.misses) (after.hits - before.hits) words) [ 100; 1000; 4000 ]) [ false; true ]

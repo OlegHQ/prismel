@@ -8,7 +8,7 @@
    object per [sop] graph, a World given by [?world]) have no text: those are edited as derived
    objects, and [reconcile] writes their kind as a graph on the first explicit edit, once.  It
    also writes the fields of a camera that follows the viewport. *)
-open Procedural
+open Sop
 module S = Flow.Syntax
 module F = Flow_graph.Flow_edit
 module Param = Editor_core.Param
@@ -393,14 +393,6 @@ let adopt_objects st (doc : Document.t) =
   end
   end
 
-(* the workspace's world graph (written under its own name), else "world" *)
-let world_graph st = match Contexts.graph_of st.workspace Flow.Context.world with
-  | Some g -> g.name | None -> "world"
-
-let set_world st body =
-  let name = world_graph st in
-  apply st (F.Set_graph { name; form = graph_form name "world" body })
-
 let none_world = mk (S.List [ sym "world/none" ])
 
 (* the layers of a World as a world graph named [name]: bound bottom first, the top layer the
@@ -463,21 +455,6 @@ let stack_layers st (before : Document.t) wid ~graph ~removed ~stack =
     end
   end
 
-(* the World a document holds, written as the text has Worlds: its layers as the world graph
-   [graph] and the object as a [scene/world] member of the scene (the scene graph is made first
-   when there is none) *)
-let place_world ?(graph = "world") st (doc : Document.t) (network : Document.network) node =
-  if Contexts.graph_of st.workspace Flow.Context.scene = None then adopt_objects st doc;
-  write_stack st network.graph.geometry (List.rev (order network)) graph;
-  let expr = call_of ~kind:"scene/world" ~label:(Node.label node) ~default_label:"World"
-      ~slots:[ mk (S.List [ sym "ref"; sym graph ]) ] node in
-  let scene = (Option.get (Contexts.graph_of st.workspace Flow.Context.scene)).name in
-  apply st (F.Add_node { scope = [ scene ]; name = F.fresh_name st.workspace.source ~root:scene "sky"; expr })
-
-let adopt_world ?graph st (doc : Document.t) =
-  Option.iter (fun wid -> place_world ?graph st doc (Document.Int_map.find wid doc.networks)
-    (Option.get (Edit.find (Document.scene_graph doc) ~node_id:wid))) (world_id doc)
-
 (* ---- the root ---- *)
 
 (* the render settings that changed, as keywords *)
@@ -526,15 +503,6 @@ let unhomed_changes (before : Document.t) (after : Document.t) =
         | None -> false)) (Edit.inspect a)
   || List.exists (fun (i : Edit.node_info) ->
        i.operation <> "world" && not (homed before i.id) && Edit.find a ~node_id:i.id = None) (Edit.inspect b)
-
-let world_changed (before : Document.t) (after : Document.t) =
-  match world_id before with
-  | None -> world_id after <> None
-  | Some wid ->
-      Document.Int_map.find_opt wid before.networks != Document.Int_map.find_opt wid after.networks
-      || (match Edit.find (Document.scene_graph before) ~node_id:wid, Edit.find (Document.scene_graph after) ~node_id:wid with
-          | Some nb, Some na -> Node.label nb <> Node.label na || differing ~before:nb na <> []
-          | _ -> false)
 
 (* ---- one object's fields, text first ---- *)
 
@@ -637,13 +605,6 @@ let write_edit st (doc : Document.t) level = function
       (match doc.homes.root, doc.active_camera with
        | Some root, Some camera when List.mem camera ids -> set st root [ "camera", None ]
        | _ -> ());
-      (* an old file's World is its graph's [world/world] call: the graph says none (removing it
-         would let the host seed one) *)
-      (match world_id doc, doc.homes.world with
-       | Some wid, Some home when List.mem wid ids && not (List.mem_assoc wid doc.homes.objects) ->
-           if home = Document.Looped then stop "The World is made by a loop; edit the text.";
-           set_world st none_world
-       | _ -> ());
       List.find_map (fun (_, home) -> Option.map (fun loop ->
         Printf.sprintf "Removed a copy from the loop (%s)." (Document.describe (fst doc.workspace).source loop))
         (Document.loop_of home)) (List.rev gone)
@@ -656,11 +617,7 @@ let write_edit st (doc : Document.t) level = function
            let edits = differing ~before:was now in
            if edits <> [] then refuse_preview doc wid;
            Option.iter (fun home -> set ~before:(current_syntax was) st home edits) (field_home doc Document.Scene wid);
-           if not (List.mem_assoc wid doc.homes.objects) then
-             (* a World its graph returns as a [world/world] call over the layers: written as
-                Worlds are now, the layers its graph and the World an object of the scene *)
-             place_world ~graph:(world_graph st) st doc network now
-           else (match doc.homes.world_graph with
+           (match doc.homes.world_graph with
              | Some name -> write_stack st network.graph.geometry (List.rev (order network)) name
              | None -> stop "The World's graph is not named; edit the text.")
        | Scene -> ());
@@ -753,12 +710,7 @@ let run ~factories ~adopt (before : Document.t) (after : Document.t) =
     let st = { catalog; workspace = fst before.workspace; unfolded = []; adopted = false } in
     try
       object_changes st before (Document.scene_graph after);
-      (* the host's World, deleted: the world graph says so (it is authoritative) *)
-      (match world_id before, before.homes.world with
-       | Some wid, None when Edit.find (Document.scene_graph after) ~node_id:wid = None -> set_world st none_world
-       | _ -> ());
       if adopt && unhomed_changes before after then adopt_objects st after;
-      if adopt && before.homes.world = None && world_changed before after then adopt_world st after;
       if st.workspace == fst before.workspace then Ok after
       else Contexts.of_workspace ~factories ~previous:after st.workspace
            |> Result.map_error Flow.Diagnostic.to_string
@@ -767,19 +719,15 @@ let run ~factories ~adopt (before : Document.t) (after : Document.t) =
 let reconcile ~factories ?(adopt = true) before after = run ~factories ~adopt before after
 
 
-(* The scene graph (or the World graph) of a document that has none: the objects the host
-   made (or its World, else an empty one) are written, so that an object or layer can be added
-   to it. *)
-let adopt ~factories ~world (doc : Document.t) =
+(* The scene graph of a document that has none: the objects the host made are written, so that
+   an object can be added to it. *)
+let adopt ~factories (doc : Document.t) =
   let ( let* ) = Result.bind in
   let* catalog = Result.map_error Flow.Diagnostic.to_string
       (Contexts.catalog ~version:Flow_sop.Manifest.version factories) in
   let st = { catalog; workspace = fst doc.workspace; unfolded = []; adopted = false } in
   try
-    if world then begin
-      if world_id doc <> None then adopt_world st doc
-      else set_world st (mk (S.List [ sym "world/world" ]))
-    end else adopt_objects st doc;
+    adopt_objects st doc;
     Contexts.of_workspace ~factories ~previous:doc st.workspace |> Result.map_error Flow.Diagnostic.to_string
   with Stop message -> Error message
 

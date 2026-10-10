@@ -53,8 +53,8 @@ let prepare ?cancel ?resolve_left_self_intersections
                                 Ok { complex; weiler; cells;
                                   left_treatment; right_treatment })))))))
 
-let extract ?cancel ?require_closed ~expression value =
-  Boolean_extract.build ?cancel ?require_closed ~expression
+let extract ~expression value =
+  Boolean_extract.build ~expression
     value.complex value.weiler value.cells
 
 let extract_with_ancestry ?cancel ?require_closed ?defer_rounded_slivers

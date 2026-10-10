@@ -1,6 +1,6 @@
 type clock=Realtime|Fixed of float
-type config={width:int;height:int;title:string;fps:int option;domains:int option;clock:clock;resizable:bool;fullscreen:bool}
-let default_config={width=800;height=600;title="Rays sketch";fps=Some 60;domains=None;clock=Realtime;resizable=true;fullscreen=false}
+type config={width:int;height:int;title:string;fps:int option;domains:int option;clock:clock;}
+let default_config={width=800;height=600;title="Rays sketch";fps=Some 60;domains=None;clock=Realtime;}
 let stopped=ref false let quit()=stopped:=true
 let relative_current : (bool -> (unit, string) result) option ref = ref None
 let cursor_current : ([`Default|`Horizontal_resize|`Vertical_resize|`Text] ->
@@ -21,7 +21,7 @@ let dialog_current : (?filters:(string*string list)list-> ?default_location:stri
 let show_file_dialog ?filters ?default_location kind=match !dialog_current with
   |None->Error"Sketch.show_file_dialog: no sketch is running"
   |Some show->show ?filters ?default_location kind
-let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);drawable_width=config.width;drawable_height=config.height;drawable_size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input_state.mouse();mouse_delta=Input_state.mouse_delta();keys=Input_state.keys();mouse_buttons=Input_state.buttons();events}
+let frame config count time dt events={Frame.width=config.width;height=config.height;size=(config.width,config.height);pixel_scale=(1.,1.);time;dt;fps=(if dt > 0. then 1. /. dt else 0.);count;mouse=Input_state.mouse();mouse_delta=Input_state.mouse_delta();keys=Input_state.keys();mouse_buttons=Input_state.buttons();events}
 
 (* ---- crash reports: every fatal error in a sketch leaves a folder under
    /tmp/rays-crash (or RAYS_CRASH_DIR) with the exception, backtrace,
@@ -220,8 +220,7 @@ let run_state_internal ?(config=default_config)?max_frames ?(high_density=true)?
       and scale_y=float presentation.drawable_height/.float presentation.logical_height in
       let facts={base with width=presentation.logical_width;height=presentation.logical_height;
         size=(presentation.logical_width,presentation.logical_height);
-        drawable_width=presentation.drawable_width;drawable_height=presentation.drawable_height;
-        drawable_size=(presentation.drawable_width,presentation.drawable_height);
+
         pixel_scale=(scale_x,scale_y)}in
       recent.(!cursor)<-facts;cursor:=(!cursor+1)mod Array.length recent;
       (try
@@ -244,7 +243,6 @@ let run_state_internal ?(config=default_config)?max_frames ?(high_density=true)?
       Time.limit_frame_rate()done;!model)
 let run_state ?config ?max_frames ~init~update~view ?after_present ?crash_dump ?on_stop()=
   Parallel.run ?domains:(Option.bind config(fun value->value.domains))(fun()->run_state_internal?config?max_frames?after_present?crash_dump~init~update~view?on_stop())
-let run ?config view=ignore(run_state?config~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())
 let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~frames~init~update~view ?(after_present=fun model _->model) ?(on_stop=fun _->())()=
   if frames<=0 then invalid_arg"Sketch.export_state: frames must be positive";
   if fps<=0 then invalid_arg"Sketch.export_state: fps must be positive";
@@ -254,4 +252,4 @@ let export_state ?(config=default_config)?(fps=60)?(prefix="frame")~directory~fr
   let after_present model frame=let filename=Filename.concat directory(Printf.sprintf"%s-%06d.png"prefix !index)in match Canvas.save_screen_png filename with Ok()->incr index;after_export model frame|Error message->failwith("Frame export failed: "^message)in
   let config={config with clock=Fixed(1./.float fps);fps=None}in
   Parallel.run ?domains:config.domains(fun()->run_state_internal~config~max_frames:frames~high_density:false~after_present~init~update~view~on_stop())
-let export ?config ?fps ?prefix ~directory ~frames view=ignore(export_state?config?fps?prefix~directory~frames~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())
+let export ?config ?prefix ~directory ~frames view=ignore(export_state?config?prefix~directory~frames~init:(fun _->())~update:(fun()_->())~view:(fun()frame->view frame)())

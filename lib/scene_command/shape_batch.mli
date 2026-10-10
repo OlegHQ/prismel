@@ -25,7 +25,7 @@ module Builder : sig
   val circle : t -> x:float -> y:float -> radius:float ->
     ?fill:int32 -> ?stroke:int32 -> ?stroke_width:float -> unit -> unit
   val rect : t -> x:float -> y:float -> width:float -> height:float ->
-    ?fill:int32 -> ?stroke:int32 -> ?stroke_width:float -> unit -> unit
+    ?fill:int32 -> ?stroke:int32 -> unit -> unit
   val line : t -> x0:float -> y0:float -> x1:float -> y1:float ->
     color:int32 -> width:float -> unit
   val publish : t -> batch

@@ -1,7 +1,8 @@
 (library
  (name pxui_shell)
  (public_name rays.pxui_shell)
- (modules pxui_shell)
+ (modules pxui_shell layout kit chrome which_key status_bar timeline_bar prompt tree shell inspector)
+ (private_modules layout kit chrome which_key status_bar timeline_bar prompt tree shell inspector)
  (libraries rays editor_core pxui))
 
 (test

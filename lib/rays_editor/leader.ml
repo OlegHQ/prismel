@@ -31,7 +31,6 @@ type action =
   | Guide_toggle | Guide_keys
   | Command_palette
   | Copy_lisp  (* the palette: the workspace text, as Command-S writes it, on the clipboard *)
-  | Sketch_command of string  (* the id of a sketch [Editor_core.Command] *)
 
 (* A command's scope is a kind of panel: any viewport is [View ""], and the list and the
    lisp panel are the graph pane's other projections. *)

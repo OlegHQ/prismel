@@ -32,7 +32,6 @@ type pipeline_family = Scene2 | Scene2_textured | Scene3 | Scene3_points | Scene
 (** Exact number of family/blend variants required for each supported sample
     count. Cache owners use this value so adding a family cannot silently
     evict a still-live pipeline during renderer construction. *)
-val pipeline_variants_per_sample : int
 (* Every level holds [width * height] texels of 4, 8 or 16 bytes (the size
     level 0 implies): [Rgba8_unorm], [Rgba16_float] or [Rgba32_float]. *)
 type texture_level = { width:int; height:int; bytes:bytes }
@@ -84,9 +83,7 @@ type sampled_draw = {
 }
 type scene3_entry = sampled_draw
 type prepared_scene3 = {
-  clear : float * float * float * float;
-  clear_depth : float;
-  clear_stencil : int;
+
   entries : scene3_entry array;
 }
 
@@ -163,11 +160,9 @@ end
 (** Indirect-command replay plans: one automatic plan admitted after two
     identical frames and one identity-keyed prepared plan. [plan_entries]
     counts the live indirect command buffers across both. *)
-type retained_stats = { plan_builds:int64; plan_hits:int64; plan_misses:int64; plan_evictions:int64;
-  plan_executions:int64; plan_failures:int64; plan_last_failure:string option; plan_entries:int; plan_capacity:int }
+type retained_stats = {  plan_hits:int64; plan_misses:int64;
+      }
 val retained_stats : t -> retained_stats
 val pipeline_count : t -> int
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
-val read_pixels_into : t -> bytes_per_row:int -> destination:bytes ->
-  (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result

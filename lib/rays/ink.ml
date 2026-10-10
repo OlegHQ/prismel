@@ -2,20 +2,12 @@
 type t = {builder:Scene_command.Display_list.Builder.t;
   mutable vertices:float array;mutable indices:int array;
   mutable vertex_length:int;mutable index_length:int;mutable color:int32;
-  mutable populated:bool;mutable ids:int64 array;version:int64;mutable segment:int;
-  mutable clip:(int*int*int*int) option}
+  mutable populated:bool;ids:int64 array;version:int64;mutable segment:int;
+  clip:(int*int*int*int) option}
 
 let create ?(ids=[||]) ?(version=0L) ?clip () = {builder=Scene_command.Display_list.Builder.create ();
   vertices=Array.make 1024 0.;indices=Array.make 768 0;
   vertex_length=0;index_length=0;color=0l;populated=false;ids;version;segment=0;clip}
-
-let set_clip t clip =
-  if t.populated then invalid_arg "Ink.set_clip: publish pending marks first";
-  t.clip<-clip
-
-let set_ids t ids =
-  if t.populated then invalid_arg "Ink.set_ids";
-  t.ids<-ids;t.segment<-0
 
 let flush t =
   if t.index_length>0 then begin
@@ -64,34 +56,6 @@ let rectf t x y width height color =
 let rect t x y width height color =
   rectf t (float x) (float y) (float width) (float height) color
 
-let geometry t (geometry:Scene_command.Render_ir.geometry) =
-  let nv=Array.length geometry.vertices and ni=Array.length geometry.indices in
-  reserve t nv ni geometry.color;
-  Array.blit geometry.vertices 0 t.vertices t.vertex_length nv;
-  let base=t.vertex_length/2 in
-  for i=0 to ni-1 do t.indices.(t.index_length+i)<-base+geometry.indices.(i) done;
-  t.vertex_length<-t.vertex_length+nv;t.index_length<-t.index_length+ni
-
-let line t x y x2 y2 color =
-  geometry t (Scene_command.Shape2.line ~from_:(x,y) ~to_:(x2,y2) ~width:1 ~color:(rgba color))
-
-let linef t x y x2 y2 color =
-  let module Path=Scene_command.Path in
-  let path=Path.of_commands [|Path.Move_to {x;y};Path.Line_to {x=x2;y=y2}|] in
-  match Path.stroke ~tolerance:0.25 ~width:1. ~cap:Path.Butt ~join:Path.Miter
-    ~miter_limit:4. path with
-  |Error Path.Empty_path -> ()
-  |Error _ -> invalid_arg "Ink.linef: invalid path"
-  |Ok mesh ->
-      let vertices=Array.make (Array.length mesh.vertices*2) 0. in
-      Array.iteri (fun i (p:Path.point) -> vertices.(i*2)<-p.x;vertices.(i*2+1)<-p.y)
-        mesh.vertices;
-      geometry t {vertices;indices=mesh.indices;color=rgba color}
-
-let outline t x y width height color =
-  Array.iter (geometry t) (Scene_command.Shape2.rect ~x ~y ~width ~height
-    ~fill:None ~stroke:(Some (rgba color)))
-
 let take t =
   if not t.populated then None else begin
     flush t;
@@ -105,5 +69,3 @@ let take t =
     t.populated<-false;
     Some (Scene.Private.display_list value)
   end
-
-let fresh_id=Scene_command.Display_list.fresh_id

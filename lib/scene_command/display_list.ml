@@ -1,9 +1,3 @@
-type stats = {
-  command_capacity : int;
-  command_length : int;
-  high_water : int;
-  growths : int;
-}
 
 type t = {
   id : int64;
@@ -114,12 +108,6 @@ module Builder = struct
     Float.is_finite x && Float.is_finite y && Float.is_finite width
     && Float.is_finite height
 
-  let solid_rect value ~x ~y ~width ~height ~color =
-    if not (finite4 x y width height) || width < 0. || height < 0. then
-      invalid_arg "Display_list.solid_rect: invalid extent";
-    append value 0 x y width height 0. 0. 0. 0. ~color ~integer:0
-      ~geometry:None ~glyphs:None
-
   let push_clip value ~x ~y ~width ~height =
     if not (finite4 x y width height) || width < 0. || height < 0. then
       invalid_arg "Display_list.push_clip: invalid extent";
@@ -128,31 +116,6 @@ module Builder = struct
 
   let pop_clip value =
     append value 2 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0
-      ~geometry:None ~glyphs:None
-
-  let clear value color =
-    append value 4 0. 0. 0. 0. 0. 0. 0. 0. ~color ~integer:0
-      ~geometry:None ~glyphs:None
-
-  let blend_code = function
-    | Render_ir.Source_over -> 0 | Copy -> 1 | Replace -> 2 | Alpha -> 3
-    | Add -> 4 | Multiply -> 5 | Screen -> 6 | Subtract -> 7
-
-  let set_blend value blend =
-    append value 5 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero
-      ~integer:(blend_code blend) ~geometry:None ~glyphs:None
-
-  let push_transform value (transform : Render_ir.transform) =
-    if not (Float.is_finite transform.xx && Float.is_finite transform.xy
-      && Float.is_finite transform.yx && Float.is_finite transform.yy
-      && Float.is_finite transform.tx && Float.is_finite transform.ty) then
-      invalid_arg "Display_list.push_transform: non-finite transform";
-    append value 6 transform.xx transform.xy transform.yx transform.yy
-      transform.tx transform.ty 0. 0.
-      ~color:Int32.zero ~integer:0 ~geometry:None ~glyphs:None
-
-  let pop_transform value =
-    append value 7 0. 0. 0. 0. 0. 0. 0. 0. ~color:Int32.zero ~integer:0
       ~geometry:None ~glyphs:None
 
   let geometry value (geometry : Render_ir.geometry) =
@@ -175,13 +138,6 @@ module Builder = struct
       destination.x destination.y destination.width destination.height
       ~color:Int32.zero ~integer:resource_id ~geometry:None
       ~glyphs:None
-
-  let glyphs value ~resource_id ~color glyphs =
-    if resource_id <= 0 then
-      invalid_arg "Display_list.glyphs: resource ID must be positive";
-    let glyphs = Array.copy glyphs in
-    append value 10 0. 0. 0. 0. 0. 0. 0. 0. ~color ~integer:resource_id
-      ~geometry:None ~glyphs:(Some glyphs)
 
   let command value index =
     let offset = index * 8 in
@@ -253,10 +209,6 @@ module Builder = struct
             value.published <- Some { id; version; value = segment };
             Ok segment
 
-  let stats value =
-    { command_capacity = Bytes.length value.opcodes;
-      command_length = value.length; high_water = value.high_water;
-      growths = value.growths }
 end
 
 let id value = value.id

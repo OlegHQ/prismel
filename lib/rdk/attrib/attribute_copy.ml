@@ -14,7 +14,7 @@ type rule = {
 type payload = Position | Ordinary of Attribute.t
 type selected = {
   source_owner : Attribute.owner;
-  source_name : string;
+
   target_name : string;
   payload : payload;
 }
@@ -225,7 +225,7 @@ let select_attributes ~allow_position ~rules source =
                 "Attribute Copy: duplicate destination attribute %S" target_name)
             else begin
               Hashtbl.add seen key ();
-              output := { source_owner = rule.copy_owner; source_name; target_name;
+              output := { source_owner = rule.copy_owner;  target_name;
                 payload } :: !output
             end in
     List.iter (fun (rule, selector) ->

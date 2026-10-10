@@ -5,7 +5,8 @@
      occurrence to its defining uid through compiler shapes, and prints
      "file.mli<TAB>Path.name" for every value exported by a unit under DIR
      that no other source file references. A unit passed to a functor or
-     packed as a first-class module counts as used whole.
+     packed as a first-class module counts as used whole. An exclude written
+     "!SUBSTR" puts back the files containing it (a test that stays a user).
    dead-fields [--apply] [--users-exclude SUBSTR]... [--skip TYPE.FIELD]... DIR...
      Prints "file.mli<TAB>type.field" for every field of a record exported
      by a unit under DIR that no implementation reads; --apply removes it
@@ -45,6 +46,16 @@ let rec walk dir f =
 
 (* ---------- dead-exports ---------- *)
 
+(* [--users-exclude S] drops files whose path contains S; a pattern written
+   [!S] puts back the files that contain S (an exception to the others) *)
+let excluded_by excludes file =
+  let has s =
+    let n = String.length s and m = String.length file in
+    let rec go k = k + n <= m && (String.sub file k n = s || go (k + 1)) in go 0 in
+  let kept, dropped = List.partition (fun s -> s <> "" && s.[0] = '!') excludes in
+  List.exists has dropped
+  && not (List.exists (fun s -> has (String.sub s 1 (String.length s - 1))) kept)
+
 let dead_exports ?(modules = false) ~excludes dirs =
   let build = "_build/default" in
   let cmts = ref [] in
@@ -57,9 +68,7 @@ let dead_exports ?(modules = false) ~excludes dirs =
   List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
     Option.iter (Hashtbl.replace shapes i.cmt_modname) i.cmt_impl_shape) infos;
   let source (i : Cmt_format.cmt_infos) = source_file (Option.value i.cmt_sourcefile ~default:"") in
-  let excluded file = List.exists (fun s ->
-    let n = String.length s and m = String.length file in
-    let rec go k = k + n <= m && (String.sub file k n = s || go (k + 1)) in go 0) excludes in
+  let excluded = excluded_by excludes in
   (* uid -> source files that reference it *)
   let users : (Shape.Uid.t, string list) Hashtbl.t = Hashtbl.create 65536 in
   let unresolved_names = Hashtbl.create 4096 in
@@ -721,7 +730,7 @@ let dead_fields ~apply ~excludes ~skip dirs =
   walk "_build/default" (fun p -> if Filename.check_suffix p ".cmt" || Filename.check_suffix p ".cmti" then cmts := p :: !cmts);
   let infos = List.filter_map (fun p -> match Cmt_format.read_cmt p with
     | i -> Some (source_file (Option.value i.cmt_sourcefile ~default:""), i) | exception _ -> None) !cmts in
-  let excluded file = List.exists (fun s -> contains file s) excludes in
+  let excluded = excluded_by excludes in
   let under file = List.exists (fun d ->
     String.starts_with ~prefix:(if Filename.check_suffix d "/" then d else d ^ "/") file) dirs in
   (* a label is keyed by its declaring unit, record type and name: the .ml and
@@ -822,6 +831,10 @@ let dead_fields ~apply ~excludes ~skip dirs =
    along, aliased) is skipped: its calls are not all visible. Report only: the
    parameter and its plumbing are removed by hand, outermost wrapper first (a
    wrapper that forwards [?x] counts as passing it). *)
+let is_none (a : Typedtree.expression) = match a.exp_desc with
+  | Texp_construct (_, { cstr_name = "None"; _ }, []) -> true
+  | _ -> false
+
 let dead_optionals ~excludes dirs =
   let cmts = ref [] in
   walk "_build/default" (fun p -> if Filename.check_suffix p ".cmt" then cmts := p :: !cmts);
@@ -831,7 +844,7 @@ let dead_optionals ~excludes dirs =
   List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
     Option.iter (Hashtbl.replace shapes i.cmt_modname) i.cmt_impl_shape) infos;
   let source (i : Cmt_format.cmt_infos) = source_file (Option.value i.cmt_sourcefile ~default:"") in
-  let excluded file = List.exists (contains file) excludes in
+  let excluded = excluded_by excludes in
   let passed : (Shape.Uid.t * string, unit) Hashtbl.t = Hashtbl.create 4096 in
   let escapes : (Shape.Uid.t, unit) Hashtbl.t = Hashtbl.create 4096 in
   List.iter (fun (_, (i : Cmt_format.cmt_infos)) ->
@@ -860,7 +873,7 @@ let dead_optionals ~excludes dirs =
                  Hashtbl.replace heads lid.loc.loc_start.pos_cnum ();
                  List.iter (fun u -> List.iter (function
                    | Asttypes.Optional l, Some (a : Typedtree.expression)
-                     when not a.exp_loc.loc_ghost -> Hashtbl.replace passed (u, l) ()
+                     when not (a.exp_loc.loc_ghost && is_none a) -> Hashtbl.replace passed (u, l) ()
                    | _ -> ()) args) (of_ident lid)
              | Texp_ident (_, lid, _) when not (Hashtbl.mem heads lid.loc.loc_start.pos_cnum) ->
                  List.iter (fun u -> Hashtbl.replace escapes u ()) (of_ident lid)
@@ -913,7 +926,7 @@ let drop_optionals ~excludes dirs =
   let by_file = Hashtbl.create 16 in
   List.iter (fun (mli, name, label) -> Hashtbl.replace by_file mli
     ((name, label) :: Option.value (Hashtbl.find_opt by_file mli) ~default:[]))
-    (dead_optionals ~excludes dirs);
+    (List.filter (fun (mli, _, _) -> Sys.file_exists mli) (dead_optionals ~excludes dirs));
   Hashtbl.iter (fun mli wanted ->
     let ml = Filename.chop_suffix mli ".mli" ^ ".ml" in
     let labels path = List.filter_map (fun (n, l) -> if n = path then Some l else None) wanted in
@@ -1250,6 +1263,13 @@ let prune ?(cut = false) ~modules ~excludes ~target dirs =
       exit 1
     end else begin
       let dead = dead_exports ~modules ~excludes dirs in
+      (* a [Private] test hook that only tests reach stays while the code it
+         observes does: it goes when nothing at all uses it *)
+      let dead =
+        if excludes = [] || not (List.exists (fun (_, n) -> contains n "Private.") dead) then dead
+        else
+          let unused = dead_exports ~modules ~excludes:[] dirs in
+          List.filter (fun ((_, n) as d) -> not (contains n "Private.") || List.mem d unused) dead in
       if dead = [] then Printf.printf "round %d: fixpoint\n" round
       else if dead = !last then (Printf.printf "round %d: no progress on %d exports; stopping\n" round (List.length dead); exit 1)
       else begin
@@ -1279,9 +1299,9 @@ let replace_text old fresh = Str.global_substitute (Str.regexp_string old) (fun 
 
 let rename_self_test () =
   assert (rename_text "foo" "bar" "Foo_x FOO_Y lib/foo/foo.ml food" = "Bar_x BAR_Y lib/bar/bar.ml bard");
-  assert (replace_text "Sop.f ~x:Rdk.X" "Sop.f ~x:(Sop.Owner Rdk.X)"
-    "Sop.f ~x:Rdk.X; sop.f ~x:rdk.x"
-    = "Sop.f ~x:(Sop.Owner Rdk.X); sop.f ~x:rdk.x");
+  assert (replace_text "Foo.f ~x:Rdk.X" "Foo.f ~x:(Foo.Owner Rdk.X)"
+    "Foo.f ~x:Rdk.X; sop.f ~x:rdk.x"
+    = "Foo.f ~x:(Foo.Owner Rdk.X); sop.f ~x:rdk.x");
   print_endline "rename: ok"
 
 (* Rewrites the contents and the path of every text file git tracks or would
@@ -1367,6 +1387,10 @@ let () =
         else if code <> 0 then (prerr_string log; exit 1) in go ()
   | [ "drop-unused" ] ->
       Printf.printf "%d removed\n" (drop_unused (In_channel.input_all stdin))
+  | [ "split-modules"; "--self-test" ] -> Split_modules.self_test ()
+  | [ "split-modules"; "--interfaces"; file ] -> Split_modules.run ~interfaces:true ~dry:false file
+  | [ "split-modules"; "--dry-run"; file ] -> Split_modules.run ~dry:true file
+  | [ "split-modules"; file ] -> Split_modules.run ~dry:false file
   | [ "rename"; "--self-test" ] -> rename_self_test ()
   | [ "rename"; "--exact"; "--dry-run"; old; fresh ] -> rename ~exact:true ~dry:true old fresh
   | [ "rename"; "--exact"; old; fresh ] -> rename ~exact:true ~dry:false old fresh
@@ -1383,5 +1407,6 @@ let () =
                     \       codemod result-bind --verify BEFORE.ml AFTER.ml PPX.exe\n\
                     \       codemod metal-registry [--audit | --apply | --self-test | --drop-unused-macros]\n\
                     \       codemod metal-registry --preserve-pools ORIGINAL_BRIDGE.mm\n\
-                    \       codemod rename [--dry-run] OLD NEW | rename --self-test";
+                    \       codemod rename [--dry-run] OLD NEW | rename --self-test\n\
+                    \       codemod split-modules [--dry-run | --interfaces] FILE.ml | split-modules --self-test";
       exit 2

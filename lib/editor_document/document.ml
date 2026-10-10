@@ -3,7 +3,7 @@
    level are view state and stay outside.  The document is a workspace (its
    text is the authored truth); the scene, the networks and the shell are what
    lowering derives from it. *)
-open Procedural
+open Sop
 module Int_map = Map.Make (Int)
 
 (* One node network with its display node. *)
@@ -31,7 +31,7 @@ type home =
 
 type homes = {
   objects : (int * home) list;  (* scene object id *)
-  world : home option;  (* the [scene/world] call (the legacy [world/world] call of an old file) *)
+  world : home option;  (* the [scene/world] call *)
   layers : (int * home) list;  (* World layer id *)
   settings : home option;  (* the [settings/config] call *)
   root : home option;  (* the [scene/root] call; none: the scene is a part with a default root *)

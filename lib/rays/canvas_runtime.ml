@@ -3,8 +3,6 @@ let capture_callback : capture option ref=ref None
 let save_callback : (string -> (unit,string) result) option ref=ref None
 let install ~capture ~save=capture_callback:=Some capture;save_callback:=Some save
 let clear()=capture_callback:=None;save_callback:=None
-let capture()=match!capture_callback with Some callback->callback()
-  |None->Error"Canvas.capture: no active renderer"
 let rec ensure_directory path=
   if path<>""&&path<>"."&&not(Sys.file_exists path)then(
     let parent=Filename.dirname path in

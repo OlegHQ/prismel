@@ -3,7 +3,6 @@ let tests = [
   "test_workspace_edit", Test_workspace_edit.run;
   "test_workspace_cook", Test_workspace_cook.run;
   "test_workspace_zone", Test_workspace_zone.run;
-  "bench_workspace_zone", Test_workspace_zone.bench;
 ]
 
 let () = match Array.to_list Sys.argv with

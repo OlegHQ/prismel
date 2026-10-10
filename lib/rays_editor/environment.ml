@@ -1,8 +1,9 @@
 open Rays
 open Editor_document
-open Procedural
+open Sop
 open Common
 module Image = Rays.Image
+open World_map
 
 let set_ui_cursor ui visible =
   let shape = match if visible then Pxui.Ui.cursor ui else None with
@@ -21,7 +22,7 @@ type ('rendered, 'camera) hidden_scene_cache = {
 }
 
 type canvas_picture = {size : int * int; dynamic : bool; scene : Scene.t;
-  prepared : Sketch_support.Drawing.prepared option;
+  prepared : Drawing.prepared option;
   preview : (Flow.Ty.t * int) option  (* the node shown instead of the pane's own picture *)}
 
 (* A World bake for this frame: the preview size while a gesture or the
@@ -34,7 +35,7 @@ let bake_world ?view ~previous core ~live =
     | Some (last, baked) when last = world && (baked : World.baked).camera.width = width ->
         world, baked
     | Some _ | None -> world, World.bake_cached ~width ~height world)
-    (Core.world ?view core ~time:(Sketch_support.Timeline.time (Core.timeline core)))
+    (Core.world ?view core ~time:(Timeline.time (Core.timeline core)))
 
 (* the viewports over another scene instance: those that draw objects of their own and those that
    show another World *)
@@ -81,97 +82,6 @@ let hidden_entry ~background ~rendered ~camera ~paint_view ~cache core
           (0, 0, frame.width, frame.height) in
       { width = frame.width; height = frame.height;
         rendered; camera; background; view_visible; scene }
-
-(* The World's camera map as an sRGB image: the path tracer's exposure,
-   ACES fit, and gamma, so the map reads like the renders. *)
-let map_rgba (baked : World.baked) =
-  let map = baked.camera in
-  let step = max 1 (map.width / 1024) in
-  let width = map.width / step and height = map.height / step in
-  let rgba = Bytes.create (width * height * 4) in
-  let exposure = 2. ** baked.exposure in
-  let channel value =
-    let c = value *. exposure in
-    let c = c *. (2.51 *. c +. 0.03) /. (c *. (2.43 *. c +. 0.59) +. 0.14) in
-    Char.chr (int_of_float (Float.pow (Float.max 0. (Float.min 1. c)) (1. /. 2.2)
-      *. 255. +. 0.5)) in
-  for y = 0 to height - 1 do
-    for x = 0 to width - 1 do
-      let source = 3 * ((y * step * map.width) + (x * step))
-      and target = 4 * ((y * width) + x) in
-      for c = 0 to 2 do
-        Bytes.set rgba (target + c) (channel (Float.Array.get map.pixels (source + c)))
-      done;
-      Bytes.set rgba (target + 3) '\255'
-    done
-  done;
-  width, height, rgba
-
-(* The map fitted at 2:1 in the view pane, and the texel under a point. *)
-let map_rect (x, y, width, height) =
-  let w = min width (2 * height) in
-  let h = w / 2 in
-  x + ((width - w) / 2), y + ((height - h) / 2), w, h
-
-let map_uv viewport (px, py) =
-  let x, y, w, h = map_rect viewport in
-  let u = (px -. float x) /. float (max 1 w) and v = (py -. float y) /. float (max 1 h) in
-  if u < 0. || u > 1. || v < 0. || v > 1. then None else Some (u, v)
-
-type world_operation = Rotate_world of int | Move_layer of int * int | Move_sun of int
-type world_drag = { operation : world_operation; point : float * float;
-                    area : Pxui_shell.Layout.bounds }
-
-let wrap_degrees value = Float.rem (Float.rem (value +. 180.) 360. +. 360.) 360. -. 180.
-
-let world_operation core area point ~shift =
-  match Core.world_id core with
-  | Some world when core.Core.map_view && map_uv area point <> None ->
-      (match Core.selected_node core with
-       | Some node when List.exists (fun (field : Parameter.field_view) ->
-           field.name = "azimuth") (Node.parameter_fields node) ->
-           Some (Move_layer (world, Node.id node))
-       | Some node when Node.operation node = "sun" -> Some (Move_sun world)
-       | _ -> None)
-  | Some world when not core.Core.map_view && shift -> Some (Rotate_world world)
-  | _ -> None
-
-let move_world core drag point =
-  if point = drag.point then core else
-  match drag.operation with
-  | Rotate_world world ->
-      (match Option.bind (Edit_graph.find (Core.scene core) ~node_id:world)
-          (fun node -> List.find_map (fun (field : Parameter.field_view) ->
-            match field.name, field.current with
-            | "rotation", Parameter.Float_value value -> Some value | _ -> None)
-            (Node.parameter_fields node)) with
-       | Some rotation ->
-           let rotation = wrap_degrees (rotation +. 0.5 *. (fst point -. fst drag.point)) in
-           Core.edit_node core Document.Scene world ~label:"Rotate World"
-             ["rotation", Parameter.Float_value rotation]
-       | None -> core)
-  | Move_layer (world, _) | Move_sun world ->
-      let x, y, w, h = map_rect drag.area in
-      let u = Float.max 0. (Float.min 1. ((fst point -. float x) /. float (max 1 w)))
-      and v = Float.max 0. (Float.min 1. ((snd point -. float y) /. float (max 1 h))) in
-      let direction = World.direction_of_uv u v in
-      let rotation = match Core.world core ~time:0. with
-        | Some world -> world.World.rotation | None -> 0. in
-      let degrees radians = radians *. 180. /. Float.pi in
-      let azimuth = wrap_degrees (degrees (Float.atan2 direction.Vec3.x (-. direction.z)
-        -. rotation))
-      and elevation = degrees (Float.asin direction.y) in
-      (match drag.operation with
-       | Move_layer (_, id) ->
-           Core.edit_node core (Document.Inside world) id ~label:"Move layer"
-             ["azimuth", Parameter.Float_value azimuth;
-              "elevation", Parameter.Float_value elevation]
-       | Move_sun _ ->
-           Core.edit_node core Document.Scene world ~label:"Move sun"
-             ["sun_linked", Parameter.Bool_value false;
-              "sun_azimuth", Parameter.Float_value azimuth;
-              "sun_elevation", Parameter.Float_value (Float.max (-10.) elevation)]
-       | Rotate_world _ -> assert false)
 
 let compose_view ?map ~canvases ~ui_visible ~background ~rendered ~focused ~views ~camera ~camera_of ~paint_view ~film
     ~overlay ~guides ~cache core (frame : Frame.t) =
@@ -237,7 +147,7 @@ let compose_view ?map ~canvases ~ui_visible ~background ~rendered ~focused ~view
     @ Core.machinery ~under core ~all_ui_visible:true
 
 (* The one environment: [Core] plus the 3D viewport. *)
-module V = Viewport3
+module V = Viewport
 type layout = Pxui_shell.Layout.t
 
 type 'prepared t = {
@@ -265,7 +175,6 @@ type 'prepared t = {
   background : Color.t;
   extra : V.extra;
   hidden_scene_cache : (V.rendered, V.view) hidden_scene_cache option;
-  commands : (Pxui_shell.Layout.panel, 'prepared t -> 'prepared t) Editor_core.Command.t list;
   world_drag : world_drag option;
   pick_press : (float * float) option;  (* a left press in the view that may become a click *)
   source : Source_file.t option;  (* the .rays the document came from: polled, saved over *)
@@ -295,10 +204,10 @@ let seed_lights lights scene =
     (match added with Ok scene -> scene | Error _ -> scene), index + 1)
     (scene, 1) lights |> fst
 
-let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timeline_frames ?factories
-    ?settings ?(commands = []) ?(lights = []) ?world
-    ?(camera = V.default_camera ()) ?lens ?(background = Color.hex_exn "#f4f5f0")
-    ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ?source ~prepare ~draw
+let create ?inputs ?name ?presets ?factories
+    ?settings ?(lights = [])
+    ?(camera = V.default_camera ()) ?(background = Color.hex_exn "#f4f5f0")
+    ?seed ?grain ?domains ?max_entries ?max_payload_bytes ?await ~workspace ?source ~prepare ~draw
     ?(overlay = fun _ _ _ -> Scene.empty) ?(status = fun _ -> None) () =
   let workspace = match inputs with None -> workspace
     | Some inputs -> {workspace with Workspace_doc.inputs} in
@@ -312,58 +221,7 @@ let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timelin
         let file = try Unix.realpath file with Unix.Unix_error _ ->
           if Filename.is_relative file then Filename.concat (Sys.getcwd ()) file else file in
         "file:" ^ file in
-  let open Editor_core.Command in
-  let normalize_key = function Input.KeyChar c -> Input.KeyChar (Char.lowercase_ascii c)
-    | key -> key in
-  let normalize = function
-    | Editor_core.Keymap.Leader sequence ->
-        Editor_core.Keymap.Leader (String.lowercase_ascii sequence)
-    | Chord (key, modifiers) ->
-        Chord (normalize_key key, List.sort_uniq compare modifiers) in
-  let commands = List.map (fun command ->
-      { command with trigger = Option.map normalize command.trigger }) commands in
-  let overlaps a b = a.scope = None || b.scope = None || a.scope = b.scope in
-  let conflicts a b = overlaps a b && match a.trigger, b.trigger with
-    | Some a_trigger, Some b_trigger when a.id = b.id && a_trigger = b_trigger -> false
-    | Some (Editor_core.Keymap.Leader a), Some (Leader b) ->
-        String.starts_with ~prefix:a b || String.starts_with ~prefix:b a
-    | Some (Chord (a, am)), Some (Chord (b, bm)) ->
-        a = b && List.length am = List.length bm
-        && List.mem Input.Meta am = List.mem Input.Meta bm
-        && List.mem Input.Ctrl am = List.mem Input.Ctrl bm
-    | Some a, Some b -> normalize a = normalize b
-    | _ -> false in
-  let rec validate seen = function
-    | [] -> Ok ()
-    | command :: rest ->
-        let error = if String.trim command.id = "" || String.trim command.label = "" then
-            Some "command id and label must be nonempty"
-          else if List.exists (fun builtin -> builtin.id = command.id) V.keymap then
-            Some ("command id is reserved: " ^ command.id)
-          else if List.exists (fun previous -> previous.id = command.id
-              && previous.action != command.action) seen then
-            Some ("command aliases must share the same action: " ^ command.id)
-          else match command.trigger with
-            | Some (Editor_core.Keymap.Leader sequence)
-                when sequence = "" || String.contains sequence ' ' ->
-                Some ("invalid leader sequence: " ^ command.id)
-            | Some (Chord (Input.KeyChar '/', modifiers))
-                when not (List.mem Input.Meta modifiers || List.mem Input.Ctrl modifiers
-                          || List.mem Input.Shift modifiers) ->
-                Some ("/ is reserved for leader routing: " ^ command.id)
-            | Some (Chord (_, modifiers)) when List.exists (function
-                | Input.Meta | Ctrl | Shift | Alt -> false | _ -> true) modifiers ->
-                Some ("invalid chord modifier: " ^ command.id)
-            | _ ->
-                let previous = match List.find_opt (conflicts command) seen with
-                  | Some previous -> Some previous.id
-                  | None -> Option.map (fun previous -> previous.id)
-                      (List.find_opt (conflicts command) V.keymap) in
-                Option.map (fun id -> "command trigger conflicts: "
-                  ^ command.id ^ " and " ^ id) previous in
-        match error with Some message -> Error message
-          | None -> validate (command :: seen) rest in
-  Result.bind (validate [] commands) (fun () -> Result.map (fun core ->
+  Result.map (fun core ->
     let core, extra = V.init core camera in
     let core = match source with
       | Some source -> { core with Core.file = Filename.basename (Source_file.file source) }
@@ -373,15 +231,14 @@ let create ?inputs ?(layout = Pxui_shell.Layout.default) ?name ?presets ?timelin
       resolved = None; context_error = None; canvases = []; host=Workspace_host.create
         ~seed:core.cook.seed ~grain:core.cook.grain ~domains:core.cook.domains (); baked = None; baked_from = None; baked_views = []; map = None;
       render_status = None; pending_render = None;
-      background; extra; hidden_scene_cache = None; commands; world_drag = None; pick_press = None; source; held = None; open_dialog = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
+      background; extra; hidden_scene_cache = None; world_drag = None; pick_press = None; source; held = None; open_dialog = None; refused = None; opened = core.doc; state_owned = false; cameras = []; viewing = None;
       state_checked = neg_infinity; saved_doc = core.doc; saved_view = V.section camera extra; state_error = None })
-    (Core.create ?settings ?world
-      ~keymap:(V.keymap @ List.map (fun (c : _ Editor_core.Command.t) ->
-        { c with action = Leader.Sketch_command c.id }) commands)
+    (Core.create ?settings
+      ~keymap:V.keymap
       ~seed_scene:(fun factories scene ->
-        V.seed_scene ?lens camera factories (seed_lights lights scene))
-      ~layout ~name ~state_key ?presets ?timeline_frames ?factories ?seed ?grain ?domains
-      ?max_entries ?max_payload_bytes ?await ?carry_budget ~workspace ~prepare ()))
+        V.seed_scene camera factories (seed_lights lights scene))
+      ~name ~state_key ?presets ?factories ?seed ?grain ?domains
+      ?max_entries ?max_payload_bytes ?await ~workspace ~prepare ())
 
 let document value = Core.document value.core
 let prepared value = Core.prepared value.core
@@ -506,8 +363,8 @@ let composition_key core scene = scene, core.Core.level,
   (match core.Core.doc.Document.shell with Some shell -> shell.views | None -> [])
 
 let compose value (update : (_, _) Core.update) ~baked ~baked_views ~scene =
-  let live={update.core.live_frame with t=Sketch_support.Timeline.time(Core.timeline update.core);
-    frame=Int64.to_int(Sketch_support.Timeline.frame(Core.timeline update.core))}in
+  let live={update.core.live_frame with t=Timeline.time(Core.timeline update.core);
+    frame=Int64.to_int(Timeline.frame(Core.timeline update.core))}in
   let lowered=snd update.core.doc.workspace in
   Workspace_images.bind value.host.images lowered;
   let plan=lowered.plan in
@@ -704,7 +561,7 @@ let update_with value frame ~inspector =
       extra ~bounds:(V.film extra ~key:(focus_key value) bounds) in
   let _,lowered=value.core.doc.workspace in
   Workspace_images.bind value.host.images lowered;
-  let live={(Sketch_support.Live_frame.of_frame frame) with t=Sketch_support.Timeline.time(Core.timeline value.core)}in
+  let live={(Live_frame.of_frame frame) with t=Timeline.time(Core.timeline value.core)}in
   let image_errors=ref [] in
   let preview image=match Workspace_images.image value.host.images ~state:value.core.cook.state ~live lowered.plan image with
     |Ok _->()|Error diagnostic->image_errors:=Flow.Diagnostic.to_string diagnostic:: !image_errors in
@@ -856,7 +713,7 @@ let update_with value frame ~inspector =
     then { core with Core.history = Editor_core.History.seal ~gesture_only:true core.Core.history }
     else core in
   let live = world_drag <> None
-    || Sketch_support.Timeline.mode (Core.timeline core) = Sketch_support.Timeline.Playing in
+    || Timeline.mode (Core.timeline core) = Timeline.Playing in
   let baked_from = bake_world ~previous:value.baked_from core ~live in
   let baked = Option.map snd baked_from in
   let baked_views = List.filter_map (fun key ->
@@ -867,9 +724,9 @@ let update_with value frame ~inspector =
   let baked_views = if List.length baked_views = List.length value.baked_views
       && List.for_all2 (fun (k, (_, b)) (k', (_, b')) -> k = k' && b == b') baked_views value.baked_views
     then value.baked_views else baked_views in
-  let time = Sketch_support.Timeline.time (Core.timeline core) in
+  let time = Timeline.time (Core.timeline core) in
   let frame_input = {core.live_frame with Frame_input.t = time;
-    frame = Int64.to_int (Sketch_support.Timeline.frame (Core.timeline core))} in
+    frame = Int64.to_int (Timeline.frame (Core.timeline core))} in
   let scene, context_error = match value.resolved with
     | Some (doc, at, scene) when same_context doc core.Core.doc && Frame_input.equal at frame_input -> scene, value.context_error
     | _ ->
@@ -921,10 +778,10 @@ let update_with value frame ~inspector =
          | Some drawing ->
              let prepared = match previous with
                | Some {prepared = Some p; preview = held; _} when same_plan && held = preview -> Ok p
-               | _ -> Sketch_support.Drawing.prepare ~profile:lowered.profile
+               | _ -> Drawing.prepare ~profile:lowered.profile
                    ~approx:(fst core.doc.workspace).checked.approx ~states:lowered.states lowered.plan drawing in
              (match Result.bind prepared (fun p -> Result.map (fun scene -> p, scene)
-                 (Workspace_gpu.with_backend value.host.gpu(fun()->Sketch_support.Drawing.render_prepared ~state:core.cook.state
+                 (Workspace_gpu.with_backend value.host.gpu(fun()->Drawing.render_prepared ~state:core.cook.state
                    ~gpu:(Workspace_gpu.circles value.host.gpu)
                    ~gpu_policy:(Workspace_gpu.policy value.host.gpu)
                    ~image:(Workspace_images.image value.host.images ~state:core.cook.state ~live:frame_input lowered.plan)
@@ -985,11 +842,6 @@ let update_with value frame ~inspector =
     composed = Some (composition_key core scene); resolved = Some (core.doc, frame_input, scene);
     context_error; canvases; baked; baked_from; baked_views; map; world_drag; pick_press;
     pending_render; render_status; extra; source } raw_frame in
-  (* Sketch commands run last, on the finished frame's model. *)
-  let value = List.fold_left (fun value -> function
-    | Leader.Sketch_command id -> (List.find (fun (c : _ Editor_core.Command.t) ->
-        c.id = id) value.commands).action value
-    | _ -> value) value update.actions in
   let workspace,lowered=value.core.doc.workspace in
   let value=match Workspace_host.update value.host ~state:value.core.cook.state
       ~live:frame_input workspace lowered.plan with
@@ -1070,13 +922,13 @@ let close value =
   V.close value.extra;
   Core.close value.core
 
-let run ?inputs ?layout ?name ?presets ?timeline_frames ?factories ?settings ?commands ?lights
-    ?world ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
+let run ?inputs ?name ?presets ?factories ?settings ?lights
+    ?camera ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
     ~config ~workspace ?source ~prepare ~draw ?overlay ?status () =
   let name = Option.value name ~default:(Workspace_doc.name workspace) in
-  let init _frame = let value=create ?inputs ?layout ~name ?presets ?timeline_frames ?factories ?settings
-      ?commands ?lights ?world
-      ?camera ?lens ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
+  let init _frame = let value=create ?inputs ~name ?presets ?factories ?settings
+      ?lights
+      ?camera ?background ?seed ?grain ?domains ?max_entries ?max_payload_bytes
       ~workspace ?source ~prepare ~draw ?overlay ?status () |> Result.get_ok in
     value.host.deterministic<-(match config.Sketch.clock with Fixed _->true|Realtime->false);value in
   let update value frame =

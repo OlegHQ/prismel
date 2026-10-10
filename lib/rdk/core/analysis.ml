@@ -484,11 +484,6 @@ let classify_connectivity ?cancel ?grain ?primitives ?points ?seams
   | Invalid_argument message -> Error (Error.make ~operation:"connectivity"
       ~code:"invalid_parameter" message)
 
-let connectivity geometry =
-  match classify_connectivity Connectivity_primitives geometry with
-  | Ok result -> result
-  | Error error -> invalid_arg (Error.to_string error)
-
 let with_measure_raw ?cancel ?grain ?primitives ?(accumulation = Per_element)
     ?name ?total_name measure geometry =
   let name = Option.value ~default:(measure_label measure) name in

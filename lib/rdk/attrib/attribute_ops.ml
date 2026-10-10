@@ -17,7 +17,7 @@ type method_ = Attribute_promote.method_ =
   | Array_all
   | Unique_values
 
-let promote = Attribute_promote.promote
+
 let promote_pattern = Attribute_promote.promote_pattern
 
 type rename_conflict = Attribute_lifecycle.rename_conflict =
@@ -116,31 +116,6 @@ type interpolate_computed = {
   computed_owner : Attribute.owner;
   computed_numbers_attribute : string;
   computed_weights_attribute : string;
-}
-type combine_operation = Attribute_combine.operation =
-  | Combine_copy
-  | Combine_add
-  | Combine_subtract
-  | Combine_multiply
-  | Combine_divide
-  | Combine_maximum
-  | Combine_minimum
-type combine_process = Attribute_combine.process =
-  | Combine_process_none
-  | Combine_reciprocal
-  | Combine_clamp_01
-  | Combine_complement_clamp_01
-  | Combine_threshold_half
-type combine_layer = Attribute_combine.layer = {
-  source : string option;
-  source_input : int;
-  operation : combine_operation;
-  scale : float;
-  add : float;
-  process : combine_process;
-  blend : float;
-  blend_attribute : string option;
-  blend_input : int;
 }
 type enumeration_storage = Attribute_enumerate.storage =
   | Integer | Text of { prefix : string }
@@ -273,12 +248,6 @@ let remap ?cancel ?(grain = 16_384) ?selection ~owner ~name ?into ~input
   | Invalid_argument message -> Error (Error.make
       ~operation:"attribute_remap" ~code:"invalid_parameter" message)
 
-let copy_rule ?into ~owner pattern = {
-  Attribute_copy.copy_owner = owner;
-  copy_pattern = pattern;
-  copy_into = into;
-}
-
 let interpolate_attribute ?into ~owner name =
   if String.trim name = "" then invalid_arg
       "Rdk.Attribute_ops.interpolate_attribute: empty source name";
@@ -332,39 +301,10 @@ let expand_interpolate_patterns ~match_groups ?point_pattern ?vertex_pattern
     | None | Some _ -> ()) (Geometry.groups source);
   Ok (List.rev !output, List.rev !groups))
 
-let combine_layer ?source ?(source_input = 0) ?(scale = 1.) ?(add = 0.)
-    ?(process = Combine_process_none) ?(blend = 1.) ?blend_attribute
-    ?(blend_input = 0) operation = {
-  Attribute_combine.source;
-  source_input;
-  operation;
-  scale;
-  add;
-  process;
-  blend;
-  blend_attribute;
-  blend_input;
-}
-
-let combine ?cancel ?grain ?selection ?match_attribute ?create_missing
-    ?create_missing_as_scalar ?delete_sources ?error_on_missing ?overall_scale
-    ?threshold ?minimum ?maximum ~owner ~destination ~layers ~geometries () =
-  try Result.map_error
-      (Error.of_string ~operation:"attribute_combine" ~code:"invalid_combine")
-      (Attribute_combine.combine ?cancel ?grain ?selection ?match_attribute
-         ?create_missing ?create_missing_as_scalar ?delete_sources
-         ?error_on_missing ?overall_scale ?threshold ?minimum ?maximum
-         ~owner ~destination ~layers ~geometries ())
-  with
-  | Cancel.Cancelled -> Error (Error.make ~operation:"attribute_combine"
-      ~code:"cancelled" "attribute combine was cancelled")
-  | Invalid_argument message -> Error (Error.make ~operation:"attribute_combine"
-      ~code:"invalid_parameter" message)
-
 let interpolate ?cancel ?grain ?selection ?driver ?compute_weights
     ?point_pattern ?vertex_pattern ?primitive_pattern ?detail_pattern
     ?(match_groups = false)
-    ?primitive_attribute ?uvw_attribute ?pre_scale ?normalize_weights ?threshold ?blend
+    ?pre_scale ?normalize_weights ?threshold ?blend
     ?(unmatched = Keep_target) ~target_owner ~attributes ~source ~target () =
   let unmatched = match unmatched with
     | Keep_target -> Attribute_interpolate.Keep_target
@@ -382,14 +322,8 @@ let interpolate ?cancel ?grain ?selection ?driver ?compute_weights
           computed_numbers_attribute = value.computed_numbers_attribute;
           computed_weights_attribute = value.computed_weights_attribute })
           computed_owner in
-  let driver_result = match driver, primitive_attribute, uvw_attribute with
-    | Some _, Some _, _ | Some _, _, Some _ ->
-        Error "Attribute Interpolate: driver is mutually exclusive with primitive_attribute and uvw_attribute"
-    | Some driver, None, None -> Ok driver
-    | None, primitive_attribute, uvw_attribute -> Ok (Primitive_uvw {
-        primitive_attribute = Option.value ~default:"source_primitive"
-          primitive_attribute;
-        uvw_attribute = Option.value ~default:"source_uvw" uvw_attribute }) in
+  let driver = Option.value driver ~default:(Primitive_uvw {
+    primitive_attribute = "source_primitive"; uvw_attribute = "source_uvw" }) in
   try Result.bind (Result.map_error
       (Error.of_string ~operation:"attribute_interpolate"
         ~code:"invalid_interpolate")
@@ -399,9 +333,6 @@ let interpolate ?cancel ?grain ?selection ?driver ?compute_weights
       Attribute_interpolate.source_owner = attribute.interpolate_owner;
       source_name = attribute.interpolate_source;
       target_name = attribute.interpolate_target }) (attributes @ expanded) in
-    Result.bind (Result.map_error
-      (Error.of_string ~operation:"attribute_interpolate"
-        ~code:"invalid_interpolate") driver_result) (fun driver ->
     Result.bind (Result.map_error
       (Error.of_string ~operation:"attribute_interpolate"
         ~code:"invalid_interpolate") compute_result) (fun compute ->
@@ -439,7 +370,7 @@ let interpolate ?cancel ?grain ?selection ?driver ?compute_weights
              ~numbers_attribute ~weights_attribute ?pre_scale ?normalize_weights
              ?threshold ?blend ~unmatched
              ~weighted_owner:Attribute_interpolate.Primitives ~target_owner
-             ~attributes ~groups ~source ~target ()))))
+             ~attributes ~groups ~source ~target ())))
   with
   | Cancel.Cancelled -> Error (Error.make ~operation:"attribute_interpolate"
       ~code:"cancelled" "attribute interpolation was cancelled")
@@ -463,7 +394,6 @@ type surface_attribute = Attribute_transfer.surface_attribute = {
   source_name : string;
   target_name : string;
 }
-let surface_attribute = Attribute_transfer.surface_attribute
 let transfer_points = Attribute_transfer.transfer_points
 let transfer_primitives = Attribute_transfer.transfer_primitives
 let transfer_detail = Attribute_transfer.transfer_detail

@@ -44,7 +44,7 @@ end
 module Init : sig
   type subsystem = Video | Events
 
-  val init : ?release:bool -> subsystem list -> (unit, error) result
+  val init : subsystem list -> (unit, error) result
   val quit_subsystems : subsystem list -> (unit, error) result
 end
 

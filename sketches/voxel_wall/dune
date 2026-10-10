@@ -6,7 +6,7 @@
 
 (executable
  (name main)
- (libraries rays rays_pathtracer rdk rdk_rays procedural sop_catalog rays_editor unix workspace_parity))
+ (libraries rays rays_pathtracer rdk rdk_rays sop sop_catalog rays_editor unix workspace_parity))
 
 (rule
  (alias runtest)

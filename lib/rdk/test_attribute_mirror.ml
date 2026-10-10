@@ -139,51 +139,6 @@ let test_plane_points_and_transforms () =
       && rest.x = [|-2.;-1.;1.;2.|])
     "Attribute Mirror point transformation"
 
-let paired_triangles () =
-  let topology = Topology.Builder.create ~point_count:6 () in
-  Topology.Builder.add_triangle topology 0 1 2;
-  Topology.Builder.add_triangle topology 3 4 5;
-  let geometry = Geometry.create
-      ~positions:(Packed.Float3.Private.of_owned_exn
-        ~x:[|-2.;-1.;-1.;1.;1.;2.|]
-        ~y:[|0.;-1.;1.;-1.;1.;0.|] ~z:[|0.;0.;0.;0.;0.;0.|])
-      ~topology:(Topology.Builder.freeze topology) () |> Result.get_ok in
-  geometry
-  |> add ~owner:Attribute.Vertex ~name:"vertex_map"
-      (Attribute.Int [|-1;-1;-1;2;1;0|])
-  |> add ~owner:Attribute.Vertex ~name:"v"
-      (Attribute.Float [|1.;2.;3.;0.;0.;0.|])
-  |> add ~owner:Attribute.Primitive ~name:"primitive_map"
-      (Attribute.Int [|-1;0|])
-  |> add ~owner:Attribute.Primitive ~name:"p" (Attribute.Float [|9.;0.|])
-  |> Geometry.with_group (group Group.Vertex "vertex_dest" 6 [3;4;5])
-  |> Result.get_ok
-  |> Geometry.with_group (group Group.Primitive "primitive_dest" 2 [1])
-  |> Result.get_ok
-
-let test_vertex_primitive_and_plane_primitive () =
-  let geometry = paired_triangles () in
-  let vertex_dest = Geometry.find_group ~owner:Group.Vertex "vertex_dest" geometry
-      |> Option.get
-  and primitive_dest = Geometry.find_group ~owner:Group.Primitive
-      "primitive_dest" geometry |> Option.get in
-  let vertices = Attribute_mirror.run ~owner:Attribute_mirror.Mirror_vertex_attributes
-      ~method_:(Attribute_mirror.Mirror_by_mapping { mapping_attribute = "vertex_map";
-        destination_group = vertex_dest }) ~attributes:"v" geometry |> get_ok in
-  check (scalar Attribute.Vertex "v" vertices = [|1.;2.;3.;3.;2.;1.|])
-    "Attribute Mirror vertex explicit mapping";
-  let primitives = Attribute_mirror.run ~owner:Attribute_mirror.Mirror_primitive_attributes
-      ~method_:(Attribute_mirror.Mirror_by_mapping { mapping_attribute = "primitive_map";
-        destination_group = primitive_dest }) ~attributes:"p" geometry |> get_ok in
-  check (scalar Attribute.Primitive "p" primitives = [|9.;9.|])
-    "Attribute Mirror primitive explicit mapping";
-  let plane = Attribute_mirror.run ~owner:Attribute_mirror.Mirror_primitive_attributes
-      ~method_:(Attribute_mirror.Mirror_by_plane { origin = Rays.Vec3.zero;
-        normal = Rays.Vec3.unit_x; distance = 0.; tolerance = 1e-12 })
-      ~attributes:"p" geometry |> get_ok in
-  check (scalar Attribute.Primitive "p" plane = [|9.;9.|])
-    "Attribute Mirror primitive bounding-box correspondence"
-
 let test_group_policies_and_noop () =
   let geometry = point_fixture () in
   let destination = Geometry.find_group ~owner:Group.Point "destination" geometry
@@ -305,7 +260,6 @@ let test_parallel_scale () =
 let run () =
   test_explicit_mapping_all_storage ();
   test_plane_points_and_transforms ();
-  test_vertex_primitive_and_plane_primitive ();
   test_group_policies_and_noop ();
   test_errors_and_cancellation ();
   test_parallel_scale ();

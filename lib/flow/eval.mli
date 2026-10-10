@@ -146,11 +146,11 @@ val state_stamp : state -> string
 val transaction : state -> (unit -> ('a, Diagnostic.t) result) -> ('a, Diagnostic.t) result
 (** Keep the previous fold snapshot when a group of evaluations fails. *)
 
-val residual_eval : ?state:state -> ?elems:(string * value) list -> residual -> live:live -> (value, Diagnostic.t) result
+val residual_eval : residual -> live:live -> (value, Diagnostic.t) result
 (** A live term's value at a time (never a [Residual] at the top). *)
 
 val force : ?state:state -> ?elems:(string * value) list ->
-  ?resolve:(value -> (value, Diagnostic.t) result) -> value -> live:live -> (value, Diagnostic.t) result
+  value -> live:live -> (value, Diagnostic.t) result
 (** Every residual inside a value replaced by its value at the time.  [elems] binds
     the element of each geometry zone ({!element_key}) to its value (a point
     is a [Vec3]); a residual that reads an unbound element is an error.

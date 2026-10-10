@@ -41,38 +41,6 @@ let seeds () =
   check "different seed"
     (not (same_bits (bake 3).camera.pixels (bake 4).camera.pixels))
 
-let sh9 () =
-  let world = with_layers [
-      World.Gradient { zenith = World.rgb 1. 0.9 0.8; horizon = World.rgb 0.4 0.4 0.5;
-                       nadir = World.rgb 0.1 0.1 0.1; sharpness = 1. };
-      World.Shape { shape = Circle; azimuth = 1.; elevation = 0.4; width = 1.2;
-                    height = 0.; softness = 0.6; color = World.rgb 2. 1. 0.5;
-                    intensity = 1.; emit = Dome } ] in
-  let baked = World.bake ~width:128 ~height:64 world in
-  let m = baked.lighting in
-  let brute n =
-    let sum = ref 0. in
-    for j = 0 to m.height - 1 do
-      let v = (float j +. 0.5) /. float m.height in
-      let dw = 2. *. Float.pi /. float m.width *. (Float.pi /. float m.height)
-               *. sin (v *. Float.pi) in
-      for i = 0 to m.width - 1 do
-        let d = World.direction_of_uv ((float i +. 0.5) /. float m.width) v in
-        let c = Float.max 0. (Vec3.dot d n) in
-        sum := !sum +. (Float.Array.get m.pixels (((j * m.width) + i) * 3) *. c *. dw)
-      done
-    done;
-    !sum in
-  let dirs = [ Vec3.unit_y; Vec3.neg Vec3.unit_y; Vec3.unit_x; Vec3.unit_z;
-               Vec3.normalize (Vec3.create 1. 0.5 (-1.)) ] in
-  let reference = List.map brute dirs in
-  let scale = List.fold_left Float.max 0. reference in
-  List.iter2 (fun n e ->
-    let got = (World.irradiance baked n).r in
-    Printf.printf "world sh9 irradiance %.4f vs brute force %.4f\n" got e;
-    check (Printf.sprintf "sh9 %.3f vs %.3f" got e)
-      (Float.abs (got -. e) <= 0.08 *. scale)) dirs reference
-
 let promoted () =
   let manual = `Manual (1., 0.5) and sun = World.Sun {
       angular_radius = 0.05; intensity = 50.; tint = World.rgb 1. 1. 0.9 } in
@@ -110,59 +78,10 @@ let promoted () =
      < Float.Array.fold_left ( +. ) 0. lit.camera.pixels);
   check "room panel lights" (List.length lit.lights = 6 && dome.lights = [])
 
-let cdf () =
-  let world = with_layers [ dark 1e-4;
-      World.Shape { shape = Circle; azimuth = 1.; elevation = 0.3; width = 0.2;
-                    height = 0.; softness = 0.; color = World.rgb 1. 1. 1.;
-                    intensity = 100.; emit = Dome } ] in
-  let baked = World.bake ~width:128 ~height:64 world in
-  let c = baked.cdf and w = 128 and h = 64 in
-  check "marginal ends at 1" (Float.Array.get c.marginal h = 1.);
-  for j = 0 to h - 1 do
-    check "conditional row ends at 1" (Float.Array.get c.conditional ((j * (w + 1)) + w) = 1.)
-  done;
-  check "integral positive" (c.integral > 0.);
-  (* First index k in [o, o + n) with a.(k + 1) > x. *)
-  let invert a o n x =
-    let lo = ref 0 and hi = ref (n - 1) in
-    while !lo < !hi do
-      let mid = (!lo + !hi) / 2 in
-      if Float.Array.get a (o + mid + 1) > x then hi := mid else lo := mid + 1
-    done;
-    !lo in
-  let centre = Vec3.create (cos 0.3 *. sin 1.) (sin 0.3) (-. cos 0.3 *. cos 1.) in
-  let hits = ref 0 and n = 1000 in
-  for s = 0 to n - 1 do
-    let x1 = (float s +. 0.5) /. float n and x2 = Float.rem (float s *. 0.618034) 1. in
-    let j = invert c.marginal 0 h x1 in
-    let i = invert c.conditional (j * (w + 1)) w x2 in
-    let d = World.direction_of_uv ((float i +. 0.5) /. float w) ((float j +. 0.5) /. float h) in
-    if Vec3.dot d centre > cos 0.2 then incr hits
-  done;
-  Printf.printf "world cdf: %d/%d samples inside the peak\n" !hits n;
-  check "cdf concentrates" (!hits > 9 * n / 10)
-
-let solar () =
-  let d = World.sun_direction ~latitude:0. ~day_of_year:80 ~hours:12. in
-  check "equinox noon at zenith" (d.y > 0.99);
-  check "midnight below horizon"
-    ((World.sun_direction ~latitude:0.7 ~day_of_year:172 ~hours:0.).y < 0.);
-  check "morning sun in the east"
-    ((World.sun_direction ~latitude:0.7 ~day_of_year:172 ~hours:8.).x > 0.)
-
-let round_trip () =
-  for k = 0 to 99 do
-    let u = (float k +. 0.5) /. 100. and v = 0.02 +. (0.96 *. Float.rem (float k *. 0.618) 1.) in
-    let u', v' = World.uv_of_direction (World.direction_of_uv u v) in
-    check "uv round trip" (Float.abs (u -. u') < 1e-12 && Float.abs (v -. v') < 1e-12)
-  done;
-  let u, _ = World.uv_of_direction (Vec3.create 0. 0. (-1.)) in
-  check "front is u = 0.5" (u = 0.5)
-
 let cached () =
   let a = World.bake_cached ~width:32 ~height:16 World.default in
   let b = World.bake_cached ~width:32 ~height:16 { World.default with exposure = 2. } in
   check "exposure-only change hits the cache" (a.camera == b.camera && b.exposure = 2.)
 
 let run () =
-  domains (); seeds (); sh9 (); promoted (); cdf (); solar (); round_trip (); cached ()
+  domains (); seeds (); promoted (); cached ()

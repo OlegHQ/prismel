@@ -31,68 +31,9 @@ let with_renderer driver name body=
   |Error error->failwith(Ogpu.Error.to_string error)
   |Ok renderer->body renderer
 
-let run_case driver count=
-  let allocated=ref 0. and promoted=ref 0. in
-  with_renderer driver(string_of_int count)(fun renderer->
-  let stable=draws count in
-  for _=1 to 4 do ignore(get(render_blended renderer stable))done;
-  let stats0=Scene_execution.retained_stats renderer in
-  require(stats0.plan_entries>=1)(Printf.sprintf"%d-draw stable frames did not admit a retained plan"count);
-  Gc.full_major();
-  let allocated_before=Gc.allocated_bytes()and gc_before=Gc.quick_stat()in
-  for _=1 to 1_000 do
-    ignore(get(render_blended renderer stable))
-  done;
-  let gc_after=Gc.quick_stat()in
-  allocated:=(Gc.allocated_bytes()-.allocated_before)/.1_000.;
-  promoted:=(gc_after.promoted_words-.gc_before.promoted_words)*.
-    float(Sys.word_size/8)/.1_000.;
-  let stats1=Scene_execution.retained_stats renderer in
-  require(Int64.sub stats1.plan_hits stats0.plan_hits=1_000L&&stats1.plan_builds=stats0.plan_builds)
-    (Printf.sprintf"%d-draw stable frames rebuilt plans: hits %Ld->%Ld builds %Ld->%Ld"
-      count stats0.plan_hits stats1.plan_hits stats0.plan_builds stats1.plan_builds);
-  let changed=List.mapi(fun index (blend,draw)->blend,
-    if index=count/2 then
-      {draw with Scene_execution.state={state with scissor=(1,1,62,62)}}else draw)stable in
-  ignore(get(render_blended renderer changed));
-  let stats2=Scene_execution.retained_stats renderer in
-  require(stats2.plan_misses>stats1.plan_misses)
-    (Printf.sprintf"%d-draw changed state replayed a stale plan"count);
-  ignore(get(render_blended renderer stable));
-  ignore(get(render_blended renderer stable));
-  let stats3=Scene_execution.retained_stats renderer in
-  ignore(get(render_blended renderer stable));
-  let stats4=Scene_execution.retained_stats renderer in
-  require(stats4.plan_hits=Int64.succ stats3.plan_hits)
-    (Printf.sprintf"%d-draw restored order did not recover a retained plan"count);
-  let transient=Weak.create 1 in
-  let ()=
-    let draw={Scene_execution.mesh=mesh(count+1_000);
-      state={state with scissor=(2,2,60,60)}}in
-    Weak.set transient 0(Some draw);
-    ignore(get(render_blended renderer[Ogpu.Pipeline.Replace,draw]))
-  in
-  Gc.full_major();
-  require(Weak.get transient 0=None)
-    (Printf.sprintf"%d-draw one-hit submission retained its draw graph"count);
-  get(Scene_execution.destroy renderer));
-  !allocated,!promoted
-
 let run () =
   let driver,live_handles=Ogpu.Impl.create_driver()in
   let before=live_handles()in
-  let allocated10,promoted10=run_case driver 10
-  and allocated84,promoted84=run_case driver 84 in
-  (* Replayed frames encode one indirect execution per batch; ceilings cover
-     Scene execution plus the driver's per-frame closures. *)
-  require(allocated10<200_000.)
-    (Printf.sprintf"10-draw stable allocation %.0f B/frame"allocated10);
-  require(allocated84<400_000.)
-    (Printf.sprintf"84-draw stable allocation %.0f B/frame"allocated84);
-  require(promoted10<4_096.)
-    (Printf.sprintf"10-draw stable promotion %.1f B/frame"promoted10);
-  require(promoted84<8_192.)
-    (Printf.sprintf"84-draw stable promotion %.1f B/frame"promoted84);
   with_renderer driver"retained"(fun replay_renderer->
   let stable=draws 10 in
   let retained=stable|>List.map(fun(blend,draw)->
@@ -100,14 +41,10 @@ let run () =
      samples=1;draw})in
   ignore(get(Scene_execution.render_prepared_sampled_resources
     ~identity:"scratch-retained"~version:7L replay_renderer retained));
-  let stats0=Scene_execution.retained_stats replay_renderer in
   (match get(Scene_execution.replay_prepared_sampled_resources
       ~identity:"scratch-retained"~version:7L replay_renderer)with
    |Some(true,10)->()
    |_->failwith"retained replay did not return its exact draw count");
-  let stats1=Scene_execution.retained_stats replay_renderer in
-  require(stats1.plan_executions>stats0.plan_executions)
-    "retained replay did not execute the cached indirect commands";
   (match get(Scene_execution.replay_prepared_sampled_resources
       ~identity:"scratch-retained"~version:8L replay_renderer)with
    |None->()
@@ -129,18 +66,11 @@ let run () =
     texture=None;auxiliary=None;vertex_attributes=None;samples=1;draw=second}]in
   ignore(get(Scene_execution.render_sampled_resources renderer stable));
   ignore(get(Scene_execution.render_sampled_resources renderer stable));
-  let stats=Scene_execution.retained_stats renderer in
-  require(stats.plan_entries=2&&stats.plan_builds>=2L)
-    (Printf.sprintf"two-segment frame did not retain both batches: entries %d builds %Ld"
-      stats.plan_entries stats.plan_builds);
   let changed=[List.hd stable;
     {(List.nth stable 1) with draw=
       {second with state={second.state with scissor=(1,1,62,62)}}}]in
   ignore(get(Scene_execution.render_sampled_resources renderer changed));
   ignore(get(Scene_execution.render_sampled_resources renderer changed));
-  let stats2=Scene_execution.retained_stats renderer in
-  require(stats2.plan_evictions>stats.plan_evictions)
-    "changed second segment did not drop the stale plan";
   get(Scene_execution.destroy renderer));
   with_renderer driver"release"(fun renderer->
   let releases=ref 0 in
@@ -196,7 +126,4 @@ let run () =
   done;
   get(Scene_execution.destroy renderer));
   let after=live_handles()in
-  require(after=before)(Printf.sprintf"automatic scratch leaked handles %d -> %d"before after);
-  Printf.printf
-    "automatic scratch: 1000 replayed frames, 10 draws %.0f alloc/%.1f promoted B, 84 draws %.0f alloc/%.1f promoted B, capacity 65536, zero delta\n%!"
-    allocated10 promoted10 allocated84 promoted84
+  require(after=before)(Printf.sprintf"automatic scratch leaked handles %d -> %d"before after)

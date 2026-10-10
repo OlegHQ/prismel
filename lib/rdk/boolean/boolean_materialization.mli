@@ -9,10 +9,6 @@ val tiny_seam_edges :
   Boolean_extract.ancestry -> Boolean_seam.t ->
   (Edge_group.t, Error.t) result
 
-val surface_seam_edges :
-  ?cancel:Cancel.t -> grain:int -> Boolean_extract.ancestry -> Boolean_seam.t ->
-  (Edge_group.t, Error.t) result
-
 val safe_independent_edges :
   ?cancel:Cancel.t -> grain:int -> ?keep_greatest:bool ->
   Edge_group.t -> Geometry.t ->
@@ -52,8 +48,7 @@ val cleanup_primitive_source : cleanup -> int -> int
 val cleanup_seam_edges : cleanup -> Edge_group.t
 
 val collapse_tiny_seam_batch :
-  ?cancel:Cancel.t -> grain:int -> threshold:float -> require_closed:bool ->
-  ?allow_opposite_duplicates:bool ->
+  grain:int -> threshold:float -> require_closed:bool ->
   Boolean_extract.ancestry -> Boolean_seam.t -> Geometry.t ->
   (cleanup, Error.t) result
 (** Collapse one deterministic independent batch to the least endpoint, then

@@ -1,5 +1,5 @@
 open Rays
-open Procedural
+open Sop
 open Test_support
 
 let edit_parameters graph ~node_id changes =
@@ -15,7 +15,7 @@ type controls = {
 } [@@deriving sop_params]
 
 let cook session context node = match Session.cook session ~context node with
-  | Ok output -> (Result.get_ok (Procedural.Payload.geometry output.Session.payload))
+  | Ok output -> (Result.get_ok (Sop.Payload.geometry output.Session.payload))
   | Error error -> fail (Diagnostic.error_to_string error)
 
 let x geometry =
@@ -24,7 +24,7 @@ let x geometry =
   positions.x.(0)
 
 let run () =
-  let input = Sop.points [|0., 0., 0.|] in
+  let input = Lisp_sop.snapshot (Rdk.Line_geometry.points [|0., 0., 0.|]) in
   let node = Custom.map ~label:"animated wrangle" ~version:2
       ~dependencies:(Context.Dependencies.one Context.Dependencies.Time)
       ~operation:"animated_translate" ~schema:controls_schema
@@ -60,7 +60,7 @@ let run () =
   Session.close session;
   let custom_factories =
     Edit_graph.factory ~key:"my_custom_sop" ~label:"My Custom SOP" ~category:[ "Custom" ]
-      ~arity:0 (function [] -> Sop.points [| 0., 0., 0. |] | _ -> invalid_arg "none")
+      ~arity:0 (function [] -> Lisp_sop.snapshot (Rdk.Line_geometry.points [| 0., 0., 0. |]) | _ -> invalid_arg "none")
     :: Sop_catalog.Editor.factories in
   let text = {|(workspace test_custom
     (graph scene :context scene

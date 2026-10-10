@@ -40,8 +40,8 @@ type sampled_draw={family:pipeline_family;blend:Ogpu.Pipeline.blend;
   vertex_attributes:(string*bytes)option;
   samples:int;draw:draw}
 type scene3_entry=sampled_draw
-type prepared_scene3={clear:float*float*float*float;clear_depth:float;
-  clear_stencil:int;entries:scene3_entry array}
+type prepared_scene3={
+  entries:scene3_entry array}
 type cached={mutable key:string;mutable payload_hash:string;mutable trusted_source:mesh option;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable uniform_copy:bytes;mutable vertex_count:int;mutable index_count:int;mutable primitive:Ogpu.Render_pass.primitive;bytes:int}
 type uniform_slice={uniform_buffer:Ogpu.Backend.buffer;uniform_offset:int64;
   (* The frame's staging bytes and this slice's window into them, kept for
@@ -234,7 +234,7 @@ let prepare_scene3 ~clear ~clear_depth ~clear_stencil entries =
   else if not(Array.for_all valid_entry entries)then
     error"Scene_execution.prepare_scene3"Ogpu.Error.Invalid_argument
       "draw family, resources, samples, mesh, or extent is malformed"
-  else Ok{clear;clear_depth;clear_stencil;entries=Array.copy entries}
+  else Ok{entries=Array.copy entries}
 let set_u32_le bytes offset value =
   let open Int32 in
   Bytes.set bytes offset (Char.chr (to_int (logand value 0xffl)));
@@ -1517,21 +1517,15 @@ module Private = struct
   let gpu_vertex_count_for_test()=Hashtbl.length gpu_vertex_registry
   let cache_count_for_report value=String_table.length value.cache
 end
-type retained_stats={plan_builds:int64;plan_hits:int64;plan_misses:int64;plan_evictions:int64;
-  plan_executions:int64;plan_failures:int64;plan_last_failure:string option;plan_entries:int;plan_capacity:int}
+type retained_stats={plan_hits:int64;plan_misses:int64;
+  }
 let retained_stats value=
-  let live plan=Option.fold~none:0~some:(fun plan->List.length(List.filter(fun b->Option.is_some b.batch_icb)plan.replay_batches))plan in
-  {plan_builds=value.icb_stats.icb_builds;plan_hits=value.icb_stats.icb_hits;plan_misses=value.icb_stats.icb_misses;
-   plan_evictions=value.icb_stats.icb_evictions;plan_executions=value.icb_stats.icb_executions;
-   plan_failures=value.icb_stats.icb_failures;plan_last_failure=value.icb_stats.icb_last_failure;
-   plan_entries=live value.automatic_submission+live(Option.map(fun s->s.submission_plan)value.prepared_submission);
-   plan_capacity=2}
+  {plan_hits=value.icb_stats.icb_hits;plan_misses=value.icb_stats.icb_misses;
+
+   }
 let pipeline_count value=List.length value.pipelines
 let read_pixels value ~bytes_per_row=Result.bind(settle value)(fun()->
   Ogpu.Backend.read_texture value.target~bytes_per_row)
-let read_pixels_into value ~bytes_per_row ~destination=
-  Result.bind(settle value)(fun()->
-    Ogpu.Backend.read_texture_into value.target~bytes_per_row~destination)
 (* Every owned handle is released; the first failure is reported after the
    remaining releases and device teardown have run. *)
 let destroy value=if value.dead then Ok()else(ignore(settle value);value.dead<-true;

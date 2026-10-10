@@ -1,5 +1,5 @@
 module E = Flow.Eval
-module P = Procedural
+module P = Sop
 let ok = function Ok x -> x | Error d -> failwith (Flow.Diagnostic.to_string d)
 let cooked = function Ok x -> x | Error d -> failwith (P.Diagnostic.error_to_string d)
 let parse text = Flow.Syntax.parse text |> ok

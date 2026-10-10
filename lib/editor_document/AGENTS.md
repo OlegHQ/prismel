@@ -2,7 +2,7 @@
 
 This library owns the immutable document, sketch settings, the scene object and World layer
 schemas, validation and presets. It is private to the Rays package and independent of PXUI, the
-shell, graph presentation, `sketch_support` and `rays_editor`; `test/dependency_gate.ml` enforces
+shell, graph presentation and `rays_editor`; `test/dependency_gate.ml` enforces
 it. Selection, navigation, cooking and history policy belong to the host. Root rules apply.
 
 ## Where things live
@@ -30,9 +30,10 @@ it. Selection, navigation, cooking and history policy belong to the host. Root r
 - **A loop's copies are one template.** An edit of a literal field writes the template and every
   copy changes; a field the loop computes is refused with its expression; deleting a copy adds
   its iteration tuple to a `:skip`, so the other copies keep their homes and ids.
-- **A scene graph is authoritative** for every object kind, and a world graph for the World:
+- **A scene graph is authoritative** for every object kind, the World included
+  (a `scene/world` member):
   what it does not say is not there. Only a workspace with no such graph gets the host's camera,
-  lights, one geometry object per `sop` graph and the `?world`; such an object has no text until
+  lights and one geometry object per `sop` graph; such an object has no text until
   its first explicit edit writes the graph from all derived objects (`adopt`). A camera following
   the viewport is not such an edit (`~adopt:false`).
 - **Write-back.** What is asked of an object the text declares is written text first, the derived
@@ -52,8 +53,7 @@ it. Selection, navigation, cooking and history policy belong to the host. Root r
   `E_SCENE_WORLD` and `E_SCENE_CAMERA` are raised while lowering, so a gesture that would cause
   one is refused whole.
 - **The World.** `scene/world (ref g)` is an object like the others, its layers the world graph
-  `g`. A world graph that returns a `world/world` call is still read as the scene's World and is
-  rewritten as a member the first time it gains layers.
+  `g`.
 - **Physical identity.** `of_workspace ~previous` keeps an unchanged scene network, object
   network and settings physically, so an edit elsewhere recomposes nothing. Find an object's
   graph with `Document.object_graph`, which does not rely on identity alone.

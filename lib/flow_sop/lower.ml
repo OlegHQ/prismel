@@ -1,6 +1,6 @@
 open Flow
-module Edit = Procedural.Edit_graph
-module Zone = Procedural.Zone
+module Edit = Sop.Edit_graph
+module Zone = Sop.Zone
 module E = Eval
 
 let source_attribute = "__flow_src"
@@ -11,7 +11,7 @@ type zone = { cid : int; site : Workspace.path; iter : int list; body_site : Wor
               base : int; count : int Atomic.t; ekey : string option;
               positions : (float * float * float) array Atomic.t }
 type graph = {
-  name : string; instance : int; default : bool; inputs : (string * E.value) list;
+  name : string; instance : int; default : bool;
   network : Network.t; root : int option;
 }
 type t = {
@@ -41,7 +41,7 @@ let edit = function Ok value -> value | Error message -> fail "E_LOWER" message
 type image_context = {compiled:int Network.Int_map.t; network:Network.t}
 
 type image_resolver = ?context:image_context -> E.plan -> state:E.state -> live:Frame_input.t -> E.value ->
-  (Procedural.Image.t, Diagnostic.t) result
+  (Sop.Image.t, Diagnostic.t) result
 type images = {resolve:image_resolver; metadata:E.plan -> int -> (int * int) option}
 let image_provider = Domain.DLS.new_key (fun () -> None)
 let with_images ?(metadata=fun _ _->None) resolver run =
@@ -51,12 +51,12 @@ let with_images ?(metadata=fun _ _->None) resolver run =
 let image_metadata plan = match Domain.DLS.get image_provider with
   |None->(fun _->None)|Some images->images.metadata plan
 let resource_image operation result =
-  Procedural.Node.Private.make ~operation ~version:1
-    ~parameters:(match result with Ok image->string_of_int(Procedural.Image.data_id image)|Error _->"unbound")
-    ~cook_mode:Procedural.Node.Generator ~dependencies:Procedural.Context.Dependencies.static ~inputs:[||]
+  Sop.Node.Private.make ~operation ~version:1
+    ~parameters:(match result with Ok image->string_of_int(Sop.Image.data_id image)|Error _->"unbound")
+    ~cook_mode:Sop.Node.Generator ~dependencies:Sop.Context.Dependencies.static ~inputs:[||]
     (fun ~node_id:_ _ _->match result with
-      |Ok image->Ok Procedural.Node.Private.{payload=Procedural.Payload.Image image;instances=None;diagnostics=[]}
-      |Error diagnostic->Error(Procedural.Diagnostic.error ~code:diagnostic.Diagnostic.code diagnostic.message))
+      |Ok image->Ok Sop.Node.Private.{payload=Sop.Payload.Image image;instances=None;diagnostics=[]}
+      |Error diagnostic->Error(Sop.Diagnostic.error ~code:diagnostic.Diagnostic.code diagnostic.message))
 
 type kernel_input = {index : int; cid : int; identity : int;
   signature : Ty.fn_signature; fn : E.fn; sources : int list}
@@ -99,7 +99,13 @@ let changes_of (parameter : Port.parameter) value =
       ok (Port.literal_changes parameter (Port.Scalar literal))
   | None, _ -> fail "E_LOWER" ("Port " ^ parameter.path ^ " takes text")
   | Some _, E.Text text -> snd (ok (Port.normalize parameter (typed (hex text))))
-  | Some _, value -> snd (ok (Port.normalize parameter (typed value)))
+  | Some _, value ->
+      let finite = match value with
+        | E.Float f -> Float.is_finite f
+        | Vec3 (x, y, z) -> Float.is_finite x && Float.is_finite y && Float.is_finite z
+        | _ -> true in
+      if not finite then fail "E_LOWER" ("Port " ^ parameter.path ^ " takes a finite number");
+      snd (ok (Port.normalize parameter (typed value)))
 
 let changes parameter value = try Ok (changes_of parameter value) with Fail d -> Error d
 
@@ -154,7 +160,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
       match Instance_path.Map.find_opt key !ids with
       | Some id -> id
       | None ->
-          let id = Procedural.Node.Private.fresh_id () in
+          let id = Sop.Node.Private.fresh_id () in
           ids := Instance_path.Map.add key id !ids; id in
     let compiled = Array.make (Array.length plan.nodes) 0 in
     let int_arg (n : E.node) k = match List.assoc_opt k n.args with
@@ -277,19 +283,40 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                     {merge = cid; input = index; source = compiled.(source);
                      site = s.site; iter = s.iter} !provenance) sources;
                 (* the catalog's merge (one rest slot) plus the provenance attribute *)
+                let attribute = match List.assoc_opt "source_attribute" args with
+                  | None -> ""
+                  | Some (E.Text name) -> String.trim name
+                  | Some _ -> fail "E_LOWER" "sop/merge :source_attribute must be text" in
+                let source_base = match List.assoc_opt "source_base" args with
+                  | None -> 0
+                  | Some (E.Int n) -> n
+                  | Some _ -> fail "E_LOWER" "sop/merge :source_base must be an integer" in
                 let arity = max 1 (List.length sources) in
                 let factory = Edit.factory_slots ~key:"merge" ~label:"Merge"
                   ~slots:["input"] ~category:["Copy"] ~inputs:[Edit.Rest]
-                  (fun nodes -> Procedural.Sop.merge ~source_attribute ~source_base:base
-                    (List.filter_map Fun.id nodes)) in
+                  (fun nodes ->
+                    if attribute <> "" then
+                      Merge_source.node ~tag:source_attribute ~attribute ~base ~source_base
+                        (List.filter_map Fun.id nodes)
+                    else
+                    let merged = Result.bind (Edit.instantiate Sop.Nodes.Merge.factory
+                        (List.filter_map Fun.id nodes)) (fun node ->
+                      Result.map fst (Sop.Node.apply_parameters node
+                        [ "source_attribute", Param.Text_value source_attribute;
+                          "source_base", Param.Int_value base ])) in
+                    match merged with Ok node -> node | Error message -> invalid_arg message) in
                 {cid; factory; arity; changes = []; dynamic = []; zone = None; kernels = [];
                  slots = List.mapi (fun i s -> i, s) sources}
             | "sop/curve" ->
                 let encode points = [Curve.parameter, Param.Text_value (Curve.encode (curve_points points))] in
-                let changes = match List.assoc_opt "points" args with
+                let closed = match List.assoc_opt "closed" args with
+                  | None -> []
+                  | Some (E.Bool closed) -> [Curve.closed_parameter, Param.Bool_value closed]
+                  | Some _ -> fail "E_LOWER" "sop/curve :closed must be a constant bool" in
+                let changes = closed @ (match List.assoc_opt "points" args with
                   | Some points when E.is_live points ->
                       dynamic := [ points, (fun v -> encode [ "points", v ]) ]; []
-                  | _ -> encode args in
+                  | _ -> encode args) in
                 {cid; factory = Curve.factory; arity = 0; slots = []; changes;
                  dynamic = []; zone = None; kernels = []}
             | "zone/points" | "zone/pieces" ->
@@ -316,7 +343,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                   | ["sop"; key] -> key
                   | ["image"; "noise"] -> "image_noise"
                   | _ -> fail "E_LOWER" ("Cannot lower " ^ kind) in
-                let factory = if key = "image_noise" then Procedural.Image_nodes.noise_factory else find_factory key in
+                let factory = if key = "image_noise" then Sop.Image_nodes.noise_factory else find_factory key in
                 let names = Edit.factory_slot_names factory
                 and parameters = parameters factory in
                 let rest = List.find_index (function Edit.Rest | Optional_rest -> true | _ -> false)
@@ -342,7 +369,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                         | _ -> fail "E_LOWER" ("Input " ^ name ^ " does not declare a function signature") in
                       let cid = compiled_id {node with site = node.site @ ["~kernel:" ^ name]} in
                       kernels := {index; cid; signature; fn;
-                        identity = Procedural.Node.Private.fresh_id ();
+                        identity = Sop.Node.Private.fresh_id ();
                         sources = Attribute_kernel.sources (E.Fn fn)} :: !kernels
                   | Some _, _ -> fail "E_LOWER" ("Slot " ^ name ^ " needs geometry")
                   | None, value ->
@@ -359,7 +386,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
     and kernel_node ?state ?elems (k : kernel_input) inputs =
       Function_kernel.node ?state ~reference ?elems ~identity:k.identity
         ~signature:k.signature ~fn:k.fn ~sources:k.sources inputs
-      |> Procedural.Node.Private.restore_id k.cid |> edit
+      |> Sop.Node.Private.restore_id k.cid |> edit
     and make_zone ?state ~outer z inputs =
       let stamp = Option.fold ~none:"" ~some:E.state_stamp state in
       let stamp = match z.preview with
@@ -372,7 +399,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           Atomic.set z.positions (Array.map (fun (e : Zone.element) -> e.position) elements))
         ~live:z.live ~stamp ~kind:z.kind ?key:z.key ?select ~source_attribute
         ~source_base:z.base ~inputs ~body:(fun ~inputs ~context ->
-          instantiate ?state ~outer ~live:(Procedural.Context.input context) z ~inputs) ()
+          instantiate ?state ~outer ~live:(Sop.Context.input context) z ~inputs) ()
     (* Re-root a geometry-loop template at the selected node. Unused bindings
        may have different captures from the authored result, so follow its cone. *)
     and focus z target probes =
@@ -429,12 +456,12 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
                 ~values:(List.assoc "values" n.args) ~sources:(deps n)
                 (List.filter_map Fun.id options)
           | None -> edit (Edit.instantiate_optional p.factory options) in
-        let node = edit (Procedural.Node.Private.restore_id p.cid node) in
+        let node = edit (Sop.Node.Private.restore_id p.cid node) in
         let changes = p.changes @ List.concat_map (fun (v, changes) ->
           changes (match E.force ?state:(Option.map E.fork_state state) ~elems:outer v ~live with
             | Ok v -> v | Error d -> failwith (Diagnostic.to_string d))) p.dynamic in
         let node = if changes = [] then node
-          else fst (edit (Procedural.Node.apply_parameters node changes)) in
+          else fst (edit (Sop.Node.apply_parameters node changes)) in
         Hashtbl.replace bound id node in
       (* what does not read the element is built once per cook of the zone *)
       let shared = Hashtbl.create 16 and varies = Hashtbl.create 16 in
@@ -497,14 +524,14 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         | Some z when z.stateful && Edit.find graph ~node_id:p.cid <> None ->
             Network.Int_map.add p.cid (fun ~network:_ state _live node ->
               let snapshot = E.fork_state state in
-              Ok(Procedural.Node.Private.adopt_identity ~source:node
-                (make_zone ~state:snapshot ~outer:[] z (Procedural.Node.Private.input_array node)))) nodes
+              Ok(Sop.Node.Private.adopt_identity ~source:node
+                (make_zone ~state:snapshot ~outer:[] z (Sop.Node.Private.input_array node)))) nodes
         | _ -> nodes) prepared Network.Int_map.empty in
       let frame_nodes = Hashtbl.fold (fun _ (p : prepared) nodes ->
         List.fold_left (fun nodes (k : kernel_input) ->
           if not (E.state_dependent (E.Fn k.fn)) || Edit.find graph ~node_id:k.cid = None then nodes
           else Network.Int_map.add k.cid (fun ~network:_ state _live node ->
-            Ok (kernel_node ~state:(E.fork_state state) k (Procedural.Node.inputs node))) nodes)
+            Ok (kernel_node ~state:(E.fork_state state) k (Sop.Node.inputs node))) nodes)
           nodes p.kernels) prepared frame_nodes in
       let frame_nodes = Array.fold_left (fun nodes (n : E.node) ->
         let values = List.assoc_opt "values" n.args in
@@ -528,9 +555,9 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
             |None->values
             |Some(Flow_ir.Executor.Gpu _)->assert false in
           if selected=None && not(E.state_dependent values) then Ok node else
-          Ok(Procedural.Node.Private.adopt_identity ~source:node
+          Ok(Sop.Node.Private.adopt_identity ~source:node
             (Attribute_kernel.node ~reference ~profile ~state:(E.fork_state state) ~source:(Lazy.force kernel_source) ~name
-              ~values ~sources:(deps n) (Procedural.Node.inputs node))))) nodes)
+              ~values ~sources:(deps n) (Sop.Node.inputs node))))) nodes)
         frame_nodes plan.nodes in
       let frame_nodes=Array.fold_left(fun nodes (n:E.node)->
         if (n.kind<>"image/load" && n.kind<>"image/render" && n.kind<>"image/map"
@@ -539,8 +566,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
             match Domain.DLS.get image_provider with
             |None->Error(Diagnostic.error ~code:"E_IMAGE" "Image resources need an initial-domain resolver.")
             |Some images->Result.map(fun image->
-                if Procedural.Node.parameters node=string_of_int(Procedural.Image.data_id image) then node else
-                Procedural.Node.Private.adopt_identity ~source:node (resource_image n.kind (Ok image)))
+                if Sop.Node.parameters node=string_of_int(Sop.Image.data_id image) then node else
+                Sop.Node.Private.adopt_identity ~source:node (resource_image n.kind (Ok image)))
               (images.resolve ~context:{compiled=compiled_context;network} plan ~state ~live (E.Deferred(Ty.image,n.id))))nodes)
         frame_nodes plan.nodes in
       let network = Network.with_frame_nodes frame_nodes network in
@@ -576,8 +603,8 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
           | Some source -> Edit.find graph ~node_id:compiled.(source)
           | None -> None) in
         let node = edit (Edit.instantiate_optional p.factory options) in
-        let node = edit (Procedural.Node.Private.restore_id p.cid node) in
-        let inputs = Array.of_list (List.map (Option.map Procedural.Node.id)
+        let node = edit (Sop.Node.Private.restore_id p.cid node) in
+        let inputs = Array.of_list (List.map (Option.map Sop.Node.id)
           options) in
         let graph = edit (Edit.add_node ~factory:p.factory ~inputs node graph) in
         if p.changes = [] then graph
@@ -589,7 +616,7 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         | _ -> fail "E_LOWER" ("Graph " ^ instance.graph ^ " does not return geometry") in
       let graph = match root with
         | Some id -> edit (Edit.set_root id graph) | None -> graph in
-      {name = instance.graph; instance = index; default = instance.default; inputs = instance.inputs;
+      {name = instance.graph; instance = index; default = instance.default;
        network = live_network (Network.of_geometry graph) graph; root} in
     let graphs = List.concat (List.mapi (fun index instance ->
       if sop_instance instance then [build index instance] else [])
@@ -620,13 +647,13 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
             match Edit.find network.geometry ~node_id:compiled.(id) with
             | Some node -> node | None -> fail "E_LOWER" "Preview capture is not in the owning network") sources) in
           let viewed = make_zone ~outer:[] z inputs in
-          let root = Procedural.Node.id viewed in
+          let root = Sop.Node.id viewed in
           let geometry = edit (Edit.add_node viewed network.geometry) in
           let network = ok (Network.with_geometry geometry network) in
           let frames = if not z.stateful then network.frame_nodes else
             Network.Int_map.add root (fun ~network:_ state _live node ->
-              Ok(Procedural.Node.Private.adopt_identity ~source:node
-                (make_zone ~state:(E.fork_state state) ~outer:[] z (Procedural.Node.Private.input_array node))))
+              Ok(Sop.Node.Private.adopt_identity ~source:node
+                (make_zone ~state:(E.fork_state state) ~outer:[] z (Sop.Node.Private.input_array node))))
               network.frame_nodes in
           Network.with_frame_nodes frames network, root) outer in
     Ok {graphs; compiled_ids = !ids; sites = List.rev !site_list;
@@ -636,9 +663,9 @@ let of_checked ~factories ?(reference = false) ?(compiled_ids = Instance_path.Ma
         approx = checked.approx; approx_reasons = checked.approx_reasons; profile; preview}
   with Fail diagnostic -> Error diagnostic)
 
-let workspace ~factories ?extra ?(ops = Operators.all) ?reference ?compiled_ids ?sites ?inputs source =
+let workspace ~factories ?extra ?reference ?compiled_ids ?sites ?inputs source =
   Result.bind (Catalog.of_factories ~version:Manifest.version ?extra factories) (fun catalog ->
-    match Workspace.check ~ops catalog source with
+    match Workspace.check ~ops:Operators.all catalog source with
     | Some checked, _ -> of_checked ~factories ?reference ?compiled_ids ?sites ?inputs checked
     | None, diagnostics -> Error (match List.find_opt (fun (d : Diagnostic.t) ->
         d.severity = Diagnostic.Error) diagnostics with
@@ -722,13 +749,13 @@ let zone_element lowered site k =
 
 let field_calls ?state ~live ~resolve lowered =
   let state = Option.map E.fork_state state in
-  let defaults = Procedural.Edit_graph.factory_fields Procedural.Nodes.Iso_surface.factory in
+  let defaults = Sop.Edit_graph.factory_fields Sop.Nodes.Iso_surface.factory in
   let vector (node : E.node) name =
     match List.assoc_opt name node.args with
     | Some value -> (match E.Private.force_reference ?state ~resolve value ~live with
         | Ok (E.Vec3 (x,y,z)) -> Some (x,y,z) | _ -> None)
     | None ->
-        let component suffix = List.find_map (fun (f : Procedural.Parameter.field_view) ->
+        let component suffix = List.find_map (fun (f : Sop.Parameter.field_view) ->
           if f.name = name ^ suffix then match f.current with
             | Float_value value -> Some value | _ -> None else None) defaults in
         Option.bind (component "_x") (fun x -> Option.bind (component "_y")

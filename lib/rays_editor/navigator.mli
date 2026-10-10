@@ -66,7 +66,7 @@ val rows : ?wide:bool -> state -> params -> row array
 (** Every row in order; a search shows the matching bindings instead.  Under 300 points (not
     [wide]) the outline is the workspace sheet's: no node rows, no Layout, no Data flow. *)
 
-val row_rects : ?row_height:int -> state -> params -> bounds:int * int * int * int ->
+val row_rects : state -> params -> bounds:int * int * int * int ->
   (row * (float * float * float * float)) array
 (** Every row with its rectangle when not scrolled: where {!view} draws it and where a click
     on it lands. *)

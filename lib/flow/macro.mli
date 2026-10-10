@@ -43,6 +43,6 @@ val expand_once :
     [macros] are [defmacro] forms; the result's new forms take the span of the
     call. *)
 
-val expand : ?state:state -> Syntax.t list -> Syntax.t -> (Syntax.t, Diagnostic.t) result
+val expand : Syntax.t list -> Syntax.t -> (Syntax.t, Diagnostic.t) result
 (** Every macro call in the form, recursively.  Deterministic: the same call
     always expands to the same text. *)
